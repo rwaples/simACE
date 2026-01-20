@@ -1,0 +1,22 @@
+name: ACE
+channels: 
+  - nodefaults
+  - conda-forge
+  - bioconda
+dependencies:
+  - numpy
+  - scipy
+  - jupyter
+  - notebook
+  - seaborn 
+  - matplotlib
+  - tskit
+  - msprime
+  - libopenblas
+  - snakemake
+  - snakemake-executor-plugin-slurm
+  - snakefmt
+  - hdf5
+  - graph-tool
+  - pyarrow
+ 

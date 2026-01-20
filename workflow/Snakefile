@@ -1,0 +1,31 @@
+configfile: "config/config.yaml"
+
+
+rule all:
+    input:
+        expand("results/{scenario}/pedigree.parquet", scenario=config["scenarios"].keys())
+
+
+rule simulate:
+    output:
+        pedigree="results/{scenario}/pedigree.parquet",
+        params="results/{scenario}/params.yaml"
+    params:
+        seed=lambda w: config["scenarios"][w.scenario]["seed"],
+        A=lambda w: config["scenarios"][w.scenario]["A"],
+        C=lambda w: config["scenarios"][w.scenario]["C"],
+        N=lambda w: config["scenarios"][w.scenario]["N"],
+        ngen=lambda w: config["scenarios"][w.scenario]["ngen"],
+        fam_size=lambda w: config["scenarios"][w.scenario]["fam_size"],
+        p_mztwin=lambda w: config["scenarios"][w.scenario]["p_mztwin"],
+        p_nonsocial_father=lambda w: config["scenarios"][w.scenario]["p_nonsocial_father"],
+    log:
+        "logs/{scenario}/simulate.log"
+    benchmark:
+        "benchmarks/{scenario}/simulate.tsv"
+    resources:
+        mem_mb=32000,
+        runtime=60
+    threads: 1
+    script:
+        "scripts/simulate.py"
