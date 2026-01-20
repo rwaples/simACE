@@ -129,7 +129,7 @@ def reproduce(rng, pheno, parents, twins, sd_A, sd_E):
     return offspring, sex_offspring
 
 
-def add_to_pedigree(pheno, sex, parents, twins, pedigree=None):
+def add_to_pedigree(pheno, sex, parents, twins, generation, pedigree=None):
     """Add a generation to the pedigree DataFrame.
 
     Args:
@@ -137,6 +137,7 @@ def add_to_pedigree(pheno, sex, parents, twins, pedigree=None):
         sex: (n,) array of sex values
         parents: (n, 2) array of [mother_idx, father_idx]
         twins: array of MZ twin index pairs
+        generation: generation number (0 for founders)
         pedigree: existing pedigree DataFrame or None for first generation
 
     Returns:
@@ -146,13 +147,14 @@ def add_to_pedigree(pheno, sex, parents, twins, pedigree=None):
     df['sex'] = sex
     df[['mother', 'father']] = parents
     df['twin'] = -1
+    df['generation'] = generation
 
     if len(twins) > 0:
         df.loc[twins[:, 0], 'twin'] = twins[:, 1]
         df.loc[twins[:, 1], 'twin'] = twins[:, 0]
 
     df['id'] = df.index.values
-    df = df[['id', 'sex', 'mother', 'father', 'twin', 'A', 'C', 'E']]
+    df = df[['id', 'sex', 'mother', 'father', 'twin', 'generation', 'A', 'C', 'E']]
 
     if pedigree is not None:
         n = len(df)
@@ -209,7 +211,7 @@ def run_simulation(seed, A, C, N, ngen, fam_size, p_mztwin, p_nonsocial_father):
             rng, sex, fam_size, p_nonsocial_father, p_mztwin
         )
         pheno, sex = reproduce(rng, pheno, parents, twins, sd_A, sd_E)
-        pedigree = add_to_pedigree(pheno, sex, parents, twins, pedigree)
+        pedigree = add_to_pedigree(pheno, sex, parents, twins, generation=i, pedigree=pedigree)
 
     return pedigree
 
