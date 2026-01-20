@@ -15,11 +15,23 @@ import yaml
 def mating(rng, parental_sex, fam_size, p_nonsocial_father, p_mztwin):
     """Generate parent-offspring pairings.
 
+    Args:
+        rng: numpy random generator
+        parental_sex: array of sex values for parents
+        fam_size: mean family size (Poisson lambda)
+        p_nonsocial_father: proportion of non-social fathers
+        p_mztwin: target empirical rate of MZ twins (fraction of individuals who are twins)
+
     Returns:
         parent_idxs: (n, 2) array of [mother_idx, father_idx] for each offspring
         twins: array of [twin1_idx, twin2_idx] pairs for MZ twins
     """
     n = len(parental_sex)
+
+    # Convert target twin rate to per-birth probability
+    # If each birth has prob p of being twins, expected twin rate = 2p/(1+p)
+    # Solving for p given target rate t: p = t / (2 - t)
+    p_twin_birth = p_mztwin / (2 - p_mztwin)
     nmale = parental_sex.sum()
     nfemale = n - nmale
     male_idxs = np.where(parental_sex)[0]
@@ -41,28 +53,36 @@ def mating(rng, parental_sex, fam_size, p_nonsocial_father, p_mztwin):
     for i in range(nfemale):
         mother = female_idxs[i]
         social_father = male_idxs[i]
-        num_kids = family_sizes[i]
+        target_size = min(family_sizes[i], remaining_offspring)
+        offspring_created = 0
 
-        if num_kids > remaining_offspring:
-            num_kids = remaining_offspring
-
-        for k in range(num_kids):
+        while offspring_created < target_size and remaining_offspring > 0:
+            # Determine biological father
             if rng.uniform() > p_nonsocial_father:
                 bio_father = social_father
             else:
                 bio_father = rng.choice(male_idxs)
 
-            if rng.uniform() > p_mztwin:
-                parent_idxs[remaining_offspring - 1] = [mother, bio_father]
-                remaining_offspring -= 1
-            else:
+            # Check if twins: need room for 2 in both family and population
+            slots_in_family = target_size - offspring_created
+            is_twin = (rng.uniform() <= p_twin_birth and
+                       slots_in_family >= 2 and
+                       remaining_offspring >= 2)
+
+            if is_twin:
                 # MZ twins
+                idx1 = remaining_offspring - 1
+                idx2 = remaining_offspring - 2
+                parent_idxs[idx1] = [mother, bio_father]
+                parent_idxs[idx2] = [mother, bio_father]
+                twins.append([idx1, idx2])
+                remaining_offspring -= 2
+                offspring_created += 2
+            else:
+                # Singleton
                 parent_idxs[remaining_offspring - 1] = [mother, bio_father]
                 remaining_offspring -= 1
-                if remaining_offspring > 0:
-                    parent_idxs[remaining_offspring - 1] = [mother, bio_father]
-                    remaining_offspring -= 1
-                    twins.append([remaining_offspring + 1, remaining_offspring])
+                offspring_created += 1
 
         if remaining_offspring == 0:
             break
@@ -141,6 +161,7 @@ def add_to_pedigree(pheno, sex, parents, twins, pedigree=None):
         df['id'] = df['id'] + offset_id
         df['mother'] = df['mother'] + offset_parent
         df['father'] = df['father'] + offset_parent
+        df.loc[df['twin'] != -1, 'twin'] = df.loc[df['twin'] != -1, 'twin'] + offset_id
         pedigree = pd.concat([pedigree, df]).reset_index(drop=True)
     else:
         # First generation: no known parents

@@ -3,7 +3,9 @@ configfile: "config/config.yaml"
 
 rule all:
     input:
-        expand("results/{scenario}/pedigree.parquet", scenario=config["scenarios"].keys())
+        expand("results/{scenario}/pedigree.parquet", scenario=config["scenarios"].keys()),
+        expand("results/{scenario}/validation.yaml", scenario=config["scenarios"].keys()),
+        "results/validation_summary.tsv"
 
 
 rule simulate:
@@ -29,3 +31,28 @@ rule simulate:
     threads: 1
     script:
         "scripts/simulate.py"
+
+
+rule validate:
+    input:
+        pedigree="results/{scenario}/pedigree.parquet",
+        params="results/{scenario}/params.yaml"
+    output:
+        report="results/{scenario}/validation.yaml"
+    log:
+        "logs/{scenario}/validate.log"
+    script:
+        "scripts/validate.py"
+
+
+rule gather_validation:
+    input:
+        validations=expand("results/{scenario}/validation.yaml", scenario=config["scenarios"].keys())
+    output:
+        tsv="results/validation_summary.tsv"
+    params:
+        scenarios=list(config["scenarios"].keys())
+    log:
+        "logs/gather_validation.log"
+    script:
+        "scripts/gather_validation.py"
