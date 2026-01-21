@@ -9,7 +9,7 @@ defaults:
   ngen: 3
   fam_size: 2.7
   p_mztwin: 0.02
-  p_nonsocial_father: 0.10
+  p_nonsocial_father: 0.05
 
 scenarios:
   baseline10K:
