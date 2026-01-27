@@ -144,6 +144,7 @@ def add_to_pedigree(pheno, sex, parents, twins, generation, pedigree=None):
         Updated pedigree DataFrame
     """
     df = pd.DataFrame(pheno, columns=['A', 'C', 'E'])
+    df['liability'] = df['A'] + df['C'] + df['E']
     df['sex'] = sex
     df[['mother', 'father']] = parents
     df['twin'] = -1
@@ -154,7 +155,7 @@ def add_to_pedigree(pheno, sex, parents, twins, generation, pedigree=None):
         df.loc[twins[:, 1], 'twin'] = twins[:, 0]
 
     df['id'] = df.index.values
-    df = df[['id', 'sex', 'mother', 'father', 'twin', 'generation', 'A', 'C', 'E']]
+    df = df[['id', 'sex', 'mother', 'father', 'twin', 'generation', 'A', 'C', 'E', 'liability']]
 
     if pedigree is not None:
         n = len(df)
@@ -240,6 +241,7 @@ if __name__ == "__main__":
     # Save parameters used for this simulation
     params_dict = {
         'seed': params.seed,
+        'rep': params.rep,
         'A': params.A,
         'C': params.C,
         'E': 1.0 - params.A - params.C,

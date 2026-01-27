@@ -3,13 +3,27 @@
 
 defaults:
   seed: 42
+  replicates: 50
+  
+  # variance components
   A: 0.5
   C: 0.2
+  
+  # Population and reproduction
   N: 100000
   ngen: 3
   fam_size: 2.7
   p_mztwin: 0.02
   p_nonsocial_father: 0.05
+
+  # Phenotype model
+  beta: 1.0                # Effect of liability on log-hazard
+  rate: 0.00215            # Hazard rate (baseline) (Weibull)
+  k: 0.8                   # Weibull shape (>1 = increasing with age)
+  standardize: true        # Standardize liability before phenotyping
+  censor_age: 80           # Administrative censoring age
+  death_rate: 9.095e-7      # Death hazard rate (Weibull)
+  death_k: 2.73              # Death hazard shape (Weibull)
 
 scenarios:
   baseline10K:
@@ -24,11 +38,25 @@ scenarios:
     A: 0.8
     C: 0.0
 
-
   low_heritability:
     A: 0.1
     C: 0.0
+    
+  no_heritability:
+    seed: 12
+    A: 0
+    C: 0 
 
   small_test:
     seed: 123
     N: 10000
+    
+  no_twins:
+    p_mztwin: 0
+  
+  no_fullsibs:
+    p_nonsocial_father: 1.0
+    
+    
+  
+    
