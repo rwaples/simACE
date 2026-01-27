@@ -65,9 +65,11 @@ def mating(rng, parental_sex, fam_size, p_nonsocial_father, p_mztwin):
 
             # Check if twins: need room for 2 in both family and population
             slots_in_family = target_size - offspring_created
-            is_twin = (rng.uniform() <= p_twin_birth and
-                       slots_in_family >= 2 and
-                       remaining_offspring >= 2)
+            is_twin = (
+                rng.uniform() <= p_twin_birth
+                and slots_in_family >= 2
+                and remaining_offspring >= 2
+            )
 
             if is_twin:
                 # MZ twins
@@ -87,7 +89,9 @@ def mating(rng, parental_sex, fam_size, p_nonsocial_father, p_mztwin):
         if remaining_offspring == 0:
             break
 
-    return parent_idxs, np.array(twins, dtype=int) if twins else np.array([], dtype=int).reshape(0, 2)
+    return parent_idxs, (
+        np.array(twins, dtype=int) if twins else np.array([], dtype=int).reshape(0, 2)
+    )
 
 
 def reproduce(rng, pheno, parents, twins, sd_A, sd_E):
@@ -143,33 +147,46 @@ def add_to_pedigree(pheno, sex, parents, twins, generation, pedigree=None):
     Returns:
         Updated pedigree DataFrame
     """
-    df = pd.DataFrame(pheno, columns=['A', 'C', 'E'])
-    df['liability'] = df['A'] + df['C'] + df['E']
-    df['sex'] = sex
-    df[['mother', 'father']] = parents
-    df['twin'] = -1
-    df['generation'] = generation
+    df = pd.DataFrame(pheno, columns=["A", "C", "E"])
+    df["liability"] = df["A"] + df["C"] + df["E"]
+    df["sex"] = sex
+    df[["mother", "father"]] = parents
+    df["twin"] = -1
+    df["generation"] = generation
 
     if len(twins) > 0:
-        df.loc[twins[:, 0], 'twin'] = twins[:, 1]
-        df.loc[twins[:, 1], 'twin'] = twins[:, 0]
+        df.loc[twins[:, 0], "twin"] = twins[:, 1]
+        df.loc[twins[:, 1], "twin"] = twins[:, 0]
 
-    df['id'] = df.index.values
-    df = df[['id', 'sex', 'mother', 'father', 'twin', 'generation', 'A', 'C', 'E', 'liability']]
+    df["id"] = df.index.values
+    df = df[
+        [
+            "id",
+            "sex",
+            "mother",
+            "father",
+            "twin",
+            "generation",
+            "A",
+            "C",
+            "E",
+            "liability",
+        ]
+    ]
 
     if pedigree is not None:
         n = len(df)
-        offset_id = pedigree['id'].max() + 1
+        offset_id = pedigree["id"].max() + 1
         offset_parent = offset_id - n
-        df['id'] = df['id'] + offset_id
-        df['mother'] = df['mother'] + offset_parent
-        df['father'] = df['father'] + offset_parent
-        df.loc[df['twin'] != -1, 'twin'] = df.loc[df['twin'] != -1, 'twin'] + offset_id
+        df["id"] = df["id"] + offset_id
+        df["mother"] = df["mother"] + offset_parent
+        df["father"] = df["father"] + offset_parent
+        df.loc[df["twin"] != -1, "twin"] = df.loc[df["twin"] != -1, "twin"] + offset_id
         pedigree = pd.concat([pedigree, df]).reset_index(drop=True)
     else:
         # First generation: no known parents
-        df['mother'] = -1
-        df['father'] = -1
+        df["mother"] = -1
+        df["father"] = -1
         pedigree = df
 
     return pedigree
@@ -208,11 +225,11 @@ def run_simulation(seed, A, C, N, ngen, fam_size, p_mztwin, p_nonsocial_father):
     # Simulate generations
     pedigree = None
     for i in range(ngen):
-        parents, twins = mating(
-            rng, sex, fam_size, p_nonsocial_father, p_mztwin
-        )
+        parents, twins = mating(rng, sex, fam_size, p_nonsocial_father, p_mztwin)
         pheno, sex = reproduce(rng, pheno, parents, twins, sd_A, sd_E)
-        pedigree = add_to_pedigree(pheno, sex, parents, twins, generation=i, pedigree=pedigree)
+        pedigree = add_to_pedigree(
+            pheno, sex, parents, twins, generation=i, pedigree=pedigree
+        )
 
     return pedigree
 
@@ -240,16 +257,16 @@ if __name__ == "__main__":
 
     # Save parameters used for this simulation
     params_dict = {
-        'seed': params.seed,
-        'rep': params.rep,
-        'A': params.A,
-        'C': params.C,
-        'E': 1.0 - params.A - params.C,
-        'N': params.N,
-        'ngen': params.ngen,
-        'fam_size': params.fam_size,
-        'p_mztwin': params.p_mztwin,
-        'p_nonsocial_father': params.p_nonsocial_father,
+        "seed": params.seed,
+        "rep": params.rep,
+        "A": params.A,
+        "C": params.C,
+        "E": 1.0 - params.A - params.C,
+        "N": params.N,
+        "ngen": params.ngen,
+        "fam_size": params.fam_size,
+        "p_mztwin": params.p_mztwin,
+        "p_nonsocial_father": params.p_nonsocial_father,
     }
-    with open(output_params, 'w') as f:
+    with open(output_params, "w") as f:
         yaml.dump(params_dict, f, default_flow_style=False)

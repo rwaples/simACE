@@ -19,22 +19,21 @@ def simulate_phenotype(liability, beta, rate, k, seed, standardize=True):
     """Apply frailty model to convert liability to phenotype.
 
     Args:
-        liability: quantitative phenotype
+        liability: quantitative phenotype (array)
         beta: effect of liability on log-hazard
         rate: Weibull scale parameter
         k: Weibull shape parameter
-        seed: Random seed
+        seed: random seed
         standardize: standardize liability before phenotype
 
-
     Returns:
-        time of onset
+        Array of simulated time-to-onset values
     """
     rng = np.random.default_rng(seed)
     if standardize:
         lmean = liability.mean()
         lstd = np.std(liability)
-        liability = (liability - lmean)/ lstd
+        liability = (liability - lmean) / lstd
 
     frailty = np.exp(beta * liability)
 
@@ -44,30 +43,55 @@ def simulate_phenotype(liability, beta, rate, k, seed, standardize=True):
 
     return t
 
+
 def age_censor(t, age):
+    """Apply administrative age censoring.
+
+    Args:
+        t: array of time-to-onset values
+        age: censoring age (max observable age)
+
+    Returns:
+        DataFrame with 't' (censored times) and 'age_censored' (bool)
+    """
     age = int(np.floor(age))
-    censored = (t>age)
-    
+    censored = t > age
+
     t[censored] = age
 
-    return pd.DataFrame({
-        't': t,
-        'age_censored': censored,
-    })
+    return pd.DataFrame(
+        {
+            "t": t,
+            "age_censored": censored,
+        }
+    )
+
 
 def death_censor(t, seed, rate=1e-19, k=10):
+    """Apply competing risk death censoring with Weibull hazard.
 
+    Args:
+        t: array of time-to-onset values
+        seed: random seed
+        rate: Weibull scale parameter for death hazard
+        k: Weibull shape parameter for death hazard
+
+    Returns:
+        DataFrame with 't' (censored times) and 'death_censored' (bool)
+    """
     rng = np.random.default_rng(seed)
     u = rng.uniform(size=len(t))
-    dt = ((-np.log(u)) / rate ) ** (1 / k)
-    censored = (t > dt)
+    dt = ((-np.log(u)) / rate) ** (1 / k)
+    censored = t > dt
 
     t[censored] = dt[censored]
 
-    return pd.DataFrame({
-        't': t,
-        'death_censored': censored,
-    })
+    return pd.DataFrame(
+        {
+            "t": t,
+            "death_censored": censored,
+        }
+    )
 
 
 if __name__ == "__main__":
@@ -76,12 +100,12 @@ if __name__ == "__main__":
 
     # Step 1: Simulate uncensored time-to-onset
     t_raw = simulate_phenotype(
-        liability=pedigree['liability'].values,
+        liability=pedigree["liability"].values,
         beta=snakemake.params.beta,
         rate=snakemake.params.rate,
         k=snakemake.params.k,
         seed=snakemake.params.seed,
-        standardize=snakemake.params.standardize
+        standardize=snakemake.params.standardize,
     )
 
     # Step 2: Apply age censoring first
@@ -89,22 +113,24 @@ if __name__ == "__main__":
 
     # Step 3: Apply death censoring sequentially to age-censored result
     death_result = death_censor(
-        age_result['t'].values.copy(),
+        age_result["t"].values.copy(),
         seed=snakemake.params.seed + 1000,
         rate=snakemake.params.death_rate,
         k=snakemake.params.death_k,
     )
 
     # Combine into single DataFrame
-    phenotype = pd.DataFrame({
-        'id': pedigree['id'],
-        't': t_raw,
-        'age_censored': age_result['age_censored'],
-        't_observed': death_result['t'],
-        'death_censored': death_result['death_censored'],
-    })
+    phenotype = pd.DataFrame(
+        {
+            "id": pedigree["id"],
+            "t": t_raw,
+            "age_censored": age_result["age_censored"],
+            "t_observed": death_result["t"],
+            "death_censored": death_result["death_censored"],
+        }
+    )
 
     # affected = onset before any censoring
-    phenotype['affected'] = ~phenotype['age_censored'] & ~phenotype['death_censored']
+    phenotype["affected"] = ~phenotype["age_censored"] & ~phenotype["death_censored"]
 
     phenotype.to_parquet(snakemake.output.phenotype, index=False)
