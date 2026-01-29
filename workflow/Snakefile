@@ -21,6 +21,15 @@ def get_all_outputs():
     return outputs
 
 
+def get_phenotype_plot_outputs():
+    """Generate phenotype plot output paths across scenarios."""
+    outputs = []
+    for scenario in config["scenarios"].keys():
+        for plot in ["death_age_distribution.png", "phenotype_trait1.png", "phenotype_trait2.png", "liability_regression_trait1.png", "liability_regression_trait2.png", "liability_violin.png"]:
+            outputs.append(f"results/{scenario}/plots/{plot}")
+    return outputs
+
+
 def get_all_validations():
     """Generate all validation file paths for gather_validation."""
     validations = []
@@ -35,7 +44,8 @@ rule all:
     input:
         get_all_outputs(),
         "results/validation_summary.tsv",
-        "results/plots/variance_components.png"
+        "results/plots/variance_components.png",
+        get_phenotype_plot_outputs()
 
 
 rule simulate:
@@ -44,14 +54,19 @@ rule simulate:
         params="results/{scenario}/rep{rep}/params.yaml"
     params:
         seed=lambda w: get_param(w.scenario, "seed") + int(w.rep) - 1,
-        A=lambda w: get_param(w.scenario, "A"),
-        C=lambda w: get_param(w.scenario, "C"),
         N=lambda w: get_param(w.scenario, "N"),
-        ngen=lambda w: get_param(w.scenario, "ngen"),
+        G_ped=lambda w: get_param(w.scenario, "G_ped"),
+        G_sim=lambda w: get_param(w.scenario, "G_sim"),
         fam_size=lambda w: get_param(w.scenario, "fam_size"),
         p_mztwin=lambda w: get_param(w.scenario, "p_mztwin"),
         p_nonsocial_father=lambda w: get_param(w.scenario, "p_nonsocial_father"),
         rep=lambda w: int(w.rep),
+        A1=lambda w: get_param(w.scenario, "A1"),
+        C1=lambda w: get_param(w.scenario, "C1"),
+        A2=lambda w: get_param(w.scenario, "A2"),
+        C2=lambda w: get_param(w.scenario, "C2"),
+        rA=lambda w: get_param(w.scenario, "rA"),
+        rC=lambda w: get_param(w.scenario, "rC"),
     log:
         "logs/{scenario}/rep{rep}/simulate.log"
     benchmark:
@@ -71,9 +86,15 @@ rule phenotype:
         phenotype="results/{scenario}/rep{rep}/phenotype.parquet"
     params:
         seed=lambda w: get_param(w.scenario, "seed") + int(w.rep) - 1,
-        beta=lambda w: get_param(w.scenario, "beta"),
-        rate=lambda w: get_param(w.scenario, "rate"),
-        k=lambda w: get_param(w.scenario, "k"),
+        # Trait 1 phenotype parameters
+        beta1=lambda w: get_param(w.scenario, "beta1"),
+        rate1=lambda w: get_param(w.scenario, "rate1"),
+        k1=lambda w: get_param(w.scenario, "k1"),
+        # Trait 2 phenotype parameters
+        beta2=lambda w: get_param(w.scenario, "beta2"),
+        rate2=lambda w: get_param(w.scenario, "rate2"),
+        k2=lambda w: get_param(w.scenario, "k2"),
+        # Shared parameters
         standardize=lambda w: get_param(w.scenario, "standardize"),
         censor_age=lambda w: get_param(w.scenario, "censor_age"),
         death_rate=lambda w: get_param(w.scenario, "death_rate"),
@@ -107,6 +128,28 @@ rule gather_validation:
         "scripts/gather_validation.py"
 
 
+rule plot_phenotype:
+    input:
+        phenotypes=lambda w: expand(
+            "results/{scenario}/rep{rep}/phenotype.parquet",
+            scenario=w.scenario,
+            rep=range(1, get_param(w.scenario, "replicates") + 1),
+        ),
+    params:
+        censor_age=lambda w: get_param(w.scenario, "censor_age"),
+    output:
+        "results/{scenario}/plots/death_age_distribution.png",
+        "results/{scenario}/plots/phenotype_trait1.png",
+        "results/{scenario}/plots/phenotype_trait2.png",
+        "results/{scenario}/plots/liability_regression_trait1.png",
+        "results/{scenario}/plots/liability_regression_trait2.png",
+        "results/{scenario}/plots/liability_violin.png"
+    log:
+        "logs/{scenario}/plot_phenotype.log"
+    script:
+        "scripts/plot_phenotype.py"
+
+
 rule plot_validation:
     input:
         tsv="results/validation_summary.tsv"
@@ -117,6 +160,7 @@ rule plot_validation:
         "results/plots/correlations_phenotype.png",
         "results/plots/heritability_estimates.png",
         "results/plots/half_sib_proportions.png",
+        "results/plots/cross_trait_correlations.png",
         "results/plots/summary_bias.png"
     log:
         "logs/plot_validation.log"

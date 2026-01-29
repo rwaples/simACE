@@ -5,11 +5,56 @@ Simulates multi-generational pedigrees with:
 - A: Additive genetic component
 - C: Common/shared environment component
 - E: Unique environment component
+
+Supports single-trait and two-trait (bivariate) modes with configurable
+cross-trait correlations for genetic (rA) and common environment (rC) components.
 """
 
 import numpy as np
 import pandas as pd
 import yaml
+
+
+def generate_correlated_components(rng, n, sd1, sd2, correlation):
+    """Generate two correlated normal variables via multivariate normal.
+
+    Args:
+        rng: numpy random generator
+        n: number of samples
+        sd1: standard deviation for component 1
+        sd2: standard deviation for component 2
+        correlation: correlation between components
+
+    Returns:
+        (comp1, comp2): tuple of arrays, each shape (n,)
+    """
+    cov = [
+        [sd1**2, correlation * sd1 * sd2],
+        [correlation * sd1 * sd2, sd2**2],
+    ]
+    samples = rng.multivariate_normal(mean=[0, 0], cov=cov, size=n)
+    return samples[:, 0], samples[:, 1]
+
+
+def generate_mendelian_noise(rng, n, sd_A1, sd_A2, rA):
+    """Generate correlated Mendelian sampling noise for two traits.
+
+    The Mendelian noise has variance = 0.5 * Var(A) for each trait,
+    so sd_noise = sd_A / sqrt(2).
+
+    Args:
+        rng: numpy random generator
+        n: number of offspring
+        sd_A1: standard deviation of A1 (sqrt of A1 variance)
+        sd_A2: standard deviation of A2 (sqrt of A2 variance)
+        rA: genetic correlation between traits
+
+    Returns:
+        (noise1, noise2): tuple of arrays, each shape (n,)
+    """
+    sd_noise1 = sd_A1 / np.sqrt(2)
+    sd_noise2 = sd_A2 / np.sqrt(2)
+    return generate_correlated_components(rng, n, sd_noise1, sd_noise2, rA)
 
 
 def mating(rng, parental_sex, fam_size, p_nonsocial_father, p_mztwin):
@@ -94,42 +139,63 @@ def mating(rng, parental_sex, fam_size, p_nonsocial_father, p_mztwin):
     )
 
 
-def reproduce(rng, pheno, parents, twins, sd_A, sd_E):
-    """Simulate offspring phenotypes from parents.
+def reproduce(rng, pheno, parents, twins, sd_A1, sd_E1, sd_A2, sd_E2, rA):
+    """Simulate offspring phenotypes from parents for two correlated traits.
 
     Args:
         rng: numpy random generator
-        pheno: (n, 3) array of [A, C, E] values for parents
+        pheno: (n, 6) array of [A1, C1, E1, A2, C2, E2] for parents
         parents: (n, 2) array of [mother_idx, father_idx]
         twins: array of MZ twin index pairs
-        sd_A: standard deviation of additive genetic component
-        sd_E: standard deviation of unique environment component
+        sd_A1: standard deviation of A for trait 1
+        sd_E1: standard deviation of E for trait 1
+        sd_A2: standard deviation of A for trait 2
+        sd_E2: standard deviation of E for trait 2
+        rA: genetic correlation between traits
 
     Returns:
-        offspring: (n, 3) array of [A, C, E] values
+        offspring: (n, 6) array of [A1, C1, E1, A2, C2, E2]
         sex_offspring: (n,) array of sex values (0=female, 1=male)
     """
-    n = len(pheno)
+    n = len(parents)
 
-    # Additive genetic: midparent value + noise
-    mp = pheno[:, 0][parents].mean(1)
-    a_offspring = rng.normal(size=n, loc=mp, scale=sd_A / np.sqrt(2))
-
-    # Common environment: inherited from mother
-    c_offspring = pheno[:, 1][parents[:, 0]]
-
-    # Unique environment: random per individual
-    e_offspring = rng.normal(size=n, loc=0, scale=sd_E)
-
-    # Sex
+    # Sex assignment
     sex_offspring = rng.binomial(size=n, n=1, p=0.5)
 
-    # MZ twins share additive genetic factor and sex
+    # Additive genetic: midparent + correlated Mendelian noise
+    mp1 = pheno[:, 0][parents].mean(1)  # A1 midparent
+    mp2 = pheno[:, 3][parents].mean(1)  # A2 midparent
+
+    noise1, noise2 = generate_mendelian_noise(rng, n, sd_A1, sd_A2, rA)
+    a1_offspring = mp1 + noise1
+    a2_offspring = mp2 + noise2
+
+    # Common environment: inherited from mother (both traits)
+    c1_offspring = pheno[:, 1][parents[:, 0]]
+    c2_offspring = pheno[:, 4][parents[:, 0]]
+
+    # Unique environment: independent draws for each trait
+    e1_offspring = rng.normal(size=n, loc=0, scale=sd_E1)
+    e2_offspring = rng.normal(size=n, loc=0, scale=sd_E2)
+
+    # MZ twins share A values and sex for both traits
     if len(twins) > 0:
-        a_offspring[twins[:, 1]] = a_offspring[twins[:, 0]]
+        a1_offspring[twins[:, 1]] = a1_offspring[twins[:, 0]]
+        a2_offspring[twins[:, 1]] = a2_offspring[twins[:, 0]]
         sex_offspring[twins[:, 1]] = sex_offspring[twins[:, 0]]
 
-    offspring = np.stack([a_offspring, c_offspring, e_offspring], axis=-1)
+    offspring = np.stack(
+        [
+            a1_offspring,
+            c1_offspring,
+            e1_offspring,
+            a2_offspring,
+            c2_offspring,
+            e2_offspring,
+        ],
+        axis=-1,
+    )
+
     return offspring, sex_offspring
 
 
@@ -137,7 +203,7 @@ def add_to_pedigree(pheno, sex, parents, twins, generation, pedigree=None):
     """Add a generation to the pedigree DataFrame.
 
     Args:
-        pheno: (n, 3) array of [A, C, E] values
+        pheno: (n, 6) array of [A1, C1, E1, A2, C2, E2]
         sex: (n,) array of sex values
         parents: (n, 2) array of [mother_idx, father_idx]
         twins: array of MZ twin index pairs
@@ -147,8 +213,10 @@ def add_to_pedigree(pheno, sex, parents, twins, generation, pedigree=None):
     Returns:
         Updated pedigree DataFrame
     """
-    df = pd.DataFrame(pheno, columns=["A", "C", "E"])
-    df["liability"] = df["A"] + df["C"] + df["E"]
+    df = pd.DataFrame(pheno, columns=["A1", "C1", "E1", "A2", "C2", "E2"])
+    df["liability1"] = df["A1"] + df["C1"] + df["E1"]
+    df["liability2"] = df["A2"] + df["C2"] + df["E2"]
+
     df["sex"] = sex
     df[["mother", "father"]] = parents
     df["twin"] = -1
@@ -167,10 +235,14 @@ def add_to_pedigree(pheno, sex, parents, twins, generation, pedigree=None):
             "father",
             "twin",
             "generation",
-            "A",
-            "C",
-            "E",
-            "liability",
+            "A1",
+            "C1",
+            "E1",
+            "liability1",
+            "A2",
+            "C2",
+            "E2",
+            "liability2",
         ]
     ]
 
@@ -192,44 +264,80 @@ def add_to_pedigree(pheno, sex, parents, twins, generation, pedigree=None):
     return pedigree
 
 
-def run_simulation(seed, A, C, N, ngen, fam_size, p_mztwin, p_nonsocial_father):
-    """Run the full ACE simulation.
+def run_simulation(
+    seed,
+    N,
+    G_ped,
+    fam_size,
+    p_mztwin,
+    p_nonsocial_father,
+    A1,
+    C1,
+    A2,
+    C2,
+    rA,
+    rC,
+    G_sim=None,
+):
+    """Run the full ACE simulation for two correlated traits.
 
     Args:
         seed: Random seed
-        A: Additive genetic variance component
-        C: Common environment variance component
         N: Population size per generation
-        ngen: Number of generations
+        G_ped: Number of generations to record in pedigree
         fam_size: Mean family size
         p_mztwin: Proportion of MZ twins
         p_nonsocial_father: Proportion of non-social fathers
+        A1, C1: Trait 1 variance components
+        A2, C2: Trait 2 variance components
+        rA: Genetic correlation between traits
+        rC: Common environment correlation between traits
+        G_sim: Total generations to simulate (default: G_ped). First G_sim - G_ped
+               generations are burn-in and discarded from output.
 
     Returns:
         pedigree DataFrame
     """
+    if G_sim is None:
+        G_sim = G_ped
+    if G_sim < G_ped:
+        raise ValueError(f"G_sim ({G_sim}) must be >= G_ped ({G_ped})")
+
     rng = np.random.default_rng(seed)
 
-    E = 1.0 - A - C
-    sd_A = np.sqrt(A)
-    sd_C = np.sqrt(C)
-    sd_E = np.sqrt(E)
+    E1 = 1.0 - A1 - C1
+    E2 = 1.0 - A2 - C2
 
-    # Initialize first generation
+    sd_A1, sd_C1, sd_E1 = np.sqrt(A1), np.sqrt(C1), np.sqrt(E1)
+    sd_A2, sd_C2, sd_E2 = np.sqrt(A2), np.sqrt(C2), np.sqrt(E2)
+
+    # Initialize founders with correlated components
     sex = rng.binomial(size=N, n=1, p=0.5)
-    a_pheno = rng.normal(size=N, loc=0, scale=sd_A)
-    c_household = rng.normal(size=N, loc=0, scale=sd_C)
-    e = rng.normal(size=N, loc=0, scale=sd_E)
-    pheno = np.stack([a_pheno, c_household, e], axis=-1)
+
+    # A components: correlated via rA
+    a1, a2 = generate_correlated_components(rng, N, sd_A1, sd_A2, rA)
+
+    # C components: correlated via rC
+    c1, c2 = generate_correlated_components(rng, N, sd_C1, sd_C2, rC)
+
+    # E components: independent (no correlation)
+    e1 = rng.normal(size=N, loc=0, scale=sd_E1)
+    e2 = rng.normal(size=N, loc=0, scale=sd_E2)
+
+    pheno = np.stack([a1, c1, e1, a2, c2, e2], axis=-1)
 
     # Simulate generations
+    burnin = G_sim - G_ped
     pedigree = None
-    for i in range(ngen):
+    for i in range(G_sim):
         parents, twins = mating(rng, sex, fam_size, p_nonsocial_father, p_mztwin)
-        pheno, sex = reproduce(rng, pheno, parents, twins, sd_A, sd_E)
-        pedigree = add_to_pedigree(
-            pheno, sex, parents, twins, generation=i, pedigree=pedigree
+        pheno, sex = reproduce(
+            rng, pheno, parents, twins, sd_A1, sd_E1, sd_A2, sd_E2, rA
         )
+        if i >= burnin:
+            pedigree = add_to_pedigree(
+                pheno, sex, parents, twins, generation=i - burnin, pedigree=pedigree
+            )
 
     return pedigree
 
@@ -243,13 +351,18 @@ if __name__ == "__main__":
     # Run simulation
     pedigree = run_simulation(
         seed=params.seed,
-        A=params.A,
-        C=params.C,
         N=params.N,
-        ngen=params.ngen,
+        G_ped=params.G_ped,
         fam_size=params.fam_size,
         p_mztwin=params.p_mztwin,
         p_nonsocial_father=params.p_nonsocial_father,
+        A1=params.A1,
+        C1=params.C1,
+        A2=params.A2,
+        C2=params.C2,
+        rA=params.rA,
+        rC=params.rC,
+        G_sim=params.G_sim,
     )
 
     # Save pedigree
@@ -259,11 +372,17 @@ if __name__ == "__main__":
     params_dict = {
         "seed": params.seed,
         "rep": params.rep,
-        "A": params.A,
-        "C": params.C,
-        "E": 1.0 - params.A - params.C,
+        "A1": params.A1,
+        "C1": params.C1,
+        "E1": 1.0 - params.A1 - params.C1,
+        "A2": params.A2,
+        "C2": params.C2,
+        "E2": 1.0 - params.A2 - params.C2,
+        "rA": params.rA,
+        "rC": params.rC,
         "N": params.N,
-        "ngen": params.ngen,
+        "G_ped": params.G_ped,
+        "G_sim": params.G_sim,
         "fam_size": params.fam_size,
         "p_mztwin": params.p_mztwin,
         "p_nonsocial_father": params.p_nonsocial_father,

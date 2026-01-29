@@ -36,31 +36,68 @@ def extract_metrics(validation_path):
         "scenario": scenario,
         "rep": rep,
         "N": params.get("N"),
-        "ngen": params.get("ngen"),
-        "A": params.get("A"),
-        "C": params.get("C"),
-        "E": params.get("E"),
+        "G_ped": params.get("G_ped"),
+        "G_sim": params.get("G_sim"),
+        # Trait 1 parameters
+        "A1": params.get("A1"),
+        "C1": params.get("C1"),
+        "E1": params.get("E1"),
+        # Trait 2 parameters
+        "A2": params.get("A2"),
+        "C2": params.get("C2"),
+        "E2": params.get("E2"),
+        # Cross-trait correlations
+        "rA": params.get("rA"),
+        "rC": params.get("rC"),
+        # Population parameters
         "p_mztwin": params.get("p_mztwin"),
         "p_nonsocial_father": params.get("p_nonsocial_father"),
         "fam_size": params.get("fam_size"),
         "seed": params.get("seed"),
         "checks_failed": summary.get("checks_failed"),
+        # Twin rate
         "observed_twin_rate": get_nested(data, "twins", "twin_rate", "observed_rate"),
-        "variance_A": get_nested(data, "statistical", "variance_A", "observed"),
-        "variance_C": get_nested(data, "statistical", "variance_C", "observed"),
-        "variance_E": get_nested(data, "statistical", "variance_E", "observed"),
-        "mz_twin_A_corr": get_nested(
-            data, "heritability", "mz_twin_A_correlation", "observed"
+        # Trait 1 variances
+        "variance_A1": get_nested(data, "statistical", "variance_A1", "observed"),
+        "variance_C1": get_nested(data, "statistical", "variance_C1", "observed"),
+        "variance_E1": get_nested(data, "statistical", "variance_E1", "observed"),
+        # Trait 2 variances
+        "variance_A2": get_nested(data, "statistical", "variance_A2", "observed"),
+        "variance_C2": get_nested(data, "statistical", "variance_C2", "observed"),
+        "variance_E2": get_nested(data, "statistical", "variance_E2", "observed"),
+        # Cross-trait correlations (observed)
+        "observed_rA": get_nested(data, "statistical", "cross_trait_rA", "observed"),
+        "observed_rC": get_nested(data, "statistical", "cross_trait_rC", "observed"),
+        "observed_rE": get_nested(data, "statistical", "cross_trait_rE", "observed"),
+        # MZ twin correlations (trait 1)
+        "mz_twin_A1_corr": get_nested(
+            data, "heritability", "mz_twin_A1_correlation", "observed"
         ),
-        "mz_twin_pheno_corr": get_nested(
-            data, "heritability", "mz_twin_phenotype_correlation", "observed"
+        "mz_twin_liability1_corr": get_nested(
+            data, "heritability", "mz_twin_liability1_correlation", "observed"
         ),
-        "dz_sibling_A_corr": get_nested(
-            data, "heritability", "dz_sibling_A_correlation", "observed"
+        # MZ twin correlations (trait 2)
+        "mz_twin_A2_corr": get_nested(
+            data, "heritability", "mz_twin_A2_correlation", "observed"
         ),
-        "dz_sibling_pheno_corr": get_nested(
-            data, "heritability", "dz_sibling_phenotype_correlation", "observed"
+        "mz_twin_liability2_corr": get_nested(
+            data, "heritability", "mz_twin_liability2_correlation", "observed"
         ),
+        # DZ sibling correlations (trait 1)
+        "dz_sibling_A1_corr": get_nested(
+            data, "heritability", "dz_sibling_A1_correlation", "observed"
+        ),
+        "dz_sibling_liability1_corr": get_nested(
+            data, "heritability", "dz_sibling_liability1_correlation", "observed"
+        ),
+        # DZ sibling correlations (trait 2)
+        "dz_sibling_A2_corr": get_nested(
+            data, "heritability", "dz_sibling_A2_correlation", "observed"
+        ),
+        "dz_sibling_liability2_corr": get_nested(
+            data, "heritability", "dz_sibling_liability2_correlation", "observed"
+        ),
+        # Half-sib statistics
         "half_sib_prop_expected": get_nested(
             data, "half_sibs", "half_sib_pair_proportion", "expected"
         ),
@@ -73,29 +110,47 @@ def extract_metrics(validation_path):
         "offspring_with_half_sib_observed": get_nested(
             data, "half_sibs", "offspring_with_half_sib", "observed"
         ),
-        "half_sib_A_corr": get_nested(
-            data, "half_sibs", "half_sib_A_correlation", "observed"
+        "half_sib_A1_corr": get_nested(
+            data, "half_sibs", "half_sib_A1_correlation", "observed"
         ),
-        "half_sib_pheno_corr": get_nested(
-            data, "half_sibs", "half_sib_phenotype_correlation", "observed"
+        "half_sib_liability1_corr": get_nested(
+            data, "half_sibs", "half_sib_liability1_correlation", "observed"
         ),
-        "half_sib_shared_C": get_nested(
-            data, "half_sibs", "half_sib_shared_C", "observed"
+        "half_sib_shared_C1": get_nested(
+            data, "half_sibs", "half_sib_shared_C1", "observed"
         ),
-        "falconer_h2": get_nested(
-            data, "heritability", "falconer_estimate", "observed"
+        # Falconer heritability estimates
+        "falconer_h2_trait1": get_nested(
+            data, "heritability", "falconer_estimate_trait1", "observed"
         ),
-        "parent_offspring_A_slope": get_nested(
-            data, "heritability", "parent_offspring_A_regression", "slope"
+        "falconer_h2_trait2": get_nested(
+            data, "heritability", "falconer_estimate_trait2", "observed"
         ),
-        "parent_offspring_A_r2": get_nested(
-            data, "heritability", "parent_offspring_A_regression", "r_squared"
+        # Parent-offspring regressions (trait 1)
+        "parent_offspring_A1_slope": get_nested(
+            data, "heritability", "parent_offspring_A1_regression", "slope"
         ),
-        "parent_offspring_pheno_slope": get_nested(
-            data, "heritability", "parent_offspring_phenotype_regression", "slope"
+        "parent_offspring_A1_r2": get_nested(
+            data, "heritability", "parent_offspring_A1_regression", "r_squared"
         ),
-        "parent_offspring_pheno_r2": get_nested(
-            data, "heritability", "parent_offspring_phenotype_regression", "r_squared"
+        "parent_offspring_liability1_slope": get_nested(
+            data, "heritability", "parent_offspring_liability1_regression", "slope"
+        ),
+        "parent_offspring_liability1_r2": get_nested(
+            data, "heritability", "parent_offspring_liability1_regression", "r_squared"
+        ),
+        # Parent-offspring regressions (trait 2)
+        "parent_offspring_A2_slope": get_nested(
+            data, "heritability", "parent_offspring_A2_regression", "slope"
+        ),
+        "parent_offspring_A2_r2": get_nested(
+            data, "heritability", "parent_offspring_A2_regression", "r_squared"
+        ),
+        "parent_offspring_liability2_slope": get_nested(
+            data, "heritability", "parent_offspring_liability2_regression", "slope"
+        ),
+        "parent_offspring_liability2_r2": get_nested(
+            data, "heritability", "parent_offspring_liability2_regression", "r_squared"
         ),
     }
 

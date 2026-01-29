@@ -8,276 +8,169 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 
-def load_validation_data(tsv_path):
-    """Load validation summary TSV."""
-    df = pd.read_csv(tsv_path, sep="\t")
-    df["E_expected"] = 1 - df["A"] - df["C"]
-    return df
+def stripplot(df, ax, y, expected=None, expected_func=None):
+    """Stripplot of observed values with optional expected markers.
 
-
-def get_scenario_positions(df):
-    """Get x positions for each scenario."""
-    scenarios = df["scenario"].unique()
-    return scenarios, {s: i for i, s in enumerate(scenarios)}
-
-
-def set_yaxis_padding(ax, padding=0.05):
-    """Extend y-axis limits by at least `padding` units beyond min/max."""
-    ymin, ymax = ax.get_ylim()
-    ax.set_ylim(ymin - padding, ymax + padding)
-
-
-def plot_expected_markers(
-    ax, df, scenarios, positions, expected_col=None, expected_func=None
-):
-    """Plot expected values as horizontal line markers per scenario.
-
-    Use expected_col for a column name, or expected_func for a callable that
-    takes a scenario's dataframe subset and returns the expected value.
+    Args:
+        expected: column name for per-scenario expected values, or a fixed number.
+        expected_func: callable(scenario_df) -> expected value.
     """
-    for scenario in scenarios:
-        scenario_df = df[df["scenario"] == scenario]
-        if expected_col:
-            exp_val = scenario_df[expected_col].iloc[0]
-        else:
-            exp_val = expected_func(scenario_df)
-        ax.scatter(
-            positions[scenario],
-            exp_val,
-            marker="_",
-            s=200,
-            linewidths=3,
-            color="C1",
-            zorder=10,
-        )
+    scenarios = df["scenario"].unique()
+    positions = {s: i for i, s in enumerate(scenarios)}
 
+    sns.stripplot(data=df, x="scenario", y=y, ax=ax, alpha=0.7, color="C0")
 
-def setup_ax(ax, title, ylabel, xlabel="Scenario"):
-    """Apply common axis setup."""
-    ax.set_title(title)
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    if expected_func is not None or expected is not None:
+        for scenario in scenarios:
+            sdf = df[df["scenario"] == scenario]
+            if expected_func:
+                val = expected_func(sdf)
+            elif isinstance(expected, str):
+                val = sdf[expected].iloc[0]
+            else:
+                val = expected
+            ax.scatter(
+                positions[scenario], val,
+                marker="_", s=200, linewidths=3, color="C1", zorder=10,
+            )
+
     ax.tick_params(axis="x", rotation=45)
-    set_yaxis_padding(ax)
+    ymin, ymax = ax.get_ylim()
+    ax.set_ylim(ymin - 0.05, ymax + 0.05)
 
 
-def plot_variance_components(df, output_dir):
-    """Plot observed vs expected variance components (A, C, E) per scenario."""
-    fig, axes = plt.subplots(1, 3, figsize=(14, 5))
-    scenarios, positions = get_scenario_positions(df)
-
-    components = [
-        ("variance_A", "A", "Additive Genetic (A)"),
-        ("variance_C", "C", "Common Environment (C)"),
-        ("variance_E", "E_expected", "Unique Environment (E)"),
-    ]
-
-    for ax, (obs_col, exp_col, title) in zip(axes, components):
-        sns.stripplot(data=df, x="scenario", y=obs_col, ax=ax, alpha=0.7, color="C0")
-        plot_expected_markers(ax, df, scenarios, positions, expected_col=exp_col)
-        setup_ax(ax, title, "Variance Proportion")
-
-    plt.tight_layout()
-    plt.savefig(output_dir / "variance_components.png", dpi=150)
-    plt.close()
+def save(fig, path):
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
 
 
-def plot_twin_rate(df, output_dir):
-    """Plot observed vs expected MZ twin rate per scenario."""
+def plot_variance_components(df, out):
+    fig, axes = plt.subplots(2, 3, figsize=(16, 10))
+    for row, t in enumerate([1, 2]):
+        for col, comp in enumerate(["A", "C", "E"]):
+            ax = axes[row, col]
+            stripplot(df, ax, f"variance_{comp}{t}", expected=f"{comp}{t}")
+            ax.set_title(f"Trait {t}: {comp}{t}")
+            ax.set_ylabel("Variance Proportion")
+    save(fig, out / "variance_components.png")
+
+
+def plot_twin_rate(df, out):
     fig, ax = plt.subplots(figsize=(10, 5))
-    scenarios, positions = get_scenario_positions(df)
-
-    sns.stripplot(
-        data=df, x="scenario", y="observed_twin_rate", ax=ax, alpha=0.7, color="C0"
-    )
-    plot_expected_markers(ax, df, scenarios, positions, expected_col="p_mztwin")
-    setup_ax(ax, "MZ Twin Rate: Observed vs Expected", "Twin Rate")
-
-    plt.tight_layout()
-    plt.savefig(output_dir / "twin_rate.png", dpi=150)
-    plt.close()
+    stripplot(df, ax, "observed_twin_rate", expected="p_mztwin")
+    ax.set_title("MZ Twin Rate: Observed vs Expected")
+    ax.set_ylabel("Twin Rate")
+    save(fig, out / "twin_rate.png")
 
 
-def plot_A_correlations(df, output_dir):
-    """Plot A (genetic) correlation estimates per scenario."""
+def plot_A_correlations(df, out):
+    panels = [
+        ("mz_twin_A1_corr", 1.0, "MZ Twin A1 Correlation"),
+        ("dz_sibling_A1_corr", 0.5, "DZ Sibling A1 Correlation"),
+        ("half_sib_A1_corr", 0.25, "Half-Sibling A1 Correlation"),
+        ("parent_offspring_A1_r2", 0.5, "Midparent-Offspring A1 R²"),
+    ]
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    for ax, (col, exp, title) in zip(axes.flat, panels):
+        stripplot(df, ax, col, expected=exp)
+        ax.axhline(y=exp, color="C1", linestyle="--", alpha=0.7)
+        ax.set_title(title)
+        ax.set_ylabel("Correlation")
+    save(fig, out / "correlations_A.png")
 
+
+def plot_phenotype_correlations(df, out):
     panels = [
-        (axes[0, 0], "mz_twin_A_corr", 1.0, "MZ Twin A Correlation", "Correlation"),
-        (
-            axes[0, 1],
-            "dz_sibling_A_corr",
-            0.5,
-            "DZ Sibling A Correlation",
-            "Correlation",
-        ),
-        (
-            axes[1, 0],
-            "half_sib_A_corr",
-            0.25,
-            "Half-Sibling A Correlation",
-            "Correlation",
-        ),
-        (axes[1, 1], "parent_offspring_A_r2", 0.5, "Midparent-Offspring A R²", "R²"),
+        ("mz_twin_liability1_corr", lambda d: d["A1"].iloc[0] + d["C1"].iloc[0],
+         "MZ Twin Liability1 Corr"),
+        ("dz_sibling_liability1_corr", lambda d: 0.5 * d["A1"].iloc[0] + d["C1"].iloc[0],
+         "DZ Sibling Liability1 Corr"),
+        ("half_sib_liability1_corr", lambda d: 0.25 * d["A1"].iloc[0],
+         "Half-Sib Liability1 Corr"),
+        ("parent_offspring_liability1_slope", lambda d: d["A1"].iloc[0],
+         "Midparent-Offspring Liability1 Slope"),
     ]
-
-    for ax, col, expected, title, ylabel in panels:
-        sns.stripplot(data=df, x="scenario", y=col, ax=ax, alpha=0.7, color="C0")
-        ax.axhline(y=expected, color="C1", linestyle="--", alpha=0.7)
-        setup_ax(ax, title, ylabel)
-
-    plt.tight_layout()
-    plt.savefig(output_dir / "correlations_A.png", dpi=150)
-    plt.close()
-
-
-def plot_phenotype_correlations(df, output_dir):
-    """Plot phenotype correlation estimates per scenario."""
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    scenarios, positions = get_scenario_positions(df)
+    for ax, (col, efn, title) in zip(axes.flat, panels):
+        stripplot(df, ax, col, expected_func=efn)
+        ax.set_title(title)
+        ax.set_ylabel("Correlation")
+    save(fig, out / "correlations_phenotype.png")
+
+
+def plot_heritability_estimates(df, out):
+    panels = [
+        ("falconer_h2_trait1", "A1", "Falconer h² Trait 1", "Heritability"),
+        ("parent_offspring_liability1_slope", "A1", "Midparent-Offspring Liability1", "Slope"),
+        ("falconer_h2_trait2", "A2", "Falconer h² Trait 2", "Heritability"),
+        ("parent_offspring_liability2_slope", "A2", "Midparent-Offspring Liability2", "Slope"),
+    ]
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    for ax, (col, exp, title, ylabel) in zip(axes.flat, panels):
+        stripplot(df, ax, col, expected=exp)
+        ax.set_title(title)
+        ax.set_ylabel(ylabel)
+    save(fig, out / "heritability_estimates.png")
+
+
+def plot_half_sib_proportions(df, out):
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    stripplot(df, axes[0], "half_sib_prop_observed", expected="half_sib_prop_expected")
+    axes[0].set_title("Half-Sibling Pair Proportion")
+    axes[0].set_ylabel("Proportion")
+
+    stripplot(df, axes[1], "offspring_with_half_sib_observed")
+    axes[1].set_title("Proportion of Offspring with Half-Siblings")
+    axes[1].set_ylabel("Proportion")
+    save(fig, out / "half_sib_proportions.png")
+
+
+def plot_cross_trait_correlations(df, out):
+    panels = [
+        ("observed_rA", "rA", "Cross-Trait rA"),
+        ("observed_rC", "rC", "Cross-Trait rC"),
+        ("observed_rE", None, "Cross-Trait rE"),
+    ]
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
+    for ax, (obs, exp, title) in zip(axes, panels):
+        if exp:
+            stripplot(df, ax, obs, expected=exp)
+        else:
+            stripplot(df, ax, obs)
+            ax.axhline(y=0, color="C1", linestyle="--", alpha=0.7)
+        ax.set_title(title)
+        ax.set_ylabel("Correlation")
+    save(fig, out / "cross_trait_correlations.png")
+
+
+def plot_summary_bias(df, out):
+    dp = df.copy()
+    dp["A1 Bias"] = dp["variance_A1"] - dp["A1"]
+    dp["C1 Bias"] = dp["variance_C1"] - dp["C1"]
+    dp["E1 Bias"] = dp["variance_E1"] - dp["E1"]
+    dp["Twin Rate Bias"] = dp["observed_twin_rate"] - dp["p_mztwin"]
+    dp["DZ A1 Corr Bias"] = dp["dz_sibling_A1_corr"] - 0.5
+    dp["Half-sib A1 Corr Bias"] = dp["half_sib_A1_corr"] - 0.25
 
     panels = [
-        (
-            axes[0, 0],
-            "mz_twin_pheno_corr",
-            lambda d: d["A"].iloc[0] + d["C"].iloc[0],
-            "MZ Twin Phenotype Correlation",
-            "Expected (A+C)",
-        ),
-        (
-            axes[0, 1],
-            "dz_sibling_pheno_corr",
-            lambda d: 0.5 * d["A"].iloc[0] + d["C"].iloc[0],
-            "DZ Sibling Phenotype Correlation",
-            "Expected (0.5A+C)",
-        ),
-        (
-            axes[1, 0],
-            "half_sib_pheno_corr",
-            lambda d: 0.25 * d["A"].iloc[0],
-            "Half-Sibling Phenotype Correlation",
-            "Expected (0.25A)",
-        ),
-        (
-            axes[1, 1],
-            "parent_offspring_pheno_slope",
-            lambda d: d["A"].iloc[0],
-            "Midparent-Offspring Phenotype Correlation",
-            "Expected (A)",
-        ),
+        "A1 Bias", "C1 Bias", "E1 Bias",
+        "Twin Rate Bias", "DZ A1 Corr Bias", "Half-sib A1 Corr Bias",
     ]
-
-    for ax, col, exp_func, title, label in panels:
-        sns.stripplot(data=df, x="scenario", y=col, ax=ax, alpha=0.7, color="C0")
-        plot_expected_markers(ax, df, scenarios, positions, expected_func=exp_func)
-        ax.scatter([], [], marker="_", s=200, linewidths=3, color="C1", label=label)
-        ax.legend(loc="best")
-        setup_ax(ax, title, "Correlation")
-
-    plt.tight_layout()
-    plt.savefig(output_dir / "correlations_phenotype.png", dpi=150)
-    plt.close()
-
-
-def plot_heritability_estimates(df, output_dir):
-    """Plot heritability estimates vs expected per scenario."""
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    scenarios, positions = get_scenario_positions(df)
-
-    panels = [
-        (axes[0], "falconer_h2", "Falconer Heritability Estimate", "Heritability"),
-        (
-            axes[1],
-            "parent_offspring_pheno_slope",
-            "Midparent-Offspring Phenotype Regression",
-            "Slope",
-        ),
-    ]
-
-    for ax, col, title, ylabel in panels:
-        sns.stripplot(data=df, x="scenario", y=col, ax=ax, alpha=0.7, color="C0")
-        plot_expected_markers(ax, df, scenarios, positions, expected_col="A")
-        setup_ax(ax, title, ylabel)
-
-    plt.tight_layout()
-    plt.savefig(output_dir / "heritability_estimates.png", dpi=150)
-    plt.close()
-
-
-def plot_half_sib_proportions(df, output_dir):
-    """Plot observed vs expected half-sibling proportions."""
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-    scenarios, positions = get_scenario_positions(df)
-
-    # Half-sib pair proportion (with expected)
-    ax = axes[0]
-    sns.stripplot(
-        data=df, x="scenario", y="half_sib_prop_observed", ax=ax, alpha=0.7, color="C0"
-    )
-    plot_expected_markers(
-        ax, df, scenarios, positions, expected_col="half_sib_prop_expected"
-    )
-    setup_ax(ax, "Half-Sibling Pair Proportion", "Proportion")
-
-    # Offspring with half-sib (no expected)
-    ax = axes[1]
-    sns.stripplot(
-        data=df,
-        x="scenario",
-        y="offspring_with_half_sib_observed",
-        ax=ax,
-        alpha=0.7,
-        color="C0",
-    )
-    setup_ax(ax, "Proportion of Offspring with Half-Siblings", "Proportion")
-
-    plt.tight_layout()
-    plt.savefig(output_dir / "half_sib_proportions.png", dpi=150)
-    plt.close()
-
-
-def plot_summary_stripplot(df, output_dir):
-    """Create a summary stripplot showing bias (observed - expected) per scenario."""
     fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-
-    df_plot = df.copy()
-    df_plot["A Bias"] = df_plot["variance_A"] - df_plot["A"]
-    df_plot["C Bias"] = df_plot["variance_C"] - df_plot["C"]
-    df_plot["E Bias"] = df_plot["variance_E"] - df_plot["E_expected"]
-    df_plot["Twin Rate Bias"] = df_plot["observed_twin_rate"] - df_plot["p_mztwin"]
-    df_plot["DZ A Corr Bias"] = df_plot["dz_sibling_A_corr"] - 0.5
-    df_plot["Half-sib A Corr Bias"] = df_plot["half_sib_A_corr"] - 0.25
-
-    panels = [
-        (axes[0, 0], "A Bias", "Variance A Bias (Observed - Expected)"),
-        (axes[0, 1], "C Bias", "Variance C Bias (Observed - Expected)"),
-        (axes[0, 2], "E Bias", "Variance E Bias (Observed - Expected)"),
-        (axes[1, 0], "Twin Rate Bias", "MZ Twin Rate Bias (Observed - Expected)"),
-        (axes[1, 1], "DZ A Corr Bias", "DZ Sibling A Correlation Bias (vs 0.5)"),
-        (
-            axes[1, 2],
-            "Half-sib A Corr Bias",
-            "Half-Sibling A Correlation Bias (vs 0.25)",
-        ),
-    ]
-
-    for ax, col, title in panels:
-        sns.stripplot(data=df_plot, x="scenario", y=col, ax=ax, alpha=0.7)
+    for ax, col in zip(axes.flat, panels):
+        sns.stripplot(data=dp, x="scenario", y=col, ax=ax, alpha=0.7)
         ax.axhline(y=0, color="red", linestyle="--", alpha=0.5)
-        setup_ax(ax, title, col)
-
-    plt.tight_layout()
-    plt.savefig(output_dir / "summary_bias.png", dpi=150)
-    plt.close()
+        ax.set_title(col)
+        ax.tick_params(axis="x", rotation=45)
+    save(fig, out / "summary_bias.png")
 
 
 def main(tsv_path, output_dir):
-    """Generate all validation plots."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-
     sns.set_theme(style="whitegrid", palette="Set2")
-    df = load_validation_data(tsv_path)
+    df = pd.read_csv(tsv_path, sep="\t")
 
     plot_variance_components(df, output_dir)
     plot_twin_rate(df, output_dir)
@@ -285,9 +178,8 @@ def main(tsv_path, output_dir):
     plot_phenotype_correlations(df, output_dir)
     plot_heritability_estimates(df, output_dir)
     plot_half_sib_proportions(df, output_dir)
-    plot_summary_stripplot(df, output_dir)
-
-    print(f"Plots saved to {output_dir}")
+    plot_cross_trait_correlations(df, output_dir)
+    plot_summary_bias(df, output_dir)
 
 
 if __name__ == "__main__":

@@ -58,7 +58,7 @@ ACE/
 - `run_simulation()` - Orchestrates the full simulation loop
 
 **Configuration** (`config/config.yaml`):
-Define named scenarios with parameters: seed, A, C, N, ngen, fam_size, p_mztwin, p_nonsocial_father
+Define named scenarios with parameters: seed, A, C, N, G_ped, G_sim, fam_size, p_mztwin, p_nonsocial_father
 
 ## Dependencies
 
