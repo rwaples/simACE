@@ -19,4 +19,8 @@ dependencies:
   - hdf5
   - graph-tool
   - pyarrow
+  - lifelines
+  - cmdstanpy
+  - pip:
+    - pypair
  

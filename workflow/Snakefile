@@ -21,11 +21,23 @@ def get_all_outputs():
     return outputs
 
 
+PHENOTYPE_PLOTS = [
+    "death_age_distribution.png",
+    "phenotype_traits.png",
+    "liability_regression.png",
+    "liability_joint.png",
+    "liability_violin.png",
+    "cumulative_incidence.png",
+    "censoring_windows.png",
+    "tetrachoric_sibling.png",
+]
+
+
 def get_phenotype_plot_outputs():
     """Generate phenotype plot output paths across scenarios."""
     outputs = []
     for scenario in config["scenarios"].keys():
-        for plot in ["death_age_distribution.png", "phenotype_trait1.png", "phenotype_trait2.png", "liability_regression_trait1.png", "liability_regression_trait2.png", "liability_violin.png"]:
+        for plot in PHENOTYPE_PLOTS:
             outputs.append(f"results/{scenario}/plots/{plot}")
     return outputs
 
@@ -40,12 +52,51 @@ def get_all_validations():
     return validations
 
 
+def get_weibull_outputs():
+    """Generate weibull result paths for both traits across all scenarios/reps."""
+    outputs = []
+    for scenario in config["scenarios"].keys():
+        n_reps = get_param(scenario, "replicates")
+        for rep in range(1, n_reps + 1):
+            for trait in [1, 2]:
+                outputs.append(
+                    f"results/{scenario}/rep{rep}/weibull/trait{trait}/results.rwe"
+                )
+    return outputs
+
+
+def get_scenario_outputs(scenario):
+    """Generate all output files for a single scenario."""
+    n_reps = get_param(scenario, "replicates")
+    outputs = []
+    for rep in range(1, n_reps + 1):
+        outputs.append(f"results/{scenario}/rep{rep}/pedigree.parquet")
+        outputs.append(f"results/{scenario}/rep{rep}/phenotype.parquet")
+        outputs.append(f"results/{scenario}/rep{rep}/validation.yaml")
+        for trait in [1, 2]:
+            outputs.append(
+                f"results/{scenario}/rep{rep}/weibull/trait{trait}/results.rwe"
+            )
+    for plot in PHENOTYPE_PLOTS:
+        outputs.append(f"results/{scenario}/plots/{plot}")
+    return outputs
+
+
+rule scenario:
+    """Build all outputs for a single scenario: snakemake --cores 1 -s workflow/Snakefile results/baseline10K/scenario.done"""
+    input:
+        lambda w: get_scenario_outputs(w.scenario)
+    output:
+        touch("results/{scenario}/scenario.done")
+
+
 rule all:
     input:
         get_all_outputs(),
         "results/validation_summary.tsv",
         "results/plots/variance_components.png",
-        get_phenotype_plot_outputs()
+        get_phenotype_plot_outputs(),
+        get_weibull_outputs()
 
 
 rule simulate:
@@ -99,6 +150,10 @@ rule phenotype:
         censor_age=lambda w: get_param(w.scenario, "censor_age"),
         death_rate=lambda w: get_param(w.scenario, "death_rate"),
         death_k=lambda w: get_param(w.scenario, "death_k"),
+        young_gen_censoring=lambda w: get_param(w.scenario, "young_gen_censoring"),
+        middle_gen_censoring=lambda w: get_param(w.scenario, "middle_gen_censoring"),
+        old_gen_censoring=lambda w: get_param(w.scenario, "old_gen_censoring"),
+        G_pheno=lambda w: get_param(w.scenario, "G_pheno"),
     log:
         "logs/{scenario}/rep{rep}/phenotype.log"
     script:
@@ -137,13 +192,15 @@ rule plot_phenotype:
         ),
     params:
         censor_age=lambda w: get_param(w.scenario, "censor_age"),
+        young_gen_censoring=lambda w: get_param(w.scenario, "young_gen_censoring"),
+        middle_gen_censoring=lambda w: get_param(w.scenario, "middle_gen_censoring"),
+        old_gen_censoring=lambda w: get_param(w.scenario, "old_gen_censoring"),
+        A1=lambda w: get_param(w.scenario, "A1"),
+        C1=lambda w: get_param(w.scenario, "C1"),
+        A2=lambda w: get_param(w.scenario, "A2"),
+        C2=lambda w: get_param(w.scenario, "C2"),
     output:
-        "results/{scenario}/plots/death_age_distribution.png",
-        "results/{scenario}/plots/phenotype_trait1.png",
-        "results/{scenario}/plots/phenotype_trait2.png",
-        "results/{scenario}/plots/liability_regression_trait1.png",
-        "results/{scenario}/plots/liability_regression_trait2.png",
-        "results/{scenario}/plots/liability_violin.png"
+        expand("results/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS)
     log:
         "logs/{scenario}/plot_phenotype.log"
     script:
@@ -166,3 +223,36 @@ rule plot_validation:
         "logs/plot_validation.log"
     script:
         "scripts/plot_validation.py"
+
+
+rule prepare_weibull:
+    input:
+        pedigree="results/{scenario}/rep{rep}/pedigree.parquet",
+        phenotype="results/{scenario}/rep{rep}/phenotype.parquet"
+    output:
+        data="results/{scenario}/rep{rep}/weibull/trait{trait}/data.dat",
+        codelist="results/{scenario}/rep{rep}/weibull/trait{trait}/codelist.txt",
+        varlist="results/{scenario}/rep{rep}/weibull/trait{trait}/varlist.txt",
+        pedigree_ped="results/{scenario}/rep{rep}/weibull/trait{trait}/pedigree.ped",
+        weibull_config="results/{scenario}/rep{rep}/weibull/trait{trait}/weibull.txt"
+    log:
+        "logs/{scenario}/rep{rep}/weibull/trait{trait}/prepare.log"
+    script:
+        "scripts/prepare_weibull.py"
+
+
+rule run_weibull:
+    input:
+        data="results/{scenario}/rep{rep}/weibull/trait{trait}/data.dat",
+        codelist="results/{scenario}/rep{rep}/weibull/trait{trait}/codelist.txt",
+        varlist="results/{scenario}/rep{rep}/weibull/trait{trait}/varlist.txt",
+        pedigree_ped="results/{scenario}/rep{rep}/weibull/trait{trait}/pedigree.ped",
+        weibull_config="results/{scenario}/rep{rep}/weibull/trait{trait}/weibull.txt"
+    output:
+        rwe="results/{scenario}/rep{rep}/weibull/trait{trait}/results.rwe"
+    log:
+        "logs/{scenario}/rep{rep}/weibull/trait{trait}/run.log"
+    shell:
+        "cd results/{wildcards.scenario}/rep{wildcards.rep}/weibull/trait{wildcards.trait} "
+        "&& /home/ryanw/Documents/ACE/external/Survival_Kit_executables_Linux/weibull.exe "
+        "> {workflow.basedir}/../{log} 2>&1"
