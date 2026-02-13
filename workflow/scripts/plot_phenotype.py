@@ -1,55 +1,47 @@
 """
-Plot phenotype distributions aggregated across replicates for a scenario.
+Plot phenotype distributions from pre-computed per-rep statistics.
+
+Reads phenotype_stats.yaml and phenotype_samples.parquet files (one per rep)
+produced by compute_phenotype_stats.py. No full phenotype parquet loading needed.
 """
 
+import sys
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+import yaml
+
+try:
+    _yaml_loader = yaml.CSafeLoader
+except AttributeError:
+    _yaml_loader = yaml.SafeLoader
 from pathlib import Path
-from scipy.stats import norm, multivariate_normal
-from scipy.optimize import minimize_scalar
+
+MAX_PLOT_POINTS = 100_000
+
+sys.path.insert(0, str(Path(__file__).parent))
+from compute_phenotype_stats import tetrachoric_corr
 
 
-def load_phenotypes(parquet_paths):
-    """Load and concatenate phenotype parquet files with rep labels."""
-    dfs = []
-    for i, p in enumerate(parquet_paths):
-        df = pd.read_parquet(p)
-        df["rep"] = i + 1
-        dfs.append(df)
-    return pd.concat(dfs, ignore_index=True)
-
-
-def plot_death_age_distribution(df, censor_age, output_path, scenario=""):
-    """Plot mortality rate and cumulative mortality by decade."""
+def plot_death_age_distribution(all_stats, censor_age, output_path, scenario=""):
+    """Plot mortality rate and cumulative mortality by decade, averaged across reps."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-    # Compute mortality rate per decade
-    decade_edges = np.arange(0, censor_age + 10, 10)
-    mortality_rates = []
-    decade_labels = []
-    for i in range(len(decade_edges) - 1):
-        lo, hi = decade_edges[i], decade_edges[i + 1]
-        if lo >= censor_age:
-            break
-        alive_at_start = len(df[df["death_age"] >= lo])
-        died_in_decade = len(df[(df["death_age"] >= lo) & (df["death_age"] < hi) & (df["death_age"] < censor_age)])
-        rate = died_in_decade / alive_at_start if alive_at_start > 0 else 0
-        mortality_rates.append(rate)
-        decade_labels.append(f"{int(lo)}-{int(hi - 1)}")
-
-    mortality_rates = np.array(mortality_rates)
+    # Average mortality rates across reps
+    all_rates = np.array([s["mortality"]["rates"] for s in all_stats])
+    mean_rates = all_rates.mean(axis=0)
+    decade_labels = all_stats[0]["mortality"]["decade_labels"]
 
     # Left: mortality rate per decade
-    axes[0].bar(decade_labels, mortality_rates, edgecolor="black", alpha=0.7)
+    axes[0].bar(decade_labels, mean_rates, edgecolor="black", alpha=0.7)
     axes[0].set_title("Mortality Rate by Decade")
     axes[0].set_xlabel("Age Decade")
     axes[0].set_ylabel("Mortality Rate")
     axes[0].tick_params(axis="x", rotation=45)
 
     # Right: cumulative mortality per decade with survival annotations
-    survival = np.cumprod(1 - mortality_rates)
+    survival = np.cumprod(1 - mean_rates)
     cumulative = 1 - survival
     bars = axes[1].bar(decade_labels, cumulative, edgecolor="black", alpha=0.7)
     for bar, s in zip(bars, survival):
@@ -66,14 +58,14 @@ def plot_death_age_distribution(df, censor_age, output_path, scenario=""):
     axes[1].set_ylabel("Cumulative Mortality")
     axes[1].tick_params(axis="x", rotation=45)
 
-    fig.suptitle(f"Death Age Distribution [{scenario}]", fontsize=14)
+    fig.suptitle(f"Death Age Distribution (Weibull) [{scenario}]", fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
     plt.close()
 
 
-def plot_trait_phenotype(df, output_path, scenario=""):
-    """Plot phenotype distributions for both traits in a 2x2 grid (trait 1 top, trait 2 bottom)."""
+def plot_trait_phenotype(df_samples, output_path, scenario=""):
+    """Plot phenotype distributions for both traits in a 2x2 grid."""
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
     for row, trait_num in enumerate([1, 2]):
@@ -81,31 +73,43 @@ def plot_trait_phenotype(df, output_path, scenario=""):
         t_col = f"t_observed{trait_num}"
         death_censored_col = f"death_censored{trait_num}"
 
-        affected = df[df[affected_col] == True]
-        death_censored = df[(df[affected_col] == False) & (df[death_censored_col] == True)]
+        affected = df_samples[df_samples[affected_col] == True]
+        death_censored = df_samples[
+            (df_samples[affected_col] == False) & (df_samples[death_censored_col] == True)
+        ]
 
-        axes[row, 0].hist(affected[t_col].dropna(), bins=50, density=True, edgecolor="black", alpha=0.7, color="C3")
+        axes[row, 0].hist(
+            affected[t_col].dropna(), bins=50, density=True,
+            edgecolor="black", alpha=0.7, color="C3",
+        )
         axes[row, 0].set_title(f"Trait {trait_num}: Age at Onset (affected)")
         axes[row, 0].set_xlabel("Age")
         axes[row, 0].set_ylabel("Density")
 
-        axes[row, 1].hist(death_censored[t_col].dropna(), bins=50, density=True, edgecolor="black", alpha=0.7, color="C0")
-        axes[row, 1].set_title(f"Trait {trait_num}: Age at Death (death-censored, unaffected)")
+        axes[row, 1].hist(
+            death_censored[t_col].dropna(), bins=50, density=True,
+            edgecolor="black", alpha=0.7, color="C0",
+        )
+        axes[row, 1].set_title(
+            f"Trait {trait_num}: Age at Death (death-censored, unaffected)"
+        )
         axes[row, 1].set_xlabel("Age")
         axes[row, 1].set_ylabel("Density")
 
-    fig.suptitle(f"Phenotype Distributions [{scenario}]", fontsize=14)
+    fig.suptitle(f"Phenotype Distributions (Weibull) [{scenario}]", fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
     plt.close()
 
 
-def plot_trait_regression(df, output_path, scenario=""):
+def plot_trait_regression(df_samples, all_stats, output_path, scenario=""):
     """Plot liability vs age at onset for both traits as jointplots side by side."""
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
     fig = plt.figure(figsize=(16, 7))
-    fig.suptitle(f"Liability vs Age at Onset (affected) [{scenario}]", fontsize=14, y=1.01)
+    fig.suptitle(
+        f"Liability vs Age at Onset (Weibull) [{scenario}]", fontsize=14, y=1.01
+    )
     outer = GridSpec(1, 2, figure=fig, wspace=0.35)
 
     for i, trait_num in enumerate([1, 2]):
@@ -113,14 +117,33 @@ def plot_trait_regression(df, output_path, scenario=""):
         t_col = f"t_observed{trait_num}"
         liability_col = f"liability{trait_num}"
 
-        affected = df[df[affected_col] == True].dropna(subset=[liability_col, t_col])
+        if liability_col not in df_samples.columns:
+            continue
+
+        affected = df_samples[df_samples[affected_col] == True].dropna(
+            subset=[liability_col, t_col]
+        )
         x = affected[liability_col].values
         y = affected[t_col].values
 
-        coeffs = np.polyfit(x, y, 1)
-        ss_res = np.sum((y - np.polyval(coeffs, x)) ** 2)
-        ss_tot = np.sum((y - y.mean()) ** 2)
-        r2 = 1 - ss_res / ss_tot
+        # Get R^2 from pre-computed stats (averaged across reps)
+        reg_stats = [
+            s["regression"][f"trait{trait_num}"]
+            for s in all_stats
+            if s["regression"].get(f"trait{trait_num}") is not None
+        ]
+        if reg_stats:
+            mean_r2 = np.mean([r["r2"] for r in reg_stats])
+            mean_slope = np.mean([r["slope"] for r in reg_stats])
+            mean_intercept = np.mean([r["intercept"] for r in reg_stats])
+        elif len(x) >= 2:
+            from scipy.stats import linregress
+            reg = linregress(x, y)
+            mean_r2 = reg.rvalue ** 2
+            mean_slope = reg.slope
+            mean_intercept = reg.intercept
+        else:
+            continue
 
         inner = GridSpecFromSubplotSpec(
             2, 2, subplot_spec=outer[i],
@@ -133,9 +156,14 @@ def plot_trait_regression(df, output_path, scenario=""):
 
         ax_joint.scatter(x, y, alpha=0.05, s=3, rasterized=True)
         x_line = np.array([x.min(), x.max()])
-        ax_joint.plot(x_line, np.polyval(coeffs, x_line), color="C3", linewidth=2)
-        ax_joint.text(0.05, 0.95, f"R² = {r2:.4f}", transform=ax_joint.transAxes,
-                      va="top", fontsize=12)
+        ax_joint.plot(
+            x_line, mean_slope * x_line + mean_intercept,
+            color="C3", linewidth=2,
+        )
+        ax_joint.text(
+            0.05, 0.95, f"R² = {mean_r2:.4f}",
+            transform=ax_joint.transAxes, va="top", fontsize=12,
+        )
         ax_joint.set_xlabel("Liability")
         ax_joint.set_ylabel("Age at Onset")
 
@@ -154,8 +182,8 @@ def plot_trait_regression(df, output_path, scenario=""):
     plt.close()
 
 
-def plot_liability_joint(df, output_path, scenario=""):
-    """2x2 grid of seaborn jointplots: Liability, A, C, E (trait 1 vs trait 2)."""
+def plot_liability_joint(df_samples, output_path, scenario=""):
+    """2x2 grid of jointplots: Liability, A, C, E (trait 1 vs trait 2)."""
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
     panels = [
@@ -164,10 +192,14 @@ def plot_liability_joint(df, output_path, scenario=""):
         ("C1", "C2", "C (Common environment)"),
         ("E1", "E2", "E (Unique environment)"),
     ]
-    panels = [(x, y, t) for x, y, t in panels if x in df.columns and y in df.columns]
+    panels = [
+        (x, y, t)
+        for x, y, t in panels
+        if x in df_samples.columns and y in df_samples.columns
+    ]
 
     fig = plt.figure(figsize=(14, 12))
-    fig.suptitle(f"Cross-Trait Correlations [{scenario}]", fontsize=14, y=1.01)
+    fig.suptitle(f"Cross-Trait Correlations (Weibull) [{scenario}]", fontsize=14, y=1.01)
     outer = GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.35)
 
     for idx, (xcol, ycol, title) in enumerate(panels):
@@ -180,14 +212,18 @@ def plot_liability_joint(df, output_path, scenario=""):
         ax_marg_x = fig.add_subplot(inner[0, 0], sharex=ax_joint)
         ax_marg_y = fig.add_subplot(inner[1, 1], sharey=ax_joint)
 
-        x, y = df[xcol].values, df[ycol].values
+        x, y = df_samples[xcol].values, df_samples[ycol].values
         ax_joint.scatter(x, y, alpha=0.05, s=3, rasterized=True)
         ax_marg_x.hist(x, bins=50, edgecolor="none", alpha=0.7)
-        ax_marg_y.hist(y, bins=50, orientation="horizontal", edgecolor="none", alpha=0.7)
+        ax_marg_y.hist(
+            y, bins=50, orientation="horizontal", edgecolor="none", alpha=0.7
+        )
 
-        r = df[[xcol, ycol]].corr().iloc[0, 1]
-        ax_joint.text(0.05, 0.95, f"r = {r:.4f}", transform=ax_joint.transAxes,
-                      va="top", fontsize=11)
+        r = np.corrcoef(x, y)[0, 1]
+        ax_joint.text(
+            0.05, 0.95, f"r = {r:.4f}",
+            transform=ax_joint.transAxes, va="top", fontsize=11,
+        )
         ax_joint.set_xlabel(f"{title} (Trait 1)")
         ax_joint.set_ylabel(f"{title} (Trait 2)")
 
@@ -197,7 +233,6 @@ def plot_liability_joint(df, output_path, scenario=""):
         ax_marg_y.tick_params(labelleft=False, labelbottom=False)
         ax_marg_y.set_xlabel("")
 
-        # Hide corner cell
         ax_corner = fig.add_subplot(inner[0, 1])
         ax_corner.axis("off")
 
@@ -205,59 +240,110 @@ def plot_liability_joint(df, output_path, scenario=""):
     plt.close()
 
 
-def plot_liability_violin(df, output_path, scenario=""):
+def plot_liability_violin(df_samples, all_stats, output_path, scenario=""):
     """Split violin plot of liability by trait, split on affected status."""
     violin_data = pd.concat(
         [
             pd.DataFrame({
                 "Trait": "Trait 1",
-                "Liability": df["liability1"],
-                "Affected": df["affected1"],
+                "Liability": df_samples["liability1"],
+                "Affected": df_samples["affected1"],
             }),
             pd.DataFrame({
                 "Trait": "Trait 2",
-                "Liability": df["liability2"],
-                "Affected": df["affected2"],
+                "Liability": df_samples["liability2"],
+                "Affected": df_samples["affected2"],
             }),
         ],
         ignore_index=True,
     )
 
-    prev1 = df["affected1"].mean()
-    prev2 = df["affected2"].mean()
+    # Use pre-computed prevalence averaged across reps
+    prev1 = np.mean([s["prevalence"]["trait1"] for s in all_stats])
+    prev2 = np.mean([s["prevalence"]["trait2"] for s in all_stats])
 
     fig, ax = plt.subplots(figsize=(8, 6))
     sns.violinplot(
         data=violin_data, x="Trait", y="Liability", hue="Affected",
         split=True, ax=ax,
     )
-    ax.set_title(f"Liability Distribution by Trait and Affected Status [{scenario}]")
-    ax.text(0, ax.get_ylim()[0], f"Prevalence: {prev1:.1%}",
-            ha="center", va="top", fontsize=10, fontstyle="italic")
-    ax.text(1, ax.get_ylim()[0], f"Prevalence: {prev2:.1%}",
-            ha="center", va="top", fontsize=10, fontstyle="italic")
+    ax.set_title(
+        f"Liability by Affected Status (Weibull) [{scenario}]"
+    )
+
+    # Annotate mean liability for each trait x affected/unaffected group
+    for i, trait_num in enumerate([1, 2]):
+        liab = df_samples[f"liability{trait_num}"].values
+        aff = df_samples[f"affected{trait_num}"].values.astype(bool)
+        mean_aff = liab[aff].mean()
+        mean_unaff = liab[~aff].mean()
+        ax.plot(i + 0.05, mean_aff, "D", color="black", markersize=6, zorder=5)
+        ax.text(
+            i + 0.12, mean_aff, f"\u03bc={mean_aff:.2f}",
+            ha="left", va="center", fontsize=9, fontweight="bold",
+        )
+        ax.plot(i - 0.05, mean_unaff, "D", color="black", markersize=6, zorder=5)
+        ax.text(
+            i - 0.12, mean_unaff, f"\u03bc={mean_unaff:.2f}",
+            ha="right", va="center", fontsize=9, fontweight="bold",
+        )
+
+    ax.text(
+        0, ax.get_ylim()[0], f"Prevalence: {prev1:.1%}",
+        ha="center", va="top", fontsize=10, fontstyle="italic",
+    )
+    ax.text(
+        1, ax.get_ylim()[0], f"Prevalence: {prev2:.1%}",
+        ha="center", va="top", fontsize=10, fontstyle="italic",
+    )
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
 
 
-def plot_cumulative_incidence(df, censor_age, output_path, scenario=""):
-    """Plot cumulative incidence by age for both traits on shared y-axis."""
-    ages = np.linspace(0, censor_age, 200)
-    n = len(df)
+def plot_cumulative_incidence(all_stats, censor_age, output_path, scenario=""):
+    """Plot cumulative incidence by age, mean +/- band across reps.
 
+    Shows both true (uncensored) and observed (post-censoring) curves.
+    """
     fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+
     for trait_num, ax in zip([1, 2], axes):
-        affected_col = f"affected{trait_num}"
-        t_col = f"t_observed{trait_num}"
+        key = f"trait{trait_num}"
+        ages = np.array(all_stats[0]["cumulative_incidence"][key]["ages"])
 
-        cum_inc = np.array([(df[affected_col] & (df[t_col] <= a)).sum() / n for a in ages])
-        ax.plot(ages, cum_inc, color="C0", linewidth=2)
+        # Support both old ("values") and new ("observed_values"/"true_values") format
+        if "observed_values" in all_stats[0]["cumulative_incidence"][key]:
+            all_obs = np.array([
+                s["cumulative_incidence"][key]["observed_values"] for s in all_stats
+            ])
+            all_true = np.array([
+                s["cumulative_incidence"][key]["true_values"] for s in all_stats
+            ])
+            mean_true = all_true.mean(axis=0)
 
-        # Find age when 50% of lifetime cases are diagnosed
-        lifetime_prev = cum_inc[-1]
+            # True incidence (gray)
+            ax.plot(ages, mean_true, color="gray", alpha=0.7, linewidth=2, label="True")
+            if len(all_stats) > 1:
+                ax.fill_between(ages, all_true.min(axis=0), all_true.max(axis=0),
+                                alpha=0.1, color="gray")
+        else:
+            all_obs = np.array([
+                s["cumulative_incidence"][key]["values"] for s in all_stats
+            ])
+
+        mean_obs = all_obs.mean(axis=0)
+
+        # Observed incidence (colored)
+        ax.plot(ages, mean_obs, color="C0", linewidth=2, label="Observed")
+        if len(all_stats) > 1:
+            ax.fill_between(ages, all_obs.min(axis=0), all_obs.max(axis=0),
+                            alpha=0.2, color="C0")
+
+        # Find age when 50% of lifetime cases are diagnosed (from observed curve)
+        lifetime_prev = mean_obs[-1]
         half_target = lifetime_prev / 2
-        idx_50 = np.searchsorted(cum_inc, half_target)
+        idx_50 = np.searchsorted(mean_obs, half_target)
         age_50 = ages[min(idx_50, len(ages) - 1)]
 
         ax.axhline(half_target, color="grey", linestyle="--", linewidth=0.8)
@@ -268,84 +354,116 @@ def plot_cumulative_incidence(df, censor_age, output_path, scenario=""):
             xy=(age_50, half_target), xytext=(12, 12), textcoords="offset points",
             fontsize=10, ha="left", va="bottom",
         )
-
         ax.set_title(f"Trait {trait_num}")
         ax.set_xlabel("Age")
+        ax.legend(loc="lower right", fontsize=9)
 
     axes[0].set_ylabel("Cumulative Incidence")
-
-    fig.suptitle(f"Cumulative Incidence by Age [{scenario}]", fontsize=14)
+    fig.suptitle(f"Cumulative Incidence by Age (Weibull) [{scenario}]", fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
     plt.close()
 
 
-def plot_censoring_windows(df, censor_age, young_gen_censoring, middle_gen_censoring,
-                           old_gen_censoring, output_path, scenario=""):
-    """Plot per-generation censoring windows as cumulative incidence of affected individuals."""
-    if "generation" not in df.columns:
-        print("Skipping censoring_windows plot: no 'generation' column in data")
+def plot_censoring_windows(all_stats, output_path, scenario="",
+                           old_gen_censoring=None, middle_gen_censoring=None,
+                           young_gen_censoring=None):
+    """Plot per-generation censoring windows, mean +/- band across reps."""
+    # Check that all reps have censoring data
+    stats_with_censoring = [s for s in all_stats if s.get("censoring") is not None]
+    if not stats_with_censoring:
+        print("Skipping censoring_windows plot: no censoring data in stats")
+        # Create empty plot to satisfy Snakemake output
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No censoring data", ha="center", va="center",
+                transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
         return
 
-    max_gen = df["generation"].max()
-    gen_order = [max_gen - 2, max_gen - 1, max_gen]
-    gen_labels = [
-        f"Old (gen {max_gen - 2})",
-        f"Middle (gen {max_gen - 1})",
-        f"Young (gen {max_gen})",
-    ]
-    gen_windows = [old_gen_censoring, middle_gen_censoring, young_gen_censoring]
+    ages = np.array(stats_with_censoring[0]["censoring"]["censoring_ages"])
+    censor_age = stats_with_censoring[0]["censoring"]["censor_age"]
+
+    gen_names = ["old", "middle", "young"]
+    gen_windows = {
+        "old": old_gen_censoring,
+        "middle": middle_gen_censoring,
+        "young": young_gen_censoring,
+    }
+    gen_labels = []
+    for name in gen_names:
+        label = name.capitalize()
+        win = gen_windows.get(name)
+        if win is not None:
+            gen_labels.append(f"{label}\n[{win[0]}, {win[1]}]")
+        else:
+            gen_labels.append(label)
+
+    # Infer censoring windows from the stats
+    # We need them for the vertical lines - read from snakemake params passed to main()
     traits = [1, 2]
-    ages = np.linspace(0, censor_age, 300)
 
-    fig, axes = plt.subplots(len(traits), len(gen_order), figsize=(5 * len(gen_order), 4 * len(traits)),
-                             sharex=True, sharey=True, squeeze=False)
+    fig, axes = plt.subplots(
+        len(traits), len(gen_names),
+        figsize=(5 * len(gen_names), 4 * len(traits)),
+        sharex=True, sharey=True, squeeze=False,
+    )
 
-    for col, (gen, label, (win_lo, win_hi)) in enumerate(zip(gen_order, gen_labels, gen_windows)):
-        gen_df = df[df["generation"] == gen]
-        n_gen = len(gen_df)
-        if n_gen == 0:
+    for col, (gen_name, label) in enumerate(zip(gen_names, gen_labels)):
+        # Check if any rep has data for this generation
+        gen_data = [
+            s["censoring"]["generations"][gen_name]
+            for s in stats_with_censoring
+            if s["censoring"]["generations"].get(gen_name, {}).get("n", 0) > 0
+        ]
+        if not gen_data:
             for row in range(len(traits)):
-                axes[row, col].text(0.5, 0.5, "No data", ha="center", va="center",
-                                    transform=axes[row, col].transAxes)
+                axes[row, col].text(
+                    0.5, 0.5, "No data", ha="center", va="center",
+                    transform=axes[row, col].transAxes,
+                )
             continue
 
         for row, trait_num in enumerate(traits):
             ax = axes[row, col]
-            t_raw = gen_df[f"t{trait_num}"].values
-            t_obs = gen_df[f"t_observed{trait_num}"].values
-            affected = gen_df[f"affected{trait_num}"].values
+            key = f"trait{trait_num}"
 
-            # Cumulative incidence: raw (all onsets, no censoring)
-            raw_inc = np.array([(t_raw <= a).sum() / n_gen for a in ages])
-            # Cumulative incidence: observed affected only
-            obs_inc = np.array([(affected & (t_obs <= a)).sum() / n_gen for a in ages])
+            all_true = np.array([g[key]["true_incidence"] for g in gen_data])
+            all_obs = np.array([g[key]["observed_incidence"] for g in gen_data])
 
-            ax.plot(ages, raw_inc, color="gray", alpha=0.7, linewidth=2, label="True")
-            ax.fill_between(ages, raw_inc, alpha=0.15, color="gray")
-            ax.plot(ages, obs_inc, color="C0", linewidth=2, label="Observed")
-            ax.fill_between(ages, obs_inc, alpha=0.2, color="C0")
+            mean_true = all_true.mean(axis=0)
+            mean_obs = all_obs.mean(axis=0)
 
-            if win_lo > 0:
-                ax.axvline(win_lo, color="red", linestyle="--", linewidth=1.5, label="Window")
-                ax.axvspan(0, win_lo, alpha=0.08, color="red")
-            if win_hi < censor_age:
-                ax.axvline(win_hi, color="red", linestyle="--", linewidth=1.5,
-                           label="Window" if win_lo <= 0 else None)
-                ax.axvspan(win_hi, censor_age, alpha=0.08, color="red")
+            ax.plot(ages, mean_true, color="gray", alpha=0.7, linewidth=2, label="True")
+            ax.fill_between(ages, mean_true, alpha=0.15, color="gray")
+            ax.plot(ages, mean_obs, color="C0", linewidth=2, label="Observed")
+            ax.fill_between(ages, mean_obs, alpha=0.2, color="C0")
 
-            pct_affected = affected.mean() * 100
-            left_cens = (t_raw < win_lo).sum() / n_gen * 100
-            right_cens = (t_raw > win_hi).sum() / n_gen * 100
-            death_censored = gen_df[f"death_censored{trait_num}"].values
-            pct_death_cens = (death_censored & ~(t_raw < win_lo) & ~(t_raw > win_hi)).mean() * 100
-            ax.text(0.03, 0.95,
-                    f"Affected: {pct_affected:.1f}%\n"
-                    f"Left-cens: {left_cens:.1f}%\n"
-                    f"Right-cens: {right_cens:.1f}%\n"
-                    f"Death-cens: {pct_death_cens:.1f}%",
-                    transform=ax.transAxes, ha="left", va="top", fontsize=9,
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+            if len(stats_with_censoring) > 1:
+                ax.fill_between(
+                    ages, all_true.min(axis=0), all_true.max(axis=0),
+                    alpha=0.08, color="gray",
+                )
+                ax.fill_between(
+                    ages, all_obs.min(axis=0), all_obs.max(axis=0),
+                    alpha=0.08, color="C0",
+                )
+
+            # Annotation stats (averaged)
+            pct_affected = np.mean([g[key]["pct_affected"] for g in gen_data]) * 100
+            left_cens = np.mean([g[key]["left_censored"] for g in gen_data]) * 100
+            right_cens = np.mean([g[key]["right_censored"] for g in gen_data]) * 100
+            death_cens = np.mean([g[key]["death_censored"] for g in gen_data]) * 100
+
+            ax.text(
+                0.03, 0.95,
+                f"Affected: {pct_affected:.1f}%\n"
+                f"Left-cens: {left_cens:.1f}%\n"
+                f"Right-cens: {right_cens:.1f}%\n"
+                f"Death-cens: {death_cens:.1f}%",
+                transform=ax.transAxes, ha="left", va="top", fontsize=9,
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+            )
 
             if row == 0:
                 ax.set_title(label, fontsize=12)
@@ -357,273 +475,232 @@ def plot_censoring_windows(df, censor_age, young_gen_censoring, middle_gen_censo
     from matplotlib.lines import Line2D
     legend_ax = axes[0, 1]
     handles, labels = legend_ax.get_legend_handles_labels()
-    if "Window" not in labels:
-        handles.append(Line2D([0], [0], color="red", linestyle="--", linewidth=1.5))
-        labels.append("Window")
     legend_ax.legend(handles, labels, loc="lower right", fontsize=8)
-    fig.suptitle(f"Censoring Windows by Generation [{scenario}]", fontsize=14, y=1.01)
+    fig.suptitle(
+        f"Censoring Windows by Generation (Weibull) [{scenario}]", fontsize=14, y=1.01
+    )
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
 
 
-def tetrachoric_corr(a, b):
-    """Estimate tetrachoric correlation from two binary arrays via MLE.
+def plot_joint_affection(df_samples, output_path, scenario=""):
+    """2x2 heatmap of joint affection status (trait1 x trait2)."""
+    a1 = df_samples["affected1"].values.astype(bool)
+    a2 = df_samples["affected2"].values.astype(bool)
+    n = len(df_samples)
 
-    Maximizes the bivariate normal log-likelihood over the correlation
-    parameter r, given thresholds derived from marginal proportions.
-    """
-    a = np.asarray(a, dtype=bool)
-    b = np.asarray(b, dtype=bool)
-    n = len(a)
-
-    # 2x2 contingency table
-    n11 = np.sum(a & b)
-    n10 = np.sum(a & ~b)
-    n01 = np.sum(~a & b)
-    n00 = np.sum(~a & ~b)
-
-    # Marginal proportions
-    p_a = a.mean()
-    p_b = b.mean()
-
-    # Edge cases: no variation in one or both variables
-    if p_a == 0 or p_a == 1 or p_b == 0 or p_b == 1:
-        return np.nan
-
-    # Thresholds from marginals
-    t_a = norm.ppf(1 - p_a)
-    t_b = norm.ppf(1 - p_b)
-
-    def bvn_cdf(x1, x2, r):
-        """CDF of standard bivariate normal at (x1, x2) with correlation r."""
-        cov = np.array([[1, r], [r, 1]])
-        return multivariate_normal.cdf([x1, x2], mean=[0, 0], cov=cov)
-
-    def neg_log_lik(r):
-        # P(A=0, B=0) = P(X < t_a, Y < t_b)
-        p00 = bvn_cdf(t_a, t_b, r)
-        # P(A=0, B=1) = P(X < t_a) - P(X < t_a, Y < t_b)
-        p01 = norm.cdf(t_a) - p00
-        # P(A=1, B=0) = P(Y < t_b) - P(X < t_a, Y < t_b)
-        p10 = norm.cdf(t_b) - p00
-        # P(A=1, B=1) = 1 - p00 - p01 - p10
-        p11 = 1 - p00 - p01 - p10
-
-        # Clamp to avoid log(0)
-        eps = 1e-15
-        p11 = max(p11, eps)
-        p10 = max(p10, eps)
-        p01 = max(p01, eps)
-        p00 = max(p00, eps)
-
-        return -(n11 * np.log(p11) + n10 * np.log(p10) +
-                 n01 * np.log(p01) + n00 * np.log(p00))
-
-    result = minimize_scalar(neg_log_lik, bounds=(-0.999, 0.999), method="bounded")
-    return result.x
-
-
-def extract_relationship_pairs(df):
-    """Extract relationship pairs from phenotype data.
-
-    Returns dict mapping pair type to list of ((rep,id1), (rep,id2)) tuples.
-    Pair types: MZ twin, Full sib, Half sib, Parent-offspring, 1st cousin.
-    """
-    pairs = {
-        "MZ twin": [], "Full sib": [], "Half sib": [],
-        "Parent-offspring": [], "1st cousin": [],
+    props = {
+        "both": np.sum(a1 & a2) / n,
+        "trait1_only": np.sum(a1 & ~a2) / n,
+        "trait2_only": np.sum(~a1 & a2) / n,
+        "neither": np.sum(~a1 & ~a2) / n,
+    }
+    counts = {
+        "both": int(np.sum(a1 & a2)),
+        "trait1_only": int(np.sum(a1 & ~a2)),
+        "trait2_only": int(np.sum(~a1 & a2)),
+        "neither": int(np.sum(~a1 & ~a2)),
     }
 
-    # Ensure rep column exists
-    has_rep = "rep" in df.columns
-    df_work = df if has_rep else df.assign(rep=0)
+    matrix = np.array([
+        [props["both"], props["trait1_only"]],
+        [props["trait2_only"], props["neither"]],
+    ])
+    labels = np.array([
+        [f"{props['both']:.2f}\n(n={counts['both']})",
+         f"{props['trait1_only']:.2f}\n(n={counts['trait1_only']})"],
+        [f"{props['trait2_only']:.2f}\n(n={counts['trait2_only']})",
+         f"{props['neither']:.2f}\n(n={counts['neither']})"],
+    ])
 
-    # MZ twins: twin != -1, deduplicate by keeping id < twin
-    twins = df_work[df_work["twin"] != -1]
-    ta = twins["id"].values.astype(int)
-    tb = twins["twin"].values.astype(int)
-    tr = twins["rep"].values.astype(int)
-    mask = ta < tb
-    pairs["MZ twin"] = [
-        ((r, a), (r, b)) for r, a, b in zip(tr[mask], ta[mask], tb[mask])
-    ]
-
-    # Full sibs and half sibs from non-twin offspring
-    non_twin_nf = df_work[(df_work["mother"] != -1) & (df_work["twin"] == -1)]
-    group_key = ["rep", "mother"]
-    sib_counts = non_twin_nf.groupby(group_key).size()
-    multi_keys = sib_counts[sib_counts >= 2].index
-
-    multi_sib = non_twin_nf.set_index(group_key).loc[multi_keys].reset_index()
-
-    for _, group in multi_sib.groupby(group_key):
-        reps = group["rep"].values
-        ids = group["id"].values
-        fathers = group["father"].values
-        n = len(ids)
-        for i in range(n):
-            for j in range(i + 1, n):
-                pi = (reps[i], ids[i])
-                pj = (reps[j], ids[j])
-                if fathers[i] == fathers[j]:
-                    pairs["Full sib"].append((pi, pj))
-                else:
-                    pairs["Half sib"].append((pi, pj))
-
-    # Parent-offspring: pair each non-founder with their mother and father
-    all_nf = df_work[df_work["mother"] != -1]
-    reps = all_nf["rep"].values.astype(int)
-    child_ids = all_nf["id"].values.astype(int)
-    mother_ids = all_nf["mother"].values.astype(int)
-    father_ids = all_nf["father"].values.astype(int)
-    pairs["Parent-offspring"] = (
-        [((r, c), (r, m)) for r, c, m in zip(reps, child_ids, mother_ids)] +
-        [((r, c), (r, f)) for r, c, f in zip(reps, child_ids, father_ids)]
+    fig, ax = plt.subplots(figsize=(7, 6))
+    sns.heatmap(
+        matrix, annot=labels, fmt="", cmap="Blues", ax=ax,
+        xticklabels=["Affected", "Unaffected"],
+        yticklabels=["Affected", "Unaffected"],
+        vmin=0, vmax=max(matrix.max(), 0.01),
+        cbar_kws={"label": "Proportion"},
     )
+    # Cross-trait tetrachoric correlation
+    r_tet = tetrachoric_corr(a1, a2)
+    r_label = f"r_tet = {r_tet:.3f}" if not np.isnan(r_tet) else "r_tet = N/A"
 
-    # 1st cousins (maternal line): children whose mothers share the same grandmother
-    mother_lookup = df_work[["rep", "id", "mother"]].rename(
-        columns={"id": "_mid", "mother": "grandmother"}
-    )
-    nf_gm = all_nf[["rep", "id", "mother"]].merge(
-        mother_lookup, left_on=["rep", "mother"], right_on=["rep", "_mid"], how="left"
-    )
-    nf_gm = nf_gm[nf_gm["grandmother"].notna() & (nf_gm["grandmother"] != -1)]
-    nf_gm["grandmother"] = nf_gm["grandmother"].astype(int)
-
-    for (rep, gm), gm_group in nf_gm.groupby(["rep", "grandmother"]):
-        by_mother = gm_group.groupby("mother")["id"].apply(list).to_dict()
-        mothers = list(by_mother.values())
-        for mi in range(len(mothers)):
-            for mj in range(mi + 1, len(mothers)):
-                for ci in mothers[mi]:
-                    for cj in mothers[mj]:
-                        pairs["1st cousin"].append(
-                            ((int(rep), int(ci)), (int(rep), int(cj)))
-                        )
-
-    return pairs
+    ax.set_xlabel("Trait 1")
+    ax.set_ylabel("Trait 2")
+    ax.set_title(f"Joint Affection Status (Weibull) [{scenario}]\n{r_label}", fontsize=14)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
 
 
-def plot_tetrachoric_sibling(df, output_path, scenario, A1, C1, A2, C2):
-    """Plot tetrachoric correlations by relationship type."""
-    pairs = extract_relationship_pairs(df)
-    pair_types = ["MZ twin", "Full sib", "Parent-offspring", "Half sib", "1st cousin"]
-    bar_colors = ["C0", "C1", "C3", "C2", "C4"]
-
-    # Expected liability-scale correlations per trait
-    # Parent-offspring: avg of mother-child (0.5A+C) and father-child (0.5A)
-    # 1st cousin (maternal): mothers are sisters, children share C through grandmother
-    expected = {
-        1: {
-            "MZ twin": A1 + C1,
-            "Full sib": 0.5 * A1 + C1,
-            "Parent-offspring": 0.5 * A1 + 0.5 * C1,
-            "Half sib": 0.25 * A1 + C1,
-            "1st cousin": 0.125 * A1 + C1,
-        },
-        2: {
-            "MZ twin": A2 + C2,
-            "Full sib": 0.5 * A2 + C2,
-            "Parent-offspring": 0.5 * A2 + 0.5 * C2,
-            "Half sib": 0.25 * A2 + C2,
-            "1st cousin": 0.125 * A2 + C2,
-        },
-    }
-
-    has_rep = "rep" in df.columns
-    if has_rep:
-        df_idx = df.set_index(["rep", "id"])
-    else:
-        df_idx = df.assign(rep=0).set_index(["rep", "id"])
-    valid_keys = set(df_idx.index)
+def plot_tetrachoric_sibling(all_stats, output_path, scenario):
+    """Plot tetrachoric correlations by relationship type, mean with rep dots."""
+    pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
+    bar_colors = ["C0", "C1", "C3", "C5", "C2", "C6", "C4"]
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
     for col_idx, trait_num in enumerate([1, 2]):
         ax = axes[col_idx]
-        affected_col = f"affected{trait_num}"
-        observed_corrs = []
-        n_pairs_list = []
+        key = f"trait{trait_num}"
+
+        mean_corrs = []
+        se_bars = []
+        total_pairs = []
+        rep_corrs = {pt: [] for pt in pair_types}
 
         for ptype in pair_types:
-            pair_list = pairs[ptype]
-            valid = [(a, b) for a, b in pair_list if a in valid_keys and b in valid_keys]
-            if len(valid) < 10:
-                observed_corrs.append(np.nan)
-                n_pairs_list.append(len(valid))
-                continue
+            corrs = []
+            n_total = 0
+            for s in all_stats:
+                entry = s["tetrachoric"][key].get(ptype, {})
+                r = entry.get("r")
+                n_p = entry.get("n_pairs", 0)
+                if r is not None:
+                    corrs.append(r)
+                n_total += n_p
+                rep_corrs[ptype].append(r)
 
-            ids1, ids2 = zip(*valid)
-            a_vals = df_idx.loc[list(ids1), affected_col].values.astype(bool)
-            b_vals = df_idx.loc[list(ids2), affected_col].values.astype(bool)
-
-            r_tet = tetrachoric_corr(a_vals, b_vals)
-            observed_corrs.append(r_tet)
-            n_pairs_list.append(len(valid))
+            mean_corrs.append(np.mean(corrs) if corrs else np.nan)
+            if len(corrs) > 1:
+                se_bars.append(np.std(corrs) / np.sqrt(len(corrs)))
+            else:
+                se_bars.append(0)
+            total_pairs.append(n_total)
 
         x = np.arange(len(pair_types))
-        bars = ax.bar(x, observed_corrs, width=0.6, color=bar_colors,
-                      edgecolor="black", alpha=0.8, zorder=3)
+        bars = ax.bar(
+            x, mean_corrs, width=0.6, color=bar_colors,
+            edgecolor="black", alpha=0.8, zorder=3,
+        )
 
-        # Annotate N pairs
-        for i, (bar, n_p) in enumerate(zip(bars, n_pairs_list)):
+        # Error bars (cross-rep SE)
+        ax.errorbar(
+            x, mean_corrs, yerr=se_bars, fmt="none",
+            ecolor="black", elinewidth=1.5, capsize=4, zorder=4,
+        )
+
+        # Overlay per-rep dots
+        for i, ptype in enumerate(pair_types):
+            rep_vals = [v for v in rep_corrs[ptype] if v is not None]
+            if rep_vals:
+                jitter = np.random.default_rng(42).uniform(-0.15, 0.15, len(rep_vals))
+                ax.scatter(
+                    x[i] + jitter, rep_vals, color="black", s=12,
+                    alpha=0.4, zorder=5,
+                )
+
+        # Annotate mean N pairs per rep
+        n_reps = len(all_stats)
+        for i, (bar, n_p) in enumerate(zip(bars, total_pairs)):
             height = bar.get_height()
             if not np.isnan(height):
-                ax.text(bar.get_x() + bar.get_width() / 2, height + 0.01,
-                        f"N={n_p}", ha="center", va="bottom", fontsize=8)
+                ax.text(
+                    bar.get_x() + bar.get_width() / 2, height + se_bars[i] + 0.01,
+                    f"N={n_p // n_reps}", ha="center", va="bottom", fontsize=8,
+                )
 
-        # Expected lines
+        # Liability correlation lines (averaged across reps)
         for i, ptype in enumerate(pair_types):
-            exp_val = expected[trait_num][ptype]
-            ax.hlines(exp_val, i - 0.35, i + 0.35, colors="black",
-                      linestyles="dashed", linewidth=2, zorder=4)
+            liab_vals = [
+                s.get("liability_correlations", {}).get(key, {}).get(ptype)
+                for s in all_stats
+            ]
+            liab_vals = [v for v in liab_vals if v is not None]
+            if liab_vals:
+                mean_liab_r = np.mean(liab_vals)
+                ax.hlines(
+                    mean_liab_r, i - 0.35, i + 0.35, colors="black",
+                    linestyles="dashed", linewidth=2, zorder=4,
+                )
 
         ax.set_xticks(x)
-        ax.set_xticklabels(pair_types, fontsize=9)
+        ax.set_xticklabels(pair_types, fontsize=9, rotation=15, ha="right")
         ax.set_ylabel("Tetrachoric Correlation")
         ax.set_title(f"Trait {trait_num}")
         ax.set_ylim(-0.1, 1.1)
 
-        # Legend for expected lines
         from matplotlib.lines import Line2D
-        legend_elements = [Line2D([0], [0], color="black", linestyle="--",
-                                  linewidth=2, label="Expected")]
+        legend_elements = [
+            Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r"),
+        ]
         ax.legend(handles=legend_elements, loc="upper right")
 
-    fig.suptitle(f"Tetrachoric Correlation by Sibling Type [{scenario}]", fontsize=14)
+    fig.suptitle(
+        f"Tetrachoric Correlation (Weibull) [{scenario}]", fontsize=14
+    )
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
     plt.close()
 
 
-def main(parquet_paths, censor_age, output_dir, young_gen_censoring=None,
-         middle_gen_censoring=None, old_gen_censoring=None,
-         A1=None, C1=None, A2=None, C2=None):
-    """Generate all phenotype plots."""
+def main(stats_paths, sample_paths, output_dir, censor_age,
+         young_gen_censoring=None, middle_gen_censoring=None,
+         old_gen_censoring=None):
+    """Generate all phenotype plots from pre-computed stats."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Derive scenario name from path: results/{scenario}/plots
     scenario = output_dir.parent.name
-
     sns.set_theme(style="whitegrid")
-    df = load_phenotypes(parquet_paths)
 
-    plot_death_age_distribution(df, censor_age, output_dir / "death_age_distribution.png", scenario)
-    plot_trait_phenotype(df, output_dir / "phenotype_traits.png", scenario)
-    plot_trait_regression(df, output_dir / "liability_regression.png", scenario)
-    plot_liability_joint(df, output_dir / "liability_joint.png", scenario)
-    plot_liability_violin(df, output_dir / "liability_violin.png", scenario)
-    plot_cumulative_incidence(df, censor_age, output_dir / "cumulative_incidence.png", scenario)
+    # Load per-rep stats
+    all_stats = []
+    for p in stats_paths:
+        with open(p) as f:
+            all_stats.append(yaml.load(f, Loader=_yaml_loader))
+
+    # Load and concatenate downsampled data
+    df_samples = pd.concat(
+        [pd.read_parquet(p) for p in sample_paths], ignore_index=True
+    )
+
+    # Subsample for plotting (scatter/violin are O(n) slow for >100K points)
+    if len(df_samples) > MAX_PLOT_POINTS:
+        df_samples = df_samples.sample(
+            n=MAX_PLOT_POINTS, random_state=42
+        ).reset_index(drop=True)
+
+    plot_death_age_distribution(
+        all_stats, censor_age, output_dir / "death_age_distribution.png", scenario
+    )
+    plot_trait_phenotype(
+        df_samples, output_dir / "phenotype_traits.png", scenario
+    )
+    plot_trait_regression(
+        df_samples, all_stats, output_dir / "liability_regression.png", scenario
+    )
+    plot_liability_joint(
+        df_samples, output_dir / "liability_joint.png", scenario
+    )
+    plot_liability_violin(
+        df_samples, all_stats, output_dir / "liability_violin.png", scenario
+    )
+    plot_cumulative_incidence(
+        all_stats, censor_age, output_dir / "cumulative_incidence.png", scenario
+    )
+    plot_joint_affection(
+        df_samples, output_dir / "joint_affection.png", scenario
+    )
     if young_gen_censoring is not None:
-        plot_censoring_windows(df, censor_age, young_gen_censoring, middle_gen_censoring,
-                               old_gen_censoring, output_dir / "censoring_windows.png", scenario)
+        plot_censoring_windows(
+            all_stats, output_dir / "censoring_windows.png", scenario,
+            old_gen_censoring=old_gen_censoring,
+            middle_gen_censoring=middle_gen_censoring,
+            young_gen_censoring=young_gen_censoring,
+        )
+    else:
+        # Create placeholder to satisfy Snakemake output
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No censoring windows configured",
+                ha="center", va="center", transform=ax.transAxes)
+        plt.savefig(output_dir / "censoring_windows.png", dpi=150)
+        plt.close()
 
-    if A1 is not None:
-        plot_tetrachoric_sibling(df, output_dir / "tetrachoric_sibling.png", scenario,
-                                 A1, C1, A2, C2)
+    plot_tetrachoric_sibling(
+        all_stats, output_dir / "tetrachoric_relationship.png", scenario,
+    )
 
     print(f"Phenotype plots saved to {output_dir}")
 
@@ -632,31 +709,16 @@ if __name__ == "__main__":
     import sys
 
     try:
-        parquet_paths = snakemake.input.phenotypes
+        stats_paths = snakemake.input.stats
+        sample_paths = snakemake.input.samples
         censor_age = snakemake.params.censor_age
         young_gen_censoring = snakemake.params.young_gen_censoring
         middle_gen_censoring = snakemake.params.middle_gen_censoring
         old_gen_censoring = snakemake.params.old_gen_censoring
-        A1 = snakemake.params.A1
-        C1 = snakemake.params.C1
-        A2 = snakemake.params.A2
-        C2 = snakemake.params.C2
         output_dir = Path(snakemake.output[0]).parent
     except NameError:
-        if len(sys.argv) >= 4:
-            censor_age = float(sys.argv[1])
-            output_dir = sys.argv[2]
-            parquet_paths = sys.argv[3:]
-            young_gen_censoring = None
-            middle_gen_censoring = None
-            old_gen_censoring = None
-            A1 = None
-            C1 = None
-            A2 = None
-            C2 = None
-        else:
-            print("Usage: plot_phenotype.py <censor_age> <output_dir> <phenotype1.parquet> ...")
-            sys.exit(1)
+        print("Usage: run via snakemake or provide stats/sample paths")
+        sys.exit(1)
 
-    main(parquet_paths, censor_age, output_dir, young_gen_censoring,
-         middle_gen_censoring, old_gen_censoring, A1, C1, A2, C2)
+    main(stats_paths, sample_paths, output_dir, censor_age,
+         young_gen_censoring, middle_gen_censoring, old_gen_censoring)
