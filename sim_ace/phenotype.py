@@ -16,8 +16,13 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
+import logging
+import time
+
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def simulate_phenotype(liability: np.ndarray, beta: float, rate: float, k: float, seed: int, standardize: bool = True) -> np.ndarray:
@@ -119,6 +124,8 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     Returns:
         phenotype DataFrame
     """
+    logger.info("Running phenotype simulation for %d individuals", len(pedigree))
+    t0 = time.perf_counter()
     # Filter to last G_pheno generations
     max_gen = pedigree["generation"].max()
     min_pheno_gen = max_gen - params["G_pheno"] + 1
@@ -196,12 +203,23 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
         }
     )
 
+    # Data shape: prevalence after censoring
+    prev1 = phenotype["affected1"].mean()
+    prev2 = phenotype["affected2"].mean()
+    logger.info("Prevalence after censoring: trait1=%.3f, trait2=%.3f", prev1, prev2)
+
+    elapsed = time.perf_counter() - t0
+    logger.info("Phenotype simulation complete in %.1fs: %d individuals", elapsed, len(phenotype))
+
     return phenotype
 
 
 def cli() -> None:
     """Command-line interface for phenotype simulation."""
+    from sim_ace import setup_logging
     parser = argparse.ArgumentParser(description="Simulate Weibull frailty phenotype")
+    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
     parser.add_argument("--pedigree", required=True, help="Input pedigree parquet")
     parser.add_argument("--output", required=True, help="Output phenotype parquet")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
@@ -220,6 +238,9 @@ def cli() -> None:
     parser.add_argument("--middle-gen-censoring", type=float, nargs=2, default=[40, 70], help="Age censoring range for middle generation (min max)")
     parser.add_argument("--old-gen-censoring", type=float, nargs=2, default=[60, 90], help="Age censoring range for oldest generation (min max)")
     args = parser.parse_args()
+
+    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
+    setup_logging(level=level)
 
     pedigree = pd.read_parquet(args.pedigree)
     params = {

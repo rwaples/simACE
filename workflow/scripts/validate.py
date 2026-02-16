@@ -1,10 +1,12 @@
 """ACE simulation validation - Snakemake wrapper with CLI fallback."""
 import yaml
 
+from sim_ace import setup_logging
 from sim_ace.validate import run_validation, to_native, cli as _cli
 
 
 def _run_snakemake():
+    setup_logging(log_file=snakemake.log[0])
     pedigree_path = snakemake.input.pedigree
     params_path = snakemake.input.params
     output_path = snakemake.output.report

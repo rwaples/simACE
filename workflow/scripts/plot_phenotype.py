@@ -1,10 +1,12 @@
 """Plot phenotype distributions - Snakemake wrapper with CLI fallback."""
 from pathlib import Path
 
+from sim_ace import setup_logging
 from sim_ace.plot_phenotype import main, cli as _cli
 
 
 def _run_snakemake():
+    setup_logging(log_file=snakemake.log[0])
     stats_paths = snakemake.input.stats
     sample_paths = snakemake.input.samples
     censor_age = snakemake.params.censor_age

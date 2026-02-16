@@ -19,6 +19,10 @@ from scipy.stats import norm, linregress
 from scipy.optimize import minimize_scalar
 from scipy.special import owens_t
 
+import logging
+import time
+logger = logging.getLogger(__name__)
+
 
 def _bvn_pos(h: float, k: float, r: float, sq: float) -> float:
     """BVN CDF for h >= 0, k >= 0, |r| < 1 using Owen's T function."""
@@ -55,6 +59,10 @@ def tetrachoric_corr_se(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
     """
     a = np.asarray(a, dtype=bool)
     b = np.asarray(b, dtype=bool)
+
+    n_pairs = len(a)
+    if n_pairs < 50:
+        logger.warning("tetrachoric_corr_se: n_pairs=%d < 50, SE may be unreliable", n_pairs)
 
     n11 = np.sum(a & b)
     n10 = np.sum(a & ~b)
@@ -252,6 +260,10 @@ def extract_relationship_pairs(df: pd.DataFrame, seed: int = 42) -> dict[str, tu
     # Cap grandparents to limit pair explosion
     unique_gp_arr = np.unique(gp_gp)
     if len(unique_gp_arr) > 100000:
+        logger.warning(
+            "extract_relationship_pairs: %d grandparents exceed 100K cap, sampling subset",
+            len(unique_gp_arr),
+        )
         rng = np.random.default_rng(seed)
         selected_gp = rng.choice(unique_gp_arr, 100000, replace=False)
         gp_mask = np.isin(gp_gp, selected_gp)
@@ -549,7 +561,7 @@ def main(
     """Compute all stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
 
-    print(f"Computing stats for {phenotype_path} ({len(df)} rows)")
+    logger.info("Computing stats for %s (%d rows)", phenotype_path, len(df))
 
     stats = {}
     stats["n_individuals"] = int(len(df))
@@ -574,34 +586,45 @@ def main(
         )
 
     # Extract relationship pairs once (used by both liability and tetrachoric)
-    print("Extracting relationship pairs...")
+    logger.info("Extracting relationship pairs...")
+    t_pairs = time.perf_counter()
     pairs = extract_relationship_pairs(df, seed=seed)
+    logger.info(
+        "Relationship pairs extracted in %.1fs: %s",
+        time.perf_counter() - t_pairs,
+        ", ".join(f"{k}: {len(v[0])}" for k, v in pairs.items()),
+    )
 
     # Liability correlations
-    print("Computing liability correlations...")
+    logger.info("Computing liability correlations...")
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
 
     # Tetrachoric correlations
-    print("Computing tetrachoric correlations...")
+    logger.info("Computing tetrachoric correlations...")
+    t_tet = time.perf_counter()
     stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
+    logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
 
     # Write stats YAML
     stats_path = Path(stats_output)
     stats_path.parent.mkdir(parents=True, exist_ok=True)
     with open(stats_path, "w") as f:
         yaml.dump(stats, f, default_flow_style=False, sort_keys=False)
-    print(f"Stats written to {stats_path}")
+    logger.info("Stats written to %s", stats_path)
 
     # Write downsampled parquet
     sample_df = create_sample(df, seed=seed)
     samples_path = Path(samples_output)
     sample_df.to_parquet(samples_path, index=False)
-    print(f"Sample ({len(sample_df)} rows) written to {samples_path}")
+    logger.info("Sample (%d rows) written to %s", len(sample_df), samples_path)
 
 
 def cli() -> None:
     """Command-line interface for computing phenotype statistics."""
+    from sim_ace import setup_logging
     parser = argparse.ArgumentParser(description="Compute phenotype statistics")
+    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
     parser.add_argument("phenotype", help="Input phenotype parquet")
     parser.add_argument("censor_age", type=float, help="Censoring age")
     parser.add_argument("stats_output", help="Output stats YAML")
@@ -611,6 +634,9 @@ def cli() -> None:
     parser.add_argument("--middle-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for middle generation (min max)")
     parser.add_argument("--old-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for oldest generation (min max)")
     args = parser.parse_args()
+
+    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
+    setup_logging(level=level)
 
     main(args.phenotype, args.censor_age, args.stats_output, args.samples_output,
          seed=args.seed, young_gen_censoring=args.young_gen_censoring,

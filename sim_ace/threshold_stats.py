@@ -23,6 +23,10 @@ from sim_ace.stats import (
     create_sample,
 )
 
+import logging
+import time
+logger = logging.getLogger(__name__)
+
 
 def compute_prevalence_by_generation(df: pd.DataFrame) -> dict[str, Any]:
     """Compute per-trait, per-generation prevalence."""
@@ -103,7 +107,7 @@ def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int 
     """Compute all threshold stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
 
-    print(f"Computing threshold stats for {phenotype_path} ({len(df)} rows)")
+    logger.info("Computing threshold stats for %s (%d rows)", phenotype_path, len(df))
 
     stats = {}
     stats["n_individuals"] = int(len(df))
@@ -118,38 +122,52 @@ def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int 
     stats["liability_by_status"] = compute_liability_by_status(df)
 
     # Extract relationship pairs once
-    print("Extracting relationship pairs...")
+    logger.info("Extracting relationship pairs...")
+    t_pairs = time.perf_counter()
     pairs = extract_relationship_pairs(df, seed=seed)
+    logger.info(
+        "Relationship pairs extracted in %.1fs: %s",
+        time.perf_counter() - t_pairs,
+        ", ".join(f"{k}: {len(v[0])}" for k, v in pairs.items()),
+    )
 
     # Liability correlations
-    print("Computing liability correlations...")
+    logger.info("Computing liability correlations...")
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
 
     # Tetrachoric correlations
-    print("Computing tetrachoric correlations...")
+    logger.info("Computing tetrachoric correlations...")
+    t_tet = time.perf_counter()
     stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
+    logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
 
     # Write stats YAML
     stats_path = Path(stats_output)
     stats_path.parent.mkdir(parents=True, exist_ok=True)
     with open(stats_path, "w") as f:
         yaml.dump(stats, f, default_flow_style=False, sort_keys=False)
-    print(f"Stats written to {stats_path}")
+    logger.info("Stats written to %s", stats_path)
 
     # Write downsampled parquet
     sample_df = create_sample(df, seed=seed)
     samples_path = Path(samples_output)
     sample_df.to_parquet(samples_path, index=False)
-    print(f"Sample ({len(sample_df)} rows) written to {samples_path}")
+    logger.info("Sample (%d rows) written to %s", len(sample_df), samples_path)
 
 
 def cli() -> None:
     """Command-line interface for computing threshold statistics."""
+    from sim_ace import setup_logging
     parser = argparse.ArgumentParser(description="Compute threshold phenotype statistics")
+    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
     parser.add_argument("phenotype", help="Input phenotype parquet")
     parser.add_argument("stats_output", help="Output stats YAML")
     parser.add_argument("samples_output", help="Output samples parquet")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
     args = parser.parse_args()
+
+    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
+    setup_logging(level=level)
 
     main(args.phenotype, args.stats_output, args.samples_output, seed=args.seed)

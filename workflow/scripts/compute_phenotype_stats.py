@@ -1,8 +1,10 @@
 """Compute phenotype statistics - Snakemake wrapper with CLI fallback."""
+from sim_ace import setup_logging
 from sim_ace.stats import main, cli as _cli
 
 
 def _run_snakemake():
+    setup_logging(log_file=snakemake.log[0])
     phenotype_path = snakemake.input.phenotype
     seed = snakemake.params.seed
     censor_age = snakemake.params.censor_age

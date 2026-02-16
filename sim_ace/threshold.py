@@ -13,8 +13,13 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
+import logging
+import time
+
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def apply_threshold(liability: np.ndarray, generation: np.ndarray, prevalence: float) -> np.ndarray:
@@ -64,6 +69,11 @@ def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     Returns:
         phenotype DataFrame
     """
+    logger.info(
+        "Applying threshold model: prevalence1=%.3f, prevalence2=%.3f",
+        params["prevalence1"], params["prevalence2"],
+    )
+    t0 = time.perf_counter()
     # Filter to last G_pheno generations
     max_gen = pedigree["generation"].max()
     min_pheno_gen = max_gen - params["G_pheno"] + 1
@@ -101,18 +111,27 @@ def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
         }
     )
 
+    elapsed = time.perf_counter() - t0
+    logger.info("Threshold model complete in %.1fs: %d individuals", elapsed, len(phenotype))
+
     return phenotype
 
 
 def cli() -> None:
     """Command-line interface for threshold phenotype simulation."""
+    from sim_ace import setup_logging
     parser = argparse.ArgumentParser(description="Apply liability threshold model")
+    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
     parser.add_argument("--pedigree", required=True, help="Input pedigree parquet")
     parser.add_argument("--output", required=True, help="Output phenotype parquet")
     parser.add_argument("--G-pheno", type=int, default=3, help="Number of generations to assign phenotypes")
     parser.add_argument("--prevalence1", type=float, default=0.1, help="Disease prevalence for trait 1")
     parser.add_argument("--prevalence2", type=float, default=0.1, help="Disease prevalence for trait 2")
     args = parser.parse_args()
+
+    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
+    setup_logging(level=level)
 
     pedigree = pd.read_parquet(args.pedigree)
     params = {

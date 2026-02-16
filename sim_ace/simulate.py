@@ -14,9 +14,14 @@ from __future__ import annotations
 
 import argparse
 
+import logging
+import time
+
 import numpy as np
 import pandas as pd
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 def generate_correlated_components(rng: np.random.Generator, n: int, sd1: float, sd2: float, correlation: float) -> tuple[np.ndarray, np.ndarray]:
@@ -380,6 +385,9 @@ def run_simulation(
     if G_sim < G_ped:
         raise ValueError(f"G_sim ({G_sim}) must be >= G_ped ({G_ped})")
 
+    logger.info("Starting simulation: N=%d, G_ped=%d, seed=%d", N, G_ped, seed)
+    t0 = time.perf_counter()
+
     rng = np.random.default_rng(seed)
 
     E1 = 1.0 - A1 - C1
@@ -419,13 +427,28 @@ def run_simulation(
                 pheno, sex, parents, twins, household_ids,
                 generation=i - burnin, pedigree=pedigree,
             )
+        # Per-generation data shape checkpoints
+        fam_sizes = np.bincount(household_ids)
+        logger.info(
+            "Generation %d: %d twins, mean family size %.2f",
+            i, len(twins) * 2, fam_sizes.mean(),
+        )
+
+    elapsed = time.perf_counter() - t0
+    logger.info(
+        "Simulation complete in %.1fs: pedigree has %d individuals",
+        elapsed, len(pedigree),
+    )
 
     return pedigree
 
 
 def cli() -> None:
     """Command-line interface for running ACE simulations."""
+    from sim_ace import setup_logging
     parser = argparse.ArgumentParser(description="Run ACE pedigree simulation")
+    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--N", type=int, default=1000, help="Founder population size")
     parser.add_argument("--G-ped", type=int, default=3, help="Number of pedigree generations")
@@ -443,6 +466,9 @@ def cli() -> None:
     parser.add_argument("--output-params", required=True, help="Output params YAML path")
     parser.add_argument("--rep", type=int, default=1, help="Replicate number")
     args = parser.parse_args()
+
+    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
+    setup_logging(level=level)
 
     pedigree = run_simulation(
         seed=args.seed, N=args.N, G_ped=args.G_ped, fam_size=args.fam_size,

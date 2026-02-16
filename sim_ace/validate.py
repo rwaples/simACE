@@ -10,10 +10,14 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
+import logging
+
 import numpy as np
 import pandas as pd
 import yaml
 from scipy import stats
+
+logger = logging.getLogger(__name__)
 
 
 def safe_corrcoef(x: np.ndarray, y: np.ndarray) -> float:
@@ -777,6 +781,7 @@ def compute_family_size_distribution(df: pd.DataFrame, params: dict[str, Any]) -
 
 def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
     """Run all validation checks and return results."""
+    logger.info("Validating pedigree: %s", pedigree_path)
     df = pd.read_parquet(pedigree_path)
     with open(params_path) as f:
         params = yaml.safe_load(f)
@@ -805,6 +810,10 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
                     checks_passed += 1
                 else:
                     checks_failed += 1
+                    logger.warning(
+                        "FAILED %s.%s: %s",
+                        category, check_name, check_result.get("details", ""),
+                    )
 
     results["summary"] = {
         "passed": checks_failed == 0,
@@ -816,16 +825,27 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
     results["family_size_distribution"] = compute_family_size_distribution(df, params)
     results["parameters"] = params
 
+    logger.info(
+        "Validation complete: %d/%d checks passed",
+        checks_passed, checks_passed + checks_failed,
+    )
+
     return results
 
 
 def cli() -> None:
     """Command-line interface for running validation."""
+    from sim_ace import setup_logging
     parser = argparse.ArgumentParser(description="Validate ACE simulation output")
+    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
     parser.add_argument("--pedigree", required=True, help="Pedigree parquet path")
     parser.add_argument("--params", required=True, help="Params YAML path")
     parser.add_argument("--output", required=True, help="Output validation YAML path")
     args = parser.parse_args()
+
+    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
+    setup_logging(level=level)
 
     results = run_validation(args.pedigree, args.params)
     results = to_native(results)

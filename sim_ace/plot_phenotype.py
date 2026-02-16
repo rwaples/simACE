@@ -24,6 +24,9 @@ from pathlib import Path
 
 from sim_ace.stats import tetrachoric_corr
 
+import logging
+logger = logging.getLogger(__name__)
+
 MAX_PLOT_POINTS = 100_000
 
 
@@ -379,7 +382,7 @@ def plot_censoring_windows(
     # Check that all reps have censoring data
     stats_with_censoring = [s for s in all_stats if s.get("censoring") is not None]
     if not stats_with_censoring:
-        print("Skipping censoring_windows plot: no censoring data in stats")
+        logger.warning("Skipping censoring_windows plot: no censoring data in stats")
         # Create empty plot to satisfy Snakemake output
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "No censoring data", ha="center", va="center",
@@ -422,6 +425,7 @@ def plot_censoring_windows(
             if s["censoring"]["generations"].get(gen_name, {}).get("n", 0) > 0
         ]
         if not gen_data:
+            logger.warning("plot_censoring_windows: generation '%s' has 0 individuals", gen_name)
             for row in range(len(traits)):
                 axes[row, col].text(
                     0.5, 0.5, "No data", ha="center", va="center",
@@ -713,12 +717,15 @@ def main(
         all_stats, output_dir / "tetrachoric_relationship.png", scenario,
     )
 
-    print(f"Phenotype plots saved to {output_dir}")
+    logger.info("Phenotype plots saved to %s", output_dir)
 
 
 def cli() -> None:
     """Command-line interface for generating phenotype plots."""
+    from sim_ace import setup_logging
     parser = argparse.ArgumentParser(description="Plot phenotype distributions")
+    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
     parser.add_argument("--stats", nargs="+", required=True, help="Stats YAML paths")
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")
     parser.add_argument("--output-dir", required=True, help="Output directory")
@@ -727,6 +734,9 @@ def cli() -> None:
     parser.add_argument("--middle-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for middle generation (min max)")
     parser.add_argument("--old-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for oldest generation (min max)")
     args = parser.parse_args()
+
+    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
+    setup_logging(level=level)
 
     main(args.stats, args.samples, args.output_dir, args.censor_age,
          args.young_gen_censoring, args.middle_gen_censoring, args.old_gen_censoring)

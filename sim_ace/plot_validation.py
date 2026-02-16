@@ -5,9 +5,12 @@ Plot validation results summarized across replicates per scenario.
 from __future__ import annotations
 
 import argparse
+import logging
 from collections.abc import Callable
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
@@ -214,6 +217,7 @@ def plot_summary_bias(df: pd.DataFrame, out: Path) -> None:
 def main(tsv_path: str, output_dir: str) -> None:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Generating validation plots in %s", output_dir)
     sns.set_theme(style="whitegrid", palette="Set2")
     df = pd.read_csv(tsv_path, sep="\t")
 
@@ -230,9 +234,15 @@ def main(tsv_path: str, output_dir: str) -> None:
 
 def cli() -> None:
     """Command-line interface for generating validation plots."""
+    from sim_ace import setup_logging
     parser = argparse.ArgumentParser(description="Plot validation results")
+    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
     parser.add_argument("tsv", help="Validation summary TSV path")
     parser.add_argument("output_dir", help="Output directory")
     args = parser.parse_args()
+
+    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
+    setup_logging(level=level)
 
     main(args.tsv, args.output_dir)

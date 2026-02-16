@@ -17,9 +17,12 @@ File formats match Survival Kit prepare.exe output exactly:
 from __future__ import annotations
 
 import argparse
+import logging
 
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def write_data(df: pd.DataFrame, trait: str, path: str) -> None:
@@ -154,6 +157,7 @@ def run_prepare(pedigree: pd.DataFrame, phenotype: pd.DataFrame, scenario: str, 
         trait: trait number
         outputs: dict with keys: data, codelist, varlist, pedigree_ped, weibull_config
     """
+    logger.info("Preparing Survival Kit files: scenario=%s, rep=%s, trait=%s", scenario, rep, trait)
     # Drop columns already in pedigree to avoid _x/_y suffix collision
     pheno_only = phenotype[[c for c in phenotype.columns if c not in pedigree.columns or c == "id"]]
     df = pedigree.merge(pheno_only, on="id")
@@ -173,7 +177,10 @@ def run_prepare(pedigree: pd.DataFrame, phenotype: pd.DataFrame, scenario: str, 
 
 def cli() -> None:
     """Command-line interface for preparing Survival Kit input files."""
+    from sim_ace import setup_logging
     parser = argparse.ArgumentParser(description="Prepare Survival Kit input files")
+    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
     parser.add_argument("--pedigree", required=True, help="Pedigree parquet path")
     parser.add_argument("--phenotype", required=True, help="Phenotype parquet path")
     parser.add_argument("--scenario", required=True, help="Scenario name")
@@ -185,6 +192,9 @@ def cli() -> None:
     parser.add_argument("--pedigree-ped", required=True, help="Output pedigree.ped path")
     parser.add_argument("--weibull-config", required=True, help="Output weibull.txt path")
     args = parser.parse_args()
+
+    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
+    setup_logging(level=level)
 
     pedigree = pd.read_parquet(args.pedigree)
     phenotype = pd.read_parquet(args.phenotype)

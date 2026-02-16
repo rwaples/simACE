@@ -24,6 +24,9 @@ from pathlib import Path
 
 from sim_ace.stats import tetrachoric_corr
 
+import logging
+logger = logging.getLogger(__name__)
+
 MAX_PLOT_POINTS = 100_000
 
 
@@ -398,17 +401,23 @@ def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, preva
         all_stats, output_dir / "threshold_tetrachoric.png", scenario,
     )
 
-    print(f"Threshold plots saved to {output_dir}")
+    logger.info("Threshold plots saved to %s", output_dir)
 
 
 def cli() -> None:
     """Command-line interface for generating threshold plots."""
+    from sim_ace import setup_logging
     parser = argparse.ArgumentParser(description="Plot threshold phenotype distributions")
+    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
     parser.add_argument("--stats", nargs="+", required=True, help="Stats YAML paths")
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")
     parser.add_argument("--output-dir", required=True, help="Output directory")
     parser.add_argument("--prevalence1", type=float, required=True, help="Disease prevalence for trait 1")
     parser.add_argument("--prevalence2", type=float, required=True, help="Disease prevalence for trait 2")
     args = parser.parse_args()
+
+    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
+    setup_logging(level=level)
 
     main(args.stats, args.samples, args.output_dir, args.prevalence1, args.prevalence2)

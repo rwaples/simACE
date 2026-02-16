@@ -1,10 +1,12 @@
 """Plot threshold phenotype distributions - Snakemake wrapper with CLI fallback."""
 from pathlib import Path
 
+from sim_ace import setup_logging
 from sim_ace.plot_threshold import main, cli as _cli
 
 
 def _run_snakemake():
+    setup_logging(log_file=snakemake.log[0])
     stats_paths = snakemake.input.stats
     sample_paths = snakemake.input.samples
     prevalence1 = snakemake.params.prevalence1

@@ -5,9 +5,12 @@ Gather validation results from all scenarios into a single TSV file.
 from __future__ import annotations
 
 import argparse
+import logging
 from typing import Any
 import re
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 def extract_metrics(validation_path: str) -> dict[str, Any]:
@@ -178,6 +181,8 @@ def main(validation_files: list[str], output_path: str) -> None:
     # Sort by scenario name, then by rep
     rows.sort(key=lambda x: (x["scenario"], x["rep"]))
 
+    logger.info("Gathered %d validation results -> %s", len(rows), output_path)
+
     # Write TSV
     if rows:
         columns = list(rows[0].keys())
@@ -198,9 +203,15 @@ def main(validation_files: list[str], output_path: str) -> None:
 
 def cli() -> None:
     """Command-line interface for gathering validation results."""
+    from sim_ace import setup_logging
     parser = argparse.ArgumentParser(description="Gather validation results into TSV")
+    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
+    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
     parser.add_argument("validations", nargs="+", help="Validation YAML paths")
     parser.add_argument("--output", required=True, help="Output TSV path")
     args = parser.parse_args()
+
+    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
+    setup_logging(level=level)
 
     main(args.validations, args.output)
