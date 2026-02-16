@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sim-ace"
+version = "0.1.0"
+description = "ACE pedigree simulation with A/C/E variance components"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy", "scipy", "pandas", "pyarrow", "pyyaml",
+    "matplotlib", "seaborn",
+]
+
+[project.optional-dependencies]
+dev = ["snakemake", "pytest"]
+
+[project.scripts]
+sim-ace-simulate = "sim_ace.simulate:cli"
+sim-ace-phenotype = "sim_ace.phenotype:cli"
+sim-ace-threshold = "sim_ace.threshold:cli"
+sim-ace-validate = "sim_ace.validate:cli"
+sim-ace-phenotype-stats = "sim_ace.stats:cli"
+sim-ace-threshold-stats = "sim_ace.threshold_stats:cli"
+sim-ace-gather = "sim_ace.gather:cli"
+sim-ace-prepare-weibull = "sim_ace.prepare:cli"
+sim-ace-plot-phenotype = "sim_ace.plot_phenotype:cli"
+sim-ace-plot-threshold = "sim_ace.plot_threshold:cli"
+sim-ace-plot-validation = "sim_ace.plot_validation:cli"
+
+[tool.setuptools.packages.find]
+include = ["sim_ace*"]
