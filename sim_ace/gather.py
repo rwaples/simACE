@@ -2,12 +2,15 @@
 Gather validation results from all scenarios into a single TSV file.
 """
 
+from __future__ import annotations
+
 import argparse
+from typing import Any
 import re
 import yaml
 
 
-def extract_metrics(validation_path):
+def extract_metrics(validation_path: str) -> dict[str, Any]:
     """Extract key metrics from a validation YAML file."""
     with open(validation_path) as f:
         data = yaml.safe_load(f)
@@ -25,7 +28,7 @@ def extract_metrics(validation_path):
     summary = data["summary"]
 
     # Extract key metrics, handling potential missing values
-    def get_nested(d, *keys, default=None):
+    def get_nested(d: Any, *keys: str, default: Any = None) -> Any:
         for key in keys:
             if isinstance(d, dict) and key in d:
                 d = d[key]
@@ -165,7 +168,7 @@ def extract_metrics(validation_path):
     return row
 
 
-def main(validation_files, output_path):
+def main(validation_files: list[str], output_path: str) -> None:
     """Gather all validation results into a TSV file."""
     rows = []
     for validation_path in validation_files:
@@ -193,7 +196,7 @@ def main(validation_files, output_path):
                 f.write("\t".join(values) + "\n")
 
 
-def cli():
+def cli() -> None:
     """Command-line interface for gathering validation results."""
     parser = argparse.ArgumentParser(description="Gather validation results into TSV")
     parser.add_argument("validations", nargs="+", help="Validation YAML paths")

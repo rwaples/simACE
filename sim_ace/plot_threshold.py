@@ -5,7 +5,10 @@ Reads threshold_stats.yaml and threshold_samples.parquet files (one per rep)
 produced by compute_threshold_stats.py.
 """
 
+from __future__ import annotations
+
 import argparse
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -24,7 +27,7 @@ from sim_ace.stats import tetrachoric_corr
 MAX_PLOT_POINTS = 100_000
 
 
-def plot_prevalence_by_generation(all_stats, prevalence1, prevalence2, output_path, scenario=""):
+def plot_prevalence_by_generation(all_stats: list[dict[str, Any]], prevalence1: float, prevalence2: float, output_path: str | Path, scenario: str = "") -> None:
     """Grouped bar chart: observed prevalence per generation per trait."""
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -69,7 +72,7 @@ def plot_prevalence_by_generation(all_stats, prevalence1, prevalence2, output_pa
     plt.close()
 
 
-def plot_liability_violin(df_samples, all_stats, output_path, scenario=""):
+def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
     """Split violin: liability distribution by affected status, per trait."""
     violin_data = pd.concat(
         [
@@ -131,7 +134,7 @@ def plot_liability_violin(df_samples, all_stats, output_path, scenario=""):
     plt.close()
 
 
-def plot_tetrachoric(all_stats, output_path, scenario):
+def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str) -> None:
     """Tetrachoric correlations by relationship type with liability correlation lines."""
     pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
     bar_colors = ["C0", "C1", "C3", "C5", "C2", "C6", "C4"]
@@ -231,7 +234,7 @@ def plot_tetrachoric(all_stats, output_path, scenario):
     plt.close()
 
 
-def plot_joint_affection(all_stats, df_samples, output_path, scenario=""):
+def plot_joint_affection(all_stats: list[dict[str, Any]], df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
     """2x2 heatmap of joint affection status (trait1 x trait2)."""
     # Average proportions across reps
     keys = ["both", "trait1_only", "trait2_only", "neither"]
@@ -278,7 +281,7 @@ def plot_joint_affection(all_stats, df_samples, output_path, scenario=""):
     plt.close()
 
 
-def plot_liability_joint(df_samples, output_path, scenario=""):
+def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
     """2x2 jointplot grid: Liability, A, C, E (trait1 vs trait2), colored by affected1."""
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
@@ -351,7 +354,7 @@ def plot_liability_joint(df_samples, output_path, scenario=""):
     plt.close()
 
 
-def main(stats_paths, sample_paths, output_dir, prevalence1, prevalence2):
+def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, prevalence1: float, prevalence2: float) -> None:
     """Generate all threshold phenotype plots from pre-computed stats."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -398,14 +401,14 @@ def main(stats_paths, sample_paths, output_dir, prevalence1, prevalence2):
     print(f"Threshold plots saved to {output_dir}")
 
 
-def cli():
+def cli() -> None:
     """Command-line interface for generating threshold plots."""
     parser = argparse.ArgumentParser(description="Plot threshold phenotype distributions")
     parser.add_argument("--stats", nargs="+", required=True, help="Stats YAML paths")
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")
     parser.add_argument("--output-dir", required=True, help="Output directory")
-    parser.add_argument("--prevalence1", type=float, required=True)
-    parser.add_argument("--prevalence2", type=float, required=True)
+    parser.add_argument("--prevalence1", type=float, required=True, help="Disease prevalence for trait 1")
+    parser.add_argument("--prevalence2", type=float, required=True, help="Disease prevalence for trait 2")
     args = parser.parse_args()
 
     main(args.stats, args.samples, args.output_dir, args.prevalence1, args.prevalence2)

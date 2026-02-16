@@ -10,6 +10,8 @@ Supports single-trait and two-trait (bivariate) modes with configurable
 cross-trait correlations for genetic (rA) and common environment (rC) components.
 """
 
+from __future__ import annotations
+
 import argparse
 
 import numpy as np
@@ -17,7 +19,7 @@ import pandas as pd
 import yaml
 
 
-def generate_correlated_components(rng, n, sd1, sd2, correlation):
+def generate_correlated_components(rng: np.random.Generator, n: int, sd1: float, sd2: float, correlation: float) -> tuple[np.ndarray, np.ndarray]:
     """Generate two correlated normal variables via multivariate normal.
 
     Args:
@@ -46,7 +48,7 @@ def generate_correlated_components(rng, n, sd1, sd2, correlation):
     return samples[:, 0], samples[:, 1]
 
 
-def generate_mendelian_noise(rng, n, sd_A1, sd_A2, rA):
+def generate_mendelian_noise(rng: np.random.Generator, n: int, sd_A1: float, sd_A2: float, rA: float) -> tuple[np.ndarray, np.ndarray]:
     """Generate correlated Mendelian sampling noise for two traits.
 
     The Mendelian noise has variance = 0.5 * Var(A) for each trait,
@@ -67,7 +69,7 @@ def generate_mendelian_noise(rng, n, sd_A1, sd_A2, rA):
     return generate_correlated_components(rng, n, sd_noise1, sd_noise2, rA)
 
 
-def mating(rng, parental_sex, fam_size, p_nonsocial_father, p_mztwin):
+def mating(rng: np.random.Generator, parental_sex: np.ndarray, fam_size: float, p_nonsocial_father: float, p_mztwin: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate parent-offspring pairings.
 
     Args:
@@ -154,8 +156,21 @@ def mating(rng, parental_sex, fam_size, p_nonsocial_father, p_mztwin):
     return parent_idxs, twins, household_ids
 
 
-def reproduce(rng, pheno, parents, twins, household_ids,
-              sd_A1, sd_E1, sd_C1, sd_A2, sd_E2, sd_C2, rA, rC):
+def reproduce(
+    rng: np.random.Generator,
+    pheno: np.ndarray,
+    parents: np.ndarray,
+    twins: np.ndarray,
+    household_ids: np.ndarray,
+    sd_A1: float,
+    sd_E1: float,
+    sd_C1: float,
+    sd_A2: float,
+    sd_E2: float,
+    sd_C2: float,
+    rA: float,
+    rC: float,
+) -> tuple[np.ndarray, np.ndarray]:
     """Simulate offspring phenotypes from parents for two correlated traits.
 
     Args:
@@ -223,7 +238,15 @@ def reproduce(rng, pheno, parents, twins, household_ids,
     return offspring, sex_offspring
 
 
-def add_to_pedigree(pheno, sex, parents, twins, household_ids, generation, pedigree=None):
+def add_to_pedigree(
+    pheno: np.ndarray,
+    sex: np.ndarray,
+    parents: np.ndarray,
+    twins: np.ndarray,
+    household_ids: np.ndarray,
+    generation: int,
+    pedigree: pd.DataFrame | None = None,
+) -> pd.DataFrame:
     """Add a generation to the pedigree DataFrame.
 
     Args:
@@ -283,20 +306,20 @@ def add_to_pedigree(pheno, sex, parents, twins, household_ids, generation, pedig
 
 
 def run_simulation(
-    seed,
-    N,
-    G_ped,
-    fam_size,
-    p_mztwin,
-    p_nonsocial_father,
-    A1,
-    C1,
-    A2,
-    C2,
-    rA,
-    rC,
-    G_sim=None,
-):
+    seed: int,
+    N: int,
+    G_ped: int,
+    fam_size: float,
+    p_mztwin: float,
+    p_nonsocial_father: float,
+    A1: float,
+    C1: float,
+    A2: float,
+    C2: float,
+    rA: float,
+    rC: float,
+    G_sim: int | None = None,
+) -> pd.DataFrame:
     """Run the full ACE simulation for two correlated traits.
 
     Variance is partitioned as A + C + E = 1 for each trait, where
@@ -400,25 +423,25 @@ def run_simulation(
     return pedigree
 
 
-def cli():
+def cli() -> None:
     """Command-line interface for running ACE simulations."""
     parser = argparse.ArgumentParser(description="Run ACE pedigree simulation")
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--N", type=int, default=1000)
-    parser.add_argument("--G-ped", type=int, default=3)
-    parser.add_argument("--G-sim", type=int, default=None)
-    parser.add_argument("--fam-size", type=float, default=2.0)
-    parser.add_argument("--p-mztwin", type=float, default=0.02)
-    parser.add_argument("--p-nonsocial-father", type=float, default=0.05)
-    parser.add_argument("--A1", type=float, default=0.5)
-    parser.add_argument("--C1", type=float, default=0.2)
-    parser.add_argument("--A2", type=float, default=0.5)
-    parser.add_argument("--C2", type=float, default=0.2)
-    parser.add_argument("--rA", type=float, default=0.5)
-    parser.add_argument("--rC", type=float, default=0.3)
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--N", type=int, default=1000, help="Founder population size")
+    parser.add_argument("--G-ped", type=int, default=3, help="Number of pedigree generations")
+    parser.add_argument("--G-sim", type=int, default=None, help="Number of burn-in generations (default: G_ped)")
+    parser.add_argument("--fam-size", type=float, default=2.0, help="Mean family size")
+    parser.add_argument("--p-mztwin", type=float, default=0.02, help="Probability of MZ twinning")
+    parser.add_argument("--p-nonsocial-father", type=float, default=0.05, help="Proportion of non-social fathers")
+    parser.add_argument("--A1", type=float, default=0.5, help="Additive genetic variance for trait 1")
+    parser.add_argument("--C1", type=float, default=0.2, help="Shared environment variance for trait 1")
+    parser.add_argument("--A2", type=float, default=0.5, help="Additive genetic variance for trait 2")
+    parser.add_argument("--C2", type=float, default=0.2, help="Shared environment variance for trait 2")
+    parser.add_argument("--rA", type=float, default=0.5, help="Cross-trait genetic correlation")
+    parser.add_argument("--rC", type=float, default=0.3, help="Cross-trait shared environment correlation")
     parser.add_argument("--output-pedigree", required=True, help="Output pedigree parquet path")
     parser.add_argument("--output-params", required=True, help="Output params YAML path")
-    parser.add_argument("--rep", type=int, default=1)
+    parser.add_argument("--rep", type=int, default=1, help="Replicate number")
     args = parser.parse_args()
 
     pedigree = run_simulation(

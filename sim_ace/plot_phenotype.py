@@ -5,7 +5,10 @@ Reads phenotype_stats.yaml and phenotype_samples.parquet files (one per rep)
 produced by compute_phenotype_stats.py. No full phenotype parquet loading needed.
 """
 
+from __future__ import annotations
+
 import argparse
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -24,7 +27,7 @@ from sim_ace.stats import tetrachoric_corr
 MAX_PLOT_POINTS = 100_000
 
 
-def plot_death_age_distribution(all_stats, censor_age, output_path, scenario=""):
+def plot_death_age_distribution(all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = "") -> None:
     """Plot mortality rate and cumulative mortality by decade, averaged across reps."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
@@ -64,7 +67,7 @@ def plot_death_age_distribution(all_stats, censor_age, output_path, scenario="")
     plt.close()
 
 
-def plot_trait_phenotype(df_samples, output_path, scenario=""):
+def plot_trait_phenotype(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
     """Plot phenotype distributions for both traits in a 2x2 grid."""
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
@@ -102,7 +105,7 @@ def plot_trait_phenotype(df_samples, output_path, scenario=""):
     plt.close()
 
 
-def plot_trait_regression(df_samples, all_stats, output_path, scenario=""):
+def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
     """Plot liability vs age at onset for both traits as jointplots side by side."""
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
@@ -182,7 +185,7 @@ def plot_trait_regression(df_samples, all_stats, output_path, scenario=""):
     plt.close()
 
 
-def plot_liability_joint(df_samples, output_path, scenario=""):
+def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
     """2x2 grid of jointplots: Liability, A, C, E (trait 1 vs trait 2)."""
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
@@ -240,7 +243,7 @@ def plot_liability_joint(df_samples, output_path, scenario=""):
     plt.close()
 
 
-def plot_liability_violin(df_samples, all_stats, output_path, scenario=""):
+def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
     """Split violin plot of liability by trait, split on affected status."""
     violin_data = pd.concat(
         [
@@ -303,7 +306,7 @@ def plot_liability_violin(df_samples, all_stats, output_path, scenario=""):
     plt.close()
 
 
-def plot_cumulative_incidence(all_stats, censor_age, output_path, scenario=""):
+def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = "") -> None:
     """Plot cumulative incidence by age, mean +/- band across reps."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
@@ -364,9 +367,14 @@ def plot_cumulative_incidence(all_stats, censor_age, output_path, scenario=""):
     plt.close()
 
 
-def plot_censoring_windows(all_stats, output_path, scenario="",
-                           old_gen_censoring=None, middle_gen_censoring=None,
-                           young_gen_censoring=None):
+def plot_censoring_windows(
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+    old_gen_censoring: list[float] | None = None,
+    middle_gen_censoring: list[float] | None = None,
+    young_gen_censoring: list[float] | None = None,
+) -> None:
     """Plot per-generation censoring windows, mean +/- band across reps."""
     # Check that all reps have censoring data
     stats_with_censoring = [s for s in all_stats if s.get("censoring") is not None]
@@ -481,7 +489,7 @@ def plot_censoring_windows(all_stats, output_path, scenario="",
     plt.close()
 
 
-def plot_joint_affection(df_samples, output_path, scenario=""):
+def plot_joint_affection(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
     """2x2 heatmap of joint affection status (trait1 x trait2)."""
     a1 = df_samples["affected1"].values.astype(bool)
     a2 = df_samples["affected2"].values.astype(bool)
@@ -531,7 +539,7 @@ def plot_joint_affection(df_samples, output_path, scenario=""):
     plt.close()
 
 
-def plot_tetrachoric_sibling(all_stats, output_path, scenario):
+def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str) -> None:
     """Plot tetrachoric correlations by relationship type, mean with rep dots."""
     pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
     bar_colors = ["C0", "C1", "C3", "C5", "C2", "C6", "C4"]
@@ -632,9 +640,15 @@ def plot_tetrachoric_sibling(all_stats, output_path, scenario):
     plt.close()
 
 
-def main(stats_paths, sample_paths, output_dir, censor_age,
-         young_gen_censoring=None, middle_gen_censoring=None,
-         old_gen_censoring=None):
+def main(
+    stats_paths: list[str],
+    sample_paths: list[str],
+    output_dir: str,
+    censor_age: float,
+    young_gen_censoring: list[float] | None = None,
+    middle_gen_censoring: list[float] | None = None,
+    old_gen_censoring: list[float] | None = None,
+) -> None:
     """Generate all phenotype plots from pre-computed stats."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -702,16 +716,16 @@ def main(stats_paths, sample_paths, output_dir, censor_age,
     print(f"Phenotype plots saved to {output_dir}")
 
 
-def cli():
+def cli() -> None:
     """Command-line interface for generating phenotype plots."""
     parser = argparse.ArgumentParser(description="Plot phenotype distributions")
     parser.add_argument("--stats", nargs="+", required=True, help="Stats YAML paths")
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")
     parser.add_argument("--output-dir", required=True, help="Output directory")
-    parser.add_argument("--censor-age", type=float, required=True)
-    parser.add_argument("--young-gen-censoring", type=float, nargs=2, default=None)
-    parser.add_argument("--middle-gen-censoring", type=float, nargs=2, default=None)
-    parser.add_argument("--old-gen-censoring", type=float, nargs=2, default=None)
+    parser.add_argument("--censor-age", type=float, required=True, help="Maximum follow-up age")
+    parser.add_argument("--young-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for youngest generation (min max)")
+    parser.add_argument("--middle-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for middle generation (min max)")
+    parser.add_argument("--old-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for oldest generation (min max)")
     args = parser.parse_args()
 
     main(args.stats, args.samples, args.output_dir, args.censor_age,

@@ -2,15 +2,20 @@
 Plot validation results summarized across replicates per scenario.
 """
 
+from __future__ import annotations
+
 import argparse
+from collections.abc import Callable
 
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 from pathlib import Path
 
 
-def stripplot(df, ax, y, expected=None, expected_func=None):
+def stripplot(df: pd.DataFrame, ax: Axes, y: str, expected: str | float | None = None, expected_func: Callable[[pd.DataFrame], float] | None = None) -> None:
     """Stripplot of observed values with optional expected markers.
 
     Args:
@@ -41,13 +46,13 @@ def stripplot(df, ax, y, expected=None, expected_func=None):
     ax.set_ylim(ymin - 0.05, ymax + 0.05)
 
 
-def save(fig, path):
+def save(fig: Figure, path: str | Path) -> None:
     fig.tight_layout()
     fig.savefig(path, dpi=150)
     plt.close(fig)
 
 
-def plot_variance_components(df, out):
+def plot_variance_components(df: pd.DataFrame, out: Path) -> None:
     fig, axes = plt.subplots(2, 3, figsize=(16, 10))
     for row, t in enumerate([1, 2]):
         for col, comp in enumerate(["A", "C", "E"]):
@@ -58,7 +63,7 @@ def plot_variance_components(df, out):
     save(fig, out / "variance_components.png")
 
 
-def plot_twin_rate(df, out):
+def plot_twin_rate(df: pd.DataFrame, out: Path) -> None:
     fig, ax = plt.subplots(figsize=(10, 5))
     stripplot(df, ax, "observed_twin_rate", expected="p_mztwin")
     ax.set_title("MZ Twin Rate: Observed vs Expected")
@@ -66,7 +71,7 @@ def plot_twin_rate(df, out):
     save(fig, out / "twin_rate.png")
 
 
-def plot_A_correlations(df, out):
+def plot_A_correlations(df: pd.DataFrame, out: Path) -> None:
     panels = [
         ("mz_twin_A1_corr", 1.0, "MZ Twin A1 Correlation"),
         ("dz_sibling_A1_corr", 0.5, "DZ Sibling A1 Correlation"),
@@ -82,7 +87,7 @@ def plot_A_correlations(df, out):
     save(fig, out / "correlations_A.png")
 
 
-def plot_phenotype_correlations(df, out):
+def plot_phenotype_correlations(df: pd.DataFrame, out: Path) -> None:
     panels = [
         ("mz_twin_liability1_corr", lambda d: d["A1"].iloc[0] + d["C1"].iloc[0],
          "MZ Twin Liability1 Corr"),
@@ -101,7 +106,7 @@ def plot_phenotype_correlations(df, out):
     save(fig, out / "correlations_phenotype.png")
 
 
-def plot_heritability_estimates(df, out):
+def plot_heritability_estimates(df: pd.DataFrame, out: Path) -> None:
     panels = [
         ("falconer_h2_trait1", "A1", "Falconer h² Trait 1", "Heritability"),
         ("parent_offspring_liability1_slope", "A1", "Midparent-Offspring Liability1", "Slope"),
@@ -116,7 +121,7 @@ def plot_heritability_estimates(df, out):
     save(fig, out / "heritability_estimates.png")
 
 
-def plot_half_sib_proportions(df, out):
+def plot_half_sib_proportions(df: pd.DataFrame, out: Path) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     stripplot(df, axes[0], "half_sib_prop_observed", expected="half_sib_prop_expected")
     axes[0].set_title("Half-Sibling Pair Proportion")
@@ -128,7 +133,7 @@ def plot_half_sib_proportions(df, out):
     save(fig, out / "half_sib_proportions.png")
 
 
-def plot_cross_trait_correlations(df, out):
+def plot_cross_trait_correlations(df: pd.DataFrame, out: Path) -> None:
     panels = [
         ("observed_rA", "rA", "Cross-Trait rA"),
         ("observed_rC", "rC", "Cross-Trait rC"),
@@ -146,7 +151,7 @@ def plot_cross_trait_correlations(df, out):
     save(fig, out / "cross_trait_correlations.png")
 
 
-def plot_family_size(df, out):
+def plot_family_size(df: pd.DataFrame, out: Path) -> None:
     fig, ax = plt.subplots(figsize=(10, 5))
     scenarios = df["scenario"].unique()
     positions = {s: i for i, s in enumerate(scenarios)}
@@ -184,7 +189,7 @@ def plot_family_size(df, out):
     save(fig, out / "family_size.png")
 
 
-def plot_summary_bias(df, out):
+def plot_summary_bias(df: pd.DataFrame, out: Path) -> None:
     dp = df.copy()
     dp["A1 Bias"] = dp["variance_A1"] - dp["A1"]
     dp["C1 Bias"] = dp["variance_C1"] - dp["C1"]
@@ -206,7 +211,7 @@ def plot_summary_bias(df, out):
     save(fig, out / "summary_bias.png")
 
 
-def main(tsv_path, output_dir):
+def main(tsv_path: str, output_dir: str) -> None:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     sns.set_theme(style="whitegrid", palette="Set2")
@@ -223,7 +228,7 @@ def main(tsv_path, output_dir):
     plot_summary_bias(df, output_dir)
 
 
-def cli():
+def cli() -> None:
     """Command-line interface for generating validation plots."""
     parser = argparse.ArgumentParser(description="Plot validation results")
     parser.add_argument("tsv", help="Validation summary TSV path")

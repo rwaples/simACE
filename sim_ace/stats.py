@@ -6,7 +6,10 @@ Reads a single phenotype.weibull.parquet and produces:
   - phenotype_samples.parquet: 10K row random sample for scatter/histogram plots
 """
 
+from __future__ import annotations
+
 import argparse
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -17,7 +20,7 @@ from scipy.optimize import minimize_scalar
 from scipy.special import owens_t
 
 
-def _bvn_pos(h, k, r, sq):
+def _bvn_pos(h: float, k: float, r: float, sq: float) -> float:
     """BVN CDF for h >= 0, k >= 0, |r| < 1 using Owen's T function."""
     if h < 1e-15 and k < 1e-15:
         return 0.25 + np.arcsin(r) / (2.0 * np.pi)
@@ -30,7 +33,7 @@ def _bvn_pos(h, k, r, sq):
             - owens_t(k, (h - r * k) / (k * sq)))
 
 
-def _bvn_cdf(h, k, r):
+def _bvn_cdf(h: float, k: float, r: float) -> float:
     """Fast bivariate normal CDF using Owen's T function."""
     if abs(r) < 1e-15:
         return norm.cdf(h) * norm.cdf(k)
@@ -44,7 +47,7 @@ def _bvn_cdf(h, k, r):
     return _bvn_pos(h, k, r, sq)
 
 
-def tetrachoric_corr_se(a, b):
+def tetrachoric_corr_se(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
     """Estimate tetrachoric correlation and SE from two binary arrays.
 
     Uses MLE with Owen's T-based BVN CDF (57x faster than multivariate_normal.cdf).
@@ -75,7 +78,7 @@ def tetrachoric_corr_se(a, b):
     # and we can use the fast precomputed path
     both_positive = t_a > 1e-15 and t_b > 1e-15
 
-    def neg_log_lik(r):
+    def neg_log_lik(r: float) -> float:
         if both_positive:
             sq = np.sqrt(1.0 - r * r)
             p00 = (0.5 * phi_ta + 0.5 * phi_tb
@@ -110,19 +113,19 @@ def tetrachoric_corr_se(a, b):
 
 
 # Backward-compatible wrappers used by compute_threshold_stats.py
-def tetrachoric_corr(a, b):
+def tetrachoric_corr(a: np.ndarray, b: np.ndarray) -> float:
     """Estimate tetrachoric correlation from two binary arrays via MLE."""
     r, _ = tetrachoric_corr_se(a, b)
     return r
 
 
-def tetrachoric_se(r, a, b):
+def tetrachoric_se(r: float, a: np.ndarray, b: np.ndarray) -> float:
     """Approximate SE of tetrachoric correlation."""
     _, se = tetrachoric_corr_se(a, b)
     return se
 
 
-def extract_relationship_pairs(df, seed=42):
+def extract_relationship_pairs(df: pd.DataFrame, seed: int = 42) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """Extract relationship pairs as aligned row-index arrays.
 
     Performance-optimized version using dict-based lookups and pandas merge
@@ -133,7 +136,7 @@ def extract_relationship_pairs(df, seed=42):
     id_to_row = np.full(ids_arr.max() + 1, -1, dtype=np.int32)
     id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
 
-    def resolve_rows(ids):
+    def resolve_rows(ids: np.ndarray) -> np.ndarray:
         """Map array of ids to row positions; -1 if missing."""
         ids = np.asarray(ids, dtype=np.int64)
         mask = (ids >= 0) & (ids < len(id_to_row))
@@ -309,7 +312,7 @@ def extract_relationship_pairs(df, seed=42):
     return pairs
 
 
-def compute_mortality(df, censor_age):
+def compute_mortality(df: pd.DataFrame, censor_age: float) -> dict[str, Any]:
     """Compute mortality rates and cumulative mortality by decade."""
     decade_edges = np.arange(0, censor_age + 10, 10)
     mortality_rates = []
@@ -332,7 +335,7 @@ def compute_mortality(df, censor_age):
     return {"decade_labels": decade_labels, "rates": mortality_rates}
 
 
-def compute_cumulative_incidence(df, censor_age, n_points=200):
+def compute_cumulative_incidence(df: pd.DataFrame, censor_age: float, n_points: int = 200) -> dict[str, Any]:
     """Compute cumulative incidence curves using searchsorted (O(N log N)).
 
     Returns both true (from uncensored t) and observed (from affected + t_observed)
@@ -372,8 +375,14 @@ def compute_cumulative_incidence(df, censor_age, n_points=200):
     return result
 
 
-def compute_censoring_windows(df, censor_age, young_gen_censoring,
-                               middle_gen_censoring, old_gen_censoring, n_points=300):
+def compute_censoring_windows(
+    df: pd.DataFrame,
+    censor_age: float,
+    young_gen_censoring: list[float],
+    middle_gen_censoring: list[float],
+    old_gen_censoring: list[float],
+    n_points: int = 300,
+) -> dict[str, Any] | None:
     """Compute per-generation censoring window curves using searchsorted."""
     if "generation" not in df.columns:
         return None
@@ -430,7 +439,7 @@ def compute_censoring_windows(df, censor_age, young_gen_censoring,
     return {"generations": result, "censoring_ages": ages.tolist(), "censor_age": int(censor_age)}
 
 
-def compute_tetrachoric(df, seed=42, pairs=None):
+def compute_tetrachoric(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None) -> dict[str, Any]:
     """Compute tetrachoric correlations for all relationship types."""
     if pairs is None:
         pairs = extract_relationship_pairs(df, seed=seed)
@@ -459,7 +468,7 @@ def compute_tetrachoric(df, seed=42, pairs=None):
     return result
 
 
-def compute_liability_correlations(df, seed=42, pairs=None):
+def compute_liability_correlations(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None) -> dict[str, Any]:
     """Compute Pearson correlation on liability values for each relationship pair type."""
     if pairs is None:
         pairs = extract_relationship_pairs(df, seed=seed)
@@ -478,7 +487,7 @@ def compute_liability_correlations(df, seed=42, pairs=None):
     return result
 
 
-def compute_regression(df):
+def compute_regression(df: pd.DataFrame) -> dict[str, Any]:
     """Compute regression stats (liability vs age at onset) for affected individuals."""
     result = {}
     for trait_num in [1, 2]:
@@ -509,7 +518,7 @@ def compute_regression(df):
     return result
 
 
-def compute_prevalence(df):
+def compute_prevalence(df: pd.DataFrame) -> dict[str, float]:
     """Compute trait prevalence."""
     return {
         "trait1": float(df["affected1"].mean()),
@@ -517,7 +526,7 @@ def compute_prevalence(df):
     }
 
 
-def create_sample(df, seed=42, n_samples=100000):
+def create_sample(df: pd.DataFrame, seed: int = 42, n_samples: int = 100000) -> pd.DataFrame:
     """Create a downsampled DataFrame for scatter/histogram/violin plots."""
     if len(df) <= n_samples:
         return df.copy()
@@ -527,9 +536,16 @@ def create_sample(df, seed=42, n_samples=100000):
     return df.iloc[idx].copy()
 
 
-def main(phenotype_path, censor_age, stats_output, samples_output,
-         seed=42, young_gen_censoring=None, middle_gen_censoring=None,
-         old_gen_censoring=None):
+def main(
+    phenotype_path: str,
+    censor_age: float,
+    stats_output: str,
+    samples_output: str,
+    seed: int = 42,
+    young_gen_censoring: list[float] | None = None,
+    middle_gen_censoring: list[float] | None = None,
+    old_gen_censoring: list[float] | None = None,
+) -> None:
     """Compute all stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
 
@@ -583,17 +599,17 @@ def main(phenotype_path, censor_age, stats_output, samples_output,
     print(f"Sample ({len(sample_df)} rows) written to {samples_path}")
 
 
-def cli():
+def cli() -> None:
     """Command-line interface for computing phenotype statistics."""
     parser = argparse.ArgumentParser(description="Compute phenotype statistics")
     parser.add_argument("phenotype", help="Input phenotype parquet")
     parser.add_argument("censor_age", type=float, help="Censoring age")
     parser.add_argument("stats_output", help="Output stats YAML")
     parser.add_argument("samples_output", help="Output samples parquet")
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--young-gen-censoring", type=float, nargs=2, default=None)
-    parser.add_argument("--middle-gen-censoring", type=float, nargs=2, default=None)
-    parser.add_argument("--old-gen-censoring", type=float, nargs=2, default=None)
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
+    parser.add_argument("--young-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for youngest generation (min max)")
+    parser.add_argument("--middle-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for middle generation (min max)")
+    parser.add_argument("--old-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for oldest generation (min max)")
     args = parser.parse_args()
 
     main(args.phenotype, args.censor_age, args.stats_output, args.samples_output,

@@ -11,13 +11,16 @@ Model (per trait):
     - Age-at-onset via inverse CDF: t = ((-log(U)) / (rate * z))^(1/k)
 """
 
+from __future__ import annotations
+
 import argparse
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 
-def simulate_phenotype(liability, beta, rate, k, seed, standardize=True):
+def simulate_phenotype(liability: np.ndarray, beta: float, rate: float, k: float, seed: int, standardize: bool = True) -> np.ndarray:
     """Apply frailty model to convert liability to phenotype.
 
     Args:
@@ -60,7 +63,7 @@ def simulate_phenotype(liability, beta, rate, k, seed, standardize=True):
     return t
 
 
-def age_censor(t, left, right):
+def age_censor(t: np.ndarray, left: np.ndarray, right: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Apply per-individual [left, right] age censoring.
 
     - t < left: left-censored (onset before observation window), t set to left
@@ -82,7 +85,7 @@ def age_censor(t, left, right):
     return t_out, censored
 
 
-def death_censor(t, seed, rate=1e-19, k=10):
+def death_censor(t: np.ndarray, seed: int, rate: float = 1e-19, k: float = 10) -> tuple[np.ndarray, np.ndarray]:
     """Apply competing risk death censoring with Weibull hazard.
 
     Args:
@@ -104,7 +107,7 @@ def death_censor(t, seed, rate=1e-19, k=10):
     return t, censored
 
 
-def run_phenotype(pedigree, params):
+def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     """Orchestrate phenotype simulation from pedigree and parameter dict.
 
     Args:
@@ -196,26 +199,26 @@ def run_phenotype(pedigree, params):
     return phenotype
 
 
-def cli():
+def cli() -> None:
     """Command-line interface for phenotype simulation."""
     parser = argparse.ArgumentParser(description="Simulate Weibull frailty phenotype")
     parser.add_argument("--pedigree", required=True, help="Input pedigree parquet")
     parser.add_argument("--output", required=True, help="Output phenotype parquet")
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--G-pheno", type=int, default=3)
-    parser.add_argument("--censor-age", type=float, default=100)
-    parser.add_argument("--beta1", type=float, default=1.0)
-    parser.add_argument("--rate1", type=float, default=1e-5)
-    parser.add_argument("--k1", type=float, default=2.0)
-    parser.add_argument("--beta2", type=float, default=1.0)
-    parser.add_argument("--rate2", type=float, default=1e-5)
-    parser.add_argument("--k2", type=float, default=2.0)
-    parser.add_argument("--death-rate", type=float, default=1e-19)
-    parser.add_argument("--death-k", type=float, default=10)
-    parser.add_argument("--standardize", action="store_true", default=True)
-    parser.add_argument("--young-gen-censoring", type=float, nargs=2, default=[20, 50])
-    parser.add_argument("--middle-gen-censoring", type=float, nargs=2, default=[40, 70])
-    parser.add_argument("--old-gen-censoring", type=float, nargs=2, default=[60, 90])
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument("--G-pheno", type=int, default=3, help="Number of generations to assign phenotypes")
+    parser.add_argument("--censor-age", type=float, default=100, help="Maximum follow-up age")
+    parser.add_argument("--beta1", type=float, default=1.0, help="Weibull frailty coefficient for trait 1")
+    parser.add_argument("--rate1", type=float, default=1e-5, help="Weibull baseline rate for trait 1")
+    parser.add_argument("--k1", type=float, default=2.0, help="Weibull shape parameter for trait 1")
+    parser.add_argument("--beta2", type=float, default=1.0, help="Weibull frailty coefficient for trait 2")
+    parser.add_argument("--rate2", type=float, default=1e-5, help="Weibull baseline rate for trait 2")
+    parser.add_argument("--k2", type=float, default=2.0, help="Weibull shape parameter for trait 2")
+    parser.add_argument("--death-rate", type=float, default=1e-19, help="Competing death hazard rate")
+    parser.add_argument("--death-k", type=float, default=10, help="Competing death hazard shape")
+    parser.add_argument("--standardize", action="store_true", default=True, help="Standardize liability before phenotype simulation")
+    parser.add_argument("--young-gen-censoring", type=float, nargs=2, default=[20, 50], help="Age censoring range for youngest generation (min max)")
+    parser.add_argument("--middle-gen-censoring", type=float, nargs=2, default=[40, 70], help="Age censoring range for middle generation (min max)")
+    parser.add_argument("--old-gen-censoring", type=float, nargs=2, default=[60, 90], help="Age censoring range for oldest generation (min max)")
     args = parser.parse_args()
 
     pedigree = pd.read_parquet(args.pedigree)

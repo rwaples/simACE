@@ -5,7 +5,10 @@ Validates simulation outputs for structural integrity, statistical properties,
 and heritability estimates.
 """
 
+from __future__ import annotations
+
 import argparse
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -13,21 +16,21 @@ import yaml
 from scipy import stats
 
 
-def safe_corrcoef(x, y):
+def safe_corrcoef(x: np.ndarray, y: np.ndarray) -> float:
     """Compute Pearson correlation, returning nan if either array has zero variance."""
     if np.std(x) < 1e-10 or np.std(y) < 1e-10:
         return float("nan")
     return np.corrcoef(x, y)[0, 1]
 
 
-def safe_linregress(x, y):
+def safe_linregress(x: np.ndarray, y: np.ndarray) -> Any:
     """Run linear regression, returning None if x has zero variance."""
     if np.std(x) == 0:
         return None
     return stats.linregress(x, y)
 
 
-def to_native(obj):
+def to_native(obj: Any) -> Any:
     """Recursively convert numpy types to native Python types for YAML serialization."""
     if isinstance(obj, dict):
         return {k: to_native(v) for k, v in obj.items()}
@@ -50,14 +53,14 @@ def to_native(obj):
 # ---------------------------------------------------------------------------
 
 
-def _result(passed, details, **extra):
+def _result(passed: bool, details: str, **extra: Any) -> dict[str, Any]:
     """Build a result dict with passed/details and optional extra keys."""
     d = {"passed": passed, "details": details}
     d.update(extra)
     return d
 
 
-def _check_variance(founders, col, expected, tol=0.1):
+def _check_variance(founders: pd.DataFrame, col: str, expected: float, tol: float = 0.1) -> dict[str, Any]:
     """Check that the variance of `col` in founders is close to `expected`."""
     var = founders[col].var()
     return _result(
@@ -69,7 +72,7 @@ def _check_variance(founders, col, expected, tol=0.1):
 
 
 
-def _midparent_regression(vals, mother_idx, father_idx, offspring_idx, label):
+def _midparent_regression(vals: np.ndarray, mother_idx: np.ndarray, father_idx: np.ndarray, offspring_idx: np.ndarray, label: str) -> dict[str, Any]:
     """Run midparent-offspring regression and return result dict."""
     midparent = (vals[mother_idx] + vals[father_idx]) / 2
     offspring = vals[offspring_idx]
@@ -84,7 +87,7 @@ def _midparent_regression(vals, mother_idx, father_idx, offspring_idx, label):
     return {"details": f"Zero variance in midparent {label} values"}
 
 
-def _count_sib_pairs(non_twin_sibs):
+def _count_sib_pairs(non_twin_sibs: pd.DataFrame) -> dict[str, int]:
     """Count full-sib, maternal half-sib, and paternal half-sib pairs.
 
     Uses vectorized merge instead of Python loops for speed.
@@ -144,7 +147,7 @@ def _count_sib_pairs(non_twin_sibs):
 # ---------------------------------------------------------------------------
 
 
-def validate_structural(df, params):
+def validate_structural(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Validate structural integrity of the pedigree."""
     results = {}
     N = params["N"]
@@ -199,7 +202,7 @@ def validate_structural(df, params):
     return results
 
 
-def validate_twins(df, params, df_indexed):
+def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
     """Validate MZ twin properties for two-trait simulation."""
     results = {}
     p_mztwin = params["p_mztwin"]
@@ -289,18 +292,18 @@ def validate_twins(df, params, df_indexed):
     return results
 
 
-def _corr_se(expected_r, n_pairs):
+def _corr_se(expected_r: float, n_pairs: int) -> float:
     """Approximate SE of Pearson correlation: (1 - r^2) / sqrt(n - 1)."""
     return (1 - expected_r ** 2) / np.sqrt(max(n_pairs - 1, 1))
 
 
-def _corr_tolerance(expected_r, n_pairs, min_tol=0.05, n_se=4):
+def _corr_tolerance(expected_r: float, n_pairs: int, min_tol: float = 0.05, n_se: int = 4) -> float:
     """Compute SE-based tolerance for correlation checks."""
     se = _corr_se(expected_r, n_pairs)
     return max(n_se * se, min_tol)
 
 
-def validate_half_sibs(df, params):
+def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Validate half-sibling counts and proportions related to p_nonsocial_father."""
     results = {}
     p_nonsocial = params.get("p_nonsocial_father", 0)
@@ -378,7 +381,7 @@ def validate_half_sibs(df, params):
     return results
 
 
-def validate_statistical(df, params, df_indexed):
+def validate_statistical(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
     """Validate statistical properties of variance components for two traits."""
     results = {}
 
@@ -483,7 +486,7 @@ def validate_statistical(df, params, df_indexed):
     return results
 
 
-def validate_heritability(df, params, df_indexed):
+def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
     """Validate heritability estimates for two-trait simulation."""
     results = {}
     A_params = {1: params["A1"], 2: params["A2"]}
@@ -675,7 +678,7 @@ def validate_heritability(df, params, df_indexed):
     return results
 
 
-def compute_per_generation_stats(df, params):
+def compute_per_generation_stats(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Compute per-generation statistics for two traits."""
     N = params["N"]
     ngen = params["G_ped"]
@@ -707,7 +710,7 @@ def compute_per_generation_stats(df, params):
     return results
 
 
-def validate_population(df, params):
+def validate_population(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Validate population-level properties."""
     results = {}
     N = params["N"]
@@ -751,7 +754,7 @@ def validate_population(df, params):
     return results
 
 
-def compute_family_size_distribution(df, params):
+def compute_family_size_distribution(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Compute offspring count distributions per parent sex."""
     non_founders = df[df["mother"] != -1]
     if len(non_founders) == 0:
@@ -772,7 +775,7 @@ def compute_family_size_distribution(df, params):
     return result
 
 
-def run_validation(pedigree_path, params_path):
+def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
     """Run all validation checks and return results."""
     df = pd.read_parquet(pedigree_path)
     with open(params_path) as f:
@@ -816,7 +819,7 @@ def run_validation(pedigree_path, params_path):
     return results
 
 
-def cli():
+def cli() -> None:
     """Command-line interface for running validation."""
     parser = argparse.ArgumentParser(description="Validate ACE simulation output")
     parser.add_argument("--pedigree", required=True, help="Pedigree parquet path")

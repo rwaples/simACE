@@ -8,13 +8,16 @@ then the top X% (determined by prevalence) are classified as affected.
 No time-to-event or censoring -- purely binary outcome.
 """
 
+from __future__ import annotations
+
 import argparse
+from typing import Any
 
 import numpy as np
 import pandas as pd
 
 
-def apply_threshold(liability, generation, prevalence):
+def apply_threshold(liability: np.ndarray, generation: np.ndarray, prevalence: float) -> np.ndarray:
     """Apply liability threshold model per generation.
 
     Within each generation, standardize liability (mean=0, std=1),
@@ -51,7 +54,7 @@ def apply_threshold(liability, generation, prevalence):
     return affected
 
 
-def run_threshold(pedigree, params):
+def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     """Orchestrate threshold phenotype from pedigree and parameter dict.
 
     Args:
@@ -101,14 +104,14 @@ def run_threshold(pedigree, params):
     return phenotype
 
 
-def cli():
+def cli() -> None:
     """Command-line interface for threshold phenotype simulation."""
     parser = argparse.ArgumentParser(description="Apply liability threshold model")
     parser.add_argument("--pedigree", required=True, help="Input pedigree parquet")
     parser.add_argument("--output", required=True, help="Output phenotype parquet")
-    parser.add_argument("--G-pheno", type=int, default=3)
-    parser.add_argument("--prevalence1", type=float, default=0.1)
-    parser.add_argument("--prevalence2", type=float, default=0.1)
+    parser.add_argument("--G-pheno", type=int, default=3, help="Number of generations to assign phenotypes")
+    parser.add_argument("--prevalence1", type=float, default=0.1, help="Disease prevalence for trait 1")
+    parser.add_argument("--prevalence2", type=float, default=0.1, help="Disease prevalence for trait 2")
     args = parser.parse_args()
 
     pedigree = pd.read_parquet(args.pedigree)

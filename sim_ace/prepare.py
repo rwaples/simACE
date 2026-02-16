@@ -14,13 +14,15 @@ File formats match Survival Kit prepare.exe output exactly:
   - All class variable codes are 1-based
 """
 
+from __future__ import annotations
+
 import argparse
 
 import numpy as np
 import pandas as pd
 
 
-def write_data(df, trait, path):
+def write_data(df: pd.DataFrame, trait: str, path: str) -> None:
     """Write data.dat for a given trait.
 
     Columns: time code id sex generation animal
@@ -41,12 +43,12 @@ def write_data(df, trait, path):
     out.to_csv(path, sep=" ", index=False, header=False)
 
 
-def _codelist_line(name, num_levels, original_code, freq, new_code):
+def _codelist_line(name: str, num_levels: int, original_code: int, freq: int, new_code: int) -> str:
     """Format one codelist line matching Fortran (1X, A8, I5, I2, I10, I10, I10, I8, I8)."""
     return f" {name:<8s}{num_levels:5d}{1:2d}{original_code:10d}{0:10d}{0:10d}{freq:8d}{new_code:8d}"
 
 
-def write_codelist(df, G_ped, path):
+def write_codelist(df: pd.DataFrame, G_ped: int, path: str) -> None:
     """Write codelist.txt with level metadata for each class variable."""
     sex_recoded = df["sex"].map({0: 1, 1: 2})
     gen_recoded = df["generation"] + 1
@@ -79,7 +81,7 @@ def write_codelist(df, G_ped, path):
         f.write("\n".join(lines) + "\n")
 
 
-def write_varlist(G_ped, N_total, N_households, path):
+def write_varlist(G_ped: int, N_total: int, N_households: int, path: str) -> None:
     """Write varlist.txt describing column positions and variable types.
 
     Variable names truncated to 8 characters to match Survival Kit.
@@ -101,7 +103,7 @@ def write_varlist(G_ped, N_total, N_households, path):
         f.write("\n".join(lines) + "\n")
 
 
-def write_pedigree(pedigree, path):
+def write_pedigree(pedigree: pd.DataFrame, path: str) -> None:
     """Write pedigree.ped with columns: animal_id sex sire dam.
 
     Sex: 1=male, 2=female. All IDs are 1-based. Missing parents (founders) -> 0.
@@ -116,7 +118,7 @@ def write_pedigree(pedigree, path):
     ped.to_csv(path, sep=" ", index=False, header=False)
 
 
-def write_weibull_config(scenario, trait, rep, ndimax, nrecmax, path):
+def write_weibull_config(scenario: str, trait: str, rep: str, ndimax: int, nrecmax: int, path: str) -> None:
     """Write weibull.txt model specification.
 
     Variable names truncated to 8 characters to match varlist/codelist.
@@ -141,7 +143,7 @@ def write_weibull_config(scenario, trait, rep, ndimax, nrecmax, path):
         f.write("\n".join(lines) + "\n")
 
 
-def run_prepare(pedigree, phenotype, scenario, rep, trait, outputs):
+def run_prepare(pedigree: pd.DataFrame, phenotype: pd.DataFrame, scenario: str, rep: str, trait: str, outputs: dict[str, str]) -> None:
     """Orchestrate preparation of Survival Kit input files.
 
     Args:
@@ -169,14 +171,14 @@ def run_prepare(pedigree, phenotype, scenario, rep, trait, outputs):
     write_weibull_config(scenario, trait, rep, ndimax, nrecmax, outputs["weibull_config"])
 
 
-def cli():
+def cli() -> None:
     """Command-line interface for preparing Survival Kit input files."""
     parser = argparse.ArgumentParser(description="Prepare Survival Kit input files")
     parser.add_argument("--pedigree", required=True, help="Pedigree parquet path")
     parser.add_argument("--phenotype", required=True, help="Phenotype parquet path")
-    parser.add_argument("--scenario", required=True)
-    parser.add_argument("--rep", required=True)
-    parser.add_argument("--trait", required=True)
+    parser.add_argument("--scenario", required=True, help="Scenario name")
+    parser.add_argument("--rep", required=True, help="Replicate identifier")
+    parser.add_argument("--trait", required=True, help="Trait name (e.g. trait1, trait2)")
     parser.add_argument("--data", required=True, help="Output data.dat path")
     parser.add_argument("--codelist", required=True, help="Output codelist.txt path")
     parser.add_argument("--varlist", required=True, help="Output varlist.txt path")

@@ -6,7 +6,10 @@ Reads a single phenotype.liability_threshold.parquet and produces:
   - threshold_samples.parquet: downsampled rows for plotting
 """
 
+from __future__ import annotations
+
 import argparse
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -21,7 +24,7 @@ from sim_ace.stats import (
 )
 
 
-def compute_prevalence_by_generation(df):
+def compute_prevalence_by_generation(df: pd.DataFrame) -> dict[str, Any]:
     """Compute per-trait, per-generation prevalence."""
     result = {}
     for trait_num in [1, 2]:
@@ -35,7 +38,7 @@ def compute_prevalence_by_generation(df):
     return result
 
 
-def compute_joint_affection(df):
+def compute_joint_affection(df: pd.DataFrame) -> dict[str, Any]:
     """Compute 2x2 contingency table for trait1 x trait2 affection status."""
     a1 = df["affected1"].values.astype(bool)
     a2 = df["affected2"].values.astype(bool)
@@ -52,7 +55,7 @@ def compute_joint_affection(df):
     return {"counts": counts, "proportions": proportions, "n": n}
 
 
-def compute_liability_by_status(df):
+def compute_liability_by_status(df: pd.DataFrame) -> dict[str, Any]:
     """Compute mean/std of liability for affected vs unaffected, per trait."""
     result = {}
     for trait_num in [1, 2]:
@@ -67,7 +70,7 @@ def compute_liability_by_status(df):
     return result
 
 
-def compute_tetrachoric(df, seed=42, pairs=None):
+def compute_tetrachoric(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None) -> dict[str, Any]:
     """Compute tetrachoric correlations for all relationship types."""
     if pairs is None:
         pairs = extract_relationship_pairs(df, seed=seed)
@@ -96,7 +99,7 @@ def compute_tetrachoric(df, seed=42, pairs=None):
     return result
 
 
-def main(phenotype_path, stats_output, samples_output, seed=42):
+def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int = 42) -> None:
     """Compute all threshold stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
 
@@ -140,13 +143,13 @@ def main(phenotype_path, stats_output, samples_output, seed=42):
     print(f"Sample ({len(sample_df)} rows) written to {samples_path}")
 
 
-def cli():
+def cli() -> None:
     """Command-line interface for computing threshold statistics."""
     parser = argparse.ArgumentParser(description="Compute threshold phenotype statistics")
     parser.add_argument("phenotype", help="Input phenotype parquet")
     parser.add_argument("stats_output", help="Output stats YAML")
     parser.add_argument("samples_output", help="Output samples parquet")
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
     args = parser.parse_args()
 
     main(args.phenotype, args.stats_output, args.samples_output, seed=args.seed)
