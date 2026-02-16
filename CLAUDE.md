@@ -24,14 +24,21 @@ conda activate ACE
 ## Running Simulations
 
 ```bash
-# Run all scenarios defined in config
-snakemake --cores 1 -s workflow/Snakefile
+# Run simulation pipeline (all scenarios)
+snakemake --cores 1 -s workflow/simulate.smk
 
-# Run a specific scenario
-snakemake --cores 1 -s workflow/Snakefile results/baseline/pedigree.parquet
+# Run analysis pipeline (all scenarios, requires simulation outputs)
+snakemake --cores 1 -s workflow/analyze.smk
+
+# Simulate a single scenario
+snakemake --cores 1 -s workflow/simulate.smk results/baseline10K/scenario.done
+
+# Analyze a single scenario
+snakemake --cores 1 -s workflow/analyze.smk results/analysis/baseline10K/scenario.analyzed
 
 # Dry run to see what will be executed
-snakemake -n -s workflow/Snakefile
+snakemake -n -s workflow/simulate.smk
+snakemake -n -s workflow/analyze.smk
 ```
 
 ## Architecture
@@ -41,12 +48,14 @@ ACE/
 ├── config/
 │   └── config.yaml              # Simulation parameters (named scenarios)
 ├── workflow/
-│   ├── Snakefile                # Main workflow
+│   ├── simulate.smk             # Simulation, validation & visualization pipeline
+│   ├── analyze.smk              # Model fitting pipeline (Weibull)
 │   └── scripts/
 │       └── simulate.py          # Simulation functions
-├── results/{scenario}/          # Output per scenario
+├── results/{scenario}/          # Simulation output per scenario
 │   ├── pedigree.parquet         # Pedigree data
 │   └── params.yaml              # Parameters used
+├── results/analysis/{scenario}/ # Analysis output per scenario
 ├── logs/{scenario}/             # Log files
 └── benchmarks/{scenario}/       # Runtime benchmarks
 ```
