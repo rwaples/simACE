@@ -27,7 +27,15 @@ def generate_correlated_components(rng, n, sd1, sd2, correlation):
 
     Returns:
         (comp1, comp2): tuple of arrays, each shape (n,)
+
+    Raises:
+        ValueError: if sd1 or sd2 is negative, or correlation is outside [-1, 1]
     """
+    if sd1 < 0 or sd2 < 0:
+        raise ValueError(f"Standard deviations must be non-negative, got sd1={sd1}, sd2={sd2}")
+    if not (-1 <= correlation <= 1):
+        raise ValueError(f"Correlation must be in [-1, 1], got {correlation}")
+
     cov = [
         [sd1**2, correlation * sd1 * sd2],
         [correlation * sd1 * sd2, sd2**2],
@@ -289,25 +297,61 @@ def run_simulation(
 ):
     """Run the full ACE simulation for two correlated traits.
 
+    Variance is partitioned as A + C + E = 1 for each trait, where
+    E = 1 - A - C is computed automatically.
+
     Args:
         seed: Random seed
-        N: Population size per generation
-        G_ped: Number of generations to record in pedigree
-        fam_size: Mean family size
-        p_mztwin: Proportion of MZ twins
-        p_nonsocial_father: Proportion of non-social fathers
-        A1, C1: Trait 1 variance components
-        A2, C2: Trait 2 variance components
-        rA: Genetic correlation between traits
-        rC: Common environment correlation between traits
+        N: Population size per generation (positive integer)
+        G_ped: Number of generations to record in pedigree (integer >= 1)
+        fam_size: Mean family size (> 0, Poisson lambda)
+        p_mztwin: Proportion of MZ twins, in [0, 1)
+        p_nonsocial_father: Proportion of non-social fathers, in [0, 1]
+        A1, C1: Trait 1 variance components, each in [0, 1] with A1 + C1 <= 1
+        A2, C2: Trait 2 variance components, each in [0, 1] with A2 + C2 <= 1
+        rA: Genetic correlation between traits, in [-1, 1]
+        rC: Common environment correlation between traits, in [-1, 1]
         G_sim: Total generations to simulate (default: G_ped). First G_sim - G_ped
                generations are burn-in and discarded from output.
 
     Returns:
         pedigree DataFrame
+
+    Raises:
+        ValueError: if any parameter is outside its valid range
     """
     if G_sim is None:
         G_sim = G_ped
+
+    # --- Input validation ---
+    for name, val in [("A1", A1), ("C1", C1), ("A2", A2), ("C2", C2)]:
+        if not (0 <= val <= 1):
+            raise ValueError(f"{name} must be between 0 and 1, got {val}")
+
+    if 1.0 - A1 - C1 < -1e-10:
+        raise ValueError(
+            f"A1 + C1 must be <= 1.0 (got A1={A1}, C1={C1}, E1={1.0-A1-C1:.4f})"
+        )
+    if 1.0 - A2 - C2 < -1e-10:
+        raise ValueError(
+            f"A2 + C2 must be <= 1.0 (got A2={A2}, C2={C2}, E2={1.0-A2-C2:.4f})"
+        )
+
+    if not (N == int(N) and N > 0):
+        raise ValueError(f"N must be a positive integer, got {N}")
+    if not (G_ped == int(G_ped) and G_ped >= 1):
+        raise ValueError(f"G_ped must be an integer >= 1, got {G_ped}")
+    if not (fam_size > 0):
+        raise ValueError(f"fam_size must be > 0, got {fam_size}")
+    if not (0 <= p_mztwin < 1):
+        raise ValueError(f"p_mztwin must be in [0, 1), got {p_mztwin}")
+    if not (0 <= p_nonsocial_father <= 1):
+        raise ValueError(f"p_nonsocial_father must be in [0, 1], got {p_nonsocial_father}")
+    if not (-1 <= rA <= 1):
+        raise ValueError(f"rA must be in [-1, 1], got {rA}")
+    if not (-1 <= rC <= 1):
+        raise ValueError(f"rC must be in [-1, 1], got {rC}")
+
     if G_sim < G_ped:
         raise ValueError(f"G_sim ({G_sim}) must be >= G_ped ({G_ped})")
 

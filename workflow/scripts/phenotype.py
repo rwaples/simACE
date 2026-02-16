@@ -28,17 +28,31 @@ def simulate_phenotype(liability, beta, rate, k, seed, standardize=True):
 
     Returns:
         Array of simulated time-to-onset values
+
+    Raises:
+        ValueError: if rate or k is non-positive, or beta is non-finite
     """
+    if not (rate > 0):
+        raise ValueError(f"rate must be > 0, got {rate}")
+    if not (k > 0):
+        raise ValueError(f"k must be > 0, got {k}")
+    if not np.isfinite(beta):
+        raise ValueError(f"beta must be finite, got {beta}")
+
     rng = np.random.default_rng(seed)
     if standardize:
         lmean = liability.mean()
         lstd = np.std(liability)
-        liability = (liability - lmean) / lstd
+        if lstd > 0:
+            liability = (liability - lmean) / lstd
+        else:
+            liability = liability - lmean
 
     frailty = np.exp(beta * liability)
 
     # Simulate age-at-onset via inverse CDF
-    u = rng.uniform(size=len(liability))
+    # Use 1 - uniform to sample from (0, 1] and avoid log(0)
+    u = 1.0 - rng.uniform(size=len(liability))
     t = ((-np.log(u)) / (rate * frailty)) ** (1 / k)
 
     return t
@@ -47,29 +61,23 @@ def simulate_phenotype(liability, beta, rate, k, seed, standardize=True):
 def age_censor(t, left, right):
     """Apply per-individual [left, right] age censoring.
 
-    - t < left: left-truncated (unobserved onset), marked censored, t = left
-    - t > right: right-censored, t = right
+    - t < left: left-censored (onset before observation window), t set to left
+    - t > right: right-censored (onset after observation window), t set to right
 
     Args:
         t: array of time-to-onset values
-        left: array of left-truncation ages (per individual)
+        left: array of left-censoring ages (per individual)
         right: array of right-censoring ages (per individual)
 
     Returns:
-        DataFrame with 't' (censored times) and 'age_censored' (bool)
+        (t_censored, age_censored): tuple of arrays
     """
     left_trunc = t < left
     right_cens = t > right
     censored = left_trunc | right_cens
-    t = np.where(left_trunc, left, t)
-    t = np.where(right_cens, right, t)
+    t_out = np.clip(t, left, right)
 
-    return pd.DataFrame(
-        {
-            "t": t,
-            "age_censored": censored,
-        }
-    )
+    return t_out, censored
 
 
 def death_censor(t, seed, rate=1e-19, k=10):
@@ -82,21 +90,16 @@ def death_censor(t, seed, rate=1e-19, k=10):
         k: Weibull shape parameter for death hazard
 
     Returns:
-        DataFrame with 't' (censored times) and 'death_censored' (bool)
+        (t_censored, death_censored): tuple of arrays
     """
     rng = np.random.default_rng(seed)
-    u = rng.uniform(size=len(t))
+    u = 1.0 - rng.uniform(size=len(t))
     dt = ((-np.log(u)) / rate) ** (1 / k)
     censored = t > dt
 
     t[censored] = dt[censored]
 
-    return pd.DataFrame(
-        {
-            "t": t,
-            "death_censored": censored,
-        }
-    )
+    return t, censored
 
 
 if __name__ == "__main__":
@@ -110,7 +113,10 @@ if __name__ == "__main__":
     assert min_pheno_gen >= 0, f"G_pheno ({params.G_pheno}) > available generations ({max_gen + 1})"
     pedigree = pedigree[pedigree["generation"] >= min_pheno_gen].reset_index(drop=True)
 
-    # Per-generation censoring windows
+    # Per-generation censoring windows.
+    # Only the last 3 generations get explicit censoring windows.
+    # Earlier phenotyped generations (if G_pheno > 3) use the default
+    # window [0, censor_age] (unrestricted observation).
     generations = pedigree["generation"].values
     max_gen = generations.max()
     gen_windows = {
@@ -125,9 +131,11 @@ if __name__ == "__main__":
         left_censor[mask] = lo
         right_censor[mask] = hi
 
-    # Simulate single death time per individual
+    # Single death age per individual, shared across both traits.
+    # This creates dependent censoring between traits (biologically correct:
+    # death censors all outcomes simultaneously).
     rng_death = np.random.default_rng(params.seed + 1000)
-    u_death = rng_death.uniform(size=len(pedigree))
+    u_death = 1.0 - rng_death.uniform(size=len(pedigree))
     death_age = ((-np.log(u_death)) / params.death_rate) ** (1 / params.death_k)
 
     # === Trait 1 ===
@@ -139,8 +147,7 @@ if __name__ == "__main__":
         seed=params.seed,
         standardize=params.standardize,
     )
-    age_result1 = age_censor(t1_raw.copy(), left_censor, right_censor)
-    t1_after_age = age_result1["t"].values
+    t1_after_age, age_censored1 = age_censor(t1_raw.copy(), left_censor, right_censor)
     death_censored1 = t1_after_age > death_age
     t_observed1 = np.where(death_censored1, death_age, t1_after_age)
 
@@ -153,40 +160,39 @@ if __name__ == "__main__":
         seed=params.seed + 100,
         standardize=params.standardize,
     )
-    age_result2 = age_censor(t2_raw.copy(), left_censor, right_censor)
-    t2_after_age = age_result2["t"].values
+    t2_after_age, age_censored2 = age_censor(t2_raw.copy(), left_censor, right_censor)
     death_censored2 = t2_after_age > death_age
     t_observed2 = np.where(death_censored2, death_age, t2_after_age)
 
-    # Combine into single DataFrame
+    # Combine into single DataFrame — use .values to avoid index alignment overhead
     phenotype = pd.DataFrame(
         {
-            "id": pedigree["id"],
-            "generation": pedigree["generation"],
-            "mother": pedigree["mother"],
-            "father": pedigree["father"],
-            "twin": pedigree["twin"],
-            "A1": pedigree["A1"],
-            "C1": pedigree["C1"],
-            "E1": pedigree["E1"],
-            "liability1": pedigree["liability1"],
-            "A2": pedigree["A2"],
-            "C2": pedigree["C2"],
-            "E2": pedigree["E2"],
-            "liability2": pedigree["liability2"],
+            "id": pedigree["id"].values,
+            "generation": pedigree["generation"].values,
+            "mother": pedigree["mother"].values,
+            "father": pedigree["father"].values,
+            "twin": pedigree["twin"].values,
+            "A1": pedigree["A1"].values,
+            "C1": pedigree["C1"].values,
+            "E1": pedigree["E1"].values,
+            "liability1": pedigree["liability1"].values,
+            "A2": pedigree["A2"].values,
+            "C2": pedigree["C2"].values,
+            "E2": pedigree["E2"].values,
+            "liability2": pedigree["liability2"].values,
             "death_age": death_age,
             # Trait 1
             "t1": t1_raw,
-            "age_censored1": age_result1["age_censored"],
+            "age_censored1": age_censored1,
             "t_observed1": t_observed1,
             "death_censored1": death_censored1,
-            "affected1": ~age_result1["age_censored"] & ~death_censored1,
+            "affected1": ~age_censored1 & ~death_censored1,
             # Trait 2
             "t2": t2_raw,
-            "age_censored2": age_result2["age_censored"],
+            "age_censored2": age_censored2,
             "t_observed2": t_observed2,
             "death_censored2": death_censored2,
-            "affected2": ~age_result2["age_censored"] & ~death_censored2,
+            "affected2": ~age_censored2 & ~death_censored2,
         }
     )
 

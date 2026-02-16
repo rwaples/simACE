@@ -5,11 +5,11 @@ defaults:
   seed: 42
   replicates: 10
 
-  # Trait 1 variance components
+  # Trait 1 variance components (A1 + C1 must be <= 1.0; E1 = 1 - A1 - C1)
   A1: 0.5
   C1: 0.2
 
-  # Trait 2 variance components
+  # Trait 2 variance components (A2 + C2 must be <= 1.0; E2 = 1 - A2 - C2)
   A2: 0.5
   C2: 0.2
 
@@ -20,8 +20,9 @@ defaults:
   # Population and reproduction
   N: 100000                # Population size per generation
   G_ped: 4                 # Number of generations to record in pedigree
+  G_pheno: 4               # Number of generations to phenotype (last G_pheno of G_ped)
   G_sim: 6                 # Total generations to simulate (G_sim - G_ped = burn-in)
-  fam_size: 2.7            # Mean number of kids in a household (poisson)
+  fam_size: 2.3            # Mean number of kids in a household (poisson)
   p_mztwin: 0.02           # Probability of a birth producing MZ twins 
   p_nonsocial_father: 0.05 # Probabilty that a child has random father
 
@@ -38,43 +39,103 @@ defaults:
   # Shared phenotype parameters
   standardize: true        # Standardize liability before phenotyping
   censor_age: 80           # Max censoring age
+  young_gen_censoring: [0, 45]   # [left, right] observation window for youngest generation
+  middle_gen_censoring: [0, 80]  # [left, right] for middle phenotyped generation
+  old_gen_censoring: [40, 80]     # [left, right] for oldest phenotyped generation
   death_rate: 9.095e-7     # Death hazard rate (Weibull)
   death_k: 2.73            # Death hazard shape (Weibull)
+  
+
+  # Liability threshold model parameters
+  prevalence1: 0.10          # Trait 1: top X% of liability per generation are affected
+  prevalence2: 0.10          # Trait 2: top X% of liability per generation are affected
 
 scenarios:
 
-  baseline100K: {}
+  baseline10K:
+    seed: 1042
+    N: 10000
+
+  baseline100K:
+    N: 100000
+    seed: 2042
 
   baseline1M:
+    seed: 3042
     N: 1000000
+    
+  baseline5M:
+    seed: 99042
+    replicates: 1
+    N: 5000000   
 
   high_heritability:
+    seed: 4042
     A1: 0.8
     C1: 0.0
     A2: 0.8
     C2: 0.0
 
   low_heritability:
+    seed: 5042
     A1: 0.1
-    C1: 0.0
+    C1: 0.1
     A2: 0.1
-    C2: 0.0
+    C2: 0.1
 
   no_heritability:
-    seed: 12
+    seed: 6042
     A1: 0
     C1: 0
     A2: 0
     C2: 0
 
+  no_correlation:
+    seed: 7042
+    rA: 0                  # Genetic correlation
+    rC: 0                  # Common environment
+
+  high_correlation:
+    seed: 8042
+    rA: .7                 # Genetic correlation
+    rC: .7
+
+  tetra_test:
+    seed: 9042
+    censor_age: 200           # Max censoring age
+    young_gen_censoring: [0, 200]   # [left, right] observation window for youngest generation
+    middle_gen_censoring: [0, 200]  # [left, right] for middle phenotyped generation
+    old_gen_censoring: [0, 200]     # [left, right] for oldest phenotyped generation
+    beta1: 20
+    beta2: 20
+
+  beta_2:
+    seed: 10042
+    beta1: 2.0
+    beta2: 2.0
+
+  beta_4:
+    seed: 11042
+    beta1: 4.0
+    beta2: 4.0
+
   small_test:
-    seed: 123
-    N: 10000
-    
+    seed: 12042
+    N: 1000
+    young_gen_censoring: [0, 45]
+    old_gen_censoring: [40, 80]
+
+  test_C:
+    seed: 13042
+    A1: .1
+    C1: .9
+
   no_twins:
+    seed: 14042
     p_mztwin: 0
-  
+
   no_fullsibs:
+    seed: 15042
     p_nonsocial_father: 1.0
     
     
