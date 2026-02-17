@@ -56,8 +56,9 @@ def generate_correlated_components(rng: np.random.Generator, n: int, sd1: float,
 def generate_mendelian_noise(rng: np.random.Generator, n: int, sd_A1: float, sd_A2: float, rA: float) -> tuple[np.ndarray, np.ndarray]:
     """Generate correlated Mendelian sampling noise for two traits.
 
-    The Mendelian noise has variance = 0.5 * Var(A) for each trait,
-    so sd_noise = sd_A / sqrt(2).
+    Under the infinitesimal model, the Mendelian sampling variance is
+    0.5 * Var(A) for each trait, so sd_noise = sd_A / sqrt(2)
+    (Bulmer, 1971, Am. Nat., 105, 201-211).
 
     Args:
         rng: numpy random generator
@@ -82,7 +83,7 @@ def mating(rng: np.random.Generator, parental_sex: np.ndarray, fam_size: float, 
         parental_sex: array of sex values for parents
         fam_size: mean family size (Poisson lambda)
         p_nonsocial_father: proportion of non-social fathers
-        p_mztwin: target empirical rate of MZ twins (fraction of individuals who are twins)
+        p_mztwin: probability of a birth producing MZ twins
 
     Returns:
         parent_idxs: (n, 2) array of [mother_idx, father_idx] for each offspring
@@ -90,10 +91,6 @@ def mating(rng: np.random.Generator, parental_sex: np.ndarray, fam_size: float, 
     """
     n = len(parental_sex)
 
-    # Convert target twin rate to per-birth probability
-    # If each birth has prob p of being twins, expected twin rate = 2p/(1+p)
-    # Solving for p given target rate t: p = t / (2 - t)
-    p_twin_birth = p_mztwin / (2 - p_mztwin)
     nmale = parental_sex.sum()
     nfemale = n - nmale
     male_idxs = np.where(parental_sex)[0]
@@ -140,7 +137,7 @@ def mating(rng: np.random.Generator, parental_sex: np.ndarray, fam_size: float, 
     eligible = within_pos <= offspring_fam_size - 2
 
     # Roll for twins at eligible positions
-    twin_rolls = rng.uniform(size=n) <= p_twin_birth
+    twin_rolls = rng.uniform(size=n) <= p_mztwin
     potential_starts = np.where(eligible & twin_rolls)[0]
 
     # Remove overlaps: twin partner (start+1) can't also start a new pair
@@ -210,8 +207,10 @@ def reproduce(
     a1_offspring = mp1 + noise1
     a2_offspring = mp2 + noise2
 
-    # Common environment: freshly drawn per household (mother).
-    # All offspring sharing a mother get the same C values.
+    # Common environment: freshly drawn per household each generation.
+    # C is NOT inherited from parents -- it reflects the offspring's own
+    # shared rearing environment. Siblings share C; parents and children do not.
+    # This is the standard ACE model assumption (no autoregressive C transmission).
     unique_hh, hh_indices = np.unique(household_ids, return_inverse=True)
     n_hh = len(unique_hh)
     hh_c1, hh_c2 = generate_correlated_components(rng, n_hh, sd_C1, sd_C2, rC)
@@ -327,15 +326,16 @@ def run_simulation(
 ) -> pd.DataFrame:
     """Run the full ACE simulation for two correlated traits.
 
-    Variance is partitioned as A + C + E = 1 for each trait, where
-    E = 1 - A - C is computed automatically.
+    Total phenotypic variance is fixed to 1.0 for each trait. Only A and C are
+    free parameters; E is the residual: E = 1 - A - C. This means all variance
+    components are proportions of total variance (i.e., h2 = A, c2 = C, e2 = E).
 
     Args:
         seed: Random seed
         N: Population size per generation (positive integer)
         G_ped: Number of generations to record in pedigree (integer >= 1)
         fam_size: Mean family size (> 0, Poisson lambda)
-        p_mztwin: Proportion of MZ twins, in [0, 1)
+        p_mztwin: Probability of a birth producing MZ twins, in [0, 1)
         p_nonsocial_father: Proportion of non-social fathers, in [0, 1]
         A1, C1: Trait 1 variance components, each in [0, 1] with A1 + C1 <= 1
         A2, C2: Trait 2 variance components, each in [0, 1] with A2 + C2 <= 1
@@ -390,6 +390,7 @@ def run_simulation(
 
     rng = np.random.default_rng(seed)
 
+    # E is residual variance (total variance fixed to 1.0)
     E1 = 1.0 - A1 - C1
     E2 = 1.0 - A2 - C2
 

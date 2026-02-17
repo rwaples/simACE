@@ -29,7 +29,7 @@ def safe_corrcoef(x: np.ndarray, y: np.ndarray) -> float:
 
 def safe_linregress(x: np.ndarray, y: np.ndarray) -> Any:
     """Run linear regression, returning None if x has zero variance."""
-    if np.std(x) == 0:
+    if np.std(x) < 1e-10:
         return None
     return stats.linregress(x, y)
 

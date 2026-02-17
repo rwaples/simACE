@@ -3,13 +3,14 @@
 
 defaults:
   seed: 42
-  replicates: 10
+  replicates: 3
+  folder: base
 
-  # Trait 1 variance components (A1 + C1 must be <= 1.0; E1 = 1 - A1 - C1)
+  # Trait 1 variance components (A + C <= 1.0; E = 1 - A - C)
   A1: 0.5
   C1: 0.2
 
-  # Trait 2 variance components (A2 + C2 must be <= 1.0; E2 = 1 - A2 - C2)
+  # Trait 2 variance components (A + C <= 1.0; E = 1 - A - C)
   A2: 0.5
   C2: 0.2
 
@@ -64,12 +65,13 @@ scenarios:
     seed: 3042
     N: 1000000
     
-  baseline5M:
+  baseline2M:
     seed: 99042
-    replicates: 1
-    N: 5000000   
+    replicates: 3
+    N: 2000000   
 
   high_heritability:
+    folder: heritability
     seed: 4042
     A1: 0.8
     C1: 0.0
@@ -77,6 +79,7 @@ scenarios:
     C2: 0.0
 
   low_heritability:
+    folder: heritability
     seed: 5042
     A1: 0.1
     C1: 0.1
@@ -84,6 +87,7 @@ scenarios:
     C2: 0.1
 
   no_heritability:
+    folder: heritability
     seed: 6042
     A1: 0
     C1: 0
@@ -91,16 +95,19 @@ scenarios:
     C2: 0
 
   no_correlation:
+    folder: cross_trait
     seed: 7042
     rA: 0                  # Genetic correlation
     rC: 0                  # Common environment
 
   high_correlation:
+    folder: cross_trait
     seed: 8042
     rA: .7                 # Genetic correlation
     rC: .7
 
   tetra_test:
+    folder: phenotype
     seed: 9042
     censor_age: 200           # Max censoring age
     young_gen_censoring: [0, 200]   # [left, right] observation window for youngest generation
@@ -110,31 +117,29 @@ scenarios:
     beta2: 20
 
   beta_2:
+    folder: phenotype
     seed: 10042
     beta1: 2.0
     beta2: 2.0
 
   beta_4:
+    folder: phenotype
     seed: 11042
     beta1: 4.0
     beta2: 4.0
 
   small_test:
+    folder: test
     seed: 12042
     N: 1000
-    young_gen_censoring: [0, 45]
-    old_gen_censoring: [40, 80]
-
-  test_C:
-    seed: 13042
-    A1: .1
-    C1: .9
 
   no_twins:
+    folder: family
     seed: 14042
     p_mztwin: 0
 
   no_fullsibs:
+    folder: family
     seed: 15042
     p_nonsocial_father: 1.0
     

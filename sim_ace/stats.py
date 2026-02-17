@@ -107,13 +107,32 @@ def tetrachoric_corr_se(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
     if np.isnan(r):
         return np.nan, np.nan
 
-    # SE via observed Fisher information (numerical second derivative)
+    # SE via analytic Fisher information using bivariate normal PDF
     try:
-        dx = 1e-4
-        r_clamped = np.clip(r, -0.999 + dx, 0.999 - dx)
-        fisher_info = (neg_log_lik(r_clamped + dx) - 2 * neg_log_lik(r_clamped) +
-                       neg_log_lik(r_clamped - dx)) / dx ** 2
-        se = 1.0 / np.sqrt(fisher_info) if fisher_info > 0 else np.nan
+        one_minus_r2 = 1.0 - r * r
+        if one_minus_r2 <= 0:
+            se = np.nan
+        else:
+            bvn_pdf = (1.0 / (2.0 * np.pi * np.sqrt(one_minus_r2))) * np.exp(
+                -(t_a**2 - 2.0 * r * t_a * t_b + t_b**2) / (2.0 * one_minus_r2)
+            )
+            # Cell probabilities at MLE
+            if both_positive:
+                sq = np.sqrt(one_minus_r2)
+                p00 = (0.5 * phi_ta + 0.5 * phi_tb
+                       - owens_t(t_a, (t_b - r * t_a) / (t_a * sq))
+                       - owens_t(t_b, (t_a - r * t_b) / (t_b * sq)))
+            else:
+                p00 = _bvn_cdf(t_a, t_b, r)
+            p01 = phi_ta - p00
+            p10 = phi_tb - p00
+            p11 = 1.0 - p00 - p01 - p10
+            denom = p00 * p01 * p10 * p11
+            if denom <= 0:
+                se = np.nan
+            else:
+                fisher_info = n_pairs * bvn_pdf**2 / denom
+                se = 1.0 / np.sqrt(fisher_info)
     except Exception:
         se = np.nan
 
