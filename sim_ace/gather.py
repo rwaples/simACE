@@ -7,8 +7,10 @@ from __future__ import annotations
 import argparse
 import logging
 from typing import Any
+import csv
 import re
 import yaml
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +20,30 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
     with open(validation_path) as f:
         data = yaml.safe_load(f)
 
-    # Extract scenario and rep from path: results/{scenario}/rep{rep}/validation.yaml
-    match = re.search(r"results/([^/]+)/rep(\d+)/validation\.yaml", validation_path)
+    # Extract scenario and rep from path: results/{folder}/{scenario}/rep{rep}/validation.yaml
+    match = re.search(r"results/([^/]+)/([^/]+)/rep(\d+)/validation\.yaml", validation_path)
     if match:
-        scenario = match.group(1)
-        rep = int(match.group(2))
+        scenario = match.group(2)  # group(1) is folder
+        rep = int(match.group(3))
     else:
         scenario = "unknown"
         rep = 1
+
+    # Parse simulate benchmark time from corresponding TSV
+    simulate_seconds = None
+    simulate_max_rss_mb = None
+    bench_path = Path(re.sub(
+        r"results/([^/]+)/([^/]+)/rep(\d+)/validation\.yaml",
+        r"benchmarks/\1/\2/rep\3/simulate.tsv",
+        validation_path,
+    ))
+    if bench_path.exists():
+        with open(bench_path) as bf:
+            reader = csv.DictReader(bf, delimiter="\t")
+            for row_b in reader:
+                simulate_seconds = float(row_b["s"])
+                simulate_max_rss_mb = float(row_b["max_rss"])
+                break
 
     params = data["parameters"]
     summary = data["summary"]
@@ -126,6 +144,9 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         "half_sib_shared_C1": get_nested(
             data, "half_sibs", "half_sib_shared_C1", "observed"
         ),
+        # Benchmark timing and memory
+        "simulate_seconds": simulate_seconds,
+        "simulate_max_rss_mb": simulate_max_rss_mb,
         # Family size distribution
         "mother_mean_offspring": get_nested(
             data, "family_size_distribution", "mother", "mean"

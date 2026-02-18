@@ -1,0 +1,73 @@
+
+// TODO:
+// Separate founders in the recursion
+// Divide inds into tiers - and iterate over tiers
+// compute the midparents of all inds within a tier at one
+// 
+
+data {
+  int<lower=1> N;                     // number of individuals in ped
+  int<lower=0> mother[N];             // 0 if unknown, else 1..N - indexes of mother
+  int<lower=0> father[N];             // 0 if unknown, else 1..N - indexes of father
+  vector<lower=0>[N] dii;             // dii
+
+  int<lower=1> Npheno;                // number of phenotyped individuals
+  int<lower=1, upper=N> pid[Npheno];  // indices of phenotyped individuals
+  vector[Npheno] y;
+
+  int<lower=1> H;                     // number of households
+  int<lower=1, upper=H> household[Npheno];
+}
+
+
+transformed data{
+  vector<lower=0>[N] sqrt_dii = sqrt(dii);
+}
+
+
+parameters {
+  real mu;
+  real<lower=0> sigma_A;
+  real<lower=0> sigma_E;
+  real<lower=0> sigma_H;
+  vector[H] z_h;                       // noncentered household
+  vector[N] z_m;                       // noncentered mendelian sampling
+}
+
+
+transformed parameters {
+  vector[H] u = sigma_H * z_h;
+
+  // Mendelian sampling terms m_i ~ N(0, sigma_A^2 * dii_i)
+  vector[N] m = sigma_A * (sqrt_dii .* z_m);
+  
+
+  // Breeding values (a) by recursion
+  vector[N] a;
+  for (i in 1:N) {
+    real midparent = 0;
+    int npar = 0;
+    if (mother[i] != 0) { midparent += a[mother[i]]; npar += 1; }
+    if (father[i] != 0) { midparent += a[father[i]]; npar += 1; }
+    if (npar > 0) midparent *= 0.5;  // each parent contributes 1/2
+    a[i] = parent_mean;
+  }
+  
+  a += m                // combine midparent and mendelian sampling
+  
+}
+
+
+model {
+  // priors
+  mu ~ normal(0, .1);
+  sigma_A ~ normal(0, 2);
+  sigma_E ~ normal(0, 2);
+  sigma_H ~ normal(0, 2);
+
+  z_h ~ std_normal();
+  z_m ~ std_normal();
+
+  // likelihood
+  y ~ normal(mu + a[pid] + u[household], sigma_E);
+}

@@ -50,9 +50,9 @@ def prepare_data(parquet_path):
     Ndrop = N - Npheno
 
     # Parent index mapping: ID -> 1-based position (0 for unknown)
-    idx_of_id = dict(zip(ped.id, ped.index + 1))  # 1-based
-    mother = ped.mother.apply(lambda x: idx_of_id.get(x, 0)).values
-    father = ped.father.apply(lambda x: idx_of_id.get(x, 0)).values
+    idx_of_id = pd.Series(ped.index + 1, index=ped.id)  # 1-based
+    mother = ped.mother.map(idx_of_id).fillna(0).astype(int).values
+    father = ped.father.map(idx_of_id).fillna(0).astype(int).values
 
     # pid: 1-based indices of phenotyped individuals into full pedigree
     pid = np.arange(Ndrop + 1, N + 1, dtype=int)
@@ -65,7 +65,11 @@ def prepare_data(parquet_path):
 
     # Standardize phenotype
     y = fit_subset.liability1.values.copy()
-    y = (y - y.mean()) / y.std()
+    ystd = y.std()
+    if ystd > 0:
+        y = (y - y.mean()) / ystd
+    else:
+        y = y - y.mean()
 
     # Henderson's D-inverse diagonal
     dii = compute_dii(ped)
@@ -86,16 +90,16 @@ def prepare_data(parquet_path):
 
     stan_data = {
         "N": N,
-        "mother": mother.tolist(),
-        "father": father.tolist(),
-        "dii": dii.tolist(),
+        "mother": mother,
+        "father": father,
+        "dii": dii,
         "Npheno": Npheno,
-        "pid": pid.tolist(),
-        "y": y.tolist(),
+        "pid": pid,
+        "y": y,
         "H": H,
-        "household": household.tolist(),
+        "household": household,
         "G": G,
-        "tier_start": tier_start.tolist(),
+        "tier_start": tier_start,
     }
 
     return stan_data, os.path.dirname(parquet_path)

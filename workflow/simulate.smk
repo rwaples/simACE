@@ -9,52 +9,75 @@ def get_param(scenario, param):
     return config["defaults"][param]
 
 
+def get_folder(scenario):
+    """Get the folder grouping for a scenario."""
+    return get_param(scenario, "folder")
+
+
+def get_scenarios_for_folder(folder):
+    """Return scenario names assigned to the given folder."""
+    return [s for s in config["scenarios"] if get_folder(s) == folder]
+
+
+def get_all_folders():
+    """Return sorted unique folder names across all scenarios."""
+    return sorted(set(get_folder(s) for s in config["scenarios"]))
+
+
 PHENOTYPE_PLOTS = [
-    "death_age_distribution.png",
-    "phenotype_traits.png",
-    "liability_regression.png",
-    "liability_joint.png",
-    "liability_violin.png",
-    "cumulative_incidence.png",
-    "censoring_windows.png",
-    "joint_affection.png",
-    "tetrachoric_relationship.png",
+    "mortality.png",
+    "age_at_onset_death.png",
+    "liability_vs_aoo.png",
+    "cross_trait.png",
+    "cross_trait.weibull.png",
+    "liability_violin.weibull.png",
+    "cumulative_incidence.weibull.png",
+    "censoring.png",
+    "joint_affected.weibull.png",
+    "tetrachoric.weibull.png",
 ]
 
 THRESHOLD_PLOTS = [
     "prevalence_by_generation.png",
-    "liability_threshold_violin.png",
-    "threshold_tetrachoric.png",
-    "threshold_joint_affection.png",
-    "threshold_liability_joint.png",
+    "liability_violin.threshold.png",
+    "tetrachoric.threshold.png",
+    "joint_affected.threshold.png",
+    "cross_trait.threshold.png",
 ]
+
+
+wildcard_constraints:
+    folder="[a-zA-Z0-9_]+",
+    scenario="[a-zA-Z0-9_]+",
+    rep="\\d+"
 
 
 def get_scenario_sim_outputs(scenario):
     """Generate simulation, validation, and plot outputs for a single scenario."""
+    folder = get_folder(scenario)
     n_reps = get_param(scenario, "replicates")
     outputs = []
     for rep in range(1, n_reps + 1):
-        outputs.append(f"results/{scenario}/rep{rep}/pedigree.parquet")
-        outputs.append(f"results/{scenario}/rep{rep}/phenotype.weibull.parquet")
-        outputs.append(f"results/{scenario}/rep{rep}/phenotype.liability_threshold.parquet")
-        outputs.append(f"results/{scenario}/rep{rep}/validation.yaml")
-        outputs.append(f"results/{scenario}/rep{rep}/phenotype_stats.yaml")
-        outputs.append(f"results/{scenario}/rep{rep}/threshold_stats.yaml")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/pedigree.parquet")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.weibull.parquet")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.parquet")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml")
     for plot in PHENOTYPE_PLOTS:
-        outputs.append(f"results/{scenario}/plots/{plot}")
+        outputs.append(f"results/{folder}/{scenario}/plots/{plot}")
     for plot in THRESHOLD_PLOTS:
-        outputs.append(f"results/{scenario}/plots/{plot}")
+        outputs.append(f"results/{folder}/{scenario}/plots/{plot}")
     return outputs
 
 
-def get_all_validations():
-    """Generate all validation file paths for gather_validation."""
+def get_folder_validations(folder):
+    """Generate validation file paths for scenarios in a given folder."""
     validations = []
-    for scenario in config["scenarios"].keys():
+    for scenario in get_scenarios_for_folder(folder):
         n_reps = get_param(scenario, "replicates")
         for rep in range(1, n_reps + 1):
-            validations.append(f"results/{scenario}/rep{rep}/validation.yaml")
+            validations.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
     return validations
 
 
@@ -62,30 +85,40 @@ def get_phenotype_plot_outputs():
     """Generate phenotype plot output paths across scenarios."""
     outputs = []
     for scenario in config["scenarios"].keys():
+        folder = get_folder(scenario)
         for plot in PHENOTYPE_PLOTS:
-            outputs.append(f"results/{scenario}/plots/{plot}")
+            outputs.append(f"results/{folder}/{scenario}/plots/{plot}")
     return outputs
 
 
 rule all:
     input:
-        expand("results/{scenario}/scenario.done", scenario=config["scenarios"].keys())
+        [f"results/{get_folder(s)}/{s}/scenario.done" for s in config["scenarios"]]
+
+
+rule folder:
+    """Build all scenario outputs for a single folder grouping."""
+    input:
+        lambda w: [f"results/{w.folder}/{s}/scenario.done"
+                    for s in get_scenarios_for_folder(w.folder)]
+    output:
+        touch("results/{folder}/folder.done")
 
 
 rule scenario:
     """Build all sim/validation/plot outputs for a single scenario."""
     input:
         lambda w: get_scenario_sim_outputs(w.scenario),
-        "results/validation_summary.tsv",
-        "results/plots/variance_components.png",
+        lambda w: f"results/{get_folder(w.scenario)}/validation_summary.tsv",
+        lambda w: f"results/{get_folder(w.scenario)}/plots/variance_components.png",
     output:
-        touch("results/{scenario}/scenario.done")
+        touch("results/{folder}/{scenario}/scenario.done")
 
 
 rule simulate:
     output:
-        pedigree="results/{scenario}/rep{rep}/pedigree.parquet",
-        params="results/{scenario}/rep{rep}/params.yaml"
+        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
+        params="results/{folder}/{scenario}/rep{rep}/params.yaml"
     params:
         seed=lambda w: get_param(w.scenario, "seed") + int(w.rep) - 1,
         N=lambda w: get_param(w.scenario, "N"),
@@ -102,9 +135,9 @@ rule simulate:
         rA=lambda w: get_param(w.scenario, "rA"),
         rC=lambda w: get_param(w.scenario, "rC"),
     log:
-        "logs/{scenario}/rep{rep}/simulate.log"
+        "logs/{folder}/{scenario}/rep{rep}/simulate.log"
     benchmark:
-        "benchmarks/{scenario}/rep{rep}/simulate.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/simulate.tsv"
     resources:
         mem_mb=8000,
         runtime=10
@@ -115,9 +148,9 @@ rule simulate:
 
 rule phenotype_weibull:
     input:
-        pedigree="results/{scenario}/rep{rep}/pedigree.parquet"
+        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet"
     output:
-        phenotype="results/{scenario}/rep{rep}/phenotype.weibull.parquet"
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.weibull.parquet"
     params:
         seed=lambda w: get_param(w.scenario, "seed") + int(w.rep) - 1,
         # Trait 1 phenotype parameters
@@ -138,9 +171,9 @@ rule phenotype_weibull:
         old_gen_censoring=lambda w: get_param(w.scenario, "old_gen_censoring"),
         G_pheno=lambda w: get_param(w.scenario, "G_pheno"),
     log:
-        "logs/{scenario}/rep{rep}/phenotype_weibull.log"
+        "logs/{folder}/{scenario}/rep{rep}/phenotype_weibull.log"
     benchmark:
-        "benchmarks/{scenario}/rep{rep}/phenotype_weibull.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_weibull.tsv"
     resources:
         mem_mb=4000,
         runtime=10
@@ -151,17 +184,17 @@ rule phenotype_weibull:
 
 rule phenotype_threshold:
     input:
-        pedigree="results/{scenario}/rep{rep}/pedigree.parquet"
+        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet"
     output:
-        phenotype="results/{scenario}/rep{rep}/phenotype.liability_threshold.parquet"
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.parquet"
     params:
         prevalence1=lambda w: get_param(w.scenario, "prevalence1"),
         prevalence2=lambda w: get_param(w.scenario, "prevalence2"),
         G_pheno=lambda w: get_param(w.scenario, "G_pheno"),
     log:
-        "logs/{scenario}/rep{rep}/phenotype_threshold.log"
+        "logs/{folder}/{scenario}/rep{rep}/phenotype_threshold.log"
     benchmark:
-        "benchmarks/{scenario}/rep{rep}/phenotype_threshold.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_threshold.tsv"
     resources:
         mem_mb=2000,
         runtime=5
@@ -172,14 +205,14 @@ rule phenotype_threshold:
 
 rule validate:
     input:
-        pedigree="results/{scenario}/rep{rep}/pedigree.parquet",
-        params="results/{scenario}/rep{rep}/params.yaml"
+        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
+        params="results/{folder}/{scenario}/rep{rep}/params.yaml"
     output:
-        report="results/{scenario}/rep{rep}/validation.yaml"
+        report="results/{folder}/{scenario}/rep{rep}/validation.yaml"
     log:
-        "logs/{scenario}/rep{rep}/validate.log"
+        "logs/{folder}/{scenario}/rep{rep}/validate.log"
     benchmark:
-        "benchmarks/{scenario}/rep{rep}/validate.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/validate.tsv"
     resources:
         mem_mb=4000,
         runtime=10
@@ -190,10 +223,10 @@ rule validate:
 
 rule phenotype_stats:
     input:
-        phenotype="results/{scenario}/rep{rep}/phenotype.weibull.parquet"
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.weibull.parquet"
     output:
-        stats="results/{scenario}/rep{rep}/phenotype_stats.yaml",
-        samples="results/{scenario}/rep{rep}/phenotype_samples.parquet"
+        stats="results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
+        samples="results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet"
     params:
         seed=lambda w: get_param(w.scenario, "seed") + int(w.rep) - 1,
         censor_age=lambda w: get_param(w.scenario, "censor_age"),
@@ -201,9 +234,9 @@ rule phenotype_stats:
         middle_gen_censoring=lambda w: get_param(w.scenario, "middle_gen_censoring"),
         old_gen_censoring=lambda w: get_param(w.scenario, "old_gen_censoring"),
     log:
-        "logs/{scenario}/rep{rep}/phenotype_stats.log"
+        "logs/{folder}/{scenario}/rep{rep}/phenotype_stats.log"
     benchmark:
-        "benchmarks/{scenario}/rep{rep}/phenotype_stats.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_stats.tsv"
     resources:
         mem_mb=4000,
         runtime=10
@@ -214,13 +247,13 @@ rule phenotype_stats:
 
 rule gather_validation:
     input:
-        validations=get_all_validations()
+        validations=lambda w: get_folder_validations(w.folder)
     output:
-        tsv="results/validation_summary.tsv"
+        tsv="results/{folder}/validation_summary.tsv"
     log:
-        "logs/gather_validation.log"
+        "logs/{folder}/gather_validation.log"
     benchmark:
-        "benchmarks/gather_validation.tsv"
+        "benchmarks/{folder}/gather_validation.tsv"
     resources:
         mem_mb=1000,
         runtime=5
@@ -232,12 +265,14 @@ rule gather_validation:
 rule plot_phenotype:
     input:
         stats=lambda w: expand(
-            "results/{scenario}/rep{rep}/phenotype_stats.yaml",
+            "results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
+            folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(w.scenario, "replicates") + 1),
         ),
         samples=lambda w: expand(
-            "results/{scenario}/rep{rep}/phenotype_samples.parquet",
+            "results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet",
+            folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(w.scenario, "replicates") + 1),
         ),
@@ -247,11 +282,11 @@ rule plot_phenotype:
         middle_gen_censoring=lambda w: get_param(w.scenario, "middle_gen_censoring"),
         old_gen_censoring=lambda w: get_param(w.scenario, "old_gen_censoring"),
     output:
-        expand("results/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS)
+        expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS)
     log:
-        "logs/{scenario}/plot_phenotype.log"
+        "logs/{folder}/{scenario}/plot_phenotype.log"
     benchmark:
-        "benchmarks/{scenario}/plot_phenotype.tsv"
+        "benchmarks/{folder}/{scenario}/plot_phenotype.tsv"
     resources:
         mem_mb=2000,
         runtime=5
@@ -262,16 +297,16 @@ rule plot_phenotype:
 
 rule threshold_stats:
     input:
-        phenotype="results/{scenario}/rep{rep}/phenotype.liability_threshold.parquet"
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.parquet"
     output:
-        stats="results/{scenario}/rep{rep}/threshold_stats.yaml",
-        samples="results/{scenario}/rep{rep}/threshold_samples.parquet"
+        stats="results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml",
+        samples="results/{folder}/{scenario}/rep{rep}/threshold_samples.parquet"
     params:
         seed=lambda w: get_param(w.scenario, "seed") + int(w.rep) - 1,
     log:
-        "logs/{scenario}/rep{rep}/threshold_stats.log"
+        "logs/{folder}/{scenario}/rep{rep}/threshold_stats.log"
     benchmark:
-        "benchmarks/{scenario}/rep{rep}/threshold_stats.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/threshold_stats.tsv"
     resources:
         mem_mb=4000,
         runtime=10
@@ -283,12 +318,14 @@ rule threshold_stats:
 rule plot_threshold:
     input:
         stats=lambda w: expand(
-            "results/{scenario}/rep{rep}/threshold_stats.yaml",
+            "results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml",
+            folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(w.scenario, "replicates") + 1),
         ),
         samples=lambda w: expand(
-            "results/{scenario}/rep{rep}/threshold_samples.parquet",
+            "results/{folder}/{scenario}/rep{rep}/threshold_samples.parquet",
+            folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(w.scenario, "replicates") + 1),
         ),
@@ -296,11 +333,11 @@ rule plot_threshold:
         prevalence1=lambda w: get_param(w.scenario, "prevalence1"),
         prevalence2=lambda w: get_param(w.scenario, "prevalence2"),
     output:
-        expand("results/{{scenario}}/plots/{plot}", plot=THRESHOLD_PLOTS)
+        expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=THRESHOLD_PLOTS)
     log:
-        "logs/{scenario}/plot_threshold.log"
+        "logs/{folder}/{scenario}/plot_threshold.log"
     benchmark:
-        "benchmarks/{scenario}/plot_threshold.tsv"
+        "benchmarks/{folder}/{scenario}/plot_threshold.tsv"
     resources:
         mem_mb=2000,
         runtime=5
@@ -311,21 +348,23 @@ rule plot_threshold:
 
 rule plot_validation:
     input:
-        tsv="results/validation_summary.tsv"
+        tsv="results/{folder}/validation_summary.tsv"
     output:
-        "results/plots/variance_components.png",
-        "results/plots/twin_rate.png",
-        "results/plots/correlations_A.png",
-        "results/plots/correlations_phenotype.png",
-        "results/plots/heritability_estimates.png",
-        "results/plots/half_sib_proportions.png",
-        "results/plots/cross_trait_correlations.png",
-        "results/plots/family_size.png",
-        "results/plots/summary_bias.png"
+        "results/{folder}/plots/variance_components.png",
+        "results/{folder}/plots/twin_rate.png",
+        "results/{folder}/plots/correlations_A.png",
+        "results/{folder}/plots/correlations_phenotype.png",
+        "results/{folder}/plots/heritability_estimates.png",
+        "results/{folder}/plots/half_sib_proportions.png",
+        "results/{folder}/plots/cross_trait_correlations.png",
+        "results/{folder}/plots/family_size.png",
+        "results/{folder}/plots/summary_bias.png",
+        "results/{folder}/plots/runtime.png",
+        "results/{folder}/plots/memory.png"
     log:
-        "logs/plot_validation.log"
+        "logs/{folder}/plot_validation.log"
     benchmark:
-        "benchmarks/plot_validation.tsv"
+        "benchmarks/{folder}/plot_validation.tsv"
     resources:
         mem_mb=1000,
         runtime=5

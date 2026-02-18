@@ -31,7 +31,7 @@ snakemake --cores 1 -s workflow/simulate.smk
 snakemake --cores 1 -s workflow/analyze.smk
 
 # Simulate a single scenario
-snakemake --cores 1 -s workflow/simulate.smk results/baseline10K/scenario.done
+snakemake --cores 1 -s workflow/simulate.smk results/base/baseline10K/scenario.done
 
 # Analyze a single scenario
 snakemake --cores 1 -s workflow/analyze.smk results/analysis/baseline10K/scenario.analyzed
@@ -52,12 +52,14 @@ ACE/
 │   ├── analyze.smk              # Model fitting pipeline (Weibull)
 │   └── scripts/
 │       └── simulate.py          # Simulation functions
-├── results/{scenario}/          # Simulation output per scenario
+├── results/{folder}/{scenario}/rep{N}/  # Simulation output per scenario
 │   ├── pedigree.parquet         # Pedigree data
 │   └── params.yaml              # Parameters used
-├── results/analysis/{scenario}/ # Analysis output per scenario
-├── logs/{scenario}/             # Log files
-└── benchmarks/{scenario}/       # Runtime benchmarks
+├── results/{folder}/validation_summary.tsv  # Per-folder validation summary
+├── results/{folder}/plots/      # Cross-scenario validation plots
+├── results/analysis/{scenario}/ # Analysis output (unchanged)
+├── logs/{folder}/{scenario}/    # Log files
+└── benchmarks/{folder}/{scenario}/  # Runtime benchmarks
 ```
 
 **Core Simulation Functions** (in `workflow/scripts/simulate.py`):
@@ -67,7 +69,7 @@ ACE/
 - `run_simulation()` - Orchestrates the full simulation loop
 
 **Configuration** (`config/config.yaml`):
-Define named scenarios with parameters: seed, A, C, N, G_ped, G_sim, fam_size, p_mztwin, p_nonsocial_father
+Define named scenarios with parameters: seed, folder, A, C, N, G_ped, G_sim, fam_size, p_mztwin, p_nonsocial_father
 
 ## Dependencies
 

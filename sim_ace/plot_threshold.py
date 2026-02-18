@@ -278,7 +278,7 @@ def plot_joint_affection(all_stats: list[dict[str, Any]], df_samples: pd.DataFra
 
     ax.set_xlabel("Trait 1")
     ax.set_ylabel("Trait 2")
-    ax.set_title(f"Joint Affection Status (Liability Threshold) [{scenario}]\n{r_label}", fontsize=14)
+    ax.set_title(f"Joint Affected Status (Liability Threshold) [{scenario}]\n{r_label}", fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
@@ -317,6 +317,8 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
         ax_marg_y = fig.add_subplot(inner[1, 1], sharey=ax_joint)
 
         x, y = df_samples[xcol].values, df_samples[ycol].values
+        bins_x = np.linspace(x.min(), x.max(), 51)
+        bins_y = np.linspace(y.min(), y.max(), 51)
 
         # Plot unaffected first, then affected on top
         for mask, color, alpha, label in [
@@ -327,13 +329,13 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
                 x[mask], y[mask], c=color, alpha=alpha, s=3, rasterized=True, label=label,
             )
 
-        ax_marg_x.hist(x[~affected], bins=50, edgecolor="none", alpha=0.5, color="C0")
-        ax_marg_x.hist(x[affected], bins=50, edgecolor="none", alpha=0.7, color="C3")
+        ax_marg_x.hist(x[~affected], bins=bins_x, edgecolor="none", alpha=0.5, color="C0")
+        ax_marg_x.hist(x[affected], bins=bins_x, edgecolor="none", alpha=0.7, color="C3")
         ax_marg_y.hist(
-            y[~affected], bins=50, orientation="horizontal", edgecolor="none", alpha=0.5, color="C0",
+            y[~affected], bins=bins_y, orientation="horizontal", edgecolor="none", alpha=0.5, color="C0",
         )
         ax_marg_y.hist(
-            y[affected], bins=50, orientation="horizontal", edgecolor="none", alpha=0.7, color="C3",
+            y[affected], bins=bins_y, orientation="horizontal", edgecolor="none", alpha=0.7, color="C3",
         )
 
         r = np.corrcoef(x, y)[0, 1]
@@ -388,17 +390,17 @@ def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, preva
     )
     plot_liability_violin(
         df_samples, all_stats,
-        output_dir / "liability_threshold_violin.png", scenario,
+        output_dir / "liability_violin.threshold.png", scenario,
     )
     plot_joint_affection(
-        all_stats, df_samples, output_dir / "threshold_joint_affection.png", scenario,
+        all_stats, df_samples, output_dir / "joint_affected.threshold.png", scenario,
     )
     plot_liability_joint(
-        df_samples, output_dir / "threshold_liability_joint.png", scenario,
+        df_samples, output_dir / "cross_trait.threshold.png", scenario,
     )
 
     plot_tetrachoric(
-        all_stats, output_dir / "threshold_tetrachoric.png", scenario,
+        all_stats, output_dir / "tetrachoric.threshold.png", scenario,
     )
 
     logger.info("Threshold plots saved to %s", output_dir)

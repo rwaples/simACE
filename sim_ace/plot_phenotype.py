@@ -246,6 +246,80 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
     plt.close()
 
 
+def plot_liability_joint_affected(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
+    """2x2 grid of jointplots colored by Weibull affected status."""
+    from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
+
+    panels = [
+        ("liability1", "liability2", "Liability"),
+        ("A1", "A2", "A (Additive genetic)"),
+        ("C1", "C2", "C (Common environment)"),
+        ("E1", "E2", "E (Unique environment)"),
+    ]
+    panels = [
+        (x, y, t)
+        for x, y, t in panels
+        if x in df_samples.columns and y in df_samples.columns
+    ]
+
+    fig = plt.figure(figsize=(14, 12))
+    fig.suptitle(f"Cross-Trait Correlations (Weibull) [{scenario}]", fontsize=14, y=1.01)
+    outer = GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.35)
+
+    affected = df_samples["affected1"].values.astype(bool)
+
+    for idx, (xcol, ycol, title) in enumerate(panels):
+        inner = GridSpecFromSubplotSpec(
+            2, 2, subplot_spec=outer[idx],
+            width_ratios=[4, 1], height_ratios=[1, 4],
+            hspace=0.05, wspace=0.05,
+        )
+        ax_joint = fig.add_subplot(inner[1, 0])
+        ax_marg_x = fig.add_subplot(inner[0, 0], sharex=ax_joint)
+        ax_marg_y = fig.add_subplot(inner[1, 1], sharey=ax_joint)
+
+        x, y = df_samples[xcol].values, df_samples[ycol].values
+        bins_x = np.linspace(x.min(), x.max(), 51)
+        bins_y = np.linspace(y.min(), y.max(), 51)
+
+        for mask, color, alpha, label in [
+            (~affected, "C0", 0.03, "Unaffected"),
+            (affected, "C3", 0.15, "Affected (T1)"),
+        ]:
+            ax_joint.scatter(
+                x[mask], y[mask], c=color, alpha=alpha, s=3, rasterized=True, label=label,
+            )
+
+        ax_marg_x.hist(x[~affected], bins=bins_x, edgecolor="none", alpha=0.5, color="C0")
+        ax_marg_x.hist(x[affected], bins=bins_x, edgecolor="none", alpha=0.7, color="C3")
+        ax_marg_y.hist(
+            y[~affected], bins=bins_y, orientation="horizontal", edgecolor="none", alpha=0.5, color="C0",
+        )
+        ax_marg_y.hist(
+            y[affected], bins=bins_y, orientation="horizontal", edgecolor="none", alpha=0.7, color="C3",
+        )
+
+        r = np.corrcoef(x, y)[0, 1]
+        ax_joint.text(
+            0.05, 0.95, f"r = {r:.4f}",
+            transform=ax_joint.transAxes, va="top", fontsize=11,
+        )
+        ax_joint.set_xlabel(f"{title} (Trait 1)")
+        ax_joint.set_ylabel(f"{title} (Trait 2)")
+
+        ax_marg_x.set_title(f"{title}: Trait 1 vs Trait 2", fontsize=11)
+        ax_marg_x.tick_params(labelbottom=False, labelleft=False)
+        ax_marg_x.set_ylabel("")
+        ax_marg_y.tick_params(labelleft=False, labelbottom=False)
+        ax_marg_y.set_xlabel("")
+
+        ax_corner = fig.add_subplot(inner[0, 1])
+        ax_corner.axis("off")
+
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
 def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
     """Split violin plot of liability by trait, split on affected status."""
     violin_data = pd.concat(
@@ -318,6 +392,7 @@ def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float
         ages = np.array(all_stats[0]["cumulative_incidence"][key]["ages"])
 
         # Support both old ("values") and new ("observed_values"/"true_values") format
+        mean_true = None
         if "observed_values" in all_stats[0]["cumulative_incidence"][key]:
             all_obs = np.array([
                 s["cumulative_incidence"][key]["observed_values"] for s in all_stats
@@ -359,6 +434,19 @@ def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float
             xy=(age_50, half_target), xytext=(12, 12), textcoords="offset points",
             fontsize=10, ha="left", va="bottom",
         )
+        # Annotation box: prevalence and censoring rates
+        prev = np.mean([s["prevalence"][key] for s in all_stats])
+        true_prev = mean_true[-1] if mean_true is not None else mean_obs[-1]
+        censored_pct = (true_prev - prev) * 100
+        ax.text(
+            0.03, 0.95,
+            f"Affected: {prev * 100:.1f}%\n"
+            f"True prev: {true_prev * 100:.1f}%\n"
+            f"Censored: {censored_pct:.1f}%",
+            transform=ax.transAxes, ha="left", va="top", fontsize=9,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+        )
+
         ax.set_title(f"Trait {trait_num}")
         ax.set_xlabel("Age")
         ax.legend(loc="lower right", fontsize=9)
@@ -537,7 +625,7 @@ def plot_joint_affection(df_samples: pd.DataFrame, output_path: str | Path, scen
 
     ax.set_xlabel("Trait 1")
     ax.set_ylabel("Trait 2")
-    ax.set_title(f"Joint Affection Status (Weibull) [{scenario}]\n{r_label}", fontsize=14)
+    ax.set_title(f"Joint Affected Status (Weibull) [{scenario}]\n{r_label}", fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
@@ -678,29 +766,32 @@ def main(
         ).reset_index(drop=True)
 
     plot_death_age_distribution(
-        all_stats, censor_age, output_dir / "death_age_distribution.png", scenario
+        all_stats, censor_age, output_dir / "mortality.png", scenario
     )
     plot_trait_phenotype(
-        df_samples, output_dir / "phenotype_traits.png", scenario
+        df_samples, output_dir / "age_at_onset_death.png", scenario
     )
     plot_trait_regression(
-        df_samples, all_stats, output_dir / "liability_regression.png", scenario
+        df_samples, all_stats, output_dir / "liability_vs_aoo.png", scenario
     )
     plot_liability_joint(
-        df_samples, output_dir / "liability_joint.png", scenario
+        df_samples, output_dir / "cross_trait.png", scenario
+    )
+    plot_liability_joint_affected(
+        df_samples, output_dir / "cross_trait.weibull.png", scenario
     )
     plot_liability_violin(
-        df_samples, all_stats, output_dir / "liability_violin.png", scenario
+        df_samples, all_stats, output_dir / "liability_violin.weibull.png", scenario
     )
     plot_cumulative_incidence(
-        all_stats, censor_age, output_dir / "cumulative_incidence.png", scenario
+        all_stats, censor_age, output_dir / "cumulative_incidence.weibull.png", scenario
     )
     plot_joint_affection(
-        df_samples, output_dir / "joint_affection.png", scenario
+        df_samples, output_dir / "joint_affected.weibull.png", scenario
     )
     if young_gen_censoring is not None:
         plot_censoring_windows(
-            all_stats, output_dir / "censoring_windows.png", scenario,
+            all_stats, output_dir / "censoring.png", scenario,
             old_gen_censoring=old_gen_censoring,
             middle_gen_censoring=middle_gen_censoring,
             young_gen_censoring=young_gen_censoring,
@@ -710,11 +801,11 @@ def main(
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "No censoring windows configured",
                 ha="center", va="center", transform=ax.transAxes)
-        plt.savefig(output_dir / "censoring_windows.png", dpi=150)
+        plt.savefig(output_dir / "censoring.png", dpi=150)
         plt.close()
 
     plot_tetrachoric_sibling(
-        all_stats, output_dir / "tetrachoric_relationship.png", scenario,
+        all_stats, output_dir / "tetrachoric.weibull.png", scenario,
     )
 
     logger.info("Phenotype plots saved to %s", output_dir)

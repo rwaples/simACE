@@ -1,3 +1,9 @@
+# External tools and data
+external/
+
+# Notebooks
+notebooks/
+
 # Results and outputs
 results/
 logs/
