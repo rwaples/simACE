@@ -24,42 +24,50 @@ conda activate ACE
 ## Running Simulations
 
 ```bash
-# Run simulation pipeline (all scenarios)
-snakemake --cores 1 -s workflow/simulate.smk
+# Run everything (default target)
+snakemake --cores 6
 
-# Run analysis pipeline (all scenarios, requires simulation outputs)
-snakemake --cores 1 -s workflow/analyze.smk
+# Run individual stages
+snakemake --cores 6 simulate_all     # pedigree simulation only
+snakemake --cores 6 phenotype_all    # simulation + phenotyping
+snakemake --cores 6 validate_all     # simulation + validation + folder summaries
+snakemake --cores 6 stats_all        # phenotyping + stats + plots
+snakemake --cores 6 analyze_all      # Weibull frailty model fitting
 
-# Simulate a single scenario
-snakemake --cores 1 -s workflow/simulate.smk results/base/baseline10K/scenario.done
-
-# Analyze a single scenario
-snakemake --cores 1 -s workflow/analyze.smk results/analysis/baseline10K/scenario.analyzed
+# Run a single scenario
+snakemake --cores 6 results/base/baseline10K/scenario.done
 
 # Dry run to see what will be executed
-snakemake -n -s workflow/simulate.smk
-snakemake -n -s workflow/analyze.smk
+snakemake -n --cores 6
 ```
 
 ## Architecture
 
 ```
 ACE/
+├── Snakefile                          # Root entry point (no -s flag needed)
 ├── config/
-│   └── config.yaml              # Simulation parameters (named scenarios)
+│   └── config.yaml                    # Simulation parameters (named scenarios)
 ├── workflow/
-│   ├── simulate.smk             # Simulation, validation & visualization pipeline
-│   ├── analyze.smk              # Model fitting pipeline (Weibull)
-│   └── scripts/
-│       └── simulate.py          # Simulation functions
+│   ├── common.py                      # Shared helpers (get_param, get_folder, etc.)
+│   ├── rules/                         # Modular rule files
+│   │   ├── targets.smk                # Target rules: all, simulate_all, phenotype_all, etc.
+│   │   ├── simulate.smk              # rule simulate
+│   │   ├── phenotype.smk             # rules phenotype_weibull, phenotype_threshold
+│   │   ├── validate.smk              # rules validate, gather_validation, plot_validation
+│   │   ├── stats.smk                 # rules phenotype_stats, threshold_stats, plot_*
+│   │   └── analyze.smk              # rules prepare_weibull, run_weibull
+│   ├── simulate.smk                   # Backward-compat wrapper (-s workflow/simulate.smk)
+│   ├── analyze.smk                    # Backward-compat wrapper (-s workflow/analyze.smk)
+│   └── scripts/                       # Snakemake script wrappers
 ├── results/{folder}/{scenario}/rep{N}/  # Simulation output per scenario
-│   ├── pedigree.parquet         # Pedigree data
-│   └── params.yaml              # Parameters used
+│   ├── pedigree.parquet               # Pedigree data
+│   └── params.yaml                    # Parameters used
 ├── results/{folder}/validation_summary.tsv  # Per-folder validation summary
-├── results/{folder}/plots/      # Cross-scenario validation plots
-├── results/analysis/{scenario}/ # Analysis output (unchanged)
-├── logs/{folder}/{scenario}/    # Log files
-└── benchmarks/{folder}/{scenario}/  # Runtime benchmarks
+├── results/{folder}/plots/            # Cross-scenario validation plots
+├── results/analysis/{folder}/{scenario}/  # Weibull analysis output
+├── logs/{folder}/{scenario}/          # Log files
+└── benchmarks/{folder}/{scenario}/    # Runtime benchmarks
 ```
 
 **Core Simulation Functions** (in `workflow/scripts/simulate.py`):
