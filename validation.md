@@ -188,12 +188,12 @@ Reports slope, intercept, R², and n.
 
 ### 2.5 Censoring windows
 
-Per-generation (young/middle/old) breakdown showing:
+Per-generation breakdown showing:
 - True vs observed incidence curves
 - Percent affected, left-censored, right-censored, death-censored
 
-Requires `young_gen_censoring`, `middle_gen_censoring`, `old_gen_censoring`
-parameters specifying `[lo, hi]` age windows.
+Requires `gen_censoring` parameter: a dict mapping generation number to
+`[lo, hi]` age windows (e.g. `{0: [40, 80], 1: [0, 80], 3: [0, 45]}`).
 
 ### 2.6 Relationship pair extraction (`extract_relationship_pairs`)
 

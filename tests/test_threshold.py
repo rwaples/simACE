@@ -79,3 +79,60 @@ class TestApplyThreshold:
         # and >= threshold means all or none depending on implementation
         # Either way, it shouldn't crash
         assert affected.dtype == bool
+
+
+class TestApplyThresholdDictPrevalence:
+
+    def test_dict_prevalence_per_gen_rates(self):
+        """Each generation gets its own prevalence from the dict."""
+        rng = np.random.default_rng(42)
+        n_per_gen = 10000
+        liability = rng.standard_normal(3 * n_per_gen)
+        generation = np.repeat([0, 1, 2], n_per_gen)
+        prev_dict = {0: 0.05, 1: 0.10, 2: 0.20}
+        affected = apply_threshold(liability, generation, prevalence=prev_dict)
+        for gen, expected_prev in prev_dict.items():
+            mask = generation == gen
+            observed = affected[mask].mean()
+            assert abs(observed - expected_prev) < 0.01, (
+                f"gen {gen}: expected ~{expected_prev}, got {observed}"
+            )
+
+    def test_dict_prevalence_output_shape_and_dtype(self):
+        rng = np.random.default_rng(0)
+        n = 500
+        liability = rng.standard_normal(2 * n)
+        generation = np.repeat([0, 1], n)
+        affected = apply_threshold(liability, generation, prevalence={0: 0.1, 1: 0.2})
+        assert affected.shape == (2 * n,)
+        assert affected.dtype == bool
+
+    def test_dict_missing_generation_raises(self):
+        """Dict missing a generation key should raise ValueError."""
+        liability = np.array([1.0, 2.0, 3.0, 4.0])
+        generation = np.array([0, 0, 1, 1])
+        with pytest.raises(ValueError, match="missing entries for generations"):
+            apply_threshold(liability, generation, prevalence={0: 0.5})
+
+    def test_dict_prevalence_out_of_range_raises(self):
+        """Dict values outside (0,1) should raise ValueError."""
+        liability = np.array([1.0, 2.0])
+        generation = np.array([0, 0])
+        with pytest.raises(ValueError, match="prevalence must be between 0 and 1"):
+            apply_threshold(liability, generation, prevalence={0: 0.0})
+        with pytest.raises(ValueError, match="prevalence must be between 0 and 1"):
+            apply_threshold(liability, generation, prevalence={0: 1.0})
+        with pytest.raises(ValueError, match="prevalence must be between 0 and 1"):
+            apply_threshold(liability, generation, prevalence={0: -0.1})
+
+    def test_scalar_backward_compatible(self):
+        """Scalar prevalence still works identically to before."""
+        rng = np.random.default_rng(99)
+        n = 5000
+        liability = rng.standard_normal(n)
+        generation = np.repeat([0, 1], n // 2)
+        affected = apply_threshold(liability, generation, prevalence=0.15)
+        for gen in [0, 1]:
+            mask = generation == gen
+            observed = affected[mask].mean()
+            assert abs(observed - 0.15) < 0.01

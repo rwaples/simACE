@@ -7,9 +7,7 @@ rule phenotype_stats:
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
-        young_gen_censoring=lambda w: get_param(config, w.scenario, "young_gen_censoring"),
-        middle_gen_censoring=lambda w: get_param(config, w.scenario, "middle_gen_censoring"),
-        old_gen_censoring=lambda w: get_param(config, w.scenario, "old_gen_censoring"),
+        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
         beta1=lambda w: get_param(config, w.scenario, "beta1"),
         scale1=lambda w: get_param(config, w.scenario, "scale1"),
         rho1=lambda w: get_param(config, w.scenario, "rho1"),
@@ -44,9 +42,7 @@ rule plot_phenotype:
         ),
     params:
         censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
-        young_gen_censoring=lambda w: get_param(config, w.scenario, "young_gen_censoring"),
-        middle_gen_censoring=lambda w: get_param(config, w.scenario, "middle_gen_censoring"),
-        old_gen_censoring=lambda w: get_param(config, w.scenario, "old_gen_censoring"),
+        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
     output:
         expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS)
     log:

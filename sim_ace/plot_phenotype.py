@@ -205,7 +205,7 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
     ]
 
     fig = plt.figure(figsize=(14, 12))
-    fig.suptitle(f"Cross-Trait Correlations (Weibull) [{scenario}]", fontsize=14, y=1.01)
+    fig.suptitle(f"Cross-Trait Correlations [{scenario}]", fontsize=14, y=1.01)
     outer = GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.35)
 
     for idx, (xcol, ycol, title) in enumerate(panels):
@@ -316,6 +316,13 @@ def plot_liability_joint_affected(df_samples: pd.DataFrame, output_path: str | P
         ax_corner = fig.add_subplot(inner[0, 1])
         ax_corner.axis("off")
 
+    from matplotlib.lines import Line2D
+    legend_handles = [
+        Line2D([0], [0], marker="o", color="w", markerfacecolor="C0", markersize=8, label="Unaffected"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor="C3", markersize=8, label="Affected (T1)"),
+    ]
+    fig.legend(handles=legend_handles, loc="upper right", fontsize=10, framealpha=0.9)
+
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
 
@@ -377,6 +384,83 @@ def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, An
     ax.text(
         1, ax.get_ylim()[0], f"Prevalence: {prev2:.1%}",
         ha="center", va="top", fontsize=10, fontstyle="italic",
+    )
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
+    """Split violin of liability by affected status, one column per generation (Weibull)."""
+    if "generation" not in df_samples.columns:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No generation data", ha="center", va="center",
+                transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    gens = sorted(df_samples["generation"].unique())
+    n_gens = len(gens)
+
+    fig, axes = plt.subplots(2, n_gens, figsize=(4 * n_gens, 8), squeeze=False)
+
+    for row, trait_num in enumerate([1, 2]):
+        liab_col = f"liability{trait_num}"
+        aff_col = f"affected{trait_num}"
+
+        for col, gen in enumerate(gens):
+            ax = axes[row, col]
+            gen_mask = df_samples["generation"] == gen
+            df_gen = df_samples.loc[gen_mask]
+
+            violin_data = pd.DataFrame({
+                "Trait": f"Trait {trait_num}",
+                "Liability": df_gen[liab_col].values,
+                "Affected": df_gen[aff_col].values,
+            })
+
+            if len(violin_data) > 1:
+                sns.violinplot(
+                    data=violin_data, x="Trait", y="Liability",
+                    hue="Affected", split=True,
+                    legend=(row == 0 and col == n_gens - 1),
+                    ax=ax, cut=0,
+                )
+
+                # Annotate means
+                liab = df_gen[liab_col].values
+                aff = df_gen[aff_col].values.astype(bool)
+                if aff.any():
+                    mu = liab[aff].mean()
+                    ax.plot(0.05, mu, "D", color="black", markersize=5, zorder=5)
+                    ax.text(0.12, mu, f"\u03bc={mu:.2f}",
+                            ha="left", va="center", fontsize=8, fontweight="bold")
+                if (~aff).any():
+                    mu = liab[~aff].mean()
+                    ax.plot(-0.05, mu, "D", color="black", markersize=5, zorder=5)
+                    ax.text(-0.12, mu, f"\u03bc={mu:.2f}",
+                            ha="right", va="center", fontsize=8, fontweight="bold")
+
+                # Prevalence annotation
+                obs_prev = aff.mean()
+                ax.set_xlabel(f"prev: {obs_prev:.1%}", fontsize=8)
+
+            if row == 0:
+                label = f"Gen {gen}"
+                if col == 0:
+                    label += " (oldest)"
+                elif col == n_gens - 1:
+                    label += " (youngest)"
+                ax.set_title(label, fontsize=11)
+            if col == 0:
+                ax.set_ylabel(f"Trait {trait_num}\nLiability", fontsize=10)
+            else:
+                ax.set_ylabel("")
+
+    fig.suptitle(
+        f"Liability by Affected Status per Generation (Weibull) [{scenario}]",
+        fontsize=14,
     )
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
@@ -462,9 +546,7 @@ def plot_censoring_windows(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
-    old_gen_censoring: list[float] | None = None,
-    middle_gen_censoring: list[float] | None = None,
-    young_gen_censoring: list[float] | None = None,
+    gen_censoring: dict[int, list[float]] | None = None,
 ) -> None:
     """Plot per-generation censoring windows, mean +/- band across reps."""
     # Check that all reps have censoring data
@@ -480,40 +562,38 @@ def plot_censoring_windows(
         return
 
     ages = np.array(stats_with_censoring[0]["censoring"]["censoring_ages"])
-    censor_age = stats_with_censoring[0]["censoring"]["censor_age"]
 
-    gen_names = ["old", "middle", "young"]
-    gen_windows = {
-        "old": old_gen_censoring,
-        "middle": middle_gen_censoring,
-        "young": young_gen_censoring,
-    }
+    # Discover generation keys from the stats YAML (e.g. "gen0", "gen1", ...)
+    gen_keys = sorted(stats_with_censoring[0]["censoring"]["generations"].keys())
+    if gen_censoring is None:
+        gen_censoring = {}
+
     gen_labels = []
-    for name in gen_names:
-        label = name.capitalize()
-        win = gen_windows.get(name)
+    for gk in gen_keys:
+        gen_num = int(gk.replace("gen", ""))
+        win = gen_censoring.get(gen_num)
         if win is not None:
-            gen_labels.append(f"{label}\n[{win[0]}, {win[1]}]")
+            gen_labels.append(f"Gen {gen_num}\n[{win[0]}, {win[1]}]")
         else:
-            gen_labels.append(label)
+            gen_labels.append(f"Gen {gen_num}")
 
     traits = [1, 2]
 
     fig, axes = plt.subplots(
-        len(traits), len(gen_names),
-        figsize=(5 * len(gen_names), 4 * len(traits)),
+        len(traits), len(gen_keys),
+        figsize=(5 * len(gen_keys), 4 * len(traits)),
         sharex=True, sharey=True, squeeze=False,
     )
 
-    for col, (gen_name, label) in enumerate(zip(gen_names, gen_labels)):
+    for col, (gen_key, label) in enumerate(zip(gen_keys, gen_labels)):
         # Check if any rep has data for this generation
         gen_data = [
-            s["censoring"]["generations"][gen_name]
+            s["censoring"]["generations"][gen_key]
             for s in stats_with_censoring
-            if s["censoring"]["generations"].get(gen_name, {}).get("n", 0) > 0
+            if s["censoring"]["generations"].get(gen_key, {}).get("n", 0) > 0
         ]
         if not gen_data:
-            logger.warning("plot_censoring_windows: generation '%s' has 0 individuals", gen_name)
+            logger.warning("plot_censoring_windows: generation '%s' has 0 individuals", gen_key)
             for row in range(len(traits)):
                 axes[row, col].text(
                     0.5, 0.5, "No data", ha="center", va="center",
@@ -570,9 +650,11 @@ def plot_censoring_windows(
                 ax.set_xlabel("Age")
 
     from matplotlib.lines import Line2D
-    legend_ax = axes[0, 1]
-    handles, labels = legend_ax.get_legend_handles_labels()
-    legend_ax.legend(handles, labels, loc="lower right", fontsize=8)
+    legend_elements = [
+        Line2D([0], [0], color="gray", linewidth=2, alpha=0.7, label="True"),
+        Line2D([0], [0], color="C0", linewidth=2, label="Observed"),
+    ]
+    axes[0, -1].legend(handles=legend_elements, loc="lower right", fontsize=9)
     fig.suptitle(
         f"Censoring Windows by Generation (Weibull) [{scenario}]", fontsize=14, y=1.01
     )
@@ -632,9 +714,9 @@ def plot_joint_affection(df_samples: pd.DataFrame, output_path: str | Path, scen
 
 
 def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str) -> None:
-    """Plot tetrachoric correlations by relationship type, mean with rep dots."""
+    """Plot tetrachoric correlations by relationship type, violin with rep dots."""
     pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
-    bar_colors = ["C0", "C1", "C3", "C5", "C2", "C6", "C4"]
+    pair_colors = {"MZ twin": "C0", "Full sib": "C1", "Mother-offspring": "C3", "Father-offspring": "C5", "Maternal half sib": "C2", "Paternal half sib": "C6", "1st cousin": "C4"}
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
@@ -642,61 +724,49 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
         ax = axes[col_idx]
         key = f"trait{trait_num}"
 
-        mean_corrs = []
-        se_bars = []
-        total_pairs = []
-        rep_corrs = {pt: [] for pt in pair_types}
-
+        # Build long-format data for violin plot
+        rows = []
+        total_pairs = {}
         for ptype in pair_types:
-            corrs = []
             n_total = 0
             for s in all_stats:
                 entry = s["tetrachoric"][key].get(ptype, {})
                 r = entry.get("r")
                 n_p = entry.get("n_pairs", 0)
-                if r is not None:
-                    corrs.append(r)
                 n_total += n_p
-                rep_corrs[ptype].append(r)
+                if r is not None:
+                    rows.append({"pair_type": ptype, "r": r})
+            total_pairs[ptype] = n_total
 
-            mean_corrs.append(np.mean(corrs) if corrs else np.nan)
-            if len(corrs) > 1:
-                se_bars.append(np.std(corrs) / np.sqrt(len(corrs)))
-            else:
-                se_bars.append(0)
-            total_pairs.append(n_total)
+        df_plot = pd.DataFrame(rows)
 
-        x = np.arange(len(pair_types))
-        bars = ax.bar(
-            x, mean_corrs, width=0.6, color=bar_colors,
-            edgecolor="black", alpha=0.8, zorder=3,
-        )
+        if not df_plot.empty:
+            sns.violinplot(
+                data=df_plot, x="pair_type", y="r", hue="pair_type", ax=ax,
+                order=pair_types, palette=pair_colors, legend=False,
+                inner=None, cut=0, alpha=0.6, zorder=3,
+            )
 
-        # Error bars (cross-rep SE)
-        ax.errorbar(
-            x, mean_corrs, yerr=se_bars, fmt="none",
-            ecolor="black", elinewidth=1.5, capsize=4, zorder=4,
-        )
+            # Overlay per-rep dots
+            for i, ptype in enumerate(pair_types):
+                rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
+                if len(rep_vals):
+                    jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
+                    ax.scatter(
+                        i + jitter, rep_vals, color="black", s=15,
+                        alpha=0.6, zorder=5,
+                    )
 
-        # Overlay per-rep dots
-        for i, ptype in enumerate(pair_types):
-            rep_vals = [v for v in rep_corrs[ptype] if v is not None]
-            if rep_vals:
-                jitter = np.random.default_rng(42).uniform(-0.15, 0.15, len(rep_vals))
-                ax.scatter(
-                    x[i] + jitter, rep_vals, color="black", s=12,
-                    alpha=0.4, zorder=5,
-                )
-
-        # Annotate mean N pairs per rep
-        n_reps = len(all_stats)
-        for i, (bar, n_p) in enumerate(zip(bars, total_pairs)):
-            height = bar.get_height()
-            if not np.isnan(height):
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2, height + se_bars[i] + 0.01,
-                    f"N={n_p // n_reps}", ha="center", va="bottom", fontsize=8,
-                )
+            # Annotate mean N pairs per rep
+            n_reps = len(all_stats)
+            for i, ptype in enumerate(pair_types):
+                rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
+                if len(rep_vals):
+                    top = rep_vals.max()
+                    ax.text(
+                        i, top + 0.03,
+                        f"N={total_pairs[ptype] // n_reps}", ha="center", va="bottom", fontsize=8,
+                    )
 
         # Liability correlation lines (averaged across reps)
         for i, ptype in enumerate(pair_types):
@@ -712,7 +782,23 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
                     linestyles="dashed", linewidth=2, zorder=4,
                 )
 
-        ax.set_xticks(x)
+        # Uncensored Weibull pairwise correlation lines (averaged across reps)
+        has_uncens = any(s.get("weibull_corr_uncensored") for s in all_stats)
+        if has_uncens:
+            for i, ptype in enumerate(pair_types):
+                uncens_vals = [
+                    s.get("weibull_corr_uncensored", {}).get(key, {}).get(ptype, {}).get("r")
+                    for s in all_stats
+                ]
+                uncens_vals = [v for v in uncens_vals if v is not None]
+                if uncens_vals:
+                    mean_uncens_r = np.mean(uncens_vals)
+                    ax.hlines(
+                        mean_uncens_r, i - 0.35, i + 0.35, colors="C2",
+                        linestyles="dashdot", linewidth=2, zorder=5,
+                    )
+
+        ax.set_xticks(range(len(pair_types)))
         ax.set_xticklabels(pair_types, fontsize=9, rotation=15, ha="right")
         ax.set_ylabel("Tetrachoric Correlation")
         ax.set_title(f"Trait {trait_num}")
@@ -722,6 +808,10 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
         legend_elements = [
             Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r"),
         ]
+        if has_uncens:
+            legend_elements.append(
+                Line2D([0], [0], color="C2", linestyle="-.", linewidth=2, label="Weibull r (uncensored)"),
+            )
         ax.legend(handles=legend_elements, loc="upper right")
 
     fig.suptitle(
@@ -732,14 +822,251 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
     plt.close()
 
 
+def plot_tetrachoric_by_generation(
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+) -> None:
+    """Plot tetrachoric correlations by relationship type, broken out by generation.
+
+    2 rows (traits) x N cols (last 3 non-founder generations) grid.
+    Each panel is a bar chart of 7 pair types with dashed liability reference lines.
+    """
+    # Determine which generations are available across reps
+    gen_keys_sets = [
+        set(s.get("tetrachoric_by_generation", {}).keys()) for s in all_stats
+    ]
+    if not gen_keys_sets or not gen_keys_sets[0]:
+        # No generation data — create placeholder
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No per-generation tetrachoric data",
+                ha="center", va="center", transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    # Intersection of available gens across all reps, sorted
+    gen_keys = sorted(set.intersection(*gen_keys_sets))
+    if not gen_keys:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No per-generation tetrachoric data",
+                ha="center", va="center", transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    pair_types = [
+        "MZ twin", "Full sib", "Mother-offspring", "Father-offspring",
+        "Maternal half sib", "Paternal half sib", "1st cousin",
+    ]
+    pair_colors = {"MZ twin": "C0", "Full sib": "C1", "Mother-offspring": "C3", "Father-offspring": "C5", "Maternal half sib": "C2", "Paternal half sib": "C6", "1st cousin": "C4"}
+
+    n_cols = len(gen_keys)
+    fig, axes = plt.subplots(2, n_cols, figsize=(5 * n_cols, 5 * 2), squeeze=False)
+
+    for row, trait_num in enumerate([1, 2]):
+        trait_key = f"trait{trait_num}"
+
+        for col, gen_key in enumerate(gen_keys):
+            ax = axes[row, col]
+
+            # Build long-format data for violin plot
+            rows_data = []
+            total_pairs = {}
+            mean_liab_rs = []
+
+            for ptype in pair_types:
+                liab_rs = []
+                n_total = 0
+
+                for s in all_stats:
+                    gen_data = s.get("tetrachoric_by_generation", {}).get(gen_key, {})
+                    entry = gen_data.get(trait_key, {}).get(ptype, {})
+                    r = entry.get("r")
+                    n_p = entry.get("n_pairs", 0)
+                    liab_r = entry.get("liability_r")
+                    if r is not None:
+                        rows_data.append({"pair_type": ptype, "r": r})
+                    if liab_r is not None:
+                        liab_rs.append(liab_r)
+                    n_total += n_p
+
+                total_pairs[ptype] = n_total
+                mean_liab_rs.append(np.mean(liab_rs) if liab_rs else np.nan)
+
+            df_plot = pd.DataFrame(rows_data)
+
+            if not df_plot.empty:
+                sns.violinplot(
+                    data=df_plot, x="pair_type", y="r", hue="pair_type", ax=ax,
+                    order=pair_types, palette=pair_colors, legend=False,
+                    inner=None, cut=0, alpha=0.6, zorder=3,
+                )
+
+                # Overlay per-rep dots
+                for i, ptype in enumerate(pair_types):
+                    rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
+                    if len(rep_vals):
+                        jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
+                        ax.scatter(
+                            i + jitter, rep_vals, color="black", s=12,
+                            alpha=0.6, zorder=5,
+                        )
+
+                # Annotate mean N pairs per rep
+                n_reps = len(all_stats)
+                for i, ptype in enumerate(pair_types):
+                    rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
+                    if len(rep_vals):
+                        top = rep_vals.max()
+                        ax.text(
+                            i, top + 0.03,
+                            f"N={total_pairs[ptype] // n_reps}", ha="center", va="bottom", fontsize=7,
+                        )
+
+            # Liability correlation reference lines (dashed)
+            for i, liab_r in enumerate(mean_liab_rs):
+                if not np.isnan(liab_r):
+                    ax.hlines(
+                        liab_r, i - 0.35, i + 0.35, colors="black",
+                        linestyles="dashed", linewidth=2, zorder=4,
+                    )
+
+            ax.set_xticks(range(len(pair_types)))
+            ax.set_xticklabels(pair_types, fontsize=7, rotation=30, ha="right")
+            ax.set_ylim(-0.1, 1.1)
+
+            if row == 0:
+                # Extract gen number from key like "gen3"
+                gen_num = gen_key.replace("gen", "")
+                ax.set_title(f"Gen {gen_num}", fontsize=12)
+            if col == 0:
+                ax.set_ylabel(f"Trait {trait_num}\nTetrachoric Correlation")
+
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r"),
+    ]
+    axes[0, -1].legend(handles=legend_elements, loc="upper right", fontsize=8)
+
+    fig.suptitle(
+        f"Tetrachoric Correlation by Generation (Weibull) [{scenario}]", fontsize=14
+    )
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def plot_parent_offspring_liability(
+    df_samples: pd.DataFrame,
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+) -> None:
+    """2 x 3 scatter grid: midparent vs offspring liability by generation."""
+    from scipy.stats import linregress
+
+    if "generation" not in df_samples.columns:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No generation data", ha="center", va="center",
+                transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    max_gen = int(df_samples["generation"].max())
+    # Last 3 non-founder generations (gen 0 = founders)
+    plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
+
+    # Build id -> row lookup within df_samples
+    ids_arr = df_samples["id"].values.astype(np.int64)
+    max_id = int(ids_arr.max()) + 1
+    id_to_row = np.full(max_id, -1, dtype=np.int32)
+    id_to_row[ids_arr] = np.arange(len(df_samples), dtype=np.int32)
+
+    n_cols = len(plot_gens)
+    fig, axes = plt.subplots(2, n_cols, figsize=(5 * n_cols, 8), squeeze=False)
+
+    for row, trait_num in enumerate([1, 2]):
+        liability = df_samples[f"liability{trait_num}"].values
+
+        for col, gen in enumerate(plot_gens):
+            ax = axes[row, col]
+            gen_idx = np.where(df_samples["generation"].values == gen)[0]
+
+            mother_ids = df_samples["mother"].values[gen_idx].astype(np.int64)
+            father_ids = df_samples["father"].values[gen_idx].astype(np.int64)
+
+            has_m = (mother_ids >= 0) & (mother_ids < max_id)
+            has_f = (father_ids >= 0) & (father_ids < max_id)
+
+            m_rows = np.full(len(gen_idx), -1, dtype=np.int32)
+            f_rows = np.full(len(gen_idx), -1, dtype=np.int32)
+            m_rows[has_m] = id_to_row[mother_ids[has_m]]
+            f_rows[has_f] = id_to_row[father_ids[has_f]]
+
+            valid = (m_rows >= 0) & (f_rows >= 0)
+
+            if valid.sum() < 2:
+                ax.text(0.5, 0.5, "Insufficient data", ha="center", va="center",
+                        transform=ax.transAxes)
+                if row == 0:
+                    ax.set_title(f"Gen {gen}")
+                continue
+
+            offspring_liab = liability[gen_idx[valid]]
+            midparent_liab = (liability[m_rows[valid]] + liability[f_rows[valid]]) / 2.0
+
+            ax.scatter(midparent_liab, offspring_liab, alpha=0.15, s=3, rasterized=True)
+
+            # Regression line
+            reg = linregress(midparent_liab, offspring_liab)
+            x_line = np.array([midparent_liab.min(), midparent_liab.max()])
+            ax.plot(x_line, reg.slope * x_line + reg.intercept, color="C3", linewidth=2)
+
+            # Annotation from pre-computed stats (averaged across reps)
+            r_vals = []
+            n_vals = []
+            for s in all_stats:
+                po = s.get("parent_offspring_corr", {}).get(
+                    f"trait{trait_num}", {}
+                ).get(f"gen{gen}", {})
+                if po and po.get("r") is not None:
+                    r_vals.append(po["r"])
+                    n_vals.append(po["n_pairs"])
+
+            if r_vals:
+                mean_r = np.mean(r_vals)
+                mean_n = int(np.mean(n_vals))
+            else:
+                mean_r = float(np.corrcoef(midparent_liab, offspring_liab)[0, 1])
+                mean_n = int(valid.sum())
+
+            ax.text(
+                0.05, 0.95, f"r = {mean_r:.3f}\nn = {mean_n}",
+                transform=ax.transAxes, va="top", fontsize=10,
+                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+            )
+
+            if row == 0:
+                ax.set_title(f"Gen {gen}")
+            if col == 0:
+                ax.set_ylabel(f"Trait {trait_num}\nOffspring Liability")
+            if row == 1:
+                ax.set_xlabel("Midparent Liability")
+
+    fig.suptitle(f"Parent-Offspring Liability Correlation [{scenario}]", fontsize=14)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
 def main(
     stats_paths: list[str],
     sample_paths: list[str],
     output_dir: str,
     censor_age: float,
-    young_gen_censoring: list[float] | None = None,
-    middle_gen_censoring: list[float] | None = None,
-    old_gen_censoring: list[float] | None = None,
+    gen_censoring: dict[int, list[float]] | None = None,
 ) -> None:
     """Generate all phenotype plots from pre-computed stats."""
     output_dir = Path(output_dir)
@@ -783,18 +1110,19 @@ def main(
     plot_liability_violin(
         df_samples, all_stats, output_dir / "liability_violin.weibull.png", scenario
     )
+    plot_liability_violin_by_generation(
+        df_samples, all_stats, output_dir / "liability_violin.weibull.by_generation.png", scenario
+    )
     plot_cumulative_incidence(
         all_stats, censor_age, output_dir / "cumulative_incidence.weibull.png", scenario
     )
     plot_joint_affection(
         df_samples, output_dir / "joint_affected.weibull.png", scenario
     )
-    if young_gen_censoring is not None:
+    if gen_censoring is not None:
         plot_censoring_windows(
             all_stats, output_dir / "censoring.png", scenario,
-            old_gen_censoring=old_gen_censoring,
-            middle_gen_censoring=middle_gen_censoring,
-            young_gen_censoring=young_gen_censoring,
+            gen_censoring=gen_censoring,
         )
     else:
         # Create placeholder to satisfy Snakemake output
@@ -806,6 +1134,12 @@ def main(
 
     plot_tetrachoric_sibling(
         all_stats, output_dir / "tetrachoric.weibull.png", scenario,
+    )
+    plot_tetrachoric_by_generation(
+        all_stats, output_dir / "tetrachoric.weibull.by_generation.png", scenario,
+    )
+    plot_parent_offspring_liability(
+        df_samples, all_stats, output_dir / "parent_offspring_liability.by_generation.png", scenario,
     )
 
     logger.info("Phenotype plots saved to %s", output_dir)
@@ -821,13 +1155,16 @@ def cli() -> None:
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")
     parser.add_argument("--output-dir", required=True, help="Output directory")
     parser.add_argument("--censor-age", type=float, required=True, help="Maximum follow-up age")
-    parser.add_argument("--young-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for youngest generation (min max)")
-    parser.add_argument("--middle-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for middle generation (min max)")
-    parser.add_argument("--old-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for oldest generation (min max)")
+    parser.add_argument("--gen-censoring", type=str, default=None, help="Per-generation censoring windows as JSON dict")
     args = parser.parse_args()
 
     level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
     setup_logging(level=level)
 
+    import json
+    gen_censoring = None
+    if args.gen_censoring:
+        gen_censoring = {int(k): v for k, v in json.loads(args.gen_censoring).items()}
+
     main(args.stats, args.samples, args.output_dir, args.censor_age,
-         args.young_gen_censoring, args.middle_gen_censoring, args.old_gen_censoring)
+         gen_censoring=gen_censoring)

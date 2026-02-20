@@ -31,15 +31,19 @@ PHENOTYPE_PLOTS = [
     "cross_trait.png",
     "cross_trait.weibull.png",
     "liability_violin.weibull.png",
+    "liability_violin.weibull.by_generation.png",
     "cumulative_incidence.weibull.png",
     "censoring.png",
     "joint_affected.weibull.png",
     "tetrachoric.weibull.png",
+    "tetrachoric.weibull.by_generation.png",
+    "parent_offspring_liability.by_generation.png",
 ]
 
 THRESHOLD_PLOTS = [
     "prevalence_by_generation.png",
     "liability_violin.threshold.png",
+    "liability_violin.threshold.by_generation.png",
     "tetrachoric.threshold.png",
     "joint_affected.threshold.png",
     "cross_trait.threshold.png",

@@ -8,16 +8,27 @@ def _run_snakemake():
     phenotype_path = snakemake.input.phenotype
     seed = snakemake.params.seed
     censor_age = snakemake.params.censor_age
-    young_gen_censoring = snakemake.params.get("young_gen_censoring", None)
-    middle_gen_censoring = snakemake.params.get("middle_gen_censoring", None)
-    old_gen_censoring = snakemake.params.get("old_gen_censoring", None)
+    gen_censoring_raw = snakemake.params.get("gen_censoring", None)
+    gen_censoring = {int(k): v for k, v in gen_censoring_raw.items()} if gen_censoring_raw else None
     stats_output = snakemake.output.stats
     samples_output = snakemake.output.samples
 
+    weibull_params = {
+        "trait1": {
+            "beta": snakemake.params.beta1,
+            "scale": snakemake.params.scale1,
+            "rho": snakemake.params.rho1,
+        },
+        "trait2": {
+            "beta": snakemake.params.beta2,
+            "scale": snakemake.params.scale2,
+            "rho": snakemake.params.rho2,
+        },
+    }
+
     main(phenotype_path, censor_age, stats_output, samples_output,
-         seed=seed, young_gen_censoring=young_gen_censoring,
-         middle_gen_censoring=middle_gen_censoring,
-         old_gen_censoring=old_gen_censoring)
+         seed=seed, gen_censoring=gen_censoring,
+         weibull_params=weibull_params)
 
 
 if __name__ == "__main__":

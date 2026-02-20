@@ -409,24 +409,19 @@ def compute_cumulative_incidence(df: pd.DataFrame, censor_age: float, n_points: 
 def compute_censoring_windows(
     df: pd.DataFrame,
     censor_age: float,
-    young_gen_censoring: list[float],
-    middle_gen_censoring: list[float],
-    old_gen_censoring: list[float],
+    gen_censoring: dict[int, list[float]],
     n_points: int = 300,
 ) -> dict[str, Any] | None:
     """Compute per-generation censoring window curves using searchsorted."""
     if "generation" not in df.columns:
         return None
 
-    max_gen = df["generation"].max()
-    gen_order = [max_gen - 2, max_gen - 1, max_gen]
-    gen_names = ["old", "middle", "young"]
-    gen_windows = [old_gen_censoring, middle_gen_censoring, young_gen_censoring]
-
     ages = np.linspace(0, censor_age, n_points)
     result = {}
 
-    for gen, name, (win_lo, win_hi) in zip(gen_order, gen_names, gen_windows):
+    for gen in sorted(gen_censoring.keys()):
+        win_lo, win_hi = gen_censoring[gen]
+        name = f"gen{gen}"
         gen_df = df[df["generation"] == gen]
         n_gen = len(gen_df)
         if n_gen == 0:
@@ -499,6 +494,81 @@ def compute_tetrachoric(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple
     return result
 
 
+def compute_tetrachoric_by_generation(
+    df: pd.DataFrame, seed: int = 42,
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
+) -> dict[str, Any]:
+    """Compute tetrachoric correlations broken out by the last 3 pedigree generations.
+
+    For each generation, filters each pair type to pairs where the first index
+    (child for parent-offspring, either member for same-gen pairs) belongs to
+    that generation, then computes tetrachoric r + SE and liability Pearson r.
+
+    Args:
+        df: phenotype DataFrame with 'generation', 'affected{N}', 'liability{N}' columns
+        seed: random seed (passed through for pair extraction)
+        pairs: pre-extracted relationship pair indices from extract_relationship_pairs()
+
+    Returns:
+        dict keyed by "gen{N}" -> "trait{N}" -> pair_type -> {r, se, n_pairs, liability_r}
+    """
+    if "generation" not in df.columns:
+        return {}
+    if pairs is None:
+        pairs = extract_relationship_pairs(df, seed=seed)
+
+    gen_arr = df["generation"].values
+    max_gen = int(gen_arr.max())
+    plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
+
+    pair_types = [
+        "MZ twin", "Full sib", "Mother-offspring", "Father-offspring",
+        "Maternal half sib", "Paternal half sib", "1st cousin",
+    ]
+
+    result = {}
+    for gen in plot_gens:
+        gen_result = {}
+        for trait_num in [1, 2]:
+            affected = df[f"affected{trait_num}"].values.astype(bool)
+            liability = df[f"liability{trait_num}"].values
+            trait_result = {}
+
+            for ptype in pair_types:
+                idx1, idx2 = pairs[ptype]
+                # Filter pairs where idx1 belongs to this generation
+                mask = gen_arr[idx1] == gen
+                g_idx1 = idx1[mask]
+                g_idx2 = idx2[mask]
+                n_p = len(g_idx1)
+
+                if n_p < 10:
+                    trait_result[ptype] = {
+                        "r": None, "se": None, "n_pairs": int(n_p),
+                        "liability_r": None,
+                    }
+                    continue
+
+                a_vals = affected[g_idx1]
+                b_vals = affected[g_idx2]
+                r_tet, se = tetrachoric_corr_se(a_vals, b_vals)
+
+                # Liability Pearson r for reference lines
+                liab_r = float(np.corrcoef(liability[g_idx1], liability[g_idx2])[0, 1])
+
+                trait_result[ptype] = {
+                    "r": float(r_tet) if not np.isnan(r_tet) else None,
+                    "se": float(se) if not np.isnan(se) else None,
+                    "n_pairs": int(n_p),
+                    "liability_r": liab_r if not np.isnan(liab_r) else None,
+                }
+
+            gen_result[f"trait{trait_num}"] = trait_result
+        result[f"gen{gen}"] = gen_result
+
+    return result
+
+
 def compute_liability_correlations(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None) -> dict[str, Any]:
     """Compute Pearson correlation on liability values for each relationship pair type."""
     if pairs is None:
@@ -567,15 +637,118 @@ def create_sample(df: pd.DataFrame, seed: int = 42, n_samples: int = 100000) -> 
     return df.iloc[idx].copy()
 
 
+def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
+    """Compute midparent-offspring liability correlations by generation.
+
+    For each non-founder generation, finds offspring with both parents present,
+    computes midparent liability = (mother + father) / 2, and returns
+    Pearson r, regression slope/intercept, and n_pairs.
+    """
+    if "generation" not in df.columns:
+        return {}
+
+    max_gen = int(df["generation"].max())
+
+    # Build id -> row lookup
+    ids_arr = df["id"].values.astype(np.int64)
+    id_to_row = np.full(ids_arr.max() + 1, -1, dtype=np.int32)
+    id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
+
+    result = {}
+    for trait_num in [1, 2]:
+        liability = df[f"liability{trait_num}"].values
+        trait_result = {}
+
+        for gen in range(1, max_gen + 1):
+            gen_idx = np.where(df["generation"].values == gen)[0]
+            mother_ids = df["mother"].values[gen_idx].astype(np.int64)
+            father_ids = df["father"].values[gen_idx].astype(np.int64)
+
+            has_m = (mother_ids >= 0) & (mother_ids < len(id_to_row))
+            has_f = (father_ids >= 0) & (father_ids < len(id_to_row))
+
+            m_rows = np.full(len(gen_idx), -1, dtype=np.int32)
+            f_rows = np.full(len(gen_idx), -1, dtype=np.int32)
+            m_rows[has_m] = id_to_row[mother_ids[has_m]]
+            f_rows[has_f] = id_to_row[father_ids[has_f]]
+
+            valid = (m_rows >= 0) & (f_rows >= 0)
+            n_pairs = int(valid.sum())
+
+            if n_pairs < 10:
+                trait_result[f"gen{gen}"] = {
+                    "r": None, "slope": None, "intercept": None,
+                    "n_pairs": n_pairs,
+                }
+                continue
+
+            offspring_liab = liability[gen_idx[valid]]
+            midparent_liab = (liability[m_rows[valid]] + liability[f_rows[valid]]) / 2.0
+
+            r = float(np.corrcoef(midparent_liab, offspring_liab)[0, 1])
+            reg = linregress(midparent_liab, offspring_liab)
+
+            trait_result[f"gen{gen}"] = {
+                "r": r,
+                "slope": float(reg.slope),
+                "intercept": float(reg.intercept),
+                "n_pairs": n_pairs,
+            }
+
+        result[f"trait{trait_num}"] = trait_result
+
+    return result
+
+
+def compute_weibull_correlations(
+    df: pd.DataFrame,
+    weibull_params: dict[str, dict[str, float]],
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+    n_quad: int = 20,
+    seed: int = 42,
+) -> dict[str, Any]:
+    """Compute pairwise Weibull liability correlations for all relationship types.
+
+    Args:
+        df: phenotype DataFrame
+        weibull_params: {"trait1": {"scale": float, "rho": float, "beta": float},
+                         "trait2": {...}}
+        pairs: pre-extracted relationship pair indices
+        n_quad: number of quadrature nodes per dimension
+        seed: random seed for pair subsampling
+    """
+    from sim_ace.survival_corr import compute_weibull_pair_corr
+
+    result = {}
+    result_uncensored = {}
+    for trait_num in [1, 2]:
+        key = f"trait{trait_num}"
+        params = weibull_params.get(key, {})
+        if not params:
+            result[key] = {}
+            result_uncensored[key] = {}
+            continue
+        result[key] = compute_weibull_pair_corr(
+            df, trait_num,
+            scale=params["scale"], rho=params["rho"], beta=params["beta"],
+            pairs=pairs, n_quad=n_quad, seed=seed,
+        )
+        result_uncensored[key] = compute_weibull_pair_corr(
+            df, trait_num,
+            scale=params["scale"], rho=params["rho"], beta=params["beta"],
+            pairs=pairs, n_quad=n_quad, seed=seed, use_raw=True,
+        )
+    return result, result_uncensored
+
+
 def main(
     phenotype_path: str,
     censor_age: float,
     stats_output: str,
     samples_output: str,
     seed: int = 42,
-    young_gen_censoring: list[float] | None = None,
-    middle_gen_censoring: list[float] | None = None,
-    old_gen_censoring: list[float] | None = None,
+    gen_censoring: dict[int, list[float]] | None = None,
+    weibull_params: dict[str, dict[str, float]] | None = None,
 ) -> None:
     """Compute all stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
@@ -598,10 +771,9 @@ def main(
     stats["cumulative_incidence"] = compute_cumulative_incidence(df, censor_age)
 
     # Censoring windows
-    if young_gen_censoring is not None:
+    if gen_censoring is not None:
         stats["censoring"] = compute_censoring_windows(
-            df, censor_age, young_gen_censoring,
-            middle_gen_censoring, old_gen_censoring,
+            df, censor_age, gen_censoring,
         )
 
     # Extract relationship pairs once (used by both liability and tetrachoric)
@@ -618,11 +790,32 @@ def main(
     logger.info("Computing liability correlations...")
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
 
+    # Parent-offspring correlations
+    logger.info("Computing parent-offspring correlations...")
+    stats["parent_offspring_corr"] = compute_parent_offspring_corr(df)
+
     # Tetrachoric correlations
     logger.info("Computing tetrachoric correlations...")
     t_tet = time.perf_counter()
     stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
     logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
+
+    # Tetrachoric correlations by generation
+    logger.info("Computing tetrachoric correlations by generation...")
+    t_tet_gen = time.perf_counter()
+    stats["tetrachoric_by_generation"] = compute_tetrachoric_by_generation(df, seed=seed, pairs=pairs)
+    logger.info("Tetrachoric by generation computed in %.1fs", time.perf_counter() - t_tet_gen)
+
+    # Pairwise Weibull correlations (if params supplied)
+    if weibull_params is not None:
+        logger.info("Computing pairwise Weibull correlations...")
+        t_weib = time.perf_counter()
+        censored, uncensored = compute_weibull_correlations(
+            df, weibull_params, pairs=pairs, seed=seed,
+        )
+        stats["weibull_corr"] = censored
+        stats["weibull_corr_uncensored"] = uncensored
+        logger.info("Weibull correlations computed in %.1fs", time.perf_counter() - t_weib)
 
     # Write stats YAML
     stats_path = Path(stats_output)
@@ -649,15 +842,30 @@ def cli() -> None:
     parser.add_argument("stats_output", help="Output stats YAML")
     parser.add_argument("samples_output", help="Output samples parquet")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
-    parser.add_argument("--young-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for youngest generation (min max)")
-    parser.add_argument("--middle-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for middle generation (min max)")
-    parser.add_argument("--old-gen-censoring", type=float, nargs=2, default=None, help="Age censoring range for oldest generation (min max)")
+    parser.add_argument("--gen-censoring", type=str, default=None, help="Per-generation censoring windows as JSON dict")
+    parser.add_argument("--beta1", type=float, default=None, help="Weibull frailty coefficient for trait 1")
+    parser.add_argument("--scale1", type=float, default=None, help="Weibull scale parameter for trait 1")
+    parser.add_argument("--rho1", type=float, default=None, help="Weibull shape parameter for trait 1")
+    parser.add_argument("--beta2", type=float, default=None, help="Weibull frailty coefficient for trait 2")
+    parser.add_argument("--scale2", type=float, default=None, help="Weibull scale parameter for trait 2")
+    parser.add_argument("--rho2", type=float, default=None, help="Weibull shape parameter for trait 2")
     args = parser.parse_args()
 
     level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
     setup_logging(level=level)
 
+    weibull_params = None
+    if args.beta1 is not None and args.scale1 is not None and args.rho1 is not None:
+        weibull_params = {
+            "trait1": {"beta": args.beta1, "scale": args.scale1, "rho": args.rho1},
+            "trait2": {"beta": args.beta2, "scale": args.scale2, "rho": args.rho2},
+        }
+
+    import json
+    gen_censoring = None
+    if args.gen_censoring:
+        gen_censoring = {int(k): v for k, v in json.loads(args.gen_censoring).items()}
+
     main(args.phenotype, args.censor_age, args.stats_output, args.samples_output,
-         seed=args.seed, young_gen_censoring=args.young_gen_censoring,
-         middle_gen_censoring=args.middle_gen_censoring,
-         old_gen_censoring=args.old_gen_censoring)
+         seed=args.seed, gen_censoring=gen_censoring,
+         weibull_params=weibull_params)

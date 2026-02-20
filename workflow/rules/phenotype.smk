@@ -18,9 +18,7 @@ rule phenotype_weibull:
         censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
         death_scale=lambda w: get_param(config, w.scenario, "death_scale"),
         death_rho=lambda w: get_param(config, w.scenario, "death_rho"),
-        young_gen_censoring=lambda w: get_param(config, w.scenario, "young_gen_censoring"),
-        middle_gen_censoring=lambda w: get_param(config, w.scenario, "middle_gen_censoring"),
-        old_gen_censoring=lambda w: get_param(config, w.scenario, "old_gen_censoring"),
+        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
         G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/phenotype_weibull.log"

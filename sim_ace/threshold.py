@@ -22,7 +22,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def apply_threshold(liability: np.ndarray, generation: np.ndarray, prevalence: float) -> np.ndarray:
+def apply_threshold(liability: np.ndarray, generation: np.ndarray, prevalence: float | dict[int, float]) -> np.ndarray:
     """Apply liability threshold model per generation.
 
     Within each generation, standardize liability (mean=0, std=1),
@@ -31,19 +31,40 @@ def apply_threshold(liability: np.ndarray, generation: np.ndarray, prevalence: f
     Args:
         liability: array of liability values
         generation: array of generation labels (same length as liability)
-        prevalence: fraction of individuals affected per generation (0-1)
+        prevalence: fraction affected per generation — either a single float
+            applied to all generations, or a dict mapping generation number
+            to prevalence (e.g. {0: 0.05, 1: 0.08, 2: 0.10})
 
     Returns:
         affected: boolean array (True = affected)
 
     Raises:
-        ValueError: if prevalence is not in (0, 1)
+        ValueError: if any prevalence value is not in (0, 1), or if a dict
+            is provided but is missing entries for observed generations
     """
-    if not (0 < prevalence < 1):
-        raise ValueError(f"prevalence must be between 0 and 1 (exclusive), got {prevalence}")
+    unique_gens = np.unique(generation)
+
+    if isinstance(prevalence, dict):
+        # Validate: every phenotyped generation must have an entry
+        missing = [int(g) for g in unique_gens if int(g) not in prevalence]
+        if missing:
+            raise ValueError(
+                f"prevalence dict is missing entries for generations: {missing}. "
+                f"Dict has keys {sorted(prevalence.keys())}, "
+                f"but data contains generations {sorted(int(g) for g in unique_gens)}"
+            )
+        for gen_key, prev_val in prevalence.items():
+            if not (0 < prev_val < 1):
+                raise ValueError(
+                    f"prevalence must be between 0 and 1 (exclusive), "
+                    f"got {prev_val} for generation {gen_key}"
+                )
+    else:
+        if not (0 < prevalence < 1):
+            raise ValueError(f"prevalence must be between 0 and 1 (exclusive), got {prevalence}")
 
     affected = np.zeros(len(liability), dtype=bool)
-    for gen in np.unique(generation):
+    for gen in unique_gens:
         mask = generation == gen
         liab_gen = liability[mask]
         # Standardize within generation
@@ -53,8 +74,10 @@ def apply_threshold(liability: np.ndarray, generation: np.ndarray, prevalence: f
             standardized = (liab_gen - mean) / std
         else:
             standardized = liab_gen - mean
+        # Look up per-gen prevalence
+        prev = prevalence[int(gen)] if isinstance(prevalence, dict) else prevalence
         # Threshold: top prevalence fraction are affected
-        threshold = np.percentile(standardized, 100 * (1 - prevalence))
+        threshold = np.percentile(standardized, 100 * (1 - prev))
         affected[mask] = standardized >= threshold
     return affected
 
@@ -69,10 +92,11 @@ def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     Returns:
         phenotype DataFrame
     """
-    logger.info(
-        "Applying threshold model: prevalence1=%.3f, prevalence2=%.3f",
-        params["prevalence1"], params["prevalence2"],
-    )
+    p1, p2 = params["prevalence1"], params["prevalence2"]
+    if isinstance(p1, dict) or isinstance(p2, dict):
+        logger.info("Applying threshold model: prevalence1=%s, prevalence2=%s", p1, p2)
+    else:
+        logger.info("Applying threshold model: prevalence1=%.3f, prevalence2=%.3f", p1, p2)
     t0 = time.perf_counter()
     # Filter to last G_pheno generations
     max_gen = pedigree["generation"].max()
@@ -117,6 +141,15 @@ def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     return phenotype
 
 
+def _parse_prevalence_arg(scalar: float | None, by_gen_json: str | None) -> float | dict[int, float]:
+    """Resolve prevalence from scalar flag or JSON by-gen flag."""
+    import json
+    if by_gen_json is not None:
+        raw = json.loads(by_gen_json)
+        return {int(k): float(v) for k, v in raw.items()}
+    return scalar
+
+
 def cli() -> None:
     """Command-line interface for threshold phenotype simulation."""
     from sim_ace import setup_logging
@@ -128,6 +161,10 @@ def cli() -> None:
     parser.add_argument("--G-pheno", type=int, default=3, help="Number of generations to assign phenotypes")
     parser.add_argument("--prevalence1", type=float, default=0.1, help="Disease prevalence for trait 1")
     parser.add_argument("--prevalence2", type=float, default=0.1, help="Disease prevalence for trait 2")
+    parser.add_argument("--prevalence1-by-gen", type=str, default=None,
+                        help='Per-gen prevalence for trait 1 as JSON, e.g. \'{"0":0.05,"1":0.10}\'')
+    parser.add_argument("--prevalence2-by-gen", type=str, default=None,
+                        help='Per-gen prevalence for trait 2 as JSON, e.g. \'{"0":0.05,"1":0.10}\'')
     args = parser.parse_args()
 
     level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
@@ -136,8 +173,8 @@ def cli() -> None:
     pedigree = pd.read_parquet(args.pedigree)
     params = {
         "G_pheno": args.G_pheno,
-        "prevalence1": args.prevalence1,
-        "prevalence2": args.prevalence2,
+        "prevalence1": _parse_prevalence_arg(args.prevalence1, args.prevalence1_by_gen),
+        "prevalence2": _parse_prevalence_arg(args.prevalence2, args.prevalence2_by_gen),
     }
     phenotype = run_threshold(pedigree, params)
     phenotype.to_parquet(args.output, index=False)

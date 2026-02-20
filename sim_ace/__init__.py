@@ -43,3 +43,4 @@ from sim_ace.phenotype import simulate_phenotype, age_censor, death_censor
 from sim_ace.threshold import apply_threshold
 from sim_ace.validate import run_validation
 from sim_ace.stats import tetrachoric_corr, tetrachoric_corr_se
+from sim_ace.survival_corr import pairwise_weibull_corr_se

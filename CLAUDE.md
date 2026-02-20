@@ -57,8 +57,6 @@ ACE/
 │   │   ├── validate.smk              # rules validate, gather_validation, plot_validation
 │   │   ├── stats.smk                 # rules phenotype_stats, threshold_stats, plot_*
 │   │   └── analyze.smk              # rules prepare_weibull, run_weibull
-│   ├── simulate.smk                   # Backward-compat wrapper (-s workflow/simulate.smk)
-│   ├── analyze.smk                    # Backward-compat wrapper (-s workflow/analyze.smk)
 │   └── scripts/                       # Snakemake script wrappers
 ├── results/{folder}/{scenario}/rep{N}/  # Simulation output per scenario
 │   ├── pedigree.parquet               # Pedigree data

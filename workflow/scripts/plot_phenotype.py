@@ -10,13 +10,12 @@ def _run_snakemake():
     stats_paths = snakemake.input.stats
     sample_paths = snakemake.input.samples
     censor_age = snakemake.params.censor_age
-    young_gen_censoring = snakemake.params.young_gen_censoring
-    middle_gen_censoring = snakemake.params.middle_gen_censoring
-    old_gen_censoring = snakemake.params.old_gen_censoring
+    gen_censoring_raw = snakemake.params.gen_censoring
+    gen_censoring = {int(k): v for k, v in gen_censoring_raw.items()} if gen_censoring_raw else None
     output_dir = Path(snakemake.output[0]).parent
 
     main(stats_paths, sample_paths, output_dir, censor_age,
-         young_gen_censoring, middle_gen_censoring, old_gen_censoring)
+         gen_censoring=gen_censoring)
 
 
 if __name__ == "__main__":

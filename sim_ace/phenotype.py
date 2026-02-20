@@ -4,11 +4,11 @@ Frailty model phenotype simulation for two correlated traits.
 Converts liability to binary affected status with age-at-onset
 using proportional hazards frailty model with Weibull baseline.
 
-Model (per trait):
+Model (per trait, lifelines scale/shape convention):
     - Liability: L = A + C + E (from pedigree)
     - Frailty: z = exp(beta * L)
-    - Survival function: S(t|z) = exp(-rate * t^k * z)
-    - Age-at-onset via inverse CDF: t = ((-log(U)) / (rate * z))^(1/k)
+    - Survival function: S(t|z) = exp(-(t/scale)^rho * z)
+    - Age-at-onset via inverse CDF: t = scale * ((-log(U)) / z)^(1/rho)
 """
 
 from __future__ import annotations
@@ -25,14 +25,14 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
-def simulate_phenotype(liability: np.ndarray, beta: float, rate: float, k: float, seed: int, standardize: bool = True) -> np.ndarray:
+def simulate_phenotype(liability: np.ndarray, beta: float, scale: float, rho: float, seed: int, standardize: bool = True) -> np.ndarray:
     """Apply frailty model to convert liability to phenotype.
 
     Args:
         liability: quantitative phenotype (array)
         beta: effect of liability on log-hazard
-        rate: Weibull scale parameter
-        k: Weibull shape parameter
+        scale: Weibull scale parameter (lifelines convention)
+        rho: Weibull shape parameter (lifelines convention)
         seed: random seed
         standardize: standardize liability before phenotype
 
@@ -40,12 +40,12 @@ def simulate_phenotype(liability: np.ndarray, beta: float, rate: float, k: float
         Array of simulated time-to-onset values
 
     Raises:
-        ValueError: if rate or k is non-positive, or beta is non-finite
+        ValueError: if scale or rho is non-positive, or beta is non-finite
     """
-    if not (rate > 0):
-        raise ValueError(f"rate must be > 0, got {rate}")
-    if not (k > 0):
-        raise ValueError(f"k must be > 0, got {k}")
+    if not (scale > 0):
+        raise ValueError(f"scale must be > 0, got {scale}")
+    if not (rho > 0):
+        raise ValueError(f"rho must be > 0, got {rho}")
     if not np.isfinite(beta):
         raise ValueError(f"beta must be finite, got {beta}")
 
@@ -60,10 +60,10 @@ def simulate_phenotype(liability: np.ndarray, beta: float, rate: float, k: float
 
     frailty = np.exp(beta * liability)
 
-    # Simulate age-at-onset via inverse CDF
+    # Simulate age-at-onset via inverse CDF: t = scale * (-log(u) / z)^(1/rho)
     # Use 1 - uniform to sample from (0, 1] and avoid log(0)
     u = 1.0 - rng.uniform(size=len(liability))
-    t = ((-np.log(u)) / (rate * frailty)) ** (1 / k)
+    t = scale * ((-np.log(u)) / frailty) ** (1 / rho)
 
     return t
 
@@ -90,21 +90,21 @@ def age_censor(t: np.ndarray, left: np.ndarray, right: np.ndarray) -> tuple[np.n
     return t_out, censored
 
 
-def death_censor(t: np.ndarray, seed: int, rate: float = 1e-19, k: float = 10) -> tuple[np.ndarray, np.ndarray]:
+def death_censor(t: np.ndarray, seed: int, scale: float = 79.43282347242817, rho: float = 10) -> tuple[np.ndarray, np.ndarray]:
     """Apply competing risk death censoring with Weibull hazard.
 
     Args:
         t: array of time-to-onset values
         seed: random seed
-        rate: Weibull scale parameter for death hazard
-        k: Weibull shape parameter for death hazard
+        scale: Weibull scale parameter for death hazard
+        rho: Weibull shape parameter for death hazard
 
     Returns:
         (t_censored, death_censored): tuple of arrays
     """
     rng = np.random.default_rng(seed)
     u = 1.0 - rng.uniform(size=len(t))
-    dt = ((-np.log(u)) / rate) ** (1 / k)
+    dt = scale * ((-np.log(u))) ** (1 / rho)
     censored = t > dt
 
     t[censored] = dt[censored]
@@ -117,9 +117,9 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
 
     Args:
         pedigree: DataFrame with pedigree data
-        params: dict with keys: G_pheno, censor_age, young_gen_censoring,
-                middle_gen_censoring, old_gen_censoring, seed, death_rate,
-                death_k, beta1, rate1, k1, beta2, rate2, k2, standardize
+        params: dict with keys: G_pheno, censor_age, gen_censoring,
+                seed, death_scale, death_rho, beta1, scale1, rho1,
+                beta2, scale2, rho2, standardize
 
     Returns:
         phenotype DataFrame
@@ -134,28 +134,23 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
 
     # Per-generation censoring windows
     generations = pedigree["generation"].values
-    max_gen = generations.max()
-    gen_windows = {
-        max_gen: params["young_gen_censoring"],
-        max_gen - 1: params["middle_gen_censoring"],
-        max_gen - 2: params["old_gen_censoring"],
-    }
+    gen_censoring = params["gen_censoring"]
     left_censor = np.zeros(len(pedigree))
     right_censor = np.full(len(pedigree), float(params["censor_age"]))
-    for gen, (lo, hi) in gen_windows.items():
-        mask = generations == gen
+    for gen, (lo, hi) in gen_censoring.items():
+        mask = generations == int(gen)
         left_censor[mask] = lo
         right_censor[mask] = hi
 
     # Single death age per individual, shared across both traits
     rng_death = np.random.default_rng(params["seed"] + 1000)
     u_death = 1.0 - rng_death.uniform(size=len(pedigree))
-    death_age = ((-np.log(u_death)) / params["death_rate"]) ** (1 / params["death_k"])
+    death_age = params["death_scale"] * ((-np.log(u_death))) ** (1 / params["death_rho"])
 
     # === Trait 1 ===
     t1_raw = simulate_phenotype(
         liability=pedigree["liability1"].values,
-        beta=params["beta1"], rate=params["rate1"], k=params["k1"],
+        beta=params["beta1"], scale=params["scale1"], rho=params["rho1"],
         seed=params["seed"], standardize=params["standardize"],
     )
     t1_after_age, age_censored1 = age_censor(t1_raw.copy(), left_censor, right_censor)
@@ -165,7 +160,7 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     # === Trait 2 ===
     t2_raw = simulate_phenotype(
         liability=pedigree["liability2"].values,
-        beta=params["beta2"], rate=params["rate2"], k=params["k2"],
+        beta=params["beta2"], scale=params["scale2"], rho=params["rho2"],
         seed=params["seed"] + 100, standardize=params["standardize"],
     )
     t2_after_age, age_censored2 = age_censor(t2_raw.copy(), left_censor, right_censor)
@@ -226,31 +221,31 @@ def cli() -> None:
     parser.add_argument("--G-pheno", type=int, default=3, help="Number of generations to assign phenotypes")
     parser.add_argument("--censor-age", type=float, default=100, help="Maximum follow-up age")
     parser.add_argument("--beta1", type=float, default=1.0, help="Weibull frailty coefficient for trait 1")
-    parser.add_argument("--rate1", type=float, default=1e-5, help="Weibull baseline rate for trait 1")
-    parser.add_argument("--k1", type=float, default=2.0, help="Weibull shape parameter for trait 1")
+    parser.add_argument("--scale1", type=float, default=316.228, help="Weibull scale parameter for trait 1")
+    parser.add_argument("--rho1", type=float, default=2.0, help="Weibull shape parameter for trait 1")
     parser.add_argument("--beta2", type=float, default=1.0, help="Weibull frailty coefficient for trait 2")
-    parser.add_argument("--rate2", type=float, default=1e-5, help="Weibull baseline rate for trait 2")
-    parser.add_argument("--k2", type=float, default=2.0, help="Weibull shape parameter for trait 2")
-    parser.add_argument("--death-rate", type=float, default=1e-19, help="Competing death hazard rate")
-    parser.add_argument("--death-k", type=float, default=10, help="Competing death hazard shape")
+    parser.add_argument("--scale2", type=float, default=316.228, help="Weibull scale parameter for trait 2")
+    parser.add_argument("--rho2", type=float, default=2.0, help="Weibull shape parameter for trait 2")
+    parser.add_argument("--death-scale", type=float, default=79.433, help="Competing death hazard scale")
+    parser.add_argument("--death-rho", type=float, default=10, help="Competing death hazard shape")
     parser.add_argument("--standardize", action="store_true", default=True, help="Standardize liability before phenotype simulation")
-    parser.add_argument("--young-gen-censoring", type=float, nargs=2, default=[20, 50], help="Age censoring range for youngest generation (min max)")
-    parser.add_argument("--middle-gen-censoring", type=float, nargs=2, default=[40, 70], help="Age censoring range for middle generation (min max)")
-    parser.add_argument("--old-gen-censoring", type=float, nargs=2, default=[60, 90], help="Age censoring range for oldest generation (min max)")
+    parser.add_argument("--gen-censoring", type=str, default=None, help="Per-generation censoring windows as JSON dict, e.g. '{\"0\": [40, 80], \"3\": [0, 45]}'")
+
     args = parser.parse_args()
 
     level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
     setup_logging(level=level)
 
+    import json
     pedigree = pd.read_parquet(args.pedigree)
+    gen_censoring = json.loads(args.gen_censoring) if args.gen_censoring else {}
+    gen_censoring = {int(k): v for k, v in gen_censoring.items()}
     params = {
         "G_pheno": args.G_pheno, "censor_age": args.censor_age, "seed": args.seed,
-        "young_gen_censoring": args.young_gen_censoring,
-        "middle_gen_censoring": args.middle_gen_censoring,
-        "old_gen_censoring": args.old_gen_censoring,
-        "death_rate": args.death_rate, "death_k": args.death_k,
-        "beta1": args.beta1, "rate1": args.rate1, "k1": args.k1,
-        "beta2": args.beta2, "rate2": args.rate2, "k2": args.k2,
+        "gen_censoring": gen_censoring,
+        "death_scale": args.death_scale, "death_rho": args.death_rho,
+        "beta1": args.beta1, "scale1": args.scale1, "rho1": args.rho1,
+        "beta2": args.beta2, "scale2": args.scale2, "rho2": args.rho2,
         "standardize": args.standardize,
     }
     phenotype = run_phenotype(pedigree, params)

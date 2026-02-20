@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 MAX_PLOT_POINTS = 100_000
 
 
-def plot_prevalence_by_generation(all_stats: list[dict[str, Any]], prevalence1: float, prevalence2: float, output_path: str | Path, scenario: str = "") -> None:
+def plot_prevalence_by_generation(all_stats: list[dict[str, Any]], prevalence1: float | dict[int, float], prevalence2: float | dict[int, float], output_path: str | Path, scenario: str = "") -> None:
     """Grouped bar chart: observed prevalence per generation per trait."""
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -58,16 +58,42 @@ def plot_prevalence_by_generation(all_stats: list[dict[str, Any]], prevalence1: 
                 s=12, alpha=0.3, zorder=5,
             )
 
-        # Expected prevalence line
-        ax.hlines(
-            expected, -0.5, n_gens - 0.5, colors=color,
-            linestyles="dashed", linewidth=2, alpha=0.7,
-        )
+        # Expected prevalence reference
+        if isinstance(expected, dict):
+            # Per-generation markers at each generation's expected value
+            for i, gen in enumerate(gens):
+                gen_prev = expected.get(int(gen))
+                if gen_prev is not None:
+                    ax.hlines(
+                        gen_prev, i + offset - 0.17, i + offset + 0.17,
+                        colors=color, linestyles="dashed", linewidth=2, alpha=0.7,
+                    )
+        else:
+            # Single horizontal line across all generations
+            ax.hlines(
+                expected, -0.5, n_gens - 0.5, colors=color,
+                linestyles="dashed", linewidth=2, alpha=0.7,
+            )
 
     ax.set_xticks(np.arange(n_gens))
-    ax.set_xticklabels([f"Gen {g}" for g in gens])
+    gen_labels = []
+    for i, g in enumerate(gens):
+        label = f"Gen {g}"
+        if i == 0:
+            label += "\n(oldest)"
+        elif i == n_gens - 1:
+            label += "\n(youngest)"
+        gen_labels.append(label)
+    ax.set_xticklabels(gen_labels)
     ax.set_ylabel("Prevalence")
-    ax.set_ylim(0, max(0.3, ax.get_ylim()[1]))
+    # Adapt y-limit to expected prevalence values
+    max_expected = 0.0
+    for expected in [prevalence1, prevalence2]:
+        if isinstance(expected, dict):
+            max_expected = max(max_expected, max(expected.values()))
+        else:
+            max_expected = max(max_expected, expected)
+    ax.set_ylim(0, max(max_expected * 1.5, ax.get_ylim()[1]))
     ax.set_title(f"Prevalence by Generation (Liability Threshold) [{scenario}]", fontsize=14)
     ax.legend()
     plt.tight_layout()
@@ -137,10 +163,89 @@ def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, An
     plt.close()
 
 
+def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], prevalence1: float | dict[int, float], prevalence2: float | dict[int, float], output_path: str | Path, scenario: str = "") -> None:
+    """Split violin of liability by affected status, one column per generation."""
+    if "generation" not in df_samples.columns:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No generation data", ha="center", va="center",
+                transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    gens = sorted(df_samples["generation"].unique())
+    n_gens = len(gens)
+
+    fig, axes = plt.subplots(2, n_gens, figsize=(4 * n_gens, 8), squeeze=False)
+
+    for row, trait_num in enumerate([1, 2]):
+        prevalence = prevalence1 if trait_num == 1 else prevalence2
+        liab_col = f"liability{trait_num}"
+        aff_col = f"affected{trait_num}"
+
+        for col, gen in enumerate(gens):
+            ax = axes[row, col]
+            gen_mask = df_samples["generation"] == gen
+            df_gen = df_samples.loc[gen_mask]
+
+            violin_data = pd.DataFrame({
+                "Trait": f"Trait {trait_num}",
+                "Liability": df_gen[liab_col].values,
+                "Affected": df_gen[aff_col].values,
+            })
+
+            if len(violin_data) > 1:
+                sns.violinplot(
+                    data=violin_data, x="Trait", y="Liability",
+                    hue="Affected", split=True,
+                    legend=(row == 0 and col == n_gens - 1),
+                    ax=ax, cut=0,
+                )
+
+                # Annotate means
+                liab = df_gen[liab_col].values
+                aff = df_gen[aff_col].values.astype(bool)
+                if aff.any():
+                    mu = liab[aff].mean()
+                    ax.plot(0.05, mu, "D", color="black", markersize=5, zorder=5)
+                    ax.text(0.12, mu, f"\u03bc={mu:.2f}",
+                            ha="left", va="center", fontsize=8, fontweight="bold")
+                if (~aff).any():
+                    mu = liab[~aff].mean()
+                    ax.plot(-0.05, mu, "D", color="black", markersize=5, zorder=5)
+                    ax.text(-0.12, mu, f"\u03bc={mu:.2f}",
+                            ha="right", va="center", fontsize=8, fontweight="bold")
+
+            # Prevalence annotation
+            prev = prevalence[int(gen)] if isinstance(prevalence, dict) else prevalence
+            obs_prev = df_gen[aff_col].mean() if len(df_gen) else float("nan")
+            ax.set_xlabel(f"prev: {obs_prev:.1%} (exp {prev:.1%})", fontsize=8)
+
+            if row == 0:
+                label = f"Gen {gen}"
+                if col == 0:
+                    label += " (oldest)"
+                elif col == n_gens - 1:
+                    label += " (youngest)"
+                ax.set_title(label, fontsize=11)
+            if col == 0:
+                ax.set_ylabel(f"Trait {trait_num}\nLiability", fontsize=10)
+            else:
+                ax.set_ylabel("")
+
+    fig.suptitle(
+        f"Liability by Affected Status per Generation (Threshold) [{scenario}]",
+        fontsize=14,
+    )
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
 def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str) -> None:
     """Tetrachoric correlations by relationship type with liability correlation lines."""
     pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
-    bar_colors = ["C0", "C1", "C3", "C5", "C2", "C6", "C4"]
+    pair_colors = {"MZ twin": "C0", "Full sib": "C1", "Mother-offspring": "C3", "Father-offspring": "C5", "Maternal half sib": "C2", "Paternal half sib": "C6", "1st cousin": "C4"}
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
@@ -148,60 +253,50 @@ def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, s
         ax = axes[col_idx]
         key = f"trait{trait_num}"
 
-        mean_corrs = []
-        se_bars = []
-        total_pairs = []
-        rep_corrs = {pt: [] for pt in pair_types}
-
+        # Build long-format data for violin plot
+        rows = []
+        total_pairs = {}
         for ptype in pair_types:
-            corrs = []
             n_total = 0
             for s in all_stats:
                 entry = s["tetrachoric"][key].get(ptype, {})
                 r = entry.get("r")
                 n_p = entry.get("n_pairs", 0)
-                if r is not None:
-                    corrs.append(r)
                 n_total += n_p
-                rep_corrs[ptype].append(r)
+                if r is not None:
+                    rows.append({"pair_type": ptype, "r": r})
+            total_pairs[ptype] = n_total
 
-            mean_corrs.append(np.mean(corrs) if corrs else np.nan)
-            if len(corrs) > 1:
-                se_bars.append(np.std(corrs) / np.sqrt(len(corrs)))
-            else:
-                se_bars.append(0)
-            total_pairs.append(n_total)
+        df_plot = pd.DataFrame(rows)
 
-        x = np.arange(len(pair_types))
-        bars = ax.bar(
-            x, mean_corrs, width=0.6, color=bar_colors,
-            edgecolor="black", alpha=0.8, zorder=3,
-        )
+        if not df_plot.empty:
+            sns.violinplot(
+                data=df_plot, x="pair_type", y="r", hue="pair_type", ax=ax,
+                order=pair_types, palette=pair_colors, legend=False,
+                inner=None, cut=0, alpha=0.6, zorder=3,
+            )
 
-        ax.errorbar(
-            x, mean_corrs, yerr=se_bars, fmt="none",
-            ecolor="black", elinewidth=1.5, capsize=4, zorder=4,
-        )
+            # Per-rep dots
+            x = np.arange(len(pair_types))
+            for i, ptype in enumerate(pair_types):
+                rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
+                if len(rep_vals):
+                    jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
+                    ax.scatter(
+                        i + jitter, rep_vals, color="black", s=15,
+                        alpha=0.6, zorder=5,
+                    )
 
-        # Per-rep dots
-        for i, ptype in enumerate(pair_types):
-            rep_vals = [v for v in rep_corrs[ptype] if v is not None]
-            if rep_vals:
-                jitter = np.random.default_rng(42).uniform(-0.15, 0.15, len(rep_vals))
-                ax.scatter(
-                    x[i] + jitter, rep_vals, color="black", s=12,
-                    alpha=0.4, zorder=5,
-                )
-
-        # N annotation
-        n_reps = len(all_stats)
-        for i, (bar, n_p) in enumerate(zip(bars, total_pairs)):
-            height = bar.get_height()
-            if not np.isnan(height):
-                ax.text(
-                    bar.get_x() + bar.get_width() / 2, height + se_bars[i] + 0.01,
-                    f"N={n_p // n_reps}", ha="center", va="bottom", fontsize=8,
-                )
+            # N annotation
+            n_reps = len(all_stats)
+            for i, ptype in enumerate(pair_types):
+                rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
+                if len(rep_vals):
+                    top = rep_vals.max()
+                    ax.text(
+                        i, top + 0.03,
+                        f"N={total_pairs[ptype] // n_reps}", ha="center", va="bottom", fontsize=8,
+                    )
 
         # Liability correlation lines (averaged across reps)
         for i, ptype in enumerate(pair_types):
@@ -217,17 +312,21 @@ def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, s
                     linestyles="dashed", linewidth=2, zorder=4,
                 )
 
-        ax.set_xticks(x)
+        ax.set_xticks(range(len(pair_types)))
         ax.set_xticklabels(pair_types, fontsize=9, rotation=15, ha="right")
         ax.set_ylabel("Tetrachoric Correlation")
         ax.set_title(f"Trait {trait_num}")
         ax.set_ylim(-0.1, 1.1)
 
+        from matplotlib.patches import Patch
         from matplotlib.lines import Line2D
         legend_elements = [
+            Patch(facecolor="C7", alpha=0.6, label="Tetrachoric r (violin)"),
+            Line2D([0], [0], marker="o", color="w", markerfacecolor="black",
+                   markersize=6, alpha=0.6, label="Per-replicate r"),
             Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r"),
         ]
-        ax.legend(handles=legend_elements, loc="upper right")
+        ax.legend(handles=legend_elements, loc="upper right", fontsize=9)
 
     fig.suptitle(
         f"Tetrachoric Correlation (Liability Threshold) [{scenario}]", fontsize=14
@@ -355,11 +454,18 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
         ax_corner = fig.add_subplot(inner[0, 1])
         ax_corner.axis("off")
 
+    from matplotlib.lines import Line2D
+    legend_handles = [
+        Line2D([0], [0], marker="o", color="w", markerfacecolor="C0", markersize=8, label="Unaffected"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor="C3", markersize=8, label="Affected (T1)"),
+    ]
+    fig.legend(handles=legend_handles, loc="upper right", fontsize=10, framealpha=0.9)
+
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
 
 
-def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, prevalence1: float, prevalence2: float) -> None:
+def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, prevalence1: float | dict[int, float], prevalence2: float | dict[int, float]) -> None:
     """Generate all threshold phenotype plots from pre-computed stats."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -392,6 +498,10 @@ def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, preva
         df_samples, all_stats,
         output_dir / "liability_violin.threshold.png", scenario,
     )
+    plot_liability_violin_by_generation(
+        df_samples, all_stats, prevalence1, prevalence2,
+        output_dir / "liability_violin.threshold.by_generation.png", scenario,
+    )
     plot_joint_affection(
         all_stats, df_samples, output_dir / "joint_affected.threshold.png", scenario,
     )
@@ -408,6 +518,7 @@ def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, preva
 
 def cli() -> None:
     """Command-line interface for generating threshold plots."""
+    import json
     from sim_ace import setup_logging
     parser = argparse.ArgumentParser(description="Plot threshold phenotype distributions")
     parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
@@ -415,11 +526,25 @@ def cli() -> None:
     parser.add_argument("--stats", nargs="+", required=True, help="Stats YAML paths")
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")
     parser.add_argument("--output-dir", required=True, help="Output directory")
-    parser.add_argument("--prevalence1", type=float, required=True, help="Disease prevalence for trait 1")
-    parser.add_argument("--prevalence2", type=float, required=True, help="Disease prevalence for trait 2")
+    parser.add_argument("--prevalence1", type=float, default=None, help="Disease prevalence for trait 1")
+    parser.add_argument("--prevalence2", type=float, default=None, help="Disease prevalence for trait 2")
+    parser.add_argument("--prevalence1-by-gen", type=str, default=None,
+                        help='Per-gen prevalence for trait 1 as JSON, e.g. \'{"0":0.05,"1":0.10}\'')
+    parser.add_argument("--prevalence2-by-gen", type=str, default=None,
+                        help='Per-gen prevalence for trait 2 as JSON, e.g. \'{"0":0.05,"1":0.10}\'')
     args = parser.parse_args()
 
     level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
     setup_logging(level=level)
 
-    main(args.stats, args.samples, args.output_dir, args.prevalence1, args.prevalence2)
+    def _resolve(scalar, by_gen_json):
+        if by_gen_json is not None:
+            return {int(k): float(v) for k, v in json.loads(by_gen_json).items()}
+        if scalar is not None:
+            return scalar
+        parser.error("Either --prevalenceN or --prevalenceN-by-gen is required")
+
+    p1 = _resolve(args.prevalence1, args.prevalence1_by_gen)
+    p2 = _resolve(args.prevalence2, args.prevalence2_by_gen)
+
+    main(args.stats, args.samples, args.output_dir, p1, p2)
