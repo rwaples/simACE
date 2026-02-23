@@ -39,7 +39,8 @@ from sim_ace.simulate import (
     reproduce,
     add_to_pedigree,
 )
-from sim_ace.phenotype import simulate_phenotype, age_censor, death_censor
+from sim_ace.phenotype import simulate_phenotype
+from sim_ace.censor import age_censor, death_censor
 from sim_ace.threshold import apply_threshold
 from sim_ace.validate import run_validation
 from sim_ace.stats import tetrachoric_corr, tetrachoric_corr_se

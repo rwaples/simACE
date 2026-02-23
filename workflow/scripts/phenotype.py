@@ -10,16 +10,9 @@ def _run_snakemake():
     pedigree = pd.read_parquet(snakemake.input.pedigree)
     params = snakemake.params
 
-    gen_censoring_raw = params.gen_censoring
-    gen_censoring = {int(k): v for k, v in gen_censoring_raw.items()}
-
     param_dict = {
         "G_pheno": params.G_pheno,
-        "censor_age": params.censor_age,
         "seed": params.seed,
-        "gen_censoring": gen_censoring,
-        "death_scale": params.death_scale,
-        "death_rho": params.death_rho,
         "beta1": params.beta1,
         "scale1": params.scale1,
         "rho1": params.rho1,

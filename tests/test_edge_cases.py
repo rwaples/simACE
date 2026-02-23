@@ -9,7 +9,8 @@ import pandas as pd
 import pytest
 
 from sim_ace.simulate import run_simulation
-from sim_ace.phenotype import simulate_phenotype, age_censor, death_censor
+from sim_ace.phenotype import simulate_phenotype
+from sim_ace.censor import age_censor, death_censor
 from sim_ace.threshold import apply_threshold
 
 

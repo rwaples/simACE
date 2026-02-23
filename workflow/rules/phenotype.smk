@@ -2,7 +2,7 @@ rule phenotype_weibull:
     input:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet"
     output:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.weibull.parquet"
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.raw.parquet"
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         # Trait 1 phenotype parameters
@@ -15,10 +15,6 @@ rule phenotype_weibull:
         rho2=lambda w: get_param(config, w.scenario, "rho2"),
         # Shared parameters
         standardize=lambda w: get_param(config, w.scenario, "standardize"),
-        censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
-        death_scale=lambda w: get_param(config, w.scenario, "death_scale"),
-        death_rho=lambda w: get_param(config, w.scenario, "death_rho"),
-        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
         G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/phenotype_weibull.log"
@@ -30,6 +26,29 @@ rule phenotype_weibull:
     threads: 1
     script:
         "../scripts/phenotype.py"
+
+
+rule censor_weibull:
+    input:
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.raw.parquet"
+    output:
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.weibull.parquet"
+    params:
+        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
+        censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
+        death_scale=lambda w: get_param(config, w.scenario, "death_scale"),
+        death_rho=lambda w: get_param(config, w.scenario, "death_rho"),
+        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/censor_weibull.log"
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/censor_weibull.tsv"
+    resources:
+        mem_mb=4000,
+        runtime=5
+    threads: 1
+    script:
+        "../scripts/censor.py"
 
 
 rule phenotype_threshold:

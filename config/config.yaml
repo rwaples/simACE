@@ -39,11 +39,13 @@ defaults:
 
   # Shared phenotype parameters
   standardize: true        # Standardize liability before phenotyping
+
+  # Censoring
   censor_age: 80           # Max censoring age
   gen_censoring: {
-                    0: [40, 80], 
-                    1: [0, 80], 
-                    2: [0, 80], 
+                    0: [40, 80],
+                    1: [0, 80],
+                    2: [0, 80],
                     3: [0, 45]
                   }  # Per-generation [left, right] observation windows (gen 0 = oldest)
   death_scale: 163.265     # Mortality scale (Weibull)
