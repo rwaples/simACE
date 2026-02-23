@@ -37,13 +37,6 @@ rule stats_all:
          for plot in PHENOTYPE_PLOTS + THRESHOLD_PLOTS]
 
 
-rule analyze_all:
-    """Run Weibull frailty model fitting."""
-    input:
-        [f"results/analysis/{get_folder(config, s)}/{s}/scenario.analyzed"
-         for s in config["scenarios"]]
-
-
 rule folder:
     """Build all scenario outputs for a single folder grouping."""
     input:
@@ -63,9 +56,3 @@ rule scenario:
         touch("results/{folder}/{scenario}/scenario.done")
 
 
-rule analysis_scenario:
-    """Build all analysis outputs for a single scenario."""
-    input:
-        lambda w: get_scenario_analysis_outputs(config, w.scenario)
-    output:
-        touch("results/analysis/{folder}/{scenario}/scenario.analyzed")

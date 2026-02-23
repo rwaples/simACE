@@ -79,14 +79,3 @@ def get_folder_validations(config, folder):
     return validations
 
 
-def get_scenario_analysis_outputs(config, scenario):
-    """Generate all Weibull result paths for a single scenario."""
-    folder = get_folder(config, scenario)
-    n_reps = get_param(config, scenario, "replicates")
-    outputs = []
-    for rep in range(1, n_reps + 1):
-        for trait in [1, 2]:
-            outputs.append(
-                f"results/analysis/{folder}/{scenario}/rep{rep}/weibull/trait{trait}/results.rwe"
-            )
-    return outputs
