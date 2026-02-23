@@ -12,6 +12,8 @@ import re
 import yaml
 from pathlib import Path
 
+from sim_ace.utils import get_nested
+
 logger = logging.getLogger(__name__)
 
 
@@ -47,15 +49,6 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
 
     params = data["parameters"]
     summary = data["summary"]
-
-    # Extract key metrics, handling potential missing values
-    def get_nested(d: Any, *keys: str, default: Any = None) -> Any:
-        for key in keys:
-            if isinstance(d, dict) and key in d:
-                d = d[key]
-            else:
-                return default
-        return d
 
     row = {
         "scenario": scenario,
@@ -224,15 +217,13 @@ def main(validation_files: list[str], output_path: str) -> None:
 
 def cli() -> None:
     """Command-line interface for gathering validation results."""
-    from sim_ace import setup_logging
+    from sim_ace.cli_base import add_logging_args, init_logging
     parser = argparse.ArgumentParser(description="Gather validation results into TSV")
-    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
-    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
+    add_logging_args(parser)
     parser.add_argument("validations", nargs="+", help="Validation YAML paths")
     parser.add_argument("--output", required=True, help="Output TSV path")
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
-    setup_logging(level=level)
+    init_logging(args)
 
     main(args.validations, args.output)

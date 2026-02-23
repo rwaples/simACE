@@ -157,17 +157,15 @@ def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int 
 
 def cli() -> None:
     """Command-line interface for computing threshold statistics."""
-    from sim_ace import setup_logging
+    from sim_ace.cli_base import add_logging_args, init_logging
     parser = argparse.ArgumentParser(description="Compute threshold phenotype statistics")
-    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
-    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
+    add_logging_args(parser)
     parser.add_argument("phenotype", help="Input phenotype parquet")
     parser.add_argument("stats_output", help="Output stats YAML")
     parser.add_argument("samples_output", help="Output samples parquet")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
-    setup_logging(level=level)
+    init_logging(args)
 
     main(args.phenotype, args.stats_output, args.samples_output, seed=args.seed)

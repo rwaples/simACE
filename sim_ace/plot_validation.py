@@ -331,15 +331,13 @@ def main(tsv_path: str, output_dir: str | Path) -> None:
 
 def cli() -> None:
     """Command-line interface for generating validation plots."""
-    from sim_ace import setup_logging
+    from sim_ace.cli_base import add_logging_args, init_logging
     parser = argparse.ArgumentParser(description="Plot validation results")
-    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
-    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
+    add_logging_args(parser)
     parser.add_argument("tsv", help="Validation summary TSV path")
     parser.add_argument("output_dir", help="Output directory")
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
-    setup_logging(level=level)
+    init_logging(args)
 
     main(args.tsv, args.output_dir)

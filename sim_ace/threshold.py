@@ -152,10 +152,9 @@ def _parse_prevalence_arg(scalar: float | None, by_gen_json: str | None) -> floa
 
 def cli() -> None:
     """Command-line interface for threshold phenotype simulation."""
-    from sim_ace import setup_logging
+    from sim_ace.cli_base import add_logging_args, init_logging
     parser = argparse.ArgumentParser(description="Apply liability threshold model")
-    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
-    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
+    add_logging_args(parser)
     parser.add_argument("--pedigree", required=True, help="Input pedigree parquet")
     parser.add_argument("--output", required=True, help="Output phenotype parquet")
     parser.add_argument("--G-pheno", type=int, default=3, help="Number of generations to assign phenotypes")
@@ -167,8 +166,7 @@ def cli() -> None:
                         help='Per-gen prevalence for trait 2 as JSON, e.g. \'{"0":0.05,"1":0.10}\'')
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
-    setup_logging(level=level)
+    init_logging(args)
 
     pedigree = pd.read_parquet(args.pedigree)
     params = {

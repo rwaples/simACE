@@ -15,53 +15,10 @@ import logging
 import numpy as np
 import pandas as pd
 import yaml
-from scipy import stats
+
+from sim_ace.utils import safe_corrcoef, safe_linregress, to_native, validation_result as _result
 
 logger = logging.getLogger(__name__)
-
-
-def safe_corrcoef(x: np.ndarray, y: np.ndarray) -> float:
-    """Compute Pearson correlation, returning nan if either array has zero variance."""
-    if np.std(x) < 1e-10 or np.std(y) < 1e-10:
-        return float("nan")
-    return np.corrcoef(x, y)[0, 1]
-
-
-def safe_linregress(x: np.ndarray, y: np.ndarray) -> Any:
-    """Run linear regression, returning None if x has zero variance."""
-    if np.std(x) < 1e-10:
-        return None
-    return stats.linregress(x, y)
-
-
-def to_native(obj: Any) -> Any:
-    """Recursively convert numpy types to native Python types for YAML serialization."""
-    if isinstance(obj, dict):
-        return {k: to_native(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
-        return [to_native(v) for v in obj]
-    elif isinstance(obj, np.ndarray):
-        return to_native(obj.tolist())
-    elif isinstance(obj, (np.integer, np.int64, np.int32)):
-        return int(obj)
-    elif isinstance(obj, (np.floating, np.float64, np.float32)):
-        return float(obj)
-    elif isinstance(obj, (np.bool_, bool)):
-        return bool(obj)
-    else:
-        return obj
-
-
-# ---------------------------------------------------------------------------
-# Helper functions to reduce repetition
-# ---------------------------------------------------------------------------
-
-
-def _result(passed: bool, details: str, **extra: Any) -> dict[str, Any]:
-    """Build a result dict with passed/details and optional extra keys."""
-    d = {"passed": passed, "details": details}
-    d.update(extra)
-    return d
 
 
 def _check_variance(founders: pd.DataFrame, col: str, expected: float, tol: float = 0.1) -> dict[str, Any]:
@@ -499,19 +456,14 @@ def validate_statistical(df: pd.DataFrame, params: dict[str, Any], df_indexed: p
     return results
 
 
-def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
-    """Validate heritability estimates for two-trait simulation."""
-    results = {}
-    A_params = {1: params["A1"], 2: params["A2"]}
-
-    # Precompute arrays
-    comp_vals = {}
-    for comp in ["A", "C", "E"]:
-        for t in [1, 2]:
-            comp_vals[f"{comp}{t}"] = df_indexed[f"{comp}{t}"].values
-    id_to_idx = pd.Series(np.arange(len(df_indexed)), index=df_indexed.index)
-
-    # --- MZ twin correlations ---
+def _validate_mz_correlations(
+    df: pd.DataFrame,
+    A_params: dict[int, float],
+    comp_vals: dict[str, np.ndarray],
+    id_to_idx: pd.Series,
+    results: dict[str, Any],
+) -> tuple[dict[int, float | None], int]:
+    """Validate MZ twin correlations. Returns (mz_pheno_corr, n_mz_pairs)."""
     twins_df = df[df["twin"] != -1]
     twin_ids = twins_df["id"].values
     twin_partners = twins_df["twin"].values
@@ -554,12 +506,22 @@ def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: 
             )
             mz_pheno_corr[t] = None
 
-    # --- DZ sibling correlations via vectorized merge ---
+    return mz_pheno_corr, len(t1_arr)
+
+
+def _validate_dz_correlations(
+    df: pd.DataFrame,
+    params: dict[str, Any],
+    A_params: dict[int, float],
+    comp_vals: dict[str, np.ndarray],
+    id_to_idx: pd.Series,
+    results: dict[str, Any],
+) -> tuple[dict[int, float | None], int]:
+    """Validate DZ sibling correlations. Returns (dz_pheno_corr, n_dz_pairs)."""
     non_founders = df[df["mother"] != -1]
     non_twin_sibs = non_founders[non_founders["twin"] == -1][["id", "mother", "father"]].copy()
     non_twin_sibs["_row"] = id_to_idx.reindex(non_twin_sibs["id"]).values.astype(int)
 
-    # Full-sib pairs: same mother AND same father
     sib_counts = non_twin_sibs.groupby("mother").size()
     multi_mothers = sib_counts[sib_counts >= 2].index
     mat_sib = non_twin_sibs[non_twin_sibs["mother"].isin(multi_mothers)]
@@ -576,7 +538,6 @@ def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: 
             & (mat_pairs["father_1"] == mat_pairs["father_2"])
         ]
 
-        # Subsample if too many pairs
         max_pairs = 5000
         if len(full_sib_pairs) > max_pairs:
             rng = np.random.default_rng(params.get("seed", 42))
@@ -625,14 +586,24 @@ def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: 
             )
             dz_pheno_corr[t] = None
 
-    # --- Falconer's estimates ---
+    return dz_pheno_corr, n_dz_pairs
+
+
+def _validate_falconer(
+    A_params: dict[int, float],
+    mz_pheno_corr: dict[int, float | None],
+    dz_pheno_corr: dict[int, float | None],
+    n_mz_pairs: int,
+    n_dz_pairs: int,
+    results: dict[str, Any],
+) -> None:
+    """Validate Falconer heritability estimates."""
     for t in [1, 2]:
         mz_c = mz_pheno_corr.get(t)
         dz_c = dz_pheno_corr.get(t)
         if mz_c is not None and dz_c is not None and not (np.isnan(mz_c) or np.isnan(dz_c)):
             falconer = 2 * (mz_c - dz_c)
-            n_mz = len(t1_arr)
-            se_mz = _corr_se(mz_c, n_mz)
+            se_mz = _corr_se(mz_c, n_mz_pairs)
             se_dz = _corr_se(dz_c, n_dz_pairs)
             se_falconer = 2 * np.sqrt(se_mz ** 2 + se_dz ** 2)
             falconer_tol = max(4 * se_falconer, 0.05)
@@ -649,7 +620,16 @@ def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: 
                 "Cannot compute Falconer estimate without both MZ and DZ correlations",
             )
 
-    # --- Parent-offspring regression ---
+
+def _validate_parent_offspring(
+    df: pd.DataFrame,
+    comp_vals: dict[str, np.ndarray],
+    id_to_idx: pd.Series,
+    df_indexed: pd.DataFrame,
+    results: dict[str, Any],
+) -> None:
+    """Validate parent-offspring regression."""
+    non_founders = df[df["mother"] != -1]
     if len(non_founders) > 100:
         valid_offspring = non_founders[
             non_founders["mother"].isin(df_indexed.index)
@@ -687,6 +667,29 @@ def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: 
             results[f"parent_offspring_liability{t}_regression"] = {
                 "details": "Not enough non-founders for regression"
             }
+
+
+def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
+    """Validate heritability estimates for two-trait simulation."""
+    results: dict[str, Any] = {}
+    A_params = {1: params["A1"], 2: params["A2"]}
+
+    comp_vals = {}
+    for comp in ["A", "C", "E"]:
+        for t in [1, 2]:
+            comp_vals[f"{comp}{t}"] = df_indexed[f"{comp}{t}"].values
+    id_to_idx = pd.Series(np.arange(len(df_indexed)), index=df_indexed.index)
+
+    mz_pheno_corr, n_mz_pairs = _validate_mz_correlations(
+        df, A_params, comp_vals, id_to_idx, results,
+    )
+    dz_pheno_corr, n_dz_pairs = _validate_dz_correlations(
+        df, params, A_params, comp_vals, id_to_idx, results,
+    )
+    _validate_falconer(
+        A_params, mz_pheno_corr, dz_pheno_corr, n_mz_pairs, n_dz_pairs, results,
+    )
+    _validate_parent_offspring(df, comp_vals, id_to_idx, df_indexed, results)
 
     return results
 
@@ -844,17 +847,15 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
 
 def cli() -> None:
     """Command-line interface for running validation."""
-    from sim_ace import setup_logging
+    from sim_ace.cli_base import add_logging_args, init_logging
     parser = argparse.ArgumentParser(description="Validate ACE simulation output")
-    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
-    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
+    add_logging_args(parser)
     parser.add_argument("--pedigree", required=True, help="Pedigree parquet path")
     parser.add_argument("--params", required=True, help="Params YAML path")
     parser.add_argument("--output", required=True, help="Output validation YAML path")
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
-    setup_logging(level=level)
+    init_logging(args)
 
     results = run_validation(args.pedigree, args.params)
     results = to_native(results)

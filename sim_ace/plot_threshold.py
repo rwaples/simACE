@@ -519,10 +519,9 @@ def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, preva
 def cli() -> None:
     """Command-line interface for generating threshold plots."""
     import json
-    from sim_ace import setup_logging
+    from sim_ace.cli_base import add_logging_args, init_logging
     parser = argparse.ArgumentParser(description="Plot threshold phenotype distributions")
-    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
-    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
+    add_logging_args(parser)
     parser.add_argument("--stats", nargs="+", required=True, help="Stats YAML paths")
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")
     parser.add_argument("--output-dir", required=True, help="Output directory")
@@ -534,8 +533,7 @@ def cli() -> None:
                         help='Per-gen prevalence for trait 2 as JSON, e.g. \'{"0":0.05,"1":0.10}\'')
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
-    setup_logging(level=level)
+    init_logging(args)
 
     def _resolve(scalar, by_gen_json):
         if by_gen_json is not None:

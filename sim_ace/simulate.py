@@ -447,10 +447,9 @@ def run_simulation(
 
 def cli() -> None:
     """Command-line interface for running ACE simulations."""
-    from sim_ace import setup_logging
+    from sim_ace.cli_base import add_logging_args, init_logging
     parser = argparse.ArgumentParser(description="Run ACE pedigree simulation")
-    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
-    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
+    add_logging_args(parser)
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--N", type=int, default=1000, help="Founder population size")
     parser.add_argument("--G-ped", type=int, default=3, help="Number of pedigree generations")
@@ -469,8 +468,7 @@ def cli() -> None:
     parser.add_argument("--rep", type=int, default=1, help="Replicate number")
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
-    setup_logging(level=level)
+    init_logging(args)
 
     pedigree = run_simulation(
         seed=args.seed, N=args.N, G_ped=args.G_ped, fam_size=args.fam_size,

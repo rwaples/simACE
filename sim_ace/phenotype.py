@@ -133,10 +133,9 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
 
 def cli() -> None:
     """Command-line interface for phenotype simulation."""
-    from sim_ace import setup_logging
+    from sim_ace.cli_base import add_logging_args, init_logging
     parser = argparse.ArgumentParser(description="Simulate Weibull frailty phenotype")
-    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
-    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
+    add_logging_args(parser)
     parser.add_argument("--pedigree", required=True, help="Input pedigree parquet")
     parser.add_argument("--output", required=True, help="Output phenotype parquet")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
@@ -151,8 +150,7 @@ def cli() -> None:
 
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
-    setup_logging(level=level)
+    init_logging(args)
 
     pedigree = pd.read_parquet(args.pedigree)
     params = {

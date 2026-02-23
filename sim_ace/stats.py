@@ -833,10 +833,9 @@ def main(
 
 def cli() -> None:
     """Command-line interface for computing phenotype statistics."""
-    from sim_ace import setup_logging
+    from sim_ace.cli_base import add_logging_args, init_logging
     parser = argparse.ArgumentParser(description="Compute phenotype statistics")
-    parser.add_argument("-v", "--verbose", action="store_true", help="DEBUG output")
-    parser.add_argument("-q", "--quiet", action="store_true", help="WARNING+ only")
+    add_logging_args(parser)
     parser.add_argument("phenotype", help="Input phenotype parquet")
     parser.add_argument("censor_age", type=float, help="Censoring age")
     parser.add_argument("stats_output", help="Output stats YAML")
@@ -851,8 +850,7 @@ def cli() -> None:
     parser.add_argument("--rho2", type=float, default=None, help="Weibull shape parameter for trait 2")
     args = parser.parse_args()
 
-    level = logging.DEBUG if args.verbose else logging.WARNING if args.quiet else logging.INFO
-    setup_logging(level=level)
+    init_logging(args)
 
     weibull_params = None
     if args.beta1 is not None and args.scale1 is not None and args.rho1 is not None:
