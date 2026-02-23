@@ -21,12 +21,89 @@ so S(left|L) ~ 1.0 — conservative but not biased.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 import numpy as np
 import pandas as pd
 from numpy.polynomial.hermite_e import hermegauss
 from scipy.optimize import minimize_scalar
+
+try:
+    from numba import njit, prange
+
+    @njit(cache=True)
+    def _pair_log_lik(
+        p: int,
+        r: float,
+        sqrt_1mr2: float,
+        delta_i: np.ndarray,
+        delta_j: np.ndarray,
+        const_i: np.ndarray,
+        const_j: np.ndarray,
+        hazard_base_i: np.ndarray,
+        hazard_base_j: np.ndarray,
+        beta: float,
+        nodes: np.ndarray,
+        log_weights: np.ndarray,
+    ) -> float:
+        """Log-likelihood for a single pair, summed over quadrature grid."""
+        n_quad = len(nodes)
+        # First pass: find max for log-sum-exp stability
+        max_val = -1e300
+        for m in range(n_quad):
+            beta_li = beta * nodes[m]
+            exp_beta_li = math.exp(beta_li)
+            log_g_i = delta_i[p] * (const_i[p] + beta_li) - hazard_base_i[p] * exp_beta_li
+            for n in range(n_quad):
+                lj = r * nodes[m] + sqrt_1mr2 * nodes[n]
+                beta_lj = beta * lj
+                log_g_j = delta_j[p] * (const_j[p] + beta_lj) - hazard_base_j[p] * math.exp(beta_lj)
+                val = log_g_i + log_g_j + log_weights[m] + log_weights[n]
+                if val > max_val:
+                    max_val = val
+        # Second pass: accumulate
+        acc = 0.0
+        for m in range(n_quad):
+            beta_li = beta * nodes[m]
+            exp_beta_li = math.exp(beta_li)
+            log_g_i = delta_i[p] * (const_i[p] + beta_li) - hazard_base_i[p] * exp_beta_li
+            for n in range(n_quad):
+                lj = r * nodes[m] + sqrt_1mr2 * nodes[n]
+                beta_lj = beta * lj
+                log_g_j = delta_j[p] * (const_j[p] + beta_lj) - hazard_base_j[p] * math.exp(beta_lj)
+                val = log_g_i + log_g_j + log_weights[m] + log_weights[n]
+                acc += math.exp(val - max_val)
+        return max_val + math.log(acc)
+
+    @njit(cache=True, parallel=True)
+    def _neg_log_lik_numba(
+        r: float,
+        delta_i: np.ndarray,
+        delta_j: np.ndarray,
+        const_i: np.ndarray,
+        const_j: np.ndarray,
+        hazard_base_i: np.ndarray,
+        hazard_base_j: np.ndarray,
+        beta: float,
+        nodes: np.ndarray,
+        log_weights: np.ndarray,
+    ) -> float:
+        """Fused neg-log-likelihood loop over pairs and quadrature nodes."""
+        n_pairs = len(delta_i)
+        sqrt_1mr2 = math.sqrt(max(1.0 - r * r, 1e-10))
+        pair_ll = np.empty(n_pairs)
+        for p in prange(n_pairs):
+            pair_ll[p] = _pair_log_lik(
+                p, r, sqrt_1mr2, delta_i, delta_j, const_i, const_j,
+                hazard_base_i, hazard_base_j, beta, nodes, log_weights,
+            )
+        return -pair_ll.sum()
+
+    _HAS_NUMBA = True
+
+except ImportError:
+    _HAS_NUMBA = False
 
 logger = logging.getLogger(__name__)
 
@@ -90,44 +167,41 @@ def pairwise_weibull_corr_se(
     const_i = log_rho - rho * log_scale + (rho - 1) * log_t_i  # (n_pairs,)
     const_j = log_rho - rho * log_scale + (rho - 1) * log_t_j  # (n_pairs,)
 
-    def neg_log_pairwise_lik(r: float) -> float:
-        sqrt_1mr2 = np.sqrt(max(1.0 - r * r, 1e-10))
+    if _HAS_NUMBA:
+        def neg_log_pairwise_lik(r: float) -> float:
+            return _neg_log_lik_numba(
+                r, delta_i, delta_j, const_i, const_j,
+                hazard_base_i, hazard_base_j, beta, nodes, log_weights,
+            )
+    else:
+        def neg_log_pairwise_lik(r: float) -> float:
+            sqrt_1mr2 = np.sqrt(max(1.0 - r * r, 1e-10))
 
-        # L_i = z1 (nodes), L_j = r*z1 + sqrt(1-r^2)*z2
-        li = nodes  # (n_quad,)
-        # lj[m, n] = r * nodes[m] + sqrt_1mr2 * nodes[n]
-        lj = r * nodes[:, None] + sqrt_1mr2 * nodes[None, :]  # (n_quad, n_quad)
+            li = nodes
+            lj = r * nodes[:, None] + sqrt_1mr2 * nodes[None, :]
 
-        # log g(t_i, delta_i, L_i=li[m]) for each pair i and node m
-        # log g = delta*(const + beta*L) - H_base*exp(beta*L)
-        # shape: (n_pairs, n_quad)
-        beta_li = beta * li[None, :]  # (1, n_quad)
-        log_g_i = (
-            delta_i[:, None] * (const_i[:, None] + beta_li)
-            - hazard_base_i[:, None] * np.exp(beta_li)
-        )
+            beta_li = beta * li[None, :]
+            log_g_i = (
+                delta_i[:, None] * (const_i[:, None] + beta_li)
+                - hazard_base_i[:, None] * np.exp(beta_li)
+            )
 
-        # log g(t_j, delta_j, L_j=lj[m,n]) for each pair j and node pair (m,n)
-        # shape: (n_pairs, n_quad, n_quad)
-        beta_lj = beta * lj[None, :, :]  # (1, n_quad, n_quad)
-        log_g_j = (
-            delta_j[:, None, None] * (const_j[:, None, None] + beta_lj)
-            - hazard_base_j[:, None, None] * np.exp(beta_lj)
-        )
+            beta_lj = beta * lj[None, :, :]
+            log_g_j = (
+                delta_j[:, None, None] * (const_j[:, None, None] + beta_lj)
+                - hazard_base_j[:, None, None] * np.exp(beta_lj)
+            )
 
-        # Log integrand: log_g_i[:, m, :] + log_g_j[:, m, n] + log_w[m] + log_w[n]
-        log_w2d = log_weights[:, None] + log_weights[None, :]  # (n_quad, n_quad)
-        log_integrand = log_g_i[:, :, None] + log_g_j + log_w2d[None, :, :]
-        # shape: (n_pairs, n_quad, n_quad)
+            log_w2d = log_weights[:, None] + log_weights[None, :]
+            log_integrand = log_g_i[:, :, None] + log_g_j + log_w2d[None, :, :]
 
-        # Log-sum-exp over quadrature nodes for each pair
-        flat = log_integrand.reshape(n_pairs, -1)  # (n_pairs, n_quad^2)
-        max_val = flat.max(axis=1, keepdims=True)  # (n_pairs, 1)
-        log_pair_lik = max_val[:, 0] + np.log(
-            np.sum(np.exp(flat - max_val), axis=1)
-        )
+            flat = log_integrand.reshape(n_pairs, -1)
+            max_val = flat.max(axis=1, keepdims=True)
+            log_pair_lik = max_val[:, 0] + np.log(
+                np.sum(np.exp(flat - max_val), axis=1)
+            )
 
-        return -np.sum(log_pair_lik)
+            return -np.sum(log_pair_lik)
 
     result = minimize_scalar(
         neg_log_pairwise_lik, bounds=(-0.999, 0.999), method="bounded"

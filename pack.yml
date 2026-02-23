@@ -18,6 +18,7 @@ dependencies:
   - pyarrow
   - lifelines
   - cmdstanpy
+  - numba
   - pip:
     - pypair
     - -e .
