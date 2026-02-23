@@ -290,13 +290,13 @@ def plot_liability_joint_affected(df_samples: pd.DataFrame, output_path: str | P
                 x[mask], y[mask], c=color, alpha=alpha, s=3, rasterized=True, label=label,
             )
 
-        ax_marg_x.hist(x[~affected], bins=bins_x, edgecolor="none", alpha=0.5, color="C0")
-        ax_marg_x.hist(x[affected], bins=bins_x, edgecolor="none", alpha=0.7, color="C3")
+        ax_marg_x.hist(x[~affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.5, color="C0")
+        ax_marg_x.hist(x[affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.7, color="C3")
         ax_marg_y.hist(
-            y[~affected], bins=bins_y, orientation="horizontal", edgecolor="none", alpha=0.5, color="C0",
+            y[~affected], bins=bins_y.tolist(), orientation="horizontal", edgecolor="none", alpha=0.5, color="C0",
         )
         ax_marg_y.hist(
-            y[affected], bins=bins_y, orientation="horizontal", edgecolor="none", alpha=0.7, color="C3",
+            y[affected], bins=bins_y.tolist(), orientation="horizontal", edgecolor="none", alpha=0.7, color="C3",
         )
 
         r = np.corrcoef(x, y)[0, 1]
@@ -1069,10 +1069,10 @@ def main(
     gen_censoring: dict[int, list[float]] | None = None,
 ) -> None:
     """Generate all phenotype plots from pre-computed stats."""
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    scenario = output_dir.parent.name
+    scenario = out_dir.parent.name
     sns.set_theme(style="whitegrid")
 
     # Load per-rep stats
@@ -1093,35 +1093,35 @@ def main(
         ).reset_index(drop=True)
 
     plot_death_age_distribution(
-        all_stats, censor_age, output_dir / "mortality.png", scenario
+        all_stats, censor_age, out_dir / "mortality.png", scenario
     )
     plot_trait_phenotype(
-        df_samples, output_dir / "age_at_onset_death.png", scenario
+        df_samples, out_dir / "age_at_onset_death.png", scenario
     )
     plot_trait_regression(
-        df_samples, all_stats, output_dir / "liability_vs_aoo.png", scenario
+        df_samples, all_stats, out_dir / "liability_vs_aoo.png", scenario
     )
     plot_liability_joint(
-        df_samples, output_dir / "cross_trait.png", scenario
+        df_samples, out_dir / "cross_trait.png", scenario
     )
     plot_liability_joint_affected(
-        df_samples, output_dir / "cross_trait.weibull.png", scenario
+        df_samples, out_dir / "cross_trait.weibull.png", scenario
     )
     plot_liability_violin(
-        df_samples, all_stats, output_dir / "liability_violin.weibull.png", scenario
+        df_samples, all_stats, out_dir / "liability_violin.weibull.png", scenario
     )
     plot_liability_violin_by_generation(
-        df_samples, all_stats, output_dir / "liability_violin.weibull.by_generation.png", scenario
+        df_samples, all_stats, out_dir / "liability_violin.weibull.by_generation.png", scenario
     )
     plot_cumulative_incidence(
-        all_stats, censor_age, output_dir / "cumulative_incidence.weibull.png", scenario
+        all_stats, censor_age, out_dir / "cumulative_incidence.weibull.png", scenario
     )
     plot_joint_affection(
-        df_samples, output_dir / "joint_affected.weibull.png", scenario
+        df_samples, out_dir / "joint_affected.weibull.png", scenario
     )
     if gen_censoring is not None:
         plot_censoring_windows(
-            all_stats, output_dir / "censoring.png", scenario,
+            all_stats, out_dir / "censoring.png", scenario,
             gen_censoring=gen_censoring,
         )
     else:
@@ -1129,20 +1129,20 @@ def main(
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "No censoring windows configured",
                 ha="center", va="center", transform=ax.transAxes)
-        plt.savefig(output_dir / "censoring.png", dpi=150)
+        plt.savefig(out_dir / "censoring.png", dpi=150)
         plt.close()
 
     plot_tetrachoric_sibling(
-        all_stats, output_dir / "tetrachoric.weibull.png", scenario,
+        all_stats, out_dir / "tetrachoric.weibull.png", scenario,
     )
     plot_tetrachoric_by_generation(
-        all_stats, output_dir / "tetrachoric.weibull.by_generation.png", scenario,
+        all_stats, out_dir / "tetrachoric.weibull.by_generation.png", scenario,
     )
     plot_parent_offspring_liability(
-        df_samples, all_stats, output_dir / "parent_offspring_liability.by_generation.png", scenario,
+        df_samples, all_stats, out_dir / "parent_offspring_liability.by_generation.png", scenario,
     )
 
-    logger.info("Phenotype plots saved to %s", output_dir)
+    logger.info("Phenotype plots saved to %s", out_dir)
 
 
 def cli() -> None:

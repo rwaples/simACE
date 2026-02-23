@@ -519,7 +519,7 @@ def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: 
     t1_arr = twin_ids[mask]
     t2_arr = twin_partners[mask]
 
-    mz_pheno_corr = {}
+    mz_pheno_corr: dict[int, float | None] = {}
     if len(t1_arr) >= 10:
         idx1 = id_to_idx.reindex(t1_arr).values.astype(int)
         idx2 = id_to_idx.reindex(t2_arr).values.astype(int)
@@ -564,7 +564,7 @@ def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: 
     multi_mothers = sib_counts[sib_counts >= 2].index
     mat_sib = non_twin_sibs[non_twin_sibs["mother"].isin(multi_mothers)]
 
-    dz_pheno_corr = {}
+    dz_pheno_corr: dict[int, float | None] = {}
     n_dz_pairs = 0
     if len(mat_sib) > 0:
         mat_pairs = mat_sib[["mother", "father", "_row"]].merge(
@@ -704,7 +704,7 @@ def compute_per_generation_stats(df: pd.DataFrame, params: dict[str, Any]) -> di
         gen_mask = gen_labels == (gen - 1)
         gen_df = df[gen_mask]
 
-        gen_stats = {"n": int(gen_mask.sum())}
+        gen_stats: dict[str, int | float] = {"n": int(gen_mask.sum())}
         for t in [1, 2]:
             a_vals = gen_df[f"A{t}"].values
             c_vals = gen_df[f"C{t}"].values

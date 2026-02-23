@@ -428,7 +428,7 @@ def compute_censoring_windows(
             result[name] = {"n": 0}
             continue
 
-        gen_result = {"n": int(n_gen)}
+        gen_result: dict[str, Any] = {"n": int(n_gen)}
         for trait_num in [1, 2]:
             t_raw = gen_df[f"t{trait_num}"].values
             t_obs = gen_df[f"t_observed{trait_num}"].values
@@ -474,7 +474,7 @@ def compute_tetrachoric(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple
 
     for trait_num in [1, 2]:
         affected = df[f"affected{trait_num}"].values.astype(bool)
-        trait_result = {}
+        trait_result: dict[str, dict[str, int | float | None]] = {}
         for ptype in pair_types:
             idx1, idx2 = pairs[ptype]
             n_p = len(idx1)
@@ -532,7 +532,7 @@ def compute_tetrachoric_by_generation(
         for trait_num in [1, 2]:
             affected = df[f"affected{trait_num}"].values.astype(bool)
             liability = df[f"liability{trait_num}"].values
-            trait_result = {}
+            trait_result: dict[str, dict[str, int | float | None]] = {}
 
             for ptype in pair_types:
                 idx1, idx2 = pairs[ptype]
@@ -577,7 +577,7 @@ def compute_liability_correlations(df: pd.DataFrame, seed: int = 42, pairs: dict
     result = {}
     for trait_num in [1, 2]:
         liability = df[f"liability{trait_num}"].values
-        trait_result = {}
+        trait_result: dict[str, float | None] = {}
         for ptype in pair_types:
             idx1, idx2 = pairs[ptype]
             if len(idx1) < 10:
@@ -590,7 +590,7 @@ def compute_liability_correlations(df: pd.DataFrame, seed: int = 42, pairs: dict
 
 def compute_regression(df: pd.DataFrame) -> dict[str, Any]:
     """Compute regression stats (liability vs age at onset) for affected individuals."""
-    result = {}
+    result: dict[str, dict[str, float | int] | None] = {}
     for trait_num in [1, 2]:
         affected_col = f"affected{trait_num}"
         t_col = f"t_observed{trait_num}"
@@ -657,7 +657,7 @@ def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
     result = {}
     for trait_num in [1, 2]:
         liability = df[f"liability{trait_num}"].values
-        trait_result = {}
+        trait_result: dict[str, dict[str, int | float | None]] = {}
 
         for gen in range(1, max_gen + 1):
             gen_idx = np.where(df["generation"].values == gen)[0]
@@ -706,7 +706,7 @@ def compute_weibull_correlations(
     pairs: dict[str, tuple[np.ndarray, np.ndarray]],
     n_quad: int = 20,
     seed: int = 42,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     """Compute pairwise Weibull liability correlations for all relationship types.
 
     Args:
@@ -719,8 +719,8 @@ def compute_weibull_correlations(
     """
     from sim_ace.survival_corr import compute_weibull_pair_corr
 
-    result = {}
-    result_uncensored = {}
+    result: dict[str, Any] = {}
+    result_uncensored: dict[str, Any] = {}
     for trait_num in [1, 2]:
         key = f"trait{trait_num}"
         params = weibull_params.get(key, {})
@@ -755,7 +755,7 @@ def main(
 
     logger.info("Computing stats for %s (%d rows)", phenotype_path, len(df))
 
-    stats = {}
+    stats: dict[str, Any] = {}
     stats["n_individuals"] = int(len(df))
 
     # Prevalence

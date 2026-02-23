@@ -83,7 +83,7 @@ def compute_tetrachoric(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple
 
     for trait_num in [1, 2]:
         affected = df[f"affected{trait_num}"].values.astype(bool)
-        trait_result = {}
+        trait_result: dict[str, dict[str, int | float | None]] = {}
         for ptype in pair_types:
             idx1, idx2 = pairs[ptype]
             n_p = len(idx1)
@@ -109,7 +109,7 @@ def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int 
 
     logger.info("Computing threshold stats for %s (%d rows)", phenotype_path, len(df))
 
-    stats = {}
+    stats: dict[str, Any] = {}
     stats["n_individuals"] = int(len(df))
 
     # Prevalence by generation

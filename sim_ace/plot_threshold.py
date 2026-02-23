@@ -428,13 +428,13 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
                 x[mask], y[mask], c=color, alpha=alpha, s=3, rasterized=True, label=label,
             )
 
-        ax_marg_x.hist(x[~affected], bins=bins_x, edgecolor="none", alpha=0.5, color="C0")
-        ax_marg_x.hist(x[affected], bins=bins_x, edgecolor="none", alpha=0.7, color="C3")
+        ax_marg_x.hist(x[~affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.5, color="C0")
+        ax_marg_x.hist(x[affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.7, color="C3")
         ax_marg_y.hist(
-            y[~affected], bins=bins_y, orientation="horizontal", edgecolor="none", alpha=0.5, color="C0",
+            y[~affected], bins=bins_y.tolist(), orientation="horizontal", edgecolor="none", alpha=0.5, color="C0",
         )
         ax_marg_y.hist(
-            y[affected], bins=bins_y, orientation="horizontal", edgecolor="none", alpha=0.7, color="C3",
+            y[affected], bins=bins_y.tolist(), orientation="horizontal", edgecolor="none", alpha=0.7, color="C3",
         )
 
         r = np.corrcoef(x, y)[0, 1]
@@ -467,10 +467,10 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
 
 def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, prevalence1: float | dict[int, float], prevalence2: float | dict[int, float]) -> None:
     """Generate all threshold phenotype plots from pre-computed stats."""
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
-    scenario = output_dir.parent.name
+    scenario = out_dir.parent.name
     sns.set_theme(style="whitegrid")
 
     # Load per-rep stats
@@ -492,28 +492,28 @@ def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, preva
 
     plot_prevalence_by_generation(
         all_stats, prevalence1, prevalence2,
-        output_dir / "prevalence_by_generation.png", scenario,
+        out_dir / "prevalence_by_generation.png", scenario,
     )
     plot_liability_violin(
         df_samples, all_stats,
-        output_dir / "liability_violin.threshold.png", scenario,
+        out_dir / "liability_violin.threshold.png", scenario,
     )
     plot_liability_violin_by_generation(
         df_samples, all_stats, prevalence1, prevalence2,
-        output_dir / "liability_violin.threshold.by_generation.png", scenario,
+        out_dir / "liability_violin.threshold.by_generation.png", scenario,
     )
     plot_joint_affection(
-        all_stats, df_samples, output_dir / "joint_affected.threshold.png", scenario,
+        all_stats, df_samples, out_dir / "joint_affected.threshold.png", scenario,
     )
     plot_liability_joint(
-        df_samples, output_dir / "cross_trait.threshold.png", scenario,
+        df_samples, out_dir / "cross_trait.threshold.png", scenario,
     )
 
     plot_tetrachoric(
-        all_stats, output_dir / "tetrachoric.threshold.png", scenario,
+        all_stats, out_dir / "tetrachoric.threshold.png", scenario,
     )
 
-    logger.info("Threshold plots saved to %s", output_dir)
+    logger.info("Threshold plots saved to %s", out_dir)
 
 
 def cli() -> None:

@@ -141,7 +141,7 @@ def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     return phenotype
 
 
-def _parse_prevalence_arg(scalar: float | None, by_gen_json: str | None) -> float | dict[int, float]:
+def _parse_prevalence_arg(scalar: float | None, by_gen_json: str | None) -> float | dict[int, float] | None:
     """Resolve prevalence from scalar flag or JSON by-gen flag."""
     import json
     if by_gen_json is not None:

@@ -436,6 +436,7 @@ def run_simulation(
         )
 
     elapsed = time.perf_counter() - t0
+    assert pedigree is not None
     logger.info(
         "Simulation complete in %.1fs: pedigree has %d individuals",
         elapsed, len(pedigree),

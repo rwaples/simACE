@@ -38,6 +38,7 @@ def stripplot(df: pd.DataFrame, ax: Axes, y: str, expected: str | float | None =
             elif isinstance(expected, str):
                 val = sdf[expected].iloc[0]
             else:
+                assert expected is not None
                 val = expected
             ax.scatter(
                 positions[scenario], val,
@@ -265,8 +266,9 @@ def plot_runtime(df: pd.DataFrame, out: Path) -> None:
     from matplotlib.ticker import LogLocator, ScalarFormatter
     for axis in (ax.xaxis, ax.yaxis):
         axis.set_major_locator(LogLocator(base=10, numticks=12))
-        axis.set_major_formatter(ScalarFormatter())
-        axis.get_major_formatter().set_scientific(False)
+        fmt = ScalarFormatter()
+        fmt.set_scientific(False)
+        axis.set_major_formatter(fmt)
     ax.set_xlabel("Population Size (N)")
     ax.set_ylabel("Simulate Time (seconds)")
     ax.set_title("Simulation Runtime vs Population Size")
@@ -297,8 +299,9 @@ def plot_memory(df: pd.DataFrame, out: Path) -> None:
     from matplotlib.ticker import LogLocator, ScalarFormatter
     for axis in (ax.xaxis, ax.yaxis):
         axis.set_major_locator(LogLocator(base=10, numticks=12))
-        axis.set_major_formatter(ScalarFormatter())
-        axis.get_major_formatter().set_scientific(False)
+        fmt = ScalarFormatter()
+        fmt.set_scientific(False)
+        axis.set_major_formatter(fmt)
     ax.set_xlabel("Population Size (N)")
     ax.set_ylabel("Peak RSS (MB)")
     ax.set_title("Simulation Memory Usage vs Population Size")
@@ -306,24 +309,24 @@ def plot_memory(df: pd.DataFrame, out: Path) -> None:
     save(fig, out / "memory.png")
 
 
-def main(tsv_path: str, output_dir: str) -> None:
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    logger.info("Generating validation plots in %s", output_dir)
+def main(tsv_path: str, output_dir: str | Path) -> None:
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    logger.info("Generating validation plots in %s", out)
     sns.set_theme(style="whitegrid", palette="Set2")
     df = pd.read_csv(tsv_path, sep="\t")
 
-    plot_variance_components(df, output_dir)
-    plot_twin_rate(df, output_dir)
-    plot_A_correlations(df, output_dir)
-    plot_phenotype_correlations(df, output_dir)
-    plot_heritability_estimates(df, output_dir)
-    plot_half_sib_proportions(df, output_dir)
-    plot_cross_trait_correlations(df, output_dir)
-    plot_family_size(df, output_dir)
-    plot_summary_bias(df, output_dir)
-    plot_runtime(df, output_dir)
-    plot_memory(df, output_dir)
+    plot_variance_components(df, out)
+    plot_twin_rate(df, out)
+    plot_A_correlations(df, out)
+    plot_phenotype_correlations(df, out)
+    plot_heritability_estimates(df, out)
+    plot_half_sib_proportions(df, out)
+    plot_cross_trait_correlations(df, out)
+    plot_family_size(df, out)
+    plot_summary_bias(df, out)
+    plot_runtime(df, out)
+    plot_memory(df, out)
 
 
 def cli() -> None:

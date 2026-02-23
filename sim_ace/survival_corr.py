@@ -198,7 +198,7 @@ def compute_weibull_pair_corr(
         delta = df[f"affected{trait_num}"].values.astype(np.float64)
     rng = np.random.default_rng(seed)
 
-    result = {}
+    result: dict[str, dict[str, float | int | None]] = {}
     for ptype in PAIR_TYPES:
         idx1, idx2 = pairs[ptype]
         n_p = len(idx1)
