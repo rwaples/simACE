@@ -132,9 +132,8 @@ def mating(rng: np.random.Generator, parental_sex: np.ndarray, fam_size: float, 
     np.cumsum(family_sizes, out=family_starts[1:])
     within_pos = np.arange(n) - np.repeat(family_starts[:n_families], family_sizes)
 
-    # Eligible to start a twin pair: need at least 2 remaining slots in family
-    offspring_fam_size = np.repeat(family_sizes, family_sizes)
-    eligible = within_pos <= offspring_fam_size - 2
+    # Eligible to start a twin pair: all positions except the very last
+    eligible = np.arange(n) < n - 1
 
     # Roll for twins at eligible positions
     twin_rolls = rng.uniform(size=n) <= p_mztwin
@@ -150,8 +149,9 @@ def mating(rng: np.random.Generator, parental_sex: np.ndarray, fam_size: float, 
 
     if len(potential_starts) > 0:
         twins = np.column_stack([potential_starts, potential_starts + 1])
-        # MZ twins share the same biological father
-        parent_idxs[twins[:, 1], 1] = parent_idxs[twins[:, 0], 1]
+        # MZ twins share both parents and household (partner may cross family boundary)
+        parent_idxs[twins[:, 1]] = parent_idxs[twins[:, 0]]
+        household_ids[twins[:, 1]] = household_ids[twins[:, 0]]
     else:
         twins = np.array([], dtype=int).reshape(0, 2)
 

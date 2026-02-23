@@ -276,19 +276,28 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
         f"All MZ twin pairs have same sex: {same_sex}",
     )
 
-    # Twin rate
+    # Twin rate (count only non-founder twin pairs; founders have twins but no parents in pedigree)
     non_founders = df[df["mother"] != -1]
     if len(non_founders) > 0:
-        observed_rate = n_pairs * 2 / len(non_founders)
-        se_rate = np.sqrt(p_mztwin * (1 - p_mztwin) / len(non_founders))
+        n_nf = len(non_founders)
+        nf_twins = non_founders[non_founders["twin"] != -1]
+        nf_twin_ids = nf_twins["id"].values
+        nf_twin_partners = nf_twins["twin"].values
+        nf_pairs = int(np.sum(nf_twin_ids < nf_twin_partners))
+        # Each generation contributes N offspring; only position N-1 is ineligible
+        n_gens = non_founders["generation"].nunique()
+        eligible_fraction = 1.0 - n_gens / n_nf
+        expected_rate = 2.0 * p_mztwin * eligible_fraction
+        observed_rate = nf_pairs * 2 / n_nf
+        se_rate = np.sqrt(expected_rate * (1 - expected_rate) / n_nf)
         rate_tol = max(4 * se_rate, 0.005)
-        rate_ok = abs(observed_rate - p_mztwin) < rate_tol
+        rate_ok = abs(observed_rate - expected_rate) < rate_tol
         results["twin_rate"] = _result(
             rate_ok,
-            f"Twin rate in non-founders: {observed_rate:.4f} (param: {p_mztwin}, tol: {rate_tol:.4f})",
-            expected_rate=p_mztwin,
+            f"Twin rate in non-founders: {observed_rate:.4f} (expected: {expected_rate:.4f}, tol: {rate_tol:.4f})",
+            expected_rate=expected_rate,
             observed_rate=float(observed_rate),
-            twin_pairs=n_pairs,
+            twin_pairs=nf_pairs,
         )
     else:
         results["twin_rate"] = _result(True, "No non-founders to check twin rate")

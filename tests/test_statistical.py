@@ -132,8 +132,12 @@ class TestMZTwinProperties:
         non_founders = df[df["mother"] != -1]
         twins = non_founders[non_founders["twin"] != -1]
         n_twin_individuals = len(twins)
-        observed_rate = n_twin_individuals / len(non_founders)
-        expected = STAT_PARAMS["p_mztwin"]
+        n_nf = len(non_founders)
+        observed_rate = n_twin_individuals / n_nf
+        p_mztwin = STAT_PARAMS["p_mztwin"]
+        n_gens = non_founders["generation"].nunique()
+        eligible_fraction = 1.0 - n_gens / n_nf
+        expected = 2.0 * p_mztwin * eligible_fraction
         # Generous tolerance for stochastic twin assignment
         assert abs(observed_rate - expected) < 0.02
 

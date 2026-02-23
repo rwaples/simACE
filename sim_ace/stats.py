@@ -279,7 +279,7 @@ def extract_relationship_pairs(df: pd.DataFrame, seed: int = 42) -> dict[str, tu
     # Cap grandparents to limit pair explosion
     unique_gp_arr = np.unique(gp_gp)
     if len(unique_gp_arr) > 100000:
-        logger.warning(
+        logger.info(
             "extract_relationship_pairs: %d grandparents exceed 100K cap, sampling subset",
             len(unique_gp_arr),
         )

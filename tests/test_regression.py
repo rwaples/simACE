@@ -40,39 +40,39 @@ class TestGoldenSeedReproducibility:
             assert (golden_pedigree["generation"] == gen).sum() == 500
 
     def test_sex_sum(self, golden_pedigree):
-        assert golden_pedigree["sex"].sum() == 502
+        assert golden_pedigree["sex"].sum() == 507
 
     def test_twin_count(self, golden_pedigree):
-        assert (golden_pedigree["twin"] != -1).sum() == 16
+        assert (golden_pedigree["twin"] != -1).sum() == 28
 
     def test_A1_sum(self, golden_pedigree):
         assert golden_pedigree["A1"].values.sum() == pytest.approx(
-            4.665457579645139, abs=1e-10
+            -16.620849382638458, abs=1e-10
         )
 
     def test_C1_sum(self, golden_pedigree):
         assert golden_pedigree["C1"].values.sum() == pytest.approx(
-            -0.7544175309886896, abs=1e-10
+            -22.588583966904718, abs=1e-10
         )
 
     def test_E1_sum(self, golden_pedigree):
         assert golden_pedigree["E1"].values.sum() == pytest.approx(
-            16.40091026097675, abs=1e-10
+            13.01105936616101, abs=1e-10
         )
 
     def test_liability1_sum(self, golden_pedigree):
         assert golden_pedigree["liability1"].values.sum() == pytest.approx(
-            20.311950309633204, abs=1e-10
+            -26.198373983382158, abs=1e-10
         )
 
     def test_A2_sum(self, golden_pedigree):
         assert golden_pedigree["A2"].values.sum() == pytest.approx(
-            23.049678479828202, abs=1e-10
+            13.583600440392479, abs=1e-10
         )
 
     def test_liability2_sum(self, golden_pedigree):
         assert golden_pedigree["liability2"].values.sum() == pytest.approx(
-            26.310218211948317, abs=1e-10
+            -10.486373147888656, abs=1e-10
         )
 
     def test_row_0_values(self, golden_pedigree):
@@ -88,7 +88,7 @@ class TestGoldenSeedReproducibility:
 
     def test_row_999_A1(self, golden_pedigree):
         assert golden_pedigree.iloc[999]["A1"] == pytest.approx(
-            0.2906551843340913, abs=1e-14
+            0.5483731218910545, abs=1e-14
         )
 
     def test_A1_first5(self, golden_pedigree):
@@ -105,11 +105,11 @@ class TestGoldenSeedReproducibility:
 
     def test_A1_last5(self, golden_pedigree):
         expected = [
-            1.3671976430106019,
-            -0.9694012428067426,
-            0.05568605810687821,
-            -0.2921934333707687,
-            0.2906551843340913,
+            0.053102412591784054,
+            -1.1623134575111753,
+            0.016029075118654312,
+            0.6025076458945845,
+            0.5483731218910545,
         ]
         np.testing.assert_allclose(
             golden_pedigree["A1"].values[-5:], expected, atol=1e-14
