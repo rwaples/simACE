@@ -28,6 +28,9 @@ __pycache__/
 *.egg-info/
 .eggs/
 
+# Generated PDFs
+*.pdf
+
 # OS
 .DS_Store
 Thumbs.db
