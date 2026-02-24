@@ -36,18 +36,10 @@ rule gather_validation:
 rule plot_validation:
     input:
         tsv="results/{folder}/validation_summary.tsv"
+    params:
+        plot_format=config["defaults"].get("plot_format", "png"),
     output:
-        "results/{folder}/plots/variance_components.png",
-        "results/{folder}/plots/twin_rate.png",
-        "results/{folder}/plots/correlations_A.png",
-        "results/{folder}/plots/correlations_phenotype.png",
-        "results/{folder}/plots/heritability_estimates.png",
-        "results/{folder}/plots/half_sib_proportions.png",
-        "results/{folder}/plots/cross_trait_correlations.png",
-        "results/{folder}/plots/family_size.png",
-        "results/{folder}/plots/summary_bias.png",
-        "results/{folder}/plots/runtime.png",
-        "results/{folder}/plots/memory.png"
+        expand("results/{{folder}}/plots/{plot}", plot=VALIDATION_PLOTS)
     log:
         "logs/{folder}/plot_validation.log"
     benchmark:

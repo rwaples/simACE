@@ -11,9 +11,11 @@ def _run_snakemake():
     sample_paths = snakemake.input.samples
     prevalence1 = snakemake.params.prevalence1
     prevalence2 = snakemake.params.prevalence2
+    plot_format = snakemake.params.plot_format
     output_dir = Path(snakemake.output[0]).parent
 
-    main(stats_paths, sample_paths, output_dir, prevalence1, prevalence2)
+    main(stats_paths, sample_paths, output_dir, prevalence1, prevalence2,
+         plot_ext=plot_format)
 
 
 if __name__ == "__main__":

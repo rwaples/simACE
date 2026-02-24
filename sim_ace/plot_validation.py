@@ -66,7 +66,7 @@ def _fig_width(n_scenarios: int, ncols: int = 1, per_scenario: float = 1.5, min_
     return ncols * max(min_col, n_scenarios * per_scenario)
 
 
-def plot_variance_components(df: pd.DataFrame, out: Path) -> None:
+def plot_variance_components(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     n = df["scenario"].nunique()
     fig, axes = plt.subplots(2, 3, figsize=(_fig_width(n, ncols=3), 10))
     for row, t in enumerate([1, 2]):
@@ -75,19 +75,19 @@ def plot_variance_components(df: pd.DataFrame, out: Path) -> None:
             stripplot(df, ax, f"variance_{comp}{t}", expected=f"{comp}{t}")
             ax.set_title(f"Trait {t}: {comp}{t}")
             ax.set_ylabel("Variance Proportion")
-    save(fig, out / "variance_components.png")
+    save(fig, out / f"variance_components.{ext}")
 
 
-def plot_twin_rate(df: pd.DataFrame, out: Path) -> None:
+def plot_twin_rate(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     n = df["scenario"].nunique()
     fig, ax = plt.subplots(figsize=(_fig_width(n), 5))
     stripplot(df, ax, "observed_twin_rate", expected="p_mztwin")
     ax.set_title("MZ Twin Rate: Observed vs Expected")
     ax.set_ylabel("Twin Rate")
-    save(fig, out / "twin_rate.png")
+    save(fig, out / f"twin_rate.{ext}")
 
 
-def plot_A_correlations(df: pd.DataFrame, out: Path) -> None:
+def plot_A_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     panels = [
         ("mz_twin_A1_corr", 1.0, "MZ Twin A1 Correlation"),
         ("dz_sibling_A1_corr", 0.5, "DZ Sibling A1 Correlation"),
@@ -101,10 +101,10 @@ def plot_A_correlations(df: pd.DataFrame, out: Path) -> None:
         ax.axhline(y=exp, color="C1", linestyle="--", alpha=0.7)
         ax.set_title(title)
         ax.set_ylabel("Correlation")
-    save(fig, out / "correlations_A.png")
+    save(fig, out / f"correlations_A.{ext}")
 
 
-def plot_phenotype_correlations(df: pd.DataFrame, out: Path) -> None:
+def plot_phenotype_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     panels = [
         ("mz_twin_liability1_corr", lambda d: d["A1"].iloc[0] + d["C1"].iloc[0],
          "MZ Twin Liability1 Corr"),
@@ -121,10 +121,10 @@ def plot_phenotype_correlations(df: pd.DataFrame, out: Path) -> None:
         stripplot(df, ax, col, expected_func=efn)
         ax.set_title(title)
         ax.set_ylabel("Correlation")
-    save(fig, out / "correlations_phenotype.png")
+    save(fig, out / f"correlations_phenotype.{ext}")
 
 
-def plot_heritability_estimates(df: pd.DataFrame, out: Path) -> None:
+def plot_heritability_estimates(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     panels = [
         ("falconer_h2_trait1", "A1", "Falconer h² Trait 1", "Heritability"),
         ("parent_offspring_liability1_slope", "A1", "Midparent-Offspring Liability1", "Slope"),
@@ -137,10 +137,10 @@ def plot_heritability_estimates(df: pd.DataFrame, out: Path) -> None:
         stripplot(df, ax, col, expected=exp)
         ax.set_title(title)
         ax.set_ylabel(ylabel)
-    save(fig, out / "heritability_estimates.png")
+    save(fig, out / f"heritability_estimates.{ext}")
 
 
-def plot_half_sib_proportions(df: pd.DataFrame, out: Path) -> None:
+def plot_half_sib_proportions(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     n = df["scenario"].nunique()
     fig, axes = plt.subplots(1, 2, figsize=(_fig_width(n, ncols=2), 5))
     stripplot(df, axes[0], "half_sib_prop_observed", expected="half_sib_prop_expected")
@@ -150,10 +150,10 @@ def plot_half_sib_proportions(df: pd.DataFrame, out: Path) -> None:
     stripplot(df, axes[1], "offspring_with_half_sib_observed")
     axes[1].set_title("Proportion of Offspring with Half-Siblings")
     axes[1].set_ylabel("Proportion")
-    save(fig, out / "half_sib_proportions.png")
+    save(fig, out / f"half_sib_proportions.{ext}")
 
 
-def plot_cross_trait_correlations(df: pd.DataFrame, out: Path) -> None:
+def plot_cross_trait_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     panels = [
         ("observed_rA", "rA", "Cross-Trait rA"),
         ("observed_rC", "rC", "Cross-Trait rC"),
@@ -169,10 +169,10 @@ def plot_cross_trait_correlations(df: pd.DataFrame, out: Path) -> None:
             ax.axhline(y=0, color="C1", linestyle="--", alpha=0.7)
         ax.set_title(title)
         ax.set_ylabel("Correlation")
-    save(fig, out / "cross_trait_correlations.png")
+    save(fig, out / f"cross_trait_correlations.{ext}")
 
 
-def plot_family_size(df: pd.DataFrame, out: Path) -> None:
+def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     n = df["scenario"].nunique()
     fig, ax = plt.subplots(figsize=(_fig_width(n), 5))
     scenarios = df["scenario"].unique()
@@ -213,10 +213,10 @@ def plot_family_size(df: pd.DataFrame, out: Path) -> None:
         Line2D([0], [0], marker="_", color="C1", markersize=12, linewidth=3, label="Parametric Poisson family size"),
     ]
     ax.legend(handles=legend, loc="lower left")
-    save(fig, out / "family_size.png")
+    save(fig, out / f"family_size.{ext}")
 
 
-def plot_summary_bias(df: pd.DataFrame, out: Path) -> None:
+def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     dp = df.copy()
     dp["A1 Bias"] = dp["variance_A1"] - dp["A1"]
     dp["C1 Bias"] = dp["variance_C1"] - dp["C1"]
@@ -240,10 +240,10 @@ def plot_summary_bias(df: pd.DataFrame, out: Path) -> None:
             ax.tick_params(axis="x", rotation=45)
         if n == 1:
             ax.set_xlim(-0.5, 0.5)
-    save(fig, out / "summary_bias.png")
+    save(fig, out / f"summary_bias.{ext}")
 
 
-def plot_runtime(df: pd.DataFrame, out: Path) -> None:
+def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     sub = df.dropna(subset=["simulate_seconds"])
     if sub.empty:
         logger.warning("No simulate_seconds data; skipping runtime plot")
@@ -251,7 +251,7 @@ def plot_runtime(df: pd.DataFrame, out: Path) -> None:
 
     fig, ax = plt.subplots(figsize=(8, 6))
     scenarios = sub["scenario"].unique()
-    palette = sns.color_palette("Set2", len(scenarios))
+    palette = sns.color_palette("colorblind", len(scenarios))
     color_map = dict(zip(scenarios, palette))
 
     for scenario in scenarios:
@@ -273,10 +273,10 @@ def plot_runtime(df: pd.DataFrame, out: Path) -> None:
     ax.set_ylabel("Simulate Time (seconds)")
     ax.set_title("Simulation Runtime vs Population Size")
     ax.legend()
-    save(fig, out / "runtime.png")
+    save(fig, out / f"runtime.{ext}")
 
 
-def plot_memory(df: pd.DataFrame, out: Path) -> None:
+def plot_memory(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     sub = df.dropna(subset=["simulate_max_rss_mb"])
     if sub.empty:
         logger.warning("No simulate_max_rss_mb data; skipping memory plot")
@@ -284,7 +284,7 @@ def plot_memory(df: pd.DataFrame, out: Path) -> None:
 
     fig, ax = plt.subplots(figsize=(8, 6))
     scenarios = sub["scenario"].unique()
-    palette = sns.color_palette("Set2", len(scenarios))
+    palette = sns.color_palette("colorblind", len(scenarios))
     color_map = dict(zip(scenarios, palette))
 
     for scenario in scenarios:
@@ -306,27 +306,27 @@ def plot_memory(df: pd.DataFrame, out: Path) -> None:
     ax.set_ylabel("Peak RSS (MB)")
     ax.set_title("Simulation Memory Usage vs Population Size")
     ax.legend()
-    save(fig, out / "memory.png")
+    save(fig, out / f"memory.{ext}")
 
 
-def main(tsv_path: str, output_dir: str | Path) -> None:
+def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     logger.info("Generating validation plots in %s", out)
-    sns.set_theme(style="whitegrid", palette="Set2")
+    sns.set_theme(style="whitegrid", palette="colorblind")
     df = pd.read_csv(tsv_path, sep="\t")
 
-    plot_variance_components(df, out)
-    plot_twin_rate(df, out)
-    plot_A_correlations(df, out)
-    plot_phenotype_correlations(df, out)
-    plot_heritability_estimates(df, out)
-    plot_half_sib_proportions(df, out)
-    plot_cross_trait_correlations(df, out)
-    plot_family_size(df, out)
-    plot_summary_bias(df, out)
-    plot_runtime(df, out)
-    plot_memory(df, out)
+    plot_variance_components(df, out, ext=plot_ext)
+    plot_twin_rate(df, out, ext=plot_ext)
+    plot_A_correlations(df, out, ext=plot_ext)
+    plot_phenotype_correlations(df, out, ext=plot_ext)
+    plot_heritability_estimates(df, out, ext=plot_ext)
+    plot_half_sib_proportions(df, out, ext=plot_ext)
+    plot_cross_trait_correlations(df, out, ext=plot_ext)
+    plot_family_size(df, out, ext=plot_ext)
+    plot_summary_bias(df, out, ext=plot_ext)
+    plot_runtime(df, out, ext=plot_ext)
+    plot_memory(df, out, ext=plot_ext)
 
 
 def cli() -> None:
@@ -336,8 +336,9 @@ def cli() -> None:
     add_logging_args(parser)
     parser.add_argument("tsv", help="Validation summary TSV path")
     parser.add_argument("output_dir", help="Output directory")
+    parser.add_argument("--plot-format", choices=["png", "pdf"], default="png", help="Output plot format (default: png)")
     args = parser.parse_args()
 
     init_logging(args)
 
-    main(args.tsv, args.output_dir)
+    main(args.tsv, args.output_dir, plot_ext=args.plot_format)

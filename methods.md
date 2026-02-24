@@ -231,3 +231,19 @@ Automated validation checks are performed on each simulated replicate and organi
 ## Implementation
 
 The simulation framework is implemented in Python as an installable package (`sim_ace`) with NumPy for vectorised array operations, SciPy for optimisation and special functions, pandas and PyArrow for data management, and Numba for JIT-compiled numerical kernels. The workflow is managed by Snakemake with per-scenario configuration, per-replicate seed offsets for reproducibility (seed incremented by replicate number), and support for SLURM-based HPC execution. All random number generation uses NumPy's PCG64 generator (`numpy.random.default_rng`) with deterministic seed management across pipeline stages (trait-2 phenotyping uses seed $+ 100$; death censoring uses seed $+ 1000$).
+
+## Limitations
+
+The following simplifying assumptions are inherent to the current framework and should be considered when interpreting simulation results:
+
+**No assortative mating.** Spouses are paired randomly with respect to phenotype and liability. Real populations exhibit phenotypic and genetic assortative mating, which inflates sibling correlations and can bias heritability estimates upward. Extensions incorporating spousal correlation on liability would be needed to model this effect.
+
+**No gene-environment interaction.** Liability is strictly additive ($L = A + C + E$) with no multiplicative or interactive terms. If the true data-generating process involves gene-environment interaction ($G \times E$) or gene-environment correlation ($rGE$), the ACE decomposition will absorb these effects into the additive components, potentially biasing variance estimates.
+
+**No cross-trait unique-environment correlation ($r_E = 0$).** Unique-environment components $E_1$ and $E_2$ are drawn independently across traits. This precludes modelling trait pairs where individual-specific environmental exposures (e.g., shared lifestyle factors) induce correlation beyond what is captured by $A$ and $C$.
+
+**No environmental transmission across generations.** The common-environment component $C$ is drawn freshly per household each generation with no autoregressive transmission from parental $C$ values. This is the standard ACE assumption but does not capture intergenerational persistence of socioeconomic status, neighbourhood effects, or cultural transmission that may inflate parent-offspring resemblance in real populations.
+
+**Fixed population size.** Each generation contains exactly $N$ individuals with no population growth, decline, bottlenecks, or migration. Demographic dynamics that alter effective population size or introduce population stratification are not modelled.
+
+**Tetrachoric correlation bias under censoring.** When affection status is derived from the Weibull frailty model with age-window and death censoring, the observed prevalence may differ from the uncensored prevalence. Tetrachoric correlations estimated from censored binary outcomes are attenuated relative to the true underlying liability correlation. The pairwise Weibull survival correlation method, which explicitly accounts for censoring in the likelihood, is preferred for validation of censored phenotypes.

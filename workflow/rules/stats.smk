@@ -43,6 +43,7 @@ rule plot_weibull:
     params:
         censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
         gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
+        plot_format=config["defaults"].get("plot_format", "png"),
     output:
         expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS)
     log:
@@ -94,6 +95,7 @@ rule plot_threshold:
     params:
         prevalence1=lambda w: get_param(config, w.scenario, "prevalence1"),
         prevalence2=lambda w: get_param(config, w.scenario, "prevalence2"),
+        plot_format=config["defaults"].get("plot_format", "png"),
     output:
         expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=THRESHOLD_PLOTS)
     log:

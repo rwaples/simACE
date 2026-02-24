@@ -24,33 +24,54 @@ def get_all_folders(config):
     return sorted(set(get_folder(config, s) for s in config["scenarios"]))
 
 
-PHENOTYPE_PLOTS = [
-    "mortality.png",
-    "age_at_onset_death.png",
-    "liability_vs_aoo.png",
-    "cross_trait.png",
-    "cross_trait.weibull.png",
-    "liability_violin.weibull.png",
-    "liability_violin.weibull.by_generation.png",
-    "cumulative_incidence.weibull.png",
-    "censoring.png",
-    "joint_affected.weibull.png",
-    "tetrachoric.weibull.png",
-    "tetrachoric.weibull.by_generation.png",
-    "parent_offspring_liability.by_generation.png",
+# -- Plot filename basenames (without extension) --
+
+_PHENOTYPE_BASENAMES = [
+    "mortality",
+    "age_at_onset_death",
+    "liability_vs_aoo",
+    "cross_trait",
+    "cross_trait.weibull",
+    "liability_violin.weibull",
+    "liability_violin.weibull.by_generation",
+    "cumulative_incidence.weibull",
+    "censoring",
+    "joint_affected.weibull",
+    "tetrachoric.weibull",
+    "tetrachoric.weibull.by_generation",
+    "parent_offspring_liability.by_generation",
 ]
 
-THRESHOLD_PLOTS = [
-    "prevalence_by_generation.png",
-    "liability_violin.threshold.png",
-    "liability_violin.threshold.by_generation.png",
-    "tetrachoric.threshold.png",
-    "joint_affected.threshold.png",
-    "cross_trait.threshold.png",
+_THRESHOLD_BASENAMES = [
+    "prevalence_by_generation",
+    "liability_violin.threshold",
+    "liability_violin.threshold.by_generation",
+    "tetrachoric.threshold",
+    "joint_affected.threshold",
+    "cross_trait.threshold",
+]
+
+_VALIDATION_BASENAMES = [
+    "variance_components",
+    "twin_rate",
+    "correlations_A",
+    "correlations_phenotype",
+    "heritability_estimates",
+    "half_sib_proportions",
+    "cross_trait_correlations",
+    "family_size",
+    "summary_bias",
+    "runtime",
+    "memory",
 ]
 
 
-def get_scenario_sim_outputs(config, scenario):
+def plot_filenames(basenames, ext="png"):
+    """Return plot filenames by appending the given extension to each basename."""
+    return [f"{name}.{ext}" for name in basenames]
+
+
+def get_scenario_sim_outputs(config, scenario, plot_ext="png"):
     """Generate simulation, validation, and plot outputs for a single scenario."""
     folder = get_folder(config, scenario)
     n_reps = get_param(config, scenario, "replicates")
@@ -62,9 +83,9 @@ def get_scenario_sim_outputs(config, scenario):
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml")
-    for plot in PHENOTYPE_PLOTS:
+    for plot in plot_filenames(_PHENOTYPE_BASENAMES, plot_ext):
         outputs.append(f"results/{folder}/{scenario}/plots/{plot}")
-    for plot in THRESHOLD_PLOTS:
+    for plot in plot_filenames(_THRESHOLD_BASENAMES, plot_ext):
         outputs.append(f"results/{folder}/{scenario}/plots/{plot}")
     return outputs
 
@@ -77,5 +98,3 @@ def get_folder_validations(config, folder):
         for rep in range(1, n_reps + 1):
             validations.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
     return validations
-
-

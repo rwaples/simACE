@@ -56,6 +56,9 @@ defaults:
   prevalence1: 0.10          # Trait 1: top X% of liability per generation are affected
   prevalence2: 0.10          # Trait 2: top X% of liability per generation are affected
 
+  # Plot output
+  plot_format: png            # Plot file format: png or pdf
+
 
 scenarios:
 

@@ -25,7 +25,7 @@ rule validate_all:
     input:
         [f"results/{folder}/validation_summary.tsv"
          for folder in get_all_folders(config)],
-        [f"results/{folder}/plots/variance_components.png"
+        [f"results/{folder}/plots/{VALIDATION_PLOTS[0]}"
          for folder in get_all_folders(config)]
 
 
@@ -49,10 +49,8 @@ rule folder:
 rule scenario:
     """Build all sim/validation/plot outputs for a single scenario."""
     input:
-        lambda w: get_scenario_sim_outputs(config, w.scenario),
+        lambda w: get_scenario_sim_outputs(config, w.scenario, plot_ext=PLOT_EXT),
         lambda w: f"results/{get_folder(config, w.scenario)}/validation_summary.tsv",
-        lambda w: f"results/{get_folder(config, w.scenario)}/plots/variance_components.png",
+        lambda w: f"results/{get_folder(config, w.scenario)}/plots/{VALIDATION_PLOTS[0]}",
     output:
         touch("results/{folder}/{scenario}/scenario.done")
-
-

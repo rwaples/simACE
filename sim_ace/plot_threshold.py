@@ -465,13 +465,14 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
     plt.close()
 
 
-def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, prevalence1: float | dict[int, float], prevalence2: float | dict[int, float]) -> None:
+def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, prevalence1: float | dict[int, float], prevalence2: float | dict[int, float], plot_ext: str = "png") -> None:
     """Generate all threshold phenotype plots from pre-computed stats."""
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     scenario = out_dir.parent.name
-    sns.set_theme(style="whitegrid")
+    sns.set_theme(style="whitegrid", palette="colorblind")
+    ext = plot_ext
 
     # Load per-rep stats
     all_stats = []
@@ -492,25 +493,25 @@ def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, preva
 
     plot_prevalence_by_generation(
         all_stats, prevalence1, prevalence2,
-        out_dir / "prevalence_by_generation.png", scenario,
+        out_dir / f"prevalence_by_generation.{ext}", scenario,
     )
     plot_liability_violin(
         df_samples, all_stats,
-        out_dir / "liability_violin.threshold.png", scenario,
+        out_dir / f"liability_violin.threshold.{ext}", scenario,
     )
     plot_liability_violin_by_generation(
         df_samples, all_stats, prevalence1, prevalence2,
-        out_dir / "liability_violin.threshold.by_generation.png", scenario,
+        out_dir / f"liability_violin.threshold.by_generation.{ext}", scenario,
     )
     plot_joint_affection(
-        all_stats, df_samples, out_dir / "joint_affected.threshold.png", scenario,
+        all_stats, df_samples, out_dir / f"joint_affected.threshold.{ext}", scenario,
     )
     plot_liability_joint(
-        df_samples, out_dir / "cross_trait.threshold.png", scenario,
+        df_samples, out_dir / f"cross_trait.threshold.{ext}", scenario,
     )
 
     plot_tetrachoric(
-        all_stats, out_dir / "tetrachoric.threshold.png", scenario,
+        all_stats, out_dir / f"tetrachoric.threshold.{ext}", scenario,
     )
 
     logger.info("Threshold plots saved to %s", out_dir)
@@ -531,6 +532,7 @@ def cli() -> None:
                         help='Per-gen prevalence for trait 1 as JSON, e.g. \'{"0":0.05,"1":0.10}\'')
     parser.add_argument("--prevalence2-by-gen", type=str, default=None,
                         help='Per-gen prevalence for trait 2 as JSON, e.g. \'{"0":0.05,"1":0.10}\'')
+    parser.add_argument("--plot-format", choices=["png", "pdf"], default="png", help="Output plot format (default: png)")
     args = parser.parse_args()
 
     init_logging(args)
@@ -545,4 +547,4 @@ def cli() -> None:
     p1 = _resolve(args.prevalence1, args.prevalence1_by_gen)
     p2 = _resolve(args.prevalence2, args.prevalence2_by_gen)
 
-    main(args.stats, args.samples, args.output_dir, p1, p2)
+    main(args.stats, args.samples, args.output_dir, p1, p2, plot_ext=args.plot_format)
