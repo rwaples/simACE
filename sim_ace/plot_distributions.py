@@ -147,7 +147,7 @@ def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, An
         ax_marg_x = fig.add_subplot(inner[0, 0], sharex=ax_joint)
         ax_marg_y = fig.add_subplot(inner[1, 1], sharey=ax_joint)
 
-        ax_joint.scatter(x, y, alpha=0.05, s=3, rasterized=True)
+        ax_joint.scatter(x, y, alpha=0.15, s=3, rasterized=True)
         x_line = np.array([x.min(), x.max()])
         ax_joint.plot(
             x_line, mean_slope * x_line + mean_intercept,
@@ -272,7 +272,22 @@ def plot_censoring_windows(
     ages = np.array(stats_with_censoring[0]["censoring"]["censoring_ages"])
 
     # Discover generation keys from the stats YAML (e.g. "gen0", "gen1", ...)
-    gen_keys = sorted(stats_with_censoring[0]["censoring"]["generations"].keys())
+    # Only include generations that have phenotyped individuals in any replicate
+    all_gen_keys = sorted(stats_with_censoring[0]["censoring"]["generations"].keys())
+    gen_keys = [
+        gk for gk in all_gen_keys
+        if any(
+            s["censoring"]["generations"].get(gk, {}).get("n", 0) > 0
+            for s in stats_with_censoring
+        )
+    ]
+    if not gen_keys:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No phenotyped generations", ha="center", va="center",
+                transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
     if gen_censoring is None:
         gen_censoring = {}
 

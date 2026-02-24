@@ -29,7 +29,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
     "cross_trait.weibull": (
         "Figure 2: Cross-trait liability joint plots coloured by affected status.\n\n"
         "Same 2\u00d72 layout as Figure 1, but with affected-status colouring based on trait 1. "
-        "Blue points = unaffected, red points = affected (trait 1). Marginal histograms stacked "
+        "Blue points = unaffected, orange points = affected (trait 1). Marginal histograms stacked "
         "by affected status."
     ),
     "liability_violin.weibull": (
@@ -96,15 +96,14 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "with 95% CI error bars; blue line = mean across replicates. "
         "Green dash-dot line = uncensored oracle (ground truth from raw event times). "
         "Orange dashed line = inverse-variance weighted mean across generations "
-        "(stratified estimate). Red dotted line = naive pooled estimate (biased). "
+        "(stratified estimate). Dark orange dotted line = naive pooled estimate (biased). "
         "Generations with very low event rates may hit the boundary and be excluded."
     ),
     "tetrachoric.weibull": (
         "Figure 12: Tetrachoric correlations by relationship type (Weibull).\n\n"
         "Two-panel figure, one per trait. Coloured violins show the distribution of "
         "tetrachoric correlations (computed from censored binary affected status) across "
-        "replicates for each relationship type (MZ twin, full sib, mother-offspring, "
-        "father-offspring, maternal half-sib, paternal half-sib, 1st cousin). "
+        "replicates for each relationship type. "
         "Black dots = individual per-replicate tetrachoric estimates. "
         "Black dashed lines = mean Pearson liability correlation (ground-truth correlation "
         "on the continuous latent liability, serving as the theoretical reference). "
@@ -131,7 +130,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "1\u00d72 figure, one panel per trait. Narrow-sense heritability "
         "h\u00b2 = Var(A) / (Var(A) + Var(C) + Var(E)) is computed from the "
         "per-generation variance components for each replicate. Blue dots show "
-        "per-replicate h\u00b2 estimates; blue line connects generation means. "
+        "per-replicate h\u00b2 estimates. "
         "Orange dashed line marks the parametric heritability (A parameter). "
         "Stable h\u00b2 across generations confirms that the ACE variance "
         "decomposition is maintained through the simulation."
@@ -141,7 +140,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "1\u00d72 figure, one panel per trait. Broad-sense heritability "
         "H\u00b2 = (Var(A) + Var(C)) / (Var(A) + Var(C) + Var(E)) is computed from "
         "the per-generation variance components for each replicate. Blue dots show "
-        "per-replicate H\u00b2 estimates; blue line connects generation means. "
+        "per-replicate H\u00b2 estimates. "
         "Orange dashed line marks the parametric value (A + C). "
         "Comparing H\u00b2 with the narrow-sense h\u00b2 (Figure 15) isolates the "
         "contribution of shared environment to familial resemblance."
@@ -190,7 +189,7 @@ THRESHOLD_CAPTIONS: dict[str, str] = {
 VALIDATION_CAPTIONS: dict[str, str] = {
     "family_size": (
         "Figure 1: Family size.\n\n"
-        "Mean offspring per mother (blue, left-offset) and per father (red, right-offset) "
+        "Mean offspring per mother (blue, left-offset) and per father (orange, right-offset) "
         "among parents with \u22651 child. Orange dashes mark configured Poisson \u03bb "
         "(fam_size)."
     ),
@@ -418,7 +417,15 @@ def assemble_atlas(
 
             # Use landscape letter page; reserve bottom for caption
             page_w, page_h = 11, 8.5
-            caption_frac = 0.18 if caption else 0.0
+            # Scale caption space by text length so long captions don't overflow
+            if not caption:
+                caption_frac = 0.0
+            elif len(caption) < 300:
+                caption_frac = 0.18
+            elif len(caption) < 500:
+                caption_frac = 0.25
+            else:
+                caption_frac = 0.32
             img_frac = 1.0 - caption_frac
 
             fig = plt.figure(figsize=(page_w, page_h))
@@ -432,7 +439,7 @@ def assemble_atlas(
             if title:
                 fig.text(
                     0.04, caption_frac - 0.02, title,
-                    fontsize=10, fontweight="bold", fontfamily="serif",
+                    fontsize=14, fontweight="bold", fontfamily="serif",
                     verticalalignment="top",
                     transform=fig.transFigure,
                 )
@@ -440,7 +447,7 @@ def assemble_atlas(
                 body += f"  [{rel}]"
                 fig.text(
                     0.04, caption_frac - 0.05, body,
-                    fontsize=9, fontfamily="serif",
+                    fontsize=12, fontfamily="serif",
                     verticalalignment="top",
                     wrap=True,
                     transform=fig.transFigure,

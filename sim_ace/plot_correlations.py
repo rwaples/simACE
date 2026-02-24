@@ -51,6 +51,9 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
                 order=pair_types, palette=pair_colors, legend=False,
                 inner=None, cut=0, alpha=0.7, zorder=3,
             )
+            # Remove any auto-generated seaborn legend
+            if ax.get_legend() is not None:
+                ax.get_legend().remove()
 
             # Overlay per-rep dots
             for i, ptype in enumerate(pair_types):
@@ -62,15 +65,25 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
                         alpha=0.9, zorder=5,
                     )
 
-            # Annotate mean N pairs per rep
+            # Collect liability + Weibull reference values for annotation placement
+            liab_ref = {}
+            for i, ptype in enumerate(pair_types):
+                liab_vals = [
+                    s.get("liability_correlations", {}).get(key, {}).get(ptype)
+                    for s in all_stats
+                ]
+                liab_vals = [v for v in liab_vals if v is not None]
+                liab_ref[ptype] = np.mean(liab_vals) if liab_vals else -np.inf
+
+            # Annotate mean N pairs per rep (above dots AND reference lines)
             n_reps = len(all_stats)
             for i, ptype in enumerate(pair_types):
                 rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
                 if len(rep_vals):
-                    top = rep_vals.max()
+                    top = max(rep_vals.max(), liab_ref[ptype])
                     ax.text(
-                        i, top + 0.03,
-                        f"N={total_pairs[ptype] // n_reps}", ha="center", va="bottom", fontsize=8,
+                        i, top + 0.04,
+                        f"n={total_pairs[ptype] // n_reps:,}", ha="center", va="bottom", fontsize=7,
                     )
 
         # Liability correlation lines (averaged across reps)
@@ -105,6 +118,7 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
 
         ax.set_xticks(range(len(pair_types)))
         ax.set_xticklabels(pair_types, fontsize=9, rotation=15, ha="right")
+        ax.set_xlabel("")
         ax.set_ylabel("Tetrachoric Correlation")
         ax.set_title(f"Trait {trait_num}")
         ax.set_ylim(-0.1, 1.1)
@@ -207,6 +221,9 @@ def plot_tetrachoric_by_generation(
                     order=pair_types, palette=pair_colors, legend=False,
                     inner=None, cut=0, alpha=0.7, zorder=3,
                 )
+                # Remove any auto-generated seaborn legend
+                if ax.get_legend() is not None:
+                    ax.get_legend().remove()
 
                 # Overlay per-rep dots
                 for i, ptype in enumerate(pair_types):
@@ -218,15 +235,18 @@ def plot_tetrachoric_by_generation(
                             alpha=0.9, zorder=5,
                         )
 
-                # Annotate mean N pairs per rep
+                # Annotate mean N pairs per rep (above dots AND liability line)
                 n_reps = len(all_stats)
                 for i, ptype in enumerate(pair_types):
                     rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
                     if len(rep_vals):
                         top = rep_vals.max()
+                        # Also consider the liability reference line
+                        liab_val = mean_liab_rs[i] if not np.isnan(mean_liab_rs[i]) else -np.inf
+                        top = max(top, liab_val)
                         ax.text(
-                            i, top + 0.03,
-                            f"N={total_pairs[ptype] // n_reps}", ha="center", va="bottom", fontsize=7,
+                            i, top + 0.04,
+                            f"n={total_pairs[ptype] // n_reps:,}", ha="center", va="bottom", fontsize=6,
                         )
 
             # Liability correlation reference lines (dashed)
@@ -239,6 +259,7 @@ def plot_tetrachoric_by_generation(
 
             ax.set_xticks(range(len(pair_types)))
             ax.set_xticklabels(pair_types, fontsize=7, rotation=30, ha="right")
+            ax.set_xlabel("")
             ax.set_ylim(-0.1, 1.1)
 
             if row == 0:
@@ -249,10 +270,10 @@ def plot_tetrachoric_by_generation(
                 ax.set_ylabel(f"Trait {trait_num}\nTetrachoric Correlation")
 
     from matplotlib.lines import Line2D
-    legend_elements = [
-        Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r"),
-    ]
-    axes[0, -1].legend(handles=legend_elements, loc="upper right", fontsize=8)
+    axes[0, -1].legend(
+        handles=[Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r")],
+        loc="upper right", fontsize=8,
+    )
 
     fig.suptitle(
         f"Tetrachoric Correlation by Generation (Weibull) [{scenario}]", fontsize=14
@@ -424,10 +445,6 @@ def plot_heritability_by_generation(
                 color="C0", alpha=0.9, s=25, zorder=5,
             )
 
-        # Plot mean line
-        mean_h2 = np.nanmean(h2_arr, axis=0)
-        ax.plot(generations, mean_h2, color="C0", linewidth=2, marker="o", markersize=6, zorder=6)
-
         # Expected heritability reference line
         exp = expected_h2.get(trait_num)
         if exp is not None:
@@ -501,9 +518,6 @@ def plot_broad_heritability_by_generation(
                 np.array(generations) + jitter, H2_arr[rep_idx],
                 color="C0", alpha=0.9, s=25, zorder=5,
             )
-
-        mean_H2 = np.nanmean(H2_arr, axis=0)
-        ax.plot(generations, mean_H2, color="C0", linewidth=2, marker="o", markersize=6, zorder=6)
 
         exp = expected_H2.get(trait_num)
         if exp is not None:

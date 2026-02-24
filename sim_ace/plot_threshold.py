@@ -55,7 +55,7 @@ def plot_prevalence_by_generation(all_stats: list[dict[str, Any]], prevalence1: 
             jitter = np.random.default_rng(42).uniform(-0.08, 0.08, n_gens)
             ax.scatter(
                 x + offset + jitter, rep_prev, color="black",
-                s=12, alpha=0.3, zorder=5,
+                s=12, alpha=0.6, zorder=5,
             )
 
         # Expected prevalence reference
@@ -273,29 +273,39 @@ def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, s
             sns.violinplot(
                 data=df_plot, x="pair_type", y="r", hue="pair_type", ax=ax,
                 order=pair_types, palette=pair_colors, legend=False,
-                inner=None, cut=0, alpha=0.6, zorder=3,
+                inner=None, cut=0, alpha=0.7, zorder=3,
             )
+            # Remove any auto-generated seaborn legend
+            if ax.get_legend() is not None:
+                ax.get_legend().remove()
 
             # Per-rep dots
-            x = np.arange(len(pair_types))
             for i, ptype in enumerate(pair_types):
                 rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
                 if len(rep_vals):
                     jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
                     ax.scatter(
                         i + jitter, rep_vals, color="black", s=15,
-                        alpha=0.6, zorder=5,
+                        alpha=0.9, zorder=5,
                     )
 
-            # N annotation
+            # N annotation (above dots AND liability lines)
+            liab_ref = {}
+            for i, ptype in enumerate(pair_types):
+                liab_vals = [
+                    s.get("liability_correlations", {}).get(key, {}).get(ptype)
+                    for s in all_stats
+                ]
+                liab_vals = [v for v in liab_vals if v is not None]
+                liab_ref[ptype] = np.mean(liab_vals) if liab_vals else -np.inf
             n_reps = len(all_stats)
             for i, ptype in enumerate(pair_types):
                 rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
                 if len(rep_vals):
-                    top = rep_vals.max()
+                    top = max(rep_vals.max(), liab_ref[ptype])
                     ax.text(
-                        i, top + 0.03,
-                        f"N={total_pairs[ptype] // n_reps}", ha="center", va="bottom", fontsize=8,
+                        i, top + 0.04,
+                        f"n={total_pairs[ptype] // n_reps:,}", ha="center", va="bottom", fontsize=7,
                     )
 
         # Liability correlation lines (averaged across reps)
@@ -314,19 +324,16 @@ def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, s
 
         ax.set_xticks(range(len(pair_types)))
         ax.set_xticklabels(pair_types, fontsize=9, rotation=15, ha="right")
+        ax.set_xlabel("")
         ax.set_ylabel("Tetrachoric Correlation")
         ax.set_title(f"Trait {trait_num}")
         ax.set_ylim(-0.1, 1.1)
 
-        from matplotlib.patches import Patch
         from matplotlib.lines import Line2D
-        legend_elements = [
-            Patch(facecolor="C7", alpha=0.6, label="Tetrachoric r (violin)"),
-            Line2D([0], [0], marker="o", color="w", markerfacecolor="black",
-                   markersize=6, alpha=0.6, label="Per-replicate r"),
-            Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r"),
-        ]
-        ax.legend(handles=legend_elements, loc="upper right", fontsize=9)
+        ax.legend(
+            handles=[Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r")],
+            loc="upper right", fontsize=9,
+        )
 
     fig.suptitle(
         f"Tetrachoric Correlation (Liability Threshold) [{scenario}]", fontsize=14
@@ -421,8 +428,8 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
 
         # Plot unaffected first, then affected on top
         for mask, color, alpha, label in [
-            (~affected, "C0", 0.03, "Unaffected"),
-            (affected, "C3", 0.15, "Affected (T1)"),
+            (~affected, "C0", 0.2, "Unaffected"),
+            (affected, "C3", 0.5, "Affected (T1)"),
         ]:
             ax_joint.scatter(
                 x[mask], y[mask], c=color, alpha=alpha, s=3, rasterized=True, label=label,

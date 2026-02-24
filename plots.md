@@ -26,7 +26,7 @@ Two-panel figure (14 $\times$ 5 in).
 A $2 \times 2$ grid (14 $\times$ 10 in), rows = traits 1 and 2.
 
 **Left column — Affected individuals.**
-- **Histogram**: Density histogram (50 bins) of observed time-to-event (`t_observed`) for individuals with $\delta = 1$. Red fill (`C3`), black edges.
+- **Histogram**: Density histogram (50 bins) of observed time-to-event (`t_observed`) for individuals with $\delta = 1$. Orange fill (`C3`), black edges.
 - **Title**: "Trait $k$: Age at Onset (affected)".
 
 **Right column — Death-censored unaffected.**
@@ -38,7 +38,7 @@ A $2 \times 2$ grid (14 $\times$ 10 in), rows = traits 1 and 2.
 Side-by-side joint plots (16 $\times$ 7 in), one per trait. Each joint plot has:
 
 - **Central scatter**: Liability ($x$) vs. observed age-at-onset ($y$) for affected individuals. Translucent blue points ($\alpha = 0.05$, size 3, rasterised).
-- **Regression line**: Red (`C3`) line from pre-computed slope and intercept, averaged across replicates.
+- **Regression line**: Orange (`C3`) line from pre-computed slope and intercept, averaged across replicates.
 - **$R^2$ annotation**: Upper-left corner, "R$^2$ = X.XXXX".
 - **Marginal histograms**: Top (liability) and right (age-at-onset), 50 bins, no edges.
 - **Panel title**: "Trait $k$".
@@ -49,7 +49,7 @@ Two-panel figure (14 $\times$ 5 in), shared $y$-axis, one panel per trait.
 
 - **Blue solid line** ("Observed"): Mean cumulative incidence from censored data across replicates, with shaded min-max band when $>1$ replicate.
 - **Grey solid line** ("True"): Mean cumulative incidence from uncensored event times, with shaded band.
-- **Grey dashed crosshairs**: Horizontal line at half the observed lifetime prevalence; vertical line at the age when 50% of lifetime cases have occurred. A red dot marks the intersection.
+- **Grey dashed crosshairs**: Horizontal line at half the observed lifetime prevalence; vertical line at the age when 50% of lifetime cases have occurred. An orange dot (`C3`) marks the intersection.
 - **Arrow annotation**: "50% of cases by age $X$" pointing to the crosshair intersection.
 - **Text box** (upper-left, white background): "Affected: $X.X$%", "True prev: $X.X$%", "Censored: $X.X$%".
 - **Legend**: Lower-right, showing "True" (grey) and "Observed" (blue) line styles.
@@ -85,9 +85,9 @@ $2 \times 2$ grid of joint plots (14 $\times$ 12 in). Panels: Liability, $A$ (Ad
 Same $2 \times 2$ layout as 2.1, but with affection-status colouring based on trait 1:
 
 - **Blue points** ($\alpha = 0.03$): Unaffected individuals.
-- **Red points** ($\alpha = 0.15$, `C3`): Affected individuals (trait 1).
-- **Marginal histograms**: Stacked blue (unaffected) and red (affected).
-- **Figure legend** (upper-right): Circle markers labelled "Unaffected" (blue) and "Affected (T1)" (red).
+- **Orange points** ($\alpha = 0.15$, `C3`): Affected individuals (trait 1).
+- **Marginal histograms**: Stacked blue (unaffected) and orange (affected).
+- **Figure legend** (upper-right): Circle markers labelled "Unaffected" (blue) and "Affected (T1)" (orange).
 - **Pearson $r$ annotation**: Same as 2.1.
 
 ### 2.3 Liability violin plots by affection status (`liability_violin.png`)
@@ -133,7 +133,7 @@ Source: `sim_ace/plot_correlations.py`. Generated for Weibull frailty phenotypes
 
 Two-panel figure (16 $\times$ 6 in), one per trait. $y$-axis range: $[-0.1, 1.1]$.
 
-- **Coloured violins**: Distribution of tetrachoric correlations (computed from censored binary affected status) across replicates, one per relationship type (MZ twin, Full sib, Mother-offspring, Father-offspring, Maternal half sib, Paternal half sib, 1st cousin). These represent the correlations estimable from observed data after censoring.
+- **Coloured violins**: Distribution of tetrachoric correlations (computed from censored binary affected status) across replicates, one per relationship type (as labelled on the x-axis). These represent the correlations estimable from observed data after censoring.
 - **Black dots**: Individual per-replicate tetrachoric correlation estimates, jittered horizontally ($\pm 0.08$).
 - **Black dashed horizontal segments**: Mean Pearson liability correlation for each pair type (averaged across replicates). This is the ground-truth correlation computed directly on the continuous latent liability values, serving as the theoretical reference.
 - **Green dash-dot horizontal segments** (when available): Mean uncensored Weibull pairwise survival-time correlation. This shows what the correlation would be without censoring distortion.
@@ -156,7 +156,7 @@ Grid: rows = traits ($\times 2$), columns = generations. Size $5N \times 10$ in.
 Grid: rows = traits ($\times 2$), columns = last 3 non-founder generations. Size $5N \times 8$ in.
 
 - **Scatter**: Midparent liability ($x$) vs. offspring liability ($y$). Blue points ($\alpha = 0.15$, size 3, rasterised).
-- **Red regression line** (`C3`): Least-squares fit through the scatter, linewidth 2.
+- **Orange regression line** (`C3`): Least-squares fit through the scatter, linewidth 2.
 - **Text box** (upper-left, white background): "r = X.XXX" (Pearson correlation, averaged across replicates) and "n = XXXXX" (mean pair count).
 - **Column titles**: "Gen $g$".
 - **Row labels**: "Trait $k$ / Offspring Liability" ($y$-axis), "Midparent Liability" ($x$-axis, bottom row only).
@@ -166,7 +166,6 @@ Grid: rows = traits ($\times 2$), columns = last 3 non-founder generations. Size
 $1 \times 2$ figure (10 $\times$ 5 in), one panel per trait.
 
 - **Blue dots**: Per-replicate $h^2 = \text{Var}(A) / (\text{Var}(A) + \text{Var}(C) + \text{Var}(E))$ for each generation, computed from per-generation variance components in `validation.yaml`.
-- **Blue line**: Mean $h^2$ across replicates, connecting generation means.
 - **Orange dashed line**: Configured heritability ($A_k$ parameter), the expected $h^2$.
 - **$y$-axis**: $[0, 1]$, labelled $h^2 = \text{Var}(A) / \text{Var}(L)$.
 - **$x$-axis**: Generation number.
@@ -179,7 +178,6 @@ Source: `sim_ace/plot_correlations.py`. Data from `validation.yaml` → `per_gen
 $1 \times 2$ figure (10 $\times$ 5 in), one panel per trait.
 
 - **Blue dots**: Per-replicate $H^2 = (\text{Var}(A) + \text{Var}(C)) / (\text{Var}(A) + \text{Var}(C) + \text{Var}(E))$ for each generation.
-- **Blue line**: Mean $H^2$ across replicates.
 - **Orange dashed line**: Parametric value ($A_k + C_k$).
 - **$y$-axis**: $[0, 1]$, labelled $H^2 = (\text{Var}(A)+\text{Var}(C)) / \text{Var}(L)$.
 - **$x$-axis**: Generation number.
@@ -296,9 +294,9 @@ $1 \times 3$ figure.
 Single panel (width scales, height 5 in).
 
 - **Blue dots** (left-offset): Mean offspring per mother (among mothers with $\geq 1$ child).
-- **Red dots** (`C3`, right-offset): Mean offspring per father (among fathers with $\geq 1$ child).
+- **Orange dots** (`C3`, right-offset): Mean offspring per father (among fathers with $\geq 1$ child).
 - **Orange dashes** (centred): Configured Poisson $\lambda$ (`fam_size`).
-- **Legend**: "Mother" (blue circle), "Father" (red circle), "Parametric Poisson family size" (orange dash).
+- **Legend**: "Mother" (blue circle), "Father" (orange circle), "Parametric Poisson family size" (orange dash).
 
 ### 5.9 Summary bias (`summary_bias.png`)
 
