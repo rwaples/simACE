@@ -1,7 +1,7 @@
 """Correlation-related phenotype plots.
 
 Contains: plot_tetrachoric_sibling, plot_tetrachoric_by_generation,
-plot_parent_offspring_liability.
+plot_parent_offspring_liability, plot_heritability_by_generation.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
             sns.violinplot(
                 data=df_plot, x="pair_type", y="r", hue="pair_type", ax=ax,
                 order=pair_types, palette=pair_colors, legend=False,
-                inner=None, cut=0, alpha=0.6, zorder=3,
+                inner=None, cut=0, alpha=0.7, zorder=3,
             )
 
             # Overlay per-rep dots
@@ -59,7 +59,7 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
                     jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
                     ax.scatter(
                         i + jitter, rep_vals, color="black", s=15,
-                        alpha=0.6, zorder=5,
+                        alpha=0.9, zorder=5,
                     )
 
             # Annotate mean N pairs per rep
@@ -205,7 +205,7 @@ def plot_tetrachoric_by_generation(
                 sns.violinplot(
                     data=df_plot, x="pair_type", y="r", hue="pair_type", ax=ax,
                     order=pair_types, palette=pair_colors, legend=False,
-                    inner=None, cut=0, alpha=0.6, zorder=3,
+                    inner=None, cut=0, alpha=0.7, zorder=3,
                 )
 
                 # Overlay per-rep dots
@@ -215,7 +215,7 @@ def plot_tetrachoric_by_generation(
                         jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
                         ax.scatter(
                             i + jitter, rep_vals, color="black", s=12,
-                            alpha=0.6, zorder=5,
+                            alpha=0.9, zorder=5,
                         )
 
                 # Annotate mean N pairs per rep
@@ -322,7 +322,7 @@ def plot_parent_offspring_liability(
             offspring_liab = liability[gen_idx[valid]]
             midparent_liab = (liability[m_rows[valid]] + liability[f_rows[valid]]) / 2.0
 
-            ax.scatter(midparent_liab, offspring_liab, alpha=0.15, s=3, rasterized=True)
+            ax.scatter(midparent_liab, offspring_liab, alpha=0.3, s=3, rasterized=True)
 
             # Regression line
             reg = linregress(midparent_liab, offspring_liab)
@@ -361,6 +361,260 @@ def plot_parent_offspring_liability(
                 ax.set_xlabel("Midparent Liability")
 
     fig.suptitle(f"Parent-Offspring Liability Correlation [{scenario}]", fontsize=14)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def plot_heritability_by_generation(
+    all_validations: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+) -> None:
+    """Plot narrow-sense heritability h² = Var(A)/(Var(A)+Var(C)+Var(E)) per generation.
+
+    Uses per-generation variance components from validation.yaml.
+    """
+    # Extract per-generation data from each replicate
+    per_gen_all = [v.get("per_generation", {}) for v in all_validations]
+    if not per_gen_all or not per_gen_all[0]:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No per-generation data", ha="center", va="center",
+                transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    # Determine generations from first replicate
+    gen_keys = sorted(per_gen_all[0].keys(), key=lambda k: int(k.split("_")[1]))
+    generations = [int(k.split("_")[1]) for k in gen_keys]
+
+    # Get configured heritability (expected value) from first replicate's parameters
+    params = all_validations[0].get("parameters", {})
+    expected_h2 = {1: params.get("A1", None), 2: params.get("A2", None)}
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+
+    for col, trait_num in enumerate([1, 2]):
+        ax = axes[col]
+        a_key = f"A{trait_num}_var"
+        c_key = f"C{trait_num}_var"
+        e_key = f"E{trait_num}_var"
+
+        # Compute h² for each replicate and generation
+        h2_per_rep = []
+        for pg in per_gen_all:
+            rep_h2 = []
+            for gk in gen_keys:
+                gs = pg.get(gk, {})
+                a_var = gs.get(a_key, 0)
+                c_var = gs.get(c_key, 0)
+                e_var = gs.get(e_key, 0)
+                total = a_var + c_var + e_var
+                rep_h2.append(a_var / total if total > 0 else np.nan)
+            h2_per_rep.append(rep_h2)
+
+        h2_arr = np.array(h2_per_rep)  # shape (n_reps, n_gens)
+
+        # Plot per-replicate dots
+        for rep_idx in range(h2_arr.shape[0]):
+            jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08, len(generations))
+            ax.scatter(
+                np.array(generations) + jitter, h2_arr[rep_idx],
+                color="C0", alpha=0.9, s=25, zorder=5,
+            )
+
+        # Plot mean line
+        mean_h2 = np.nanmean(h2_arr, axis=0)
+        ax.plot(generations, mean_h2, color="C0", linewidth=2, marker="o", markersize=6, zorder=6)
+
+        # Expected heritability reference line
+        exp = expected_h2.get(trait_num)
+        if exp is not None:
+            ax.axhline(y=exp, color="C1", linestyle="--", linewidth=2, alpha=0.7,
+                        label=f"Parametric A{trait_num} = {exp}")
+            ax.legend(loc="lower left", fontsize=9)
+
+        ax.set_xlabel("Generation")
+        ax.set_ylabel("h\u00b2 = Var(A) / Var(L)")
+        ax.set_title(f"Trait {trait_num}")
+        ax.set_xticks(generations)
+        ax.set_ylim(0, 1)
+
+    fig.suptitle(f"Narrow-Sense Liability-Scale Heritability by Generation [{scenario}]", fontsize=14)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def plot_broad_heritability_by_generation(
+    all_validations: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+) -> None:
+    """Plot broad-sense heritability H² = (Var(A)+Var(C))/(Var(A)+Var(C)+Var(E)) per generation."""
+    per_gen_all = [v.get("per_generation", {}) for v in all_validations]
+    if not per_gen_all or not per_gen_all[0]:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No per-generation data", ha="center", va="center",
+                transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    gen_keys = sorted(per_gen_all[0].keys(), key=lambda k: int(k.split("_")[1]))
+    generations = [int(k.split("_")[1]) for k in gen_keys]
+
+    params = all_validations[0].get("parameters", {})
+    expected_H2 = {}
+    for t in [1, 2]:
+        a = params.get(f"A{t}")
+        c = params.get(f"C{t}")
+        if a is not None and c is not None:
+            expected_H2[t] = a + c
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+
+    for col, trait_num in enumerate([1, 2]):
+        ax = axes[col]
+        a_key = f"A{trait_num}_var"
+        c_key = f"C{trait_num}_var"
+        e_key = f"E{trait_num}_var"
+
+        H2_per_rep = []
+        for pg in per_gen_all:
+            rep_H2 = []
+            for gk in gen_keys:
+                gs = pg.get(gk, {})
+                a_var = gs.get(a_key, 0)
+                c_var = gs.get(c_key, 0)
+                e_var = gs.get(e_key, 0)
+                total = a_var + c_var + e_var
+                rep_H2.append((a_var + c_var) / total if total > 0 else np.nan)
+            H2_per_rep.append(rep_H2)
+
+        H2_arr = np.array(H2_per_rep)
+
+        for rep_idx in range(H2_arr.shape[0]):
+            jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08, len(generations))
+            ax.scatter(
+                np.array(generations) + jitter, H2_arr[rep_idx],
+                color="C0", alpha=0.9, s=25, zorder=5,
+            )
+
+        mean_H2 = np.nanmean(H2_arr, axis=0)
+        ax.plot(generations, mean_H2, color="C0", linewidth=2, marker="o", markersize=6, zorder=6)
+
+        exp = expected_H2.get(trait_num)
+        if exp is not None:
+            ax.axhline(y=exp, color="C1", linestyle="--", linewidth=2, alpha=0.7,
+                        label=f"Parametric A{trait_num}+C{trait_num} = {exp}")
+            ax.legend(loc="lower left", fontsize=9)
+
+        ax.set_xlabel("Generation")
+        ax.set_ylabel("H\u00b2 = (Var(A)+Var(C)) / Var(L)")
+        ax.set_title(f"Trait {trait_num}")
+        ax.set_xticks(generations)
+        ax.set_ylim(0, 1)
+
+    fig.suptitle(f"Broad-Sense Liability-Scale Heritability by Generation [{scenario}]", fontsize=14)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def plot_cross_trait_weibull_by_generation(
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+) -> None:
+    """Plot per-generation cross-trait Weibull correlation estimates.
+
+    Shows per-rep per-generation r as dots, mean line across generations,
+    and reference lines for oracle (uncensored), stratified IVW, and naive
+    pooled estimates.
+    """
+    # Collect per-generation data from each replicate
+    gen_data: dict[int, list[tuple[float, float]]] = {}  # gen -> [(r, se), ...]
+    oracle_rs: list[float] = []
+    strat_rs: list[float] = []
+    naive_rs: list[float] = []
+
+    for s in all_stats:
+        ct_strat = s.get("weibull_cross_trait_stratified", {})
+        ct_unc = s.get("weibull_cross_trait_uncensored", {})
+        ct_cens = s.get("weibull_cross_trait", {})
+
+        if ct_unc and ct_unc.get("r") is not None:
+            oracle_rs.append(ct_unc["r"])
+        if ct_strat and ct_strat.get("r") is not None:
+            strat_rs.append(ct_strat["r"])
+        if ct_cens and ct_cens.get("r") is not None:
+            naive_rs.append(ct_cens["r"])
+
+        per_gen = ct_strat.get("per_generation", {}) if ct_strat else {}
+        for gk, gv in per_gen.items():
+            gen_num = int(gk.replace("gen", ""))
+            r_g = gv.get("r")
+            se_g = gv.get("se")
+            if r_g is not None:
+                gen_data.setdefault(gen_num, []).append(
+                    (r_g, se_g if se_g is not None else 0.0)
+                )
+
+    if not gen_data:
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.text(0.5, 0.5, "No per-generation cross-trait data",
+                ha="center", va="center", transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    generations = sorted(gen_data.keys())
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    # Per-replicate dots with jitter
+    for gen in generations:
+        reps = gen_data[gen]
+        for rep_idx, (r_g, se_g) in enumerate(reps):
+            jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08)
+            ax.scatter(
+                gen + jitter, r_g,
+                color="C0", alpha=0.9, s=30, zorder=5,
+            )
+            if se_g > 0:
+                ax.errorbar(
+                    gen + jitter, r_g, yerr=1.96 * se_g,
+                    color="C0", alpha=0.4, fmt="none", capsize=2, zorder=4,
+                )
+
+    # Mean line across generations
+    mean_rs = [np.mean([r for r, _ in gen_data[g]]) for g in generations]
+    ax.plot(generations, mean_rs, color="C0", linewidth=2, marker="o",
+            markersize=7, zorder=6, label="Per-generation mean")
+
+    # Reference lines
+    if oracle_rs:
+        mean_oracle = np.mean(oracle_rs)
+        ax.axhline(y=mean_oracle, color="C2", linestyle="-.", linewidth=2, alpha=0.7,
+                    label=f"Uncensored oracle = {mean_oracle:.3f}")
+
+    if strat_rs:
+        mean_strat = np.mean(strat_rs)
+        ax.axhline(y=mean_strat, color="C1", linestyle="--", linewidth=2, alpha=0.7,
+                    label=f"Stratified IVW = {mean_strat:.3f}")
+
+    if naive_rs:
+        mean_naive = np.mean(naive_rs)
+        ax.axhline(y=mean_naive, color="C3", linestyle=":", linewidth=2, alpha=0.7,
+                    label=f"Naive pooled = {mean_naive:.3f}")
+
+    ax.set_xlabel("Generation")
+    ax.set_ylabel("Cross-trait liability correlation (r)")
+    ax.set_title(f"Cross-Trait Weibull Correlation by Generation [{scenario}]", fontsize=13)
+    ax.set_xticks(generations)
+    ax.legend(loc="best", fontsize=9)
+
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()

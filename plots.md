@@ -117,7 +117,11 @@ Single figure (7 $\times$ 6 in).
 - **$2 \times 2$ heatmap** (Blues colourmap): Rows = Trait 2 (Affected/Unaffected), Columns = Trait 1 (Affected/Unaffected).
 - **Cell annotations**: Two-line labels showing proportion ("0.XX") and count ("(n=XXXXX)").
 - **Colour bar**: Right side, labelled "Proportion".
-- **Title**: "Joint Affected Status (Weibull) [$\text{scenario}$]" with tetrachoric correlation "r_tet = X.XXX" on a second line.
+- **Title**: "Joint Affected Status (Weibull) [$\text{scenario}$]" with subtitle showing:
+  - `r_tet = X.XXX`: tetrachoric correlation on censored binary affected status.
+  - `r_weibull = X.XXX`: cross-trait liability correlation estimated from uncensored Weibull survival data (oracle reference).
+  - `(stratified: X.XXX)`: generation-stratified Weibull estimate — computes per-generation cross-trait correlations and combines via inverse-variance weighting ($\hat{r} = \sum w_g r_g / \sum w_g$ where $w_g = 1/\text{SE}_g^2$). This reduces bias from heterogeneous censoring across generations.
+  - `(naive: X.XXX)`: unweighted pooled censored Weibull estimate for comparison (biased when censoring varies by generation). All values averaged across replicates.
 
 ---
 
@@ -129,19 +133,20 @@ Source: `sim_ace/plot_correlations.py`. Generated for Weibull frailty phenotypes
 
 Two-panel figure (16 $\times$ 6 in), one per trait. $y$-axis range: $[-0.1, 1.1]$.
 
-- **Violins**: One per relationship type (MZ twin, Full sib, Mother-offspring, Father-offspring, Maternal half sib, Paternal half sib, 1st cousin). Colour-coded by type, semi-transparent ($\alpha = 0.6$), no inner markings.
-- **Black dots**: Per-replicate point estimates, jittered horizontally ($\pm 0.08$), $\alpha = 0.6$, size 15.
-- **Black dashed horizontal segments**: Mean Pearson liability correlation for each pair type (averaged across replicates), spanning $\pm 0.35$ around the category position.
-- **Green dash-dot horizontal segments** (`C2`, when available): Mean uncensored Weibull pairwise correlation.
+- **Coloured violins**: Distribution of tetrachoric correlations (computed from censored binary affected status) across replicates, one per relationship type (MZ twin, Full sib, Mother-offspring, Father-offspring, Maternal half sib, Paternal half sib, 1st cousin). These represent the correlations estimable from observed data after censoring.
+- **Black dots**: Individual per-replicate tetrachoric correlation estimates, jittered horizontally ($\pm 0.08$).
+- **Black dashed horizontal segments**: Mean Pearson liability correlation for each pair type (averaged across replicates). This is the ground-truth correlation computed directly on the continuous latent liability values, serving as the theoretical reference.
+- **Green dash-dot horizontal segments** (when available): Mean uncensored Weibull pairwise survival-time correlation. This shows what the correlation would be without censoring distortion.
 - **Pair count annotations**: "N=$X$" above each violin (mean pairs per replicate).
 - **Legend** (upper-right): "Liability r" (black dashed), "Weibull r (uncensored)" (green dash-dot, when present).
 - **x-axis labels**: Relationship type names, rotated 15$^\circ$.
+- **Interpretation**: The gap between the violins and the black dashed lines reflects attenuation due to censoring and the dichotomization inherent in the tetrachoric estimate. The green dash-dot lines show the intermediate effect of censoring alone (before dichotomization).
 
 ### 3.2 Tetrachoric correlations by generation (`tetrachoric_by_generation.png`)
 
 Grid: rows = traits ($\times 2$), columns = generations. Size $5N \times 10$ in.
 
-- **Violins, dots, dashed segments, pair counts**: Same encoding as 3.1, but within each generation.
+- **Violins, dots, dashed segments, pair counts**: Same encoding as 3.1 (violins = observed tetrachoric correlations, black dashed = true liability correlations, dots = per-replicate estimates), but computed within each generation separately.
 - **x-axis labels**: Relationship type names, rotated 30$^\circ$, smaller font.
 - **Column titles**: "Gen $g$".
 - **Legend** (upper-right of top-right panel): "Liability r" (black dashed).
@@ -155,6 +160,32 @@ Grid: rows = traits ($\times 2$), columns = last 3 non-founder generations. Size
 - **Text box** (upper-left, white background): "r = X.XXX" (Pearson correlation, averaged across replicates) and "n = XXXXX" (mean pair count).
 - **Column titles**: "Gen $g$".
 - **Row labels**: "Trait $k$ / Offspring Liability" ($y$-axis), "Midparent Liability" ($x$-axis, bottom row only).
+
+### 3.4 Narrow-sense heritability by generation (`heritability.by_generation.png`)
+
+$1 \times 2$ figure (10 $\times$ 5 in), one panel per trait.
+
+- **Blue dots**: Per-replicate $h^2 = \text{Var}(A) / (\text{Var}(A) + \text{Var}(C) + \text{Var}(E))$ for each generation, computed from per-generation variance components in `validation.yaml`.
+- **Blue line**: Mean $h^2$ across replicates, connecting generation means.
+- **Orange dashed line**: Configured heritability ($A_k$ parameter), the expected $h^2$.
+- **$y$-axis**: $[0, 1]$, labelled $h^2 = \text{Var}(A) / \text{Var}(L)$.
+- **$x$-axis**: Generation number.
+- **Interpretation**: Stable $h^2$ across generations confirms that the ACE variance decomposition is maintained through the simulation. Founders (generation 1) have variance components set exactly; subsequent generations should converge to equivalent values under random mating.
+
+Source: `sim_ace/plot_correlations.py`. Data from `validation.yaml` → `per_generation`.
+
+### 3.5 Broad-sense heritability by generation (`broad_heritability.by_generation.png`)
+
+$1 \times 2$ figure (10 $\times$ 5 in), one panel per trait.
+
+- **Blue dots**: Per-replicate $H^2 = (\text{Var}(A) + \text{Var}(C)) / (\text{Var}(A) + \text{Var}(C) + \text{Var}(E))$ for each generation.
+- **Blue line**: Mean $H^2$ across replicates.
+- **Orange dashed line**: Parametric value ($A_k + C_k$).
+- **$y$-axis**: $[0, 1]$, labelled $H^2 = (\text{Var}(A)+\text{Var}(C)) / \text{Var}(L)$.
+- **$x$-axis**: Generation number.
+- **Interpretation**: Comparing $H^2$ with the narrow-sense $h^2$ (3.4) isolates the contribution of shared environment to familial resemblance.
+
+Source: `sim_ace/plot_correlations.py`. Data from `validation.yaml` → `per_generation`.
 
 ---
 
@@ -176,7 +207,7 @@ Per-generation split violins with configured prevalence annotated. Same encoding
 
 ### 4.4 Tetrachoric correlations (`tetrachoric.png`)
 
-Violin plots of tetrachoric correlations by relationship type for threshold affection indicators. Same encoding as 3.1 (violins, per-rep dots, dashed liability reference lines, pair counts).
+Violin plots of tetrachoric correlations by relationship type for threshold affected status indicators. Same encoding as 3.1: coloured violins show observed tetrachoric correlations from binary affected status, black dots are per-replicate estimates, black dashed lines are the ground-truth Pearson liability correlations, and pair counts are annotated above each violin.
 
 ### 4.5 Joint affection heatmap (`joint_affection.png`)
 

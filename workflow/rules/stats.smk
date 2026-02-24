@@ -40,6 +40,12 @@ rule plot_weibull:
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
+        validations=lambda w: expand(
+            "results/{folder}/{scenario}/rep{rep}/validation.yaml",
+            folder=w.folder,
+            scenario=w.scenario,
+            rep=range(1, get_param(config, w.scenario, "replicates") + 1),
+        ),
     params:
         censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
         gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
@@ -108,3 +114,39 @@ rule plot_threshold:
     threads: 1
     script:
         "../scripts/plot_threshold.py"
+
+
+rule assemble_scenario_atlas:
+    input:
+        weibull=expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS),
+        threshold=expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=THRESHOLD_PLOTS),
+        params_yaml="results/{folder}/{scenario}/rep1/params.yaml",
+    params:
+        scenario=lambda w: w.scenario,
+        replicates=lambda w: get_param(config, w.scenario, "replicates"),
+        folder=lambda w: get_param(config, w.scenario, "folder"),
+        beta1=lambda w: get_param(config, w.scenario, "beta1"),
+        scale1=lambda w: get_param(config, w.scenario, "scale1"),
+        rho1=lambda w: get_param(config, w.scenario, "rho1"),
+        beta2=lambda w: get_param(config, w.scenario, "beta2"),
+        scale2=lambda w: get_param(config, w.scenario, "scale2"),
+        rho2=lambda w: get_param(config, w.scenario, "rho2"),
+        standardize=lambda w: get_param(config, w.scenario, "standardize"),
+        censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
+        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
+        death_scale=lambda w: get_param(config, w.scenario, "death_scale"),
+        death_rho=lambda w: get_param(config, w.scenario, "death_rho"),
+        prevalence1=lambda w: get_param(config, w.scenario, "prevalence1"),
+        prevalence2=lambda w: get_param(config, w.scenario, "prevalence2"),
+        G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
+        plot_format=config["defaults"].get("plot_format", "png"),
+    output:
+        "results/{folder}/{scenario}/plots/atlas.pdf"
+    log:
+        "logs/{folder}/{scenario}/assemble_atlas.log"
+    resources:
+        mem_mb=1000,
+        runtime=5
+    threads: 1
+    script:
+        "../scripts/assemble_atlas.py"

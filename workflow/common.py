@@ -26,41 +26,58 @@ def get_all_folders(config):
 
 # -- Plot filename basenames (without extension) --
 
+# Ordered by narrative flow: liability structure -> Weibull phenotype ->
+# censoring -> familial correlations & heritability.
 _PHENOTYPE_BASENAMES = [
-    "mortality",
-    "age_at_onset_death",
-    "liability_vs_aoo",
+    # Liability structure
     "cross_trait",
     "cross_trait.weibull",
     "liability_violin.weibull",
     "liability_violin.weibull.by_generation",
+    # Weibull phenotype
+    "liability_vs_aoo",
+    "age_at_onset_death",
+    "mortality",
     "cumulative_incidence.weibull",
+    # Censoring
     "censoring",
+    # Familial correlations & heritability
     "joint_affected.weibull",
+    "cross_trait_weibull.by_generation",
     "tetrachoric.weibull",
     "tetrachoric.weibull.by_generation",
     "parent_offspring_liability.by_generation",
+    "heritability.by_generation",
+    "broad_heritability.by_generation",
 ]
 
+# Ordered to mirror Weibull: prevalence -> liability -> correlations.
 _THRESHOLD_BASENAMES = [
     "prevalence_by_generation",
+    "cross_trait.threshold",
     "liability_violin.threshold",
     "liability_violin.threshold.by_generation",
-    "tetrachoric.threshold",
     "joint_affected.threshold",
-    "cross_trait.threshold",
+    "tetrachoric.threshold",
 ]
 
+# Ordered: pedigree structure -> variance & heritability -> cross-trait ->
+# summary -> benchmarks.
 _VALIDATION_BASENAMES = [
-    "variance_components",
+    # Pedigree structure
+    "family_size",
     "twin_rate",
+    "half_sib_proportions",
+    # Variance components & heritability
+    "variance_components",
     "correlations_A",
     "correlations_phenotype",
     "heritability_estimates",
-    "half_sib_proportions",
+    # Cross-trait
     "cross_trait_correlations",
-    "family_size",
+    # Summary
     "summary_bias",
+    # Benchmarks
     "runtime",
     "memory",
 ]
@@ -87,6 +104,7 @@ def get_scenario_sim_outputs(config, scenario, plot_ext="png"):
         outputs.append(f"results/{folder}/{scenario}/plots/{plot}")
     for plot in plot_filenames(_THRESHOLD_BASENAMES, plot_ext):
         outputs.append(f"results/{folder}/{scenario}/plots/{plot}")
+    outputs.append(f"results/{folder}/{scenario}/plots/atlas.pdf")
     return outputs
 
 

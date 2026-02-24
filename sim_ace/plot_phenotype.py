@@ -49,6 +49,9 @@ from sim_ace.plot_correlations import (
     plot_tetrachoric_sibling,
     plot_tetrachoric_by_generation,
     plot_parent_offspring_liability,
+    plot_heritability_by_generation,
+    plot_broad_heritability_by_generation,
+    plot_cross_trait_weibull_by_generation,
 )
 
 
@@ -59,6 +62,7 @@ def main(
     censor_age: float,
     gen_censoring: dict[int, list[float]] | None = None,
     plot_ext: str = "png",
+    validation_paths: list[str] | None = None,
 ) -> None:
     """Generate all phenotype plots from pre-computed stats."""
     out_dir = Path(output_dir)
@@ -111,7 +115,8 @@ def main(
         all_stats, censor_age, out_dir / f"cumulative_incidence.weibull.{ext}", scenario
     )
     plot_joint_affection(
-        df_samples, out_dir / f"joint_affected.weibull.{ext}", scenario
+        df_samples, out_dir / f"joint_affected.weibull.{ext}", scenario,
+        all_stats=all_stats,
     )
     if gen_censoring is not None:
         plot_censoring_windows(
@@ -135,6 +140,29 @@ def main(
     plot_parent_offspring_liability(
         df_samples, all_stats, out_dir / f"parent_offspring_liability.by_generation.{ext}", scenario,
     )
+    plot_cross_trait_weibull_by_generation(
+        all_stats, out_dir / f"cross_trait_weibull.by_generation.{ext}", scenario,
+    )
+
+    # Per-generation heritability (requires validation data)
+    if validation_paths:
+        all_validations = []
+        for p in validation_paths:
+            with open(p) as f:
+                all_validations.append(yaml.load(f, Loader=_yaml_loader))
+        plot_heritability_by_generation(
+            all_validations, out_dir / f"heritability.by_generation.{ext}", scenario,
+        )
+        plot_broad_heritability_by_generation(
+            all_validations, out_dir / f"broad_heritability.by_generation.{ext}", scenario,
+        )
+    else:
+        for name in ["heritability.by_generation", "broad_heritability.by_generation"]:
+            fig, ax = plt.subplots(figsize=(6, 4))
+            ax.text(0.5, 0.5, "No validation data available",
+                    ha="center", va="center", transform=ax.transAxes)
+            plt.savefig(out_dir / f"{name}.{ext}", dpi=150)
+            plt.close()
 
     logger.info("Phenotype plots saved to %s", out_dir)
 
@@ -150,6 +178,7 @@ def cli() -> None:
     parser.add_argument("--censor-age", type=float, required=True, help="Maximum follow-up age")
     parser.add_argument("--gen-censoring", type=str, default=None, help="Per-generation censoring windows as JSON dict")
     parser.add_argument("--plot-format", choices=["png", "pdf"], default="png", help="Output plot format (default: png)")
+    parser.add_argument("--validations", nargs="*", default=None, help="Validation YAML paths")
     args = parser.parse_args()
 
     init_logging(args)
@@ -160,4 +189,5 @@ def cli() -> None:
         gen_censoring = {int(k): v for k, v in json.loads(args.gen_censoring).items()}
 
     main(args.stats, args.samples, args.output_dir, args.censor_age,
-         gen_censoring=gen_censoring, plot_ext=args.plot_format)
+         gen_censoring=gen_censoring, plot_ext=args.plot_format,
+         validation_paths=args.validations)

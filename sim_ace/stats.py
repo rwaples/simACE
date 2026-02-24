@@ -741,6 +741,111 @@ def compute_weibull_correlations(
     return result, result_uncensored
 
 
+def compute_weibull_cross_trait_corr(
+    df: pd.DataFrame,
+    weibull_params: dict[str, dict[str, float]],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """Compute cross-trait Weibull liability correlation.
+
+    Each individual is self-paired across traits: trait 1 data as member i,
+    trait 2 data as member j. This estimates the cross-trait liability
+    correlation from survival data.
+
+    Returns:
+        (censored, uncensored, stratified) dicts with keys {r, se, n}.
+        The stratified estimate computes per-generation correlations and
+        combines them via inverse-variance weighting, reducing bias from
+        heterogeneous censoring across generations.
+    """
+    from sim_ace.survival_corr import cross_trait_weibull_corr_se
+
+    p1 = weibull_params.get("trait1", {})
+    p2 = weibull_params.get("trait2", {})
+    if not p1 or not p2:
+        empty = {"r": None, "se": None, "n": 0}
+        return empty, empty, empty
+
+    # Censored: use observed times and affected status
+    t_obs1 = df["t_observed1"].values.astype(np.float64)
+    delta1 = df["affected1"].values.astype(np.float64)
+    t_obs2 = df["t_observed2"].values.astype(np.float64)
+    delta2 = df["affected2"].values.astype(np.float64)
+
+    r_cens, se_cens = cross_trait_weibull_corr_se(
+        t_obs1, delta1, t_obs2, delta2,
+        scale1=p1["scale"], rho1=p1["rho"], beta1=p1["beta"],
+        scale2=p2["scale"], rho2=p2["rho"], beta2=p2["beta"],
+    )
+
+    # Uncensored: use raw event times with all events observed
+    t_raw1 = df["t1"].values.astype(np.float64)
+    t_raw2 = df["t2"].values.astype(np.float64)
+    ones = np.ones(len(df), dtype=np.float64)
+
+    r_uncens, se_uncens = cross_trait_weibull_corr_se(
+        t_raw1, ones, t_raw2, ones,
+        scale1=p1["scale"], rho1=p1["rho"], beta1=p1["beta"],
+        scale2=p2["scale"], rho2=p2["rho"], beta2=p2["beta"],
+    )
+
+    # Generation-stratified censored: per-gen estimates with inverse-variance weighting
+    r_strat, se_strat = np.nan, np.nan
+    n_strat = int(len(df))
+    if "generation" in df.columns:
+        gen_rs = []
+        gen_ses = []
+        gen_details = {}
+        for gen in sorted(df["generation"].unique()):
+            g = df[df["generation"] == gen]
+            g_t1 = g["t_observed1"].values.astype(np.float64)
+            g_d1 = g["affected1"].values.astype(np.float64)
+            g_t2 = g["t_observed2"].values.astype(np.float64)
+            g_d2 = g["affected2"].values.astype(np.float64)
+
+            r_g, se_g = cross_trait_weibull_corr_se(
+                g_t1, g_d1, g_t2, g_d2,
+                scale1=p1["scale"], rho1=p1["rho"], beta1=p1["beta"],
+                scale2=p2["scale"], rho2=p2["rho"], beta2=p2["beta"],
+            )
+            gen_details[f"gen{gen}"] = {
+                "r": float(r_g) if not np.isnan(r_g) else None,
+                "se": float(se_g) if not np.isnan(se_g) else None,
+                "n": int(len(g)),
+            }
+            if not np.isnan(r_g) and not np.isnan(se_g) and se_g > 0:
+                gen_rs.append(r_g)
+                gen_ses.append(se_g)
+
+        # Inverse-variance weighted mean
+        if gen_rs:
+            rs = np.array(gen_rs)
+            ses = np.array(gen_ses)
+            w = 1.0 / (ses ** 2)
+            r_strat = float(np.sum(w * rs) / np.sum(w))
+            se_strat = float(1.0 / np.sqrt(np.sum(w)))
+    else:
+        gen_details = {}
+
+    n = int(len(df))
+    censored = {
+        "r": float(r_cens) if not np.isnan(r_cens) else None,
+        "se": float(se_cens) if not np.isnan(se_cens) else None,
+        "n": n,
+    }
+    uncensored = {
+        "r": float(r_uncens) if not np.isnan(r_uncens) else None,
+        "se": float(se_uncens) if not np.isnan(se_uncens) else None,
+        "n": n,
+    }
+    stratified = {
+        "r": float(r_strat) if not np.isnan(r_strat) else None,
+        "se": float(se_strat) if not np.isnan(se_strat) else None,
+        "n": n,
+        "per_generation": gen_details,
+    }
+    return censored, uncensored, stratified
+
+
 def main(
     phenotype_path: str,
     censor_age: float,
@@ -816,6 +921,17 @@ def main(
         stats["weibull_corr"] = censored
         stats["weibull_corr_uncensored"] = uncensored
         logger.info("Weibull correlations computed in %.1fs", time.perf_counter() - t_weib)
+
+        # Cross-trait Weibull correlation
+        logger.info("Computing cross-trait Weibull correlation...")
+        t_cross = time.perf_counter()
+        ct_censored, ct_uncensored, ct_stratified = compute_weibull_cross_trait_corr(
+            df, weibull_params,
+        )
+        stats["weibull_cross_trait"] = ct_censored
+        stats["weibull_cross_trait_uncensored"] = ct_uncensored
+        stats["weibull_cross_trait_stratified"] = ct_stratified
+        logger.info("Cross-trait Weibull correlation computed in %.1fs", time.perf_counter() - t_cross)
 
     # Write stats YAML
     stats_path = Path(stats_output)

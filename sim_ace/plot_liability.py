@@ -51,7 +51,7 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
         ax_marg_y = fig.add_subplot(inner[1, 1], sharey=ax_joint)
 
         x, y = df_samples[xcol].values, df_samples[ycol].values
-        ax_joint.scatter(x, y, alpha=0.05, s=3, rasterized=True)
+        ax_joint.scatter(x, y, alpha=0.3, s=3, rasterized=True)
         ax_marg_x.hist(x, bins=50, edgecolor="none", alpha=0.7)
         ax_marg_y.hist(
             y, bins=50, orientation="horizontal", edgecolor="none", alpha=0.7
@@ -115,8 +115,8 @@ def plot_liability_joint_affected(df_samples: pd.DataFrame, output_path: str | P
         bins_y = np.linspace(y.min(), y.max(), 51)
 
         for mask, color, alpha, label in [
-            (~affected, "C0", 0.03, "Unaffected"),
-            (affected, "C3", 0.15, "Affected (T1)"),
+            (~affected, "C0", 0.2, "Unaffected"),
+            (affected, "C3", 0.5, "Affected (T1)"),
         ]:
             ax_joint.scatter(
                 x[mask], y[mask], c=color, alpha=alpha, s=3, rasterized=True, label=label,
@@ -299,7 +299,12 @@ def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: lis
     plt.close()
 
 
-def plot_joint_affection(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
+def plot_joint_affection(
+    df_samples: pd.DataFrame,
+    output_path: str | Path,
+    scenario: str = "",
+    all_stats: list[dict[str, Any]] | None = None,
+) -> None:
     """2x2 heatmap of joint affection status (trait1 x trait2)."""
     a1 = df_samples["affected1"].values.astype(bool)
     a2 = df_samples["affected2"].values.astype(bool)
@@ -340,6 +345,31 @@ def plot_joint_affection(df_samples: pd.DataFrame, output_path: str | Path, scen
     # Cross-trait tetrachoric correlation
     r_tet = tetrachoric_corr(a1, a2)
     r_label = f"r_tet = {r_tet:.3f}" if not np.isnan(r_tet) else "r_tet = N/A"
+
+    # Cross-trait Weibull correlation (averaged across reps)
+    weibull_parts = []
+    if all_stats:
+        for s in all_stats:
+            ct_unc = s.get("weibull_cross_trait_uncensored", {})
+            ct_strat = s.get("weibull_cross_trait_stratified", {})
+            ct_cens = s.get("weibull_cross_trait", {})
+            r_uncens = ct_unc.get("r") if ct_unc else None
+            r_strat = ct_strat.get("r") if ct_strat else None
+            r_cens = ct_cens.get("r") if ct_cens else None
+            if r_uncens is not None:
+                weibull_parts.append((r_uncens, r_strat, r_cens))
+
+    if weibull_parts:
+        mean_uncens = np.mean([p[0] for p in weibull_parts])
+        r_label += f"  |  r_weibull = {mean_uncens:.3f}"
+        strat_vals = [p[1] for p in weibull_parts if p[1] is not None]
+        if strat_vals:
+            mean_strat = np.mean(strat_vals)
+            r_label += f" (stratified: {mean_strat:.3f})"
+        cens_vals = [p[2] for p in weibull_parts if p[2] is not None]
+        if cens_vals:
+            mean_cens = np.mean(cens_vals)
+            r_label += f" (naive: {mean_cens:.3f})"
 
     ax.set_xlabel("Trait 1")
     ax.set_ylabel("Trait 2")

@@ -15,8 +15,11 @@ def _run_snakemake():
     plot_format = snakemake.params.plot_format
     output_dir = Path(snakemake.output[0]).parent
 
+    validation_paths = list(snakemake.input.validations)
+
     main(stats_paths, sample_paths, output_dir, censor_age,
-         gen_censoring=gen_censoring, plot_ext=plot_format)
+         gen_censoring=gen_censoring, plot_ext=plot_format,
+         validation_paths=validation_paths)
 
 
 if __name__ == "__main__":
