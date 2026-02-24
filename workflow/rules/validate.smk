@@ -1,4 +1,4 @@
-rule validate:
+rule validate_pedigree_liability:
     input:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
         params="results/{folder}/{scenario}/rep{rep}/params.yaml"

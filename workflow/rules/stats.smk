@@ -1,4 +1,4 @@
-rule phenotype_stats:
+rule stats_weibull:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.weibull.parquet"
     output:
@@ -26,7 +26,7 @@ rule phenotype_stats:
         "../scripts/compute_phenotype_stats.py"
 
 
-rule plot_phenotype:
+rule plot_weibull:
     input:
         stats=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
@@ -57,7 +57,7 @@ rule plot_phenotype:
         "../scripts/plot_phenotype.py"
 
 
-rule threshold_stats:
+rule stats_threshold:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.parquet"
     output:

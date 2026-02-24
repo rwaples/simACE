@@ -88,11 +88,11 @@ While internal function docstrings exist, there is no user-facing documentation:
 
 ## 9. Pinned Dependency Versions Are Missing
 
-`pack.yml` lists dependencies without version pins (e.g., `numpy`, `scipy`, `pandas`). This risks silent behavioral changes across environments.
+`environment.yml` lists dependencies without version pins (e.g., `numpy`, `scipy`, `pandas`). This risks silent behavioral changes across environments.
 
 **Required:**
 - Pin major versions in `pyproject.toml` (e.g., `numpy>=1.24,<2.0`).
-- `pack.yml` should pin or at minimum specify compatible version ranges.
+- `environment.yml` should pin or at minimum specify compatible version ranges.
 - Drop dependencies not required by the core package (e.g., `jupyter`, `notebook`, `graph-tool`, `msprime`, `tskit` appear unused in the simulation code).
 
 ## 10. Scientific Correctness Concerns

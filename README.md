@@ -8,7 +8,7 @@ Simulates multi-generational pedigrees with ACE variance components:
 ## Setup
 
 ```bash
-conda env create -f pack.yml
+conda env create -f environment.yml
 conda activate ACE
 ```
 

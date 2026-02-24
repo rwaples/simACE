@@ -1,4 +1,4 @@
-rule simulate:
+rule simulate_pedigree_liability:
     output:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
         params="results/{folder}/{scenario}/rep{rep}/params.yaml"

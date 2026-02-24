@@ -13,6 +13,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+accel = ["numba"]
 dev = ["snakemake", "pytest"]
 
 [project.scripts]

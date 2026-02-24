@@ -16,9 +16,8 @@ dependencies:
   - snakefmt
   - hdf5
   - pyarrow
-  - lifelines
-  - cmdstanpy
   - numba
+  - pip
   - pip:
     - pypair
     - -e .
