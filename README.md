@@ -5,14 +5,14 @@ Simulates multi-generational pedigrees with ACE variance components for two corr
 - **C** - Common/shared environment
 - **E** - Unique environment
 
-Continuous liabilities are mapped to observable phenotypes via a Weibull proportional-hazards frailty model (time-to-event) or a liability-threshold model (binary affection). The pipeline includes automated structural and statistical validation, phenotype statistics, and publication-quality plots.
+Continuous liabilities are mapped to observable phenotypes via a Weibull proportional-hazards frailty model (time-to-event) or a liability-threshold model (binary affection). The pipeline includes automated structural and statistical validation, phenotype statistics, and plotting.
 
 ## Setup
 
 ```bash
 conda env create -f environment.yml
 conda activate ACE
-pip install -e .
+pip install -e .   # editable install — code changes in sim_ace/ take effect immediately
 ```
 
 ## Usage
@@ -109,19 +109,35 @@ To add new simulations, add a named scenario to the config file. Prevalence can 
 
 ## Outputs
 
+### Simulation Data
+
 Each scenario replicate produces:
 
 | File | Description |
 |------|-------------|
 | `results/{folder}/{scenario}/rep{N}/pedigree.parquet` | Pedigree with id, sex, parents, twin, household, A/C/E values, liabilities |
-| `results/{folder}/{scenario}/rep{N}/phenotype.weibull.parquet` | Weibull frailty phenotypes (age-at-onset, censoring, affection) |
-| `results/{folder}/{scenario}/rep{N}/phenotype.liability_threshold.parquet` | Liability-threshold binary affection status |
+| `results/{folder}/{scenario}/rep{N}/phenotype.weibull.parquet` | Weibull frailty phenotypes (age-at-onset, censoring, affected status) |
+| `results/{folder}/{scenario}/rep{N}/phenotype.liability_threshold.parquet` | Liability-threshold binary affected status |
 | `results/{folder}/{scenario}/rep{N}/params.yaml` | Parameters used for this replicate |
+
+### Validation and Summary
+
+| File | Description |
+|------|-------------|
 | `results/{folder}/{scenario}/rep{N}/validation.yaml` | Structural and statistical validation results |
 | `results/{folder}/validation_summary.tsv` | Aggregated validation metrics across scenarios |
 | `results/{folder}/plots/` | Cross-scenario validation and phenotype plots |
 | `logs/{folder}/{scenario}/` | Log files |
 | `benchmarks/{folder}/{scenario}/` | Runtime and memory benchmarks |
+
+### Plot Atlases
+
+Multi-page PDF atlases collect all figures for a scenario or folder into a single document with figure captions:
+
+| File | Description |
+|------|-------------|
+| `results/{folder}/{scenario}/plots/atlas.pdf` | Per-scenario atlas: liability structure, Weibull phenotype, censoring, correlations, heritability, and threshold model figures |
+| `results/{folder}/plots/atlas.pdf` | Per-folder atlas: cross-scenario validation plots (variance components, correlations, heritability, bias, runtime, memory) |
 
 ## Project Structure
 
@@ -160,15 +176,15 @@ ACE/
 │   │   └── stats.smk                  # Statistics and phenotype plots
 │   └── scripts/                       # Snakemake script wrappers
 ├── tests/                             # Unit, statistical, and edge-case tests
-├── results/{folder}/{scenario}/rep{N}/ # Per-replicate outputs
+├── results/{folder}/{scenario}/rep{N}/ # Per-replicate simualtion outputs
 ├── logs/{folder}/{scenario}/          # Log files
-└── benchmarks/{folder}/{scenario}/    # Runtime benchmarks
+└── benchmarks/{folder}/{scenario}/    # Runtime and memory usage benchmarks
 ```
 
-## Documentation
+## Documentation (under construction)
 
-- **[methods.md](methods.md)** — Full mathematical description of all models (variance decomposition, Weibull frailty, censoring, liability threshold, tetrachoric correlation, pairwise survival correlation, heritability estimation)
-- **[CLAUDE.md](CLAUDE.md)** — Developer reference and architecture guide
+- **[methods.md](methods.md)** — Methods document (variance decomposition, Weibull frailty, censoring, liability threshold, tetrachoric correlation, heritability estimation, etc)
+- **[CLAUDE.md](CLAUDE.md)** — Architecture guide
 
 ## License
 
