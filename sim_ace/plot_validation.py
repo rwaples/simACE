@@ -28,7 +28,7 @@ def stripplot(df: pd.DataFrame, ax: Axes, y: str, expected: str | float | None =
     scenarios = df["scenario"].unique()
     positions = {s: i for i, s in enumerate(scenarios)}
 
-    sns.stripplot(data=df, x="scenario", y=y, ax=ax, alpha=0.7, color="C0", jitter=0.15)
+    sns.stripplot(data=df, x="scenario", y=y, ax=ax, alpha=0.9, color="C0", jitter=0.15)
 
     if expected_func is not None or expected is not None:
         for scenario in scenarios:
@@ -184,11 +184,11 @@ def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         x = positions[scenario]
         ax.scatter(
             [x - width / 2] * len(sdf), sdf["mother_mean_offspring"],
-            color="C0", alpha=0.7, s=30, zorder=5,
+            color="C0", alpha=0.9, s=30, zorder=5,
         )
         ax.scatter(
             [x + width / 2] * len(sdf), sdf["father_mean_offspring"],
-            color="C3", alpha=0.7, s=30, zorder=5,
+            color="C3", alpha=0.9, s=30, zorder=5,
         )
         # Expected fam_size marker
         expected = sdf["fam_size"].iloc[0]
@@ -232,7 +232,7 @@ def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     n = dp["scenario"].nunique()
     fig, axes = plt.subplots(2, 3, figsize=(_fig_width(n, ncols=3), 10))
     for ax, col in zip(axes.flat, panels):
-        sns.stripplot(data=dp, x="scenario", y=col, ax=ax, alpha=0.7, jitter=0.15)
+        sns.stripplot(data=dp, x="scenario", y=col, ax=ax, alpha=0.9, jitter=0.15)
         ax.axhline(y=0, color="red", linestyle="--", alpha=0.5)
         ax.set_title(col)
         ax.set_xlabel("")
@@ -241,6 +241,39 @@ def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         if n == 1:
             ax.set_xlim(-0.5, 0.5)
     save(fig, out / f"summary_bias.{ext}")
+
+
+def _format_log_axes(ax: Axes) -> None:
+    """Add readable tick marks to log-scaled axes.
+
+    Places major ticks at 1, 2, 5 × 10^n so that intermediate values are
+    visible, and adds minor ticks at the remaining integers for grid context.
+    """
+    import numpy as np
+    from matplotlib.ticker import LogLocator, FuncFormatter
+
+    subs_major = [1.0, 2.0, 5.0]  # labelled ticks at 1, 2, 5 per decade
+    subs_minor = [3.0, 4.0, 6.0, 7.0, 8.0, 9.0]  # unlabelled grid ticks
+
+    def _smart_fmt(val, _pos):
+        if val == 0:
+            return "0"
+        if val >= 1:
+            if val == int(val):
+                return f"{int(val):,}"
+            return f"{val:,.1f}"
+        return f"{val:g}"
+
+    for axis in (ax.xaxis, ax.yaxis):
+        axis.set_major_locator(LogLocator(base=10, subs=subs_major, numticks=30))
+        axis.set_major_formatter(FuncFormatter(_smart_fmt))
+        axis.set_minor_locator(LogLocator(base=10, subs=subs_minor, numticks=30))
+        axis.set_minor_formatter(FuncFormatter(lambda _v, _p: ""))
+
+    ax.tick_params(axis="both", which="minor", length=3, color="0.7")
+    ax.tick_params(axis="both", which="major", length=6)
+    ax.grid(True, which="major", linewidth=0.8, alpha=0.5)
+    ax.grid(True, which="minor", linewidth=0.3, alpha=0.3)
 
 
 def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
@@ -258,17 +291,12 @@ def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         sdf = sub[sub["scenario"] == scenario]
         ax.scatter(
             sdf["N"], sdf["simulate_seconds"],
-            color=color_map[scenario], label=scenario, alpha=0.7, s=40,
+            color=color_map[scenario], label=scenario, alpha=0.9, s=40,
         )
 
     ax.set_xscale("log")
     ax.set_yscale("log")
-    from matplotlib.ticker import LogLocator, ScalarFormatter
-    for axis in (ax.xaxis, ax.yaxis):
-        axis.set_major_locator(LogLocator(base=10, numticks=12))
-        fmt = ScalarFormatter()
-        fmt.set_scientific(False)
-        axis.set_major_formatter(fmt)
+    _format_log_axes(ax)
     ax.set_xlabel("Population Size (N)")
     ax.set_ylabel("Simulate Time (seconds)")
     ax.set_title("Simulation Runtime vs Population Size")
@@ -291,17 +319,12 @@ def plot_memory(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         sdf = sub[sub["scenario"] == scenario]
         ax.scatter(
             sdf["N"], sdf["simulate_max_rss_mb"],
-            color=color_map[scenario], label=scenario, alpha=0.7, s=40,
+            color=color_map[scenario], label=scenario, alpha=0.9, s=40,
         )
 
     ax.set_xscale("log")
     ax.set_yscale("log")
-    from matplotlib.ticker import LogLocator, ScalarFormatter
-    for axis in (ax.xaxis, ax.yaxis):
-        axis.set_major_locator(LogLocator(base=10, numticks=12))
-        fmt = ScalarFormatter()
-        fmt.set_scientific(False)
-        axis.set_major_formatter(fmt)
+    _format_log_axes(ax)
     ax.set_xlabel("Population Size (N)")
     ax.set_ylabel("Peak RSS (MB)")
     ax.set_title("Simulation Memory Usage vs Population Size")
@@ -316,6 +339,14 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
     sns.set_theme(style="whitegrid", palette="colorblind")
     df = pd.read_csv(tsv_path, sep="\t")
 
+    # Sort scenarios by increasing N so x-axes read left-to-right by size
+    if "N" in df.columns:
+        scenario_order = (
+            df.groupby("scenario")["N"].first().sort_values().index
+        )
+        df["scenario"] = pd.Categorical(df["scenario"], categories=scenario_order, ordered=True)
+        df = df.sort_values("scenario").reset_index(drop=True)
+
     plot_variance_components(df, out, ext=plot_ext)
     plot_twin_rate(df, out, ext=plot_ext)
     plot_A_correlations(df, out, ext=plot_ext)
@@ -327,6 +358,17 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
     plot_summary_bias(df, out, ext=plot_ext)
     plot_runtime(df, out, ext=plot_ext)
     plot_memory(df, out, ext=plot_ext)
+
+    # Assemble validation atlas PDF
+    from sim_ace.plot_atlas import assemble_atlas, VALIDATION_CAPTIONS
+    _VALIDATION_BASENAMES = [
+        "family_size", "twin_rate", "half_sib_proportions",
+        "variance_components", "correlations_A", "correlations_phenotype",
+        "heritability_estimates", "cross_trait_correlations",
+        "summary_bias", "runtime", "memory",
+    ]
+    atlas_paths = [out / f"{name}.{plot_ext}" for name in _VALIDATION_BASENAMES]
+    assemble_atlas(atlas_paths, VALIDATION_CAPTIONS, out / "atlas.pdf")
 
 
 def cli() -> None:
