@@ -109,7 +109,18 @@ def _count_sib_pairs(non_twin_sibs: pd.DataFrame) -> dict[str, int]:
 
 
 def validate_structural(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
-    """Validate structural integrity of the pedigree."""
+    """Validate structural integrity of the pedigree.
+
+    Checks contiguous IDs, valid parent references, sex-parent consistency,
+    and balanced sex ratio.
+
+    Args:
+        df: Pedigree DataFrame with columns id, sex, mother, father.
+        params: Scenario parameters; requires keys ``N`` and ``G_ped``.
+
+    Returns:
+        Dict of check-name to result dicts (keys: passed, details, …).
+    """
     results = {}
     N = params["N"]
     ngen = params["G_ped"]
@@ -164,7 +175,20 @@ def validate_structural(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, A
 
 
 def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
-    """Validate MZ twin properties for two-trait simulation."""
+    """Validate MZ twin properties for two-trait simulation.
+
+    Checks bidirectional twin pointers, shared parents, identical A values
+    and sex for MZ pairs, and that the observed twin rate matches the
+    expected rate ``2 * p_mztwin * eligible_fraction``.
+
+    Args:
+        df: Pedigree DataFrame.
+        params: Scenario parameters; requires key ``p_mztwin``.
+        df_indexed: Pedigree DataFrame indexed by ``id`` for fast lookups.
+
+    Returns:
+        Dict of check-name to result dicts.
+    """
     results = {}
     p_mztwin = params["p_mztwin"]
 
@@ -274,7 +298,21 @@ def _corr_tolerance(expected_r: float, n_pairs: int, min_tol: float = 0.05, n_se
 
 
 def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
-    """Validate half-sibling counts and proportions related to p_nonsocial_father."""
+    """Validate half-sibling counts and proportions related to p_nonsocial_father.
+
+    Checks that the observed proportion of maternal half-sibling pairs among
+    all maternal sibling pairs matches the expected ``1 - (1 - p_nonsocial)^2``,
+    and that the fraction of offspring with at least one maternal half-sibling
+    matches theoretical expectations.
+
+    Args:
+        df: Pedigree DataFrame with columns id, mother, father, twin.
+        params: Scenario parameters; requires keys ``p_nonsocial_father``
+            and ``fam_size``.
+
+    Returns:
+        Dict of check-name to result dicts.
+    """
     results = {}
     p_nonsocial = params.get("p_nonsocial_father", 0)
     fam_size = params.get("fam_size", 2)
@@ -352,7 +390,22 @@ def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, An
 
 
 def validate_statistical(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
-    """Validate statistical properties of variance components for two traits."""
+    """Validate statistical properties of variance components for two traits.
+
+    Checks founder variances for A, C, E against configured values, total
+    variance close to 1.0, cross-trait correlations (rA, rC, rE), C sharing
+    within households, and E independence between siblings.
+
+    Args:
+        df: Pedigree DataFrame with variance-component columns A1, C1, E1,
+            A2, C2, E2.
+        params: Scenario parameters; requires keys ``A1``, ``C1``, ``E1``,
+            ``A2``, ``C2``, ``E2``, ``rA``, ``rC``.
+        df_indexed: Pedigree DataFrame indexed by ``id``.
+
+    Returns:
+        Dict of check-name to result dicts.
+    """
     results = {}
 
     rA_param = params.get("rA", 0)
@@ -670,7 +723,22 @@ def _validate_parent_offspring(
 
 
 def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
-    """Validate heritability estimates for two-trait simulation."""
+    """Validate heritability estimates for two-trait simulation.
+
+    Computes MZ twin and DZ sibling liability correlations, Falconer
+    heritability estimates ``h² = 2(r_MZ - r_DZ)``, and midparent-offspring
+    regressions, comparing each to expected values derived from the
+    configured A parameters.
+
+    Args:
+        df: Pedigree DataFrame.
+        params: Scenario parameters; requires keys ``A1``, ``A2``, ``seed``.
+        df_indexed: Pedigree DataFrame indexed by ``id``.
+
+    Returns:
+        Dict of check-name to result dicts, including MZ/DZ correlations,
+        Falconer estimates, and parent-offspring regression slopes.
+    """
     results: dict[str, Any] = {}
     A_params = {1: params["A1"], 2: params["A2"]}
 
@@ -695,7 +763,19 @@ def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: 
 
 
 def compute_per_generation_stats(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
-    """Compute per-generation statistics for two traits."""
+    """Compute per-generation statistics for two traits.
+
+    For each generation, computes liability mean/variance/sd and per-component
+    (A, C, E) mean/variance for both traits.
+
+    Args:
+        df: Pedigree DataFrame with columns id, A1, C1, E1, A2, C2, E2.
+        params: Scenario parameters; requires keys ``N`` and ``G_ped``.
+
+    Returns:
+        Dict keyed by ``"generation_{g}"`` where each value is a dict of
+        summary statistics (n, liability mean/variance/sd, component mean/var).
+    """
     N = params["N"]
     ngen = params["G_ped"]
 
@@ -727,7 +807,19 @@ def compute_per_generation_stats(df: pd.DataFrame, params: dict[str, Any]) -> di
 
 
 def validate_population(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
-    """Validate population-level properties."""
+    """Validate population-level properties.
+
+    Checks that each generation has exactly ``N`` individuals, the number of
+    generations equals ``G_ped``, and the mean family size approximates the
+    configured Poisson rate.
+
+    Args:
+        df: Pedigree DataFrame with columns id and mother.
+        params: Scenario parameters; requires keys ``N``, ``G_ped``, ``fam_size``.
+
+    Returns:
+        Dict of check-name to result dicts.
+    """
     results = {}
     N = params["N"]
     ngen = params["G_ped"]
@@ -771,7 +863,17 @@ def validate_population(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, A
 
 
 def compute_family_size_distribution(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
-    """Compute offspring count distributions per parent sex."""
+    """Compute offspring count distributions per parent sex.
+
+    Args:
+        df: Pedigree DataFrame with columns mother and father.
+        params: Scenario parameters (unused but accepted for API consistency).
+
+    Returns:
+        Dict with keys ``"mother"`` and ``"father"``, each mapping to a dict
+        of summary statistics (mean, median, std, n_parents). Empty dict if
+        no non-founders exist.
+    """
     non_founders = df[df["mother"] != -1]
     if len(non_founders) == 0:
         return {}
@@ -792,7 +894,23 @@ def compute_family_size_distribution(df: pd.DataFrame, params: dict[str, Any]) -
 
 
 def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
-    """Run all validation checks and return results."""
+    """Run all validation checks and return results.
+
+    Loads a pedigree and its parameters, then runs structural, twin,
+    half-sibling, statistical, heritability, and population checks.
+
+    Args:
+        pedigree_path: Path to the pedigree parquet file.
+        params_path: Path to the scenario parameters YAML file.
+
+    Returns:
+        Nested dict with keys ``"structural"``, ``"twins"``, ``"half_sibs"``,
+        ``"statistical"``, ``"heritability"``, ``"population"``,
+        ``"per_generation"``, ``"summary"``, ``"family_size_distribution"``,
+        and ``"parameters"``. The ``"summary"`` sub-dict contains
+        ``passed`` (bool), ``checks_passed``, ``checks_failed``, and
+        ``checks_total`` counts.
+    """
     logger.info("Validating pedigree: %s", pedigree_path)
     df = pd.read_parquet(pedigree_path)
     with open(params_path) as f:

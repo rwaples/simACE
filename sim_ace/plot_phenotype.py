@@ -24,7 +24,7 @@ from pathlib import Path
 import logging
 logger = logging.getLogger(__name__)
 
-MAX_PLOT_POINTS = 100_000
+MAX_PLOT_POINTS = 200_000
 
 # -- Distribution plots --
 from sim_ace.plot_distributions import (

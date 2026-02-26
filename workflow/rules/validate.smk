@@ -39,7 +39,8 @@ rule plot_validation:
     params:
         plot_format=config["defaults"].get("plot_format", "png"),
     output:
-        expand("results/{{folder}}/plots/{plot}", plot=VALIDATION_PLOTS)
+        expand("results/{{folder}}/plots/{plot}", plot=VALIDATION_PLOTS),
+        "results/{folder}/plots/atlas.pdf"
     log:
         "logs/{folder}/plot_validation.log"
     benchmark:

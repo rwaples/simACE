@@ -42,19 +42,54 @@ Define named scenarios in `config/config.yaml`. Defaults are inherited unless ov
 defaults:
   seed: 42
   replicates: 3
-  folder: base
-  A1: 0.5                     # Trait 1 additive genetic variance
-  C1: 0.2                     # Trait 1 common environment variance
-  A2: 0.5                     # Trait 2 additive genetic variance
-  C2: 0.2                     # Trait 2 common environment variance
-  rA: 0.3                     # Cross-trait genetic correlation
-  rC: 0.5                     # Cross-trait common environment correlation
-  N: 100000                   # Population size per generation
-  G_ped: 4                    # Generations to record in pedigree
-  G_sim: 6                    # Total generations (G_sim - G_ped = burn-in)
-  fam_size: 2.3               # Mean family size (Poisson)
-  p_mztwin: 0.02              # Probability of MZ twin birth
-  p_nonsocial_father: 0.05    # Probability of non-social paternity
+  folder: base                              # Name of folder where results are stored
+
+  # Trait 1 variance components (A + C <= 1.0; E = 1 - A - C)
+  A1: 0.5                                   # Additive genetic variance
+  C1: 0.2                                   # Common environment variance
+
+  # Trait 2 variance components
+  A2: 0.5
+  C2: 0.2
+
+  # Cross-trait correlations
+  rA: 0.3                                   # Genetic correlation
+  rC: 0.5                                   # Common environment correlation
+
+  # Population and reproduction
+  N: 100000                                 # Population size per generation
+  G_ped: 6                                  # Generations to record in pedigree
+  G_pheno: 3                                # Generations to phenotype (last G_pheno of G_ped)
+  G_sim: 8                                  # Total generations (G_sim - G_ped = burn-in)
+  fam_size: 2.3                             # Mean family size (Poisson)
+  p_mztwin: 0.02                            # Probability of MZ twin birth
+  p_nonsocial_father: 0.05                  # Probability of non-social paternity
+
+  # Weibull frailty phenotype model - Trait 1
+  beta1: 1.0                                # Effect of liability on log-hazard
+  scale1: 2160                              # Weibull scale
+  rho1: 0.8                                 # Weibull shape (<1 = decreasing hazard)
+
+  # Weibull frailty phenotype model - Trait 2
+  beta2: 1.5
+  scale2: 333
+  rho2: 1.2                                 # Weibull shape (>1 = increasing hazard)
+
+  standardize: true                          # Standardize liability before phenotyping
+
+  # Censoring
+  censor_age: 80                             # Max censoring age
+  gen_censoring:                             # Per-generation [left, right] observation windows
+    { 0: [80, 80], 1: [80, 80], 2: [80, 80], 3: [40, 80], 4: [0, 80], 5: [0, 45] }
+  death_scale: 164                           # Competing-risk mortality Weibull scale
+  death_rho: 2.73                            # Competing-risk mortality Weibull shape
+
+  # Liability threshold model
+  prevalence1: 0.10                          # Trait 1: proportion affected per generation
+  prevalence2: 0.20                          # Trait 2: proportion affected per generation
+
+  # Plot output
+  plot_format: png                           # Plot file format: png or pdf
 
 scenarios:
   baseline10K:
@@ -70,7 +105,7 @@ scenarios:
     C2: 0.0
 ```
 
-To add new simulations, add a named scenario to the config file.
+To add new simulations, add a named scenario to the config file. Prevalence can also be specified per-generation as a dict (e.g. `prevalence1: { 2: 0.03, 3: 0.05, 4: 0.08, 5: 0.12 }`).
 
 ## Outputs
 
@@ -96,6 +131,9 @@ ACE/
 ├── config/
 │   └── config.yaml                    # Simulation parameters (named scenarios)
 ├── sim_ace/                           # Installable package (pip install -e .)
+│   ├── __init__.py                    # setup_logging() + public API re-exports
+│   ├── cli_base.py                    # Shared CLI boilerplate (add_logging_args, init_logging)
+│   ├── utils.py                       # Shared helpers (safe_corrcoef, to_native, validation_result)
 │   ├── simulate.py                    # Pedigree simulation (mating, reproduce, run_simulation)
 │   ├── phenotype.py                   # Weibull frailty phenotype model
 │   ├── censor.py                      # Age-window and competing-risk death censoring
@@ -105,11 +143,12 @@ ACE/
 │   ├── threshold_stats.py             # Threshold phenotype statistics
 │   ├── survival_corr.py               # Pairwise Weibull survival correlation estimation
 │   ├── gather.py                      # Gather validation results into TSV
-│   ├── plot_phenotype.py              # Phenotype plot orchestrator
+│   ├── plot_phenotype.py              # Phenotype plot orchestrator + CLI
 │   ├── plot_distributions.py          # Mortality, age-at-onset, cumulative incidence plots
 │   ├── plot_liability.py              # Joint liability, violin, affection plots
 │   ├── plot_correlations.py           # Tetrachoric + parent-offspring correlation plots
 │   ├── plot_threshold.py              # Threshold phenotype plots
+│   ├── plot_atlas.py                  # Multi-page PDF atlas with figure captions
 │   └── plot_validation.py             # Validation summary plots
 ├── workflow/
 │   ├── common.py                      # Shared helpers (get_param, get_folder, etc.)

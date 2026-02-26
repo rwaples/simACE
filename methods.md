@@ -41,9 +41,9 @@ The simulation code is written in Python and the pipeline is orchestrated by Sna
 
 **Stage 2 — Phenotype Assignment** converts continuous liabilities into observable outcomes — either an age-at-onset via a survival model or a binary affected/unaffected status via a threshold model — and applies censoring to mimic real study limitations. *
 
-*Stage 3 — Statistical Analysis** estimates correlations between relatives and computes heritability using only the observable phenotype data, as a real researcher would. *
+**Stage 3 — Statistical Analysis** estimates correlations between relatives and computes heritability using only the observable phenotype data, as a real researcher would.
 
-*Stage 4 — Validation** compares every estimate back to the known ground-truth parameters, confirming both code correctness and estimator performance.
+**Stage 4 — Validation** compares every estimate back to the known ground-truth parameters, confirming both code correctness and estimator performance.
 
 ## Pedigree Simulation
 
@@ -165,7 +165,7 @@ $$
 h(t \mid L) = \frac{\rho}{\lambda} \left(\frac{t}{\lambda}\right)^{\rho - 1} \exp(\beta\,L)
 $$
 
-where $\lambda > 0$ is the Weibull scale parameter, $\rho > 0$ is the Weibull shape parameter, and $\beta$ scales the effect of indiviudal liabilty (i.e. log-hazard coefficient for liability). The corresponding survival function is:
+where $\lambda > 0$ is the Weibull scale parameter, $\rho > 0$ is the Weibull shape parameter, and $\beta$ scales the effect of individual liability (i.e. log-hazard coefficient for liability). The corresponding survival function is:
 
 $$
 S(t \mid L) = \exp\!\left[-\left(\frac{t}{\lambda}\right)^{\!\rho} \exp(\beta\,L)\right]
@@ -193,7 +193,7 @@ $$
 t_{\text{obs},i} = \text{clip}(t_i,\; a_g^L,\; a_g^R)
 $$
 
-For example, with default settings the oldest generations (gen 0–2) are fully censored, while the youngest generation (gen 5) has window $[0, 45]$, so indiviudals in this generation will only be marked as affected if their age-of-onset is before age 45.
+Generations that should contribute family structure but no observed cases are assigned a zero-width window (e.g. $[80, 80]$), which fully censors every individual because no continuous onset time can equal the boundary exactly. With default settings the oldest generations (gen 0–2) use this convention, while the youngest generation (gen 5) has window $[0, 45]$, so individuals in that generation will only be marked as affected if their age-of-onset is before age 45.
 
 **Competing-risk death censoring.** A random age of mortality is drawn per individual from a Weibull distribution with mortality-specific parameters ($\lambda_d, \rho_d$):
 

@@ -627,14 +627,50 @@ def compute_prevalence(df: pd.DataFrame) -> dict[str, float]:
     }
 
 
-def create_sample(df: pd.DataFrame, seed: int = 42, n_samples: int = 100000) -> pd.DataFrame:
-    """Create a downsampled DataFrame for scatter/histogram/violin plots."""
-    if len(df) <= n_samples:
+def create_sample(
+    df: pd.DataFrame, seed: int = 42, n_per_gen: int = 50_000,
+) -> pd.DataFrame:
+    """Create a downsampled DataFrame for scatter/histogram/violin plots.
+
+    Samples up to *n_per_gen* individuals from each generation and force-
+    includes the parents of every sampled offspring so that parent-offspring
+    scatter plots have sufficient linked pairs even for very large populations.
+    """
+    rng = np.random.default_rng(seed)
+
+    generations = df["generation"].values
+    unique_gens = sorted(np.unique(generations))
+
+    # If every generation already fits, return the full DataFrame
+    if all(int((generations == g).sum()) <= n_per_gen for g in unique_gens):
         return df.copy()
 
-    rng = np.random.default_rng(seed)
-    idx = rng.choice(len(df), n_samples, replace=False)
-    return df.iloc[idx].copy()
+    # Build id -> row lookup
+    ids = df["id"].values.astype(np.int64)
+    max_id = int(ids.max()) + 1
+    id_to_row = np.full(max_id, -1, dtype=np.int32)
+    id_to_row[ids] = np.arange(len(df), dtype=np.int32)
+
+    selected = set()
+
+    # Sample up to n_per_gen from each generation
+    for gen in unique_gens:
+        gen_idx = np.where(generations == gen)[0]
+        n_pick = min(len(gen_idx), n_per_gen)
+        chosen = rng.choice(gen_idx, n_pick, replace=False)
+        selected.update(chosen.tolist())
+
+    # Force-include parents of every sampled non-founder
+    selected_arr_tmp = np.array(list(selected), dtype=np.int64)
+    mother_ids = df["mother"].values[selected_arr_tmp].astype(np.int64)
+    father_ids = df["father"].values[selected_arr_tmp].astype(np.int64)
+    for pid_arr in [mother_ids, father_ids]:
+        valid = (pid_arr >= 0) & (pid_arr < max_id)
+        parent_rows = id_to_row[pid_arr[valid]]
+        selected.update(parent_rows[parent_rows >= 0].tolist())
+
+    selected_arr = np.sort(np.array(list(selected), dtype=np.int64))
+    return df.iloc[selected_arr].copy()
 
 
 def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:

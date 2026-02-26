@@ -25,6 +25,10 @@ def age_censor(t: np.ndarray, left: np.ndarray, right: np.ndarray) -> tuple[np.n
     - t < left: left-censored (onset before observation window), t set to left
     - t > right: right-censored (onset after observation window), t set to right
 
+    A zero-width window (left == right, e.g. ``[80, 80]``) fully censors the
+    generation: every individual is flagged as censored because no continuous
+    onset time can fall strictly within a zero-length interval.
+
     Args:
         t: array of time-to-onset values
         left: array of left-censoring ages (per individual)

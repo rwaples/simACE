@@ -87,7 +87,8 @@ def mating(rng: np.random.Generator, parental_sex: np.ndarray, fam_size: float, 
 
     Returns:
         parent_idxs: (n, 2) array of [mother_idx, father_idx] for each offspring
-        twins: array of [twin1_idx, twin2_idx] pairs for MZ twins
+        twins: (m, 2) array of [twin1_idx, twin2_idx] pairs for MZ twins
+        household_ids: (n,) array mapping each offspring to a household index
     """
     n = len(parental_sex)
 
@@ -175,6 +176,12 @@ def reproduce(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Simulate offspring phenotypes from parents for two correlated traits.
 
+    Additive genetic values are inherited as midparent + Mendelian noise.
+    Common environment (C) is drawn freshly per household — it is NOT
+    inherited from parents but represents the offspring's own shared rearing
+    environment (siblings share C; parents and children do not). Unique
+    environment (E) is drawn independently per individual.
+
     Args:
         rng: numpy random generator
         pheno: (n, 6) array of [A1, C1, E1, A2, C2, E2] for parents
@@ -258,11 +265,12 @@ def add_to_pedigree(
         sex: (n,) array of sex values
         parents: (n, 2) array of [mother_idx, father_idx]
         twins: array of MZ twin index pairs
+        household_ids: (n,) array mapping each offspring to a household index
         generation: generation number (0 for founders)
         pedigree: existing pedigree DataFrame or None for first generation
 
     Returns:
-        Updated pedigree DataFrame
+        Updated pedigree DataFrame with the new generation appended.
     """
     n = len(pheno)
     twin_col = np.full(n, -1, dtype=int)

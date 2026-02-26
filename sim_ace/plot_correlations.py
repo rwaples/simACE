@@ -300,15 +300,36 @@ def plot_parent_offspring_liability(
         plt.close()
         return
 
-    max_gen = int(df_samples["generation"].max())
-    # Last 3 non-founder generations (gen 0 = founders)
-    plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
-
     # Build id -> row lookup within df_samples
     ids_arr = df_samples["id"].values.astype(np.int64)
     max_id = int(ids_arr.max()) + 1
     id_to_row = np.full(max_id, -1, dtype=np.int32)
     id_to_row[ids_arr] = np.arange(len(df_samples), dtype=np.int32)
+
+    # Select non-founder generations whose parents are present in the sample.
+    # The earliest phenotyped generation's parents may be outside the phenotype
+    # window (e.g. G_pheno < G_ped), so we test each candidate generation.
+    sample_ids = set(ids_arr)
+    min_gen = int(df_samples["generation"].min())
+    max_gen = int(df_samples["generation"].max())
+    candidate_gens = list(range(max(min_gen + 1, 1), max_gen + 1))
+    plot_gens = []
+    for gen in candidate_gens:
+        gen_mask = df_samples["generation"].values == gen
+        mothers = df_samples["mother"].values[gen_mask].astype(np.int64)
+        # Check if any parents are present in the sample
+        if np.any(np.isin(mothers[mothers >= 0], ids_arr)):
+            plot_gens.append(gen)
+    # Keep at most 3 generations for a readable grid
+    plot_gens = plot_gens[-3:]
+
+    if not plot_gens:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No generations with parent data available",
+                ha="center", va="center", transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
 
     n_cols = len(plot_gens)
     fig, axes = plt.subplots(2, n_cols, figsize=(5 * n_cols, 8), squeeze=False)

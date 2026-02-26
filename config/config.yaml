@@ -44,9 +44,9 @@ defaults:
   censor_age: 80 # Max censoring age
   gen_censoring:
     {
-      0: [80, 80],
-      1: [80, 80],
-      2: [80, 80],
+      0: [80, 80],  # zero-width window → fully censored (no cases observed)
+      1: [80, 80],  # zero-width window → fully censored
+      2: [80, 80],  # zero-width window → fully censored
       3: [40, 80],
       4: [0, 80],
       5: [0, 45],
