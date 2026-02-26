@@ -39,7 +39,21 @@ def _run_snakemake():
 
     captions = {**PHENOTYPE_CAPTIONS, **THRESHOLD_CAPTIONS}
     all_paths = weibull_paths + threshold_paths
-    assemble_atlas(all_paths, captions, output_path, scenario_params=scenario_params)
+
+    # Section dividers before Weibull and Threshold sections
+    section_breaks = {
+        0: ("Weibull Frailty Phenotype", "Survival-time phenotyping, censoring, and correlation analysis"),
+    }
+    if threshold_paths:
+        section_breaks[len(weibull_paths)] = (
+            "Liability Threshold Phenotype",
+            "Binary affected status from liability threshold model",
+        )
+    assemble_atlas(
+        all_paths, captions, output_path,
+        scenario_params=scenario_params,
+        section_breaks=section_breaks,
+    )
 
 
 if __name__ == "__main__":

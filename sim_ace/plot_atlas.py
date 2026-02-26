@@ -364,11 +364,30 @@ def _render_params_page(
     plt.close(fig)
 
 
+def _render_section_page(pdf: PdfPages, title: str, subtitle: str = "") -> None:
+    """Render a section divider page with centred title."""
+    fig = plt.figure(figsize=(11, 8.5))
+    fig.text(
+        0.5, 0.55, title,
+        fontsize=28, fontweight="bold", fontfamily="serif",
+        ha="center", va="center", transform=fig.transFigure,
+    )
+    if subtitle:
+        fig.text(
+            0.5, 0.45, subtitle,
+            fontsize=16, fontfamily="serif", color="0.4",
+            ha="center", va="center", transform=fig.transFigure,
+        )
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
 def assemble_atlas(
     plot_paths: list[Path],
     captions: dict[str, str],
     output_path: Path,
     scenario_params: dict | None = None,
+    section_breaks: dict[int, tuple[str, str]] | None = None,
 ) -> None:
     """Combine saved plot images into a multi-page PDF with captions below each plot.
 
@@ -381,18 +400,26 @@ def assemble_atlas(
         output_path: Path for the combined PDF.
         scenario_params: If provided, a dict with keys 'scenario' and parameter
             names.  A title page with all parameters is rendered first.
+        section_breaks: Map from plot index to (title, subtitle) pairs.
+            A section divider page is inserted before the plot at each index.
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     atlas_dir = output_path.parent.resolve()
+    if section_breaks is None:
+        section_breaks = {}
 
     with PdfPages(str(output_path)) as pdf:
         # Optional title page with scenario parameters
         if scenario_params is not None:
             scenario_name = scenario_params.get("scenario", "unknown")
             _render_params_page(pdf, scenario_name, scenario_params)
-        for path in plot_paths:
+        for idx, path in enumerate(plot_paths):
+            # Insert section divider page if configured for this index
+            if idx in section_breaks:
+                sec_title, sec_subtitle = section_breaks[idx]
+                _render_section_page(pdf, sec_title, sec_subtitle)
             path = Path(path)
             if not path.exists():
                 logger.warning("Atlas: skipping missing plot %s", path)
