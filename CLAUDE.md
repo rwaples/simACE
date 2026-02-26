@@ -95,6 +95,16 @@ ACE/
 **Configuration** (`config/config.yaml`):
 Define named scenarios with parameters: seed, folder, A, C, N, G_ped, G_sim, fam_size, p_mztwin, p_nonsocial_father
 
+## Generating methods.pdf
+
+```bash
+# Requires pandoc and tectonic (install via conda if missing)
+conda install -y -c conda-forge pandoc tectonic
+
+# Regenerate PDF from methods.md
+pandoc methods.md -o methods.pdf --pdf-engine=tectonic -V geometry:margin=1in -V fontsize=11pt --standalone
+```
+
 ## Dependencies
 
 Key libraries: numpy, scipy, pandas, pyarrow, matplotlib, seaborn, snakemake (with SLURM executor for HPC)
