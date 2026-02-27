@@ -337,7 +337,7 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
     out.mkdir(parents=True, exist_ok=True)
     logger.info("Generating validation plots in %s", out)
     sns.set_theme(style="whitegrid", palette="colorblind")
-    df = pd.read_csv(tsv_path, sep="\t")
+    df = pd.read_csv(tsv_path, sep="\t", encoding="utf-8")
 
     # Sort scenarios by increasing N so x-axes read left-to-right by size
     if "N" in df.columns:

@@ -6,6 +6,8 @@ channels:
 dependencies:
   - numpy
   - scipy
+  - pandas
+  - pyyaml
   - jupyter
   - notebook
   - seaborn 

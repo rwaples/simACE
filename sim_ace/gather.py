@@ -43,7 +43,7 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         validation_path,
     ))
     if bench_path.exists():
-        with open(bench_path, encoding="utf-8") as bf:
+        with open(bench_path, encoding="utf-8", newline="") as bf:
             reader = csv.DictReader(bf, delimiter="\t")
             for row_b in reader:
                 simulate_seconds = float(row_b["s"])

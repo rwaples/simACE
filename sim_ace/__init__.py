@@ -28,7 +28,7 @@ def setup_logging(level=logging.INFO, log_file=None):
     sh.setFormatter(fmt_console)
     pkg.addHandler(sh)
     if log_file:
-        fh = logging.FileHandler(log_file)
+        fh = logging.FileHandler(log_file, encoding="utf-8")
         fh.setFormatter(fmt_file)
         pkg.addHandler(fh)
 
