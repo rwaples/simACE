@@ -12,6 +12,8 @@ import re
 import yaml
 from pathlib import Path
 
+import platform
+
 from sim_ace.utils import get_nested
 
 logger = logging.getLogger(__name__)
@@ -47,7 +49,14 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
             reader = csv.DictReader(bf, delimiter="\t")
             for row_b in reader:
                 simulate_seconds = float(row_b["s"])
-                simulate_max_rss_mb = float(row_b["max_rss"])
+
+                if platform.system() == "Windows":
+                    # Windows non supporta max_rss → metto NaN
+                    simulate_max_rss_mb = float(1)
+                else:
+                    # Linux/macOS → converto normalmente
+                    simulate_max_rss_mb = float(row_b["max_rss"])
+
                 break
 
     params = data["parameters"]
