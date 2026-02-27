@@ -496,5 +496,5 @@ def cli() -> None:
         "fam_size": args.fam_size, "p_mztwin": args.p_mztwin,
         "p_nonsocial_father": args.p_nonsocial_father,
     }
-    with open(args.output_params, "w") as f:
+    with open(args.output_params, "w", encoding="utf-8") as f:
         yaml.dump(params_dict, f, default_flow_style=False)

@@ -972,7 +972,7 @@ def main(
     # Write stats YAML
     stats_path = Path(stats_output)
     stats_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(stats_path, "w") as f:
+    with open(stats_path, "w", encoding="utf-8") as f:
         yaml.dump(stats, f, default_flow_style=False, sort_keys=False)
     logger.info("Stats written to %s", stats_path)
 

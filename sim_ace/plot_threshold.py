@@ -484,7 +484,7 @@ def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, preva
     # Load per-rep stats
     all_stats = []
     for p in stats_paths:
-        with open(p) as f:
+        with open(p, encoding="utf-8") as f:
             all_stats.append(yaml.load(f, Loader=_yaml_loader))
 
     # Load and concatenate downsampled data

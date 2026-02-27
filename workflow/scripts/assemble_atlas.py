@@ -21,7 +21,7 @@ def _run_snakemake():
     output_path = Path(snakemake.output[0])
 
     # Load simulation parameters saved at simulate time
-    with open(snakemake.input.params_yaml) as fh:
+    with open(snakemake.input.params_yaml, encoding="utf-8") as fh:
         scenario_params = yaml.safe_load(fh)
 
     # Merge in config-level parameters not present in params.yaml
@@ -73,7 +73,7 @@ if __name__ == "__main__":
 
         scenario_params = None
         if args.params_yaml:
-            with open(args.params_yaml) as fh:
+            with open(args.params_yaml, encoding="utf-8") as fh:
                 scenario_params = yaml.safe_load(fh)
             scenario_params["scenario"] = args.scenario
 

@@ -47,7 +47,7 @@ def _run_snakemake():
         "p_mztwin": params.p_mztwin,
         "p_nonsocial_father": params.p_nonsocial_father,
     }
-    with open(output_params, "w") as f:
+    with open(output_params, "w", encoding="utf-8") as f:
         yaml.dump(params_dict, f, default_flow_style=False)
 
 

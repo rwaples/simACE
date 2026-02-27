@@ -19,8 +19,11 @@ logger = logging.getLogger(__name__)
 
 def extract_metrics(validation_path: str) -> dict[str, Any]:
     """Extract key metrics from a validation YAML file."""
-    with open(validation_path) as f:
+    with open(validation_path, encoding="utf-8") as f:
         data = yaml.safe_load(f)
+
+    # Normalise to forward slashes so the regex works on Windows too
+    validation_path = str(validation_path).replace("\\", "/")
 
     # Extract scenario and rep from path: results/{folder}/{scenario}/rep{rep}/validation.yaml
     match = re.search(r"results/([^/]+)/([^/]+)/rep(\d+)/validation\.yaml", validation_path)
@@ -40,7 +43,7 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         validation_path,
     ))
     if bench_path.exists():
-        with open(bench_path) as bf:
+        with open(bench_path, encoding="utf-8") as bf:
             reader = csv.DictReader(bf, delimiter="\t")
             for row_b in reader:
                 simulate_seconds = float(row_b["s"])
@@ -200,7 +203,7 @@ def main(validation_files: list[str], output_path: str) -> None:
     # Write TSV
     if rows:
         columns = list(rows[0].keys())
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8", newline="") as f:
             f.write("\t".join(columns) + "\n")
             for row in rows:
                 values = []

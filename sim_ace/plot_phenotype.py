@@ -74,7 +74,7 @@ def main(
     # Load per-rep stats
     all_stats = []
     for p in stats_paths:
-        with open(p) as f:
+        with open(p, encoding="utf-8") as f:
             all_stats.append(yaml.load(f, Loader=_yaml_loader))
 
     # Load and concatenate downsampled data
@@ -148,7 +148,7 @@ def main(
     if validation_paths:
         all_validations = []
         for p in validation_paths:
-            with open(p) as f:
+            with open(p, encoding="utf-8") as f:
                 all_validations.append(yaml.load(f, Loader=_yaml_loader))
         plot_heritability_by_generation(
             all_validations, out_dir / f"heritability.by_generation.{ext}", scenario,

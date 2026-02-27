@@ -15,7 +15,7 @@ def _run_snakemake():
     results = run_validation(pedigree_path, params_path)
     results = to_native(results)
 
-    with open(output_path, "w") as f:
+    with open(output_path, "w", encoding="utf-8") as f:
         yaml.dump(results, f, default_flow_style=False, sort_keys=False)
 
 

@@ -913,7 +913,7 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
     """
     logger.info("Validating pedigree: %s", pedigree_path)
     df = pd.read_parquet(pedigree_path)
-    with open(params_path) as f:
+    with open(params_path, encoding="utf-8") as f:
         params = yaml.safe_load(f)
 
     df_indexed = df.set_index("id")
@@ -978,5 +978,5 @@ def cli() -> None:
     results = run_validation(args.pedigree, args.params)
     results = to_native(results)
 
-    with open(args.output, "w") as f:
+    with open(args.output, "w", encoding="utf-8") as f:
         yaml.dump(results, f, default_flow_style=False, sort_keys=False)
