@@ -26,9 +26,12 @@ def _run_snakemake():
         },
     }
 
+    extra_tetrachoric = snakemake.params.get("extra_tetrachoric", True)
+
     main(phenotype_path, censor_age, stats_output, samples_output,
          seed=seed, gen_censoring=gen_censoring,
-         weibull_params=weibull_params)
+         weibull_params=weibull_params,
+         extra_tetrachoric=extra_tetrachoric)
 
 
 if __name__ == "__main__":

@@ -517,9 +517,16 @@ def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, preva
         df_samples, out_dir / f"cross_trait.threshold.{ext}", scenario,
     )
 
-    plot_tetrachoric(
-        all_stats, out_dir / f"tetrachoric.threshold.{ext}", scenario,
-    )
+    if all_stats[0].get("tetrachoric"):
+        plot_tetrachoric(
+            all_stats, out_dir / f"tetrachoric.threshold.{ext}", scenario,
+        )
+    else:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "Tetrachoric correlations not computed\n(extra_tetrachoric: false)",
+                ha="center", va="center", transform=ax.transAxes)
+        plt.savefig(out_dir / f"tetrachoric.threshold.{ext}", dpi=150)
+        plt.close()
 
     logger.info("Threshold plots saved to %s", out_dir)
 

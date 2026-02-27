@@ -131,12 +131,20 @@ def main(
         plt.savefig(out_dir / f"censoring.{ext}", dpi=150)
         plt.close()
 
-    plot_tetrachoric_sibling(
-        all_stats, out_dir / f"tetrachoric.weibull.{ext}", scenario,
-    )
-    plot_tetrachoric_by_generation(
-        all_stats, out_dir / f"tetrachoric.weibull.by_generation.{ext}", scenario,
-    )
+    if all_stats[0].get("tetrachoric"):
+        plot_tetrachoric_sibling(
+            all_stats, out_dir / f"tetrachoric.weibull.{ext}", scenario,
+        )
+        plot_tetrachoric_by_generation(
+            all_stats, out_dir / f"tetrachoric.weibull.by_generation.{ext}", scenario,
+        )
+    else:
+        for name in ["tetrachoric.weibull", "tetrachoric.weibull.by_generation"]:
+            fig, ax = plt.subplots(figsize=(6, 4))
+            ax.text(0.5, 0.5, "Tetrachoric correlations not computed\n(extra_tetrachoric: false)",
+                    ha="center", va="center", transform=ax.transAxes)
+            plt.savefig(out_dir / f"{name}.{ext}", dpi=150)
+            plt.close()
     plot_parent_offspring_liability(
         df_samples, all_stats, out_dir / f"parent_offspring_liability.by_generation.{ext}", scenario,
     )

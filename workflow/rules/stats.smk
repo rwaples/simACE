@@ -14,6 +14,7 @@ rule stats_weibull:
         beta2=lambda w: get_param(config, w.scenario, "beta2"),
         scale2=lambda w: get_param(config, w.scenario, "scale2"),
         rho2=lambda w: get_param(config, w.scenario, "rho2"),
+        extra_tetrachoric=lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/phenotype_stats.log"
     benchmark:
@@ -72,6 +73,7 @@ rule stats_threshold:
         samples="results/{folder}/{scenario}/rep{rep}/threshold_samples.parquet"
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
+        extra_tetrachoric=lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/threshold_stats.log"
     benchmark:
