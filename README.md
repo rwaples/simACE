@@ -171,6 +171,52 @@ Multi-page PDF atlases collect all figures for a scenario or folder into a singl
 | `results/{folder}/{scenario}/plots/atlas.pdf` | Per-scenario atlas: liability structure, Weibull phenotype, censoring, correlations, heritability, and threshold model figures |
 | `results/{folder}/plots/atlas.pdf` | Per-folder atlas: cross-scenario validation plots (variance components, correlations, heritability, bias, runtime, memory) |
 
+### Parquet Column Reference
+
+#### pedigree.parquet
+
+Core pedigree structure with latent variance components for two correlated traits.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | int | Unique individual identifier |
+| `sex` | int | 0 = female, 1 = male |
+| `mother` | int | Mother's id (-1 for founders) |
+| `father` | int | Father's id (-1 for founders) |
+| `twin` | int | MZ twin partner's id (-1 if not a twin) |
+| `generation` | int | Generation number (0 = oldest recorded) |
+| `household_id` | int | Shared-environment household group |
+| `A1`, `A2` | float | Additive genetic component (traits 1 and 2) |
+| `C1`, `C2` | float | Common/shared environment component |
+| `E1`, `E2` | float | Unique environment component |
+| `liability1`, `liability2` | float | Total liability (A + C + E) |
+
+#### phenotype.weibull.parquet
+
+Extends the pedigree with Weibull frailty time-to-event phenotypes and censoring. Includes all pedigree columns above, plus:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `t1`, `t2` | float | Raw (uncensored) age-at-onset from the Weibull frailty model |
+| `death_age` | float | Age at death from competing-risk mortality |
+| `t_observed1`, `t_observed2` | float | Observed age-at-onset after age and death censoring |
+| `age_censored1`, `age_censored2` | bool | True if onset falls outside the generation's observation window |
+| `death_censored1`, `death_censored2` | bool | True if onset occurs after death |
+| `affected1`, `affected2` | bool | True if the individual is observed as affected (not age- or death-censored) |
+
+#### phenotype.liability_threshold.parquet
+
+Binary affection status from a liability-threshold model. Each generation has an independent prevalence-based threshold.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | int | Individual identifier |
+| `generation` | int | Generation number |
+| `mother`, `father`, `twin` | int | Family links (same as pedigree) |
+| `A1`, `C1`, `E1`, `liability1` | float | Trait 1 variance components and liability |
+| `A2`, `C2`, `E2`, `liability2` | float | Trait 2 variance components and liability |
+| `affected1`, `affected2` | bool | True if liability exceeds the generation-specific threshold |
+
 ## Project Structure
 
 ```
