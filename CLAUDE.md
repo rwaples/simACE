@@ -25,19 +25,19 @@ conda activate ACE
 
 ```bash
 # Run everything (default target)
-snakemake --cores 6
+snakemake --cores 4
 
 # Run individual stages
-snakemake --cores 6 simulate_all     # pedigree simulation only
-snakemake --cores 6 phenotype_all    # simulation + phenotyping
-snakemake --cores 6 validate_all     # simulation + validation + folder summaries
-snakemake --cores 6 stats_all        # phenotyping + stats + plots
+snakemake --cores 4 simulate_all     # pedigree simulation only
+snakemake --cores 4 phenotype_all    # simulation + phenotyping
+snakemake --cores 4 validate_all     # simulation + validation + folder summaries
+snakemake --cores 4 stats_all        # phenotyping + stats + plots
 
 # Run a single scenario
-snakemake --cores 6 results/base/baseline10K/scenario.done
+snakemake --cores 4 results/base/baseline10K/scenario.done
 
 # Dry run to see what will be executed
-snakemake -n --cores 6
+snakemake -n --cores 4
 ```
 
 ## Architecture

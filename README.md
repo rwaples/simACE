@@ -7,32 +7,64 @@ Simulates multi-generational pedigrees with ACE variance components for two corr
 
 Continuous liabilities are mapped to observable phenotypes via a Weibull proportional-hazards frailty model (time-to-event) or a liability-threshold model (binary affection). The pipeline includes automated structural and statistical validation, phenotype statistics, and plotting.
 
+## Prerequisites
+
+- [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) (Miniconda or Miniforge)
+- Python 3.10+
+- Linux or macOS (Windows may try [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install))
+
 ## Setup
 
 ```bash
-conda env create -f environment.yml
+git clone <repo-url>
+cd ACE
+conda env create -f environment.yml   # creates environment and installs sim_ace package
 conda activate ACE
-pip install -e .   # editable install — code changes in sim_ace/ take effect immediately
+```
+
+### Verify installation
+
+```bash
+pytest tests/           # 158 unit tests, should complete in ~1s
+```
+
+## Quick start
+
+Run the smallest scenario to confirm everything works (takes a few seconds):
+
+```bash
+snakemake --cores 2 results/test/small_test/scenario.done
+```
+
+Check the output:
+
+```bash
+ls results/test/small_test/rep1/    # pedigree.parquet, phenotype files, validation, stats
+cat logs/test/small_test/rep1/simulate.log
 ```
 
 ## Usage
 
+Use `--cores N` where N is the number of parallel jobs.
+
 ```bash
-# Run everything (default target)
-snakemake --cores 6
+# Run everything (default target — 16 scenarios, ~60-90 min)
+snakemake --cores 4
 
 # Run individual stages
-snakemake --cores 6 simulate_all     # pedigree simulation only
-snakemake --cores 6 phenotype_all    # simulation + phenotyping
-snakemake --cores 6 validate_all     # simulation + validation + folder summaries
-snakemake --cores 6 stats_all        # phenotyping + stats + plots
+snakemake --cores 4 simulate_all     # pedigree simulation only
+snakemake --cores 4 phenotype_all    # simulation + phenotyping
+snakemake --cores 4 validate_all     # simulation + validation + folder summaries
+snakemake --cores 4 stats_all        # phenotyping + stats + plots
 
 # Run a single scenario
-snakemake --cores 6 results/base/baseline10K/scenario.done
+snakemake --cores 4 results/base/baseline10K/scenario.done
 
 # Dry run to see what will be executed
-snakemake -n --cores 6
+snakemake -n --cores 4
 ```
+
+In snakemake, if a run is interrupted or fails, re-running the same command resumes from where it left off — completed steps are skipped automatically.
 
 ## Configuration
 
@@ -185,6 +217,15 @@ ACE/
 
 - **[methods.md](methods.md)** — Methods document (variance decomposition, Weibull frailty, censoring, liability threshold, tetrachoric correlation, heritability estimation, etc)
 - **[CLAUDE.md](CLAUDE.md)** — Architecture guide
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `ModuleNotFoundError: No module named 'sim_ace'` | Run `conda activate ACE` first — the package is only available inside the conda environment |
+| `FileNotFoundError: config/config.yaml` | Run snakemake from the ACE repo root directory |
+| Simulation killed or frozen (large N) | Reduce `--cores` to lower parallel memory usage, or skip N=1M/2M scenarios |
+| `IncompleteFilesException` on re-run | Snakemake detected a previously interrupted output; run `snakemake --cores 4 --rerun-incomplete` |
 
 ## License
 
