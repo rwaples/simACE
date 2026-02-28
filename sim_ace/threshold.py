@@ -118,6 +118,7 @@ def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     phenotype = pd.DataFrame(
         {
             "id": pedigree["id"].values,
+            "sex": pedigree["sex"].values,
             "generation": generation,
             "mother": pedigree["mother"].values,
             "father": pedigree["father"].values,

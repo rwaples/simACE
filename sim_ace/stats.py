@@ -23,6 +23,8 @@ import logging
 import time
 logger = logging.getLogger(__name__)
 
+from sim_ace.pedigree_graph import extract_relationship_pairs  # noqa: E402
+
 
 def _bvn_pos(h: float, k: float, r: float, sq: float) -> float:
     """BVN CDF for h >= 0, k >= 0, |r| < 1 using Owen's T function."""
@@ -152,12 +154,8 @@ def tetrachoric_se(r: float, a: np.ndarray, b: np.ndarray) -> float:
     return se
 
 
-def extract_relationship_pairs(df: pd.DataFrame, seed: int = 42) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-    """Extract relationship pairs as aligned row-index arrays.
-
-    Performance-optimized version using dict-based lookups and pandas merge
-    for sibling extraction instead of groupby loops.
-    """
+def _extract_relationship_pairs_legacy(df: pd.DataFrame, seed: int = 42) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Legacy implementation kept for golden testing. Use pedigree_graph.extract_relationship_pairs instead."""
     # Map (id) -> row position via numpy array for vectorized lookup
     ids_arr = df["id"].values.astype(np.int64)
     id_to_row = np.full(ids_arr.max() + 1, -1, dtype=np.int32)

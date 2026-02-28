@@ -18,10 +18,10 @@ from pathlib import Path
 
 from sim_ace.stats import (
     tetrachoric_corr_se,
-    extract_relationship_pairs,
     compute_liability_correlations,
     create_sample,
 )
+from sim_ace.pedigree_graph import extract_relationship_pairs
 
 import logging
 import time

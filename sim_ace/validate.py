@@ -17,6 +17,7 @@ import pandas as pd
 import yaml
 
 from sim_ace.utils import safe_corrcoef, safe_linregress, to_native, validation_result as _result
+from sim_ace.pedigree_graph import count_sib_pairs, extract_relationship_pairs
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +49,8 @@ def _midparent_regression(vals: np.ndarray, mother_idx: np.ndarray, father_idx: 
     return {"details": f"Zero variance in midparent {label} values"}
 
 
-def _count_sib_pairs(non_twin_sibs: pd.DataFrame) -> dict[str, int]:
-    """Count full-sib, maternal half-sib, and paternal half-sib pairs.
-
-    Uses vectorized merge instead of Python loops for speed.
-    Returns dict with counts only (no pair lists).
-    """
+def _count_sib_pairs_legacy(non_twin_sibs: pd.DataFrame) -> dict[str, int]:
+    """Legacy implementation kept for golden testing. Use pedigree_graph.count_sib_pairs instead."""
     cols = non_twin_sibs[["id", "mother", "father"]]
 
     # Maternal grouping: self-merge on mother
@@ -334,7 +331,7 @@ def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, An
         )
         return results
 
-    sib_info = _count_sib_pairs(non_twin_sibs)
+    sib_info = count_sib_pairs(non_twin_sibs)
 
     # Maternal half-sib pair proportion (validates p_nonsocial_father)
     total_maternal_pairs = sib_info["n_full_sib_pairs"] + sib_info["n_maternal_half_sib_pairs"]
@@ -571,65 +568,48 @@ def _validate_dz_correlations(
     results: dict[str, Any],
 ) -> tuple[dict[int, float | None], int]:
     """Validate DZ sibling correlations. Returns (dz_pheno_corr, n_dz_pairs)."""
-    non_founders = df[df["mother"] != -1]
-    non_twin_sibs = non_founders[non_founders["twin"] == -1][["id", "mother", "father"]].copy()
-    non_twin_sibs["_row"] = id_to_idx.reindex(non_twin_sibs["id"]).values.astype(int)
-
-    sib_counts = non_twin_sibs.groupby("mother").size()
-    multi_mothers = sib_counts[sib_counts >= 2].index
-    mat_sib = non_twin_sibs[non_twin_sibs["mother"].isin(multi_mothers)]
+    pairs = extract_relationship_pairs(df, seed=params.get("seed", 42))
+    idx1, idx2 = pairs["Full sib"]
 
     dz_pheno_corr: dict[int, float | None] = {}
-    n_dz_pairs = 0
-    if len(mat_sib) > 0:
-        mat_pairs = mat_sib[["mother", "father", "_row"]].merge(
-            mat_sib[["mother", "father", "_row"]],
-            on="mother", suffixes=("_1", "_2"),
-        )
-        full_sib_pairs = mat_pairs[
-            (mat_pairs["_row_1"] < mat_pairs["_row_2"])
-            & (mat_pairs["father_1"] == mat_pairs["father_2"])
-        ]
+    n_dz_pairs = len(idx1)
 
-        max_pairs = 5000
-        if len(full_sib_pairs) > max_pairs:
-            rng = np.random.default_rng(params.get("seed", 42))
-            full_sib_pairs = full_sib_pairs.iloc[
-                rng.choice(len(full_sib_pairs), max_pairs, replace=False)
-            ]
+    max_pairs = 5000
+    if n_dz_pairs > max_pairs:
+        rng = np.random.default_rng(params.get("seed", 42))
+        sel = rng.choice(n_dz_pairs, max_pairs, replace=False)
+        idx1 = idx1[sel]
+        idx2 = idx2[sel]
+        n_dz_pairs = max_pairs
 
-        n_dz_pairs = len(full_sib_pairs)
-        if n_dz_pairs >= 10:
-            idx1 = full_sib_pairs["_row_1"].values
-            idx2 = full_sib_pairs["_row_2"].values
+    if n_dz_pairs >= 10:
+        for t in [1, 2]:
+            col = f"A{t}"
+            dz_v1, dz_v2 = comp_vals[col][idx1], comp_vals[col][idx2]
+            dz_corr = safe_corrcoef(dz_v1, dz_v2)
+            expected_dz = 0.5
+            dz_tol = _corr_tolerance(expected_dz, n_dz_pairs)
+            if np.isnan(dz_corr):
+                dz_ok = A_params[t] == 0
+            else:
+                dz_ok = abs(dz_corr - expected_dz) < dz_tol
+            results[f"dz_sibling_{col}_correlation"] = _result(
+                dz_ok,
+                f"DZ sibling {col} correlation: {dz_corr:.4f} (expected: ~0.5, tol: {dz_tol:.4f})",
+                expected=expected_dz,
+                observed=float(dz_corr),
+                n_pairs=n_dz_pairs,
+            )
 
-            for t in [1, 2]:
-                col = f"A{t}"
-                dz_v1, dz_v2 = comp_vals[col][idx1], comp_vals[col][idx2]
-                dz_corr = safe_corrcoef(dz_v1, dz_v2)
-                expected_dz = 0.5
-                dz_tol = _corr_tolerance(expected_dz, n_dz_pairs)
-                if np.isnan(dz_corr):
-                    dz_ok = A_params[t] == 0
-                else:
-                    dz_ok = abs(dz_corr - expected_dz) < dz_tol
-                results[f"dz_sibling_{col}_correlation"] = _result(
-                    dz_ok,
-                    f"DZ sibling {col} correlation: {dz_corr:.4f} (expected: ~0.5, tol: {dz_tol:.4f})",
-                    expected=expected_dz,
-                    observed=float(dz_corr),
-                    n_pairs=n_dz_pairs,
-                )
-
-                P1 = dz_v1 + comp_vals[f"C{t}"][idx1] + comp_vals[f"E{t}"][idx1]
-                P2 = dz_v2 + comp_vals[f"C{t}"][idx2] + comp_vals[f"E{t}"][idx2]
-                pheno_corr = safe_corrcoef(P1, P2)
-                dz_pheno_corr[t] = pheno_corr
-                results[f"dz_sibling_liability{t}_correlation"] = {
-                    "observed": float(pheno_corr),
-                    "details": f"DZ sibling liability{t} correlation: {pheno_corr:.4f}",
-                    "n_pairs": n_dz_pairs,
-                }
+            P1 = dz_v1 + comp_vals[f"C{t}"][idx1] + comp_vals[f"E{t}"][idx1]
+            P2 = dz_v2 + comp_vals[f"C{t}"][idx2] + comp_vals[f"E{t}"][idx2]
+            pheno_corr = safe_corrcoef(P1, P2)
+            dz_pheno_corr[t] = pheno_corr
+            results[f"dz_sibling_liability{t}_correlation"] = {
+                "observed": float(pheno_corr),
+                "details": f"DZ sibling liability{t} correlation: {pheno_corr:.4f}",
+                "n_pairs": n_dz_pairs,
+            }
 
     if n_dz_pairs < 10:
         for t in [1, 2]:

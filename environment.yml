@@ -19,6 +19,7 @@ dependencies:
   - hdf5
   - pyarrow
   - numba
+  - graph-tool
   - pip
   - pip:
     - pypair
