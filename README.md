@@ -25,7 +25,7 @@ conda activate ACE
 ### Verify installation
 
 ```bash
-pytest tests/           # 158 unit tests, should complete in ~1s
+pytest tests/           # unit tests, should complete in ~1s
 ```
 
 ## Quick start
@@ -119,6 +119,9 @@ defaults:
   # Liability threshold model
   prevalence1: 0.10                          # Trait 1: proportion affected per generation
   prevalence2: 0.20                          # Trait 2: proportion affected per generation
+
+  # Statistics
+  extra_tetrachoric: false                   # Estimate additional tetrachoric correlations (slow; set true to enable) [UNDER DEVELOPEMENT]
 
   # Plot output
   plot_format: png                           # Plot file format: png or pdf
@@ -234,12 +237,14 @@ ACE/
 │   ├── threshold.py                   # Liability-threshold model
 │   ├── validate.py                    # Structural + statistical validation
 │   ├── stats.py                       # Tetrachoric correlations, relationship pairs
+│   ├── pedigree_graph.py             # Sparse-matrix pedigree relationship extraction
 │   ├── threshold_stats.py             # Threshold phenotype statistics
 │   ├── survival_corr.py               # Pairwise Weibull survival correlation estimation
 │   ├── gather.py                      # Gather validation results into TSV
 │   ├── plot_phenotype.py              # Phenotype plot orchestrator + CLI
 │   ├── plot_distributions.py          # Mortality, age-at-onset, cumulative incidence plots
 │   ├── plot_liability.py              # Joint liability, violin, affection plots
+│   ├── plot_pedigree_counts.py        # Pedigree relationship pair counts diagram
 │   ├── plot_correlations.py           # Tetrachoric + parent-offspring correlation plots
 │   ├── plot_threshold.py              # Threshold phenotype plots
 │   ├── plot_atlas.py                  # Multi-page PDF atlas with figure captions
