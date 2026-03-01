@@ -44,6 +44,9 @@ from sim_ace.plot_liability import (
     plot_joint_affection,
 )
 
+# -- Pedigree counts diagram --
+from sim_ace.plot_pedigree_counts import plot_pedigree_relationship_counts
+
 # -- Correlation plots --
 from sim_ace.plot_correlations import (
     plot_tetrachoric_sibling,
@@ -89,6 +92,11 @@ def main(
         ).reset_index(drop=True)
 
     ext = plot_ext
+
+    # Pedigree relationship pair counts diagram
+    plot_pedigree_relationship_counts(
+        all_stats, out_dir / f"pedigree_counts.{ext}", scenario,
+    )
 
     plot_death_age_distribution(
         all_stats, censor_age, out_dir / f"mortality.{ext}", scenario

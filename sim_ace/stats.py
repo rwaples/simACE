@@ -926,6 +926,11 @@ def main(
         ", ".join(f"{k}: {len(v[0])}" for k, v in pairs.items()),
     )
 
+    # Pair counts for all 10 relationship types
+    stats["pair_counts"] = {
+        name: int(len(idx_pair[0])) for name, idx_pair in pairs.items()
+    }
+
     # Liability correlations
     logger.info("Computing liability correlations...")
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
