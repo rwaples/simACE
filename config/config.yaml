@@ -60,7 +60,7 @@ defaults:
   prevalence2: 0.20 # Trait 2: top X% of liability per generation are affected
 
   # Statistics
-  extra_tetrachoric: true # Compute tetrachoric correlations (slow; disable for faster runs)
+  extra_tetrachoric: False # Compute tetrachoric correlations (slow; disable for faster runs)
 
   # Plot output
   plot_format: png # Plot file format: png or pdf
