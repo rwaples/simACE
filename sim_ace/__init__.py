@@ -45,4 +45,5 @@ from sim_ace.threshold import apply_threshold
 from sim_ace.validate import run_validation
 from sim_ace.stats import tetrachoric_corr, tetrachoric_corr_se
 from sim_ace.pedigree_graph import extract_relationship_pairs
+from sim_ace.sample import run_sample
 from sim_ace.survival_corr import pairwise_weibull_corr_se

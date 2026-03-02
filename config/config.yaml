@@ -2,11 +2,13 @@
 # Default values are used unless overridden within the scenario
 
 defaults:
+  # Simulation parameters 
   seed: 42
   replicates: 3
   folder: base # Name of folder where results are stored
 
-  # Trait 1 variance components (A + C <= 1.0; E = 1 - A - C)
+  # Liability parameters
+  ## Trait 1 variance components (A + C <= 1.0; E = 1 - A - C)
   A1: 0.5
   C1: 0.2
 
@@ -18,7 +20,7 @@ defaults:
   rA: 0.3 # Genetic correlation
   rC: 0.5 # Common environment correlation
 
-  # Population and reproduction
+  # Pedigree parameters
   N: 100000 # Population size per generation
   G_ped: 6 # Number of generations to record in pedigree
   G_pheno: 3 # Number of generations to phenotype (last G_pheno of G_ped)
@@ -27,20 +29,22 @@ defaults:
   p_mztwin: 0.02 # Probability of a birth producing MZ twins
   p_nonsocial_father: 0.05 # Probabilty that a child has random father
 
-  # Phenotype model - Trait 1
+
+  # Phenotype parameters
+  ## Survival  model - Trait 1
   beta1: 1.0 # Effect of liability on log-hazard
   scale1: 2160 # Weibull scale (S(t) = exp(-(t/scale)^rho))
   rho1: 0.8 # Weibull shape (<1 = risk decreasing with age)
 
-  # Phenotype model - Trait 2
+  ## Survival model - Trait 2
   beta2: 1.5
   scale2: 333
   rho2: 1.2 # Weibull shape (>1 = risk increasing with age)
 
-  # Shared phenotype parameters
+  ## Shared phenotype parameters
   standardize: true # Standardize liability before phenotyping
 
-  # Censoring
+  # Censoring parameters
   censor_age: 80 # Max censoring age
   gen_censoring:
     {
@@ -61,6 +65,9 @@ defaults:
 
   # Statistics
   extra_tetrachoric: False # Compute tetrachoric correlations (slow; disable for faster runs)
+
+  # Sampling
+  N_sample: 0 # Subsample phenotyped individuals (0 = keep all)
 
   # Plot output
   plot_format: png # Plot file format: png or pdf

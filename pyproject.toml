@@ -20,6 +20,7 @@ dev = ["snakemake", "snakefmt", "pytest"]
 sim-ace-simulate = "sim_ace.simulate:cli"
 sim-ace-phenotype = "sim_ace.phenotype:cli"
 sim-ace-threshold = "sim_ace.threshold:cli"
+sim-ace-sample = "sim_ace.sample:cli"
 sim-ace-validate = "sim_ace.validate:cli"
 sim-ace-phenotype-stats = "sim_ace.stats:cli"
 sim-ace-threshold-stats = "sim_ace.threshold_stats:cli"

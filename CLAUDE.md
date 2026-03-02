@@ -54,6 +54,7 @@ ACE/
 │   ├── simulate.py                    # Pedigree simulation (mating, reproduce, run_simulation)
 │   ├── phenotype.py                   # Weibull frailty phenotype simulation
 │   ├── censor.py                      # Age/death censoring
+│   ├── sample.py                      # Optional phenotype subsampling
 │   ├── threshold.py                   # Liability threshold model
 │   ├── validate.py                    # Structural + statistical validation
 │   ├── stats.py                       # Phenotype statistics (tetrachoric, correlations)
@@ -75,6 +76,7 @@ ACE/
 │   │   ├── targets.smk                # Target rules: all, simulate_all, phenotype_all, etc.
 │   │   ├── simulate.smk               # rule simulate_pedigree_liability
 │   │   ├── phenotype.smk              # rules phenotype_weibull, phenotype_threshold
+│   │   ├── sample.smk                 # rules sample_weibull, sample_threshold
 │   │   ├── validate.smk               # rules validate_pedigree_liability, gather_validation, plot_validation
 │   │   └── stats.smk                  # rules stats_weibull, stats_threshold, plot_*
 │   └── scripts/                       # Snakemake script wrappers

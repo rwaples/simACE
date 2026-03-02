@@ -1,6 +1,6 @@
 rule stats_weibull:
     input:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.weibull.parquet"
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.weibull.sampled.parquet"
     output:
         stats="results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
         samples="results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet"
@@ -67,7 +67,7 @@ rule plot_weibull:
 
 rule stats_threshold:
     input:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.parquet"
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.sampled.parquet"
     output:
         stats="results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml",
         samples="results/{folder}/{scenario}/rep{rep}/threshold_samples.parquet"
