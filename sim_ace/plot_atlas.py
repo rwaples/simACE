@@ -282,53 +282,6 @@ VALIDATION_CAPTIONS: dict[str, str] = {
 }
 
 
-# Ordered descriptions for every config parameter, used on the atlas title page.
-# Each tuple is (parameter_name, description).
-PARAM_DESCRIPTIONS: list[tuple[str, str]] = [
-    # Simulation control
-    ("seed", "Base random seed for reproducibility."),
-    ("replicates", "Number of independent replicates per scenario."),
-    ("folder", "Folder grouping for results output."),
-    # Variance components - Trait 1
-    ("A1", "Trait 1 additive genetic variance proportion (heritability)."),
-    ("C1", "Trait 1 common/shared environment variance proportion."),
-    # Variance components - Trait 2
-    ("A2", "Trait 2 additive genetic variance proportion (heritability)."),
-    ("C2", "Trait 2 common/shared environment variance proportion."),
-    # Cross-trait correlations
-    ("rA", "Cross-trait genetic correlation between A components."),
-    ("rC", "Cross-trait common-environment correlation between C components."),
-    # Population and reproduction
-    ("N", "Population size per generation."),
-    ("G_ped", "Number of generations recorded in the pedigree."),
-    ("G_pheno", "Number of generations to phenotype (last G_pheno of G_ped)."),
-    ("G_sim", "Total generations simulated (G_sim \u2212 G_ped = burn-in)."),
-    ("fam_size", "Mean offspring per household (Poisson \u03bb)."),
-    ("p_mztwin", "Probability a birth produces monozygotic twins."),
-    ("p_nonsocial_father", "Probability a child has a random (non-social) father."),
-    # Weibull frailty - Trait 1
-    ("beta1", "Trait 1 liability effect on log-hazard."),
-    ("scale1", "Trait 1 Weibull scale: S(t) = exp(\u2212(t/scale)^\u03c1)."),
-    ("rho1", "Trait 1 Weibull shape (<1 decreasing risk, >1 increasing risk)."),
-    # Weibull frailty - Trait 2
-    ("beta2", "Trait 2 liability effect on log-hazard."),
-    ("scale2", "Trait 2 Weibull scale."),
-    ("rho2", "Trait 2 Weibull shape."),
-    # Shared phenotype
-    ("standardize", "Standardize liability to unit variance before phenotyping."),
-    # Censoring
-    ("censor_age", "Maximum observation age (right-censoring bound)."),
-    ("gen_censoring", "Per-generation [left, right] observation windows (gen 0 = oldest)."),
-    ("death_scale", "Background mortality Weibull scale."),
-    ("death_rho", "Background mortality Weibull shape."),
-    # Liability threshold
-    ("prevalence1", "Trait 1 liability-threshold prevalence (proportion or per-generation dict)."),
-    ("prevalence2", "Trait 2 liability-threshold prevalence."),
-    # Plot output
-    ("plot_format", "Output plot image format (png or pdf)."),
-]
-
-
 def _render_params_page(
     pdf: PdfPages,
     scenario: str,

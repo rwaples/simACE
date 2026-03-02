@@ -19,6 +19,7 @@ from pathlib import Path
 from sim_ace.stats import (
     tetrachoric_corr_se,
     compute_liability_correlations,
+    compute_tetrachoric,
     create_sample,
 )
 from sim_ace.pedigree_graph import extract_relationship_pairs
@@ -72,35 +73,6 @@ def compute_liability_by_status(df: pd.DataFrame) -> dict[str, Any]:
             "unaffected_mean": float(unaffected.mean()) if len(unaffected) > 0 else None,
             "unaffected_std": float(unaffected.std()) if len(unaffected) > 1 else None,
         }
-    return result
-
-
-def compute_tetrachoric(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None) -> dict[str, Any]:
-    """Compute tetrachoric correlations for all relationship types."""
-    if pairs is None:
-        pairs = extract_relationship_pairs(df, seed=seed)
-    pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
-    result = {}
-
-    for trait_num in [1, 2]:
-        affected = df[f"affected{trait_num}"].values.astype(bool)
-        trait_result: dict[str, dict[str, int | float | None]] = {}
-        for ptype in pair_types:
-            idx1, idx2 = pairs[ptype]
-            n_p = len(idx1)
-            if n_p < 10:
-                trait_result[ptype] = {"r": None, "se": None, "n_pairs": int(n_p)}
-                continue
-            a_vals = affected[idx1]
-            b_vals = affected[idx2]
-            r_tet, se = tetrachoric_corr_se(a_vals, b_vals)
-            trait_result[ptype] = {
-                "r": float(r_tet) if not np.isnan(r_tet) else None,
-                "se": float(se) if not np.isnan(se) else None,
-                "n_pairs": int(n_p),
-            }
-        result[f"trait{trait_num}"] = trait_result
-
     return result
 
 

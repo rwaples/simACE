@@ -15,13 +15,16 @@ import seaborn as sns
 from pathlib import Path
 
 import logging
+
+from sim_ace.utils import PAIR_TYPES, PAIR_COLORS
+
 logger = logging.getLogger(__name__)
 
 
 def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str) -> None:
     """Plot tetrachoric correlations by relationship type, violin with rep dots."""
-    pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
-    pair_colors = {"MZ twin": "C0", "Full sib": "C1", "Mother-offspring": "C3", "Father-offspring": "C5", "Maternal half sib": "C2", "Paternal half sib": "C6", "1st cousin": "C4"}
+    pair_types = PAIR_TYPES
+    pair_colors = PAIR_COLORS
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
@@ -174,11 +177,8 @@ def plot_tetrachoric_by_generation(
         plt.close()
         return
 
-    pair_types = [
-        "MZ twin", "Full sib", "Mother-offspring", "Father-offspring",
-        "Maternal half sib", "Paternal half sib", "1st cousin",
-    ]
-    pair_colors = {"MZ twin": "C0", "Full sib": "C1", "Mother-offspring": "C3", "Father-offspring": "C5", "Maternal half sib": "C2", "Paternal half sib": "C6", "1st cousin": "C4"}
+    pair_types = PAIR_TYPES
+    pair_colors = PAIR_COLORS
 
     n_cols = len(gen_keys)
     fig, axes = plt.subplots(2, n_cols, figsize=(5 * n_cols, 5 * 2), squeeze=False)

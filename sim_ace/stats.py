@@ -24,7 +24,7 @@ import time
 logger = logging.getLogger(__name__)
 
 from sim_ace.pedigree_graph import extract_relationship_pairs  # noqa: E402
-from sim_ace.utils import save_parquet
+from sim_ace.utils import save_parquet, PAIR_TYPES
 
 
 def _bvn_pos(h: float, k: float, r: float, sq: float) -> float:
@@ -48,9 +48,9 @@ def _bvn_cdf(h: float, k: float, r: float) -> float:
     if h < 0 and k < 0:
         return 1.0 - norm.cdf(-h) - norm.cdf(-k) + _bvn_pos(-h, -k, r, sq)
     if h < 0:
-        return norm.cdf(k) - _bvn_pos(-h, k, -r, np.sqrt(1.0 - r * r))
+        return norm.cdf(k) - _bvn_pos(-h, k, -r, sq)
     if k < 0:
-        return norm.cdf(h) - _bvn_pos(h, -k, -r, np.sqrt(1.0 - r * r))
+        return norm.cdf(h) - _bvn_pos(h, -k, -r, sq)
     return _bvn_pos(h, k, r, sq)
 
 
@@ -161,15 +161,16 @@ def compute_mortality(df: pd.DataFrame, censor_age: float) -> dict[str, Any]:
     mortality_rates = []
     decade_labels = []
 
+    death_ages = df["death_age"].values
     for i in range(len(decade_edges) - 1):
         lo, hi = decade_edges[i], decade_edges[i + 1]
         if lo >= censor_age:
             break
-        alive_at_start = (df["death_age"].values >= lo).sum()
+        alive_at_start = (death_ages >= lo).sum()
         died_in_decade = (
-            (df["death_age"].values >= lo)
-            & (df["death_age"].values < hi)
-            & (df["death_age"].values < censor_age)
+            (death_ages >= lo)
+            & (death_ages < hi)
+            & (death_ages < censor_age)
         ).sum()
         rate = float(died_in_decade / alive_at_start) if alive_at_start > 0 else 0.0
         mortality_rates.append(rate)
@@ -281,7 +282,7 @@ def compute_tetrachoric(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple
     """Compute tetrachoric correlations for all relationship types."""
     if pairs is None:
         pairs = extract_relationship_pairs(df, seed=seed)
-    pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
+    pair_types = PAIR_TYPES
     result = {}
 
     for trait_num in [1, 2]:
@@ -333,10 +334,7 @@ def compute_tetrachoric_by_generation(
     max_gen = int(gen_arr.max())
     plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
 
-    pair_types = [
-        "MZ twin", "Full sib", "Mother-offspring", "Father-offspring",
-        "Maternal half sib", "Paternal half sib", "1st cousin",
-    ]
+    pair_types = PAIR_TYPES
 
     result = {}
     for gen in plot_gens:
@@ -385,7 +383,7 @@ def compute_liability_correlations(df: pd.DataFrame, seed: int = 42, pairs: dict
     """Compute Pearson correlation on liability values for each relationship pair type."""
     if pairs is None:
         pairs = extract_relationship_pairs(df, seed=seed)
-    pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
+    pair_types = PAIR_TYPES
     result = {}
     for trait_num in [1, 2]:
         liability = df[f"liability{trait_num}"].values

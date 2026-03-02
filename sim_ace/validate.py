@@ -134,10 +134,11 @@ def validate_structural(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, A
         observed_count=len(df),
     )
 
-    # Parent references: valid IDs or -1 for founders
-    valid_ids = set(df["id"].values) | {-1}
-    mothers_valid = df["mother"].isin(valid_ids).all()
-    fathers_valid = df["father"].isin(valid_ids).all()
+    # Parent references: valid IDs (0..expected_total-1) or -1 for founders
+    mother_vals = df["mother"].values
+    father_vals = df["father"].values
+    mothers_valid = (((mother_vals >= 0) & (mother_vals < expected_total)) | (mother_vals == -1)).all()
+    fathers_valid = (((father_vals >= 0) & (father_vals < expected_total)) | (father_vals == -1)).all()
     no_self_parent = ((df["mother"] != df["id"]) & (df["father"] != df["id"])).all()
     results["parent_references"] = _result(
         bool(mothers_valid and fathers_valid and no_self_parent),

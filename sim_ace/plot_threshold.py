@@ -15,14 +15,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import yaml
-
-try:
-    _yaml_loader = yaml.CSafeLoader
-except AttributeError:
-    _yaml_loader = yaml.SafeLoader
 from pathlib import Path
 
+from sim_ace.utils import yaml_loader
+_yaml_loader = yaml_loader()
+
 from sim_ace.stats import tetrachoric_corr
+from sim_ace.utils import PAIR_TYPES, PAIR_COLORS
 
 import logging
 logger = logging.getLogger(__name__)
@@ -244,8 +243,8 @@ def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: lis
 
 def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str) -> None:
     """Tetrachoric correlations by relationship type with liability correlation lines."""
-    pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
-    pair_colors = {"MZ twin": "C0", "Full sib": "C1", "Mother-offspring": "C3", "Father-offspring": "C5", "Maternal half sib": "C2", "Paternal half sib": "C6", "1st cousin": "C4"}
+    pair_types = PAIR_TYPES
+    pair_colors = PAIR_COLORS
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 

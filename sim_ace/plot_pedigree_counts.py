@@ -373,12 +373,10 @@ def plot_pedigree_relationship_counts(
 def cli() -> None:
     """Command-line interface for pedigree relationship counts plot."""
     from sim_ace.cli_base import add_logging_args, init_logging
+    from sim_ace.utils import yaml_loader
     import yaml
 
-    try:
-        _yaml_loader = yaml.CSafeLoader
-    except AttributeError:
-        _yaml_loader = yaml.SafeLoader
+    _yaml_loader = yaml_loader()
 
     parser = argparse.ArgumentParser(
         description="Plot pedigree relationship pair counts diagram"

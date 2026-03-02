@@ -14,12 +14,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import yaml
-
-try:
-    _yaml_loader = yaml.CSafeLoader
-except AttributeError:
-    _yaml_loader = yaml.SafeLoader
 from pathlib import Path
+
+from sim_ace.utils import yaml_loader
+_yaml_loader = yaml_loader()
 
 import logging
 logger = logging.getLogger(__name__)

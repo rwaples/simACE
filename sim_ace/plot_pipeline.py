@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch, FancyArrowPatch
+from matplotlib.patches import FancyBboxPatch
 
 import yaml
 
@@ -86,11 +86,6 @@ _STEP_POSITIONS: dict[str, tuple[float, float]] = {
 
 # Publication-friendly display names for parameters
 _PARAM_DISPLAY: dict[str, str] = {
-    "G_sim": "G\u209C\u2092\u209C\u2090\u2097",  # G_total via subscript
-    "G_ped": "G\u1D68\u2091\u209C",  # not great with subscripts, use plain
-}
-# Simpler approach: just use a clean mapping
-_PARAM_DISPLAY = {
     "N": "N",
     "G_sim": "G_total",
     "G_ped": "G_pedigree",
@@ -110,6 +105,7 @@ _FONT_TITLE = 24       # scenario title at top of page
 _FONT_BOX_TITLE = 14   # step name inside each box
 _FONT_TABLE = 11       # parameter names and values
 _FONT_META = 12        # seed / replicates in scenario area
+_CHAR_W = 0.0085       # approx data-units per character at 11pt mono on 11in fig
 
 
 # ---------------------------------------------------------------------------
@@ -123,14 +119,14 @@ def _display_name(name: str) -> str:
 
 def _format_param_value(name: str, value: object) -> str:
     """Format a single parameter value compactly."""
+    if isinstance(value, bool):
+        return str(value).lower()
     if isinstance(value, dict):
         return "(see params)"
     if isinstance(value, float):
         if value == int(value) and abs(value) < 1e6:
             return str(int(value))
         return f"{value:g}"
-    if isinstance(value, bool):
-        return str(value).lower()
     return str(value)
 
 
@@ -202,23 +198,19 @@ def _draw_step_box(
     title: str,
     rows: list[tuple[str, str]],
     color: str,
-    dimmed: bool = False,
 ) -> None:
     """Draw a rounded box with title and a name/value parameter table."""
-    alpha = 0.35 if dimmed else 1.0
     box = FancyBboxPatch(
         (cx - w / 2, cy - h / 2), w, h,
         boxstyle="round,pad=0.015",
         facecolor=color,
-        edgecolor="0.55" if dimmed else "0.3",
+        edgecolor="0.3",
         linewidth=1.6,
-        linestyle="--" if dimmed else "-",
-        alpha=alpha,
     )
     ax.add_patch(box)
 
-    text_color = "0.55" if dimmed else "black"
-    name_color = "0.6" if dimmed else "0.25"
+    text_color = "black"
+    name_color = "0.25"
 
     title_h = 0.048  # height reserved for the title area
     top = cy + h / 2
@@ -239,15 +231,14 @@ def _draw_step_box(
     pad = 0.012  # inset from box edges
     ax.plot(
         [cx - w / 2 + pad, cx + w / 2 - pad], [sep_y, sep_y],
-        color="0.65" if dimmed else "0.45", linewidth=0.8, clip_on=False,
+        color="0.45", linewidth=0.8, clip_on=False,
     )
 
     # Table layout — position value column based on longest name
     row_h = 0.024
-    char_w = 0.0085  # approx data-units per character at 11pt mono on 11in fig
     max_name_len = max(len(n) for n, _ in rows)
     name_x = cx - w / 2 + pad + 0.005  # left-aligned names
-    val_x = name_x + (max_name_len + 2) * char_w  # 2-char gap after names
+    val_x = name_x + (max_name_len + 2) * _CHAR_W  # 2-char gap after names
 
     for i, (name, val) in enumerate(rows):
         row_y = sep_y - (i + 0.55) * row_h
@@ -270,17 +261,14 @@ def _draw_pipeline_arrow(
     y0: float,
     x1: float,
     y1: float,
-    dimmed: bool = False,
 ) -> None:
     """Draw an arrow between two points."""
-    color = "0.65" if dimmed else "0.35"
     ax.annotate(
         "", xy=(x1, y1), xytext=(x0, y0),
         arrowprops=dict(
             arrowstyle="-|>,head_length=0.6,head_width=0.3",
-            color=color,
+            color="0.35",
             linewidth=2.0,
-            linestyle="--" if dimmed else "-",
             shrinkA=0,
             shrinkB=0,
         ),
@@ -304,8 +292,6 @@ def render_pipeline_figure(
     Returns:
         The matplotlib Figure object.
     """
-    sampling_active = True  # always show sample boxes normally
-
     fig = plt.figure(figsize=(11, 8.5))
     ax = fig.add_axes([0.02, 0.06, 0.96, 0.88])
     ax.set_xlim(0, 1)
@@ -358,8 +344,7 @@ def render_pipeline_figure(
         # Width: based on longest name+value pair
         max_name = max((len(n) for n, _ in rows), default=0) if rows else 0
         max_val = max((len(v) for _, v in rows), default=0) if rows else 0
-        char_w = 0.0085  # approx data-units per character at 11pt mono on 11in fig
-        table_w = 0.046 + (max_name + 2 + max_val) * char_w
+        table_w = 0.046 + (max_name + 2 + max_val) * _CHAR_W
         title_w = len(display) * 0.010 + 0.04
         w = max(0.22, table_w, title_w)
         max_w = max(max_w, w)
@@ -371,24 +356,19 @@ def render_pipeline_figure(
         _, h = box_sizes[key]
         box_sizes[key] = (max_w, h)
 
-    # Determine which steps/edges are dimmed (sample when inactive)
-    sample_keys = {"sample_weibull", "sample_threshold"}
-
     # Draw arrows first (behind boxes)
     for src, dst in _PIPELINE_EDGES:
         sx, sy = _STEP_POSITIONS[src]
         dx, dy = _STEP_POSITIONS[dst]
         _, sh = box_sizes[src]
         _, dh = box_sizes[dst]
-        dimmed = (dst in sample_keys) and not sampling_active
-        _draw_pipeline_arrow(ax, sx, sy - sh / 2, dx, dy + dh / 2, dimmed=dimmed)
+        _draw_pipeline_arrow(ax, sx, sy - sh / 2, dx, dy + dh / 2)
 
     # Draw boxes
     for key, (cx, cy) in _STEP_POSITIONS.items():
         display, color, _ = step_info[key]
         w, h = box_sizes[key]
-        dimmed = (key in sample_keys) and not sampling_active
-        _draw_step_box(ax, cx, cy, w, h, display, step_rows[key], color, dimmed=dimmed)
+        _draw_step_box(ax, cx, cy, w, h, display, step_rows[key], color)
 
     return fig
 
@@ -441,13 +421,10 @@ def cli() -> None:
     args = parser.parse_args()
     init_logging(args)
 
-    try:
-        _yaml_loader = yaml.CSafeLoader
-    except AttributeError:
-        _yaml_loader = yaml.SafeLoader
+    from sim_ace.utils import yaml_loader
 
     with open(args.params, encoding="utf-8") as fh:
-        params = yaml.load(fh, Loader=_yaml_loader)
+        params = yaml.load(fh, Loader=yaml_loader())
 
     plot_pipeline(params, args.output, scenario=args.scenario)
 
