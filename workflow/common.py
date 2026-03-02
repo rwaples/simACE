@@ -34,6 +34,11 @@ _PHENOTYPE_BASENAMES = [
     "pedigree_counts",
     # Liability structure
     "cross_trait",
+    # Liability-scale heritability (pedigree + liability only)
+    "parent_offspring_liability.by_generation",
+    "heritability.by_generation",
+    "broad_heritability.by_generation",
+    # Liability by affected status
     "cross_trait.weibull",
     "liability_violin.weibull",
     "liability_violin.weibull.by_generation",
@@ -44,14 +49,11 @@ _PHENOTYPE_BASENAMES = [
     "cumulative_incidence.weibull",
     # Censoring
     "censoring",
-    # Familial correlations & heritability
+    # Familial correlations
     "joint_affected.weibull",
     "cross_trait_weibull.by_generation",
     "tetrachoric.weibull",
     "tetrachoric.weibull.by_generation",
-    "parent_offspring_liability.by_generation",
-    "heritability.by_generation",
-    "broad_heritability.by_generation",
 ]
 
 # Ordered to mirror Weibull: prevalence -> liability -> correlations.

@@ -547,12 +547,12 @@ def plot_broad_heritability_by_generation(
             ax.legend(loc="lower left", fontsize=9)
 
         ax.set_xlabel("Generation")
-        ax.set_ylabel("H\u00b2 = (Var(A)+Var(C)) / Var(L)")
+        ax.set_ylabel("(Var(A)+Var(C)) / Var(L)")
         ax.set_title(f"Trait {trait_num}")
         ax.set_xticks(generations)
         ax.set_ylim(0, 1)
 
-    fig.suptitle(f"Broad-Sense Liability-Scale Heritability by Generation [{scenario}]", fontsize=14)
+    fig.suptitle(f"Additive Genetic and Shared Environment by Generation [{scenario}]", fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()

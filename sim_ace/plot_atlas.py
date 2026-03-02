@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 # Captions ordered to match _PHENOTYPE_BASENAMES in workflow/common.py:
 # liability structure -> Weibull phenotype -> censoring -> correlations.
 PHENOTYPE_CAPTIONS: dict[str, str] = {
+    # -- Pedigree structure --
     "pedigree_counts.ped": (
         "Figure 1: Pedigree relationship pair counts (G_ped).\n\n"
         "Schematic multi-generational pedigree diagram showing the 10 relationship "
@@ -38,66 +39,98 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "status are observed, and whose relationship pairs are used for downstream "
         "correlation and heritability analyses."
     ),
+    # -- Liability structure --
     "cross_trait": (
         "Figure 3: Cross-trait liability joint plots.\n\n"
         "2\u00d72 grid of joint plots for Liability, A (additive genetic), C (common environment), "
         "and E (unique environment). Central scatter of Trait 1 (x) vs. Trait 2 (y) with "
         "Pearson r annotation and marginal histograms."
     ),
+    # -- Liability-scale heritability --
+    "parent_offspring_liability.by_generation": (
+        "Figure 4: Parent-offspring liability regressions.\n\n"
+        "Grid: rows = traits, columns = last 3 non-founder generations. Scatter of "
+        "midparent liability (x) vs. offspring liability (y) with regression line. "
+        "Text box shows Pearson r and pair count n."
+    ),
+    "heritability.by_generation": (
+        "Figure 5: Narrow-sense liability-scale heritability by generation.\n\n"
+        "1\u00d72 figure, one panel per trait. Narrow-sense heritability "
+        "h\u00b2 = Var(A) / (Var(A) + Var(C) + Var(E)) is computed from the "
+        "per-generation variance components for each replicate. Blue dots show "
+        "per-replicate h\u00b2 estimates. "
+        "Orange dashed line marks the parametric heritability (A parameter). "
+        "Stable h\u00b2 across generations confirms that the ACE variance "
+        "decomposition is maintained through the simulation."
+    ),
+    "broad_heritability.by_generation": (
+        "Figure 6: Additive genetic and shared environment by generation.\n\n"
+        "1\u00d72 figure, one panel per trait. Combined proportion "
+        "(Var(A) + Var(C)) / (Var(A) + Var(C) + Var(E)) is computed from "
+        "the per-generation variance components for each replicate. Blue dots show "
+        "per-replicate estimates. "
+        "Orange dashed line marks the parametric value (A + C). "
+        "Comparing with the narrow-sense h\u00b2 (Figure 5) isolates the "
+        "contribution of shared environment to familial resemblance."
+    ),
+    # -- Liability by affected status --
     "cross_trait.weibull": (
-        "Figure 4: Cross-trait liability joint plots coloured by affected status.\n\n"
+        "Figure 7: Cross-trait liability joint plots coloured by affected status.\n\n"
         "Same 2\u00d72 layout as Figure 3, but with affected-status colouring based on trait 1. "
         "Blue points = unaffected, orange points = affected (trait 1). Marginal histograms stacked "
         "by affected status."
     ),
     "liability_violin.weibull": (
-        "Figure 5: Liability violin plots by affected status (Weibull).\n\n"
+        "Figure 8: Liability violin plots by affected status (Weibull).\n\n"
         "Split violin plots, one per trait. Left half = unaffected, right half = affected. "
         "Diamond markers show mean liability for each group with \u03bc annotations. "
         "Prevalence annotated below each trait."
     ),
     "liability_violin.weibull.by_generation": (
-        "Figure 6: Liability violin plots by generation (Weibull).\n\n"
+        "Figure 9: Liability violin plots by generation (Weibull).\n\n"
         "Grid: rows = traits, columns = recorded generations. Split violins for affected vs. "
         "unaffected within each generation. Diamond markers and \u03bc annotations show per-group "
         "means. x-axis labels show observed generation-specific prevalence."
     ),
+    # -- Weibull phenotype --
     "liability_vs_aoo": (
-        "Figure 7: Liability vs. age-at-onset.\n\n"
+        "Figure 10: Liability vs. age-at-onset.\n\n"
         "Side-by-side joint plots, one per trait. Central scatter of liability (x) vs. "
         "observed age-at-onset (y) for affected individuals, with regression line and R\u00b2 "
         "annotation. Marginal histograms on top and right."
     ),
     "age_at_onset_death": (
-        "Figure 8: Age-at-onset and death-age histograms.\n\n"
+        "Figure 11: Age-at-onset and death-age histograms.\n\n"
         "A 2\u00d72 grid, rows = traits 1 and 2. Left column shows density histograms "
         "of observed age-at-onset for affected individuals (\u03b4 = 1). Right column shows "
         "age-at-death histograms for death-censored unaffected individuals."
     ),
     "mortality": (
-        "Figure 9: Mortality rate by decade.\n\n"
+        "Figure 12: Mortality rate by decade.\n\n"
         "Two-panel figure. Left panel shows per-decade mortality rate "
         "(deaths in decade / alive at start of decade), averaged across replicates. "
         "Right panel shows cumulative mortality, "
         "with cumulative survival probability annotated above each bar."
     ),
     "cumulative_incidence.weibull": (
-        "Figure 10: Cumulative incidence curves.\n\n"
+        "Figure 13: Cumulative incidence curves.\n\n"
         "Two-panel figure, one per trait. Blue solid line = observed cumulative incidence "
         "from censored data (with min-max band across replicates). Grey solid line = true "
         "cumulative incidence from uncensored event times. Grey dashed crosshairs mark the "
         "age at which 50% of lifetime cases have occurred. Text box shows affected %, "
         "true prevalence %, and censored %."
     ),
+    # -- Censoring --
     "censoring": (
-        "Figure 11: Censoring windows by generation.\n\n"
+        "Figure 14: Censoring windows by generation.\n\n"
         "Grid of panels: rows = traits, columns = generations. Grey line = true cumulative "
         "incidence, blue line = observed cumulative incidence. Text box shows affected %, "
         "left-censored %, right-censored %, and death-censored % per generation. Column "
         "titles show observation window [lo, hi]."
     ),
+    # -- Familial correlations --
     "joint_affected.weibull": (
-        "Figure 12: Joint affected status heatmap (Weibull).\n\n"
+        "Figure 15: Joint affected status heatmap (Weibull).\n\n"
         "2\u00d72 heatmap of joint affected status across both traits. Cell annotations "
         "show proportion and count. Title shows three cross-trait correlation estimates: "
         "'r_tet' = tetrachoric correlation on censored binary affected status; "
@@ -108,7 +141,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "'naive' = unweighted pooled censored Weibull estimate for comparison."
     ),
     "cross_trait_weibull.by_generation": (
-        "Figure 13: Cross-trait Weibull correlation by generation.\n\n"
+        "Figure 16: Cross-trait Weibull correlation by generation.\n\n"
         "Per-generation cross-trait liability correlation estimated from censored "
         "Weibull survival data. Blue dots = per-replicate per-generation estimates "
         "with 95% CI error bars; blue line = mean across replicates. "
@@ -118,7 +151,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Generations with very low event rates may hit the boundary and be excluded."
     ),
     "tetrachoric.weibull": (
-        "Figure 14: Tetrachoric correlations by relationship type (Weibull).\n\n"
+        "Figure 17: Tetrachoric correlations by relationship type (Weibull).\n\n"
         "Two-panel figure, one per trait. Coloured violins show the distribution of "
         "tetrachoric correlations (computed from censored binary affected status) across "
         "replicates for each relationship type. "
@@ -131,37 +164,11 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "reflects attenuation from censoring and dichotomization."
     ),
     "tetrachoric.weibull.by_generation": (
-        "Figure 15: Tetrachoric correlations by generation (Weibull).\n\n"
-        "Grid: rows = traits, columns = generations. Same encoding as Figure 14 "
+        "Figure 18: Tetrachoric correlations by generation (Weibull).\n\n"
+        "Grid: rows = traits, columns = generations. Same encoding as Figure 17 "
         "(violins = observed tetrachoric correlations, black dashed = true liability "
         "correlations, dots = per-replicate estimates), computed within each generation "
         "separately."
-    ),
-    "parent_offspring_liability.by_generation": (
-        "Figure 16: Parent-offspring liability regressions.\n\n"
-        "Grid: rows = traits, columns = last 3 non-founder generations. Scatter of "
-        "midparent liability (x) vs. offspring liability (y) with regression line. "
-        "Text box shows Pearson r and pair count n."
-    ),
-    "heritability.by_generation": (
-        "Figure 17: Narrow-sense liability-scale heritability by generation.\n\n"
-        "1\u00d72 figure, one panel per trait. Narrow-sense heritability "
-        "h\u00b2 = Var(A) / (Var(A) + Var(C) + Var(E)) is computed from the "
-        "per-generation variance components for each replicate. Blue dots show "
-        "per-replicate h\u00b2 estimates. "
-        "Orange dashed line marks the parametric heritability (A parameter). "
-        "Stable h\u00b2 across generations confirms that the ACE variance "
-        "decomposition is maintained through the simulation."
-    ),
-    "broad_heritability.by_generation": (
-        "Figure 18: Broad-sense liability-scale heritability by generation.\n\n"
-        "1\u00d72 figure, one panel per trait. Broad-sense heritability "
-        "H\u00b2 = (Var(A) + Var(C)) / (Var(A) + Var(C) + Var(E)) is computed from "
-        "the per-generation variance components for each replicate. Blue dots show "
-        "per-replicate H\u00b2 estimates. "
-        "Orange dashed line marks the parametric value (A + C). "
-        "Comparing H\u00b2 with the narrow-sense h\u00b2 (Figure 17) isolates the "
-        "contribution of shared environment to familial resemblance."
     ),
 }
 
@@ -185,7 +192,7 @@ THRESHOLD_CAPTIONS: dict[str, str] = {
     "liability_violin.threshold.by_generation": (
         "Figure 22: Liability violin plots by generation (threshold model).\n\n"
         "Per-generation split violins with configured prevalence annotated. Same encoding "
-        "as Figure 6 but for the liability-threshold phenotype."
+        "as Figure 9 but for the liability-threshold phenotype."
     ),
     "joint_affected.threshold": (
         "Figure 23: Joint affected status heatmap (threshold model).\n\n"
@@ -195,7 +202,7 @@ THRESHOLD_CAPTIONS: dict[str, str] = {
     "tetrachoric.threshold": (
         "Figure 24: Tetrachoric correlations by relationship type (threshold model).\n\n"
         "Violin plots of tetrachoric correlations for threshold affected status indicators. "
-        "Same encoding as Figure 14: coloured violins show observed tetrachoric correlations "
+        "Same encoding as Figure 17: coloured violins show observed tetrachoric correlations "
         "from binary affected status, black dots are per-replicate estimates, black dashed "
         "lines are the ground-truth Pearson liability correlations, and pair counts are "
         "annotated above each violin."
