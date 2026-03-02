@@ -22,6 +22,7 @@ from sim_ace.stats import (
     create_sample,
 )
 from sim_ace.pedigree_graph import extract_relationship_pairs
+from sim_ace.utils import save_parquet
 
 import logging
 import time
@@ -155,7 +156,7 @@ def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int 
     # Write downsampled parquet
     sample_df = create_sample(df, seed=seed)
     samples_path = Path(samples_output)
-    sample_df.to_parquet(samples_path, index=False)
+    save_parquet(sample_df, samples_path)
     logger.info("Sample (%d rows) written to %s", len(sample_df), samples_path)
 
 

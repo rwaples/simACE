@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
+import pandas as pd
 from scipy import stats
 
 
@@ -45,6 +46,34 @@ def validation_result(passed: bool, details: str, **extra: Any) -> dict[str, Any
     d: dict[str, Any] = {"passed": passed, "details": details}
     d.update(extra)
     return d
+
+
+def optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """Downcast DataFrame columns for compact parquet storage.
+
+    Casts simulation float columns to float32 (~7 significant digits,
+    ample for stochastic draws) and small integer columns to int8.
+    ID columns (id, mother, father, twin, household_id) stay int64.
+    """
+    int8_cols = ["sex", "generation"]
+    float32_cols = [
+        "A1", "C1", "E1", "liability1",
+        "A2", "C2", "E2", "liability2",
+        "t1", "t2", "death_age", "t_observed1", "t_observed2",
+    ]
+    for c in int8_cols:
+        if c in df.columns:
+            df[c] = df[c].astype("int8")
+    for c in float32_cols:
+        if c in df.columns:
+            df[c] = df[c].astype("float32")
+    return df
+
+
+def save_parquet(df: pd.DataFrame, path: Any, **kwargs: Any) -> None:
+    """Save DataFrame as parquet with optimized dtypes and zstd compression."""
+    optimize_dtypes(df)
+    df.to_parquet(path, index=False, compression="zstd", **kwargs)
 
 
 def get_nested(d: Any, *keys: str, default: Any = None) -> Any:

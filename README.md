@@ -33,7 +33,7 @@ pytest tests/           # unit tests, should complete in ~1s
 Run the smallest scenario to confirm everything works (takes a few seconds):
 
 ```bash
-snakemake --cores 2 results/test/small_test/scenario.done
+snakemake --cores 4 results/test/small_test/scenario.done
 ```
 
 Check the output:
@@ -43,7 +43,7 @@ ls results/test/small_test/rep1/    # pedigree.parquet, phenotype files, validat
 cat logs/test/small_test/rep1/simulate.log
 ```
 
-## Usage
+## Snakemake usage
 
 Use `--cores N` where N is the number of parallel jobs.
 
@@ -57,7 +57,7 @@ snakemake --cores 4 phenotype_all    # simulation + phenotyping
 snakemake --cores 4 validate_all     # simulation + validation + folder summaries
 snakemake --cores 4 stats_all        # phenotyping + stats + plots
 
-# Run a single scenario
+# Run a single named scenario
 snakemake --cores 4 results/base/baseline10K/scenario.done
 
 # Dry run to see what will be executed
@@ -140,7 +140,9 @@ scenarios:
     C2: 0.0
 ```
 
-To add new simulations, add a named scenario to the config file. Prevalence can also be specified per-generation as a dict (e.g. `prevalence1: { 2: 0.03, 3: 0.05, 4: 0.08, 5: 0.12 }`).
+To add new simulations, simply add a new scenario to the config file. 
+
+Prevalence can also be specified per-generation as a dict (e.g. `prevalence1: { 2: 0.03, 3: 0.05, 4: 0.08, 5: 0.12 }`).
 
 ## Outputs
 
@@ -155,7 +157,7 @@ Each scenario replicate produces:
 | `results/{folder}/{scenario}/rep{N}/phenotype.liability_threshold.parquet` | Liability-threshold binary affected status |
 | `results/{folder}/{scenario}/rep{N}/params.yaml` | Parameters used for this replicate |
 
-### Validation and Summary
+### Validation and Logs
 
 | File | Description |
 |------|-------------|
@@ -178,21 +180,21 @@ Multi-page PDF atlases collect all figures for a scenario or folder into a singl
 
 #### pedigree.parquet
 
-Core pedigree structure with latent variance components for two correlated traits.
+Core pedigree structure with latent variance components for two correlated traits. Stored with zstd compression; float columns are float32 and small integers are int8 for compact storage (~35% smaller than float64/snappy).
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | int | Unique individual identifier |
-| `sex` | int | 0 = female, 1 = male |
-| `mother` | int | Mother's id (-1 for founders) |
-| `father` | int | Father's id (-1 for founders) |
-| `twin` | int | MZ twin partner's id (-1 if not a twin) |
-| `generation` | int | Generation number (0 = oldest recorded) |
-| `household_id` | int | Shared-environment household group |
-| `A1`, `A2` | float | Additive genetic component (traits 1 and 2) |
-| `C1`, `C2` | float | Common/shared environment component |
-| `E1`, `E2` | float | Unique environment component |
-| `liability1`, `liability2` | float | Total liability (A + C + E) |
+| `id` | int64 | Unique individual identifier |
+| `sex` | int8 | 0 = female, 1 = male |
+| `mother` | int64 | Mother's id (-1 for founders) |
+| `father` | int64 | Father's id (-1 for founders) |
+| `twin` | int64 | MZ twin partner's id (-1 if not a twin) |
+| `generation` | int8 | Generation number (0 = oldest recorded) |
+| `household_id` | int64 | Shared-environment household group |
+| `A1`, `A2` | float32 | Additive genetic component (traits 1 and 2) |
+| `C1`, `C2` | float32 | Common/shared environment component |
+| `E1`, `E2` | float32 | Unique environment component |
+| `liability1`, `liability2` | float32 | Total liability (A + C + E) |
 
 #### phenotype.weibull.parquet
 
@@ -200,9 +202,9 @@ Extends the pedigree with Weibull frailty time-to-event phenotypes and censoring
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `t1`, `t2` | float | Raw (uncensored) age-at-onset from the Weibull frailty model |
-| `death_age` | float | Age at death from competing-risk mortality |
-| `t_observed1`, `t_observed2` | float | Observed age-at-onset after age and death censoring |
+| `t1`, `t2` | float32 | Raw (uncensored) age-at-onset from the Weibull frailty model |
+| `death_age` | float32 | Age at death from competing-risk mortality |
+| `t_observed1`, `t_observed2` | float32 | Observed age-at-onset after age and death censoring |
 | `age_censored1`, `age_censored2` | bool | True if onset falls outside the generation's observation window |
 | `death_censored1`, `death_censored2` | bool | True if onset occurs after death |
 | `affected1`, `affected2` | bool | True if the individual is observed as affected (not age- or death-censored) |
@@ -213,11 +215,11 @@ Binary affection status from a liability-threshold model. Each generation has an
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `id` | int | Individual identifier |
-| `generation` | int | Generation number |
-| `mother`, `father`, `twin` | int | Family links (same as pedigree) |
-| `A1`, `C1`, `E1`, `liability1` | float | Trait 1 variance components and liability |
-| `A2`, `C2`, `E2`, `liability2` | float | Trait 2 variance components and liability |
+| `id` | int64 | Individual identifier |
+| `generation` | int8 | Generation number |
+| `mother`, `father`, `twin` | int64 | Family links (same as pedigree) |
+| `A1`, `C1`, `E1`, `liability1` | float32 | Trait 1 variance components and liability |
+| `A2`, `C2`, `E2`, `liability2` | float32 | Trait 2 variance components and liability |
 | `affected1`, `affected2` | bool | True if liability exceeds the generation-specific threshold |
 
 ## Project Structure
@@ -230,7 +232,7 @@ ACE/
 ├── sim_ace/                           # Installable package (pip install -e .)
 │   ├── __init__.py                    # setup_logging() + public API re-exports
 │   ├── cli_base.py                    # Shared CLI boilerplate (add_logging_args, init_logging)
-│   ├── utils.py                       # Shared helpers (safe_corrcoef, to_native, validation_result)
+│   ├── utils.py                       # Shared helpers (save_parquet, optimize_dtypes, safe_corrcoef, etc.)
 │   ├── simulate.py                    # Pedigree simulation (mating, reproduce, run_simulation)
 │   ├── phenotype.py                   # Weibull frailty phenotype model
 │   ├── censor.py                      # Age-window and competing-risk death censoring
@@ -259,7 +261,7 @@ ACE/
 │   │   └── stats.smk                  # Statistics and phenotype plots
 │   └── scripts/                       # Snakemake script wrappers
 ├── tests/                             # Unit, statistical, and edge-case tests
-├── results/{folder}/{scenario}/rep{N}/ # Per-replicate simualtion outputs
+├── results/{folder}/{scenario}/rep{N}/ # Per-replicate simulation outputs
 ├── logs/{folder}/{scenario}/          # Log files
 └── benchmarks/{folder}/{scenario}/    # Runtime and memory usage benchmarks
 ```

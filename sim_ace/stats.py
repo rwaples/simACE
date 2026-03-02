@@ -24,6 +24,7 @@ import time
 logger = logging.getLogger(__name__)
 
 from sim_ace.pedigree_graph import extract_relationship_pairs  # noqa: E402
+from sim_ace.utils import save_parquet
 
 
 def _bvn_pos(h: float, k: float, r: float, sq: float) -> float:
@@ -988,7 +989,7 @@ def main(
     # Write downsampled parquet
     sample_df = create_sample(df, seed=seed)
     samples_path = Path(samples_output)
-    sample_df.to_parquet(samples_path, index=False)
+    save_parquet(sample_df, samples_path)
     logger.info("Sample (%d rows) written to %s", len(sample_df), samples_path)
 
 
