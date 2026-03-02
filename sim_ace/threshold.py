@@ -19,6 +19,8 @@ import time
 import numpy as np
 import pandas as pd
 
+from sim_ace.utils import save_parquet
+
 logger = logging.getLogger(__name__)
 
 
@@ -118,6 +120,7 @@ def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     phenotype = pd.DataFrame(
         {
             "id": pedigree["id"].values,
+            "sex": pedigree["sex"].values,
             "generation": generation,
             "mother": pedigree["mother"].values,
             "father": pedigree["father"].values,
@@ -175,4 +178,4 @@ def cli() -> None:
         "prevalence2": _parse_prevalence_arg(args.prevalence2, args.prevalence2_by_gen),
     }
     phenotype = run_threshold(pedigree, params)
-    phenotype.to_parquet(args.output, index=False)
+    save_parquet(phenotype, args.output)

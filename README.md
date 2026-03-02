@@ -7,32 +7,64 @@ Simulates multi-generational pedigrees with ACE variance components for two corr
 
 Continuous liabilities are mapped to observable phenotypes via a Weibull proportional-hazards frailty model (time-to-event) or a liability-threshold model (binary affection). The pipeline includes automated structural and statistical validation, phenotype statistics, and plotting.
 
+## Prerequisites
+
+- [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) (Miniconda or Miniforge)
+- Python 3.10+
+- Linux or macOS (Windows may try [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install))
+
 ## Setup
 
 ```bash
-conda env create -f environment.yml
+git clone <repo-url>
+cd ACE
+conda env create -f environment.yml   # creates environment and installs sim_ace package
 conda activate ACE
-pip install -e .   # editable install — code changes in sim_ace/ take effect immediately
 ```
 
-## Usage
+### Verify installation
 
 ```bash
-# Run everything (default target)
-snakemake --cores 6
+pytest tests/           # unit tests, should complete in ~1s
+```
+
+## Quick start
+
+Run the smallest scenario to confirm everything works (takes a few seconds):
+
+```bash
+snakemake --cores 4 results/test/small_test/scenario.done
+```
+
+Check the output:
+
+```bash
+ls results/test/small_test/rep1/    # pedigree.parquet, phenotype files, validation, stats
+cat logs/test/small_test/rep1/simulate.log
+```
+
+## Snakemake usage
+
+Use `--cores N` where N is the number of parallel jobs.
+
+```bash
+# Run everything (default target — 16 scenarios, ~60-90 min)
+snakemake --cores 4
 
 # Run individual stages
-snakemake --cores 6 simulate_all     # pedigree simulation only
-snakemake --cores 6 phenotype_all    # simulation + phenotyping
-snakemake --cores 6 validate_all     # simulation + validation + folder summaries
-snakemake --cores 6 stats_all        # phenotyping + stats + plots
+snakemake --cores 4 simulate_all     # pedigree simulation only
+snakemake --cores 4 phenotype_all    # simulation + phenotyping
+snakemake --cores 4 validate_all     # simulation + validation + folder summaries
+snakemake --cores 4 stats_all        # phenotyping + stats + plots
 
-# Run a single scenario
-snakemake --cores 6 results/base/baseline10K/scenario.done
+# Run a single named scenario
+snakemake --cores 4 results/base/baseline10K/scenario.done
 
 # Dry run to see what will be executed
-snakemake -n --cores 6
+snakemake -n --cores 4
 ```
+
+In snakemake, if a run is interrupted or fails, re-running the same command resumes from where it left off — completed steps are skipped automatically.
 
 ## Configuration
 
@@ -88,6 +120,9 @@ defaults:
   prevalence1: 0.10                          # Trait 1: proportion affected per generation
   prevalence2: 0.20                          # Trait 2: proportion affected per generation
 
+  # Statistics
+  extra_tetrachoric: false                   # Estimate additional tetrachoric correlations (slow; set true to enable) [UNDER DEVELOPEMENT]
+
   # Plot output
   plot_format: png                           # Plot file format: png or pdf
 
@@ -105,7 +140,9 @@ scenarios:
     C2: 0.0
 ```
 
-To add new simulations, add a named scenario to the config file. Prevalence can also be specified per-generation as a dict (e.g. `prevalence1: { 2: 0.03, 3: 0.05, 4: 0.08, 5: 0.12 }`).
+To add new simulations, simply add a new scenario to the config file. 
+
+Prevalence can also be specified per-generation as a dict (e.g. `prevalence1: { 2: 0.03, 3: 0.05, 4: 0.08, 5: 0.12 }`).
 
 ## Outputs
 
@@ -120,7 +157,7 @@ Each scenario replicate produces:
 | `results/{folder}/{scenario}/rep{N}/phenotype.liability_threshold.parquet` | Liability-threshold binary affected status |
 | `results/{folder}/{scenario}/rep{N}/params.yaml` | Parameters used for this replicate |
 
-### Validation and Summary
+### Validation and Logs
 
 | File | Description |
 |------|-------------|
@@ -139,6 +176,52 @@ Multi-page PDF atlases collect all figures for a scenario or folder into a singl
 | `results/{folder}/{scenario}/plots/atlas.pdf` | Per-scenario atlas: liability structure, Weibull phenotype, censoring, correlations, heritability, and threshold model figures |
 | `results/{folder}/plots/atlas.pdf` | Per-folder atlas: cross-scenario validation plots (variance components, correlations, heritability, bias, runtime, memory) |
 
+### Parquet Column Reference
+
+#### pedigree.parquet
+
+Core pedigree structure with latent variance components for two correlated traits. Stored with zstd compression; float columns are float32 and small integers are int8 for compact storage (~35% smaller than float64/snappy).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | int64 | Unique individual identifier |
+| `sex` | int8 | 0 = female, 1 = male |
+| `mother` | int64 | Mother's id (-1 for founders) |
+| `father` | int64 | Father's id (-1 for founders) |
+| `twin` | int64 | MZ twin partner's id (-1 if not a twin) |
+| `generation` | int8 | Generation number (0 = oldest recorded) |
+| `household_id` | int64 | Shared-environment household group |
+| `A1`, `A2` | float32 | Additive genetic component (traits 1 and 2) |
+| `C1`, `C2` | float32 | Common/shared environment component |
+| `E1`, `E2` | float32 | Unique environment component |
+| `liability1`, `liability2` | float32 | Total liability (A + C + E) |
+
+#### phenotype.weibull.parquet
+
+Extends the pedigree with Weibull frailty time-to-event phenotypes and censoring. Includes all pedigree columns above, plus:
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `t1`, `t2` | float32 | Raw (uncensored) age-at-onset from the Weibull frailty model |
+| `death_age` | float32 | Age at death from competing-risk mortality |
+| `t_observed1`, `t_observed2` | float32 | Observed age-at-onset after age and death censoring |
+| `age_censored1`, `age_censored2` | bool | True if onset falls outside the generation's observation window |
+| `death_censored1`, `death_censored2` | bool | True if onset occurs after death |
+| `affected1`, `affected2` | bool | True if the individual is observed as affected (not age- or death-censored) |
+
+#### phenotype.liability_threshold.parquet
+
+Binary affection status from a liability-threshold model. Each generation has an independent prevalence-based threshold.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | int64 | Individual identifier |
+| `generation` | int8 | Generation number |
+| `mother`, `father`, `twin` | int64 | Family links (same as pedigree) |
+| `A1`, `C1`, `E1`, `liability1` | float32 | Trait 1 variance components and liability |
+| `A2`, `C2`, `E2`, `liability2` | float32 | Trait 2 variance components and liability |
+| `affected1`, `affected2` | bool | True if liability exceeds the generation-specific threshold |
+
 ## Project Structure
 
 ```
@@ -149,19 +232,21 @@ ACE/
 ├── sim_ace/                           # Installable package (pip install -e .)
 │   ├── __init__.py                    # setup_logging() + public API re-exports
 │   ├── cli_base.py                    # Shared CLI boilerplate (add_logging_args, init_logging)
-│   ├── utils.py                       # Shared helpers (safe_corrcoef, to_native, validation_result)
+│   ├── utils.py                       # Shared helpers (save_parquet, optimize_dtypes, safe_corrcoef, etc.)
 │   ├── simulate.py                    # Pedigree simulation (mating, reproduce, run_simulation)
 │   ├── phenotype.py                   # Weibull frailty phenotype model
 │   ├── censor.py                      # Age-window and competing-risk death censoring
 │   ├── threshold.py                   # Liability-threshold model
 │   ├── validate.py                    # Structural + statistical validation
 │   ├── stats.py                       # Tetrachoric correlations, relationship pairs
+│   ├── pedigree_graph.py             # Sparse-matrix pedigree relationship extraction
 │   ├── threshold_stats.py             # Threshold phenotype statistics
 │   ├── survival_corr.py               # Pairwise Weibull survival correlation estimation
 │   ├── gather.py                      # Gather validation results into TSV
 │   ├── plot_phenotype.py              # Phenotype plot orchestrator + CLI
 │   ├── plot_distributions.py          # Mortality, age-at-onset, cumulative incidence plots
 │   ├── plot_liability.py              # Joint liability, violin, affection plots
+│   ├── plot_pedigree_counts.py        # Pedigree relationship pair counts diagram
 │   ├── plot_correlations.py           # Tetrachoric + parent-offspring correlation plots
 │   ├── plot_threshold.py              # Threshold phenotype plots
 │   ├── plot_atlas.py                  # Multi-page PDF atlas with figure captions
@@ -176,7 +261,7 @@ ACE/
 │   │   └── stats.smk                  # Statistics and phenotype plots
 │   └── scripts/                       # Snakemake script wrappers
 ├── tests/                             # Unit, statistical, and edge-case tests
-├── results/{folder}/{scenario}/rep{N}/ # Per-replicate simualtion outputs
+├── results/{folder}/{scenario}/rep{N}/ # Per-replicate simulation outputs
 ├── logs/{folder}/{scenario}/          # Log files
 └── benchmarks/{folder}/{scenario}/    # Runtime and memory usage benchmarks
 ```
@@ -185,6 +270,15 @@ ACE/
 
 - **[methods.md](methods.md)** — Methods document (variance decomposition, Weibull frailty, censoring, liability threshold, tetrachoric correlation, heritability estimation, etc)
 - **[CLAUDE.md](CLAUDE.md)** — Architecture guide
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `ModuleNotFoundError: No module named 'sim_ace'` | Run `conda activate ACE` first — the package is only available inside the conda environment |
+| `FileNotFoundError: config/config.yaml` | Run snakemake from the ACE repo root directory |
+| Simulation killed or frozen (large N) | Reduce `--cores` to lower parallel memory usage, or skip N=1M/2M scenarios |
+| `IncompleteFilesException` on re-run | Snakemake detected a previously interrupted output; run `snakemake --cores 4 --rerun-incomplete` |
 
 ## License
 

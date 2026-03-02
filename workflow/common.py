@@ -29,6 +29,8 @@ def get_all_folders(config):
 # Ordered by narrative flow: liability structure -> Weibull phenotype ->
 # censoring -> familial correlations & heritability.
 _PHENOTYPE_BASENAMES = [
+    # Pedigree structure
+    "pedigree_counts",
     # Liability structure
     "cross_trait",
     "cross_trait.weibull",

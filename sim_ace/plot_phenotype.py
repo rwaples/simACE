@@ -44,6 +44,9 @@ from sim_ace.plot_liability import (
     plot_joint_affection,
 )
 
+# -- Pedigree counts diagram --
+from sim_ace.plot_pedigree_counts import plot_pedigree_relationship_counts
+
 # -- Correlation plots --
 from sim_ace.plot_correlations import (
     plot_tetrachoric_sibling,
@@ -90,6 +93,11 @@ def main(
 
     ext = plot_ext
 
+    # Pedigree relationship pair counts diagram
+    plot_pedigree_relationship_counts(
+        all_stats, out_dir / f"pedigree_counts.{ext}", scenario,
+    )
+
     plot_death_age_distribution(
         all_stats, censor_age, out_dir / f"mortality.{ext}", scenario
     )
@@ -131,12 +139,20 @@ def main(
         plt.savefig(out_dir / f"censoring.{ext}", dpi=150)
         plt.close()
 
-    plot_tetrachoric_sibling(
-        all_stats, out_dir / f"tetrachoric.weibull.{ext}", scenario,
-    )
-    plot_tetrachoric_by_generation(
-        all_stats, out_dir / f"tetrachoric.weibull.by_generation.{ext}", scenario,
-    )
+    if all_stats[0].get("tetrachoric"):
+        plot_tetrachoric_sibling(
+            all_stats, out_dir / f"tetrachoric.weibull.{ext}", scenario,
+        )
+        plot_tetrachoric_by_generation(
+            all_stats, out_dir / f"tetrachoric.weibull.by_generation.{ext}", scenario,
+        )
+    else:
+        for name in ["tetrachoric.weibull", "tetrachoric.weibull.by_generation"]:
+            fig, ax = plt.subplots(figsize=(6, 4))
+            ax.text(0.5, 0.5, "Tetrachoric correlations not computed\n(extra_tetrachoric: false)",
+                    ha="center", va="center", transform=ax.transAxes)
+            plt.savefig(out_dir / f"{name}.{ext}", dpi=150)
+            plt.close()
     plot_parent_offspring_liability(
         df_samples, all_stats, out_dir / f"parent_offspring_liability.by_generation.{ext}", scenario,
     )

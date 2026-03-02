@@ -21,6 +21,8 @@ import numpy as np
 import pandas as pd
 import yaml
 
+from sim_ace.utils import save_parquet
+
 logger = logging.getLogger(__name__)
 
 
@@ -301,7 +303,7 @@ def add_to_pedigree(
     if pedigree is not None:
         offset_id = len(pedigree)
         offset_parent = offset_id - n
-        offset_household = pedigree.iloc[-1]["household_id"] + 1
+        offset_household = pedigree["household_id"].iloc[-1] + 1
         df["id"] = df["id"] + offset_id
         df["mother"] = df["mother"] + offset_parent
         df["father"] = df["father"] + offset_parent
@@ -485,7 +487,7 @@ def cli() -> None:
         rA=args.rA, rC=args.rC, G_sim=args.G_sim,
     )
 
-    pedigree.to_parquet(args.output_pedigree, index=False)
+    save_parquet(pedigree, args.output_pedigree)
 
     params_dict = {
         "seed": args.seed, "rep": args.rep,

@@ -22,6 +22,8 @@ import time
 import numpy as np
 import pandas as pd
 
+from sim_ace.utils import save_parquet
+
 logger = logging.getLogger(__name__)
 
 
@@ -160,4 +162,4 @@ def cli() -> None:
         "standardize": args.standardize,
     }
     phenotype = run_phenotype(pedigree, params)
-    phenotype.to_parquet(args.output, index=False)
+    save_parquet(phenotype, args.output)

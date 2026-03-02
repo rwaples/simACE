@@ -18,10 +18,11 @@ from pathlib import Path
 
 from sim_ace.stats import (
     tetrachoric_corr_se,
-    extract_relationship_pairs,
     compute_liability_correlations,
     create_sample,
 )
+from sim_ace.pedigree_graph import extract_relationship_pairs
+from sim_ace.utils import save_parquet
 
 import logging
 import time
@@ -103,7 +104,8 @@ def compute_tetrachoric(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple
     return result
 
 
-def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int = 42) -> None:
+def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int = 42,
+         extra_tetrachoric: bool = True) -> None:
     """Compute all threshold stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
 
@@ -136,10 +138,13 @@ def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int 
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
 
     # Tetrachoric correlations
-    logger.info("Computing tetrachoric correlations...")
-    t_tet = time.perf_counter()
-    stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
-    logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
+    if extra_tetrachoric:
+        logger.info("Computing tetrachoric correlations...")
+        t_tet = time.perf_counter()
+        stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
+        logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
+    else:
+        logger.info("Skipping tetrachoric correlations (extra_tetrachoric=false)")
 
     # Write stats YAML
     stats_path = Path(stats_output)
@@ -151,7 +156,7 @@ def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int 
     # Write downsampled parquet
     sample_df = create_sample(df, seed=seed)
     samples_path = Path(samples_output)
-    sample_df.to_parquet(samples_path, index=False)
+    save_parquet(sample_df, samples_path)
     logger.info("Sample (%d rows) written to %s", len(sample_df), samples_path)
 
 
@@ -164,8 +169,11 @@ def cli() -> None:
     parser.add_argument("stats_output", help="Output stats YAML")
     parser.add_argument("samples_output", help="Output samples parquet")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
+    parser.add_argument("--no-extra-tetrachoric", dest="extra_tetrachoric", action="store_false",
+                        default=True, help="Skip tetrachoric correlation estimation")
     args = parser.parse_args()
 
     init_logging(args)
 
-    main(args.phenotype, args.stats_output, args.samples_output, seed=args.seed)
+    main(args.phenotype, args.stats_output, args.samples_output, seed=args.seed,
+         extra_tetrachoric=args.extra_tetrachoric)

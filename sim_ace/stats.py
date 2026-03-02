@@ -23,6 +23,9 @@ import logging
 import time
 logger = logging.getLogger(__name__)
 
+from sim_ace.pedigree_graph import extract_relationship_pairs  # noqa: E402
+from sim_ace.utils import save_parquet
+
 
 def _bvn_pos(h: float, k: float, r: float, sq: float) -> float:
     """BVN CDF for h >= 0, k >= 0, |r| < 1 using Owen's T function."""
@@ -152,12 +155,8 @@ def tetrachoric_se(r: float, a: np.ndarray, b: np.ndarray) -> float:
     return se
 
 
-def extract_relationship_pairs(df: pd.DataFrame, seed: int = 42) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-    """Extract relationship pairs as aligned row-index arrays.
-
-    Performance-optimized version using dict-based lookups and pandas merge
-    for sibling extraction instead of groupby loops.
-    """
+def _extract_relationship_pairs_legacy(df: pd.DataFrame, seed: int = 42) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Legacy implementation kept for golden testing. Use pedigree_graph.extract_relationship_pairs instead."""
     # Map (id) -> row position via numpy array for vectorized lookup
     ids_arr = df["id"].values.astype(np.int64)
     id_to_row = np.full(ids_arr.max() + 1, -1, dtype=np.int32)
@@ -890,6 +889,7 @@ def main(
     seed: int = 42,
     gen_censoring: dict[int, list[float]] | None = None,
     weibull_params: dict[str, dict[str, float]] | None = None,
+    extra_tetrachoric: bool = True,
 ) -> None:
     """Compute all stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
@@ -927,6 +927,11 @@ def main(
         ", ".join(f"{k}: {len(v[0])}" for k, v in pairs.items()),
     )
 
+    # Pair counts for all 10 relationship types
+    stats["pair_counts"] = {
+        name: int(len(idx_pair[0])) for name, idx_pair in pairs.items()
+    }
+
     # Liability correlations
     logger.info("Computing liability correlations...")
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
@@ -936,19 +941,22 @@ def main(
     stats["parent_offspring_corr"] = compute_parent_offspring_corr(df)
 
     # Tetrachoric correlations
-    logger.info("Computing tetrachoric correlations...")
-    t_tet = time.perf_counter()
-    stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
-    logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
+    if extra_tetrachoric:
+        logger.info("Computing tetrachoric correlations...")
+        t_tet = time.perf_counter()
+        stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
+        logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
 
-    # Tetrachoric correlations by generation
-    logger.info("Computing tetrachoric correlations by generation...")
-    t_tet_gen = time.perf_counter()
-    stats["tetrachoric_by_generation"] = compute_tetrachoric_by_generation(df, seed=seed, pairs=pairs)
-    logger.info("Tetrachoric by generation computed in %.1fs", time.perf_counter() - t_tet_gen)
+        # Tetrachoric correlations by generation
+        logger.info("Computing tetrachoric correlations by generation...")
+        t_tet_gen = time.perf_counter()
+        stats["tetrachoric_by_generation"] = compute_tetrachoric_by_generation(df, seed=seed, pairs=pairs)
+        logger.info("Tetrachoric by generation computed in %.1fs", time.perf_counter() - t_tet_gen)
+    else:
+        logger.info("Skipping tetrachoric correlations (extra_tetrachoric=false)")
 
     # Pairwise Weibull correlations (if params supplied)
-    if weibull_params is not None:
+    if weibull_params is not None and extra_tetrachoric:
         logger.info("Computing pairwise Weibull correlations...")
         t_weib = time.perf_counter()
         censored, uncensored = compute_weibull_correlations(
@@ -968,6 +976,8 @@ def main(
         stats["weibull_cross_trait_uncensored"] = ct_uncensored
         stats["weibull_cross_trait_stratified"] = ct_stratified
         logger.info("Cross-trait Weibull correlation computed in %.1fs", time.perf_counter() - t_cross)
+    elif weibull_params is not None:
+        logger.info("Skipping Weibull pairwise correlations (extra_tetrachoric=false)")
 
     # Write stats YAML
     stats_path = Path(stats_output)
@@ -979,7 +989,7 @@ def main(
     # Write downsampled parquet
     sample_df = create_sample(df, seed=seed)
     samples_path = Path(samples_output)
-    sample_df.to_parquet(samples_path, index=False)
+    save_parquet(sample_df, samples_path)
     logger.info("Sample (%d rows) written to %s", len(sample_df), samples_path)
 
 
@@ -1000,6 +1010,8 @@ def cli() -> None:
     parser.add_argument("--beta2", type=float, default=None, help="Weibull frailty coefficient for trait 2")
     parser.add_argument("--scale2", type=float, default=None, help="Weibull scale parameter for trait 2")
     parser.add_argument("--rho2", type=float, default=None, help="Weibull shape parameter for trait 2")
+    parser.add_argument("--no-extra-tetrachoric", dest="extra_tetrachoric", action="store_false",
+                        default=True, help="Skip tetrachoric correlation estimation")
     args = parser.parse_args()
 
     init_logging(args)
@@ -1018,4 +1030,5 @@ def cli() -> None:
 
     main(args.phenotype, args.censor_age, args.stats_output, args.samples_output,
          seed=args.seed, gen_censoring=gen_censoring,
-         weibull_params=weibull_params)
+         weibull_params=weibull_params,
+         extra_tetrachoric=args.extra_tetrachoric)

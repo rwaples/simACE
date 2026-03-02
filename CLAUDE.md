@@ -25,19 +25,19 @@ conda activate ACE
 
 ```bash
 # Run everything (default target)
-snakemake --cores 6
+snakemake --cores 4
 
 # Run individual stages
-snakemake --cores 6 simulate_all     # pedigree simulation only
-snakemake --cores 6 phenotype_all    # simulation + phenotyping
-snakemake --cores 6 validate_all     # simulation + validation + folder summaries
-snakemake --cores 6 stats_all        # phenotyping + stats + plots
+snakemake --cores 4 simulate_all     # pedigree simulation only
+snakemake --cores 4 phenotype_all    # simulation + phenotyping
+snakemake --cores 4 validate_all     # simulation + validation + folder summaries
+snakemake --cores 4 stats_all        # phenotyping + stats + plots
 
 # Run a single scenario
-snakemake --cores 6 results/base/baseline10K/scenario.done
+snakemake --cores 4 results/base/baseline10K/scenario.done
 
 # Dry run to see what will be executed
-snakemake -n --cores 6
+snakemake -n --cores 4
 ```
 
 ## Architecture
@@ -57,14 +57,17 @@ ACE/
 │   ├── threshold.py                   # Liability threshold model
 │   ├── validate.py                    # Structural + statistical validation
 │   ├── stats.py                       # Phenotype statistics (tetrachoric, correlations)
+│   ├── pedigree_graph.py             # Sparse-matrix pedigree relationship extraction
 │   ├── threshold_stats.py             # Threshold phenotype statistics
 │   ├── survival_corr.py               # Pairwise Weibull survival correlations
 │   ├── gather.py                      # Gather validation results into TSV
 │   ├── plot_phenotype.py              # Phenotype plot orchestrator + CLI
 │   ├── plot_distributions.py          # Mortality, age-at-onset, cumulative incidence plots
 │   ├── plot_liability.py              # Joint liability, violin, affection plots
+│   ├── plot_pedigree_counts.py        # Pedigree relationship pair counts diagram
 │   ├── plot_correlations.py           # Tetrachoric + parent-offspring correlation plots
 │   ├── plot_threshold.py              # Threshold phenotype plots
+│   ├── plot_atlas.py                  # Multi-page PDF atlas with figure captions
 │   └── plot_validation.py             # Validation summary plots
 ├── workflow/
 │   ├── common.py                      # Shared helpers (get_param, get_folder, etc.)

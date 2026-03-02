@@ -14,7 +14,7 @@ dependencies = [
 
 [project.optional-dependencies]
 accel = ["numba"]
-dev = ["snakemake", "pytest"]
+dev = ["snakemake", "snakefmt", "pytest"]
 
 [project.scripts]
 sim-ace-simulate = "sim_ace.simulate:cli"
