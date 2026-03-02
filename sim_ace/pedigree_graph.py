@@ -98,40 +98,6 @@ class PedigreeGraph:
         """3-hop parent reach (great-grandparents): A² @ A."""
         return self._A2 @ self._A
 
-    @cached_property
-    def _children_of_mother(self) -> dict[int, np.ndarray]:
-        """Children grouped by mother (lazy, only for count_sib_pairs)."""
-        mothers = self._nf_mother
-        nf_idx = self._nf_idx
-        sort_m = np.argsort(mothers, kind="mergesort")
-        sorted_mothers = mothers[sort_m]
-        sorted_nf_m = nf_idx[sort_m]
-        u_m, starts_m, counts_m = np.unique(
-            sorted_mothers, return_index=True, return_counts=True
-        )
-        result: dict[int, np.ndarray] = {}
-        for i in range(len(u_m)):
-            s, c = starts_m[i], counts_m[i]
-            result[int(u_m[i])] = sorted_nf_m[s:s + c]
-        return result
-
-    @cached_property
-    def _children_of_father(self) -> dict[int, np.ndarray]:
-        """Children grouped by father (lazy, only for count_sib_pairs)."""
-        fathers = self._nf_father
-        nf_idx = self._nf_idx
-        sort_f = np.argsort(fathers, kind="mergesort")
-        sorted_fathers = fathers[sort_f]
-        sorted_nf_f = nf_idx[sort_f]
-        u_f, starts_f, counts_f = np.unique(
-            sorted_fathers, return_index=True, return_counts=True
-        )
-        result: dict[int, np.ndarray] = {}
-        for i in range(len(u_f)):
-            s, c = starts_f[i], counts_f[i]
-            result[int(u_f[i])] = sorted_nf_f[s:s + c]
-        return result
-
     # ------------------------------------------------------------------
     # Relationship extraction
     # ------------------------------------------------------------------
@@ -443,72 +409,6 @@ class PedigreeGraph:
 
         return pairs
 
-    def count_sib_pairs(self) -> dict[str, int]:
-        """Count sibling pairs (for validate.py compatibility).
-
-        Returns dict with keys matching the old _count_sib_pairs output.
-        """
-        twin = self.twin
-        mother = self.mother
-        father = self.father
-
-        # Non-twin non-founders
-        nf_mask = mother >= 0
-        nt_mask = nf_mask & (twin < 0)
-
-        n_full_sib = 0
-        n_maternal_hs = 0
-        n_paternal_hs = 0
-        n_offspring_with_sibs = 0
-        n_offspring_with_maternal_hs = 0
-
-        for mom, children in self._children_of_mother.items():
-            non_twin = children[twin[children] < 0]
-            if len(non_twin) < 2:
-                continue
-
-            mothers_with_multi.add(mom)
-            n_offspring_with_sibs += len(non_twin)
-
-            child_fathers = father[non_twin]
-            u_f, counts = np.unique(child_fathers, return_counts=True)
-
-            # Full sib pairs: C(count, 2) for each father group
-            for c in counts:
-                if c >= 2:
-                    n_full_sib += c * (c - 1) // 2
-
-            # Maternal half sib pairs: cross-father pairs
-            if len(u_f) >= 2:
-                total_maternal_pairs = len(non_twin) * (len(non_twin) - 1) // 2
-                full_pairs_total = sum(c * (c - 1) // 2 for c in counts)
-                n_maternal_hs += total_maternal_pairs - full_pairs_total
-                n_offspring_with_maternal_hs += len(non_twin)
-
-        # Paternal half sibs
-        for dad, children in self._children_of_father.items():
-            non_twin = children[twin[children] < 0]
-            if len(non_twin) < 2:
-                continue
-
-            child_mothers = mother[non_twin]
-            u_m, counts = np.unique(child_mothers, return_counts=True)
-            if len(u_m) < 2:
-                continue
-
-            total_paternal_pairs = len(non_twin) * (len(non_twin) - 1) // 2
-            full_pairs_total = sum(c * (c - 1) // 2 for c in counts)
-            n_paternal_hs += total_paternal_pairs - full_pairs_total
-
-        return {
-            "n_maternal_half_sib_pairs": n_maternal_hs,
-            "n_paternal_half_sib_pairs": n_paternal_hs,
-            "n_full_sib_pairs": n_full_sib,
-            "n_offspring_with_maternal_half_sib": n_offspring_with_maternal_hs,
-            "n_offspring_with_sibs": n_offspring_with_sibs,
-        }
-
-
 def extract_relationship_pairs(
     df: pd.DataFrame, seed: int = 42
 ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
@@ -519,6 +419,23 @@ def extract_relationship_pairs(
     """
     pg = PedigreeGraph(df)
     return pg.extract_pairs(seed=seed)
+
+
+def extract_sibling_pairs(
+    df: pd.DataFrame,
+) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Extract only sibling pairs (full, maternal HS, paternal HS).
+
+    Much cheaper than extract_relationship_pairs — skips cousin,
+    grandparent, avuncular, and 2nd cousin extraction.
+    """
+    pg = PedigreeGraph(df)
+    full_sib, mat_hs, pat_hs = pg._sibling_pairs()
+    return {
+        "Full sib": full_sib,
+        "Maternal half sib": mat_hs,
+        "Paternal half sib": pat_hs,
+    }
 
 
 def count_sib_pairs(df: pd.DataFrame) -> dict[str, int]:

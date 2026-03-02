@@ -17,7 +17,7 @@ import pandas as pd
 import yaml
 
 from sim_ace.utils import safe_corrcoef, safe_linregress, to_native, validation_result as _result
-from sim_ace.pedigree_graph import count_sib_pairs, extract_relationship_pairs
+from sim_ace.pedigree_graph import extract_sibling_pairs
 
 logger = logging.getLogger(__name__)
 
@@ -294,7 +294,41 @@ def _corr_tolerance(expected_r: float, n_pairs: int, min_tol: float = 0.05, n_se
     return max(n_se * se, min_tol)
 
 
-def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+def _sib_counts_from_pairs(
+    sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+) -> dict[str, int]:
+    """Derive sibling counts from pre-extracted pair arrays."""
+    full = sibling_pairs["Full sib"]
+    mat = sibling_pairs["Maternal half sib"]
+    pat = sibling_pairs["Paternal half sib"]
+    n_full = len(full[0])
+    n_mat = len(mat[0])
+    n_pat = len(pat[0])
+
+    # Individuals with any maternal sibling (full or half)
+    maternal_parts: list[np.ndarray] = []
+    if n_full > 0:
+        maternal_parts.extend([full[0], full[1]])
+    if n_mat > 0:
+        maternal_parts.extend([mat[0], mat[1]])
+    n_with_sibs = int(len(np.unique(np.concatenate(maternal_parts)))) if maternal_parts else 0
+
+    # Individuals with a maternal half-sib
+    if n_mat > 0:
+        n_with_mat_hs = int(len(np.unique(np.concatenate([mat[0], mat[1]]))))
+    else:
+        n_with_mat_hs = 0
+
+    return {
+        "n_full_sib_pairs": n_full,
+        "n_maternal_half_sib_pairs": n_mat,
+        "n_paternal_half_sib_pairs": n_pat,
+        "n_offspring_with_sibs": n_with_sibs,
+        "n_offspring_with_maternal_half_sib": n_with_mat_hs,
+    }
+
+
+def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any], sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]]) -> dict[str, Any]:
     """Validate half-sibling counts and proportions related to p_nonsocial_father.
 
     Checks that the observed proportion of maternal half-sibling pairs among
@@ -319,19 +353,7 @@ def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, An
         -fam_size * p_nonsocial
     )
 
-    non_founders = df[df["mother"] != -1]
-    non_twin_sibs = non_founders[non_founders["twin"] == -1][["id", "mother", "father"]]
-
-    if len(non_twin_sibs) < 2:
-        results["half_sib_pair_proportion"] = _result(
-            True, "Not enough non-twin siblings to check"
-        )
-        results["offspring_with_half_sib"] = _result(
-            True, "Not enough non-twin siblings to check"
-        )
-        return results
-
-    sib_info = count_sib_pairs(non_twin_sibs)
+    sib_info = _sib_counts_from_pairs(sibling_pairs)
 
     # Maternal half-sib pair proportion (validates p_nonsocial_father)
     total_maternal_pairs = sib_info["n_full_sib_pairs"] + sib_info["n_maternal_half_sib_pairs"]
@@ -560,16 +582,14 @@ def _validate_mz_correlations(
 
 
 def _validate_dz_correlations(
-    df: pd.DataFrame,
     params: dict[str, Any],
     A_params: dict[int, float],
     comp_vals: dict[str, np.ndarray],
-    id_to_idx: pd.Series,
+    full_sib_pairs: tuple[np.ndarray, np.ndarray],
     results: dict[str, Any],
 ) -> tuple[dict[int, float | None], int]:
     """Validate DZ sibling correlations. Returns (dz_pheno_corr, n_dz_pairs)."""
-    pairs = extract_relationship_pairs(df, seed=params.get("seed", 42))
-    idx1, idx2 = pairs["Full sib"]
+    idx1, idx2 = full_sib_pairs
 
     dz_pheno_corr: dict[int, float | None] = {}
     n_dz_pairs = len(idx1)
@@ -702,7 +722,10 @@ def _validate_parent_offspring(
             }
 
 
-def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
+def validate_heritability(
+    df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame,
+    sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+) -> dict[str, Any]:
     """Validate heritability estimates for two-trait simulation.
 
     Computes MZ twin and DZ sibling liability correlations, Falconer
@@ -714,6 +737,7 @@ def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: 
         df: Pedigree DataFrame.
         params: Scenario parameters; requires keys ``A1``, ``A2``, ``seed``.
         df_indexed: Pedigree DataFrame indexed by ``id``.
+        sibling_pairs: Pre-extracted sibling pairs from extract_sibling_pairs().
 
     Returns:
         Dict of check-name to result dicts, including MZ/DZ correlations,
@@ -732,7 +756,7 @@ def validate_heritability(df: pd.DataFrame, params: dict[str, Any], df_indexed: 
         df, A_params, comp_vals, id_to_idx, results,
     )
     dz_pheno_corr, n_dz_pairs = _validate_dz_correlations(
-        df, params, A_params, comp_vals, id_to_idx, results,
+        params, A_params, comp_vals, sibling_pairs["Full sib"], results,
     )
     _validate_falconer(
         A_params, mz_pheno_corr, dz_pheno_corr, n_mz_pairs, n_dz_pairs, results,
@@ -898,12 +922,14 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
 
     df_indexed = df.set_index("id")
 
+    sibling_pairs = extract_sibling_pairs(df)
+
     results = {
         "structural": validate_structural(df, params),
         "twins": validate_twins(df, params, df_indexed),
-        "half_sibs": validate_half_sibs(df, params),
+        "half_sibs": validate_half_sibs(df, params, sibling_pairs),
         "statistical": validate_statistical(df, params, df_indexed),
-        "heritability": validate_heritability(df, params, df_indexed),
+        "heritability": validate_heritability(df, params, df_indexed, sibling_pairs),
         "population": validate_population(df, params),
         "per_generation": compute_per_generation_stats(df, params),
     }
