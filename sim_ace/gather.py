@@ -51,10 +51,10 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
                 simulate_seconds = float(row_b["s"])
 
                 if platform.system() == "Windows":
-                    # Windows non supporta max_rss → metto NaN
+                    # Windows does not support max_rss
                     simulate_max_rss_mb = float(1)
                 else:
-                    # Linux/macOS → converto normalmente
+                    # Linux/macOS → normal
                     simulate_max_rss_mb = float(row_b["max_rss"])
 
                 break
