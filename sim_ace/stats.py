@@ -703,6 +703,7 @@ def main(
     gen_censoring: dict[int, list[float]] | None = None,
     weibull_params: dict[str, dict[str, float]] | None = None,
     extra_tetrachoric: bool = True,
+    pedigree_path: str | None = None,
 ) -> None:
     """Compute all stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
@@ -740,10 +741,22 @@ def main(
         ", ".join(f"{k}: {len(v[0])}" for k, v in pairs.items()),
     )
 
-    # Pair counts for all 10 relationship types
+    # Pair counts for all 10 relationship types (phenotyped G_pheno generations)
     stats["pair_counts"] = {
         name: int(len(idx_pair[0])) for name, idx_pair in pairs.items()
     }
+
+    # Pair counts from full pedigree (G_ped generations)
+    if pedigree_path is not None:
+        logger.info("Extracting relationship pairs from full pedigree...")
+        t_ped = time.perf_counter()
+        df_ped = pd.read_parquet(pedigree_path)
+        pairs_ped = extract_relationship_pairs(df_ped, seed=seed)
+        stats["pair_counts_ped"] = {
+            name: int(len(idx_pair[0])) for name, idx_pair in pairs_ped.items()
+        }
+        del df_ped, pairs_ped
+        logger.info("Pedigree pairs extracted in %.1fs", time.perf_counter() - t_ped)
 
     # Liability correlations
     logger.info("Computing liability correlations...")
@@ -825,6 +838,7 @@ def cli() -> None:
     parser.add_argument("--rho2", type=float, default=None, help="Weibull shape parameter for trait 2")
     parser.add_argument("--no-extra-tetrachoric", dest="extra_tetrachoric", action="store_false",
                         default=True, help="Skip tetrachoric correlation estimation")
+    parser.add_argument("--pedigree", default=None, help="Full pedigree parquet for G_ped pair counts")
     args = parser.parse_args()
 
     init_logging(args)
@@ -844,4 +858,5 @@ def cli() -> None:
     main(args.phenotype, args.censor_age, args.stats_output, args.samples_output,
          seed=args.seed, gen_censoring=gen_censoring,
          weibull_params=weibull_params,
-         extra_tetrachoric=args.extra_tetrachoric)
+         extra_tetrachoric=args.extra_tetrachoric,
+         pedigree_path=args.pedigree)

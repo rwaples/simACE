@@ -6,6 +6,7 @@ from sim_ace.stats import main, cli as _cli
 def _run_snakemake():
     setup_logging(log_file=snakemake.log[0])
     phenotype_path = snakemake.input.phenotype
+    pedigree_path = snakemake.input.pedigree
     seed = snakemake.params.seed
     censor_age = snakemake.params.censor_age
     gen_censoring_raw = snakemake.params.get("gen_censoring", None)
@@ -31,7 +32,8 @@ def _run_snakemake():
     main(phenotype_path, censor_age, stats_output, samples_output,
          seed=seed, gen_censoring=gen_censoring,
          weibull_params=weibull_params,
-         extra_tetrachoric=extra_tetrachoric)
+         extra_tetrachoric=extra_tetrachoric,
+         pedigree_path=pedigree_path)
 
 
 if __name__ == "__main__":

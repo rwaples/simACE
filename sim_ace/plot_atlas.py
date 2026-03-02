@@ -20,61 +20,69 @@ logger = logging.getLogger(__name__)
 # Captions ordered to match _PHENOTYPE_BASENAMES in workflow/common.py:
 # liability structure -> Weibull phenotype -> censoring -> correlations.
 PHENOTYPE_CAPTIONS: dict[str, str] = {
-    "pedigree_counts": (
-        "Figure 1: Pedigree relationship pair counts.\n\n"
+    "pedigree_counts.ped": (
+        "Figure 1: Pedigree relationship pair counts (G_ped).\n\n"
         "Schematic multi-generational pedigree diagram showing the 10 relationship "
-        "categories extracted from the simulated pedigree. Colored arcs connect pairs "
-        "of related individuals, with mean pair counts (averaged across replicates) "
-        "superimposed. Node shapes follow standard pedigree conventions: squares = "
-        "male, circles = female. Relationship categories: MZ twin, Full sib, "
-        "Maternal half sib, Paternal half sib, Mother-offspring, Father-offspring, "
-        "1st cousin, Grandparent-grandchild, Avuncular, 2nd cousin."
+        "categories extracted from the full simulated pedigree spanning all G_ped "
+        "generations. Colored arcs connect pairs of related individuals, with mean "
+        "pair counts (averaged across replicates) superimposed. Node shapes follow "
+        "standard pedigree conventions: squares = male, circles = female. "
+        "Relationship categories: MZ twin, Full sib, Maternal half sib, "
+        "Paternal half sib, Mother-offspring, Father-offspring, 1st cousin, "
+        "Grandparent-grandchild, Avuncular, 2nd cousin."
+    ),
+    "pedigree_counts": (
+        "Figure 2: Pedigree relationship pair counts (G_pheno).\n\n"
+        "Same diagram as Figure 1, but restricted to the last G_pheno phenotyped "
+        "generations. These are the individuals for whom survival times and affected "
+        "status are observed, and whose relationship pairs are used for downstream "
+        "correlation and heritability analyses."
     ),
     "cross_trait": (
-        "Figure 2: Cross-trait liability joint plots.\n\n"
+        "Figure 3: Cross-trait liability joint plots.\n\n"
         "2\u00d72 grid of joint plots for Liability, A (additive genetic), C (common environment), "
         "and E (unique environment). Central scatter of Trait 1 (x) vs. Trait 2 (y) with "
         "Pearson r annotation and marginal histograms."
     ),
     "cross_trait.weibull": (
-        "Figure 3: Cross-trait liability joint plots coloured by affected status.\n\n"
-        "Same 2\u00d72 layout as Figure 2, but with affected-status colouring based on trait 1. "
+        "Figure 4: Cross-trait liability joint plots coloured by affected status.\n\n"
+        "Same 2\u00d72 layout as Figure 3, but with affected-status colouring based on trait 1. "
         "Blue points = unaffected, orange points = affected (trait 1). Marginal histograms stacked "
         "by affected status."
     ),
     "liability_violin.weibull": (
-        "Figure 4: Liability violin plots by affected status (Weibull).\n\n"
+        "Figure 5: Liability violin plots by affected status (Weibull).\n\n"
         "Split violin plots, one per trait. Left half = unaffected, right half = affected. "
         "Diamond markers show mean liability for each group with \u03bc annotations. "
         "Prevalence annotated below each trait."
     ),
     "liability_violin.weibull.by_generation": (
-        "Figure 5: Liability violin plots by generation (Weibull).\n\n"
+        "Figure 6: Liability violin plots by generation (Weibull).\n\n"
         "Grid: rows = traits, columns = recorded generations. Split violins for affected vs. "
         "unaffected within each generation. Diamond markers and \u03bc annotations show per-group "
         "means. x-axis labels show observed generation-specific prevalence."
     ),
     "liability_vs_aoo": (
-        "Figure 6: Liability vs. age-at-onset.\n\n"
+        "Figure 7: Liability vs. age-at-onset.\n\n"
         "Side-by-side joint plots, one per trait. Central scatter of liability (x) vs. "
         "observed age-at-onset (y) for affected individuals, with regression line and R\u00b2 "
         "annotation. Marginal histograms on top and right."
     ),
     "age_at_onset_death": (
-        "Figure 7: Age-at-onset and death-age histograms.\n\n"
+        "Figure 8: Age-at-onset and death-age histograms.\n\n"
         "A 2\u00d72 grid, rows = traits 1 and 2. Left column shows density histograms "
         "of observed age-at-onset for affected individuals (\u03b4 = 1). Right column shows "
         "age-at-death histograms for death-censored unaffected individuals."
     ),
     "mortality": (
-        "Figure 8: Mortality rate by decade.\n\n"
+        "Figure 9: Mortality rate by decade.\n\n"
         "Two-panel figure. Left panel shows per-decade mortality rate "
         "(deaths in decade / alive at start of decade), averaged across replicates. "
         "Right panel shows cumulative mortality, "
         "with cumulative survival probability annotated above each bar."
     ),
     "cumulative_incidence.weibull": (
-        "Figure 9: Cumulative incidence curves.\n\n"
+        "Figure 10: Cumulative incidence curves.\n\n"
         "Two-panel figure, one per trait. Blue solid line = observed cumulative incidence "
         "from censored data (with min-max band across replicates). Grey solid line = true "
         "cumulative incidence from uncensored event times. Grey dashed crosshairs mark the "
@@ -82,14 +90,14 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "true prevalence %, and censored %."
     ),
     "censoring": (
-        "Figure 10: Censoring windows by generation.\n\n"
+        "Figure 11: Censoring windows by generation.\n\n"
         "Grid of panels: rows = traits, columns = generations. Grey line = true cumulative "
         "incidence, blue line = observed cumulative incidence. Text box shows affected %, "
         "left-censored %, right-censored %, and death-censored % per generation. Column "
         "titles show observation window [lo, hi]."
     ),
     "joint_affected.weibull": (
-        "Figure 11: Joint affected status heatmap (Weibull).\n\n"
+        "Figure 12: Joint affected status heatmap (Weibull).\n\n"
         "2\u00d72 heatmap of joint affected status across both traits. Cell annotations "
         "show proportion and count. Title shows three cross-trait correlation estimates: "
         "'r_tet' = tetrachoric correlation on censored binary affected status; "
@@ -100,7 +108,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "'naive' = unweighted pooled censored Weibull estimate for comparison."
     ),
     "cross_trait_weibull.by_generation": (
-        "Figure 12: Cross-trait Weibull correlation by generation.\n\n"
+        "Figure 13: Cross-trait Weibull correlation by generation.\n\n"
         "Per-generation cross-trait liability correlation estimated from censored "
         "Weibull survival data. Blue dots = per-replicate per-generation estimates "
         "with 95% CI error bars; blue line = mean across replicates. "
@@ -110,7 +118,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Generations with very low event rates may hit the boundary and be excluded."
     ),
     "tetrachoric.weibull": (
-        "Figure 13: Tetrachoric correlations by relationship type (Weibull).\n\n"
+        "Figure 14: Tetrachoric correlations by relationship type (Weibull).\n\n"
         "Two-panel figure, one per trait. Coloured violins show the distribution of "
         "tetrachoric correlations (computed from censored binary affected status) across "
         "replicates for each relationship type. "
@@ -123,20 +131,20 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "reflects attenuation from censoring and dichotomization."
     ),
     "tetrachoric.weibull.by_generation": (
-        "Figure 14: Tetrachoric correlations by generation (Weibull).\n\n"
-        "Grid: rows = traits, columns = generations. Same encoding as Figure 13 "
+        "Figure 15: Tetrachoric correlations by generation (Weibull).\n\n"
+        "Grid: rows = traits, columns = generations. Same encoding as Figure 14 "
         "(violins = observed tetrachoric correlations, black dashed = true liability "
         "correlations, dots = per-replicate estimates), computed within each generation "
         "separately."
     ),
     "parent_offspring_liability.by_generation": (
-        "Figure 15: Parent-offspring liability regressions.\n\n"
+        "Figure 16: Parent-offspring liability regressions.\n\n"
         "Grid: rows = traits, columns = last 3 non-founder generations. Scatter of "
         "midparent liability (x) vs. offspring liability (y) with regression line. "
         "Text box shows Pearson r and pair count n."
     ),
     "heritability.by_generation": (
-        "Figure 16: Narrow-sense liability-scale heritability by generation.\n\n"
+        "Figure 17: Narrow-sense liability-scale heritability by generation.\n\n"
         "1\u00d72 figure, one panel per trait. Narrow-sense heritability "
         "h\u00b2 = Var(A) / (Var(A) + Var(C) + Var(E)) is computed from the "
         "per-generation variance components for each replicate. Blue dots show "
@@ -146,13 +154,13 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "decomposition is maintained through the simulation."
     ),
     "broad_heritability.by_generation": (
-        "Figure 17: Broad-sense liability-scale heritability by generation.\n\n"
+        "Figure 18: Broad-sense liability-scale heritability by generation.\n\n"
         "1\u00d72 figure, one panel per trait. Broad-sense heritability "
         "H\u00b2 = (Var(A) + Var(C)) / (Var(A) + Var(C) + Var(E)) is computed from "
         "the per-generation variance components for each replicate. Blue dots show "
         "per-replicate H\u00b2 estimates. "
         "Orange dashed line marks the parametric value (A + C). "
-        "Comparing H\u00b2 with the narrow-sense h\u00b2 (Figure 16) isolates the "
+        "Comparing H\u00b2 with the narrow-sense h\u00b2 (Figure 17) isolates the "
         "contribution of shared environment to familial resemblance."
     ),
 }
@@ -161,33 +169,33 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
 # prevalence -> liability -> correlations.
 THRESHOLD_CAPTIONS: dict[str, str] = {
     "prevalence_by_generation": (
-        "Figure 18: Prevalence by generation (threshold model).\n\n"
+        "Figure 19: Prevalence by generation (threshold model).\n\n"
         "Bar chart comparing observed vs. configured prevalence per generation and trait. "
         "Configured values shown as reference markers."
     ),
     "cross_trait.threshold": (
-        "Figure 19: Cross-trait liability joint plot (threshold model).\n\n"
+        "Figure 20: Cross-trait liability joint plot (threshold model).\n\n"
         "Scatter of trait 1 vs. trait 2 liability coloured by threshold affected status."
     ),
     "liability_violin.threshold": (
-        "Figure 20: Liability violin plots by affected status (threshold model).\n\n"
+        "Figure 21: Liability violin plots by affected status (threshold model).\n\n"
         "Split violins showing liability for affected vs. unaffected under the threshold "
         "model. Diamond mean markers with \u03bc annotations and prevalence text."
     ),
     "liability_violin.threshold.by_generation": (
-        "Figure 21: Liability violin plots by generation (threshold model).\n\n"
+        "Figure 22: Liability violin plots by generation (threshold model).\n\n"
         "Per-generation split violins with configured prevalence annotated. Same encoding "
-        "as Figure 5 but for the liability-threshold phenotype."
+        "as Figure 6 but for the liability-threshold phenotype."
     ),
     "joint_affected.threshold": (
-        "Figure 22: Joint affected status heatmap (threshold model).\n\n"
+        "Figure 23: Joint affected status heatmap (threshold model).\n\n"
         "2\u00d72 heatmap of joint affected status proportions and counts with tetrachoric "
         "correlation annotated."
     ),
     "tetrachoric.threshold": (
-        "Figure 23: Tetrachoric correlations by relationship type (threshold model).\n\n"
+        "Figure 24: Tetrachoric correlations by relationship type (threshold model).\n\n"
         "Violin plots of tetrachoric correlations for threshold affected status indicators. "
-        "Same encoding as Figure 13: coloured violins show observed tetrachoric correlations "
+        "Same encoding as Figure 14: coloured violins show observed tetrachoric correlations "
         "from binary affected status, black dots are per-replicate estimates, black dashed "
         "lines are the ground-truth Pearson liability correlations, and pair counts are "
         "annotated above each violin."
@@ -319,57 +327,10 @@ def _render_params_page(
     scenario: str,
     params: dict,
 ) -> None:
-    """Render a title page listing all resolved parameters for a scenario."""
-    fig = plt.figure(figsize=(11, 8.5))
-    fig.text(
-        0.5, 0.95, f"Scenario: {scenario}",
-        fontsize=16, fontweight="bold", fontfamily="serif",
-        ha="center", va="top", transform=fig.transFigure,
-    )
+    """Render a title page with pipeline DAG diagram and parameters."""
+    from sim_ace.plot_pipeline import render_pipeline_figure
 
-    # Build two-column parameter table
-    y = 0.88
-    line_h = 0.028
-    col1_x, col2_x = 0.06, 0.54  # left and right column x positions
-
-    items = []
-    for name, desc in PARAM_DESCRIPTIONS:
-        if name in params:
-            val = params[name]
-            items.append((name, val, desc))
-
-    mid = (len(items) + 1) // 2
-    left_items = items[:mid]
-    right_items = items[mid:]
-
-    for col_x, col_items in [(col1_x, left_items), (col2_x, right_items)]:
-        cy = y
-        for name, val, desc in col_items:
-            # Parameter name and value
-            fig.text(
-                col_x, cy, f"{name}: {val}",
-                fontsize=9, fontweight="bold", fontfamily="monospace",
-                va="top", transform=fig.transFigure,
-            )
-            # Description
-            fig.text(
-                col_x + 0.005, cy - line_h * 0.6, desc,
-                fontsize=7.5, fontfamily="serif", color="0.3",
-                va="top", transform=fig.transFigure,
-            )
-            cy -= line_h * 1.8
-
-    # E components (derived)
-    e1 = 1.0 - float(params.get("A1", 0)) - float(params.get("C1", 0))
-    e2 = 1.0 - float(params.get("A2", 0)) - float(params.get("C2", 0))
-    fig.text(
-        0.06, 0.04,
-        f"Derived: E1 = 1 \u2212 A1 \u2212 C1 = {e1:.2f}    "
-        f"E2 = 1 \u2212 A2 \u2212 C2 = {e2:.2f}",
-        fontsize=9, fontfamily="serif", color="0.4",
-        va="bottom", transform=fig.transFigure,
-    )
-
+    fig = render_pipeline_figure(params, scenario=scenario)
     pdf.savefig(fig)
     plt.close(fig)
 

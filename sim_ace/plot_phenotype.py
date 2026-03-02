@@ -93,9 +93,17 @@ def main(
 
     ext = plot_ext
 
-    # Pedigree relationship pair counts diagram
+    # Pedigree relationship pair counts diagrams
+    # G_ped: full pedigree generations
+    plot_pedigree_relationship_counts(
+        all_stats, out_dir / f"pedigree_counts.ped.{ext}", scenario,
+        stats_key="pair_counts_ped",
+        generations_label="G_ped",
+    )
+    # G_pheno: phenotyped generations only
     plot_pedigree_relationship_counts(
         all_stats, out_dir / f"pedigree_counts.{ext}", scenario,
+        generations_label="G_pheno",
     )
 
     plot_death_age_distribution(

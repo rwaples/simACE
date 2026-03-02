@@ -30,6 +30,7 @@ def get_all_folders(config):
 # censoring -> familial correlations & heritability.
 _PHENOTYPE_BASENAMES = [
     # Pedigree structure
+    "pedigree_counts.ped",
     "pedigree_counts",
     # Liability structure
     "cross_trait",

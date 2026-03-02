@@ -184,7 +184,7 @@ def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, An
     fig, ax = plt.subplots(figsize=(8, 6))
     sns.violinplot(
         data=violin_data, x="Trait", y="Liability", hue="Affected",
-        split=True, ax=ax,
+        split=True, cut=0, ax=ax,
     )
     ax.set_title(
         f"Liability by Affected Status (Weibull) [{scenario}]"

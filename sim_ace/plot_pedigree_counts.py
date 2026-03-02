@@ -226,12 +226,22 @@ def plot_pedigree_relationship_counts(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
+    stats_key: str = "pair_counts",
+    generations_label: str = "",
 ) -> None:
-    """Draw a proband-centric pedigree diagram with relationship pair counts."""
+    """Draw a proband-centric pedigree diagram with relationship pair counts.
+
+    Args:
+        all_stats: Per-replicate stats dicts.
+        output_path: Where to save the figure.
+        scenario: Scenario name for the title.
+        stats_key: Key in stats dict to read pair counts from.
+        generations_label: Label appended to title (e.g. "G_ped = 6").
+    """
     output_path = Path(output_path)
 
     # Check for pair_counts data
-    has_data = any(s.get("pair_counts") for s in all_stats)
+    has_data = any(s.get(stats_key) for s in all_stats)
     if not has_data:
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(
@@ -248,7 +258,7 @@ def plot_pedigree_relationship_counts(
     counts: dict[str, float] = {}
     n_reps = 0
     for s in all_stats:
-        pc = s.get("pair_counts")
+        pc = s.get(stats_key)
         if not pc:
             continue
         n_reps += 1
@@ -277,6 +287,8 @@ def plot_pedigree_relationship_counts(
     ax.set_axis_off()
 
     title = "Pedigree Relationship Pair Counts"
+    if generations_label:
+        title += f"  ({generations_label})"
     if scenario:
         title += f"  [{scenario}]"
     ax.set_title(title, fontsize=14, fontweight="bold", pad=12)

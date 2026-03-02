@@ -1,6 +1,7 @@
 rule stats_weibull:
     input:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.weibull.sampled.parquet"
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.weibull.sampled.parquet",
+        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
         stats="results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
         samples="results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet"
