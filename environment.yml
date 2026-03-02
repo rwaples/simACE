@@ -10,18 +10,16 @@ dependencies:
   - pyyaml
   - jupyter
   - notebook
-  - seaborn 
+  - seaborn
   - matplotlib
   - libopenblas
   - snakemake
   - snakemake-executor-plugin-slurm
   - snakefmt
-  - hdf5
   - pyarrow
   - numba
-  - graph-tool
+  - pytest
   - pip
   - pip:
-    - pypair
     - -e .
  

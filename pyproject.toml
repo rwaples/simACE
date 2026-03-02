@@ -9,7 +9,7 @@ description = "ACE pedigree simulation with A/C/E variance components"
 requires-python = ">=3.10"
 dependencies = [
     "numpy", "scipy", "pandas", "pyarrow", "pyyaml",
-    "matplotlib", "seaborn", "graph-tool",
+    "matplotlib", "seaborn",
 ]
 
 [project.optional-dependencies]
