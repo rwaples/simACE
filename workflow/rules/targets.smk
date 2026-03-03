@@ -17,7 +17,8 @@ rule phenotype_all:
         [f"results/{get_folder(config, s)}/{s}/rep{r}/{f}"
          for s in config["scenarios"]
          for r in range(1, get_param(config, s, "replicates") + 1)
-         for f in ["phenotype.weibull.parquet", "phenotype.liability_threshold.parquet"]]
+         for f in ["phenotype.weibull.parquet", "phenotype.weibull.sampled.parquet",
+                   "phenotype.liability_threshold.parquet", "phenotype.liability_threshold.sampled.parquet"]]
 
 
 rule validate_all:

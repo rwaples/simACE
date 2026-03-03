@@ -142,6 +142,14 @@ _SHORT_LABELS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
+def _mean_stat(all_stats: list[dict[str, Any]], key: str) -> float | None:
+    """Return the mean of a top-level numeric stat across replicates, or None."""
+    vals = [s[key] for s in all_stats if key in s]
+    if not vals:
+        return None
+    return sum(vals) / len(vals)
+
+
 def _nc(name: str) -> tuple[float, float]:
     """Node center shorthand."""
     return NODES[name][0], NODES[name][1]
@@ -226,12 +234,22 @@ def plot_pedigree_relationship_counts(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
+    stats_key: str = "pair_counts",
+    generations_label: str = "",
 ) -> None:
-    """Draw a proband-centric pedigree diagram with relationship pair counts."""
+    """Draw a proband-centric pedigree diagram with relationship pair counts.
+
+    Args:
+        all_stats: Per-replicate stats dicts.
+        output_path: Where to save the figure.
+        scenario: Scenario name for the title.
+        stats_key: Key in stats dict to read pair counts from.
+        generations_label: Label appended to title (e.g. "G_ped = 6").
+    """
     output_path = Path(output_path)
 
     # Check for pair_counts data
-    has_data = any(s.get("pair_counts") for s in all_stats)
+    has_data = any(s.get(stats_key) for s in all_stats)
     if not has_data:
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(
@@ -248,7 +266,7 @@ def plot_pedigree_relationship_counts(
     counts: dict[str, float] = {}
     n_reps = 0
     for s in all_stats:
-        pc = s.get("pair_counts")
+        pc = s.get(stats_key)
         if not pc:
             continue
         n_reps += 1
@@ -277,6 +295,8 @@ def plot_pedigree_relationship_counts(
     ax.set_axis_off()
 
     title = "Pedigree Relationship Pair Counts"
+    if generations_label:
+        title += f"  ({generations_label})"
     if scenario:
         title += f"  [{scenario}]"
     ax.set_title(title, fontsize=14, fontweight="bold", pad=12)
@@ -347,9 +367,22 @@ def plot_pedigree_relationship_counts(
         framealpha=0.9, title="Relationship (mean pairs)", title_fontsize=9,
     )
 
+    # Population metadata annotation
+    if stats_key == "pair_counts_ped":
+        n_ind_key, n_gen_key = "n_individuals_ped", "n_generations_ped"
+    else:
+        n_ind_key, n_gen_key = "n_individuals", "n_generations"
+    mean_n_ind = _mean_stat(all_stats, n_ind_key)
+    mean_n_gen = _mean_stat(all_stats, n_gen_key)
+
+    footer_parts = [f"Mean across {n_reps} replicate{'s' if n_reps != 1 else ''}"]
+    if mean_n_gen is not None:
+        footer_parts.append(f"{int(mean_n_gen)} generations")
+    if mean_n_ind is not None:
+        footer_parts.append(f"{int(mean_n_ind):,} individuals")
     ax.text(
         0.99, 0.01,
-        f"Mean across {n_reps} replicate{'s' if n_reps != 1 else ''}",
+        "  |  ".join(footer_parts),
         transform=ax.transAxes, fontsize=8, ha="right", va="bottom", color="grey",
     )
 
@@ -361,12 +394,10 @@ def plot_pedigree_relationship_counts(
 def cli() -> None:
     """Command-line interface for pedigree relationship counts plot."""
     from sim_ace.cli_base import add_logging_args, init_logging
+    from sim_ace.utils import yaml_loader
     import yaml
 
-    try:
-        _yaml_loader = yaml.CSafeLoader
-    except AttributeError:
-        _yaml_loader = yaml.SafeLoader
+    _yaml_loader = yaml_loader()
 
     parser = argparse.ArgumentParser(
         description="Plot pedigree relationship pair counts diagram"

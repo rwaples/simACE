@@ -19,6 +19,8 @@ from pathlib import Path
 from sim_ace.stats import (
     tetrachoric_corr_se,
     compute_liability_correlations,
+    compute_tetrachoric,
+    compute_cross_trait_tetrachoric,
     create_sample,
 )
 from sim_ace.pedigree_graph import extract_relationship_pairs
@@ -75,37 +77,8 @@ def compute_liability_by_status(df: pd.DataFrame) -> dict[str, Any]:
     return result
 
 
-def compute_tetrachoric(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None) -> dict[str, Any]:
-    """Compute tetrachoric correlations for all relationship types."""
-    if pairs is None:
-        pairs = extract_relationship_pairs(df, seed=seed)
-    pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
-    result = {}
-
-    for trait_num in [1, 2]:
-        affected = df[f"affected{trait_num}"].values.astype(bool)
-        trait_result: dict[str, dict[str, int | float | None]] = {}
-        for ptype in pair_types:
-            idx1, idx2 = pairs[ptype]
-            n_p = len(idx1)
-            if n_p < 10:
-                trait_result[ptype] = {"r": None, "se": None, "n_pairs": int(n_p)}
-                continue
-            a_vals = affected[idx1]
-            b_vals = affected[idx2]
-            r_tet, se = tetrachoric_corr_se(a_vals, b_vals)
-            trait_result[ptype] = {
-                "r": float(r_tet) if not np.isnan(r_tet) else None,
-                "se": float(se) if not np.isnan(se) else None,
-                "n_pairs": int(n_p),
-            }
-        result[f"trait{trait_num}"] = trait_result
-
-    return result
-
-
 def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int = 42,
-         extra_tetrachoric: bool = True) -> None:
+         extra_tetrachoric: bool = True) -> None:  # extra_tetrachoric kept for API compat
     """Compute all threshold stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
 
@@ -137,14 +110,16 @@ def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int 
     logger.info("Computing liability correlations...")
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
 
-    # Tetrachoric correlations
-    if extra_tetrachoric:
-        logger.info("Computing tetrachoric correlations...")
-        t_tet = time.perf_counter()
-        stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
-        logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
-    else:
-        logger.info("Skipping tetrachoric correlations (extra_tetrachoric=false)")
+    # Tetrachoric correlations (always run — fast O(N) scalar MLEs)
+    logger.info("Computing tetrachoric correlations...")
+    t_tet = time.perf_counter()
+    stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
+    logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
+
+    logger.info("Computing cross-trait tetrachoric correlations...")
+    t_ct = time.perf_counter()
+    stats["cross_trait_tetrachoric"] = compute_cross_trait_tetrachoric(df, seed=seed, pairs=pairs)
+    logger.info("Cross-trait tetrachoric computed in %.1fs", time.perf_counter() - t_ct)
 
     # Write stats YAML
     stats_path = Path(stats_output)
@@ -170,7 +145,7 @@ def cli() -> None:
     parser.add_argument("samples_output", help="Output samples parquet")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
     parser.add_argument("--no-extra-tetrachoric", dest="extra_tetrachoric", action="store_false",
-                        default=True, help="Skip tetrachoric correlation estimation")
+                        default=True, help="No-op (kept for CLI compatibility; basic tetrachoric always runs)")
     args = parser.parse_args()
 
     init_logging(args)

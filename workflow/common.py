@@ -30,9 +30,15 @@ def get_all_folders(config):
 # censoring -> familial correlations & heritability.
 _PHENOTYPE_BASENAMES = [
     # Pedigree structure
+    "pedigree_counts.ped",
     "pedigree_counts",
     # Liability structure
     "cross_trait",
+    # Liability-scale heritability (pedigree + liability only)
+    "parent_offspring_liability.by_generation",
+    "heritability.by_generation",
+    "broad_heritability.by_generation",
+    # Liability by affected status
     "cross_trait.weibull",
     "liability_violin.weibull",
     "liability_violin.weibull.by_generation",
@@ -43,14 +49,12 @@ _PHENOTYPE_BASENAMES = [
     "cumulative_incidence.weibull",
     # Censoring
     "censoring",
-    # Familial correlations & heritability
+    # Familial correlations
     "joint_affected.weibull",
     "cross_trait_weibull.by_generation",
     "tetrachoric.weibull",
     "tetrachoric.weibull.by_generation",
-    "parent_offspring_liability.by_generation",
-    "heritability.by_generation",
-    "broad_heritability.by_generation",
+    "cross_trait_tetrachoric",
 ]
 
 # Ordered to mirror Weibull: prevalence -> liability -> correlations.
@@ -61,6 +65,7 @@ _THRESHOLD_BASENAMES = [
     "liability_violin.threshold.by_generation",
     "joint_affected.threshold",
     "tetrachoric.threshold",
+    "cross_trait_tetrachoric.threshold",
 ]
 
 # Ordered: pedigree structure -> variance & heritability -> cross-trait ->
@@ -98,7 +103,9 @@ def get_scenario_sim_outputs(config, scenario, plot_ext="png"):
     for rep in range(1, n_reps + 1):
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/pedigree.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.weibull.parquet")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.weibull.sampled.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.parquet")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.sampled.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml")

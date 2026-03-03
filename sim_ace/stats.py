@@ -24,7 +24,7 @@ import time
 logger = logging.getLogger(__name__)
 
 from sim_ace.pedigree_graph import extract_relationship_pairs  # noqa: E402
-from sim_ace.utils import save_parquet
+from sim_ace.utils import save_parquet, PAIR_TYPES
 
 
 def _bvn_pos(h: float, k: float, r: float, sq: float) -> float:
@@ -48,9 +48,9 @@ def _bvn_cdf(h: float, k: float, r: float) -> float:
     if h < 0 and k < 0:
         return 1.0 - norm.cdf(-h) - norm.cdf(-k) + _bvn_pos(-h, -k, r, sq)
     if h < 0:
-        return norm.cdf(k) - _bvn_pos(-h, k, -r, np.sqrt(1.0 - r * r))
+        return norm.cdf(k) - _bvn_pos(-h, k, -r, sq)
     if k < 0:
-        return norm.cdf(h) - _bvn_pos(h, -k, -r, np.sqrt(1.0 - r * r))
+        return norm.cdf(h) - _bvn_pos(h, -k, -r, sq)
     return _bvn_pos(h, k, r, sq)
 
 
@@ -155,208 +155,22 @@ def tetrachoric_se(r: float, a: np.ndarray, b: np.ndarray) -> float:
     return se
 
 
-def _extract_relationship_pairs_legacy(df: pd.DataFrame, seed: int = 42) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-    """Legacy implementation kept for golden testing. Use pedigree_graph.extract_relationship_pairs instead."""
-    # Map (id) -> row position via numpy array for vectorized lookup
-    ids_arr = df["id"].values.astype(np.int64)
-    id_to_row = np.full(ids_arr.max() + 1, -1, dtype=np.int32)
-    id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
-
-    def resolve_rows(ids: np.ndarray) -> np.ndarray:
-        """Map array of ids to row positions; -1 if missing."""
-        ids = np.asarray(ids, dtype=np.int64)
-        mask = (ids >= 0) & (ids < len(id_to_row))
-        result = np.full(len(ids), -1, dtype=np.int32)
-        result[mask] = id_to_row[ids[mask]]
-        return result
-
-    pairs = {}
-
-    # MZ twins: twin != -1, deduplicate by keeping id < twin
-    twins = df[df["twin"] != -1]
-    ta = twins["id"].values.astype(int)
-    tb = twins["twin"].values.astype(int)
-    mask = ta < tb
-    pairs["MZ twin"] = (resolve_rows(ta[mask]), resolve_rows(tb[mask]))
-
-    # Full sibs and half sibs via self-merge on mother and father
-    non_twin_nf = df[(df["mother"] != -1) & (df["twin"] == -1)].copy()
-    non_twin_nf["_row"] = non_twin_nf.index.values
-
-    full_rows_1, full_rows_2 = [], []
-    mat_half_rows_1, mat_half_rows_2 = [], []
-
-    # Maternal sibs: same mother
-    sib_counts = non_twin_nf.groupby("mother").size()
-    multi_mothers = sib_counts[sib_counts >= 2].index
-    mat_sib = non_twin_nf[non_twin_nf["mother"].isin(multi_mothers)]
-
-    if len(mat_sib) > 0:
-        mat_pairs = mat_sib[["mother", "father", "_row"]].merge(
-            mat_sib[["mother", "father", "_row"]],
-            on="mother", suffixes=("_1", "_2"),
-        )
-        mat_pairs = mat_pairs[mat_pairs["_row_1"] < mat_pairs["_row_2"]]
-        same_father = mat_pairs["father_1"] == mat_pairs["father_2"]
-
-        full_rows_1.append(mat_pairs.loc[same_father, "_row_1"].values)
-        full_rows_2.append(mat_pairs.loc[same_father, "_row_2"].values)
-        mat_half_rows_1.append(mat_pairs.loc[~same_father, "_row_1"].values)
-        mat_half_rows_2.append(mat_pairs.loc[~same_father, "_row_2"].values)
-
-    # Paternal half-sibs: same father, different mother
-    pat_half_rows_1, pat_half_rows_2 = [], []
-    pat_counts = non_twin_nf.groupby("father").size()
-    multi_fathers = pat_counts[pat_counts >= 2].index
-    pat_sib = non_twin_nf[non_twin_nf["father"].isin(multi_fathers)]
-
-    if len(pat_sib) > 0:
-        pat_pairs = pat_sib[["mother", "father", "_row"]].merge(
-            pat_sib[["mother", "father", "_row"]],
-            on="father", suffixes=("_1", "_2"),
-        )
-        pat_pairs = pat_pairs[pat_pairs["_row_1"] < pat_pairs["_row_2"]]
-        diff_mother = pat_pairs["mother_1"] != pat_pairs["mother_2"]
-        pat_half_rows_1.append(pat_pairs.loc[diff_mother, "_row_1"].values)
-        pat_half_rows_2.append(pat_pairs.loc[diff_mother, "_row_2"].values)
-
-    pairs["Full sib"] = (
-        np.concatenate(full_rows_1) if full_rows_1 else np.array([], dtype=int),
-        np.concatenate(full_rows_2) if full_rows_1 else np.array([], dtype=int),
-    )
-    pairs["Maternal half sib"] = (
-        np.concatenate(mat_half_rows_1) if mat_half_rows_1 else np.array([], dtype=int),
-        np.concatenate(mat_half_rows_2) if mat_half_rows_1 else np.array([], dtype=int),
-    )
-    pairs["Paternal half sib"] = (
-        np.concatenate(pat_half_rows_1) if pat_half_rows_1 else np.array([], dtype=int),
-        np.concatenate(pat_half_rows_2) if pat_half_rows_1 else np.array([], dtype=int),
-    )
-
-    # Mother-offspring and Father-offspring
-    all_nf = df[df["mother"] != -1]
-    child_rows = all_nf.index.values
-    mother_rows = resolve_rows(all_nf["mother"].values.astype(int))
-    father_rows = resolve_rows(all_nf["father"].values.astype(int))
-
-    m_valid = mother_rows >= 0
-    f_valid = father_rows >= 0
-    pairs["Mother-offspring"] = (child_rows[m_valid], mother_rows[m_valid])
-    pairs["Father-offspring"] = (child_rows[f_valid], father_rows[f_valid])
-
-    # 1st cousins via grandparents (numpy-native, no pandas merges)
-    child_ids = all_nf["id"].values.astype(np.int64)
-    mother_ids = all_nf["mother"].values.astype(np.int64)
-    father_ids = all_nf["father"].values.astype(np.int64)
-    n_children = len(child_ids)
-
-    # Look up each parent's parents (grandparents) via id_to_row
-    df_mothers_col = df["mother"].values.astype(np.int64)
-    df_fathers_col = df["father"].values.astype(np.int64)
-    mother_row = resolve_rows(mother_ids)
-    father_row = resolve_rows(father_ids)
-
-    gp_ids = np.full((n_children, 4), -1, dtype=np.int64)
-    m_ok = mother_row >= 0
-    gp_ids[m_ok, 0] = df_mothers_col[mother_row[m_ok]]
-    gp_ids[m_ok, 1] = df_fathers_col[mother_row[m_ok]]
-    f_ok = father_row >= 0
-    gp_ids[f_ok, 2] = df_mothers_col[father_row[f_ok]]
-    gp_ids[f_ok, 3] = df_fathers_col[father_row[f_ok]]
-
-    # Flat (child, parent, grandparent) arrays -- 4 entries per child
-    gp_child = np.tile(child_ids, 4)
-    gp_parent = np.concatenate([mother_ids, mother_ids, father_ids, father_ids])
-    gp_gp = np.concatenate([gp_ids[:, 0], gp_ids[:, 1], gp_ids[:, 2], gp_ids[:, 3]])
-
-    # Filter invalid grandparents
-    valid_gp = gp_gp >= 0
-    gp_child = gp_child[valid_gp]
-    gp_parent = gp_parent[valid_gp]
-    gp_gp = gp_gp[valid_gp]
-
-    # Cap grandparents to limit pair explosion
-    unique_gp_arr = np.unique(gp_gp)
-    if len(unique_gp_arr) > 100000:
-        logger.info(
-            "extract_relationship_pairs: %d grandparents exceed 100K cap, sampling subset",
-            len(unique_gp_arr),
-        )
-        rng = np.random.default_rng(seed)
-        selected_gp = rng.choice(unique_gp_arr, 100000, replace=False)
-        gp_mask = np.isin(gp_gp, selected_gp)
-        gp_child = gp_child[gp_mask]
-        gp_parent = gp_parent[gp_mask]
-        gp_gp = gp_gp[gp_mask]
-
-    # Sort by grandparent for grouping
-    sort_idx = np.argsort(gp_gp, kind="mergesort")
-    gp_child = gp_child[sort_idx]
-    gp_parent = gp_parent[sort_idx]
-    gp_gp = gp_gp[sort_idx]
-
-    _, group_starts, group_counts = np.unique(
-        gp_gp, return_index=True, return_counts=True
-    )
-
-    # Only groups with >= 2 members can produce cousin pairs
-    multi = group_counts >= 2
-    group_starts = group_starts[multi]
-    group_counts = group_counts[multi]
-
-    # Generate pair indices by batching groups of the same size
-    pair_i_parts = []
-    pair_j_parts = []
-    for size in np.unique(group_counts):
-        gs = group_starts[group_counts == size]
-        ii, jj = np.triu_indices(size, k=1)
-        all_i = (gs[:, np.newaxis] + ii[np.newaxis, :]).ravel()
-        all_j = (gs[:, np.newaxis] + jj[np.newaxis, :]).ravel()
-        pair_i_parts.append(all_i)
-        pair_j_parts.append(all_j)
-
-    pair_i = np.concatenate(pair_i_parts)
-    pair_j = np.concatenate(pair_j_parts)
-
-    # Filter: different parents only (cousins, not siblings)
-    diff_parent = gp_parent[pair_i] != gp_parent[pair_j]
-    c1_raw = gp_child[pair_i[diff_parent]]
-    c2_raw = gp_child[pair_j[diff_parent]]
-
-    # Canonical ordering and dedup (children may share multiple grandparents)
-    c1 = np.minimum(c1_raw, c2_raw)
-    c2 = np.maximum(c1_raw, c2_raw)
-
-    # Pack pair into single int64 for fast 1D dedup
-    max_id = int(c2.max()) + 1
-    pair_keys = c1.astype(np.int64) * max_id + c2.astype(np.int64)
-    unique_keys = np.unique(pair_keys)
-    c1_final = unique_keys // max_id
-    c2_final = unique_keys % max_id
-
-    c_idx1 = resolve_rows(c1_final)
-    c_idx2 = resolve_rows(c2_final)
-    c_valid = (c_idx1 >= 0) & (c_idx2 >= 0)
-    pairs["1st cousin"] = (c_idx1[c_valid], c_idx2[c_valid])
-
-    return pairs
-
-
 def compute_mortality(df: pd.DataFrame, censor_age: float) -> dict[str, Any]:
     """Compute mortality rates and cumulative mortality by decade."""
     decade_edges = np.arange(0, censor_age + 10, 10)
     mortality_rates = []
     decade_labels = []
 
+    death_ages = df["death_age"].values
     for i in range(len(decade_edges) - 1):
         lo, hi = decade_edges[i], decade_edges[i + 1]
         if lo >= censor_age:
             break
-        alive_at_start = (df["death_age"].values >= lo).sum()
+        alive_at_start = (death_ages >= lo).sum()
         died_in_decade = (
-            (df["death_age"].values >= lo)
-            & (df["death_age"].values < hi)
-            & (df["death_age"].values < censor_age)
+            (death_ages >= lo)
+            & (death_ages < hi)
+            & (death_ages < censor_age)
         ).sum()
         rate = float(died_in_decade / alive_at_start) if alive_at_start > 0 else 0.0
         mortality_rates.append(rate)
@@ -468,7 +282,7 @@ def compute_tetrachoric(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple
     """Compute tetrachoric correlations for all relationship types."""
     if pairs is None:
         pairs = extract_relationship_pairs(df, seed=seed)
-    pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
+    pair_types = PAIR_TYPES
     result = {}
 
     for trait_num in [1, 2]:
@@ -520,10 +334,7 @@ def compute_tetrachoric_by_generation(
     max_gen = int(gen_arr.max())
     plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
 
-    pair_types = [
-        "MZ twin", "Full sib", "Mother-offspring", "Father-offspring",
-        "Maternal half sib", "Paternal half sib", "1st cousin",
-    ]
+    pair_types = PAIR_TYPES
 
     result = {}
     for gen in plot_gens:
@@ -568,11 +379,80 @@ def compute_tetrachoric_by_generation(
     return result
 
 
+def compute_cross_trait_tetrachoric(
+    df: pd.DataFrame, seed: int = 42,
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
+) -> dict[str, Any]:
+    """Compute cross-trait tetrachoric correlations (affected1 vs affected2).
+
+    Three analyses:
+    - Same-person overall: tetrachoric(affected1, affected2) on the whole population
+    - Same-person by generation: same, stratified by last 3 non-founder generations
+    - Cross-person by pair type: for each pair type, tetrachoric(personA.affected1, personB.affected2)
+
+    All are O(N) scalar MLEs — fast.
+    """
+    if pairs is None:
+        pairs = extract_relationship_pairs(df, seed=seed)
+
+    result: dict[str, Any] = {}
+
+    a1 = df["affected1"].values.astype(bool)
+    a2 = df["affected2"].values.astype(bool)
+
+    # Same-person overall
+    r_sp, se_sp = tetrachoric_corr_se(a1, a2)
+    result["same_person"] = {
+        "r": float(r_sp) if not np.isnan(r_sp) else None,
+        "se": float(se_sp) if not np.isnan(se_sp) else None,
+        "n": int(len(df)),
+    }
+
+    # Same-person by generation
+    by_gen: dict[str, dict[str, float | int | None]] = {}
+    if "generation" in df.columns:
+        gen_arr = df["generation"].values
+        max_gen = int(gen_arr.max())
+        plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
+        for gen in plot_gens:
+            mask = gen_arr == gen
+            n_g = int(mask.sum())
+            if n_g < 50:
+                by_gen[f"gen{gen}"] = {"r": None, "se": None, "n": n_g}
+                continue
+            r_g, se_g = tetrachoric_corr_se(a1[mask], a2[mask])
+            by_gen[f"gen{gen}"] = {
+                "r": float(r_g) if not np.isnan(r_g) else None,
+                "se": float(se_g) if not np.isnan(se_g) else None,
+                "n": n_g,
+            }
+    result["same_person_by_generation"] = by_gen
+
+    # Cross-person by pair type
+    pair_types = PAIR_TYPES
+    cross: dict[str, dict[str, float | int | None]] = {}
+    for ptype in pair_types:
+        idx1, idx2 = pairs[ptype]
+        n_p = len(idx1)
+        if n_p < 10:
+            cross[ptype] = {"r": None, "se": None, "n_pairs": int(n_p)}
+            continue
+        r_cp, se_cp = tetrachoric_corr_se(a1[idx1], a2[idx2])
+        cross[ptype] = {
+            "r": float(r_cp) if not np.isnan(r_cp) else None,
+            "se": float(se_cp) if not np.isnan(se_cp) else None,
+            "n_pairs": int(n_p),
+        }
+    result["cross_person"] = cross
+
+    return result
+
+
 def compute_liability_correlations(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None) -> dict[str, Any]:
     """Compute Pearson correlation on liability values for each relationship pair type."""
     if pairs is None:
         pairs = extract_relationship_pairs(df, seed=seed)
-    pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
+    pair_types = PAIR_TYPES
     result = {}
     for trait_num in [1, 2]:
         liability = df[f"liability{trait_num}"].values
@@ -890,6 +770,7 @@ def main(
     gen_censoring: dict[int, list[float]] | None = None,
     weibull_params: dict[str, dict[str, float]] | None = None,
     extra_tetrachoric: bool = True,
+    pedigree_path: str | None = None,
 ) -> None:
     """Compute all stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
@@ -898,6 +779,10 @@ def main(
 
     stats: dict[str, Any] = {}
     stats["n_individuals"] = int(len(df))
+    if "generation" in df.columns:
+        stats["n_generations"] = int(df["generation"].nunique())
+    else:
+        stats["n_generations"] = 1
 
     # Prevalence
     stats["prevalence"] = compute_prevalence(df)
@@ -927,10 +812,27 @@ def main(
         ", ".join(f"{k}: {len(v[0])}" for k, v in pairs.items()),
     )
 
-    # Pair counts for all 10 relationship types
+    # Pair counts for all 10 relationship types (phenotyped G_pheno generations)
     stats["pair_counts"] = {
         name: int(len(idx_pair[0])) for name, idx_pair in pairs.items()
     }
+
+    # Pair counts from full pedigree (G_ped generations)
+    if pedigree_path is not None:
+        logger.info("Extracting relationship pairs from full pedigree...")
+        t_ped = time.perf_counter()
+        df_ped = pd.read_parquet(pedigree_path)
+        pairs_ped = extract_relationship_pairs(df_ped, seed=seed)
+        stats["pair_counts_ped"] = {
+            name: int(len(idx_pair[0])) for name, idx_pair in pairs_ped.items()
+        }
+        stats["n_individuals_ped"] = int(len(df_ped))
+        if "generation" in df_ped.columns:
+            stats["n_generations_ped"] = int(df_ped["generation"].nunique())
+        else:
+            stats["n_generations_ped"] = 1
+        del df_ped, pairs_ped
+        logger.info("Pedigree pairs extracted in %.1fs", time.perf_counter() - t_ped)
 
     # Liability correlations
     logger.info("Computing liability correlations...")
@@ -940,22 +842,23 @@ def main(
     logger.info("Computing parent-offspring correlations...")
     stats["parent_offspring_corr"] = compute_parent_offspring_corr(df)
 
-    # Tetrachoric correlations
-    if extra_tetrachoric:
-        logger.info("Computing tetrachoric correlations...")
-        t_tet = time.perf_counter()
-        stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
-        logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
+    # Tetrachoric correlations (always run — fast O(N) scalar MLEs)
+    logger.info("Computing tetrachoric correlations...")
+    t_tet = time.perf_counter()
+    stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
+    logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
 
-        # Tetrachoric correlations by generation
-        logger.info("Computing tetrachoric correlations by generation...")
-        t_tet_gen = time.perf_counter()
-        stats["tetrachoric_by_generation"] = compute_tetrachoric_by_generation(df, seed=seed, pairs=pairs)
-        logger.info("Tetrachoric by generation computed in %.1fs", time.perf_counter() - t_tet_gen)
-    else:
-        logger.info("Skipping tetrachoric correlations (extra_tetrachoric=false)")
+    logger.info("Computing tetrachoric correlations by generation...")
+    t_tet_gen = time.perf_counter()
+    stats["tetrachoric_by_generation"] = compute_tetrachoric_by_generation(df, seed=seed, pairs=pairs)
+    logger.info("Tetrachoric by generation computed in %.1fs", time.perf_counter() - t_tet_gen)
 
-    # Pairwise Weibull correlations (if params supplied)
+    logger.info("Computing cross-trait tetrachoric correlations...")
+    t_ct = time.perf_counter()
+    stats["cross_trait_tetrachoric"] = compute_cross_trait_tetrachoric(df, seed=seed, pairs=pairs)
+    logger.info("Cross-trait tetrachoric computed in %.1fs", time.perf_counter() - t_ct)
+
+    # Pairwise Weibull correlations (if params supplied — slow quadrature)
     if weibull_params is not None and extra_tetrachoric:
         logger.info("Computing pairwise Weibull correlations...")
         t_weib = time.perf_counter()
@@ -977,7 +880,7 @@ def main(
         stats["weibull_cross_trait_stratified"] = ct_stratified
         logger.info("Cross-trait Weibull correlation computed in %.1fs", time.perf_counter() - t_cross)
     elif weibull_params is not None:
-        logger.info("Skipping Weibull pairwise correlations (extra_tetrachoric=false)")
+        logger.info("Skipping Weibull pairwise correlations (extra_tetrachoric=False)")
 
     # Write stats YAML
     stats_path = Path(stats_output)
@@ -1011,7 +914,8 @@ def cli() -> None:
     parser.add_argument("--scale2", type=float, default=None, help="Weibull scale parameter for trait 2")
     parser.add_argument("--rho2", type=float, default=None, help="Weibull shape parameter for trait 2")
     parser.add_argument("--no-extra-tetrachoric", dest="extra_tetrachoric", action="store_false",
-                        default=True, help="Skip tetrachoric correlation estimation")
+                        default=True, help="Skip Weibull pairwise correlations (basic tetrachoric always runs)")
+    parser.add_argument("--pedigree", default=None, help="Full pedigree parquet for G_ped pair counts")
     args = parser.parse_args()
 
     init_logging(args)
@@ -1031,4 +935,5 @@ def cli() -> None:
     main(args.phenotype, args.censor_age, args.stats_output, args.samples_output,
          seed=args.seed, gen_censoring=gen_censoring,
          weibull_params=weibull_params,
-         extra_tetrachoric=args.extra_tetrachoric)
+         extra_tetrachoric=args.extra_tetrachoric,
+         pedigree_path=args.pedigree)

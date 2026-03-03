@@ -1,7 +1,8 @@
 """Correlation-related phenotype plots.
 
 Contains: plot_tetrachoric_sibling, plot_tetrachoric_by_generation,
-plot_parent_offspring_liability, plot_heritability_by_generation.
+plot_cross_trait_tetrachoric, plot_parent_offspring_liability,
+plot_heritability_by_generation.
 """
 
 from __future__ import annotations
@@ -15,13 +16,16 @@ import seaborn as sns
 from pathlib import Path
 
 import logging
+
+from sim_ace.utils import PAIR_TYPES, PAIR_COLORS
+
 logger = logging.getLogger(__name__)
 
 
 def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str) -> None:
     """Plot tetrachoric correlations by relationship type, violin with rep dots."""
-    pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
-    pair_colors = {"MZ twin": "C0", "Full sib": "C1", "Mother-offspring": "C3", "Father-offspring": "C5", "Maternal half sib": "C2", "Paternal half sib": "C6", "1st cousin": "C4"}
+    pair_types = PAIR_TYPES
+    pair_colors = PAIR_COLORS
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
@@ -174,11 +178,8 @@ def plot_tetrachoric_by_generation(
         plt.close()
         return
 
-    pair_types = [
-        "MZ twin", "Full sib", "Mother-offspring", "Father-offspring",
-        "Maternal half sib", "Paternal half sib", "1st cousin",
-    ]
-    pair_colors = {"MZ twin": "C0", "Full sib": "C1", "Mother-offspring": "C3", "Father-offspring": "C5", "Maternal half sib": "C2", "Paternal half sib": "C6", "1st cousin": "C4"}
+    pair_types = PAIR_TYPES
+    pair_colors = PAIR_COLORS
 
     n_cols = len(gen_keys)
     fig, axes = plt.subplots(2, n_cols, figsize=(5 * n_cols, 5 * 2), squeeze=False)
@@ -277,6 +278,146 @@ def plot_tetrachoric_by_generation(
 
     fig.suptitle(
         f"Tetrachoric Correlation by Generation (Weibull) [{scenario}]", fontsize=14
+    )
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def plot_cross_trait_tetrachoric(
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+) -> None:
+    """Two-panel figure for cross-trait tetrachoric correlations.
+
+    Left: Same-person cross-trait r by generation (dots per rep + mean line),
+          with Weibull cross-trait reference lines if available.
+    Right: Cross-person cross-trait r by pair type (violin/dots), showing how
+           relatedness induces cross-trait association.
+    """
+    from matplotlib.lines import Line2D
+    pair_types = PAIR_TYPES
+    pair_colors = PAIR_COLORS
+
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+
+    # ---- Left panel: same-person by generation ----
+    ax_left = axes[0]
+
+    # Collect generation data across reps
+    gen_data: dict[int, list[float]] = {}
+    for s in all_stats:
+        ct = s.get("cross_trait_tetrachoric", {})
+        by_gen = ct.get("same_person_by_generation", {})
+        for gk, gv in by_gen.items():
+            gen_num = int(gk.replace("gen", ""))
+            r_g = gv.get("r")
+            if r_g is not None:
+                gen_data.setdefault(gen_num, []).append(r_g)
+
+    if gen_data:
+        generations = sorted(gen_data.keys())
+        for gen in generations:
+            rs = gen_data[gen]
+            for rep_idx, r_val in enumerate(rs):
+                jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08)
+                ax_left.scatter(gen + jitter, r_val, color="C0", alpha=0.9, s=30, zorder=5)
+
+        mean_rs = [np.mean(gen_data[g]) for g in generations]
+        ax_left.plot(generations, mean_rs, color="C0", linewidth=2, marker="o",
+                     markersize=7, zorder=6, label="Per-gen mean")
+
+        # Overall same-person r (averaged across reps)
+        overall_rs = [
+            s.get("cross_trait_tetrachoric", {}).get("same_person", {}).get("r")
+            for s in all_stats
+        ]
+        overall_rs = [r for r in overall_rs if r is not None]
+        if overall_rs:
+            mean_overall = np.mean(overall_rs)
+            ax_left.axhline(y=mean_overall, color="black", linestyle="--", linewidth=1.5,
+                            alpha=0.7, label=f"Overall r = {mean_overall:.3f}")
+
+        # Weibull cross-trait reference lines if available
+        oracle_rs = [
+            s.get("weibull_cross_trait_uncensored", {}).get("r")
+            for s in all_stats
+        ]
+        oracle_rs = [r for r in oracle_rs if r is not None]
+        if oracle_rs:
+            ax_left.axhline(y=np.mean(oracle_rs), color="C2", linestyle="-.",
+                            linewidth=2, alpha=0.7,
+                            label=f"Weibull oracle = {np.mean(oracle_rs):.3f}")
+
+        ax_left.set_xticks(generations)
+        ax_left.legend(loc="best", fontsize=9)
+    else:
+        ax_left.text(0.5, 0.5, "No generation data", ha="center", va="center",
+                     transform=ax_left.transAxes)
+
+    ax_left.set_xlabel("Generation")
+    ax_left.set_ylabel("Cross-trait tetrachoric r")
+    ax_left.set_title("Same-Person: affected1 vs affected2")
+
+    # ---- Right panel: cross-person by pair type ----
+    ax_right = axes[1]
+
+    rows = []
+    total_pairs: dict[str, int] = {}
+    for ptype in pair_types:
+        n_total = 0
+        for s in all_stats:
+            ct = s.get("cross_trait_tetrachoric", {})
+            entry = ct.get("cross_person", {}).get(ptype, {})
+            r = entry.get("r")
+            n_p = entry.get("n_pairs", 0)
+            n_total += n_p
+            if r is not None:
+                rows.append({"pair_type": ptype, "r": r})
+        total_pairs[ptype] = n_total
+
+    df_plot = pd.DataFrame(rows)
+
+    if not df_plot.empty:
+        sns.violinplot(
+            data=df_plot, x="pair_type", y="r", hue="pair_type", ax=ax_right,
+            order=pair_types, palette=pair_colors, legend=False,
+            inner=None, cut=0, alpha=0.7, zorder=3,
+        )
+        if ax_right.get_legend() is not None:
+            ax_right.get_legend().remove()
+
+        for i, ptype in enumerate(pair_types):
+            rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
+            if len(rep_vals):
+                jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
+                ax_right.scatter(
+                    i + jitter, rep_vals, color="black", s=15, alpha=0.9, zorder=5,
+                )
+
+        # N annotations
+        n_reps = len(all_stats)
+        for i, ptype in enumerate(pair_types):
+            rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
+            if len(rep_vals):
+                top = rep_vals.max()
+                ax_right.text(
+                    i, top + 0.04,
+                    f"n={total_pairs[ptype] // n_reps:,}", ha="center", va="bottom", fontsize=7,
+                )
+    else:
+        ax_right.text(0.5, 0.5, "No cross-person data", ha="center", va="center",
+                      transform=ax_right.transAxes)
+
+    ax_right.set_xticks(range(len(pair_types)))
+    ax_right.set_xticklabels(pair_types, fontsize=9, rotation=15, ha="right")
+    ax_right.set_xlabel("")
+    ax_right.set_ylabel("Cross-trait tetrachoric r")
+    ax_right.set_title("Cross-Person: personA.affected1 vs personB.affected2")
+
+    fig.suptitle(
+        f"Cross-Trait Tetrachoric Correlations [{scenario}]", fontsize=14
     )
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
@@ -547,12 +688,12 @@ def plot_broad_heritability_by_generation(
             ax.legend(loc="lower left", fontsize=9)
 
         ax.set_xlabel("Generation")
-        ax.set_ylabel("H\u00b2 = (Var(A)+Var(C)) / Var(L)")
+        ax.set_ylabel("(Var(A)+Var(C)) / Var(L)")
         ax.set_title(f"Trait {trait_num}")
         ax.set_xticks(generations)
         ax.set_ylim(0, 1)
 
-    fig.suptitle(f"Broad-Sense Liability-Scale Heritability by Generation [{scenario}]", fontsize=14)
+    fig.suptitle(f"Additive Genetic and Shared Environment by Generation [{scenario}]", fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()

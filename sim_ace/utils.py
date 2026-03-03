@@ -9,6 +9,19 @@ import pandas as pd
 from scipy import stats
 
 
+# Canonical 7 relationship pair types used for tetrachoric / liability correlations
+PAIR_TYPES: list[str] = [
+    "MZ twin", "Full sib", "Mother-offspring", "Father-offspring",
+    "Maternal half sib", "Paternal half sib", "1st cousin",
+]
+
+PAIR_COLORS: dict[str, str] = {
+    "MZ twin": "C0", "Full sib": "C1", "Mother-offspring": "C3",
+    "Father-offspring": "C5", "Maternal half sib": "C2",
+    "Paternal half sib": "C6", "1st cousin": "C4",
+}
+
+
 def safe_corrcoef(x: np.ndarray, y: np.ndarray) -> float:
     """Compute Pearson correlation, returning nan if either array has zero variance."""
     if np.std(x) < 1e-10 or np.std(y) < 1e-10:
@@ -74,6 +87,12 @@ def save_parquet(df: pd.DataFrame, path: Any, **kwargs: Any) -> None:
     """Save DataFrame as parquet with optimized dtypes and zstd compression."""
     optimize_dtypes(df)
     df.to_parquet(path, index=False, compression="zstd", **kwargs)
+
+
+def yaml_loader() -> type:
+    """Return the fastest available YAML SafeLoader."""
+    import yaml
+    return getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 
 def get_nested(d: Any, *keys: str, default: Any = None) -> Any:

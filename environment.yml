@@ -20,6 +20,9 @@ dependencies:
   - numba
   - pytest
   - pip
+  # optional: for generating methods.pdf
+  # - pandoc
+  # - tectonic
   - pip:
     - -e .
  

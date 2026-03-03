@@ -42,7 +42,7 @@ def _run_snakemake():
 
     # Section dividers before Weibull and Threshold sections
     section_breaks = {
-        0: ("Weibull Frailty Phenotype", "Survival-time phenotyping, censoring, and correlation analysis"),
+        9: ("Weibull Frailty Phenotype", "Survival-time phenotyping, censoring, and correlation analysis"),
     }
     if threshold_paths:
         section_breaks[len(weibull_paths)] = (

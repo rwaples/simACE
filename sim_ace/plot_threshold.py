@@ -15,14 +15,13 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import yaml
-
-try:
-    _yaml_loader = yaml.CSafeLoader
-except AttributeError:
-    _yaml_loader = yaml.SafeLoader
 from pathlib import Path
 
+from sim_ace.utils import yaml_loader
+_yaml_loader = yaml_loader()
+
 from sim_ace.stats import tetrachoric_corr
+from sim_ace.utils import PAIR_TYPES, PAIR_COLORS
 
 import logging
 logger = logging.getLogger(__name__)
@@ -125,7 +124,7 @@ def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, An
     fig, ax = plt.subplots(figsize=(8, 6))
     sns.violinplot(
         data=violin_data, x="Trait", y="Liability", hue="Affected",
-        split=True, ax=ax,
+        split=True, cut=0, ax=ax,
     )
     ax.set_title(
         f"Liability by Affected Status (Liability Threshold) [{scenario}]"
@@ -244,8 +243,8 @@ def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: lis
 
 def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str) -> None:
     """Tetrachoric correlations by relationship type with liability correlation lines."""
-    pair_types = ["MZ twin", "Full sib", "Mother-offspring", "Father-offspring", "Maternal half sib", "Paternal half sib", "1st cousin"]
-    pair_colors = {"MZ twin": "C0", "Full sib": "C1", "Mother-offspring": "C3", "Father-offspring": "C5", "Maternal half sib": "C2", "Paternal half sib": "C6", "1st cousin": "C4"}
+    pair_types = PAIR_TYPES
+    pair_colors = PAIR_COLORS
 
     fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
@@ -517,16 +516,14 @@ def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, preva
         df_samples, out_dir / f"cross_trait.threshold.{ext}", scenario,
     )
 
-    if all_stats[0].get("tetrachoric"):
-        plot_tetrachoric(
-            all_stats, out_dir / f"tetrachoric.threshold.{ext}", scenario,
-        )
-    else:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "Tetrachoric correlations not computed\n(extra_tetrachoric: false)",
-                ha="center", va="center", transform=ax.transAxes)
-        plt.savefig(out_dir / f"tetrachoric.threshold.{ext}", dpi=150)
-        plt.close()
+    plot_tetrachoric(
+        all_stats, out_dir / f"tetrachoric.threshold.{ext}", scenario,
+    )
+
+    from sim_ace.plot_correlations import plot_cross_trait_tetrachoric
+    plot_cross_trait_tetrachoric(
+        all_stats, out_dir / f"cross_trait_tetrachoric.threshold.{ext}", scenario,
+    )
 
     logger.info("Threshold plots saved to %s", out_dir)
 

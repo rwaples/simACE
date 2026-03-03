@@ -14,12 +14,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import yaml
-
-try:
-    _yaml_loader = yaml.CSafeLoader
-except AttributeError:
-    _yaml_loader = yaml.SafeLoader
 from pathlib import Path
+
+from sim_ace.utils import yaml_loader
+_yaml_loader = yaml_loader()
 
 import logging
 logger = logging.getLogger(__name__)
@@ -51,6 +49,7 @@ from sim_ace.plot_pedigree_counts import plot_pedigree_relationship_counts
 from sim_ace.plot_correlations import (
     plot_tetrachoric_sibling,
     plot_tetrachoric_by_generation,
+    plot_cross_trait_tetrachoric,
     plot_parent_offspring_liability,
     plot_heritability_by_generation,
     plot_broad_heritability_by_generation,
@@ -93,9 +92,17 @@ def main(
 
     ext = plot_ext
 
-    # Pedigree relationship pair counts diagram
+    # Pedigree relationship pair counts diagrams
+    # G_ped: full pedigree generations
+    plot_pedigree_relationship_counts(
+        all_stats, out_dir / f"pedigree_counts.ped.{ext}", scenario,
+        stats_key="pair_counts_ped",
+        generations_label="G_ped",
+    )
+    # G_pheno: phenotyped generations only
     plot_pedigree_relationship_counts(
         all_stats, out_dir / f"pedigree_counts.{ext}", scenario,
+        generations_label="G_pheno",
     )
 
     plot_death_age_distribution(
@@ -139,20 +146,15 @@ def main(
         plt.savefig(out_dir / f"censoring.{ext}", dpi=150)
         plt.close()
 
-    if all_stats[0].get("tetrachoric"):
-        plot_tetrachoric_sibling(
-            all_stats, out_dir / f"tetrachoric.weibull.{ext}", scenario,
-        )
-        plot_tetrachoric_by_generation(
-            all_stats, out_dir / f"tetrachoric.weibull.by_generation.{ext}", scenario,
-        )
-    else:
-        for name in ["tetrachoric.weibull", "tetrachoric.weibull.by_generation"]:
-            fig, ax = plt.subplots(figsize=(6, 4))
-            ax.text(0.5, 0.5, "Tetrachoric correlations not computed\n(extra_tetrachoric: false)",
-                    ha="center", va="center", transform=ax.transAxes)
-            plt.savefig(out_dir / f"{name}.{ext}", dpi=150)
-            plt.close()
+    plot_tetrachoric_sibling(
+        all_stats, out_dir / f"tetrachoric.weibull.{ext}", scenario,
+    )
+    plot_tetrachoric_by_generation(
+        all_stats, out_dir / f"tetrachoric.weibull.by_generation.{ext}", scenario,
+    )
+    plot_cross_trait_tetrachoric(
+        all_stats, out_dir / f"cross_trait_tetrachoric.{ext}", scenario,
+    )
     plot_parent_offspring_liability(
         df_samples, all_stats, out_dir / f"parent_offspring_liability.by_generation.{ext}", scenario,
     )

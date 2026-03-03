@@ -180,7 +180,7 @@ Multi-page PDF atlases collect all figures for a scenario or folder into a singl
 
 #### pedigree.parquet
 
-Core pedigree structure with latent variance components for two correlated traits. Stored with zstd compression; float columns are float32 and small integers are int8 for compact storage (~35% smaller than float64/snappy).
+Core pedigree structure with latent variance components for two correlated traits.
 
 | Column | Type | Description |
 |--------|------|-------------|

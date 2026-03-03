@@ -4,9 +4,180 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import logging
+
 from sim_ace.pedigree_graph import PedigreeGraph, extract_relationship_pairs, count_sib_pairs
-from sim_ace.stats import _extract_relationship_pairs_legacy
 from sim_ace.validate import _count_sib_pairs_legacy
+
+logger = logging.getLogger(__name__)
+
+
+def _extract_relationship_pairs_legacy(df: pd.DataFrame, seed: int = 42) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Legacy implementation kept for golden testing."""
+    ids_arr = df["id"].values.astype(np.int64)
+    id_to_row = np.full(ids_arr.max() + 1, -1, dtype=np.int32)
+    id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
+
+    def resolve_rows(ids: np.ndarray) -> np.ndarray:
+        ids = np.asarray(ids, dtype=np.int64)
+        mask = (ids >= 0) & (ids < len(id_to_row))
+        result = np.full(len(ids), -1, dtype=np.int32)
+        result[mask] = id_to_row[ids[mask]]
+        return result
+
+    pairs = {}
+
+    twins = df[df["twin"] != -1]
+    ta = twins["id"].values.astype(int)
+    tb = twins["twin"].values.astype(int)
+    mask = ta < tb
+    pairs["MZ twin"] = (resolve_rows(ta[mask]), resolve_rows(tb[mask]))
+
+    non_twin_nf = df[(df["mother"] != -1) & (df["twin"] == -1)].copy()
+    non_twin_nf["_row"] = non_twin_nf.index.values
+
+    full_rows_1, full_rows_2 = [], []
+    mat_half_rows_1, mat_half_rows_2 = [], []
+
+    sib_counts = non_twin_nf.groupby("mother").size()
+    multi_mothers = sib_counts[sib_counts >= 2].index
+    mat_sib = non_twin_nf[non_twin_nf["mother"].isin(multi_mothers)]
+
+    if len(mat_sib) > 0:
+        mat_pairs = mat_sib[["mother", "father", "_row"]].merge(
+            mat_sib[["mother", "father", "_row"]],
+            on="mother", suffixes=("_1", "_2"),
+        )
+        mat_pairs = mat_pairs[mat_pairs["_row_1"] < mat_pairs["_row_2"]]
+        same_father = mat_pairs["father_1"] == mat_pairs["father_2"]
+        full_rows_1.append(mat_pairs.loc[same_father, "_row_1"].values)
+        full_rows_2.append(mat_pairs.loc[same_father, "_row_2"].values)
+        mat_half_rows_1.append(mat_pairs.loc[~same_father, "_row_1"].values)
+        mat_half_rows_2.append(mat_pairs.loc[~same_father, "_row_2"].values)
+
+    pat_half_rows_1, pat_half_rows_2 = [], []
+    pat_counts = non_twin_nf.groupby("father").size()
+    multi_fathers = pat_counts[pat_counts >= 2].index
+    pat_sib = non_twin_nf[non_twin_nf["father"].isin(multi_fathers)]
+
+    if len(pat_sib) > 0:
+        pat_pairs = pat_sib[["mother", "father", "_row"]].merge(
+            pat_sib[["mother", "father", "_row"]],
+            on="father", suffixes=("_1", "_2"),
+        )
+        pat_pairs = pat_pairs[pat_pairs["_row_1"] < pat_pairs["_row_2"]]
+        diff_mother = pat_pairs["mother_1"] != pat_pairs["mother_2"]
+        pat_half_rows_1.append(pat_pairs.loc[diff_mother, "_row_1"].values)
+        pat_half_rows_2.append(pat_pairs.loc[diff_mother, "_row_2"].values)
+
+    pairs["Full sib"] = (
+        np.concatenate(full_rows_1) if full_rows_1 else np.array([], dtype=int),
+        np.concatenate(full_rows_2) if full_rows_1 else np.array([], dtype=int),
+    )
+    pairs["Maternal half sib"] = (
+        np.concatenate(mat_half_rows_1) if mat_half_rows_1 else np.array([], dtype=int),
+        np.concatenate(mat_half_rows_2) if mat_half_rows_1 else np.array([], dtype=int),
+    )
+    pairs["Paternal half sib"] = (
+        np.concatenate(pat_half_rows_1) if pat_half_rows_1 else np.array([], dtype=int),
+        np.concatenate(pat_half_rows_2) if pat_half_rows_1 else np.array([], dtype=int),
+    )
+
+    all_nf = df[df["mother"] != -1]
+    child_rows = all_nf.index.values
+    mother_rows = resolve_rows(all_nf["mother"].values.astype(int))
+    father_rows = resolve_rows(all_nf["father"].values.astype(int))
+
+    m_valid = mother_rows >= 0
+    f_valid = father_rows >= 0
+    pairs["Mother-offspring"] = (child_rows[m_valid], mother_rows[m_valid])
+    pairs["Father-offspring"] = (child_rows[f_valid], father_rows[f_valid])
+
+    child_ids = all_nf["id"].values.astype(np.int64)
+    mother_ids = all_nf["mother"].values.astype(np.int64)
+    father_ids = all_nf["father"].values.astype(np.int64)
+    n_children = len(child_ids)
+
+    df_mothers_col = df["mother"].values.astype(np.int64)
+    df_fathers_col = df["father"].values.astype(np.int64)
+    mother_row = resolve_rows(mother_ids)
+    father_row = resolve_rows(father_ids)
+
+    gp_ids = np.full((n_children, 4), -1, dtype=np.int64)
+    m_ok = mother_row >= 0
+    gp_ids[m_ok, 0] = df_mothers_col[mother_row[m_ok]]
+    gp_ids[m_ok, 1] = df_fathers_col[mother_row[m_ok]]
+    f_ok = father_row >= 0
+    gp_ids[f_ok, 2] = df_mothers_col[father_row[f_ok]]
+    gp_ids[f_ok, 3] = df_fathers_col[father_row[f_ok]]
+
+    gp_child = np.tile(child_ids, 4)
+    gp_parent = np.concatenate([mother_ids, mother_ids, father_ids, father_ids])
+    gp_gp = np.concatenate([gp_ids[:, 0], gp_ids[:, 1], gp_ids[:, 2], gp_ids[:, 3]])
+
+    valid_gp = gp_gp >= 0
+    gp_child = gp_child[valid_gp]
+    gp_parent = gp_parent[valid_gp]
+    gp_gp = gp_gp[valid_gp]
+
+    unique_gp_arr = np.unique(gp_gp)
+    if len(unique_gp_arr) > 100000:
+        logger.info(
+            "extract_relationship_pairs: %d grandparents exceed 100K cap, sampling subset",
+            len(unique_gp_arr),
+        )
+        rng = np.random.default_rng(seed)
+        selected_gp = rng.choice(unique_gp_arr, 100000, replace=False)
+        gp_mask = np.isin(gp_gp, selected_gp)
+        gp_child = gp_child[gp_mask]
+        gp_parent = gp_parent[gp_mask]
+        gp_gp = gp_gp[gp_mask]
+
+    sort_idx = np.argsort(gp_gp, kind="mergesort")
+    gp_child = gp_child[sort_idx]
+    gp_parent = gp_parent[sort_idx]
+    gp_gp = gp_gp[sort_idx]
+
+    _, group_starts, group_counts = np.unique(
+        gp_gp, return_index=True, return_counts=True
+    )
+
+    multi = group_counts >= 2
+    group_starts = group_starts[multi]
+    group_counts = group_counts[multi]
+
+    pair_i_parts = []
+    pair_j_parts = []
+    for size in np.unique(group_counts):
+        gs = group_starts[group_counts == size]
+        ii, jj = np.triu_indices(size, k=1)
+        all_i = (gs[:, np.newaxis] + ii[np.newaxis, :]).ravel()
+        all_j = (gs[:, np.newaxis] + jj[np.newaxis, :]).ravel()
+        pair_i_parts.append(all_i)
+        pair_j_parts.append(all_j)
+
+    pair_i = np.concatenate(pair_i_parts)
+    pair_j = np.concatenate(pair_j_parts)
+
+    diff_parent = gp_parent[pair_i] != gp_parent[pair_j]
+    c1_raw = gp_child[pair_i[diff_parent]]
+    c2_raw = gp_child[pair_j[diff_parent]]
+
+    c1 = np.minimum(c1_raw, c2_raw)
+    c2 = np.maximum(c1_raw, c2_raw)
+
+    max_id = int(c2.max()) + 1
+    pair_keys = c1.astype(np.int64) * max_id + c2.astype(np.int64)
+    unique_keys = np.unique(pair_keys)
+    c1_final = unique_keys // max_id
+    c2_final = unique_keys % max_id
+
+    c_idx1 = resolve_rows(c1_final)
+    c_idx2 = resolve_rows(c2_final)
+    c_valid = (c_idx1 >= 0) & (c_idx2 >= 0)
+    pairs["1st cousin"] = (c_idx1[c_valid], c_idx2[c_valid])
+
+    return pairs
 
 
 def _pairs_to_set(idx1, idx2):
