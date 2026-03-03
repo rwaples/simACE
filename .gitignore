@@ -55,3 +55,6 @@ claude memory notes analyze.md
 # OS
 .DS_Store
 Thumbs.db
+
+#Pycharm
+.idea

@@ -1,3 +1,6 @@
+import platform
+
+
 rule validate_pedigree_liability:
     input:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
@@ -32,6 +35,12 @@ rule gather_validation:
     script:
         "../scripts/gather_validation.py"
 
+# Windows patch
+filtered_plots = VALIDATION_PLOTS.copy()
+if platform.system() == "Windows":
+    if "memory.png" in filtered_plots:
+        filtered_plots.remove("memory.png")
+
 
 rule plot_validation:
     input:
@@ -39,7 +48,7 @@ rule plot_validation:
     params:
         plot_format=config["defaults"].get("plot_format", "png"),
     output:
-        expand("results/{{folder}}/plots/{plot}", plot=VALIDATION_PLOTS),
+        expand("results/{{folder}}/plots/{plot}", plot=filtered_plots),
         "results/{folder}/plots/atlas.pdf"
     log:
         "logs/{folder}/plot_validation.log"
