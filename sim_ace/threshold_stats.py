@@ -20,6 +20,7 @@ from sim_ace.stats import (
     tetrachoric_corr_se,
     compute_liability_correlations,
     compute_tetrachoric,
+    compute_cross_trait_tetrachoric,
     create_sample,
 )
 from sim_ace.pedigree_graph import extract_relationship_pairs
@@ -77,7 +78,7 @@ def compute_liability_by_status(df: pd.DataFrame) -> dict[str, Any]:
 
 
 def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int = 42,
-         extra_tetrachoric: bool = True) -> None:
+         extra_tetrachoric: bool = True) -> None:  # extra_tetrachoric kept for API compat
     """Compute all threshold stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
 
@@ -109,14 +110,16 @@ def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int 
     logger.info("Computing liability correlations...")
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
 
-    # Tetrachoric correlations
-    if extra_tetrachoric:
-        logger.info("Computing tetrachoric correlations...")
-        t_tet = time.perf_counter()
-        stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
-        logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
-    else:
-        logger.info("Skipping tetrachoric correlations (extra_tetrachoric=false)")
+    # Tetrachoric correlations (always run — fast O(N) scalar MLEs)
+    logger.info("Computing tetrachoric correlations...")
+    t_tet = time.perf_counter()
+    stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
+    logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
+
+    logger.info("Computing cross-trait tetrachoric correlations...")
+    t_ct = time.perf_counter()
+    stats["cross_trait_tetrachoric"] = compute_cross_trait_tetrachoric(df, seed=seed, pairs=pairs)
+    logger.info("Cross-trait tetrachoric computed in %.1fs", time.perf_counter() - t_ct)
 
     # Write stats YAML
     stats_path = Path(stats_output)
@@ -142,7 +145,7 @@ def cli() -> None:
     parser.add_argument("samples_output", help="Output samples parquet")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
     parser.add_argument("--no-extra-tetrachoric", dest="extra_tetrachoric", action="store_false",
-                        default=True, help="Skip tetrachoric correlation estimation")
+                        default=True, help="No-op (kept for CLI compatibility; basic tetrachoric always runs)")
     args = parser.parse_args()
 
     init_logging(args)

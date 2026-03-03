@@ -54,6 +54,7 @@ _PHENOTYPE_BASENAMES = [
     "cross_trait_weibull.by_generation",
     "tetrachoric.weibull",
     "tetrachoric.weibull.by_generation",
+    "cross_trait_tetrachoric",
 ]
 
 # Ordered to mirror Weibull: prevalence -> liability -> correlations.
@@ -64,6 +65,7 @@ _THRESHOLD_BASENAMES = [
     "liability_violin.threshold.by_generation",
     "joint_affected.threshold",
     "tetrachoric.threshold",
+    "cross_trait_tetrachoric.threshold",
 ]
 
 # Ordered: pedigree structure -> variance & heritability -> cross-trait ->

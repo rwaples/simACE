@@ -142,6 +142,14 @@ _SHORT_LABELS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
+def _mean_stat(all_stats: list[dict[str, Any]], key: str) -> float | None:
+    """Return the mean of a top-level numeric stat across replicates, or None."""
+    vals = [s[key] for s in all_stats if key in s]
+    if not vals:
+        return None
+    return sum(vals) / len(vals)
+
+
 def _nc(name: str) -> tuple[float, float]:
     """Node center shorthand."""
     return NODES[name][0], NODES[name][1]
@@ -359,9 +367,22 @@ def plot_pedigree_relationship_counts(
         framealpha=0.9, title="Relationship (mean pairs)", title_fontsize=9,
     )
 
+    # Population metadata annotation
+    if stats_key == "pair_counts_ped":
+        n_ind_key, n_gen_key = "n_individuals_ped", "n_generations_ped"
+    else:
+        n_ind_key, n_gen_key = "n_individuals", "n_generations"
+    mean_n_ind = _mean_stat(all_stats, n_ind_key)
+    mean_n_gen = _mean_stat(all_stats, n_gen_key)
+
+    footer_parts = [f"Mean across {n_reps} replicate{'s' if n_reps != 1 else ''}"]
+    if mean_n_gen is not None:
+        footer_parts.append(f"{int(mean_n_gen)} generations")
+    if mean_n_ind is not None:
+        footer_parts.append(f"{int(mean_n_ind):,} individuals")
     ax.text(
         0.99, 0.01,
-        f"Mean across {n_reps} replicate{'s' if n_reps != 1 else ''}",
+        "  |  ".join(footer_parts),
         transform=ax.transAxes, fontsize=8, ha="right", va="bottom", color="grey",
     )
 

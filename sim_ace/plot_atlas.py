@@ -170,6 +170,17 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "correlations, dots = per-replicate estimates), computed within each generation "
         "separately."
     ),
+    "cross_trait_tetrachoric": (
+        "Figure 19: Cross-trait tetrachoric correlations (Weibull).\n\n"
+        "Two-panel figure measuring cross-trait association via tetrachoric "
+        "correlation between affected1 and affected2. "
+        "Left panel: same-person cross-trait r by generation (blue dots per rep, "
+        "line = mean), with overall r (black dashed) and Weibull oracle (green "
+        "dash-dot) reference lines when available. "
+        "Right panel: cross-person cross-trait r by relationship type "
+        "(coloured violins + black dots), showing how genetic and environmental "
+        "relatedness induces cross-trait association across individuals."
+    ),
 }
 
 # Captions ordered to match _THRESHOLD_BASENAMES in workflow/common.py:
@@ -206,6 +217,13 @@ THRESHOLD_CAPTIONS: dict[str, str] = {
         "from binary affected status, black dots are per-replicate estimates, black dashed "
         "lines are the ground-truth Pearson liability correlations, and pair counts are "
         "annotated above each violin."
+    ),
+    "cross_trait_tetrachoric.threshold": (
+        "Figure 25: Cross-trait tetrachoric correlations (threshold model).\n\n"
+        "Same two-panel layout as the Weibull cross-trait tetrachoric figure. "
+        "Left panel: same-person cross-trait r by generation. "
+        "Right panel: cross-person cross-trait r by relationship type. "
+        "Uses the liability-threshold phenotype affected indicators."
     ),
 }
 

@@ -379,6 +379,75 @@ def compute_tetrachoric_by_generation(
     return result
 
 
+def compute_cross_trait_tetrachoric(
+    df: pd.DataFrame, seed: int = 42,
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
+) -> dict[str, Any]:
+    """Compute cross-trait tetrachoric correlations (affected1 vs affected2).
+
+    Three analyses:
+    - Same-person overall: tetrachoric(affected1, affected2) on the whole population
+    - Same-person by generation: same, stratified by last 3 non-founder generations
+    - Cross-person by pair type: for each pair type, tetrachoric(personA.affected1, personB.affected2)
+
+    All are O(N) scalar MLEs — fast.
+    """
+    if pairs is None:
+        pairs = extract_relationship_pairs(df, seed=seed)
+
+    result: dict[str, Any] = {}
+
+    a1 = df["affected1"].values.astype(bool)
+    a2 = df["affected2"].values.astype(bool)
+
+    # Same-person overall
+    r_sp, se_sp = tetrachoric_corr_se(a1, a2)
+    result["same_person"] = {
+        "r": float(r_sp) if not np.isnan(r_sp) else None,
+        "se": float(se_sp) if not np.isnan(se_sp) else None,
+        "n": int(len(df)),
+    }
+
+    # Same-person by generation
+    by_gen: dict[str, dict[str, float | int | None]] = {}
+    if "generation" in df.columns:
+        gen_arr = df["generation"].values
+        max_gen = int(gen_arr.max())
+        plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
+        for gen in plot_gens:
+            mask = gen_arr == gen
+            n_g = int(mask.sum())
+            if n_g < 50:
+                by_gen[f"gen{gen}"] = {"r": None, "se": None, "n": n_g}
+                continue
+            r_g, se_g = tetrachoric_corr_se(a1[mask], a2[mask])
+            by_gen[f"gen{gen}"] = {
+                "r": float(r_g) if not np.isnan(r_g) else None,
+                "se": float(se_g) if not np.isnan(se_g) else None,
+                "n": n_g,
+            }
+    result["same_person_by_generation"] = by_gen
+
+    # Cross-person by pair type
+    pair_types = PAIR_TYPES
+    cross: dict[str, dict[str, float | int | None]] = {}
+    for ptype in pair_types:
+        idx1, idx2 = pairs[ptype]
+        n_p = len(idx1)
+        if n_p < 10:
+            cross[ptype] = {"r": None, "se": None, "n_pairs": int(n_p)}
+            continue
+        r_cp, se_cp = tetrachoric_corr_se(a1[idx1], a2[idx2])
+        cross[ptype] = {
+            "r": float(r_cp) if not np.isnan(r_cp) else None,
+            "se": float(se_cp) if not np.isnan(se_cp) else None,
+            "n_pairs": int(n_p),
+        }
+    result["cross_person"] = cross
+
+    return result
+
+
 def compute_liability_correlations(df: pd.DataFrame, seed: int = 42, pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None) -> dict[str, Any]:
     """Compute Pearson correlation on liability values for each relationship pair type."""
     if pairs is None:
@@ -710,6 +779,10 @@ def main(
 
     stats: dict[str, Any] = {}
     stats["n_individuals"] = int(len(df))
+    if "generation" in df.columns:
+        stats["n_generations"] = int(df["generation"].nunique())
+    else:
+        stats["n_generations"] = 1
 
     # Prevalence
     stats["prevalence"] = compute_prevalence(df)
@@ -753,6 +826,11 @@ def main(
         stats["pair_counts_ped"] = {
             name: int(len(idx_pair[0])) for name, idx_pair in pairs_ped.items()
         }
+        stats["n_individuals_ped"] = int(len(df_ped))
+        if "generation" in df_ped.columns:
+            stats["n_generations_ped"] = int(df_ped["generation"].nunique())
+        else:
+            stats["n_generations_ped"] = 1
         del df_ped, pairs_ped
         logger.info("Pedigree pairs extracted in %.1fs", time.perf_counter() - t_ped)
 
@@ -764,22 +842,23 @@ def main(
     logger.info("Computing parent-offspring correlations...")
     stats["parent_offspring_corr"] = compute_parent_offspring_corr(df)
 
-    # Tetrachoric correlations
-    if extra_tetrachoric:
-        logger.info("Computing tetrachoric correlations...")
-        t_tet = time.perf_counter()
-        stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
-        logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
+    # Tetrachoric correlations (always run — fast O(N) scalar MLEs)
+    logger.info("Computing tetrachoric correlations...")
+    t_tet = time.perf_counter()
+    stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
+    logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
 
-        # Tetrachoric correlations by generation
-        logger.info("Computing tetrachoric correlations by generation...")
-        t_tet_gen = time.perf_counter()
-        stats["tetrachoric_by_generation"] = compute_tetrachoric_by_generation(df, seed=seed, pairs=pairs)
-        logger.info("Tetrachoric by generation computed in %.1fs", time.perf_counter() - t_tet_gen)
-    else:
-        logger.info("Skipping tetrachoric correlations (extra_tetrachoric=false)")
+    logger.info("Computing tetrachoric correlations by generation...")
+    t_tet_gen = time.perf_counter()
+    stats["tetrachoric_by_generation"] = compute_tetrachoric_by_generation(df, seed=seed, pairs=pairs)
+    logger.info("Tetrachoric by generation computed in %.1fs", time.perf_counter() - t_tet_gen)
 
-    # Pairwise Weibull correlations (if params supplied)
+    logger.info("Computing cross-trait tetrachoric correlations...")
+    t_ct = time.perf_counter()
+    stats["cross_trait_tetrachoric"] = compute_cross_trait_tetrachoric(df, seed=seed, pairs=pairs)
+    logger.info("Cross-trait tetrachoric computed in %.1fs", time.perf_counter() - t_ct)
+
+    # Pairwise Weibull correlations (if params supplied — slow quadrature)
     if weibull_params is not None and extra_tetrachoric:
         logger.info("Computing pairwise Weibull correlations...")
         t_weib = time.perf_counter()
@@ -801,7 +880,7 @@ def main(
         stats["weibull_cross_trait_stratified"] = ct_stratified
         logger.info("Cross-trait Weibull correlation computed in %.1fs", time.perf_counter() - t_cross)
     elif weibull_params is not None:
-        logger.info("Skipping Weibull pairwise correlations (extra_tetrachoric=false)")
+        logger.info("Skipping Weibull pairwise correlations (extra_tetrachoric=False)")
 
     # Write stats YAML
     stats_path = Path(stats_output)
@@ -835,7 +914,7 @@ def cli() -> None:
     parser.add_argument("--scale2", type=float, default=None, help="Weibull scale parameter for trait 2")
     parser.add_argument("--rho2", type=float, default=None, help="Weibull shape parameter for trait 2")
     parser.add_argument("--no-extra-tetrachoric", dest="extra_tetrachoric", action="store_false",
-                        default=True, help="Skip tetrachoric correlation estimation")
+                        default=True, help="Skip Weibull pairwise correlations (basic tetrachoric always runs)")
     parser.add_argument("--pedigree", default=None, help="Full pedigree parquet for G_ped pair counts")
     args = parser.parse_args()
 
