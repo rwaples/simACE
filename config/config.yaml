@@ -128,7 +128,7 @@ scenarios:
     seed: 8042
     rA: .7 # Genetic correlation
     rC: .7
-    extra_tetrachoric: True 
+    extra_tetrachoric: False
 
   tetra_test:
     folder: phenotype
