@@ -79,7 +79,7 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
 
 
 def plot_liability_joint_affected(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
-    """2x2 grid of jointplots colored by Weibull affected status."""
+    """2x2 grid of jointplots colored affected status."""
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
     panels = [
@@ -95,7 +95,7 @@ def plot_liability_joint_affected(df_samples: pd.DataFrame, output_path: str | P
     ]
 
     fig = plt.figure(figsize=(14, 12))
-    fig.suptitle(f"Cross-Trait Correlations (Weibull) [{scenario}]", fontsize=14, y=1.01)
+    fig.suptitle(f"Cross-Trait Correlations [{scenario}]", fontsize=14, y=1.01)
     outer = GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.35)
 
     affected = df_samples["affected1"].values.astype(bool)
@@ -187,7 +187,7 @@ def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, An
         split=True, cut=0, ax=ax,
     )
     ax.set_title(
-        f"Liability by Affected Status (Weibull) [{scenario}]"
+        f"Liability by Affected Status [{scenario}]"
     )
 
     # Annotate mean liability for each trait x affected/unaffected group
@@ -223,7 +223,7 @@ def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, An
 
 
 def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
-    """Split violin of liability by affected status, one column per generation (Weibull)."""
+    """Split violin of liability by affected status, one column per generation."""
     if "generation" not in df_samples.columns:
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "No generation data", ha="center", va="center",
@@ -291,7 +291,7 @@ def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: lis
                 ax.set_ylabel("")
 
     fig.suptitle(
-        f"Liability by Affected Status per Generation (Weibull) [{scenario}]",
+        f"Liability by Affected Status per Generation [{scenario}]",
         fontsize=14,
     )
     plt.tight_layout()
@@ -346,34 +346,34 @@ def plot_joint_affection(
     r_tet = tetrachoric_corr(a1, a2)
     r_label = f"r_tet = {r_tet:.3f}" if not np.isnan(r_tet) else "r_tet = N/A"
 
-    # Cross-trait Weibull correlation (averaged across reps)
-    weibull_parts = []
+    # Cross-trait correlation (averaged across reps)
+    frailty_parts = []
     if all_stats:
         for s in all_stats:
-            ct_unc = s.get("weibull_cross_trait_uncensored", {})
-            ct_strat = s.get("weibull_cross_trait_stratified", {})
-            ct_cens = s.get("weibull_cross_trait", {})
+            ct_unc = s.get("frailty_cross_trait_uncensored", {})
+            ct_strat = s.get("frailty_cross_trait_stratified", {})
+            ct_cens = s.get("frailty_cross_trait", {})
             r_uncens = ct_unc.get("r") if ct_unc else None
             r_strat = ct_strat.get("r") if ct_strat else None
             r_cens = ct_cens.get("r") if ct_cens else None
             if r_uncens is not None:
-                weibull_parts.append((r_uncens, r_strat, r_cens))
+                frailty_parts.append((r_uncens, r_strat, r_cens))
 
-    if weibull_parts:
-        mean_uncens = np.mean([p[0] for p in weibull_parts])
-        r_label += f"  |  r_weibull = {mean_uncens:.3f}"
-        strat_vals = [p[1] for p in weibull_parts if p[1] is not None]
+    if frailty_parts:
+        mean_uncens = np.mean([p[0] for p in frailty_parts])
+        r_label += f"  |  r_frailty = {mean_uncens:.3f}"
+        strat_vals = [p[1] for p in frailty_parts if p[1] is not None]
         if strat_vals:
             mean_strat = np.mean(strat_vals)
             r_label += f" (stratified: {mean_strat:.3f})"
-        cens_vals = [p[2] for p in weibull_parts if p[2] is not None]
+        cens_vals = [p[2] for p in frailty_parts if p[2] is not None]
         if cens_vals:
             mean_cens = np.mean(cens_vals)
             r_label += f" (naive: {mean_cens:.3f})"
 
     ax.set_xlabel("Trait 1")
     ax.set_ylabel("Trait 2")
-    ax.set_title(f"Joint Affected Status (Weibull) [{scenario}]\n{r_label}", fontsize=14)
+    ax.set_title(f"Joint Affected Status [{scenario}]\n{r_label}", fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()

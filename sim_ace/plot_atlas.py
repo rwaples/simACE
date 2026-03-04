@@ -74,25 +74,25 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "contribution of shared environment to familial resemblance."
     ),
     # -- Liability by affected status --
-    "cross_trait.weibull": (
+    "cross_trait.frailty": (
         "Figure 7: Cross-trait liability joint plots coloured by affected status.\n\n"
         "Same 2\u00d72 layout as Figure 3, but with affected-status colouring based on trait 1. "
         "Blue points = unaffected, orange points = affected (trait 1). Marginal histograms stacked "
         "by affected status."
     ),
-    "liability_violin.weibull": (
-        "Figure 8: Liability violin plots by affected status (Weibull).\n\n"
+    "liability_violin.frailty": (
+        "Figure 8: Liability violin plots by affected status (frailty model).\n\n"
         "Split violin plots, one per trait. Left half = unaffected, right half = affected. "
         "Diamond markers show mean liability for each group with \u03bc annotations. "
         "Prevalence annotated below each trait."
     ),
-    "liability_violin.weibull.by_generation": (
-        "Figure 9: Liability violin plots by generation (Weibull).\n\n"
+    "liability_violin.frailty.by_generation": (
+        "Figure 9: Liability violin plots by generation (frailty model).\n\n"
         "Grid: rows = traits, columns = recorded generations. Split violins for affected vs. "
         "unaffected within each generation. Diamond markers and \u03bc annotations show per-group "
         "means. x-axis labels show observed generation-specific prevalence."
     ),
-    # -- Weibull phenotype --
+    # -- Frailty phenotype --
     "liability_vs_aoo": (
         "Figure 10: Liability vs. age-at-onset.\n\n"
         "Side-by-side joint plots, one per trait. Central scatter of liability (x) vs. "
@@ -112,7 +112,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Right panel shows cumulative mortality, "
         "with cumulative survival probability annotated above each bar."
     ),
-    "cumulative_incidence.weibull": (
+    "cumulative_incidence.frailty": (
         "Figure 13: Cumulative incidence curves.\n\n"
         "Two-panel figure, one per trait. Blue solid line = observed cumulative incidence "
         "from censored data (with min-max band across replicates). Grey solid line = true "
@@ -129,53 +129,53 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "titles show observation window [lo, hi]."
     ),
     # -- Familial correlations --
-    "joint_affected.weibull": (
-        "Figure 15: Joint affected status heatmap (Weibull).\n\n"
+    "joint_affected.frailty": (
+        "Figure 15: Joint affected status heatmap (frailty model).\n\n"
         "2\u00d72 heatmap of joint affected status across both traits. Cell annotations "
-        "show proportion and count. Title shows three cross-trait correlation estimates: "
+        "show proportion and count. Title shows cross-trait correlation estimates: "
         "'r_tet' = tetrachoric correlation on censored binary affected status; "
-        "'r_weibull' = Weibull-estimated liability correlation from uncensored survival "
-        "data (oracle); 'stratified' = generation-stratified Weibull estimate that "
+        "'r_frailty' = frailty-estimated liability correlation from uncensored survival "
+        "data (oracle); 'stratified' = generation-stratified estimate that "
         "computes per-generation correlations and combines via inverse-variance "
         "weighting, reducing bias from heterogeneous censoring across generations; "
-        "'naive' = unweighted pooled censored Weibull estimate for comparison."
+        "'naive' = unweighted pooled censored estimate for comparison."
     ),
-    "cross_trait_weibull.by_generation": (
-        "Figure 16: Cross-trait Weibull correlation by generation.\n\n"
+    "cross_trait_frailty.by_generation": (
+        "Figure 16: Cross-trait frailty correlation by generation.\n\n"
         "Per-generation cross-trait liability correlation estimated from censored "
-        "Weibull survival data. Blue dots = per-replicate per-generation estimates "
+        "survival data. Blue dots = per-replicate per-generation estimates "
         "with 95% CI error bars; blue line = mean across replicates. "
         "Green dash-dot line = uncensored oracle (ground truth from raw event times). "
         "Orange dashed line = inverse-variance weighted mean across generations "
         "(stratified estimate). Dark orange dotted line = naive pooled estimate (biased). "
         "Generations with very low event rates may hit the boundary and be excluded."
     ),
-    "tetrachoric.weibull": (
-        "Figure 17: Tetrachoric correlations by relationship type (Weibull).\n\n"
+    "tetrachoric.frailty": (
+        "Figure 17: Tetrachoric correlations by relationship type (frailty model).\n\n"
         "Two-panel figure, one per trait. Coloured violins show the distribution of "
         "tetrachoric correlations (computed from censored binary affected status) across "
         "replicates for each relationship type. "
         "Black dots = individual per-replicate tetrachoric estimates. "
         "Black dashed lines = mean Pearson liability correlation (ground-truth correlation "
         "on the continuous latent liability, serving as the theoretical reference). "
-        "Green dash-dot lines = mean uncensored Weibull pairwise survival-time correlation "
+        "Green dash-dot lines = mean uncensored frailty pairwise survival-time correlation "
         "(showing what the correlation would be without censoring distortion; present when "
         "available). N = mean pairs per replicate. The gap between violins and dashed lines "
         "reflects attenuation from censoring and dichotomization."
     ),
-    "tetrachoric.weibull.by_generation": (
-        "Figure 18: Tetrachoric correlations by generation (Weibull).\n\n"
+    "tetrachoric.frailty.by_generation": (
+        "Figure 18: Tetrachoric correlations by generation (frailty model).\n\n"
         "Grid: rows = traits, columns = generations. Same encoding as Figure 17 "
         "(violins = observed tetrachoric correlations, black dashed = true liability "
         "correlations, dots = per-replicate estimates), computed within each generation "
         "separately."
     ),
     "cross_trait_tetrachoric": (
-        "Figure 19: Cross-trait tetrachoric correlations (Weibull).\n\n"
+        "Figure 19: Cross-trait tetrachoric correlations.\n\n"
         "Two-panel figure measuring cross-trait association via tetrachoric "
         "correlation between affected1 and affected2. "
         "Left panel: same-person cross-trait r by generation (blue dots per rep, "
-        "line = mean), with overall r (black dashed) and Weibull oracle (green "
+        "line = mean), with overall r (black dashed) and frailty oracle (green "
         "dash-dot) reference lines when available. "
         "Right panel: cross-person cross-trait r by relationship type "
         "(coloured violins + black dots), showing how genetic and environmental "

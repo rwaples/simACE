@@ -1,28 +1,31 @@
-rule phenotype_weibull:
+# ---------------------------------------------------------------------------
+# Phenotype simulation rules
+# ---------------------------------------------------------------------------
+
+
+rule phenotype_frailty:
+    """Frailty phenotype simulation with pluggable baseline hazard."""
     input:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet"
     output:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.raw.parquet"
     params:
-        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
-        # Trait 1 phenotype parameters
-        beta1=lambda w: get_param(config, w.scenario, "beta1"),
-        scale1=lambda w: get_param(config, w.scenario, "scale1"),
-        rho1=lambda w: get_param(config, w.scenario, "rho1"),
-        # Trait 2 phenotype parameters
-        beta2=lambda w: get_param(config, w.scenario, "beta2"),
-        scale2=lambda w: get_param(config, w.scenario, "scale2"),
-        rho2=lambda w: get_param(config, w.scenario, "rho2"),
-        # Shared parameters
-        standardize=lambda w: get_param(config, w.scenario, "standardize"),
-        G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
+        seed           = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
+        G_pheno        = lambda w: get_param(config, w.scenario, "G_pheno"),
+        standardize    = lambda w: get_param(config, w.scenario, "standardize"),
+        beta1          = lambda w: get_param(config, w.scenario, "beta1"),
+        hazard_model1  = lambda w: get_param(config, w.scenario, "hazard_model1"),
+        hazard_params1 = lambda w: get_param(config, w.scenario, "hazard_params1"),
+        beta2          = lambda w: get_param(config, w.scenario, "beta2"),
+        hazard_model2  = lambda w: get_param(config, w.scenario, "hazard_model2"),
+        hazard_params2 = lambda w: get_param(config, w.scenario, "hazard_params2"),
     log:
-        "logs/{folder}/{scenario}/rep{rep}/phenotype_weibull.log"
+        "logs/{folder}/{scenario}/rep{rep}/phenotype_frailty.log"
     benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_weibull.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_frailty.tsv"
     resources:
-        mem_mb=4000,
-        runtime=10
+        mem_mb  = 4000,
+        runtime = 10
     threads: 1
     script:
         "../scripts/phenotype.py"
@@ -32,20 +35,20 @@ rule censor_weibull:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.raw.parquet"
     output:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.weibull.parquet"
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.parquet"
     params:
-        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
-        censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
-        death_scale=lambda w: get_param(config, w.scenario, "death_scale"),
-        death_rho=lambda w: get_param(config, w.scenario, "death_rho"),
-        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
+        seed          = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
+        censor_age    = lambda w: get_param(config, w.scenario, "censor_age"),
+        death_scale   = lambda w: get_param(config, w.scenario, "death_scale"),
+        death_rho     = lambda w: get_param(config, w.scenario, "death_rho"),
+        gen_censoring = lambda w: get_param(config, w.scenario, "gen_censoring"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/censor_weibull.log"
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/censor_weibull.tsv"
     resources:
-        mem_mb=4000,
-        runtime=5
+        mem_mb  = 4000,
+        runtime = 5
     threads: 1
     script:
         "../scripts/censor.py"
@@ -57,16 +60,16 @@ rule phenotype_threshold:
     output:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.parquet"
     params:
-        prevalence1=lambda w: get_param(config, w.scenario, "prevalence1"),
-        prevalence2=lambda w: get_param(config, w.scenario, "prevalence2"),
-        G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
+        prevalence1 = lambda w: get_param(config, w.scenario, "prevalence1"),
+        prevalence2 = lambda w: get_param(config, w.scenario, "prevalence2"),
+        G_pheno     = lambda w: get_param(config, w.scenario, "G_pheno"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/phenotype_threshold.log"
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_threshold.tsv"
     resources:
-        mem_mb=2000,
-        runtime=5
+        mem_mb  = 2000,
+        runtime = 5
     threads: 1
     script:
         "../scripts/phenotype_threshold.py"
