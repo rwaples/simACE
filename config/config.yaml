@@ -27,6 +27,9 @@ defaults:
   # hazard_model: weibull | exponential | gompertz | lognormal | loglogistic | gamma
   # hazard_params: dict of model-specific parameters
   #
+
+  standardize: true
+
   # Trait 1
   beta1: 1.0
   hazard_model1: loglogistic
