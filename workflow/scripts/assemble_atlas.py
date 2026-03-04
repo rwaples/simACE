@@ -70,10 +70,10 @@ if __name__ == "__main__":
 
         parser = argparse.ArgumentParser(description="Assemble scenario plot atlas")
         add_logging_args(parser)
-        parser.add_argument("--plots",       nargs="+", required=True)
-        parser.add_argument("--params-yaml", default=None)
-        parser.add_argument("--scenario",    default="unknown")
-        parser.add_argument("--output",      required=True)
+        parser.add_argument("--plots", nargs="+", required=True, help="Plot image paths")
+        parser.add_argument("--params-yaml", default=None, help="Scenario params.yaml for title page")
+        parser.add_argument("--scenario", default="unknown", help="Scenario name")
+        parser.add_argument("--output", required=True, help="Output PDF path")
         args = parser.parse_args()
         init_logging(args)
 
