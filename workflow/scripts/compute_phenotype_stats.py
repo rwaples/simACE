@@ -4,8 +4,8 @@ from sim_ace.stats import main, cli as _cli
 
 
 def _run_snakemake():
-    setup_logging(log_file=snakemake.log[0])   # noqa: F821
-    p = snakemake.params                        # noqa: F821
+    setup_logging(log_file=snakemake.log[0])   
+    p = snakemake.params                        
 
     gen_censoring_raw = p.get("gen_censoring", None)
     gen_censoring = {int(k): v for k, v in gen_censoring_raw.items()} if gen_censoring_raw else None
@@ -24,21 +24,21 @@ def _run_snakemake():
     }
 
     main(
-        snakemake.input.phenotype,              # noqa: F821
+        snakemake.input.phenotype,              
         p.censor_age,
-        snakemake.output.stats,                 # noqa: F821
-        snakemake.output.samples,               # noqa: F821
+        snakemake.output.stats,                 
+        snakemake.output.samples,               
         seed=p.seed,
         gen_censoring=gen_censoring,
         frailty_params=frailty_params,
         extra_tetrachoric=p.get("extra_tetrachoric", True),
-        pedigree_path=snakemake.input.pedigree, # noqa: F821
+        pedigree_path=snakemake.input.pedigree, 
     )
 
 
 if __name__ == "__main__":
     try:
-        snakemake   # noqa: F821
+        snakemake   
     except NameError:
         _cli()
     else:

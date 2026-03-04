@@ -15,14 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 def _run_snakemake():
-    setup_logging(log_file=snakemake.log[0])   # noqa: F821
-    p = snakemake.params                        # noqa: F821
+    setup_logging(log_file=snakemake.log[0])   
+    p = snakemake.params                        
 
-    frailty_paths   = [Path(x) for x in snakemake.input.frailty]    # noqa: F821
-    threshold_paths = [Path(x) for x in snakemake.input.threshold]  # noqa: F821
-    output_path     = Path(snakemake.output[0])                      # noqa: F821
+    frailty_paths   = [Path(x) for x in snakemake.input.frailty]    
+    threshold_paths = [Path(x) for x in snakemake.input.threshold]  
+    output_path     = Path(snakemake.output[0])                      
 
-    with open(snakemake.input.params_yaml, encoding="utf-8") as fh:  # noqa: F821
+    with open(snakemake.input.params_yaml, encoding="utf-8") as fh:  
         scenario_params = yaml.safe_load(fh)
 
     # Merge in config-level parameters not present in params.yaml
@@ -63,7 +63,7 @@ def _run_snakemake():
 
 if __name__ == "__main__":
     try:
-        snakemake   # noqa: F821
+        snakemake   
     except NameError:
         import argparse
         from sim_ace.cli_base import add_logging_args, init_logging

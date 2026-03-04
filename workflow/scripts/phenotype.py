@@ -6,9 +6,9 @@ from sim_ace.phenotype import run_phenotype, cli as _cli
 
 
 def _run_snakemake() -> None:
-    setup_logging(log_file=snakemake.log[0])   # noqa: F821
-    pedigree = pd.read_parquet(snakemake.input.pedigree)   # noqa: F821
-    p = snakemake.params   # noqa: F821
+    setup_logging(log_file=snakemake.log[0])   
+    pedigree = pd.read_parquet(snakemake.input.pedigree)   
+    p = snakemake.params   
 
     param_dict = {
         "G_pheno":       p.G_pheno,
@@ -23,12 +23,12 @@ def _run_snakemake() -> None:
     }
 
     phenotype = run_phenotype(pedigree, param_dict)
-    phenotype.to_parquet(snakemake.output.phenotype, index=False)   # noqa: F821
+    phenotype.to_parquet(snakemake.output.phenotype, index=False)   
 
 
 if __name__ == "__main__":
     try:
-        snakemake   # noqa: F821
+        snakemake   
     except NameError:
         _cli()
     else:
