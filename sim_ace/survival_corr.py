@@ -409,7 +409,10 @@ def cross_trait_weibull_corr_se(
     t2 = np.clip(t2, 1e-10, None)
 
     nodes, weights = hermegauss(n_quad)
-    log_weights = np.log(weights) - 0.5 * np.log(2 * np.pi)
+    
+    # Normalization constant not need for optimization
+    #log_weights = np.log(weights) - 0.5 * np.log(2 * np.pi)
+    log_weights = np.log(weights)
 
     # Precompute Weibull constants for trait 1
     log_rho1 = np.log(rho1)
@@ -470,7 +473,7 @@ def cross_trait_weibull_corr_se(
     if np.isnan(r_hat):
         return np.nan, np.nan
 
-    if abs(r_hat) > 0.99:
+    if abs(r_hat) > 0.999:
         logger.warning(
             "cross_trait_weibull_corr_se: estimate hit boundary (r=%.3f)", r_hat,
         )
