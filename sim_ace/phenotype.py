@@ -267,6 +267,24 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
         )
     pedigree = pedigree[pedigree["generation"] >= min_gen].reset_index(drop=True)
 
+    # ----------------------------------------------------
+    # Application of gene-environment interaction
+    # ----------------------------------------------------
+    gxe = params.get("gxe", {})
+    model = gxe.get("model", "none")
+
+    if model == "observed":
+        G = pedigree[gxe["g_var"]].values
+        E = pedigree[gxe["e_var"]].values
+        pedigree["liability1"] = pedigree["liability1"] + gxe["gamma"] * (G * E)
+        pedigree["liability2"] = pedigree["liability2"] + gxe["gamma"] * (G * E)
+
+    elif model == "moderator":
+        M = pedigree[gxe["m_var"]].values
+        pedigree["liability1"] = pedigree["liability1"] * (1.0 + gxe["alpha"] * M)
+        pedigree["liability2"] = pedigree["liability2"] * (1.0 + gxe["alpha"] * M)
+    # ----------------------------------------------------
+
     t1 = simulate_phenotype(
         liability     = pedigree["liability1"].values,
         beta          = params["beta1"],

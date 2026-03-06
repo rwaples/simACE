@@ -19,6 +19,7 @@ rule phenotype_frailty:
         beta2          = lambda w: get_param(config, w.scenario, "beta2"),
         hazard_model2  = lambda w: get_param(config, w.scenario, "hazard_model2"),
         hazard_params2 = lambda w: get_param(config, w.scenario, "hazard_params2"),
+        gxe       = lambda w: get_param(config, w.scenario, "gxe"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/phenotype_frailty.log"
     benchmark:

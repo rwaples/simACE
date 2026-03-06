@@ -20,6 +20,7 @@ def _run_snakemake() -> None:
         "beta2":         p.beta2,
         "hazard_model2": p.hazard_model2,
         "hazard_params2": p.hazard_params2,
+        "gxe": p.gxe,
     }
 
     phenotype = run_phenotype(pedigree, param_dict)
