@@ -19,8 +19,14 @@ Baseline hazard models supported (via compute_hazard_terms):
     "gamma"       : {"shape": k, "scale": theta}
 
 Inversion strategy:
-    Weibull   → analytic:   t = scale * (-log U / z)^(1/rho)
-    All other → numerical:  scipy.optimize.brentq on H0(t)*z + log U = 0
+    Each model has an analytic/vectorized inverse — no per-individual loop.
+    Weibull      → t = scale * (target / z)^(1/rho)
+    Exponential  → t = target / (z * rate)
+    Gompertz     → t = log1p(target * g / (z * b)) / g
+    Lognormal    → t = exp(mu + sigma * norm.isf(exp(-target/z)))
+    Loglogistic  → t = alpha * expm1(target/z)^(1/k)
+    Gamma        → t = gamma_dist.isf(exp(-target/z), k, scale=theta)
+    Unknown      → KeyError (all supported models have analytic inverses)
 """
 
 from __future__ import annotations
@@ -32,7 +38,8 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import brentq
+from numba import njit, prange
+from scipy.stats import gamma as gamma_dist
 
 from sim_ace.utils import save_parquet
 from sim_ace.compute_hazard_terms import compute_hazard_terms
@@ -41,54 +48,147 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Inversion helpers
+# Numba kernels — fuse frailty computation + inversion in a single pass
 # ---------------------------------------------------------------------------
 
-def _invert_weibull(
-    neg_log_u: np.ndarray,
-    frailty: np.ndarray,
-    params: dict[str, float],
-) -> np.ndarray:
-    """Analytic inverse CDF for Weibull: t = scale * ((-log U)/z)^(1/rho)."""
-    return params["scale"] * (neg_log_u / frailty) ** (1.0 / params["rho"])
+@njit(cache=True)
+def _ndtri_approx(p):
+    """Acklam rational approximation for the normal quantile (~1e-9 accuracy)."""
+    a0, a1, a2 = -3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02
+    a3, a4, a5 = 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00
+    b0, b1, b2 = -5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02
+    b3, b4     = 6.680131188771972e+01, -1.328068155288572e+01
+    c0, c1, c2 = -7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00
+    c3, c4, c5 = -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00
+    d0, d1, d2, d3 = 7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00
+    p_low = 0.02425
+    if p < p_low:
+        q = np.sqrt(-2.0 * np.log(p))
+        num = (((((c0*q + c1)*q + c2)*q + c3)*q + c4)*q + c5)
+        den = ((((d0*q + d1)*q + d2)*q + d3)*q + 1.0)
+        return num / den
+    elif p <= 1.0 - p_low:
+        q = p - 0.5
+        r = q * q
+        num = (((((a0*r + a1)*r + a2)*r + a3)*r + a4)*r + a5) * q
+        den = (((((b0*r + b1)*r + b2)*r + b3)*r + b4)*r + 1.0)
+        return num / den
+    else:
+        q = np.sqrt(-2.0 * np.log(1.0 - p))
+        num = (((((c0*q + c1)*q + c2)*q + c3)*q + c4)*q + c5)
+        den = ((((d0*q + d1)*q + d2)*q + d3)*q + 1.0)
+        return -(num / den)
 
 
-def _invert_generic(
-    neg_log_u: np.ndarray,
-    frailty: np.ndarray,
-    hazard_model: str,
-    params: dict[str, float],
-    t_max: float = 1e6,
-) -> np.ndarray:
-    """Numerical inverse CDF via Brent's method for non-Weibull baselines.
-
-    Solves H0(t) = (-log U) / z for each individual.
-    If H0(t_max) < target (extremely low frailty), clips to t_max.
-    """
+@njit(parallel=True, cache=True)
+def _nb_weibull(neg_log_u, liability, mean, scaled_beta, scale, inv_rho):
     n = len(neg_log_u)
-    t_out = np.empty(n, dtype=np.float64)
+    t = np.empty(n)
+    for i in prange(n):
+        z = np.exp(scaled_beta * (liability[i] - mean))
+        t[i] = scale * np.exp(np.log(neg_log_u[i] / z) * inv_rho)
+    return t
 
-    # Evaluate H0 at the bracket ceiling once
-    _, H_max_arr = compute_hazard_terms(hazard_model, np.array([t_max]), params)
-    H_max = float(H_max_arr[0])
 
-    for i in range(n):
-        target = neg_log_u[i] / frailty[i]
+@njit(parallel=True, cache=True)
+def _nb_exponential(neg_log_u, liability, mean, scaled_beta, inv_rate):
+    n = len(neg_log_u)
+    t = np.empty(n)
+    for i in prange(n):
+        z = np.exp(scaled_beta * (liability[i] - mean))
+        val = neg_log_u[i] * inv_rate / z
+        t[i] = min(max(val, 1e-10), 1e6)
+    return t
 
-        if H_max < target:
-            t_out[i] = t_max
-            continue
 
-        def f(t: float) -> float:
-            _, H = compute_hazard_terms(hazard_model, np.array([t]), params)
-            return float(H[0]) - target
+@njit(parallel=True, cache=True)
+def _nb_gompertz(neg_log_u, liability, mean, scaled_beta, g_over_b, inv_g):
+    n = len(neg_log_u)
+    t = np.empty(n)
+    for i in prange(n):
+        z = np.exp(scaled_beta * (liability[i] - mean))
+        target = neg_log_u[i] / z
+        val = np.log1p(target * g_over_b) * inv_g
+        t[i] = min(max(val, 1e-10), 1e6)
+    return t
 
-        try:
-            t_out[i] = brentq(f, 1e-10, t_max, xtol=1e-6, maxiter=200)
-        except ValueError:
-            t_out[i] = t_max
 
-    return t_out
+@njit(parallel=True, cache=True)
+def _nb_lognormal(neg_log_u, liability, mean, scaled_beta, mu, sigma):
+    n = len(neg_log_u)
+    t = np.empty(n)
+    for i in prange(n):
+        z = np.exp(scaled_beta * (liability[i] - mean))
+        target = neg_log_u[i] / z
+        surv = np.exp(-target)
+        if surv <= 0.0:
+            t[i] = 1e6
+        else:
+            # norm.isf(surv) = -ndtri(surv) for symmetric normal
+            val = np.exp(mu - sigma * _ndtri_approx(surv))
+            t[i] = min(max(val, 1e-10), 1e6)
+    return t
+
+
+@njit(parallel=True, cache=True)
+def _nb_loglogistic(neg_log_u, liability, mean, scaled_beta, alpha, inv_k):
+    n = len(neg_log_u)
+    t = np.empty(n)
+    for i in prange(n):
+        z = np.exp(scaled_beta * (liability[i] - mean))
+        target = neg_log_u[i] / z
+        val = alpha * np.exp(np.log(np.expm1(target)) * inv_k)
+        t[i] = min(max(val, 1e-10), 1e6)
+    return t
+
+
+# ---------------------------------------------------------------------------
+# Python wrappers — unpack params dict, call numba kernel
+# ---------------------------------------------------------------------------
+
+def _invert_weibull(neg_log_u, liability, mean, scaled_beta, params):
+    return _nb_weibull(neg_log_u, liability, mean, scaled_beta,
+                       params["scale"], 1.0 / params["rho"])
+
+
+def _invert_exponential(neg_log_u, liability, mean, scaled_beta, params):
+    rate = params["rate"] if "rate" in params else 1.0 / params["scale"]
+    return _nb_exponential(neg_log_u, liability, mean, scaled_beta, 1.0 / rate)
+
+
+def _invert_gompertz(neg_log_u, liability, mean, scaled_beta, params):
+    b, g = params["rate"], params["gamma"]
+    return _nb_gompertz(neg_log_u, liability, mean, scaled_beta, g / b, 1.0 / g)
+
+
+def _invert_lognormal(neg_log_u, liability, mean, scaled_beta, params):
+    return _nb_lognormal(neg_log_u, liability, mean, scaled_beta,
+                         params["mu"], params["sigma"])
+
+
+def _invert_loglogistic(neg_log_u, liability, mean, scaled_beta, params):
+    return _nb_loglogistic(neg_log_u, liability, mean, scaled_beta,
+                           params["scale"], 1.0 / params["shape"])
+
+
+def _invert_gamma(neg_log_u, liability, mean, scaled_beta, params):
+    """Gamma inverse — scipy iterative solver, not numba-fusible."""
+    frailty = np.exp(scaled_beta * (liability - mean))
+    target = neg_log_u / frailty
+    t = gamma_dist.isf(np.exp(-target), params["shape"], scale=params["scale"])
+    np.clip(t, 1e-10, 1e6, out=t)
+    return t
+
+
+# Dispatch table: model name → inversion function
+_INVERTERS = {
+    "weibull":     _invert_weibull,
+    "exponential": _invert_exponential,
+    "gompertz":    _invert_gompertz,
+    "lognormal":   _invert_lognormal,
+    "loglogistic": _invert_loglogistic,
+    "gamma":       _invert_gamma,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -129,15 +229,16 @@ def simulate_phenotype(
 
     if standardize:
         std = np.std(liability)
-        liability = (liability - liability.mean()) / std if std > 0 else liability - liability.mean()
+        mean = liability.mean()
+        scaled_beta = beta / std if std > 0 else 0.0
+    else:
+        mean = 0.0
+        scaled_beta = beta
 
-    frailty   = np.exp(beta * liability)
-    u         = 1.0 - rng.uniform(size=len(liability))   # sample from (0, 1]
-    neg_log_u = -np.log(u)
+    neg_log_u = rng.exponential(size=len(liability))  # -log(U), U ~ (0,1]
 
-    if hazard_model == "weibull":
-        return _invert_weibull(neg_log_u, frailty, hazard_params)
-    return _invert_generic(neg_log_u, frailty, hazard_model, hazard_params)
+    return _INVERTERS[hazard_model](neg_log_u, liability, mean, scaled_beta,
+                                    hazard_params)
 
 
 def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
