@@ -178,75 +178,86 @@ def reproduce(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Simulate offspring phenotypes from parents for two correlated traits.
 
-    Additive genetic values are inherited as midparent + Mendelian noise.
-    Common environment (C) is drawn freshly per household — it is NOT
-    inherited from parents but represents the offspring's own shared rearing
-    environment (siblings share C; parents and children do not). Unique
-    environment (E) is drawn independently per individual.
-
-    Args:
-        rng: numpy random generator
-        pheno: (n, 6) array of [A1, C1, E1, A2, C2, E2] for parents
-        parents: (n, 2) array of [mother_idx, father_idx]
-        twins: array of MZ twin index pairs
-        household_ids: (n,) array mapping each offspring to a household
-        sd_A1: standard deviation of A for trait 1
-        sd_E1: standard deviation of E for trait 1
-        sd_C1: standard deviation of C for trait 1
-        sd_A2: standard deviation of A for trait 2
-        sd_E2: standard deviation of E for trait 2
-        sd_C2: standard deviation of C for trait 2
-        rA: genetic correlation between traits
-        rC: common environment correlation between traits
-
-    Returns:
-        offspring: (n, 6) array of [A1, C1, E1, A2, C2, E2]
-        sex_offspring: (n,) array of sex values (0=female, 1=male)
+    Output columns: [A1, C1, E1, A2, C2, E2, G, E_exp, M]
     """
+
     n = len(parents)
 
+    # ------------------------------------------------------------------
     # Sex assignment
+    # ------------------------------------------------------------------
     sex_offspring = rng.binomial(size=n, n=1, p=0.5)
 
-    # Additive genetic: midparent + correlated Mendelian noise
-    mp1 = pheno[parents, 0].mean(axis=1)  # A1 midparent
-    mp2 = pheno[parents, 3].mean(axis=1)  # A2 midparent
+    # ------------------------------------------------------------------
+    # A (additive genetic component) inheritance
+    # midparent + correlated Mendelian noise
+    # ------------------------------------------------------------------
+    mp1 = pheno[parents, 0].mean(axis=1)   # A1 midparent
+    mp2 = pheno[parents, 3].mean(axis=1)   # A2 midparent
 
     noise1, noise2 = generate_mendelian_noise(rng, n, sd_A1, sd_A2, rA)
     a1_offspring = mp1 + noise1
     a2_offspring = mp2 + noise2
 
-    # Common environment: freshly drawn per household each generation.
-    # C is NOT inherited from parents -- it reflects the offspring's own
-    # shared rearing environment. Siblings share C; parents and children do not.
-    # This is the standard ACE model assumption (no autoregressive C transmission).
+    # ------------------------------------------------------------------
+    # C (shared environment) per household
+    # ------------------------------------------------------------------
     unique_hh, hh_indices = np.unique(household_ids, return_inverse=True)
     n_hh = len(unique_hh)
+
     hh_c1, hh_c2 = generate_correlated_components(rng, n_hh, sd_C1, sd_C2, rC)
     c1_offspring = hh_c1[hh_indices]
     c2_offspring = hh_c2[hh_indices]
 
-    # Unique environment: independent draws for each trait
+    # ------------------------------------------------------------------
+    # E (unique environment)
+    # ------------------------------------------------------------------
     e1_offspring = rng.normal(size=n, loc=0, scale=sd_E1)
     e2_offspring = rng.normal(size=n, loc=0, scale=sd_E2)
 
-    # MZ twins share A values and sex for both traits
+    has_parent_G = (pheno.shape[1] >= 7)
+    if has_parent_G:
+        G_m = pheno[parents[:, 0], 6]   # mother G
+        G_f = pheno[parents[:, 1], 6]   # father G
+        G_mp = 0.5 * (G_m + G_f)
+    else:
+        G_mp = np.zeros(n, dtype=float)
+
+    G_offspring = G_mp + (1.0 / np.sqrt(2.0)) * rng.normal(size=n)
+
+    E_hh = rng.normal(loc=0.0, scale=1.0, size=n_hh)
+    M_hh = rng.normal(loc=0.0, scale=1.0, size=n_hh)
+
+    E_exp_offspring = E_hh[hh_indices]
+    M_offspring     = M_hh[hh_indices]
+
+    # ------------------------------------------------------------------
+    # MZ twins: share A and sex (existing) + share G (NEW)
+    #
+    # Household-level E_exp/M are already shared automatically.
+    # ------------------------------------------------------------------
     if len(twins) > 0:
         a1_offspring[twins[:, 1]] = a1_offspring[twins[:, 0]]
         a2_offspring[twins[:, 1]] = a2_offspring[twins[:, 0]]
         sex_offspring[twins[:, 1]] = sex_offspring[twins[:, 0]]
 
-    offspring = np.stack(
-        [
-            a1_offspring,
-            c1_offspring,
-            e1_offspring,
-            a2_offspring,
-            c2_offspring,
-            e2_offspring,
-        ],
-        axis=-1,
-    )
+        # PRS identical for MZ twins (realistic)
+        G_offspring[twins[:, 1]] = G_offspring[twins[:, 0]]
+
+    # ------------------------------------------------------------------
+    # Assemble offspring phenotype with 9 columns
+    # ------------------------------------------------------------------
+    offspring = np.column_stack([
+        a1_offspring,     # 0
+        c1_offspring,     # 1
+        e1_offspring,     # 2
+        a2_offspring,     # 3
+        c2_offspring,     # 4
+        e2_offspring,     # 5
+        G_offspring,      # 6
+        E_exp_offspring,  # 7
+        M_offspring,      # 8
+    ])
 
     return offspring, sex_offspring
 
@@ -260,55 +271,55 @@ def add_to_pedigree(
     generation: int,
     pedigree: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Add a generation to the pedigree DataFrame.
 
-    Args:
-        pheno: (n, 6) array of [A1, C1, E1, A2, C2, E2]
-        sex: (n,) array of sex values
-        parents: (n, 2) array of [mother_idx, father_idx]
-        twins: array of MZ twin index pairs
-        household_ids: (n,) array mapping each offspring to a household index
-        generation: generation number (0 for founders)
-        pedigree: existing pedigree DataFrame or None for first generation
-
-    Returns:
-        Updated pedigree DataFrame with the new generation appended.
-    """
     n = len(pheno)
+
+    # Twin column
     twin_col = np.full(n, -1, dtype=int)
     if len(twins) > 0:
         twin_col[twins[:, 0]] = twins[:, 1]
         twin_col[twins[:, 1]] = twins[:, 0]
 
-    df = pd.DataFrame(
-        {
-            "id": np.arange(n),
-            "sex": sex,
-            "mother": parents[:, 0],
-            "father": parents[:, 1],
-            "twin": twin_col,
-            "generation": generation,
-            "household_id": household_ids,
-            "A1": pheno[:, 0],
-            "C1": pheno[:, 1],
-            "E1": pheno[:, 2],
-            "liability1": pheno[:, 0] + pheno[:, 1] + pheno[:, 2],
-            "A2": pheno[:, 3],
-            "C2": pheno[:, 4],
-            "E2": pheno[:, 5],
-            "liability2": pheno[:, 3] + pheno[:, 4] + pheno[:, 5],
-        }
-    )
+    df = pd.DataFrame({
+        "id": np.arange(n),
+        "sex": sex,
+        "mother": parents[:, 0],
+        "father": parents[:, 1],
+        "twin": twin_col,
+        "generation": generation,
+        "household_id": household_ids,
 
+        # Trait 1 ACE + liability
+        "A1": pheno[:, 0],
+        "C1": pheno[:, 1],
+        "E1": pheno[:, 2],
+        "liability1": pheno[:, 0] + pheno[:, 1] + pheno[:, 2],
+
+        # Trait 2 ACE + liability
+        "A2": pheno[:, 3],
+        "C2": pheno[:, 4],
+        "E2": pheno[:, 5],
+        "liability2": pheno[:, 3] + pheno[:, 4] + pheno[:, 5],
+
+        # NEW COVARIATES FOR G×E
+        "G": pheno[:, 6],
+        "E_exp": pheno[:, 7],
+        "M": pheno[:, 8],
+    })
+
+    # If not first generation, shift IDs
     if pedigree is not None:
         offset_id = len(pedigree)
         offset_parent = offset_id - n
         offset_household = pedigree["household_id"].iloc[-1] + 1
-        df["id"] = df["id"] + offset_id
-        df["mother"] = df["mother"] + offset_parent
-        df["father"] = df["father"] + offset_parent
-        df.loc[df["twin"] != -1, "twin"] = df.loc[df["twin"] != -1, "twin"] + offset_id
-        df["household_id"] = df["household_id"] + offset_household
+
+        df["id"] += offset_id
+        df["mother"] += offset_parent
+        df["father"] += offset_parent
+
+        df.loc[df["twin"] != -1, "twin"] += offset_id
+        df["household_id"] += offset_household
+
         pedigree = pd.concat([pedigree, df], copy=False).reset_index(drop=True)
     else:
         # First generation: no known parents

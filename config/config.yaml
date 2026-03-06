@@ -190,8 +190,26 @@ defaults:
   #   scale: 1.6667     # (10^2)/60
   ################################################################################
 
+  # ---------------------------------------------------------------------
+  # G×E specification
+  # ---------------------------------------------------------------------
+  #   none      → no interaction; liability stays L = A + C + E
+  #   observed  → interaction between observed G and E:
+  #                   L' = L + γ · (G × E) --> Kendler & Eaves (1986)
+  #   moderator → environmental moderation of liability:
+  #                   L' = (1 + α·M) · L   --> Purcell, S. (2002)
+  #
+  gxe:
+    model: observed        # Options: none | observed | moderator
 
+    # Parameters for model = observed
+    gamma: 0.0         # Strength of the interaction G*E
+    g_var: "G"         # Column name in the pedigree (e.g. polygenic score)
+    e_var: "E_exp"     # Column name of the environmental exposure
 
+    # Parameters for model = moderator
+    alpha: 0.0         # Moderation strength (L * (1 + alpha * M))
+    m_var: "M"         # Moderator variable column in the pedigree
 
   # ── Censoring ─────────────────────────────────────────────────────────────
   censor_age: 80
