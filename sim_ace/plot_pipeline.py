@@ -34,10 +34,10 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
         ],
     ),
     (
-        "phenotype_weibull",
+        "phenotype_frailty",
         "Phenotype (survival)",
         "#D5F5E3",
-        ["G_pheno", "_weibull1", "_weibull2"],
+        ["G_pheno", "_frailty1", "_frailty2"],
     ),
     (
         "censor",
@@ -67,9 +67,9 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
 
 # Edges as (source_key, target_key)
 _PIPELINE_EDGES: list[tuple[str, str]] = [
-    ("simulate", "phenotype_weibull"),
+    ("simulate", "phenotype_frailty"),
     ("simulate", "phenotype_threshold"),
-    ("phenotype_weibull", "censor"),
+    ("phenotype_frailty", "censor"),
     ("censor", "sample_weibull"),
     ("phenotype_threshold", "sample_threshold"),
 ]
@@ -77,7 +77,7 @@ _PIPELINE_EDGES: list[tuple[str, str]] = [
 # Step positions in data coordinates (cx, cy)
 _STEP_POSITIONS: dict[str, tuple[float, float]] = {
     "simulate":             (0.27, 0.84),
-    "phenotype_weibull":    (0.27, 0.52),
+    "phenotype_frailty":    (0.27, 0.52),
     "phenotype_threshold":  (0.73, 0.52),
     "censor":               (0.27, 0.28),
     "sample_weibull":       (0.27, 0.09),
@@ -154,18 +154,24 @@ def _get_param_rows(
             rc = float(params.get("rC", 0))
             rows.append(("[rA, rC]", f"[{ra:g}, {rc:g}]"))
             continue
-        # Compact Weibull params per trait: [beta, scale, rho]
-        if name == "_weibull1" and "beta1" in params:
+            # Compact frailty params per trait: [beta, model, params]
+        if name == "_frailty1" and "beta1" in params:
             b = _format_param_value("beta1", params["beta1"])
-            s = _format_param_value("scale1", params["scale1"])
-            r = _format_param_value("rho1", params["rho1"])
-            rows.append(("trait 1 [\u03b2, scale, \u03c1]", f"[{b}, {s}, {r}]"))
+            m = str(params.get("hazard_model1", "?"))
+            hp = params.get("hazard_params1", {})
+            hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in hp.items())
+            rows.append(("trait 1 \u03b2", b))
+            rows.append(("trait 1 model", m))
+            rows.append(("trait 1 params", hp_str))
             continue
-        if name == "_weibull2" and "beta2" in params:
+        if name == "_frailty2" and "beta2" in params:
             b = _format_param_value("beta2", params["beta2"])
-            s = _format_param_value("scale2", params["scale2"])
-            r = _format_param_value("rho2", params["rho2"])
-            rows.append(("trait 2 [\u03b2, scale, \u03c1]", f"[{b}, {s}, {r}]"))
+            m = str(params.get("hazard_model2", "?"))
+            hp = params.get("hazard_params2", {})
+            hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in hp.items())
+            rows.append(("trait 2 \u03b2", b))
+            rows.append(("trait 2 model", m))
+            rows.append(("trait 2 params", hp_str))
             continue
         # Compact mortality: [scale, rho]
         if name == "_mortality" and "death_scale" in params:

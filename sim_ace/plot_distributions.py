@@ -51,7 +51,7 @@ def plot_death_age_distribution(all_stats: list[dict[str, Any]], censor_age: flo
     axes[1].set_ylabel("Cumulative Mortality")
     axes[1].tick_params(axis="x", rotation=45)
 
-    fig.suptitle(f"Death Age Distribution (Weibull) [{scenario}]", fontsize=14)
+    fig.suptitle(f"Death Age Distribution [{scenario}]", fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
     plt.close()
@@ -89,7 +89,7 @@ def plot_trait_phenotype(df_samples: pd.DataFrame, output_path: str | Path, scen
         axes[row, 1].set_xlabel("Age")
         axes[row, 1].set_ylabel("Density")
 
-    fig.suptitle(f"Phenotype Distributions (Weibull) [{scenario}]", fontsize=14)
+    fig.suptitle(f"Phenotype Distributions [{scenario}]", fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
     plt.close()
@@ -101,7 +101,7 @@ def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, An
 
     fig = plt.figure(figsize=(16, 7))
     fig.suptitle(
-        f"Liability vs Age at Onset (Weibull) [{scenario}]", fontsize=14, y=1.01
+        f"Liability vs Age at Onset [{scenario}]", fontsize=14, y=1.01
     )
     outer = GridSpec(1, 2, figure=fig, wspace=0.35)
 
@@ -244,7 +244,7 @@ def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float
         ax.legend(loc="lower right", fontsize=9)
 
     axes[0].set_ylabel("Cumulative Incidence")
-    fig.suptitle(f"Cumulative Incidence by Age (Weibull) [{scenario}]", fontsize=14)
+    fig.suptitle(f"Cumulative Incidence by Age [{scenario}]", fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
     plt.close()
@@ -379,7 +379,7 @@ def plot_censoring_windows(
     ]
     axes[0, -1].legend(handles=legend_elements, loc="lower right", fontsize=9)
     fig.suptitle(
-        f"Censoring Windows by Generation (Weibull) [{scenario}]", fontsize=14, y=1.01
+        f"Censoring Windows by Generation [{scenario}]", fontsize=14, y=1.01
     )
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")

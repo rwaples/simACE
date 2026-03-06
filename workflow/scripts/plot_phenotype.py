@@ -24,7 +24,7 @@ def _run_snakemake():
 
 if __name__ == "__main__":
     try:
-        snakemake  # noqa: F821
+        snakemake
     except NameError:
         _cli()
     else:

@@ -69,7 +69,7 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
                         alpha=0.9, zorder=5,
                     )
 
-            # Collect liability + Weibull reference values for annotation placement
+            # Collect liability + frailty reference values for annotation placement
             liab_ref = {}
             for i, ptype in enumerate(pair_types):
                 liab_vals = [
@@ -104,12 +104,12 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
                     linestyles="dashed", linewidth=2, zorder=4,
                 )
 
-        # Uncensored Weibull pairwise correlation lines (averaged across reps)
-        has_uncens = any(s.get("weibull_corr_uncensored") for s in all_stats)
+        # Uncensored frailty pairwise correlation lines (averaged across reps)
+        has_uncens = any(s.get("frailty_corr_uncensored") for s in all_stats)
         if has_uncens:
             for i, ptype in enumerate(pair_types):
                 uncens_vals = [
-                    s.get("weibull_corr_uncensored", {}).get(key, {}).get(ptype, {}).get("r")
+                    s.get("frailty_corr_uncensored", {}).get(key, {}).get(ptype, {}).get("r")
                     for s in all_stats
                 ]
                 uncens_vals = [v for v in uncens_vals if v is not None]
@@ -133,12 +133,12 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
         ]
         if has_uncens:
             legend_elements.append(
-                Line2D([0], [0], color="C2", linestyle="-.", linewidth=2, label="Weibull r (uncensored)"),
+                Line2D([0], [0], color="C2", linestyle="-.", linewidth=2, label="Frailty r (uncensored)"),
             )
         ax.legend(handles=legend_elements, loc="upper right")
 
     fig.suptitle(
-        f"Tetrachoric Correlation (Weibull) [{scenario}]", fontsize=14
+        f"Tetrachoric Correlation [{scenario}]", fontsize=14
     )
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
@@ -277,7 +277,7 @@ def plot_tetrachoric_by_generation(
     )
 
     fig.suptitle(
-        f"Tetrachoric Correlation by Generation (Weibull) [{scenario}]", fontsize=14
+        f"Tetrachoric Correlation by Generation [{scenario}]", fontsize=14
     )
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
@@ -292,7 +292,7 @@ def plot_cross_trait_tetrachoric(
     """Two-panel figure for cross-trait tetrachoric correlations.
 
     Left: Same-person cross-trait r by generation (dots per rep + mean line),
-          with Weibull cross-trait reference lines if available.
+          with frailty cross-trait reference lines if available.
     Right: Cross-person cross-trait r by pair type (violin/dots), showing how
            relatedness induces cross-trait association.
     """
@@ -339,16 +339,16 @@ def plot_cross_trait_tetrachoric(
             ax_left.axhline(y=mean_overall, color="black", linestyle="--", linewidth=1.5,
                             alpha=0.7, label=f"Overall r = {mean_overall:.3f}")
 
-        # Weibull cross-trait reference lines if available
+        # frailty cross-trait reference lines if available
         oracle_rs = [
-            s.get("weibull_cross_trait_uncensored", {}).get("r")
+            s.get("frailty_cross_trait_uncensored", {}).get("r")
             for s in all_stats
         ]
         oracle_rs = [r for r in oracle_rs if r is not None]
         if oracle_rs:
             ax_left.axhline(y=np.mean(oracle_rs), color="C2", linestyle="-.",
                             linewidth=2, alpha=0.7,
-                            label=f"Weibull oracle = {np.mean(oracle_rs):.3f}")
+                            label=f"Frailty oracle = {np.mean(oracle_rs):.3f}")
 
         ax_left.set_xticks(generations)
         ax_left.legend(loc="best", fontsize=9)
@@ -699,12 +699,12 @@ def plot_broad_heritability_by_generation(
     plt.close()
 
 
-def plot_cross_trait_weibull_by_generation(
+def plot_cross_trait_frailty_by_generation(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
-    """Plot per-generation cross-trait Weibull correlation estimates.
+    """Plot per-generation cross-trait frailty correlation estimates.
 
     Shows per-rep per-generation r as dots, mean line across generations,
     and reference lines for oracle (uncensored), stratified IVW, and naive
@@ -717,9 +717,9 @@ def plot_cross_trait_weibull_by_generation(
     naive_rs: list[float] = []
 
     for s in all_stats:
-        ct_strat = s.get("weibull_cross_trait_stratified", {})
-        ct_unc = s.get("weibull_cross_trait_uncensored", {})
-        ct_cens = s.get("weibull_cross_trait", {})
+        ct_strat = s.get("frailty_cross_trait_stratified", {})
+        ct_unc = s.get("frailty_cross_trait_uncensored", {})
+        ct_cens = s.get("frailty_cross_trait", {})
 
         if ct_unc and ct_unc.get("r") is not None:
             oracle_rs.append(ct_unc["r"])
@@ -787,7 +787,7 @@ def plot_cross_trait_weibull_by_generation(
 
     ax.set_xlabel("Generation")
     ax.set_ylabel("Cross-trait liability correlation (r)")
-    ax.set_title(f"Cross-Trait Weibull Correlation by Generation [{scenario}]", fontsize=13)
+    ax.set_title(f"Cross-Trait Correlation by Generation [{scenario}]", fontsize=13)
     ax.set_xticks(generations)
     ax.legend(loc="best", fontsize=9)
 

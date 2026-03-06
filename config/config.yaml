@@ -1,85 +1,229 @@
 # ACE Simulation Configuration
-# Default values are used unless overridden within the scenario
 
 defaults:
-  # Simulation parameters 
+  # ── Simulation ────────────────────────────────────────────────────────────
   seed: 42
   replicates: 3
-  folder: base # Name of folder where results are stored
+  folder: base
 
-  # Liability parameters
-  ## Trait 1 variance components (A + C <= 1.0; E = 1 - A - C)
+  # ── Liability variance components ─────────────────────────────────────────
   A1: 0.5
   C1: 0.2
-
-  # Trait 2 variance components
   A2: 0.5
   C2: 0.2
+  rA: 0.3
+  rC: 0.5
 
-  # Cross-trait correlations in A and C components
-  rA: 0.3 # Genetic correlation
-  rC: 0.5 # Common environment correlation
+  # ── Pedigree ──────────────────────────────────────────────────────────────
+  N: 100000
+  G_ped: 6
+  G_pheno: 3
+  G_sim: 8
+  fam_size: 2.3
+  p_mztwin: 0.02
+  p_nonsocial_father: 0.05
 
-  # Pedigree parameters
-  N: 100000 # Population size per generation
-  G_ped: 6 # Number of generations to record in pedigree
-  G_pheno: 3 # Number of generations to phenotype (last G_pheno of G_ped)
-  G_sim: 8 # Total generations to simulate in total (G_sim - G_ped = burn-in)
-  fam_size: 2.3 # Mean number of kids in a household with kids (Poisson)
-  p_mztwin: 0.02 # Probability of a birth producing MZ twins
-  p_nonsocial_father: 0.05 # Probabilty that a child has random father
+  # ── Phenotype: frailty model ───────────────────────────────────────────────
+  # hazard_model: weibull | exponential | gompertz | lognormal | loglogistic | gamma
+  # hazard_params: dict of model-specific parameters
+  #
 
+  standardize: true
 
-  # Phenotype parameters
-  ## Survival  model - Trait 1
-  beta1: 1.0 # Effect of liability on log-hazard
-  scale1: 2160 # Weibull scale (S(t) = exp(-(t/scale)^rho))
-  rho1: 0.8 # Weibull shape (<1 = risk decreasing with age)
+  # Trait 1
+  beta1: 1.0
+  hazard_model1: loglogistic
+  hazard_params1:
+    scale: 4
+    shape: 3.5
 
-  ## Survival model - Trait 2
+  # Trait 2
   beta2: 1.5
-  scale2: 333
-  rho2: 1.2 # Weibull shape (>1 = risk increasing with age)
+  hazard_model2: lognormal
+  hazard_params2:
+    mu: 4.160         # log-mean
+    sigma: 0.076      # log-sd
 
-  ## Shared phenotype parameters
-  standardize: true # Standardize liability before phenotyping
+  # ── EXAMPLES ─────────────────────────────────────────────────────────────
 
-  # Censoring parameters
-  censor_age: 80 # Max censoring age
+  # ==============================================================================
+  # 1) WEIBULL
+  # ==============================================================================
+  # Hazard: h(t) = (rho / scale) * (t / scale)^(rho - 1)
+  #
+  # Mean:
+  #     mean = scale * Γ(1 + 1/rho)
+  #
+  # Variance:
+  #     var  = scale^2 * [ Γ(1 + 2/rho) - Γ(1 + 1/rho)^2 ]
+  #
+  # INVERSE (approximate):
+  #   Given a desired mean m and shape rho:
+  #       scale = m / Γ(1 + 1/rho)
+  #
+  # NOTE:
+  #   - rho > 1  → increasing hazard with age
+  #   - rho = 1  → exponential model
+  #   - rho < 1  → decreasing hazard
+  #
+  # Example:
+  # hazard_model1: weibull
+  # hazard_params1:
+  #   scale: 2160
+  #   rho: 0.8
+
+
+
+  # ==============================================================================
+  # 2) EXPONENTIAL
+  # ==============================================================================
+  # Hazard: h(t) = rate (constant)
+  #
+  # Mean:
+  #     mean = 1 / rate
+  #
+  # Variance:
+  #     var = 1 / rate^2
+  #
+  # INVERSE:
+  #   rate = 1 / mean
+  #
+  # Example:
+  # hazard_model1: exponential
+  # hazard_params1:
+  #   rate: 0.02    # mean onset ≈ 50
+
+
+
+  # ==============================================================================
+  # 3) GOMPERTZ
+  # ==============================================================================
+  # Hazard: h(t) = rate * exp(gamma * t)
+  #
+  # Mean:
+  #     mean = (1/gamma) * E1(rate/gamma) * exp(rate/gamma)
+  #     (E1 = exponential integral)
+  #
+  # There is no simple closed-form inverse for (rate, gamma).
+  #
+  # PRACTICAL GUIDELINES (inverse use):
+  #   - gamma controls the speed of aging (0.03–0.10 realistic)
+  #   - rate sets the initial hazard
+  #   - To shift the age of onset higher → decrease rate
+  #   - To make onset earlier → increase gamma
+  #
+  # Example:
+  # hazard_model1: gompertz
+  # hazard_params1:
+  #   rate: 0.00005
+  #   gamma: 0.07
+
+
+
+  # ==============================================================================
+  # 4) LOGNORMAL
+  # ==============================================================================
+  # Model: log(age_at_event) ~ Normal(mu, sigma)
+  #
+  # Direct:
+  #     mean  = exp(mu + sigma^2 / 2)
+  #     var   = (exp(sigma^2) - 1) * exp(2*mu + sigma^2)
+  #
+  # INVERSE (to get mu, sigma from desired age mean m and std s):
+  #     sigma = sqrt( ln( 1 + (s/m)^2 ) )
+  #     mu    = ln(m) - 0.5 * sigma^2
+  #
+  #
+  # Example (mean ≈ 65, sd ≈ 5):
+  # hazard_model1: lognormal
+  # hazard_params1:
+  #   mu: 4.160
+  #   sigma: 0.076
+
+
+
+  # ==============================================================================
+  # 5) LOGLOGISTIC
+  # ==============================================================================
+  # PDF(t) = (shape/scale) * (t/scale)^(shape-1) / (1 + (t/scale)^shape)^2
+  # Hazard increases → peaks → decreases.
+  #
+  # Median:
+  #     median = scale * ( 2^(1/shape) - 1 )^(1/shape)
+  #
+  # Mean (exists only if shape > 1):
+  #     mean = scale * π/shape / sin(π/shape)
+  #
+  # INVERSE (for shape > 1):
+  #   Given desired mean m:
+  #       scale = m * (shape / π) * sin(π/shape)
+  #
+  # NOTE:
+  #   shape > 1 → hazard increases then decreases
+  #   shape = 1 → logistic distribution (monotone)
+  #
+  # Example:
+  # hazard_model1: loglogistic
+  # hazard_params1:
+  #   scale: 50
+  #   shape: 3.5
+
+
+
+  # ==============================================================================
+  # 6) GAMMA (Accelerated‑Time Model)
+  # ==============================================================================
+  # age_at_event ~ Gamma(shape, scale)
+  #
+  # Direct:
+  #     mean = shape * scale
+  #     var  = shape * scale^2
+  #
+  # INVERSE (exact):
+  #     shape = (mean / sd)^2
+  #     scale = (sd^2) / mean
+  #
+  # Example (mean ~ 60, sd ~ 10):
+  # hazard_model1: gamma
+  # hazard_params1:
+  #   shape: 36.0       # (60/10)^2
+  #   scale: 1.6667     # (10^2)/60
+  ################################################################################
+
+
+
+
+  # ── Censoring ─────────────────────────────────────────────────────────────
+  censor_age: 80
   gen_censoring:
-    {
-      0: [80, 80],  # zero-width window → fully censored (no cases observed)
-      1: [80, 80],  # zero-width window → fully censored
-      2: [80, 80],  # zero-width window → fully censored
-      3: [40, 80],
-      4: [0, 80],
-      5: [0, 45],
-    } # Per-generation [left, right] observation windows (gen 0 = oldest)
-    # Should have one value per G_ped generation
-  death_scale: 164 # Mortality scale (Weibull)
-  death_rho: 2.73 # Mortality shape (Weibull)
+    0: [80, 80]
+    1: [80, 80]
+    2: [80, 80]
+    3: [40, 80]
+    4: [0, 80]
+    5: [0, 45]
+  death_scale: 164
+  death_rho: 2.73
 
-  # Liability threshold model parameters
-  prevalence1: 0.10 # Trait 1: top X% of liability per generation are affected
-  prevalence2: 0.20 # Trait 2: top X% of liability per generation are affected
+  # ── Liability threshold model ──────────────────────────────────────────────
+  prevalence1: 0.10
+  prevalence2: 0.20
 
-  # Statistics
-  extra_tetrachoric: False # Compute tetrachoric correlations (slow; disable for faster runs)
+  # ── Misc ──────────────────────────────────────────────────────────────────
+  extra_tetrachoric: False
+  N_sample: 0
+  plot_format: png
 
-  # Sampling
-  N_sample: 0 # Subsample phenotyped individuals (0 = keep all)
-
-  # Plot output
-  plot_format: png # Plot file format: png or pdf
 
 scenarios:
+  # ── Size benchmarks ───────────────────────────────────────────────────────
   baseline10K:
     seed: 1042
     N: 10000
 
   baseline100K:
-    N: 100000
     seed: 2042
+    N: 100000
 
   baseline1M:
     seed: 3042
@@ -93,6 +237,7 @@ scenarios:
     N: 2000000
     extra_tetrachoric: False
 
+  # ── Heritability ──────────────────────────────────────────────────────────
   high_heritability:
     folder: heritability
     seed: 4042
@@ -117,11 +262,12 @@ scenarios:
     A2: 0
     C2: 0
 
+  # ── Cross-trait correlation ────────────────────────────────────────────────
   no_correlation:
     folder: cross_trait
     seed: 7042
-    rA: 0 # Genetic correlation
-    rC: 0 # Common environment
+    rA: 0
+    rC: 0
 
   high_correlation:
     folder: cross_trait
@@ -130,11 +276,16 @@ scenarios:
     rC: .7
     extra_tetrachoric: False
 
+  # ── Beta / frailty strength ───────────────────────────────────────────────
   tetra_test:
     folder: phenotype
     seed: 9042
-    censor_age: 200 # Max censoring age
-    gen_censoring: { 0: [0, 200], 1: [0, 200], 2: [0, 200], 3: [0, 200] }
+    censor_age: 200
+    gen_censoring:
+      0: [0, 200]
+      1: [0, 200]
+      2: [0, 200]
+      3: [0, 200]
     beta1: 20
     beta2: 20
 
@@ -150,13 +301,64 @@ scenarios:
     beta1: 4.0
     beta2: 4.0
 
-  increasing_prevalence:
+  # ── Non-Weibull baselines ─────────────────────────────────────────────────
+  lognormal_phenotype:
     folder: phenotype
-    seed: 16042
-    G_pheno: 4
-    prevalence1: { 2: 0.03, 3: 0.05, 4: 0.08, 5: 0.12 }
-    prevalence2: { 2: 0.03, 3: 0.05, 4: 0.08, 5: 0.12 }
+    seed: 17042
+    beta1: 1.0
+    hazard_model1: lognormal
+    hazard_params1:
+      mu: 4.0
+      sigma: 0.8
+    beta2: 1.5
+    hazard_model2: lognormal
+    hazard_params2:
+      mu: 3.5
+      sigma: 0.6
 
+  gamma_phenotype:
+    folder: phenotype
+    seed: 18042
+    beta1: 1.0
+    hazard_model1: gamma
+    hazard_params1:
+      shape: 2.0
+      scale: 1000.0
+    beta2: 1.5
+    hazard_model2: gamma
+    hazard_params2:
+      shape: 3.0
+      scale: 500.0
+
+  loglogistic_phenotype:
+    folder: phenotype
+    seed: 19042
+    beta1: 1.0
+    hazard_model1: loglogistic
+    hazard_params1:
+      scale: 60.0
+      shape: 4.0
+    beta2: 1.5
+    hazard_model2: loglogistic
+    hazard_params2:
+      scale: 40.0
+      shape: 3.0
+
+  gompertz_phenotype:
+    folder: phenotype
+    seed: 20042
+    beta1: 1.0
+    hazard_model1: gompertz
+    hazard_params1:
+      rate: 0.0001
+      gamma: 0.05
+    beta2: 1.5
+    hazard_model2: gompertz
+    hazard_params2:
+      rate: 0.0003
+      gamma: 0.07
+
+  # ── Family structure ──────────────────────────────────────────────────────
   no_twins:
     folder: family
     seed: 14042
@@ -167,6 +369,23 @@ scenarios:
     seed: 15042
     p_nonsocial_father: 1.0
 
+  # ── Increasing prevalence ─────────────────────────────────────────────────
+  increasing_prevalence:
+    folder: phenotype
+    seed: 16042
+    G_pheno: 4
+    prevalence1:
+      2: 0.03
+      3: 0.05
+      4: 0.08
+      5: 0.12
+    prevalence2:
+      2: 0.03
+      3: 0.05
+      4: 0.08
+      5: 0.12
+
+  # ── Quick smoke test ──────────────────────────────────────────────────────
   small_test:
     folder: test
     seed: 12042
