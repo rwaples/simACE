@@ -15,9 +15,11 @@ def _run_snakemake() -> None:
         "seed":          p.seed,
         "standardize":   p.standardize,
         "beta1":         p.beta1,
+        "beta_sex1":     p.beta_sex1,
         "hazard_model1": p.hazard_model1,
         "hazard_params1": p.hazard_params1,
         "beta2":         p.beta2,
+        "beta_sex2":     p.beta_sex2,
         "hazard_model2": p.hazard_model2,
         "hazard_params2": p.hazard_params2,
     }

@@ -202,6 +202,8 @@ def simulate_phenotype(
     hazard_params: dict[str, float],
     seed: int,
     standardize: bool = True,
+    sex: np.ndarray | None = None,
+    beta_sex: float = 0.0,
 ) -> np.ndarray:
     """Convert liability array to simulated time-to-onset.
 
@@ -212,6 +214,8 @@ def simulate_phenotype(
         hazard_params: model parameter dict (see module docstring)
         seed:          random seed
         standardize:   if True, standardize liability to mean 0 / std 1
+        sex:           sex covariate (0=female, 1=male), shape (n,)
+        beta_sex:      effect of sex on log-hazard (0.0 = no effect)
 
     Returns:
         Array of simulated event times, shape (n,)
@@ -236,6 +240,9 @@ def simulate_phenotype(
         scaled_beta = beta
 
     neg_log_u = rng.exponential(size=len(liability))  # -log(U), U ~ (0,1]
+
+    if beta_sex != 0.0 and sex is not None:
+        neg_log_u = neg_log_u / np.exp(beta_sex * sex)
 
     return _INVERTERS[hazard_model](neg_log_u, liability, mean, scaled_beta,
                                     hazard_params)
@@ -267,6 +274,8 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
         )
     pedigree = pedigree[pedigree["generation"] >= min_gen].reset_index(drop=True)
 
+    sex_vals = pedigree["sex"].values
+
     t1 = simulate_phenotype(
         liability     = pedigree["liability1"].values,
         beta          = params["beta1"],
@@ -274,6 +283,8 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
         hazard_params = params["hazard_params1"],
         seed          = params["seed"],
         standardize   = params["standardize"],
+        sex           = sex_vals,
+        beta_sex      = params.get("beta_sex1", 0.0),
     )
     t2 = simulate_phenotype(
         liability     = pedigree["liability2"].values,
@@ -282,6 +293,8 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
         hazard_params = params["hazard_params2"],
         seed          = params["seed"] + 100,
         standardize   = params["standardize"],
+        sex           = sex_vals,
+        beta_sex      = params.get("beta_sex2", 0.0),
     )
 
     phenotype = pd.DataFrame({
@@ -346,6 +359,7 @@ def cli() -> None:
     for k in (1, 2):
         g = parser.add_argument_group(f"Trait {k}")
         g.add_argument(f"--beta{k}",         type=float, required=True)
+        g.add_argument(f"--beta-sex{k}",     type=float, default=0.0)
         g.add_argument(f"--hazard-model{k}",  choices=_MODELS, required=True)
         # One flag per model parameter; user only needs to supply what their
         # chosen model requires.
@@ -365,9 +379,11 @@ def cli() -> None:
         "seed":         args.seed,
         "standardize":  args.standardize,
         "beta1":        args.beta1,
+        "beta_sex1":    getattr(args, "beta_sex1"),
         "hazard_model1": getattr(args, "hazard_model1"),
         "hazard_params1": _build_hazard_params(args, trait=1),
         "beta2":        args.beta2,
+        "beta_sex2":    getattr(args, "beta_sex2"),
         "hazard_model2": getattr(args, "hazard_model2"),
         "hazard_params2": _build_hazard_params(args, trait=2),
     }

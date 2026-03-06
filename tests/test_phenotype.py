@@ -109,3 +109,49 @@ class TestSimulatePhenotype:
             simulate_phenotype(np.array([1.0]), beta=float("nan"),
                                hazard_model="weibull",
                                hazard_params=WEIBULL_PARAMS, seed=42)
+
+
+# ---------------------------------------------------------------------------
+# Sex covariate tests
+# ---------------------------------------------------------------------------
+
+class TestBetaSex:
+
+    def test_beta_sex_zero_same_as_no_sex(self):
+        """beta_sex=0 should produce identical results to omitting sex."""
+        rng = np.random.default_rng(0)
+        liability = rng.standard_normal(500)
+        sex = rng.integers(0, 2, size=500).astype(float)
+
+        t_no_sex = simulate_phenotype(liability, beta=1.0, hazard_model="weibull",
+                                      hazard_params=WEIBULL_PARAMS, seed=42)
+        t_zero = simulate_phenotype(liability, beta=1.0, hazard_model="weibull",
+                                    hazard_params=WEIBULL_PARAMS, seed=42,
+                                    sex=sex, beta_sex=0.0)
+        np.testing.assert_array_equal(t_no_sex, t_zero)
+
+    def test_positive_beta_sex_males_earlier(self):
+        """beta_sex > 0 should make males (sex=1) have earlier onset."""
+        n = 10000
+        liability = np.zeros(n)
+        sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
+
+        t = simulate_phenotype(liability, beta=0.0, hazard_model="weibull",
+                               hazard_params=WEIBULL_PARAMS, seed=42,
+                               standardize=False, sex=sex, beta_sex=0.5)
+        female_mean = t[:n // 2].mean()
+        male_mean = t[n // 2:].mean()
+        assert male_mean < female_mean
+
+    def test_negative_beta_sex_females_earlier(self):
+        """beta_sex < 0 should make females (sex=0) have earlier onset (males delayed)."""
+        n = 10000
+        liability = np.zeros(n)
+        sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
+
+        t = simulate_phenotype(liability, beta=0.0, hazard_model="weibull",
+                               hazard_params=WEIBULL_PARAMS, seed=42,
+                               standardize=False, sex=sex, beta_sex=-0.5)
+        female_mean = t[:n // 2].mean()
+        male_mean = t[n // 2:].mean()
+        assert female_mean < male_mean
