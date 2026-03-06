@@ -192,14 +192,16 @@ class TestPhenotypeEdgeCases:
 
     def test_single_individual(self):
         """simulate_phenotype should work with a single individual."""
-        t = simulate_phenotype(np.array([0.5]), beta=1.0, scale=316.228, rho=2.0, seed=42)
+        t = simulate_phenotype(np.array([0.5]), beta=1.0, hazard_model="weibull",
+                               hazard_params={"scale": 316.228, "rho": 2.0}, seed=42)
         assert t.shape == (1,)
         assert t[0] > 0
 
     def test_very_large_beta(self):
         """Large beta should not produce NaN or Inf."""
         liability = np.array([0.0, 0.1, -0.1])
-        t = simulate_phenotype(liability, beta=50.0, scale=316.228, rho=2.0, seed=42)
+        t = simulate_phenotype(liability, beta=50.0, hazard_model="weibull",
+                               hazard_params={"scale": 316.228, "rho": 2.0}, seed=42)
         assert np.all(np.isfinite(t))
         assert np.all(t > 0)
 

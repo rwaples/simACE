@@ -225,7 +225,7 @@ def compute_regression(df: pd.DataFrame) -> dict[str, Any]:
         if liab_col not in df.columns:
             result[f"trait{trait_num}"] = None
             continue
-        sub = df[df[aff_col] == True].dropna(subset=[liab_col, t_col])
+        sub = df[df[aff_col]].dropna(subset=[liab_col, t_col])
         if len(sub) < 2:
             result[f"trait{trait_num}"] = None
             continue

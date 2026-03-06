@@ -10,7 +10,7 @@ Model (per trait):
     S(t | z) = exp(-H0(t) * z)   (conditional survival)
     t        = H0^{-1}(-log(U) / z)  where U ~ Uniform(0, 1]
 
-Baseline hazard models supported (via weibull_frailty.compute_hazard_terms):
+Baseline hazard models supported (via compute_hazard_terms):
     "weibull"     : {"scale": s, "rho": rho}
     "exponential" : {"rate": lam}  |  {"scale": s}
     "gompertz"    : {"rate": b, "gamma": g}

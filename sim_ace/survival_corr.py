@@ -495,6 +495,73 @@ def cross_trait_weibull_corr_se(
     return float(r_hat), float(se)
 
 
+def cross_trait_corr_se(
+    t1: np.ndarray,
+    delta1: np.ndarray,
+    t2: np.ndarray,
+    delta2: np.ndarray,
+    beta1: float,
+    beta2: float,
+    hazard_model_1: str,
+    hazard_params_1: dict,
+    hazard_model_2: str,
+    hazard_params_2: dict,
+    n_quad: int = 20,
+    ipcw_weights: np.ndarray | None = None,
+) -> tuple[float, float]:
+    """Cross-trait frailty correlation with generalized baseline hazard.
+
+    Currently only Weibull baselines are supported; other models raise
+    NotImplementedError (frailty correlation for non-Weibull is future work).
+    """
+    if hazard_model_1 != "weibull" or hazard_model_2 != "weibull":
+        raise NotImplementedError(
+            f"cross_trait_corr_se only supports Weibull baselines, "
+            f"got '{hazard_model_1}' and '{hazard_model_2}'"
+        )
+    return cross_trait_weibull_corr_se(
+        t1, delta1, t2, delta2,
+        scale1=hazard_params_1["scale"],
+        rho1=hazard_params_1["rho"],
+        beta1=beta1,
+        scale2=hazard_params_2["scale"],
+        rho2=hazard_params_2["rho"],
+        beta2=beta2,
+        n_quad=n_quad,
+        ipcw_weights=ipcw_weights,
+    )
+
+
+def compute_pair_corr(
+    df: pd.DataFrame,
+    trait_num: int,
+    beta: float,
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+    hazard_model: str,
+    hazard_params: dict,
+    n_quad: int = 20,
+    min_pairs: int = 10,
+    max_pairs: int = 100_000,
+    seed: int = 42,
+    use_raw: bool = False,
+) -> dict[str, dict[str, Any]]:
+    """Pairwise frailty correlation with generalized baseline hazard.
+
+    Currently only Weibull baselines are supported; other models raise
+    NotImplementedError.
+    """
+    if hazard_model != "weibull":
+        raise NotImplementedError(
+            f"compute_pair_corr only supports Weibull baseline, got '{hazard_model}'"
+        )
+    return compute_weibull_pair_corr(
+        df=df, trait_num=trait_num,
+        scale=hazard_params["scale"], rho=hazard_params["rho"], beta=beta,
+        pairs=pairs, n_quad=n_quad, min_pairs=min_pairs,
+        max_pairs=max_pairs, seed=seed, use_raw=use_raw,
+    )
+
+
 def compute_weibull_pair_corr(
     df: pd.DataFrame,
     trait_num: int,
