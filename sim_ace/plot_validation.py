@@ -46,29 +46,55 @@ def stripplot(df: pd.DataFrame, ax: Axes, y: str, expected: str | float | None =
             )
 
     ax.set_xlabel("")
-    if len(scenarios) > 4:
-        ax.tick_params(axis="x", rotation=45)
+    _long = max((len(str(s)) for s in scenarios), default=0) > 12
+    if len(scenarios) > 3 or (len(scenarios) > 1 and _long):
+        ax.tick_params(axis="x", rotation=30)
+        for lbl in ax.get_xticklabels():
+            lbl.set_ha("right")
     if len(scenarios) == 1:
         ax.set_xlim(-0.5, 0.5)
-    ymin, ymax = ax.get_ylim()
-    pad = max(0.02, (ymax - ymin) * 0.05)
-    ax.set_ylim(ymin - pad, ymax + pad)
+
+    # Tight y-axis padding based on actual data range
+    import numpy as np
+    data_vals = df[y].dropna().values
+    all_vals = list(data_vals)
+    if expected_func is not None:
+        for scenario in scenarios:
+            sdf = df[df["scenario"] == scenario]
+            all_vals.append(expected_func(sdf))
+    elif expected is not None:
+        if isinstance(expected, str):
+            all_vals.extend(df[expected].dropna().values)
+        else:
+            all_vals.append(expected)
+    all_vals = np.array(all_vals, dtype=float)
+    all_vals = all_vals[np.isfinite(all_vals)]
+    if len(all_vals) > 0:
+        lo, hi = float(all_vals.min()), float(all_vals.max())
+        span = hi - lo
+        pad = max(span * 0.15, max(0.002, abs(lo + hi) / 2 * 0.01))
+        ax.set_ylim(lo - pad, hi + pad)
 
 
 def save(fig: Figure, path: str | Path) -> None:
     fig.tight_layout()
-    fig.savefig(path, dpi=150, bbox_inches="tight")
+    fig.savefig(path, dpi=150, bbox_inches="tight", pad_inches=0.3)
     plt.close(fig)
 
 
-def _fig_width(n_scenarios: int, ncols: int = 1, per_scenario: float = 1.5, min_col: float = 3.0) -> float:
-    """Scale figure width by scenario count and number of subplot columns."""
-    return ncols * max(min_col, n_scenarios * per_scenario)
+def _figsize(nrows: int = 1, ncols: int = 1) -> tuple[float, float]:
+    """Fixed figure size tuned for landscape-letter atlas pages.
+
+    Single-column plots are narrower to avoid stretching; multi-column
+    plots fill the available ~10.5 × 6.5-inch image area.
+    """
+    width = 10.0 if ncols >= 2 else 6.0
+    height = 6.0 if nrows >= 2 else 4.0
+    return (width, height)
 
 
 def plot_variance_components(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
-    n = df["scenario"].nunique()
-    fig, axes = plt.subplots(2, 3, figsize=(_fig_width(n, ncols=3), 10))
+    fig, axes = plt.subplots(2, 3, figsize=_figsize(nrows=2, ncols=3))
     for row, t in enumerate([1, 2]):
         for col, comp in enumerate(["A", "C", "E"]):
             ax = axes[row, col]
@@ -79,8 +105,7 @@ def plot_variance_components(df: pd.DataFrame, out: Path, ext: str = "png") -> N
 
 
 def plot_twin_rate(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
-    n = df["scenario"].nunique()
-    fig, ax = plt.subplots(figsize=(_fig_width(n), 5))
+    fig, ax = plt.subplots(figsize=_figsize())
     stripplot(df, ax, "observed_twin_rate", expected="p_mztwin")
     ax.set_title("MZ Twin Rate: Observed vs Expected")
     ax.set_ylabel("Twin Rate")
@@ -94,8 +119,7 @@ def plot_A_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         ("half_sib_A1_corr", 0.25, "Half-Sibling A1 Correlation"),
         ("parent_offspring_A1_r2", 0.5, "Midparent-Offspring A1 R²"),
     ]
-    n = df["scenario"].nunique()
-    fig, axes = plt.subplots(2, 2, figsize=(_fig_width(n, ncols=2), 10))
+    fig, axes = plt.subplots(2, 2, figsize=_figsize(nrows=2, ncols=2))
     for ax, (col, exp, title) in zip(axes.flat, panels):
         stripplot(df, ax, col, expected=exp)
         ax.axhline(y=exp, color="C1", linestyle="--", alpha=0.7)
@@ -115,8 +139,7 @@ def plot_phenotype_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -
         ("parent_offspring_liability1_slope", lambda d: d["A1"].iloc[0],
          "Midparent-Offspring Liability1 Slope"),
     ]
-    n = df["scenario"].nunique()
-    fig, axes = plt.subplots(2, 2, figsize=(_fig_width(n, ncols=2), 10))
+    fig, axes = plt.subplots(2, 2, figsize=_figsize(nrows=2, ncols=2))
     for ax, (col, efn, title) in zip(axes.flat, panels):
         stripplot(df, ax, col, expected_func=efn)
         ax.set_title(title)
@@ -131,8 +154,7 @@ def plot_heritability_estimates(df: pd.DataFrame, out: Path, ext: str = "png") -
         ("falconer_h2_trait2", "A2", "Falconer h² Trait 2", "Heritability"),
         ("parent_offspring_liability2_slope", "A2", "Midparent-Offspring Liability2", "Slope"),
     ]
-    n = df["scenario"].nunique()
-    fig, axes = plt.subplots(2, 2, figsize=(_fig_width(n, ncols=2), 10))
+    fig, axes = plt.subplots(2, 2, figsize=_figsize(nrows=2, ncols=2))
     for ax, (col, exp, title, ylabel) in zip(axes.flat, panels):
         stripplot(df, ax, col, expected=exp)
         ax.set_title(title)
@@ -141,8 +163,7 @@ def plot_heritability_estimates(df: pd.DataFrame, out: Path, ext: str = "png") -
 
 
 def plot_half_sib_proportions(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
-    n = df["scenario"].nunique()
-    fig, axes = plt.subplots(1, 2, figsize=(_fig_width(n, ncols=2), 5))
+    fig, axes = plt.subplots(1, 2, figsize=_figsize(ncols=2))
     stripplot(df, axes[0], "half_sib_prop_observed", expected="half_sib_prop_expected")
     axes[0].set_title("Half-Sibling Pair Proportion")
     axes[0].set_ylabel("Proportion")
@@ -159,8 +180,7 @@ def plot_cross_trait_correlations(df: pd.DataFrame, out: Path, ext: str = "png")
         ("observed_rC", "rC", "Cross-Trait rC"),
         ("observed_rE", None, "Cross-Trait rE"),
     ]
-    n = df["scenario"].nunique()
-    fig, axes = plt.subplots(1, 3, figsize=(_fig_width(n, ncols=3), 5))
+    fig, axes = plt.subplots(1, 3, figsize=_figsize(ncols=3))
     for ax, (obs, exp, title) in zip(axes, panels):
         if exp:
             stripplot(df, ax, obs, expected=exp)
@@ -173,8 +193,7 @@ def plot_cross_trait_correlations(df: pd.DataFrame, out: Path, ext: str = "png")
 
 
 def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
-    n = df["scenario"].nunique()
-    fig, ax = plt.subplots(figsize=(_fig_width(n), 5))
+    fig, ax = plt.subplots(figsize=_figsize())
     scenarios = df["scenario"].unique()
     positions = {s: i for i, s in enumerate(scenarios)}
     width = 0.3
@@ -197,8 +216,9 @@ def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         )
 
     ax.set_xticks(range(len(scenarios)))
-    if len(scenarios) > 4:
-        ax.set_xticklabels(scenarios, rotation=45, ha="right")
+    _long = max((len(str(s)) for s in scenarios), default=0) > 12
+    if len(scenarios) > 3 or (len(scenarios) > 1 and _long):
+        ax.set_xticklabels(scenarios, rotation=30, ha="right")
     else:
         ax.set_xticklabels(scenarios)
     if len(scenarios) == 1:
@@ -208,11 +228,11 @@ def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
 
     from matplotlib.lines import Line2D
     legend = [
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="C0", markersize=8, label="Mother"),
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="C3", markersize=8, label="Father"),
-        Line2D([0], [0], marker="_", color="C1", markersize=12, linewidth=3, label="Parametric Poisson family size"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor="C0", markersize=6, label="Mother"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor="C3", markersize=6, label="Father"),
+        Line2D([0], [0], marker="_", color="C1", markersize=10, linewidth=2, label="Expected (Poisson)"),
     ]
-    ax.legend(handles=legend, loc="lower left")
+    ax.legend(handles=legend, loc="best", fontsize="small")
     save(fig, out / f"family_size.{ext}")
 
 
@@ -223,23 +243,35 @@ def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     dp["E1 Bias"] = dp["variance_E1"] - dp["E1"]
     dp["Twin Rate Bias"] = dp["observed_twin_rate"] - dp["p_mztwin"]
     dp["DZ A1 Corr Bias"] = dp["dz_sibling_A1_corr"] - 0.5
-    dp["Half-sib A1 Corr Bias"] = dp["half_sib_A1_corr"] - 0.25
+    dp["Half-sib A1 Bias"] = dp["half_sib_A1_corr"] - 0.25
 
     panels = [
         "A1 Bias", "C1 Bias", "E1 Bias",
-        "Twin Rate Bias", "DZ A1 Corr Bias", "Half-sib A1 Corr Bias",
+        "Twin Rate Bias", "DZ A1 Corr Bias", "Half-sib A1 Bias",
     ]
-    n = dp["scenario"].nunique()
-    fig, axes = plt.subplots(2, 3, figsize=(_fig_width(n, ncols=3), 10))
+    scenarios = dp["scenario"].unique()
+    n = len(scenarios)
+    _long = max((len(str(s)) for s in scenarios), default=0) > 12
+    fig, axes = plt.subplots(2, 3, figsize=_figsize(nrows=2, ncols=3))
+    import numpy as np
     for ax, col in zip(axes.flat, panels):
         sns.stripplot(data=dp, x="scenario", y=col, ax=ax, alpha=0.9, jitter=0.15)
         ax.axhline(y=0, color="red", linestyle="--", alpha=0.5)
         ax.set_title(col)
         ax.set_xlabel("")
-        if n > 4:
-            ax.tick_params(axis="x", rotation=45)
+        if n > 3 or (n > 1 and _long):
+            ax.tick_params(axis="x", rotation=30)
+            for lbl in ax.get_xticklabels():
+                lbl.set_ha("right")
         if n == 1:
             ax.set_xlim(-0.5, 0.5)
+        # Tight y-axis: include zero (the reference line) in span
+        vals = dp[col].dropna().values
+        all_v = np.concatenate([vals, [0.0]])
+        lo, hi = float(all_v.min()), float(all_v.max())
+        span = hi - lo
+        pad = max(span * 0.15, 0.002)
+        ax.set_ylim(lo - pad, hi + pad)
     save(fig, out / f"summary_bias.{ext}")
 
 
@@ -282,6 +314,16 @@ def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         logger.warning("No simulate_seconds data; skipping runtime plot")
         return
 
+    unique_n = sub["N"].nunique()
+    if unique_n <= 1:
+        # Single N value — use stripplot instead of log-log scatter
+        fig, ax = plt.subplots(figsize=_figsize())
+        stripplot(sub, ax, "simulate_seconds")
+        ax.set_ylabel("Simulate Time (seconds)")
+        ax.set_title("Simulation Runtime")
+        save(fig, out / f"runtime.{ext}")
+        return
+
     fig, ax = plt.subplots(figsize=(8, 6))
     scenarios = sub["scenario"].unique()
     palette = sns.color_palette("colorblind", len(scenarios))
@@ -308,6 +350,16 @@ def plot_memory(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     sub = df.dropna(subset=["simulate_max_rss_mb"])
     if sub.empty:
         logger.warning("No simulate_max_rss_mb data; skipping memory plot")
+        return
+
+    unique_n = sub["N"].nunique()
+    if unique_n <= 1:
+        # Single N value — use stripplot instead of log-log scatter
+        fig, ax = plt.subplots(figsize=_figsize())
+        stripplot(sub, ax, "simulate_max_rss_mb")
+        ax.set_ylabel("Peak RSS (MB)")
+        ax.set_title("Simulation Memory Usage")
+        save(fig, out / f"memory.{ext}")
         return
 
     fig, ax = plt.subplots(figsize=(8, 6))

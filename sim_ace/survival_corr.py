@@ -337,7 +337,7 @@ def pairwise_weibull_corr_se(
         return np.nan, np.nan
 
     # Boundary hit: likelihood is monotone — estimate is unreliable
-    if abs(r_hat) > 0.99:
+    if abs(r_hat) > 0.999:
         logger.warning(
             "pairwise_weibull_corr_se: estimate hit boundary (r=%.3f), "
             "likely too few events for reliable estimation", r_hat,
@@ -409,7 +409,7 @@ def cross_trait_weibull_corr_se(
     t2 = np.clip(t2, 1e-10, None)
 
     nodes, weights = hermegauss(n_quad)
-    log_weights = np.log(weights)
+    log_weights = np.log(weights) - 0.5 * np.log(2 * np.pi)
 
     # Precompute Weibull constants for trait 1
     log_rho1 = np.log(rho1)

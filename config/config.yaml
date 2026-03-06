@@ -272,9 +272,9 @@ scenarios:
   high_correlation:
     folder: cross_trait
     seed: 8042
-    rA: 0.7
-    rC: 0.7
-    extra_tetrachoric: True
+    rA: .7 # Genetic correlation
+    rC: .7
+    extra_tetrachoric: False
 
   # ── Beta / frailty strength ───────────────────────────────────────────────
   tetra_test:
