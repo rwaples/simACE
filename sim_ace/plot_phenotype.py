@@ -8,6 +8,7 @@ produced by compute_phenotype_stats.py. No full phenotype parquet loading needed
 from __future__ import annotations
 
 import argparse
+import json
 from typing import Any
 
 import pandas as pd
@@ -24,7 +25,6 @@ logger = logging.getLogger(__name__)
 
 MAX_PLOT_POINTS = 200_000
 
-# -- Distribution plots --
 from sim_ace.plot_distributions import (
     plot_death_age_distribution,
     plot_trait_phenotype,
@@ -32,8 +32,6 @@ from sim_ace.plot_distributions import (
     plot_cumulative_incidence,
     plot_censoring_windows,
 )
-
-# -- Liability plots --
 from sim_ace.plot_liability import (
     plot_liability_joint,
     plot_liability_joint_affected,
@@ -41,11 +39,7 @@ from sim_ace.plot_liability import (
     plot_liability_violin_by_generation,
     plot_joint_affection,
 )
-
-# -- Pedigree counts diagram --
 from sim_ace.plot_pedigree_counts import plot_pedigree_relationship_counts
-
-# -- Correlation plots --
 from sim_ace.plot_correlations import (
     plot_tetrachoric_sibling,
     plot_tetrachoric_by_generation,
@@ -53,7 +47,7 @@ from sim_ace.plot_correlations import (
     plot_parent_offspring_liability,
     plot_heritability_by_generation,
     plot_broad_heritability_by_generation,
-    plot_cross_trait_weibull_by_generation,
+    plot_cross_trait_frailty_by_generation,
 )
 
 
@@ -73,18 +67,14 @@ def main(
     scenario = out_dir.parent.name
     sns.set_theme(style="whitegrid", palette="colorblind")
 
-    # Load per-rep stats
     all_stats = []
     for p in stats_paths:
         with open(p, encoding="utf-8") as f:
             all_stats.append(yaml.load(f, Loader=_yaml_loader))
 
-    # Load and concatenate downsampled data
     df_samples = pd.concat(
         [pd.read_parquet(p) for p in sample_paths], ignore_index=True
     )
-
-    # Subsample for plotting (scatter/violin are O(n) slow for >100K points)
     if len(df_samples) > MAX_PLOT_POINTS:
         df_samples = df_samples.sample(
             n=MAX_PLOT_POINTS, random_state=42
@@ -92,74 +82,82 @@ def main(
 
     ext = plot_ext
 
-    # Pedigree relationship pair counts diagrams
-    # G_ped: full pedigree generations
+    # Pedigree relationship pair counts
     plot_pedigree_relationship_counts(
         all_stats, out_dir / f"pedigree_counts.ped.{ext}", scenario,
         stats_key="pair_counts_ped",
         generations_label="G_ped",
     )
-    # G_pheno: phenotyped generations only
     plot_pedigree_relationship_counts(
         all_stats, out_dir / f"pedigree_counts.{ext}", scenario,
         generations_label="G_pheno",
     )
 
+    # Distribution plots
     plot_death_age_distribution(
-        all_stats, censor_age, out_dir / f"mortality.{ext}", scenario
+        all_stats, censor_age, out_dir / f"mortality.{ext}", scenario,
     )
     plot_trait_phenotype(
-        df_samples, out_dir / f"age_at_onset_death.{ext}", scenario
+        df_samples, out_dir / f"age_at_onset_death.{ext}", scenario,
     )
     plot_trait_regression(
-        df_samples, all_stats, out_dir / f"liability_vs_aoo.{ext}", scenario
+        df_samples, all_stats, out_dir / f"liability_vs_aoo.{ext}", scenario,
     )
+
+    # Liability plots
     plot_liability_joint(
-        df_samples, out_dir / f"cross_trait.{ext}", scenario
+        df_samples, out_dir / f"cross_trait.{ext}", scenario,
     )
     plot_liability_joint_affected(
-        df_samples, out_dir / f"cross_trait.weibull.{ext}", scenario
+        df_samples, out_dir / f"cross_trait.frailty.{ext}", scenario,
     )
     plot_liability_violin(
-        df_samples, all_stats, out_dir / f"liability_violin.weibull.{ext}", scenario
+        df_samples, all_stats, out_dir / f"liability_violin.frailty.{ext}", scenario,
     )
     plot_liability_violin_by_generation(
-        df_samples, all_stats, out_dir / f"liability_violin.weibull.by_generation.{ext}", scenario
+        df_samples, all_stats,
+        out_dir / f"liability_violin.frailty.by_generation.{ext}", scenario,
     )
+
+    # Survival / incidence plots
     plot_cumulative_incidence(
-        all_stats, censor_age, out_dir / f"cumulative_incidence.weibull.{ext}", scenario
+        all_stats, censor_age,
+        out_dir / f"cumulative_incidence.frailty.{ext}", scenario,
     )
     plot_joint_affection(
-        df_samples, out_dir / f"joint_affected.weibull.{ext}", scenario,
+        df_samples, out_dir / f"joint_affected.frailty.{ext}", scenario,
         all_stats=all_stats,
     )
+
+    # Censoring
     if gen_censoring is not None:
         plot_censoring_windows(
             all_stats, out_dir / f"censoring.{ext}", scenario,
             gen_censoring=gen_censoring,
         )
     else:
-        # Create placeholder to satisfy Snakemake output
         fig, ax = plt.subplots(figsize=(6, 4))
         ax.text(0.5, 0.5, "No censoring windows configured",
                 ha="center", va="center", transform=ax.transAxes)
         plt.savefig(out_dir / f"censoring.{ext}", dpi=150)
         plt.close()
 
+    # Correlation plots
     plot_tetrachoric_sibling(
-        all_stats, out_dir / f"tetrachoric.weibull.{ext}", scenario,
+        all_stats, out_dir / f"tetrachoric.frailty.{ext}", scenario,
     )
     plot_tetrachoric_by_generation(
-        all_stats, out_dir / f"tetrachoric.weibull.by_generation.{ext}", scenario,
+        all_stats, out_dir / f"tetrachoric.frailty.by_generation.{ext}", scenario,
     )
     plot_cross_trait_tetrachoric(
         all_stats, out_dir / f"cross_trait_tetrachoric.{ext}", scenario,
     )
     plot_parent_offspring_liability(
-        df_samples, all_stats, out_dir / f"parent_offspring_liability.by_generation.{ext}", scenario,
+        df_samples, all_stats,
+        out_dir / f"parent_offspring_liability.by_generation.{ext}", scenario,
     )
-    plot_cross_trait_weibull_by_generation(
-        all_stats, out_dir / f"cross_trait_weibull.by_generation.{ext}", scenario,
+    plot_cross_trait_frailty_by_generation(
+        all_stats, out_dir / f"cross_trait_frailty.by_generation.{ext}", scenario,
     )
 
     # Per-generation heritability (requires validation data)
@@ -169,10 +167,12 @@ def main(
             with open(p, encoding="utf-8") as f:
                 all_validations.append(yaml.load(f, Loader=_yaml_loader))
         plot_heritability_by_generation(
-            all_validations, out_dir / f"heritability.by_generation.{ext}", scenario,
+            all_validations,
+            out_dir / f"heritability.by_generation.{ext}", scenario,
         )
         plot_broad_heritability_by_generation(
-            all_validations, out_dir / f"broad_heritability.by_generation.{ext}", scenario,
+            all_validations,
+            out_dir / f"broad_heritability.by_generation.{ext}", scenario,
         )
     else:
         for name in ["heritability.by_generation", "broad_heritability.by_generation"]:
@@ -188,6 +188,7 @@ def main(
 def cli() -> None:
     """Command-line interface for generating phenotype plots."""
     from sim_ace.cli_base import add_logging_args, init_logging
+
     parser = argparse.ArgumentParser(description="Plot phenotype distributions")
     add_logging_args(parser)
     parser.add_argument("--stats", nargs="+", required=True, help="Stats YAML paths")
@@ -201,11 +202,12 @@ def cli() -> None:
 
     init_logging(args)
 
-    import json
     gen_censoring = None
     if args.gen_censoring:
         gen_censoring = {int(k): v for k, v in json.loads(args.gen_censoring).items()}
 
-    main(args.stats, args.samples, args.output_dir, args.censor_age,
-         gen_censoring=gen_censoring, plot_ext=args.plot_format,
-         validation_paths=args.validations)
+    main(
+        args.stats, args.samples, args.output_dir, args.censor_age,
+        gen_censoring=gen_censoring, plot_ext=args.plot_format,
+        validation_paths=args.validations,
+    )

@@ -1,66 +1,68 @@
-rule stats_weibull:
+# ---------------------------------------------------------------------------
+# Statistics and plotting rules
+# ---------------------------------------------------------------------------
+
+
+rule stats_frailty:
     input:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.weibull.sampled.parquet",
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.sampled.parquet",
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
         stats="results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
-        samples="results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet"
+        samples="results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet",
     params:
-        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
-        censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
-        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
-        beta1=lambda w: get_param(config, w.scenario, "beta1"),
-        scale1=lambda w: get_param(config, w.scenario, "scale1"),
-        rho1=lambda w: get_param(config, w.scenario, "rho1"),
-        beta2=lambda w: get_param(config, w.scenario, "beta2"),
-        scale2=lambda w: get_param(config, w.scenario, "scale2"),
-        rho2=lambda w: get_param(config, w.scenario, "rho2"),
-        extra_tetrachoric=lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
+        seed             = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
+        censor_age       = lambda w: get_param(config, w.scenario, "censor_age"),
+        gen_censoring    = lambda w: get_param(config, w.scenario, "gen_censoring"),
+        extra_tetrachoric = lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
+        beta1            = lambda w: get_param(config, w.scenario, "beta1"),
+        hazard_model1    = lambda w: get_param(config, w.scenario, "hazard_model1"),
+        hazard_params1   = lambda w: get_param(config, w.scenario, "hazard_params1"),
+        beta2            = lambda w: get_param(config, w.scenario, "beta2"),
+        hazard_model2    = lambda w: get_param(config, w.scenario, "hazard_model2"),
+        hazard_params2   = lambda w: get_param(config, w.scenario, "hazard_params2"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/phenotype_stats.log"
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_stats.tsv"
     resources:
-        mem_mb=4000,
-        runtime=10
+        mem_mb  = 4000,
+        runtime = 10
     threads: 1
     script:
         "../scripts/compute_phenotype_stats.py"
 
 
-rule plot_weibull:
+rule plot_frailty:
     input:
         stats=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
-            folder=w.folder,
-            scenario=w.scenario,
+            folder=w.folder, scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
         samples=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet",
-            folder=w.folder,
-            scenario=w.scenario,
+            folder=w.folder, scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
         validations=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/validation.yaml",
-            folder=w.folder,
-            scenario=w.scenario,
+            folder=w.folder, scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
-    params:
-        censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
-        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
-        plot_format=config["defaults"].get("plot_format", "png"),
     output:
-        expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS)
+        expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS),
+    params:
+        censor_age    = lambda w: get_param(config, w.scenario, "censor_age"),
+        gen_censoring = lambda w: get_param(config, w.scenario, "gen_censoring"),
+        plot_format   = lambda w: config["defaults"].get("plot_format", "png"),
     log:
         "logs/{folder}/{scenario}/plot_phenotype.log"
     benchmark:
         "benchmarks/{folder}/{scenario}/plot_phenotype.tsv"
     resources:
-        mem_mb=2000,
-        runtime=5
+        mem_mb  = 2000,
+        runtime = 5
     threads: 1
     script:
         "../scripts/plot_phenotype.py"
@@ -68,20 +70,20 @@ rule plot_weibull:
 
 rule stats_threshold:
     input:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.sampled.parquet"
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.sampled.parquet",
     output:
         stats="results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml",
-        samples="results/{folder}/{scenario}/rep{rep}/threshold_samples.parquet"
+        samples="results/{folder}/{scenario}/rep{rep}/threshold_samples.parquet",
     params:
-        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
-        extra_tetrachoric=lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
+        seed             = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
+        extra_tetrachoric = lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/threshold_stats.log"
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/threshold_stats.tsv"
     resources:
-        mem_mb=4000,
-        runtime=10
+        mem_mb  = 4000,
+        runtime = 10
     threads: 1
     script:
         "../scripts/compute_threshold_stats.py"
@@ -91,29 +93,27 @@ rule plot_threshold:
     input:
         stats=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml",
-            folder=w.folder,
-            scenario=w.scenario,
+            folder=w.folder, scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
         samples=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/threshold_samples.parquet",
-            folder=w.folder,
-            scenario=w.scenario,
+            folder=w.folder, scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
-    params:
-        prevalence1=lambda w: get_param(config, w.scenario, "prevalence1"),
-        prevalence2=lambda w: get_param(config, w.scenario, "prevalence2"),
-        plot_format=config["defaults"].get("plot_format", "png"),
     output:
-        expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=THRESHOLD_PLOTS)
+        expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=THRESHOLD_PLOTS),
+    params:
+        prevalence1 = lambda w: get_param(config, w.scenario, "prevalence1"),
+        prevalence2 = lambda w: get_param(config, w.scenario, "prevalence2"),
+        plot_format = lambda w: config["defaults"].get("plot_format", "png"),
     log:
         "logs/{folder}/{scenario}/plot_threshold.log"
     benchmark:
         "benchmarks/{folder}/{scenario}/plot_threshold.tsv"
     resources:
-        mem_mb=2000,
-        runtime=5
+        mem_mb  = 2000,
+        runtime = 5
     threads: 1
     script:
         "../scripts/plot_threshold.py"
@@ -121,35 +121,37 @@ rule plot_threshold:
 
 rule assemble_scenario_atlas:
     input:
-        weibull=expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS),
-        threshold=expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=THRESHOLD_PLOTS),
-        params_yaml="results/{folder}/{scenario}/rep1/params.yaml",
-    params:
-        scenario=lambda w: w.scenario,
-        replicates=lambda w: get_param(config, w.scenario, "replicates"),
-        folder=lambda w: get_param(config, w.scenario, "folder"),
-        beta1=lambda w: get_param(config, w.scenario, "beta1"),
-        scale1=lambda w: get_param(config, w.scenario, "scale1"),
-        rho1=lambda w: get_param(config, w.scenario, "rho1"),
-        beta2=lambda w: get_param(config, w.scenario, "beta2"),
-        scale2=lambda w: get_param(config, w.scenario, "scale2"),
-        rho2=lambda w: get_param(config, w.scenario, "rho2"),
-        standardize=lambda w: get_param(config, w.scenario, "standardize"),
-        censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
-        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
-        death_scale=lambda w: get_param(config, w.scenario, "death_scale"),
-        death_rho=lambda w: get_param(config, w.scenario, "death_rho"),
-        prevalence1=lambda w: get_param(config, w.scenario, "prevalence1"),
-        prevalence2=lambda w: get_param(config, w.scenario, "prevalence2"),
-        G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
-        plot_format=config["defaults"].get("plot_format", "png"),
+        frailty   = expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS),
+        threshold = expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=THRESHOLD_PLOTS),
+        params_yaml = "results/{folder}/{scenario}/rep1/params.yaml",
     output:
-        "results/{folder}/{scenario}/plots/atlas.pdf"
+        "results/{folder}/{scenario}/plots/atlas.pdf",
+    params:
+        scenario       = lambda w: w.scenario,
+        replicates     = lambda w: get_param(config, w.scenario, "replicates"),
+        folder         = lambda w: get_param(config, w.scenario, "folder"),
+        standardize    = lambda w: get_param(config, w.scenario, "standardize"),
+        beta1          = lambda w: get_param(config, w.scenario, "beta1"),
+        hazard_model1  = lambda w: get_param(config, w.scenario, "hazard_model1"),
+        hazard_params1 = lambda w: get_param(config, w.scenario, "hazard_params1"),
+        beta2          = lambda w: get_param(config, w.scenario, "beta2"),
+        hazard_model2  = lambda w: get_param(config, w.scenario, "hazard_model2"),
+        hazard_params2 = lambda w: get_param(config, w.scenario, "hazard_params2"),
+        censor_age     = lambda w: get_param(config, w.scenario, "censor_age"),
+        gen_censoring  = lambda w: get_param(config, w.scenario, "gen_censoring"),
+        death_scale    = lambda w: get_param(config, w.scenario, "death_scale"),
+        death_rho      = lambda w: get_param(config, w.scenario, "death_rho"),
+        prevalence1    = lambda w: get_param(config, w.scenario, "prevalence1"),
+        prevalence2    = lambda w: get_param(config, w.scenario, "prevalence2"),
+        G_pheno        = lambda w: get_param(config, w.scenario, "G_pheno"),
+        plot_format    = lambda w: config["defaults"].get("plot_format", "png"),
     log:
         "logs/{folder}/{scenario}/assemble_atlas.log"
+    benchmark:
+        "benchmarks/{folder}/{scenario}/assemble_atlas.tsv"
     resources:
-        mem_mb=1000,
-        runtime=5
+        mem_mb  = 1000,
+        runtime = 5
     threads: 1
     script:
         "../scripts/assemble_atlas.py"

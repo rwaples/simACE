@@ -12,13 +12,17 @@ rule simulate_all:
 
 
 rule phenotype_all:
-    """Run simulation + phenotyping (Weibull and threshold)."""
+    """Run simulation + phenotyping (frailty and threshold)."""
     input:
         [f"results/{get_folder(config, s)}/{s}/rep{r}/{f}"
          for s in config["scenarios"]
          for r in range(1, get_param(config, s, "replicates") + 1)
-         for f in ["phenotype.weibull.parquet", "phenotype.weibull.sampled.parquet",
-                   "phenotype.liability_threshold.parquet", "phenotype.liability_threshold.sampled.parquet"]]
+         for f in [
+             "phenotype.parquet",
+             "phenotype.sampled.parquet",
+             "phenotype.liability_threshold.parquet",
+             "phenotype.liability_threshold.sampled.parquet",
+         ]]
 
 
 rule validate_all:
@@ -31,7 +35,7 @@ rule validate_all:
 
 
 rule stats_all:
-    """Run phenotyping + stats + phenotype/threshold plots."""
+    """Run phenotyping + stats + frailty/threshold plots."""
     input:
         [f"results/{get_folder(config, s)}/{s}/plots/{plot}"
          for s in config["scenarios"]
@@ -42,7 +46,7 @@ rule folder:
     """Build all scenario outputs for a single folder grouping."""
     input:
         lambda w: [f"results/{w.folder}/{s}/scenario.done"
-                    for s in get_scenarios_for_folder(config, w.folder)]
+                   for s in get_scenarios_for_folder(config, w.folder)]
     output:
         touch("results/{folder}/folder.done")
 
