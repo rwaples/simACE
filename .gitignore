@@ -62,3 +62,4 @@ Thumbs.db
 #epimight
 /epimight/NDD.parquet
 /epimight/NDG.parquet
+/epimight/true_parameters.json

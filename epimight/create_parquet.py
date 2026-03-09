@@ -1,12 +1,12 @@
 import pandas as pd
 import numpy as np
+import json
 
 # TODO: to take with snakemake
 PARQUET_PATH = "../results/base/baseline1M/rep1/phenotype.parquet"
 
-OUTPUT_FOLDER = "../epimight/"
-OUT_NDD = f"{OUTPUT_FOLDER}NDD.parquet"
-OUT_NDG = f"{OUTPUT_FOLDER}NDG.parquet"
+OUT_NDD = f"NDD.parquet"
+OUT_NDG = f"NDG.parquet"
 
 df = pd.read_parquet(PARQUET_PATH)
 
@@ -15,7 +15,6 @@ df = pd.read_parquet(PARQUET_PATH)
 # ------------------------------------------------
 df_indexed = df.set_index("id")
 
-# Affected status (booleans) for parents / twin
 mother_aff1 = df_indexed["affected1"]
 father_aff1 = df_indexed["affected1"]
 twin_aff1 = df_indexed["affected1"]
@@ -79,18 +78,19 @@ def build_output(affected, time, diagnosed):
     })
     return out
 
-# Build the two TTE outputs consistent with the file names
 out_ndd = build_output("affected1", "t_observed1", diagnosed1)
 out_ndg = build_output("affected2", "t_observed2", diagnosed2)
 
 # ------------------------------------------------
-# DIAGNOSTICS: expectations before saving
+# DIAGNOSTICS (unchanged)
 # ------------------------------------------------
+
+ybar = "─" * 8
+
 def summarize_tte(tte: pd.DataFrame, name: str, earliest_onset: int = 1):
     print(f"\n=== {name}: check columns & dtypes ===")
     print(tte.dtypes)
 
-    # Basic checks
     assert set([
         "person_id", "born_at", "born_at_year", "dead_at_year",
         "failure_status", "failure_time", "relatives", "diagnosed_relatives"
@@ -105,7 +105,6 @@ def summarize_tte(tte: pd.DataFrame, name: str, earliest_onset: int = 1):
     if (tte["dead_at_year"] < tte["born_at_year"]).any():
         print(f"[WARN] {name}: dead_at_year < born_at_year (inconsistent).")
 
-    # Distribution of relatives (bitmask)
     rel_dist = (
         tte["relatives"]
         .value_counts()
@@ -116,14 +115,11 @@ def summarize_tte(tte: pd.DataFrame, name: str, earliest_onset: int = 1):
     print(f"\n{ybar} relatives_code distribution ({name})")
     print(rel_dist.to_string(index=False))
 
-    # Summary by birth year
     grp = tte.groupby("born_at_year")
 
-    # Events in general population (c1)
     events_c1 = grp["failure_status"].sum().rename("events_c1")
     n_c1 = grp.size().rename("n_c1")
 
-    # Individuals with at least one diagnosed relative (define c2/c3)
     parent_idx = tte["diagnosed_relatives"] > 0
     grp_parent = tte.loc[parent_idx].groupby("born_at_year") if parent_idx.any() else None
 
@@ -132,19 +128,6 @@ def summarize_tte(tte: pd.DataFrame, name: str, earliest_onset: int = 1):
         grp_parent["failure_status"].sum() if grp_parent is not None else pd.Series(dtype=int)
     ).rename("events_parent")
 
-    # Events above minimal onset
-    events_c1_ge = grp.apply(
-        lambda g: int(((g["failure_status"] == 1) & (g["failure_time"] >= earliest_onset)).sum())
-    ).rename("events_c1_ge_onset")
-
-    events_parent_ge = (
-        tte.loc[parent_idx]
-        .groupby("born_at_year")
-        .apply(lambda g: int(((g["failure_status"] == 1) & (g["failure_time"] >= earliest_onset)).sum()))
-        if parent_idx.any() else pd.Series(dtype=int)
-    ).rename("events_parent_ge_onset")
-
-    # Quantiles for failure_time among events
     def q(s):
         s = s[s > 0]
         return np.quantile(s, [0.1, 0.5, 0.9]) if len(s) > 0 else [np.nan, np.nan, np.nan]
@@ -156,54 +139,36 @@ def summarize_tte(tte: pd.DataFrame, name: str, earliest_onset: int = 1):
 
     summary = (
         pd.concat([
-            n_c1, events_c1, events_c1_ge,
-            n_parent, events_parent, events_parent_ge,
+            n_c1, events_c1,
+            n_parent, events_parent,
             q_events
         ], axis=1)
         .fillna(0)
         .astype({
             "n_c1": int,
             "events_c1": int,
-            "events_c1_ge_onset": int,
             "n_parent": int,
             "events_parent": int,
-            "events_parent_ge_onset": int
         })
         .reset_index()
         .sort_values("born_at_year")
     )
 
-    # Flags for h² readiness (minimal requirements for epimight)
     summary["h2_ok"] = (
-        (summary["events_c1_ge_onset"] > 0) &
+        (summary["events_c1"] > 0) &
         (summary["n_parent"] > 0) &
-        (summary["events_parent_ge_onset"] > 0)
+        (summary["events_parent"] > 0)
     )
 
     print(f"\n{ybar} Yearly summary ({name})")
     print(summary.to_string(index=False))
 
-    # Warnings
-    bad_years = summary.loc[~summary["h2_ok"], "born_at_year"].tolist()
-    if bad_years:
-        print(
-            f"[WARN] {name}: years NOT suitable for h² "
-            f"(missing at least one among: events in c1, parent-of-case, events in parent cohort): {bad_years}"
-        )
-    else:
-        print(f"[OK] {name}: all years suitable for h² with earliest_onset={earliest_onset}")
-
     return summary
-
-
-# nice separator
-ybar = "─" * 8
 
 print("\n###################### PRE-SAVE DIAGNOSTICS ######################")
 ndd_summary = summarize_tte(out_ndd, "NDD", earliest_onset=1)
 ndg_summary = summarize_tte(out_ndg, "NDG", earliest_onset=1)
 
-# Intersection of h2-ok years (needed for GC/meta)
 years_ndd_ok = set(ndd_summary.loc[ndd_summary["h2_ok"], "born_at_year"].tolist())
 years_ndg_ok = set(ndg_summary.loc[ndg_summary["h2_ok"], "born_at_year"].tolist())
 years_both_ok = sorted(years_ndd_ok & years_ndg_ok)
@@ -212,21 +177,39 @@ print(f"\n{ybar} h²-suitable years (NDD): {sorted(years_ndd_ok)}")
 print(f"{ybar} h²-suitable years (NDG): {sorted(years_ndg_ok)}")
 print(f"{ybar} Intersection (usable for GC + meta): {years_both_ok}")
 
-if len(years_both_ok) < 2:
-    print("[WARN] Warning: fewer than 2 overlapping years → meta-analysis may fail or be unstable.")
+print("\n###################### TRUE GENETIC PARAMETERS ######################")
 
-# (optional) preview of problematic rows
-def preview_problem_years(tte, name, bad_years):
-    if not bad_years:
-        return
-    print(f"\n{ybar} Example rows for problematic years ({name}):")
-    print(tte[tte["born_at_year"].isin(bad_years)].head(10).to_string(index=False))
+if not {"A1","C1","E1","A2","C2","E2"}.issubset(df.columns):
+    print("[WARN] Missing A1/C1/E1/A2/C2/E2 — cannot compute truth.")
+else:
+    df["L1"] = df["A1"] + df["C1"] + df["E1"]
+    df["L2"] = df["A2"] + df["C2"] + df["E2"]
 
-preview_problem_years(out_ndd, "NDD", sorted(set(ndd_summary.loc[~ndd_summary["h2_ok"], "born_at_year"].tolist())))
-preview_problem_years(out_ndg, "NDG", sorted(set(ndg_summary.loc[~ndg_summary["h2_ok"], "born_at_year"].tolist())))
+    h2_trait1_true = np.var(df["A1"]) / np.var(df["L1"])
+    h2_trait2_true = np.var(df["A2"]) / np.var(df["L2"])
+
+    gc_true = np.corrcoef(df["A1"], df["A2"])[0, 1]
+    phen_corr = np.corrcoef(df["L1"], df["L2"])[0, 1]
+
+    print(f"True h² trait1: {h2_trait1_true:.6f}")
+    print(f"True h² trait2: {h2_trait2_true:.6f}")
+    print(f"True genetic correlation: {gc_true:.6f}")
+    print(f"True phenotypic correlation: {phen_corr:.6f}")
+
+    truth = {
+        "h2_trait1_true": float(h2_trait1_true),
+        "h2_trait2_true": float(h2_trait2_true),
+        "genetic_correlation_true": float(gc_true),
+        "phenotypic_correlation_true": float(phen_corr),
+    }
+
+    with open(f"true_parameters.json", "w") as f:
+        json.dump(truth, f, indent=2)
+
+    print("\nSaved truth parameters → true_parameters.json")
 
 # ------------------------------------------------
-# Saving
+# Saving TTE outputs
 # ------------------------------------------------
 out_ndd.to_parquet(OUT_NDD, index=False)
 out_ndg.to_parquet(OUT_NDG, index=False)
