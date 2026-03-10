@@ -30,6 +30,8 @@ from sim_ace.plot_distributions import (
     plot_trait_phenotype,
     plot_trait_regression,
     plot_cumulative_incidence,
+    plot_cumulative_incidence_by_sex,
+    plot_cumulative_incidence_by_sex_generation,
     plot_censoring_windows,
 )
 from sim_ace.plot_liability import (
@@ -123,6 +125,14 @@ def main(
     plot_cumulative_incidence(
         all_stats, censor_age,
         out_dir / f"cumulative_incidence.frailty.{ext}", scenario,
+    )
+    plot_cumulative_incidence_by_sex(
+        df_samples, censor_age,
+        out_dir / f"cumulative_incidence.by_sex.{ext}", scenario,
+    )
+    plot_cumulative_incidence_by_sex_generation(
+        df_samples, censor_age,
+        out_dir / f"cumulative_incidence.by_sex.by_generation.{ext}", scenario,
     )
     plot_joint_affection(
         df_samples, out_dir / f"joint_affected.frailty.{ext}", scenario,

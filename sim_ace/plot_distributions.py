@@ -250,6 +250,131 @@ def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float
     plt.close()
 
 
+def plot_cumulative_incidence_by_sex(
+    df_samples: pd.DataFrame,
+    censor_age: float,
+    output_path: str | Path,
+    scenario: str = "",
+    n_points: int = 200,
+) -> None:
+    """Plot cumulative incidence curves split by sex (0=female, 1=male)."""
+    if "sex" not in df_samples.columns:
+        logger.warning("Skipping cumulative_incidence_by_sex: no 'sex' column")
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No sex column", ha="center", va="center",
+                transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    ages = np.linspace(0, censor_age, n_points)
+    female = df_samples[df_samples["sex"] == 0]
+    male = df_samples[df_samples["sex"] == 1]
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+
+    for trait_num, ax in zip([1, 2], axes):
+        aff_col = f"affected{trait_num}"
+        t_col = f"t_observed{trait_num}"
+
+        for subset, label, color in [
+            (female, "Female", "C0"),
+            (male, "Male", "C3"),
+        ]:
+            n_sex = len(subset)
+            if n_sex == 0:
+                continue
+            aff_mask = subset[aff_col].values.astype(bool)
+            sorted_t = np.sort(subset[t_col].values[aff_mask])
+            inc = np.searchsorted(sorted_t, ages, side="right") / n_sex
+            prev = aff_mask.sum() / n_sex
+            ax.plot(ages, inc, color=color, linewidth=2, label=f"{label} (n={n_sex}, prev={prev:.1%})")
+
+        ax.set_title(f"Trait {trait_num}")
+        ax.set_xlabel("Age")
+        ax.legend(loc="lower right", fontsize=9)
+
+    axes[0].set_ylabel("Cumulative Incidence")
+    fig.suptitle(f"Cumulative Incidence by Sex [{scenario}]", fontsize=14)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150)
+    plt.close()
+
+
+def plot_cumulative_incidence_by_sex_generation(
+    df_samples: pd.DataFrame,
+    censor_age: float,
+    output_path: str | Path,
+    scenario: str = "",
+    n_points: int = 200,
+) -> None:
+    """Plot cumulative incidence by sex, one column per generation."""
+    if "sex" not in df_samples.columns or "generation" not in df_samples.columns:
+        logger.warning("Skipping cumulative_incidence_by_sex_generation: missing columns")
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "Missing sex or generation column", ha="center", va="center",
+                transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    generations = sorted(df_samples["generation"].unique())
+    if not generations:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No generations", ha="center", va="center",
+                transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    ages = np.linspace(0, censor_age, n_points)
+    traits = [1, 2]
+
+    fig, axes = plt.subplots(
+        len(traits), len(generations),
+        figsize=(5 * len(generations), 4 * len(traits)),
+        sharex=True, sharey=True, squeeze=False,
+    )
+
+    for col, gen in enumerate(generations):
+        gen_df = df_samples[df_samples["generation"] == gen]
+        female = gen_df[gen_df["sex"] == 0]
+        male = gen_df[gen_df["sex"] == 1]
+
+        for row, trait_num in enumerate(traits):
+            ax = axes[row, col]
+            aff_col = f"affected{trait_num}"
+            t_col = f"t_observed{trait_num}"
+
+            for subset, label, color in [
+                (female, "Female", "C0"),
+                (male, "Male", "C3"),
+            ]:
+                n_sex = len(subset)
+                if n_sex == 0:
+                    continue
+                aff_mask = subset[aff_col].values.astype(bool)
+                sorted_t = np.sort(subset[t_col].values[aff_mask])
+                inc = np.searchsorted(sorted_t, ages, side="right") / n_sex
+                prev = aff_mask.sum() / n_sex
+                ax.plot(ages, inc, color=color, linewidth=2,
+                        label=f"{label} (n={n_sex}, {prev:.1%})")
+
+            if row == 0:
+                ax.set_title(f"Gen {gen}", fontsize=12)
+            if col == 0:
+                ax.set_ylabel(f"Trait {trait_num}\nCumulative Incidence")
+            if row == len(traits) - 1:
+                ax.set_xlabel("Age")
+            if col == len(generations) - 1:
+                ax.legend(loc="lower right", fontsize=8)
+
+    fig.suptitle(f"Cumulative Incidence by Sex and Generation [{scenario}]", fontsize=14, y=1.01)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
 def plot_censoring_windows(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,

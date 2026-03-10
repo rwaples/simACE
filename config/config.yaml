@@ -164,6 +164,12 @@ scenarios:
     beta1: 4.0
     beta2: 4.0
 
+  beta_sex:
+    folder: phenotype
+    seed: 22042
+    beta_sex1: 0.5
+    beta_sex2: 0.5
+
   # ── Non-Weibull baselines ─────────────────────────────────────────────────
   lognormal_phenotype:
     folder: phenotype

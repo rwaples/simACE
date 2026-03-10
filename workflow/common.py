@@ -47,6 +47,8 @@ _PHENOTYPE_BASENAMES = [
     "age_at_onset_death",
     "mortality",
     "cumulative_incidence.frailty",
+    "cumulative_incidence.by_sex",
+    "cumulative_incidence.by_sex.by_generation",
     # Censoring
     "censoring",
     # Familial correlations

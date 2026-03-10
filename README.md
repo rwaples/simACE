@@ -211,7 +211,7 @@ Extends the pedigree with Weibull frailty time-to-event phenotypes and censoring
 
 #### phenotype.liability_threshold.parquet
 
-Binary affection status from a liability-threshold model. Each generation has an independent prevalence-based threshold.
+Binary affected status from a liability-threshold model. Each generation has an independent prevalence-based threshold.
 
 | Column | Type | Description |
 |--------|------|-------------|
