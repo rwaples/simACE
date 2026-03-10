@@ -6,6 +6,8 @@ import json
 
 from sim_ace.pedigree_graph import extract_relationship_pairs
 
+BASE_YEAR = 1960  # calendar year offset: born_at_year = BASE_YEAR + generation
+
 # Mapping from EPIMIGHT relationship kinds to ACE pair type names
 KIND_TO_PAIRS = {
     "PO":  ["Mother-offspring", "Father-offspring"],
@@ -98,12 +100,12 @@ def main():
     # ------------------------------------------------
     # build outputs
     # ------------------------------------------------
-    def build_output(affected_col, time_col, diag_cols):
+    def build_output(affected_col, time_col, diag_cols, nrel_cols):
         out = pd.DataFrame({
             "person_id": df["id"],
             "born_at": df["generation"],
-            "born_at_year": 1960 + df["generation"],
-            "dead_at_year": 1960 + df["generation"] + df["death_age"].astype(int),
+            "born_at_year": BASE_YEAR + df["generation"],
+            "dead_at_year": BASE_YEAR + df["generation"] + df["death_age"].astype(int),
             "failure_status": df[affected_col].astype(int),
             "failure_time": df[time_col].astype(int),
         })
@@ -115,8 +117,8 @@ def main():
             out[f"n_relatives_{kind}"] = nrel_cols[kind].astype(int)
         return out
 
-    out_ndd = build_output("affected1", "t_observed1", diag_cols_1)
-    out_ndg = build_output("affected2", "t_observed2", diag_cols_2)
+    out_ndd = build_output("affected1", "t_observed1", diag_cols_1, nrel_cols)
+    out_ndg = build_output("affected2", "t_observed2", diag_cols_2, nrel_cols)
 
     # ------------------------------------------------
     # DIAGNOSTICS

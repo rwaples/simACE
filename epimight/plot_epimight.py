@@ -15,10 +15,13 @@ import logging
 import re
 from pathlib import Path
 
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib.colors import LinearSegmentedColormap, Normalize, to_rgba
+from matplotlib.lines import Line2D
 
 from sim_ace.plot_atlas import assemble_atlas
 
@@ -178,6 +181,28 @@ def tmax_rows(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Plot helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_panel_grid(n_panels: int, n_cols: int = 3, **subplot_kw):
+    """Create a multi-panel subplot grid and return (fig, axes, n_rows, n_cols)."""
+    n_cols = min(n_panels, n_cols)
+    n_rows = (n_panels + n_cols - 1) // n_cols
+    fig_kw = {"figsize": (6 * n_cols, 4.5 * n_rows), "sharey": True, "squeeze": False}
+    fig_kw.update(subplot_kw)
+    fig, axes = plt.subplots(n_rows, n_cols, **fig_kw)
+    return fig, axes, n_rows, n_cols
+
+
+def _hide_unused(axes, n_used: int, n_rows: int, n_cols: int) -> None:
+    """Hide axes beyond *n_used* in a (n_rows x n_cols) grid."""
+    for idx in range(n_used, n_rows * n_cols):
+        row, col = divmod(idx, n_cols)
+        axes[row, col].set_visible(False)
+
+
+# ---------------------------------------------------------------------------
 # Plot functions
 # ---------------------------------------------------------------------------
 
@@ -194,8 +219,6 @@ def _plot_c1_on_ax(ax, c1: pd.DataFrame, years: list, norm, cmap):
 
 def _add_cif_colorbar_and_legend(fig, axes, norm, cmap_exposed, exposed_cohort):
     """Add horizontal colorbar and legend below the figure."""
-    import matplotlib.cm as cm
-    from matplotlib.lines import Line2D
 
     sm = cm.ScalarMappable(cmap=cmap_exposed, norm=norm)
     sm.set_array([])
@@ -215,9 +238,6 @@ def plot_cif_base(
     tsv_dir: Path, kinds: list[str], output_path: Path,
 ) -> None:
     """Two-panel plot of c1 base population CIF (D1 left, D2 right), shared y-axis."""
-    import matplotlib.cm as cm
-    from matplotlib.colors import Normalize
-
     c1_d1 = load_cif(tsv_dir, "d1", "c1", kinds[0])
     c1_d2 = load_cif(tsv_dir, "d2", "c1", kinds[0])
     if c1_d1.empty and c1_d2.empty:
@@ -227,7 +247,6 @@ def plot_cif_base(
     years = sorted(ref["born_at_year"].unique())
     norm = Normalize(vmin=min(years), vmax=max(years))
     # Truncate Greys so lightest color is ~0.7 gray, not white
-    from matplotlib.colors import LinearSegmentedColormap
     cmap = LinearSegmentedColormap.from_list(
         "Greys_trunc", cm.Greys(np.linspace(0.25, 1.0, 256))
     )
@@ -265,8 +284,6 @@ def _plot_cif_panels(
     output_path: Path, title: str, n_cols: int = 2,
 ) -> None:
     """CIF panels: first panel is c1-only, remaining panels show c1 + exposed."""
-    import matplotlib.cm as cm
-    from matplotlib.colors import LinearSegmentedColormap, Normalize
 
     exposed_cohort = "c2" if disorder == "d1" else "c3"
     c1 = load_cif(tsv_dir, disorder, "c1", panel_kinds[0] if panel_kinds else "PO")
@@ -287,9 +304,7 @@ def _plot_cif_panels(
 
     # panels: c1-base + one per kind
     n_panels = 1 + len(panel_kinds)
-    n_rows = (n_panels + n_cols - 1) // n_cols
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 4.5 * n_rows),
-                             sharey=True, squeeze=False)
+    fig, axes, n_rows, n_cols = _make_panel_grid(n_panels, n_cols=n_cols)
 
     # Panel 0: c1-only (grayscale)
     ax0 = axes[0, 0]
@@ -321,11 +336,7 @@ def _plot_cif_panels(
         if col == 0:
             ax.set_ylabel("Cumulative Incidence")
 
-    # Hide unused panels
-    for idx in range(n_panels, n_rows * n_cols):
-        row, col = divmod(idx, n_cols)
-        axes[row, col].set_visible(False)
-
+    _hide_unused(axes, n_panels, n_rows, n_cols)
     _add_cif_colorbar_and_legend(fig, axes, norm, cmap_exposed, exposed_cohort)
 
     fig.suptitle(title, fontsize=14)
@@ -363,11 +374,7 @@ def plot_h2_by_time(
     true_h2: float | None, output_path: Path,
 ) -> None:
     """h2 vs follow-up time, one panel per kind. Faint lines per birth year, bold median."""
-    n_kinds = len(kinds)
-    n_cols = min(n_kinds, 3)
-    n_rows = (n_kinds + n_cols - 1) // n_cols
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 4.5 * n_rows),
-                             sharey=True, squeeze=False)
+    fig, axes, n_rows, n_cols = _make_panel_grid(len(kinds))
 
     for idx, kind in enumerate(kinds):
         row, col = divmod(idx, n_cols)
@@ -406,12 +413,64 @@ def plot_h2_by_time(
             ax.set_ylabel("h\u00b2")
         ax.legend(fontsize=7, loc="best")
 
-    # Hide unused panels
-    for idx in range(n_kinds, n_rows * n_cols):
-        row, col = divmod(idx, n_cols)
-        axes[row, col].set_visible(False)
+    _hide_unused(axes, len(kinds), n_rows, n_cols)
 
     fig.suptitle(f"Heritability over Follow-up \u2014 {disorder.upper()}", fontsize=14)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def _plot_bar_panels(
+    kinds: list[str],
+    load_fn,
+    value_col: str,
+    true_value: float | None,
+    ylabel: str,
+    title: str,
+    output_path: Path,
+) -> None:
+    """Bar chart at tmax, one panel per relationship kind.
+
+    Args:
+        load_fn: callable(kind) -> DataFrame with columns [born_at_year, time, value_col, l95, u95].
+        value_col: column name for the bar values (e.g. "h2" or "rhog").
+    """
+    fig, axes, n_rows, n_cols = _make_panel_grid(len(kinds))
+
+    for idx, kind in enumerate(kinds):
+        row, col = divmod(idx, n_cols)
+        ax = axes[row, col]
+        color = KIND_COLORS.get(kind, "black")
+
+        df = load_fn(kind)
+        if df.empty:
+            continue
+        tm = tmax_rows(df)
+        years = tm["born_at_year"].values
+        vals = tm[value_col].values
+        err_lo = np.maximum(0, vals - tm["l95"].values)
+        err_hi = np.maximum(0, tm["u95"].values - vals)
+
+        ax.bar(range(len(years)), vals, color=color, alpha=0.8, zorder=3)
+        ax.errorbar(range(len(years)), vals, yerr=[err_lo, err_hi],
+                    fmt="none", color="black", capsize=2, linewidth=0.6, zorder=4)
+
+        if true_value is not None:
+            ax.axhline(true_value, color="black", linestyle="--", linewidth=1.5,
+                        alpha=0.7, label=f"True = {true_value:.3f}")
+
+        ax.set_xticks(range(len(years)))
+        ax.set_xticklabels([str(int(y)) for y in years], fontsize=6, rotation=45)
+        ax.set_xlabel("Birth cohort", fontsize=9)
+        if col == 0:
+            ax.set_ylabel(ylabel)
+        ax.set_title(KIND_LABELS.get(kind, kind), fontsize=11)
+        ax.legend(fontsize=7, loc="best")
+
+    _hide_unused(axes, len(kinds), n_rows, n_cols)
+
+    fig.suptitle(title, fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
@@ -422,51 +481,15 @@ def plot_h2_bar(
     true_h2: float | None, output_path: Path,
 ) -> None:
     """Bar chart of h2 at tmax, one panel per relationship kind."""
-    n_kinds = len(kinds)
-    n_cols = min(n_kinds, 3)
-    n_rows = (n_kinds + n_cols - 1) // n_cols
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 4.5 * n_rows),
-                             sharey=True, squeeze=False)
-
-    for idx, kind in enumerate(kinds):
-        row, col = divmod(idx, n_cols)
-        ax = axes[row, col]
-        color = KIND_COLORS.get(kind, "black")
-
-        h2 = load_h2(tsv_dir, disorder, kind)
-        if h2.empty:
-            continue
-        tm = tmax_rows(h2)
-        years = tm["born_at_year"].values
-        h2_vals = tm["h2"].values
-        err_lo = np.maximum(0, tm["h2"].values - tm["l95"].values)
-        err_hi = np.maximum(0, tm["u95"].values - tm["h2"].values)
-
-        ax.bar(range(len(years)), h2_vals, color=color, alpha=0.8, zorder=3)
-        ax.errorbar(range(len(years)), h2_vals, yerr=[err_lo, err_hi],
-                    fmt="none", color="black", capsize=2, linewidth=0.6, zorder=4)
-
-        if true_h2 is not None:
-            ax.axhline(true_h2, color="black", linestyle="--", linewidth=1.5,
-                        alpha=0.7, label=f"True = {true_h2:.3f}")
-
-        ax.set_xticks(range(len(years)))
-        ax.set_xticklabels([str(int(y)) for y in years], fontsize=6, rotation=45)
-        ax.set_xlabel("Birth cohort", fontsize=9)
-        if col == 0:
-            ax.set_ylabel("h\u00b2")
-        ax.set_title(KIND_LABELS.get(kind, kind), fontsize=11)
-        ax.legend(fontsize=7, loc="best")
-
-    # Hide unused panels
-    for idx in range(n_kinds, n_rows * n_cols):
-        row, col = divmod(idx, n_cols)
-        axes[row, col].set_visible(False)
-
-    fig.suptitle(f"Heritability at Maximum Follow-up \u2014 {disorder.upper()}", fontsize=14)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_bar_panels(
+        kinds,
+        load_fn=lambda kind: load_h2(tsv_dir, disorder, kind),
+        value_col="h2",
+        true_value=true_h2,
+        ylabel="h\u00b2",
+        title=f"Heritability at Maximum Follow-up \u2014 {disorder.upper()}",
+        output_path=output_path,
+    )
 
 
 def plot_gc_bar(
@@ -474,52 +497,15 @@ def plot_gc_bar(
 ) -> None:
     """Bar chart of rhog at tmax, one panel per relationship kind."""
     true_gc = true_params.get("genetic_correlation_true") if true_params else None
-
-    n_kinds = len(kinds)
-    n_cols = min(n_kinds, 3)
-    n_rows = (n_kinds + n_cols - 1) // n_cols
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 4.5 * n_rows),
-                             sharey=True, squeeze=False)
-
-    for idx, kind in enumerate(kinds):
-        row, col = divmod(idx, n_cols)
-        ax = axes[row, col]
-        color = KIND_COLORS.get(kind, "black")
-
-        gc = load_gc(tsv_dir, kind)
-        if gc.empty:
-            continue
-        tm = tmax_rows(gc)
-        years = tm["born_at_year"].values
-        rhog_vals = tm["rhog"].values
-        err_lo = np.maximum(0, tm["rhog"].values - tm["l95"].values)
-        err_hi = np.maximum(0, tm["u95"].values - tm["rhog"].values)
-
-        ax.bar(range(len(years)), rhog_vals, color=color, alpha=0.8, zorder=3)
-        ax.errorbar(range(len(years)), rhog_vals, yerr=[err_lo, err_hi],
-                    fmt="none", color="black", capsize=2, linewidth=0.6, zorder=4)
-
-        if true_gc is not None:
-            ax.axhline(true_gc, color="black", linestyle="--", linewidth=1.5,
-                        alpha=0.7, label=f"True = {true_gc:.3f}")
-
-        ax.set_xticks(range(len(years)))
-        ax.set_xticklabels([str(int(y)) for y in years], fontsize=6, rotation=45)
-        ax.set_xlabel("Birth cohort", fontsize=9)
-        if col == 0:
-            ax.set_ylabel("Genetic correlation (\u03c1g)")
-        ax.set_title(KIND_LABELS.get(kind, kind), fontsize=11)
-        ax.legend(fontsize=7, loc="best")
-
-    # Hide unused panels
-    for idx in range(n_kinds, n_rows * n_cols):
-        row, col = divmod(idx, n_cols)
-        axes[row, col].set_visible(False)
-
-    fig.suptitle("Genetic Correlation at Maximum Follow-up", fontsize=14)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    _plot_bar_panels(
+        kinds,
+        load_fn=lambda kind: load_gc(tsv_dir, kind),
+        value_col="rhog",
+        true_value=true_gc,
+        ylabel="Genetic correlation (\u03c1g)",
+        title="Genetic Correlation at Maximum Follow-up",
+        output_path=output_path,
+    )
 
 
 def plot_summary_table(
@@ -599,8 +585,6 @@ def plot_summary_table(
     # Color kind cells
     for i, kind in enumerate(kinds):
         color = KIND_COLORS.get(kind, "black")
-        # Convert matplotlib color to rgba for cell background tint
-        from matplotlib.colors import to_rgba
         rgba = to_rgba(color, alpha=0.15)
         for j in range(len(columns)):
             table[i + 1, j].set_facecolor(rgba)
