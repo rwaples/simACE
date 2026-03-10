@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import re
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -47,18 +48,16 @@ _PLOT_BASENAMES = [
 
 EPIMIGHT_CAPTIONS: dict[str, str] = {
     "cif_d1": (
-        "Figure 1: Cumulative incidence comparison \u2014 Disorder 1.\n\n"
-        "CIF curves for disorder 1 across relationship kinds, one panel per birth cohort. "
-        "Grey solid line shows the base population (c1). Dashed colored lines show the "
-        "exposed cohort (c2: individuals with a diagnosed relative) for each relationship kind. "
-        "Shaded bands are 95% confidence intervals."
+        "Figure 1: CIF by relationship kind \u2014 Disorder 1.\n\n"
+        "One panel per relationship kind. Solid lines show the base population (c1), "
+        "dashed lines show the exposed cohort (c2: individuals with a diagnosed relative). "
+        "Lines colored by birth year (viridis). The gap between solid and dashed reflects "
+        "the familial risk elevation used to estimate heritability."
     ),
     "cif_d2": (
-        "Figure 2: Cumulative incidence comparison \u2014 Disorder 2.\n\n"
-        "CIF curves for disorder 2 across relationship kinds, one panel per birth cohort. "
-        "Grey solid line shows the base population (c1). Dashed colored lines show the "
-        "exposed cohort (c3: individuals with a relative diagnosed with disorder 2) for each "
-        "relationship kind. Shaded bands are 95% confidence intervals."
+        "Figure 2: CIF by relationship kind \u2014 Disorder 2.\n\n"
+        "Same layout as Figure 1 but for disorder 2. Dashed lines show c3 "
+        "(individuals with a relative diagnosed with disorder 2)."
     ),
     "h2_time_d1": (
         "Figure 3: Heritability over follow-up \u2014 Disorder 1.\n\n"
@@ -133,6 +132,21 @@ def load_true_params(scenario_dir: Path) -> dict | None:
         return json.load(f)
 
 
+def load_cohort_sizes(scenario_dir: Path, kind: str) -> dict[str, int]:
+    """Parse cohort sizes from results_{kind}.md.
+
+    Returns dict like {"c1": 600000, "c2": 190962, "c3": 377841}.
+    """
+    path = scenario_dir / f"results_{kind}.md"
+    sizes = {}
+    if not path.exists():
+        return sizes
+    text = path.read_text()
+    for m in re.finditer(r"\|\s*(c\d)\s*\|[^|]*\|\s*(\d+)\s*\|", text):
+        sizes[m.group(1)] = int(m.group(2))
+    return sizes
+
+
 def tmax_rows(df: pd.DataFrame) -> pd.DataFrame:
     """Return the row at maximum time per born_at_year."""
     if df.empty:
@@ -149,7 +163,10 @@ def tmax_rows(df: pd.DataFrame) -> pd.DataFrame:
 def plot_cif_comparison(
     tsv_dir: Path, kinds: list[str], disorder: str, output_path: Path,
 ) -> None:
-    """CIF curves overlaid across relationship kinds, one panel per born_at_year."""
+    """CIF curves per relationship kind panel, birth years colored by viridis."""
+    import matplotlib.cm as cm
+    from matplotlib.colors import Normalize
+
     exposed_cohort = "c2" if disorder == "d1" else "c3"
 
     # Load c1 from first kind (identical across kinds)
@@ -158,42 +175,69 @@ def plot_cif_comparison(
         return
 
     years = sorted(c1["born_at_year"].unique())
-    n_cols = len(years)
-    fig, axes = plt.subplots(1, n_cols, figsize=(min(5 * n_cols, 16), 5), squeeze=False)
+    norm = Normalize(vmin=min(years), vmax=max(years))
+    cmap_base = cm.Greys
+    cmap_exposed = cm.viridis
 
-    for col, year in enumerate(years):
-        ax = axes[0, col]
+    n_kinds = len(kinds)
+    n_cols = min(n_kinds, 4)
+    n_rows = (n_kinds + n_cols - 1) // n_cols
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4.5 * n_rows),
+                             squeeze=False)
 
-        # c1 reference (grey)
-        c1y = c1[c1["born_at_year"] == year].sort_values("time")
-        if not c1y.empty:
-            ax.plot(c1y["time"], c1y["estimate"], color="0.5", linewidth=1.5, label="c1 (base)")
-            ax.fill_between(c1y["time"], c1y["l95"], c1y["u95"], color="0.5", alpha=0.1)
+    for idx, kind in enumerate(kinds):
+        row, col = divmod(idx, n_cols)
+        ax = axes[row, col]
 
-        # Exposed cohort per kind
-        for kind in kinds:
-            c_exp = load_cif(tsv_dir, disorder, exposed_cohort, kind)
-            if c_exp.empty:
+        # c1 base (solid, grayscale)
+        for year in years:
+            c1y = c1[c1["born_at_year"] == year].sort_values("time")
+            if c1y.empty:
                 continue
-            c_ey = c_exp[c_exp["born_at_year"] == year].sort_values("time")
-            if c_ey.empty:
-                continue
-            color = KIND_COLORS.get(kind, "black")
-            label = KIND_LABELS.get(kind, kind)
-            ax.plot(c_ey["time"], c_ey["estimate"], color=color, linestyle="--",
-                    linewidth=1.5, label=f"{exposed_cohort} ({label})")
-            ax.fill_between(c_ey["time"], c_ey["l95"], c_ey["u95"],
-                            color=color, alpha=0.1)
+            color = cmap_base(norm(year))
+            ax.plot(c1y["time"], c1y["estimate"], color=color,
+                    linewidth=0.8, alpha=0.5)
 
-        ax.set_title(f"born {year}")
-        ax.set_xlabel("Follow-up time")
+        # Exposed cohort (dashed, viridis)
+        c_exp = load_cif(tsv_dir, disorder, exposed_cohort, kind)
+        if not c_exp.empty:
+            for year in years:
+                c_ey = c_exp[c_exp["born_at_year"] == year].sort_values("time")
+                if c_ey.empty:
+                    continue
+                color = cmap_exposed(norm(year))
+                ax.plot(c_ey["time"], c_ey["estimate"], color=color,
+                        linewidth=0.8, alpha=0.7, linestyle="--")
+
+        label = KIND_LABELS.get(kind, kind)
+        ax.set_title(label, fontsize=11)
+        ax.set_xlabel("Follow-up time (age)", fontsize=9)
         if col == 0:
             ax.set_ylabel("Cumulative Incidence")
 
-    # Single legend on last panel
-    axes[0, -1].legend(fontsize=7, loc="upper left")
-    fig.suptitle(f"CIF Comparison \u2014 {disorder.upper()}", fontsize=14)
-    plt.tight_layout()
+    # Hide unused panels
+    for idx in range(n_kinds, n_rows * n_cols):
+        row, col = divmod(idx, n_cols)
+        axes[row, col].set_visible(False)
+
+    # Shared colorbar (exposed = viridis)
+    sm = cm.ScalarMappable(cmap=cmap_exposed, norm=norm)
+    sm.set_array([])
+    fig.colorbar(sm, ax=axes.ravel().tolist(), pad=0.02, label="Birth year",
+                 shrink=0.8)
+
+    # Legend for solid vs dashed
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], color="0.4", linewidth=1.2, label="c1 (base)"),
+        Line2D([0], [0], color="0.4", linewidth=1.2, linestyle="--",
+               label=f"{exposed_cohort} (exposed)"),
+    ]
+    fig.legend(handles=legend_elements, loc="lower center", ncol=2,
+               fontsize=10, frameon=True, bbox_to_anchor=(0.45, -0.02))
+
+    fig.suptitle(f"CIF by Relationship Kind \u2014 {disorder.upper()}", fontsize=14)
+    plt.tight_layout(rect=[0, 0.03, 0.93, 0.96])
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
 
@@ -394,17 +438,15 @@ def plot_summary_table(
     """Render a summary comparison table as a figure."""
     columns = ["Kind", "c2 N", "c3 N", "h\u00b2 d1", "h\u00b2 d2", "\u03c1g"]
     table_data = []
+    scenario_dir = tsv_dir.parent
 
     for kind in kinds:
         label = KIND_LABELS.get(kind, kind)
 
-        # c2 size from cif_d1_c2 (max cases at tmax)
-        c2 = load_cif(tsv_dir, "d1", "c2", kind)
-        c2_n = int(c2["cases"].max()) if not c2.empty and "cases" in c2.columns else "N/A"
-
-        # c3 size from cif_d2_c3
-        c3 = load_cif(tsv_dir, "d2", "c3", kind)
-        c3_n = int(c3["cases"].max()) if not c3.empty and "cases" in c3.columns else "N/A"
+        # Cohort sizes from results_{kind}.md
+        sizes = load_cohort_sizes(scenario_dir, kind)
+        c2_n = f"{sizes['c2']:,}" if "c2" in sizes else "N/A"
+        c3_n = f"{sizes['c3']:,}" if "c3" in sizes else "N/A"
 
         # h2 d1 median at tmax
         h2_d1 = load_h2(tsv_dir, "d1", kind)
@@ -444,6 +486,12 @@ def plot_summary_table(
     table.auto_set_font_size(False)
     table.set_fontsize(10)
     table.scale(1.0, 1.6)
+
+    # Right-align numeric columns (all except Kind)
+    for i in range(n_rows + 1):  # +1 for header
+        for j in range(1, len(columns)):
+            table[i, j].get_text().set_ha("right")
+            table[i, j].PAD = 0.05
 
     # Style header row
     for j in range(len(columns)):
