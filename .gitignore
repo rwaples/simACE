@@ -58,3 +58,8 @@ Thumbs.db
 
 #Pycharm
 .idea
+
+#epimight
+/epimight/NDD.parquet
+/epimight/NDG.parquet
+/epimight/true_parameters.json
