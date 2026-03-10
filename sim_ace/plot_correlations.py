@@ -740,8 +740,10 @@ def plot_cross_trait_frailty_by_generation(
 
     if not gen_data:
         fig, ax = plt.subplots(figsize=(8, 5))
-        ax.text(0.5, 0.5, "No per-generation cross-trait data",
-                ha="center", va="center", transform=ax.transAxes)
+        ax.text(0.5, 0.5,
+                "No per-generation cross-trait data\n\n"
+                "(requires extra_tetrachoric: True in scenario config)",
+                ha="center", va="center", transform=ax.transAxes, fontsize=11)
         plt.savefig(output_path, dpi=150)
         plt.close()
         return

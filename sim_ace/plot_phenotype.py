@@ -40,6 +40,7 @@ from sim_ace.plot_liability import (
     plot_liability_violin,
     plot_liability_violin_by_generation,
     plot_joint_affection,
+    plot_censoring_confusion,
 )
 from sim_ace.plot_pedigree_counts import plot_pedigree_relationship_counts
 from sim_ace.plot_correlations import (
@@ -151,6 +152,11 @@ def main(
                 ha="center", va="center", transform=ax.transAxes)
         plt.savefig(out_dir / f"censoring.{ext}", dpi=150)
         plt.close()
+
+    plot_censoring_confusion(
+        df_samples, censor_age, out_dir / f"censoring_confusion.{ext}",
+        scenario, gen_censoring=gen_censoring,
+    )
 
     # Correlation plots
     plot_tetrachoric_sibling(

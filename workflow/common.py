@@ -51,6 +51,7 @@ _PHENOTYPE_BASENAMES = [
     "cumulative_incidence.by_sex.by_generation",
     # Censoring
     "censoring",
+    "censoring_confusion",
     # Familial correlations
     "joint_affected.frailty",
     "cross_trait_frailty.by_generation",

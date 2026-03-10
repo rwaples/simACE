@@ -299,6 +299,90 @@ def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: lis
     plt.close()
 
 
+def plot_censoring_confusion(
+    df_samples: pd.DataFrame,
+    censor_age: float,
+    output_path: str | Path,
+    scenario: str = "",
+    gen_censoring: dict[int, list[float]] | None = None,
+) -> None:
+    """Per-trait 2x2 confusion matrix: true affected vs. observed affected.
+
+    True affected  = t{i} < censor_age  (raw event time before global censor age).
+    Observed affected = affected{i}     (after generation censoring + death censoring).
+
+    Only includes individuals from phenotyped generations (observation window width > 0).
+    """
+    df = df_samples.copy()
+
+    # Filter to phenotyped generations if gen_censoring is provided
+    if gen_censoring is not None and "generation" in df.columns:
+        active_gens = {
+            int(g) for g, (lo, hi) in gen_censoring.items() if hi > lo
+        }
+        if active_gens:
+            df = df[df["generation"].isin(active_gens)]
+
+    if len(df) == 0:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No phenotyped individuals",
+                ha="center", va="center", transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig.suptitle(f"Censoring Confusion Matrix [{scenario}]", fontsize=14)
+
+    for col, trait in enumerate([1, 2]):
+        ax = axes[col]
+        t_col = f"t{trait}"
+        a_col = f"affected{trait}"
+
+        if t_col not in df.columns or a_col not in df.columns:
+            ax.text(0.5, 0.5, f"Missing {t_col} or {a_col}",
+                    ha="center", va="center", transform=ax.transAxes)
+            ax.set_title(f"Trait {trait}")
+            continue
+
+        true_aff = df[t_col].values < censor_age
+        obs_aff = df[a_col].values.astype(bool)
+        n = len(df)
+
+        # Confusion matrix: rows = True (Yes/No), cols = Observed (Yes/No)
+        tp = int(np.sum(true_aff & obs_aff))
+        fn = int(np.sum(true_aff & ~obs_aff))
+        fp = int(np.sum(~true_aff & obs_aff))
+        tn = int(np.sum(~true_aff & ~obs_aff))
+
+        props = np.array([
+            [tp / n, fn / n],
+            [fp / n, tn / n],
+        ])
+        labels = np.array([
+            [f"{tp / n:.2f}\n(n={tp})", f"{fn / n:.2f}\n(n={fn})"],
+            [f"{fp / n:.2f}\n(n={fp})", f"{tn / n:.2f}\n(n={tn})"],
+        ])
+
+        sns.heatmap(
+            props, annot=labels, fmt="", cmap="Blues", ax=ax,
+            xticklabels=["Observed Yes", "Observed No"],
+            yticklabels=["True Yes", "True No"],
+            vmin=0, vmax=max(props.max(), 0.01),
+            cbar_kws={"label": "Proportion"},
+        )
+
+        # Sensitivity and specificity
+        sensitivity = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
+        specificity = tn / (tn + fp) if (tn + fp) > 0 else float("nan")
+        metrics = f"Sensitivity: {sensitivity:.3f}   Specificity: {specificity:.3f}"
+        ax.set_title(f"Trait {trait}\n{metrics}", fontsize=11)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
 def plot_joint_affection(
     df_samples: pd.DataFrame,
     output_path: str | Path,
