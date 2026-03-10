@@ -337,10 +337,10 @@ def _plot_cif_panels(
             ax.set_ylabel("Cumulative Incidence")
 
     _hide_unused(axes, n_panels, n_rows, n_cols)
-    _add_cif_colorbar_and_legend(fig, axes, norm, cmap_exposed, exposed_cohort)
 
     fig.suptitle(title, fontsize=14)
     plt.tight_layout()
+    _add_cif_colorbar_and_legend(fig, axes, norm, cmap_exposed, exposed_cohort)
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
 
@@ -495,17 +495,70 @@ def plot_h2_bar(
 def plot_gc_bar(
     tsv_dir: Path, kinds: list[str], true_params: dict | None, output_path: Path,
 ) -> None:
-    """Bar chart of rhog at tmax, one panel per relationship kind."""
+    """Bar chart of rhog at tmax, one panel per relationship kind.
+
+    Note: the GC TSV ``h2_l95``/``h2_u95`` columns are the 95% CIs for
+    ``rhog`` (= l95/h2_comb and u95/h2_comb from EPIMIGHT).
+    Values outside [-1, 1] are clamped and marked with arrows.
+    """
     true_gc = true_params.get("genetic_correlation_true") if true_params else None
-    _plot_bar_panels(
-        kinds,
-        load_fn=lambda kind: load_gc(tsv_dir, kind),
-        value_col="rhog",
-        true_value=true_gc,
-        ylabel="Genetic correlation (\u03c1g)",
-        title="Genetic Correlation at Maximum Follow-up",
-        output_path=output_path,
-    )
+    ylim = (-1.05, 1.05)
+
+    fig, axes, n_rows, n_cols = _make_panel_grid(len(kinds))
+
+    for idx, kind in enumerate(kinds):
+        row, col = divmod(idx, n_cols)
+        ax = axes[row, col]
+        color = KIND_COLORS.get(kind, "black")
+
+        gc = load_gc(tsv_dir, kind)
+        if gc.empty:
+            continue
+        tm = tmax_rows(gc)
+        years = tm["born_at_year"].values
+        vals = tm["rhog"].values
+
+        # Error bars from rhog CIs (h2_l95 / h2_u95 in the GC TSV)
+        err_lo = np.clip(vals - tm["h2_l95"].values, 0, None)
+        err_hi = np.clip(tm["h2_u95"].values - vals, 0, None)
+
+        # Clamp bars to [-1, 1] for display
+        clamped = np.clip(vals, -1, 1)
+        ax.bar(range(len(years)), clamped, color=color, alpha=0.8, zorder=3)
+        ax.errorbar(range(len(years)), clamped,
+                    yerr=[np.minimum(err_lo, clamped - ylim[0]),
+                          np.minimum(err_hi, ylim[1] - clamped)],
+                    fmt="none", color="black", capsize=2, linewidth=0.6,
+                    zorder=4, clip_on=True)
+
+        # Mark out-of-range values with arrows at the clamp boundary
+        for i, v in enumerate(vals):
+            if v > 1:
+                ax.annotate("\u2191", xy=(i, 1), ha="center", va="bottom",
+                            fontsize=7, color="red", fontweight="bold")
+            elif v < -1:
+                ax.annotate("\u2193", xy=(i, -1), ha="center", va="top",
+                            fontsize=7, color="red", fontweight="bold")
+
+        if true_gc is not None:
+            ax.axhline(true_gc, color="black", linestyle="--", linewidth=1.5,
+                        alpha=0.7, label=f"True = {true_gc:.3f}")
+
+        ax.set_ylim(ylim)
+        ax.set_xticks(range(len(years)))
+        ax.set_xticklabels([str(int(y)) for y in years], fontsize=6, rotation=45)
+        ax.set_xlabel("Birth cohort", fontsize=9)
+        if col == 0:
+            ax.set_ylabel("Genetic correlation (\u03c1g)")
+        ax.set_title(KIND_LABELS.get(kind, kind), fontsize=11)
+        ax.legend(fontsize=7, loc="best")
+
+    _hide_unused(axes, len(kinds), n_rows, n_cols)
+
+    fig.suptitle("Genetic Correlation at Maximum Follow-up", fontsize=14)
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
 
 
 def plot_summary_table(

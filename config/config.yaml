@@ -13,7 +13,7 @@ defaults:
   C2: 0.2
   rA: 0.3
   rC: 0.5
-  
+
   standardize: true
 
   # ── Pedigree ──────────────────────────────────────────────────────────────
@@ -66,6 +66,16 @@ defaults:
   N_sample: 0
   plot_format: png
 
+  # ── EPIMIGHT ─────────────────────────────────────────────────────────────
+  epimight_kinds:
+    - PO
+    - FS
+    - HS
+    - mHS
+    - pHS
+    - Av
+    - 1G
+    - 1C
 
 scenarios:
   # ── Size benchmarks ───────────────────────────────────────────────────────
@@ -117,13 +127,18 @@ scenarios:
   # ── More generations ───────────────────────────────────────────────────────
   long_term:
     folder: long
+    replicates: 1
     seed: 1879
-    rA: 0.0
+    C1: 0.0
+    C2: 0.0
+    rA: 0.3
     rC: 0.0
-    N: 20000
+    N: 50000
     G_sim: 35
     G_ped: 30
     G_pheno: 30
+    gen_censoring:
+      0: [0, 80]
 
   # ── Cross-trait correlation ────────────────────────────────────────────────
   no_correlation:
