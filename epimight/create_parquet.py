@@ -20,14 +20,36 @@ KIND_TO_PAIRS = {
     "1G":  ["Grandparent-grandchild"],
 }
 
+# Asymmetric relationship kinds: count only diagnosed older-generation
+# relatives for younger individuals (unidirectional).  For PO and 1G the
+# pair convention already has (younger, older).  For Av the canonical
+# lo/hi ordering loses direction, so pairs are re-oriented by generation.
+_UNIDIRECTIONAL_KINDS = {"PO", "1G", "Av"}
 
-def count_affected_relatives(pair_list, affected, n):
+
+def _orient_pairs_by_generation(pair_list, generations):
+    """Re-orient pairs so idx1 = younger (higher gen), idx2 = older (lower gen)."""
+    oriented = []
+    for idx1, idx2 in pair_list:
+        if len(idx1) == 0:
+            oriented.append((idx1, idx2))
+            continue
+        swap = generations[idx1] < generations[idx2]
+        new_idx1 = np.where(swap, idx2, idx1)
+        new_idx2 = np.where(swap, idx1, idx2)
+        oriented.append((new_idx1, new_idx2))
+    return oriented
+
+
+def count_affected_relatives(pair_list, affected, n, unidirectional=False):
     """Count how many affected relatives each person has via the given pairs.
 
     Args:
         pair_list: list of (idx1, idx2) arrays from extract_relationship_pairs
         affected: boolean array of affected status per row index
         n: total number of individuals
+        unidirectional: if True, only count idx2's status for idx1
+            (used for asymmetric relationships where idx1=younger, idx2=older)
     Returns:
         Integer array of length n with counts of affected relatives.
     """
@@ -36,18 +58,20 @@ def count_affected_relatives(pair_list, affected, n):
         if len(idx1) == 0:
             continue
         np.add.at(counts, idx1, affected[idx2].astype(int))
-        np.add.at(counts, idx2, affected[idx1].astype(int))
+        if not unidirectional:
+            np.add.at(counts, idx2, affected[idx1].astype(int))
     return counts
 
 
-def count_total_relatives(pair_list, n):
+def count_total_relatives(pair_list, n, unidirectional=False):
     """Count total relatives of a given type per person (regardless of affected status)."""
     counts = np.zeros(n, dtype=int)
     for idx1, idx2 in pair_list:
         if len(idx1) == 0:
             continue
         np.add.at(counts, idx1, 1)
-        np.add.at(counts, idx2, 1)
+        if not unidirectional:
+            np.add.at(counts, idx2, 1)
     return counts
 
 
@@ -83,6 +107,7 @@ def main():
     # Affected status arrays (by row index)
     affected1 = df["affected1"].values.astype(bool)
     affected2 = df["affected2"].values.astype(bool)
+    generations = df["generation"].values
 
     # ------------------------------------------------
     # Build diagnosed_relatives and n_relatives per kind
@@ -93,9 +118,14 @@ def main():
 
     for kind, pair_types in KIND_TO_PAIRS.items():
         pair_list = [(all_pairs[pt][0], all_pairs[pt][1]) for pt in pair_types if pt in all_pairs]
-        diag_cols_1[kind] = count_affected_relatives(pair_list, affected1, n)
-        diag_cols_2[kind] = count_affected_relatives(pair_list, affected2, n)
-        nrel_cols[kind] = count_total_relatives(pair_list, n)
+        uni = kind in _UNIDIRECTIONAL_KINDS
+        if uni and kind == "Av":
+            # Avuncular pairs use canonical ordering — re-orient so
+            # idx1=nephew/niece (younger), idx2=uncle/aunt (older)
+            pair_list = _orient_pairs_by_generation(pair_list, generations)
+        diag_cols_1[kind] = count_affected_relatives(pair_list, affected1, n, unidirectional=uni)
+        diag_cols_2[kind] = count_affected_relatives(pair_list, affected2, n, unidirectional=uni)
+        nrel_cols[kind] = count_total_relatives(pair_list, n, unidirectional=uni)
 
     # ------------------------------------------------
     # build outputs
