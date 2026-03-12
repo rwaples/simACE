@@ -1,7 +1,12 @@
 """
-Frailty model phenotype simulation for two correlated traits.
+Phenotype simulation for two correlated traits.
 
-Converts liability to raw event times (age-at-onset) using a proportional
+Supports three phenotype models (set via phenotype_model parameter):
+  "frailty"    — Proportional hazards frailty model with pluggable baseline hazard (default)
+  "adult_ltm"  — ADuLT liability threshold model (Pedersen et al., Nat Commun 2023)
+  "adult_cox"  — ADuLT proportional hazards model (Weibull shape=2 + CIP→age mapping)
+
+Frailty model converts liability to raw event times (age-at-onset) using a proportional
 hazards frailty model with pluggable baseline hazard.
 
 Model (per trait):
@@ -40,6 +45,8 @@ import numpy as np
 import pandas as pd
 from numba import njit, prange
 from scipy.stats import gamma as gamma_dist
+
+from scipy.stats import norm
 
 from sim_ace.utils import save_parquet
 from sim_ace.compute_hazard_terms import compute_hazard_terms
@@ -248,6 +255,110 @@ def simulate_phenotype(
                                     hazard_params)
 
 
+# ---------------------------------------------------------------------------
+# ADuLT phenotype models (Pedersen et al., Nat Commun 2023)
+# ---------------------------------------------------------------------------
+
+def phenotype_adult_ltm(
+    liability: np.ndarray,
+    prevalence: float,
+    cip_x0: float = 50.0,
+    cip_k: float = 0.2,
+    seed: int = 42,
+    standardize: bool = True,
+) -> np.ndarray:
+    """ADuLT liability threshold model: age-of-onset via logistic CIP.
+
+    Cases (L > threshold): age = x₀ + (1/k)·log(Φ(−L) / (K − Φ(−L)))
+    Controls (L ≤ threshold): t = 1e6 (censored downstream)
+
+    Age is a deterministic function of liability — higher liability
+    maps to younger onset age within cases.
+
+    Args:
+        liability:   quantitative liability, shape (n,)
+        prevalence:  population prevalence K
+        cip_x0:      logistic CIP midpoint age
+        cip_k:       logistic CIP growth rate
+        seed:        unused (kept for API compatibility)
+        standardize: if True, standardize liability to N(0,1)
+
+    Returns:
+        Array of simulated event times, shape (n,)
+    """
+    L = liability.copy()
+    if standardize:
+        std = np.std(L)
+        if std > 0:
+            L = (L - L.mean()) / std
+
+    threshold = norm.ppf(1.0 - prevalence)
+    is_case = L > threshold
+
+    t = np.full(len(L), 1e6)
+    n_cases = is_case.sum()
+    if n_cases > 0:
+        # CIP inverse: cir = Φ(−L) = 1−Φ(L), age = x₀ + (1/k)·log(cir/(K−cir))
+        cir = norm.sf(L[is_case])
+        t[is_case] = cip_x0 + (1.0 / cip_k) * np.log(cir / (prevalence - cir))
+
+    np.clip(t, 0.01, 1e6, out=t)
+    return t
+
+
+def phenotype_adult_cox(
+    liability: np.ndarray,
+    prevalence: float,
+    cip_x0: float = 50.0,
+    cip_k: float = 0.2,
+    seed: int = 42,
+    standardize: bool = True,
+) -> np.ndarray:
+    """ADuLT proportional hazards model: Weibull(shape=2) + CIP→age mapping.
+
+    Raw time: t̃ = √(−log(U) / exp(L))
+    Sorted by t_raw, running CIP = rank/(N+1) capped at K (prevalence).
+    Cases (CIP < K): age = x₀ + (1/k)·log(CIP / (K − CIP))
+    Controls (CIP ≥ K): t = 1e6 (censored downstream)
+
+    Args:
+        liability:    quantitative liability, shape (n,)
+        prevalence:   population prevalence K (determines case fraction)
+        cip_x0:       logistic CIP midpoint age
+        cip_k:        logistic CIP growth rate
+        seed:         random seed
+        standardize:  if True, standardize liability to N(0,1)
+
+    Returns:
+        Array of simulated event times, shape (n,)
+    """
+    rng = np.random.default_rng(seed)
+
+    L = liability.copy()
+    if standardize:
+        std = np.std(L)
+        if std > 0:
+            L = (L - L.mean()) / std
+
+    n = len(L)
+    neg_log_u = -np.log(rng.uniform(size=n))
+    t_raw = np.sqrt(neg_log_u / np.exp(L))
+
+    # Sort by raw time; assign running CIP capped at prevalence
+    order = np.argsort(t_raw)
+    cip = (np.arange(1, n + 1)) / (n + 1)  # ranks in (0, 1)
+
+    t = np.full(n, 1e6)
+    is_case = cip < prevalence
+    # Map case CIP to age via logistic CIP inverse: age = x₀ + (1/k)·log(CIP/(K−CIP))
+    case_cip = cip[is_case]
+    case_age = cip_x0 + (1.0 / cip_k) * np.log(case_cip / (prevalence - case_cip))
+    t[order[is_case]] = case_age
+
+    np.clip(t, 0.01, 1e6, out=t)
+    return t
+
+
 def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     """Simulate phenotype from pedigree and parameter dict.
 
@@ -275,27 +386,64 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     pedigree = pedigree[pedigree["generation"] >= min_gen].reset_index(drop=True)
 
     sex_vals = pedigree["sex"].values
+    phenotype_model = params.get("phenotype_model", "frailty")
 
-    t1 = simulate_phenotype(
-        liability     = pedigree["liability1"].values,
-        beta          = params["beta1"],
-        hazard_model  = params["hazard_model1"],
-        hazard_params = params["hazard_params1"],
-        seed          = params["seed"],
-        standardize   = params["standardize"],
-        sex           = sex_vals,
-        beta_sex      = params.get("beta_sex1", 0.0),
-    )
-    t2 = simulate_phenotype(
-        liability     = pedigree["liability2"].values,
-        beta          = params["beta2"],
-        hazard_model  = params["hazard_model2"],
-        hazard_params = params["hazard_params2"],
-        seed          = params["seed"] + 100,
-        standardize   = params["standardize"],
-        sex           = sex_vals,
-        beta_sex      = params.get("beta_sex2", 0.0),
-    )
+    if phenotype_model == "adult_ltm":
+        t1 = phenotype_adult_ltm(
+            liability  = pedigree["liability1"].values,
+            prevalence = params["prevalence1"],
+            cip_x0     = params.get("cip_x0", 50.0),
+            cip_k      = params.get("cip_k", 0.2),
+            seed       = params["seed"],
+            standardize = params["standardize"],
+        )
+        t2 = phenotype_adult_ltm(
+            liability  = pedigree["liability2"].values,
+            prevalence = params["prevalence2"],
+            cip_x0     = params.get("cip_x0", 50.0),
+            cip_k      = params.get("cip_k", 0.2),
+            seed       = params["seed"] + 100,
+            standardize = params["standardize"],
+        )
+    elif phenotype_model == "adult_cox":
+        t1 = phenotype_adult_cox(
+            liability   = pedigree["liability1"].values,
+            prevalence  = params["prevalence1"],
+            cip_x0      = params.get("cip_x0", 50.0),
+            cip_k       = params.get("cip_k", 0.2),
+            seed        = params["seed"],
+            standardize = params["standardize"],
+        )
+        t2 = phenotype_adult_cox(
+            liability   = pedigree["liability2"].values,
+            prevalence  = params["prevalence2"],
+            cip_x0      = params.get("cip_x0", 50.0),
+            cip_k       = params.get("cip_k", 0.2),
+            seed        = params["seed"] + 100,
+            standardize = params["standardize"],
+        )
+    else:
+        # Default: frailty model
+        t1 = simulate_phenotype(
+            liability     = pedigree["liability1"].values,
+            beta          = params["beta1"],
+            hazard_model  = params["hazard_model1"],
+            hazard_params = params["hazard_params1"],
+            seed          = params["seed"],
+            standardize   = params["standardize"],
+            sex           = sex_vals,
+            beta_sex      = params.get("beta_sex1", 0.0),
+        )
+        t2 = simulate_phenotype(
+            liability     = pedigree["liability2"].values,
+            beta          = params["beta2"],
+            hazard_model  = params["hazard_model2"],
+            hazard_params = params["hazard_params2"],
+            seed          = params["seed"] + 100,
+            standardize   = params["standardize"],
+            sex           = sex_vals,
+            beta_sex      = params.get("beta_sex2", 0.0),
+        )
 
     phenotype = pd.DataFrame({
         "id":           pedigree["id"].values,
@@ -329,6 +477,7 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
 # ---------------------------------------------------------------------------
 
 _MODELS = ["weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"]
+_PHENOTYPE_MODELS = ["frailty", "adult_ltm", "adult_cox"]
 
 # Parameter names required per model
 _MODEL_PARAMS: dict[str, list[str]] = {
@@ -355,12 +504,19 @@ def cli() -> None:
     parser.add_argument("--seed",        type=int,  default=42)
     parser.add_argument("--G-pheno",     type=int,  default=3)
     parser.add_argument("--standardize", action="store_true", default=True)
+    parser.add_argument("--phenotype-model", choices=_PHENOTYPE_MODELS, default="frailty")
+
+    # ADuLT shared CIP parameters
+    parser.add_argument("--cip-x0",       type=float, default=50.0)
+    parser.add_argument("--cip-k",        type=float, default=0.2)
+    parser.add_argument("--prevalence1",  type=float, default=0.10)
+    parser.add_argument("--prevalence2",  type=float, default=0.20)
 
     for k in (1, 2):
         g = parser.add_argument_group(f"Trait {k}")
-        g.add_argument(f"--beta{k}",         type=float, required=True)
+        g.add_argument(f"--beta{k}",         type=float, default=1.0)
         g.add_argument(f"--beta-sex{k}",     type=float, default=0.0)
-        g.add_argument(f"--hazard-model{k}",  choices=_MODELS, required=True)
+        g.add_argument(f"--hazard-model{k}",  choices=_MODELS, default="weibull")
         # One flag per model parameter; user only needs to supply what their
         # chosen model requires.
         g.add_argument(f"--scale{k}",  type=float, default=None)
@@ -374,18 +530,24 @@ def cli() -> None:
     args = parser.parse_args()
     init_logging(args)
 
+    phenotype_model = getattr(args, "phenotype_model")
     params = {
-        "G_pheno":      args.G_pheno,
-        "seed":         args.seed,
-        "standardize":  args.standardize,
-        "beta1":        args.beta1,
-        "beta_sex1":    getattr(args, "beta_sex1"),
-        "hazard_model1": getattr(args, "hazard_model1"),
-        "hazard_params1": _build_hazard_params(args, trait=1),
-        "beta2":        args.beta2,
-        "beta_sex2":    getattr(args, "beta_sex2"),
-        "hazard_model2": getattr(args, "hazard_model2"),
-        "hazard_params2": _build_hazard_params(args, trait=2),
+        "G_pheno":         args.G_pheno,
+        "seed":            args.seed,
+        "standardize":     args.standardize,
+        "phenotype_model": phenotype_model,
+        "cip_x0":          getattr(args, "cip_x0"),
+        "cip_k":           getattr(args, "cip_k"),
+        "prevalence1":     args.prevalence1,
+        "prevalence2":     args.prevalence2,
+        "beta1":           args.beta1,
+        "beta_sex1":       getattr(args, "beta_sex1"),
+        "hazard_model1":   getattr(args, "hazard_model1"),
+        "hazard_params1":  _build_hazard_params(args, trait=1) if phenotype_model == "frailty" else {},
+        "beta2":           args.beta2,
+        "beta_sex2":       getattr(args, "beta_sex2"),
+        "hazard_model2":   getattr(args, "hazard_model2"),
+        "hazard_params2":  _build_hazard_params(args, trait=2) if phenotype_model == "frailty" else {},
     }
 
     pedigree  = pd.read_parquet(args.pedigree)

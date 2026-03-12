@@ -22,6 +22,7 @@ import pandas as pd
 import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap, Normalize, to_rgba
 from matplotlib.lines import Line2D
+from matplotlib.ticker import MaxNLocator
 
 from sim_ace.plot_atlas import assemble_atlas
 
@@ -223,7 +224,8 @@ def _add_cif_colorbar_and_legend(fig, axes, norm, cmap_exposed, exposed_cohort):
     sm = cm.ScalarMappable(cmap=cmap_exposed, norm=norm)
     sm.set_array([])
     cbar_ax = fig.add_axes([0.15, -0.06, 0.5, 0.025])
-    fig.colorbar(sm, cax=cbar_ax, orientation="horizontal", label="Birth year")
+    cbar = fig.colorbar(sm, cax=cbar_ax, orientation="horizontal", label="Birth year")
+    cbar.ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
     legend_elements = [
         Line2D([0], [0], color="0.4", linewidth=1.2, label="c1 (base)"),
@@ -273,7 +275,8 @@ def plot_cif_base(
     sm = cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
     cbar_ax = fig.add_axes([0.3, -0.06, 0.4, 0.025])
-    fig.colorbar(sm, cax=cbar_ax, orientation="horizontal", label="Birth year")
+    cbar = fig.colorbar(sm, cax=cbar_ax, orientation="horizontal", label="Birth year")
+    cbar.ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()

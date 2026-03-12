@@ -25,9 +25,16 @@ defaults:
   p_mztwin: 0.02
   p_nonsocial_father: 0.05
 
-  # ── Phenotype: frailty model ───────────────────────────────────────────────
+  # ── Phenotype model ───────────────────────────────────────────────────────
+  # phenotype_model: frailty | adult_ltm | adult_cox
+  phenotype_model: frailty
+
+  # ADuLT CIP parameters (shared by adult_ltm and adult_cox)
+  cip_x0: 50 # logistic CIP midpoint age
+  cip_k: 0.2 # logistic CIP growth rate
+
   # hazard_model: weibull | exponential | gompertz | lognormal | loglogistic | gamma
-  # hazard_params: dict of model-specific parameters
+  # hazard_params: dict of model-specific parameters (frailty model only)
 
   # Trait 1
   beta1: 1.0
@@ -282,6 +289,27 @@ scenarios:
       3: 0.05
       4: 0.08
       5: 0.12
+
+  # ── ADuLT phenotype models ──────────────────────────────────────────
+  adult_ltm_test:
+    folder: test
+    seed: 23042
+    N: 50000
+    phenotype_model: adult_ltm
+    prevalence1: 0.10
+    prevalence2: 0.20
+    cip_x0: 50 # median age-of-onset
+    cip_k: 0.2 # "growth rate"
+
+  adult_cox_test:
+    folder: test
+    seed: 24042
+    N: 50000
+    phenotype_model: adult_cox
+    prevalence1: 0.10
+    prevalence2: 0.20
+    cip_x0: 50 # median age-of-onset
+    cip_k: 0.2 # "growth rate"
 
   # ── Quick test ──────────────────────────────────────────────────────
   small_test:

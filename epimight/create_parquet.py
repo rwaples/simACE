@@ -103,9 +103,9 @@ def main():
     def build_output(affected_col, time_col, diag_cols, nrel_cols):
         out = pd.DataFrame({
             "person_id": df["id"],
-            "born_at": df["generation"],
-            "born_at_year": BASE_YEAR + df["generation"],
-            "dead_at_year": BASE_YEAR + df["generation"] + df["death_age"].astype(int),
+            "born_at": df["generation"].astype(int),
+            "born_at_year": (BASE_YEAR + df["generation"]).astype(int),
+            "dead_at_year": (BASE_YEAR + df["generation"] + df["death_age"]).astype(int),
             "failure_status": df[affected_col].astype(int),
             "failure_time": df[time_col].astype(int),
         })

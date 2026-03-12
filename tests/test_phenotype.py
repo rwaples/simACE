@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from sim_ace.phenotype import simulate_phenotype
+from sim_ace.phenotype import simulate_phenotype, phenotype_adult_ltm, phenotype_adult_cox
 
 
 # ---------------------------------------------------------------------------
@@ -155,3 +155,132 @@ class TestBetaSex:
         female_mean = t[:n // 2].mean()
         male_mean = t[n // 2:].mean()
         assert female_mean < male_mean
+
+
+# ---------------------------------------------------------------------------
+# ADuLT Liability Threshold Model tests
+# ---------------------------------------------------------------------------
+
+class TestAdultLtm:
+
+    def test_output_shape(self):
+        liability = np.random.default_rng(0).standard_normal(500)
+        t = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
+        assert t.shape == (500,)
+
+    def test_all_positive_times(self):
+        liability = np.random.default_rng(0).standard_normal(1000)
+        t = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
+        assert np.all(t > 0)
+
+    def test_case_rate_matches_prevalence(self):
+        """Fraction of cases should approximate the prevalence."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        prevalence = 0.10
+        t = phenotype_adult_ltm(liability, prevalence=prevalence, seed=42)
+        case_rate = np.mean(t < 1e6)
+        assert abs(case_rate - prevalence) < 0.02
+
+    def test_controls_are_large(self):
+        """Controls should have t = 1e6."""
+        liability = np.random.default_rng(0).standard_normal(5000)
+        t = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
+        controls = t[t >= 1e6 - 1]
+        assert len(controls) > 0
+
+    def test_case_ages_centered_on_x0(self):
+        """Case onset ages should be centered around cip_x0."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        cip_x0 = 60.0
+        t = phenotype_adult_ltm(liability, prevalence=0.20, cip_x0=cip_x0, seed=42)
+        case_ages = t[t < 1e6]
+        assert abs(case_ages.mean() - cip_x0) < 3.0
+
+    def test_deterministic(self):
+        """Age-of-onset is a deterministic function of liability (no randomness)."""
+        liability = np.array([0.5, -0.3, 1.2, -1.0, 2.0])
+        t1 = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
+        t2 = phenotype_adult_ltm(liability, prevalence=0.10, seed=99)
+        np.testing.assert_array_equal(t1, t2)
+
+    def test_higher_liability_more_cases(self):
+        """Individuals with higher liability should be more likely to be cases."""
+        n = 10000
+        rng = np.random.default_rng(99)
+        liability = rng.standard_normal(n)
+        t = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
+        high = liability > 1.0
+        low = liability < -1.0
+        assert np.mean(t[high] < 1e6) > np.mean(t[low] < 1e6)
+
+    def test_higher_liability_earlier_onset(self):
+        """Among cases, higher liability should map to younger onset age."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t = phenotype_adult_ltm(liability, prevalence=0.20, seed=42)
+        cases = t < 1e6
+        case_L = liability[cases]
+        case_t = t[cases]
+        high = case_L > np.percentile(case_L, 75)
+        low = case_L < np.percentile(case_L, 25)
+        assert case_t[high].mean() < case_t[low].mean()
+
+
+# ---------------------------------------------------------------------------
+# ADuLT Cox Model tests
+# ---------------------------------------------------------------------------
+
+class TestAdultCox:
+
+    def test_output_shape(self):
+        liability = np.random.default_rng(0).standard_normal(500)
+        t = phenotype_adult_cox(liability, prevalence=0.10, seed=42)
+        assert t.shape == (500,)
+
+    def test_all_positive_times(self):
+        liability = np.random.default_rng(0).standard_normal(1000)
+        t = phenotype_adult_cox(liability, prevalence=0.10, seed=42)
+        assert np.all(t > 0)
+
+    def test_case_rate_matches_prevalence(self):
+        """Fraction of cases should approximate the prevalence."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        prevalence = 0.10
+        t = phenotype_adult_cox(liability, prevalence=prevalence, seed=42)
+        case_rate = np.mean(t < 1e6)
+        assert abs(case_rate - prevalence) < 0.02
+
+    def test_case_ages_centered_on_x0(self):
+        """Case onset ages should be centered around cip_x0."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        cip_x0 = 55.0
+        t = phenotype_adult_cox(liability, prevalence=0.20, cip_x0=cip_x0, seed=42)
+        case_ages = t[t < 1e6]
+        assert abs(np.median(case_ages) - cip_x0) < 2.0
+
+    def test_higher_liability_more_cases(self):
+        """Individuals with higher liability should be more likely to be cases."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t = phenotype_adult_cox(liability, prevalence=0.10, seed=42)
+        high = liability > 1.0
+        low = liability < -1.0
+        assert np.mean(t[high] < 1e6) > np.mean(t[low] < 1e6)
+
+    def test_deterministic_with_same_seed(self):
+        liability = np.array([0.5, -0.3, 1.2, -1.0, 2.0])
+        t1 = phenotype_adult_cox(liability, prevalence=0.10, seed=42)
+        t2 = phenotype_adult_cox(liability, prevalence=0.10, seed=42)
+        np.testing.assert_array_equal(t1, t2)
+
+    def test_different_seed_changes_result(self):
+        """Different seeds should produce different age assignments."""
+        n = 5000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t1 = phenotype_adult_cox(liability, prevalence=0.10, seed=42)
+        t2 = phenotype_adult_cox(liability, prevalence=0.10, seed=99)
+        assert not np.allclose(t1, t2)

@@ -10,17 +10,22 @@ rule phenotype_frailty:
     output:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.raw.parquet"
     params:
-        seed           = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
-        G_pheno        = lambda w: get_param(config, w.scenario, "G_pheno"),
-        standardize    = lambda w: get_param(config, w.scenario, "standardize"),
-        beta1          = lambda w: get_param(config, w.scenario, "beta1"),
-        beta_sex1      = lambda w: get_param(config, w.scenario, "beta_sex1"),
-        hazard_model1  = lambda w: get_param(config, w.scenario, "hazard_model1"),
-        hazard_params1 = lambda w: get_param(config, w.scenario, "hazard_params1"),
-        beta2          = lambda w: get_param(config, w.scenario, "beta2"),
-        beta_sex2      = lambda w: get_param(config, w.scenario, "beta_sex2"),
-        hazard_model2  = lambda w: get_param(config, w.scenario, "hazard_model2"),
-        hazard_params2 = lambda w: get_param(config, w.scenario, "hazard_params2"),
+        seed            = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
+        G_pheno         = lambda w: get_param(config, w.scenario, "G_pheno"),
+        standardize     = lambda w: get_param(config, w.scenario, "standardize"),
+        phenotype_model = lambda w: get_param(config, w.scenario, "phenotype_model"),
+        prevalence1     = lambda w: get_param(config, w.scenario, "prevalence1"),
+        prevalence2     = lambda w: get_param(config, w.scenario, "prevalence2"),
+        cip_x0          = lambda w: get_param(config, w.scenario, "cip_x0"),
+        cip_k           = lambda w: get_param(config, w.scenario, "cip_k"),
+        beta1           = lambda w: get_param(config, w.scenario, "beta1"),
+        beta_sex1       = lambda w: get_param(config, w.scenario, "beta_sex1"),
+        hazard_model1   = lambda w: get_param(config, w.scenario, "hazard_model1"),
+        hazard_params1  = lambda w: get_param(config, w.scenario, "hazard_params1"),
+        beta2           = lambda w: get_param(config, w.scenario, "beta2"),
+        beta_sex2       = lambda w: get_param(config, w.scenario, "beta_sex2"),
+        hazard_model2   = lambda w: get_param(config, w.scenario, "hazard_model2"),
+        hazard_params2  = lambda w: get_param(config, w.scenario, "hazard_params2"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/phenotype_frailty.log"
     benchmark:
