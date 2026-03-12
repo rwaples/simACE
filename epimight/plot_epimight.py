@@ -85,7 +85,8 @@ EPIMIGHT_CAPTIONS: dict[str, str] = {
         "Figure 4: Heritability over follow-up \u2014 Disorder 1.\n\n"
         "Heritability (h\u00b2) estimated at each follow-up time point for disorder 1, "
         "one panel per birth cohort. Each colored line represents a different relationship "
-        "kind. Shaded bands show 95% CIs. Horizontal dashed line marks the true h\u00b2."
+        "kind. Shaded bands show 95% CIs. Horizontal dashed line marks the true h\u00b2. "
+        "Dotted line shows the fixed-effect meta-analytic estimate with shaded 95% CI."
     ),
     "h2_time_d2": (
         "Figure 5: Heritability over follow-up \u2014 Disorder 2.\n\n"
@@ -95,7 +96,8 @@ EPIMIGHT_CAPTIONS: dict[str, str] = {
         "Figure 6a: Heritability at maximum follow-up \u2014 Disorder 1.\n\n"
         "One panel per relationship kind. Bars show h\u00b2 at maximum follow-up "
         "for each birth cohort. Error bars show 95% CIs. "
-        "Horizontal dashed line marks the true h\u00b2."
+        "Horizontal dashed line marks the true h\u00b2. "
+        "Dotted line shows the fixed-effect meta-analytic estimate with shaded 95% CI."
     ),
     "h2_bar_d2": (
         "Figure 6b: Heritability at maximum follow-up \u2014 Disorder 2.\n\n"
@@ -105,7 +107,8 @@ EPIMIGHT_CAPTIONS: dict[str, str] = {
         "Figure 7: Genetic correlation at maximum follow-up.\n\n"
         "Bar chart of the genetic correlation estimate (\u03c1g) at maximum follow-up "
         "across relationship kinds, grouped by birth cohort. Error bars show 95% CIs. "
-        "Horizontal dashed line marks the true genetic correlation."
+        "Horizontal dashed line marks the true genetic correlation. "
+        "Dotted line shows the fixed-effect meta-analytic estimate with shaded 95% CI."
     ),
     "summary_table": (
         "Figure 8: Summary comparison table.\n\n"
@@ -148,6 +151,70 @@ def load_h2(tsv_dir: Path, disorder: str, kind: str) -> pd.DataFrame:
 
 def load_gc(tsv_dir: Path, kind: str) -> pd.DataFrame:
     return _load_tsv(tsv_dir / f"gc_full_{kind}.tsv")
+
+
+def load_meta(tsv_dir: Path, prefix: str, kind: str) -> dict | None:
+    """Load meta-analysis results for *kind*.
+
+    Tries the TSV first (``{prefix}_{kind}.tsv``); falls back to parsing
+    the fixed-effect row from ``results_{kind}.md``.
+    """
+    # Try TSV first
+    path = tsv_dir / f"{prefix}_{kind}.tsv"
+    if path.exists():
+        df = pd.read_csv(path, sep="\t")
+        if not df.empty:
+            return df.iloc[0].to_dict()
+
+    # Fallback: parse from markdown report
+    return _parse_meta_from_md(tsv_dir.parent, prefix, kind)
+
+
+def _parse_meta_from_md(scenario_dir: Path, prefix: str, kind: str) -> dict | None:
+    """Extract fixed-effect meta row from results_{kind}.md."""
+    report = scenario_dir / f"results_{kind}.md"
+    if not report.exists():
+        return None
+    text = report.read_text()
+
+    # Determine which section to look for
+    if prefix.startswith("h2_d1"):
+        section = "Heritability Meta-analysis"
+        subsection = "Trait 1 (d1)"
+    elif prefix.startswith("h2_d2"):
+        section = "Heritability Meta-analysis"
+        subsection = "Trait 2 (d2)"
+    elif prefix.startswith("gc"):
+        section = "Genetic Correlation Meta-analysis"
+        subsection = None
+    else:
+        return None
+
+    # Find section start
+    sec_idx = text.find(section)
+    if sec_idx < 0:
+        return None
+
+    block = text[sec_idx:]
+    if subsection:
+        sub_idx = block.find(subsection)
+        if sub_idx < 0:
+            return None
+        block = block[sub_idx:]
+
+    # Match the Fixed row: | Fixed  | 0.0949 | 0.0018 | 0.0914 | 0.0985 |
+    m = re.search(
+        r"\|\s*Fixed\s*\|\s*([-\d.]+)\s*\|\s*([-\d.]+)\s*\|\s*([-\d.]+)\s*\|\s*([-\d.]+)\s*\|",
+        block,
+    )
+    if not m:
+        return None
+    return {
+        "fixed_meta": float(m.group(1)),
+        "fixed_se": float(m.group(2)),
+        "fixed_l95": float(m.group(3)),
+        "fixed_u95": float(m.group(4)),
+    }
 
 
 def load_true_params(scenario_dir: Path) -> dict | None:
@@ -410,6 +477,14 @@ def plot_h2_by_time(
             ax.axhline(true_h2, color="black", linestyle="--", linewidth=1.5,
                         alpha=0.7, label=f"True h\u00b2 = {true_h2:.3f}")
 
+        # Meta-analysis overlay
+        meta = load_meta(tsv_dir, f"h2_{disorder}_meta", kind)
+        if meta is not None:
+            ax.axhline(meta["fixed_meta"], color=color, linestyle=":",
+                        linewidth=2, alpha=0.8, label=f"Meta = {meta['fixed_meta']:.3f}")
+            ax.axhspan(meta["fixed_l95"], meta["fixed_u95"],
+                        color=color, alpha=0.08)
+
         ax.set_title(KIND_LABELS.get(kind, kind), fontsize=11)
         ax.set_xlabel("Follow-up time (age)", fontsize=9)
         if col == 0:
@@ -432,12 +507,14 @@ def _plot_bar_panels(
     ylabel: str,
     title: str,
     output_path: Path,
+    meta_fn=None,
 ) -> None:
     """Bar chart at tmax, one panel per relationship kind.
 
     Args:
         load_fn: callable(kind) -> DataFrame with columns [born_at_year, time, value_col, l95, u95].
         value_col: column name for the bar values (e.g. "h2" or "rhog").
+        meta_fn: optional callable(kind) -> dict with fixed_meta/fixed_l95/fixed_u95, or None.
     """
     fig, axes, n_rows, n_cols = _make_panel_grid(len(kinds))
 
@@ -462,6 +539,15 @@ def _plot_bar_panels(
         if true_value is not None:
             ax.axhline(true_value, color="black", linestyle="--", linewidth=1.5,
                         alpha=0.7, label=f"True = {true_value:.3f}")
+
+        # Meta-analysis overlay
+        meta = meta_fn(kind) if meta_fn else None
+        if meta is not None:
+            ax.axhline(meta["fixed_meta"], color=color, linestyle=":",
+                        linewidth=2, alpha=0.8, zorder=5,
+                        label=f"Meta = {meta['fixed_meta']:.3f}")
+            ax.axhspan(meta["fixed_l95"], meta["fixed_u95"],
+                        color=color, alpha=0.08, zorder=1)
 
         ax.set_xticks(range(len(years)))
         ax.set_xticklabels([str(int(y)) for y in years], fontsize=6, rotation=45)
@@ -492,6 +578,7 @@ def plot_h2_bar(
         ylabel="h\u00b2",
         title=f"Heritability at Maximum Follow-up \u2014 {disorder.upper()}",
         output_path=output_path,
+        meta_fn=lambda kind: load_meta(tsv_dir, f"h2_{disorder}_meta", kind),
     )
 
 
@@ -546,6 +633,18 @@ def plot_gc_bar(
         if true_gc is not None:
             ax.axhline(true_gc, color="black", linestyle="--", linewidth=1.5,
                         alpha=0.7, label=f"True = {true_gc:.3f}")
+
+        # Meta-analysis overlay
+        meta = load_meta(tsv_dir, "gc_meta", kind)
+        if meta is not None:
+            ax.axhline(meta["fixed_meta"], color=color, linestyle=":",
+                        linewidth=2, alpha=0.8, zorder=5,
+                        label=f"Meta = {meta['fixed_meta']:.3f}")
+            ax.axhspan(
+                max(meta["fixed_l95"], ylim[0]),
+                min(meta["fixed_u95"], ylim[1]),
+                color=color, alpha=0.08, zorder=1,
+            )
 
         ax.set_ylim(ylim)
         ax.set_xticks(range(len(years)))

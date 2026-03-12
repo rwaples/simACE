@@ -245,6 +245,18 @@ tsv("h2_d1", h2_d1 |> arrange(born_at_year, time))
 tsv("h2_d2", h2_d2 |> arrange(born_at_year, time))
 tsv("gc_full", gc_d1_d2_all |> arrange(born_at_year, time))
 
+meta_to_df <- function(m) {
+  data.frame(
+    fixed_meta = m$fixed_meta, fixed_se = m$fixed_se,
+    fixed_l95 = m$fixed_l95, fixed_u95 = m$fixed_u95,
+    rand_meta = m$rand_meta, rand_se = m$rand_se,
+    rand_l95 = m$rand_l95, rand_u95 = m$rand_u95
+  )
+}
+tsv("h2_d1_meta", meta_to_df(h2_d1_meta))
+tsv("h2_d2_meta", meta_to_df(h2_d2_meta))
+tsv("gc_meta", meta_to_df(meta_tmax))
+
 ## ──────────────────────────────────────────────────────────────────────────────
 ## Write summary markdown report
 ## ──────────────────────────────────────────────────────────────────────────────
