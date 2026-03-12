@@ -43,13 +43,10 @@ docs/*.pptx
 .~lock.*
 
 # Working notes
+notes/
 improve_tetra.md
-todo.md
-work_package.md
-REVIEW.md
 plots.md
 validation.md
-weibull_fix.md
 claude memory notes analyze.md
 
 # OS
