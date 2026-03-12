@@ -5,7 +5,12 @@ Simulates multi-generational pedigrees with ACE variance components for two corr
 - **C** - Common/shared environment
 - **E** - Unique environment
 
-Continuous liabilities are mapped to observable phenotypes via a Weibull proportional-hazards frailty model (time-to-event) or a liability-threshold model (binary affection). The pipeline includes automated structural and statistical validation, phenotype statistics, and plotting.
+Continuous liabilities are mapped to observable phenotypes via one of three time-to-event models:
+- **Frailty** — Proportional hazards frailty model with pluggable baseline hazard (Weibull, Gompertz, lognormal, etc.)
+- **ADuLT LTM** — Deterministic liability threshold model with logistic CIP age-of-onset mapping (Pedersen et al., Nat Commun 2023)
+- **ADuLT Cox** — Proportional hazards model with Weibull noise and rank-based CIP-to-age mapping (Pedersen et al., 2023)
+
+A separate liability-threshold model produces binary affection status. The pipeline includes automated structural and statistical validation, phenotype statistics, and plotting. See [distributions.md](distributions.md) for model details.
 
 ## Prerequisites
 
@@ -97,17 +102,28 @@ defaults:
   p_mztwin: 0.02                            # Probability of MZ twin birth
   p_nonsocial_father: 0.05                  # Probability of non-social paternity
 
-  # Weibull frailty phenotype model - Trait 1
-  beta1: 1.0                                # Effect of liability on log-hazard
-  scale1: 2160                              # Weibull scale
-  rho1: 0.8                                 # Weibull shape (<1 = decreasing hazard)
+  # Phenotype model: "frailty" (default), "adult_ltm", or "adult_cox"
+  phenotype_model: frailty
 
-  # Weibull frailty phenotype model - Trait 2
+  # Frailty model - Trait 1
+  beta1: 1.0                                # Effect of liability on log-hazard
+  hazard_model1: weibull                    # Baseline hazard (weibull/exponential/gompertz/lognormal/loglogistic/gamma)
+  hazard_params1:
+    scale: 2160                             # Weibull scale
+    rho: 0.8                                # Weibull shape (<1 = decreasing hazard)
+
+  # Frailty model - Trait 2
   beta2: 1.5
-  scale2: 333
-  rho2: 1.2                                 # Weibull shape (>1 = increasing hazard)
+  hazard_model2: weibull
+  hazard_params2:
+    scale: 333
+    rho: 1.2                                # Weibull shape (>1 = increasing hazard)
 
   standardize: true                          # Standardize liability before phenotyping
+
+  # ADuLT model shared parameters (used by adult_ltm and adult_cox)
+  cip_x0: 50                                # Logistic CIP midpoint age
+  cip_k: 0.2                                # Logistic CIP growth rate
 
   # Censoring
   censor_age: 80                             # Max censoring age
@@ -153,7 +169,7 @@ Each scenario replicate produces:
 | File | Description |
 |------|-------------|
 | `results/{folder}/{scenario}/rep{N}/pedigree.parquet` | Pedigree with id, sex, parents, twin, household, A/C/E values, liabilities |
-| `results/{folder}/{scenario}/rep{N}/phenotype.weibull.parquet` | Weibull frailty phenotypes (age-at-onset, censoring, affected status) |
+| `results/{folder}/{scenario}/rep{N}/phenotype.parquet` | Time-to-event phenotypes (age-at-onset, censoring, affected status) |
 | `results/{folder}/{scenario}/rep{N}/phenotype.liability_threshold.parquet` | Liability-threshold binary affected status |
 | `results/{folder}/{scenario}/rep{N}/params.yaml` | Parameters used for this replicate |
 
@@ -196,13 +212,13 @@ Core pedigree structure with latent variance components for two correlated trait
 | `E1`, `E2` | float32 | Unique environment component |
 | `liability1`, `liability2` | float32 | Total liability (A + C + E) |
 
-#### phenotype.weibull.parquet
+#### phenotype.parquet
 
-Extends the pedigree with Weibull frailty time-to-event phenotypes and censoring. Includes all pedigree columns above, plus:
+Extends the pedigree with time-to-event phenotypes and censoring. Includes all pedigree columns above, plus:
 
 | Column | Type | Description |
 |--------|------|-------------|
-| `t1`, `t2` | float32 | Raw (uncensored) age-at-onset from the Weibull frailty model |
+| `t1`, `t2` | float32 | Raw (uncensored) age-at-onset from the phenotype model |
 | `death_age` | float32 | Age at death from competing-risk mortality |
 | `t_observed1`, `t_observed2` | float32 | Observed age-at-onset after age and death censoring |
 | `age_censored1`, `age_censored2` | bool | True if onset falls outside the generation's observation window |
@@ -234,7 +250,7 @@ ACE/
 │   ├── cli_base.py                    # Shared CLI boilerplate (add_logging_args, init_logging)
 │   ├── utils.py                       # Shared helpers (save_parquet, optimize_dtypes, safe_corrcoef, etc.)
 │   ├── simulate.py                    # Pedigree simulation (mating, reproduce, run_simulation)
-│   ├── phenotype.py                   # Weibull frailty phenotype model
+│   ├── phenotype.py                   # Phenotype models (frailty, adult_ltm, adult_cox)
 │   ├── censor.py                      # Age-window and competing-risk death censoring
 │   ├── threshold.py                   # Liability-threshold model
 │   ├── validate.py                    # Structural + statistical validation
@@ -269,6 +285,7 @@ ACE/
 ## Documentation (under construction)
 
 - **[methods.md](methods.md)** — Methods document (variance decomposition, Weibull frailty, censoring, liability threshold, tetrachoric correlation, heritability estimation, etc)
+- **[distributions.md](distributions.md)** — Phenotype model reference (frailty hazard distributions, ADuLT LTM, ADuLT Cox)
 - **[CLAUDE.md](CLAUDE.md)** — Architecture guide
 
 ## Troubleshooting
