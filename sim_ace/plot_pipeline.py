@@ -157,8 +157,8 @@ def _get_param_rows(
             # Compact frailty params per trait: [beta, model, params]
         if name == "_frailty1" and "beta1" in params:
             b = _format_param_value("beta1", params["beta1"])
-            m = str(params.get("hazard_model1", "?"))
-            hp = params.get("hazard_params1", {})
+            m = str(params.get("phenotype_model1", "?"))
+            hp = params.get("phenotype_params1", {})
             hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in hp.items())
             rows.append(("trait 1 \u03b2", b))
             rows.append(("trait 1 model", m))
@@ -166,8 +166,8 @@ def _get_param_rows(
             continue
         if name == "_frailty2" and "beta2" in params:
             b = _format_param_value("beta2", params["beta2"])
-            m = str(params.get("hazard_model2", "?"))
-            hp = params.get("hazard_params2", {})
+            m = str(params.get("phenotype_model2", "?"))
+            hp = params.get("phenotype_params2", {})
             hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in hp.items())
             rows.append(("trait 2 \u03b2", b))
             rows.append(("trait 2 model", m))

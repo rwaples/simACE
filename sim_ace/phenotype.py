@@ -1,12 +1,11 @@
 """
 Phenotype simulation for two correlated traits.
 
-Supports three phenotype models (set via phenotype_model parameter):
-  "frailty"    — Proportional hazards frailty model with pluggable baseline hazard (default)
-  "adult_ltm"  — ADuLT liability threshold model (Pedersen et al., Nat Commun 2023)
-  "adult_cox"  — ADuLT proportional hazards model (Weibull shape=2 + CIP→age mapping)
+Per-trait phenotype model selection via phenotype_model1/phenotype_model2:
+  Frailty models: "weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"
+  ADuLT models:   "adult_ltm", "adult_cox"
 
-Frailty model converts liability to raw event times (age-at-onset) using a proportional
+Frailty models convert liability to raw event times (age-at-onset) using a proportional
 hazards frailty model with pluggable baseline hazard.
 
 Model (per trait):
@@ -359,13 +358,112 @@ def phenotype_adult_cox(
     return t
 
 
+_FRAILTY_MODELS = {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
+_ADULT_MODELS = {"adult_ltm", "adult_cox"}
+_ALL_PHENOTYPE_MODELS = sorted(_FRAILTY_MODELS | _ADULT_MODELS)
+
+# Parameter names required per model
+_MODEL_PARAMS: dict[str, list[str]] = {
+    "weibull":     ["scale", "rho"],
+    "exponential": ["rate"],
+    "gompertz":    ["rate", "gamma"],
+    "lognormal":   ["mu", "sigma"],
+    "loglogistic": ["scale", "shape"],
+    "gamma":       ["shape", "scale"],
+}
+_ADULT_PARAMS: dict[str, list[str]] = {
+    "adult_ltm": ["cip_x0", "cip_k"],
+    "adult_cox": ["cip_x0", "cip_k"],
+}
+
+
+def _validate_phenotype_params(
+    model: str, phenotype_params: dict, trait_num: int,
+) -> None:
+    """Validate that phenotype_params contains the required keys for the model.
+
+    Raises:
+        ValueError: if required keys are missing or unexpected keys are present
+    """
+    if model in _FRAILTY_MODELS:
+        required = set(_MODEL_PARAMS[model])
+    elif model in _ADULT_MODELS:
+        required = set(_ADULT_PARAMS[model])
+    else:
+        raise ValueError(
+            f"Unknown phenotype_model{trait_num}={model!r}; "
+            f"valid models: {_ALL_PHENOTYPE_MODELS}"
+        )
+
+    provided = set(phenotype_params.keys())
+    missing = required - provided
+    if missing:
+        raise ValueError(
+            f"phenotype_params{trait_num} missing required keys for "
+            f"model {model!r}: {sorted(missing)}"
+        )
+    extra = provided - required
+    if extra:
+        logger.warning(
+            "phenotype_params%d has unexpected keys for model %r: %s (ignored)",
+            trait_num, model, sorted(extra),
+        )
+
+
+def _simulate_one_trait(
+    pedigree: pd.DataFrame,
+    params: dict[str, Any],
+    trait_num: int,
+    seed_offset: int,
+) -> np.ndarray:
+    """Dispatch a single trait to the appropriate phenotype model.
+
+    Args:
+        pedigree:    DataFrame with liability columns and sex
+        params:      simulation parameter dict
+        trait_num:   1 or 2
+        seed_offset: offset added to base seed
+
+    Returns:
+        Array of simulated event times, shape (n,)
+    """
+    model = params[f"phenotype_model{trait_num}"]
+    phenotype_params = params.get(f"phenotype_params{trait_num}", {})
+    seed = params["seed"] + seed_offset
+
+    _validate_phenotype_params(model, phenotype_params, trait_num)
+
+    if model in _ADULT_MODELS:
+        func = phenotype_adult_ltm if model == "adult_ltm" else phenotype_adult_cox
+        return func(
+            liability   = pedigree[f"liability{trait_num}"].values,
+            prevalence  = params[f"prevalence{trait_num}"],
+            cip_x0      = phenotype_params.get("cip_x0", 50.0),
+            cip_k       = phenotype_params.get("cip_k", 0.2),
+            seed        = seed,
+            standardize = params["standardize"],
+        )
+
+    # Frailty model
+    return simulate_phenotype(
+        liability     = pedigree[f"liability{trait_num}"].values,
+        beta          = params[f"beta{trait_num}"],
+        hazard_model  = model,
+        hazard_params = phenotype_params,
+        seed          = seed,
+        standardize   = params["standardize"],
+        sex           = pedigree["sex"].values,
+        beta_sex      = params.get(f"beta_sex{trait_num}", 0.0),
+    )
+
+
 def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     """Simulate phenotype from pedigree and parameter dict.
 
     Expected keys in params:
         G_pheno, seed, standardize,
-        beta1, hazard_model1, hazard_params1,
-        beta2, hazard_model2, hazard_params2
+        phenotype_model1, phenotype_params1, beta1,
+        phenotype_model2, phenotype_params2, beta2
 
     Args:
         pedigree: DataFrame with liability1, liability2, generation, …
@@ -385,65 +483,8 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
         )
     pedigree = pedigree[pedigree["generation"] >= min_gen].reset_index(drop=True)
 
-    sex_vals = pedigree["sex"].values
-    phenotype_model = params.get("phenotype_model", "frailty")
-
-    if phenotype_model == "adult_ltm":
-        t1 = phenotype_adult_ltm(
-            liability  = pedigree["liability1"].values,
-            prevalence = params["prevalence1"],
-            cip_x0     = params.get("cip_x0", 50.0),
-            cip_k      = params.get("cip_k", 0.2),
-            seed       = params["seed"],
-            standardize = params["standardize"],
-        )
-        t2 = phenotype_adult_ltm(
-            liability  = pedigree["liability2"].values,
-            prevalence = params["prevalence2"],
-            cip_x0     = params.get("cip_x0", 50.0),
-            cip_k      = params.get("cip_k", 0.2),
-            seed       = params["seed"] + 100,
-            standardize = params["standardize"],
-        )
-    elif phenotype_model == "adult_cox":
-        t1 = phenotype_adult_cox(
-            liability   = pedigree["liability1"].values,
-            prevalence  = params["prevalence1"],
-            cip_x0      = params.get("cip_x0", 50.0),
-            cip_k       = params.get("cip_k", 0.2),
-            seed        = params["seed"],
-            standardize = params["standardize"],
-        )
-        t2 = phenotype_adult_cox(
-            liability   = pedigree["liability2"].values,
-            prevalence  = params["prevalence2"],
-            cip_x0      = params.get("cip_x0", 50.0),
-            cip_k       = params.get("cip_k", 0.2),
-            seed        = params["seed"] + 100,
-            standardize = params["standardize"],
-        )
-    else:
-        # Default: frailty model
-        t1 = simulate_phenotype(
-            liability     = pedigree["liability1"].values,
-            beta          = params["beta1"],
-            hazard_model  = params["hazard_model1"],
-            hazard_params = params["hazard_params1"],
-            seed          = params["seed"],
-            standardize   = params["standardize"],
-            sex           = sex_vals,
-            beta_sex      = params.get("beta_sex1", 0.0),
-        )
-        t2 = simulate_phenotype(
-            liability     = pedigree["liability2"].values,
-            beta          = params["beta2"],
-            hazard_model  = params["hazard_model2"],
-            hazard_params = params["hazard_params2"],
-            seed          = params["seed"] + 100,
-            standardize   = params["standardize"],
-            sex           = sex_vals,
-            beta_sex      = params.get("beta_sex2", 0.0),
-        )
+    t1 = _simulate_one_trait(pedigree, params, trait_num=1, seed_offset=0)
+    t2 = _simulate_one_trait(pedigree, params, trait_num=2, seed_offset=100)
 
     phenotype = pd.DataFrame({
         "id":           pedigree["id"].values,
@@ -476,20 +517,6 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
 # CLI
 # ---------------------------------------------------------------------------
 
-_MODELS = ["weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"]
-_PHENOTYPE_MODELS = ["frailty", "adult_ltm", "adult_cox"]
-
-# Parameter names required per model
-_MODEL_PARAMS: dict[str, list[str]] = {
-    "weibull":     ["scale", "rho"],
-    "exponential": ["rate"],
-    "gompertz":    ["rate", "gamma"],
-    "lognormal":   ["mu", "sigma"],
-    "loglogistic": ["scale", "shape"],
-    "gamma":       ["shape", "scale"],
-}
-
-
 def cli() -> None:
     """Command-line interface for phenotype simulation."""
     from sim_ace.cli_base import add_logging_args, init_logging
@@ -504,21 +531,16 @@ def cli() -> None:
     parser.add_argument("--seed",        type=int,  default=42)
     parser.add_argument("--G-pheno",     type=int,  default=3)
     parser.add_argument("--standardize", action="store_true", default=True)
-    parser.add_argument("--phenotype-model", choices=_PHENOTYPE_MODELS, default="frailty")
-
-    # ADuLT shared CIP parameters
-    parser.add_argument("--cip-x0",       type=float, default=50.0)
-    parser.add_argument("--cip-k",        type=float, default=0.2)
     parser.add_argument("--prevalence1",  type=float, default=0.10)
     parser.add_argument("--prevalence2",  type=float, default=0.20)
 
     for k in (1, 2):
         g = parser.add_argument_group(f"Trait {k}")
+        g.add_argument(f"--phenotype-model{k}", choices=_ALL_PHENOTYPE_MODELS, default="weibull")
         g.add_argument(f"--beta{k}",         type=float, default=1.0)
         g.add_argument(f"--beta-sex{k}",     type=float, default=0.0)
-        g.add_argument(f"--hazard-model{k}",  choices=_MODELS, default="weibull")
-        # One flag per model parameter; user only needs to supply what their
-        # chosen model requires.
+        # Frailty model parameters (user only needs to supply what their
+        # chosen model requires).
         g.add_argument(f"--scale{k}",  type=float, default=None)
         g.add_argument(f"--rho{k}",    type=float, default=None)
         g.add_argument(f"--rate{k}",   type=float, default=None)
@@ -526,28 +548,29 @@ def cli() -> None:
         g.add_argument(f"--mu{k}",     type=float, default=None)
         g.add_argument(f"--sigma{k}",  type=float, default=None)
         g.add_argument(f"--shape{k}",  type=float, default=None)
+        # ADuLT CIP parameters
+        g.add_argument(f"--cip-x0-{k}",  type=float, default=50.0)
+        g.add_argument(f"--cip-k-{k}",   type=float, default=0.2)
 
     args = parser.parse_args()
     init_logging(args)
 
-    phenotype_model = getattr(args, "phenotype_model")
+    pm1 = getattr(args, "phenotype_model1")
+    pm2 = getattr(args, "phenotype_model2")
     params = {
-        "G_pheno":         args.G_pheno,
-        "seed":            args.seed,
-        "standardize":     args.standardize,
-        "phenotype_model": phenotype_model,
-        "cip_x0":          getattr(args, "cip_x0"),
-        "cip_k":           getattr(args, "cip_k"),
-        "prevalence1":     args.prevalence1,
-        "prevalence2":     args.prevalence2,
-        "beta1":           args.beta1,
-        "beta_sex1":       getattr(args, "beta_sex1"),
-        "hazard_model1":   getattr(args, "hazard_model1"),
-        "hazard_params1":  _build_hazard_params(args, trait=1) if phenotype_model == "frailty" else {},
-        "beta2":           args.beta2,
-        "beta_sex2":       getattr(args, "beta_sex2"),
-        "hazard_model2":   getattr(args, "hazard_model2"),
-        "hazard_params2":  _build_hazard_params(args, trait=2) if phenotype_model == "frailty" else {},
+        "G_pheno":          args.G_pheno,
+        "seed":             args.seed,
+        "standardize":      args.standardize,
+        "phenotype_model1": pm1,
+        "phenotype_model2": pm2,
+        "prevalence1":      args.prevalence1,
+        "prevalence2":      args.prevalence2,
+        "beta1":            args.beta1,
+        "beta_sex1":        getattr(args, "beta_sex1"),
+        "phenotype_params1": _build_phenotype_params(args, trait=1),
+        "beta2":            args.beta2,
+        "beta_sex2":        getattr(args, "beta_sex2"),
+        "phenotype_params2": _build_phenotype_params(args, trait=2),
     }
 
     pedigree  = pd.read_parquet(args.pedigree)
@@ -555,16 +578,24 @@ def cli() -> None:
     save_parquet(phenotype, args.output)
 
 
-def _build_hazard_params(args: argparse.Namespace, trait: int) -> dict[str, float]:
-    """Collect model-specific CLI floats into a hazard_params dict."""
-    model    = getattr(args, f"hazard_model{trait}")
+def _build_phenotype_params(args: argparse.Namespace, trait: int) -> dict[str, float]:
+    """Collect model-specific CLI floats into a phenotype_params dict."""
+    model = getattr(args, f"phenotype_model{trait}")
+
+    if model in _ADULT_MODELS:
+        return {
+            "cip_x0": getattr(args, f"cip_x0_{trait}"),
+            "cip_k":  getattr(args, f"cip_k_{trait}"),
+        }
+
+    # Frailty model
     required = _MODEL_PARAMS[model]
     params: dict[str, float] = {}
     for key in required:
         val = getattr(args, f"{key}{trait}", None)
         if val is None:
             raise ValueError(
-                f"--{key}{trait} is required when --hazard-model{trait}={model}"
+                f"--{key}{trait} is required when --phenotype-model{trait}={model}"
             )
         params[key] = val
     return params

@@ -26,29 +26,24 @@ defaults:
   p_nonsocial_father: 0.05
 
   # ── Phenotype model ───────────────────────────────────────────────────────
-  # phenotype_model: frailty | adult_ltm | adult_cox
-  phenotype_model: frailty
-
-  # ADuLT CIP parameters (shared by adult_ltm and adult_cox)
-  cip_x0: 50 # logistic CIP midpoint age
-  cip_k: 0.2 # logistic CIP growth rate
-
-  # hazard_model: weibull | exponential | gompertz | lognormal | loglogistic | gamma
-  # hazard_params: dict of model-specific parameters (frailty model only)
+  # phenotype_model1/2: weibull | exponential | gompertz | lognormal | loglogistic | gamma | adult_ltm | adult_cox
+  # phenotype_params1/2: dict of model-specific parameters
+  #   frailty models: hazard distribution params (e.g. scale, rho for weibull)
+  #   adult_ltm/adult_cox: cip_x0 (midpoint age), cip_k (growth rate)
 
   # Trait 1
   beta1: 1.0
   beta_sex1: 0.0
-  hazard_model1: weibull
-  hazard_params1:
+  phenotype_model1: weibull
+  phenotype_params1:
     scale: 2160
     rho: 0.8
 
   # Trait 2
   beta2: 1.5
   beta_sex2: 0.0
-  hazard_model2: weibull
-  hazard_params2:
+  phenotype_model2: weibull
+  phenotype_params2:
     scale: 333
     rho: 1.2
 
@@ -197,13 +192,13 @@ scenarios:
     folder: phenotype
     seed: 17042
     beta1: 1.0
-    hazard_model1: lognormal
-    hazard_params1:
+    phenotype_model1: lognormal
+    phenotype_params1:
       mu: 4.0
       sigma: 0.8
     beta2: 1.5
-    hazard_model2: lognormal
-    hazard_params2:
+    phenotype_model2: lognormal
+    phenotype_params2:
       mu: 3.5
       sigma: 0.6
 
@@ -211,13 +206,13 @@ scenarios:
     folder: phenotype
     seed: 18042
     beta1: 1.0
-    hazard_model1: gamma
-    hazard_params1:
+    phenotype_model1: gamma
+    phenotype_params1:
       shape: 2.0
       scale: 1000.0
     beta2: 1.5
-    hazard_model2: gamma
-    hazard_params2:
+    phenotype_model2: gamma
+    phenotype_params2:
       shape: 3.0
       scale: 500.0
 
@@ -225,13 +220,13 @@ scenarios:
     folder: phenotype
     seed: 19042
     beta1: 1.0
-    hazard_model1: loglogistic
-    hazard_params1:
+    phenotype_model1: loglogistic
+    phenotype_params1:
       scale: 60.0
       shape: 4.0
     beta2: 1.5
-    hazard_model2: loglogistic
-    hazard_params2:
+    phenotype_model2: loglogistic
+    phenotype_params2:
       scale: 40.0
       shape: 3.0
 
@@ -239,13 +234,13 @@ scenarios:
     folder: phenotype
     seed: 20042
     beta1: 1.0
-    hazard_model1: gompertz
-    hazard_params1:
+    phenotype_model1: gompertz
+    phenotype_params1:
       rate: 0.0001
       gamma: 0.05
     beta2: 1.5
-    hazard_model2: gompertz
-    hazard_params2:
+    phenotype_model2: gompertz
+    phenotype_params2:
       rate: 0.0003
       gamma: 0.07
 
@@ -253,13 +248,13 @@ scenarios:
     folder: phenotype
     seed: 21042
     beta1: 1.0
-    hazard_model1: loglogistic
-    hazard_params1:
+    phenotype_model1: loglogistic
+    phenotype_params1:
       scale: 4
       shape: 3.5
     beta2: 1.5
-    hazard_model2: lognormal
-    hazard_params2:
+    phenotype_model2: lognormal
+    phenotype_params2:
       mu: 4.160
       sigma: 0.076
 
@@ -295,21 +290,52 @@ scenarios:
     folder: test
     seed: 23042
     N: 50000
-    phenotype_model: adult_ltm
+    phenotype_model1: adult_ltm
+    phenotype_model2: adult_ltm
     prevalence1: 0.10
     prevalence2: 0.20
-    cip_x0: 50 # median age-of-onset
-    cip_k: 0.2 # "growth rate"
+    phenotype_params1:
+      cip_x0: 50 # median age-of-onset
+      cip_k: 0.2 # "growth rate"
+    phenotype_params2:
+      cip_x0: 50
+      cip_k: 0.2
+    C1: 0.0
+    C2: 0.0
+    rA: 0.3
+    rC: 0.0
+    N: 50000
+    G_sim: 35
+    G_ped: 30
+    G_pheno: 30
+    gen_censoring:
+      0: [0, 80]
 
   adult_cox_test:
     folder: test
     seed: 24042
     N: 50000
-    phenotype_model: adult_cox
+    phenotype_model1: adult_cox
+    phenotype_model2: adult_cox
     prevalence1: 0.10
     prevalence2: 0.20
-    cip_x0: 50 # median age-of-onset
-    cip_k: 0.2 # "growth rate"
+    phenotype_params1:
+      cip_x0: 50 # median age-of-onset
+      cip_k: 0.2 # "growth rate"
+    phenotype_params2:
+      cip_x0: 50
+      cip_k: 0.2
+
+    C1: 0.0
+    C2: 0.0
+    rA: 0.3
+    rC: 0.0
+    N: 50000
+    G_sim: 35
+    G_ped: 30
+    G_pheno: 30
+    gen_censoring:
+      0: [0, 80]
 
   # ── Quick test ──────────────────────────────────────────────────────
   small_test:

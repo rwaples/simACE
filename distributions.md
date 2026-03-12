@@ -1,11 +1,13 @@
 
 # ACE Phenotype Models
 
-Three phenotype models convert pedigree liabilities (L = A + C + E) to
-age-of-onset times. Set via `phenotype_model` in config (default: `frailty`).
+Eight phenotype models convert pedigree liabilities (L = A + C + E) to
+age-of-onset times. Set independently per trait via `phenotype_model1`/`phenotype_model2`
+in config (default: `weibull`).
 
 ```yaml
-phenotype_model: frailty    # "frailty", "adult_ltm", or "adult_cox"
+phenotype_model1: weibull    # weibull/exponential/gompertz/lognormal/loglogistic/gamma/adult_ltm/adult_cox
+phenotype_model2: weibull
 ```
 
 All models produce raw event times `t1`, `t2` which are then censored by
@@ -30,14 +32,13 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 # Config parameters:
 #     beta1, beta2:               liability effect on log-hazard
 #     beta_sex1, beta_sex2:       sex covariate effect (0 = no effect)
-#     hazard_model1, hazard_model2:   baseline hazard name (see below)
-#     hazard_params1, hazard_params2: model-specific parameter dict
+#     phenotype_model1, phenotype_model2: baseline hazard name (see below)
+#     phenotype_params1, phenotype_params2: model-specific parameter dict
 #
 # Example:
-# phenotype_model: frailty
+# phenotype_model1: weibull
 # beta1: 1.0
-# hazard_model1: weibull
-# hazard_params1:
+# phenotype_params1:
 #   scale: 2160
 #   rho: 0.8
 
@@ -67,8 +68,8 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
   #   - rho < 1  -> decreasing hazard
   #
   # Example:
-  # hazard_model1: weibull
-  # hazard_params1:
+  # phenotype_model1: weibull
+  # phenotype_params1:
   #   scale: 2160
   #   rho: 0.8
 
@@ -89,8 +90,8 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
   #   rate = 1 / mean
   #
   # Example:
-  # hazard_model1: exponential
-  # hazard_params1:
+  # phenotype_model1: exponential
+  # phenotype_params1:
   #   rate: 0.02    # mean onset ~ 50
 
 
@@ -113,8 +114,8 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
   #   - To make onset earlier -> increase gamma
   #
   # Example:
-  # hazard_model1: gompertz
-  # hazard_params1:
+  # phenotype_model1: gompertz
+  # phenotype_params1:
   #   rate: 0.00005
   #   gamma: 0.07
 
@@ -135,8 +136,8 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
   #
   #
   # Example (mean ~ 65, sd ~ 5):
-  # hazard_model1: lognormal
-  # hazard_params1:
+  # phenotype_model1: lognormal
+  # phenotype_params1:
   #   mu: 4.160
   #   sigma: 0.076
 
@@ -163,8 +164,8 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
   #   shape = 1 -> logistic distribution (monotone)
   #
   # Example:
-  # hazard_model1: loglogistic
-  # hazard_params1:
+  # phenotype_model1: loglogistic
+  # phenotype_params1:
   #   scale: 50
   #   shape: 3.5
 
@@ -184,8 +185,8 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
   #     scale = (sd^2) / mean
   #
   # Example (mean ~ 60, sd ~ 10):
-  # hazard_model1: gamma
-  # hazard_params1:
+  # phenotype_model1: gamma
+  # phenotype_params1:
   #   shape: 36.0       # (60/10)^2
   #   scale: 1.6667     # (10^2)/60
 
@@ -224,15 +225,21 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 #
 # Config parameters:
 #     prevalence1, prevalence2:  population prevalence K per trait
-#     cip_x0:                   logistic CIP midpoint age (default 50)
-#     cip_k:                    logistic CIP growth rate (default 0.2)
+#     phenotype_params1/2:
+#       cip_x0:  logistic CIP midpoint age (default 50)
+#       cip_k:   logistic CIP growth rate (default 0.2)
 #
 # Example:
-# phenotype_model: adult_ltm
+# phenotype_model1: adult_ltm
+# phenotype_model2: adult_ltm
 # prevalence1: 0.10
 # prevalence2: 0.20
-# cip_x0: 50
-# cip_k: 0.2
+# phenotype_params1:
+#   cip_x0: 50
+#   cip_k: 0.2
+# phenotype_params2:
+#   cip_x0: 50
+#   cip_k: 0.2
 
 
 
@@ -265,12 +272,18 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 #
 # Config parameters:
 #     prevalence1, prevalence2:  population prevalence K per trait
-#     cip_x0:                   logistic CIP midpoint age (default 50)
-#     cip_k:                    logistic CIP growth rate (default 0.2)
+#     phenotype_params1/2:
+#       cip_x0:  logistic CIP midpoint age (default 50)
+#       cip_k:   logistic CIP growth rate (default 0.2)
 #
 # Example:
-# phenotype_model: adult_cox
+# phenotype_model1: adult_cox
+# phenotype_model2: adult_cox
 # prevalence1: 0.10
 # prevalence2: 0.20
-# cip_x0: 50
-# cip_k: 0.2
+# phenotype_params1:
+#   cip_x0: 50
+#   cip_k: 0.2
+# phenotype_params2:
+#   cip_x0: 50
+#   cip_k: 0.2

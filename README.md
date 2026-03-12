@@ -102,28 +102,22 @@ defaults:
   p_mztwin: 0.02                            # Probability of MZ twin birth
   p_nonsocial_father: 0.05                  # Probability of non-social paternity
 
-  # Phenotype model: "frailty" (default), "adult_ltm", or "adult_cox"
-  phenotype_model: frailty
-
-  # Frailty model - Trait 1
+  # Phenotype model per trait: weibull/exponential/gompertz/lognormal/loglogistic/gamma/adult_ltm/adult_cox
+  # Trait 1
   beta1: 1.0                                # Effect of liability on log-hazard
-  hazard_model1: weibull                    # Baseline hazard (weibull/exponential/gompertz/lognormal/loglogistic/gamma)
-  hazard_params1:
+  phenotype_model1: weibull                 # Baseline hazard model
+  phenotype_params1:
     scale: 2160                             # Weibull scale
     rho: 0.8                                # Weibull shape (<1 = decreasing hazard)
 
-  # Frailty model - Trait 2
+  # Trait 2
   beta2: 1.5
-  hazard_model2: weibull
-  hazard_params2:
+  phenotype_model2: weibull
+  phenotype_params2:
     scale: 333
     rho: 1.2                                # Weibull shape (>1 = increasing hazard)
 
   standardize: true                          # Standardize liability before phenotyping
-
-  # ADuLT model shared parameters (used by adult_ltm and adult_cox)
-  cip_x0: 50                                # Logistic CIP midpoint age
-  cip_k: 0.2                                # Logistic CIP growth rate
 
   # Censoring
   censor_age: 80                             # Max censoring age

@@ -721,31 +721,31 @@ def cli() -> None:
                         action="store_false", default=True)
 
     # Trait 1 frailty params
-    parser.add_argument("--beta1",           type=float, default=None)
-    parser.add_argument("--hazard-model1",   default=None)
-    parser.add_argument("--hazard-params1",  type=str,   default=None,
+    parser.add_argument("--beta1",             type=float, default=None)
+    parser.add_argument("--phenotype-model1",  default=None)
+    parser.add_argument("--phenotype-params1", type=str,   default=None,
                         help="JSON dict, e.g. '{\"scale\": 2160, \"rho\": 0.8}'")
 
     # Trait 2 frailty params
-    parser.add_argument("--beta2",           type=float, default=None)
-    parser.add_argument("--hazard-model2",   default=None)
-    parser.add_argument("--hazard-params2",  type=str,   default=None)
+    parser.add_argument("--beta2",             type=float, default=None)
+    parser.add_argument("--phenotype-model2",  default=None)
+    parser.add_argument("--phenotype-params2", type=str,   default=None)
 
     args = parser.parse_args()
     init_logging(args)
 
     frailty_params = None
-    if args.beta1 is not None and args.hazard_model1 and args.hazard_params1:
+    if args.beta1 is not None and args.phenotype_model1 and args.phenotype_params1:
         frailty_params = {
             "trait1": {
                 "beta":          args.beta1,
-                "hazard_model":  args.hazard_model1,
-                "hazard_params": json.loads(args.hazard_params1),
+                "hazard_model":  args.phenotype_model1,
+                "hazard_params": json.loads(args.phenotype_params1),
             },
             "trait2": {
                 "beta":          args.beta2,
-                "hazard_model":  args.hazard_model2,
-                "hazard_params": json.loads(args.hazard_params2),
+                "hazard_model":  args.phenotype_model2,
+                "hazard_params": json.loads(args.phenotype_params2),
             },
         }
 

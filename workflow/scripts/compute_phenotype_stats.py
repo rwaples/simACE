@@ -10,17 +10,19 @@ def _run_snakemake():
     gen_censoring_raw = p.get("gen_censoring", None)
     gen_censoring = {int(k): v for k, v in gen_censoring_raw.items()} if gen_censoring_raw else None
 
+    from sim_ace.phenotype import _FRAILTY_MODELS
+    pm1, pm2 = p.phenotype_model1, p.phenotype_model2
     frailty_params = {
         "trait1": {
             "beta":          p.beta1,
-            "hazard_model":  p.hazard_model1,
-            "hazard_params": p.hazard_params1,
-        },
+            "hazard_model":  pm1,
+            "hazard_params": p.phenotype_params1,
+        } if pm1 in _FRAILTY_MODELS else {},
         "trait2": {
             "beta":          p.beta2,
-            "hazard_model":  p.hazard_model2,
-            "hazard_params": p.hazard_params2,
-        },
+            "hazard_model":  pm2,
+            "hazard_params": p.phenotype_params2,
+        } if pm2 in _FRAILTY_MODELS else {},
     }
 
     main(

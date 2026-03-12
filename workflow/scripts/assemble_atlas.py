@@ -28,8 +28,8 @@ def _run_snakemake():
     # Merge in config-level parameters not present in params.yaml
     extra_keys = [
         "scenario", "replicates", "folder",
-        "beta1", "beta_sex1", "hazard_model1", "hazard_params1",
-        "beta2", "beta_sex2", "hazard_model2", "hazard_params2",
+        "beta1", "beta_sex1", "phenotype_model1", "phenotype_params1",
+        "beta2", "beta_sex2", "phenotype_model2", "phenotype_params2",
         "standardize", "censor_age", "gen_censoring",
         "death_scale", "death_rho", "prevalence1", "prevalence2",
         "G_pheno", "plot_format",
