@@ -1,0 +1,17 @@
+name: epimight
+channels:
+  - conda-forge
+dependencies:
+  - r-base>=4.2
+  - r-r6
+  - r-cmprsk
+  - r-data.table
+  - r-dplyr
+  - r-dtplyr
+  - r-jinjar
+  - r-readr
+  - r-tidyr
+  - r-yaml
+  - r-rjson
+  - r-arrow
+  - r-jsonlite
