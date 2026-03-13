@@ -12,8 +12,8 @@ rule validate_pedigree_liability:
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/validate.tsv"
     resources:
-        mem_mb=4000,
-        runtime=10
+        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_ped"),
+        runtime = lambda w: _scale_runtime(config, w.scenario, "G_ped")
     threads: 1
     script:
         "../scripts/validate.py"

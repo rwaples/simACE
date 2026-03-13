@@ -9,6 +9,20 @@ def get_param(config, scenario, param):
     return config["defaults"][param]
 
 
+def _scale_mem(config, scenario, gen_key="G_pheno", mb_per_1k=2, floor=4000):
+    """Estimate mem_mb from population size: N × G × mb_per_1k/1000, with a floor."""
+    n = get_param(config, scenario, "N")
+    g = get_param(config, scenario, gen_key)
+    return max(floor, int(n * g * mb_per_1k / 1000))
+
+
+def _scale_runtime(config, scenario, gen_key="G_pheno", min_per_1M=5, floor=5):
+    """Estimate runtime (minutes) from population size."""
+    n = get_param(config, scenario, "N")
+    g = get_param(config, scenario, gen_key)
+    return max(floor, int(n * g * min_per_1M / 1_000_000))
+
+
 def get_folder(config, scenario):
     """Get the folder grouping for a scenario."""
     return get_param(config, scenario, "folder")

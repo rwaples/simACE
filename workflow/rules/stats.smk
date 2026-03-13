@@ -26,8 +26,8 @@ rule stats_frailty:
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_stats.tsv"
     resources:
-        mem_mb  = 4000,
-        runtime = 10
+        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_ped"),
+        runtime = lambda w: _scale_runtime(config, w.scenario, "G_ped")
     threads: 1
     script:
         "../scripts/compute_phenotype_stats.py"
@@ -82,8 +82,8 @@ rule stats_threshold:
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/threshold_stats.tsv"
     resources:
-        mem_mb  = 4000,
-        runtime = 10
+        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
+        runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
     threads: 1
     script:
         "../scripts/compute_threshold_stats.py"

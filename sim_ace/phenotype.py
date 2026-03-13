@@ -4,6 +4,7 @@ Phenotype simulation for two correlated traits.
 Per-trait phenotype model selection via phenotype_model1/phenotype_model2:
   Frailty models: "weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"
   ADuLT models:   "adult_ltm", "adult_cox"
+  Cure models:    "cure_frailty"
 
 Frailty models convert liability to raw event times (age-at-onset) using a proportional
 hazards frailty model with pluggable baseline hazard.
@@ -358,9 +359,77 @@ def phenotype_adult_cox(
     return t
 
 
+# ---------------------------------------------------------------------------
+# Mixture cure frailty model (Berkson & Gage 1952, Farewell 1982)
+# ---------------------------------------------------------------------------
+
+def phenotype_cure_frailty(
+    liability: np.ndarray,
+    prevalence: float,
+    beta: float,
+    baseline: str,
+    hazard_params: dict[str, float],
+    seed: int,
+    standardize: bool = True,
+    sex: np.ndarray | None = None,
+    beta_sex: float = 0.0,
+) -> np.ndarray:
+    """Mixture cure frailty model: threshold WHO, frailty WHEN.
+
+    Liability threshold determines case status (WHO gets the disorder),
+    then a proportional hazards frailty model determines age-of-onset
+    (WHEN among cases). Controls are censored at 1e6.
+
+    Args:
+        liability:     quantitative liability, shape (n,)
+        prevalence:    population prevalence K (case fraction)
+        beta:          effect of liability on log-hazard among cases
+        baseline:      baseline hazard model name (e.g. "weibull", "gompertz")
+        hazard_params: model parameter dict for the baseline hazard
+        seed:          random seed
+        standardize:   if True, standardize liability to N(0,1)
+        sex:           sex covariate (0=female, 1=male), shape (n,)
+        beta_sex:      effect of sex on log-hazard (0.0 = no effect)
+
+    Returns:
+        Array of simulated event times, shape (n,)
+    """
+    n = len(liability)
+    L = liability.copy()
+
+    if standardize:
+        std = np.std(L)
+        if std > 0:
+            L = (L - L.mean()) / std
+        mean = 0.0
+        scaled_beta = beta / std if std > 0 else 0.0
+    else:
+        mean = 0.0
+        scaled_beta = beta
+
+    threshold = norm.ppf(1.0 - prevalence)
+    is_case = L > threshold
+
+    t = np.full(n, 1e6)
+    n_cases = is_case.sum()
+    if n_cases > 0:
+        rng = np.random.default_rng(seed)
+        neg_log_u = rng.exponential(size=n_cases)
+
+        if beta_sex != 0.0 and sex is not None:
+            neg_log_u = neg_log_u / np.exp(beta_sex * sex[is_case])
+
+        t[is_case] = _INVERTERS[baseline](
+            neg_log_u, L[is_case], mean, scaled_beta, hazard_params,
+        )
+
+    return t
+
+
 _FRAILTY_MODELS = {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
 _ADULT_MODELS = {"adult_ltm", "adult_cox"}
-_ALL_PHENOTYPE_MODELS = sorted(_FRAILTY_MODELS | _ADULT_MODELS)
+_CURE_MODELS = {"cure_frailty"}
+_ALL_PHENOTYPE_MODELS = sorted(_FRAILTY_MODELS | _ADULT_MODELS | _CURE_MODELS)
 
 # Parameter names required per model
 _MODEL_PARAMS: dict[str, list[str]] = {
@@ -389,6 +458,19 @@ def _validate_phenotype_params(
         required = set(_MODEL_PARAMS[model])
     elif model in _ADULT_MODELS:
         required = set(_ADULT_PARAMS[model])
+    elif model in _CURE_MODELS:
+        if "baseline" not in phenotype_params:
+            raise ValueError(
+                f"phenotype_params{trait_num} for model {model!r} must include "
+                f"'baseline' key specifying the baseline hazard model"
+            )
+        baseline = phenotype_params["baseline"]
+        if baseline not in _FRAILTY_MODELS:
+            raise ValueError(
+                f"phenotype_params{trait_num} baseline={baseline!r} is not a valid "
+                f"frailty model; valid baselines: {sorted(_FRAILTY_MODELS)}"
+            )
+        required = set(_MODEL_PARAMS[baseline]) | {"baseline"}
     else:
         raise ValueError(
             f"Unknown phenotype_model{trait_num}={model!r}; "
@@ -442,6 +524,20 @@ def _simulate_one_trait(
             cip_k       = phenotype_params.get("cip_k", 0.2),
             seed        = seed,
             standardize = params["standardize"],
+        )
+
+    if model in _CURE_MODELS:
+        hazard_params = {k: v for k, v in phenotype_params.items() if k != "baseline"}
+        return phenotype_cure_frailty(
+            liability     = pedigree[f"liability{trait_num}"].values,
+            prevalence    = params[f"prevalence{trait_num}"],
+            beta          = params[f"beta{trait_num}"],
+            baseline      = phenotype_params["baseline"],
+            hazard_params = hazard_params,
+            seed          = seed,
+            standardize   = params["standardize"],
+            sex           = pedigree["sex"].values,
+            beta_sex      = params.get(f"beta_sex{trait_num}", 0.0),
         )
 
     # Frailty model

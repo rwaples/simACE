@@ -22,7 +22,7 @@ from scipy.optimize import minimize_scalar
 from scipy.special import owens_t
 from scipy.stats import linregress, norm
 
-from sim_ace.pedigree_graph import extract_relationship_pairs
+from sim_ace.pedigree_graph import extract_relationship_pairs, count_relationship_pairs
 from sim_ace.utils import save_parquet, PAIR_TYPES
 
 logger = logging.getLogger(__name__)
@@ -635,17 +635,16 @@ def main(
     stats["pair_counts"] = {k: int(len(v[0])) for k, v in pairs.items()}
 
     if pedigree_path is not None:
-        logger.info("Extracting relationship pairs from full pedigree...")
+        logger.info("Counting relationship pairs from full pedigree...")
         t1      = time.perf_counter()
         df_ped  = pd.read_parquet(pedigree_path)
-        pairs_p = extract_relationship_pairs(df_ped, seed=seed)
-        stats["pair_counts_ped"]    = {k: int(len(v[0])) for k, v in pairs_p.items()}
+        stats["pair_counts_ped"]    = count_relationship_pairs(df_ped)
         stats["n_individuals_ped"]  = int(len(df_ped))
         stats["n_generations_ped"]  = (
             int(df_ped["generation"].nunique()) if "generation" in df_ped.columns else 1
         )
-        del df_ped, pairs_p
-        logger.info("Pedigree pairs extracted in %.1fs", time.perf_counter() - t1)
+        del df_ped
+        logger.info("Pedigree pairs counted in %.1fs", time.perf_counter() - t1)
 
     logger.info("Computing liability correlations...")
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)

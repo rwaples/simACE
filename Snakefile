@@ -3,7 +3,7 @@ configfile: "config/config.yaml"
 from workflow.common import (
     get_param, get_folder, get_scenarios_for_folder,
     get_all_folders, get_folder_validations,
-    get_scenario_sim_outputs, plot_filenames,
+    get_scenario_sim_outputs, plot_filenames, _scale_mem, _scale_runtime,
     _PHENOTYPE_BASENAMES, _THRESHOLD_BASENAMES, _VALIDATION_BASENAMES,
 )
 

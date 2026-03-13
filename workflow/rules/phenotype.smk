@@ -28,8 +28,8 @@ rule phenotype_frailty:
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_frailty.tsv"
     resources:
-        mem_mb  = 4000,
-        runtime = 10
+        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_ped"),
+        runtime = lambda w: _scale_runtime(config, w.scenario, "G_ped")
     threads: 1
     script:
         "../scripts/phenotype.py"
@@ -51,8 +51,8 @@ rule censor_weibull:
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/censor_weibull.tsv"
     resources:
-        mem_mb  = 4000,
-        runtime = 5
+        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
+        runtime = lambda w: _scale_runtime(config, w.scenario, "G_ped")
     threads: 1
     script:
         "../scripts/censor.py"
@@ -72,8 +72,8 @@ rule phenotype_threshold:
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_threshold.tsv"
     resources:
-        mem_mb  = 2000,
-        runtime = 5
+        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_ped"),
+        runtime = lambda w: _scale_runtime(config, w.scenario, "G_ped")
     threads: 1
     script:
         "../scripts/phenotype_threshold.py"

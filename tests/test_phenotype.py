@@ -3,7 +3,10 @@
 import numpy as np
 import pytest
 
-from sim_ace.phenotype import simulate_phenotype, phenotype_adult_ltm, phenotype_adult_cox
+from sim_ace.phenotype import (
+    simulate_phenotype, phenotype_adult_ltm, phenotype_adult_cox,
+    phenotype_cure_frailty,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -284,3 +287,110 @@ class TestAdultCox:
         t1 = phenotype_adult_cox(liability, prevalence=0.10, seed=42)
         t2 = phenotype_adult_cox(liability, prevalence=0.10, seed=99)
         assert not np.allclose(t1, t2)
+
+
+# ---------------------------------------------------------------------------
+# Mixture Cure Frailty Model tests
+# ---------------------------------------------------------------------------
+
+GOMPERTZ_PARAMS = {"rate": 0.0133, "gamma": 0.2019}
+
+
+class TestCureFrailty:
+
+    def test_output_shape(self):
+        liability = np.random.default_rng(0).standard_normal(500)
+        t = phenotype_cure_frailty(liability, prevalence=0.10, beta=1.0,
+                                   baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
+                                   seed=42)
+        assert t.shape == (500,)
+
+    def test_controls_censored(self):
+        """Non-cases should have t = 1e6."""
+        n = 10000
+        liability = np.random.default_rng(0).standard_normal(n)
+        prevalence = 0.10
+        t = phenotype_cure_frailty(liability, prevalence=prevalence, beta=1.0,
+                                   baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
+                                   seed=42)
+        assert np.all(t[t >= 1e6 - 1] == 1e6)
+
+    def test_prevalence_matches(self):
+        """Case fraction should approximate target prevalence."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        prevalence = 0.10
+        t = phenotype_cure_frailty(liability, prevalence=prevalence, beta=1.0,
+                                   baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
+                                   seed=42)
+        case_rate = np.mean(t < 1e6)
+        assert abs(case_rate - prevalence) < 0.02
+
+    def test_onset_positive(self):
+        """All case onset times should be > 0."""
+        n = 10000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t = phenotype_cure_frailty(liability, prevalence=0.10, beta=1.0,
+                                   baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
+                                   seed=42)
+        cases = t[t < 1e6]
+        assert len(cases) > 0
+        assert np.all(cases > 0)
+
+    def test_deterministic_seed(self):
+        """Same seed should produce identical output."""
+        liability = np.array([0.5, -0.3, 1.2, -1.0, 2.0, -0.5, 0.8, 1.5])
+        t1 = phenotype_cure_frailty(liability, prevalence=0.30, beta=1.0,
+                                    baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
+                                    seed=42)
+        t2 = phenotype_cure_frailty(liability, prevalence=0.30, beta=1.0,
+                                    baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
+                                    seed=42)
+        np.testing.assert_array_equal(t1, t2)
+
+    def test_multiple_baselines(self):
+        """weibull, lognormal, gompertz baselines should all work."""
+        n = 5000
+        liability = np.random.default_rng(0).standard_normal(n)
+        baselines = {
+            "weibull":   {"scale": 316.228, "rho": 2.0},
+            "lognormal": {"mu": 4.0, "sigma": 0.8},
+            "gompertz":  {"rate": 0.0133, "gamma": 0.2019},
+        }
+        for name, params in baselines.items():
+            t = phenotype_cure_frailty(liability, prevalence=0.10, beta=1.0,
+                                       baseline=name, hazard_params=params,
+                                       seed=42)
+            assert t.shape == (n,)
+            cases = t[t < 1e6]
+            assert len(cases) > 0
+            assert np.all(cases > 0)
+
+    def test_beta_zero(self):
+        """beta=0 → all cases get identical frailty (z=1), same onset distribution."""
+        n = 20000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t = phenotype_cure_frailty(liability, prevalence=0.20, beta=0.0,
+                                   baseline="weibull",
+                                   hazard_params={"scale": 316.228, "rho": 2.0},
+                                   seed=42, standardize=False)
+        cases = t[t < 1e6]
+        # With z=1 for all cases, high/low liability cases should have similar means
+        case_L = liability[t < 1e6]
+        high = case_L > np.median(case_L)
+        low = case_L <= np.median(case_L)
+        assert abs(cases[high].mean() - cases[low].mean()) / cases.mean() < 0.1
+
+    def test_higher_liability_earlier(self):
+        """Higher liability → earlier onset on average among cases."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t = phenotype_cure_frailty(liability, prevalence=0.20, beta=2.0,
+                                   baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
+                                   seed=42)
+        cases = t < 1e6
+        case_L = liability[cases]
+        case_t = t[cases]
+        high = case_L > np.percentile(case_L, 75)
+        low = case_L < np.percentile(case_L, 25)
+        assert case_t[high].mean() < case_t[low].mean()

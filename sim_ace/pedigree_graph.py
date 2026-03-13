@@ -346,11 +346,10 @@ class PedigreeGraph:
 
         return lo[kept].astype(np.intp), hi[kept].astype(np.intp)
 
-    def _second_cousin_pairs(self) -> tuple[np.ndarray, np.ndarray]:
-        """2nd cousin pairs: share a great-grandparent but not a grandparent.
+    def _second_cousin_matrix(self) -> sp.spmatrix:
+        """Symmetric sparse matrix with nonzeros at 2nd cousin pairs.
 
-        Uses A³ @ (A³).T to find shared-great-grandparent pairs,
-        then subtracts shared-grandparent pairs (1st cousins or closer).
+        Shared-great-grandparent pairs minus shared-grandparent pairs.
         """
         D_raw = self._A3 @ self._A3.T
         D_bool = (D_raw > 0).astype(np.float64)
@@ -360,6 +359,11 @@ class PedigreeGraph:
         second_cousins = D_bool - D_bool.multiply(C_bool)
         second_cousins.setdiag(0)
         second_cousins.eliminate_zeros()
+        return second_cousins
+
+    def _second_cousin_pairs(self) -> tuple[np.ndarray, np.ndarray]:
+        """2nd cousin pairs: share a great-grandparent but not a grandparent."""
+        second_cousins = self._second_cousin_matrix()
 
         sc_upper = sp.triu(second_cousins, k=1)
         sc_i, sc_j = sc_upper.nonzero()
@@ -409,6 +413,70 @@ class PedigreeGraph:
 
         return pairs
 
+    def count_pairs(self) -> dict[str, int]:
+        """Count all 10 relationship categories without materializing pair arrays.
+
+        Much more memory-efficient than extract_pairs() for large pedigrees
+        since it avoids creating index arrays for high-count relationships
+        (e.g. 180M+ 2nd cousin pairs).
+        """
+        counts: dict[str, int] = {}
+
+        counts["MZ twin"] = len(self._mz_twin_pairs()[0])
+
+        mo, fo = self._parent_offspring_pairs()
+        counts["Mother-offspring"] = len(mo[0])
+        counts["Father-offspring"] = len(fo[0])
+
+        full_sib, mat_hs, pat_hs = self._sibling_pairs()
+        counts["Full sib"] = len(full_sib[0])
+        counts["Maternal half sib"] = len(mat_hs[0])
+        counts["Paternal half sib"] = len(pat_hs[0])
+
+        logger.info(
+            "Siblings: %d full, %d maternal HS, %d paternal HS",
+            counts["Full sib"], counts["Maternal half sib"], counts["Paternal half sib"],
+        )
+
+        # Cousin count from sparse matrix nnz (symmetric → nnz/2)
+        C_bool = (self._A2_shared > 0).astype(np.float64)
+        S_bool = (self._S > 0).astype(np.float64)
+        cousins = C_bool - C_bool.multiply(S_bool)
+        cousins.setdiag(0)
+        cousins.eliminate_zeros()
+        counts["1st cousin"] = cousins.nnz // 2
+        logger.info("1st cousins: %d pairs", counts["1st cousin"])
+
+        counts["Grandparent-grandchild"] = self._A2.nnz
+        logger.info("Grandparent-grandchild: %d pairs", counts["Grandparent-grandchild"])
+
+        # Avuncular count
+        avunc = self._A @ self._full_sib_matrix
+        avunc.setdiag(0)
+        parent_child = (self._A + self._A.T) > 0
+        avunc = avunc - avunc.multiply(parent_child)
+        avunc.eliminate_zeros()
+        # Deduplicate: each undirected pair appears twice in the asymmetric matrix
+        # Pack into keys and count unique
+        if avunc.nnz > 0:
+            a_i, a_j = avunc.nonzero()
+            lo = np.minimum(a_i, a_j)
+            hi = np.maximum(a_i, a_j)
+            max_id = int(hi.max()) + 1
+            keys = lo.astype(np.int64) * max_id + hi.astype(np.int64)
+            counts["Avuncular"] = len(np.unique(keys))
+        else:
+            counts["Avuncular"] = 0
+        logger.info("Avuncular: %d pairs", counts["Avuncular"])
+
+        # 2nd cousin count from sparse matrix nnz (symmetric → nnz/2)
+        second_cousins = self._second_cousin_matrix()
+        counts["2nd cousin"] = second_cousins.nnz // 2
+        logger.info("2nd cousins: %d pairs", counts["2nd cousin"])
+
+        return counts
+
+
 def extract_relationship_pairs(
     df: pd.DataFrame, seed: int = 42
 ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
@@ -419,6 +487,16 @@ def extract_relationship_pairs(
     """
     pg = PedigreeGraph(df)
     return pg.extract_pairs(seed=seed)
+
+
+def count_relationship_pairs(df: pd.DataFrame) -> dict[str, int]:
+    """Count relationship pairs without materializing full index arrays.
+
+    Memory-efficient alternative to extract_relationship_pairs() when only
+    pair counts are needed (e.g. for the full pedigree summary).
+    """
+    pg = PedigreeGraph(df)
+    return pg.count_pairs()
 
 
 def extract_sibling_pairs(

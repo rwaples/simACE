@@ -26,8 +26,8 @@ rule epimight_create_parquet:
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_create_parquet.tsv"
     resources:
-        mem_mb  = 8000,
-        runtime = 30
+        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
+        runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
     threads: 1
     script:
         "../scripts/epimight_create_parquet.py"
@@ -48,8 +48,8 @@ rule epimight_guide_yob:
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_guide_yob_{kind}.tsv"
     resources:
-        mem_mb  = 8000,
-        runtime = 60
+        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
+        runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
     threads: 1
     shell:
         "conda run -n epimight "

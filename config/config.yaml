@@ -26,7 +26,7 @@ defaults:
   p_nonsocial_father: 0.05
 
   # ── Phenotype model ───────────────────────────────────────────────────────
-  # phenotype_model1/2: weibull | exponential | gompertz | lognormal | loglogistic | gamma | adult_ltm | adult_cox
+  # phenotype_model1/2: weibull | exponential | gompertz | lognormal | loglogistic | gamma | adult_ltm | adult_cox | cure_frailty
   # phenotype_params1/2: dict of model-specific parameters
   #   frailty models: hazard distribution params (e.g. scale, rho for weibull)
   #   adult_ltm/adult_cox: cip_x0 (midpoint age), cip_k (growth rate)
@@ -336,6 +336,448 @@ scenarios:
     G_pheno: 30
     gen_censoring:
       0: [0, 80]
+
+  # ── Solmi et al. 2022 — mental disorder age-of-onset distributions ─
+  # Source: Solmi M et al., Mol Psychiatry 2022;27:281-295.
+  # Mixture cure frailty model fitted to reproduce Solmi's reported
+  # Q1/median/Q3. Threshold controls prevalence, pluggable baseline
+  # hazard controls onset shape. Best baseline selected per disorder.
+
+  solmi_neurodevelopmental:
+    folder: solmi
+    seed: 30042
+    N: 1000000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: gompertz
+      rate: 0.000134864
+      gamma: 0.200737
+    phenotype_params2:
+      baseline: gompertz
+      rate: 0.000134864
+      gamma: 0.200737
+    beta1: 2.5326
+    beta2: 2.5326
+    prevalence1: 0.08
+    prevalence2: 0.08
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  solmi_anxiety:
+    folder: solmi
+    seed: 31042
+    N: 1000000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: gompertz
+      rate: 0.000403347
+      gamma: 0.106602
+    phenotype_params2:
+      baseline: gompertz
+      rate: 0.000403347
+      gamma: 0.106602
+    beta1: 2.3140
+    beta2: 2.3140
+    prevalence1: 0.15
+    prevalence2: 0.15
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  solmi_ocd:
+    folder: solmi
+    seed: 32042
+    N: 1000000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.22353
+      sigma: 0.629569
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.22353
+      sigma: 0.629569
+    beta1: 0.1973
+    beta2: 0.1973
+    prevalence1: 0.025
+    prevalence2: 0.025
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  solmi_eating:
+    folder: solmi
+    seed: 33042
+    N: 1000000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: loglogistic
+      scale: 18.364
+      shape: 5.03655
+    phenotype_params2:
+      baseline: loglogistic
+      scale: 18.364
+      shape: 5.03655
+    beta1: 0.0001
+    beta2: 0.0001
+    prevalence1: 0.03
+    prevalence2: 0.03
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  solmi_stress:
+    folder: solmi
+    seed: 34042
+    N: 1000000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: weibull
+      scale: 89.6003
+      rho: 1.53095
+    phenotype_params2:
+      baseline: weibull
+      scale: 89.6003
+      rho: 1.53095
+    beta1: 0.6738
+    beta2: 0.6738
+    prevalence1: 0.07
+    prevalence2: 0.07
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  solmi_substance_use:
+    folder: solmi
+    seed: 35042
+    N: 1000000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.32208
+      sigma: 0.538131
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.32208
+      sigma: 0.538131
+    beta1: 0.0176
+    beta2: 0.0176
+    prevalence1: 0.12
+    prevalence2: 0.12
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  solmi_schizophrenia:
+    folder: solmi
+    seed: 36042
+    N: 1000000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.23794
+      sigma: 0.395765
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.23794
+      sigma: 0.395765
+    beta1: 0.0011
+    beta2: 0.0011
+    prevalence1: 0.01
+    prevalence2: 0.01
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  solmi_personality:
+    folder: solmi
+    seed: 37042
+    N: 1000000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: loglogistic
+      scale: 25.5216
+      shape: 4.35494
+    phenotype_params2:
+      baseline: loglogistic
+      scale: 25.5216
+      shape: 4.35494
+    beta1: 0.0007
+    beta2: 0.0007
+    prevalence1: 0.10
+    prevalence2: 0.10
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  solmi_mood:
+    folder: solmi
+    seed: 38042
+    N: 1000000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.58381
+      sigma: 0.62896
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.58381
+      sigma: 0.62896
+    beta1: 0.1749
+    beta2: 0.1749
+    prevalence1: 0.15
+    prevalence2: 0.15
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  # ── Beck et al. 2024 — sex-stratified CIF from Danish registers ────
+  # Source: Beck CA et al., Acta Psychiatrica Scandinavica 2024.
+  # Mixture cure frailty (lognormal baseline) fitted to full sex-stratified
+  # cumulative incidence curves via analytical CIF + differential evolution.
+  # beta_sex enables sex-stratified onset timing; shared K across sexes.
+  # Only disorders where cure_frailty beat adult_ltm are included.
+  # Fitting script: notes/beck/fit_beck.py
+
+  beck_any:
+    folder: beck
+    seed: 40042
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 4.00547
+      sigma: 0.847333
+    phenotype_params2:
+      baseline: lognormal
+      mu: 4.00547
+      sigma: 0.847333
+    beta1: 1.2286
+    beta2: 1.2286
+    beta_sex1: -0.0709
+    beta_sex2: -0.0709
+    prevalence1: 0.348046
+    prevalence2: 0.348046
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_alcohol:
+    folder: beck
+    seed: 41042
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 4.26455
+      sigma: 0.606909
+    phenotype_params2:
+      baseline: lognormal
+      mu: 4.26455
+      sigma: 0.606909
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: 1.0080
+    beta_sex2: 1.0080
+    prevalence1: 0.049835
+    prevalence2: 0.049835
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_bipolar:
+    folder: beck
+    seed: 42042
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.5941
+      sigma: 0.467645
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.5941
+      sigma: 0.467645
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: -0.8160
+    beta_sex2: -0.8160
+    prevalence1: 0.022725
+    prevalence2: 0.022725
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_depression:
+    folder: beck
+    seed: 43042
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.4564
+      sigma: 0.496442
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.4564
+      sigma: 0.496442
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: -1.1032
+    beta_sex2: -1.1032
+    prevalence1: 0.156247
+    prevalence2: 0.156247
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_intellectual_disability:
+    folder: beck
+    seed: 44042
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.64598
+      sigma: 1.20264
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.64598
+      sigma: 1.20264
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: 1.0595
+    beta_sex2: 1.0595
+    prevalence1: 0.020301
+    prevalence2: 0.020301
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_mood:
+    folder: beck
+    seed: 45042
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.45468
+      sigma: 0.490733
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.45468
+      sigma: 0.490733
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: -1.0658
+    beta_sex2: -1.0658
+    prevalence1: 0.168367
+    prevalence2: 0.168367
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_neurotic_stress:
+    folder: beck
+    seed: 46042
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.29034
+      sigma: 0.549272
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.29034
+      sigma: 0.549272
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: -0.8350
+    beta_sex2: -0.8350
+    prevalence1: 0.236239
+    prevalence2: 0.236239
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_schizoaffective:
+    folder: beck
+    seed: 47042
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.60274
+      sigma: 0.545192
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.60274
+      sigma: 0.545192
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: -0.7014
+    beta_sex2: -0.7014
+    prevalence1: 0.00287994
+    prevalence2: 0.00287994
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_schizophrenia_related:
+    folder: beck
+    seed: 48042
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.44245
+      sigma: 0.481796
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.44245
+      sigma: 0.481796
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: 0.1756
+    beta_sex2: 0.1756
+    prevalence1: 0.04545
+    prevalence2: 0.04545
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_substance_use:
+    folder: beck
+    seed: 49042
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 4.12234
+      sigma: 0.641388
+    phenotype_params2:
+      baseline: lognormal
+      mu: 4.12234
+      sigma: 0.641388
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: 1.2388
+    beta_sex2: 1.2388
+    prevalence1: 0.077669
+    prevalence2: 0.077669
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
 
   # ── Quick test ──────────────────────────────────────────────────────
   small_test:

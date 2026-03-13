@@ -11,8 +11,8 @@ rule sample_frailty:
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/sample_frailty.tsv"
     resources:
-        mem_mb  = 2000,
-        runtime = 5
+        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
+        runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
     threads: 1
     script:
         "../scripts/sample.py"
@@ -31,8 +31,8 @@ rule sample_threshold:
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/sample_threshold.tsv"
     resources:
-        mem_mb  = 2000,
-        runtime = 5
+        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
+        runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
     threads: 1
     script:
         "../scripts/sample.py"
