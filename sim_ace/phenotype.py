@@ -262,26 +262,46 @@ def simulate_phenotype(
 def phenotype_adult_ltm(
     liability: np.ndarray,
     prevalence: float,
+    beta: float = 1.0,
     cip_x0: float = 50.0,
     cip_k: float = 0.2,
     seed: int = 42,
     standardize: bool = True,
+    sex: np.ndarray | None = None,
+    beta_sex: float = 0.0,
 ) -> np.ndarray:
     """ADuLT liability threshold model: age-of-onset via logistic CIP.
 
-    Cases (L > threshold): age = x₀ + (1/k)·log(Φ(−L) / (K − Φ(−L)))
+    Cases (L > threshold): age = x₀ + (1/k)·log(Φ(−βL − β_sex·sex) / (K − Φ(−βL − β_sex·sex)))
     Controls (L ≤ threshold): t = 1e6 (censored downstream)
 
-    Age is a deterministic function of liability — higher liability
-    maps to younger onset age within cases.
+    Case/control status is determined from raw (unscaled) liability so that
+    prevalence is preserved exactly.  Beta and sex enter the CIR→age mapping
+    via probit scaling: L_eff = β·L + β_sex·sex is passed through norm.sf()
+    to compute cumulative incidence rate (CIR), which maps to onset age.
+
+    Note on beta semantics: in the frailty/cure_frailty models, beta enters
+    the log-hazard as exp(β·L) — an exponential dose-response.  Here beta
+    scales L on the probit scale (inside Φ), which is a different functional
+    form.  The qualitative behavior is consistent (β=1 is baseline, β=0
+    removes liability's effect on timing, β>1 strengthens it), but the same
+    numeric beta value will produce different effect magnitudes across model
+    types.  An alternative "log-odds scaling" approach (β multiplying the
+    logit of CIR) would make beta more comparable, but probit scaling is
+    the more natural parameterization for a threshold/CIP model.
 
     Args:
         liability:   quantitative liability, shape (n,)
         prevalence:  population prevalence K
+        beta:        probit scaling factor for liability (1.0 = no scaling);
+                     scales L inside Φ(·), not a log-hazard coefficient
         cip_x0:      logistic CIP midpoint age
         cip_k:       logistic CIP growth rate
-        seed:        unused (kept for API compatibility)
+        seed:        unused (deterministic model)
         standardize: if True, standardize liability to N(0,1)
+        sex:         binary sex covariate (0/1), shape (n,), or None
+        beta_sex:    probit-scale coefficient for sex (0.0 = no effect);
+                     positive β_sex → males (sex=1) onset earlier
 
     Returns:
         Array of simulated event times, shape (n,)
@@ -298,8 +318,11 @@ def phenotype_adult_ltm(
     t = np.full(len(L), 1e6)
     n_cases = is_case.sum()
     if n_cases > 0:
-        # CIP inverse: cir = Φ(−L) = 1−Φ(L), age = x₀ + (1/k)·log(cir/(K−cir))
-        cir = norm.sf(L[is_case])
+        L_eff = beta * L[is_case]
+        if beta_sex != 0.0 and sex is not None:
+            L_eff = L_eff + beta_sex * sex[is_case]
+        cir = norm.sf(L_eff)
+        cir = np.clip(cir, 1e-10, prevalence - 1e-10)
         t[is_case] = cip_x0 + (1.0 / cip_k) * np.log(cir / (prevalence - cir))
 
     np.clip(t, 0.01, 1e6, out=t)
@@ -309,14 +332,17 @@ def phenotype_adult_ltm(
 def phenotype_adult_cox(
     liability: np.ndarray,
     prevalence: float,
+    beta: float = 1.0,
     cip_x0: float = 50.0,
     cip_k: float = 0.2,
     seed: int = 42,
     standardize: bool = True,
+    sex: np.ndarray | None = None,
+    beta_sex: float = 0.0,
 ) -> np.ndarray:
     """ADuLT proportional hazards model: Weibull(shape=2) + CIP→age mapping.
 
-    Raw time: t̃ = √(−log(U) / exp(L))
+    Raw time: t̃ = √(Exp(1)·exp(β_sex·sex) / exp(β·L))
     Sorted by t_raw, running CIP = rank/(N+1) capped at K (prevalence).
     Cases (CIP < K): age = x₀ + (1/k)·log(CIP / (K − CIP))
     Controls (CIP ≥ K): t = 1e6 (censored downstream)
@@ -324,10 +350,13 @@ def phenotype_adult_cox(
     Args:
         liability:    quantitative liability, shape (n,)
         prevalence:   population prevalence K (determines case fraction)
+        beta:         liability scaling factor (1.0 = no scaling)
         cip_x0:       logistic CIP midpoint age
         cip_k:        logistic CIP growth rate
         seed:         random seed
         standardize:  if True, standardize liability to N(0,1)
+        sex:          binary sex covariate (0/1), shape (n,), or None
+        beta_sex:     log-hazard coefficient for sex (0.0 = no effect)
 
     Returns:
         Array of simulated event times, shape (n,)
@@ -341,8 +370,10 @@ def phenotype_adult_cox(
             L = (L - L.mean()) / std
 
     n = len(L)
-    neg_log_u = -np.log(rng.uniform(size=n))
-    t_raw = np.sqrt(neg_log_u / np.exp(L))
+    neg_log_u = rng.exponential(size=n)
+    if beta_sex != 0.0 and sex is not None:
+        neg_log_u = neg_log_u / np.exp(beta_sex * sex)
+    t_raw = np.sqrt(neg_log_u / np.exp(beta * L))
 
     # Sort by raw time; assign running CIP capped at prevalence
     order = np.argsort(t_raw)
@@ -520,10 +551,13 @@ def _simulate_one_trait(
         return func(
             liability   = pedigree[f"liability{trait_num}"].values,
             prevalence  = params[f"prevalence{trait_num}"],
+            beta        = params[f"beta{trait_num}"],
             cip_x0      = phenotype_params.get("cip_x0", 50.0),
             cip_k       = phenotype_params.get("cip_k", 0.2),
             seed        = seed,
             standardize = params["standardize"],
+            sex         = pedigree["sex"].values if "sex" in pedigree.columns else None,
+            beta_sex    = params.get(f"beta_sex{trait_num}", 0.0),
         )
 
     if model in _CURE_MODELS:

@@ -290,6 +290,92 @@ class TestAdultCox:
 
 
 # ---------------------------------------------------------------------------
+# ADuLT LTM beta/sex tests
+# ---------------------------------------------------------------------------
+
+class TestAdultLtmBetaSex:
+
+    def test_beta_1_unchanged(self):
+        """beta=1.0 should produce identical output to default."""
+        liability = np.random.default_rng(0).standard_normal(500)
+        t_default = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
+        t_explicit = phenotype_adult_ltm(liability, prevalence=0.10, beta=1.0, seed=42)
+        np.testing.assert_array_equal(t_default, t_explicit)
+
+    def test_higher_beta_earlier_onset(self):
+        """Higher beta should compress case ages toward younger onset."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t1 = phenotype_adult_ltm(liability, prevalence=0.20, beta=1.0, seed=42)
+        t2 = phenotype_adult_ltm(liability, prevalence=0.20, beta=2.0, seed=42)
+        cases1 = t1[t1 < 1e6]
+        cases2 = t2[t2 < 1e6]
+        assert cases2.mean() < cases1.mean()
+
+    def test_beta_sex_positive_males_earlier(self):
+        """Positive beta_sex should give males earlier onset."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
+        t = phenotype_adult_ltm(liability, prevalence=0.20, beta=1.0, seed=42,
+                                sex=sex, beta_sex=0.5)
+        cases = t < 1e6
+        female_case_age = t[:n // 2][cases[:n // 2]]
+        male_case_age = t[n // 2:][cases[n // 2:]]
+        assert male_case_age.mean() < female_case_age.mean()
+
+    def test_beta_sex_zero_unchanged(self):
+        """beta_sex=0 should produce identical results to omitting sex."""
+        liability = np.random.default_rng(0).standard_normal(500)
+        sex = np.random.default_rng(1).integers(0, 2, size=500).astype(float)
+        t_no_sex = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
+        t_zero = phenotype_adult_ltm(liability, prevalence=0.10, seed=42,
+                                     sex=sex, beta_sex=0.0)
+        np.testing.assert_array_equal(t_no_sex, t_zero)
+
+
+# ---------------------------------------------------------------------------
+# ADuLT Cox beta/sex tests
+# ---------------------------------------------------------------------------
+
+class TestAdultCoxBetaSex:
+
+    def test_higher_beta_stronger_liability_effect(self):
+        """Higher beta should increase the liability-hazard relationship."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t1 = phenotype_adult_cox(liability, prevalence=0.10, beta=1.0, seed=42)
+        t2 = phenotype_adult_cox(liability, prevalence=0.10, beta=2.0, seed=42)
+        # With higher beta, high-liability individuals should be even more
+        # concentrated among cases
+        high = liability > 1.0
+        case_frac1 = np.mean(t1[high] < 1e6)
+        case_frac2 = np.mean(t2[high] < 1e6)
+        assert case_frac2 > case_frac1
+
+    def test_beta_sex_positive_males_earlier(self):
+        """Positive beta_sex should give males earlier onset."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
+        t = phenotype_adult_cox(liability, prevalence=0.20, beta=1.0, seed=42,
+                                sex=sex, beta_sex=0.5)
+        cases = t < 1e6
+        female_case_age = t[:n // 2][cases[:n // 2]]
+        male_case_age = t[n // 2:][cases[n // 2:]]
+        assert male_case_age.mean() < female_case_age.mean()
+
+    def test_beta_sex_zero_unchanged(self):
+        """beta_sex=0 should produce identical results to omitting sex."""
+        liability = np.random.default_rng(0).standard_normal(500)
+        sex = np.random.default_rng(1).integers(0, 2, size=500).astype(float)
+        t_no_sex = phenotype_adult_cox(liability, prevalence=0.10, seed=42)
+        t_zero = phenotype_adult_cox(liability, prevalence=0.10, seed=42,
+                                     sex=sex, beta_sex=0.0)
+        np.testing.assert_array_equal(t_no_sex, t_zero)
+
+
+# ---------------------------------------------------------------------------
 # Mixture Cure Frailty Model tests
 # ---------------------------------------------------------------------------
 
