@@ -1,9 +1,9 @@
-"""Unit tests for sim_ace.threshold.apply_threshold."""
+"""Unit tests for sim_ace.threshold.apply_threshold and sex-specific prevalence."""
 
 import numpy as np
 import pytest
 
-from sim_ace.threshold import apply_threshold
+from sim_ace.threshold import apply_threshold, _apply_threshold_sex_aware
 
 
 class TestApplyThreshold:
@@ -136,3 +136,68 @@ class TestApplyThresholdDictPrevalence:
             mask = generation == gen
             observed = affected[mask].mean()
             assert abs(observed - 0.15) < 0.01
+
+
+# ---------------------------------------------------------------------------
+# Sex-specific prevalence via _apply_threshold_sex_aware
+# ---------------------------------------------------------------------------
+
+class TestThresholdSexPrevalence:
+
+    def test_sex_specific_case_rates(self):
+        """Male and female affected rates should match their respective prevalences."""
+        rng = np.random.default_rng(42)
+        n = 20000
+        liability = rng.standard_normal(n)
+        generation = np.zeros(n, dtype=int)
+        sex = np.array([0] * (n // 2) + [1] * (n // 2))
+        prev_f, prev_m = 0.08, 0.15
+        params = {
+            "prevalence1": {"female": prev_f, "male": prev_m},
+        }
+        affected = _apply_threshold_sex_aware(liability, generation, sex, params, trait_num=1)
+        female_rate = affected[:n // 2].mean()
+        male_rate = affected[n // 2:].mean()
+        assert abs(female_rate - prev_f) < 0.02
+        assert abs(male_rate - prev_m) < 0.02
+
+    def test_scalar_prevalence_unchanged(self):
+        """Without sex-specific keys, behaviour is identical to apply_threshold."""
+        rng = np.random.default_rng(0)
+        n = 5000
+        liability = rng.standard_normal(n)
+        generation = np.repeat([0, 1], n // 2)
+        sex = rng.integers(0, 2, size=n)
+        params = {"prevalence1": 0.15}
+        affected_sex_aware = _apply_threshold_sex_aware(
+            liability, generation, sex, params, trait_num=1,
+        )
+        affected_direct = apply_threshold(liability, generation, prevalence=0.15)
+        np.testing.assert_array_equal(affected_sex_aware, affected_direct)
+
+    def test_sex_specific_with_per_gen_dict(self):
+        """Sex-specific + per-generation dict prevalence should compose."""
+        rng = np.random.default_rng(42)
+        n_per_gen = 10000
+        n = 2 * n_per_gen
+        liability = rng.standard_normal(n)
+        generation = np.repeat([0, 1], n_per_gen)
+        sex = np.tile([0, 1], n // 2)  # alternating male/female
+
+        prev_f = {0: 0.05, 1: 0.10}
+        prev_m = {0: 0.10, 1: 0.20}
+        params = {
+            "prevalence1": {"female": prev_f, "male": prev_m},
+        }
+        affected = _apply_threshold_sex_aware(liability, generation, sex, params, trait_num=1)
+
+        for gen, exp_f, exp_m in [(0, 0.05, 0.10), (1, 0.10, 0.20)]:
+            gen_mask = generation == gen
+            female_mask = gen_mask & (sex == 0)
+            male_mask = gen_mask & (sex == 1)
+            assert abs(affected[female_mask].mean() - exp_f) < 0.02, (
+                f"gen {gen} female: expected ~{exp_f}, got {affected[female_mask].mean()}"
+            )
+            assert abs(affected[male_mask].mean() - exp_m) < 0.02, (
+                f"gen {gen} male: expected ~{exp_m}, got {affected[male_mask].mean()}"
+            )

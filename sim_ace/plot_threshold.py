@@ -58,7 +58,19 @@ def plot_prevalence_by_generation(all_stats: list[dict[str, Any]], prevalence1: 
             )
 
         # Expected prevalence reference
-        if isinstance(expected, dict):
+        if isinstance(expected, dict) and "female" in expected and "male" in expected:
+            # Sex-specific: draw two reference lines (average)
+            avg = (expected["female"] + expected["male"]) / 2 if not isinstance(expected["female"], dict) else None
+            if avg is not None:
+                ax.hlines(
+                    avg, -0.5, n_gens - 0.5, colors=color,
+                    linestyles="dashed", linewidth=2, alpha=0.5,
+                )
+                ax.text(
+                    n_gens - 0.5, avg, f" F={expected['female']:.0%}/M={expected['male']:.0%}",
+                    va="center", fontsize=7, color=color, alpha=0.8,
+                )
+        elif isinstance(expected, dict):
             # Per-generation markers at each generation's expected value
             for i, gen in enumerate(gens):
                 gen_prev = expected.get(int(gen))
@@ -88,7 +100,13 @@ def plot_prevalence_by_generation(all_stats: list[dict[str, Any]], prevalence1: 
     # Adapt y-limit to expected prevalence values
     max_expected = 0.0
     for expected in [prevalence1, prevalence2]:
-        if isinstance(expected, dict):
+        if isinstance(expected, dict) and "female" in expected and "male" in expected:
+            for v in expected.values():
+                if isinstance(v, dict):
+                    max_expected = max(max_expected, max(v.values()))
+                else:
+                    max_expected = max(max_expected, v)
+        elif isinstance(expected, dict):
             max_expected = max(max_expected, max(expected.values()))
         else:
             max_expected = max(max_expected, expected)
@@ -208,9 +226,21 @@ def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: lis
                             ha="right", va="center", fontsize=8, fontweight="bold")
 
             # Prevalence annotation
-            prev = prevalence[int(gen)] if isinstance(prevalence, dict) else prevalence
+            if isinstance(prevalence, dict) and "female" in prevalence and "male" in prevalence:
+                f_prev = prevalence["female"]
+                m_prev = prevalence["male"]
+                if isinstance(f_prev, dict):
+                    f_prev = f_prev.get(int(gen), float("nan"))
+                if isinstance(m_prev, dict):
+                    m_prev = m_prev.get(int(gen), float("nan"))
+                exp_label = f"F={f_prev:.0%}/M={m_prev:.0%}"
+            elif isinstance(prevalence, dict):
+                prev = prevalence.get(int(gen), float("nan"))
+                exp_label = f"{prev:.1%}"
+            else:
+                exp_label = f"{prevalence:.1%}"
             obs_prev = df_gen[aff_col].mean() if len(df_gen) else float("nan")
-            ax.set_xlabel(f"prev: {obs_prev:.1%} (exp {prev:.1%})", fontsize=8)
+            ax.set_xlabel(f"prev: {obs_prev:.1%} (exp {exp_label})", fontsize=8)
 
             if row == 0:
                 label = f"Gen {gen}"

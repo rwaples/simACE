@@ -261,7 +261,7 @@ def simulate_phenotype(
 
 def phenotype_adult_ltm(
     liability: np.ndarray,
-    prevalence: float,
+    prevalence: float | np.ndarray,
     beta: float = 1.0,
     cip_x0: float = 50.0,
     cip_k: float = 0.2,
@@ -292,7 +292,9 @@ def phenotype_adult_ltm(
 
     Args:
         liability:   quantitative liability, shape (n,)
-        prevalence:  population prevalence K
+        prevalence:  population prevalence K; scalar (uniform) or array
+                     of shape (n,) for per-group prevalence (by sex,
+                     generation, or sex×generation)
         beta:        probit scaling factor for liability (1.0 = no scaling);
                      scales L inside Φ(·), not a log-hazard coefficient
         cip_x0:      logistic CIP midpoint age
@@ -312,18 +314,19 @@ def phenotype_adult_ltm(
         if std > 0:
             L = (L - L.mean()) / std
 
-    threshold = norm.ppf(1.0 - prevalence)
+    threshold = norm.ppf(1.0 - prevalence)   # scalar or per-individual
     is_case = L > threshold
 
     t = np.full(len(L), 1e6)
     n_cases = is_case.sum()
     if n_cases > 0:
+        prev_case = prevalence[is_case] if isinstance(prevalence, np.ndarray) else prevalence
         L_eff = beta * L[is_case]
         if beta_sex != 0.0 and sex is not None:
             L_eff = L_eff + beta_sex * sex[is_case]
         cir = norm.sf(L_eff)
-        cir = np.clip(cir, 1e-10, prevalence - 1e-10)
-        t[is_case] = cip_x0 + (1.0 / cip_k) * np.log(cir / (prevalence - cir))
+        cir = np.clip(cir, 1e-10, prev_case - 1e-10)
+        t[is_case] = cip_x0 + (1.0 / cip_k) * np.log(cir / (prev_case - cir))
 
     np.clip(t, 0.01, 1e6, out=t)
     return t
@@ -331,7 +334,7 @@ def phenotype_adult_ltm(
 
 def phenotype_adult_cox(
     liability: np.ndarray,
-    prevalence: float,
+    prevalence: float | np.ndarray,
     beta: float = 1.0,
     cip_x0: float = 50.0,
     cip_k: float = 0.2,
@@ -349,7 +352,10 @@ def phenotype_adult_cox(
 
     Args:
         liability:    quantitative liability, shape (n,)
-        prevalence:   population prevalence K (determines case fraction)
+        prevalence:   population prevalence K (determines case fraction);
+                      scalar (uniform) or array of shape (n,) for
+                      per-group prevalence (by sex, generation, or
+                      sex×generation)
         beta:         liability scaling factor (1.0 = no scaling)
         cip_x0:       logistic CIP midpoint age
         cip_k:        logistic CIP growth rate
@@ -375,16 +381,32 @@ def phenotype_adult_cox(
         neg_log_u = neg_log_u / np.exp(beta_sex * sex)
     t_raw = np.sqrt(neg_log_u / np.exp(beta * L))
 
-    # Sort by raw time; assign running CIP capped at prevalence
-    order = np.argsort(t_raw)
-    cip = (np.arange(1, n + 1)) / (n + 1)  # ranks in (0, 1)
-
     t = np.full(n, 1e6)
-    is_case = cip < prevalence
-    # Map case CIP to age via logistic CIP inverse: age = x₀ + (1/k)·log(CIP/(K−CIP))
-    case_cip = cip[is_case]
-    case_age = cip_x0 + (1.0 / cip_k) * np.log(case_cip / (prevalence - case_cip))
-    t[order[is_case]] = case_age
+
+    if isinstance(prevalence, np.ndarray):
+        # Per-group ranking: group by unique prevalence values to achieve
+        # exact case rates for each group (sex, generation, or sex×generation)
+        for grp_prev in np.unique(prevalence):
+            mask = prevalence == grp_prev
+            idx = np.where(mask)[0]
+            n_grp = mask.sum()
+            if n_grp == 0:
+                continue
+            grp_order = np.argsort(t_raw[mask])
+            cip = (np.arange(1, n_grp + 1)) / (n_grp + 1)
+            is_case = cip < grp_prev
+            case_cip = cip[is_case]
+            case_age = cip_x0 + (1.0 / cip_k) * np.log(case_cip / (grp_prev - case_cip))
+            t[idx[grp_order[is_case]]] = case_age
+    else:
+        # Sort by raw time; assign running CIP capped at prevalence
+        order = np.argsort(t_raw)
+        cip = (np.arange(1, n + 1)) / (n + 1)  # ranks in (0, 1)
+        is_case = cip < prevalence
+        # Map case CIP to age via logistic CIP inverse: age = x₀ + (1/k)·log(CIP/(K−CIP))
+        case_cip = cip[is_case]
+        case_age = cip_x0 + (1.0 / cip_k) * np.log(case_cip / (prevalence - case_cip))
+        t[order[is_case]] = case_age
 
     np.clip(t, 0.01, 1e6, out=t)
     return t
@@ -396,7 +418,7 @@ def phenotype_adult_cox(
 
 def phenotype_cure_frailty(
     liability: np.ndarray,
-    prevalence: float,
+    prevalence: float | np.ndarray,
     beta: float,
     baseline: str,
     hazard_params: dict[str, float],
@@ -413,7 +435,9 @@ def phenotype_cure_frailty(
 
     Args:
         liability:     quantitative liability, shape (n,)
-        prevalence:    population prevalence K (case fraction)
+        prevalence:    population prevalence K (case fraction); scalar
+                       (uniform) or array of shape (n,) for per-group
+                       prevalence (by sex, generation, or sex×generation)
         beta:          effect of liability on log-hazard among cases
         baseline:      baseline hazard model name (e.g. "weibull", "gompertz")
         hazard_params: model parameter dict for the baseline hazard
@@ -438,7 +462,7 @@ def phenotype_cure_frailty(
         mean = 0.0
         scaled_beta = beta
 
-    threshold = norm.ppf(1.0 - prevalence)
+    threshold = norm.ppf(1.0 - prevalence)   # vectorized for array prevalence
     is_case = L > threshold
 
     t = np.full(n, 1e6)
@@ -460,6 +484,46 @@ def phenotype_cure_frailty(
 _FRAILTY_MODELS = {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
 _ADULT_MODELS = {"adult_ltm", "adult_cox"}
 _CURE_MODELS = {"cure_frailty"}
+
+
+def _prevalence_to_array(prev, generation):
+    """Expand a scalar or per-generation dict prevalence to a per-individual array.
+
+    Returns the scalar unchanged if *prev* is not a dict.
+    """
+    if isinstance(prev, dict):
+        arr = np.empty(len(generation))
+        for gen in np.unique(generation):
+            mask = generation == gen
+            gen_key = int(gen)
+            if gen_key not in prev:
+                raise ValueError(
+                    f"prevalence dict missing generation {gen_key}; "
+                    f"dict has keys {sorted(prev.keys())}"
+                )
+            arr[mask] = prev[gen_key]
+        return arr
+    return prev
+
+
+def _resolve_prevalence(params, trait_num, sex, generation):
+    """Resolve prevalence to scalar or per-individual array.
+
+    Supports three formats for ``prevalence{N}``:
+      - scalar float: same prevalence for everyone
+      - per-generation dict (int keys): different prevalence per generation
+      - sex-specific dict (``{"female": f, "male": m}``): different
+        prevalence per sex, where each sex value may itself be a scalar
+        or per-generation dict
+
+    Returns a scalar (when uniform) or a per-individual array.
+    """
+    prev = params[f"prevalence{trait_num}"]
+    if isinstance(prev, dict) and "female" in prev and "male" in prev:
+        f_prev = _prevalence_to_array(prev["female"], generation)
+        m_prev = _prevalence_to_array(prev["male"], generation)
+        return np.where(sex == 1, m_prev, f_prev)
+    return _prevalence_to_array(prev, generation)
 _ALL_PHENOTYPE_MODELS = sorted(_FRAILTY_MODELS | _ADULT_MODELS | _CURE_MODELS)
 
 # Parameter names required per model
@@ -547,24 +611,30 @@ def _simulate_one_trait(
     _validate_phenotype_params(model, phenotype_params, trait_num)
 
     if model in _ADULT_MODELS:
+        sex = pedigree["sex"].values if "sex" in pedigree.columns else None
+        generation = pedigree["generation"].values
+        prevalence = _resolve_prevalence(params, trait_num, sex, generation)
         func = phenotype_adult_ltm if model == "adult_ltm" else phenotype_adult_cox
         return func(
             liability   = pedigree[f"liability{trait_num}"].values,
-            prevalence  = params[f"prevalence{trait_num}"],
+            prevalence  = prevalence,
             beta        = params[f"beta{trait_num}"],
             cip_x0      = phenotype_params.get("cip_x0", 50.0),
             cip_k       = phenotype_params.get("cip_k", 0.2),
             seed        = seed,
             standardize = params["standardize"],
-            sex         = pedigree["sex"].values if "sex" in pedigree.columns else None,
+            sex         = sex,
             beta_sex    = params.get(f"beta_sex{trait_num}", 0.0),
         )
 
     if model in _CURE_MODELS:
+        sex = pedigree["sex"].values
+        generation = pedigree["generation"].values
+        prevalence = _resolve_prevalence(params, trait_num, sex, generation)
         hazard_params = {k: v for k, v in phenotype_params.items() if k != "baseline"}
         return phenotype_cure_frailty(
             liability     = pedigree[f"liability{trait_num}"].values,
-            prevalence    = params[f"prevalence{trait_num}"],
+            prevalence    = prevalence,
             beta          = params[f"beta{trait_num}"],
             baseline      = phenotype_params["baseline"],
             hazard_params = hazard_params,

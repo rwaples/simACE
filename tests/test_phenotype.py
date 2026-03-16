@@ -480,3 +480,194 @@ class TestCureFrailty:
         high = case_L > np.percentile(case_L, 75)
         low = case_L < np.percentile(case_L, 25)
         assert case_t[high].mean() < case_t[low].mean()
+
+
+# ---------------------------------------------------------------------------
+# Sex-specific prevalence tests
+# ---------------------------------------------------------------------------
+
+class TestAdultLtmSexPrevalence:
+
+    def test_sex_specific_case_rates(self):
+        """Male and female case rates should each match their specified prevalence."""
+        n = 50000
+        rng = np.random.default_rng(0)
+        liability = rng.standard_normal(n)
+        sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
+        prev_f, prev_m = 0.08, 0.15
+        prevalence = np.where(sex == 1, prev_m, prev_f)
+
+        t = phenotype_adult_ltm(liability, prevalence=prevalence, seed=42, sex=sex)
+        cases = t < 1e6
+        female_rate = cases[:n // 2].mean()
+        male_rate = cases[n // 2:].mean()
+        assert abs(female_rate - prev_f) < 0.02
+        assert abs(male_rate - prev_m) < 0.02
+
+    def test_scalar_prevalence_unchanged(self):
+        """Scalar prevalence should produce identical results to current behavior."""
+        n = 5000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t_scalar = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
+        t_again = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
+        np.testing.assert_array_equal(t_scalar, t_again)
+
+    def test_sex_specific_ages_use_own_prevalence(self):
+        """CIP mapping should use sex-specific K: per-individual ages differ from scalar."""
+        n = 10000
+        rng = np.random.default_rng(0)
+        liability = rng.standard_normal(n)
+        sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
+        prev_f, prev_m = 0.05, 0.20
+        prevalence = np.where(sex == 1, prev_m, prev_f)
+
+        t_sex = phenotype_adult_ltm(liability, prevalence=prevalence, seed=42, sex=sex)
+        t_scalar = phenotype_adult_ltm(liability, prevalence=0.10, seed=42, sex=sex)
+        # Case sets differ between sex-specific and scalar prevalence
+        cases_sex = t_sex < 1e6
+        cases_scalar = t_scalar < 1e6
+        assert not np.array_equal(cases_sex, cases_scalar)
+
+
+class TestAdultCoxSexPrevalence:
+
+    def test_sex_specific_case_rates(self):
+        """Per-sex ranking should give correct case rates for each sex."""
+        n = 50000
+        rng = np.random.default_rng(0)
+        liability = rng.standard_normal(n)
+        sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
+        prev_f, prev_m = 0.08, 0.15
+        prevalence = np.where(sex == 1, prev_m, prev_f)
+
+        t = phenotype_adult_cox(liability, prevalence=prevalence, seed=42, sex=sex)
+        cases = t < 1e6
+        female_rate = cases[:n // 2].mean()
+        male_rate = cases[n // 2:].mean()
+        assert abs(female_rate - prev_f) < 0.02
+        assert abs(male_rate - prev_m) < 0.02
+
+    def test_scalar_prevalence_unchanged(self):
+        """Scalar path should produce identical results to before."""
+        n = 5000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t1 = phenotype_adult_cox(liability, prevalence=0.10, seed=42)
+        t2 = phenotype_adult_cox(liability, prevalence=0.10, seed=42)
+        np.testing.assert_array_equal(t1, t2)
+
+
+class TestCureFrailtySexPrevalence:
+
+    def test_sex_specific_case_rates(self):
+        """Sex-specific thresholds should give correct case rates per sex."""
+        n = 50000
+        rng = np.random.default_rng(0)
+        liability = rng.standard_normal(n)
+        sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
+        prev_f, prev_m = 0.08, 0.15
+        prevalence = np.where(sex == 1, prev_m, prev_f)
+
+        t = phenotype_cure_frailty(
+            liability, prevalence=prevalence, beta=1.0,
+            baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42,
+            sex=sex,
+        )
+        cases = t < 1e6
+        female_rate = cases[:n // 2].mean()
+        male_rate = cases[n // 2:].mean()
+        assert abs(female_rate - prev_f) < 0.02
+        assert abs(male_rate - prev_m) < 0.02
+
+    def test_scalar_prevalence_unchanged(self):
+        """Scalar prevalence should be identical to current behavior."""
+        n = 5000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t1 = phenotype_cure_frailty(
+            liability, prevalence=0.10, beta=1.0,
+            baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42,
+        )
+        t2 = phenotype_cure_frailty(
+            liability, prevalence=0.10, beta=1.0,
+            baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42,
+        )
+        np.testing.assert_array_equal(t1, t2)
+
+
+# ---------------------------------------------------------------------------
+# Per-generation prevalence tests (time-to-event models)
+# ---------------------------------------------------------------------------
+
+class TestAdultLtmPerGenPrevalence:
+
+    def test_per_gen_case_rates(self):
+        """Each generation should get approximately its configured prevalence."""
+        n_per_gen = 20000
+        rng = np.random.default_rng(0)
+        gen_prev = {0: 0.05, 1: 0.10, 2: 0.20}
+        generation = np.repeat([0, 1, 2], n_per_gen)
+        liability = rng.standard_normal(len(generation))
+        prevalence = np.array([gen_prev[g] for g in generation])
+
+        t = phenotype_adult_ltm(liability, prevalence=prevalence, seed=42)
+        cases = t < 1e6
+        for gen, expected in gen_prev.items():
+            mask = generation == gen
+            observed = cases[mask].mean()
+            assert abs(observed - expected) < 0.02, (
+                f"gen {gen}: expected ~{expected}, got {observed}"
+            )
+
+    def test_uniform_array_matches_scalar(self):
+        """A uniform array should produce identical results to a scalar."""
+        n = 5000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t_scalar = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
+        t_array = phenotype_adult_ltm(
+            liability, prevalence=np.full(n, 0.10), seed=42,
+        )
+        np.testing.assert_array_equal(t_scalar, t_array)
+
+
+class TestAdultCoxPerGenPrevalence:
+
+    def test_per_gen_case_rates(self):
+        """Each generation should get approximately its configured prevalence."""
+        n_per_gen = 20000
+        rng = np.random.default_rng(0)
+        gen_prev = {0: 0.05, 1: 0.10, 2: 0.20}
+        generation = np.repeat([0, 1, 2], n_per_gen)
+        liability = rng.standard_normal(len(generation))
+        prevalence = np.array([gen_prev[g] for g in generation])
+
+        t = phenotype_adult_cox(liability, prevalence=prevalence, seed=42)
+        cases = t < 1e6
+        for gen, expected in gen_prev.items():
+            mask = generation == gen
+            observed = cases[mask].mean()
+            assert abs(observed - expected) < 0.02, (
+                f"gen {gen}: expected ~{expected}, got {observed}"
+            )
+
+
+class TestCureFrailtyPerGenPrevalence:
+
+    def test_per_gen_case_rates(self):
+        """Each generation should get approximately its configured prevalence."""
+        n_per_gen = 20000
+        rng = np.random.default_rng(0)
+        gen_prev = {0: 0.05, 1: 0.10, 2: 0.20}
+        generation = np.repeat([0, 1, 2], n_per_gen)
+        liability = rng.standard_normal(len(generation))
+        prevalence = np.array([gen_prev[g] for g in generation])
+
+        t = phenotype_cure_frailty(
+            liability, prevalence=prevalence, beta=1.0,
+            baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42,
+        )
+        cases = t < 1e6
+        for gen, expected in gen_prev.items():
+            mask = generation == gen
+            observed = cases[mask].mean()
+            assert abs(observed - expected) < 0.02, (
+                f"gen {gen}: expected ~{expected}, got {observed}"
+            )

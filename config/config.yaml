@@ -779,6 +779,26 @@ scenarios:
     C2: 0.0
     rC: 0.0
 
+  # ── Sex-specific prevalence (ADuLT LTM) ─────────────────────────────
+  adult_ltm_sex_prev:
+    folder: test
+    seed: 25042
+    N: 5000
+    phenotype_model1: adult_ltm
+    phenotype_model2: adult_ltm
+    prevalence1:
+      female: 0.08
+      male: 0.12
+    prevalence2:
+      female: 0.10
+      male: 0.20
+    phenotype_params1:
+      cip_x0: 50
+      cip_k: 0.2
+    phenotype_params2:
+      cip_x0: 50
+      cip_k: 0.2
+
   # ── Quick test ──────────────────────────────────────────────────────
   small_test:
     folder: test

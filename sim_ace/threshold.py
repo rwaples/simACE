@@ -84,6 +84,33 @@ def apply_threshold(liability: np.ndarray, generation: np.ndarray, prevalence: f
     return affected
 
 
+def _apply_threshold_sex_aware(
+    liability: np.ndarray,
+    generation: np.ndarray,
+    sex: np.ndarray,
+    params: dict[str, Any],
+    trait_num: int,
+) -> np.ndarray:
+    """Apply threshold with optional sex-specific prevalence.
+
+    When ``prevalence{N}`` is a dict with ``"female"`` and ``"male"`` keys,
+    thresholds are applied separately per sex.  Each sex value may itself
+    be a scalar or a per-generation dict (composing naturally with
+    ``apply_threshold``).  Otherwise falls back to the standard
+    ``apply_threshold`` with the scalar/dict prevalence directly.
+    """
+    prev = params[f"prevalence{trait_num}"]
+    if isinstance(prev, dict) and "female" in prev and "male" in prev:
+        affected = np.zeros(len(liability), dtype=bool)
+        for sex_val, key in [(0, "female"), (1, "male")]:
+            mask = sex == sex_val
+            affected[mask] = apply_threshold(
+                liability[mask], generation[mask], prev[key]
+            )
+        return affected
+    return apply_threshold(liability, generation, prev)
+
+
 def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     """Orchestrate threshold phenotype from pedigree and parameter dict.
 
@@ -109,12 +136,13 @@ def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     pedigree = pedigree[pedigree["generation"] >= min_pheno_gen].reset_index(drop=True)
 
     generation = pedigree["generation"].values
+    sex = pedigree["sex"].values
 
-    affected1 = apply_threshold(
-        pedigree["liability1"].values, generation, params["prevalence1"]
+    affected1 = _apply_threshold_sex_aware(
+        pedigree["liability1"].values, generation, sex, params, trait_num=1,
     )
-    affected2 = apply_threshold(
-        pedigree["liability2"].values, generation, params["prevalence2"]
+    affected2 = _apply_threshold_sex_aware(
+        pedigree["liability2"].values, generation, sex, params, trait_num=2,
     )
 
     phenotype = pd.DataFrame(
