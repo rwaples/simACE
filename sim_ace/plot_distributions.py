@@ -1,7 +1,8 @@
 """Distribution-related phenotype plots.
 
 Contains: plot_death_age_distribution, plot_trait_phenotype, plot_trait_regression,
-plot_cumulative_incidence, plot_censoring_windows.
+plot_cumulative_incidence, plot_cumulative_incidence_by_sex,
+plot_cumulative_incidence_by_sex_generation, plot_censoring_windows.
 """
 
 from __future__ import annotations

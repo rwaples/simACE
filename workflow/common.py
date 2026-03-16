@@ -66,6 +66,7 @@ _PHENOTYPE_BASENAMES = [
     # Censoring
     "censoring",
     "censoring_confusion",
+    "censoring_cascade",
     # Familial correlations
     "joint_affected.frailty",
     "cross_trait_frailty.by_generation",

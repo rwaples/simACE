@@ -41,6 +41,7 @@ from sim_ace.plot_liability import (
     plot_liability_violin_by_generation,
     plot_joint_affection,
     plot_censoring_confusion,
+    plot_censoring_cascade,
 )
 from sim_ace.plot_pedigree_counts import plot_pedigree_relationship_counts
 from sim_ace.plot_correlations import (
@@ -155,6 +156,10 @@ def main(
 
     plot_censoring_confusion(
         df_samples, censor_age, out_dir / f"censoring_confusion.{ext}",
+        scenario, gen_censoring=gen_censoring,
+    )
+    plot_censoring_cascade(
+        df_samples, censor_age, out_dir / f"censoring_cascade.{ext}",
         scenario, gen_censoring=gen_censoring,
     )
 

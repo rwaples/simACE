@@ -383,6 +383,189 @@ def plot_censoring_confusion(
     plt.close()
 
 
+def plot_censoring_cascade(
+    df_samples: pd.DataFrame,
+    censor_age: float,
+    output_path: str | Path,
+    scenario: str = "",
+    gen_censoring: dict[int, list[float]] | None = None,
+) -> None:
+    """Per-trait stacked bar chart decomposing true cases by censoring fate per generation.
+
+    For each generation, true affected individuals (event time < censor_age) are
+    partitioned into four mutually exclusive categories:
+      - Left-truncated: event before observation window start
+      - Right-censored: event after observation window end
+      - Death-censored: event in window but death occurs before event
+      - Observed (TP): event in window and observed
+
+    Total bar height = true affected count. Sensitivity annotated per generation.
+    """
+    df = df_samples.copy()
+
+    if len(df) == 0 or "generation" not in df.columns:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No data available",
+                ha="center", va="center", transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    # Build per-generation observation windows
+    gens = sorted(df["generation"].unique())
+    windows: dict[int, tuple[float, float]] = {}
+    for g in gens:
+        if gen_censoring is not None and int(g) in gen_censoring:
+            lo, hi = gen_censoring[int(g)]
+        else:
+            lo, hi = 0.0, censor_age
+        if hi > lo:
+            windows[int(g)] = (lo, hi)
+
+    if not windows:
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.text(0.5, 0.5, "No non-degenerate observation windows",
+                ha="center", va="center", transform=ax.transAxes)
+        plt.savefig(output_path, dpi=150)
+        plt.close()
+        return
+
+    active_gens = sorted(windows.keys())
+
+    # Colors
+    color_observed = "#4CAF50"
+    color_death = "#E57373"
+    color_right = "#FFB74D"
+    color_left = "#FF9800"
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig.suptitle(f"Censoring Cascade [{scenario}]", fontsize=14)
+
+    for col, trait in enumerate([1, 2]):
+        ax = axes[col]
+        t_col = f"t{trait}"
+        a_col = f"affected{trait}"
+
+        if t_col not in df.columns or a_col not in df.columns:
+            ax.text(0.5, 0.5, f"Missing {t_col} or {a_col}",
+                    ha="center", va="center", transform=ax.transAxes)
+            ax.set_title(f"Trait {trait}")
+            continue
+
+        has_death = "death_age" in df.columns
+
+        counts_observed = []
+        counts_death = []
+        counts_right = []
+        counts_left = []
+        sensitivities = []
+        x_labels = []
+
+        for g in active_gens:
+            lo, hi = windows[g]
+            gen_mask = df["generation"] == g
+            df_g = df.loc[gen_mask]
+            t = df_g[t_col].values
+            true_affected = t < censor_age
+
+            n_true = int(true_affected.sum())
+            if n_true == 0:
+                counts_observed.append(0)
+                counts_death.append(0)
+                counts_right.append(0)
+                counts_left.append(0)
+                sensitivities.append(float("nan"))
+                x_labels.append(f"Gen {g}\n[{lo:.0f}, {hi:.0f}]")
+                continue
+
+            left_trunc = true_affected & (t < lo)
+            right_cens = true_affected & (t > hi)
+            in_window = true_affected & (t >= lo) & (t <= hi)
+
+            if has_death:
+                death_age = df_g["death_age"].values
+                death_cens = in_window & (death_age < t)
+                observed = in_window & (death_age >= t)
+            else:
+                death_cens = np.zeros_like(in_window)
+                observed = in_window
+
+            n_obs = int(observed.sum())
+            n_death = int(death_cens.sum())
+            n_right = int(right_cens.sum())
+            n_left = int(left_trunc.sum())
+
+            counts_observed.append(n_obs)
+            counts_death.append(n_death)
+            counts_right.append(n_right)
+            counts_left.append(n_left)
+            sensitivities.append(n_obs / n_true if n_true > 0 else float("nan"))
+            x_labels.append(f"Gen {g}\n[{lo:.0f}, {hi:.0f}]")
+
+        x = np.arange(len(active_gens))
+        bar_width = 0.6
+
+        # Stacked bars: observed (bottom) -> death -> right -> left (top)
+        bottom = np.zeros(len(active_gens))
+        bars_obs = np.array(counts_observed, dtype=float)
+        bars_death = np.array(counts_death, dtype=float)
+        bars_right = np.array(counts_right, dtype=float)
+        bars_left = np.array(counts_left, dtype=float)
+
+        ax.bar(x, bars_obs, bar_width, bottom=bottom, color=color_observed, label="Observed (TP)")
+        bottom += bars_obs
+        ax.bar(x, bars_death, bar_width, bottom=bottom, color=color_death, label="Death-censored")
+        bottom += bars_death
+        ax.bar(x, bars_right, bar_width, bottom=bottom, color=color_right, label="Right-censored")
+        bottom += bars_right
+        ax.bar(x, bars_left, bar_width, bottom=bottom, color=color_left, label="Left-truncated")
+        bottom += bars_left
+
+        # Annotate segments (skip if < 3% of bar height)
+        for i in range(len(active_gens)):
+            total = bottom[i]
+            if total == 0:
+                continue
+            # Annotate each segment
+            cum = 0.0
+            for count, clr in [
+                (bars_obs[i], color_observed),
+                (bars_death[i], color_death),
+                (bars_right[i], color_right),
+                (bars_left[i], color_left),
+            ]:
+                if count > 0 and count / total >= 0.03:
+                    mid = cum + count / 2
+                    ax.text(x[i], mid, f"{int(count)}", ha="center", va="center",
+                            fontsize=8, fontweight="bold")
+                cum += count
+
+        # Sensitivity annotation above each bar
+        for i, sens in enumerate(sensitivities):
+            if not np.isnan(sens):
+                ax.text(x[i], bottom[i] + max(bottom) * 0.02,
+                        f"sens={sens:.2f}", ha="center", va="bottom", fontsize=8)
+
+        # Overall sensitivity
+        total_obs = sum(counts_observed)
+        total_true = sum(counts_observed) + sum(counts_death) + sum(counts_right) + sum(counts_left)
+        overall_sens = total_obs / total_true if total_true > 0 else float("nan")
+        ax.set_title(f"Trait {trait}  (overall sensitivity: {overall_sens:.3f})", fontsize=11)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(x_labels, fontsize=9)
+        ax.set_ylabel("True affected count")
+
+    # Shared legend above the subplots, below the suptitle
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=4, fontsize=9,
+               bbox_to_anchor=(0.5, 0.95), framealpha=0.9)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.93])
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
 def plot_joint_affection(
     df_samples: pd.DataFrame,
     output_path: str | Path,

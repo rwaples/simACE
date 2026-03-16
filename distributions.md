@@ -1,12 +1,12 @@
 
 # ACE Phenotype Models
 
-Eight phenotype models convert pedigree liabilities (L = A + C + E) to
+Nine phenotype models convert pedigree liabilities (L = A + C + E) to
 age-of-onset times. Set independently per trait via `phenotype_model1`/`phenotype_model2`
 in config (default: `weibull`).
 
 ```yaml
-phenotype_model1: weibull    # weibull/exponential/gompertz/lognormal/loglogistic/gamma/adult_ltm/adult_cox
+phenotype_model1: weibull    # weibull/exponential/gompertz/lognormal/loglogistic/gamma/cure_frailty/adult_ltm/adult_cox
 phenotype_model2: weibull
 ```
 
@@ -193,7 +193,48 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 
 
 # ==============================================================================
-# 2) ADuLT LIABILITY THRESHOLD MODEL (adult_ltm)
+# 2) MIXTURE CURE FRAILTY MODEL (cure_frailty)
+# ==============================================================================
+# Mixture cure model: liability threshold determines WHO gets the disorder,
+# then a proportional hazards frailty model determines WHEN (age-of-onset)
+# among cases. Controls are censored at 1e6.
+#
+# Model (per trait):
+#     L_std    = standardize(L)                      (N(0,1) liability)
+#     is_case  = L_std > Phi^{-1}(1 - K)             (top K fraction)
+#     z        = exp(beta * L_std)                    (frailty, cases only)
+#     t_case   = H0^{-1}(-log(U) / z)                (age-at-onset)
+#     t_ctrl   = 1e6                                  (censored downstream)
+#
+# This separates case status (deterministic from liability rank) from
+# age-of-onset (stochastic from frailty + baseline hazard), unlike the
+# pure frailty model where both are entangled.
+#
+# The `baseline` key in phenotype_params selects which frailty baseline
+# hazard to use (any of the 6 frailty models: weibull, exponential,
+# gompertz, lognormal, loglogistic, gamma).
+#
+# Config parameters:
+#     prevalence1, prevalence2:        population prevalence K per trait
+#     beta1, beta2:                    liability effect on log-hazard (cases only)
+#     beta_sex1, beta_sex2:            sex covariate effect (0 = no effect)
+#     phenotype_params1/2:
+#       baseline: <frailty model>      baseline hazard model name
+#       <baseline params>:             parameters for the chosen baseline
+#
+# Example:
+# phenotype_model1: cure_frailty
+# prevalence1: 0.10
+# beta1: 1.0
+# phenotype_params1:
+#   baseline: weibull
+#   scale: 2160
+#   rho: 0.8
+
+
+
+# ==============================================================================
+# 3) ADuLT LIABILITY THRESHOLD MODEL (adult_ltm)
 # ==============================================================================
 # From Pedersen et al., Nat Commun 2023.
 # Deterministic mapping from liability to age-of-onset via the logistic
@@ -244,7 +285,7 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 
 
 # ==============================================================================
-# 3) ADuLT PROPORTIONAL HAZARDS MODEL (adult_cox)
+# 4) ADuLT PROPORTIONAL HAZARDS MODEL (adult_cox)
 # ==============================================================================
 # From Pedersen et al., Nat Commun 2023.
 # Weibull(shape=2) proportional hazards with rank-based CIP-to-age mapping.
