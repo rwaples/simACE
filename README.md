@@ -27,6 +27,17 @@ conda env create -f environment.yml   # creates environment and installs sim_ace
 conda activate ACE
 ```
 
+### EPIMIGHT (optional)
+
+To run heritability analysis via EPIMIGHT, create its separate R-based conda environment:
+
+```bash
+conda env create -f epimight/environment.yml
+conda run -n epimight Rscript -e "install.packages('epimight/EPIMIGHT/epimight', repos=NULL, type='source')"
+```
+
+See [epimight/README.md](epimight/README.md) for full pipeline details.
+
 ### Verify installation
 
 ```bash
@@ -61,6 +72,7 @@ snakemake --cores 4 simulate_all     # pedigree simulation only
 snakemake --cores 4 phenotype_all    # simulation + phenotyping
 snakemake --cores 4 validate_all     # simulation + validation + folder summaries
 snakemake --cores 4 stats_all        # phenotyping + stats + plots
+snakemake --cores 4 epimight_all     # EPIMIGHT heritability analysis
 
 # Run a single named scenario
 snakemake --cores 4 results/base/baseline10K/scenario.done
@@ -133,6 +145,9 @@ defaults:
   # Statistics
   extra_tetrachoric: false                   # Estimate additional tetrachoric correlations (slow; set true to enable) [UNDER DEVELOPEMENT]
 
+  # EPIMIGHT relationship kinds to analyze
+  epimight_kinds: [PO, FS, HS, mHS, pHS]     # Relationship types for heritability estimation
+
   # Plot output
   plot_format: png                           # Plot file format: png or pdf
 
@@ -185,6 +200,7 @@ Multi-page PDF atlases collect all figures for a scenario or folder into a singl
 |------|-------------|
 | `results/{folder}/{scenario}/plots/atlas.pdf` | Per-scenario atlas: liability structure, Weibull phenotype, censoring, correlations, heritability, and threshold model figures |
 | `results/{folder}/plots/atlas.pdf` | Per-folder atlas: cross-scenario validation plots (variance components, correlations, heritability, bias, runtime, memory) |
+| `results/{folder}/{scenario}/rep{N}/epimight/plots/atlas.pdf` | EPIMIGHT atlas: CIF curves, heritability, genetic correlation across relationship kinds |
 
 ### Parquet Column Reference
 
@@ -261,6 +277,12 @@ ACE/
 │   ├── plot_threshold.py              # Threshold phenotype plots
 │   ├── plot_atlas.py                  # Multi-page PDF atlas with figure captions
 │   └── plot_validation.py             # Validation summary plots
+├── epimight/                         # EPIMIGHT heritability analysis (separate conda env)
+│   ├── create_parquet.py             # Convert phenotype → TTE format
+│   ├── guide-yob.R                   # CIF, h², genetic correlation (R)
+│   ├── plot_epimight.py              # Plot atlas generation
+│   ├── environment.yml               # Conda env for R dependencies
+│   └── README.md                     # EPIMIGHT pipeline documentation
 ├── workflow/
 │   ├── common.py                      # Shared helpers (get_param, get_folder, etc.)
 │   ├── rules/                         # Modular Snakemake rule files
@@ -268,7 +290,8 @@ ACE/
 │   │   ├── simulate.smk               # Pedigree simulation rule
 │   │   ├── phenotype.smk              # Phenotyping rules (Weibull + threshold)
 │   │   ├── validate.smk               # Validation, gathering, and validation plots
-│   │   └── stats.smk                  # Statistics and phenotype plots
+│   │   ├── stats.smk                  # Statistics and phenotype plots
+│   │   └── epimight.smk               # EPIMIGHT heritability pipeline
 │   └── scripts/                       # Snakemake script wrappers
 ├── tests/                             # Unit, statistical, and edge-case tests
 ├── results/{folder}/{scenario}/rep{N}/ # Per-replicate simulation outputs
@@ -280,6 +303,7 @@ ACE/
 
 - **[methods.md](methods.md)** — Methods document (variance decomposition, Weibull frailty, censoring, liability threshold, tetrachoric correlation, heritability estimation, etc)
 - **[distributions.md](distributions.md)** — Phenotype model reference (frailty hazard distributions, ADuLT LTM, ADuLT Cox)
+- **[epimight/README.md](epimight/README.md)** — EPIMIGHT heritability pipeline
 - **[CLAUDE.md](CLAUDE.md)** — Architecture guide
 
 ## Troubleshooting

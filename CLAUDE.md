@@ -13,9 +13,10 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 
 - Root `Snakefile` is the entry point — never use `-s workflow/Snakefile`
 - Use `--cores 4` (testing) or `--cores 1` (debugging). Always dry-run (`-n`) before long runs.
-- Targets: `simulate_all`, `phenotype_all`, `validate_all`, `stats_all`
+- Targets: `simulate_all`, `phenotype_all`, `validate_all`, `stats_all`, `epimight_all`
 - Single scenario: `snakemake --cores 4 results/{folder}/{scenario}/scenario.done`
 - Force-rebuild plots: `snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.pdf`
+- Single EPIMIGHT kind: `snakemake --cores 4 results/{folder}/{scenario}/rep1/epimight/tsv/h2_d1_FS.tsv`
 
 ## Testing
 
@@ -35,6 +36,7 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 - `sim_ace/` — installable package (`pip install -e .`) with simulation, phenotyping, validation, stats, and plotting modules
 - `workflow/rules/*.smk` — Snakemake rules; `workflow/scripts/` — thin script wrappers
 - `config/config.yaml` — named scenarios (seed, folder, A, C, N, G_ped, G_sim, fam_size, p_mztwin, p_nonsocial_father)
+- `epimight/` — EPIMIGHT heritability pipeline (separate `epimight` conda env; uses `conda run -n epimight`)
 - `results/{folder}/{scenario}/` — output per scenario
 
 ## Session Management
