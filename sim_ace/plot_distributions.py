@@ -14,6 +14,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from sim_ace.utils import save_placeholder_plot, finalize_plot
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -53,9 +55,7 @@ def plot_death_age_distribution(all_stats: list[dict[str, Any]], censor_age: flo
     axes[1].tick_params(axis="x", rotation=45)
 
     fig.suptitle(f"Death Age Distribution [{scenario}]", fontsize=14)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_trait_phenotype(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
@@ -91,9 +91,7 @@ def plot_trait_phenotype(df_samples: pd.DataFrame, output_path: str | Path, scen
         axes[row, 1].set_ylabel("Density")
 
     fig.suptitle(f"Phenotype Distributions [{scenario}]", fontsize=14)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
@@ -172,8 +170,7 @@ def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, An
         ax_corner = fig.add_subplot(inner[0, 1])
         ax_corner.axis("off")
 
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = "") -> None:
@@ -246,9 +243,7 @@ def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float
 
     axes[0].set_ylabel("Cumulative Incidence")
     fig.suptitle(f"Cumulative Incidence by Age [{scenario}]", fontsize=14)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_cumulative_incidence_by_sex(
@@ -261,11 +256,7 @@ def plot_cumulative_incidence_by_sex(
     """Plot cumulative incidence curves split by sex (0=female, 1=male)."""
     if "sex" not in df_samples.columns:
         logger.warning("Skipping cumulative_incidence_by_sex: no 'sex' column")
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No sex column", ha="center", va="center",
-                transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No sex column")
         return
 
     ages = np.linspace(0, censor_age, n_points)
@@ -297,9 +288,7 @@ def plot_cumulative_incidence_by_sex(
 
     axes[0].set_ylabel("Cumulative Incidence")
     fig.suptitle(f"Cumulative Incidence by Sex [{scenario}]", fontsize=14)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_cumulative_incidence_by_sex_generation(
@@ -312,20 +301,12 @@ def plot_cumulative_incidence_by_sex_generation(
     """Plot cumulative incidence by sex, one column per generation."""
     if "sex" not in df_samples.columns or "generation" not in df_samples.columns:
         logger.warning("Skipping cumulative_incidence_by_sex_generation: missing columns")
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "Missing sex or generation column", ha="center", va="center",
-                transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "Missing sex or generation column")
         return
 
     generations = sorted(df_samples["generation"].unique())
     if not generations:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No generations", ha="center", va="center",
-                transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No generations")
         return
 
     ages = np.linspace(0, censor_age, n_points)
@@ -371,9 +352,7 @@ def plot_cumulative_incidence_by_sex_generation(
                 ax.legend(loc="lower right", fontsize=8)
 
     fig.suptitle(f"Cumulative Incidence by Sex and Generation [{scenario}]", fontsize=14, y=1.01)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_censoring_windows(
@@ -387,12 +366,7 @@ def plot_censoring_windows(
     stats_with_censoring = [s for s in all_stats if s.get("censoring") is not None]
     if not stats_with_censoring:
         logger.warning("Skipping censoring_windows plot: no censoring data in stats")
-        # Create empty plot to satisfy Snakemake output
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No censoring data", ha="center", va="center",
-                transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No censoring data")
         return
 
     ages = np.array(stats_with_censoring[0]["censoring"]["censoring_ages"])
@@ -408,11 +382,7 @@ def plot_censoring_windows(
         )
     ]
     if not gen_keys:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No phenotyped generations", ha="center", va="center",
-                transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No phenotyped generations")
         return
     if gen_censoring is None:
         gen_censoring = {}
@@ -507,6 +477,4 @@ def plot_censoring_windows(
     fig.suptitle(
         f"Censoring Windows by Generation [{scenario}]", fontsize=14, y=1.01
     )
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)

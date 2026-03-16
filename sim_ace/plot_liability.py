@@ -1,7 +1,8 @@
 """Liability-related phenotype plots.
 
 Contains: plot_liability_joint, plot_liability_joint_affected,
-plot_liability_violin, plot_liability_violin_by_generation, plot_joint_affection.
+plot_liability_violin, plot_liability_violin_by_generation, plot_joint_affection,
+plot_censoring_confusion, plot_censoring_cascade.
 """
 
 from __future__ import annotations
@@ -15,13 +16,17 @@ import seaborn as sns
 from pathlib import Path
 
 from sim_ace.stats import tetrachoric_corr
+from sim_ace.utils import save_placeholder_plot, finalize_plot
 
 import logging
 logger = logging.getLogger(__name__)
 
 
-def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
-    """2x2 grid of jointplots: Liability, A, C, E (trait 1 vs trait 2)."""
+def _plot_joint_grid(
+    df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "",
+    color_by_affected: bool = False,
+) -> None:
+    """Internal: 2x2 grid of jointplots for cross-trait correlations."""
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
     panels = [
@@ -40,6 +45,9 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
     fig.suptitle(f"Cross-Trait Correlations [{scenario}]", fontsize=14, y=1.01)
     outer = GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.35)
 
+    if color_by_affected:
+        affected = df_samples["affected1"].values.astype(bool)
+
     for idx, (xcol, ycol, title) in enumerate(panels):
         inner = GridSpecFromSubplotSpec(
             2, 2, subplot_spec=outer[idx],
@@ -51,11 +59,31 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
         ax_marg_y = fig.add_subplot(inner[1, 1], sharey=ax_joint)
 
         x, y = df_samples[xcol].values, df_samples[ycol].values
-        ax_joint.scatter(x, y, alpha=0.3, s=3, rasterized=True)
-        ax_marg_x.hist(x, bins=50, edgecolor="none", alpha=0.7)
-        ax_marg_y.hist(
-            y, bins=50, orientation="horizontal", edgecolor="none", alpha=0.7
-        )
+
+        if color_by_affected:
+            bins_x = np.linspace(x.min(), x.max(), 51)
+            bins_y = np.linspace(y.min(), y.max(), 51)
+            for mask, color, alpha, label in [
+                (~affected, "C0", 0.2, "Unaffected"),
+                (affected, "C3", 0.5, "Affected (T1)"),
+            ]:
+                ax_joint.scatter(
+                    x[mask], y[mask], c=color, alpha=alpha, s=3, rasterized=True, label=label,
+                )
+            ax_marg_x.hist(x[~affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.5, color="C0")
+            ax_marg_x.hist(x[affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.7, color="C3")
+            ax_marg_y.hist(
+                y[~affected], bins=bins_y.tolist(), orientation="horizontal", edgecolor="none", alpha=0.5, color="C0",
+            )
+            ax_marg_y.hist(
+                y[affected], bins=bins_y.tolist(), orientation="horizontal", edgecolor="none", alpha=0.7, color="C3",
+            )
+        else:
+            ax_joint.scatter(x, y, alpha=0.3, s=3, rasterized=True)
+            ax_marg_x.hist(x, bins=50, edgecolor="none", alpha=0.7)
+            ax_marg_y.hist(
+                y, bins=50, orientation="horizontal", edgecolor="none", alpha=0.7
+            )
 
         r = np.corrcoef(x, y)[0, 1]
         ax_joint.text(
@@ -74,89 +102,25 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
         ax_corner = fig.add_subplot(inner[0, 1])
         ax_corner.axis("off")
 
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    if color_by_affected:
+        from matplotlib.lines import Line2D
+        legend_handles = [
+            Line2D([0], [0], marker="o", color="w", markerfacecolor="C0", markersize=8, label="Unaffected"),
+            Line2D([0], [0], marker="o", color="w", markerfacecolor="C3", markersize=8, label="Affected (T1)"),
+        ]
+        fig.legend(handles=legend_handles, loc="upper right", fontsize=10, framealpha=0.9)
+
+    finalize_plot(output_path)
+
+
+def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
+    """2x2 grid of jointplots: Liability, A, C, E (trait 1 vs trait 2)."""
+    _plot_joint_grid(df_samples, output_path, scenario, color_by_affected=False)
 
 
 def plot_liability_joint_affected(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
-    """2x2 grid of jointplots colored affected status."""
-    from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
-
-    panels = [
-        ("liability1", "liability2", "Liability"),
-        ("A1", "A2", "A (Additive genetic)"),
-        ("C1", "C2", "C (Common environment)"),
-        ("E1", "E2", "E (Unique environment)"),
-    ]
-    panels = [
-        (x, y, t)
-        for x, y, t in panels
-        if x in df_samples.columns and y in df_samples.columns
-    ]
-
-    fig = plt.figure(figsize=(14, 12))
-    fig.suptitle(f"Cross-Trait Correlations [{scenario}]", fontsize=14, y=1.01)
-    outer = GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.35)
-
-    affected = df_samples["affected1"].values.astype(bool)
-
-    for idx, (xcol, ycol, title) in enumerate(panels):
-        inner = GridSpecFromSubplotSpec(
-            2, 2, subplot_spec=outer[idx],
-            width_ratios=[4, 1], height_ratios=[1, 4],
-            hspace=0.05, wspace=0.05,
-        )
-        ax_joint = fig.add_subplot(inner[1, 0])
-        ax_marg_x = fig.add_subplot(inner[0, 0], sharex=ax_joint)
-        ax_marg_y = fig.add_subplot(inner[1, 1], sharey=ax_joint)
-
-        x, y = df_samples[xcol].values, df_samples[ycol].values
-        bins_x = np.linspace(x.min(), x.max(), 51)
-        bins_y = np.linspace(y.min(), y.max(), 51)
-
-        for mask, color, alpha, label in [
-            (~affected, "C0", 0.2, "Unaffected"),
-            (affected, "C3", 0.5, "Affected (T1)"),
-        ]:
-            ax_joint.scatter(
-                x[mask], y[mask], c=color, alpha=alpha, s=3, rasterized=True, label=label,
-            )
-
-        ax_marg_x.hist(x[~affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.5, color="C0")
-        ax_marg_x.hist(x[affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.7, color="C3")
-        ax_marg_y.hist(
-            y[~affected], bins=bins_y.tolist(), orientation="horizontal", edgecolor="none", alpha=0.5, color="C0",
-        )
-        ax_marg_y.hist(
-            y[affected], bins=bins_y.tolist(), orientation="horizontal", edgecolor="none", alpha=0.7, color="C3",
-        )
-
-        r = np.corrcoef(x, y)[0, 1]
-        ax_joint.text(
-            0.05, 0.95, f"r = {r:.4f}",
-            transform=ax_joint.transAxes, va="top", fontsize=11,
-        )
-        ax_joint.set_xlabel(f"{title} (Trait 1)")
-        ax_joint.set_ylabel(f"{title} (Trait 2)")
-
-        ax_marg_x.set_title(f"{title}: Trait 1 vs Trait 2", fontsize=11)
-        ax_marg_x.tick_params(labelbottom=False, labelleft=False)
-        ax_marg_x.set_ylabel("")
-        ax_marg_y.tick_params(labelleft=False, labelbottom=False)
-        ax_marg_y.set_xlabel("")
-
-        ax_corner = fig.add_subplot(inner[0, 1])
-        ax_corner.axis("off")
-
-    from matplotlib.lines import Line2D
-    legend_handles = [
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="C0", markersize=8, label="Unaffected"),
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="C3", markersize=8, label="Affected (T1)"),
-    ]
-    fig.legend(handles=legend_handles, loc="upper right", fontsize=10, framealpha=0.9)
-
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    """2x2 grid of jointplots colored by affected status."""
+    _plot_joint_grid(df_samples, output_path, scenario, color_by_affected=True)
 
 
 def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
@@ -217,19 +181,13 @@ def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, An
         1, ax.get_ylim()[0], f"Prevalence: {prev2:.1%}",
         ha="center", va="top", fontsize=10, fontstyle="italic",
     )
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
     """Split violin of liability by affected status, one column per generation."""
     if "generation" not in df_samples.columns:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No generation data", ha="center", va="center",
-                transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No generation data")
         return
 
     gens = sorted(df_samples["generation"].unique())
@@ -294,9 +252,7 @@ def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: lis
         f"Liability by Affected Status per Generation [{scenario}]",
         fontsize=14,
     )
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_censoring_confusion(
@@ -324,11 +280,7 @@ def plot_censoring_confusion(
             df = df[df["generation"].isin(active_gens)]
 
     if len(df) == 0:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No phenotyped individuals",
-                ha="center", va="center", transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No phenotyped individuals")
         return
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
@@ -378,9 +330,7 @@ def plot_censoring_confusion(
         metrics = f"Sensitivity: {sensitivity:.3f}   Specificity: {specificity:.3f}"
         ax.set_title(f"Trait {trait}\n{metrics}", fontsize=11)
 
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_censoring_cascade(
@@ -404,11 +354,7 @@ def plot_censoring_cascade(
     df = df_samples.copy()
 
     if len(df) == 0 or "generation" not in df.columns:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No data available",
-                ha="center", va="center", transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No data available")
         return
 
     # Build per-generation observation windows
@@ -423,11 +369,7 @@ def plot_censoring_cascade(
             windows[int(g)] = (lo, hi)
 
     if not windows:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No non-degenerate observation windows",
-                ha="center", va="center", transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No non-degenerate observation windows")
         return
 
     active_gens = sorted(windows.keys())
@@ -561,9 +503,7 @@ def plot_censoring_cascade(
     fig.legend(handles, labels, loc="upper center", ncol=4, fontsize=9,
                bbox_to_anchor=(0.5, 0.95), framealpha=0.9)
 
-    plt.tight_layout(rect=[0, 0, 1, 0.93])
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path, tight_rect=[0, 0, 1, 0.93])
 
 
 def plot_joint_affection(
@@ -641,6 +581,4 @@ def plot_joint_affection(
     ax.set_xlabel("Trait 1")
     ax.set_ylabel("Trait 2")
     ax.set_title(f"Joint Affected Status [{scenario}]\n{r_label}", fontsize=14)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)

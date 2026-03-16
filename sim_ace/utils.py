@@ -103,3 +103,23 @@ def get_nested(d: Any, *keys: str, default: Any = None) -> Any:
         else:
             return default
     return d
+
+
+def save_placeholder_plot(output_path: Any, message: str, figsize: tuple[float, float] = (6, 4), dpi: int = 150) -> None:
+    """Save a single-panel figure with centered message text."""
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.text(0.5, 0.5, message, ha="center", va="center", transform=ax.transAxes)
+    plt.savefig(output_path, dpi=dpi)
+    plt.close()
+
+
+def finalize_plot(output_path: Any, dpi: int = 150, tight_rect: list[float] | None = None) -> None:
+    """tight_layout + savefig(bbox_inches='tight') + close current figure."""
+    import matplotlib.pyplot as plt
+    if tight_rect is not None:
+        plt.tight_layout(rect=tight_rect)
+    else:
+        plt.tight_layout()
+    plt.savefig(output_path, dpi=dpi, bbox_inches="tight")
+    plt.close()

@@ -12,7 +12,6 @@ import json
 from typing import Any
 
 import pandas as pd
-import matplotlib.pyplot as plt
 import seaborn as sns
 import yaml
 from pathlib import Path
@@ -24,6 +23,8 @@ import logging
 logger = logging.getLogger(__name__)
 
 MAX_PLOT_POINTS = 200_000
+
+from sim_ace.utils import save_placeholder_plot
 
 from sim_ace.plot_distributions import (
     plot_death_age_distribution,
@@ -148,11 +149,7 @@ def main(
             gen_censoring=gen_censoring,
         )
     else:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No censoring windows configured",
-                ha="center", va="center", transform=ax.transAxes)
-        plt.savefig(out_dir / f"censoring.{ext}", dpi=150)
-        plt.close()
+        save_placeholder_plot(out_dir / f"censoring.{ext}", "No censoring windows configured")
 
     plot_censoring_confusion(
         df_samples, censor_age, out_dir / f"censoring_confusion.{ext}",
@@ -197,11 +194,7 @@ def main(
         )
     else:
         for name in ["heritability.by_generation", "broad_heritability.by_generation"]:
-            fig, ax = plt.subplots(figsize=(6, 4))
-            ax.text(0.5, 0.5, "No validation data available",
-                    ha="center", va="center", transform=ax.transAxes)
-            plt.savefig(out_dir / f"{name}.{ext}", dpi=150)
-            plt.close()
+            save_placeholder_plot(out_dir / f"{name}.{ext}", "No validation data available")
 
     logger.info("Phenotype plots saved to %s", out_dir)
 

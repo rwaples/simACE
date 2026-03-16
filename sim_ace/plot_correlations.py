@@ -2,7 +2,8 @@
 
 Contains: plot_tetrachoric_sibling, plot_tetrachoric_by_generation,
 plot_cross_trait_tetrachoric, plot_parent_offspring_liability,
-plot_heritability_by_generation.
+plot_heritability_by_generation, plot_broad_heritability_by_generation,
+plot_cross_trait_frailty_by_generation.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from pathlib import Path
 
 import logging
 
-from sim_ace.utils import PAIR_TYPES, PAIR_COLORS
+from sim_ace.utils import PAIR_TYPES, PAIR_COLORS, save_placeholder_plot, finalize_plot
 
 logger = logging.getLogger(__name__)
 
@@ -140,9 +141,7 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
     fig.suptitle(
         f"Tetrachoric Correlation [{scenario}]", fontsize=14
     )
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_tetrachoric_by_generation(
@@ -160,22 +159,13 @@ def plot_tetrachoric_by_generation(
         set(s.get("tetrachoric_by_generation", {}).keys()) for s in all_stats
     ]
     if not gen_keys_sets or not gen_keys_sets[0]:
-        # No generation data — create placeholder
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No per-generation tetrachoric data",
-                ha="center", va="center", transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No per-generation tetrachoric data")
         return
 
     # Intersection of available gens across all reps, sorted
     gen_keys = sorted(set.intersection(*gen_keys_sets))
     if not gen_keys:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No per-generation tetrachoric data",
-                ha="center", va="center", transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No per-generation tetrachoric data")
         return
 
     pair_types = PAIR_TYPES
@@ -279,9 +269,7 @@ def plot_tetrachoric_by_generation(
     fig.suptitle(
         f"Tetrachoric Correlation by Generation [{scenario}]", fontsize=14
     )
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_cross_trait_tetrachoric(
@@ -419,9 +407,7 @@ def plot_cross_trait_tetrachoric(
     fig.suptitle(
         f"Cross-Trait Tetrachoric Correlations [{scenario}]", fontsize=14
     )
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_parent_offspring_liability(
@@ -434,11 +420,7 @@ def plot_parent_offspring_liability(
     from scipy.stats import linregress
 
     if "generation" not in df_samples.columns:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No generation data", ha="center", va="center",
-                transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No generation data")
         return
 
     # Build id -> row lookup within df_samples
@@ -465,11 +447,7 @@ def plot_parent_offspring_liability(
     plot_gens = plot_gens[-3:]
 
     if not plot_gens:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No generations with parent data available",
-                ha="center", va="center", transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No generations with parent data available")
         return
 
     n_cols = len(plot_gens)
@@ -544,9 +522,7 @@ def plot_parent_offspring_liability(
                 ax.set_xlabel("Midparent Liability")
 
     fig.suptitle(f"Parent-Offspring Liability Correlation [{scenario}]", fontsize=14)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_heritability_by_generation(
@@ -561,11 +537,7 @@ def plot_heritability_by_generation(
     # Extract per-generation data from each replicate
     per_gen_all = [v.get("per_generation", {}) for v in all_validations]
     if not per_gen_all or not per_gen_all[0]:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No per-generation data", ha="center", va="center",
-                transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No per-generation data")
         return
 
     # Determine generations from first replicate
@@ -621,9 +593,7 @@ def plot_heritability_by_generation(
         ax.set_ylim(0, 1)
 
     fig.suptitle(f"Narrow-Sense Liability-Scale Heritability by Generation [{scenario}]", fontsize=14)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_broad_heritability_by_generation(
@@ -634,11 +604,7 @@ def plot_broad_heritability_by_generation(
     """Plot broad-sense heritability H² = (Var(A)+Var(C))/(Var(A)+Var(C)+Var(E)) per generation."""
     per_gen_all = [v.get("per_generation", {}) for v in all_validations]
     if not per_gen_all or not per_gen_all[0]:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No per-generation data", ha="center", va="center",
-                transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No per-generation data")
         return
 
     gen_keys = sorted(per_gen_all[0].keys(), key=lambda k: int(k.split("_")[1]))
@@ -694,9 +660,7 @@ def plot_broad_heritability_by_generation(
         ax.set_ylim(0, 1)
 
     fig.suptitle(f"Additive Genetic and Shared Environment by Generation [{scenario}]", fontsize=14)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_cross_trait_frailty_by_generation(
@@ -739,13 +703,12 @@ def plot_cross_trait_frailty_by_generation(
                 )
 
     if not gen_data:
-        fig, ax = plt.subplots(figsize=(8, 5))
-        ax.text(0.5, 0.5,
-                "No per-generation cross-trait data\n\n"
-                "(requires extra_tetrachoric: True in scenario config)",
-                ha="center", va="center", transform=ax.transAxes, fontsize=11)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(
+            output_path,
+            "No per-generation cross-trait data\n\n"
+            "(requires extra_tetrachoric: True in scenario config)",
+            figsize=(8, 5),
+        )
         return
 
     generations = sorted(gen_data.keys())
@@ -793,6 +756,4 @@ def plot_cross_trait_frailty_by_generation(
     ax.set_xticks(generations)
     ax.legend(loc="best", fontsize=9)
 
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)

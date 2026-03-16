@@ -21,7 +21,7 @@ from sim_ace.utils import yaml_loader
 _yaml_loader = yaml_loader()
 
 from sim_ace.stats import tetrachoric_corr
-from sim_ace.utils import PAIR_TYPES, PAIR_COLORS
+from sim_ace.utils import PAIR_TYPES, PAIR_COLORS, save_placeholder_plot, finalize_plot
 
 import logging
 logger = logging.getLogger(__name__)
@@ -95,9 +95,7 @@ def plot_prevalence_by_generation(all_stats: list[dict[str, Any]], prevalence1: 
     ax.set_ylim(0, max(max_expected * 1.5, ax.get_ylim()[1]))
     ax.set_title(f"Prevalence by Generation (Liability Threshold) [{scenario}]", fontsize=14)
     ax.legend()
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
@@ -157,19 +155,13 @@ def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, An
         1, ax.get_ylim()[0], f"Prevalence: {prev2:.1%}",
         ha="center", va="top", fontsize=10, fontstyle="italic",
     )
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], prevalence1: float | dict[int, float], prevalence2: float | dict[int, float], output_path: str | Path, scenario: str = "") -> None:
     """Split violin of liability by affected status, one column per generation."""
     if "generation" not in df_samples.columns:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(0.5, 0.5, "No generation data", ha="center", va="center",
-                transform=ax.transAxes)
-        plt.savefig(output_path, dpi=150)
-        plt.close()
+        save_placeholder_plot(output_path, "No generation data")
         return
 
     gens = sorted(df_samples["generation"].unique())
@@ -236,9 +228,7 @@ def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: lis
         f"Liability by Affected Status per Generation (Threshold) [{scenario}]",
         fontsize=14,
     )
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str) -> None:
@@ -337,9 +327,7 @@ def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, s
     fig.suptitle(
         f"Tetrachoric Correlation (Liability Threshold) [{scenario}]", fontsize=14
     )
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150)
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_joint_affection(all_stats: list[dict[str, Any]], df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
@@ -384,9 +372,7 @@ def plot_joint_affection(all_stats: list[dict[str, Any]], df_samples: pd.DataFra
     ax.set_xlabel("Trait 1")
     ax.set_ylabel("Trait 2")
     ax.set_title(f"Joint Affected Status (Liability Threshold) [{scenario}]\n{r_label}", fontsize=14)
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
@@ -467,8 +453,7 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
     ]
     fig.legend(handles=legend_handles, loc="upper right", fontsize=10, framealpha=0.9)
 
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
 
 
 def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, prevalence1: float | dict[int, float], prevalence2: float | dict[int, float], plot_ext: str = "png") -> None:

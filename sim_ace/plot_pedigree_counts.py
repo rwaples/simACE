@@ -26,6 +26,8 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from sim_ace.utils import save_placeholder_plot, finalize_plot
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -251,15 +253,10 @@ def plot_pedigree_relationship_counts(
     # Check for pair_counts data
     has_data = any(s.get(stats_key) for s in all_stats)
     if not has_data:
-        fig, ax = plt.subplots(figsize=(6, 4))
-        ax.text(
-            0.5, 0.5,
+        save_placeholder_plot(
+            output_path,
             "No pair count data available\n(re-run stats to generate)",
-            ha="center", va="center", transform=ax.transAxes, fontsize=12,
         )
-        ax.set_axis_off()
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
-        plt.close()
         return
 
     # Average pair counts across replicates
@@ -386,8 +383,7 @@ def plot_pedigree_relationship_counts(
         transform=ax.transAxes, fontsize=8, ha="right", va="bottom", color="grey",
     )
 
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path)
     logger.info("Pedigree counts plot saved to %s", output_path)
 
 
