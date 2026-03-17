@@ -122,9 +122,7 @@ def get_scenario_sim_outputs(config, scenario, plot_ext="png"):
     for rep in range(1, n_reps + 1):
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/pedigree.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.parquet")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.sampled.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.parquet")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.sampled.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml")

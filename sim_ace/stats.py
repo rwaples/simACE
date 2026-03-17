@@ -868,9 +868,12 @@ def main(
         stats["censoring_confusion"] = compute_censoring_confusion(df, censor_age, gen_censoring)
         stats["censoring_cascade"] = compute_censoring_cascade(df, censor_age, gen_censoring)
 
+    # Read full pedigree once (used for both pair extraction and pair counts)
+    df_ped = pd.read_parquet(pedigree_path) if pedigree_path is not None else None
+
     logger.info("Extracting relationship pairs...")
     t0 = time.perf_counter()
-    pairs = extract_relationship_pairs(df, seed=seed)
+    pairs = extract_relationship_pairs(df, seed=seed, full_pedigree=df_ped)
     logger.info(
         "Relationship pairs extracted in %.1fs: %s",
         time.perf_counter() - t0,
@@ -879,15 +882,14 @@ def main(
 
     stats["pair_counts"] = {k: len(v[0]) for k, v in pairs.items()}
 
-    if pedigree_path is not None:
+    if df_ped is not None:
         logger.info("Counting relationship pairs from full pedigree...")
         t1 = time.perf_counter()
-        df_ped = pd.read_parquet(pedigree_path)
         stats["pair_counts_ped"] = count_relationship_pairs(df_ped)
         stats["n_individuals_ped"] = len(df_ped)
         stats["n_generations_ped"] = int(df_ped["generation"].nunique()) if "generation" in df_ped.columns else 1
-        del df_ped
         logger.info("Pedigree pairs counted in %.1fs", time.perf_counter() - t1)
+        del df_ped
 
     logger.info("Computing liability correlations...")
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)

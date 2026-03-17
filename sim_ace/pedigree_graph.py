@@ -28,12 +28,17 @@ class PedigreeGraph:
         df: Pedigree DataFrame with columns id, mother, father, twin, sex, generation.
     """
 
-    def __init__(self, df: pd.DataFrame) -> None:
+    def __init__(self, df: pd.DataFrame, sample_mask: np.ndarray | None = None) -> None:
         n = len(df)
         self.n = n
 
+        # Optional boolean mask: True = "active" individual (in the sample).
+        # When set, extract_pairs only returns pairs of active individuals.
+        self._active = sample_mask
+
         # Build ID → row index mapping
         ids_arr = df["id"].values.astype(np.int64)
+        self._ids = ids_arr
         id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int64)
         id_to_row[ids_arr] = np.arange(n, dtype=np.int64)
 
@@ -44,23 +49,41 @@ class PedigreeGraph:
             out[valid] = id_to_row[col_vals[valid]]
             return out
 
-        # Remap parent/twin IDs to row indices
-        self.mother = _remap(df["mother"].values.astype(np.int64))
-        self.father = _remap(df["father"].values.astype(np.int64))
+        # Original pedigree parent IDs (for sibling classification —
+        # valid even when the parent isn't in the sample).
+        self._orig_mother = df["mother"].values.astype(np.int64)
+        self._orig_father = df["father"].values.astype(np.int64)
+
+        # Remap parent/twin IDs to row indices (for sparse matrices)
+        self.mother = _remap(self._orig_mother)
+        self.father = _remap(self._orig_father)
         self.twin = _remap(df["twin"].values.astype(np.int64))
         self.sex = df["sex"].values.astype(np.int32)
         self.generation = df["generation"].values.astype(np.int32)
 
-        # Precompute non-founder indices and their parents
-        nf_mask = self.mother >= 0
+        # Build parent→child matrices using ALL available edges.
+        # Each matrix is built independently so partial-pedigree data
+        # (e.g. after subsampling) still contributes edges.
+        m_mask = self.mother >= 0
+        m_idx = np.where(m_mask)[0]
+        f_mask = self.father >= 0
+        f_idx = np.where(f_mask)[0]
+
+        self._Am = sp.csr_matrix(
+            (np.ones(len(m_idx), dtype=np.float64), (m_idx, self.mother[m_idx])),
+            shape=(n, n),
+        )
+        self._Af = sp.csr_matrix(
+            (np.ones(len(f_idx), dtype=np.float64), (f_idx, self.father[f_idx])),
+            shape=(n, n),
+        )
+
+        # Non-founders with BOTH parents known — needed by _sibling_pairs
+        # for correct full-sib vs half-sib classification.
+        nf_mask = m_mask & f_mask
         self._nf_idx = np.where(nf_mask)[0]
         self._nf_mother = self.mother[self._nf_idx]
         self._nf_father = self.father[self._nf_idx]
-
-        # Build separate mother/father CSR matrices: Am[child, mother] = 1
-        ones = np.ones(len(self._nf_idx), dtype=np.float64)
-        self._Am = sp.csr_matrix((ones, (self._nf_idx, self._nf_mother)), shape=(n, n))
-        self._Af = sp.csr_matrix((ones, (self._nf_idx, self._nf_father)), shape=(n, n))
 
     # ------------------------------------------------------------------
     # Lazy sparse products (computed on first access)
@@ -112,11 +135,21 @@ class PedigreeGraph:
         tuple[np.ndarray, np.ndarray],
         tuple[np.ndarray, np.ndarray],
     ]:
-        """Mother-offspring and Father-offspring pairs."""
-        children = self._nf_idx
-        mothers = self._nf_mother.astype(np.intp)
-        fathers = self._nf_father.astype(np.intp)
-        return (children, mothers), (children, fathers)
+        """Mother-offspring and Father-offspring pairs.
+
+        Each parent link is reported independently, so a child with only
+        one parent in the sample still contributes a PO pair.
+        """
+        m_mask = self.mother >= 0
+        m_children = np.where(m_mask)[0]
+
+        f_mask = self.father >= 0
+        f_children = np.where(f_mask)[0]
+
+        return (m_children, self.mother[m_children].astype(np.intp)), (
+            f_children,
+            self.father[f_children].astype(np.intp),
+        )
 
     def _sibling_pairs(
         self,
@@ -131,13 +164,17 @@ class PedigreeGraph:
         matmul for 1-hop relationships since it avoids materializing N×N
         shared-parent matrices.
 
+        Groups by ORIGINAL pedigree parent IDs (not remapped row indices)
+        so that siblings are correctly detected even when parents are absent
+        from a subsampled dataset.
+
         Twin individuals are excluded entirely (matching legacy semantics).
         Returns (full_sib, maternal_hs, paternal_hs) tuples of (idx1, idx2).
         """
         empty = np.array([], dtype=np.intp), np.array([], dtype=np.intp)
 
-        # Non-twin non-founders only
-        nf_mask = self.mother >= 0
+        # Non-twin non-founders: use original IDs (always valid for non-founders)
+        nf_mask = (self._orig_mother >= 0) & (self._orig_father >= 0)
         nt_mask = nf_mask & (self.twin < 0)
         nt_idx = np.where(nt_mask)[0]
 
@@ -145,8 +182,8 @@ class PedigreeGraph:
             self._full_sib_matrix = sp.csr_matrix((self.n, self.n))
             return empty, empty, empty
 
-        nt_mother = self.mother[nt_idx]
-        nt_father = self.father[nt_idx]
+        nt_mother = self._orig_mother[nt_idx]
+        nt_father = self._orig_father[nt_idx]
 
         # --- Full sibs: same mother AND same father ---
         max_parent = max(int(nt_mother.max()), int(nt_father.max())) + 1
@@ -369,6 +406,9 @@ class PedigreeGraph:
     def extract_pairs(self, seed: int = 42) -> dict[str, tuple[np.ndarray, np.ndarray]]:
         """Extract all 10 relationship categories.
 
+        When ``sample_mask`` was provided at construction, only pairs where
+        both individuals are active are returned.
+
         Args:
             seed: Random seed (unused — kept for API compatibility).
 
@@ -406,6 +446,20 @@ class PedigreeGraph:
 
         pairs["2nd cousin"] = self._second_cousin_pairs()
         logger.info("2nd cousins: %d pairs", len(pairs["2nd cousin"][0]))
+
+        # Restrict to active (sampled) individuals when a mask is set
+        if self._active is not None:
+            empty = np.array([], dtype=np.intp)
+            for k, (idx1, idx2) in pairs.items():
+                if len(idx1) > 0:
+                    mask = self._active[idx1] & self._active[idx2]
+                    pairs[k] = (idx1[mask].astype(np.intp), idx2[mask].astype(np.intp))
+                else:
+                    pairs[k] = (empty, empty)
+            logger.info(
+                "Filtered to sample_mask: %s",
+                ", ".join(f"{k}: {len(v[0])}" for k, v in pairs.items()),
+            )
 
         return pairs
 
@@ -475,12 +529,50 @@ class PedigreeGraph:
         return counts
 
 
-def extract_relationship_pairs(df: pd.DataFrame, seed: int = 42) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-    """Drop-in replacement for stats.extract_relationship_pairs.
+def extract_relationship_pairs(
+    df: pd.DataFrame,
+    seed: int = 42,
+    full_pedigree: pd.DataFrame | None = None,
+) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+    """Extract relationship pairs, returning row indices into *df*.
+
+    When *full_pedigree* is provided the graph is built from the complete
+    pedigree (all G_ped generations) so that multi-hop relationships
+    (grandparent, avuncular, cousin) are detected through ancestors not
+    present in *df*.  Output pairs are filtered to individuals in *df*
+    and remapped to *df* row indices.
 
     Returns dict with 10 keys (the original 7 plus Grandparent-grandchild,
     Avuncular, and 2nd cousin).
     """
+    if full_pedigree is not None:
+        # Build boolean mask: which full-pedigree rows are in the phenotype
+        pheno_ids = set(df["id"].values.astype(np.int64).tolist())
+        full_ids = full_pedigree["id"].values.astype(np.int64)
+        sample_mask = np.array([int(x) in pheno_ids for x in full_ids], dtype=bool)
+
+        pg = PedigreeGraph(full_pedigree, sample_mask=sample_mask)
+        raw_pairs = pg.extract_pairs(seed=seed)
+
+        # Remap full-pedigree row indices → phenotype (df) row indices
+        pheno_id_arr = df["id"].values.astype(np.int64)
+        max_id = int(max(full_ids.max(), pheno_id_arr.max())) + 1
+        id_to_pheno = np.full(max_id, -1, dtype=np.int64)
+        id_to_pheno[pheno_id_arr] = np.arange(len(df), dtype=np.int64)
+
+        result: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+        for ptype, (idx1, idx2) in raw_pairs.items():
+            if len(idx1) > 0:
+                ids1 = full_ids[idx1]
+                ids2 = full_ids[idx2]
+                result[ptype] = (
+                    id_to_pheno[ids1].astype(np.intp),
+                    id_to_pheno[ids2].astype(np.intp),
+                )
+            else:
+                result[ptype] = (np.array([], dtype=np.intp), np.array([], dtype=np.intp))
+        return result
+
     pg = PedigreeGraph(df)
     return pg.extract_pairs(seed=seed)
 

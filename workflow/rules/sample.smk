@@ -2,7 +2,7 @@ rule sample_frailty:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.parquet"
     output:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.sampled.parquet"
+        phenotype=temp("results/{folder}/{scenario}/rep{rep}/phenotype.sampled.parquet")
     params:
         N_sample = lambda w: get_param(config, w.scenario, "N_sample"),
         seed     = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
@@ -22,7 +22,7 @@ rule sample_threshold:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.parquet"
     output:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.sampled.parquet"
+        phenotype=temp("results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.sampled.parquet")
     params:
         N_sample = lambda w: get_param(config, w.scenario, "N_sample"),
         seed     = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,

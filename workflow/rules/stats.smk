@@ -9,7 +9,7 @@ rule stats_frailty:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
         stats="results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
-        samples="results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet",
+        samples=temp("results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet"),
     params:
         seed             = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         censor_age       = lambda w: get_param(config, w.scenario, "censor_age"),
@@ -71,9 +71,10 @@ rule plot_frailty:
 rule stats_threshold:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.sampled.parquet",
+        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
         stats="results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml",
-        samples="results/{folder}/{scenario}/rep{rep}/threshold_samples.parquet",
+        samples=temp("results/{folder}/{scenario}/rep{rep}/threshold_samples.parquet"),
     params:
         seed             = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         extra_tetrachoric = lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
@@ -146,6 +147,7 @@ rule assemble_scenario_atlas:
         prevalence1    = lambda w: get_param(config, w.scenario, "prevalence1"),
         prevalence2    = lambda w: get_param(config, w.scenario, "prevalence2"),
         G_pheno        = lambda w: get_param(config, w.scenario, "G_pheno"),
+        N_sample       = lambda w: get_param(config, w.scenario, "N_sample"),
         plot_format    = lambda w: config["defaults"].get("plot_format", "png"),
     log:
         "logs/{folder}/{scenario}/assemble_atlas.log"

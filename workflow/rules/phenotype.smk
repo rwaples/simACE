@@ -8,7 +8,7 @@ rule phenotype_frailty:
     input:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet"
     output:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.raw.parquet"
+        phenotype=temp("results/{folder}/{scenario}/rep{rep}/phenotype.raw.parquet")
     params:
         seed            = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         G_pheno         = lambda w: get_param(config, w.scenario, "G_pheno"),

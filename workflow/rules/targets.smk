@@ -19,9 +19,7 @@ rule phenotype_all:
          for r in range(1, get_param(config, s, "replicates") + 1)
          for f in [
              "phenotype.parquet",
-             "phenotype.sampled.parquet",
              "phenotype.liability_threshold.parquet",
-             "phenotype.liability_threshold.sampled.parquet",
          ]]
 
 

@@ -144,6 +144,7 @@ defaults:
 
   # Statistics
   extra_tetrachoric: false                   # Estimate additional tetrachoric correlations (slow; set true to enable) [UNDER DEVELOPEMENT]
+  N_sample: 0                                # Subsample phenotype before stats (0 = keep all)
 
   # EPIMIGHT relationship kinds to analyze
   epimight_kinds: [PO, FS, HS, mHS, pHS]     # Relationship types for heritability estimation
@@ -178,11 +179,11 @@ Each scenario replicate produces (see [OUTPUTS.md](OUTPUTS.md) for column schema
 | File | Description |
 |------|-------------|
 | `results/{folder}/{scenario}/rep{N}/pedigree.parquet` | Pedigree with id, sex, parents, twin, household, A/C/E values, liabilities |
-| `results/{folder}/{scenario}/rep{N}/phenotype.raw.parquet` | Raw time-to-event phenotypes (before censoring) |
+| `results/{folder}/{scenario}/rep{N}/phenotype.raw.parquet` | Raw time-to-event phenotypes (before censoring); **temp** — auto-deleted after censoring |
 | `results/{folder}/{scenario}/rep{N}/phenotype.parquet` | Censored time-to-event phenotypes (age-at-onset, censoring, affected status) |
-| `results/{folder}/{scenario}/rep{N}/phenotype.sampled.parquet` | Downsampled phenotype for plotting |
+| `results/{folder}/{scenario}/rep{N}/phenotype.sampled.parquet` | Subsampled phenotype for stats (N_sample individuals); **temp** — auto-deleted after stats |
 | `results/{folder}/{scenario}/rep{N}/phenotype.liability_threshold.parquet` | Liability-threshold binary affected status |
-| `results/{folder}/{scenario}/rep{N}/phenotype.liability_threshold.sampled.parquet` | Downsampled threshold phenotype for plotting |
+| `results/{folder}/{scenario}/rep{N}/phenotype.liability_threshold.sampled.parquet` | Subsampled threshold phenotype for stats; **temp** — auto-deleted after stats |
 | `results/{folder}/{scenario}/rep{N}/params.yaml` | Simulation parameters for this replicate |
 | `results/{folder}/{scenario}/rep{N}/phenotype_stats.yaml` | Phenotype statistics (correlations, prevalence, CIF, etc.) |
 | `results/{folder}/{scenario}/rep{N}/threshold_stats.yaml` | Threshold phenotype statistics |
@@ -210,6 +211,19 @@ Multi-page PDF atlases collect all figures for a scenario or folder into a singl
 ### Output Format Reference
 
 See [OUTPUTS.md](OUTPUTS.md) for complete documentation of all output formats, including parquet column schemas, YAML file structures, validation_summary.tsv columns, benchmark format, and plot inventories.
+
+## Subsampling (`N_sample`)
+
+When `N_sample > 0`, the pipeline randomly draws `N_sample` individuals from the phenotype before computing statistics. This reduces runtime and disk usage for large populations while preserving population-level signals. The sampling step (`sample.smk`) writes a temporary `.sampled.parquet` that is auto-deleted after stats complete.
+
+Because sampling breaks pedigree completeness — parents and other relatives may not be in the sample — the relationship extraction code in `PedigreeGraph` uses two strategies to recover as many valid pairs as possible:
+
+| Relationship type | How it works with subsampled data |
+|---|---|
+| **Siblings** (full, maternal HS, paternal HS) | Classified using **original pedigree parent IDs** stored in the DataFrame columns, not row indices. Two sampled individuals are detected as siblings if their `mother`/`father` columns match, regardless of whether those parents are in the sample. Full sibs share both parent IDs; half-sibs share one and differ on the other. |
+| **Parent-offspring** | Detected when a parent is present in the sample (its ID maps to a valid row index). Each parent link is independent — a child with only its mother in the sample still yields a mother-offspring pair. |
+| **Grandparent-grandchild, avuncular, cousins, 2nd cousins** | Detected via sparse matrix products on parent→child edges. Each edge is built independently (mother edges and father edges are separate matrices), so a child with only one parent in the sample still contributes edges through that parent. However, these relationships require intermediate ancestors to be in the sample to form multi-hop paths. |
+| **MZ twin** | Detected when both twins are in the sample (twin partner ID maps to a valid row index). |
 
 ## Project Structure
 

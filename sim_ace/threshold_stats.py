@@ -60,7 +60,12 @@ def compute_liability_by_status(df: pd.DataFrame) -> dict[str, Any]:
 
 
 def main(
-    phenotype_path: str, stats_output: str, samples_output: str, seed: int = 42, extra_tetrachoric: bool = True
+    phenotype_path: str,
+    stats_output: str,
+    samples_output: str,
+    seed: int = 42,
+    extra_tetrachoric: bool = True,
+    pedigree_path: str | None = None,
 ) -> None:  # extra_tetrachoric kept for API compat
     """Compute all threshold stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
@@ -80,9 +85,11 @@ def main(
     stats["liability_by_status"] = compute_liability_by_status(df)
 
     # Extract relationship pairs once
+    full_ped = pd.read_parquet(pedigree_path) if pedigree_path is not None else None
     logger.info("Extracting relationship pairs...")
     t_pairs = time.perf_counter()
-    pairs = extract_relationship_pairs(df, seed=seed)
+    pairs = extract_relationship_pairs(df, seed=seed, full_pedigree=full_ped)
+    del full_ped
     logger.info(
         "Relationship pairs extracted in %.1fs: %s",
         time.perf_counter() - t_pairs,
@@ -128,6 +135,7 @@ def cli() -> None:
     parser.add_argument("stats_output", help="Output stats YAML")
     parser.add_argument("samples_output", help="Output samples parquet")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
+    parser.add_argument("--pedigree", default=None, help="Full pedigree parquet for complete pair extraction")
     parser.add_argument(
         "--no-extra-tetrachoric",
         dest="extra_tetrachoric",
@@ -140,5 +148,10 @@ def cli() -> None:
     init_logging(args)
 
     main(
-        args.phenotype, args.stats_output, args.samples_output, seed=args.seed, extra_tetrachoric=args.extra_tetrachoric
+        args.phenotype,
+        args.stats_output,
+        args.samples_output,
+        seed=args.seed,
+        extra_tetrachoric=args.extra_tetrachoric,
+        pedigree_path=args.pedigree,
     )
