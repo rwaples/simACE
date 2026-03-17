@@ -38,6 +38,7 @@ from sim_ace.plot_distributions import (
 from sim_ace.plot_liability import (
     plot_liability_joint,
     plot_liability_joint_affected,
+    plot_liability_joint_affected_t2,
     plot_liability_violin,
     plot_liability_violin_by_generation,
     plot_joint_affection,
@@ -80,10 +81,13 @@ def main(
     df_samples = pd.concat(
         [pd.read_parquet(p) for p in sample_paths], ignore_index=True
     )
+    subsample_note = ""
     if len(df_samples) > MAX_PLOT_POINTS:
+        original_n = len(df_samples)
         df_samples = df_samples.sample(
             n=MAX_PLOT_POINTS, random_state=42
         ).reset_index(drop=True)
+        subsample_note = f"Subsampled: {MAX_PLOT_POINTS:,} of {original_n:,} individuals shown"
 
     ext = plot_ext
 
@@ -104,24 +108,34 @@ def main(
     )
     plot_trait_phenotype(
         df_samples, out_dir / f"age_at_onset_death.{ext}", scenario,
+        subsample_note=subsample_note,
     )
     plot_trait_regression(
         df_samples, all_stats, out_dir / f"liability_vs_aoo.{ext}", scenario,
+        subsample_note=subsample_note,
     )
 
     # Liability plots
     plot_liability_joint(
         df_samples, out_dir / f"cross_trait.{ext}", scenario,
+        subsample_note=subsample_note,
     )
     plot_liability_joint_affected(
         df_samples, out_dir / f"cross_trait.frailty.{ext}", scenario,
+        subsample_note=subsample_note,
+    )
+    plot_liability_joint_affected_t2(
+        df_samples, out_dir / f"cross_trait.frailty.t2.{ext}", scenario,
+        subsample_note=subsample_note,
     )
     plot_liability_violin(
         df_samples, all_stats, out_dir / f"liability_violin.frailty.{ext}", scenario,
+        subsample_note=subsample_note,
     )
     plot_liability_violin_by_generation(
         df_samples, all_stats,
         out_dir / f"liability_violin.frailty.by_generation.{ext}", scenario,
+        subsample_note=subsample_note,
     )
 
     # Survival / incidence plots
@@ -130,16 +144,15 @@ def main(
         out_dir / f"cumulative_incidence.frailty.{ext}", scenario,
     )
     plot_cumulative_incidence_by_sex(
-        df_samples, censor_age,
+        all_stats,
         out_dir / f"cumulative_incidence.by_sex.{ext}", scenario,
     )
     plot_cumulative_incidence_by_sex_generation(
-        df_samples, censor_age,
+        all_stats,
         out_dir / f"cumulative_incidence.by_sex.by_generation.{ext}", scenario,
     )
     plot_joint_affection(
-        df_samples, out_dir / f"joint_affected.frailty.{ext}", scenario,
-        all_stats=all_stats,
+        all_stats, out_dir / f"joint_affected.frailty.{ext}", scenario,
     )
 
     # Censoring
@@ -152,12 +165,10 @@ def main(
         save_placeholder_plot(out_dir / f"censoring.{ext}", "No censoring windows configured")
 
     plot_censoring_confusion(
-        df_samples, censor_age, out_dir / f"censoring_confusion.{ext}",
-        scenario, gen_censoring=gen_censoring,
+        all_stats, out_dir / f"censoring_confusion.{ext}", scenario,
     )
     plot_censoring_cascade(
-        df_samples, censor_age, out_dir / f"censoring_cascade.{ext}",
-        scenario, gen_censoring=gen_censoring,
+        all_stats, out_dir / f"censoring_cascade.{ext}", scenario,
     )
 
     # Correlation plots
@@ -173,6 +184,7 @@ def main(
     plot_parent_offspring_liability(
         df_samples, all_stats,
         out_dir / f"parent_offspring_liability.by_generation.{ext}", scenario,
+        subsample_note=subsample_note,
     )
     plot_cross_trait_frailty_by_generation(
         all_stats, out_dir / f"cross_trait_frailty.by_generation.{ext}", scenario,
@@ -190,10 +202,10 @@ def main(
         )
         plot_broad_heritability_by_generation(
             all_validations,
-            out_dir / f"broad_heritability.by_generation.{ext}", scenario,
+            out_dir / f"additive_shared.by_generation.{ext}", scenario,
         )
     else:
-        for name in ["heritability.by_generation", "broad_heritability.by_generation"]:
+        for name in ["heritability.by_generation", "additive_shared.by_generation"]:
             save_placeholder_plot(out_dir / f"{name}.{ext}", "No validation data available")
 
     logger.info("Phenotype plots saved to %s", out_dir)

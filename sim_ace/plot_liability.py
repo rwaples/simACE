@@ -15,8 +15,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 
-from sim_ace.stats import tetrachoric_corr
-from sim_ace.utils import save_placeholder_plot, finalize_plot
+from sim_ace.utils import save_placeholder_plot, finalize_plot, annotate_heatmap, HEATMAP_CMAP
 
 import logging
 logger = logging.getLogger(__name__)
@@ -24,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 def _plot_joint_grid(
     df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "",
-    color_by_affected: bool = False,
+    color_by_affected: bool = False, affected_trait: int = 1,
+    subsample_note: str = "",
 ) -> None:
     """Internal: 2x2 grid of jointplots for cross-trait correlations."""
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
@@ -46,7 +46,9 @@ def _plot_joint_grid(
     outer = GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.35)
 
     if color_by_affected:
-        affected = df_samples["affected1"].values.astype(bool)
+        aff_col = f"affected{affected_trait}"
+        aff_label = f"Affected (T{affected_trait})"
+        affected = df_samples[aff_col].values.astype(bool)
 
     for idx, (xcol, ycol, title) in enumerate(panels):
         inner = GridSpecFromSubplotSpec(
@@ -65,7 +67,7 @@ def _plot_joint_grid(
             bins_y = np.linspace(y.min(), y.max(), 51)
             for mask, color, alpha, label in [
                 (~affected, "C0", 0.2, "Unaffected"),
-                (affected, "C3", 0.5, "Affected (T1)"),
+                (affected, "C3", 0.5, aff_label),
             ]:
                 ax_joint.scatter(
                     x[mask], y[mask], c=color, alpha=alpha, s=3, rasterized=True, label=label,
@@ -106,24 +108,29 @@ def _plot_joint_grid(
         from matplotlib.lines import Line2D
         legend_handles = [
             Line2D([0], [0], marker="o", color="w", markerfacecolor="C0", markersize=8, label="Unaffected"),
-            Line2D([0], [0], marker="o", color="w", markerfacecolor="C3", markersize=8, label="Affected (T1)"),
+            Line2D([0], [0], marker="o", color="w", markerfacecolor="C3", markersize=8, label=aff_label),
         ]
         fig.legend(handles=legend_handles, loc="upper right", fontsize=10, framealpha=0.9)
 
-    finalize_plot(output_path)
+    finalize_plot(output_path, subsample_note=subsample_note)
 
 
-def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
+def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
     """2x2 grid of jointplots: Liability, A, C, E (trait 1 vs trait 2)."""
-    _plot_joint_grid(df_samples, output_path, scenario, color_by_affected=False)
+    _plot_joint_grid(df_samples, output_path, scenario, color_by_affected=False, subsample_note=subsample_note)
 
 
-def plot_liability_joint_affected(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
-    """2x2 grid of jointplots colored by affected status."""
-    _plot_joint_grid(df_samples, output_path, scenario, color_by_affected=True)
+def plot_liability_joint_affected(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
+    """2x2 grid of jointplots colored by affected status (trait 1)."""
+    _plot_joint_grid(df_samples, output_path, scenario, color_by_affected=True, affected_trait=1, subsample_note=subsample_note)
 
 
-def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
+def plot_liability_joint_affected_t2(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
+    """2x2 grid of jointplots colored by affected status (trait 2)."""
+    _plot_joint_grid(df_samples, output_path, scenario, color_by_affected=True, affected_trait=2, subsample_note=subsample_note)
+
+
+def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
     """Split violin plot of liability by trait, split on affected status."""
     violin_data = pd.concat(
         [
@@ -181,10 +188,10 @@ def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, An
         1, ax.get_ylim()[0], f"Prevalence: {prev2:.1%}",
         ha="center", va="top", fontsize=10, fontstyle="italic",
     )
-    finalize_plot(output_path)
+    finalize_plot(output_path, subsample_note=subsample_note)
 
 
-def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
+def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
     """Split violin of liability by affected status, one column per generation."""
     if "generation" not in df_samples.columns:
         save_placeholder_plot(output_path, "No generation data")
@@ -252,35 +259,21 @@ def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: lis
         f"Liability by Affected Status per Generation [{scenario}]",
         fontsize=14,
     )
-    finalize_plot(output_path)
+    finalize_plot(output_path, subsample_note=subsample_note)
 
 
 def plot_censoring_confusion(
-    df_samples: pd.DataFrame,
-    censor_age: float,
+    all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
-    gen_censoring: dict[int, list[float]] | None = None,
 ) -> None:
     """Per-trait 2x2 confusion matrix: true affected vs. observed affected.
 
-    True affected  = t{i} < censor_age  (raw event time before global censor age).
-    Observed affected = affected{i}     (after generation censoring + death censoring).
-
-    Only includes individuals from phenotyped generations (observation window width > 0).
+    Uses pre-computed censoring_confusion stats from full (non-subsampled) data.
     """
-    df = df_samples.copy()
-
-    # Filter to phenotyped generations if gen_censoring is provided
-    if gen_censoring is not None and "generation" in df.columns:
-        active_gens = {
-            int(g) for g, (lo, hi) in gen_censoring.items() if hi > lo
-        }
-        if active_gens:
-            df = df[df["generation"].isin(active_gens)]
-
-    if len(df) == 0:
-        save_placeholder_plot(output_path, "No phenotyped individuals")
+    stats_with_data = [s for s in all_stats if s.get("censoring_confusion")]
+    if not stats_with_data:
+        save_placeholder_plot(output_path, "No censoring confusion data")
         return
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
@@ -288,45 +281,37 @@ def plot_censoring_confusion(
 
     for col, trait in enumerate([1, 2]):
         ax = axes[col]
-        t_col = f"t{trait}"
-        a_col = f"affected{trait}"
+        key = f"trait{trait}"
 
-        if t_col not in df.columns or a_col not in df.columns:
-            ax.text(0.5, 0.5, f"Missing {t_col} or {a_col}",
+        # Average counts across reps
+        rep_data = [s["censoring_confusion"][key] for s in stats_with_data if key in s["censoring_confusion"]]
+        if not rep_data:
+            ax.text(0.5, 0.5, f"No data for trait {trait}",
                     ha="center", va="center", transform=ax.transAxes)
             ax.set_title(f"Trait {trait}")
             continue
 
-        true_aff = df[t_col].values < censor_age
-        obs_aff = df[a_col].values.astype(bool)
-        n = len(df)
+        tp = np.mean([d["tp"] for d in rep_data])
+        fn = np.mean([d["fn"] for d in rep_data])
+        fp = np.mean([d["fp"] for d in rep_data])
+        tn = np.mean([d["tn"] for d in rep_data])
+        n = np.mean([d["n"] for d in rep_data])
 
-        # Confusion matrix: rows = True (Yes/No), cols = Observed (Yes/No)
-        tp = int(np.sum(true_aff & obs_aff))
-        fn = int(np.sum(true_aff & ~obs_aff))
-        fp = int(np.sum(~true_aff & obs_aff))
-        tn = int(np.sum(~true_aff & ~obs_aff))
-
-        props = np.array([
-            [tp / n, fn / n],
-            [fp / n, tn / n],
-        ])
-        labels = np.array([
-            [f"{tp / n:.2f}\n(n={tp})", f"{fn / n:.2f}\n(n={fn})"],
-            [f"{fp / n:.2f}\n(n={fp})", f"{tn / n:.2f}\n(n={tn})"],
-        ])
-
-        sns.heatmap(
-            props, annot=labels, fmt="", cmap="Blues", ax=ax,
-            xticklabels=["Observed Yes", "Observed No"],
-            yticklabels=["True Yes", "True No"],
-            vmin=0, vmax=max(props.max(), 0.01),
-            cbar_kws={"label": "Proportion"},
-        )
-
-        # Sensitivity and specificity
+        props = np.array([[tp / n, fn / n], [fp / n, tn / n]])
+        counts = np.array([[tp, fn], [fp, tn]])
         sensitivity = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
         specificity = tn / (tn + fp) if (tn + fp) > 0 else float("nan")
+
+        is_last = (col == len(axes) - 1)
+        sns.heatmap(
+            props, annot=False, cmap=HEATMAP_CMAP, ax=ax,
+            xticklabels=["Observed Yes", "Observed No"],
+            yticklabels=["True Yes", "True No"],
+            vmin=0, vmax=1,
+            cbar=is_last, cbar_kws={"label": "Proportion"} if is_last else {},
+        )
+        annotate_heatmap(ax, props, counts)
+
         metrics = f"Sensitivity: {sensitivity:.3f}   Specificity: {specificity:.3f}"
         ax.set_title(f"Trait {trait}\n{metrics}", fontsize=11)
 
@@ -334,67 +319,45 @@ def plot_censoring_confusion(
 
 
 def plot_censoring_cascade(
-    df_samples: pd.DataFrame,
-    censor_age: float,
+    all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
-    gen_censoring: dict[int, list[float]] | None = None,
 ) -> None:
     """Per-trait stacked bar chart decomposing true cases by censoring fate per generation.
 
-    For each generation, true affected individuals (event time < censor_age) are
-    partitioned into four mutually exclusive categories:
-      - Left-truncated: event before observation window start
-      - Right-censored: event after observation window end
-      - Death-censored: event in window but death occurs before event
-      - Observed (TP): event in window and observed
-
-    Total bar height = true affected count. Sensitivity annotated per generation.
+    Uses pre-computed censoring_cascade stats from full (non-subsampled) data.
     """
-    df = df_samples.copy()
-
-    if len(df) == 0 or "generation" not in df.columns:
-        save_placeholder_plot(output_path, "No data available")
+    stats_with_data = [s for s in all_stats if s.get("censoring_cascade")]
+    if not stats_with_data:
+        save_placeholder_plot(output_path, "No censoring cascade data")
         return
 
-    # Build per-generation observation windows
-    gens = sorted(df["generation"].unique())
-    windows: dict[int, tuple[float, float]] = {}
-    for g in gens:
-        if gen_censoring is not None and int(g) in gen_censoring:
-            lo, hi = gen_censoring[int(g)]
-        else:
-            lo, hi = 0.0, censor_age
-        if hi > lo:
-            windows[int(g)] = (lo, hi)
-
-    if not windows:
-        save_placeholder_plot(output_path, "No non-degenerate observation windows")
-        return
-
-    active_gens = sorted(windows.keys())
-
-    # Colors
-    color_observed = "#4CAF50"
-    color_death = "#E57373"
-    color_right = "#FFB74D"
-    color_left = "#FF9800"
+    # Colors — maximise contrast between censoring categories
+    color_observed = "#4CAF50"   # green  — true positives
+    color_death = "#E57373"      # red    — death-censored
+    color_right = "#7E57C2"      # purple — right-censored
+    color_left = "#FF9800"       # orange — left-truncated
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
     fig.suptitle(f"Censoring Cascade [{scenario}]", fontsize=14)
 
     for col, trait in enumerate([1, 2]):
         ax = axes[col]
-        t_col = f"t{trait}"
-        a_col = f"affected{trait}"
+        key = f"trait{trait}"
 
-        if t_col not in df.columns or a_col not in df.columns:
-            ax.text(0.5, 0.5, f"Missing {t_col} or {a_col}",
+        rep_data = [s["censoring_cascade"][key] for s in stats_with_data if key in s["censoring_cascade"]]
+        if not rep_data:
+            ax.text(0.5, 0.5, f"No data for trait {trait}",
                     ha="center", va="center", transform=ax.transAxes)
             ax.set_title(f"Trait {trait}")
             continue
 
-        has_death = "death_age" in df.columns
+        # Discover generation keys from first rep
+        gen_keys = sorted(rep_data[0].keys())
+        if not gen_keys:
+            ax.text(0.5, 0.5, "No generations", ha="center", va="center", transform=ax.transAxes)
+            ax.set_title(f"Trait {trait}")
+            continue
 
         counts_observed = []
         counts_death = []
@@ -403,52 +366,31 @@ def plot_censoring_cascade(
         sensitivities = []
         x_labels = []
 
-        for g in active_gens:
-            lo, hi = windows[g]
-            gen_mask = df["generation"] == g
-            df_g = df.loc[gen_mask]
-            t = df_g[t_col].values
-            true_affected = t < censor_age
-
-            n_true = int(true_affected.sum())
-            if n_true == 0:
-                counts_observed.append(0)
-                counts_death.append(0)
-                counts_right.append(0)
-                counts_left.append(0)
-                sensitivities.append(float("nan"))
-                x_labels.append(f"Gen {g}\n[{lo:.0f}, {hi:.0f}]")
+        for gk in gen_keys:
+            gen_data = [r[gk] for r in rep_data if gk in r]
+            if not gen_data:
                 continue
 
-            left_trunc = true_affected & (t < lo)
-            right_cens = true_affected & (t > hi)
-            in_window = true_affected & (t >= lo) & (t <= hi)
-
-            if has_death:
-                death_age = df_g["death_age"].values
-                death_cens = in_window & (death_age < t)
-                observed = in_window & (death_age >= t)
-            else:
-                death_cens = np.zeros_like(in_window)
-                observed = in_window
-
-            n_obs = int(observed.sum())
-            n_death = int(death_cens.sum())
-            n_right = int(right_cens.sum())
-            n_left = int(left_trunc.sum())
+            n_obs = np.mean([d["observed"] for d in gen_data])
+            n_death = np.mean([d["death_censored"] for d in gen_data])
+            n_right = np.mean([d["right_censored"] for d in gen_data])
+            n_left = np.mean([d["left_truncated"] for d in gen_data])
+            n_true = np.mean([d["true_affected"] for d in gen_data])
+            window = gen_data[0]["window"]
 
             counts_observed.append(n_obs)
             counts_death.append(n_death)
             counts_right.append(n_right)
             counts_left.append(n_left)
             sensitivities.append(n_obs / n_true if n_true > 0 else float("nan"))
-            x_labels.append(f"Gen {g}\n[{lo:.0f}, {hi:.0f}]")
+            gen_num = gk.replace("gen", "")
+            x_labels.append(f"Gen {gen_num}\n[{window[0]:.0f}, {window[1]:.0f}]")
 
-        x = np.arange(len(active_gens))
+        n_bars = len(x_labels)
+        x = np.arange(n_bars)
         bar_width = 0.6
 
-        # Stacked bars: observed (bottom) -> death -> right -> left (top)
-        bottom = np.zeros(len(active_gens))
+        bottom = np.zeros(n_bars)
         bars_obs = np.array(counts_observed, dtype=float)
         bars_death = np.array(counts_death, dtype=float)
         bars_right = np.array(counts_right, dtype=float)
@@ -464,18 +406,12 @@ def plot_censoring_cascade(
         bottom += bars_left
 
         # Annotate segments (skip if < 3% of bar height)
-        for i in range(len(active_gens)):
+        for i in range(n_bars):
             total = bottom[i]
             if total == 0:
                 continue
-            # Annotate each segment
             cum = 0.0
-            for count, clr in [
-                (bars_obs[i], color_observed),
-                (bars_death[i], color_death),
-                (bars_right[i], color_right),
-                (bars_left[i], color_left),
-            ]:
+            for count in [bars_obs[i], bars_death[i], bars_right[i], bars_left[i]]:
                 if count > 0 and count / total >= 0.03:
                     mid = cum + count / 2
                     ax.text(x[i], mid, f"{int(count)}", ha="center", va="center",
@@ -490,7 +426,7 @@ def plot_censoring_cascade(
 
         # Overall sensitivity
         total_obs = sum(counts_observed)
-        total_true = sum(counts_observed) + sum(counts_death) + sum(counts_right) + sum(counts_left)
+        total_true = total_obs + sum(counts_death) + sum(counts_right) + sum(counts_left)
         overall_sens = total_obs / total_true if total_true > 0 else float("nan")
         ax.set_title(f"Trait {trait}  (overall sensitivity: {overall_sens:.3f})", fontsize=11)
 
@@ -507,64 +443,67 @@ def plot_censoring_cascade(
 
 
 def plot_joint_affection(
-    df_samples: pd.DataFrame,
+    all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
-    all_stats: list[dict[str, Any]] | None = None,
 ) -> None:
-    """2x2 heatmap of joint affection status (trait1 x trait2)."""
-    a1 = df_samples["affected1"].values.astype(bool)
-    a2 = df_samples["affected2"].values.astype(bool)
-    n = len(df_samples)
+    """2x2 heatmap of joint affection status (trait1 x trait2).
 
-    props = {
-        "both": np.sum(a1 & a2) / n,
-        "trait1_only": np.sum(a1 & ~a2) / n,
-        "trait2_only": np.sum(~a1 & a2) / n,
-        "neither": np.sum(~a1 & ~a2) / n,
-    }
-    counts = {
-        "both": int(np.sum(a1 & a2)),
-        "trait1_only": int(np.sum(a1 & ~a2)),
-        "trait2_only": int(np.sum(~a1 & a2)),
-        "neither": int(np.sum(~a1 & ~a2)),
-    }
+    Uses pre-computed joint_affection and cross_trait_tetrachoric stats.
+    """
+    # Average proportions/counts across reps
+    keys = ["both", "trait1_only", "trait2_only", "neither"]
+    avg_props = {}
+    for k in keys:
+        avg_props[k] = np.mean([s["joint_affection"]["proportions"][k] for s in all_stats])
 
     matrix = np.array([
-        [props["both"], props["trait1_only"]],
-        [props["trait2_only"], props["neither"]],
+        [avg_props["both"], avg_props["trait1_only"]],
+        [avg_props["trait2_only"], avg_props["neither"]],
     ])
-    labels = np.array([
-        [f"{props['both']:.2f}\n(n={counts['both']})",
-         f"{props['trait1_only']:.2f}\n(n={counts['trait1_only']})"],
-        [f"{props['trait2_only']:.2f}\n(n={counts['trait2_only']})",
-         f"{props['neither']:.2f}\n(n={counts['neither']})"],
+
+    avg_counts = {}
+    for k in keys:
+        avg_counts[k] = np.mean([s["joint_affection"]["counts"][k] for s in all_stats])
+
+    count_matrix = np.array([
+        [avg_counts["both"], avg_counts["trait1_only"]],
+        [avg_counts["trait2_only"], avg_counts["neither"]],
     ])
 
     fig, ax = plt.subplots(figsize=(7, 6))
     sns.heatmap(
-        matrix, annot=labels, fmt="", cmap="Blues", ax=ax,
+        matrix, annot=False, cmap=HEATMAP_CMAP, ax=ax,
         xticklabels=["Affected", "Unaffected"],
         yticklabels=["Affected", "Unaffected"],
-        vmin=0, vmax=max(matrix.max(), 0.01),
+        vmin=0, vmax=1,
         cbar_kws={"label": "Proportion"},
     )
-    # Cross-trait tetrachoric correlation
-    r_tet = tetrachoric_corr(a1, a2)
-    r_label = f"r_tet = {r_tet:.3f}" if not np.isnan(r_tet) else "r_tet = N/A"
+    annotate_heatmap(ax, matrix, count_matrix)
 
-    # Cross-trait correlation (averaged across reps)
+    # Cross-trait tetrachoric correlation from pre-computed stats
+    r_tet_vals = [
+        s.get("cross_trait_tetrachoric", {}).get("same_person", {}).get("r")
+        for s in all_stats
+    ]
+    r_tet_vals = [v for v in r_tet_vals if v is not None]
+    if r_tet_vals:
+        mean_r_tet = np.mean(r_tet_vals)
+        r_label = f"r_tet = {mean_r_tet:.3f}"
+    else:
+        r_label = "r_tet = N/A"
+
+    # Cross-trait frailty correlation (averaged across reps)
     frailty_parts = []
-    if all_stats:
-        for s in all_stats:
-            ct_unc = s.get("frailty_cross_trait_uncensored", {})
-            ct_strat = s.get("frailty_cross_trait_stratified", {})
-            ct_cens = s.get("frailty_cross_trait", {})
-            r_uncens = ct_unc.get("r") if ct_unc else None
-            r_strat = ct_strat.get("r") if ct_strat else None
-            r_cens = ct_cens.get("r") if ct_cens else None
-            if r_uncens is not None:
-                frailty_parts.append((r_uncens, r_strat, r_cens))
+    for s in all_stats:
+        ct_unc = s.get("frailty_cross_trait_uncensored", {})
+        ct_strat = s.get("frailty_cross_trait_stratified", {})
+        ct_cens = s.get("frailty_cross_trait", {})
+        r_uncens = ct_unc.get("r") if ct_unc else None
+        r_strat = ct_strat.get("r") if ct_strat else None
+        r_cens = ct_cens.get("r") if ct_cens else None
+        if r_uncens is not None:
+            frailty_parts.append((r_uncens, r_strat, r_cens))
 
     if frailty_parts:
         mean_uncens = np.mean([p[0] for p in frailty_parts])

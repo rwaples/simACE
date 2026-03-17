@@ -232,13 +232,207 @@ def compute_regression(df: pd.DataFrame) -> dict[str, Any]:
         reg = linregress(sub[liab_col].values, sub[t_col].values)
         result[f"trait{trait_num}"] = {
             "slope": float(reg.slope), "intercept": float(reg.intercept),
-            "r2": float(reg.rvalue ** 2), "n": int(len(sub)),
+            "r": float(reg.rvalue), "r2": float(reg.rvalue ** 2), "n": int(len(sub)),
         }
     return result
 
 
 def compute_prevalence(df: pd.DataFrame) -> dict[str, float]:
     return {"trait1": float(df["affected1"].mean()), "trait2": float(df["affected2"].mean())}
+
+
+def compute_joint_affection(df: pd.DataFrame) -> dict[str, Any]:
+    """Compute 2x2 contingency table for trait1 x trait2 affection status."""
+    a1 = df["affected1"].values.astype(bool)
+    a2 = df["affected2"].values.astype(bool)
+    n = len(df)
+
+    counts = {
+        "both": int(np.sum(a1 & a2)),
+        "trait1_only": int(np.sum(a1 & ~a2)),
+        "trait2_only": int(np.sum(~a1 & a2)),
+        "neither": int(np.sum(~a1 & ~a2)),
+    }
+    proportions = {k: v / n for k, v in counts.items()}
+
+    return {"counts": counts, "proportions": proportions, "n": n}
+
+
+def compute_censoring_confusion(
+    df: pd.DataFrame,
+    censor_age: float,
+    gen_censoring: dict[int, list[float]],
+) -> dict[str, Any]:
+    """Compute per-trait 2x2 confusion matrix: true affected vs. observed affected.
+
+    Only includes individuals from phenotyped generations (observation window > 0).
+    """
+    if "generation" in df.columns:
+        active_gens = {int(g) for g, (lo, hi) in gen_censoring.items() if hi > lo}
+        if active_gens:
+            df = df[df["generation"].isin(active_gens)]
+
+    result = {}
+    for trait in [1, 2]:
+        t_col = f"t{trait}"
+        a_col = f"affected{trait}"
+        if t_col not in df.columns or a_col not in df.columns:
+            continue
+        true_aff = df[t_col].values < censor_age
+        obs_aff = df[a_col].values.astype(bool)
+        n = len(df)
+        result[f"trait{trait}"] = {
+            "tp": int(np.sum(true_aff & obs_aff)),
+            "fn": int(np.sum(true_aff & ~obs_aff)),
+            "fp": int(np.sum(~true_aff & obs_aff)),
+            "tn": int(np.sum(~true_aff & ~obs_aff)),
+            "n": n,
+        }
+    return result
+
+
+def compute_censoring_cascade(
+    df: pd.DataFrame,
+    censor_age: float,
+    gen_censoring: dict[int, list[float]],
+) -> dict[str, Any]:
+    """Per-trait, per-generation decomposition of true cases by censoring fate."""
+    if "generation" not in df.columns:
+        return {}
+
+    windows: dict[int, tuple[float, float]] = {}
+    for g, (lo, hi) in gen_censoring.items():
+        if hi > lo:
+            windows[int(g)] = (lo, hi)
+
+    if not windows:
+        return {}
+
+    has_death = "death_age" in df.columns
+    result: dict[str, Any] = {}
+    for trait in [1, 2]:
+        t_col = f"t{trait}"
+        a_col = f"affected{trait}"
+        if t_col not in df.columns or a_col not in df.columns:
+            continue
+        trait_result: dict[str, Any] = {}
+        for g in sorted(windows.keys()):
+            lo, hi = windows[g]
+            gen_mask = df["generation"] == g
+            df_g = df.loc[gen_mask]
+            t = df_g[t_col].values
+            true_affected = t < censor_age
+            n_true = int(true_affected.sum())
+            n_gen = len(df_g)
+
+            if n_true == 0:
+                trait_result[f"gen{g}"] = {
+                    "observed": 0, "death_censored": 0,
+                    "right_censored": 0, "left_truncated": 0,
+                    "true_affected": 0, "n_gen": n_gen, "sensitivity": float("nan"),
+                    "window": [lo, hi],
+                }
+                continue
+
+            left_trunc = true_affected & (t < lo)
+            right_cens = true_affected & (t > hi)
+            in_window = true_affected & (t >= lo) & (t <= hi)
+
+            if has_death:
+                death_age = df_g["death_age"].values
+                death_cens = in_window & (death_age < t)
+                observed = in_window & (death_age >= t)
+            else:
+                death_cens = np.zeros_like(in_window)
+                observed = in_window
+
+            n_obs = int(observed.sum())
+            trait_result[f"gen{g}"] = {
+                "observed": n_obs,
+                "death_censored": int(death_cens.sum()),
+                "right_censored": int(right_cens.sum()),
+                "left_truncated": int(left_trunc.sum()),
+                "true_affected": n_true,
+                "n_gen": n_gen,
+                "sensitivity": n_obs / n_true if n_true > 0 else float("nan"),
+                "window": [lo, hi],
+            }
+        result[f"trait{trait}"] = trait_result
+    return result
+
+
+def compute_cumulative_incidence_by_sex(
+    df: pd.DataFrame, censor_age: float, n_points: int = 200,
+) -> dict[str, Any]:
+    """Compute cumulative incidence curves split by sex (0=female, 1=male)."""
+    if "sex" not in df.columns:
+        return {}
+
+    ages = np.linspace(0, censor_age, n_points)
+    result = {}
+    for trait_num in [1, 2]:
+        aff = df[f"affected{trait_num}"].values.astype(bool)
+        t_obs = df[f"t_observed{trait_num}"].values
+        sex = df["sex"].values
+
+        trait_result = {}
+        for sex_val, sex_label in [(0, "female"), (1, "male")]:
+            mask = sex == sex_val
+            n_sex = int(mask.sum())
+            if n_sex == 0:
+                continue
+            aff_sex = aff[mask]
+            sorted_t = np.sort(t_obs[mask & aff])
+            inc = np.searchsorted(sorted_t, ages, side="right") / n_sex
+            prev = float(aff_sex.sum() / n_sex)
+            trait_result[sex_label] = {
+                "ages": ages.tolist(),
+                "values": inc.tolist(),
+                "n": n_sex,
+                "prevalence": prev,
+            }
+        result[f"trait{trait_num}"] = trait_result
+    return result
+
+
+def compute_cumulative_incidence_by_sex_generation(
+    df: pd.DataFrame, censor_age: float, n_points: int = 200,
+) -> dict[str, Any]:
+    """Compute cumulative incidence curves split by sex and generation."""
+    if "sex" not in df.columns or "generation" not in df.columns:
+        return {}
+
+    ages = np.linspace(0, censor_age, n_points)
+    generations = sorted(df["generation"].unique())
+    result = {}
+    for trait_num in [1, 2]:
+        aff = df[f"affected{trait_num}"].values.astype(bool)
+        t_obs = df[f"t_observed{trait_num}"].values
+        sex = df["sex"].values
+        gen_arr = df["generation"].values
+
+        trait_result: dict[str, Any] = {}
+        for gen in generations:
+            gen_result: dict[str, Any] = {}
+            gen_mask = gen_arr == gen
+            for sex_val, sex_label in [(0, "female"), (1, "male")]:
+                mask = gen_mask & (sex == sex_val)
+                n_sex = int(mask.sum())
+                if n_sex == 0:
+                    continue
+                aff_sex = aff[mask]
+                sorted_t = np.sort(t_obs[mask & aff])
+                inc = np.searchsorted(sorted_t, ages, side="right") / n_sex
+                prev = float(aff_sex.sum() / n_sex)
+                gen_result[sex_label] = {
+                    "ages": ages.tolist(),
+                    "values": inc.tolist(),
+                    "n": n_sex,
+                    "prevalence": prev,
+                }
+            trait_result[f"gen{int(gen)}"] = gen_result
+        result[f"trait{trait_num}"] = trait_result
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -409,7 +603,7 @@ def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
             n_pairs = int(valid.sum())
             if n_pairs < 10:
                 trait_result[f"gen{gen}"] = {
-                    "r": None, "slope": None, "intercept": None, "n_pairs": n_pairs,
+                    "r": None, "r2": None, "slope": None, "intercept": None, "n_pairs": n_pairs,
                 }
                 continue
             offspring  = liability[gen_idx[valid]]
@@ -417,7 +611,7 @@ def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
             r          = float(np.corrcoef(midparent, offspring)[0, 1])
             reg        = linregress(midparent, offspring)
             trait_result[f"gen{gen}"] = {
-                "r": r, "slope": float(reg.slope),
+                "r": r, "r2": float(r ** 2), "slope": float(reg.slope),
                 "intercept": float(reg.intercept), "n_pairs": n_pairs,
             }
         result[f"trait{trait_num}"] = trait_result
@@ -619,9 +813,14 @@ def main(
     stats["mortality"]           = compute_mortality(df, censor_age)
     stats["regression"]          = compute_regression(df)
     stats["cumulative_incidence"] = compute_cumulative_incidence(df, censor_age)
+    stats["joint_affection"]     = compute_joint_affection(df)
+    stats["cumulative_incidence_by_sex"] = compute_cumulative_incidence_by_sex(df, censor_age)
+    stats["cumulative_incidence_by_sex_generation"] = compute_cumulative_incidence_by_sex_generation(df, censor_age)
 
     if gen_censoring is not None:
         stats["censoring"] = compute_censoring_windows(df, censor_age, gen_censoring)
+        stats["censoring_confusion"] = compute_censoring_confusion(df, censor_age, gen_censoring)
+        stats["censoring_cascade"] = compute_censoring_cascade(df, censor_age, gen_censoring)
 
     logger.info("Extracting relationship pairs...")
     t0    = time.perf_counter()

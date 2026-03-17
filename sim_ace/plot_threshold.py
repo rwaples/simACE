@@ -20,8 +20,7 @@ from pathlib import Path
 from sim_ace.utils import yaml_loader
 _yaml_loader = yaml_loader()
 
-from sim_ace.stats import tetrachoric_corr
-from sim_ace.utils import PAIR_TYPES, PAIR_COLORS, save_placeholder_plot, finalize_plot
+from sim_ace.utils import PAIR_TYPES, PAIR_COLORS, save_placeholder_plot, finalize_plot, annotate_heatmap, HEATMAP_CMAP
 
 import logging
 logger = logging.getLogger(__name__)
@@ -116,7 +115,7 @@ def plot_prevalence_by_generation(all_stats: list[dict[str, Any]], prevalence1: 
     finalize_plot(output_path)
 
 
-def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
+def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
     """Split violin: liability distribution by affected status, per trait."""
     violin_data = pd.concat(
         [
@@ -173,10 +172,10 @@ def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, An
         1, ax.get_ylim()[0], f"Prevalence: {prev2:.1%}",
         ha="center", va="top", fontsize=10, fontstyle="italic",
     )
-    finalize_plot(output_path)
+    finalize_plot(output_path, subsample_note=subsample_note)
 
 
-def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], prevalence1: float | dict[int, float], prevalence2: float | dict[int, float], output_path: str | Path, scenario: str = "") -> None:
+def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], prevalence1: float | dict[int, float], prevalence2: float | dict[int, float], output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
     """Split violin of liability by affected status, one column per generation."""
     if "generation" not in df_samples.columns:
         save_placeholder_plot(output_path, "No generation data")
@@ -258,7 +257,7 @@ def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: lis
         f"Liability by Affected Status per Generation (Threshold) [{scenario}]",
         fontsize=14,
     )
-    finalize_plot(output_path)
+    finalize_plot(output_path, subsample_note=subsample_note)
 
 
 def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str) -> None:
@@ -360,7 +359,7 @@ def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, s
     finalize_plot(output_path)
 
 
-def plot_joint_affection(all_stats: list[dict[str, Any]], df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
+def plot_joint_affection(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
     """2x2 heatmap of joint affection status (trait1 x trait2)."""
     # Average proportions across reps
     keys = ["both", "trait1_only", "trait2_only", "neither"]
@@ -377,27 +376,32 @@ def plot_joint_affection(all_stats: list[dict[str, Any]], df_samples: pd.DataFra
     for k in keys:
         avg_counts[k] = np.mean([s["joint_affection"]["counts"][k] for s in all_stats])
 
-    labels = np.array([
-        [f"{avg_props['both']:.2f}\n(n={avg_counts['both']:.0f})",
-         f"{avg_props['trait1_only']:.2f}\n(n={avg_counts['trait1_only']:.0f})"],
-        [f"{avg_props['trait2_only']:.2f}\n(n={avg_counts['trait2_only']:.0f})",
-         f"{avg_props['neither']:.2f}\n(n={avg_counts['neither']:.0f})"],
+    count_matrix = np.array([
+        [avg_counts["both"], avg_counts["trait1_only"]],
+        [avg_counts["trait2_only"], avg_counts["neither"]],
     ])
 
     fig, ax = plt.subplots(figsize=(7, 6))
     sns.heatmap(
-        matrix, annot=labels, fmt="", cmap="Blues", ax=ax,
+        matrix, annot=False, cmap=HEATMAP_CMAP, ax=ax,
         xticklabels=["Affected", "Unaffected"],
         yticklabels=["Affected", "Unaffected"],
-        vmin=0, vmax=max(matrix.max(), 0.01),
+        vmin=0, vmax=1,
         cbar_kws={"label": "Proportion"},
     )
+    annotate_heatmap(ax, matrix, count_matrix)
 
-    # Cross-trait tetrachoric correlation
-    a1 = df_samples["affected1"].values.astype(bool)
-    a2 = df_samples["affected2"].values.astype(bool)
-    r_tet = tetrachoric_corr(a1, a2)
-    r_label = f"r_tet = {r_tet:.3f}" if not np.isnan(r_tet) else "r_tet = N/A"
+    # Cross-trait tetrachoric correlation from pre-computed stats
+    r_tet_vals = [
+        s.get("cross_trait_tetrachoric", {}).get("same_person", {}).get("r")
+        for s in all_stats
+    ]
+    r_tet_vals = [v for v in r_tet_vals if v is not None]
+    if r_tet_vals:
+        mean_r_tet = np.mean(r_tet_vals)
+        r_label = f"r_tet = {mean_r_tet:.3f}"
+    else:
+        r_label = "r_tet = N/A"
 
     ax.set_xlabel("Trait 1")
     ax.set_ylabel("Trait 2")
@@ -405,7 +409,7 @@ def plot_joint_affection(all_stats: list[dict[str, Any]], df_samples: pd.DataFra
     finalize_plot(output_path)
 
 
-def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
+def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
     """2x2 jointplot grid: Liability, A, C, E (trait1 vs trait2), colored by affected1."""
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
@@ -483,7 +487,7 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
     ]
     fig.legend(handles=legend_handles, loc="upper right", fontsize=10, framealpha=0.9)
 
-    finalize_plot(output_path)
+    finalize_plot(output_path, subsample_note=subsample_note)
 
 
 def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, prevalence1: float | dict[int, float], prevalence2: float | dict[int, float], plot_ext: str = "png") -> None:
@@ -507,10 +511,13 @@ def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, preva
     )
 
     # Subsample for plotting (scatter/violin are O(n) slow for >100K points)
+    subsample_note = ""
     if len(df_samples) > MAX_PLOT_POINTS:
+        original_n = len(df_samples)
         df_samples = df_samples.sample(
             n=MAX_PLOT_POINTS, random_state=42
         ).reset_index(drop=True)
+        subsample_note = f"Subsampled: {MAX_PLOT_POINTS:,} of {original_n:,} individuals shown"
 
     plot_prevalence_by_generation(
         all_stats, prevalence1, prevalence2,
@@ -519,16 +526,19 @@ def main(stats_paths: list[str], sample_paths: list[str], output_dir: str, preva
     plot_liability_violin(
         df_samples, all_stats,
         out_dir / f"liability_violin.threshold.{ext}", scenario,
+        subsample_note=subsample_note,
     )
     plot_liability_violin_by_generation(
         df_samples, all_stats, prevalence1, prevalence2,
         out_dir / f"liability_violin.threshold.by_generation.{ext}", scenario,
+        subsample_note=subsample_note,
     )
     plot_joint_affection(
-        all_stats, df_samples, out_dir / f"joint_affected.threshold.{ext}", scenario,
+        all_stats, out_dir / f"joint_affected.threshold.{ext}", scenario,
     )
     plot_liability_joint(
         df_samples, out_dir / f"cross_trait.threshold.{ext}", scenario,
+        subsample_note=subsample_note,
     )
 
     plot_tetrachoric(

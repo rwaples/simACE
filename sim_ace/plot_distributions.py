@@ -58,7 +58,7 @@ def plot_death_age_distribution(all_stats: list[dict[str, Any]], censor_age: flo
     finalize_plot(output_path)
 
 
-def plot_trait_phenotype(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "") -> None:
+def plot_trait_phenotype(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
     """Plot phenotype distributions for both traits in a 2x2 grid."""
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
@@ -91,10 +91,10 @@ def plot_trait_phenotype(df_samples: pd.DataFrame, output_path: str | Path, scen
         axes[row, 1].set_ylabel("Density")
 
     fig.suptitle(f"Phenotype Distributions [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+    finalize_plot(output_path, subsample_note=subsample_note)
 
 
-def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
+def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
     """Plot liability vs age at onset for both traits as jointplots side by side."""
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
@@ -125,12 +125,14 @@ def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, An
             if s["regression"].get(f"trait{trait_num}") is not None
         ]
         if reg_stats:
+            mean_r = np.mean([r["r"] for r in reg_stats])
             mean_r2 = np.mean([r["r2"] for r in reg_stats])
             mean_slope = np.mean([r["slope"] for r in reg_stats])
             mean_intercept = np.mean([r["intercept"] for r in reg_stats])
         elif len(x) >= 2:
             from scipy.stats import linregress
             reg = linregress(x, y)
+            mean_r = float(reg.rvalue)
             mean_r2 = reg.rvalue ** 2
             mean_slope = reg.slope
             mean_intercept = reg.intercept
@@ -153,7 +155,7 @@ def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, An
             color="C3", linewidth=2,
         )
         ax_joint.text(
-            0.05, 0.95, f"R\u00b2 = {mean_r2:.4f}",
+            0.05, 0.95, f"r = {mean_r:.4f}\nR\u00b2 = {mean_r2:.4f}",
             transform=ax_joint.transAxes, va="top", fontsize=12,
         )
         ax_joint.set_xlabel("Liability")
@@ -170,7 +172,7 @@ def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, An
         ax_corner = fig.add_subplot(inner[0, 1])
         ax_corner.axis("off")
 
-    finalize_plot(output_path)
+    finalize_plot(output_path, subsample_note=subsample_note)
 
 
 def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = "") -> None:
@@ -210,20 +212,25 @@ def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float
             ax.fill_between(ages, all_obs.min(axis=0), all_obs.max(axis=0),
                             alpha=0.2, color="C0")
 
-        # Find age when 50% of lifetime cases are diagnosed (from observed curve)
+        # Find ages when 25%, 50%, 75% of lifetime cases are diagnosed
         lifetime_prev = mean_obs[-1]
-        half_target = lifetime_prev / 2
-        idx_50 = np.searchsorted(mean_obs, half_target)
-        age_50 = ages[min(idx_50, len(ages) - 1)]
+        for frac, label, lw, ms in [
+            (0.25, "Q1", 0.6, 4),
+            (0.50, "50% of cases", 0.8, 6),
+            (0.75, "Q3", 0.6, 4),
+        ]:
+            target = lifetime_prev * frac
+            idx_q = np.searchsorted(mean_obs, target)
+            age_q = ages[min(idx_q, len(ages) - 1)]
 
-        ax.axhline(half_target, color="grey", linestyle="--", linewidth=0.8)
-        ax.axvline(age_50, color="grey", linestyle="--", linewidth=0.8)
-        ax.plot(age_50, half_target, "o", color="C3", markersize=6, zorder=5)
-        ax.annotate(
-            f"50% of cases\nby age {age_50:.0f}",
-            xy=(age_50, half_target), xytext=(12, 12), textcoords="offset points",
-            fontsize=10, ha="left", va="bottom",
-        )
+            ax.axhline(target, color="grey", linestyle="--", linewidth=lw)
+            ax.axvline(age_q, color="grey", linestyle="--", linewidth=lw)
+            ax.plot(age_q, target, "o", color="C3", markersize=ms, zorder=5)
+            ax.annotate(
+                f"{label}\nby age {age_q:.0f}",
+                xy=(age_q, target), xytext=(12, 12), textcoords="offset points",
+                fontsize=9 if frac != 0.5 else 10, ha="left", va="bottom",
+            )
         # Annotation box: prevalence and censoring rates
         prev = np.mean([s["prevalence"][key] for s in all_stats])
         true_prev = mean_true[-1] if mean_true is not None else mean_obs[-1]
@@ -247,40 +254,42 @@ def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float
 
 
 def plot_cumulative_incidence_by_sex(
-    df_samples: pd.DataFrame,
-    censor_age: float,
+    all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
-    n_points: int = 200,
 ) -> None:
-    """Plot cumulative incidence curves split by sex (0=female, 1=male)."""
-    if "sex" not in df_samples.columns:
-        logger.warning("Skipping cumulative_incidence_by_sex: no 'sex' column")
-        save_placeholder_plot(output_path, "No sex column")
+    """Plot cumulative incidence curves split by sex, from pre-computed stats."""
+    stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_by_sex")]
+    if not stats_with_data:
+        logger.warning("Skipping cumulative_incidence_by_sex: no data in stats")
+        save_placeholder_plot(output_path, "No sex-stratified incidence data")
         return
-
-    ages = np.linspace(0, censor_age, n_points)
-    female = df_samples[df_samples["sex"] == 0]
-    male = df_samples[df_samples["sex"] == 1]
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
     for trait_num, ax in zip([1, 2], axes):
-        aff_col = f"affected{trait_num}"
-        t_col = f"t_observed{trait_num}"
+        key = f"trait{trait_num}"
 
-        for subset, label, color in [
-            (female, "Female", "C0"),
-            (male, "Male", "C3"),
+        for sex_label, display, color in [
+            ("female", "Female", "C0"),
+            ("male", "Male", "C3"),
         ]:
-            n_sex = len(subset)
-            if n_sex == 0:
+            rep_data = [
+                s["cumulative_incidence_by_sex"][key][sex_label]
+                for s in stats_with_data
+                if sex_label in s["cumulative_incidence_by_sex"].get(key, {})
+            ]
+            if not rep_data:
                 continue
-            aff_mask = subset[aff_col].values.astype(bool)
-            sorted_t = np.sort(subset[t_col].values[aff_mask])
-            inc = np.searchsorted(sorted_t, ages, side="right") / n_sex
-            prev = aff_mask.sum() / n_sex
-            ax.plot(ages, inc, color=color, linewidth=2, label=f"{label} (n={n_sex}, prev={prev:.1%})")
+
+            ages = np.array(rep_data[0]["ages"])
+            all_values = np.array([d["values"] for d in rep_data])
+            mean_values = all_values.mean(axis=0)
+            mean_n = np.mean([d["n"] for d in rep_data])
+            mean_prev = np.mean([d["prevalence"] for d in rep_data])
+
+            ax.plot(ages, mean_values, color=color, linewidth=2,
+                    label=f"{display} (n={int(mean_n)}, prev={mean_prev:.1%})")
 
         ax.set_title(f"Trait {trait_num}")
         ax.set_xlabel("Age")
@@ -292,63 +301,67 @@ def plot_cumulative_incidence_by_sex(
 
 
 def plot_cumulative_incidence_by_sex_generation(
-    df_samples: pd.DataFrame,
-    censor_age: float,
+    all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
-    n_points: int = 200,
 ) -> None:
-    """Plot cumulative incidence by sex, one column per generation."""
-    if "sex" not in df_samples.columns or "generation" not in df_samples.columns:
-        logger.warning("Skipping cumulative_incidence_by_sex_generation: missing columns")
-        save_placeholder_plot(output_path, "Missing sex or generation column")
+    """Plot cumulative incidence by sex and generation, from pre-computed stats."""
+    stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_by_sex_generation")]
+    if not stats_with_data:
+        logger.warning("Skipping cumulative_incidence_by_sex_generation: no data in stats")
+        save_placeholder_plot(output_path, "No sex/generation incidence data")
         return
 
-    generations = sorted(df_samples["generation"].unique())
-    if not generations:
+    # Discover generation keys from first rep's first trait
+    first_trait = stats_with_data[0]["cumulative_incidence_by_sex_generation"].get("trait1", {})
+    gen_keys = sorted(first_trait.keys())
+    if not gen_keys:
         save_placeholder_plot(output_path, "No generations")
         return
 
-    ages = np.linspace(0, censor_age, n_points)
     traits = [1, 2]
 
     fig, axes = plt.subplots(
-        len(traits), len(generations),
-        figsize=(5 * len(generations), 4 * len(traits)),
+        len(traits), len(gen_keys),
+        figsize=(5 * len(gen_keys), 4 * len(traits)),
         sharex=True, sharey=True, squeeze=False,
     )
 
-    for col, gen in enumerate(generations):
-        gen_df = df_samples[df_samples["generation"] == gen]
-        female = gen_df[gen_df["sex"] == 0]
-        male = gen_df[gen_df["sex"] == 1]
+    for col, gk in enumerate(gen_keys):
+        gen_num = gk.replace("gen", "")
 
         for row, trait_num in enumerate(traits):
             ax = axes[row, col]
-            aff_col = f"affected{trait_num}"
-            t_col = f"t_observed{trait_num}"
+            key = f"trait{trait_num}"
 
-            for subset, label, color in [
-                (female, "Female", "C0"),
-                (male, "Male", "C3"),
+            for sex_label, display, color in [
+                ("female", "Female", "C0"),
+                ("male", "Male", "C3"),
             ]:
-                n_sex = len(subset)
-                if n_sex == 0:
+                rep_data = [
+                    s["cumulative_incidence_by_sex_generation"][key][gk][sex_label]
+                    for s in stats_with_data
+                    if sex_label in s["cumulative_incidence_by_sex_generation"].get(key, {}).get(gk, {})
+                ]
+                if not rep_data:
                     continue
-                aff_mask = subset[aff_col].values.astype(bool)
-                sorted_t = np.sort(subset[t_col].values[aff_mask])
-                inc = np.searchsorted(sorted_t, ages, side="right") / n_sex
-                prev = aff_mask.sum() / n_sex
-                ax.plot(ages, inc, color=color, linewidth=2,
-                        label=f"{label} (n={n_sex}, {prev:.1%})")
+
+                ages = np.array(rep_data[0]["ages"])
+                all_values = np.array([d["values"] for d in rep_data])
+                mean_values = all_values.mean(axis=0)
+                mean_n = np.mean([d["n"] for d in rep_data])
+                mean_prev = np.mean([d["prevalence"] for d in rep_data])
+
+                ax.plot(ages, mean_values, color=color, linewidth=2,
+                        label=f"{display} (n={int(mean_n)}, {mean_prev:.1%})")
 
             if row == 0:
-                ax.set_title(f"Gen {gen}", fontsize=12)
+                ax.set_title(f"Gen {gen_num}", fontsize=12)
             if col == 0:
                 ax.set_ylabel(f"Trait {trait_num}\nCumulative Incidence")
             if row == len(traits) - 1:
                 ax.set_xlabel("Age")
-            if col == len(generations) - 1:
+            if col == len(gen_keys) - 1:
                 ax.legend(loc="lower right", fontsize=8)
 
     fig.suptitle(f"Cumulative Incidence by Sex and Generation [{scenario}]", fontsize=14, y=1.01)

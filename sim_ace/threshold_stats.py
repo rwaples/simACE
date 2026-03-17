@@ -21,6 +21,7 @@ from sim_ace.stats import (
     compute_liability_correlations,
     compute_tetrachoric,
     compute_cross_trait_tetrachoric,
+    compute_joint_affection,
     create_sample,
 )
 from sim_ace.pedigree_graph import extract_relationship_pairs
@@ -43,23 +44,6 @@ def compute_prevalence_by_generation(df: pd.DataFrame) -> dict[str, Any]:
             "overall": float(df[col].mean()),
         }
     return result
-
-
-def compute_joint_affection(df: pd.DataFrame) -> dict[str, Any]:
-    """Compute 2x2 contingency table for trait1 x trait2 affection status."""
-    a1 = df["affected1"].values.astype(bool)
-    a2 = df["affected2"].values.astype(bool)
-    n = len(df)
-
-    counts = {
-        "both": int(np.sum(a1 & a2)),
-        "trait1_only": int(np.sum(a1 & ~a2)),
-        "trait2_only": int(np.sum(~a1 & a2)),
-        "neither": int(np.sum(~a1 & ~a2)),
-    }
-    proportions = {k: v / n for k, v in counts.items()}
-
-    return {"counts": counts, "proportions": proportions, "n": n}
 
 
 def compute_liability_by_status(df: pd.DataFrame) -> dict[str, Any]:

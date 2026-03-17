@@ -84,7 +84,8 @@ def get_model_family(params: dict) -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 # Captions ordered to match _PHENOTYPE_BASENAMES in workflow/common.py:
-# liability structure -> Weibull phenotype -> censoring -> correlations.
+# liability structure -> affected status -> survival & censoring ->
+# within-trait correlations -> cross-trait correlations.
 PHENOTYPE_CAPTIONS: dict[str, str] = {
     # -- Pedigree structure --
     "pedigree_counts.ped": (
@@ -117,7 +118,8 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Figure 4: Parent-offspring liability regressions.\n\n"
         "Grid: rows = traits, columns = last 3 non-founder generations. Scatter of "
         "midparent liability (x) vs. offspring liability (y) with regression line. "
-        "Text box shows Pearson r and pair count n."
+        "Text box shows Pearson r, R\u00b2, and pair count n, all averaged across "
+        "replicates from pre-computed per-rep statistics."
     ),
     "heritability.by_generation": (
         "Figure 5: Narrow-sense liability-scale heritability by generation.\n\n"
@@ -129,7 +131,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Stable h\u00b2 across generations confirms that the ACE variance "
         "decomposition is maintained through the simulation."
     ),
-    "broad_heritability.by_generation": (
+    "additive_shared.by_generation": (
         "Figure 6: Additive genetic and shared environment by generation.\n\n"
         "1\u00d72 figure, one panel per trait. Combined proportion "
         "(Var(A) + Var(C)) / (Var(A) + Var(C) + Var(E)) is computed from "
@@ -140,76 +142,64 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "contribution of shared environment to familial resemblance."
     ),
     # -- Liability by affected status --
-    "cross_trait.frailty": (
-        "Figure 7: Cross-trait liability joint plots coloured by affected status.\n\n"
-        "Same 2\u00d72 layout as Figure 3, but with affected-status colouring based on trait 1. "
-        "Blue points = unaffected, orange points = affected (trait 1). Marginal histograms stacked "
-        "by affected status."
-    ),
     "liability_violin.frailty": (
-        "Figure 8: Liability violin plots by affected status (survival model).\n\n"
+        "Figure 7: Liability violin plots by affected status (survival model).\n\n"
         "Split violin plots, one per trait. Left half = unaffected, right half = affected. "
         "Diamond markers show mean liability for each group with \u03bc annotations. "
         "Prevalence annotated below each trait."
     ),
     "liability_violin.frailty.by_generation": (
-        "Figure 9: Liability violin plots by generation (survival model).\n\n"
+        "Figure 8: Liability violin plots by generation (survival model).\n\n"
         "Grid: rows = traits, columns = recorded generations. Split violins for affected vs. "
         "unaffected within each generation. Diamond markers and \u03bc annotations show per-group "
         "means. x-axis labels show observed generation-specific prevalence."
     ),
-    # -- Frailty phenotype --
-    "liability_vs_aoo": (
-        "Figure 10: Liability vs. age-at-onset.\n\n"
-        "Side-by-side joint plots, one per trait. Central scatter of liability (x) vs. "
-        "observed age-at-onset (y) for affected individuals, with regression line and R\u00b2 "
-        "annotation. Marginal histograms on top and right."
-    ),
+    # -- Survival phenotype & censoring --
     "age_at_onset_death": (
-        "Figure 11: Age-at-onset and death-age histograms.\n\n"
+        "Figure 9: Age-at-onset and death-age histograms.\n\n"
         "A 2\u00d72 grid, rows = traits 1 and 2. Left column shows density histograms "
         "of observed age-at-onset for affected individuals (\u03b4 = 1). Right column shows "
         "age-at-death histograms for death-censored unaffected individuals."
     ),
     "mortality": (
-        "Figure 12: Mortality rate by decade.\n\n"
+        "Figure 10: Mortality rate by decade.\n\n"
         "Two-panel figure. Left panel shows per-decade mortality rate "
         "(deaths in decade / alive at start of decade), averaged across replicates. "
         "Right panel shows cumulative mortality, "
         "with cumulative survival probability annotated above each bar."
     ),
     "cumulative_incidence.frailty": (
-        "Figure 13: Cumulative incidence curves.\n\n"
+        "Figure 11: Cumulative incidence curves.\n\n"
         "Two-panel figure, one per trait. Blue solid line = observed cumulative incidence "
         "from censored data (with min-max band across replicates). Grey solid line = true "
         "cumulative incidence from uncensored event times. Grey dashed crosshairs mark the "
-        "age at which 50% of lifetime cases have occurred. Text box shows affected %, "
-        "true prevalence %, and censored %."
+        "ages at which 25% (Q1), 50%, and 75% (Q3) of lifetime cases have occurred. "
+        "Text box shows affected %, true prevalence %, and censored %."
     ),
     "cumulative_incidence.by_sex": (
-        "Figure 14: Cumulative incidence by sex.\n\n"
+        "Figure 12: Cumulative incidence by sex.\n\n"
         "Two-panel figure, one per trait. Blue line = female (sex=0), red line = male "
         "(sex=1) observed cumulative incidence. Legend shows sample size and prevalence "
         "per sex. Separation between curves indicates a sex-differential hazard rate "
-        "driven by the beta_sex covariate."
+        "driven by the beta_sex covariate. Statistics computed on full (non-subsampled) data."
     ),
     "cumulative_incidence.by_sex.by_generation": (
-        "Figure 15: Cumulative incidence by sex and generation.\n\n"
+        "Figure 13: Cumulative incidence by sex and generation.\n\n"
         "Grid: rows = traits, columns = generations. Each panel shows cumulative incidence "
         "curves for female (blue) and male (red) separately. Legend shows per-sex sample "
         "size and prevalence within each generation. Useful for detecting generation-specific "
-        "sex effects or interactions with censoring windows."
+        "sex effects or interactions with censoring windows. Statistics computed on full "
+        "(non-subsampled) data."
     ),
-    # -- Censoring --
     "censoring": (
-        "Figure 16: Censoring windows by generation.\n\n"
+        "Figure 14: Censoring windows by generation.\n\n"
         "Grid of panels: rows = traits, columns = generations. Grey line = true cumulative "
         "incidence, blue line = observed cumulative incidence. Text box shows affected %, "
         "left-censored %, right-censored %, and death-censored % per generation. Column "
         "titles show observation window [lo, hi]."
     ),
     "censoring_confusion": (
-        "Figure 17: Censoring confusion matrix.\n\n"
+        "Figure 15: Censoring confusion matrix.\n\n"
         "Per-trait 2\u00d72 confusion matrix comparing true affected status "
         "(event time < censor_age, from raw simulated times) vs. observed affected "
         "status (after generation-window and death censoring). "
@@ -217,20 +207,29 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "proportion and count. Title shows sensitivity (true positive rate) and "
         "specificity (true negative rate). False negatives arise from left-truncation, "
         "right-censoring, or competing mortality. Only phenotyped generations "
-        "(those with non-degenerate observation windows) are included."
+        "(those with non-degenerate observation windows) are included. "
+        "Statistics computed on full (non-subsampled) data."
     ),
     "censoring_cascade": (
-        "Figure 18: Censoring cascade.\n\n"
+        "Figure 16: Censoring cascade.\n\n"
         "Per-trait stacked bar chart decomposing true cases (event time < censor_age) "
         "by generation into four mutually exclusive fates: observed (green), "
-        "death-censored (coral), right-censored (amber), and left-truncated (orange). "
+        "death-censored (red), right-censored (purple), and left-truncated (orange). "
         "Total bar height equals true case count per generation. Sensitivity "
         "(observed / true) is annotated per generation; subplot titles show overall "
-        "sensitivity. Only generations with non-degenerate observation windows are shown."
+        "sensitivity. Only generations with non-degenerate observation windows are shown. "
+        "Statistics computed on full (non-subsampled) data."
     ),
-    # -- Familial correlations --
+    "liability_vs_aoo": (
+        "Figure 17: Liability vs. age-at-onset.\n\n"
+        "Side-by-side joint plots, one per trait. Central scatter of liability (x) vs. "
+        "observed age-at-onset (y) for affected individuals, with regression line. "
+        "Annotations show Pearson r and R\u00b2 averaged across replicates from pre-computed "
+        "per-rep regressions. Marginal histograms on top and right."
+    ),
+    # -- Within-trait correlations --
     "joint_affected.frailty": (
-        "Figure 19: Joint affected status heatmap (survival model).\n\n"
+        "Figure 18: Joint affected status heatmap (survival model).\n\n"
         "2\u00d72 heatmap of joint affected status across both traits. Cell annotations "
         "show proportion and count. Title shows cross-trait correlation estimates: "
         "'r_tet' = tetrachoric correlation on censored binary affected status; "
@@ -238,20 +237,11 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "data (oracle); 'stratified' = generation-stratified estimate that "
         "computes per-generation correlations and combines via inverse-variance "
         "weighting, reducing bias from heterogeneous censoring across generations; "
-        "'naive' = unweighted pooled censored estimate for comparison."
-    ),
-    "cross_trait_frailty.by_generation": (
-        "Figure 20: Cross-trait frailty correlation by generation.\n\n"
-        "Per-generation cross-trait liability correlation estimated from censored "
-        "survival data. Blue dots = per-replicate per-generation estimates "
-        "with 95% CI error bars; blue line = mean across replicates. "
-        "Green dash-dot line = uncensored oracle (ground truth from raw event times). "
-        "Orange dashed line = inverse-variance weighted mean across generations "
-        "(stratified estimate). Dark orange dotted line = naive pooled estimate (biased). "
-        "Generations with very low event rates may hit the boundary and be excluded."
+        "'naive' = unweighted pooled censored estimate for comparison. "
+        "Statistics computed on full (non-subsampled) data."
     ),
     "tetrachoric.frailty": (
-        "Figure 21: Tetrachoric correlations by relationship type (survival model).\n\n"
+        "Figure 19: Tetrachoric correlations by relationship type (survival model).\n\n"
         "Two-panel figure, one per trait. Coloured violins show the distribution of "
         "tetrachoric correlations (computed from censored binary affected status) across "
         "replicates for each relationship type. "
@@ -264,14 +254,37 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "reflects attenuation from censoring and dichotomization."
     ),
     "tetrachoric.frailty.by_generation": (
-        "Figure 22: Tetrachoric correlations by generation (survival model).\n\n"
-        "Grid: rows = traits, columns = generations. Same encoding as Figure 21 "
+        "Figure 20: Tetrachoric correlations by generation (survival model).\n\n"
+        "Grid: rows = traits, columns = generations. Same encoding as Figure 19 "
         "(violins = observed tetrachoric correlations, black dashed = true liability "
         "correlations, dots = per-replicate estimates), computed within each generation "
         "separately."
     ),
+    # -- Cross-trait correlations --
+    "cross_trait.frailty": (
+        "Figure 21: Cross-trait liability joint plots coloured by affected status (trait 1).\n\n"
+        "Same 2\u00d72 layout as Figure 3, but with affected-status colouring based on trait 1. "
+        "Blue points = unaffected, orange points = affected (trait 1). Marginal histograms stacked "
+        "by affected status."
+    ),
+    "cross_trait.frailty.t2": (
+        "Figure 22: Cross-trait liability joint plots coloured by affected status (trait 2).\n\n"
+        "Same 2\u00d72 layout as Figure 3, but with affected-status colouring based on trait 2. "
+        "Blue points = unaffected, orange points = affected (trait 2). Marginal histograms stacked "
+        "by affected status."
+    ),
+    "cross_trait_frailty.by_generation": (
+        "Figure 23: Cross-trait frailty correlation by generation.\n\n"
+        "Per-generation cross-trait liability correlation estimated from censored "
+        "survival data. Blue dots = per-replicate per-generation estimates "
+        "with 95% CI error bars; blue line = mean across replicates. "
+        "Green dash-dot line = uncensored oracle (ground truth from raw event times). "
+        "Orange dashed line = inverse-variance weighted mean across generations "
+        "(stratified estimate). Dark orange dotted line = naive pooled estimate (biased). "
+        "Generations with very low event rates may hit the boundary and be excluded."
+    ),
     "cross_trait_tetrachoric": (
-        "Figure 23: Cross-trait tetrachoric correlations.\n\n"
+        "Figure 24: Cross-trait tetrachoric correlations.\n\n"
         "Two-panel figure measuring cross-trait association via tetrachoric "
         "correlation between affected1 and affected2. "
         "Left panel: same-person cross-trait r by generation (blue dots per rep, "
@@ -287,39 +300,39 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
 # prevalence -> liability -> correlations.
 THRESHOLD_CAPTIONS: dict[str, str] = {
     "prevalence_by_generation": (
-        "Figure 24: Prevalence by generation (threshold model).\n\n"
+        "Figure 25: Prevalence by generation (threshold model).\n\n"
         "Bar chart comparing observed vs. configured prevalence per generation and trait. "
         "Configured values shown as reference markers."
     ),
     "cross_trait.threshold": (
-        "Figure 25: Cross-trait liability joint plot (threshold model).\n\n"
+        "Figure 26: Cross-trait liability joint plot (threshold model).\n\n"
         "Scatter of trait 1 vs. trait 2 liability coloured by threshold affected status."
     ),
     "liability_violin.threshold": (
-        "Figure 26: Liability violin plots by affected status (threshold model).\n\n"
+        "Figure 27: Liability violin plots by affected status (threshold model).\n\n"
         "Split violins showing liability for affected vs. unaffected under the threshold "
         "model. Diamond mean markers with \u03bc annotations and prevalence text."
     ),
     "liability_violin.threshold.by_generation": (
-        "Figure 27: Liability violin plots by generation (threshold model).\n\n"
+        "Figure 28: Liability violin plots by generation (threshold model).\n\n"
         "Per-generation split violins with configured prevalence annotated. Same encoding "
-        "as Figure 9 but for the liability-threshold phenotype."
+        "as Figure 8 but for the liability-threshold phenotype."
     ),
     "joint_affected.threshold": (
-        "Figure 28: Joint affected status heatmap (threshold model).\n\n"
+        "Figure 29: Joint affected status heatmap (threshold model).\n\n"
         "2\u00d72 heatmap of joint affected status proportions and counts with tetrachoric "
-        "correlation annotated."
+        "correlation annotated. Statistics computed on full (non-subsampled) data."
     ),
     "tetrachoric.threshold": (
-        "Figure 29: Tetrachoric correlations by relationship type (threshold model).\n\n"
+        "Figure 30: Tetrachoric correlations by relationship type (threshold model).\n\n"
         "Violin plots of tetrachoric correlations for threshold affected status indicators. "
-        "Same encoding as Figure 21: coloured violins show observed tetrachoric correlations "
+        "Same encoding as Figure 19: coloured violins show observed tetrachoric correlations "
         "from binary affected status, black dots are per-replicate estimates, black dashed "
         "lines are the ground-truth Pearson liability correlations, and pair counts are "
         "annotated above each violin."
     ),
     "cross_trait_tetrachoric.threshold": (
-        "Figure 30: Cross-trait tetrachoric correlations (threshold model).\n\n"
+        "Figure 31: Cross-trait tetrachoric correlations (threshold model).\n\n"
         "Same two-panel layout as the survival cross-trait tetrachoric figure. "
         "Left panel: same-person cross-trait r by generation. "
         "Right panel: cross-person cross-trait r by relationship type. "

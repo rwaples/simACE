@@ -224,18 +224,16 @@ class TestPlaceholderPaths:
         plot_parent_offspring_liability(df, [{}], out, scenario="test")
         assert out.exists()
 
-    def test_cumulative_by_sex_no_sex(self, tmp_path, sample_df):
+    def test_cumulative_by_sex_no_data(self, tmp_path):
         from sim_ace.plot_distributions import plot_cumulative_incidence_by_sex
-        df = sample_df.drop(columns=["sex"])
         out = tmp_path / "ci_sex.png"
-        plot_cumulative_incidence_by_sex(df, 100.0, out, scenario="test")
+        plot_cumulative_incidence_by_sex([{}], out, scenario="test")
         assert out.exists()
 
-    def test_cumulative_by_sex_gen_missing_cols(self, tmp_path, sample_df):
+    def test_cumulative_by_sex_gen_no_data(self, tmp_path):
         from sim_ace.plot_distributions import plot_cumulative_incidence_by_sex_generation
-        df = sample_df.drop(columns=["sex"])
         out = tmp_path / "ci_sg.png"
-        plot_cumulative_incidence_by_sex_generation(df, 100.0, out, scenario="test")
+        plot_cumulative_incidence_by_sex_generation([{}], out, scenario="test")
         assert out.exists()
 
     def test_censoring_windows_no_data(self, tmp_path):
@@ -251,18 +249,16 @@ class TestPlaceholderPaths:
         plot_liability_violin_by_generation(df, [{}], out, scenario="test")
         assert out.exists()
 
-    def test_censoring_confusion_no_individuals(self, tmp_path):
+    def test_censoring_confusion_no_data(self, tmp_path):
         from sim_ace.plot_liability import plot_censoring_confusion
-        df = pd.DataFrame(columns=["generation", "t1", "affected1"])
         out = tmp_path / "cc.png"
-        plot_censoring_confusion(df, 100.0, out, scenario="test")
+        plot_censoring_confusion([{}], out, scenario="test")
         assert out.exists()
 
     def test_censoring_cascade_no_data(self, tmp_path):
         from sim_ace.plot_liability import plot_censoring_cascade
-        df = pd.DataFrame(columns=["generation"])
         out = tmp_path / "cascade.png"
-        plot_censoring_cascade(df, 100.0, out, scenario="test")
+        plot_censoring_cascade([{}], out, scenario="test")
         assert out.exists()
 
     def test_threshold_violin_by_gen_no_gen(self, tmp_path, sample_df):
@@ -295,21 +291,55 @@ class TestFinalizePaths:
 
     def test_joint_affection(self, tmp_path, sample_df, minimal_stats):
         from sim_ace.plot_liability import plot_joint_affection
+        # Add joint_affection and cross_trait_tetrachoric to stats
+        stats = minimal_stats[0].copy()
+        stats["joint_affection"] = {
+            "counts": {"both": 5, "trait1_only": 15, "trait2_only": 15, "neither": 165},
+            "proportions": {"both": 0.025, "trait1_only": 0.075, "trait2_only": 0.075, "neither": 0.825},
+            "n": 200,
+        }
+        stats["cross_trait_tetrachoric"] = {"same_person": {"r": 0.3, "se": 0.05, "n": 200}}
         out = tmp_path / "joint_aff.png"
-        plot_joint_affection(sample_df, out, scenario="test", all_stats=minimal_stats)
+        plot_joint_affection([stats], out, scenario="test")
         assert out.exists()
 
-    def test_censoring_confusion_full(self, tmp_path, sample_df):
+    def test_censoring_confusion_full(self, tmp_path):
         from sim_ace.plot_liability import plot_censoring_confusion
+        stats = [{
+            "censoring_confusion": {
+                "trait1": {"tp": 50, "fn": 10, "fp": 2, "tn": 138, "n": 200},
+                "trait2": {"tp": 40, "fn": 15, "fp": 1, "tn": 144, "n": 200},
+            },
+        }]
         out = tmp_path / "cc_full.png"
-        plot_censoring_confusion(sample_df, 100.0, out, scenario="test")
+        plot_censoring_confusion(stats, out, scenario="test")
         assert out.exists()
         assert len(plt.get_fignums()) == 0
 
-    def test_censoring_cascade_full(self, tmp_path, sample_df):
+    def test_censoring_cascade_full(self, tmp_path):
         from sim_ace.plot_liability import plot_censoring_cascade
+        stats = [{
+            "censoring_cascade": {
+                "trait1": {
+                    "gen1": {
+                        "observed": 30, "death_censored": 5,
+                        "right_censored": 10, "left_truncated": 5,
+                        "true_affected": 50, "n_gen": 100,
+                        "sensitivity": 0.6, "window": [20, 80],
+                    },
+                },
+                "trait2": {
+                    "gen1": {
+                        "observed": 25, "death_censored": 8,
+                        "right_censored": 12, "left_truncated": 5,
+                        "true_affected": 50, "n_gen": 100,
+                        "sensitivity": 0.5, "window": [20, 80],
+                    },
+                },
+            },
+        }]
         out = tmp_path / "cascade_full.png"
-        plot_censoring_cascade(sample_df, 100.0, out, scenario="test")
+        plot_censoring_cascade(stats, out, scenario="test")
         assert out.exists()
 
     def test_death_age_distribution(self, tmp_path, minimal_stats):
@@ -332,8 +362,22 @@ class TestFinalizePaths:
         assert out.exists()
         assert len(plt.get_fignums()) == 0
 
-    def test_cumulative_incidence_by_sex(self, tmp_path, sample_df):
+    def test_cumulative_incidence_by_sex(self, tmp_path):
         from sim_ace.plot_distributions import plot_cumulative_incidence_by_sex
+        ages = list(range(100))
+        values = [i / 1000 for i in range(100)]
+        stats = [{
+            "cumulative_incidence_by_sex": {
+                "trait1": {
+                    "female": {"ages": ages, "values": values, "n": 50, "prevalence": 0.1},
+                    "male": {"ages": ages, "values": values, "n": 50, "prevalence": 0.12},
+                },
+                "trait2": {
+                    "female": {"ages": ages, "values": values, "n": 50, "prevalence": 0.08},
+                    "male": {"ages": ages, "values": values, "n": 50, "prevalence": 0.09},
+                },
+            },
+        }]
         out = tmp_path / "ci_sex.png"
-        plot_cumulative_incidence_by_sex(sample_df, 100.0, out, scenario="test")
+        plot_cumulative_incidence_by_sex(stats, out, scenario="test")
         assert out.exists()
