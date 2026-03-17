@@ -15,6 +15,8 @@ from matplotlib.patches import FancyBboxPatch
 
 import yaml
 
+from sim_ace.plot_atlas import MODEL_FAMILY
+
 logger = logging.getLogger(__name__)
 
 
@@ -122,6 +124,10 @@ def _format_param_value(name: str, value: object) -> str:
     if isinstance(value, bool):
         return str(value).lower()
     if isinstance(value, dict):
+        if "female" in value and "male" in value:
+            f_val = _format_param_value("", value["female"])
+            m_val = _format_param_value("", value["male"])
+            return f"F:{f_val} M:{m_val}"
         return "(see params)"
     if isinstance(value, float):
         if value == int(value) and abs(value) < 1e6:
@@ -154,13 +160,16 @@ def _get_param_rows(
             rc = float(params.get("rC", 0))
             rows.append(("[rA, rC]", f"[{ra:g}, {rc:g}]"))
             continue
-            # Compact frailty params per trait: [beta, model, params]
+            # Compact frailty params per trait: [beta, beta_sex, model, params]
         if name == "_frailty1" and "beta1" in params:
             b = _format_param_value("beta1", params["beta1"])
             m = str(params.get("phenotype_model1", "?"))
             hp = params.get("phenotype_params1", {})
             hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in hp.items())
             rows.append(("trait 1 \u03b2", b))
+            bs = params.get("beta_sex1", 0)
+            if bs:
+                rows.append(("trait 1 \u03b2_sex", _format_param_value("beta_sex1", bs)))
             rows.append(("trait 1 model", m))
             rows.append(("trait 1 params", hp_str))
             continue
@@ -170,6 +179,9 @@ def _get_param_rows(
             hp = params.get("phenotype_params2", {})
             hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in hp.items())
             rows.append(("trait 2 \u03b2", b))
+            bs = params.get("beta_sex2", 0)
+            if bs:
+                rows.append(("trait 2 \u03b2_sex", _format_param_value("beta_sex2", bs)))
             rows.append(("trait 2 model", m))
             rows.append(("trait 2 params", hp_str))
             continue
@@ -338,6 +350,19 @@ def render_pipeline_figure(
     step_info = {}
     for key, display, color, pnames in _PIPELINE_STEPS:
         step_info[key] = (display, color, pnames)
+
+    # Override phenotype_frailty title with model-specific short name
+    m1 = str(params.get("phenotype_model1", "weibull"))
+    m2 = str(params.get("phenotype_model2", "weibull"))
+    if m1 == m2:
+        short_name = MODEL_FAMILY.get(m1, (m1.title(),))[0]
+        pheno_title = f"Phenotype ({short_name.lower()})"
+    else:
+        s1 = MODEL_FAMILY.get(m1, (m1.title(),))[0]
+        s2 = MODEL_FAMILY.get(m2, (m2.title(),))[0]
+        pheno_title = f"Phenotype ({s1.lower()} / {s2.lower()})"
+    old = step_info["phenotype_frailty"]
+    step_info["phenotype_frailty"] = (pheno_title, old[1], old[2])
 
     # Build rows for each step and compute box sizes
     step_rows: dict[str, list[tuple[str, str]]] = {}

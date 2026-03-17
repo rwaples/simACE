@@ -6,6 +6,7 @@ import yaml
 from sim_ace import setup_logging
 from sim_ace.plot_atlas import (
     assemble_atlas,
+    get_model_family,
     PHENOTYPE_CAPTIONS,
     THRESHOLD_CAPTIONS,
 )
@@ -42,16 +43,17 @@ def _run_snakemake():
     captions  = {**PHENOTYPE_CAPTIONS, **THRESHOLD_CAPTIONS}
     all_paths = frailty_paths + threshold_paths
 
+    model_name, model_desc = get_model_family(scenario_params)
     section_breaks = {
         9: (
-            "Frailty Phenotype",
-            "Survival-time phenotyping, censoring, and correlation analysis",
+            f"{model_name} Phenotype",
+            model_desc,
         ),
     }
     if threshold_paths:
         section_breaks[len(frailty_paths)] = (
             "Liability Threshold Phenotype",
-            "Binary affected status from liability threshold model",
+            "Simple liability threshold on latent liability (no age-at-onset modeling)",
         )
 
     assemble_atlas(

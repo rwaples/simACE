@@ -13,6 +13,72 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Model-family lookup
+# ---------------------------------------------------------------------------
+
+# Maps phenotype model name → (short display name, one-line description)
+MODEL_FAMILY: dict[str, tuple[str, str]] = {
+    "weibull": (
+        "Weibull Frailty",
+        "Proportional hazards with Weibull baseline; frailty exp(\u03b2\u00b7L) scales hazard",
+    ),
+    "exponential": (
+        "Exponential Frailty",
+        "Proportional hazards with exponential baseline; frailty exp(\u03b2\u00b7L) scales hazard",
+    ),
+    "gompertz": (
+        "Gompertz Frailty",
+        "Proportional hazards with Gompertz baseline; frailty exp(\u03b2\u00b7L) scales hazard",
+    ),
+    "lognormal": (
+        "Log-Normal Frailty",
+        "Proportional hazards with log-normal baseline; frailty exp(\u03b2\u00b7L) scales hazard",
+    ),
+    "loglogistic": (
+        "Log-Logistic Frailty",
+        "Proportional hazards with log-logistic baseline; frailty exp(\u03b2\u00b7L) scales hazard",
+    ),
+    "gamma": (
+        "Gamma Frailty",
+        "Proportional hazards with gamma baseline; frailty exp(\u03b2\u00b7L) scales hazard",
+    ),
+    "cure_frailty": (
+        "Cure Frailty",
+        "Mixture cure model: liability threshold for case status, frailty for age-at-onset",
+    ),
+    "adult_ltm": (
+        "ADuLT LTM",
+        "Liability threshold for case status, deterministic probit CIP for age-at-onset",
+    ),
+    "adult_cox": (
+        "ADuLT Cox",
+        "Ranking for case status, stochastic Weibull CIP for age-at-onset",
+    ),
+}
+
+
+def get_model_family(params: dict) -> tuple[str, str]:
+    """Return (display_name, description) for the scenario's phenotype model(s).
+
+    When both traits use the same family, return that family.
+    When they differ, return a combined description.
+    """
+    m1 = str(params.get("phenotype_model1", "weibull"))
+    m2 = str(params.get("phenotype_model2", "weibull"))
+
+    name1, desc1 = MODEL_FAMILY.get(m1, (m1.title(), m1))
+    name2, desc2 = MODEL_FAMILY.get(m2, (m2.title(), m2))
+
+    if m1 == m2:
+        return name1, desc1
+
+    return (
+        f"{name1} / {name2}",
+        f"Trait 1: {desc1}; Trait 2: {desc2}",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Caption text for each plot, keyed by basename (filename without extension).
 # Content drawn from plots.md.
 # ---------------------------------------------------------------------------
@@ -81,13 +147,13 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "by affected status."
     ),
     "liability_violin.frailty": (
-        "Figure 8: Liability violin plots by affected status (frailty model).\n\n"
+        "Figure 8: Liability violin plots by affected status (survival model).\n\n"
         "Split violin plots, one per trait. Left half = unaffected, right half = affected. "
         "Diamond markers show mean liability for each group with \u03bc annotations. "
         "Prevalence annotated below each trait."
     ),
     "liability_violin.frailty.by_generation": (
-        "Figure 9: Liability violin plots by generation (frailty model).\n\n"
+        "Figure 9: Liability violin plots by generation (survival model).\n\n"
         "Grid: rows = traits, columns = recorded generations. Split violins for affected vs. "
         "unaffected within each generation. Diamond markers and \u03bc annotations show per-group "
         "means. x-axis labels show observed generation-specific prevalence."
@@ -164,7 +230,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
     ),
     # -- Familial correlations --
     "joint_affected.frailty": (
-        "Figure 19: Joint affected status heatmap (frailty model).\n\n"
+        "Figure 19: Joint affected status heatmap (survival model).\n\n"
         "2\u00d72 heatmap of joint affected status across both traits. Cell annotations "
         "show proportion and count. Title shows cross-trait correlation estimates: "
         "'r_tet' = tetrachoric correlation on censored binary affected status; "
@@ -185,7 +251,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Generations with very low event rates may hit the boundary and be excluded."
     ),
     "tetrachoric.frailty": (
-        "Figure 21: Tetrachoric correlations by relationship type (frailty model).\n\n"
+        "Figure 21: Tetrachoric correlations by relationship type (survival model).\n\n"
         "Two-panel figure, one per trait. Coloured violins show the distribution of "
         "tetrachoric correlations (computed from censored binary affected status) across "
         "replicates for each relationship type. "
@@ -198,7 +264,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "reflects attenuation from censoring and dichotomization."
     ),
     "tetrachoric.frailty.by_generation": (
-        "Figure 22: Tetrachoric correlations by generation (frailty model).\n\n"
+        "Figure 22: Tetrachoric correlations by generation (survival model).\n\n"
         "Grid: rows = traits, columns = generations. Same encoding as Figure 21 "
         "(violins = observed tetrachoric correlations, black dashed = true liability "
         "correlations, dots = per-replicate estimates), computed within each generation "
@@ -254,7 +320,7 @@ THRESHOLD_CAPTIONS: dict[str, str] = {
     ),
     "cross_trait_tetrachoric.threshold": (
         "Figure 30: Cross-trait tetrachoric correlations (threshold model).\n\n"
-        "Same two-panel layout as the Weibull cross-trait tetrachoric figure. "
+        "Same two-panel layout as the survival cross-trait tetrachoric figure. "
         "Left panel: same-person cross-trait r by generation. "
         "Right panel: cross-person cross-trait r by relationship type. "
         "Uses the liability-threshold phenotype affected indicators."
