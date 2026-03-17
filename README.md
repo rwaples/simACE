@@ -173,14 +173,19 @@ Prevalence can also be specified per-generation as a dict (e.g. `prevalence1: { 
 
 ### Simulation Data
 
-Each scenario replicate produces:
+Each scenario replicate produces (see [OUTPUTS.md](OUTPUTS.md) for column schemas and YAML structures):
 
 | File | Description |
 |------|-------------|
 | `results/{folder}/{scenario}/rep{N}/pedigree.parquet` | Pedigree with id, sex, parents, twin, household, A/C/E values, liabilities |
-| `results/{folder}/{scenario}/rep{N}/phenotype.parquet` | Time-to-event phenotypes (age-at-onset, censoring, affected status) |
+| `results/{folder}/{scenario}/rep{N}/phenotype.raw.parquet` | Raw time-to-event phenotypes (before censoring) |
+| `results/{folder}/{scenario}/rep{N}/phenotype.parquet` | Censored time-to-event phenotypes (age-at-onset, censoring, affected status) |
+| `results/{folder}/{scenario}/rep{N}/phenotype.sampled.parquet` | Downsampled phenotype for plotting |
 | `results/{folder}/{scenario}/rep{N}/phenotype.liability_threshold.parquet` | Liability-threshold binary affected status |
-| `results/{folder}/{scenario}/rep{N}/params.yaml` | Parameters used for this replicate |
+| `results/{folder}/{scenario}/rep{N}/phenotype.liability_threshold.sampled.parquet` | Downsampled threshold phenotype for plotting |
+| `results/{folder}/{scenario}/rep{N}/params.yaml` | Simulation parameters for this replicate |
+| `results/{folder}/{scenario}/rep{N}/phenotype_stats.yaml` | Phenotype statistics (correlations, prevalence, CIF, etc.) |
+| `results/{folder}/{scenario}/rep{N}/threshold_stats.yaml` | Threshold phenotype statistics |
 
 ### Validation and Logs
 
@@ -202,51 +207,9 @@ Multi-page PDF atlases collect all figures for a scenario or folder into a singl
 | `results/{folder}/plots/atlas.pdf` | Per-folder atlas: cross-scenario validation plots (variance components, correlations, heritability, bias, runtime, memory) |
 | `results/{folder}/{scenario}/rep{N}/epimight/plots/atlas.pdf` | EPIMIGHT atlas: CIF curves, heritability, genetic correlation across relationship kinds |
 
-### Parquet Column Reference
+### Output Format Reference
 
-#### pedigree.parquet
-
-Core pedigree structure with latent variance components for two correlated traits.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | int64 | Unique individual identifier |
-| `sex` | int8 | 0 = female, 1 = male |
-| `mother` | int64 | Mother's id (-1 for founders) |
-| `father` | int64 | Father's id (-1 for founders) |
-| `twin` | int64 | MZ twin partner's id (-1 if not a twin) |
-| `generation` | int8 | Generation number (0 = oldest recorded) |
-| `household_id` | int64 | Shared-environment household group |
-| `A1`, `A2` | float32 | Additive genetic component (traits 1 and 2) |
-| `C1`, `C2` | float32 | Common/shared environment component |
-| `E1`, `E2` | float32 | Unique environment component |
-| `liability1`, `liability2` | float32 | Total liability (A + C + E) |
-
-#### phenotype.parquet
-
-Extends the pedigree with time-to-event phenotypes and censoring. Includes all pedigree columns above, plus:
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `t1`, `t2` | float32 | Raw (uncensored) age-at-onset from the phenotype model |
-| `death_age` | float32 | Age at death from competing-risk mortality |
-| `t_observed1`, `t_observed2` | float32 | Observed age-at-onset after age and death censoring |
-| `age_censored1`, `age_censored2` | bool | True if onset falls outside the generation's observation window |
-| `death_censored1`, `death_censored2` | bool | True if onset occurs after death |
-| `affected1`, `affected2` | bool | True if the individual is observed as affected (not age- or death-censored) |
-
-#### phenotype.liability_threshold.parquet
-
-Binary affected status from a liability-threshold model. Each generation has an independent prevalence-based threshold.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | int64 | Individual identifier |
-| `generation` | int8 | Generation number |
-| `mother`, `father`, `twin` | int64 | Family links (same as pedigree) |
-| `A1`, `C1`, `E1`, `liability1` | float32 | Trait 1 variance components and liability |
-| `A2`, `C2`, `E2`, `liability2` | float32 | Trait 2 variance components and liability |
-| `affected1`, `affected2` | bool | True if liability exceeds the generation-specific threshold |
+See [OUTPUTS.md](OUTPUTS.md) for complete documentation of all output formats, including parquet column schemas, YAML file structures, validation_summary.tsv columns, benchmark format, and plot inventories.
 
 ## Project Structure
 
@@ -301,6 +264,7 @@ ACE/
 
 ## Documentation (under construction)
 
+- **[OUTPUTS.md](OUTPUTS.md)** — Output format reference (parquet schemas, YAML structures, TSV columns, plots)
 - **[methods.md](methods.md)** — Methods document (variance decomposition, Weibull frailty, censoring, liability threshold, tetrachoric correlation, heritability estimation, etc)
 - **[distributions.md](distributions.md)** — Phenotype model reference (frailty hazard distributions, ADuLT LTM, ADuLT Cox)
 - **[epimight/README.md](epimight/README.md)** — EPIMIGHT heritability pipeline
