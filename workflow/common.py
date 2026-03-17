@@ -51,27 +51,28 @@ _PHENOTYPE_BASENAMES = [
     # Liability-scale heritability (pedigree + liability only)
     "parent_offspring_liability.by_generation",
     "heritability.by_generation",
-    "broad_heritability.by_generation",
+    "additive_shared.by_generation",
     # Liability by affected status
-    "cross_trait.frailty",
     "liability_violin.frailty",
     "liability_violin.frailty.by_generation",
-    # Frailty phenotype
-    "liability_vs_aoo",
+    # Survival phenotype & censoring
     "age_at_onset_death",
     "mortality",
     "cumulative_incidence.frailty",
     "cumulative_incidence.by_sex",
     "cumulative_incidence.by_sex.by_generation",
-    # Censoring
     "censoring",
     "censoring_confusion",
     "censoring_cascade",
-    # Familial correlations
+    "liability_vs_aoo",
+    # Within-trait correlations
     "joint_affected.frailty",
-    "cross_trait_frailty.by_generation",
     "tetrachoric.frailty",
     "tetrachoric.frailty.by_generation",
+    # Cross-trait correlations
+    "cross_trait.frailty",
+    "cross_trait.frailty.t2",
+    "cross_trait_frailty.by_generation",
     "cross_trait_tetrachoric",
 ]
 

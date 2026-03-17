@@ -415,6 +415,7 @@ def plot_parent_offspring_liability(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
+    subsample_note: str = "",
 ) -> None:
     """2 x 3 scatter grid: midparent vs offspring liability by generation."""
     from scipy.stats import linregress
@@ -485,31 +486,39 @@ def plot_parent_offspring_liability(
 
             ax.scatter(midparent_liab, offspring_liab, alpha=0.3, s=3, rasterized=True)
 
-            # Regression line
-            reg = linregress(midparent_liab, offspring_liab)
-            x_line = np.array([midparent_liab.min(), midparent_liab.max()])
-            ax.plot(x_line, reg.slope * x_line + reg.intercept, color="C3", linewidth=2)
-
-            # Annotation from pre-computed stats (averaged across reps)
-            r_vals = []
-            n_vals = []
+            # Collect pre-computed stats (averaged across reps)
+            r_vals, r2_vals, slope_vals, intercept_vals, n_vals = [], [], [], [], []
             for s in all_stats:
                 po = s.get("parent_offspring_corr", {}).get(
                     f"trait{trait_num}", {}
                 ).get(f"gen{gen}", {})
                 if po and po.get("r") is not None:
                     r_vals.append(po["r"])
+                    r2_vals.append(po.get("r2", po["r"] ** 2))
+                    slope_vals.append(po["slope"])
+                    intercept_vals.append(po["intercept"])
                     n_vals.append(po["n_pairs"])
 
             if r_vals:
                 mean_r = np.mean(r_vals)
+                mean_r2 = np.mean(r2_vals)
+                mean_slope = np.mean(slope_vals)
+                mean_intercept = np.mean(intercept_vals)
                 mean_n = int(np.mean(n_vals))
             else:
-                mean_r = float(np.corrcoef(midparent_liab, offspring_liab)[0, 1])
+                reg = linregress(midparent_liab, offspring_liab)
+                mean_r = float(reg.rvalue)
+                mean_r2 = float(reg.rvalue ** 2)
+                mean_slope = float(reg.slope)
+                mean_intercept = float(reg.intercept)
                 mean_n = int(valid.sum())
 
+            # Regression line from pre-computed stats
+            x_line = np.array([midparent_liab.min(), midparent_liab.max()])
+            ax.plot(x_line, mean_slope * x_line + mean_intercept, color="C3", linewidth=2)
+
             ax.text(
-                0.05, 0.95, f"r = {mean_r:.3f}\nn = {mean_n}",
+                0.05, 0.95, f"r = {mean_r:.4f}\nR\u00b2 = {mean_r2:.4f}\nn = {mean_n}",
                 transform=ax.transAxes, va="top", fontsize=10,
                 bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
             )
@@ -522,7 +531,7 @@ def plot_parent_offspring_liability(
                 ax.set_xlabel("Midparent Liability")
 
     fig.suptitle(f"Parent-Offspring Liability Correlation [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+    finalize_plot(output_path, subsample_note=subsample_note)
 
 
 def plot_heritability_by_generation(

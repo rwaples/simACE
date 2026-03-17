@@ -45,9 +45,21 @@ def _run_snakemake():
 
     model_name, model_desc = get_model_family(scenario_params)
     section_breaks = {
-        9: (
+        6: (
             f"{model_name} Phenotype",
             model_desc,
+        ),
+        8: (
+            "Survival & Censoring",
+            "Age-at-onset, mortality, cumulative incidence, and censoring analysis",
+        ),
+        17: (
+            "Within-Trait Correlations",
+            "Familial tetrachoric correlations and joint affected status",
+        ),
+        20: (
+            "Cross-Trait Correlations",
+            "Cross-trait correlation by generation and relationship type",
         ),
     }
     if threshold_paths:
