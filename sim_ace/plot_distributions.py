@@ -212,25 +212,47 @@ def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float
             ax.fill_between(ages, all_obs.min(axis=0), all_obs.max(axis=0),
                             alpha=0.2, color="C0")
 
-        # Find ages when 25%, 50%, 75% of lifetime cases are diagnosed
-        lifetime_prev = mean_obs[-1]
-        for frac, label, lw, ms in [
-            (0.25, "Q1", 0.6, 4),
-            (0.50, "50% of cases", 0.8, 6),
-            (0.75, "Q3", 0.6, 4),
+        # Annotate Q1, Q2 (median), Q3 on both observed and true curves
+        quartile_points: dict[str, dict[str, tuple[float, float]]] = {}
+        for curve, curve_color, y_offset, curve_key in [
+            (mean_obs, "C0", -16, "obs"),
+            (mean_true, "gray", 16, "true"),
         ]:
-            target = lifetime_prev * frac
-            idx_q = np.searchsorted(mean_obs, target)
-            age_q = ages[min(idx_q, len(ages) - 1)]
+            if curve is None:
+                continue
+            lifetime = curve[-1]
+            if lifetime <= 0:
+                continue
+            for frac, label, ms in [
+                (0.25, "Q1", 4),
+                (0.50, "Q2", 6),
+                (0.75, "Q3", 4),
+            ]:
+                target = lifetime * frac
+                idx_q = np.searchsorted(curve, target)
+                age_q = ages[min(idx_q, len(ages) - 1)]
 
-            ax.axhline(target, color="grey", linestyle="--", linewidth=lw)
-            ax.axvline(age_q, color="grey", linestyle="--", linewidth=lw)
-            ax.plot(age_q, target, "o", color="C3", markersize=ms, zorder=5)
-            ax.annotate(
-                f"{label}\nby age {age_q:.0f}",
-                xy=(age_q, target), xytext=(12, 12), textcoords="offset points",
-                fontsize=9 if frac != 0.5 else 10, ha="left", va="bottom",
-            )
+                ax.plot(age_q, target, "o", color=curve_color, markersize=ms, zorder=5)
+                ax.annotate(
+                    f"{label}: {age_q:.0f}",
+                    xy=(age_q, target), xytext=(10, y_offset),
+                    textcoords="offset points",
+                    fontsize=9, fontweight="bold", ha="left", va="center",
+                    color=curve_color,
+                    bbox=dict(boxstyle="round,pad=0.15", facecolor="white",
+                              edgecolor="none", alpha=0.8),
+                )
+                quartile_points.setdefault(label, {})[curve_key] = (age_q, target)
+
+        # Connect matching quartiles between observed and true curves
+        for label in ["Q1", "Q2", "Q3"]:
+            pts = quartile_points.get(label, {})
+            if "obs" in pts and "true" in pts:
+                ax.plot(
+                    [pts["obs"][0], pts["true"][0]],
+                    [pts["obs"][1], pts["true"][1]],
+                    color="0.5", linestyle="--", linewidth=0.8, zorder=4,
+                )
         # Annotation box: prevalence and censoring rates
         prev = np.mean([s["prevalence"][key] for s in all_stats])
         true_prev = mean_true[-1] if mean_true is not None else mean_obs[-1]
