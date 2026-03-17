@@ -13,12 +13,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 from pathlib import Path
 
 import logging
 
-from sim_ace.utils import PAIR_TYPES, PAIR_COLORS, save_placeholder_plot, finalize_plot
+from sim_ace.utils import PAIR_TYPES, PAIR_COLORS, save_placeholder_plot, finalize_plot, draw_colored_violins
 
 logger = logging.getLogger(__name__)
 
@@ -51,14 +50,9 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
         df_plot = pd.DataFrame(rows)
 
         if not df_plot.empty:
-            sns.violinplot(
-                data=df_plot, x="pair_type", y="r", hue="pair_type", ax=ax,
-                order=pair_types, palette=pair_colors, legend=False,
-                inner=None, cut=0, alpha=0.7, zorder=3,
-            )
-            # Remove any auto-generated seaborn legend
-            if ax.get_legend() is not None:
-                ax.get_legend().remove()
+            datasets = [df_plot.loc[df_plot["pair_type"] == pt, "r"].values for pt in pair_types]
+            colors = [pair_colors[pt] for pt in pair_types]
+            draw_colored_violins(ax, datasets, list(range(len(pair_types))), colors)
 
             # Overlay per-rep dots
             for i, ptype in enumerate(pair_types):
@@ -207,14 +201,9 @@ def plot_tetrachoric_by_generation(
             df_plot = pd.DataFrame(rows_data)
 
             if not df_plot.empty:
-                sns.violinplot(
-                    data=df_plot, x="pair_type", y="r", hue="pair_type", ax=ax,
-                    order=pair_types, palette=pair_colors, legend=False,
-                    inner=None, cut=0, alpha=0.7, zorder=3,
-                )
-                # Remove any auto-generated seaborn legend
-                if ax.get_legend() is not None:
-                    ax.get_legend().remove()
+                datasets = [df_plot.loc[df_plot["pair_type"] == pt, "r"].values for pt in pair_types]
+                colors = [pair_colors[pt] for pt in pair_types]
+                draw_colored_violins(ax, datasets, list(range(len(pair_types))), colors)
 
                 # Overlay per-rep dots
                 for i, ptype in enumerate(pair_types):
@@ -368,13 +357,9 @@ def plot_cross_trait_tetrachoric(
     df_plot = pd.DataFrame(rows)
 
     if not df_plot.empty:
-        sns.violinplot(
-            data=df_plot, x="pair_type", y="r", hue="pair_type", ax=ax_right,
-            order=pair_types, palette=pair_colors, legend=False,
-            inner=None, cut=0, alpha=0.7, zorder=3,
-        )
-        if ax_right.get_legend() is not None:
-            ax_right.get_legend().remove()
+        datasets = [df_plot.loc[df_plot["pair_type"] == pt, "r"].values for pt in pair_types]
+        colors = [pair_colors[pt] for pt in pair_types]
+        draw_colored_violins(ax_right, datasets, list(range(len(pair_types))), colors)
 
         for i, ptype in enumerate(pair_types):
             rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
@@ -484,7 +469,7 @@ def plot_parent_offspring_liability(
             offspring_liab = liability[gen_idx[valid]]
             midparent_liab = (liability[m_rows[valid]] + liability[f_rows[valid]]) / 2.0
 
-            ax.scatter(midparent_liab, offspring_liab, alpha=0.3, s=3, rasterized=True)
+            ax.plot(midparent_liab, offspring_liab, 'o', ms=2, mew=0, alpha=0.3, rasterized=True)
 
             # Collect pre-computed stats (averaged across reps)
             r_vals, r2_vals, slope_vals, intercept_vals, n_vals = [], [], [], [], []

@@ -171,3 +171,71 @@ def finalize_plot(output_path: Any, dpi: int = 150, tight_rect: list[float] | No
             plt.tight_layout()
     plt.savefig(output_path, dpi=dpi, bbox_inches="tight")
     plt.close()
+
+
+def draw_split_violin(
+    ax, data_left, data_right, pos,
+    color_left='C0', color_right='C1',
+    width=0.8,
+):
+    """Draw a split violin at *pos* (left half / right half).
+
+    Replicates seaborn's ``violinplot(split=True, cut=0)`` using raw
+    matplotlib, which is significantly faster for large arrays.
+    """
+    for data, color, side in [
+        (data_left, color_left, 'left'),
+        (data_right, color_right, 'right'),
+    ]:
+        if data is None or len(data) < 2:
+            continue
+        parts = ax.violinplot(
+            [data], positions=[pos],
+            showmeans=False, showmedians=False, showextrema=False,
+            widths=width,
+        )
+        for body in parts['bodies']:
+            verts = body.get_paths()[0].vertices
+            if side == 'left':
+                verts[:, 0] = np.clip(verts[:, 0], -np.inf, pos)
+            else:
+                verts[:, 0] = np.clip(verts[:, 0], pos, np.inf)
+            body.set_facecolor(color)
+            body.set_edgecolor('black')
+            body.set_linewidth(0.8)
+            body.set_alpha(1.0)
+        # Inner box: Q1–Q3 bar + median dot (matches seaborn inner="box")
+        q1, med, q3 = np.percentile(data, [25, 50, 75])
+        x_inner = pos - width * 0.06 if side == 'left' else pos + width * 0.06
+        ax.vlines(x_inner, q1, q3, color='black', linewidth=1.5, zorder=4)
+        ax.plot(x_inner, med, 'o', color='white', ms=3, mew=0, zorder=5)
+
+
+def draw_colored_violins(
+    ax, datasets, positions, colors,
+    alpha=0.7, width=0.8, zorder=3,
+):
+    """Draw violins at *positions* with per-category *colors*.
+
+    Replicates seaborn's ``violinplot(inner=None, cut=0)`` for
+    categorically-coloured violin groups.  Only groups with >= 2 values
+    are drawn.
+    """
+    valid = [
+        (p, d, c)
+        for p, d, c in zip(positions, datasets, colors)
+        if len(d) >= 2
+    ]
+    if not valid:
+        return
+    v_pos, v_data, v_colors = zip(*valid)
+    parts = ax.violinplot(
+        list(v_data), positions=list(v_pos),
+        showmeans=False, showmedians=False, showextrema=False,
+        widths=width,
+    )
+    for body, color in zip(parts['bodies'], v_colors):
+        body.set_facecolor(color)
+        body.set_edgecolor('none')
+        body.set_alpha(alpha)
+        body.set_zorder(zorder)

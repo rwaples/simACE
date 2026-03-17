@@ -20,7 +20,7 @@ from pathlib import Path
 from sim_ace.utils import yaml_loader
 _yaml_loader = yaml_loader()
 
-from sim_ace.utils import PAIR_TYPES, PAIR_COLORS, save_placeholder_plot, finalize_plot, annotate_heatmap, HEATMAP_CMAP
+from sim_ace.utils import PAIR_TYPES, PAIR_COLORS, save_placeholder_plot, finalize_plot, annotate_heatmap, HEATMAP_CMAP, draw_split_violin, draw_colored_violins
 
 import logging
 logger = logging.getLogger(__name__)
@@ -117,30 +117,22 @@ def plot_prevalence_by_generation(all_stats: list[dict[str, Any]], prevalence1: 
 
 def plot_liability_violin(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
     """Split violin: liability distribution by affected status, per trait."""
-    violin_data = pd.concat(
-        [
-            pd.DataFrame({
-                "Trait": "Trait 1",
-                "Liability": df_samples["liability1"],
-                "Affected": df_samples["affected1"],
-            }),
-            pd.DataFrame({
-                "Trait": "Trait 2",
-                "Liability": df_samples["liability2"],
-                "Affected": df_samples["affected2"],
-            }),
-        ],
-        ignore_index=True,
-    )
-
     prev1 = np.mean([s["prevalence"]["trait1"]["overall"] for s in all_stats])
     prev2 = np.mean([s["prevalence"]["trait2"]["overall"] for s in all_stats])
 
     fig, ax = plt.subplots(figsize=(8, 6))
-    sns.violinplot(
-        data=violin_data, x="Trait", y="Liability", hue="Affected",
-        split=True, cut=0, ax=ax,
-    )
+    for i, trait_num in enumerate([1, 2]):
+        liab = df_samples[f"liability{trait_num}"].values
+        aff = df_samples[f"affected{trait_num}"].values.astype(bool)
+        draw_split_violin(ax, liab[~aff], liab[aff], pos=i)
+    ax.set_xticks([0, 1])
+    ax.set_xticklabels(["Trait 1", "Trait 2"])
+    ax.set_ylabel("Liability")
+    from matplotlib.patches import Patch
+    ax.legend(handles=[
+        Patch(facecolor='C0', edgecolor='black', linewidth=0.8, label='0'),
+        Patch(facecolor='C1', edgecolor='black', linewidth=0.8, label='1'),
+    ], title="Affected")
     ax.set_title(
         f"Liability by Affected Status (Liability Threshold) [{scenario}]"
     )
@@ -196,23 +188,21 @@ def plot_liability_violin_by_generation(df_samples: pd.DataFrame, all_stats: lis
             gen_mask = df_samples["generation"] == gen
             df_gen = df_samples.loc[gen_mask]
 
-            violin_data = pd.DataFrame({
-                "Trait": f"Trait {trait_num}",
-                "Liability": df_gen[liab_col].values,
-                "Affected": df_gen[aff_col].values,
-            })
+            liab = df_gen[liab_col].values
+            aff = df_gen[aff_col].values.astype(bool)
 
-            if len(violin_data) > 1:
-                sns.violinplot(
-                    data=violin_data, x="Trait", y="Liability",
-                    hue="Affected", split=True,
-                    legend=(row == 0 and col == n_gens - 1),
-                    ax=ax, cut=0,
-                )
+            if len(liab) > 1:
+                draw_split_violin(ax, liab[~aff], liab[aff], pos=0)
+                ax.set_xticks([0])
+                ax.set_xticklabels([f"Trait {trait_num}"])
+                if row == 0 and col == n_gens - 1:
+                    from matplotlib.patches import Patch
+                    ax.legend(handles=[
+                        Patch(facecolor='C0', edgecolor='black', linewidth=0.8, label='0'),
+                        Patch(facecolor='C1', edgecolor='black', linewidth=0.8, label='1'),
+                    ], title="Affected", fontsize=8)
 
                 # Annotate means
-                liab = df_gen[liab_col].values
-                aff = df_gen[aff_col].values.astype(bool)
                 if aff.any():
                     mu = liab[aff].mean()
                     ax.plot(0.05, mu, "D", color="black", markersize=5, zorder=5)
@@ -288,14 +278,9 @@ def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, s
         df_plot = pd.DataFrame(rows)
 
         if not df_plot.empty:
-            sns.violinplot(
-                data=df_plot, x="pair_type", y="r", hue="pair_type", ax=ax,
-                order=pair_types, palette=pair_colors, legend=False,
-                inner=None, cut=0, alpha=0.7, zorder=3,
-            )
-            # Remove any auto-generated seaborn legend
-            if ax.get_legend() is not None:
-                ax.get_legend().remove()
+            datasets = [df_plot.loc[df_plot["pair_type"] == pt, "r"].values for pt in pair_types]
+            colors = [pair_colors[pt] for pt in pair_types]
+            draw_colored_violins(ax, datasets, list(range(len(pair_types))), colors)
 
             # Per-rep dots
             for i, ptype in enumerate(pair_types):
@@ -450,8 +435,8 @@ def plot_liability_joint(df_samples: pd.DataFrame, output_path: str | Path, scen
             (~affected, "C0", 0.2, "Unaffected"),
             (affected, "C3", 0.5, "Affected (T1)"),
         ]:
-            ax_joint.scatter(
-                x[mask], y[mask], c=color, alpha=alpha, s=3, rasterized=True, label=label,
+            ax_joint.plot(
+                x[mask], y[mask], 'o', ms=2, mew=0, color=color, alpha=alpha, rasterized=True, label=label,
             )
 
         ax_marg_x.hist(x[~affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.5, color="C0")

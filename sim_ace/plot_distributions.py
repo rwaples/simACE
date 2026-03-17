@@ -148,7 +148,7 @@ def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, An
         ax_marg_x = fig.add_subplot(inner[0, 0], sharex=ax_joint)
         ax_marg_y = fig.add_subplot(inner[1, 1], sharey=ax_joint)
 
-        ax_joint.scatter(x, y, alpha=0.15, s=3, rasterized=True)
+        ax_joint.plot(x, y, 'o', ms=2, mew=0, alpha=0.15, rasterized=True)
         x_line = np.array([x.min(), x.max()])
         ax_joint.plot(
             x_line, mean_slope * x_line + mean_intercept,

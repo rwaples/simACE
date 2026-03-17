@@ -6,8 +6,8 @@ import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 from matplotlib.backends.backend_pdf import PdfPages
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -487,7 +487,7 @@ def assemble_atlas(
                 logger.warning("Atlas: skipping missing plot %s", path)
                 continue
 
-            img = mpimg.imread(str(path))
+            img = Image.open(str(path))
             basename = path.stem
             caption = captions.get(basename, "")
 
