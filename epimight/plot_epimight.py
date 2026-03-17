@@ -128,6 +128,8 @@ def discover_kinds(tsv_dir: Path) -> list[str]:
     found = set()
     for p in tsv_dir.glob("h2_d1_*.tsv"):
         kind = p.stem.replace("h2_d1_", "")
+        if kind.startswith("meta_"):
+            continue
         found.add(kind)
     ordered = [k for k in KIND_ORDER if k in found]
     extras = sorted(found - set(KIND_ORDER))

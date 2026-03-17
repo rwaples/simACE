@@ -543,238 +543,608 @@ scenarios:
 
   # ── Beck et al. 2024 — sex-stratified CIF from Danish registers ────
   # Source: Beck CA et al., Acta Psychiatrica Scandinavica 2024.
-  # Mixture cure frailty (lognormal baseline) fitted to full sex-stratified
-  # cumulative incidence curves via analytical CIF + differential evolution.
-  # beta_sex enables sex-stratified onset timing; shared K across sexes.
-  # Only disorders where cure_frailty beat adult_ltm are included.
+  # Mixture cure frailty fitted to full sex-stratified cumulative incidence
+  # curves via analytical CIF + differential evolution (10 parallel workers).
+  # Sex-specific prevalence (K_m, K_f) enables different lifetime risk by sex.
+  # All 22 disorders best-fit by cure_frailty_sx (sex-specific K).
   # Fitting script: notes/beck/fit_beck.py
 
-  beck_any:
+  beck_adhd:
     folder: beck
-    seed: 40042
+    seed: 40000
     phenotype_model1: cure_frailty
     phenotype_model2: cure_frailty
     phenotype_params1:
       baseline: lognormal
-      mu: 4.00547
-      sigma: 0.847333
+      mu: 2.88747
+      sigma: 0.658443
     phenotype_params2:
       baseline: lognormal
-      mu: 4.00547
-      sigma: 0.847333
-    beta1: 1.2286
-    beta2: 1.2286
-    beta_sex1: -0.0709
-    beta_sex2: -0.0709
-    prevalence1: 0.348046
-    prevalence2: 0.348046
+      mu: 2.88747
+      sigma: 0.658443
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: 0.5009
+    beta_sex2: 0.5009
+    prevalence1:
+      female: 0.0481943
+      male: 0.083224
+    prevalence2:
+      female: 0.0481943
+      male: 0.083224
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_anorexia:
+    folder: beck
+    seed: 41000
+    N: 500000  # 5x default — male prevalence 0.1%, EPIMIGHT needs more cases
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: loglogistic
+      scale: 17.9498
+      shape: 6.38412
+    phenotype_params2:
+      baseline: loglogistic
+      scale: 17.9498
+      shape: 6.38412
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: -1.5444
+    beta_sex2: -1.5444
+    prevalence1:
+      female: 0.011211
+      male: 0.00101
+    prevalence2:
+      female: 0.011211
+      male: 0.00101
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_any:
+    folder: beck
+    seed: 42000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 4.09402
+      sigma: 0.876141
+    phenotype_params2:
+      baseline: lognormal
+      mu: 4.09402
+      sigma: 0.876141
+    beta1: 1.2093
+    beta2: 1.2093
+    beta_sex1: 0.3012
+    beta_sex2: 0.3012
+    prevalence1:
+      female: 0.383534
+      male: 0.310272
+    prevalence2:
+      female: 0.383534
+      male: 0.310272
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_antisocial_pd:
+    folder: beck
+    seed: 43000
+    N: 500000  # 5x default — rare disorder (CIF < 0.5%), EPIMIGHT needs more cases
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.57964
+      sigma: 0.439075
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.57964
+      sigma: 0.439075
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: 0.5634
+    beta_sex2: 0.5634
+    prevalence1:
+      female: 0.00101
+      male: 0.004141
+    prevalence2:
+      female: 0.00101
+      male: 0.004141
     C1: 0.0
     C2: 0.0
     rC: 0.0
 
   beck_alcohol:
     folder: beck
-    seed: 41042
+    seed: 44000
     phenotype_model1: cure_frailty
     phenotype_model2: cure_frailty
     phenotype_params1:
       baseline: lognormal
-      mu: 4.26455
-      sigma: 0.606909
+      mu: 3.86762
+      sigma: 0.478226
     phenotype_params2:
       baseline: lognormal
-      mu: 4.26455
-      sigma: 0.606909
+      mu: 3.86762
+      sigma: 0.478226
     beta1: 0.0000
     beta2: 0.0000
-    beta_sex1: 1.0080
-    beta_sex2: 1.0080
-    prevalence1: 0.049835
-    prevalence2: 0.049835
+    beta_sex1: 0.1171
+    beta_sex2: 0.1171
+    prevalence1:
+      female: 0.028374
+      male: 0.0518828
+    prevalence2:
+      female: 0.028374
+      male: 0.0518828
     C1: 0.0
     C2: 0.0
     rC: 0.0
 
   beck_bipolar:
     folder: beck
-    seed: 42042
+    seed: 45000
     phenotype_model1: cure_frailty
     phenotype_model2: cure_frailty
     phenotype_params1:
       baseline: lognormal
-      mu: 3.5941
-      sigma: 0.467645
+      mu: 3.59387
+      sigma: 0.4438
     phenotype_params2:
       baseline: lognormal
-      mu: 3.5941
-      sigma: 0.467645
+      mu: 3.59387
+      sigma: 0.4438
     beta1: 0.0000
     beta2: 0.0000
-    beta_sex1: -0.8160
-    beta_sex2: -0.8160
-    prevalence1: 0.022725
-    prevalence2: 0.022725
+    beta_sex1: -0.3366
+    beta_sex2: -0.3366
+    prevalence1:
+      female: 0.022725
+      male: 0.0168557
+    prevalence2:
+      female: 0.022725
+      male: 0.0168557
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_behavioral_emotional:
+    folder: beck
+    seed: 46000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 2.77422
+      sigma: 0.623862
+    phenotype_params2:
+      baseline: lognormal
+      mu: 2.77422
+      sigma: 0.623862
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: 0.4570
+    beta_sex2: 0.4570
+    prevalence1:
+      female: 0.0721731
+      male: 0.109686
+    prevalence2:
+      female: 0.0721731
+      male: 0.109686
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_borderline_pd:
+    folder: beck
+    seed: 47000
+    N: 300000  # 3x default — male prevalence 0.35%, EPIMIGHT needs more cases
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.21306
+      sigma: 0.267469
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.21306
+      sigma: 0.267469
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: -0.4844
+    beta_sex2: -0.4844
+    prevalence1:
+      female: 0.029795
+      male: 0.003535
+    prevalence2:
+      female: 0.029795
+      male: 0.003535
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_childhood_autism:
+    folder: beck
+    seed: 48000
+    N: 300000  # 3x default — early-onset + low female prevalence (0.6%), sparse 1G pairs
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 2.26882
+      sigma: 0.715217
+    phenotype_params2:
+      baseline: lognormal
+      mu: 2.26882
+      sigma: 0.715217
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: 0.3073
+    beta_sex2: 0.3073
+    prevalence1:
+      female: 0.006161
+      male: 0.019493
+    prevalence2:
+      female: 0.006161
+      male: 0.019493
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_cannabis:
+    folder: beck
+    seed: 49000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.16298
+      sigma: 0.273704
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.16298
+      sigma: 0.273704
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: -0.4077
+    beta_sex2: -0.4077
+    prevalence1:
+      female: 0.01212
+      male: 0.0303
+    prevalence2:
+      female: 0.01212
+      male: 0.0303
     C1: 0.0
     C2: 0.0
     rC: 0.0
 
   beck_depression:
     folder: beck
-    seed: 43042
+    seed: 50000
     phenotype_model1: cure_frailty
     phenotype_model2: cure_frailty
     phenotype_params1:
       baseline: lognormal
-      mu: 3.4564
-      sigma: 0.496442
+      mu: 3.45366
+      sigma: 0.467113
     phenotype_params2:
       baseline: lognormal
-      mu: 3.4564
-      sigma: 0.496442
+      mu: 3.45366
+      sigma: 0.467113
     beta1: 0.0000
     beta2: 0.0000
-    beta_sex1: -1.1032
-    beta_sex2: -1.1032
-    prevalence1: 0.156247
-    prevalence2: 0.156247
+    beta_sex1: -0.2698
+    beta_sex2: -0.2698
+    prevalence1:
+      female: 0.156247
+      male: 0.0950861
+    prevalence2:
+      female: 0.156247
+      male: 0.0950861
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_eating:
+    folder: beck
+    seed: 51000
+    N: 300000  # 3x default — male prevalence 0.27%, EPIMIGHT needs more cases
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.00165
+      sigma: 0.300394
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.00165
+      sigma: 0.300394
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: 0.4148
+    beta_sex2: 0.4148
+    prevalence1:
+      female: 0.037471
+      male: 0.002727
+    prevalence2:
+      female: 0.037471
+      male: 0.002727
     C1: 0.0
     C2: 0.0
     rC: 0.0
 
   beck_intellectual_disability:
     folder: beck
-    seed: 44042
+    seed: 52000
     phenotype_model1: cure_frailty
     phenotype_model2: cure_frailty
     phenotype_params1:
       baseline: lognormal
-      mu: 3.64598
-      sigma: 1.20264
+      mu: 3.14882
+      sigma: 0.964524
     phenotype_params2:
       baseline: lognormal
-      mu: 3.64598
-      sigma: 1.20264
+      mu: 3.14882
+      sigma: 0.964524
     beta1: 0.0000
     beta2: 0.0000
-    beta_sex1: 1.0595
-    beta_sex2: 1.0595
-    prevalence1: 0.020301
-    prevalence2: 0.020301
+    beta_sex1: 0.5844
+    beta_sex2: 0.5844
+    prevalence1:
+      female: 0.0150605
+      male: 0.020301
+    prevalence2:
+      female: 0.0150605
+      male: 0.020301
     C1: 0.0
     C2: 0.0
     rC: 0.0
 
   beck_mood:
     folder: beck
-    seed: 45042
+    seed: 53000
     phenotype_model1: cure_frailty
     phenotype_model2: cure_frailty
     phenotype_params1:
       baseline: lognormal
-      mu: 3.45468
-      sigma: 0.490733
+      mu: 3.452
+      sigma: 0.461638
     phenotype_params2:
       baseline: lognormal
-      mu: 3.45468
-      sigma: 0.490733
+      mu: 3.452
+      sigma: 0.461638
     beta1: 0.0000
     beta2: 0.0000
-    beta_sex1: -1.0658
-    beta_sex2: -1.0658
-    prevalence1: 0.168367
-    prevalence2: 0.168367
+    beta_sex1: -0.2669
+    beta_sex2: -0.2669
+    prevalence1:
+      female: 0.168367
+      male: 0.10525
+    prevalence2:
+      female: 0.168367
+      male: 0.10525
     C1: 0.0
     C2: 0.0
     rC: 0.0
 
   beck_neurotic_stress:
     folder: beck
-    seed: 46042
+    seed: 54000
     phenotype_model1: cure_frailty
     phenotype_model2: cure_frailty
     phenotype_params1:
       baseline: lognormal
-      mu: 3.29034
-      sigma: 0.549272
+      mu: 4.07778
+      sigma: 0.678922
     phenotype_params2:
       baseline: lognormal
-      mu: 3.29034
-      sigma: 0.549272
+      mu: 4.07778
+      sigma: 0.678922
+    beta1: 1.2636
+    beta2: 1.2636
+    beta_sex1: -0.4124
+    beta_sex2: -0.4124
+    prevalence1:
+      female: 0.236239
+      male: 0.164327
+    prevalence2:
+      female: 0.236239
+      male: 0.164327
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_ocd:
+    folder: beck
+    seed: 55000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.0878
+      sigma: 0.50329
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.0878
+      sigma: 0.50329
     beta1: 0.0000
     beta2: 0.0000
-    beta_sex1: -0.8350
-    beta_sex2: -0.8350
-    prevalence1: 0.236239
-    prevalence2: 0.236239
+    beta_sex1: 0.2192
+    beta_sex2: 0.2192
+    prevalence1:
+      female: 0.0244746
+      male: 0.013837
+    prevalence2:
+      female: 0.0244746
+      male: 0.013837
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_pervasive_developmental:
+    folder: beck
+    seed: 56000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 6.38507
+      sigma: 1.32457
+    phenotype_params2:
+      baseline: lognormal
+      mu: 6.38507
+      sigma: 1.32457
+    beta1: 2.4644
+    beta2: 2.4644
+    beta_sex1: 1.3871
+    beta_sex2: 1.3871
+    prevalence1:
+      female: 0.02929
+      male: 0.060095
+    prevalence2:
+      female: 0.02929
+      male: 0.060095
     C1: 0.0
     C2: 0.0
     rC: 0.0
 
   beck_schizoaffective:
     folder: beck
-    seed: 47042
+    seed: 57000
+    N: 500000  # 5x default — rare disorder (CIF < 0.5%), EPIMIGHT needs more cases
     phenotype_model1: cure_frailty
     phenotype_model2: cure_frailty
     phenotype_params1:
       baseline: lognormal
-      mu: 3.60274
-      sigma: 0.545192
+      mu: 3.60866
+      sigma: 0.492055
     phenotype_params2:
       baseline: lognormal
-      mu: 3.60274
-      sigma: 0.545192
+      mu: 3.60866
+      sigma: 0.492055
     beta1: 0.0000
     beta2: 0.0000
-    beta_sex1: -0.7014
-    beta_sex2: -0.7014
-    prevalence1: 0.00287994
-    prevalence2: 0.00287994
+    beta_sex1: -0.0748
+    beta_sex2: -0.0748
+    prevalence1:
+      female: 0.00287138
+      male: 0.00198684
+    prevalence2:
+      female: 0.00287138
+      male: 0.00198684
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_schizophrenia:
+    folder: beck
+    seed: 58000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.29601
+      sigma: 0.339998
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.29601
+      sigma: 0.339998
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: -0.1487
+    beta_sex2: -0.1487
+    prevalence1:
+      female: 0.017574
+      male: 0.021816
+    prevalence2:
+      female: 0.017574
+      male: 0.021816
+    C1: 0.0
+    C2: 0.0
+    rC: 0.0
+
+  beck_specific_pd:
+    folder: beck
+    seed: 59000
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.26766
+      sigma: 0.304929
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.26766
+      sigma: 0.304929
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: -0.4435
+    beta_sex2: -0.4435
+    prevalence1:
+      female: 0.072013
+      male: 0.031209
+    prevalence2:
+      female: 0.072013
+      male: 0.031209
     C1: 0.0
     C2: 0.0
     rC: 0.0
 
   beck_schizophrenia_related:
     folder: beck
-    seed: 48042
+    seed: 60000
     phenotype_model1: cure_frailty
     phenotype_model2: cure_frailty
     phenotype_params1:
       baseline: lognormal
-      mu: 3.44245
-      sigma: 0.481796
+      mu: 3.3306
+      sigma: 0.424404
     phenotype_params2:
       baseline: lognormal
-      mu: 3.44245
-      sigma: 0.481796
+      mu: 3.3306
+      sigma: 0.424404
     beta1: 0.0000
     beta2: 0.0000
-    beta_sex1: 0.1756
-    beta_sex2: 0.1756
-    prevalence1: 0.04545
-    prevalence2: 0.04545
+    beta_sex1: -0.0818
+    beta_sex2: -0.0818
+    prevalence1:
+      female: 0.041309
+      male: 0.04545
+    prevalence2:
+      female: 0.041309
+      male: 0.04545
     C1: 0.0
     C2: 0.0
     rC: 0.0
 
   beck_substance_use:
     folder: beck
-    seed: 49042
+    seed: 61000
     phenotype_model1: cure_frailty
     phenotype_model2: cure_frailty
     phenotype_params1:
       baseline: lognormal
-      mu: 4.12234
-      sigma: 0.641388
+      mu: 3.56234
+      sigma: 0.44941
     phenotype_params2:
       baseline: lognormal
-      mu: 4.12234
-      sigma: 0.641388
+      mu: 3.56234
+      sigma: 0.44941
     beta1: 0.0000
     beta2: 0.0000
-    beta_sex1: 1.2388
-    beta_sex2: 1.2388
-    prevalence1: 0.077669
-    prevalence2: 0.077669
+    beta_sex1: 0.1274
+    beta_sex2: 0.1274
+    prevalence1:
+      female: 0.041511
+      male: 0.077669
+    prevalence2:
+      female: 0.041511
+      male: 0.077669
     C1: 0.0
     C2: 0.0
     rC: 0.0

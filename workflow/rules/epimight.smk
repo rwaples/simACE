@@ -82,6 +82,16 @@ rule epimight_atlas:
         "../scripts/epimight_atlas.py"
 
 
+rule epimight_folder:
+    """Run EPIMIGHT analysis for all scenarios in a folder."""
+    input:
+        lambda w: [f"results/{w.folder}/{s}/rep{r}/epimight/plots/atlas.pdf"
+                   for s in get_scenarios_for_folder(config, w.folder)
+                   for r in range(1, get_param(config, s, "replicates") + 1)]
+    output:
+        touch("results/{folder}/epimight.done")
+
+
 rule epimight_all:
     """Run EPIMIGHT analysis for all scenarios and replicates."""
     input:
