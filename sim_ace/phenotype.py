@@ -45,11 +45,10 @@ import numpy as np
 import pandas as pd
 from numba import njit, prange
 from scipy.stats import gamma as gamma_dist
-
 from scipy.stats import norm
 
-from sim_ace.utils import save_parquet
 from sim_ace.compute_hazard_terms import compute_hazard_terms
+from sim_ace.utils import save_parquet
 
 logger = logging.getLogger(__name__)
 
@@ -58,32 +57,33 @@ logger = logging.getLogger(__name__)
 # Numba kernels — fuse frailty computation + inversion in a single pass
 # ---------------------------------------------------------------------------
 
+
 @njit(cache=True)
 def _ndtri_approx(p):
     """Acklam rational approximation for the normal quantile (~1e-9 accuracy)."""
-    a0, a1, a2 = -3.969683028665376e+01, 2.209460984245205e+02, -2.759285104469687e+02
-    a3, a4, a5 = 1.383577518672690e+02, -3.066479806614716e+01, 2.506628277459239e+00
-    b0, b1, b2 = -5.447609879822406e+01, 1.615858368580409e+02, -1.556989798598866e+02
-    b3, b4     = 6.680131188771972e+01, -1.328068155288572e+01
-    c0, c1, c2 = -7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e+00
-    c3, c4, c5 = -2.549732539343734e+00, 4.374664141464968e+00, 2.938163982698783e+00
-    d0, d1, d2, d3 = 7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e+00, 3.754408661907416e+00
+    a0, a1, a2 = -3.969683028665376e01, 2.209460984245205e02, -2.759285104469687e02
+    a3, a4, a5 = 1.383577518672690e02, -3.066479806614716e01, 2.506628277459239e00
+    b0, b1, b2 = -5.447609879822406e01, 1.615858368580409e02, -1.556989798598866e02
+    b3, b4 = 6.680131188771972e01, -1.328068155288572e01
+    c0, c1, c2 = -7.784894002430293e-03, -3.223964580411365e-01, -2.400758277161838e00
+    c3, c4, c5 = -2.549732539343734e00, 4.374664141464968e00, 2.938163982698783e00
+    d0, d1, d2, d3 = 7.784695709041462e-03, 3.224671290700398e-01, 2.445134137142996e00, 3.754408661907416e00
     p_low = 0.02425
     if p < p_low:
         q = np.sqrt(-2.0 * np.log(p))
-        num = (((((c0*q + c1)*q + c2)*q + c3)*q + c4)*q + c5)
-        den = ((((d0*q + d1)*q + d2)*q + d3)*q + 1.0)
+        num = ((((c0 * q + c1) * q + c2) * q + c3) * q + c4) * q + c5
+        den = (((d0 * q + d1) * q + d2) * q + d3) * q + 1.0
         return num / den
     elif p <= 1.0 - p_low:
         q = p - 0.5
         r = q * q
-        num = (((((a0*r + a1)*r + a2)*r + a3)*r + a4)*r + a5) * q
-        den = (((((b0*r + b1)*r + b2)*r + b3)*r + b4)*r + 1.0)
+        num = (((((a0 * r + a1) * r + a2) * r + a3) * r + a4) * r + a5) * q
+        den = ((((b0 * r + b1) * r + b2) * r + b3) * r + b4) * r + 1.0
         return num / den
     else:
         q = np.sqrt(-2.0 * np.log(1.0 - p))
-        num = (((((c0*q + c1)*q + c2)*q + c3)*q + c4)*q + c5)
-        den = ((((d0*q + d1)*q + d2)*q + d3)*q + 1.0)
+        num = ((((c0 * q + c1) * q + c2) * q + c3) * q + c4) * q + c5
+        den = (((d0 * q + d1) * q + d2) * q + d3) * q + 1.0
         return -(num / den)
 
 
@@ -153,9 +153,9 @@ def _nb_loglogistic(neg_log_u, liability, mean, scaled_beta, alpha, inv_k):
 # Python wrappers — unpack params dict, call numba kernel
 # ---------------------------------------------------------------------------
 
+
 def _invert_weibull(neg_log_u, liability, mean, scaled_beta, params):
-    return _nb_weibull(neg_log_u, liability, mean, scaled_beta,
-                       params["scale"], 1.0 / params["rho"])
+    return _nb_weibull(neg_log_u, liability, mean, scaled_beta, params["scale"], 1.0 / params["rho"])
 
 
 def _invert_exponential(neg_log_u, liability, mean, scaled_beta, params):
@@ -169,13 +169,11 @@ def _invert_gompertz(neg_log_u, liability, mean, scaled_beta, params):
 
 
 def _invert_lognormal(neg_log_u, liability, mean, scaled_beta, params):
-    return _nb_lognormal(neg_log_u, liability, mean, scaled_beta,
-                         params["mu"], params["sigma"])
+    return _nb_lognormal(neg_log_u, liability, mean, scaled_beta, params["mu"], params["sigma"])
 
 
 def _invert_loglogistic(neg_log_u, liability, mean, scaled_beta, params):
-    return _nb_loglogistic(neg_log_u, liability, mean, scaled_beta,
-                           params["scale"], 1.0 / params["shape"])
+    return _nb_loglogistic(neg_log_u, liability, mean, scaled_beta, params["scale"], 1.0 / params["shape"])
 
 
 def _invert_gamma(neg_log_u, liability, mean, scaled_beta, params):
@@ -189,18 +187,19 @@ def _invert_gamma(neg_log_u, liability, mean, scaled_beta, params):
 
 # Dispatch table: model name → inversion function
 _INVERTERS = {
-    "weibull":     _invert_weibull,
+    "weibull": _invert_weibull,
     "exponential": _invert_exponential,
-    "gompertz":    _invert_gompertz,
-    "lognormal":   _invert_lognormal,
+    "gompertz": _invert_gompertz,
+    "lognormal": _invert_lognormal,
     "loglogistic": _invert_loglogistic,
-    "gamma":       _invert_gamma,
+    "gamma": _invert_gamma,
 }
 
 
 # ---------------------------------------------------------------------------
 # Core simulation
 # ---------------------------------------------------------------------------
+
 
 def simulate_phenotype(
     liability: np.ndarray,
@@ -251,13 +250,13 @@ def simulate_phenotype(
     if beta_sex != 0.0 and sex is not None:
         neg_log_u = neg_log_u / np.exp(beta_sex * sex)
 
-    return _INVERTERS[hazard_model](neg_log_u, liability, mean, scaled_beta,
-                                    hazard_params)
+    return _INVERTERS[hazard_model](neg_log_u, liability, mean, scaled_beta, hazard_params)
 
 
 # ---------------------------------------------------------------------------
 # ADuLT phenotype models (Pedersen et al., Nat Commun 2023)
 # ---------------------------------------------------------------------------
+
 
 def phenotype_adult_ltm(
     liability: np.ndarray,
@@ -314,8 +313,8 @@ def phenotype_adult_ltm(
         if std > 0:
             L = (L - L.mean()) / std
 
-    threshold = norm.ppf(1.0 - prevalence)   # scalar or per-individual
-    is_case = L > threshold
+    threshold = norm.ppf(1.0 - prevalence)  # scalar or per-individual
+    is_case = threshold < L
 
     t = np.full(len(L), 1e6)
     n_cases = is_case.sum()
@@ -416,6 +415,7 @@ def phenotype_adult_cox(
 # Mixture cure frailty model (Berkson & Gage 1952, Farewell 1982)
 # ---------------------------------------------------------------------------
 
+
 def phenotype_cure_frailty(
     liability: np.ndarray,
     prevalence: float | np.ndarray,
@@ -462,8 +462,8 @@ def phenotype_cure_frailty(
         mean = 0.0
         scaled_beta = beta
 
-    threshold = norm.ppf(1.0 - prevalence)   # vectorized for array prevalence
-    is_case = L > threshold
+    threshold = norm.ppf(1.0 - prevalence)  # vectorized for array prevalence
+    is_case = threshold < L
 
     t = np.full(n, 1e6)
     n_cases = is_case.sum()
@@ -475,7 +475,11 @@ def phenotype_cure_frailty(
             neg_log_u = neg_log_u / np.exp(beta_sex * sex[is_case])
 
         t[is_case] = _INVERTERS[baseline](
-            neg_log_u, L[is_case], mean, scaled_beta, hazard_params,
+            neg_log_u,
+            L[is_case],
+            mean,
+            scaled_beta,
+            hazard_params,
         )
 
     return t
@@ -497,10 +501,7 @@ def _prevalence_to_array(prev, generation):
             mask = generation == gen
             gen_key = int(gen)
             if gen_key not in prev:
-                raise ValueError(
-                    f"prevalence dict missing generation {gen_key}; "
-                    f"dict has keys {sorted(prev.keys())}"
-                )
+                raise ValueError(f"prevalence dict missing generation {gen_key}; dict has keys {sorted(prev.keys())}")
             arr[mask] = prev[gen_key]
         return arr
     return prev
@@ -524,16 +525,18 @@ def _resolve_prevalence(params, trait_num, sex, generation):
         m_prev = _prevalence_to_array(prev["male"], generation)
         return np.where(sex == 1, m_prev, f_prev)
     return _prevalence_to_array(prev, generation)
+
+
 _ALL_PHENOTYPE_MODELS = sorted(_FRAILTY_MODELS | _ADULT_MODELS | _CURE_MODELS)
 
 # Parameter names required per model
 _MODEL_PARAMS: dict[str, list[str]] = {
-    "weibull":     ["scale", "rho"],
+    "weibull": ["scale", "rho"],
     "exponential": ["rate"],
-    "gompertz":    ["rate", "gamma"],
-    "lognormal":   ["mu", "sigma"],
+    "gompertz": ["rate", "gamma"],
+    "lognormal": ["mu", "sigma"],
     "loglogistic": ["scale", "shape"],
-    "gamma":       ["shape", "scale"],
+    "gamma": ["shape", "scale"],
 }
 _ADULT_PARAMS: dict[str, list[str]] = {
     "adult_ltm": ["cip_x0", "cip_k"],
@@ -542,7 +545,9 @@ _ADULT_PARAMS: dict[str, list[str]] = {
 
 
 def _validate_phenotype_params(
-    model: str, phenotype_params: dict, trait_num: int,
+    model: str,
+    phenotype_params: dict,
+    trait_num: int,
 ) -> None:
     """Validate that phenotype_params contains the required keys for the model.
 
@@ -567,23 +572,19 @@ def _validate_phenotype_params(
             )
         required = set(_MODEL_PARAMS[baseline]) | {"baseline"}
     else:
-        raise ValueError(
-            f"Unknown phenotype_model{trait_num}={model!r}; "
-            f"valid models: {_ALL_PHENOTYPE_MODELS}"
-        )
+        raise ValueError(f"Unknown phenotype_model{trait_num}={model!r}; valid models: {_ALL_PHENOTYPE_MODELS}")
 
     provided = set(phenotype_params.keys())
     missing = required - provided
     if missing:
-        raise ValueError(
-            f"phenotype_params{trait_num} missing required keys for "
-            f"model {model!r}: {sorted(missing)}"
-        )
+        raise ValueError(f"phenotype_params{trait_num} missing required keys for model {model!r}: {sorted(missing)}")
     extra = provided - required
     if extra:
         logger.warning(
             "phenotype_params%d has unexpected keys for model %r: %s (ignored)",
-            trait_num, model, sorted(extra),
+            trait_num,
+            model,
+            sorted(extra),
         )
 
 
@@ -616,15 +617,15 @@ def _simulate_one_trait(
         prevalence = _resolve_prevalence(params, trait_num, sex, generation)
         func = phenotype_adult_ltm if model == "adult_ltm" else phenotype_adult_cox
         return func(
-            liability   = pedigree[f"liability{trait_num}"].values,
-            prevalence  = prevalence,
-            beta        = params[f"beta{trait_num}"],
-            cip_x0      = phenotype_params.get("cip_x0", 50.0),
-            cip_k       = phenotype_params.get("cip_k", 0.2),
-            seed        = seed,
-            standardize = params["standardize"],
-            sex         = sex,
-            beta_sex    = params.get(f"beta_sex{trait_num}", 0.0),
+            liability=pedigree[f"liability{trait_num}"].values,
+            prevalence=prevalence,
+            beta=params[f"beta{trait_num}"],
+            cip_x0=phenotype_params.get("cip_x0", 50.0),
+            cip_k=phenotype_params.get("cip_k", 0.2),
+            seed=seed,
+            standardize=params["standardize"],
+            sex=sex,
+            beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
         )
 
     if model in _CURE_MODELS:
@@ -633,27 +634,27 @@ def _simulate_one_trait(
         prevalence = _resolve_prevalence(params, trait_num, sex, generation)
         hazard_params = {k: v for k, v in phenotype_params.items() if k != "baseline"}
         return phenotype_cure_frailty(
-            liability     = pedigree[f"liability{trait_num}"].values,
-            prevalence    = prevalence,
-            beta          = params[f"beta{trait_num}"],
-            baseline      = phenotype_params["baseline"],
-            hazard_params = hazard_params,
-            seed          = seed,
-            standardize   = params["standardize"],
-            sex           = pedigree["sex"].values,
-            beta_sex      = params.get(f"beta_sex{trait_num}", 0.0),
+            liability=pedigree[f"liability{trait_num}"].values,
+            prevalence=prevalence,
+            beta=params[f"beta{trait_num}"],
+            baseline=phenotype_params["baseline"],
+            hazard_params=hazard_params,
+            seed=seed,
+            standardize=params["standardize"],
+            sex=pedigree["sex"].values,
+            beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
         )
 
     # Frailty model
     return simulate_phenotype(
-        liability     = pedigree[f"liability{trait_num}"].values,
-        beta          = params[f"beta{trait_num}"],
-        hazard_model  = model,
-        hazard_params = phenotype_params,
-        seed          = seed,
-        standardize   = params["standardize"],
-        sex           = pedigree["sex"].values,
-        beta_sex      = params.get(f"beta_sex{trait_num}", 0.0),
+        liability=pedigree[f"liability{trait_num}"].values,
+        beta=params[f"beta{trait_num}"],
+        hazard_model=model,
+        hazard_params=phenotype_params,
+        seed=seed,
+        standardize=params["standardize"],
+        sex=pedigree["sex"].values,
+        beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
     )
 
 
@@ -678,37 +679,38 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     max_gen = pedigree["generation"].max()
     min_gen = max_gen - params["G_pheno"] + 1
     if min_gen < 0:
-        raise ValueError(
-            f"G_pheno ({params['G_pheno']}) exceeds available generations ({max_gen + 1})"
-        )
+        raise ValueError(f"G_pheno ({params['G_pheno']}) exceeds available generations ({max_gen + 1})")
     pedigree = pedigree[pedigree["generation"] >= min_gen].reset_index(drop=True)
 
     t1 = _simulate_one_trait(pedigree, params, trait_num=1, seed_offset=0)
     t2 = _simulate_one_trait(pedigree, params, trait_num=2, seed_offset=100)
 
-    phenotype = pd.DataFrame({
-        "id":           pedigree["id"].values,
-        "generation":   pedigree["generation"].values,
-        "sex":          pedigree["sex"].values,
-        "household_id": pedigree["household_id"].values,
-        "mother":       pedigree["mother"].values,
-        "father":       pedigree["father"].values,
-        "twin":         pedigree["twin"].values,
-        "A1":           pedigree["A1"].values,
-        "C1":           pedigree["C1"].values,
-        "E1":           pedigree["E1"].values,
-        "liability1":   pedigree["liability1"].values,
-        "A2":           pedigree["A2"].values,
-        "C2":           pedigree["C2"].values,
-        "E2":           pedigree["E2"].values,
-        "liability2":   pedigree["liability2"].values,
-        "t1":           t1,
-        "t2":           t2,
-    })
+    phenotype = pd.DataFrame(
+        {
+            "id": pedigree["id"].values,
+            "generation": pedigree["generation"].values,
+            "sex": pedigree["sex"].values,
+            "household_id": pedigree["household_id"].values,
+            "mother": pedigree["mother"].values,
+            "father": pedigree["father"].values,
+            "twin": pedigree["twin"].values,
+            "A1": pedigree["A1"].values,
+            "C1": pedigree["C1"].values,
+            "E1": pedigree["E1"].values,
+            "liability1": pedigree["liability1"].values,
+            "A2": pedigree["A2"].values,
+            "C2": pedigree["C2"].values,
+            "E2": pedigree["E2"].values,
+            "liability2": pedigree["liability2"].values,
+            "t1": t1,
+            "t2": t2,
+        }
+    )
 
     logger.info(
         "Phenotype simulation complete in %.1fs: %d individuals",
-        time.perf_counter() - t0, len(phenotype),
+        time.perf_counter() - t0,
+        len(phenotype),
     )
     return phenotype
 
@@ -716,6 +718,7 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
+
 
 def cli() -> None:
     """Command-line interface for phenotype simulation."""
@@ -726,54 +729,54 @@ def cli() -> None:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     add_logging_args(parser)
-    parser.add_argument("--pedigree",    required=True)
-    parser.add_argument("--output",      required=True)
-    parser.add_argument("--seed",        type=int,  default=42)
-    parser.add_argument("--G-pheno",     type=int,  default=3)
+    parser.add_argument("--pedigree", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--G-pheno", type=int, default=3)
     parser.add_argument("--standardize", action="store_true", default=True)
-    parser.add_argument("--prevalence1",  type=float, default=0.10)
-    parser.add_argument("--prevalence2",  type=float, default=0.20)
+    parser.add_argument("--prevalence1", type=float, default=0.10)
+    parser.add_argument("--prevalence2", type=float, default=0.20)
 
     for k in (1, 2):
         g = parser.add_argument_group(f"Trait {k}")
         g.add_argument(f"--phenotype-model{k}", choices=_ALL_PHENOTYPE_MODELS, default="weibull")
-        g.add_argument(f"--beta{k}",         type=float, default=1.0)
-        g.add_argument(f"--beta-sex{k}",     type=float, default=0.0)
+        g.add_argument(f"--beta{k}", type=float, default=1.0)
+        g.add_argument(f"--beta-sex{k}", type=float, default=0.0)
         # Frailty model parameters (user only needs to supply what their
         # chosen model requires).
-        g.add_argument(f"--scale{k}",  type=float, default=None)
-        g.add_argument(f"--rho{k}",    type=float, default=None)
-        g.add_argument(f"--rate{k}",   type=float, default=None)
-        g.add_argument(f"--gamma{k}",  type=float, default=None)
-        g.add_argument(f"--mu{k}",     type=float, default=None)
-        g.add_argument(f"--sigma{k}",  type=float, default=None)
-        g.add_argument(f"--shape{k}",  type=float, default=None)
+        g.add_argument(f"--scale{k}", type=float, default=None)
+        g.add_argument(f"--rho{k}", type=float, default=None)
+        g.add_argument(f"--rate{k}", type=float, default=None)
+        g.add_argument(f"--gamma{k}", type=float, default=None)
+        g.add_argument(f"--mu{k}", type=float, default=None)
+        g.add_argument(f"--sigma{k}", type=float, default=None)
+        g.add_argument(f"--shape{k}", type=float, default=None)
         # ADuLT CIP parameters
-        g.add_argument(f"--cip-x0-{k}",  type=float, default=50.0)
-        g.add_argument(f"--cip-k-{k}",   type=float, default=0.2)
+        g.add_argument(f"--cip-x0-{k}", type=float, default=50.0)
+        g.add_argument(f"--cip-k-{k}", type=float, default=0.2)
 
     args = parser.parse_args()
     init_logging(args)
 
-    pm1 = getattr(args, "phenotype_model1")
-    pm2 = getattr(args, "phenotype_model2")
+    pm1 = args.phenotype_model1
+    pm2 = args.phenotype_model2
     params = {
-        "G_pheno":          args.G_pheno,
-        "seed":             args.seed,
-        "standardize":      args.standardize,
+        "G_pheno": args.G_pheno,
+        "seed": args.seed,
+        "standardize": args.standardize,
         "phenotype_model1": pm1,
         "phenotype_model2": pm2,
-        "prevalence1":      args.prevalence1,
-        "prevalence2":      args.prevalence2,
-        "beta1":            args.beta1,
-        "beta_sex1":        getattr(args, "beta_sex1"),
+        "prevalence1": args.prevalence1,
+        "prevalence2": args.prevalence2,
+        "beta1": args.beta1,
+        "beta_sex1": args.beta_sex1,
         "phenotype_params1": _build_phenotype_params(args, trait=1),
-        "beta2":            args.beta2,
-        "beta_sex2":        getattr(args, "beta_sex2"),
+        "beta2": args.beta2,
+        "beta_sex2": args.beta_sex2,
         "phenotype_params2": _build_phenotype_params(args, trait=2),
     }
 
-    pedigree  = pd.read_parquet(args.pedigree)
+    pedigree = pd.read_parquet(args.pedigree)
     phenotype = run_phenotype(pedigree, params)
     save_parquet(phenotype, args.output)
 
@@ -785,7 +788,7 @@ def _build_phenotype_params(args: argparse.Namespace, trait: int) -> dict[str, f
     if model in _ADULT_MODELS:
         return {
             "cip_x0": getattr(args, f"cip_x0_{trait}"),
-            "cip_k":  getattr(args, f"cip_k_{trait}"),
+            "cip_k": getattr(args, f"cip_k_{trait}"),
         }
 
     # Frailty model
@@ -794,8 +797,6 @@ def _build_phenotype_params(args: argparse.Namespace, trait: int) -> dict[str, f
     for key in required:
         val = getattr(args, f"{key}{trait}", None)
         if val is None:
-            raise ValueError(
-                f"--{key}{trait} is required when --phenotype-model{trait}={model}"
-            )
+            raise ValueError(f"--{key}{trait} is required when --phenotype-model{trait}={model}")
         params[key] = val
     return params

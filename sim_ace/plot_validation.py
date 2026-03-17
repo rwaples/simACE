@@ -11,14 +11,21 @@ from collections.abc import Callable
 import pandas as pd
 
 logger = logging.getLogger(__name__)
-import seaborn as sns
-import matplotlib.pyplot as plt
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
 from pathlib import Path
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
-def stripplot(df: pd.DataFrame, ax: Axes, y: str, expected: str | float | None = None, expected_func: Callable[[pd.DataFrame], float] | None = None) -> None:
+
+def stripplot(
+    df: pd.DataFrame,
+    ax: Axes,
+    y: str,
+    expected: str | float | None = None,
+    expected_func: Callable[[pd.DataFrame], float] | None = None,
+) -> None:
     """Stripplot of observed values with optional expected markers.
 
     Args:
@@ -41,8 +48,13 @@ def stripplot(df: pd.DataFrame, ax: Axes, y: str, expected: str | float | None =
                 assert expected is not None
                 val = expected
             ax.scatter(
-                positions[scenario], val,
-                marker="_", s=200, linewidths=3, color="C1", zorder=10,
+                positions[scenario],
+                val,
+                marker="_",
+                s=200,
+                linewidths=3,
+                color="C1",
+                zorder=10,
             )
 
     ax.set_xlabel("")
@@ -56,6 +68,7 @@ def stripplot(df: pd.DataFrame, ax: Axes, y: str, expected: str | float | None =
 
     # Tight y-axis padding based on actual data range
     import numpy as np
+
     data_vals = df[y].dropna().values
     all_vals = list(data_vals)
     if expected_func is not None:
@@ -130,14 +143,10 @@ def plot_A_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
 
 def plot_phenotype_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     panels = [
-        ("mz_twin_liability1_corr", lambda d: d["A1"].iloc[0] + d["C1"].iloc[0],
-         "MZ Twin Liability1 Corr"),
-        ("dz_sibling_liability1_corr", lambda d: 0.5 * d["A1"].iloc[0] + d["C1"].iloc[0],
-         "DZ Sibling Liability1 Corr"),
-        ("half_sib_liability1_corr", lambda d: 0.25 * d["A1"].iloc[0],
-         "Half-Sib Liability1 Corr"),
-        ("parent_offspring_liability1_slope", lambda d: d["A1"].iloc[0],
-         "Midparent-Offspring Liability1 Slope"),
+        ("mz_twin_liability1_corr", lambda d: d["A1"].iloc[0] + d["C1"].iloc[0], "MZ Twin Liability1 Corr"),
+        ("dz_sibling_liability1_corr", lambda d: 0.5 * d["A1"].iloc[0] + d["C1"].iloc[0], "DZ Sibling Liability1 Corr"),
+        ("half_sib_liability1_corr", lambda d: 0.25 * d["A1"].iloc[0], "Half-Sib Liability1 Corr"),
+        ("parent_offspring_liability1_slope", lambda d: d["A1"].iloc[0], "Midparent-Offspring Liability1 Slope"),
     ]
     fig, axes = plt.subplots(2, 2, figsize=_figsize(nrows=2, ncols=2))
     for ax, (col, efn, title) in zip(axes.flat, panels):
@@ -202,17 +211,31 @@ def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         sdf = df[df["scenario"] == scenario]
         x = positions[scenario]
         ax.scatter(
-            [x - width / 2] * len(sdf), sdf["mother_mean_offspring"],
-            color="C0", alpha=0.9, s=30, zorder=5,
+            [x - width / 2] * len(sdf),
+            sdf["mother_mean_offspring"],
+            color="C0",
+            alpha=0.9,
+            s=30,
+            zorder=5,
         )
         ax.scatter(
-            [x + width / 2] * len(sdf), sdf["father_mean_offspring"],
-            color="C3", alpha=0.9, s=30, zorder=5,
+            [x + width / 2] * len(sdf),
+            sdf["father_mean_offspring"],
+            color="C3",
+            alpha=0.9,
+            s=30,
+            zorder=5,
         )
         # Expected fam_size marker
         expected = sdf["fam_size"].iloc[0]
         ax.scatter(
-            x, expected, marker="_", s=200, linewidths=3, color="C1", zorder=10,
+            x,
+            expected,
+            marker="_",
+            s=200,
+            linewidths=3,
+            color="C1",
+            zorder=10,
         )
 
     ax.set_xticks(range(len(scenarios)))
@@ -227,6 +250,7 @@ def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     ax.set_title("Family Size: Mean Offspring per Mother and Father (parents with children only)")
 
     from matplotlib.lines import Line2D
+
     legend = [
         Line2D([0], [0], marker="o", color="w", markerfacecolor="C0", markersize=6, label="Mother"),
         Line2D([0], [0], marker="o", color="w", markerfacecolor="C3", markersize=6, label="Father"),
@@ -246,14 +270,19 @@ def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     dp["Half-sib A1 Bias"] = dp["half_sib_A1_corr"] - 0.25
 
     panels = [
-        "A1 Bias", "C1 Bias", "E1 Bias",
-        "Twin Rate Bias", "DZ A1 Corr Bias", "Half-sib A1 Bias",
+        "A1 Bias",
+        "C1 Bias",
+        "E1 Bias",
+        "Twin Rate Bias",
+        "DZ A1 Corr Bias",
+        "Half-sib A1 Bias",
     ]
     scenarios = dp["scenario"].unique()
     n = len(scenarios)
     _long = max((len(str(s)) for s in scenarios), default=0) > 12
     fig, axes = plt.subplots(2, 3, figsize=_figsize(nrows=2, ncols=3))
     import numpy as np
+
     for ax, col in zip(axes.flat, panels):
         sns.stripplot(data=dp, x="scenario", y=col, ax=ax, alpha=0.9, jitter=0.15)
         ax.axhline(y=0, color="red", linestyle="--", alpha=0.5)
@@ -281,8 +310,7 @@ def _format_log_axes(ax: Axes) -> None:
     Places major ticks at 1, 2, 5 × 10^n so that intermediate values are
     visible, and adds minor ticks at the remaining integers for grid context.
     """
-    import numpy as np
-    from matplotlib.ticker import LogLocator, FuncFormatter
+    from matplotlib.ticker import FuncFormatter, LogLocator
 
     subs_major = [1.0, 2.0, 5.0]  # labelled ticks at 1, 2, 5 per decade
     subs_minor = [3.0, 4.0, 6.0, 7.0, 8.0, 9.0]  # unlabelled grid ticks
@@ -332,8 +360,12 @@ def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     for scenario in scenarios:
         sdf = sub[sub["scenario"] == scenario]
         ax.scatter(
-            sdf["N"], sdf["simulate_seconds"],
-            color=color_map[scenario], label=scenario, alpha=0.9, s=40,
+            sdf["N"],
+            sdf["simulate_seconds"],
+            color=color_map[scenario],
+            label=scenario,
+            alpha=0.9,
+            s=40,
         )
 
     ax.set_xscale("log")
@@ -370,8 +402,12 @@ def plot_memory(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     for scenario in scenarios:
         sdf = sub[sub["scenario"] == scenario]
         ax.scatter(
-            sdf["N"], sdf["simulate_max_rss_mb"],
-            color=color_map[scenario], label=scenario, alpha=0.9, s=40,
+            sdf["N"],
+            sdf["simulate_max_rss_mb"],
+            color=color_map[scenario],
+            label=scenario,
+            alpha=0.9,
+            s=40,
         )
 
     ax.set_xscale("log")
@@ -393,9 +429,7 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
 
     # Sort scenarios by increasing N so x-axes read left-to-right by size
     if "N" in df.columns:
-        scenario_order = (
-            df.groupby("scenario")["N"].first().sort_values().index
-        )
+        scenario_order = df.groupby("scenario")["N"].first().sort_values().index
         df["scenario"] = pd.Categorical(df["scenario"], categories=scenario_order, ordered=True)
         df = df.sort_values("scenario").reset_index(drop=True)
 
@@ -412,12 +446,20 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
     plot_memory(df, out, ext=plot_ext)
 
     # Assemble validation atlas PDF
-    from sim_ace.plot_atlas import assemble_atlas, VALIDATION_CAPTIONS
+    from sim_ace.plot_atlas import VALIDATION_CAPTIONS, assemble_atlas
+
     _VALIDATION_BASENAMES = [
-        "family_size", "twin_rate", "half_sib_proportions",
-        "variance_components", "correlations_A", "correlations_phenotype",
-        "heritability_estimates", "cross_trait_correlations",
-        "summary_bias", "runtime", "memory",
+        "family_size",
+        "twin_rate",
+        "half_sib_proportions",
+        "variance_components",
+        "correlations_A",
+        "correlations_phenotype",
+        "heritability_estimates",
+        "cross_trait_correlations",
+        "summary_bias",
+        "runtime",
+        "memory",
     ]
     atlas_paths = [out / f"{name}.{plot_ext}" for name in _VALIDATION_BASENAMES]
     assemble_atlas(atlas_paths, VALIDATION_CAPTIONS, out / "atlas.pdf")
@@ -426,11 +468,14 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
 def cli() -> None:
     """Command-line interface for generating validation plots."""
     from sim_ace.cli_base import add_logging_args, init_logging
+
     parser = argparse.ArgumentParser(description="Plot validation results")
     add_logging_args(parser)
     parser.add_argument("tsv", help="Validation summary TSV path")
     parser.add_argument("output_dir", help="Output directory")
-    parser.add_argument("--plot-format", choices=["png", "pdf"], default="png", help="Output plot format (default: png)")
+    parser.add_argument(
+        "--plot-format", choices=["png", "pdf"], default="png", help="Output plot format (default: png)"
+    )
     args = parser.parse_args()
 
     init_logging(args)

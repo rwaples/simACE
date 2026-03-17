@@ -15,17 +15,20 @@ def _run_snakemake() -> None:
     output_dir = str(Path(snakemake.output.ndd).parent)
     sys.argv = [
         "epimight_create_parquet",
-        "--phenotype", snakemake.input.phenotype,
-        "--output-dir", output_dir,
+        "--phenotype",
+        snakemake.input.phenotype,
+        "--output-dir",
+        output_dir,
     ]
     _cli()
 
 
 if __name__ == "__main__":
     try:
-        snakemake  # noqa: F821
+        snakemake
     except NameError:
         from epimight.create_parquet import main as _cli
+
         _cli()
     else:
         _run_snakemake()

@@ -11,10 +11,9 @@ No time-to-event or censoring -- purely binary outcome.
 from __future__ import annotations
 
 import argparse
-from typing import Any
-
 import logging
 import time
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -58,8 +57,7 @@ def apply_threshold(liability: np.ndarray, generation: np.ndarray, prevalence: f
         for gen_key, prev_val in prevalence.items():
             if not (0 < prev_val < 1):
                 raise ValueError(
-                    f"prevalence must be between 0 and 1 (exclusive), "
-                    f"got {prev_val} for generation {gen_key}"
+                    f"prevalence must be between 0 and 1 (exclusive), got {prev_val} for generation {gen_key}"
                 )
     else:
         if not (0 < prevalence < 1):
@@ -104,9 +102,7 @@ def _apply_threshold_sex_aware(
         affected = np.zeros(len(liability), dtype=bool)
         for sex_val, key in [(0, "female"), (1, "male")]:
             mask = sex == sex_val
-            affected[mask] = apply_threshold(
-                liability[mask], generation[mask], prev[key]
-            )
+            affected[mask] = apply_threshold(liability[mask], generation[mask], prev[key])
         return affected
     return apply_threshold(liability, generation, prev)
 
@@ -130,19 +126,25 @@ def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     # Filter to last G_pheno generations
     max_gen = pedigree["generation"].max()
     min_pheno_gen = max_gen - params["G_pheno"] + 1
-    assert min_pheno_gen >= 0, (
-        f"G_pheno ({params['G_pheno']}) > available generations ({max_gen + 1})"
-    )
+    assert min_pheno_gen >= 0, f"G_pheno ({params['G_pheno']}) > available generations ({max_gen + 1})"
     pedigree = pedigree[pedigree["generation"] >= min_pheno_gen].reset_index(drop=True)
 
     generation = pedigree["generation"].values
     sex = pedigree["sex"].values
 
     affected1 = _apply_threshold_sex_aware(
-        pedigree["liability1"].values, generation, sex, params, trait_num=1,
+        pedigree["liability1"].values,
+        generation,
+        sex,
+        params,
+        trait_num=1,
     )
     affected2 = _apply_threshold_sex_aware(
-        pedigree["liability2"].values, generation, sex, params, trait_num=2,
+        pedigree["liability2"].values,
+        generation,
+        sex,
+        params,
+        trait_num=2,
     )
 
     phenotype = pd.DataFrame(
@@ -175,6 +177,7 @@ def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
 def _parse_prevalence_arg(scalar: float | None, by_gen_json: str | None) -> float | dict[int, float] | None:
     """Resolve prevalence from scalar flag or JSON by-gen flag."""
     import json
+
     if by_gen_json is not None:
         raw = json.loads(by_gen_json)
         return {int(k): float(v) for k, v in raw.items()}
@@ -184,6 +187,7 @@ def _parse_prevalence_arg(scalar: float | None, by_gen_json: str | None) -> floa
 def cli() -> None:
     """Command-line interface for threshold phenotype simulation."""
     from sim_ace.cli_base import add_logging_args, init_logging
+
     parser = argparse.ArgumentParser(description="Apply liability threshold model")
     add_logging_args(parser)
     parser.add_argument("--pedigree", required=True, help="Input pedigree parquet")
@@ -191,10 +195,18 @@ def cli() -> None:
     parser.add_argument("--G-pheno", type=int, default=3, help="Number of generations to assign phenotypes")
     parser.add_argument("--prevalence1", type=float, default=0.1, help="Disease prevalence for trait 1")
     parser.add_argument("--prevalence2", type=float, default=0.1, help="Disease prevalence for trait 2")
-    parser.add_argument("--prevalence1-by-gen", type=str, default=None,
-                        help='Per-gen prevalence for trait 1 as JSON, e.g. \'{"0":0.05,"1":0.10}\'')
-    parser.add_argument("--prevalence2-by-gen", type=str, default=None,
-                        help='Per-gen prevalence for trait 2 as JSON, e.g. \'{"0":0.05,"1":0.10}\'')
+    parser.add_argument(
+        "--prevalence1-by-gen",
+        type=str,
+        default=None,
+        help='Per-gen prevalence for trait 1 as JSON, e.g. \'{"0":0.05,"1":0.10}\'',
+    )
+    parser.add_argument(
+        "--prevalence2-by-gen",
+        type=str,
+        default=None,
+        help='Per-gen prevalence for trait 2 as JSON, e.g. \'{"0":0.05,"1":0.10}\'',
+    )
     args = parser.parse_args()
 
     init_logging(args)

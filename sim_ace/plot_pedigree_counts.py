@@ -26,7 +26,7 @@ import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from sim_ace.utils import save_placeholder_plot, finalize_plot
+from sim_ace.utils import finalize_plot, save_placeholder_plot
 
 logger = logging.getLogger(__name__)
 
@@ -118,16 +118,16 @@ RELATIONSHIP_NODES: dict[str, str] = {
 # Label placement relative to each node: (dx, dy, ha, va)
 # Most Gen 3 labels go below; Gen 1/2 labels go to the side.
 LABEL_OFFSETS: dict[str, tuple[float, float, str, str]] = {
-    "MZ twin":                (0.0, -0.55, "center", "top"),
-    "Full sib":               (0.0, -0.55, "center", "top"),
-    "Paternal half sib":      (0.0, -0.55, "center", "top"),
-    "Maternal half sib":      (0.0, -0.55, "center", "top"),
-    "Father-offspring":       (-0.6, -0.55, "center", "top"),
-    "Mother-offspring":       (0.6, -0.55, "center", "top"),
+    "MZ twin": (0.0, -0.55, "center", "top"),
+    "Full sib": (0.0, -0.55, "center", "top"),
+    "Paternal half sib": (0.0, -0.55, "center", "top"),
+    "Maternal half sib": (0.0, -0.55, "center", "top"),
+    "Father-offspring": (-0.6, -0.55, "center", "top"),
+    "Mother-offspring": (0.6, -0.55, "center", "top"),
     "Grandparent-grandchild": (-0.9, 0.65, "center", "bottom"),
-    "Avuncular":              (0.6, -0.55, "center", "top"),
-    "1st cousin":             (0.0, -0.55, "center", "top"),
-    "2nd cousin":             (0.0, -0.55, "center", "top"),
+    "Avuncular": (0.6, -0.55, "center", "top"),
+    "1st cousin": (0.0, -0.55, "center", "top"),
+    "2nd cousin": (0.0, -0.55, "center", "top"),
 }
 
 # Short display names for annotation labels
@@ -158,20 +158,35 @@ def _nc(name: str) -> tuple[float, float]:
 
 
 def _draw_node(
-    ax: plt.Axes, x: float, y: float, sex: str,
-    *, fill: str = "white", edgecolor: str = "black", linewidth: float = 1.2,
+    ax: plt.Axes,
+    x: float,
+    y: float,
+    sex: str,
+    *,
+    fill: str = "white",
+    edgecolor: str = "black",
+    linewidth: float = 1.2,
 ) -> None:
     r = NODE_RADIUS
     if sex == "M":
         patch = mpatches.FancyBboxPatch(
-            (x - r, y - r), 2 * r, 2 * r,
+            (x - r, y - r),
+            2 * r,
+            2 * r,
             boxstyle="round,pad=0.02",
-            facecolor=fill, edgecolor=edgecolor, linewidth=linewidth, zorder=3,
+            facecolor=fill,
+            edgecolor=edgecolor,
+            linewidth=linewidth,
+            zorder=3,
         )
     else:
         patch = mpatches.Circle(
-            (x, y), r,
-            facecolor=fill, edgecolor=edgecolor, linewidth=linewidth, zorder=3,
+            (x, y),
+            r,
+            facecolor=fill,
+            edgecolor=edgecolor,
+            linewidth=linewidth,
+            zorder=3,
         )
     ax.add_patch(patch)
 
@@ -182,8 +197,11 @@ def _draw_marriage(ax: plt.Axes, a: str, b: str) -> None:
     r = NODE_RADIUS
     for offset in [-0.04, 0.04]:
         ax.plot(
-            [ax_x + r, bx_x - r], [ay_y + offset, by_y + offset],
-            color="black", linewidth=0.8, zorder=1,
+            [ax_x + r, bx_x - r],
+            [ay_y + offset, by_y + offset],
+            color="black",
+            linewidth=0.8,
+            zorder=1,
         )
 
 
@@ -222,8 +240,11 @@ def _draw_mz_bracket(ax: plt.Axes, a: str, b: str) -> None:
     r = NODE_RADIUS
     for offset in [-0.06, 0.06]:
         ax.plot(
-            [ax_x + r, bx_x - r], [ay_y + offset, by_y + offset],
-            color="black", linewidth=1.0, zorder=2,
+            [ax_x + r, bx_x - r],
+            [ay_y + offset, by_y + offset],
+            color="black",
+            linewidth=1.0,
+            zorder=2,
         )
 
 
@@ -285,7 +306,7 @@ def plot_pedigree_relationship_counts(
         node_rel_color[node] = rel_colors[rel_name]
 
     # Create figure
-    fig, ax = plt.subplots(figsize=(14, 11))
+    _fig, ax = plt.subplots(figsize=(14, 11))
     ax.set_xlim(-2.5, 13.5)
     ax.set_ylim(-0.8, 11.2)
     ax.set_aspect("equal")
@@ -301,9 +322,14 @@ def plot_pedigree_relationship_counts(
     # Generation labels
     for g, y in {0: 10.0, 1: 7.5, 2: 5.0, 3: 2.0}.items():
         ax.text(
-            -2.0, y, f"Gen {g}",
-            fontsize=9, ha="center", va="center",
-            fontstyle="italic", color="grey",
+            -2.0,
+            y,
+            f"Gen {g}",
+            fontsize=9,
+            ha="center",
+            va="center",
+            fontstyle="italic",
+            color="grey",
         )
 
     # --- Draw structural pedigree elements ---
@@ -324,8 +350,13 @@ def plot_pedigree_relationship_counts(
             r, g, b = color[:3]
             light = (0.6 + 0.4 * r, 0.6 + 0.4 * g, 0.6 + 0.4 * b)
             _draw_node(
-                ax, x, y, sex,
-                fill=light, edgecolor=color, linewidth=2.0,
+                ax,
+                x,
+                y,
+                sex,
+                fill=light,
+                edgecolor=color,
+                linewidth=2.0,
             )
         else:
             _draw_node(ax, x, y, sex)
@@ -333,8 +364,13 @@ def plot_pedigree_relationship_counts(
     # Proband label
     px, py = _nc(PROBAND_NODE)
     ax.text(
-        px, py - NODE_RADIUS - 0.25, "Proband",
-        fontsize=10, ha="center", va="top", fontweight="bold",
+        px,
+        py - NODE_RADIUS - 0.25,
+        "Proband",
+        fontsize=10,
+        ha="center",
+        va="top",
+        fontweight="bold",
     )
 
     # --- Relationship labels placed directly next to each node ---
@@ -349,19 +385,26 @@ def plot_pedigree_relationship_counts(
         label = f"{display}\nn = {mean_count:,.0f}"
 
         ax.text(
-            nx + dx, ny + dy, label,
-            fontsize=9, ha=ha, va=va, color=color,
-            fontweight="bold", zorder=5,
+            nx + dx,
+            ny + dy,
+            label,
+            fontsize=9,
+            ha=ha,
+            va=va,
+            color=color,
+            fontweight="bold",
+            zorder=5,
         )
 
     # Legend
-    handles = [
-        mpatches.Patch(color=rel_colors[n], label=f"{n} ({counts.get(n, 0):,.0f})")
-        for n in RELATIONSHIP_ORDER
-    ]
+    handles = [mpatches.Patch(color=rel_colors[n], label=f"{n} ({counts.get(n, 0):,.0f})") for n in RELATIONSHIP_ORDER]
     ax.legend(
-        handles=handles, loc="upper right", fontsize=8,
-        framealpha=0.9, title="Relationship (mean pairs)", title_fontsize=9,
+        handles=handles,
+        loc="upper right",
+        fontsize=8,
+        framealpha=0.9,
+        title="Relationship (mean pairs)",
+        title_fontsize=9,
     )
 
     # Population metadata annotation
@@ -378,9 +421,14 @@ def plot_pedigree_relationship_counts(
     if mean_n_ind is not None:
         footer_parts.append(f"{int(mean_n_ind):,} individuals")
     ax.text(
-        0.99, 0.01,
+        0.99,
+        0.01,
         "  |  ".join(footer_parts),
-        transform=ax.transAxes, fontsize=8, ha="right", va="bottom", color="grey",
+        transform=ax.transAxes,
+        fontsize=8,
+        ha="right",
+        va="bottom",
+        color="grey",
     )
 
     finalize_plot(output_path)
@@ -389,15 +437,14 @@ def plot_pedigree_relationship_counts(
 
 def cli() -> None:
     """Command-line interface for pedigree relationship counts plot."""
+    import yaml
+
     from sim_ace.cli_base import add_logging_args, init_logging
     from sim_ace.utils import yaml_loader
-    import yaml
 
     _yaml_loader = yaml_loader()
 
-    parser = argparse.ArgumentParser(
-        description="Plot pedigree relationship pair counts diagram"
-    )
+    parser = argparse.ArgumentParser(description="Plot pedigree relationship pair counts diagram")
     add_logging_args(parser)
     parser.add_argument("--stats", nargs="+", required=True, help="Stats YAML paths")
     parser.add_argument("--output", required=True, help="Output image path")

@@ -1,8 +1,10 @@
 """Subsample phenotyped individuals - Snakemake wrapper with CLI fallback."""
+
 import pandas as pd
 
 from sim_ace import setup_logging
-from sim_ace.sample import run_sample, cli as _cli
+from sim_ace.sample import cli as _cli
+from sim_ace.sample import run_sample
 from sim_ace.utils import save_parquet
 
 

@@ -1,46 +1,61 @@
 """Assemble scenario plot atlas - Snakemake wrapper with CLI fallback."""
+
+import logging
 from pathlib import Path
 
 import yaml
 
 from sim_ace import setup_logging
 from sim_ace.plot_atlas import (
-    assemble_atlas,
-    get_model_family,
     PHENOTYPE_CAPTIONS,
     THRESHOLD_CAPTIONS,
+    assemble_atlas,
+    get_model_family,
 )
 
-import logging
 logger = logging.getLogger(__name__)
 
 
 def _run_snakemake():
-    setup_logging(log_file=snakemake.log[0])   
-    p = snakemake.params                        
+    setup_logging(log_file=snakemake.log[0])
+    p = snakemake.params
 
-    frailty_paths   = [Path(x) for x in snakemake.input.frailty]    
-    threshold_paths = [Path(x) for x in snakemake.input.threshold]  
-    output_path     = Path(snakemake.output[0])                      
+    frailty_paths = [Path(x) for x in snakemake.input.frailty]
+    threshold_paths = [Path(x) for x in snakemake.input.threshold]
+    output_path = Path(snakemake.output[0])
 
-    with open(snakemake.input.params_yaml, encoding="utf-8") as fh:  
+    with open(snakemake.input.params_yaml, encoding="utf-8") as fh:
         scenario_params = yaml.safe_load(fh)
 
     # Merge in config-level parameters not present in params.yaml
     extra_keys = [
-        "scenario", "replicates", "folder",
-        "beta1", "beta_sex1", "phenotype_model1", "phenotype_params1",
-        "beta2", "beta_sex2", "phenotype_model2", "phenotype_params2",
-        "standardize", "censor_age", "gen_censoring",
-        "death_scale", "death_rho", "prevalence1", "prevalence2",
-        "G_pheno", "plot_format",
+        "scenario",
+        "replicates",
+        "folder",
+        "beta1",
+        "beta_sex1",
+        "phenotype_model1",
+        "phenotype_params1",
+        "beta2",
+        "beta_sex2",
+        "phenotype_model2",
+        "phenotype_params2",
+        "standardize",
+        "censor_age",
+        "gen_censoring",
+        "death_scale",
+        "death_rho",
+        "prevalence1",
+        "prevalence2",
+        "G_pheno",
+        "plot_format",
     ]
     for key in extra_keys:
         val = getattr(p, key, None)
         if val is not None:
             scenario_params[key] = val
 
-    captions  = {**PHENOTYPE_CAPTIONS, **THRESHOLD_CAPTIONS}
+    captions = {**PHENOTYPE_CAPTIONS, **THRESHOLD_CAPTIONS}
     all_paths = frailty_paths + threshold_paths
 
     model_name, model_desc = get_model_family(scenario_params)
@@ -69,7 +84,9 @@ def _run_snakemake():
         )
 
     assemble_atlas(
-        all_paths, captions, output_path,
+        all_paths,
+        captions,
+        output_path,
         scenario_params=scenario_params,
         section_breaks=section_breaks,
     )
@@ -77,9 +94,10 @@ def _run_snakemake():
 
 if __name__ == "__main__":
     try:
-        snakemake   
+        snakemake
     except NameError:
         import argparse
+
         from sim_ace.cli_base import add_logging_args, init_logging
 
         parser = argparse.ArgumentParser(description="Assemble scenario plot atlas")
@@ -97,10 +115,12 @@ if __name__ == "__main__":
                 scenario_params = yaml.safe_load(fh)
             scenario_params["scenario"] = args.scenario
 
-        captions  = {**PHENOTYPE_CAPTIONS, **THRESHOLD_CAPTIONS}
+        captions = {**PHENOTYPE_CAPTIONS, **THRESHOLD_CAPTIONS}
         all_paths = [Path(x) for x in args.plots]
         assemble_atlas(
-            all_paths, captions, Path(args.output),
+            all_paths,
+            captions,
+            Path(args.output),
             scenario_params=scenario_params,
         )
     else:

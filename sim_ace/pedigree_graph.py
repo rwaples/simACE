@@ -59,12 +59,8 @@ class PedigreeGraph:
 
         # Build separate mother/father CSR matrices: Am[child, mother] = 1
         ones = np.ones(len(self._nf_idx), dtype=np.float64)
-        self._Am = sp.csr_matrix(
-            (ones, (self._nf_idx, self._nf_mother)), shape=(n, n)
-        )
-        self._Af = sp.csr_matrix(
-            (ones, (self._nf_idx, self._nf_father)), shape=(n, n)
-        )
+        self._Am = sp.csr_matrix((ones, (self._nf_idx, self._nf_mother)), shape=(n, n))
+        self._Af = sp.csr_matrix((ones, (self._nf_idx, self._nf_father)), shape=(n, n))
 
     # ------------------------------------------------------------------
     # Lazy sparse products (computed on first access)
@@ -110,7 +106,9 @@ class PedigreeGraph:
         mask = ids < partners
         return ids[mask], partners[mask].astype(np.intp)
 
-    def _parent_offspring_pairs(self) -> tuple[
+    def _parent_offspring_pairs(
+        self,
+    ) -> tuple[
         tuple[np.ndarray, np.ndarray],
         tuple[np.ndarray, np.ndarray],
     ]:
@@ -120,7 +118,9 @@ class PedigreeGraph:
         fathers = self._nf_father.astype(np.intp)
         return (children, mothers), (children, fathers)
 
-    def _sibling_pairs(self) -> tuple[
+    def _sibling_pairs(
+        self,
+    ) -> tuple[
         tuple[np.ndarray, np.ndarray],
         tuple[np.ndarray, np.ndarray],
         tuple[np.ndarray, np.ndarray],
@@ -154,14 +154,10 @@ class PedigreeGraph:
         full_sib = self._pairs_from_groups(nt_idx, family_key)
 
         # --- Maternal half sibs: same mother, different father ---
-        mat_hs = self._pairs_from_groups_filtered(
-            nt_idx, nt_mother, nt_father, keep_same=False
-        )
+        mat_hs = self._pairs_from_groups_filtered(nt_idx, nt_mother, nt_father, keep_same=False)
 
         # --- Paternal half sibs: same father, different mother ---
-        pat_hs = self._pairs_from_groups_filtered(
-            nt_idx, nt_father, nt_mother, keep_same=False
-        )
+        pat_hs = self._pairs_from_groups_filtered(nt_idx, nt_father, nt_mother, keep_same=False)
 
         # Build full-sib sparse matrix for _avuncular_pairs
         sib1, sib2 = full_sib
@@ -175,9 +171,7 @@ class PedigreeGraph:
         return full_sib, mat_hs, pat_hs
 
     @staticmethod
-    def _pairs_from_groups(
-        indices: np.ndarray, group_key: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def _pairs_from_groups(indices: np.ndarray, group_key: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Generate all (i < j) pairs of indices within each group.
 
         Uses batch-by-size triu_indices for vectorized pair generation.
@@ -305,7 +299,7 @@ class PedigreeGraph:
         parent-child pairs (which share the same edge structure).
         """
         # Get the full-sib symmetric matrix (cached by _sibling_pairs)
-        if not hasattr(self, '_full_sib_matrix'):
+        if not hasattr(self, "_full_sib_matrix"):
             # Build it if _sibling_pairs wasn't called first
             sib1, sib2 = full_sib
             if len(sib1) == 0:
@@ -396,7 +390,9 @@ class PedigreeGraph:
 
         logger.info(
             "Siblings: %d full, %d maternal HS, %d paternal HS",
-            len(full_sib[0]), len(mat_hs[0]), len(pat_hs[0]),
+            len(full_sib[0]),
+            len(mat_hs[0]),
+            len(pat_hs[0]),
         )
 
         pairs["1st cousin"] = self._cousin_pairs()
@@ -435,7 +431,9 @@ class PedigreeGraph:
 
         logger.info(
             "Siblings: %d full, %d maternal HS, %d paternal HS",
-            counts["Full sib"], counts["Maternal half sib"], counts["Paternal half sib"],
+            counts["Full sib"],
+            counts["Maternal half sib"],
+            counts["Paternal half sib"],
         )
 
         # Cousin count from sparse matrix nnz (symmetric → nnz/2)
@@ -477,9 +475,7 @@ class PedigreeGraph:
         return counts
 
 
-def extract_relationship_pairs(
-    df: pd.DataFrame, seed: int = 42
-) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+def extract_relationship_pairs(df: pd.DataFrame, seed: int = 42) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """Drop-in replacement for stats.extract_relationship_pairs.
 
     Returns dict with 10 keys (the original 7 plus Grandparent-grandchild,
@@ -524,7 +520,7 @@ def count_sib_pairs(df: pd.DataFrame) -> dict[str, int]:
     # Build a minimal full DataFrame for PedigreeGraph
     # The input is a subset; we need to create a graph over the full ID space
     # Instead, replicate the counting logic directly without building a full graph
-    twin_col = df["twin"].values if "twin" in df.columns else np.full(len(df), -1, dtype=np.int64)
+    _twin_col = df["twin"].values if "twin" in df.columns else np.full(len(df), -1, dtype=np.int64)
     mother_col = df["mother"].values.astype(np.int64)
     father_col = df["father"].values.astype(np.int64)
 
@@ -538,16 +534,14 @@ def count_sib_pairs(df: pd.DataFrame) -> dict[str, int]:
     ids = df["id"].values
     sort_m = np.argsort(mother_col, kind="mergesort")
     sorted_mothers = mother_col[sort_m]
-    sorted_ids = ids[sort_m]
+    _sorted_ids = ids[sort_m]
     sorted_fathers = father_col[sort_m]
 
-    u_m, starts_m, counts_m = np.unique(
-        sorted_mothers, return_index=True, return_counts=True
-    )
+    u_m, starts_m, counts_m = np.unique(sorted_mothers, return_index=True, return_counts=True)
 
     for i in range(len(u_m)):
         s, c = starts_m[i], counts_m[i]
-        group_fathers = sorted_fathers[s:s + c]
+        group_fathers = sorted_fathers[s : s + c]
 
         if c < 2:
             continue
@@ -570,16 +564,14 @@ def count_sib_pairs(df: pd.DataFrame) -> dict[str, int]:
     sorted_fathers2 = father_col[sort_f]
     sorted_mothers2 = mother_col[sort_f]
 
-    u_f, starts_f, counts_f = np.unique(
-        sorted_fathers2, return_index=True, return_counts=True
-    )
+    u_f, starts_f, counts_f = np.unique(sorted_fathers2, return_index=True, return_counts=True)
 
     for i in range(len(u_f)):
         s, c = starts_f[i], counts_f[i]
         if c < 2:
             continue
 
-        group_mothers = sorted_mothers2[s:s + c]
+        group_mothers = sorted_mothers2[s : s + c]
         u_m2, m_counts = np.unique(group_mothers, return_counts=True)
         if len(u_m2) < 2:
             continue

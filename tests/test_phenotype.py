@@ -4,10 +4,11 @@ import numpy as np
 import pytest
 
 from sim_ace.phenotype import (
-    simulate_phenotype, phenotype_adult_ltm, phenotype_adult_cox,
+    phenotype_adult_cox,
+    phenotype_adult_ltm,
     phenotype_cure_frailty,
+    simulate_phenotype,
 )
-
 
 # ---------------------------------------------------------------------------
 # Default Weibull params for tests
@@ -19,24 +20,21 @@ WEIBULL_PARAMS = {"scale": 316.228, "rho": 2.0}
 # simulate_phenotype
 # ---------------------------------------------------------------------------
 
-class TestSimulatePhenotype:
 
+class TestSimulatePhenotype:
     def test_output_shape(self):
         liability = np.random.default_rng(0).standard_normal(500)
-        t = simulate_phenotype(liability, beta=1.0, hazard_model="weibull",
-                               hazard_params=WEIBULL_PARAMS, seed=42)
+        t = simulate_phenotype(liability, beta=1.0, hazard_model="weibull", hazard_params=WEIBULL_PARAMS, seed=42)
         assert t.shape == (500,)
 
     def test_all_positive_times(self):
         liability = np.random.default_rng(0).standard_normal(1000)
-        t = simulate_phenotype(liability, beta=1.0, hazard_model="weibull",
-                               hazard_params=WEIBULL_PARAMS, seed=42)
+        t = simulate_phenotype(liability, beta=1.0, hazard_model="weibull", hazard_params=WEIBULL_PARAMS, seed=42)
         assert np.all(t > 0)
 
     def test_all_finite_times(self):
         liability = np.random.default_rng(0).standard_normal(1000)
-        t = simulate_phenotype(liability, beta=1.0, hazard_model="weibull",
-                               hazard_params=WEIBULL_PARAMS, seed=42)
+        t = simulate_phenotype(liability, beta=1.0, hazard_model="weibull", hazard_params=WEIBULL_PARAMS, seed=42)
         assert np.all(np.isfinite(t))
 
     def test_higher_liability_earlier_onset(self):
@@ -44,28 +42,36 @@ class TestSimulatePhenotype:
         rng = np.random.default_rng(99)
         n = 10000
         liability = rng.standard_normal(n)
-        t = simulate_phenotype(liability, beta=2.0, hazard_model="weibull",
-                               hazard_params={"scale": 464.159, "rho": 1.5},
-                               seed=42, standardize=False)
+        t = simulate_phenotype(
+            liability,
+            beta=2.0,
+            hazard_model="weibull",
+            hazard_params={"scale": 464.159, "rho": 1.5},
+            seed=42,
+            standardize=False,
+        )
         high = liability > 1.0
         low = liability < -1.0
         assert t[high].mean() < t[low].mean()
 
     def test_deterministic_with_same_seed(self):
         liability = np.array([0.5, -0.3, 1.2, -1.0])
-        t1 = simulate_phenotype(liability, beta=1.0, hazard_model="weibull",
-                                hazard_params=WEIBULL_PARAMS, seed=42)
-        t2 = simulate_phenotype(liability, beta=1.0, hazard_model="weibull",
-                                hazard_params=WEIBULL_PARAMS, seed=42)
+        t1 = simulate_phenotype(liability, beta=1.0, hazard_model="weibull", hazard_params=WEIBULL_PARAMS, seed=42)
+        t2 = simulate_phenotype(liability, beta=1.0, hazard_model="weibull", hazard_params=WEIBULL_PARAMS, seed=42)
         np.testing.assert_array_equal(t1, t2)
 
     def test_zero_beta_no_liability_effect(self):
         """With beta=0, frailty=1 for all, so times are independent of liability."""
-        rng = np.random.default_rng(0)
+        _rng = np.random.default_rng(0)
         liability = np.concatenate([np.full(5000, -5.0), np.full(5000, 5.0)])
-        t = simulate_phenotype(liability, beta=0.0, hazard_model="weibull",
-                               hazard_params={"scale": 1000.0, "rho": 1.0},
-                               seed=42, standardize=False)
+        t = simulate_phenotype(
+            liability,
+            beta=0.0,
+            hazard_model="weibull",
+            hazard_params={"scale": 1000.0, "rho": 1.0},
+            seed=42,
+            standardize=False,
+        )
         # With beta=0, high and low liability groups should have similar means
         assert abs(t[:5000].mean() - t[5000:].mean()) / t.mean() < 0.1
 
@@ -73,64 +79,61 @@ class TestSimulatePhenotype:
         """When standardize=True, output should not depend on liability shift."""
         liability1 = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
         liability2 = liability1 + 100  # shifted
-        t1 = simulate_phenotype(liability1, beta=1.0, hazard_model="weibull",
-                                hazard_params=WEIBULL_PARAMS, seed=42,
-                                standardize=True)
-        t2 = simulate_phenotype(liability2, beta=1.0, hazard_model="weibull",
-                                hazard_params=WEIBULL_PARAMS, seed=42,
-                                standardize=True)
+        t1 = simulate_phenotype(
+            liability1, beta=1.0, hazard_model="weibull", hazard_params=WEIBULL_PARAMS, seed=42, standardize=True
+        )
+        t2 = simulate_phenotype(
+            liability2, beta=1.0, hazard_model="weibull", hazard_params=WEIBULL_PARAMS, seed=42, standardize=True
+        )
         np.testing.assert_allclose(t1, t2)
 
     # --- Validation error tests ---
 
     def test_unknown_model_raises(self):
         with pytest.raises(ValueError, match="Unknown hazard model"):
-            simulate_phenotype(np.array([1.0]), beta=1.0,
-                               hazard_model="unknown",
-                               hazard_params=WEIBULL_PARAMS, seed=42)
+            simulate_phenotype(np.array([1.0]), beta=1.0, hazard_model="unknown", hazard_params=WEIBULL_PARAMS, seed=42)
 
     def test_missing_scale_raises(self):
         with pytest.raises(KeyError):
-            simulate_phenotype(np.array([1.0]), beta=1.0,
-                               hazard_model="weibull",
-                               hazard_params={"rho": 2.0}, seed=42)
+            simulate_phenotype(np.array([1.0]), beta=1.0, hazard_model="weibull", hazard_params={"rho": 2.0}, seed=42)
 
     def test_missing_rho_raises(self):
         with pytest.raises(KeyError):
-            simulate_phenotype(np.array([1.0]), beta=1.0,
-                               hazard_model="weibull",
-                               hazard_params={"scale": 316.228}, seed=42)
+            simulate_phenotype(
+                np.array([1.0]), beta=1.0, hazard_model="weibull", hazard_params={"scale": 316.228}, seed=42
+            )
 
     def test_inf_beta_raises(self):
         with pytest.raises(ValueError, match="beta"):
-            simulate_phenotype(np.array([1.0]), beta=float("inf"),
-                               hazard_model="weibull",
-                               hazard_params=WEIBULL_PARAMS, seed=42)
+            simulate_phenotype(
+                np.array([1.0]), beta=float("inf"), hazard_model="weibull", hazard_params=WEIBULL_PARAMS, seed=42
+            )
 
     def test_nan_beta_raises(self):
         with pytest.raises(ValueError, match="beta"):
-            simulate_phenotype(np.array([1.0]), beta=float("nan"),
-                               hazard_model="weibull",
-                               hazard_params=WEIBULL_PARAMS, seed=42)
+            simulate_phenotype(
+                np.array([1.0]), beta=float("nan"), hazard_model="weibull", hazard_params=WEIBULL_PARAMS, seed=42
+            )
 
 
 # ---------------------------------------------------------------------------
 # Sex covariate tests
 # ---------------------------------------------------------------------------
 
-class TestBetaSex:
 
+class TestBetaSex:
     def test_beta_sex_zero_same_as_no_sex(self):
         """beta_sex=0 should produce identical results to omitting sex."""
         rng = np.random.default_rng(0)
         liability = rng.standard_normal(500)
         sex = rng.integers(0, 2, size=500).astype(float)
 
-        t_no_sex = simulate_phenotype(liability, beta=1.0, hazard_model="weibull",
-                                      hazard_params=WEIBULL_PARAMS, seed=42)
-        t_zero = simulate_phenotype(liability, beta=1.0, hazard_model="weibull",
-                                    hazard_params=WEIBULL_PARAMS, seed=42,
-                                    sex=sex, beta_sex=0.0)
+        t_no_sex = simulate_phenotype(
+            liability, beta=1.0, hazard_model="weibull", hazard_params=WEIBULL_PARAMS, seed=42
+        )
+        t_zero = simulate_phenotype(
+            liability, beta=1.0, hazard_model="weibull", hazard_params=WEIBULL_PARAMS, seed=42, sex=sex, beta_sex=0.0
+        )
         np.testing.assert_array_equal(t_no_sex, t_zero)
 
     def test_positive_beta_sex_males_earlier(self):
@@ -139,11 +142,18 @@ class TestBetaSex:
         liability = np.zeros(n)
         sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
 
-        t = simulate_phenotype(liability, beta=0.0, hazard_model="weibull",
-                               hazard_params=WEIBULL_PARAMS, seed=42,
-                               standardize=False, sex=sex, beta_sex=0.5)
-        female_mean = t[:n // 2].mean()
-        male_mean = t[n // 2:].mean()
+        t = simulate_phenotype(
+            liability,
+            beta=0.0,
+            hazard_model="weibull",
+            hazard_params=WEIBULL_PARAMS,
+            seed=42,
+            standardize=False,
+            sex=sex,
+            beta_sex=0.5,
+        )
+        female_mean = t[: n // 2].mean()
+        male_mean = t[n // 2 :].mean()
         assert male_mean < female_mean
 
     def test_negative_beta_sex_females_earlier(self):
@@ -152,11 +162,18 @@ class TestBetaSex:
         liability = np.zeros(n)
         sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
 
-        t = simulate_phenotype(liability, beta=0.0, hazard_model="weibull",
-                               hazard_params=WEIBULL_PARAMS, seed=42,
-                               standardize=False, sex=sex, beta_sex=-0.5)
-        female_mean = t[:n // 2].mean()
-        male_mean = t[n // 2:].mean()
+        t = simulate_phenotype(
+            liability,
+            beta=0.0,
+            hazard_model="weibull",
+            hazard_params=WEIBULL_PARAMS,
+            seed=42,
+            standardize=False,
+            sex=sex,
+            beta_sex=-0.5,
+        )
+        female_mean = t[: n // 2].mean()
+        male_mean = t[n // 2 :].mean()
         assert female_mean < male_mean
 
 
@@ -164,8 +181,8 @@ class TestBetaSex:
 # ADuLT Liability Threshold Model tests
 # ---------------------------------------------------------------------------
 
-class TestAdultLtm:
 
+class TestAdultLtm:
     def test_output_shape(self):
         liability = np.random.default_rng(0).standard_normal(500)
         t = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
@@ -235,8 +252,8 @@ class TestAdultLtm:
 # ADuLT Cox Model tests
 # ---------------------------------------------------------------------------
 
-class TestAdultCox:
 
+class TestAdultCox:
     def test_output_shape(self):
         liability = np.random.default_rng(0).standard_normal(500)
         t = phenotype_adult_cox(liability, prevalence=0.10, seed=42)
@@ -293,8 +310,8 @@ class TestAdultCox:
 # ADuLT LTM beta/sex tests
 # ---------------------------------------------------------------------------
 
-class TestAdultLtmBetaSex:
 
+class TestAdultLtmBetaSex:
     def test_beta_1_unchanged(self):
         """beta=1.0 should produce identical output to default."""
         liability = np.random.default_rng(0).standard_normal(500)
@@ -317,11 +334,10 @@ class TestAdultLtmBetaSex:
         n = 50000
         liability = np.random.default_rng(0).standard_normal(n)
         sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
-        t = phenotype_adult_ltm(liability, prevalence=0.20, beta=1.0, seed=42,
-                                sex=sex, beta_sex=0.5)
+        t = phenotype_adult_ltm(liability, prevalence=0.20, beta=1.0, seed=42, sex=sex, beta_sex=0.5)
         cases = t < 1e6
-        female_case_age = t[:n // 2][cases[:n // 2]]
-        male_case_age = t[n // 2:][cases[n // 2:]]
+        female_case_age = t[: n // 2][cases[: n // 2]]
+        male_case_age = t[n // 2 :][cases[n // 2 :]]
         assert male_case_age.mean() < female_case_age.mean()
 
     def test_beta_sex_zero_unchanged(self):
@@ -329,8 +345,7 @@ class TestAdultLtmBetaSex:
         liability = np.random.default_rng(0).standard_normal(500)
         sex = np.random.default_rng(1).integers(0, 2, size=500).astype(float)
         t_no_sex = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
-        t_zero = phenotype_adult_ltm(liability, prevalence=0.10, seed=42,
-                                     sex=sex, beta_sex=0.0)
+        t_zero = phenotype_adult_ltm(liability, prevalence=0.10, seed=42, sex=sex, beta_sex=0.0)
         np.testing.assert_array_equal(t_no_sex, t_zero)
 
 
@@ -338,8 +353,8 @@ class TestAdultLtmBetaSex:
 # ADuLT Cox beta/sex tests
 # ---------------------------------------------------------------------------
 
-class TestAdultCoxBetaSex:
 
+class TestAdultCoxBetaSex:
     def test_higher_beta_stronger_liability_effect(self):
         """Higher beta should increase the liability-hazard relationship."""
         n = 50000
@@ -358,11 +373,10 @@ class TestAdultCoxBetaSex:
         n = 50000
         liability = np.random.default_rng(0).standard_normal(n)
         sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
-        t = phenotype_adult_cox(liability, prevalence=0.20, beta=1.0, seed=42,
-                                sex=sex, beta_sex=0.5)
+        t = phenotype_adult_cox(liability, prevalence=0.20, beta=1.0, seed=42, sex=sex, beta_sex=0.5)
         cases = t < 1e6
-        female_case_age = t[:n // 2][cases[:n // 2]]
-        male_case_age = t[n // 2:][cases[n // 2:]]
+        female_case_age = t[: n // 2][cases[: n // 2]]
+        male_case_age = t[n // 2 :][cases[n // 2 :]]
         assert male_case_age.mean() < female_case_age.mean()
 
     def test_beta_sex_zero_unchanged(self):
@@ -370,8 +384,7 @@ class TestAdultCoxBetaSex:
         liability = np.random.default_rng(0).standard_normal(500)
         sex = np.random.default_rng(1).integers(0, 2, size=500).astype(float)
         t_no_sex = phenotype_adult_cox(liability, prevalence=0.10, seed=42)
-        t_zero = phenotype_adult_cox(liability, prevalence=0.10, seed=42,
-                                     sex=sex, beta_sex=0.0)
+        t_zero = phenotype_adult_cox(liability, prevalence=0.10, seed=42, sex=sex, beta_sex=0.0)
         np.testing.assert_array_equal(t_no_sex, t_zero)
 
 
@@ -383,12 +396,11 @@ GOMPERTZ_PARAMS = {"rate": 0.0133, "gamma": 0.2019}
 
 
 class TestCureFrailty:
-
     def test_output_shape(self):
         liability = np.random.default_rng(0).standard_normal(500)
-        t = phenotype_cure_frailty(liability, prevalence=0.10, beta=1.0,
-                                   baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
-                                   seed=42)
+        t = phenotype_cure_frailty(
+            liability, prevalence=0.10, beta=1.0, baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42
+        )
         assert t.shape == (500,)
 
     def test_controls_censored(self):
@@ -396,9 +408,9 @@ class TestCureFrailty:
         n = 10000
         liability = np.random.default_rng(0).standard_normal(n)
         prevalence = 0.10
-        t = phenotype_cure_frailty(liability, prevalence=prevalence, beta=1.0,
-                                   baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
-                                   seed=42)
+        t = phenotype_cure_frailty(
+            liability, prevalence=prevalence, beta=1.0, baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42
+        )
         assert np.all(t[t >= 1e6 - 1] == 1e6)
 
     def test_prevalence_matches(self):
@@ -406,9 +418,9 @@ class TestCureFrailty:
         n = 50000
         liability = np.random.default_rng(0).standard_normal(n)
         prevalence = 0.10
-        t = phenotype_cure_frailty(liability, prevalence=prevalence, beta=1.0,
-                                   baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
-                                   seed=42)
+        t = phenotype_cure_frailty(
+            liability, prevalence=prevalence, beta=1.0, baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42
+        )
         case_rate = np.mean(t < 1e6)
         assert abs(case_rate - prevalence) < 0.02
 
@@ -416,9 +428,9 @@ class TestCureFrailty:
         """All case onset times should be > 0."""
         n = 10000
         liability = np.random.default_rng(0).standard_normal(n)
-        t = phenotype_cure_frailty(liability, prevalence=0.10, beta=1.0,
-                                   baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
-                                   seed=42)
+        t = phenotype_cure_frailty(
+            liability, prevalence=0.10, beta=1.0, baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42
+        )
         cases = t[t < 1e6]
         assert len(cases) > 0
         assert np.all(cases > 0)
@@ -426,12 +438,12 @@ class TestCureFrailty:
     def test_deterministic_seed(self):
         """Same seed should produce identical output."""
         liability = np.array([0.5, -0.3, 1.2, -1.0, 2.0, -0.5, 0.8, 1.5])
-        t1 = phenotype_cure_frailty(liability, prevalence=0.30, beta=1.0,
-                                    baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
-                                    seed=42)
-        t2 = phenotype_cure_frailty(liability, prevalence=0.30, beta=1.0,
-                                    baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
-                                    seed=42)
+        t1 = phenotype_cure_frailty(
+            liability, prevalence=0.30, beta=1.0, baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42
+        )
+        t2 = phenotype_cure_frailty(
+            liability, prevalence=0.30, beta=1.0, baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42
+        )
         np.testing.assert_array_equal(t1, t2)
 
     def test_multiple_baselines(self):
@@ -439,14 +451,14 @@ class TestCureFrailty:
         n = 5000
         liability = np.random.default_rng(0).standard_normal(n)
         baselines = {
-            "weibull":   {"scale": 316.228, "rho": 2.0},
+            "weibull": {"scale": 316.228, "rho": 2.0},
             "lognormal": {"mu": 4.0, "sigma": 0.8},
-            "gompertz":  {"rate": 0.0133, "gamma": 0.2019},
+            "gompertz": {"rate": 0.0133, "gamma": 0.2019},
         }
         for name, params in baselines.items():
-            t = phenotype_cure_frailty(liability, prevalence=0.10, beta=1.0,
-                                       baseline=name, hazard_params=params,
-                                       seed=42)
+            t = phenotype_cure_frailty(
+                liability, prevalence=0.10, beta=1.0, baseline=name, hazard_params=params, seed=42
+            )
             assert t.shape == (n,)
             cases = t[t < 1e6]
             assert len(cases) > 0
@@ -456,10 +468,15 @@ class TestCureFrailty:
         """beta=0 → all cases get identical frailty (z=1), same onset distribution."""
         n = 20000
         liability = np.random.default_rng(0).standard_normal(n)
-        t = phenotype_cure_frailty(liability, prevalence=0.20, beta=0.0,
-                                   baseline="weibull",
-                                   hazard_params={"scale": 316.228, "rho": 2.0},
-                                   seed=42, standardize=False)
+        t = phenotype_cure_frailty(
+            liability,
+            prevalence=0.20,
+            beta=0.0,
+            baseline="weibull",
+            hazard_params={"scale": 316.228, "rho": 2.0},
+            seed=42,
+            standardize=False,
+        )
         cases = t[t < 1e6]
         # With z=1 for all cases, high/low liability cases should have similar means
         case_L = liability[t < 1e6]
@@ -471,9 +488,9 @@ class TestCureFrailty:
         """Higher liability → earlier onset on average among cases."""
         n = 50000
         liability = np.random.default_rng(0).standard_normal(n)
-        t = phenotype_cure_frailty(liability, prevalence=0.20, beta=2.0,
-                                   baseline="gompertz", hazard_params=GOMPERTZ_PARAMS,
-                                   seed=42)
+        t = phenotype_cure_frailty(
+            liability, prevalence=0.20, beta=2.0, baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42
+        )
         cases = t < 1e6
         case_L = liability[cases]
         case_t = t[cases]
@@ -486,8 +503,8 @@ class TestCureFrailty:
 # Sex-specific prevalence tests
 # ---------------------------------------------------------------------------
 
-class TestAdultLtmSexPrevalence:
 
+class TestAdultLtmSexPrevalence:
     def test_sex_specific_case_rates(self):
         """Male and female case rates should each match their specified prevalence."""
         n = 50000
@@ -499,8 +516,8 @@ class TestAdultLtmSexPrevalence:
 
         t = phenotype_adult_ltm(liability, prevalence=prevalence, seed=42, sex=sex)
         cases = t < 1e6
-        female_rate = cases[:n // 2].mean()
-        male_rate = cases[n // 2:].mean()
+        female_rate = cases[: n // 2].mean()
+        male_rate = cases[n // 2 :].mean()
         assert abs(female_rate - prev_f) < 0.02
         assert abs(male_rate - prev_m) < 0.02
 
@@ -530,7 +547,6 @@ class TestAdultLtmSexPrevalence:
 
 
 class TestAdultCoxSexPrevalence:
-
     def test_sex_specific_case_rates(self):
         """Per-sex ranking should give correct case rates for each sex."""
         n = 50000
@@ -542,8 +558,8 @@ class TestAdultCoxSexPrevalence:
 
         t = phenotype_adult_cox(liability, prevalence=prevalence, seed=42, sex=sex)
         cases = t < 1e6
-        female_rate = cases[:n // 2].mean()
-        male_rate = cases[n // 2:].mean()
+        female_rate = cases[: n // 2].mean()
+        male_rate = cases[n // 2 :].mean()
         assert abs(female_rate - prev_f) < 0.02
         assert abs(male_rate - prev_m) < 0.02
 
@@ -557,7 +573,6 @@ class TestAdultCoxSexPrevalence:
 
 
 class TestCureFrailtySexPrevalence:
-
     def test_sex_specific_case_rates(self):
         """Sex-specific thresholds should give correct case rates per sex."""
         n = 50000
@@ -568,13 +583,17 @@ class TestCureFrailtySexPrevalence:
         prevalence = np.where(sex == 1, prev_m, prev_f)
 
         t = phenotype_cure_frailty(
-            liability, prevalence=prevalence, beta=1.0,
-            baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42,
+            liability,
+            prevalence=prevalence,
+            beta=1.0,
+            baseline="gompertz",
+            hazard_params=GOMPERTZ_PARAMS,
+            seed=42,
             sex=sex,
         )
         cases = t < 1e6
-        female_rate = cases[:n // 2].mean()
-        male_rate = cases[n // 2:].mean()
+        female_rate = cases[: n // 2].mean()
+        male_rate = cases[n // 2 :].mean()
         assert abs(female_rate - prev_f) < 0.02
         assert abs(male_rate - prev_m) < 0.02
 
@@ -583,12 +602,20 @@ class TestCureFrailtySexPrevalence:
         n = 5000
         liability = np.random.default_rng(0).standard_normal(n)
         t1 = phenotype_cure_frailty(
-            liability, prevalence=0.10, beta=1.0,
-            baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42,
+            liability,
+            prevalence=0.10,
+            beta=1.0,
+            baseline="gompertz",
+            hazard_params=GOMPERTZ_PARAMS,
+            seed=42,
         )
         t2 = phenotype_cure_frailty(
-            liability, prevalence=0.10, beta=1.0,
-            baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42,
+            liability,
+            prevalence=0.10,
+            beta=1.0,
+            baseline="gompertz",
+            hazard_params=GOMPERTZ_PARAMS,
+            seed=42,
         )
         np.testing.assert_array_equal(t1, t2)
 
@@ -597,8 +624,8 @@ class TestCureFrailtySexPrevalence:
 # Per-generation prevalence tests (time-to-event models)
 # ---------------------------------------------------------------------------
 
-class TestAdultLtmPerGenPrevalence:
 
+class TestAdultLtmPerGenPrevalence:
     def test_per_gen_case_rates(self):
         """Each generation should get approximately its configured prevalence."""
         n_per_gen = 20000
@@ -613,9 +640,7 @@ class TestAdultLtmPerGenPrevalence:
         for gen, expected in gen_prev.items():
             mask = generation == gen
             observed = cases[mask].mean()
-            assert abs(observed - expected) < 0.02, (
-                f"gen {gen}: expected ~{expected}, got {observed}"
-            )
+            assert abs(observed - expected) < 0.02, f"gen {gen}: expected ~{expected}, got {observed}"
 
     def test_uniform_array_matches_scalar(self):
         """A uniform array should produce identical results to a scalar."""
@@ -623,13 +648,14 @@ class TestAdultLtmPerGenPrevalence:
         liability = np.random.default_rng(0).standard_normal(n)
         t_scalar = phenotype_adult_ltm(liability, prevalence=0.10, seed=42)
         t_array = phenotype_adult_ltm(
-            liability, prevalence=np.full(n, 0.10), seed=42,
+            liability,
+            prevalence=np.full(n, 0.10),
+            seed=42,
         )
         np.testing.assert_array_equal(t_scalar, t_array)
 
 
 class TestAdultCoxPerGenPrevalence:
-
     def test_per_gen_case_rates(self):
         """Each generation should get approximately its configured prevalence."""
         n_per_gen = 20000
@@ -644,13 +670,10 @@ class TestAdultCoxPerGenPrevalence:
         for gen, expected in gen_prev.items():
             mask = generation == gen
             observed = cases[mask].mean()
-            assert abs(observed - expected) < 0.02, (
-                f"gen {gen}: expected ~{expected}, got {observed}"
-            )
+            assert abs(observed - expected) < 0.02, f"gen {gen}: expected ~{expected}, got {observed}"
 
 
 class TestCureFrailtyPerGenPrevalence:
-
     def test_per_gen_case_rates(self):
         """Each generation should get approximately its configured prevalence."""
         n_per_gen = 20000
@@ -661,13 +684,15 @@ class TestCureFrailtyPerGenPrevalence:
         prevalence = np.array([gen_prev[g] for g in generation])
 
         t = phenotype_cure_frailty(
-            liability, prevalence=prevalence, beta=1.0,
-            baseline="gompertz", hazard_params=GOMPERTZ_PARAMS, seed=42,
+            liability,
+            prevalence=prevalence,
+            beta=1.0,
+            baseline="gompertz",
+            hazard_params=GOMPERTZ_PARAMS,
+            seed=42,
         )
         cases = t < 1e6
         for gen, expected in gen_prev.items():
             mask = generation == gen
             observed = cases[mask].mean()
-            assert abs(observed - expected) < 0.02, (
-                f"gen {gen}: expected ~{expected}, got {observed}"
-            )
+            assert abs(observed - expected) < 0.02, f"gen {gen}: expected ~{expected}, got {observed}"

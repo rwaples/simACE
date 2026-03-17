@@ -1,8 +1,10 @@
 """Plot validation results - Snakemake wrapper with CLI fallback."""
+
 from pathlib import Path
 
 from sim_ace import setup_logging
-from sim_ace.plot_validation import main, cli as _cli
+from sim_ace.plot_validation import cli as _cli
+from sim_ace.plot_validation import main
 
 
 def _run_snakemake():

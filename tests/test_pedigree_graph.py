@@ -1,12 +1,12 @@
 """Tests for sim_ace.pedigree_graph relationship extraction."""
 
+import logging
+
 import numpy as np
 import pandas as pd
 import pytest
 
-import logging
-
-from sim_ace.pedigree_graph import PedigreeGraph, extract_relationship_pairs, count_sib_pairs
+from sim_ace.pedigree_graph import count_sib_pairs, extract_relationship_pairs
 from sim_ace.validate import _count_sib_pairs_legacy
 
 logger = logging.getLogger(__name__)
@@ -46,7 +46,8 @@ def _extract_relationship_pairs_legacy(df: pd.DataFrame, seed: int = 42) -> dict
     if len(mat_sib) > 0:
         mat_pairs = mat_sib[["mother", "father", "_row"]].merge(
             mat_sib[["mother", "father", "_row"]],
-            on="mother", suffixes=("_1", "_2"),
+            on="mother",
+            suffixes=("_1", "_2"),
         )
         mat_pairs = mat_pairs[mat_pairs["_row_1"] < mat_pairs["_row_2"]]
         same_father = mat_pairs["father_1"] == mat_pairs["father_2"]
@@ -63,7 +64,8 @@ def _extract_relationship_pairs_legacy(df: pd.DataFrame, seed: int = 42) -> dict
     if len(pat_sib) > 0:
         pat_pairs = pat_sib[["mother", "father", "_row"]].merge(
             pat_sib[["mother", "father", "_row"]],
-            on="father", suffixes=("_1", "_2"),
+            on="father",
+            suffixes=("_1", "_2"),
         )
         pat_pairs = pat_pairs[pat_pairs["_row_1"] < pat_pairs["_row_2"]]
         diff_mother = pat_pairs["mother_1"] != pat_pairs["mother_2"]
@@ -138,9 +140,7 @@ def _extract_relationship_pairs_legacy(df: pd.DataFrame, seed: int = 42) -> dict
     gp_parent = gp_parent[sort_idx]
     gp_gp = gp_gp[sort_idx]
 
-    _, group_starts, group_counts = np.unique(
-        gp_gp, return_index=True, return_counts=True
-    )
+    _, group_starts, group_counts = np.unique(gp_gp, return_index=True, return_counts=True)
 
     multi = group_counts >= 2
     group_starts = group_starts[multi]
@@ -200,8 +200,12 @@ class TestGoldenComparison:
         new = extract_relationship_pairs(df, seed=42)
 
         exact_keys = [
-            "MZ twin", "Full sib", "Maternal half sib", "Paternal half sib",
-            "Mother-offspring", "Father-offspring",
+            "MZ twin",
+            "Full sib",
+            "Maternal half sib",
+            "Paternal half sib",
+            "Mother-offspring",
+            "Father-offspring",
         ]
         for key in exact_keys:
             legacy_set = _pairs_to_set(*legacy[key])
@@ -229,8 +233,7 @@ class TestGoldenComparison:
                 continue
             legacy_proper.add((a, b))
         assert legacy_proper <= new_cousins, (
-            f"1st cousin: legacy has {len(legacy_proper - new_cousins)} pairs not in new: "
-            f"{legacy_proper - new_cousins}"
+            f"1st cousin: legacy has {len(legacy_proper - new_cousins)} pairs not in new: {legacy_proper - new_cousins}"
         )
 
     def test_golden_sib_counts_match(self, small_pedigree):
@@ -361,13 +364,17 @@ class TestStructuralCorrectness:
             gp_a = set()
             for p in [mother[a], father[a]]:
                 if p >= 0:
-                    if mother[p] >= 0: gp_a.add(mother[p])
-                    if father[p] >= 0: gp_a.add(father[p])
+                    if mother[p] >= 0:
+                        gp_a.add(mother[p])
+                    if father[p] >= 0:
+                        gp_a.add(father[p])
             gp_b = set()
             for p in [mother[b], father[b]]:
                 if p >= 0:
-                    if mother[p] >= 0: gp_b.add(mother[p])
-                    if father[p] >= 0: gp_b.add(father[p])
+                    if mother[p] >= 0:
+                        gp_b.add(mother[p])
+                    if father[p] >= 0:
+                        gp_b.add(father[p])
             assert gp_a & gp_b, f"Cousins {a},{b} share no grandparent"
 
     def test_no_pair_overlap_within_sibling_types(self, small_pedigree):
@@ -379,9 +386,7 @@ class TestStructuralCorrectness:
         for i in range(len(sib_keys)):
             for j in range(i + 1, len(sib_keys)):
                 overlap = sib_sets[sib_keys[i]] & sib_sets[sib_keys[j]]
-                assert len(overlap) == 0, (
-                    f"Overlap between '{sib_keys[i]}' and '{sib_keys[j]}': {len(overlap)} pairs"
-                )
+                assert len(overlap) == 0, f"Overlap between '{sib_keys[i]}' and '{sib_keys[j]}': {len(overlap)} pairs"
 
     def test_no_pair_overlap_twins_and_siblings(self, small_pedigree):
         """MZ twins should not also appear as siblings."""
@@ -390,9 +395,7 @@ class TestStructuralCorrectness:
         for key in ["Full sib", "Maternal half sib", "Paternal half sib"]:
             sib_set = _pairs_to_set(*pairs[key])
             overlap = twin_set & sib_set
-            assert len(overlap) == 0, (
-                f"Overlap between 'MZ twin' and '{key}': {len(overlap)} pairs"
-            )
+            assert len(overlap) == 0, f"Overlap between 'MZ twin' and '{key}': {len(overlap)} pairs"
 
 
 class TestNoSubsamplingLoss:
@@ -406,21 +409,30 @@ class TestNoSubsamplingLoss:
 
 
 class TestEdgeCases:
-
     def test_founders_only(self):
         """DataFrame with only founders should produce no pairs except possibly twins."""
-        df = pd.DataFrame({
-            "id": np.arange(100),
-            "mother": np.full(100, -1),
-            "father": np.full(100, -1),
-            "twin": np.full(100, -1),
-            "sex": np.random.default_rng(42).binomial(1, 0.5, 100),
-            "generation": np.zeros(100, dtype=int),
-        })
+        df = pd.DataFrame(
+            {
+                "id": np.arange(100),
+                "mother": np.full(100, -1),
+                "father": np.full(100, -1),
+                "twin": np.full(100, -1),
+                "sex": np.random.default_rng(42).binomial(1, 0.5, 100),
+                "generation": np.zeros(100, dtype=int),
+            }
+        )
         pairs = extract_relationship_pairs(df)
-        for key in ["Full sib", "Maternal half sib", "Paternal half sib",
-                     "Mother-offspring", "Father-offspring", "1st cousin",
-                     "Grandparent-grandchild", "Avuncular", "2nd cousin"]:
+        for key in [
+            "Full sib",
+            "Maternal half sib",
+            "Paternal half sib",
+            "Mother-offspring",
+            "Father-offspring",
+            "1st cousin",
+            "Grandparent-grandchild",
+            "Avuncular",
+            "2nd cousin",
+        ]:
             assert len(pairs[key][0]) == 0, f"{key} should be empty for founders-only"
 
     def test_single_child_families(self):
@@ -446,10 +458,16 @@ class TestEdgeCases:
             fathers[child_id] = males[i]
             gen[child_id] = 1
 
-        df = pd.DataFrame({
-            "id": ids, "mother": mothers, "father": fathers,
-            "twin": twins, "sex": sex, "generation": gen,
-        })
+        df = pd.DataFrame(
+            {
+                "id": ids,
+                "mother": mothers,
+                "father": fathers,
+                "twin": twins,
+                "sex": sex,
+                "generation": gen,
+            }
+        )
         pairs = extract_relationship_pairs(df)
         assert len(pairs["Full sib"][0]) == 0
         assert len(pairs["Maternal half sib"][0]) == 0
@@ -526,9 +544,18 @@ class TestKnownTinyPedigree:
         # 9 → grandparents 0,1,2,3
         # 10 → grandparents 0,1,2,3
         expected = {
-            (0, 8), (1, 8), (2, 8), (3, 8),
-            (0, 9), (1, 9), (2, 9), (3, 9),
-            (0, 10), (1, 10), (2, 10), (3, 10),
+            (0, 8),
+            (1, 8),
+            (2, 8),
+            (3, 8),
+            (0, 9),
+            (1, 9),
+            (2, 9),
+            (3, 9),
+            (0, 10),
+            (1, 10),
+            (2, 10),
+            (3, 10),
         }
         assert gp_set == expected, f"Got {gp_set}, expected {expected}"
 

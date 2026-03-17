@@ -5,24 +5,29 @@ all non-social fathers, single-generation pedigrees, etc.
 """
 
 import numpy as np
-import pandas as pd
-import pytest
 
-from sim_ace.simulate import run_simulation
+from sim_ace.censor import age_censor
 from sim_ace.phenotype import simulate_phenotype
-from sim_ace.censor import age_censor, death_censor
+from sim_ace.simulate import run_simulation
 from sim_ace.threshold import apply_threshold
-
 
 # ---------------------------------------------------------------------------
 # Shared minimal params
 # ---------------------------------------------------------------------------
 
 MINIMAL_PARAMS = dict(
-    seed=42, N=500, G_ped=2, fam_size=2.3,
-    p_mztwin=0.02, p_nonsocial_father=0.05,
-    A1=0.5, C1=0.2, A2=0.5, C2=0.2,
-    rA=0.3, rC=0.5,
+    seed=42,
+    N=500,
+    G_ped=2,
+    fam_size=2.3,
+    p_mztwin=0.02,
+    p_nonsocial_father=0.05,
+    A1=0.5,
+    C1=0.2,
+    A2=0.5,
+    C2=0.2,
+    rA=0.3,
+    rC=0.5,
 )
 
 
@@ -30,8 +35,8 @@ MINIMAL_PARAMS = dict(
 # A = 0 (no genetic component)
 # ---------------------------------------------------------------------------
 
-class TestZeroA:
 
+class TestZeroA:
     def test_A_zero_both_traits(self):
         params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.3, "A2": 0.0, "C2": 0.3}
         ped = run_simulation(**params)
@@ -60,8 +65,8 @@ class TestZeroA:
 # C = 0 (no shared environment)
 # ---------------------------------------------------------------------------
 
-class TestZeroC:
 
+class TestZeroC:
     def test_C_zero_both_traits(self):
         params = {**MINIMAL_PARAMS, "A1": 0.5, "C1": 0.0, "A2": 0.5, "C2": 0.0}
         ped = run_simulation(**params)
@@ -81,8 +86,8 @@ class TestZeroC:
 # A = 0 and C = 0 (pure environment)
 # ---------------------------------------------------------------------------
 
-class TestZeroACE:
 
+class TestZeroACE:
     def test_all_zero_variance_components(self):
         params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.0, "A2": 0.0, "C2": 0.0}
         ped = run_simulation(**params)
@@ -103,8 +108,8 @@ class TestZeroACE:
 # p_mztwin = 0 (no twins)
 # ---------------------------------------------------------------------------
 
-class TestNoTwins:
 
+class TestNoTwins:
     def test_no_twins(self):
         params = {**MINIMAL_PARAMS, "p_mztwin": 0.0}
         ped = run_simulation(**params)
@@ -122,8 +127,8 @@ class TestNoTwins:
 # p_nonsocial_father = 1.0 (all non-social fathers)
 # ---------------------------------------------------------------------------
 
-class TestAllNonSocialFathers:
 
+class TestAllNonSocialFathers:
     def test_p_nonsocial_1(self):
         params = {**MINIMAL_PARAMS, "p_nonsocial_father": 1.0}
         ped = run_simulation(**params)
@@ -151,8 +156,8 @@ class TestAllNonSocialFathers:
 # p_nonsocial_father = 0.0 (all social fathers)
 # ---------------------------------------------------------------------------
 
-class TestAllSocialFathers:
 
+class TestAllSocialFathers:
     def test_all_social_fathers(self):
         params = {**MINIMAL_PARAMS, "p_nonsocial_father": 0.0}
         ped = run_simulation(**params)
@@ -166,8 +171,8 @@ class TestAllSocialFathers:
 # Single-generation pedigree (G_ped=1)
 # ---------------------------------------------------------------------------
 
-class TestSingleGeneration:
 
+class TestSingleGeneration:
     def test_G_ped_1(self):
         params = {**MINIMAL_PARAMS, "G_ped": 1}
         ped = run_simulation(**params)
@@ -188,20 +193,22 @@ class TestSingleGeneration:
 # Edge cases for phenotype functions
 # ---------------------------------------------------------------------------
 
-class TestPhenotypeEdgeCases:
 
+class TestPhenotypeEdgeCases:
     def test_single_individual(self):
         """simulate_phenotype should work with a single individual."""
-        t = simulate_phenotype(np.array([0.5]), beta=1.0, hazard_model="weibull",
-                               hazard_params={"scale": 316.228, "rho": 2.0}, seed=42)
+        t = simulate_phenotype(
+            np.array([0.5]), beta=1.0, hazard_model="weibull", hazard_params={"scale": 316.228, "rho": 2.0}, seed=42
+        )
         assert t.shape == (1,)
         assert t[0] > 0
 
     def test_very_large_beta(self):
         """Large beta should not produce NaN or Inf."""
         liability = np.array([0.0, 0.1, -0.1])
-        t = simulate_phenotype(liability, beta=50.0, hazard_model="weibull",
-                               hazard_params={"scale": 316.228, "rho": 2.0}, seed=42)
+        t = simulate_phenotype(
+            liability, beta=50.0, hazard_model="weibull", hazard_params={"scale": 316.228, "rho": 2.0}, seed=42
+        )
         assert np.all(np.isfinite(t))
         assert np.all(t > 0)
 
@@ -226,8 +233,8 @@ class TestPhenotypeEdgeCases:
 # Edge cases for threshold
 # ---------------------------------------------------------------------------
 
-class TestThresholdEdgeCases:
 
+class TestThresholdEdgeCases:
     def test_very_low_prevalence(self):
         """prevalence=0.01 should classify ~1% as affected."""
         rng = np.random.default_rng(42)
@@ -259,8 +266,8 @@ class TestThresholdEdgeCases:
 # Boundary variance: A + C exactly equals 1 (E = 0)
 # ---------------------------------------------------------------------------
 
-class TestEZero:
 
+class TestEZero:
     def test_E_zero(self):
         """When A + C = 1, E = 0 and all E values should be negligible.
 

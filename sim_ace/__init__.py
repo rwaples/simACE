@@ -32,25 +32,27 @@ def setup_logging(level=logging.INFO, log_file=None):
         fh.setFormatter(fmt_file)
         pkg.addHandler(fh)
 
+
+from sim_ace.censor import age_censor, death_censor
+from sim_ace.pedigree_graph import extract_relationship_pairs
+from sim_ace.phenotype import simulate_phenotype
+from sim_ace.sample import run_sample
 from sim_ace.simulate import (
-    run_simulation,
+    add_to_pedigree,
     generate_correlated_components,
     mating,
     reproduce,
-    add_to_pedigree,
+    run_simulation,
 )
-from sim_ace.phenotype import simulate_phenotype
-from sim_ace.censor import age_censor, death_censor
+from sim_ace.stats import tetrachoric_corr_se
 from sim_ace.threshold import apply_threshold
 from sim_ace.validate import run_validation
-from sim_ace.stats import tetrachoric_corr_se
-from sim_ace.pedigree_graph import extract_relationship_pairs
-from sim_ace.sample import run_sample
 
 
 def __getattr__(name: str):
     """Lazy import for heavy optional modules."""
     if name == "pairwise_weibull_corr_se":
         from sim_ace.survival_corr import pairwise_weibull_corr_se
+
         return pairwise_weibull_corr_se
     raise AttributeError(f"module 'sim_ace' has no attribute {name!r}")

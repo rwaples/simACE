@@ -1,11 +1,11 @@
+import glob
+
 import numpy as np
 import pandas as pd
-import glob
-#import graph_tool.all as gt
-import scipy as sp
-#import seaborn as sns
-from cmdstanpy import CmdStanModel
 
+# import graph_tool.all as gt
+# import seaborn as sns
+from cmdstanpy import CmdStanModel
 
 # ## Notes to consider
 # - Fit a model with and without the shared environmental component
@@ -21,11 +21,8 @@ from cmdstanpy import CmdStanModel
 #   - Rates of half-sibs (HS) and MZ twins
 
 
-
-
-peds = glob.glob('/home/ryanw/parent_of_origin/ACE/sim/ace.gen_*.990.individuals.tsv')
+peds = glob.glob("/home/ryanw/parent_of_origin/ACE/sim/ace.gen_*.990.individuals.tsv")
 peds
-
 
 
 def read_ped(path):
@@ -38,10 +35,7 @@ def read_ped(path):
     return df
 
 
-
-
-
-ped = pd.concat([read_ped(x) for x in peds ])
+ped = pd.concat([read_ped(x) for x in peds])
 ped = ped.sort_values("id", ascending=True).reset_index(drop=True)
 
 
@@ -66,7 +60,6 @@ else:
 y.mean(), y.std()
 
 
-
 ## need to be one-based indexes for stan
 ## hence adding one
 idx_of_id = pd.Series(ped.index, index=ped.id)
@@ -78,28 +71,25 @@ father = (ped.father.map(idx_of_id).fillna(-1).astype(int) + 1).values
 
 pedigree_data = {
     "Nped": Nped,
-    'Nfam': Nfam,
-    'Nfit': Nfit,
-    'Ndrop': Nped - Nfit,
+    "Nfam": Nfam,
+    "Nfit": Nfit,
+    "Ndrop": Nped - Nfit,
     "y": y,
-    'fam': fam,
-    'mother': mother,
-    'father': father,
+    "fam": fam,
+    "mother": mother,
+    "father": father,
 }
-
-
 
 
 # compile the Stan model
 ace_pedigree_model = CmdStanModel(
-    stan_file="/home/ryanw/parent_of_origin/ACE/stan/fit_pedigree_ace.stan", 
-    cpp_options={'STAN_THREADS':'true'}
+    stan_file="/home/ryanw/parent_of_origin/ACE/stan/fit_pedigree_ace.stan", cpp_options={"STAN_THREADS": "true"}
 )
 
 
-# fit the pedigree model 
+# fit the pedigree model
 fit_pedigree = ace_pedigree_model.sample(
-    data=pedigree_data, 
+    data=pedigree_data,
     chains=4,
     parallel_chains=4,
     threads_per_chain=4,
@@ -107,31 +97,14 @@ fit_pedigree = ace_pedigree_model.sample(
     thin=2,
     iter_sampling=10000,
     max_treedepth=14,
-    inits = {
-        'mu': 0,
-        'sigma_A': np.sqrt(.4),
-        'sigma_C': np.sqrt(.3),
-        'sigma_E': np.sqrt(.3),
+    inits={
+        "mu": 0,
+        "sigma_A": np.sqrt(0.4),
+        "sigma_C": np.sqrt(0.3),
+        "sigma_E": np.sqrt(0.3),
     },
-    show_console=False
+    show_console=False,
 )
 
 
-
-
-
-
-
-sum_ped.to_csv('/home/ryanw/parent_of_origin/ACE/stan/fit/ace.990.fit_summary.csv', 
-               sep='\t',
-               index=True
-)
-
-
-
-
-
-
-
-
-
+sum_ped.to_csv("/home/ryanw/parent_of_origin/ACE/stan/fit/ace.990.fit_summary.csv", sep="\t", index=True)

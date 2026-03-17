@@ -8,17 +8,25 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-
 # Canonical 7 relationship pair types used for tetrachoric / liability correlations
 PAIR_TYPES: list[str] = [
-    "MZ twin", "Full sib", "Mother-offspring", "Father-offspring",
-    "Maternal half sib", "Paternal half sib", "1st cousin",
+    "MZ twin",
+    "Full sib",
+    "Mother-offspring",
+    "Father-offspring",
+    "Maternal half sib",
+    "Paternal half sib",
+    "1st cousin",
 ]
 
 PAIR_COLORS: dict[str, str] = {
-    "MZ twin": "C0", "Full sib": "C1", "Mother-offspring": "C3",
-    "Father-offspring": "C5", "Maternal half sib": "C2",
-    "Paternal half sib": "C6", "1st cousin": "C4",
+    "MZ twin": "C0",
+    "Full sib": "C1",
+    "Mother-offspring": "C3",
+    "Father-offspring": "C5",
+    "Maternal half sib": "C2",
+    "Paternal half sib": "C6",
+    "1st cousin": "C4",
 }
 
 
@@ -70,9 +78,19 @@ def optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     """
     int8_cols = ["sex", "generation"]
     float32_cols = [
-        "A1", "C1", "E1", "liability1",
-        "A2", "C2", "E2", "liability2",
-        "t1", "t2", "death_age", "t_observed1", "t_observed2",
+        "A1",
+        "C1",
+        "E1",
+        "liability1",
+        "A2",
+        "C2",
+        "E2",
+        "liability2",
+        "t1",
+        "t2",
+        "death_age",
+        "t_observed1",
+        "t_observed2",
     ]
     for c in int8_cols:
         if c in df.columns:
@@ -92,6 +110,7 @@ def save_parquet(df: pd.DataFrame, path: Any, **kwargs: Any) -> None:
 def yaml_loader() -> type:
     """Return the fastest available YAML SafeLoader."""
     import yaml
+
     return getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 
@@ -105,10 +124,13 @@ def get_nested(d: Any, *keys: str, default: Any = None) -> Any:
     return d
 
 
-def save_placeholder_plot(output_path: Any, message: str, figsize: tuple[float, float] = (6, 4), dpi: int = 150) -> None:
+def save_placeholder_plot(
+    output_path: Any, message: str, figsize: tuple[float, float] = (6, 4), dpi: int = 150
+) -> None:
     """Save a single-panel figure with centered message text."""
     import matplotlib.pyplot as plt
-    fig, ax = plt.subplots(figsize=figsize)
+
+    _fig, ax = plt.subplots(figsize=figsize)
     ax.text(0.5, 0.5, message, ha="center", va="center", transform=ax.transAxes)
     plt.savefig(output_path, dpi=dpi)
     plt.close()
@@ -116,12 +138,11 @@ def save_placeholder_plot(output_path: Any, message: str, figsize: tuple[float, 
 
 def _make_heatmap_cmap():
     """Truncated GnBu (green-to-blue) starting at 40% — dark enough for white text."""
-    import matplotlib.pyplot as plt
     import matplotlib.colors as mcolors
+    import matplotlib.pyplot as plt
+
     gnbu = plt.cm.GnBu
-    return mcolors.LinearSegmentedColormap.from_list(
-        "GnBu_dark", gnbu(np.linspace(0.4, 1.0, 256))
-    )
+    return mcolors.LinearSegmentedColormap.from_list("GnBu_dark", gnbu(np.linspace(0.4, 1.0, 256)))
 
 
 HEATMAP_CMAP = _make_heatmap_cmap()
@@ -139,6 +160,7 @@ def annotate_heatmap(ax, proportions, counts, fmt_prop=".2f", prop_size=18, coun
         count_size: Font size for the count line.
     """
     import numpy as np
+
     proportions = np.asarray(proportions)
     counts = np.asarray(counts)
     for i in range(proportions.shape[0]):
@@ -146,23 +168,40 @@ def annotate_heatmap(ax, proportions, counts, fmt_prop=".2f", prop_size=18, coun
             p = proportions[i, j]
             c = counts[i, j]
             c_str = f"n={int(c)}" if float(c) == int(c) else f"n={c:.0f}"
-            ax.text(j + 0.5, i + 0.38, f"{p:{fmt_prop}}",
-                    ha="center", va="center", fontsize=prop_size,
-                    fontweight="bold", color="white")
-            ax.text(j + 0.5, i + 0.62, c_str,
-                    ha="center", va="center", fontsize=count_size,
-                    color=(1, 1, 1, 0.7))
+            ax.text(
+                j + 0.5,
+                i + 0.38,
+                f"{p:{fmt_prop}}",
+                ha="center",
+                va="center",
+                fontsize=prop_size,
+                fontweight="bold",
+                color="white",
+            )
+            ax.text(j + 0.5, i + 0.62, c_str, ha="center", va="center", fontsize=count_size, color=(1, 1, 1, 0.7))
 
 
-def finalize_plot(output_path: Any, dpi: int = 150, tight_rect: list[float] | None = None, subsample_note: str = "") -> None:
+def finalize_plot(
+    output_path: Any, dpi: int = 150, tight_rect: list[float] | None = None, subsample_note: str = ""
+) -> None:
     """tight_layout + savefig(bbox_inches='tight') + close current figure."""
     import warnings
+
     import matplotlib.pyplot as plt
+
     if subsample_note:
         fig = plt.gcf()
-        fig.text(0.99, 0.01, subsample_note, fontsize=8, color="0.5",
-                 ha="right", va="bottom", fontstyle="italic",
-                 transform=fig.transFigure)
+        fig.text(
+            0.99,
+            0.01,
+            subsample_note,
+            fontsize=8,
+            color="0.5",
+            ha="right",
+            va="bottom",
+            fontstyle="italic",
+            transform=fig.transFigure,
+        )
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message=".*tight_layout.*", category=UserWarning)
         if tight_rect is not None:
@@ -174,8 +213,12 @@ def finalize_plot(output_path: Any, dpi: int = 150, tight_rect: list[float] | No
 
 
 def draw_split_violin(
-    ax, data_left, data_right, pos,
-    color_left='C0', color_right='C1',
+    ax,
+    data_left,
+    data_right,
+    pos,
+    color_left="C0",
+    color_right="C1",
     width=0.8,
 ):
     """Draw a split violin at *pos* (left half / right half).
@@ -184,36 +227,44 @@ def draw_split_violin(
     matplotlib, which is significantly faster for large arrays.
     """
     for data, color, side in [
-        (data_left, color_left, 'left'),
-        (data_right, color_right, 'right'),
+        (data_left, color_left, "left"),
+        (data_right, color_right, "right"),
     ]:
         if data is None or len(data) < 2:
             continue
         parts = ax.violinplot(
-            [data], positions=[pos],
-            showmeans=False, showmedians=False, showextrema=False,
+            [data],
+            positions=[pos],
+            showmeans=False,
+            showmedians=False,
+            showextrema=False,
             widths=width,
         )
-        for body in parts['bodies']:
+        for body in parts["bodies"]:
             verts = body.get_paths()[0].vertices
-            if side == 'left':
+            if side == "left":
                 verts[:, 0] = np.clip(verts[:, 0], -np.inf, pos)
             else:
                 verts[:, 0] = np.clip(verts[:, 0], pos, np.inf)
             body.set_facecolor(color)
-            body.set_edgecolor('black')
+            body.set_edgecolor("black")
             body.set_linewidth(0.8)
             body.set_alpha(1.0)
         # Inner box: Q1–Q3 bar + median dot (matches seaborn inner="box")
         q1, med, q3 = np.percentile(data, [25, 50, 75])
-        x_inner = pos - width * 0.06 if side == 'left' else pos + width * 0.06
-        ax.vlines(x_inner, q1, q3, color='black', linewidth=1.5, zorder=4)
-        ax.plot(x_inner, med, 'o', color='white', ms=3, mew=0, zorder=5)
+        x_inner = pos - width * 0.06 if side == "left" else pos + width * 0.06
+        ax.vlines(x_inner, q1, q3, color="black", linewidth=1.5, zorder=4)
+        ax.plot(x_inner, med, "o", color="white", ms=3, mew=0, zorder=5)
 
 
 def draw_colored_violins(
-    ax, datasets, positions, colors,
-    alpha=0.7, width=0.8, zorder=3,
+    ax,
+    datasets,
+    positions,
+    colors,
+    alpha=0.7,
+    width=0.8,
+    zorder=3,
 ):
     """Draw violins at *positions* with per-category *colors*.
 
@@ -221,21 +272,20 @@ def draw_colored_violins(
     categorically-coloured violin groups.  Only groups with >= 2 values
     are drawn.
     """
-    valid = [
-        (p, d, c)
-        for p, d, c in zip(positions, datasets, colors)
-        if len(d) >= 2
-    ]
+    valid = [(p, d, c) for p, d, c in zip(positions, datasets, colors) if len(d) >= 2]
     if not valid:
         return
     v_pos, v_data, v_colors = zip(*valid)
     parts = ax.violinplot(
-        list(v_data), positions=list(v_pos),
-        showmeans=False, showmedians=False, showextrema=False,
+        list(v_data),
+        positions=list(v_pos),
+        showmeans=False,
+        showmedians=False,
+        showextrema=False,
         widths=width,
     )
-    for body, color in zip(parts['bodies'], v_colors):
+    for body, color in zip(parts["bodies"], v_colors):
         body.set_facecolor(color)
-        body.set_edgecolor('none')
+        body.set_edgecolor("none")
         body.set_alpha(alpha)
         body.set_zorder(zorder)

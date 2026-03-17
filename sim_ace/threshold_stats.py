@@ -9,26 +9,24 @@ Reads a single phenotype.liability_threshold.parquet and produces:
 from __future__ import annotations
 
 import argparse
-from typing import Any
-
-import numpy as np
-import pandas as pd
-import yaml
-from pathlib import Path
-
-from sim_ace.stats import (
-    tetrachoric_corr_se,
-    compute_liability_correlations,
-    compute_tetrachoric,
-    compute_cross_trait_tetrachoric,
-    compute_joint_affection,
-    create_sample,
-)
-from sim_ace.pedigree_graph import extract_relationship_pairs
-from sim_ace.utils import save_parquet
-
 import logging
 import time
+from pathlib import Path
+from typing import Any
+
+import pandas as pd
+import yaml
+
+from sim_ace.pedigree_graph import extract_relationship_pairs
+from sim_ace.stats import (
+    compute_cross_trait_tetrachoric,
+    compute_joint_affection,
+    compute_liability_correlations,
+    compute_tetrachoric,
+    create_sample,
+)
+from sim_ace.utils import save_parquet
+
 logger = logging.getLogger(__name__)
 
 
@@ -50,8 +48,8 @@ def compute_liability_by_status(df: pd.DataFrame) -> dict[str, Any]:
     """Compute mean/std of liability for affected vs unaffected, per trait."""
     result = {}
     for trait_num in [1, 2]:
-        affected = df[df[f"affected{trait_num}"]]["liability{0}".format(trait_num)]
-        unaffected = df[~df[f"affected{trait_num}"]]["liability{0}".format(trait_num)]
+        affected = df[df[f"affected{trait_num}"]][f"liability{trait_num}"]
+        unaffected = df[~df[f"affected{trait_num}"]][f"liability{trait_num}"]
         result[f"trait{trait_num}"] = {
             "affected_mean": float(affected.mean()) if len(affected) > 0 else None,
             "affected_std": float(affected.std()) if len(affected) > 1 else None,
@@ -61,15 +59,16 @@ def compute_liability_by_status(df: pd.DataFrame) -> dict[str, Any]:
     return result
 
 
-def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int = 42,
-         extra_tetrachoric: bool = True) -> None:  # extra_tetrachoric kept for API compat
+def main(
+    phenotype_path: str, stats_output: str, samples_output: str, seed: int = 42, extra_tetrachoric: bool = True
+) -> None:  # extra_tetrachoric kept for API compat
     """Compute all threshold stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
 
     logger.info("Computing threshold stats for %s (%d rows)", phenotype_path, len(df))
 
     stats: dict[str, Any] = {}
-    stats["n_individuals"] = int(len(df))
+    stats["n_individuals"] = len(df)
 
     # Prevalence by generation
     stats["prevalence"] = compute_prevalence_by_generation(df)
@@ -122,17 +121,24 @@ def main(phenotype_path: str, stats_output: str, samples_output: str, seed: int 
 def cli() -> None:
     """Command-line interface for computing threshold statistics."""
     from sim_ace.cli_base import add_logging_args, init_logging
+
     parser = argparse.ArgumentParser(description="Compute threshold phenotype statistics")
     add_logging_args(parser)
     parser.add_argument("phenotype", help="Input phenotype parquet")
     parser.add_argument("stats_output", help="Output stats YAML")
     parser.add_argument("samples_output", help="Output samples parquet")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
-    parser.add_argument("--no-extra-tetrachoric", dest="extra_tetrachoric", action="store_false",
-                        default=True, help="No-op (kept for CLI compatibility; basic tetrachoric always runs)")
+    parser.add_argument(
+        "--no-extra-tetrachoric",
+        dest="extra_tetrachoric",
+        action="store_false",
+        default=True,
+        help="No-op (kept for CLI compatibility; basic tetrachoric always runs)",
+    )
     args = parser.parse_args()
 
     init_logging(args)
 
-    main(args.phenotype, args.stats_output, args.samples_output, seed=args.seed,
-         extra_tetrachoric=args.extra_tetrachoric)
+    main(
+        args.phenotype, args.stats_output, args.samples_output, seed=args.seed, extra_tetrachoric=args.extra_tetrachoric
+    )

@@ -12,21 +12,22 @@ def phenotype_df():
     """Create a minimal phenotype DataFrame for sampling tests."""
     rng = np.random.default_rng(42)
     n = 200
-    return pd.DataFrame({
-        "id": np.arange(n),
-        "generation": np.repeat([3, 4, 5], [60, 70, 70]),
-        "sex": rng.integers(0, 2, n),
-        "liability1": rng.standard_normal(n),
-        "liability2": rng.standard_normal(n),
-        "t_observed1": rng.uniform(10, 80, n),
-        "t_observed2": rng.uniform(10, 80, n),
-        "affected1": rng.choice([True, False], n),
-        "affected2": rng.choice([True, False], n),
-    })
+    return pd.DataFrame(
+        {
+            "id": np.arange(n),
+            "generation": np.repeat([3, 4, 5], [60, 70, 70]),
+            "sex": rng.integers(0, 2, n),
+            "liability1": rng.standard_normal(n),
+            "liability2": rng.standard_normal(n),
+            "t_observed1": rng.uniform(10, 80, n),
+            "t_observed2": rng.uniform(10, 80, n),
+            "affected1": rng.choice([True, False], n),
+            "affected2": rng.choice([True, False], n),
+        }
+    )
 
 
 class TestPassThrough:
-
     def test_n_sample_zero(self, phenotype_df):
         """N_sample=0 returns all rows unchanged."""
         result = run_sample(phenotype_df, {"N_sample": 0, "seed": 42})
@@ -49,7 +50,6 @@ class TestPassThrough:
 
 
 class TestSampling:
-
     def test_exact_count(self, phenotype_df):
         """Sampled output has exactly N_sample rows."""
         result = run_sample(phenotype_df, {"N_sample": 50, "seed": 42})
@@ -83,7 +83,6 @@ class TestSampling:
 
 
 class TestDeterminism:
-
     def test_same_seed_same_result(self, phenotype_df):
         """Same seed produces identical samples."""
         r1 = run_sample(phenotype_df, {"N_sample": 50, "seed": 99})

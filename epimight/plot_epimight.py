@@ -35,25 +35,41 @@ logger = logging.getLogger(__name__)
 KIND_ORDER: list[str] = ["PO", "FS", "HS", "mHS", "pHS", "Av", "1G", "1C"]
 
 KIND_COLORS: dict[str, str] = {
-    "PO": "C0", "FS": "C1", "HS": "C2", "mHS": "C3",
-    "pHS": "C4", "Av": "C5", "1G": "C6", "1C": "C7",
+    "PO": "C0",
+    "FS": "C1",
+    "HS": "C2",
+    "mHS": "C3",
+    "pHS": "C4",
+    "Av": "C5",
+    "1G": "C6",
+    "1C": "C7",
 }
 
 KIND_LABELS: dict[str, str] = {
-    "PO": "Parent-Offspring", "FS": "Full Sibling", "HS": "Half Sibling",
-    "mHS": "Maternal HS", "pHS": "Paternal HS", "Av": "Avuncular",
-    "1G": "Grandparent-GC", "1C": "1st Cousin",
+    "PO": "Parent-Offspring",
+    "FS": "Full Sibling",
+    "HS": "Half Sibling",
+    "mHS": "Maternal HS",
+    "pHS": "Paternal HS",
+    "Av": "Avuncular",
+    "1G": "Grandparent-GC",
+    "1C": "1st Cousin",
 }
 
 _PRIMARY_KINDS = ["PO", "FS", "HS"]
 
 _PLOT_BASENAMES = [
     "cif_base",
-    "cif_primary_d1", "cif_primary_d2",
-    "cif_secondary_d1", "cif_secondary_d2",
-    "h2_time_d1", "h2_time_d2",
-    "h2_bar_d1", "h2_bar_d2",
-    "gc_bar", "summary_table",
+    "cif_primary_d1",
+    "cif_primary_d2",
+    "cif_secondary_d1",
+    "cif_secondary_d2",
+    "h2_time_d1",
+    "h2_time_d2",
+    "h2_bar_d1",
+    "h2_bar_d2",
+    "gc_bar",
+    "summary_table",
 ]
 
 EPIMIGHT_CAPTIONS: dict[str, str] = {
@@ -78,8 +94,7 @@ EPIMIGHT_CAPTIONS: dict[str, str] = {
         "Solid grey = c1 base, dashed colored = c2 exposed cohort."
     ),
     "cif_secondary_d2": (
-        "Figure 3b: CIF \u2014 Disorder 2 (remaining kinds).\n\n"
-        "Same layout as Figure 3a but for disorder 2."
+        "Figure 3b: CIF \u2014 Disorder 2 (remaining kinds).\n\nSame layout as Figure 3a but for disorder 2."
     ),
     "h2_time_d1": (
         "Figure 4: Heritability over follow-up \u2014 Disorder 1.\n\n"
@@ -88,10 +103,7 @@ EPIMIGHT_CAPTIONS: dict[str, str] = {
         "kind. Shaded bands show 95% CIs. Horizontal dashed line marks the true h\u00b2. "
         "Dotted line shows the fixed-effect meta-analytic estimate with shaded 95% CI."
     ),
-    "h2_time_d2": (
-        "Figure 5: Heritability over follow-up \u2014 Disorder 2.\n\n"
-        "Same as Figure 4 but for disorder 2."
-    ),
+    "h2_time_d2": ("Figure 5: Heritability over follow-up \u2014 Disorder 2.\n\nSame as Figure 4 but for disorder 2."),
     "h2_bar_d1": (
         "Figure 6a: Heritability at maximum follow-up \u2014 Disorder 1.\n\n"
         "One panel per relationship kind. Bars show h\u00b2 at maximum follow-up "
@@ -283,8 +295,7 @@ def _plot_c1_on_ax(ax, c1: pd.DataFrame, years: list, norm, cmap):
         c1y = c1[c1["born_at_year"] == year].sort_values("time")
         if c1y.empty:
             continue
-        ax.plot(c1y["time"], c1y["estimate"], color=cmap(norm(year)),
-                linewidth=0.8, alpha=0.5)
+        ax.plot(c1y["time"], c1y["estimate"], color=cmap(norm(year)), linewidth=0.8, alpha=0.5)
 
 
 def _add_cif_colorbar_and_legend(fig, axes, norm, cmap_exposed, exposed_cohort):
@@ -298,15 +309,17 @@ def _add_cif_colorbar_and_legend(fig, axes, norm, cmap_exposed, exposed_cohort):
 
     legend_elements = [
         Line2D([0], [0], color="0.4", linewidth=1.2, label="c1 (base)"),
-        Line2D([0], [0], color="0.4", linewidth=1.2, linestyle="--",
-               label=f"{exposed_cohort} (exposed)"),
+        Line2D([0], [0], color="0.4", linewidth=1.2, linestyle="--", label=f"{exposed_cohort} (exposed)"),
     ]
-    fig.legend(handles=legend_elements, loc="lower right", ncol=2,
-               fontsize=10, frameon=True, bbox_to_anchor=(0.95, -0.07))
+    fig.legend(
+        handles=legend_elements, loc="lower right", ncol=2, fontsize=10, frameon=True, bbox_to_anchor=(0.95, -0.07)
+    )
 
 
 def plot_cif_base(
-    tsv_dir: Path, kinds: list[str], output_path: Path,
+    tsv_dir: Path,
+    kinds: list[str],
+    output_path: Path,
 ) -> None:
     """Two-panel plot of c1 base population CIF (D1 left, D2 right), shared y-axis."""
     c1_d1 = load_cif(tsv_dir, "d1", "c1", kinds[0])
@@ -318,9 +331,7 @@ def plot_cif_base(
     years = sorted(ref["born_at_year"].unique())
     norm = Normalize(vmin=min(years), vmax=max(years))
     # Truncate Greys so lightest color is ~0.7 gray, not white
-    cmap = LinearSegmentedColormap.from_list(
-        "Greys_trunc", cm.Greys(np.linspace(0.25, 1.0, 256))
-    )
+    cmap = LinearSegmentedColormap.from_list("Greys_trunc", cm.Greys(np.linspace(0.25, 1.0, 256)))
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
 
@@ -331,8 +342,7 @@ def plot_cif_base(
             c1y = c1[c1["born_at_year"] == year].sort_values("time")
             if c1y.empty:
                 continue
-            ax.plot(c1y["time"], c1y["estimate"], color=cmap(norm(year)),
-                    linewidth=1.0)
+            ax.plot(c1y["time"], c1y["estimate"], color=cmap(norm(year)), linewidth=1.0)
         ax.set_title(label, fontsize=12)
         ax.set_xlabel("Follow-up time (age)")
 
@@ -352,8 +362,12 @@ def plot_cif_base(
 
 
 def _plot_cif_panels(
-    tsv_dir: Path, panel_kinds: list[str], disorder: str,
-    output_path: Path, title: str, n_cols: int = 2,
+    tsv_dir: Path,
+    panel_kinds: list[str],
+    disorder: str,
+    output_path: Path,
+    title: str,
+    n_cols: int = 2,
 ) -> None:
     """CIF panels: first panel is c1-only, remaining panels show c1 + exposed."""
 
@@ -364,14 +378,14 @@ def _plot_cif_panels(
 
     years = sorted(c1["born_at_year"].unique())
     norm = Normalize(vmin=min(years), vmax=max(years))
-    cmap_base = LinearSegmentedColormap.from_list(
-        "Greys_trunc", cm.Greys(np.linspace(0.25, 1.0, 256))
-    )
+    cmap_base = LinearSegmentedColormap.from_list("Greys_trunc", cm.Greys(np.linspace(0.25, 1.0, 256)))
     # Use both sides of vanimo but skip the dark center and light ends
-    _vanimo_colors = np.vstack([
-        cm.vanimo(np.linspace(0.15, 0.35, 128)),
-        cm.vanimo(np.linspace(0.65, 0.85, 128)),
-    ])
+    _vanimo_colors = np.vstack(
+        [
+            cm.vanimo(np.linspace(0.15, 0.35, 128)),
+            cm.vanimo(np.linspace(0.65, 0.85, 128)),
+        ]
+    )
     cmap_exposed = LinearSegmentedColormap.from_list("vanimo_clamp", _vanimo_colors)
 
     # panels: c1-base + one per kind
@@ -399,9 +413,14 @@ def _plot_cif_panels(
                 c_ey = c_exp[c_exp["born_at_year"] == year].sort_values("time")
                 if c_ey.empty:
                     continue
-                ax.plot(c_ey["time"], c_ey["estimate"],
-                        color=cmap_exposed(norm(year)),
-                        linewidth=0.8, alpha=0.7, linestyle="--")
+                ax.plot(
+                    c_ey["time"],
+                    c_ey["estimate"],
+                    color=cmap_exposed(norm(year)),
+                    linewidth=0.8,
+                    alpha=0.7,
+                    linestyle="--",
+                )
 
         ax.set_title(KIND_LABELS.get(kind, kind), fontsize=11)
         ax.set_xlabel("Follow-up time (age)", fontsize=9)
@@ -418,32 +437,39 @@ def _plot_cif_panels(
 
 
 def plot_cif_primary(
-    tsv_dir: Path, kinds: list[str], disorder: str, output_path: Path,
+    tsv_dir: Path,
+    kinds: list[str],
+    disorder: str,
+    output_path: Path,
 ) -> None:
     """CIF panels for primary kinds (PO, FS, HS) with c1 reference panel."""
     primary = [k for k in _PRIMARY_KINDS if k in kinds]
     if not primary:
         return
     d_label = disorder.upper()
-    _plot_cif_panels(tsv_dir, primary, disorder, output_path,
-                     f"CIF: Base + Primary Kinds \u2014 {d_label}")
+    _plot_cif_panels(tsv_dir, primary, disorder, output_path, f"CIF: Base + Primary Kinds \u2014 {d_label}")
 
 
 def plot_cif_secondary(
-    tsv_dir: Path, kinds: list[str], disorder: str, output_path: Path,
+    tsv_dir: Path,
+    kinds: list[str],
+    disorder: str,
+    output_path: Path,
 ) -> None:
     """CIF panels for remaining kinds after PO/FS/HS."""
     secondary = [k for k in kinds if k not in _PRIMARY_KINDS]
     if not secondary:
         return
     d_label = disorder.upper()
-    _plot_cif_panels(tsv_dir, secondary, disorder, output_path,
-                     f"CIF: Secondary Kinds \u2014 {d_label}", n_cols=3)
+    _plot_cif_panels(tsv_dir, secondary, disorder, output_path, f"CIF: Secondary Kinds \u2014 {d_label}", n_cols=3)
 
 
 def plot_h2_by_time(
-    tsv_dir: Path, kinds: list[str], disorder: str,
-    true_h2: float | None, output_path: Path,
+    tsv_dir: Path,
+    kinds: list[str],
+    disorder: str,
+    true_h2: float | None,
+    output_path: Path,
 ) -> None:
     """h2 vs follow-up time, one panel per kind. Faint lines per birth year, bold median."""
     fig, axes, n_rows, n_cols = _make_panel_grid(len(kinds))
@@ -472,20 +498,25 @@ def plot_h2_by_time(
         for t in times:
             vals = h2.loc[h2["time"] == t, "h2"].dropna()
             median_h2.append(vals.median() if len(vals) > 0 else np.nan)
-        ax.plot(times, median_h2, color=color, linewidth=2.5,
-                label=f"Median ({KIND_LABELS.get(kind, kind)})")
+        ax.plot(times, median_h2, color=color, linewidth=2.5, label=f"Median ({KIND_LABELS.get(kind, kind)})")
 
         if true_h2 is not None:
-            ax.axhline(true_h2, color="black", linestyle="--", linewidth=1.5,
-                        alpha=0.7, label=f"True h\u00b2 = {true_h2:.3f}")
+            ax.axhline(
+                true_h2, color="black", linestyle="--", linewidth=1.5, alpha=0.7, label=f"True h\u00b2 = {true_h2:.3f}"
+            )
 
         # Meta-analysis overlay
         meta = load_meta(tsv_dir, f"h2_{disorder}_meta", kind)
         if meta is not None:
-            ax.axhline(meta["fixed_meta"], color=color, linestyle=":",
-                        linewidth=2, alpha=0.8, label=f"Meta = {meta['fixed_meta']:.3f}")
-            ax.axhspan(meta["fixed_l95"], meta["fixed_u95"],
-                        color=color, alpha=0.08)
+            ax.axhline(
+                meta["fixed_meta"],
+                color=color,
+                linestyle=":",
+                linewidth=2,
+                alpha=0.8,
+                label=f"Meta = {meta['fixed_meta']:.3f}",
+            )
+            ax.axhspan(meta["fixed_l95"], meta["fixed_u95"], color=color, alpha=0.08)
 
         ax.set_title(KIND_LABELS.get(kind, kind), fontsize=11)
         ax.set_xlabel("Follow-up time (age)", fontsize=9)
@@ -535,21 +566,35 @@ def _plot_bar_panels(
         err_hi = np.maximum(0, tm["u95"].values - vals)
 
         ax.bar(range(len(years)), vals, color=color, alpha=0.8, zorder=3)
-        ax.errorbar(range(len(years)), vals, yerr=[err_lo, err_hi],
-                    fmt="none", color="black", capsize=2, linewidth=0.6, zorder=4)
+        ax.errorbar(
+            range(len(years)),
+            vals,
+            yerr=[err_lo, err_hi],
+            fmt="none",
+            color="black",
+            capsize=2,
+            linewidth=0.6,
+            zorder=4,
+        )
 
         if true_value is not None:
-            ax.axhline(true_value, color="black", linestyle="--", linewidth=1.5,
-                        alpha=0.7, label=f"True = {true_value:.3f}")
+            ax.axhline(
+                true_value, color="black", linestyle="--", linewidth=1.5, alpha=0.7, label=f"True = {true_value:.3f}"
+            )
 
         # Meta-analysis overlay
         meta = meta_fn(kind) if meta_fn else None
         if meta is not None:
-            ax.axhline(meta["fixed_meta"], color=color, linestyle=":",
-                        linewidth=2, alpha=0.8, zorder=5,
-                        label=f"Meta = {meta['fixed_meta']:.3f}")
-            ax.axhspan(meta["fixed_l95"], meta["fixed_u95"],
-                        color=color, alpha=0.08, zorder=1)
+            ax.axhline(
+                meta["fixed_meta"],
+                color=color,
+                linestyle=":",
+                linewidth=2,
+                alpha=0.8,
+                zorder=5,
+                label=f"Meta = {meta['fixed_meta']:.3f}",
+            )
+            ax.axhspan(meta["fixed_l95"], meta["fixed_u95"], color=color, alpha=0.08, zorder=1)
 
         ax.set_xticks(range(len(years)))
         ax.set_xticklabels([str(int(y)) for y in years], fontsize=6, rotation=45)
@@ -568,8 +613,11 @@ def _plot_bar_panels(
 
 
 def plot_h2_bar(
-    tsv_dir: Path, kinds: list[str], disorder: str,
-    true_h2: float | None, output_path: Path,
+    tsv_dir: Path,
+    kinds: list[str],
+    disorder: str,
+    true_h2: float | None,
+    output_path: Path,
 ) -> None:
     """Bar chart of h2 at tmax, one panel per relationship kind."""
     _plot_bar_panels(
@@ -585,7 +633,10 @@ def plot_h2_bar(
 
 
 def plot_gc_bar(
-    tsv_dir: Path, kinds: list[str], true_params: dict | None, output_path: Path,
+    tsv_dir: Path,
+    kinds: list[str],
+    true_params: dict | None,
+    output_path: Path,
 ) -> None:
     """Bar chart of rhog at tmax, one panel per relationship kind.
 
@@ -617,35 +668,46 @@ def plot_gc_bar(
         # Clamp bars to [-1, 1] for display
         clamped = np.clip(vals, -1, 1)
         ax.bar(range(len(years)), clamped, color=color, alpha=0.8, zorder=3)
-        ax.errorbar(range(len(years)), clamped,
-                    yerr=[np.minimum(err_lo, clamped - ylim[0]),
-                          np.minimum(err_hi, ylim[1] - clamped)],
-                    fmt="none", color="black", capsize=2, linewidth=0.6,
-                    zorder=4, clip_on=True)
+        ax.errorbar(
+            range(len(years)),
+            clamped,
+            yerr=[np.minimum(err_lo, clamped - ylim[0]), np.minimum(err_hi, ylim[1] - clamped)],
+            fmt="none",
+            color="black",
+            capsize=2,
+            linewidth=0.6,
+            zorder=4,
+            clip_on=True,
+        )
 
         # Mark out-of-range values with arrows at the clamp boundary
         for i, v in enumerate(vals):
             if v > 1:
-                ax.annotate("\u2191", xy=(i, 1), ha="center", va="bottom",
-                            fontsize=7, color="red", fontweight="bold")
+                ax.annotate("\u2191", xy=(i, 1), ha="center", va="bottom", fontsize=7, color="red", fontweight="bold")
             elif v < -1:
-                ax.annotate("\u2193", xy=(i, -1), ha="center", va="top",
-                            fontsize=7, color="red", fontweight="bold")
+                ax.annotate("\u2193", xy=(i, -1), ha="center", va="top", fontsize=7, color="red", fontweight="bold")
 
         if true_gc is not None:
-            ax.axhline(true_gc, color="black", linestyle="--", linewidth=1.5,
-                        alpha=0.7, label=f"True = {true_gc:.3f}")
+            ax.axhline(true_gc, color="black", linestyle="--", linewidth=1.5, alpha=0.7, label=f"True = {true_gc:.3f}")
 
         # Meta-analysis overlay
         meta = load_meta(tsv_dir, "gc_meta", kind)
         if meta is not None:
-            ax.axhline(meta["fixed_meta"], color=color, linestyle=":",
-                        linewidth=2, alpha=0.8, zorder=5,
-                        label=f"Meta = {meta['fixed_meta']:.3f}")
+            ax.axhline(
+                meta["fixed_meta"],
+                color=color,
+                linestyle=":",
+                linewidth=2,
+                alpha=0.8,
+                zorder=5,
+                label=f"Meta = {meta['fixed_meta']:.3f}",
+            )
             ax.axhspan(
                 max(meta["fixed_l95"], ylim[0]),
                 min(meta["fixed_u95"], ylim[1]),
-                color=color, alpha=0.08, zorder=1,
+                color=color,
+                alpha=0.08,
+                zorder=1,
             )
 
         ax.set_ylim(ylim)
@@ -666,7 +728,10 @@ def plot_gc_bar(
 
 
 def plot_summary_table(
-    tsv_dir: Path, kinds: list[str], true_params: dict | None, output_path: Path,
+    tsv_dir: Path,
+    kinds: list[str],
+    true_params: dict | None,
+    output_path: Path,
 ) -> None:
     """Render a summary comparison table as a figure."""
     columns = ["Kind", "c2 N", "c3 N", "h\u00b2 d1", "h\u00b2 d2", "\u03c1g"]
@@ -697,13 +762,16 @@ def plot_summary_table(
 
     # True row
     if true_params:
-        table_data.append([
-            "True",
-            "\u2014", "\u2014",
-            f"{true_params['h2_trait1_true']:.4f}",
-            f"{true_params['h2_trait2_true']:.4f}",
-            f"{true_params['genetic_correlation_true']:.4f}",
-        ])
+        table_data.append(
+            [
+                "True",
+                "\u2014",
+                "\u2014",
+                f"{true_params['h2_trait1_true']:.4f}",
+                f"{true_params['h2_trait2_true']:.4f}",
+                f"{true_params['genetic_correlation_true']:.4f}",
+            ]
+        )
 
     n_rows = len(table_data)
     fig_h = max(3, 1.2 + 0.45 * n_rows)
@@ -800,8 +868,7 @@ def assemble_epimight_atlas(scenario_dir: str | Path) -> None:
     }
 
     atlas_path = plots_dir / "atlas.pdf"
-    assemble_atlas(plot_paths, EPIMIGHT_CAPTIONS, atlas_path,
-                   section_breaks=section_breaks)
+    assemble_atlas(plot_paths, EPIMIGHT_CAPTIONS, atlas_path, section_breaks=section_breaks)
     print(f"Atlas saved to {atlas_path}")
 
 
@@ -811,17 +878,11 @@ def assemble_epimight_atlas(scenario_dir: str | Path) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate EPIMIGHT plot atlas comparing relationship kinds"
-    )
+    parser = argparse.ArgumentParser(description="Generate EPIMIGHT plot atlas comparing relationship kinds")
     parser.add_argument(
-        "scenario_dir",
-        help="Path to EPIMIGHT results directory (contains tsv/ and true_parameters.json)"
+        "scenario_dir", help="Path to EPIMIGHT results directory (contains tsv/ and true_parameters.json)"
     )
-    parser.add_argument(
-        "-v", "--verbose", action="store_true",
-        help="Enable verbose logging"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
     logging.basicConfig(

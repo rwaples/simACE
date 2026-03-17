@@ -5,14 +5,14 @@ Gather validation results from all scenarios into a single TSV file.
 from __future__ import annotations
 
 import argparse
-import logging
-from typing import Any
 import csv
-import re
-import yaml
-from pathlib import Path
-
+import logging
 import platform
+import re
+from pathlib import Path
+from typing import Any
+
+import yaml
 
 from sim_ace.utils import get_nested
 
@@ -39,11 +39,13 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
     # Parse simulate benchmark time from corresponding TSV
     simulate_seconds = None
     simulate_max_rss_mb = None
-    bench_path = Path(re.sub(
-        r"results/([^/]+)/([^/]+)/rep(\d+)/validation\.yaml",
-        r"benchmarks/\1/\2/rep\3/simulate.tsv",
-        validation_path,
-    ))
+    bench_path = Path(
+        re.sub(
+            r"results/([^/]+)/([^/]+)/rep(\d+)/validation\.yaml",
+            r"benchmarks/\1/\2/rep\3/simulate.tsv",
+            validation_path,
+        )
+    )
     if bench_path.exists():
         with open(bench_path, encoding="utf-8", newline="") as bf:
             reader = csv.DictReader(bf, delimiter="\t")
@@ -100,79 +102,37 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         "observed_rC": get_nested(data, "statistical", "cross_trait_rC", "observed"),
         "observed_rE": get_nested(data, "statistical", "cross_trait_rE", "observed"),
         # MZ twin correlations (trait 1)
-        "mz_twin_A1_corr": get_nested(
-            data, "heritability", "mz_twin_A1_correlation", "observed"
-        ),
-        "mz_twin_liability1_corr": get_nested(
-            data, "heritability", "mz_twin_liability1_correlation", "observed"
-        ),
+        "mz_twin_A1_corr": get_nested(data, "heritability", "mz_twin_A1_correlation", "observed"),
+        "mz_twin_liability1_corr": get_nested(data, "heritability", "mz_twin_liability1_correlation", "observed"),
         # MZ twin correlations (trait 2)
-        "mz_twin_A2_corr": get_nested(
-            data, "heritability", "mz_twin_A2_correlation", "observed"
-        ),
-        "mz_twin_liability2_corr": get_nested(
-            data, "heritability", "mz_twin_liability2_correlation", "observed"
-        ),
+        "mz_twin_A2_corr": get_nested(data, "heritability", "mz_twin_A2_correlation", "observed"),
+        "mz_twin_liability2_corr": get_nested(data, "heritability", "mz_twin_liability2_correlation", "observed"),
         # DZ sibling correlations (trait 1)
-        "dz_sibling_A1_corr": get_nested(
-            data, "heritability", "dz_sibling_A1_correlation", "observed"
-        ),
-        "dz_sibling_liability1_corr": get_nested(
-            data, "heritability", "dz_sibling_liability1_correlation", "observed"
-        ),
+        "dz_sibling_A1_corr": get_nested(data, "heritability", "dz_sibling_A1_correlation", "observed"),
+        "dz_sibling_liability1_corr": get_nested(data, "heritability", "dz_sibling_liability1_correlation", "observed"),
         # DZ sibling correlations (trait 2)
-        "dz_sibling_A2_corr": get_nested(
-            data, "heritability", "dz_sibling_A2_correlation", "observed"
-        ),
-        "dz_sibling_liability2_corr": get_nested(
-            data, "heritability", "dz_sibling_liability2_correlation", "observed"
-        ),
+        "dz_sibling_A2_corr": get_nested(data, "heritability", "dz_sibling_A2_correlation", "observed"),
+        "dz_sibling_liability2_corr": get_nested(data, "heritability", "dz_sibling_liability2_correlation", "observed"),
         # Half-sib statistics
-        "half_sib_prop_expected": get_nested(
-            data, "half_sibs", "half_sib_pair_proportion", "expected"
-        ),
-        "half_sib_prop_observed": get_nested(
-            data, "half_sibs", "half_sib_pair_proportion", "observed"
-        ),
-        "offspring_with_half_sib_expected": get_nested(
-            data, "half_sibs", "offspring_with_half_sib", "expected"
-        ),
-        "offspring_with_half_sib_observed": get_nested(
-            data, "half_sibs", "offspring_with_half_sib", "observed"
-        ),
-        "half_sib_A1_corr": get_nested(
-            data, "half_sibs", "half_sib_A1_correlation", "observed"
-        ),
-        "half_sib_liability1_corr": get_nested(
-            data, "half_sibs", "half_sib_liability1_correlation", "observed"
-        ),
-        "half_sib_shared_C1": get_nested(
-            data, "half_sibs", "half_sib_shared_C1", "observed"
-        ),
+        "half_sib_prop_expected": get_nested(data, "half_sibs", "half_sib_pair_proportion", "expected"),
+        "half_sib_prop_observed": get_nested(data, "half_sibs", "half_sib_pair_proportion", "observed"),
+        "offspring_with_half_sib_expected": get_nested(data, "half_sibs", "offspring_with_half_sib", "expected"),
+        "offspring_with_half_sib_observed": get_nested(data, "half_sibs", "offspring_with_half_sib", "observed"),
+        "half_sib_A1_corr": get_nested(data, "half_sibs", "half_sib_A1_correlation", "observed"),
+        "half_sib_liability1_corr": get_nested(data, "half_sibs", "half_sib_liability1_correlation", "observed"),
+        "half_sib_shared_C1": get_nested(data, "half_sibs", "half_sib_shared_C1", "observed"),
         # Benchmark timing and memory
         "simulate_seconds": simulate_seconds,
         "simulate_max_rss_mb": simulate_max_rss_mb,
         # Family size distribution
-        "mother_mean_offspring": get_nested(
-            data, "family_size_distribution", "mother", "mean"
-        ),
-        "father_mean_offspring": get_nested(
-            data, "family_size_distribution", "father", "mean"
-        ),
+        "mother_mean_offspring": get_nested(data, "family_size_distribution", "mother", "mean"),
+        "father_mean_offspring": get_nested(data, "family_size_distribution", "father", "mean"),
         # Falconer heritability estimates
-        "falconer_h2_trait1": get_nested(
-            data, "heritability", "falconer_estimate_trait1", "observed"
-        ),
-        "falconer_h2_trait2": get_nested(
-            data, "heritability", "falconer_estimate_trait2", "observed"
-        ),
+        "falconer_h2_trait1": get_nested(data, "heritability", "falconer_estimate_trait1", "observed"),
+        "falconer_h2_trait2": get_nested(data, "heritability", "falconer_estimate_trait2", "observed"),
         # Parent-offspring regressions (trait 1)
-        "parent_offspring_A1_slope": get_nested(
-            data, "heritability", "parent_offspring_A1_regression", "slope"
-        ),
-        "parent_offspring_A1_r2": get_nested(
-            data, "heritability", "parent_offspring_A1_regression", "r_squared"
-        ),
+        "parent_offspring_A1_slope": get_nested(data, "heritability", "parent_offspring_A1_regression", "slope"),
+        "parent_offspring_A1_r2": get_nested(data, "heritability", "parent_offspring_A1_regression", "r_squared"),
         "parent_offspring_liability1_slope": get_nested(
             data, "heritability", "parent_offspring_liability1_regression", "slope"
         ),
@@ -180,12 +140,8 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
             data, "heritability", "parent_offspring_liability1_regression", "r_squared"
         ),
         # Parent-offspring regressions (trait 2)
-        "parent_offspring_A2_slope": get_nested(
-            data, "heritability", "parent_offspring_A2_regression", "slope"
-        ),
-        "parent_offspring_A2_r2": get_nested(
-            data, "heritability", "parent_offspring_A2_regression", "r_squared"
-        ),
+        "parent_offspring_A2_slope": get_nested(data, "heritability", "parent_offspring_A2_regression", "slope"),
+        "parent_offspring_A2_r2": get_nested(data, "heritability", "parent_offspring_A2_regression", "r_squared"),
         "parent_offspring_liability2_slope": get_nested(
             data, "heritability", "parent_offspring_liability2_regression", "slope"
         ),
@@ -230,6 +186,7 @@ def main(validation_files: list[str], output_path: str) -> None:
 def cli() -> None:
     """Command-line interface for gathering validation results."""
     from sim_ace.cli_base import add_logging_args, init_logging
+
     parser = argparse.ArgumentParser(description="Gather validation results into TSV")
     add_logging_args(parser)
     parser.add_argument("validations", nargs="+", help="Validation YAML paths")

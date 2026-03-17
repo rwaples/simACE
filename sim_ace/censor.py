@@ -8,10 +8,9 @@ to raw event times produced by the Weibull frailty phenotype model.
 from __future__ import annotations
 
 import argparse
-from typing import Any
-
 import logging
 import time
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -47,7 +46,9 @@ def age_censor(t: np.ndarray, left: np.ndarray, right: np.ndarray) -> tuple[np.n
     return t_out, censored
 
 
-def death_censor(t: np.ndarray, seed: int, scale: float = 79.43282347242817, rho: float = 10) -> tuple[np.ndarray, np.ndarray]:
+def death_censor(
+    t: np.ndarray, seed: int, scale: float = 79.43282347242817, rho: float = 10
+) -> tuple[np.ndarray, np.ndarray]:
     """Apply competing risk death censoring with Weibull hazard.
 
     Args:
@@ -61,7 +62,7 @@ def death_censor(t: np.ndarray, seed: int, scale: float = 79.43282347242817, rho
     """
     rng = np.random.default_rng(seed)
     u = 1.0 - rng.uniform(size=len(t))
-    dt = scale * ((-np.log(u))) ** (1 / rho)
+    dt = scale * (-np.log(u)) ** (1 / rho)
     censored = t > dt
 
     t[censored] = dt[censored]
@@ -97,7 +98,7 @@ def run_censor(phenotype: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     # Single death age per individual, shared across both traits
     rng_death = np.random.default_rng(params["seed"] + 1000)
     u_death = 1.0 - rng_death.uniform(size=len(phenotype))
-    death_age = params["death_scale"] * ((-np.log(u_death))) ** (1 / params["death_rho"])
+    death_age = params["death_scale"] * (-np.log(u_death)) ** (1 / params["death_rho"])
 
     # === Trait 1 ===
     t1_after_age, age_censored1 = age_censor(phenotype["t1"].values.copy(), left_censor, right_censor)
@@ -134,6 +135,7 @@ def run_censor(phenotype: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
 def cli() -> None:
     """Command-line interface for censoring phenotype data."""
     from sim_ace.cli_base import add_logging_args, init_logging
+
     parser = argparse.ArgumentParser(description="Apply observation censoring to phenotype data")
     add_logging_args(parser)
     parser.add_argument("--phenotype", required=True, help="Input raw phenotype parquet")
@@ -142,20 +144,28 @@ def cli() -> None:
     parser.add_argument("--censor-age", type=float, default=100, help="Maximum follow-up age")
     parser.add_argument("--death-scale", type=float, default=79.433, help="Competing death hazard scale")
     parser.add_argument("--death-rho", type=float, default=10, help="Competing death hazard shape")
-    parser.add_argument("--gen-censoring", type=str, default=None, help="Per-generation censoring windows as JSON dict, e.g. '{\"0\": [40, 80], \"3\": [0, 45]}'")
+    parser.add_argument(
+        "--gen-censoring",
+        type=str,
+        default=None,
+        help='Per-generation censoring windows as JSON dict, e.g. \'{"0": [40, 80], "3": [0, 45]}\'',
+    )
 
     args = parser.parse_args()
 
     init_logging(args)
 
     import json
+
     phenotype = pd.read_parquet(args.phenotype)
     gen_censoring = json.loads(args.gen_censoring) if args.gen_censoring else {}
     gen_censoring = {int(k): v for k, v in gen_censoring.items()}
     params = {
-        "censor_age": args.censor_age, "seed": args.seed,
+        "censor_age": args.censor_age,
+        "seed": args.seed,
         "gen_censoring": gen_censoring,
-        "death_scale": args.death_scale, "death_rho": args.death_rho,
+        "death_scale": args.death_scale,
+        "death_rho": args.death_rho,
     }
     result = run_censor(phenotype, params)
     save_parquet(result, args.output)

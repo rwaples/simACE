@@ -430,15 +430,27 @@ def _render_section_page(pdf: PdfPages, title: str, subtitle: str = "") -> None:
     """Render a section divider page with centred title."""
     fig = plt.figure(figsize=(11, 8.5))
     fig.text(
-        0.5, 0.55, title,
-        fontsize=28, fontweight="bold", fontfamily="serif",
-        ha="center", va="center", transform=fig.transFigure,
+        0.5,
+        0.55,
+        title,
+        fontsize=28,
+        fontweight="bold",
+        fontfamily="serif",
+        ha="center",
+        va="center",
+        transform=fig.transFigure,
     )
     if subtitle:
         fig.text(
-            0.5, 0.45, subtitle,
-            fontsize=16, fontfamily="serif", color="0.4",
-            ha="center", va="center", transform=fig.transFigure,
+            0.5,
+            0.45,
+            subtitle,
+            fontsize=16,
+            fontfamily="serif",
+            color="0.4",
+            ha="center",
+            va="center",
+            transform=fig.transFigure,
         )
     pdf.savefig(fig)
     plt.close(fig)
@@ -527,16 +539,23 @@ def assemble_atlas(
             # Caption text in the lower portion
             if title:
                 fig.text(
-                    0.04, caption_frac - 0.02, title,
-                    fontsize=14, fontweight="bold", fontfamily="serif",
+                    0.04,
+                    caption_frac - 0.02,
+                    title,
+                    fontsize=14,
+                    fontweight="bold",
+                    fontfamily="serif",
                     verticalalignment="top",
                     transform=fig.transFigure,
                 )
             if body:
                 body += f"  [{rel}]"
                 fig.text(
-                    0.04, caption_frac - 0.05, body,
-                    fontsize=12, fontfamily="serif",
+                    0.04,
+                    caption_frac - 0.05,
+                    body,
+                    fontsize=12,
+                    fontfamily="serif",
                     verticalalignment="top",
                     wrap=True,
                     transform=fig.transFigure,

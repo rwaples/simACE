@@ -1,14 +1,12 @@
 """Shared fixtures for sim_ace test suite."""
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from sim_ace.simulate import (
     generate_correlated_components,
     mating,
     reproduce,
-    add_to_pedigree,
     run_simulation,
 )
 
@@ -69,17 +67,36 @@ def founders_and_offspring(rng):
     e2 = rng.normal(size=N, scale=sd_E2)
     pheno = np.stack([a1, c1, e1, a2, c2, e2], axis=-1)
 
-    parents, twins, household_ids = mating(
-        rng, sex, fam_size=2.3, p_nonsocial_father=0.05, p_mztwin=0.02
-    )
+    parents, twins, household_ids = mating(rng, sex, fam_size=2.3, p_nonsocial_father=0.05, p_mztwin=0.02)
     offspring, sex_offspring = reproduce(
-        rng, pheno, parents, twins, household_ids,
-        sd_A1, sd_E1, sd_C1, sd_A2, sd_E2, sd_C2, rA, rC,
+        rng,
+        pheno,
+        parents,
+        twins,
+        household_ids,
+        sd_A1,
+        sd_E1,
+        sd_C1,
+        sd_A2,
+        sd_E2,
+        sd_C2,
+        rA,
+        rC,
     )
     return dict(
-        pheno=pheno, sex=sex, parents=parents, twins=twins,
-        household_ids=household_ids, offspring=offspring,
+        pheno=pheno,
+        sex=sex,
+        parents=parents,
+        twins=twins,
+        household_ids=household_ids,
+        offspring=offspring,
         sex_offspring=sex_offspring,
-        sd_A1=sd_A1, sd_A2=sd_A2, sd_C1=sd_C1, sd_C2=sd_C2,
-        sd_E1=sd_E1, sd_E2=sd_E2, rA=rA, rC=rC,
+        sd_A1=sd_A1,
+        sd_A2=sd_A2,
+        sd_C1=sd_C1,
+        sd_C2=sd_C2,
+        sd_E1=sd_E1,
+        sd_E2=sd_E2,
+        rA=rA,
+        rC=rC,
     )

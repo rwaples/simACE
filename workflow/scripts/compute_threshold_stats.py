@@ -1,6 +1,8 @@
 """Compute threshold phenotype statistics - Snakemake wrapper with CLI fallback."""
+
 from sim_ace import setup_logging
-from sim_ace.threshold_stats import main, cli as _cli
+from sim_ace.threshold_stats import cli as _cli
+from sim_ace.threshold_stats import main
 
 
 def _run_snakemake():
@@ -12,8 +14,7 @@ def _run_snakemake():
 
     extra_tetrachoric = snakemake.params.get("extra_tetrachoric", True)
 
-    main(phenotype_path, stats_output, samples_output, seed=seed,
-         extra_tetrachoric=extra_tetrachoric)
+    main(phenotype_path, stats_output, samples_output, seed=seed, extra_tetrachoric=extra_tetrachoric)
 
 
 if __name__ == "__main__":

@@ -1,14 +1,12 @@
 """Unit tests for sim_ace.stats.tetrachoric_corr_se."""
 
 import numpy as np
-import pytest
 from scipy.stats import norm
 
-from sim_ace.stats import tetrachoric_corr_se, tetrachoric_corr
+from sim_ace.stats import tetrachoric_corr, tetrachoric_corr_se
 
 
 class TestTetrachoricCorrSE:
-
     def test_positive_correlation(self):
         """Two positively correlated binary variables should give r > 0."""
         rng = np.random.default_rng(42)
@@ -29,7 +27,7 @@ class TestTetrachoricCorrSE:
         z = rng.multivariate_normal([0, 0], [[1, -0.5], [-0.5, 1]], size=n)
         a = z[:, 0] > 0
         b = z[:, 1] > 0
-        r, se = tetrachoric_corr_se(a, b)
+        r, _se = tetrachoric_corr_se(a, b)
         assert -0.7 < r < -0.3
 
     def test_zero_correlation(self):
@@ -38,7 +36,7 @@ class TestTetrachoricCorrSE:
         n = 5000
         a = rng.binomial(1, 0.3, size=n).astype(bool)
         b = rng.binomial(1, 0.3, size=n).astype(bool)
-        r, se = tetrachoric_corr_se(a, b)
+        r, _se = tetrachoric_corr_se(a, b)
         assert abs(r) < 0.15
 
     def test_high_correlation(self):
@@ -48,7 +46,7 @@ class TestTetrachoricCorrSE:
         z = rng.multivariate_normal([0, 0], [[1, 0.9], [0.9, 1]], size=n)
         a = z[:, 0] > 0
         b = z[:, 1] > 0
-        r, se = tetrachoric_corr_se(a, b)
+        r, _se = tetrachoric_corr_se(a, b)
         assert r > 0.75
 
     def test_all_same_returns_nan(self):
@@ -71,7 +69,7 @@ class TestTetrachoricCorrSE:
         z = rng.multivariate_normal([0, 0], [[1, r_true], [r_true, 1]], size=n)
         a = z[:, 0] > 0  # threshold at median
         b = z[:, 1] > 0
-        r, se = tetrachoric_corr_se(a, b)
+        r, _se = tetrachoric_corr_se(a, b)
         assert abs(r - r_true) < 0.05
 
     def test_tetrachoric_corr_wrapper(self):
@@ -94,5 +92,5 @@ class TestTetrachoricCorrSE:
         # Asymmetric thresholds: a ~ 10% prevalence, b ~ 40% prevalence
         a = z[:, 0] > norm.ppf(0.9)
         b = z[:, 1] > norm.ppf(0.6)
-        r, se = tetrachoric_corr_se(a, b)
+        r, _se = tetrachoric_corr_se(a, b)
         assert abs(r - r_true) < 0.1

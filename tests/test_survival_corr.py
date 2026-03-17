@@ -2,9 +2,8 @@
 
 import numpy as np
 import pandas as pd
-import pytest
 
-from sim_ace.survival_corr import pairwise_weibull_corr_se, compute_weibull_pair_corr
+from sim_ace.survival_corr import compute_weibull_pair_corr, pairwise_weibull_corr_se
 
 
 class TestPairwiseWeibullCorrSE:
@@ -36,9 +35,7 @@ class TestPairwiseWeibullCorrSE:
     def test_positive_correlation(self):
         """BVN with r=0.5, no censoring: should recover r within tolerance."""
         scale, rho, beta = 31.623, 2.0, 1.0
-        t_i, d_i, t_j, d_j = self._simulate_pair_data(
-            r=0.5, n=3000, scale=scale, rho=rho, beta=beta, seed=42
-        )
+        t_i, d_i, t_j, d_j = self._simulate_pair_data(r=0.5, n=3000, scale=scale, rho=rho, beta=beta, seed=42)
         r_hat, se = pairwise_weibull_corr_se(t_i, d_i, t_j, d_j, scale, rho, beta)
         assert abs(r_hat - 0.5) < 0.1, f"r_hat={r_hat}, expected ~0.5"
         assert se > 0
@@ -47,18 +44,14 @@ class TestPairwiseWeibullCorrSE:
     def test_zero_correlation(self):
         """Independent liabilities: r should be near zero."""
         scale, rho, beta = 31.623, 2.0, 1.0
-        t_i, d_i, t_j, d_j = self._simulate_pair_data(
-            r=0.0, n=2000, scale=scale, rho=rho, beta=beta, seed=99
-        )
-        r_hat, se = pairwise_weibull_corr_se(t_i, d_i, t_j, d_j, scale, rho, beta)
+        t_i, d_i, t_j, d_j = self._simulate_pair_data(r=0.0, n=2000, scale=scale, rho=rho, beta=beta, seed=99)
+        r_hat, _se = pairwise_weibull_corr_se(t_i, d_i, t_j, d_j, scale, rho, beta)
         assert abs(r_hat) < 0.12, f"r_hat={r_hat}, expected ~0.0"
 
     def test_high_correlation(self):
         """BVN with r=0.8: should recover high correlation."""
         scale, rho, beta = 31.623, 2.0, 1.0
-        t_i, d_i, t_j, d_j = self._simulate_pair_data(
-            r=0.8, n=2000, scale=scale, rho=rho, beta=beta, seed=77
-        )
+        t_i, d_i, t_j, d_j = self._simulate_pair_data(r=0.8, n=2000, scale=scale, rho=rho, beta=beta, seed=77)
         r_hat, se = pairwise_weibull_corr_se(t_i, d_i, t_j, d_j, scale, rho, beta)
         assert r_hat > 0.65, f"r_hat={r_hat}, expected > 0.65"
         assert se > 0
@@ -66,10 +59,8 @@ class TestPairwiseWeibullCorrSE:
     def test_se_positive_and_finite(self):
         """SE should be positive and finite for reasonable data."""
         scale, rho, beta = 31.623, 2.0, 1.0
-        t_i, d_i, t_j, d_j = self._simulate_pair_data(
-            r=0.5, n=1000, scale=scale, rho=rho, beta=beta, seed=55
-        )
-        r_hat, se = pairwise_weibull_corr_se(t_i, d_i, t_j, d_j, scale, rho, beta)
+        t_i, d_i, t_j, d_j = self._simulate_pair_data(r=0.5, n=1000, scale=scale, rho=rho, beta=beta, seed=55)
+        _r_hat, se = pairwise_weibull_corr_se(t_i, d_i, t_j, d_j, scale, rho, beta)
         assert np.isfinite(se)
         assert se > 0
 
@@ -83,7 +74,7 @@ class TestPairwiseWeibullCorrSE:
         frac_censored = 1 - (d_i.mean() + d_j.mean()) / 2
         assert frac_censored > 0.05, "Test setup: need some censoring"
 
-        r_hat, se = pairwise_weibull_corr_se(t_i, d_i, t_j, d_j, scale, rho, beta)
+        r_hat, _se = pairwise_weibull_corr_se(t_i, d_i, t_j, d_j, scale, rho, beta)
         assert abs(r_hat - 0.5) < 0.15, f"r_hat={r_hat}, expected ~0.5 (with censoring)"
 
     def test_too_few_pairs_returns_nan(self):
@@ -94,7 +85,9 @@ class TestPairwiseWeibullCorrSE:
             np.array([1.0, 1.0, 0.0]),
             np.array([2.0, 3.0, 4.0]),
             np.array([1.0, 0.0, 1.0]),
-            scale, rho, beta,
+            scale,
+            rho,
+            beta,
         )
         assert np.isnan(r_hat)
         assert np.isnan(se)
@@ -108,14 +101,16 @@ class TestComputeWeibullPairCorr:
         rng = np.random.default_rng(42)
         n = 200
         # Build a minimal DataFrame with required columns
-        df = pd.DataFrame({
-            "id": np.arange(n),
-            "mother": np.concatenate([[-1] * 50, rng.integers(0, 50, n - 50)]),
-            "father": np.concatenate([[-1] * 50, rng.integers(0, 50, n - 50)]),
-            "twin": np.full(n, -1),
-            "t_observed1": rng.exponential(50, n),
-            "affected1": rng.choice([True, False], n),
-        })
+        df = pd.DataFrame(
+            {
+                "id": np.arange(n),
+                "mother": np.concatenate([[-1] * 50, rng.integers(0, 50, n - 50)]),
+                "father": np.concatenate([[-1] * 50, rng.integers(0, 50, n - 50)]),
+                "twin": np.full(n, -1),
+                "t_observed1": rng.exponential(50, n),
+                "affected1": rng.choice([True, False], n),
+            }
+        )
 
         # Use a simple pairs dict with only a few types populated
         pairs = {
@@ -128,9 +123,7 @@ class TestComputeWeibullPairCorr:
             "1st cousin": (np.array([], dtype=int), np.array([], dtype=int)),
         }
 
-        result = compute_weibull_pair_corr(
-            df, trait_num=1, scale=31.623, rho=2.0, beta=1.0, pairs=pairs
-        )
+        result = compute_weibull_pair_corr(df, trait_num=1, scale=31.623, rho=2.0, beta=1.0, pairs=pairs)
 
         # All 7 pair types should be present
         assert len(result) == 7

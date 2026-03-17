@@ -8,16 +8,16 @@ and heritability estimates.
 from __future__ import annotations
 
 import argparse
-from typing import Any
-
 import logging
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import yaml
 
-from sim_ace.utils import safe_corrcoef, safe_linregress, to_native, validation_result as _result
 from sim_ace.pedigree_graph import extract_sibling_pairs
+from sim_ace.utils import safe_corrcoef, safe_linregress, to_native
+from sim_ace.utils import validation_result as _result
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +33,9 @@ def _check_variance(founders: pd.DataFrame, col: str, expected: float, tol: floa
     )
 
 
-
-def _midparent_regression(vals: np.ndarray, mother_idx: np.ndarray, father_idx: np.ndarray, offspring_idx: np.ndarray, label: str) -> dict[str, Any]:
+def _midparent_regression(
+    vals: np.ndarray, mother_idx: np.ndarray, father_idx: np.ndarray, offspring_idx: np.ndarray, label: str
+) -> dict[str, Any]:
     """Run midparent-offspring regression and return result dict."""
     midparent = (vals[mother_idx] + vals[father_idx]) / 2
     offspring = vals[offspring_idx]
@@ -43,7 +44,7 @@ def _midparent_regression(vals: np.ndarray, mother_idx: np.ndarray, father_idx: 
         return {
             "slope": float(reg.slope),
             "intercept": float(reg.intercept),
-            "r_squared": float(reg.rvalue ** 2),
+            "r_squared": float(reg.rvalue**2),
             "details": f"Midparent-offspring {label} regression: slope={reg.slope:.4f}, R²={reg.rvalue**2:.4f}",
         }
     return {"details": f"Zero variance in midparent {label} values"}
@@ -60,7 +61,7 @@ def _count_sib_pairs_legacy(non_twin_sibs: pd.DataFrame) -> dict[str, int]:
 
     n_full_sib = 0
     n_maternal_hs = 0
-    n_offspring_with_sibs = int(len(mat_sib))
+    n_offspring_with_sibs = len(mat_sib)
 
     if len(mat_sib) > 0:
         mat_pairs = mat_sib.merge(mat_sib, on="mother", suffixes=("_1", "_2"))
@@ -73,9 +74,7 @@ def _count_sib_pairs_legacy(non_twin_sibs: pd.DataFrame) -> dict[str, int]:
     if len(mat_sib) > 0:
         n_fathers_per_mother = mat_sib.groupby("mother")["father"].nunique()
         mothers_with_hs = n_fathers_per_mother[n_fathers_per_mother > 1].index
-        n_offspring_with_maternal_hs = int(
-            mat_sib[mat_sib["mother"].isin(mothers_with_hs)].shape[0]
-        )
+        n_offspring_with_maternal_hs = int(mat_sib[mat_sib["mother"].isin(mothers_with_hs)].shape[0])
     else:
         n_offspring_with_maternal_hs = 0
 
@@ -286,7 +285,7 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
 
 def _corr_se(expected_r: float, n_pairs: int) -> float:
     """Approximate SE of Pearson correlation: (1 - r^2) / sqrt(n - 1)."""
-    return (1 - expected_r ** 2) / np.sqrt(max(n_pairs - 1, 1))
+    return (1 - expected_r**2) / np.sqrt(max(n_pairs - 1, 1))
 
 
 def _corr_tolerance(expected_r: float, n_pairs: int, min_tol: float = 0.05, n_se: int = 4) -> float:
@@ -312,11 +311,11 @@ def _sib_counts_from_pairs(
         maternal_parts.extend([full[0], full[1]])
     if n_mat > 0:
         maternal_parts.extend([mat[0], mat[1]])
-    n_with_sibs = int(len(np.unique(np.concatenate(maternal_parts)))) if maternal_parts else 0
+    n_with_sibs = len(np.unique(np.concatenate(maternal_parts))) if maternal_parts else 0
 
     # Individuals with a maternal half-sib
     if n_mat > 0:
-        n_with_mat_hs = int(len(np.unique(np.concatenate([mat[0], mat[1]]))))
+        n_with_mat_hs = len(np.unique(np.concatenate([mat[0], mat[1]])))
     else:
         n_with_mat_hs = 0
 
@@ -329,7 +328,9 @@ def _sib_counts_from_pairs(
     }
 
 
-def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any], sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]]) -> dict[str, Any]:
+def validate_half_sibs(
+    df: pd.DataFrame, params: dict[str, Any], sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]]
+) -> dict[str, Any]:
     """Validate half-sibling counts and proportions related to p_nonsocial_father.
 
     Checks that the observed proportion of maternal half-sibling pairs among
@@ -350,9 +351,7 @@ def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any], sibling_pairs: 
     fam_size = params.get("fam_size", 2)
 
     expected_half_sib_prop = 1 - (1 - p_nonsocial) ** 2
-    expected_frac_with_half_sib = 1 - (1 - p_nonsocial) * np.exp(
-        -fam_size * p_nonsocial
-    )
+    expected_frac_with_half_sib = 1 - (1 - p_nonsocial) * np.exp(-fam_size * p_nonsocial)
 
     sib_info = _sib_counts_from_pairs(sibling_pairs)
 
@@ -360,10 +359,7 @@ def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any], sibling_pairs: 
     total_maternal_pairs = sib_info["n_full_sib_pairs"] + sib_info["n_maternal_half_sib_pairs"]
     if total_maternal_pairs > 0:
         observed_half_sib_prop = sib_info["n_maternal_half_sib_pairs"] / total_maternal_pairs
-        se_prop = np.sqrt(
-            expected_half_sib_prop * (1 - expected_half_sib_prop)
-            / max(total_maternal_pairs, 1)
-        )
+        se_prop = np.sqrt(expected_half_sib_prop * (1 - expected_half_sib_prop) / max(total_maternal_pairs, 1))
         tol = max(4 * se_prop, 0.02)
         half_sib_ok = abs(observed_half_sib_prop - expected_half_sib_prop) < tol
         results["half_sib_pair_proportion"] = _result(
@@ -377,9 +373,7 @@ def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any], sibling_pairs: 
             n_paternal_half_sib_pairs=int(sib_info["n_paternal_half_sib_pairs"]),
         )
     else:
-        results["half_sib_pair_proportion"] = _result(
-            True, "No maternal sibling pairs to check"
-        )
+        results["half_sib_pair_proportion"] = _result(True, "No maternal sibling pairs to check")
 
     # Offspring with maternal half-sib
     n_offspring_with_sibs = sib_info["n_offspring_with_sibs"]
@@ -387,8 +381,7 @@ def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any], sibling_pairs: 
     if n_offspring_with_sibs > 0:
         observed_frac = n_offspring_with_hs / n_offspring_with_sibs
         se_frac = np.sqrt(
-            expected_frac_with_half_sib * (1 - expected_frac_with_half_sib)
-            / max(n_offspring_with_sibs, 1)
+            expected_frac_with_half_sib * (1 - expected_frac_with_half_sib) / max(n_offspring_with_sibs, 1)
         )
         tol = max(4 * se_frac, 0.02)
         frac_ok = abs(observed_frac - expected_frac_with_half_sib) < tol
@@ -402,9 +395,7 @@ def validate_half_sibs(df: pd.DataFrame, params: dict[str, Any], sibling_pairs: 
             n_offspring_with_sibs=int(n_offspring_with_sibs),
         )
     else:
-        results["offspring_with_half_sib"] = _result(
-            True, "No non-twin offspring with siblings to check"
-        )
+        results["offspring_with_half_sib"] = _result(True, "No non-twin offspring with siblings to check")
 
     return results
 
@@ -437,9 +428,7 @@ def validate_statistical(df: pd.DataFrame, params: dict[str, Any], df_indexed: p
     for t in [1, 2]:
         for comp in ["A", "C", "E"]:
             col = f"{comp}{t}"
-            results[f"variance_{col}"] = _check_variance(
-                founders, col, params[col]
-            )
+            results[f"variance_{col}"] = _check_variance(founders, col, params[col])
 
     # Total variances
     for t in [1, 2]:
@@ -485,9 +474,7 @@ def validate_statistical(df: pd.DataFrame, params: dict[str, Any], df_indexed: p
             )
     else:
         for t in [1, 2]:
-            results[f"c{t}_inheritance"] = _result(
-                True, "No non-founders to check C inheritance"
-            )
+            results[f"c{t}_inheritance"] = _result(True, "No non-founders to check C inheritance")
 
     # E independence between siblings
     if len(non_founders) > 0:
@@ -514,17 +501,11 @@ def validate_statistical(df: pd.DataFrame, params: dict[str, Any], df_indexed: p
                     observed_correlation=float(e_corr),
                 )
             else:
-                results["e1_independence"] = _result(
-                    True, "Not enough sibling pairs to check E independence"
-                )
+                results["e1_independence"] = _result(True, "Not enough sibling pairs to check E independence")
         else:
-            results["e1_independence"] = _result(
-                True, "Not enough sibling groups to check E independence"
-            )
+            results["e1_independence"] = _result(True, "Not enough sibling groups to check E independence")
     else:
-        results["e1_independence"] = _result(
-            True, "No non-founders to check E independence"
-        )
+        results["e1_independence"] = _result(True, "No non-founders to check E independence")
 
     return results
 
@@ -659,11 +640,11 @@ def _validate_falconer(
             falconer = 2 * (mz_c - dz_c)
             se_mz = _corr_se(mz_c, n_mz_pairs)
             se_dz = _corr_se(dz_c, n_dz_pairs)
-            se_falconer = 2 * np.sqrt(se_mz ** 2 + se_dz ** 2)
+            se_falconer = 2 * np.sqrt(se_mz**2 + se_dz**2)
             falconer_tol = max(4 * se_falconer, 0.05)
             results[f"falconer_estimate_trait{t}"] = _result(
                 abs(falconer - A_params[t]) < falconer_tol,
-                f"Falconer h²{chr(8320+t)} = 2(r_MZ - r_DZ) = {falconer:.4f} "
+                f"Falconer h²{chr(8320 + t)} = 2(r_MZ - r_DZ) = {falconer:.4f} "
                 f"(expected: ~{A_params[t]}, tol: {falconer_tol:.4f})",
                 expected=A_params[t],
                 observed=float(falconer),
@@ -686,8 +667,7 @@ def _validate_parent_offspring(
     non_founders = df[df["mother"] != -1]
     if len(non_founders) > 100:
         valid_offspring = non_founders[
-            non_founders["mother"].isin(df_indexed.index)
-            & non_founders["father"].isin(df_indexed.index)
+            non_founders["mother"].isin(df_indexed.index) & non_founders["father"].isin(df_indexed.index)
         ]
 
         if len(valid_offspring) > 100:
@@ -697,12 +677,18 @@ def _validate_parent_offspring(
 
             for t in [1, 2]:
                 results[f"parent_offspring_A{t}_regression"] = _midparent_regression(
-                    comp_vals[f"A{t}"], mother_idx, father_idx, offspring_idx,
+                    comp_vals[f"A{t}"],
+                    mother_idx,
+                    father_idx,
+                    offspring_idx,
                     f"A{t}",
                 )
                 P_vals = comp_vals[f"A{t}"] + comp_vals[f"C{t}"] + comp_vals[f"E{t}"]
                 results[f"parent_offspring_liability{t}_regression"] = _midparent_regression(
-                    P_vals, mother_idx, father_idx, offspring_idx,
+                    P_vals,
+                    mother_idx,
+                    father_idx,
+                    offspring_idx,
                     f"liability{t}",
                 )
         else:
@@ -715,16 +701,14 @@ def _validate_parent_offspring(
                 }
     else:
         for t in [1, 2]:
-            results[f"parent_offspring_A{t}_regression"] = {
-                "details": "Not enough non-founders for regression"
-            }
-            results[f"parent_offspring_liability{t}_regression"] = {
-                "details": "Not enough non-founders for regression"
-            }
+            results[f"parent_offspring_A{t}_regression"] = {"details": "Not enough non-founders for regression"}
+            results[f"parent_offspring_liability{t}_regression"] = {"details": "Not enough non-founders for regression"}
 
 
 def validate_heritability(
-    df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame,
+    df: pd.DataFrame,
+    params: dict[str, Any],
+    df_indexed: pd.DataFrame,
     sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> dict[str, Any]:
     """Validate heritability estimates for two-trait simulation.
@@ -754,13 +738,26 @@ def validate_heritability(
     id_to_idx = pd.Series(np.arange(len(df_indexed)), index=df_indexed.index)
 
     mz_pheno_corr, n_mz_pairs = _validate_mz_correlations(
-        df, A_params, comp_vals, id_to_idx, results,
+        df,
+        A_params,
+        comp_vals,
+        id_to_idx,
+        results,
     )
     dz_pheno_corr, n_dz_pairs = _validate_dz_correlations(
-        params, A_params, comp_vals, sibling_pairs["Full sib"], results,
+        params,
+        A_params,
+        comp_vals,
+        sibling_pairs["Full sib"],
+        results,
     )
     _validate_falconer(
-        A_params, mz_pheno_corr, dz_pheno_corr, n_mz_pairs, n_dz_pairs, results,
+        A_params,
+        mz_pheno_corr,
+        dz_pheno_corr,
+        n_mz_pairs,
+        n_dz_pairs,
+        results,
     )
     _validate_parent_offspring(df, comp_vals, id_to_idx, df_indexed, results)
 
@@ -860,9 +857,7 @@ def validate_population(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, A
             observed=float(mean_fam),
         )
     else:
-        results["family_size"] = _result(
-            True, "No non-founders to check family size"
-        )
+        results["family_size"] = _result(True, "No non-founders to check family size")
 
     return results
 
@@ -892,7 +887,7 @@ def compute_family_size_distribution(df: pd.DataFrame, params: dict[str, Any]) -
             "mean": float(counts.mean()),
             "median": float(counts.median()),
             "std": float(counts.std()),
-            "n_parents": int(len(counts)),
+            "n_parents": len(counts),
         }
 
     return result
@@ -949,7 +944,9 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
                     checks_failed += 1
                     logger.warning(
                         "FAILED %s.%s: %s",
-                        category, check_name, check_result.get("details", ""),
+                        category,
+                        check_name,
+                        check_result.get("details", ""),
                     )
 
     results["summary"] = {
@@ -964,7 +961,8 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
 
     logger.info(
         "Validation complete: %d/%d checks passed",
-        checks_passed, checks_passed + checks_failed,
+        checks_passed,
+        checks_passed + checks_failed,
     )
 
     return results
@@ -973,6 +971,7 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
 def cli() -> None:
     """Command-line interface for running validation."""
     from sim_ace.cli_base import add_logging_args, init_logging
+
     parser = argparse.ArgumentParser(description="Validate ACE simulation output")
     add_logging_args(parser)
     parser.add_argument("--pedigree", required=True, help="Pedigree parquet path")

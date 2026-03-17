@@ -19,9 +19,12 @@ GOLDEN_PARAMS = dict(
     fam_size=2.3,
     p_mztwin=0.02,
     p_nonsocial_father=0.05,
-    A1=0.5, C1=0.2,
-    A2=0.4, C2=0.3,
-    rA=0.3, rC=0.5,
+    A1=0.5,
+    C1=0.2,
+    A2=0.4,
+    C2=0.3,
+    rA=0.3,
+    rC=0.5,
 )
 
 
@@ -31,7 +34,6 @@ def golden_pedigree():
 
 
 class TestGoldenSeedReproducibility:
-
     def test_shape(self, golden_pedigree):
         assert golden_pedigree.shape == (1000, 15)
 
@@ -46,34 +48,22 @@ class TestGoldenSeedReproducibility:
         assert (golden_pedigree["twin"] != -1).sum() == 28
 
     def test_A1_sum(self, golden_pedigree):
-        assert golden_pedigree["A1"].values.sum() == pytest.approx(
-            -16.620849382638458, abs=1e-10
-        )
+        assert golden_pedigree["A1"].values.sum() == pytest.approx(-16.620849382638458, abs=1e-10)
 
     def test_C1_sum(self, golden_pedigree):
-        assert golden_pedigree["C1"].values.sum() == pytest.approx(
-            -22.588583966904718, abs=1e-10
-        )
+        assert golden_pedigree["C1"].values.sum() == pytest.approx(-22.588583966904718, abs=1e-10)
 
     def test_E1_sum(self, golden_pedigree):
-        assert golden_pedigree["E1"].values.sum() == pytest.approx(
-            13.01105936616101, abs=1e-10
-        )
+        assert golden_pedigree["E1"].values.sum() == pytest.approx(13.01105936616101, abs=1e-10)
 
     def test_liability1_sum(self, golden_pedigree):
-        assert golden_pedigree["liability1"].values.sum() == pytest.approx(
-            -26.198373983382158, abs=1e-10
-        )
+        assert golden_pedigree["liability1"].values.sum() == pytest.approx(-26.198373983382158, abs=1e-10)
 
     def test_A2_sum(self, golden_pedigree):
-        assert golden_pedigree["A2"].values.sum() == pytest.approx(
-            13.583600440392479, abs=1e-10
-        )
+        assert golden_pedigree["A2"].values.sum() == pytest.approx(13.583600440392479, abs=1e-10)
 
     def test_liability2_sum(self, golden_pedigree):
-        assert golden_pedigree["liability2"].values.sum() == pytest.approx(
-            -10.486373147888656, abs=1e-10
-        )
+        assert golden_pedigree["liability2"].values.sum() == pytest.approx(-10.486373147888656, abs=1e-10)
 
     def test_row_0_values(self, golden_pedigree):
         row = golden_pedigree.iloc[0]
@@ -82,14 +72,10 @@ class TestGoldenSeedReproducibility:
         assert row["E1"] == pytest.approx(0.05415663482066094, abs=1e-14)
 
     def test_row_499_A1(self, golden_pedigree):
-        assert golden_pedigree.iloc[499]["A1"] == pytest.approx(
-            -0.2667646519008917, abs=1e-14
-        )
+        assert golden_pedigree.iloc[499]["A1"] == pytest.approx(-0.2667646519008917, abs=1e-14)
 
     def test_row_999_A1(self, golden_pedigree):
-        assert golden_pedigree.iloc[999]["A1"] == pytest.approx(
-            0.5483731218910545, abs=1e-14
-        )
+        assert golden_pedigree.iloc[999]["A1"] == pytest.approx(0.5483731218910545, abs=1e-14)
 
     def test_A1_first5(self, golden_pedigree):
         expected = [
@@ -99,9 +85,7 @@ class TestGoldenSeedReproducibility:
             -0.21699347733277374,
             -0.5782277114326064,
         ]
-        np.testing.assert_allclose(
-            golden_pedigree["A1"].values[:5], expected, atol=1e-14
-        )
+        np.testing.assert_allclose(golden_pedigree["A1"].values[:5], expected, atol=1e-14)
 
     def test_A1_last5(self, golden_pedigree):
         expected = [
@@ -111,18 +95,12 @@ class TestGoldenSeedReproducibility:
             0.6025076458945845,
             0.5483731218910545,
         ]
-        np.testing.assert_allclose(
-            golden_pedigree["A1"].values[-5:], expected, atol=1e-14
-        )
+        np.testing.assert_allclose(golden_pedigree["A1"].values[-5:], expected, atol=1e-14)
 
     def test_full_reproducibility(self, golden_pedigree):
         """Re-run with same params and verify bit-identical output."""
         ped2 = run_simulation(**GOLDEN_PARAMS)
-        np.testing.assert_array_equal(
-            golden_pedigree["A1"].values, ped2["A1"].values
-        )
-        np.testing.assert_array_equal(
-            golden_pedigree["liability2"].values, ped2["liability2"].values
-        )
+        np.testing.assert_array_equal(golden_pedigree["A1"].values, ped2["A1"].values)
+        np.testing.assert_array_equal(golden_pedigree["liability2"].values, ped2["liability2"].values)
         assert golden_pedigree["sex"].equals(ped2["sex"])
         assert golden_pedigree["twin"].equals(ped2["twin"])

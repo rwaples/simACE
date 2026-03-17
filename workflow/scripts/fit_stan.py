@@ -4,9 +4,10 @@ Usage:
     python workflow/scripts/fit_stan.py results/small_test/rep1/pedigree.parquet
 """
 
+import os
 import shutil
 import sys
-import os
+
 import numpy as np
 import pandas as pd
 from cmdstanpy import CmdStanModel
@@ -75,9 +76,7 @@ def main(parquet_path):
     }
 
     # Compile Stan model
-    stan_file = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "fit_pedigree_ace.stan"
-    )
+    stan_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fit_pedigree_ace.stan")
     print(f"Compiling Stan model: {stan_file}")
     model = CmdStanModel(stan_file=stan_file)
 

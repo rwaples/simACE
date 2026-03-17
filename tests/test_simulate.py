@@ -5,21 +5,19 @@ import pandas as pd
 import pytest
 
 from sim_ace.simulate import (
+    add_to_pedigree,
     generate_correlated_components,
     generate_mendelian_noise,
     mating,
-    reproduce,
-    add_to_pedigree,
     run_simulation,
 )
-
 
 # ---------------------------------------------------------------------------
 # generate_correlated_components
 # ---------------------------------------------------------------------------
 
-class TestGenerateCorrelatedComponents:
 
+class TestGenerateCorrelatedComponents:
     def test_output_shapes(self, rng):
         c1, c2 = generate_correlated_components(rng, 500, 1.0, 1.0, 0.5)
         assert c1.shape == (500,)
@@ -67,8 +65,8 @@ class TestGenerateCorrelatedComponents:
 # generate_mendelian_noise
 # ---------------------------------------------------------------------------
 
-class TestGenerateMendelianNoise:
 
+class TestGenerateMendelianNoise:
     def test_output_shapes(self, rng):
         n1, n2 = generate_mendelian_noise(rng, 500, 1.0, 1.0, 0.5)
         assert n1.shape == (500,)
@@ -87,8 +85,8 @@ class TestGenerateMendelianNoise:
 # mating
 # ---------------------------------------------------------------------------
 
-class TestMating:
 
+class TestMating:
     def test_output_shapes(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
         parents, twins, household_ids = mating(rng, sex, 2.3, 0.05, 0.02)
@@ -148,8 +146,8 @@ class TestMating:
 # reproduce
 # ---------------------------------------------------------------------------
 
-class TestReproduce:
 
+class TestReproduce:
     def test_output_shapes(self, founders_and_offspring):
         d = founders_and_offspring
         assert d["offspring"].shape[1] == 6  # A1, C1, E1, A2, C2, E2
@@ -206,8 +204,8 @@ class TestReproduce:
 # add_to_pedigree
 # ---------------------------------------------------------------------------
 
-class TestAddToPedigree:
 
+class TestAddToPedigree:
     def test_founder_generation(self, rng):
         N = 100
         pheno = rng.standard_normal((N, 6))
@@ -282,8 +280,8 @@ class TestAddToPedigree:
 # run_simulation
 # ---------------------------------------------------------------------------
 
-class TestRunSimulation:
 
+class TestRunSimulation:
     def test_output_is_dataframe(self, default_params):
         ped = run_simulation(**default_params)
         assert isinstance(ped, pd.DataFrame)
@@ -296,9 +294,21 @@ class TestRunSimulation:
     def test_required_columns_present(self, default_params):
         ped = run_simulation(**default_params)
         expected_cols = {
-            "id", "sex", "mother", "father", "twin", "generation",
-            "household_id", "A1", "C1", "E1", "liability1",
-            "A2", "C2", "E2", "liability2",
+            "id",
+            "sex",
+            "mother",
+            "father",
+            "twin",
+            "generation",
+            "household_id",
+            "A1",
+            "C1",
+            "E1",
+            "liability1",
+            "A2",
+            "C2",
+            "E2",
+            "liability2",
         }
         assert expected_cols.issubset(set(ped.columns))
 

@@ -3,11 +3,10 @@
 import numpy as np
 import pytest
 
-from sim_ace.threshold import apply_threshold, _apply_threshold_sex_aware
+from sim_ace.threshold import _apply_threshold_sex_aware, apply_threshold
 
 
 class TestApplyThreshold:
-
     def test_output_is_boolean(self):
         liability = np.random.default_rng(0).standard_normal(1000)
         generation = np.zeros(1000, dtype=int)
@@ -82,7 +81,6 @@ class TestApplyThreshold:
 
 
 class TestApplyThresholdDictPrevalence:
-
     def test_dict_prevalence_per_gen_rates(self):
         """Each generation gets its own prevalence from the dict."""
         rng = np.random.default_rng(42)
@@ -94,9 +92,7 @@ class TestApplyThresholdDictPrevalence:
         for gen, expected_prev in prev_dict.items():
             mask = generation == gen
             observed = affected[mask].mean()
-            assert abs(observed - expected_prev) < 0.01, (
-                f"gen {gen}: expected ~{expected_prev}, got {observed}"
-            )
+            assert abs(observed - expected_prev) < 0.01, f"gen {gen}: expected ~{expected_prev}, got {observed}"
 
     def test_dict_prevalence_output_shape_and_dtype(self):
         rng = np.random.default_rng(0)
@@ -142,8 +138,8 @@ class TestApplyThresholdDictPrevalence:
 # Sex-specific prevalence via _apply_threshold_sex_aware
 # ---------------------------------------------------------------------------
 
-class TestThresholdSexPrevalence:
 
+class TestThresholdSexPrevalence:
     def test_sex_specific_case_rates(self):
         """Male and female affected rates should match their respective prevalences."""
         rng = np.random.default_rng(42)
@@ -156,8 +152,8 @@ class TestThresholdSexPrevalence:
             "prevalence1": {"female": prev_f, "male": prev_m},
         }
         affected = _apply_threshold_sex_aware(liability, generation, sex, params, trait_num=1)
-        female_rate = affected[:n // 2].mean()
-        male_rate = affected[n // 2:].mean()
+        female_rate = affected[: n // 2].mean()
+        male_rate = affected[n // 2 :].mean()
         assert abs(female_rate - prev_f) < 0.02
         assert abs(male_rate - prev_m) < 0.02
 
@@ -170,7 +166,11 @@ class TestThresholdSexPrevalence:
         sex = rng.integers(0, 2, size=n)
         params = {"prevalence1": 0.15}
         affected_sex_aware = _apply_threshold_sex_aware(
-            liability, generation, sex, params, trait_num=1,
+            liability,
+            generation,
+            sex,
+            params,
+            trait_num=1,
         )
         affected_direct = apply_threshold(liability, generation, prevalence=0.15)
         np.testing.assert_array_equal(affected_sex_aware, affected_direct)

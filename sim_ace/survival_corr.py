@@ -95,8 +95,18 @@ try:
         pair_ll = np.empty(n_pairs)
         for p in prange(n_pairs):
             pair_ll[p] = _pair_log_lik(
-                p, r, sqrt_1mr2, delta_i, delta_j, const_i, const_j,
-                hazard_base_i, hazard_base_j, beta, nodes, log_weights,
+                p,
+                r,
+                sqrt_1mr2,
+                delta_i,
+                delta_j,
+                const_i,
+                const_j,
+                hazard_base_i,
+                hazard_base_j,
+                beta,
+                nodes,
+                log_weights,
             )
         return -pair_ll.sum()
 
@@ -164,8 +174,19 @@ try:
         pair_ll = np.empty(n_pairs)
         for p in prange(n_pairs):
             pair_ll[p] = _pair_log_lik_cross(
-                p, r, sqrt_1mr2, delta_i, delta_j, const_i, const_j,
-                hazard_base_i, hazard_base_j, beta_i, beta_j, nodes, log_weights,
+                p,
+                r,
+                sqrt_1mr2,
+                delta_i,
+                delta_j,
+                const_i,
+                const_j,
+                hazard_base_i,
+                hazard_base_j,
+                beta_i,
+                beta_j,
+                nodes,
+                log_weights,
             )
         return -(ipcw_weights * pair_ll).sum()
 
@@ -205,7 +226,7 @@ def km_censoring_weights(
 
     # Sort by time
     order = np.argsort(t_obs)
-    t_sorted = t_obs[order]
+    _t_sorted = t_obs[order]
     c_sorted = censor_event[order]
 
     # KM estimator: G(t_i) = prod_{j: t_j <= t_i} (1 - d_j / n_j)
@@ -233,8 +254,13 @@ def km_censoring_weights(
 
 
 PAIR_TYPES = [
-    "MZ twin", "Full sib", "Mother-offspring", "Father-offspring",
-    "Maternal half sib", "Paternal half sib", "1st cousin",
+    "MZ twin",
+    "Full sib",
+    "Mother-offspring",
+    "Father-offspring",
+    "Maternal half sib",
+    "Paternal half sib",
+    "1st cousin",
 ]
 
 
@@ -293,12 +319,22 @@ def pairwise_weibull_corr_se(
     const_j = log_rho - rho * log_scale + (rho - 1) * log_t_j  # (n_pairs,)
 
     if _HAS_NUMBA:
+
         def neg_log_pairwise_lik(r: float) -> float:
             return _neg_log_lik_numba(
-                r, delta_i, delta_j, const_i, const_j,
-                hazard_base_i, hazard_base_j, beta, nodes, log_weights,
+                r,
+                delta_i,
+                delta_j,
+                const_i,
+                const_j,
+                hazard_base_i,
+                hazard_base_j,
+                beta,
+                nodes,
+                log_weights,
             )
     else:
+
         def neg_log_pairwise_lik(r: float) -> float:
             sqrt_1mr2 = np.sqrt(max(1.0 - r * r, 1e-10))
 
@@ -306,31 +342,23 @@ def pairwise_weibull_corr_se(
             lj = r * nodes[:, None] + sqrt_1mr2 * nodes[None, :]
 
             beta_li = beta * li[None, :]
-            log_g_i = (
-                delta_i[:, None] * (const_i[:, None] + beta_li)
-                - hazard_base_i[:, None] * np.exp(beta_li)
-            )
+            log_g_i = delta_i[:, None] * (const_i[:, None] + beta_li) - hazard_base_i[:, None] * np.exp(beta_li)
 
             beta_lj = beta * lj[None, :, :]
-            log_g_j = (
-                delta_j[:, None, None] * (const_j[:, None, None] + beta_lj)
-                - hazard_base_j[:, None, None] * np.exp(beta_lj)
-            )
+            log_g_j = delta_j[:, None, None] * (const_j[:, None, None] + beta_lj) - hazard_base_j[
+                :, None, None
+            ] * np.exp(beta_lj)
 
             log_w2d = log_weights[:, None] + log_weights[None, :]
             log_integrand = log_g_i[:, :, None] + log_g_j + log_w2d[None, :, :]
 
             flat = log_integrand.reshape(n_pairs, -1)
             max_val = flat.max(axis=1, keepdims=True)
-            log_pair_lik = max_val[:, 0] + np.log(
-                np.sum(np.exp(flat - max_val), axis=1)
-            )
+            log_pair_lik = max_val[:, 0] + np.log(np.sum(np.exp(flat - max_val), axis=1))
 
             return -np.sum(log_pair_lik)
 
-    result = minimize_scalar(
-        neg_log_pairwise_lik, bounds=(-0.999, 0.999), method="bounded"
-    )
+    result = minimize_scalar(neg_log_pairwise_lik, bounds=(-0.999, 0.999), method="bounded")
     r_hat = result.x
 
     if np.isnan(r_hat):
@@ -339,8 +367,8 @@ def pairwise_weibull_corr_se(
     # Boundary hit: likelihood is monotone — estimate is unreliable
     if abs(r_hat) > 0.999:
         logger.warning(
-            "pairwise_weibull_corr_se: estimate hit boundary (r=%.3f), "
-            "likely too few events for reliable estimation", r_hat,
+            "pairwise_weibull_corr_se: estimate hit boundary (r=%.3f), likely too few events for reliable estimation",
+            r_hat,
         )
         return np.nan, np.nan
 
@@ -409,9 +437,9 @@ def cross_trait_weibull_corr_se(
     t2 = np.clip(t2, 1e-10, None)
 
     nodes, weights = hermegauss(n_quad)
-    
+
     # Normalization constant not need for optimization
-    #log_weights = np.log(weights) - 0.5 * np.log(2 * np.pi)
+    # log_weights = np.log(weights) - 0.5 * np.log(2 * np.pi)
     log_weights = np.log(weights)
 
     # Precompute Weibull constants for trait 1
@@ -429,13 +457,24 @@ def cross_trait_weibull_corr_se(
     const_2 = log_rho2 - rho2 * log_scale2 + (rho2 - 1) * log_t2
 
     if _HAS_NUMBA:
+
         def neg_log_lik(r: float) -> float:
             return _neg_log_lik_numba_cross(
-                r, delta1, delta2, const_1, const_2,
-                hazard_base_1, hazard_base_2, beta1, beta2, nodes, log_weights,
+                r,
+                delta1,
+                delta2,
+                const_1,
+                const_2,
+                hazard_base_1,
+                hazard_base_2,
+                beta1,
+                beta2,
+                nodes,
+                log_weights,
                 _weights,
             )
     else:
+
         def neg_log_lik(r: float) -> float:
             sqrt_1mr2 = np.sqrt(max(1.0 - r * r, 1e-10))
 
@@ -443,15 +482,11 @@ def cross_trait_weibull_corr_se(
             lj = r * nodes[:, None] + sqrt_1mr2 * nodes[None, :]
 
             b_li = beta1 * li[None, :]
-            log_g_i = (
-                delta1[:, None] * (const_1[:, None] + b_li)
-                - hazard_base_1[:, None] * np.exp(b_li)
-            )
+            log_g_i = delta1[:, None] * (const_1[:, None] + b_li) - hazard_base_1[:, None] * np.exp(b_li)
 
             b_lj = beta2 * lj[None, :, :]
-            log_g_j = (
-                delta2[:, None, None] * (const_2[:, None, None] + b_lj)
-                - hazard_base_2[:, None, None] * np.exp(b_lj)
+            log_g_j = delta2[:, None, None] * (const_2[:, None, None] + b_lj) - hazard_base_2[:, None, None] * np.exp(
+                b_lj
             )
 
             log_w2d = log_weights[:, None] + log_weights[None, :]
@@ -459,15 +494,11 @@ def cross_trait_weibull_corr_se(
 
             flat = log_integrand.reshape(n, -1)
             max_val = flat.max(axis=1, keepdims=True)
-            log_pair_lik = max_val[:, 0] + np.log(
-                np.sum(np.exp(flat - max_val), axis=1)
-            )
+            log_pair_lik = max_val[:, 0] + np.log(np.sum(np.exp(flat - max_val), axis=1))
 
             return -np.sum(_weights * log_pair_lik)
 
-    result = minimize_scalar(
-        neg_log_lik, bounds=(-0.999, 0.999), method="bounded"
-    )
+    result = minimize_scalar(neg_log_lik, bounds=(-0.999, 0.999), method="bounded")
     r_hat = result.x
 
     if np.isnan(r_hat):
@@ -475,7 +506,8 @@ def cross_trait_weibull_corr_se(
 
     if abs(r_hat) > 0.999:
         logger.warning(
-            "cross_trait_weibull_corr_se: estimate hit boundary (r=%.3f)", r_hat,
+            "cross_trait_weibull_corr_se: estimate hit boundary (r=%.3f)",
+            r_hat,
         )
         return np.nan, np.nan
 
@@ -516,11 +548,13 @@ def cross_trait_corr_se(
     """
     if hazard_model_1 != "weibull" or hazard_model_2 != "weibull":
         raise NotImplementedError(
-            f"cross_trait_corr_se only supports Weibull baselines, "
-            f"got '{hazard_model_1}' and '{hazard_model_2}'"
+            f"cross_trait_corr_se only supports Weibull baselines, got '{hazard_model_1}' and '{hazard_model_2}'"
         )
     return cross_trait_weibull_corr_se(
-        t1, delta1, t2, delta2,
+        t1,
+        delta1,
+        t2,
+        delta2,
         scale1=hazard_params_1["scale"],
         rho1=hazard_params_1["rho"],
         beta1=beta1,
@@ -551,14 +585,19 @@ def compute_pair_corr(
     NotImplementedError.
     """
     if hazard_model != "weibull":
-        raise NotImplementedError(
-            f"compute_pair_corr only supports Weibull baseline, got '{hazard_model}'"
-        )
+        raise NotImplementedError(f"compute_pair_corr only supports Weibull baseline, got '{hazard_model}'")
     return compute_weibull_pair_corr(
-        df=df, trait_num=trait_num,
-        scale=hazard_params["scale"], rho=hazard_params["rho"], beta=beta,
-        pairs=pairs, n_quad=n_quad, min_pairs=min_pairs,
-        max_pairs=max_pairs, seed=seed, use_raw=use_raw,
+        df=df,
+        trait_num=trait_num,
+        scale=hazard_params["scale"],
+        rho=hazard_params["rho"],
+        beta=beta,
+        pairs=pairs,
+        n_quad=n_quad,
+        min_pairs=min_pairs,
+        max_pairs=max_pairs,
+        seed=seed,
+        use_raw=use_raw,
     )
 
 
@@ -614,13 +653,21 @@ def compute_weibull_pair_corr(
             idx2 = idx2[sel]
             logger.info(
                 "Weibull corr %s trait%d: subsampled %d -> %d pairs",
-                ptype, trait_num, n_p, max_pairs,
+                ptype,
+                trait_num,
+                n_p,
+                max_pairs,
             )
 
         r, se = pairwise_weibull_corr_se(
-            t_obs[idx1], delta[idx1],
-            t_obs[idx2], delta[idx2],
-            scale, rho, beta, n_quad=n_quad,
+            t_obs[idx1],
+            delta[idx1],
+            t_obs[idx2],
+            delta[idx2],
+            scale,
+            rho,
+            beta,
+            n_quad=n_quad,
         )
 
         result[ptype] = {

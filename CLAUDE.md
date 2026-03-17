@@ -39,6 +39,12 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 - `epimight/` — EPIMIGHT heritability pipeline (separate `epimight` conda env; uses `conda run -n epimight`)
 - `results/{folder}/{scenario}/` — output per scenario
 
+## Linting
+
+- Check: `ruff check`
+- Auto-fix: `ruff check --fix`
+- Format: `ruff format`
+
 ## Session Management
 
 - Prefer focused sessions (one feature per session)

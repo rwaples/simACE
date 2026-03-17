@@ -8,16 +8,15 @@ plot_cross_trait_frailty_by_generation.
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from typing import Any
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from pathlib import Path
 
-import logging
-
-from sim_ace.utils import PAIR_TYPES, PAIR_COLORS, save_placeholder_plot, finalize_plot, draw_colored_violins
+from sim_ace.utils import PAIR_COLORS, PAIR_TYPES, draw_colored_violins, finalize_plot, save_placeholder_plot
 
 logger = logging.getLogger(__name__)
 
@@ -60,17 +59,18 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
                 if len(rep_vals):
                     jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
                     ax.scatter(
-                        i + jitter, rep_vals, color="black", s=15,
-                        alpha=0.9, zorder=5,
+                        i + jitter,
+                        rep_vals,
+                        color="black",
+                        s=15,
+                        alpha=0.9,
+                        zorder=5,
                     )
 
             # Collect liability + frailty reference values for annotation placement
             liab_ref = {}
-            for i, ptype in enumerate(pair_types):
-                liab_vals = [
-                    s.get("liability_correlations", {}).get(key, {}).get(ptype)
-                    for s in all_stats
-                ]
+            for _i, ptype in enumerate(pair_types):
+                liab_vals = [s.get("liability_correlations", {}).get(key, {}).get(ptype) for s in all_stats]
                 liab_vals = [v for v in liab_vals if v is not None]
                 liab_ref[ptype] = np.mean(liab_vals) if liab_vals else -np.inf
 
@@ -81,22 +81,28 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
                 if len(rep_vals):
                     top = max(rep_vals.max(), liab_ref[ptype])
                     ax.text(
-                        i, top + 0.04,
-                        f"n={total_pairs[ptype] // n_reps:,}", ha="center", va="bottom", fontsize=7,
+                        i,
+                        top + 0.04,
+                        f"n={total_pairs[ptype] // n_reps:,}",
+                        ha="center",
+                        va="bottom",
+                        fontsize=7,
                     )
 
         # Liability correlation lines (averaged across reps)
         for i, ptype in enumerate(pair_types):
-            liab_vals = [
-                s.get("liability_correlations", {}).get(key, {}).get(ptype)
-                for s in all_stats
-            ]
+            liab_vals = [s.get("liability_correlations", {}).get(key, {}).get(ptype) for s in all_stats]
             liab_vals = [v for v in liab_vals if v is not None]
             if liab_vals:
                 mean_liab_r = np.mean(liab_vals)
                 ax.hlines(
-                    mean_liab_r, i - 0.35, i + 0.35, colors="black",
-                    linestyles="dashed", linewidth=2, zorder=4,
+                    mean_liab_r,
+                    i - 0.35,
+                    i + 0.35,
+                    colors="black",
+                    linestyles="dashed",
+                    linewidth=2,
+                    zorder=4,
                 )
 
         # Uncensored frailty pairwise correlation lines (averaged across reps)
@@ -104,15 +110,19 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
         if has_uncens:
             for i, ptype in enumerate(pair_types):
                 uncens_vals = [
-                    s.get("frailty_corr_uncensored", {}).get(key, {}).get(ptype, {}).get("r")
-                    for s in all_stats
+                    s.get("frailty_corr_uncensored", {}).get(key, {}).get(ptype, {}).get("r") for s in all_stats
                 ]
                 uncens_vals = [v for v in uncens_vals if v is not None]
                 if uncens_vals:
                     mean_uncens_r = np.mean(uncens_vals)
                     ax.hlines(
-                        mean_uncens_r, i - 0.35, i + 0.35, colors="C2",
-                        linestyles="dashdot", linewidth=2, zorder=5,
+                        mean_uncens_r,
+                        i - 0.35,
+                        i + 0.35,
+                        colors="C2",
+                        linestyles="dashdot",
+                        linewidth=2,
+                        zorder=5,
                     )
 
         ax.set_xticks(range(len(pair_types)))
@@ -123,6 +133,7 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
         ax.set_ylim(-0.1, 1.1)
 
         from matplotlib.lines import Line2D
+
         legend_elements = [
             Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r"),
         ]
@@ -132,9 +143,7 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
             )
         ax.legend(handles=legend_elements, loc="upper right")
 
-    fig.suptitle(
-        f"Tetrachoric Correlation [{scenario}]", fontsize=14
-    )
+    fig.suptitle(f"Tetrachoric Correlation [{scenario}]", fontsize=14)
     finalize_plot(output_path)
 
 
@@ -149,9 +158,7 @@ def plot_tetrachoric_by_generation(
     Each panel is a bar chart of 7 pair types with dashed liability reference lines.
     """
     # Determine which generations are available across reps
-    gen_keys_sets = [
-        set(s.get("tetrachoric_by_generation", {}).keys()) for s in all_stats
-    ]
+    gen_keys_sets = [set(s.get("tetrachoric_by_generation", {}).keys()) for s in all_stats]
     if not gen_keys_sets or not gen_keys_sets[0]:
         save_placeholder_plot(output_path, "No per-generation tetrachoric data")
         return
@@ -211,8 +218,12 @@ def plot_tetrachoric_by_generation(
                     if len(rep_vals):
                         jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
                         ax.scatter(
-                            i + jitter, rep_vals, color="black", s=12,
-                            alpha=0.9, zorder=5,
+                            i + jitter,
+                            rep_vals,
+                            color="black",
+                            s=12,
+                            alpha=0.9,
+                            zorder=5,
                         )
 
                 # Annotate mean N pairs per rep (above dots AND liability line)
@@ -225,16 +236,25 @@ def plot_tetrachoric_by_generation(
                         liab_val = mean_liab_rs[i] if not np.isnan(mean_liab_rs[i]) else -np.inf
                         top = max(top, liab_val)
                         ax.text(
-                            i, top + 0.04,
-                            f"n={total_pairs[ptype] // n_reps:,}", ha="center", va="bottom", fontsize=6,
+                            i,
+                            top + 0.04,
+                            f"n={total_pairs[ptype] // n_reps:,}",
+                            ha="center",
+                            va="bottom",
+                            fontsize=6,
                         )
 
             # Liability correlation reference lines (dashed)
             for i, liab_r in enumerate(mean_liab_rs):
                 if not np.isnan(liab_r):
                     ax.hlines(
-                        liab_r, i - 0.35, i + 0.35, colors="black",
-                        linestyles="dashed", linewidth=2, zorder=4,
+                        liab_r,
+                        i - 0.35,
+                        i + 0.35,
+                        colors="black",
+                        linestyles="dashed",
+                        linewidth=2,
+                        zorder=4,
                     )
 
             ax.set_xticks(range(len(pair_types)))
@@ -250,14 +270,14 @@ def plot_tetrachoric_by_generation(
                 ax.set_ylabel(f"Trait {trait_num}\nTetrachoric Correlation")
 
     from matplotlib.lines import Line2D
+
     axes[0, -1].legend(
         handles=[Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r")],
-        loc="upper right", fontsize=8,
+        loc="upper right",
+        fontsize=8,
     )
 
-    fig.suptitle(
-        f"Tetrachoric Correlation by Generation [{scenario}]", fontsize=14
-    )
+    fig.suptitle(f"Tetrachoric Correlation by Generation [{scenario}]", fontsize=14)
     finalize_plot(output_path)
 
 
@@ -273,7 +293,6 @@ def plot_cross_trait_tetrachoric(
     Right: Cross-person cross-trait r by pair type (violin/dots), showing how
            relatedness induces cross-trait association.
     """
-    from matplotlib.lines import Line2D
     pair_types = PAIR_TYPES
     pair_colors = PAIR_COLORS
 
@@ -302,36 +321,41 @@ def plot_cross_trait_tetrachoric(
                 ax_left.scatter(gen + jitter, r_val, color="C0", alpha=0.9, s=30, zorder=5)
 
         mean_rs = [np.mean(gen_data[g]) for g in generations]
-        ax_left.plot(generations, mean_rs, color="C0", linewidth=2, marker="o",
-                     markersize=7, zorder=6, label="Per-gen mean")
+        ax_left.plot(
+            generations, mean_rs, color="C0", linewidth=2, marker="o", markersize=7, zorder=6, label="Per-gen mean"
+        )
 
         # Overall same-person r (averaged across reps)
-        overall_rs = [
-            s.get("cross_trait_tetrachoric", {}).get("same_person", {}).get("r")
-            for s in all_stats
-        ]
+        overall_rs = [s.get("cross_trait_tetrachoric", {}).get("same_person", {}).get("r") for s in all_stats]
         overall_rs = [r for r in overall_rs if r is not None]
         if overall_rs:
             mean_overall = np.mean(overall_rs)
-            ax_left.axhline(y=mean_overall, color="black", linestyle="--", linewidth=1.5,
-                            alpha=0.7, label=f"Overall r = {mean_overall:.3f}")
+            ax_left.axhline(
+                y=mean_overall,
+                color="black",
+                linestyle="--",
+                linewidth=1.5,
+                alpha=0.7,
+                label=f"Overall r = {mean_overall:.3f}",
+            )
 
         # frailty cross-trait reference lines if available
-        oracle_rs = [
-            s.get("frailty_cross_trait_uncensored", {}).get("r")
-            for s in all_stats
-        ]
+        oracle_rs = [s.get("frailty_cross_trait_uncensored", {}).get("r") for s in all_stats]
         oracle_rs = [r for r in oracle_rs if r is not None]
         if oracle_rs:
-            ax_left.axhline(y=np.mean(oracle_rs), color="C2", linestyle="-.",
-                            linewidth=2, alpha=0.7,
-                            label=f"Frailty oracle = {np.mean(oracle_rs):.3f}")
+            ax_left.axhline(
+                y=np.mean(oracle_rs),
+                color="C2",
+                linestyle="-.",
+                linewidth=2,
+                alpha=0.7,
+                label=f"Frailty oracle = {np.mean(oracle_rs):.3f}",
+            )
 
         ax_left.set_xticks(generations)
         ax_left.legend(loc="best", fontsize=9)
     else:
-        ax_left.text(0.5, 0.5, "No generation data", ha="center", va="center",
-                     transform=ax_left.transAxes)
+        ax_left.text(0.5, 0.5, "No generation data", ha="center", va="center", transform=ax_left.transAxes)
 
     ax_left.set_xlabel("Generation")
     ax_left.set_ylabel("Cross-trait tetrachoric r")
@@ -366,7 +390,12 @@ def plot_cross_trait_tetrachoric(
             if len(rep_vals):
                 jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
                 ax_right.scatter(
-                    i + jitter, rep_vals, color="black", s=15, alpha=0.9, zorder=5,
+                    i + jitter,
+                    rep_vals,
+                    color="black",
+                    s=15,
+                    alpha=0.9,
+                    zorder=5,
                 )
 
         # N annotations
@@ -376,12 +405,15 @@ def plot_cross_trait_tetrachoric(
             if len(rep_vals):
                 top = rep_vals.max()
                 ax_right.text(
-                    i, top + 0.04,
-                    f"n={total_pairs[ptype] // n_reps:,}", ha="center", va="bottom", fontsize=7,
+                    i,
+                    top + 0.04,
+                    f"n={total_pairs[ptype] // n_reps:,}",
+                    ha="center",
+                    va="bottom",
+                    fontsize=7,
                 )
     else:
-        ax_right.text(0.5, 0.5, "No cross-person data", ha="center", va="center",
-                      transform=ax_right.transAxes)
+        ax_right.text(0.5, 0.5, "No cross-person data", ha="center", va="center", transform=ax_right.transAxes)
 
     ax_right.set_xticks(range(len(pair_types)))
     ax_right.set_xticklabels(pair_types, fontsize=9, rotation=15, ha="right")
@@ -389,9 +421,7 @@ def plot_cross_trait_tetrachoric(
     ax_right.set_ylabel("Cross-trait tetrachoric r")
     ax_right.set_title("Cross-Person: personA.affected1 vs personB.affected2")
 
-    fig.suptitle(
-        f"Cross-Trait Tetrachoric Correlations [{scenario}]", fontsize=14
-    )
+    fig.suptitle(f"Cross-Trait Tetrachoric Correlations [{scenario}]", fontsize=14)
     finalize_plot(output_path)
 
 
@@ -418,7 +448,7 @@ def plot_parent_offspring_liability(
     # Select non-founder generations whose parents are present in the sample.
     # The earliest phenotyped generation's parents may be outside the phenotype
     # window (e.g. G_pheno < G_ped), so we test each candidate generation.
-    sample_ids = set(ids_arr)
+    _sample_ids = set(ids_arr)
     min_gen = int(df_samples["generation"].min())
     max_gen = int(df_samples["generation"].max())
     candidate_gens = list(range(max(min_gen + 1, 1), max_gen + 1))
@@ -460,8 +490,7 @@ def plot_parent_offspring_liability(
             valid = (m_rows >= 0) & (f_rows >= 0)
 
             if valid.sum() < 2:
-                ax.text(0.5, 0.5, "Insufficient data", ha="center", va="center",
-                        transform=ax.transAxes)
+                ax.text(0.5, 0.5, "Insufficient data", ha="center", va="center", transform=ax.transAxes)
                 if row == 0:
                     ax.set_title(f"Gen {gen}")
                 continue
@@ -469,14 +498,12 @@ def plot_parent_offspring_liability(
             offspring_liab = liability[gen_idx[valid]]
             midparent_liab = (liability[m_rows[valid]] + liability[f_rows[valid]]) / 2.0
 
-            ax.plot(midparent_liab, offspring_liab, 'o', ms=2, mew=0, alpha=0.3, rasterized=True)
+            ax.plot(midparent_liab, offspring_liab, "o", ms=2, mew=0, alpha=0.3, rasterized=True)
 
             # Collect pre-computed stats (averaged across reps)
             r_vals, r2_vals, slope_vals, intercept_vals, n_vals = [], [], [], [], []
             for s in all_stats:
-                po = s.get("parent_offspring_corr", {}).get(
-                    f"trait{trait_num}", {}
-                ).get(f"gen{gen}", {})
+                po = s.get("parent_offspring_corr", {}).get(f"trait{trait_num}", {}).get(f"gen{gen}", {})
                 if po and po.get("r") is not None:
                     r_vals.append(po["r"])
                     r2_vals.append(po.get("r2", po["r"] ** 2))
@@ -493,7 +520,7 @@ def plot_parent_offspring_liability(
             else:
                 reg = linregress(midparent_liab, offspring_liab)
                 mean_r = float(reg.rvalue)
-                mean_r2 = float(reg.rvalue ** 2)
+                mean_r2 = float(reg.rvalue**2)
                 mean_slope = float(reg.slope)
                 mean_intercept = float(reg.intercept)
                 mean_n = int(valid.sum())
@@ -503,8 +530,12 @@ def plot_parent_offspring_liability(
             ax.plot(x_line, mean_slope * x_line + mean_intercept, color="C3", linewidth=2)
 
             ax.text(
-                0.05, 0.95, f"r = {mean_r:.4f}\nR\u00b2 = {mean_r2:.4f}\nn = {mean_n}",
-                transform=ax.transAxes, va="top", fontsize=10,
+                0.05,
+                0.95,
+                f"r = {mean_r:.4f}\nR\u00b2 = {mean_r2:.4f}\nn = {mean_n}",
+                transform=ax.transAxes,
+                va="top",
+                fontsize=10,
                 bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
             )
 
@@ -569,15 +600,20 @@ def plot_heritability_by_generation(
         for rep_idx in range(h2_arr.shape[0]):
             jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08, len(generations))
             ax.scatter(
-                np.array(generations) + jitter, h2_arr[rep_idx],
-                color="C0", alpha=0.9, s=25, zorder=5,
+                np.array(generations) + jitter,
+                h2_arr[rep_idx],
+                color="C0",
+                alpha=0.9,
+                s=25,
+                zorder=5,
             )
 
         # Expected heritability reference line
         exp = expected_h2.get(trait_num)
         if exp is not None:
-            ax.axhline(y=exp, color="C1", linestyle="--", linewidth=2, alpha=0.7,
-                        label=f"Parametric A{trait_num} = {exp}")
+            ax.axhline(
+                y=exp, color="C1", linestyle="--", linewidth=2, alpha=0.7, label=f"Parametric A{trait_num} = {exp}"
+            )
             ax.legend(loc="lower left", fontsize=9)
 
         ax.set_xlabel("Generation")
@@ -637,14 +673,24 @@ def plot_broad_heritability_by_generation(
         for rep_idx in range(H2_arr.shape[0]):
             jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08, len(generations))
             ax.scatter(
-                np.array(generations) + jitter, H2_arr[rep_idx],
-                color="C0", alpha=0.9, s=25, zorder=5,
+                np.array(generations) + jitter,
+                H2_arr[rep_idx],
+                color="C0",
+                alpha=0.9,
+                s=25,
+                zorder=5,
             )
 
         exp = expected_H2.get(trait_num)
         if exp is not None:
-            ax.axhline(y=exp, color="C1", linestyle="--", linewidth=2, alpha=0.7,
-                        label=f"Parametric A{trait_num}+C{trait_num} = {exp}")
+            ax.axhline(
+                y=exp,
+                color="C1",
+                linestyle="--",
+                linewidth=2,
+                alpha=0.7,
+                label=f"Parametric A{trait_num}+C{trait_num} = {exp}",
+            )
             ax.legend(loc="lower left", fontsize=9)
 
         ax.set_xlabel("Generation")
@@ -692,21 +738,18 @@ def plot_cross_trait_frailty_by_generation(
             r_g = gv.get("r")
             se_g = gv.get("se")
             if r_g is not None:
-                gen_data.setdefault(gen_num, []).append(
-                    (r_g, se_g if se_g is not None else 0.0)
-                )
+                gen_data.setdefault(gen_num, []).append((r_g, se_g if se_g is not None else 0.0))
 
     if not gen_data:
         save_placeholder_plot(
             output_path,
-            "No per-generation cross-trait data\n\n"
-            "(requires extra_tetrachoric: True in scenario config)",
+            "No per-generation cross-trait data\n\n(requires extra_tetrachoric: True in scenario config)",
             figsize=(8, 5),
         )
         return
 
     generations = sorted(gen_data.keys())
-    fig, ax = plt.subplots(figsize=(8, 5))
+    _fig, ax = plt.subplots(figsize=(8, 5))
 
     # Per-replicate dots with jitter
     for gen in generations:
@@ -714,35 +757,54 @@ def plot_cross_trait_frailty_by_generation(
         for rep_idx, (r_g, se_g) in enumerate(reps):
             jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08)
             ax.scatter(
-                gen + jitter, r_g,
-                color="C0", alpha=0.9, s=30, zorder=5,
+                gen + jitter,
+                r_g,
+                color="C0",
+                alpha=0.9,
+                s=30,
+                zorder=5,
             )
             if se_g > 0:
                 ax.errorbar(
-                    gen + jitter, r_g, yerr=1.96 * se_g,
-                    color="C0", alpha=0.4, fmt="none", capsize=2, zorder=4,
+                    gen + jitter,
+                    r_g,
+                    yerr=1.96 * se_g,
+                    color="C0",
+                    alpha=0.4,
+                    fmt="none",
+                    capsize=2,
+                    zorder=4,
                 )
 
     # Mean line across generations
     mean_rs = [np.mean([r for r, _ in gen_data[g]]) for g in generations]
-    ax.plot(generations, mean_rs, color="C0", linewidth=2, marker="o",
-            markersize=7, zorder=6, label="Per-generation mean")
+    ax.plot(
+        generations, mean_rs, color="C0", linewidth=2, marker="o", markersize=7, zorder=6, label="Per-generation mean"
+    )
 
     # Reference lines
     if oracle_rs:
         mean_oracle = np.mean(oracle_rs)
-        ax.axhline(y=mean_oracle, color="C2", linestyle="-.", linewidth=2, alpha=0.7,
-                    label=f"Uncensored oracle = {mean_oracle:.3f}")
+        ax.axhline(
+            y=mean_oracle,
+            color="C2",
+            linestyle="-.",
+            linewidth=2,
+            alpha=0.7,
+            label=f"Uncensored oracle = {mean_oracle:.3f}",
+        )
 
     if strat_rs:
         mean_strat = np.mean(strat_rs)
-        ax.axhline(y=mean_strat, color="C1", linestyle="--", linewidth=2, alpha=0.7,
-                    label=f"Stratified IVW = {mean_strat:.3f}")
+        ax.axhline(
+            y=mean_strat, color="C1", linestyle="--", linewidth=2, alpha=0.7, label=f"Stratified IVW = {mean_strat:.3f}"
+        )
 
     if naive_rs:
         mean_naive = np.mean(naive_rs)
-        ax.axhline(y=mean_naive, color="C3", linestyle=":", linewidth=2, alpha=0.7,
-                    label=f"Naive pooled = {mean_naive:.3f}")
+        ax.axhline(
+            y=mean_naive, color="C3", linestyle=":", linewidth=2, alpha=0.7, label=f"Naive pooled = {mean_naive:.3f}"
+        )
 
     ax.set_xlabel("Generation")
     ax.set_ylabel("Cross-trait liability correlation (r)")

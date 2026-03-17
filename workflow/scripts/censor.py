@@ -1,8 +1,10 @@
 """Observation censoring - Snakemake wrapper with CLI fallback."""
+
 import pandas as pd
 
 from sim_ace import setup_logging
-from sim_ace.censor import run_censor, cli as _cli
+from sim_ace.censor import cli as _cli
+from sim_ace.censor import run_censor
 
 
 def _run_snakemake():

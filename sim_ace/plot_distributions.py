@@ -7,20 +7,22 @@ plot_cumulative_incidence_by_sex_generation, plot_censoring_windows.
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from typing import Any
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-from pathlib import Path
 
-from sim_ace.utils import save_placeholder_plot, finalize_plot
+from sim_ace.utils import finalize_plot, save_placeholder_plot
 
-import logging
 logger = logging.getLogger(__name__)
 
 
-def plot_death_age_distribution(all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = "") -> None:
+def plot_death_age_distribution(
+    all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = ""
+) -> None:
     """Plot mortality rate and cumulative mortality by decade, averaged across reps."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
@@ -58,7 +60,9 @@ def plot_death_age_distribution(all_stats: list[dict[str, Any]], censor_age: flo
     finalize_plot(output_path)
 
 
-def plot_trait_phenotype(df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
+def plot_trait_phenotype(
+    df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = ""
+) -> None:
     """Plot phenotype distributions for both traits in a 2x2 grid."""
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
@@ -67,26 +71,30 @@ def plot_trait_phenotype(df_samples: pd.DataFrame, output_path: str | Path, scen
         t_col = f"t_observed{trait_num}"
         death_censored_col = f"death_censored{trait_num}"
 
-        affected = df_samples[df_samples[affected_col] == True]
-        death_censored = df_samples[
-            (df_samples[affected_col] == False) & (df_samples[death_censored_col] == True)
-        ]
+        affected = df_samples[df_samples[affected_col]]
+        death_censored = df_samples[~df_samples[affected_col] & df_samples[death_censored_col]]
 
         axes[row, 0].hist(
-            affected[t_col].dropna(), bins=50, density=True,
-            edgecolor="black", alpha=0.7, color="C3",
+            affected[t_col].dropna(),
+            bins=50,
+            density=True,
+            edgecolor="black",
+            alpha=0.7,
+            color="C3",
         )
         axes[row, 0].set_title(f"Trait {trait_num}: Age at Onset (affected)")
         axes[row, 0].set_xlabel("Age")
         axes[row, 0].set_ylabel("Density")
 
         axes[row, 1].hist(
-            death_censored[t_col].dropna(), bins=50, density=True,
-            edgecolor="black", alpha=0.7, color="C0",
+            death_censored[t_col].dropna(),
+            bins=50,
+            density=True,
+            edgecolor="black",
+            alpha=0.7,
+            color="C0",
         )
-        axes[row, 1].set_title(
-            f"Trait {trait_num}: Age at Death (death-censored, unaffected)"
-        )
+        axes[row, 1].set_title(f"Trait {trait_num}: Age at Death (death-censored, unaffected)")
         axes[row, 1].set_xlabel("Age")
         axes[row, 1].set_ylabel("Density")
 
@@ -94,14 +102,18 @@ def plot_trait_phenotype(df_samples: pd.DataFrame, output_path: str | Path, scen
     finalize_plot(output_path, subsample_note=subsample_note)
 
 
-def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "", subsample_note: str = "") -> None:
+def plot_trait_regression(
+    df_samples: pd.DataFrame,
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+    subsample_note: str = "",
+) -> None:
     """Plot liability vs age at onset for both traits as jointplots side by side."""
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
     fig = plt.figure(figsize=(16, 7))
-    fig.suptitle(
-        f"Liability vs Age at Onset [{scenario}]", fontsize=14, y=1.01
-    )
+    fig.suptitle(f"Liability vs Age at Onset [{scenario}]", fontsize=14, y=1.01)
     outer = GridSpec(1, 2, figure=fig, wspace=0.35)
 
     for i, trait_num in enumerate([1, 2]):
@@ -112,9 +124,7 @@ def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, An
         if liability_col not in df_samples.columns:
             continue
 
-        affected = df_samples[df_samples[affected_col] == True].dropna(
-            subset=[liability_col, t_col]
-        )
+        affected = df_samples[df_samples[affected_col]].dropna(subset=[liability_col, t_col])
         x = affected[liability_col].values
         y = affected[t_col].values
 
@@ -131,32 +141,43 @@ def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, An
             mean_intercept = np.mean([r["intercept"] for r in reg_stats])
         elif len(x) >= 2:
             from scipy.stats import linregress
+
             reg = linregress(x, y)
             mean_r = float(reg.rvalue)
-            mean_r2 = reg.rvalue ** 2
+            mean_r2 = reg.rvalue**2
             mean_slope = reg.slope
             mean_intercept = reg.intercept
         else:
             continue
 
         inner = GridSpecFromSubplotSpec(
-            2, 2, subplot_spec=outer[i],
-            width_ratios=[4, 1], height_ratios=[1, 4],
-            hspace=0.05, wspace=0.05,
+            2,
+            2,
+            subplot_spec=outer[i],
+            width_ratios=[4, 1],
+            height_ratios=[1, 4],
+            hspace=0.05,
+            wspace=0.05,
         )
         ax_joint = fig.add_subplot(inner[1, 0])
         ax_marg_x = fig.add_subplot(inner[0, 0], sharex=ax_joint)
         ax_marg_y = fig.add_subplot(inner[1, 1], sharey=ax_joint)
 
-        ax_joint.plot(x, y, 'o', ms=2, mew=0, alpha=0.15, rasterized=True)
+        ax_joint.plot(x, y, "o", ms=2, mew=0, alpha=0.15, rasterized=True)
         x_line = np.array([x.min(), x.max()])
         ax_joint.plot(
-            x_line, mean_slope * x_line + mean_intercept,
-            color="C3", linewidth=2,
+            x_line,
+            mean_slope * x_line + mean_intercept,
+            color="C3",
+            linewidth=2,
         )
         ax_joint.text(
-            0.05, 0.95, f"r = {mean_r:.4f}\nR\u00b2 = {mean_r2:.4f}",
-            transform=ax_joint.transAxes, va="top", fontsize=12,
+            0.05,
+            0.95,
+            f"r = {mean_r:.4f}\nR\u00b2 = {mean_r2:.4f}",
+            transform=ax_joint.transAxes,
+            va="top",
+            fontsize=12,
         )
         ax_joint.set_xlabel("Liability")
         ax_joint.set_ylabel("Age at Onset")
@@ -175,7 +196,9 @@ def plot_trait_regression(df_samples: pd.DataFrame, all_stats: list[dict[str, An
     finalize_plot(output_path, subsample_note=subsample_note)
 
 
-def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = "") -> None:
+def plot_cumulative_incidence(
+    all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = ""
+) -> None:
     """Plot cumulative incidence by age, mean +/- band across reps."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
@@ -186,31 +209,23 @@ def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float
         # Support both old ("values") and new ("observed_values"/"true_values") format
         mean_true = None
         if "observed_values" in all_stats[0]["cumulative_incidence"][key]:
-            all_obs = np.array([
-                s["cumulative_incidence"][key]["observed_values"] for s in all_stats
-            ])
-            all_true = np.array([
-                s["cumulative_incidence"][key]["true_values"] for s in all_stats
-            ])
+            all_obs = np.array([s["cumulative_incidence"][key]["observed_values"] for s in all_stats])
+            all_true = np.array([s["cumulative_incidence"][key]["true_values"] for s in all_stats])
             mean_true = all_true.mean(axis=0)
 
             # True incidence (gray)
             ax.plot(ages, mean_true, color="gray", alpha=0.7, linewidth=2, label="True")
             if len(all_stats) > 1:
-                ax.fill_between(ages, all_true.min(axis=0), all_true.max(axis=0),
-                                alpha=0.1, color="gray")
+                ax.fill_between(ages, all_true.min(axis=0), all_true.max(axis=0), alpha=0.1, color="gray")
         else:
-            all_obs = np.array([
-                s["cumulative_incidence"][key]["values"] for s in all_stats
-            ])
+            all_obs = np.array([s["cumulative_incidence"][key]["values"] for s in all_stats])
 
         mean_obs = all_obs.mean(axis=0)
 
         # Observed incidence (colored)
         ax.plot(ages, mean_obs, color="C0", linewidth=2, label="Observed")
         if len(all_stats) > 1:
-            ax.fill_between(ages, all_obs.min(axis=0), all_obs.max(axis=0),
-                            alpha=0.2, color="C0")
+            ax.fill_between(ages, all_obs.min(axis=0), all_obs.max(axis=0), alpha=0.2, color="C0")
 
         # Annotate Q1, Q2 (median), Q3 on both observed and true curves
         quartile_points: dict[str, dict[str, tuple[float, float]]] = {}
@@ -235,12 +250,15 @@ def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float
                 ax.plot(age_q, target, "o", color=curve_color, markersize=ms, zorder=5)
                 ax.annotate(
                     f"{label}: {age_q:.0f}",
-                    xy=(age_q, target), xytext=(10, y_offset),
+                    xy=(age_q, target),
+                    xytext=(10, y_offset),
                     textcoords="offset points",
-                    fontsize=9, fontweight="bold", ha="left", va="center",
+                    fontsize=9,
+                    fontweight="bold",
+                    ha="left",
+                    va="center",
                     color=curve_color,
-                    bbox=dict(boxstyle="round,pad=0.15", facecolor="white",
-                              edgecolor="none", alpha=0.8),
+                    bbox=dict(boxstyle="round,pad=0.15", facecolor="white", edgecolor="none", alpha=0.8),
                 )
                 quartile_points.setdefault(label, {})[curve_key] = (age_q, target)
 
@@ -251,18 +269,23 @@ def plot_cumulative_incidence(all_stats: list[dict[str, Any]], censor_age: float
                 ax.plot(
                     [pts["obs"][0], pts["true"][0]],
                     [pts["obs"][1], pts["true"][1]],
-                    color="0.5", linestyle="--", linewidth=0.8, zorder=4,
+                    color="0.5",
+                    linestyle="--",
+                    linewidth=0.8,
+                    zorder=4,
                 )
         # Annotation box: prevalence and censoring rates
         prev = np.mean([s["prevalence"][key] for s in all_stats])
         true_prev = mean_true[-1] if mean_true is not None else mean_obs[-1]
         censored_pct = (true_prev - prev) * 100
         ax.text(
-            0.03, 0.95,
-            f"Affected: {prev * 100:.1f}%\n"
-            f"True prev: {true_prev * 100:.1f}%\n"
-            f"Censored: {censored_pct:.1f}%",
-            transform=ax.transAxes, ha="left", va="top", fontsize=9,
+            0.03,
+            0.95,
+            f"Affected: {prev * 100:.1f}%\nTrue prev: {true_prev * 100:.1f}%\nCensored: {censored_pct:.1f}%",
+            transform=ax.transAxes,
+            ha="left",
+            va="top",
+            fontsize=9,
             bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
         )
 
@@ -310,8 +333,9 @@ def plot_cumulative_incidence_by_sex(
             mean_n = np.mean([d["n"] for d in rep_data])
             mean_prev = np.mean([d["prevalence"] for d in rep_data])
 
-            ax.plot(ages, mean_values, color=color, linewidth=2,
-                    label=f"{display} (n={int(mean_n)}, prev={mean_prev:.1%})")
+            ax.plot(
+                ages, mean_values, color=color, linewidth=2, label=f"{display} (n={int(mean_n)}, prev={mean_prev:.1%})"
+            )
 
         ax.set_title(f"Trait {trait_num}")
         ax.set_xlabel("Age")
@@ -344,9 +368,12 @@ def plot_cumulative_incidence_by_sex_generation(
     traits = [1, 2]
 
     fig, axes = plt.subplots(
-        len(traits), len(gen_keys),
+        len(traits),
+        len(gen_keys),
         figsize=(5 * len(gen_keys), 4 * len(traits)),
-        sharex=True, sharey=True, squeeze=False,
+        sharex=True,
+        sharey=True,
+        squeeze=False,
     )
 
     for col, gk in enumerate(gen_keys):
@@ -374,8 +401,9 @@ def plot_cumulative_incidence_by_sex_generation(
                 mean_n = np.mean([d["n"] for d in rep_data])
                 mean_prev = np.mean([d["prevalence"] for d in rep_data])
 
-                ax.plot(ages, mean_values, color=color, linewidth=2,
-                        label=f"{display} (n={int(mean_n)}, {mean_prev:.1%})")
+                ax.plot(
+                    ages, mean_values, color=color, linewidth=2, label=f"{display} (n={int(mean_n)}, {mean_prev:.1%})"
+                )
 
             if row == 0:
                 ax.set_title(f"Gen {gen_num}", fontsize=12)
@@ -410,11 +438,9 @@ def plot_censoring_windows(
     # Only include generations that have phenotyped individuals in any replicate
     all_gen_keys = sorted(stats_with_censoring[0]["censoring"]["generations"].keys())
     gen_keys = [
-        gk for gk in all_gen_keys
-        if any(
-            s["censoring"]["generations"].get(gk, {}).get("n", 0) > 0
-            for s in stats_with_censoring
-        )
+        gk
+        for gk in all_gen_keys
+        if any(s["censoring"]["generations"].get(gk, {}).get("n", 0) > 0 for s in stats_with_censoring)
     ]
     if not gen_keys:
         save_placeholder_plot(output_path, "No phenotyped generations")
@@ -434,9 +460,12 @@ def plot_censoring_windows(
     traits = [1, 2]
 
     fig, axes = plt.subplots(
-        len(traits), len(gen_keys),
+        len(traits),
+        len(gen_keys),
         figsize=(5 * len(gen_keys), 4 * len(traits)),
-        sharex=True, sharey=True, squeeze=False,
+        sharex=True,
+        sharey=True,
+        squeeze=False,
     )
 
     for col, (gen_key, label) in enumerate(zip(gen_keys, gen_labels)):
@@ -450,7 +479,11 @@ def plot_censoring_windows(
             logger.warning("plot_censoring_windows: generation '%s' has 0 individuals", gen_key)
             for row in range(len(traits)):
                 axes[row, col].text(
-                    0.5, 0.5, "No data", ha="center", va="center",
+                    0.5,
+                    0.5,
+                    "No data",
+                    ha="center",
+                    va="center",
                     transform=axes[row, col].transAxes,
                 )
             continue
@@ -472,12 +505,18 @@ def plot_censoring_windows(
 
             if len(stats_with_censoring) > 1:
                 ax.fill_between(
-                    ages, all_true.min(axis=0), all_true.max(axis=0),
-                    alpha=0.08, color="gray",
+                    ages,
+                    all_true.min(axis=0),
+                    all_true.max(axis=0),
+                    alpha=0.08,
+                    color="gray",
                 )
                 ax.fill_between(
-                    ages, all_obs.min(axis=0), all_obs.max(axis=0),
-                    alpha=0.08, color="C0",
+                    ages,
+                    all_obs.min(axis=0),
+                    all_obs.max(axis=0),
+                    alpha=0.08,
+                    color="C0",
                 )
 
             # Annotation stats (averaged)
@@ -487,12 +526,16 @@ def plot_censoring_windows(
             death_cens = np.mean([g[key]["death_censored"] for g in gen_data]) * 100
 
             ax.text(
-                0.03, 0.95,
+                0.03,
+                0.95,
                 f"Affected: {pct_affected:.1f}%\n"
                 f"Left-cens: {left_cens:.1f}%\n"
                 f"Right-cens: {right_cens:.1f}%\n"
                 f"Death-cens: {death_cens:.1f}%",
-                transform=ax.transAxes, ha="left", va="top", fontsize=9,
+                transform=ax.transAxes,
+                ha="left",
+                va="top",
+                fontsize=9,
                 bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
             )
 
@@ -504,12 +547,11 @@ def plot_censoring_windows(
                 ax.set_xlabel("Age")
 
     from matplotlib.lines import Line2D
+
     legend_elements = [
         Line2D([0], [0], color="gray", linewidth=2, alpha=0.7, label="True"),
         Line2D([0], [0], color="C0", linewidth=2, label="Observed"),
     ]
     axes[0, -1].legend(handles=legend_elements, loc="lower right", fontsize=9)
-    fig.suptitle(
-        f"Censoring Windows by Generation [{scenario}]", fontsize=14, y=1.01
-    )
+    fig.suptitle(f"Censoring Windows by Generation [{scenario}]", fontsize=14, y=1.01)
     finalize_plot(output_path)

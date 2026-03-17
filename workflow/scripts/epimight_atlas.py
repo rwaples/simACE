@@ -17,9 +17,10 @@ def _run_snakemake() -> None:
 
 if __name__ == "__main__":
     try:
-        snakemake  # noqa: F821
+        snakemake
     except NameError:
         from epimight.plot_epimight import main as _cli
+
         _cli()
     else:
         _run_snakemake()

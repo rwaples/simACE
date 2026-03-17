@@ -13,7 +13,6 @@ cross-trait correlations for genetic (rA) and common environment (rC) components
 from __future__ import annotations
 
 import argparse
-
 import logging
 import time
 
@@ -26,7 +25,9 @@ from sim_ace.utils import save_parquet
 logger = logging.getLogger(__name__)
 
 
-def generate_correlated_components(rng: np.random.Generator, n: int, sd1: float, sd2: float, correlation: float) -> tuple[np.ndarray, np.ndarray]:
+def generate_correlated_components(
+    rng: np.random.Generator, n: int, sd1: float, sd2: float, correlation: float
+) -> tuple[np.ndarray, np.ndarray]:
     """Generate two correlated normal variables via multivariate normal.
 
     Args:
@@ -55,7 +56,9 @@ def generate_correlated_components(rng: np.random.Generator, n: int, sd1: float,
     return samples[:, 0], samples[:, 1]
 
 
-def generate_mendelian_noise(rng: np.random.Generator, n: int, sd_A1: float, sd_A2: float, rA: float) -> tuple[np.ndarray, np.ndarray]:
+def generate_mendelian_noise(
+    rng: np.random.Generator, n: int, sd_A1: float, sd_A2: float, rA: float
+) -> tuple[np.ndarray, np.ndarray]:
     """Generate correlated Mendelian sampling noise for two traits.
 
     Under the infinitesimal model, the Mendelian sampling variance is
@@ -77,7 +80,9 @@ def generate_mendelian_noise(rng: np.random.Generator, n: int, sd_A1: float, sd_
     return generate_correlated_components(rng, n, sd_noise1, sd_noise2, rA)
 
 
-def mating(rng: np.random.Generator, parental_sex: np.ndarray, fam_size: float, p_nonsocial_father: float, p_mztwin: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def mating(
+    rng: np.random.Generator, parental_sex: np.ndarray, fam_size: float, p_nonsocial_father: float, p_mztwin: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate parent-offspring pairings.
 
     Args:
@@ -133,7 +138,7 @@ def mating(rng: np.random.Generator, parental_sex: np.ndarray, fam_size: float, 
     family_starts = np.empty(n_families + 1, dtype=int)
     family_starts[0] = 0
     np.cumsum(family_sizes, out=family_starts[1:])
-    within_pos = np.arange(n) - np.repeat(family_starts[:n_families], family_sizes)
+    _within_pos = np.arange(n) - np.repeat(family_starts[:n_families], family_sizes)
 
     # Eligible to start a twin pair: all positions except the very last
     eligible = np.arange(n) < n - 1
@@ -369,15 +374,11 @@ def run_simulation(
             raise ValueError(f"{name} must be between 0 and 1, got {val}")
 
     if 1.0 - A1 - C1 < -1e-10:
-        raise ValueError(
-            f"A1 + C1 must be <= 1.0 (got A1={A1}, C1={C1}, E1={1.0-A1-C1:.4f})"
-        )
+        raise ValueError(f"A1 + C1 must be <= 1.0 (got A1={A1}, C1={C1}, E1={1.0 - A1 - C1:.4f})")
     if 1.0 - A2 - C2 < -1e-10:
-        raise ValueError(
-            f"A2 + C2 must be <= 1.0 (got A2={A2}, C2={C2}, E2={1.0-A2-C2:.4f})"
-        )
+        raise ValueError(f"A2 + C2 must be <= 1.0 (got A2={A2}, C2={C2}, E2={1.0 - A2 - C2:.4f})")
 
-    if not (N == int(N) and N > 0):
+    if not (int(N) == N and N > 0):
         raise ValueError(f"N must be a positive integer, got {N}")
     if not (G_ped == int(G_ped) and G_ped >= 1):
         raise ValueError(f"G_ped must be an integer >= 1, got {G_ped}")
@@ -426,30 +427,47 @@ def run_simulation(
     burnin = G_sim - G_ped
     pedigree = None
     for i in range(G_sim):
-        parents, twins, household_ids = mating(
-            rng, sex, fam_size, p_nonsocial_father, p_mztwin
-        )
+        parents, twins, household_ids = mating(rng, sex, fam_size, p_nonsocial_father, p_mztwin)
         pheno, sex = reproduce(
-            rng, pheno, parents, twins, household_ids,
-            sd_A1, sd_E1, sd_C1, sd_A2, sd_E2, sd_C2, rA, rC,
+            rng,
+            pheno,
+            parents,
+            twins,
+            household_ids,
+            sd_A1,
+            sd_E1,
+            sd_C1,
+            sd_A2,
+            sd_E2,
+            sd_C2,
+            rA,
+            rC,
         )
         if i >= burnin:
             pedigree = add_to_pedigree(
-                pheno, sex, parents, twins, household_ids,
-                generation=i - burnin, pedigree=pedigree,
+                pheno,
+                sex,
+                parents,
+                twins,
+                household_ids,
+                generation=i - burnin,
+                pedigree=pedigree,
             )
         # Per-generation data shape checkpoints
         fam_sizes = np.bincount(household_ids)
         logger.info(
             "Generation %d: %d twins, mean family size %.2f",
-            i, len(twins) * 2, fam_sizes.mean(),
+            i,
+            len(twins) * 2,
+            fam_sizes.mean(),
         )
 
     elapsed = time.perf_counter() - t0
     assert pedigree is not None
     logger.info(
         "Simulation complete in %.1fs: pedigree has %d individuals",
-        elapsed, len(pedigree),
+        elapsed,
+        len(pedigree),
     )
 
     return pedigree
@@ -458,6 +476,7 @@ def run_simulation(
 def cli() -> None:
     """Command-line interface for running ACE simulations."""
     from sim_ace.cli_base import add_logging_args, init_logging
+
     parser = argparse.ArgumentParser(description="Run ACE pedigree simulation")
     add_logging_args(parser)
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
@@ -481,21 +500,39 @@ def cli() -> None:
     init_logging(args)
 
     pedigree = run_simulation(
-        seed=args.seed, N=args.N, G_ped=args.G_ped, fam_size=args.fam_size,
-        p_mztwin=args.p_mztwin, p_nonsocial_father=args.p_nonsocial_father,
-        A1=args.A1, C1=args.C1, A2=args.A2, C2=args.C2,
-        rA=args.rA, rC=args.rC, G_sim=args.G_sim,
+        seed=args.seed,
+        N=args.N,
+        G_ped=args.G_ped,
+        fam_size=args.fam_size,
+        p_mztwin=args.p_mztwin,
+        p_nonsocial_father=args.p_nonsocial_father,
+        A1=args.A1,
+        C1=args.C1,
+        A2=args.A2,
+        C2=args.C2,
+        rA=args.rA,
+        rC=args.rC,
+        G_sim=args.G_sim,
     )
 
     save_parquet(pedigree, args.output_pedigree)
 
     params_dict = {
-        "seed": args.seed, "rep": args.rep,
-        "A1": args.A1, "C1": args.C1, "E1": 1.0 - args.A1 - args.C1,
-        "A2": args.A2, "C2": args.C2, "E2": 1.0 - args.A2 - args.C2,
-        "rA": args.rA, "rC": args.rC, "N": args.N,
-        "G_ped": args.G_ped, "G_sim": args.G_sim or args.G_ped,
-        "fam_size": args.fam_size, "p_mztwin": args.p_mztwin,
+        "seed": args.seed,
+        "rep": args.rep,
+        "A1": args.A1,
+        "C1": args.C1,
+        "E1": 1.0 - args.A1 - args.C1,
+        "A2": args.A2,
+        "C2": args.C2,
+        "E2": 1.0 - args.A2 - args.C2,
+        "rA": args.rA,
+        "rC": args.rC,
+        "N": args.N,
+        "G_ped": args.G_ped,
+        "G_sim": args.G_sim or args.G_ped,
+        "fam_size": args.fam_size,
+        "p_mztwin": args.p_mztwin,
         "p_nonsocial_father": args.p_nonsocial_father,
     }
     with open(args.output_params, "w", encoding="utf-8") as f:

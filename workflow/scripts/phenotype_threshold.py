@@ -1,8 +1,10 @@
 """Liability threshold phenotype - Snakemake wrapper with CLI fallback."""
+
 import pandas as pd
 
 from sim_ace import setup_logging
-from sim_ace.threshold import run_threshold, cli as _cli
+from sim_ace.threshold import cli as _cli
+from sim_ace.threshold import run_threshold
 
 
 def _run_snakemake():

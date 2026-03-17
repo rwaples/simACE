@@ -6,13 +6,12 @@ import pytest
 
 from sim_ace.censor import age_censor, death_censor, run_censor
 
-
 # ---------------------------------------------------------------------------
 # age_censor
 # ---------------------------------------------------------------------------
 
-class TestAgeCensor:
 
+class TestAgeCensor:
     def test_no_censoring_within_window(self):
         t = np.array([30.0, 40.0, 50.0])
         left = np.array([20.0, 20.0, 20.0])
@@ -67,8 +66,8 @@ class TestAgeCensor:
 # death_censor
 # ---------------------------------------------------------------------------
 
-class TestDeathCensor:
 
+class TestDeathCensor:
     def test_output_shapes(self):
         t = np.random.default_rng(0).uniform(10, 100, 200)
         t_out, censored = death_censor(t.copy(), seed=42)
@@ -105,32 +104,34 @@ class TestDeathCensor:
 # run_censor integration tests
 # ---------------------------------------------------------------------------
 
-class TestRunCensor:
 
+class TestRunCensor:
     @pytest.fixture
     def raw_phenotype(self):
         """Create a minimal raw phenotype DataFrame matching run_phenotype output."""
         rng = np.random.default_rng(42)
         n = 200
-        return pd.DataFrame({
-            "id": np.arange(n),
-            "generation": np.repeat([0, 1, 2, 3], n // 4),
-            "sex": rng.integers(0, 2, n),
-            "household_id": np.arange(n),
-            "mother": np.full(n, -1),
-            "father": np.full(n, -1),
-            "twin": np.full(n, -1),
-            "A1": rng.standard_normal(n),
-            "C1": rng.standard_normal(n),
-            "E1": rng.standard_normal(n),
-            "liability1": rng.standard_normal(n),
-            "A2": rng.standard_normal(n),
-            "C2": rng.standard_normal(n),
-            "E2": rng.standard_normal(n),
-            "liability2": rng.standard_normal(n),
-            "t1": rng.uniform(10, 200, n),
-            "t2": rng.uniform(10, 200, n),
-        })
+        return pd.DataFrame(
+            {
+                "id": np.arange(n),
+                "generation": np.repeat([0, 1, 2, 3], n // 4),
+                "sex": rng.integers(0, 2, n),
+                "household_id": np.arange(n),
+                "mother": np.full(n, -1),
+                "father": np.full(n, -1),
+                "twin": np.full(n, -1),
+                "A1": rng.standard_normal(n),
+                "C1": rng.standard_normal(n),
+                "E1": rng.standard_normal(n),
+                "liability1": rng.standard_normal(n),
+                "A2": rng.standard_normal(n),
+                "C2": rng.standard_normal(n),
+                "E2": rng.standard_normal(n),
+                "liability2": rng.standard_normal(n),
+                "t1": rng.uniform(10, 200, n),
+                "t2": rng.uniform(10, 200, n),
+            }
+        )
 
     @pytest.fixture
     def censor_params(self):
@@ -144,9 +145,17 @@ class TestRunCensor:
 
     def test_output_columns(self, raw_phenotype, censor_params):
         result = run_censor(raw_phenotype, censor_params)
-        expected_new = {"death_age", "age_censored1", "t_observed1", "death_censored1",
-                        "affected1", "age_censored2", "t_observed2", "death_censored2",
-                        "affected2"}
+        expected_new = {
+            "death_age",
+            "age_censored1",
+            "t_observed1",
+            "death_censored1",
+            "affected1",
+            "age_censored2",
+            "t_observed2",
+            "death_censored2",
+            "affected2",
+        }
         assert expected_new.issubset(set(result.columns))
 
     def test_preserves_input_columns(self, raw_phenotype, censor_params):

@@ -1,8 +1,10 @@
 """Plot phenotype distributions - Snakemake wrapper with CLI fallback."""
+
 from pathlib import Path
 
 from sim_ace import setup_logging
-from sim_ace.plot_phenotype import main, cli as _cli
+from sim_ace.plot_phenotype import cli as _cli
+from sim_ace.plot_phenotype import main
 
 
 def _run_snakemake():
@@ -17,9 +19,15 @@ def _run_snakemake():
 
     validation_paths = list(snakemake.input.validations)
 
-    main(stats_paths, sample_paths, output_dir, censor_age,
-         gen_censoring=gen_censoring, plot_ext=plot_format,
-         validation_paths=validation_paths)
+    main(
+        stats_paths,
+        sample_paths,
+        output_dir,
+        censor_age,
+        gen_censoring=gen_censoring,
+        plot_ext=plot_format,
+        validation_paths=validation_paths,
+    )
 
 
 if __name__ == "__main__":

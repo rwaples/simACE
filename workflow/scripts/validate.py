@@ -1,9 +1,11 @@
 """ACE simulation validation - Snakemake wrapper with CLI fallback."""
+
 import yaml
 
 from sim_ace import setup_logging
-from sim_ace.validate import run_validation, cli as _cli
 from sim_ace.utils import to_native
+from sim_ace.validate import cli as _cli
+from sim_ace.validate import run_validation
 
 
 def _run_snakemake():

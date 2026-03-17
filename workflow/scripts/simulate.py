@@ -1,8 +1,10 @@
 """ACE pedigree simulation - Snakemake wrapper with CLI fallback."""
-from sim_ace import setup_logging
-from sim_ace.simulate import run_simulation, cli as _cli
 
 import yaml
+
+from sim_ace import setup_logging
+from sim_ace.simulate import cli as _cli
+from sim_ace.simulate import run_simulation
 
 
 def _run_snakemake():

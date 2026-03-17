@@ -8,8 +8,9 @@ Usage:
     python workflow/scripts/fit_reml.py results/small_test/rep1/pedigree.parquet
 """
 
-import sys
 import os
+import sys
+
 import numpy as np
 import pandas as pd
 from cmdstanpy import CmdStanModel
@@ -60,9 +61,7 @@ def main(parquet_path):
     }
 
     # Compile Stan model
-    stan_file = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "fit_pedigree_ace_reml.stan"
-    )
+    stan_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fit_pedigree_ace_reml.stan")
     print(f"Compiling Stan model: {stan_file}")
     model = CmdStanModel(stan_file=stan_file)
 
@@ -92,8 +91,7 @@ def main(parquet_path):
             q50 = np.quantile(vals, 0.50)
             q95 = np.quantile(vals, 0.95)
             results[k] = mean_val
-            print(f"  {k:>8s}: mean={mean_val:.4f}  std={std_val:.4f}  "
-                  f"median={q50:.4f}  90%CI=[{q5:.4f}, {q95:.4f}]")
+            print(f"  {k:>8s}: mean={mean_val:.4f}  std={std_val:.4f}  median={q50:.4f}  90%CI=[{q5:.4f}, {q95:.4f}]")
 
     # Also show variational mean (optimized q)
     print("\n=== Variational Mean ===")

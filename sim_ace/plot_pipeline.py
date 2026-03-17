@@ -11,9 +11,8 @@ import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch
-
 import yaml
+from matplotlib.patches import FancyBboxPatch
 
 from sim_ace.plot_atlas import MODEL_FAMILY
 
@@ -31,8 +30,15 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
         "Simulate pedigree liability",
         "#D4E6F1",
         [
-            "N", "G_sim", "G_ped", "fam_size", "p_mztwin", "p_nonsocial_father",
-            "_ACE1", "_ACE2", "_rAC",
+            "N",
+            "G_sim",
+            "G_ped",
+            "fam_size",
+            "p_mztwin",
+            "p_nonsocial_father",
+            "_ACE1",
+            "_ACE2",
+            "_rAC",
         ],
     ),
     (
@@ -78,12 +84,12 @@ _PIPELINE_EDGES: list[tuple[str, str]] = [
 
 # Step positions in data coordinates (cx, cy)
 _STEP_POSITIONS: dict[str, tuple[float, float]] = {
-    "simulate":             (0.27, 0.84),
-    "phenotype_frailty":    (0.27, 0.52),
-    "phenotype_threshold":  (0.73, 0.52),
-    "censor":               (0.27, 0.28),
-    "sample_weibull":       (0.27, 0.09),
-    "sample_threshold":     (0.73, 0.09),
+    "simulate": (0.27, 0.84),
+    "phenotype_frailty": (0.27, 0.52),
+    "phenotype_threshold": (0.73, 0.52),
+    "censor": (0.27, 0.28),
+    "sample_weibull": (0.27, 0.09),
+    "sample_threshold": (0.73, 0.09),
 }
 
 # Publication-friendly display names for parameters
@@ -103,16 +109,17 @@ _PARAM_DISPLAY: dict[str, str] = {
 # ---------------------------------------------------------------------------
 # Font sizes (pts) — single place to tune readability
 # ---------------------------------------------------------------------------
-_FONT_TITLE = 24       # scenario title at top of page
-_FONT_BOX_TITLE = 14   # step name inside each box
-_FONT_TABLE = 11       # parameter names and values
-_FONT_META = 12        # seed / replicates in scenario area
-_CHAR_W = 0.0085       # approx data-units per character at 11pt mono on 11in fig
+_FONT_TITLE = 24  # scenario title at top of page
+_FONT_BOX_TITLE = 14  # step name inside each box
+_FONT_TABLE = 11  # parameter names and values
+_FONT_META = 12  # seed / replicates in scenario area
+_CHAR_W = 0.0085  # approx data-units per character at 11pt mono on 11in fig
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _display_name(name: str) -> str:
     """Return a publication-friendly display name for a parameter."""
@@ -137,7 +144,8 @@ def _format_param_value(name: str, value: object) -> str:
 
 
 def _get_param_rows(
-    param_names: list[str], params: dict,
+    param_names: list[str],
+    params: dict,
 ) -> list[tuple[str, str]]:
     """Return (display_name, formatted_value) pairs for the step's parameters."""
     rows = []
@@ -219,7 +227,9 @@ def _draw_step_box(
 ) -> None:
     """Draw a rounded box with title and a name/value parameter table."""
     box = FancyBboxPatch(
-        (cx - w / 2, cy - h / 2), w, h,
+        (cx - w / 2, cy - h / 2),
+        w,
+        h,
         boxstyle="round,pad=0.015",
         facecolor=color,
         edgecolor="0.3",
@@ -235,10 +245,15 @@ def _draw_step_box(
 
     # Title centred in the title area
     ax.text(
-        cx, top - title_h / 2, title,
-        fontsize=_FONT_BOX_TITLE, fontweight="bold",
-        fontfamily="sans-serif", color=text_color,
-        ha="center", va="center",
+        cx,
+        top - title_h / 2,
+        title,
+        fontsize=_FONT_BOX_TITLE,
+        fontweight="bold",
+        fontfamily="sans-serif",
+        color=text_color,
+        ha="center",
+        va="center",
     )
 
     if not rows:
@@ -248,8 +263,11 @@ def _draw_step_box(
     sep_y = top - title_h
     pad = 0.012  # inset from box edges
     ax.plot(
-        [cx - w / 2 + pad, cx + w / 2 - pad], [sep_y, sep_y],
-        color="0.45", linewidth=0.8, clip_on=False,
+        [cx - w / 2 + pad, cx + w / 2 - pad],
+        [sep_y, sep_y],
+        color="0.45",
+        linewidth=0.8,
+        clip_on=False,
     )
 
     # Table layout — position value column based on longest name
@@ -261,15 +279,25 @@ def _draw_step_box(
     for i, (name, val) in enumerate(rows):
         row_y = sep_y - (i + 0.55) * row_h
         ax.text(
-            name_x, row_y, name,
-            fontsize=_FONT_TABLE, fontfamily="monospace", color=name_color,
-            ha="left", va="center",
+            name_x,
+            row_y,
+            name,
+            fontsize=_FONT_TABLE,
+            fontfamily="monospace",
+            color=name_color,
+            ha="left",
+            va="center",
         )
         ax.text(
-            val_x, row_y, val,
-            fontsize=_FONT_TABLE, fontweight="bold", fontfamily="monospace",
+            val_x,
+            row_y,
+            val,
+            fontsize=_FONT_TABLE,
+            fontweight="bold",
+            fontfamily="monospace",
             color=text_color,
-            ha="left", va="center",
+            ha="left",
+            va="center",
         )
 
 
@@ -282,7 +310,9 @@ def _draw_pipeline_arrow(
 ) -> None:
     """Draw an arrow between two points."""
     ax.annotate(
-        "", xy=(x1, y1), xytext=(x0, y0),
+        "",
+        xy=(x1, y1),
+        xytext=(x0, y0),
         arrowprops=dict(
             arrowstyle="-|>,head_length=0.6,head_width=0.3",
             color="0.35",
@@ -296,6 +326,7 @@ def _draw_pipeline_arrow(
 # ---------------------------------------------------------------------------
 # Main plot function
 # ---------------------------------------------------------------------------
+
 
 def render_pipeline_figure(
     params: dict,
@@ -319,14 +350,24 @@ def render_pipeline_figure(
     # Scenario area — right column, aligned with simulate box
     if scenario:
         fig.text(
-            0.71, 0.92, "Scenario",
-            fontsize=_FONT_TABLE, fontfamily="sans-serif", color="0.4",
-            ha="center", va="bottom",
+            0.71,
+            0.92,
+            "Scenario",
+            fontsize=_FONT_TABLE,
+            fontfamily="sans-serif",
+            color="0.4",
+            ha="center",
+            va="bottom",
         )
         fig.text(
-            0.71, 0.91, scenario,
-            fontsize=_FONT_TITLE, fontweight="bold", fontfamily="sans-serif",
-            ha="center", va="top",
+            0.71,
+            0.91,
+            scenario,
+            fontsize=_FONT_TITLE,
+            fontweight="bold",
+            fontfamily="sans-serif",
+            ha="center",
+            va="top",
         )
     # Seed + replicates below scenario name
     meta_parts = []
@@ -341,9 +382,15 @@ def render_pipeline_figure(
         meta_parts.append(f"standardize = {str(std).lower()}")
     if meta_parts:
         fig.text(
-            0.71, 0.82, "\n".join(meta_parts),
-            fontsize=_FONT_META, fontfamily="monospace", color="0.4",
-            ha="center", va="top", linespacing=1.5,
+            0.71,
+            0.82,
+            "\n".join(meta_parts),
+            fontsize=_FONT_META,
+            fontfamily="monospace",
+            color="0.4",
+            ha="center",
+            va="top",
+            linespacing=1.5,
         )
 
     # Build step info lookup
@@ -429,6 +476,7 @@ def plot_pipeline(
 # CLI entry point
 # ---------------------------------------------------------------------------
 
+
 def cli() -> None:
     """Command-line interface for standalone pipeline diagram rendering."""
     from sim_ace.cli_base import add_logging_args, init_logging
@@ -438,15 +486,18 @@ def cli() -> None:
     )
     add_logging_args(parser)
     parser.add_argument(
-        "--params", required=True,
+        "--params",
+        required=True,
         help="Path to params.yaml (merged scenario parameters).",
     )
     parser.add_argument(
-        "--output", required=True,
+        "--output",
+        required=True,
         help="Output image path (e.g. /tmp/pipeline.png).",
     )
     parser.add_argument(
-        "--scenario", default="",
+        "--scenario",
+        default="",
         help="Scenario name for the title.",
     )
     args = parser.parse_args()

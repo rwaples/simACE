@@ -19,6 +19,7 @@ dependencies:
   - pyarrow
   - numba
   - pytest
+  - ruff
   - pip
   # optional: for generating methods.pdf
   # - pandoc

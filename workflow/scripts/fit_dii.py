@@ -18,8 +18,9 @@ Examples:
 """
 
 import argparse
-import shutil
 import os
+import shutil
+
 import numpy as np
 import pandas as pd
 from cmdstanpy import CmdStanModel
@@ -172,7 +173,10 @@ def main():
     parser = argparse.ArgumentParser(description="Fit ACE pedigree model (dii parameterization)")
     parser.add_argument("parquet", help="Path to pedigree.parquet")
     parser.add_argument(
-        "--profile", nargs="*", type=int, metavar=("WARMUP", "SAMPLING"),
+        "--profile",
+        nargs="*",
+        type=int,
+        metavar=("WARMUP", "SAMPLING"),
         help="Run MCMC profiling. Optional: warmup and sampling counts (default: 10 10)",
     )
     parser.add_argument("--advi", action="store_true", help="Run ADVI inference")
@@ -194,9 +198,7 @@ def main():
     stan_data, output_dir = prepare_data(args.parquet)
 
     # Compile Stan model
-    stan_file = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "ace_dii.stan"
-    )
+    stan_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ace_dii.stan")
     print(f"Compiling Stan model: {stan_file}")
     model = CmdStanModel(stan_file=stan_file)
 

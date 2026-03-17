@@ -7,11 +7,9 @@ finite-sample stochastic simulation.
 """
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from sim_ace.simulate import run_simulation
-
 
 # Use a moderate-size simulation for statistical power
 STAT_PARAMS = dict(
@@ -21,9 +19,12 @@ STAT_PARAMS = dict(
     fam_size=2.5,
     p_mztwin=0.03,
     p_nonsocial_father=0.05,
-    A1=0.5, C1=0.2,
-    A2=0.4, C2=0.3,
-    rA=0.5, rC=0.4,
+    A1=0.5,
+    C1=0.2,
+    A2=0.4,
+    C2=0.3,
+    rA=0.5,
+    rC=0.4,
 )
 
 
@@ -37,8 +38,8 @@ def stat_pedigree():
 # Founder variance checks
 # ---------------------------------------------------------------------------
 
-class TestFounderVariances:
 
+class TestFounderVariances:
     def test_A1_variance(self, stat_pedigree):
         founders = stat_pedigree[stat_pedigree["mother"] == -1]
         var = founders["A1"].var()
@@ -86,8 +87,8 @@ class TestFounderVariances:
 # MZ twin properties
 # ---------------------------------------------------------------------------
 
-class TestMZTwinProperties:
 
+class TestMZTwinProperties:
     def test_mz_twins_identical_A1(self, stat_pedigree):
         df = stat_pedigree
         twins = df[df["twin"] != -1]
@@ -146,8 +147,8 @@ class TestMZTwinProperties:
 # Sibling A correlation
 # ---------------------------------------------------------------------------
 
-class TestSiblingCorrelation:
 
+class TestSiblingCorrelation:
     def _get_full_sib_pairs(self, df):
         """Extract full-sib pairs (same mother + same father, no twins)."""
         non_founders = df[(df["mother"] != -1) & (df["twin"] == -1)]
@@ -158,8 +159,7 @@ class TestSiblingCorrelation:
         if len(mat_sib) == 0:
             return np.array([]), np.array([])
         pairs = mat_sib.merge(mat_sib, on="mother", suffixes=("_1", "_2"))
-        pairs = pairs[(pairs["id_1"] < pairs["id_2"]) &
-                      (pairs["father_1"] == pairs["father_2"])]
+        pairs = pairs[(pairs["id_1"] < pairs["id_2"]) & (pairs["father_1"] == pairs["father_2"])]
         return pairs["id_1"].values, pairs["id_2"].values
 
     def test_sibling_A1_correlation_near_half(self, stat_pedigree):
@@ -188,8 +188,8 @@ class TestSiblingCorrelation:
 # Cross-trait correlations
 # ---------------------------------------------------------------------------
 
-class TestCrossTraitCorrelations:
 
+class TestCrossTraitCorrelations:
     def test_cross_trait_A_correlation(self, stat_pedigree):
         """Cross-trait A correlation should match rA."""
         founders = stat_pedigree[stat_pedigree["mother"] == -1]
@@ -213,8 +213,8 @@ class TestCrossTraitCorrelations:
 # E independence across siblings
 # ---------------------------------------------------------------------------
 
-class TestEIndependence:
 
+class TestEIndependence:
     def test_sibling_E1_uncorrelated(self, stat_pedigree):
         """E1 values between siblings should be uncorrelated."""
         df = stat_pedigree
@@ -238,8 +238,8 @@ class TestEIndependence:
 # C shared within households
 # ---------------------------------------------------------------------------
 
-class TestCSharedWithinHousehold:
 
+class TestCSharedWithinHousehold:
     def test_siblings_share_C1(self, stat_pedigree):
         """All siblings from the same mother should have identical C1."""
         df = stat_pedigree
@@ -261,8 +261,8 @@ class TestCSharedWithinHousehold:
 # Sex ratio
 # ---------------------------------------------------------------------------
 
-class TestSexRatio:
 
+class TestSexRatio:
     def test_sex_ratio_balanced(self, stat_pedigree):
         ratio = stat_pedigree["sex"].mean()
         assert 0.45 < ratio < 0.55

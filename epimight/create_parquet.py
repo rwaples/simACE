@@ -1,8 +1,9 @@
 import argparse
-import os
-import pandas as pd
-import numpy as np
 import json
+import os
+
+import numpy as np
+import pandas as pd
 
 from sim_ace.pedigree_graph import extract_relationship_pairs
 
@@ -10,14 +11,14 @@ BASE_YEAR = 1960  # calendar year offset: born_at_year = BASE_YEAR + generation
 
 # Mapping from EPIMIGHT relationship kinds to ACE pair type names
 KIND_TO_PAIRS = {
-    "PO":  ["Mother-offspring", "Father-offspring"],
-    "FS":  ["Full sib", "MZ twin"],
-    "HS":  ["Maternal half sib", "Paternal half sib"],
+    "PO": ["Mother-offspring", "Father-offspring"],
+    "FS": ["Full sib", "MZ twin"],
+    "HS": ["Maternal half sib", "Paternal half sib"],
     "mHS": ["Maternal half sib"],
     "pHS": ["Paternal half sib"],
-    "1C":  ["1st cousin"],
-    "Av":  ["Avuncular"],
-    "1G":  ["Grandparent-grandchild"],
+    "1C": ["1st cousin"],
+    "Av": ["Avuncular"],
+    "1G": ["Grandparent-grandchild"],
 }
 
 # Asymmetric relationship kinds: count only diagnosed older-generation
@@ -76,16 +77,10 @@ def count_total_relatives(pair_list, n, unidirectional=False):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Convert ACE phenotype parquet to EPIMIGHT TTE format"
-    )
+    parser = argparse.ArgumentParser(description="Convert ACE phenotype parquet to EPIMIGHT TTE format")
+    parser.add_argument("--phenotype", required=True, help="Path to phenotype.parquet from ACE pipeline")
     parser.add_argument(
-        "--phenotype", required=True,
-        help="Path to phenotype.parquet from ACE pipeline"
-    )
-    parser.add_argument(
-        "--output-dir", required=True,
-        help="Output directory for NDD.parquet, NDG.parquet, true_parameters.json"
+        "--output-dir", required=True, help="Output directory for NDD.parquet, NDG.parquet, true_parameters.json"
     )
     args = parser.parse_args()
 
@@ -131,14 +126,16 @@ def main():
     # build outputs
     # ------------------------------------------------
     def build_output(affected_col, time_col, diag_cols, nrel_cols):
-        out = pd.DataFrame({
-            "person_id": df["id"],
-            "born_at": df["generation"].astype(int),
-            "born_at_year": (BASE_YEAR + df["generation"]).astype(int),
-            "dead_at_year": (BASE_YEAR + df["generation"] + df["death_age"]).astype(int),
-            "failure_status": df[affected_col].astype(int),
-            "failure_time": df[time_col].astype(int),
-        })
+        out = pd.DataFrame(
+            {
+                "person_id": df["id"],
+                "born_at": df["generation"].astype(int),
+                "born_at_year": (BASE_YEAR + df["generation"]).astype(int),
+                "dead_at_year": (BASE_YEAR + df["generation"] + df["death_age"]).astype(int),
+                "failure_status": df[affected_col].astype(int),
+                "failure_time": df[time_col].astype(int),
+            }
+        )
         # Per-kind diagnosed relative counts
         for kind in KIND_TO_PAIRS:
             out[f"diagnosed_relatives_{kind}"] = diag_cols[kind].astype(int)
@@ -177,9 +174,11 @@ def main():
             n_with_rel = (tte[nrel_col] > 0).sum()
             n_with_diag = (tte[diag_col] > 0).sum()
             mean_diag = tte.loc[tte[nrel_col] > 0, diag_col].mean() if n_with_rel > 0 else 0
-            print(f"  {kind:>3s}: {n_with_rel:>8d} with relatives, "
-                  f"{n_with_diag:>8d} with diagnosed relatives, "
-                  f"mean diagnosed (among those with rel): {mean_diag:.3f}")
+            print(
+                f"  {kind:>3s}: {n_with_rel:>8d} with relatives, "
+                f"{n_with_diag:>8d} with diagnosed relatives, "
+                f"mean diagnosed (among those with rel): {mean_diag:.3f}"
+            )
 
         # Yearly summary using PO as default for the h2 feasibility check
         default_diag = "diagnosed_relatives_PO"
@@ -192,41 +191,34 @@ def main():
         grp_parent = tte.loc[parent_idx].groupby("born_at_year") if parent_idx.any() else None
 
         n_parent = (grp_parent.size() if grp_parent is not None else pd.Series(dtype=int)).rename("n_parent")
-        events_parent = (
-            grp_parent["failure_status"].sum() if grp_parent is not None else pd.Series(dtype=int)
-        ).rename("events_parent")
+        events_parent = (grp_parent["failure_status"].sum() if grp_parent is not None else pd.Series(dtype=int)).rename(
+            "events_parent"
+        )
 
         def q(s):
             s = s[s > 0]
             return np.quantile(s, [0.1, 0.5, 0.9]) if len(s) > 0 else [np.nan, np.nan, np.nan]
 
         q_events = grp.apply(
-            lambda g: pd.Series(q(g.loc[g["failure_status"] == 1, "failure_time"]),
-                                index=["t10", "t50", "t90"])
+            lambda g: pd.Series(q(g.loc[g["failure_status"] == 1, "failure_time"]), index=["t10", "t50", "t90"])
         )
 
         summary = (
-            pd.concat([
-                n_c1, events_c1,
-                n_parent, events_parent,
-                q_events
-            ], axis=1)
+            pd.concat([n_c1, events_c1, n_parent, events_parent, q_events], axis=1)
             .fillna(0)
-            .astype({
-                "n_c1": int,
-                "events_c1": int,
-                "n_parent": int,
-                "events_parent": int,
-            })
+            .astype(
+                {
+                    "n_c1": int,
+                    "events_c1": int,
+                    "n_parent": int,
+                    "events_parent": int,
+                }
+            )
             .reset_index()
             .sort_values("born_at_year")
         )
 
-        summary["h2_ok"] = (
-            (summary["events_c1"] > 0) &
-            (summary["n_parent"] > 0) &
-            (summary["events_parent"] > 0)
-        )
+        summary["h2_ok"] = (summary["events_c1"] > 0) & (summary["n_parent"] > 0) & (summary["events_parent"] > 0)
 
         print(f"\n{ybar} Yearly summary ({name}, using PO for h2 feasibility)")
         print(summary.to_string(index=False))
@@ -249,12 +241,12 @@ def main():
     # Pair counts summary
     # ------------------------------------------------
     print(f"\n{ybar} Pair counts from PedigreeGraph")
-    for pt_name, (p1, p2) in all_pairs.items():
+    for pt_name, (p1, _p2) in all_pairs.items():
         print(f"  {pt_name}: {len(p1)} pairs")
 
     print("\n###################### TRUE GENETIC PARAMETERS ######################")
 
-    if not {"A1","C1","E1","A2","C2","E2"}.issubset(df.columns):
+    if not {"A1", "C1", "E1", "A2", "C2", "E2"}.issubset(df.columns):
         print("[WARN] Missing A1/C1/E1/A2/C2/E2 — cannot compute truth.")
     else:
         df["L1"] = df["A1"] + df["C1"] + df["E1"]
@@ -289,7 +281,7 @@ def main():
     out_ndd.to_parquet(out_ndd_path, index=False)
     out_ndg.to_parquet(out_ndg_path, index=False)
 
-    print(f"\nCreated files:")
+    print("\nCreated files:")
     print(out_ndd_path)
     print(out_ndg_path)
 

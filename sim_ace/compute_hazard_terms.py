@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.special import gammaln
-from scipy.stats import norm, gamma as gamma_dist
+from scipy.stats import gamma as gamma_dist
+from scipy.stats import norm
+
 
 def compute_hazard_terms(
     model: str,
@@ -29,7 +31,7 @@ def compute_hazard_terms(
     if model == "weibull":
         s, rho = params["scale"], params["rho"]
         log_t = np.log(t)
-        const  = np.log(rho) - rho * np.log(s) + (rho - 1) * log_t
+        const = np.log(rho) - rho * np.log(s) + (rho - 1) * log_t
         H_base = np.exp(rho * (log_t - np.log(s)))
 
     elif model == "exponential":
@@ -39,7 +41,7 @@ def compute_hazard_terms(
             lam = 1.0 / params["scale"]
         else:
             raise ValueError("exponential: need 'rate' or 'scale'")
-        const  = np.full_like(t, np.log(lam))
+        const = np.full_like(t, np.log(lam))
         H_base = lam * t
 
     elif model == "gompertz":
@@ -52,26 +54,26 @@ def compute_hazard_terms(
         # H0(t)=−log S0(t)=−norm.logsf(z),  z=(log t−mu)/sigma
         mu, sigma = params["mu"], params["sigma"]
         log_t = np.log(t)
-        z      = (log_t - mu) / sigma
-        log_S0 = norm.logsf(z)                          # stable complementary log-CDF
-        log_f0 = -0.5*z**2 - 0.5*np.log(2*np.pi) - np.log(sigma) - log_t
-        const  = log_f0 - log_S0
+        z = (log_t - mu) / sigma
+        log_S0 = norm.logsf(z)  # stable complementary log-CDF
+        log_f0 = -0.5 * z**2 - 0.5 * np.log(2 * np.pi) - np.log(sigma) - log_t
+        const = log_f0 - log_S0
         H_base = -log_S0
 
     elif model == "loglogistic":
         # H0(t)=log(1+(t/α)^k)=log1p(exp(u)), u=k·log(t/α)
         # LSE trick: for large u, log1p(exp(u))≈u
         alpha, k = params["scale"], params["shape"]
-        u      = k * (np.log(t) - np.log(alpha))
+        u = k * (np.log(t) - np.log(alpha))
         H_base = np.where(u > 30.0, u, np.log1p(np.exp(u)))
-        const  = np.log(k) - np.log(alpha) + (k-1)*(np.log(t)-np.log(alpha)) - H_base
+        const = np.log(k) - np.log(alpha) + (k - 1) * (np.log(t) - np.log(alpha)) - H_base
 
     elif model == "gamma":
         # H0(t)=−gamma_dist.logsf(t; shape=k, scale=θ)  [stable log-survival]
         k, theta = params["shape"], params["scale"]
-        log_f0 = (k-1)*np.log(t) - t/theta - k*np.log(theta) - gammaln(k)
+        log_f0 = (k - 1) * np.log(t) - t / theta - k * np.log(theta) - gammaln(k)
         log_S0 = gamma_dist.logsf(t, a=k, scale=theta)
-        const  = log_f0 - log_S0
+        const = log_f0 - log_S0
         H_base = -log_S0
 
     else:
