@@ -134,6 +134,7 @@ defaults:
   # Statistics
   extra_tetrachoric: false                   # Estimate additional tetrachoric correlations (slow; set true to enable) [UNDER DEVELOPEMENT]
   N_sample: 0                                # Subsample phenotype before stats (0 = keep all)
+  pedigree_dropout_rate: 0                   # Fraction of individuals to drop from pedigree (0 = none)
 
   # EPIMIGHT relationship kinds to analyze
   epimight_kinds: [PO, FS, HS, mHS, pHS]     # Relationship types for heritability estimation
@@ -167,7 +168,8 @@ Each scenario replicate produces (see [OUTPUTS.md](OUTPUTS.md) for column schema
 
 | File | Description |
 |------|-------------|
-| `results/{folder}/{scenario}/rep{N}/pedigree.parquet` | Pedigree with id, sex, parents, twin, household, A/C/E values, liabilities |
+| `results/{folder}/{scenario}/rep{N}/pedigree.full.parquet` | Full pedigree before dropout; **temp** — auto-deleted after dropout and validation |
+| `results/{folder}/{scenario}/rep{N}/pedigree.parquet` | Pedigree after dropout (identical to full when `pedigree_dropout_rate=0`) |
 | `results/{folder}/{scenario}/rep{N}/phenotype.raw.parquet` | Raw time-to-event phenotypes (before censoring); **temp** — auto-deleted after censoring |
 | `results/{folder}/{scenario}/rep{N}/phenotype.parquet` | Censored time-to-event phenotypes (age-at-onset, censoring, affected status) |
 | `results/{folder}/{scenario}/rep{N}/phenotype.sampled.parquet` | Subsampled phenotype for stats (N_sample individuals); **temp** — auto-deleted after stats |
@@ -247,7 +249,9 @@ See the [Outputs > Plot Atlases](#plot-atlases) table for the full output tree.
 
 See [epimight/README.md](epimight/README.md) for the full pipeline reference — manual steps, column schemas, cohort definitions, and relationship kinds.
 
-## Subsampling (`N_sample`)
+## Subsampling and Dropout
+
+### Subsampling (`N_sample`)
 
 When `N_sample > 0`, the pipeline randomly draws `N_sample` individuals from the phenotype before computing statistics. This reduces runtime and disk usage for large populations while preserving population-level signals. The sampling step (`sample.smk`) writes a temporary `.sampled.parquet` that is auto-deleted after stats complete.
 
@@ -259,6 +263,19 @@ Because sampling breaks pedigree completeness — parents and other relatives ma
 | **Parent-offspring** | Detected when a parent is present in the sample (its ID maps to a valid row index). Each parent link is independent — a child with only its mother in the sample still yields a mother-offspring pair. |
 | **Grandparent-grandchild, avuncular, cousins, 2nd cousins** | Detected via sparse matrix products on parent→child edges. Each edge is built independently (mother edges and father edges are separate matrices), so a child with only one parent in the sample still contributes edges through that parent. However, these relationships require intermediate ancestors to be in the sample to form multi-hop paths. |
 | **MZ twin** | Detected when both twins are in the sample (twin partner ID maps to a valid row index). |
+
+### Pedigree Dropout (`pedigree_dropout_rate`)
+
+When `pedigree_dropout_rate > 0`, the pipeline randomly removes that fraction of individuals from the simulated pedigree before phenotyping, modelling incomplete real-world observation. The dropout step (`dropout.smk`) runs between simulation and phenotyping:
+
+```
+simulate → pedigree.full.parquet (temp) → dropout → pedigree.parquet
+                                      ↘ validate (reads full pedigree)
+```
+
+Dropped individuals are deleted entirely. All parent/twin links pointing to a dropped individual are set to -1 (unknown). This means multi-hop relationships through missing individuals (e.g. grandparent-grandchild via a removed parent) become undetectable, and former full-sib pairs whose shared parent was dropped are reclassified as half-sibs. Individuals with only one known parent can still participate in half-sib detection through the surviving parent.
+
+Three pre-configured dropout scenarios are included: `baseline100K_dropout10` (10%), `baseline100K_dropout30` (30%), and `baseline100K_dropout50` (50%).
 
 ## Project Structure
 
@@ -272,6 +289,7 @@ ACE/
 │   ├── cli_base.py                    # Shared CLI boilerplate (add_logging_args, init_logging)
 │   ├── utils.py                       # Shared helpers (save_parquet, optimize_dtypes, safe_corrcoef, etc.)
 │   ├── simulate.py                    # Pedigree simulation (mating, reproduce, run_simulation)
+│   ├── dropout.py                     # Pedigree dropout (random individual removal)
 │   ├── phenotype.py                   # Phenotype models (frailty, adult_ltm, adult_cox)
 │   ├── censor.py                      # Age-window and competing-risk death censoring
 │   ├── threshold.py                   # Liability-threshold model
@@ -300,6 +318,7 @@ ACE/
 │   ├── rules/                         # Modular Snakemake rule files
 │   │   ├── targets.smk                # Target rules: all, simulate_all, phenotype_all, etc.
 │   │   ├── simulate.smk               # Pedigree simulation rule
+│   │   ├── dropout.smk                # Pedigree dropout rule
 │   │   ├── phenotype.smk              # Phenotyping rules (survival model + simple LTM)
 │   │   ├── validate.smk               # Validation, gathering, and validation plots
 │   │   ├── stats.smk                  # Statistics and phenotype plots
