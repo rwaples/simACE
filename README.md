@@ -27,17 +27,6 @@ conda env create -f environment.yml   # creates environment and installs sim_ace
 conda activate ACE
 ```
 
-### EPIMIGHT (optional)
-
-To run heritability analysis via EPIMIGHT, create its separate R-based conda environment:
-
-```bash
-conda env create -f epimight/environment.yml
-conda run -n epimight Rscript -e "install.packages('epimight/EPIMIGHT/epimight', repos=NULL, type='source')"
-```
-
-See [epimight/README.md](epimight/README.md) for full pipeline details.
-
 ### Verify installation
 
 ```bash
@@ -211,6 +200,52 @@ Multi-page PDF atlases collect all figures for a scenario or folder into a singl
 ### Output Format Reference
 
 See [OUTPUTS.md](OUTPUTS.md) for complete documentation of all output formats, including parquet column schemas, YAML file structures, validation_summary.tsv columns, benchmark format, and plot inventories.
+
+## EPIMIGHT
+
+EPIMIGHT estimates heritability (h²) and genetic correlation from simulated time-to-event data using the [EPIMIGHT](https://github.com/BioPsyk/epimight) R package. It compares cumulative incidence in relatives of affected individuals against the general population, then applies Falconer's formula to derive heritability estimates stratified by birth year with fixed/random effects meta-analysis.
+
+### Setup
+
+EPIMIGHT requires a separate R-based conda environment:
+
+```bash
+conda env create -f epimight/environment.yml
+conda run -n epimight Rscript -e "install.packages('epimight/EPIMIGHT/epimight', repos=NULL, type='source')"
+```
+
+### Running via Snakemake
+
+```bash
+# All scenarios and replicates
+snakemake --cores 4 epimight_all
+
+# Single scenario (one replicate)
+snakemake --cores 4 results/base/baseline100K/rep1/epimight/plots/atlas.pdf
+
+# Single relationship kind
+snakemake --cores 4 results/base/baseline100K/rep1/epimight/tsv/h2_d1_FS.tsv
+```
+
+Which relationship kinds are analyzed is controlled by the `epimight_kinds` config parameter (default: `[PO, FS, HS, mHS, pHS]`).
+
+### Outputs
+
+Each replicate's `epimight/` directory contains:
+
+| File | Description |
+|------|-------------|
+| `NDD.parquet`, `NDG.parquet` | Time-to-event input data for traits 1 and 2 |
+| `true_parameters.json` | True h² and genetic correlation from variance components |
+| `results_{kind}.md` | Summary report per relationship kind (cohort sizes, h² meta-analysis, genetic correlation, true vs observed comparison) |
+| `tsv/cif_*.tsv`, `tsv/h2_*.tsv`, `tsv/gc_*.tsv` | CIF curves, heritability estimates, and genetic correlation per kind |
+| `plots/atlas.pdf` | Multi-page PDF atlas: CIF curves, h² over time, h² bar charts, genetic correlation, and observed vs true comparison |
+
+See the [Outputs > Plot Atlases](#plot-atlases) table for the full output tree.
+
+### More information
+
+See [epimight/README.md](epimight/README.md) for the full pipeline reference — manual steps, column schemas, cohort definitions, and relationship kinds.
 
 ## Subsampling (`N_sample`)
 
