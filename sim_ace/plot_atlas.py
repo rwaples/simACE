@@ -93,25 +93,12 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Schematic multi-generational pedigree diagram showing the 10 relationship "
         "categories extracted from the full simulated pedigree spanning all G_ped "
         "generations. Mean pair counts (averaged across replicates) are superimposed. "
-        "Node shapes follow standard pedigree conventions: squares = male, circles = female.\n\n"
-        "Relationship extraction uses sparse matrix algebra on parent\u2192child edges "
-        "(PedigreeGraph). Siblings are classified by grouping on original pedigree parent IDs: "
-        "full sibs share both parent IDs, maternal half-sibs share mother but differ on father, "
-        "paternal half-sibs share father but differ on mother. Parent-offspring pairs are "
-        "direct edges; grandparent-grandchild, avuncular, cousin, and 2nd cousin pairs are "
-        "detected via 2- and 3-hop matrix products (A\u00b2, A\u00b3)."
+        "Node shapes follow standard pedigree conventions: squares = male, circles = female."
     ),
     "pedigree_counts": (
         "Figure 2: Pedigree relationship pair counts (G_pheno).\n\n"
         "Same diagram as Figure 1, but restricted to the phenotyped population "
-        "(last G_pheno generations), after any N_sample subsampling. These are the "
-        "individuals and pairs used for downstream correlation and heritability analyses.\n\n"
-        "When N_sample > 0, not all relatives will be present in the sample. Sibling "
-        "detection is unaffected because it uses original pedigree parent IDs stored in "
-        "the DataFrame\u2014two sampled siblings are correctly classified even if their parents "
-        "are absent from the sample. Parent-offspring, grandparent-grandchild, avuncular, "
-        "and cousin pairs require the intermediate relatives to be present in the sample, "
-        "so these counts decrease with heavier subsampling."
+        "(last G_pheno generations), after any N_sample subsampling."
     ),
     # -- Liability structure --
     "cross_trait": (
@@ -126,7 +113,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Grid: rows = traits, columns = last 3 non-founder generations. Scatter of "
         "midparent liability (x) vs. offspring liability (y) with regression line. "
         "Text box shows Pearson r, R\u00b2, and pair count n, all averaged across "
-        "replicates from pre-computed per-rep statistics."
+        "replicates."
     ),
     "heritability.by_generation": (
         "Figure 5: Narrow-sense liability-scale heritability by generation.\n\n"
@@ -134,9 +121,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "h\u00b2 = Var(A) / (Var(A) + Var(C) + Var(E)) is computed from the "
         "per-generation variance components for each replicate. Blue dots show "
         "per-replicate h\u00b2 estimates. "
-        "Orange dashed line marks the parametric heritability (A parameter). "
-        "Stable h\u00b2 across generations confirms that the ACE variance "
-        "decomposition is maintained through the simulation."
+        "Orange dashed line marks the parametric heritability (A parameter)."
     ),
     "additive_shared.by_generation": (
         "Figure 6: Additive genetic and shared environment by generation.\n\n"
@@ -144,9 +129,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "(Var(A) + Var(C)) / (Var(A) + Var(C) + Var(E)) is computed from "
         "the per-generation variance components for each replicate. Blue dots show "
         "per-replicate estimates. "
-        "Orange dashed line marks the parametric value (A + C). "
-        "Comparing with the narrow-sense h\u00b2 (Figure 5) isolates the "
-        "contribution of shared environment to familial resemblance."
+        "Orange dashed line marks the parametric value (A + C)."
     ),
     # -- Liability by affected status --
     "liability_violin.phenotype": (
@@ -187,15 +170,13 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Figure 12: Cumulative incidence by sex.\n\n"
         "Two-panel figure, one per trait. Blue line = female (sex=0), red line = male "
         "(sex=1) observed cumulative incidence. Legend shows sample size and prevalence "
-        "per sex. Separation between curves indicates a sex-differential hazard rate "
-        "driven by the beta_sex covariate. Statistics computed on full (non-subsampled) data."
+        "per sex. Statistics computed on full (non-subsampled) data."
     ),
     "cumulative_incidence.by_sex.by_generation": (
         "Figure 13: Cumulative incidence by sex and generation.\n\n"
         "Grid: rows = traits, columns = generations. Each panel shows cumulative incidence "
         "curves for female (blue) and male (red) separately. Legend shows per-sex sample "
-        "size and prevalence within each generation. Useful for detecting generation-specific "
-        "sex effects or interactions with censoring windows. Statistics computed on full "
+        "size and prevalence within each generation. Statistics computed on full "
         "(non-subsampled) data."
     ),
     "censoring": (
@@ -212,8 +193,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "status (after generation-window and death censoring). "
         "Rows = true status, columns = observed status. Cell annotations show "
         "proportion and count. Title shows sensitivity (true positive rate) and "
-        "specificity (true negative rate). False negatives arise from left-truncation, "
-        "right-censoring, or competing mortality. Only phenotyped generations "
+        "specificity (true negative rate). Only phenotyped generations "
         "(those with non-degenerate observation windows) are included. "
         "Statistics computed on full (non-subsampled) data."
     ),
@@ -231,8 +211,8 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Figure 17: Liability vs. age-at-onset.\n\n"
         "Side-by-side joint plots, one per trait. Central scatter of liability (x) vs. "
         "observed age-at-onset (y) for affected individuals, with regression line. "
-        "Annotations show Pearson r and R\u00b2 averaged across replicates from pre-computed "
-        "per-rep regressions. Marginal histograms on top and right."
+        "Annotations show Pearson r and R\u00b2 averaged across replicates. Marginal "
+        "histograms on top and right."
     ),
     # -- Within-trait correlations --
     "joint_affected.phenotype": (
@@ -243,8 +223,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "'r_frailty' = frailty-estimated liability correlation from uncensored survival "
         "data (oracle); 'stratified' = generation-stratified estimate that "
         "computes per-generation correlations and combines via inverse-variance "
-        "weighting, reducing bias from heterogeneous censoring across generations; "
-        "'naive' = unweighted pooled censored estimate for comparison. "
+        "weighting; 'naive' = unweighted pooled censored estimate. "
         "Statistics computed on full (non-subsampled) data."
     ),
     "tetrachoric.phenotype": (
@@ -253,12 +232,10 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "tetrachoric correlations (computed from censored binary affected status) across "
         "replicates for each relationship type. "
         "Black dots = individual per-replicate tetrachoric estimates. "
-        "Black dashed lines = mean Pearson liability correlation (ground-truth correlation "
-        "on the continuous latent liability, serving as the theoretical reference). "
-        "Green dash-dot lines = mean uncensored frailty pairwise survival-time correlation "
-        "(showing what the correlation would be without censoring distortion; present when "
-        "available). N = mean pairs per replicate. The gap between violins and dashed lines "
-        "reflects attenuation from censoring and dichotomization."
+        "Black dashed lines = mean Pearson liability correlation (ground-truth "
+        "correlation on the continuous latent liability). "
+        "Green dash-dot lines = mean uncensored frailty pairwise survival-time "
+        "correlation (present when available). N = mean pairs per replicate."
     ),
     "tetrachoric.phenotype.by_generation": (
         "Figure 20: Tetrachoric correlations by generation (survival model).\n\n"
@@ -287,8 +264,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "with 95% CI error bars; blue line = mean across replicates. "
         "Green dash-dot line = uncensored oracle (ground truth from raw event times). "
         "Orange dashed line = inverse-variance weighted mean across generations "
-        "(stratified estimate). Dark orange dotted line = naive pooled estimate (biased). "
-        "Generations with very low event rates may hit the boundary and be excluded."
+        "(stratified estimate). Dark orange dotted line = naive pooled estimate."
     ),
     "cross_trait_tetrachoric": (
         "Figure 24: Cross-trait tetrachoric correlations.\n\n"
@@ -298,8 +274,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "line = mean), with overall r (black dashed) and frailty oracle (green "
         "dash-dot) reference lines when available. "
         "Right panel: cross-person cross-trait r by relationship type "
-        "(coloured violins + black dots), showing how genetic and environmental "
-        "relatedness induces cross-trait association across individuals."
+        "(coloured violins + black dots)."
     ),
 }
 
@@ -333,8 +308,8 @@ SIMPLE_LTM_CAPTIONS: dict[str, str] = {
     "tetrachoric.simple_ltm": (
         "Figure 30: Tetrachoric correlations by relationship type (threshold model).\n\n"
         "Violin plots of tetrachoric correlations for threshold affected status indicators. "
-        "Same encoding as Figure 19: coloured violins show observed tetrachoric correlations "
-        "from binary affected status, black dots are per-replicate estimates, black dashed "
+        "Same encoding as Figure 19: coloured violins show observed tetrachoric correlations, "
+        "black dots are per-replicate estimates, black dashed "
         "lines are the ground-truth Pearson liability correlations, and pair counts are "
         "annotated above each violin."
     ),
