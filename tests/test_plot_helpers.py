@@ -283,8 +283,8 @@ class TestPlaceholderPaths:
         plot_censoring_cascade([{}], out, scenario="test")
         assert out.exists()
 
-    def test_threshold_violin_by_gen_no_gen(self, tmp_path, sample_df):
-        from sim_ace.plot_threshold import plot_liability_violin_by_generation
+    def test_simple_ltm_violin_by_gen_no_gen(self, tmp_path, sample_df):
+        from sim_ace.plot_simple_ltm import plot_liability_violin_by_generation
 
         df = sample_df.drop(columns=["generation"])
         out = tmp_path / "tv_gen.png"

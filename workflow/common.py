@@ -40,7 +40,7 @@ def get_all_folders(config):
 
 # -- Plot filename basenames (without extension) --
 
-# Ordered by narrative flow: liability structure -> frailty phenotype ->
+# Ordered by narrative flow: liability structure -> phenotype ->
 # censoring -> familial correlations & heritability.
 _PHENOTYPE_BASENAMES = [
     # Pedigree structure
@@ -53,12 +53,12 @@ _PHENOTYPE_BASENAMES = [
     "heritability.by_generation",
     "additive_shared.by_generation",
     # Liability by affected status
-    "liability_violin.frailty",
-    "liability_violin.frailty.by_generation",
+    "liability_violin.phenotype",
+    "liability_violin.phenotype.by_generation",
     # Survival phenotype & censoring
     "age_at_onset_death",
     "mortality",
-    "cumulative_incidence.frailty",
+    "cumulative_incidence.phenotype",
     "cumulative_incidence.by_sex",
     "cumulative_incidence.by_sex.by_generation",
     "censoring",
@@ -66,25 +66,25 @@ _PHENOTYPE_BASENAMES = [
     "censoring_cascade",
     "liability_vs_aoo",
     # Within-trait correlations
-    "joint_affected.frailty",
-    "tetrachoric.frailty",
-    "tetrachoric.frailty.by_generation",
+    "joint_affected.phenotype",
+    "tetrachoric.phenotype",
+    "tetrachoric.phenotype.by_generation",
     # Cross-trait correlations
-    "cross_trait.frailty",
-    "cross_trait.frailty.t2",
+    "cross_trait.phenotype",
+    "cross_trait.phenotype.t2",
     "cross_trait_frailty.by_generation",
     "cross_trait_tetrachoric",
 ]
 
-# Ordered to mirror frailty: prevalence -> liability -> correlations.
-_THRESHOLD_BASENAMES = [
+# Ordered to mirror phenotype: prevalence -> liability -> correlations.
+_SIMPLE_LTM_BASENAMES = [
     "prevalence_by_generation",
-    "cross_trait.threshold",
-    "liability_violin.threshold",
-    "liability_violin.threshold.by_generation",
-    "joint_affected.threshold",
-    "tetrachoric.threshold",
-    "cross_trait_tetrachoric.threshold",
+    "cross_trait.simple_ltm",
+    "liability_violin.simple_ltm",
+    "liability_violin.simple_ltm.by_generation",
+    "joint_affected.simple_ltm",
+    "tetrachoric.simple_ltm",
+    "cross_trait_tetrachoric.simple_ltm",
 ]
 
 # Ordered: pedigree structure -> variance & heritability -> cross-trait ->
@@ -122,13 +122,13 @@ def get_scenario_sim_outputs(config, scenario, plot_ext="png"):
     for rep in range(1, n_reps + 1):
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/pedigree.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.parquet")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.parquet")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.simple_ltm.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/simple_ltm_stats.yaml")
     for plot in plot_filenames(_PHENOTYPE_BASENAMES, plot_ext):
         outputs.append(f"results/{folder}/{scenario}/plots/{plot}")
-    for plot in plot_filenames(_THRESHOLD_BASENAMES, plot_ext):
+    for plot in plot_filenames(_SIMPLE_LTM_BASENAMES, plot_ext):
         outputs.append(f"results/{folder}/{scenario}/plots/{plot}")
     outputs.append(f"results/{folder}/{scenario}/plots/atlas.pdf")
     return outputs

@@ -12,20 +12,20 @@ Complete documentation of all files produced by the ACE pipeline. Path patterns 
 | `phenotype.raw.parquet` | Parquet | Raw time-to-event phenotypes (before censoring) | `sim_ace/phenotype.py` |
 | `phenotype.parquet` | Parquet | Censored time-to-event phenotypes | `sim_ace/censor.py` |
 | `phenotype.sampled.parquet` | Parquet | Downsampled phenotype for plotting | `workflow/scripts/sample.py` |
-| `phenotype.liability_threshold.parquet` | Parquet | Binary affected status from liability-threshold model | `sim_ace/threshold.py` |
-| `phenotype.liability_threshold.sampled.parquet` | Parquet | Downsampled threshold phenotype for plotting | `workflow/scripts/sample.py` |
+| `phenotype.simple_ltm.parquet` | Parquet | Binary affected status from liability-threshold model | `sim_ace/threshold.py` |
+| `phenotype.simple_ltm.sampled.parquet` | Parquet | Downsampled threshold phenotype for plotting | `workflow/scripts/sample.py` |
 | `params.yaml` | YAML | Simulation parameters for this replicate | `sim_ace/simulate.py` |
 | `phenotype_stats.yaml` | YAML | Phenotype statistics (correlations, prevalence, CIF, etc.) | `sim_ace/stats.py` |
 | `phenotype_samples.parquet` | Parquet | Further downsampled phenotype rows for stats scatter plots | `sim_ace/stats.py` |
-| `threshold_stats.yaml` | YAML | Threshold phenotype statistics | `sim_ace/threshold_stats.py` |
-| `threshold_samples.parquet` | Parquet | Further downsampled threshold rows for stats scatter plots | `sim_ace/threshold_stats.py` |
+| `simple_ltm_stats.yaml` | YAML | Threshold phenotype statistics | `sim_ace/simple_ltm_stats.py` |
+| `simple_ltm_samples.parquet` | Parquet | Further downsampled threshold rows for stats scatter plots | `sim_ace/simple_ltm_stats.py` |
 | `validation.yaml` | YAML | Structural and statistical validation results | `sim_ace/validate.py` |
 
 ### Per-scenario files (`results/{folder}/{scenario}/`)
 
 | File | Format | Description |
 |------|--------|-------------|
-| `plots/*.png` | PNG (or PDF) | Phenotype and threshold figures (see [Plots](#plots)) |
+| `plots/*.png` | PNG (or PDF) | Phenotype and simple LTM figures (see [Plots](#plots)) |
 | `plots/atlas.pdf` | PDF | Multi-page atlas combining all scenario figures |
 | `scenario.done` | Sentinel | Empty file indicating scenario completion |
 
@@ -90,7 +90,7 @@ Extends phenotype.raw with censoring applied via age windows and competing-risk 
 | `death_censored1`, `death_censored2` | bool | True if onset occurs after death |
 | `affected1`, `affected2` | bool | True if the individual is observed as affected (not age- or death-censored) |
 
-### phenotype.liability_threshold.parquet
+### phenotype.simple_ltm.parquet
 
 Binary affected status from a liability-threshold model. Each generation has an independent prevalence-based threshold.
 
@@ -112,9 +112,9 @@ The pipeline produces several downsampled parquet files to keep plotting and sta
 | File | Source | Purpose |
 |------|--------|---------|
 | `phenotype.sampled.parquet` | `phenotype.parquet` | Downsampled rows for phenotype stats input; preserves parents of sampled individuals |
-| `phenotype.liability_threshold.sampled.parquet` | `phenotype.liability_threshold.parquet` | Downsampled rows for threshold stats input |
+| `phenotype.simple_ltm.sampled.parquet` | `phenotype.simple_ltm.parquet` | Downsampled rows for threshold stats input |
 | `phenotype_samples.parquet` | `phenotype.sampled.parquet` | Further downsampled during stats computation for scatter/histogram plots |
-| `threshold_samples.parquet` | `phenotype.liability_threshold.sampled.parquet` | Further downsampled during threshold stats for scatter/histogram plots |
+| `simple_ltm_samples.parquet` | `phenotype.simple_ltm.sampled.parquet` | Further downsampled during threshold stats for scatter/histogram plots |
 
 All sampled parquets share the same column schema as their source files.
 
@@ -176,9 +176,9 @@ Phenotype statistics computed from the censored frailty phenotype. Written by `s
 
 Sections marked "conditional" are only present when the corresponding data or config options are available.
 
-### threshold_stats.yaml
+### simple_ltm_stats.yaml
 
-Statistics for the liability-threshold phenotype model. Written by `sim_ace/threshold_stats.py`. Top-level sections:
+Statistics for the liability-threshold phenotype model. Written by `sim_ace/simple_ltm_stats.py`. Top-level sections:
 
 | Section | Description |
 |---------|-------------|
@@ -263,19 +263,19 @@ Snakemake automatically writes benchmark files in TSV format with a standard hea
 Benchmark files are written for each pipeline rule. Per-replicate benchmarks:
 
 - `benchmarks/{folder}/{scenario}/rep{rep}/simulate.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_frailty.tsv`
+- `benchmarks/{folder}/{scenario}/rep{rep}/phenotype.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/censor_weibull.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_threshold.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/sample_frailty.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/sample_threshold.tsv`
+- `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.tsv`
+- `benchmarks/{folder}/{scenario}/rep{rep}/sample_phenotype.tsv`
+- `benchmarks/{folder}/{scenario}/rep{rep}/sample_simple_ltm.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_stats.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/threshold_stats.tsv`
+- `benchmarks/{folder}/{scenario}/rep{rep}/simple_ltm_stats.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/validate.tsv`
 
 Per-scenario benchmarks:
 
 - `benchmarks/{folder}/{scenario}/plot_phenotype.tsv`
-- `benchmarks/{folder}/{scenario}/plot_threshold.tsv`
+- `benchmarks/{folder}/{scenario}/plot_simple_ltm.tsv`
 - `benchmarks/{folder}/{scenario}/assemble_atlas.tsv`
 
 Per-folder benchmarks:
@@ -289,7 +289,7 @@ Per-folder benchmarks:
 
 Plot files are written as PNG by default (configurable via `plot_format` in `config.yaml`). All scenario plots live under `results/{folder}/{scenario}/plots/`.
 
-### Frailty phenotype plots
+### Phenotype plots
 
 Ordered by narrative flow: pedigree structure, liability, phenotype, censoring, correlations.
 
@@ -301,36 +301,36 @@ Ordered by narrative flow: pedigree structure, liability, phenotype, censoring, 
 | `parent_offspring_liability.by_generation.{ext}` | Parent-offspring liability correlations by generation |
 | `heritability.by_generation.{ext}` | Liability-scale heritability by generation |
 | `additive_shared.by_generation.{ext}` | Additive and shared environment by generation |
-| `liability_violin.frailty.{ext}` | Liability violin plots by affection status |
-| `liability_violin.frailty.by_generation.{ext}` | Liability violins by generation and affection status |
+| `liability_violin.phenotype.{ext}` | Liability violin plots by affection status |
+| `liability_violin.phenotype.by_generation.{ext}` | Liability violins by generation and affection status |
 | `age_at_onset_death.{ext}` | Age-at-onset and death age distributions |
 | `mortality.{ext}` | Mortality rates by decade |
-| `cumulative_incidence.frailty.{ext}` | Cumulative incidence curves by trait |
+| `cumulative_incidence.phenotype.{ext}` | Cumulative incidence curves by trait |
 | `cumulative_incidence.by_sex.{ext}` | Cumulative incidence by sex |
 | `cumulative_incidence.by_sex.by_generation.{ext}` | Cumulative incidence by sex and generation |
 | `censoring.{ext}` | Censoring window visualization |
 | `censoring_confusion.{ext}` | Censoring confusion matrix |
 | `censoring_cascade.{ext}` | Censoring cascade by generation |
 | `liability_vs_aoo.{ext}` | Liability vs age-at-onset scatter |
-| `joint_affected.frailty.{ext}` | Cross-trait joint affection proportions |
-| `tetrachoric.frailty.{ext}` | Tetrachoric correlation heatmap |
-| `tetrachoric.frailty.by_generation.{ext}` | Tetrachoric correlations by generation |
-| `cross_trait.frailty.{ext}` | Cross-trait frailty correlations |
-| `cross_trait.frailty.t2.{ext}` | Cross-trait frailty correlations (trait 2 focus) |
+| `joint_affected.phenotype.{ext}` | Cross-trait joint affection proportions |
+| `tetrachoric.phenotype.{ext}` | Tetrachoric correlation heatmap |
+| `tetrachoric.phenotype.by_generation.{ext}` | Tetrachoric correlations by generation |
+| `cross_trait.phenotype.{ext}` | Cross-trait phenotype correlations |
+| `cross_trait.phenotype.t2.{ext}` | Cross-trait phenotype correlations (trait 2 focus) |
 | `cross_trait_frailty.by_generation.{ext}` | Cross-trait frailty by generation |
 | `cross_trait_tetrachoric.{ext}` | Cross-trait tetrachoric correlations |
 
-### Threshold phenotype plots
+### Simple LTM phenotype plots
 
 | File | Description |
 |------|-------------|
 | `prevalence_by_generation.{ext}` | Prevalence by generation |
-| `cross_trait.threshold.{ext}` | Cross-trait liability scatter (threshold model) |
-| `liability_violin.threshold.{ext}` | Liability violins by affection status |
-| `liability_violin.threshold.by_generation.{ext}` | Liability violins by generation |
-| `joint_affected.threshold.{ext}` | Cross-trait joint affection (threshold) |
-| `tetrachoric.threshold.{ext}` | Tetrachoric correlation heatmap (threshold) |
-| `cross_trait_tetrachoric.threshold.{ext}` | Cross-trait tetrachoric (threshold) |
+| `cross_trait.simple_ltm.{ext}` | Cross-trait liability scatter (simple LTM) |
+| `liability_violin.simple_ltm.{ext}` | Liability violins by affection status |
+| `liability_violin.simple_ltm.by_generation.{ext}` | Liability violins by generation |
+| `joint_affected.simple_ltm.{ext}` | Cross-trait joint affection (simple LTM) |
+| `tetrachoric.simple_ltm.{ext}` | Tetrachoric correlation heatmap (simple LTM) |
+| `cross_trait_tetrachoric.simple_ltm.{ext}` | Cross-trait tetrachoric (simple LTM) |
 
 ### Validation plots (`results/{folder}/plots/`)
 
@@ -354,7 +354,7 @@ Multi-page PDF atlases combine all plots for a scope into a single document with
 
 | File | Contents |
 |------|----------|
-| `results/{folder}/{scenario}/plots/atlas.pdf` | All frailty + threshold phenotype figures for one scenario |
+| `results/{folder}/{scenario}/plots/atlas.pdf` | All phenotype + simple LTM figures for one scenario |
 | `results/{folder}/plots/atlas.pdf` | All cross-scenario validation figures for one folder |
 | `results/{folder}/{scenario}/rep{rep}/epimight/plots/atlas.pdf` | EPIMIGHT CIF, heritability, and genetic correlation figures |
 

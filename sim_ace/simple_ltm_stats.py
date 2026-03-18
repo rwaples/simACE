@@ -1,9 +1,9 @@
 """
-Compute per-rep statistics for the liability threshold phenotype model.
+Compute per-rep statistics for the simple liability threshold phenotype model.
 
-Reads a single phenotype.liability_threshold.parquet and produces:
-  - threshold_stats.yaml: prevalence, tetrachoric correlations, joint affection
-  - threshold_samples.parquet: downsampled rows for plotting
+Reads a single phenotype.simple_ltm.parquet and produces:
+  - simple_ltm_stats.yaml: prevalence, tetrachoric correlations, joint affection
+  - simple_ltm_samples.parquet: downsampled rows for plotting
 """
 
 from __future__ import annotations

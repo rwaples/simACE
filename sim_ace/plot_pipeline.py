@@ -42,7 +42,7 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
         ],
     ),
     (
-        "phenotype_frailty",
+        "phenotype",
         "Phenotype (survival)",
         "#D5F5E3",
         ["G_pheno", "_frailty1", "_frailty2"],
@@ -54,19 +54,19 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
         ["censor_age", "gen_censoring", "_mortality"],
     ),
     (
-        "phenotype_threshold",
+        "phenotype_simple_ltm",
         "Phenotype (threshold)",
         "#E8DAEF",
         ["G_pheno", "_prev12"],
     ),
     (
-        "sample_weibull",
+        "sample_phenotype",
         "Sample",
         "#EAECEE",
         ["N_sample"],
     ),
     (
-        "sample_threshold",
+        "sample_simple_ltm",
         "Sample",
         "#EAECEE",
         ["N_sample"],
@@ -75,21 +75,21 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
 
 # Edges as (source_key, target_key)
 _PIPELINE_EDGES: list[tuple[str, str]] = [
-    ("simulate", "phenotype_frailty"),
-    ("simulate", "phenotype_threshold"),
-    ("phenotype_frailty", "censor"),
-    ("censor", "sample_weibull"),
-    ("phenotype_threshold", "sample_threshold"),
+    ("simulate", "phenotype"),
+    ("simulate", "phenotype_simple_ltm"),
+    ("phenotype", "censor"),
+    ("censor", "sample_phenotype"),
+    ("phenotype_simple_ltm", "sample_simple_ltm"),
 ]
 
 # Step positions in data coordinates (cx, cy)
 _STEP_POSITIONS: dict[str, tuple[float, float]] = {
     "simulate": (0.27, 0.84),
-    "phenotype_frailty": (0.27, 0.52),
-    "phenotype_threshold": (0.73, 0.52),
+    "phenotype": (0.27, 0.52),
+    "phenotype_simple_ltm": (0.73, 0.52),
     "censor": (0.27, 0.28),
-    "sample_weibull": (0.27, 0.09),
-    "sample_threshold": (0.73, 0.09),
+    "sample_phenotype": (0.27, 0.09),
+    "sample_simple_ltm": (0.73, 0.09),
 }
 
 # Publication-friendly display names for parameters
@@ -398,7 +398,7 @@ def render_pipeline_figure(
     for key, display, color, pnames in _PIPELINE_STEPS:
         step_info[key] = (display, color, pnames)
 
-    # Override phenotype_frailty title with model-specific short name
+    # Override phenotype title with model-specific short name
     m1 = str(params.get("phenotype_model1", "weibull"))
     m2 = str(params.get("phenotype_model2", "weibull"))
     if m1 == m2:
@@ -408,8 +408,8 @@ def render_pipeline_figure(
         s1 = MODEL_FAMILY.get(m1, (m1.title(),))[0]
         s2 = MODEL_FAMILY.get(m2, (m2.title(),))[0]
         pheno_title = f"Phenotype ({s1.lower()} / {s2.lower()})"
-    old = step_info["phenotype_frailty"]
-    step_info["phenotype_frailty"] = (pheno_title, old[1], old[2])
+    old = step_info["phenotype"]
+    step_info["phenotype"] = (pheno_title, old[1], old[2])
 
     # Build rows for each step and compute box sizes
     step_rows: dict[str, list[tuple[str, str]]] = {}

@@ -3,8 +3,8 @@
 # ---------------------------------------------------------------------------
 
 
-rule phenotype_frailty:
-    """Frailty phenotype simulation with pluggable baseline hazard."""
+rule phenotype:
+    """Phenotype simulation with pluggable model."""
     input:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet"
     output:
@@ -24,9 +24,9 @@ rule phenotype_frailty:
         beta_sex2         = lambda w: get_param(config, w.scenario, "beta_sex2"),
         phenotype_params2 = lambda w: get_param(config, w.scenario, "phenotype_params2"),
     log:
-        "logs/{folder}/{scenario}/rep{rep}/phenotype_frailty.log"
+        "logs/{folder}/{scenario}/rep{rep}/phenotype.log"
     benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_frailty.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype.tsv"
     resources:
         mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_ped"),
         runtime = lambda w: _scale_runtime(config, w.scenario, "G_ped")
@@ -58,19 +58,19 @@ rule censor_weibull:
         "../scripts/censor.py"
 
 
-rule phenotype_threshold:
+rule phenotype_simple_ltm:
     input:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet"
     output:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.parquet"
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.simple_ltm.parquet"
     params:
         prevalence1 = lambda w: get_param(config, w.scenario, "prevalence1"),
         prevalence2 = lambda w: get_param(config, w.scenario, "prevalence2"),
         G_pheno     = lambda w: get_param(config, w.scenario, "G_pheno"),
     log:
-        "logs/{folder}/{scenario}/rep{rep}/phenotype_threshold.log"
+        "logs/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.log"
     benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_threshold.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.tsv"
     resources:
         mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_ped"),
         runtime = lambda w: _scale_runtime(config, w.scenario, "G_ped")

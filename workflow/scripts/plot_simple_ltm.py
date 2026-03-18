@@ -1,10 +1,10 @@
-"""Plot threshold phenotype distributions - Snakemake wrapper with CLI fallback."""
+"""Plot simple LTM phenotype distributions - Snakemake wrapper with CLI fallback."""
 
 from pathlib import Path
 
 from sim_ace import setup_logging
-from sim_ace.plot_threshold import cli as _cli
-from sim_ace.plot_threshold import main
+from sim_ace.plot_simple_ltm import cli as _cli
+from sim_ace.plot_simple_ltm import main
 
 
 def _run_snakemake():

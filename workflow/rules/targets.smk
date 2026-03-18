@@ -12,14 +12,14 @@ rule simulate_all:
 
 
 rule phenotype_all:
-    """Run simulation + phenotyping (frailty and threshold)."""
+    """Run simulation + phenotyping (phenotype and simple LTM)."""
     input:
         [f"results/{get_folder(config, s)}/{s}/rep{r}/{f}"
          for s in config["scenarios"]
          for r in range(1, get_param(config, s, "replicates") + 1)
          for f in [
              "phenotype.parquet",
-             "phenotype.liability_threshold.parquet",
+             "phenotype.simple_ltm.parquet",
          ]]
 
 
@@ -33,11 +33,11 @@ rule validate_all:
 
 
 rule stats_all:
-    """Run phenotyping + stats + frailty/threshold plots."""
+    """Run phenotyping + stats + phenotype/simple LTM plots."""
     input:
         [f"results/{get_folder(config, s)}/{s}/plots/{plot}"
          for s in config["scenarios"]
-         for plot in PHENOTYPE_PLOTS + THRESHOLD_PLOTS]
+         for plot in PHENOTYPE_PLOTS + SIMPLE_LTM_PLOTS]
 
 
 rule folder:

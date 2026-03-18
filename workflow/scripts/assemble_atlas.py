@@ -8,7 +8,7 @@ import yaml
 from sim_ace import setup_logging
 from sim_ace.plot_atlas import (
     PHENOTYPE_CAPTIONS,
-    THRESHOLD_CAPTIONS,
+    SIMPLE_LTM_CAPTIONS,
     assemble_atlas,
     get_model_family,
 )
@@ -20,8 +20,8 @@ def _run_snakemake():
     setup_logging(log_file=snakemake.log[0])
     p = snakemake.params
 
-    frailty_paths = [Path(x) for x in snakemake.input.frailty]
-    threshold_paths = [Path(x) for x in snakemake.input.threshold]
+    phenotype_paths = [Path(x) for x in snakemake.input.phenotype]
+    simple_ltm_paths = [Path(x) for x in snakemake.input.simple_ltm]
     output_path = Path(snakemake.output[0])
 
     with open(snakemake.input.params_yaml, encoding="utf-8") as fh:
@@ -56,8 +56,8 @@ def _run_snakemake():
         if val is not None:
             scenario_params[key] = val
 
-    captions = {**PHENOTYPE_CAPTIONS, **THRESHOLD_CAPTIONS}
-    all_paths = frailty_paths + threshold_paths
+    captions = {**PHENOTYPE_CAPTIONS, **SIMPLE_LTM_CAPTIONS}
+    all_paths = phenotype_paths + simple_ltm_paths
 
     model_name, model_desc = get_model_family(scenario_params)
     section_breaks = {
@@ -78,8 +78,8 @@ def _run_snakemake():
             "Cross-trait correlation by generation and relationship type",
         ),
     }
-    if threshold_paths:
-        section_breaks[len(frailty_paths)] = (
+    if simple_ltm_paths:
+        section_breaks[len(phenotype_paths)] = (
             "Liability Threshold Phenotype",
             "Simple liability threshold on latent liability (no age-at-onset modeling)",
         )
@@ -116,7 +116,7 @@ if __name__ == "__main__":
                 scenario_params = yaml.safe_load(fh)
             scenario_params["scenario"] = args.scenario
 
-        captions = {**PHENOTYPE_CAPTIONS, **THRESHOLD_CAPTIONS}
+        captions = {**PHENOTYPE_CAPTIONS, **SIMPLE_LTM_CAPTIONS}
         all_paths = [Path(x) for x in args.plots]
         assemble_atlas(
             all_paths,

@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------------
 
 
-rule stats_frailty:
+rule stats_phenotype:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.sampled.parquet",
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
@@ -33,7 +33,7 @@ rule stats_frailty:
         "../scripts/compute_phenotype_stats.py"
 
 
-rule plot_frailty:
+rule plot_phenotype:
     input:
         stats=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
@@ -68,62 +68,62 @@ rule plot_frailty:
         "../scripts/plot_phenotype.py"
 
 
-rule stats_threshold:
+rule stats_simple_ltm:
     input:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.sampled.parquet",
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.simple_ltm.sampled.parquet",
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
-        stats="results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml",
-        samples=temp("results/{folder}/{scenario}/rep{rep}/threshold_samples.parquet"),
+        stats="results/{folder}/{scenario}/rep{rep}/simple_ltm_stats.yaml",
+        samples=temp("results/{folder}/{scenario}/rep{rep}/simple_ltm_samples.parquet"),
     params:
         seed             = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         extra_tetrachoric = lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
     log:
-        "logs/{folder}/{scenario}/rep{rep}/threshold_stats.log"
+        "logs/{folder}/{scenario}/rep{rep}/simple_ltm_stats.log"
     benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/threshold_stats.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/simple_ltm_stats.tsv"
     resources:
         mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
         runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
     threads: 1
     script:
-        "../scripts/compute_threshold_stats.py"
+        "../scripts/compute_simple_ltm_stats.py"
 
 
-rule plot_threshold:
+rule plot_simple_ltm:
     input:
         stats=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/threshold_stats.yaml",
+            "results/{folder}/{scenario}/rep{rep}/simple_ltm_stats.yaml",
             folder=w.folder, scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
         samples=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/threshold_samples.parquet",
+            "results/{folder}/{scenario}/rep{rep}/simple_ltm_samples.parquet",
             folder=w.folder, scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
     output:
-        expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=THRESHOLD_PLOTS),
+        expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=SIMPLE_LTM_PLOTS),
     params:
         prevalence1 = lambda w: get_param(config, w.scenario, "prevalence1"),
         prevalence2 = lambda w: get_param(config, w.scenario, "prevalence2"),
         plot_format = lambda w: config["defaults"].get("plot_format", "png"),
     log:
-        "logs/{folder}/{scenario}/plot_threshold.log"
+        "logs/{folder}/{scenario}/plot_simple_ltm.log"
     benchmark:
-        "benchmarks/{folder}/{scenario}/plot_threshold.tsv"
+        "benchmarks/{folder}/{scenario}/plot_simple_ltm.tsv"
     resources:
         mem_mb  = 2000,
         runtime = 5
     threads: 1
     script:
-        "../scripts/plot_threshold.py"
+        "../scripts/plot_simple_ltm.py"
 
 
 rule assemble_scenario_atlas:
     input:
-        frailty   = expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS),
-        threshold = expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=THRESHOLD_PLOTS),
+        phenotype   = expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS),
+        simple_ltm = expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=SIMPLE_LTM_PLOTS),
         params_yaml = "results/{folder}/{scenario}/rep1/params.yaml",
     output:
         "results/{folder}/{scenario}/plots/atlas.pdf",

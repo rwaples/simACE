@@ -149,13 +149,13 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "contribution of shared environment to familial resemblance."
     ),
     # -- Liability by affected status --
-    "liability_violin.frailty": (
+    "liability_violin.phenotype": (
         "Figure 7: Liability violin plots by affected status (survival model).\n\n"
         "Split violin plots, one per trait. Left half = unaffected, right half = affected. "
         "Diamond markers show mean liability for each group with \u03bc annotations. "
         "Prevalence annotated below each trait."
     ),
-    "liability_violin.frailty.by_generation": (
+    "liability_violin.phenotype.by_generation": (
         "Figure 8: Liability violin plots by generation (survival model).\n\n"
         "Grid: rows = traits, columns = recorded generations. Split violins for affected vs. "
         "unaffected within each generation. Diamond markers and \u03bc annotations show per-group "
@@ -175,7 +175,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Right panel shows cumulative mortality, "
         "with cumulative survival probability annotated above each bar."
     ),
-    "cumulative_incidence.frailty": (
+    "cumulative_incidence.phenotype": (
         "Figure 11: Cumulative incidence curves.\n\n"
         "Two-panel figure, one per trait. Blue solid line = observed cumulative incidence "
         "from censored data (with min-max band across replicates). Grey solid line = true "
@@ -235,7 +235,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "per-rep regressions. Marginal histograms on top and right."
     ),
     # -- Within-trait correlations --
-    "joint_affected.frailty": (
+    "joint_affected.phenotype": (
         "Figure 18: Joint affected status heatmap (survival model).\n\n"
         "2\u00d72 heatmap of joint affected status across both traits. Cell annotations "
         "show proportion and count. Title shows cross-trait correlation estimates: "
@@ -247,7 +247,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "'naive' = unweighted pooled censored estimate for comparison. "
         "Statistics computed on full (non-subsampled) data."
     ),
-    "tetrachoric.frailty": (
+    "tetrachoric.phenotype": (
         "Figure 19: Tetrachoric correlations by relationship type (survival model).\n\n"
         "Two-panel figure, one per trait. Coloured violins show the distribution of "
         "tetrachoric correlations (computed from censored binary affected status) across "
@@ -260,7 +260,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "available). N = mean pairs per replicate. The gap between violins and dashed lines "
         "reflects attenuation from censoring and dichotomization."
     ),
-    "tetrachoric.frailty.by_generation": (
+    "tetrachoric.phenotype.by_generation": (
         "Figure 20: Tetrachoric correlations by generation (survival model).\n\n"
         "Grid: rows = traits, columns = generations. Same encoding as Figure 19 "
         "(violins = observed tetrachoric correlations, black dashed = true liability "
@@ -268,13 +268,13 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "separately."
     ),
     # -- Cross-trait correlations --
-    "cross_trait.frailty": (
+    "cross_trait.phenotype": (
         "Figure 21: Cross-trait liability joint plots coloured by affected status (trait 1).\n\n"
         "Same 2\u00d72 layout as Figure 3, but with affected-status colouring based on trait 1. "
         "Blue points = unaffected, orange points = affected (trait 1). Marginal histograms stacked "
         "by affected status."
     ),
-    "cross_trait.frailty.t2": (
+    "cross_trait.phenotype.t2": (
         "Figure 22: Cross-trait liability joint plots coloured by affected status (trait 2).\n\n"
         "Same 2\u00d72 layout as Figure 3, but with affected-status colouring based on trait 2. "
         "Blue points = unaffected, orange points = affected (trait 2). Marginal histograms stacked "
@@ -303,34 +303,34 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
     ),
 }
 
-# Captions ordered to match _THRESHOLD_BASENAMES in workflow/common.py:
+# Captions ordered to match _SIMPLE_LTM_BASENAMES in workflow/common.py:
 # prevalence -> liability -> correlations.
-THRESHOLD_CAPTIONS: dict[str, str] = {
+SIMPLE_LTM_CAPTIONS: dict[str, str] = {
     "prevalence_by_generation": (
         "Figure 25: Prevalence by generation (threshold model).\n\n"
         "Bar chart comparing observed vs. configured prevalence per generation and trait. "
         "Configured values shown as reference markers."
     ),
-    "cross_trait.threshold": (
+    "cross_trait.simple_ltm": (
         "Figure 26: Cross-trait liability joint plot (threshold model).\n\n"
         "Scatter of trait 1 vs. trait 2 liability coloured by threshold affected status."
     ),
-    "liability_violin.threshold": (
+    "liability_violin.simple_ltm": (
         "Figure 27: Liability violin plots by affected status (threshold model).\n\n"
         "Split violins showing liability for affected vs. unaffected under the threshold "
         "model. Diamond mean markers with \u03bc annotations and prevalence text."
     ),
-    "liability_violin.threshold.by_generation": (
+    "liability_violin.simple_ltm.by_generation": (
         "Figure 28: Liability violin plots by generation (threshold model).\n\n"
         "Per-generation split violins with configured prevalence annotated. Same encoding "
         "as Figure 8 but for the liability-threshold phenotype."
     ),
-    "joint_affected.threshold": (
+    "joint_affected.simple_ltm": (
         "Figure 29: Joint affected status heatmap (threshold model).\n\n"
         "2\u00d72 heatmap of joint affected status proportions and counts with tetrachoric "
         "correlation annotated. Statistics computed on full (non-subsampled) data."
     ),
-    "tetrachoric.threshold": (
+    "tetrachoric.simple_ltm": (
         "Figure 30: Tetrachoric correlations by relationship type (threshold model).\n\n"
         "Violin plots of tetrachoric correlations for threshold affected status indicators. "
         "Same encoding as Figure 19: coloured violins show observed tetrachoric correlations "
@@ -338,7 +338,7 @@ THRESHOLD_CAPTIONS: dict[str, str] = {
         "lines are the ground-truth Pearson liability correlations, and pair counts are "
         "annotated above each violin."
     ),
-    "cross_trait_tetrachoric.threshold": (
+    "cross_trait_tetrachoric.simple_ltm": (
         "Figure 31: Cross-trait tetrachoric correlations (threshold model).\n\n"
         "Same two-panel layout as the survival cross-trait tetrachoric figure. "
         "Left panel: same-person cross-trait r by generation. "

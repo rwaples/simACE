@@ -23,10 +23,10 @@ sim-ace-threshold = "sim_ace.threshold:cli"
 sim-ace-sample = "sim_ace.sample:cli"
 sim-ace-validate = "sim_ace.validate:cli"
 sim-ace-phenotype-stats = "sim_ace.stats:cli"
-sim-ace-threshold-stats = "sim_ace.threshold_stats:cli"
+sim-ace-simple-ltm-stats = "sim_ace.simple_ltm_stats:cli"
 sim-ace-gather = "sim_ace.gather:cli"
 sim-ace-plot-phenotype = "sim_ace.plot_phenotype:cli"
-sim-ace-plot-threshold = "sim_ace.plot_threshold:cli"
+sim-ace-plot-simple-ltm = "sim_ace.plot_simple_ltm:cli"
 sim-ace-plot-validation = "sim_ace.plot_validation:cli"
 
 [tool.setuptools.packages.find]
@@ -56,7 +56,7 @@ ignore = [
 "tests/*.py" = ["B011"]                     # assert False is valid in tests
 "sim_ace/__init__.py" = ["E402", "F401"]    # re-exports after logging setup
 "sim_ace/plot_phenotype.py" = ["E402"]      # yaml_loader() before imports
-"sim_ace/plot_threshold.py" = ["E402"]      # yaml_loader() before imports
+"sim_ace/plot_simple_ltm.py" = ["E402"]     # yaml_loader() before imports
 "sim_ace/plot_validation.py" = ["E402"]     # yaml_loader() before imports
 
 [tool.ruff.lint.isort]

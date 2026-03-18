@@ -1,8 +1,8 @@
 """
-Plot liability threshold phenotype distributions from pre-computed stats.
+Plot simple LTM phenotype distributions from pre-computed stats.
 
-Reads threshold_stats.yaml and threshold_samples.parquet files (one per rep)
-produced by compute_threshold_stats.py.
+Reads simple_ltm_stats.yaml and simple_ltm_samples.parquet files (one per rep)
+produced by compute_simple_ltm_stats.py.
 """
 
 from __future__ import annotations
@@ -639,7 +639,7 @@ def main(
     plot_liability_violin(
         df_samples,
         all_stats,
-        out_dir / f"liability_violin.threshold.{ext}",
+        out_dir / f"liability_violin.simple_ltm.{ext}",
         scenario,
         subsample_note=subsample_note,
     )
@@ -648,25 +648,25 @@ def main(
         all_stats,
         prevalence1,
         prevalence2,
-        out_dir / f"liability_violin.threshold.by_generation.{ext}",
+        out_dir / f"liability_violin.simple_ltm.by_generation.{ext}",
         scenario,
         subsample_note=subsample_note,
     )
     plot_joint_affection(
         all_stats,
-        out_dir / f"joint_affected.threshold.{ext}",
+        out_dir / f"joint_affected.simple_ltm.{ext}",
         scenario,
     )
     plot_liability_joint(
         df_samples,
-        out_dir / f"cross_trait.threshold.{ext}",
+        out_dir / f"cross_trait.simple_ltm.{ext}",
         scenario,
         subsample_note=subsample_note,
     )
 
     plot_tetrachoric(
         all_stats,
-        out_dir / f"tetrachoric.threshold.{ext}",
+        out_dir / f"tetrachoric.simple_ltm.{ext}",
         scenario,
     )
 
@@ -674,11 +674,11 @@ def main(
 
     plot_cross_trait_tetrachoric(
         all_stats,
-        out_dir / f"cross_trait_tetrachoric.threshold.{ext}",
+        out_dir / f"cross_trait_tetrachoric.simple_ltm.{ext}",
         scenario,
     )
 
-    logger.info("Threshold plots saved to %s", out_dir)
+    logger.info("Simple LTM plots saved to %s", out_dir)
 
 
 def cli() -> None:

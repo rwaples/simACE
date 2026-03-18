@@ -1,4 +1,4 @@
-rule sample_frailty:
+rule sample_phenotype:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.parquet"
     output:
@@ -7,9 +7,9 @@ rule sample_frailty:
         N_sample = lambda w: get_param(config, w.scenario, "N_sample"),
         seed     = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
     log:
-        "logs/{folder}/{scenario}/rep{rep}/sample_frailty.log"
+        "logs/{folder}/{scenario}/rep{rep}/sample_phenotype.log"
     benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/sample_frailty.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/sample_phenotype.tsv"
     resources:
         mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
         runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
@@ -18,18 +18,18 @@ rule sample_frailty:
         "../scripts/sample.py"
 
 
-rule sample_threshold:
+rule sample_simple_ltm:
     input:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.parquet"
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.simple_ltm.parquet"
     output:
-        phenotype=temp("results/{folder}/{scenario}/rep{rep}/phenotype.liability_threshold.sampled.parquet")
+        phenotype=temp("results/{folder}/{scenario}/rep{rep}/phenotype.simple_ltm.sampled.parquet")
     params:
         N_sample = lambda w: get_param(config, w.scenario, "N_sample"),
         seed     = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
     log:
-        "logs/{folder}/{scenario}/rep{rep}/sample_threshold.log"
+        "logs/{folder}/{scenario}/rep{rep}/sample_simple_ltm.log"
     benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/sample_threshold.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/sample_simple_ltm.tsv"
     resources:
         mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
         runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")

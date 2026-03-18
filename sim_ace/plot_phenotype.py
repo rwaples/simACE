@@ -132,27 +132,27 @@ def main(
     )
     plot_liability_joint_affected(
         df_samples,
-        out_dir / f"cross_trait.frailty.{ext}",
+        out_dir / f"cross_trait.phenotype.{ext}",
         scenario,
         subsample_note=subsample_note,
     )
     plot_liability_joint_affected_t2(
         df_samples,
-        out_dir / f"cross_trait.frailty.t2.{ext}",
+        out_dir / f"cross_trait.phenotype.t2.{ext}",
         scenario,
         subsample_note=subsample_note,
     )
     plot_liability_violin(
         df_samples,
         all_stats,
-        out_dir / f"liability_violin.frailty.{ext}",
+        out_dir / f"liability_violin.phenotype.{ext}",
         scenario,
         subsample_note=subsample_note,
     )
     plot_liability_violin_by_generation(
         df_samples,
         all_stats,
-        out_dir / f"liability_violin.frailty.by_generation.{ext}",
+        out_dir / f"liability_violin.phenotype.by_generation.{ext}",
         scenario,
         subsample_note=subsample_note,
     )
@@ -161,7 +161,7 @@ def main(
     plot_cumulative_incidence(
         all_stats,
         censor_age,
-        out_dir / f"cumulative_incidence.frailty.{ext}",
+        out_dir / f"cumulative_incidence.phenotype.{ext}",
         scenario,
     )
     plot_cumulative_incidence_by_sex(
@@ -176,7 +176,7 @@ def main(
     )
     plot_joint_affection(
         all_stats,
-        out_dir / f"joint_affected.frailty.{ext}",
+        out_dir / f"joint_affected.phenotype.{ext}",
         scenario,
     )
 
@@ -205,12 +205,12 @@ def main(
     # Correlation plots
     plot_tetrachoric_sibling(
         all_stats,
-        out_dir / f"tetrachoric.frailty.{ext}",
+        out_dir / f"tetrachoric.phenotype.{ext}",
         scenario,
     )
     plot_tetrachoric_by_generation(
         all_stats,
-        out_dir / f"tetrachoric.frailty.by_generation.{ext}",
+        out_dir / f"tetrachoric.phenotype.by_generation.{ext}",
         scenario,
     )
     plot_cross_trait_tetrachoric(

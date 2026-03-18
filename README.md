@@ -10,7 +10,7 @@ Continuous liabilities are mapped to observable phenotypes via one of three time
 - **ADuLT LTM** — Deterministic liability threshold model with logistic CIP age-of-onset mapping (Pedersen et al., Nat Commun 2023)
 - **ADuLT Cox** — Proportional hazards model with Weibull noise and rank-based CIP-to-age mapping (Pedersen et al., 2023)
 
-A separate liability-threshold model produces binary affection status. The pipeline includes automated structural and statistical validation, phenotype statistics, and plotting. See [distributions.md](distributions.md) for model details.
+A separate simple liability-threshold model produces binary affection status. The pipeline includes automated structural and statistical validation, phenotype statistics, and plotting. See [distributions.md](distributions.md) for model details.
 
 ## Prerequisites
 
@@ -182,11 +182,11 @@ Each scenario replicate produces (see [OUTPUTS.md](OUTPUTS.md) for column schema
 | `results/{folder}/{scenario}/rep{N}/phenotype.raw.parquet` | Raw time-to-event phenotypes (before censoring); **temp** — auto-deleted after censoring |
 | `results/{folder}/{scenario}/rep{N}/phenotype.parquet` | Censored time-to-event phenotypes (age-at-onset, censoring, affected status) |
 | `results/{folder}/{scenario}/rep{N}/phenotype.sampled.parquet` | Subsampled phenotype for stats (N_sample individuals); **temp** — auto-deleted after stats |
-| `results/{folder}/{scenario}/rep{N}/phenotype.liability_threshold.parquet` | Liability-threshold binary affected status |
-| `results/{folder}/{scenario}/rep{N}/phenotype.liability_threshold.sampled.parquet` | Subsampled threshold phenotype for stats; **temp** — auto-deleted after stats |
+| `results/{folder}/{scenario}/rep{N}/phenotype.simple_ltm.parquet` | Liability-threshold binary affected status |
+| `results/{folder}/{scenario}/rep{N}/phenotype.simple_ltm.sampled.parquet` | Subsampled threshold phenotype for stats; **temp** — auto-deleted after stats |
 | `results/{folder}/{scenario}/rep{N}/params.yaml` | Simulation parameters for this replicate |
 | `results/{folder}/{scenario}/rep{N}/phenotype_stats.yaml` | Phenotype statistics (correlations, prevalence, CIF, etc.) |
-| `results/{folder}/{scenario}/rep{N}/threshold_stats.yaml` | Threshold phenotype statistics |
+| `results/{folder}/{scenario}/rep{N}/simple_ltm_stats.yaml` | Threshold phenotype statistics |
 
 ### Validation and Logs
 
@@ -204,7 +204,7 @@ Multi-page PDF atlases collect all figures for a scenario or folder into a singl
 
 | File | Description |
 |------|-------------|
-| `results/{folder}/{scenario}/plots/atlas.pdf` | Per-scenario atlas: liability structure, Weibull phenotype, censoring, correlations, heritability, and threshold model figures |
+| `results/{folder}/{scenario}/plots/atlas.pdf` | Per-scenario atlas: liability structure, phenotype, censoring, correlations, heritability, and simple LTM figures |
 | `results/{folder}/plots/atlas.pdf` | Per-folder atlas: cross-scenario validation plots (variance components, correlations, heritability, bias, runtime, memory) |
 | `results/{folder}/{scenario}/rep{N}/epimight/plots/atlas.pdf` | EPIMIGHT atlas: CIF curves, heritability, genetic correlation across relationship kinds |
 
@@ -243,7 +243,7 @@ ACE/
 │   ├── validate.py                    # Structural + statistical validation
 │   ├── stats.py                       # Tetrachoric correlations, relationship pairs
 │   ├── pedigree_graph.py             # Sparse-matrix pedigree relationship extraction
-│   ├── threshold_stats.py             # Threshold phenotype statistics
+│   ├── simple_ltm_stats.py             # Simple LTM phenotype statistics
 │   ├── survival_corr.py               # Pairwise Weibull survival correlation estimation
 │   ├── gather.py                      # Gather validation results into TSV
 │   ├── plot_phenotype.py              # Phenotype plot orchestrator + CLI
@@ -251,7 +251,7 @@ ACE/
 │   ├── plot_liability.py              # Joint liability, violin, affection plots
 │   ├── plot_pedigree_counts.py        # Pedigree relationship pair counts diagram
 │   ├── plot_correlations.py           # Tetrachoric + parent-offspring correlation plots
-│   ├── plot_threshold.py              # Threshold phenotype plots
+│   ├── plot_simple_ltm.py              # Simple LTM phenotype plots
 │   ├── plot_atlas.py                  # Multi-page PDF atlas with figure captions
 │   └── plot_validation.py             # Validation summary plots
 ├── epimight/                         # EPIMIGHT heritability analysis (separate conda env)
@@ -265,7 +265,7 @@ ACE/
 │   ├── rules/                         # Modular Snakemake rule files
 │   │   ├── targets.smk                # Target rules: all, simulate_all, phenotype_all, etc.
 │   │   ├── simulate.smk               # Pedigree simulation rule
-│   │   ├── phenotype.smk              # Phenotyping rules (Weibull + threshold)
+│   │   ├── phenotype.smk              # Phenotyping rules (survival model + simple LTM)
 │   │   ├── validate.smk               # Validation, gathering, and validation plots
 │   │   ├── stats.smk                  # Statistics and phenotype plots
 │   │   └── epimight.smk               # EPIMIGHT heritability pipeline
