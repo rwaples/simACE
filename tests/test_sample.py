@@ -27,6 +27,28 @@ def phenotype_df():
     )
 
 
+@pytest.fixture
+def phenotype_df_low_prevalence():
+    """Create a phenotype DataFrame with ~10% case prevalence for ascertainment tests."""
+    rng = np.random.default_rng(99)
+    n = 1000
+    # ~10% cases
+    affected1 = rng.random(n) < 0.10
+    return pd.DataFrame(
+        {
+            "id": np.arange(n),
+            "generation": np.repeat([3, 4, 5], [300, 350, 350]),
+            "sex": rng.integers(0, 2, n),
+            "liability1": rng.standard_normal(n),
+            "liability2": rng.standard_normal(n),
+            "t_observed1": rng.uniform(10, 80, n),
+            "t_observed2": rng.uniform(10, 80, n),
+            "affected1": affected1,
+            "affected2": rng.choice([True, False], n),
+        }
+    )
+
+
 class TestPassThrough:
     def test_n_sample_zero(self, phenotype_df):
         """N_sample=0 returns all rows unchanged."""
@@ -94,3 +116,95 @@ class TestDeterminism:
         r1 = run_sample(phenotype_df, {"N_sample": 50, "seed": 99})
         r2 = run_sample(phenotype_df, {"N_sample": 50, "seed": 100})
         assert not r1["id"].equals(r2["id"])
+
+
+class TestCaseAscertainment:
+    def test_ratio_1_is_uniform(self, phenotype_df):
+        """ratio=1.0 produces identical result to no-ratio call."""
+        r1 = run_sample(phenotype_df, {"N_sample": 50, "seed": 42})
+        r2 = run_sample(phenotype_df, {"N_sample": 50, "seed": 42, "case_ascertainment_ratio": 1.0})
+        pd.testing.assert_frame_equal(r1, r2)
+
+    def test_high_ratio_enriches_cases(self, phenotype_df_low_prevalence):
+        """ratio=10 with ~10% prevalence yields >20% cases in sample."""
+        result = run_sample(
+            phenotype_df_low_prevalence,
+            {"N_sample": 200, "seed": 42, "case_ascertainment_ratio": 10.0},
+        )
+        case_frac = result["affected1"].mean()
+        # With 10% prevalence and ratio=10, expected ~53% cases in sample
+        assert case_frac > 0.20, f"Expected >20% cases but got {case_frac:.1%}"
+
+    def test_ratio_0_excludes_cases(self, phenotype_df_low_prevalence):
+        """ratio=0 samples only controls."""
+        result = run_sample(
+            phenotype_df_low_prevalence,
+            {"N_sample": 100, "seed": 42, "case_ascertainment_ratio": 0},
+        )
+        assert result["affected1"].sum() == 0, "Expected no cases with ratio=0"
+
+    def test_exact_count_with_ratio(self, phenotype_df_low_prevalence):
+        """Weighted sampling still returns exactly N_sample rows."""
+        result = run_sample(
+            phenotype_df_low_prevalence,
+            {"N_sample": 200, "seed": 42, "case_ascertainment_ratio": 5.0},
+        )
+        assert len(result) == 200
+
+    def test_no_duplicates_with_ratio(self, phenotype_df_low_prevalence):
+        """No duplicate IDs with weighted sampling."""
+        result = run_sample(
+            phenotype_df_low_prevalence,
+            {"N_sample": 200, "seed": 42, "case_ascertainment_ratio": 5.0},
+        )
+        assert result["id"].nunique() == len(result)
+
+    def test_deterministic_with_ratio(self, phenotype_df_low_prevalence):
+        """Same seed + ratio = same result."""
+        params = {"N_sample": 200, "seed": 77, "case_ascertainment_ratio": 5.0}
+        r1 = run_sample(phenotype_df_low_prevalence, params)
+        r2 = run_sample(phenotype_df_low_prevalence, params)
+        pd.testing.assert_frame_equal(r1, r2)
+
+    def test_passthrough_warns_on_ratio(self, phenotype_df, caplog):
+        """N_sample=0 with ratio!=1 logs warning, returns all."""
+        import logging
+
+        with caplog.at_level(logging.WARNING):
+            result = run_sample(
+                phenotype_df,
+                {"N_sample": 0, "seed": 42, "case_ascertainment_ratio": 5.0},
+            )
+        assert len(result) == len(phenotype_df)
+        assert "no effect" in caplog.text.lower()
+
+    def test_negative_ratio_raises(self, phenotype_df):
+        """Negative ratio raises ValueError."""
+        with pytest.raises(ValueError, match="case_ascertainment_ratio must be >= 0"):
+            run_sample(phenotype_df, {"N_sample": 50, "seed": 42, "case_ascertainment_ratio": -1.0})
+
+    def test_all_cases_fallback(self, phenotype_df):
+        """All affected → uniform fallback."""
+        df = phenotype_df.copy()
+        df["affected1"] = True
+        result = run_sample(df, {"N_sample": 50, "seed": 42, "case_ascertainment_ratio": 5.0})
+        assert len(result) == 50
+
+    def test_no_cases_fallback(self, phenotype_df):
+        """None affected → uniform fallback."""
+        df = phenotype_df.copy()
+        df["affected1"] = False
+        result = run_sample(df, {"N_sample": 50, "seed": 42, "case_ascertainment_ratio": 5.0})
+        assert len(result) == 50
+
+    def test_ratio_0_clamps(self, phenotype_df_low_prevalence):
+        """ratio=0 with N_sample > n_controls clamps to n_controls."""
+        df = phenotype_df_low_prevalence
+        n_controls = int((~df["affected1"]).sum())
+        # Request more than available controls
+        result = run_sample(
+            df,
+            {"N_sample": n_controls + 50, "seed": 42, "case_ascertainment_ratio": 0},
+        )
+        assert len(result) == n_controls
+        assert result["affected1"].sum() == 0

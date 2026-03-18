@@ -63,13 +63,13 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
         "sample_phenotype",
         "Sample",
         "#EAECEE",
-        ["N_sample", "pedigree_dropout_rate"],
+        ["N_sample", "case_ascertainment_ratio", "pedigree_dropout_rate"],
     ),
     (
         "sample_simple_ltm",
         "Sample",
         "#EAECEE",
-        ["N_sample", "pedigree_dropout_rate"],
+        ["N_sample", "case_ascertainment_ratio", "pedigree_dropout_rate"],
     ),
 ]
 
@@ -105,6 +105,7 @@ _PARAM_DISPLAY: dict[str, str] = {
     "gen_censoring": "gen. windows",
     "N_sample": "N_sample",
     "pedigree_dropout_rate": "dropout rate",
+    "case_ascertainment_ratio": "ascertainment ratio",
 }
 
 # ---------------------------------------------------------------------------
@@ -212,6 +213,8 @@ def _get_param_rows(
         formatted = _format_param_value(name, val)
         if name == "N_sample" and (val == 0 or val == "0"):
             formatted += " (all)"
+        if name == "case_ascertainment_ratio" and val in (1, 1.0):
+            continue
         rows.append((_display_name(name), formatted))
     return rows
 

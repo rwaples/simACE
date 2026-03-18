@@ -16,6 +16,7 @@ rule stats_phenotype:
         gen_censoring    = lambda w: get_param(config, w.scenario, "gen_censoring"),
         extra_tetrachoric = lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
         skip_2nd_cousins  = lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
+        case_ascertainment_ratio = lambda w: get_param(config, w.scenario, "case_ascertainment_ratio"),
         beta1             = lambda w: get_param(config, w.scenario, "beta1"),
         phenotype_model1  = lambda w: get_param(config, w.scenario, "phenotype_model1"),
         phenotype_params1 = lambda w: get_param(config, w.scenario, "phenotype_params1"),
@@ -81,6 +82,7 @@ rule stats_simple_ltm:
         seed             = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         extra_tetrachoric = lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
         skip_2nd_cousins  = lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
+        case_ascertainment_ratio = lambda w: get_param(config, w.scenario, "case_ascertainment_ratio"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/simple_ltm_stats.log"
     benchmark:
@@ -156,6 +158,7 @@ rule assemble_scenario_atlas:
         G_pheno                = lambda w: get_param(config, w.scenario, "G_pheno"),
         N_sample               = lambda w: get_param(config, w.scenario, "N_sample"),
         pedigree_dropout_rate  = lambda w: get_param(config, w.scenario, "pedigree_dropout_rate"),
+        case_ascertainment_ratio = lambda w: get_param(config, w.scenario, "case_ascertainment_ratio"),
         skip_2nd_cousins       = lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
         plot_format            = lambda w: config["defaults"].get("plot_format", "png"),
     log:

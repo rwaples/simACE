@@ -5,6 +5,7 @@ rule sample_phenotype:
         phenotype=temp("results/{folder}/{scenario}/rep{rep}/phenotype.sampled.parquet")
     params:
         N_sample = lambda w: get_param(config, w.scenario, "N_sample"),
+        case_ascertainment_ratio = lambda w: get_param(config, w.scenario, "case_ascertainment_ratio"),
         seed     = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
     log:
         "logs/{folder}/{scenario}/rep{rep}/sample_phenotype.log"
@@ -25,6 +26,7 @@ rule sample_simple_ltm:
         phenotype=temp("results/{folder}/{scenario}/rep{rep}/phenotype.simple_ltm.sampled.parquet")
     params:
         N_sample = lambda w: get_param(config, w.scenario, "N_sample"),
+        case_ascertainment_ratio = lambda w: get_param(config, w.scenario, "case_ascertainment_ratio"),
         seed     = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
     log:
         "logs/{folder}/{scenario}/rep{rep}/sample_simple_ltm.log"

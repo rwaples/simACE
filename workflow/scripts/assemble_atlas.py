@@ -50,6 +50,7 @@ def _run_snakemake():
         "G_pheno",
         "N_sample",
         "pedigree_dropout_rate",
+        "case_ascertainment_ratio",
         "skip_2nd_cousins",
         "plot_format",
     ]

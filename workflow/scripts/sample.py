@@ -14,6 +14,7 @@ def _run_snakemake():
 
     param_dict = {
         "N_sample": snakemake.params.N_sample,
+        "case_ascertainment_ratio": snakemake.params.case_ascertainment_ratio,
         "seed": snakemake.params.seed,
     }
 

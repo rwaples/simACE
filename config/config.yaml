@@ -67,6 +67,7 @@ defaults:
   extra_tetrachoric: False
   skip_2nd_cousins: True
   N_sample: 0
+  case_ascertainment_ratio: 1
   pedigree_dropout_rate: 0
   plot_format: png
 

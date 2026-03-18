@@ -846,6 +846,7 @@ def main(
     extra_tetrachoric: bool = True,
     pedigree_path: str | None = None,
     skip_2nd_cousins: bool = True,
+    case_ascertainment_ratio: float = 1.0,
 ) -> None:
     """Compute all stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
@@ -855,6 +856,9 @@ def main(
         "n_individuals": len(df),
         "n_generations": int(df["generation"].nunique()) if "generation" in df.columns else 1,
     }
+
+    if case_ascertainment_ratio != 1.0:
+        stats["case_ascertainment_ratio"] = case_ascertainment_ratio
 
     stats["prevalence"] = compute_prevalence(df)
     stats["mortality"] = compute_mortality(df, censor_age)

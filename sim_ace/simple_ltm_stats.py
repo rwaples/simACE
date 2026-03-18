@@ -67,6 +67,7 @@ def main(
     extra_tetrachoric: bool = True,
     pedigree_path: str | None = None,
     skip_2nd_cousins: bool = True,
+    case_ascertainment_ratio: float = 1.0,
 ) -> None:  # extra_tetrachoric kept for API compat
     """Compute all threshold stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
@@ -75,6 +76,8 @@ def main(
 
     stats: dict[str, Any] = {}
     stats["n_individuals"] = len(df)
+    if case_ascertainment_ratio != 1.0:
+        stats["case_ascertainment_ratio"] = case_ascertainment_ratio
 
     # Prevalence by generation
     stats["prevalence"] = compute_prevalence_by_generation(df)

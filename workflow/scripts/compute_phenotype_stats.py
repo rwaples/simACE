@@ -43,6 +43,7 @@ def _run_snakemake():
         extra_tetrachoric=p.get("extra_tetrachoric", True),
         pedigree_path=snakemake.input.pedigree,
         skip_2nd_cousins=p.get("skip_2nd_cousins", True),
+        case_ascertainment_ratio=p.get("case_ascertainment_ratio", 1.0),
     )
 
 
