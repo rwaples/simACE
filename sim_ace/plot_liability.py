@@ -481,10 +481,10 @@ def plot_censoring_cascade(
                     ax.text(x[i], mid, f"{int(count)}", ha="center", va="center", fontsize=8, fontweight="bold")
                 cum += count
 
-        # Sensitivity annotation above each bar
+        # Fold sensitivity into x-axis tick labels (below bars, no overlap)
         for i, sens in enumerate(sensitivities):
             if not np.isnan(sens):
-                ax.text(x[i], bottom[i] + max(bottom) * 0.02, f"sens={sens:.2f}", ha="center", va="bottom", fontsize=8)
+                x_labels[i] += f"\nsens={sens:.2f}"
 
         # Overall sensitivity
         total_obs = sum(counts_observed)
@@ -550,40 +550,48 @@ def plot_joint_affection(
     )
     annotate_heatmap(ax, matrix, count_matrix)
 
+    # Build subtitle from whichever correlation stats are present
+    label_parts = []
+
     # Cross-trait tetrachoric correlation from pre-computed stats
     r_tet_vals = [s.get("cross_trait_tetrachoric", {}).get("same_person", {}).get("r") for s in all_stats]
     r_tet_vals = [v for v in r_tet_vals if v is not None]
     if r_tet_vals:
-        mean_r_tet = np.mean(r_tet_vals)
-        r_label = f"r_tet = {mean_r_tet:.3f}"
-    else:
-        r_label = "r_tet = N/A"
+        label_parts.append(f"r_tet = {np.mean(r_tet_vals):.3f}")
 
-    # Cross-trait frailty correlation (averaged across reps)
-    frailty_parts = []
-    for s in all_stats:
-        ct_unc = s.get("frailty_cross_trait_uncensored", {})
-        ct_strat = s.get("frailty_cross_trait_stratified", {})
-        ct_cens = s.get("frailty_cross_trait", {})
-        r_uncens = ct_unc.get("r") if ct_unc else None
-        r_strat = ct_strat.get("r") if ct_strat else None
-        r_cens = ct_cens.get("r") if ct_cens else None
-        if r_uncens is not None:
-            frailty_parts.append((r_uncens, r_strat, r_cens))
+    # Cross-trait frailty correlations (averaged across reps)
+    uncens_vals = [
+        s.get("frailty_cross_trait_uncensored", {}).get("r")
+        for s in all_stats
+        if s.get("frailty_cross_trait_uncensored", {}).get("r") is not None
+    ]
+    strat_vals = [
+        s.get("frailty_cross_trait_stratified", {}).get("r")
+        for s in all_stats
+        if s.get("frailty_cross_trait_stratified", {}).get("r") is not None
+    ]
+    naive_vals = [
+        s.get("frailty_cross_trait", {}).get("r")
+        for s in all_stats
+        if s.get("frailty_cross_trait", {}).get("r") is not None
+    ]
 
-    if frailty_parts:
-        mean_uncens = np.mean([p[0] for p in frailty_parts])
-        r_label += f"  |  r_frailty = {mean_uncens:.3f}"
-        strat_vals = [p[1] for p in frailty_parts if p[1] is not None]
-        if strat_vals:
-            mean_strat = np.mean(strat_vals)
-            r_label += f" (stratified: {mean_strat:.3f})"
-        cens_vals = [p[2] for p in frailty_parts if p[2] is not None]
-        if cens_vals:
-            mean_cens = np.mean(cens_vals)
-            r_label += f" (naive: {mean_cens:.3f})"
+    if uncens_vals:
+        label_parts.append(f"r_frailty = {np.mean(uncens_vals):.3f}")
+    if strat_vals:
+        label_parts.append(f"stratified = {np.mean(strat_vals):.3f}")
+    if naive_vals:
+        label_parts.append(f"naive = {np.mean(naive_vals):.3f}")
+
+    if not uncens_vals and not strat_vals and not naive_vals:
+        label_parts.append("r_frailty: not computed")
+
+    r_label = "  |  ".join(label_parts) if label_parts else ""
 
     ax.set_xlabel("Trait 1")
     ax.set_ylabel("Trait 2")
-    ax.set_title(f"Joint Affected Status [{scenario}]\n{r_label}", fontsize=14)
+    title = f"Joint Affected Status [{scenario}]"
+    if r_label:
+        title += f"\n{r_label}"
+    ax.set_title(title, fontsize=14)
     finalize_plot(output_path)

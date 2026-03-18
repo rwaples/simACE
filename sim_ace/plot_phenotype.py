@@ -65,6 +65,7 @@ def main(
     gen_censoring: dict[int, list[float]] | None = None,
     plot_ext: str = "png",
     validation_paths: list[str] | None = None,
+    skip_2nd_cousins: bool = False,
 ) -> None:
     """Generate all phenotype plots from pre-computed stats."""
     out_dir = Path(output_dir)
@@ -87,6 +88,16 @@ def main(
 
     ext = plot_ext
 
+    # Load validation data early so params are available for correlation plots
+    all_validations = None
+    validation_params = None
+    if validation_paths:
+        all_validations = []
+        for p in validation_paths:
+            with open(p, encoding="utf-8") as f:
+                all_validations.append(yaml.load(f, Loader=_yaml_loader))
+        validation_params = all_validations[0].get("parameters", {})
+
     # Pedigree relationship pair counts
     plot_pedigree_relationship_counts(
         all_stats,
@@ -94,12 +105,14 @@ def main(
         scenario,
         stats_key="pair_counts_ped",
         generations_label="G_ped",
+        skip_2nd_cousins=skip_2nd_cousins,
     )
     plot_pedigree_relationship_counts(
         all_stats,
         out_dir / f"pedigree_counts.{ext}",
         scenario,
         generations_label="G_pheno",
+        skip_2nd_cousins=skip_2nd_cousins,
     )
 
     # Distribution plots
@@ -207,11 +220,13 @@ def main(
         all_stats,
         out_dir / f"tetrachoric.phenotype.{ext}",
         scenario,
+        params=validation_params,
     )
     plot_tetrachoric_by_generation(
         all_stats,
         out_dir / f"tetrachoric.phenotype.by_generation.{ext}",
         scenario,
+        params=validation_params,
     )
     plot_cross_trait_tetrachoric(
         all_stats,
@@ -232,11 +247,7 @@ def main(
     )
 
     # Per-generation heritability (requires validation data)
-    if validation_paths:
-        all_validations = []
-        for p in validation_paths:
-            with open(p, encoding="utf-8") as f:
-                all_validations.append(yaml.load(f, Loader=_yaml_loader))
+    if all_validations:
         plot_heritability_by_generation(
             all_validations,
             out_dir / f"heritability.by_generation.{ext}",

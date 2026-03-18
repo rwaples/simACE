@@ -16,7 +16,21 @@ def _run_snakemake():
     plot_format = snakemake.params.plot_format
     output_dir = Path(snakemake.output[0]).parent
 
-    main(stats_paths, sample_paths, output_dir, prevalence1, prevalence2, plot_ext=plot_format)
+    ace_params = {}
+    for key in ("A1", "C1", "A2", "C2"):
+        val = getattr(snakemake.params, key, None)
+        if val is not None:
+            ace_params[key] = val
+
+    main(
+        stats_paths,
+        sample_paths,
+        output_dir,
+        prevalence1,
+        prevalence2,
+        plot_ext=plot_format,
+        ace_params=ace_params or None,
+    )
 
 
 if __name__ == "__main__":

@@ -235,14 +235,17 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Black dashed lines = mean Pearson liability correlation (ground-truth "
         "correlation on the continuous latent liability). "
         "Green dash-dot lines = mean uncensored frailty pairwise survival-time "
-        "correlation (present when available). N = mean pairs per replicate."
+        "correlation (present when available). "
+        "Red dotted lines = parametric expected correlation from the configured ACE "
+        "variance components (e.g. E[r] = 0.5\u00b7A + C for full sibs, "
+        "0.5\u00b7A for parent\u2013offspring). N = mean pairs per replicate."
     ),
     "tetrachoric.phenotype.by_generation": (
         "Figure 20: Tetrachoric correlations by generation (survival model).\n\n"
         "Grid: rows = traits, columns = generations. Same encoding as Figure 19 "
         "(violins = observed tetrachoric correlations, black dashed = true liability "
-        "correlations, dots = per-replicate estimates), computed within each generation "
-        "separately."
+        "correlations, red dotted = parametric E[r], dots = per-replicate estimates), "
+        "computed within each generation separately."
     ),
     # -- Cross-trait correlations --
     "cross_trait.phenotype": (
@@ -310,8 +313,9 @@ SIMPLE_LTM_CAPTIONS: dict[str, str] = {
         "Violin plots of tetrachoric correlations for threshold affected status indicators. "
         "Same encoding as Figure 19: coloured violins show observed tetrachoric correlations, "
         "black dots are per-replicate estimates, black dashed "
-        "lines are the ground-truth Pearson liability correlations, and pair counts are "
-        "annotated above each violin."
+        "lines are the ground-truth Pearson liability correlations, "
+        "red dotted lines are the parametric E[r] from configured ACE components, "
+        "and pair counts are annotated above each violin."
     ),
     "cross_trait_tetrachoric.simple_ltm": (
         "Figure 31: Cross-trait tetrachoric correlations (threshold model).\n\n"

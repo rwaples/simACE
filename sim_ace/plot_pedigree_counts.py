@@ -259,6 +259,7 @@ def plot_pedigree_relationship_counts(
     scenario: str = "",
     stats_key: str = "pair_counts",
     generations_label: str = "",
+    skip_2nd_cousins: bool = False,
 ) -> None:
     """Draw a proband-centric pedigree diagram with relationship pair counts.
 
@@ -381,8 +382,11 @@ def plot_pedigree_relationship_counts(
         color = rel_colors[rel_name]
 
         display = _SHORT_LABELS.get(rel_name, rel_name)
-        mean_count = counts.get(rel_name, 0)
-        label = f"{display}\nn = {mean_count:,.0f}"
+        if skip_2nd_cousins and rel_name == "2nd cousin":
+            label = f"{display}\nnot computed"
+        else:
+            mean_count = counts.get(rel_name, 0)
+            label = f"{display}\nn = {mean_count:,.0f}"
 
         ax.text(
             nx + dx,
@@ -397,7 +401,12 @@ def plot_pedigree_relationship_counts(
         )
 
     # Legend
-    handles = [mpatches.Patch(color=rel_colors[n], label=f"{n} ({counts.get(n, 0):,.0f})") for n in RELATIONSHIP_ORDER]
+    handles = []
+    for n in RELATIONSHIP_ORDER:
+        if skip_2nd_cousins and n == "2nd cousin":
+            handles.append(mpatches.Patch(color=rel_colors[n], label=f"{n} (not computed)"))
+        else:
+            handles.append(mpatches.Patch(color=rel_colors[n], label=f"{n} ({counts.get(n, 0):,.0f})"))
     ax.legend(
         handles=handles,
         loc="upper right",

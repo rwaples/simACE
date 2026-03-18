@@ -335,7 +335,12 @@ def plot_liability_violin_by_generation(
     finalize_plot(output_path, subsample_note=subsample_note)
 
 
-def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str) -> None:
+def plot_tetrachoric(
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str,
+    params: dict[str, Any] | None = None,
+) -> None:
     """Tetrachoric correlations by relationship type with liability correlation lines."""
     pair_types = PAIR_TYPES
     pair_colors = PAIR_COLORS
@@ -417,6 +422,28 @@ def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, s
                     zorder=4,
                 )
 
+        # Parametric expected liability correlations
+        from sim_ace.plot_correlations import _expected_liability_corr
+
+        has_parametric = False
+        if params is not None:
+            A = params.get(f"A{trait_num}")
+            C = params.get(f"C{trait_num}")
+            if A is not None and C is not None:
+                for i, ptype in enumerate(pair_types):
+                    exp_r = _expected_liability_corr(float(A), float(C), ptype)
+                    if exp_r is not None:
+                        has_parametric = True
+                        ax.hlines(
+                            exp_r,
+                            i - 0.35,
+                            i + 0.35,
+                            colors="C3",
+                            linestyles="dotted",
+                            linewidth=2,
+                            zorder=4,
+                        )
+
         ax.set_xticks(range(len(pair_types)))
         ax.set_xticklabels(pair_types, fontsize=9, rotation=15, ha="right")
         ax.set_xlabel("")
@@ -426,8 +453,15 @@ def plot_tetrachoric(all_stats: list[dict[str, Any]], output_path: str | Path, s
 
         from matplotlib.lines import Line2D
 
+        legend_elements = [
+            Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r"),
+        ]
+        if has_parametric:
+            legend_elements.append(
+                Line2D([0], [0], color="C3", linestyle=":", linewidth=2, label="Parametric E[r]"),
+            )
         ax.legend(
-            handles=[Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r")],
+            handles=legend_elements,
             loc="upper right",
             fontsize=9,
         )
@@ -604,6 +638,7 @@ def main(
     prevalence1: float | dict[int, float],
     prevalence2: float | dict[int, float],
     plot_ext: str = "png",
+    ace_params: dict[str, Any] | None = None,
 ) -> None:
     """Generate all threshold phenotype plots from pre-computed stats."""
     out_dir = Path(output_dir)
@@ -668,6 +703,7 @@ def main(
         all_stats,
         out_dir / f"tetrachoric.simple_ltm.{ext}",
         scenario,
+        params=ace_params,
     )
 
     from sim_ace.plot_correlations import plot_cross_trait_tetrachoric

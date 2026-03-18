@@ -49,6 +49,8 @@ def _run_snakemake():
         "prevalence2",
         "G_pheno",
         "N_sample",
+        "pedigree_dropout_rate",
+        "skip_2nd_cousins",
         "plot_format",
     ]
     for key in extra_keys:

@@ -63,13 +63,13 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
         "sample_phenotype",
         "Sample",
         "#EAECEE",
-        ["N_sample"],
+        ["N_sample", "pedigree_dropout_rate"],
     ),
     (
         "sample_simple_ltm",
         "Sample",
         "#EAECEE",
-        ["N_sample"],
+        ["N_sample", "pedigree_dropout_rate"],
     ),
 ]
 
@@ -104,6 +104,7 @@ _PARAM_DISPLAY: dict[str, str] = {
     "censor_age": "max age",
     "gen_censoring": "gen. windows",
     "N_sample": "N_sample",
+    "pedigree_dropout_rate": "dropout rate",
 }
 
 # ---------------------------------------------------------------------------

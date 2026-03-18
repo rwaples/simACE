@@ -20,8 +20,33 @@ from sim_ace.utils import PAIR_COLORS, PAIR_TYPES, draw_colored_violins, finaliz
 
 logger = logging.getLogger(__name__)
 
+# Parametric expected liability correlations under the ACE model
+_EXPECTED_R_COEFFICIENTS: dict[str, tuple[float, float]] = {
+    # pair_type: (coefficient of A, coefficient of C)
+    "MZ twin": (1.0, 1.0),
+    "Full sib": (0.5, 1.0),
+    "Maternal half sib": (0.25, 0.0),
+    "Paternal half sib": (0.25, 0.0),
+    "Mother-offspring": (0.5, 0.0),
+    "Father-offspring": (0.5, 0.0),
+    "1st cousin": (0.125, 0.0),
+}
 
-def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str) -> None:
+
+def _expected_liability_corr(A: float, C: float, pair_type: str) -> float | None:
+    """Return parametric E[r] for the given pair type, or None if unknown."""
+    coeffs = _EXPECTED_R_COEFFICIENTS.get(pair_type)
+    if coeffs is None:
+        return None
+    return coeffs[0] * A + coeffs[1] * C
+
+
+def plot_tetrachoric_sibling(
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str,
+    params: dict[str, Any] | None = None,
+) -> None:
     """Plot tetrachoric correlations by relationship type, violin with rep dots."""
     pair_types = PAIR_TYPES
     pair_colors = PAIR_COLORS
@@ -125,6 +150,26 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
                         zorder=5,
                     )
 
+        # Parametric expected liability correlations
+        has_parametric = False
+        if params is not None:
+            A = params.get(f"A{trait_num}")
+            C = params.get(f"C{trait_num}")
+            if A is not None and C is not None:
+                for i, ptype in enumerate(pair_types):
+                    exp_r = _expected_liability_corr(float(A), float(C), ptype)
+                    if exp_r is not None:
+                        has_parametric = True
+                        ax.hlines(
+                            exp_r,
+                            i - 0.35,
+                            i + 0.35,
+                            colors="C3",
+                            linestyles="dotted",
+                            linewidth=2,
+                            zorder=4,
+                        )
+
         ax.set_xticks(range(len(pair_types)))
         ax.set_xticklabels(pair_types, fontsize=9, rotation=15, ha="right")
         ax.set_xlabel("")
@@ -141,6 +186,10 @@ def plot_tetrachoric_sibling(all_stats: list[dict[str, Any]], output_path: str |
             legend_elements.append(
                 Line2D([0], [0], color="C2", linestyle="-.", linewidth=2, label="Frailty r (uncensored)"),
             )
+        if has_parametric:
+            legend_elements.append(
+                Line2D([0], [0], color="C3", linestyle=":", linewidth=2, label="Parametric E[r]"),
+            )
         ax.legend(handles=legend_elements, loc="upper right")
 
     fig.suptitle(f"Tetrachoric Correlation [{scenario}]", fontsize=14)
@@ -151,6 +200,7 @@ def plot_tetrachoric_by_generation(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
+    params: dict[str, Any] | None = None,
 ) -> None:
     """Plot tetrachoric correlations by relationship type, broken out by generation.
 
@@ -257,6 +307,24 @@ def plot_tetrachoric_by_generation(
                         zorder=4,
                     )
 
+            # Parametric expected liability correlations
+            if params is not None:
+                A = params.get(f"A{trait_num}")
+                C = params.get(f"C{trait_num}")
+                if A is not None and C is not None:
+                    for i, ptype in enumerate(pair_types):
+                        exp_r = _expected_liability_corr(float(A), float(C), ptype)
+                        if exp_r is not None:
+                            ax.hlines(
+                                exp_r,
+                                i - 0.35,
+                                i + 0.35,
+                                colors="C3",
+                                linestyles="dotted",
+                                linewidth=2,
+                                zorder=4,
+                            )
+
             ax.set_xticks(range(len(pair_types)))
             ax.set_xticklabels(pair_types, fontsize=7, rotation=30, ha="right")
             ax.set_xlabel("")
@@ -271,8 +339,12 @@ def plot_tetrachoric_by_generation(
 
     from matplotlib.lines import Line2D
 
+    has_parametric = params is not None and params.get("A1") is not None and params.get("C1") is not None
+    legend_handles = [Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r")]
+    if has_parametric:
+        legend_handles.append(Line2D([0], [0], color="C3", linestyle=":", linewidth=2, label="Parametric E[r]"))
     axes[0, -1].legend(
-        handles=[Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r")],
+        handles=legend_handles,
         loc="upper right",
         fontsize=8,
     )

@@ -54,9 +54,10 @@ rule plot_phenotype:
     output:
         expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS),
     params:
-        censor_age    = lambda w: get_param(config, w.scenario, "censor_age"),
-        gen_censoring = lambda w: get_param(config, w.scenario, "gen_censoring"),
-        plot_format   = lambda w: config["defaults"].get("plot_format", "png"),
+        censor_age       = lambda w: get_param(config, w.scenario, "censor_age"),
+        gen_censoring    = lambda w: get_param(config, w.scenario, "gen_censoring"),
+        skip_2nd_cousins = lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
+        plot_format      = lambda w: config["defaults"].get("plot_format", "png"),
     log:
         "logs/{folder}/{scenario}/plot_phenotype.log"
     benchmark:
@@ -109,6 +110,10 @@ rule plot_simple_ltm:
     params:
         prevalence1 = lambda w: get_param(config, w.scenario, "prevalence1"),
         prevalence2 = lambda w: get_param(config, w.scenario, "prevalence2"),
+        A1          = lambda w: get_param(config, w.scenario, "A1"),
+        C1          = lambda w: get_param(config, w.scenario, "C1"),
+        A2          = lambda w: get_param(config, w.scenario, "A2"),
+        C2          = lambda w: get_param(config, w.scenario, "C2"),
         plot_format = lambda w: config["defaults"].get("plot_format", "png"),
     log:
         "logs/{folder}/{scenario}/plot_simple_ltm.log"
@@ -148,9 +153,11 @@ rule assemble_scenario_atlas:
         death_rho      = lambda w: get_param(config, w.scenario, "death_rho"),
         prevalence1    = lambda w: get_param(config, w.scenario, "prevalence1"),
         prevalence2    = lambda w: get_param(config, w.scenario, "prevalence2"),
-        G_pheno        = lambda w: get_param(config, w.scenario, "G_pheno"),
-        N_sample       = lambda w: get_param(config, w.scenario, "N_sample"),
-        plot_format    = lambda w: config["defaults"].get("plot_format", "png"),
+        G_pheno                = lambda w: get_param(config, w.scenario, "G_pheno"),
+        N_sample               = lambda w: get_param(config, w.scenario, "N_sample"),
+        pedigree_dropout_rate  = lambda w: get_param(config, w.scenario, "pedigree_dropout_rate"),
+        skip_2nd_cousins       = lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
+        plot_format            = lambda w: config["defaults"].get("plot_format", "png"),
     log:
         "logs/{folder}/{scenario}/assemble_atlas.log"
     benchmark:
