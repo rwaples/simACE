@@ -15,6 +15,7 @@ rule stats_phenotype:
         censor_age       = lambda w: get_param(config, w.scenario, "censor_age"),
         gen_censoring    = lambda w: get_param(config, w.scenario, "gen_censoring"),
         extra_tetrachoric = lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
+        skip_2nd_cousins  = lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
         beta1             = lambda w: get_param(config, w.scenario, "beta1"),
         phenotype_model1  = lambda w: get_param(config, w.scenario, "phenotype_model1"),
         phenotype_params1 = lambda w: get_param(config, w.scenario, "phenotype_params1"),
@@ -78,6 +79,7 @@ rule stats_simple_ltm:
     params:
         seed             = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         extra_tetrachoric = lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
+        skip_2nd_cousins  = lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/simple_ltm_stats.log"
     benchmark:

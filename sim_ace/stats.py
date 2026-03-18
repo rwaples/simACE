@@ -22,7 +22,7 @@ from scipy.optimize import minimize_scalar
 from scipy.special import owens_t
 from scipy.stats import linregress, norm
 
-from sim_ace.pedigree_graph import count_relationship_pairs, extract_relationship_pairs
+from sim_ace.pedigree_graph import extract_and_count_relationship_pairs, extract_relationship_pairs
 from sim_ace.utils import PAIR_TYPES, save_parquet
 
 logger = logging.getLogger(__name__)
@@ -845,6 +845,7 @@ def main(
     frailty_params: dict[str, dict[str, Any]] | None = None,
     extra_tetrachoric: bool = True,
     pedigree_path: str | None = None,
+    skip_2nd_cousins: bool = True,
 ) -> None:
     """Compute all stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
@@ -873,7 +874,12 @@ def main(
 
     logger.info("Extracting relationship pairs...")
     t0 = time.perf_counter()
-    pairs = extract_relationship_pairs(df, seed=seed, full_pedigree=df_ped)
+    pairs, full_counts = extract_and_count_relationship_pairs(
+        df,
+        seed=seed,
+        full_pedigree=df_ped,
+        skip_2nd_cousins=skip_2nd_cousins,
+    )
     logger.info(
         "Relationship pairs extracted in %.1fs: %s",
         time.perf_counter() - t0,
@@ -882,13 +888,14 @@ def main(
 
     stats["pair_counts"] = {k: len(v[0]) for k, v in pairs.items()}
 
-    if df_ped is not None:
-        logger.info("Counting relationship pairs from full pedigree...")
-        t1 = time.perf_counter()
-        stats["pair_counts_ped"] = count_relationship_pairs(df_ped)
+    if df_ped is not None and full_counts is not None:
+        stats["pair_counts_ped"] = full_counts
         stats["n_individuals_ped"] = len(df_ped)
         stats["n_generations_ped"] = int(df_ped["generation"].nunique()) if "generation" in df_ped.columns else 1
-        logger.info("Pedigree pairs counted in %.1fs", time.perf_counter() - t1)
+        logger.info(
+            "Pedigree pair counts (from same graph): %s",
+            ", ".join(f"{k}: {v}" for k, v in full_counts.items()),
+        )
         del df_ped
 
     logger.info("Computing liability correlations...")
@@ -964,6 +971,13 @@ def cli() -> None:
     parser.add_argument("--gen-censoring", type=str, default=None, help="Per-generation censoring windows as JSON dict")
     parser.add_argument("--pedigree", default=None, help="Full pedigree parquet for G_ped pair counts")
     parser.add_argument("--no-extra-tetrachoric", dest="extra_tetrachoric", action="store_false", default=True)
+    parser.add_argument(
+        "--no-skip-2nd-cousins",
+        dest="skip_2nd_cousins",
+        action="store_false",
+        default=True,
+        help="Include 2nd cousin pair extraction (slow)",
+    )
 
     # Trait 1 frailty params
     parser.add_argument("--beta1", type=float, default=None)
@@ -1009,4 +1023,5 @@ def cli() -> None:
         frailty_params=frailty_params,
         extra_tetrachoric=args.extra_tetrachoric,
         pedigree_path=args.pedigree,
+        skip_2nd_cousins=args.skip_2nd_cousins,
     )

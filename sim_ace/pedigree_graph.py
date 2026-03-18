@@ -8,6 +8,7 @@ using sparse matrix algebra (A @ A.T for siblings, A² @ (A²).T for cousins, et
 from __future__ import annotations
 
 import logging
+import time
 from functools import cached_property
 
 import numpy as np
@@ -92,30 +93,45 @@ class PedigreeGraph:
     @cached_property
     def _A(self):
         """Child → both parents adjacency matrix."""
-        return self._Am + self._Af
+        t0 = time.perf_counter()
+        result = self._Am + self._Af
+        logger.debug("_A (Am + Af) computed in %.3fs", time.perf_counter() - t0)
+        return result
 
     @cached_property
     def _S(self):
         """Shared-any-parent matrix: A @ A.T."""
-        return self._A @ self._A.T
+        t0 = time.perf_counter()
+        result = self._A @ self._A.T
+        logger.debug("_S = A @ A.T computed in %.3fs (nnz=%d)", time.perf_counter() - t0, result.nnz)
+        return result
 
     @cached_property
     def _A2(self):
         """2-hop parent reach (grandparents): A @ A."""
-        return self._A @ self._A
+        t0 = time.perf_counter()
+        result = self._A @ self._A
+        logger.debug("_A2 = A @ A computed in %.3fs (nnz=%d)", time.perf_counter() - t0, result.nnz)
+        return result
 
     @cached_property
     def _A2_shared(self):
         """Shared-grandparent matrix: A² @ (A²).T.
 
-        Used by both _cousin_pairs and _second_cousin_pairs.
+        Only needed when 2nd cousin extraction is enabled.
         """
-        return self._A2 @ self._A2.T
+        t0 = time.perf_counter()
+        result = self._A2 @ self._A2.T
+        logger.debug("_A2_shared = A2 @ A2.T computed in %.3fs (nnz=%d)", time.perf_counter() - t0, result.nnz)
+        return result
 
     @cached_property
     def _A3(self):
         """3-hop parent reach (great-grandparents): A² @ A."""
-        return self._A2 @ self._A
+        t0 = time.perf_counter()
+        result = self._A2 @ self._A
+        logger.debug("_A3 = A2 @ A computed in %.3fs (nnz=%d)", time.perf_counter() - t0, result.nnz)
+        return result
 
     # ------------------------------------------------------------------
     # Relationship extraction
@@ -299,23 +315,45 @@ class PedigreeGraph:
     def _cousin_pairs(self) -> tuple[np.ndarray, np.ndarray]:
         """1st cousin pairs: share a grandparent but not a parent.
 
-        Uses cached A² @ (A²).T to find shared-grandparent pairs,
-        then subtracts shared-parent pairs (siblings).
+        Uses group-by-grandparent enumeration instead of A² @ (A²).T matmul.
+        Groups grandchildren by each grandparent, enumerates within-group pairs,
+        removes sibling pairs, and deduplicates.
         """
-        C_bool = (self._A2_shared > 0).astype(np.float64)
-
-        S_bool = (self._S > 0).astype(np.float64)
-
-        cousins = C_bool - C_bool.multiply(S_bool)
-        cousins.setdiag(0)
-        cousins.eliminate_zeros()
-
-        c_upper = sp.triu(cousins, k=1)
-        c_i, c_j = c_upper.nonzero()
-
-        if len(c_i) == 0:
+        t0 = time.perf_counter()
+        gc_i, gp_j = self._A2.nonzero()
+        if len(gc_i) == 0:
             return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
-        return c_i.astype(np.intp), c_j.astype(np.intp)
+
+        # Enumerate all (i < j) pairs sharing a grandparent
+        p1, p2 = self._pairs_from_groups(gc_i.astype(np.intp), gp_j.astype(np.int64))
+        if len(p1) == 0:
+            return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
+
+        logger.debug(
+            "Cousin group-by: %d candidate pairs from %d edges (%.3fs)",
+            len(p1),
+            len(gc_i),
+            time.perf_counter() - t0,
+        )
+
+        # Remove sibling/half-sib pairs (those sharing a parent)
+        share_mother = (self._orig_mother[p1] >= 0) & (self._orig_mother[p1] == self._orig_mother[p2])
+        share_father = (self._orig_father[p1] >= 0) & (self._orig_father[p1] == self._orig_father[p2])
+        is_sib = share_mother | share_father
+        p1, p2 = p1[~is_sib], p2[~is_sib]
+
+        if len(p1) == 0:
+            logger.debug("Cousins: 0 pairs after sibling removal (%.3fs)", time.perf_counter() - t0)
+            return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
+
+        # Deduplicate (two cousins may share multiple grandparents)
+        max_id = max(int(p1.max()), int(p2.max())) + 1
+        keys = p1.astype(np.int64) * max_id + p2.astype(np.int64)
+        _, unique_idx = np.unique(keys, return_index=True)
+
+        result = p1[unique_idx].astype(np.intp), p2[unique_idx].astype(np.intp)
+        logger.debug("Cousins: %d unique pairs (%.3fs)", len(result[0]), time.perf_counter() - t0)
+        return result
 
     def _grandparent_grandchild_pairs(self) -> tuple[np.ndarray, np.ndarray]:
         """Grandparent-grandchild pairs: 2-hop ancestor links.
@@ -382,7 +420,9 @@ class PedigreeGraph:
 
         Shared-great-grandparent pairs minus shared-grandparent pairs.
         """
+        t0 = time.perf_counter()
         D_raw = self._A3 @ self._A3.T
+        logger.debug("A3 @ A3.T computed in %.3fs (nnz=%d)", time.perf_counter() - t0, D_raw.nnz)
         D_bool = (D_raw > 0).astype(np.float64)
 
         C_bool = (self._A2_shared > 0).astype(np.float64)
@@ -390,6 +430,7 @@ class PedigreeGraph:
         second_cousins = D_bool - D_bool.multiply(C_bool)
         second_cousins.setdiag(0)
         second_cousins.eliminate_zeros()
+        logger.debug("2nd cousin matrix: nnz=%d (%.3fs total)", second_cousins.nnz, time.perf_counter() - t0)
         return second_cousins
 
     def _second_cousin_pairs(self) -> tuple[np.ndarray, np.ndarray]:
@@ -403,18 +444,25 @@ class PedigreeGraph:
             return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
         return sc_i.astype(np.intp), sc_j.astype(np.intp)
 
-    def extract_pairs(self, seed: int = 42) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-        """Extract all 10 relationship categories.
+    def extract_pairs(
+        self,
+        seed: int = 42,
+        skip_2nd_cousins: bool = True,
+    ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
+        """Extract all relationship categories.
 
         When ``sample_mask`` was provided at construction, only pairs where
         both individuals are active are returned.
 
         Args:
             seed: Random seed (unused — kept for API compatibility).
+            skip_2nd_cousins: When True, skip 2nd cousin extraction (avoids
+                expensive A³ and A³ @ (A³).T matrix products).
 
         Returns:
             Dict mapping relationship name to (idx1, idx2) row-index arrays.
         """
+        t_total = time.perf_counter()
         pairs: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 
         pairs["MZ twin"] = self._mz_twin_pairs()
@@ -423,33 +471,44 @@ class PedigreeGraph:
         pairs["Mother-offspring"] = mo
         pairs["Father-offspring"] = fo
 
+        t0 = time.perf_counter()
         full_sib, mat_hs, pat_hs = self._sibling_pairs()
         pairs["Full sib"] = full_sib
         pairs["Maternal half sib"] = mat_hs
         pairs["Paternal half sib"] = pat_hs
-
         logger.info(
-            "Siblings: %d full, %d maternal HS, %d paternal HS",
+            "Siblings: %d full, %d maternal HS, %d paternal HS (%.3fs)",
             len(full_sib[0]),
             len(mat_hs[0]),
             len(pat_hs[0]),
+            time.perf_counter() - t0,
         )
 
+        t0 = time.perf_counter()
         pairs["1st cousin"] = self._cousin_pairs()
-        logger.info("1st cousins: %d pairs", len(pairs["1st cousin"][0]))
+        logger.info("1st cousins: %d pairs (%.3fs)", len(pairs["1st cousin"][0]), time.perf_counter() - t0)
 
         pairs["Grandparent-grandchild"] = self._grandparent_grandchild_pairs()
         logger.info("Grandparent-grandchild: %d pairs", len(pairs["Grandparent-grandchild"][0]))
 
+        t0 = time.perf_counter()
         pairs["Avuncular"] = self._avuncular_pairs(full_sib)
-        logger.info("Avuncular: %d pairs", len(pairs["Avuncular"][0]))
+        logger.info("Avuncular: %d pairs (%.3fs)", len(pairs["Avuncular"][0]), time.perf_counter() - t0)
 
-        pairs["2nd cousin"] = self._second_cousin_pairs()
-        logger.info("2nd cousins: %d pairs", len(pairs["2nd cousin"][0]))
+        empty = np.array([], dtype=np.intp)
+        if skip_2nd_cousins:
+            pairs["2nd cousin"] = (empty, empty)
+            logger.info("2nd cousins: skipped (skip_2nd_cousins=True)")
+        else:
+            t0 = time.perf_counter()
+            pairs["2nd cousin"] = self._second_cousin_pairs()
+            logger.info("2nd cousins: %d pairs (%.3fs)", len(pairs["2nd cousin"][0]), time.perf_counter() - t0)
+
+        # Save raw counts before sample_mask filtering (used by count_pairs)
+        self._raw_pair_counts = {k: len(v[0]) for k, v in pairs.items()}
 
         # Restrict to active (sampled) individuals when a mask is set
         if self._active is not None:
-            empty = np.array([], dtype=np.intp)
             for k, (idx1, idx2) in pairs.items():
                 if len(idx1) > 0:
                     mask = self._active[idx1] & self._active[idx2]
@@ -461,15 +520,20 @@ class PedigreeGraph:
                 ", ".join(f"{k}: {len(v[0])}" for k, v in pairs.items()),
             )
 
+        logger.info("extract_pairs total: %.3fs", time.perf_counter() - t_total)
         return pairs
 
-    def count_pairs(self) -> dict[str, int]:
-        """Count all 10 relationship categories without materializing pair arrays.
+    def count_pairs(self, skip_2nd_cousins: bool = True) -> dict[str, int]:
+        """Count all relationship categories.
 
-        Much more memory-efficient than extract_pairs() for large pedigrees
-        since it avoids creating index arrays for high-count relationships
-        (e.g. 180M+ 2nd cousin pairs).
+        If ``extract_pairs()`` was already called on this instance, returns
+        the cached pre-filter counts (nearly free).  Otherwise computes
+        counts from scratch using the same methods as ``extract_pairs()``.
         """
+        if hasattr(self, "_raw_pair_counts"):
+            return dict(self._raw_pair_counts)
+
+        # Compute from scratch
         counts: dict[str, int] = {}
 
         counts["MZ twin"] = len(self._mz_twin_pairs()[0])
@@ -490,49 +554,99 @@ class PedigreeGraph:
             counts["Paternal half sib"],
         )
 
-        # Cousin count from sparse matrix nnz (symmetric → nnz/2)
-        C_bool = (self._A2_shared > 0).astype(np.float64)
-        S_bool = (self._S > 0).astype(np.float64)
-        cousins = C_bool - C_bool.multiply(S_bool)
-        cousins.setdiag(0)
-        cousins.eliminate_zeros()
-        counts["1st cousin"] = cousins.nnz // 2
+        counts["1st cousin"] = len(self._cousin_pairs()[0])
         logger.info("1st cousins: %d pairs", counts["1st cousin"])
 
-        counts["Grandparent-grandchild"] = self._A2.nnz
+        counts["Grandparent-grandchild"] = len(self._grandparent_grandchild_pairs()[0])
         logger.info("Grandparent-grandchild: %d pairs", counts["Grandparent-grandchild"])
 
-        # Avuncular count
-        avunc = self._A @ self._full_sib_matrix
-        avunc.setdiag(0)
-        parent_child = (self._A + self._A.T) > 0
-        avunc = avunc - avunc.multiply(parent_child)
-        avunc.eliminate_zeros()
-        # Deduplicate: each undirected pair appears twice in the asymmetric matrix
-        # Pack into keys and count unique
-        if avunc.nnz > 0:
-            a_i, a_j = avunc.nonzero()
-            lo = np.minimum(a_i, a_j)
-            hi = np.maximum(a_i, a_j)
-            max_id = int(hi.max()) + 1
-            keys = lo.astype(np.int64) * max_id + hi.astype(np.int64)
-            counts["Avuncular"] = len(np.unique(keys))
-        else:
-            counts["Avuncular"] = 0
+        counts["Avuncular"] = len(self._avuncular_pairs(full_sib)[0])
         logger.info("Avuncular: %d pairs", counts["Avuncular"])
 
-        # 2nd cousin count from sparse matrix nnz (symmetric → nnz/2)
-        second_cousins = self._second_cousin_matrix()
-        counts["2nd cousin"] = second_cousins.nnz // 2
-        logger.info("2nd cousins: %d pairs", counts["2nd cousin"])
+        if skip_2nd_cousins:
+            counts["2nd cousin"] = 0
+            logger.info("2nd cousins: skipped")
+        else:
+            counts["2nd cousin"] = len(self._second_cousin_pairs()[0])
+            logger.info("2nd cousins: %d pairs", counts["2nd cousin"])
 
-        return counts
+        self._raw_pair_counts = counts
+        return dict(counts)
+
+
+def _build_graph_and_remap(
+    df: pd.DataFrame,
+    full_pedigree: pd.DataFrame,
+    seed: int,
+    skip_2nd_cousins: bool,
+) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], dict[str, int], np.ndarray]:
+    """Build PedigreeGraph on full pedigree, extract pairs, remap to df indices.
+
+    Returns (remapped_pairs, full_pedigree_counts, full_ids).
+    """
+    pheno_ids = set(df["id"].values.astype(np.int64).tolist())
+    full_ids = full_pedigree["id"].values.astype(np.int64)
+    sample_mask = np.array([int(x) in pheno_ids for x in full_ids], dtype=bool)
+
+    pg = PedigreeGraph(full_pedigree, sample_mask=sample_mask)
+    raw_pairs = pg.extract_pairs(seed=seed, skip_2nd_cousins=skip_2nd_cousins)
+    full_counts = dict(pg._raw_pair_counts)
+
+    # Remap full-pedigree row indices → phenotype (df) row indices
+    pheno_id_arr = df["id"].values.astype(np.int64)
+    max_id = int(max(full_ids.max(), pheno_id_arr.max())) + 1
+    id_to_pheno = np.full(max_id, -1, dtype=np.int64)
+    id_to_pheno[pheno_id_arr] = np.arange(len(df), dtype=np.int64)
+
+    result: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for ptype, (idx1, idx2) in raw_pairs.items():
+        if len(idx1) > 0:
+            ids1 = full_ids[idx1]
+            ids2 = full_ids[idx2]
+            result[ptype] = (
+                id_to_pheno[ids1].astype(np.intp),
+                id_to_pheno[ids2].astype(np.intp),
+            )
+        else:
+            result[ptype] = (np.array([], dtype=np.intp), np.array([], dtype=np.intp))
+
+    return result, full_counts, full_ids
+
+
+def extract_and_count_relationship_pairs(
+    df: pd.DataFrame,
+    seed: int = 42,
+    full_pedigree: pd.DataFrame | None = None,
+    skip_2nd_cousins: bool = True,
+) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], dict[str, int] | None]:
+    """Extract relationship pairs and count full-pedigree pairs in one pass.
+
+    Builds a single PedigreeGraph; the cached matrix products computed during
+    extraction make the subsequent count nearly free.
+
+    Returns:
+        (pairs_dict, full_counts_dict).  full_counts_dict is None when
+        *full_pedigree* is not provided.
+    """
+    if full_pedigree is not None:
+        pairs, full_counts, _ = _build_graph_and_remap(
+            df,
+            full_pedigree,
+            seed,
+            skip_2nd_cousins,
+        )
+        return pairs, full_counts
+
+    pg = PedigreeGraph(df)
+    pairs = pg.extract_pairs(seed=seed, skip_2nd_cousins=skip_2nd_cousins)
+    return pairs, None
 
 
 def extract_relationship_pairs(
     df: pd.DataFrame,
     seed: int = 42,
     full_pedigree: pd.DataFrame | None = None,
+    skip_2nd_cousins: bool = True,
 ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """Extract relationship pairs, returning row indices into *df*.
 
@@ -545,46 +659,26 @@ def extract_relationship_pairs(
     Returns dict with 10 keys (the original 7 plus Grandparent-grandchild,
     Avuncular, and 2nd cousin).
     """
-    if full_pedigree is not None:
-        # Build boolean mask: which full-pedigree rows are in the phenotype
-        pheno_ids = set(df["id"].values.astype(np.int64).tolist())
-        full_ids = full_pedigree["id"].values.astype(np.int64)
-        sample_mask = np.array([int(x) in pheno_ids for x in full_ids], dtype=bool)
-
-        pg = PedigreeGraph(full_pedigree, sample_mask=sample_mask)
-        raw_pairs = pg.extract_pairs(seed=seed)
-
-        # Remap full-pedigree row indices → phenotype (df) row indices
-        pheno_id_arr = df["id"].values.astype(np.int64)
-        max_id = int(max(full_ids.max(), pheno_id_arr.max())) + 1
-        id_to_pheno = np.full(max_id, -1, dtype=np.int64)
-        id_to_pheno[pheno_id_arr] = np.arange(len(df), dtype=np.int64)
-
-        result: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-        for ptype, (idx1, idx2) in raw_pairs.items():
-            if len(idx1) > 0:
-                ids1 = full_ids[idx1]
-                ids2 = full_ids[idx2]
-                result[ptype] = (
-                    id_to_pheno[ids1].astype(np.intp),
-                    id_to_pheno[ids2].astype(np.intp),
-                )
-            else:
-                result[ptype] = (np.array([], dtype=np.intp), np.array([], dtype=np.intp))
-        return result
-
-    pg = PedigreeGraph(df)
-    return pg.extract_pairs(seed=seed)
+    pairs, _ = extract_and_count_relationship_pairs(
+        df,
+        seed=seed,
+        full_pedigree=full_pedigree,
+        skip_2nd_cousins=skip_2nd_cousins,
+    )
+    return pairs
 
 
-def count_relationship_pairs(df: pd.DataFrame) -> dict[str, int]:
+def count_relationship_pairs(
+    df: pd.DataFrame,
+    skip_2nd_cousins: bool = True,
+) -> dict[str, int]:
     """Count relationship pairs without materializing full index arrays.
 
     Memory-efficient alternative to extract_relationship_pairs() when only
     pair counts are needed (e.g. for the full pedigree summary).
     """
     pg = PedigreeGraph(df)
-    return pg.count_pairs()
+    return pg.count_pairs(skip_2nd_cousins=skip_2nd_cousins)
 
 
 def extract_sibling_pairs(

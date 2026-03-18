@@ -66,6 +66,7 @@ def main(
     seed: int = 42,
     extra_tetrachoric: bool = True,
     pedigree_path: str | None = None,
+    skip_2nd_cousins: bool = True,
 ) -> None:  # extra_tetrachoric kept for API compat
     """Compute all threshold stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
@@ -88,7 +89,7 @@ def main(
     full_ped = pd.read_parquet(pedigree_path) if pedigree_path is not None else None
     logger.info("Extracting relationship pairs...")
     t_pairs = time.perf_counter()
-    pairs = extract_relationship_pairs(df, seed=seed, full_pedigree=full_ped)
+    pairs = extract_relationship_pairs(df, seed=seed, full_pedigree=full_ped, skip_2nd_cousins=skip_2nd_cousins)
     del full_ped
     logger.info(
         "Relationship pairs extracted in %.1fs: %s",
@@ -143,6 +144,13 @@ def cli() -> None:
         default=True,
         help="No-op (kept for CLI compatibility; basic tetrachoric always runs)",
     )
+    parser.add_argument(
+        "--no-skip-2nd-cousins",
+        dest="skip_2nd_cousins",
+        action="store_false",
+        default=True,
+        help="Include 2nd cousin pair extraction (slow)",
+    )
     args = parser.parse_args()
 
     init_logging(args)
@@ -154,4 +162,5 @@ def cli() -> None:
         seed=args.seed,
         extra_tetrachoric=args.extra_tetrachoric,
         pedigree_path=args.pedigree,
+        skip_2nd_cousins=args.skip_2nd_cousins,
     )

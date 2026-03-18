@@ -42,6 +42,7 @@ def _run_snakemake():
         frailty_params=frailty_params,
         extra_tetrachoric=p.get("extra_tetrachoric", True),
         pedigree_path=snakemake.input.pedigree,
+        skip_2nd_cousins=p.get("skip_2nd_cousins", True),
     )
 
 

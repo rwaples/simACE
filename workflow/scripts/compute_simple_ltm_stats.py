@@ -14,6 +14,8 @@ def _run_snakemake():
 
     extra_tetrachoric = snakemake.params.get("extra_tetrachoric", True)
 
+    skip_2nd_cousins = snakemake.params.get("skip_2nd_cousins", True)
+
     main(
         phenotype_path,
         stats_output,
@@ -21,6 +23,7 @@ def _run_snakemake():
         seed=seed,
         extra_tetrachoric=extra_tetrachoric,
         pedigree_path=snakemake.input.pedigree,
+        skip_2nd_cousins=skip_2nd_cousins,
     )
 
 
