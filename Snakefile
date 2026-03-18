@@ -20,6 +20,7 @@ wildcard_constraints:
 
 include: "workflow/rules/targets.smk"
 include: "workflow/rules/simulate.smk"
+include: "workflow/rules/dropout.smk"
 include: "workflow/rules/phenotype.smk"
 include: "workflow/rules/sample.smk"
 include: "workflow/rules/validate.smk"

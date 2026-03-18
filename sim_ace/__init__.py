@@ -36,6 +36,7 @@ def setup_logging(level=logging.INFO, log_file=None):
 from sim_ace.censor import age_censor, death_censor
 from sim_ace.pedigree_graph import extract_relationship_pairs
 from sim_ace.phenotype import simulate_phenotype
+from sim_ace.dropout import run_dropout
 from sim_ace.sample import run_sample
 from sim_ace.simulate import (
     add_to_pedigree,

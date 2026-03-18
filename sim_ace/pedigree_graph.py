@@ -79,12 +79,6 @@ class PedigreeGraph:
             shape=(n, n),
         )
 
-        # Non-founders with BOTH parents known — needed by _sibling_pairs
-        # for correct full-sib vs half-sib classification.
-        nf_mask = m_mask & f_mask
-        self._nf_idx = np.where(nf_mask)[0]
-        self._nf_mother = self.mother[self._nf_idx]
-        self._nf_father = self.father[self._nf_idx]
 
     # ------------------------------------------------------------------
     # Lazy sparse products (computed on first access)
@@ -184,14 +178,18 @@ class PedigreeGraph:
         so that siblings are correctly detected even when parents are absent
         from a subsampled dataset.
 
+        Individuals with only one known parent can participate in half-sib
+        detection through that parent (but not full-sib detection, which
+        requires both parents known).
+
         Twin individuals are excluded entirely (matching legacy semantics).
         Returns (full_sib, maternal_hs, paternal_hs) tuples of (idx1, idx2).
         """
         empty = np.array([], dtype=np.intp), np.array([], dtype=np.intp)
 
-        # Non-twin non-founders: use original IDs (always valid for non-founders)
-        nf_mask = (self._orig_mother >= 0) & (self._orig_father >= 0)
-        nt_mask = nf_mask & (self.twin < 0)
+        # Non-twin individuals with at least one known parent
+        has_parent = (self._orig_mother >= 0) | (self._orig_father >= 0)
+        nt_mask = has_parent & (self.twin < 0)
         nt_idx = np.where(nt_mask)[0]
 
         if len(nt_idx) < 2:
@@ -201,16 +199,38 @@ class PedigreeGraph:
         nt_mother = self._orig_mother[nt_idx]
         nt_father = self._orig_father[nt_idx]
 
-        # --- Full sibs: same mother AND same father ---
-        max_parent = max(int(nt_mother.max()), int(nt_father.max())) + 1
-        family_key = nt_mother.astype(np.int64) * max_parent + nt_father.astype(np.int64)
-        full_sib = self._pairs_from_groups(nt_idx, family_key)
+        # --- Full sibs: same KNOWN mother AND same KNOWN father ---
+        both_known = (nt_mother >= 0) & (nt_father >= 0)
+        bk_idx = nt_idx[both_known]
+        bk_mother = nt_mother[both_known]
+        bk_father = nt_father[both_known]
 
-        # --- Maternal half sibs: same mother, different father ---
-        mat_hs = self._pairs_from_groups_filtered(nt_idx, nt_mother, nt_father, keep_same=False)
+        if len(bk_idx) >= 2:
+            max_parent = max(int(bk_mother.max()), int(bk_father.max())) + 1
+            family_key = bk_mother.astype(np.int64) * max_parent + bk_father.astype(np.int64)
+            full_sib = self._pairs_from_groups(bk_idx, family_key)
+        else:
+            full_sib = empty
 
-        # --- Paternal half sibs: same father, different mother ---
-        pat_hs = self._pairs_from_groups_filtered(nt_idx, nt_father, nt_mother, keep_same=False)
+        # --- Maternal half sibs: all pairs sharing known mother, minus full-sib pairs ---
+        has_mother = nt_mother >= 0
+        m_idx = nt_idx[has_mother]
+        m_mother = nt_mother[has_mother]
+        if len(m_idx) >= 2:
+            mat_all = self._pairs_from_groups(m_idx, m_mother.astype(np.int64))
+            mat_hs = self._subtract_pairs(mat_all, full_sib)
+        else:
+            mat_hs = empty
+
+        # --- Paternal half sibs: all pairs sharing known father, minus full-sib pairs ---
+        has_father = nt_father >= 0
+        f_idx = nt_idx[has_father]
+        f_father = nt_father[has_father]
+        if len(f_idx) >= 2:
+            pat_all = self._pairs_from_groups(f_idx, f_father.astype(np.int64))
+            pat_hs = self._subtract_pairs(pat_all, full_sib)
+        else:
+            pat_hs = empty
 
         # Build full-sib sparse matrix for _avuncular_pairs
         sib1, sib2 = full_sib
@@ -222,6 +242,33 @@ class PedigreeGraph:
             self._full_sib_matrix = sp.csr_matrix((self.n, self.n))
 
         return full_sib, mat_hs, pat_hs
+
+    @staticmethod
+    def _subtract_pairs(
+        all_pairs: tuple[np.ndarray, np.ndarray],
+        remove_pairs: tuple[np.ndarray, np.ndarray],
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Remove pairs in *remove_pairs* from *all_pairs* using set subtraction.
+
+        Both inputs must be canonically ordered (lo, hi).
+        Encodes each pair as lo * max_id + hi for O(1) lookup.
+        """
+        a1, a2 = all_pairs
+        r1, r2 = remove_pairs
+
+        if len(a1) == 0:
+            return all_pairs
+        if len(r1) == 0:
+            return all_pairs
+
+        max_id = int(max(a1.max(), a2.max(), r1.max(), r2.max())) + 1
+        remove_keys = r1.astype(np.int64) * max_id + r2.astype(np.int64)
+        all_keys = a1.astype(np.int64) * max_id + a2.astype(np.int64)
+
+        remove_set = set(remove_keys.tolist())
+        keep = np.array([k not in remove_set for k in all_keys.tolist()], dtype=bool)
+
+        return a1[keep].astype(np.intp), a2[keep].astype(np.intp)
 
     @staticmethod
     def _pairs_from_groups(indices: np.ndarray, group_key: np.ndarray) -> tuple[np.ndarray, np.ndarray]:

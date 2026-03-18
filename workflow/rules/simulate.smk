@@ -1,6 +1,6 @@
 rule simulate_pedigree_liability:
     output:
-        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
+        pedigree=temp("results/{folder}/{scenario}/rep{rep}/pedigree.full.parquet"),
         params="results/{folder}/{scenario}/rep{rep}/params.yaml"
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
