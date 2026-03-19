@@ -156,6 +156,70 @@ scenarios:
     gen_censoring:
       0: [0, 80]
 
+  long_solmi_mood:
+    folder: long
+    replicates: 1
+    seed: 1880
+    C1: 0.0
+    C2: 0.0
+    rA: 0.3
+    rC: 0.0
+    N: 50000
+    G_sim: 35
+    G_ped: 30
+    G_pheno: 30
+    gen_censoring:
+      0: [0, 80]
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 3.58381
+      sigma: 0.62896
+    phenotype_params2:
+      baseline: lognormal
+      mu: 3.58381
+      sigma: 0.62896
+    beta1: 0.1749
+    beta2: 0.1749
+    prevalence1: 0.15
+    prevalence2: 0.15
+
+  long_beck_adhd:
+    folder: long
+    replicates: 1
+    seed: 1881
+    C1: 0.0
+    C2: 0.0
+    rA: 0.3
+    rC: 0.0
+    N: 50000
+    G_sim: 35
+    G_ped: 30
+    G_pheno: 30
+    gen_censoring:
+      0: [0, 80]
+    phenotype_model1: cure_frailty
+    phenotype_model2: cure_frailty
+    phenotype_params1:
+      baseline: lognormal
+      mu: 2.88747
+      sigma: 0.658443
+    phenotype_params2:
+      baseline: lognormal
+      mu: 2.88747
+      sigma: 0.658443
+    beta1: 0.0000
+    beta2: 0.0000
+    beta_sex1: 0.5009
+    beta_sex2: 0.5009
+    prevalence1:
+      female: 0.0481943
+      male: 0.083224
+    prevalence2:
+      female: 0.0481943
+      male: 0.083224
+
   # ── Cross-trait correlation ────────────────────────────────────────────────
   no_correlation:
     folder: cross_trait
