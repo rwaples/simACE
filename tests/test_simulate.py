@@ -6,9 +6,14 @@ import pytest
 
 from sim_ace.simulate import (
     add_to_pedigree,
+    allocate_offspring,
+    assign_twins,
+    balance_mating_slots,
+    draw_mating_counts,
     generate_correlated_components,
     generate_mendelian_noise,
     mating,
+    pair_partners,
     run_simulation,
 )
 
@@ -82,14 +87,141 @@ class TestGenerateMendelianNoise:
 
 
 # ---------------------------------------------------------------------------
-# mating
+# draw_mating_counts
+# ---------------------------------------------------------------------------
+
+
+class TestDrawMatingCounts:
+    def test_all_positive(self, rng):
+        counts = draw_mating_counts(rng, 500, 0.5)
+        assert np.all(counts >= 1)
+
+    def test_shape(self, rng):
+        counts = draw_mating_counts(rng, 300, 0.5)
+        assert counts.shape == (300,)
+
+    def test_mean_near_expected(self, rng):
+        """ZTP(0.5) mean = lambda / (1 - e^{-lambda}) = 0.5 / (1 - e^{-0.5}) ~ 1.27."""
+        counts = draw_mating_counts(rng, 50000, 0.5)
+        expected = 0.5 / (1 - np.exp(-0.5))
+        assert abs(counts.mean() - expected) < 0.05
+
+    def test_high_lambda(self, rng):
+        counts = draw_mating_counts(rng, 1000, 3.0)
+        assert np.all(counts >= 1)
+        assert counts.mean() > 2.5
+
+
+# ---------------------------------------------------------------------------
+# balance_mating_slots
+# ---------------------------------------------------------------------------
+
+
+class TestBalanceMatingSlots:
+    def test_totals_match(self, rng):
+        mc = np.array([2, 3, 1])
+        fc = np.array([1, 1, 1, 1])
+        bm, bf = balance_mating_slots(rng, mc, fc)
+        assert bm.sum() == bf.sum()
+
+    def test_no_trim_needed(self, rng):
+        mc = np.array([2, 2])
+        fc = np.array([1, 1, 1, 1])
+        bm, bf = balance_mating_slots(rng, mc, fc)
+        assert bm.sum() == bf.sum() == 4
+
+    def test_all_counts_nonnegative(self, rng):
+        mc = np.array([5, 3, 2])
+        fc = np.array([1, 1])
+        bm, bf = balance_mating_slots(rng, mc, fc)
+        assert np.all(bm >= 0)
+        assert np.all(bf >= 0)
+
+
+# ---------------------------------------------------------------------------
+# pair_partners
+# ---------------------------------------------------------------------------
+
+
+class TestPairPartners:
+    def test_shape(self, rng):
+        males = np.array([0, 1, 2])
+        females = np.array([3, 4, 5])
+        mc = np.array([1, 1, 1])
+        fc = np.array([1, 1, 1])
+        pairs = pair_partners(rng, males, mc, females, fc)
+        assert pairs.shape == (3, 2)
+
+    def test_mothers_from_females(self, rng):
+        males = np.array([10, 11])
+        females = np.array([20, 21])
+        mc = np.array([2, 1])
+        fc = np.array([1, 2])
+        pairs = pair_partners(rng, males, mc, females, fc)
+        assert np.all(np.isin(pairs[:, 0], females))
+
+    def test_fathers_from_males(self, rng):
+        males = np.array([10, 11])
+        females = np.array([20, 21])
+        mc = np.array([2, 1])
+        fc = np.array([1, 2])
+        pairs = pair_partners(rng, males, mc, females, fc)
+        assert np.all(np.isin(pairs[:, 1], males))
+
+
+# ---------------------------------------------------------------------------
+# allocate_offspring
+# ---------------------------------------------------------------------------
+
+
+class TestAllocateOffspring:
+    def test_sum_equals_N(self, rng):
+        counts = allocate_offspring(rng, 50, 1000)
+        assert counts.sum() == 1000
+
+    def test_shape(self, rng):
+        counts = allocate_offspring(rng, 30, 500)
+        assert counts.shape == (30,)
+
+    def test_all_nonneg(self, rng):
+        counts = allocate_offspring(rng, 100, 200)
+        assert np.all(counts >= 0)
+
+
+# ---------------------------------------------------------------------------
+# assign_twins
+# ---------------------------------------------------------------------------
+
+
+class TestAssignTwins:
+    def test_only_eligible(self, rng):
+        counts = np.array([0, 1, 2, 3, 0, 1])
+        mask = assign_twins(rng, counts, 1.0)
+        # Only indices 2, 3 are eligible (counts >= 2); with p=1.0 all should be True
+        assert mask[2] and mask[3]
+        assert not mask[0] and not mask[1] and not mask[4] and not mask[5]
+
+    def test_no_twins_p_zero(self, rng):
+        counts = np.array([3, 4, 5])
+        mask = assign_twins(rng, counts, 0.0)
+        assert not mask.any()
+
+    def test_shape(self, rng):
+        counts = np.array([2, 0, 3])
+        mask = assign_twins(rng, counts, 0.5)
+        assert mask.shape == (3,)
+        assert mask.dtype == bool
+
+
+# ---------------------------------------------------------------------------
+# mating (orchestrator)
 # ---------------------------------------------------------------------------
 
 
 class TestMating:
     def test_output_shapes(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
-        parents, twins, household_ids = mating(rng, sex, 2.3, 0.05, 0.02)
+        parents, twins, household_ids = mating(rng, sex, 0.5, 0.02)
         assert parents.shape == (1000, 2)
         assert household_ids.shape == (1000,)
         assert twins.ndim == 2
@@ -98,43 +230,43 @@ class TestMating:
 
     def test_mothers_are_female(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
-        parents, _, _ = mating(rng, sex, 2.3, 0.05, 0.02)
+        parents, _, _ = mating(rng, sex, 0.5, 0.02)
         mother_sexes = sex[parents[:, 0]]
         assert np.all(mother_sexes == 0)
 
     def test_fathers_are_male(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
-        parents, _, _ = mating(rng, sex, 2.3, 0.05, 0.02)
+        parents, _, _ = mating(rng, sex, 0.5, 0.02)
         father_sexes = sex[parents[:, 1]]
         assert np.all(father_sexes == 1)
 
     def test_twin_pairs_share_mother(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=2000)
-        parents, twins, _ = mating(rng, sex, 2.5, 0.05, 0.05)
+        parents, twins, _ = mating(rng, sex, 0.5, 0.05)
         if len(twins) > 0:
             for t1, t2 in twins:
                 assert parents[t1, 0] == parents[t2, 0]  # same mother
 
     def test_twin_pairs_share_father(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=2000)
-        parents, twins, _ = mating(rng, sex, 2.5, 0.05, 0.05)
+        parents, twins, _ = mating(rng, sex, 0.5, 0.05)
         if len(twins) > 0:
             for t1, t2 in twins:
                 assert parents[t1, 1] == parents[t2, 1]  # same bio father
 
     def test_no_twins_when_p_zero(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
-        _, twins, _ = mating(rng, sex, 2.3, 0.05, 0.0)
+        _, twins, _ = mating(rng, sex, 0.5, 0.0)
         assert len(twins) == 0
 
     def test_household_ids_nonnegative(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
-        _, _, hh = mating(rng, sex, 2.3, 0.05, 0.02)
+        _, _, hh = mating(rng, sex, 0.5, 0.02)
         assert np.all(hh >= 0)
 
     def test_siblings_share_household(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
-        parents, _, hh = mating(rng, sex, 2.3, 0.05, 0.02)
+        parents, _, hh = mating(rng, sex, 0.5, 0.02)
         # Siblings with same mother should have same household
         for mother_idx in np.unique(parents[:, 0]):
             sib_mask = parents[:, 0] == mother_idx
@@ -343,9 +475,9 @@ class TestRunSimulation:
         with pytest.raises(ValueError):
             run_simulation(**{**default_params, "N": -10})
 
-    def test_zero_fam_size_raises(self, default_params):
+    def test_zero_mating_lambda_raises(self, default_params):
         with pytest.raises(ValueError):
-            run_simulation(**{**default_params, "fam_size": 0})
+            run_simulation(**{**default_params, "mating_lambda": 0})
 
     def test_G_sim_less_than_G_ped_raises(self, default_params):
         with pytest.raises(ValueError):

@@ -226,8 +226,8 @@ def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
             s=30,
             zorder=5,
         )
-        # Expected fam_size marker
-        expected = sdf["fam_size"].iloc[0]
+        # Expected mean offspring per mother marker (~2.0 for balanced sex)
+        expected = 2.0
         ax.scatter(
             x,
             expected,

@@ -25,9 +25,8 @@ def default_params():
         N=1000,
         G_ped=3,
         G_sim=3,
-        fam_size=2.3,
+        mating_lambda=0.5,
         p_mztwin=0.02,
-        p_nonsocial_father=0.05,
         A1=0.5,
         C1=0.2,
         A2=0.5,
@@ -67,7 +66,7 @@ def founders_and_offspring(rng):
     e2 = rng.normal(size=N, scale=sd_E2)
     pheno = np.stack([a1, c1, e1, a2, c2, e2], axis=-1)
 
-    parents, twins, household_ids = mating(rng, sex, fam_size=2.3, p_nonsocial_father=0.05, p_mztwin=0.02)
+    parents, twins, household_ids = mating(rng, sex, mating_lambda=0.5, p_mztwin=0.02)
     offspring, sex_offspring = reproduce(
         rng,
         pheno,

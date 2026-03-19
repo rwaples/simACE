@@ -137,9 +137,8 @@ Flat key-value file recording the simulation parameters used for a replicate. Wr
 | `N` | int | Population size per generation |
 | `G_ped` | int | Number of generations in output pedigree |
 | `G_sim` | int | Total generations simulated (including burn-in) |
-| `fam_size` | float | Mean family size (Poisson lambda) |
+| `mating_lambda` | float | ZTP mating count lambda |
 | `p_mztwin` | float | Probability of MZ twin birth |
-| `p_nonsocial_father` | float | Probability of non-social paternity |
 
 ### phenotype_stats.yaml
 
@@ -221,7 +220,7 @@ Aggregated metrics across all scenarios and replicates within a folder. Written 
 | `N`, `G_ped`, `G_sim` | `parameters` |
 | `A1`, `C1`, `E1`, `A2`, `C2`, `E2` | `parameters` |
 | `rA`, `rC` | `parameters` |
-| `p_mztwin`, `p_nonsocial_father`, `fam_size`, `seed` | `parameters` |
+| `p_mztwin`, `mating_lambda`, `seed` | `parameters` |
 | `checks_failed` | `summary.checks_failed` |
 | `observed_twin_rate` | `twins.twin_rate.observed_rate` |
 | `variance_A1`..`E2` | `statistical.variance_*.observed` |

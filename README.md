@@ -99,9 +99,8 @@ defaults:
   G_ped: 6                                  # Generations to record in pedigree
   G_pheno: 3                                # Generations to phenotype (last G_pheno of G_ped)
   G_sim: 8                                  # Total generations (G_sim - G_ped = burn-in)
-  fam_size: 2.3                             # Mean family size (Poisson)
+  mating_lambda: 0.5                         # ZTP mating count lambda (~23% multi-partner)
   p_mztwin: 0.02                            # Probability of MZ twin birth
-  p_nonsocial_father: 0.05                  # Probability of non-social paternity
 
   # Phenotype model per trait: weibull/exponential/gompertz/lognormal/loglogistic/gamma/adult_ltm/adult_cox
   # Trait 1

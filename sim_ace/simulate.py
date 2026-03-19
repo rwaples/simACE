@@ -80,86 +80,183 @@ def generate_mendelian_noise(
     return generate_correlated_components(rng, n, sd_noise1, sd_noise2, rA)
 
 
-def mating(
-    rng: np.random.Generator, parental_sex: np.ndarray, fam_size: float, p_nonsocial_father: float, p_mztwin: float
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Generate parent-offspring pairings.
+def draw_mating_counts(rng: np.random.Generator, n: int, mating_lambda: float) -> np.ndarray:
+    """Draw zero-truncated Poisson mating counts for *n* individuals.
 
     Args:
         rng: numpy random generator
-        parental_sex: array of sex values for parents
-        fam_size: mean family size (Poisson lambda)
-        p_nonsocial_father: proportion of non-social fathers
-        p_mztwin: probability of a birth producing MZ twins
+        n: number of individuals
+        mating_lambda: Poisson lambda for the ZTP distribution
 
     Returns:
-        parent_idxs: (n, 2) array of [mother_idx, father_idx] for each offspring
-        twins: (m, 2) array of [twin1_idx, twin2_idx] pairs for MZ twins
-        household_ids: (n,) array mapping each offspring to a household index
+        Array of shape ``(n,)`` with all values >= 1.
     """
-    n = len(parental_sex)
+    counts = rng.poisson(lam=mating_lambda, size=n)
+    zeros = counts == 0
+    while zeros.any():
+        counts[zeros] = rng.poisson(lam=mating_lambda, size=zeros.sum())
+        zeros = counts == 0
+    return counts
 
-    nmale = parental_sex.sum()
-    nfemale = n - nmale
-    male_idxs = np.where(parental_sex)[0]
+
+def balance_mating_slots(
+    rng: np.random.Generator, male_counts: np.ndarray, female_counts: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Balance total mating slots between males and females.
+
+    Takes ``T = min(sum(male), sum(female))`` and randomly trims the larger
+    side so both sum to *T*.
+
+    Returns:
+        ``(balanced_male_counts, balanced_female_counts)``
+    """
+    m_total = int(male_counts.sum())
+    f_total = int(female_counts.sum())
+    T = min(m_total, f_total)
+
+    def _trim(counts: np.ndarray, total: int, target: int) -> np.ndarray:
+        if total == target:
+            return counts.copy()
+        # Expand to per-slot array, keep a random subset of size target
+        idx = np.repeat(np.arange(len(counts)), counts)
+        keep = rng.choice(len(idx), size=target, replace=False)
+        keep.sort()
+        kept_idx = idx[keep]
+        return np.bincount(kept_idx, minlength=len(counts)).astype(counts.dtype)
+
+    return _trim(male_counts, m_total, T), _trim(female_counts, f_total, T)
+
+
+def pair_partners(
+    rng: np.random.Generator,
+    male_idxs: np.ndarray,
+    male_counts: np.ndarray,
+    female_idxs: np.ndarray,
+    female_counts: np.ndarray,
+) -> np.ndarray:
+    """Create mating pairs via random bipartite matching.
+
+    Expands each sex into slot arrays using ``np.repeat``, shuffles one side,
+    and pairs positionally. Duplicate ``(mother, father)`` pairs are resolved
+    by swapping conflicting entries.
+
+    Returns:
+        ``(M, 2)`` array of ``[mother_idx, father_idx]``.
+    """
+    male_slots = np.repeat(male_idxs, male_counts)
+    female_slots = np.repeat(female_idxs, female_counts)
+    rng.shuffle(male_slots)
+
+    matings = np.column_stack([female_slots, male_slots])
+
+    # Deduplicate: swap conflicting entries (rare at low lambda)
+    for _attempt in range(5):
+        seen = set()
+        dups = []
+        for i in range(len(matings)):
+            key = (matings[i, 0], matings[i, 1])
+            if key in seen:
+                dups.append(i)
+            else:
+                seen.add(key)
+        if not dups:
+            break
+        # Swap father between duplicate and a random non-duplicate
+        non_dups = np.setdiff1d(np.arange(len(matings)), dups)
+        if len(non_dups) == 0:
+            break
+        for d in dups:
+            swap_with = rng.choice(non_dups)
+            matings[d, 1], matings[swap_with, 1] = matings[swap_with, 1], matings[d, 1]
+
+    return matings
+
+
+def allocate_offspring(rng: np.random.Generator, n_matings: int, N: int) -> np.ndarray:
+    """Distribute *N* offspring across *n_matings* matings via multinomial.
+
+    Returns:
+        Array of shape ``(n_matings,)`` summing to exactly *N*.
+    """
+    probs = np.ones(n_matings) / n_matings
+    return rng.multinomial(N, probs)
+
+
+def assign_twins(rng: np.random.Generator, offspring_counts: np.ndarray, p_mztwin: float) -> np.ndarray:
+    """Decide which matings produce an MZ twin pair.
+
+    Only matings with >= 2 offspring are eligible. At most one twin pair
+    per mating.
+
+    Returns:
+        Boolean mask of shape ``(M,)`` — True where a twin pair occurs.
+    """
+    mask = np.zeros(len(offspring_counts), dtype=bool)
+    eligible = offspring_counts >= 2
+    if eligible.any():
+        rolls = rng.uniform(size=eligible.sum()) < p_mztwin
+        mask[eligible] = rolls
+    return mask
+
+
+def mating(
+    rng: np.random.Generator, parental_sex: np.ndarray, mating_lambda: float, p_mztwin: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Generate parent-offspring pairings via a modular mating pipeline.
+
+    1. Separate males/females and draw ZTP(mating_lambda) mating counts.
+    2. Balance slots so both sexes have equal total.
+    3. Pair partners randomly.
+    4. Allocate N offspring across matings via multinomial.
+    5. Assign MZ twins to eligible matings.
+    6. Build output arrays.
+
+    Args:
+        rng: numpy random generator
+        parental_sex: array of sex values (0=female, 1=male) for parents
+        mating_lambda: Poisson lambda for zero-truncated mating count distribution
+        p_mztwin: probability of a mating producing MZ twins (if >= 2 offspring)
+
+    Returns:
+        parent_idxs: (N, 2) array of [mother_idx, father_idx] for each offspring
+        twins: (m, 2) array of [twin1_idx, twin2_idx] pairs for MZ twins
+        household_ids: (N,) array mapping each offspring to a household index
+    """
+    N = len(parental_sex)
+    male_idxs = np.where(parental_sex == 1)[0]
     female_idxs = np.where(parental_sex == 0)[0]
 
-    rng.shuffle(female_idxs)
-    rng.shuffle(male_idxs)
+    # 1. Draw mating counts per individual
+    male_counts = draw_mating_counts(rng, len(male_idxs), mating_lambda)
+    female_counts = draw_mating_counts(rng, len(female_idxs), mating_lambda)
 
-    # Generate family sizes until total >= n
-    while True:
-        family_sizes = rng.poisson(lam=fam_size, size=nfemale)
-        if family_sizes.sum() >= n:
-            break
+    # 2. Balance slots
+    male_counts, female_counts = balance_mating_slots(rng, male_counts, female_counts)
 
-    # Clip family sizes to sum exactly to n
-    cumsum = np.cumsum(family_sizes)
-    last_fam = np.searchsorted(cumsum, n, side="left")
-    n_families = last_fam + 1
-    family_sizes = family_sizes[:n_families].copy()
-    prev_sum = cumsum[last_fam - 1] if last_fam > 0 else 0
-    family_sizes[-1] = n - prev_sum
+    # 3. Pair partners -> (M, 2) of [mother_idx, father_idx]
+    matings = pair_partners(rng, male_idxs, male_counts, female_idxs, female_counts)
+    M = len(matings)
 
-    # Expand to per-offspring arrays using np.repeat
-    mothers = np.repeat(female_idxs[:n_families], family_sizes)
-    social_fathers = np.repeat(male_idxs[:n_families], family_sizes)
-    household_ids = np.repeat(np.arange(n_families), family_sizes)
+    # 4. Allocate offspring
+    offspring_counts = allocate_offspring(rng, M, N)
 
-    # Determine biological fathers in bulk
-    is_nonsocial = rng.uniform(size=n) < p_nonsocial_father
-    alt_fathers = rng.choice(male_idxs, size=n)
-    bio_fathers = np.where(is_nonsocial, alt_fathers, social_fathers)
+    # 5. Assign twins
+    twin_mask = assign_twins(rng, offspring_counts, p_mztwin)
 
-    parent_idxs = np.column_stack([mothers, bio_fathers])
+    # 6. Build output arrays
+    parent_idxs = np.repeat(matings, offspring_counts, axis=0)
 
-    # --- Twin assignment ---
-    # Compute within-family position for each offspring
-    family_starts = np.empty(n_families + 1, dtype=int)
-    family_starts[0] = 0
-    np.cumsum(family_sizes, out=family_starts[1:])
-    _within_pos = np.arange(n) - np.repeat(family_starts[:n_families], family_sizes)
+    # Household: all offspring of the same mother share a household
+    _, household_ids = np.unique(parent_idxs[:, 0], return_inverse=True)
 
-    # Eligible to start a twin pair: all positions except the very last
-    eligible = np.arange(n) < n - 1
-
-    # Roll for twins at eligible positions
-    twin_rolls = rng.uniform(size=n) <= p_mztwin
-    potential_starts = np.where(eligible & twin_rolls)[0]
-
-    # Remove overlaps: twin partner (start+1) can't also start a new pair
-    if len(potential_starts) > 1:
-        keep = np.ones(len(potential_starts), dtype=bool)
-        for i in range(1, len(potential_starts)):
-            if potential_starts[i] == potential_starts[i - 1] + 1 and keep[i - 1]:
-                keep[i] = False
-        potential_starts = potential_starts[keep]
-
-    if len(potential_starts) > 0:
-        twins = np.column_stack([potential_starts, potential_starts + 1])
-        # MZ twins share both parents and household (partner may cross family boundary)
-        parent_idxs[twins[:, 1]] = parent_idxs[twins[:, 0]]
-        household_ids[twins[:, 1]] = household_ids[twins[:, 0]]
+    # Twin pairs: first two offspring of each twin-flagged mating
+    starts = np.zeros(M + 1, dtype=int)
+    np.cumsum(offspring_counts, out=starts[1:])
+    twin_indices = np.where(twin_mask)[0]
+    if len(twin_indices) > 0:
+        t1 = starts[twin_indices]
+        t2 = t1 + 1
+        twins = np.column_stack([t1, t2])
     else:
         twins = np.array([], dtype=int).reshape(0, 2)
 
@@ -328,9 +425,8 @@ def run_simulation(
     seed: int,
     N: int,
     G_ped: int,
-    fam_size: float,
+    mating_lambda: float,
     p_mztwin: float,
-    p_nonsocial_father: float,
     A1: float,
     C1: float,
     A2: float,
@@ -349,9 +445,8 @@ def run_simulation(
         seed: Random seed
         N: Population size per generation (positive integer)
         G_ped: Number of generations to record in pedigree (integer >= 1)
-        fam_size: Mean family size (> 0, Poisson lambda)
-        p_mztwin: Probability of a birth producing MZ twins, in [0, 1)
-        p_nonsocial_father: Proportion of non-social fathers, in [0, 1]
+        mating_lambda: Poisson lambda for zero-truncated mating count distribution (> 0)
+        p_mztwin: Probability of a mating producing MZ twins, in [0, 1)
         A1, C1: Trait 1 variance components, each in [0, 1] with A1 + C1 <= 1
         A2, C2: Trait 2 variance components, each in [0, 1] with A2 + C2 <= 1
         rA: Genetic correlation between traits, in [-1, 1]
@@ -382,12 +477,10 @@ def run_simulation(
         raise ValueError(f"N must be a positive integer, got {N}")
     if not (G_ped == int(G_ped) and G_ped >= 1):
         raise ValueError(f"G_ped must be an integer >= 1, got {G_ped}")
-    if not (fam_size > 0):
-        raise ValueError(f"fam_size must be > 0, got {fam_size}")
+    if not (mating_lambda > 0):
+        raise ValueError(f"mating_lambda must be > 0, got {mating_lambda}")
     if not (0 <= p_mztwin < 1):
         raise ValueError(f"p_mztwin must be in [0, 1), got {p_mztwin}")
-    if not (0 <= p_nonsocial_father <= 1):
-        raise ValueError(f"p_nonsocial_father must be in [0, 1], got {p_nonsocial_father}")
     if not (-1 <= rA <= 1):
         raise ValueError(f"rA must be in [-1, 1], got {rA}")
     if not (-1 <= rC <= 1):
@@ -427,7 +520,7 @@ def run_simulation(
     burnin = G_sim - G_ped
     pedigree = None
     for i in range(G_sim):
-        parents, twins, household_ids = mating(rng, sex, fam_size, p_nonsocial_father, p_mztwin)
+        parents, twins, household_ids = mating(rng, sex, mating_lambda, p_mztwin)
         pheno, sex = reproduce(
             rng,
             pheno,
@@ -483,9 +576,8 @@ def cli() -> None:
     parser.add_argument("--N", type=int, default=1000, help="Founder population size")
     parser.add_argument("--G-ped", type=int, default=3, help="Number of pedigree generations")
     parser.add_argument("--G-sim", type=int, default=None, help="Number of burn-in generations (default: G_ped)")
-    parser.add_argument("--fam-size", type=float, default=2.0, help="Mean family size")
+    parser.add_argument("--mating-lambda", type=float, default=0.5, help="ZTP mating count lambda")
     parser.add_argument("--p-mztwin", type=float, default=0.02, help="Probability of MZ twinning")
-    parser.add_argument("--p-nonsocial-father", type=float, default=0.05, help="Proportion of non-social fathers")
     parser.add_argument("--A1", type=float, default=0.5, help="Additive genetic variance for trait 1")
     parser.add_argument("--C1", type=float, default=0.2, help="Shared environment variance for trait 1")
     parser.add_argument("--A2", type=float, default=0.5, help="Additive genetic variance for trait 2")
@@ -503,9 +595,8 @@ def cli() -> None:
         seed=args.seed,
         N=args.N,
         G_ped=args.G_ped,
-        fam_size=args.fam_size,
+        mating_lambda=args.mating_lambda,
         p_mztwin=args.p_mztwin,
-        p_nonsocial_father=args.p_nonsocial_father,
         A1=args.A1,
         C1=args.C1,
         A2=args.A2,
@@ -531,9 +622,8 @@ def cli() -> None:
         "N": args.N,
         "G_ped": args.G_ped,
         "G_sim": args.G_sim or args.G_ped,
-        "fam_size": args.fam_size,
+        "mating_lambda": args.mating_lambda,
         "p_mztwin": args.p_mztwin,
-        "p_nonsocial_father": args.p_nonsocial_father,
     }
     with open(args.output_params, "w", encoding="utf-8") as f:
         yaml.dump(params_dict, f, default_flow_style=False)

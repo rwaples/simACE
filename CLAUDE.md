@@ -35,7 +35,7 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 
 - `sim_ace/` — installable package (`pip install -e .`) with simulation, phenotyping, validation, stats, and plotting modules
 - `workflow/rules/*.smk` — Snakemake rules; `workflow/scripts/` — thin script wrappers
-- `config/config.yaml` — named scenarios (seed, folder, A, C, N, G_ped, G_sim, fam_size, p_mztwin, p_nonsocial_father)
+- `config/config.yaml` — named scenarios (seed, folder, A, C, N, G_ped, G_sim, mating_lambda, p_mztwin)
 - `epimight/` — EPIMIGHT heritability pipeline (separate `epimight` conda env; uses `conda run -n epimight`)
 - `results/{folder}/{scenario}/` — output per scenario
 

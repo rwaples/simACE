@@ -83,8 +83,7 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         "rC": params.get("rC"),
         # Population parameters
         "p_mztwin": params.get("p_mztwin"),
-        "p_nonsocial_father": params.get("p_nonsocial_father"),
-        "fam_size": params.get("fam_size"),
+        "mating_lambda": params.get("mating_lambda"),
         "seed": params.get("seed"),
         "checks_failed": summary.get("checks_failed"),
         # Twin rate

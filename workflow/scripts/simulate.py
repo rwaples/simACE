@@ -17,9 +17,8 @@ def _run_snakemake():
         seed=params.seed,
         N=params.N,
         G_ped=params.G_ped,
-        fam_size=params.fam_size,
+        mating_lambda=params.mating_lambda,
         p_mztwin=params.p_mztwin,
-        p_nonsocial_father=params.p_nonsocial_father,
         A1=params.A1,
         C1=params.C1,
         A2=params.A2,
@@ -45,9 +44,8 @@ def _run_snakemake():
         "N": params.N,
         "G_ped": params.G_ped,
         "G_sim": params.G_sim,
-        "fam_size": params.fam_size,
+        "mating_lambda": params.mating_lambda,
         "p_mztwin": params.p_mztwin,
-        "p_nonsocial_father": params.p_nonsocial_father,
     }
     with open(output_params, "w", encoding="utf-8") as f:
         yaml.dump(params_dict, f, default_flow_style=False)

@@ -21,9 +21,8 @@ defaults:
   G_ped: 6
   G_pheno: 3
   G_sim: 8
-  fam_size: 2.3
+  mating_lambda: 0.5
   p_mztwin: 0.02
-  p_nonsocial_father: 0.05
 
   # ── Phenotype model ───────────────────────────────────────────────────────
   # phenotype_model1/2: weibull | exponential | gompertz | lognormal | loglogistic | gamma | adult_ltm | adult_cox | cure_frailty
@@ -277,10 +276,10 @@ scenarios:
     seed: 14042
     p_mztwin: 0
 
-  no_fullsibs:
+  high_mating_lambda:
     folder: family
     seed: 15042
-    p_nonsocial_father: 1.0
+    mating_lambda: 3.0
 
   # ── Increasing prevalence ─────────────────────────────────────────────────
   increasing_prevalence:

@@ -19,9 +19,8 @@ MINIMAL_PARAMS = dict(
     seed=42,
     N=500,
     G_ped=2,
-    fam_size=2.3,
+    mating_lambda=0.5,
     p_mztwin=0.02,
-    p_nonsocial_father=0.05,
     A1=0.5,
     C1=0.2,
     A2=0.5,
@@ -124,23 +123,22 @@ class TestNoTwins:
 
 
 # ---------------------------------------------------------------------------
-# p_nonsocial_father = 1.0 (all non-social fathers)
+# High mating_lambda (most sibs are half-sibs)
 # ---------------------------------------------------------------------------
 
 
-class TestAllNonSocialFathers:
-    def test_p_nonsocial_1(self):
-        params = {**MINIMAL_PARAMS, "p_nonsocial_father": 1.0}
+class TestHighMatingLambda:
+    def test_high_lambda_runs(self):
+        params = {**MINIMAL_PARAMS, "mating_lambda": 3.0}
         ped = run_simulation(**params)
         assert len(ped) == params["N"] * params["G_ped"]
 
-    def test_maternal_half_sibs_when_all_nonsocial(self):
-        """When all fathers are random, siblings from same mother
-        should usually have different fathers."""
-        params = {**MINIMAL_PARAMS, "p_nonsocial_father": 1.0, "N": 2000}
+    def test_high_lambda_produces_half_sibs(self):
+        """With high lambda, individuals have many partners so maternal
+        half-sibs should be common."""
+        params = {**MINIMAL_PARAMS, "mating_lambda": 3.0, "N": 2000}
         ped = run_simulation(**params)
         non_founders = ped[ped["mother"] != -1]
-        # Check that siblings with same mother often have different fathers
         fam = non_founders.groupby("mother").agg(
             n_fathers=("father", "nunique"),
             n_kids=("id", "count"),
@@ -149,22 +147,24 @@ class TestAllNonSocialFathers:
         if len(multi) > 0:
             # Most multi-child families should have multiple fathers
             frac_mixed = (multi["n_fathers"] > 1).mean()
-            assert frac_mixed > 0.5
+            assert frac_mixed > 0.3
 
 
 # ---------------------------------------------------------------------------
-# p_nonsocial_father = 0.0 (all social fathers)
+# Low mating_lambda (nearly all sibs share father)
 # ---------------------------------------------------------------------------
 
 
-class TestAllSocialFathers:
-    def test_all_social_fathers(self):
-        params = {**MINIMAL_PARAMS, "p_nonsocial_father": 0.0}
+class TestLowMatingLambda:
+    def test_low_lambda_mostly_full_sibs(self):
+        """With very low lambda, most individuals have 1 partner, so
+        siblings from same mother should usually share a father."""
+        params = {**MINIMAL_PARAMS, "mating_lambda": 0.001}
         ped = run_simulation(**params)
         non_founders = ped[ped["mother"] != -1]
-        # All siblings from same mother should have same father
         fam = non_founders.groupby("mother")["father"].nunique()
-        assert (fam == 1).all()
+        # Nearly all families should have a single father
+        assert (fam == 1).mean() > 0.9
 
 
 # ---------------------------------------------------------------------------

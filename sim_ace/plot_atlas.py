@@ -332,8 +332,8 @@ VALIDATION_CAPTIONS: dict[str, str] = {
     "family_size": (
         "Figure 1: Family size.\n\n"
         "Mean offspring per mother (blue, left-offset) and per father (orange, right-offset) "
-        "among parents with \u22651 child. Orange dashes mark configured Poisson \u03bb "
-        "(fam_size)."
+        "among parents with \u22651 child. Orange dashes mark expected ~2.0 "
+        "(N / n_mothers for balanced sex ratio)."
     ),
     "twin_rate": (
         "Figure 2: MZ twin rate.\n\n"
@@ -342,8 +342,8 @@ VALIDATION_CAPTIONS: dict[str, str] = {
     ),
     "half_sib_proportions": (
         "Figure 3: Half-sibling proportions.\n\n"
-        "Left panel: Observed maternal half-sibling pair proportion vs. expected "
-        "1 \u2212 (1 \u2212 p_nonsocial)\u00b2. Right panel: Proportion of offspring with "
+        "Left panel: Observed maternal half-sibling pair proportion (driven by "
+        "mating_lambda). Right panel: Proportion of offspring with "
         "at least one half-sibling."
     ),
     "variance_components": (
