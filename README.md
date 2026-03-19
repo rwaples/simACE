@@ -12,6 +12,18 @@ Continuous liabilities are mapped to observable phenotypes via one of three time
 
 A separate simple liability-threshold model produces binary affection status. The pipeline includes automated structural and statistical validation, phenotype statistics, and plotting. See [distributions.md](distributions.md) for model details.
 
+### Reproduction model
+
+Each generation, mating pairs are formed via a modular pipeline controlled by `mating_lambda`:
+
+1. Every male and female draws a mating count from a zero-truncated Poisson(λ) distribution.
+2. Total male and female mating slots are balanced (random trimming of the larger side).
+3. Slots are paired randomly to form explicit (mother, father) matings.
+4. N offspring are distributed across matings via a multinomial draw, so some matings produce zero offspring (~13% natural childlessness).
+5. MZ twins are assigned to matings with ≥2 offspring at rate `p_mztwin`.
+
+At the default λ=0.5, ~77% of individuals have one partner and ~23% have two or more, producing a natural mix of full-sibs, maternal half-sibs, and paternal half-sibs. All offspring of the same mother share a household (preserving the C component). Higher λ increases multi-partner mating and half-sib prevalence.
+
 ## Prerequisites
 
 - [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) (Miniconda or Miniforge)
