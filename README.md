@@ -18,7 +18,7 @@ Each generation, mating pairs are formed via a modular pipeline controlled by `m
 
 1. Every male and female draws a mating count from a zero-truncated Poisson(λ) distribution.
 2. Total male and female mating slots are balanced (random trimming of the larger side).
-3. Slots are paired randomly to form explicit (mother, father) matings.
+3. Slots are paired to form explicit (mother, father) matings — randomly by default, or assortatively when `assort1`/`assort2` are nonzero (Gaussian copula on composite liability scores).
 4. N offspring are distributed across matings via a multinomial draw, so some matings produce zero offspring (~13% natural childlessness).
 5. MZ twins are assigned to matings with ≥2 offspring at rate `p_mztwin`.
 
@@ -113,6 +113,8 @@ defaults:
   G_sim: 8                                  # Total generations (G_sim - G_ped = burn-in)
   mating_lambda: 0.5                         # ZTP mating count lambda (~23% multi-partner)
   p_mztwin: 0.02                            # Probability of MZ twin birth
+  assort1: 0                                 # Mate correlation on trait 1 liability ([-1, 1])
+  assort2: 0                                 # Mate correlation on trait 2 liability ([-1, 1])
 
   # Phenotype model per trait: weibull/exponential/gompertz/lognormal/loglogistic/gamma/adult_ltm/adult_cox
   # Trait 1

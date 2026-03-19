@@ -139,6 +139,8 @@ Flat key-value file recording the simulation parameters used for a replicate. Wr
 | `G_sim` | int | Total generations simulated (including burn-in) |
 | `mating_lambda` | float | ZTP mating count lambda |
 | `p_mztwin` | float | Probability of MZ twin birth |
+| `assort1` | float | Mate correlation on trait 1 liability (0 = random) |
+| `assort2` | float | Mate correlation on trait 2 liability (0 = random) |
 
 ### phenotype_stats.yaml
 

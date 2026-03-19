@@ -267,6 +267,48 @@ class TestThresholdEdgeCases:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Assortative mating edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestAssortativeEdgeCases:
+    def test_strong_positive_assortment(self):
+        """assort1=1.0 should produce strong positive mate correlation."""
+        params = {**MINIMAL_PARAMS, "assort1": 1.0, "assort2": 0.0}
+        ped = run_simulation(**params)
+        non_founders = ped[ped["mother"] != -1]
+        pairs = non_founders[["mother", "father"]].drop_duplicates()
+        df_idx = ped.set_index("id")
+        m_liab = df_idx.loc[pairs["mother"].values, "liability1"].values
+        f_liab = df_idx.loc[pairs["father"].values, "liability1"].values
+        corr = np.corrcoef(m_liab, f_liab)[0, 1]
+        assert corr > 0.3
+
+    def test_strong_negative_assortment(self):
+        """assort1=-1.0 should produce strong negative mate correlation."""
+        params = {**MINIMAL_PARAMS, "assort1": -1.0, "assort2": 0.0}
+        ped = run_simulation(**params)
+        non_founders = ped[ped["mother"] != -1]
+        pairs = non_founders[["mother", "father"]].drop_duplicates()
+        df_idx = ped.set_index("id")
+        m_liab = df_idx.loc[pairs["mother"].values, "liability1"].values
+        f_liab = df_idx.loc[pairs["father"].values, "liability1"].values
+        corr = np.corrcoef(m_liab, f_liab)[0, 1]
+        assert corr < -0.3
+
+    def test_both_assort_nonzero(self):
+        """Both assort1 and assort2 nonzero should run without error."""
+        params = {**MINIMAL_PARAMS, "assort1": 0.3, "assort2": 0.2}
+        ped = run_simulation(**params)
+        assert len(ped) == params["N"] * params["G_ped"]
+
+
+# ---------------------------------------------------------------------------
+# Boundary variance: A + C exactly equals 1 (E = 0)
+# ---------------------------------------------------------------------------
+
+
 class TestEZero:
     def test_E_zero(self):
         """When A + C = 1, E = 0 and all E values should be negligible.

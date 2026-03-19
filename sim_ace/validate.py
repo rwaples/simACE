@@ -880,6 +880,67 @@ def compute_family_size_distribution(df: pd.DataFrame, params: dict[str, Any]) -
     return result
 
 
+def validate_assortative_mating(
+    df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame
+) -> dict[str, Any]:
+    """Validate mate correlation on liability when assortative mating is configured.
+
+    Extracts unique mating pairs from non-founders, computes Pearson
+    correlation of mother and father liability for each trait, and checks
+    against the configured ``assort1`` / ``assort2`` parameters.
+
+    Args:
+        df: Pedigree DataFrame.
+        params: Scenario parameters; uses keys ``assort1``, ``assort2``.
+        df_indexed: Pedigree DataFrame indexed by ``id``.
+
+    Returns:
+        Dict of check-name to result dicts.
+    """
+    results: dict[str, Any] = {}
+    assort1 = params.get("assort1", 0.0)
+    assort2 = params.get("assort2", 0.0)
+
+    non_founders = df[df["mother"] != -1]
+    if len(non_founders) == 0:
+        results["mate_corr_liability1"] = _result(True, "No non-founders to check")
+        results["mate_corr_liability2"] = _result(True, "No non-founders to check")
+        return results
+
+    # Extract unique mating pairs
+    pairs = non_founders[["mother", "father"]].drop_duplicates()
+    mother_ids = pairs["mother"].values
+    father_ids = pairs["father"].values
+    n_pairs = len(pairs)
+
+    for t, expected in [(1, assort1), (2, assort2)]:
+        m_liab = df_indexed.loc[mother_ids, f"liability{t}"].values
+        f_liab = df_indexed.loc[father_ids, f"liability{t}"].values
+        obs = safe_corrcoef(m_liab, f_liab)
+
+        if np.isnan(obs):
+            results[f"mate_corr_liability{t}"] = _result(
+                True,
+                f"Cannot compute mate correlation for trait {t} (zero variance)",
+                expected=float(expected),
+                observed=float(obs),
+            )
+            continue
+
+        se = _corr_se(expected, n_pairs)
+        tol = max(0.1, 3 * se)
+        ok = abs(obs - expected) < tol
+        results[f"mate_corr_liability{t}"] = _result(
+            ok,
+            f"Mate correlation liability{t}: {obs:.4f} (expected: {expected}, tol: {tol:.4f})",
+            expected=float(expected),
+            observed=float(obs),
+            n_pairs=n_pairs,
+        )
+
+    return results
+
+
 def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
     """Run all validation checks and return results.
 
@@ -915,6 +976,7 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
         "heritability": validate_heritability(df, params, df_indexed, sibling_pairs),
         "population": validate_population(df, params),
         "per_generation": compute_per_generation_stats(df, params),
+        "assortative_mating": validate_assortative_mating(df, params, df_indexed),
     }
 
     checks_passed = 0

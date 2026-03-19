@@ -263,3 +263,60 @@ class TestSexRatio:
     def test_sex_ratio_balanced(self, stat_pedigree):
         ratio = stat_pedigree["sex"].mean()
         assert 0.45 < ratio < 0.55
+
+
+# ---------------------------------------------------------------------------
+# Assortative mating: mate correlation
+# ---------------------------------------------------------------------------
+
+ASSORT_PARAMS = dict(
+    seed=8888,
+    N=5000,
+    G_ped=3,
+    mating_lambda=0.5,
+    p_mztwin=0.03,
+    A1=0.5,
+    C1=0.2,
+    A2=0.4,
+    C2=0.3,
+    rA=0.5,
+    rC=0.4,
+    assort1=0.4,
+    assort2=0.0,
+)
+
+
+@pytest.fixture(scope="module")
+def assort_pedigree():
+    """Module-scoped pedigree with assortative mating."""
+    return run_simulation(**ASSORT_PARAMS)
+
+
+class TestAssortativeMating:
+    def _mate_corr(self, df, trait):
+        """Compute Pearson correlation of mother/father liability for a trait."""
+        non_founders = df[df["mother"] != -1]
+        pairs = non_founders[["mother", "father"]].drop_duplicates()
+        df_idx = df.set_index("id")
+        m_liab = df_idx.loc[pairs["mother"].values, f"liability{trait}"].values
+        f_liab = df_idx.loc[pairs["father"].values, f"liability{trait}"].values
+        return np.corrcoef(m_liab, f_liab)[0, 1]
+
+    def test_mate_correlation_trait1_positive(self, assort_pedigree):
+        corr = self._mate_corr(assort_pedigree, 1)
+        assert corr > 0.15
+
+    def test_mate_correlation_trait2_near_zero(self, assort_pedigree):
+        corr = self._mate_corr(assort_pedigree, 2)
+        assert abs(corr) < 0.15
+
+    def test_negative_assortment(self):
+        params = {**ASSORT_PARAMS, "seed": 9999, "assort1": -0.3}
+        ped = run_simulation(**params)
+        non_founders = ped[ped["mother"] != -1]
+        pairs = non_founders[["mother", "father"]].drop_duplicates()
+        df_idx = ped.set_index("id")
+        m_liab = df_idx.loc[pairs["mother"].values, "liability1"].values
+        f_liab = df_idx.loc[pairs["father"].values, "liability1"].values
+        corr = np.corrcoef(m_liab, f_liab)[0, 1]
+        assert corr < -0.1

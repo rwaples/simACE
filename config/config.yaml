@@ -23,6 +23,8 @@ defaults:
   G_sim: 8
   mating_lambda: 0.5
   p_mztwin: 0.02
+  assort1: 0
+  assort2: 0
 
   # ── Phenotype model ───────────────────────────────────────────────────────
   # phenotype_model1/2: weibull | exponential | gompertz | lognormal | loglogistic | gamma | adult_ltm | adult_cox | cure_frailty
@@ -275,6 +277,19 @@ scenarios:
     folder: family
     seed: 14042
     p_mztwin: 0
+
+  assortative_mating:
+    folder: family
+    seed: 80042
+    assort1: 0.3
+    assort2: 0.0
+
+  assortative_mating_both:
+    folder: family
+    seed: 81042
+    N: 100000
+    assort1: 0.3
+    assort2: 0.5
 
   high_mating_lambda:
     folder: family

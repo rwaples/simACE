@@ -16,6 +16,8 @@ rule simulate_pedigree_liability:
         C2=lambda w: get_param(config, w.scenario, "C2"),
         rA=lambda w: get_param(config, w.scenario, "rA"),
         rC=lambda w: get_param(config, w.scenario, "rC"),
+        assort1=lambda w: get_param(config, w.scenario, "assort1"),
+        assort2=lambda w: get_param(config, w.scenario, "assort2"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/simulate.log"
     benchmark:

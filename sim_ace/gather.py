@@ -84,6 +84,8 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         # Population parameters
         "p_mztwin": params.get("p_mztwin"),
         "mating_lambda": params.get("mating_lambda"),
+        "assort1": params.get("assort1"),
+        "assort2": params.get("assort2"),
         "seed": params.get("seed"),
         "checks_failed": summary.get("checks_failed"),
         # Twin rate
@@ -120,6 +122,9 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         "half_sib_A1_corr": get_nested(data, "half_sibs", "half_sib_A1_correlation", "observed"),
         "half_sib_liability1_corr": get_nested(data, "half_sibs", "half_sib_liability1_correlation", "observed"),
         "half_sib_shared_C1": get_nested(data, "half_sibs", "half_sib_shared_C1", "observed"),
+        # Mate correlation (assortative mating)
+        "mate_corr_liability1": get_nested(data, "assortative_mating", "mate_corr_liability1", "observed"),
+        "mate_corr_liability2": get_nested(data, "assortative_mating", "mate_corr_liability2", "observed"),
         # Benchmark timing and memory
         "simulate_seconds": simulate_seconds,
         "simulate_max_rss_mb": simulate_max_rss_mb,

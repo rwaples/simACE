@@ -26,6 +26,8 @@ def _run_snakemake():
         rA=params.rA,
         rC=params.rC,
         G_sim=params.G_sim,
+        assort1=params.assort1,
+        assort2=params.assort2,
     )
 
     pedigree.to_parquet(output_pedigree, index=False)
@@ -46,6 +48,8 @@ def _run_snakemake():
         "G_sim": params.G_sim,
         "mating_lambda": params.mating_lambda,
         "p_mztwin": params.p_mztwin,
+        "assort1": params.assort1,
+        "assort2": params.assort2,
     }
     with open(output_params, "w", encoding="utf-8") as f:
         yaml.dump(params_dict, f, default_flow_style=False)

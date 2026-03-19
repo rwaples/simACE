@@ -33,6 +33,8 @@ def default_params():
         C2=0.2,
         rA=0.3,
         rC=0.5,
+        assort1=0.0,
+        assort2=0.0,
     )
 
 

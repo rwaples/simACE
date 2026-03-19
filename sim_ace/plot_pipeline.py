@@ -38,6 +38,7 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
             "_ACE1",
             "_ACE2",
             "_rAC",
+            "_assort",
         ],
     ),
     (
@@ -167,6 +168,12 @@ def _get_param_rows(
             ra = float(params.get("rA", 0))
             rc = float(params.get("rC", 0))
             rows.append(("[rA, rC]", f"[{ra:g}, {rc:g}]"))
+            continue
+        if name == "_assort":
+            a1 = float(params.get("assort1", 0))
+            a2 = float(params.get("assort2", 0))
+            if a1 != 0 or a2 != 0:
+                rows.append(("[assort1, assort2]", f"[{a1:g}, {a2:g}]"))
             continue
             # Compact frailty params per trait: [beta, beta_sex, model, params]
         if name == "_frailty1" and "beta1" in params:

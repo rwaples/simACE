@@ -19,6 +19,7 @@ import time
 import numpy as np
 import pandas as pd
 import yaml
+from scipy.stats import rankdata
 
 from sim_ace.utils import save_parquet
 
@@ -172,6 +173,102 @@ def pair_partners(
     return matings
 
 
+def _assortative_pair_partners(
+    rng: np.random.Generator,
+    male_idxs: np.ndarray,
+    male_counts: np.ndarray,
+    female_idxs: np.ndarray,
+    female_counts: np.ndarray,
+    pheno: np.ndarray,
+    assort1: float,
+    assort2: float,
+) -> np.ndarray:
+    """Create mating pairs with assortative mating via a Gaussian copula.
+
+    Uses composite liability scores based on ``assort1`` and ``assort2`` to
+    induce a target Pearson mate correlation on each trait's total liability.
+
+    Args:
+        rng: numpy random generator
+        male_idxs: indices of males in the parental population
+        male_counts: balanced mating slot counts per male
+        female_idxs: indices of females in the parental population
+        female_counts: balanced mating slot counts per female
+        pheno: (n, 6) array of [A1, C1, E1, A2, C2, E2] for parents
+        assort1: target mate correlation on trait 1 liability, in [-1, 1]
+        assort2: target mate correlation on trait 2 liability, in [-1, 1]
+
+    Returns:
+        ``(M, 2)`` array of ``[mother_idx, father_idx]``.
+    """
+    # 1. Expand slots
+    female_slots = np.repeat(female_idxs, female_counts)
+    male_slots = np.repeat(male_idxs, male_counts)
+    M = len(female_slots)
+
+    # 2. Compute liability per slot
+    liab1_f = pheno[female_slots, 0] + pheno[female_slots, 1] + pheno[female_slots, 2]
+    liab2_f = pheno[female_slots, 3] + pheno[female_slots, 4] + pheno[female_slots, 5]
+    liab1_m = pheno[male_slots, 0] + pheno[male_slots, 1] + pheno[male_slots, 2]
+    liab2_m = pheno[male_slots, 3] + pheno[male_slots, 4] + pheno[male_slots, 5]
+
+    # 3. Compute composite scores using ranks
+    rank1_f = rankdata(liab1_f) / (M + 1)
+    rank2_f = rankdata(liab2_f) / (M + 1)
+    rank1_m = rankdata(liab1_m) / (M + 1)
+    rank2_m = rankdata(liab2_m) / (M + 1)
+
+    # Negate male ranks for negative assortment traits
+    if assort1 < 0:
+        rank1_m = 1.0 - rank1_m
+    if assort2 < 0:
+        rank2_m = 1.0 - rank2_m
+
+    score_f = abs(assort1) * rank1_f + abs(assort2) * rank2_f
+    score_m = abs(assort1) * rank1_m + abs(assort2) * rank2_m
+
+    # 4. Sort by composite score
+    order_f = np.argsort(score_f)
+    order_m = np.argsort(score_m)
+    female_sorted = female_slots[order_f]
+    male_sorted = male_slots[order_m]
+
+    # 5. Effective copula correlation
+    r_eff = min(np.sqrt(assort1**2 + assort2**2), 1.0)
+
+    # 6. Draw bivariate normal
+    cov = [[1.0, r_eff], [r_eff, 1.0]]
+    z = rng.multivariate_normal([0.0, 0.0], cov, size=M)
+
+    # 7. Convert to ranks
+    rank_f = np.argsort(np.argsort(z[:, 0]))
+    rank_m = np.argsort(np.argsort(z[:, 1]))
+
+    # 8. Pair
+    matings = np.column_stack([female_sorted[rank_f], male_sorted[rank_m]])
+
+    # 9. Deduplicate (same logic as pair_partners)
+    for _attempt in range(5):
+        seen = set()
+        dups = []
+        for i in range(len(matings)):
+            key = (matings[i, 0], matings[i, 1])
+            if key in seen:
+                dups.append(i)
+            else:
+                seen.add(key)
+        if not dups:
+            break
+        non_dups = np.setdiff1d(np.arange(len(matings)), dups)
+        if len(non_dups) == 0:
+            break
+        for d in dups:
+            swap_with = rng.choice(non_dups)
+            matings[d, 1], matings[swap_with, 1] = matings[swap_with, 1], matings[d, 1]
+
+    return matings
+
+
 def allocate_offspring(rng: np.random.Generator, n_matings: int, N: int) -> np.ndarray:
     """Distribute *N* offspring across *n_matings* matings via multinomial.
 
@@ -200,13 +297,19 @@ def assign_twins(rng: np.random.Generator, offspring_counts: np.ndarray, p_mztwi
 
 
 def mating(
-    rng: np.random.Generator, parental_sex: np.ndarray, mating_lambda: float, p_mztwin: float
+    rng: np.random.Generator,
+    parental_sex: np.ndarray,
+    mating_lambda: float,
+    p_mztwin: float,
+    pheno: np.ndarray | None = None,
+    assort1: float = 0.0,
+    assort2: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate parent-offspring pairings via a modular mating pipeline.
 
     1. Separate males/females and draw ZTP(mating_lambda) mating counts.
     2. Balance slots so both sexes have equal total.
-    3. Pair partners randomly.
+    3. Pair partners randomly (or assortatively if assort1/assort2 != 0).
     4. Allocate N offspring across matings via multinomial.
     5. Assign MZ twins to eligible matings.
     6. Build output arrays.
@@ -216,12 +319,21 @@ def mating(
         parental_sex: array of sex values (0=female, 1=male) for parents
         mating_lambda: Poisson lambda for zero-truncated mating count distribution
         p_mztwin: probability of a mating producing MZ twins (if >= 2 offspring)
+        pheno: (n, 6) array of [A1, C1, E1, A2, C2, E2]; required when
+            assort1 or assort2 is nonzero
+        assort1: target mate correlation on trait 1 liability
+        assort2: target mate correlation on trait 2 liability
 
     Returns:
         parent_idxs: (N, 2) array of [mother_idx, father_idx] for each offspring
         twins: (m, 2) array of [twin1_idx, twin2_idx] pairs for MZ twins
         household_ids: (N,) array mapping each offspring to a household index
+
+    Raises:
+        ValueError: if assort is nonzero but pheno is None
     """
+    if (assort1 != 0 or assort2 != 0) and pheno is None:
+        raise ValueError("pheno must be provided when assort1 or assort2 is nonzero")
     N = len(parental_sex)
     male_idxs = np.where(parental_sex == 1)[0]
     female_idxs = np.where(parental_sex == 0)[0]
@@ -234,7 +346,13 @@ def mating(
     male_counts, female_counts = balance_mating_slots(rng, male_counts, female_counts)
 
     # 3. Pair partners -> (M, 2) of [mother_idx, father_idx]
-    matings = pair_partners(rng, male_idxs, male_counts, female_idxs, female_counts)
+    if assort1 != 0 or assort2 != 0:
+        matings = _assortative_pair_partners(
+            rng, male_idxs, male_counts, female_idxs, female_counts,
+            pheno, assort1, assort2,
+        )
+    else:
+        matings = pair_partners(rng, male_idxs, male_counts, female_idxs, female_counts)
     M = len(matings)
 
     # 4. Allocate offspring
@@ -434,6 +552,8 @@ def run_simulation(
     rA: float,
     rC: float,
     G_sim: int | None = None,
+    assort1: float = 0.0,
+    assort2: float = 0.0,
 ) -> pd.DataFrame:
     """Run the full ACE simulation for two correlated traits.
 
@@ -485,6 +605,10 @@ def run_simulation(
         raise ValueError(f"rA must be in [-1, 1], got {rA}")
     if not (-1 <= rC <= 1):
         raise ValueError(f"rC must be in [-1, 1], got {rC}")
+    if not (-1 <= assort1 <= 1):
+        raise ValueError(f"assort1 must be in [-1, 1], got {assort1}")
+    if not (-1 <= assort2 <= 1):
+        raise ValueError(f"assort2 must be in [-1, 1], got {assort2}")
 
     if G_sim < G_ped:
         raise ValueError(f"G_sim ({G_sim}) must be >= G_ped ({G_ped})")
@@ -520,7 +644,10 @@ def run_simulation(
     burnin = G_sim - G_ped
     pedigree = None
     for i in range(G_sim):
-        parents, twins, household_ids = mating(rng, sex, mating_lambda, p_mztwin)
+        parents, twins, household_ids = mating(
+            rng, sex, mating_lambda, p_mztwin,
+            pheno=pheno, assort1=assort1, assort2=assort2,
+        )
         pheno, sex = reproduce(
             rng,
             pheno,
@@ -584,6 +711,8 @@ def cli() -> None:
     parser.add_argument("--C2", type=float, default=0.2, help="Shared environment variance for trait 2")
     parser.add_argument("--rA", type=float, default=0.5, help="Cross-trait genetic correlation")
     parser.add_argument("--rC", type=float, default=0.3, help="Cross-trait shared environment correlation")
+    parser.add_argument("--assort1", type=float, default=0.0, help="Mate correlation on trait 1 liability")
+    parser.add_argument("--assort2", type=float, default=0.0, help="Mate correlation on trait 2 liability")
     parser.add_argument("--output-pedigree", required=True, help="Output pedigree parquet path")
     parser.add_argument("--output-params", required=True, help="Output params YAML path")
     parser.add_argument("--rep", type=int, default=1, help="Replicate number")
@@ -604,6 +733,8 @@ def cli() -> None:
         rA=args.rA,
         rC=args.rC,
         G_sim=args.G_sim,
+        assort1=args.assort1,
+        assort2=args.assort2,
     )
 
     save_parquet(pedigree, args.output_pedigree)
@@ -624,6 +755,8 @@ def cli() -> None:
         "G_sim": args.G_sim or args.G_ped,
         "mating_lambda": args.mating_lambda,
         "p_mztwin": args.p_mztwin,
+        "assort1": args.assort1,
+        "assort2": args.assort2,
     }
     with open(args.output_params, "w", encoding="utf-8") as f:
         yaml.dump(params_dict, f, default_flow_style=False)

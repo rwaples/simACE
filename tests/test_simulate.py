@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from sim_ace.simulate import (
+    _assortative_pair_partners,
     add_to_pedigree,
     allocate_offspring,
     assign_twins,
@@ -490,3 +491,71 @@ class TestRunSimulation:
     def test_p_mztwin_equals_one_raises(self, default_params):
         with pytest.raises(ValueError):
             run_simulation(**{**default_params, "p_mztwin": 1.0})
+
+    def test_assort_out_of_range_raises(self, default_params):
+        with pytest.raises(ValueError):
+            run_simulation(**{**default_params, "assort1": 1.5})
+        with pytest.raises(ValueError):
+            run_simulation(**{**default_params, "assort2": -1.5})
+
+    def test_assort_zero_preserves_rng(self, default_params):
+        """assort=0 should produce identical output to no assort params."""
+        ped1 = run_simulation(**{**default_params, "assort1": 0.0, "assort2": 0.0})
+        ped2 = run_simulation(**default_params)
+        pd.testing.assert_frame_equal(ped1, ped2)
+
+
+# ---------------------------------------------------------------------------
+# _assortative_pair_partners
+# ---------------------------------------------------------------------------
+
+
+class TestAssortativePairPartners:
+    def _make_pop(self, rng, n=2000):
+        """Create a test population with known pheno."""
+        sex = rng.binomial(n=1, p=0.5, size=n)
+        pheno = rng.standard_normal((n, 6))
+        male_idxs = np.where(sex == 1)[0]
+        female_idxs = np.where(sex == 0)[0]
+        male_counts = np.ones(len(male_idxs), dtype=int)
+        female_counts = np.ones(len(female_idxs), dtype=int)
+        # Balance
+        M = min(male_counts.sum(), female_counts.sum())
+        male_counts = male_counts[:M]
+        male_idxs = male_idxs[:M]
+        female_counts = female_counts[:M]
+        female_idxs = female_idxs[:M]
+        return male_idxs, male_counts, female_idxs, female_counts, pheno
+
+    def test_shape(self, rng):
+        mi, mc, fi, fc, pheno = self._make_pop(rng)
+        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.0)
+        assert pairs.shape == (mc.sum(), 2)
+
+    def test_positive_correlation(self, rng):
+        mi, mc, fi, fc, pheno = self._make_pop(rng, 5000)
+        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.5, 0.0)
+        liab1_m = pheno[pairs[:, 0], :3].sum(axis=1)
+        liab1_f = pheno[pairs[:, 1], :3].sum(axis=1)
+        corr = np.corrcoef(liab1_m, liab1_f)[0, 1]
+        assert corr > 0.15
+
+    def test_negative_correlation(self, rng):
+        mi, mc, fi, fc, pheno = self._make_pop(rng, 5000)
+        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, -0.5, 0.0)
+        liab1_m = pheno[pairs[:, 0], :3].sum(axis=1)
+        liab1_f = pheno[pairs[:, 1], :3].sum(axis=1)
+        corr = np.corrcoef(liab1_m, liab1_f)[0, 1]
+        assert corr < -0.15
+
+
+# ---------------------------------------------------------------------------
+# mating: assortative mating integration
+# ---------------------------------------------------------------------------
+
+
+class TestMatingAssortative:
+    def test_assort_without_pheno_raises(self, rng):
+        sex = rng.binomial(n=1, p=0.5, size=500)
+        with pytest.raises(ValueError, match="pheno must be provided"):
+            mating(rng, sex, 0.5, 0.02, pheno=None, assort1=0.3)
