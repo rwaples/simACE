@@ -257,6 +257,51 @@ def draw_split_violin(
         ax.plot(x_inner, med, "o", color="white", ms=3, mew=0, zorder=5)
 
 
+def expected_mate_corr_matrix(
+    assort1: float,
+    assort2: float,
+    rA: float,
+    rC: float,
+    A1: float,
+    C1: float,
+    A2: float,
+    C2: float,
+) -> np.ndarray:
+    """Compute the 2x2 expected mate liability correlation matrix.
+
+    Returns E[corr(F_i, M_j)] for i,j in {1,2} given assortative mating
+    parameters and ACE variance components.
+
+    With the 4-variate copula algorithm, assort1 and assort2 are target
+    Pearson mate correlations. The cross-mate cross-trait correlation follows
+    from the mechanistic path: r_yz = rho_w * sqrt(|r1*r2|) * sign(r1*r2).
+    """
+    if assort1 == 0 and assort2 == 0:
+        return np.zeros((2, 2))
+
+    # Within-person cross-trait correlation
+    rho_w = rA * np.sqrt(A1 * A2) + rC * np.sqrt(C1 * C2)
+
+    if assort1 != 0 and assort2 != 0:
+        # Both traits: diagonal = targets, off-diagonal from cross-trait path
+        r_yz = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
+        return np.array([[assort1, r_yz], [r_yz, assort2]])
+    elif assort1 != 0:
+        # Single-trait on trait 1: propagate via rho_w
+        a = assort1
+        return np.array([
+            [a, a * rho_w],
+            [a * rho_w, a * rho_w**2],
+        ])
+    else:
+        # Single-trait on trait 2: propagate via rho_w
+        a = assort2
+        return np.array([
+            [a * rho_w**2, a * rho_w],
+            [a * rho_w, a],
+        ])
+
+
 def draw_colored_violins(
     ax,
     datasets,

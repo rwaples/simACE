@@ -19,7 +19,7 @@ import time
 import numpy as np
 import pandas as pd
 import yaml
-from scipy.stats import rankdata
+from scipy.stats import norm, rankdata
 
 from sim_ace.utils import save_parquet
 
@@ -182,11 +182,16 @@ def _assortative_pair_partners(
     pheno: np.ndarray,
     assort1: float,
     assort2: float,
+    rho_w: float = 0.0,
 ) -> np.ndarray:
-    """Create mating pairs with assortative mating via a Gaussian copula.
+    """Create mating pairs with assortative mating.
 
-    Uses composite liability scores based on ``assort1`` and ``assort2`` to
-    induce a target Pearson mate correlation on each trait's total liability.
+    Single-trait case (one of assort1/assort2 zero): bivariate Gaussian copula
+    on the active trait.
+
+    Both-nonzero case: 4-variate Gaussian copula targeting Pearson mate
+    correlations, following Border et al. (2022, Science) Eq. 2.
+    Uses conditional-expectation initialization + Metropolis greedy swaps.
 
     Args:
         rng: numpy random generator
@@ -197,6 +202,7 @@ def _assortative_pair_partners(
         pheno: (n, 6) array of [A1, C1, E1, A2, C2, E2] for parents
         assort1: target mate correlation on trait 1 liability, in [-1, 1]
         assort2: target mate correlation on trait 2 liability, in [-1, 1]
+        rho_w: within-person cross-trait liability correlation
 
     Returns:
         ``(M, 2)`` array of ``[mother_idx, father_idx]``.
@@ -212,42 +218,127 @@ def _assortative_pair_partners(
     liab1_m = pheno[male_slots, 0] + pheno[male_slots, 1] + pheno[male_slots, 2]
     liab2_m = pheno[male_slots, 3] + pheno[male_slots, 4] + pheno[male_slots, 5]
 
-    # 3. Compute composite scores using ranks
-    rank1_f = rankdata(liab1_f) / (M + 1)
-    rank2_f = rankdata(liab2_f) / (M + 1)
-    rank1_m = rankdata(liab1_m) / (M + 1)
-    rank2_m = rankdata(liab2_m) / (M + 1)
+    if assort1 != 0 and assort2 != 0:
+        # --- Both traits nonzero: 4-variate copula ---
+        r1, r2 = assort1, assort2
+        r_yz = rho_w * np.sqrt(abs(r1 * r2)) * np.sign(r1 * r2)
 
-    # Negate male ranks for negative assortment traits
-    if assort1 < 0:
-        rank1_m = 1.0 - rank1_m
-    if assort2 < 0:
-        rank2_m = 1.0 - rank2_m
+        # Phase 1: Conditional-expectation initialization
+        qn_f1 = norm.ppf(rankdata(liab1_f) / (M + 1))
+        qn_f2 = norm.ppf(rankdata(liab2_f) / (M + 1))
+        qn_m1 = norm.ppf(rankdata(liab1_m) / (M + 1))
+        qn_m2 = norm.ppf(rankdata(liab2_m) / (M + 1))
 
-    score_f = abs(assort1) * rank1_f + abs(assort2) * rank2_f
-    score_m = abs(assort1) * rank1_m + abs(assort2) * rank2_m
+        R_mf = np.array([[r1, r_yz], [r_yz, r2]])
+        R_ff = np.array([[1.0, rho_w], [rho_w, 1.0]])
+        B = R_mf @ np.linalg.inv(R_ff)
 
-    # 4. Sort by composite score
-    order_f = np.argsort(score_f)
-    order_m = np.argsort(score_m)
-    female_sorted = female_slots[order_f]
-    male_sorted = male_slots[order_m]
+        female_qn = np.column_stack([qn_f1, qn_f2])
+        target_m = female_qn @ B.T
 
-    # 5. Effective copula correlation
-    r_eff = min(np.sqrt(assort1**2 + assort2**2), 1.0)
+        _U, _s, Vt = np.linalg.svd(R_mf)
+        v = Vt[0]  # dominant right singular vector
 
-    # 6. Draw bivariate normal
-    cov = [[1.0, r_eff], [r_eff, 1.0]]
-    z = rng.multivariate_normal([0.0, 0.0], cov, size=M)
+        male_qn = np.column_stack([qn_m1, qn_m2])
+        target_proj = target_m @ v
+        male_proj = male_qn @ v
 
-    # 7. Convert to ranks
-    rank_f = np.argsort(np.argsort(z[:, 0]))
-    rank_m = np.argsort(np.argsort(z[:, 1]))
+        order_target = np.argsort(target_proj)
+        order_male = np.argsort(male_proj)
+        male_perm = np.empty(M, dtype=np.intp)
+        male_perm[order_target] = order_male
 
-    # 8. Pair
-    matings = np.column_stack([female_sorted[rank_f], male_sorted[rank_m]])
+        # Phase 2: Metropolis refinement on standardized liabilities
+        def _zscore(arr):
+            s = arr.std()
+            return (arr - arr.mean()) / s if s > 1e-12 else np.zeros_like(arr)
 
-    # 9. Deduplicate (same logic as pair_partners)
+        f1_z = _zscore(liab1_f)
+        f2_z = _zscore(liab2_f)
+        m1_all_z = _zscore(liab1_m)
+        m2_all_z = _zscore(liab2_m)
+
+        m1_z = m1_all_z[male_perm].copy()
+        m2_z = m2_all_z[male_perm].copy()
+
+        T1 = r1 * M
+        T2 = r2 * M
+        S1 = float(f1_z @ m1_z)
+        S2 = float(f2_z @ m2_z)
+
+        tol = 5e-4
+        max_proposals = 5 * M
+        proposals_done = 0
+
+        while proposals_done < max_proposals:
+            if max(abs(S1 / M - r1), abs(S2 / M - r2)) < tol:
+                break
+
+            perm = rng.permutation(M)
+            batch = min(M // 2, max_proposals - proposals_done)
+            idx_i = perm[0::2][:batch]
+            idx_j = perm[1::2][:batch]
+
+            d1 = (f1_z[idx_i] - f1_z[idx_j]) * (m1_z[idx_j] - m1_z[idx_i])
+            d2 = (f2_z[idx_i] - f2_z[idx_j]) * (m2_z[idx_j] - m2_z[idx_i])
+
+            for k in range(batch):
+                dk1, dk2 = float(d1[k]), float(d2[k])
+                ne1 = S1 + dk1 - T1
+                ne2 = S2 + dk2 - T2
+                oe1 = S1 - T1
+                oe2 = S2 - T2
+                if ne1 * ne1 + ne2 * ne2 < oe1 * oe1 + oe2 * oe2:
+                    i, j = int(idx_i[k]), int(idx_j[k])
+                    m1_z[i], m1_z[j] = m1_z[j], m1_z[i]
+                    m2_z[i], m2_z[j] = m2_z[j], m2_z[i]
+                    male_perm[i], male_perm[j] = male_perm[j], male_perm[i]
+                    S1 += dk1
+                    S2 += dk2
+
+            proposals_done += batch
+        else:
+            logger.warning(
+                "Assortative mating Metropolis did not converge after %d proposals: "
+                "err1=%.4f, err2=%.4f",
+                max_proposals,
+                S1 / M - r1,
+                S2 / M - r2,
+            )
+
+        matings = np.column_stack([female_slots, male_slots[male_perm]])
+
+    else:
+        # --- Single-trait: bivariate Gaussian copula ---
+        rank1_f = rankdata(liab1_f) / (M + 1)
+        rank2_f = rankdata(liab2_f) / (M + 1)
+        rank1_m = rankdata(liab1_m) / (M + 1)
+        rank2_m = rankdata(liab2_m) / (M + 1)
+
+        if assort1 < 0:
+            rank1_m = 1.0 - rank1_m
+        if assort2 < 0:
+            rank2_m = 1.0 - rank2_m
+
+        score_f = abs(assort1) * rank1_f + abs(assort2) * rank2_f
+        score_m = abs(assort1) * rank1_m + abs(assort2) * rank2_m
+
+        order_f = np.argsort(score_f)
+        order_m = np.argsort(score_m)
+        female_sorted = female_slots[order_f]
+        male_sorted = male_slots[order_m]
+
+        r_eff = min(np.sqrt(assort1**2 + assort2**2), 1.0)
+
+        cov = [[1.0, r_eff], [r_eff, 1.0]]
+        z = rng.multivariate_normal([0.0, 0.0], cov, size=M)
+
+        rank_f = np.argsort(np.argsort(z[:, 0]))
+        rank_m = np.argsort(np.argsort(z[:, 1]))
+
+        matings = np.column_stack([female_sorted[rank_f], male_sorted[rank_m]])
+
+    # Deduplicate (same logic as pair_partners)
     for _attempt in range(5):
         seen = set()
         dups = []
@@ -304,6 +395,7 @@ def mating(
     pheno: np.ndarray | None = None,
     assort1: float = 0.0,
     assort2: float = 0.0,
+    rho_w: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate parent-offspring pairings via a modular mating pipeline.
 
@@ -349,7 +441,7 @@ def mating(
     if assort1 != 0 or assort2 != 0:
         matings = _assortative_pair_partners(
             rng, male_idxs, male_counts, female_idxs, female_counts,
-            pheno, assort1, assort2,
+            pheno, assort1, assort2, rho_w=rho_w,
         )
     else:
         matings = pair_partners(rng, male_idxs, male_counts, female_idxs, female_counts)
@@ -625,6 +717,9 @@ def run_simulation(
     sd_A1, sd_C1, sd_E1 = np.sqrt(A1), np.sqrt(C1), np.sqrt(E1)
     sd_A2, sd_C2, sd_E2 = np.sqrt(A2), np.sqrt(C2), np.sqrt(E2)
 
+    # Within-person cross-trait liability correlation
+    rho_w = rA * np.sqrt(A1 * A2) + rC * np.sqrt(C1 * C2)
+
     # Initialize founders with correlated components
     sex = rng.binomial(size=N, n=1, p=0.5)
 
@@ -646,7 +741,7 @@ def run_simulation(
     for i in range(G_sim):
         parents, twins, household_ids = mating(
             rng, sex, mating_lambda, p_mztwin,
-            pheno=pheno, assort1=assort1, assort2=assort2,
+            pheno=pheno, assort1=assort1, assort2=assort2, rho_w=rho_w,
         )
         pheno, sex = reproduce(
             rng,

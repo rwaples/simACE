@@ -304,7 +304,7 @@ class TestAssortativeMating:
 
     def test_mate_correlation_trait1_positive(self, assort_pedigree):
         corr = self._mate_corr(assort_pedigree, 1)
-        assert corr > 0.15
+        assert abs(corr - 0.4) < 0.15
 
     def test_mate_correlation_trait2_near_zero(self, assort_pedigree):
         corr = self._mate_corr(assort_pedigree, 2)
@@ -320,3 +320,49 @@ class TestAssortativeMating:
         f_liab = df_idx.loc[pairs["father"].values, "liability1"].values
         corr = np.corrcoef(m_liab, f_liab)[0, 1]
         assert corr < -0.1
+
+
+# ---------------------------------------------------------------------------
+# Assortative mating: both traits nonzero
+# ---------------------------------------------------------------------------
+
+ASSORT_BOTH_PARAMS = dict(
+    seed=7654,
+    N=5000,
+    G_ped=3,
+    mating_lambda=0.5,
+    p_mztwin=0.03,
+    A1=0.5,
+    C1=0.2,
+    A2=0.4,
+    C2=0.3,
+    rA=0.5,
+    rC=0.4,
+    assort1=0.4,
+    assort2=0.3,
+)
+
+
+@pytest.fixture(scope="module")
+def assort_both_pedigree():
+    """Module-scoped pedigree with both-trait assortative mating."""
+    return run_simulation(**ASSORT_BOTH_PARAMS)
+
+
+class TestAssortativeMatingBoth:
+    def _mate_corr(self, df, trait):
+        """Compute Pearson correlation of mother/father liability for a trait."""
+        non_founders = df[df["mother"] != -1]
+        pairs = non_founders[["mother", "father"]].drop_duplicates()
+        df_idx = df.set_index("id")
+        m_liab = df_idx.loc[pairs["mother"].values, f"liability{trait}"].values
+        f_liab = df_idx.loc[pairs["father"].values, f"liability{trait}"].values
+        return np.corrcoef(m_liab, f_liab)[0, 1]
+
+    def test_mate_correlation_trait1(self, assort_both_pedigree):
+        corr = self._mate_corr(assort_both_pedigree, 1)
+        assert abs(corr - 0.4) < 0.15
+
+    def test_mate_correlation_trait2(self, assort_both_pedigree):
+        corr = self._mate_corr(assort_both_pedigree, 2)
+        assert abs(corr - 0.3) < 0.15

@@ -18,7 +18,7 @@ Each generation, mating pairs are formed via a modular pipeline controlled by `m
 
 1. Every male and female draws a mating count from a zero-truncated Poisson(λ) distribution.
 2. Total male and female mating slots are balanced (random trimming of the larger side).
-3. Slots are paired to form explicit (mother, father) matings — randomly by default, or assortatively when `assort1`/`assort2` are nonzero (Gaussian copula on composite liability scores).
+3. Slots are paired to form explicit (mother, father) matings — randomly by default, or assortatively when `assort1`/`assort2` are nonzero (4-variate Gaussian copula targeting Pearson mate correlations; Border et al. 2022).
 4. N offspring are distributed across matings via a multinomial draw, so some matings produce zero offspring (~13% natural childlessness).
 5. MZ twins are assigned to matings with ≥2 offspring at rate `p_mztwin`.
 

@@ -529,12 +529,12 @@ class TestAssortativePairPartners:
 
     def test_shape(self, rng):
         mi, mc, fi, fc, pheno = self._make_pop(rng)
-        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.0)
+        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.0, rho_w=0.0)
         assert pairs.shape == (mc.sum(), 2)
 
     def test_positive_correlation(self, rng):
         mi, mc, fi, fc, pheno = self._make_pop(rng, 5000)
-        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.5, 0.0)
+        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.5, 0.0, rho_w=0.0)
         liab1_m = pheno[pairs[:, 0], :3].sum(axis=1)
         liab1_f = pheno[pairs[:, 1], :3].sum(axis=1)
         corr = np.corrcoef(liab1_m, liab1_f)[0, 1]
@@ -542,11 +542,39 @@ class TestAssortativePairPartners:
 
     def test_negative_correlation(self, rng):
         mi, mc, fi, fc, pheno = self._make_pop(rng, 5000)
-        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, -0.5, 0.0)
+        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, -0.5, 0.0, rho_w=0.0)
         liab1_m = pheno[pairs[:, 0], :3].sum(axis=1)
         liab1_f = pheno[pairs[:, 1], :3].sum(axis=1)
         corr = np.corrcoef(liab1_m, liab1_f)[0, 1]
         assert corr < -0.15
+
+    def test_both_traits_positive(self, rng):
+        mi, mc, fi, fc, pheno = self._make_pop(rng, 10000)
+        pairs = _assortative_pair_partners(
+            rng, mi, mc, fi, fc, pheno, 0.4, 0.3, rho_w=0.25,
+        )
+        liab1_m = pheno[pairs[:, 0], :3].sum(axis=1)
+        liab1_f = pheno[pairs[:, 1], :3].sum(axis=1)
+        liab2_m = pheno[pairs[:, 0], 3:].sum(axis=1)
+        liab2_f = pheno[pairs[:, 1], 3:].sum(axis=1)
+        corr1 = np.corrcoef(liab1_m, liab1_f)[0, 1]
+        corr2 = np.corrcoef(liab2_m, liab2_f)[0, 1]
+        assert abs(corr1 - 0.4) < 0.05
+        assert abs(corr2 - 0.3) < 0.05
+
+    def test_mixed_sign(self, rng):
+        mi, mc, fi, fc, pheno = self._make_pop(rng, 10000)
+        pairs = _assortative_pair_partners(
+            rng, mi, mc, fi, fc, pheno, 0.4, -0.3, rho_w=0.25,
+        )
+        liab1_m = pheno[pairs[:, 0], :3].sum(axis=1)
+        liab1_f = pheno[pairs[:, 1], :3].sum(axis=1)
+        liab2_m = pheno[pairs[:, 0], 3:].sum(axis=1)
+        liab2_f = pheno[pairs[:, 1], 3:].sum(axis=1)
+        corr1 = np.corrcoef(liab1_m, liab1_f)[0, 1]
+        corr2 = np.corrcoef(liab2_m, liab2_f)[0, 1]
+        assert abs(corr1 - 0.4) < 0.05
+        assert abs(corr2 - (-0.3)) < 0.05
 
 
 # ---------------------------------------------------------------------------
