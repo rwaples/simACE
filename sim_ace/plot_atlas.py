@@ -551,7 +551,7 @@ def assemble_atlas(
             fig = plt.figure(figsize=(page_w, page_h))
 
             # Image axes in the upper portion
-            ax = fig.add_axes([0.02, caption_frac + 0.01, 0.96, img_frac - 0.02])
+            ax = fig.add_axes([0.005, caption_frac + 0.005, 0.99, img_frac - 0.01])
             ax.imshow(img)
             ax.axis("off")
 

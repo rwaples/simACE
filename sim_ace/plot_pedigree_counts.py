@@ -50,17 +50,17 @@ NODES: dict[str, tuple[float, float, str]] = {
     "gu_child": (10.5, 5.0, "F"),
     # Gen 3 — Proband and relatives
     # pat_hs on father's side (left), mat_hs on mother's side (right)
-    "pat_hs": (-0.5, 2.0, "M"),
-    "mz_twin": (1.0, 2.0, "M"),
+    "pat_hs": (-1.5, 2.0, "M"),
+    "mz_twin": (0.5, 2.0, "M"),
     "proband": (2.5, 2.0, "M"),
-    "full_sib": (4.0, 2.0, "F"),
-    "mat_hs": (6.0, 2.0, "F"),
-    "cousin": (9.0, 2.0, "M"),
-    "second_cousin": (11.0, 2.0, "F"),
+    "full_sib": (4.5, 2.0, "F"),
+    "mat_hs": (7.0, 2.0, "F"),
+    "cousin": (9.5, 2.0, "M"),
+    "second_cousin": (12.0, 2.0, "F"),
 }
 
 PROBAND_NODE = "proband"
-NODE_RADIUS = 0.32
+NODE_RADIUS = 0.34
 
 # Marriage lines (double horizontal bar)
 MARRIAGES = [
@@ -122,9 +122,9 @@ LABEL_OFFSETS: dict[str, tuple[float, float, str, str]] = {
     "Full sib": (0.0, -0.55, "center", "top"),
     "Paternal half sib": (0.0, -0.55, "center", "top"),
     "Maternal half sib": (0.0, -0.55, "center", "top"),
-    "Father-offspring": (-0.6, -0.55, "center", "top"),
-    "Mother-offspring": (0.6, -0.55, "center", "top"),
-    "Grandparent-grandchild": (-0.9, 0.65, "center", "bottom"),
+    "Father-offspring": (0.0, -0.55, "center", "top"),
+    "Mother-offspring": (0.0, -0.55, "center", "top"),
+    "Grandparent-grandchild": (-1.3, 0.55, "center", "bottom"),
     "Avuncular": (0.6, -0.55, "center", "top"),
     "1st cousin": (0.0, -0.55, "center", "top"),
     "2nd cousin": (0.0, -0.55, "center", "top"),
@@ -135,8 +135,10 @@ _SHORT_LABELS: dict[str, str] = {
     "Father-offspring": "Father",
     "Mother-offspring": "Mother",
     "Grandparent-grandchild": "Grandparent",
-    "Maternal half sib": "Maternal HS",
-    "Paternal half sib": "Paternal HS",
+    "Maternal half sib": "Mat. HS",
+    "Paternal half sib": "Pat. HS",
+    "MZ twin": "MZ twin",
+    "Full sib": "Full sib",
 }
 
 # ---------------------------------------------------------------------------
@@ -307,9 +309,9 @@ def plot_pedigree_relationship_counts(
         node_rel_color[node] = rel_colors[rel_name]
 
     # Create figure
-    _fig, ax = plt.subplots(figsize=(14, 11))
-    ax.set_xlim(-2.5, 13.5)
-    ax.set_ylim(-0.8, 11.2)
+    _fig, ax = plt.subplots(figsize=(14, 8))
+    ax.set_xlim(-3.0, 14.5)
+    ax.set_ylim(-0.5, 11.5)
     ax.set_aspect("equal")
     ax.set_axis_off()
 
@@ -318,7 +320,7 @@ def plot_pedigree_relationship_counts(
         title += f"  ({generations_label})"
     if scenario:
         title += f"  [{scenario}]"
-    ax.set_title(title, fontsize=14, fontweight="bold", pad=12)
+    ax.set_title(title, fontsize=22, fontweight="bold", pad=16)
 
     # Generation labels
     for g, y in {0: 10.0, 1: 7.5, 2: 5.0, 3: 2.0}.items():
@@ -326,7 +328,7 @@ def plot_pedigree_relationship_counts(
             -2.0,
             y,
             f"Gen {g}",
-            fontsize=9,
+            fontsize=14,
             ha="center",
             va="center",
             fontstyle="italic",
@@ -368,7 +370,7 @@ def plot_pedigree_relationship_counts(
         px,
         py - NODE_RADIUS - 0.25,
         "Proband",
-        fontsize=10,
+        fontsize=16,
         ha="center",
         va="top",
         fontweight="bold",
@@ -386,13 +388,13 @@ def plot_pedigree_relationship_counts(
             label = f"{display}\nnot computed"
         else:
             mean_count = counts.get(rel_name, 0)
-            label = f"{display}\nn = {mean_count:,.0f}"
+            label = f"{display}\n({mean_count:,.0f})"
 
         ax.text(
             nx + dx,
             ny + dy,
             label,
-            fontsize=9,
+            fontsize=14,
             ha=ha,
             va=va,
             color=color,
@@ -410,10 +412,10 @@ def plot_pedigree_relationship_counts(
     ax.legend(
         handles=handles,
         loc="upper right",
-        fontsize=8,
+        fontsize=10,
         framealpha=0.9,
         title="Relationship (mean pairs)",
-        title_fontsize=9,
+        title_fontsize=11,
     )
 
     # Population metadata annotation
@@ -434,7 +436,7 @@ def plot_pedigree_relationship_counts(
         0.01,
         "  |  ".join(footer_parts),
         transform=ax.transAxes,
-        fontsize=8,
+        fontsize=12,
         ha="right",
         va="bottom",
         color="grey",
