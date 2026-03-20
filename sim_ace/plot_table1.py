@@ -56,6 +56,26 @@ def _fmt_range_f(vals: list, decimals: int = 2) -> str:
     return _fmt_range(vals, fmt_func=lambda v: _fmt_f(v, decimals))
 
 
+def _fmt_split(vals: list, fmt_func=_fmt_int) -> tuple[str, str]:
+    """Return (value, range_annotation) as separate strings."""
+    clean = [v for v in vals if v is not None]
+    if not clean:
+        return ("\u2014", "")
+    m = mean(clean)
+    val = fmt_func(m)
+    if len(clean) <= 1 or min(clean) == max(clean):
+        return (val, "")
+    return (val, f"[{fmt_func(min(clean))}\u2013{fmt_func(max(clean))}]")
+
+
+def _fmt_split_pct(vals: list) -> tuple[str, str]:
+    return _fmt_split(vals, fmt_func=_fmt_pct)
+
+
+def _fmt_split_f(vals: list, decimals: int = 2) -> tuple[str, str]:
+    return _fmt_split(vals, fmt_func=lambda v: _fmt_f(v, decimals))
+
+
 # ---------------------------------------------------------------------------
 # Data extraction helpers
 # ---------------------------------------------------------------------------
@@ -73,8 +93,8 @@ def _safe_get(d: dict, *keys, default=None):
 def _compute_aoo_quartiles(ci_data: dict) -> dict:
     """From a cumulative incidence dict, interpolate ages at 25/50/75% of final."""
     ages = ci_data.get("ages")
-    # Support both 'incidence' and 'observed_values' key names
-    inc = ci_data.get("incidence") or ci_data.get("observed_values")
+    # Support varying key names across stat types
+    inc = ci_data.get("incidence") or ci_data.get("observed_values") or ci_data.get("values")
     if not ages or not inc:
         return {"q1": None, "median": None, "q3": None}
     ages = np.asarray(ages, dtype=float)
@@ -131,7 +151,7 @@ _LEFT = 0.04  # left margin for labels
 _COL1 = 0.52  # column 1 (Trait 1) x position
 _COL2 = 0.76  # column 2 (Trait 2) x position
 _RIGHT = 0.96  # right edge for single-value column
-_ROW_H = 0.021  # row height as fraction of figure height
+_ROW_H = 0.020  # row height as fraction of figure height
 _FONT = "sans-serif"
 _FONT_SIZE = 8.0
 _HEADER_SIZE = 9.5
@@ -171,7 +191,13 @@ def _draw_section_header(fig, y: float, text: str) -> float:
 
 
 def _draw_row(
-    fig, ax, y: float, label: str, value: str, shade: bool, color: str = "black",
+    fig,
+    ax,
+    y: float,
+    label: str,
+    value: str,
+    shade: bool,
+    color: str = "black",
 ) -> float:
     """Draw a single-value row (label on left, value on right)."""
     _draw_row_bg(ax, y, shade)
@@ -196,6 +222,84 @@ def _draw_row(
         ha="right",
         transform=fig.transFigure,
     )
+    return y - _ROW_H
+
+
+_DECIMAL_X = 0.66  # x position where the decimal point aligns
+
+
+def _draw_row3(
+    fig,
+    ax,
+    y: float,
+    label: str,
+    value: str,
+    rng: str,
+    shade: bool,
+    color: str = "black",
+) -> float:
+    """Draw a three-column row: label | value (decimal-aligned) | [min–max]."""
+    _draw_row_bg(ax, y, shade)
+    fig.text(
+        _LEFT + 0.02,
+        y,
+        label,
+        fontsize=_FONT_SIZE,
+        fontfamily=_FONT,
+        color=color,
+        va="top",
+        transform=fig.transFigure,
+    )
+    # Decimal-point alignment: split at '.' and render halves
+    if "." in value:
+        int_part, frac_part = value.split(".", 1)
+        fig.text(
+            _DECIMAL_X,
+            y,
+            int_part + ".",
+            fontsize=_FONT_SIZE,
+            fontfamily="monospace",
+            color=color,
+            va="top",
+            ha="right",
+            transform=fig.transFigure,
+        )
+        fig.text(
+            _DECIMAL_X,
+            y,
+            frac_part,
+            fontsize=_FONT_SIZE,
+            fontfamily="monospace",
+            color=color,
+            va="top",
+            ha="left",
+            transform=fig.transFigure,
+        )
+    else:
+        # No decimal — right-align at the decimal position
+        fig.text(
+            _DECIMAL_X,
+            y,
+            value,
+            fontsize=_FONT_SIZE,
+            fontfamily="monospace",
+            color=color,
+            va="top",
+            ha="right",
+            transform=fig.transFigure,
+        )
+    if rng:
+        fig.text(
+            _RIGHT,
+            y,
+            rng,
+            fontsize=_FONT_SIZE,
+            fontfamily="monospace",
+            color=color,
+            va="top",
+            ha="right",
+            transform=fig.transFigure,
+        )
     return y - _ROW_H
 
 
@@ -261,6 +365,70 @@ def _draw_col_headers(fig, y: float) -> float:
     return y - _ROW_H
 
 
+# 4-column center positions: T1-F, T1-M, T2-F, T2-M
+_C4 = [0.46, 0.60, 0.74, 0.88]
+
+
+def _draw_col4_headers(fig, y: float) -> float:
+    """Draw Trait 1 / Trait 2 header with Female / Male sub-headers."""
+    t1_center = (_C4[0] + _C4[1]) / 2
+    t2_center = (_C4[2] + _C4[3]) / 2
+    fig.text(
+        t1_center, y, "Trait 1",
+        fontsize=_FONT_SIZE, fontweight="bold", fontfamily=_FONT,
+        va="top", ha="center", transform=fig.transFigure,
+    )
+    fig.text(
+        t2_center, y, "Trait 2",
+        fontsize=_FONT_SIZE, fontweight="bold", fontfamily=_FONT,
+        va="top", ha="center", transform=fig.transFigure,
+    )
+    y -= _ROW_H
+    for x, label in zip(_C4, ["Female", "Male", "Female", "Male"]):
+        fig.text(
+            x, y, label,
+            fontsize=_FONT_SIZE, fontweight="bold", fontfamily=_FONT,
+            color="0.35", va="top", ha="center", transform=fig.transFigure,
+        )
+    return y - _ROW_H
+
+
+def _draw_row4(
+    fig,
+    ax,
+    y: float,
+    label: str,
+    t1f: str,
+    t1m: str,
+    t2f: str,
+    t2m: str,
+    shade: bool,
+) -> float:
+    """Draw a 4-column row: label | T1-F | T1-M | T2-F | T2-M."""
+    _draw_row_bg(ax, y, shade)
+    fig.text(
+        _LEFT + 0.02,
+        y,
+        label,
+        fontsize=_FONT_SIZE,
+        fontfamily=_FONT,
+        va="top",
+        transform=fig.transFigure,
+    )
+    for x, val in zip(_C4, [t1f, t1m, t2f, t2m]):
+        fig.text(
+            x,
+            y,
+            val,
+            fontsize=_FONT_SIZE,
+            fontfamily=_FONT,
+            va="top",
+            ha="center",
+            transform=fig.transFigure,
+        )
+    return y - _ROW_H
+
+
 # ---------------------------------------------------------------------------
 # Main rendering function
 # ---------------------------------------------------------------------------
@@ -321,174 +489,229 @@ def render_table1_figure(
     n_ped = s0.get("n_individuals_ped")
     n_gen = s0.get("n_generations")
 
-    mz_pairs = [_safe_get(s, "pair_counts", "MZ twin") for s in all_stats]
+    # --- Study size & demographics ---
+    r3 = _draw_row3  # shorthand
+    y = r3(fig, ax, y, "Total phenotyped individuals, n", _fmt_int(n_ind), "", True)
+    y = r3(fig, ax, y, "Full pedigree individuals, n", _fmt_int(n_ped), "", False)
+    y = r3(fig, ax, y, "Generations observed", str(n_gen) if n_gen else "\u2014", "", True)
 
-    y = _draw_row(fig, ax, y, "Total phenotyped individuals, n", _fmt_int(n_ind), True)
-    y = _draw_row(fig, ax, y, "Full pedigree individuals, n", _fmt_int(n_ped), False)
-    y = _draw_row(fig, ax, y, "Generations observed", str(n_gen) if n_gen else "\u2014", True)
-
-    # Female/male with percentages — also constant across reps
     f_n = _sex_n(s0, "trait1")[0]
     m_n = _sex_n(s0, "trait1")[1]
-    if f_n is not None and n_ind:
-        f_str = f"{_fmt_int(f_n)} ({_fmt_pct(f_n / n_ind)})"
-        m_str = f"{_fmt_int(m_n)} ({_fmt_pct(m_n / n_ind)})" if m_n else "\u2014"
-    else:
-        f_str = _fmt_int(f_n)
-        m_str = _fmt_int(m_n)
-
-    y = _draw_row(fig, ax, y, "  Female, n (%)", f_str, False)
-    y = _draw_row(fig, ax, y, "  Male, n (%)", m_str, True)
-    y = _draw_row(fig, ax, y, "MZ twin pairs, n", _fmt_range(mz_pairs), False)
-
-    # Mean family size (overall + by sex)
-    fam_means = [_safe_get(s, "family_size", "mean") for s in all_stats]
-    fam_f = [_safe_get(s, "family_size", "mean_female") for s in all_stats]
-    fam_m = [_safe_get(s, "family_size", "mean_male") for s in all_stats]
-    y = _draw_row(fig, ax, y, "Mean family size", _fmt_range_f(fam_means, 2), True)
-    y = _draw_row(fig, ax, y, "  Female offspring per family", _fmt_range_f(fam_f, 2), False)
-    y = _draw_row(fig, ax, y, "  Male offspring per family", _fmt_range_f(fam_m, 2), True)
-
-    y = _draw_row(
-        fig,
-        ax,
-        y,
-        "Maximum follow-up age",
-        f"{p.get('censor_age', '—')} years",
-        False,
-    )
-
-    # Person-years
-    total_py = [_safe_get(s, "person_years", "total") for s in all_stats]
-    if any(v is not None for v in total_py):
-        y = _draw_row(fig, ax, y, "Total person-years of follow-up", _fmt_range(total_py), True)
+    f_pct_str = f"({_fmt_pct(f_n / n_ind)})" if f_n is not None and n_ind else ""
+    m_pct_str = f"({_fmt_pct(m_n / n_ind)})" if m_n is not None and n_ind else ""
+    y = r3(fig, ax, y, "  Female, n (%)", _fmt_int(f_n), f_pct_str, False)
+    y = r3(fig, ax, y, "  Male, n (%)", _fmt_int(m_n), m_pct_str, True)
 
     # Sampling info — always shown, grayed out when defaults
     n_sample = p.get("N_sample", 0)
     car = p.get("case_ascertainment_ratio", 1.0)
     sample_active = n_sample and n_sample > 0
     car_active = car != 1.0
-    sample_color = "black" if sample_active else "0.55"
-    car_color = "black" if car_active else "0.55"
-    sample_val = _fmt_int(n_sample) if sample_active else "none (full population)"
-    car_val = f"{car:.1f}\u00d7" if car_active else "1.0\u00d7 (no enrichment)"
-    y = _draw_row(fig, ax, y, "Sampled individuals, n", sample_val, False, color=sample_color)
-    y = _draw_row(fig, ax, y, "Case ascertainment ratio", car_val, True, color=car_color)
+    sc = "black" if sample_active else "0.55"
+    cc = "black" if car_active else "0.55"
+    sample_val = _fmt_int(n_sample) if sample_active else "none"
+    sample_rng = "" if sample_active else "(full population)"
+    car_val = f"{car:.1f}\u00d7" if car_active else "1.0\u00d7"
+    car_rng = "" if car_active else "(no enrichment)"
+    y = r3(fig, ax, y, "Sampled individuals, n", sample_val, sample_rng, False, color=sc)
+    y = r3(fig, ax, y, "Case ascertainment ratio", car_val, car_rng, True, color=cc)
+
+    # --- Family structure ---
+    v, rng = _fmt_split_f([_safe_get(s, "family_size", "mean") for s in all_stats], 2)
+    y = r3(fig, ax, y, "Offspring per mating, mean", v, rng, True)
+
+    # Per-mating family size distribution on one line
+    def _dist_line(stats_key):
+        parts = []
+        for k in ["1", "2", "3", "4+"]:
+            vals = [_safe_get(s, "family_size", stats_key, k) for s in all_stats]
+            clean = [v for v in vals if v is not None]
+            pct = _fmt_pct(mean(clean)) if clean else "\u2014"
+            parts.append(f"{k}: {pct}")
+        return "  /  ".join(parts)
+
+    y = _draw_row(fig, ax, y, "  Distribution (1 / 2 / 3 / 4+)", _dist_line("size_dist"), False)
+
+    # Per-person offspring distribution (includes 0 = childless)
+    def _person_dist_line():
+        parts = []
+        for k in ["0", "1", "2", "3", "4+"]:
+            vals = [_safe_get(s, "family_size", "person_offspring_dist", k) for s in all_stats]
+            clean = [v for v in vals if v is not None]
+            pct = _fmt_pct(mean(clean)) if clean else "\u2014"
+            parts.append(f"{k}: {pct}")
+        return "  /  ".join(parts)
+
+    y = _draw_row(fig, ax, y, "Offspring per person\u00b9 (0 / 1 / 2 / 3 / 4+)", _person_dist_line(), True)
+
+    # Number of mates by sex
+    def _mates_line(sex):
+        m1 = [_safe_get(s, "family_size", "mates_by_sex", f"{sex}_1") for s in all_stats]
+        m2 = [_safe_get(s, "family_size", "mates_by_sex", f"{sex}_2+") for s in all_stats]
+        c1 = [v for v in m1 if v is not None]
+        c2 = [v for v in m2 if v is not None]
+        p1 = _fmt_pct(mean(c1)) if c1 else "\u2014"
+        p2 = _fmt_pct(mean(c2)) if c2 else "\u2014"
+        return f"1: {p1}  /  2+: {p2}"
+
+    y = _draw_row(fig, ax, y, "Mates per mother (1 / 2+)", _mates_line("female"), False)
+    y = _draw_row(fig, ax, y, "Mates per father (1 / 2+)", _mates_line("male"), True)
+
+    v, rng = _fmt_split_pct([_safe_get(s, "family_size", "frac_with_full_sib") for s in all_stats])
+    y = r3(fig, ax, y, "With \u2265 1 full sib phenotyped, %", v, rng, True)
+
+    # Parent status
+    ps_pheno = {str(k): [_safe_get(s, "parent_status", "phenotyped", str(k)) for s in all_stats] for k in [0, 1, 2]}
+    ps_ped = {str(k): [_safe_get(s, "parent_status", "in_pedigree", str(k)) for s in all_stats] for k in [0, 1, 2]}
+
+    def _parent_pct(counts_list):
+        return [c / n_ind if c is not None and n_ind else None for c in counts_list]
+
+    def _parent_summary(ps_dict):
+        vals = _parent_pct(ps_dict["0"])
+        p0 = _fmt_pct(vals[0]) if vals and vals[0] is not None else "\u2014"
+        vals = _parent_pct(ps_dict["1"])
+        p1 = _fmt_pct(vals[0]) if vals and vals[0] is not None else "\u2014"
+        vals = _parent_pct(ps_dict["2"])
+        p2 = _fmt_pct(vals[0]) if vals and vals[0] is not None else "\u2014"
+        return f"0: {p0}  /  1: {p1}  /  2: {p2}"
+
+    if any(v is not None for v in ps_pheno["0"]):
+        y = r3(fig, ax, y, "Parents phenotyped (0 / 1 / 2)", _parent_summary(ps_pheno), "", False)
+    if any(v is not None for v in ps_ped["0"]):
+        y = r3(fig, ax, y, "Parents in pedigree (0 / 1 / 2)", _parent_summary(ps_ped), "", True)
+
+    # --- Follow-up ---
+    y = r3(fig, ax, y, "Maximum follow-up age", f"{p.get('censor_age', '—')} years", "", False)
+
+    total_py = [_safe_get(s, "person_years", "total") for s in all_stats]
+    if any(v is not None for v in total_py):
+        v, rng = _fmt_split(total_py)
+        y = r3(fig, ax, y, "Total person-years of follow-up", v, rng, True)
+        mean_fu = [py / n_ind for py in total_py if py is not None] if n_ind else []
+        if mean_fu:
+            v, rng = _fmt_split_f(mean_fu, 1)
+            y = r3(fig, ax, y, "Mean follow-up per person, years", v, rng, False)
+    deaths = [_safe_get(s, "person_years", "deaths") for s in all_stats]
+    if any(d is not None for d in deaths):
+        v, rng = _fmt_split(deaths)
+        y = r3(fig, ax, y, "Deaths during follow-up, n", v, rng, True)
 
     y -= _ROW_H * 0.4
 
     # ── B. Disease Characteristics ────────────────────────────────────
     y = _draw_section_header(fig, y, "B.  Disease Characteristics")
-    y = _draw_col_headers(fig, y)
+    y = _draw_col4_headers(fig, y)
     shade = False
 
-    # Prevalence
-    prev1 = [_safe_get(s, "prevalence", "trait1") for s in all_stats]
-    prev2 = [_safe_get(s, "prevalence", "trait2") for s in all_stats]
-    shade = not shade
-    y = _draw_row2(
-        fig,
-        ax,
-        y,
-        "Observed prevalence",
-        _fmt_range_pct(prev1),
-        _fmt_range_pct(prev2),
-        shade,
-    )
-
-    # Sex-specific prevalence
+    # Prevalence — 4-column by sex
     fprev1 = [_safe_get(s, "cumulative_incidence_by_sex", "trait1", "female", "prevalence") for s in all_stats]
     mprev1 = [_safe_get(s, "cumulative_incidence_by_sex", "trait1", "male", "prevalence") for s in all_stats]
     fprev2 = [_safe_get(s, "cumulative_incidence_by_sex", "trait2", "female", "prevalence") for s in all_stats]
     mprev2 = [_safe_get(s, "cumulative_incidence_by_sex", "trait2", "male", "prevalence") for s in all_stats]
     shade = not shade
-    y = _draw_row2(fig, ax, y, "  Prevalence, female", _fmt_range_pct(fprev1), _fmt_range_pct(fprev2), shade)
+    y = _draw_row4(
+        fig,
+        ax,
+        y,
+        "Observed prevalence",
+        _fmt_range_pct(fprev1),
+        _fmt_range_pct(mprev1),
+        _fmt_range_pct(fprev2),
+        _fmt_range_pct(mprev2),
+        shade,
+    )
+
+    # Affected n — derive from sex-specific prevalence × n
+    def _affected_by_sex(prev_list, n_list):
+        return [round(p * n) if p is not None and n is not None else None for p, n in zip(prev_list, n_list)]
+
+    fn1 = [_safe_get(s, "cumulative_incidence_by_sex", "trait1", "female", "n") for s in all_stats]
+    mn1 = [_safe_get(s, "cumulative_incidence_by_sex", "trait1", "male", "n") for s in all_stats]
+    fn2 = [_safe_get(s, "cumulative_incidence_by_sex", "trait2", "female", "n") for s in all_stats]
+    mn2 = [_safe_get(s, "cumulative_incidence_by_sex", "trait2", "male", "n") for s in all_stats]
     shade = not shade
-    y = _draw_row2(fig, ax, y, "  Prevalence, male", _fmt_range_pct(mprev1), _fmt_range_pct(mprev2), shade)
+    y = _draw_row4(
+        fig,
+        ax,
+        y,
+        "Affected, n",
+        _fmt_range(_affected_by_sex(fprev1, fn1)),
+        _fmt_range(_affected_by_sex(mprev1, mn1)),
+        _fmt_range(_affected_by_sex(fprev2, fn2)),
+        _fmt_range(_affected_by_sex(mprev2, mn2)),
+        shade,
+    )
 
-    # Affected n
-    aff1 = []
-    aff2 = []
-    for s in all_stats:
-        ja = s.get("joint_affection", {}).get("counts", {})
-        aff1.append(ja.get("both", 0) + ja.get("trait1_only", 0))
-        aff2.append(ja.get("both", 0) + ja.get("trait2_only", 0))
-    shade = not shade
-    y = _draw_row2(fig, ax, y, "Affected, n", _fmt_range(aff1), _fmt_range(aff2), shade)
+    # Incidence rate by sex (per 1,000 PY) — approximate: affected / (total_py * sex_fraction)
+    total_py_list = [_safe_get(s, "person_years", "total") for s in all_stats]
 
-    # Incidence rate (per 1,000 person-years at risk)
-    py_t1 = [_safe_get(s, "person_years", "trait1") for s in all_stats]
-    py_t2 = [_safe_get(s, "person_years", "trait2") for s in all_stats]
-
-    def _incidence_rate(affected_list, py_list):
+    def _incidence_rate(prev_list, n_sex_list, py_total_list, n_total):
+        """IR ≈ (prev × n_sex) / (py_total × n_sex/n_total) × 1000 = prev × n_total / py_total × 1000."""
         rates = []
-        for a, py in zip(affected_list, py_list):
-            if a is not None and py and py > 0:
-                rates.append(a / py * 1000)
+        for prev, n_sex, py in zip(prev_list, n_sex_list, py_total_list):
+            if prev is not None and n_sex and py and py > 0 and n_total:
+                affected = prev * n_sex
+                py_sex = py * n_sex / n_total
+                rates.append(affected / py_sex * 1000 if py_sex > 0 else None)
             else:
                 rates.append(None)
         return rates
 
-    ir1 = _incidence_rate(aff1, py_t1)
-    ir2 = _incidence_rate(aff2, py_t2)
     shade = not shade
-    y = _draw_row2(
+    y = _draw_row4(
         fig,
         ax,
         y,
         "Incidence rate (per 1,000 PY)",
-        _fmt_range_f(ir1, 1),
-        _fmt_range_f(ir2, 1),
+        _fmt_range_f(_incidence_rate(fprev1, fn1, total_py_list, n_ind), 1),
+        _fmt_range_f(_incidence_rate(mprev1, mn1, total_py_list, n_ind), 1),
+        _fmt_range_f(_incidence_rate(fprev2, fn2, total_py_list, n_ind), 1),
+        _fmt_range_f(_incidence_rate(mprev2, mn2, total_py_list, n_ind), 1),
         shade,
     )
 
     # Age at onset quartiles
-    def _aoo_quartile(all_stats, trait, key):
+    def _aoo_quartile(all_stats, trait, key, ci_key="cumulative_incidence"):
         vals = []
         for s in all_stats:
-            ci = _safe_get(s, "cumulative_incidence", trait, default={})
+            ci = _safe_get(s, ci_key, trait, default={})
             q = _compute_aoo_quartiles(ci)
             if q[key] is not None:
                 vals.append(q[key])
         return _fmt_range_f(vals, 1)
 
-    shade = not shade
-    y = _draw_row2(
-        fig,
-        ax,
-        y,
-        "Age at onset, Q1",
-        _aoo_quartile(all_stats, "trait1", "q1"),
-        _aoo_quartile(all_stats, "trait2", "q1"),
-        shade,
-    )
-    shade = not shade
-    y = _draw_row2(
-        fig,
-        ax,
-        y,
-        "Age at onset, median",
-        _aoo_quartile(all_stats, "trait1", "median"),
-        _aoo_quartile(all_stats, "trait2", "median"),
-        shade,
-    )
-    shade = not shade
-    y = _draw_row2(
-        fig,
-        ax,
-        y,
-        "Age at onset, Q3",
-        _aoo_quartile(all_stats, "trait1", "q3"),
-        _aoo_quartile(all_stats, "trait2", "q3"),
-        shade,
-    )
+    def _aoo_sex_quartile(all_stats, trait, sex, key):
+        vals = []
+        for s in all_stats:
+            ci = _safe_get(s, "cumulative_incidence_by_sex", trait, sex, default={})
+            q = _compute_aoo_quartiles(ci)
+            if q[key] is not None:
+                vals.append(q[key])
+        return _fmt_range_f(vals, 1)
 
-    # Co-affected
-    coaff = [_safe_get(s, "joint_affection", "counts", "both", default=0) for s in all_stats]
-    coaff_pct = [_safe_get(s, "joint_affection", "proportions", "both") for s in all_stats]
+    for qkey, qlabel in [("q1", "Q1"), ("median", "Median"), ("q3", "Q3")]:
+        shade = not shade
+        y = _draw_row4(
+            fig,
+            ax,
+            y,
+            f"Age at onset, {qlabel}",
+            _aoo_sex_quartile(all_stats, "trait1", "female", qkey),
+            _aoo_sex_quartile(all_stats, "trait1", "male", qkey),
+            _aoo_sex_quartile(all_stats, "trait2", "female", qkey),
+            _aoo_sex_quartile(all_stats, "trait2", "male", qkey),
+            shade,
+        )
+
+    # Co-affected by sex
+    coaff_f = [_safe_get(s, "joint_affection", "by_sex", "female") for s in all_stats]
+    coaff_m = [_safe_get(s, "joint_affection", "by_sex", "male") for s in all_stats]
     shade = not shade
-    coaff_str = f"{_fmt_range(coaff)} ({_fmt_range_pct(coaff_pct)})"
-    y = _draw_row2(fig, ax, y, "Co-affected, n (%)", coaff_str, "", shade)
+    y = _draw_row4(
+        fig, ax, y, "Co-affected, %",
+        _fmt_range_pct(coaff_f), _fmt_range_pct(coaff_m), "", "", shade,
+    )
 
     y -= _ROW_H * 0.4
 
@@ -496,23 +719,31 @@ def render_table1_figure(
     y = _draw_section_header(fig, y, "C.  Censoring")
     shade = False
 
-    # Per-generation rows: N, window, sensitivity
+    # Per-generation rows: N, window, observed prevalence
     # Use trait1 cascade as reference (windows are the same for both traits)
     cascade0 = _safe_get(all_stats[0], "censoring_cascade", "trait1", default={})
     gen_keys = sorted(cascade0.keys()) if cascade0 else []
+    y = _draw_col_headers(fig, y)
     for gk in gen_keys:
         # n_gen is deterministic — use first rep
         gen_n = _safe_get(s0, "censoring_cascade", "trait1", gk, "n_gen")
         window = _safe_get(s0, "censoring_cascade", "trait1", gk, "window")
         n_str = _fmt_int(gen_n)
         win_str = f"ages {window[0]:.0f}\u2013{window[1]:.0f}" if window else ""
+        # Generation-specific observed prevalence
+        obs1 = [_safe_get(s, "censoring_cascade", "trait1", gk, "observed") for s in all_stats]
+        obs2 = [_safe_get(s, "censoring_cascade", "trait2", gk, "observed") for s in all_stats]
+        gn = [_safe_get(s, "censoring_cascade", "trait1", gk, "n_gen") for s in all_stats]
+        prev_g1 = [o / n if o is not None and n else None for o, n in zip(obs1, gn)]
+        prev_g2 = [o / n if o is not None and n else None for o, n in zip(obs2, gn)]
         shade = not shade
-        y = _draw_row(
+        y = _draw_row2(
             fig,
             ax,
             y,
             f"  {gk}:  n={n_str},  {win_str}",
-            "",
+            _fmt_range_pct(prev_g1),
+            _fmt_range_pct(prev_g2),
             shade,
         )
 
@@ -541,16 +772,26 @@ def render_table1_figure(
         )
     )
 
-    # Footnote
+    # Footnotes
+    footnotes = []
     if n_reps > 1:
+        footnotes.append(
+            f"Values are mean [min\u2013max] across {n_reps} replicates where applicable."
+        )
+    footnotes.append(
+        "\u00b9 Includes youngest generation, whose offspring are outside the phenotyped cohort"
+        " (100% childless by design)."
+    )
+    if footnotes:
         fig.text(
             _LEFT,
             y - 0.02,
-            f"Values are mean [min\u2013max] across {n_reps} replicates where applicable.",
-            fontsize=7,
+            "  ".join(footnotes),
+            fontsize=6,
             fontfamily=_FONT,
             color="0.4",
             va="top",
+            wrap=True,
             transform=fig.transFigure,
         )
 

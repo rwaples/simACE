@@ -110,10 +110,10 @@ _PARAM_DISPLAY: dict[str, str] = {
 # ---------------------------------------------------------------------------
 # Font sizes (pts) — single place to tune readability
 # ---------------------------------------------------------------------------
-_FONT_TITLE = 24  # scenario title at top of page
-_FONT_BOX_TITLE = 14  # step name inside each box
-_FONT_TABLE = 11  # parameter names and values
-_FONT_META = 12  # seed / replicates in scenario area
+_FONT_TITLE = 28  # scenario title at top of page
+_FONT_BOX_TITLE = 16  # step name inside each box
+_FONT_TABLE = 13  # parameter names and values
+_FONT_META = 14  # seed / replicates in scenario area
 _CHAR_W = 0.0085  # approx data-units per character at 11pt mono on 11in fig
 
 
