@@ -46,21 +46,21 @@ class TestExpectedMateCorr:
         assert abs(result[0, 0] - 0.4) < 1e-10
         assert abs(result[1, 1] - 0.3) < 1e-10
 
-    def test_both_nonzero_offdiag(self):
-        """Off-diagonal should be rho_w * sqrt(|r1*r2|) * sign(r1*r2)."""
-        r1, r2 = 0.4, 0.3
-        rA, rC = 0.5, 0.3
-        A1, C1, A2, C2 = 0.5, 0.2, 0.4, 0.1
-        rho_w = rA * np.sqrt(A1 * A2) + rC * np.sqrt(C1 * C2)
-        r_yz = rho_w * np.sqrt(abs(r1 * r2)) * np.sign(r1 * r2)
-        result = expected_mate_corr_matrix(r1, r2, rA=rA, rC=rC, A1=A1, C1=C1, A2=A2, C2=C2)
-        assert abs(result[0, 1] - r_yz) < 1e-10
-        assert abs(result[1, 0] - r_yz) < 1e-10
+    def test_both_nonzero_offdiag_is_nan(self):
+        """Off-diagonal should be NaN for both-nonzero (no closed-form)."""
+        result = expected_mate_corr_matrix(0.4, 0.3, rA=0.5, rC=0.3, A1=0.5, C1=0.2, A2=0.4, C2=0.1)
+        assert np.isnan(result[0, 1])
+        assert np.isnan(result[1, 0])
 
     def test_high_targets_within_bounds(self):
-        """High assort values should still produce valid correlations."""
+        """Diagonal of high assort values should still be valid."""
         result = expected_mate_corr_matrix(0.9, 0.9, rA=0.5, rC=0.3, A1=0.5, C1=0.2, A2=0.4, C2=0.1)
-        assert np.all(np.abs(result) <= 1.0 + 1e-10)
+        # Diagonal should equal targets
+        assert abs(result[0, 0] - 0.9) < 1e-10
+        assert abs(result[1, 1] - 0.9) < 1e-10
+        # Off-diagonal should be NaN
+        assert np.isnan(result[0, 1])
+        assert np.isnan(result[1, 0])
 
 
 class TestComputeMateCorrelation:
@@ -170,6 +170,18 @@ class TestPlotMateCorrelation:
         ]
         params = {"assort1": 0.3, "assort2": 0.0, "rA": 0.5, "rC": 0.0, "A1": 0.5, "C1": 0.0, "A2": 0.5, "C2": 0.0}
         out = tmp_path / "mate_correlation.png"
+        plot_mate_correlation(stats, str(out), scenario="test", params=params)
+        assert out.exists()
+
+    def test_both_nonzero_no_crash(self, tmp_path):
+        """plot_mate_correlation should handle NaN expected values without error."""
+        from sim_ace.plot_liability import plot_mate_correlation
+
+        stats = [
+            {"mate_correlation": {"matrix": [[0.3, 0.2], [0.15, 0.4]], "n_pairs": 100}},
+        ]
+        params = {"assort1": 0.3, "assort2": 0.5, "rA": 0.5, "rC": 0.3, "A1": 0.5, "C1": 0.2, "A2": 0.5, "C2": 0.2}
+        out = tmp_path / "mate_correlation_both.png"
         plot_mate_correlation(stats, str(out), scenario="test", params=params)
         assert out.exists()
 

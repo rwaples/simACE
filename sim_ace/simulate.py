@@ -221,7 +221,6 @@ def _assortative_pair_partners(
     if assort1 != 0 and assort2 != 0:
         # --- Both traits nonzero: 4-variate copula ---
         r1, r2 = assort1, assort2
-        r_yz = rho_w * np.sqrt(abs(r1 * r2)) * np.sign(r1 * r2)
 
         # Phase 1: Conditional-expectation initialization
         qn_f1 = norm.ppf(rankdata(liab1_f) / (M + 1))
@@ -229,7 +228,7 @@ def _assortative_pair_partners(
         qn_m1 = norm.ppf(rankdata(liab1_m) / (M + 1))
         qn_m2 = norm.ppf(rankdata(liab2_m) / (M + 1))
 
-        R_mf = np.array([[r1, r_yz], [r_yz, r2]])
+        R_mf = np.array([[r1, 0.0], [0.0, r2]])
         R_ff = np.array([[1.0, rho_w], [rho_w, 1.0]])
         B = R_mf @ np.linalg.inv(R_ff)
 
@@ -719,6 +718,13 @@ def run_simulation(
 
     # Within-person cross-trait liability correlation
     rho_w = rA * np.sqrt(A1 * A2) + rC * np.sqrt(C1 * C2)
+
+    if assort1 != 0 and assort2 != 0 and abs(rho_w) >= 1.0 - 1e-10:
+        raise ValueError(
+            f"Both-trait assortative mating requires |rho_w| < 1 "
+            f"(got rho_w={rho_w:.4f}). Traits are perfectly correlated; "
+            f"use single-trait assortment instead."
+        )
 
     # Initialize founders with correlated components
     sex = rng.binomial(size=N, n=1, p=0.5)

@@ -283,9 +283,9 @@ def expected_mate_corr_matrix(
     rho_w = rA * np.sqrt(A1 * A2) + rC * np.sqrt(C1 * C2)
 
     if assort1 != 0 and assort2 != 0:
-        # Both traits: diagonal = targets, off-diagonal from cross-trait path
-        r_yz = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
-        return np.array([[assort1, r_yz], [r_yz, assort2]])
+        # Both traits: diagonal = targets, off-diagonal not predicted
+        # (emergent from greedy Metropolis dynamics on correlated traits)
+        return np.array([[assort1, np.nan], [np.nan, assort2]])
     elif assort1 != 0:
         # Single-trait on trait 1: propagate via rho_w
         a = assort1

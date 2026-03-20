@@ -2,7 +2,7 @@
 
 Contains: plot_liability_joint, plot_liability_joint_affected,
 plot_liability_violin, plot_liability_violin_by_generation, plot_joint_affection,
-plot_censoring_confusion, plot_censoring_cascade.
+plot_censoring_confusion, plot_censoring_cascade, plot_mate_correlation.
 """
 
 from __future__ import annotations
@@ -594,4 +594,89 @@ def plot_joint_affection(
     if r_label:
         title += f"\n{r_label}"
     ax.set_title(title, fontsize=14)
+    finalize_plot(output_path)
+
+
+def plot_mate_correlation(
+    all_stats: list[dict],
+    output_path: str | Path,
+    scenario: str = "",
+    params: dict | None = None,
+) -> None:
+    """Plot 2x2 heatmap of empirical mate liability correlations with expected values."""
+    from sim_ace.utils import expected_mate_corr_matrix
+
+    # Average observed matrices across replicates
+    matrices = []
+    for s in all_stats:
+        mc = s.get("mate_correlation")
+        if mc is not None:
+            matrices.append(np.array(mc["matrix"]))
+    if not matrices:
+        save_placeholder_plot(output_path, "No mate correlation data")
+        return
+
+    obs = np.nanmean(np.stack(matrices), axis=0)
+
+    # Compute expected matrix from params
+    exp = np.zeros((2, 2))
+    if params is not None:
+        exp = expected_mate_corr_matrix(
+            assort1=float(params.get("assort1", 0)),
+            assort2=float(params.get("assort2", 0)),
+            rA=float(params.get("rA", 0)),
+            rC=float(params.get("rC", 0)),
+            A1=float(params.get("A1", 0)),
+            C1=float(params.get("C1", 0)),
+            A2=float(params.get("A2", 0)),
+            C2=float(params.get("C2", 0)),
+        )
+
+    _fig, ax = plt.subplots(figsize=(6, 5))
+    sns.heatmap(
+        obs,
+        ax=ax,
+        cmap="RdBu_r",
+        vmin=-1,
+        vmax=1,
+        center=0,
+        annot=False,
+        square=True,
+        cbar_kws={"label": "Pearson r"},
+        xticklabels=["Male trait 1", "Male trait 2"],
+        yticklabels=["Female trait 1", "Female trait 2"],
+    )
+
+    # Custom two-line annotations
+    for i in range(2):
+        for j in range(2):
+            o = obs[i, j]
+            e = exp[i, j]
+            ax.text(
+                j + 0.5,
+                i + 0.38,
+                f"{o:.2f}",
+                ha="center",
+                va="center",
+                fontsize=16,
+                fontweight="bold",
+                color="white",
+            )
+            if not np.isnan(e):
+                ax.text(
+                    j + 0.5,
+                    i + 0.62,
+                    f"(exp: {e:.2f})",
+                    ha="center",
+                    va="center",
+                    fontsize=10,
+                    color=(1, 1, 1, 0.7),
+                )
+
+    title = f"Mate Liability Correlation [{scenario}]"
+    a1 = float(params.get("assort1", 0)) if params else 0
+    a2 = float(params.get("assort2", 0)) if params else 0
+    if a1 != 0 or a2 != 0:
+        title += f"\nassort1={a1}, assort2={a2}"
+    ax.set_title(title, fontsize=13)
     finalize_plot(output_path)

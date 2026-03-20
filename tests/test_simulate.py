@@ -498,6 +498,14 @@ class TestRunSimulation:
         with pytest.raises(ValueError):
             run_simulation(**{**default_params, "assort2": -1.5})
 
+    def test_rho_w_one_raises(self, default_params):
+        """Both-trait assort with perfectly correlated traits should raise."""
+        with pytest.raises(ValueError, match="rho_w"):
+            run_simulation(
+                **{**default_params, "A1": 0.5, "C1": 0.5, "A2": 0.5, "C2": 0.5,
+                   "rA": 1.0, "rC": 1.0, "assort1": 0.3, "assort2": 0.3}
+            )
+
     def test_assort_zero_preserves_rng(self, default_params):
         """assort=0 should produce identical output to no assort params."""
         ped1 = run_simulation(**{**default_params, "assort1": 0.0, "assort2": 0.0})
