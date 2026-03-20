@@ -12,7 +12,7 @@ def _run_snakemake() -> None:
     # Import here so standalone CLI still works without snakemake
     from epimight.create_parquet import main as _cli
 
-    output_dir = str(Path(snakemake.output.ndd).parent)
+    output_dir = str(Path(snakemake.output.t1).parent)
     sys.argv = [
         "epimight_create_parquet",
         "--phenotype",
