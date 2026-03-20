@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------------
 #
 # Three-step pipeline per replicate:
-#   1. epimight_create_parquet  – phenotype.parquet → NDD/NDG parquets + truth JSON
+#   1. epimight_create_parquet  – phenotype.parquet → trait1/trait2 parquets + truth JSON
 #   2. epimight_guide_yob       – per relationship kind: CIF, h², GC analysis (R)
 #   3. epimight_atlas           – assemble all kinds into a plot atlas PDF
 #
@@ -18,8 +18,8 @@ rule epimight_create_parquet:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.parquet",
     output:
-        ndd="results/{folder}/{scenario}/rep{rep}/epimight/NDD.parquet",
-        ndg="results/{folder}/{scenario}/rep{rep}/epimight/NDG.parquet",
+        t1="results/{folder}/{scenario}/rep{rep}/epimight/trait1.epimight_in.parquet",
+        t2="results/{folder}/{scenario}/rep{rep}/epimight/trait2.epimight_in.parquet",
         truth="results/{folder}/{scenario}/rep{rep}/epimight/true_parameters.json",
     log:
         "logs/{folder}/{scenario}/rep{rep}/epimight_create_parquet.log"
@@ -36,8 +36,8 @@ rule epimight_create_parquet:
 rule epimight_guide_yob:
     """Run EPIMIGHT CIF, heritability, and genetic correlation for one relationship kind."""
     input:
-        ndd="results/{folder}/{scenario}/rep{rep}/epimight/NDD.parquet",
-        ndg="results/{folder}/{scenario}/rep{rep}/epimight/NDG.parquet",
+        t1="results/{folder}/{scenario}/rep{rep}/epimight/trait1.epimight_in.parquet",
+        t2="results/{folder}/{scenario}/rep{rep}/epimight/trait2.epimight_in.parquet",
     output:
         h2_d1="results/{folder}/{scenario}/rep{rep}/epimight/tsv/h2_d1_{kind}.tsv",
         h2_d2="results/{folder}/{scenario}/rep{rep}/epimight/tsv/h2_d2_{kind}.tsv",

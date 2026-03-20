@@ -31,8 +31,8 @@ python epimight/create_parquet.py \
 
 | File | Description |
 |------|-------------|
-| `NDD.parquet` | Time-to-event data for trait 1 (disorder 1) |
-| `NDG.parquet` | Time-to-event data for trait 2 (disorder 2) |
+| `trait1.epimight_in.parquet` | Time-to-event data for trait 1 (disorder 1) |
+| `trait2.epimight_in.parquet` | Time-to-event data for trait 2 (disorder 2) |
 | `true_parameters.json` | True h2 and genetic correlation from variance components |
 
 **TTE columns:**
@@ -75,7 +75,7 @@ conda run -n epimight Rscript epimight/guide-yob.R \
 
 | Position | Description | Default |
 |----------|-------------|---------|
-| 1 | Directory containing NDD/NDG parquets | `.` |
+| 1 | Directory containing trait1/trait2 parquets | `.` |
 | 2 | Relationship kind (PO, FS, HS, mHS, pHS, 1C, Av, 1G) | `FS` |
 
 **Analyses performed:**
@@ -98,8 +98,8 @@ Results go to the same directory as the input parquets:
 
 ```
 results/{folder}/{scenario}/rep{N}/epimight/
-├── NDD.parquet                  # TTE trait 1
-├── NDG.parquet                  # TTE trait 2
+├── trait1.epimight_in.parquet    # TTE trait 1
+├── trait2.epimight_in.parquet   # TTE trait 2
 ├── true_parameters.json         # True h2 and genetic correlation
 ├── results_{kind}.md            # Summary report
 ├── tsv/

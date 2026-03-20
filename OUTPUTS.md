@@ -380,8 +380,8 @@ Key output files:
 
 | File | Format | Description |
 |------|--------|-------------|
-| `NDD.parquet` | Parquet | Time-to-event data for trait 1 |
-| `NDG.parquet` | Parquet | Time-to-event data for trait 2 |
+| `trait1.epimight_in.parquet` | Parquet | Time-to-event data for trait 1 |
+| `trait2.epimight_in.parquet` | Parquet | Time-to-event data for trait 2 |
 | `true_parameters.json` | JSON | True heritability and genetic correlation from variance components |
 | `results_{kind}.md` | Markdown | Summary report per relationship kind (FS, PO, HS, mHS, pHS, etc.) |
 | `tsv/cif_d1_c1_{kind}.tsv` | TSV | CIF: trait 1 in base cohort |

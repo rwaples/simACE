@@ -251,7 +251,7 @@ Each replicate's `epimight/` directory contains:
 
 | File | Description |
 |------|-------------|
-| `NDD.parquet`, `NDG.parquet` | Time-to-event input data for traits 1 and 2 |
+| `trait1.epimight_in.parquet`, `trait2.epimight_in.parquet` | Time-to-event input data for traits 1 and 2 |
 | `true_parameters.json` | True h² and genetic correlation from variance components |
 | `results_{kind}.md` | Summary report per relationship kind (cohort sizes, h² meta-analysis, genetic correlation, true vs observed comparison) |
 | `tsv/cif_*.tsv`, `tsv/h2_*.tsv`, `tsv/gc_*.tsv` | CIF curves, heritability estimates, and genetic correlation per kind |

@@ -28,11 +28,11 @@ d2_earliest_onset_age <- 1L
 ## ──────────────────────────────────────────────────────────────────────────────
 diag_col <- paste0("diagnosed_relatives_", relationship_kind)
 
-d1_raw <- read_parquet(file.path(base_dir, "NDD.parquet")) |> as.data.frame()
-d2_raw <- read_parquet(file.path(base_dir, "NDG.parquet")) |> as.data.frame()
+d1_raw <- read_parquet(file.path(base_dir, "trait1.epimight_in.parquet")) |> as.data.frame()
+d2_raw <- read_parquet(file.path(base_dir, "trait2.epimight_in.parquet")) |> as.data.frame()
 
 if (!(diag_col %in% names(d1_raw))) {
-  stop("Column '", diag_col, "' not found in NDD.parquet. ",
+  stop("Column '", diag_col, "' not found in trait1.epimight_in.parquet. ",
        "Available diagnosed_relatives columns: ",
        paste(grep("^diagnosed_relatives_", names(d1_raw), value = TRUE), collapse = ", "))
 }

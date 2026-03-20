@@ -80,14 +80,16 @@ def main():
     parser = argparse.ArgumentParser(description="Convert ACE phenotype parquet to EPIMIGHT TTE format")
     parser.add_argument("--phenotype", required=True, help="Path to phenotype.parquet from ACE pipeline")
     parser.add_argument(
-        "--output-dir", required=True, help="Output directory for NDD.parquet, NDG.parquet, true_parameters.json"
+        "--output-dir",
+        required=True,
+        help="Output directory for trait1.epimight_in.parquet, trait2.epimight_in.parquet, true_parameters.json",
     )
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    out_ndd_path = os.path.join(args.output_dir, "NDD.parquet")
-    out_ndg_path = os.path.join(args.output_dir, "NDG.parquet")
+    out_t1_path = os.path.join(args.output_dir, "trait1.epimight_in.parquet")
+    out_t2_path = os.path.join(args.output_dir, "trait2.epimight_in.parquet")
     truth_path = os.path.join(args.output_dir, "true_parameters.json")
 
     df = pd.read_parquet(args.phenotype)
@@ -145,8 +147,8 @@ def main():
             out[f"n_relatives_{kind}"] = nrel_cols[kind].astype(int)
         return out
 
-    out_ndd = build_output("affected1", "t_observed1", diag_cols_1, nrel_cols)
-    out_ndg = build_output("affected2", "t_observed2", diag_cols_2, nrel_cols)
+    out_t1 = build_output("affected1", "t_observed1", diag_cols_1, nrel_cols)
+    out_t2 = build_output("affected2", "t_observed2", diag_cols_2, nrel_cols)
 
     # ------------------------------------------------
     # DIAGNOSTICS
@@ -227,15 +229,15 @@ def main():
         return summary
 
     print("\n###################### PRE-SAVE DIAGNOSTICS ######################")
-    ndd_summary = summarize_tte(out_ndd, "NDD")
-    ndg_summary = summarize_tte(out_ndg, "NDG")
+    t1_summary = summarize_tte(out_t1, "trait1")
+    t2_summary = summarize_tte(out_t2, "trait2")
 
-    years_ndd_ok = set(ndd_summary.loc[ndd_summary["h2_ok"], "born_at_year"].tolist())
-    years_ndg_ok = set(ndg_summary.loc[ndg_summary["h2_ok"], "born_at_year"].tolist())
-    years_both_ok = sorted(years_ndd_ok & years_ndg_ok)
+    years_t1_ok = set(t1_summary.loc[t1_summary["h2_ok"], "born_at_year"].tolist())
+    years_t2_ok = set(t2_summary.loc[t2_summary["h2_ok"], "born_at_year"].tolist())
+    years_both_ok = sorted(years_t1_ok & years_t2_ok)
 
-    print(f"\n{ybar} h²-suitable years (NDD): {sorted(years_ndd_ok)}")
-    print(f"{ybar} h²-suitable years (NDG): {sorted(years_ndg_ok)}")
+    print(f"\n{ybar} h²-suitable years (trait1): {sorted(years_t1_ok)}")
+    print(f"{ybar} h²-suitable years (trait2): {sorted(years_t2_ok)}")
     print(f"{ybar} Intersection (usable for GC + meta): {years_both_ok}")
 
     # ------------------------------------------------
@@ -279,12 +281,12 @@ def main():
     # ------------------------------------------------
     # Saving TTE outputs
     # ------------------------------------------------
-    out_ndd.to_parquet(out_ndd_path, index=False)
-    out_ndg.to_parquet(out_ndg_path, index=False)
+    out_t1.to_parquet(out_t1_path, index=False)
+    out_t2.to_parquet(out_t2_path, index=False)
 
     print("\nCreated files:")
-    print(out_ndd_path)
-    print(out_ndg_path)
+    print(out_t1_path)
+    print(out_t2_path)
 
 
 if __name__ == "__main__":
