@@ -19,9 +19,15 @@ import time
 import numpy as np
 import pandas as pd
 import yaml
-from scipy.stats import norm, rankdata
+from scipy.special import ndtri
+from scipy.stats import rankdata
 
 from sim_ace.utils import save_parquet
+
+try:
+    from numba import njit
+except ImportError:
+    njit = None
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +179,32 @@ def pair_partners(
     return matings
 
 
+def _metropolis_sweep_python(f1_z, f2_z, m1_z, m2_z, male_perm, idx_i, idx_j, S1, S2, T1, T2, batch):
+    """Greedy Metropolis sweep: accept swaps that reduce squared error on two targets."""
+    for k in range(batch):
+        dk1 = (f1_z[idx_i[k]] - f1_z[idx_j[k]]) * (m1_z[idx_j[k]] - m1_z[idx_i[k]])
+        dk2 = (f2_z[idx_i[k]] - f2_z[idx_j[k]]) * (m2_z[idx_j[k]] - m2_z[idx_i[k]])
+        ne1 = S1 + dk1 - T1
+        ne2 = S2 + dk2 - T2
+        oe1 = S1 - T1
+        oe2 = S2 - T2
+        if ne1 * ne1 + ne2 * ne2 < oe1 * oe1 + oe2 * oe2:
+            i = idx_i[k]
+            j = idx_j[k]
+            tmp = m1_z[i]; m1_z[i] = m1_z[j]; m1_z[j] = tmp  # noqa: E702
+            tmp = m2_z[i]; m2_z[i] = m2_z[j]; m2_z[j] = tmp  # noqa: E702
+            tmp_p = male_perm[i]; male_perm[i] = male_perm[j]; male_perm[j] = tmp_p  # noqa: E702
+            S1 += dk1
+            S2 += dk2
+    return S1, S2
+
+
+if njit is not None:
+    _metropolis_sweep = njit(cache=True)(_metropolis_sweep_python)
+else:
+    _metropolis_sweep = _metropolis_sweep_python
+
+
 def _assortative_pair_partners(
     rng: np.random.Generator,
     male_idxs: np.ndarray,
@@ -223,10 +255,16 @@ def _assortative_pair_partners(
         r1, r2 = assort1, assort2
 
         # Phase 1: Conditional-expectation initialization
-        qn_f1 = norm.ppf(rankdata(liab1_f) / (M + 1))
-        qn_f2 = norm.ppf(rankdata(liab2_f) / (M + 1))
-        qn_m1 = norm.ppf(rankdata(liab1_m) / (M + 1))
-        qn_m2 = norm.ppf(rankdata(liab2_m) / (M + 1))
+        def _quantile_normal(arr):
+            order = np.argsort(arr)
+            rank = np.empty(M, dtype=np.float64)
+            rank[order] = np.arange(1, M + 1, dtype=np.float64)
+            return ndtri(rank / (M + 1))
+
+        qn_f1 = _quantile_normal(liab1_f)
+        qn_f2 = _quantile_normal(liab2_f)
+        qn_m1 = _quantile_normal(liab1_m)
+        qn_m2 = _quantile_normal(liab2_m)
 
         R_mf = np.array([[r1, 0.0], [0.0, r2]])
         R_ff = np.array([[1.0, rho_w], [rho_w, 1.0]])
@@ -244,7 +282,7 @@ def _assortative_pair_partners(
 
         order_target = np.argsort(target_proj)
         order_male = np.argsort(male_proj)
-        male_perm = np.empty(M, dtype=np.intp)
+        male_perm = np.empty(M, dtype=np.int64)
         male_perm[order_target] = order_male
 
         # Phase 2: Metropolis refinement on standardized liabilities
@@ -275,25 +313,13 @@ def _assortative_pair_partners(
 
             perm = rng.permutation(M)
             batch = min(M // 2, max_proposals - proposals_done)
-            idx_i = perm[0::2][:batch]
-            idx_j = perm[1::2][:batch]
+            idx_i = perm[0::2][:batch].astype(np.int64)
+            idx_j = perm[1::2][:batch].astype(np.int64)
 
-            d1 = (f1_z[idx_i] - f1_z[idx_j]) * (m1_z[idx_j] - m1_z[idx_i])
-            d2 = (f2_z[idx_i] - f2_z[idx_j]) * (m2_z[idx_j] - m2_z[idx_i])
-
-            for k in range(batch):
-                dk1, dk2 = float(d1[k]), float(d2[k])
-                ne1 = S1 + dk1 - T1
-                ne2 = S2 + dk2 - T2
-                oe1 = S1 - T1
-                oe2 = S2 - T2
-                if ne1 * ne1 + ne2 * ne2 < oe1 * oe1 + oe2 * oe2:
-                    i, j = int(idx_i[k]), int(idx_j[k])
-                    m1_z[i], m1_z[j] = m1_z[j], m1_z[i]
-                    m2_z[i], m2_z[j] = m2_z[j], m2_z[i]
-                    male_perm[i], male_perm[j] = male_perm[j], male_perm[i]
-                    S1 += dk1
-                    S2 += dk2
+            S1, S2 = _metropolis_sweep(
+                f1_z, f2_z, m1_z, m2_z, male_perm,
+                idx_i, idx_j, S1, S2, T1, T2, batch,
+            )
 
             proposals_done += batch
         else:
@@ -337,7 +363,7 @@ def _assortative_pair_partners(
 
         matings = np.column_stack([female_sorted[rank_f], male_sorted[rank_m]])
 
-    # Deduplicate (same logic as pair_partners)
+    # Deduplicate: swap with female-proximity partner to preserve correlations
     for _attempt in range(5):
         seen = set()
         dups = []
@@ -353,7 +379,8 @@ def _assortative_pair_partners(
         if len(non_dups) == 0:
             break
         for d in dups:
-            swap_with = rng.choice(non_dups)
+            cost = (liab1_f[d] - liab1_f[non_dups]) ** 2 + (liab2_f[d] - liab2_f[non_dups]) ** 2
+            swap_with = non_dups[np.argmin(cost)]
             matings[d, 1], matings[swap_with, 1] = matings[swap_with, 1], matings[d, 1]
 
     return matings
