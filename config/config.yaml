@@ -147,9 +147,9 @@ scenarios:
     seed: 1879
     C1: 0.0
     C2: 0.0
-    rA: 0.3
+    rA: 0.0
     rC: 0.0
-    N: 50000
+    N: 200000
     G_sim: 35
     G_ped: 30
     G_pheno: 30
@@ -162,9 +162,9 @@ scenarios:
     seed: 1880
     C1: 0.0
     C2: 0.0
-    rA: 0.3
+    rA: 0.0
     rC: 0.0
-    N: 50000
+    N: 200000
     G_sim: 35
     G_ped: 30
     G_pheno: 30
@@ -191,9 +191,9 @@ scenarios:
     seed: 1881
     C1: 0.0
     C2: 0.0
-    rA: 0.3
+    rA: 0.0
     rC: 0.0
-    N: 50000
+    N: 200000
     G_sim: 35
     G_ped: 30
     G_pheno: 30
