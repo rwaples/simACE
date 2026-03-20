@@ -798,6 +798,37 @@ def compute_frailty_cross_trait_corr(
 
 
 # ---------------------------------------------------------------------------
+# Mate correlation
+# ---------------------------------------------------------------------------
+
+
+def compute_mate_correlation(df: pd.DataFrame) -> dict:
+    """Compute 2x2 Pearson correlation matrix between mated pairs' liabilities.
+
+    Each unique (mother, father) pair is counted once (not weighted by offspring).
+    Only non-founders are considered.
+    """
+    from sim_ace.utils import safe_corrcoef
+
+    nf = df[df["mother"] != -1][["mother", "father"]].drop_duplicates()
+    if len(nf) < 2:
+        return {"matrix": [[float("nan")] * 2] * 2, "n_pairs": 0}
+
+    lookup = df.set_index("id")[["liability1", "liability2"]]
+    f_liab = lookup.loc[nf["mother"].values].values  # (N, 2)
+    m_liab = lookup.loc[nf["father"].values].values  # (N, 2)
+
+    matrix = [
+        [
+            float(safe_corrcoef(f_liab[:, i], m_liab[:, j]))
+            for j in range(2)
+        ]
+        for i in range(2)
+    ]
+    return {"matrix": matrix, "n_pairs": len(nf)}
+
+
+# ---------------------------------------------------------------------------
 # Sampling helper
 # ---------------------------------------------------------------------------
 
@@ -900,6 +931,12 @@ def main(
             "Pedigree pair counts (from same graph): %s",
             ", ".join(f"{k}: {v}" for k, v in full_counts.items()),
         )
+
+    if df_ped is not None:
+        logger.info("Computing mate liability correlations...")
+        stats["mate_correlation"] = compute_mate_correlation(df_ped)
+        del df_ped
+    else:
         del df_ped
 
     logger.info("Computing liability correlations...")

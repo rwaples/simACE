@@ -160,6 +160,7 @@ Phenotype statistics computed from the censored frailty phenotype. Written by `s
 | `censoring` | Generation observation windows and censor age (present when `gen_censoring` is configured) |
 | `censoring_confusion` | Per-trait confusion matrix for censoring vs true affection (conditional) |
 | `censoring_cascade` | Per-trait, per-generation censoring cascade counts (conditional) |
+| `mate_correlation` | 2×2 Pearson correlation matrix between mated pairs' liabilities (`matrix`, `n_pairs`); conditional on pedigree |
 | `pair_counts` | Count of extracted relationship pairs by type (MZ, FS, HS, PO, etc.) |
 | `pair_counts_ped` | Pair counts from full pedigree (when pedigree file is provided; conditional) |
 | `n_individuals_ped` | Individual count in full pedigree (conditional) |

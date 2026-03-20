@@ -46,6 +46,8 @@ _PHENOTYPE_BASENAMES = [
     # Pedigree structure
     "pedigree_counts.ped",
     "pedigree_counts",
+    # Mate correlation
+    "mate_correlation",
     # Liability structure
     "cross_trait",
     # Liability-scale heritability (pedigree + liability only)

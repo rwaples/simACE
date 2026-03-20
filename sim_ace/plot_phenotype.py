@@ -52,6 +52,7 @@ from sim_ace.plot_liability import (
     plot_liability_joint_affected_t2,
     plot_liability_violin,
     plot_liability_violin_by_generation,
+    plot_mate_correlation,
 )
 from sim_ace.plot_pedigree_counts import plot_pedigree_relationship_counts
 from sim_ace.utils import save_placeholder_plot
@@ -113,6 +114,14 @@ def main(
         scenario,
         generations_label="G_pheno",
         skip_2nd_cousins=skip_2nd_cousins,
+    )
+
+    # Mate correlation heatmap
+    plot_mate_correlation(
+        all_stats,
+        out_dir / f"mate_correlation.{ext}",
+        scenario,
+        params=validation_params,
     )
 
     # Distribution plots
