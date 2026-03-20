@@ -320,6 +320,7 @@ def plot_cif_base(
     tsv_dir: Path,
     kinds: list[str],
     output_path: Path,
+    scenario: str = "",
 ) -> None:
     """Two-panel plot of c1 base population CIF (D1 left, D2 right), shared y-axis."""
     c1_d1 = load_cif(tsv_dir, "d1", "c1", kinds[0])
@@ -348,7 +349,7 @@ def plot_cif_base(
 
     ax1.set_ylabel("Cumulative Incidence")
 
-    fig.suptitle("Base Population CIF", fontsize=14)
+    fig.suptitle(f"Base Population CIF [{scenario}]" if scenario else "Base Population CIF", fontsize=14)
     plt.tight_layout()
 
     sm = cm.ScalarMappable(cmap=cmap, norm=norm)
@@ -368,6 +369,7 @@ def _plot_cif_panels(
     output_path: Path,
     title: str,
     n_cols: int = 2,
+    scenario: str = "",
 ) -> None:
     """CIF panels: first panel is c1-only, remaining panels show c1 + exposed."""
 
@@ -429,7 +431,7 @@ def _plot_cif_panels(
 
     _hide_unused(axes, n_panels, n_rows, n_cols)
 
-    fig.suptitle(title, fontsize=14)
+    fig.suptitle(f"{title} [{scenario}]" if scenario else title, fontsize=14)
     plt.tight_layout()
     _add_cif_colorbar_and_legend(fig, axes, norm, cmap_exposed, exposed_cohort)
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
@@ -441,13 +443,16 @@ def plot_cif_primary(
     kinds: list[str],
     disorder: str,
     output_path: Path,
+    scenario: str = "",
 ) -> None:
     """CIF panels for primary kinds (PO, FS, HS) with c1 reference panel."""
     primary = [k for k in _PRIMARY_KINDS if k in kinds]
     if not primary:
         return
     d_label = disorder.upper()
-    _plot_cif_panels(tsv_dir, primary, disorder, output_path, f"CIF: Base + Primary Kinds \u2014 {d_label}")
+    _plot_cif_panels(
+        tsv_dir, primary, disorder, output_path, f"CIF: Base + Primary Kinds \u2014 {d_label}", scenario=scenario
+    )
 
 
 def plot_cif_secondary(
@@ -455,13 +460,16 @@ def plot_cif_secondary(
     kinds: list[str],
     disorder: str,
     output_path: Path,
+    scenario: str = "",
 ) -> None:
     """CIF panels for remaining kinds after PO/FS/HS."""
     secondary = [k for k in kinds if k not in _PRIMARY_KINDS]
     if not secondary:
         return
     d_label = disorder.upper()
-    _plot_cif_panels(tsv_dir, secondary, disorder, output_path, f"CIF: Secondary Kinds \u2014 {d_label}", n_cols=3)
+    _plot_cif_panels(
+        tsv_dir, secondary, disorder, output_path, f"CIF: Secondary Kinds \u2014 {d_label}", n_cols=3, scenario=scenario
+    )
 
 
 def plot_h2_by_time(
@@ -470,6 +478,7 @@ def plot_h2_by_time(
     disorder: str,
     true_h2: float | None,
     output_path: Path,
+    scenario: str = "",
 ) -> None:
     """h2 vs follow-up time, one panel per kind. Faint lines per birth year, bold median."""
     fig, axes, n_rows, n_cols = _make_panel_grid(len(kinds))
@@ -526,7 +535,8 @@ def plot_h2_by_time(
 
     _hide_unused(axes, len(kinds), n_rows, n_cols)
 
-    fig.suptitle(f"Heritability over Follow-up \u2014 {disorder.upper()}", fontsize=14)
+    _title = f"Heritability over Follow-up \u2014 {disorder.upper()}"
+    fig.suptitle(f"{_title} [{scenario}]" if scenario else _title, fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
@@ -541,6 +551,7 @@ def _plot_bar_panels(
     title: str,
     output_path: Path,
     meta_fn=None,
+    scenario: str = "",
 ) -> None:
     """Bar chart at tmax, one panel per relationship kind.
 
@@ -606,7 +617,7 @@ def _plot_bar_panels(
 
     _hide_unused(axes, len(kinds), n_rows, n_cols)
 
-    fig.suptitle(title, fontsize=14)
+    fig.suptitle(f"{title} [{scenario}]" if scenario else title, fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
@@ -618,6 +629,7 @@ def plot_h2_bar(
     disorder: str,
     true_h2: float | None,
     output_path: Path,
+    scenario: str = "",
 ) -> None:
     """Bar chart of h2 at tmax, one panel per relationship kind."""
     _plot_bar_panels(
@@ -629,6 +641,7 @@ def plot_h2_bar(
         title=f"Heritability at Maximum Follow-up \u2014 {disorder.upper()}",
         output_path=output_path,
         meta_fn=lambda kind: load_meta(tsv_dir, f"h2_{disorder}_meta", kind),
+        scenario=scenario,
     )
 
 
@@ -637,6 +650,7 @@ def plot_gc_bar(
     kinds: list[str],
     true_params: dict | None,
     output_path: Path,
+    scenario: str = "",
 ) -> None:
     """Bar chart of rhog at tmax, one panel per relationship kind.
 
@@ -721,7 +735,8 @@ def plot_gc_bar(
 
     _hide_unused(axes, len(kinds), n_rows, n_cols)
 
-    fig.suptitle("Genetic Correlation at Maximum Follow-up", fontsize=14)
+    _title = "Genetic Correlation at Maximum Follow-up"
+    fig.suptitle(f"{_title} [{scenario}]" if scenario else _title, fontsize=14)
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
@@ -732,6 +747,7 @@ def plot_summary_table(
     kinds: list[str],
     true_params: dict | None,
     output_path: Path,
+    scenario: str = "",
 ) -> None:
     """Render a summary comparison table as a figure."""
     columns = ["Kind", "c2 N", "c3 N", "h\u00b2 d1", "h\u00b2 d2", "\u03c1g"]
@@ -814,7 +830,8 @@ def plot_summary_table(
         for j in range(len(columns)):
             table[i + 1, j].set_facecolor(rgba)
 
-    fig.suptitle("Summary Comparison Across Relationship Kinds", fontsize=14, y=0.98)
+    _title = "Summary Comparison Across Relationship Kinds"
+    fig.suptitle(f"{_title} [{scenario}]" if scenario else _title, fontsize=14, y=0.98)
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
 
@@ -824,12 +841,16 @@ def plot_summary_table(
 # ---------------------------------------------------------------------------
 
 
-def assemble_epimight_atlas(scenario_dir: str | Path) -> None:
+def assemble_epimight_atlas(scenario_dir: str | Path, scenario: str = "") -> None:
     """Discover EPIMIGHT TSV output, generate plots, and assemble atlas PDF."""
     scenario_dir = Path(scenario_dir)
     tsv_dir = scenario_dir / "tsv"
     plots_dir = scenario_dir / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
+
+    # Infer scenario name from path: results/{folder}/{scenario}/rep{N}/epimight/
+    if not scenario:
+        scenario = scenario_dir.parent.parent.name
 
     sns.set_theme(style="whitegrid", palette="colorblind")
 
@@ -843,20 +864,20 @@ def assemble_epimight_atlas(scenario_dir: str | Path) -> None:
     true_params = load_true_params(scenario_dir)
 
     # Generate individual plots
-    plot_cif_base(tsv_dir, kinds, plots_dir / "cif_base.png")
+    plot_cif_base(tsv_dir, kinds, plots_dir / "cif_base.png", scenario=scenario)
     for d in ("d1", "d2"):
-        plot_cif_primary(tsv_dir, kinds, d, plots_dir / f"cif_primary_{d}.png")
-        plot_cif_secondary(tsv_dir, kinds, d, plots_dir / f"cif_secondary_{d}.png")
+        plot_cif_primary(tsv_dir, kinds, d, plots_dir / f"cif_primary_{d}.png", scenario=scenario)
+        plot_cif_secondary(tsv_dir, kinds, d, plots_dir / f"cif_secondary_{d}.png", scenario=scenario)
 
     true_h2_d1 = true_params.get("h2_trait1_true") if true_params else None
     true_h2_d2 = true_params.get("h2_trait2_true") if true_params else None
-    plot_h2_by_time(tsv_dir, kinds, "d1", true_h2_d1, plots_dir / "h2_time_d1.png")
-    plot_h2_by_time(tsv_dir, kinds, "d2", true_h2_d2, plots_dir / "h2_time_d2.png")
+    plot_h2_by_time(tsv_dir, kinds, "d1", true_h2_d1, plots_dir / "h2_time_d1.png", scenario=scenario)
+    plot_h2_by_time(tsv_dir, kinds, "d2", true_h2_d2, plots_dir / "h2_time_d2.png", scenario=scenario)
 
-    plot_h2_bar(tsv_dir, kinds, "d1", true_h2_d1, plots_dir / "h2_bar_d1.png")
-    plot_h2_bar(tsv_dir, kinds, "d2", true_h2_d2, plots_dir / "h2_bar_d2.png")
-    plot_gc_bar(tsv_dir, kinds, true_params, plots_dir / "gc_bar.png")
-    plot_summary_table(tsv_dir, kinds, true_params, plots_dir / "summary_table.png")
+    plot_h2_bar(tsv_dir, kinds, "d1", true_h2_d1, plots_dir / "h2_bar_d1.png", scenario=scenario)
+    plot_h2_bar(tsv_dir, kinds, "d2", true_h2_d2, plots_dir / "h2_bar_d2.png", scenario=scenario)
+    plot_gc_bar(tsv_dir, kinds, true_params, plots_dir / "gc_bar.png", scenario=scenario)
+    plot_summary_table(tsv_dir, kinds, true_params, plots_dir / "summary_table.png", scenario=scenario)
 
     # Assemble atlas
     plot_paths = [plots_dir / f"{name}.png" for name in _PLOT_BASENAMES]
@@ -882,6 +903,7 @@ def main():
     parser.add_argument(
         "scenario_dir", help="Path to EPIMIGHT results directory (contains tsv/ and true_parameters.json)"
     )
+    parser.add_argument("--scenario", default="", help="Scenario name for plot titles")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
@@ -890,7 +912,7 @@ def main():
         format="%(levelname)s: %(message)s",
     )
 
-    assemble_epimight_atlas(args.scenario_dir)
+    assemble_epimight_atlas(args.scenario_dir, scenario=args.scenario)
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ def _run_snakemake() -> None:
 
     # The epimight dir is the parent of the tsv/ directory
     epimight_dir = Path(snakemake.output.atlas).parent.parent
-    assemble_epimight_atlas(epimight_dir)
+    assemble_epimight_atlas(epimight_dir, scenario=snakemake.wildcards.scenario)
 
 
 if __name__ == "__main__":
