@@ -87,12 +87,19 @@ def _run_snakemake():
             "Simple liability threshold on latent liability (no age-at-onset modeling)",
         )
 
+    # Load per-rep phenotype stats for Table 1
+    all_stats = []
+    for stats_path in snakemake.input.stats:
+        with open(stats_path, encoding="utf-8") as fh:
+            all_stats.append(yaml.safe_load(fh))
+
     assemble_atlas(
         all_paths,
         captions,
         output_path,
         scenario_params=scenario_params,
         section_breaks=section_breaks,
+        stats_data=all_stats,
     )
 
 
@@ -108,6 +115,7 @@ if __name__ == "__main__":
         add_logging_args(parser)
         parser.add_argument("--plots", nargs="+", required=True, help="Plot image paths")
         parser.add_argument("--params-yaml", default=None, help="Scenario params.yaml for title page")
+        parser.add_argument("--stats", nargs="*", default=[], help="phenotype_stats.yaml paths (one per rep)")
         parser.add_argument("--scenario", default="unknown", help="Scenario name")
         parser.add_argument("--output", required=True, help="Output PDF path")
         args = parser.parse_args()
@@ -119,6 +127,11 @@ if __name__ == "__main__":
                 scenario_params = yaml.safe_load(fh)
             scenario_params["scenario"] = args.scenario
 
+        all_stats = []
+        for sp in args.stats:
+            with open(sp, encoding="utf-8") as fh:
+                all_stats.append(yaml.safe_load(fh))
+
         captions = {**PHENOTYPE_CAPTIONS, **SIMPLE_LTM_CAPTIONS}
         all_paths = [Path(x) for x in args.plots]
         assemble_atlas(
@@ -126,6 +139,7 @@ if __name__ == "__main__":
             captions,
             Path(args.output),
             scenario_params=scenario_params,
+            stats_data=all_stats or None,
         )
     else:
         _run_snakemake()

@@ -818,13 +818,7 @@ def compute_mate_correlation(df: pd.DataFrame) -> dict:
     f_liab = lookup.loc[nf["mother"].values].values  # (N, 2)
     m_liab = lookup.loc[nf["father"].values].values  # (N, 2)
 
-    matrix = [
-        [
-            float(safe_corrcoef(f_liab[:, i], m_liab[:, j]))
-            for j in range(2)
-        ]
-        for i in range(2)
-    ]
+    matrix = [[float(safe_corrcoef(f_liab[:, i], m_liab[:, j])) for j in range(2)] for i in range(2)]
     return {"matrix": matrix, "n_pairs": len(nf)}
 
 
@@ -859,6 +853,107 @@ def create_sample(
         rows = id_to_row[pid_arr[valid]]
         selected.update(rows[rows >= 0].tolist())
     return df.iloc[np.sort(np.array(list(selected), dtype=np.int64))].copy()
+
+
+# ---------------------------------------------------------------------------
+# Person-years and family size
+# ---------------------------------------------------------------------------
+
+
+def compute_person_years(
+    df: pd.DataFrame,
+    censor_age: float,
+    gen_censoring: dict[int, list[float]] | None = None,
+) -> dict[str, Any]:
+    """Compute person-years of follow-up, total and per-trait at-risk.
+
+    For each individual in generation *g* with observation window [lo, hi]:
+      - Total follow-up ends at min(death_age, hi).
+      - Trait-specific at-risk time ends at min(t_observed, death_age, hi).
+
+    Returns dict with total_person_years and per-trait person_years_at_risk.
+    """
+    if "generation" not in df.columns:
+        return {}
+
+    # Build window lookup: generation → (lo, hi)
+    windows: dict[int, tuple[float, float]] = {}
+    if gen_censoring is not None:
+        for g, (lo, hi) in gen_censoring.items():
+            windows[int(g)] = (float(lo), float(hi))
+
+    has_death = "death_age" in df.columns
+    total_py = 0.0
+    total_deaths = 0
+    trait_py: dict[str, float] = {}
+
+    for trait in [1, 2]:
+        trait_py[f"trait{trait}"] = 0.0
+
+    for g, df_g in df.groupby("generation"):
+        lo, hi = windows.get(int(g), (0.0, censor_age))
+        if hi <= lo:
+            continue
+        n = len(df_g)
+
+        # End of observation for each person (not trait-specific)
+        if has_death:
+            death_ages = df_g["death_age"].values
+            end = np.minimum(death_ages, hi)
+            # Deaths observed during follow-up window
+            total_deaths += int(((death_ages >= lo) & (death_ages < hi)).sum())
+        else:
+            end = np.full(n, hi)
+        gen_total = np.clip(end - lo, 0, None).sum()
+        total_py += float(gen_total)
+
+        # Trait-specific at-risk person-years
+        for trait in [1, 2]:
+            t_col = f"t_observed{trait}"
+            if t_col not in df_g.columns:
+                continue
+            t_obs = df_g[t_col].values
+            if has_death:
+                trait_end = np.minimum(np.minimum(t_obs, df_g["death_age"].values), hi)
+            else:
+                trait_end = np.minimum(t_obs, hi)
+            trait_py[f"trait{trait}"] += float(np.clip(trait_end - lo, 0, None).sum())
+
+    return {
+        "total": round(total_py, 1),
+        "deaths": total_deaths,
+        **{k: round(v, 1) for k, v in trait_py.items()},
+    }
+
+
+def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
+    """Compute mean realised family size (offspring per mating pair).
+
+    Uses non-founder individuals (mother != -1) grouped by (mother, father).
+    """
+    if "mother" not in df.columns or "father" not in df.columns:
+        return {}
+
+    children = df.loc[(df["mother"] != -1) & (df["father"] != -1)]
+    if len(children) == 0:
+        return {}
+
+    family_sizes = children.groupby(["mother", "father"]).size()
+    result: dict[str, Any] = {
+        "mean": round(float(family_sizes.mean()), 2),
+        "median": round(float(family_sizes.median()), 1),
+        "n_families": len(family_sizes),
+    }
+
+    # Sex-stratified family size
+    if "sex" in children.columns:
+        for sex_val, sex_label in [(0, "female"), (1, "male")]:
+            sex_children = children.loc[children["sex"] == sex_val]
+            if len(sex_children) > 0:
+                sex_sizes = sex_children.groupby(["mother", "father"]).size()
+                result[f"mean_{sex_label}"] = round(float(sex_sizes.mean()), 2)
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -903,6 +998,9 @@ def main(
         stats["censoring"] = compute_censoring_windows(df, censor_age, gen_censoring)
         stats["censoring_confusion"] = compute_censoring_confusion(df, censor_age, gen_censoring)
         stats["censoring_cascade"] = compute_censoring_cascade(df, censor_age, gen_censoring)
+
+    stats["person_years"] = compute_person_years(df, censor_age, gen_censoring)
+    stats["family_size"] = compute_mean_family_size(df)
 
     # Read full pedigree once (used for both pair extraction and pair counts)
     df_ped = pd.read_parquet(pedigree_path) if pedigree_path is not None else None

@@ -453,12 +453,27 @@ def _render_section_page(pdf: PdfPages, title: str, subtitle: str = "") -> None:
     plt.close(fig)
 
 
+def _render_table1_page(
+    pdf: PdfPages,
+    all_stats: list[dict],
+    scenario: str,
+    params: dict,
+) -> None:
+    """Render a Table 1 epidemiological summary page."""
+    from sim_ace.plot_table1 import render_table1_figure
+
+    fig = render_table1_figure(all_stats, params, scenario=scenario)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
 def assemble_atlas(
     plot_paths: list[Path],
     captions: dict[str, str],
     output_path: Path,
     scenario_params: dict | None = None,
     section_breaks: dict[int, tuple[str, str]] | None = None,
+    stats_data: list[dict] | None = None,
 ) -> None:
     """Combine saved plot images into a multi-page PDF with captions below each plot.
 
@@ -473,6 +488,8 @@ def assemble_atlas(
             names.  A title page with all parameters is rendered first.
         section_breaks: Map from plot index to (title, subtitle) pairs.
             A section divider page is inserted before the plot at each index.
+        stats_data: If provided, a list of phenotype_stats dicts (one per rep).
+            A Table 1 page is rendered after the title page.
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -486,6 +503,11 @@ def assemble_atlas(
         if scenario_params is not None:
             scenario_name = scenario_params.get("scenario", "unknown")
             _render_params_page(pdf, scenario_name, scenario_params)
+
+            # Table 1 page (requires both params and stats)
+            if stats_data:
+                _render_table1_page(pdf, stats_data, scenario_name, scenario_params)
+
         for idx, path in enumerate(plot_paths):
             # Insert section divider page if configured for this index
             if idx in section_breaks:

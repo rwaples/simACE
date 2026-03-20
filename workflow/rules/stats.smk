@@ -134,6 +134,11 @@ rule assemble_scenario_atlas:
         phenotype   = expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS),
         simple_ltm = expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=SIMPLE_LTM_PLOTS),
         params_yaml = "results/{folder}/{scenario}/rep1/params.yaml",
+        stats = lambda w: expand(
+            "results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
+            folder=w.folder, scenario=w.scenario,
+            rep=range(1, get_param(config, w.scenario, "replicates") + 1),
+        ),
     output:
         "results/{folder}/{scenario}/plots/atlas.pdf",
     params:
