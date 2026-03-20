@@ -66,6 +66,8 @@ _PLOT_BASENAMES = [
     "cif_secondary_d2",
     "h2_time_d1",
     "h2_time_d2",
+    "h2_heatmap_d1",
+    "h2_heatmap_d2",
     "h2_bar_d1",
     "h2_bar_d2",
     "gc_bar",
@@ -104,6 +106,16 @@ EPIMIGHT_CAPTIONS: dict[str, str] = {
         "Dotted line shows the fixed-effect meta-analytic estimate with shaded 95% CI."
     ),
     "h2_time_d2": ("Figure 5: Heritability over follow-up \u2014 Disorder 2.\n\nSame as Figure 4 but for disorder 2."),
+    "h2_heatmap_d1": (
+        "Figure 5a: h\u00b2 Heatmap \u2014 Disorder 1.\n\n"
+        "One panel per relationship kind. X-axis is birth cohort, y-axis is follow-up "
+        "time (age). Color encodes h\u00b2 (YlOrRd colormap, shared scale across panels). "
+        "Cell opacity encodes estimate precision: opaque = low SE, faint = high SE. "
+        "Gray background indicates missing data. Dashed mark on colorbar shows true h\u00b2."
+    ),
+    "h2_heatmap_d2": (
+        "Figure 5b: h\u00b2 Heatmap \u2014 Disorder 2.\n\nSame as Figure 5a but for disorder 2."
+    ),
     "h2_bar_d1": (
         "Figure 6a: Heritability at maximum follow-up \u2014 Disorder 1.\n\n"
         "One panel per relationship kind. Bars show h\u00b2 at maximum follow-up "
@@ -260,6 +272,66 @@ def tmax_rows(df: pd.DataFrame) -> pd.DataFrame:
         return df
     idx = df.groupby("born_at_year")["time"].idxmax()
     return df.loc[idx].sort_values("born_at_year")
+
+
+def _pivot_h2_grid(
+    df: pd.DataFrame,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Pivot h2 DataFrame into 2D grids (n_time, n_year) for h2 and SE.
+
+    Returns (h2_grid, se_grid, times, years) where times and years are
+    sorted 1-D arrays.  Missing cells are NaN.
+    """
+    times = np.sort(df["time"].unique())
+    years = np.sort(df["born_at_year"].unique())
+    time_idx = {t: i for i, t in enumerate(times)}
+    year_idx = {y: j for j, y in enumerate(years)}
+
+    h2_grid = np.full((len(times), len(years)), np.nan)
+    se_grid = np.full_like(h2_grid, np.nan)
+
+    for _, row in df.iterrows():
+        i = time_idx[row["time"]]
+        j = year_idx[row["born_at_year"]]
+        h2_grid[i, j] = row["h2"]
+        if "se" in row.index and pd.notna(row["se"]):
+            se_grid[i, j] = row["se"]
+
+    return h2_grid, se_grid, times, years
+
+
+def _h2_to_rgba(
+    h2_grid: np.ndarray,
+    se_grid: np.ndarray,
+    vmin: float,
+    vmax: float,
+    se_max: float,
+) -> np.ndarray:
+    """Convert h2 + SE grids into an RGBA (M, N, 4) image array.
+
+    RGB comes from h2 mapped through YlOrRd; alpha encodes precision
+    (low SE → opaque, high SE → faint).  NaN cells get alpha=0.
+    """
+    cmap = cm.YlOrRd
+    norm = Normalize(vmin=vmin, vmax=vmax, clip=True)
+
+    rgba = cmap(norm(np.nan_to_num(h2_grid, nan=0.0)))  # (M, N, 4)
+    rgba = rgba.copy()  # make writable
+
+    # Alpha: precise cells opaque, uncertain cells faint
+    if se_max > 0:
+        alpha = 0.15 + 0.85 * (1.0 - np.clip(se_grid / se_max, 0, 1))
+    else:
+        alpha = np.ones_like(se_grid)
+
+    # NaN in h2 → transparent; NaN in SE → full opacity (no SE info)
+    nan_h2 = np.isnan(h2_grid)
+    nan_se = np.isnan(se_grid)
+    alpha = np.where(nan_se, 1.0, alpha)
+    alpha = np.where(nan_h2, 0.0, alpha)
+
+    rgba[..., 3] = alpha
+    return rgba
 
 
 # ---------------------------------------------------------------------------
@@ -538,6 +610,112 @@ def plot_h2_by_time(
     _title = f"Heritability over Follow-up \u2014 {disorder.upper()}"
     fig.suptitle(f"{_title} [{scenario}]" if scenario else _title, fontsize=14)
     plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+
+def plot_h2_heatmap(
+    tsv_dir: Path,
+    kinds: list[str],
+    disorder: str,
+    true_h2: float | None,
+    output_path: Path,
+    scenario: str = "",
+) -> None:
+    """Heatmap of h2 by birth year (x) and follow-up time (y), one panel per kind.
+
+    Color encodes h2 (YlOrRd); alpha encodes precision (1/SE).
+    """
+    # -- Collect grids per kind and compute shared normalization ----------
+    grids: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
+    h2_max_all = 0.0
+    se_vals_all: list[float] = []
+
+    for kind in kinds:
+        df = load_h2(tsv_dir, disorder, kind)
+        if df.empty:
+            continue
+        h2_grid, se_grid, times, years = _pivot_h2_grid(df)
+        grids[kind] = (h2_grid, se_grid, times, years)
+        finite = h2_grid[np.isfinite(h2_grid)]
+        if finite.size:
+            h2_max_all = max(h2_max_all, float(np.nanmax(finite)))
+        se_finite = se_grid[np.isfinite(se_grid)]
+        if se_finite.size:
+            se_vals_all.extend(se_finite.tolist())
+
+    if not grids:
+        return
+
+    vmin = 0.0
+    vmax = max(h2_max_all * 1.05, 0.1)
+    se_max = float(np.percentile(se_vals_all, 95)) if se_vals_all else 0.0
+
+    # -- Panel grid --------------------------------------------------------
+    fig, axes, n_rows, n_cols = _make_panel_grid(len(kinds))
+
+    for idx, kind in enumerate(kinds):
+        row, col = divmod(idx, n_cols)
+        ax = axes[row, col]
+        ax.set_facecolor("0.92")
+
+        if kind not in grids:
+            ax.set_title(KIND_LABELS.get(kind, kind), fontsize=11)
+            continue
+
+        h2_grid, se_grid, times, years = grids[kind]
+        rgba = _h2_to_rgba(h2_grid, se_grid, vmin, vmax, se_max)
+
+        ax.imshow(
+            rgba,
+            aspect="auto",
+            origin="lower",
+            interpolation="nearest",
+            extent=[years[0] - 0.5, years[-1] + 0.5, times[0], times[-1]],
+        )
+
+        ax.set_title(KIND_LABELS.get(kind, kind), fontsize=11)
+        ax.set_xlabel("Birth cohort", fontsize=9)
+        if col == 0:
+            ax.set_ylabel("Follow-up time (age)")
+        ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    _hide_unused(axes, len(kinds), n_rows, n_cols)
+
+    _title = f"h\u00b2 Heatmap \u2014 {disorder.upper()}"
+    fig.suptitle(f"{_title} [{scenario}]" if scenario else _title, fontsize=14)
+    plt.tight_layout(rect=[0, 0.10, 1, 1])
+
+    # -- Shared colorbar ---------------------------------------------------
+    cbar_ax = fig.add_axes([0.15, 0.02, 0.50, 0.025])
+    sm = cm.ScalarMappable(cmap=cm.YlOrRd, norm=Normalize(vmin=vmin, vmax=vmax))
+    sm.set_array([])
+    fig.colorbar(sm, cax=cbar_ax, orientation="horizontal", label="h\u00b2")
+
+    if true_h2 is not None:
+        cbar_ax.axvline(true_h2, color="black", linestyle="--", linewidth=1.5)
+        cbar_ax.text(
+            true_h2,
+            1.35,
+            f"true={true_h2:.3f}",
+            transform=cbar_ax.get_xaxis_transform(),
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+
+    # Alpha legend annotation
+    fig.text(
+        0.78,
+        0.02,
+        "opacity \u221d precision (1/SE)",
+        ha="center",
+        va="bottom",
+        fontsize=8,
+        fontstyle="italic",
+        color="0.35",
+    )
+
     plt.savefig(output_path, dpi=150, bbox_inches="tight")
     plt.close()
 
@@ -874,6 +1052,9 @@ def assemble_epimight_atlas(scenario_dir: str | Path, scenario: str = "") -> Non
     plot_h2_by_time(tsv_dir, kinds, "d1", true_h2_d1, plots_dir / "h2_time_d1.png", scenario=scenario)
     plot_h2_by_time(tsv_dir, kinds, "d2", true_h2_d2, plots_dir / "h2_time_d2.png", scenario=scenario)
 
+    plot_h2_heatmap(tsv_dir, kinds, "d1", true_h2_d1, plots_dir / "h2_heatmap_d1.png", scenario=scenario)
+    plot_h2_heatmap(tsv_dir, kinds, "d2", true_h2_d2, plots_dir / "h2_heatmap_d2.png", scenario=scenario)
+
     plot_h2_bar(tsv_dir, kinds, "d1", true_h2_d1, plots_dir / "h2_bar_d1.png", scenario=scenario)
     plot_h2_bar(tsv_dir, kinds, "d2", true_h2_d2, plots_dir / "h2_bar_d2.png", scenario=scenario)
     plot_gc_bar(tsv_dir, kinds, true_params, plots_dir / "gc_bar.png", scenario=scenario)
@@ -884,8 +1065,8 @@ def assemble_epimight_atlas(scenario_dir: str | Path, scenario: str = "") -> Non
     section_breaks = {
         0: ("Cumulative Incidence", "CIF curves across relationship kinds"),
         5: ("Heritability", "h\u00b2 estimates by follow-up time and at maximum follow-up"),
-        9: ("Genetic Correlation", "Cross-trait genetic correlation at maximum follow-up"),
-        10: ("Summary", "Comparison across relationship kinds"),
+        11: ("Genetic Correlation", "Cross-trait genetic correlation at maximum follow-up"),
+        12: ("Summary", "Comparison across relationship kinds"),
     }
 
     atlas_path = plots_dir / "atlas.pdf"
