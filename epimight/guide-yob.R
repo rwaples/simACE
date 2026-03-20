@@ -128,9 +128,26 @@ run_h2_stratified <- function(c1_estimates, c2_estimates) {
 h2_d1 <- run_h2_stratified(re_d1_c1, re_d1_c2)
 h2_d2 <- run_h2_stratified(re_d2_c1, re_d2_c3)
 
-## h2 meta-analysis
-h2_d1_meta <- h2_analysis$run_meta(h2_d1)
-h2_d2_meta <- h2_analysis$run_meta(h2_d2)
+## h2 tmax per year (filter to max follow-up before meta-analysis)
+h2_d1_tmax <- h2_d1 |>
+  group_by(born_at_year) |>
+  filter(time == max(time)) |>
+  ungroup() |>
+  select(born_at_year, time, h2, se, l95, u95) |>
+  arrange(born_at_year) |>
+  as.data.table()
+
+h2_d2_tmax <- h2_d2 |>
+  group_by(born_at_year) |>
+  filter(time == max(time)) |>
+  ungroup() |>
+  select(born_at_year, time, h2, se, l95, u95) |>
+  arrange(born_at_year) |>
+  as.data.table()
+
+## h2 meta-analysis (tmax only — consistent with GC meta)
+h2_d1_meta <- h2_analysis$run_meta(h2_d1_tmax)
+h2_d2_meta <- h2_analysis$run_meta(h2_d2_tmax)
 
 ## ──────────────────────────────────────────────────────────────────────────────
 ## Assemble consistent data for GC
@@ -202,20 +219,6 @@ meta_tmax <- gc_analysis$run_meta(gc_d1_d2_tmax)
 ## ──────────────────────────────────────────────────────────────────────────────
 ## Extract observed values (tmax per year)
 ## ──────────────────────────────────────────────────────────────────────────────
-
-h2_d1_tmax <- h2_d1 |>
-  group_by(born_at_year) |>
-  filter(time == max(time)) |>
-  ungroup() |>
-  select(born_at_year, time, h2, se, l95, u95) |>
-  arrange(born_at_year)
-
-h2_d2_tmax <- h2_d2 |>
-  group_by(born_at_year) |>
-  filter(time == max(time)) |>
-  ungroup() |>
-  select(born_at_year, time, h2, se, l95, u95) |>
-  arrange(born_at_year)
 
 gc_tmax <- gc_d1_d2_tmax |>
   select(born_at_year, time, rhh, rhog, se, l95, u95, h2_comb, h2_l95, h2_u95) |>
