@@ -107,14 +107,14 @@ EPIMIGHT_CAPTIONS: dict[str, str] = {
     ),
     "h2_time_d2": ("Figure 5: Heritability over follow-up \u2014 Disorder 2.\n\nSame as Figure 4 but for disorder 2."),
     "h2_heatmap_d1": (
-        "Figure 5a: h\u00b2 Heatmap \u2014 Disorder 1.\n\n"
-        "One panel per relationship kind. X-axis is birth cohort, y-axis is follow-up "
-        "time (age). Color encodes h\u00b2 (YlOrRd colormap, shared scale across panels). "
+        "Figure 5a: h\u00b2 Heatmap (Full Sibling) \u2014 Disorder 1.\n\n"
+        "X-axis is birth cohort, y-axis is follow-up time (age). "
+        "Color encodes h\u00b2 (viridis colormap). "
         "Cell opacity encodes estimate precision: opaque = low SE, faint = high SE. "
         "Gray background indicates missing data. Dashed mark on colorbar shows true h\u00b2."
     ),
     "h2_heatmap_d2": (
-        "Figure 5b: h\u00b2 Heatmap \u2014 Disorder 2.\n\nSame as Figure 5a but for disorder 2."
+        "Figure 5b: h\u00b2 Heatmap (Full Sibling) \u2014 Disorder 2.\n\nSame as Figure 5a but for disorder 2."
     ),
     "h2_bar_d1": (
         "Figure 6a: Heritability at maximum follow-up \u2014 Disorder 1.\n\n"
@@ -309,10 +309,10 @@ def _h2_to_rgba(
 ) -> np.ndarray:
     """Convert h2 + SE grids into an RGBA (M, N, 4) image array.
 
-    RGB comes from h2 mapped through YlOrRd; alpha encodes precision
+    RGB comes from h2 mapped through viridis; alpha encodes precision
     (low SE → opaque, high SE → faint).  NaN cells get alpha=0.
     """
-    cmap = cm.YlOrRd
+    cmap = cm.viridis
     norm = Normalize(vmin=vmin, vmax=vmax, clip=True)
 
     rgba = cmap(norm(np.nan_to_num(h2_grid, nan=0.0)))  # (M, N, 4)
@@ -622,16 +622,21 @@ def plot_h2_heatmap(
     output_path: Path,
     scenario: str = "",
 ) -> None:
-    """Heatmap of h2 by birth year (x) and follow-up time (y), one panel per kind.
+    """Heatmap of h2 by birth year (x) and follow-up time (y) for FS kind only.
 
-    Color encodes h2 (YlOrRd); alpha encodes precision (1/SE).
+    Color encodes h2 (viridis); alpha encodes precision (1/SE).
     """
-    # -- Collect grids per kind and compute shared normalization ----------
+    # -- Only use FS kind --------------------------------------------------
+    heatmap_kinds = [k for k in kinds if k == "FS"]
+    if not heatmap_kinds:
+        return
+
+    # -- Collect grids and compute normalization ---------------------------
     grids: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = {}
     h2_max_all = 0.0
     se_vals_all: list[float] = []
 
-    for kind in kinds:
+    for kind in heatmap_kinds:
         df = load_h2(tsv_dir, disorder, kind)
         if df.empty:
             continue
@@ -652,9 +657,9 @@ def plot_h2_heatmap(
     se_max = float(np.percentile(se_vals_all, 95)) if se_vals_all else 0.0
 
     # -- Panel grid --------------------------------------------------------
-    fig, axes, n_rows, n_cols = _make_panel_grid(len(kinds))
+    fig, axes, n_rows, n_cols = _make_panel_grid(len(heatmap_kinds))
 
-    for idx, kind in enumerate(kinds):
+    for idx, kind in enumerate(heatmap_kinds):
         row, col = divmod(idx, n_cols)
         ax = axes[row, col]
         ax.set_facecolor("0.92")
@@ -680,7 +685,7 @@ def plot_h2_heatmap(
             ax.set_ylabel("Follow-up time (age)")
         ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-    _hide_unused(axes, len(kinds), n_rows, n_cols)
+    _hide_unused(axes, len(heatmap_kinds), n_rows, n_cols)
 
     _title = f"h\u00b2 Heatmap \u2014 {disorder.upper()}"
     fig.suptitle(f"{_title} [{scenario}]" if scenario else _title, fontsize=14)
@@ -688,7 +693,7 @@ def plot_h2_heatmap(
 
     # -- Shared colorbar ---------------------------------------------------
     cbar_ax = fig.add_axes([0.15, 0.02, 0.50, 0.025])
-    sm = cm.ScalarMappable(cmap=cm.YlOrRd, norm=Normalize(vmin=vmin, vmax=vmax))
+    sm = cm.ScalarMappable(cmap=cm.viridis, norm=Normalize(vmin=vmin, vmax=vmax))
     sm.set_array([])
     fig.colorbar(sm, cax=cbar_ax, orientation="horizontal", label="h\u00b2")
 
