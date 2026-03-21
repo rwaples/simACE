@@ -618,7 +618,7 @@ def plot_parent_offspring_liability(
             if row == 1:
                 ax.set_xlabel("Midparent Liability")
 
-    fig.suptitle(f"Parent-Offspring Liability Correlation [{scenario}]", fontsize=14)
+    fig.suptitle(f"Midparent-Offspring Liability Regression [{scenario}]", fontsize=14)
     finalize_plot(output_path, subsample_note=subsample_note)
 
 
@@ -694,7 +694,7 @@ def plot_heritability_by_generation(
         ax.set_xticks(generations)
         ax.set_ylim(0, 1)
 
-    fig.suptitle(f"Narrow-Sense Liability-Scale Heritability by Generation [{scenario}]", fontsize=14)
+    fig.suptitle(f"Realized Narrow-Sense Liability-Scale Heritability by Generation [{scenario}]", fontsize=14)
     finalize_plot(output_path)
 
 
@@ -771,7 +771,7 @@ def plot_broad_heritability_by_generation(
         ax.set_xticks(generations)
         ax.set_ylim(0, 1)
 
-    fig.suptitle(f"Additive Genetic and Shared Environment by Generation [{scenario}]", fontsize=14)
+    fig.suptitle(f"Realized Additive Genetic and Shared Environment by Generation [{scenario}]", fontsize=14)
     finalize_plot(output_path)
 
 

@@ -10,6 +10,7 @@ from sim_ace.plot_atlas import (
     PHENOTYPE_CAPTIONS,
     SIMPLE_LTM_CAPTIONS,
     assemble_atlas,
+    get_model_equation,
     get_model_family,
 )
 
@@ -63,10 +64,12 @@ def _run_snakemake():
     all_paths = phenotype_paths + simple_ltm_paths
 
     model_name, model_desc = get_model_family(scenario_params)
+    model_equations = get_model_equation(scenario_params)
     section_breaks = {
         7: (
             f"{model_name} Phenotype",
             model_desc,
+            model_equations,
         ),
         9: (
             "Survival & Censoring",
@@ -85,6 +88,7 @@ def _run_snakemake():
         section_breaks[len(phenotype_paths)] = (
             "Liability Threshold Phenotype",
             "Simple liability threshold on latent liability (no age-at-onset modeling)",
+            [r"$\mathrm{affected} = \mathbf{1}(L > \Phi^{-1}(1-K)), \qquad L = A + C + E$"],
         )
 
     # Load per-rep phenotype stats for Table 1

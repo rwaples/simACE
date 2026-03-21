@@ -632,51 +632,56 @@ def plot_mate_correlation(
             C2=float(params.get("C2", 0)),
         )
 
-    _fig, ax = plt.subplots(figsize=(6, 5))
+    xlabels = ["Male trait 1", "Male trait 2"]
+    ylabels = ["Female trait 1", "Female trait 2"]
+
+    _fig, (ax_exp, ax_obs) = plt.subplots(1, 2, figsize=(12, 5))
+
+    # Left panel: expected (parametric)
     sns.heatmap(
-        obs,
-        ax=ax,
+        exp,
+        ax=ax_exp,
         cmap="RdBu_r",
         vmin=-1,
         vmax=1,
         center=0,
-        annot=False,
+        annot=True,
+        fmt=".2f",
+        annot_kws={"fontsize": 16, "fontweight": "bold"},
         square=True,
-        cbar_kws={"label": "Pearson r"},
-        xticklabels=["Male trait 1", "Male trait 2"],
-        yticklabels=["Female trait 1", "Female trait 2"],
+        cbar=False,
+        xticklabels=xlabels,
+        yticklabels=ylabels,
     )
-
-    # Custom two-line annotations
-    for i in range(2):
-        for j in range(2):
-            o = obs[i, j]
-            e = exp[i, j]
-            ax.text(
-                j + 0.5,
-                i + 0.38,
-                f"{o:.2f}",
-                ha="center",
-                va="center",
-                fontsize=16,
-                fontweight="bold",
-                color="white",
-            )
-            if not np.isnan(e):
-                ax.text(
-                    j + 0.5,
-                    i + 0.62,
-                    f"(exp: {e:.2f})",
-                    ha="center",
-                    va="center",
-                    fontsize=10,
-                    color=(1, 1, 1, 0.7),
-                )
-
-    title = f"Mate Liability Correlation [{scenario}]"
     a1 = float(params.get("assort1", 0)) if params else 0
     a2 = float(params.get("assort2", 0)) if params else 0
+    exp_title = "Expected"
     if a1 != 0 or a2 != 0:
-        title += f"\nassort1={a1}, assort2={a2}"
-    ax.set_title(title, fontsize=13)
+        exp_title += f"\nassort1={a1}, assort2={a2}"
+    ax_exp.set_title(exp_title, fontsize=13)
+
+    # Right panel: observed (realized)
+    sns.heatmap(
+        obs,
+        ax=ax_obs,
+        cmap="RdBu_r",
+        vmin=-1,
+        vmax=1,
+        center=0,
+        annot=True,
+        fmt=".2f",
+        annot_kws={"fontsize": 16, "fontweight": "bold"},
+        square=True,
+        cbar_kws={"label": "Pearson r"},
+        xticklabels=xlabels,
+        yticklabels=[],
+    )
+    ax_obs.set_title("Observed", fontsize=13)
+
+    _fig.suptitle(
+        f"Mate Liability Correlation [{scenario}]",
+        fontsize=15,
+        fontweight="bold",
+        y=1.02,
+    )
     finalize_plot(output_path)

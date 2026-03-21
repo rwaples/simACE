@@ -325,7 +325,7 @@ def plot_pedigree_relationship_counts(
     # Generation labels
     for g, y in {0: 10.0, 1: 7.5, 2: 5.0, 3: 2.0}.items():
         ax.text(
-            -2.0,
+            -2.7,
             y,
             f"Gen {g}",
             fontsize=14,

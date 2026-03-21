@@ -56,6 +56,72 @@ MODEL_FAMILY: dict[str, tuple[str, str]] = {
     ),
 }
 
+# Common frailty model equation (line 1 for all 6 baseline hazard models)
+_FRAILTY_LINE = (
+    r"$h(t \mid L) = h_0(t) \cdot e^{\beta L \,+\, \beta_{\mathrm{sex}} \cdot \mathrm{sex}},"
+    r" \qquad L = A + C + E$"
+)
+
+# Model-specific baseline hazard h₀(t) (line 2)
+_BASELINE_LINE: dict[str, str] = {
+    "weibull": r"$h_0(t) = \dfrac{\rho}{s}\left(\dfrac{t}{s}\right)^{\!\rho-1}$",
+    "exponential": r"$h_0(t) = \lambda$",
+    "gompertz": r"$h_0(t) = b \, e^{\gamma t}$",
+    "lognormal": (
+        r"$h_0(t) = \dfrac{\phi(w)}{\sigma\, t\, (1-\Phi(w))},"
+        r" \quad w = \dfrac{\ln t - \mu}{\sigma}$"
+    ),
+    "loglogistic": r"$h_0(t) = \dfrac{(k/\alpha)(t/\alpha)^{k-1}}{1 + (t/\alpha)^k}$",
+    "gamma": r"$h_0(t) = f_\Gamma(t;\,k,\theta) \,/\, S_\Gamma(t;\,k,\theta)$",
+}
+
+_FRAILTY_MODELS_SET = set(_BASELINE_LINE)
+
+
+def _equation_lines_for_model(model: str, label: str = "") -> list[str]:
+    """Return mathtext equation line(s) for a single phenotype model."""
+    prefix = (r"\mathrm{" + label + r"\!:}\ ") if label else ""
+
+    if model in _BASELINE_LINE:
+        line1 = r"$" + prefix + _FRAILTY_LINE.strip("$") + r"$" if prefix else _FRAILTY_LINE
+        return [line1, _BASELINE_LINE[model]]
+
+    if model == "cure_frailty":
+        return [
+            r"$"
+            + prefix
+            + r"\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad"
+            + r" t_{\mathrm{case}} \sim h_0(t) \cdot"
+            + r" e^{\beta L \,+\, \beta_{\mathrm{sex}} \cdot \mathrm{sex}}$",
+        ]
+    if model == "adult_ltm":
+        return [
+            r"$" + prefix + r"\mathrm{CIP}(t) = \frac{K}{1 + e^{-k(t - x_0)}}$",
+            r"$\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad"
+            + r" t = x_0 + \frac{1}{k}\ln\!\frac{\Phi(-L)}{K - \Phi(-L)}$",
+        ]
+    if model == "adult_cox":
+        return [
+            r"$" + prefix + r"t_{\mathrm{raw}} = \sqrt{-\ln U \,/\, e^{L}}," + r" \quad U \sim \mathrm{Uniform}(0,1]$",
+            r"$\mathrm{case\!:}\ \mathrm{CIP}_{\mathrm{rank}} < K, \qquad"
+            + r" t = x_0 + \frac{1}{k}\ln\!\frac{\mathrm{CIP}}{K - \mathrm{CIP}}$",
+        ]
+    return []
+
+
+def get_model_equation(params: dict) -> list[str]:
+    """Return mathtext equation lines for the scenario's phenotype model(s)."""
+    m1 = str(params.get("phenotype_model1", "weibull"))
+    m2 = str(params.get("phenotype_model2", "weibull"))
+
+    if m1 == m2:
+        return _equation_lines_for_model(m1)
+
+    lines: list[str] = []
+    lines.extend(_equation_lines_for_model(m1, label="Trait 1"))
+    lines.extend(_equation_lines_for_model(m2, label="Trait 2"))
+    return lines
+
 
 def get_model_family(params: dict) -> tuple[str, str]:
     """Return (display_name, description) for the scenario's phenotype model(s).
@@ -423,32 +489,78 @@ def _render_params_page(
     plt.close(fig)
 
 
-def _render_section_page(pdf: PdfPages, title: str, subtitle: str = "") -> None:
-    """Render a section divider page with centred title."""
+def _render_section_page(
+    pdf: PdfPages,
+    title: str,
+    subtitle: str = "",
+    equations: list[str] | None = None,
+) -> None:
+    """Render a section divider page with centred title and optional equations."""
     fig = plt.figure(figsize=(11, 8.5))
-    fig.text(
-        0.5,
-        0.55,
-        title,
-        fontsize=28,
-        fontweight="bold",
-        fontfamily="serif",
-        ha="center",
-        va="center",
-        transform=fig.transFigure,
-    )
-    if subtitle:
+
+    if equations:
+        # Shift layout to accommodate equation lines
+        title_y = 0.62
         fig.text(
             0.5,
-            0.45,
-            subtitle,
-            fontsize=16,
+            title_y,
+            title,
+            fontsize=28,
+            fontweight="bold",
             fontfamily="serif",
-            color="0.4",
             ha="center",
             va="center",
             transform=fig.transFigure,
         )
+        eq_y = 0.49
+        for eq_line in equations:
+            fig.text(
+                0.5,
+                eq_y,
+                eq_line,
+                fontsize=18,
+                fontfamily="serif",
+                ha="center",
+                va="center",
+                transform=fig.transFigure,
+            )
+            eq_y -= 0.09
+        if subtitle:
+            fig.text(
+                0.5,
+                eq_y - 0.02,
+                subtitle,
+                fontsize=13,
+                fontfamily="serif",
+                color="0.4",
+                ha="center",
+                va="center",
+                transform=fig.transFigure,
+            )
+    else:
+        fig.text(
+            0.5,
+            0.55,
+            title,
+            fontsize=28,
+            fontweight="bold",
+            fontfamily="serif",
+            ha="center",
+            va="center",
+            transform=fig.transFigure,
+        )
+        if subtitle:
+            fig.text(
+                0.5,
+                0.45,
+                subtitle,
+                fontsize=16,
+                fontfamily="serif",
+                color="0.4",
+                ha="center",
+                va="center",
+                transform=fig.transFigure,
+            )
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -472,7 +584,7 @@ def assemble_atlas(
     captions: dict[str, str],
     output_path: Path,
     scenario_params: dict | None = None,
-    section_breaks: dict[int, tuple[str, str]] | None = None,
+    section_breaks: dict[int, tuple] | None = None,
     stats_data: list[dict] | None = None,
 ) -> None:
     """Combine saved plot images into a multi-page PDF with captions below each plot.
@@ -486,7 +598,8 @@ def assemble_atlas(
         output_path: Path for the combined PDF.
         scenario_params: If provided, a dict with keys 'scenario' and parameter
             names.  A title page with all parameters is rendered first.
-        section_breaks: Map from plot index to (title, subtitle) pairs.
+        section_breaks: Map from plot index to (title, subtitle) or
+            (title, subtitle, equations) tuples.
             A section divider page is inserted before the plot at each index.
         stats_data: If provided, a list of phenotype_stats dicts (one per rep).
             A Table 1 page is rendered after the title page.
@@ -511,8 +624,10 @@ def assemble_atlas(
         for idx, path in enumerate(plot_paths):
             # Insert section divider page if configured for this index
             if idx in section_breaks:
-                sec_title, sec_subtitle = section_breaks[idx]
-                _render_section_page(pdf, sec_title, sec_subtitle)
+                brk = section_breaks[idx]
+                sec_title, sec_subtitle = brk[0], brk[1]
+                sec_equations = brk[2] if len(brk) > 2 else None
+                _render_section_page(pdf, sec_title, sec_subtitle, equations=sec_equations)
             path = Path(path)
             if not path.exists():
                 logger.warning("Atlas: skipping missing plot %s", path)
