@@ -55,5 +55,11 @@ Thumbs.db
 #Pycharm
 .idea
 
+# Presentations
+presentations/
+
+# Claude Code
+.claude/
+
 #epimight
 /epimight/EPIMIGHT
