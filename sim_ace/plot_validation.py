@@ -8,6 +8,7 @@ import argparse
 import logging
 from collections.abc import Callable
 
+import numpy as np
 import pandas as pd
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,13 @@ def stripplot(
     scenarios = df["scenario"].unique()
     positions = {s: i for i, s in enumerate(scenarios)}
 
+    # Guard against all-NaN y column (metric not computed)
+    if df[y].isna().all():
+        ax.text(0.5, 0.5, "no data", ha="center", va="center",
+                transform=ax.transAxes, fontsize=12, color="0.5")
+        ax.set_ylabel(y)
+        return
+
     sns.stripplot(data=df, x="scenario", y=y, ax=ax, alpha=0.9, color="C0", jitter=0.15)
 
     if expected_func is not None or expected is not None:
@@ -47,15 +55,16 @@ def stripplot(
             else:
                 assert expected is not None
                 val = expected
-            ax.scatter(
-                positions[scenario],
-                val,
-                marker="_",
-                s=200,
-                linewidths=3,
-                color="C1",
-                zorder=10,
-            )
+            if val is not None and np.isfinite(float(val)):
+                ax.scatter(
+                    positions[scenario],
+                    val,
+                    marker="_",
+                    s=200,
+                    linewidths=3,
+                    color="C1",
+                    zorder=10,
+                )
 
     ax.set_xlabel("")
     _long = max((len(str(s)) for s in scenarios), default=0) > 12
@@ -67,8 +76,6 @@ def stripplot(
         ax.set_xlim(-0.5, 0.5)
 
     # Tight y-axis padding based on actual data range
-    import numpy as np
-
     data_vals = df[y].dropna().values
     all_vals = list(data_vals)
     if expected_func is not None:
@@ -281,9 +288,14 @@ def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     n = len(scenarios)
     _long = max((len(str(s)) for s in scenarios), default=0) > 12
     fig, axes = plt.subplots(2, 3, figsize=_figsize(nrows=2, ncols=3))
-    import numpy as np
 
     for ax, col in zip(axes.flat, panels):
+        if dp[col].isna().all():
+            ax.text(0.5, 0.5, "no data", ha="center", va="center",
+                    transform=ax.transAxes, fontsize=12, color="0.5")
+            ax.set_title(col)
+            ax.set_xlabel("")
+            continue
         sns.stripplot(data=dp, x="scenario", y=col, ax=ax, alpha=0.9, jitter=0.15)
         ax.axhline(y=0, color="red", linestyle="--", alpha=0.5)
         ax.set_title(col)

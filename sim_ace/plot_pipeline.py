@@ -114,7 +114,7 @@ _FONT_TITLE = 28  # scenario title at top of page
 _FONT_BOX_TITLE = 16  # step name inside each box
 _FONT_TABLE = 13  # parameter names and values
 _FONT_META = 14  # seed / replicates in scenario area
-_CHAR_W = 0.0085  # approx data-units per character at 11pt mono on 11in fig
+_CHAR_W = 0.0098  # approx data-units per character at 13pt mono on 11in fig
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +140,7 @@ def _format_param_value(name: str, value: object) -> str:
     if isinstance(value, float):
         if value == int(value) and abs(value) < 1e6:
             return str(int(value))
-        return f"{value:g}"
+        return f"{value:.4g}"
     return str(value)
 
 
@@ -180,25 +180,35 @@ def _get_param_rows(
             b = _format_param_value("beta1", params["beta1"])
             m = str(params.get("phenotype_model1", "?"))
             hp = params.get("phenotype_params1", {})
-            hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in hp.items())
+            baseline = hp.get("baseline", "")
+            if baseline:
+                m = f"{m} ({baseline})"
+            non_bl = {k: v for k, v in hp.items() if k != "baseline"}
+            hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in non_bl.items())
             rows.append(("trait 1 \u03b2", b))
             bs = params.get("beta_sex1", 0)
             if bs:
                 rows.append(("trait 1 \u03b2_sex", _format_param_value("beta_sex1", bs)))
             rows.append(("trait 1 model", m))
-            rows.append(("trait 1 params", hp_str))
+            if hp_str:
+                rows.append(("trait 1 params", hp_str))
             continue
         if name == "_frailty2" and "beta2" in params:
             b = _format_param_value("beta2", params["beta2"])
             m = str(params.get("phenotype_model2", "?"))
             hp = params.get("phenotype_params2", {})
-            hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in hp.items())
+            baseline = hp.get("baseline", "")
+            if baseline:
+                m = f"{m} ({baseline})"
+            non_bl = {k: v for k, v in hp.items() if k != "baseline"}
+            hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in non_bl.items())
             rows.append(("trait 2 \u03b2", b))
             bs = params.get("beta_sex2", 0)
             if bs:
                 rows.append(("trait 2 \u03b2_sex", _format_param_value("beta_sex2", bs)))
             rows.append(("trait 2 model", m))
-            rows.append(("trait 2 params", hp_str))
+            if hp_str:
+                rows.append(("trait 2 params", hp_str))
             continue
         # Compact mortality: [scale, rho]
         if name == "_mortality" and "death_scale" in params:
@@ -438,7 +448,9 @@ def render_pipeline_figure(
         # Height: title area + rows
         h = 0.055 + 0.024 * max(len(rows), 1)
         box_sizes[key] = (w, h)
-    # Uniform width across all boxes
+    # Uniform width across all boxes, capped to avoid left/right column overlap
+    # Left column at x=0.27, right at x=0.73 — gap of 0.46
+    max_w = min(max_w, 0.43)
     for key in box_sizes:
         _, h = box_sizes[key]
         box_sizes[key] = (max_w, h)

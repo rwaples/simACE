@@ -643,6 +643,7 @@ scenarios:
   beck_adhd:
     folder: beck
     seed: 40000
+    N: 1000000
     phenotype_model1: cure_frailty
     phenotype_model2: cure_frailty
     phenotype_params1:
@@ -665,6 +666,7 @@ scenarios:
       male: 0.083224
     C1: 0.0
     C2: 0.0
+    rA: 0.0
     rC: 0.0
 
   beck_anorexia:
