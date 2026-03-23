@@ -112,7 +112,8 @@ _PARAM_DISPLAY: dict[str, str] = {
 # ---------------------------------------------------------------------------
 _FONT_TITLE = 24  # scenario title at top of page
 _FONT_BOX_TITLE = 14  # step name inside each box
-_FONT_TABLE = 11  # parameter names and values
+_FONT_TABLE = 11  # parameter names
+_FONT_TABLE_VAL = 9  # bold parameter values
 _FONT_META = 12  # seed / replicates in scenario area
 _CHAR_W = 0.0085  # approx data-units per character at 11pt mono on 11in fig
 
@@ -301,7 +302,7 @@ def _draw_step_box(
             val_x,
             row_y,
             val,
-            fontsize=_FONT_TABLE,
+            fontsize=_FONT_TABLE_VAL,
             fontweight="bold",
             fontfamily="monospace",
             color=text_color,
