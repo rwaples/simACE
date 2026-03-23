@@ -40,7 +40,7 @@ def _plot_joint_grid(
     ]
     panels = [(x, y, t) for x, y, t in panels if x in df_samples.columns and y in df_samples.columns]
 
-    fig = plt.figure(figsize=(14, 12))
+    fig = plt.figure(figsize=(13, 13))
     fig.suptitle(f"Cross-Trait Correlations [{scenario}]", fontsize=14, y=1.01)
     outer = GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.35)
 
@@ -115,6 +115,7 @@ def _plot_joint_grid(
             va="top",
             fontsize=11,
         )
+        ax_joint.set_box_aspect(1)
         ax_joint.set_xlabel(f"{title} (Trait 1)")
         ax_joint.set_ylabel(f"{title} (Trait 2)")
 
