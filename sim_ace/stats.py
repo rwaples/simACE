@@ -979,6 +979,22 @@ def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
         person_dist[str(k)] = round(int((offspring_counts == k).sum()) / n_total, 4)
     person_dist["4+"] = round(int((offspring_counts >= 4).sum()) / n_total, 4)
 
+    # Offspring per person by sex
+    person_dist_by_sex: dict[str, dict[str, float]] = {}
+    if "sex" in df.columns:
+        sex_by_id = df.set_index("id")["sex"]
+        for sex_label, sex_val in [("female", 0), ("male", 1)]:
+            sex_ids = sex_by_id[sex_by_id == sex_val].index
+            sex_counts = offspring_counts.reindex(sex_ids, fill_value=0)
+            n_sex = len(sex_counts)
+            if n_sex > 0:
+                sd: dict[str, float] = {}
+                sd["0"] = round(int((sex_counts == 0).sum()) / n_sex, 4)
+                for k in [1, 2, 3]:
+                    sd[str(k)] = round(int((sex_counts == k).sum()) / n_sex, 4)
+                sd["4+"] = round(int((sex_counts >= 4).sum()) / n_sex, 4)
+                person_dist_by_sex[sex_label] = sd
+
     # Number of mates by sex
     # Females: unique fathers per mother
     mates_female = children.groupby("mother")["father"].nunique()
@@ -1004,6 +1020,7 @@ def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
         "frac_with_full_sib": frac_with_full_sib,
         "size_dist": dist,
         "person_offspring_dist": person_dist,
+        "person_offspring_dist_by_sex": person_dist_by_sex,
         "mates_by_sex": mates_by_sex,
     }
 

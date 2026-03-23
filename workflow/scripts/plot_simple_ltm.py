@@ -2,13 +2,13 @@
 
 from pathlib import Path
 
-from sim_ace import setup_logging
+from sim_ace import _snakemake_tag, setup_logging
 from sim_ace.plot_simple_ltm import cli as _cli
 from sim_ace.plot_simple_ltm import main
 
 
 def _run_snakemake():
-    setup_logging(log_file=snakemake.log[0])
+    setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
     stats_paths = snakemake.input.stats
     sample_paths = snakemake.input.samples
     prevalence1 = snakemake.params.prevalence1

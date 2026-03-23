@@ -2,13 +2,13 @@
 
 import pandas as pd
 
-from sim_ace import setup_logging
+from sim_ace import _snakemake_tag, setup_logging
 from sim_ace.threshold import cli as _cli
 from sim_ace.threshold import run_threshold
 
 
 def _run_snakemake():
-    setup_logging(log_file=snakemake.log[0])
+    setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
     pedigree = pd.read_parquet(snakemake.input.pedigree)
     params = snakemake.params
 

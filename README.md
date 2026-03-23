@@ -5,8 +5,9 @@ Simulates multi-generational pedigrees with ACE variance components for two corr
 - **C** - Common/shared environment
 - **E** - Unique environment
 
-Continuous liabilities are mapped to observable phenotypes via one of three time-to-event models:
-- **Frailty** — Proportional hazards frailty model with pluggable baseline hazard (Weibull, Gompertz, lognormal, etc.)
+Continuous liabilities are mapped to observable phenotypes via one of four time-to-event models:
+- **Frailty** — Proportional hazards frailty model with pluggable baseline hazard (Weibull, Gompertz, lognormal, etc.). Liability scales the hazard via `z = exp(beta * L)`; everyone eventually experiences the event.
+- **Cure-Frailty** — Mixture cure model that separates **who** gets the disease (liability threshold at prevalence K) from **when** (frailty hazard among susceptibles). Supports sex-specific prevalence (`K_m`, `K_f`) and four baseline hazards. Used for the Beck et al. (2024) and Solmi et al. (2022) psychiatric disorder scenarios fitted to Danish register data.
 - **ADuLT LTM** — Deterministic liability threshold model with logistic CIP age-of-onset mapping (Pedersen et al., Nat Commun 2023)
 - **ADuLT Cox** — Proportional hazards model with Weibull noise and rank-based CIP-to-age mapping (Pedersen et al., 2023)
 
@@ -116,7 +117,7 @@ defaults:
   assort1: 0                                 # Mate correlation on trait 1 liability ([-1, 1])
   assort2: 0                                 # Mate correlation on trait 2 liability ([-1, 1])
 
-  # Phenotype model per trait: weibull/exponential/gompertz/lognormal/loglogistic/gamma/adult_ltm/adult_cox
+  # Phenotype model per trait: weibull/exponential/gompertz/lognormal/loglogistic/gamma/cure_frailty/adult_ltm/adult_cox
   # Trait 1
   beta1: 1.0                                # Effect of liability on log-hazard
   phenotype_model1: weibull                 # Baseline hazard model

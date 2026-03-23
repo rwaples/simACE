@@ -5,7 +5,7 @@ __version__ = "0.1.0"
 import logging
 
 
-def setup_logging(level=logging.INFO, log_file=None):
+def setup_logging(level=logging.INFO, log_file=None, tag=None):
     """Configure the ``sim_ace`` package logger.
 
     Call this once from CLI entry points or Snakemake wrappers.
@@ -14,12 +14,14 @@ def setup_logging(level=logging.INFO, log_file=None):
     Args:
         level: logging level (e.g. logging.DEBUG, logging.INFO).
         log_file: optional path; if given a FileHandler is added.
+        tag: optional prefix for console messages (e.g. "beck_adhd/rep1").
     """
     pkg = logging.getLogger("sim_ace")
     pkg.setLevel(level)
     if pkg.handlers:
         return
-    fmt_console = logging.Formatter("%(levelname)s: %(message)s")
+    prefix = f"[{tag}] " if tag else ""
+    fmt_console = logging.Formatter(f"{prefix}%(levelname)s: %(message)s")
     fmt_file = logging.Formatter(
         "%(asctime)s %(levelname)s [%(name)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -31,6 +33,18 @@ def setup_logging(level=logging.INFO, log_file=None):
         fh = logging.FileHandler(log_file, encoding="utf-8")
         fh.setFormatter(fmt_file)
         pkg.addHandler(fh)
+
+
+def _snakemake_tag(wildcards) -> str:
+    """Build a console log tag from Snakemake wildcards."""
+    parts = []
+    scenario = getattr(wildcards, "scenario", None)
+    if scenario:
+        parts.append(scenario)
+    rep = getattr(wildcards, "rep", None)
+    if rep:
+        parts.append(f"rep{rep}")
+    return "/".join(parts) if parts else ""
 
 
 from sim_ace.censor import age_censor, death_censor

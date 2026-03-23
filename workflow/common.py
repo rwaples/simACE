@@ -46,6 +46,8 @@ _PHENOTYPE_BASENAMES = [
     # Pedigree structure
     "pedigree_counts.ped",
     "pedigree_counts",
+    # Family structure
+    "family_structure",
     # Mate correlation
     "mate_correlation",
     # Liability structure
@@ -57,12 +59,12 @@ _PHENOTYPE_BASENAMES = [
     # Liability by affected status
     "liability_violin.phenotype",
     "liability_violin.phenotype.by_generation",
-    # Survival phenotype & censoring
+    # Age of onset & censoring
     "age_at_onset_death",
     "mortality",
-    "cumulative_incidence.phenotype",
     "cumulative_incidence.by_sex",
     "cumulative_incidence.by_sex.by_generation",
+    "cumulative_incidence.phenotype",
     "censoring",
     "censoring_confusion",
     "censoring_cascade",

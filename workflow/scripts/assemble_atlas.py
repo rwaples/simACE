@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from sim_ace import setup_logging
+from sim_ace import _snakemake_tag, setup_logging
 from sim_ace.plot_atlas import (
     PHENOTYPE_CAPTIONS,
     SIMPLE_LTM_CAPTIONS,
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 def _run_snakemake():
-    setup_logging(log_file=snakemake.log[0])
+    setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
     p = snakemake.params
 
     phenotype_paths = [Path(x) for x in snakemake.input.phenotype]
@@ -66,20 +66,20 @@ def _run_snakemake():
     model_name, model_desc = get_model_family(scenario_params)
     model_equations = get_model_equation(scenario_params)
     section_breaks = {
-        7: (
+        8: (
             f"{model_name} Phenotype",
             model_desc,
             model_equations,
         ),
-        9: (
-            "Survival & Censoring",
+        10: (
+            "Age of Onset & Censoring",
             "Age-at-onset, mortality, cumulative incidence, and censoring analysis",
         ),
-        18: (
+        19: (
             "Within-Trait Correlations",
             "Familial tetrachoric correlations and joint affected status",
         ),
-        21: (
+        22: (
             "Cross-Trait Correlations",
             "Cross-trait correlation by generation and relationship type",
         ),

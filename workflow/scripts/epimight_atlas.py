@@ -2,11 +2,11 @@
 
 from pathlib import Path
 
-from sim_ace import setup_logging
+from sim_ace import _snakemake_tag, setup_logging
 
 
 def _run_snakemake() -> None:
-    setup_logging(log_file=snakemake.log[0])
+    setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
 
     from epimight.plot_epimight import assemble_epimight_atlas
 

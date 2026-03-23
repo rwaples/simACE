@@ -40,6 +40,7 @@ from sim_ace.plot_distributions import (
     plot_cumulative_incidence_by_sex,
     plot_cumulative_incidence_by_sex_generation,
     plot_death_age_distribution,
+    plot_family_structure,
     plot_trait_phenotype,
     plot_trait_regression,
 )
@@ -114,6 +115,13 @@ def main(
         scenario,
         generations_label="G_pheno",
         skip_2nd_cousins=skip_2nd_cousins,
+    )
+
+    # Family structure (offspring and mate distributions)
+    plot_family_structure(
+        all_stats,
+        out_dir / f"family_structure.{ext}",
+        scenario,
     )
 
     # Mate correlation heatmap

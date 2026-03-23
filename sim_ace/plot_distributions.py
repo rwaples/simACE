@@ -19,6 +19,10 @@ from sim_ace.utils import finalize_plot, save_placeholder_plot
 
 logger = logging.getLogger(__name__)
 
+# Consistent sex colour scheme across all plots
+COLOR_FEMALE = "#5ab4ac"
+COLOR_MALE = "#4a90d9"
+
 
 def plot_death_age_distribution(
     all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = ""
@@ -316,8 +320,8 @@ def plot_cumulative_incidence_by_sex(
         key = f"trait{trait_num}"
 
         for sex_label, display, color in [
-            ("female", "Female", "C0"),
-            ("male", "Male", "C3"),
+            ("female", "Female", COLOR_FEMALE),
+            ("male", "Male", COLOR_MALE),
         ]:
             rep_data = [
                 s["cumulative_incidence_by_sex"][key][sex_label]
@@ -554,4 +558,121 @@ def plot_censoring_windows(
     ]
     axes[0, -1].legend(handles=legend_elements, loc="lower right", fontsize=9)
     fig.suptitle(f"Censoring Windows by Generation [{scenario}]", fontsize=14, y=1.01)
+    finalize_plot(output_path)
+
+
+def plot_family_structure(
+    all_stats: list[dict], output_path: str | Path, scenario: str = ""
+) -> None:
+    """Plot offspring and mate count distributions, averaged across replicates."""
+    # Collect family_size dicts from each replicate
+    fs_list = [s.get("family_size", {}) for s in all_stats if "family_size" in s]
+    if not fs_list:
+        save_placeholder_plot(output_path, "Family Structure", "No family_size data")
+        return
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+    # --- Panel 1: Offspring per mating ---
+    ax = axes[0]
+    categories = ["1", "2", "3", "4+"]
+    vals = np.array(
+        [[fs.get("size_dist", {}).get(c, 0) for c in categories] for fs in fs_list]
+    )
+    mean_vals = vals.mean(axis=0)
+    ax.bar(categories, mean_vals, color="C0", edgecolor="white")
+    for i, v in enumerate(mean_vals):
+        ax.text(i, v + 0.005, f"{v:.1%}", ha="center", va="bottom", fontsize=10)
+    mean_size = np.mean([fs.get("mean", 0) for fs in fs_list])
+    ax.set_title("Offspring per Couple")
+    ax.set_xlabel("Number of children")
+    ax.set_ylabel("Fraction of couples")
+    ax.text(
+        0.97, 0.95, f"mean = {mean_size:.2f}",
+        transform=ax.transAxes, ha="right", va="top", fontsize=11,
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+    )
+
+    # --- Panel 2: Offspring per person (by sex) ---
+    ax = axes[1]
+    categories2 = ["0", "1", "2", "3", "4+"]
+    x2 = np.arange(len(categories2))
+    w2 = 0.35
+    # Try sex-stratified data first, fall back to pooled
+    has_sex = any(fs.get("person_offspring_dist_by_sex") for fs in fs_list)
+    if has_sex:
+        vals_f = np.array(
+            [[fs.get("person_offspring_dist_by_sex", {}).get("female", {}).get(c, 0)
+              for c in categories2] for fs in fs_list]
+        )
+        vals_m = np.array(
+            [[fs.get("person_offspring_dist_by_sex", {}).get("male", {}).get(c, 0)
+              for c in categories2] for fs in fs_list]
+        )
+        mean_f = vals_f.mean(axis=0)
+        mean_m = vals_m.mean(axis=0)
+        bars2f = ax.bar(x2 - w2 / 2, mean_f, w2, label="Female", color=COLOR_FEMALE, edgecolor="white")
+        bars2m = ax.bar(x2 + w2 / 2, mean_m, w2, label="Male", color=COLOR_MALE, edgecolor="white")
+        # Annotate bars — merge label when F/M values are close
+        for i in range(len(categories2)):
+            fv, mv = mean_f[i], mean_m[i]
+            if fv < 0.005 and mv < 0.005:
+                continue
+            if abs(fv - mv) < 0.01:
+                # Values nearly equal — single centred label
+                ax.text(x2[i], max(fv, mv) + 0.008, f"{(fv + mv) / 2:.0%}",
+                        ha="center", va="bottom", fontsize=9)
+            else:
+                if fv > 0.005:
+                    ax.text(x2[i] - w2 / 2, fv + 0.005, f"{fv:.0%}",
+                            ha="center", va="bottom", fontsize=8)
+                if mv > 0.005:
+                    ax.text(x2[i] + w2 / 2, mv + 0.005, f"{mv:.0%}",
+                            ha="center", va="bottom", fontsize=8)
+        ax.legend(fontsize=9)
+    else:
+        vals2 = np.array(
+            [[fs.get("person_offspring_dist", {}).get(c, 0) for c in categories2] for fs in fs_list]
+        )
+        mean_vals2 = vals2.mean(axis=0)
+        ax.bar(x2, mean_vals2, 0.6, color="C1", edgecolor="white")
+        for i, v in enumerate(mean_vals2):
+            ax.text(i, v + 0.005, f"{v:.1%}", ha="center", va="bottom", fontsize=10)
+    ax.set_xticks(x2)
+    ax.set_xticklabels(categories2)
+    ax.set_title("Offspring per Person")
+    ax.set_xlabel("Number of offspring")
+    ax.set_ylabel("Fraction of individuals")
+
+    # --- Panel 3: Mates per parent ---
+    ax = axes[2]
+    mates_list = [fs.get("mates_by_sex", {}) for fs in fs_list]
+    f1 = np.mean([m.get("female_1", 0) for m in mates_list])
+    f2 = np.mean([m.get("female_2+", 0) for m in mates_list])
+    m1 = np.mean([m.get("male_1", 0) for m in mates_list])
+    m2 = np.mean([m.get("male_2+", 0) for m in mates_list])
+    x = np.arange(2)
+    w = 0.35
+    bars_f = ax.bar(x - w / 2, [f1, f2], w, label="Female", color=COLOR_FEMALE, edgecolor="white")
+    bars_m = ax.bar(x + w / 2, [m1, m2], w, label="Male", color=COLOR_MALE, edgecolor="white")
+    for bar in list(bars_f) + list(bars_m):
+        h = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2, h + 0.005,
+            f"{h:.1%}", ha="center", va="bottom", fontsize=10,
+        )
+    ax.set_xticks(x)
+    ax.set_xticklabels(["1 partner", "2+ partners"])
+    ax.set_ylabel("Fraction of parents")
+    ax.set_title("Mates per Parent")
+    ax.legend(fontsize=10)
+    f_mean = np.mean([m.get("female_mean", 0) for m in mates_list])
+    m_mean = np.mean([m.get("male_mean", 0) for m in mates_list])
+    ax.text(
+        0.97, 0.95, f"mean F={f_mean:.2f}, M={m_mean:.2f}",
+        transform=ax.transAxes, ha="right", va="top", fontsize=11,
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
+    )
+
+    fig.suptitle(f"Family Structure [{scenario}]", fontsize=14, y=1.01)
     finalize_plot(output_path)

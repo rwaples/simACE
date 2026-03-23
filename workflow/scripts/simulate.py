@@ -2,13 +2,13 @@
 
 import yaml
 
-from sim_ace import setup_logging
+from sim_ace import _snakemake_tag, setup_logging
 from sim_ace.simulate import cli as _cli
 from sim_ace.simulate import run_simulation
 
 
 def _run_snakemake():
-    setup_logging(log_file=snakemake.log[0])
+    setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
     params = snakemake.params
     output_pedigree = snakemake.output.pedigree
     output_params = snakemake.output.params

@@ -1,12 +1,12 @@
 """Gather validation results - Snakemake wrapper with CLI fallback."""
 
-from sim_ace import setup_logging
+from sim_ace import _snakemake_tag, setup_logging
 from sim_ace.gather import cli as _cli
 from sim_ace.gather import main
 
 
 def _run_snakemake():
-    setup_logging(log_file=snakemake.log[0])
+    setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
     validation_files = snakemake.input.validations
     output_path = snakemake.output.tsv
 

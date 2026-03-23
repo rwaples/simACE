@@ -2,14 +2,14 @@
 
 import yaml
 
-from sim_ace import setup_logging
+from sim_ace import _snakemake_tag, setup_logging
 from sim_ace.utils import to_native
 from sim_ace.validate import cli as _cli
 from sim_ace.validate import run_validation
 
 
 def _run_snakemake():
-    setup_logging(log_file=snakemake.log[0])
+    setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
     pedigree_path = snakemake.input.pedigree
     params_path = snakemake.input.params
     output_path = snakemake.output.report

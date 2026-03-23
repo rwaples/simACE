@@ -1,12 +1,12 @@
 """Compute simple LTM phenotype statistics - Snakemake wrapper with CLI fallback."""
 
-from sim_ace import setup_logging
+from sim_ace import _snakemake_tag, setup_logging
 from sim_ace.simple_ltm_stats import cli as _cli
 from sim_ace.simple_ltm_stats import main
 
 
 def _run_snakemake():
-    setup_logging(log_file=snakemake.log[0])
+    setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
     phenotype_path = snakemake.input.phenotype
     seed = snakemake.params.seed
     stats_output = snakemake.output.stats
