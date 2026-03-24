@@ -1,7 +1,6 @@
 # ACE - Simulate registry-scale age-of-onset phenotypes with realistic pedigrees and the ACE liability model. 
 
-simACE simulates registry-scale multi-generational pedigrees with heritable ACE variance components for two correlated traits.
-
+simACE simulates millions of indiviudals in multi-generational pedigrees with heritable ACE variance components for two correlated traits.
 
 ## Overview
 simACE is conceptually split into four modules:
@@ -13,49 +12,50 @@ simACE is conceptually split into four modules:
 The full simulation pipeline includes statistical validation, summary statistics and plotting.
 
 
-### Pedigree simulations
-Each generation of the pedigree is built by mating, reproduction, and heritable genetic liability. Total liability for individual $i$ on trait $k$ is decomposed as $L_i^{(k)} = A_i^{(k)} + C_i^{(k)} + E_i^{(k)}$, where the three components sum to unit variance:
+### Reproduction and liabilty
+
+- Each generation, many couples are formed from potential parents.  
+- An individual can be part of multiple couples. 
+- Males and female are paired randomly by default or assortatively on the liability for one or both traits (follwoing Border et al. 2022).
+- Offspring are distributed across matings via a multinomial draw.  Population size is kept constant and some couples produce no offspring.
+- Monozygotic (MZ) twins are assigned to matings with ≥2 offspring.
+- Full pedigree is recorded.
+
+At default settings, ~77% of individuals have one partner and ~23% have two or more, producing a natural mix of full-sibs and maternal and paternal half-sibs. 
+
+Total liability for individual $i$ on trait $k$ is decomposed as $L_i^{(k)} = A_i^{(k)} + C_i^{(k)} + E_i^{(k)}$, where the three components sum to unit variance:
 
 - **A** (Additive genetic) — inherited from parents via midparent averaging plus Mendelian sampling noise under the infinitesimal model ($\epsilon \sim \mathcal{N}(0, \sigma_A^2/2)$). For the founder generation, additive values for both traits are drawn jointly from a bivariate normal with cross-trait genetic correlation $r_A$.
-- **C** (Common/shared environment) — shared by all offspring of the same mother (household effect). Drawn fresh each generation from a bivariate normal with cross-trait correlation $r_C$; there is no parent-to-child C transmission.
+- **C** (Common/shared environment) — shared by all offspring of the same mother (household effect). Not inherited - there is (currently) no parent-to-child C transmission.
 - **E** (Unique/personal environment) — drawn independently per individual per trait. No familial correlation by design.
 
 
 ### Age of onset phenotyping
-The continuous liabilities are mapped to age-of-onset phenotypes via time-to-event phenotype models. Current model options include: 
-- **Frailty** — Proportional hazards frailty model with choice of baseline hazard form (Weibull, Gompertz, lognormal, etc.). Liability scales the hazard via `z = exp(beta * L)`.  In pure frailty models, given enough time everyone eventually will become affected.
+The continuous liabilities for each trait are mapped to age-of-onset phenotypes via time-to-event phenotype models. Phenotype model options currently include: 
+- **Frailty** — Proportional hazards frailty (random effects) model with choice of baseline hazard form (Weibull, Gompertz, lognormal, etc.). Liability scales the hazard via `z = exp(beta * L)`.  In pure frailty models, given enough time everyone eventually will become affected.
 - **Cure-Frailty** — Mixture model that separates **who** gets the disease (succeceptable vs non-susceptible indiviudals), from **when** (age-of-onset among susceptibles).  Supports sex-specific prevalence (`K_m`, `K_f`) and four baseline hazards models.
 - **ADuLT LTM** — Deterministic liability threshold model with logistic cumulative incidence proportion (CIP) age-of-onset mapping (Pedersen et al., Nat Commun 2023)
 - **ADuLT Cox** — Proportional hazards model with Weibull noise and rank-based CIP-to-age mapping (Pedersen et al., 2023)
 - A separate simple liability-threshold model produces binary affected status without age of onset or censoring for comparison. 
-- It is also possible to only phenotype a subset of simulated generations. See [distributions.md](distributions.md) for model details.
+- It is also possible to only phenotype a subset of simulated generations. 
+- See [distributions.md](distributions.md) for model details.
 
 ### Censoring
-After phenotyping, two independent censoring layers are applied to mimic real-world data limitations:
+After phenotyping, two censoring layers are applied to mimic real-world data limitations:
 
 1. **Age-window censoring** — each generation has a configurable observation interval `[left_age, right_age]`. Events occurring before `left_age` are left-truncated; events after `right_age` are right-censored. This models differential follow-up: e.g., some generations may be fully observed `[0, 80]` while the youngest is only followed to age 45 `[0, 45]`.
 2. **Competing-risk mortality** — a death age is drawn independently from a Weibull distribution (`death_scale`, `death_rho`). If onset occurs after death, the individual is death-censored at their death age. This introduces realistic attrition that is correlated with age but independent of disease liability.
 
 The combined effect is that only a fraction of true cases are observed as affected — the rest are censored by follow-up limits or death. 
 
-### Sampling and observation
-Is it possiblet to further restrict the observed data via sampling to construct the final output. 
+### Sampling and ascertainment
+It it possiblle to further restrict the observed data via sampling to construct the final output. 
 
 - **Subsampling** (`N_sample`) — draws a random subset of phenotyped individuals before generating outputs, reflecting limited registry coverage for phenotype data. Relationship extraction continues on the full pedigree.
-- **Case ascertainment bias** (`case_ascertainment_ratio`) — when combined with subsampling, cases are sampled at a higher rate than controls (e.g., ratio=5 means a case is 5x more likely to be drawn). No correction is applied downstream — the purpose is to study the bias this introduces.
-- **Pedigree dropout** (`pedigree_dropout_rate`) — randomly removes a fraction of individuals from the pedigree. reflecting incomplete registration for pedigree building. Dropped individuals' pedigree links are broken, which can downgrade full-sibling pairs to half-siblings and/or break multi-hop relationship paths.
+- **Case ascertainment bias** (`case_ascertainment_ratio`) — when combined with subsampling, cases are sampled at a different rate than non-affected individuals (e.g., ratio=5 means a case is 5x more likely to be drawn). Reflects the design of many data sets. 
+- **Pedigree dropout** (`pedigree_dropout_rate`) — randomly removes a fraction of individuals from the pedigree, reflecting incomplete registration for pedigree building. Dropped individuals' pedigree links are broken, which can downgrade full-sibling pairs to half-siblings and/or break multi-hop relationship paths.
 
-## Reproduction model
 
-Each generation, mating pairs are formed via a modular pipeline controlled by `mating_lambda`:
-
-1. Every male and female draws a mating count from a zero-truncated Poisson(λ) distribution.
-2. Total male and female mating slots are balanced (random trimming of the larger side).
-3. Slots are paired to form explicit (mother, father) matings — randomly by default, or assortatively when `assort1`/`assort2` are nonzero (4-variate Gaussian copula targeting Pearson mate correlations; Border et al. 2022).
-4. N offspring are distributed across matings via a multinomial draw, so some matings produce zero offspring (~13% natural childlessness).
-5. MZ twins are assigned to matings with ≥2 offspring at rate `p_mztwin`.
-
-At the default λ=0.5, ~77% of individuals have one partner and ~23% have two or more, producing a natural mix of full-sibs, maternal half-sibs, and paternal half-sibs. All offspring of the same mother share a household (preserving the C component). Higher λ increases multi-partner mating and half-sib prevalence.
 
 
 ## Prerequisites
@@ -81,7 +81,7 @@ pytest tests/           # unit tests, should complete in ~1s
 
 ## Quick start
 
-Run the smallest scenario to confirm everything works (takes a few seconds):
+Run the smallest scenario to confirm everything works (takes a minute or two):
 
 ```bash
 snakemake --cores 4 results/test/small_test/scenario.done
@@ -253,7 +253,7 @@ See [OUTPUTS.md](OUTPUTS.md) for complete documentation of all output formats, i
 
 ## EPIMIGHT
 
-EPIMIGHT estimates heritability (h²) and genetic correlation from simulated time-to-event data using the [EPIMIGHT](https://github.com/BioPsyk/epimight) R package. It compares cumulative incidence in relatives of affected individuals against the general population, then applies Falconer's formula to derive heritability estimates stratified by birth year with fixed/random effects meta-analysis.
+EPIMIGHT estimates heritability (h²) and genetic correlation from time-to-event data using the [EPIMIGHT](https://github.com/BioPsyk/epimight) R package. It compares cumulative incidence in relatives of affected individuals against the general population, then applies Falconer's formula to derive heritability estimates stratified by birth year with fixed/random effects meta-analysis.
 
 ### Setup
 
