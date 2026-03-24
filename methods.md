@@ -1,18 +1,18 @@
 # ACE Simulation Framework: Methods
 
-*This document describes the ACE simulation framework: how it generates synthetic multi-generational family data with known genetic and environmental parameters, assigns disease phenotypes, and validates statistical recovery of those parameters. The framework provides a controlled testbed for evaluating twin- and family-study methods, where ground-truth values are available for comparison against estimates.*
+*This document describes the ACE simulation framework: how it generates synthetic multi-generational family data with known genetic and environmental parameters, assigns disease phenotypes via pluggable survival and threshold models, and validates statistical recovery of those parameters. The framework supports random or assortative mating, six baseline hazard distributions, mixture cure and ADuLT phenotype models, sex-specific effects, observation-window and competing-risk censoring, pedigree dropout, and case-ascertainment subsampling. It provides a controlled testbed for evaluating twin- and family-study methods, where ground-truth values are available for comparison against estimates.*
 
 ---
 
 ## Simulation Overview
 
-simACE is a multi-generational individual-based simulation framework implementing an ACE variance-component model, in which an individual's quantitative liability is decomposed into additive genetic ($A$), common shared-environment ($C$), and unique-environment ($E$) components. 
+simACE is a multi-generational individual-based simulation framework implementing an ACE variance-component model, in which an individual's quantitative liability is decomposed into additive genetic ($A$), common shared-environment ($C$), and unique-environment ($E$) components.
 
-The simulation generates a multi-generational pedigree with realistic family structures including full- and half-sibling, and monozygotic (MZ) twins.
+The simulation generates a multi-generational pedigree with realistic family structures including full- and half-siblings, and monozygotic (MZ) twins. Mating may be random or assortative on one or both trait liabilities.
 
-Binary phenotypes are related to the liability via either a Weibull proportional-hazards frailty survival model (i.e. time-to-event) or a simple liability-threshold model.
+Binary phenotypes are related to the liability via a proportional-hazards frailty survival model (with a choice of six baseline hazard distributions), a mixture cure frailty model, an ADuLT liability threshold model, or a simple liability-threshold model.
 
-Censoring is included in the Weibull model, and includes random mortality as well as deterministic left- and right-censoring by age, configurable by generation.  
+Censoring is included in the survival models, and includes random mortality as well as deterministic left- and right-censoring by age, configurable by generation.
 
 The simulation code is written in Python and the pipeline is orchestrated by Snakemake and supports named scenarios, replicate runs, and automated validation including sanity checks and plots.
 
@@ -22,28 +22,39 @@ The simulation code is written in Python and the pipeline is orchestrated by Sna
 - **Founders** — the initial generation of pedigree individuals whose genetic and environmental values are drawn from scratch rather than inherited.
 - **Burn-in** — early simulated generations that are discarded so that the recorded pedigree is not influenced by the arbitrary starting conditions of the founder generation.
 - **Frailty** — a multiplicative modifier on disease hazard derived from an individual's liability; it controls how quickly risk accumulates with age.
-- **Censoring** — the inability to observe a disease event because the individual died, was too young or old,  or was not yet born during the study window.
+- **Censoring** — the inability to observe a disease event because the individual died, was too young or old, or was not yet born during the study window.
 - **Prevalence** — the proportion of individuals classified as affected in a given generation.
+- **Assortative mating** — non-random partner selection in which individuals with similar (positive assortment) or dissimilar (negative assortment) liability values mate preferentially, inflating parent-offspring and sibling resemblance beyond what random mating produces.
+- **Cure fraction** — the proportion of the population that will never develop the disease regardless of follow-up time; in the mixture cure model this equals $1 - K$, where $K$ is the prevalence.
+- **Cumulative incidence proportion (CIP)** — the probability that an individual has experienced the event by a given age; used in the ADuLT models to map liability rank to age-at-onset.
 
 ## Conceptual simulation steps
 
 ```
-+----------------+   +----------------+   +----------------+   +-----------+
-| 1. Pedigree    |-->| 2. Phenotype   |-->| 3. Statistical |-->| 4. Valid- |
-|    Simulation  |   |    Assignment  |   |    Analysis    |   |    ation  |
-|                |   |                |   |                |   |           |
-| Build families |   | Convert to     |   | Estimate corr. |   | Compare   |
-| with known ACE |   | observable data|   | & heritability |   | to truth  |
-+----------------+   +----------------+   +----------------+   +-----------+
++----------+  +---------+  +-----------+  +--------+  +--------+  +-----------+  +---------+
+|1. Pedigree|->|2. Ped.  |->|3. Pheno-  |->|4. Cen- |->|5. Sub- |->|6. Statis- |->|7. Valid-|
+|   Simul-  |  |  Drop-  |  |   type    |  |  sor-  |  |  sam-  |  |   tical   |  |  ation  |
+|   ation   |  |   out   |  |  Assign.  |  |  ing   |  |  ple   |  |  Analysis |  |         |
+|           |  |         |  |           |  |        |  |        |  |           |  |         |
+|Build fam- |  |Remove   |  |Convert to |  |Apply   |  |Draw    |  |Estimate   |  |Compare  |
+|ilies with |  |random   |  |observable |  |age &   |  |study   |  |corr. &    |  |to ground|
+|known ACE  |  |fraction |  |outcomes   |  |death   |  |sample  |  |heritab.   |  |truth    |
++----------+  +---------+  +-----------+  +--------+  +--------+  +-----------+  +---------+
 ```
 
-**Stage 1 — Pedigree Simulation** creates a multi-generational population where each individual has known additive-genetic (A), shared-environment (C), and unique-environment (E) values, linked to parents and siblings through realistic family structures. 
+**Stage 1 — Pedigree Simulation** creates a multi-generational population where each individual has known additive-genetic (A), shared-environment (C), and unique-environment (E) values, linked to parents and siblings through realistic family structures. Mating may be random or assortative.
 
-**Stage 2 — Phenotype Assignment** converts continuous liabilities into observable outcomes — either an age-at-onset via a survival model or a binary affected/unaffected status via a threshold model — and applies censoring to mimic real study limitations. *
+**Stage 2 — Pedigree Dropout** (optional) randomly removes a fraction of individuals from the pedigree and severs any parent/twin links that reference removed individuals, simulating incomplete ascertainment of pedigree structure.
 
-**Stage 3 — Statistical Analysis** estimates correlations between relatives and computes heritability using only the observable phenotype data, as a real researcher would.
+**Stage 3 — Phenotype Assignment** converts continuous liabilities into observable outcomes — an age-at-onset via a survival model, a binary affected/unaffected status via a threshold model, or a combination of both in the mixture cure model — and optionally incorporates sex-specific effects on the hazard or threshold.
 
-**Stage 4 — Validation** compares every estimate back to the known ground-truth parameters, confirming both code correctness and estimator performance.
+**Stage 4 — Censoring** applies observation-window constraints and competing-risk mortality to the raw event times, producing the final observed phenotype data.
+
+**Stage 5 — Subsampling** (optional) draws a study sample from the full population, with optional case-ascertainment weighting to enrich for affected individuals.
+
+**Stage 6 — Statistical Analysis** estimates correlations between relatives and computes heritability using only the observable phenotype data, as a real researcher would.
+
+**Stage 7 — Validation** compares every estimate back to the known ground-truth parameters, confirming both code correctness and estimator performance.
 
 ## Pedigree Simulation
 
@@ -61,7 +72,7 @@ $$
 
 where $A_i \sim \mathcal{N}(0, \sigma^2_A)$ is the additive genetic component, $C_i \sim \mathcal{N}(0, \sigma^2_C)$ is the common (shared) environment, and $E_i \sim \mathcal{N}(0, \sigma^2_E)$ is the unique environment. Total phenotypic variance is normalised to unity, so $\sigma^2_A + \sigma^2_C + \sigma^2_E = 1$ and the variance components directly represent proportions of total variance. For example, with parameters $A = 0.5$, $C = 0.2$, $E = 0.3$, half the variation in liability is additive genetic, 20% is due to the shared household, and 30% is individual-specific noise.
 
-**Extension to two correlated traits.** The simulation models two traits jointly ($k = 1, 2$), allowing genetic (C) and shared-environment components (C) to be correlated across traits. Each founder receives variance components drawn from bivariate normal distributions:
+**Extension to two correlated traits.** The simulation models two traits jointly ($k = 1, 2$), allowing genetic (A) and shared-environment (C) components to be correlated across traits. Each founder receives variance components drawn from bivariate normal distributions:
 
 $$
 \begin{pmatrix} A_{i,1} \\ A_{i,2} \end{pmatrix}
@@ -94,25 +105,65 @@ where $r_A$ and $r_C$ are the cross-trait genetic and shared-environment correla
 
 In plain terms, each founder receives a random genetic hand, a household environment, and individual noise that sum to their overall liability.
 
-### Reproduction - mating and family structure
+### Reproduction — mating and family structure
 
-The simulation assumes a constant population size ($N$) across generations.  Each new generation must include N offspring and for each offspring we must select parents. This is accomplished in few steps.
+The simulation maintains a constant population size ($N$) across generations. Each new generation must include $N$ offspring, produced by pairing males and females from the parental generation.
 
-During reproduction, potential mother and fathers are paired and each pair defines a social household.  The mother of is assigned a family size drawn from a Poisson distribution:
+**Mating counts.** Each parent draws a mating count from a zero-truncated Poisson (ZTP) distribution — a Poisson draw conditioned on being at least 1, so every individual participates in at least one mating:
 
 $$
-n_{\text{children},f} \sim \text{Poisson}(\lambda), \quad \lambda = 2.3 \text{ (default)}
+n_{\text{matings},i} \sim \text{ZTP}(\lambda), \quad \lambda = 2.3 \text{ (default)}
 $$
 
-Households are randomly ordered and offspring are generated for each mother until a total of $N$ offspring is reached. The paternity of each offspring is randomly determined by the $p_{\text{nonsocial\_father}}$ parameter: with chance $1 - p_{\text{nonsocial}}$ the social household male is the father, otherwise a random male is selected. This creates maternal half-siblings (same mother, different biological father) at an expected pairwise proportion of $1 - (1 - p_{\text{nonsocial}})^2$ among all maternal sibling pairs.
+The zero-truncated Poisson is implemented by rejection: Poisson draws of zero are redrawn until all counts are $\geq 1$. Males and females draw independently. The total mating-slot counts are then balanced by randomly trimming slots from the sex with more total slots, so that both sexes contribute the same total number of mating slots $T = \min(\sum n_{\text{male}}, \sum n_{\text{female}})$.
 
-All children within a household (i.e. that share a mother) share a household identifier and thus have an identical $C$ term.
+**Partner pairing.** Each parent's mating count is expanded into that many "slots" via replication. Under random mating (default), the male slot array is shuffled and paired positionally with the female slot array, producing $M = T$ mating pairs. Under assortative mating, the pairing algorithm is described in the next section. Duplicate $(mother, father)$ pairs are resolved by swapping conflicting entries with nearby partners.
+
+**Offspring allocation.** The $N$ offspring are distributed across the $M$ matings via a multinomial draw with equal probabilities:
+
+$$
+(c_1, c_2, \ldots, c_M) \sim \text{Multinomial}(N,\; 1/M, \ldots, 1/M)
+$$
+
+so each mating receives a random number of children, with the total summing to exactly $N$.
+
+**Household assignment.** All offspring sharing the same mother are assigned the same household identifier, and share a common-environment ($C$) draw. This means maternal half-siblings (same mother, different father) share $C$, while paternal half-siblings (same father, different mother) do not.
+
+### Assortative mating
+
+When assortative mating is enabled (parameters $\text{assort}_1 \neq 0$ or $\text{assort}_2 \neq 0$), couple formation is modified so that individuals with correlated liability values are paired preferentially. The target mate Pearson correlations are $r_1 = \text{assort}_1$ for trait 1 and $r_2 = \text{assort}_2$ for trait 2.
+
+**Single-trait case.** When only one assortment parameter is nonzero, a bivariate Gaussian copula approach is used. Each parent's liability is converted to a rank-based score. The effective target correlation is $r_{\text{eff}} = \min(\sqrt{r_1^2 + r_2^2},\; 1)$. A bivariate normal sample $(z_f, z_m) \sim \mathcal{N}(\mathbf{0}, \boldsymbol{\Sigma})$ with $\Sigma_{12} = r_{\text{eff}}$ is drawn for each mating slot. Females and males, each pre-sorted by their weighted rank score $|r_1| \cdot \text{rank}_{1} + |r_2| \cdot \text{rank}_{2}$, are then paired according to the bivariate normal rank ordering — producing mate pairs whose liability correlation approximates the target. Negative assortment is achieved by reversing the relevant rank ordering before scoring.
+
+**Both-traits case (4-variate Gaussian copula).** When both $r_1$ and $r_2$ are nonzero, the algorithm targets a 4-variate Gaussian copula structure following Border et al. (2022, *Science*, Eq. 2). Let $\mathbf{R}_{mf}$ denote the $2 \times 2$ target mate-correlation matrix:
+
+$$
+\mathbf{R}_{mf} = \begin{bmatrix} r_1 & 0 \\ 0 & r_2 \end{bmatrix}
+$$
+
+and let $\mathbf{R}_{ff}$ be the within-female cross-trait liability correlation matrix:
+
+$$
+\mathbf{R}_{ff} = \begin{bmatrix} 1 & \rho_w \\ \rho_w & 1 \end{bmatrix}
+$$
+
+where $\rho_w$ is the within-person cross-trait liability correlation. The algorithm proceeds in two phases:
+
+*Phase 1 — Conditional-expectation initialization.* Each parent's liability is converted to quantile-normal scores. The conditional-expectation matrix $\mathbf{B} = \mathbf{R}_{mf} \mathbf{R}_{ff}^{-1}$ maps female scores to expected male scores. Female quantile-normal vectors are projected through $\mathbf{B}$ to obtain target male vectors. Both targets and actual male scores are projected onto the dominant right singular vector of $\mathbf{R}_{mf}$ (via SVD), and males are rank-matched to females along this projection — providing a good initial permutation.
+
+*Phase 2 — Metropolis greedy refinement.* Random pairs of male positions $(i, j)$ are proposed for swapping. A swap is accepted if it reduces the total squared error between the current mate correlation sums and the targets:
+
+$$
+(S_1 + \Delta_1 - T_1)^2 + (S_2 + \Delta_2 - T_2)^2 < (S_1 - T_1)^2 + (S_2 - T_2)^2
+$$
+
+where $S_k = \sum_m z_{f,k}^{(m)} z_{m,k}^{(m)}$ is the running cross-product sum for trait $k$, $T_k = r_k \cdot M$ is the target, and $\Delta_k$ is the change in $S_k$ from swapping. Refinement continues until the per-trait correlation error is below $5 \times 10^{-4}$ or $5M$ proposals have been evaluated.
 
 ### Monozygotic twin generation
 
-Identical (monozygotic) twins share 100% of their genetic material; the simulation inserts them randomly into the birth order at a configurable rate.
+Identical (monozygotic) twins share 100% of their genetic material; the simulation inserts them into the pedigree at a configurable rate.
 
-At each offspring is generated, a Bernoulli trial with probability $p_{\text{MZ}}$ (default 0.02) determines whether that two MZ twins are generated. MZ twins are assigned identical biological parents and share identical A and C components.
+After offspring are allocated to matings, each mating with at least 2 offspring is eligible for twin assignment. A Bernoulli trial with probability $p_{\text{MZ}}$ (default 0.02) determines whether the mating produces an MZ twin pair. When assigned, the first two offspring of the mating are designated as MZ twins — they share identical biological parents, identical $A$ values, and the same sex. At most one MZ pair is generated per mating.
 
 ### Offspring inheritance
 
@@ -139,47 +190,62 @@ $$
 
 In short, each child's genetic value equals the average of the parents' values plus a Mendelian sampling term — the random half of each parent's genome that gets passed on.
 
-MZ twins share identical $A$ values: the second twin's breeding values and sex are copied from the first.
+MZ twins share identical $A$ (and $C$) values: the second twin's breeding values and sex are copied from the first.
 
-**Common environment ($C$).** A single bivariate draw $\mathcal{N}(\mathbf{0}, \boldsymbol{\Sigma}_C)$ is made per household and assigned to all children within it. Critically, $C$ is *not* transmitted from parent to child — it represents the offspring's own shared rearing environment. This is the standard ACE assumption with no autoregressive $C$ transmission. That is, siblings share C because they grow up in the same household, but their parents' childhood environment does not carry over.
+**Common environment ($C$).** A single bivariate draw $\mathcal{N}(\mathbf{0}, \boldsymbol{\Sigma}_C)$ is made per household and assigned to all children within it. Critically, $C$ is *not* transmitted from parent to child — it represents the offspring's own shared rearing environment. That is, siblings share C because they grow up in the same household, but their parents' childhood environment does not carry over.
 
-**Unique environment ($E$).** Each child receives independent draws $E_{i,k} \sim \mathcal{N}(0, \sigma_{E_k})$, uncorrelated across siblings, twins, and traits. Even MZ twins differ in E — it represents measurement error, developmental noise, and non-shared environmental exposures.
+**Unique environment ($E$).** Each child receives independent draws $E_{i,k} \sim \mathcal{N}(0, \sigma_{E_k})$, uncorrelated across siblings, twins, and traits. Even MZ twins differ in E — it reflects all residual sources of liability.
 
 ### Burn-in and recording
 
-Early generations are discarded so that the recorded data is not influenced by the arbitrary starting conditions of the founder generation.
+Early generations are not recorded so that the recorded data is not influenced by the arbitrary starting conditions of the founder generation.
 
 The simulation runs for $G_{\text{sim}}$ total generations (default 6), of which the first $G_{\text{sim}} - G_{\text{ped}}$ generations (default 2) serve as burn-in to reduce founder-specific effects and approach equilibrium allele-frequency distributions. Only the final $G_{\text{ped}}$ generations (default 4) are recorded in the output pedigree. The recorded pedigree contains $N \times G_{\text{ped}}$ individuals with contiguous identifiers, each annotated with generation number, parental identifiers, MZ twin partner (if any), household identifier, all six variance components, and both trait liabilities.
+
+## Pedigree Dropout
+
+As an optional post-simulation step, a random fraction of individuals can be removed from the pedigree to simulate incomplete observation of family structure. A dropout rate $d \in [0, 1)$ specifies the proportion of individuals to remove. $n_{\text{drop}} = \lfloor N_{\text{total}} \cdot d \rceil$ individuals are selected uniformly at random (without replacement) and deleted from the pedigree. Any mother, father, or twin link that references a deleted individual is set to $-1$ (unknown), severing that relationship for downstream analyses. This degrades the observed pedigree connectivity without biasing which relationship types are affected, since deletion is unconditional on family structure.
 
 ## Phenotype Models
 
 The pedigree simulation produces continuous liabilities, but real studies observe discrete outcomes — a diagnosis age or an affected/unaffected classification. The models below translate liabilities into these observable phenotypes.
 
-### Weibull proportional-hazards frailty model
+### Proportional-hazards frailty model
 
-This model simulates *when* disease occurs: higher liability leads to earlier onset (on average). The age-of-onset of this model allows a natural extension to also include censoring (see below).
-
-Continuous liabilities are mapped to age-at-onset via a Weibull proportional-hazards frailty model. For each trait $k$, assuming liability ($L$) is standardised to mean=0 and sd=1. The conditional hazard function is:
+This model simulates *when* disease occurs: higher liability leads to earlier onset (on average). Continuous liabilities are mapped to age-at-onset via a proportional-hazards frailty model. For each trait $k$, with liability $L$, the conditional hazard function is:
 
 $$
-h(t \mid L) = \frac{\rho}{\lambda} \left(\frac{t}{\lambda}\right)^{\rho - 1} \exp(\beta\,L)
+h(t \mid L) = h_0(t) \cdot \exp(\beta\,L)
 $$
 
-where $\lambda > 0$ is the Weibull scale parameter, $\rho > 0$ is the Weibull shape parameter, and $\beta$ scales the effect of individual liability (i.e. log-hazard coefficient for liability). The corresponding survival function is:
+where $h_0(t)$ is the baseline hazard function and $\beta$ scales the effect of individual liability on the log-hazard. The corresponding cumulative hazard and survival functions are:
 
 $$
-S(t \mid L) = \exp\!\left[-\left(\frac{t}{\lambda}\right)^{\!\rho} \exp(\beta\,L)\right]
+H(t \mid L) = H_0(t) \cdot \exp(\beta\,L), \quad S(t \mid L) = \exp\!\left[-H_0(t) \cdot \exp(\beta\,L)\right]
 $$
 
-Event times are generated by inverse-CDF sampling. Defining the individual frailty as $z_i = \exp(\beta\,\tilde{L}_i)$ and drawing $U_i \sim \text{Uniform}(0, 1]$:
+Event times are generated by inverse-CDF sampling. Defining the individual frailty as $z_i = \exp(\beta\,\tilde{L}_i)$ and drawing $U_i \sim \text{Uniform}(0, 1]$, the event time is:
 
 $$
-t_i = \lambda \left(\frac{-\log U_i}{z_i}\right)^{1/\rho}
+t_i = H_0^{-1}\!\left(\frac{-\log U_i}{z_i}\right)
 $$
 
-Intuitively, each person draws a random "event ticket" ($U_i$); their liability-derived frailty ($z_i$) determines how quickly that ticket converts into disease onset — higher frailty means earlier onset.
+Intuitively, each person draws a random "event ticket" ($U_i$); their liability-derived frailty ($z_i$) determines how quickly that ticket converts into disease onset — higher frailty means earlier onset. Six baseline hazard distributions are supported, each providing a different shape for how the background risk of disease changes with age:
 
-The two traits use independent Weibull parameters ($\beta_k, \lambda_k, \rho_k$) and independent uniform draws, allowing different baseline hazard shapes: $\rho < 1$ produces a decreasing hazard (early-onset), $\rho = 1$ a constant hazard (exponential), and $\rho > 1$ an increasing hazard (late-onset).
+| Model | Parameters | Baseline hazard $h_0(t)$ | Cumulative hazard $H_0(t)$ | Inverse $t = H_0^{-1}(x)$ |
+|---|---|---|---|---|
+| **Weibull** | scale $\lambda$, shape $\rho$ | $\frac{\rho}{\lambda}\left(\frac{t}{\lambda}\right)^{\rho-1}$ | $\left(\frac{t}{\lambda}\right)^{\!\rho}$ | $\lambda\, x^{1/\rho}$ |
+| **Exponential** | rate $b$ | $b$ | $b\,t$ | $x / b$ |
+| **Gompertz** | rate $b$, shape $\gamma$ | $b\,\exp(\gamma\,t)$ | $\frac{b}{\gamma}\bigl(\exp(\gamma\,t) - 1\bigr)$ | $\frac{1}{\gamma}\log\!\left(1 + \frac{x\,\gamma}{b}\right)$ |
+| **Lognormal** | $\mu$, $\sigma$ | $\frac{\phi(z_t)}{\sigma\,t\,\bar{\Phi}(z_t)}$ | $-\log\bar{\Phi}(z_t)$ | $\exp\!\bigl(\mu + \sigma\,\Phi^{-1}(1 - e^{-x})\bigr)$ |
+| **Loglogistic** | scale $\alpha$, shape $k$ | $\frac{(k/\alpha)(t/\alpha)^{k-1}}{1 + (t/\alpha)^k}$ | $\log\!\bigl(1 + (t/\alpha)^k\bigr)$ | $\alpha\,(e^{x} - 1)^{1/k}$ |
+| **Gamma** | shape $k$, scale $\theta$ | $\frac{f_0(t)}{S_0(t)}$ | $-\log S_0(t)$ | $F_{\Gamma}^{-1}(1 - e^{-x};\, k,\, \theta)$ |
+
+where $z_t = (\log t - \mu)/\sigma$, $\phi$ is the standard normal density, $\bar{\Phi} = 1 - \Phi$ is the survival function, $f_0$ and $S_0$ are the Gamma density and survival functions, and $F_{\Gamma}^{-1}$ is the Gamma quantile function.
+
+The Weibull model with $\rho < 1$ produces a decreasing hazard (early-onset diseases), $\rho = 1$ reduces to the exponential (constant hazard), and $\rho > 1$ produces an increasing hazard (late-onset). The Gompertz model gives an exponentially increasing hazard, characteristic of age-related mortality. The lognormal and loglogistic models produce non-monotone hazards that first increase then decrease, suitable for diseases with a peak incidence age. The Gamma model provides a flexible alternative with similar behaviour.
+
+The two traits use independent baseline parameters and independent uniform draws, allowing different baseline hazard shapes for each trait.
 
 ### Censoring
 
@@ -223,13 +289,127 @@ $$
 
 where $\Phi^{-1}$ is the standard normal quantile function. Stated simply, if the prevalence is 10% in a particular generation, the top 10% of the liability distribution is classified as affected. Prevalence may be specified as a scalar (uniform across generations) or per-generation.
 
-## Validation via statistical analysis
+### Mixture cure frailty model
+
+Many diseases affect only a fraction of the population — the remainder are "cured" (or never susceptible). The mixture cure frailty model (Berkson & Gage, 1952; Farewell, 1982) separates *who* develops the disease from *when* among those who do:
+
+**Susceptibility (WHO).** A liability threshold determines case status. The liability is standardised to zero mean and unit variance. Given a population prevalence $K$ (scalar, per-generation, or per-sex$\times$generation), the threshold is $\Phi^{-1}(1 - K)$ and individuals with liability exceeding the threshold are classified as susceptible:
+
+$$
+\text{susceptible}_i = \mathbf{1}\!\left[\tilde{L}_i > \Phi^{-1}(1 - K)\right]
+$$
+
+The cure fraction is $1 - K$. Non-susceptible individuals ("cured") are assigned a sentinel event time of $10^6$, ensuring they are right-censored under any realistic observation window.
+
+**Age-at-onset (WHEN).** Among susceptible individuals only, age-at-onset is generated via the proportional-hazards frailty model described above (any of the six baseline hazards may be used):
+
+$$
+t_i = H_0^{-1}\!\left(\frac{-\log U_i}{z_i}\right), \quad z_i = \exp(\beta\,\tilde{L}_i)
+$$
+
+The key difference from the standard frailty model is that the frailty mechanism operates only on the susceptible subpopulation, while susceptibility itself is determined by the same underlying liability via the threshold.
+
+### ADuLT phenotype models
+
+The Age-Dependent Liability Threshold (ADuLT) models (Pedersen et al., *Nature Communications*, 2023) combine a liability threshold for case/control classification with a cumulative incidence proportion (CIP) mapping for age-at-onset assignment.
+
+**ADuLT-LTM (liability threshold model).** Case status is determined by the liability threshold as in the simple threshold model. Among cases, onset age is assigned via a logistic CIP function. The effective liability is computed on the probit scale:
+
+$$
+L_{\text{eff},i} = \beta \, \tilde{L}_i + \beta_{\text{sex}} \cdot \text{sex}_i
+$$
+
+The cumulative incidence rate (CIR) for each case is:
+
+$$
+\text{CIR}_i = \Phi(-L_{\text{eff},i})
+$$
+
+which is then clipped to $[\epsilon,\; K - \epsilon]$ (where $K$ is the prevalence) and mapped to onset age via the inverse logistic CIP function:
+
+$$
+t_i = x_0 + \frac{1}{k} \log\!\left(\frac{\text{CIR}_i}{K - \text{CIR}_i}\right)
+$$
+
+where $x_0$ is the midpoint age and $k$ is the growth rate of the logistic CIP curve. Higher liability (more positive $L_{\text{eff}}$) produces smaller $\text{CIR}$ values (since $\Phi(-L)$ decreases) and therefore earlier onset. Controls (below the threshold) are assigned $t = 10^6$.
+
+**ADuLT-Cox (proportional hazards model).** A Weibull(shape=2) proportional hazards model generates raw event times, which are then rank-mapped to onset ages via the CIP function:
+
+$$
+\tilde{t}_i = \sqrt{\frac{-\log U_i}{\exp(\beta \, \tilde{L}_i) \cdot \exp(\beta_{\text{sex}} \cdot \text{sex}_i)}}, \quad U_i \sim \text{Uniform}(0, 1]
+$$
+
+Individuals are sorted by $\tilde{t}_i$ and assigned a running CIP: $\text{CIP}_i = \text{rank}_i / (n + 1)$. Cases are those with $\text{CIP}_i < K$, and their onset age is:
+
+$$
+t_i = x_0 + \frac{1}{k} \log\!\left(\frac{\text{CIP}_i}{K - \text{CIP}_i}\right)
+$$
+
+Controls ($\text{CIP}_i \geq K$) receive $t = 10^6$. When prevalence varies by group (sex, generation, or sex$\times$generation), ranking and CIP assignment are performed within each group separately to ensure exact per-group case rates.
+
+### Sex-specific effects
+
+All phenotype models support sex-specific modification of the hazard or threshold via two mechanisms:
+
+**Sex-specific hazard coefficient ($\beta_{\text{sex}}$).** An additional coefficient modifies the hazard or mapping as a function of the binary sex covariate ($\text{sex} \in \{0, 1\}$, where 0 = female and 1 = male).
+
+In the frailty and cure frailty models, $\beta_{\text{sex}}$ enters the frailty multiplicatively:
+
+$$
+z_i = \exp\!\bigl(\beta \, \tilde{L}_i + \beta_{\text{sex}} \cdot \text{sex}_i\bigr)
+$$
+
+so that males (when $\beta_{\text{sex}} > 0$) experience uniformly higher hazard — and therefore earlier onset on average — than females at the same liability.
+
+In the ADuLT-LTM model, $\beta_{\text{sex}}$ enters the probit-scale effective liability $L_{\text{eff}} = \beta \, \tilde{L} + \beta_{\text{sex}} \cdot \text{sex}$, shifting the CIR mapping. In the ADuLT-Cox model, $\beta_{\text{sex}}$ modifies the raw Weibull event time divisor as $\exp(\beta_{\text{sex}} \cdot \text{sex})$.
+
+**Sex-specific prevalence.** For models that use a prevalence parameter (cure frailty, ADuLT, and the simple threshold model), prevalence can be specified per sex or per sex$\times$generation:
+
+$$
+K_i = \begin{cases} K_{\text{female}} & \text{if } \text{sex}_i = 0 \\ K_{\text{male}} & \text{if } \text{sex}_i = 1 \end{cases}
+$$
+
+where each sex-specific value may itself be a per-generation dictionary. This produces sex-differentiated thresholds and case rates, reflecting the sex differences in disease prevalence observed in many real conditions.
+
+## Subsampling and Case Ascertainment
+
+After phenotyping and censoring, an optional subsampling step draws a study sample of $N_{\text{sample}}$ individuals from the full population. Two modes are supported:
+
+**Uniform subsampling.** When the case-ascertainment ratio is 1.0 (default), $N_{\text{sample}}$ individuals are drawn uniformly at random without replacement.
+
+**Case-ascertainment bias.** When the ratio $\alpha \neq 1$, cases (individuals with $\delta_1 = 1$) are sampled with weight $\alpha$ relative to controls (weight 1). The sampling probability for individual $i$ is:
+
+$$
+p_i = \frac{w_i}{\sum_j w_j}, \quad w_i = \begin{cases} \alpha & \text{if } \delta_{i,1} = 1 \\ 1 & \text{otherwise} \end{cases}
+$$
+
+With $\alpha > 1$, cases are overrepresented in the sample (enrichment), mimicking case-control study designs. With $\alpha < 1$, cases are underrepresented. With $\alpha = 0$, only controls are sampled.
+
+## Validation via Statistical Analysis
 
 ### Relationship pair extraction
 
 Before computing correlations, individuals must be grouped into pairs by relationship type — the correlation structure within each group is what identifies genetic and environmental effects.
 
-For downstream correlation analyses, individuals are organised into seven relationship categories: MZ twins, full siblings, maternal half-siblings, paternal half-siblings, mother-offspring pairs, father-offspring pairs, and first cousins. Full and half-siblings are identified via merge-based groupby on shared parental identifiers. First cousins are enumerated by grouping individuals by grandparent and generating all cross-family pair combinations, with deduplication via canonical integer key packing.
+Relationship pairs are extracted using sparse matrix algebra over parent→child adjacency matrices. Let $\mathbf{A}_m$ be the $n \times n$ CSR matrix where entry $(i, j) = 1$ if individual $j$ is the mother of individual $i$, and $\mathbf{A}_f$ the analogous matrix for fathers. The combined parent matrix is $\mathbf{A} = \mathbf{A}_m + \mathbf{A}_f$.
+
+The following matrix products identify relationship categories:
+
+**Siblings.** All pairs sharing at least one parent are found via the shared-parent matrix $\mathbf{S} = \mathbf{A} \mathbf{A}^\top$, where $S_{ij} > 0$ indicates individuals $i$ and $j$ share at least one parent. Pairs are then classified by checking original (pre-remapped) parental identifiers: full siblings share both mother and father; maternal half-siblings share a mother but not a father; paternal half-siblings share a father but not a mother. Twin pairs are excluded from sibling counts.
+
+**Parent-offspring.** Mother-offspring and father-offspring pairs are read directly from the nonzero entries of $\mathbf{A}_m$ and $\mathbf{A}_f$, respectively.
+
+**Grandparent-grandchild.** The two-hop reach matrix $\mathbf{A}^2 = \mathbf{A} \cdot \mathbf{A}$ connects individuals to their grandparents. Nonzero entries in $\mathbf{A}^2$ where the generation difference is 2 identify grandparent-grandchild pairs.
+
+**Avuncular.** Aunt/uncle–niece/nephew pairs are identified by combining the full-sibling matrix $\mathbf{F}$ with the parent matrix: if individual $i$'s parent is a full sibling of individual $j$, then $(i, j)$ is an avuncular pair. This is computed as $\mathbf{A} \cdot \mathbf{F}$.
+
+**First cousins.** The shared-grandparent matrix $\mathbf{A}^2 (\mathbf{A}^2)^\top$ identifies pairs sharing at least one grandparent. First cousins are those who share a grandparent but are not siblings, not parent-offspring, not avuncular, and belong to the same generation.
+
+**Second cousins.** Analogously, $\mathbf{A}^3 (\mathbf{A}^3)^\top$ identifies pairs sharing at least one great-grandparent. Second cousins are those who share a great-grandparent but do not fall into any closer relationship category.
+
+**MZ twins.** Twin pairs are identified directly from the twin-partner column in the pedigree, deduplicated so that each pair appears once.
+
+In total, ten relationship categories are extracted: MZ twins, full siblings, maternal half-siblings, paternal half-siblings, mother-offspring, father-offspring, avuncular, grandparent-grandchild, first cousins, and second cousins. When a sample mask is provided (e.g., after subsampling), only pairs where both individuals are in the sample are returned.
 
 ### Tetrachoric correlation estimation
 
@@ -303,21 +483,19 @@ Automated validation checks are performed on each simulated replicate and organi
 
 **Twin properties.** Bidirectional consistency of twin pointers; MZ pairs share identical parents, $A$ values (within floating-point tolerance), and sex; the observed twin rate matches the expected rate $2 \cdot p_{\text{MZ}} \cdot f_{\text{elig}}$, where $f_{\text{elig}}$ is the fraction of eligible birth positions.
 
-**Half-sibling statistics.** The observed proportion of maternal half-sibling pairs among all maternal sibling pairs is compared to the expected $1 - (1 - p_{\text{nonsocial}})^2$.
+**Half-sibling statistics.** The observed proportion of maternal half-sibling pairs among all maternal sibling pairs is compared to the expected proportion given the mating structure.
 
 **Variance-component recovery.** Founder-generation variances of $A$, $C$, and $E$ are compared to configured parameters; cross-trait correlations $r_A$ and $r_C$ are verified; $E$ components are confirmed to be uncorrelated across siblings and across traits; and $C$ values are confirmed to be identical within households.
 
-**Population-level checks.** Generation sizes equal $N$; the number of recorded generations equals $G_{\text{ped}}$; the mean family size matches the configured Poisson rate. Tolerances are set as $\max(4 \cdot \text{SE}, \epsilon_{\min})$ where SE is the sampling standard error of the relevant statistic.
+**Population-level checks.** Generation sizes equal $N$; the number of recorded generations equals $G_{\text{ped}}$; the mean family size matches the configured mating rate. Tolerances are set as $\max(4 \cdot \text{SE}, \epsilon_{\min})$ where SE is the sampling standard error of the relevant statistic.
 
 ## Implementation
 
-The simulation framework is implemented in Python as an installable package (`sim_ace`) with NumPy for vectorised array operations, SciPy for optimisation and special functions, pandas and PyArrow for data management, and Numba for JIT-compiled numerical kernels. The workflow is managed by Snakemake with per-scenario configuration, per-replicate seed offsets for reproducibility (seed incremented by replicate number), and support for SLURM-based HPC execution. All random number generation uses NumPy's PCG64 generator (`numpy.random.default_rng`) with deterministic seed management across pipeline stages (trait-2 phenotyping uses seed $+ 100$; death censoring uses seed $+ 1000$).
+The simulation framework is implemented in Python as an installable package (`sim_ace`) with NumPy for vectorised array operations, SciPy for optimisation and special functions, pandas and PyArrow for data management, and Numba for JIT-compiled numerical kernels (phenotype inversion, Metropolis sweeps, and pairwise survival likelihood evaluation). Relationship extraction uses SciPy sparse CSR matrices for $O(\text{nnz})$ computation of sibling, cousin, and higher-order relationship pairs via matrix products. The workflow is managed by Snakemake with per-scenario configuration, per-replicate seed offsets for reproducibility (seed incremented by replicate number), and support for SLURM-based HPC execution. All random number generation uses NumPy's PCG64 generator (`numpy.random.default_rng`) with deterministic seed management.
 
-## Assumptions and limitations
+## Assumptions and Limitations
 
 Every simulation makes simplifying assumptions. The following are the most consequential for interpreting results and should be considered when evaluating the framework:
-
-**No assortative mating.** Spouses are paired randomly with respect to phenotype and liability. Real populations exhibit phenotypic and genetic assortative mating, which inflates sibling correlations and can bias heritability estimates upward. Extensions incorporating spousal correlation on liability would be needed to model this effect.
 
 **No gene-environment interaction.** Liability is strictly additive ($L = A + C + E$) with no multiplicative or interactive terms. If the true data-generating process involves gene-environment interaction ($G \times E$) or gene-environment correlation ($rGE$), the ACE decomposition will absorb these effects into the additive components, potentially biasing variance estimates.
 
@@ -327,4 +505,4 @@ Every simulation makes simplifying assumptions. The following are the most conse
 
 **Fixed population size.** Each generation contains exactly $N$ individuals with no population growth, decline, bottlenecks, or migration. Demographic dynamics that alter effective population size or introduce population stratification are not modelled.
 
-**Tetrachoric correlation bias under censoring.** When affection status is derived from the Weibull frailty model with age-window and death censoring, the observed prevalence may differ from the uncensored prevalence. Tetrachoric correlations estimated from censored binary outcomes are attenuated relative to the true underlying liability correlation. The pairwise Weibull survival correlation method, which explicitly accounts for censoring in the likelihood, is preferred for validation of censored phenotypes.
+**Tetrachoric correlation bias under censoring.** When affection status is derived from the survival frailty model with age-window and death censoring, the observed prevalence may differ from the uncensored prevalence. Tetrachoric correlations estimated from censored binary outcomes are attenuated relative to the true underlying liability correlation. The pairwise Weibull survival correlation method, which explicitly accounts for censoring in the likelihood, is preferred for validation of censored phenotypes.
