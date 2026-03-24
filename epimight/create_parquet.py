@@ -76,6 +76,40 @@ def count_total_relatives(pair_list, n, unidirectional=False):
     return counts
 
 
+def select_single_relative_affected(pair_list, affected, n, rng, unidirectional=False):
+    """Pick one random relative per person and return whether they are affected.
+
+    Instead of counting ALL affected relatives (which causes c2 cohort
+    dilution at high prevalence), this selects exactly one relative at
+    random for each individual and returns a 0/1 indicator.
+
+    Args:
+        pair_list: list of (idx1, idx2) arrays from extract_relationship_pairs
+        affected: boolean array of affected status per row index
+        n: total number of individuals
+        rng: numpy random Generator instance
+        unidirectional: if True, only consider idx2 as relatives of idx1
+    Returns:
+        Integer array of length n with 0 or 1.
+    """
+    # Build per-individual list of relative indices
+    relatives = [[] for _ in range(n)]
+    for idx1, idx2 in pair_list:
+        if len(idx1) == 0:
+            continue
+        for i, j in zip(idx1, idx2):
+            relatives[i].append(j)
+            if not unidirectional:
+                relatives[j].append(i)
+
+    result = np.zeros(n, dtype=int)
+    for i in range(n):
+        if relatives[i]:
+            chosen = rng.choice(relatives[i])
+            result[i] = int(affected[chosen])
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description="Convert ACE phenotype parquet to EPIMIGHT TTE format")
     parser.add_argument("--phenotype", required=True, help="Path to phenotype.parquet from ACE pipeline")
@@ -83,6 +117,18 @@ def main():
         "--output-dir",
         required=True,
         help="Output directory for trait1.epimight_in.parquet, trait2.epimight_in.parquet, true_parameters.json",
+    )
+    parser.add_argument(
+        "--single-pair",
+        action="store_true",
+        default=False,
+        help="Pick one random relative per kind instead of counting all (fixes c2 dilution)",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for single-pair relative selection",
     )
     args = parser.parse_args()
 
@@ -113,6 +159,11 @@ def main():
     diag_cols_2 = {}
     nrel_cols = {}
 
+    single_pair = getattr(args, "single_pair", False)
+    if single_pair:
+        rng = np.random.default_rng(getattr(args, "seed", 42))
+        print("Using SINGLE-PAIR relative selection (--single-pair)")
+
     for kind, pair_types in KIND_TO_PAIRS.items():
         pair_list = [(all_pairs[pt][0], all_pairs[pt][1]) for pt in pair_types if pt in all_pairs]
         uni = kind in _UNIDIRECTIONAL_KINDS
@@ -120,8 +171,12 @@ def main():
             # Avuncular pairs use canonical ordering — re-orient so
             # idx1=nephew/niece (younger), idx2=uncle/aunt (older)
             pair_list = _orient_pairs_by_generation(pair_list, generations)
-        diag_cols_1[kind] = count_affected_relatives(pair_list, affected1, n, unidirectional=uni)
-        diag_cols_2[kind] = count_affected_relatives(pair_list, affected2, n, unidirectional=uni)
+        if single_pair:
+            diag_cols_1[kind] = select_single_relative_affected(pair_list, affected1, n, rng, unidirectional=uni)
+            diag_cols_2[kind] = select_single_relative_affected(pair_list, affected2, n, rng, unidirectional=uni)
+        else:
+            diag_cols_1[kind] = count_affected_relatives(pair_list, affected1, n, unidirectional=uni)
+            diag_cols_2[kind] = count_affected_relatives(pair_list, affected2, n, unidirectional=uni)
         nrel_cols[kind] = count_total_relatives(pair_list, n, unidirectional=uni)
 
     # ------------------------------------------------
