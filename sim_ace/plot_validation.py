@@ -432,6 +432,18 @@ def plot_memory(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     save(fig, out / f"memory.{ext}")
 
 
+def plot_consanguineous_matings(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    fig, axes = plt.subplots(1, 2, figsize=_figsize(ncols=2))
+    stripplot(df, axes[0], "n_half_sib_matings", expected=0)
+    axes[0].set_title("Half-Sib Matings")
+    axes[0].set_ylabel("Count")
+
+    stripplot(df, axes[1], "missing_gp_links", expected=0)
+    axes[1].set_title("Missing Grandparent Links")
+    axes[1].set_ylabel("Count")
+    save(fig, out / f"consanguineous_matings.{ext}")
+
+
 def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
@@ -456,6 +468,7 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
     plot_summary_bias(df, out, ext=plot_ext)
     plot_runtime(df, out, ext=plot_ext)
     plot_memory(df, out, ext=plot_ext)
+    plot_consanguineous_matings(df, out, ext=plot_ext)
 
     # Assemble validation atlas PDF
     from sim_ace.plot_atlas import VALIDATION_CAPTIONS, assemble_atlas
@@ -464,6 +477,7 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
         "family_size",
         "twin_rate",
         "half_sib_proportions",
+        "consanguineous_matings",
         "variance_components",
         "correlations_A",
         "correlations_phenotype",

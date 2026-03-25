@@ -432,14 +432,22 @@ VALIDATION_CAPTIONS: dict[str, str] = {
         "mating_lambda). Right panel: Proportion of offspring with "
         "at least one half-sibling."
     ),
+    "consanguineous_matings": (
+        "Figure 4: Consanguineous matings.\n\n"
+        "Left panel: Number of half-sibling matings per replicate (random "
+        "mating produces a small number by chance). Right panel: Missing "
+        "grandparent-grandchild links caused by shared grandparents. "
+        "Reconciliation verifies that all missing links are explained by "
+        "consanguineous matings."
+    ),
     "variance_components": (
-        "Figure 4: Variance components.\n\n"
+        "Figure 5: Variance components.\n\n"
         "2\u00d73 grid, rows = traits 1 and 2, columns = A, C, E. Blue dots show "
         "observed founder-generation variance for each component per replicate. Orange "
         "dashes mark configured variance parameters."
     ),
     "correlations_A": (
-        "Figure 5: A-component correlations.\n\n"
+        "Figure 6: A-component correlations.\n\n"
         "2\u00d72 grid. Panel 1: MZ twin A\u2081 correlation (expected = 1.0). "
         "Panel 2: DZ (full-sibling) A\u2081 correlation (expected = 0.5). "
         "Panel 3: Half-sibling A\u2081 correlation (expected = 0.25). "
@@ -447,7 +455,7 @@ VALIDATION_CAPTIONS: dict[str, str] = {
         "Each panel shows blue dots with orange dashed reference line."
     ),
     "correlations_phenotype": (
-        "Figure 6: Phenotype (liability) correlations.\n\n"
+        "Figure 7: Phenotype (liability) correlations.\n\n"
         "2\u00d72 grid. Expected values computed per-scenario from configured variance "
         "components. Panel 1: MZ twin liability\u2081 correlation (expected = A\u2081 + C\u2081). "
         "Panel 2: DZ sibling liability\u2081 correlation (expected = 0.5A\u2081 + C\u2081). "
@@ -455,30 +463,30 @@ VALIDATION_CAPTIONS: dict[str, str] = {
         "Panel 4: Midparent-offspring liability\u2081 slope (expected = A\u2081)."
     ),
     "heritability_estimates": (
-        "Figure 7: Heritability estimates.\n\n"
+        "Figure 8: Heritability estimates.\n\n"
         "2\u00d72 grid, rows = traits 1 and 2. Left: Falconer's h\u00b2 vs. configured A. "
         "Right: Midparent-offspring liability slope vs. configured A."
     ),
     "cross_trait_correlations": (
-        "Figure 8: Cross-trait correlations.\n\n"
+        "Figure 9: Cross-trait correlations.\n\n"
         "1\u00d73 figure. Panel 1: Observed r_A vs. configured rA. Panel 2: Observed "
         "r_C vs. configured rC. Panel 3: Observed r_E with reference at 0 "
         "(theoretical independence)."
     ),
     "summary_bias": (
-        "Figure 9: Summary bias.\n\n"
+        "Figure 10: Summary bias.\n\n"
         "2\u00d73 grid of strip plots showing observed \u2212 expected for six metrics: "
         "A\u2081 bias, C\u2081 bias, E\u2081 bias, twin rate bias, DZ A\u2081 correlation "
         "bias (vs. 0.5), half-sibling A\u2081 correlation bias (vs. 0.25). Red dashed "
         "reference line at 0 (no bias)."
     ),
     "runtime": (
-        "Figure 10: Simulation runtime.\n\n"
+        "Figure 11: Simulation runtime.\n\n"
         "Log-log scatter of population size N (x) vs. simulation wall-clock seconds (y), "
         "coloured by scenario."
     ),
     "memory": (
-        "Figure 11: Memory usage.\n\n"
+        "Figure 12: Memory usage.\n\n"
         "Log-log scatter of population size N (x) vs. peak resident set size in MB (y), "
         "coloured by scenario."
     ),

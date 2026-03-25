@@ -152,6 +152,11 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         "parent_offspring_liability2_r2": get_nested(
             data, "heritability", "parent_offspring_liability2_regression", "r_squared"
         ),
+        # Consanguineous matings
+        "n_half_sib_matings": get_nested(data, "consanguineous_matings", "consanguineous_count", "n_half_sib_matings"),
+        "n_full_sib_matings": get_nested(data, "consanguineous_matings", "consanguineous_count", "n_full_sib_matings"),
+        "missing_gp_links": get_nested(data, "consanguineous_matings", "consanguineous_count", "total_missing_gp_links"),
+        "gp_reconciled": get_nested(data, "consanguineous_matings", "grandparent_reconciliation", "passed"),
     }
 
     return row
