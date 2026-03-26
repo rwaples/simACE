@@ -353,7 +353,7 @@ scenarios:
     seed: 81042
     N: 100000
     assort1: 0.3
-    assort2: 0.5
+    assort2: 0.15
 
   high_mating_lambda:
     folder: family
