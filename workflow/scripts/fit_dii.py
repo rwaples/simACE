@@ -33,8 +33,7 @@ def compute_dii(ped):
     Founders: 1.0, one parent known: 4/3, both parents known: 2.0
     """
     n_parents = (ped.mother.values != -1).astype(int) + (ped.father.values != -1).astype(int)
-    dii = 1.0 / (1.0 - 0.25 * n_parents)
-    return dii
+    return 1.0 / (1.0 - 0.25 * n_parents)
 
 
 def prepare_data(parquet_path):

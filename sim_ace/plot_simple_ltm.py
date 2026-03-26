@@ -756,6 +756,7 @@ def cli() -> None:
         if scalar is not None:
             return scalar
         parser.error("Either --prevalenceN or --prevalenceN-by-gen is required")
+        return None
 
     p1 = _resolve(args.prevalence1, args.prevalence1_by_gen)
     p2 = _resolve(args.prevalence2, args.prevalence2_by_gen)

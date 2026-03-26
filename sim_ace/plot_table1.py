@@ -374,21 +374,40 @@ def _draw_col4_headers(fig, y: float) -> float:
     t1_center = (_C4[0] + _C4[1]) / 2
     t2_center = (_C4[2] + _C4[3]) / 2
     fig.text(
-        t1_center, y, "Trait 1",
-        fontsize=_FONT_SIZE, fontweight="bold", fontfamily=_FONT,
-        va="top", ha="center", transform=fig.transFigure,
+        t1_center,
+        y,
+        "Trait 1",
+        fontsize=_FONT_SIZE,
+        fontweight="bold",
+        fontfamily=_FONT,
+        va="top",
+        ha="center",
+        transform=fig.transFigure,
     )
     fig.text(
-        t2_center, y, "Trait 2",
-        fontsize=_FONT_SIZE, fontweight="bold", fontfamily=_FONT,
-        va="top", ha="center", transform=fig.transFigure,
+        t2_center,
+        y,
+        "Trait 2",
+        fontsize=_FONT_SIZE,
+        fontweight="bold",
+        fontfamily=_FONT,
+        va="top",
+        ha="center",
+        transform=fig.transFigure,
     )
     y -= _ROW_H
-    for x, label in zip(_C4, ["Female", "Male", "Female", "Male"]):
+    for x, label in zip(_C4, ["Female", "Male", "Female", "Male"], strict=True):
         fig.text(
-            x, y, label,
-            fontsize=_FONT_SIZE, fontweight="bold", fontfamily=_FONT,
-            color="0.35", va="top", ha="center", transform=fig.transFigure,
+            x,
+            y,
+            label,
+            fontsize=_FONT_SIZE,
+            fontweight="bold",
+            fontfamily=_FONT,
+            color="0.35",
+            va="top",
+            ha="center",
+            transform=fig.transFigure,
         )
     return y - _ROW_H
 
@@ -415,7 +434,7 @@ def _draw_row4(
         va="top",
         transform=fig.transFigure,
     )
-    for x, val in zip(_C4, [t1f, t1m, t2f, t2m]):
+    for x, val in zip(_C4, [t1f, t1m, t2f, t2m], strict=True):
         fig.text(
             x,
             y,
@@ -624,7 +643,9 @@ def render_table1_figure(
 
     # Affected n — derive from sex-specific prevalence × n
     def _affected_by_sex(prev_list, n_list):
-        return [round(p * n) if p is not None and n is not None else None for p, n in zip(prev_list, n_list)]
+        return [
+            round(p * n) if p is not None and n is not None else None for p, n in zip(prev_list, n_list, strict=True)
+        ]
 
     fn1 = [_safe_get(s, "cumulative_incidence_by_sex", "trait1", "female", "n") for s in all_stats]
     mn1 = [_safe_get(s, "cumulative_incidence_by_sex", "trait1", "male", "n") for s in all_stats]
@@ -649,7 +670,7 @@ def render_table1_figure(
     def _incidence_rate(prev_list, n_sex_list, py_total_list, n_total):
         """IR ≈ (prev × n_sex) / (py_total × n_sex/n_total) × 1000 = prev × n_total / py_total × 1000."""
         rates = []
-        for prev, n_sex, py in zip(prev_list, n_sex_list, py_total_list):
+        for prev, n_sex, py in zip(prev_list, n_sex_list, py_total_list, strict=True):
             if prev is not None and n_sex and py and py > 0 and n_total:
                 affected = prev * n_sex
                 py_sex = py * n_sex / n_total
@@ -709,8 +730,15 @@ def render_table1_figure(
     coaff_m = [_safe_get(s, "joint_affection", "by_sex", "male") for s in all_stats]
     shade = not shade
     y = _draw_row4(
-        fig, ax, y, "Co-affected, %",
-        _fmt_range_pct(coaff_f), _fmt_range_pct(coaff_m), "", "", shade,
+        fig,
+        ax,
+        y,
+        "Co-affected, %",
+        _fmt_range_pct(coaff_f),
+        _fmt_range_pct(coaff_m),
+        "",
+        "",
+        shade,
     )
 
     y -= _ROW_H * 0.4
@@ -734,8 +762,8 @@ def render_table1_figure(
         obs1 = [_safe_get(s, "censoring_cascade", "trait1", gk, "observed") for s in all_stats]
         obs2 = [_safe_get(s, "censoring_cascade", "trait2", gk, "observed") for s in all_stats]
         gn = [_safe_get(s, "censoring_cascade", "trait1", gk, "n_gen") for s in all_stats]
-        prev_g1 = [o / n if o is not None and n else None for o, n in zip(obs1, gn)]
-        prev_g2 = [o / n if o is not None and n else None for o, n in zip(obs2, gn)]
+        prev_g1 = [o / n if o is not None and n else None for o, n in zip(obs1, gn, strict=True)]
+        prev_g2 = [o / n if o is not None and n else None for o, n in zip(obs2, gn, strict=True)]
         shade = not shade
         y = _draw_row2(
             fig,
@@ -775,9 +803,7 @@ def render_table1_figure(
     # Footnotes
     footnotes = []
     if n_reps > 1:
-        footnotes.append(
-            f"Values are mean [min\u2013max] across {n_reps} replicates where applicable."
-        )
+        footnotes.append(f"Values are mean [min\u2013max] across {n_reps} replicates where applicable.")
     footnotes.append(
         "\u00b9 Includes youngest generation, whose offspring are outside the phenotyped cohort"
         " (100% childless by design)."

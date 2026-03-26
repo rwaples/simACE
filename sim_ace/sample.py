@@ -39,8 +39,7 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
     if n_sample <= 0 or n_sample >= n_total:
         if ratio != 1.0:
             logger.warning(
-                "case_ascertainment_ratio=%.2f has no effect when N_sample=%d "
-                "(all %d individuals passed through)",
+                "case_ascertainment_ratio=%.2f has no effect when N_sample=%d (all %d individuals passed through)",
                 ratio,
                 n_sample,
                 n_total,
@@ -62,8 +61,7 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
 
         if n_cases == 0:
             logger.warning(
-                "No cases found (affected1); ignoring case_ascertainment_ratio=%.2f, "
-                "falling back to uniform sampling",
+                "No cases found (affected1); ignoring case_ascertainment_ratio=%.2f, falling back to uniform sampling",
                 ratio,
             )
             indices = np.sort(rng.choice(n_total, n_sample, replace=False))
@@ -79,8 +77,7 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
             actual_n = min(n_sample, n_controls)
             if actual_n < n_sample:
                 logger.warning(
-                    "case_ascertainment_ratio=0: clamping N_sample from %d to %d "
-                    "(only %d controls available)",
+                    "case_ascertainment_ratio=0: clamping N_sample from %d to %d (only %d controls available)",
                     n_sample,
                     actual_n,
                     n_controls,
@@ -96,8 +93,7 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
             expected_cases_drawn = expected_case_prob * n_sample
             if expected_cases_drawn > 0.9 * n_cases:
                 logger.warning(
-                    "Extreme ascertainment: expected to draw %.0f of %d total cases "
-                    "(ratio=%.1f, N_sample=%d)",
+                    "Extreme ascertainment: expected to draw %.0f of %d total cases (ratio=%.1f, N_sample=%d)",
                     expected_cases_drawn,
                     n_cases,
                     ratio,
@@ -112,8 +108,7 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
     if ratio != 1.0:
         n_cases_sampled = int(result["affected1"].sum())
         logger.info(
-            "Sampled %d → %d individuals (cases: %d, %.1f%%) in %.1fs "
-            "(seed=%d, ratio=%.1f)",
+            "Sampled %d → %d individuals (cases: %d, %.1f%%) in %.1fs (seed=%d, ratio=%.1f)",
             n_total,
             len(result),
             n_cases_sampled,

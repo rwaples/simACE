@@ -22,11 +22,13 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 from numpy.polynomial.hermite_e import hermegauss
+
+if TYPE_CHECKING:
+    import pandas as pd
 from scipy.optimize import minimize_scalar
 
 try:

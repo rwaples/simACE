@@ -10,10 +10,13 @@ from __future__ import annotations
 import logging
 import time
 from functools import cached_property
+from typing import TYPE_CHECKING
 
 import numpy as np
-import pandas as pd
 import scipy.sparse as sp
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +81,6 @@ class PedigreeGraph:
             (np.ones(len(f_idx), dtype=np.float64), (f_idx, self.father[f_idx])),
             shape=(n, n),
         )
-
 
     # ------------------------------------------------------------------
     # Lazy sparse products (computed on first access)

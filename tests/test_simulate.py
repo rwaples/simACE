@@ -199,8 +199,12 @@ class TestAssignTwins:
         counts = np.array([0, 1, 2, 3, 0, 1])
         mask = assign_twins(rng, counts, 1.0)
         # Only indices 2, 3 are eligible (counts >= 2); with p=1.0 all should be True
-        assert mask[2] and mask[3]
-        assert not mask[0] and not mask[1] and not mask[4] and not mask[5]
+        assert mask[2]
+        assert mask[3]
+        assert not mask[0]
+        assert not mask[1]
+        assert not mask[4]
+        assert not mask[5]
 
     def test_no_twins_p_zero(self, rng):
         counts = np.array([3, 4, 5])
@@ -465,37 +469,37 @@ class TestRunSimulation:
     # --- Validation error tests ---
 
     def test_negative_A_raises(self, default_params):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="must be between 0 and 1"):
             run_simulation(**{**default_params, "A1": -0.1})
 
     def test_A_plus_C_exceeds_one_raises(self, default_params):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"A1 \+ C1 must be <= 1\.0"):
             run_simulation(**{**default_params, "A1": 0.6, "C1": 0.5})
 
     def test_negative_N_raises(self, default_params):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="N must be a positive integer"):
             run_simulation(**{**default_params, "N": -10})
 
     def test_zero_mating_lambda_raises(self, default_params):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="mating_lambda must be > 0"):
             run_simulation(**{**default_params, "mating_lambda": 0})
 
     def test_G_sim_less_than_G_ped_raises(self, default_params):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"G_sim .* must be >= G_ped"):
             run_simulation(**{**default_params, "G_sim": 1, "G_ped": 3})
 
     def test_rA_out_of_range_raises(self, default_params):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"rA must be in \[-1, 1\]"):
             run_simulation(**{**default_params, "rA": 1.5})
 
     def test_p_mztwin_equals_one_raises(self, default_params):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"p_mztwin must be in \[0, 1\)"):
             run_simulation(**{**default_params, "p_mztwin": 1.0})
 
     def test_assort_out_of_range_raises(self, default_params):
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"assort1 must be in \[-1, 1\]"):
             run_simulation(**{**default_params, "assort1": 1.5})
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match=r"assort2 must be in \[-1, 1\]"):
             run_simulation(**{**default_params, "assort2": -1.5})
 
     def test_rho_w_one_raises(self, default_params):

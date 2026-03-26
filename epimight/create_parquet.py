@@ -97,7 +97,7 @@ def select_single_relative_affected(pair_list, affected, n, rng, unidirectional=
     for idx1, idx2 in pair_list:
         if len(idx1) == 0:
             continue
-        for i, j in zip(idx1, idx2):
+        for i, j in zip(idx1, idx2, strict=True):
             relatives[i].append(j)
             if not unidirectional:
                 relatives[j].append(i)

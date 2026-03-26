@@ -89,9 +89,7 @@ def cli() -> None:
     add_logging_args(parser)
     parser.add_argument("--pedigree", required=True, help="Input pedigree parquet")
     parser.add_argument("--output", required=True, help="Output pedigree parquet")
-    parser.add_argument(
-        "--dropout-rate", type=float, default=0, help="Fraction of individuals to drop (0-1)"
-    )
+    parser.add_argument("--dropout-rate", type=float, default=0, help="Fraction of individuals to drop (0-1)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
 
     args = parser.parse_args()

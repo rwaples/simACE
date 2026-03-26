@@ -9,8 +9,10 @@ plot_cross_trait_frailty_by_generation.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np

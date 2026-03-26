@@ -125,9 +125,7 @@ class TestGompertz:
         const, H_base = compute_hazard_terms("gompertz", self.t, self.params)
         f0 = np.exp(const) * np.exp(-H_base)
         b, g = self.params["rate"], self.params["gamma"]
-        expected = self._analytical_h0(self.t, b, g) * np.exp(
-            -self._analytical_H0(self.t, b, g)
-        )
+        expected = self._analytical_h0(self.t, b, g) * np.exp(-self._analytical_H0(self.t, b, g))
         assert f0 == pytest.approx(expected, rel=1e-6)
 
 
@@ -290,11 +288,7 @@ class TestCrossModelAndEdgeCases:
         """Weibull with rho=1 is equivalent to exponential with same scale."""
         t = np.array([10.0, 50.0, 100.0])
         scale = 100.0
-        const_w, H_w = compute_hazard_terms(
-            "weibull", t, {"scale": scale, "rho": 1.0}
-        )
-        const_e, H_e = compute_hazard_terms(
-            "exponential", t, {"scale": scale}
-        )
+        const_w, H_w = compute_hazard_terms("weibull", t, {"scale": scale, "rho": 1.0})
+        const_e, H_e = compute_hazard_terms("exponential", t, {"scale": scale})
         assert np.exp(const_w) == pytest.approx(np.exp(const_e), rel=1e-6)
         assert H_w == pytest.approx(H_e, rel=1e-6)

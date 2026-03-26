@@ -120,8 +120,7 @@ class TestComputeMateCorrelation:
             )
             child_id += 1
 
-        df = pd.concat([founders, pd.DataFrame(children)], ignore_index=True)
-        return df
+        return pd.concat([founders, pd.DataFrame(children)], ignore_index=True)
 
     def test_returns_matrix_and_count(self):
         """Should return dict with 'matrix' and 'n_pairs' keys."""

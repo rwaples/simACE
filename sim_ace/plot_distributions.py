@@ -8,12 +8,15 @@ plot_cumulative_incidence_by_sex_generation, plot_censoring_windows.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pandas as pd
 
 from sim_ace.utils import finalize_plot, save_placeholder_plot
 
@@ -46,7 +49,7 @@ def plot_death_age_distribution(
     survival = np.cumprod(1 - mean_rates)
     cumulative = 1 - survival
     bars = axes[1].bar(decade_labels, cumulative, edgecolor="black", alpha=0.7)
-    for bar, s in zip(bars, survival):
+    for bar, s in zip(bars, survival, strict=True):
         axes[1].text(
             bar.get_x() + bar.get_width() / 2,
             bar.get_height() + 0.01,
@@ -206,7 +209,7 @@ def plot_cumulative_incidence(
     """Plot cumulative incidence by age, mean +/- band across reps."""
     fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
-    for trait_num, ax in zip([1, 2], axes):
+    for trait_num, ax in zip([1, 2], axes, strict=True):
         key = f"trait{trait_num}"
         ages = np.array(all_stats[0]["cumulative_incidence"][key]["ages"])
 
@@ -316,7 +319,7 @@ def plot_cumulative_incidence_by_sex(
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
-    for trait_num, ax in zip([1, 2], axes):
+    for trait_num, ax in zip([1, 2], axes, strict=True):
         key = f"trait{trait_num}"
 
         for sex_label, display, color in [
@@ -472,7 +475,7 @@ def plot_censoring_windows(
         squeeze=False,
     )
 
-    for col, (gen_key, label) in enumerate(zip(gen_keys, gen_labels)):
+    for col, (gen_key, label) in enumerate(zip(gen_keys, gen_labels, strict=True)):
         # Check if any rep has data for this generation
         gen_data = [
             s["censoring"]["generations"][gen_key]
@@ -561,9 +564,7 @@ def plot_censoring_windows(
     finalize_plot(output_path)
 
 
-def plot_family_structure(
-    all_stats: list[dict], output_path: str | Path, scenario: str = ""
-) -> None:
+def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenario: str = "") -> None:
     """Plot offspring and mate count distributions, averaged across replicates."""
     # Collect family_size dicts from each replicate
     fs_list = [s.get("family_size", {}) for s in all_stats if "family_size" in s]
@@ -576,9 +577,7 @@ def plot_family_structure(
     # --- Panel 1: Offspring per mating ---
     ax = axes[0]
     categories = ["1", "2", "3", "4+"]
-    vals = np.array(
-        [[fs.get("size_dist", {}).get(c, 0) for c in categories] for fs in fs_list]
-    )
+    vals = np.array([[fs.get("size_dist", {}).get(c, 0) for c in categories] for fs in fs_list])
     mean_vals = vals.mean(axis=0)
     ax.bar(categories, mean_vals, color="C0", edgecolor="white")
     for i, v in enumerate(mean_vals):
@@ -588,8 +587,13 @@ def plot_family_structure(
     ax.set_xlabel("Number of children")
     ax.set_ylabel("Fraction of couples")
     ax.text(
-        0.97, 0.95, f"mean = {mean_size:.2f}",
-        transform=ax.transAxes, ha="right", va="top", fontsize=11,
+        0.97,
+        0.95,
+        f"mean = {mean_size:.2f}",
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=11,
         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
     )
 
@@ -602,12 +606,16 @@ def plot_family_structure(
     has_sex = any(fs.get("person_offspring_dist_by_sex") for fs in fs_list)
     if has_sex:
         vals_f = np.array(
-            [[fs.get("person_offspring_dist_by_sex", {}).get("female", {}).get(c, 0)
-              for c in categories2] for fs in fs_list]
+            [
+                [fs.get("person_offspring_dist_by_sex", {}).get("female", {}).get(c, 0) for c in categories2]
+                for fs in fs_list
+            ]
         )
         vals_m = np.array(
-            [[fs.get("person_offspring_dist_by_sex", {}).get("male", {}).get(c, 0)
-              for c in categories2] for fs in fs_list]
+            [
+                [fs.get("person_offspring_dist_by_sex", {}).get("male", {}).get(c, 0) for c in categories2]
+                for fs in fs_list
+            ]
         )
         mean_f = vals_f.mean(axis=0)
         mean_m = vals_m.mean(axis=0)
@@ -620,20 +628,15 @@ def plot_family_structure(
                 continue
             if abs(fv - mv) < 0.01:
                 # Values nearly equal — single centred label
-                ax.text(x2[i], max(fv, mv) + 0.008, f"{(fv + mv) / 2:.0%}",
-                        ha="center", va="bottom", fontsize=9)
+                ax.text(x2[i], max(fv, mv) + 0.008, f"{(fv + mv) / 2:.0%}", ha="center", va="bottom", fontsize=9)
             else:
                 if fv > 0.005:
-                    ax.text(x2[i] - w2 / 2, fv + 0.005, f"{fv:.0%}",
-                            ha="center", va="bottom", fontsize=8)
+                    ax.text(x2[i] - w2 / 2, fv + 0.005, f"{fv:.0%}", ha="center", va="bottom", fontsize=8)
                 if mv > 0.005:
-                    ax.text(x2[i] + w2 / 2, mv + 0.005, f"{mv:.0%}",
-                            ha="center", va="bottom", fontsize=8)
+                    ax.text(x2[i] + w2 / 2, mv + 0.005, f"{mv:.0%}", ha="center", va="bottom", fontsize=8)
         ax.legend(fontsize=9)
     else:
-        vals2 = np.array(
-            [[fs.get("person_offspring_dist", {}).get(c, 0) for c in categories2] for fs in fs_list]
-        )
+        vals2 = np.array([[fs.get("person_offspring_dist", {}).get(c, 0) for c in categories2] for fs in fs_list])
         mean_vals2 = vals2.mean(axis=0)
         ax.bar(x2, mean_vals2, 0.6, color="C1", edgecolor="white")
         for i, v in enumerate(mean_vals2):
@@ -658,8 +661,12 @@ def plot_family_structure(
     for bar in list(bars_f) + list(bars_m):
         h = bar.get_height()
         ax.text(
-            bar.get_x() + bar.get_width() / 2, h + 0.005,
-            f"{h:.1%}", ha="center", va="bottom", fontsize=10,
+            bar.get_x() + bar.get_width() / 2,
+            h + 0.005,
+            f"{h:.1%}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
         )
     ax.set_xticks(x)
     ax.set_xticklabels(["1 partner", "2+ partners"])
@@ -669,8 +676,13 @@ def plot_family_structure(
     f_mean = np.mean([m.get("female_mean", 0) for m in mates_list])
     m_mean = np.mean([m.get("male_mean", 0) for m in mates_list])
     ax.text(
-        0.97, 0.95, f"mean F={f_mean:.2f}, M={m_mean:.2f}",
-        transform=ax.transAxes, ha="right", va="top", fontsize=11,
+        0.97,
+        0.95,
+        f"mean F={f_mean:.2f}, M={m_mean:.2f}",
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=11,
         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
     )
 

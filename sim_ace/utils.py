@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 from scipy import stats
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 # Canonical 7 relationship pair types used for tetrachoric / liability correlations
 PAIR_TYPES: list[str] = [
@@ -48,18 +50,17 @@ def to_native(obj: Any) -> Any:
     """Recursively convert numpy types to native Python types for YAML serialization."""
     if isinstance(obj, dict):
         return {k: to_native(v) for k, v in obj.items()}
-    elif isinstance(obj, list):
+    if isinstance(obj, list):
         return [to_native(v) for v in obj]
-    elif isinstance(obj, np.ndarray):
+    if isinstance(obj, np.ndarray):
         return to_native(obj.tolist())
-    elif isinstance(obj, (np.integer, np.int64, np.int32)):
+    if isinstance(obj, (np.integer, np.int64, np.int32)):
         return int(obj)
-    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+    if isinstance(obj, (np.floating, np.float64, np.float32)):
         return float(obj)
-    elif isinstance(obj, (np.bool_, bool)):
+    if isinstance(obj, (np.bool_, bool)):
         return bool(obj)
-    else:
-        return obj
+    return obj
 
 
 def validation_result(passed: bool, details: str, **extra: Any) -> dict[str, Any]:
@@ -294,7 +295,7 @@ def expected_mate_corr_matrix(
         # Both traits: diagonal = targets, off-diagonal from rho_w mediation
         c = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
         return np.array([[assort1, c], [c, assort2]])
-    elif assort1 != 0:
+    if assort1 != 0:
         # Single-trait on trait 1: propagate via rho_w
         a = assort1
         return np.array(
@@ -303,15 +304,14 @@ def expected_mate_corr_matrix(
                 [a * rho_w, a * rho_w**2],
             ]
         )
-    else:
-        # Single-trait on trait 2: propagate via rho_w
-        a = assort2
-        return np.array(
-            [
-                [a * rho_w**2, a * rho_w],
-                [a * rho_w, a],
-            ]
-        )
+    # Single-trait on trait 2: propagate via rho_w
+    a = assort2
+    return np.array(
+        [
+            [a * rho_w**2, a * rho_w],
+            [a * rho_w, a],
+        ]
+    )
 
 
 def draw_colored_violins(
@@ -329,10 +329,10 @@ def draw_colored_violins(
     categorically-coloured violin groups.  Only groups with >= 2 values
     are drawn.
     """
-    valid = [(p, d, c) for p, d, c in zip(positions, datasets, colors) if len(d) >= 2]
+    valid = [(p, d, c) for p, d, c in zip(positions, datasets, colors, strict=True) if len(d) >= 2]
     if not valid:
         return
-    v_pos, v_data, v_colors = zip(*valid)
+    v_pos, v_data, v_colors = zip(*valid, strict=True)
     parts = ax.violinplot(
         list(v_data),
         positions=list(v_pos),
@@ -341,7 +341,7 @@ def draw_colored_violins(
         showextrema=False,
         widths=width,
     )
-    for body, color in zip(parts["bodies"], v_colors):
+    for body, color in zip(parts["bodies"], v_colors, strict=True):
         body.set_facecolor(color)
         body.set_edgecolor("none")
         body.set_alpha(alpha)

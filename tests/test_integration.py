@@ -90,9 +90,21 @@ class TestSimulateStep:
 
     def test_has_required_columns(self, pedigree):
         required = {
-            "id", "generation", "sex", "mother", "father", "twin",
-            "household_id", "A1", "C1", "E1", "liability1",
-            "A2", "C2", "E2", "liability2",
+            "id",
+            "generation",
+            "sex",
+            "mother",
+            "father",
+            "twin",
+            "household_id",
+            "A1",
+            "C1",
+            "E1",
+            "liability1",
+            "A2",
+            "C2",
+            "E2",
+            "liability2",
         }
         assert required.issubset(set(pedigree.columns))
 
@@ -133,8 +145,14 @@ class TestCensorStep:
 
     def test_has_censoring_columns(self, censored):
         required = {
-            "death_age", "age_censored1", "t_observed1", "death_censored1",
-            "affected1", "age_censored2", "t_observed2", "death_censored2",
+            "death_age",
+            "age_censored1",
+            "t_observed1",
+            "death_censored1",
+            "affected1",
+            "age_censored2",
+            "t_observed2",
+            "death_censored2",
             "affected2",
         }
         assert required.issubset(set(censored.columns))

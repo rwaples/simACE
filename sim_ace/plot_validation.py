@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import argparse
 import logging
-from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -16,8 +16,12 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import seaborn as sns
-from matplotlib.axes import Axes
-from matplotlib.figure import Figure
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 
 def stripplot(
@@ -38,8 +42,7 @@ def stripplot(
 
     # Guard against all-NaN y column (metric not computed)
     if df[y].isna().all():
-        ax.text(0.5, 0.5, "no data", ha="center", va="center",
-                transform=ax.transAxes, fontsize=12, color="0.5")
+        ax.text(0.5, 0.5, "no data", ha="center", va="center", transform=ax.transAxes, fontsize=12, color="0.5")
         ax.set_ylabel(y)
         return
 
@@ -140,7 +143,7 @@ def plot_A_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         ("parent_offspring_A1_r2", 0.5, "Midparent-Offspring A1 R²"),
     ]
     fig, axes = plt.subplots(2, 2, figsize=_figsize(nrows=2, ncols=2))
-    for ax, (col, exp, title) in zip(axes.flat, panels):
+    for ax, (col, exp, title) in zip(axes.flat, panels, strict=True):
         stripplot(df, ax, col, expected=exp)
         ax.axhline(y=exp, color="C1", linestyle="--", alpha=0.7)
         ax.set_title(title)
@@ -156,7 +159,7 @@ def plot_phenotype_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -
         ("parent_offspring_liability1_slope", lambda d: d["A1"].iloc[0], "Midparent-Offspring Liability1 Slope"),
     ]
     fig, axes = plt.subplots(2, 2, figsize=_figsize(nrows=2, ncols=2))
-    for ax, (col, efn, title) in zip(axes.flat, panels):
+    for ax, (col, efn, title) in zip(axes.flat, panels, strict=True):
         stripplot(df, ax, col, expected_func=efn)
         ax.set_title(title)
         ax.set_ylabel("Correlation")
@@ -171,7 +174,7 @@ def plot_heritability_estimates(df: pd.DataFrame, out: Path, ext: str = "png") -
         ("parent_offspring_liability2_slope", "A2", "Midparent-Offspring Liability2", "Slope"),
     ]
     fig, axes = plt.subplots(2, 2, figsize=_figsize(nrows=2, ncols=2))
-    for ax, (col, exp, title, ylabel) in zip(axes.flat, panels):
+    for ax, (col, exp, title, ylabel) in zip(axes.flat, panels, strict=True):
         stripplot(df, ax, col, expected=exp)
         ax.set_title(title)
         ax.set_ylabel(ylabel)
@@ -197,7 +200,7 @@ def plot_cross_trait_correlations(df: pd.DataFrame, out: Path, ext: str = "png")
         ("observed_rE", None, "Cross-Trait rE"),
     ]
     fig, axes = plt.subplots(1, 3, figsize=_figsize(ncols=3))
-    for ax, (obs, exp, title) in zip(axes, panels):
+    for ax, (obs, exp, title) in zip(axes, panels, strict=True):
         if exp:
             stripplot(df, ax, obs, expected=exp)
         else:
@@ -289,10 +292,9 @@ def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     _long = max((len(str(s)) for s in scenarios), default=0) > 12
     fig, axes = plt.subplots(2, 3, figsize=_figsize(nrows=2, ncols=3))
 
-    for ax, col in zip(axes.flat, panels):
+    for ax, col in zip(axes.flat, panels, strict=True):
         if dp[col].isna().all():
-            ax.text(0.5, 0.5, "no data", ha="center", va="center",
-                    transform=ax.transAxes, fontsize=12, color="0.5")
+            ax.text(0.5, 0.5, "no data", ha="center", va="center", transform=ax.transAxes, fontsize=12, color="0.5")
             ax.set_title(col)
             ax.set_xlabel("")
             continue
@@ -367,7 +369,7 @@ def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     fig, ax = plt.subplots(figsize=(8, 6))
     scenarios = sub["scenario"].unique()
     palette = sns.color_palette("colorblind", len(scenarios))
-    color_map = dict(zip(scenarios, palette))
+    color_map = dict(zip(scenarios, palette, strict=True))
 
     for scenario in scenarios:
         sdf = sub[sub["scenario"] == scenario]
@@ -409,7 +411,7 @@ def plot_memory(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     fig, ax = plt.subplots(figsize=(8, 6))
     scenarios = sub["scenario"].unique()
     palette = sns.color_palette("colorblind", len(scenarios))
-    color_map = dict(zip(scenarios, palette))
+    color_map = dict(zip(scenarios, palette, strict=True))
 
     for scenario in scenarios:
         sdf = sub[sub["scenario"] == scenario]

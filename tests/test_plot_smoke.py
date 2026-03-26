@@ -268,9 +268,7 @@ class TestPlotTable1:
         from sim_ace.plot_table1 import render_table1_figure
 
         before = plt.get_fignums()
-        fig = render_table1_figure(
-            [minimal_stats, minimal_stats], minimal_params, scenario="test"
-        )
+        fig = render_table1_figure([minimal_stats, minimal_stats], minimal_params, scenario="test")
         assert isinstance(fig, plt.Figure)
         _assert_no_leaked_figures(before, fig)
 
@@ -314,8 +312,15 @@ class TestPlotAtlasHelpers:
         from sim_ace.plot_atlas import MODEL_FAMILY
 
         expected_models = {
-            "weibull", "exponential", "gompertz", "lognormal",
-            "loglogistic", "gamma", "cure_frailty", "adult_ltm", "adult_cox",
+            "weibull",
+            "exponential",
+            "gompertz",
+            "lognormal",
+            "loglogistic",
+            "gamma",
+            "cure_frailty",
+            "adult_ltm",
+            "adult_cox",
         }
         assert set(MODEL_FAMILY.keys()) == expected_models
 

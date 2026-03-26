@@ -28,7 +28,8 @@ class TestAgeCensor:
         assert t_out[0] == 20.0
         assert t_out[1] == 20.0
         assert t_out[2] == 30.0
-        assert censored[0] and censored[1]
+        assert censored[0]
+        assert censored[1]
         assert not censored[2]
 
     def test_right_censoring(self):
@@ -39,7 +40,8 @@ class TestAgeCensor:
         assert t_out[0] == 60.0
         assert t_out[1] == 60.0
         assert t_out[2] == 50.0
-        assert censored[0] and censored[1]
+        assert censored[0]
+        assert censored[1]
         assert not censored[2]
 
     def test_per_individual_windows(self):
@@ -47,9 +49,12 @@ class TestAgeCensor:
         left = np.array([10.0, 20.0, 30.0])
         right = np.array([50.0, 60.0, 70.0])
         t_out, censored = age_censor(t, left, right)
-        assert t_out[0] == 15.0 and not censored[0]
-        assert t_out[1] == 55.0 and not censored[1]
-        assert t_out[2] == 70.0 and censored[2]
+        assert t_out[0] == 15.0
+        assert not censored[0]
+        assert t_out[1] == 55.0
+        assert not censored[1]
+        assert t_out[2] == 70.0
+        assert censored[2]
 
     def test_output_shapes(self):
         n = 100
