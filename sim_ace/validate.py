@@ -374,8 +374,7 @@ def validate_half_sibs(
         observed_frac = n_offspring_with_hs / n_offspring_with_sibs
         results["offspring_with_half_sib"] = _result(
             True,
-            f"Offspring with maternal half-sib: {observed_frac:.4f} "
-            f"({n_offspring_with_hs}/{n_offspring_with_sibs})",
+            f"Offspring with maternal half-sib: {observed_frac:.4f} ({n_offspring_with_hs}/{n_offspring_with_sibs})",
             observed=float(observed_frac),
             n_offspring_with_half_sib=int(n_offspring_with_hs),
             n_offspring_with_sibs=int(n_offspring_with_sibs),
@@ -430,9 +429,7 @@ def validate_consanguineous_matings(df: pd.DataFrame, params: dict[str, Any]) ->
     eligible_fathers = fathers[eligible]
 
     if len(eligible_ids) == 0:
-        results["consanguineous_count"] = _result(
-            True, "No individuals with grandparents in pedigree"
-        )
+        results["consanguineous_count"] = _result(True, "No individuals with grandparents in pedigree")
         return results
 
     # Look up all 4 grandparents for eligible individuals
@@ -455,7 +452,7 @@ def validate_consanguineous_matings(df: pd.DataFrame, params: dict[str, Any]) ->
     pair_keys = eligible_mothers.astype(np.int64) * max_id + eligible_fathers.astype(np.int64)
     unique_keys, _inverse, pair_counts = np.unique(pair_keys, return_inverse=True, return_counts=True)
     mp_m = unique_keys // max_id  # mothers in each mating pair
-    mp_f = unique_keys % max_id   # fathers in each mating pair
+    mp_f = unique_keys % max_id  # fathers in each mating pair
     # Check which parent IDs are shared between mates
     share_mother = mother_of[mp_m] == mother_of[mp_f]
     share_father = father_of[mp_m] == father_of[mp_f]
@@ -985,9 +982,7 @@ def compute_family_size_distribution(df: pd.DataFrame, params: dict[str, Any]) -
     return result
 
 
-def validate_assortative_mating(
-    df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame
-) -> dict[str, Any]:
+def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
     """Validate mate correlation on liability when assortative mating is configured.
 
     Extracts unique mating pairs from non-founders, computes Pearson
@@ -1042,6 +1037,42 @@ def validate_assortative_mating(
             observed=float(obs),
             n_pairs=n_pairs,
         )
+
+    # Cross-trait validation (only when both traits assort)
+    if assort1 != 0 and assort2 != 0:
+        am = params.get("assort_matrix")
+        if am is not None:
+            c_expected = float(np.asarray(am)[0, 1])
+        else:
+            rho_w = params.get("rA", 0) * np.sqrt(params.get("A1", 0) * params.get("A2", 0)) + params.get(
+                "rC", 0
+            ) * np.sqrt(params.get("C1", 0) * params.get("C2", 0))
+            c_expected = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
+
+        for label, fi, mi in [("cross_12", 1, 2), ("cross_21", 2, 1)]:
+            m_liab = df_indexed.loc[mother_ids, f"liability{fi}"].values
+            f_liab = df_indexed.loc[father_ids, f"liability{mi}"].values
+            obs = safe_corrcoef(m_liab, f_liab)
+
+            if np.isnan(obs):
+                results[f"mate_corr_{label}"] = _result(
+                    True,
+                    f"Cannot compute mate correlation {label} (zero variance)",
+                    expected=float(c_expected),
+                    observed=float(obs),
+                )
+                continue
+
+            se = _corr_se(c_expected, n_pairs)
+            tol = max(0.1, 3 * se)
+            ok = abs(obs - c_expected) < tol
+            results[f"mate_corr_{label}"] = _result(
+                ok,
+                f"Mate correlation {label}: {obs:.4f} (expected: {c_expected:.4f}, tol: {tol:.4f})",
+                expected=float(c_expected),
+                observed=float(obs),
+                n_pairs=n_pairs,
+            )
 
     return results
 

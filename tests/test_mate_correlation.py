@@ -46,11 +46,17 @@ class TestExpectedMateCorr:
         assert abs(result[0, 0] - 0.4) < 1e-10
         assert abs(result[1, 1] - 0.3) < 1e-10
 
-    def test_both_nonzero_offdiag_is_nan(self):
-        """Off-diagonal should be NaN for both-nonzero (no closed-form)."""
+    def test_both_nonzero_offdiag_computed(self):
+        """Off-diagonal should be computed from rho_w * sqrt(|r1*r2|)."""
         result = expected_mate_corr_matrix(0.4, 0.3, rA=0.5, rC=0.3, A1=0.5, C1=0.2, A2=0.4, C2=0.1)
-        assert np.isnan(result[0, 1])
-        assert np.isnan(result[1, 0])
+        # rho_w = 0.5*sqrt(0.5*0.4) + 0.3*sqrt(0.2*0.1)
+        rho_w = 0.5 * np.sqrt(0.2) + 0.3 * np.sqrt(0.02)
+        c = rho_w * np.sqrt(abs(0.4 * 0.3)) * np.sign(0.4 * 0.3)
+        assert not np.isnan(result[0, 1])
+        assert abs(result[0, 1] - c) < 1e-10
+        assert abs(result[1, 0] - c) < 1e-10
+        # Symmetric
+        assert abs(result[0, 1] - result[1, 0]) < 1e-10
 
     def test_high_targets_within_bounds(self):
         """Diagonal of high assort values should still be valid."""
@@ -58,9 +64,17 @@ class TestExpectedMateCorr:
         # Diagonal should equal targets
         assert abs(result[0, 0] - 0.9) < 1e-10
         assert abs(result[1, 1] - 0.9) < 1e-10
-        # Off-diagonal should be NaN
-        assert np.isnan(result[0, 1])
-        assert np.isnan(result[1, 0])
+        # Off-diagonal should be computed, not NaN
+        assert not np.isnan(result[0, 1])
+        assert not np.isnan(result[1, 0])
+        # Symmetric
+        assert abs(result[0, 1] - result[1, 0]) < 1e-10
+
+    def test_explicit_assort_matrix(self):
+        """When assort_matrix is provided, it should be returned directly."""
+        am = np.array([[0.4, 0.1], [0.1, 0.3]])
+        result = expected_mate_corr_matrix(0, 0, rA=0, rC=0, A1=0, C1=0, A2=0, C2=0, assort_matrix=am)
+        np.testing.assert_array_almost_equal(result, am)
 
 
 class TestComputeMateCorrelation:
@@ -69,13 +83,15 @@ class TestComputeMateCorrelation:
         rng = np.random.default_rng(seed)
         # Founders: mothers (even ids), fathers (odd ids)
         n_founders = 2 * n_pairs
-        founders = pd.DataFrame({
-            "id": range(n_founders),
-            "mother": -1,
-            "father": -1,
-            "liability1": rng.normal(size=n_founders),
-            "liability2": rng.normal(size=n_founders),
-        })
+        founders = pd.DataFrame(
+            {
+                "id": range(n_founders),
+                "mother": -1,
+                "father": -1,
+                "liability1": rng.normal(size=n_founders),
+                "liability2": rng.normal(size=n_founders),
+            }
+        )
 
         # Create correlated mating: sort mothers and fathers by liability1
         mother_ids = list(range(0, n_founders, 2))
@@ -93,13 +109,15 @@ class TestComputeMateCorrelation:
         children = []
         child_id = n_founders
         for i in range(n_pairs):
-            children.append({
-                "id": child_id,
-                "mother": int(sorted_mothers[i]),
-                "father": int(sorted_fathers[i]),
-                "liability1": rng.normal(),
-                "liability2": rng.normal(),
-            })
+            children.append(
+                {
+                    "id": child_id,
+                    "mother": int(sorted_mothers[i]),
+                    "father": int(sorted_fathers[i]),
+                    "liability1": rng.normal(),
+                    "liability2": rng.normal(),
+                }
+            )
             child_id += 1
 
         df = pd.concat([founders, pd.DataFrame(children)], ignore_index=True)
@@ -126,20 +144,24 @@ class TestComputeMateCorrelation:
         """Random mating should produce near-zero correlations."""
         rng = np.random.default_rng(99)
         n = 1000
-        founders = pd.DataFrame({
-            "id": range(2 * n),
-            "mother": -1,
-            "father": -1,
-            "liability1": rng.normal(size=2 * n),
-            "liability2": rng.normal(size=2 * n),
-        })
-        children = pd.DataFrame({
-            "id": range(2 * n, 3 * n),
-            "mother": rng.choice(range(0, 2 * n, 2), size=n),
-            "father": rng.choice(range(1, 2 * n, 2), size=n),
-            "liability1": rng.normal(size=n),
-            "liability2": rng.normal(size=n),
-        })
+        founders = pd.DataFrame(
+            {
+                "id": range(2 * n),
+                "mother": -1,
+                "father": -1,
+                "liability1": rng.normal(size=2 * n),
+                "liability2": rng.normal(size=2 * n),
+            }
+        )
+        children = pd.DataFrame(
+            {
+                "id": range(2 * n, 3 * n),
+                "mother": rng.choice(range(0, 2 * n, 2), size=n),
+                "father": rng.choice(range(1, 2 * n, 2), size=n),
+                "liability1": rng.normal(size=n),
+                "liability2": rng.normal(size=n),
+            }
+        )
         df = pd.concat([founders, children], ignore_index=True)
         result = compute_mate_correlation(df)
         for i in range(2):
@@ -148,13 +170,15 @@ class TestComputeMateCorrelation:
 
     def test_empty_pedigree(self):
         """All-founder pedigree should return nan matrix."""
-        df = pd.DataFrame({
-            "id": [0, 1],
-            "mother": [-1, -1],
-            "father": [-1, -1],
-            "liability1": [0.0, 0.0],
-            "liability2": [0.0, 0.0],
-        })
+        df = pd.DataFrame(
+            {
+                "id": [0, 1],
+                "mother": [-1, -1],
+                "father": [-1, -1],
+                "liability1": [0.0, 0.0],
+                "liability2": [0.0, 0.0],
+            }
+        )
         result = compute_mate_correlation(df)
         assert result["n_pairs"] == 0
 

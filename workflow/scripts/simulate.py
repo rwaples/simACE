@@ -28,6 +28,7 @@ def _run_snakemake():
         G_sim=params.G_sim,
         assort1=params.assort1,
         assort2=params.assort2,
+        assort_matrix=params.assort_matrix,
     )
 
     pedigree.to_parquet(output_pedigree, index=False)
@@ -51,6 +52,8 @@ def _run_snakemake():
         "assort1": params.assort1,
         "assort2": params.assort2,
     }
+    if params.assort_matrix is not None:
+        params_dict["assort_matrix"] = params.assort_matrix
     with open(output_params, "w", encoding="utf-8") as f:
         yaml.dump(params_dict, f, default_flow_style=False)
 

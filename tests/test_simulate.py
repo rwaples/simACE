@@ -502,8 +502,17 @@ class TestRunSimulation:
         """Both-trait assort with perfectly correlated traits should raise."""
         with pytest.raises(ValueError, match="rho_w"):
             run_simulation(
-                **{**default_params, "A1": 0.5, "C1": 0.5, "A2": 0.5, "C2": 0.5,
-                   "rA": 1.0, "rC": 1.0, "assort1": 0.3, "assort2": 0.3}
+                **{
+                    **default_params,
+                    "A1": 0.5,
+                    "C1": 0.5,
+                    "A2": 0.5,
+                    "C2": 0.5,
+                    "rA": 1.0,
+                    "rC": 1.0,
+                    "assort1": 0.3,
+                    "assort2": 0.3,
+                }
             )
 
     def test_assort_zero_preserves_rng(self, default_params):
@@ -559,7 +568,15 @@ class TestAssortativePairPartners:
     def test_both_traits_positive(self, rng):
         mi, mc, fi, fc, pheno = self._make_pop(rng, 10000)
         pairs = _assortative_pair_partners(
-            rng, mi, mc, fi, fc, pheno, 0.4, 0.3, rho_w=0.25,
+            rng,
+            mi,
+            mc,
+            fi,
+            fc,
+            pheno,
+            0.4,
+            0.3,
+            rho_w=0.25,
         )
         liab1_m = pheno[pairs[:, 0], :3].sum(axis=1)
         liab1_f = pheno[pairs[:, 1], :3].sum(axis=1)
@@ -573,7 +590,15 @@ class TestAssortativePairPartners:
     def test_mixed_sign(self, rng):
         mi, mc, fi, fc, pheno = self._make_pop(rng, 10000)
         pairs = _assortative_pair_partners(
-            rng, mi, mc, fi, fc, pheno, 0.4, -0.3, rho_w=0.25,
+            rng,
+            mi,
+            mc,
+            fi,
+            fc,
+            pheno,
+            0.4,
+            -0.3,
+            rho_w=0.25,
         )
         liab1_m = pheno[pairs[:, 0], :3].sum(axis=1)
         liab1_f = pheno[pairs[:, 1], :3].sum(axis=1)
@@ -583,6 +608,28 @@ class TestAssortativePairPartners:
         corr2 = np.corrcoef(liab2_m, liab2_f)[0, 1]
         assert abs(corr1 - 0.4) < 0.05
         assert abs(corr2 - (-0.3)) < 0.05
+
+    def test_cross_trait_symmetric(self, rng):
+        """Cross-trait mate correlations should be approximately symmetric."""
+        mi, mc, fi, fc, pheno = self._make_pop(rng, 20000)
+        pairs = _assortative_pair_partners(
+            rng,
+            mi,
+            mc,
+            fi,
+            fc,
+            pheno,
+            0.4,
+            0.3,
+            rho_w=0.25,
+        )
+        liab1_m = pheno[pairs[:, 0], :3].sum(axis=1)
+        liab1_f = pheno[pairs[:, 1], :3].sum(axis=1)
+        liab2_m = pheno[pairs[:, 0], 3:].sum(axis=1)
+        liab2_f = pheno[pairs[:, 1], 3:].sum(axis=1)
+        corr12 = np.corrcoef(liab1_m, liab2_f)[0, 1]  # F1 x M2
+        corr21 = np.corrcoef(liab2_m, liab1_f)[0, 1]  # F2 x M1
+        assert abs(corr12 - corr21) < 0.05
 
 
 # ---------------------------------------------------------------------------

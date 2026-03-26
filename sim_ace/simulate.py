@@ -179,24 +179,44 @@ def pair_partners(
     return matings
 
 
-def _metropolis_sweep_python(f1_z, f2_z, m1_z, m2_z, male_perm, idx_i, idx_j, S1, S2, T1, T2, batch):
-    """Greedy Metropolis sweep: accept swaps that reduce squared error on two targets."""
+def _metropolis_sweep_python(
+    f1_z, f2_z, m1_z, m2_z, male_perm, idx_i, idx_j, S1, S2, S12, S21, T1, T2, T12, T21, batch
+):
+    """Greedy Metropolis sweep: accept swaps that reduce squared error on four targets."""
     for k in range(batch):
-        dk1 = (f1_z[idx_i[k]] - f1_z[idx_j[k]]) * (m1_z[idx_j[k]] - m1_z[idx_i[k]])
-        dk2 = (f2_z[idx_i[k]] - f2_z[idx_j[k]]) * (m2_z[idx_j[k]] - m2_z[idx_i[k]])
+        df = f1_z[idx_i[k]] - f1_z[idx_j[k]]
+        df2 = f2_z[idx_i[k]] - f2_z[idx_j[k]]
+        dm1 = m1_z[idx_j[k]] - m1_z[idx_i[k]]
+        dm2 = m2_z[idx_j[k]] - m2_z[idx_i[k]]
+        dk1 = df * dm1
+        dk2 = df2 * dm2
+        dk12 = df * dm2
+        dk21 = df2 * dm1
         ne1 = S1 + dk1 - T1
         ne2 = S2 + dk2 - T2
+        ne12 = S12 + dk12 - T12
+        ne21 = S21 + dk21 - T21
         oe1 = S1 - T1
         oe2 = S2 - T2
-        if ne1 * ne1 + ne2 * ne2 < oe1 * oe1 + oe2 * oe2:
+        oe12 = S12 - T12
+        oe21 = S21 - T21
+        if ne1 * ne1 + ne2 * ne2 + ne12 * ne12 + ne21 * ne21 < oe1 * oe1 + oe2 * oe2 + oe12 * oe12 + oe21 * oe21:
             i = idx_i[k]
             j = idx_j[k]
-            tmp = m1_z[i]; m1_z[i] = m1_z[j]; m1_z[j] = tmp  # noqa: E702
-            tmp = m2_z[i]; m2_z[i] = m2_z[j]; m2_z[j] = tmp  # noqa: E702
-            tmp_p = male_perm[i]; male_perm[i] = male_perm[j]; male_perm[j] = tmp_p  # noqa: E702
+            tmp = m1_z[i]
+            m1_z[i] = m1_z[j]
+            m1_z[j] = tmp  # noqa: E702
+            tmp = m2_z[i]
+            m2_z[i] = m2_z[j]
+            m2_z[j] = tmp  # noqa: E702
+            tmp_p = male_perm[i]
+            male_perm[i] = male_perm[j]
+            male_perm[j] = tmp_p  # noqa: E702
             S1 += dk1
             S2 += dk2
-    return S1, S2
+            S12 += dk12
+            S21 += dk21
+    return S1, S2, S12, S21
 
 
 if njit is not None:
@@ -215,6 +235,7 @@ def _assortative_pair_partners(
     assort1: float,
     assort2: float,
     rho_w: float = 0.0,
+    assort_matrix: np.ndarray | None = None,
 ) -> np.ndarray:
     """Create mating pairs with assortative mating.
 
@@ -235,6 +256,8 @@ def _assortative_pair_partners(
         assort1: target mate correlation on trait 1 liability, in [-1, 1]
         assort2: target mate correlation on trait 2 liability, in [-1, 1]
         rho_w: within-person cross-trait liability correlation
+        assort_matrix: optional full 2x2 mate correlation matrix R_mf.
+            When provided, overrides the auto-computed off-diagonals.
 
     Returns:
         ``(M, 2)`` array of ``[mother_idx, father_idx]``.
@@ -254,6 +277,14 @@ def _assortative_pair_partners(
         # --- Both traits nonzero: 4-variate copula ---
         r1, r2 = assort1, assort2
 
+        # Build full R_mf with cross-trait off-diagonals
+        if assort_matrix is not None:
+            R_mf = np.asarray(assort_matrix, dtype=np.float64)
+        else:
+            c = rho_w * np.sqrt(abs(r1 * r2)) * np.sign(r1 * r2)
+            R_mf = np.array([[r1, c], [c, r2]])
+        c_target = R_mf[0, 1]
+
         # Phase 1: Conditional-expectation initialization
         def _quantile_normal(arr):
             order = np.argsort(arr)
@@ -266,7 +297,6 @@ def _assortative_pair_partners(
         qn_m1 = _quantile_normal(liab1_m)
         qn_m2 = _quantile_normal(liab2_m)
 
-        R_mf = np.array([[r1, 0.0], [0.0, r2]])
         R_ff = np.array([[1.0, rho_w], [rho_w, 1.0]])
         B = R_mf @ np.linalg.inv(R_ff)
 
@@ -300,15 +330,19 @@ def _assortative_pair_partners(
 
         T1 = r1 * M
         T2 = r2 * M
+        T12 = c_target * M
+        T21 = c_target * M
         S1 = float(f1_z @ m1_z)
         S2 = float(f2_z @ m2_z)
+        S12 = float(f1_z @ m2_z)
+        S21 = float(f2_z @ m1_z)
 
         tol = 5e-4
-        max_proposals = 5 * M
+        max_proposals = 8 * M
         proposals_done = 0
 
         while proposals_done < max_proposals:
-            if max(abs(S1 / M - r1), abs(S2 / M - r2)) < tol:
+            if max(abs(S1 / M - r1), abs(S2 / M - r2), abs(S12 / M - c_target), abs(S21 / M - c_target)) < tol:
                 break
 
             perm = rng.permutation(M)
@@ -316,19 +350,35 @@ def _assortative_pair_partners(
             idx_i = perm[0::2][:batch].astype(np.int64)
             idx_j = perm[1::2][:batch].astype(np.int64)
 
-            S1, S2 = _metropolis_sweep(
-                f1_z, f2_z, m1_z, m2_z, male_perm,
-                idx_i, idx_j, S1, S2, T1, T2, batch,
+            S1, S2, S12, S21 = _metropolis_sweep(
+                f1_z,
+                f2_z,
+                m1_z,
+                m2_z,
+                male_perm,
+                idx_i,
+                idx_j,
+                S1,
+                S2,
+                S12,
+                S21,
+                T1,
+                T2,
+                T12,
+                T21,
+                batch,
             )
 
             proposals_done += batch
         else:
             logger.warning(
                 "Assortative mating Metropolis did not converge after %d proposals: "
-                "err1=%.4f, err2=%.4f",
+                "err1=%.4f, err2=%.4f, err12=%.4f, err21=%.4f",
                 max_proposals,
                 S1 / M - r1,
                 S2 / M - r2,
+                S12 / M - c_target,
+                S21 / M - c_target,
             )
 
         matings = np.column_stack([female_slots, male_slots[male_perm]])
@@ -422,6 +472,7 @@ def mating(
     assort1: float = 0.0,
     assort2: float = 0.0,
     rho_w: float = 0.0,
+    assort_matrix: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate parent-offspring pairings via a modular mating pipeline.
 
@@ -441,6 +492,7 @@ def mating(
             assort1 or assort2 is nonzero
         assort1: target mate correlation on trait 1 liability
         assort2: target mate correlation on trait 2 liability
+        assort_matrix: optional full 2x2 mate correlation matrix R_mf
 
     Returns:
         parent_idxs: (N, 2) array of [mother_idx, father_idx] for each offspring
@@ -466,8 +518,16 @@ def mating(
     # 3. Pair partners -> (M, 2) of [mother_idx, father_idx]
     if assort1 != 0 or assort2 != 0:
         matings = _assortative_pair_partners(
-            rng, male_idxs, male_counts, female_idxs, female_counts,
-            pheno, assort1, assort2, rho_w=rho_w,
+            rng,
+            male_idxs,
+            male_counts,
+            female_idxs,
+            female_counts,
+            pheno,
+            assort1,
+            assort2,
+            rho_w=rho_w,
+            assort_matrix=assort_matrix,
         )
     else:
         matings = pair_partners(rng, male_idxs, male_counts, female_idxs, female_counts)
@@ -672,6 +732,7 @@ def run_simulation(
     G_sim: int | None = None,
     assort1: float = 0.0,
     assort2: float = 0.0,
+    assort_matrix: list[list[float]] | np.ndarray | None = None,
 ) -> pd.DataFrame:
     """Run the full ACE simulation for two correlated traits.
 
@@ -691,6 +752,8 @@ def run_simulation(
         rC: Common environment correlation between traits, in [-1, 1]
         G_sim: Total generations to simulate (default: G_ped). First G_sim - G_ped
                generations are burn-in and discarded from output.
+        assort_matrix: optional full 2x2 mate correlation matrix R_mf.
+            Overrides assort1/assort2 diagonal with matrix diagonal.
 
     Returns:
         pedigree DataFrame
@@ -728,6 +791,21 @@ def run_simulation(
     if not (-1 <= assort2 <= 1):
         raise ValueError(f"assort2 must be in [-1, 1], got {assort2}")
 
+    # Resolve assort_matrix
+    R_mf = None
+    if assort_matrix is not None:
+        R_mf = np.asarray(assort_matrix, dtype=np.float64)
+        if R_mf.shape != (2, 2):
+            raise ValueError(f"assort_matrix must be 2x2, got shape {R_mf.shape}")
+        if abs(R_mf[0, 1] - R_mf[1, 0]) > 1e-10:
+            raise ValueError(f"assort_matrix must be symmetric: got [{R_mf[0, 1]}, {R_mf[1, 0]}]")
+        assort1 = float(R_mf[0, 0])
+        assort2 = float(R_mf[1, 1])
+        if not (-1 <= assort1 <= 1):
+            raise ValueError(f"assort_matrix[0,0] must be in [-1, 1], got {assort1}")
+        if not (-1 <= assort2 <= 1):
+            raise ValueError(f"assort_matrix[1,1] must be in [-1, 1], got {assort2}")
+
     if G_sim < G_ped:
         raise ValueError(f"G_sim ({G_sim}) must be >= G_ped ({G_ped})")
 
@@ -753,6 +831,23 @@ def run_simulation(
             f"use single-trait assortment instead."
         )
 
+    # Auto-compute R_mf off-diagonals when both traits assort and no explicit matrix
+    if R_mf is None and assort1 != 0 and assort2 != 0:
+        c = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
+        R_mf = np.array([[assort1, c], [c, assort2]])
+
+    # Validate PSD of full 4x4 Sigma when R_mf is specified
+    if R_mf is not None:
+        R_ff = np.array([[1.0, rho_w], [rho_w, 1.0]])
+        Sigma_4 = np.block([[R_ff, R_mf.T], [R_mf, R_ff]])
+        eigvals = np.linalg.eigvalsh(Sigma_4)
+        if eigvals[0] < -1e-8:
+            raise ValueError(
+                f"Full 4x4 mate correlation matrix Sigma_4 is not PSD "
+                f"(min eigenvalue = {eigvals[0]:.6f}). "
+                f"Reduce the magnitude of assort_matrix off-diagonal entries."
+            )
+
     # Initialize founders with correlated components
     sex = rng.binomial(size=N, n=1, p=0.5)
 
@@ -773,8 +868,15 @@ def run_simulation(
     pedigree = None
     for i in range(G_sim):
         parents, twins, household_ids = mating(
-            rng, sex, mating_lambda, p_mztwin,
-            pheno=pheno, assort1=assort1, assort2=assort2, rho_w=rho_w,
+            rng,
+            sex,
+            mating_lambda,
+            p_mztwin,
+            pheno=pheno,
+            assort1=assort1,
+            assort2=assort2,
+            rho_w=rho_w,
+            assort_matrix=R_mf,
         )
         pheno, sex = reproduce(
             rng,

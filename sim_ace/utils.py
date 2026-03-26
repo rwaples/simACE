@@ -266,6 +266,7 @@ def expected_mate_corr_matrix(
     C1: float,
     A2: float,
     C2: float,
+    assort_matrix: np.ndarray | list | None = None,
 ) -> np.ndarray:
     """Compute the 2x2 expected mate liability correlation matrix.
 
@@ -274,8 +275,15 @@ def expected_mate_corr_matrix(
 
     With the 4-variate copula algorithm, assort1 and assort2 are target
     Pearson mate correlations. The cross-mate cross-trait correlation follows
-    from the mechanistic path: r_yz = rho_w * sqrt(|r1*r2|) * sign(r1*r2).
+    from the mechanistic path: c = rho_w * sqrt(|r1*r2|) * sign(r1*r2),
+    where rho_w is the within-person cross-trait liability correlation.
+
+    When ``assort_matrix`` is provided, it is returned directly (the user
+    has specified the full R_mf).
     """
+    if assort_matrix is not None:
+        return np.asarray(assort_matrix, dtype=np.float64)
+
     if assort1 == 0 and assort2 == 0:
         return np.zeros((2, 2))
 
@@ -283,23 +291,27 @@ def expected_mate_corr_matrix(
     rho_w = rA * np.sqrt(A1 * A2) + rC * np.sqrt(C1 * C2)
 
     if assort1 != 0 and assort2 != 0:
-        # Both traits: diagonal = targets, off-diagonal not predicted
-        # (emergent from greedy Metropolis dynamics on correlated traits)
-        return np.array([[assort1, np.nan], [np.nan, assort2]])
+        # Both traits: diagonal = targets, off-diagonal from rho_w mediation
+        c = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
+        return np.array([[assort1, c], [c, assort2]])
     elif assort1 != 0:
         # Single-trait on trait 1: propagate via rho_w
         a = assort1
-        return np.array([
-            [a, a * rho_w],
-            [a * rho_w, a * rho_w**2],
-        ])
+        return np.array(
+            [
+                [a, a * rho_w],
+                [a * rho_w, a * rho_w**2],
+            ]
+        )
     else:
         # Single-trait on trait 2: propagate via rho_w
         a = assort2
-        return np.array([
-            [a * rho_w**2, a * rho_w],
-            [a * rho_w, a],
-        ])
+        return np.array(
+            [
+                [a * rho_w**2, a * rho_w],
+                [a * rho_w, a],
+            ]
+        )
 
 
 def draw_colored_violins(

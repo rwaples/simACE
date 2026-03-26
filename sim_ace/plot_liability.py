@@ -622,6 +622,7 @@ def plot_mate_correlation(
     # Compute expected matrix from params
     exp = np.zeros((2, 2))
     if params is not None:
+        am = params.get("assort_matrix", None)
         exp = expected_mate_corr_matrix(
             assort1=float(params.get("assort1", 0)),
             assort2=float(params.get("assort2", 0)),
@@ -631,6 +632,7 @@ def plot_mate_correlation(
             C1=float(params.get("C1", 0)),
             A2=float(params.get("A2", 0)),
             C2=float(params.get("C2", 0)),
+            assort_matrix=am,
         )
 
     xlabels = ["Male trait 1", "Male trait 2"]

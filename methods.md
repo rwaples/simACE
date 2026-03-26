@@ -138,26 +138,28 @@ When assortative mating is enabled (parameters $\text{assort}_1 \neq 0$ or $\tex
 **Both-traits case (4-variate Gaussian copula).** When both $r_1$ and $r_2$ are nonzero, the algorithm targets a 4-variate Gaussian copula structure following Border et al. (2022, *Science*, Eq. 2). Let $\mathbf{R}_{mf}$ denote the $2 \times 2$ target mate-correlation matrix:
 
 $$
-\mathbf{R}_{mf} = \begin{bmatrix} r_1 & 0 \\ 0 & r_2 \end{bmatrix}
+\mathbf{R}_{mf} = \begin{bmatrix} r_1 & c \\ c & r_2 \end{bmatrix}
 $$
 
-and let $\mathbf{R}_{ff}$ be the within-female cross-trait liability correlation matrix:
+where $c = \rho_w \sqrt{|r_1 r_2|} \operatorname{sign}(r_1 r_2)$ is the cross-trait cross-sex mate correlation induced by the within-person liability correlation $\rho_w$. Alternatively, the user may specify the full $\mathbf{R}_{mf}$ matrix directly via the `assort_matrix` parameter, in which case $r_1 = R_{mf,11}$, $r_2 = R_{mf,22}$, and $c = R_{mf,12} = R_{mf,21}$ (symmetry is enforced).
+
+Let $\mathbf{R}_{ff}$ be the within-female cross-trait liability correlation matrix:
 
 $$
 \mathbf{R}_{ff} = \begin{bmatrix} 1 & \rho_w \\ \rho_w & 1 \end{bmatrix}
 $$
 
-where $\rho_w$ is the within-person cross-trait liability correlation. The algorithm proceeds in two phases:
+where $\rho_w$ is the within-person cross-trait liability correlation. The full 4-variate matrix $\boldsymbol{\Sigma}_4 = \bigl[\begin{smallmatrix} \mathbf{R}_{ff} & \mathbf{R}_{mf}^\top \\ \mathbf{R}_{mf} & \mathbf{R}_{ff} \end{smallmatrix}\bigr]$ must be positive semi-definite; this is validated at configuration time. The algorithm proceeds in two phases:
 
 *Phase 1 — Conditional-expectation initialization.* Each parent's liability is converted to quantile-normal scores. The conditional-expectation matrix $\mathbf{B} = \mathbf{R}_{mf} \mathbf{R}_{ff}^{-1}$ maps female scores to expected male scores. Female quantile-normal vectors are projected through $\mathbf{B}$ to obtain target male vectors. Both targets and actual male scores are projected onto the dominant right singular vector of $\mathbf{R}_{mf}$ (via SVD), and males are rank-matched to females along this projection — providing a good initial permutation.
 
-*Phase 2 — Metropolis greedy refinement.* Random pairs of male positions $(i, j)$ are proposed for swapping. A swap is accepted if it reduces the total squared error between the current mate correlation sums and the targets:
+*Phase 2 — Metropolis greedy refinement.* Random pairs of male positions $(i, j)$ are proposed for swapping. A swap is accepted if it reduces the total squared error across all four elements of $\mathbf{R}_{mf}$:
 
 $$
-(S_1 + \Delta_1 - T_1)^2 + (S_2 + \Delta_2 - T_2)^2 < (S_1 - T_1)^2 + (S_2 - T_2)^2
+\sum_{k \in \{1,\, 2,\, 12,\, 21\}} (S_k + \Delta_k - T_k)^2 < \sum_{k \in \{1,\, 2,\, 12,\, 21\}} (S_k - T_k)^2
 $$
 
-where $S_k = \sum_m z_{f,k}^{(m)} z_{m,k}^{(m)}$ is the running cross-product sum for trait $k$, $T_k = r_k \cdot M$ is the target, and $\Delta_k$ is the change in $S_k$ from swapping. Refinement continues until the per-trait correlation error is below $5 \times 10^{-4}$ or $5M$ proposals have been evaluated.
+where $S_1, S_2$ are the same-trait running cross-product sums, $S_{12} = \sum_m z_{f,1}^{(m)} z_{m,2}^{(m)}$ and $S_{21} = \sum_m z_{f,2}^{(m)} z_{m,1}^{(m)}$ are the cross-trait sums, $T_k = r_k \cdot M$ for same-trait and $T_{12} = T_{21} = c \cdot M$ for cross-trait targets. Refinement continues until the per-element correlation error is below $5 \times 10^{-4}$ or $8M$ proposals have been evaluated.
 
 ### Monozygotic twin generation
 

@@ -25,6 +25,7 @@ defaults:
   p_mztwin: 0.02
   assort1: 0
   assort2: 0
+  assort_matrix: null  # optional full 2x2 R_mf matrix, e.g. [[0.3, 0.05], [0.05, 0.15]]
 
   # ── Phenotype model ───────────────────────────────────────────────────────
   # phenotype_model1/2: weibull | exponential | gompertz | lognormal | loglogistic | gamma | adult_ltm | adult_cox | cure_frailty
