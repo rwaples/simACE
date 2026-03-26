@@ -19,33 +19,37 @@ def small_pedigree():
     # Gen 0: founders (IDs 0-5), no parents, no twins
     # Gen 1: children of gen-0 couples (IDs 6-11)
     # Gen 2: children of gen-1 couples (IDs 12-19)
-    ids      = list(range(20))
-    mothers  = [-1]*6 + [0, 0, 2, 2, 4, 4] + [6, 6, 8, 8, 10, 10, 10, 10]
-    fathers  = [-1]*6 + [1, 1, 3, 3, 5, 5] + [9, 9, 7, 7, 11, 11, 11, 11]
-    twins    = [-1]*20
-    sex      = [0,1]*10
-    gens     = [0]*6 + [1]*6 + [2]*8
-    return pd.DataFrame({
-        "id": ids,
-        "mother": mothers,
-        "father": fathers,
-        "twin": twins,
-        "sex": sex,
-        "generation": gens,
-    })
+    ids = list(range(20))
+    mothers = [-1] * 6 + [0, 0, 2, 2, 4, 4] + [6, 6, 8, 8, 10, 10, 10, 10]
+    fathers = [-1] * 6 + [1, 1, 3, 3, 5, 5] + [9, 9, 7, 7, 11, 11, 11, 11]
+    twins = [-1] * 20
+    sex = [0, 1] * 10
+    gens = [0] * 6 + [1] * 6 + [2] * 8
+    return pd.DataFrame(
+        {
+            "id": ids,
+            "mother": mothers,
+            "father": fathers,
+            "twin": twins,
+            "sex": sex,
+            "generation": gens,
+        }
+    )
 
 
 @pytest.fixture
 def twin_pedigree():
     """A pedigree with one twin pair (IDs 4 and 5)."""
-    return pd.DataFrame({
-        "id":         [0,  1,  2,  3,  4,  5],
-        "mother":     [-1, -1, 0,  0,  0,  0],
-        "father":     [-1, -1, 1,  1,  1,  1],
-        "twin":       [-1, -1, -1, -1, 5,  4],
-        "sex":        [0,  1,  0,  1,  0,  0],
-        "generation": [0,  0,  1,  1,  1,  1],
-    })
+    return pd.DataFrame(
+        {
+            "id": [0, 1, 2, 3, 4, 5],
+            "mother": [-1, -1, 0, 0, 0, 0],
+            "father": [-1, -1, 1, 1, 1, 1],
+            "twin": [-1, -1, -1, -1, 5, 4],
+            "sex": [0, 1, 0, 1, 0, 0],
+            "generation": [0, 0, 1, 1, 1, 1],
+        }
+    )
 
 
 @pytest.fixture
@@ -69,14 +73,16 @@ def large_pedigree():
         fathers[i] = rng.integers(0, n_founders)
         generation[i] = 1
 
-    return pd.DataFrame({
-        "id": ids,
-        "mother": mothers,
-        "father": fathers,
-        "twin": twins,
-        "sex": sex,
-        "generation": generation,
-    })
+    return pd.DataFrame(
+        {
+            "id": ids,
+            "mother": mothers,
+            "father": fathers,
+            "twin": twins,
+            "sex": sex,
+            "generation": generation,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +179,7 @@ class TestDropoutRelationships:
             ids = keep["id"].values
             gc_ids = ids[gp_gc[0]]
             gp_ids = ids[gp_gc[1]]
-            pair_set = set(zip(gc_ids.tolist(), gp_ids.tolist()))
+            pair_set = set(zip(gc_ids.tolist(), gp_ids.tolist(), strict=True))
             assert (12, 0) not in pair_set, "GP-GC pair should be severed"
             assert (12, 1) not in pair_set, "GP-GC pair should be severed"
 
@@ -181,14 +187,16 @@ class TestDropoutRelationships:
         """Drop one parent of a full-sib pair → reclassified as half-sibs."""
         # Two children (2, 3) share mother 0 and father 1.
         # After dropping father 1, they share known mother but father is -1.
-        df = pd.DataFrame({
-            "id":         [0,  2,  3],
-            "mother":     [-1, 0,  0],
-            "father":     [-1, -1, -1],  # father 1 dropped, links severed
-            "twin":       [-1, -1, -1],
-            "sex":        [0,  0,  1],
-            "generation": [0,  1,  1],
-        })
+        df = pd.DataFrame(
+            {
+                "id": [0, 2, 3],
+                "mother": [-1, 0, 0],
+                "father": [-1, -1, -1],  # father 1 dropped, links severed
+                "twin": [-1, -1, -1],
+                "sex": [0, 0, 1],
+                "generation": [0, 1, 1],
+            }
+        )
         pg = PedigreeGraph(df)
         full_sib, mat_hs, pat_hs = pg._sibling_pairs()
 
@@ -201,14 +209,16 @@ class TestDropoutRelationships:
         """Two children with one parent dropped are detected as half-sibs."""
         # Child 2: mother=0, father=-1 (dropped)
         # Child 3: mother=0, father=-1 (different dad, also dropped)
-        df = pd.DataFrame({
-            "id":         [0,  2,  3],
-            "mother":     [-1, 0,  0],
-            "father":     [-1, -1, -1],
-            "twin":       [-1, -1, -1],
-            "sex":        [0,  1,  0],
-            "generation": [0,  1,  1],
-        })
+        df = pd.DataFrame(
+            {
+                "id": [0, 2, 3],
+                "mother": [-1, 0, 0],
+                "father": [-1, -1, -1],
+                "twin": [-1, -1, -1],
+                "sex": [0, 1, 0],
+                "generation": [0, 1, 1],
+            }
+        )
         pg = PedigreeGraph(df)
         full_sib, mat_hs, pat_hs = pg._sibling_pairs()
         assert len(mat_hs[0]) == 1, "Should detect half-sibs through surviving parent"

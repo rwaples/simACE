@@ -182,7 +182,7 @@ def _extract_relationship_pairs_legacy(df: pd.DataFrame, seed: int = 42) -> dict
 
 def _pairs_to_set(idx1, idx2):
     """Convert pair arrays to a set of sorted tuples for comparison."""
-    return {(min(a, b), max(a, b)) for a, b in zip(idx1.tolist(), idx2.tolist())}
+    return {(min(a, b), max(a, b)) for a, b in zip(idx1.tolist(), idx2.tolist(), strict=True)}
 
 
 class TestGoldenComparison:
@@ -278,7 +278,7 @@ class TestNewRelationships:
         mother = df["mother"].values
         father = df["father"].values
 
-        for gc, gp in zip(gc_arr[:100], gp_arr[:100]):
+        for gc, gp in zip(gc_arr[:100], gp_arr[:100], strict=True):
             m = mother[gc]
             f = father[gc]
             grandparents = set()

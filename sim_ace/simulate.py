@@ -191,9 +191,15 @@ def _metropolis_sweep_python(f1_z, f2_z, m1_z, m2_z, male_perm, idx_i, idx_j, S1
         if ne1 * ne1 + ne2 * ne2 < oe1 * oe1 + oe2 * oe2:
             i = idx_i[k]
             j = idx_j[k]
-            tmp = m1_z[i]; m1_z[i] = m1_z[j]; m1_z[j] = tmp  # noqa: E702
-            tmp = m2_z[i]; m2_z[i] = m2_z[j]; m2_z[j] = tmp  # noqa: E702
-            tmp_p = male_perm[i]; male_perm[i] = male_perm[j]; male_perm[j] = tmp_p  # noqa: E702
+            tmp = m1_z[i]
+            m1_z[i] = m1_z[j]
+            m1_z[j] = tmp  # noqa: E702
+            tmp = m2_z[i]
+            m2_z[i] = m2_z[j]
+            m2_z[j] = tmp  # noqa: E702
+            tmp_p = male_perm[i]
+            male_perm[i] = male_perm[j]
+            male_perm[j] = tmp_p  # noqa: E702
             S1 += dk1
             S2 += dk2
     return S1, S2
@@ -317,15 +323,24 @@ def _assortative_pair_partners(
             idx_j = perm[1::2][:batch].astype(np.int64)
 
             S1, S2 = _metropolis_sweep(
-                f1_z, f2_z, m1_z, m2_z, male_perm,
-                idx_i, idx_j, S1, S2, T1, T2, batch,
+                f1_z,
+                f2_z,
+                m1_z,
+                m2_z,
+                male_perm,
+                idx_i,
+                idx_j,
+                S1,
+                S2,
+                T1,
+                T2,
+                batch,
             )
 
             proposals_done += batch
         else:
             logger.warning(
-                "Assortative mating Metropolis did not converge after %d proposals: "
-                "err1=%.4f, err2=%.4f",
+                "Assortative mating Metropolis did not converge after %d proposals: err1=%.4f, err2=%.4f",
                 max_proposals,
                 S1 / M - r1,
                 S2 / M - r2,
@@ -466,8 +481,15 @@ def mating(
     # 3. Pair partners -> (M, 2) of [mother_idx, father_idx]
     if assort1 != 0 or assort2 != 0:
         matings = _assortative_pair_partners(
-            rng, male_idxs, male_counts, female_idxs, female_counts,
-            pheno, assort1, assort2, rho_w=rho_w,
+            rng,
+            male_idxs,
+            male_counts,
+            female_idxs,
+            female_counts,
+            pheno,
+            assort1,
+            assort2,
+            rho_w=rho_w,
         )
     else:
         matings = pair_partners(rng, male_idxs, male_counts, female_idxs, female_counts)
@@ -773,8 +795,14 @@ def run_simulation(
     pedigree = None
     for i in range(G_sim):
         parents, twins, household_ids = mating(
-            rng, sex, mating_lambda, p_mztwin,
-            pheno=pheno, assort1=assort1, assort2=assort2, rho_w=rho_w,
+            rng,
+            sex,
+            mating_lambda,
+            p_mztwin,
+            pheno=pheno,
+            assort1=assort1,
+            assort2=assort2,
+            rho_w=rho_w,
         )
         pheno, sex = reproduce(
             rng,

@@ -35,7 +35,7 @@ def get_scenarios_for_folder(config, folder):
 
 def get_all_folders(config):
     """Return sorted unique folder names across all scenarios."""
-    return sorted(set(get_folder(config, s) for s in config["scenarios"]))
+    return sorted({get_folder(config, s) for s in config["scenarios"]})
 
 
 # -- Plot filename basenames (without extension) --
@@ -130,10 +130,12 @@ def get_scenario_sim_outputs(config, scenario, plot_ext="png"):
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/simple_ltm_stats.yaml")
-    for plot in plot_filenames(_PHENOTYPE_BASENAMES, plot_ext):
-        outputs.append(f"results/{folder}/{scenario}/plots/{plot}")
-    for plot in plot_filenames(_SIMPLE_LTM_BASENAMES, plot_ext):
-        outputs.append(f"results/{folder}/{scenario}/plots/{plot}")
+    outputs.extend(
+        f"results/{folder}/{scenario}/plots/{plot}" for plot in plot_filenames(_PHENOTYPE_BASENAMES, plot_ext)
+    )
+    outputs.extend(
+        f"results/{folder}/{scenario}/plots/{plot}" for plot in plot_filenames(_SIMPLE_LTM_BASENAMES, plot_ext)
+    )
     outputs.append(f"results/{folder}/{scenario}/plots/atlas.pdf")
     return outputs
 
@@ -143,6 +145,5 @@ def get_folder_validations(config, folder):
     validations = []
     for scenario in get_scenarios_for_folder(config, folder):
         n_reps = get_param(config, scenario, "replicates")
-        for rep in range(1, n_reps + 1):
-            validations.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
+        validations.extend(f"results/{folder}/{scenario}/rep{rep}/validation.yaml" for rep in range(1, n_reps + 1))
     return validations

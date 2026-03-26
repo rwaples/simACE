@@ -127,15 +127,18 @@ def plot_epimight_bias_vs_prevalence(df: pd.DataFrame, output_path: Path) -> Non
     fig, axes = plt.subplots(1, n_panels, figsize=(5 * n_panels, 5), squeeze=False)
     axes = axes[0]
 
-    for ax, cl in zip(axes, censors):
+    for ax, cl in zip(axes, censors, strict=True):
         sub = nocensor[nocensor["censor_label"] == cl]
         for kind in KIND_ORDER:
             ks = sub[sub["kind"] == kind].sort_values("prevalence")
             if ks.empty:
                 continue
             ax.fill_between(
-                ks["prevalence"], ks["h2_l95"], ks["h2_u95"],
-                color=KIND_COLORS[kind], alpha=0.15,
+                ks["prevalence"],
+                ks["h2_l95"],
+                ks["h2_u95"],
+                color=KIND_COLORS[kind],
+                alpha=0.15,
             )
             ax.plot(ks["prevalence"], ks["h2_epimight"], "o-", color=KIND_COLORS[kind], label=kind, markersize=4)
 
@@ -171,7 +174,7 @@ def plot_epimight_bias_by_censoring(df: pd.DataFrame, output_path: Path) -> None
     fig, axes = plt.subplots(1, n_panels, figsize=(4 * n_panels, 5), sharey=True, squeeze=False)
     axes = axes[0]
 
-    for ax, prev in zip(axes, prevs):
+    for ax, prev in zip(axes, prevs, strict=True):
         psub = sub[sub["prevalence"] == prev]
         censors_present = [c for c in CENSOR_ORDER if c in psub["censor_label"].values]
         x = np.arange(len(censors_present))
@@ -260,7 +263,7 @@ def plot_epimight_c_effect(df: pd.DataFrame, output_path: Path) -> None:
     fig, axes = plt.subplots(1, n_panels, figsize=(4 * n_panels, 5), sharey=True, squeeze=False)
     axes = axes[0]
 
-    for ax, prev in zip(axes, prevs):
+    for ax, prev in zip(axes, prevs, strict=True):
         x = np.arange(len(KIND_ORDER))
         width = 0.35
 

@@ -8,13 +8,16 @@ plot_censoring_confusion, plot_censoring_cascade, plot_mate_correlation.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import seaborn as sns
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    import pandas as pd
 
 from sim_ace.utils import HEATMAP_CMAP, annotate_heatmap, draw_split_violin, finalize_plot, save_placeholder_plot
 

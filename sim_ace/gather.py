@@ -64,7 +64,7 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
     params = data["parameters"]
     summary = data["summary"]
 
-    row = {
+    return {
         "scenario": scenario,
         "rep": rep,
         "N": params.get("N"),
@@ -155,11 +155,11 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         # Consanguineous matings
         "n_half_sib_matings": get_nested(data, "consanguineous_matings", "consanguineous_count", "n_half_sib_matings"),
         "n_full_sib_matings": get_nested(data, "consanguineous_matings", "consanguineous_count", "n_full_sib_matings"),
-        "missing_gp_links": get_nested(data, "consanguineous_matings", "consanguineous_count", "total_missing_gp_links"),
+        "missing_gp_links": get_nested(
+            data, "consanguineous_matings", "consanguineous_count", "total_missing_gp_links"
+        ),
         "gp_reconciled": get_nested(data, "consanguineous_matings", "grandparent_reconciliation", "passed"),
     }
-
-    return row
 
 
 def main(validation_files: list[str], output_path: str) -> None:

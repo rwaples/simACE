@@ -69,13 +69,15 @@ class TestComputeMateCorrelation:
         rng = np.random.default_rng(seed)
         # Founders: mothers (even ids), fathers (odd ids)
         n_founders = 2 * n_pairs
-        founders = pd.DataFrame({
-            "id": range(n_founders),
-            "mother": -1,
-            "father": -1,
-            "liability1": rng.normal(size=n_founders),
-            "liability2": rng.normal(size=n_founders),
-        })
+        founders = pd.DataFrame(
+            {
+                "id": range(n_founders),
+                "mother": -1,
+                "father": -1,
+                "liability1": rng.normal(size=n_founders),
+                "liability2": rng.normal(size=n_founders),
+            }
+        )
 
         # Create correlated mating: sort mothers and fathers by liability1
         mother_ids = list(range(0, n_founders, 2))
@@ -93,17 +95,18 @@ class TestComputeMateCorrelation:
         children = []
         child_id = n_founders
         for i in range(n_pairs):
-            children.append({
-                "id": child_id,
-                "mother": int(sorted_mothers[i]),
-                "father": int(sorted_fathers[i]),
-                "liability1": rng.normal(),
-                "liability2": rng.normal(),
-            })
+            children.append(
+                {
+                    "id": child_id,
+                    "mother": int(sorted_mothers[i]),
+                    "father": int(sorted_fathers[i]),
+                    "liability1": rng.normal(),
+                    "liability2": rng.normal(),
+                }
+            )
             child_id += 1
 
-        df = pd.concat([founders, pd.DataFrame(children)], ignore_index=True)
-        return df
+        return pd.concat([founders, pd.DataFrame(children)], ignore_index=True)
 
     def test_returns_matrix_and_count(self):
         """Should return dict with 'matrix' and 'n_pairs' keys."""
@@ -126,20 +129,24 @@ class TestComputeMateCorrelation:
         """Random mating should produce near-zero correlations."""
         rng = np.random.default_rng(99)
         n = 1000
-        founders = pd.DataFrame({
-            "id": range(2 * n),
-            "mother": -1,
-            "father": -1,
-            "liability1": rng.normal(size=2 * n),
-            "liability2": rng.normal(size=2 * n),
-        })
-        children = pd.DataFrame({
-            "id": range(2 * n, 3 * n),
-            "mother": rng.choice(range(0, 2 * n, 2), size=n),
-            "father": rng.choice(range(1, 2 * n, 2), size=n),
-            "liability1": rng.normal(size=n),
-            "liability2": rng.normal(size=n),
-        })
+        founders = pd.DataFrame(
+            {
+                "id": range(2 * n),
+                "mother": -1,
+                "father": -1,
+                "liability1": rng.normal(size=2 * n),
+                "liability2": rng.normal(size=2 * n),
+            }
+        )
+        children = pd.DataFrame(
+            {
+                "id": range(2 * n, 3 * n),
+                "mother": rng.choice(range(0, 2 * n, 2), size=n),
+                "father": rng.choice(range(1, 2 * n, 2), size=n),
+                "liability1": rng.normal(size=n),
+                "liability2": rng.normal(size=n),
+            }
+        )
         df = pd.concat([founders, children], ignore_index=True)
         result = compute_mate_correlation(df)
         for i in range(2):
@@ -148,13 +155,15 @@ class TestComputeMateCorrelation:
 
     def test_empty_pedigree(self):
         """All-founder pedigree should return nan matrix."""
-        df = pd.DataFrame({
-            "id": [0, 1],
-            "mother": [-1, -1],
-            "father": [-1, -1],
-            "liability1": [0.0, 0.0],
-            "liability2": [0.0, 0.0],
-        })
+        df = pd.DataFrame(
+            {
+                "id": [0, 1],
+                "mother": [-1, -1],
+                "father": [-1, -1],
+                "liability1": [0.0, 0.0],
+                "liability2": [0.0, 0.0],
+            }
+        )
         result = compute_mate_correlation(df)
         assert result["n_pairs"] == 0
 
