@@ -633,7 +633,7 @@ scenarios:
     rC: 0.0
 
   # ── Beck et al. 2024 — sex-stratified CIF from Danish registers ────
-  # Source: Beck CA et al., Acta Psychiatrica Scandinavica 2024.
+  # Source: Beck CA et al., Acta Psychiatrica Scandinavica 2024. https://doi.org/10.1111/acps.13682
   # Mixture cure frailty fitted to full sex-stratified cumulative incidence
   # curves via analytical CIF + differential evolution (10 parallel workers).
   # Sex-specific prevalence (K_m, K_f) enables different lifetime risk by sex.
