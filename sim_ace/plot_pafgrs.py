@@ -16,6 +16,8 @@ TRAITS = ["trait1", "trait2"]
 CIP_SOURCES = ["empirical", "true"]
 H2_SOURCES = ["true", "estimated"]
 
+MAX_SCATTER_POINTS = 100_000
+
 
 def _load_variant_data(base_dir: str) -> dict[str, pd.DataFrame]:
     """Load all score parquets keyed by variant tag."""
@@ -42,8 +44,17 @@ def _load_metrics(base_dir: str) -> pd.DataFrame:
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
 
+def _subsample(df: pd.DataFrame, max_n: int = MAX_SCATTER_POINTS, seed: int = 42) -> tuple[pd.DataFrame, str]:
+    """Subsample a DataFrame for plotting; return (df, note)."""
+    if len(df) <= max_n:
+        return df, ""
+    rng = np.random.default_rng(seed)
+    idx = rng.choice(len(df), size=max_n, replace=False)
+    return df.iloc[idx], f"(showing {max_n:,} of {len(df):,})"
+
+
 def _page_scatter(pdf: PdfPages, data: dict[str, pd.DataFrame], trait: str) -> None:
-    """Scatter: est vs true_A for each (cip, h2) combo, colored by affected."""
+    """Scatter: est vs true_A, subsampled and rasterized for large N."""
     variants = [(c, h) for c in CIP_SOURCES for h in H2_SOURCES]
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     fig.suptitle(f"PA-FGRS est vs true A — {trait}", fontsize=14)
@@ -53,12 +64,33 @@ def _page_scatter(pdf: PdfPages, data: dict[str, pd.DataFrame], trait: str) -> N
         if tag not in data:
             ax.set_visible(False)
             continue
-        df = data[tag]
+        df_full = data[tag]
+        df, note = _subsample(df_full)
         aff = df["affected"].values.astype(bool)
-        ax.scatter(df["true_A"][~aff], df["est"][~aff], s=1, alpha=0.2, c="steelblue", label="Control")
-        ax.scatter(df["true_A"][aff], df["est"][aff], s=1, alpha=0.4, c="firebrick", label="Case")
-        r = np.corrcoef(df["est"], df["true_A"])[0, 1] if len(df) > 2 else 0
-        ax.set_title(f"CIP={cip}, h2={h2src}  (r={r:.3f})", fontsize=10)
+        ax.scatter(
+            df["true_A"][~aff],
+            df["est"][~aff],
+            s=1,
+            alpha=0.15,
+            c="steelblue",
+            label="Control",
+            rasterized=True,
+        )
+        ax.scatter(
+            df["true_A"][aff],
+            df["est"][aff],
+            s=1,
+            alpha=0.4,
+            c="firebrick",
+            label="Case",
+            rasterized=True,
+        )
+        # Correlation computed on FULL data
+        r = np.corrcoef(df_full["est"], df_full["true_A"])[0, 1] if len(df_full) > 2 else 0
+        title = f"CIP={cip}, h2={h2src}  (r={r:.3f})"
+        if note:
+            title += f"\n{note}"
+        ax.set_title(title, fontsize=10)
         ax.set_xlabel("True A")
         ax.set_ylabel("PA-FGRS est")
         lo = min(df["true_A"].min(), df["est"].min())
@@ -67,7 +99,7 @@ def _page_scatter(pdf: PdfPages, data: dict[str, pd.DataFrame], trait: str) -> N
         ax.legend(markerscale=5, fontsize=8)
 
     fig.tight_layout()
-    pdf.savefig(fig)
+    pdf.savefig(fig, dpi=300)
     plt.close(fig)
 
 
@@ -94,7 +126,12 @@ def _page_metrics_bars(pdf: PdfPages, metrics_df: pd.DataFrame, trait: str) -> N
         ax.set_title(metric, fontsize=11)
         for bar, v in zip(bars, vals["value"].values, strict=False):
             ax.text(
-                bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{v:.3f}", ha="center", va="bottom", fontsize=7
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height(),
+                f"{v:.3f}",
+                ha="center",
+                va="bottom",
+                fontsize=7,
             )
 
     fig.tight_layout()
@@ -103,7 +140,7 @@ def _page_metrics_bars(pdf: PdfPages, metrics_df: pd.DataFrame, trait: str) -> N
 
 
 def _page_score_distributions(pdf: PdfPages, data: dict[str, pd.DataFrame], trait: str) -> None:
-    """Histogram of est for cases vs controls, per variant."""
+    """Histogram of est for cases vs controls."""
     from scipy.stats import ks_2samp
 
     variants = [(c, h) for c in CIP_SOURCES for h in H2_SOURCES]
@@ -117,10 +154,11 @@ def _page_score_distributions(pdf: PdfPages, data: dict[str, pd.DataFrame], trai
             continue
         df = data[tag]
         aff = df["affected"].values.astype(bool)
-        bins = np.linspace(df["est"].quantile(0.01), df["est"].quantile(0.99), 50)
-        ax.hist(df["est"][~aff], bins=bins, alpha=0.6, density=True, label="Control", color="steelblue")
-        ax.hist(df["est"][aff], bins=bins, alpha=0.6, density=True, label="Case", color="firebrick")
-        ks, _pval = ks_2samp(df["est"][aff], df["est"][~aff]) if aff.sum() > 1 else (0, 1)
+        est = df["est"].values
+        bins = np.linspace(np.percentile(est, 1), np.percentile(est, 99), 80)
+        ax.hist(est[~aff], bins=bins, alpha=0.6, density=True, label="Control", color="steelblue")
+        ax.hist(est[aff], bins=bins, alpha=0.6, density=True, label="Case", color="firebrick")
+        ks, _pval = ks_2samp(est[aff], est[~aff]) if aff.sum() > 1 else (0, 1)
         ax.set_title(f"CIP={cip}, h2={h2src}  (KS={ks:.3f})", fontsize=10)
         ax.set_xlabel("PA-FGRS est")
         ax.legend(fontsize=8)
@@ -142,10 +180,9 @@ def _page_calibration(pdf: PdfPages, data: dict[str, pd.DataFrame], trait: str) 
             ax.set_visible(False)
             continue
         df = data[tag]
-        error_sq = (df["est"] - df["true_A"]) ** 2
-        reported_var = df["var"]
-        # Bin by reported variance
-        n_bins = 10
+        error_sq = (df["est"].values - df["true_A"].values) ** 2
+        reported_var = df["var"].values
+        n_bins = 20
         bin_edges = np.linspace(reported_var.min(), reported_var.max(), n_bins + 1)
         bin_centers, bin_means = [], []
         for b in range(n_bins):
@@ -171,7 +208,6 @@ def _page_calibration(pdf: PdfPages, data: dict[str, pd.DataFrame], trait: str) 
 
 def _page_generation_breakdown(pdf: PdfPages, data: dict[str, pd.DataFrame], trait: str) -> None:
     """r(est, true_A) broken down by generation."""
-    # Use true CIP + true h2 variant as the representative
     tag = f"{trait}_true_true"
     if tag not in data:
         tag = f"{trait}_empirical_true"
@@ -212,6 +248,9 @@ def generate_atlas(base_dir: str, output_path: str) -> None:
     if not data:
         logger.warning("No PA-FGRS score files found in %s", base_dir)
         return
+
+    n_total = sum(len(df) for df in data.values())
+    logger.info("Atlas data: %d variants, %d total rows", len(data), n_total)
 
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
