@@ -762,7 +762,7 @@ def build_kinship_from_pairs(
     skip_2nd_cousins = ndegree < 4
 
     graph = PedigreeGraph(pedigree_df)
-    pairs = graph.extract_pairs(seed=0, skip_2nd_cousins=skip_2nd_cousins)
+    pairs = graph.extract_pairs(seed=0, skip_2nd_cousins=skip_2nd_cousins, min_kinship=kin_threshold)
 
     # Collect all (row, col, kinship) triplets
     all_rows: list[np.ndarray] = []

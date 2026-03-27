@@ -503,6 +503,7 @@ class PedigreeGraph:
         self,
         seed: int = 42,
         skip_2nd_cousins: bool = True,
+        min_kinship: float = 0.0,
     ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
         """Extract all relationship categories.
 
@@ -513,15 +514,42 @@ class PedigreeGraph:
             seed: Random seed (unused — kept for API compatibility).
             skip_2nd_cousins: When True, skip 2nd cousin extraction (avoids
                 expensive A³ and A³ @ (A³).T matrix products).
+            min_kinship: Skip pair types with kinship coefficient below this
+                threshold. E.g., 0.125 skips 1st cousins (0.0625) and 2nd
+                cousins (0.016), avoiding their expensive sparse products.
 
         Returns:
             Dict mapping relationship name to (idx1, idx2) row-index arrays.
         """
         t_total = time.perf_counter()
         pairs: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+        empty = np.array([], dtype=np.intp)
 
-        # Pre-trigger cached properties so parallel threads don't race on them
-        _ = self._A2  # chains: _Am, _Af → _A → _A2
+        # Kinship coefficients for each pair type
+        _PAIR_KIN = {
+            "MZ twin": 0.5,
+            "Mother-offspring": 0.25,
+            "Father-offspring": 0.25,
+            "Full sib": 0.25,
+            "Maternal half sib": 0.125,
+            "Paternal half sib": 0.125,
+            "Grandparent-grandchild": 0.125,
+            "Avuncular": 0.125,
+            "1st cousin": 0.0625,
+            "2nd cousin": 0.015625,
+        }
+
+        def _needed(pair_type: str) -> bool:
+            return _PAIR_KIN.get(pair_type, 0) >= min_kinship
+
+        need_cousins = _needed("1st cousin")
+        need_gp = _needed("Grandparent-grandchild")
+        need_avunc = _needed("Avuncular")
+        need_hs = _needed("Maternal half sib")
+
+        # Pre-trigger cached properties needed by downstream extractions
+        if need_gp or need_avunc or need_cousins:
+            _ = self._A2  # chains: _Am, _Af → _A → _A2
 
         pairs["MZ twin"] = self._mz_twin_pairs()
 
@@ -532,37 +560,45 @@ class PedigreeGraph:
         t0 = time.perf_counter()
         full_sib, mat_hs, pat_hs = self._sibling_pairs()
         pairs["Full sib"] = full_sib
-        pairs["Maternal half sib"] = mat_hs
-        pairs["Paternal half sib"] = pat_hs
+        pairs["Maternal half sib"] = mat_hs if need_hs else (empty, empty)
+        pairs["Paternal half sib"] = pat_hs if need_hs else (empty, empty)
         logger.info(
             "Siblings: %d full, %d maternal HS, %d paternal HS (%.3fs)",
-            len(full_sib[0]),
-            len(mat_hs[0]),
-            len(pat_hs[0]),
+            len(pairs["Full sib"][0]),
+            len(pairs["Maternal half sib"][0]),
+            len(pairs["Paternal half sib"][0]),
             time.perf_counter() - t0,
         )
 
-        # Run expensive extractions in parallel (scipy sparse releases the GIL)
+        # Run expensive extractions in parallel (only those needed)
         t0 = time.perf_counter()
+        futures = {}
         with ThreadPoolExecutor(max_workers=3) as pool:
-            fut_cousin = pool.submit(self._cousin_pairs)
-            fut_gp = pool.submit(self._grandparent_grandchild_pairs)
-            fut_avunc = pool.submit(self._avuncular_pairs, full_sib)
-            pairs["1st cousin"] = fut_cousin.result()
-            pairs["Grandparent-grandchild"] = fut_gp.result()
-            pairs["Avuncular"] = fut_avunc.result()
+            if need_cousins:
+                futures["1st cousin"] = pool.submit(self._cousin_pairs)
+            if need_gp:
+                futures["Grandparent-grandchild"] = pool.submit(self._grandparent_grandchild_pairs)
+            if need_avunc:
+                futures["Avuncular"] = pool.submit(self._avuncular_pairs, full_sib)
+            for k, fut in futures.items():
+                pairs[k] = fut.result()
+
+        for k in ("1st cousin", "Grandparent-grandchild", "Avuncular"):
+            if k not in pairs:
+                pairs[k] = (empty, empty)
+
         logger.info(
-            "Parallel extraction: cousins=%d, grandparent=%d, avuncular=%d (%.3fs)",
+            "Parallel extraction: cousins=%d, grandparent=%d, avuncular=%d (%.3fs)%s",
             len(pairs["1st cousin"][0]),
             len(pairs["Grandparent-grandchild"][0]),
             len(pairs["Avuncular"][0]),
             time.perf_counter() - t0,
+            f" [min_kinship={min_kinship}]" if min_kinship > 0 else "",
         )
 
-        empty = np.array([], dtype=np.intp)
-        if skip_2nd_cousins:
+        if skip_2nd_cousins or not _needed("2nd cousin"):
             pairs["2nd cousin"] = (empty, empty)
-            logger.info("2nd cousins: skipped (skip_2nd_cousins=True)")
+            logger.info("2nd cousins: skipped")
         else:
             t0 = time.perf_counter()
             pairs["2nd cousin"] = self._second_cousin_pairs()
