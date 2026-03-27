@@ -508,3 +508,15 @@ Every simulation makes simplifying assumptions. The following are the most conse
 **Fixed population size.** Each generation contains exactly $N$ individuals with no population growth, decline, bottlenecks, or migration. Demographic dynamics that alter effective population size or introduce population stratification are not modelled.
 
 **Tetrachoric correlation bias under censoring.** When affection status is derived from the survival frailty model with age-window and death censoring, the observed prevalence may differ from the uncensored prevalence. Tetrachoric correlations estimated from censored binary outcomes are attenuated relative to the true underlying liability correlation. The pairwise Weibull survival correlation method, which explicitly accounts for censoring in the likelihood, is preferred for validation of censored phenotypes.
+
+## Data types and memory efficiency
+
+The pedigree uses narrowed data types to reduce memory at large population sizes:
+
+- **int32** for person identifiers (id, mother, father, twin, household_id) — supports up to $2.1 \times 10^9$ individuals per pedigree. An overflow guard validates $N \times G_\text{ped} < 2^{31}$ at simulation start.
+- **int32** for generation (consistent with ID columns).
+- **int8** for sex (0/1).
+- **float32** for variance components ($A_1, C_1, E_1, A_2, C_2, E_2$) — approximately 7 significant digits, sufficient for stochastic draws from unit-variance distributions.
+- **float64** for liabilities ($L_1, L_2$) — full 15-digit precision, used by all downstream phenotype models.
+
+Composite key computations (e.g., encoding a $(i, j)$ pair as $i \times \text{max\_id} + j$ for duplicate detection or set subtraction) explicitly cast to int64 before multiplication because $\text{max\_id}^2$ overflows int32.

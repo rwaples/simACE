@@ -73,26 +73,30 @@ def validation_result(passed: bool, details: str, **extra: Any) -> dict[str, Any
 def optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     """Downcast DataFrame columns for compact parquet storage.
 
-    Casts simulation float columns to float32 (~7 significant digits,
-    ample for stochastic draws) and small integer columns to int8.
-    ID columns (id, mother, father, twin, household_id) stay int64.
+    Dtype strategy (matching pedigree generation-time dtypes):
+    - int32 for ID columns and generation (supports up to 2.1B individuals)
+    - int8 for sex (0/1)
+    - float32 for ACE components and event times (~7 significant digits)
+    - float64 for liabilities (full precision for phenotype models)
     """
-    int8_cols = ["sex", "generation"]
+    int32_cols = ["id", "mother", "father", "twin", "household_id", "generation"]
+    int8_cols = ["sex"]
     float32_cols = [
         "A1",
         "C1",
         "E1",
-        "liability1",
         "A2",
         "C2",
         "E2",
-        "liability2",
         "t1",
         "t2",
         "death_age",
         "t_observed1",
         "t_observed2",
     ]
+    for c in int32_cols:
+        if c in df.columns:
+            df[c] = df[c].astype("int32")
     for c in int8_cols:
         if c in df.columns:
             df[c] = df[c].astype("int8")

@@ -54,9 +54,11 @@ class TestZeroA:
     def test_A_zero_liability_equals_C_plus_E(self):
         params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.3, "A2": 0.0, "C2": 0.3}
         ped = run_simulation(**params)
+        # ACE columns are float32, liability is float64
         np.testing.assert_allclose(
             ped["liability1"].values,
             ped["C1"].values + ped["E1"].values,
+            atol=1e-6,
         )
 
 
@@ -75,9 +77,11 @@ class TestZeroC:
     def test_C_zero_liability_equals_A_plus_E(self):
         params = {**MINIMAL_PARAMS, "A1": 0.5, "C1": 0.0, "A2": 0.5, "C2": 0.0}
         ped = run_simulation(**params)
+        # ACE columns are float32, liability is float64
         np.testing.assert_allclose(
             ped["liability1"].values,
             ped["A1"].values + ped["E1"].values,
+            atol=1e-6,
         )
 
 

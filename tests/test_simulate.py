@@ -390,13 +390,16 @@ class TestAddToPedigree:
         hh = np.arange(N)
 
         ped = add_to_pedigree(pheno, sex, parents, twins, hh, generation=0, pedigree=None)
+        # ACE columns are float32, liability is float64 — allow float32 precision loss
         np.testing.assert_allclose(
             ped["liability1"].values,
             ped["A1"].values + ped["C1"].values + ped["E1"].values,
+            atol=1e-6,
         )
         np.testing.assert_allclose(
             ped["liability2"].values,
             ped["A2"].values + ped["C2"].values + ped["E2"].values,
+            atol=1e-6,
         )
 
     def test_twin_column_bidirectional(self, rng):

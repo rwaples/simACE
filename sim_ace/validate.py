@@ -448,6 +448,7 @@ def validate_consanguineous_matings(df: pd.DataFrame, params: dict[str, Any]) ->
 
     # Identify consanguineous matings (vectorized)
     # Encode (mother, father) as single int64 key for fast np.unique on 1D array
+    # int64 cast required: max_id² overflows int32
     max_id = int(ids.max()) + 1
     pair_keys = eligible_mothers.astype(np.int64) * max_id + eligible_fathers.astype(np.int64)
     unique_keys, _inverse, pair_counts = np.unique(pair_keys, return_inverse=True, return_counts=True)

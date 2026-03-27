@@ -514,7 +514,7 @@ def plot_parent_offspring_liability(
         return
 
     # Build id -> row lookup within df_samples
-    ids_arr = df_samples["id"].values.astype(np.int64)
+    ids_arr = df_samples["id"].values
     max_id = int(ids_arr.max()) + 1
     id_to_row = np.full(max_id, -1, dtype=np.int32)
     id_to_row[ids_arr] = np.arange(len(df_samples), dtype=np.int32)
@@ -522,14 +522,14 @@ def plot_parent_offspring_liability(
     # Select non-founder generations whose parents are present in the sample.
     # The earliest phenotyped generation's parents may be outside the phenotype
     # window (e.g. G_pheno < G_ped), so we test each candidate generation.
-    _sample_ids = set(ids_arr)
+    _sample_ids = set(ids_arr.tolist())
     min_gen = int(df_samples["generation"].min())
     max_gen = int(df_samples["generation"].max())
     candidate_gens = list(range(max(min_gen + 1, 1), max_gen + 1))
     plot_gens = []
     for gen in candidate_gens:
         gen_mask = df_samples["generation"].values == gen
-        mothers = df_samples["mother"].values[gen_mask].astype(np.int64)
+        mothers = df_samples["mother"].values[gen_mask]
         # Check if any parents are present in the sample
         if np.any(np.isin(mothers[mothers >= 0], ids_arr)):
             plot_gens.append(gen)
@@ -550,8 +550,8 @@ def plot_parent_offspring_liability(
             ax = axes[row, col]
             gen_idx = np.where(df_samples["generation"].values == gen)[0]
 
-            mother_ids = df_samples["mother"].values[gen_idx].astype(np.int64)
-            father_ids = df_samples["father"].values[gen_idx].astype(np.int64)
+            mother_ids = df_samples["mother"].values[gen_idx]
+            father_ids = df_samples["father"].values[gen_idx]
 
             has_m = (mother_ids >= 0) & (mother_ids < max_id)
             has_f = (father_ids >= 0) & (father_ids < max_id)

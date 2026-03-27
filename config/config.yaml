@@ -115,6 +115,10 @@ scenarios:
     replicates: 3
     N: 2000000
     extra_tetrachoric: False
+    rA: .3
+    assort1: .1
+    assort2: .15
+    beta_sex1: .75
 
   # ── Heritability ──────────────────────────────────────────────────────────
   high_heritability:
