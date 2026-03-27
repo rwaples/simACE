@@ -50,3 +50,8 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 - Prefer focused sessions (one feature per session)
 - Run pipeline commands in background when >30 seconds
 - Use targeted line ranges instead of reading entire large files
+
+## Performance Optimization
+
+- Always profile/benchmark first to identify the actual bottleneck before implementing changes
+- Do not assume which component is slow — show profiling data before proposing a solution
