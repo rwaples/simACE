@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -100,20 +101,17 @@ def main(
         ", ".join(f"{k}: {len(v[0])}" for k, v in pairs.items()),
     )
 
-    # Liability correlations
-    logger.info("Computing liability correlations...")
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
 
-    # Tetrachoric correlations (always run — fast O(N) scalar MLEs)
-    logger.info("Computing tetrachoric correlations...")
+    # Tetrachoric correlations — run in parallel (scipy.optimize releases the GIL)
+    logger.info("Computing tetrachoric correlations in parallel...")
     t_tet = time.perf_counter()
-    stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        fut_tetra = pool.submit(compute_tetrachoric, df, seed=seed, pairs=pairs)
+        fut_cross = pool.submit(compute_cross_trait_tetrachoric, df, seed=seed, pairs=pairs)
+        stats["tetrachoric"] = fut_tetra.result()
+        stats["cross_trait_tetrachoric"] = fut_cross.result()
     logger.info("Tetrachoric correlations computed in %.1fs", time.perf_counter() - t_tet)
-
-    logger.info("Computing cross-trait tetrachoric correlations...")
-    t_ct = time.perf_counter()
-    stats["cross_trait_tetrachoric"] = compute_cross_trait_tetrachoric(df, seed=seed, pairs=pairs)
-    logger.info("Cross-trait tetrachoric computed in %.1fs", time.perf_counter() - t_ct)
 
     # Write stats YAML
     stats_path = Path(stats_output)

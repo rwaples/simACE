@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from functools import cached_property
 from typing import TYPE_CHECKING
 
@@ -40,29 +41,31 @@ class PedigreeGraph:
         # When set, extract_pairs only returns pairs of active individuals.
         self._active = sample_mask
 
-        # Build ID → row index mapping
-        ids_arr = df["id"].values.astype(np.int64)
+        # Build ID → row index mapping (int32: row indices fit in 2.1B)
+        ids_arr = df["id"].values
         self._ids = ids_arr
-        id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int64)
-        id_to_row[ids_arr] = np.arange(n, dtype=np.int64)
+        if n > np.iinfo(np.int32).max:
+            raise ValueError(f"Pedigree has {n:,} rows, exceeding int32 max for row indices")
+        id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
+        id_to_row[ids_arr] = np.arange(n, dtype=np.int32)
 
         def _remap(col_vals: np.ndarray) -> np.ndarray:
             """Map IDs to row indices; -1 stays -1."""
-            out = np.full(len(col_vals), -1, dtype=np.int64)
+            out = np.full(len(col_vals), -1, dtype=np.int32)
             valid = (col_vals >= 0) & (col_vals < len(id_to_row))
             out[valid] = id_to_row[col_vals[valid]]
             return out
 
         # Original pedigree parent IDs (for sibling classification —
         # valid even when the parent isn't in the sample).
-        self._orig_mother = df["mother"].values.astype(np.int64)
-        self._orig_father = df["father"].values.astype(np.int64)
+        self._orig_mother = df["mother"].values
+        self._orig_father = df["father"].values
 
         # Remap parent/twin IDs to row indices (for sparse matrices)
         self.mother = _remap(self._orig_mother)
         self.father = _remap(self._orig_father)
-        self.twin = _remap(df["twin"].values.astype(np.int64))
-        self.sex = df["sex"].values.astype(np.int32)
+        self.twin = _remap(df["twin"].values)
+        self.sex = df["sex"].values.astype(np.int8)
         self.generation = df["generation"].values.astype(np.int32)
 
         # Build parent→child matrices using ALL available edges.
@@ -209,6 +212,7 @@ class PedigreeGraph:
 
         if len(bk_idx) >= 2:
             max_parent = max(int(bk_mother.max()), int(bk_father.max())) + 1
+            # int64 cast required: max_id² overflows int32
             family_key = bk_mother.astype(np.int64) * max_parent + bk_father.astype(np.int64)
             full_sib = self._pairs_from_groups(bk_idx, family_key)
         else:
@@ -219,7 +223,7 @@ class PedigreeGraph:
         m_idx = nt_idx[has_mother]
         m_mother = nt_mother[has_mother]
         if len(m_idx) >= 2:
-            mat_all = self._pairs_from_groups(m_idx, m_mother.astype(np.int64))
+            mat_all = self._pairs_from_groups(m_idx, m_mother)
             mat_hs = self._subtract_pairs(mat_all, full_sib)
         else:
             mat_hs = empty
@@ -229,7 +233,7 @@ class PedigreeGraph:
         f_idx = nt_idx[has_father]
         f_father = nt_father[has_father]
         if len(f_idx) >= 2:
-            pat_all = self._pairs_from_groups(f_idx, f_father.astype(np.int64))
+            pat_all = self._pairs_from_groups(f_idx, f_father)
             pat_hs = self._subtract_pairs(pat_all, full_sib)
         else:
             pat_hs = empty
@@ -263,6 +267,7 @@ class PedigreeGraph:
         if len(r1) == 0:
             return all_pairs
 
+        # int64 cast required: max_id² overflows int32
         max_id = int(max(a1.max(), a2.max(), r1.max(), r2.max())) + 1
         remove_keys = r1.astype(np.int64) * max_id + r2.astype(np.int64)
         all_keys = a1.astype(np.int64) * max_id + a2.astype(np.int64)
@@ -373,7 +378,7 @@ class PedigreeGraph:
             return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
 
         # Enumerate all (i < j) pairs sharing a grandparent
-        p1, p2 = self._pairs_from_groups(gc_i.astype(np.intp), gp_j.astype(np.int64))
+        p1, p2 = self._pairs_from_groups(gc_i.astype(np.intp), gp_j)
         if len(p1) == 0:
             return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
 
@@ -395,6 +400,7 @@ class PedigreeGraph:
             return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
 
         # Deduplicate (two cousins may share multiple grandparents)
+        # int64 cast required: max_id² overflows int32
         max_id = max(int(p1.max()), int(p2.max())) + 1
         keys = p1.astype(np.int64) * max_id + p2.astype(np.int64)
         _, unique_idx = np.unique(keys, return_index=True)
@@ -452,6 +458,7 @@ class PedigreeGraph:
         hi = np.maximum(a_i, a_j)
 
         # Dedup: pack into int64 keys, sort+diff
+        # int64 cast required: max_id² overflows int32
         max_id = int(hi.max()) + 1
         keys = lo.astype(np.int64) * max_id + hi.astype(np.int64)
         sort_idx = np.argsort(keys, kind="mergesort")
@@ -513,6 +520,9 @@ class PedigreeGraph:
         t_total = time.perf_counter()
         pairs: dict[str, tuple[np.ndarray, np.ndarray]] = {}
 
+        # Pre-trigger cached properties so parallel threads don't race on them
+        _ = self._A2  # chains: _Am, _Af → _A → _A2
+
         pairs["MZ twin"] = self._mz_twin_pairs()
 
         mo, fo = self._parent_offspring_pairs()
@@ -532,16 +542,22 @@ class PedigreeGraph:
             time.perf_counter() - t0,
         )
 
+        # Run expensive extractions in parallel (scipy sparse releases the GIL)
         t0 = time.perf_counter()
-        pairs["1st cousin"] = self._cousin_pairs()
-        logger.info("1st cousins: %d pairs (%.3fs)", len(pairs["1st cousin"][0]), time.perf_counter() - t0)
-
-        pairs["Grandparent-grandchild"] = self._grandparent_grandchild_pairs()
-        logger.info("Grandparent-grandchild: %d pairs", len(pairs["Grandparent-grandchild"][0]))
-
-        t0 = time.perf_counter()
-        pairs["Avuncular"] = self._avuncular_pairs(full_sib)
-        logger.info("Avuncular: %d pairs (%.3fs)", len(pairs["Avuncular"][0]), time.perf_counter() - t0)
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            fut_cousin = pool.submit(self._cousin_pairs)
+            fut_gp = pool.submit(self._grandparent_grandchild_pairs)
+            fut_avunc = pool.submit(self._avuncular_pairs, full_sib)
+            pairs["1st cousin"] = fut_cousin.result()
+            pairs["Grandparent-grandchild"] = fut_gp.result()
+            pairs["Avuncular"] = fut_avunc.result()
+        logger.info(
+            "Parallel extraction: cousins=%d, grandparent=%d, avuncular=%d (%.3fs)",
+            len(pairs["1st cousin"][0]),
+            len(pairs["Grandparent-grandchild"][0]),
+            len(pairs["Avuncular"][0]),
+            time.perf_counter() - t0,
+        )
 
         empty = np.array([], dtype=np.intp)
         if skip_2nd_cousins:
@@ -632,8 +648,8 @@ def _build_graph_and_remap(
 
     Returns (remapped_pairs, full_pedigree_counts, full_ids).
     """
-    pheno_ids = set(df["id"].values.astype(np.int64).tolist())
-    full_ids = full_pedigree["id"].values.astype(np.int64)
+    pheno_ids = set(df["id"].values.tolist())
+    full_ids = full_pedigree["id"].values
     sample_mask = np.array([int(x) in pheno_ids for x in full_ids], dtype=bool)
 
     pg = PedigreeGraph(full_pedigree, sample_mask=sample_mask)
@@ -641,10 +657,10 @@ def _build_graph_and_remap(
     full_counts = dict(pg._raw_pair_counts)
 
     # Remap full-pedigree row indices → phenotype (df) row indices
-    pheno_id_arr = df["id"].values.astype(np.int64)
+    pheno_id_arr = df["id"].values
     max_id = int(max(full_ids.max(), pheno_id_arr.max())) + 1
-    id_to_pheno = np.full(max_id, -1, dtype=np.int64)
-    id_to_pheno[pheno_id_arr] = np.arange(len(df), dtype=np.int64)
+    id_to_pheno = np.full(max_id, -1, dtype=np.int32)
+    id_to_pheno[pheno_id_arr] = np.arange(len(df), dtype=np.int32)
 
     result: dict[str, tuple[np.ndarray, np.ndarray]] = {}
     for ptype, (idx1, idx2) in raw_pairs.items():
@@ -754,9 +770,9 @@ def count_sib_pairs(df: pd.DataFrame) -> dict[str, int]:
     # Build a minimal full DataFrame for PedigreeGraph
     # The input is a subset; we need to create a graph over the full ID space
     # Instead, replicate the counting logic directly without building a full graph
-    _twin_col = df["twin"].values if "twin" in df.columns else np.full(len(df), -1, dtype=np.int64)
-    mother_col = df["mother"].values.astype(np.int64)
-    father_col = df["father"].values.astype(np.int64)
+    _twin_col = df["twin"].values if "twin" in df.columns else np.full(len(df), -1, dtype=np.int32)
+    mother_col = df["mother"].values
+    father_col = df["father"].values
 
     n_full_sib = 0
     n_maternal_hs = 0

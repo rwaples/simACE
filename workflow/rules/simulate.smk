@@ -26,6 +26,6 @@ rule simulate_pedigree_liability:
     resources:
         mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_ped"),
         runtime = lambda w: _scale_runtime(config, w.scenario, "G_ped")
-    threads: 1
+    threads: 4
     script:
         "../scripts/simulate.py"

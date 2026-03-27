@@ -12,6 +12,7 @@ import argparse
 import json
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -621,8 +622,8 @@ def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
     if "generation" not in df.columns:
         return {}
     max_gen = int(df["generation"].max())
-    ids_arr = df["id"].values.astype(np.int64)
-    id_to_row = np.full(ids_arr.max() + 1, -1, dtype=np.int32)
+    ids_arr = df["id"].values
+    id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
     id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
     result = {}
     for trait_num in [1, 2]:
@@ -630,8 +631,8 @@ def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
         trait_result = {}
         for gen in range(1, max_gen + 1):
             gen_idx = np.where(df["generation"].values == gen)[0]
-            mother_ids = df["mother"].values[gen_idx].astype(np.int64)
-            father_ids = df["father"].values[gen_idx].astype(np.int64)
+            mother_ids = df["mother"].values[gen_idx]
+            father_ids = df["father"].values[gen_idx]
             has_m = (mother_ids >= 0) & (mother_ids < len(id_to_row))
             has_f = (father_ids >= 0) & (father_ids < len(id_to_row))
             m_rows = np.full(len(gen_idx), -1, dtype=np.int32)
@@ -847,7 +848,7 @@ def create_sample(
     unique_gens = sorted(np.unique(generations))
     if all(int((generations == g).sum()) <= n_per_gen for g in unique_gens):
         return df.copy()
-    ids = df["id"].values.astype(np.int64)
+    ids = df["id"].values
     max_id = int(ids.max()) + 1
     id_to_row = np.full(max_id, -1, dtype=np.int32)
     id_to_row[ids] = np.arange(len(df), dtype=np.int32)
@@ -856,12 +857,12 @@ def create_sample(
         gen_idx = np.where(generations == gen)[0]
         chosen = rng.choice(gen_idx, min(len(gen_idx), n_per_gen), replace=False)
         selected.update(chosen.tolist())
-    tmp = np.array(list(selected), dtype=np.int64)
-    for pid_arr in [df["mother"].values[tmp].astype(np.int64), df["father"].values[tmp].astype(np.int64)]:
+    tmp = np.array(list(selected), dtype=np.intp)
+    for pid_arr in [df["mother"].values[tmp], df["father"].values[tmp]]:
         valid = (pid_arr >= 0) & (pid_arr < max_id)
         rows = id_to_row[pid_arr[valid]]
         selected.update(rows[rows >= 0].tolist())
-    return df.iloc[np.sort(np.array(list(selected), dtype=np.int64))].copy()
+    return df.iloc[np.sort(np.array(list(selected), dtype=np.intp))].copy()
 
 
 # ---------------------------------------------------------------------------
@@ -1143,49 +1144,40 @@ def main(
     else:
         del df_ped
 
-    logger.info("Computing liability correlations...")
+    # Fast sequential computations
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
-
-    logger.info("Computing parent-offspring correlations...")
     stats["parent_offspring_corr"] = compute_parent_offspring_corr(df)
 
-    logger.info("Computing tetrachoric correlations...")
-    t2 = time.perf_counter()
-    stats["tetrachoric"] = compute_tetrachoric(df, seed=seed, pairs=pairs)
-    logger.info("Tetrachoric computed in %.1fs", time.perf_counter() - t2)
+    # Expensive MLE computations — run in parallel (scipy.optimize releases the GIL)
+    logger.info("Computing tetrachoric + frailty correlations in parallel...")
+    t_mle = time.perf_counter()
+    with ThreadPoolExecutor(max_workers=7) as pool:
+        fut_tetra = pool.submit(compute_tetrachoric, df, seed=seed, pairs=pairs)
+        fut_tetra_gen = pool.submit(compute_tetrachoric_by_generation, df, seed=seed, pairs=pairs)
+        fut_cross = pool.submit(compute_cross_trait_tetrachoric, df, seed=seed, pairs=pairs)
 
-    logger.info("Computing tetrachoric correlations by generation...")
-    t3 = time.perf_counter()
-    stats["tetrachoric_by_generation"] = compute_tetrachoric_by_generation(df, seed=seed, pairs=pairs)
-    logger.info("Tetrachoric by generation computed in %.1fs", time.perf_counter() - t3)
+        if frailty_params is not None and extra_tetrachoric:
+            fut_frailty = pool.submit(compute_frailty_correlations, df, frailty_params, pairs=pairs, seed=seed)
+            fut_frailty_ct = pool.submit(compute_frailty_cross_trait_corr, df, frailty_params)
+        else:
+            fut_frailty = None
+            fut_frailty_ct = None
 
-    logger.info("Computing cross-trait tetrachoric correlations...")
-    t4 = time.perf_counter()
-    stats["cross_trait_tetrachoric"] = compute_cross_trait_tetrachoric(df, seed=seed, pairs=pairs)
-    logger.info("Cross-trait tetrachoric computed in %.1fs", time.perf_counter() - t4)
+        stats["tetrachoric"] = fut_tetra.result()
+        stats["tetrachoric_by_generation"] = fut_tetra_gen.result()
+        stats["cross_trait_tetrachoric"] = fut_cross.result()
 
-    if frailty_params is not None and extra_tetrachoric:
-        logger.info("Computing pairwise frailty correlations...")
-        t5 = time.perf_counter()
-        censored, uncensored = compute_frailty_correlations(
-            df,
-            frailty_params,
-            pairs=pairs,
-            seed=seed,
-        )
-        stats["frailty_corr"] = censored
-        stats["frailty_corr_uncensored"] = uncensored
-        logger.info("Frailty correlations computed in %.1fs", time.perf_counter() - t5)
-
-        logger.info("Computing cross-trait frailty correlation...")
-        t6 = time.perf_counter()
-        ct_cens, ct_uncens, ct_strat = compute_frailty_cross_trait_corr(df, frailty_params)
-        stats["frailty_cross_trait"] = ct_cens
-        stats["frailty_cross_trait_uncensored"] = ct_uncens
-        stats["frailty_cross_trait_stratified"] = ct_strat
-        logger.info("Cross-trait frailty correlation computed in %.1fs", time.perf_counter() - t6)
-    elif frailty_params is not None:
-        logger.info("Skipping frailty pairwise correlations (extra_tetrachoric=False)")
+        if fut_frailty is not None:
+            censored, uncensored = fut_frailty.result()
+            stats["frailty_corr"] = censored
+            stats["frailty_corr_uncensored"] = uncensored
+            ct_cens, ct_uncens, ct_strat = fut_frailty_ct.result()
+            stats["frailty_cross_trait"] = ct_cens
+            stats["frailty_cross_trait_uncensored"] = ct_uncens
+            stats["frailty_cross_trait_stratified"] = ct_strat
+        elif frailty_params is not None:
+            logger.info("Skipping frailty pairwise correlations (extra_tetrachoric=False)")
+    logger.info("All MLE correlations computed in %.1fs", time.perf_counter() - t_mle)
 
     stats_path = Path(stats_output)
     stats_path.parent.mkdir(parents=True, exist_ok=True)
