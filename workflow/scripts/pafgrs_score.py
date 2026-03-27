@@ -14,7 +14,7 @@ def _run_snakemake():
 
     from sim_ace.ltm_falconer import compute_ltm_falconer
     from sim_ace.pafgrs import (
-        build_sparse_kinship,
+        build_kinship_from_pairs,
         compute_empirical_cip,
         compute_true_cip_weibull,
         score_probands,
@@ -33,13 +33,8 @@ def _run_snakemake():
     ndegree = int(p.ndegree)
     censor_age = float(p.censor_age)
 
-    # Build kinship once for all variants
-    kmat = build_sparse_kinship(
-        pedigree_df["id"].values,
-        pedigree_df["mother"].values,
-        pedigree_df["father"].values,
-        pedigree_df["twin"].values if "twin" in pedigree_df.columns else None,
-    )
+    # Build kinship once for all variants (pair-based: fast, low memory)
+    kmat = build_kinship_from_pairs(pedigree_df, ndegree=ndegree)
 
     for trait_num in p.trait_nums:
         trait_key = f"trait{trait_num}"

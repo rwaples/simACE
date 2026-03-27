@@ -11,15 +11,326 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 import time
 from typing import Any
 
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
+from numba import njit, prange
 from scipy.stats import norm
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Numba-compiled normal distribution helpers (via math.erfc)
+# ---------------------------------------------------------------------------
+
+_SQRT2 = math.sqrt(2.0)
+_INV_SQRT_2PI = 1.0 / math.sqrt(2.0 * math.pi)
+
+
+@njit(cache=True)
+def _nb_norm_pdf(x: float) -> float:
+    return _INV_SQRT_2PI * math.exp(-0.5 * x * x)
+
+
+@njit(cache=True)
+def _nb_norm_cdf(x: float) -> float:
+    return 0.5 * math.erfc(-x / _SQRT2)
+
+
+@njit(cache=True)
+def _nb_norm_sf(x: float) -> float:
+    return 0.5 * math.erfc(x / _SQRT2)
+
+
+# ---------------------------------------------------------------------------
+# Numba-compiled truncated normal helpers
+# ---------------------------------------------------------------------------
+
+
+@njit(cache=True)
+def _nb_trunc_norm_below(mu: float, var: float, trunc: float) -> tuple[float, float]:
+    sd = math.sqrt(var)
+    if sd < 1e-15:
+        return mu, 0.0
+    beta = (trunc - mu) / sd
+    phi_b = _nb_norm_pdf(beta)
+    cdf_b = _nb_norm_cdf(beta)
+    if cdf_b < 1e-15:
+        return trunc, 0.0
+    r = phi_b / cdf_b
+    return mu - sd * r, max(var * (1 - beta * r - r * r), 0.0)
+
+
+@njit(cache=True)
+def _nb_trunc_norm_above(mu: float, var: float, trunc: float) -> tuple[float, float]:
+    sd = math.sqrt(var)
+    if sd < 1e-15:
+        return mu, 0.0
+    alpha = (trunc - mu) / sd
+    phi_a = _nb_norm_pdf(alpha)
+    sf_a = _nb_norm_sf(alpha)
+    if sf_a < 1e-15:
+        return trunc, 0.0
+    r = phi_a / sf_a
+    return mu + sd * r, max(var * (1 + alpha * r - r * r), 0.0)
+
+
+@njit(cache=True)
+def _nb_trunc_norm(mu: float, var: float, lower: float, upper: float) -> tuple[float, float]:
+    if lower == upper:
+        return (1e10 if math.isinf(lower) else lower), 0.0
+    if lower == -math.inf:
+        return _nb_trunc_norm_below(mu, var, upper)
+    if upper == math.inf:
+        return _nb_trunc_norm_above(mu, var, lower)
+    sd = math.sqrt(var)
+    if sd < 1e-15:
+        return mu, 0.0
+    a = (lower - mu) / sd
+    b = (upper - mu) / sd
+    Phi_diff = _nb_norm_cdf(b) - _nb_norm_cdf(a)
+    if Phi_diff < 1e-15:
+        return (lower + upper) / 2.0, 0.0
+    phi_a, phi_b = _nb_norm_pdf(a), _nb_norm_pdf(b)
+    ratio = (phi_b - phi_a) / Phi_diff
+    m = mu - sd * ratio
+    v = var * (1 - (b * phi_b - a * phi_a) / Phi_diff - ratio * ratio)
+    return m, max(v, 0.0)
+
+
+@njit(cache=True)
+def _nb_trunc_norm_mixture(
+    mu: float,
+    var: float,
+    lower: float,
+    upper: float,
+    kp: float,
+) -> tuple[float, float]:
+    if kp <= 0 or upper == math.inf:
+        return _nb_trunc_norm(mu, var, lower, upper)
+
+    sd = math.sqrt(var)
+    cdf_u_cond = _nb_norm_cdf((upper - mu) / sd)
+    sf_u_cond = 1.0 - cdf_u_cond
+    sf_u_marg = _nb_norm_sf(upper)
+
+    if sf_u_marg < 1e-15:
+        w_below = 1.0
+    else:
+        denom = 1.0 - sf_u_cond * kp / sf_u_marg
+        w_below = cdf_u_cond / denom if abs(denom) > 1e-15 else 1.0
+
+    w_below = min(max(w_below, 0.0), 1.0)
+    w_above = 1.0 - w_below
+
+    m0, v0 = _nb_trunc_norm(mu, var, lower, upper)
+    m1, v1 = _nb_trunc_norm(mu, var, upper, math.inf)
+
+    new_mean = w_below * m0 + w_above * m1
+    new_var = w_below * (m0 * m0 + v0) + w_above * (m1 * m1 + v1) - new_mean * new_mean
+    return new_mean, max(new_var, 0.0)
+
+
+# ---------------------------------------------------------------------------
+# Numba single-proband PA-FGRS kernel
+# ---------------------------------------------------------------------------
+
+
+@njit(cache=True)
+def _nb_pa_fgrs_single(
+    n_rel: int,
+    rel_aff: np.ndarray,
+    rel_thr: np.ndarray,
+    rel_w: np.ndarray,
+    covmat: np.ndarray,
+    h2: float,
+) -> tuple[float, float]:
+    """Score a single proband given pre-built covmat.
+
+    covmat must be (1+n_rel, 1+n_rel) with proband at [0,0].
+    """
+    # Build truncation bounds from status
+    t1 = np.empty(n_rel)
+    t2 = np.empty(n_rel)
+    for r in range(n_rel):
+        if rel_aff[r]:
+            t1[r] = rel_thr[r]
+            t2[r] = math.inf
+        else:
+            t1[r] = -math.inf
+            t2[r] = rel_thr[r]
+
+    # Filter valid relatives
+    valid_idx = np.empty(n_rel, dtype=np.int32)
+    n_valid = 0
+    for r in range(n_rel):
+        if rel_w[r] > 0:
+            valid_idx[n_valid] = r
+            n_valid += 1
+
+    if n_valid == 0:
+        return 0.0, h2
+
+    # Extract valid data into contiguous arrays
+    vt1 = np.empty(n_valid)
+    vt2 = np.empty(n_valid)
+    vw = np.empty(n_valid)
+    for i in range(n_valid):
+        r = valid_idx[i]
+        vt1[i] = t1[r]
+        vt2[i] = t2[r]
+        vw[i] = rel_w[r]
+
+    # Build subset covmat: proband + valid relatives
+    sz = 1 + n_valid
+    cm = np.empty((sz, sz))
+    cm[0, 0] = covmat[0, 0]
+    for i in range(n_valid):
+        r = valid_idx[i]
+        cm[0, 1 + i] = covmat[0, 1 + r]
+        cm[1 + i, 0] = covmat[0, 1 + r]
+        for j in range(n_valid):
+            rj = valid_idx[j]
+            cm[1 + i, 1 + j] = covmat[1 + r, 1 + rj]
+
+    # Sort by informativeness: composite key (descending w, then cov with proband)
+    sort_key = np.empty(n_valid)
+    for i in range(n_valid):
+        sort_key[i] = vw[i] * 1e12 + cm[1 + i, 0] * 1e6
+    order = np.argsort(-sort_key)
+
+    # Reorder all arrays
+    st1 = np.empty(n_valid)
+    st2 = np.empty(n_valid)
+    sw = np.empty(n_valid)
+    for i in range(n_valid):
+        st1[i] = vt1[order[i]]
+        st2[i] = vt2[order[i]]
+        sw[i] = vw[order[i]]
+    reorder = np.empty(sz, dtype=np.int32)
+    reorder[0] = 0
+    for i in range(n_valid):
+        reorder[1 + i] = 1 + order[i]
+    scm = np.empty((sz, sz))
+    for i in range(sz):
+        for j in range(sz):
+            scm[i, j] = cm[reorder[i], reorder[j]]
+
+    # Pearson-Aitken conditioning with active_size counter
+    mu = np.zeros(sz)
+    cov = scm.copy()
+    active = sz
+
+    for _ in range(n_valid):
+        j = active - 1
+        ri = j - 1  # index into st1/st2/sw
+
+        kp = sw[ri] * _nb_norm_sf(st2[ri])
+        upd_m, upd_v = _nb_trunc_norm_mixture(mu[j], cov[j, j], st1[ri], st2[ri], kp)
+
+        inv_vj = 1.0 / cov[j, j] if cov[j, j] > 1e-30 else 0.0
+        delta_m = upd_m - mu[j]
+        factor = inv_vj - inv_vj * upd_v * inv_vj
+
+        for a in range(j):
+            mu[a] += cov[a, j] * inv_vj * delta_m
+        for a in range(j):
+            for b in range(j):
+                cov[a, b] -= cov[a, j] * cov[b, j] * factor
+
+        active -= 1
+
+    return mu[0], max(cov[0, 0], 0.0)
+
+
+# ---------------------------------------------------------------------------
+# Numba batch kernel with prange
+# ---------------------------------------------------------------------------
+
+
+@njit(cache=True)
+def _nb_csc_lookup(indices: np.ndarray, data: np.ndarray, start: int, end: int, target: int) -> float:
+    """Binary search for target row index in a CSC column segment."""
+    lo, hi = start, end
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if indices[mid] < target:
+            lo = mid + 1
+        elif indices[mid] > target:
+            hi = mid
+        else:
+            return data[mid]
+    return 0.0
+
+
+@njit(parallel=True, cache=True)
+def _nb_score_batch(
+    n_probands: int,
+    rel_starts: np.ndarray,
+    rel_flat_idx: np.ndarray,
+    rel_flat_kin: np.ndarray,
+    pheno_aff: np.ndarray,
+    pheno_thr: np.ndarray,
+    pheno_w: np.ndarray,
+    kmat_indptr: np.ndarray,
+    kmat_indices: np.ndarray,
+    kmat_data: np.ndarray,
+    h2: float,
+    est_out: np.ndarray,
+    var_out: np.ndarray,
+    nrel_out: np.ndarray,
+) -> None:
+    """Score all probands in parallel."""
+    for i in prange(n_probands):
+        s = rel_starts[i]
+        e = rel_starts[i + 1]
+        n_rel = e - s
+        if n_rel == 0:
+            est_out[i] = 0.0
+            var_out[i] = h2
+            continue
+
+        my_idx = rel_flat_idx[s:e]
+        my_kin = rel_flat_kin[s:e]
+
+        # Build covmat: [0,0]=h2, [0,1:]=2*kin*h2, [1:,1:]=2*sub_kin*h2 with diag=1
+        sz = 1 + n_rel
+        covmat = np.empty((sz, sz))
+        covmat[0, 0] = h2
+        for r in range(n_rel):
+            c = 2.0 * my_kin[r] * h2
+            covmat[0, 1 + r] = c
+            covmat[1 + r, 0] = c
+
+        # Relative-relative kinship via CSC lookup
+        for r1 in range(n_rel):
+            covmat[1 + r1, 1 + r1] = 1.0
+            ri = my_idx[r1]
+            col_start = kmat_indptr[ri]
+            col_end = kmat_indptr[ri + 1]
+            for r2 in range(r1 + 1, n_rel):
+                rj = my_idx[r2]
+                k12 = _nb_csc_lookup(kmat_indices, kmat_data, col_start, col_end, rj)
+                c12 = 2.0 * k12 * h2
+                covmat[1 + r1, 1 + r2] = c12
+                covmat[1 + r2, 1 + r1] = c12
+
+        # Gather phenotype data
+        aff = np.empty(n_rel, dtype=np.bool_)
+        thr = np.empty(n_rel)
+        w = np.empty(n_rel)
+        for r in range(n_rel):
+            idx = my_idx[r]
+            aff[r] = pheno_aff[idx]
+            thr[r] = pheno_thr[idx]
+            w[r] = pheno_w[idx]
+
+        est_out[i], var_out[i] = _nb_pa_fgrs_single(n_rel, aff, thr, w, covmat, h2)
+        nrel_out[i] = n_rel
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +338,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _trunc_norm_below(mu: float, var: float, trunc: float) -> tuple[float, float]:
+def _trunc_norm_below_py(mu: float, var: float, trunc: float) -> tuple[float, float]:
     """E[X] and Var[X] for X ~ N(mu, var) truncated to (-inf, trunc]."""
     sd = np.sqrt(var)
     if sd < 1e-15:
@@ -41,7 +352,7 @@ def _trunc_norm_below(mu: float, var: float, trunc: float) -> tuple[float, float
     return mu - sd * r, max(var * (1 - beta * r - r * r), 0.0)
 
 
-def _trunc_norm_above(mu: float, var: float, trunc: float) -> tuple[float, float]:
+def _trunc_norm_above_py(mu: float, var: float, trunc: float) -> tuple[float, float]:
     """E[X] and Var[X] for X ~ N(mu, var) truncated to [trunc, +inf)."""
     sd = np.sqrt(var)
     if sd < 1e-15:
@@ -55,14 +366,14 @@ def _trunc_norm_above(mu: float, var: float, trunc: float) -> tuple[float, float
     return mu + sd * r, max(var * (1 + alpha * r - r * r), 0.0)
 
 
-def _trunc_norm(mu: float, var: float, lower: float, upper: float) -> tuple[float, float]:
+def _trunc_norm_py(mu: float, var: float, lower: float, upper: float) -> tuple[float, float]:
     """E[X] and Var[X] for X ~ N(mu, var) truncated to [lower, upper]."""
     if lower == upper:
         return (1e10 if np.isinf(lower) else lower), 0.0
     if np.isneginf(lower):
-        return _trunc_norm_below(mu, var, upper)
+        return _trunc_norm_below_py(mu, var, upper)
     if np.isposinf(upper):
-        return _trunc_norm_above(mu, var, lower)
+        return _trunc_norm_above_py(mu, var, lower)
     # Doubly truncated
     sd = np.sqrt(var)
     if sd < 1e-15:
@@ -79,7 +390,7 @@ def _trunc_norm(mu: float, var: float, lower: float, upper: float) -> tuple[floa
     return m, max(v, 0.0)
 
 
-def _trunc_norm_mixture(
+def _trunc_norm_mixture_py(
     mu: float,
     var: float,
     lower: float,
@@ -94,7 +405,7 @@ def _trunc_norm_mixture(
     *kp* is the remaining lifetime risk: ``w * (1 - Phi(threshold))``.
     """
     if kp <= 0 or np.isposinf(upper):
-        return _trunc_norm(mu, var, lower, upper)
+        return _trunc_norm_py(mu, var, lower, upper)
 
     sd = np.sqrt(var)
     cdf_u_cond = norm.cdf(upper, loc=mu, scale=sd)
@@ -110,8 +421,8 @@ def _trunc_norm_mixture(
     w_below = np.clip(w_below, 0.0, 1.0)
     w_above = 1.0 - w_below
 
-    m0, v0 = _trunc_norm(mu, var, lower, upper)
-    m1, v1 = _trunc_norm(mu, var, upper, np.inf)
+    m0, v0 = _trunc_norm_py(mu, var, lower, upper)
+    m1, v1 = _trunc_norm_py(mu, var, upper, np.inf)
 
     new_mean = w_below * m0 + w_above * m1
     new_var = w_below * (m0 * m0 + v0) + w_above * (m1 * m1 + v1) - new_mean * new_mean
@@ -155,7 +466,7 @@ def pa_fgrs(
 
     t1 = np.where(rel_status, rel_thr, -np.inf)
     t2 = np.where(rel_status, np.inf, rel_thr)
-    return _pa_fgrs_core(t1, t2, rel_w, covmat)
+    return _pa_fgrs_core_py(t1, t2, rel_w, covmat)
 
 
 def pa_fgrs_adt(
@@ -171,16 +482,16 @@ def pa_fgrs_adt(
     t1 = np.where(rel_status, rel_thr, -np.inf)
     t2 = rel_thr.copy()
     w = np.ones(len(rel_status))
-    return _pa_fgrs_core(t1, t2, w, covmat)
+    return _pa_fgrs_core_py(t1, t2, w, covmat)
 
 
-def _pa_fgrs_core(
+def _pa_fgrs_core_py(
     rel_t1: np.ndarray,
     rel_t2: np.ndarray,
     rel_w: np.ndarray,
     covmat: np.ndarray,
 ) -> tuple[float, float]:
-    """Sequential Pearson-Aitken conditioning (internal)."""
+    """Sequential Pearson-Aitken conditioning (Python fallback)."""
     valid = (np.isfinite(rel_t1) | np.isfinite(rel_t2)) & (rel_w > 0)
     n_valid = int(valid.sum())
 
@@ -216,7 +527,7 @@ def _pa_fgrs_core(
         ri = j - 1  # index into rel arrays (0-based)
 
         kp = rel_w[ri] * norm.sf(rel_t2[ri])
-        upd_m, upd_v = _trunc_norm_mixture(
+        upd_m, upd_v = _trunc_norm_mixture_py(
             mu[j],
             cov[j, j],
             rel_t1[ri],
@@ -292,7 +603,9 @@ def build_sparse_kinship(
     # Full symmetric storage (kin[i][j] == kin[j][i]) for correct iteration
     kin: list[dict[int, float]] = [{i: 0.5} for i in range(n)]
 
+    t_dp = time.perf_counter()
     for d in range(1, max_depth + 1):
+        t_gen = time.perf_counter()
         gen_indices = np.where(depth == d)[0]
         for j in gen_indices:
             m, f = int(m_idx[j]), int(f_idx[j])
@@ -326,7 +639,22 @@ def build_sparse_kinship(
                 kin[j][tw] = self_kin
                 kin[tw][j] = self_kin
 
+        avg_rels = np.mean([len(kin[j]) for j in gen_indices]) if len(gen_indices) > 0 else 0
+        logger.info(
+            "  gen %d: %d individuals, avg %.0f relatives, %.2fs",
+            d,
+            len(gen_indices),
+            avg_rels,
+            time.perf_counter() - t_gen,
+        )
+
+    dp_elapsed = time.perf_counter() - t_dp
+    total_entries = sum(len(row) for row in kin)
+    mem_mb = total_entries * 80 / 1e6  # ~80 bytes per Python dict entry
+    logger.info("  DP phase: %.2fs, %d total dict entries (~%.0f MB)", dp_elapsed, total_entries, mem_mb)
+
     # Convert to COO then CSC
+    t_conv = time.perf_counter()
     rows, cols, vals = [], [], []
     for i in range(n):
         for j_key, v in kin[i].items():
@@ -339,13 +667,25 @@ def build_sparse_kinship(
                     cols.append(i)
                     vals.append(v)
 
+    del kin  # free dict memory before allocating arrays
+
     kmat = sp.csc_matrix(
         (np.array(vals), (np.array(rows, dtype=np.int32), np.array(cols, dtype=np.int32))),
         shape=(n, n),
     )
+    conv_elapsed = time.perf_counter() - t_conv
     elapsed = time.perf_counter() - t0
     nnz = len(vals)
-    logger.info("Kinship matrix: %d individuals, %d nonzero entries, %.1fs", n, nnz, elapsed)
+    csc_mb = (kmat.data.nbytes + kmat.indices.nbytes + kmat.indptr.nbytes) / 1e6
+    logger.info(
+        "Kinship matrix: %d individuals, %d nnz, %.2fs (DP=%.2fs, convert=%.2fs, CSC=%.0f MB)",
+        n,
+        nnz,
+        elapsed,
+        dp_elapsed,
+        conv_elapsed,
+        csc_mb,
+    )
     return kmat
 
 
@@ -371,6 +711,110 @@ def _compute_depth(m_idx: np.ndarray, f_idx: np.ndarray, n: int) -> np.ndarray:
     # Any remaining unset → treat as depth 0 (disconnected founders)
     depth[depth < 0] = 0
     return depth
+
+
+# ---------------------------------------------------------------------------
+# Pair-based kinship (fast alternative to DP for non-consanguineous pedigrees)
+# ---------------------------------------------------------------------------
+
+# Kinship coefficient for each pair type returned by PedigreeGraph.extract_pairs()
+PAIR_KINSHIP: dict[str, float] = {
+    "MZ twin": 0.5,
+    "Mother-offspring": 0.25,
+    "Father-offspring": 0.25,
+    "Full sib": 0.25,
+    "Maternal half sib": 0.125,
+    "Paternal half sib": 0.125,
+    "Grandparent-grandchild": 0.125,
+    "Avuncular": 0.125,
+    "1st cousin": 0.0625,
+    "2nd cousin": 0.015625,
+}
+
+
+def build_kinship_from_pairs(
+    pedigree_df: pd.DataFrame,
+    ndegree: int = 2,
+    full_pedigree: pd.DataFrame | None = None,
+) -> sp.csc_matrix:
+    """Build sparse kinship matrix from extracted relationship pairs.
+
+    Uses ``PedigreeGraph.extract_pairs()`` to enumerate all relationship
+    pairs and assigns known kinship coefficients.  Exact for ACE's
+    non-consanguineous pedigrees and dramatically faster than the
+    generation-by-generation DP (``build_sparse_kinship``).
+
+    Parameters
+    ----------
+    pedigree_df : pedigree or phenotype DataFrame (rows to score)
+    ndegree : relationship degree cutoff (2 = up to 1st cousins)
+    full_pedigree : full pedigree if pedigree_df is a subset
+
+    Returns
+    -------
+    scipy.sparse.csc_matrix (n, n), symmetric.
+    """
+    from sim_ace.pedigree_graph import PedigreeGraph
+
+    t0 = time.perf_counter()
+    n = len(pedigree_df)
+    kin_threshold = 0.5 ** (ndegree + 1) - 1e-6
+    skip_2nd_cousins = ndegree < 4
+
+    graph = PedigreeGraph(pedigree_df)
+    pairs = graph.extract_pairs(seed=0, skip_2nd_cousins=skip_2nd_cousins)
+
+    # Collect all (row, col, kinship) triplets
+    all_rows: list[np.ndarray] = []
+    all_cols: list[np.ndarray] = []
+    all_vals: list[np.ndarray] = []
+
+    for pair_type, (idx1, idx2) in pairs.items():
+        kin_coeff = PAIR_KINSHIP.get(pair_type)
+        if kin_coeff is None or kin_coeff < kin_threshold:
+            continue
+        k = len(idx1)
+        if k == 0:
+            continue
+        vals = np.full(k, kin_coeff)
+        # Add both directions for symmetry
+        all_rows.append(idx1)
+        all_cols.append(idx2)
+        all_vals.append(vals)
+        all_rows.append(idx2)
+        all_cols.append(idx1)
+        all_vals.append(vals)
+
+    # Self-kinship = 0.5 on diagonal
+    diag_idx = np.arange(n, dtype=np.int32)
+    all_rows.append(diag_idx)
+    all_cols.append(diag_idx)
+    all_vals.append(np.full(n, 0.5))
+
+    rows = np.concatenate(all_rows)
+    cols = np.concatenate(all_cols)
+    vals = np.concatenate(all_vals)
+
+    # Deduplicate: some individuals appear in multiple pair types
+    # (e.g., both avuncular and parent-offspring through different paths).
+    # COO sums duplicates; we want the maximum kinship per pair.
+    kmat = sp.coo_matrix((vals, (rows, cols)), shape=(n, n))
+    kmat = kmat.tocsr()
+    # CSR sums duplicates too; fix by capping off-diagonal at 0.5
+    kmat.data = np.minimum(kmat.data, 0.5)
+    kmat = kmat.tocsc()
+
+    elapsed = time.perf_counter() - t0
+    nnz = kmat.nnz
+    csc_mb = (kmat.data.nbytes + kmat.indices.nbytes + kmat.indptr.nbytes) / 1e6
+    logger.info(
+        "Kinship (pair-based): %d individuals, %d nnz, %.2fs, CSC=%.0f MB",
+        n,
+        nnz,
+        elapsed,
+        csc_mb,
+    )
+    return kmat
 
 
 # ---------------------------------------------------------------------------
@@ -559,54 +1003,78 @@ def score_probands(
 
     kin_threshold = 0.5 ** (ndegree + 1) - 1e-6
 
-    est_arr = np.zeros(n_pheno)
-    var_arr = np.full(n_pheno, h2)
-    n_relatives_arr = np.zeros(n_pheno, dtype=np.int32)
-
+    # Prepare ragged relative arrays for numba batch kernel (two-pass)
+    t_prep = time.perf_counter()
+    rel_counts = np.zeros(n_pheno, dtype=np.int32)
     for i in range(n_pheno):
         pi = pheno_ped_idx[i]
         if pi < 0:
             continue
-
-        # Extract column directly from CSC internals (zero-copy)
         start, end = kmat.indptr[pi], kmat.indptr[pi + 1]
-        rel_ped_indices = kmat.indices[start:end]
-        rel_kinships = kmat.data[start:end]
+        ri = kmat.indices[start:end]
+        rk = kmat.data[start:end]
+        mask = (ri != pi) & (rk >= kin_threshold) & pheno_lookup_valid[ri]
+        rel_counts[i] = int(mask.sum())
 
-        # Filter: not self, above kinship threshold, has phenotype data
-        mask = (rel_ped_indices != pi) & (rel_kinships >= kin_threshold) & pheno_lookup_valid[rel_ped_indices]
-        rel_idx = rel_ped_indices[mask]
-        rel_kin = rel_kinships[mask]
+    rel_starts = np.zeros(n_pheno + 1, dtype=np.int32)
+    np.cumsum(rel_counts, out=rel_starts[1:])
+    total_rels = int(rel_starts[-1])
 
-        n_rel = len(rel_idx)
-        if n_rel == 0:
-            est_arr[i] = 0.0
-            var_arr[i] = h2
+    rel_flat_idx = np.empty(total_rels, dtype=np.int32)
+    rel_flat_kin = np.empty(total_rels, dtype=np.float64)
+    for i in range(n_pheno):
+        if rel_counts[i] == 0:
             continue
+        pi = pheno_ped_idx[i]
+        start, end = kmat.indptr[pi], kmat.indptr[pi + 1]
+        ri = kmat.indices[start:end]
+        rk = kmat.data[start:end]
+        mask = (ri != pi) & (rk >= kin_threshold) & pheno_lookup_valid[ri]
+        s = rel_starts[i]
+        e = rel_starts[i + 1]
+        rel_flat_idx[s:e] = ri[mask]
+        rel_flat_kin[s:e] = rk[mask]
 
-        n_relatives_arr[i] = n_rel
+    prep_elapsed = time.perf_counter() - t_prep
+    n_scored = int((rel_counts > 0).sum())
+    avg_rel = float(rel_counts[rel_counts > 0].mean()) if n_scored > 0 else 0
+    logger.info(
+        "  Data prep: %.2fs, %d scored, avg %.0f relatives, %d total rels", prep_elapsed, n_scored, avg_rel, total_rels
+    )
 
-        # Build covariance matrix via batch sparse submatrix extraction
-        # Row/col 0 = proband genetic liability (variance h2)
-        # Rows/cols 1+ = relatives' total liability (variance 1)
-        sub_kin = kmat[np.ix_(rel_idx, rel_idx)].toarray()
-        covmat = np.zeros((1 + n_rel, 1 + n_rel))
-        covmat[0, 0] = h2
-        covmat[0, 1:] = 2.0 * rel_kin * h2
-        covmat[1:, 0] = covmat[0, 1:]
-        covmat[1:, 1:] = 2.0 * sub_kin * h2
-        np.fill_diagonal(covmat[1:, 1:], 1.0)
+    # Run numba batch kernel
+    est_arr = np.zeros(n_pheno)
+    var_arr = np.full(n_pheno, h2)
+    n_relatives_arr = rel_counts.copy()
 
-        rel_aff = pheno_lookup_aff[rel_idx]
-        rel_thr = pheno_lookup_thr[rel_idx]
-        rel_w_vals = pheno_lookup_w[rel_idx]
-
-        est, var = pa_fgrs(rel_aff, rel_thr, rel_w_vals, covmat)
-        est_arr[i] = est
-        var_arr[i] = var
+    t_kernel = time.perf_counter()
+    _nb_score_batch(
+        n_pheno,
+        rel_starts,
+        rel_flat_idx,
+        rel_flat_kin,
+        pheno_lookup_aff,
+        pheno_lookup_thr,
+        pheno_lookup_w,
+        kmat.indptr,
+        kmat.indices,
+        kmat.data,
+        h2,
+        est_arr,
+        var_arr,
+        n_relatives_arr,
+    )
+    kernel_elapsed = time.perf_counter() - t_kernel
 
     elapsed = time.perf_counter() - t0
-    logger.info("PA-FGRS scoring complete: %.1fs (%.1f ms/proband)", elapsed, 1000 * elapsed / max(n_pheno, 1))
+    logger.info(
+        "PA-FGRS scoring: %.2fs total (prep=%.2fs, kernel=%.2fs) %d scored, avg %.0f relatives",
+        elapsed,
+        prep_elapsed,
+        kernel_elapsed,
+        n_scored,
+        avg_rel,
+    )
 
     return pd.DataFrame(
         {

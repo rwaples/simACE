@@ -7,10 +7,15 @@ from scipy.stats import norm, truncnorm
 
 from sim_ace.pafgrs import (
     _compute_depth,
-    _trunc_norm,
-    _trunc_norm_above,
-    _trunc_norm_below,
-    _trunc_norm_mixture,
+    _nb_trunc_norm,
+    _nb_trunc_norm_above,
+    _nb_trunc_norm_below,
+    _nb_trunc_norm_mixture,
+    _trunc_norm_above_py,
+    _trunc_norm_below_py,
+    _trunc_norm_mixture_py,
+    _trunc_norm_py,
+    build_kinship_from_pairs,
     build_sparse_kinship,
     compute_empirical_cip,
     compute_thresholds_and_w,
@@ -18,6 +23,12 @@ from sim_ace.pafgrs import (
     pa_fgrs,
     pa_fgrs_adt,
 )
+
+# Alias old names for existing tests → Python fallback
+_trunc_norm_below = _trunc_norm_below_py
+_trunc_norm_above = _trunc_norm_above_py
+_trunc_norm = _trunc_norm_py
+_trunc_norm_mixture = _trunc_norm_mixture_py
 
 
 # ---------------------------------------------------------------------------
@@ -206,10 +217,12 @@ class TestPaFgrs:
         """One affected first-degree relative → positive estimated liability."""
         h2 = 0.5
         kinship = 0.25  # parent-offspring
-        covmat = np.array([
-            [h2, 2 * kinship * h2],
-            [2 * kinship * h2, 1.0],
-        ])
+        covmat = np.array(
+            [
+                [h2, 2 * kinship * h2],
+                [2 * kinship * h2, 1.0],
+            ]
+        )
         thr = norm.ppf(0.9)  # 10% prevalence
         est, var = pa_fgrs(
             rel_status=np.array([True]),
@@ -224,12 +237,14 @@ class TestPaFgrs:
         """One unaffected first-degree relative (fully observed) → negative shift."""
         h2 = 0.5
         kinship = 0.25
-        covmat = np.array([
-            [h2, 2 * kinship * h2],
-            [2 * kinship * h2, 1.0],
-        ])
+        covmat = np.array(
+            [
+                [h2, 2 * kinship * h2],
+                [2 * kinship * h2, 1.0],
+            ]
+        )
         thr = norm.ppf(0.9)
-        est, var = pa_fgrs(
+        est, _var = pa_fgrs(
             rel_status=np.array([False]),
             rel_thr=np.array([thr]),
             rel_w=np.array([1.0]),
@@ -243,22 +258,32 @@ class TestPaFgrs:
         thr = norm.ppf(0.9)
 
         # One parent
-        covmat1 = np.array([
-            [h2, 0.25],
-            [0.25, 1.0],
-        ])
+        covmat1 = np.array(
+            [
+                [h2, 0.25],
+                [0.25, 1.0],
+            ]
+        )
         _, var1 = pa_fgrs(
-            np.array([True]), np.array([thr]), np.array([1.0]), covmat1,
+            np.array([True]),
+            np.array([thr]),
+            np.array([1.0]),
+            covmat1,
         )
 
         # Two parents
-        covmat2 = np.array([
-            [h2, 0.25, 0.25],
-            [0.25, 1.0, 0.0],
-            [0.25, 0.0, 1.0],
-        ])
+        covmat2 = np.array(
+            [
+                [h2, 0.25, 0.25],
+                [0.25, 1.0, 0.0],
+                [0.25, 0.0, 1.0],
+            ]
+        )
         _, var2 = pa_fgrs(
-            np.array([True, True]), np.array([thr, thr]), np.array([1.0, 1.0]), covmat2,
+            np.array([True, True]),
+            np.array([thr, thr]),
+            np.array([1.0, 1.0]),
+            covmat2,
         )
         assert var2 < var1, "Two relatives should give lower variance"
 
@@ -268,7 +293,9 @@ class TestPaFgrs:
         covmat = np.array([[h2, 0.25], [0.25, 1.0]])
         thr = norm.ppf(0.9)
         est, var = pa_fgrs_adt(
-            np.array([True]), np.array([thr]), covmat,
+            np.array([True]),
+            np.array([thr]),
+            covmat,
         )
         assert est > 0
         assert 0 < var < h2
@@ -284,11 +311,14 @@ class TestPaFgrs:
         cov_val = 0.25
         covmat = np.array([[h2, cov_val], [cov_val, 1.0]])
         # Continuous: pass value as both t1 and t2 (point mass)
-        from sim_ace.pafgrs import _pa_fgrs_core
+        from sim_ace.pafgrs import _pa_fgrs_core_py as _pa_fgrs_core
 
         x = 1.5
         est, var = _pa_fgrs_core(
-            np.array([x]), np.array([x]), np.array([1.0]), covmat,
+            np.array([x]),
+            np.array([x]),
+            np.array([1.0]),
+            covmat,
         )
         assert est == pytest.approx(cov_val * x, abs=1e-10)
         assert var == pytest.approx(h2 - cov_val**2, abs=1e-10)
@@ -304,11 +334,13 @@ class TestEmpiricalCip:
         """CIP should be non-decreasing and bounded by [0, prevalence]."""
         rng = np.random.default_rng(42)
         n = 1000
-        df = pd.DataFrame({
-            "affected1": rng.random(n) < 0.1,
-            "t_observed1": rng.uniform(0, 80, n),
-        })
-        ages, cip, prev = compute_empirical_cip(df, trait_num=1)
+        df = pd.DataFrame(
+            {
+                "affected1": rng.random(n) < 0.1,
+                "t_observed1": rng.uniform(0, 80, n),
+            }
+        )
+        _ages, cip, prev = compute_empirical_cip(df, trait_num=1)
         assert np.all(np.diff(cip) >= -1e-10), "CIP should be non-decreasing"
         assert 0.05 < prev < 0.15
         assert cip[-1] == pytest.approx(prev, abs=0.02)
@@ -316,7 +348,7 @@ class TestEmpiricalCip:
 
 class TestTrueCipWeibull:
     def test_monotone_increasing(self):
-        ages, cip = compute_true_cip_weibull(scale=2160, rho=0.8, beta=1.0)
+        _ages, cip = compute_true_cip_weibull(scale=2160, rho=0.8, beta=1.0)
         assert cip[0] == pytest.approx(0.0, abs=1e-6)
         assert np.all(np.diff(cip) >= -1e-10)
 
@@ -338,7 +370,7 @@ class TestThresholdsAndW:
         t_obs = np.array([30.0, 60.0, 50.0])
         cip_ages = np.array([0.0, 40.0, 80.0])
         cip_values = np.array([0.0, 0.05, 0.10])
-        thr, w = compute_thresholds_and_w(affected, t_obs, cip_ages, cip_values, 0.10)
+        _thr, w = compute_thresholds_and_w(affected, t_obs, cip_ages, cip_values, 0.10)
         assert w[0] == 1.0
         assert w[2] == 1.0
         assert 0.0 < w[1] < 1.0
@@ -346,8 +378,128 @@ class TestThresholdsAndW:
     def test_threshold_matches_prevalence(self):
         K = 0.10
         thr, _ = compute_thresholds_and_w(
-            np.array([False]), np.array([80.0]),
-            np.array([0.0, 80.0]), np.array([0.0, 0.10]), K,
+            np.array([False]),
+            np.array([80.0]),
+            np.array([0.0, 80.0]),
+            np.array([0.0, 0.10]),
+            K,
         )
         expected = norm.ppf(1 - K)
         assert thr[0] == pytest.approx(expected)
+
+
+# ---------------------------------------------------------------------------
+# Numba vs Python agreement tests
+# ---------------------------------------------------------------------------
+
+
+class TestNumbaAgreement:
+    """Verify numba-compiled functions match Python fallbacks."""
+
+    @pytest.mark.parametrize(
+        ("mu", "var", "trunc"),
+        [
+            (0.0, 1.0, 1.0),
+            (0.0, 1.0, -1.0),
+            (0.0, 1.0, 0.0),
+            (2.0, 0.5, 1.5),
+            (-1.0, 2.0, 0.5),
+            (0.0, 1.0, -5.0),
+        ],
+    )
+    def test_trunc_norm_below(self, mu, var, trunc):
+        py_m, py_v = _trunc_norm_below_py(mu, var, trunc)
+        nb_m, nb_v = _nb_trunc_norm_below(mu, var, trunc)
+        assert nb_m == pytest.approx(py_m, abs=1e-12)
+        assert nb_v == pytest.approx(py_v, abs=1e-12)
+
+    @pytest.mark.parametrize(
+        ("mu", "var", "trunc"),
+        [
+            (0.0, 1.0, -0.5),
+            (0.0, 1.0, 1.0),
+            (0.0, 1.0, 0.0),
+            (2.0, 0.5, 1.5),
+            (-1.0, 2.0, 0.5),
+            (0.0, 1.0, 5.0),
+        ],
+    )
+    def test_trunc_norm_above(self, mu, var, trunc):
+        py_m, py_v = _trunc_norm_above_py(mu, var, trunc)
+        nb_m, nb_v = _nb_trunc_norm_above(mu, var, trunc)
+        assert nb_m == pytest.approx(py_m, abs=1e-12)
+        assert nb_v == pytest.approx(py_v, abs=1e-12)
+
+    @pytest.mark.parametrize(
+        ("mu", "var", "lower", "upper"),
+        [
+            (0.0, 1.0, -np.inf, 1.0),
+            (0.0, 1.0, 0.5, np.inf),
+            (0.0, 1.0, -1.0, 1.0),
+            (0.0, 1.0, 2.0, 2.0),
+        ],
+    )
+    def test_trunc_norm(self, mu, var, lower, upper):
+        py_m, py_v = _trunc_norm_py(mu, var, lower, upper)
+        nb_m, nb_v = _nb_trunc_norm(mu, var, lower, upper)
+        assert nb_m == pytest.approx(py_m, abs=1e-12)
+        assert nb_v == pytest.approx(py_v, abs=1e-12)
+
+    @pytest.mark.parametrize("kp", [0.0, 0.05, 0.1])
+    def test_trunc_norm_mixture(self, kp):
+        thr = norm.ppf(0.9)
+        py_m, py_v = _trunc_norm_mixture_py(0.0, 1.0, -np.inf, thr, kp)
+        nb_m, nb_v = _nb_trunc_norm_mixture(0.0, 1.0, -np.inf, thr, kp)
+        assert nb_m == pytest.approx(py_m, abs=1e-12)
+        assert nb_v == pytest.approx(py_v, abs=1e-12)
+
+
+class TestPairBasedKinship:
+    """Verify pair-based kinship matches DP for known pair types."""
+
+    def test_parent_offspring(self):
+        ids, mothers, fathers, twins = _make_simple_pedigree()
+        df = pd.DataFrame(
+            {
+                "id": ids,
+                "mother": mothers,
+                "father": fathers,
+                "twin": twins,
+                "sex": [0, 1, 0, 1, 0, 1],
+                "generation": [0, 0, 1, 1, 2, 2],
+            }
+        )
+        kmat = build_kinship_from_pairs(df, ndegree=2)
+        assert kmat[0, 2] == pytest.approx(0.25)  # mom → child
+        assert kmat[1, 2] == pytest.approx(0.25)  # dad → child
+
+    def test_full_siblings(self):
+        ids, mothers, fathers, twins = _make_simple_pedigree()
+        df = pd.DataFrame(
+            {
+                "id": ids,
+                "mother": mothers,
+                "father": fathers,
+                "twin": twins,
+                "sex": [0, 1, 0, 1, 0, 1],
+                "generation": [0, 0, 1, 1, 2, 2],
+            }
+        )
+        kmat = build_kinship_from_pairs(df, ndegree=2)
+        assert kmat[2, 3] == pytest.approx(0.25)
+
+    def test_self_kinship(self):
+        ids, mothers, fathers, twins = _make_simple_pedigree()
+        df = pd.DataFrame(
+            {
+                "id": ids,
+                "mother": mothers,
+                "father": fathers,
+                "twin": twins,
+                "sex": [0, 1, 0, 1, 0, 1],
+                "generation": [0, 0, 1, 1, 2, 2],
+            }
+        )
+        kmat = build_kinship_from_pairs(df, ndegree=2)
+        for i in range(len(ids)):
+            assert kmat[i, i] == pytest.approx(0.5)
