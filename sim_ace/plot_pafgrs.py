@@ -1,0 +1,228 @@
+"""PA-FGRS diagnostic atlas: scatter, metrics, distributions, calibration."""
+
+from __future__ import annotations
+
+import logging
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from matplotlib.backends.backend_pdf import PdfPages
+
+logger = logging.getLogger(__name__)
+
+TRAITS = ["trait1", "trait2"]
+CIP_SOURCES = ["empirical", "true"]
+H2_SOURCES = ["true", "estimated"]
+
+
+def _load_variant_data(base_dir: str) -> dict[str, pd.DataFrame]:
+    """Load all score parquets keyed by variant tag."""
+    data = {}
+    for t in TRAITS:
+        for c in CIP_SOURCES:
+            for h in H2_SOURCES:
+                tag = f"{t}_{c}_{h}"
+                path = Path(base_dir) / f"scores_{tag}.parquet"
+                if path.exists():
+                    data[tag] = pd.read_parquet(path)
+    return data
+
+
+def _load_metrics(base_dir: str) -> pd.DataFrame:
+    """Load and combine all metrics TSVs."""
+    dfs = []
+    for t in TRAITS:
+        for c in CIP_SOURCES:
+            for h in H2_SOURCES:
+                path = Path(base_dir) / f"metrics_{t}_{c}_{h}.tsv"
+                if path.exists():
+                    dfs.append(pd.read_csv(path, sep="\t"))
+    return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+
+
+def _page_scatter(pdf: PdfPages, data: dict[str, pd.DataFrame], trait: str) -> None:
+    """Scatter: est vs true_A for each (cip, h2) combo, colored by affected."""
+    variants = [(c, h) for c in CIP_SOURCES for h in H2_SOURCES]
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig.suptitle(f"PA-FGRS est vs true A — {trait}", fontsize=14)
+
+    for ax, (cip, h2src) in zip(axes.flat, variants, strict=False):
+        tag = f"{trait}_{cip}_{h2src}"
+        if tag not in data:
+            ax.set_visible(False)
+            continue
+        df = data[tag]
+        aff = df["affected"].values.astype(bool)
+        ax.scatter(df["true_A"][~aff], df["est"][~aff], s=1, alpha=0.2, c="steelblue", label="Control")
+        ax.scatter(df["true_A"][aff], df["est"][aff], s=1, alpha=0.4, c="firebrick", label="Case")
+        r = np.corrcoef(df["est"], df["true_A"])[0, 1] if len(df) > 2 else 0
+        ax.set_title(f"CIP={cip}, h2={h2src}  (r={r:.3f})", fontsize=10)
+        ax.set_xlabel("True A")
+        ax.set_ylabel("PA-FGRS est")
+        lo = min(df["true_A"].min(), df["est"].min())
+        hi = max(df["true_A"].max(), df["est"].max())
+        ax.plot([lo, hi], [lo, hi], "k--", lw=0.5, alpha=0.3)
+        ax.legend(markerscale=5, fontsize=8)
+
+    fig.tight_layout()
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def _page_metrics_bars(pdf: PdfPages, metrics_df: pd.DataFrame, trait: str) -> None:
+    """Bar charts of r, R², AUC, bias across parameter combos."""
+    sub = metrics_df[metrics_df["trait"] == trait]
+    if sub.empty:
+        return
+
+    metric_names = ["r", "r2", "auc", "bias"]
+    fig, axes = plt.subplots(1, 4, figsize=(14, 4))
+    fig.suptitle(f"PA-FGRS Metrics — {trait}", fontsize=14)
+
+    for ax, metric in zip(axes, metric_names, strict=False):
+        vals = sub[sub["metric"] == metric]
+        if vals.empty:
+            ax.set_visible(False)
+            continue
+        labels = [f"{row['cip_source']}\n{row['h2_source']}" for _, row in vals.iterrows()]
+        colors = ["#4c72b0" if "true" in lab else "#dd8452" for lab in labels]
+        bars = ax.bar(range(len(vals)), vals["value"].values, color=colors)
+        ax.set_xticks(range(len(vals)))
+        ax.set_xticklabels(labels, fontsize=7)
+        ax.set_title(metric, fontsize=11)
+        for bar, v in zip(bars, vals["value"].values, strict=False):
+            ax.text(
+                bar.get_x() + bar.get_width() / 2, bar.get_height(), f"{v:.3f}", ha="center", va="bottom", fontsize=7
+            )
+
+    fig.tight_layout()
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def _page_score_distributions(pdf: PdfPages, data: dict[str, pd.DataFrame], trait: str) -> None:
+    """Histogram of est for cases vs controls, per variant."""
+    from scipy.stats import ks_2samp
+
+    variants = [(c, h) for c in CIP_SOURCES for h in H2_SOURCES]
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig.suptitle(f"PA-FGRS Score Distributions — {trait}", fontsize=14)
+
+    for ax, (cip, h2src) in zip(axes.flat, variants, strict=False):
+        tag = f"{trait}_{cip}_{h2src}"
+        if tag not in data:
+            ax.set_visible(False)
+            continue
+        df = data[tag]
+        aff = df["affected"].values.astype(bool)
+        bins = np.linspace(df["est"].quantile(0.01), df["est"].quantile(0.99), 50)
+        ax.hist(df["est"][~aff], bins=bins, alpha=0.6, density=True, label="Control", color="steelblue")
+        ax.hist(df["est"][aff], bins=bins, alpha=0.6, density=True, label="Case", color="firebrick")
+        ks, _pval = ks_2samp(df["est"][aff], df["est"][~aff]) if aff.sum() > 1 else (0, 1)
+        ax.set_title(f"CIP={cip}, h2={h2src}  (KS={ks:.3f})", fontsize=10)
+        ax.set_xlabel("PA-FGRS est")
+        ax.legend(fontsize=8)
+
+    fig.tight_layout()
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def _page_calibration(pdf: PdfPages, data: dict[str, pd.DataFrame], trait: str) -> None:
+    """Variance calibration: reported var vs actual (est - true_A)² binned."""
+    variants = [(c, h) for c in CIP_SOURCES for h in H2_SOURCES]
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig.suptitle(f"Variance Calibration — {trait}", fontsize=14)
+
+    for ax, (cip, h2src) in zip(axes.flat, variants, strict=False):
+        tag = f"{trait}_{cip}_{h2src}"
+        if tag not in data:
+            ax.set_visible(False)
+            continue
+        df = data[tag]
+        error_sq = (df["est"] - df["true_A"]) ** 2
+        reported_var = df["var"]
+        # Bin by reported variance
+        n_bins = 10
+        bin_edges = np.linspace(reported_var.min(), reported_var.max(), n_bins + 1)
+        bin_centers, bin_means = [], []
+        for b in range(n_bins):
+            mask = (reported_var >= bin_edges[b]) & (reported_var < bin_edges[b + 1])
+            if mask.sum() > 5:
+                bin_centers.append((bin_edges[b] + bin_edges[b + 1]) / 2)
+                bin_means.append(error_sq[mask].mean())
+        if bin_centers:
+            ax.scatter(bin_centers, bin_means, c="steelblue", s=20)
+        lo = 0
+        hi = max(max(bin_centers, default=0), max(bin_means, default=0)) * 1.1
+        if hi > lo:
+            ax.plot([lo, hi], [lo, hi], "k--", lw=0.5, alpha=0.5, label="Perfect calibration")
+        ax.set_title(f"CIP={cip}, h2={h2src}", fontsize=10)
+        ax.set_xlabel("Reported Var")
+        ax.set_ylabel("Actual MSE")
+        ax.legend(fontsize=8)
+
+    fig.tight_layout()
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def _page_generation_breakdown(pdf: PdfPages, data: dict[str, pd.DataFrame], trait: str) -> None:
+    """r(est, true_A) broken down by generation."""
+    # Use true CIP + true h2 variant as the representative
+    tag = f"{trait}_true_true"
+    if tag not in data:
+        tag = f"{trait}_empirical_true"
+    if tag not in data:
+        return
+
+    df = data[tag]
+    gens = sorted(df["generation"].unique())
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+    r_vals = []
+    for g in gens:
+        sub = df[df["generation"] == g]
+        if len(sub) > 5 and sub["est"].std() > 1e-10:
+            r = np.corrcoef(sub["est"], sub["true_A"])[0, 1]
+        else:
+            r = 0.0
+        r_vals.append(r)
+
+    ax.bar(range(len(gens)), r_vals, color="steelblue")
+    ax.set_xticks(range(len(gens)))
+    ax.set_xticklabels([f"Gen {g}" for g in gens])
+    ax.set_ylabel("r(est, true A)")
+    ax.set_title(f"PA-FGRS accuracy by generation — {trait} (CIP=true, h2=true)")
+    for i, v in enumerate(r_vals):
+        ax.text(i, v + 0.01, f"{v:.3f}", ha="center", fontsize=9)
+
+    fig.tight_layout()
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def generate_atlas(base_dir: str, output_path: str) -> None:
+    """Generate the full PA-FGRS diagnostic atlas PDF."""
+    data = _load_variant_data(base_dir)
+    metrics_df = _load_metrics(base_dir)
+
+    if not data:
+        logger.warning("No PA-FGRS score files found in %s", base_dir)
+        return
+
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+    with PdfPages(output_path) as pdf:
+        for trait in TRAITS:
+            if not any(k.startswith(trait) for k in data):
+                continue
+            _page_scatter(pdf, data, trait)
+            _page_metrics_bars(pdf, metrics_df, trait)
+            _page_score_distributions(pdf, data, trait)
+            _page_calibration(pdf, data, trait)
+            _page_generation_breakdown(pdf, data, trait)
+
+    logger.info("Wrote PA-FGRS atlas: %s (%d pages)", output_path, 5 * len(TRAITS))
