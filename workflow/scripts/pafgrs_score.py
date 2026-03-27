@@ -19,7 +19,7 @@ def _run_snakemake():
         compute_true_cip_weibull,
         score_probands,
     )
-    from sim_ace.pafgrs_metrics import compute_pafgrs_metrics, write_metrics_tsv
+    from sim_ace.pafgrs_metrics import compute_pafgrs_metrics
     from sim_ace.utils import save_parquet
 
     logger = logging.getLogger(__name__)
@@ -36,6 +36,11 @@ def _run_snakemake():
     # Build kinship once for all variants (pair-based: fast, low memory)
     kmat = build_kinship_from_pairs(pedigree_df, ndegree=ndegree)
 
+    # Shared columns (written once)
+    combined = pd.DataFrame({"id": phenotype_df["id"].values})
+    all_metrics: list[dict] = []
+    combined["generation"] = phenotype_df["generation"].values.astype(np.int32)
+
     for trait_num in p.trait_nums:
         trait_key = f"trait{trait_num}"
         h2_true = float(getattr(p, f"A{trait_num}"))
@@ -44,9 +49,14 @@ def _run_snakemake():
         model = getattr(p, f"phenotype_model{trait_num}")
         pheno_params = getattr(p, f"phenotype_params{trait_num}") or {}
 
+        combined[f"affected{trait_num}"] = phenotype_df[f"affected{trait_num}"].values
+        combined[f"true_A{trait_num}"] = phenotype_df[f"A{trait_num}"].values.astype(np.float32)
+
         cip_tables = {}
         cip_ages_emp, cip_vals_emp, prev_emp = compute_empirical_cip(
-            phenotype_df, trait_num, max_age=censor_age,
+            phenotype_df,
+            trait_num,
+            max_age=censor_age,
         )
         cip_tables["empirical"] = (cip_ages_emp, cip_vals_emp, prev_emp)
 
@@ -64,8 +74,11 @@ def _run_snakemake():
 
         try:
             falconer = compute_ltm_falconer(
-                phenotype_df, kinds=["FS"], trait_num=trait_num,
-                seed=int(p.seed), pedigree=pedigree_df,
+                phenotype_df,
+                kinds=["FS"],
+                trait_num=trait_num,
+                seed=int(p.seed),
+                pedigree=pedigree_df,
             )
             h2_estimated = falconer.get("FS", {}).get("h2_falconer")
             if h2_estimated is None or np.isnan(h2_estimated):
@@ -99,16 +112,21 @@ def _run_snakemake():
                     kmat=kmat,
                 )
 
-                scores_path = f"{base_dir}/scores_{tag}.parquet"
-                save_parquet(scores, scores_path)
-                logger.info("Wrote %s", scores_path)
+                combined[f"est_{tag}"] = scores["est"].values.astype(np.float32)
+                combined[f"var_{tag}"] = scores["var"].values.astype(np.float32)
+                combined[f"nrel_{tag}"] = scores["n_relatives"].values.astype(np.int16)
 
                 metrics = compute_pafgrs_metrics(scores)
-                metrics_path = f"{base_dir}/metrics_{tag}.tsv"
-                write_metrics_tsv(
-                    metrics, metrics_path,
-                    trait=trait_key, cip_source=cip_source, h2_source=h2_source,
-                )
+                all_metrics.append({**metrics, "trait": trait_key, "cip_source": cip_source, "h2_source": h2_source})
+
+    scores_path = f"{base_dir}/scores.parquet"
+    save_parquet(combined, scores_path)
+    logger.info("Wrote combined scores: %s (%d rows, %d cols)", scores_path, len(combined), len(combined.columns))
+
+    metrics_path = f"{base_dir}/metrics.tsv"
+    metrics_df = pd.DataFrame(all_metrics)
+    metrics_df.to_csv(metrics_path, sep="\t", index=False)
+    logger.info("Wrote combined metrics: %s (%d rows)", metrics_path, len(metrics_df))
 
 
 try:

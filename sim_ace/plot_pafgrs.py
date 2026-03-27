@@ -20,28 +20,45 @@ MAX_SCATTER_POINTS = 100_000
 
 
 def _load_variant_data(base_dir: str) -> dict[str, pd.DataFrame]:
-    """Load all score parquets keyed by variant tag."""
+    """Load score data keyed by variant tag.
+
+    Reads ``scores.parquet`` (wide format) and unpacks each variant
+    into a DataFrame with columns: id, est, var, true_A, affected,
+    generation, n_relatives.
+    """
+    combined = pd.read_parquet(Path(base_dir) / "scores.parquet")
     data = {}
     for t in TRAITS:
+        trait_num = t[-1]  # "1" or "2"
         for c in CIP_SOURCES:
             for h in H2_SOURCES:
                 tag = f"{t}_{c}_{h}"
-                path = Path(base_dir) / f"scores_{tag}.parquet"
-                if path.exists():
-                    data[tag] = pd.read_parquet(path)
+                est_col = f"est_{tag}"
+                if est_col not in combined.columns:
+                    continue
+                data[tag] = pd.DataFrame(
+                    {
+                        "id": combined["id"],
+                        "est": combined[est_col],
+                        "var": combined[f"var_{tag}"],
+                        "true_A": combined[f"true_A{trait_num}"],
+                        "affected": combined[f"affected{trait_num}"],
+                        "generation": combined["generation"],
+                        "n_relatives": combined[f"nrel_{tag}"],
+                    }
+                )
     return data
 
 
 def _load_metrics(base_dir: str) -> pd.DataFrame:
-    """Load and combine all metrics TSVs."""
-    dfs = []
-    for t in TRAITS:
-        for c in CIP_SOURCES:
-            for h in H2_SOURCES:
-                path = Path(base_dir) / f"metrics_{t}_{c}_{h}.tsv"
-                if path.exists():
-                    dfs.append(pd.read_csv(path, sep="\t"))
-    return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+    """Load ``metrics.tsv`` (wide) and melt to long format.
+
+    Returns DataFrame with columns: trait, cip_source, h2_source, metric, value.
+    """
+    wide = pd.read_csv(Path(base_dir) / "metrics.tsv", sep="\t")
+    id_cols = ["trait", "cip_source", "h2_source"]
+    value_cols = [c for c in wide.columns if c not in id_cols]
+    return wide.melt(id_vars=id_cols, value_vars=value_cols, var_name="metric")
 
 
 def _subsample(df: pd.DataFrame, max_n: int = MAX_SCATTER_POINTS, seed: int = 42) -> tuple[pd.DataFrame, str]:
