@@ -7,7 +7,6 @@ import pytest
 from sim_ace.dropout import run_dropout
 from sim_ace.pedigree_graph import PedigreeGraph
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -99,7 +98,7 @@ class TestDropoutBasic:
     def test_dropped_individuals_absent(self, small_pedigree):
         """Correct count removed, remaining IDs are a subset."""
         result = run_dropout(small_pedigree, {"pedigree_dropout_rate": 0.3, "seed": 42})
-        n_expected = len(small_pedigree) - int(round(len(small_pedigree) * 0.3))
+        n_expected = len(small_pedigree) - round(len(small_pedigree) * 0.3)
         assert len(result) == n_expected
         assert set(result["id"].values).issubset(set(small_pedigree["id"].values))
 
@@ -109,7 +108,7 @@ class TestDropoutBasic:
         n = len(small_pedigree)
         result = run_dropout(small_pedigree, {"pedigree_dropout_rate": rate, "seed": 42})
         n_dropped = n - len(result)
-        assert n_dropped == int(round(n * rate))
+        assert n_dropped == round(n * rate)
 
     def test_parent_links_rewritten(self, small_pedigree):
         """No surviving row references a dropped ID as mother/father."""
@@ -198,7 +197,7 @@ class TestDropoutRelationships:
             }
         )
         pg = PedigreeGraph(df)
-        full_sib, mat_hs, pat_hs = pg._sibling_pairs()
+        full_sib, mat_hs, _pat_hs = pg._sibling_pairs()
 
         # Should NOT be full sibs (father unknown for both)
         assert len(full_sib[0]) == 0, "Should not be full sibs with unknown father"
@@ -220,7 +219,7 @@ class TestDropoutRelationships:
             }
         )
         pg = PedigreeGraph(df)
-        full_sib, mat_hs, pat_hs = pg._sibling_pairs()
+        _full_sib, mat_hs, _pat_hs = pg._sibling_pairs()
         assert len(mat_hs[0]) == 1, "Should detect half-sibs through surviving parent"
 
 
@@ -236,7 +235,7 @@ class TestDropoutStatistical:
         n = len(large_pedigree)
         result = run_dropout(large_pedigree, {"pedigree_dropout_rate": rate, "seed": 42})
         n_dropped = n - len(result)
-        assert n_dropped == int(round(n * rate))
+        assert n_dropped == round(n * rate)
 
     def test_no_dangling_parent_refs(self, large_pedigree):
         """All mother/father/twin values are either -1 or a surviving ID."""

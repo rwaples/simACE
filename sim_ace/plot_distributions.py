@@ -619,8 +619,8 @@ def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenar
         )
         mean_f = vals_f.mean(axis=0)
         mean_m = vals_m.mean(axis=0)
-        bars2f = ax.bar(x2 - w2 / 2, mean_f, w2, label="Female", color=COLOR_FEMALE, edgecolor="white")
-        bars2m = ax.bar(x2 + w2 / 2, mean_m, w2, label="Male", color=COLOR_MALE, edgecolor="white")
+        ax.bar(x2 - w2 / 2, mean_f, w2, label="Female", color=COLOR_FEMALE, edgecolor="white")
+        ax.bar(x2 + w2 / 2, mean_m, w2, label="Male", color=COLOR_MALE, edgecolor="white")
         # Annotate bars — merge label when F/M values are close
         for i in range(len(categories2)):
             fv, mv = mean_f[i], mean_m[i]

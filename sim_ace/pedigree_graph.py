@@ -267,8 +267,7 @@ class PedigreeGraph:
         remove_keys = r1.astype(np.int64) * max_id + r2.astype(np.int64)
         all_keys = a1.astype(np.int64) * max_id + a2.astype(np.int64)
 
-        remove_set = set(remove_keys.tolist())
-        keep = np.array([k not in remove_set for k in all_keys.tolist()], dtype=bool)
+        keep = ~np.isin(all_keys, remove_keys)
 
         return a1[keep].astype(np.intp), a2[keep].astype(np.intp)
 

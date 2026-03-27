@@ -19,9 +19,8 @@ import time
 import numpy as np
 import pandas as pd
 import yaml
-from scipy.special import ndtri
-from scipy.stats import rankdata
 
+from sim_ace._numba_utils import _ndtri_approx
 from sim_ace.utils import save_parquet
 
 try:
@@ -134,6 +133,67 @@ def balance_mating_slots(
     return _trim(male_counts, m_total, T), _trim(female_counts, f_total, T)
 
 
+def _find_duplicate_pairs(matings: np.ndarray) -> np.ndarray:
+    """Return boolean mask of duplicate (mother, father) pairs (keeps first occurrence).
+
+    Uses vectorized numpy sort instead of Python set iteration.
+    """
+    M = len(matings)
+    if M == 0:
+        return np.zeros(0, dtype=np.bool_)
+    max_id = max(int(matings[:, 0].max()), int(matings[:, 1].max())) + 1
+    keys = matings[:, 0].astype(np.int64) * max_id + matings[:, 1].astype(np.int64)
+    order = np.argsort(keys, kind="mergesort")
+    sorted_keys = keys[order]
+    is_dup_sorted = np.empty(M, dtype=np.bool_)
+    is_dup_sorted[0] = False
+    is_dup_sorted[1:] = sorted_keys[1:] == sorted_keys[:-1]
+    is_dup = np.empty(M, dtype=np.bool_)
+    is_dup[order] = is_dup_sorted
+    return is_dup
+
+
+def _fast_rank(arr: np.ndarray) -> np.ndarray:
+    """Rank values into (0, 1) via argsort. Suitable for continuous data (no ties)."""
+    M = len(arr)
+    order = np.argsort(arr)
+    rank = np.empty(M, dtype=np.float64)
+    rank[order] = np.arange(1, M + 1, dtype=np.float64)
+    return rank / (M + 1)
+
+
+def _quantile_normal_nb_python(arr):
+    """Convert array to quantile-normal scores using Numba-compatible ndtri."""
+    M = len(arr)
+    order = np.argsort(arr)
+    out = np.empty(M, dtype=np.float64)
+    for i in range(M):
+        p = float(i + 1) / (M + 1)
+        out[order[i]] = _ndtri_approx(p)
+    return out
+
+
+if njit is not None:
+    _quantile_normal_nb = njit(cache=True)(_quantile_normal_nb_python)
+else:
+    _quantile_normal_nb = _quantile_normal_nb_python
+
+
+def _midparent_python(pheno_col, parents):
+    """Compute midparent values without creating (N, 2) temporary."""
+    n = len(parents)
+    out = np.empty(n, dtype=np.float64)
+    for i in range(n):
+        out[i] = (pheno_col[parents[i, 0]] + pheno_col[parents[i, 1]]) * 0.5
+    return out
+
+
+if njit is not None:
+    _midparent = njit(cache=True)(_midparent_python)
+else:
+    _midparent = _midparent_python
+
+
 def pair_partners(
     rng: np.random.Generator,
     male_idxs: np.ndarray,
@@ -158,22 +218,15 @@ def pair_partners(
 
     # Deduplicate: swap conflicting entries (rare at low lambda)
     for _attempt in range(5):
-        seen = set()
-        dups = []
-        for i in range(len(matings)):
-            key = (matings[i, 0], matings[i, 1])
-            if key in seen:
-                dups.append(i)
-            else:
-                seen.add(key)
-        if not dups:
+        is_dup = _find_duplicate_pairs(matings)
+        if not is_dup.any():
             break
-        # Swap father between duplicate and a random non-duplicate
-        non_dups = np.setdiff1d(np.arange(len(matings)), dups)
-        if len(non_dups) == 0:
+        dup_idxs = np.where(is_dup)[0]
+        non_dup_idxs = np.where(~is_dup)[0]
+        if len(non_dup_idxs) == 0:
             break
-        for d in dups:
-            swap_with = rng.choice(non_dups)
+        for d in dup_idxs:
+            swap_with = rng.choice(non_dup_idxs)
             matings[d, 1], matings[swap_with, 1] = matings[swap_with, 1], matings[d, 1]
 
     return matings
@@ -205,13 +258,13 @@ def _metropolis_sweep_python(
             j = idx_j[k]
             tmp = m1_z[i]
             m1_z[i] = m1_z[j]
-            m1_z[j] = tmp  # noqa: E702
+            m1_z[j] = tmp
             tmp = m2_z[i]
             m2_z[i] = m2_z[j]
-            m2_z[j] = tmp  # noqa: E702
+            m2_z[j] = tmp
             tmp_p = male_perm[i]
             male_perm[i] = male_perm[j]
-            male_perm[j] = tmp_p  # noqa: E702
+            male_perm[j] = tmp_p
             S1 += dk1
             S2 += dk2
             S12 += dk12
@@ -223,6 +276,92 @@ if njit is not None:
     _metropolis_sweep = njit(cache=True)(_metropolis_sweep_python)
 else:
     _metropolis_sweep = _metropolis_sweep_python
+
+
+def _metropolis_full_python(
+    f1_z,
+    f2_z,
+    m1_z,
+    m2_z,
+    male_perm,
+    S1,
+    S2,
+    S12,
+    S21,
+    T1,
+    T2,
+    T12,
+    T21,
+    M,
+    tol,
+    max_proposals,
+    seed,
+):
+    """Full Metropolis loop with Fisher-Yates shuffle, no Python transitions."""
+    np.random.seed(seed)
+    indices = np.arange(M, dtype=np.int64)
+    proposals_done = 0
+
+    while proposals_done < max_proposals:
+        r1_err = abs(S1 / M - T1 / M)
+        r2_err = abs(S2 / M - T2 / M)
+        r12_err = abs(S12 / M - T12 / M)
+        r21_err = abs(S21 / M - T21 / M)
+        if max(r1_err, max(r2_err, max(r12_err, r21_err))) < tol:
+            break
+
+        batch = min(M // 2, max_proposals - proposals_done)
+        n_shuffle = min(2 * batch, M)
+
+        # Partial Fisher-Yates: shuffle first n_shuffle elements
+        for i in range(n_shuffle - 1, 0, -1):
+            j = np.random.randint(0, i + 1)
+            indices[i], indices[j] = indices[j], indices[i]
+
+        # Process proposals
+        for k in range(batch):
+            ii = indices[2 * k]
+            jj = indices[2 * k + 1]
+            df = f1_z[ii] - f1_z[jj]
+            df2 = f2_z[ii] - f2_z[jj]
+            dm1 = m1_z[jj] - m1_z[ii]
+            dm2 = m2_z[jj] - m2_z[ii]
+            dk1 = df * dm1
+            dk2 = df2 * dm2
+            dk12 = df * dm2
+            dk21 = df2 * dm1
+            ne1 = S1 + dk1 - T1
+            ne2 = S2 + dk2 - T2
+            ne12 = S12 + dk12 - T12
+            ne21 = S21 + dk21 - T21
+            oe1 = S1 - T1
+            oe2 = S2 - T2
+            oe12 = S12 - T12
+            oe21 = S21 - T21
+            if ne1 * ne1 + ne2 * ne2 + ne12 * ne12 + ne21 * ne21 < oe1 * oe1 + oe2 * oe2 + oe12 * oe12 + oe21 * oe21:
+                tmp = m1_z[ii]
+                m1_z[ii] = m1_z[jj]
+                m1_z[jj] = tmp
+                tmp = m2_z[ii]
+                m2_z[ii] = m2_z[jj]
+                m2_z[jj] = tmp
+                tmp_p = male_perm[ii]
+                male_perm[ii] = male_perm[jj]
+                male_perm[jj] = tmp_p
+                S1 += dk1
+                S2 += dk2
+                S12 += dk12
+                S21 += dk21
+
+        proposals_done += batch
+
+    return S1, S2, S12, S21, proposals_done
+
+
+if njit is not None:
+    _metropolis_full = njit(cache=True)(_metropolis_full_python)
+else:
+    _metropolis_full = _metropolis_full_python
 
 
 def _assortative_pair_partners(
@@ -286,16 +425,10 @@ def _assortative_pair_partners(
         c_target = R_mf[0, 1]
 
         # Phase 1: Conditional-expectation initialization
-        def _quantile_normal(arr):
-            order = np.argsort(arr)
-            rank = np.empty(M, dtype=np.float64)
-            rank[order] = np.arange(1, M + 1, dtype=np.float64)
-            return ndtri(rank / (M + 1))
-
-        qn_f1 = _quantile_normal(liab1_f)
-        qn_f2 = _quantile_normal(liab2_f)
-        qn_m1 = _quantile_normal(liab1_m)
-        qn_m2 = _quantile_normal(liab2_m)
+        qn_f1 = _quantile_normal_nb(liab1_f)
+        qn_f2 = _quantile_normal_nb(liab2_f)
+        qn_m1 = _quantile_normal_nb(liab1_m)
+        qn_m2 = _quantile_normal_nb(liab2_m)
 
         R_ff = np.array([[1.0, rho_w], [rho_w, 1.0]])
         B = R_mf @ np.linalg.inv(R_ff)
@@ -339,38 +472,29 @@ def _assortative_pair_partners(
 
         tol = 5e-4
         max_proposals = 8 * M
-        proposals_done = 0
+        metro_seed = int(rng.integers(2**63))
 
-        while proposals_done < max_proposals:
-            if max(abs(S1 / M - r1), abs(S2 / M - r2), abs(S12 / M - c_target), abs(S21 / M - c_target)) < tol:
-                break
+        S1, S2, S12, S21, proposals_done = _metropolis_full(
+            f1_z,
+            f2_z,
+            m1_z,
+            m2_z,
+            male_perm,
+            S1,
+            S2,
+            S12,
+            S21,
+            T1,
+            T2,
+            T12,
+            T21,
+            M,
+            tol,
+            max_proposals,
+            metro_seed,
+        )
 
-            perm = rng.permutation(M)
-            batch = min(M // 2, max_proposals - proposals_done)
-            idx_i = perm[0::2][:batch].astype(np.int64)
-            idx_j = perm[1::2][:batch].astype(np.int64)
-
-            S1, S2, S12, S21 = _metropolis_sweep(
-                f1_z,
-                f2_z,
-                m1_z,
-                m2_z,
-                male_perm,
-                idx_i,
-                idx_j,
-                S1,
-                S2,
-                S12,
-                S21,
-                T1,
-                T2,
-                T12,
-                T21,
-                batch,
-            )
-
-            proposals_done += batch
-        else:
+        if proposals_done >= max_proposals:
             logger.warning(
                 "Assortative mating Metropolis did not converge after %d proposals: "
                 "err1=%.4f, err2=%.4f, err12=%.4f, err21=%.4f",
@@ -385,10 +509,10 @@ def _assortative_pair_partners(
 
     else:
         # --- Single-trait: bivariate Gaussian copula ---
-        rank1_f = rankdata(liab1_f) / (M + 1)
-        rank2_f = rankdata(liab2_f) / (M + 1)
-        rank1_m = rankdata(liab1_m) / (M + 1)
-        rank2_m = rankdata(liab2_m) / (M + 1)
+        rank1_f = _fast_rank(liab1_f)
+        rank2_f = _fast_rank(liab2_f)
+        rank1_m = _fast_rank(liab1_m)
+        rank2_m = _fast_rank(liab2_m)
 
         if assort1 < 0:
             rank1_m = 1.0 - rank1_m
@@ -415,22 +539,16 @@ def _assortative_pair_partners(
 
     # Deduplicate: swap with female-proximity partner to preserve correlations
     for _attempt in range(5):
-        seen = set()
-        dups = []
-        for i in range(len(matings)):
-            key = (matings[i, 0], matings[i, 1])
-            if key in seen:
-                dups.append(i)
-            else:
-                seen.add(key)
-        if not dups:
+        is_dup = _find_duplicate_pairs(matings)
+        if not is_dup.any():
             break
-        non_dups = np.setdiff1d(np.arange(len(matings)), dups)
-        if len(non_dups) == 0:
+        dup_idxs = np.where(is_dup)[0]
+        non_dup_idxs = np.where(~is_dup)[0]
+        if len(non_dup_idxs) == 0:
             break
-        for d in dups:
-            cost = (liab1_f[d] - liab1_f[non_dups]) ** 2 + (liab2_f[d] - liab2_f[non_dups]) ** 2
-            swap_with = non_dups[np.argmin(cost)]
+        for d in dup_idxs:
+            cost = (liab1_f[d] - liab1_f[non_dup_idxs]) ** 2 + (liab2_f[d] - liab2_f[non_dup_idxs]) ** 2
+            swap_with = non_dup_idxs[np.argmin(cost)]
             matings[d, 1], matings[swap_with, 1] = matings[swap_with, 1], matings[d, 1]
 
     return matings
@@ -607,8 +725,8 @@ def reproduce(
     sex_offspring = rng.binomial(size=n, n=1, p=0.5)
 
     # Additive genetic: midparent + correlated Mendelian noise
-    mp1 = pheno[parents, 0].mean(axis=1)  # A1 midparent
-    mp2 = pheno[parents, 3].mean(axis=1)  # A2 midparent
+    mp1 = _midparent(pheno[:, 0], parents)  # A1 midparent
+    mp2 = _midparent(pheno[:, 3], parents)  # A2 midparent
 
     noise1, noise2 = generate_mendelian_noise(rng, n, sd_A1, sd_A2, rA)
     a1_offspring = mp1 + noise1
@@ -618,11 +736,11 @@ def reproduce(
     # C is NOT inherited from parents -- it reflects the offspring's own
     # shared rearing environment. Siblings share C; parents and children do not.
     # This is the standard ACE model assumption (no autoregressive C transmission).
-    unique_hh, hh_indices = np.unique(household_ids, return_inverse=True)
-    n_hh = len(unique_hh)
+    # household_ids are already 0-based contiguous integers from mating()
+    n_hh = int(household_ids.max()) + 1
     hh_c1, hh_c2 = generate_correlated_components(rng, n_hh, sd_C1, sd_C2, rC)
-    c1_offspring = hh_c1[hh_indices]
-    c2_offspring = hh_c2[hh_indices]
+    c1_offspring = hh_c1[household_ids]
+    c2_offspring = hh_c2[household_ids]
 
     # Unique environment: independent draws for each trait
     e1_offspring = rng.normal(size=n, loc=0, scale=sd_E1)
@@ -649,6 +767,90 @@ def reproduce(
     return offspring, sex_offspring
 
 
+_PED_COLUMNS = [
+    "id",
+    "sex",
+    "mother",
+    "father",
+    "twin",
+    "generation",
+    "household_id",
+    "A1",
+    "C1",
+    "E1",
+    "liability1",
+    "A2",
+    "C2",
+    "E2",
+    "liability2",
+]
+
+
+def _init_pedigree_arrays(total_rows: int) -> dict[str, np.ndarray]:
+    """Pre-allocate numpy arrays for the pedigree."""
+    int_cols = ["id", "sex", "mother", "father", "twin", "generation", "household_id"]
+    float_cols = ["A1", "C1", "E1", "liability1", "A2", "C2", "E2", "liability2"]
+    arrays: dict[str, np.ndarray] = {}
+    for col in int_cols:
+        arrays[col] = np.empty(total_rows, dtype=np.int64)
+    for col in float_cols:
+        arrays[col] = np.empty(total_rows, dtype=np.float64)
+    arrays["twin"][:] = -1
+    return arrays
+
+
+def _fill_pedigree_slice(
+    arrays: dict[str, np.ndarray],
+    offset: int,
+    pheno: np.ndarray,
+    sex: np.ndarray,
+    parents: np.ndarray,
+    twins: np.ndarray,
+    household_ids: np.ndarray,
+    generation: int,
+    is_founder: bool,
+    id_offset: int,
+    parent_offset: int,
+    household_offset: int,
+) -> None:
+    """Fill a slice of pre-allocated pedigree arrays for one generation."""
+    n = len(pheno)
+    s = slice(offset, offset + n)
+
+    arrays["id"][s] = np.arange(n) + id_offset
+    arrays["sex"][s] = sex
+    arrays["generation"][s] = generation
+    arrays["household_id"][s] = household_ids + household_offset
+
+    if is_founder:
+        arrays["mother"][s] = -1
+        arrays["father"][s] = -1
+    else:
+        arrays["mother"][s] = parents[:, 0] + parent_offset
+        arrays["father"][s] = parents[:, 1] + parent_offset
+
+    # Twin column
+    arrays["twin"][offset : offset + n] = -1
+    if len(twins) > 0:
+        arrays["twin"][offset + twins[:, 0]] = twins[:, 1] + id_offset
+        arrays["twin"][offset + twins[:, 1]] = twins[:, 0] + id_offset
+
+    # ACE components and liabilities
+    arrays["A1"][s] = pheno[:, 0]
+    arrays["C1"][s] = pheno[:, 1]
+    arrays["E1"][s] = pheno[:, 2]
+    arrays["liability1"][s] = pheno[:, 0] + pheno[:, 1] + pheno[:, 2]
+    arrays["A2"][s] = pheno[:, 3]
+    arrays["C2"][s] = pheno[:, 4]
+    arrays["E2"][s] = pheno[:, 5]
+    arrays["liability2"][s] = pheno[:, 3] + pheno[:, 4] + pheno[:, 5]
+
+
+def _arrays_to_dataframe(arrays: dict[str, np.ndarray], total_rows: int) -> pd.DataFrame:
+    """Convert pre-allocated arrays to a pedigree DataFrame."""
+    return pd.DataFrame({col: arrays[col][:total_rows] for col in _PED_COLUMNS})
+
+
 def add_to_pedigree(
     pheno: np.ndarray,
     sex: np.ndarray,
@@ -658,63 +860,36 @@ def add_to_pedigree(
     generation: int,
     pedigree: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Add a generation to the pedigree DataFrame.
+    """Add a generation to the pedigree DataFrame (backward-compatible wrapper).
 
-    Args:
-        pheno: (n, 6) array of [A1, C1, E1, A2, C2, E2]
-        sex: (n,) array of sex values
-        parents: (n, 2) array of [mother_idx, father_idx]
-        twins: array of MZ twin index pairs
-        household_ids: (n,) array mapping each offspring to a household index
-        generation: generation number (0 for founders)
-        pedigree: existing pedigree DataFrame or None for first generation
-
-    Returns:
-        Updated pedigree DataFrame with the new generation appended.
+    The internal simulation loop uses pre-allocated arrays for performance.
+    This function is retained for external callers and tests.
     """
     n = len(pheno)
-    twin_col = np.full(n, -1, dtype=int)
-    if len(twins) > 0:
-        twin_col[twins[:, 0]] = twins[:, 1]
-        twin_col[twins[:, 1]] = twins[:, 0]
+    is_founder = pedigree is None
+    id_offset = 0 if is_founder else len(pedigree)
+    parent_offset = id_offset - n if not is_founder else 0
+    household_offset = 0 if is_founder else int(pedigree["household_id"].iloc[-1]) + 1
 
-    df = pd.DataFrame(
-        {
-            "id": np.arange(n),
-            "sex": sex,
-            "mother": parents[:, 0],
-            "father": parents[:, 1],
-            "twin": twin_col,
-            "generation": generation,
-            "household_id": household_ids,
-            "A1": pheno[:, 0],
-            "C1": pheno[:, 1],
-            "E1": pheno[:, 2],
-            "liability1": pheno[:, 0] + pheno[:, 1] + pheno[:, 2],
-            "A2": pheno[:, 3],
-            "C2": pheno[:, 4],
-            "E2": pheno[:, 5],
-            "liability2": pheno[:, 3] + pheno[:, 4] + pheno[:, 5],
-        }
+    arrays = _init_pedigree_arrays(n)
+    _fill_pedigree_slice(
+        arrays,
+        0,
+        pheno,
+        sex,
+        parents,
+        twins,
+        household_ids,
+        generation=generation,
+        is_founder=is_founder,
+        id_offset=id_offset,
+        parent_offset=parent_offset,
+        household_offset=household_offset,
     )
-
+    df = _arrays_to_dataframe(arrays, n)
     if pedigree is not None:
-        offset_id = len(pedigree)
-        offset_parent = offset_id - n
-        offset_household = pedigree["household_id"].iloc[-1] + 1
-        df["id"] = df["id"] + offset_id
-        df["mother"] = df["mother"] + offset_parent
-        df["father"] = df["father"] + offset_parent
-        df.loc[df["twin"] != -1, "twin"] = df.loc[df["twin"] != -1, "twin"] + offset_id
-        df["household_id"] = df["household_id"] + offset_household
-        pedigree = pd.concat([pedigree, df], copy=False).reset_index(drop=True)
-    else:
-        # First generation: no known parents
-        df["mother"] = -1
-        df["father"] = -1
-        pedigree = df
-
-    return pedigree
+        return pd.concat([pedigree, df], ignore_index=True)
+    return df
 
 
 def run_simulation(
@@ -865,7 +1040,13 @@ def run_simulation(
 
     # Simulate generations
     burnin = G_sim - G_ped
-    pedigree = None
+
+    # Pre-allocate pedigree arrays (avoids pd.concat per generation)
+    ped_arrays = _init_pedigree_arrays(N * G_ped)
+    ped_offset = 0
+    id_offset = 0
+    household_offset = 0
+
     for i in range(G_sim):
         parents, twins, household_ids = mating(
             rng,
@@ -894,15 +1075,27 @@ def run_simulation(
             rC,
         )
         if i >= burnin:
-            pedigree = add_to_pedigree(
+            n = len(sex)
+            is_founder = i == burnin
+            parent_offset = id_offset - n if not is_founder else 0
+            _fill_pedigree_slice(
+                ped_arrays,
+                ped_offset,
                 pheno,
                 sex,
                 parents,
                 twins,
                 household_ids,
                 generation=i - burnin,
-                pedigree=pedigree,
+                is_founder=is_founder,
+                id_offset=id_offset,
+                parent_offset=parent_offset,
+                household_offset=household_offset,
             )
+            household_offset += int(household_ids.max()) + 1
+            id_offset += n
+            ped_offset += n
+
         # Per-generation data shape checkpoints
         fam_sizes = np.bincount(household_ids)
         logger.info(
@@ -912,8 +1105,8 @@ def run_simulation(
             fam_sizes.mean(),
         )
 
+    pedigree = _arrays_to_dataframe(ped_arrays, ped_offset)
     elapsed = time.perf_counter() - t0
-    assert pedigree is not None
     logger.info(
         "Simulation complete in %.1fs: pedigree has %d individuals",
         elapsed,

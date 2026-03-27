@@ -36,7 +36,7 @@ def run_dropout(pedigree: pd.DataFrame, params: dict) -> pd.DataFrame:
         return pedigree
 
     n_total = len(pedigree)
-    n_drop = int(round(n_total * rate))
+    n_drop = round(n_total * rate)
 
     if n_drop <= 0:
         logger.info("Dropout pass-through: n_drop=0 for rate=%.4f, N=%d", rate, n_total)
