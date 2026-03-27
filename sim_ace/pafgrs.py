@@ -1003,43 +1003,59 @@ def score_probands(
 
     kin_threshold = 0.5 ** (ndegree + 1) - 1e-6
 
-    # Prepare ragged relative arrays for numba batch kernel (two-pass)
+    # Vectorized ragged relative extraction (no Python loops)
     t_prep = time.perf_counter()
+
+    active_idx = np.where(pheno_ped_idx >= 0)[0].astype(np.int32)
+    pi_arr = pheno_ped_idx[active_idx]
+    n_active = len(active_idx)
+
+    col_starts = kmat.indptr[pi_arr]
+    col_ends = kmat.indptr[pi_arr + 1]
+    col_lengths = (col_ends - col_starts).astype(np.int64)
+    total_candidates = int(col_lengths.sum())
+
+    # Expand: label each CSC entry with its owning active-proband index
+    active_labels = np.repeat(np.arange(n_active, dtype=np.int32), col_lengths)
+    # Flat CSC array positions for all candidates
+    offsets = np.arange(total_candidates, dtype=np.int64)
+    cum = np.empty(n_active + 1, dtype=np.int64)
+    cum[0] = 0
+    np.cumsum(col_lengths, out=cum[1:])
+    offsets -= cum[active_labels]
+    flat_pos = col_starts[active_labels] + offsets
+
+    all_ri = kmat.indices[flat_pos]
+    all_rk = kmat.data[flat_pos]
+    all_pi = pi_arr[active_labels]
+
+    # Vectorized filter: not self, above threshold, has phenotype
+    filt = (all_ri != all_pi) & (all_rk >= kin_threshold) & pheno_lookup_valid[all_ri]
+    filt_labels = active_labels[filt]
+    filt_ri = all_ri[filt].astype(np.int32)
+    filt_rk = all_rk[filt]
+
+    # Build ragged arrays
+    active_counts = np.bincount(filt_labels, minlength=n_active).astype(np.int32)
     rel_counts = np.zeros(n_pheno, dtype=np.int32)
-    for i in range(n_pheno):
-        pi = pheno_ped_idx[i]
-        if pi < 0:
-            continue
-        start, end = kmat.indptr[pi], kmat.indptr[pi + 1]
-        ri = kmat.indices[start:end]
-        rk = kmat.data[start:end]
-        mask = (ri != pi) & (rk >= kin_threshold) & pheno_lookup_valid[ri]
-        rel_counts[i] = int(mask.sum())
+    rel_counts[active_idx] = active_counts
 
     rel_starts = np.zeros(n_pheno + 1, dtype=np.int32)
     np.cumsum(rel_counts, out=rel_starts[1:])
     total_rels = int(rel_starts[-1])
 
-    rel_flat_idx = np.empty(total_rels, dtype=np.int32)
-    rel_flat_kin = np.empty(total_rels, dtype=np.float64)
-    for i in range(n_pheno):
-        if rel_counts[i] == 0:
-            continue
-        pi = pheno_ped_idx[i]
-        start, end = kmat.indptr[pi], kmat.indptr[pi + 1]
-        ri = kmat.indices[start:end]
-        rk = kmat.data[start:end]
-        mask = (ri != pi) & (rk >= kin_threshold) & pheno_lookup_valid[ri]
-        s = rel_starts[i]
-        e = rel_starts[i + 1]
-        rel_flat_idx[s:e] = ri[mask]
-        rel_flat_kin[s:e] = rk[mask]
+    rel_flat_idx = filt_ri
+    rel_flat_kin = filt_rk
 
     prep_elapsed = time.perf_counter() - t_prep
     n_scored = int((rel_counts > 0).sum())
     avg_rel = float(rel_counts[rel_counts > 0].mean()) if n_scored > 0 else 0
     logger.info(
-        "  Data prep: %.2fs, %d scored, avg %.0f relatives, %d total rels", prep_elapsed, n_scored, avg_rel, total_rels
+        "  Data prep: %.2fs, %d scored, avg %.0f relatives, %d total rels",
+        prep_elapsed,
+        n_scored,
+        avg_rel,
+        total_rels,
     )
 
     # Run numba batch kernel
