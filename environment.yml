@@ -26,4 +26,6 @@ dependencies:
   # - tectonic
   - pip:
     - -e .
+variables:
+  MPLBACKEND: Agg
  
