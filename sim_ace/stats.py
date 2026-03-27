@@ -1151,7 +1151,7 @@ def main(
     # Expensive MLE computations — run in parallel (scipy.optimize releases the GIL)
     logger.info("Computing tetrachoric + frailty correlations in parallel...")
     t_mle = time.perf_counter()
-    with ThreadPoolExecutor(max_workers=7) as pool:
+    with ThreadPoolExecutor(max_workers=5) as pool:
         fut_tetra = pool.submit(compute_tetrachoric, df, seed=seed, pairs=pairs)
         fut_tetra_gen = pool.submit(compute_tetrachoric_by_generation, df, seed=seed, pairs=pairs)
         fut_cross = pool.submit(compute_cross_trait_tetrachoric, df, seed=seed, pairs=pairs)

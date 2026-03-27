@@ -20,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 import pandas as pd
 import yaml
+from scipy.spatial import cKDTree
 
 from sim_ace._numba_utils import _ndtri_approx
 from sim_ace.utils import save_parquet
@@ -465,8 +466,8 @@ def _assortative_pair_partners(
         m2_z = m2_all_z[male_perm].copy()
 
         # Interleave for cache-friendly access in Metropolis inner loop
-        fz = np.ascontiguousarray(np.column_stack([f1_z, f2_z]))
-        mz = np.ascontiguousarray(np.column_stack([m1_z, m2_z]))
+        fz = np.column_stack([f1_z, f2_z])
+        mz = np.column_stack([m1_z, m2_z])
 
         T1 = r1 * M
         T2 = r2 * M
@@ -556,8 +557,6 @@ def _assortative_pair_partners(
     # Deduplicate: swap with female-proximity partner to preserve correlations
     t_dedup = time.perf_counter()
     n_dups_total = 0
-    from scipy.spatial import cKDTree
-
     for _attempt in range(5):
         is_dup = _find_duplicate_pairs(matings)
         if not is_dup.any():
@@ -823,7 +822,7 @@ def _init_pedigree_arrays(total_rows: int) -> dict[str, np.ndarray]:
 
     Dtype choices for memory efficiency at large N:
     - int32 for IDs (supports up to 2.1B individuals)
-    - int8 for sex (0/1) and generation (0-255)
+    - int8 for sex (0/1)
     - float32 for ACE variance components (~7 significant digits)
     - float64 for liabilities (full precision for phenotype models)
     """

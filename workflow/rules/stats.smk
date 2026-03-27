@@ -30,7 +30,7 @@ rule stats_phenotype:
     resources:
         mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_ped"),
         runtime = lambda w: _scale_runtime(config, w.scenario, "G_ped")
-    threads: 7
+    threads: 5
     script:
         "../scripts/compute_phenotype_stats.py"
 
@@ -90,7 +90,7 @@ rule stats_simple_ltm:
     resources:
         mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
         runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
-    threads: 7
+    threads: 2
     script:
         "../scripts/compute_simple_ltm_stats.py"
 
