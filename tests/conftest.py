@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from sim_ace.simulate import (
+from sim_ace.simulation.simulate import (
     generate_correlated_components,
     mating,
     reproduce,

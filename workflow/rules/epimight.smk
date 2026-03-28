@@ -53,7 +53,7 @@ rule epimight_guide_yob:
     threads: 1
     shell:
         "conda run -n epimight "
-        "Rscript epimight/guide-yob.R "
+        "Rscript fit_ace/epimight/guide-yob.R "
         "results/{wildcards.folder}/{wildcards.scenario}/rep{wildcards.rep}/epimight "
         "{wildcards.kind} "
         ">{log} 2>&1"

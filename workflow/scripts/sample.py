@@ -3,9 +3,9 @@
 import pandas as pd
 
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.sample import cli as _cli
-from sim_ace.sample import run_sample
-from sim_ace.utils import save_parquet
+from sim_ace.core.utils import save_parquet
+from sim_ace.sampling.sample import cli as _cli
+from sim_ace.sampling.sample import run_sample
 
 
 def _run_snakemake():

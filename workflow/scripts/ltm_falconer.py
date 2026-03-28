@@ -1,8 +1,8 @@
 """Compute LTM Falconer h² per EPIMIGHT kind — Snakemake wrapper with CLI fallback."""
 
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.ltm_falconer import cli as _cli
-from sim_ace.ltm_falconer import main
+from sim_ace.analysis.ltm_falconer import cli as _cli
+from sim_ace.analysis.ltm_falconer import main
 
 
 def _run_snakemake():

@@ -6,7 +6,7 @@ from pathlib import Path
 import yaml
 
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.plot_atlas import (
+from sim_ace.plotting.plot_atlas import (
     PHENOTYPE_CAPTIONS,
     SIMPLE_LTM_CAPTIONS,
     assemble_atlas,
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     except NameError:
         import argparse
 
-        from sim_ace.cli_base import add_logging_args, init_logging
+        from sim_ace.core.cli_base import add_logging_args, init_logging
 
         parser = argparse.ArgumentParser(description="Assemble scenario plot atlas")
         add_logging_args(parser)

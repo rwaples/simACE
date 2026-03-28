@@ -3,8 +3,8 @@
 from pathlib import Path
 
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.plot_simple_ltm import cli as _cli
-from sim_ace.plot_simple_ltm import main
+from sim_ace.plotting.plot_simple_ltm import cli as _cli
+from sim_ace.plotting.plot_simple_ltm import main
 
 
 def _run_snakemake():

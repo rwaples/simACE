@@ -3,13 +3,19 @@
 simACE simulates millions of indiviudals in multi-generational pedigrees with heritable ACE variance components for two correlated traits.
 
 ## Overview
-simACE is conceptually split into four modules:
+The project contains two installable Python packages:
+- **sim_ace** -- Simulation, phenotyping, censoring, sampling, analysis, and plotting
+- **fit_ace** -- Statistical model fitting: EPIMIGHT heritability, PA-FGRS genetic risk scores, Weibull frailty correlation, and Stan-based models
+
+Both packages are orchestrated by a single Snakemake workflow. `fit_ace` depends on `sim_ace` for shared infrastructure (pedigree graphs, hazard functions, plotting utilities).
+
+simACE is conceptually split into four simulation stages:
 - Multi-generation pedigree simulation with heritable liability
 - Age-of-onset phenotyping
 - Censoring
 - Sampling and observation
 
-The full simulation pipeline includes statistical validation, summary statistics and plotting.
+The full pipeline also includes statistical validation, summary statistics, model fitting, and plotting.
 
 
 ### Reproduction and liabilty
@@ -71,6 +77,8 @@ git clone <repo-url>
 cd ACE
 conda env create -f environment.yml   # creates environment and installs sim_ace package
 conda activate ACE
+pip install -e .                       # install sim_ace
+pip install -e fit_ace/                # install fit_ace
 ```
 
 ### Verify installation
@@ -260,8 +268,8 @@ EPIMIGHT estimates heritability (h²) and genetic correlation from time-to-event
 EPIMIGHT requires a separate R-based conda environment:
 
 ```bash
-conda env create -f epimight/environment.yml
-conda run -n epimight Rscript -e "install.packages('epimight/EPIMIGHT/epimight', repos=NULL, type='source')"
+conda env create -f fit_ace/epimight/environment.yml
+conda run -n epimight Rscript -e "install.packages('fit_ace/epimight/EPIMIGHT/epimight', repos=NULL, type='source')"
 ```
 
 ### Running via Snakemake
@@ -295,7 +303,7 @@ See the [Outputs > Plot Atlases](#plot-atlases) table for the full output tree.
 
 ### More information
 
-See [epimight/README.md](epimight/README.md) for the full pipeline reference — manual steps, column schemas, cohort definitions, and relationship kinds.
+See [fit_ace/epimight/README.md](fit_ace/epimight/README.md) for the full pipeline reference — manual steps, column schemas, cohort definitions, and relationship kinds.
 
 ## Subsampling and Dropout
 
@@ -347,50 +355,80 @@ ACE/
 ├── Snakefile                          # Root entry point (no -s flag needed)
 ├── config/
 │   └── config.yaml                    # Simulation parameters (named scenarios)
-├── sim_ace/                           # Installable package (pip install -e .)
-│   ├── __init__.py                    # setup_logging() + public API re-exports
-│   ├── cli_base.py                    # Shared CLI boilerplate (add_logging_args, init_logging)
-│   ├── utils.py                       # Shared helpers (save_parquet, optimize_dtypes, safe_corrcoef, etc.)
-│   ├── simulate.py                    # Pedigree simulation (mating, reproduce, run_simulation)
-│   ├── dropout.py                     # Pedigree dropout (random individual removal)
-│   ├── phenotype.py                   # Phenotype models (frailty, adult_ltm, adult_cox)
-│   ├── censor.py                      # Age-window and competing-risk death censoring
-│   ├── threshold.py                   # Liability-threshold model
-│   ├── validate.py                    # Structural + statistical validation
-│   ├── stats.py                       # Tetrachoric correlations, relationship pairs
-│   ├── pedigree_graph.py             # Sparse-matrix pedigree relationship extraction
-│   ├── simple_ltm_stats.py             # Simple LTM phenotype statistics
-│   ├── survival_corr.py               # Pairwise Weibull survival correlation estimation
-│   ├── gather.py                      # Gather validation results into TSV
-│   ├── plot_phenotype.py              # Phenotype plot orchestrator + CLI
-│   ├── plot_distributions.py          # Mortality, age-at-onset, cumulative incidence plots
-│   ├── plot_liability.py              # Joint liability, violin, affection plots
-│   ├── plot_pedigree_counts.py        # Pedigree relationship pair counts diagram
-│   ├── plot_correlations.py           # Tetrachoric + parent-offspring correlation plots
-│   ├── plot_simple_ltm.py              # Simple LTM phenotype plots
-│   ├── plot_atlas.py                  # Multi-page PDF atlas with figure captions
-│   └── plot_validation.py             # Validation summary plots
-├── epimight/                         # EPIMIGHT heritability analysis (separate conda env)
-│   ├── create_parquet.py             # Convert phenotype → TTE format
-│   ├── guide-yob.R                   # CIF, h², genetic correlation (R)
-│   ├── plot_epimight.py              # Plot atlas generation
-│   ├── environment.yml               # Conda env for R dependencies
-│   └── README.md                     # EPIMIGHT pipeline documentation
+│
+├── sim_ace/                           # Simulation package (pip install -e .)
+│   ├── __init__.py                    # setup_logging(), _snakemake_tag()
+│   ├── core/                          # Shared infrastructure
+│   │   ├── utils.py                   # save_parquet, safe_corrcoef, yaml_loader, PAIR_TYPES, etc.
+│   │   ├── cli_base.py               # Shared CLI boilerplate (add_logging_args, init_logging)
+│   │   ├── pedigree_graph.py          # Sparse-matrix pedigree relationship extraction
+│   │   ├── compute_hazard_terms.py    # Baseline hazard functions (Weibull, Gompertz, etc.)
+│   │   ├── weibull_mle.py             # Gauss-Hermite MLE for Weibull frailty correlation
+│   │   └── _numba_utils.py            # Shared Numba kernels
+│   ├── simulation/
+│   │   └── simulate.py                # Pedigree simulation (mating, reproduce, run_simulation)
+│   ├── phenotyping/
+│   │   ├── phenotype.py               # Frailty, cure-frailty, ADuLT phenotype models
+│   │   └── threshold.py               # Liability-threshold binary phenotype
+│   ├── censoring/
+│   │   └── censor.py                  # Age-window and competing-risk death censoring
+│   ├── sampling/
+│   │   ├── dropout.py                 # Pedigree dropout (random individual removal)
+│   │   └── sample.py                  # Subsampling with case ascertainment bias
+│   ├── analysis/
+│   │   ├── stats.py                   # Tetrachoric correlations, heritability, pair counts
+│   │   ├── simple_ltm_stats.py        # Simple LTM phenotype statistics
+│   │   ├── validate.py                # Structural + statistical validation
+│   │   ├── ltm_falconer.py            # Falconer h² from tetrachoric correlations
+│   │   ├── survival_stats.py          # Pairwise frailty correlation wrappers
+│   │   └── gather.py                  # Gather validation results into TSV
+│   └── plotting/
+│       ├── plot_utils.py              # Shared plotting helpers (finalize_plot, violin, heatmap)
+│       ├── plot_phenotype.py          # Phenotype plot orchestrator + CLI
+│       ├── plot_distributions.py      # Mortality, age-at-onset, cumulative incidence
+│       ├── plot_liability.py          # Joint liability, violin, affection plots
+│       ├── plot_correlations.py       # Tetrachoric + parent-offspring correlations
+│       ├── plot_pedigree_counts.py    # Pedigree relationship pair counts diagram
+│       ├── plot_simple_ltm.py         # Simple LTM phenotype plots
+│       ├── plot_validation.py         # Validation summary plots
+│       ├── plot_atlas.py              # Multi-page PDF atlas with figure captions
+│       ├── plot_pipeline.py           # Pipeline DAG diagram
+│       └── plot_table1.py             # Epidemiological Table 1
+│
+├── fit_ace/                           # Model fitting package (pip install -e fit_ace/)
+│   ├── pafgrs/                        # PA-FGRS genetic risk scores
+│   │   ├── pafgrs.py                  # Pearson-Aitken scoring (Bayesian posterior mean/variance)
+│   │   └── pafgrs_metrics.py          # Validation metrics (r, R², AUC, calibration)
+│   ├── epimight/                      # EPIMIGHT heritability analysis (separate conda env)
+│   │   ├── create_parquet.py          # Convert phenotype to EPIMIGHT TTE format
+│   │   ├── guide-yob.R               # CIF, h², genetic correlation (R)
+│   │   ├── plot_epimight.py           # EPIMIGHT diagnostic atlas
+│   │   ├── epimight_bias_analysis.py  # Bias quantification
+│   │   ├── EPIMIGHT/                  # Vendored BioPsyk EPIMIGHT R package
+│   │   └── environment.yml            # Conda env for R dependencies
+│   ├── stan/                          # Stan-based model fitting
+│   │   ├── fit_ace.py, fit_reml.py    # Python wrappers
+│   │   └── *.stan                     # Stan model files
+│   └── plotting/
+│       ├── plot_pafgrs.py             # PA-FGRS diagnostic atlas
+│       └── plot_epimight_bias.py      # EPIMIGHT bias analysis atlas
+│
 ├── workflow/
 │   ├── common.py                      # Shared helpers (get_param, get_folder, etc.)
 │   ├── rules/                         # Modular Snakemake rule files
 │   │   ├── targets.smk                # Target rules: all, simulate_all, phenotype_all, etc.
-│   │   ├── simulate.smk               # Pedigree simulation rule
-│   │   ├── dropout.smk                # Pedigree dropout rule
-│   │   ├── phenotype.smk              # Phenotyping rules (survival model + simple LTM)
-│   │   ├── validate.smk               # Validation, gathering, and validation plots
-│   │   ├── stats.smk                  # Statistics and phenotype plots
-│   │   └── epimight.smk               # EPIMIGHT heritability pipeline
+│   │   ├── simulate.smk, dropout.smk  # Pedigree simulation and dropout
+│   │   ├── phenotype.smk, sample.smk  # Phenotyping and sampling
+│   │   ├── validate.smk, stats.smk    # Validation and statistics
+│   │   ├── epimight.smk               # EPIMIGHT heritability pipeline
+│   │   ├── epimight_bias.smk          # EPIMIGHT bias analysis
+│   │   └── pafgrs.smk                 # PA-FGRS scoring pipeline
 │   └── scripts/                       # Snakemake script wrappers
-├── tests/                             # Unit, statistical, and edge-case tests
-├── results/{folder}/{scenario}/rep{N}/ # Per-replicate simulation outputs
+├── tests/                             # Mirrors sim_ace/fit_ace sub-package structure
+├── external/                          # Reference implementations (gitignored)
+├── results/{folder}/{scenario}/       # Per-scenario simulation outputs
 ├── logs/{folder}/{scenario}/          # Log files
-└── benchmarks/{folder}/{scenario}/    # Runtime and memory usage benchmarks
+└── benchmarks/{folder}/{scenario}/    # Runtime and memory benchmarks
 ```
 
 ## Documentation (under construction)
@@ -398,7 +436,7 @@ ACE/
 - **[OUTPUTS.md](OUTPUTS.md)** — Output format reference (parquet schemas, YAML structures, TSV columns, plots)
 - **[methods.md](methods.md)** — Methods document (variance decomposition, Weibull frailty, censoring, liability threshold, tetrachoric correlation, heritability estimation, etc)
 - **[distributions.md](distributions.md)** — Phenotype model reference (frailty hazard distributions, ADuLT LTM, ADuLT Cox)
-- **[epimight/README.md](epimight/README.md)** — EPIMIGHT heritability pipeline
+- **[fit_ace/epimight/README.md](fit_ace/epimight/README.md)** — EPIMIGHT heritability pipeline
 - **[CLAUDE.md](CLAUDE.md)** — Architecture guide
 
 ## Troubleshooting

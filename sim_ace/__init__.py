@@ -47,27 +47,3 @@ def _snakemake_tag(wildcards) -> str:
     return "/".join(parts) if parts else ""
 
 
-from sim_ace.censor import age_censor, death_censor
-from sim_ace.dropout import run_dropout
-from sim_ace.pedigree_graph import extract_relationship_pairs
-from sim_ace.phenotype import simulate_phenotype
-from sim_ace.sample import run_sample
-from sim_ace.simulate import (
-    add_to_pedigree,
-    generate_correlated_components,
-    mating,
-    reproduce,
-    run_simulation,
-)
-from sim_ace.stats import tetrachoric_corr_se
-from sim_ace.threshold import apply_threshold
-from sim_ace.validate import run_validation
-
-
-def __getattr__(name: str):
-    """Lazy import for heavy optional modules."""
-    if name == "pairwise_weibull_corr_se":
-        from sim_ace.survival_corr import pairwise_weibull_corr_se
-
-        return pairwise_weibull_corr_se
-    raise AttributeError(f"module 'sim_ace' has no attribute {name!r}")

@@ -1,8 +1,8 @@
 """Gather EPIMIGHT bias results — Snakemake wrapper with CLI fallback."""
 
+from fit_ace.epimight.epimight_bias_analysis import cli as _cli
+from fit_ace.epimight.epimight_bias_analysis import main
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.epimight_bias_analysis import cli as _cli
-from sim_ace.epimight_bias_analysis import main
 
 
 def _run_snakemake():

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (shared environment), **E** (unique environment) variance components. Weibull frailty model fitting is in a separate project at `~/Documents/fitACE/`.
+ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (shared environment), **E** (unique environment) variance components. The repo contains two packages: `sim_ace` (simulation, analysis, plotting) and `fit_ace` (statistical model fitting: EPIMIGHT, PA-FGRS, Weibull correlation, Stan models).
 
 ## Key Rules
 
@@ -21,7 +21,7 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 ## Testing
 
 - Full suite: `pytest tests/ -v`
-- Single module: `pytest tests/test_simulate.py -v`
+- Single module: `pytest tests/simulation/test_simulate.py -v`
 - Run relevant tests before committing
 - Smoke test: `snakemake --cores 4 results/test/small_test/scenario.done`
 
@@ -29,14 +29,25 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 
 - After modifying `plot_*.py`, force-regenerate the atlas to verify
 - Check that labels/titles fit within figure bounds
-- Page order is controlled in `plot_atlas.py`
+- Page order is controlled in `sim_ace/plotting/plot_atlas.py`
 
 ## Project Layout
 
-- `sim_ace/` — installable package (`pip install -e .`) with simulation, phenotyping, validation, stats, and plotting modules
+- `sim_ace/` — simulation package (`pip install -e .`), organized into sub-packages:
+  - `core/` — shared infrastructure (utils, pedigree_graph, compute_hazard_terms, weibull_mle, cli_base)
+  - `simulation/` — pedigree simulation
+  - `phenotyping/` — frailty/threshold phenotype models
+  - `censoring/` — age-window and death censoring
+  - `sampling/` — dropout and subsampling
+  - `analysis/` — stats, validation, Falconer h², survival correlation wrappers, gather
+  - `plotting/` — all plot modules and plot utilities
+- `fit_ace/` — model fitting package (`pip install -e fit_ace/`), organized into sub-packages:
+  - `pafgrs/` — PA-FGRS genetic risk scores
+  - `epimight/` — EPIMIGHT heritability pipeline (separate `epimight` conda env; uses `conda run -n epimight`)
+  - `stan/` — Stan-based model fitting
+  - `plotting/` — PA-FGRS and EPIMIGHT bias plots
 - `workflow/rules/*.smk` — Snakemake rules; `workflow/scripts/` — thin script wrappers
 - `config/config.yaml` — named scenarios (seed, folder, A, C, N, G_ped, G_sim, mating_lambda, p_mztwin)
-- `epimight/` — EPIMIGHT heritability pipeline (separate `epimight` conda env; uses `conda run -n epimight`)
 - `results/{folder}/{scenario}/` — output per scenario
 
 ## Linting

@@ -3,8 +3,8 @@
 import pandas as pd
 
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.phenotype import cli as _cli
-from sim_ace.phenotype import run_phenotype
+from sim_ace.phenotyping.phenotype import cli as _cli
+from sim_ace.phenotyping.phenotype import run_phenotype
 
 
 def _run_snakemake() -> None:

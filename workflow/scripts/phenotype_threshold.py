@@ -3,8 +3,8 @@
 import pandas as pd
 
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.threshold import cli as _cli
-from sim_ace.threshold import run_threshold
+from sim_ace.phenotyping.threshold import cli as _cli
+from sim_ace.phenotyping.threshold import run_threshold
 
 
 def _run_snakemake():

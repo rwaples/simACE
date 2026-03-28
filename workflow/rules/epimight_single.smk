@@ -54,7 +54,7 @@ rule epimight_single_guide_yob:
     threads: 1
     shell:
         "conda run -n epimight "
-        "Rscript epimight/guide-yob.R "
+        "Rscript fit_ace/epimight/guide-yob.R "
         "results/{wildcards.folder}/{wildcards.scenario}/rep{wildcards.rep}/epimight_single "
         "{wildcards.kind} "
         ">{log} 2>&1"

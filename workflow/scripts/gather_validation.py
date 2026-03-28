@@ -1,8 +1,8 @@
 """Gather validation results - Snakemake wrapper with CLI fallback."""
 
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.gather import cli as _cli
-from sim_ace.gather import main
+from sim_ace.analysis.gather import cli as _cli
+from sim_ace.analysis.gather import main
 
 
 def _run_snakemake():

@@ -3,8 +3,8 @@
 import yaml
 
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.simulate import cli as _cli
-from sim_ace.simulate import run_simulation
+from sim_ace.simulation.simulate import cli as _cli
+from sim_ace.simulation.simulate import run_simulation
 
 
 def _run_snakemake():

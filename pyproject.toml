@@ -17,17 +17,17 @@ accel = ["numba"]
 dev = ["snakemake", "snakefmt", "pytest", "ruff>=0.8"]
 
 [project.scripts]
-sim-ace-simulate = "sim_ace.simulate:cli"
-sim-ace-phenotype = "sim_ace.phenotype:cli"
-sim-ace-threshold = "sim_ace.threshold:cli"
-sim-ace-sample = "sim_ace.sample:cli"
-sim-ace-validate = "sim_ace.validate:cli"
-sim-ace-phenotype-stats = "sim_ace.stats:cli"
-sim-ace-simple-ltm-stats = "sim_ace.simple_ltm_stats:cli"
-sim-ace-gather = "sim_ace.gather:cli"
-sim-ace-plot-phenotype = "sim_ace.plot_phenotype:cli"
-sim-ace-plot-simple-ltm = "sim_ace.plot_simple_ltm:cli"
-sim-ace-plot-validation = "sim_ace.plot_validation:cli"
+sim-ace-simulate = "sim_ace.simulation.simulate:cli"
+sim-ace-phenotype = "sim_ace.phenotyping.phenotype:cli"
+sim-ace-threshold = "sim_ace.phenotyping.threshold:cli"
+sim-ace-sample = "sim_ace.sampling.sample:cli"
+sim-ace-validate = "sim_ace.analysis.validate:cli"
+sim-ace-phenotype-stats = "sim_ace.analysis.stats:cli"
+sim-ace-simple-ltm-stats = "sim_ace.analysis.simple_ltm_stats:cli"
+sim-ace-gather = "sim_ace.analysis.gather:cli"
+sim-ace-plot-phenotype = "sim_ace.plotting.plot_phenotype:cli"
+sim-ace-plot-simple-ltm = "sim_ace.plotting.plot_simple_ltm:cli"
+sim-ace-plot-validation = "sim_ace.plotting.plot_validation:cli"
 
 [tool.setuptools.packages.find]
 include = ["sim_ace*"]
@@ -35,7 +35,7 @@ include = ["sim_ace*"]
 [tool.ruff]
 target-version = "py313"
 line-length = 120
-extend-exclude = [".snakemake", "epimight/EPIMIGHT", "notes"]
+extend-exclude = [".snakemake", "fit_ace/epimight/EPIMIGHT", "notes"]
 
 [tool.ruff.lint]
 select = ["F", "E", "W", "I", "UP", "B", "SIM", "RUF", "A", "C4", "PT", "PIE", "PERF", "TCH", "RSE", "RET"]
@@ -50,13 +50,14 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "workflow/scripts/*.py" = ["F821", "B018"]  # snakemake global injected at runtime; bare name check idiom
 "tests/*.py" = ["B011", "RUF012"]            # assert False; mutable class attrs OK in tests
-"sim_ace/__init__.py" = ["E402", "F401"]    # re-exports after logging setup
-"sim_ace/plot_phenotype.py" = ["E402"]      # yaml_loader() before imports
-"sim_ace/plot_simple_ltm.py" = ["E402"]     # yaml_loader() before imports
-"sim_ace/plot_validation.py" = ["E402"]     # yaml_loader() before imports
+"fit_ace/stan/*.py" = ["F821", "B018"]       # experimental scripts, pre-existing issues
+"sim_ace/__init__.py" = ["F401"]             # setup_logging used via re-export
+"sim_ace/plotting/plot_phenotype.py" = ["E402"]      # yaml_loader() before imports
+"sim_ace/plotting/plot_simple_ltm.py" = ["E402"]     # yaml_loader() before imports
+"sim_ace/plotting/plot_validation.py" = ["E402"]     # yaml_loader() before imports
 
 [tool.ruff.lint.isort]
-known-first-party = ["sim_ace", "epimight"]
+known-first-party = ["sim_ace", "fit_ace"]
 
 [tool.ruff.format]
 quote-style = "double"

@@ -1,8 +1,8 @@
 """Compute phenotype statistics - Snakemake wrapper with CLI fallback."""
 
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.stats import cli as _cli
-from sim_ace.stats import main
+from sim_ace.analysis.stats import cli as _cli
+from sim_ace.analysis.stats import main
 
 
 def _run_snakemake():
@@ -12,7 +12,7 @@ def _run_snakemake():
     gen_censoring_raw = p.get("gen_censoring", None)
     gen_censoring = {int(k): v for k, v in gen_censoring_raw.items()} if gen_censoring_raw else None
 
-    from sim_ace.phenotype import _FRAILTY_MODELS
+    from sim_ace.phenotyping.phenotype import _FRAILTY_MODELS
 
     pm1, pm2 = p.phenotype_model1, p.phenotype_model2
     frailty_params = {

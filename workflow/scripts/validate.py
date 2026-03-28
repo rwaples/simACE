@@ -3,9 +3,9 @@
 import yaml
 
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.utils import to_native
-from sim_ace.validate import cli as _cli
-from sim_ace.validate import run_validation
+from sim_ace.analysis.validate import cli as _cli
+from sim_ace.analysis.validate import run_validation
+from sim_ace.core.utils import to_native
 
 
 def _run_snakemake():

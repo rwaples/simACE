@@ -3,8 +3,8 @@
 import pandas as pd
 
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.censor import cli as _cli
-from sim_ace.censor import run_censor
+from sim_ace.censoring.censor import cli as _cli
+from sim_ace.censoring.censor import run_censor
 
 
 def _run_snakemake():

@@ -1,7 +1,7 @@
 """PA-FGRS scoring - Snakemake wrapper with CLI fallback."""
 
+from fit_ace.pafgrs.pafgrs import cli as _cli
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.pafgrs import cli as _cli
 
 
 def _run_snakemake():
@@ -12,15 +12,15 @@ def _run_snakemake():
     import numpy as np
     import pandas as pd
 
-    from sim_ace.ltm_falconer import compute_ltm_falconer
-    from sim_ace.pafgrs import (
+    from fit_ace.pafgrs.pafgrs import (
         build_kinship_from_pairs,
         compute_empirical_cip,
         compute_true_cip_weibull,
         score_probands,
     )
-    from sim_ace.pafgrs_metrics import compute_pafgrs_metrics
-    from sim_ace.utils import save_parquet
+    from fit_ace.pafgrs.pafgrs_metrics import compute_pafgrs_metrics
+    from sim_ace.analysis.ltm_falconer import compute_ltm_falconer
+    from sim_ace.core.utils import save_parquet
 
     logger = logging.getLogger(__name__)
     p = snakemake.params

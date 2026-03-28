@@ -8,7 +8,7 @@ def _run_snakemake():
     import logging
     from pathlib import Path
 
-    from sim_ace.plot_pafgrs import generate_atlas
+    from fit_ace.plotting.plot_pafgrs import generate_atlas
 
     logger = logging.getLogger(__name__)
 

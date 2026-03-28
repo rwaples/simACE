@@ -10,7 +10,7 @@ def _run_snakemake() -> None:
     setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
 
     # Import here so standalone CLI still works without snakemake
-    from epimight.create_parquet import main as _cli
+    from fit_ace.epimight.create_parquet import main as _cli
 
     output_dir = str(Path(snakemake.output.t1).parent)
     sys.argv = [
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     try:
         snakemake
     except NameError:
-        from epimight.create_parquet import main as _cli
+        from fit_ace.epimight.create_parquet import main as _cli
 
         _cli()
     else:

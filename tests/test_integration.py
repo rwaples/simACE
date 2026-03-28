@@ -10,9 +10,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sim_ace.censor import run_censor
-from sim_ace.phenotype import run_phenotype
-from sim_ace.simulate import run_simulation
+from sim_ace.censoring.censor import run_censor
+from sim_ace.phenotyping.phenotype import run_phenotype
+from sim_ace.simulation.simulate import run_simulation
 
 
 @pytest.fixture(scope="module")
@@ -177,7 +177,7 @@ class TestCensorStep:
 
 class TestStatsStep:
     def test_compute_person_years_on_censored(self, censored, integration_params):
-        from sim_ace.stats import compute_person_years
+        from sim_ace.analysis.stats import compute_person_years
 
         result = compute_person_years(
             censored,
@@ -191,7 +191,7 @@ class TestStatsStep:
         assert result["total"] > 0
 
     def test_compute_mean_family_size_on_censored(self, censored):
-        from sim_ace.stats import compute_mean_family_size
+        from sim_ace.analysis.stats import compute_mean_family_size
 
         result = compute_mean_family_size(censored)
         if result:  # may be empty if only one generation phenotyped
@@ -200,7 +200,7 @@ class TestStatsStep:
             assert result["mean"] > 0
 
     def test_compute_censoring_confusion(self, censored, integration_params):
-        from sim_ace.stats import compute_censoring_confusion
+        from sim_ace.analysis.stats import compute_censoring_confusion
 
         result = compute_censoring_confusion(
             censored,

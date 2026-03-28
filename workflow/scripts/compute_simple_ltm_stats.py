@@ -1,8 +1,8 @@
 """Compute simple LTM phenotype statistics - Snakemake wrapper with CLI fallback."""
 
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.simple_ltm_stats import cli as _cli
-from sim_ace.simple_ltm_stats import main
+from sim_ace.analysis.simple_ltm_stats import cli as _cli
+from sim_ace.analysis.simple_ltm_stats import main
 
 
 def _run_snakemake():

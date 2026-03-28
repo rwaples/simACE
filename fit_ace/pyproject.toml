@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fit-ace"
+version = "0.1.0"
+description = "Statistical model fitting for ACE pedigree simulation data"
+requires-python = ">=3.10"
+dependencies = [
+    "sim-ace",
+    "numpy", "scipy", "pandas", "pyarrow",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+accel = ["numba"]
+
+[tool.setuptools.packages.find]
+include = ["fit_ace*"]

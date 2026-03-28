@@ -1,8 +1,8 @@
 """Generate EPIMIGHT bias analysis plots — Snakemake wrapper with CLI fallback."""
 
+from fit_ace.plotting.plot_epimight_bias import cli as _cli
+from fit_ace.plotting.plot_epimight_bias import main
 from sim_ace import _snakemake_tag, setup_logging
-from sim_ace.plot_epimight_bias import cli as _cli
-from sim_ace.plot_epimight_bias import main
 
 
 def _run_snakemake():
