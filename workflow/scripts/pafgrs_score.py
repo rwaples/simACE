@@ -14,9 +14,12 @@ def _run_snakemake():
 
     from fit_ace.pafgrs.pafgrs import (
         build_kinship_from_pairs,
+        build_pheno_lookups_univariate,
         compute_empirical_cip,
+        compute_thresholds_and_w,
         compute_true_cip_weibull,
-        score_probands,
+        prepare_univariate_scoring,
+        score_univariate_variant,
     )
     from fit_ace.pafgrs.pafgrs_metrics import compute_pafgrs_metrics
     from sim_ace.analysis.ltm_falconer import compute_ltm_falconer
@@ -33,8 +36,11 @@ def _run_snakemake():
     ndegree = int(p.ndegree)
     censor_age = float(p.censor_age)
 
-    # Build kinship once for all variants (pair-based: fast, low memory)
+    # Build kinship once
     kmat = build_kinship_from_pairs(pedigree_df, ndegree=ndegree)
+
+    # Prep once: extract relatives, pre-extract kinship
+    prep = prepare_univariate_scoring(pedigree_df, phenotype_df, ndegree, kmat)
 
     # Shared columns (written once)
     combined = pd.DataFrame({"id": phenotype_df["id"].values})
@@ -52,6 +58,7 @@ def _run_snakemake():
         combined[f"affected{trait_num}"] = phenotype_df[f"affected{trait_num}"].values
         combined[f"true_A{trait_num}"] = phenotype_df[f"A{trait_num}"].values.astype(np.float32)
 
+        # CIP tables
         cip_tables = {}
         cip_ages_emp, cip_vals_emp, prev_emp = compute_empirical_cip(
             phenotype_df,
@@ -72,6 +79,7 @@ def _run_snakemake():
             logger.warning("True CIP for model %s not implemented; using empirical", model)
             cip_tables["true"] = cip_tables["empirical"]
 
+        # h2 estimation
         try:
             falconer = compute_ltm_falconer(
                 phenotype_df,
@@ -92,24 +100,40 @@ def _run_snakemake():
 
         h2_values = {"true": h2_true, "estimated": h2_estimated}
 
+        affected = phenotype_df[f"affected{trait_num}"].values.astype(bool)
+        t_observed = phenotype_df[f"t_observed{trait_num}"].values
+
         for cip_source in p.cip_sources:
             cip_ages, cip_vals, lifetime_prev = cip_tables[cip_source]
+
+            # Compute thresholds/w once per trait × CIP source
+            thresholds, w = compute_thresholds_and_w(
+                affected,
+                t_observed,
+                cip_ages,
+                cip_vals,
+                lifetime_prev,
+            )
+            lookup_aff, lookup_thr, lookup_w = build_pheno_lookups_univariate(
+                prep,
+                affected,
+                thresholds,
+                w,
+            )
 
             for h2_source in p.h2_sources:
                 h2 = h2_values[h2_source]
                 tag = f"{trait_key}_{cip_source}_{h2_source}"
                 logger.info("Scoring: %s (h2=%.3f, prev=%.3f)", tag, h2, lifetime_prev)
 
-                scores = score_probands(
-                    pedigree_df,
+                scores = score_univariate_variant(
+                    prep,
+                    h2,
+                    trait_num,
+                    lookup_aff,
+                    lookup_thr,
+                    lookup_w,
                     phenotype_df,
-                    h2=h2,
-                    cip_ages=cip_ages,
-                    cip_values=cip_vals,
-                    lifetime_prevalence=lifetime_prev,
-                    trait_num=trait_num,
-                    ndegree=ndegree,
-                    kmat=kmat,
                 )
 
                 combined[f"est_{tag}"] = scores["est"].values.astype(np.float32)

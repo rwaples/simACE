@@ -10,49 +10,34 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import pearsonr
+
+from sim_ace.core.utils import fast_pearsonr
 
 logger = logging.getLogger(__name__)
 
 
-def compute_pafgrs_metrics(scores_df: pd.DataFrame) -> dict[str, float]:
-    """Compute validation metrics for PA-FGRS scores.
-
-    Parameters
-    ----------
-    scores_df : DataFrame with columns ``est``, ``var``, ``true_A``, ``affected``.
-
-    Returns
-    -------
-    Dict with keys: r, r2, bias, auc, var_calibration, n_scored.
-    """
-    est = scores_df["est"].values
-    true_a = scores_df["true_A"].values
-    var_est = scores_df["var"].values
-    affected = scores_df["affected"].values.astype(bool)
-
-    # Only score individuals who actually got relatives (est != 0 or var != h2_max)
-    # Use all individuals — even those with 0 relatives contribute to calibration
+def _compute_trait_metrics(
+    est: np.ndarray,
+    true_a: np.ndarray,
+    var_est: np.ndarray,
+    affected: np.ndarray,
+) -> dict[str, float]:
+    """Core metric computation for a single trait's PA-FGRS scores."""
     n = len(est)
+    affected = np.asarray(affected, dtype=bool)
 
-    # Pearson correlation and R²
     if n < 3 or np.std(est) < 1e-15 or np.std(true_a) < 1e-15:
         r_val, r2_val = 0.0, 0.0
     else:
-        r_val, _ = pearsonr(est, true_a)
+        r_val, _ = fast_pearsonr(est, true_a)
         r2_val = r_val**2
 
-    # Mean bias
     bias = float(np.mean(est - true_a))
 
-    # AUC: discriminative ability for affected vs unaffected
-    n_pos, n_neg = int(affected.sum()), int((~affected).sum())
-    if n_pos > 0 and n_neg > 0:
-        auc = _fast_auc(est, affected)
-    else:
-        auc = float("nan")
+    n_pos = int(affected.sum())
+    n_neg = int((~affected).sum())
+    auc = _fast_auc(est, affected) if n_pos > 0 and n_neg > 0 else float("nan")
 
-    # Variance calibration: mean(var) vs mean((est - true_A)²)
     mean_reported_var = float(np.mean(var_est))
     mean_actual_mse = float(np.mean((est - true_a) ** 2))
     var_calibration = mean_reported_var / mean_actual_mse if mean_actual_mse > 1e-15 else float("nan")
@@ -68,6 +53,25 @@ def compute_pafgrs_metrics(scores_df: pd.DataFrame) -> dict[str, float]:
         "n_scored": n,
         "n_affected": n_pos,
     }
+
+
+def compute_pafgrs_metrics(scores_df: pd.DataFrame) -> dict[str, float]:
+    """Compute validation metrics for PA-FGRS scores.
+
+    Parameters
+    ----------
+    scores_df : DataFrame with columns ``est``, ``var``, ``true_A``, ``affected``.
+
+    Returns
+    -------
+    Dict with keys: r, r2, bias, auc, var_calibration, n_scored.
+    """
+    return _compute_trait_metrics(
+        scores_df["est"].values,
+        scores_df["true_A"].values,
+        scores_df["var"].values,
+        scores_df["affected"].values,
+    )
 
 
 def _fast_auc(scores: np.ndarray, labels: np.ndarray) -> float:
@@ -125,3 +129,64 @@ def read_and_combine_metrics(tsv_paths: list[str | Path]) -> pd.DataFrame:
     """Read and concatenate multiple metrics TSV files."""
     dfs = [pd.read_csv(p, sep="\t") for p in tsv_paths if Path(p).exists()]
     return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# Bivariate metrics
+# ---------------------------------------------------------------------------
+
+
+def compute_bivariate_metrics(
+    scores_df: pd.DataFrame,
+    univariate_r1: float | None = None,
+    univariate_r2: float | None = None,
+) -> dict[str, float]:
+    """Compute validation metrics for bivariate PA-FGRS scores.
+
+    Parameters
+    ----------
+    scores_df : DataFrame with columns ``est_1``, ``est_2``, ``var_1``,
+        ``var_2``, ``cov_12``, ``true_A1``, ``true_A2``,
+        ``affected1``, ``affected2``.
+    univariate_r1, univariate_r2 : optional univariate Pearson r for
+        computing improvement (delta_r).
+
+    Returns
+    -------
+    Dict with per-trait marginal metrics and joint metrics.
+    """
+    n = len(scores_df)
+
+    result: dict[str, float] = {"n_scored": n}
+
+    # Per-trait marginal metrics (reuse shared helper)
+    for t in (1, 2):
+        trait_m = _compute_trait_metrics(
+            scores_df[f"est_{t}"].values,
+            scores_df[f"true_A{t}"].values,
+            scores_df[f"var_{t}"].values,
+            scores_df[f"affected{t}"].values,
+        )
+        result[f"r_{t}"] = trait_m["r"]
+        result[f"r2_{t}"] = trait_m["r2"]
+        result[f"bias_{t}"] = trait_m["bias"]
+        result[f"auc_{t}"] = trait_m["auc"]
+        result[f"var_calibration_{t}"] = trait_m["var_calibration"]
+        result[f"n_affected_{t}"] = trait_m["n_affected"]
+
+    # Improvement over univariate (delta_r)
+    if univariate_r1 is not None:
+        result["delta_r_1"] = round(result["r_1"] - univariate_r1, 6)
+    if univariate_r2 is not None:
+        result["delta_r_2"] = round(result["r_2"] - univariate_r2, 6)
+
+    # Cross-trait posterior covariance calibration
+    cov_12 = scores_df["cov_12"].values
+    true_cross = (scores_df["true_A1"].values - scores_df["est_1"].values) * (
+        scores_df["true_A2"].values - scores_df["est_2"].values
+    )
+    mean_cov = float(np.mean(cov_12))
+    mean_cross_err = float(np.mean(true_cross))
+    result["cov_calibration"] = round(mean_cov / mean_cross_err, 6) if abs(mean_cross_err) > 1e-15 else float("nan")
+
+    return result

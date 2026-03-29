@@ -313,8 +313,10 @@ def main():
         h2_trait1_true = np.var(df["A1"]) / np.var(df["L1"])
         h2_trait2_true = np.var(df["A2"]) / np.var(df["L2"])
 
-        gc_true = np.corrcoef(df["A1"], df["A2"])[0, 1]
-        phen_corr = np.corrcoef(df["L1"], df["L2"])[0, 1]
+        from sim_ace.core._numba_utils import _pearsonr_core
+
+        gc_true = float(_pearsonr_core(df["A1"].values, df["A2"].values))
+        phen_corr = float(_pearsonr_core(df["L1"].values, df["L2"].values))
 
         print(f"True h² trait1: {h2_trait1_true:.6f}")
         print(f"True h² trait2: {h2_trait2_true:.6f}")

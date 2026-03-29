@@ -103,8 +103,14 @@ def _page_scatter(pdf: PdfPages, data: dict[str, pd.DataFrame], trait: str) -> N
             rasterized=True,
         )
         # Correlation computed on FULL data
-        r = np.corrcoef(df_full["est"], df_full["true_A"])[0, 1] if len(df_full) > 2 else 0
-        title = f"CIP={cip}, h2={h2src}  (r={r:.3f})"
+        if len(df_full) > 2:
+            from sim_ace.core.utils import fast_pearsonr
+
+            r, p = fast_pearsonr(df_full["est"].values, df_full["true_A"].values)
+            p_str = "p<.001" if p < 0.001 else f"p={p:.3f}"
+            title = f"CIP={cip}, h2={h2src}  (r={r:.3f}, {p_str}, n={len(df_full):,})"
+        else:
+            title = f"CIP={cip}, h2={h2src}  (r=N/A)"
         if note:
             title += f"\n{note}"
         ax.set_title(title, fontsize=10)
@@ -175,8 +181,9 @@ def _page_score_distributions(pdf: PdfPages, data: dict[str, pd.DataFrame], trai
         bins = np.linspace(np.percentile(est, 1), np.percentile(est, 99), 80)
         ax.hist(est[~aff], bins=bins, alpha=0.6, density=True, label="Control", color="steelblue")
         ax.hist(est[aff], bins=bins, alpha=0.6, density=True, label="Case", color="firebrick")
-        ks, _pval = ks_2samp(est[aff], est[~aff]) if aff.sum() > 1 else (0, 1)
-        ax.set_title(f"CIP={cip}, h2={h2src}  (KS={ks:.3f})", fontsize=10)
+        ks, ks_p = ks_2samp(est[aff], est[~aff]) if aff.sum() > 1 else (0, 1)
+        ks_p_str = "p<.001" if ks_p < 0.001 else f"p={ks_p:.3f}"
+        ax.set_title(f"CIP={cip}, h2={h2src}  (KS={ks:.3f}, {ks_p_str})", fontsize=10)
         ax.set_xlabel("PA-FGRS est")
         ax.legend(fontsize=8)
 
@@ -239,7 +246,9 @@ def _page_generation_breakdown(pdf: PdfPages, data: dict[str, pd.DataFrame], tra
     for g in gens:
         sub = df[df["generation"] == g]
         if len(sub) > 5 and sub["est"].std() > 1e-10:
-            r = np.corrcoef(sub["est"], sub["true_A"])[0, 1]
+            from sim_ace.core._numba_utils import _pearsonr_core
+
+            r = float(_pearsonr_core(sub["est"].values, sub["true_A"].values))
         else:
             r = 0.0
         r_vals.append(r)

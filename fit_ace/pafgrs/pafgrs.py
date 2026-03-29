@@ -13,6 +13,7 @@ import argparse
 import logging
 import math
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -21,29 +22,20 @@ import scipy.sparse as sp
 from numba import njit, prange
 from scipy.stats import norm
 
+from sim_ace.core._numba_utils import (
+    _ndtri_approx,
+)
+from sim_ace.core._numba_utils import (
+    _norm_cdf as _nb_norm_cdf,
+)
+from sim_ace.core._numba_utils import (
+    _norm_pdf as _nb_norm_pdf,
+)
+from sim_ace.core._numba_utils import (
+    _norm_sf as _nb_norm_sf,
+)
+
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Numba-compiled normal distribution helpers (via math.erfc)
-# ---------------------------------------------------------------------------
-
-_SQRT2 = math.sqrt(2.0)
-_INV_SQRT_2PI = 1.0 / math.sqrt(2.0 * math.pi)
-
-
-@njit(cache=True)
-def _nb_norm_pdf(x: float) -> float:
-    return _INV_SQRT_2PI * math.exp(-0.5 * x * x)
-
-
-@njit(cache=True)
-def _nb_norm_cdf(x: float) -> float:
-    return 0.5 * math.erfc(-x / _SQRT2)
-
-
-@njit(cache=True)
-def _nb_norm_sf(x: float) -> float:
-    return 0.5 * math.erfc(x / _SQRT2)
 
 
 # ---------------------------------------------------------------------------
@@ -884,6 +876,7 @@ def compute_thresholds_and_w(
     cip_ages: np.ndarray,
     cip_values: np.ndarray,
     lifetime_prevalence: float,
+    age_dependent: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute per-individual liability thresholds and w from CIP table.
 
@@ -893,28 +886,456 @@ def compute_thresholds_and_w(
     t_observed : float array (n,) — age at onset (cases) or censoring (controls)
     cip_ages, cip_values : CIP lookup table
     lifetime_prevalence : K (population lifetime prevalence)
+    age_dependent : if True, each individual gets an age-specific threshold
+        θ_i = Φ⁻¹(1 - CIP(t_i)) instead of the single lifetime threshold.
 
     Returns
     -------
     (thresholds, w) : float arrays (n,)
-        thresholds = qnorm(1 - K)  (single lifetime threshold for all)
+        thresholds = qnorm(1 - CIP(age_i)) if age_dependent, else qnorm(1 - K)
         w = CIP(age_i) / K  for controls, 1.0 for cases
     """
     n = len(affected)
     K = max(lifetime_prevalence, 1e-10)
-    threshold = float(norm.ppf(1.0 - K))
 
     # Interpolate CIP at each individual's observed age
     cip_at_age = np.interp(t_observed, cip_ages, cip_values, left=0.0, right=cip_values[-1])
 
     w = np.where(affected, 1.0, np.clip(cip_at_age / K, 0.0, 1.0))
-    thresholds = np.full(n, threshold)
+
+    _ndtri_vec = np.vectorize(_ndtri_approx)
+    if age_dependent:
+        # Per-individual threshold from age-specific CIP
+        cip_clipped = np.clip(cip_at_age, 1e-15, 1.0 - 1e-15)
+        thresholds = _ndtri_vec(1.0 - cip_clipped)
+    else:
+        threshold = float(_ndtri_approx(1.0 - K))
+        thresholds = np.full(n, threshold)
+
+    return thresholds, w
+
+
+def compute_thresholds_and_w_by_sex(
+    affected: np.ndarray,
+    t_observed: np.ndarray,
+    sex: np.ndarray,
+    cip_ages_female: np.ndarray,
+    cip_values_female: np.ndarray,
+    lifetime_prev_female: float,
+    cip_ages_male: np.ndarray,
+    cip_values_male: np.ndarray,
+    lifetime_prev_male: float,
+    age_dependent: bool = False,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute thresholds and w using sex-stratified CIP tables.
+
+    Parameters
+    ----------
+    sex : int array (n,) — 0=female, 1=male
+    cip_ages_female/male, cip_values_female/male : per-sex CIP tables
+    lifetime_prev_female/male : per-sex lifetime prevalence
+
+    Returns
+    -------
+    (thresholds, w) : float arrays (n,)
+    """
+    n = len(affected)
+    thresholds = np.empty(n)
+    w = np.empty(n)
+
+    is_male = sex == 1
+
+    for mask, cip_a, cip_v, K in [
+        (~is_male, cip_ages_female, cip_values_female, lifetime_prev_female),
+        (is_male, cip_ages_male, cip_values_male, lifetime_prev_male),
+    ]:
+        if not mask.any():
+            continue
+        thr_sex, w_sex = compute_thresholds_and_w(
+            affected[mask],
+            t_observed[mask],
+            cip_a,
+            cip_v,
+            K,
+            age_dependent=age_dependent,
+        )
+        thresholds[mask] = thr_sex
+        w[mask] = w_sex
 
     return thresholds, w
 
 
 # ---------------------------------------------------------------------------
-# Scoring pipeline
+# Shared relative extraction
+# ---------------------------------------------------------------------------
+
+
+def extract_relatives(
+    pheno_ped_idx: np.ndarray,
+    kmat: sp.csc_matrix,
+    kin_threshold: float,
+    pheno_lookup_valid: np.ndarray,
+    n_pheno: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Extract ragged relative arrays from kinship matrix.
+
+    Vectorized extraction of relatives for each phenotyped individual,
+    filtered by kinship threshold and phenotype availability.
+
+    Returns
+    -------
+    (rel_starts, rel_flat_idx, rel_flat_kin, rel_counts)
+        rel_starts : int32 array (n_pheno+1,) — CSR-style row pointers
+        rel_flat_idx : int32 array — pedigree-row indices of relatives
+        rel_flat_kin : float array — kinship values
+        rel_counts : int32 array (n_pheno,) — number of relatives per proband
+    """
+    active_idx = np.where(pheno_ped_idx >= 0)[0].astype(np.int32)
+    pi_arr = pheno_ped_idx[active_idx]
+    n_active = len(active_idx)
+
+    col_starts = kmat.indptr[pi_arr]
+    col_ends = kmat.indptr[pi_arr + 1]
+    col_lengths = (col_ends - col_starts).astype(np.int64)
+    total_candidates = int(col_lengths.sum())
+
+    active_labels = np.repeat(np.arange(n_active, dtype=np.int32), col_lengths)
+    offsets = np.arange(total_candidates, dtype=np.int64)
+    cum = np.empty(n_active + 1, dtype=np.int64)
+    cum[0] = 0
+    np.cumsum(col_lengths, out=cum[1:])
+    offsets -= cum[active_labels]
+    flat_pos = col_starts[active_labels] + offsets
+
+    all_ri = kmat.indices[flat_pos]
+    all_rk = kmat.data[flat_pos]
+    all_pi = pi_arr[active_labels]
+
+    filt = (all_ri != all_pi) & (all_rk >= kin_threshold) & pheno_lookup_valid[all_ri]
+    filt_labels = active_labels[filt]
+    filt_ri = all_ri[filt].astype(np.int32)
+    filt_rk = all_rk[filt]
+
+    active_counts = np.bincount(filt_labels, minlength=n_active).astype(np.int32)
+    rel_counts = np.zeros(n_pheno, dtype=np.int32)
+    rel_counts[active_idx] = active_counts
+
+    rel_starts = np.zeros(n_pheno + 1, dtype=np.int32)
+    np.cumsum(rel_counts, out=rel_starts[1:])
+
+    return rel_starts, filt_ri, filt_rk, rel_counts
+
+
+@njit(parallel=True, cache=True)
+def _extract_rel_kinship(
+    n_pheno: int,
+    rel_starts: np.ndarray,
+    rel_flat_idx: np.ndarray,
+    kmat_indptr: np.ndarray,
+    kmat_indices: np.ndarray,
+    kmat_data: np.ndarray,
+    kin_starts: np.ndarray,
+    kin_flat: np.ndarray,
+) -> None:
+    """Pre-extract relative-relative kinship into flat upper-triangle arrays.
+
+    For proband i with n_rel relatives, stores n_rel*(n_rel-1)/2 kinship
+    values in upper-triangle order: pairs (0,1), (0,2), ..., (n_rel-2, n_rel-1).
+    """
+    for i in prange(n_pheno):
+        s = rel_starts[i]
+        e = rel_starts[i + 1]
+        n_rel = e - s
+        if n_rel < 2:
+            continue
+        offset = kin_starts[i]
+        k = 0
+        for r1 in range(n_rel):
+            ri = rel_flat_idx[s + r1]
+            col_start = kmat_indptr[ri]
+            col_end = kmat_indptr[ri + 1]
+            for r2 in range(r1 + 1, n_rel):
+                rj = rel_flat_idx[s + r2]
+                kin_flat[offset + k] = _nb_csc_lookup(kmat_indices, kmat_data, col_start, col_end, rj)
+                k += 1
+
+
+def _build_rel_kinship_arrays(
+    rel_counts: np.ndarray,
+    rel_starts: np.ndarray,
+    rel_flat_idx: np.ndarray,
+    kmat: sp.csc_matrix,
+    n_pheno: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Pre-extract dense upper-triangle relative kinship.
+
+    Returns (kin_starts, kin_flat) arrays for use in prepped batch kernels.
+    """
+    tri_sizes = (rel_counts.astype(np.int64) * (rel_counts.astype(np.int64) - 1)) // 2
+    tri_sizes = np.maximum(tri_sizes, 0)
+    kin_starts = np.zeros(n_pheno + 1, dtype=np.int64)
+    np.cumsum(tri_sizes, out=kin_starts[1:])
+    total_kin = int(kin_starts[-1])
+    kin_flat = np.zeros(total_kin, dtype=np.float64)
+
+    _extract_rel_kinship(
+        n_pheno,
+        rel_starts,
+        rel_flat_idx,
+        kmat.indptr,
+        kmat.indices,
+        kmat.data,
+        kin_starts,
+        kin_flat,
+    )
+    return kin_starts, kin_flat
+
+
+# ---------------------------------------------------------------------------
+# Univariate prep/score split
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class UnivariatePrepData:
+    """Pre-computed data shared across all univariate scoring variants."""
+
+    pheno_ids: np.ndarray
+    pheno_ped_idx: np.ndarray
+    generation: np.ndarray
+    n_ped: int
+
+    # Ragged relative structure
+    rel_starts: np.ndarray
+    rel_flat_idx: np.ndarray
+    rel_flat_kin: np.ndarray
+    rel_counts: np.ndarray
+
+    # Pre-extracted dense relative-relative kinship (upper triangle)
+    rel_kin_starts: np.ndarray
+    rel_kin_flat: np.ndarray
+
+    # Phenotype validity mask
+    pheno_lookup_valid: np.ndarray
+
+
+def prepare_univariate_scoring(
+    pedigree_df: pd.DataFrame,
+    phenotype_df: pd.DataFrame,
+    ndegree: int = 2,
+    kmat: sp.csc_matrix | None = None,
+) -> UnivariatePrepData:
+    """Prepare shared data for univariate PA-FGRS scoring.
+
+    Call once, then use ``score_univariate_variant()`` per trait/CIP/h2 combo.
+    """
+    t0 = time.perf_counter()
+    n_ped = len(pedigree_df)
+    n_pheno = len(phenotype_df)
+
+    if kmat is None:
+        kmat = build_kinship_from_pairs(pedigree_df, ndegree=ndegree)
+
+    ped_ids = pedigree_df["id"].values
+    max_id = int(ped_ids.max())
+    id_to_ped_idx = np.full(max_id + 2, -1, dtype=np.int32)
+    id_to_ped_idx[ped_ids] = np.arange(n_ped, dtype=np.int32)
+
+    pheno_ids = phenotype_df["id"].values
+    pheno_ped_idx = id_to_ped_idx[pheno_ids]
+    generation = phenotype_df["generation"].values
+
+    pheno_lookup_valid = np.zeros(n_ped, dtype=bool)
+    valid_mask = pheno_ped_idx >= 0
+    pheno_lookup_valid[pheno_ped_idx[valid_mask]] = True
+
+    kin_threshold = 0.5 ** (ndegree + 1) - 1e-6
+    rel_starts, rel_flat_idx, rel_flat_kin, rel_counts = extract_relatives(
+        pheno_ped_idx,
+        kmat,
+        kin_threshold,
+        pheno_lookup_valid,
+        n_pheno,
+    )
+
+    kin_starts, kin_flat = _build_rel_kinship_arrays(
+        rel_counts,
+        rel_starts,
+        rel_flat_idx,
+        kmat,
+        n_pheno,
+    )
+
+    elapsed = time.perf_counter() - t0
+    n_scored = int((rel_counts > 0).sum())
+    avg_rel = float(rel_counts[rel_counts > 0].mean()) if n_scored > 0 else 0
+    logger.info(
+        "Univariate prep: %.2fs, %d probands, %d scored, avg %.0f relatives, %.1f MB kinship cache",
+        elapsed,
+        n_pheno,
+        n_scored,
+        avg_rel,
+        kin_flat.nbytes / 1e6,
+    )
+
+    return UnivariatePrepData(
+        pheno_ids=pheno_ids,
+        pheno_ped_idx=pheno_ped_idx,
+        generation=generation,
+        n_ped=n_ped,
+        rel_starts=rel_starts,
+        rel_flat_idx=rel_flat_idx,
+        rel_flat_kin=rel_flat_kin,
+        rel_counts=rel_counts,
+        rel_kin_starts=kin_starts,
+        rel_kin_flat=kin_flat,
+        pheno_lookup_valid=pheno_lookup_valid,
+    )
+
+
+@njit(parallel=True, cache=True)
+def _nb_score_batch_prepped(
+    n_probands: int,
+    rel_starts: np.ndarray,
+    rel_flat_idx: np.ndarray,
+    rel_flat_kin: np.ndarray,
+    kin_starts: np.ndarray,
+    kin_flat: np.ndarray,
+    pheno_aff: np.ndarray,
+    pheno_thr: np.ndarray,
+    pheno_w: np.ndarray,
+    h2: float,
+    est_out: np.ndarray,
+    var_out: np.ndarray,
+    nrel_out: np.ndarray,
+) -> None:
+    """Score all probands using pre-extracted dense kinship (no CSC lookups)."""
+    for i in prange(n_probands):
+        s = rel_starts[i]
+        e = rel_starts[i + 1]
+        n_rel = e - s
+        if n_rel == 0:
+            est_out[i] = 0.0
+            var_out[i] = h2
+            continue
+
+        my_idx = rel_flat_idx[s:e]
+        my_kin = rel_flat_kin[s:e]
+
+        sz = 1 + n_rel
+        covmat = np.empty((sz, sz))
+        covmat[0, 0] = h2
+        for r in range(n_rel):
+            c = 2.0 * my_kin[r] * h2
+            covmat[0, 1 + r] = c
+            covmat[1 + r, 0] = c
+
+        kin_offset = kin_starts[i]
+        for r1 in range(n_rel):
+            covmat[1 + r1, 1 + r1] = 1.0
+            for r2 in range(r1 + 1, n_rel):
+                k_idx = r1 * n_rel - r1 * (r1 + 1) // 2 + (r2 - r1 - 1)
+                k12 = kin_flat[kin_offset + k_idx]
+                c12 = 2.0 * k12 * h2
+                covmat[1 + r1, 1 + r2] = c12
+                covmat[1 + r2, 1 + r1] = c12
+
+        aff = np.empty(n_rel, dtype=np.bool_)
+        thr = np.empty(n_rel)
+        w = np.empty(n_rel)
+        for r in range(n_rel):
+            idx = my_idx[r]
+            aff[r] = pheno_aff[idx]
+            thr[r] = pheno_thr[idx]
+            w[r] = pheno_w[idx]
+
+        est_out[i], var_out[i] = _nb_pa_fgrs_single(n_rel, aff, thr, w, covmat, h2)
+        nrel_out[i] = n_rel
+
+
+def score_univariate_variant(
+    prep: UnivariatePrepData,
+    h2: float,
+    trait_num: int,
+    pheno_lookup_aff: np.ndarray,
+    pheno_lookup_thr: np.ndarray,
+    pheno_lookup_w: np.ndarray,
+    phenotype_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Score one parameter variant using pre-computed prep data.
+
+    Parameters
+    ----------
+    prep : from ``prepare_univariate_scoring()``
+    h2 : heritability on the liability scale
+    trait_num : 1 or 2
+    pheno_lookup_aff/thr/w : pedigree-indexed phenotype arrays
+    phenotype_df : for true_A column
+
+    Returns
+    -------
+    DataFrame with est, var, true_A, affected, generation, n_relatives.
+    """
+    n_pheno = len(prep.pheno_ids)
+
+    est_arr = np.zeros(n_pheno)
+    var_arr = np.full(n_pheno, h2)
+    n_relatives_arr = prep.rel_counts.copy()
+
+    _nb_score_batch_prepped(
+        n_pheno,
+        prep.rel_starts,
+        prep.rel_flat_idx,
+        prep.rel_flat_kin,
+        prep.rel_kin_starts,
+        prep.rel_kin_flat,
+        pheno_lookup_aff,
+        pheno_lookup_thr,
+        pheno_lookup_w,
+        h2,
+        est_arr,
+        var_arr,
+        n_relatives_arr,
+    )
+
+    return pd.DataFrame(
+        {
+            "id": prep.pheno_ids,
+            "est": est_arr,
+            "var": var_arr,
+            "true_A": phenotype_df[f"A{trait_num}"].values,
+            "affected": phenotype_df[f"affected{trait_num}"].values.astype(bool),
+            "generation": prep.generation,
+            "n_relatives": n_relatives_arr,
+        }
+    )
+
+
+def build_pheno_lookups_univariate(
+    prep: UnivariatePrepData,
+    affected: np.ndarray,
+    thresholds: np.ndarray,
+    w: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Build pedigree-indexed aff/thr/w lookup arrays.
+
+    Returns (pheno_lookup_aff, pheno_lookup_thr, pheno_lookup_w).
+    """
+    pheno_lookup_aff = np.full(prep.n_ped, False)
+    pheno_lookup_thr = np.full(prep.n_ped, np.nan)
+    pheno_lookup_w = np.full(prep.n_ped, 0.0)
+
+    valid_mask = prep.pheno_ped_idx >= 0
+    valid_pi = prep.pheno_ped_idx[valid_mask]
+    pheno_lookup_aff[valid_pi] = affected[valid_mask]
+    pheno_lookup_thr[valid_pi] = thresholds[valid_mask]
+    pheno_lookup_w[valid_pi] = w[valid_mask]
+
+    return pheno_lookup_aff, pheno_lookup_thr, pheno_lookup_w
+
+
+# ---------------------------------------------------------------------------
+# Scoring pipeline (convenience wrapper)
 # ---------------------------------------------------------------------------
 
 
@@ -946,19 +1367,6 @@ def score_probands(
     -------
     DataFrame with columns: id, est, var, true_A, affected, generation
     """
-    t0 = time.perf_counter()
-    n_ped = len(pedigree_df)
-    n_pheno = len(phenotype_df)
-
-    logger.info(
-        "PA-FGRS scoring: %d probands, %d pedigree, h2=%.3f, ndegree=%d, trait=%d",
-        n_pheno,
-        n_ped,
-        h2,
-        ndegree,
-        trait_num,
-    )
-
     if kmat is None:
         kmat = build_sparse_kinship(
             pedigree_df["id"].values,
@@ -967,18 +1375,10 @@ def score_probands(
             pedigree_df["twin"].values if "twin" in pedigree_df.columns else None,
         )
 
-    ped_ids = pedigree_df["id"].values
-    max_id = int(ped_ids.max())
-    id_to_ped_idx = np.full(max_id + 2, -1, dtype=np.int32)
-    id_to_ped_idx[ped_ids] = np.arange(n_ped, dtype=np.int32)
-
-    pheno_ids = phenotype_df["id"].values
-    pheno_ped_idx = id_to_ped_idx[pheno_ids]
+    prep = prepare_univariate_scoring(pedigree_df, phenotype_df, ndegree, kmat)
 
     affected = phenotype_df[f"affected{trait_num}"].values.astype(bool)
     t_observed = phenotype_df[f"t_observed{trait_num}"].values
-    true_A = phenotype_df[f"A{trait_num}"].values
-    generation = phenotype_df["generation"].values
 
     thresholds, w = compute_thresholds_and_w(
         affected,
@@ -987,121 +1387,21 @@ def score_probands(
         cip_values,
         lifetime_prevalence,
     )
-
-    # Phenotype lookup arrays indexed by pedigree row
-    pheno_lookup_aff = np.full(n_ped, False)
-    pheno_lookup_thr = np.full(n_ped, np.nan)
-    pheno_lookup_w = np.full(n_ped, 0.0)
-    pheno_lookup_valid = np.zeros(n_ped, dtype=bool)
-
-    valid_mask = pheno_ped_idx >= 0
-    valid_pi = pheno_ped_idx[valid_mask]
-    pheno_lookup_aff[valid_pi] = affected[valid_mask]
-    pheno_lookup_thr[valid_pi] = thresholds[valid_mask]
-    pheno_lookup_w[valid_pi] = w[valid_mask]
-    pheno_lookup_valid[valid_pi] = True
-
-    kin_threshold = 0.5 ** (ndegree + 1) - 1e-6
-
-    # Vectorized ragged relative extraction (no Python loops)
-    t_prep = time.perf_counter()
-
-    active_idx = np.where(pheno_ped_idx >= 0)[0].astype(np.int32)
-    pi_arr = pheno_ped_idx[active_idx]
-    n_active = len(active_idx)
-
-    col_starts = kmat.indptr[pi_arr]
-    col_ends = kmat.indptr[pi_arr + 1]
-    col_lengths = (col_ends - col_starts).astype(np.int64)
-    total_candidates = int(col_lengths.sum())
-
-    # Expand: label each CSC entry with its owning active-proband index
-    active_labels = np.repeat(np.arange(n_active, dtype=np.int32), col_lengths)
-    # Flat CSC array positions for all candidates
-    offsets = np.arange(total_candidates, dtype=np.int64)
-    cum = np.empty(n_active + 1, dtype=np.int64)
-    cum[0] = 0
-    np.cumsum(col_lengths, out=cum[1:])
-    offsets -= cum[active_labels]
-    flat_pos = col_starts[active_labels] + offsets
-
-    all_ri = kmat.indices[flat_pos]
-    all_rk = kmat.data[flat_pos]
-    all_pi = pi_arr[active_labels]
-
-    # Vectorized filter: not self, above threshold, has phenotype
-    filt = (all_ri != all_pi) & (all_rk >= kin_threshold) & pheno_lookup_valid[all_ri]
-    filt_labels = active_labels[filt]
-    filt_ri = all_ri[filt].astype(np.int32)
-    filt_rk = all_rk[filt]
-
-    # Build ragged arrays
-    active_counts = np.bincount(filt_labels, minlength=n_active).astype(np.int32)
-    rel_counts = np.zeros(n_pheno, dtype=np.int32)
-    rel_counts[active_idx] = active_counts
-
-    rel_starts = np.zeros(n_pheno + 1, dtype=np.int32)
-    np.cumsum(rel_counts, out=rel_starts[1:])
-    total_rels = int(rel_starts[-1])
-
-    rel_flat_idx = filt_ri
-    rel_flat_kin = filt_rk
-
-    prep_elapsed = time.perf_counter() - t_prep
-    n_scored = int((rel_counts > 0).sum())
-    avg_rel = float(rel_counts[rel_counts > 0].mean()) if n_scored > 0 else 0
-    logger.info(
-        "  Data prep: %.2fs, %d scored, avg %.0f relatives, %d total rels",
-        prep_elapsed,
-        n_scored,
-        avg_rel,
-        total_rels,
+    lookup_aff, lookup_thr, lookup_w = build_pheno_lookups_univariate(
+        prep,
+        affected,
+        thresholds,
+        w,
     )
 
-    # Run numba batch kernel
-    est_arr = np.zeros(n_pheno)
-    var_arr = np.full(n_pheno, h2)
-    n_relatives_arr = rel_counts.copy()
-
-    t_kernel = time.perf_counter()
-    _nb_score_batch(
-        n_pheno,
-        rel_starts,
-        rel_flat_idx,
-        rel_flat_kin,
-        pheno_lookup_aff,
-        pheno_lookup_thr,
-        pheno_lookup_w,
-        kmat.indptr,
-        kmat.indices,
-        kmat.data,
+    return score_univariate_variant(
+        prep,
         h2,
-        est_arr,
-        var_arr,
-        n_relatives_arr,
-    )
-    kernel_elapsed = time.perf_counter() - t_kernel
-
-    elapsed = time.perf_counter() - t0
-    logger.info(
-        "PA-FGRS scoring: %.2fs total (prep=%.2fs, kernel=%.2fs) %d scored, avg %.0f relatives",
-        elapsed,
-        prep_elapsed,
-        kernel_elapsed,
-        n_scored,
-        avg_rel,
-    )
-
-    return pd.DataFrame(
-        {
-            "id": pheno_ids,
-            "est": est_arr,
-            "var": var_arr,
-            "true_A": true_A,
-            "affected": affected,
-            "generation": generation,
-            "n_relatives": n_relatives_arr,
-        }
+        trait_num,
+        lookup_aff,
+        lookup_thr,
+        lookup_w,
+        phenotype_df,
     )
 
 

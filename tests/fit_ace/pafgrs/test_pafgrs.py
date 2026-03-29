@@ -19,6 +19,7 @@ from fit_ace.pafgrs.pafgrs import (
     build_sparse_kinship,
     compute_empirical_cip,
     compute_thresholds_and_w,
+    compute_thresholds_and_w_by_sex,
     compute_true_cip_weibull,
     pa_fgrs,
     pa_fgrs_adt,
@@ -386,6 +387,88 @@ class TestThresholdsAndW:
         )
         expected = norm.ppf(1 - K)
         assert thr[0] == pytest.approx(expected)
+
+    def test_age_dependent_thresholds(self):
+        """Age-dependent: older controls get lower thresholds (more informative)."""
+        K = 0.10
+        cip_ages = np.array([0.0, 40.0, 80.0])
+        cip_values = np.array([0.0, 0.05, 0.10])
+        thr, w = compute_thresholds_and_w(
+            np.array([False, False]),
+            np.array([20.0, 70.0]),
+            cip_ages,
+            cip_values,
+            K,
+            age_dependent=True,
+        )
+        # Older control has higher CIP → lower threshold
+        assert thr[1] < thr[0], "Older control should have lower threshold"
+        # w should still be valid
+        assert 0.0 <= w[0] <= 1.0
+        assert 0.0 <= w[1] <= 1.0
+        assert w[1] > w[0], "Older control has higher w"
+
+    def test_age_dependent_at_max_age_matches_lifetime(self):
+        """At max age, age-dependent threshold ≈ lifetime threshold."""
+        K = 0.10
+        cip_ages = np.array([0.0, 80.0])
+        cip_values = np.array([0.0, K])
+        thr_age, _ = compute_thresholds_and_w(
+            np.array([False]),
+            np.array([80.0]),
+            cip_ages,
+            cip_values,
+            K,
+            age_dependent=True,
+        )
+        thr_lifetime, _ = compute_thresholds_and_w(
+            np.array([False]),
+            np.array([80.0]),
+            cip_ages,
+            cip_values,
+            K,
+            age_dependent=False,
+        )
+        assert thr_age[0] == pytest.approx(thr_lifetime[0], abs=1e-6)
+
+    def test_age_dependent_cases_get_onset_threshold(self):
+        """Cases should get threshold at their onset age, not lifetime."""
+        K = 0.10
+        cip_ages = np.array([0.0, 40.0, 80.0])
+        cip_values = np.array([0.0, 0.05, 0.10])
+        thr, _ = compute_thresholds_and_w(
+            np.array([True]),
+            np.array([40.0]),
+            cip_ages,
+            cip_values,
+            K,
+            age_dependent=True,
+        )
+        expected = norm.ppf(1.0 - 0.05)  # CIP at age 40
+        assert thr[0] == pytest.approx(expected, abs=1e-6)
+
+    def test_sex_stratified_thresholds(self):
+        """Sex-specific CIP tables produce different thresholds by sex."""
+        affected = np.array([False, False, False, False])
+        t_obs = np.array([50.0, 50.0, 50.0, 50.0])
+        sex = np.array([0, 1, 0, 1])  # 0=female, 1=male
+
+        # Females: higher prevalence → lower threshold
+        cip_ages_f = np.array([0.0, 80.0])
+        cip_vals_f = np.array([0.0, 0.20])
+        # Males: lower prevalence → higher threshold
+        cip_ages_m = np.array([0.0, 80.0])
+        cip_vals_m = np.array([0.0, 0.05])
+
+        thr, _w = compute_thresholds_and_w_by_sex(
+            affected, t_obs, sex,
+            cip_ages_f, cip_vals_f, 0.20,
+            cip_ages_m, cip_vals_m, 0.05,
+        )
+        # Female threshold < male threshold (higher prevalence → lower threshold)
+        assert thr[0] < thr[1]
+        assert thr[0] == pytest.approx(thr[2])  # same sex → same threshold
+        assert thr[1] == pytest.approx(thr[3])
 
 
 # ---------------------------------------------------------------------------
