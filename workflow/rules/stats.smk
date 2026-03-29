@@ -14,7 +14,6 @@ rule stats_phenotype:
         seed             = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         censor_age       = lambda w: get_param(config, w.scenario, "censor_age"),
         gen_censoring    = lambda w: get_param(config, w.scenario, "gen_censoring"),
-        extra_tetrachoric = lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
         skip_2nd_cousins  = lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
         case_ascertainment_ratio = lambda w: get_param(config, w.scenario, "case_ascertainment_ratio"),
         beta1             = lambda w: get_param(config, w.scenario, "beta1"),
@@ -80,7 +79,6 @@ rule stats_simple_ltm:
         samples=temp("results/{folder}/{scenario}/rep{rep}/simple_ltm_samples.parquet"),
     params:
         seed             = lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
-        extra_tetrachoric = lambda w: get_param(config, w.scenario, "extra_tetrachoric"),
         skip_2nd_cousins  = lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
         case_ascertainment_ratio = lambda w: get_param(config, w.scenario, "case_ascertainment_ratio"),
     log:

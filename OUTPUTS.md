@@ -319,7 +319,6 @@ Ordered by narrative flow: pedigree structure, liability, phenotype, censoring, 
 | `tetrachoric.phenotype.by_generation.{ext}` | Tetrachoric correlations by generation |
 | `cross_trait.phenotype.{ext}` | Cross-trait phenotype correlations |
 | `cross_trait.phenotype.t2.{ext}` | Cross-trait phenotype correlations (trait 2 focus) |
-| `cross_trait_frailty.by_generation.{ext}` | Cross-trait frailty by generation |
 | `cross_trait_tetrachoric.{ext}` | Cross-trait tetrachoric correlations |
 
 ### Simple LTM phenotype plots

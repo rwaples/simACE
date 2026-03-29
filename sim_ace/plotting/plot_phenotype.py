@@ -27,11 +27,12 @@ MAX_PLOT_POINTS = 200_000
 
 from sim_ace.plotting.plot_correlations import (
     plot_broad_heritability_by_generation,
-    plot_cross_trait_frailty_by_generation,
     plot_cross_trait_tetrachoric,
     plot_heritability_by_generation,
+    plot_heritability_by_sex_generation,
     plot_parent_offspring_liability,
     plot_tetrachoric_by_generation,
+    plot_tetrachoric_by_sex,
     plot_tetrachoric_sibling,
 )
 from sim_ace.plotting.plot_distributions import (
@@ -53,6 +54,7 @@ from sim_ace.plotting.plot_liability import (
     plot_liability_joint_affected_t2,
     plot_liability_violin,
     plot_liability_violin_by_generation,
+    plot_liability_violin_by_sex_generation,
     plot_mate_correlation,
 )
 from sim_ace.plotting.plot_pedigree_counts import plot_pedigree_relationship_counts
@@ -186,6 +188,13 @@ def main(
         scenario,
         subsample_note=subsample_note,
     )
+    plot_liability_violin_by_sex_generation(
+        df_samples,
+        all_stats,
+        out_dir / f"liability_violin.phenotype.by_sex.by_generation.{ext}",
+        scenario,
+        subsample_note=subsample_note,
+    )
 
     # Survival / incidence plots
     plot_cumulative_incidence(
@@ -239,6 +248,12 @@ def main(
         scenario,
         params=validation_params,
     )
+    plot_tetrachoric_by_sex(
+        all_stats,
+        out_dir / f"tetrachoric.phenotype.by_sex.{ext}",
+        scenario,
+        params=validation_params,
+    )
     plot_tetrachoric_by_generation(
         all_stats,
         out_dir / f"tetrachoric.phenotype.by_generation.{ext}",
@@ -256,13 +271,8 @@ def main(
         out_dir / f"parent_offspring_liability.by_generation.{ext}",
         scenario,
         subsample_note=subsample_note,
+        params=validation_params,
     )
-    plot_cross_trait_frailty_by_generation(
-        all_stats,
-        out_dir / f"cross_trait_frailty.by_generation.{ext}",
-        scenario,
-    )
-
     # Per-generation heritability (requires validation data)
     if all_validations:
         plot_heritability_by_generation(
@@ -278,6 +288,14 @@ def main(
     else:
         for name in ["heritability.by_generation", "additive_shared.by_generation"]:
             save_placeholder_plot(out_dir / f"{name}.{ext}", "No validation data available")
+
+    # PO-regression heritability by sex
+    plot_heritability_by_sex_generation(
+        all_stats,
+        out_dir / f"heritability.by_sex.by_generation.{ext}",
+        scenario,
+        params=validation_params,
+    )
 
     logger.info("Phenotype plots saved to %s", out_dir)
 

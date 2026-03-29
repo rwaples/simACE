@@ -225,19 +225,20 @@ class TestPlaceholderPaths:
         plot_broad_heritability_by_generation([{}], out, scenario="test")
         assert out.exists()
 
-    def test_cross_trait_frailty_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_correlations import plot_cross_trait_frailty_by_generation
-
-        out = tmp_path / "ct.png"
-        plot_cross_trait_frailty_by_generation([{}], out, scenario="test")
-        assert out.exists()
-
     def test_parent_offspring_no_generation(self, tmp_path, sample_df):
         from sim_ace.plotting.plot_correlations import plot_parent_offspring_liability
 
         df = sample_df.drop(columns=["generation"])
         out = tmp_path / "po.png"
         plot_parent_offspring_liability(df, [{}], out, scenario="test")
+        assert out.exists()
+
+    def test_parent_offspring_with_params(self, tmp_path, sample_df):
+        from sim_ace.plotting.plot_correlations import plot_parent_offspring_liability
+
+        out = tmp_path / "po_params.png"
+        params = {"A1": 0.5, "C1": 0.3, "A2": 0.4, "C2": 0.2}
+        plot_parent_offspring_liability(sample_df, [{}], out, scenario="test", params=params)
         assert out.exists()
 
     def test_cumulative_by_sex_no_data(self, tmp_path):

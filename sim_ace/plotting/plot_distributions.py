@@ -135,7 +135,7 @@ def plot_trait_regression(
         x = affected[liability_col].values
         y = affected[t_col].values
 
-        # Get R^2 from pre-computed stats (averaged across reps)
+        # Get regression stats from pre-computed stats (averaged across reps)
         reg_stats = [
             s["regression"][f"trait{trait_num}"]
             for s in all_stats
@@ -143,17 +143,16 @@ def plot_trait_regression(
         ]
         if reg_stats:
             mean_r = np.mean([r["r"] for r in reg_stats])
-            mean_r2 = np.mean([r["r2"] for r in reg_stats])
             mean_slope = np.mean([r["slope"] for r in reg_stats])
             mean_intercept = np.mean([r["intercept"] for r in reg_stats])
+            mean_n = int(np.mean([r["n"] for r in reg_stats]))
+            stderr_vals = [r["stderr"] for r in reg_stats if r.get("stderr") is not None]
+            mean_stderr = float(np.mean(stderr_vals)) if stderr_vals else None
         elif len(x) >= 2:
-            from scipy.stats import linregress
+            from sim_ace.core.utils import fast_linregress
 
-            reg = linregress(x, y)
-            mean_r = float(reg.rvalue)
-            mean_r2 = reg.rvalue**2
-            mean_slope = reg.slope
-            mean_intercept = reg.intercept
+            mean_slope, mean_intercept, mean_r, mean_stderr, _mean_pvalue = fast_linregress(x, y)
+            mean_n = len(x)
         else:
             continue
 
@@ -178,13 +177,38 @@ def plot_trait_regression(
             color="C3",
             linewidth=2,
         )
+
+        # 95% confidence band
+        if mean_stderr is not None and mean_n > 2:
+            from scipy.stats import t as t_dist
+
+            x_smooth = np.linspace(x.min(), x.max(), 200)
+            y_hat = mean_slope * x_smooth + mean_intercept
+            x_mean = np.mean(x)
+            ss_x = np.sum((x - x_mean) ** 2)
+            if ss_x > 1e-12:
+                s = mean_stderr * np.sqrt(ss_x)
+                t_crit = t_dist.ppf(0.975, df=mean_n - 2)
+                se_fit = s * np.sqrt(1.0 / mean_n + (x_smooth - x_mean) ** 2 / ss_x)
+                ax_joint.fill_between(
+                    x_smooth,
+                    y_hat - t_crit * se_fit,
+                    y_hat + t_crit * se_fit,
+                    alpha=0.15,
+                    color="C3",
+                    zorder=2,
+                )
+
+        # Annotation: slope, r
+        ann_lines = [f"slope = {mean_slope:.4f}", f"r = {mean_r:.4f}"]
         ax_joint.text(
             0.05,
             0.95,
-            f"r = {mean_r:.4f}\nR\u00b2 = {mean_r2:.4f}",
+            "\n".join(ann_lines),
             transform=ax_joint.transAxes,
             va="top",
-            fontsize=12,
+            fontsize=11,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
         )
         ax_joint.set_xlabel("Liability")
         ax_joint.set_ylabel("Age at Onset")
@@ -391,8 +415,8 @@ def plot_cumulative_incidence_by_sex_generation(
             key = f"trait{trait_num}"
 
             for sex_label, display, color in [
-                ("female", "Female", "C0"),
-                ("male", "Male", "C3"),
+                ("female", "Female", COLOR_FEMALE),
+                ("male", "Male", COLOR_MALE),
             ]:
                 rep_data = [
                     s["cumulative_incidence_by_sex_generation"][key][gk][sex_label]

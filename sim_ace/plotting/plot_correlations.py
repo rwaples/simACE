@@ -2,8 +2,7 @@
 
 Contains: plot_tetrachoric_sibling, plot_tetrachoric_by_generation,
 plot_cross_trait_tetrachoric, plot_parent_offspring_liability,
-plot_heritability_by_generation, plot_broad_heritability_by_generation,
-plot_cross_trait_frailty_by_generation.
+plot_heritability_by_generation, plot_broad_heritability_by_generation.
 """
 
 from __future__ import annotations
@@ -506,9 +505,10 @@ def plot_parent_offspring_liability(
     output_path: str | Path,
     scenario: str = "",
     subsample_note: str = "",
+    params: dict[str, Any] | None = None,
 ) -> None:
     """2 x 3 scatter grid: midparent vs offspring liability by generation."""
-    from scipy.stats import linregress
+    from scipy.stats import t as t_dist
 
     if "generation" not in df_samples.columns:
         save_placeholder_plot(output_path, "No generation data")
@@ -573,41 +573,146 @@ def plot_parent_offspring_liability(
             offspring_liab = liability[gen_idx[valid]]
             midparent_liab = (liability[m_rows[valid]] + liability[f_rows[valid]]) / 2.0
 
-            ax.plot(midparent_liab, offspring_liab, "o", ms=2, mew=0, alpha=0.3, rasterized=True)
+            # Sex-stratified scatter: daughters in green, sons in blue
+            sex_arr = df_samples["sex"].values
+            offspring_sex = sex_arr[gen_idx[valid]]
+            from sim_ace.plotting.plot_distributions import COLOR_FEMALE, COLOR_MALE
+
+            f_mask = offspring_sex == 0
+            m_mask = offspring_sex == 1
+            if f_mask.any():
+                ax.plot(
+                    midparent_liab[f_mask],
+                    offspring_liab[f_mask],
+                    "o",
+                    ms=2,
+                    mew=0,
+                    alpha=0.25,
+                    color=COLOR_FEMALE,
+                    rasterized=True,
+                )
+            if m_mask.any():
+                ax.plot(
+                    midparent_liab[m_mask],
+                    offspring_liab[m_mask],
+                    "o",
+                    ms=2,
+                    mew=0,
+                    alpha=0.25,
+                    color=COLOR_MALE,
+                    rasterized=True,
+                )
 
             # Collect pre-computed stats (averaged across reps)
-            r_vals, r2_vals, slope_vals, intercept_vals, n_vals = [], [], [], [], []
+            r_vals, slope_vals, intercept_vals, n_vals = [], [], [], []
+            stderr_vals: list[float] = []
             for s in all_stats:
                 po = s.get("parent_offspring_corr", {}).get(f"trait{trait_num}", {}).get(f"gen{gen}", {})
                 if po and po.get("r") is not None:
                     r_vals.append(po["r"])
-                    r2_vals.append(po.get("r2", po["r"] ** 2))
                     slope_vals.append(po["slope"])
                     intercept_vals.append(po["intercept"])
                     n_vals.append(po["n_pairs"])
+                    if po.get("stderr") is not None:
+                        stderr_vals.append(po["stderr"])
 
             if r_vals:
                 mean_r = np.mean(r_vals)
-                mean_r2 = np.mean(r2_vals)
                 mean_slope = np.mean(slope_vals)
                 mean_intercept = np.mean(intercept_vals)
                 mean_n = int(np.mean(n_vals))
+                mean_stderr = float(np.mean(stderr_vals)) if stderr_vals else None
             else:
-                reg = linregress(midparent_liab, offspring_liab)
-                mean_r = float(reg.rvalue)
-                mean_r2 = float(reg.rvalue**2)
-                mean_slope = float(reg.slope)
-                mean_intercept = float(reg.intercept)
+                from sim_ace.core.utils import fast_linregress
+
+                mean_slope, mean_intercept, mean_r, mean_stderr, _mean_pvalue = fast_linregress(
+                    midparent_liab, offspring_liab
+                )
                 mean_n = int(valid.sum())
 
-            # Regression line from pre-computed stats
+            # Observed regression line
             x_line = np.array([midparent_liab.min(), midparent_liab.max()])
             ax.plot(x_line, mean_slope * x_line + mean_intercept, color="C3", linewidth=2)
 
+            # 95% confidence band around regression line
+            if mean_stderr is not None and mean_n > 2:
+                x_smooth = np.linspace(midparent_liab.min(), midparent_liab.max(), 200)
+                y_hat = mean_slope * x_smooth + mean_intercept
+                x_mean = np.mean(midparent_liab)
+                ss_x = np.sum((midparent_liab - x_mean) ** 2)
+                if ss_x > 1e-12:
+                    # Reconstruct residual SE: stderr_slope = s / sqrt(SS_x)
+                    s = mean_stderr * np.sqrt(ss_x)
+                    t_crit = t_dist.ppf(0.975, df=mean_n - 2)
+                    se_fit = s * np.sqrt(1.0 / mean_n + (x_smooth - x_mean) ** 2 / ss_x)
+                    ax.fill_between(
+                        x_smooth,
+                        y_hat - t_crit * se_fit,
+                        y_hat + t_crit * se_fit,
+                        alpha=0.15,
+                        color="C3",
+                        zorder=2,
+                    )
+
+            # Expected slope from configured A (h² = A for midparent-offspring)
+            if params is not None:
+                expected_slope = params.get(f"A{trait_num}")
+                if expected_slope is not None:
+                    x_mean = np.mean(midparent_liab)
+                    y_mean = np.mean(offspring_liab)
+                    expected_intercept = y_mean - float(expected_slope) * x_mean
+                    ax.plot(
+                        x_line,
+                        float(expected_slope) * x_line + expected_intercept,
+                        color="C1",
+                        linestyle="--",
+                        linewidth=2,
+                        zorder=4,
+                    )
+
+            # Sex-stratified regression lines
+            sex_slopes: dict[str, float | None] = {}
+            for sex_key, sex_color in [("female", COLOR_FEMALE), ("male", COLOR_MALE)]:
+                sex_slope_vals = []
+                for s in all_stats:
+                    po_s = (
+                        s.get("parent_offspring_corr_by_sex", {})
+                        .get(sex_key, {})
+                        .get(f"trait{trait_num}", {})
+                        .get(f"gen{gen}", {})
+                    )
+                    if po_s and po_s.get("slope") is not None:
+                        sex_slope_vals.append(po_s["slope"])
+                if sex_slope_vals:
+                    s_slope = np.mean(sex_slope_vals)
+                    s_intercept = np.mean(offspring_liab) - s_slope * np.mean(midparent_liab)
+                    ax.plot(
+                        x_line,
+                        s_slope * x_line + s_intercept,
+                        color=sex_color,
+                        linewidth=1.5,
+                        alpha=0.8,
+                        zorder=3,
+                    )
+                    sex_slopes[sex_key] = s_slope
+                else:
+                    sex_slopes[sex_key] = None
+
+            # Annotation: lead with h² (slope = heritability estimate)
+            ann_lines = []
+            if mean_stderr is not None:
+                ann_lines.append(f"h\u00b2 = {mean_slope:.4f} \u00b1 {mean_stderr:.4f}")
+            else:
+                ann_lines.append(f"h\u00b2 = {mean_slope:.4f}")
+            if sex_slopes.get("female") is not None:
+                ann_lines.append(f"h\u00b2\u2640 = {sex_slopes['female']:.4f}")
+            if sex_slopes.get("male") is not None:
+                ann_lines.append(f"h\u00b2\u2642 = {sex_slopes['male']:.4f}")
+            ann_lines.append(f"r = {mean_r:.4f}")
             ax.text(
                 0.05,
                 0.95,
-                f"r = {mean_r:.4f}\nR\u00b2 = {mean_r2:.4f}\nn = {mean_n}",
+                "\n".join(ann_lines),
                 transform=ax.transAxes,
                 va="top",
                 fontsize=10,
@@ -620,6 +725,19 @@ def plot_parent_offspring_liability(
                 ax.set_ylabel(f"Trait {trait_num}\nOffspring Liability")
             if row == 1:
                 ax.set_xlabel("Midparent Liability")
+
+    # Legend on the last axes
+    from matplotlib.lines import Line2D
+
+    has_any_expected = params is not None and any(params.get(f"A{t}") is not None for t in [1, 2])
+    legend_handles = [
+        Line2D([0], [0], color="C3", linewidth=2, label="Observed h\u00b2"),
+        Line2D([0], [0], color=COLOR_FEMALE, linewidth=1.5, label="Daughters"),
+        Line2D([0], [0], color=COLOR_MALE, linewidth=1.5, label="Sons"),
+    ]
+    if has_any_expected:
+        legend_handles.append(Line2D([0], [0], color="C1", linestyle="--", linewidth=2, label="Expected (A)"))
+    axes[0, -1].legend(handles=legend_handles, loc="lower right", fontsize=8)
 
     fig.suptitle(f"Midparent-Offspring Liability Regression [{scenario}]", fontsize=14)
     finalize_plot(output_path, subsample_note=subsample_note)
@@ -778,113 +896,203 @@ def plot_broad_heritability_by_generation(
     finalize_plot(output_path)
 
 
-def plot_cross_trait_frailty_by_generation(
+def plot_tetrachoric_by_sex(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
+    params: dict[str, Any] | None = None,
 ) -> None:
-    """Plot per-generation cross-trait frailty correlation estimates.
+    """Tetrachoric correlations for same-sex pairs: 2 rows (traits) x 2 cols (F/M)."""
+    pair_types = PAIR_TYPES
+    pair_colors = PAIR_COLORS
 
-    Shows per-rep per-generation r as dots, mean line across generations,
-    and reference lines for oracle (uncensored), stratified IVW, and naive
-    pooled estimates.
-    """
-    # Collect per-generation data from each replicate
-    gen_data: dict[int, list[tuple[float, float]]] = {}  # gen -> [(r, se), ...]
-    oracle_rs: list[float] = []
-    strat_rs: list[float] = []
-    naive_rs: list[float] = []
+    sex_labels = [("female", "Female"), ("male", "Male")]
 
-    for s in all_stats:
-        ct_strat = s.get("frailty_cross_trait_stratified", {})
-        ct_unc = s.get("frailty_cross_trait_uncensored", {})
-        ct_cens = s.get("frailty_cross_trait", {})
-
-        if ct_unc and ct_unc.get("r") is not None:
-            oracle_rs.append(ct_unc["r"])
-        if ct_strat and ct_strat.get("r") is not None:
-            strat_rs.append(ct_strat["r"])
-        if ct_cens and ct_cens.get("r") is not None:
-            naive_rs.append(ct_cens["r"])
-
-        per_gen = ct_strat.get("per_generation", {}) if ct_strat else {}
-        for gk, gv in per_gen.items():
-            gen_num = int(gk.replace("gen", ""))
-            r_g = gv.get("r")
-            se_g = gv.get("se")
-            if r_g is not None:
-                gen_data.setdefault(gen_num, []).append((r_g, se_g if se_g is not None else 0.0))
-
-    if not gen_data:
-        save_placeholder_plot(
-            output_path,
-            "No per-generation cross-trait data\n\n(requires extra_tetrachoric: True in scenario config)",
-            figsize=(8, 5),
-        )
+    # Check if data exists
+    has_data = any(s.get("tetrachoric_by_sex") for s in all_stats)
+    if not has_data:
+        save_placeholder_plot(output_path, "No sex-stratified tetrachoric data")
         return
 
-    generations = sorted(gen_data.keys())
-    _fig, ax = plt.subplots(figsize=(8, 5))
+    fig, axes = plt.subplots(2, 2, figsize=(16, 10), squeeze=False)
 
-    # Per-replicate dots with jitter
-    for gen in generations:
-        reps = gen_data[gen]
-        for rep_idx, (r_g, se_g) in enumerate(reps):
-            jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08)
-            ax.scatter(
-                gen + jitter,
-                r_g,
-                color="C0",
-                alpha=0.9,
-                s=30,
-                zorder=5,
-            )
-            if se_g > 0:
-                ax.errorbar(
-                    gen + jitter,
-                    r_g,
-                    yerr=1.96 * se_g,
-                    color="C0",
-                    alpha=0.4,
-                    fmt="none",
-                    capsize=2,
-                    zorder=4,
+    for col_idx, (sex_key, sex_display) in enumerate(sex_labels):
+        for row_idx, trait_num in enumerate([1, 2]):
+            ax = axes[row_idx, col_idx]
+            key = f"trait{trait_num}"
+
+            rows = []
+            total_pairs: dict[str, int] = {}
+            for ptype in pair_types:
+                n_total = 0
+                for s in all_stats:
+                    entry = s.get("tetrachoric_by_sex", {}).get(sex_key, {}).get(key, {}).get(ptype, {})
+                    r = entry.get("r")
+                    n_p = entry.get("n_pairs", 0)
+                    n_total += n_p
+                    if r is not None:
+                        rows.append({"pair_type": ptype, "r": r})
+                total_pairs[ptype] = n_total
+
+            df_plot = pd.DataFrame(rows)
+
+            if not df_plot.empty:
+                datasets = [df_plot.loc[df_plot["pair_type"] == pt, "r"].values for pt in pair_types]
+                colors = [pair_colors[pt] for pt in pair_types]
+                draw_colored_violins(ax, datasets, list(range(len(pair_types))), colors)
+
+                # Per-rep dots
+                for i, ptype in enumerate(pair_types):
+                    rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
+                    if len(rep_vals):
+                        jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
+                        ax.scatter(i + jitter, rep_vals, color="black", s=15, alpha=0.9, zorder=5)
+
+                # Liability reference lines
+                for i, ptype in enumerate(pair_types):
+                    liab_vals = [
+                        s.get("tetrachoric_by_sex", {}).get(sex_key, {}).get(key, {}).get(ptype, {}).get("liability_r")
+                        for s in all_stats
+                    ]
+                    liab_vals = [v for v in liab_vals if v is not None]
+                    if liab_vals:
+                        ax.hlines(
+                            np.mean(liab_vals),
+                            i - 0.35,
+                            i + 0.35,
+                            colors="black",
+                            linestyles="dashed",
+                            linewidth=2,
+                            zorder=4,
+                        )
+
+                # Parametric expected
+                if params is not None:
+                    A = params.get(f"A{trait_num}")
+                    C = params.get(f"C{trait_num}")
+                    if A is not None and C is not None:
+                        for i, ptype in enumerate(pair_types):
+                            exp_r = _expected_liability_corr(float(A), float(C), ptype)
+                            if exp_r is not None:
+                                ax.hlines(
+                                    exp_r,
+                                    i - 0.35,
+                                    i + 0.35,
+                                    colors="C3",
+                                    linestyles="dotted",
+                                    linewidth=2,
+                                    zorder=4,
+                                )
+
+                # N pairs annotation
+                n_reps = len(all_stats)
+                for i, ptype in enumerate(pair_types):
+                    rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
+                    if len(rep_vals):
+                        ax.text(
+                            i,
+                            ax.get_ylim()[1] - 0.02,
+                            f"n={total_pairs[ptype] // n_reps:,}",
+                            ha="center",
+                            va="top",
+                            fontsize=7,
+                        )
+
+            ax.set_xticks(range(len(pair_types)))
+            ax.set_xticklabels(pair_types, fontsize=8, rotation=15, ha="right")
+            ax.set_ylabel("Tetrachoric r")
+            ax.set_ylim(-0.1, 1.1)
+            if row_idx == 0:
+                ax.set_title(f"{sex_display} — Trait {trait_num}")
+            else:
+                ax.set_title(f"Trait {trait_num}")
+
+    fig.suptitle(f"Tetrachoric Correlation by Sex (same-sex pairs) [{scenario}]", fontsize=14)
+    finalize_plot(output_path)
+
+
+def plot_heritability_by_sex_generation(
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+    params: dict[str, Any] | None = None,
+) -> None:
+    """Plot PO-regression heritability by offspring sex and generation.
+
+    1x2 panel (one per trait). Each panel shows per-rep h² dots in two
+    series: daughters (green) and sons (blue).
+    """
+    from sim_ace.plotting.plot_distributions import COLOR_FEMALE, COLOR_MALE
+
+    has_data = any(s.get("parent_offspring_corr_by_sex") for s in all_stats)
+    if not has_data:
+        save_placeholder_plot(output_path, "No sex-stratified PO regression data")
+        return
+
+    # Discover generations from data
+    gen_set: set[int] = set()
+    for s in all_stats:
+        po_sex = s.get("parent_offspring_corr_by_sex", {})
+        for sex_key in ["female", "male"]:
+            for trait_key in ["trait1", "trait2"]:
+                for gk in po_sex.get(sex_key, {}).get(trait_key, {}):
+                    gen_set.add(int(gk.replace("gen", "")))
+    if not gen_set:
+        save_placeholder_plot(output_path, "No generation data in PO sex stats")
+        return
+    generations = sorted(gen_set)
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+
+    for col, trait_num in enumerate([1, 2]):
+        ax = axes[col]
+        trait_key = f"trait{trait_num}"
+
+        for sex_key, sex_display, color in [
+            ("female", "Daughters", COLOR_FEMALE),
+            ("male", "Sons", COLOR_MALE),
+        ]:
+            for rep_idx, s in enumerate(all_stats):
+                po_data = s.get("parent_offspring_corr_by_sex", {}).get(sex_key, {}).get(trait_key, {})
+                h2_vals = []
+                gen_vals = []
+                for gen in generations:
+                    entry = po_data.get(f"gen{gen}", {})
+                    slope = entry.get("slope")
+                    if slope is not None:
+                        h2_vals.append(slope)
+                        gen_vals.append(gen)
+                if h2_vals:
+                    jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08, len(gen_vals))
+                    ax.scatter(
+                        np.array(gen_vals) + jitter,
+                        h2_vals,
+                        color=color,
+                        alpha=0.8,
+                        s=25,
+                        zorder=5,
+                        label=sex_display if rep_idx == 0 else None,
+                    )
+
+        # Parametric expected h²
+        if params is not None:
+            exp = params.get(f"A{trait_num}")
+            if exp is not None:
+                ax.axhline(
+                    y=exp,
+                    color="C1",
+                    linestyle="--",
+                    linewidth=2,
+                    alpha=0.7,
+                    label=f"Parametric A{trait_num} = {exp}",
                 )
 
-    # Mean line across generations
-    mean_rs = [np.mean([r for r, _ in gen_data[g]]) for g in generations]
-    ax.plot(
-        generations, mean_rs, color="C0", linewidth=2, marker="o", markersize=7, zorder=6, label="Per-generation mean"
-    )
+        ax.set_xlabel("Generation")
+        ax.set_ylabel("h\u00b2 (PO regression slope)")
+        ax.set_title(f"Trait {trait_num}")
+        ax.set_xticks(generations)
+        ax.set_ylim(0, 1)
+        ax.legend(loc="lower left", fontsize=9)
 
-    # Reference lines
-    if oracle_rs:
-        mean_oracle = np.mean(oracle_rs)
-        ax.axhline(
-            y=mean_oracle,
-            color="C2",
-            linestyle="-.",
-            linewidth=2,
-            alpha=0.7,
-            label=f"Uncensored oracle = {mean_oracle:.3f}",
-        )
-
-    if strat_rs:
-        mean_strat = np.mean(strat_rs)
-        ax.axhline(
-            y=mean_strat, color="C1", linestyle="--", linewidth=2, alpha=0.7, label=f"Stratified IVW = {mean_strat:.3f}"
-        )
-
-    if naive_rs:
-        mean_naive = np.mean(naive_rs)
-        ax.axhline(
-            y=mean_naive, color="C3", linestyle=":", linewidth=2, alpha=0.7, label=f"Naive pooled = {mean_naive:.3f}"
-        )
-
-    ax.set_xlabel("Generation")
-    ax.set_ylabel("Cross-trait liability correlation (r)")
-    ax.set_title(f"Cross-Trait Correlation by Generation [{scenario}]", fontsize=13)
-    ax.set_xticks(generations)
-    ax.legend(loc="best", fontsize=9)
-
+    fig.suptitle(f"PO-Regression Heritability by Offspring Sex [{scenario}]", fontsize=14)
     finalize_plot(output_path)

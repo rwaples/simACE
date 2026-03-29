@@ -40,7 +40,6 @@ def _run_snakemake():
         seed=p.seed,
         gen_censoring=gen_censoring,
         frailty_params=frailty_params,
-        extra_tetrachoric=p.get("extra_tetrachoric", True),
         pedigree_path=snakemake.input.pedigree,
         skip_2nd_cousins=p.get("skip_2nd_cousins", True),
         case_ascertainment_ratio=p.get("case_ascertainment_ratio", 1.0),

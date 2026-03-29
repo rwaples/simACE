@@ -115,14 +115,18 @@ def _plot_joint_grid(
             ax_marg_x.hist(x, bins=50, edgecolor="none", alpha=0.7)
             ax_marg_y.hist(y, bins=50, orientation="horizontal", edgecolor="none", alpha=0.7)
 
-        r = np.corrcoef(x, y)[0, 1]
+        from sim_ace.core.utils import fast_pearsonr
+
+        r, _p = fast_pearsonr(x, y)
+        ann = f"r = {r:.4f}"
         ax_joint.text(
             0.05,
             0.95,
-            f"r = {r:.4f}",
+            ann,
             transform=ax_joint.transAxes,
             va="top",
             fontsize=11,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
         )
         ax_joint.set_box_aspect(1)
         ax_joint.set_xlabel(f"{title} (Trait 1)")
@@ -333,6 +337,96 @@ def plot_liability_violin_by_generation(
     finalize_plot(output_path, subsample_note=subsample_note)
 
 
+def plot_liability_violin_by_sex_generation(
+    df_samples: pd.DataFrame,
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+    subsample_note: str = "",
+) -> None:
+    """Split violin by affected status with side-by-side F|M panels per generation.
+
+    Layout: 2 rows (traits) x N cols (generations). Each cell has two
+    side-by-side sub-violins at x=-0.3 (female) and x=+0.3 (male).
+    """
+    if "generation" not in df_samples.columns:
+        save_placeholder_plot(output_path, "No generation data")
+        return
+
+    gens = sorted(df_samples["generation"].unique())
+    n_gens = len(gens)
+    sex_arr = df_samples["sex"].values
+
+    fig, axes = plt.subplots(2, n_gens, figsize=(5 * n_gens, 8), squeeze=False)
+
+    for row, trait_num in enumerate([1, 2]):
+        liab_col = f"liability{trait_num}"
+        aff_col = f"affected{trait_num}"
+
+        for col, gen in enumerate(gens):
+            ax = axes[row, col]
+            gen_mask = df_samples["generation"] == gen
+            sex_prev: dict[str, str] = {}
+
+            for sex_val, sex_label, pos in [
+                (0, "F", -0.3),
+                (1, "M", 0.3),
+            ]:
+                mask = gen_mask & (sex_arr == sex_val)
+                df_sub = df_samples.loc[mask]
+                liab = df_sub[liab_col].values
+                aff = df_sub[aff_col].values.astype(bool)
+
+                if len(liab) > 1:
+                    draw_split_violin(ax, liab[~aff], liab[aff], pos=pos, width=0.5)
+
+                    # Annotate means
+                    if aff.any():
+                        mu = liab[aff].mean()
+                        ax.plot(pos + 0.03, mu, "D", color="black", markersize=4, zorder=5)
+                    if (~aff).any():
+                        mu = liab[~aff].mean()
+                        ax.plot(pos - 0.03, mu, "D", color="black", markersize=4, zorder=5)
+
+                    sex_prev[sex_label] = f"{aff.mean():.0%}"
+
+            ax.set_xticks([-0.3, 0.3])
+            ax.set_xticklabels(
+                [f"F\n{sex_prev.get('F', '')}", f"M\n{sex_prev.get('M', '')}"],
+                fontsize=8,
+            )
+
+            if row == 0:
+                label = f"Gen {gen}"
+                if col == 0:
+                    label += " (oldest)"
+                elif col == n_gens - 1:
+                    label += " (youngest)"
+                ax.set_title(label, fontsize=11)
+            if col == 0:
+                ax.set_ylabel(f"Trait {trait_num}\nLiability", fontsize=10)
+            else:
+                ax.set_ylabel("")
+
+            # Legend only once
+            if row == 0 and col == n_gens - 1:
+                from matplotlib.patches import Patch
+
+                ax.legend(
+                    handles=[
+                        Patch(facecolor="C0", edgecolor="black", linewidth=0.8, label="Unaffected"),
+                        Patch(facecolor="C1", edgecolor="black", linewidth=0.8, label="Affected"),
+                    ],
+                    fontsize=8,
+                )
+
+    fig.suptitle(
+        f"Liability by Affected Status & Sex per Generation [{scenario}]",
+        fontsize=14,
+    )
+    finalize_plot(output_path, subsample_note=subsample_note)
+
+
 def plot_censoring_confusion(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
@@ -371,6 +465,8 @@ def plot_censoring_confusion(
         counts = np.array([[tp, fn], [fp, tn]])
         sensitivity = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
         specificity = tn / (tn + fp) if (tn + fp) > 0 else float("nan")
+        ppv = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
+        npv = tn / (tn + fn) if (tn + fn) > 0 else float("nan")
 
         is_last = col == len(axes) - 1
         sns.heatmap(
@@ -387,7 +483,9 @@ def plot_censoring_confusion(
         )
         annotate_heatmap(ax, props, counts)
 
-        metrics = f"Sensitivity: {sensitivity:.3f}   Specificity: {specificity:.3f}"
+        metrics = (
+            f"Sens: {sensitivity:.3f}   Spec: {specificity:.3f}   PPV: {ppv:.3f}   NPV: {npv:.3f}   n = {int(n):,}"
+        )
         ax.set_title(f"Trait {trait}\n{metrics}", fontsize=11)
 
     finalize_plot(output_path)

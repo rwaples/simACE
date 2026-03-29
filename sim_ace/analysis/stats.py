@@ -19,12 +19,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import yaml
-from scipy.optimize import minimize_scalar
-from scipy.special import owens_t
-from scipy.stats import linregress, norm
 
+from sim_ace.core._numba_utils import _ndtri_approx, _norm_cdf, _pearsonr_core, _tetrachoric_core
 from sim_ace.core.pedigree_graph import extract_and_count_relationship_pairs, extract_relationship_pairs
-from sim_ace.core.utils import PAIR_TYPES, save_parquet
+from sim_ace.core.utils import PAIR_TYPES, fast_linregress, save_parquet
 
 logger = logging.getLogger(__name__)
 
@@ -32,31 +30,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Tetrachoric correlation
 # ---------------------------------------------------------------------------
-
-
-def _bvn_pos(h: float, k: float, r: float, sq: float) -> float:
-    if h < 1e-15 and k < 1e-15:
-        return 0.25 + np.arcsin(r) / (2.0 * np.pi)
-    if h < 1e-15:
-        return 0.5 * norm.cdf(k) - owens_t(k, -r / sq)
-    if k < 1e-15:
-        return 0.5 * norm.cdf(h) - owens_t(h, -r / sq)
-    return (
-        0.5 * norm.cdf(h) + 0.5 * norm.cdf(k) - owens_t(h, (k - r * h) / (h * sq)) - owens_t(k, (h - r * k) / (k * sq))
-    )
-
-
-def _bvn_cdf(h: float, k: float, r: float) -> float:
-    if abs(r) < 1e-15:
-        return norm.cdf(h) * norm.cdf(k)
-    sq = np.sqrt(1.0 - r * r)
-    if h < 0 and k < 0:
-        return 1.0 - norm.cdf(-h) - norm.cdf(-k) + _bvn_pos(-h, -k, r, sq)
-    if h < 0:
-        return norm.cdf(k) - _bvn_pos(-h, k, -r, sq)
-    if k < 0:
-        return norm.cdf(h) - _bvn_pos(h, -k, -r, sq)
-    return _bvn_pos(h, k, r, sq)
 
 
 def tetrachoric_corr(a: np.ndarray, b: np.ndarray) -> float:
@@ -69,81 +42,32 @@ def tetrachoric_corr(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def tetrachoric_corr_se(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
-    """Estimate tetrachoric correlation and SE from two binary arrays via MLE."""
+    """Estimate tetrachoric correlation and SE from two binary arrays via MLE.
+
+    Delegates the numerical work (Brent optimization + bivariate normal CDF)
+    to the numba-jitted ``_tetrachoric_core`` for speed.
+    """
     a = np.asarray(a, dtype=bool)
     b = np.asarray(b, dtype=bool)
     n_pairs = len(a)
     if n_pairs < 50:
         logger.warning("tetrachoric_corr_se: n_pairs=%d < 50, SE may be unreliable", n_pairs)
 
-    n11 = np.sum(a & b)
-    n10 = np.sum(a & ~b)
-    n01 = np.sum(~a & b)
-    n00 = np.sum(~a & ~b)
+    n11 = float(np.sum(a & b))
+    n10 = float(np.sum(a & ~b))
+    n01 = float(np.sum(~a & b))
+    n00 = float(np.sum(~a & ~b))
 
     p_a, p_b = a.mean(), b.mean()
     if p_a in (0, 1) or p_b in (0, 1):
         return np.nan, np.nan
 
-    t_a = norm.ppf(1 - p_a)
-    t_b = norm.ppf(1 - p_b)
-    phi_ta = norm.cdf(t_a)
-    phi_tb = norm.cdf(t_b)
-    both_positive = t_a > 1e-15 and t_b > 1e-15
+    t_a = float(_ndtri_approx(1.0 - p_a))
+    t_b = float(_ndtri_approx(1.0 - p_b))
+    phi_ta = float(_norm_cdf(t_a))
+    phi_tb = float(_norm_cdf(t_b))
 
-    def neg_log_lik(r: float) -> float:
-        if both_positive:
-            sq = np.sqrt(1.0 - r * r)
-            p00 = (
-                0.5 * phi_ta
-                + 0.5 * phi_tb
-                - owens_t(t_a, (t_b - r * t_a) / (t_a * sq))
-                - owens_t(t_b, (t_a - r * t_b) / (t_b * sq))
-            )
-        else:
-            p00 = _bvn_cdf(t_a, t_b, r)
-        p01 = phi_ta - p00
-        p10 = phi_tb - p00
-        p11 = 1 - p00 - p01 - p10
-        eps = 1e-15
-        return -(
-            n11 * np.log(max(p11, eps))
-            + n10 * np.log(max(p10, eps))
-            + n01 * np.log(max(p01, eps))
-            + n00 * np.log(max(p00, eps))
-        )
-
-    result = minimize_scalar(neg_log_lik, bounds=(-0.999, 0.999), method="bounded")
-    r = result.x
-    if np.isnan(r):
-        return np.nan, np.nan
-
-    try:
-        one_minus_r2 = 1.0 - r * r
-        if one_minus_r2 <= 0:
-            return r, np.nan
-        bvn_pdf = (1.0 / (2.0 * np.pi * np.sqrt(one_minus_r2))) * np.exp(
-            -(t_a**2 - 2.0 * r * t_a * t_b + t_b**2) / (2.0 * one_minus_r2)
-        )
-        if both_positive:
-            sq = np.sqrt(one_minus_r2)
-            p00 = (
-                0.5 * phi_ta
-                + 0.5 * phi_tb
-                - owens_t(t_a, (t_b - r * t_a) / (t_a * sq))
-                - owens_t(t_b, (t_a - r * t_b) / (t_b * sq))
-            )
-        else:
-            p00 = _bvn_cdf(t_a, t_b, r)
-        p01 = phi_ta - p00
-        p10 = phi_tb - p00
-        p11 = 1.0 - p00 - p01 - p10
-        denom = p00 * p01 * p10 * p11
-        se = np.nan if denom <= 0 else 1.0 / np.sqrt(n_pairs * bvn_pdf**2 / denom)
-    except Exception:
-        se = np.nan
-
-    return r, se
+    return _tetrachoric_core(n11, n10, n01, n00, t_a, t_b, phi_ta, phi_tb)
 
 
 # ---------------------------------------------------------------------------
@@ -242,12 +166,14 @@ def compute_regression(df: pd.DataFrame) -> dict[str, Any]:
         if len(sub) < 2:
             result[f"trait{trait_num}"] = None
             continue
-        reg = linregress(sub[liab_col].values, sub[t_col].values)
+        slope, intercept, r, stderr, pvalue = fast_linregress(sub[liab_col].values, sub[t_col].values)
         result[f"trait{trait_num}"] = {
-            "slope": float(reg.slope),
-            "intercept": float(reg.intercept),
-            "r": float(reg.rvalue),
-            "r2": float(reg.rvalue**2),
+            "slope": slope,
+            "intercept": intercept,
+            "r": r,
+            "r2": r**2,
+            "stderr": stderr,
+            "pvalue": pvalue,
             "n": len(sub),
         }
     return result
@@ -486,9 +412,7 @@ def compute_liability_correlations(
         trait_result: dict[str, float | None] = {}
         for ptype in PAIR_TYPES:
             idx1, idx2 = pairs[ptype]
-            trait_result[ptype] = (
-                float(np.corrcoef(liability[idx1], liability[idx2])[0, 1]) if len(idx1) >= 10 else None
-            )
+            trait_result[ptype] = float(_pearsonr_core(liability[idx1], liability[idx2])) if len(idx1) >= 10 else None
         result[f"trait{trait_num}"] = trait_result
     return result
 
@@ -554,7 +478,7 @@ def compute_tetrachoric_by_generation(
                     }
                     continue
                 r, se = tetrachoric_corr_se(affected[g_idx1], affected[g_idx2])
-                liab_r = float(np.corrcoef(liability[g_idx1], liability[g_idx2])[0, 1])
+                liab_r = float(_pearsonr_core(liability[g_idx1], liability[g_idx2]))
                 trait_result[ptype] = {
                     "r": float(r) if not np.isnan(r) else None,
                     "se": float(se) if not np.isnan(se) else None,
@@ -647,164 +571,131 @@ def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
                     "r2": None,
                     "slope": None,
                     "intercept": None,
+                    "stderr": None,
+                    "pvalue": None,
                     "n_pairs": n_pairs,
                 }
                 continue
             offspring = liability[gen_idx[valid]]
             midparent = (liability[m_rows[valid]] + liability[f_rows[valid]]) / 2.0
-            r = float(np.corrcoef(midparent, offspring)[0, 1])
-            reg = linregress(midparent, offspring)
+            slope, intercept, r, stderr, pvalue = fast_linregress(midparent, offspring)
             trait_result[f"gen{gen}"] = {
                 "r": r,
-                "r2": float(r**2),
-                "slope": float(reg.slope),
-                "intercept": float(reg.intercept),
+                "r2": r**2,
+                "slope": slope,
+                "intercept": intercept,
+                "stderr": stderr,
+                "pvalue": pvalue,
                 "n_pairs": n_pairs,
             }
         result[f"trait{trait_num}"] = trait_result
     return result
 
 
-# ---------------------------------------------------------------------------
-# Frailty (survival) correlations — pluggable baseline hazard
-# ---------------------------------------------------------------------------
-
-
-def compute_frailty_correlations(
+def compute_tetrachoric_by_sex(
     df: pd.DataFrame,
-    frailty_params: dict[str, dict[str, Any]],
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
-    n_quad: int = 20,
     seed: int = 42,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Compute pairwise frailty liability correlations for all relationship types.
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
+) -> dict[str, Any]:
+    """Compute tetrachoric correlations for same-sex pairs only (FF and MM).
 
-    Args:
-        df: phenotype DataFrame
-        frailty_params: {
-            "trait1": {"beta": float, "hazard_model": str, "hazard_params": dict},
-            "trait2": {...}
-          }
-        pairs: pre-extracted relationship pair indices
-        n_quad: quadrature nodes per dimension
-        seed: random seed for pair subsampling
-
-    Returns:
-        (censored, uncensored) dicts keyed by "trait1"/"trait2"
+    Returns dict keyed by "female"/"male", each containing per-trait
+    per-pair-type {r, se, n_pairs, liability_r}.
     """
-    from sim_ace.analysis.survival_stats import compute_pair_corr
-
+    if pairs is None:
+        pairs = extract_relationship_pairs(df, seed=seed)
+    sex_arr = df["sex"].values
     result: dict[str, Any] = {}
-    result_uncensored: dict[str, Any] = {}
-    for trait_num in [1, 2]:
-        key = f"trait{trait_num}"
-        params = frailty_params.get(key, {})
-        if not params:
-            result[key] = {}
-            result_uncensored[key] = {}
-            continue
-        common = dict(
-            df=df,
-            trait_num=trait_num,
-            beta=params["beta"],
-            pairs=pairs,
-            n_quad=n_quad,
-            seed=seed,
-            hazard_model=params["hazard_model"],
-            hazard_params=params["hazard_params"],
-        )
-        result[key] = compute_pair_corr(**common)
-        result_uncensored[key] = compute_pair_corr(**common, use_raw=True)
-    return result, result_uncensored
+    for sex_val, sex_label in [(0, "female"), (1, "male")]:
+        sex_result: dict[str, Any] = {}
+        for trait_num in [1, 2]:
+            affected = df[f"affected{trait_num}"].values.astype(bool)
+            liability = df[f"liability{trait_num}"].values
+            trait_result: dict[str, Any] = {}
+            for ptype in PAIR_TYPES:
+                idx1, idx2 = pairs[ptype]
+                sex_mask = (sex_arr[idx1] == sex_val) & (sex_arr[idx2] == sex_val)
+                s_idx1 = idx1[sex_mask]
+                s_idx2 = idx2[sex_mask]
+                n_p = len(s_idx1)
+                if n_p < 10:
+                    trait_result[ptype] = {
+                        "r": None,
+                        "se": None,
+                        "n_pairs": int(n_p),
+                        "liability_r": None,
+                    }
+                    continue
+                r, se = tetrachoric_corr_se(affected[s_idx1], affected[s_idx2])
+                liab_r = float(_pearsonr_core(liability[s_idx1], liability[s_idx2]))
+                trait_result[ptype] = {
+                    "r": float(r) if not np.isnan(r) else None,
+                    "se": float(se) if not np.isnan(se) else None,
+                    "n_pairs": int(n_p),
+                    "liability_r": liab_r if not np.isnan(liab_r) else None,
+                }
+            sex_result[f"trait{trait_num}"] = trait_result
+        result[sex_label] = sex_result
+    return result
 
 
-def compute_frailty_cross_trait_corr(
-    df: pd.DataFrame,
-    frailty_params: dict[str, dict[str, Any]],
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    """Compute cross-trait frailty liability correlation.
+def compute_parent_offspring_corr_by_sex(df: pd.DataFrame) -> dict[str, Any]:
+    """Compute midparent-offspring regression partitioned by offspring sex.
 
-    Each individual is self-paired across traits. Returns
-    (censored, uncensored, stratified) dicts with keys {r, se, n}.
-    The stratified estimate uses inverse-variance weighting over generations.
+    Returns dict keyed by "female"/"male", each containing per-trait
+    per-generation {slope, r, r2, intercept, stderr, pvalue, n_pairs}.
     """
-    from sim_ace.analysis.survival_stats import cross_trait_corr_se
-
-    p1 = frailty_params.get("trait1", {})
-    p2 = frailty_params.get("trait2", {})
-    empty = {"r": None, "se": None, "n": 0}
-    if not p1 or not p2:
-        return empty, empty, empty
-
-    def _run(t1, d1, t2, d2):
-        return cross_trait_corr_se(
-            t1,
-            d1,
-            t2,
-            d2,
-            beta1=p1["beta"],
-            beta2=p2["beta"],
-            hazard_model_1=p1["hazard_model"],
-            hazard_params_1=p1["hazard_params"],
-            hazard_model_2=p2["hazard_model"],
-            hazard_params_2=p2["hazard_params"],
-        )
-
-    n = len(df)
-    ones = np.ones(n, dtype=np.float64)
-
-    r_cens, se_cens = _run(
-        df["t_observed1"].values.astype(np.float64),
-        df["affected1"].values.astype(np.float64),
-        df["t_observed2"].values.astype(np.float64),
-        df["affected2"].values.astype(np.float64),
-    )
-    r_uncens, se_uncens = _run(
-        df["t1"].values.astype(np.float64),
-        ones,
-        df["t2"].values.astype(np.float64),
-        ones,
-    )
-
-    # Generation-stratified with inverse-variance weighting
-    r_strat = se_strat = np.nan
-    gen_details: dict[str, Any] = {}
-    if "generation" in df.columns:
-        gen_rs, gen_ses = [], []
-        for gen in sorted(df["generation"].unique()):
-            g = df[df["generation"] == gen]
-            r_g, se_g = _run(
-                g["t_observed1"].values.astype(np.float64),
-                g["affected1"].values.astype(np.float64),
-                g["t_observed2"].values.astype(np.float64),
-                g["affected2"].values.astype(np.float64),
-            )
-            gen_details[f"gen{gen}"] = {
-                "r": float(r_g) if not np.isnan(r_g) else None,
-                "se": float(se_g) if not np.isnan(se_g) else None,
-                "n": len(g),
-            }
-            if not np.isnan(r_g) and not np.isnan(se_g) and se_g > 0:
-                gen_rs.append(r_g)
-                gen_ses.append(se_g)
-        if gen_rs:
-            rs = np.array(gen_rs)
-            w = 1.0 / np.array(gen_ses) ** 2
-            r_strat = float(np.sum(w * rs) / np.sum(w))
-            se_strat = float(1.0 / np.sqrt(np.sum(w)))
-
-    def _fmt(r, se):
-        return {
-            "r": float(r) if not np.isnan(r) else None,
-            "se": float(se) if not np.isnan(se) else None,
-            "n": n,
-        }
-
-    return (
-        _fmt(r_cens, se_cens),
-        _fmt(r_uncens, se_uncens),
-        {**_fmt(r_strat, se_strat), "per_generation": gen_details},
-    )
+    if "generation" not in df.columns:
+        return {}
+    max_gen = int(df["generation"].max())
+    ids_arr = df["id"].values
+    id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
+    id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
+    sex_arr = df["sex"].values
+    result: dict[str, Any] = {}
+    for sex_val, sex_label in [(0, "female"), (1, "male")]:
+        sex_result: dict[str, Any] = {}
+        for trait_num in [1, 2]:
+            liability = df[f"liability{trait_num}"].values
+            trait_result: dict[str, Any] = {}
+            for gen in range(1, max_gen + 1):
+                gen_idx = np.where((df["generation"].values == gen) & (sex_arr == sex_val))[0]
+                mother_ids = df["mother"].values[gen_idx]
+                father_ids = df["father"].values[gen_idx]
+                has_m = (mother_ids >= 0) & (mother_ids < len(id_to_row))
+                has_f = (father_ids >= 0) & (father_ids < len(id_to_row))
+                m_rows = np.full(len(gen_idx), -1, dtype=np.int32)
+                f_rows = np.full(len(gen_idx), -1, dtype=np.int32)
+                m_rows[has_m] = id_to_row[mother_ids[has_m]]
+                f_rows[has_f] = id_to_row[father_ids[has_f]]
+                valid = (m_rows >= 0) & (f_rows >= 0)
+                n_pairs = int(valid.sum())
+                if n_pairs < 10:
+                    trait_result[f"gen{gen}"] = {
+                        "r": None,
+                        "r2": None,
+                        "slope": None,
+                        "intercept": None,
+                        "stderr": None,
+                        "pvalue": None,
+                        "n_pairs": n_pairs,
+                    }
+                    continue
+                offspring = liability[gen_idx[valid]]
+                midparent = (liability[m_rows[valid]] + liability[f_rows[valid]]) / 2.0
+                slope, intercept, r, stderr, pvalue = fast_linregress(midparent, offspring)
+                trait_result[f"gen{gen}"] = {
+                    "r": r,
+                    "r2": r**2,
+                    "slope": slope,
+                    "intercept": intercept,
+                    "stderr": stderr,
+                    "pvalue": pvalue,
+                    "n_pairs": n_pairs,
+                }
+            sex_result[f"trait{trait_num}"] = trait_result
+        result[sex_label] = sex_result
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1074,7 +965,6 @@ def main(
     seed: int = 42,
     gen_censoring: dict[int, list[float]] | None = None,
     frailty_params: dict[str, dict[str, Any]] | None = None,
-    extra_tetrachoric: bool = True,
     pedigree_path: str | None = None,
     skip_2nd_cousins: bool = True,
     case_ascertainment_ratio: float = 1.0,
@@ -1147,36 +1037,21 @@ def main(
     # Fast sequential computations
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
     stats["parent_offspring_corr"] = compute_parent_offspring_corr(df)
+    stats["parent_offspring_corr_by_sex"] = compute_parent_offspring_corr_by_sex(df)
 
     # Expensive MLE computations — run in parallel (scipy.optimize releases the GIL)
-    logger.info("Computing tetrachoric + frailty correlations in parallel...")
+    logger.info("Computing tetrachoric correlations in parallel...")
     t_mle = time.perf_counter()
     with ThreadPoolExecutor(max_workers=5) as pool:
         fut_tetra = pool.submit(compute_tetrachoric, df, seed=seed, pairs=pairs)
         fut_tetra_gen = pool.submit(compute_tetrachoric_by_generation, df, seed=seed, pairs=pairs)
         fut_cross = pool.submit(compute_cross_trait_tetrachoric, df, seed=seed, pairs=pairs)
-
-        if frailty_params is not None and extra_tetrachoric:
-            fut_frailty = pool.submit(compute_frailty_correlations, df, frailty_params, pairs=pairs, seed=seed)
-            fut_frailty_ct = pool.submit(compute_frailty_cross_trait_corr, df, frailty_params)
-        else:
-            fut_frailty = None
-            fut_frailty_ct = None
+        fut_tetra_sex = pool.submit(compute_tetrachoric_by_sex, df, seed=seed, pairs=pairs)
 
         stats["tetrachoric"] = fut_tetra.result()
         stats["tetrachoric_by_generation"] = fut_tetra_gen.result()
         stats["cross_trait_tetrachoric"] = fut_cross.result()
-
-        if fut_frailty is not None:
-            censored, uncensored = fut_frailty.result()
-            stats["frailty_corr"] = censored
-            stats["frailty_corr_uncensored"] = uncensored
-            ct_cens, ct_uncens, ct_strat = fut_frailty_ct.result()
-            stats["frailty_cross_trait"] = ct_cens
-            stats["frailty_cross_trait_uncensored"] = ct_uncens
-            stats["frailty_cross_trait_stratified"] = ct_strat
-        elif frailty_params is not None:
-            logger.info("Skipping frailty pairwise correlations (extra_tetrachoric=False)")
+        stats["tetrachoric_by_sex"] = fut_tetra_sex.result()
     logger.info("All MLE correlations computed in %.1fs", time.perf_counter() - t_mle)
 
     stats_path = Path(stats_output)
@@ -1207,7 +1082,6 @@ def cli() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--gen-censoring", type=str, default=None, help="Per-generation censoring windows as JSON dict")
     parser.add_argument("--pedigree", default=None, help="Full pedigree parquet for G_ped pair counts")
-    parser.add_argument("--no-extra-tetrachoric", dest="extra_tetrachoric", action="store_false", default=True)
     parser.add_argument(
         "--no-skip-2nd-cousins",
         dest="skip_2nd_cousins",
@@ -1258,7 +1132,6 @@ def cli() -> None:
         seed=args.seed,
         gen_censoring=gen_censoring,
         frailty_params=frailty_params,
-        extra_tetrachoric=args.extra_tetrachoric,
         pedigree_path=args.pedigree,
         skip_2nd_cousins=args.skip_2nd_cousins,
     )

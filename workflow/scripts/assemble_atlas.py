@@ -66,20 +66,20 @@ def _run_snakemake():
     model_name, model_desc = get_model_family(scenario_params)
     model_equations = get_model_equation(scenario_params)
     section_breaks = {
-        8: (
+        9: (
             f"{model_name} Phenotype",
             model_desc,
             model_equations,
         ),
-        10: (
+        12: (
             "Age of Onset & Censoring",
             "Age-at-onset, mortality, cumulative incidence, and censoring analysis",
         ),
-        19: (
+        21: (
             "Within-Trait Correlations",
-            "Familial tetrachoric correlations and joint affected status",
+            "Familial tetrachoric correlations",
         ),
-        22: (
+        24: (
             "Cross-Trait Correlations",
             "Cross-trait correlation by generation and relationship type",
         ),

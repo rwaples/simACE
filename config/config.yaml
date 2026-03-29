@@ -66,7 +66,6 @@ defaults:
   prevalence2: 0.20
 
   # ── Misc ──────────────────────────────────────────────────────────────────
-  extra_tetrachoric: False
   skip_2nd_cousins: True
   N_sample: 0
   case_ascertainment_ratio: 1
@@ -110,14 +109,12 @@ scenarios:
   baseline1M:
     seed: 3042
     N: 1000000
-    extra_tetrachoric: False
 
   baseline2M:
     folder: extra
     seed: 99042
     replicates: 3
     N: 2000000
-    extra_tetrachoric: False
     rA: .3
     assort1: .1
     assort2: .15
@@ -240,7 +237,6 @@ scenarios:
     seed: 8042
     rA: .7 # Genetic correlation
     rC: .7
-    extra_tetrachoric: False
 
   # ── Beta / frailty strength ───────────────────────────────────────────────
   tetra_test:

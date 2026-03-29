@@ -187,7 +187,6 @@ defaults:
   prevalence2: 0.20                          # Trait 2: proportion affected per generation
 
   # Statistics
-  extra_tetrachoric: false                   # Estimate additional tetrachoric correlations (slow; set true to enable) [UNDER DEVELOPEMENT]
   N_sample: 0                                # Subsample phenotype before stats (0 = keep all)
   case_ascertainment_ratio: 1                # Case sampling weight relative to controls (1 = uniform)
   pedigree_dropout_rate: 0                   # Fraction of individuals to drop from pedigree (0 = none)

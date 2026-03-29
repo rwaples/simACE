@@ -65,11 +65,10 @@ def main(
     stats_output: str,
     samples_output: str,
     seed: int = 42,
-    extra_tetrachoric: bool = True,
     pedigree_path: str | None = None,
     skip_2nd_cousins: bool = True,
     case_ascertainment_ratio: float = 1.0,
-) -> None:  # extra_tetrachoric kept for API compat
+) -> None:
     """Compute all threshold stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
 
@@ -139,13 +138,6 @@ def cli() -> None:
     parser.add_argument("--seed", type=int, default=42, help="Random seed for sampling")
     parser.add_argument("--pedigree", default=None, help="Full pedigree parquet for complete pair extraction")
     parser.add_argument(
-        "--no-extra-tetrachoric",
-        dest="extra_tetrachoric",
-        action="store_false",
-        default=True,
-        help="No-op (kept for CLI compatibility; basic tetrachoric always runs)",
-    )
-    parser.add_argument(
         "--no-skip-2nd-cousins",
         dest="skip_2nd_cousins",
         action="store_false",
@@ -161,7 +153,6 @@ def cli() -> None:
         args.stats_output,
         args.samples_output,
         seed=args.seed,
-        extra_tetrachoric=args.extra_tetrachoric,
         pedigree_path=args.pedigree,
         skip_2nd_cousins=args.skip_2nd_cousins,
     )
