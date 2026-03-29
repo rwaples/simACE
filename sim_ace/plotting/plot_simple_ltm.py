@@ -513,9 +513,17 @@ def plot_joint_affection(all_stats: list[dict[str, Any]], output_path: str | Pat
     # Cross-trait tetrachoric correlation from pre-computed stats
     r_tet_vals = [s.get("cross_trait_tetrachoric", {}).get("same_person", {}).get("r") for s in all_stats]
     r_tet_vals = [v for v in r_tet_vals if v is not None]
+    se_vals = [s.get("cross_trait_tetrachoric", {}).get("same_person", {}).get("se") for s in all_stats]
+    se_vals = [v for v in se_vals if v is not None]
+    n_vals = [s.get("cross_trait_tetrachoric", {}).get("same_person", {}).get("n") for s in all_stats]
+    n_vals = [v for v in n_vals if v is not None]
     if r_tet_vals:
         mean_r_tet = np.mean(r_tet_vals)
         r_label = f"r_tet = {mean_r_tet:.3f}"
+        if se_vals:
+            r_label += f" \u00b1 {np.mean(se_vals):.3f}"
+        if n_vals:
+            r_label += f"  (n = {int(np.mean(n_vals)):,})"
     else:
         r_label = "r_tet = N/A"
 
@@ -599,14 +607,20 @@ def plot_liability_joint(
             color="C3",
         )
 
-        r = np.corrcoef(x, y)[0, 1]
+        from sim_ace.core.utils import fast_pearsonr
+
+        r, p = fast_pearsonr(x, y)
+        n = len(x)
+        ann = f"r = {r:.4f}\nn = {n:,}"
+        ann += "\np < 0.001" if p < 0.001 else f"\np = {p:.3f}"
         ax_joint.text(
             0.05,
             0.95,
-            f"r = {r:.4f}",
+            ann,
             transform=ax_joint.transAxes,
             va="top",
             fontsize=11,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
         )
         ax_joint.set_box_aspect(1)
         ax_joint.set_xlabel(f"{title} (Trait 1)")

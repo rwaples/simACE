@@ -45,7 +45,6 @@ import numpy as np
 import pandas as pd
 from numba import njit, prange
 from scipy.stats import gamma as gamma_dist
-from scipy.stats import norm
 
 from sim_ace.core._numba_utils import _ndtri_approx
 from sim_ace.core.compute_hazard_terms import compute_hazard_terms
@@ -285,7 +284,9 @@ def phenotype_adult_ltm(
         if std > 0:
             L = (L - L.mean()) / std
 
-    threshold = norm.ppf(1.0 - prevalence)  # scalar or per-individual
+    # ndtri is scalar; np.vectorize handles array prevalence transparently
+    _ndtri_vec = np.vectorize(_ndtri_approx)
+    threshold = _ndtri_vec(1.0 - prevalence)
     is_case = threshold < L
 
     t = np.full(len(L), 1e6)
@@ -295,7 +296,9 @@ def phenotype_adult_ltm(
         L_eff = beta * L[is_case]
         if beta_sex != 0.0 and sex is not None:
             L_eff = L_eff + beta_sex * sex[is_case]
-        cir = norm.sf(L_eff)
+        from scipy.special import erfc
+
+        cir = 0.5 * erfc(L_eff / np.sqrt(2.0))
         cir = np.clip(cir, 1e-10, prev_case - 1e-10)
         t[is_case] = cip_x0 + (1.0 / cip_k) * np.log(cir / (prev_case - cir))
 
@@ -434,7 +437,8 @@ def phenotype_cure_frailty(
         mean = 0.0
         scaled_beta = beta
 
-    threshold = norm.ppf(1.0 - prevalence)  # vectorized for array prevalence
+    _ndtri_vec = np.vectorize(_ndtri_approx)
+    threshold = _ndtri_vec(1.0 - prevalence)
     is_case = threshold < L
 
     t = np.full(n, 1e6)
