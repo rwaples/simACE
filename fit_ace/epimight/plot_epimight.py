@@ -24,37 +24,10 @@ from matplotlib.colors import LinearSegmentedColormap, Normalize, to_rgba
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 
+from fit_ace.constants import KIND_COLORS, KIND_LABELS, KIND_ORDER
 from sim_ace.plotting.plot_atlas import assemble_atlas
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
-KIND_ORDER: list[str] = ["PO", "FS", "HS", "mHS", "pHS", "Av", "1G", "1C"]
-
-KIND_COLORS: dict[str, str] = {
-    "PO": "C0",
-    "FS": "C1",
-    "HS": "C2",
-    "mHS": "C3",
-    "pHS": "C4",
-    "Av": "C5",
-    "1G": "C6",
-    "1C": "C7",
-}
-
-KIND_LABELS: dict[str, str] = {
-    "PO": "Parent-Offspring",
-    "FS": "Full Sibling",
-    "HS": "Half Sibling",
-    "mHS": "Maternal HS",
-    "pHS": "Paternal HS",
-    "Av": "Avuncular",
-    "1G": "Grandparent-GC",
-    "1C": "1st Cousin",
-}
 
 _PRIMARY_KINDS = ["PO", "FS", "HS"]
 

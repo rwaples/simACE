@@ -15,17 +15,13 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
-from scipy.integrate import quad
 from scipy.stats import norm
 
+from fit_ace.constants import KIND_COLORS, KIND_ORDER
 from sim_ace import setup_logging
 from sim_ace.plotting.plot_atlas import assemble_atlas
 
 logger = logging.getLogger(__name__)
-
-# Consistent kind ordering and colours
-KIND_ORDER = ["PO", "FS", "HS", "mHS", "pHS", "Av", "1G", "1C"]
-KIND_COLORS = {k: f"C{i}" for i, k in enumerate(KIND_ORDER)}
 
 CENSOR_ORDER = ["none", "death_only", "window_only", "both"]
 CENSOR_LABELS = {
@@ -434,12 +430,21 @@ _DEFAULT_N_REL = {
 # Minimum dilution ratio below which correction is unreliable
 _MIN_DILUTION = 0.05
 
+# Pre-computed Gauss-Hermite quadrature nodes and weights for E[f(L)]
+# where L ~ N(0,1).  hermegauss uses weight exp(-x²/2), so
+# E[f(L)] = (1/√(2π)) Σ wᵢ f(xᵢ).
+_GH_X, _GH_W = np.polynomial.hermite_e.hermegauss(32)
+_GH_SCALE = 1.0 / np.sqrt(2 * np.pi)
+
 
 def _analytical_dilution(K: float, h2: float, kinship: float, n_rel: int) -> float:
     """Compute the c2 cohort dilution ratio analytically.
 
     Returns the ratio of mean liability in the any-relative c2 cohort
     to the theoretical mean under single-relative conditioning.
+
+    Uses Gauss-Hermite quadrature (32 nodes) instead of adaptive
+    quadrature for ~100x faster evaluation.
     """
     rho = 2 * kinship * h2
     if rho < 1e-9 or K < 1e-9 or K > 1 - 1e-9 or n_rel < 1:
@@ -451,16 +456,13 @@ def _analytical_dilution(K: float, h2: float, kinship: float, n_rel: int) -> flo
         return 1.0
     sd_cond = np.sqrt(max(1 - rho**2, 1e-12))
 
-    def integrand_none(L: float) -> float:
-        p_unaff = norm.cdf((threshold - rho * L) / sd_cond)
-        return L * p_unaff**n_rel * norm.pdf(L)
+    # Evaluate integrands at all quadrature nodes simultaneously
+    p_unaff = norm.cdf((threshold - rho * _GH_X) / sd_cond)
+    p_unaff_n = p_unaff**n_rel
 
-    def integrand_p_none(L: float) -> float:
-        p_unaff = norm.cdf((threshold - rho * L) / sd_cond)
-        return p_unaff**n_rel * norm.pdf(L)
+    E_L_none = _GH_SCALE * np.dot(_GH_W, _GH_X * p_unaff_n)
+    P_none = _GH_SCALE * np.dot(_GH_W, p_unaff_n)
 
-    E_L_none, _ = quad(integrand_none, -6, 6)
-    P_none, _ = quad(integrand_p_none, -6, 6)
     P_any = 1 - P_none
     if P_any < 1e-9:
         return _MIN_DILUTION

@@ -15,11 +15,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from fit_ace.constants import KIND_ORDER
 from sim_ace import setup_logging
 
 logger = logging.getLogger(__name__)
-
-ALL_KINDS = ["PO", "FS", "HS", "mHS", "pHS", "Av", "1G", "1C"]
 
 # Scenario name parsing helpers
 _PREV_MAP = {"K01": 0.01, "K05": 0.05, "K10": 0.10, "K20": 0.20, "K40": 0.40}
@@ -125,7 +124,7 @@ def gather_epimight_bias_results(
     Returns DataFrame with one row per (scenario, kind).
     """
     if kinds is None:
-        kinds = ALL_KINDS
+        kinds = KIND_ORDER
 
     rows: list[dict[str, Any]] = []
     for scenario in scenarios:
