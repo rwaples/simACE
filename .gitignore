@@ -1,6 +1,9 @@
 # External tools and data
 external/
 
+# Scripts (local benchmarks / utilities)
+scripts/
+
 # Notebooks
 notebooks/
 
