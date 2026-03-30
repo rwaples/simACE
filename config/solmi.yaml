@@ -1,0 +1,180 @@
+solmi_neurodevelopmental:
+  seed: 30042
+  N: 1000000
+  phenotype_model1: cure_frailty
+  phenotype_model2: cure_frailty
+  phenotype_params1:
+    baseline: gompertz
+    rate: 0.000134864
+    gamma: 0.200737
+  phenotype_params2:
+    baseline: gompertz
+    rate: 0.000134864
+    gamma: 0.200737
+  beta1: 2.5326
+  beta2: 2.5326
+  prevalence1: 0.08
+  prevalence2: 0.08
+  C1: 0.0
+  C2: 0.0
+  rC: 0.0
+solmi_anxiety:
+  seed: 31042
+  N: 1000000
+  phenotype_model1: cure_frailty
+  phenotype_model2: cure_frailty
+  phenotype_params1:
+    baseline: gompertz
+    rate: 0.000403347
+    gamma: 0.106602
+  phenotype_params2:
+    baseline: gompertz
+    rate: 0.000403347
+    gamma: 0.106602
+  beta1: 2.314
+  beta2: 2.314
+  prevalence1: 0.15
+  prevalence2: 0.15
+  C1: 0.0
+  C2: 0.0
+  rC: 0.0
+solmi_ocd:
+  seed: 32042
+  N: 1000000
+  phenotype_model1: cure_frailty
+  phenotype_model2: cure_frailty
+  phenotype_params1:
+    baseline: lognormal
+    mu: 3.22353
+    sigma: 0.629569
+  phenotype_params2:
+    baseline: lognormal
+    mu: 3.22353
+    sigma: 0.629569
+  beta1: 0.1973
+  beta2: 0.1973
+  prevalence1: 0.025
+  prevalence2: 0.025
+  C1: 0.0
+  C2: 0.0
+  rC: 0.0
+solmi_eating:
+  seed: 33042
+  N: 1000000
+  phenotype_model1: cure_frailty
+  phenotype_model2: cure_frailty
+  phenotype_params1:
+    baseline: loglogistic
+    scale: 18.364
+    shape: 5.03655
+  phenotype_params2:
+    baseline: loglogistic
+    scale: 18.364
+    shape: 5.03655
+  beta1: 0.0001
+  beta2: 0.0001
+  prevalence1: 0.03
+  prevalence2: 0.03
+  C1: 0.0
+  C2: 0.0
+  rC: 0.0
+solmi_stress:
+  seed: 34042
+  N: 1000000
+  phenotype_model1: cure_frailty
+  phenotype_model2: cure_frailty
+  phenotype_params1:
+    baseline: weibull
+    scale: 89.6003
+    rho: 1.53095
+  phenotype_params2:
+    baseline: weibull
+    scale: 89.6003
+    rho: 1.53095
+  beta1: 0.6738
+  beta2: 0.6738
+  prevalence1: 0.07
+  prevalence2: 0.07
+  C1: 0.0
+  C2: 0.0
+  rC: 0.0
+solmi_substance_use:
+  seed: 35042
+  N: 1000000
+  phenotype_model1: cure_frailty
+  phenotype_model2: cure_frailty
+  phenotype_params1:
+    baseline: lognormal
+    mu: 3.32208
+    sigma: 0.538131
+  phenotype_params2:
+    baseline: lognormal
+    mu: 3.32208
+    sigma: 0.538131
+  beta1: 0.0176
+  beta2: 0.0176
+  prevalence1: 0.12
+  prevalence2: 0.12
+  C1: 0.0
+  C2: 0.0
+  rC: 0.0
+solmi_schizophrenia:
+  seed: 36042
+  N: 1000000
+  phenotype_model1: cure_frailty
+  phenotype_model2: cure_frailty
+  phenotype_params1:
+    baseline: lognormal
+    mu: 3.23794
+    sigma: 0.395765
+  phenotype_params2:
+    baseline: lognormal
+    mu: 3.23794
+    sigma: 0.395765
+  beta1: 0.0011
+  beta2: 0.0011
+  prevalence1: 0.01
+  prevalence2: 0.01
+  C1: 0.0
+  C2: 0.0
+  rC: 0.0
+solmi_personality:
+  seed: 37042
+  N: 1000000
+  phenotype_model1: cure_frailty
+  phenotype_model2: cure_frailty
+  phenotype_params1:
+    baseline: loglogistic
+    scale: 25.5216
+    shape: 4.35494
+  phenotype_params2:
+    baseline: loglogistic
+    scale: 25.5216
+    shape: 4.35494
+  beta1: 0.0007
+  beta2: 0.0007
+  prevalence1: 0.1
+  prevalence2: 0.1
+  C1: 0.0
+  C2: 0.0
+  rC: 0.0
+solmi_mood:
+  seed: 38042
+  N: 1000000
+  phenotype_model1: cure_frailty
+  phenotype_model2: cure_frailty
+  phenotype_params1:
+    baseline: lognormal
+    mu: 3.58381
+    sigma: 0.62896
+  phenotype_params2:
+    baseline: lognormal
+    mu: 3.58381
+    sigma: 0.62896
+  beta1: 0.1749
+  beta2: 0.1749
+  prevalence1: 0.15
+  prevalence2: 0.15
+  C1: 0.0
+  C2: 0.0
+  rC: 0.0

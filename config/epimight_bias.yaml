@@ -1,0 +1,764 @@
+ebias_ltm_K01_C0_nocensor:
+  seed: 50001
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.01
+  prevalence2: 0.01
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K01_C0_death:
+  seed: 50002
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.01
+  prevalence2: 0.01
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 164
+  death_rho: 2.73
+ebias_ltm_K01_C0_window:
+  seed: 50003
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.01
+  prevalence2: 0.01
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring:
+    3:
+    - 20
+    - 60
+    4:
+    - 20
+    - 60
+    5:
+    - 20
+    - 60
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K01_C0_both:
+  seed: 50004
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.01
+  prevalence2: 0.01
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring:
+    3:
+    - 20
+    - 60
+    4:
+    - 20
+    - 60
+    5:
+    - 20
+    - 60
+  death_scale: 164
+  death_rho: 2.73
+ebias_ltm_K05_C0_nocensor:
+  seed: 50005
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.05
+  prevalence2: 0.05
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K05_C0_death:
+  seed: 50006
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.05
+  prevalence2: 0.05
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 164
+  death_rho: 2.73
+ebias_ltm_K05_C0_window:
+  seed: 50007
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.05
+  prevalence2: 0.05
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring:
+    3:
+    - 20
+    - 60
+    4:
+    - 20
+    - 60
+    5:
+    - 20
+    - 60
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K05_C0_both:
+  seed: 50008
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.05
+  prevalence2: 0.05
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring:
+    3:
+    - 20
+    - 60
+    4:
+    - 20
+    - 60
+    5:
+    - 20
+    - 60
+  death_scale: 164
+  death_rho: 2.73
+ebias_ltm_K10_C0_nocensor:
+  seed: 50009
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.1
+  prevalence2: 0.1
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K10_C0_death:
+  seed: 50010
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.1
+  prevalence2: 0.1
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 164
+  death_rho: 2.73
+ebias_ltm_K10_C0_window:
+  seed: 50011
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.1
+  prevalence2: 0.1
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring:
+    3:
+    - 20
+    - 60
+    4:
+    - 20
+    - 60
+    5:
+    - 20
+    - 60
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K10_C0_both:
+  seed: 50012
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.1
+  prevalence2: 0.1
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring:
+    3:
+    - 20
+    - 60
+    4:
+    - 20
+    - 60
+    5:
+    - 20
+    - 60
+  death_scale: 164
+  death_rho: 2.73
+ebias_ltm_K20_C0_nocensor:
+  seed: 50013
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.2
+  prevalence2: 0.2
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K20_C0_death:
+  seed: 50014
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.2
+  prevalence2: 0.2
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 164
+  death_rho: 2.73
+ebias_ltm_K20_C0_window:
+  seed: 50015
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.2
+  prevalence2: 0.2
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring:
+    3:
+    - 20
+    - 60
+    4:
+    - 20
+    - 60
+    5:
+    - 20
+    - 60
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K20_C0_both:
+  seed: 50016
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.2
+  prevalence2: 0.2
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring:
+    3:
+    - 20
+    - 60
+    4:
+    - 20
+    - 60
+    5:
+    - 20
+    - 60
+  death_scale: 164
+  death_rho: 2.73
+ebias_ltm_K40_C0_nocensor:
+  seed: 50017
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.4
+  prevalence2: 0.4
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K40_C0_death:
+  seed: 50018
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.4
+  prevalence2: 0.4
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 164
+  death_rho: 2.73
+ebias_ltm_K40_C0_window:
+  seed: 50019
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.4
+  prevalence2: 0.4
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring:
+    3:
+    - 20
+    - 60
+    4:
+    - 20
+    - 60
+    5:
+    - 20
+    - 60
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K40_C0_both:
+  seed: 50020
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.4
+  prevalence2: 0.4
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring:
+    3:
+    - 20
+    - 60
+    4:
+    - 20
+    - 60
+    5:
+    - 20
+    - 60
+  death_scale: 164
+  death_rho: 2.73
+ebias_ltm_K01_C02_nocensor:
+  seed: 50021
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.2
+  A2: 0.5
+  C2: 0.2
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.01
+  prevalence2: 0.01
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K05_C02_nocensor:
+  seed: 50022
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.2
+  A2: 0.5
+  C2: 0.2
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.05
+  prevalence2: 0.05
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K10_C02_nocensor:
+  seed: 50023
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.2
+  A2: 0.5
+  C2: 0.2
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.1
+  prevalence2: 0.1
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K20_C02_nocensor:
+  seed: 50024
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.2
+  A2: 0.5
+  C2: 0.2
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.2
+  prevalence2: 0.2
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K40_C02_nocensor:
+  seed: 50025
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.2
+  A2: 0.5
+  C2: 0.2
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.4
+  prevalence2: 0.4
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_weibull_K10_C0_nocensor:
+  seed: 50026
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: weibull
+  phenotype_model2: weibull
+  phenotype_params1:
+    scale: 70
+    rho: 2.0
+  phenotype_params2:
+    scale: 70
+    rho: 2.0
+  prevalence1: 0.1
+  prevalence2: 0.1
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_cure_K10_C0_nocensor:
+  seed: 50027
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: cure_frailty
+  phenotype_model2: cure_frailty
+  prevalence1: 0.1
+  prevalence2: 0.1
+  phenotype_params1:
+    baseline: weibull
+    scale: 2160
+    rho: 0.8
+  phenotype_params2:
+    baseline: weibull
+    scale: 2160
+    rho: 0.8
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_cox_K10_C0_nocensor:
+  seed: 50028
+  N: 500000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_cox
+  phenotype_model2: adult_cox
+  prevalence1: 0.1
+  prevalence2: 0.1
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0

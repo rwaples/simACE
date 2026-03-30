@@ -1,0 +1,120 @@
+ebias_ltm_K01_C0_nocensor_2M:
+  seed: 50101
+  N: 2000000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.01
+  prevalence2: 0.01
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K05_C0_nocensor_2M:
+  seed: 50102
+  N: 2000000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.05
+  prevalence2: 0.05
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K10_C0_nocensor_2M:
+  seed: 50103
+  N: 2000000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.1
+  prevalence2: 0.1
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K20_C0_nocensor_2M:
+  seed: 50104
+  N: 2000000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.2
+  prevalence2: 0.2
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+ebias_ltm_K40_C0_nocensor_2M:
+  seed: 50105
+  N: 2000000
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  A2: 0.5
+  C2: 0.0
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.4
+  prevalence2: 0.4
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0

@@ -1,0 +1,17 @@
+baseline10K:
+  seed: 1042
+  N: 10000
+baseline100K:
+  seed: 2042
+  N: 100000
+baseline100K_sample5K:
+  seed: 2042
+  N: 100000
+  N_sample: 5000
+baseline100K_sample50K:
+  seed: 2042
+  N: 100000
+  N_sample: 50000
+baseline1M:
+  seed: 3042
+  N: 1000000

@@ -47,7 +47,7 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
   - `stan/` — Stan-based model fitting
   - `plotting/` — PA-FGRS and EPIMIGHT bias plots
 - `workflow/rules/*.smk` — Snakemake rules; `workflow/scripts/` — thin script wrappers
-- `config/config.yaml` — named scenarios (seed, folder, A, C, N, G_ped, G_sim, mating_lambda, p_mztwin)
+- `config/config.yaml` — default parameters; `config/{folder}.yaml` — per-folder scenario files (auto-discovered)
 - `results/{folder}/{scenario}/` — output per scenario
 
 ## Linting

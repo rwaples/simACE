@@ -1,0 +1,8 @@
+no_correlation:
+  seed: 7042
+  rA: 0
+  rC: 0
+high_correlation:
+  seed: 8042
+  rA: 0.7
+  rC: 0.7

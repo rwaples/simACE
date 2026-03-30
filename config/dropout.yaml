@@ -1,0 +1,12 @@
+baseline100K_dropout10:
+  seed: 70042
+  N: 100000
+  pedigree_dropout_rate: 0.1
+baseline100K_dropout30:
+  seed: 71042
+  N: 100000
+  pedigree_dropout_rate: 0.3
+baseline100K_dropout50:
+  seed: 72042
+  N: 100000
+  pedigree_dropout_rate: 0.5

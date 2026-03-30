@@ -5,7 +5,10 @@ from workflow.common import (
     get_all_folders, get_folder_validations,
     get_scenario_sim_outputs, plot_filenames, _scale_mem, _scale_runtime,
     _PHENOTYPE_BASENAMES, _SIMPLE_LTM_BASENAMES, _VALIDATION_BASENAMES,
+    load_folder_configs,
 )
+
+load_folder_configs(config)
 
 PLOT_EXT = config["defaults"].get("plot_format", "png")
 PHENOTYPE_PLOTS = plot_filenames(_PHENOTYPE_BASENAMES, PLOT_EXT)

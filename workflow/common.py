@@ -1,5 +1,52 @@
 """Shared helpers for the ACE Snakemake workflows."""
 
+import glob
+import os
+import re
+
+import yaml
+
+
+def load_folder_configs(config, config_dir="config"):
+    """Load per-folder scenario YAML files and merge into config['scenarios'].
+
+    Each file ``config/{folder}.yaml`` contains bare scenario dicts (no wrapper
+    key).  The folder name is inferred from the filename stem.  An explicit
+    ``folder`` key inside a scenario overrides the inferred name.
+
+    Raises ``ValueError`` on duplicate scenario names, unknown parameter keys,
+    or invalid folder names.
+    """
+    config.setdefault("scenarios", {})
+    valid_defaults = set(config["defaults"].keys())
+    folder_pattern = re.compile(r"^[a-zA-Z0-9_]+$")
+
+    for path in sorted(glob.glob(os.path.join(config_dir, "*.yaml"))):
+        if os.path.basename(path) == "config.yaml":
+            continue
+
+        folder = os.path.splitext(os.path.basename(path))[0]
+        if not folder_pattern.match(folder):
+            raise ValueError(f"Invalid folder name '{folder}' from {path}. Must match [a-zA-Z0-9_]+")
+
+        with open(path) as fh:
+            scenarios = yaml.safe_load(fh)
+        if scenarios is None:
+            continue
+
+        for name, params in scenarios.items():
+            if name in config["scenarios"]:
+                raise ValueError(f"Duplicate scenario '{name}': already defined, also found in {path}")
+            unknown = set(params.keys()) - valid_defaults
+            if unknown:
+                raise ValueError(
+                    f"Scenario '{name}' in {path} has unknown keys: "
+                    f"{sorted(unknown)}. Valid keys: {sorted(valid_defaults)}"
+                )
+            if "folder" not in params:
+                params["folder"] = folder
+            config["scenarios"][name] = params
+
 
 def get_param(config, scenario, param):
     """Get parameter value, falling back to defaults if not specified in scenario."""
