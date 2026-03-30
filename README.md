@@ -347,6 +347,36 @@ Dropped individuals are deleted entirely. All parent/twin links pointing to a dr
 
 Three pre-configured dropout scenarios are included: `baseline100K_dropout10` (10%), `baseline100K_dropout30` (30%), and `baseline100K_dropout50` (50%).
 
+## Exporting to R
+
+All simulation outputs are stored as parquet files. To convert them to tab-separated text files that R can read with `read.delim()` or `data.table::fread()`:
+
+```bash
+# Single file (writes .tsv.gz alongside the .parquet)
+sim-ace-parquet-to-tsv results/base/baseline10K/rep1/pedigree.parquet
+
+# Multiple files at once
+sim-ace-parquet-to-tsv results/base/baseline10K/rep1/*.parquet
+
+# Uncompressed .tsv instead of .tsv.gz
+sim-ace-parquet-to-tsv --no-gzip results/base/baseline10K/rep1/pedigree.parquet
+
+# Control float precision (default: 4 decimal places)
+sim-ace-parquet-to-tsv -p 8 results/base/baseline10K/rep1/pedigree.parquet
+
+# Custom output path
+sim-ace-parquet-to-tsv results/.../pedigree.parquet -o my_output.tsv.gz
+```
+
+Via Snakemake, request any `.tsv.gz` or `.tsv` file and the generic rule will convert the matching `.parquet` automatically:
+
+```bash
+snakemake --cores 1 results/base/baseline10K/rep1/pedigree.tsv.gz
+snakemake --cores 1 results/base/baseline10K/rep1/phenotype.tsv   # uncompressed
+```
+
+Float precision for the Snakemake rule defaults to 4 and can be set globally via `tsv_float_precision` in `config/config.yaml` defaults.
+
 ## Project Structure
 
 ```
