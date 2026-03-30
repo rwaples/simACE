@@ -5,8 +5,10 @@ ebias_ltm_K01_C0_nocensor_2M:
   p_mztwin: 0
   A1: 0.5
   C1: 0.0
+  E1: 0.5
   A2: 0.5
   C2: 0.0
+  E2: 0.5
   rA: 0.0
   rC: 0.0
   phenotype_model1: adult_ltm
@@ -29,8 +31,10 @@ ebias_ltm_K05_C0_nocensor_2M:
   p_mztwin: 0
   A1: 0.5
   C1: 0.0
+  E1: 0.5
   A2: 0.5
   C2: 0.0
+  E2: 0.5
   rA: 0.0
   rC: 0.0
   phenotype_model1: adult_ltm
@@ -53,8 +57,10 @@ ebias_ltm_K10_C0_nocensor_2M:
   p_mztwin: 0
   A1: 0.5
   C1: 0.0
+  E1: 0.5
   A2: 0.5
   C2: 0.0
+  E2: 0.5
   rA: 0.0
   rC: 0.0
   phenotype_model1: adult_ltm
@@ -77,8 +83,10 @@ ebias_ltm_K20_C0_nocensor_2M:
   p_mztwin: 0
   A1: 0.5
   C1: 0.0
+  E1: 0.5
   A2: 0.5
   C2: 0.0
+  E2: 0.5
   rA: 0.0
   rC: 0.0
   phenotype_model1: adult_ltm
@@ -101,8 +109,10 @@ ebias_ltm_K40_C0_nocensor_2M:
   p_mztwin: 0
   A1: 0.5
   C1: 0.0
+  E1: 0.5
   A2: 0.5
   C2: 0.0
+  E2: 0.5
   rA: 0.0
   rC: 0.0
   phenotype_model1: adult_ltm

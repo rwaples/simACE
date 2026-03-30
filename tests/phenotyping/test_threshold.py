@@ -70,14 +70,33 @@ class TestApplyThreshold:
 
     def test_constant_liability_within_generation(self):
         """If all liabilities are equal, standardized values are 0; threshold is
-        at percentile so ~ prevalence fraction should still be affected."""
+        ndtri(0.5) = 0, so 0 >= 0 → all affected.  Shouldn't crash."""
         liability = np.full(1000, 5.0)
         generation = np.zeros(1000, dtype=int)
         affected = apply_threshold(liability, generation, prevalence=0.5)
-        # With constant liability, standardized = 0, threshold = 0,
-        # and >= threshold means all or none depending on implementation
-        # Either way, it shouldn't crash
         assert affected.dtype == bool
+
+    def test_standardize_false_prevalence_drifts(self):
+        """With standardize=False and non-unit variance, prevalence should differ from K."""
+        rng = np.random.default_rng(42)
+        n = 20000
+        # Wide distribution: std=2, so threshold ndtri(0.9) ≈ 1.28 is easier to exceed
+        liability = rng.normal(0, 2.0, n)
+        generation = np.zeros(n, dtype=int)
+        affected = apply_threshold(liability, generation, prevalence=0.1, standardize=False)
+        observed = affected.mean()
+        # With std=2, more people cross the N(0,1) threshold → prevalence > 0.1
+        assert observed > 0.15, f"Expected prevalence > 0.15 with wide distribution, got {observed:.3f}"
+
+    def test_standardize_true_preserves_prevalence(self):
+        """With standardize=True (default), prevalence should match K regardless of variance."""
+        rng = np.random.default_rng(42)
+        n = 20000
+        liability = rng.normal(0, 2.0, n)
+        generation = np.zeros(n, dtype=int)
+        affected = apply_threshold(liability, generation, prevalence=0.1, standardize=True)
+        observed = affected.mean()
+        assert abs(observed - 0.1) < 0.02, f"Expected ~0.1 with standardize=True, got {observed:.3f}"
 
 
 class TestApplyThresholdDictPrevalence:

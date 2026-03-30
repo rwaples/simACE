@@ -33,6 +33,59 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def resolve_per_gen_param(value: float | dict[int, float], G: int, name: str = "param") -> list[float]:
+    """Resolve a variance-component parameter to a per-generation list.
+
+    Args:
+        value: scalar (constant across all generations) or dict mapping
+               generation index → value.  Missing generation keys are
+               forward-filled from the most recent earlier key.
+        G: total number of generations to resolve for (indices 0..G-1).
+        name: parameter name, used in error messages.
+
+    Returns:
+        List of length *G* with the resolved value for each generation.
+
+    Raises:
+        ValueError: if any resolved value is negative or if a dict has no
+            key <= 0 (so generation 0 would be undefined).
+    """
+    if isinstance(value, (int, float)):
+        v = float(value)
+        if v < 0:
+            raise ValueError(f"{name} must be >= 0, got {v}")
+        return [v] * G
+
+    if not isinstance(value, dict):
+        raise TypeError(f"{name} must be a scalar or dict, got {type(value).__name__}")
+
+    if not value:
+        raise ValueError(f"{name} dict must not be empty")
+
+    # Sort keys and validate
+    sorted_keys = sorted(int(k) for k in value)
+    if sorted_keys[0] > 0:
+        raise ValueError(
+            f"{name} dict must have a key <= 0 so generation 0 is defined; smallest key is {sorted_keys[0]}"
+        )
+    for k in sorted_keys:
+        v = float(value[k])
+        if v < 0:
+            raise ValueError(f"{name}[{k}] must be >= 0, got {v}")
+
+    # Forward-fill
+    result = [0.0] * G
+    key_idx = 0
+    current_val = float(value[sorted_keys[0]])
+    for gen in range(G):
+        # Advance to the latest key <= gen
+        while key_idx + 1 < len(sorted_keys) and sorted_keys[key_idx + 1] <= gen:
+            key_idx += 1
+            current_val = float(value[sorted_keys[key_idx]])
+        result[gen] = current_val
+    return result
+
+
 def generate_correlated_components(
     rng: np.random.Generator, n: int, sd1: float, sd2: float, correlation: float
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -722,6 +775,7 @@ def reproduce(
     sd_C2: float,
     rA: float,
     rC: float,
+    rE: float = 0.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Simulate offspring phenotypes from parents for two correlated traits.
 
@@ -773,9 +827,12 @@ def reproduce(
     c1_offspring = hh_c1[household_ids]
     c2_offspring = hh_c2[household_ids]
 
-    # Unique environment: independent draws for each trait
-    e1_offspring = rng.normal(size=n, loc=0, scale=sd_E1)
-    e2_offspring = rng.normal(size=n, loc=0, scale=sd_E2)
+    # Unique environment: correlated via rE; independent when rE=0
+    if rE != 0:
+        e1_offspring, e2_offspring = generate_correlated_components(rng, n, sd_E1, sd_E2, rE)
+    else:
+        e1_offspring = rng.normal(size=n, loc=0, scale=sd_E1)
+        e2_offspring = rng.normal(size=n, loc=0, scale=sd_E2)
 
     # MZ twins share A values and sex for both traits
     if len(twins) > 0:
@@ -956,6 +1013,9 @@ def run_simulation(
     C2: float,
     rA: float,
     rC: float,
+    rE: float = 0.0,
+    E1: float | dict[int, float] | None = None,
+    E2: float | dict[int, float] | None = None,
     G_sim: int | None = None,
     assort1: float = 0.0,
     assort2: float = 0.0,
@@ -963,9 +1023,13 @@ def run_simulation(
 ) -> pd.DataFrame:
     """Run the full ACE simulation for two correlated traits.
 
-    Total phenotypic variance is fixed to 1.0 for each trait. Only A and C are
-    free parameters; E is the residual: E = 1 - A - C. This means all variance
-    components are proportions of total variance (i.e., h2 = A, c2 = C, e2 = E).
+    Variance components A (additive genetic), C (shared environment), and
+    E (unique environment) are specified as absolute variances.  A is constant
+    across generations; C and E may be specified per-generation via a dict
+    mapping generation index to value (forward-filled for missing keys).
+
+    When E1/E2 are omitted, they default to ``1 - A - C`` for backward
+    compatibility (total variance = 1).
 
     Args:
         seed: Random seed
@@ -973,10 +1037,15 @@ def run_simulation(
         G_ped: Number of generations to record in pedigree (integer >= 1)
         mating_lambda: Poisson lambda for zero-truncated mating count distribution (> 0)
         p_mztwin: Probability of a mating producing MZ twins, in [0, 1)
-        A1, C1: Trait 1 variance components, each in [0, 1] with A1 + C1 <= 1
-        A2, C2: Trait 2 variance components, each in [0, 1] with A2 + C2 <= 1
+        A1, C1: Trait 1 additive genetic and shared-environment variance (>= 0)
+        A2, C2: Trait 2 additive genetic and shared-environment variance (>= 0)
         rA: Genetic correlation between traits, in [-1, 1]
         rC: Common environment correlation between traits, in [-1, 1]
+        rE: Unique environment correlation between traits, in [-1, 1].
+            Default 0 (independent E across traits).
+        E1: Trait 1 unique-environment variance.  Scalar (constant) or dict
+            mapping generation index → value (forward-filled).
+        E2: Trait 2 unique-environment variance.  Same format as E1.
         G_sim: Total generations to simulate (default: G_ped). First G_sim - G_ped
                generations are burn-in and discarded from output.
         assort_matrix: optional full 2x2 mate correlation matrix R_mf.
@@ -993,13 +1062,14 @@ def run_simulation(
 
     # --- Input validation ---
     for name, val in [("A1", A1), ("C1", C1), ("A2", A2), ("C2", C2)]:
-        if not (0 <= val <= 1):
-            raise ValueError(f"{name} must be between 0 and 1, got {val}")
+        if not (isinstance(val, (int, float)) and val >= 0):
+            raise ValueError(f"{name} must be a non-negative scalar, got {val}")
 
-    if 1.0 - A1 - C1 < -1e-10:
-        raise ValueError(f"A1 + C1 must be <= 1.0 (got A1={A1}, C1={C1}, E1={1.0 - A1 - C1:.4f})")
-    if 1.0 - A2 - C2 < -1e-10:
-        raise ValueError(f"A2 + C2 must be <= 1.0 (got A2={A2}, C2={C2}, E2={1.0 - A2 - C2:.4f})")
+    # Default E to residual (1 - A - C) for backward compatibility
+    if E1 is None:
+        E1 = 1.0 - A1 - C1
+    if E2 is None:
+        E2 = 1.0 - A2 - C2
 
     if not (int(N) == N and N > 0):
         raise ValueError(f"N must be a positive integer, got {N}")
@@ -1013,6 +1083,8 @@ def run_simulation(
         raise ValueError(f"rA must be in [-1, 1], got {rA}")
     if not (-1 <= rC <= 1):
         raise ValueError(f"rC must be in [-1, 1], got {rC}")
+    if not (-1 <= rE <= 1):
+        raise ValueError(f"rE must be in [-1, 1], got {rE}")
     if not (-1 <= assort1 <= 1):
         raise ValueError(f"assort1 must be in [-1, 1], got {assort1}")
     if not (-1 <= assort2 <= 1):
@@ -1041,15 +1113,29 @@ def run_simulation(
 
     rng = np.random.default_rng(seed)
 
-    # E is residual variance (total variance fixed to 1.0)
-    E1 = 1.0 - A1 - C1
-    E2 = 1.0 - A2 - C2
+    # Resolve per-generation C and E variance components
+    # C1/C2 may be scalar or per-gen dict; A is always scalar (constant)
+    C1_per_gen = resolve_per_gen_param(C1, G_sim, name="C1")
+    C2_per_gen = resolve_per_gen_param(C2, G_sim, name="C2")
+    E1_per_gen = resolve_per_gen_param(E1, G_sim, name="E1")
+    E2_per_gen = resolve_per_gen_param(E2, G_sim, name="E2")
 
-    sd_A1, sd_C1, sd_E1 = np.sqrt(A1), np.sqrt(C1), np.sqrt(E1)
-    sd_A2, sd_C2, sd_E2 = np.sqrt(A2), np.sqrt(C2), np.sqrt(E2)
+    # Compute per-generation standard deviations
+    sd_C1_per_gen = [np.sqrt(v) for v in C1_per_gen]
+    sd_C2_per_gen = [np.sqrt(v) for v in C2_per_gen]
+    sd_E1_per_gen = [np.sqrt(v) for v in E1_per_gen]
+    sd_E2_per_gen = [np.sqrt(v) for v in E2_per_gen]
 
-    # Within-person cross-trait liability correlation
-    rho_w = rA * np.sqrt(A1 * A2) + rC * np.sqrt(C1 * C2)
+    # A is constant across generations
+    sd_A1 = np.sqrt(A1)
+    sd_A2 = np.sqrt(A2)
+
+    # Within-person cross-trait liability correlation (uses gen-0 C/E for founder init)
+    rho_w = (
+        rA * np.sqrt(A1 * A2)
+        + rC * np.sqrt(C1_per_gen[0] * C2_per_gen[0])
+        + rE * np.sqrt(E1_per_gen[0] * E2_per_gen[0])
+    )
 
     if assort1 != 0 and assort2 != 0 and abs(rho_w) >= 1.0 - 1e-10:
         raise ValueError(
@@ -1075,18 +1161,21 @@ def run_simulation(
                 f"Reduce the magnitude of assort_matrix off-diagonal entries."
             )
 
-    # Initialize founders with correlated components
+    # Initialize founders with correlated components (using gen-0 C/E variances)
     sex = rng.binomial(size=N, n=1, p=0.5)
 
-    # A components: correlated via rA
+    # A components: correlated via rA (constant across generations)
     a1, a2 = generate_correlated_components(rng, N, sd_A1, sd_A2, rA)
 
-    # C components: correlated via rC
-    c1, c2 = generate_correlated_components(rng, N, sd_C1, sd_C2, rC)
+    # C components: correlated via rC (gen-0 variance)
+    c1, c2 = generate_correlated_components(rng, N, sd_C1_per_gen[0], sd_C2_per_gen[0], rC)
 
-    # E components: independent (no correlation)
-    e1 = rng.normal(size=N, loc=0, scale=sd_E1)
-    e2 = rng.normal(size=N, loc=0, scale=sd_E2)
+    # E components: correlated via rE (gen-0 variance); independent when rE=0
+    if rE != 0:
+        e1, e2 = generate_correlated_components(rng, N, sd_E1_per_gen[0], sd_E2_per_gen[0], rE)
+    else:
+        e1 = rng.normal(size=N, loc=0, scale=sd_E1_per_gen[0])
+        e2 = rng.normal(size=N, loc=0, scale=sd_E2_per_gen[0])
 
     pheno = np.stack([a1, c1, e1, a2, c2, e2], axis=-1)
 
@@ -1126,13 +1215,14 @@ def run_simulation(
             twins,
             household_ids,
             sd_A1,
-            sd_E1,
-            sd_C1,
+            sd_E1_per_gen[i],
+            sd_C1_per_gen[i],
             sd_A2,
-            sd_E2,
-            sd_C2,
+            sd_E2_per_gen[i],
+            sd_C2_per_gen[i],
             rA,
             rC,
+            rE,
         )
         t_repro = time.perf_counter()
         if i >= burnin:
@@ -1196,10 +1286,17 @@ def cli() -> None:
     parser.add_argument("--p-mztwin", type=float, default=0.02, help="Probability of MZ twinning")
     parser.add_argument("--A1", type=float, default=0.5, help="Additive genetic variance for trait 1")
     parser.add_argument("--C1", type=float, default=0.2, help="Shared environment variance for trait 1")
+    parser.add_argument(
+        "--E1", type=float, default=None, help="Unique environment variance for trait 1 (default: 1-A1-C1)"
+    )
     parser.add_argument("--A2", type=float, default=0.5, help="Additive genetic variance for trait 2")
     parser.add_argument("--C2", type=float, default=0.2, help="Shared environment variance for trait 2")
+    parser.add_argument(
+        "--E2", type=float, default=None, help="Unique environment variance for trait 2 (default: 1-A2-C2)"
+    )
     parser.add_argument("--rA", type=float, default=0.5, help="Cross-trait genetic correlation")
     parser.add_argument("--rC", type=float, default=0.3, help="Cross-trait shared environment correlation")
+    parser.add_argument("--rE", type=float, default=0.0, help="Cross-trait unique environment correlation")
     parser.add_argument("--assort1", type=float, default=0.0, help="Mate correlation on trait 1 liability")
     parser.add_argument("--assort2", type=float, default=0.0, help="Mate correlation on trait 2 liability")
     parser.add_argument("--output-pedigree", required=True, help="Output pedigree parquet path")
@@ -1221,6 +1318,9 @@ def cli() -> None:
         C2=args.C2,
         rA=args.rA,
         rC=args.rC,
+        rE=args.rE,
+        E1=args.E1,
+        E2=args.E2,
         G_sim=args.G_sim,
         assort1=args.assort1,
         assort2=args.assort2,
@@ -1228,17 +1328,20 @@ def cli() -> None:
 
     save_parquet(pedigree, args.output_pedigree)
 
+    _E1 = args.E1 if args.E1 is not None else 1.0 - args.A1 - args.C1
+    _E2 = args.E2 if args.E2 is not None else 1.0 - args.A2 - args.C2
     params_dict = {
         "seed": args.seed,
         "rep": args.rep,
         "A1": args.A1,
         "C1": args.C1,
-        "E1": 1.0 - args.A1 - args.C1,
+        "E1": _E1,
         "A2": args.A2,
         "C2": args.C2,
-        "E2": 1.0 - args.A2 - args.C2,
+        "E2": _E2,
         "rA": args.rA,
         "rC": args.rC,
+        "rE": args.rE,
         "N": args.N,
         "G_ped": args.G_ped,
         "G_sim": args.G_sim or args.G_ped,

@@ -150,6 +150,9 @@ def expected_mate_corr_matrix(
     A2: float,
     C2: float,
     assort_matrix: np.ndarray | list | None = None,
+    rE: float = 0.0,
+    E1: float = 0.0,
+    E2: float = 0.0,
 ) -> np.ndarray:
     """Compute the 2x2 expected mate liability correlation matrix.
 
@@ -171,7 +174,7 @@ def expected_mate_corr_matrix(
         return np.zeros((2, 2))
 
     # Within-person cross-trait correlation
-    rho_w = rA * np.sqrt(A1 * A2) + rC * np.sqrt(C1 * C2)
+    rho_w = rA * np.sqrt(A1 * A2) + rC * np.sqrt(C1 * C2) + rE * np.sqrt(E1 * E2)
 
     if assort1 != 0 and assort2 != 0:
         # Both traits: diagonal = targets, off-diagonal from rho_w mediation

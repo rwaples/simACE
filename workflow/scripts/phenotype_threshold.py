@@ -16,6 +16,7 @@ def _run_snakemake():
         "G_pheno": params.G_pheno,
         "prevalence1": params.prevalence1,
         "prevalence2": params.prevalence2,
+        "standardize": params.standardize,
     }
 
     phenotype = run_threshold(pedigree, param_dict)

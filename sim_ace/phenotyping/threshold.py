@@ -1,9 +1,12 @@
 """
 Liability threshold phenotype model for two correlated traits.
 
-Converts liability to binary affected status using a per-generation
-prevalence threshold. Liability is standardized within each generation,
-then the top X% (determined by prevalence) are classified as affected.
+Converts liability to binary affected status using a probit threshold
+derived from prevalence: ``threshold = ndtri(1 - K)``.  When
+``standardize=True`` (default), liability is standardized within each
+generation before thresholding, preserving exact prevalence.  When
+``standardize=False``, raw liability is compared to the N(0,1)-scale
+threshold, so realised prevalence drifts with the liability variance.
 
 No time-to-event or censoring -- purely binary outcome.
 """
@@ -18,16 +21,24 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from sim_ace.core._numba_utils import _ndtri_approx
 from sim_ace.core.utils import save_parquet
 
 logger = logging.getLogger(__name__)
 
 
-def apply_threshold(liability: np.ndarray, generation: np.ndarray, prevalence: float | dict[int, float]) -> np.ndarray:
+def apply_threshold(
+    liability: np.ndarray,
+    generation: np.ndarray,
+    prevalence: float | dict[int, float],
+    standardize: bool = True,
+) -> np.ndarray:
     """Apply liability threshold model per generation.
 
-    Within each generation, standardize liability (mean=0, std=1),
-    then classify the top `prevalence` fraction as affected.
+    The threshold is ``ndtri(1 - K)`` where *K* is the prevalence.  When
+    *standardize* is True, liability is standardized within each generation
+    to N(0,1) before comparison, so realised prevalence matches *K*.
+    When False, raw liability is used and prevalence drifts with variance.
 
     Args:
         liability: array of liability values
@@ -35,6 +46,8 @@ def apply_threshold(liability: np.ndarray, generation: np.ndarray, prevalence: f
         prevalence: fraction affected per generation — either a single float
             applied to all generations, or a dict mapping generation number
             to prevalence (e.g. {0: 0.05, 1: 0.08, 2: 0.10})
+        standardize: if True, standardize liability per-generation before
+            thresholding (preserves exact prevalence)
 
     Returns:
         affected: boolean array (True = affected)
@@ -66,19 +79,18 @@ def apply_threshold(liability: np.ndarray, generation: np.ndarray, prevalence: f
     affected = np.zeros(len(liability), dtype=bool)
     for gen in unique_gens:
         mask = generation == gen
-        liab_gen = liability[mask]
-        # Standardize within generation
-        mean = liab_gen.mean()
-        std = liab_gen.std()
-        if std > 0:
-            standardized = (liab_gen - mean) / std
-        else:
-            standardized = liab_gen - mean
+        L = liability[mask].copy()
+        if standardize:
+            mean = L.mean()
+            std = L.std()
+            if std > 0:
+                L = (L - mean) / std
+            else:
+                L = L - mean
         # Look up per-gen prevalence
         prev = prevalence[int(gen)] if isinstance(prevalence, dict) else prevalence
-        # Threshold: top prevalence fraction are affected
-        threshold = np.percentile(standardized, 100 * (1 - prev))
-        affected[mask] = standardized >= threshold
+        threshold = _ndtri_approx(1.0 - prev)
+        affected[mask] = threshold <= L
     return affected
 
 
@@ -98,13 +110,14 @@ def _apply_threshold_sex_aware(
     ``apply_threshold`` with the scalar/dict prevalence directly.
     """
     prev = params[f"prevalence{trait_num}"]
+    standardize = params.get("standardize", True)
     if isinstance(prev, dict) and "female" in prev and "male" in prev:
         affected = np.zeros(len(liability), dtype=bool)
         for sex_val, key in [(0, "female"), (1, "male")]:
             mask = sex == sex_val
-            affected[mask] = apply_threshold(liability[mask], generation[mask], prev[key])
+            affected[mask] = apply_threshold(liability[mask], generation[mask], prev[key], standardize=standardize)
         return affected
-    return apply_threshold(liability, generation, prev)
+    return apply_threshold(liability, generation, prev, standardize=standardize)
 
 
 def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:

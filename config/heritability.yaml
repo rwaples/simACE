@@ -2,17 +2,23 @@ high_heritability:
   seed: 4042
   A1: 0.8
   C1: 0.0
+  E1: 0.2
   A2: 0.8
   C2: 0.0
+  E2: 0.2
 low_heritability:
   seed: 5042
   A1: 0.1
   C1: 0.1
+  E1: 0.8
   A2: 0.1
   C2: 0.1
+  E2: 0.8
 no_heritability:
   seed: 6042
   A1: 0
   C1: 0
+  E1: 1.0
   A2: 0
   C2: 0
+  E2: 1.0

@@ -9,10 +9,15 @@ defaults:
   # ── Liability variance components ─────────────────────────────────────────
   A1: 0.5
   C1: 0.2
+  E1: 0.3
+
   A2: 0.5
   C2: 0.2
+  E2: 0.3
+
   rA: 0.3
   rC: 0.5
+  rE: 0.0
 
   standardize: true
 
@@ -25,7 +30,7 @@ defaults:
   p_mztwin: 0.02
   assort1: 0
   assort2: 0
-  assort_matrix: null  # optional full 2x2 R_mf matrix, e.g. [[0.3, 0.05], [0.05, 0.15]]
+  assort_matrix: null # optional full 2x2 R_mf matrix, e.g. [[0.3, 0.05], [0.05, 0.15]]
 
   # ── Phenotype model ───────────────────────────────────────────────────────
   # phenotype_model1/2: weibull | exponential | gompertz | lognormal | loglogistic | gamma | adult_ltm | adult_cox | cure_frailty

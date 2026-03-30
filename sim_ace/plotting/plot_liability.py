@@ -740,6 +740,9 @@ def plot_mate_correlation(
             A2=float(params.get("A2", 0)),
             C2=float(params.get("C2", 0)),
             assort_matrix=am,
+            rE=float(params.get("rE", 0)),
+            E1=float(params.get("E1", 0)),
+            E2=float(params.get("E2", 0)),
         )
 
     xlabels = ["Male trait 1", "Male trait 2"]

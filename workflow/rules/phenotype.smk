@@ -64,9 +64,10 @@ rule phenotype_simple_ltm:
     output:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.simple_ltm.parquet"
     params:
-        prevalence1 = lambda w: get_param(config, w.scenario, "prevalence1"),
-        prevalence2 = lambda w: get_param(config, w.scenario, "prevalence2"),
-        G_pheno     = lambda w: get_param(config, w.scenario, "G_pheno"),
+        prevalence1  = lambda w: get_param(config, w.scenario, "prevalence1"),
+        prevalence2  = lambda w: get_param(config, w.scenario, "prevalence2"),
+        G_pheno      = lambda w: get_param(config, w.scenario, "G_pheno"),
+        standardize  = lambda w: get_param(config, w.scenario, "standardize"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.log"
     benchmark:

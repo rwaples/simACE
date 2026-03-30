@@ -15,6 +15,7 @@ from sim_ace.simulation.simulate import (
     generate_mendelian_noise,
     mating,
     pair_partners,
+    resolve_per_gen_param,
     run_simulation,
 )
 
@@ -472,12 +473,12 @@ class TestRunSimulation:
     # --- Validation error tests ---
 
     def test_negative_A_raises(self, default_params):
-        with pytest.raises(ValueError, match="must be between 0 and 1"):
+        with pytest.raises(ValueError, match="must be a non-negative scalar"):
             run_simulation(**{**default_params, "A1": -0.1})
 
-    def test_A_plus_C_exceeds_one_raises(self, default_params):
-        with pytest.raises(ValueError, match=r"A1 \+ C1 must be <= 1\.0"):
-            run_simulation(**{**default_params, "A1": 0.6, "C1": 0.5})
+    def test_negative_E_raises(self, default_params):
+        with pytest.raises(ValueError, match="E1 must be >= 0"):
+            run_simulation(**{**default_params, "E1": -0.1})
 
     def test_negative_N_raises(self, default_params):
         with pytest.raises(ValueError, match="N must be a positive integer"):
@@ -494,6 +495,10 @@ class TestRunSimulation:
     def test_rA_out_of_range_raises(self, default_params):
         with pytest.raises(ValueError, match=r"rA must be in \[-1, 1\]"):
             run_simulation(**{**default_params, "rA": 1.5})
+
+    def test_rE_out_of_range_raises(self, default_params):
+        with pytest.raises(ValueError, match=r"rE must be in \[-1, 1\]"):
+            run_simulation(**{**default_params, "rE": 1.5})
 
     def test_p_mztwin_equals_one_raises(self, default_params):
         with pytest.raises(ValueError, match=r"p_mztwin must be in \[0, 1\)"):
@@ -649,3 +654,174 @@ class TestMatingAssortative:
         sex = rng.binomial(n=1, p=0.5, size=500)
         with pytest.raises(ValueError, match="pheno must be provided"):
             mating(rng, sex, 0.5, 0.02, pheno=None, assort1=0.3)
+
+
+# ---------------------------------------------------------------------------
+# resolve_per_gen_param
+# ---------------------------------------------------------------------------
+
+
+class TestResolvePerGenParam:
+    def test_scalar_returns_constant_list(self):
+        result = resolve_per_gen_param(0.3, 5, name="E1")
+        assert result == [0.3, 0.3, 0.3, 0.3, 0.3]
+
+    def test_dict_forward_fill(self):
+        result = resolve_per_gen_param({0: 0.2, 2: 0.5}, 4, name="E1")
+        assert result == [0.2, 0.2, 0.5, 0.5]
+
+    def test_dict_all_keys(self):
+        result = resolve_per_gen_param({0: 0.1, 1: 0.2, 2: 0.3}, 3, name="E1")
+        assert result == [0.1, 0.2, 0.3]
+
+    def test_negative_scalar_raises(self):
+        with pytest.raises(ValueError, match="must be >= 0"):
+            resolve_per_gen_param(-0.1, 3, name="E1")
+
+    def test_negative_dict_value_raises(self):
+        with pytest.raises(ValueError, match="must be >= 0"):
+            resolve_per_gen_param({0: -0.1}, 3, name="E1")
+
+    def test_no_key_le_zero_raises(self):
+        with pytest.raises(ValueError, match="must have a key <= 0"):
+            resolve_per_gen_param({2: 0.5}, 3, name="E1")
+
+    def test_empty_dict_raises(self):
+        with pytest.raises(ValueError, match="must not be empty"):
+            resolve_per_gen_param({}, 3, name="E1")
+
+
+# ---------------------------------------------------------------------------
+# Per-generation variance
+# ---------------------------------------------------------------------------
+
+
+class TestPerGenerationVariance:
+    def test_scalar_E_matches_old_behavior(self, default_params):
+        """Scalar E1/E2 should produce identical results to omitting them."""
+        ped_no_e = run_simulation(**default_params)
+        ped_with_e = run_simulation(**{**default_params, "E1": 0.3, "E2": 0.3})
+        pd.testing.assert_frame_equal(ped_no_e, ped_with_e)
+
+    def test_per_gen_E_changes_variance(self):
+        """Per-gen E should produce different variance in different generations."""
+        params = dict(
+            seed=42,
+            N=5000,
+            G_ped=3,
+            G_sim=3,
+            mating_lambda=0.5,
+            p_mztwin=0.02,
+            A1=0.5,
+            C1=0.0,
+            A2=0.5,
+            C2=0.0,
+            E1={0: 0.3, 2: 0.8},
+            E2={0: 0.3, 2: 0.8},
+            rA=0.0,
+            rC=0.0,
+        )
+        ped = run_simulation(**params)
+
+        # Check that E variance differs across generations
+        gen0 = ped[ped["generation"] == 0]
+        gen2 = ped[ped["generation"] == 2]
+        var_E1_gen0 = gen0["E1"].var()
+        var_E1_gen2 = gen2["E1"].var()
+
+        # Gen 0: E1 ~ N(0, sqrt(0.3)), Var ≈ 0.3
+        # Gen 2: E1 ~ N(0, sqrt(0.8)), Var ≈ 0.8
+        assert var_E1_gen0 < 0.5, f"Gen 0 Var(E1) should be ~0.3, got {var_E1_gen0:.3f}"
+        assert var_E1_gen2 > 0.5, f"Gen 2 Var(E1) should be ~0.8, got {var_E1_gen2:.3f}"
+
+    def test_per_gen_E_total_variance(self):
+        """Total liability variance should match A + C + E per generation."""
+        params = dict(
+            seed=99,
+            N=10000,
+            G_ped=3,
+            G_sim=3,
+            mating_lambda=0.5,
+            p_mztwin=0.02,
+            A1=0.5,
+            C1=0.0,
+            A2=0.5,
+            C2=0.0,
+            E1={0: 0.2, 1: 0.5, 2: 1.0},
+            E2=0.3,
+            rA=0.0,
+            rC=0.0,
+        )
+        ped = run_simulation(**params)
+
+        for gen_idx, expected_E1 in [(0, 0.2), (1, 0.5), (2, 1.0)]:
+            gen = ped[ped["generation"] == gen_idx]
+            liab_var = gen["liability1"].var()
+            expected_total = 0.5 + 0.0 + expected_E1
+            assert abs(liab_var - expected_total) < 0.15, (
+                f"Gen {gen_idx}: Var(L1) = {liab_var:.3f}, expected ~{expected_total:.1f}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Cross-trait unique environment correlation (rE)
+# ---------------------------------------------------------------------------
+
+
+class TestCrossTraitRE:
+    def test_rE_zero_preserves_rng(self, default_params):
+        """rE=0 (default) should produce bit-identical output to omitting rE."""
+        ped1 = run_simulation(**default_params)
+        ped2 = run_simulation(**{**default_params, "rE": 0.0})
+        pd.testing.assert_frame_equal(ped1, ped2)
+
+    def test_rE_positive_correlates_E(self):
+        """With rE=0.5, E1 and E2 should be positively correlated within individuals."""
+        params = dict(
+            seed=42,
+            N=5000,
+            G_ped=2,
+            G_sim=2,
+            mating_lambda=0.5,
+            p_mztwin=0.02,
+            A1=0.5,
+            C1=0.2,
+            E1=0.3,
+            A2=0.5,
+            C2=0.2,
+            E2=0.3,
+            rA=0.0,
+            rC=0.0,
+            rE=0.5,
+        )
+        ped = run_simulation(**params)
+        founders = ped[ped["generation"] == 0]
+        corr = np.corrcoef(founders["E1"].values, founders["E2"].values)[0, 1]
+        assert abs(corr - 0.5) < 0.1, f"Expected rE ≈ 0.5, got {corr:.3f}"
+
+    def test_rE_does_not_share_E_between_siblings(self):
+        """rE correlates E across traits, not across individuals."""
+        params = dict(
+            seed=42,
+            N=2000,
+            G_ped=2,
+            G_sim=2,
+            mating_lambda=0.5,
+            p_mztwin=0.02,
+            A1=0.5,
+            C1=0.2,
+            E1=0.3,
+            A2=0.5,
+            C2=0.2,
+            E2=0.3,
+            rA=0.0,
+            rC=0.0,
+            rE=0.8,
+        )
+        ped = run_simulation(**params)
+        non_founders = ped[ped["mother"] != -1]
+        # Siblings should NOT share E values (E is unique per person)
+        e_by_mother = non_founders.groupby("mother")["E1"].nunique()
+        multi_sib = e_by_mother[e_by_mother.index.map(lambda m: (non_founders["mother"] == m).sum() > 1)]
+        if len(multi_sib) > 0:
+            assert (multi_sib > 1).all(), "Siblings should have different E1 values"

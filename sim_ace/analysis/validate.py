@@ -540,12 +540,13 @@ def validate_statistical(df: pd.DataFrame, params: dict[str, Any], df_indexed: p
             observed=float(obs),
         )
 
+    rE_param = params.get("rE", 0.0)
     rE_obs = safe_corrcoef(founders["E1"].values, founders["E2"].values)
-    rE_ok = abs(rE_obs) < 0.1 if not np.isnan(rE_obs) else True
+    rE_ok = abs(rE_obs - rE_param) < 0.15 if not np.isnan(rE_obs) else rE_param == 0
     results["cross_trait_rE"] = _result(
         rE_ok,
-        f"Cross-trait E correlation: {rE_obs:.4f} (expected: ~0)",
-        expected=0.0,
+        f"Cross-trait E correlation: {rE_obs:.4f} (expected: {rE_param})",
+        expected=rE_param,
         observed=float(rE_obs),
     )
 

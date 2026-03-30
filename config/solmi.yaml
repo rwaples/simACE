@@ -16,7 +16,9 @@ solmi_neurodevelopmental:
   prevalence1: 0.08
   prevalence2: 0.08
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 solmi_anxiety:
   seed: 31042
@@ -36,7 +38,9 @@ solmi_anxiety:
   prevalence1: 0.15
   prevalence2: 0.15
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 solmi_ocd:
   seed: 32042
@@ -56,7 +60,9 @@ solmi_ocd:
   prevalence1: 0.025
   prevalence2: 0.025
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 solmi_eating:
   seed: 33042
@@ -76,7 +82,9 @@ solmi_eating:
   prevalence1: 0.03
   prevalence2: 0.03
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 solmi_stress:
   seed: 34042
@@ -96,7 +104,9 @@ solmi_stress:
   prevalence1: 0.07
   prevalence2: 0.07
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 solmi_substance_use:
   seed: 35042
@@ -116,7 +126,9 @@ solmi_substance_use:
   prevalence1: 0.12
   prevalence2: 0.12
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 solmi_schizophrenia:
   seed: 36042
@@ -136,7 +148,9 @@ solmi_schizophrenia:
   prevalence1: 0.01
   prevalence2: 0.01
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 solmi_personality:
   seed: 37042
@@ -156,7 +170,9 @@ solmi_personality:
   prevalence1: 0.1
   prevalence2: 0.1
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 solmi_mood:
   seed: 38042
@@ -176,5 +192,7 @@ solmi_mood:
   prevalence1: 0.15
   prevalence2: 0.15
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0

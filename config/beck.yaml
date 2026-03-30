@@ -22,7 +22,9 @@ beck_adhd:
     female: 0.0481943
     male: 0.083224
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rA: 0.0
   rC: 0.0
 beck_anorexia:
@@ -49,7 +51,9 @@ beck_anorexia:
     female: 0.011211
     male: 0.00101
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_any:
   seed: 42000
@@ -74,7 +78,9 @@ beck_any:
     female: 0.383534
     male: 0.310272
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_antisocial_pd:
   seed: 43000
@@ -100,7 +106,9 @@ beck_antisocial_pd:
     female: 0.00101
     male: 0.004141
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_alcohol:
   seed: 44000
@@ -125,7 +133,9 @@ beck_alcohol:
     female: 0.028374
     male: 0.0518828
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_bipolar:
   seed: 45000
@@ -150,7 +160,9 @@ beck_bipolar:
     female: 0.022725
     male: 0.0168557
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_behavioral_emotional:
   seed: 46000
@@ -175,7 +187,9 @@ beck_behavioral_emotional:
     female: 0.0721731
     male: 0.109686
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_borderline_pd:
   seed: 47000
@@ -201,7 +215,9 @@ beck_borderline_pd:
     female: 0.029795
     male: 0.003535
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_childhood_autism:
   seed: 48000
@@ -227,7 +243,9 @@ beck_childhood_autism:
     female: 0.006161
     male: 0.019493
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_cannabis:
   seed: 49000
@@ -252,7 +270,9 @@ beck_cannabis:
     female: 0.01212
     male: 0.0303
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_depression:
   seed: 50000
@@ -277,7 +297,9 @@ beck_depression:
     female: 0.156247
     male: 0.0950861
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_eating:
   seed: 51000
@@ -303,7 +325,9 @@ beck_eating:
     female: 0.037471
     male: 0.002727
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_intellectual_disability:
   seed: 52000
@@ -328,7 +352,9 @@ beck_intellectual_disability:
     female: 0.0150605
     male: 0.020301
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_mood:
   seed: 53000
@@ -353,7 +379,9 @@ beck_mood:
     female: 0.168367
     male: 0.10525
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_neurotic_stress:
   seed: 54000
@@ -378,7 +406,9 @@ beck_neurotic_stress:
     female: 0.236239
     male: 0.164327
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_ocd:
   seed: 55000
@@ -403,7 +433,9 @@ beck_ocd:
     female: 0.0244746
     male: 0.013837
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_pervasive_developmental:
   seed: 56000
@@ -428,7 +460,9 @@ beck_pervasive_developmental:
     female: 0.02929
     male: 0.060095
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_schizoaffective:
   seed: 57000
@@ -454,7 +488,9 @@ beck_schizoaffective:
     female: 0.00287138
     male: 0.00198684
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_schizophrenia:
   seed: 58000
@@ -479,7 +515,9 @@ beck_schizophrenia:
     female: 0.017574
     male: 0.021816
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_specific_pd:
   seed: 59000
@@ -504,7 +542,9 @@ beck_specific_pd:
     female: 0.072013
     male: 0.031209
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_schizophrenia_related:
   seed: 60000
@@ -529,7 +569,9 @@ beck_schizophrenia_related:
     female: 0.041309
     male: 0.04545
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0
 beck_substance_use:
   seed: 61000
@@ -554,5 +596,7 @@ beck_substance_use:
     female: 0.041511
     male: 0.077669
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rC: 0.0

@@ -2,7 +2,9 @@ long_term:
   replicates: 1
   seed: 1879
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rA: 0.0
   rC: 0.0
   N: 200000
@@ -17,7 +19,9 @@ long_solmi_mood:
   replicates: 1
   seed: 1880
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rA: 0.0
   rC: 0.0
   N: 200000
@@ -46,7 +50,9 @@ long_beck_adhd:
   replicates: 1
   seed: 1881
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rA: 0.0
   rC: 0.0
   N: 200000
