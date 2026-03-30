@@ -121,6 +121,56 @@ def _nb_loglogistic(neg_log_u, liability, mean, scaled_beta, alpha, inv_k):
     return t
 
 
+# First-passage time kernels — fuse y0 computation + Michael-Schucany-Haas
+# inverse Gaussian sampling in a single parallel pass.
+
+
+@njit(cache=True)
+def _msh_sample(normal, uniform, mu, lam):
+    """Michael-Schucany-Haas (1976) inverse Gaussian sampler, clamped to [1e-10, 1e6]."""
+    y = normal * normal
+    mu2 = mu * mu
+    half_mu_over_lam = mu / (2.0 * lam)
+    x = mu + half_mu_over_lam * (mu * y - np.sqrt(4.0 * mu * lam * y + mu2 * y * y))
+    if uniform <= mu / (mu + x):
+        return min(max(x, 1e-10), 1e6)
+    return min(max(mu2 / x, 1e-10), 1e6)
+
+
+@njit(parallel=True, cache=True)
+def _nb_fpt(normals, uniforms, liability, mean, scaled_beta, sex, beta_sex, y0_base, inv_drift):
+    """Fused FPT kernel for drift < 0 (everyone hits)."""
+    n = len(normals)
+    t = np.empty(n)
+    for i in prange(n):
+        y0 = y0_base * np.exp(-scaled_beta * (liability[i] - mean) - beta_sex * sex[i])
+        if y0 < 1e-300:
+            t[i] = 1e-10
+        elif y0 > 1e150:
+            t[i] = 1e6
+        else:
+            t[i] = _msh_sample(normals[i], uniforms[i], y0 * inv_drift, y0 * y0)
+    return t
+
+
+@njit(parallel=True, cache=True)
+def _nb_fpt_cure(normals, uniforms, cure_draws, liability, mean, scaled_beta, sex, beta_sex, y0_base, drift, inv_drift):
+    """Fused FPT kernel for drift > 0 (emergent cure fraction)."""
+    n = len(normals)
+    t = np.empty(n)
+    for i in prange(n):
+        y0 = y0_base * np.exp(-scaled_beta * (liability[i] - mean) - beta_sex * sex[i])
+        if y0 < 1e-300:
+            t[i] = 1e-10
+        else:
+            p_hit = np.exp(-2.0 * y0 * drift)
+            if cure_draws[i] >= p_hit:
+                t[i] = 1e6
+            else:
+                t[i] = _msh_sample(normals[i], uniforms[i], y0 * inv_drift, y0 * y0)
+    return t
+
+
 # ---------------------------------------------------------------------------
 # Python wrappers — unpack params dict, call numba kernel
 # ---------------------------------------------------------------------------
@@ -523,30 +573,29 @@ def phenotype_first_passage(
     rng = np.random.default_rng(seed)
     mean, scaled_beta = _standardize_beta(liability, beta, standardize)
 
-    # Per-individual initial distance: y0_i = sqrt(shape) * exp(-beta*L - beta_sex*sex)
     y0_base = np.sqrt(shape)
-    adjustment = np.exp(-scaled_beta * (liability - mean))
-    if beta_sex != 0.0 and sex is not None:
-        adjustment = adjustment * np.exp(-beta_sex * sex)
-    y0 = y0_base * adjustment
-
-    abs_drift = abs(drift)
+    normals = rng.standard_normal(n)
+    uniforms = rng.random(n)
+    sex_arr = sex if (sex is not None and beta_sex != 0.0) else np.zeros(n)
+    sex_beta = beta_sex if sex is not None else 0.0
+    inv_drift = 1.0 / abs(drift)
 
     if drift < 0:
-        # Everyone hits — standard inverse Gaussian
-        t = rng.wald(mean=y0 / abs_drift, scale=y0**2)
-    else:
-        # Emergent cure fraction: P(ever hit) = exp(-2*y0*drift)
-        p_hit = np.exp(-2.0 * y0 * drift)
-        hits = rng.random(size=n) < p_hit
-        t = np.full(n, 1e6)  # default: censored (never hit)
-        n_hits = hits.sum()
-        if n_hits > 0:
-            mean_ig = y0[hits] / drift
-            shape_ig = y0[hits] ** 2
-            t[hits] = rng.wald(mean=mean_ig, scale=shape_ig)
-
-    return np.clip(t, 1e-10, 1e6)
+        return _nb_fpt(normals, uniforms, liability, mean, scaled_beta, sex_arr, sex_beta, y0_base, inv_drift)
+    cure_draws = rng.random(n)
+    return _nb_fpt_cure(
+        normals,
+        uniforms,
+        cure_draws,
+        liability,
+        mean,
+        scaled_beta,
+        sex_arr,
+        sex_beta,
+        y0_base,
+        drift,
+        inv_drift,
+    )
 
 
 _FRAILTY_MODELS = {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
