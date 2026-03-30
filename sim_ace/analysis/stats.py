@@ -417,6 +417,31 @@ def compute_liability_correlations(
     return result
 
 
+def _tetrachoric_for_pairs(
+    idx1: np.ndarray,
+    idx2: np.ndarray,
+    affected: np.ndarray,
+    liability: np.ndarray | None = None,
+) -> dict[str, Any]:
+    """Compute tetrachoric r, SE, and optionally liability r for one pair subset."""
+    n_p = len(idx1)
+    if n_p < 10:
+        entry: dict[str, Any] = {"r": None, "se": None, "n_pairs": int(n_p)}
+        if liability is not None:
+            entry["liability_r"] = None
+        return entry
+    r, se = tetrachoric_corr_se(affected[idx1], affected[idx2])
+    entry = {
+        "r": float(r) if not np.isnan(r) else None,
+        "se": float(se) if not np.isnan(se) else None,
+        "n_pairs": int(n_p),
+    }
+    if liability is not None:
+        liab_r = float(_pearsonr_core(liability[idx1], liability[idx2]))
+        entry["liability_r"] = liab_r if not np.isnan(liab_r) else None
+    return entry
+
+
 def compute_tetrachoric(
     df: pd.DataFrame,
     seed: int = 42,
@@ -430,16 +455,7 @@ def compute_tetrachoric(
         trait_result = {}
         for ptype in PAIR_TYPES:
             idx1, idx2 = pairs[ptype]
-            n_p = len(idx1)
-            if n_p < 10:
-                trait_result[ptype] = {"r": None, "se": None, "n_pairs": int(n_p)}
-                continue
-            r, se = tetrachoric_corr_se(affected[idx1], affected[idx2])
-            trait_result[ptype] = {
-                "r": float(r) if not np.isnan(r) else None,
-                "se": float(se) if not np.isnan(se) else None,
-                "n_pairs": int(n_p),
-            }
+            trait_result[ptype] = _tetrachoric_for_pairs(idx1, idx2, affected)
         result[f"trait{trait_num}"] = trait_result
     return result
 
@@ -466,25 +482,7 @@ def compute_tetrachoric_by_generation(
             for ptype in PAIR_TYPES:
                 idx1, idx2 = pairs[ptype]
                 mask = gen_arr[idx1] == gen
-                g_idx1 = idx1[mask]
-                g_idx2 = idx2[mask]
-                n_p = len(g_idx1)
-                if n_p < 10:
-                    trait_result[ptype] = {
-                        "r": None,
-                        "se": None,
-                        "n_pairs": int(n_p),
-                        "liability_r": None,
-                    }
-                    continue
-                r, se = tetrachoric_corr_se(affected[g_idx1], affected[g_idx2])
-                liab_r = float(_pearsonr_core(liability[g_idx1], liability[g_idx2]))
-                trait_result[ptype] = {
-                    "r": float(r) if not np.isnan(r) else None,
-                    "se": float(se) if not np.isnan(se) else None,
-                    "n_pairs": int(n_p),
-                    "liability_r": liab_r if not np.isnan(liab_r) else None,
-                }
+                trait_result[ptype] = _tetrachoric_for_pairs(idx1[mask], idx2[mask], affected, liability)
             gen_result[f"trait{trait_num}"] = trait_result
         result[f"gen{gen}"] = gen_result
     return result
@@ -542,6 +540,35 @@ def compute_cross_trait_tetrachoric(
     return result
 
 
+def _po_regression(gen_idx: np.ndarray, liability: np.ndarray, id_to_row: np.ndarray, df: pd.DataFrame) -> dict:
+    """Midparent-offspring regression for a given set of offspring indices."""
+    mother_ids = df["mother"].values[gen_idx]
+    father_ids = df["father"].values[gen_idx]
+    has_m = (mother_ids >= 0) & (mother_ids < len(id_to_row))
+    has_f = (father_ids >= 0) & (father_ids < len(id_to_row))
+    m_rows = np.full(len(gen_idx), -1, dtype=np.int32)
+    f_rows = np.full(len(gen_idx), -1, dtype=np.int32)
+    m_rows[has_m] = id_to_row[mother_ids[has_m]]
+    f_rows[has_f] = id_to_row[father_ids[has_f]]
+    valid = (m_rows >= 0) & (f_rows >= 0)
+    n_pairs = int(valid.sum())
+    null = {"r": None, "r2": None, "slope": None, "intercept": None, "stderr": None, "pvalue": None, "n_pairs": n_pairs}
+    if n_pairs < 10:
+        return null
+    offspring = liability[gen_idx[valid]]
+    midparent = (liability[m_rows[valid]] + liability[f_rows[valid]]) / 2.0
+    slope, intercept, r, stderr, pvalue = fast_linregress(midparent, offspring)
+    return {
+        "r": r,
+        "r2": r**2,
+        "slope": slope,
+        "intercept": intercept,
+        "stderr": stderr,
+        "pvalue": pvalue,
+        "n_pairs": n_pairs,
+    }
+
+
 def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
     if "generation" not in df.columns:
         return {}
@@ -549,45 +576,14 @@ def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
     ids_arr = df["id"].values
     id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
     id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
+    gen_arr = df["generation"].values
     result = {}
     for trait_num in [1, 2]:
         liability = df[f"liability{trait_num}"].values
         trait_result = {}
         for gen in range(1, max_gen + 1):
-            gen_idx = np.where(df["generation"].values == gen)[0]
-            mother_ids = df["mother"].values[gen_idx]
-            father_ids = df["father"].values[gen_idx]
-            has_m = (mother_ids >= 0) & (mother_ids < len(id_to_row))
-            has_f = (father_ids >= 0) & (father_ids < len(id_to_row))
-            m_rows = np.full(len(gen_idx), -1, dtype=np.int32)
-            f_rows = np.full(len(gen_idx), -1, dtype=np.int32)
-            m_rows[has_m] = id_to_row[mother_ids[has_m]]
-            f_rows[has_f] = id_to_row[father_ids[has_f]]
-            valid = (m_rows >= 0) & (f_rows >= 0)
-            n_pairs = int(valid.sum())
-            if n_pairs < 10:
-                trait_result[f"gen{gen}"] = {
-                    "r": None,
-                    "r2": None,
-                    "slope": None,
-                    "intercept": None,
-                    "stderr": None,
-                    "pvalue": None,
-                    "n_pairs": n_pairs,
-                }
-                continue
-            offspring = liability[gen_idx[valid]]
-            midparent = (liability[m_rows[valid]] + liability[f_rows[valid]]) / 2.0
-            slope, intercept, r, stderr, pvalue = fast_linregress(midparent, offspring)
-            trait_result[f"gen{gen}"] = {
-                "r": r,
-                "r2": r**2,
-                "slope": slope,
-                "intercept": intercept,
-                "stderr": stderr,
-                "pvalue": pvalue,
-                "n_pairs": n_pairs,
-            }
+            gen_idx = np.where(gen_arr == gen)[0]
+            trait_result[f"gen{gen}"] = _po_regression(gen_idx, liability, id_to_row, df)
         result[f"trait{trait_num}"] = trait_result
     return result
 
@@ -615,25 +611,7 @@ def compute_tetrachoric_by_sex(
             for ptype in PAIR_TYPES:
                 idx1, idx2 = pairs[ptype]
                 sex_mask = (sex_arr[idx1] == sex_val) & (sex_arr[idx2] == sex_val)
-                s_idx1 = idx1[sex_mask]
-                s_idx2 = idx2[sex_mask]
-                n_p = len(s_idx1)
-                if n_p < 10:
-                    trait_result[ptype] = {
-                        "r": None,
-                        "se": None,
-                        "n_pairs": int(n_p),
-                        "liability_r": None,
-                    }
-                    continue
-                r, se = tetrachoric_corr_se(affected[s_idx1], affected[s_idx2])
-                liab_r = float(_pearsonr_core(liability[s_idx1], liability[s_idx2]))
-                trait_result[ptype] = {
-                    "r": float(r) if not np.isnan(r) else None,
-                    "se": float(se) if not np.isnan(se) else None,
-                    "n_pairs": int(n_p),
-                    "liability_r": liab_r if not np.isnan(liab_r) else None,
-                }
+                trait_result[ptype] = _tetrachoric_for_pairs(idx1[sex_mask], idx2[sex_mask], affected, liability)
             sex_result[f"trait{trait_num}"] = trait_result
         result[sex_label] = sex_result
     return result
@@ -651,6 +629,7 @@ def compute_parent_offspring_corr_by_sex(df: pd.DataFrame) -> dict[str, Any]:
     ids_arr = df["id"].values
     id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
     id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
+    gen_arr = df["generation"].values
     sex_arr = df["sex"].values
     result: dict[str, Any] = {}
     for sex_val, sex_label in [(0, "female"), (1, "male")]:
@@ -659,40 +638,8 @@ def compute_parent_offspring_corr_by_sex(df: pd.DataFrame) -> dict[str, Any]:
             liability = df[f"liability{trait_num}"].values
             trait_result: dict[str, Any] = {}
             for gen in range(1, max_gen + 1):
-                gen_idx = np.where((df["generation"].values == gen) & (sex_arr == sex_val))[0]
-                mother_ids = df["mother"].values[gen_idx]
-                father_ids = df["father"].values[gen_idx]
-                has_m = (mother_ids >= 0) & (mother_ids < len(id_to_row))
-                has_f = (father_ids >= 0) & (father_ids < len(id_to_row))
-                m_rows = np.full(len(gen_idx), -1, dtype=np.int32)
-                f_rows = np.full(len(gen_idx), -1, dtype=np.int32)
-                m_rows[has_m] = id_to_row[mother_ids[has_m]]
-                f_rows[has_f] = id_to_row[father_ids[has_f]]
-                valid = (m_rows >= 0) & (f_rows >= 0)
-                n_pairs = int(valid.sum())
-                if n_pairs < 10:
-                    trait_result[f"gen{gen}"] = {
-                        "r": None,
-                        "r2": None,
-                        "slope": None,
-                        "intercept": None,
-                        "stderr": None,
-                        "pvalue": None,
-                        "n_pairs": n_pairs,
-                    }
-                    continue
-                offspring = liability[gen_idx[valid]]
-                midparent = (liability[m_rows[valid]] + liability[f_rows[valid]]) / 2.0
-                slope, intercept, r, stderr, pvalue = fast_linregress(midparent, offspring)
-                trait_result[f"gen{gen}"] = {
-                    "r": r,
-                    "r2": r**2,
-                    "slope": slope,
-                    "intercept": intercept,
-                    "stderr": stderr,
-                    "pvalue": pvalue,
-                    "n_pairs": n_pairs,
-                }
+                gen_idx = np.where((gen_arr == gen) & (sex_arr == sex_val))[0]
+                trait_result[f"gen{gen}"] = _po_regression(gen_idx, liability, id_to_row, df)
             sex_result[f"trait{trait_num}"] = trait_result
         result[sex_label] = sex_result
     return result

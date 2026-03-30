@@ -510,6 +510,8 @@ def plot_parent_offspring_liability(
     """2 x 3 scatter grid: midparent vs offspring liability by generation."""
     from scipy.stats import t as t_dist
 
+    from sim_ace.plotting.plot_distributions import COLOR_FEMALE, COLOR_MALE
+
     if "generation" not in df_samples.columns:
         save_placeholder_plot(output_path, "No generation data")
         return
@@ -576,8 +578,6 @@ def plot_parent_offspring_liability(
             # Sex-stratified scatter: daughters in green, sons in blue
             sex_arr = df_samples["sex"].values
             offspring_sex = sex_arr[gen_idx[valid]]
-            from sim_ace.plotting.plot_distributions import COLOR_FEMALE, COLOR_MALE
-
             f_mask = offspring_sex == 0
             m_mask = offspring_sex == 1
             if f_mask.any():

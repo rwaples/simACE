@@ -12,10 +12,10 @@ def _run_snakemake():
     convert(snakemake.input[0], snakemake.output[0], float_precision=precision, gzip=use_gzip)
 
 
-if __name__ == "__main__":
-    try:
-        snakemake
-    except NameError:
+try:
+    snakemake
+except NameError:
+    if __name__ == "__main__":
         _cli()
-    else:
-        _run_snakemake()
+else:
+    _run_snakemake()

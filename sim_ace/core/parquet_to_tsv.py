@@ -25,7 +25,7 @@ def convert(parquet_path: str, output_path: str | None = None, float_precision: 
     parquet_path = str(parquet_path)
     if output_path is None:
         suffix = ".tsv.gz" if gzip else ".tsv"
-        output_path = parquet_path.replace(".parquet", suffix)
+        output_path = parquet_path.removesuffix(".parquet") + suffix
 
     t0 = time.perf_counter()
     df = pd.read_parquet(parquet_path)
