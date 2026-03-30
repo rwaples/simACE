@@ -50,6 +50,15 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 - `config/config.yaml` — default parameters; `config/{folder}.yaml` — per-folder scenario files (auto-discovered)
 - `results/{folder}/{scenario}/` — output per scenario
 
+## Versioning
+
+- Both packages use **CalVer** (`YYYY.MM`) via `setuptools-scm`, derived from git tags
+- Version is the single source of truth from git tags — never hardcode it
+- Tag format: `v2026.03`, `v2026.04`, `v2026.04.1` (second release same month)
+- Between tags, versions look like `2026.4.dev4+g<hash>` (dev build, 4 commits after tag)
+- To cut a release: `git tag -a v2026.MM -m "description"`
+- Check current version: `python -c "import sim_ace; print(sim_ace.__version__)"`
+
 ## Linting
 
 - Check: `ruff check`

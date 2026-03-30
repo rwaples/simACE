@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "sim-ace"
-version = "0.1.0"
+dynamic = ["version"]
 description = "ACE pedigree simulation with A/C/E variance components"
 requires-python = ">=3.10"
 dependencies = [
@@ -32,6 +32,8 @@ sim-ace-parquet-to-tsv = "sim_ace.core.parquet_to_tsv:cli"
 
 [tool.setuptools.packages.find]
 include = ["sim_ace*"]
+
+[tool.setuptools_scm]
 
 [tool.ruff]
 target-version = "py313"

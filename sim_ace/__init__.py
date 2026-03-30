@@ -1,6 +1,8 @@
 """sim_ace - ACE pedigree simulation with A/C/E variance components."""
 
-__version__ = "0.1.0"
+from importlib.metadata import version
+
+__version__ = version("sim-ace")
 
 import logging
 
