@@ -28,8 +28,14 @@ def _run_snakemake():
     logger = logging.getLogger(__name__)
     p = snakemake.params
 
-    pedigree_df = pd.read_parquet(snakemake.input.pedigree)
-    phenotype_df = pd.read_parquet(snakemake.input.phenotype)
+    pedigree_df = pd.read_parquet(
+        snakemake.input.pedigree,
+        columns=["id", "mother", "father", "twin", "sex", "generation"],
+    )
+    phenotype_df = pd.read_parquet(
+        snakemake.input.phenotype,
+        columns=["id", "generation", "affected1", "affected2", "A1", "A2", "t_observed1", "t_observed2"],
+    )
 
     base_dir = str(Path(snakemake.output.done).parent)
 

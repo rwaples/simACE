@@ -157,12 +157,13 @@ def main(
         kinds = list(KIND_TO_PAIRS.keys())
 
     logger.info("Loading simple LTM phenotype: %s", simple_ltm_path)
-    df = pd.read_parquet(simple_ltm_path)
+    _ped_cols = ["id", "mother", "father", "twin", "sex", "generation"]
+    df = pd.read_parquet(simple_ltm_path, columns=[*_ped_cols, "affected1", "affected2"])
 
     pedigree = None
     if pedigree_path:
         logger.info("Loading full pedigree: %s", pedigree_path)
-        pedigree = pd.read_parquet(pedigree_path)
+        pedigree = pd.read_parquet(pedigree_path, columns=_ped_cols)
 
     results = compute_ltm_falconer(df, kinds, trait_num=trait_num, seed=seed, pedigree=pedigree)
 
