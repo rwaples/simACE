@@ -7,6 +7,7 @@ from sim_ace.phenotyping.phenotype import (
     phenotype_adult_cox,
     phenotype_adult_ltm,
     phenotype_cure_frailty,
+    phenotype_first_passage,
     simulate_phenotype,
 )
 
@@ -696,3 +697,178 @@ class TestCureFrailtyPerGenPrevalence:
             mask = generation == gen
             observed = cases[mask].mean()
             assert abs(observed - expected) < 0.02, f"gen {gen}: expected ~{expected}, got {observed}"
+
+
+# ---------------------------------------------------------------------------
+# First-passage time model (negative drift — everyone hits)
+# ---------------------------------------------------------------------------
+
+FPT_DRIFT = -0.01
+FPT_SHAPE = 100.0
+
+
+class TestFirstPassage:
+    def test_output_shape(self):
+        liability = np.random.default_rng(0).standard_normal(500)
+        t = phenotype_first_passage(liability, beta=1.0, drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42)
+        assert t.shape == (500,)
+
+    def test_all_positive_times(self):
+        liability = np.random.default_rng(0).standard_normal(1000)
+        t = phenotype_first_passage(liability, beta=1.0, drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42)
+        assert np.all(t > 0)
+
+    def test_all_finite_times(self):
+        """With drift < 0, everyone hits — all times should be finite."""
+        liability = np.random.default_rng(0).standard_normal(1000)
+        t = phenotype_first_passage(liability, beta=1.0, drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42)
+        assert np.all(np.isfinite(t))
+
+    def test_higher_liability_earlier_onset(self):
+        """Higher liability should produce earlier onset on average."""
+        rng = np.random.default_rng(99)
+        n = 10000
+        liability = rng.standard_normal(n)
+        t = phenotype_first_passage(liability, beta=2.0, drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42, standardize=False)
+        high = liability > 1.0
+        low = liability < -1.0
+        assert t[high].mean() < t[low].mean()
+
+    def test_deterministic_with_same_seed(self):
+        liability = np.array([0.5, -0.3, 1.2, -1.0])
+        t1 = phenotype_first_passage(liability, beta=1.0, drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42)
+        t2 = phenotype_first_passage(liability, beta=1.0, drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42)
+        np.testing.assert_array_equal(t1, t2)
+
+    def test_zero_beta_no_liability_effect(self):
+        """With beta=0, all individuals get same y0, so times are independent of liability."""
+        liability = np.concatenate([np.full(5000, -5.0), np.full(5000, 5.0)])
+        t = phenotype_first_passage(liability, beta=0.0, drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42, standardize=False)
+        assert abs(t[:5000].mean() - t[5000:].mean()) / t.mean() < 0.1
+
+    def test_standardize_centers_liability(self):
+        """When standardize=True, output should not depend on liability shift."""
+        liability1 = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+        liability2 = liability1 + 100
+        t1 = phenotype_first_passage(liability1, beta=1.0, drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42, standardize=True)
+        t2 = phenotype_first_passage(liability2, beta=1.0, drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42, standardize=True)
+        np.testing.assert_allclose(t1, t2)
+
+    def test_inf_beta_raises(self):
+        with pytest.raises(ValueError, match="beta"):
+            phenotype_first_passage(np.array([1.0]), beta=float("inf"), drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42)
+
+    def test_nan_beta_raises(self):
+        with pytest.raises(ValueError, match="beta"):
+            phenotype_first_passage(np.array([1.0]), beta=float("nan"), drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42)
+
+    def test_zero_drift_raises(self):
+        with pytest.raises(ValueError, match="drift"):
+            phenotype_first_passage(np.array([1.0]), beta=1.0, drift=0.0, shape=FPT_SHAPE, seed=42)
+
+
+# ---------------------------------------------------------------------------
+# First-passage time model — positive drift (emergent cure fraction)
+# ---------------------------------------------------------------------------
+
+
+class TestFirstPassagePositiveDrift:
+    def test_some_censored(self):
+        """With drift > 0, some individuals should never hit (t = 1e6)."""
+        n = 10000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t = phenotype_first_passage(liability, beta=1.0, drift=0.05, shape=FPT_SHAPE, seed=42)
+        n_censored = np.sum(t >= 1e6)
+        assert n_censored > 0, "Expected some censored individuals with positive drift"
+        assert n_censored < n, "Expected some events with positive drift"
+
+    def test_higher_liability_fewer_censored(self):
+        """Higher liability → smaller y0 → higher p_hit → fewer censored."""
+        n = 20000
+        high_L = np.full(n, 2.0)
+        low_L = np.full(n, -2.0)
+        t_high = phenotype_first_passage(high_L, beta=1.0, drift=0.05, shape=FPT_SHAPE, seed=42, standardize=False)
+        t_low = phenotype_first_passage(low_L, beta=1.0, drift=0.05, shape=FPT_SHAPE, seed=42, standardize=False)
+        censored_high = np.mean(t_high >= 1e6)
+        censored_low = np.mean(t_low >= 1e6)
+        assert censored_high < censored_low
+
+    def test_higher_liability_earlier_among_hits(self):
+        """Among those who hit, higher liability → earlier onset."""
+        n = 50000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t = phenotype_first_passage(liability, beta=2.0, drift=0.02, shape=FPT_SHAPE, seed=42, standardize=False)
+        hits = t < 1e6
+        hit_L = liability[hits]
+        hit_t = t[hits]
+        high = hit_L > np.percentile(hit_L, 75)
+        low = hit_L < np.percentile(hit_L, 25)
+        assert hit_t[high].mean() < hit_t[low].mean()
+
+    def test_events_positive(self):
+        """All event times (non-censored) should be > 0."""
+        n = 10000
+        liability = np.random.default_rng(0).standard_normal(n)
+        t = phenotype_first_passage(liability, beta=1.0, drift=0.05, shape=FPT_SHAPE, seed=42)
+        events = t[t < 1e6]
+        assert len(events) > 0
+        assert np.all(events > 0)
+
+
+# ---------------------------------------------------------------------------
+# First-passage time model — sex effects
+# ---------------------------------------------------------------------------
+
+
+class TestFirstPassageBetaSex:
+    def test_beta_sex_zero_same_as_no_sex(self):
+        """beta_sex=0 should produce identical results to omitting sex."""
+        rng = np.random.default_rng(0)
+        liability = rng.standard_normal(500)
+        sex = rng.integers(0, 2, size=500).astype(float)
+
+        t_no_sex = phenotype_first_passage(liability, beta=1.0, drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42)
+        t_zero = phenotype_first_passage(
+            liability, beta=1.0, drift=FPT_DRIFT, shape=FPT_SHAPE, seed=42, sex=sex, beta_sex=0.0
+        )
+        np.testing.assert_array_equal(t_no_sex, t_zero)
+
+    def test_positive_beta_sex_males_earlier(self):
+        """beta_sex > 0 should make males (sex=1) have earlier onset."""
+        n = 10000
+        liability = np.zeros(n)
+        sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
+
+        t = phenotype_first_passage(
+            liability,
+            beta=0.0,
+            drift=FPT_DRIFT,
+            shape=FPT_SHAPE,
+            seed=42,
+            standardize=False,
+            sex=sex,
+            beta_sex=0.5,
+        )
+        female_mean = t[: n // 2].mean()
+        male_mean = t[n // 2 :].mean()
+        assert male_mean < female_mean
+
+    def test_negative_beta_sex_females_earlier(self):
+        """beta_sex < 0 should make females (sex=0) have earlier onset (males delayed)."""
+        n = 10000
+        liability = np.zeros(n)
+        sex = np.array([0.0] * (n // 2) + [1.0] * (n // 2))
+
+        t = phenotype_first_passage(
+            liability,
+            beta=0.0,
+            drift=FPT_DRIFT,
+            shape=FPT_SHAPE,
+            seed=42,
+            standardize=False,
+            sex=sex,
+            beta_sex=-0.5,
+        )
+        female_mean = t[: n // 2].mean()
+        male_mean = t[n // 2 :].mean()
+        assert female_mean < male_mean

@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 from scipy.stats import gamma as gamma_dist
-from scipy.stats import lognorm, norm, weibull_min
+from scipy.stats import invgauss, lognorm, norm, weibull_min
 
 from sim_ace.core.compute_hazard_terms import compute_hazard_terms
 
@@ -253,6 +253,96 @@ class TestGamma:
         k, theta = self.params["shape"], self.params["scale"]
         expected = gamma_dist.pdf(self.t, a=k, scale=theta)
         assert f0 == pytest.approx(expected, rel=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# First-passage time (inverse Gaussian) — negative drift
+# ---------------------------------------------------------------------------
+class TestFirstPassage:
+    """First-passage time model with negative drift (everyone hits)."""
+
+    params = {"drift": -0.1, "shape": 200.0}
+    t = np.array([10.0, 50.0, 100.0])
+
+    def _rv(self):
+        y0 = np.sqrt(self.params["shape"])
+        ig_mean = y0 / abs(self.params["drift"])
+        lam = self.params["shape"]
+        return invgauss(mu=ig_mean / lam, scale=lam)
+
+    def test_first_passage_hazard(self):
+        const, _ = compute_hazard_terms("first_passage", self.t, self.params)
+        h0 = np.exp(const)
+        rv = self._rv()
+        expected = rv.pdf(self.t) / rv.sf(self.t)
+        assert h0 == pytest.approx(expected, rel=1e-6)
+
+    def test_first_passage_cumulative_hazard(self):
+        _, H_base = compute_hazard_terms("first_passage", self.t, self.params)
+        rv = self._rv()
+        expected = -rv.logsf(self.t)
+        assert H_base == pytest.approx(expected, rel=1e-6)
+
+    def test_first_passage_survival_identity(self):
+        _, H_base = compute_hazard_terms("first_passage", self.t, self.params)
+        S0 = np.exp(-H_base)
+        rv = self._rv()
+        expected = rv.sf(self.t)
+        assert pytest.approx(expected, rel=1e-6) == S0
+
+    def test_first_passage_density_identity(self):
+        const, H_base = compute_hazard_terms("first_passage", self.t, self.params)
+        f0 = np.exp(const) * np.exp(-H_base)
+        rv = self._rv()
+        expected = rv.pdf(self.t)
+        assert f0 == pytest.approx(expected, rel=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# First-passage time — positive drift (defective distribution)
+# ---------------------------------------------------------------------------
+class TestFirstPassagePositiveDrift:
+    """First-passage time model with positive drift (cure fraction)."""
+
+    params = {"drift": 0.05, "shape": 200.0}
+    t = np.array([10.0, 50.0, 100.0])
+
+    def _cure_params(self):
+        y0 = np.sqrt(self.params["shape"])
+        drift = self.params["drift"]
+        lam = self.params["shape"]
+        p_hit = np.exp(-2.0 * y0 * drift)
+        ig_mean = y0 / drift
+        rv = invgauss(mu=ig_mean / lam, scale=lam)
+        return p_hit, rv
+
+    def test_defective_survival_limit(self):
+        """As t → large, S(t) → 1 - p_hit (cure fraction)."""
+        large_t = np.array([1e5])
+        _, H_base = compute_hazard_terms("first_passage", large_t, self.params)
+        S_large = np.exp(-H_base)
+        p_hit, _ = self._cure_params()
+        expected_cure = 1.0 - p_hit
+        assert S_large[0] == pytest.approx(expected_cure, abs=1e-6)
+
+    def test_defective_hazard_finite(self):
+        """Hazard should be finite and positive at reasonable times."""
+        const, _ = compute_hazard_terms("first_passage", self.t, self.params)
+        h0 = np.exp(const)
+        assert np.all(np.isfinite(h0))
+        assert np.all(h0 > 0)
+
+    def test_defective_density_identity(self):
+        """h(t)*S(t) should equal the defective density."""
+        const, H_base = compute_hazard_terms("first_passage", self.t, self.params)
+        f0 = np.exp(const) * np.exp(-H_base)
+        p_hit, rv = self._cure_params()
+        expected = p_hit * rv.pdf(self.t)
+        assert f0 == pytest.approx(expected, rel=1e-6)
+
+    def test_zero_drift_raises(self):
+        with pytest.raises(ValueError, match="drift"):
+            compute_hazard_terms("first_passage", self.t, {"drift": 0.0, "shape": 100.0})
 
 
 # ---------------------------------------------------------------------------

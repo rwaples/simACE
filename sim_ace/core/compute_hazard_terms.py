@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.special import gammaln
 from scipy.stats import gamma as gamma_dist
-from scipy.stats import norm
+from scipy.stats import invgauss, norm
 
 
 def compute_hazard_terms(
@@ -22,6 +22,7 @@ def compute_hazard_terms(
         "lognormal"   : {"mu": mu, "sigma": sigma}
         "loglogistic" : {"scale": alpha, "shape": k}
         "gamma"       : {"shape": k, "scale": theta}
+        "first_passage": {"drift": mu, "shape": lam}
 
     Raises:
         ValueError: unknown model name or missing required parameter.
@@ -76,9 +77,32 @@ def compute_hazard_terms(
         const = log_f0 - log_S0
         H_base = -log_S0
 
+    elif model == "first_passage":
+        # First-passage time of Wiener process Y(t)=y0+mu*t+W(t) hitting 0.
+        # FPT ~ Inverse Gaussian.  drift<0: everyone hits; drift>0: cure fraction.
+        drift_val, lam = params["drift"], params["shape"]
+        if drift_val == 0.0:
+            raise ValueError("first_passage drift must be non-zero")
+        y0 = np.sqrt(lam)
+        ig_mean = y0 / abs(drift_val)
+        # scipy parameterization: invgauss(mu=ig_mean/lam, scale=lam)
+        rv = invgauss(mu=ig_mean / lam, scale=lam)
+        if drift_val < 0:
+            # Everyone hits — standard IG distribution
+            const = rv.logpdf(t) - rv.logsf(t)
+            H_base = -rv.logsf(t)
+        else:
+            # Defective distribution — cure fraction exists
+            p_hit = np.exp(-2.0 * y0 * drift_val)
+            f_def = p_hit * rv.pdf(t)
+            S_def = 1.0 - p_hit * rv.cdf(t)
+            const = np.log(f_def) - np.log(S_def)
+            H_base = -np.log(S_def)
+
     else:
         raise ValueError(
             f"Unknown hazard model '{model}'. "
-            "Supported: 'weibull','exponential','gompertz','lognormal','loglogistic','gamma'."
+            "Supported: 'weibull','exponential','gompertz','lognormal',"
+            "'loglogistic','gamma','first_passage'."
         )
     return const, H_base

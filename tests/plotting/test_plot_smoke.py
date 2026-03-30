@@ -321,6 +321,7 @@ class TestPlotAtlasHelpers:
             "cure_frailty",
             "adult_ltm",
             "adult_cox",
+            "first_passage",
         }
         assert set(MODEL_FAMILY.keys()) == expected_models
 

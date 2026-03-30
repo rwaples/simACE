@@ -5,6 +5,7 @@ Per-trait phenotype model selection via phenotype_model1/phenotype_model2:
   Frailty models: "weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"
   ADuLT models:   "adult_ltm", "adult_cox"
   Cure models:    "cure_frailty"
+  FPT models:     "first_passage"
 
 Frailty models convert liability to raw event times (age-at-onset) using a proportional
 hazards frailty model with pluggable baseline hazard.
@@ -461,9 +462,96 @@ def phenotype_cure_frailty(
     return t
 
 
+# ---------------------------------------------------------------------------
+# First-passage time model (Lee & Whitmore 2006, Aalen & Gjessing 2001)
+# ---------------------------------------------------------------------------
+
+
+def phenotype_first_passage(
+    liability: np.ndarray,
+    beta: float,
+    drift: float,
+    shape: float,
+    seed: int,
+    standardize: bool = True,
+    sex: np.ndarray | None = None,
+    beta_sex: float = 0.0,
+) -> np.ndarray:
+    """First-passage time model: Wiener process hitting a boundary.
+
+    Latent health process Y(t) = y0 + drift*t + W(t) starts at y0 = sqrt(shape)
+    and disease onset occurs at the first time Y(t) <= 0.  Liability scales the
+    initial distance y0: higher liability → closer to boundary → earlier onset.
+
+    When drift < 0 (toward boundary), everyone eventually hits and event times
+    follow an inverse Gaussian distribution.  When drift > 0 (away from boundary),
+    an emergent cure fraction arises: P(never hit) = 1 - exp(-2*y0*drift).
+
+    Args:
+        liability:   quantitative liability, shape (n,)
+        beta:        effect of liability on log(y0); positive β → worse outcome
+        drift:       drift rate μ; negative = toward boundary, positive = away
+        shape:       y0² (initial distance squared); controls spread
+        seed:        random seed
+        standardize: if True, standardize liability to mean 0 / std 1
+        sex:         sex covariate (0=female, 1=male), shape (n,)
+        beta_sex:    effect of sex on log(y0) (0.0 = no effect)
+
+    Returns:
+        Array of simulated event times, shape (n,)
+
+    Raises:
+        ValueError: if beta is non-finite or drift is zero
+    """
+    if not np.isfinite(beta):
+        raise ValueError(f"beta must be finite, got {beta}")
+    if drift == 0.0:
+        raise ValueError("first_passage drift must be non-zero")
+
+    n = len(liability)
+    rng = np.random.default_rng(seed)
+
+    if standardize:
+        std = np.std(liability)
+        mean = liability.mean()
+        scaled_beta = beta / std if std > 0 else 0.0
+    else:
+        mean = 0.0
+        scaled_beta = beta
+
+    # Per-individual initial distance: y0_i = sqrt(shape) * exp(-beta*L - beta_sex*sex)
+    y0_base = np.sqrt(shape)
+    adjustment = np.exp(-scaled_beta * (liability - mean))
+    if beta_sex != 0.0 and sex is not None:
+        adjustment = adjustment * np.exp(-beta_sex * sex)
+    y0 = y0_base * adjustment
+
+    t = np.empty(n)
+    abs_drift = abs(drift)
+
+    if drift < 0:
+        # Everyone hits — standard inverse Gaussian
+        mean_ig = y0 / abs_drift
+        shape_ig = y0**2
+        t = rng.wald(mean=mean_ig, scale=shape_ig)
+    else:
+        # Emergent cure fraction: P(ever hit) = exp(-2*y0*drift)
+        p_hit = np.exp(-2.0 * y0 * drift)
+        hits = rng.random(size=n) < p_hit
+        t[:] = 1e6  # default: censored (never hit)
+        n_hits = hits.sum()
+        if n_hits > 0:
+            mean_ig = y0[hits] / drift
+            shape_ig = y0[hits] ** 2
+            t[hits] = rng.wald(mean=mean_ig, scale=shape_ig)
+
+    return np.clip(t, 1e-10, 1e6)
+
+
 _FRAILTY_MODELS = {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
 _ADULT_MODELS = {"adult_ltm", "adult_cox"}
 _CURE_MODELS = {"cure_frailty"}
+_FPT_MODELS = {"first_passage"}
 
 
 def _prevalence_to_array(prev, generation):
@@ -503,7 +591,7 @@ def _resolve_prevalence(params, trait_num, sex, generation):
     return _prevalence_to_array(prev, generation)
 
 
-_ALL_PHENOTYPE_MODELS = sorted(_FRAILTY_MODELS | _ADULT_MODELS | _CURE_MODELS)
+_ALL_PHENOTYPE_MODELS = sorted(_FRAILTY_MODELS | _ADULT_MODELS | _CURE_MODELS | _FPT_MODELS)
 
 # Parameter names required per model
 _MODEL_PARAMS: dict[str, list[str]] = {
@@ -513,6 +601,7 @@ _MODEL_PARAMS: dict[str, list[str]] = {
     "lognormal": ["mu", "sigma"],
     "loglogistic": ["scale", "shape"],
     "gamma": ["shape", "scale"],
+    "first_passage": ["drift", "shape"],
 }
 _ADULT_PARAMS: dict[str, list[str]] = {
     "adult_ltm": ["cip_x0", "cip_k"],
@@ -530,7 +619,7 @@ def _validate_phenotype_params(
     Raises:
         ValueError: if required keys are missing or unexpected keys are present
     """
-    if model in _FRAILTY_MODELS:
+    if model in _FRAILTY_MODELS or model in _FPT_MODELS:
         required = set(_MODEL_PARAMS[model])
     elif model in _ADULT_MODELS:
         required = set(_ADULT_PARAMS[model])
@@ -615,6 +704,18 @@ def _simulate_one_trait(
             beta=params[f"beta{trait_num}"],
             baseline=phenotype_params["baseline"],
             hazard_params=hazard_params,
+            seed=seed,
+            standardize=params["standardize"],
+            sex=pedigree["sex"].values,
+            beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
+        )
+
+    if model in _FPT_MODELS:
+        return phenotype_first_passage(
+            liability=pedigree[f"liability{trait_num}"].values,
+            beta=params[f"beta{trait_num}"],
+            drift=phenotype_params["drift"],
+            shape=phenotype_params["shape"],
             seed=seed,
             standardize=params["standardize"],
             sex=pedigree["sex"].values,
@@ -727,6 +828,8 @@ def cli() -> None:
         g.add_argument(f"--mu{k}", type=float, default=None)
         g.add_argument(f"--sigma{k}", type=float, default=None)
         g.add_argument(f"--shape{k}", type=float, default=None)
+        # FPT model parameters
+        g.add_argument(f"--drift{k}", type=float, default=None)
         # ADuLT CIP parameters
         g.add_argument(f"--cip-x0-{k}", type=float, default=50.0)
         g.add_argument(f"--cip-k-{k}", type=float, default=0.2)
@@ -767,7 +870,7 @@ def _build_phenotype_params(args: argparse.Namespace, trait: int) -> dict[str, f
             "cip_k": getattr(args, f"cip_k_{trait}"),
         }
 
-    # Frailty model
+    # Frailty or FPT model
     required = _MODEL_PARAMS[model]
     params: dict[str, float] = {}
     for key in required:

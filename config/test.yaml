@@ -12,7 +12,9 @@ adult_ltm_test:
     cip_x0: 50
     cip_k: 0.2
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rA: 0.3
   rC: 0.0
   G_sim: 35
@@ -36,7 +38,9 @@ adult_cox_test:
     cip_x0: 50
     cip_k: 0.2
   C1: 0.0
+  E1: 0.5
   C2: 0.0
+  E2: 0.5
   rA: 0.3
   rC: 0.0
   G_sim: 35
@@ -63,6 +67,58 @@ adult_ltm_sex_prev:
   phenotype_params2:
     cip_x0: 50
     cip_k: 0.2
+first_passage_test:
+  seed: 26042
+  N: 50000
+  phenotype_model1: first_passage
+  phenotype_model2: first_passage
+  phenotype_params1:
+    drift: -0.01
+    shape: 100
+  phenotype_params2:
+    drift: -0.005
+    shape: 80
+  beta1: 1.0
+  beta2: 1.5
+  C1: 0.0
+  E1: 0.5
+  C2: 0.0
+  E2: 0.5
+  rA: 0.3
+  rC: 0.0
+  G_sim: 35
+  G_ped: 30
+  G_pheno: 30
+  gen_censoring:
+    0:
+    - 0
+    - 80
+first_passage_cure_test:
+  seed: 27042
+  N: 50000
+  phenotype_model1: first_passage
+  phenotype_model2: first_passage
+  phenotype_params1:
+    drift: 0.05
+    shape: 100
+  phenotype_params2:
+    drift: 0.02
+    shape: 80
+  beta1: 1.0
+  beta2: 1.5
+  C1: 0.0
+  E1: 0.5
+  C2: 0.0
+  E2: 0.5
+  rA: 0.3
+  rC: 0.0
+  G_sim: 35
+  G_ped: 30
+  G_pheno: 30
+  gen_censoring:
+    0:
+    - 0
+    - 80
 small_test:
   seed: 12042
   N: 1000

@@ -54,6 +54,11 @@ MODEL_FAMILY: dict[str, tuple[str, str]] = {
         "ADuLT Cox",
         "Ranking for case status, stochastic Weibull CIP for age-at-onset",
     ),
+    "first_passage": (
+        "First-Passage Time",
+        "Inverse Gaussian FPT: liability scales initial distance y\u2080 to boundary; "
+        "drift \u03bc controls progression",
+    ),
 }
 
 # Common frailty model equation (line 1 for all 6 baseline hazard models)
@@ -105,6 +110,15 @@ def _equation_lines_for_model(model: str, label: str = "") -> list[str]:
             r"$" + prefix + r"t_{\mathrm{raw}} = \sqrt{-\ln U \,/\, e^{L}}," + r" \quad U \sim \mathrm{Uniform}(0,1]$",
             r"$\mathrm{case\!:}\ \mathrm{CIP}_{\mathrm{rank}} < K, \qquad"
             + r" t = x_0 + \frac{1}{k}\ln\!\frac{\mathrm{CIP}}{K - \mathrm{CIP}}$",
+        ]
+    if model == "first_passage":
+        return [
+            r"$"
+            + prefix
+            + r"y_0^{(i)} = \sqrt{\lambda}\,"
+            + r"e^{-\beta L_i - \beta_{\mathrm{sex}} \cdot \mathrm{sex}_i},"
+            + r"\quad Y(t) = y_0^{(i)} + \mu\,t + W(t),"
+            + r"\quad T_i = \inf\{t : Y(t) \leq 0\}$",
         ]
     return []
 

@@ -135,7 +135,10 @@ def _pearsonr_core_python(x, y):
         ss_xx += dx * dx
         ss_yy += dy * dy
         ss_xy += dx * dy
-    return ss_xy / np.sqrt(ss_xx * ss_yy)
+    denom = ss_xx * ss_yy
+    if denom == 0.0:
+        return 0.0
+    return ss_xy / np.sqrt(denom)
 
 
 def _linregress_core_python(x, y):
