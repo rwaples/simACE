@@ -28,6 +28,7 @@ sim-ace-gather = "sim_ace.analysis.gather:cli"
 sim-ace-plot-phenotype = "sim_ace.plotting.plot_phenotype:cli"
 sim-ace-plot-simple-ltm = "sim_ace.plotting.plot_simple_ltm:cli"
 sim-ace-plot-validation = "sim_ace.plotting.plot_validation:cli"
+sim-ace-parquet-to-tsv = "sim_ace.core.parquet_to_tsv:cli"
 
 [tool.setuptools.packages.find]
 include = ["sim_ace*"]
