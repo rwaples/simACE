@@ -461,9 +461,15 @@ class TestThresholdsAndW:
         cip_vals_m = np.array([0.0, 0.05])
 
         thr, _w = compute_thresholds_and_w_by_sex(
-            affected, t_obs, sex,
-            cip_ages_f, cip_vals_f, 0.20,
-            cip_ages_m, cip_vals_m, 0.05,
+            affected,
+            t_obs,
+            sex,
+            cip_ages_f,
+            cip_vals_f,
+            0.20,
+            cip_ages_m,
+            cip_vals_m,
+            0.05,
         )
         # Female threshold < male threshold (higher prevalence → lower threshold)
         assert thr[0] < thr[1]

@@ -47,5 +47,3 @@ def _snakemake_tag(wildcards) -> str:
     if rep:
         parts.append(f"rep{rep}")
     return "/".join(parts) if parts else ""
-
-

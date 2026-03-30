@@ -25,18 +25,34 @@ _INV_2PI = 1.0 / (2.0 * math.pi)
 _GOLDEN = 0.3819660112501051  # (3 - sqrt(5)) / 2
 
 # 20-point Gauss-Legendre: positive half of symmetric nodes on [-1, 1]
-_GL20_NODES_SYM = np.array([
-    0.07652652113349733, 0.22778585114164507, 0.37370608871541955,
-    0.51086700195082710, 0.63605368072651503, 0.74633190646015079,
-    0.83911697182221882, 0.91223442825132591, 0.96397192727791379,
-    0.99312859918509492,
-])
-_GL20_WEIGHTS_SYM = np.array([
-    0.15275338713072585, 0.14917298647260375, 0.14209610931838205,
-    0.13168863844917663, 0.11819453196151842, 0.10193011981724044,
-    0.08327674157670475, 0.06267204833410907, 0.04060142980038694,
-    0.01761400713915212,
-])
+_GL20_NODES_SYM = np.array(
+    [
+        0.07652652113349733,
+        0.22778585114164507,
+        0.37370608871541955,
+        0.51086700195082710,
+        0.63605368072651503,
+        0.74633190646015079,
+        0.83911697182221882,
+        0.91223442825132591,
+        0.96397192727791379,
+        0.99312859918509492,
+    ]
+)
+_GL20_WEIGHTS_SYM = np.array(
+    [
+        0.15275338713072585,
+        0.14917298647260375,
+        0.14209610931838205,
+        0.13168863844917663,
+        0.11819453196151842,
+        0.10193011981724044,
+        0.08327674157670475,
+        0.06267204833410907,
+        0.04060142980038694,
+        0.01761400713915212,
+    ]
+)
 
 # Transform to [0, 1]: x_i = (1 + t_i)/2, w_i = w_sym_i / 2
 _GL20_X01 = np.empty(20)
@@ -229,8 +245,7 @@ def _bvn_cdf_python(h, k, r):
     return _bvn_pos(h, k, r, sq)
 
 
-def _tetrachoric_nll_python(r, t_a, t_b, phi_ta, phi_tb, both_positive,
-                             n11, n10, n01, n00):
+def _tetrachoric_nll_python(r, t_a, t_b, phi_ta, phi_tb, both_positive, n11, n10, n01, n00):
     """Negative log-likelihood for tetrachoric correlation at a given r."""
     if both_positive:
         sq = math.sqrt(1.0 - r * r)
@@ -261,8 +276,7 @@ def _tetrachoric_core_python(n11, n10, n01, n00, t_a, t_b, phi_ta, phi_tb):
     xa = -0.999
     xb = 0.999
     x = w = v = xa + _GOLDEN * (xb - xa)
-    fw = fv = fx = _tetrachoric_nll(x, t_a, t_b, phi_ta, phi_tb, both_pos,
-                                     n11, n10, n01, n00)
+    fw = fv = fx = _tetrachoric_nll(x, t_a, t_b, phi_ta, phi_tb, both_pos, n11, n10, n01, n00)
     d = 0.0
     e = 0.0
 
@@ -295,8 +309,7 @@ def _tetrachoric_core_python(n11, n10, n01, n00, t_a, t_b, phi_ta, phi_tb):
 
         u = (x + d) if abs(d) >= tol1 else (x + tol1 if d > 0 else x - tol1)
 
-        fu = _tetrachoric_nll(u, t_a, t_b, phi_ta, phi_tb, both_pos,
-                               n11, n10, n01, n00)
+        fu = _tetrachoric_nll(u, t_a, t_b, phi_ta, phi_tb, both_pos, n11, n10, n01, n00)
 
         if fu <= fx:
             if u < x:
@@ -326,8 +339,10 @@ def _tetrachoric_core_python(n11, n10, n01, n00, t_a, t_b, phi_ta, phi_tb):
     if one_minus_r2 <= 0:
         return r, np.nan
 
-    bvn_pdf = _INV_2PI / math.sqrt(one_minus_r2) * math.exp(
-        -(t_a * t_a - 2.0 * r * t_a * t_b + t_b * t_b) / (2.0 * one_minus_r2)
+    bvn_pdf = (
+        _INV_2PI
+        / math.sqrt(one_minus_r2)
+        * math.exp(-(t_a * t_a - 2.0 * r * t_a * t_b + t_b * t_b) / (2.0 * one_minus_r2))
     )
 
     if both_pos:

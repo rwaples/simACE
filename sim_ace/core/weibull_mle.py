@@ -457,4 +457,3 @@ def cross_trait_weibull_corr_se(
         se = 1.0 / np.sqrt(d2)
 
     return float(r_hat), float(se)
-

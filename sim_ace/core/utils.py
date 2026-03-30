@@ -38,9 +38,7 @@ def safe_linregress(x: np.ndarray, y: np.ndarray) -> Any:
     return stats.linregress(x, y)
 
 
-def fast_linregress(
-    x: np.ndarray, y: np.ndarray
-) -> tuple[float, float, float, float, float]:
+def fast_linregress(x: np.ndarray, y: np.ndarray) -> tuple[float, float, float, float, float]:
     """Fast linear regression returning (slope, intercept, r, stderr, pvalue)."""
     slope, intercept, r, stderr, t_stat = _linregress_core(x, y)
     pvalue = float(2.0 * _t_sf(abs(t_stat), len(x) - 2))

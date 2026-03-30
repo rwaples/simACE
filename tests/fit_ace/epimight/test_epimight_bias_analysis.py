@@ -35,18 +35,29 @@ class TestParseScenarioName:
         assert r["censor_label"] == "death_only"
         assert r["has_death_censor"] is True
 
-    @pytest.mark.parametrize(("key", "expected"), [
-        ("K01", 0.01), ("K05", 0.05), ("K10", 0.10),
-        ("K20", 0.20), ("K40", 0.40),
-    ])
+    @pytest.mark.parametrize(
+        ("key", "expected"),
+        [
+            ("K01", 0.01),
+            ("K05", 0.05),
+            ("K10", 0.10),
+            ("K20", 0.20),
+            ("K40", 0.40),
+        ],
+    )
     def test_all_prevalences(self, key, expected):
         r = parse_scenario_name(f"ebias_ltm_{key}_C0_nocensor")
         assert r["prevalence"] == pytest.approx(expected)
 
-    @pytest.mark.parametrize(("key", "expected"), [
-        ("nocensor", "none"), ("death", "death_only"),
-        ("window", "window_only"), ("both", "both"),
-    ])
+    @pytest.mark.parametrize(
+        ("key", "expected"),
+        [
+            ("nocensor", "none"),
+            ("death", "death_only"),
+            ("window", "window_only"),
+            ("both", "both"),
+        ],
+    )
     def test_all_censor_labels(self, key, expected):
         r = parse_scenario_name(f"ebias_ltm_K10_C0_{key}")
         assert r["censor_label"] == expected
@@ -131,10 +142,17 @@ class TestLoadEpimightMeta:
         tsv_dir = tmp_path / "tsv"
         tsv_dir.mkdir()
         import pandas as pd
-        pd.DataFrame([{
-            "fixed_meta": 0.42, "fixed_se": 0.03,
-            "fixed_l95": 0.36, "fixed_u95": 0.48,
-        }]).to_csv(tsv_dir / "h2_d1_meta_PO.tsv", sep="\t", index=False)
+
+        pd.DataFrame(
+            [
+                {
+                    "fixed_meta": 0.42,
+                    "fixed_se": 0.03,
+                    "fixed_l95": 0.36,
+                    "fixed_u95": 0.48,
+                }
+            ]
+        ).to_csv(tsv_dir / "h2_d1_meta_PO.tsv", sep="\t", index=False)
         result = load_epimight_meta(tmp_path, "PO")
         assert result["fixed_meta"] == pytest.approx(0.42)
 
@@ -145,8 +163,7 @@ class TestLoadEpimightMeta:
         tsv_dir = tmp_path / "tsv"
         tsv_dir.mkdir()
         import pandas as pd
+
         # File with headers but no data rows
-        pd.DataFrame(columns=["fixed_meta", "fixed_se"]).to_csv(
-            tsv_dir / "h2_d1_meta_PO.tsv", sep="\t", index=False
-        )
+        pd.DataFrame(columns=["fixed_meta", "fixed_se"]).to_csv(tsv_dir / "h2_d1_meta_PO.tsv", sep="\t", index=False)
         assert load_epimight_meta(tmp_path, "PO") is None

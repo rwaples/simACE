@@ -71,9 +71,7 @@ class TestCountAffectedRelatives:
         idx1 = np.array([0])
         idx2 = np.array([1])
         affected = np.array([True, True, False])
-        counts = count_affected_relatives(
-            [(idx1, idx2)], affected, n=3, unidirectional=True
-        )
+        counts = count_affected_relatives([(idx1, idx2)], affected, n=3, unidirectional=True)
         assert counts[0] == 1  # idx1=0 counts affected idx2=1
         assert counts[1] == 0  # idx2 not counted in unidirectional
 
@@ -81,7 +79,8 @@ class TestCountAffectedRelatives:
         affected = np.array([True, True])
         counts = count_affected_relatives(
             [(np.array([], dtype=int), np.array([], dtype=int))],
-            affected, n=2,
+            affected,
+            n=2,
         )
         np.testing.assert_array_equal(counts, [0, 0])
 
@@ -128,9 +127,7 @@ class TestCountTotalRelatives:
         assert counts[1] == 0  # idx2 not counted
 
     def test_empty_returns_zeros(self):
-        counts = count_total_relatives(
-            [(np.array([], dtype=int), np.array([], dtype=int))], n=3
-        )
+        counts = count_total_relatives([(np.array([], dtype=int), np.array([], dtype=int))], n=3)
         np.testing.assert_array_equal(counts, [0, 0, 0])
 
 
@@ -145,16 +142,16 @@ class TestSelectSingleRelativeAffected:
         idx1 = np.array([0, 1, 2])
         idx2 = np.array([1, 2, 0])
         affected = np.array([True, False, True])
-        result = select_single_relative_affected(
-            [(idx1, idx2)], affected, n=3, rng=rng
-        )
+        result = select_single_relative_affected([(idx1, idx2)], affected, n=3, rng=rng)
         assert set(np.unique(result)).issubset({0, 1})
 
     def test_no_relatives_returns_zero(self):
         rng = np.random.default_rng(42)
         result = select_single_relative_affected(
             [(np.array([], dtype=int), np.array([], dtype=int))],
-            np.array([True, True]), n=2, rng=rng,
+            np.array([True, True]),
+            n=2,
+            rng=rng,
         )
         np.testing.assert_array_equal(result, [0, 0])
 
@@ -163,12 +160,8 @@ class TestSelectSingleRelativeAffected:
         idx2 = np.array([1, 2, 3])
         affected = np.array([False, True, False, True])
 
-        r1 = select_single_relative_affected(
-            [(idx1, idx2)], affected, n=4, rng=np.random.default_rng(42)
-        )
-        r2 = select_single_relative_affected(
-            [(idx1, idx2)], affected, n=4, rng=np.random.default_rng(42)
-        )
+        r1 = select_single_relative_affected([(idx1, idx2)], affected, n=4, rng=np.random.default_rng(42))
+        r2 = select_single_relative_affected([(idx1, idx2)], affected, n=4, rng=np.random.default_rng(42))
         np.testing.assert_array_equal(r1, r2)
 
     def test_unidirectional(self):
@@ -176,9 +169,7 @@ class TestSelectSingleRelativeAffected:
         idx1 = np.array([0])
         idx2 = np.array([1])
         affected = np.array([True, True])
-        result = select_single_relative_affected(
-            [(idx1, idx2)], affected, n=2, rng=rng, unidirectional=True
-        )
+        result = select_single_relative_affected([(idx1, idx2)], affected, n=2, rng=rng, unidirectional=True)
         assert result[0] == 1  # idx1=0 sees affected idx2=1
         assert result[1] == 0  # idx2=1 not populated in unidirectional
 
@@ -187,7 +178,5 @@ class TestSelectSingleRelativeAffected:
         idx1 = np.array([0, 0, 0])
         idx2 = np.array([1, 2, 3])
         affected = np.array([False, True, True, True])
-        result = select_single_relative_affected(
-            [(idx1, idx2)], affected, n=4, rng=rng
-        )
+        result = select_single_relative_affected([(idx1, idx2)], affected, n=4, rng=rng)
         assert result[0] == 1  # any chosen relative is affected

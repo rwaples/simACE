@@ -33,7 +33,7 @@ def bias_df():
     """Minimal bias summary DataFrame covering the columns all plot functions use."""
     rows = [
         {
-            "scenario": f"ebias_ltm_K{int(prev*100):02d}_C{'02' if c_val else '0'}_{censor.replace('_only','')}",
+            "scenario": f"ebias_ltm_K{int(prev * 100):02d}_C{'02' if c_val else '0'}_{censor.replace('_only', '')}",
             "kind": kind,
             "phenotype_model": "adult_ltm",
             "prevalence": prev,
@@ -93,10 +93,7 @@ class TestAnalyticalDilution:
 
     def test_monotonic_in_prevalence(self):
         prevs = [0.01, 0.05, 0.10, 0.20, 0.40]
-        dilutions = [
-            _analytical_dilution(K=k, h2=0.5, kinship=0.25, n_rel=4)
-            for k in prevs
-        ]
+        dilutions = [_analytical_dilution(K=k, h2=0.5, kinship=0.25, n_rel=4) for k in prevs]
         # Dilution should decrease (more dilution) with higher prevalence
         for i in range(len(dilutions) - 1):
             assert dilutions[i + 1] <= dilutions[i] + 1e-6
@@ -113,42 +110,50 @@ class TestAnalyticalDilution:
 
 class TestComputeDilutionCorrectedH2:
     def test_adds_expected_columns(self):
-        df = pd.DataFrame({
-            "kind": ["PO", "FS"],
-            "prevalence": [0.10, 0.10],
-            "h2_epimight": [0.30, 0.25],
-        })
+        df = pd.DataFrame(
+            {
+                "kind": ["PO", "FS"],
+                "prevalence": [0.10, 0.10],
+                "h2_epimight": [0.30, 0.25],
+            }
+        )
         result = compute_dilution_corrected_h2(df)
         assert "dilution_ratio" in result.columns
         assert "h2_corrected" in result.columns
 
     def test_corrected_at_least_raw(self):
-        df = pd.DataFrame({
-            "kind": ["PO", "FS", "HS"],
-            "prevalence": [0.20, 0.20, 0.20],
-            "h2_epimight": [0.30, 0.25, 0.20],
-        })
+        df = pd.DataFrame(
+            {
+                "kind": ["PO", "FS", "HS"],
+                "prevalence": [0.20, 0.20, 0.20],
+                "h2_epimight": [0.30, 0.25, 0.20],
+            }
+        )
         result = compute_dilution_corrected_h2(df)
         for i in range(len(result)):
             if not np.isnan(result.iloc[i]["h2_corrected"]):
                 assert result.iloc[i]["h2_corrected"] >= result.iloc[i]["h2_epimight"] - 0.01
 
     def test_low_prevalence_minimal_correction(self):
-        df = pd.DataFrame({
-            "kind": ["PO"],
-            "prevalence": [0.01],
-            "h2_epimight": [0.45],
-        })
+        df = pd.DataFrame(
+            {
+                "kind": ["PO"],
+                "prevalence": [0.01],
+                "h2_epimight": [0.45],
+            }
+        )
         result = compute_dilution_corrected_h2(df)
         # At very low prevalence, correction should be minimal
         assert abs(result.iloc[0]["h2_corrected"] - 0.45) < 0.05
 
     def test_does_not_modify_original(self):
-        df = pd.DataFrame({
-            "kind": ["PO"],
-            "prevalence": [0.10],
-            "h2_epimight": [0.30],
-        })
+        df = pd.DataFrame(
+            {
+                "kind": ["PO"],
+                "prevalence": [0.10],
+                "h2_epimight": [0.30],
+            }
+        )
         compute_dilution_corrected_h2(df)
         assert "dilution_ratio" not in df.columns
 
@@ -193,18 +198,14 @@ class TestPlotSmoke:
         # Filter to the subset the plot function uses to avoid running
         # compute_dilution_corrected_h2 on all 320 rows (~400 quad calls)
         small = bias_df[
-            (bias_df["C"] == 0)
-            & (bias_df["phenotype_model"] == "adult_ltm")
-            & (bias_df["censor_label"] == "none")
+            (bias_df["C"] == 0) & (bias_df["phenotype_model"] == "adult_ltm") & (bias_df["censor_label"] == "none")
         ].copy()
         small = compute_dilution_corrected_h2(small)
         _assert_plot_created(plot_epimight_dilution_ratio, small, tmp_path)
 
     def test_corrected_h2(self, bias_df, tmp_path):
         small = bias_df[
-            (bias_df["C"] == 0)
-            & (bias_df["phenotype_model"] == "adult_ltm")
-            & (bias_df["censor_label"] == "none")
+            (bias_df["C"] == 0) & (bias_df["phenotype_model"] == "adult_ltm") & (bias_df["censor_label"] == "none")
         ].copy()
         small = compute_dilution_corrected_h2(small)
         _assert_plot_created(plot_epimight_corrected_h2, small, tmp_path)

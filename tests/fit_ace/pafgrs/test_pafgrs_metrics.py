@@ -63,27 +63,40 @@ class TestFastAuc:
 
 class TestComputePafgrsMetrics:
     def test_output_keys(self):
-        df = pd.DataFrame({
-            "est": [1.0, 2.0, 3.0],
-            "true_A": [1.0, 2.0, 3.0],
-            "var": [0.01, 0.01, 0.01],
-            "affected": [0, 0, 1],
-        })
+        df = pd.DataFrame(
+            {
+                "est": [1.0, 2.0, 3.0],
+                "true_A": [1.0, 2.0, 3.0],
+                "var": [0.01, 0.01, 0.01],
+                "affected": [0, 0, 1],
+            }
+        )
         m = compute_pafgrs_metrics(df)
-        expected = {"r", "r2", "bias", "auc", "var_calibration",
-                    "mean_reported_var", "mean_actual_mse", "n_scored", "n_affected"}
+        expected = {
+            "r",
+            "r2",
+            "bias",
+            "auc",
+            "var_calibration",
+            "mean_reported_var",
+            "mean_actual_mse",
+            "n_scored",
+            "n_affected",
+        }
         assert set(m.keys()) == expected
 
     def test_perfect_estimator(self):
         rng = np.random.default_rng(42)
         n = 500
         true_a = rng.normal(0, 1, n)
-        df = pd.DataFrame({
-            "est": true_a,
-            "true_A": true_a,
-            "var": np.full(n, 0.01),
-            "affected": (true_a > 0).astype(int),
-        })
+        df = pd.DataFrame(
+            {
+                "est": true_a,
+                "true_A": true_a,
+                "var": np.full(n, 0.01),
+                "affected": (true_a > 0).astype(int),
+            }
+        )
         m = compute_pafgrs_metrics(df)
         assert m["r"] == pytest.approx(1.0, abs=1e-5)
         assert m["r2"] == pytest.approx(1.0, abs=1e-5)
@@ -92,22 +105,26 @@ class TestComputePafgrsMetrics:
     def test_random_estimator(self):
         rng = np.random.default_rng(42)
         n = 5000
-        df = pd.DataFrame({
-            "est": rng.normal(0, 1, n),
-            "true_A": rng.normal(0, 1, n),
-            "var": np.full(n, 0.5),
-            "affected": rng.choice([0, 1], n),
-        })
+        df = pd.DataFrame(
+            {
+                "est": rng.normal(0, 1, n),
+                "true_A": rng.normal(0, 1, n),
+                "var": np.full(n, 0.5),
+                "affected": rng.choice([0, 1], n),
+            }
+        )
         m = compute_pafgrs_metrics(df)
         assert abs(m["r"]) < 0.05
 
     def test_constant_estimator(self):
-        df = pd.DataFrame({
-            "est": [0.0, 0.0, 0.0, 0.0],
-            "true_A": [1.0, 2.0, 3.0, 4.0],
-            "var": [0.01, 0.01, 0.01, 0.01],
-            "affected": [0, 0, 1, 1],
-        })
+        df = pd.DataFrame(
+            {
+                "est": [0.0, 0.0, 0.0, 0.0],
+                "true_A": [1.0, 2.0, 3.0, 4.0],
+                "var": [0.01, 0.01, 0.01, 0.01],
+                "affected": [0, 0, 1, 1],
+            }
+        )
         m = compute_pafgrs_metrics(df)
         assert m["r"] == 0.0  # zero variance in est
         assert m["bias"] == pytest.approx(-2.5)
@@ -117,32 +134,38 @@ class TestComputePafgrsMetrics:
         n = 1000
         true_a = rng.normal(0, 1, n)
         affected = (true_a > np.percentile(true_a, 80)).astype(int)
-        df = pd.DataFrame({
-            "est": true_a + rng.normal(0, 0.3, n),
-            "true_A": true_a,
-            "var": np.full(n, 0.1),
-            "affected": affected,
-        })
+        df = pd.DataFrame(
+            {
+                "est": true_a + rng.normal(0, 0.3, n),
+                "true_A": true_a,
+                "var": np.full(n, 0.1),
+                "affected": affected,
+            }
+        )
         m = compute_pafgrs_metrics(df)
         assert m["auc"] > 0.7
 
     def test_no_affected_auc_nan(self):
-        df = pd.DataFrame({
-            "est": [1.0, 2.0, 3.0],
-            "true_A": [1.0, 2.0, 3.0],
-            "var": [0.01, 0.01, 0.01],
-            "affected": [0, 0, 0],
-        })
+        df = pd.DataFrame(
+            {
+                "est": [1.0, 2.0, 3.0],
+                "true_A": [1.0, 2.0, 3.0],
+                "var": [0.01, 0.01, 0.01],
+                "affected": [0, 0, 0],
+            }
+        )
         m = compute_pafgrs_metrics(df)
         assert np.isnan(m["auc"])
 
     def test_n_scored_matches(self):
-        df = pd.DataFrame({
-            "est": [1.0, 2.0],
-            "true_A": [1.0, 2.0],
-            "var": [0.01, 0.01],
-            "affected": [0, 1],
-        })
+        df = pd.DataFrame(
+            {
+                "est": [1.0, 2.0],
+                "true_A": [1.0, 2.0],
+                "var": [0.01, 0.01],
+                "affected": [0, 1],
+            }
+        )
         m = compute_pafgrs_metrics(df)
         assert m["n_scored"] == 2
         assert m["n_affected"] == 1

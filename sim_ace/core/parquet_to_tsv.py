@@ -45,9 +45,7 @@ def cli() -> None:
     add_logging_args(parser)
     parser.add_argument("parquet", nargs="+", help="Input parquet file(s)")
     parser.add_argument("-o", "--output", default=None, help="Output path (only valid with a single input)")
-    parser.add_argument(
-        "-p", "--precision", type=int, default=4, help="Decimal places for float columns (default: 4)"
-    )
+    parser.add_argument("-p", "--precision", type=int, default=4, help="Decimal places for float columns (default: 4)")
     parser.add_argument("--no-gzip", action="store_true", help="Write uncompressed .tsv instead of .tsv.gz")
     args = parser.parse_args()
     init_logging(args)
