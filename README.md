@@ -5,9 +5,7 @@ simACE simulates millions of indiviudals in multi-generational pedigrees with he
 ## Overview
 The project contains two installable Python packages:
 - **sim_ace** -- Simulation, phenotyping, censoring, sampling, analysis, and plotting
-- **fit_ace** -- Statistical model fitting: EPIMIGHT heritability, PA-FGRS genetic risk scores, Weibull frailty correlation, and Stan-based models
-
-Both packages are orchestrated by a single Snakemake workflow. `fit_ace` depends on `sim_ace` for shared infrastructure (pedigree graphs, hazard functions, plotting utilities).
+- **[fit_ace](fit_ace/README.md)** -- Statistical model fitting (EPIMIGHT heritability, PA-FGRS genetic risk scores, Weibull frailty correlation, Stan models) — see [fit_ace/README.md](fit_ace/README.md) for setup, usage, and outputs
 
 simACE is conceptually split into four simulation stages:
 - Multi-generation pedigree simulation with heritable liability
@@ -115,7 +113,7 @@ snakemake --cores 4 simulate_all     # pedigree simulation only
 snakemake --cores 4 phenotype_all    # simulation + phenotyping
 snakemake --cores 4 validate_all     # simulation + validation + folder summaries
 snakemake --cores 4 stats_all        # phenotyping + stats + plots
-snakemake --cores 4 epimight_all     # EPIMIGHT heritability analysis
+snakemake --cores 4 epimight_all     # EPIMIGHT heritability (see fit_ace/README.md)
 
 # Run a single named scenario
 snakemake --cores 4 results/base/baseline10K/scenario.done
@@ -191,9 +189,6 @@ defaults:
   case_ascertainment_ratio: 1                # Case sampling weight relative to controls (1 = uniform)
   pedigree_dropout_rate: 0                   # Fraction of individuals to drop from pedigree (0 = none)
 
-  # EPIMIGHT relationship kinds to analyze
-  epimight_kinds: [PO, FS, HS, mHS, pHS]     # Relationship types for heritability estimation
-
   # Plot output
   plot_format: png                           # Plot file format: png or pdf
 
@@ -252,57 +247,11 @@ Multi-page PDF atlases collect all figures for a scenario or folder into a singl
 |------|-------------|
 | `results/{folder}/{scenario}/plots/atlas.pdf` | Per-scenario atlas: liability structure, phenotype, censoring, correlations, heritability, and simple LTM figures |
 | `results/{folder}/plots/atlas.pdf` | Per-folder atlas: cross-scenario validation plots (variance components, correlations, heritability, bias, runtime, memory) |
-| `results/{folder}/{scenario}/rep{N}/epimight/plots/atlas.pdf` | EPIMIGHT atlas: CIF curves, heritability, genetic correlation across relationship kinds |
+| `results/{folder}/{scenario}/rep{N}/epimight/plots/atlas.pdf` | EPIMIGHT atlas (see [fit_ace/README.md](fit_ace/README.md)) |
 
 ### Output Format Reference
 
 See [OUTPUTS.md](OUTPUTS.md) for complete documentation of all output formats, including parquet column schemas, YAML file structures, validation_summary.tsv columns, benchmark format, and plot inventories.
-
-## EPIMIGHT
-
-EPIMIGHT estimates heritability (h²) and genetic correlation from time-to-event data using the [EPIMIGHT](https://github.com/BioPsyk/epimight) R package. It compares cumulative incidence in relatives of affected individuals against the general population, then applies Falconer's formula to derive heritability estimates stratified by birth year with fixed/random effects meta-analysis.
-
-### Setup
-
-EPIMIGHT requires a separate R-based conda environment:
-
-```bash
-conda env create -f fit_ace/epimight/environment.yml
-conda run -n epimight Rscript -e "install.packages('fit_ace/epimight/EPIMIGHT/epimight', repos=NULL, type='source')"
-```
-
-### Running via Snakemake
-
-```bash
-# All scenarios and replicates
-snakemake --cores 4 epimight_all
-
-# Single scenario (one replicate)
-snakemake --cores 4 results/base/baseline100K/rep1/epimight/plots/atlas.pdf
-
-# Single relationship kind
-snakemake --cores 4 results/base/baseline100K/rep1/epimight/tsv/h2_d1_FS.tsv
-```
-
-Which relationship kinds are analyzed is controlled by the `epimight_kinds` config parameter (default: `[PO, FS, HS, mHS, pHS]`).
-
-### Outputs
-
-Each replicate's `epimight/` directory contains:
-
-| File | Description |
-|------|-------------|
-| `trait1.epimight_in.parquet`, `trait2.epimight_in.parquet` | Time-to-event input data for traits 1 and 2 |
-| `true_parameters.json` | True h² and genetic correlation from variance components |
-| `results_{kind}.md` | Summary report per relationship kind (cohort sizes, h² meta-analysis, genetic correlation, true vs observed comparison) |
-| `tsv/cif_*.tsv`, `tsv/h2_*.tsv`, `tsv/gc_*.tsv` | CIF curves, heritability estimates, and genetic correlation per kind |
-| `plots/atlas.pdf` | Multi-page PDF atlas: CIF curves, h² over time, h² bar charts, genetic correlation, and observed vs true comparison |
-
-See the [Outputs > Plot Atlases](#plot-atlases) table for the full output tree.
-
-### More information
-
-See [fit_ace/epimight/README.md](fit_ace/epimight/README.md) for the full pipeline reference — manual steps, column schemas, cohort definitions, and relationship kinds.
 
 ## Subsampling and Dropout
 
@@ -424,23 +373,7 @@ ACE/
 │       ├── plot_pipeline.py           # Pipeline DAG diagram
 │       └── plot_table1.py             # Epidemiological Table 1
 │
-├── fit_ace/                           # Model fitting package (pip install -e fit_ace/)
-│   ├── pafgrs/                        # PA-FGRS genetic risk scores
-│   │   ├── pafgrs.py                  # Pearson-Aitken scoring (Bayesian posterior mean/variance)
-│   │   └── pafgrs_metrics.py          # Validation metrics (r, R², AUC, calibration)
-│   ├── epimight/                      # EPIMIGHT heritability analysis (separate conda env)
-│   │   ├── create_parquet.py          # Convert phenotype to EPIMIGHT TTE format
-│   │   ├── guide-yob.R               # CIF, h², genetic correlation (R)
-│   │   ├── plot_epimight.py           # EPIMIGHT diagnostic atlas
-│   │   ├── epimight_bias_analysis.py  # Bias quantification
-│   │   ├── EPIMIGHT/                  # Vendored BioPsyk EPIMIGHT R package
-│   │   └── environment.yml            # Conda env for R dependencies
-│   ├── stan/                          # Stan-based model fitting
-│   │   ├── fit_ace.py, fit_reml.py    # Python wrappers
-│   │   └── *.stan                     # Stan model files
-│   └── plotting/
-│       ├── plot_pafgrs.py             # PA-FGRS diagnostic atlas
-│       └── plot_epimight_bias.py      # EPIMIGHT bias analysis atlas
+├── fit_ace/                           # Model fitting package — see fit_ace/README.md
 │
 ├── workflow/
 │   ├── common.py                      # Shared helpers (get_param, get_folder, etc.)
@@ -449,9 +382,8 @@ ACE/
 │   │   ├── simulate.smk, dropout.smk  # Pedigree simulation and dropout
 │   │   ├── phenotype.smk, sample.smk  # Phenotyping and sampling
 │   │   ├── validate.smk, stats.smk    # Validation and statistics
-│   │   ├── epimight.smk               # EPIMIGHT heritability pipeline
-│   │   ├── epimight_bias.smk          # EPIMIGHT bias analysis
-│   │   └── pafgrs.smk                 # PA-FGRS scoring pipeline
+│   │   ├── epimight.smk, pafgrs.smk   # fit_ace pipeline rules
+│   │   └── epimight_bias.smk          # EPIMIGHT bias analysis
 │   └── scripts/                       # Snakemake script wrappers
 ├── tests/                             # Mirrors sim_ace/fit_ace sub-package structure
 ├── external/                          # Reference implementations (gitignored)
@@ -465,7 +397,7 @@ ACE/
 - **[OUTPUTS.md](OUTPUTS.md)** — Output format reference (parquet schemas, YAML structures, TSV columns, plots)
 - **[methods.md](methods.md)** — Methods document (variance decomposition, Weibull frailty, censoring, liability threshold, tetrachoric correlation, heritability estimation, etc)
 - **[distributions.md](distributions.md)** — Phenotype model reference (frailty hazard distributions, ADuLT LTM, ADuLT Cox)
-- **[fit_ace/epimight/README.md](fit_ace/epimight/README.md)** — EPIMIGHT heritability pipeline
+- **[fit_ace/README.md](fit_ace/README.md)** — Model fitting: EPIMIGHT heritability, PA-FGRS, Stan models
 - **[CLAUDE.md](CLAUDE.md)** — Architecture guide
 
 ## Troubleshooting
