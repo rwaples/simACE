@@ -79,8 +79,9 @@ def apply_threshold(
     affected = np.zeros(len(liability), dtype=bool)
     for gen in unique_gens:
         mask = generation == gen
-        L = liability[mask].copy()
+        L = liability[mask]
         if standardize:
+            L = L.copy()
             mean = L.mean()
             std = L.std()
             if std > 0:

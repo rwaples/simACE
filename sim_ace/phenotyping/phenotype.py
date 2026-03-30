@@ -169,6 +169,27 @@ _INVERTERS = {
 
 
 # ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+
+def _standardize_beta(liability: np.ndarray, beta: float, standardize: bool) -> tuple[float, float]:
+    """Compute liability mean and scaled beta for frailty/FPT models.
+
+    Returns (mean, scaled_beta) where scaled_beta = beta / std(liability)
+    when standardize is True, or (0.0, beta) when False.
+    """
+    if standardize:
+        std = np.std(liability)
+        mean = liability.mean()
+        scaled_beta = beta / std if std > 0 else 0.0
+    else:
+        mean = 0.0
+        scaled_beta = beta
+    return mean, scaled_beta
+
+
+# ---------------------------------------------------------------------------
 # Core simulation
 # ---------------------------------------------------------------------------
 
@@ -208,14 +229,7 @@ def simulate_phenotype(
     compute_hazard_terms(hazard_model, np.array([1.0]), hazard_params)
 
     rng = np.random.default_rng(seed)
-
-    if standardize:
-        std = np.std(liability)
-        mean = liability.mean()
-        scaled_beta = beta / std if std > 0 else 0.0
-    else:
-        mean = 0.0
-        scaled_beta = beta
+    mean, scaled_beta = _standardize_beta(liability, beta, standardize)
 
     neg_log_u = rng.exponential(size=len(liability))  # -log(U), U ~ (0,1]
 
@@ -426,17 +440,14 @@ def phenotype_cure_frailty(
         Array of simulated event times, shape (n,)
     """
     n = len(liability)
-    L = liability.copy()
+    mean, scaled_beta = _standardize_beta(liability, beta, standardize)
 
+    # Standardize liability for thresholding (cure_frailty needs N(0,1) scale)
     if standardize:
-        std = np.std(L)
-        if std > 0:
-            L = (L - L.mean()) / std
-        mean = 0.0
-        scaled_beta = beta / std if std > 0 else 0.0
+        std = np.std(liability)
+        L = (liability - liability.mean()) / std if std > 0 else liability - liability.mean()
     else:
-        mean = 0.0
-        scaled_beta = beta
+        L = liability
 
     _ndtri_vec = np.vectorize(_ndtri_approx)
     threshold = _ndtri_vec(1.0 - prevalence)
@@ -510,14 +521,7 @@ def phenotype_first_passage(
 
     n = len(liability)
     rng = np.random.default_rng(seed)
-
-    if standardize:
-        std = np.std(liability)
-        mean = liability.mean()
-        scaled_beta = beta / std if std > 0 else 0.0
-    else:
-        mean = 0.0
-        scaled_beta = beta
+    mean, scaled_beta = _standardize_beta(liability, beta, standardize)
 
     # Per-individual initial distance: y0_i = sqrt(shape) * exp(-beta*L - beta_sex*sex)
     y0_base = np.sqrt(shape)
@@ -526,19 +530,16 @@ def phenotype_first_passage(
         adjustment = adjustment * np.exp(-beta_sex * sex)
     y0 = y0_base * adjustment
 
-    t = np.empty(n)
     abs_drift = abs(drift)
 
     if drift < 0:
         # Everyone hits — standard inverse Gaussian
-        mean_ig = y0 / abs_drift
-        shape_ig = y0**2
-        t = rng.wald(mean=mean_ig, scale=shape_ig)
+        t = rng.wald(mean=y0 / abs_drift, scale=y0**2)
     else:
         # Emergent cure fraction: P(ever hit) = exp(-2*y0*drift)
         p_hit = np.exp(-2.0 * y0 * drift)
         hits = rng.random(size=n) < p_hit
-        t[:] = 1e6  # default: censored (never hit)
+        t = np.full(n, 1e6)  # default: censored (never hit)
         n_hits = hits.sum()
         if n_hits > 0:
             mean_ig = y0[hits] / drift

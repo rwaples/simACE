@@ -89,15 +89,15 @@ def compute_hazard_terms(
         rv = invgauss(mu=ig_mean / lam, scale=lam)
         if drift_val < 0:
             # Everyone hits — standard IG distribution
-            const = rv.logpdf(t) - rv.logsf(t)
-            H_base = -rv.logsf(t)
+            log_sf = rv.logsf(t)
+            const = rv.logpdf(t) - log_sf
+            H_base = -log_sf
         else:
             # Defective distribution — cure fraction exists
             p_hit = np.exp(-2.0 * y0 * drift_val)
-            f_def = p_hit * rv.pdf(t)
-            S_def = 1.0 - p_hit * rv.cdf(t)
-            const = np.log(f_def) - np.log(S_def)
-            H_base = -np.log(S_def)
+            log_S_def = np.log1p(-p_hit * rv.cdf(t))
+            const = np.log(p_hit) + rv.logpdf(t) - log_S_def
+            H_base = -log_S_def
 
     else:
         raise ValueError(
