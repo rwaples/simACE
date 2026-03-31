@@ -8,18 +8,18 @@ Complete documentation of all files produced by the ACE pipeline. Path patterns 
 
 | File | Format | Description | Writer |
 |------|--------|-------------|--------|
-| `pedigree.parquet` | Parquet | Pedigree structure with ACE variance components | `sim_ace/simulate.py` |
-| `phenotype.raw.parquet` | Parquet | Raw time-to-event phenotypes (before censoring) | `sim_ace/phenotype.py` |
-| `phenotype.parquet` | Parquet | Censored time-to-event phenotypes | `sim_ace/censor.py` |
+| `pedigree.parquet` | Parquet | Pedigree structure with ACE variance components | `sim_ace/simulation/simulate.py` |
+| `phenotype.raw.parquet` | Parquet | Raw time-to-event phenotypes (before censoring) | `sim_ace/phenotyping/phenotype.py` |
+| `phenotype.parquet` | Parquet | Censored time-to-event phenotypes | `sim_ace/censoring/censor.py` |
 | `phenotype.sampled.parquet` | Parquet | Downsampled phenotype for plotting | `workflow/scripts/sample.py` |
-| `phenotype.simple_ltm.parquet` | Parquet | Binary affected status from liability-threshold model | `sim_ace/threshold.py` |
+| `phenotype.simple_ltm.parquet` | Parquet | Binary affected status from liability-threshold model | `sim_ace/phenotyping/threshold.py` |
 | `phenotype.simple_ltm.sampled.parquet` | Parquet | Downsampled threshold phenotype for plotting | `workflow/scripts/sample.py` |
-| `params.yaml` | YAML | Simulation parameters for this replicate | `sim_ace/simulate.py` |
-| `phenotype_stats.yaml` | YAML | Phenotype statistics (correlations, prevalence, CIF, etc.) | `sim_ace/stats.py` |
-| `phenotype_samples.parquet` | Parquet | Further downsampled phenotype rows for stats scatter plots | `sim_ace/stats.py` |
-| `simple_ltm_stats.yaml` | YAML | Threshold phenotype statistics | `sim_ace/simple_ltm_stats.py` |
-| `simple_ltm_samples.parquet` | Parquet | Further downsampled threshold rows for stats scatter plots | `sim_ace/simple_ltm_stats.py` |
-| `validation.yaml` | YAML | Structural and statistical validation results | `sim_ace/validate.py` |
+| `params.yaml` | YAML | Simulation parameters for this replicate | `sim_ace/simulation/simulate.py` |
+| `phenotype_stats.yaml` | YAML | Phenotype statistics (correlations, prevalence, CIF, etc.) | `sim_ace/analysis/stats.py` |
+| `phenotype_samples.parquet` | Parquet | Further downsampled phenotype rows for stats scatter plots | `sim_ace/analysis/stats.py` |
+| `simple_ltm_stats.yaml` | YAML | Threshold phenotype statistics | `sim_ace/analysis/simple_ltm_stats.py` |
+| `simple_ltm_samples.parquet` | Parquet | Further downsampled threshold rows for stats scatter plots | `sim_ace/analysis/simple_ltm_stats.py` |
+| `validation.yaml` | YAML | Structural and statistical validation results | `sim_ace/analysis/validate.py` |
 
 ### Per-scenario files (`results/{folder}/{scenario}/`)
 
@@ -124,7 +124,7 @@ All sampled parquets share the same column schema as their source files.
 
 ### params.yaml
 
-Flat key-value file recording the simulation parameters used for a replicate. Written by `sim_ace/simulate.py`.
+Flat key-value file recording the simulation parameters used for a replicate. Written by `sim_ace/simulation/simulate.py`.
 
 | Key | Type | Description |
 |-----|------|-------------|
@@ -134,6 +134,7 @@ Flat key-value file recording the simulation parameters used for a replicate. Wr
 | `A2`, `C2`, `E2` | float | Trait 2 variance components |
 | `rA` | float | Cross-trait additive genetic correlation |
 | `rC` | float | Cross-trait common environment correlation |
+| `rE` | float | Cross-trait unique environment correlation |
 | `N` | int | Population size per generation |
 | `G_ped` | int | Number of generations in output pedigree |
 | `G_sim` | int | Total generations simulated (including burn-in) |
@@ -144,14 +145,17 @@ Flat key-value file recording the simulation parameters used for a replicate. Wr
 
 ### phenotype_stats.yaml
 
-Phenotype statistics computed from the censored frailty phenotype. Written by `sim_ace/stats.py`. Top-level sections:
+Phenotype statistics computed from the censored frailty phenotype. Written by `sim_ace/analysis/stats.py`. Top-level sections:
 
 | Section | Description |
 |---------|-------------|
 | `n_individuals` | Total individual count |
 | `n_generations` | Number of phenotyped generations |
+| `case_ascertainment_ratio` | Ascertainment ratio used for sampling (conditional; only when ratio != 1.0) |
 | `prevalence` | Per-trait observed prevalence (float per trait) |
 | `mortality` | Decade-binned mortality rates (`decade_labels`, `rates`) |
+| `person_years` | Total and per-trait person-years at risk |
+| `family_size` | Family size statistics: `mean`, `median`, `q1`, `q3`, `n_families`, and size distribution |
 | `regression` | Liability-vs-age-at-onset regression per trait (`slope`, `intercept`, `r`, `r2`, `n`) |
 | `cumulative_incidence` | Cumulative incidence curves per trait (`ages`, `observed_values`, `true_values`, `half_target_age`) |
 | `joint_affection` | Cross-trait joint affection counts and proportions |
@@ -167,20 +171,18 @@ Phenotype statistics computed from the censored frailty phenotype. Written by `s
 | `n_generations_ped` | Generation count in full pedigree (conditional) |
 | `liability_correlations` | Pearson correlations of liability by trait and pair type |
 | `parent_offspring_corr` | Parent-offspring liability correlations by trait and generation |
+| `parent_offspring_corr_by_sex` | Parent-offspring liability correlations stratified by parent sex |
+| `parent_status` | Parent affection status breakdown (affected/unaffected parent counts and offspring prevalence) |
 | `tetrachoric` | Tetrachoric correlations of affection status by trait and pair type (`r`, `se`, `n_pairs`) |
 | `tetrachoric_by_generation` | Tetrachoric correlations stratified by generation |
+| `tetrachoric_by_sex` | Tetrachoric correlations stratified by sex |
 | `cross_trait_tetrachoric` | Cross-trait tetrachoric correlations (`same_person`, `same_person_by_generation`, `cross_person`) |
-| `frailty_corr` | Pairwise Weibull survival correlations from censored event times (conditional) |
-| `frailty_corr_uncensored` | Same from uncensored event times (conditional) |
-| `frailty_cross_trait` | Cross-trait Weibull survival correlation, censored (conditional) |
-| `frailty_cross_trait_uncensored` | Cross-trait Weibull survival correlation, uncensored (conditional) |
-| `frailty_cross_trait_stratified` | Cross-trait survival correlation with per-generation breakdown (conditional) |
 
 Sections marked "conditional" are only present when the corresponding data or config options are available.
 
 ### simple_ltm_stats.yaml
 
-Statistics for the liability-threshold phenotype model. Written by `sim_ace/simple_ltm_stats.py`. Top-level sections:
+Statistics for the liability-threshold phenotype model. Written by `sim_ace/analysis/simple_ltm_stats.py`. Top-level sections:
 
 | Section | Description |
 |---------|-------------|
@@ -194,7 +196,7 @@ Statistics for the liability-threshold phenotype model. Written by `sim_ace/simp
 
 ### validation.yaml
 
-Structural and statistical validation results. Written by `sim_ace/validate.py`. Top-level sections:
+Structural and statistical validation results. Written by `sim_ace/analysis/validate.py`. Top-level sections:
 
 | Section | Description |
 |---------|-------------|
@@ -206,16 +208,18 @@ Structural and statistical validation results. Written by `sim_ace/validate.py`.
 | `population` | Population structure: `generation_sizes`, `generation_count`, `family_size` |
 | `per_generation` | Per-generation stats: `n`, liability mean/variance/sd, component A/C/E mean/variance |
 | `summary` | Overall result: `passed` (bool), `checks_passed`, `checks_failed`, `checks_total` |
+| `assortative_mating` | Mate liability correlation checks: observed vs expected mate correlations per trait |
+| `consanguineous_matings` | Consanguineous mating detection: shared grandparent counts, grandparent-link discrepancy reconciliation |
 | `family_size_distribution` | Family size by parent sex: `mother`/`father` each with `mean`, `median`, `std`, `n_parents` |
 | `parameters` | Full scenario parameters (copy of config values used) |
 
-Each individual check within `structural`, `twins`, `half_sibs`, `statistical`, `heritability`, and `population` is a dict containing at minimum `passed` (bool) and `details` (str), plus check-specific fields like `observed`, `expected`, and `tolerance`.
+Each individual check within `structural`, `twins`, `half_sibs`, `statistical`, `heritability`, `population`, `assortative_mating`, and `consanguineous_matings` is a dict containing at minimum `passed` (bool) and `details` (str), plus check-specific fields like `observed`, `expected`, and `tolerance`.
 
 ---
 
 ## validation_summary.tsv
 
-Aggregated metrics across all scenarios and replicates within a folder. Written by `sim_ace/gather.py`. One row per replicate.
+Aggregated metrics across all scenarios and replicates within a folder. Written by `sim_ace/analysis/gather.py`. One row per replicate.
 
 | Column | Source |
 |--------|--------|
@@ -265,6 +269,7 @@ Snakemake automatically writes benchmark files in TSV format with a standard hea
 Benchmark files are written for each pipeline rule. Per-replicate benchmarks:
 
 - `benchmarks/{folder}/{scenario}/rep{rep}/simulate.tsv`
+- `benchmarks/{folder}/{scenario}/rep{rep}/dropout.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/phenotype.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/censor_weibull.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.tsv`
@@ -299,12 +304,16 @@ Ordered by narrative flow: pedigree structure, liability, phenotype, censoring, 
 |------|-------------|
 | `pedigree_counts.ped.{ext}` | Relationship pair counts from full pedigree |
 | `pedigree_counts.{ext}` | Relationship pair counts from phenotyped subset |
+| `family_structure.{ext}` | Family structure breakdown (sibship sizes, half-sibling fractions) |
+| `mate_correlation.{ext}` | Mate liability correlations (assortative mating) |
 | `cross_trait.{ext}` | Cross-trait liability scatter |
 | `parent_offspring_liability.by_generation.{ext}` | Parent-offspring liability correlations by generation |
 | `heritability.by_generation.{ext}` | Liability-scale heritability by generation |
+| `heritability.by_sex.by_generation.{ext}` | Liability-scale heritability by sex and generation |
 | `additive_shared.by_generation.{ext}` | Additive and shared environment by generation |
 | `liability_violin.phenotype.{ext}` | Liability violin plots by affection status |
 | `liability_violin.phenotype.by_generation.{ext}` | Liability violins by generation and affection status |
+| `liability_violin.phenotype.by_sex.by_generation.{ext}` | Liability violins by sex, generation, and affection status |
 | `age_at_onset_death.{ext}` | Age-at-onset and death age distributions |
 | `mortality.{ext}` | Mortality rates by decade |
 | `cumulative_incidence.phenotype.{ext}` | Cumulative incidence curves by trait |
@@ -316,6 +325,7 @@ Ordered by narrative flow: pedigree structure, liability, phenotype, censoring, 
 | `liability_vs_aoo.{ext}` | Liability vs age-at-onset scatter |
 | `joint_affected.phenotype.{ext}` | Cross-trait joint affection proportions |
 | `tetrachoric.phenotype.{ext}` | Tetrachoric correlation heatmap |
+| `tetrachoric.phenotype.by_sex.{ext}` | Tetrachoric correlations stratified by sex |
 | `tetrachoric.phenotype.by_generation.{ext}` | Tetrachoric correlations by generation |
 | `cross_trait.phenotype.{ext}` | Cross-trait phenotype correlations |
 | `cross_trait.phenotype.t2.{ext}` | Cross-trait phenotype correlations (trait 2 focus) |
@@ -392,3 +402,14 @@ Key output files:
 | `tsv/h2_d2_{kind}.tsv` | TSV | Heritability estimates for trait 2 |
 | `tsv/gc_full_{kind}.tsv` | TSV | Genetic correlation full grid |
 | `plots/atlas.pdf` | PDF | Multi-page PDF of all EPIMIGHT figures |
+
+---
+
+## Export Outputs
+
+On-demand format conversion rules from `workflow/rules/export.smk`. These are not produced automatically — request them by targeting the output path.
+
+| Output | Description |
+|--------|-------------|
+| `{path}.tsv.gz` | Gzip-compressed TSV conversion of any `.parquet` file (float precision configurable via `tsv_float_precision`) |
+| `{path}.tsv` | Uncompressed TSV conversion of any `.parquet` file |
