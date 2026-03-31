@@ -6,16 +6,16 @@
 rule parquet_to_tsv:
     """Convert any .parquet file to .tsv.gz for use in R."""
     input:
-        "{path}.parquet"
+        "{path}.parquet",
     output:
-        "{path}.tsv.gz"
+        "{path}.tsv.gz",
     params:
-        float_precision = config["defaults"].get("tsv_float_precision", 4),
+        float_precision=config["defaults"].get("tsv_float_precision", 4),
     log:
-        "logs/{path}.parquet_to_tsv.log"
+        "logs/{path}.parquet_to_tsv.log",
     resources:
-        mem_mb  = 2000,
-        runtime = 5
+        mem_mb=2000,
+        runtime=5,
     threads: 1
     script:
         "../scripts/parquet_to_tsv.py"
@@ -24,17 +24,17 @@ rule parquet_to_tsv:
 rule parquet_to_tsv_uncompressed:
     """Convert any .parquet file to uncompressed .tsv for use in R."""
     input:
-        "{path}.parquet"
+        "{path}.parquet",
     output:
-        "{path}.tsv"
+        "{path}.tsv",
     params:
-        float_precision = config["defaults"].get("tsv_float_precision", 4),
-        gzip = False,
+        float_precision=config["defaults"].get("tsv_float_precision", 4),
+        gzip=False,
     log:
-        "logs/{path}.parquet_to_tsv_uncompressed.log"
+        "logs/{path}.parquet_to_tsv_uncompressed.log",
     resources:
-        mem_mb  = 2000,
-        runtime = 5
+        mem_mb=2000,
+        runtime=5,
     threads: 1
     script:
         "../scripts/parquet_to_tsv.py"

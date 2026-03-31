@@ -63,7 +63,8 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 
 - Check: `ruff check`
 - Auto-fix: `ruff check --fix`
-- Format: `ruff format`
+- Format Python: `ruff format`
+- Format Snakemake: `snakefmt workflow/rules/*.smk Snakefile`
 
 ## Session Management
 

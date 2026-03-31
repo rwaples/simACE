@@ -1,17 +1,33 @@
 
 # ACE Phenotype Models
 
-Nine phenotype models convert pedigree liabilities (L = A + C + E) to
+Ten phenotype models convert pedigree liabilities (L = A + C + E) to
 age-of-onset times. Set independently per trait via `phenotype_model1`/`phenotype_model2`
 in config (default: `weibull`).
 
 ```yaml
-phenotype_model1: weibull    # weibull/exponential/gompertz/lognormal/loglogistic/gamma/cure_frailty/adult_ltm/adult_cox
+phenotype_model1: weibull    # weibull/exponential/gompertz/lognormal/loglogistic/gamma/cure_frailty/adult_ltm/adult_cox/first_passage
 phenotype_model2: weibull
 ```
 
 All models produce raw event times `t1`, `t2` which are then censored by
 ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortality).
+
+## Index
+
+| # | Model | Line |
+|---|-------|------|
+| 1 | Frailty (default) | 34 |
+|   | 1a Weibull | 67 |
+|   | 1b Exponential | 95 |
+|   | 1c Gompertz | 116 |
+|   | 1d Lognormal | 141 |
+|   | 1e Loglogistic | 163 |
+|   | 1f Gamma | 191 |
+| 2 | Mixture Cure Frailty | 212 |
+| 3 | ADuLT LTM | 253 |
+| 4 | ADuLT Cox | 304 |
+| 5 | First-Passage Time | 351 |
 
 
 # ==============================================================================
@@ -328,3 +344,83 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 # phenotype_params2:
 #   cip_x0: 50
 #   cip_k: 0.2
+
+
+
+# ==============================================================================
+# 5) FIRST-PASSAGE TIME MODEL (first_passage)
+# ==============================================================================
+# Based on Lee & Whitmore (2006) and Aalen & Gjessing (2001).
+# A latent Wiener process Y(t) = y0 + drift*t + W(t) represents cumulative
+# health degradation. Disease onset occurs at the first time Y(t) <= 0.
+# Event times follow an inverse Gaussian distribution.
+#
+# Unlike frailty models where the unique environment E is a single draw at
+# birth, here E operates as an ongoing stochastic process W(t) — Brownian
+# motion that accumulates over the life course.
+#
+# Model (per trait):
+#     L_std     = standardize(L)                             (N(0,1) liability)
+#     y0_i      = sqrt(shape) * exp(-beta*L_std - beta_sex*sex)  (initial distance)
+#     Y_i(t)    = y0_i + drift*t + W_i(t)                   (Wiener process)
+#     T_i       = inf{t : Y_i(t) <= 0}                      (first passage)
+#
+# Liability scales y0 (initial distance to boundary):
+#   - Higher liability -> smaller y0 -> closer to boundary -> earlier onset
+#   - beta > 0 means higher liability is worse (same convention as frailty)
+#   - beta = 0 means liability has no effect on timing
+#
+# Two drift regimes:
+#
+#   drift < 0 (toward boundary):
+#     Everyone eventually hits. Event times ~ IG(y0/|drift|, y0^2).
+#     Mean event time = sqrt(shape) / |drift|.
+#
+#   drift > 0 (away from boundary):
+#     Emergent cure fraction: P(never hit) = 1 - exp(-2*y0*drift).
+#     Higher liability -> smaller y0 -> HIGHER probability of hitting
+#     AND earlier onset among those who hit. Both susceptibility and
+#     timing emerge from a single beta parameter.
+#
+#   drift = 0: degenerate case (Lévy-distributed FPT with infinite mean).
+#
+# Inverse Gaussian distribution:
+#   T ~ IG(mu, lambda) where:
+#     mu     = y0 / |drift|       (mean event time)
+#     lambda = y0^2               (shape parameter)
+#
+#   PDF:  f(t) = sqrt(lambda / (2*pi*t^3)) * exp(-lambda*(t-mu)^2 / (2*mu^2*t))
+#   Mean: E[T] = mu
+#   Var:  V[T] = mu^3 / lambda
+#
+# Hazard shape:
+#   The IG hazard has an "upside-down bathtub" shape:
+#     - Starts at 0, rises to a peak, then decreases
+#     - Asymptotes to lambda/(2*mu^2) > 0 (residual risk never vanishes)
+#   This is distinct from Weibull (monotone only), Gompertz (monotone
+#   increasing), and lognormal (UBT but h->0).
+#
+# INVERSE (to get drift and shape from desired mean m and CV):
+#     shape = m^2 / (m * CV^2)       [since Var = mu^3/lambda, CV^2 = mu/lambda]
+#     drift = -sqrt(shape) / m
+#
+# Config parameters:
+#     beta1, beta2:               liability effect on log(y0)
+#     beta_sex1, beta_sex2:       sex covariate effect on log(y0) (0 = no effect)
+#     phenotype_params1/2:
+#       drift:  Wiener drift rate (negative = toward boundary, positive = cure)
+#       shape:  y0^2 (initial distance squared; controls spread)
+#
+# Example (everyone hits, mean onset ~ 1000 time units):
+# phenotype_model1: first_passage
+# beta1: 1.0
+# phenotype_params1:
+#   drift: -0.01
+#   shape: 100        # y0 = 10, mean = 10/0.01 = 1000
+#
+# Example (emergent cure fraction):
+# phenotype_model1: first_passage
+# beta1: 1.0
+# phenotype_params1:
+#   drift: 0.05
+#   shape: 100        # cure fraction ~ 1 - exp(-2*10*0.05) = 63.2%

@@ -1,7 +1,7 @@
 rule simulate_pedigree_liability:
     output:
         pedigree=temp("results/{folder}/{scenario}/rep{rep}/pedigree.full.parquet"),
-        params="results/{folder}/{scenario}/rep{rep}/params.yaml"
+        params="results/{folder}/{scenario}/rep{rep}/params.yaml",
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         N=lambda w: get_param(config, w.scenario, "N"),
@@ -23,12 +23,12 @@ rule simulate_pedigree_liability:
         assort2=lambda w: get_param(config, w.scenario, "assort2"),
         assort_matrix=lambda w: get_param(config, w.scenario, "assort_matrix"),
     log:
-        "logs/{folder}/{scenario}/rep{rep}/simulate.log"
+        "logs/{folder}/{scenario}/rep{rep}/simulate.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/simulate.tsv"
     resources:
-        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_ped"),
-        runtime = lambda w: _scale_runtime(config, w.scenario, "G_ped")
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
     threads: 4
     script:
         "../scripts/simulate.py"

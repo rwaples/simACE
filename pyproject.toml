@@ -9,11 +9,10 @@ description = "ACE pedigree simulation with A/C/E variance components"
 requires-python = ">=3.10"
 dependencies = [
     "numpy", "scipy", "pandas", "pyarrow", "pyyaml",
-    "matplotlib", "seaborn", "pillow",
+    "matplotlib", "seaborn", "pillow", "numba",
 ]
 
 [project.optional-dependencies]
-accel = ["numba"]
 dev = ["snakemake", "snakefmt", "pytest", "ruff>=0.8"]
 
 [project.scripts]

@@ -22,12 +22,12 @@ rule epimight_create_parquet:
         t2="results/{folder}/{scenario}/rep{rep}/epimight/trait2.epimight_in.parquet",
         truth="results/{folder}/{scenario}/rep{rep}/epimight/true_parameters.json",
     log:
-        "logs/{folder}/{scenario}/rep{rep}/epimight_create_parquet.log"
+        "logs/{folder}/{scenario}/rep{rep}/epimight_create_parquet.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_create_parquet.tsv"
     resources:
-        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
-        runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
     threads: 1
     script:
         "../scripts/epimight_create_parquet.py"
@@ -44,12 +44,12 @@ rule epimight_guide_yob:
         gc="results/{folder}/{scenario}/rep{rep}/epimight/tsv/gc_full_{kind}.tsv",
         report="results/{folder}/{scenario}/rep{rep}/epimight/results_{kind}.md",
     log:
-        "logs/{folder}/{scenario}/rep{rep}/epimight_guide_yob_{kind}.log"
+        "logs/{folder}/{scenario}/rep{rep}/epimight_guide_yob_{kind}.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_guide_yob_{kind}.tsv"
     resources:
-        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
-        runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
     threads: 1
     shell:
         "conda run -n epimight "
@@ -64,19 +64,21 @@ rule epimight_atlas:
     input:
         tsv=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/epimight/tsv/h2_d1_{kind}.tsv",
-            folder=w.folder, scenario=w.scenario, rep=w.rep,
+            folder=w.folder,
+            scenario=w.scenario,
+            rep=w.rep,
             kind=get_param(config, w.scenario, "epimight_kinds"),
         ),
         truth="results/{folder}/{scenario}/rep{rep}/epimight/true_parameters.json",
     output:
         atlas="results/{folder}/{scenario}/rep{rep}/epimight/plots/atlas.pdf",
     log:
-        "logs/{folder}/{scenario}/rep{rep}/epimight_atlas.log"
+        "logs/{folder}/{scenario}/rep{rep}/epimight_atlas.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_atlas.tsv"
     resources:
-        mem_mb  = 4000,
-        runtime = 10
+        mem_mb=4000,
+        runtime=10,
     threads: 1
     script:
         "../scripts/epimight_atlas.py"
@@ -85,16 +87,20 @@ rule epimight_atlas:
 rule epimight_folder:
     """Run EPIMIGHT analysis for all scenarios in a folder."""
     input:
-        lambda w: [f"results/{w.folder}/{s}/rep{r}/epimight/plots/atlas.pdf"
-                   for s in get_scenarios_for_folder(config, w.folder)
-                   for r in range(1, get_param(config, s, "replicates") + 1)]
+        lambda w: [
+            f"results/{w.folder}/{s}/rep{r}/epimight/plots/atlas.pdf"
+            for s in get_scenarios_for_folder(config, w.folder)
+            for r in range(1, get_param(config, s, "replicates") + 1)
+        ],
     output:
-        touch("results/{folder}/epimight.done")
+        touch("results/{folder}/epimight.done"),
 
 
 rule epimight_all:
     """Run EPIMIGHT analysis for all scenarios and replicates."""
     input:
-        [f"results/{get_folder(config, s)}/{s}/rep{r}/epimight/plots/atlas.pdf"
-         for s in config["scenarios"]
-         for r in range(1, get_param(config, s, "replicates") + 1)]
+        [
+            f"results/{get_folder(config, s)}/{s}/rep{r}/epimight/plots/atlas.pdf"
+            for s in config["scenarios"]
+            for r in range(1, get_param(config, s, "replicates") + 1)
+        ],

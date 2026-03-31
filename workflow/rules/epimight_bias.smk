@@ -14,8 +14,7 @@
 # ---------------------------------------------------------------------------
 
 EPIMIGHT_BIAS_SCENARIOS = [
-    s for s in config["scenarios"]
-    if get_folder(config, s) == "epimight_bias"
+    s for s in config["scenarios"] if get_folder(config, s) == "epimight_bias"
 ]
 
 
@@ -30,12 +29,12 @@ rule ltm_falconer:
         kinds=lambda w: get_param(config, w.scenario, "epimight_kinds"),
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
     log:
-        "logs/{folder}/{scenario}/rep{rep}/ltm_falconer.log"
+        "logs/{folder}/{scenario}/rep{rep}/ltm_falconer.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/ltm_falconer.tsv"
     resources:
-        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
-        runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
     threads: 1
     script:
         "../scripts/ltm_falconer.py"
@@ -58,12 +57,12 @@ rule epimight_bias_gather:
         results_dir="results/epimight_bias",
         scenarios=EPIMIGHT_BIAS_SCENARIOS,
     log:
-        "logs/epimight_bias/epimight_bias_gather.log"
+        "logs/epimight_bias/epimight_bias_gather.log",
     benchmark:
         "benchmarks/epimight_bias/epimight_bias_gather.tsv"
     resources:
         mem_mb=4000,
-        runtime=10
+        runtime=10,
     threads: 1
     script:
         "../scripts/epimight_bias_analysis.py"
@@ -76,12 +75,12 @@ rule epimight_bias_plots:
     output:
         atlas="results/epimight_bias/plots/epimight_bias_atlas.pdf",
     log:
-        "logs/epimight_bias/epimight_bias_plots.log"
+        "logs/epimight_bias/epimight_bias_plots.log",
     benchmark:
         "benchmarks/epimight_bias/epimight_bias_plots.tsv"
     resources:
         mem_mb=4000,
-        runtime=10
+        runtime=10,
     threads: 1
     script:
         "../scripts/plot_epimight_bias.py"

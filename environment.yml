@@ -12,6 +12,7 @@ dependencies:
   - notebook
   - seaborn
   - matplotlib
+  - pillow
   - libopenblas
   - snakemake
   - snakemake-executor-plugin-slurm

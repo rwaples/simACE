@@ -7,8 +7,7 @@
 # ---------------------------------------------------------------------------
 
 EPIMIGHT_SINGLE_BIAS_SCENARIOS = [
-    s for s in config["scenarios"]
-    if get_folder(config, s) == "epimight_bias"
+    s for s in config["scenarios"] if get_folder(config, s) == "epimight_bias"
 ]
 
 
@@ -23,12 +22,12 @@ rule epimight_single_create_parquet:
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
     log:
-        "logs/{folder}/{scenario}/rep{rep}/epimight_single_create_parquet.log"
+        "logs/{folder}/{scenario}/rep{rep}/epimight_single_create_parquet.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_single_create_parquet.tsv"
     resources:
-        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
-        runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
     threads: 1
     script:
         "../scripts/epimight_create_parquet_single.py"
@@ -45,12 +44,12 @@ rule epimight_single_guide_yob:
         gc="results/{folder}/{scenario}/rep{rep}/epimight_single/tsv/gc_full_{kind}.tsv",
         report="results/{folder}/{scenario}/rep{rep}/epimight_single/results_{kind}.md",
     log:
-        "logs/{folder}/{scenario}/rep{rep}/epimight_single_guide_yob_{kind}.log"
+        "logs/{folder}/{scenario}/rep{rep}/epimight_single_guide_yob_{kind}.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_single_guide_yob_{kind}.tsv"
     resources:
-        mem_mb  = lambda w: _scale_mem(config, w.scenario, "G_pheno"),
-        runtime = lambda w: _scale_runtime(config, w.scenario, "G_pheno")
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
     threads: 1
     shell:
         "conda run -n epimight "
@@ -65,19 +64,21 @@ rule epimight_single_atlas:
     input:
         tsv=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/epimight_single/tsv/h2_d1_{kind}.tsv",
-            folder=w.folder, scenario=w.scenario, rep=w.rep,
+            folder=w.folder,
+            scenario=w.scenario,
+            rep=w.rep,
             kind=get_param(config, w.scenario, "epimight_kinds"),
         ),
         truth="results/{folder}/{scenario}/rep{rep}/epimight_single/true_parameters.json",
     output:
         atlas="results/{folder}/{scenario}/rep{rep}/epimight_single/plots/atlas.pdf",
     log:
-        "logs/{folder}/{scenario}/rep{rep}/epimight_single_atlas.log"
+        "logs/{folder}/{scenario}/rep{rep}/epimight_single_atlas.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_single_atlas.tsv"
     resources:
-        mem_mb  = 4000,
-        runtime = 10
+        mem_mb=4000,
+        runtime=10,
     threads: 1
     script:
         "../scripts/epimight_atlas.py"
@@ -86,6 +87,7 @@ rule epimight_single_atlas:
 # ---------------------------------------------------------------------------
 # Single-pair bias analysis (gather + plots across all bias scenarios)
 # ---------------------------------------------------------------------------
+
 
 rule epimight_single_bias_gather:
     """Gather single-pair EPIMIGHT results across all bias scenarios."""
@@ -105,12 +107,12 @@ rule epimight_single_bias_gather:
         scenarios=EPIMIGHT_SINGLE_BIAS_SCENARIOS,
         subdir="epimight_single",
     log:
-        "logs/epimight_bias/epimight_single_bias_gather.log"
+        "logs/epimight_bias/epimight_single_bias_gather.log",
     benchmark:
         "benchmarks/epimight_bias/epimight_single_bias_gather.tsv"
     resources:
         mem_mb=4000,
-        runtime=10
+        runtime=10,
     threads: 1
     script:
         "../scripts/epimight_bias_analysis.py"
@@ -125,12 +127,12 @@ rule epimight_single_bias_plots:
     params:
         include_dilution_correction=False,
     log:
-        "logs/epimight_bias/epimight_single_bias_plots.log"
+        "logs/epimight_bias/epimight_single_bias_plots.log",
     benchmark:
         "benchmarks/epimight_bias/epimight_single_bias_plots.tsv"
     resources:
         mem_mb=4000,
-        runtime=10
+        runtime=10,
     threads: 1
     script:
         "../scripts/plot_epimight_bias.py"
@@ -147,8 +149,7 @@ rule epimight_single_bias_all:
 # ---------------------------------------------------------------------------
 
 EPIMIGHT_SINGLE_2M_SCENARIOS = [
-    s for s in config["scenarios"]
-    if get_folder(config, s) == "epimight_bias_2M"
+    s for s in config["scenarios"] if get_folder(config, s) == "epimight_bias_2M"
 ]
 
 
@@ -170,12 +171,12 @@ rule epimight_single_2M_gather:
         scenarios=EPIMIGHT_SINGLE_2M_SCENARIOS,
         subdir="epimight_single",
     log:
-        "logs/epimight_bias_2M/epimight_single_bias_gather.log"
+        "logs/epimight_bias_2M/epimight_single_bias_gather.log",
     benchmark:
         "benchmarks/epimight_bias_2M/epimight_single_bias_gather.tsv"
     resources:
         mem_mb=4000,
-        runtime=10
+        runtime=10,
     threads: 1
     script:
         "../scripts/epimight_bias_analysis.py"
@@ -190,12 +191,12 @@ rule epimight_single_2M_plots:
     params:
         include_dilution_correction=False,
     log:
-        "logs/epimight_bias_2M/epimight_single_bias_plots.log"
+        "logs/epimight_bias_2M/epimight_single_bias_plots.log",
     benchmark:
         "benchmarks/epimight_bias_2M/epimight_single_bias_plots.tsv"
     resources:
         mem_mb=4000,
-        runtime=10
+        runtime=10,
     threads: 1
     script:
         "../scripts/plot_epimight_bias.py"
