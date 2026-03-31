@@ -11,18 +11,30 @@ conda activate ACE
 pip install -e fit_ace/
 ```
 
+## Environments
+
+fit_ace uses two conda environments:
+
+| Environment | Language | Components | Setup |
+|-------------|----------|------------|-------|
+| `ACE` | Python | All Python code: data prep, PA-FGRS scoring, plotting, Stan wrappers | `pip install -e fit_ace/` in the ACE env |
+| `epimight` | R | EPIMIGHT heritability analysis (guide-yob.R) | `conda env create -f fit_ace/epimight/environment.yml` |
+
+The `epimight` env is only needed for EPIMIGHT targets (`epimight_all`, etc.). All other fit_ace functionality (PA-FGRS, Stan, plotting) runs in the main ACE env. The EPIMIGHT R package is auto-installed on first Snakemake run — no manual R package setup required.
+
 ## EPIMIGHT
 
 EPIMIGHT estimates heritability (h²) and genetic correlation from time-to-event data using the [EPIMIGHT](https://github.com/BioPsyk/epimight) R package. It compares cumulative incidence in relatives of affected individuals against the general population, then applies Falconer's formula to derive heritability estimates stratified by birth year with fixed/random effects meta-analysis.
 
 ### Setup
 
-EPIMIGHT requires a separate R-based conda environment:
+EPIMIGHT requires a separate R-based conda environment. Create it once:
 
 ```bash
 conda env create -f fit_ace/epimight/environment.yml
-conda run -n epimight Rscript -e "install.packages('fit_ace/epimight/EPIMIGHT/epimight', repos=NULL, type='source')"
 ```
+
+The EPIMIGHT R package is installed automatically on first Snakemake run.
 
 ### Running via Snakemake
 

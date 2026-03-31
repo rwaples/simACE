@@ -4,10 +4,15 @@ Estimates heritability (h2) and genetic correlation from ACE-simulated time-to-e
 
 ## Setup
 
-Create the conda environment and install the epimight R package:
+Create the conda environment (one-time):
 
 ```bash
 conda env create -f epimight/environment.yml
+```
+
+The EPIMIGHT R package is installed automatically on first Snakemake run. For manual use outside Snakemake:
+
+```bash
 conda run -n epimight Rscript -e "install.packages('epimight/EPIMIGHT/epimight', repos=NULL, type='source')"
 ```
 
@@ -156,7 +161,7 @@ snakemake --cores 4 results/base/baseline100K/rep1/epimight/plots/atlas.pdf
 snakemake --cores 4 epimight_all
 ```
 
-Snakemake handles the `epimight` conda env automatically via `conda run -n epimight` in the R step.
+Snakemake uses `conda run -n epimight` to invoke R in the epimight env, and auto-installs the epimight R package on first run.
 
 ## Example
 

@@ -53,10 +53,14 @@ rule epimight_single_guide_yob:
     threads: 1
     shell:
         "conda run -n epimight "
+        "Rscript -e \"if (!requireNamespace('epimight', quietly=TRUE)) "
+        "install.packages('fit_ace/epimight/EPIMIGHT/epimight', repos=NULL, type='source')\" "
+        ">{log} 2>&1 && "
+        "conda run -n epimight "
         "Rscript fit_ace/epimight/guide-yob.R "
         "results/{wildcards.folder}/{wildcards.scenario}/rep{wildcards.rep}/epimight_single "
         "{wildcards.kind} "
-        ">{log} 2>&1"
+        ">>{log} 2>&1"
 
 
 rule epimight_single_atlas:

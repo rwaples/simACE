@@ -13,9 +13,6 @@ dependencies = [
     "matplotlib",
 ]
 
-[project.optional-dependencies]
-accel = ["numba"]
-
 [tool.setuptools.packages.find]
 include = ["fit_ace*"]
 
