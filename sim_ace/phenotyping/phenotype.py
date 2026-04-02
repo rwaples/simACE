@@ -364,8 +364,13 @@ def phenotype_adult_ltm(
         from scipy.special import erfc
 
         cir = 0.5 * erfc(L_eff / np.sqrt(2.0))
-        cir = np.clip(cir, 1e-10, prev_case - 1e-10)
-        t[is_case] = cip_x0 + (1.0 / cip_k) * np.log(cir / (prev_case - cir))
+        # When beta < 1, marginal cases can have cir >= K, making the
+        # logistic inversion impossible.  Revert those to unaffected.
+        valid = cir < prev_case
+        cir = np.clip(cir, 1e-10, np.asarray(prev_case) - 1e-10)
+        onset = cip_x0 + (1.0 / cip_k) * np.log(cir / (prev_case - cir))
+        onset[~valid] = 1e6
+        t[is_case] = onset
 
     np.clip(t, 0.01, 1e6, out=t)
     return t
