@@ -743,7 +743,7 @@ def build_kinship_from_pairs(
     kin_threshold = 0.5 ** (ndegree + 1) - 1e-6
 
     graph = PedigreeGraph(pedigree_df)
-    pairs = graph.extract_pairs(seed=0, max_degree=ndegree, min_kinship=kin_threshold)
+    pairs = graph.extract_pairs(max_degree=ndegree, min_kinship=kin_threshold)
 
     # Collect all (row, col, kinship) triplets
     all_rows: list[np.ndarray] = []

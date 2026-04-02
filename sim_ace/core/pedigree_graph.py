@@ -17,7 +17,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import cached_property
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import numpy as np
 import scipy.sparse as sp
@@ -222,7 +222,9 @@ class PedigreeGraph:
         return result
 
     def _get_Ak(self, k: int) -> sp.spmatrix:
-        """Return the k-hop parent-reach matrix."""
+        """Return the k-hop parent-reach matrix (k=0 returns identity)."""
+        if k == 0:
+            return sp.eye(self.n, format="csr")
         if k == 1:
             return self._A
         return getattr(self, f"_A{k}")
@@ -270,20 +272,36 @@ class PedigreeGraph:
         M: sp.spmatrix,
         subtract: list[tuple[np.ndarray, np.ndarray]] | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Extract nonzero pairs from sparse matrix, dedup, and subtract closer pairs."""
-        M_work = M.copy()
-        M_work.setdiag(0)
-        M_work.eliminate_zeros()
-        if M_work.nnz == 0:
+        """Extract nonzero pairs from sparse matrix, dedup, and subtract closer pairs.
+
+        Mutates *M* in place (zeroes diagonal). Callers should not reuse *M*.
+        All subtract pairs are batched into a single ``np.isin`` call.
+        """
+        M.setdiag(0)
+        M.eliminate_zeros()
+        if M.nnz == 0:
             return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
 
-        a_i, a_j = M_work.nonzero()
+        a_i, a_j = M.nonzero()
         lo, hi = self._dedup_pairs(a_i, a_j)
 
-        if subtract:
+        if subtract and len(lo) > 0:
+            # Collect all subtract pairs into one key set, then filter once
+            rm_lo_parts: list[np.ndarray] = []
+            rm_hi_parts: list[np.ndarray] = []
             for rm_pair in subtract:
                 if len(rm_pair[0]) > 0:
-                    lo, hi = self._subtract_pairs((lo, hi), rm_pair)
+                    r1, r2 = rm_pair
+                    rm_lo_parts.append(np.minimum(r1, r2))
+                    rm_hi_parts.append(np.maximum(r1, r2))
+            if rm_lo_parts:
+                all_rm_lo = np.concatenate(rm_lo_parts)
+                all_rm_hi = np.concatenate(rm_hi_parts)
+                max_id = int(max(lo.max(), hi.max(), all_rm_lo.max(), all_rm_hi.max())) + 1
+                rm_keys = all_rm_lo.astype(np.int64) * max_id + all_rm_hi.astype(np.int64)
+                cand_keys = lo.astype(np.int64) * max_id + hi.astype(np.int64)
+                keep = ~np.isin(cand_keys, rm_keys)
+                lo, hi = lo[keep], hi[keep]
         return lo, hi
 
     def _lineal_pairs(self, k: int) -> tuple[np.ndarray, np.ndarray]:
@@ -294,46 +312,24 @@ class PedigreeGraph:
             return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
         return desc_i.astype(np.intp), anc_j.astype(np.intp)
 
-    def _collateral_full_pairs(
+    def _collateral_pairs(
         self,
+        sib_matrix: sp.spmatrix,
         up: int,
         down: int,
         subtract: list[tuple[np.ndarray, np.ndarray]] | None = None,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Pairs sharing a mated-pair ancestor at depths (up, down).
+        """Pairs connected through a sibling link at depths (up, down).
 
-        Uses _full_sib_matrix: B's ancestor at depth (down-1) is a full sibling
-        of A's ancestor at depth (up-1). For avuncular-type paths: A^(down-1) @ F @ A^(up-1).T.
+        Individual B is (down-1) hops below a sibling of someone (up-1)
+        hops above individual A, where sibling type is determined by
+        *sib_matrix* (full-sib or half-sib).
         """
-        self._ensure_sibling_matrices()
-        if self._full_sib_matrix.nnz == 0:
+        if sib_matrix.nnz == 0:
             return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
-        # Path: individual B is (down-1) hops below a full-sib of someone
-        # who is (up-1) hops above individual A.
-        # Matrix: A^(down-1) @ full_sib_matrix @ (A^(up-1)).T
-        A_down_1 = self._get_Ak(down - 1) if down > 1 else self._A
-        A_up_1 = self._get_Ak(up - 1) if up > 1 else self._A
-        M = A_down_1 @ self._full_sib_matrix @ A_up_1.T
-        return self._extract_from_sparse(M, subtract=subtract)
-
-    def _collateral_half_pairs(
-        self,
-        up: int,
-        down: int,
-        subtract: list[tuple[np.ndarray, np.ndarray]] | None = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Pairs sharing a single ancestor at depths (up, down).
-
-        Uses _half_sib_matrix analogously to _collateral_full_pairs.
-        """
-        self._ensure_sibling_matrices()
-        if not hasattr(self, "_half_sib_matrix"):
-            return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
-        if self._half_sib_matrix.nnz == 0:
-            return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
-        A_down_1 = self._get_Ak(down - 1) if down > 1 else self._A
-        A_up_1 = self._get_Ak(up - 1) if up > 1 else self._A
-        M = A_down_1 @ self._half_sib_matrix @ A_up_1.T
+        A_down_1 = self._get_Ak(down - 1)
+        A_up_1 = self._get_Ak(up - 1)
+        M = A_down_1 @ sib_matrix @ A_up_1.T
         return self._extract_from_sparse(M, subtract=subtract)
 
     # ------------------------------------------------------------------
@@ -403,6 +399,7 @@ class PedigreeGraph:
 
         if len(nt_idx) < 2:
             self._full_sib_matrix = sp.csr_matrix((self.n, self.n))
+            self._half_sib_matrix = sp.csr_matrix((self.n, self.n))
             return empty, empty, empty
 
         nt_mother = self._orig_mother[nt_idx]
@@ -606,26 +603,13 @@ class PedigreeGraph:
             logger.debug("Cousins: 0 pairs after sibling removal (%.3fs)", time.perf_counter() - t0)
             return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
 
-        # Deduplicate (two cousins may share multiple grandparents)
-        # int64 cast required: max_id² overflows int32
-        max_id = max(int(p1.max()), int(p2.max())) + 1
-        keys = p1.astype(np.int64) * max_id + p2.astype(np.int64)
-        _, unique_idx = np.unique(keys, return_index=True)
-
-        result = p1[unique_idx].astype(np.intp), p2[unique_idx].astype(np.intp)
+        result = self._dedup_pairs(p1, p2)
         logger.debug("Cousins: %d unique pairs (%.3fs)", len(result[0]), time.perf_counter() - t0)
         return result
 
     def _grandparent_grandchild_pairs(self) -> tuple[np.ndarray, np.ndarray]:
-        """Grandparent-grandchild pairs: 2-hop ancestor links.
-
-        A2[child, grandparent] > 0 iff grandparent is a 2-hop ancestor.
-        """
-        gc_i, gp_j = self._A2.nonzero()
-
-        if len(gc_i) == 0:
-            return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
-        return gc_i.astype(np.intp), gp_j.astype(np.intp)
+        """Grandparent-grandchild pairs: 2-hop ancestor links."""
+        return self._lineal_pairs(2)
 
     def _avuncular_pairs(self, full_sib: tuple[np.ndarray, np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
         """Avuncular (uncle/aunt-nephew/niece) pairs.
@@ -634,24 +618,14 @@ class PedigreeGraph:
         full sibling of U. In matrix form: A @ S_full, then exclude
         parent-child pairs (which share the same edge structure).
         """
-        # Get the full-sib symmetric matrix (cached by _sibling_pairs)
-        if not hasattr(self, "_full_sib_matrix"):
-            # Build it if _sibling_pairs wasn't called first
-            sib1, sib2 = full_sib
-            if len(sib1) == 0:
-                return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
-            n = self.n
-            ones = np.ones(len(sib1), dtype=np.float64)
-            F = sp.csr_matrix((ones, (sib1, sib2)), shape=(n, n))
-            full_sib_mat = F + F.T
-        else:
-            full_sib_mat = self._full_sib_matrix
+        self._ensure_sibling_matrices()
+        if self._full_sib_matrix.nnz == 0:
+            return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
 
-        avunc = self._A @ full_sib_mat
+        avunc = self._A @ self._full_sib_matrix
         avunc.setdiag(0)
 
-        # Exclude parent-child pairs: A[child, parent] = 1, so A + A.T marks
-        # all parent-child edges in both directions
+        # Exclude parent-child pairs
         parent_child = (self._A + self._A.T) > 0
         avunc = avunc - avunc.multiply(parent_child)
         avunc.eliminate_zeros()
@@ -659,23 +633,7 @@ class PedigreeGraph:
         if avunc.nnz == 0:
             return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
 
-        a_i, a_j = avunc.nonzero()
-        # Canonical ordering: smaller index first
-        lo = np.minimum(a_i, a_j)
-        hi = np.maximum(a_i, a_j)
-
-        # Dedup: pack into int64 keys, sort+diff
-        # int64 cast required: max_id² overflows int32
-        max_id = int(hi.max()) + 1
-        keys = lo.astype(np.int64) * max_id + hi.astype(np.int64)
-        sort_idx = np.argsort(keys, kind="mergesort")
-        keys_sorted = keys[sort_idx]
-        mask = np.empty(len(keys_sorted), dtype=bool)
-        mask[0] = True
-        mask[1:] = keys_sorted[1:] != keys_sorted[:-1]
-        kept = sort_idx[mask]
-
-        return lo[kept].astype(np.intp), hi[kept].astype(np.intp)
+        return self._dedup_pairs(*avunc.nonzero())
 
     def _second_cousin_matrix(self) -> sp.spmatrix:
         """Symmetric sparse matrix with nonzeros at 2nd cousin pairs.
@@ -708,7 +666,6 @@ class PedigreeGraph:
 
     def extract_pairs(
         self,
-        seed: int = 42,
         max_degree: int = 2,
         min_kinship: float = 0.0,
     ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
@@ -718,7 +675,6 @@ class PedigreeGraph:
         both individuals are active are returned.
 
         Args:
-            seed: Random seed (unused — kept for API compatibility).
             max_degree: Maximum kinship degree to extract (1-5). Degree 2
                 covers through 1st cousins, degree 5 through 2nd cousins.
                 Higher degrees require more expensive matrix products.
@@ -790,27 +746,37 @@ class PedigreeGraph:
             f" [min_kinship={min_kinship}]" if min_kinship > 0 else "",
         )
 
+        # Pre-compute reusable pair tuples for subtraction in degree 3+
+        po_pairs = (
+            np.concatenate([pairs["MO"][0], pairs["FO"][0]]),
+            np.concatenate([pairs["MO"][1], pairs["FO"][1]]),
+        )
+        sib_all = (
+            np.concatenate([pairs["FS"][0], pairs["MHS"][0], pairs["PHS"][0]]),
+            np.concatenate([pairs["FS"][1], pairs["MHS"][1], pairs["PHS"][1]]),
+        )
+        gp_pairs = pairs["GP"]
+        fsm = self._full_sib_matrix
+        hsm = self._half_sib_matrix
+
         # ---- Degree 3 (kinship 1/16): GGP, HAv, GAv ----
         if max_degree >= 3:
             t0 = time.perf_counter()
             _ = self._A3  # pre-trigger
 
-            po_pairs = (
-                np.concatenate([pairs["MO"][0], pairs["FO"][0]]),
-                np.concatenate([pairs["MO"][1], pairs["FO"][1]]),
-            )
-            gp_pairs = pairs["GP"]
-
-            pairs["GGP"] = self._lineal_pairs(3) if _needed("GGP") else (empty, empty)
-
-            pairs["HAv"] = (
-                self._collateral_half_pairs(1, 2, subtract=[po_pairs, gp_pairs]) if _needed("HAv") else (empty, empty)
-            )
-            pairs["GAv"] = (
-                self._collateral_full_pairs(1, 3, subtract=[po_pairs, gp_pairs, pairs["Av"]])
-                if _needed("GAv")
-                else (empty, empty)
-            )
+            futures: dict[str, Any] = {}
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                if _needed("GGP"):
+                    futures["GGP"] = pool.submit(self._lineal_pairs, 3)
+                if _needed("HAv"):
+                    futures["HAv"] = pool.submit(self._collateral_pairs, hsm, 1, 2, [po_pairs, gp_pairs])
+                if _needed("GAv"):
+                    futures["GAv"] = pool.submit(self._collateral_pairs, fsm, 1, 3, [po_pairs, gp_pairs, pairs["Av"]])
+                for k, fut in futures.items():
+                    pairs[k] = fut.result()
+            for code in ("GGP", "HAv", "GAv"):
+                if code not in pairs:
+                    pairs[code] = (empty, empty)
 
             logger.info(
                 "Degree 3: GGP=%d, HAv=%d, GAv=%d (%.3fs)",
@@ -827,56 +793,61 @@ class PedigreeGraph:
         if max_degree >= 4:
             t0 = time.perf_counter()
             _ = self._A4  # pre-trigger
+            # Pre-compute A2 @ A3.T for 1C1R (and reuse in degree 5 H1C1R)
+            A2_A3T = self._A2 @ self._A3.T
 
-            pairs["GGGP"] = self._lineal_pairs(4) if _needed("GGGP") else (empty, empty)
-
-            pairs["HGAv"] = (
-                self._collateral_half_pairs(1, 3, subtract=[po_pairs, gp_pairs, pairs["GGP"], pairs["HAv"]])
-                if _needed("HGAv")
-                else (empty, empty)
-            )
-            pairs["GGAv"] = (
-                self._collateral_full_pairs(
-                    1, 4, subtract=[po_pairs, gp_pairs, pairs["GGP"], pairs["Av"], pairs["GAv"]]
-                )
-                if _needed("GGAv")
-                else (empty, empty)
-            )
-
-            # H1C: share exactly 1 grandparent (not 2), exclude siblings
-            if _needed("H1C"):
+            def _extract_h1c() -> tuple[np.ndarray, np.ndarray]:
                 A2s = self._A2_shared
                 half_gp = A2s.copy()
                 half_gp.data[half_gp.data != 1] = 0
                 half_gp.eliminate_zeros()
                 half_gp.setdiag(0)
-                # Subtract anyone sharing a parent (sibs)
                 share_parent = (self._S > 0).astype(np.float64)
                 half_gp = half_gp - half_gp.multiply(share_parent)
                 half_gp.eliminate_zeros()
                 upper = sp.triu(half_gp, k=1)
-                h1c_i, h1c_j = upper.nonzero()
-                pairs["H1C"] = (h1c_i.astype(np.intp), h1c_j.astype(np.intp)) if len(h1c_i) > 0 else (empty, empty)
-            else:
-                pairs["H1C"] = (empty, empty)
+                i, j = upper.nonzero()
+                return (i.astype(np.intp), j.astype(np.intp)) if len(i) > 0 else (empty, empty)
 
-            # 1C1R: share mated-pair ancestor at depths (2, 3)
-            if _needed("1C1R"):
-                P = self._A2 @ self._A3.T
-                P.setdiag(0)
-                P_full = P.copy()
+            def _extract_1c1r() -> tuple[np.ndarray, np.ndarray]:
+                P_full = A2_A3T.copy()
+                P_full.setdiag(0)
                 P_full.data[P_full.data < 2] = 0
                 P_full.eliminate_zeros()
-                sib_all = (
-                    np.concatenate([pairs["FS"][0], pairs["MHS"][0], pairs["PHS"][0]]),
-                    np.concatenate([pairs["FS"][1], pairs["MHS"][1], pairs["PHS"][1]]),
-                )
-                pairs["1C1R"] = self._extract_from_sparse(
+                return self._extract_from_sparse(
                     P_full,
                     subtract=[po_pairs, gp_pairs, pairs["GGP"], pairs["Av"], pairs["GAv"], sib_all, pairs["1C"]],
                 )
-            else:
-                pairs["1C1R"] = (empty, empty)
+
+            futures = {}
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                if _needed("GGGP"):
+                    futures["GGGP"] = pool.submit(self._lineal_pairs, 4)
+                if _needed("HGAv"):
+                    futures["HGAv"] = pool.submit(
+                        self._collateral_pairs,
+                        hsm,
+                        1,
+                        3,
+                        [po_pairs, gp_pairs, pairs["GGP"], pairs["HAv"]],
+                    )
+                if _needed("GGAv"):
+                    futures["GGAv"] = pool.submit(
+                        self._collateral_pairs,
+                        fsm,
+                        1,
+                        4,
+                        [po_pairs, gp_pairs, pairs["GGP"], pairs["Av"], pairs["GAv"]],
+                    )
+                if _needed("H1C"):
+                    futures["H1C"] = pool.submit(_extract_h1c)
+                if _needed("1C1R"):
+                    futures["1C1R"] = pool.submit(_extract_1c1r)
+                for k, fut in futures.items():
+                    pairs[k] = fut.result()
+            for code in ("GGGP", "HGAv", "GGAv", "H1C", "1C1R"):
+                if code not in pairs:
+                    pairs[code] = (empty, empty)
 
             logger.info(
                 "Degree 4: GGGP=%d, HGAv=%d, GGAv=%d, H1C=%d, 1C1R=%d (%.3fs)",
@@ -888,6 +859,7 @@ class PedigreeGraph:
                 time.perf_counter() - t0,
             )
         else:
+            A2_A3T = None
             for code in ("GGGP", "HGAv", "GGAv", "H1C", "1C1R"):
                 pairs[code] = (empty, empty)
 
@@ -895,107 +867,83 @@ class PedigreeGraph:
         if max_degree >= 5:
             t0 = time.perf_counter()
             _ = self._A5  # pre-trigger
+            if A2_A3T is None:
+                A2_A3T = self._A2 @ self._A3.T
 
-            # 2nd cousins (refactored from original _second_cousin_pairs)
-            if _needed("2C"):
-                pairs["2C"] = self._second_cousin_pairs()
-            else:
-                pairs["2C"] = (empty, empty)
-
-            pairs["G3GP"] = self._lineal_pairs(5) if _needed("G3GP") else (empty, empty)
-
-            pairs["HGGAv"] = (
-                self._collateral_half_pairs(
-                    1,
-                    4,
-                    subtract=[
-                        po_pairs,
-                        gp_pairs,
-                        pairs["GGP"],
-                        pairs.get("GGGP", (empty, empty)),
-                        pairs["HAv"],
-                        pairs["HGAv"],
-                    ],
-                )
-                if _needed("HGGAv")
-                else (empty, empty)
-            )
-            pairs["G3Av"] = (
-                self._collateral_full_pairs(
-                    1,
-                    5,
-                    subtract=[
-                        po_pairs,
-                        gp_pairs,
-                        pairs["GGP"],
-                        pairs.get("GGGP", (empty, empty)),
-                        pairs["Av"],
-                        pairs["GAv"],
-                        pairs.get("GGAv", (empty, empty)),
-                    ],
-                )
-                if _needed("G3Av")
-                else (empty, empty)
-            )
-
-            # H1C1R: share exactly 1 ancestor at depths (2, 3)
-            if _needed("H1C1R"):
-                P = self._A2 @ self._A3.T
-                P.setdiag(0)
-                P_half = P.copy()
+            def _extract_h1c1r() -> tuple[np.ndarray, np.ndarray]:
+                P_half = A2_A3T.copy()
+                P_half.setdiag(0)
                 P_half.data[P_half.data != 1] = 0
                 P_half.eliminate_zeros()
-                sib_all = (
-                    np.concatenate([pairs["FS"][0], pairs["MHS"][0], pairs["PHS"][0]]),
-                    np.concatenate([pairs["FS"][1], pairs["MHS"][1], pairs["PHS"][1]]),
-                )
-                pairs["H1C1R"] = self._extract_from_sparse(
+                return self._extract_from_sparse(
                     P_half,
                     subtract=[
                         po_pairs,
                         gp_pairs,
                         pairs["GGP"],
-                        pairs.get("GGGP", (empty, empty)),
+                        pairs["GGGP"],
                         pairs["HAv"],
                         pairs["HGAv"],
                         sib_all,
                         pairs["1C"],
                         pairs["H1C"],
-                        pairs.get("1C1R", (empty, empty)),
+                        pairs["1C1R"],
                     ],
                 )
-            else:
-                pairs["H1C1R"] = (empty, empty)
 
-            # 1C2R: share mated-pair ancestor at depths (2, 4)
-            if _needed("1C2R"):
-                P = self._A2 @ self._A4.T
-                P.setdiag(0)
-                P_full = P.copy()
+            def _extract_1c2r() -> tuple[np.ndarray, np.ndarray]:
+                P_full = self._A2 @ self._A4.T
+                P_full.setdiag(0)
                 P_full.data[P_full.data < 2] = 0
                 P_full.eliminate_zeros()
-                sib_all = (
-                    np.concatenate([pairs["FS"][0], pairs["MHS"][0], pairs["PHS"][0]]),
-                    np.concatenate([pairs["FS"][1], pairs["MHS"][1], pairs["PHS"][1]]),
-                )
-                pairs["1C2R"] = self._extract_from_sparse(
+                return self._extract_from_sparse(
                     P_full,
                     subtract=[
                         po_pairs,
                         gp_pairs,
                         pairs["GGP"],
-                        pairs.get("GGGP", (empty, empty)),
+                        pairs["GGGP"],
                         pairs["Av"],
                         pairs["GAv"],
-                        pairs.get("GGAv", (empty, empty)),
+                        pairs["GGAv"],
                         sib_all,
                         pairs["1C"],
                         pairs["H1C"],
-                        pairs.get("1C1R", (empty, empty)),
+                        pairs["1C1R"],
                     ],
                 )
-            else:
-                pairs["1C2R"] = (empty, empty)
+
+            futures = {}
+            with ThreadPoolExecutor(max_workers=6) as pool:
+                if _needed("2C"):
+                    futures["2C"] = pool.submit(self._second_cousin_pairs)
+                if _needed("G3GP"):
+                    futures["G3GP"] = pool.submit(self._lineal_pairs, 5)
+                if _needed("HGGAv"):
+                    futures["HGGAv"] = pool.submit(
+                        self._collateral_pairs,
+                        hsm,
+                        1,
+                        4,
+                        [po_pairs, gp_pairs, pairs["GGP"], pairs["GGGP"], pairs["HAv"], pairs["HGAv"]],
+                    )
+                if _needed("G3Av"):
+                    futures["G3Av"] = pool.submit(
+                        self._collateral_pairs,
+                        fsm,
+                        1,
+                        5,
+                        [po_pairs, gp_pairs, pairs["GGP"], pairs["GGGP"], pairs["Av"], pairs["GAv"], pairs["GGAv"]],
+                    )
+                if _needed("H1C1R"):
+                    futures["H1C1R"] = pool.submit(_extract_h1c1r)
+                if _needed("1C2R"):
+                    futures["1C2R"] = pool.submit(_extract_1c2r)
+                for k, fut in futures.items():
+                    pairs[k] = fut.result()
+            for code in ("2C", "G3GP", "HGGAv", "G3Av", "H1C1R", "1C2R"):
+                if code not in pairs:
+                    pairs[code] = (empty, empty)
 
             logger.info(
                 "Degree 5: 2C=%d, G3GP=%d, HGGAv=%d, G3Av=%d, H1C1R=%d, 1C2R=%d (%.3fs)",
@@ -1034,57 +982,18 @@ class PedigreeGraph:
         """Count all relationship categories.
 
         If ``extract_pairs()`` was already called on this instance, returns
-        the cached pre-filter counts (nearly free).  Otherwise computes
-        counts from scratch using the same methods as ``extract_pairs()``.
+        the cached pre-filter counts (nearly free).  Otherwise runs
+        ``extract_pairs()`` to compute all types up to *max_degree*.
         """
         if hasattr(self, "_raw_pair_counts"):
             return dict(self._raw_pair_counts)
-
-        # Compute from scratch
-        counts: dict[str, int] = {}
-
-        counts["MZ"] = len(self._mz_twin_pairs()[0])
-
-        mo, fo = self._parent_offspring_pairs()
-        counts["MO"] = len(mo[0])
-        counts["FO"] = len(fo[0])
-
-        full_sib, mat_hs, pat_hs = self._sibling_pairs()
-        counts["FS"] = len(full_sib[0])
-        counts["MHS"] = len(mat_hs[0])
-        counts["PHS"] = len(pat_hs[0])
-
-        logger.info(
-            "Siblings: %d full, %d maternal HS, %d paternal HS",
-            counts["FS"],
-            counts["MHS"],
-            counts["PHS"],
-        )
-
-        counts["1C"] = len(self._cousin_pairs()[0])
-        logger.info("1st cousins: %d pairs", counts["1C"])
-
-        counts["GP"] = len(self._grandparent_grandchild_pairs()[0])
-        logger.info("Grandparent: %d pairs", counts["GP"])
-
-        counts["Av"] = len(self._avuncular_pairs(full_sib)[0])
-        logger.info("Avuncular: %d pairs", counts["Av"])
-
-        if max_degree < 5:
-            counts["2C"] = 0
-            logger.info("2nd cousins: skipped (max_degree=%d)", max_degree)
-        else:
-            counts["2C"] = len(self._second_cousin_pairs()[0])
-            logger.info("2nd cousins: %d pairs", counts["2C"])
-
-        self._raw_pair_counts = counts
-        return dict(counts)
+        self.extract_pairs(max_degree=max_degree)
+        return dict(self._raw_pair_counts)
 
 
 def _build_graph_and_remap(
     df: pd.DataFrame,
     full_pedigree: pd.DataFrame,
-    seed: int,
     max_degree: int,
 ) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], dict[str, int], np.ndarray]:
     """Build PedigreeGraph on full pedigree, extract pairs, remap to df indices.
@@ -1096,7 +1005,7 @@ def _build_graph_and_remap(
     sample_mask = np.array([int(x) in pheno_ids for x in full_ids], dtype=bool)
 
     pg = PedigreeGraph(full_pedigree, sample_mask=sample_mask)
-    raw_pairs = pg.extract_pairs(seed=seed, max_degree=max_degree)
+    raw_pairs = pg.extract_pairs(max_degree=max_degree)
     full_counts = dict(pg._raw_pair_counts)
 
     # Remap full-pedigree row indices → phenotype (df) row indices
@@ -1122,7 +1031,6 @@ def _build_graph_and_remap(
 
 def extract_and_count_relationship_pairs(
     df: pd.DataFrame,
-    seed: int = 42,
     full_pedigree: pd.DataFrame | None = None,
     max_degree: int = 2,
 ) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], dict[str, int] | None]:
@@ -1139,19 +1047,17 @@ def extract_and_count_relationship_pairs(
         pairs, full_counts, _ = _build_graph_and_remap(
             df,
             full_pedigree,
-            seed,
             max_degree,
         )
         return pairs, full_counts
 
     pg = PedigreeGraph(df)
-    pairs = pg.extract_pairs(seed=seed, max_degree=max_degree)
+    pairs = pg.extract_pairs(max_degree=max_degree)
     return pairs, None
 
 
 def extract_relationship_pairs(
     df: pd.DataFrame,
-    seed: int = 42,
     full_pedigree: pd.DataFrame | None = None,
     max_degree: int = 2,
 ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
@@ -1167,7 +1073,6 @@ def extract_relationship_pairs(
     """
     pairs, _ = extract_and_count_relationship_pairs(
         df,
-        seed=seed,
         full_pedigree=full_pedigree,
         max_degree=max_degree,
     )

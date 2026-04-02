@@ -79,7 +79,7 @@ def compute_ltm_falconer(
         ``r_tetrachoric``, ``se_r``, ``h2_falconer``, ``se_h2``,
         ``n_pairs``, ``kinship``.
     """
-    pairs = extract_relationship_pairs(df, seed=seed, full_pedigree=pedigree)
+    pairs = extract_relationship_pairs(df, full_pedigree=pedigree)
     affected = df[f"affected{trait_num}"].values.astype(bool)
 
     results: dict[str, dict[str, Any]] = {}

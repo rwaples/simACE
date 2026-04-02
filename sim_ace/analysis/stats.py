@@ -405,7 +405,7 @@ def compute_liability_correlations(
     pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> dict[str, Any]:
     if pairs is None:
-        pairs = extract_relationship_pairs(df, seed=seed)
+        pairs = extract_relationship_pairs(df)
     result = {}
     for trait_num in [1, 2]:
         liability = df[f"liability{trait_num}"].values
@@ -448,7 +448,7 @@ def compute_tetrachoric(
     pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> dict[str, Any]:
     if pairs is None:
-        pairs = extract_relationship_pairs(df, seed=seed)
+        pairs = extract_relationship_pairs(df)
     result = {}
     for trait_num in [1, 2]:
         affected = df[f"affected{trait_num}"].values.astype(bool)
@@ -468,7 +468,7 @@ def compute_tetrachoric_by_generation(
     if "generation" not in df.columns:
         return {}
     if pairs is None:
-        pairs = extract_relationship_pairs(df, seed=seed)
+        pairs = extract_relationship_pairs(df)
     gen_arr = df["generation"].values
     max_gen = int(gen_arr.max())
     plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
@@ -494,7 +494,7 @@ def compute_cross_trait_tetrachoric(
     pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> dict[str, Any]:
     if pairs is None:
-        pairs = extract_relationship_pairs(df, seed=seed)
+        pairs = extract_relationship_pairs(df)
     a1 = df["affected1"].values.astype(bool)
     a2 = df["affected2"].values.astype(bool)
     r_sp, se_sp = tetrachoric_corr_se(a1, a2)
@@ -599,7 +599,7 @@ def compute_tetrachoric_by_sex(
     per-pair-type {r, se, n_pairs, liability_r}.
     """
     if pairs is None:
-        pairs = extract_relationship_pairs(df, seed=seed)
+        pairs = extract_relationship_pairs(df)
     sex_arr = df["sex"].values
     result: dict[str, Any] = {}
     for sex_val, sex_label in [(0, "female"), (1, "male")]:
@@ -951,7 +951,6 @@ def main(
     t0 = time.perf_counter()
     pairs, full_counts = extract_and_count_relationship_pairs(
         df,
-        seed=seed,
         full_pedigree=df_ped,
         max_degree=max_degree,
     )

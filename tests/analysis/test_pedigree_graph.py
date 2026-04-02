@@ -197,7 +197,7 @@ class TestGoldenComparison:
         """
         df = small_pedigree
         legacy = _extract_relationship_pairs_legacy(df, seed=42)
-        new = extract_relationship_pairs(df, seed=42)
+        new = extract_relationship_pairs(df)
 
         exact_keys = [
             "MZ",
@@ -403,8 +403,8 @@ class TestNoSubsamplingLoss:
 
     def test_exact_cousin_count(self, small_pedigree):
         """Verify cousin count is deterministic (no RNG-dependent cap)."""
-        pairs1 = extract_relationship_pairs(small_pedigree, seed=1)
-        pairs2 = extract_relationship_pairs(small_pedigree, seed=999)
+        pairs1 = extract_relationship_pairs(small_pedigree)
+        pairs2 = extract_relationship_pairs(small_pedigree)
         assert len(pairs1["1C"][0]) == len(pairs2["1C"][0])
 
 

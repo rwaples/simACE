@@ -92,7 +92,7 @@ def main(
     full_ped = pd.read_parquet(pedigree_path) if pedigree_path is not None else None
     logger.info("Extracting relationship pairs...")
     t_pairs = time.perf_counter()
-    pairs = extract_relationship_pairs(df, seed=seed, full_pedigree=full_ped, max_degree=max_degree)
+    pairs = extract_relationship_pairs(df, full_pedigree=full_ped, max_degree=max_degree)
     del full_ped
     logger.info(
         "Relationship pairs extracted in %.1fs: %s",
