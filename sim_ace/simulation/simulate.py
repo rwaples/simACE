@@ -1130,36 +1130,46 @@ def run_simulation(
     sd_A1 = np.sqrt(A1)
     sd_A2 = np.sqrt(A2)
 
-    # Within-person cross-trait liability correlation (uses gen-0 C/E for founder init)
-    rho_w = (
-        rA * np.sqrt(A1 * A2)
-        + rC * np.sqrt(C1_per_gen[0] * C2_per_gen[0])
-        + rE * np.sqrt(E1_per_gen[0] * E2_per_gen[0])
-    )
+    # Within-person cross-trait liability correlation per C/E generation
+    _rho_w_A = rA * np.sqrt(A1 * A2)
+    rho_w_per_ce = [
+        _rho_w_A
+        + rC * np.sqrt(C1_per_gen[g] * C2_per_gen[g])
+        + rE * np.sqrt(E1_per_gen[g] * E2_per_gen[g])
+        for g in range(G_sim)
+    ]
 
-    if assort1 != 0 and assort2 != 0 and abs(rho_w) >= 1.0 - 1e-10:
-        raise ValueError(
-            f"Both-trait assortative mating requires |rho_w| < 1 "
-            f"(got rho_w={rho_w:.4f}). Traits are perfectly correlated; "
-            f"use single-trait assortment instead."
-        )
+    # Validate |rho_w| < 1 for all C/E generations
+    if assort1 != 0 and assort2 != 0:
+        for g, rw in enumerate(rho_w_per_ce):
+            if abs(rw) >= 1.0 - 1e-10:
+                raise ValueError(
+                    f"Both-trait assortative mating requires |rho_w| < 1 "
+                    f"(got rho_w={rw:.4f} at C/E generation {g}). "
+                    f"Traits are perfectly correlated; "
+                    f"use single-trait assortment instead."
+                )
 
-    # Auto-compute R_mf off-diagonals when both traits assort and no explicit matrix
-    if R_mf is None and assort1 != 0 and assort2 != 0:
-        c = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
-        R_mf = np.array([[assort1, c], [c, assort2]])
+    # Track whether R_mf was provided explicitly (vs. auto-computed from rho_w)
+    R_mf_user = R_mf
 
-    # Validate PSD of full 4x4 Sigma when R_mf is specified
-    if R_mf is not None:
-        R_ff = np.array([[1.0, rho_w], [rho_w, 1.0]])
-        Sigma_4 = np.block([[R_ff, R_mf.T], [R_mf, R_ff]])
-        eigvals = np.linalg.eigvalsh(Sigma_4)
-        if eigvals[0] < -1e-8:
-            raise ValueError(
-                f"Full 4x4 mate correlation matrix Sigma_4 is not PSD "
-                f"(min eigenvalue = {eigvals[0]:.6f}). "
-                f"Reduce the magnitude of assort_matrix off-diagonal entries."
-            )
+    # Validate PSD of full 4x4 Sigma for each generation's rho_w
+    if R_mf_user is not None or (assort1 != 0 and assort2 != 0):
+        for g, rw in enumerate(rho_w_per_ce):
+            if R_mf_user is not None:
+                R_mf_g = R_mf_user
+            else:
+                c = rw * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
+                R_mf_g = np.array([[assort1, c], [c, assort2]])
+            R_ff = np.array([[1.0, rw], [rw, 1.0]])
+            Sigma_4 = np.block([[R_ff, R_mf_g.T], [R_mf_g, R_ff]])
+            eigvals = np.linalg.eigvalsh(Sigma_4)
+            if eigvals[0] < -1e-8:
+                raise ValueError(
+                    f"Full 4x4 mate correlation matrix Sigma_4 is not PSD "
+                    f"(min eigenvalue = {eigvals[0]:.6f} at C/E generation {g}). "
+                    f"Reduce the magnitude of assort_matrix off-diagonal entries."
+                )
 
     # Initialize founders with correlated components (using gen-0 C/E variances)
     sex = rng.binomial(size=N, n=1, p=0.5)
@@ -1196,6 +1206,19 @@ def run_simulation(
 
     for i in range(G_sim):
         t_gen = time.perf_counter()
+
+        # rho_w for the current parental population:
+        # founders (i=0) have gen-0 C/E; offspring from iter j have per_gen[j] C/E
+        parent_ce_gen = max(0, i - 1)
+        rho_w_i = rho_w_per_ce[parent_ce_gen]
+
+        # Auto-compute R_mf for this generation's rho_w if not user-provided
+        if R_mf_user is None and assort1 != 0 and assort2 != 0:
+            c = rho_w_i * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
+            R_mf_i = np.array([[assort1, c], [c, assort2]])
+        else:
+            R_mf_i = R_mf_user
+
         parents, twins, household_ids = mating(
             rng,
             sex,
@@ -1204,8 +1227,8 @@ def run_simulation(
             pheno=pheno,
             assort1=assort1,
             assort2=assort2,
-            rho_w=rho_w,
-            assort_matrix=R_mf,
+            rho_w=rho_w_i,
+            assort_matrix=R_mf_i,
         )
         t_mate = time.perf_counter()
         pheno, sex = reproduce(
