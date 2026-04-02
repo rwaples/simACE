@@ -21,16 +21,16 @@ from sim_ace.core.pedigree_graph import extract_relationship_pairs
 
 logger = logging.getLogger(__name__)
 
-# EPIMIGHT kind → list of ACE pair type names (mirrors epimight/create_parquet.py)
+# EPIMIGHT kind → list of ACE pair type codes (mirrors epimight/create_parquet.py)
 KIND_TO_PAIRS: dict[str, list[str]] = {
-    "PO": ["Mother-offspring", "Father-offspring"],
-    "FS": ["Full sib", "MZ twin"],
-    "HS": ["Maternal half sib", "Paternal half sib"],
-    "mHS": ["Maternal half sib"],
-    "pHS": ["Paternal half sib"],
-    "1C": ["1st cousin"],
-    "Av": ["Avuncular"],
-    "1G": ["Grandparent-grandchild"],
+    "PO": ["MO", "FO"],
+    "FS": ["FS", "MZ"],
+    "HS": ["MHS", "PHS"],
+    "mHS": ["MHS"],
+    "pHS": ["PHS"],
+    "1C": ["1C"],
+    "Av": ["Av"],
+    "1G": ["GP"],
 }
 
 # Kinship coefficient (f) for each EPIMIGHT kind.

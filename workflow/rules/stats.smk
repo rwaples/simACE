@@ -10,11 +10,19 @@ rule stats_phenotype:
     output:
         stats="results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
         samples=temp("results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet"),
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/phenotype_stats.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_stats.tsv"
+    threads: 5
+    resources:
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
         gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
-        skip_2nd_cousins=lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
+        max_degree=lambda w: get_param(config, w.scenario, "max_degree"),
         case_ascertainment_ratio=lambda w: get_param(
             config, w.scenario, "case_ascertainment_ratio"
         ),
@@ -24,14 +32,6 @@ rule stats_phenotype:
         beta2=lambda w: get_param(config, w.scenario, "beta2"),
         phenotype_model2=lambda w: get_param(config, w.scenario, "phenotype_model2"),
         phenotype_params2=lambda w: get_param(config, w.scenario, "phenotype_params2"),
-    log:
-        "logs/{folder}/{scenario}/rep{rep}/phenotype_stats.log",
-    benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_stats.tsv"
-    resources:
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
-        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
-    threads: 5
     script:
         "../scripts/compute_phenotype_stats.py"
 
@@ -58,19 +58,19 @@ rule plot_phenotype:
         ),
     output:
         expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS),
-    params:
-        censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
-        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
-        skip_2nd_cousins=lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
-        plot_format=lambda w: config["defaults"].get("plot_format", "png"),
     log:
         "logs/{folder}/{scenario}/plot_phenotype.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/plot_phenotype.tsv"
+    threads: 1
     resources:
         mem_mb=2000,
         runtime=5,
-    threads: 1
+    params:
+        censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
+        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
+        max_degree=lambda w: get_param(config, w.scenario, "max_degree"),
+        plot_format=lambda w: config["defaults"].get("plot_format", "png"),
     script:
         "../scripts/plot_phenotype.py"
 
@@ -82,20 +82,20 @@ rule stats_simple_ltm:
     output:
         stats="results/{folder}/{scenario}/rep{rep}/simple_ltm_stats.yaml",
         samples=temp("results/{folder}/{scenario}/rep{rep}/simple_ltm_samples.parquet"),
-    params:
-        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
-        skip_2nd_cousins=lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
-        case_ascertainment_ratio=lambda w: get_param(
-            config, w.scenario, "case_ascertainment_ratio"
-        ),
     log:
         "logs/{folder}/{scenario}/rep{rep}/simple_ltm_stats.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/simple_ltm_stats.tsv"
+    threads: 2
     resources:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
-    threads: 2
+    params:
+        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
+        max_degree=lambda w: get_param(config, w.scenario, "max_degree"),
+        case_ascertainment_ratio=lambda w: get_param(
+            config, w.scenario, "case_ascertainment_ratio"
+        ),
     script:
         "../scripts/compute_simple_ltm_stats.py"
 
@@ -116,6 +116,14 @@ rule plot_simple_ltm:
         ),
     output:
         expand("results/{{folder}}/{{scenario}}/plots/{plot}", plot=SIMPLE_LTM_PLOTS),
+    log:
+        "logs/{folder}/{scenario}/plot_simple_ltm.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/plot_simple_ltm.tsv"
+    threads: 1
+    resources:
+        mem_mb=2000,
+        runtime=5,
     params:
         prevalence1=lambda w: get_param(config, w.scenario, "prevalence1"),
         prevalence2=lambda w: get_param(config, w.scenario, "prevalence2"),
@@ -124,14 +132,6 @@ rule plot_simple_ltm:
         A2=lambda w: get_param(config, w.scenario, "A2"),
         C2=lambda w: get_param(config, w.scenario, "C2"),
         plot_format=lambda w: config["defaults"].get("plot_format", "png"),
-    log:
-        "logs/{folder}/{scenario}/plot_simple_ltm.log",
-    benchmark:
-        "benchmarks/{folder}/{scenario}/plot_simple_ltm.tsv"
-    resources:
-        mem_mb=2000,
-        runtime=5,
-    threads: 1
     script:
         "../scripts/plot_simple_ltm.py"
 
@@ -153,6 +153,14 @@ rule assemble_scenario_atlas:
         ),
     output:
         "results/{folder}/{scenario}/plots/atlas.pdf",
+    log:
+        "logs/{folder}/{scenario}/assemble_atlas.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/assemble_atlas.tsv"
+    threads: 1
+    resources:
+        mem_mb=1000,
+        runtime=5,
     params:
         scenario=lambda w: w.scenario,
         replicates=lambda w: get_param(config, w.scenario, "replicates"),
@@ -180,15 +188,7 @@ rule assemble_scenario_atlas:
         case_ascertainment_ratio=lambda w: get_param(
             config, w.scenario, "case_ascertainment_ratio"
         ),
-        skip_2nd_cousins=lambda w: get_param(config, w.scenario, "skip_2nd_cousins"),
+        max_degree=lambda w: get_param(config, w.scenario, "max_degree"),
         plot_format=lambda w: config["defaults"].get("plot_format", "png"),
-    log:
-        "logs/{folder}/{scenario}/assemble_atlas.log",
-    benchmark:
-        "benchmarks/{folder}/{scenario}/assemble_atlas.tsv"
-    resources:
-        mem_mb=1000,
-        runtime=5,
-    threads: 1
     script:
         "../scripts/assemble_atlas.py"

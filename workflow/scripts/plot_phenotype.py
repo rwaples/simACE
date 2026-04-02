@@ -18,7 +18,7 @@ def _run_snakemake():
     output_dir = Path(snakemake.output[0]).parent
 
     validation_paths = list(snakemake.input.validations)
-    skip_2nd_cousins = bool(getattr(snakemake.params, "skip_2nd_cousins", False))
+    max_degree = int(getattr(snakemake.params, "max_degree", 2))
 
     main(
         stats_paths,
@@ -28,7 +28,7 @@ def _run_snakemake():
         gen_censoring=gen_censoring,
         plot_ext=plot_format,
         validation_paths=validation_paths,
-        skip_2nd_cousins=skip_2nd_cousins,
+        max_degree=max_degree,
     )
 
 

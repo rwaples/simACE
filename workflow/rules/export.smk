@@ -9,14 +9,14 @@ rule parquet_to_tsv:
         "{path}.parquet",
     output:
         "{path}.tsv.gz",
-    params:
-        float_precision=config["defaults"].get("tsv_float_precision", 4),
     log:
         "logs/{path}.parquet_to_tsv.log",
+    threads: 1
     resources:
         mem_mb=2000,
         runtime=5,
-    threads: 1
+    params:
+        float_precision=config["defaults"].get("tsv_float_precision", 4),
     script:
         "../scripts/parquet_to_tsv.py"
 
@@ -27,14 +27,14 @@ rule parquet_to_tsv_uncompressed:
         "{path}.parquet",
     output:
         "{path}.tsv",
-    params:
-        float_precision=config["defaults"].get("tsv_float_precision", 4),
-        gzip=False,
     log:
         "logs/{path}.parquet_to_tsv_uncompressed.log",
+    threads: 1
     resources:
         mem_mb=2000,
         runtime=5,
-    threads: 1
+    params:
+        float_precision=config["defaults"].get("tsv_float_precision", 4),
+        gzip=False,
     script:
         "../scripts/parquet_to_tsv.py"

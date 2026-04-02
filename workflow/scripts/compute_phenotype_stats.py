@@ -41,7 +41,7 @@ def _run_snakemake():
         gen_censoring=gen_censoring,
         frailty_params=frailty_params,
         pedigree_path=snakemake.input.pedigree,
-        skip_2nd_cousins=p.get("skip_2nd_cousins", True),
+        max_degree=p.get("max_degree", 2),
         case_ascertainment_ratio=p.get("case_ascertainment_ratio", 1.0),
     )
 

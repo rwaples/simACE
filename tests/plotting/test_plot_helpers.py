@@ -135,12 +135,12 @@ def minimal_stats():
         {
             "tetrachoric": {
                 "trait1": {
-                    "MZ twin": {"r": 0.8, "n_pairs": 20},
-                    "Full sib": {"r": 0.5, "n_pairs": 100},
+                    "MZ": {"r": 0.8, "n_pairs": 20},
+                    "FS": {"r": 0.5, "n_pairs": 100},
                 },
                 "trait2": {
-                    "MZ twin": {"r": 0.7, "n_pairs": 20},
-                    "Full sib": {"r": 0.4, "n_pairs": 100},
+                    "MZ": {"r": 0.7, "n_pairs": 20},
+                    "FS": {"r": 0.4, "n_pairs": 100},
                 },
             },
             "liability_correlations": {"trait1": {}, "trait2": {}},

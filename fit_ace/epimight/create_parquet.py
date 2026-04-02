@@ -9,16 +9,16 @@ from sim_ace.core.pedigree_graph import extract_relationship_pairs
 
 BASE_YEAR = 1960  # calendar year offset: born_at_year = BASE_YEAR + generation
 
-# Mapping from EPIMIGHT relationship kinds to ACE pair type names
+# Mapping from EPIMIGHT relationship kinds to ACE pair type codes
 KIND_TO_PAIRS = {
-    "PO": ["Mother-offspring", "Father-offspring"],
-    "FS": ["Full sib", "MZ twin"],
-    "HS": ["Maternal half sib", "Paternal half sib"],
-    "mHS": ["Maternal half sib"],
-    "pHS": ["Paternal half sib"],
-    "1C": ["1st cousin"],
-    "Av": ["Avuncular"],
-    "1G": ["Grandparent-grandchild"],
+    "PO": ["MO", "FO"],
+    "FS": ["FS", "MZ"],
+    "HS": ["MHS", "PHS"],
+    "mHS": ["MHS"],
+    "pHS": ["PHS"],
+    "1C": ["1C"],
+    "Av": ["Av"],
+    "1G": ["GP"],
 }
 
 # Asymmetric relationship kinds: count only diagnosed older-generation

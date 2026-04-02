@@ -9,6 +9,14 @@ rule phenotype:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
         phenotype=temp("results/{folder}/{scenario}/rep{rep}/phenotype.raw.parquet"),
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/phenotype.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype.tsv"
+    threads: 1
+    resources:
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
@@ -23,14 +31,6 @@ rule phenotype:
         beta2=lambda w: get_param(config, w.scenario, "beta2"),
         beta_sex2=lambda w: get_param(config, w.scenario, "beta_sex2"),
         phenotype_params2=lambda w: get_param(config, w.scenario, "phenotype_params2"),
-    log:
-        "logs/{folder}/{scenario}/rep{rep}/phenotype.log",
-    benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype.tsv"
-    resources:
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
-        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
-    threads: 1
     script:
         "../scripts/phenotype.py"
 
@@ -40,20 +40,20 @@ rule censor_weibull:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.raw.parquet",
     output:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.parquet",
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/censor_weibull.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/censor_weibull.tsv"
+    threads: 1
+    resources:
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
         death_scale=lambda w: get_param(config, w.scenario, "death_scale"),
         death_rho=lambda w: get_param(config, w.scenario, "death_rho"),
         gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
-    log:
-        "logs/{folder}/{scenario}/rep{rep}/censor_weibull.log",
-    benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/censor_weibull.tsv"
-    resources:
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
-        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
-    threads: 1
     script:
         "../scripts/censor.py"
 
@@ -63,18 +63,18 @@ rule phenotype_simple_ltm:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.simple_ltm.parquet",
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.tsv"
+    threads: 1
+    resources:
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
     params:
         prevalence1=lambda w: get_param(config, w.scenario, "prevalence1"),
         prevalence2=lambda w: get_param(config, w.scenario, "prevalence2"),
         G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
         standardize=lambda w: get_param(config, w.scenario, "standardize"),
-    log:
-        "logs/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.log",
-    benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.tsv"
-    resources:
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
-        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
-    threads: 1
     script:
         "../scripts/phenotype_threshold.py"

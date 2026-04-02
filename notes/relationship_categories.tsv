@@ -1,0 +1,24 @@
+code	label	up	down	n_ancestors	kinship	degree
+MZ	MZ twin	0	0	0	0.500000	0
+MO	Mother-offspring	1	0	1	0.250000	1
+FO	Father-offspring	1	0	1	0.250000	1
+FS	Full sib	1	1	2	0.250000	1
+MHS	Maternal half sib	1	1	1	0.125000	2
+PHS	Paternal half sib	1	1	1	0.125000	2
+GP	Grandparent	2	0	1	0.125000	2
+Av	Avuncular	1	2	2	0.125000	2
+GGP	Great-grandparent	3	0	1	0.062500	3
+HAv	Half-avuncular	1	2	1	0.062500	3
+GAv	Great-avuncular	1	3	2	0.062500	3
+1C	1st cousin	2	2	2	0.062500	3
+GGGP	Great²-grandparent	4	0	1	0.031250	4
+HGAv	Half-great-avuncular	1	3	1	0.031250	4
+GGAv	Great²-avuncular	1	4	2	0.031250	4
+H1C	Half-1st-cousin	2	2	1	0.031250	4
+1C1R	1st cousin 1R	2	3	2	0.031250	4
+G3GP	Great³-grandparent	5	0	1	0.015625	5
+HGGAv	Half-great²-avuncular	1	4	1	0.015625	5
+G3Av	Great³-avuncular	1	5	2	0.015625	5
+H1C1R	Half-1st-cousin 1R	2	3	1	0.015625	5
+1C2R	1st cousin 2R	2	4	2	0.015625	5
+2C	2nd cousin	3	3	2	0.015625	5

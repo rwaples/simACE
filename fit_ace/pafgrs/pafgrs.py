@@ -34,6 +34,7 @@ from sim_ace.core._numba_utils import (
 from sim_ace.core._numba_utils import (
     _norm_sf as _nb_norm_sf,
 )
+from sim_ace.core.pedigree_graph import PAIR_KINSHIP
 
 logger = logging.getLogger(__name__)
 
@@ -709,19 +710,8 @@ def _compute_depth(m_idx: np.ndarray, f_idx: np.ndarray, n: int) -> np.ndarray:
 # Pair-based kinship (fast alternative to DP for non-consanguineous pedigrees)
 # ---------------------------------------------------------------------------
 
-# Kinship coefficient for each pair type returned by PedigreeGraph.extract_pairs()
-PAIR_KINSHIP: dict[str, float] = {
-    "MZ twin": 0.5,
-    "Mother-offspring": 0.25,
-    "Father-offspring": 0.25,
-    "Full sib": 0.25,
-    "Maternal half sib": 0.125,
-    "Paternal half sib": 0.125,
-    "Grandparent-grandchild": 0.125,
-    "Avuncular": 0.125,
-    "1st cousin": 0.0625,
-    "2nd cousin": 0.015625,
-}
+# Kinship coefficient for each pair type — imported from canonical registry
+# in sim_ace.core.pedigree_graph (see top-level imports).
 
 
 def build_kinship_from_pairs(
@@ -751,10 +741,9 @@ def build_kinship_from_pairs(
     t0 = time.perf_counter()
     n = len(pedigree_df)
     kin_threshold = 0.5 ** (ndegree + 1) - 1e-6
-    skip_2nd_cousins = ndegree < 4
 
     graph = PedigreeGraph(pedigree_df)
-    pairs = graph.extract_pairs(seed=0, skip_2nd_cousins=skip_2nd_cousins, min_kinship=kin_threshold)
+    pairs = graph.extract_pairs(seed=0, max_degree=ndegree, min_kinship=kin_threshold)
 
     # Collect all (row, col, kinship) triplets
     all_rows: list[np.ndarray] = []

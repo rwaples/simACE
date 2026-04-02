@@ -71,7 +71,7 @@ defaults:
   prevalence2: 0.20
 
   # ── Misc ──────────────────────────────────────────────────────────────────
-  skip_2nd_cousins: True
+  max_degree: 2
   N_sample: 0
   case_ascertainment_ratio: 1
   pedigree_dropout_rate: 0

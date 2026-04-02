@@ -52,7 +52,7 @@ def _run_snakemake():
         "N_sample",
         "pedigree_dropout_rate",
         "case_ascertainment_ratio",
-        "skip_2nd_cousins",
+        "max_degree",
         "plot_format",
     ]
     for key in extra_keys:

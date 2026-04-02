@@ -115,13 +115,13 @@ class TestComputeWeibullPairCorr:
 
         # Use a simple pairs dict with only a few types populated
         pairs = {
-            "MZ twin": (np.array([], dtype=int), np.array([], dtype=int)),
-            "Full sib": (np.arange(50, 75), np.arange(75, 100)),
-            "Mother-offspring": (np.arange(50, 70), np.arange(0, 20)),
-            "Father-offspring": (np.arange(50, 70), np.arange(20, 40)),
-            "Maternal half sib": (np.array([], dtype=int), np.array([], dtype=int)),
-            "Paternal half sib": (np.array([], dtype=int), np.array([], dtype=int)),
-            "1st cousin": (np.array([], dtype=int), np.array([], dtype=int)),
+            "MZ": (np.array([], dtype=int), np.array([], dtype=int)),
+            "FS": (np.arange(50, 75), np.arange(75, 100)),
+            "MO": (np.arange(50, 70), np.arange(0, 20)),
+            "FO": (np.arange(50, 70), np.arange(20, 40)),
+            "MHS": (np.array([], dtype=int), np.array([], dtype=int)),
+            "PHS": (np.array([], dtype=int), np.array([], dtype=int)),
+            "1C": (np.array([], dtype=int), np.array([], dtype=int)),
         }
 
         result = compute_weibull_pair_corr(df, trait_num=1, scale=31.623, rho=2.0, beta=1.0, pairs=pairs)
@@ -136,8 +136,8 @@ class TestComputeWeibullPairCorr:
             assert "n_pairs" in entry
 
         # Empty pair types should have r=None
-        assert result["MZ twin"]["r"] is None
-        assert result["MZ twin"]["n_pairs"] == 0
+        assert result["MZ"]["r"] is None
+        assert result["MZ"]["n_pairs"] == 0
 
         # Non-empty pair types should have numeric r
-        assert result["Full sib"]["n_pairs"] == 25
+        assert result["FS"]["n_pairs"] == 25

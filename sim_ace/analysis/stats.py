@@ -913,7 +913,7 @@ def main(
     gen_censoring: dict[int, list[float]] | None = None,
     frailty_params: dict[str, dict[str, Any]] | None = None,
     pedigree_path: str | None = None,
-    skip_2nd_cousins: bool = True,
+    max_degree: int = 2,
     case_ascertainment_ratio: float = 1.0,
 ) -> None:
     """Compute all stats for a single rep and write outputs."""
@@ -953,7 +953,7 @@ def main(
         df,
         seed=seed,
         full_pedigree=df_ped,
-        skip_2nd_cousins=skip_2nd_cousins,
+        max_degree=max_degree,
     )
     logger.info(
         "Relationship pairs extracted in %.1fs: %s",
@@ -1030,11 +1030,11 @@ def cli() -> None:
     parser.add_argument("--gen-censoring", type=str, default=None, help="Per-generation censoring windows as JSON dict")
     parser.add_argument("--pedigree", default=None, help="Full pedigree parquet for G_ped pair counts")
     parser.add_argument(
-        "--no-skip-2nd-cousins",
-        dest="skip_2nd_cousins",
-        action="store_false",
-        default=True,
-        help="Include 2nd cousin pair extraction (slow)",
+        "--max-degree",
+        dest="max_degree",
+        type=int,
+        default=2,
+        help="Maximum kinship degree for pair extraction (1-5, default 2)",
     )
 
     # Trait 1 frailty params
@@ -1080,5 +1080,5 @@ def cli() -> None:
         gen_censoring=gen_censoring,
         frailty_params=frailty_params,
         pedigree_path=args.pedigree,
-        skip_2nd_cousins=args.skip_2nd_cousins,
+        max_degree=args.max_degree,
     )

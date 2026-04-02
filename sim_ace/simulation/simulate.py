@@ -1133,9 +1133,7 @@ def run_simulation(
     # Within-person cross-trait liability correlation per C/E generation
     _rho_w_A = rA * np.sqrt(A1 * A2)
     rho_w_per_ce = [
-        _rho_w_A
-        + rC * np.sqrt(C1_per_gen[g] * C2_per_gen[g])
-        + rE * np.sqrt(E1_per_gen[g] * E2_per_gen[g])
+        _rho_w_A + rC * np.sqrt(C1_per_gen[g] * C2_per_gen[g]) + rE * np.sqrt(E1_per_gen[g] * E2_per_gen[g])
         for g in range(G_sim)
     ]
 

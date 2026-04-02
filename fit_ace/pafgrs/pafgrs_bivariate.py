@@ -1077,8 +1077,8 @@ def estimate_rg(
 
     # Cross-sibling cross-trait tetrachoric
     graph = PedigreeGraph(pedigree_df)
-    pairs = graph.extract_pairs(seed=0, skip_2nd_cousins=True)
-    fs_pairs = pairs.get("Full sib", (np.array([], dtype=int), np.array([], dtype=int)))
+    pairs = graph.extract_pairs(seed=0, max_degree=2)
+    fs_pairs = pairs.get("FS", (np.array([], dtype=int), np.array([], dtype=int)))
     idx_a, idx_b = fs_pairs
 
     if len(idx_a) == 0:

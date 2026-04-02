@@ -14,13 +14,13 @@ if TYPE_CHECKING:
 
 # Canonical 7 relationship pair types used for tetrachoric / liability correlations
 PAIR_TYPES: list[str] = [
-    "MZ twin",
-    "Full sib",
-    "Mother-offspring",
-    "Father-offspring",
-    "Maternal half sib",
-    "Paternal half sib",
-    "1st cousin",
+    "MZ",
+    "FS",
+    "MO",
+    "FO",
+    "MHS",
+    "PHS",
+    "1C",
 ]
 
 

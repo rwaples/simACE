@@ -89,56 +89,56 @@ MZ_TWIN_NODES = ("mz_twin", "proband")
 
 # Relationship order for consistent colour assignment
 RELATIONSHIP_ORDER = [
-    "MZ twin",
-    "Full sib",
-    "Maternal half sib",
-    "Paternal half sib",
-    "Mother-offspring",
-    "Father-offspring",
-    "1st cousin",
-    "Grandparent-grandchild",
-    "Avuncular",
-    "2nd cousin",
+    "MZ",
+    "FS",
+    "MHS",
+    "PHS",
+    "MO",
+    "FO",
+    "1C",
+    "GP",
+    "Av",
+    "2C",
 ]
 
 # Map each relationship to the pedigree node representing the other individual
 RELATIONSHIP_NODES: dict[str, str] = {
-    "MZ twin": "mz_twin",
-    "Full sib": "full_sib",
-    "Paternal half sib": "pat_hs",
-    "Maternal half sib": "mat_hs",
-    "Father-offspring": "father",
-    "Mother-offspring": "mother",
-    "Grandparent-grandchild": "gf",
-    "Avuncular": "uncle",
-    "1st cousin": "cousin",
-    "2nd cousin": "second_cousin",
+    "MZ": "mz_twin",
+    "FS": "full_sib",
+    "PHS": "pat_hs",
+    "MHS": "mat_hs",
+    "FO": "father",
+    "MO": "mother",
+    "GP": "gf",
+    "Av": "uncle",
+    "1C": "cousin",
+    "2C": "second_cousin",
 }
 
 # Label placement relative to each node: (dx, dy, ha, va)
 # Most Gen 3 labels go below; Gen 1/2 labels go to the side.
 LABEL_OFFSETS: dict[str, tuple[float, float, str, str]] = {
-    "MZ twin": (0.0, -0.55, "center", "top"),
-    "Full sib": (0.0, -0.55, "center", "top"),
-    "Paternal half sib": (0.0, -0.55, "center", "top"),
-    "Maternal half sib": (0.0, -0.55, "center", "top"),
-    "Father-offspring": (0.0, -0.55, "center", "top"),
-    "Mother-offspring": (0.0, -0.55, "center", "top"),
-    "Grandparent-grandchild": (-1.3, 0.55, "center", "bottom"),
-    "Avuncular": (0.6, -0.55, "center", "top"),
-    "1st cousin": (0.0, -0.55, "center", "top"),
-    "2nd cousin": (0.0, -0.55, "center", "top"),
+    "MZ": (0.0, -0.55, "center", "top"),
+    "FS": (0.0, -0.55, "center", "top"),
+    "PHS": (0.0, -0.55, "center", "top"),
+    "MHS": (0.0, -0.55, "center", "top"),
+    "FO": (0.0, -0.55, "center", "top"),
+    "MO": (0.0, -0.55, "center", "top"),
+    "GP": (-1.3, 0.55, "center", "bottom"),
+    "Av": (0.6, -0.55, "center", "top"),
+    "1C": (0.0, -0.55, "center", "top"),
+    "2C": (0.0, -0.55, "center", "top"),
 }
 
 # Short display names for annotation labels
 _SHORT_LABELS: dict[str, str] = {
-    "Father-offspring": "Father",
-    "Mother-offspring": "Mother",
-    "Grandparent-grandchild": "Grandparent",
-    "Maternal half sib": "Mat. HS",
-    "Paternal half sib": "Pat. HS",
-    "MZ twin": "MZ twin",
-    "Full sib": "Full sib",
+    "FO": "Father",
+    "MO": "Mother",
+    "GP": "Grandparent",
+    "MHS": "Mat. HS",
+    "PHS": "Pat. HS",
+    "MZ": "MZ twin",
+    "FS": "Full sib",
 }
 
 # ---------------------------------------------------------------------------
@@ -261,7 +261,7 @@ def plot_pedigree_relationship_counts(
     scenario: str = "",
     stats_key: str = "pair_counts",
     generations_label: str = "",
-    skip_2nd_cousins: bool = False,
+    max_degree: int = 2,
 ) -> None:
     """Draw a proband-centric pedigree diagram with relationship pair counts.
 
@@ -300,7 +300,7 @@ def plot_pedigree_relationship_counts(
     palette = sns.color_palette("colorblind", n_colors=10)
     rel_colors = {name: palette[i] for i, name in enumerate(RELATIONSHIP_ORDER)}
     # Override yellow (hard to read on white) with a darker goldenrod
-    rel_colors["Avuncular"] = (0.75, 0.56, 0.0)
+    rel_colors["Av"] = (0.75, 0.56, 0.0)
 
     # Build map: node → relationship colour (for node border colouring)
     node_rel_color: dict[str, tuple[str, ...]] = {}
@@ -384,7 +384,7 @@ def plot_pedigree_relationship_counts(
         color = rel_colors[rel_name]
 
         display = _SHORT_LABELS.get(rel_name, rel_name)
-        if skip_2nd_cousins and rel_name == "2nd cousin":
+        if max_degree < 5 and rel_name == "2C":
             label = f"{display}\nnot computed"
         else:
             mean_count = counts.get(rel_name, 0)
@@ -405,7 +405,7 @@ def plot_pedigree_relationship_counts(
     # Legend
     handles = []
     for n in RELATIONSHIP_ORDER:
-        if skip_2nd_cousins and n == "2nd cousin":
+        if max_degree < 5 and n == "2C":
             handles.append(mpatches.Patch(color=rel_colors[n], label=f"{n} (not computed)"))
         else:
             handles.append(mpatches.Patch(color=rel_colors[n], label=f"{n} ({counts.get(n, 0):,.0f})"))

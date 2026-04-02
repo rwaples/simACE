@@ -25,13 +25,13 @@ logger = logging.getLogger(__name__)
 # Parametric expected liability correlations under the ACE model
 _EXPECTED_R_COEFFICIENTS: dict[str, tuple[float, float]] = {
     # pair_type: (coefficient of A, coefficient of C)
-    "MZ twin": (1.0, 1.0),
-    "Full sib": (0.5, 1.0),
-    "Maternal half sib": (0.25, 0.0),
-    "Paternal half sib": (0.25, 0.0),
-    "Mother-offspring": (0.5, 0.0),
-    "Father-offspring": (0.5, 0.0),
-    "1st cousin": (0.125, 0.0),
+    "MZ": (1.0, 1.0),
+    "FS": (0.5, 1.0),
+    "MHS": (0.25, 0.0),
+    "PHS": (0.25, 0.0),
+    "MO": (0.5, 0.0),
+    "FO": (0.5, 0.0),
+    "1C": (0.125, 0.0),
 }
 
 

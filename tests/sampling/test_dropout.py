@@ -171,8 +171,8 @@ class TestDropoutRelationships:
         keep = keep.reset_index(drop=True)
 
         pg = PedigreeGraph(keep)
-        pairs = pg.extract_pairs(skip_2nd_cousins=True)
-        gp_gc = pairs["Grandparent-grandchild"]
+        pairs = pg.extract_pairs(max_degree=2)
+        gp_gc = pairs["GP"]
         # 12 should NOT appear as grandchild of 0 or 1
         if len(gp_gc[0]) > 0:
             ids = keep["id"].values

@@ -19,16 +19,16 @@ rule epimight_single_create_parquet:
         t1="results/{folder}/{scenario}/rep{rep}/epimight_single/trait1.epimight_in.parquet",
         t2="results/{folder}/{scenario}/rep{rep}/epimight_single/trait2.epimight_in.parquet",
         truth="results/{folder}/{scenario}/rep{rep}/epimight_single/true_parameters.json",
-    params:
-        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
     log:
         "logs/{folder}/{scenario}/rep{rep}/epimight_single_create_parquet.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_single_create_parquet.tsv"
+    threads: 1
     resources:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
-    threads: 1
+    params:
+        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
     script:
         "../scripts/epimight_create_parquet_single.py"
 
@@ -47,10 +47,10 @@ rule epimight_single_guide_yob:
         "logs/{folder}/{scenario}/rep{rep}/epimight_single_guide_yob_{kind}.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_single_guide_yob_{kind}.tsv"
+    threads: 1
     resources:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
-    threads: 1
     shell:
         "conda run -n epimight "
         "Rscript -e \"if (!requireNamespace('epimight', quietly=TRUE)) "
@@ -80,10 +80,10 @@ rule epimight_single_atlas:
         "logs/{folder}/{scenario}/rep{rep}/epimight_single_atlas.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_single_atlas.tsv"
+    threads: 1
     resources:
         mem_mb=4000,
         runtime=10,
-    threads: 1
     script:
         "../scripts/epimight_atlas.py"
 
@@ -106,18 +106,18 @@ rule epimight_single_bias_gather:
         ],
     output:
         tsv="results/epimight_bias/epimight_single_bias_summary.tsv",
-    params:
-        results_dir="results/epimight_bias",
-        scenarios=EPIMIGHT_SINGLE_BIAS_SCENARIOS,
-        subdir="epimight_single",
     log:
         "logs/epimight_bias/epimight_single_bias_gather.log",
     benchmark:
         "benchmarks/epimight_bias/epimight_single_bias_gather.tsv"
+    threads: 1
     resources:
         mem_mb=4000,
         runtime=10,
-    threads: 1
+    params:
+        results_dir="results/epimight_bias",
+        scenarios=EPIMIGHT_SINGLE_BIAS_SCENARIOS,
+        subdir="epimight_single",
     script:
         "../scripts/epimight_bias_analysis.py"
 
@@ -128,16 +128,16 @@ rule epimight_single_bias_plots:
         tsv="results/epimight_bias/epimight_single_bias_summary.tsv",
     output:
         atlas="results/epimight_bias/plots/epimight_single_bias_atlas.pdf",
-    params:
-        include_dilution_correction=False,
     log:
         "logs/epimight_bias/epimight_single_bias_plots.log",
     benchmark:
         "benchmarks/epimight_bias/epimight_single_bias_plots.tsv"
+    threads: 1
     resources:
         mem_mb=4000,
         runtime=10,
-    threads: 1
+    params:
+        include_dilution_correction=False,
     script:
         "../scripts/plot_epimight_bias.py"
 
@@ -170,18 +170,18 @@ rule epimight_single_2M_gather:
         ],
     output:
         tsv="results/epimight_bias_2M/epimight_single_bias_summary.tsv",
-    params:
-        results_dir="results/epimight_bias_2M",
-        scenarios=EPIMIGHT_SINGLE_2M_SCENARIOS,
-        subdir="epimight_single",
     log:
         "logs/epimight_bias_2M/epimight_single_bias_gather.log",
     benchmark:
         "benchmarks/epimight_bias_2M/epimight_single_bias_gather.tsv"
+    threads: 1
     resources:
         mem_mb=4000,
         runtime=10,
-    threads: 1
+    params:
+        results_dir="results/epimight_bias_2M",
+        scenarios=EPIMIGHT_SINGLE_2M_SCENARIOS,
+        subdir="epimight_single",
     script:
         "../scripts/epimight_bias_analysis.py"
 
@@ -192,16 +192,16 @@ rule epimight_single_2M_plots:
         tsv="results/epimight_bias_2M/epimight_single_bias_summary.tsv",
     output:
         atlas="results/epimight_bias_2M/plots/epimight_single_bias_atlas.pdf",
-    params:
-        include_dilution_correction=False,
     log:
         "logs/epimight_bias_2M/epimight_single_bias_plots.log",
     benchmark:
         "benchmarks/epimight_bias_2M/epimight_single_bias_plots.tsv"
+    threads: 1
     resources:
         mem_mb=4000,
         runtime=10,
-    threads: 1
+    params:
+        include_dilution_correction=False,
     script:
         "../scripts/plot_epimight_bias.py"
 

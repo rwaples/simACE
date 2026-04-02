@@ -7,13 +7,13 @@ from typing import Any
 import numpy as np
 
 PAIR_COLORS: dict[str, str] = {
-    "MZ twin": "C0",
-    "Full sib": "C1",
-    "Mother-offspring": "C3",
-    "Father-offspring": "C5",
-    "Maternal half sib": "C2",
-    "Paternal half sib": "C6",
-    "1st cousin": "C4",
+    "MZ": "C0",
+    "FS": "C1",
+    "MO": "C3",
+    "FO": "C5",
+    "MHS": "C2",
+    "PHS": "C6",
+    "1C": "C4",
 }
 
 

@@ -69,7 +69,7 @@ def main(
     gen_censoring: dict[int, list[float]] | None = None,
     plot_ext: str = "png",
     validation_paths: list[str] | None = None,
-    skip_2nd_cousins: bool = False,
+    max_degree: int = 2,
 ) -> None:
     """Generate all phenotype plots from pre-computed stats."""
     out_dir = Path(output_dir)
@@ -109,14 +109,14 @@ def main(
         scenario,
         stats_key="pair_counts_ped",
         generations_label="G_ped",
-        skip_2nd_cousins=skip_2nd_cousins,
+        max_degree=max_degree,
     )
     plot_pedigree_relationship_counts(
         all_stats,
         out_dir / f"pedigree_counts.{ext}",
         scenario,
         generations_label="G_pheno",
-        skip_2nd_cousins=skip_2nd_cousins,
+        max_degree=max_degree,
     )
 
     # Family structure (offspring and mate distributions)

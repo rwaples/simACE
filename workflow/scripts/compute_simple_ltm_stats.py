@@ -12,7 +12,7 @@ def _run_snakemake():
     stats_output = snakemake.output.stats
     samples_output = snakemake.output.samples
 
-    skip_2nd_cousins = snakemake.params.get("skip_2nd_cousins", True)
+    max_degree = snakemake.params.get("max_degree", 2)
 
     case_ascertainment_ratio = snakemake.params.get("case_ascertainment_ratio", 1.0)
 
@@ -22,7 +22,7 @@ def _run_snakemake():
         samples_output,
         seed=seed,
         pedigree_path=snakemake.input.pedigree,
-        skip_2nd_cousins=skip_2nd_cousins,
+        max_degree=max_degree,
         case_ascertainment_ratio=case_ascertainment_ratio,
     )
 

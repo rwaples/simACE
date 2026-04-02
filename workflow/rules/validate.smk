@@ -11,10 +11,10 @@ rule validate_pedigree_liability:
         "logs/{folder}/{scenario}/rep{rep}/validate.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/validate.tsv"
+    threads: 1
     resources:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
-    threads: 1
     script:
         "../scripts/validate.py"
 
@@ -28,10 +28,10 @@ rule gather_validation:
         "logs/{folder}/gather_validation.log",
     benchmark:
         "benchmarks/{folder}/gather_validation.tsv"
+    threads: 1
     resources:
         mem_mb=1000,
         runtime=5,
-    threads: 1
     script:
         "../scripts/gather_validation.py"
 
@@ -46,8 +46,6 @@ if platform.system() == "Windows":
 rule plot_validation:
     input:
         tsv="results/{folder}/validation_summary.tsv",
-    params:
-        plot_format=config["defaults"].get("plot_format", "png"),
     output:
         expand("results/{{folder}}/plots/{plot}", plot=filtered_plots),
         "results/{folder}/plots/atlas.pdf",
@@ -55,9 +53,11 @@ rule plot_validation:
         "logs/{folder}/plot_validation.log",
     benchmark:
         "benchmarks/{folder}/plot_validation.tsv"
+    threads: 1
     resources:
         mem_mb=1000,
         runtime=5,
-    threads: 1
+    params:
+        plot_format=config["defaults"].get("plot_format", "png"),
     script:
         "../scripts/plot_validation.py"

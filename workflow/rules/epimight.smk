@@ -25,10 +25,10 @@ rule epimight_create_parquet:
         "logs/{folder}/{scenario}/rep{rep}/epimight_create_parquet.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_create_parquet.tsv"
+    threads: 1
     resources:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
-    threads: 1
     script:
         "../scripts/epimight_create_parquet.py"
 
@@ -47,10 +47,10 @@ rule epimight_guide_yob:
         "logs/{folder}/{scenario}/rep{rep}/epimight_guide_yob_{kind}.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_guide_yob_{kind}.tsv"
+    threads: 1
     resources:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
-    threads: 1
     shell:
         "conda run -n epimight "
         "Rscript -e \"if (!requireNamespace('epimight', quietly=TRUE)) "
@@ -80,10 +80,10 @@ rule epimight_atlas:
         "logs/{folder}/{scenario}/rep{rep}/epimight_atlas.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_atlas.tsv"
+    threads: 1
     resources:
         mem_mb=4000,
         runtime=10,
-    threads: 1
     script:
         "../scripts/epimight_atlas.py"
 

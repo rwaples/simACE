@@ -62,6 +62,38 @@ It it possiblle to further restrict the observed data via sampling to construct 
 
 
 
+## Pedigree Relationship Types
+
+`PedigreeGraph` (in `sim_ace/core/pedigree_graph.py`) extracts 23 relationship categories from simulated pedigrees using sparse matrix algebra. Each type is parameterised by `(up, down, n_ancestors)` — meioses up from individual A to common ancestor(s), meioses down to individual B, and whether the link is through 1 (half/lineal) or 2 (full, mated-pair) ancestors. Kinship = `n_ancestors × (1/2)^(up + down + 1)`.
+
+| Code | Label | Up | Down | Ancestors | Kinship | Degree |
+|------|-------|---:|-----:|----------:|--------:|-------:|
+| MZ | MZ twin | — | — | — | 1/2 | 0 |
+| MO | Mother-offspring | 1 | 0 | 1 | 1/4 | 1 |
+| FO | Father-offspring | 1 | 0 | 1 | 1/4 | 1 |
+| FS | Full sib | 1 | 1 | 2 | 1/4 | 1 |
+| MHS | Maternal half sib | 1 | 1 | 1 | 1/8 | 2 |
+| PHS | Paternal half sib | 1 | 1 | 1 | 1/8 | 2 |
+| GP | Grandparent | 2 | 0 | 1 | 1/8 | 2 |
+| Av | Avuncular | 1 | 2 | 2 | 1/8 | 2 |
+| GGP | Great-grandparent | 3 | 0 | 1 | 1/16 | 3 |
+| HAv | Half-avuncular | 1 | 2 | 1 | 1/16 | 3 |
+| GAv | Great-avuncular | 1 | 3 | 2 | 1/16 | 3 |
+| 1C | 1st cousin | 2 | 2 | 2 | 1/16 | 3 |
+| GGGP | Great²-grandparent | 4 | 0 | 1 | 1/32 | 4 |
+| HGAv | Half-great-avuncular | 1 | 3 | 1 | 1/32 | 4 |
+| GGAv | Great²-avuncular | 1 | 4 | 2 | 1/32 | 4 |
+| H1C | Half-1st-cousin | 2 | 2 | 1 | 1/32 | 4 |
+| 1C1R | 1st cousin 1R | 2 | 3 | 2 | 1/32 | 4 |
+| G3GP | Great³-grandparent | 5 | 0 | 1 | 1/64 | 5 |
+| HGGAv | Half-great²-avuncular | 1 | 4 | 1 | 1/64 | 5 |
+| G3Av | Great³-avuncular | 1 | 5 | 2 | 1/64 | 5 |
+| H1C1R | Half-1st-cousin 1R | 2 | 3 | 1 | 1/64 | 5 |
+| 1C2R | 1st cousin 2R | 2 | 4 | 2 | 1/64 | 5 |
+| 2C | 2nd cousin | 3 | 3 | 2 | 1/64 | 5 |
+
+The `max_degree` parameter controls extraction depth (default 2, covering through 1st cousins). Degree 3-5 types require deeper matrix products and are only computed when requested. The registry is importable as `REL_REGISTRY` and `PAIR_KINSHIP` from `sim_ace.core.pedigree_graph`.
+
 ## Prerequisites
 
 - [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) (Miniconda or Miniforge)

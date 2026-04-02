@@ -296,9 +296,9 @@ def _sib_counts_from_pairs(
     sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> dict[str, int]:
     """Derive sibling counts from pre-extracted pair arrays."""
-    full = sibling_pairs["Full sib"]
-    mat = sibling_pairs["Maternal half sib"]
-    pat = sibling_pairs["Paternal half sib"]
+    full = sibling_pairs["FS"]
+    mat = sibling_pairs["MHS"]
+    pat = sibling_pairs["PHS"]
     n_full = len(full[0])
     n_mat = len(mat[0])
     n_pat = len(pat[0])
@@ -838,7 +838,7 @@ def validate_heritability(
         params,
         A_params,
         comp_vals,
-        sibling_pairs["Full sib"],
+        sibling_pairs["FS"],
         results,
     )
     _validate_falconer(

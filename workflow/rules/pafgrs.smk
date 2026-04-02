@@ -28,6 +28,14 @@ rule pafgrs_score:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
         done=touch("results/{folder}/{scenario}/rep{rep}/pafgrs/score.done"),
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/pafgrs_score.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/pafgrs_score.tsv"
+    threads: 1
+    resources:
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped") * 4,
     params:
         trait_nums=[1, 2],
         cip_sources=PAFGRS_CIP_SOURCES,
@@ -45,14 +53,6 @@ rule pafgrs_score:
         phenotype_params1=lambda w: get_param(config, w.scenario, "phenotype_params1"),
         phenotype_params2=lambda w: get_param(config, w.scenario, "phenotype_params2"),
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
-    log:
-        "logs/{folder}/{scenario}/rep{rep}/pafgrs_score.log",
-    benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/pafgrs_score.tsv"
-    resources:
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
-        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped") * 4,
-    threads: 1
     script:
         "../scripts/pafgrs_score.py"
 
@@ -63,16 +63,16 @@ rule pafgrs_atlas:
         done="results/{folder}/{scenario}/rep{rep}/pafgrs/score.done",
     output:
         atlas="results/{folder}/{scenario}/rep{rep}/pafgrs/plots/atlas.pdf",
-    params:
-        plot_format=lambda w: config["defaults"].get("plot_format", "png"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/pafgrs_atlas.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/pafgrs_atlas.tsv"
+    threads: 1
     resources:
         mem_mb=2000,
         runtime=5,
-    threads: 1
+    params:
+        plot_format=lambda w: config["defaults"].get("plot_format", "png"),
     script:
         "../scripts/pafgrs_atlas.py"
 
@@ -84,6 +84,14 @@ rule pafgrs_bivariate_score:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
         done=touch("results/{folder}/{scenario}/rep{rep}/pafgrs_bivariate/score.done"),
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/pafgrs_bivariate_score.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/pafgrs_bivariate_score.tsv"
+    threads: 1
+    resources:
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped") * 2,
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped") * 8,
     params:
         cip_sources=PAFGRS_CIP_SOURCES,
         h2_sources=PAFGRS_H2_SOURCES,
@@ -106,14 +114,6 @@ rule pafgrs_bivariate_score:
         phenotype_params1=lambda w: get_param(config, w.scenario, "phenotype_params1"),
         phenotype_params2=lambda w: get_param(config, w.scenario, "phenotype_params2"),
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
-    log:
-        "logs/{folder}/{scenario}/rep{rep}/pafgrs_bivariate_score.log",
-    benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/pafgrs_bivariate_score.tsv"
-    resources:
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped") * 2,
-        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped") * 8,
-    threads: 1
     script:
         "../scripts/pafgrs_bivariate_score.py"
 
