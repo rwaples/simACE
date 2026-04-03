@@ -411,3 +411,351 @@ class TestPlotValidation:
         plot_memory(validation_df, tmp_path, ext="png")
         assert (tmp_path / "memory.png").exists()
         assert plt.get_fignums() == before
+
+
+# ---------------------------------------------------------------------------
+# Shared fixtures for new smoke tests
+# ---------------------------------------------------------------------------
+
+PAIR_TYPES = ["MZ", "FS", "MO", "FO", "MHS", "PHS", "1C"]
+
+
+def _make_pair_data(r=0.5, n=100):
+    return {"r": r, "se": 0.05, "n_pairs": n}
+
+
+def _make_pair_data_with_liab(r=0.5, n=100, liab_r=0.4):
+    return {"r": r, "se": 0.05, "n_pairs": n, "liability_r": liab_r}
+
+
+@pytest.fixture
+def simple_ltm_stats():
+    """Minimal stats dict for plot_simple_ltm functions."""
+    return [
+        {
+            "prevalence": {
+                "trait1": {"overall": 0.10, "generations": [0, 1, 2], "prevalence": [0.09, 0.10, 0.11]},
+                "trait2": {"overall": 0.20, "generations": [0, 1, 2], "prevalence": [0.19, 0.20, 0.21]},
+            },
+            "tetrachoric": {
+                "trait1": {pt: _make_pair_data(0.5 - i * 0.05, 100 - i * 10) for i, pt in enumerate(PAIR_TYPES)},
+                "trait2": {pt: _make_pair_data(0.5 - i * 0.05, 100 - i * 10) for i, pt in enumerate(PAIR_TYPES)},
+            },
+            "liability_correlations": {
+                "trait1": {pt: 0.6 - i * 0.05 for i, pt in enumerate(PAIR_TYPES)},
+                "trait2": {pt: 0.6 - i * 0.05 for i, pt in enumerate(PAIR_TYPES)},
+            },
+            "joint_affection": {
+                "counts": {"both": 10, "trait1_only": 40, "trait2_only": 90, "neither": 360},
+                "proportions": {"both": 0.02, "trait1_only": 0.08, "trait2_only": 0.18, "neither": 0.72},
+                "n": 500,
+                "by_sex": {"female": 0.02, "male": 0.02},
+            },
+            "cross_trait_tetrachoric": {
+                "same_person": {"r": 0.3, "se": 0.04, "n": 500},
+                "same_person_by_generation": {
+                    "gen0": {"r": 0.28, "se": 0.06, "n": 160},
+                    "gen1": {"r": 0.32, "se": 0.05, "n": 170},
+                    "gen2": {"r": 0.30, "se": 0.05, "n": 170},
+                },
+                "cross_person": {pt: _make_pair_data(0.2, 80) for pt in PAIR_TYPES},
+            },
+            "regression": {
+                "trait1": {
+                    "slope": -12.0,
+                    "intercept": 50.0,
+                    "r": -0.4,
+                    "r2": 0.16,
+                    "stderr": 2.0,
+                    "pvalue": 0.001,
+                    "n": 50,
+                },
+                "trait2": {
+                    "slope": -10.0,
+                    "intercept": 45.0,
+                    "r": -0.3,
+                    "r2": 0.09,
+                    "stderr": 2.5,
+                    "pvalue": 0.01,
+                    "n": 100,
+                },
+            },
+            "family_size": {
+                "mean": 2.3,
+                "median": 2.0,
+                "q1": 1.0,
+                "q3": 3.0,
+                "n_families": 200,
+                "frac_with_full_sib": 0.7,
+                "size_dist": {"1": 0.25, "2": 0.35, "3": 0.25, "4+": 0.15},
+                "person_offspring_dist": {"0": 0.4, "1": 0.2, "2": 0.2, "3": 0.1, "4+": 0.1},
+                "mates_by_sex": {
+                    "female_mean": 1.1,
+                    "male_mean": 1.1,
+                    "female_1": 0.8,
+                    "female_2+": 0.2,
+                    "male_1": 0.8,
+                    "male_2+": 0.2,
+                },
+            },
+            "tetrachoric_by_sex": {
+                sex: {f"trait{t}": {pt: _make_pair_data_with_liab(0.4, 50) for pt in PAIR_TYPES} for t in [1, 2]}
+                for sex in ["female", "male"]
+            },
+            "parent_offspring_corr_by_sex": {
+                sex: {
+                    f"trait{t}": {
+                        f"gen{g}": {
+                            "slope": 0.45,
+                            "r": 0.4,
+                            "r2": 0.16,
+                            "intercept": 0.0,
+                            "stderr": 0.05,
+                            "pvalue": 0.01,
+                            "n_pairs": 100,
+                        }
+                        for g in [1, 2]
+                    }
+                    for t in [1, 2]
+                }
+                for sex in ["female", "male"]
+            },
+        }
+    ]
+
+
+@pytest.fixture
+def simple_ltm_samples():
+    """Minimal sample DataFrame for plot_simple_ltm functions."""
+    rng = np.random.default_rng(42)
+    n = 200
+    return pd.DataFrame(
+        {
+            "liability1": rng.normal(size=n),
+            "liability2": rng.normal(size=n),
+            "A1": rng.normal(0, 0.7, n),
+            "A2": rng.normal(0, 0.7, n),
+            "C1": rng.normal(0, 0.4, n),
+            "C2": rng.normal(0, 0.4, n),
+            "E1": rng.normal(0, 0.5, n),
+            "E2": rng.normal(0, 0.5, n),
+            "affected1": rng.random(n) < 0.1,
+            "affected2": rng.random(n) < 0.2,
+            "generation": np.repeat([0, 1, 2, 3], 50),
+            "sex": rng.binomial(1, 0.5, n),
+            "t_observed1": rng.uniform(10, 80, n),
+            "t_observed2": rng.uniform(10, 80, n),
+        }
+    )
+
+
+@pytest.fixture
+def broad_h2_validations():
+    """Minimal all_validations list for plot_broad_heritability_by_generation."""
+    return [
+        {
+            "per_generation": {
+                f"generation_{g}": {
+                    "A1_var": 0.48,
+                    "C1_var": 0.19,
+                    "E1_var": 0.30,
+                    "A2_var": 0.48,
+                    "C2_var": 0.19,
+                    "E2_var": 0.30,
+                }
+                for g in [1, 2, 3]
+            },
+            "parameters": {"A1": 0.5, "C1": 0.2, "A2": 0.5, "C2": 0.2},
+        }
+    ]
+
+
+# ---------------------------------------------------------------------------
+# plot_simple_ltm smoke tests
+# ---------------------------------------------------------------------------
+
+
+class TestPlotSimpleLtm:
+    def test_plot_prevalence_by_generation(self, simple_ltm_stats, tmp_path):
+        from sim_ace.plotting.plot_simple_ltm import plot_prevalence_by_generation
+
+        before = plt.get_fignums()
+        out = tmp_path / "prev_gen.png"
+        plot_prevalence_by_generation(simple_ltm_stats, 0.10, 0.20, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_liability_violin(self, simple_ltm_samples, simple_ltm_stats, tmp_path):
+        from sim_ace.plotting.plot_simple_ltm import plot_liability_violin
+
+        before = plt.get_fignums()
+        out = tmp_path / "liab_violin.png"
+        plot_liability_violin(simple_ltm_samples, simple_ltm_stats, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_liability_violin_by_generation(self, simple_ltm_samples, simple_ltm_stats, tmp_path):
+        from sim_ace.plotting.plot_simple_ltm import plot_liability_violin_by_generation
+
+        before = plt.get_fignums()
+        out = tmp_path / "liab_violin_gen.png"
+        plot_liability_violin_by_generation(
+            simple_ltm_samples,
+            simple_ltm_stats,
+            0.10,
+            0.20,
+            out,
+            scenario="test",
+        )
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_tetrachoric(self, simple_ltm_stats, tmp_path):
+        from sim_ace.plotting.plot_simple_ltm import plot_tetrachoric
+
+        before = plt.get_fignums()
+        out = tmp_path / "tetrachoric.png"
+        plot_tetrachoric(simple_ltm_stats, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_joint_affection(self, simple_ltm_stats, tmp_path):
+        from sim_ace.plotting.plot_simple_ltm import plot_joint_affection
+
+        before = plt.get_fignums()
+        out = tmp_path / "joint_aff.png"
+        plot_joint_affection(simple_ltm_stats, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_liability_joint(self, simple_ltm_samples, tmp_path):
+        from sim_ace.plotting.plot_simple_ltm import plot_liability_joint
+
+        before = plt.get_fignums()
+        out = tmp_path / "liab_joint.png"
+        plot_liability_joint(simple_ltm_samples, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+
+# ---------------------------------------------------------------------------
+# plot_correlations expanded smoke tests
+# ---------------------------------------------------------------------------
+
+
+class TestPlotCorrelationsExpanded:
+    def test_plot_tetrachoric_by_sex(self, simple_ltm_stats, tmp_path):
+        from sim_ace.plotting.plot_correlations import plot_tetrachoric_by_sex
+
+        before = plt.get_fignums()
+        out = tmp_path / "tet_sex.png"
+        plot_tetrachoric_by_sex(simple_ltm_stats, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_tetrachoric_by_sex_no_data(self, tmp_path):
+        from sim_ace.plotting.plot_correlations import plot_tetrachoric_by_sex
+
+        before = plt.get_fignums()
+        out = tmp_path / "tet_sex_empty.png"
+        plot_tetrachoric_by_sex([{}], out, scenario="test")
+        assert out.exists()
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_heritability_by_sex_generation(self, simple_ltm_stats, tmp_path):
+        from sim_ace.plotting.plot_correlations import plot_heritability_by_sex_generation
+
+        before = plt.get_fignums()
+        out = tmp_path / "h2_sex_gen.png"
+        plot_heritability_by_sex_generation(simple_ltm_stats, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_heritability_by_sex_generation_no_data(self, tmp_path):
+        from sim_ace.plotting.plot_correlations import plot_heritability_by_sex_generation
+
+        before = plt.get_fignums()
+        out = tmp_path / "h2_sex_gen_empty.png"
+        plot_heritability_by_sex_generation([{}], out, scenario="test")
+        assert out.exists()
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_broad_heritability_by_generation(self, broad_h2_validations, tmp_path):
+        from sim_ace.plotting.plot_correlations import plot_broad_heritability_by_generation
+
+        before = plt.get_fignums()
+        out = tmp_path / "broad_h2_gen.png"
+        plot_broad_heritability_by_generation(broad_h2_validations, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_broad_heritability_by_generation_no_data(self, tmp_path):
+        from sim_ace.plotting.plot_correlations import plot_broad_heritability_by_generation
+
+        before = plt.get_fignums()
+        out = tmp_path / "broad_h2_gen_empty.png"
+        plot_broad_heritability_by_generation([{}], out, scenario="test")
+        assert out.exists()
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+
+# ---------------------------------------------------------------------------
+# plot_distributions expanded smoke tests
+# ---------------------------------------------------------------------------
+
+
+class TestPlotDistributionsExpanded:
+    def test_plot_trait_regression(self, simple_ltm_samples, simple_ltm_stats, tmp_path):
+        from sim_ace.plotting.plot_distributions import plot_trait_regression
+
+        # Ensure affected samples have liability columns
+        df = simple_ltm_samples.copy()
+        before = plt.get_fignums()
+        out = tmp_path / "trait_reg.png"
+        plot_trait_regression(df, simple_ltm_stats, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_family_structure(self, simple_ltm_stats, tmp_path):
+        from sim_ace.plotting.plot_distributions import plot_family_structure
+
+        before = plt.get_fignums()
+        out = tmp_path / "family_struct.png"
+        plot_family_structure(simple_ltm_stats, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_family_structure_no_data(self, tmp_path):
+        from sim_ace.plotting.plot_distributions import plot_family_structure
+
+        before = plt.get_fignums()
+        out = tmp_path / "family_struct_empty.png"
+        plot_family_structure([{}], out, scenario="test")
+        assert out.exists()
+        plt.close("all")
+        assert plt.get_fignums() == before

@@ -14,8 +14,24 @@ from sim_ace.analysis.stats import (
     compute_censoring_cascade,
     compute_censoring_confusion,
     compute_censoring_windows,
+    compute_cross_trait_tetrachoric,
+    compute_cumulative_incidence,
+    compute_cumulative_incidence_by_sex,
+    compute_cumulative_incidence_by_sex_generation,
+    compute_joint_affection,
+    compute_liability_correlations,
+    compute_mate_correlation,
     compute_mean_family_size,
+    compute_mortality,
+    compute_parent_offspring_corr,
+    compute_parent_offspring_corr_by_sex,
+    compute_parent_status,
     compute_person_years,
+    compute_prevalence,
+    compute_regression,
+    compute_tetrachoric,
+    compute_tetrachoric_by_generation,
+    compute_tetrachoric_by_sex,
 )
 
 # ---------------------------------------------------------------------------
@@ -634,3 +650,460 @@ class TestComputeCensoringWindows:
         gen_censoring = {1: [0.0, 80.0], 2: [0.0, 60.0]}
         result = compute_censoring_windows(df, censor_age=80.0, gen_censoring=gen_censoring)
         assert result["generations"]["gen2"]["n"] == 0
+
+
+# ===================================================================
+# Module-scoped fixture: phenotyped pedigree for pair-based stats
+# ===================================================================
+
+
+@pytest.fixture(scope="module")
+def phenotyped_df():
+    """Simulated + thresholded pedigree with all columns needed by stats functions."""
+    from sim_ace.phenotyping.threshold import apply_threshold
+    from sim_ace.simulation.simulate import run_simulation
+
+    ped = run_simulation(
+        seed=42,
+        N=1000,
+        G_ped=3,
+        G_sim=3,
+        mating_lambda=0.5,
+        p_mztwin=0.02,
+        A1=0.5,
+        C1=0.2,
+        A2=0.5,
+        C2=0.2,
+        rA=0.3,
+        rC=0.5,
+        assort1=0.0,
+        assort2=0.0,
+    )
+    gen = ped["generation"].values
+    rng = np.random.default_rng(42)
+    for t in [1, 2]:
+        liab = ped[f"liability{t}"].values
+        ped[f"affected{t}"] = apply_threshold(liab, gen, 0.10)
+        # Proxy event times: lower liability → later onset for affected
+        aff = ped[f"affected{t}"].values
+        ped[f"t_observed{t}"] = np.where(aff, rng.uniform(10, 70, len(ped)), 80.0)
+        ped[f"t{t}"] = np.where(aff, ped[f"t_observed{t}"], rng.uniform(85, 200, len(ped)))
+    ped["death_age"] = rng.uniform(40, 100, len(ped))
+    return ped
+
+
+@pytest.fixture(scope="module")
+def extracted_pairs(phenotyped_df):
+    """Pre-extracted relationship pairs."""
+    from sim_ace.core.pedigree_graph import extract_relationship_pairs
+
+    return extract_relationship_pairs(phenotyped_df)
+
+
+# ===================================================================
+# Tests for compute_prevalence
+# ===================================================================
+
+
+class TestComputePrevalence:
+    def test_known_values(self):
+        df = pd.DataFrame(
+            {
+                "affected1": [True, True, False, False, False],
+                "affected2": [False, True, True, True, False],
+            }
+        )
+        result = compute_prevalence(df)
+        assert result["trait1"] == pytest.approx(0.4)
+        assert result["trait2"] == pytest.approx(0.6)
+
+    def test_all_affected(self):
+        df = pd.DataFrame({"affected1": [True, True], "affected2": [True, True]})
+        result = compute_prevalence(df)
+        assert result["trait1"] == pytest.approx(1.0)
+        assert result["trait2"] == pytest.approx(1.0)
+
+    def test_none_affected(self):
+        df = pd.DataFrame({"affected1": [False, False], "affected2": [False, False]})
+        result = compute_prevalence(df)
+        assert result["trait1"] == pytest.approx(0.0)
+        assert result["trait2"] == pytest.approx(0.0)
+
+
+# ===================================================================
+# Tests for compute_mortality
+# ===================================================================
+
+
+class TestComputeMortality:
+    def test_known_rates(self):
+        """5 people, censor_age=50, decade bins [0-10), [10-20), ..., [40-50)."""
+        df = pd.DataFrame({"death_age": [5.0, 15.0, 25.0, 35.0, 95.0]})
+        result = compute_mortality(df, censor_age=50)
+        assert len(result["decade_labels"]) == 5
+        assert result["decade_labels"][0] == "0-9"
+        # Decade 0-10: alive=5, died=1 -> 0.2
+        assert result["rates"][0] == pytest.approx(0.2)
+        # Decade 10-20: alive=4, died=1 -> 0.25
+        assert result["rates"][1] == pytest.approx(0.25)
+
+    def test_no_deaths_before_censor(self):
+        df = pd.DataFrame({"death_age": [100.0, 200.0]})
+        result = compute_mortality(df, censor_age=80)
+        assert all(r == pytest.approx(0.0) for r in result["rates"])
+
+
+# ===================================================================
+# Tests for compute_regression
+# ===================================================================
+
+
+class TestComputeRegression:
+    def test_positive_slope(self):
+        """Higher liability → earlier onset (negative slope with liability)."""
+        df = pd.DataFrame(
+            {
+                "affected1": [True, True, True, True, False],
+                "affected2": [True, True, True, True, False],
+                "t_observed1": [20.0, 30.0, 40.0, 50.0, 80.0],
+                "t_observed2": [25.0, 35.0, 45.0, 55.0, 80.0],
+                "liability1": [3.0, 2.0, 1.0, 0.5, -1.0],
+                "liability2": [3.0, 2.0, 1.0, 0.5, -1.0],
+            }
+        )
+        result = compute_regression(df)
+        assert result["trait1"] is not None
+        assert result["trait1"]["n"] == 4
+        assert result["trait1"]["r"] != 0
+
+    def test_too_few_affected_returns_none(self):
+        df = pd.DataFrame(
+            {
+                "affected1": [True, False],
+                "affected2": [False, False],
+                "t_observed1": [30.0, 80.0],
+                "t_observed2": [80.0, 80.0],
+                "liability1": [1.0, -1.0],
+                "liability2": [1.0, -1.0],
+            }
+        )
+        result = compute_regression(df)
+        # Only 1 affected for trait1, 0 for trait2 → None
+        assert result["trait1"] is None
+        assert result["trait2"] is None
+
+    def test_missing_liability_returns_none(self):
+        df = pd.DataFrame(
+            {
+                "affected1": [True, True],
+                "affected2": [True, True],
+                "t_observed1": [30.0, 40.0],
+                "t_observed2": [30.0, 40.0],
+            }
+        )
+        result = compute_regression(df)
+        assert result["trait1"] is None
+        assert result["trait2"] is None
+
+
+# ===================================================================
+# Tests for compute_joint_affection
+# ===================================================================
+
+
+class TestComputeJointAffection:
+    def test_known_counts(self):
+        df = pd.DataFrame(
+            {
+                "affected1": [True, True, False, False, True],
+                "affected2": [True, False, True, False, True],
+                "sex": [0, 1, 0, 1, 0],
+            }
+        )
+        result = compute_joint_affection(df)
+        assert result["counts"]["both"] == 2
+        assert result["counts"]["trait1_only"] == 1
+        assert result["counts"]["trait2_only"] == 1
+        assert result["counts"]["neither"] == 1
+        assert result["n"] == 5
+        assert result["proportions"]["both"] == pytest.approx(0.4)
+
+    def test_by_sex_present(self):
+        df = pd.DataFrame(
+            {
+                "affected1": [True, False, True, False],
+                "affected2": [True, True, False, False],
+                "sex": [0, 0, 1, 1],
+            }
+        )
+        result = compute_joint_affection(df)
+        assert "female" in result["by_sex"]
+        assert "male" in result["by_sex"]
+        # Female: id0 both -> 1/2 = 0.5
+        assert result["by_sex"]["female"] == pytest.approx(0.5)
+        # Male: no both -> 0/2 = 0.0
+        assert result["by_sex"]["male"] == pytest.approx(0.0)
+
+
+# ===================================================================
+# Tests for compute_parent_status
+# ===================================================================
+
+
+class TestComputeParentStatus:
+    def test_known_structure(self):
+        """3 founders + 2 children: children have 2 parents each."""
+        df = pd.DataFrame(
+            {
+                "id": [0, 1, 2, 3, 4],
+                "mother": [-1, -1, -1, 0, 0],
+                "father": [-1, -1, -1, 1, 1],
+            }
+        )
+        result = compute_parent_status(df)
+        # Founders (0,1,2) have 0 parents in phenotyped set (mother=-1)
+        # Children (3,4) have 2 parents each (0 and 1 are in the set)
+        assert result["phenotyped"]["0"] == 3
+        assert result["phenotyped"]["2"] == 2
+
+    def test_with_ped_df(self):
+        df = pd.DataFrame(
+            {
+                "id": [3, 4],
+                "mother": [0, 0],
+                "father": [1, 1],
+            }
+        )
+        df_ped = pd.DataFrame({"id": [0, 1, 2, 3, 4]})
+        result = compute_parent_status(df, df_ped=df_ped)
+        # Parents 0,1 not in df (phenotype), so phenotyped = 0 for both children
+        assert result["phenotyped"]["0"] == 2
+        # But parents 0,1 are in df_ped
+        assert result["in_pedigree"]["2"] == 2
+
+    def test_missing_columns(self):
+        df = pd.DataFrame({"id": [0, 1]})
+        assert compute_parent_status(df) == {}
+
+
+# ===================================================================
+# Tests for compute_cumulative_incidence (pair-based fixture)
+# ===================================================================
+
+
+class TestComputeCumulativeIncidence:
+    def test_structure(self, phenotyped_df):
+        result = compute_cumulative_incidence(phenotyped_df, censor_age=80)
+        assert "trait1" in result
+        assert "trait2" in result
+        for trait in ["trait1", "trait2"]:
+            assert "ages" in result[trait]
+            assert "observed_values" in result[trait]
+            assert "true_values" in result[trait]
+            ages = result[trait]["ages"]
+            assert ages[0] == pytest.approx(0.0)
+            assert ages[-1] == pytest.approx(80.0)
+
+    def test_values_non_decreasing(self, phenotyped_df):
+        result = compute_cumulative_incidence(phenotyped_df, censor_age=80)
+        for trait in ["trait1", "trait2"]:
+            obs = result[trait]["observed_values"]
+            assert all(obs[i] <= obs[i + 1] for i in range(len(obs) - 1))
+
+
+# ===================================================================
+# Tests for compute_cumulative_incidence_by_sex
+# ===================================================================
+
+
+class TestComputeCumulativeIncidenceBySex:
+    def test_structure(self, phenotyped_df):
+        result = compute_cumulative_incidence_by_sex(phenotyped_df, censor_age=80)
+        for trait in ["trait1", "trait2"]:
+            assert "female" in result[trait]
+            assert "male" in result[trait]
+            for sex in ["female", "male"]:
+                assert result[trait][sex]["n"] > 0
+                assert 0 <= result[trait][sex]["prevalence"] <= 1
+
+    def test_missing_sex_returns_empty(self):
+        df = pd.DataFrame({"affected1": [True], "affected2": [False], "t_observed1": [30.0], "t_observed2": [80.0]})
+        assert compute_cumulative_incidence_by_sex(df, censor_age=80) == {}
+
+
+# ===================================================================
+# Tests for compute_cumulative_incidence_by_sex_generation
+# ===================================================================
+
+
+class TestComputeCumulativeIncidenceBySexGeneration:
+    def test_structure(self, phenotyped_df):
+        result = compute_cumulative_incidence_by_sex_generation(phenotyped_df, censor_age=80)
+        assert "trait1" in result
+        # Should have gen keys
+        gen_keys = list(result["trait1"].keys())
+        assert len(gen_keys) > 0
+        for gk in gen_keys:
+            assert "female" in result["trait1"][gk] or "male" in result["trait1"][gk]
+
+
+# ===================================================================
+# Tests for compute_liability_correlations
+# ===================================================================
+
+
+class TestComputeLiabilityCorrelations:
+    def test_structure(self, phenotyped_df, extracted_pairs):
+        result = compute_liability_correlations(phenotyped_df, pairs=extracted_pairs)
+        assert "trait1" in result
+        assert "trait2" in result
+        for trait in ["trait1", "trait2"]:
+            assert "MZ" in result[trait]
+            assert "FS" in result[trait]
+
+    def test_fs_positive(self, phenotyped_df, extracted_pairs):
+        """Full siblings share ~0.5 of A — liability correlation should be positive."""
+        result = compute_liability_correlations(phenotyped_df, pairs=extracted_pairs)
+        fs = result["trait1"]["FS"]
+        if fs is not None:
+            assert fs > 0
+
+
+# ===================================================================
+# Tests for compute_tetrachoric
+# ===================================================================
+
+
+class TestComputeTetrachoric:
+    def test_structure(self, phenotyped_df, extracted_pairs):
+        result = compute_tetrachoric(phenotyped_df, pairs=extracted_pairs)
+        assert "trait1" in result
+        for ptype in ["MZ", "FS", "MO", "FO"]:
+            entry = result["trait1"][ptype]
+            assert "r" in entry
+            assert "se" in entry
+            assert "n_pairs" in entry
+
+    def test_n_pairs_positive_for_common_types(self, phenotyped_df, extracted_pairs):
+        result = compute_tetrachoric(phenotyped_df, pairs=extracted_pairs)
+        for ptype in ["FS", "MO", "FO"]:
+            assert result["trait1"][ptype]["n_pairs"] > 0
+
+
+# ===================================================================
+# Tests for compute_tetrachoric_by_generation
+# ===================================================================
+
+
+class TestComputeTetrachoricByGeneration:
+    def test_structure(self, phenotyped_df, extracted_pairs):
+        result = compute_tetrachoric_by_generation(phenotyped_df, pairs=extracted_pairs)
+        assert len(result) > 0
+        for gen_key, gen_data in result.items():
+            assert gen_key.startswith("gen")
+            assert "trait1" in gen_data
+            assert "trait2" in gen_data
+
+    def test_missing_generation_returns_empty(self):
+        df = pd.DataFrame({"affected1": [True], "affected2": [False], "liability1": [1.0], "liability2": [1.0]})
+        assert compute_tetrachoric_by_generation(df) == {}
+
+
+# ===================================================================
+# Tests for compute_cross_trait_tetrachoric
+# ===================================================================
+
+
+class TestComputeCrossTraitTetrachoric:
+    def test_structure(self, phenotyped_df, extracted_pairs):
+        result = compute_cross_trait_tetrachoric(phenotyped_df, pairs=extracted_pairs)
+        assert "same_person" in result
+        assert "r" in result["same_person"]
+        assert "n" in result["same_person"]
+        assert "same_person_by_generation" in result
+        assert "cross_person" in result
+        for ptype in ["FS", "MO", "FO"]:
+            assert ptype in result["cross_person"]
+
+
+# ===================================================================
+# Tests for compute_parent_offspring_corr
+# ===================================================================
+
+
+class TestComputeParentOffspringCorr:
+    def test_structure(self, phenotyped_df):
+        result = compute_parent_offspring_corr(phenotyped_df)
+        assert "trait1" in result
+        assert "trait2" in result
+        # Should have gen keys (gen1, gen2 for G_ped=3)
+        assert "gen1" in result["trait1"] or "gen2" in result["trait1"]
+
+    def test_positive_slope(self, phenotyped_df):
+        """With A1=0.5, midparent-offspring slope should be positive."""
+        result = compute_parent_offspring_corr(phenotyped_df)
+        # Check the last generation where we expect enough pairs
+        for gen_key in sorted(result["trait1"].keys()):
+            entry = result["trait1"][gen_key]
+            if entry["slope"] is not None:
+                assert entry["slope"] > 0
+                break
+
+    def test_missing_generation_returns_empty(self):
+        df = pd.DataFrame({"id": [0], "liability1": [1.0], "liability2": [1.0]})
+        assert compute_parent_offspring_corr(df) == {}
+
+
+# ===================================================================
+# Tests for compute_tetrachoric_by_sex
+# ===================================================================
+
+
+class TestComputeTetrachoricBySex:
+    def test_structure(self, phenotyped_df, extracted_pairs):
+        result = compute_tetrachoric_by_sex(phenotyped_df, pairs=extracted_pairs)
+        assert "female" in result
+        assert "male" in result
+        for sex in ["female", "male"]:
+            assert "trait1" in result[sex]
+            assert "trait2" in result[sex]
+
+
+# ===================================================================
+# Tests for compute_parent_offspring_corr_by_sex
+# ===================================================================
+
+
+class TestComputeParentOffspringCorrBySex:
+    def test_structure(self, phenotyped_df):
+        result = compute_parent_offspring_corr_by_sex(phenotyped_df)
+        assert "female" in result
+        assert "male" in result
+        for sex in ["female", "male"]:
+            assert "trait1" in result[sex]
+
+    def test_missing_generation_returns_empty(self):
+        df = pd.DataFrame({"id": [0], "sex": [0], "liability1": [1.0], "liability2": [1.0]})
+        assert compute_parent_offspring_corr_by_sex(df) == {}
+
+
+# ===================================================================
+# Tests for compute_mate_correlation
+# ===================================================================
+
+
+class TestComputeMateCorrelation:
+    def test_structure(self, phenotyped_df):
+        result = compute_mate_correlation(phenotyped_df)
+        assert "matrix" in result
+        assert "n_pairs" in result
+        assert len(result["matrix"]) == 2
+        assert len(result["matrix"][0]) == 2
+        assert result["n_pairs"] > 0
+
+    def test_near_zero_for_random_mating(self, phenotyped_df):
+        """With assort1=0, mate correlations should be near zero."""
+        result = compute_mate_correlation(phenotyped_df)
+        for i in range(2):
+            for j in range(2):
+                assert abs(result["matrix"][i][j]) < 0.15

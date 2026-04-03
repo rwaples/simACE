@@ -593,7 +593,7 @@ def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenar
     # Collect family_size dicts from each replicate
     fs_list = [s.get("family_size", {}) for s in all_stats if "family_size" in s]
     if not fs_list:
-        save_placeholder_plot(output_path, "Family Structure", "No family_size data")
+        save_placeholder_plot(output_path, "Family Structure\nNo family_size data")
         return
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 5))
