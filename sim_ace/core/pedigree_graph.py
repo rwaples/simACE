@@ -663,14 +663,18 @@ class PedigreeGraph:
         return self._dedup_pairs(*avunc.nonzero())
 
     def _second_cousin_matrix(self) -> sp.spmatrix:
-        """Symmetric sparse matrix with nonzeros at 2nd cousin pairs.
+        """Symmetric sparse matrix with nonzeros at full 2nd cousin pairs.
 
-        Shared-great-grandparent pairs minus shared-grandparent pairs.
+        Full 2nd cousins share ≥ 2 great-grandparents (a mated pair) but no
+        grandparents.  Half-2nd-cousins (1 shared great-grandparent) are
+        excluded — they fall beyond degree 5.
         """
         t0 = time.perf_counter()
         D_raw = self._A3 @ self._A3.T
         logger.debug("A3 @ A3.T computed in %.3fs (nnz=%d)", time.perf_counter() - t0, D_raw.nnz)
-        # Booleanise in place (avoids full copy)
+        # Keep only pairs sharing ≥ 2 great-grandparents (full 2C), then booleanise
+        D_raw.data[D_raw.data < 2] = 0
+        D_raw.eliminate_zeros()
         D_raw.data[:] = 1.0
         C_raw = self._A2_shared.copy()
         C_raw.data[:] = 1.0

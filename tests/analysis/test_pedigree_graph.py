@@ -571,3 +571,89 @@ class TestKnownTinyPedigree:
         # 6 is full sib of 7 (father of 9) → 6 is uncle of 9
         expected = {(5, 8), (5, 10), (4, 9), (7, 8), (7, 10), (6, 9)}
         assert avunc_set == expected, f"Got {avunc_set}"
+
+
+class TestSecondCousinFullVsHalf:
+    """Verify that 2C extraction returns only full 2nd cousins (≥ 2 shared great-grandparents)
+    and excludes half-2nd-cousins (1 shared great-grandparent)."""
+
+    @pytest.fixture
+    def pedigree_with_half_2c(self):
+        """4-generation pedigree with one full-2C pair and one half-2C pair.
+
+        Full-2C branch (share 2 great-grandparents via a mated pair):
+          Gen 0: 0(F), 1(M)
+          Gen 1: 2(M)=child(0,1), 3(M)=child(0,1)  — full sibs
+                 4(F) founder, 5(F) founder
+          Gen 2: 6(M)=child(4,2), 7(M)=child(5,3)   — full 1st cousins
+                 8(F) founder, 9(F) founder
+          Gen 3: 10=child(8,6), 11=child(9,7)        — full 2nd cousins
+            GGPs of 10: {0,1} (via 6→2→{0,1}). GGPs of 11: {0,1} (via 7→3→{0,1}).
+            Shared GGPs = {0,1} → count=2 → full 2C ✓
+
+        Half-2C branch (share only 1 great-grandparent):
+          Gen 0: 12(F), 13(M), 14(M)
+          Gen 1: 15(M)=child(12,13), 16(M)=child(12,14) — maternal half-sibs
+                 17(F) founder, 18(F) founder
+          Gen 2: 19(M)=child(17,15), 20(M)=child(18,16) — half 1st cousins
+                 21(F) founder, 22(F) founder
+          Gen 3: 23=child(21,19), 24=child(22,20)       — half 2nd cousins
+            GGPs of 23: {12,13} (via 19→15→{12,13}). GGPs of 24: {12,14} (via 20→16→{12,14}).
+            Shared GGPs = {12} → count=1 → half 2C, should be EXCLUDED
+        """
+        n = 25
+        data = {
+            "id": np.arange(n),
+            "mother": np.array([
+                -1, -1, 0, 0,        # 0-3
+                -1, -1, 4, 5,        # 4-7
+                -1, -1, 8, 9,        # 8-11
+                -1, -1, -1, 12, 12,  # 12-16
+                -1, -1, 17, 18,      # 17-20
+                -1, -1, 21, 22,      # 21-24
+            ]),
+            "father": np.array([
+                -1, -1, 1, 1,        # 0-3
+                -1, -1, 2, 3,        # 4-7
+                -1, -1, 6, 7,        # 8-11
+                -1, -1, -1, 13, 14,  # 12-16
+                -1, -1, 15, 16,      # 17-20
+                -1, -1, 19, 20,      # 21-24
+            ]),
+            "twin": np.full(n, -1),
+            "sex": np.array([
+                0, 1, 1, 1,       # 0=F, 1=M, 2=M, 3=M
+                0, 0, 1, 1,       # 4=F, 5=F, 6=M, 7=M
+                0, 0, 0, 0,       # 8=F, 9=F, 10, 11
+                0, 1, 1, 1, 1,    # 12=F, 13=M, 14=M, 15=M, 16=M
+                0, 0, 1, 1,       # 17=F, 18=F, 19=M, 20=M
+                0, 0, 0, 0,       # 21=F, 22=F, 23, 24
+            ]),
+            "generation": np.array([
+                0, 0, 1, 1,
+                1, 1, 2, 2,
+                2, 2, 3, 3,
+                0, 0, 0, 1, 1,
+                1, 1, 2, 2,
+                2, 2, 3, 3,
+            ]),
+        }
+        return pd.DataFrame(data)
+
+    def test_full_2c_included(self, pedigree_with_half_2c):
+        """Full 2nd cousin pair (10, 11) must be in 2C."""
+        pairs = extract_relationship_pairs(pedigree_with_half_2c, max_degree=5)
+        sc_set = _pairs_to_set(*pairs["2C"])
+        assert (10, 11) in sc_set, f"Full 2C pair (10,11) missing from 2C: {sc_set}"
+
+    def test_half_2c_excluded(self, pedigree_with_half_2c):
+        """Half 2nd cousin pair (23, 24) must NOT be in 2C."""
+        pairs = extract_relationship_pairs(pedigree_with_half_2c, max_degree=5)
+        sc_set = _pairs_to_set(*pairs["2C"])
+        assert (23, 24) not in sc_set, f"Half 2C pair (23,24) incorrectly in 2C: {sc_set}"
+
+    def test_2c_count(self, pedigree_with_half_2c):
+        """Only 1 full 2C pair should exist in this pedigree."""
+        pairs = extract_relationship_pairs(pedigree_with_half_2c, max_degree=5)
+        sc_set = _pairs_to_set(*pairs["2C"])
+        assert sc_set == {(10, 11)}, f"Expected exactly {{(10,11)}}, got {sc_set}"
