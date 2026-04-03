@@ -689,14 +689,11 @@ class PedigreeGraph:
         def _needed(code: str) -> bool:
             return PAIR_KINSHIP.get(code, 0) >= min_kinship
 
-        need_cousins = _needed("1C")
-        need_gp = _needed("GP")
-        need_avunc = _needed("Av")
-        need_hs = _needed("MHS")
+        need_hs = _needed("MHS") and max_degree >= 2
 
         # Pre-trigger cached properties needed by downstream extractions.
         # _Am/_Af are only needed to build _A; delete after to free memory.
-        if need_gp or need_avunc or need_cousins:
+        if max_degree >= 2:
             _ = self._A2  # chains: _Am, _Af → _A → _A2
         else:
             _ = self._A
@@ -721,31 +718,39 @@ class PedigreeGraph:
             time.perf_counter() - t0,
         )
 
-        # Run expensive extractions in parallel (only those needed)
-        t0 = time.perf_counter()
-        futures = {}
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            if need_cousins:
-                futures["1C"] = pool.submit(self._cousin_pairs)
-            if need_gp:
-                futures["GP"] = pool.submit(self._grandparent_grandchild_pairs)
-            if need_avunc:
-                futures["Av"] = pool.submit(self._avuncular_pairs, full_sib)
-            for k, fut in futures.items():
-                pairs[k] = fut.result()
+        # ---- Degree 2 (kinship 1/8): GP, Av, 1C ----
+        if max_degree >= 2:
+            t0 = time.perf_counter()
+            need_cousins = _needed("1C")
+            need_gp = _needed("GP")
+            need_avunc = _needed("Av")
 
-        for k in ("1C", "GP", "Av"):
-            if k not in pairs:
+            futures = {}
+            with ThreadPoolExecutor(max_workers=3) as pool:
+                if need_cousins:
+                    futures["1C"] = pool.submit(self._cousin_pairs)
+                if need_gp:
+                    futures["GP"] = pool.submit(self._grandparent_grandchild_pairs)
+                if need_avunc:
+                    futures["Av"] = pool.submit(self._avuncular_pairs, full_sib)
+                for k, fut in futures.items():
+                    pairs[k] = fut.result()
+
+            for k in ("1C", "GP", "Av"):
+                if k not in pairs:
+                    pairs[k] = (empty, empty)
+
+            logger.info(
+                "Degree 2: cousins=%d, grandparent=%d, avuncular=%d (%.3fs)%s",
+                len(pairs["1C"][0]),
+                len(pairs["GP"][0]),
+                len(pairs["Av"][0]),
+                time.perf_counter() - t0,
+                f" [min_kinship={min_kinship}]" if min_kinship > 0 else "",
+            )
+        else:
+            for k in ("1C", "GP", "Av"):
                 pairs[k] = (empty, empty)
-
-        logger.info(
-            "Parallel extraction: cousins=%d, grandparent=%d, avuncular=%d (%.3fs)%s",
-            len(pairs["1C"][0]),
-            len(pairs["GP"][0]),
-            len(pairs["Av"][0]),
-            time.perf_counter() - t0,
-            f" [min_kinship={min_kinship}]" if min_kinship > 0 else "",
-        )
 
         # ---- Degree 3+ setup (deferred to avoid work at default degree 2) ----
         if max_degree >= 3:
