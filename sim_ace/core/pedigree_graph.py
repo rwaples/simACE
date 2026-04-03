@@ -747,21 +747,20 @@ class PedigreeGraph:
             f" [min_kinship={min_kinship}]" if min_kinship > 0 else "",
         )
 
-        # Pre-compute reusable pair tuples for subtraction in degree 3+
-        po_pairs = (
-            np.concatenate([pairs["MO"][0], pairs["FO"][0]]),
-            np.concatenate([pairs["MO"][1], pairs["FO"][1]]),
-        )
-        sib_all = (
-            np.concatenate([pairs["FS"][0], pairs["MHS"][0], pairs["PHS"][0]]),
-            np.concatenate([pairs["FS"][1], pairs["MHS"][1], pairs["PHS"][1]]),
-        )
-        gp_pairs = pairs["GP"]
-        fsm = self._full_sib_matrix
-        # Half-sib matrix only needed for degree 3+; skip construction at degree 2
+        # ---- Degree 3+ setup (deferred to avoid work at default degree 2) ----
         if max_degree >= 3:
+            po_pairs = (
+                np.concatenate([pairs["MO"][0], pairs["FO"][0]]),
+                np.concatenate([pairs["MO"][1], pairs["FO"][1]]),
+            )
+            sib_all = (
+                np.concatenate([pairs["FS"][0], pairs["MHS"][0], pairs["PHS"][0]]),
+                np.concatenate([pairs["FS"][1], pairs["MHS"][1], pairs["PHS"][1]]),
+            )
+            gp_pairs = pairs["GP"]
+            fsm = self._full_sib_matrix
             self._build_half_sib_matrix(mat_hs, pat_hs)
-        hsm = getattr(self, "_half_sib_matrix", sp.csr_matrix((self.n, self.n)))
+            hsm = self._half_sib_matrix
 
         # ---- Degree 3 (kinship 1/16): GGP, HAv, GAv ----
         if max_degree >= 3:
