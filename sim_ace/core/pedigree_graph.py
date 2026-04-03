@@ -640,11 +640,12 @@ class PedigreeGraph:
         t0 = time.perf_counter()
         D_raw = self._A3 @ self._A3.T
         logger.debug("A3 @ A3.T computed in %.3fs (nnz=%d)", time.perf_counter() - t0, D_raw.nnz)
-        D_bool = (D_raw > 0).astype(np.float64)
+        # Booleanise in place (avoids full copy)
+        D_raw.data[:] = 1.0
+        C_raw = self._A2_shared.copy()
+        C_raw.data[:] = 1.0
 
-        C_bool = (self._A2_shared > 0).astype(np.float64)
-
-        second_cousins = D_bool - D_bool.multiply(C_bool)
+        second_cousins = D_raw - D_raw.multiply(C_raw)
         second_cousins.setdiag(0)
         second_cousins.eliminate_zeros()
         logger.debug("2nd cousin matrix: nnz=%d (%.3fs total)", second_cousins.nnz, time.perf_counter() - t0)
@@ -880,8 +881,9 @@ class PedigreeGraph:
         # ---- Degree 5 (kinship 1/64): 2C, G3GP, HGGAv, G3Av, H1C1R, 1C2R ----
         if max_degree >= 5:
             t0 = time.perf_counter()
-            _ = self._A5  # pre-trigger
-            if A2_A3T is None:
+            # _A5 triggered lazily by G3GP (_lineal_pairs(5))
+            # A2_A3T needed by H1C1R only
+            if _needed("H1C1R") and A2_A3T is None:
                 A2_A3T = self._A2 @ self._A3.T
 
             def _extract_h1c1r() -> tuple[np.ndarray, np.ndarray]:
