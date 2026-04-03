@@ -23,48 +23,32 @@ from sim_ace.simulation.simulate import run_simulation
 # Module-scoped fixtures (simulation runs once per file)
 # ---------------------------------------------------------------------------
 
+_DEFAULT_PARAMS = dict(
+    seed=42,
+    N=1000,
+    G_ped=3,
+    G_sim=3,
+    mating_lambda=0.5,
+    p_mztwin=0.02,
+    A1=0.5,
+    C1=0.2,
+    A2=0.5,
+    C2=0.2,
+    rA=0.3,
+    rC=0.5,
+    assort1=0.0,
+    assort2=0.0,
+)
+
 
 @pytest.fixture(scope="module")
 def val_pedigree():
-    return run_simulation(
-        seed=42,
-        N=1000,
-        G_ped=3,
-        G_sim=3,
-        mating_lambda=0.5,
-        p_mztwin=0.02,
-        A1=0.5,
-        C1=0.2,
-        A2=0.5,
-        C2=0.2,
-        rA=0.3,
-        rC=0.5,
-        assort1=0.0,
-        assort2=0.0,
-    )
+    return run_simulation(**_DEFAULT_PARAMS)
 
 
 @pytest.fixture(scope="module")
 def val_params():
-    return dict(
-        seed=42,
-        N=1000,
-        G_ped=3,
-        G_sim=3,
-        mating_lambda=0.5,
-        p_mztwin=0.02,
-        A1=0.5,
-        C1=0.2,
-        E1=0.3,
-        A2=0.5,
-        C2=0.2,
-        E2=0.3,
-        rA=0.3,
-        rC=0.5,
-        rE=0.0,
-        assort1=0.0,
-        assort2=0.0,
-    )
+    return {**_DEFAULT_PARAMS, "E1": 0.3, "E2": 0.3, "rE": 0.0}
 
 
 @pytest.fixture(scope="module")
@@ -75,6 +59,11 @@ def val_indexed(val_pedigree):
 @pytest.fixture(scope="module")
 def val_sibling_pairs(val_pedigree):
     return extract_sibling_pairs(val_pedigree)
+
+
+@pytest.fixture(scope="module")
+def heritability_result(val_pedigree, val_params, val_indexed, val_sibling_pairs):
+    return validate_heritability(val_pedigree, val_params, val_indexed, val_sibling_pairs)
 
 
 # ---------------------------------------------------------------------------
@@ -161,27 +150,22 @@ class TestValidateStatistical:
 
 
 class TestValidateHeritability:
-    def test_result_present(self, val_pedigree, val_params, val_indexed, val_sibling_pairs):
-        result = validate_heritability(val_pedigree, val_params, val_indexed, val_sibling_pairs)
-        assert isinstance(result, dict)
-        assert len(result) > 0
+    def test_result_present(self, heritability_result):
+        assert isinstance(heritability_result, dict)
+        assert len(heritability_result) > 0
 
-    def test_mz_correlations_present(self, val_pedigree, val_params, val_indexed, val_sibling_pairs):
-        result = validate_heritability(val_pedigree, val_params, val_indexed, val_sibling_pairs)
-        # Should have MZ twin correlation entries
-        mz_keys = [k for k in result if "mz" in k.lower()]
+    def test_mz_correlations_present(self, heritability_result):
+        mz_keys = [k for k in heritability_result if "mz" in k.lower()]
         assert len(mz_keys) > 0
 
-    def test_falconer_present(self, val_pedigree, val_params, val_indexed, val_sibling_pairs):
-        result = validate_heritability(val_pedigree, val_params, val_indexed, val_sibling_pairs)
-        falc_keys = [k for k in result if "falconer" in k.lower()]
+    def test_falconer_present(self, heritability_result):
+        falc_keys = [k for k in heritability_result if "falconer" in k.lower()]
         assert len(falc_keys) > 0
 
 
 class TestComputePerGenerationStats:
     def test_three_generations(self, val_pedigree, val_params):
         result = compute_per_generation_stats(val_pedigree, val_params)
-        # Generations are 1-indexed in the simulation
         assert "generation_1" in result
         assert "generation_2" in result
         assert "generation_3" in result
@@ -223,7 +207,6 @@ class TestComputeFamilySizeDistribution:
 
     def test_mean_around_two(self, val_pedigree, val_params):
         result = compute_family_size_distribution(val_pedigree, val_params)
-        # With balanced sex and mating_lambda=0.5, mean offspring per mother ≈ 2-2.5
         assert result["mother"]["mean"] == pytest.approx(2.0, abs=0.5)
 
 

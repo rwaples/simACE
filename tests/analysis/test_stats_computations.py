@@ -657,34 +657,24 @@ class TestComputeCensoringWindows:
 # ===================================================================
 
 
+_DEFAULT_SIM_PARAMS = dict(
+    seed=42, N=1000, G_ped=3, G_sim=3, mating_lambda=0.5, p_mztwin=0.02,
+    A1=0.5, C1=0.2, A2=0.5, C2=0.2, rA=0.3, rC=0.5, assort1=0.0, assort2=0.0,
+)  # fmt: skip
+
+
 @pytest.fixture(scope="module")
 def phenotyped_df():
     """Simulated + thresholded pedigree with all columns needed by stats functions."""
     from sim_ace.phenotyping.threshold import apply_threshold
     from sim_ace.simulation.simulate import run_simulation
 
-    ped = run_simulation(
-        seed=42,
-        N=1000,
-        G_ped=3,
-        G_sim=3,
-        mating_lambda=0.5,
-        p_mztwin=0.02,
-        A1=0.5,
-        C1=0.2,
-        A2=0.5,
-        C2=0.2,
-        rA=0.3,
-        rC=0.5,
-        assort1=0.0,
-        assort2=0.0,
-    )
+    ped = run_simulation(**_DEFAULT_SIM_PARAMS)
     gen = ped["generation"].values
     rng = np.random.default_rng(42)
     for t in [1, 2]:
         liab = ped[f"liability{t}"].values
         ped[f"affected{t}"] = apply_threshold(liab, gen, 0.10)
-        # Proxy event times: lower liability → later onset for affected
         aff = ped[f"affected{t}"].values
         ped[f"t_observed{t}"] = np.where(aff, rng.uniform(10, 70, len(ped)), 80.0)
         ped[f"t{t}"] = np.where(aff, ped[f"t_observed{t}"], rng.uniform(85, 200, len(ped)))

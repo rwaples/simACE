@@ -12,6 +12,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from sim_ace.core.utils import PAIR_TYPES
+
 matplotlib.use("Agg")
 
 
@@ -417,15 +419,12 @@ class TestPlotValidation:
 # Shared fixtures for new smoke tests
 # ---------------------------------------------------------------------------
 
-PAIR_TYPES = ["MZ", "FS", "MO", "FO", "MHS", "PHS", "1C"]
 
-
-def _make_pair_data(r=0.5, n=100):
-    return {"r": r, "se": 0.05, "n_pairs": n}
-
-
-def _make_pair_data_with_liab(r=0.5, n=100, liab_r=0.4):
-    return {"r": r, "se": 0.05, "n_pairs": n, "liability_r": liab_r}
+def _make_pair_data(r=0.5, n=100, liab_r=None):
+    d = {"r": r, "se": 0.05, "n_pairs": n}
+    if liab_r is not None:
+        d["liability_r"] = liab_r
+    return d
 
 
 @pytest.fixture
@@ -499,7 +498,7 @@ def simple_ltm_stats():
                 },
             },
             "tetrachoric_by_sex": {
-                sex: {f"trait{t}": {pt: _make_pair_data_with_liab(0.4, 50) for pt in PAIR_TYPES} for t in [1, 2]}
+                sex: {f"trait{t}": {pt: _make_pair_data(0.4, 50, liab_r=0.4) for pt in PAIR_TYPES} for t in [1, 2]}
                 for sex in ["female", "male"]
             },
             "parent_offspring_corr_by_sex": {
@@ -729,11 +728,9 @@ class TestPlotDistributionsExpanded:
     def test_plot_trait_regression(self, simple_ltm_samples, simple_ltm_stats, tmp_path):
         from sim_ace.plotting.plot_distributions import plot_trait_regression
 
-        # Ensure affected samples have liability columns
-        df = simple_ltm_samples.copy()
         before = plt.get_fignums()
         out = tmp_path / "trait_reg.png"
-        plot_trait_regression(df, simple_ltm_stats, out, scenario="test")
+        plot_trait_regression(simple_ltm_samples, simple_ltm_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
         plt.close("all")

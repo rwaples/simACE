@@ -18,28 +18,19 @@ from sim_ace.analysis.ltm_falconer import (
 # ---------------------------------------------------------------------------
 
 
+_DEFAULT_SIM_PARAMS = dict(
+    seed=42, N=1000, G_ped=3, G_sim=3, mating_lambda=0.5, p_mztwin=0.02,
+    A1=0.5, C1=0.2, A2=0.5, C2=0.2, rA=0.3, rC=0.5, assort1=0.0, assort2=0.0,
+)  # fmt: skip
+
+
 @pytest.fixture(scope="module")
 def ltm_df():
     """Simulated pedigree with affected columns for Falconer h2 tests."""
     from sim_ace.phenotyping.threshold import apply_threshold
     from sim_ace.simulation.simulate import run_simulation
 
-    ped = run_simulation(
-        seed=42,
-        N=1000,
-        G_ped=3,
-        G_sim=3,
-        mating_lambda=0.5,
-        p_mztwin=0.02,
-        A1=0.5,
-        C1=0.2,
-        A2=0.5,
-        C2=0.2,
-        rA=0.3,
-        rC=0.5,
-        assort1=0.0,
-        assort2=0.0,
-    )
+    ped = run_simulation(**_DEFAULT_SIM_PARAMS)
     gen = ped["generation"].values
     for t in [1, 2]:
         liab = ped[f"liability{t}"].values
