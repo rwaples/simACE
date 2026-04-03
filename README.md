@@ -94,6 +94,21 @@ It it possiblle to further restrict the observed data via sampling to construct 
 
 The `max_degree` parameter controls extraction depth (default 2, covering through 1st cousins). Degree 3-5 types require deeper matrix products and are only computed when requested. The registry is importable as `REL_REGISTRY` and `PAIR_KINSHIP` from `sim_ace.core.pedigree_graph`.
 
+### Inbreeding and exact kinship
+
+By default, kinship values are computed from the `(up, down, n_ancestors)` formula, which assumes no inbreeding. When `estimate_inbreeding: true` is set in config, `PedigreeGraph` computes exact inbreeding coefficients and pairwise kinship using sparse matrix propagation:
+
+1. **`compute_inbreeding()`** builds the kinship matrix `K` generation by generation using sparse products (`P_g @ K` for cross-generation, `K_cross @ P_g.T` for within-generation). The inbreeding coefficient `F_i = K[mother_i, father_i]` is extracted each generation. For non-consanguineous pedigrees (all `F = 0`), both functions short-circuit instantly.
+
+2. **`compute_pair_kinship(pairs)`** looks up exact kinship for each extracted pair from the cached sparse `K` matrix. When inbreeding is present, kinship values deviate from the nominal formula by a factor of `(1 + F_a)` where `F_a` is the inbreeding coefficient of the common ancestor.
+
+| Pedigree | `compute_inbreeding` | `compute_pair_kinship` | Total |
+|----------|---------------------:|-----------------------:|------:|
+| N=10K, 6 gens (60K individuals) | 12.9s | 2.3s | 15.2s |
+| N=100K, 4 gens (400K individuals) | 11.9s | 0.9s | 12.7s |
+
+Cost is dominated by the sparse `P_g @ K` products, which scale with the number of nonzero kinship entries (i.e., the number of related pairs in the pedigree). Fewer generations means sparser `K` and faster computation, even at larger `N`.
+
 ## Prerequisites
 
 - [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) (Miniconda or Miniforge)
