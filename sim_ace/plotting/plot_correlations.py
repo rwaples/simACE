@@ -7,6 +7,17 @@ plot_heritability_by_generation, plot_broad_heritability_by_generation.
 
 from __future__ import annotations
 
+__all__ = [
+    "plot_broad_heritability_by_generation",
+    "plot_cross_trait_tetrachoric",
+    "plot_heritability_by_generation",
+    "plot_heritability_by_sex_generation",
+    "plot_parent_offspring_liability",
+    "plot_tetrachoric_by_generation",
+    "plot_tetrachoric_by_sex",
+    "plot_tetrachoric_sibling",
+]
+
 import logging
 from typing import TYPE_CHECKING, Any
 

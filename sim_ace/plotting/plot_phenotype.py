@@ -1,11 +1,12 @@
-"""
-Plot phenotype distributions from pre-computed per-rep statistics.
+"""Plot phenotype distributions from pre-computed per-rep statistics.
 
 Reads phenotype_stats.yaml and phenotype_samples.parquet files (one per rep)
 produced by compute_phenotype_stats.py. No full phenotype parquet loading needed.
 """
 
 from __future__ import annotations
+
+__all__: list[str] = []
 
 import argparse
 import json

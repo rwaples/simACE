@@ -7,6 +7,19 @@ plot_censoring_confusion, plot_censoring_cascade, plot_mate_correlation.
 
 from __future__ import annotations
 
+__all__ = [
+    "plot_censoring_cascade",
+    "plot_censoring_confusion",
+    "plot_joint_affection",
+    "plot_liability_joint",
+    "plot_liability_joint_affected",
+    "plot_liability_joint_affected_t2",
+    "plot_liability_violin",
+    "plot_liability_violin_by_generation",
+    "plot_liability_violin_by_sex_generation",
+    "plot_mate_correlation",
+]
+
 import logging
 from typing import TYPE_CHECKING, Any
 

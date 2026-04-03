@@ -6,6 +6,13 @@ estimators in sim_ace.core.weibull_mle.
 
 from __future__ import annotations
 
+__all__ = [
+    "compute_pair_corr",
+    "compute_weibull_pair_corr",
+    "cross_trait_corr_se",
+    "km_censoring_weights",
+]
+
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -164,10 +171,12 @@ def compute_weibull_pair_corr(
     """Compute pairwise Weibull correlation for all relationship types, one trait.
 
     Args:
-        df: phenotype DataFrame with t_observed{trait_num} and affected{trait_num}
-        trait_num: 1 or 2
-        scale, rho, beta: Weibull parameters for this trait (lifelines convention)
-        pairs: pre-extracted relationship pair indices
+        df: Phenotype DataFrame with t_observed{trait_num} and affected{trait_num}.
+        trait_num: 1 or 2.
+        scale: Weibull scale parameter (lifelines convention).
+        rho: Weibull shape parameter (lifelines convention).
+        beta: Log-hazard-ratio coefficient linking liability to hazard.
+        pairs: Pre-extracted relationship pair indices.
         n_quad: quadrature nodes per dimension
         min_pairs: skip relationship types with fewer pairs
         max_pairs: subsample if more pairs than this

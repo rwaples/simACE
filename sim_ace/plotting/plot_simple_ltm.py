@@ -1,11 +1,19 @@
-"""
-Plot simple LTM phenotype distributions from pre-computed stats.
+"""Plot simple LTM phenotype distributions from pre-computed stats.
 
 Reads simple_ltm_stats.yaml and simple_ltm_samples.parquet files (one per rep)
 produced by compute_simple_ltm_stats.py.
 """
 
 from __future__ import annotations
+
+__all__ = [
+    "plot_joint_affection",
+    "plot_liability_joint",
+    "plot_liability_violin",
+    "plot_liability_violin_by_generation",
+    "plot_prevalence_by_generation",
+    "plot_tetrachoric",
+]
 
 import argparse
 from pathlib import Path

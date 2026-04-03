@@ -1,5 +1,4 @@
-"""
-Phenotype simulation for two correlated traits.
+"""Phenotype simulation for two correlated traits.
 
 Per-trait phenotype model selection via phenotype_model1/phenotype_model2:
   Frailty models: "frailty_weibull", "frailty_exponential", "frailty_gompertz",
@@ -37,6 +36,15 @@ Inversion strategy:
 """
 
 from __future__ import annotations
+
+__all__ = [
+    "phenotype_adult_cox",
+    "phenotype_adult_ltm",
+    "phenotype_cure_frailty",
+    "phenotype_first_passage",
+    "run_phenotype",
+    "simulate_phenotype",
+]
 
 import argparse
 import logging

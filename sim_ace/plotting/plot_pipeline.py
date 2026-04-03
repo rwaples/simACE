@@ -6,6 +6,8 @@ each step's relevant parameters displayed inside its box.
 
 from __future__ import annotations
 
+__all__ = ["plot_pipeline", "render_pipeline_figure"]
+
 import argparse
 import logging
 from pathlib import Path

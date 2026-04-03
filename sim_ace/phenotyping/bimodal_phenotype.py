@@ -8,6 +8,12 @@ Three models that produce bimodal age-of-onset distributions:
 
 from __future__ import annotations
 
+__all__ = [
+    "phenotype_mixture_cip",
+    "phenotype_mixture_cure_frailty",
+    "phenotype_two_threshold",
+]
+
 import numpy as np
 
 from sim_ace.core._numba_utils import _ndtri_approx

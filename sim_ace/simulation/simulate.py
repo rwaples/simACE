@@ -1,5 +1,4 @@
-"""
-ACE Pedigree Simulation
+"""ACE pedigree simulation.
 
 Simulates multi-generational pedigrees with:
 - A: Additive genetic component
@@ -11,6 +10,21 @@ cross-trait correlations for genetic (rA) and common environment (rC) components
 """
 
 from __future__ import annotations
+
+__all__ = [
+    "add_to_pedigree",
+    "allocate_offspring",
+    "assign_twins",
+    "balance_mating_slots",
+    "draw_mating_counts",
+    "generate_correlated_components",
+    "generate_mendelian_noise",
+    "mating",
+    "pair_partners",
+    "reproduce",
+    "resolve_per_gen_param",
+    "run_simulation",
+]
 
 import argparse
 import logging
@@ -694,6 +708,8 @@ def mating(
             assort1 or assort2 is nonzero
         assort1: target mate correlation on trait 1 liability
         assort2: target mate correlation on trait 2 liability
+        rho_w: within-person cross-trait liability correlation, used to
+            derive off-diagonal entries of the mate correlation matrix
         assort_matrix: optional full 2x2 mate correlation matrix R_mf
 
     Returns:
@@ -799,6 +815,7 @@ def reproduce(
         sd_C2: standard deviation of C for trait 2
         rA: genetic correlation between traits
         rC: common environment correlation between traits
+        rE: unique environment correlation between traits
 
     Returns:
         offspring: (n, 6) array of [A1, C1, E1, A2, C2, E2]
@@ -1037,8 +1054,10 @@ def run_simulation(
         G_ped: Number of generations to record in pedigree (integer >= 1)
         mating_lambda: Poisson lambda for zero-truncated mating count distribution (> 0)
         p_mztwin: Probability of a mating producing MZ twins, in [0, 1)
-        A1, C1: Trait 1 additive genetic and shared-environment variance (>= 0)
-        A2, C2: Trait 2 additive genetic and shared-environment variance (>= 0)
+        A1: Trait 1 additive genetic variance (>= 0).
+        C1: Trait 1 shared-environment variance (>= 0).
+        A2: Trait 2 additive genetic variance (>= 0).
+        C2: Trait 2 shared-environment variance (>= 0).
         rA: Genetic correlation between traits, in [-1, 1]
         rC: Common environment correlation between traits, in [-1, 1]
         rE: Unique environment correlation between traits, in [-1, 1].
@@ -1048,11 +1067,15 @@ def run_simulation(
         E2: Trait 2 unique-environment variance.  Same format as E1.
         G_sim: Total generations to simulate (default: G_ped). First G_sim - G_ped
                generations are burn-in and discarded from output.
-        assort_matrix: optional full 2x2 mate correlation matrix R_mf.
+        assort1: Target mate Pearson correlation on trait 1 liability, in [-1, 1].
+        assort2: Target mate Pearson correlation on trait 2 liability, in [-1, 1].
+        assort_matrix: Optional full 2x2 mate correlation matrix R_mf.
             Overrides assort1/assort2 diagonal with matrix diagonal.
 
     Returns:
-        pedigree DataFrame
+        Pedigree DataFrame with columns id, sex, mother, father, twin,
+        generation, household_id, A1, C1, E1, liability1, A2, C2, E2,
+        liability2.
 
     Raises:
         ValueError: if any parameter is outside its valid range

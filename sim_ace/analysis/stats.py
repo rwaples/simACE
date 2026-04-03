@@ -1,5 +1,4 @@
-"""
-Compute per-rep phenotype statistics for downstream plotting.
+"""Compute per-rep phenotype statistics for downstream plotting.
 
 Reads a single phenotype.parquet and produces:
   - phenotype_stats.yaml: scalar and array statistics
@@ -7,6 +6,33 @@ Reads a single phenotype.parquet and produces:
 """
 
 from __future__ import annotations
+
+__all__ = [
+    "compute_censoring_cascade",
+    "compute_censoring_confusion",
+    "compute_censoring_windows",
+    "compute_cross_trait_tetrachoric",
+    "compute_cumulative_incidence",
+    "compute_cumulative_incidence_by_sex",
+    "compute_cumulative_incidence_by_sex_generation",
+    "compute_joint_affection",
+    "compute_liability_correlations",
+    "compute_mate_correlation",
+    "compute_mean_family_size",
+    "compute_mortality",
+    "compute_parent_offspring_corr",
+    "compute_parent_offspring_corr_by_sex",
+    "compute_parent_status",
+    "compute_person_years",
+    "compute_prevalence",
+    "compute_regression",
+    "compute_tetrachoric",
+    "compute_tetrachoric_by_generation",
+    "compute_tetrachoric_by_sex",
+    "create_sample",
+    "tetrachoric_corr",
+    "tetrachoric_corr_se",
+]
 
 import argparse
 import json
@@ -33,9 +59,14 @@ logger = logging.getLogger(__name__)
 
 
 def tetrachoric_corr(a: np.ndarray, b: np.ndarray) -> float:
-    """
-    Convenience wrapper: returns only the MLE tetrachoric correlation.
-    Kept for backward compatibility with older code that expects a scalar r.
+    """Return the MLE tetrachoric correlation between two binary arrays.
+
+    Args:
+        a: First binary array.
+        b: Second binary array, same length as *a*.
+
+    Returns:
+        Tetrachoric correlation coefficient.
     """
     r, _ = tetrachoric_corr_se(a, b)
     return r
@@ -76,6 +107,15 @@ def tetrachoric_corr_se(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
 
 
 def compute_mortality(df: pd.DataFrame, censor_age: float) -> dict[str, Any]:
+    """Compute decade-binned mortality rates from death ages.
+
+    Args:
+        df: Phenotype DataFrame with ``death_age`` column.
+        censor_age: Maximum observation age.
+
+    Returns:
+        Dict with ``decade_labels`` and ``rates`` lists.
+    """
     decade_edges = np.arange(0, censor_age + 10, 10)
     mortality_rates, decade_labels = [], []
     death_ages = df["death_age"].values
@@ -95,6 +135,17 @@ def compute_cumulative_incidence(
     censor_age: float,
     n_points: int = 200,
 ) -> dict[str, Any]:
+    """Compute observed and true cumulative incidence curves per trait.
+
+    Args:
+        df: Phenotype DataFrame with event time and affection columns.
+        censor_age: Maximum observation age for the x-axis grid.
+        n_points: Number of age grid points.
+
+    Returns:
+        Dict keyed by ``trait1``/``trait2``, each with ``ages``,
+        ``observed_values``, ``true_values``, and ``half_target_age``.
+    """
     ages = np.linspace(0, censor_age, n_points)
     n = len(df)
     result = {}
@@ -122,6 +173,17 @@ def compute_censoring_windows(
     gen_censoring: dict[int, list[float]],
     n_points: int = 300,
 ) -> dict[str, Any] | None:
+    """Compute per-generation censoring breakdown and incidence curves.
+
+    Args:
+        df: Phenotype DataFrame with generation, event time, and censoring columns.
+        censor_age: Maximum observation age.
+        gen_censoring: Dict mapping generation to ``[left, right]`` observation window.
+        n_points: Number of age grid points for incidence curves.
+
+    Returns:
+        Dict with per-generation censoring stats, or None if no generation column.
+    """
     if "generation" not in df.columns:
         return None
     ages = np.linspace(0, censor_age, n_points)
@@ -154,6 +216,15 @@ def compute_censoring_windows(
 
 
 def compute_regression(df: pd.DataFrame) -> dict[str, Any]:
+    """Regress observed event time on liability for affected individuals.
+
+    Args:
+        df: Phenotype DataFrame with liability and observed-time columns.
+
+    Returns:
+        Dict keyed by ``trait1``/``trait2``, each with regression stats
+        (slope, intercept, r, r2, stderr, pvalue, n) or None.
+    """
     result: dict[str, Any] = {}
     for trait_num in [1, 2]:
         aff_col = f"affected{trait_num}"
@@ -180,6 +251,14 @@ def compute_regression(df: pd.DataFrame) -> dict[str, Any]:
 
 
 def compute_prevalence(df: pd.DataFrame) -> dict[str, float]:
+    """Compute observed prevalence for each trait.
+
+    Args:
+        df: Phenotype DataFrame with ``affected1`` and ``affected2`` columns.
+
+    Returns:
+        Dict with ``trait1`` and ``trait2`` prevalence fractions.
+    """
     return {"trait1": float(df["affected1"].mean()), "trait2": float(df["affected2"].mean())}
 
 
@@ -404,6 +483,16 @@ def compute_liability_correlations(
     seed: int = 42,
     pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> dict[str, Any]:
+    """Compute Pearson liability correlations per pair type and trait.
+
+    Args:
+        df: Phenotype DataFrame with liability columns.
+        seed: Random seed (unused, kept for API consistency).
+        pairs: Pre-extracted relationship pairs; extracted if None.
+
+    Returns:
+        Dict keyed by ``trait1``/``trait2``, each mapping pair type to correlation.
+    """
     if pairs is None:
         pairs = extract_relationship_pairs(df)
     result = {}
@@ -447,6 +536,17 @@ def compute_tetrachoric(
     seed: int = 42,
     pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> dict[str, Any]:
+    """Compute tetrachoric correlations per pair type and trait.
+
+    Args:
+        df: Phenotype DataFrame with binary affection columns.
+        seed: Random seed (unused, kept for API consistency).
+        pairs: Pre-extracted relationship pairs; extracted if None.
+
+    Returns:
+        Dict keyed by ``trait1``/``trait2``, each mapping pair type to
+        ``{r, se, n_pairs}``.
+    """
     if pairs is None:
         pairs = extract_relationship_pairs(df)
     result = {}
@@ -465,6 +565,17 @@ def compute_tetrachoric_by_generation(
     seed: int = 42,
     pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> dict[str, Any]:
+    """Compute tetrachoric correlations stratified by generation.
+
+    Args:
+        df: Phenotype DataFrame with generation and affection columns.
+        seed: Random seed (unused, kept for API consistency).
+        pairs: Pre-extracted relationship pairs; extracted if None.
+
+    Returns:
+        Dict keyed by ``gen{N}``, each containing per-trait per-pair-type
+        ``{r, se, n_pairs, liability_r}``.
+    """
     if "generation" not in df.columns:
         return {}
     if pairs is None:
@@ -493,6 +604,20 @@ def compute_cross_trait_tetrachoric(
     seed: int = 42,
     pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> dict[str, Any]:
+    """Compute cross-trait tetrachoric correlations (trait 1 vs trait 2).
+
+    Includes same-person, same-person-by-generation, and cross-person
+    (across relationship pair types) correlations.
+
+    Args:
+        df: Phenotype DataFrame with binary affection columns for both traits.
+        seed: Random seed (unused, kept for API consistency).
+        pairs: Pre-extracted relationship pairs; extracted if None.
+
+    Returns:
+        Dict with keys ``same_person``, ``same_person_by_generation``,
+        and ``cross_person``.
+    """
     if pairs is None:
         pairs = extract_relationship_pairs(df)
     a1 = df["affected1"].values.astype(bool)
@@ -570,6 +695,15 @@ def _po_regression(gen_idx: np.ndarray, liability: np.ndarray, id_to_row: np.nda
 
 
 def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
+    """Compute midparent-offspring liability regression per generation and trait.
+
+    Args:
+        df: Phenotype DataFrame with liability, generation, and parent columns.
+
+    Returns:
+        Dict keyed by ``trait1``/``trait2``, each containing per-generation
+        regression stats (slope, r, r2, intercept, stderr, pvalue, n_pairs).
+    """
     if "generation" not in df.columns:
         return {}
     max_gen = int(df["generation"].max())
@@ -1017,6 +1151,7 @@ def main(
 
 
 def cli() -> None:
+    """Command-line interface for phenotype statistics computation."""
     from sim_ace.core.cli_base import add_logging_args, init_logging
 
     parser = argparse.ArgumentParser(description="Compute phenotype statistics")

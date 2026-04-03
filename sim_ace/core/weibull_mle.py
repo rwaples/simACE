@@ -1,5 +1,4 @@
-"""
-Pairwise Weibull frailty likelihood estimator for liability correlation.
+"""Pairwise Weibull frailty likelihood estimator for liability correlation.
 
 For a pair (i, j) with correlated liabilities (L_i, L_j) ~ BVN(0, 0, 1, 1, r),
 computes the MLE of r from paired survival data (t_observed, affected).
@@ -19,6 +18,8 @@ so S(left|L) ~ 1.0 — conservative but not biased.
 """
 
 from __future__ import annotations
+
+__all__ = ["cross_trait_weibull_corr_se", "pairwise_weibull_corr_se"]
 
 import logging
 import math
@@ -209,13 +210,17 @@ def pairwise_weibull_corr_se(
     """Estimate liability correlation from paired Weibull survival data.
 
     Args:
-        t_i, t_j: observed times for members of each pair, shape (n_pairs,)
-        delta_i, delta_j: event indicators (1=affected, 0=censored), shape (n_pairs,)
-        scale, rho, beta: Weibull frailty model parameters (lifelines convention)
-        n_quad: number of Gauss-Hermite quadrature nodes per dimension
+        t_i: Observed times for member i of each pair, shape (n_pairs,).
+        delta_i: Event indicator for member i (1=affected, 0=censored).
+        t_j: Observed times for member j of each pair, shape (n_pairs,).
+        delta_j: Event indicator for member j (1=affected, 0=censored).
+        scale: Weibull scale parameter (lifelines convention).
+        rho: Weibull shape parameter (lifelines convention).
+        beta: Log-hazard-ratio coefficient linking liability to hazard.
+        n_quad: Number of Gauss-Hermite quadrature nodes per dimension.
 
     Returns:
-        (r_hat, se): estimated liability correlation and standard error.
+        Tuple of (r_hat, se): estimated liability correlation and standard error.
     """
     t_i = np.asarray(t_i, dtype=np.float64)
     t_j = np.asarray(t_j, dtype=np.float64)
@@ -340,15 +345,22 @@ def cross_trait_weibull_corr_se(
     different Weibull parameters per trait.
 
     Args:
-        t1, t2: observed times for trait 1 and trait 2, shape (n,)
-        delta1, delta2: event indicators (1=affected, 0=censored), shape (n,)
-        scale1, rho1, beta1: Weibull parameters for trait 1
-        scale2, rho2, beta2: Weibull parameters for trait 2
-        n_quad: number of Gauss-Hermite quadrature nodes per dimension
-        ipcw_weights: optional IPCW weights, shape (n,). If None, uniform weights.
+        t1: Observed times for trait 1, shape (n,).
+        delta1: Event indicator for trait 1 (1=affected, 0=censored).
+        t2: Observed times for trait 2, shape (n,).
+        delta2: Event indicator for trait 2 (1=affected, 0=censored).
+        scale1: Weibull scale parameter for trait 1.
+        rho1: Weibull shape parameter for trait 1.
+        beta1: Log-hazard-ratio coefficient for trait 1.
+        scale2: Weibull scale parameter for trait 2.
+        rho2: Weibull shape parameter for trait 2.
+        beta2: Log-hazard-ratio coefficient for trait 2.
+        n_quad: Number of Gauss-Hermite quadrature nodes per dimension.
+        ipcw_weights: Optional IPCW weights, shape (n,). If None, uniform weights.
 
     Returns:
-        (r_hat, se): estimated cross-trait liability correlation and standard error.
+        Tuple of (r_hat, se): estimated cross-trait liability correlation
+        and standard error.
     """
     t1 = np.asarray(t1, dtype=np.float64)
     t2 = np.asarray(t2, dtype=np.float64)

@@ -1,5 +1,4 @@
-"""
-Liability threshold phenotype model for two correlated traits.
+"""Liability threshold phenotype model for two correlated traits.
 
 Converts liability to binary affected status using a probit threshold
 derived from prevalence: ``threshold = ndtri(1 - K)``.  When
@@ -12,6 +11,8 @@ No time-to-event or censoring -- purely binary outcome.
 """
 
 from __future__ import annotations
+
+__all__ = ["apply_threshold", "run_threshold"]
 
 import argparse
 import logging

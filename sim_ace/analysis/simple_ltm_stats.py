@@ -1,5 +1,4 @@
-"""
-Compute per-rep statistics for the simple liability threshold phenotype model.
+"""Compute per-rep statistics for the simple liability threshold phenotype model.
 
 Reads a single phenotype.simple_ltm.parquet and produces:
   - simple_ltm_stats.yaml: prevalence, tetrachoric correlations, joint affection
@@ -7,6 +6,8 @@ Reads a single phenotype.simple_ltm.parquet and produces:
 """
 
 from __future__ import annotations
+
+__all__ = ["compute_liability_by_status", "compute_prevalence_by_generation"]
 
 import argparse
 import logging

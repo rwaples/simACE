@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["run_sample"]
+
 import argparse
 import logging
 import time

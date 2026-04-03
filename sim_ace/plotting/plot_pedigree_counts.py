@@ -1,5 +1,4 @@
-"""
-Pedigree relationship pair counts diagram.
+"""Pedigree relationship pair counts diagram.
 
 Draws a schematic multi-generational pedigree centred on a highlighted
 "Proband" individual.  Each of the 10 relationship types is represented
@@ -16,6 +15,8 @@ Family structure (4 generations):
 """
 
 from __future__ import annotations
+
+__all__ = ["plot_pedigree_relationship_counts"]
 
 import argparse
 import logging
@@ -271,6 +272,7 @@ def plot_pedigree_relationship_counts(
         scenario: Scenario name for the title.
         stats_key: Key in stats dict to read pair counts from.
         generations_label: Label appended to title (e.g. "G_ped = 6").
+        max_degree: Maximum kinship degree shown in the diagram.
     """
     output_path = Path(output_path)
 

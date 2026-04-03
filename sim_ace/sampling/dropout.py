@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["run_dropout"]
+
 import argparse
 import logging
 import time

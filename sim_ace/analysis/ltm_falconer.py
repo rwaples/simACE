@@ -7,6 +7,8 @@ For each EPIMIGHT relationship kind, computes:
 
 from __future__ import annotations
 
+__all__ = ["KIND_TO_PAIRS", "KINSHIP", "MIN_PAIRS", "compute_ltm_falconer"]
+
 import argparse
 import json
 import logging
@@ -72,7 +74,7 @@ def compute_ltm_falconer(
     pedigree : DataFrame, optional
         Full pedigree for complete multi-hop pair extraction.
 
-    Returns
+    Returns:
     -------
     dict
         Keyed by kind, each value a dict with keys:

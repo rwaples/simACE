@@ -1,5 +1,4 @@
-"""
-Pedigree relationship extraction via sparse matrix products.
+"""Pedigree relationship extraction via sparse matrix products.
 
 Builds parent→child CSR matrices and extracts relationship categories
 using sparse matrix algebra (A @ A.T for siblings, A² @ (A²).T for cousins, etc.).
@@ -12,6 +11,18 @@ Each relationship type is parameterised by (up, down, n_ancestors):
 """
 
 from __future__ import annotations
+
+__all__ = [
+    "PAIR_KINSHIP",
+    "REL_REGISTRY",
+    "PedigreeGraph",
+    "RelType",
+    "count_relationship_pairs",
+    "count_sib_pairs",
+    "extract_and_count_relationship_pairs",
+    "extract_relationship_pairs",
+    "extract_sibling_pairs",
+]
 
 import logging
 import time
@@ -44,12 +55,14 @@ class RelType(NamedTuple):
 
     @property
     def kinship(self) -> float:
+        """Kinship coefficient derived from path length and ancestor count."""
         if self.code == "MZ":
             return 0.5
         return self.n_anc * 0.5 ** (self.up + self.down + 1)
 
     @property
     def degree(self) -> int:
+        """Kinship degree (0 for MZ, 1 for parent-offspring/full-sib, etc.)."""
         if self.code == "MZ":
             return 0
         return round(-1 - np.log2(self.kinship))

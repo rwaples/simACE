@@ -2,6 +2,16 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "HEATMAP_CMAP",
+    "PAIR_COLORS",
+    "annotate_heatmap",
+    "draw_colored_violins",
+    "draw_split_violin",
+    "finalize_plot",
+    "save_placeholder_plot",
+]
+
 from typing import Any
 
 import numpy as np

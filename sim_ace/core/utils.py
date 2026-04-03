@@ -2,6 +2,21 @@
 
 from __future__ import annotations
 
+__all__ = [
+    "PAIR_TYPES",
+    "expected_mate_corr_matrix",
+    "fast_linregress",
+    "fast_pearsonr",
+    "get_nested",
+    "optimize_dtypes",
+    "safe_corrcoef",
+    "safe_linregress",
+    "save_parquet",
+    "to_native",
+    "validation_result",
+    "yaml_loader",
+]
+
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -25,28 +40,60 @@ PAIR_TYPES: list[str] = [
 
 
 def safe_corrcoef(x: np.ndarray, y: np.ndarray) -> float:
-    """Compute Pearson correlation, returning nan if either array has zero variance."""
+    """Compute Pearson correlation, returning nan if either array has zero variance.
+
+    Args:
+        x: First array of observations.
+        y: Second array of observations, same length as *x*.
+
+    Returns:
+        Pearson correlation coefficient, or nan if variance is near-zero.
+    """
     if np.std(x) < 1e-10 or np.std(y) < 1e-10:
         return float("nan")
     return float(_pearsonr_core(x, y))
 
 
 def safe_linregress(x: np.ndarray, y: np.ndarray) -> Any:
-    """Run linear regression, returning None if x has zero variance."""
+    """Run linear regression, returning None if x has zero variance.
+
+    Args:
+        x: Independent variable array.
+        y: Dependent variable array, same length as *x*.
+
+    Returns:
+        ``scipy.stats.LinregressResult`` or None if *x* has near-zero variance.
+    """
     if np.std(x) < 1e-10:
         return None
     return stats.linregress(x, y)
 
 
 def fast_linregress(x: np.ndarray, y: np.ndarray) -> tuple[float, float, float, float, float]:
-    """Fast linear regression returning (slope, intercept, r, stderr, pvalue)."""
+    """Fast linear regression via numba-accelerated core.
+
+    Args:
+        x: Independent variable array.
+        y: Dependent variable array, same length as *x*.
+
+    Returns:
+        Tuple of (slope, intercept, r, stderr, pvalue).
+    """
     slope, intercept, r, stderr, t_stat = _linregress_core(x, y)
     pvalue = float(2.0 * _t_sf(abs(t_stat), len(x) - 2))
     return float(slope), float(intercept), float(r), float(stderr), pvalue
 
 
 def fast_pearsonr(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
-    """Fast Pearson r with p-value. Returns (r, pvalue)."""
+    """Compute Pearson r with two-sided p-value via numba-accelerated core.
+
+    Args:
+        x: First array of observations.
+        y: Second array of observations, same length as *x*.
+
+    Returns:
+        Tuple of (correlation, p-value).
+    """
     r = float(_pearsonr_core(x, y))
     n = len(x)
     denom = 1.0 - r * r
@@ -58,7 +105,14 @@ def fast_pearsonr(x: np.ndarray, y: np.ndarray) -> tuple[float, float]:
 
 
 def to_native(obj: Any) -> Any:
-    """Recursively convert numpy types to native Python types for YAML serialization."""
+    """Recursively convert numpy types to native Python types for YAML serialization.
+
+    Args:
+        obj: Value or nested structure (dict, list, ndarray, numpy scalar).
+
+    Returns:
+        Equivalent structure with all numpy types replaced by Python builtins.
+    """
     if isinstance(obj, dict):
         return {k: to_native(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -75,7 +129,16 @@ def to_native(obj: Any) -> Any:
 
 
 def validation_result(passed: bool, details: str, **extra: Any) -> dict[str, Any]:
-    """Build a result dict with passed/details and optional extra keys."""
+    """Build a standardized validation result dict.
+
+    Args:
+        passed: Whether the validation check passed.
+        details: Human-readable description of the result.
+        **extra: Additional key-value pairs merged into the result.
+
+    Returns:
+        Dict with keys ``'passed'``, ``'details'``, plus any *extra* entries.
+    """
     d: dict[str, Any] = {"passed": passed, "details": details}
     d.update(extra)
     return d
@@ -89,6 +152,12 @@ def optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     - int8 for sex (0/1)
     - float32 for ACE components and event times (~7 significant digits)
     - float64 for liabilities (full precision for phenotype models)
+
+    Args:
+        df: Pedigree DataFrame to optimize in-place.
+
+    Returns:
+        The same DataFrame with downcasted column dtypes.
     """
     int32_cols = ["id", "mother", "father", "twin", "household_id", "generation"]
     int8_cols = ["sex"]
@@ -118,20 +187,41 @@ def optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def save_parquet(df: pd.DataFrame, path: Any, **kwargs: Any) -> None:
-    """Save DataFrame as parquet with optimized dtypes and zstd compression."""
+    """Save DataFrame as parquet with optimized dtypes and zstd compression.
+
+    Calls ``optimize_dtypes`` before writing to minimize file size.
+
+    Args:
+        df: DataFrame to save.
+        path: Output file path.
+        **kwargs: Extra keyword arguments passed to ``DataFrame.to_parquet``.
+    """
     optimize_dtypes(df)
     df.to_parquet(path, index=False, compression="zstd", **kwargs)
 
 
 def yaml_loader() -> type:
-    """Return the fastest available YAML SafeLoader."""
+    """Return the fastest available YAML SafeLoader.
+
+    Returns:
+        ``yaml.CSafeLoader`` if the C extension is available, else ``yaml.SafeLoader``.
+    """
     import yaml
 
     return getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 
 def get_nested(d: Any, *keys: str, default: Any = None) -> Any:
-    """Traverse nested dicts by key path, returning default if any key is missing."""
+    """Traverse nested dicts by key path, returning default if any key is missing.
+
+    Args:
+        d: Root dict (or nested structure) to traverse.
+        *keys: Sequence of keys to follow.
+        default: Value returned if any key is absent.
+
+    Returns:
+        The value at the end of the key path, or *default*.
+    """
     for key in keys:
         if isinstance(d, dict) and key in d:
             d = d[key]
@@ -166,6 +256,23 @@ def expected_mate_corr_matrix(
 
     When ``assort_matrix`` is provided, it is returned directly (the user
     has specified the full R_mf).
+
+    Args:
+        assort1: Target mate Pearson correlation for trait 1.
+        assort2: Target mate Pearson correlation for trait 2.
+        rA: Genetic correlation between traits.
+        rC: Shared-environment correlation between traits.
+        A1: Additive genetic variance for trait 1.
+        C1: Shared-environment variance for trait 1.
+        A2: Additive genetic variance for trait 2.
+        C2: Shared-environment variance for trait 2.
+        assort_matrix: If provided, returned directly as the full R_mf matrix.
+        rE: Unique-environment correlation between traits.
+        E1: Unique-environment variance for trait 1.
+        E2: Unique-environment variance for trait 2.
+
+    Returns:
+        2x2 array of expected mate liability correlations ``E[corr(F_i, M_j)]``.
     """
     if assort_matrix is not None:
         return np.asarray(assort_matrix, dtype=np.float64)

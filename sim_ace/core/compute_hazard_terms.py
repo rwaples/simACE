@@ -1,4 +1,8 @@
+"""Baseline hazard computation for parametric survival models."""
+
 import numpy as np
+
+__all__ = ["compute_hazard_terms"]
 from scipy.special import gammaln
 from scipy.stats import gamma as gamma_dist
 from scipy.stats import invgauss, norm

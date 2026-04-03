@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["render_table1_figure"]
+
 import logging
 from statistics import mean
 

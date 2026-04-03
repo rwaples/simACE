@@ -1,8 +1,23 @@
-"""
-Plot validation results summarized across replicates per scenario.
-"""
+"""Plot validation results summarized across replicates per scenario."""
 
 from __future__ import annotations
+
+__all__ = [
+    "plot_A_correlations",
+    "plot_consanguineous_matings",
+    "plot_cross_trait_correlations",
+    "plot_family_size",
+    "plot_half_sib_proportions",
+    "plot_heritability_estimates",
+    "plot_memory",
+    "plot_phenotype_correlations",
+    "plot_runtime",
+    "plot_summary_bias",
+    "plot_twin_rate",
+    "plot_variance_components",
+    "save",
+    "stripplot",
+]
 
 import argparse
 import logging
@@ -34,8 +49,11 @@ def stripplot(
     """Stripplot of observed values with optional expected markers.
 
     Args:
-        expected: column name for per-scenario expected values, or a fixed number.
-        expected_func: callable(scenario_df) -> expected value.
+        df: Gathered metrics DataFrame with ``scenario`` column.
+        ax: Matplotlib axes to plot on.
+        y: Column name for the observed metric to plot.
+        expected: Column name for per-scenario expected values, or a fixed number.
+        expected_func: Callable(scenario_df) returning expected value.
     """
     scenarios = df["scenario"].unique()
     positions = {s: i for i, s in enumerate(scenarios)}
@@ -100,6 +118,7 @@ def stripplot(
 
 
 def save(fig: Figure, path: str | Path) -> None:
+    """Save figure to disk and close it."""
     fig.tight_layout()
     fig.savefig(path, dpi=150, bbox_inches="tight", pad_inches=0.3)
     plt.close(fig)
@@ -117,6 +136,7 @@ def _figsize(nrows: int = 1, ncols: int = 1) -> tuple[float, float]:
 
 
 def plot_variance_components(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot observed vs expected A, C, E variance components per trait."""
     fig, axes = plt.subplots(2, 3, figsize=_figsize(nrows=2, ncols=3))
     for row, t in enumerate([1, 2]):
         for col, comp in enumerate(["A", "C", "E"]):
@@ -128,6 +148,7 @@ def plot_variance_components(df: pd.DataFrame, out: Path, ext: str = "png") -> N
 
 
 def plot_twin_rate(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot observed MZ twin rate vs expected across scenarios."""
     fig, ax = plt.subplots(figsize=_figsize())
     stripplot(df, ax, "observed_twin_rate", expected="p_mztwin")
     ax.set_title("MZ Twin Rate: Observed vs Expected")
@@ -136,6 +157,7 @@ def plot_twin_rate(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
 
 
 def plot_A_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot MZ twin and full-sib additive genetic correlations."""
     panels = [
         ("mz_twin_A1_corr", 1.0, "MZ Twin A1 Correlation"),
         ("dz_sibling_A1_corr", 0.5, "DZ Sibling A1 Correlation"),
@@ -152,6 +174,7 @@ def plot_A_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
 
 
 def plot_phenotype_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot MZ twin and full-sib liability correlations vs expected."""
     panels = [
         ("mz_twin_liability1_corr", lambda d: d["A1"].iloc[0] + d["C1"].iloc[0], "MZ Twin Liability1 Corr"),
         ("dz_sibling_liability1_corr", lambda d: 0.5 * d["A1"].iloc[0] + d["C1"].iloc[0], "DZ Sibling Liability1 Corr"),
@@ -167,6 +190,7 @@ def plot_phenotype_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -
 
 
 def plot_heritability_estimates(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot Falconer heritability estimates vs configured A values."""
     panels = [
         ("falconer_h2_trait1", "A1", "Falconer h² Trait 1", "Heritability"),
         ("parent_offspring_liability1_slope", "A1", "Midparent-Offspring Liability1", "Slope"),
@@ -182,6 +206,7 @@ def plot_heritability_estimates(df: pd.DataFrame, out: Path, ext: str = "png") -
 
 
 def plot_half_sib_proportions(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot observed vs expected half-sib proportions."""
     fig, axes = plt.subplots(1, 2, figsize=_figsize(ncols=2))
     stripplot(df, axes[0], "half_sib_prop_observed", expected="half_sib_prop_expected")
     axes[0].set_title("Half-Sibling Pair Proportion")
@@ -194,6 +219,7 @@ def plot_half_sib_proportions(df: pd.DataFrame, out: Path, ext: str = "png") -> 
 
 
 def plot_cross_trait_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot cross-trait genetic and environmental correlations vs expected."""
     panels = [
         ("observed_rA", "rA", "Cross-Trait rA"),
         ("observed_rC", "rC", "Cross-Trait rC"),
@@ -212,6 +238,7 @@ def plot_cross_trait_correlations(df: pd.DataFrame, out: Path, ext: str = "png")
 
 
 def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot mean family size distribution across scenarios."""
     fig, ax = plt.subplots(figsize=_figsize())
     scenarios = df["scenario"].unique()
     positions = {s: i for i, s in enumerate(scenarios)}
@@ -271,6 +298,7 @@ def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
 
 
 def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot bias heatmap for variance components and correlations."""
     dp = df.copy()
     dp["A1 Bias"] = dp["variance_A1"] - dp["A1"]
     dp["C1 Bias"] = dp["variance_C1"] - dp["C1"]
@@ -351,6 +379,7 @@ def _format_log_axes(ax: Axes) -> None:
 
 
 def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot simulation runtime per scenario."""
     sub = df.dropna(subset=["simulate_seconds"])
     if sub.empty:
         logger.warning("No simulate_seconds data; skipping runtime plot")
@@ -393,6 +422,7 @@ def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
 
 
 def plot_memory(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot simulation peak memory usage per scenario."""
     sub = df.dropna(subset=["simulate_max_rss_mb"])
     if sub.empty:
         logger.warning("No simulate_max_rss_mb data; skipping memory plot")
@@ -435,6 +465,7 @@ def plot_memory(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
 
 
 def plot_consanguineous_matings(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot consanguineous mating counts and inbreeding coefficients."""
     fig, axes = plt.subplots(1, 2, figsize=_figsize(ncols=2))
     stripplot(df, axes[0], "n_half_sib_matings", expected=0)
     axes[0].set_title("Half-Sib Matings")
@@ -447,6 +478,7 @@ def plot_consanguineous_matings(df: pd.DataFrame, out: Path, ext: str = "png") -
 
 
 def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
+    """Generate all validation plots from a gathered metrics TSV."""
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     logger.info("Generating validation plots in %s", out)

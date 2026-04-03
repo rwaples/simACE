@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+__all__ = ["convert"]
+
 import argparse
 import logging
 import time
@@ -14,13 +16,12 @@ logger = logging.getLogger(__name__)
 def convert(parquet_path: str, output_path: str | None = None, float_precision: int = 4, gzip: bool = True) -> None:
     """Read a parquet file and write it as a TSV.
 
-    Parameters
-    ----------
-    parquet_path : path to the input .parquet file
-    output_path : path for the output file.  If *None*, replaces
-        the ``.parquet`` suffix with ``.tsv.gz`` (or ``.tsv`` if *gzip* is False).
-    float_precision : number of decimal places for float columns (default 4)
-    gzip : whether to gzip-compress the output (default True)
+    Args:
+        parquet_path: Path to the input ``.parquet`` file.
+        output_path: Path for the output file. If *None*, replaces the
+            ``.parquet`` suffix with ``.tsv.gz`` (or ``.tsv`` if *gzip* is False).
+        float_precision: Number of decimal places for float columns.
+        gzip: Whether to gzip-compress the output.
     """
     parquet_path = str(parquet_path)
     if output_path is None:

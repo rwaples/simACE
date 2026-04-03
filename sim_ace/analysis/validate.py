@@ -1,11 +1,24 @@
-"""
-ACE Simulation Validation
+"""ACE simulation validation.
 
 Validates simulation outputs for structural integrity, statistical properties,
 and heritability estimates.
 """
 
 from __future__ import annotations
+
+__all__ = [
+    "compute_family_size_distribution",
+    "compute_per_generation_stats",
+    "run_validation",
+    "validate_assortative_mating",
+    "validate_consanguineous_matings",
+    "validate_half_sibs",
+    "validate_heritability",
+    "validate_population",
+    "validate_statistical",
+    "validate_structural",
+    "validate_twins",
+]
 
 import argparse
 import logging
