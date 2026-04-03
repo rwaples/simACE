@@ -697,9 +697,13 @@ class PedigreeGraph:
         need_avunc = _needed("Av")
         need_hs = _needed("MHS")
 
-        # Pre-trigger cached properties needed by downstream extractions
+        # Pre-trigger cached properties needed by downstream extractions.
+        # _Am/_Af are only needed to build _A; delete after to free memory.
         if need_gp or need_avunc or need_cousins:
             _ = self._A2  # chains: _Am, _Af → _A → _A2
+        else:
+            _ = self._A
+        del self._Am, self._Af
 
         pairs["MZ"] = self._mz_twin_pairs()
 
@@ -849,6 +853,9 @@ class PedigreeGraph:
                 if code not in pairs:
                     pairs[code] = (empty, empty)
 
+            # _S only used for H1C; free before degree 5
+            self.__dict__.pop("_S", None)
+
             logger.info(
                 "Degree 4: GGGP=%d, HGAv=%d, GGAv=%d, H1C=%d, 1C1R=%d (%.3fs)",
                 len(pairs["GGGP"][0]),
@@ -974,6 +981,11 @@ class PedigreeGraph:
                 "Filtered to sample_mask: %s",
                 ", ".join(f"{k}: {len(v[0])}" for k, v in pairs.items()),
             )
+
+        # Free all cached sparse matrices — only pair arrays and _raw_pair_counts
+        # are needed after this point.
+        for attr in ("_A", "_A2", "_A3", "_A4", "_A5", "_S", "_A2_shared", "_full_sib_matrix", "_half_sib_matrix"):
+            self.__dict__.pop(attr, None)
 
         logger.info("extract_pairs total: %.3fs", time.perf_counter() - t_total)
         return pairs
