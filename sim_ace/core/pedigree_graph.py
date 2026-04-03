@@ -797,9 +797,10 @@ class PedigreeGraph:
         # ---- Degree 4 (kinship 1/32): GGGP, HGAv, GGAv, H1C, 1C1R ----
         if max_degree >= 4:
             t0 = time.perf_counter()
-            _ = self._A4  # pre-trigger
-            # Pre-compute A2 @ A3.T for 1C1R (and reuse in degree 5 H1C1R)
-            A2_A3T = self._A2 @ self._A3.T
+            # Lazy: _A4 and A2_A3T triggered by types that need them
+            A2_A3T = None
+            if _needed("1C1R"):
+                A2_A3T = self._A2 @ self._A3.T
 
             def _extract_h1c() -> tuple[np.ndarray, np.ndarray]:
                 A2s = self._A2_shared
