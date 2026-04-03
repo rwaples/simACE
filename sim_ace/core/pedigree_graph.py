@@ -753,14 +753,16 @@ class PedigreeGraph:
                 np.concatenate([pairs["MO"][0], pairs["FO"][0]]),
                 np.concatenate([pairs["MO"][1], pairs["FO"][1]]),
             )
-            sib_all = (
-                np.concatenate([pairs["FS"][0], pairs["MHS"][0], pairs["PHS"][0]]),
-                np.concatenate([pairs["FS"][1], pairs["MHS"][1], pairs["PHS"][1]]),
-            )
             gp_pairs = pairs["GP"]
             fsm = self._full_sib_matrix
             self._build_half_sib_matrix(mat_hs, pat_hs)
             hsm = self._half_sib_matrix
+        # sib_all only needed at degree 4+ (1C1R, H1C1R, 1C2R subtract lists)
+        if max_degree >= 4:
+            sib_all = (
+                np.concatenate([pairs["FS"][0], pairs["MHS"][0], pairs["PHS"][0]]),
+                np.concatenate([pairs["FS"][1], pairs["MHS"][1], pairs["PHS"][1]]),
+            )
 
         # ---- Degree 3 (kinship 1/16): GGP, HAv, GAv ----
         if max_degree >= 3:
