@@ -197,7 +197,7 @@ class TestGoldenComparison:
         """
         df = small_pedigree
         legacy = _extract_relationship_pairs_legacy(df, seed=42)
-        new = extract_relationship_pairs(df)
+        new = extract_relationship_pairs(df, max_degree=4)
 
         exact_keys = [
             "MZ",
@@ -215,12 +215,14 @@ class TestGoldenComparison:
                 f"diff: {legacy_set.symmetric_difference(new_set)}"
             )
 
-        # Cousins: legacy may subsample, produce self-pairs, or
-        # misclassify siblings as cousins (pairs that share a parent AND a
-        # grandparent are siblings, not cousins — legacy doesn't filter these).
-        # New implementation should be a superset of legacy minus buggy pairs.
+        # Cousins: legacy lumps full 1C and half-1C into one category.
+        # New implementation splits them: pairs["1C"] = full only (>= 2 shared GPs),
+        # pairs["H1C"] = half only (1 shared GP). The union should match legacy
+        # (after removing self-pairs and sibling-pairs from legacy).
         legacy_cousins = _pairs_to_set(*legacy["1C"])
-        new_cousins = _pairs_to_set(*new["1C"])
+        new_1c = _pairs_to_set(*new["1C"])
+        new_h1c = _pairs_to_set(*new.get("H1C", (np.array([]), np.array([]))))
+        new_all_cousins = new_1c | new_h1c
         mother = df["mother"].values
         father = df["father"].values
         # Filter out self-pairs and sibling-pairs from legacy
@@ -228,13 +230,14 @@ class TestGoldenComparison:
         for a, b in legacy_cousins:
             if a == b:
                 continue
-            # Skip pairs that share a parent (they're siblings, not cousins)
             if mother[a] == mother[b] or father[a] == father[b]:
                 continue
             legacy_proper.add((a, b))
-        assert legacy_proper <= new_cousins, (
-            f"1st cousin: legacy has {len(legacy_proper - new_cousins)} pairs not in new: {legacy_proper - new_cousins}"
+        assert legacy_proper <= new_all_cousins, (
+            f"1st cousin: legacy has {len(legacy_proper - new_all_cousins)} pairs not in new"
         )
+        # 1C and H1C must be disjoint
+        assert not (new_1c & new_h1c), f"1C and H1C overlap: {len(new_1c & new_h1c)} pairs"
 
     def test_golden_sib_counts_match(self, small_pedigree):
         """count_sib_pairs must match _count_sib_pairs_legacy."""

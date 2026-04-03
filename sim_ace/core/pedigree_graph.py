@@ -567,21 +567,25 @@ class PedigreeGraph:
         return lo.astype(np.intp), hi.astype(np.intp)
 
     def _cousin_pairs(self) -> tuple[np.ndarray, np.ndarray]:
-        """1st cousin pairs: share a grandparent but not a parent.
+        """Full 1st cousin pairs: share exactly 2 grandparents (a mated pair) but not a parent.
 
-        Uses group-by-grandparent enumeration instead of A² @ (A²).T matmul.
-        Groups grandchildren by each grandparent, enumerates within-group pairs,
-        removes sibling pairs, and deduplicates.
+        Uses group-by-grandparent enumeration. Each pair sharing a grandparent
+        is counted — pairs appearing ≥ 2 times share 2+ grandparents (full 1C).
+        Pairs appearing exactly once share 1 grandparent (half-1C); these are
+        cached in ``_h1c_pairs_cache`` for use by H1C extraction at degree 4.
         """
         t0 = time.perf_counter()
+        empty = np.array([], dtype=np.intp), np.array([], dtype=np.intp)
         gc_i, gp_j = self._A2.nonzero()
         if len(gc_i) == 0:
-            return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
+            self._h1c_pairs_cache = empty
+            return empty
 
         # Enumerate all (i < j) pairs sharing a grandparent
         p1, p2 = self._pairs_from_groups(gc_i.astype(np.intp), gp_j)
         if len(p1) == 0:
-            return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
+            self._h1c_pairs_cache = empty
+            return empty
 
         logger.debug(
             "Cousin group-by: %d candidate pairs from %d edges (%.3fs)",
@@ -598,11 +602,37 @@ class PedigreeGraph:
 
         if len(p1) == 0:
             logger.debug("Cousins: 0 pairs after sibling removal (%.3fs)", time.perf_counter() - t0)
-            return np.array([], dtype=np.intp), np.array([], dtype=np.intp)
+            self._h1c_pairs_cache = empty
+            return empty
 
-        result = self._dedup_pairs(p1, p2)
-        logger.debug("Cousins: %d unique pairs (%.3fs)", len(result[0]), time.perf_counter() - t0)
-        return result
+        # Count shared grandparents per pair using int64 keys
+        lo = np.minimum(p1, p2).astype(np.intp)
+        hi = np.maximum(p1, p2).astype(np.intp)
+        max_id = int(hi.max()) + 1
+        keys = lo.astype(np.int64) * max_id + hi.astype(np.int64)
+        unique_keys, _inverse, counts = np.unique(keys, return_inverse=True, return_counts=True)
+
+        # Full 1C: pairs sharing >= 2 grandparents
+        full_mask = counts >= 2
+        full_idx = np.where(full_mask)[0]
+        # Map unique keys back to (lo, hi)
+        full_lo = (unique_keys[full_idx] // max_id).astype(np.intp)
+        full_hi = (unique_keys[full_idx] % max_id).astype(np.intp)
+
+        # Half 1C: pairs sharing exactly 1 grandparent — cache for H1C extraction
+        half_mask = counts == 1
+        half_idx = np.where(half_mask)[0]
+        half_lo = (unique_keys[half_idx] // max_id).astype(np.intp)
+        half_hi = (unique_keys[half_idx] % max_id).astype(np.intp)
+        self._h1c_pairs_cache = (half_lo, half_hi)
+
+        logger.debug(
+            "Cousins: %d full 1C, %d half 1C (%.3fs)",
+            len(full_lo),
+            len(half_lo),
+            time.perf_counter() - t0,
+        )
+        return full_lo, full_hi
 
     def _grandparent_grandchild_pairs(self) -> tuple[np.ndarray, np.ndarray]:
         """Grandparent-grandchild pairs: 2-hop ancestor links."""
@@ -809,17 +839,10 @@ class PedigreeGraph:
                 A2_A3T = self._A2 @ self._A3.T
 
             def _extract_h1c() -> tuple[np.ndarray, np.ndarray]:
-                A2s = self._A2_shared
-                half_gp = A2s.copy()
-                half_gp.data[half_gp.data != 1] = 0
-                half_gp.eliminate_zeros()
-                half_gp.setdiag(0)
-                share_parent = (self._S > 0).astype(np.float64)
-                half_gp = half_gp - half_gp.multiply(share_parent)
-                half_gp.eliminate_zeros()
-                upper = sp.triu(half_gp, k=1)
-                i, j = upper.nonzero()
-                return (i.astype(np.intp), j.astype(np.intp)) if len(i) > 0 else (empty, empty)
+                # Use cached half-cousin pairs from _cousin_pairs() — already
+                # identified as pairs sharing exactly 1 grandparent, with
+                # sibling pairs excluded.
+                return getattr(self, "_h1c_pairs_cache", (empty, empty))
 
             def _extract_1c1r() -> tuple[np.ndarray, np.ndarray]:
                 P_full = A2_A3T.copy()
@@ -861,7 +884,8 @@ class PedigreeGraph:
                 if code not in pairs:
                     pairs[code] = (empty, empty)
 
-            # _S only used for H1C; free before degree 5
+            # _S is a cached_property but currently has no consumers;
+            # free it if it was triggered by other code.
             self.__dict__.pop("_S", None)
 
             logger.info(
