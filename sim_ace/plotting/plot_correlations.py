@@ -38,7 +38,7 @@ _EXPECTED_R_COEFFICIENTS: dict[str, tuple[float, float]] = {
     # pair_type: (coefficient of A, coefficient of C)
     "MZ": (1.0, 1.0),
     "FS": (0.5, 1.0),
-    "MHS": (0.25, 0.0),
+    "MHS": (0.25, 1.0),  # maternal half-sibs share household (assigned by mother)
     "PHS": (0.25, 0.0),
     "MO": (0.5, 0.0),
     "FO": (0.5, 0.0),
