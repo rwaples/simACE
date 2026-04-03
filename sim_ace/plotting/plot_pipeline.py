@@ -419,8 +419,8 @@ def render_pipeline_figure(
         step_info[key] = (display, color, pnames)
 
     # Override phenotype title with model-specific short name
-    m1 = str(params.get("phenotype_model1", "weibull"))
-    m2 = str(params.get("phenotype_model2", "weibull"))
+    m1 = str(params.get("phenotype_model1", "frailty_weibull"))
+    m2 = str(params.get("phenotype_model2", "frailty_weibull"))
     if m1 == m2:
         short_name = MODEL_FAMILY.get(m1, (m1.title(),))[0]
         pheno_title = f"Phenotype ({short_name.lower()})"

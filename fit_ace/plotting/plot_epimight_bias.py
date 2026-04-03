@@ -300,9 +300,9 @@ def plot_epimight_model_comparison(df: pd.DataFrame, output_path: Path) -> None:
     if len(models) == 0:
         return
 
-    model_order = ["adult_ltm", "weibull", "cure_frailty", "adult_cox"]
+    model_order = ["adult_ltm", "frailty_weibull", "cure_frailty", "adult_cox"]
     models = [m for m in model_order if m in models]
-    model_colors = {"adult_ltm": "C0", "weibull": "C1", "cure_frailty": "C2", "adult_cox": "C3"}
+    model_colors = {"adult_ltm": "C0", "frailty_weibull": "C1", "cure_frailty": "C2", "adult_cox": "C3"}
 
     fig, ax = plt.subplots(figsize=(12, 5))
     x = np.arange(len(KIND_ORDER))

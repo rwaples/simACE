@@ -44,8 +44,8 @@ def minimal_params():
         "beta2": 1.5,
         "beta_sex1": 0.0,
         "beta_sex2": 0.0,
-        "phenotype_model1": "weibull",
-        "phenotype_model2": "weibull",
+        "phenotype_model1": "frailty_weibull",
+        "phenotype_model2": "frailty_weibull",
         "phenotype_params1": {"scale": 2160, "rho": 0.8},
         "phenotype_params2": {"scale": 333, "rho": 1.2},
         "censor_age": 80,
@@ -289,7 +289,7 @@ class TestPlotAtlasHelpers:
     def test_get_model_equation_different_models(self):
         from sim_ace.plotting.plot_atlas import get_model_equation
 
-        params = {"phenotype_model1": "weibull", "phenotype_model2": "gompertz"}
+        params = {"phenotype_model1": "frailty_weibull", "phenotype_model2": "frailty_gompertz"}
         lines = get_model_equation(params)
         assert len(lines) >= 2  # one set per model
 
@@ -304,7 +304,7 @@ class TestPlotAtlasHelpers:
     def test_get_model_family_different_models(self):
         from sim_ace.plotting.plot_atlas import get_model_family
 
-        params = {"phenotype_model1": "weibull", "phenotype_model2": "gompertz"}
+        params = {"phenotype_model1": "frailty_weibull", "phenotype_model2": "frailty_gompertz"}
         name, _desc = get_model_family(params)
         assert isinstance(name, str)
 
@@ -312,12 +312,12 @@ class TestPlotAtlasHelpers:
         from sim_ace.plotting.plot_atlas import MODEL_FAMILY
 
         expected_models = {
-            "weibull",
-            "exponential",
-            "gompertz",
-            "lognormal",
-            "loglogistic",
-            "gamma",
+            "frailty_weibull",
+            "frailty_exponential",
+            "frailty_gompertz",
+            "frailty_lognormal",
+            "frailty_loglogistic",
+            "frailty_gamma",
             "cure_frailty",
             "adult_ltm",
             "adult_cox",

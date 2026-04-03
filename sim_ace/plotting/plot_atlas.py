@@ -18,27 +18,27 @@ logger = logging.getLogger(__name__)
 
 # Maps phenotype model name → (short display name, one-line description)
 MODEL_FAMILY: dict[str, tuple[str, str]] = {
-    "weibull": (
+    "frailty_weibull": (
         "Weibull Frailty",
         "Proportional hazards with Weibull baseline; frailty exp(\u03b2\u00b7L) scales hazard",
     ),
-    "exponential": (
+    "frailty_exponential": (
         "Exponential Frailty",
         "Proportional hazards with exponential baseline; frailty exp(\u03b2\u00b7L) scales hazard",
     ),
-    "gompertz": (
+    "frailty_gompertz": (
         "Gompertz Frailty",
         "Proportional hazards with Gompertz baseline; frailty exp(\u03b2\u00b7L) scales hazard",
     ),
-    "lognormal": (
+    "frailty_lognormal": (
         "Log-Normal Frailty",
         "Proportional hazards with log-normal baseline; frailty exp(\u03b2\u00b7L) scales hazard",
     ),
-    "loglogistic": (
+    "frailty_loglogistic": (
         "Log-Logistic Frailty",
         "Proportional hazards with log-logistic baseline; frailty exp(\u03b2\u00b7L) scales hazard",
     ),
-    "gamma": (
+    "frailty_gamma": (
         "Gamma Frailty",
         "Proportional hazards with gamma baseline; frailty exp(\u03b2\u00b7L) scales hazard",
     ),
@@ -69,15 +69,15 @@ _FRAILTY_LINE = (
 
 # Model-specific baseline hazard h₀(t) (line 2)
 _BASELINE_LINE: dict[str, str] = {
-    "weibull": r"$h_0(t) = \dfrac{\rho}{s}\left(\dfrac{t}{s}\right)^{\!\rho-1}$",
-    "exponential": r"$h_0(t) = \lambda$",
-    "gompertz": r"$h_0(t) = b \, e^{\gamma t}$",
-    "lognormal": (
+    "frailty_weibull": r"$h_0(t) = \dfrac{\rho}{s}\left(\dfrac{t}{s}\right)^{\!\rho-1}$",
+    "frailty_exponential": r"$h_0(t) = \lambda$",
+    "frailty_gompertz": r"$h_0(t) = b \, e^{\gamma t}$",
+    "frailty_lognormal": (
         r"$h_0(t) = \dfrac{\phi(w)}{\sigma\, t\, (1-\Phi(w))},"
         r" \quad w = \dfrac{\ln t - \mu}{\sigma}$"
     ),
-    "loglogistic": r"$h_0(t) = \dfrac{(k/\alpha)(t/\alpha)^{k-1}}{1 + (t/\alpha)^k}$",
-    "gamma": r"$h_0(t) = f_\Gamma(t;\,k,\theta) \,/\, S_\Gamma(t;\,k,\theta)$",
+    "frailty_loglogistic": r"$h_0(t) = \dfrac{(k/\alpha)(t/\alpha)^{k-1}}{1 + (t/\alpha)^k}$",
+    "frailty_gamma": r"$h_0(t) = f_\Gamma(t;\,k,\theta) \,/\, S_\Gamma(t;\,k,\theta)$",
 }
 
 _FRAILTY_MODELS_SET = set(_BASELINE_LINE)

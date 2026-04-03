@@ -93,7 +93,7 @@ def cross_trait_corr_se(
     Currently only Weibull baselines are supported; other models raise
     NotImplementedError (frailty correlation for non-Weibull is future work).
     """
-    if hazard_model_1 != "weibull" or hazard_model_2 != "weibull":
+    if hazard_model_1 != "frailty_weibull" or hazard_model_2 != "frailty_weibull":
         raise NotImplementedError(
             f"cross_trait_corr_se only supports Weibull baselines, got '{hazard_model_1}' and '{hazard_model_2}'"
         )
@@ -131,7 +131,7 @@ def compute_pair_corr(
     Currently only Weibull baselines are supported; other models raise
     NotImplementedError.
     """
-    if hazard_model != "weibull":
+    if hazard_model != "frailty_weibull":
         raise NotImplementedError(f"compute_pair_corr only supports Weibull baseline, got '{hazard_model}'")
     return compute_weibull_pair_corr(
         df=df,

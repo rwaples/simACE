@@ -29,7 +29,7 @@ class TestParseScenarioName:
 
     def test_weibull_scenario(self):
         r = parse_scenario_name("ebias_weibull_K05_C02_death")
-        assert r["phenotype_model"] == "weibull"
+        assert r["phenotype_model"] == "frailty_weibull"
         assert r["prevalence"] == pytest.approx(0.05)
         assert r["C"] == 0.2
         assert r["censor_label"] == "death_only"

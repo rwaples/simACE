@@ -33,15 +33,15 @@ defaults:
   assort_matrix: null # optional full 2x2 R_mf matrix, e.g. [[0.3, 0.05], [0.05, 0.15]]
 
   # ── Phenotype model ───────────────────────────────────────────────────────
-  # phenotype_model1/2: weibull | exponential | gompertz | lognormal | loglogistic | gamma | adult_ltm | adult_cox | cure_frailty
+  # phenotype_model1/2: frailty_weibull | frailty_exponential | frailty_gompertz | frailty_lognormal | frailty_loglogistic | frailty_gamma | adult_ltm | adult_cox | cure_frailty
   # phenotype_params1/2: dict of model-specific parameters
-  #   frailty models: hazard distribution params (e.g. scale, rho for weibull)
+  #   frailty models: hazard distribution params (e.g. scale, rho for frailty_weibull)
   #   adult_ltm/adult_cox: cip_x0 (midpoint age), cip_k (growth rate)
 
   # Trait 1
   beta1: 1.0
   beta_sex1: 0.0
-  phenotype_model1: weibull
+  phenotype_model1: frailty_weibull
   phenotype_params1:
     scale: 2160
     rho: 0.8
@@ -49,7 +49,7 @@ defaults:
   # Trait 2
   beta2: 1.5
   beta_sex2: 0.0
-  phenotype_model2: weibull
+  phenotype_model2: frailty_weibull
   phenotype_params2:
     scale: 333
     rho: 1.2

@@ -751,8 +751,8 @@ ebias_weibull_K10_C0_nocensor:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: weibull
-  phenotype_model2: weibull
+  phenotype_model1: frailty_weibull
+  phenotype_model2: frailty_weibull
   phenotype_params1:
     scale: 70
     rho: 2.0

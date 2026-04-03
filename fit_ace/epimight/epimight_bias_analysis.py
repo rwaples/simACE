@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # Scenario name parsing helpers
 _PREV_MAP = {"K01": 0.01, "K05": 0.05, "K10": 0.10, "K20": 0.20, "K40": 0.40}
 _CENSOR_MAP = {"nocensor": "none", "death": "death_only", "window": "window_only", "both": "both"}
-_MODEL_MAP = {"ltm": "adult_ltm", "weibull": "weibull", "cure": "cure_frailty", "cox": "adult_cox"}
+_MODEL_MAP = {"ltm": "adult_ltm", "weibull": "frailty_weibull", "cure": "cure_frailty", "cox": "adult_cox"}
 
 
 def parse_scenario_name(name: str) -> dict[str, Any]:

@@ -2,7 +2,8 @@
 Phenotype simulation for two correlated traits.
 
 Per-trait phenotype model selection via phenotype_model1/phenotype_model2:
-  Frailty models: "weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"
+  Frailty models: "frailty_weibull", "frailty_exponential", "frailty_gompertz",
+                  "frailty_lognormal", "frailty_loglogistic", "frailty_gamma"
   ADuLT models:   "adult_ltm", "adult_cox"
   Cure models:    "cure_frailty"
   FPT models:     "first_passage"
@@ -17,12 +18,12 @@ Model (per trait):
     t        = H0^{-1}(-log(U) / z)  where U ~ Uniform(0, 1]
 
 Baseline hazard models supported (via compute_hazard_terms):
-    "weibull"     : {"scale": s, "rho": rho}
-    "exponential" : {"rate": lam}  |  {"scale": s}
-    "gompertz"    : {"rate": b, "gamma": g}
-    "lognormal"   : {"mu": mu, "sigma": sigma}
-    "loglogistic" : {"scale": alpha, "shape": k}
-    "gamma"       : {"shape": k, "scale": theta}
+    "frailty_weibull"     : {"scale": s, "rho": rho}
+    "frailty_exponential" : {"rate": lam}  |  {"scale": s}
+    "frailty_gompertz"    : {"rate": b, "gamma": g}
+    "frailty_lognormal"   : {"mu": mu, "sigma": sigma}
+    "frailty_loglogistic" : {"scale": alpha, "shape": k}
+    "frailty_gamma"       : {"shape": k, "scale": theta}
 
 Inversion strategy:
     Each model has an analytic/vectorized inverse — no per-individual loop.
@@ -603,7 +604,9 @@ def phenotype_first_passage(
     )
 
 
-_FRAILTY_MODELS = {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
+_FRAILTY_PREFIX = "frailty_"
+_FRAILTY_BASELINES = {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
+_FRAILTY_MODELS = {f"{_FRAILTY_PREFIX}{b}" for b in _FRAILTY_BASELINES}
 _ADULT_MODELS = {"adult_ltm", "adult_cox"}
 _CURE_MODELS = {"cure_frailty"}
 _FPT_MODELS = {"first_passage"}
@@ -674,7 +677,9 @@ def _validate_phenotype_params(
     Raises:
         ValueError: if required keys are missing or unexpected keys are present
     """
-    if model in _FRAILTY_MODELS or model in _FPT_MODELS:
+    if model in _FRAILTY_MODELS:
+        required = set(_MODEL_PARAMS[model.removeprefix(_FRAILTY_PREFIX)])
+    elif model in _FPT_MODELS:
         required = set(_MODEL_PARAMS[model])
     elif model in _ADULT_MODELS:
         required = set(_ADULT_PARAMS[model])
@@ -777,11 +782,11 @@ def _simulate_one_trait(
             beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
         )
 
-    # Frailty model
+    # Frailty model — strip prefix to get bare distribution name
     return simulate_phenotype(
         liability=pedigree[f"liability{trait_num}"].values,
         beta=params[f"beta{trait_num}"],
-        hazard_model=model,
+        hazard_model=model.removeprefix(_FRAILTY_PREFIX),
         hazard_params=phenotype_params,
         seed=seed,
         standardize=params["standardize"],
