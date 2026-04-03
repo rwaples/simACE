@@ -448,9 +448,6 @@ class PedigreeGraph:
         else:
             self._full_sib_matrix = sp.csr_matrix((self.n, self.n))
 
-        # Build half-sib sparse matrix for collateral half-relationship extraction
-        self._build_half_sib_matrix(mat_hs, pat_hs)
-
         return full_sib, mat_hs, pat_hs
 
     @staticmethod
@@ -761,7 +758,10 @@ class PedigreeGraph:
         )
         gp_pairs = pairs["GP"]
         fsm = self._full_sib_matrix
-        hsm = self._half_sib_matrix
+        # Half-sib matrix only needed for degree 3+; skip construction at degree 2
+        if max_degree >= 3:
+            self._build_half_sib_matrix(mat_hs, pat_hs)
+        hsm = getattr(self, "_half_sib_matrix", sp.csr_matrix((self.n, self.n)))
 
         # ---- Degree 3 (kinship 1/16): GGP, HAv, GAv ----
         if max_degree >= 3:
