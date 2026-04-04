@@ -118,8 +118,7 @@ def gather_epimight_bias_results(
     """Gather bias metrics across all scenarios and kinds.
 
     Args:
-        subdir: EPIMIGHT output subdirectory name (``"epimight"`` for
-            standard analysis, ``"epimight_single"`` for single-pair).
+        subdir: EPIMIGHT output subdirectory name (default ``"epimight"``).
 
     Returns DataFrame with one row per (scenario, kind).
     """
