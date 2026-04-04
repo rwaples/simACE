@@ -6,7 +6,6 @@ from fit_ace.epimight.create_parquet import (
     _orient_pairs_by_generation,
     count_affected_relatives,
     count_total_relatives,
-    select_single_relative_affected,
 )
 
 # ---------------------------------------------------------------------------
@@ -131,52 +130,3 @@ class TestCountTotalRelatives:
         np.testing.assert_array_equal(counts, [0, 0, 0])
 
 
-# ---------------------------------------------------------------------------
-# select_single_relative_affected
-# ---------------------------------------------------------------------------
-
-
-class TestSelectSingleRelativeAffected:
-    def test_values_in_zero_one(self):
-        rng = np.random.default_rng(42)
-        idx1 = np.array([0, 1, 2])
-        idx2 = np.array([1, 2, 0])
-        affected = np.array([True, False, True])
-        result = select_single_relative_affected([(idx1, idx2)], affected, n=3, rng=rng)
-        assert set(np.unique(result)).issubset({0, 1})
-
-    def test_no_relatives_returns_zero(self):
-        rng = np.random.default_rng(42)
-        result = select_single_relative_affected(
-            [(np.array([], dtype=int), np.array([], dtype=int))],
-            np.array([True, True]),
-            n=2,
-            rng=rng,
-        )
-        np.testing.assert_array_equal(result, [0, 0])
-
-    def test_deterministic_with_seed(self):
-        idx1 = np.array([0, 0, 0])
-        idx2 = np.array([1, 2, 3])
-        affected = np.array([False, True, False, True])
-
-        r1 = select_single_relative_affected([(idx1, idx2)], affected, n=4, rng=np.random.default_rng(42))
-        r2 = select_single_relative_affected([(idx1, idx2)], affected, n=4, rng=np.random.default_rng(42))
-        np.testing.assert_array_equal(r1, r2)
-
-    def test_unidirectional(self):
-        rng = np.random.default_rng(42)
-        idx1 = np.array([0])
-        idx2 = np.array([1])
-        affected = np.array([True, True])
-        result = select_single_relative_affected([(idx1, idx2)], affected, n=2, rng=rng, unidirectional=True)
-        assert result[0] == 1  # idx1=0 sees affected idx2=1
-        assert result[1] == 0  # idx2=1 not populated in unidirectional
-
-    def test_all_relatives_affected(self):
-        rng = np.random.default_rng(42)
-        idx1 = np.array([0, 0, 0])
-        idx2 = np.array([1, 2, 3])
-        affected = np.array([False, True, True, True])
-        result = select_single_relative_affected([(idx1, idx2)], affected, n=4, rng=rng)
-        assert result[0] == 1  # any chosen relative is affected

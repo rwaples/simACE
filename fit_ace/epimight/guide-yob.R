@@ -16,6 +16,7 @@ suppressPackageStartupMessages({
 args <- commandArgs(trailingOnly = TRUE)
 base_dir <- if (length(args) >= 1) args[1] else "."
 relationship_kind <- if (length(args) >= 2) args[2] else "FS"
+downsample_seed <- if (length(args) >= 3) as.integer(args[3]) else 42L
 
 ## ──────────────────────────────────────────────────────────────────────────────
 ## Explicit analysis parameters
@@ -27,6 +28,7 @@ d2_earliest_onset_age <- 1L
 ## Input — select the diagnosed_relatives column for the chosen relationship kind
 ## ──────────────────────────────────────────────────────────────────────────────
 diag_col <- paste0("diagnosed_relatives_", relationship_kind)
+nrel_col <- paste0("n_relatives_", relationship_kind)
 
 d1_raw <- read_parquet(file.path(base_dir, "trait1.epimight_in.parquet")) |> as.data.frame()
 d2_raw <- read_parquet(file.path(base_dir, "trait2.epimight_in.parquet")) |> as.data.frame()
@@ -39,10 +41,12 @@ if (!(diag_col %in% names(d1_raw))) {
 
 d1_tte <- d1_raw |>
   select(person_id, born_at_year, failure_status, failure_time,
-         diagnosed_relatives = !!sym(diag_col))
+         diagnosed_relatives = !!sym(diag_col),
+         n_relatives = !!sym(nrel_col))
 d2_tte <- d2_raw |>
   select(person_id, born_at_year, failure_status, failure_time,
-         diagnosed_relatives = !!sym(diag_col))
+         diagnosed_relatives = !!sym(diag_col),
+         n_relatives = !!sym(nrel_col))
 
 message("Disorder 1 survival data: ", nrow(d1_tte), " rows")
 message("Disorder 2 survival data: ", nrow(d2_tte), " rows")
@@ -59,11 +63,24 @@ c1_tte <- d1_tte |>
     d1_failure_status      = failure_status.x,
     d1_failure_time        = failure_time.x,
     d1_diagnosed_relatives = diagnosed_relatives.x,
+    d1_n_relatives         = n_relatives.x,
     d2_failure_status      = failure_status.y,
     d2_failure_time        = failure_time.y,
-    d2_diagnosed_relatives = diagnosed_relatives.y
+    d2_diagnosed_relatives = diagnosed_relatives.y,
+    d2_n_relatives         = n_relatives.y
   ) |>
   select(person_id, born_at_year, starts_with("d1_"), starts_with("d2_"))
+
+## Bernoulli downsampling: convert counts -> 0/1 indicators
+## This avoids c2/c3 dilution at high prevalence (see Analysis$downsample_relatives)
+ds <- Analysis$new()
+c1_tte$d1_diagnosed_relatives <- ds$downsample_relatives(
+  c1_tte$d1_diagnosed_relatives, c1_tte$d1_n_relatives, seed = downsample_seed
+)
+c1_tte$d2_diagnosed_relatives <- ds$downsample_relatives(
+  c1_tte$d2_diagnosed_relatives, c1_tte$d2_n_relatives, seed = downsample_seed + 1L
+)
+c1_tte <- c1_tte |> select(-d1_n_relatives, -d2_n_relatives)
 
 c2_tte <- c1_tte |> filter(d1_diagnosed_relatives > 0)
 c3_tte <- c1_tte |> filter(d2_diagnosed_relatives > 0)

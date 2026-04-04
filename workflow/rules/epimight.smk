@@ -51,6 +51,8 @@ rule epimight_guide_yob:
     resources:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
+    params:
+        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
     shell:
         "conda run -n epimight "
         "Rscript -e \"if (!requireNamespace('epimight', quietly=TRUE)) "
@@ -60,6 +62,7 @@ rule epimight_guide_yob:
         "Rscript fit_ace/epimight/guide-yob.R "
         "results/{wildcards.folder}/{wildcards.scenario}/rep{wildcards.rep}/epimight "
         "{wildcards.kind} "
+        "{params.seed} "
         ">>{log} 2>&1"
 
 
