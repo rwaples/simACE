@@ -34,14 +34,14 @@ rule epimight_create_parquet:
 
 
 rule epimight_guide_yob:
-    """Run EPIMIGHT CIF, heritability, and genetic correlation for one relationship kind."""
+    """Run EPIMIGHT MI analysis (h², GC with Rubin's rules) for one relationship kind."""
     input:
         t1="results/{folder}/{scenario}/rep{rep}/epimight/trait1.epimight_in.parquet",
         t2="results/{folder}/{scenario}/rep{rep}/epimight/trait2.epimight_in.parquet",
     output:
-        h2_d1="results/{folder}/{scenario}/rep{rep}/epimight/tsv/h2_d1_{kind}.tsv",
-        h2_d2="results/{folder}/{scenario}/rep{rep}/epimight/tsv/h2_d2_{kind}.tsv",
-        gc="results/{folder}/{scenario}/rep{rep}/epimight/tsv/gc_full_{kind}.tsv",
+        h2_d1_meta="results/{folder}/{scenario}/rep{rep}/epimight/tsv/h2_d1_meta_{kind}.tsv",
+        h2_d2_meta="results/{folder}/{scenario}/rep{rep}/epimight/tsv/h2_d2_meta_{kind}.tsv",
+        gc_meta="results/{folder}/{scenario}/rep{rep}/epimight/tsv/gc_meta_{kind}.tsv",
         report="results/{folder}/{scenario}/rep{rep}/epimight/results_{kind}.md",
     log:
         "logs/{folder}/{scenario}/rep{rep}/epimight_guide_yob_{kind}.log",
@@ -53,6 +53,7 @@ rule epimight_guide_yob:
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
+        K=lambda w: config["defaults"].get("epimight_mi_K", 20),
     shell:
         "conda run -n epimight "
         "Rscript -e \"if (!requireNamespace('epimight', quietly=TRUE)) "
@@ -63,6 +64,7 @@ rule epimight_guide_yob:
         "results/{wildcards.folder}/{wildcards.scenario}/rep{wildcards.rep}/epimight "
         "{wildcards.kind} "
         "{params.seed} "
+        "{params.K} "
         ">>{log} 2>&1"
 
 
@@ -70,7 +72,7 @@ rule epimight_atlas:
     """Generate EPIMIGHT plot atlas comparing all relationship kinds."""
     input:
         tsv=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/epimight/tsv/h2_d1_{kind}.tsv",
+            "results/{folder}/{scenario}/rep{rep}/epimight/tsv/h2_d1_meta_{kind}.tsv",
             folder=w.folder,
             scenario=w.scenario,
             rep=w.rep,

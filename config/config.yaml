@@ -79,6 +79,7 @@ defaults:
   plot_format: png
 
   # ── EPIMIGHT ─────────────────────────────────────────────────────────────
+  epimight_mi_K: 20  # number of MI resamples (Rubin's rules); K=1 = single draw
   epimight_kinds:
     - PO
     - FS
