@@ -54,6 +54,7 @@ rule epimight_guide_yob:
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         K=lambda w: config["defaults"].get("epimight_mi_K", 20),
+        rubin_level=lambda w: config["defaults"].get("epimight_rubin_level", "meta"),
     shell:
         "conda run -n epimight "
         "Rscript -e \"if (!requireNamespace('epimight', quietly=TRUE)) "
@@ -65,6 +66,7 @@ rule epimight_guide_yob:
         "{wildcards.kind} "
         "{params.seed} "
         "{params.K} "
+        "{params.rubin_level} "
         ">>{log} 2>&1"
 
 
