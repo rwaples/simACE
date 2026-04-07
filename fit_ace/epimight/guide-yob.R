@@ -18,6 +18,7 @@ base_dir          <- if (length(args) >= 1) args[1] else "."
 relationship_kind <- if (length(args) >= 2) args[2] else "FS"
 seed              <- if (length(args) >= 3) as.integer(args[3]) else 42L
 K                 <- if (length(args) >= 4) as.integer(args[4]) else 20L
+rubin_level       <- if (length(args) >= 5) args[5] else "meta"
 
 ## ──────────────────────────────────────────────────────────────────────────────
 ## Explicit analysis parameters
@@ -71,7 +72,7 @@ c1_tte <- d1_tte |>
   as.data.table()
 
 message("c1_tte: ", nrow(c1_tte), " rows")
-message("Running MI analysis: K=", K, ", seed=", seed)
+message("Running MI analysis: K=", K, ", seed=", seed, ", rubin_level=", rubin_level)
 
 ## ──────────────────────────────────────────────────────────────────────────────
 ## Run Multiple Imputation Analysis
@@ -85,7 +86,7 @@ mi <- MultipleImputationAnalysis$new(
   d2_earliest_onset = d2_earliest_onset_age
 )
 
-results <- mi$run()
+results <- mi$run(rubin_level = rubin_level)
 
 ## ──────────────────────────────────────────────────────────────────────────────
 ## Write TSV files
