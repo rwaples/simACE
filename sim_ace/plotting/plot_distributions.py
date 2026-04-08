@@ -31,13 +31,17 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
+from sim_ace.plotting.plot_style import (
+    COLOR_AFFECTED,
+    COLOR_FEMALE,
+    COLOR_MALE,
+    COLOR_OBSERVED,
+    COLOR_TRUE,
+    COLOR_UNAFFECTED,
+)
 from sim_ace.plotting.plot_utils import finalize_plot, save_placeholder_plot
 
 logger = logging.getLogger(__name__)
-
-# Consistent sex colour scheme across all plots
-COLOR_FEMALE = "#5ab4ac"
-COLOR_MALE = "#4a90d9"
 
 
 def plot_death_age_distribution(
@@ -76,8 +80,7 @@ def plot_death_age_distribution(
     axes[1].set_ylabel("Cumulative Mortality")
     axes[1].tick_params(axis="x", rotation=45)
 
-    fig.suptitle(f"Death Age Distribution [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_trait_phenotype(
@@ -100,7 +103,7 @@ def plot_trait_phenotype(
             density=True,
             edgecolor="black",
             alpha=0.7,
-            color="C3",
+            color=COLOR_AFFECTED,
         )
         axes[row, 0].set_title(f"Trait {trait_num}: Age at Onset (affected)")
         axes[row, 0].set_xlabel("Age")
@@ -112,14 +115,13 @@ def plot_trait_phenotype(
             density=True,
             edgecolor="black",
             alpha=0.7,
-            color="C0",
+            color=COLOR_UNAFFECTED,
         )
         axes[row, 1].set_title(f"Trait {trait_num}: Age at Death (death-censored, unaffected)")
         axes[row, 1].set_xlabel("Age")
         axes[row, 1].set_ylabel("Density")
 
-    fig.suptitle(f"Phenotype Distributions [{scenario}]", fontsize=14)
-    finalize_plot(output_path, subsample_note=subsample_note)
+    finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
 
 def plot_trait_regression(
@@ -133,7 +135,6 @@ def plot_trait_regression(
     from matplotlib.gridspec import GridSpec, GridSpecFromSubplotSpec
 
     fig = plt.figure(figsize=(16, 7))
-    fig.suptitle(f"Liability vs Age at Onset [{scenario}]", fontsize=14, y=1.01)
     outer = GridSpec(1, 2, figure=fig, wspace=0.35)
 
     for i, trait_num in enumerate([1, 2]):
@@ -187,8 +188,8 @@ def plot_trait_regression(
         ax_joint.plot(
             x_line,
             mean_slope * x_line + mean_intercept,
-            color="C3",
-            linewidth=2,
+            color=COLOR_AFFECTED,
+            linewidth=1.2,
         )
 
         # 95% confidence band
@@ -208,7 +209,7 @@ def plot_trait_regression(
                     y_hat - t_crit * se_fit,
                     y_hat + t_crit * se_fit,
                     alpha=0.15,
-                    color="C3",
+                    color=COLOR_AFFECTED,
                     zorder=2,
                 )
 
@@ -237,7 +238,7 @@ def plot_trait_regression(
         ax_corner = fig.add_subplot(inner[0, 1])
         ax_corner.axis("off")
 
-    finalize_plot(output_path, subsample_note=subsample_note)
+    finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
 
 def plot_cumulative_incidence(
@@ -258,24 +259,24 @@ def plot_cumulative_incidence(
             mean_true = all_true.mean(axis=0)
 
             # True incidence (gray)
-            ax.plot(ages, mean_true, color="gray", alpha=0.7, linewidth=2, label="True")
+            ax.plot(ages, mean_true, color=COLOR_TRUE, alpha=0.7, linewidth=1.2, label="True")
             if len(all_stats) > 1:
-                ax.fill_between(ages, all_true.min(axis=0), all_true.max(axis=0), alpha=0.1, color="gray")
+                ax.fill_between(ages, all_true.min(axis=0), all_true.max(axis=0), alpha=0.1, color=COLOR_TRUE)
         else:
             all_obs = np.array([s["cumulative_incidence"][key]["values"] for s in all_stats])
 
         mean_obs = all_obs.mean(axis=0)
 
         # Observed incidence (colored)
-        ax.plot(ages, mean_obs, color="C0", linewidth=2, label="Observed")
+        ax.plot(ages, mean_obs, color=COLOR_OBSERVED, linewidth=1.2, label="Observed")
         if len(all_stats) > 1:
-            ax.fill_between(ages, all_obs.min(axis=0), all_obs.max(axis=0), alpha=0.2, color="C0")
+            ax.fill_between(ages, all_obs.min(axis=0), all_obs.max(axis=0), alpha=0.2, color=COLOR_OBSERVED)
 
         # Annotate Q1, Q2 (median), Q3 on both observed and true curves
         quartile_points: dict[str, dict[str, tuple[float, float]]] = {}
         for curve, curve_color, y_offset, curve_key in [
-            (mean_obs, "C0", -16, "obs"),
-            (mean_true, "gray", 16, "true"),
+            (mean_obs, COLOR_OBSERVED, -16, "obs"),
+            (mean_true, COLOR_TRUE, 16, "true"),
         ]:
             if curve is None:
                 continue
@@ -338,8 +339,7 @@ def plot_cumulative_incidence(
         ax.legend(loc="lower right", fontsize=9)
 
     axes[0].set_ylabel("Cumulative Incidence")
-    fig.suptitle(f"Cumulative Incidence by Age [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_cumulative_incidence_by_sex(
@@ -378,7 +378,7 @@ def plot_cumulative_incidence_by_sex(
             mean_prev = np.mean([d["prevalence"] for d in rep_data])
 
             ax.plot(
-                ages, mean_values, color=color, linewidth=2, label=f"{display} (n={int(mean_n)}, prev={mean_prev:.1%})"
+                ages, mean_values, color=color, linewidth=1.2, label=f"{display} (n={int(mean_n)}, prev={mean_prev:.1%})"
             )
 
         ax.set_title(f"Trait {trait_num}")
@@ -386,8 +386,7 @@ def plot_cumulative_incidence_by_sex(
         ax.legend(loc="lower right", fontsize=9)
 
     axes[0].set_ylabel("Cumulative Incidence")
-    fig.suptitle(f"Cumulative Incidence by Sex [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_cumulative_incidence_by_sex_generation(
@@ -446,7 +445,7 @@ def plot_cumulative_incidence_by_sex_generation(
                 mean_prev = np.mean([d["prevalence"] for d in rep_data])
 
                 ax.plot(
-                    ages, mean_values, color=color, linewidth=2, label=f"{display} (n={int(mean_n)}, {mean_prev:.1%})"
+                    ages, mean_values, color=color, linewidth=1.2, label=f"{display} (n={int(mean_n)}, {mean_prev:.1%})"
                 )
 
             if row == 0:
@@ -458,8 +457,7 @@ def plot_cumulative_incidence_by_sex_generation(
             if col == len(gen_keys) - 1:
                 ax.legend(loc="lower right", fontsize=8)
 
-    fig.suptitle(f"Cumulative Incidence by Sex and Generation [{scenario}]", fontsize=14, y=1.01)
-    finalize_plot(output_path)
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_censoring_windows(
@@ -542,10 +540,10 @@ def plot_censoring_windows(
             mean_true = all_true.mean(axis=0)
             mean_obs = all_obs.mean(axis=0)
 
-            ax.plot(ages, mean_true, color="gray", alpha=0.7, linewidth=2, label="True")
-            ax.fill_between(ages, mean_true, alpha=0.15, color="gray")
-            ax.plot(ages, mean_obs, color="C0", linewidth=2, label="Observed")
-            ax.fill_between(ages, mean_obs, alpha=0.2, color="C0")
+            ax.plot(ages, mean_true, color=COLOR_TRUE, alpha=0.7, linewidth=1.2, label="True")
+            ax.fill_between(ages, mean_true, alpha=0.15, color=COLOR_TRUE)
+            ax.plot(ages, mean_obs, color=COLOR_OBSERVED, linewidth=1.2, label="Observed")
+            ax.fill_between(ages, mean_obs, alpha=0.2, color=COLOR_OBSERVED)
 
             if len(stats_with_censoring) > 1:
                 ax.fill_between(
@@ -553,14 +551,14 @@ def plot_censoring_windows(
                     all_true.min(axis=0),
                     all_true.max(axis=0),
                     alpha=0.08,
-                    color="gray",
+                    color=COLOR_TRUE,
                 )
                 ax.fill_between(
                     ages,
                     all_obs.min(axis=0),
                     all_obs.max(axis=0),
                     alpha=0.08,
-                    color="C0",
+                    color=COLOR_OBSERVED,
                 )
 
             # Annotation stats (averaged)
@@ -593,12 +591,11 @@ def plot_censoring_windows(
     from matplotlib.lines import Line2D
 
     legend_elements = [
-        Line2D([0], [0], color="gray", linewidth=2, alpha=0.7, label="True"),
-        Line2D([0], [0], color="C0", linewidth=2, label="Observed"),
+        Line2D([0], [0], color=COLOR_TRUE, linewidth=1.2, alpha=0.7, label="True"),
+        Line2D([0], [0], color=COLOR_OBSERVED, linewidth=1.2, label="Observed"),
     ]
     axes[0, -1].legend(handles=legend_elements, loc="lower right", fontsize=9)
-    fig.suptitle(f"Censoring Windows by Generation [{scenario}]", fontsize=14, y=1.01)
-    finalize_plot(output_path)
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenario: str = "") -> None:
@@ -616,7 +613,7 @@ def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenar
     categories = ["1", "2", "3", "4+"]
     vals = np.array([[fs.get("size_dist", {}).get(c, 0) for c in categories] for fs in fs_list])
     mean_vals = vals.mean(axis=0)
-    ax.bar(categories, mean_vals, color="C0", edgecolor="white")
+    ax.bar(categories, mean_vals, color=COLOR_OBSERVED, edgecolor="white")
     for i, v in enumerate(mean_vals):
         ax.text(i, v + 0.005, f"{v:.1%}", ha="center", va="bottom", fontsize=10)
     mean_size = np.mean([fs.get("mean", 0) for fs in fs_list])
@@ -675,7 +672,7 @@ def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenar
     else:
         vals2 = np.array([[fs.get("person_offspring_dist", {}).get(c, 0) for c in categories2] for fs in fs_list])
         mean_vals2 = vals2.mean(axis=0)
-        ax.bar(x2, mean_vals2, 0.6, color="C1", edgecolor="white")
+        ax.bar(x2, mean_vals2, 0.6, color=COLOR_OBSERVED, edgecolor="white")
         for i, v in enumerate(mean_vals2):
             ax.text(i, v + 0.005, f"{v:.1%}", ha="center", va="bottom", fontsize=10)
     ax.set_xticks(x2)
@@ -723,5 +720,4 @@ def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenar
         bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8),
     )
 
-    fig.suptitle(f"Family Structure [{scenario}]", fontsize=14, y=1.01)
-    finalize_plot(output_path)
+    finalize_plot(output_path, scenario=scenario)

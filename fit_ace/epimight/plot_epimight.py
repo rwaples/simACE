@@ -19,13 +19,13 @@ import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from matplotlib.colors import LinearSegmentedColormap, Normalize, to_rgba
 from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 
 from fit_ace.constants import KIND_COLORS, KIND_LABELS, KIND_ORDER
 from sim_ace.plotting.plot_atlas import assemble_atlas
+from sim_ace.plotting.plot_utils import finalize_plot
 
 logger = logging.getLogger(__name__)
 
@@ -366,7 +366,7 @@ def _add_cif_colorbar_and_legend(fig, axes, norm, cmap_exposed, exposed_cohort):
         Line2D([0], [0], color="0.4", linewidth=1.2, linestyle="--", label=f"{exposed_cohort} (exposed)"),
     ]
     fig.legend(
-        handles=legend_elements, loc="lower right", ncol=2, fontsize=10, frameon=True, bbox_to_anchor=(0.95, -0.07)
+        handles=legend_elements, loc="lower right", ncol=2, fontsize=10, bbox_to_anchor=(0.95, -0.07)
     )
 
 
@@ -403,7 +403,6 @@ def plot_cif_base(
 
     ax1.set_ylabel("Cumulative Incidence")
 
-    fig.suptitle(f"Base Population CIF [{scenario}]" if scenario else "Base Population CIF", fontsize=14)
     plt.tight_layout()
 
     sm = cm.ScalarMappable(cmap=cmap, norm=norm)
@@ -412,8 +411,7 @@ def plot_cif_base(
     cbar = fig.colorbar(sm, cax=cbar_ax, orientation="horizontal", label="Birth year")
     cbar.ax.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path, scenario=scenario)
 
 
 def _plot_cif_panels(
@@ -485,11 +483,9 @@ def _plot_cif_panels(
 
     _hide_unused(axes, n_panels, n_rows, n_cols)
 
-    fig.suptitle(f"{title} [{scenario}]" if scenario else title, fontsize=14)
     plt.tight_layout()
     _add_cif_colorbar_and_legend(fig, axes, norm, cmap_exposed, exposed_cohort)
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_cif_primary(
@@ -565,7 +561,7 @@ def plot_h2_by_time(
 
         if true_h2 is not None:
             ax.axhline(
-                true_h2, color="black", linestyle="--", linewidth=1.5, alpha=0.7, label=f"True h\u00b2 = {true_h2:.3f}"
+                true_h2, color="black", linestyle="--", linewidth=1.0, alpha=0.7, label=f"True h\u00b2 = {true_h2:.3f}"
             )
 
         # Meta-analysis overlay
@@ -575,7 +571,7 @@ def plot_h2_by_time(
                 meta["fixed_meta"],
                 color=color,
                 linestyle=":",
-                linewidth=2,
+                linewidth=1.2,
                 alpha=0.8,
                 label=f"Meta = {meta['fixed_meta']:.3f}",
             )
@@ -589,11 +585,8 @@ def plot_h2_by_time(
 
     _hide_unused(axes, len(kinds), n_rows, n_cols)
 
-    _title = f"Heritability over Follow-up \u2014 {disorder.upper()}"
-    fig.suptitle(f"{_title} [{scenario}]" if scenario else _title, fontsize=14)
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_h2_heatmap(
@@ -669,8 +662,6 @@ def plot_h2_heatmap(
 
     _hide_unused(axes, len(heatmap_kinds), n_rows, n_cols)
 
-    _title = f"h\u00b2 Heatmap \u2014 {disorder.upper()}"
-    fig.suptitle(f"{_title} [{scenario}]" if scenario else _title, fontsize=14)
     plt.tight_layout(rect=[0, 0.10, 1, 1])
 
     # -- Shared colorbar ---------------------------------------------------
@@ -680,7 +671,7 @@ def plot_h2_heatmap(
     fig.colorbar(sm, cax=cbar_ax, orientation="horizontal", label="h\u00b2")
 
     if true_h2 is not None:
-        cbar_ax.axvline(true_h2, color="black", linestyle="--", linewidth=1.5)
+        cbar_ax.axvline(true_h2, color="black", linestyle="--", linewidth=1.0)
         cbar_ax.text(
             true_h2,
             1.35,
@@ -703,8 +694,7 @@ def plot_h2_heatmap(
         color="0.35",
     )
 
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path, scenario=scenario)
 
 
 def _plot_bar_panels(
@@ -772,7 +762,7 @@ def _plot_bar_panels(
 
         if true_value is not None:
             ax.axhline(
-                true_value, color="black", linestyle="--", linewidth=1.5, alpha=0.7, label=f"True = {true_value:.3f}"
+                true_value, color="black", linestyle="--", linewidth=1.0, alpha=0.7, label=f"True = {true_value:.3f}"
             )
 
         # Meta-analysis overlay (on per-year plots only; meta-only already shows it)
@@ -781,7 +771,7 @@ def _plot_bar_panels(
                 meta["fixed_meta"],
                 color=color,
                 linestyle=":",
-                linewidth=2,
+                linewidth=1.2,
                 alpha=0.8,
                 zorder=5,
                 label=f"Meta = {meta['fixed_meta']:.3f}",
@@ -795,10 +785,8 @@ def _plot_bar_panels(
 
     _hide_unused(axes, len(kinds), n_rows, n_cols)
 
-    fig.suptitle(f"{title} [{scenario}]" if scenario else title, fontsize=14)
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_h2_bar(
@@ -902,7 +890,7 @@ def plot_gc_bar(
             continue
 
         if true_gc is not None:
-            ax.axhline(true_gc, color="black", linestyle="--", linewidth=1.5, alpha=0.7, label=f"True = {true_gc:.3f}")
+            ax.axhline(true_gc, color="black", linestyle="--", linewidth=1.0, alpha=0.7, label=f"True = {true_gc:.3f}")
 
         # Meta-analysis overlay (on per-year plots only)
         if has_per_year and meta is not None:
@@ -910,7 +898,7 @@ def plot_gc_bar(
                 meta["fixed_meta"],
                 color=color,
                 linestyle=":",
-                linewidth=2,
+                linewidth=1.2,
                 alpha=0.8,
                 zorder=5,
                 label=f"Meta = {meta['fixed_meta']:.3f}",
@@ -931,11 +919,8 @@ def plot_gc_bar(
 
     _hide_unused(axes, len(kinds), n_rows, n_cols)
 
-    _title = "Genetic Correlation at Maximum Follow-up"
-    fig.suptitle(f"{_title} [{scenario}]" if scenario else _title, fontsize=14)
     plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_summary_table(
@@ -1038,10 +1023,7 @@ def plot_summary_table(
         for j in range(len(columns)):
             table[i + 1, j].set_facecolor(rgba)
 
-    _title = "Summary Comparison Across Relationship Kinds"
-    fig.suptitle(f"{_title} [{scenario}]" if scenario else _title, fontsize=14, y=0.98)
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close()
+    finalize_plot(output_path, scenario=scenario)
 
 
 # ---------------------------------------------------------------------------
@@ -1060,7 +1042,9 @@ def assemble_epimight_atlas(scenario_dir: str | Path, scenario: str = "") -> Non
     if not scenario:
         scenario = scenario_dir.parent.parent.name
 
-    sns.set_theme(style="whitegrid", palette="colorblind")
+    from sim_ace.plotting.plot_style import apply_nature_style
+
+    apply_nature_style()
 
     kinds = discover_kinds(tsv_dir)
     if not kinds:

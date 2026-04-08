@@ -32,6 +32,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+from sim_ace.plotting.plot_style import COLOR_AFFECTED, COLOR_OBSERVED, enable_value_gridlines
+
+COLOR_EXPECTED = "#EE7733"  # orange, for expected/reference markers
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -64,7 +68,7 @@ def stripplot(
         ax.set_ylabel(y)
         return
 
-    sns.stripplot(data=df, x="scenario", y=y, ax=ax, alpha=0.9, color="C0", jitter=0.15)
+    sns.stripplot(data=df, x="scenario", y=y, ax=ax, alpha=0.9, color=COLOR_OBSERVED, jitter=0.15)
 
     if expected_func is not None or expected is not None:
         for scenario in scenarios:
@@ -87,7 +91,7 @@ def stripplot(
                     marker="_",
                     s=200,
                     linewidths=3,
-                    color="C1",
+                    color=COLOR_EXPECTED,
                     zorder=10,
                 )
 
@@ -155,6 +159,7 @@ def plot_variance_components(df: pd.DataFrame, out: Path, ext: str = "png") -> N
             stripplot(df, ax, f"variance_{comp}{t}", expected=f"{comp}{t}")
             ax.set_title(f"Trait {t}: {comp}{t}")
             ax.set_ylabel("Variance Proportion")
+            enable_value_gridlines(ax)
     save(fig, out / f"variance_components.{ext}")
 
 
@@ -164,6 +169,7 @@ def plot_twin_rate(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     stripplot(df, ax, "observed_twin_rate", expected="p_mztwin")
     ax.set_title("MZ Twin Rate: Observed vs Expected")
     ax.set_ylabel("Twin Rate")
+    enable_value_gridlines(ax)
     save(fig, out / f"twin_rate.{ext}")
 
 
@@ -178,9 +184,10 @@ def plot_A_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     fig, axes = plt.subplots(2, 2, figsize=_figsize(nrows=2, ncols=2))
     for ax, (col, exp, title) in zip(axes.flat, panels, strict=True):
         stripplot(df, ax, col, expected=exp)
-        ax.axhline(y=exp, color="C1", linestyle="--", alpha=0.7)
+        ax.axhline(y=exp, color=COLOR_EXPECTED, linestyle="--", alpha=0.7)
         ax.set_title(title)
         ax.set_ylabel("Correlation")
+        enable_value_gridlines(ax)
     save(fig, out / f"correlations_A.{ext}")
 
 
@@ -197,6 +204,7 @@ def plot_phenotype_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -
         stripplot(df, ax, col, expected_func=efn)
         ax.set_title(title)
         ax.set_ylabel("Correlation")
+        enable_value_gridlines(ax)
     save(fig, out / f"correlations_phenotype.{ext}")
 
 
@@ -213,6 +221,7 @@ def plot_heritability_estimates(df: pd.DataFrame, out: Path, ext: str = "png") -
         stripplot(df, ax, col, expected=exp)
         ax.set_title(title)
         ax.set_ylabel(ylabel)
+        enable_value_gridlines(ax)
     save(fig, out / f"heritability_estimates.{ext}")
 
 
@@ -222,10 +231,12 @@ def plot_half_sib_proportions(df: pd.DataFrame, out: Path, ext: str = "png") -> 
     stripplot(df, axes[0], "half_sib_prop_observed", expected="half_sib_prop_expected")
     axes[0].set_title("Half-Sibling Pair Proportion")
     axes[0].set_ylabel("Proportion")
+    enable_value_gridlines(axes[0])
 
     stripplot(df, axes[1], "offspring_with_half_sib_observed")
     axes[1].set_title("Proportion of Offspring with Half-Siblings")
     axes[1].set_ylabel("Proportion")
+    enable_value_gridlines(axes[1])
     save(fig, out / f"half_sib_proportions.{ext}")
 
 
@@ -242,9 +253,10 @@ def plot_cross_trait_correlations(df: pd.DataFrame, out: Path, ext: str = "png")
             stripplot(df, ax, obs, expected=exp)
         else:
             stripplot(df, ax, obs)
-            ax.axhline(y=0, color="C1", linestyle="--", alpha=0.7)
+            ax.axhline(y=0, color=COLOR_EXPECTED, linestyle="--", alpha=0.7)
         ax.set_title(title)
         ax.set_ylabel("Correlation")
+        enable_value_gridlines(ax)
     save(fig, out / f"cross_trait_correlations.{ext}")
 
 
@@ -261,7 +273,7 @@ def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         ax.scatter(
             [x - width / 2] * len(sdf),
             sdf["mother_mean_offspring"],
-            color="C0",
+            color=COLOR_OBSERVED,
             alpha=0.9,
             s=30,
             zorder=5,
@@ -269,7 +281,7 @@ def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         ax.scatter(
             [x + width / 2] * len(sdf),
             sdf["father_mean_offspring"],
-            color="C3",
+            color=COLOR_AFFECTED,
             alpha=0.9,
             s=30,
             zorder=5,
@@ -282,7 +294,7 @@ def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
             marker="_",
             s=200,
             linewidths=3,
-            color="C1",
+            color=COLOR_EXPECTED,
             zorder=10,
         )
 
@@ -296,13 +308,14 @@ def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         ax.set_xlim(-0.5, 0.5)
     ax.set_ylabel("Mean Offspring per Parent")
     ax.set_title("Family Size: Mean Offspring per Mother and Father (parents with children only)")
+    enable_value_gridlines(ax)
 
     from matplotlib.lines import Line2D
 
     legend = [
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="C0", markersize=6, label="Mother"),
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="C3", markersize=6, label="Father"),
-        Line2D([0], [0], marker="_", color="C1", markersize=10, linewidth=2, label="Expected (Poisson)"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=COLOR_OBSERVED, markersize=5, label="Mother"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=COLOR_AFFECTED, markersize=5, label="Father"),
+        Line2D([0], [0], marker="_", color=COLOR_EXPECTED, markersize=7, linewidth=1.2, label="Expected (Poisson)"),
     ]
     ax.legend(handles=legend, loc="best", fontsize="small")
     save(fig, out / f"family_size.{ext}")
@@ -340,10 +353,11 @@ def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
             ax.set_title(col)
             ax.set_xlabel("")
             continue
-        sns.stripplot(data=dp, x="scenario", y=col, ax=ax, alpha=0.9, jitter=0.15)
+        sns.stripplot(data=dp, x="scenario", y=col, ax=ax, alpha=0.9, color=COLOR_OBSERVED, jitter=0.15)
         ax.axhline(y=0, color="red", linestyle="--", alpha=0.5)
         ax.set_title(col)
         ax.set_xlabel("")
+        enable_value_gridlines(ax)
         if n > 3 or (n > 1 and _long):
             ax.tick_params(axis="x", rotation=30)
             for lbl in ax.get_xticklabels():
@@ -388,8 +402,7 @@ def _format_log_axes(ax: Axes) -> None:
 
     ax.tick_params(axis="both", which="minor", length=3, color="0.7")
     ax.tick_params(axis="both", which="major", length=6)
-    ax.grid(True, which="major", linewidth=0.8, alpha=0.5)
-    ax.grid(True, which="minor", linewidth=0.3, alpha=0.3)
+    enable_value_gridlines(ax)
 
 
 def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
@@ -406,6 +419,7 @@ def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         stripplot(sub, ax, "simulate_seconds")
         ax.set_ylabel("Simulate Time (seconds)")
         ax.set_title("Simulation Runtime")
+        enable_value_gridlines(ax)
         save(fig, out / f"runtime.{ext}")
         return
 
@@ -449,6 +463,7 @@ def plot_memory(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         stripplot(sub, ax, "simulate_max_rss_mb")
         ax.set_ylabel("Peak RSS (MB)")
         ax.set_title("Simulation Memory Usage")
+        enable_value_gridlines(ax)
         save(fig, out / f"memory.{ext}")
         return
 
@@ -484,10 +499,12 @@ def plot_consanguineous_matings(df: pd.DataFrame, out: Path, ext: str = "png") -
     stripplot(df, axes[0], "n_half_sib_matings", expected=0)
     axes[0].set_title("Half-Sib Matings")
     axes[0].set_ylabel("Count")
+    enable_value_gridlines(axes[0])
 
     stripplot(df, axes[1], "missing_gp_links", expected=0)
     axes[1].set_title("Missing Grandparent Links")
     axes[1].set_ylabel("Count")
+    enable_value_gridlines(axes[1])
     save(fig, out / f"consanguineous_matings.{ext}")
 
 
@@ -496,7 +513,9 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     logger.info("Generating validation plots in %s", out)
-    sns.set_theme(style="whitegrid", palette="colorblind")
+    from sim_ace.plotting.plot_style import apply_nature_style
+
+    apply_nature_style()
     df = pd.read_csv(tsv_path, sep="\t", encoding="utf-8")
 
     # Sort scenarios by increasing N so x-axes read left-to-right by size

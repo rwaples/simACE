@@ -470,7 +470,7 @@ def render_table1_figure(
     Returns:
         matplotlib Figure ready for ``pdf.savefig()``.
     """
-    fig = plt.figure(figsize=(11, 8.5))
+    fig = plt.figure(figsize=(11.69, 8.27))
     ax = fig.add_axes([0, 0, 1, 1])
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
@@ -487,7 +487,7 @@ def render_table1_figure(
         title,
         fontsize=_TITLE_SIZE,
         fontweight="bold",
-        fontfamily="serif",
+        fontfamily="sans-serif",
         ha="center",
         va="top",
         transform=fig.transFigure,

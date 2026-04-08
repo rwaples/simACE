@@ -23,10 +23,11 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
-import seaborn as sns
 
+from sim_ace.plotting.plot_style import PEDIGREE_COLORS
 from sim_ace.plotting.plot_utils import finalize_plot, save_placeholder_plot
 
 logger = logging.getLogger(__name__)
@@ -168,7 +169,7 @@ def _draw_node(
     *,
     fill: str = "white",
     edgecolor: str = "black",
-    linewidth: float = 1.2,
+    linewidth: float = 0.8,
 ) -> None:
     r = NODE_RADIUS
     if sex == "M":
@@ -246,7 +247,7 @@ def _draw_mz_bracket(ax: plt.Axes, a: str, b: str) -> None:
             [ax_x + r, bx_x - r],
             [ay_y + offset, by_y + offset],
             color="black",
-            linewidth=1.0,
+            linewidth=0.8,
             zorder=2,
         )
 
@@ -298,11 +299,8 @@ def plot_pedigree_relationship_counts(
     if n_reps > 0:
         counts = {k: v / n_reps for k, v in counts.items()}
 
-    # Colour palette
-    palette = sns.color_palette("colorblind", n_colors=10)
-    rel_colors = {name: palette[i] for i, name in enumerate(RELATIONSHIP_ORDER)}
-    # Override yellow (hard to read on white) with a darker goldenrod
-    rel_colors["Av"] = (0.75, 0.56, 0.0)
+    # Colour palette (Nature Genetics muted style)
+    rel_colors = {name: PEDIGREE_COLORS[name] for name in RELATIONSHIP_ORDER}
 
     # Build map: node → relationship colour (for node border colouring)
     node_rel_color: dict[str, tuple[str, ...]] = {}
@@ -320,9 +318,7 @@ def plot_pedigree_relationship_counts(
     title = "Pedigree Relationship Pair Counts"
     if generations_label:
         title += f"  ({generations_label})"
-    if scenario:
-        title += f"  [{scenario}]"
-    ax.set_title(title, fontsize=22, fontweight="bold", pad=16)
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=16)
 
     # Generation labels
     for g, y in {0: 10.0, 1: 7.5, 2: 5.0, 3: 2.0}.items():
@@ -330,7 +326,7 @@ def plot_pedigree_relationship_counts(
             -2.7,
             y,
             f"Gen {g}",
-            fontsize=14,
+            fontsize=10,
             ha="center",
             va="center",
             fontstyle="italic",
@@ -348,11 +344,11 @@ def plot_pedigree_relationship_counts(
     # Related nodes filled with relationship colour; proband highlighted blue.
     for name, (x, y, sex) in NODES.items():
         if name == PROBAND_NODE:
-            _draw_node(ax, x, y, sex, fill="black", linewidth=2.0)
+            _draw_node(ax, x, y, sex, fill="black", linewidth=1.4)
         elif name in node_rel_color:
             color = node_rel_color[name]
             # Lighten the colour for the fill (blend with white)
-            r, g, b = color[:3]
+            r, g, b = mcolors.to_rgb(color)
             light = (0.6 + 0.4 * r, 0.6 + 0.4 * g, 0.6 + 0.4 * b)
             _draw_node(
                 ax,
@@ -361,7 +357,7 @@ def plot_pedigree_relationship_counts(
                 sex,
                 fill=light,
                 edgecolor=color,
-                linewidth=2.0,
+                linewidth=1.4,
             )
         else:
             _draw_node(ax, x, y, sex)
@@ -372,7 +368,7 @@ def plot_pedigree_relationship_counts(
         px,
         py - NODE_RADIUS - 0.25,
         "Proband",
-        fontsize=16,
+        fontsize=12,
         ha="center",
         va="top",
         fontweight="bold",
@@ -396,7 +392,7 @@ def plot_pedigree_relationship_counts(
             nx + dx,
             ny + dy,
             label,
-            fontsize=14,
+            fontsize=10,
             ha=ha,
             va=va,
             color=color,
@@ -415,7 +411,6 @@ def plot_pedigree_relationship_counts(
         handles=handles,
         loc="upper right",
         fontsize=10,
-        framealpha=0.9,
         title="Relationship (mean pairs)",
         title_fontsize=11,
     )
@@ -438,13 +433,13 @@ def plot_pedigree_relationship_counts(
         0.01,
         "  |  ".join(footer_parts),
         transform=ax.transAxes,
-        fontsize=12,
+        fontsize=9,
         ha="right",
         va="bottom",
         color="grey",
     )
 
-    finalize_plot(output_path)
+    finalize_plot(output_path, scenario=scenario)
     logger.info("Pedigree counts plot saved to %s", output_path)
 
 

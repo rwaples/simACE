@@ -3,8 +3,17 @@
 # Canonical ordering of EPIMIGHT relationship kinds
 KIND_ORDER: list[str] = ["PO", "FS", "HS", "mHS", "pHS", "Av", "1G", "1C"]
 
-# Matplotlib color per kind (C0..C7)
-KIND_COLORS: dict[str, str] = {k: f"C{i}" for i, k in enumerate(KIND_ORDER)}
+# Muted palette per kind (harmonized with sim_ace PAIR_COLORS)
+KIND_COLORS: dict[str, str] = {
+    "PO": "#228833",  # muted green (matches MO)
+    "FS": "#EE6677",  # muted rose
+    "HS": "#66CCEE",  # muted cyan
+    "mHS": "#66CCEE",  # muted cyan (same as HS)
+    "pHS": "#AA3377",  # muted purple
+    "Av": "#999933",  # muted dark olive
+    "1G": "#CC6633",  # muted brown
+    "1C": "#BBBBBB",  # neutral grey
+}
 
 # Human-readable labels
 KIND_LABELS: dict[str, str] = {

@@ -29,6 +29,7 @@ import numpy as np
 import pandas as pd
 
 from sim_ace.core.utils import PAIR_TYPES
+from sim_ace.plotting.plot_style import COLOR_AFFECTED, COLOR_OBSERVED, COLOR_UNAFFECTED, enable_value_gridlines
 from sim_ace.plotting.plot_utils import PAIR_COLORS, draw_colored_violins, finalize_plot, save_placeholder_plot
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ def plot_tetrachoric_sibling(
     pair_types = PAIR_TYPES
     pair_colors = PAIR_COLORS
 
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    _fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
     for col_idx, trait_num in enumerate([1, 2]):
         ax = axes[col_idx]
@@ -100,7 +101,7 @@ def plot_tetrachoric_sibling(
                         i + jitter,
                         rep_vals,
                         color="black",
-                        s=15,
+                        s=10,
                         alpha=0.9,
                         zorder=5,
                     )
@@ -139,7 +140,7 @@ def plot_tetrachoric_sibling(
                     i + 0.35,
                     colors="black",
                     linestyles="dashed",
-                    linewidth=2,
+                    linewidth=1.0,
                     zorder=4,
                 )
 
@@ -157,9 +158,9 @@ def plot_tetrachoric_sibling(
                         mean_uncens_r,
                         i - 0.35,
                         i + 0.35,
-                        colors="C2",
+                        colors="#228833",
                         linestyles="dashdot",
-                        linewidth=2,
+                        linewidth=1.0,
                         zorder=5,
                     )
 
@@ -177,9 +178,9 @@ def plot_tetrachoric_sibling(
                             exp_r,
                             i - 0.35,
                             i + 0.35,
-                            colors="C3",
+                            colors=COLOR_AFFECTED,
                             linestyles="dotted",
-                            linewidth=2,
+                            linewidth=1.0,
                             zorder=4,
                         )
 
@@ -193,20 +194,21 @@ def plot_tetrachoric_sibling(
         from matplotlib.lines import Line2D
 
         legend_elements = [
-            Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r"),
+            Line2D([0], [0], color="black", linestyle="--", linewidth=1.0, label="Liability r"),
         ]
         if has_uncens:
             legend_elements.append(
-                Line2D([0], [0], color="C2", linestyle="-.", linewidth=2, label="Frailty r (uncensored)"),
+                Line2D([0], [0], color="#228833", linestyle="-.", linewidth=1.0, label="Frailty r (uncensored)"),
             )
         if has_parametric:
             legend_elements.append(
-                Line2D([0], [0], color="C3", linestyle=":", linewidth=2, label="Parametric E[r]"),
+                Line2D([0], [0], color=COLOR_AFFECTED, linestyle=":", linewidth=1.0, label="Parametric E[r]"),
             )
         ax.legend(handles=legend_elements, loc="upper right")
 
-    fig.suptitle(f"Tetrachoric Correlation [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+        enable_value_gridlines(ax)
+
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_tetrachoric_by_generation(
@@ -236,7 +238,7 @@ def plot_tetrachoric_by_generation(
     pair_colors = PAIR_COLORS
 
     n_cols = len(gen_keys)
-    fig, axes = plt.subplots(2, n_cols, figsize=(5 * n_cols, 5 * 2), squeeze=False)
+    _fig, axes = plt.subplots(2, n_cols, figsize=(5 * n_cols, 5 * 2), squeeze=False)
 
     for row, trait_num in enumerate([1, 2]):
         trait_key = f"trait{trait_num}"
@@ -316,7 +318,7 @@ def plot_tetrachoric_by_generation(
                         i + 0.35,
                         colors="black",
                         linestyles="dashed",
-                        linewidth=2,
+                        linewidth=1.0,
                         zorder=4,
                     )
 
@@ -332,9 +334,9 @@ def plot_tetrachoric_by_generation(
                                 exp_r,
                                 i - 0.35,
                                 i + 0.35,
-                                colors="C3",
+                                colors=COLOR_AFFECTED,
                                 linestyles="dotted",
-                                linewidth=2,
+                                linewidth=1.0,
                                 zorder=4,
                             )
 
@@ -353,17 +355,20 @@ def plot_tetrachoric_by_generation(
     from matplotlib.lines import Line2D
 
     has_parametric = params is not None and params.get("A1") is not None and params.get("C1") is not None
-    legend_handles = [Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r")]
+    legend_handles = [Line2D([0], [0], color="black", linestyle="--", linewidth=1.0, label="Liability r")]
     if has_parametric:
-        legend_handles.append(Line2D([0], [0], color="C3", linestyle=":", linewidth=2, label="Parametric E[r]"))
+        legend_handles.append(Line2D([0], [0], color=COLOR_AFFECTED, linestyle=":", linewidth=1.0, label="Parametric E[r]"))
     axes[0, -1].legend(
         handles=legend_handles,
         loc="upper right",
         fontsize=8,
     )
 
-    fig.suptitle(f"Tetrachoric Correlation by Generation [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+    for row in range(axes.shape[0]):
+        for col in range(axes.shape[1]):
+            enable_value_gridlines(axes[row, col])
+
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_cross_trait_tetrachoric(
@@ -381,7 +386,7 @@ def plot_cross_trait_tetrachoric(
     pair_types = PAIR_TYPES
     pair_colors = PAIR_COLORS
 
-    fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    _fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
     # ---- Left panel: same-person by generation ----
     ax_left = axes[0]
@@ -403,11 +408,11 @@ def plot_cross_trait_tetrachoric(
             rs = gen_data[gen]
             for rep_idx, r_val in enumerate(rs):
                 jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08)
-                ax_left.scatter(gen + jitter, r_val, color="C0", alpha=0.9, s=30, zorder=5)
+                ax_left.scatter(gen + jitter, r_val, color=COLOR_OBSERVED, alpha=0.9, s=15, zorder=5)
 
         mean_rs = [np.mean(gen_data[g]) for g in generations]
         ax_left.plot(
-            generations, mean_rs, color="C0", linewidth=2, marker="o", markersize=7, zorder=6, label="Per-gen mean"
+            generations, mean_rs, color=COLOR_OBSERVED, linewidth=1.2, marker="o", markersize=5, zorder=6, label="Per-gen mean"
         )
 
         # Overall same-person r (averaged across reps)
@@ -430,9 +435,9 @@ def plot_cross_trait_tetrachoric(
         if oracle_rs:
             ax_left.axhline(
                 y=np.mean(oracle_rs),
-                color="C2",
+                color="#228833",
                 linestyle="-.",
-                linewidth=2,
+                linewidth=1.0,
                 alpha=0.7,
                 label=f"Frailty oracle = {np.mean(oracle_rs):.3f}",
             )
@@ -478,7 +483,7 @@ def plot_cross_trait_tetrachoric(
                     i + jitter,
                     rep_vals,
                     color="black",
-                    s=15,
+                    s=10,
                     alpha=0.9,
                     zorder=5,
                 )
@@ -506,8 +511,7 @@ def plot_cross_trait_tetrachoric(
     ax_right.set_ylabel("Cross-trait tetrachoric r")
     ax_right.set_title("Cross-Person: personA.affected1 vs personB.affected2")
 
-    fig.suptitle(f"Cross-Trait Tetrachoric Correlations [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_parent_offspring_liability(
@@ -521,7 +525,7 @@ def plot_parent_offspring_liability(
     """2 x 3 scatter grid: midparent vs offspring liability by generation."""
     from scipy.stats import t as t_dist
 
-    from sim_ace.plotting.plot_distributions import COLOR_FEMALE, COLOR_MALE
+    from sim_ace.plotting.plot_style import COLOR_FEMALE, COLOR_MALE
 
     if "generation" not in df_samples.columns:
         save_placeholder_plot(output_path, "No generation data")
@@ -555,7 +559,7 @@ def plot_parent_offspring_liability(
         return
 
     n_cols = len(plot_gens)
-    fig, axes = plt.subplots(2, n_cols, figsize=(5 * n_cols, 8), squeeze=False)
+    _fig, axes = plt.subplots(2, n_cols, figsize=(5 * n_cols, 8), squeeze=False)
 
     for row, trait_num in enumerate([1, 2]):
         liability = df_samples[f"liability{trait_num}"].values
@@ -643,7 +647,7 @@ def plot_parent_offspring_liability(
 
             # Observed regression line
             x_line = np.array([midparent_liab.min(), midparent_liab.max()])
-            ax.plot(x_line, mean_slope * x_line + mean_intercept, color="C3", linewidth=2)
+            ax.plot(x_line, mean_slope * x_line + mean_intercept, color=COLOR_AFFECTED, linewidth=1.2)
 
             # 95% confidence band around regression line
             if mean_stderr is not None and mean_n > 2:
@@ -661,7 +665,7 @@ def plot_parent_offspring_liability(
                         y_hat - t_crit * se_fit,
                         y_hat + t_crit * se_fit,
                         alpha=0.15,
-                        color="C3",
+                        color=COLOR_AFFECTED,
                         zorder=2,
                     )
 
@@ -675,9 +679,9 @@ def plot_parent_offspring_liability(
                     ax.plot(
                         x_line,
                         float(expected_slope) * x_line + expected_intercept,
-                        color="C1",
+                        color=COLOR_UNAFFECTED,
                         linestyle="--",
-                        linewidth=2,
+                        linewidth=1.0,
                         zorder=4,
                     )
 
@@ -742,16 +746,15 @@ def plot_parent_offspring_liability(
 
     has_any_expected = params is not None and any(params.get(f"A{t}") is not None for t in [1, 2])
     legend_handles = [
-        Line2D([0], [0], color="C3", linewidth=2, label="Observed h\u00b2"),
-        Line2D([0], [0], color=COLOR_FEMALE, linewidth=1.5, label="Daughters"),
-        Line2D([0], [0], color=COLOR_MALE, linewidth=1.5, label="Sons"),
+        Line2D([0], [0], color=COLOR_AFFECTED, linewidth=1.2, label="Observed h\u00b2"),
+        Line2D([0], [0], color=COLOR_FEMALE, linewidth=1.2, label="Daughters"),
+        Line2D([0], [0], color=COLOR_MALE, linewidth=1.2, label="Sons"),
     ]
     if has_any_expected:
-        legend_handles.append(Line2D([0], [0], color="C1", linestyle="--", linewidth=2, label="Expected (A)"))
+        legend_handles.append(Line2D([0], [0], color=COLOR_UNAFFECTED, linestyle="--", linewidth=1.0, label="Expected (A)"))
     axes[0, -1].legend(handles=legend_handles, loc="lower right", fontsize=8)
 
-    fig.suptitle(f"Midparent-Offspring Liability Regression [{scenario}]", fontsize=14)
-    finalize_plot(output_path, subsample_note=subsample_note)
+    finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
 
 def plot_heritability_by_generation(
@@ -777,7 +780,7 @@ def plot_heritability_by_generation(
     params = all_validations[0].get("parameters", {})
     expected_h2 = {1: params.get("A1", None), 2: params.get("A2", None)}
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
     for col, trait_num in enumerate([1, 2]):
         ax = axes[col]
@@ -806,7 +809,7 @@ def plot_heritability_by_generation(
             ax.scatter(
                 np.array(generations) + jitter,
                 h2_arr[rep_idx],
-                color="C0",
+                color=COLOR_OBSERVED,
                 alpha=0.9,
                 s=25,
                 zorder=5,
@@ -816,7 +819,7 @@ def plot_heritability_by_generation(
         exp = expected_h2.get(trait_num)
         if exp is not None:
             ax.axhline(
-                y=exp, color="C1", linestyle="--", linewidth=2, alpha=0.7, label=f"Parametric A{trait_num} = {exp}"
+                y=exp, color=COLOR_UNAFFECTED, linestyle="--", linewidth=1.0, alpha=0.7, label=f"Parametric A{trait_num} = {exp}"
             )
             ax.legend(loc="lower left", fontsize=9)
 
@@ -826,8 +829,9 @@ def plot_heritability_by_generation(
         ax.set_xticks(generations)
         ax.set_ylim(0, 1)
 
-    fig.suptitle(f"Realized Narrow-Sense Liability-Scale Heritability by Generation [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+        enable_value_gridlines(ax)
+
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_broad_heritability_by_generation(
@@ -852,7 +856,7 @@ def plot_broad_heritability_by_generation(
         if a is not None and c is not None:
             expected_H2[t] = a + c
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
     for col, trait_num in enumerate([1, 2]):
         ax = axes[col]
@@ -879,7 +883,7 @@ def plot_broad_heritability_by_generation(
             ax.scatter(
                 np.array(generations) + jitter,
                 H2_arr[rep_idx],
-                color="C0",
+                color=COLOR_OBSERVED,
                 alpha=0.9,
                 s=25,
                 zorder=5,
@@ -889,9 +893,9 @@ def plot_broad_heritability_by_generation(
         if exp is not None:
             ax.axhline(
                 y=exp,
-                color="C1",
+                color=COLOR_UNAFFECTED,
                 linestyle="--",
-                linewidth=2,
+                linewidth=1.0,
                 alpha=0.7,
                 label=f"Parametric A{trait_num}+C{trait_num} = {exp}",
             )
@@ -903,8 +907,9 @@ def plot_broad_heritability_by_generation(
         ax.set_xticks(generations)
         ax.set_ylim(0, 1)
 
-    fig.suptitle(f"Realized Additive Genetic and Shared Environment by Generation [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+        enable_value_gridlines(ax)
+
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_tetrachoric_by_sex(
@@ -925,7 +930,7 @@ def plot_tetrachoric_by_sex(
         save_placeholder_plot(output_path, "No sex-stratified tetrachoric data")
         return
 
-    fig, axes = plt.subplots(2, 2, figsize=(16, 10), squeeze=False)
+    _fig, axes = plt.subplots(2, 2, figsize=(16, 10), squeeze=False)
 
     for col_idx, (sex_key, sex_display) in enumerate(sex_labels):
         for row_idx, trait_num in enumerate([1, 2]):
@@ -957,7 +962,7 @@ def plot_tetrachoric_by_sex(
                     rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
                     if len(rep_vals):
                         jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
-                        ax.scatter(i + jitter, rep_vals, color="black", s=15, alpha=0.9, zorder=5)
+                        ax.scatter(i + jitter, rep_vals, color="black", s=10, alpha=0.9, zorder=5)
 
                 # Liability reference lines
                 for i, ptype in enumerate(pair_types):
@@ -973,7 +978,7 @@ def plot_tetrachoric_by_sex(
                             i + 0.35,
                             colors="black",
                             linestyles="dashed",
-                            linewidth=2,
+                            linewidth=1.0,
                             zorder=4,
                         )
 
@@ -989,9 +994,9 @@ def plot_tetrachoric_by_sex(
                                     exp_r,
                                     i - 0.35,
                                     i + 0.35,
-                                    colors="C3",
+                                    colors=COLOR_AFFECTED,
                                     linestyles="dotted",
-                                    linewidth=2,
+                                    linewidth=1.0,
                                     zorder=4,
                                 )
 
@@ -1018,8 +1023,11 @@ def plot_tetrachoric_by_sex(
             else:
                 ax.set_title(f"Trait {trait_num}")
 
-    fig.suptitle(f"Tetrachoric Correlation by Sex (same-sex pairs) [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+    for row in range(axes.shape[0]):
+        for col in range(axes.shape[1]):
+            enable_value_gridlines(axes[row, col])
+
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_heritability_by_sex_generation(
@@ -1033,7 +1041,7 @@ def plot_heritability_by_sex_generation(
     1x2 panel (one per trait). Each panel shows per-rep h² dots in two
     series: daughters (green) and sons (blue).
     """
-    from sim_ace.plotting.plot_distributions import COLOR_FEMALE, COLOR_MALE
+    from sim_ace.plotting.plot_style import COLOR_FEMALE, COLOR_MALE
 
     has_data = any(s.get("parent_offspring_corr_by_sex") for s in all_stats)
     if not has_data:
@@ -1053,7 +1061,7 @@ def plot_heritability_by_sex_generation(
         return
     generations = sorted(gen_set)
 
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
     for col, trait_num in enumerate([1, 2]):
         ax = axes[col]
@@ -1091,9 +1099,9 @@ def plot_heritability_by_sex_generation(
             if exp is not None:
                 ax.axhline(
                     y=exp,
-                    color="C1",
+                    color=COLOR_UNAFFECTED,
                     linestyle="--",
-                    linewidth=2,
+                    linewidth=1.0,
                     alpha=0.7,
                     label=f"Parametric A{trait_num} = {exp}",
                 )
@@ -1105,5 +1113,7 @@ def plot_heritability_by_sex_generation(
         ax.set_ylim(0, 1)
         ax.legend(loc="lower left", fontsize=9)
 
-    fig.suptitle(f"PO-Regression Heritability by Offspring Sex [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+    for ax in axes:
+        enable_value_gridlines(ax)
+
+    finalize_plot(output_path, scenario=scenario)

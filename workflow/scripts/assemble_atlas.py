@@ -71,7 +71,7 @@ def _run_snakemake():
             model_desc,
             model_equations,
         ),
-        12: (
+        13: (
             "Age of Onset & Censoring",
             "Age-at-onset, mortality, cumulative incidence, and censoring analysis",
         ),

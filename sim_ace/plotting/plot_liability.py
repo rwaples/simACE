@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
+from sim_ace.plotting.plot_style import COLOR_AFFECTED, COLOR_FEMALE, COLOR_MALE, COLOR_UNAFFECTED  # noqa: F401
 from sim_ace.plotting.plot_utils import (
     HEATMAP_CMAP,
     annotate_heatmap,
@@ -65,7 +66,6 @@ def _plot_joint_grid(
     panels = [(x, y, t) for x, y, t in panels if x in df_samples.columns and y in df_samples.columns]
 
     fig = plt.figure(figsize=(13, 13))
-    fig.suptitle(f"Cross-Trait Correlations [{scenario}]", fontsize=14, y=1.01)
     outer = GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.35)
 
     if color_by_affected:
@@ -93,8 +93,8 @@ def _plot_joint_grid(
             bins_x = np.linspace(x.min(), x.max(), 51)
             bins_y = np.linspace(y.min(), y.max(), 51)
             for mask, color, alpha, label in [
-                (~affected, "C0", 0.2, "Unaffected"),
-                (affected, "C3", 0.5, aff_label),
+                (~affected, COLOR_UNAFFECTED, 0.2, "Unaffected"),
+                (affected, COLOR_AFFECTED, 0.5, aff_label),
             ]:
                 ax_joint.plot(
                     x[mask],
@@ -107,15 +107,15 @@ def _plot_joint_grid(
                     rasterized=True,
                     label=label,
                 )
-            ax_marg_x.hist(x[~affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.5, color="C0")
-            ax_marg_x.hist(x[affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.7, color="C3")
+            ax_marg_x.hist(x[~affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.5, color=COLOR_UNAFFECTED)
+            ax_marg_x.hist(x[affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.7, color=COLOR_AFFECTED)
             ax_marg_y.hist(
                 y[~affected],
                 bins=bins_y.tolist(),
                 orientation="horizontal",
                 edgecolor="none",
                 alpha=0.5,
-                color="C0",
+                color=COLOR_UNAFFECTED,
             )
             ax_marg_y.hist(
                 y[affected],
@@ -123,7 +123,7 @@ def _plot_joint_grid(
                 orientation="horizontal",
                 edgecolor="none",
                 alpha=0.7,
-                color="C3",
+                color=COLOR_AFFECTED,
             )
         else:
             ax_joint.plot(x, y, "o", ms=2, mew=0, alpha=0.3, rasterized=True)
@@ -160,12 +160,12 @@ def _plot_joint_grid(
         from matplotlib.lines import Line2D
 
         legend_handles = [
-            Line2D([0], [0], marker="o", color="w", markerfacecolor="C0", markersize=8, label="Unaffected"),
-            Line2D([0], [0], marker="o", color="w", markerfacecolor="C3", markersize=8, label=aff_label),
+            Line2D([0], [0], marker="o", color="w", markerfacecolor=COLOR_UNAFFECTED, markersize=6, label="Unaffected"),
+            Line2D([0], [0], marker="o", color="w", markerfacecolor=COLOR_AFFECTED, markersize=6, label=aff_label),
         ]
-        fig.legend(handles=legend_handles, loc="upper right", fontsize=10, framealpha=0.9)
+        fig.legend(handles=legend_handles, loc="upper right", fontsize=10)
 
-    finalize_plot(output_path, subsample_note=subsample_note)
+    finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
 
 def plot_liability_joint(
@@ -211,18 +211,21 @@ def plot_liability_violin(
         aff = df_samples[f"affected{trait_num}"].values.astype(bool)
         draw_split_violin(ax, liab[~aff], liab[aff], pos=i)
     ax.set_xticks([0, 1])
-    ax.set_xticklabels(["Trait 1", "Trait 2"])
+    ax.set_xticklabels([f"Trait 1\n{prev1:.1%}", f"Trait 2\n{prev2:.1%}"])
+    # Grey out the prevalence line in tick labels
+    for label in ax.get_xticklabels():
+        label.set_color("black")
     ax.set_ylabel("Liability")
     from matplotlib.patches import Patch
 
     ax.legend(
         handles=[
-            Patch(facecolor="C0", edgecolor="black", linewidth=0.8, label="0"),
-            Patch(facecolor="C1", edgecolor="black", linewidth=0.8, label="1"),
+            Patch(facecolor=COLOR_UNAFFECTED, edgecolor="black", linewidth=0.8, label="0"),
+            Patch(facecolor=COLOR_AFFECTED, edgecolor="black", linewidth=0.8, label="1"),
         ],
         title="Affected",
     )
-    ax.set_title(f"Liability by Affected Status [{scenario}]")
+    ax.set_title("Liability by Affected Status")
 
     # Annotate mean liability for each trait x affected/unaffected group
     for i, trait_num in enumerate([1, 2]):
@@ -230,7 +233,7 @@ def plot_liability_violin(
         aff = df_samples[f"affected{trait_num}"].values.astype(bool)
         if aff.any():
             mean_aff = liab[aff].mean()
-            ax.plot(i + 0.05, mean_aff, "D", color="black", markersize=6, zorder=5)
+            ax.plot(i + 0.05, mean_aff, "D", color="black", markersize=5, zorder=5)
             ax.text(
                 i + 0.12,
                 mean_aff,
@@ -242,7 +245,7 @@ def plot_liability_violin(
             )
         if (~aff).any():
             mean_unaff = liab[~aff].mean()
-            ax.plot(i - 0.05, mean_unaff, "D", color="black", markersize=6, zorder=5)
+            ax.plot(i - 0.05, mean_unaff, "D", color="black", markersize=5, zorder=5)
             ax.text(
                 i - 0.12,
                 mean_unaff,
@@ -252,26 +255,7 @@ def plot_liability_violin(
                 fontsize=9,
                 fontweight="bold",
             )
-
-    ax.text(
-        0,
-        ax.get_ylim()[0],
-        f"Prevalence: {prev1:.1%}",
-        ha="center",
-        va="top",
-        fontsize=10,
-        fontstyle="italic",
-    )
-    ax.text(
-        1,
-        ax.get_ylim()[0],
-        f"Prevalence: {prev2:.1%}",
-        ha="center",
-        va="top",
-        fontsize=10,
-        fontstyle="italic",
-    )
-    finalize_plot(output_path, subsample_note=subsample_note)
+    finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
 
 def plot_liability_violin_by_generation(
@@ -289,7 +273,7 @@ def plot_liability_violin_by_generation(
     gens = sorted(df_samples["generation"].unique())
     n_gens = len(gens)
 
-    fig, axes = plt.subplots(2, n_gens, figsize=(4 * n_gens, 8), squeeze=False)
+    _fig, axes = plt.subplots(2, n_gens, figsize=(4 * n_gens, 8), squeeze=False)
 
     for row, trait_num in enumerate([1, 2]):
         liab_col = f"liability{trait_num}"
@@ -312,8 +296,8 @@ def plot_liability_violin_by_generation(
 
                     ax.legend(
                         handles=[
-                            Patch(facecolor="C0", edgecolor="black", linewidth=0.8, label="0"),
-                            Patch(facecolor="C1", edgecolor="black", linewidth=0.8, label="1"),
+                            Patch(facecolor=COLOR_UNAFFECTED, edgecolor="black", linewidth=0.8, label="0"),
+                            Patch(facecolor=COLOR_AFFECTED, edgecolor="black", linewidth=0.8, label="1"),
                         ],
                         title="Affected",
                         fontsize=8,
@@ -329,9 +313,13 @@ def plot_liability_violin_by_generation(
                     ax.plot(-0.05, mu, "D", color="black", markersize=5, zorder=5)
                     ax.text(-0.12, mu, f"\u03bc={mu:.2f}", ha="right", va="center", fontsize=8, fontweight="bold")
 
-                # Prevalence annotation
+                # Prevalence annotation — just above x-axis, left of center
                 obs_prev = aff.mean()
-                ax.set_xlabel(f"prev: {obs_prev:.1%}", fontsize=8)
+                y_lo = ax.get_ylim()[0]
+                ax.text(
+                    -0.15, y_lo + 0.15, f"{obs_prev:.1%}",
+                    ha="center", va="bottom", fontsize=7, color="0.5",
+                )
 
             if row == 0:
                 label = f"Gen {gen}"
@@ -345,11 +333,7 @@ def plot_liability_violin_by_generation(
             else:
                 ax.set_ylabel("")
 
-    fig.suptitle(
-        f"Liability by Affected Status per Generation [{scenario}]",
-        fontsize=14,
-    )
-    finalize_plot(output_path, subsample_note=subsample_note)
+    finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
 
 def plot_liability_violin_by_sex_generation(
@@ -372,7 +356,7 @@ def plot_liability_violin_by_sex_generation(
     n_gens = len(gens)
     sex_arr = df_samples["sex"].values
 
-    fig, axes = plt.subplots(2, n_gens, figsize=(5 * n_gens, 8), squeeze=False)
+    _fig, axes = plt.subplots(2, n_gens, figsize=(5 * n_gens, 8), squeeze=False)
 
     for row, trait_num in enumerate([1, 2]):
         liab_col = f"liability{trait_num}"
@@ -429,17 +413,13 @@ def plot_liability_violin_by_sex_generation(
 
                 ax.legend(
                     handles=[
-                        Patch(facecolor="C0", edgecolor="black", linewidth=0.8, label="Unaffected"),
-                        Patch(facecolor="C1", edgecolor="black", linewidth=0.8, label="Affected"),
+                        Patch(facecolor=COLOR_UNAFFECTED, edgecolor="black", linewidth=0.8, label="Unaffected"),
+                        Patch(facecolor=COLOR_AFFECTED, edgecolor="black", linewidth=0.8, label="Affected"),
                     ],
                     fontsize=8,
                 )
 
-    fig.suptitle(
-        f"Liability by Affected Status & Sex per Generation [{scenario}]",
-        fontsize=14,
-    )
-    finalize_plot(output_path, subsample_note=subsample_note)
+    finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
 
 def plot_genetic_selection_by_generation(
@@ -459,7 +439,7 @@ def plot_genetic_selection_by_generation(
         save_placeholder_plot(output_path, "No generation data")
         return
 
-    fig, axes = plt.subplots(2, 2, figsize=(max(10, n_gen * 1.2), 8), sharex=True)
+    _fig, axes = plt.subplots(2, 2, figsize=(max(10, n_gen * 1.2), 8))
 
     for t, trait_num in enumerate([1, 2]):
         a_col = f"A{trait_num}"
@@ -467,49 +447,40 @@ def plot_genetic_selection_by_generation(
         if a_col not in df_samples.columns or aff_col not in df_samples.columns:
             continue
 
-        mean_aff, mean_unaff, delta, prev = [], [], [], []
+        mean_aff, mean_unaff, mean_all, delta, prev = [], [], [], [], []
         for gen in gens:
             g = df_samples[df_samples["generation"] == gen]
             aff = g[g[aff_col]]
             unaff = g[~g[aff_col]]
             ma = aff[a_col].mean() if len(aff) > 0 else float("nan")
             mu = unaff[a_col].mean() if len(unaff) > 0 else float("nan")
+            mall = g[a_col].mean() if len(g) > 0 else float("nan")
             mean_aff.append(ma)
             mean_unaff.append(mu)
+            mean_all.append(mall)
             delta.append(ma - mu)
             prev.append(len(aff) / len(g) if len(g) > 0 else 0)
 
         ax_top = axes[0, t]
-        ax_top.plot(gens, mean_aff, "o-", color="C3", label="Affected", markersize=5)
-        ax_top.plot(gens, mean_unaff, "s-", color="C0", label="Unaffected", markersize=5)
+        ax_top.plot(gens, mean_aff, "o-", color=COLOR_AFFECTED, label="Affected", markersize=5)
+        ax_top.plot(gens, mean_unaff, "s-", color=COLOR_UNAFFECTED, label="Unaffected", markersize=5)
+        ax_top.plot(gens, mean_all, "D-", color="black", label="Overall", markersize=4, linewidth=1.0)
         ax_top.axhline(0, color="gray", linewidth=0.5, linestyle="--")
         ax_top.set_ylabel("Mean A")
         ax_top.set_title(f"Trait {trait_num}")
         ax_top.legend(fontsize=8)
 
         ax_bot = axes[1, t]
-        ax_bot.bar(gens, delta, color="C2", alpha=0.7, width=0.6)
+        ax_bot.bar(gens, delta, color="#228833", alpha=0.7, width=0.6)
         ax_bot.set_ylabel("\u0394A (aff \u2212 unaff)")
         ax_bot.set_xlabel("Generation")
+        ax_bot.set_xticks(gens)
+        ax_bot.set_xticklabels([f"{g}\n{prev[i]:.1%}" for i, g in enumerate(gens)])
+        ax_top.set_xticks(gens)
+        ax_top.set_xticklabels([])
+        ax_top.set_xlim(ax_bot.get_xlim())
 
-        # Annotate prevalence on the bottom axis
-        for i, gen in enumerate(gens):
-            ax_bot.annotate(
-                f"{prev[i]:.1%}",
-                (gen, 0),
-                textcoords="offset points",
-                xytext=(0, -14),
-                ha="center",
-                fontsize=7,
-                color="gray",
-            )
-
-    fig.suptitle(
-        f"Genetic Selection by Generation [{scenario}]",
-        fontsize=14,
-    )
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
-    finalize_plot(output_path, subsample_note=subsample_note)
+    finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
 
 def plot_censoring_confusion(
@@ -526,8 +497,7 @@ def plot_censoring_confusion(
         save_placeholder_plot(output_path, "No censoring confusion data")
         return
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-    fig.suptitle(f"Censoring Confusion Matrix [{scenario}]", fontsize=14)
+    _fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
     for col, trait in enumerate([1, 2]):
         ax = axes[col]
@@ -573,7 +543,7 @@ def plot_censoring_confusion(
         )
         ax.set_title(f"Trait {trait}\n{metrics}", fontsize=11)
 
-    finalize_plot(output_path)
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_censoring_cascade(
@@ -590,14 +560,14 @@ def plot_censoring_cascade(
         save_placeholder_plot(output_path, "No censoring cascade data")
         return
 
-    # Colors — maximise contrast between censoring categories
-    color_observed = "#4CAF50"  # green  — true positives
-    color_death = "#E57373"  # red    — death-censored
-    color_right = "#7E57C2"  # purple — right-censored
-    color_left = "#FF9800"  # orange — left-truncated
+    from sim_ace.plotting.plot_style import CENSORING_COLORS
+
+    color_observed = CENSORING_COLORS["observed"]
+    color_death = CENSORING_COLORS["death"]
+    color_right = CENSORING_COLORS["right"]
+    color_left = CENSORING_COLORS["left"]
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-    fig.suptitle(f"Censoring Cascade [{scenario}]", fontsize=14)
 
     for col, trait in enumerate([1, 2]):
         ax = axes[col]
@@ -689,11 +659,11 @@ def plot_censoring_cascade(
         ax.set_xticklabels(x_labels, fontsize=9)
         ax.set_ylabel("True affected count")
 
-    # Shared legend above the subplots, below the suptitle
+    # Shared legend above the subplots
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=4, fontsize=9, bbox_to_anchor=(0.5, 0.95), framealpha=0.9)
+    fig.legend(handles, labels, loc="upper center", ncol=4, fontsize=9, bbox_to_anchor=(0.5, 0.98))
 
-    finalize_plot(output_path, tight_rect=[0, 0, 1, 0.93])
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_joint_affection(
@@ -783,11 +753,11 @@ def plot_joint_affection(
 
     ax.set_xlabel("Trait 1")
     ax.set_ylabel("Trait 2")
-    title = f"Joint Affected Status [{scenario}]"
+    title = "Joint Affected Status"
     if r_label:
         title += f"\n{r_label}"
     ax.set_title(title, fontsize=14)
-    finalize_plot(output_path)
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_mate_correlation(
@@ -876,10 +846,4 @@ def plot_mate_correlation(
     )
     ax_obs.set_title("Observed", fontsize=13)
 
-    _fig.suptitle(
-        f"Mate Liability Correlation [{scenario}]",
-        fontsize=15,
-        fontweight="bold",
-        y=1.02,
-    )
-    finalize_plot(output_path)
+    finalize_plot(output_path, scenario=scenario)

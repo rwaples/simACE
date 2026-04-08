@@ -366,7 +366,7 @@ def render_pipeline_figure(
     Returns:
         The matplotlib Figure object.
     """
-    fig = plt.figure(figsize=(11, 8.5))
+    fig = plt.figure(figsize=(11.69, 8.27))
     ax = fig.add_axes([0.02, 0.06, 0.96, 0.88])
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)

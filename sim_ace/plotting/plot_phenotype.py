@@ -13,7 +13,6 @@ import json
 from pathlib import Path
 
 import pandas as pd
-import seaborn as sns
 import yaml
 
 from sim_ace.core.utils import yaml_loader
@@ -78,7 +77,9 @@ def main(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     scenario = out_dir.parent.name
-    sns.set_theme(style="whitegrid", palette="colorblind")
+    from sim_ace.plotting.plot_style import apply_nature_style
+
+    apply_nature_style()
 
     all_stats = []
     for p in stats_paths:

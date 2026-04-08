@@ -13,6 +13,9 @@ __all__ = [
     "save_placeholder_plot",
 ]
 
+# Re-export from plot_style for backward compatibility
+from sim_ace.plotting.plot_style import PAIR_COLORS as PAIR_COLORS
+
 from typing import Any
 
 import numpy as np
@@ -29,15 +32,8 @@ def param_as_float(val: float | dict | None, default: float = 0.0) -> float:
     return float(val)
 
 
-PAIR_COLORS: dict[str, str] = {
-    "MZ": "C0",
-    "FS": "C1",
-    "MO": "C3",
-    "FO": "C5",
-    "MHS": "C2",
-    "PHS": "C6",
-    "1C": "C4",
-}
+
+# PAIR_COLORS is now imported from plot_style (see re-export above)
 
 
 def save_placeholder_plot(
@@ -96,18 +92,26 @@ def annotate_heatmap(ax, proportions, counts, fmt_prop=".2f", prop_size=18, coun
 
 
 def finalize_plot(
-    output_path: Any, dpi: int = 150, tight_rect: list[float] | None = None, subsample_note: str = ""
+    output_path: Any,
+    dpi: int = 150,
+    tight_rect: list[float] | None = None,
+    subsample_note: str = "",
+    scenario: str = "",
 ) -> None:
     """tight_layout + savefig(bbox_inches='tight') + close current figure."""
     import warnings
 
     import matplotlib.pyplot as plt
 
+    from sim_ace.plotting.plot_style import add_scenario_label
+
+    fig = plt.gcf()
+    if scenario:
+        add_scenario_label(fig, scenario)
     if subsample_note:
-        fig = plt.gcf()
         fig.text(
             0.99,
-            0.01,
+            0.015,
             subsample_note,
             fontsize=8,
             color="0.5",
@@ -131,8 +135,8 @@ def draw_split_violin(
     data_left,
     data_right,
     pos,
-    color_left="C0",
-    color_right="C1",
+    color_left=None,
+    color_right=None,
     width=0.8,
 ):
     """Draw a split violin at *pos* (left half / right half).
@@ -140,6 +144,12 @@ def draw_split_violin(
     Replicates seaborn's ``violinplot(split=True, cut=0)`` using raw
     matplotlib, which is significantly faster for large arrays.
     """
+    from sim_ace.plotting.plot_style import COLOR_AFFECTED, COLOR_UNAFFECTED
+
+    if color_left is None:
+        color_left = COLOR_UNAFFECTED
+    if color_right is None:
+        color_right = COLOR_AFFECTED
     for data, color, side in [
         (data_left, color_left, "left"),
         (data_right, color_right, "right"),
@@ -162,12 +172,12 @@ def draw_split_violin(
                 verts[:, 0] = np.clip(verts[:, 0], pos, np.inf)
             body.set_facecolor(color)
             body.set_edgecolor("black")
-            body.set_linewidth(0.8)
+            body.set_linewidth(0.5)
             body.set_alpha(1.0)
         # Inner box: Q1–Q3 bar + median dot (matches seaborn inner="box")
         q1, med, q3 = np.percentile(data, [25, 50, 75])
         x_inner = pos - width * 0.06 if side == "left" else pos + width * 0.06
-        ax.vlines(x_inner, q1, q3, color="black", linewidth=1.5, zorder=4)
+        ax.vlines(x_inner, q1, q3, color="black", linewidth=1.0, zorder=4)
         ax.plot(x_inner, med, "o", color="white", ms=3, mew=0, zorder=5)
 
 

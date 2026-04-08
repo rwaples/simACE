@@ -32,6 +32,7 @@ _yaml_loader = yaml_loader()
 import logging
 
 from sim_ace.core.utils import PAIR_TYPES
+from sim_ace.plotting.plot_style import COLOR_AFFECTED, COLOR_UNAFFECTED, COLOR_OBSERVED, enable_value_gridlines
 from sim_ace.plotting.plot_utils import (
     HEATMAP_CMAP,
     PAIR_COLORS,
@@ -61,7 +62,7 @@ def plot_prevalence_by_generation(
     gens = all_stats[0]["prevalence"]["trait1"]["generations"]
     n_gens = len(gens)
 
-    for trait_num, color, expected in [(1, "C0", prevalence1), (2, "C3", prevalence2)]:
+    for trait_num, color, expected in [(1, COLOR_OBSERVED, prevalence1), (2, COLOR_AFFECTED, prevalence2)]:
         key = f"trait{trait_num}"
         all_prev = np.array([s["prevalence"][key]["prevalence"] for s in all_stats])
         mean_prev = all_prev.mean(axis=0)
@@ -101,7 +102,7 @@ def plot_prevalence_by_generation(
                     n_gens - 0.5,
                     colors=color,
                     linestyles="dashed",
-                    linewidth=2,
+                    linewidth=1.2,
                     alpha=0.5,
                 )
                 ax.text(
@@ -124,7 +125,7 @@ def plot_prevalence_by_generation(
                         i + offset + 0.17,
                         colors=color,
                         linestyles="dashed",
-                        linewidth=2,
+                        linewidth=1.2,
                         alpha=0.7,
                     )
         else:
@@ -135,7 +136,7 @@ def plot_prevalence_by_generation(
                 n_gens - 0.5,
                 colors=color,
                 linestyles="dashed",
-                linewidth=2,
+                linewidth=1.2,
                 alpha=0.7,
             )
 
@@ -164,9 +165,10 @@ def plot_prevalence_by_generation(
         else:
             max_expected = max(max_expected, expected)
     ax.set_ylim(0, max(max_expected * 1.5, ax.get_ylim()[1]))
-    ax.set_title(f"Prevalence by Generation (Liability Threshold) [{scenario}]", fontsize=14)
+    ax.set_title("Prevalence by Generation (Liability Threshold)", fontsize=14)
     ax.legend()
-    finalize_plot(output_path)
+    enable_value_gridlines(ax)
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_liability_violin(
@@ -192,12 +194,12 @@ def plot_liability_violin(
 
     ax.legend(
         handles=[
-            Patch(facecolor="C0", edgecolor="black", linewidth=0.8, label="0"),
-            Patch(facecolor="C1", edgecolor="black", linewidth=0.8, label="1"),
+            Patch(facecolor=COLOR_UNAFFECTED, edgecolor="black", linewidth=0.8, label="0"),
+            Patch(facecolor=COLOR_AFFECTED, edgecolor="black", linewidth=0.8, label="1"),
         ],
         title="Affected",
     )
-    ax.set_title(f"Liability by Affected Status (Liability Threshold) [{scenario}]")
+    ax.set_title("Liability by Affected Status (Liability Threshold)")
 
     # Annotate mean liability for each trait x affected/unaffected group
     for i, trait_num in enumerate([1, 2]):
@@ -205,7 +207,7 @@ def plot_liability_violin(
         aff = df_samples[f"affected{trait_num}"].values.astype(bool)
         if aff.any():
             mean_aff = liab[aff].mean()
-            ax.plot(i + 0.05, mean_aff, "D", color="black", markersize=6, zorder=5)
+            ax.plot(i + 0.05, mean_aff, "D", color="black", markersize=5, zorder=5)
             ax.text(
                 i + 0.12,
                 mean_aff,
@@ -217,7 +219,7 @@ def plot_liability_violin(
             )
         if (~aff).any():
             mean_unaff = liab[~aff].mean()
-            ax.plot(i - 0.05, mean_unaff, "D", color="black", markersize=6, zorder=5)
+            ax.plot(i - 0.05, mean_unaff, "D", color="black", markersize=5, zorder=5)
             ax.text(
                 i - 0.12,
                 mean_unaff,
@@ -246,7 +248,7 @@ def plot_liability_violin(
         fontsize=10,
         fontstyle="italic",
     )
-    finalize_plot(output_path, subsample_note=subsample_note)
+    finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
 
 def plot_liability_violin_by_generation(
@@ -290,8 +292,8 @@ def plot_liability_violin_by_generation(
 
                     ax.legend(
                         handles=[
-                            Patch(facecolor="C0", edgecolor="black", linewidth=0.8, label="0"),
-                            Patch(facecolor="C1", edgecolor="black", linewidth=0.8, label="1"),
+                            Patch(facecolor=COLOR_UNAFFECTED, edgecolor="black", linewidth=0.8, label="0"),
+                            Patch(facecolor=COLOR_AFFECTED, edgecolor="black", linewidth=0.8, label="1"),
                         ],
                         title="Affected",
                         fontsize=8,
@@ -336,11 +338,7 @@ def plot_liability_violin_by_generation(
             else:
                 ax.set_ylabel("")
 
-    fig.suptitle(
-        f"Liability by Affected Status per Generation (Threshold) [{scenario}]",
-        fontsize=14,
-    )
-    finalize_plot(output_path, subsample_note=subsample_note)
+    finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
 
 def plot_tetrachoric(
@@ -426,7 +424,7 @@ def plot_tetrachoric(
                     i + 0.35,
                     colors="black",
                     linestyles="dashed",
-                    linewidth=2,
+                    linewidth=1.2,
                     zorder=4,
                 )
 
@@ -446,9 +444,9 @@ def plot_tetrachoric(
                             exp_r,
                             i - 0.35,
                             i + 0.35,
-                            colors="C3",
+                            colors=COLOR_AFFECTED,
                             linestyles="dotted",
-                            linewidth=2,
+                            linewidth=1.2,
                             zorder=4,
                         )
 
@@ -462,20 +460,20 @@ def plot_tetrachoric(
         from matplotlib.lines import Line2D
 
         legend_elements = [
-            Line2D([0], [0], color="black", linestyle="--", linewidth=2, label="Liability r"),
+            Line2D([0], [0], color="black", linestyle="--", linewidth=1.2, label="Liability r"),
         ]
         if has_parametric:
             legend_elements.append(
-                Line2D([0], [0], color="C3", linestyle=":", linewidth=2, label="Parametric E[r]"),
+                Line2D([0], [0], color=COLOR_AFFECTED, linestyle=":", linewidth=1.2, label="Parametric E[r]"),
             )
         ax.legend(
             handles=legend_elements,
             loc="upper right",
             fontsize=9,
         )
+        enable_value_gridlines(ax)
 
-    fig.suptitle(f"Tetrachoric Correlation (Liability Threshold) [{scenario}]", fontsize=14)
-    finalize_plot(output_path)
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_joint_affection(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
@@ -537,8 +535,8 @@ def plot_joint_affection(all_stats: list[dict[str, Any]], output_path: str | Pat
 
     ax.set_xlabel("Trait 1")
     ax.set_ylabel("Trait 2")
-    ax.set_title(f"Joint Affected Status (Liability Threshold) [{scenario}]\n{r_label}", fontsize=14)
-    finalize_plot(output_path)
+    ax.set_title(f"Joint Affected Status (Liability Threshold)\n{r_label}", fontsize=14)
+    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_liability_joint(
@@ -556,7 +554,6 @@ def plot_liability_joint(
     panels = [(x, y, t) for x, y, t in panels if x in df_samples.columns and y in df_samples.columns]
 
     fig = plt.figure(figsize=(13, 13))
-    fig.suptitle(f"Cross-Trait Correlations (Liability Threshold) [{scenario}]", fontsize=14, y=1.01)
     outer = GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.35)
 
     affected = df_samples["affected1"].values.astype(bool)
@@ -581,8 +578,8 @@ def plot_liability_joint(
 
         # Plot unaffected first, then affected on top
         for mask, color, alpha, label in [
-            (~affected, "C0", 0.2, "Unaffected"),
-            (affected, "C3", 0.5, "Affected (T1)"),
+            (~affected, COLOR_UNAFFECTED, 0.2, "Unaffected"),
+            (affected, COLOR_AFFECTED, 0.5, "Affected (T1)"),
         ]:
             ax_joint.plot(
                 x[mask],
@@ -596,15 +593,15 @@ def plot_liability_joint(
                 label=label,
             )
 
-        ax_marg_x.hist(x[~affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.5, color="C0")
-        ax_marg_x.hist(x[affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.7, color="C3")
+        ax_marg_x.hist(x[~affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.5, color=COLOR_UNAFFECTED)
+        ax_marg_x.hist(x[affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.7, color=COLOR_AFFECTED)
         ax_marg_y.hist(
             y[~affected],
             bins=bins_y.tolist(),
             orientation="horizontal",
             edgecolor="none",
             alpha=0.5,
-            color="C0",
+            color=COLOR_UNAFFECTED,
         )
         ax_marg_y.hist(
             y[affected],
@@ -612,7 +609,7 @@ def plot_liability_joint(
             orientation="horizontal",
             edgecolor="none",
             alpha=0.7,
-            color="C3",
+            color=COLOR_AFFECTED,
         )
 
         from sim_ace.core.utils import fast_pearsonr
@@ -646,12 +643,12 @@ def plot_liability_joint(
     from matplotlib.lines import Line2D
 
     legend_handles = [
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="C0", markersize=8, label="Unaffected"),
-        Line2D([0], [0], marker="o", color="w", markerfacecolor="C3", markersize=8, label="Affected (T1)"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=COLOR_UNAFFECTED, markersize=6, label="Unaffected"),
+        Line2D([0], [0], marker="o", color="w", markerfacecolor=COLOR_AFFECTED, markersize=6, label="Affected (T1)"),
     ]
-    fig.legend(handles=legend_handles, loc="upper right", fontsize=10, framealpha=0.9)
+    fig.legend(handles=legend_handles, loc="upper right", fontsize=10)
 
-    finalize_plot(output_path, subsample_note=subsample_note)
+    finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
 
 def main(
@@ -668,7 +665,9 @@ def main(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     scenario = out_dir.parent.name
-    sns.set_theme(style="whitegrid", palette="colorblind")
+    from sim_ace.plotting.plot_style import apply_nature_style
+
+    apply_nature_style()
     ext = plot_ext
 
     # Load per-rep stats
