@@ -53,8 +53,8 @@ rule epimight_guide_yob:
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
-        K=lambda w: config["defaults"].get("epimight_mi_K", 20),
-        rubin_level=lambda w: config["defaults"].get("epimight_rubin_level", "meta"),
+        K=lambda w: get_param(config, w.scenario, "epimight_mi_K"),
+        rubin_level=lambda w: get_param(config, w.scenario, "epimight_rubin_level"),
     shell:
         "conda run -n epimight "
         "Rscript -e \"if (!requireNamespace('epimight', quietly=TRUE)) "

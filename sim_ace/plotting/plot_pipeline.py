@@ -17,6 +17,7 @@ import yaml
 from matplotlib.patches import FancyBboxPatch
 
 from sim_ace.plotting.plot_atlas import MODEL_FAMILY
+from sim_ace.plotting.plot_utils import param_as_float
 
 logger = logging.getLogger(__name__)
 
@@ -157,15 +158,17 @@ def _get_param_rows(
         # Compact variance-component rows: [A, C, E] per trait
         if name == "_ACE1" and "A1" in params:
             a = float(params.get("A1", 0))
-            c = float(params.get("C1", 0))
-            e = 1.0 - a - c
-            rows.append(("[A1, C1, E1]", f"[{a:g}, {c:g}, {e:g}]"))
+            c = param_as_float(params.get("C1", 0))
+            e_val = params.get("E1")
+            label = f"[{a:g}, {c:g}, {1.0 - a - c:g}]" if e_val is None or not isinstance(e_val, dict) else f"[{a:g}, {c:g}, E1=dict]"
+            rows.append(("[A1, C1, E1]", label))
             continue
         if name == "_ACE2" and "A2" in params:
             a = float(params.get("A2", 0))
-            c = float(params.get("C2", 0))
-            e = 1.0 - a - c
-            rows.append(("[A2, C2, E2]", f"[{a:g}, {c:g}, {e:g}]"))
+            c = param_as_float(params.get("C2", 0))
+            e_val = params.get("E2")
+            label = f"[{a:g}, {c:g}, {1.0 - a - c:g}]" if e_val is None or not isinstance(e_val, dict) else f"[{a:g}, {c:g}, E2=dict]"
+            rows.append(("[A2, C2, E2]", label))
             continue
         if name == "_rAC" and "rA" in params:
             ra = float(params.get("rA", 0))

@@ -1,0 +1,304 @@
+# ============================================================================
+# EPIMIGHT Demo — Presentation 2026-04-08
+#
+# Three sets demonstrating recent EPIMIGHT R package changes:
+#   A: Prevalence sweep — Bernoulli downsampling eliminates dilution bias
+#   B: K=1 vs K=20 — Rubin's MI recovers precision lost by single-pair
+#   C: Realistic conditions — both changes robust under censoring + C
+#
+# All scenarios: A=0.5, G_ped=8, G_pheno=6, G_sim=10, N=500K
+# Compare Set A new results to old epimight_bias results (no downsampling).
+# ============================================================================
+
+# ── Set A: Prevalence sweep (K=20, no censoring, C=0) ────────────────────────
+# Mirror of ebias_ltm_K{01..40}_C0_nocensor with deeper pedigree.
+# Old results serve as "before" (diluted); these are "after" (downsampled+MI).
+
+demo_prev01:
+  seed: 70001
+  N: 500000
+  G_ped: 8
+  G_pheno: 6
+  G_sim: 10
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  E1: 0.5
+  A2: 0.5
+  C2: 0.0
+  E2: 0.5
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.01
+  prevalence2: 0.01
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+
+demo_prev05:
+  seed: 70002
+  N: 500000
+  G_ped: 8
+  G_pheno: 6
+  G_sim: 10
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  E1: 0.5
+  A2: 0.5
+  C2: 0.0
+  E2: 0.5
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.05
+  prevalence2: 0.05
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+
+demo_prev10:
+  seed: 70003
+  N: 500000
+  G_ped: 8
+  G_pheno: 6
+  G_sim: 10
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  E1: 0.5
+  A2: 0.5
+  C2: 0.0
+  E2: 0.5
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.10
+  prevalence2: 0.10
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+
+demo_prev20:
+  seed: 70004
+  N: 500000
+  G_ped: 8
+  G_pheno: 6
+  G_sim: 10
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  E1: 0.5
+  A2: 0.5
+  C2: 0.0
+  E2: 0.5
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.20
+  prevalence2: 0.20
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+
+demo_prev40:
+  seed: 70005
+  N: 500000
+  G_ped: 8
+  G_pheno: 6
+  G_sim: 10
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  E1: 0.5
+  A2: 0.5
+  C2: 0.0
+  E2: 0.5
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.40
+  prevalence2: 0.40
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+
+# ── Set B: MI K comparison (K=1 at high prevalence) ──────────────────────────
+# Same seeds as Set A K=0.20 and K=0.40 so the simulated data is identical.
+# Only the EPIMIGHT analysis differs: K=1 (no Rubin) vs K=20 (from Set A).
+# Compare: CI widths, B/T diagnostics, per-resample spread.
+
+demo_K1_prev20:
+  seed: 70004
+  N: 500000
+  G_ped: 8
+  G_pheno: 6
+  G_sim: 10
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  E1: 0.5
+  A2: 0.5
+  C2: 0.0
+  E2: 0.5
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.20
+  prevalence2: 0.20
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+  epimight_mi_K: 1
+
+demo_K1_prev40:
+  seed: 70005
+  N: 500000
+  G_ped: 8
+  G_pheno: 6
+  G_sim: 10
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.0
+  E1: 0.5
+  A2: 0.5
+  C2: 0.0
+  E2: 0.5
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.40
+  prevalence2: 0.40
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0
+  epimight_mi_K: 1
+
+# ── Set C: Realistic conditions (censoring + death + C=0.2) ──────────────────
+# Demonstrates both changes work under real-world complications.
+# Gen 2-3: oldest cohorts, late observation windows
+# Gen 4-5: moderate windows
+# Gen 6-7: youngest cohorts, short follow-up
+
+demo_realistic:
+  seed: 70010
+  N: 500000
+  G_ped: 8
+  G_pheno: 6
+  G_sim: 10
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.2
+  E1: 0.3
+  A2: 0.5
+  C2: 0.2
+  E2: 0.3
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.10
+  prevalence2: 0.10
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring:
+    2: [50, 80]
+    3: [30, 80]
+    4: [10, 80]
+    5: [0, 80]
+    6: [0, 60]
+    7: [0, 40]
+  death_scale: 164
+  death_rho: 2.73
+
+demo_realistic_ref:
+  seed: 70011
+  N: 500000
+  G_ped: 8
+  G_pheno: 6
+  G_sim: 10
+  replicates: 1
+  p_mztwin: 0
+  A1: 0.5
+  C1: 0.2
+  E1: 0.3
+  A2: 0.5
+  C2: 0.2
+  E2: 0.3
+  rA: 0.0
+  rC: 0.0
+  phenotype_model1: adult_ltm
+  phenotype_model2: adult_ltm
+  prevalence1: 0.10
+  prevalence2: 0.10
+  phenotype_params1:
+    cip_x0: 50
+    cip_k: 0.15
+  phenotype_params2:
+    cip_x0: 50
+    cip_k: 0.15
+  gen_censoring: {}
+  death_scale: 1000000
+  death_rho: 1.0

@@ -49,6 +49,7 @@ from sim_ace.plotting.plot_distributions import (
 from sim_ace.plotting.plot_liability import (
     plot_censoring_cascade,
     plot_censoring_confusion,
+    plot_genetic_selection_by_generation,
     plot_joint_affection,
     plot_liability_joint,
     plot_liability_joint_affected,
@@ -193,6 +194,14 @@ def main(
         df_samples,
         all_stats,
         out_dir / f"liability_violin.phenotype.by_sex.by_generation.{ext}",
+        scenario,
+        subsample_note=subsample_note,
+    )
+
+    # Genetic selection by generation
+    plot_genetic_selection_by_generation(
+        df_samples,
+        out_dir / f"genetic_selection.by_generation.{ext}",
         scenario,
         subsample_note=subsample_note,
     )

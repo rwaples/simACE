@@ -114,6 +114,13 @@ tsv("h2_d1_resamples", results$h2_d1$resample_meta)
 tsv("h2_d2_resamples", results$h2_d2$resample_meta)
 tsv("gc_resamples",    results$gc$resample_meta)
 
+## Per-year Rubin estimates (one row per birth year; only for rubin_level="per_year")
+if (!is.null(results$h2_d1$per_year)) {
+  tsv("h2_d1_per_year", results$h2_d1$per_year)
+  tsv("h2_d2_per_year", results$h2_d2$per_year)
+  tsv("gc_per_year",    results$gc$per_year)
+}
+
 ## ──────────────────────────────────────────────────────────────────────────────
 ## Write summary markdown report
 ## ──────────────────────────────────────────────────────────────────────────────

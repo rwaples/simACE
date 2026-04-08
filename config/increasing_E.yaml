@@ -1,0 +1,150 @@
+ADHD_AUT_increaseE:
+  seed: 50000
+  replicates: 3
+  N: 1000000
+  G_sim: 10
+  G_ped: 8
+  G_pheno: 6
+
+  # Variance components — A constant, C=0, E increases by generation
+  # Keys are *simulation* generation indices (0..G_sim-1).
+  # Burn-in = sim gens 0-1; pedigree gen 0 = sim gen 2.
+  # Effective h² = A/(A+E) drops from ~0.63 (gen 0) to ~0.43 (gen 7).
+  A1: 0.5
+  A2: 0.5
+  C1: 0.0
+  C2: 0.0
+  E1:
+    0: 0.30
+    3: 0.35
+    4: 0.40
+    5: 0.45
+    6: 0.50
+    7: 0.55
+    8: 0.60
+    9: 0.65
+  E2:
+    0: 0.30
+    3: 0.35
+    4: 0.40
+    5: 0.45
+    6: 0.50
+    7: 0.55
+    8: 0.60
+    9: 0.65
+  rA: 0.0
+  rC: 0.0
+  rE: 0.0
+  standardize: true
+  epimight_rubin_level: per_year
+
+  # Trait 1: ADHD (Beck fit)
+  phenotype_model1: cure_frailty
+  phenotype_params1:
+    baseline: lognormal
+    mu: 2.88737
+    sigma: 0.658447
+  beta1: 0.0
+  beta_sex1: 0.5003
+  prevalence1:
+    female: 0.048193
+    male: 0.083224
+
+  # Trait 2: AUT (Beck fit)
+  phenotype_model2: cure_frailty
+  phenotype_params2:
+    baseline: lognormal
+    mu: 3.86639
+    sigma: 0.477996
+  beta2: 0.0
+  beta_sex2: 0.1122
+  prevalence2:
+    female: 0.028329
+    male: 0.051935
+
+  # Stepped censoring: older gens miss young years, recent gens miss old years
+  # Gens 0-1 not phenotyped (G_pheno=6 → gens 2-7 phenotyped)
+  gen_censoring:
+    0: [80, 80]
+    1: [80, 80]
+    2: [60, 80]
+    3: [40, 80]
+    4: [0, 80]
+    5: [0, 60]
+    6: [0, 35]
+    7: [0, 20]
+
+ADHD_AUT_increaseE_nostd:
+  seed: 50000
+  replicates: 3
+  N: 1000000
+  G_sim: 10
+  G_ped: 8
+  G_pheno: 6
+
+  # Variance components — A constant, C=0, E increases by generation
+  # Keys are *simulation* generation indices (0..G_sim-1).
+  # Burn-in = sim gens 0-1; pedigree gen 0 = sim gen 2.
+  A1: 0.5
+  A2: 0.5
+  C1: 0.0
+  C2: 0.0
+  E1:
+    0: 0.30
+    3: 0.35
+    4: 0.40
+    5: 0.45
+    6: 0.50
+    7: 0.55
+    8: 0.60
+    9: 0.65
+  E2:
+    0: 0.30
+    3: 0.35
+    4: 0.40
+    5: 0.45
+    6: 0.50
+    7: 0.55
+    8: 0.60
+    9: 0.65
+  rA: 0.0
+  rC: 0.0
+  rE: 0.0
+  standardize: false
+  epimight_rubin_level: per_year
+
+  # Trait 1: ADHD (Beck fit)
+  phenotype_model1: cure_frailty
+  phenotype_params1:
+    baseline: lognormal
+    mu: 2.88737
+    sigma: 0.658447
+  beta1: 0.0
+  beta_sex1: 0.5003
+  prevalence1:
+    female: 0.048193
+    male: 0.083224
+
+  # Trait 2: AUT (Beck fit)
+  phenotype_model2: cure_frailty
+  phenotype_params2:
+    baseline: lognormal
+    mu: 3.86639
+    sigma: 0.477996
+  beta2: 0.0
+  beta_sex2: 0.1122
+  prevalence2:
+    female: 0.028329
+    male: 0.051935
+
+  # Stepped censoring: older gens miss young years, recent gens miss old years
+  # Gens 0-1 not phenotyped (G_pheno=6 → gens 2-7 phenotyped)
+  gen_censoring:
+    0: [80, 80]
+    1: [80, 80]
+    2: [60, 80]
+    3: [40, 80]
+    4: [0, 80]
+    5: [0, 60]
+    6: [0, 35]
+    7: [0, 20]

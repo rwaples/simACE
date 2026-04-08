@@ -9,12 +9,25 @@ __all__ = [
     "draw_colored_violins",
     "draw_split_violin",
     "finalize_plot",
+    "param_as_float",
     "save_placeholder_plot",
 ]
 
 from typing import Any
 
 import numpy as np
+
+def param_as_float(val: float | dict | None, default: float = 0.0) -> float:
+    """Convert a scalar or per-generation dict param to a single float.
+
+    For per-gen dicts, returns the value at the lowest key (founder generation).
+    """
+    if val is None:
+        return default
+    if isinstance(val, dict):
+        return float(val[min(val)])
+    return float(val)
+
 
 PAIR_COLORS: dict[str, str] = {
     "MZ": "C0",

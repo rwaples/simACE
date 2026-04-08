@@ -526,11 +526,23 @@ def validate_statistical(df: pd.DataFrame, params: dict[str, Any], df_indexed: p
 
     founders = df[df["mother"] == -1]
 
+    # For per-generation dict params, resolve to founder sim generation value
+    G_sim = params.get("G_sim", 8)
+    G_ped = params.get("G_ped", 6)
+    founder_sim_gen = G_sim - G_ped
+
+    def _resolve_founder_val(val):
+        """Resolve a scalar or per-gen dict to the founder generation value."""
+        if isinstance(val, dict):
+            from sim_ace.simulation.simulate import resolve_per_gen_param
+            return resolve_per_gen_param(val, G_sim)[founder_sim_gen]
+        return val
+
     # Variance checks for both traits
     for t in [1, 2]:
         for comp in ["A", "C", "E"]:
             col = f"{comp}{t}"
-            results[f"variance_{col}"] = _check_variance(founders, col, params[col])
+            results[f"variance_{col}"] = _check_variance(founders, col, _resolve_founder_val(params[col]))
 
     # Total variances
     for t in [1, 2]:

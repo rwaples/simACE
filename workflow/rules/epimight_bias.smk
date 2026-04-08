@@ -13,9 +13,13 @@
 #   3. epimight_bias_plots   – generate bias analysis atlas PDF
 # ---------------------------------------------------------------------------
 
-EPIMIGHT_BIAS_SCENARIOS = [
-    s for s in config["scenarios"] if get_folder(config, s) == "epimight_bias"
+EPIMIGHT_BIAS_FOLDERS = [
+    f for f in get_all_folders(config) if f.startswith("epimight_bias")
 ]
+
+EPIMIGHT_BIAS_SCENARIOS_BY_FOLDER = {
+    f: get_scenarios_for_folder(config, f) for f in EPIMIGHT_BIAS_FOLDERS
+}
 
 
 rule ltm_falconer:
@@ -43,27 +47,27 @@ rule ltm_falconer:
 rule epimight_bias_gather:
     """Gather EPIMIGHT + LTM Falconer results across all bias scenarios."""
     input:
-        epimight_atlases=[
-            f"results/epimight_bias/{s}/rep1/epimight/plots/atlas.pdf"
-            for s in EPIMIGHT_BIAS_SCENARIOS
+        epimight_atlases=lambda w: [
+            f"results/{w.folder}/{s}/rep1/epimight/plots/atlas.pdf"
+            for s in EPIMIGHT_BIAS_SCENARIOS_BY_FOLDER[w.folder]
         ],
-        ltm_falconers=[
-            f"results/epimight_bias/{s}/rep1/ltm_falconer.json"
-            for s in EPIMIGHT_BIAS_SCENARIOS
+        ltm_falconers=lambda w: [
+            f"results/{w.folder}/{s}/rep1/ltm_falconer.json"
+            for s in EPIMIGHT_BIAS_SCENARIOS_BY_FOLDER[w.folder]
         ],
     output:
-        tsv="results/epimight_bias/epimight_bias_summary.tsv",
+        tsv="results/{folder}/epimight_bias_summary.tsv",
     log:
-        "logs/epimight_bias/epimight_bias_gather.log",
+        "logs/{folder}/epimight_bias_gather.log",
     benchmark:
-        "benchmarks/epimight_bias/epimight_bias_gather.tsv"
+        "benchmarks/{folder}/epimight_bias_gather.tsv"
     threads: 1
     resources:
         mem_mb=4000,
         runtime=10,
     params:
-        results_dir="results/epimight_bias",
-        scenarios=EPIMIGHT_BIAS_SCENARIOS,
+        results_dir=lambda w: f"results/{w.folder}",
+        scenarios=lambda w: EPIMIGHT_BIAS_SCENARIOS_BY_FOLDER[w.folder],
     script:
         "../scripts/epimight_bias_analysis.py"
 
@@ -71,13 +75,13 @@ rule epimight_bias_gather:
 rule epimight_bias_plots:
     """Generate EPIMIGHT bias analysis plots and atlas."""
     input:
-        tsv="results/epimight_bias/epimight_bias_summary.tsv",
+        tsv="results/{folder}/epimight_bias_summary.tsv",
     output:
-        atlas="results/epimight_bias/plots/epimight_bias_atlas.pdf",
+        atlas="results/{folder}/plots/epimight_bias_atlas.pdf",
     log:
-        "logs/epimight_bias/epimight_bias_plots.log",
+        "logs/{folder}/epimight_bias_plots.log",
     benchmark:
-        "benchmarks/epimight_bias/epimight_bias_plots.tsv"
+        "benchmarks/{folder}/epimight_bias_plots.tsv"
     threads: 1
     resources:
         mem_mb=4000,
@@ -87,6 +91,9 @@ rule epimight_bias_plots:
 
 
 rule epimight_bias_all:
-    """Run the complete EPIMIGHT bias analysis pipeline."""
+    """Run the complete EPIMIGHT bias analysis pipeline for all bias folders."""
     input:
-        "results/epimight_bias/plots/epimight_bias_atlas.pdf",
+        [
+            f"results/{folder}/plots/epimight_bias_atlas.pdf"
+            for folder in EPIMIGHT_BIAS_FOLDERS
+        ],

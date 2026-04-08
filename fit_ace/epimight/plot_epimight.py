@@ -121,12 +121,21 @@ EPIMIGHT_CAPTIONS: dict[str, str] = {
 
 
 def discover_kinds(tsv_dir: Path) -> list[str]:
-    """Discover which relationship kinds have TSV output."""
+    """Discover which relationship kinds have TSV output.
+
+    Supports both old per-year files (``h2_d1_{kind}.tsv``) and new
+    MI meta files (``h2_d1_meta_{kind}.tsv``).
+    """
     found = set()
+    # Old per-year format: h2_d1_{kind}.tsv
     for p in tsv_dir.glob("h2_d1_*.tsv"):
         kind = p.stem.replace("h2_d1_", "")
-        if kind.startswith("meta_"):
+        if kind.startswith("meta_") or kind.startswith("resamples_"):
             continue
+        found.add(kind)
+    # New MI format: h2_d1_meta_{kind}.tsv
+    for p in tsv_dir.glob("h2_d1_meta_*.tsv"):
+        kind = p.stem.replace("h2_d1_meta_", "")
         found.add(kind)
     ordered = [k for k in KIND_ORDER if k in found]
     extras = sorted(found - set(KIND_ORDER))
@@ -724,34 +733,50 @@ def _plot_bar_panels(
         color = KIND_COLORS.get(kind, "black")
 
         df = load_fn(kind)
-        if df.empty:
-            continue
-        tm = tmax_rows(df)
-        years = tm["born_at_year"].values
-        vals = tm[value_col].values
-        err_lo = np.maximum(0, vals - tm["l95"].values)
-        err_hi = np.maximum(0, tm["u95"].values - vals)
+        meta = meta_fn(kind) if meta_fn else None
 
-        ax.bar(range(len(years)), vals, color=color, alpha=0.8, zorder=3)
-        ax.errorbar(
-            range(len(years)),
-            vals,
-            yerr=[err_lo, err_hi],
-            fmt="none",
-            color="black",
-            capsize=2,
-            linewidth=0.6,
-            zorder=4,
-        )
+        has_per_year = not df.empty
+        if has_per_year:
+            tm = tmax_rows(df)
+            years = tm["born_at_year"].values
+            vals = tm[value_col].values
+            err_lo = np.maximum(0, vals - tm["l95"].values)
+            err_hi = np.maximum(0, tm["u95"].values - vals)
+
+            ax.bar(range(len(years)), vals, color=color, alpha=0.8, zorder=3)
+            ax.errorbar(
+                range(len(years)),
+                vals,
+                yerr=[err_lo, err_hi],
+                fmt="none",
+                color="black",
+                capsize=2,
+                linewidth=0.6,
+                zorder=4,
+            )
+            ax.set_xticks(range(len(years)))
+            ax.set_xticklabels([str(int(y)) for y in years], fontsize=6, rotation=45)
+            ax.set_xlabel("Birth cohort", fontsize=9)
+        elif meta is not None:
+            # Meta-only: single bar per kind
+            val = meta["fixed_meta"]
+            err_lo = max(0, val - meta["fixed_l95"])
+            err_hi = max(0, meta["fixed_u95"] - val)
+            ax.bar([0], [val], color=color, alpha=0.8, zorder=3)
+            ax.errorbar([0], [val], yerr=[[err_lo], [err_hi]], fmt="none",
+                        color="black", capsize=4, linewidth=1, zorder=4)
+            ax.set_xticks([0])
+            ax.set_xticklabels(["Meta"], fontsize=8)
+        else:
+            continue
 
         if true_value is not None:
             ax.axhline(
                 true_value, color="black", linestyle="--", linewidth=1.5, alpha=0.7, label=f"True = {true_value:.3f}"
             )
 
-        # Meta-analysis overlay
-        meta = meta_fn(kind) if meta_fn else None
-        if meta is not None:
+        # Meta-analysis overlay (on per-year plots only; meta-only already shows it)
+        if has_per_year and meta is not None:
             ax.axhline(
                 meta["fixed_meta"],
                 color=color,
@@ -763,9 +788,6 @@ def _plot_bar_panels(
             )
             ax.axhspan(meta["fixed_l95"], meta["fixed_u95"], color=color, alpha=0.08, zorder=1)
 
-        ax.set_xticks(range(len(years)))
-        ax.set_xticklabels([str(int(y)) for y in years], fontsize=6, rotation=45)
-        ax.set_xlabel("Birth cohort", fontsize=9)
         if col == 0:
             ax.set_ylabel(ylabel)
         ax.set_title(KIND_LABELS.get(kind, kind), fontsize=11)
@@ -825,44 +847,65 @@ def plot_gc_bar(
         color = KIND_COLORS.get(kind, "black")
 
         gc = load_gc(tsv_dir, kind)
-        if gc.empty:
+        meta = load_meta(tsv_dir, "gc_meta", kind)
+
+        has_per_year = not gc.empty
+        if has_per_year:
+            tm = tmax_rows(gc)
+            years = tm["born_at_year"].values
+            vals = tm["rhog"].values
+
+            # Error bars from rhog CIs (h2_l95 / h2_u95 in the GC TSV)
+            err_lo = np.clip(vals - tm["h2_l95"].values, 0, None)
+            err_hi = np.clip(tm["h2_u95"].values - vals, 0, None)
+
+            # Clamp bars to [-1, 1] for display
+            clamped = np.clip(vals, -1, 1)
+            ax.bar(range(len(years)), clamped, color=color, alpha=0.8, zorder=3)
+            ax.errorbar(
+                range(len(years)),
+                clamped,
+                yerr=[np.minimum(err_lo, clamped - ylim[0]), np.minimum(err_hi, ylim[1] - clamped)],
+                fmt="none",
+                color="black",
+                capsize=2,
+                linewidth=0.6,
+                zorder=4,
+                clip_on=True,
+            )
+
+            # Mark out-of-range values with arrows at the clamp boundary
+            for i, v in enumerate(vals):
+                if v > 1:
+                    ax.annotate(
+                        "\u2191", xy=(i, 1), ha="center", va="bottom", fontsize=7, color="red", fontweight="bold"
+                    )
+                elif v < -1:
+                    ax.annotate(
+                        "\u2193", xy=(i, -1), ha="center", va="top", fontsize=7, color="red", fontweight="bold"
+                    )
+
+            ax.set_xticks(range(len(years)))
+            ax.set_xticklabels([str(int(y)) for y in years], fontsize=6, rotation=45)
+            ax.set_xlabel("Birth cohort", fontsize=9)
+        elif meta is not None:
+            # Meta-only: single bar per kind
+            val = np.clip(meta["fixed_meta"], -1, 1)
+            err_lo = max(0, val - max(meta["fixed_l95"], ylim[0]))
+            err_hi = max(0, min(meta["fixed_u95"], ylim[1]) - val)
+            ax.bar([0], [val], color=color, alpha=0.8, zorder=3)
+            ax.errorbar([0], [val], yerr=[[err_lo], [err_hi]], fmt="none",
+                        color="black", capsize=4, linewidth=1, zorder=4)
+            ax.set_xticks([0])
+            ax.set_xticklabels(["Meta"], fontsize=8)
+        else:
             continue
-        tm = tmax_rows(gc)
-        years = tm["born_at_year"].values
-        vals = tm["rhog"].values
-
-        # Error bars from rhog CIs (h2_l95 / h2_u95 in the GC TSV)
-        err_lo = np.clip(vals - tm["h2_l95"].values, 0, None)
-        err_hi = np.clip(tm["h2_u95"].values - vals, 0, None)
-
-        # Clamp bars to [-1, 1] for display
-        clamped = np.clip(vals, -1, 1)
-        ax.bar(range(len(years)), clamped, color=color, alpha=0.8, zorder=3)
-        ax.errorbar(
-            range(len(years)),
-            clamped,
-            yerr=[np.minimum(err_lo, clamped - ylim[0]), np.minimum(err_hi, ylim[1] - clamped)],
-            fmt="none",
-            color="black",
-            capsize=2,
-            linewidth=0.6,
-            zorder=4,
-            clip_on=True,
-        )
-
-        # Mark out-of-range values with arrows at the clamp boundary
-        for i, v in enumerate(vals):
-            if v > 1:
-                ax.annotate("\u2191", xy=(i, 1), ha="center", va="bottom", fontsize=7, color="red", fontweight="bold")
-            elif v < -1:
-                ax.annotate("\u2193", xy=(i, -1), ha="center", va="top", fontsize=7, color="red", fontweight="bold")
 
         if true_gc is not None:
             ax.axhline(true_gc, color="black", linestyle="--", linewidth=1.5, alpha=0.7, label=f"True = {true_gc:.3f}")
 
-        # Meta-analysis overlay
-        meta = load_meta(tsv_dir, "gc_meta", kind)
-        if meta is not None:
+        # Meta-analysis overlay (on per-year plots only)
+        if has_per_year and meta is not None:
             ax.axhline(
                 meta["fixed_meta"],
                 color=color,
@@ -881,9 +924,6 @@ def plot_gc_bar(
             )
 
         ax.set_ylim(ylim)
-        ax.set_xticks(range(len(years)))
-        ax.set_xticklabels([str(int(y)) for y in years], fontsize=6, rotation=45)
-        ax.set_xlabel("Birth cohort", fontsize=9)
         if col == 0:
             ax.set_ylabel("Genetic correlation (\u03c1g)")
         ax.set_title(KIND_LABELS.get(kind, kind), fontsize=11)
@@ -915,20 +955,32 @@ def plot_summary_table(
 
         # Cohort sizes from results_{kind}.md
         sizes = load_cohort_sizes(scenario_dir, kind)
-        c2_n = f"{sizes['c2']:,}" if "c2" in sizes else "N/A"
-        c3_n = f"{sizes['c3']:,}" if "c3" in sizes else "N/A"
+        c2_n = f"{sizes['c2']:,}" if "c2" in sizes else "\u2014"
+        c3_n = f"{sizes['c3']:,}" if "c3" in sizes else "\u2014"
 
-        # h2 d1 median at tmax
+        # h2 d1: prefer per-year median, fall back to meta
         h2_d1 = load_h2(tsv_dir, "d1", kind)
-        h2_d1_val = f"{tmax_rows(h2_d1)['h2'].median():.4f}" if not h2_d1.empty else "N/A"
+        if not h2_d1.empty:
+            h2_d1_val = f"{tmax_rows(h2_d1)['h2'].median():.4f}"
+        else:
+            meta_d1 = load_meta(tsv_dir, "h2_d1_meta", kind)
+            h2_d1_val = f"{meta_d1['fixed_meta']:.4f}" if meta_d1 else "N/A"
 
-        # h2 d2 median at tmax
+        # h2 d2: same fallback
         h2_d2 = load_h2(tsv_dir, "d2", kind)
-        h2_d2_val = f"{tmax_rows(h2_d2)['h2'].median():.4f}" if not h2_d2.empty else "N/A"
+        if not h2_d2.empty:
+            h2_d2_val = f"{tmax_rows(h2_d2)['h2'].median():.4f}"
+        else:
+            meta_d2 = load_meta(tsv_dir, "h2_d2_meta", kind)
+            h2_d2_val = f"{meta_d2['fixed_meta']:.4f}" if meta_d2 else "N/A"
 
-        # rhog median at tmax
+        # rhog: same fallback
         gc = load_gc(tsv_dir, kind)
-        gc_val = f"{tmax_rows(gc)['rhog'].median():.4f}" if not gc.empty else "N/A"
+        if not gc.empty:
+            gc_val = f"{tmax_rows(gc)['rhog'].median():.4f}"
+        else:
+            meta_gc = load_meta(tsv_dir, "gc_meta", kind)
+            gc_val = f"{meta_gc['fixed_meta']:.4f}" if meta_gc else "N/A"
 
         table_data.append([label, str(c2_n), str(c3_n), h2_d1_val, h2_d2_val, gc_val])
 
@@ -1018,34 +1070,52 @@ def assemble_epimight_atlas(scenario_dir: str | Path, scenario: str = "") -> Non
     print(f"Discovered kinds: {kinds}")
 
     true_params = load_true_params(scenario_dir)
-
-    # Generate individual plots
-    plot_cif_base(tsv_dir, kinds, plots_dir / "cif_base.png", scenario=scenario)
-    for d in ("d1", "d2"):
-        plot_cif_primary(tsv_dir, kinds, d, plots_dir / f"cif_primary_{d}.png", scenario=scenario)
-        plot_cif_secondary(tsv_dir, kinds, d, plots_dir / f"cif_secondary_{d}.png", scenario=scenario)
-
     true_h2_d1 = true_params.get("h2_trait1_true") if true_params else None
     true_h2_d2 = true_params.get("h2_trait2_true") if true_params else None
-    plot_h2_by_time(tsv_dir, kinds, "d1", true_h2_d1, plots_dir / "h2_time_d1.png", scenario=scenario)
-    plot_h2_by_time(tsv_dir, kinds, "d2", true_h2_d2, plots_dir / "h2_time_d2.png", scenario=scenario)
 
-    plot_h2_heatmap(tsv_dir, kinds, "d1", true_h2_d1, plots_dir / "h2_heatmap_d1.png", scenario=scenario)
-    plot_h2_heatmap(tsv_dir, kinds, "d2", true_h2_d2, plots_dir / "h2_heatmap_d2.png", scenario=scenario)
+    # Check whether per-year data exists (old pipeline) or only meta (new MI pipeline)
+    has_per_year = any((tsv_dir / f"h2_d1_{k}.tsv").exists() for k in kinds)
+    has_cif = any((tsv_dir / f"cif_d1_c1_{k}.tsv").exists() for k in kinds)
 
+    # Generate plots conditional on available data
+    active_basenames = []
+
+    if has_cif:
+        plot_cif_base(tsv_dir, kinds, plots_dir / "cif_base.png", scenario=scenario)
+        active_basenames.append("cif_base")
+        for d in ("d1", "d2"):
+            plot_cif_primary(tsv_dir, kinds, d, plots_dir / f"cif_primary_{d}.png", scenario=scenario)
+            plot_cif_secondary(tsv_dir, kinds, d, plots_dir / f"cif_secondary_{d}.png", scenario=scenario)
+            active_basenames.extend([f"cif_primary_{d}", f"cif_secondary_{d}"])
+
+    if has_per_year:
+        plot_h2_by_time(tsv_dir, kinds, "d1", true_h2_d1, plots_dir / "h2_time_d1.png", scenario=scenario)
+        plot_h2_by_time(tsv_dir, kinds, "d2", true_h2_d2, plots_dir / "h2_time_d2.png", scenario=scenario)
+        plot_h2_heatmap(tsv_dir, kinds, "d1", true_h2_d1, plots_dir / "h2_heatmap_d1.png", scenario=scenario)
+        plot_h2_heatmap(tsv_dir, kinds, "d2", true_h2_d2, plots_dir / "h2_heatmap_d2.png", scenario=scenario)
+        active_basenames.extend(["h2_time_d1", "h2_time_d2", "h2_heatmap_d1", "h2_heatmap_d2"])
+
+    # Bar and summary plots work with both per-year and meta-only data
     plot_h2_bar(tsv_dir, kinds, "d1", true_h2_d1, plots_dir / "h2_bar_d1.png", scenario=scenario)
     plot_h2_bar(tsv_dir, kinds, "d2", true_h2_d2, plots_dir / "h2_bar_d2.png", scenario=scenario)
     plot_gc_bar(tsv_dir, kinds, true_params, plots_dir / "gc_bar.png", scenario=scenario)
     plot_summary_table(tsv_dir, kinds, true_params, plots_dir / "summary_table.png", scenario=scenario)
+    active_basenames.extend(["h2_bar_d1", "h2_bar_d2", "gc_bar", "summary_table"])
 
-    # Assemble atlas
-    plot_paths = [plots_dir / f"{name}.png" for name in _PLOT_BASENAMES]
-    section_breaks = {
-        0: ("Cumulative Incidence", "CIF curves across relationship kinds"),
-        5: ("Heritability", "h\u00b2 estimates by follow-up time and at maximum follow-up"),
-        11: ("Genetic Correlation", "Cross-trait genetic correlation at maximum follow-up"),
-        12: ("Summary", "Comparison across relationship kinds"),
-    }
+    # Assemble atlas from available plots
+    plot_paths = [plots_dir / f"{name}.png" for name in active_basenames]
+
+    # Build section breaks dynamically
+    section_breaks = {}
+    for i, name in enumerate(active_basenames):
+        if name == "cif_base":
+            section_breaks[i] = ("Cumulative Incidence", "CIF curves across relationship kinds")
+        elif name in ("h2_time_d1", "h2_bar_d1"):
+            section_breaks[i] = ("Heritability", "h\u00b2 estimates across relationship kinds")
+        elif name == "gc_bar":
+            section_breaks[i] = ("Genetic Correlation", "Cross-trait genetic correlation")
+        elif name == "summary_table":
+            section_breaks[i] = ("Summary", "Comparison across relationship kinds")
 
     atlas_path = plots_dir / "atlas.pdf"
     assemble_atlas(plot_paths, EPIMIGHT_CAPTIONS, atlas_path, section_breaks=section_breaks)

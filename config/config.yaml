@@ -80,6 +80,7 @@ defaults:
 
   # ── EPIMIGHT ─────────────────────────────────────────────────────────────
   epimight_mi_K: 20  # number of MI resamples (Rubin's rules); K=1 = single draw
+  epimight_rubin_level: meta  # "meta" = Meta→Rubin; "per_year" = Rubin→Meta
   epimight_kinds:
     - PO
     - FS

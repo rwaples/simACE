@@ -269,6 +269,16 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "split violins for female (left) and male (right), each showing "
         "unaffected vs. affected distribution. Sex-specific prevalence annotated."
     ),
+    "genetic_selection.by_generation": (
+        "Figure 12b: Genetic selection by generation.\n\n"
+        "Top row: mean additive genetic value (A) among affected (red) vs. unaffected "
+        "(blue) individuals per generation, for each trait. Bottom row: selection "
+        "differential \u0394A = mean(A|affected) \u2212 mean(A|unaffected). "
+        "As the unique environment component (E) increases across generations, the "
+        "selection differential shrinks \u2014 affected individuals are less genetically "
+        "extreme because environmental noise contributes more to crossing the threshold. "
+        "Generation-specific prevalence annotated below bars."
+    ),
     # -- Survival phenotype & censoring --
     "age_at_onset_death": (
         "Figure 13: Age-at-onset and death-age histograms.\n\n"

@@ -698,10 +698,10 @@ def _validate_phenotype_params(
                 f"'baseline' key specifying the baseline hazard model"
             )
         baseline = phenotype_params["baseline"]
-        if baseline not in _FRAILTY_MODELS:
+        if baseline not in _FRAILTY_BASELINES:
             raise ValueError(
                 f"phenotype_params{trait_num} baseline={baseline!r} is not a valid "
-                f"frailty model; valid baselines: {sorted(_FRAILTY_MODELS)}"
+                f"frailty baseline; valid baselines: {sorted(_FRAILTY_BASELINES)}"
             )
         required = set(_MODEL_PARAMS[baseline]) | {"baseline"}
     else:

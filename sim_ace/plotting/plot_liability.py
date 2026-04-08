@@ -10,6 +10,7 @@ from __future__ import annotations
 __all__ = [
     "plot_censoring_cascade",
     "plot_censoring_confusion",
+    "plot_genetic_selection_by_generation",
     "plot_joint_affection",
     "plot_liability_joint",
     "plot_liability_joint_affected",
@@ -37,6 +38,7 @@ from sim_ace.plotting.plot_utils import (
     annotate_heatmap,
     draw_split_violin,
     finalize_plot,
+    param_as_float,
     save_placeholder_plot,
 )
 
@@ -440,6 +442,76 @@ def plot_liability_violin_by_sex_generation(
     finalize_plot(output_path, subsample_note=subsample_note)
 
 
+def plot_genetic_selection_by_generation(
+    df_samples: pd.DataFrame,
+    output_path: str | Path,
+    scenario: str = "",
+    subsample_note: str = "",
+) -> None:
+    """Mean additive genetic value (A) by affected status across generations.
+
+    For each trait, plots mean A among affected vs unaffected individuals per
+    generation, plus the selection differential (delta A).
+    """
+    gens = sorted(df_samples["generation"].unique())
+    n_gen = len(gens)
+    if n_gen == 0:
+        save_placeholder_plot(output_path, "No generation data")
+        return
+
+    fig, axes = plt.subplots(2, 2, figsize=(max(10, n_gen * 1.2), 8), sharex=True)
+
+    for t, trait_num in enumerate([1, 2]):
+        a_col = f"A{trait_num}"
+        aff_col = f"affected{trait_num}"
+        if a_col not in df_samples.columns or aff_col not in df_samples.columns:
+            continue
+
+        mean_aff, mean_unaff, delta, prev = [], [], [], []
+        for gen in gens:
+            g = df_samples[df_samples["generation"] == gen]
+            aff = g[g[aff_col]]
+            unaff = g[~g[aff_col]]
+            ma = aff[a_col].mean() if len(aff) > 0 else float("nan")
+            mu = unaff[a_col].mean() if len(unaff) > 0 else float("nan")
+            mean_aff.append(ma)
+            mean_unaff.append(mu)
+            delta.append(ma - mu)
+            prev.append(len(aff) / len(g) if len(g) > 0 else 0)
+
+        ax_top = axes[0, t]
+        ax_top.plot(gens, mean_aff, "o-", color="C3", label="Affected", markersize=5)
+        ax_top.plot(gens, mean_unaff, "s-", color="C0", label="Unaffected", markersize=5)
+        ax_top.axhline(0, color="gray", linewidth=0.5, linestyle="--")
+        ax_top.set_ylabel("Mean A")
+        ax_top.set_title(f"Trait {trait_num}")
+        ax_top.legend(fontsize=8)
+
+        ax_bot = axes[1, t]
+        ax_bot.bar(gens, delta, color="C2", alpha=0.7, width=0.6)
+        ax_bot.set_ylabel("\u0394A (aff \u2212 unaff)")
+        ax_bot.set_xlabel("Generation")
+
+        # Annotate prevalence on the bottom axis
+        for i, gen in enumerate(gens):
+            ax_bot.annotate(
+                f"{prev[i]:.1%}",
+                (gen, 0),
+                textcoords="offset points",
+                xytext=(0, -14),
+                ha="center",
+                fontsize=7,
+                color="gray",
+            )
+
+    fig.suptitle(
+        f"Genetic Selection by Generation [{scenario}]",
+        fontsize=14,
+    )
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
+    finalize_plot(output_path, subsample_note=subsample_note)
+
+
 def plot_censoring_confusion(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
@@ -749,13 +821,13 @@ def plot_mate_correlation(
             rA=float(params.get("rA", 0)),
             rC=float(params.get("rC", 0)),
             A1=float(params.get("A1", 0)),
-            C1=float(params.get("C1", 0)),
+            C1=param_as_float(params.get("C1", 0)),
             A2=float(params.get("A2", 0)),
-            C2=float(params.get("C2", 0)),
+            C2=param_as_float(params.get("C2", 0)),
             assort_matrix=am,
             rE=float(params.get("rE", 0)),
-            E1=float(params.get("E1", 0)),
-            E2=float(params.get("E2", 0)),
+            E1=param_as_float(params.get("E1", 0)),
+            E2=param_as_float(params.get("E2", 0)),
         )
 
     xlabels = ["Male trait 1", "Male trait 2"]

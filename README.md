@@ -219,6 +219,11 @@ defaults:
     rho: 1.2                                # Weibull shape (>1 = increasing hazard)
 
   standardize: true                          # Standardize liability before phenotyping
+  # Note: for frailty and cure_frailty models, standardize=true normalizes
+  # liability across ALL generations pooled (global mean/std), so per-generation
+  # prevalence will vary when variance components (C, E) change across
+  # generations. The threshold (simple LTM) model standardizes per-generation,
+  # preserving exact prevalence within each generation.
 
   # Censoring
   censor_age: 80                             # Max censoring age

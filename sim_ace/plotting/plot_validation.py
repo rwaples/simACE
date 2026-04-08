@@ -76,7 +76,11 @@ def stripplot(
             else:
                 assert expected is not None
                 val = expected
-            if val is not None and np.isfinite(float(val)):
+            try:
+                val = float(val)
+            except (TypeError, ValueError):
+                val = None
+            if val is not None and np.isfinite(val):
                 ax.scatter(
                     positions[scenario],
                     val,
@@ -108,7 +112,14 @@ def stripplot(
             all_vals.extend(df[expected].dropna().values)
         else:
             all_vals.append(expected)
-    all_vals = np.array(all_vals, dtype=float)
+    # Filter out non-numeric values (e.g. per-generation dict strings)
+    numeric_vals = []
+    for v in all_vals:
+        try:
+            numeric_vals.append(float(v))
+        except (TypeError, ValueError):
+            pass
+    all_vals = np.array(numeric_vals, dtype=float)
     all_vals = all_vals[np.isfinite(all_vals)]
     if len(all_vals) > 0:
         lo, hi = float(all_vals.min()), float(all_vals.max())
@@ -300,6 +311,9 @@ def plot_family_size(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
 def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     """Plot bias heatmap for variance components and correlations."""
     dp = df.copy()
+    # Coerce to numeric; per-generation dicts become NaN (bias undefined)
+    for col in ["A1", "C1", "E1"]:
+        dp[col] = pd.to_numeric(dp[col], errors="coerce")
     dp["A1 Bias"] = dp["variance_A1"] - dp["A1"]
     dp["C1 Bias"] = dp["variance_C1"] - dp["C1"]
     dp["E1 Bias"] = dp["variance_E1"] - dp["E1"]
