@@ -48,7 +48,7 @@ from sim_ace.plotting.plot_distributions import (
 from sim_ace.plotting.plot_liability import (
     plot_censoring_cascade,
     plot_censoring_confusion,
-    plot_genetic_selection_by_generation,
+    plot_liability_components_by_generation,
     plot_joint_affection,
     plot_liability_joint,
     plot_liability_joint_affected,
@@ -200,9 +200,9 @@ def main(
     )
 
     # Genetic selection by generation
-    plot_genetic_selection_by_generation(
+    plot_liability_components_by_generation(
         df_samples,
-        out_dir / f"genetic_selection.by_generation.{ext}",
+        out_dir / f"liability_components.by_generation.{ext}",
         scenario,
         subsample_note=subsample_note,
     )

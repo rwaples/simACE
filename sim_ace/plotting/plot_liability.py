@@ -10,7 +10,7 @@ from __future__ import annotations
 __all__ = [
     "plot_censoring_cascade",
     "plot_censoring_confusion",
-    "plot_genetic_selection_by_generation",
+    "plot_liability_components_by_generation",
     "plot_joint_affection",
     "plot_liability_joint",
     "plot_liability_joint_affected",
@@ -422,16 +422,17 @@ def plot_liability_violin_by_sex_generation(
     finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
 
-def plot_genetic_selection_by_generation(
+def plot_liability_components_by_generation(
     df_samples: pd.DataFrame,
     output_path: str | Path,
     scenario: str = "",
     subsample_note: str = "",
 ) -> None:
-    """Mean additive genetic value (A) by affected status across generations.
+    """Mean variance component by affected status across generations.
 
-    For each trait, plots mean A among affected vs unaffected individuals per
-    generation, plus the selection differential (delta A).
+    2x3 grid: rows = traits, columns = A, C, E.  Each panel shows mean
+    component value for affected (red), unaffected (grey), and overall (black)
+    individuals per generation.  Prevalence annotated on x-tick labels.
     """
     gens = sorted(df_samples["generation"].unique())
     n_gen = len(gens)
@@ -439,46 +440,55 @@ def plot_genetic_selection_by_generation(
         save_placeholder_plot(output_path, "No generation data")
         return
 
-    _fig, axes = plt.subplots(2, 2, figsize=(max(10, n_gen * 1.2), 8))
+    components = ["A", "C", "E"]
+    _fig, axes = plt.subplots(2, 3, figsize=(max(14, n_gen * 3), 8))
 
-    for t, trait_num in enumerate([1, 2]):
-        a_col = f"A{trait_num}"
+    for row, trait_num in enumerate([1, 2]):
         aff_col = f"affected{trait_num}"
-        if a_col not in df_samples.columns or aff_col not in df_samples.columns:
+        if aff_col not in df_samples.columns:
             continue
 
-        mean_aff, mean_unaff, mean_all, delta, prev = [], [], [], [], []
+        # Compute prevalence per generation (shared across columns)
+        prev = []
         for gen in gens:
             g = df_samples[df_samples["generation"] == gen]
-            aff = g[g[aff_col]]
-            unaff = g[~g[aff_col]]
-            ma = aff[a_col].mean() if len(aff) > 0 else float("nan")
-            mu = unaff[a_col].mean() if len(unaff) > 0 else float("nan")
-            mall = g[a_col].mean() if len(g) > 0 else float("nan")
-            mean_aff.append(ma)
-            mean_unaff.append(mu)
-            mean_all.append(mall)
-            delta.append(ma - mu)
-            prev.append(len(aff) / len(g) if len(g) > 0 else 0)
+            prev.append(g[aff_col].mean() if len(g) > 0 else 0)
 
-        ax_top = axes[0, t]
-        ax_top.plot(gens, mean_aff, "o-", color=COLOR_AFFECTED, label="Affected", markersize=5)
-        ax_top.plot(gens, mean_unaff, "s-", color=COLOR_UNAFFECTED, label="Unaffected", markersize=5)
-        ax_top.plot(gens, mean_all, "D-", color="black", label="Overall", markersize=4, linewidth=1.0)
-        ax_top.axhline(0, color="gray", linewidth=0.5, linestyle="--")
-        ax_top.set_ylabel("Mean A")
-        ax_top.set_title(f"Trait {trait_num}")
-        ax_top.legend(fontsize=8)
+        for col_idx, comp in enumerate(components):
+            comp_col = f"{comp}{trait_num}"
+            if comp_col not in df_samples.columns:
+                continue
 
-        ax_bot = axes[1, t]
-        ax_bot.bar(gens, delta, color="#228833", alpha=0.7, width=0.6)
-        ax_bot.set_ylabel("\u0394A (aff \u2212 unaff)")
-        ax_bot.set_xlabel("Generation")
-        ax_bot.set_xticks(gens)
-        ax_bot.set_xticklabels([f"{g}\n{prev[i]:.1%}" for i, g in enumerate(gens)])
-        ax_top.set_xticks(gens)
-        ax_top.set_xticklabels([])
-        ax_top.set_xlim(ax_bot.get_xlim())
+            ax = axes[row, col_idx]
+            mean_aff, mean_unaff, mean_all = [], [], []
+            for gen in gens:
+                g = df_samples[df_samples["generation"] == gen]
+                aff = g[g[aff_col]]
+                unaff = g[~g[aff_col]]
+                mean_aff.append(aff[comp_col].mean() if len(aff) > 0 else float("nan"))
+                mean_unaff.append(unaff[comp_col].mean() if len(unaff) > 0 else float("nan"))
+                mean_all.append(g[comp_col].mean() if len(g) > 0 else float("nan"))
+
+            ax.plot(gens, mean_aff, "o-", color=COLOR_AFFECTED, label="Affected", markersize=5)
+            ax.plot(gens, mean_unaff, "s-", color=COLOR_UNAFFECTED, label="Unaffected", markersize=5)
+            ax.plot(gens, mean_all, "D-", color="black", label="Overall", markersize=4, linewidth=1.0)
+            ax.axhline(0, color="gray", linewidth=0.5, linestyle="--")
+
+            ax.set_xticks(gens)
+            if col_idx == 0:
+                # Show generation + prevalence in the A column for both traits
+                ax.set_xticklabels([f"{g}\n{prev[i]:.1%}" for i, g in enumerate(gens)])
+            else:
+                ax.set_xticklabels([str(g) for g in gens])
+            if row == 1:
+                ax.set_xlabel("Generation")
+
+            if col_idx == 0:
+                ax.set_ylabel(f"Trait {trait_num}\nMean value")
+            if row == 0:
+                ax.set_title(comp, fontweight="bold")
+                if col_idx == 2:
+                    ax.legend(fontsize=8)
 
     finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 

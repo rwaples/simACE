@@ -193,11 +193,11 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
     # -- Family structure --
     "family_structure": (
         "Figure 3: Family structure.\n\n"
-        "Three-panel figure showing offspring and mate count distributions, "
+        "Three-panel figure showing offspring and partner count distributions, "
         "averaged across replicates. Left: number of offspring per couple. "
         "Centre: number of offspring per person "
         "(including childless individuals at 0). Right: fraction of parents "
-        "with 1 vs. 2+ mating partners, grouped by sex."
+        "with 1 vs. 2+ partners, grouped by sex."
     ),
     # -- Mate correlation --
     "mate_correlation": (
@@ -269,16 +269,16 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "split violins for female (left) and male (right), each showing "
         "unaffected vs. affected distribution. Sex-specific prevalence annotated."
     ),
-    "genetic_selection.by_generation": (
-        "Figure 13: Genetic selection by generation.\n\n"
-        "Top row: mean additive genetic value (A) among affected (red) vs. unaffected "
-        "(grey) individuals per generation, for each trait. Black line shows overall "
-        "mean A per generation. Bottom row: selection "
-        "differential \u0394A = mean(A|affected) \u2212 mean(A|unaffected). "
-        "As the unique environment component (E) increases across generations, the "
-        "selection differential shrinks \u2014 affected individuals are less genetically "
-        "extreme because environmental noise contributes more to crossing the threshold. "
-        "Generation-specific prevalence annotated below bars."
+    "liability_components.by_generation": (
+        "Figure 13: Liability components by generation.\n\n"
+        "2\u00d73 grid: rows = traits, columns = variance components (A, C, E). "
+        "Each panel shows the mean component value among affected (red), unaffected "
+        "(grey), and overall (black) individuals per generation. "
+        "Selection on A is visible as separation between affected and unaffected lines: "
+        "affected individuals have higher mean A (positive selection). "
+        "C and E show no systematic selection since they are independent of liability "
+        "threshold crossing conditional on total liability. "
+        "Generation-specific prevalence annotated on x-axis."
     ),
     # -- Survival phenotype & censoring --
     "age_at_onset_death": (
@@ -654,61 +654,79 @@ def _render_inline_caption(
 ) -> None:
     """Render a caption with bold title inline with normal-weight body text.
 
-    Manually wraps text to fit within figure margins, placing the body
-    immediately after the bold title on the first line.
+    Measures the rendered bold title width via the figure renderer, then
+    places the body text exactly 3 spaces after it.
     """
     import textwrap
 
+    from matplotlib.font_manager import FontProperties
+
+    line_h = 0.022
     page_w = fig.get_figwidth()
-    # Approximate characters per line at given fontsize on the page
-    # fontsize 11 on 11" page with 0.04-0.96 margins ≈ 115 chars
-    chars_per_line = int(page_w * (0.96 - x) * 11.5)
+    usable_frac = 0.96 - x
+    chars_per_line = int(page_w * usable_frac * 11.5)
 
-    # Split body into words and build lines
-    title_len = len(title) + 1  # +1 for single space
-    first_line_width = chars_per_line - title_len
-
-    if not body or first_line_width < 10:
-        # Title alone or no room for body on first line
+    if not body:
         fig.text(x, y, title, fontsize=fontsize, fontweight="bold",
                  fontfamily=fontfamily, verticalalignment="top",
                  transform=fig.transFigure)
-        if body:
-            wrapped = textwrap.fill(body, width=chars_per_line)
-            line_h = 0.022
-            fig.text(x, y - line_h, wrapped, fontsize=fontsize,
-                     fontweight="medium", fontfamily=fontfamily, verticalalignment="top",
-                     transform=fig.transFigure)
         return
 
-    # Wrap body with first-line indent for the title
-    wrapped = textwrap.wrap(body, width=chars_per_line,
-                            initial_indent=" " * title_len,
-                            subsequent_indent="")
-    # Strip the fake indent from the first line to get the actual body text
-    first_line_body = wrapped[0].lstrip() if wrapped else ""
-    remaining_lines = wrapped[1:] if len(wrapped) > 1 else []
+    # Render bold title and measure its width via the renderer
+    title_text = fig.text(
+        x, y, title, fontsize=fontsize, fontweight="bold",
+        fontfamily=fontfamily, verticalalignment="top",
+        transform=fig.transFigure,
+    )
+    fig.canvas.draw()
+    renderer = fig.canvas.get_renderer()
+    bb = title_text.get_window_extent(renderer=renderer)
+    title_width_fig = bb.width / fig.dpi / page_w
 
-    # Line height in figure fraction
-    line_h = 0.022
+    # Measure width of 3 spaces in medium weight at same fontsize
+    fp = FontProperties(family=fontfamily, size=fontsize, weight="medium")
+    space_text = fig.text(0, 0, "   ", fontproperties=fp, transform=fig.transFigure)
+    space_bb = space_text.get_window_extent(renderer=renderer)
+    space_width_fig = space_bb.width / fig.dpi / page_w
+    space_text.remove()
 
-    # Render bold title
-    fig.text(x, y, title, fontsize=fontsize, fontweight="bold",
-             fontfamily=fontfamily, verticalalignment="top",
-             transform=fig.transFigure)
+    # Position body text after title + 3-space gap
+    body_x = x + title_width_fig + space_width_fig
 
-    # Render first-line body text right after title
-    # Estimate title width in figure fraction
-    title_x = x + title_len * (0.96 - x) / chars_per_line
-    fig.text(title_x, y, first_line_body, fontsize=fontsize,
+    # Estimate how many chars fit on the first line after the title
+    first_line_chars = int((0.96 - body_x) / usable_frac * chars_per_line)
+    if first_line_chars < 15:
+        # Not enough room; put body on the next line
+        wrapped = textwrap.fill(body, width=chars_per_line)
+        fig.text(x, y - line_h, wrapped, fontsize=fontsize,
+                 fontweight="medium", fontfamily=fontfamily,
+                 verticalalignment="top", transform=fig.transFigure)
+        return
+
+    # Wrap body: first line shorter, subsequent lines full width
+    words = body.split()
+    first_line_words = []
+    current_len = 0
+    for word in words:
+        if current_len + len(word) + (1 if first_line_words else 0) > first_line_chars:
+            break
+        first_line_words.append(word)
+        current_len += len(word) + (1 if len(first_line_words) > 1 else 0)
+    first_line_body = " ".join(first_line_words)
+    remaining_body = body[len(first_line_body):].lstrip()
+
+    # Render first-line body text
+    fig.text(body_x, y, first_line_body, fontsize=fontsize,
              fontweight="medium", fontfamily=fontfamily,
              verticalalignment="top", transform=fig.transFigure)
 
-    # Render remaining wrapped lines
-    for i, line in enumerate(remaining_lines):
-        fig.text(x, y - (i + 1) * line_h, line, fontsize=fontsize,
-                 fontweight="medium", fontfamily=fontfamily,
-                 verticalalignment="top", transform=fig.transFigure)
+    # Wrap and render remaining lines
+    if remaining_body:
+        remaining_lines = textwrap.wrap(remaining_body, width=chars_per_line)
+        for i, line in enumerate(remaining_lines):
+            fig.text(x, y - (i + 1) * line_h, line, fontsize=fontsize,
+                     fontweight="medium", fontfamily=fontfamily,
+                     verticalalignment="top", transform=fig.transFigure)
 
 
 def assemble_atlas(

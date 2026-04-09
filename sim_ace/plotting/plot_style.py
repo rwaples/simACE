@@ -120,7 +120,7 @@ def add_scenario_label(fig, scenario: str) -> None:
             0.99,
             0.005,
             scenario,
-            fontsize=9,
+            fontsize=11,
             color="0.5",
             ha="right",
             va="bottom",

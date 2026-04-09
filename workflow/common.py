@@ -109,7 +109,7 @@ _PHENOTYPE_BASENAMES = [
     "liability_violin.phenotype.by_generation",
     "liability_violin.phenotype.by_sex.by_generation",
     # Genetic selection
-    "genetic_selection.by_generation",
+    "liability_components.by_generation",
     # Age of onset & censoring
     "age_at_onset_death",
     "mortality",

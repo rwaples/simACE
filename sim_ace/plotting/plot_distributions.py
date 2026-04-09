@@ -618,7 +618,7 @@ def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenar
         ax.text(i, v + 0.005, f"{v:.1%}", ha="center", va="bottom", fontsize=10)
     mean_size = np.mean([fs.get("mean", 0) for fs in fs_list])
     ax.set_title("Offspring per Couple")
-    ax.set_xlabel("Number of children")
+    ax.set_xlabel("Number of offspring")
     ax.set_ylabel("Fraction of couples")
     ax.text(
         0.97,
@@ -681,7 +681,7 @@ def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenar
     ax.set_xlabel("Number of offspring")
     ax.set_ylabel("Fraction of individuals")
 
-    # --- Panel 3: Mates per parent ---
+    # --- Panel 3: Partners per parent ---
     ax = axes[2]
     mates_list = [fs.get("mates_by_sex", {}) for fs in fs_list]
     f1 = np.mean([m.get("female_1", 0) for m in mates_list])
@@ -705,7 +705,7 @@ def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenar
     ax.set_xticks(x)
     ax.set_xticklabels(["1 partner", "2+ partners"])
     ax.set_ylabel("Fraction of parents")
-    ax.set_title("Mates per Parent")
+    ax.set_title("Partners per Parent")
     ax.legend(fontsize=10)
     f_mean = np.mean([m.get("female_mean", 0) for m in mates_list])
     m_mean = np.mean([m.get("male_mean", 0) for m in mates_list])
