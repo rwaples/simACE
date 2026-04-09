@@ -13,7 +13,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["snakemake", "snakefmt", "pytest", "ruff>=0.8"]
+dev = [
+    "snakemake", "snakefmt", "pytest", "ruff>=0.8",
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.27",
+]
 
 [project.scripts]
 sim-ace-simulate = "sim_ace.simulation.simulate:cli"

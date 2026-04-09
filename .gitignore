@@ -15,6 +15,9 @@ benchmarks/
 # Snakemake
 .snakemake/
 
+# MkDocs build output
+site/
+
 # Conda environment
 env/
 

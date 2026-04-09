@@ -1,0 +1,96 @@
+site_name: simACE documentation
+site_description: Simulate registry-scale age-of-onset phenotypes with realistic pedigrees and the ACE liability model.
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+    - content.code.copy
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.arithmatex:
+      generic: true
+  - toc:
+      permalink: true
+  - attr_list
+  - md_in_html
+  - tables
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            docstring_section_style: spacy
+            show_source: true
+            show_root_heading: true
+            show_root_full_path: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            merge_init_into_class: true
+            show_if_no_docstring: false
+            signature_crossrefs: true
+            separate_signature: true
+            line_length: 80
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quickstart.md
+  - User Guide:
+      - Configuration: user-guide/configuration.md
+      - Running the Pipeline: user-guide/running-the-pipeline.md
+      - Output Structure: user-guide/output-structure.md
+      - Interpreting Results: user-guide/interpreting-results.md
+  - Concepts:
+      - ACE Model: concepts/ace-model.md
+      - Simulation Design: concepts/simulation-design.md
+      - Model Fitting: concepts/model-fitting.md
+  - API Reference:
+      - api/index.md
+      - Core: api/core.md
+      - Simulation: api/simulation.md
+      - Phenotyping: api/phenotyping.md
+      - Censoring: api/censoring.md
+      - Sampling: api/sampling.md
+      - Analysis: api/analysis.md
+      - Plotting: api/plotting.md
+  - Changelog: changelog.md
