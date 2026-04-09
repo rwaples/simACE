@@ -11,6 +11,8 @@ from workflow.common import (
     plot_filenames,
     _scale_mem,
     _scale_runtime,
+    _epimight_mem,
+    _epimight_runtime,
     _PHENOTYPE_BASENAMES,
     _SIMPLE_LTM_BASENAMES,
     _VALIDATION_BASENAMES,
