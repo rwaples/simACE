@@ -27,8 +27,8 @@ rule epimight_create_parquet:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_create_parquet.tsv"
     threads: 1
     resources:
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
-        runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
+        mem_mb=lambda w: _epimight_mem(config, w.scenario),
+        runtime=lambda w: _epimight_runtime(config, w.scenario),
     script:
         "../scripts/epimight_create_parquet.py"
 
@@ -49,8 +49,8 @@ rule epimight_guide_yob:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_guide_yob_{kind}.tsv"
     threads: 1
     resources:
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_pheno"),
-        runtime=lambda w: _scale_runtime(config, w.scenario, "G_pheno"),
+        mem_mb=lambda w: _epimight_mem(config, w.scenario),
+        runtime=lambda w: _epimight_runtime(config, w.scenario),
     params:
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
         K=lambda w: get_param(config, w.scenario, "epimight_mi_K"),
@@ -89,8 +89,8 @@ rule epimight_atlas:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_atlas.tsv"
     threads: 1
     resources:
-        mem_mb=4000,
-        runtime=10,
+        mem_mb=2000,
+        runtime=5,
     script:
         "../scripts/epimight_atlas.py"
 
