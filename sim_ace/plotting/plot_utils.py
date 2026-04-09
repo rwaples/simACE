@@ -60,7 +60,14 @@ def _make_heatmap_cmap():
 HEATMAP_CMAP = _make_heatmap_cmap()
 
 
-def annotate_heatmap(ax, proportions, counts, fmt_prop=".2f", prop_size=18, count_size=11) -> None:
+def annotate_heatmap(
+    ax: plt.Axes,
+    proportions: np.ndarray,
+    counts: np.ndarray,
+    fmt_prop: str = ".2f",
+    prop_size: int = 18,
+    count_size: int = 11,
+) -> None:
     """Add two-line annotations to a heatmap: large bold proportion, smaller count.
 
     Args:
