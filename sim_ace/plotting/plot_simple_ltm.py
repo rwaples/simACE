@@ -230,23 +230,24 @@ def plot_liability_violin(
                 fontweight="bold",
             )
 
+    y_lo = ax.get_ylim()[0]
     ax.text(
-        0,
-        ax.get_ylim()[0],
-        f"Prevalence: {prev1:.1%}",
+        -0.35,
+        y_lo + 0.15,
+        f"{prev1:.1%}",
         ha="center",
-        va="top",
-        fontsize=10,
-        fontstyle="italic",
+        va="bottom",
+        fontsize=9,
+        color="0.5",
     )
     ax.text(
-        1,
-        ax.get_ylim()[0],
-        f"Prevalence: {prev2:.1%}",
+        0.65,
+        y_lo + 0.15,
+        f"{prev2:.1%}",
         ha="center",
-        va="top",
-        fontsize=10,
-        fontstyle="italic",
+        va="bottom",
+        fontsize=9,
+        color="0.5",
     )
     finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
@@ -286,7 +287,7 @@ def plot_liability_violin_by_generation(
             if len(liab) > 1:
                 draw_split_violin(ax, liab[~aff], liab[aff], pos=0)
                 ax.set_xticks([0])
-                ax.set_xticklabels([f"Trait {trait_num}"])
+                ax.set_xticklabels([])
                 if row == 0 and col == n_gens - 1:
                     from matplotlib.patches import Patch
 
@@ -309,22 +310,10 @@ def plot_liability_violin_by_generation(
                     ax.plot(-0.05, mu, "D", color="black", markersize=5, zorder=5)
                     ax.text(-0.12, mu, f"\u03bc={mu:.2f}", ha="right", va="center", fontsize=8, fontweight="bold")
 
-            # Prevalence annotation
-            if isinstance(prevalence, dict) and "female" in prevalence and "male" in prevalence:
-                f_prev = prevalence["female"]
-                m_prev = prevalence["male"]
-                if isinstance(f_prev, dict):
-                    f_prev = f_prev.get(int(gen), float("nan"))
-                if isinstance(m_prev, dict):
-                    m_prev = m_prev.get(int(gen), float("nan"))
-                exp_label = f"F={f_prev:.0%}/M={m_prev:.0%}"
-            elif isinstance(prevalence, dict):
-                prev = prevalence.get(int(gen), float("nan"))
-                exp_label = f"{prev:.1%}"
-            else:
-                exp_label = f"{prevalence:.1%}"
+            # Prevalence as x-tick label
             obs_prev = df_gen[aff_col].mean() if len(df_gen) else float("nan")
-            ax.set_xlabel(f"prev: {obs_prev:.1%} (exp {exp_label})", fontsize=8)
+            ax.set_xticks([0])
+            ax.set_xticklabels([f"{obs_prev:.1%}"])
 
             if row == 0:
                 label = f"Gen {gen}"

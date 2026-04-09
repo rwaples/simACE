@@ -65,7 +65,7 @@ def _plot_joint_grid(
     ]
     panels = [(x, y, t) for x, y, t in panels if x in df_samples.columns and y in df_samples.columns]
 
-    fig = plt.figure(figsize=(13, 13))
+    fig = plt.figure(figsize=(13, 12))
     outer = GridSpec(2, 2, figure=fig, hspace=0.35, wspace=0.35)
 
     if color_by_affected:
@@ -163,7 +163,8 @@ def _plot_joint_grid(
             Line2D([0], [0], marker="o", color="w", markerfacecolor=COLOR_UNAFFECTED, markersize=6, label="Unaffected"),
             Line2D([0], [0], marker="o", color="w", markerfacecolor=COLOR_AFFECTED, markersize=6, label=aff_label),
         ]
-        fig.legend(handles=legend_handles, loc="upper right", fontsize=10)
+        fig.legend(handles=legend_handles, loc="lower left", fontsize=10,
+                   bbox_to_anchor=(0.05, 0.02))
 
     finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
@@ -289,8 +290,9 @@ def plot_liability_violin_by_generation(
 
             if len(liab) > 1:
                 draw_split_violin(ax, liab[~aff], liab[aff], pos=0)
+                obs_prev = aff.mean()
                 ax.set_xticks([0])
-                ax.set_xticklabels([f"Trait {trait_num}"])
+                ax.set_xticklabels([f"{obs_prev:.1%}"])
                 if row == 0 and col == n_gens - 1:
                     from matplotlib.patches import Patch
 
@@ -312,14 +314,6 @@ def plot_liability_violin_by_generation(
                     mu = liab[~aff].mean()
                     ax.plot(-0.05, mu, "D", color="black", markersize=5, zorder=5)
                     ax.text(-0.12, mu, f"\u03bc={mu:.2f}", ha="right", va="center", fontsize=8, fontweight="bold")
-
-                # Prevalence annotation — just above x-axis, left of center
-                obs_prev = aff.mean()
-                y_lo = ax.get_ylim()[0]
-                ax.text(
-                    -0.15, y_lo + 0.15, f"{obs_prev:.1%}",
-                    ha="center", va="bottom", fontsize=7, color="0.5",
-                )
 
             if row == 0:
                 label = f"Gen {gen}"

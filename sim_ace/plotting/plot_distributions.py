@@ -378,7 +378,7 @@ def plot_cumulative_incidence_by_sex(
             mean_prev = np.mean([d["prevalence"] for d in rep_data])
 
             ax.plot(
-                ages, mean_values, color=color, linewidth=1.2, label=f"{display} (n={int(mean_n)}, prev={mean_prev:.1%})"
+                ages, mean_values, color=color, linewidth=1.2, label=f"{display} ({mean_prev:.1%}, n={int(mean_n)})"
             )
 
         ax.set_title(f"Trait {trait_num}")
@@ -445,7 +445,7 @@ def plot_cumulative_incidence_by_sex_generation(
                 mean_prev = np.mean([d["prevalence"] for d in rep_data])
 
                 ax.plot(
-                    ages, mean_values, color=color, linewidth=1.2, label=f"{display} (n={int(mean_n)}, {mean_prev:.1%})"
+                    ages, mean_values, color=color, linewidth=1.2, label=f"{display} ({mean_prev:.1%}, n={int(mean_n)})"
                 )
 
             if row == 0:
