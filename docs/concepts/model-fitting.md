@@ -2,7 +2,7 @@
 
 The `fit_ace` package handles statistical model fitting on simulated data.
 This page gives conceptual context; see the
-[fit_ace README](https://github.com/) for usage instructions.
+[fit_ace README](https://github.com/ryanwaples/ACE/blob/master/fit_ace/README.md) for usage instructions.
 
 ## Phenotype models
 
