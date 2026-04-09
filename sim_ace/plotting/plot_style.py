@@ -9,6 +9,7 @@ __all__ = [
     "COLOR_MALE",
     "COLOR_OBSERVED",
     "COLOR_TRUE",
+    "COLOR_UNCENSORED",
     "COLOR_UNAFFECTED",
     "PAIR_COLORS",
     "add_scenario_label",
@@ -60,10 +61,8 @@ CENSORING_COLORS: dict[str, str] = {
     "left": "#EE7733",      # orange
 }
 
-# Secondary data-series colors (for bar charts, regression lines, etc.)
-COLOR_SERIES_1 = "#4477AA"  # blue
-COLOR_SERIES_2 = "#EE6677"  # rose
-COLOR_SERIES_3 = "#228833"  # green
+# Frailty / uncensored oracle reference lines
+COLOR_UNCENSORED = "#228833"  # muted green
 
 
 # ---------------------------------------------------------------------------

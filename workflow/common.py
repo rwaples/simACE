@@ -71,26 +71,18 @@ def _scale_runtime(config, scenario, gen_key="G_pheno", min_per_1M=5, floor=5):
 
 
 def _epimight_mem(config, scenario, base_mb=6000, mb_per_K=50):
-    """Estimate mem_mb for EPIMIGHT R rules.
+    """Estimate mem_mb for EPIMIGHT MI rules (guide_yob).
 
-    R memory depends on pair count (N × G) *and* imputations K.
+    Adds K × mb_per_K for MI resamples on top of the base population scaling.
     Floor of 6000 MB covers R process overhead observed in benchmarks.
     """
-    n = get_param(config, scenario, "N")
-    g = get_param(config, scenario, "G_pheno")
     k = get_param(config, scenario, "epimight_mi_K")
-    size_mb = int(n * g * 2 / 1000) + k * mb_per_K
-    return max(base_mb, size_mb)
+    return _scale_mem(config, scenario, mb_per_1k=2, floor=base_mb) + k * mb_per_K
 
 
-def _epimight_runtime(config, scenario, min_per_1M=10, floor=5):
-    """Estimate runtime (minutes) for EPIMIGHT R rules.
-
-    R MI analysis is slower than Python steps — use 10 min/1M vs 5.
-    """
-    n = get_param(config, scenario, "N")
-    g = get_param(config, scenario, "G_pheno")
-    return max(floor, int(n * g * min_per_1M / 1_000_000))
+def _epimight_runtime(config, scenario):
+    """Estimate runtime (minutes) for EPIMIGHT R rules (slower than Python steps)."""
+    return _scale_runtime(config, scenario, min_per_1M=10)
 
 
 def get_folder(config, scenario):

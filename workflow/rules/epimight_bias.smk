@@ -35,8 +35,8 @@ rule ltm_falconer:
         "benchmarks/{folder}/{scenario}/rep{rep}/ltm_falconer.tsv"
     threads: 1
     resources:
-        mem_mb=lambda w: _epimight_mem(config, w.scenario),
-        runtime=lambda w: _epimight_runtime(config, w.scenario),
+        mem_mb=lambda w: _scale_mem(config, w.scenario),
+        runtime=lambda w: _scale_runtime(config, w.scenario),
     params:
         kinds=lambda w: get_param(config, w.scenario, "epimight_kinds"),
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,

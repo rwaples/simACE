@@ -213,9 +213,6 @@ def plot_liability_violin(
         draw_split_violin(ax, liab[~aff], liab[aff], pos=i)
     ax.set_xticks([0, 1])
     ax.set_xticklabels([f"Trait 1\n{prev1:.1%}", f"Trait 2\n{prev2:.1%}"])
-    # Grey out the prevalence line in tick labels
-    for label in ax.get_xticklabels():
-        label.set_color("black")
     ax.set_ylabel("Liability")
     from matplotlib.patches import Patch
 

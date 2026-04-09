@@ -29,7 +29,13 @@ import numpy as np
 import pandas as pd
 
 from sim_ace.core.utils import PAIR_TYPES
-from sim_ace.plotting.plot_style import COLOR_AFFECTED, COLOR_OBSERVED, COLOR_UNAFFECTED, enable_value_gridlines
+from sim_ace.plotting.plot_style import (
+    COLOR_AFFECTED,
+    COLOR_OBSERVED,
+    COLOR_UNCENSORED,
+    COLOR_UNAFFECTED,
+    enable_value_gridlines,
+)
 from sim_ace.plotting.plot_utils import PAIR_COLORS, draw_colored_violins, finalize_plot, save_placeholder_plot
 
 logger = logging.getLogger(__name__)
@@ -158,7 +164,7 @@ def plot_tetrachoric_sibling(
                         mean_uncens_r,
                         i - 0.35,
                         i + 0.35,
-                        colors="#228833",
+                        colors=COLOR_UNCENSORED,
                         linestyles="dashdot",
                         linewidth=1.0,
                         zorder=5,
@@ -198,7 +204,7 @@ def plot_tetrachoric_sibling(
         ]
         if has_uncens:
             legend_elements.append(
-                Line2D([0], [0], color="#228833", linestyle="-.", linewidth=1.0, label="Frailty r (uncensored)"),
+                Line2D([0], [0], color=COLOR_UNCENSORED, linestyle="-.", linewidth=1.0, label="Frailty r (uncensored)"),
             )
         if has_parametric:
             legend_elements.append(
@@ -435,7 +441,7 @@ def plot_cross_trait_tetrachoric(
         if oracle_rs:
             ax_left.axhline(
                 y=np.mean(oracle_rs),
-                color="#228833",
+                color=COLOR_UNCENSORED,
                 linestyle="-.",
                 linewidth=1.0,
                 alpha=0.7,

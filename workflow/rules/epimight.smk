@@ -27,8 +27,8 @@ rule epimight_create_parquet:
         "benchmarks/{folder}/{scenario}/rep{rep}/epimight_create_parquet.tsv"
     threads: 1
     resources:
-        mem_mb=lambda w: _epimight_mem(config, w.scenario),
-        runtime=lambda w: _epimight_runtime(config, w.scenario),
+        mem_mb=lambda w: _scale_mem(config, w.scenario),
+        runtime=lambda w: _scale_runtime(config, w.scenario),
     script:
         "../scripts/epimight_create_parquet.py"
 
