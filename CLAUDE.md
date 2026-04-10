@@ -8,6 +8,7 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 - Do NOT run `git push` under any circumstances
 - Do NOT include Co-Authored-By in commit messages
 - Commit when explicitly asked
+- Prefer batching commits at the end of a session — show changed files grouped by purpose, then commit per logical change
 
 ## Snakemake
 
@@ -66,6 +67,18 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 - Format Python: `ruff format`
 - Format Snakemake: `snakefmt workflow/rules/*.smk Snakefile`
 
+## Documentation & Citations
+
+- When generating citations or DOI references, never fabricate details. Always verify every DOI and bibliographic entry against actual sources before including them.
+
+## Implementation Approach
+
+- For non-trivial implementation tasks, propose 2-3 approaches with tradeoffs before writing code. Wait for approval.
+
+## Design Interviews
+
+- When starting a design interview or /grill-me session, if there is no existing plan, first explore the relevant codebase (grep for related modules, read key files) before asking questions. Ground the interview in what the code actually does.
+
 ## Session Management
 
 - Prefer focused sessions (one feature per session)
@@ -76,3 +89,4 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 
 - Always profile/benchmark first to identify the actual bottleneck before implementing changes
 - Do not assume which component is slow — show profiling data before proposing a solution
+- When narrowing numeric dtypes for memory optimization, never narrow below int32 for generation columns and always verify float precision doesn't break existing test tolerances before committing
