@@ -13,8 +13,8 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 
 - Root `Snakefile` is the entry point — never use `-s workflow/Snakefile`
 - Use `--cores 4` (testing) or `--cores 1` (debugging). Always dry-run (`-n`) before long runs.
-- Targets: `simulate_all`, `phenotype_all`, `validate_all`, `stats_all`, `epimight_all`
-- Single scenario: `snakemake --cores 4 results/{folder}/{scenario}/scenario.done`
+- Targets are per-scenario: `results/{folder}/{scenario}/{scenario,simulate,phenotype,validate,stats,epimight}.done`
+- Single stage: `results/{folder}/{scenario}/{simulate,phenotype,validate,stats}.done`
 - Force-rebuild plots: `snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.pdf`
 - Single EPIMIGHT kind: `snakemake --cores 4 results/{folder}/{scenario}/rep1/epimight/tsv/h2_d1_FS.tsv`
 

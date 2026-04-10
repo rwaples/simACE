@@ -155,15 +155,17 @@ Use `--cores N` where N is the number of parallel jobs.
 # Run everything (default target — 16 scenarios, ~60-90 min)
 snakemake --cores 4
 
-# Run individual stages
-snakemake --cores 4 simulate_all     # pedigree simulation only
-snakemake --cores 4 phenotype_all    # simulation + phenotyping
-snakemake --cores 4 validate_all     # simulation + validation + folder summaries
-snakemake --cores 4 stats_all        # phenotyping + stats + plots
-snakemake --cores 4 epimight_all     # EPIMIGHT heritability (see fit_ace/README.md)
-
-# Run a single named scenario
+# Run a single scenario (all stages)
 snakemake --cores 4 results/base/baseline10K/scenario.done
+
+# Run a single stage for one scenario
+snakemake --cores 4 results/base/baseline10K/simulate.done   # pedigree simulation only
+snakemake --cores 4 results/base/baseline10K/phenotype.done  # simulation + phenotyping
+snakemake --cores 4 results/base/baseline10K/validate.done   # simulation + validation
+snakemake --cores 4 results/base/baseline10K/stats.done      # phenotyping + stats + plots
+
+# EPIMIGHT heritability for one scenario (see fit_ace/README.md)
+snakemake --cores 4 results/base/baseline10K/epimight.done
 
 # Dry run to see what will be executed
 snakemake -n --cores 4
@@ -430,7 +432,7 @@ ACE/
 ├── workflow/
 │   ├── common.py                      # Shared helpers (get_param, get_folder, etc.)
 │   ├── rules/                         # Modular Snakemake rule files
-│   │   ├── targets.smk                # Target rules: all, simulate_all, phenotype_all, etc.
+│   │   ├── targets.smk                # Target rules: all, scenario, per-stage sentinels
 │   │   ├── simulate.smk, dropout.smk  # Pedigree simulation and dropout
 │   │   ├── phenotype.smk, sample.smk  # Phenotyping and sampling
 │   │   ├── validate.smk, stats.smk    # Validation and statistics

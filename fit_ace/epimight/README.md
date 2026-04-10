@@ -157,8 +157,8 @@ Instead of running the steps manually, use Snakemake to manage the full pipeline
 # Single scenario (one replicate)
 snakemake --cores 4 results/base/baseline100K/rep1/epimight/plots/atlas.pdf
 
-# All scenarios and replicates
-snakemake --cores 4 epimight_all
+# All replicates for one scenario
+snakemake --cores 4 results/base/baseline100K/epimight.done
 ```
 
 Snakemake uses `conda run -n epimight` to invoke R in the epimight env, and auto-installs the epimight R package on first run.

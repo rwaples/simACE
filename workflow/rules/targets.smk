@@ -6,53 +6,6 @@ rule all:
         ],
 
 
-rule simulate_all:
-    """Run pedigree simulation only (no phenotyping, validation, or plots)."""
-    input:
-        [
-            f"results/{get_folder(config, s)}/{s}/rep{r}/pedigree.parquet"
-            for s in config["scenarios"]
-            for r in range(1, get_param(config, s, "replicates") + 1)
-        ],
-
-
-rule phenotype_all:
-    """Run simulation + phenotyping (phenotype and simple LTM)."""
-    input:
-        [
-            f"results/{get_folder(config, s)}/{s}/rep{r}/{f}"
-            for s in config["scenarios"]
-            for r in range(1, get_param(config, s, "replicates") + 1)
-            for f in [
-                "phenotype.parquet",
-                "phenotype.simple_ltm.parquet",
-            ]
-        ],
-
-
-rule validate_all:
-    """Run simulation + validation + folder summaries."""
-    input:
-        [
-            f"results/{folder}/validation_summary.tsv"
-            for folder in get_all_folders(config)
-        ],
-        [
-            f"results/{folder}/plots/{VALIDATION_PLOTS[0]}"
-            for folder in get_all_folders(config)
-        ],
-
-
-rule stats_all:
-    """Run phenotyping + stats + phenotype/simple LTM plots."""
-    input:
-        [
-            f"results/{get_folder(config, s)}/{s}/plots/{plot}"
-            for s in config["scenarios"]
-            for plot in PHENOTYPE_PLOTS + SIMPLE_LTM_PLOTS
-        ],
-
-
 rule folder:
     """Build all scenario outputs for a single folder grouping."""
     input:
@@ -72,3 +25,61 @@ rule scenario:
         lambda w: f"results/{get_folder(config, w.scenario)}/plots/{VALIDATION_PLOTS[0]}",
     output:
         touch("results/{folder}/{scenario}/scenario.done"),
+
+
+rule simulate_scenario:
+    """Run pedigree simulation only for a single scenario."""
+    input:
+        lambda w: [
+            f"results/{w.folder}/{w.scenario}/rep{r}/pedigree.parquet"
+            for r in range(1, get_param(config, w.scenario, "replicates") + 1)
+        ],
+    output:
+        touch("results/{folder}/{scenario}/simulate.done"),
+
+
+rule phenotype_scenario:
+    """Run simulation + phenotyping for a single scenario."""
+    input:
+        lambda w: [
+            f"results/{w.folder}/{w.scenario}/rep{r}/{f}"
+            for r in range(1, get_param(config, w.scenario, "replicates") + 1)
+            for f in [
+                "phenotype.parquet",
+                "phenotype.simple_ltm.parquet",
+            ]
+        ],
+    output:
+        touch("results/{folder}/{scenario}/phenotype.done"),
+
+
+rule validate_scenario:
+    """Run simulation + validation for a single scenario."""
+    input:
+        lambda w: [
+            f"results/{w.folder}/{w.scenario}/rep{r}/validation.yaml"
+            for r in range(1, get_param(config, w.scenario, "replicates") + 1)
+        ],
+        lambda w: f"results/{get_folder(config, w.scenario)}/validation_summary.tsv",
+        lambda w: f"results/{get_folder(config, w.scenario)}/plots/{VALIDATION_PLOTS[0]}",
+    output:
+        touch("results/{folder}/{scenario}/validate.done"),
+
+
+rule stats_scenario:
+    """Run phenotyping + stats + plots for a single scenario."""
+    input:
+        lambda w: [
+            f"results/{w.folder}/{w.scenario}/rep{r}/{f}"
+            for r in range(1, get_param(config, w.scenario, "replicates") + 1)
+            for f in [
+                "phenotype_stats.yaml",
+                "simple_ltm_stats.yaml",
+            ]
+        ],
+        lambda w: [
+            f"results/{w.folder}/{w.scenario}/plots/{plot}"
+            for plot in PHENOTYPE_PLOTS + SIMPLE_LTM_PLOTS
+        ],
+    output:
+        touch("results/{folder}/{scenario}/stats.done"),

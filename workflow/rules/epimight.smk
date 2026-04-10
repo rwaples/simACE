@@ -107,11 +107,12 @@ rule epimight_folder:
         touch("results/{folder}/epimight.done"),
 
 
-rule epimight_all:
-    """Run EPIMIGHT analysis for all scenarios and replicates."""
+rule epimight_scenario:
+    """Run EPIMIGHT analysis for all replicates in a single scenario."""
     input:
-        [
-            f"results/{get_folder(config, s)}/{s}/rep{r}/epimight/plots/atlas.pdf"
-            for s in config["scenarios"]
-            for r in range(1, get_param(config, s, "replicates") + 1)
+        lambda w: [
+            f"results/{w.folder}/{w.scenario}/rep{r}/epimight/plots/atlas.pdf"
+            for r in range(1, get_param(config, w.scenario, "replicates") + 1)
         ],
+    output:
+        touch("results/{folder}/{scenario}/epimight.done"),

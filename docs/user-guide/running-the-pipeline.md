@@ -22,11 +22,12 @@ snakemake -n --cores 4
 | Target | What it runs |
 |---|---|
 | `snakemake --cores 4` | Everything (default -- all scenarios, all stages) |
-| `simulate_all` | Pedigree simulation only |
-| `phenotype_all` | Simulation + phenotyping |
-| `validate_all` | Simulation + validation + folder summaries |
-| `stats_all` | Phenotyping + stats + plots |
-| `epimight_all` | EPIMIGHT heritability estimation |
+| `results/{folder}/{scenario}/epimight.done` | EPIMIGHT heritability estimation |
+| `results/{folder}/{scenario}/scenario.done` | All stages for one scenario |
+| `results/{folder}/{scenario}/simulate.done` | Pedigree simulation only |
+| `results/{folder}/{scenario}/phenotype.done` | Simulation + phenotyping |
+| `results/{folder}/{scenario}/validate.done` | Simulation + validation + folder summaries |
+| `results/{folder}/{scenario}/stats.done` | Phenotyping + stats + plots |
 
 ## Running a single scenario
 
