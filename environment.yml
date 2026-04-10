@@ -31,7 +31,7 @@ dependencies:
   - libopenblas
   - mkl
   - tbb
-  - sparse_dot_mkl
+
   # system
   - pip
   # optional: for generating methods.pdf
