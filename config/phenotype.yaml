@@ -31,61 +31,71 @@ beta_sex:
 lognormal_phenotype:
   seed: 17042
   beta1: 1.0
-  phenotype_model1: frailty_lognormal
+  phenotype_model1: frailty
   phenotype_params1:
+    distribution: lognormal
     mu: 4.0
     sigma: 0.8
   beta2: 1.5
-  phenotype_model2: frailty_lognormal
+  phenotype_model2: frailty
   phenotype_params2:
+    distribution: lognormal
     mu: 3.5
     sigma: 0.6
 gamma_phenotype:
   seed: 18042
   beta1: 1.0
-  phenotype_model1: frailty_gamma
+  phenotype_model1: frailty
   phenotype_params1:
+    distribution: gamma
     shape: 2.0
     scale: 1000.0
   beta2: 1.5
-  phenotype_model2: frailty_gamma
+  phenotype_model2: frailty
   phenotype_params2:
+    distribution: gamma
     shape: 3.0
     scale: 500.0
 loglogistic_phenotype:
   seed: 19042
   beta1: 1.0
-  phenotype_model1: frailty_loglogistic
+  phenotype_model1: frailty
   phenotype_params1:
+    distribution: loglogistic
     scale: 60.0
     shape: 4.0
   beta2: 1.5
-  phenotype_model2: frailty_loglogistic
+  phenotype_model2: frailty
   phenotype_params2:
+    distribution: loglogistic
     scale: 40.0
     shape: 3.0
 gompertz_phenotype:
   seed: 20042
   beta1: 1.0
-  phenotype_model1: frailty_gompertz
+  phenotype_model1: frailty
   phenotype_params1:
+    distribution: gompertz
     rate: 0.0001
     gamma: 0.05
   beta2: 1.5
-  phenotype_model2: frailty_gompertz
+  phenotype_model2: frailty
   phenotype_params2:
+    distribution: gompertz
     rate: 0.0003
     gamma: 0.07
 mixed_hazard:
   seed: 21042
   beta1: 1.0
-  phenotype_model1: frailty_loglogistic
+  phenotype_model1: frailty
   phenotype_params1:
+    distribution: loglogistic
     scale: 4
     shape: 3.5
   beta2: 1.5
-  phenotype_model2: frailty_lognormal
+  phenotype_model2: frailty
   phenotype_params2:
+    distribution: lognormal
     mu: 4.16
     sigma: 0.076
 increasing_prevalence:

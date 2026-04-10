@@ -1,13 +1,15 @@
 
 # ACE Phenotype Models
 
-Ten phenotype models convert pedigree liabilities (L = A + C + E) to
+Four model families convert pedigree liabilities (L = A + C + E) to
 age-of-onset times. Set independently per trait via `phenotype_model1`/`phenotype_model2`
-in config (default: `weibull`).
+in config (default: `frailty`).
 
 ```yaml
-phenotype_model1: weibull    # weibull/exponential/gompertz/lognormal/loglogistic/gamma/cure_frailty/adult_ltm/adult_cox/first_passage
-phenotype_model2: weibull
+phenotype_model1: frailty         # frailty / cure_frailty / adult / first_passage
+phenotype_params1:
+  distribution: weibull           # for frailty/cure_frailty: weibull/exponential/gompertz/lognormal/loglogistic/gamma
+                                  # for adult: method: ltm/cox
 ```
 
 All models produce raw event times `t1`, `t2` which are then censored by
@@ -15,19 +17,19 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 
 ## Index
 
-| # | Model | Line |
-|---|-------|------|
-| 1 | Frailty (default) | 34 |
-|   | 1a Weibull | 67 |
-|   | 1b Exponential | 95 |
-|   | 1c Gompertz | 116 |
-|   | 1d Lognormal | 141 |
-|   | 1e Loglogistic | 163 |
-|   | 1f Gamma | 191 |
-| 2 | Mixture Cure Frailty | 212 |
-| 3 | ADuLT LTM | 253 |
-| 4 | ADuLT Cox | 304 |
-| 5 | First-Passage Time | 351 |
+| # | Model | Sub-key |
+|---|-------|---------|
+| 1 | `frailty` (default) | `distribution:` |
+|   | 1a Weibull | `distribution: weibull` |
+|   | 1b Exponential | `distribution: exponential` |
+|   | 1c Gompertz | `distribution: gompertz` |
+|   | 1d Lognormal | `distribution: lognormal` |
+|   | 1e Loglogistic | `distribution: loglogistic` |
+|   | 1f Gamma | `distribution: gamma` |
+| 2 | `cure_frailty` | `distribution:` |
+| 3 | `adult` (LTM) | `method: ltm` |
+| 4 | `adult` (Cox) | `method: cox` |
+| 5 | `first_passage` | (none) |
 
 
 # ==============================================================================
@@ -48,13 +50,14 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 # Config parameters:
 #     beta1, beta2:               liability effect on log-hazard
 #     beta_sex1, beta_sex2:       sex covariate effect (0 = no effect)
-#     phenotype_model1, phenotype_model2: baseline hazard name (see below)
-#     phenotype_params1, phenotype_params2: model-specific parameter dict
+#     phenotype_model1, phenotype_model2: model family name
+#     phenotype_params1, phenotype_params2: distribution + model-specific parameters
 #
 # Example:
-# phenotype_model1: weibull
+# phenotype_model1: frailty
 # beta1: 1.0
 # phenotype_params1:
+#   distribution: weibull
 #   scale: 2160
 #   rho: 0.8
 
@@ -84,8 +87,9 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
   #   - rho < 1  -> decreasing hazard
   #
   # Example:
-  # phenotype_model1: weibull
+  # phenotype_model1: frailty
   # phenotype_params1:
+  #   distribution: weibull
   #   scale: 2160
   #   rho: 0.8
 
@@ -106,8 +110,9 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
   #   rate = 1 / mean
   #
   # Example:
-  # phenotype_model1: exponential
+  # phenotype_model1: frailty
   # phenotype_params1:
+  #   distribution: exponential
   #   rate: 0.02    # mean onset ~ 50
 
 
@@ -130,8 +135,9 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
   #   - To make onset earlier -> increase gamma
   #
   # Example:
-  # phenotype_model1: gompertz
+  # phenotype_model1: frailty
   # phenotype_params1:
+  #   distribution: gompertz
   #   rate: 0.00005
   #   gamma: 0.07
 
@@ -152,8 +158,9 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
   #
   #
   # Example (mean ~ 65, sd ~ 5):
-  # phenotype_model1: lognormal
+  # phenotype_model1: frailty
   # phenotype_params1:
+  #   distribution: lognormal
   #   mu: 4.160
   #   sigma: 0.076
 
@@ -180,8 +187,9 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
   #   shape = 1 -> logistic distribution (monotone)
   #
   # Example:
-  # phenotype_model1: loglogistic
+  # phenotype_model1: frailty
   # phenotype_params1:
+  #   distribution: loglogistic
   #   scale: 50
   #   shape: 3.5
 
@@ -201,8 +209,9 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
   #     scale = (sd^2) / mean
   #
   # Example (mean ~ 60, sd ~ 10):
-  # phenotype_model1: gamma
+  # phenotype_model1: frailty
   # phenotype_params1:
+  #   distribution: gamma
   #   shape: 36.0       # (60/10)^2
   #   scale: 1.6667     # (10^2)/60
 
@@ -226,8 +235,8 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 # age-of-onset (stochastic from frailty + baseline hazard), unlike the
 # pure frailty model where both are entangled.
 #
-# The `baseline` key in phenotype_params selects which frailty baseline
-# hazard to use (any of the 6 frailty models: weibull, exponential,
+# The `distribution` key in phenotype_params selects which frailty baseline
+# hazard to use (any of the 6 distributions: weibull, exponential,
 # gompertz, lognormal, loglogistic, gamma).
 #
 # Config parameters:
@@ -235,22 +244,22 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 #     beta1, beta2:                    liability effect on log-hazard (cases only)
 #     beta_sex1, beta_sex2:            sex covariate effect (0 = no effect)
 #     phenotype_params1/2:
-#       baseline: <frailty model>      baseline hazard model name
-#       <baseline params>:             parameters for the chosen baseline
+#       distribution: <distribution>   baseline hazard distribution name
+#       <distribution params>:         parameters for the chosen distribution
 #
 # Example:
 # phenotype_model1: cure_frailty
 # prevalence1: 0.10
 # beta1: 1.0
 # phenotype_params1:
-#   baseline: weibull
+#   distribution: weibull
 #   scale: 2160
 #   rho: 0.8
 
 
 
 # ==============================================================================
-# 3) ADuLT LIABILITY THRESHOLD MODEL (adult_ltm)
+# 3) ADuLT LIABILITY THRESHOLD MODEL (adult, method: ltm)
 # ==============================================================================
 # From Pedersen et al., Nat Commun 2023.
 # Deterministic mapping from liability to age-of-onset via the logistic
@@ -287,21 +296,23 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 #       cip_k:   logistic CIP growth rate (default 0.2)
 #
 # Example:
-# phenotype_model1: adult_ltm
-# phenotype_model2: adult_ltm
+# phenotype_model1: adult
+# phenotype_model2: adult
 # prevalence1: 0.10
 # prevalence2: 0.20
 # phenotype_params1:
+#   method: ltm
 #   cip_x0: 50
 #   cip_k: 0.2
 # phenotype_params2:
+#   method: ltm
 #   cip_x0: 50
 #   cip_k: 0.2
 
 
 
 # ==============================================================================
-# 4) ADuLT PROPORTIONAL HAZARDS MODEL (adult_cox)
+# 4) ADuLT PROPORTIONAL HAZARDS MODEL (adult, method: cox)
 # ==============================================================================
 # From Pedersen et al., Nat Commun 2023.
 # Weibull(shape=2) proportional hazards with rank-based CIP-to-age mapping.
@@ -322,9 +333,9 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 #   - Case rate = prevalence (by rank cutoff)
 #   - Case onset ages centered around x0
 #
-# Key difference from adult_ltm:
-#   - adult_ltm is deterministic (liability alone determines case/age)
-#   - adult_cox adds Weibull noise, so two individuals with the same liability
+# Key difference from adult (ltm):
+#   - adult (ltm) is deterministic (liability alone determines case/age)
+#   - adult (cox) adds Weibull noise, so two individuals with the same liability
 #     may differ in case status and onset age
 #
 # Config parameters:
@@ -334,14 +345,16 @@ ACE's downstream censoring pipeline (age-window + Weibull competing-risk mortali
 #       cip_k:   logistic CIP growth rate (default 0.2)
 #
 # Example:
-# phenotype_model1: adult_cox
-# phenotype_model2: adult_cox
+# phenotype_model1: adult
+# phenotype_model2: adult
 # prevalence1: 0.10
 # prevalence2: 0.20
 # phenotype_params1:
+#   method: cox
 #   cip_x0: 50
 #   cip_k: 0.2
 # phenotype_params2:
+#   method: cox
 #   cip_x0: 50
 #   cip_k: 0.2
 

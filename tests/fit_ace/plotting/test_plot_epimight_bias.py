@@ -35,7 +35,8 @@ def bias_df():
         {
             "scenario": f"ebias_ltm_K{int(prev * 100):02d}_C{'02' if c_val else '0'}_{censor.replace('_only', '')}",
             "kind": kind,
-            "phenotype_model": "adult_ltm",
+            "phenotype_model": "adult",
+            "model_label": "adult_ltm",
             "prevalence": prev,
             "C": c_val,
             "censor_label": censor,
@@ -198,14 +199,14 @@ class TestPlotSmoke:
         # Filter to the subset the plot function uses to avoid running
         # compute_dilution_corrected_h2 on all 320 rows (~400 quad calls)
         small = bias_df[
-            (bias_df["C"] == 0) & (bias_df["phenotype_model"] == "adult_ltm") & (bias_df["censor_label"] == "none")
+            (bias_df["C"] == 0) & (bias_df["phenotype_model"] == "adult") & (bias_df["censor_label"] == "none")
         ].copy()
         small = compute_dilution_corrected_h2(small)
         _assert_plot_created(plot_epimight_dilution_ratio, small, tmp_path)
 
     def test_corrected_h2(self, bias_df, tmp_path):
         small = bias_df[
-            (bias_df["C"] == 0) & (bias_df["phenotype_model"] == "adult_ltm") & (bias_df["censor_label"] == "none")
+            (bias_df["C"] == 0) & (bias_df["phenotype_model"] == "adult") & (bias_df["censor_label"] == "none")
         ].copy()
         small = compute_dilution_corrected_h2(small)
         _assert_plot_created(plot_epimight_corrected_h2, small, tmp_path)

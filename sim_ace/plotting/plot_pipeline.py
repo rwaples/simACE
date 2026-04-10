@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import yaml
 from matplotlib.patches import FancyBboxPatch
 
-from sim_ace.plotting.plot_atlas import MODEL_FAMILY
+from sim_ace.plotting.plot_atlas import _model_display_name
 from sim_ace.plotting.plot_utils import param_as_float
 
 logger = logging.getLogger(__name__)
@@ -424,14 +424,16 @@ def render_pipeline_figure(
         step_info[key] = (display, color, pnames)
 
     # Override phenotype title with model-specific short name
-    m1 = str(params.get("phenotype_model1", "frailty_weibull"))
-    m2 = str(params.get("phenotype_model2", "frailty_weibull"))
-    if m1 == m2:
-        short_name = MODEL_FAMILY.get(m1, (m1.title(),))[0]
+    m1 = str(params.get("phenotype_model1", "frailty"))
+    m2 = str(params.get("phenotype_model2", "frailty"))
+    pp1 = params.get("phenotype_params1", {})
+    pp2 = params.get("phenotype_params2", {})
+    if m1 == m2 and pp1.get("distribution") == pp2.get("distribution") and pp1.get("method") == pp2.get("method"):
+        short_name = _model_display_name(m1, pp1)[0]
         pheno_title = f"Phenotype ({short_name.lower()})"
     else:
-        s1 = MODEL_FAMILY.get(m1, (m1.title(),))[0]
-        s2 = MODEL_FAMILY.get(m2, (m2.title(),))[0]
+        s1 = _model_display_name(m1, pp1)[0]
+        s2 = _model_display_name(m2, pp2)[0]
         pheno_title = f"Phenotype ({s1.lower()} / {s2.lower()})"
     old = step_info["phenotype"]
     step_info["phenotype"] = (pheno_title, old[1], old[2])

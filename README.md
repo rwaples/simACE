@@ -203,18 +203,20 @@ defaults:
   assort1: 0                                 # Mate correlation on trait 1 liability ([-1, 1])
   assort2: 0                                 # Mate correlation on trait 2 liability ([-1, 1])
 
-  # Phenotype model per trait: weibull/exponential/gompertz/lognormal/loglogistic/gamma/cure_frailty/adult_ltm/adult_cox
+  # Phenotype model per trait: frailty / cure_frailty / adult / first_passage
   # Trait 1
   beta1: 1.0                                # Effect of liability on log-hazard
-  phenotype_model1: weibull                 # Baseline hazard model
+  phenotype_model1: frailty                 # Model family
   phenotype_params1:
+    distribution: weibull                   # Baseline hazard distribution
     scale: 2160                             # Weibull scale
     rho: 0.8                                # Weibull shape (<1 = decreasing hazard)
 
   # Trait 2
   beta2: 1.5
-  phenotype_model2: weibull
+  phenotype_model2: frailty
   phenotype_params2:
+    distribution: weibull
     scale: 333
     rho: 1.2                                # Weibull shape (>1 = increasing hazard)
 

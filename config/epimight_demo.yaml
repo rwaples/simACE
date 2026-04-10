@@ -30,14 +30,16 @@ demo_prev01:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.01
   prevalence2: 0.01
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}
@@ -60,14 +62,16 @@ demo_prev05:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.05
   prevalence2: 0.05
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}
@@ -90,14 +94,16 @@ demo_prev10:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.10
   prevalence2: 0.10
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}
@@ -120,14 +126,16 @@ demo_prev20:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.20
   prevalence2: 0.20
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}
@@ -150,14 +158,16 @@ demo_prev40:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.40
   prevalence2: 0.40
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}
@@ -185,14 +195,16 @@ demo_K1_prev20:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.20
   prevalence2: 0.20
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}
@@ -216,14 +228,16 @@ demo_K1_prev40:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.40
   prevalence2: 0.40
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}
@@ -253,14 +267,16 @@ demo_realistic:
   E2: 0.3
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.10
   prevalence2: 0.10
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring:
@@ -289,14 +305,16 @@ demo_realistic_ref:
   E2: 0.3
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.10
   prevalence2: 0.10
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}

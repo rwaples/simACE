@@ -73,7 +73,7 @@ def _run_snakemake():
         )
         cip_tables["empirical"] = (cip_ages_emp, cip_vals_emp, prev_emp)
 
-        if model == "weibull":
+        if model == "frailty" and pheno_params.get("distribution") == "weibull":
             cip_ages_true, cip_vals_true = compute_true_cip_weibull(
                 scale=pheno_params["scale"],
                 rho=pheno_params["rho"],

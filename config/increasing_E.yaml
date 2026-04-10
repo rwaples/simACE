@@ -41,7 +41,7 @@ ADHD_AUT_increaseE:
   # Trait 1: ADHD (Beck fit)
   phenotype_model1: cure_frailty
   phenotype_params1:
-    baseline: lognormal
+    distribution: lognormal
     mu: 2.88737
     sigma: 0.658447
   beta1: 0.0
@@ -53,7 +53,7 @@ ADHD_AUT_increaseE:
   # Trait 2: AUT (Beck fit)
   phenotype_model2: cure_frailty
   phenotype_params2:
-    baseline: lognormal
+    distribution: lognormal
     mu: 3.86639
     sigma: 0.477996
   beta2: 0.0
@@ -116,7 +116,7 @@ ADHD_AUT_increaseE_nostd:
   # Trait 1: ADHD (Beck fit)
   phenotype_model1: cure_frailty
   phenotype_params1:
-    baseline: lognormal
+    distribution: lognormal
     mu: 2.88737
     sigma: 0.658447
   beta1: 0.0
@@ -128,7 +128,7 @@ ADHD_AUT_increaseE_nostd:
   # Trait 2: AUT (Beck fit)
   phenotype_model2: cure_frailty
   phenotype_params2:
-    baseline: lognormal
+    distribution: lognormal
     mu: 3.86639
     sigma: 0.477996
   beta2: 0.0

@@ -35,11 +35,11 @@ long_solmi_mood:
   phenotype_model1: cure_frailty
   phenotype_model2: cure_frailty
   phenotype_params1:
-    baseline: lognormal
+    distribution: lognormal
     mu: 3.58381
     sigma: 0.62896
   phenotype_params2:
-    baseline: lognormal
+    distribution: lognormal
     mu: 3.58381
     sigma: 0.62896
   beta1: 0.1749
@@ -66,11 +66,11 @@ long_beck_adhd:
   phenotype_model1: cure_frailty
   phenotype_model2: cure_frailty
   phenotype_params1:
-    baseline: lognormal
+    distribution: lognormal
     mu: 2.88747
     sigma: 0.658443
   phenotype_params2:
-    baseline: lognormal
+    distribution: lognormal
     mu: 2.88747
     sigma: 0.658443
   beta1: 0.0

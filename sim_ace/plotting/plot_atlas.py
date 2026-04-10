@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 __all__ = [
-    "MODEL_FAMILY",
     "PHENOTYPE_CAPTIONS",
     "SIMPLE_LTM_CAPTIONS",
     "VALIDATION_CAPTIONS",
@@ -26,101 +25,118 @@ logger = logging.getLogger(__name__)
 # Model-family lookup
 # ---------------------------------------------------------------------------
 
-# Maps phenotype model name → (short display name, one-line description)
-MODEL_FAMILY: dict[str, tuple[str, str]] = {
-    "frailty_weibull": (
-        "Weibull Frailty",
-        "Proportional hazards with Weibull baseline; frailty exp(\u03b2\u00b7L) scales hazard",
-    ),
-    "frailty_exponential": (
-        "Exponential Frailty",
-        "Proportional hazards with exponential baseline; frailty exp(\u03b2\u00b7L) scales hazard",
-    ),
-    "frailty_gompertz": (
-        "Gompertz Frailty",
-        "Proportional hazards with Gompertz baseline; frailty exp(\u03b2\u00b7L) scales hazard",
-    ),
-    "frailty_lognormal": (
-        "Log-Normal Frailty",
-        "Proportional hazards with log-normal baseline; frailty exp(\u03b2\u00b7L) scales hazard",
-    ),
-    "frailty_loglogistic": (
-        "Log-Logistic Frailty",
-        "Proportional hazards with log-logistic baseline; frailty exp(\u03b2\u00b7L) scales hazard",
-    ),
-    "frailty_gamma": (
-        "Gamma Frailty",
-        "Proportional hazards with gamma baseline; frailty exp(\u03b2\u00b7L) scales hazard",
-    ),
-    "cure_frailty": (
-        "Cure Frailty",
-        "Mixture cure model: liability threshold for case status, frailty for age-at-onset",
-    ),
-    "adult_ltm": (
-        "ADuLT LTM",
-        "Liability threshold for case status, deterministic probit CIP for age-at-onset",
-    ),
-    "adult_cox": (
-        "ADuLT Cox",
-        "Ranking for case status, stochastic Weibull CIP for age-at-onset",
-    ),
+# Display names for distributions and methods
+_DISTRIBUTION_DISPLAY: dict[str, str] = {
+    "weibull": "Weibull",
+    "exponential": "Exponential",
+    "gompertz": "Gompertz",
+    "lognormal": "Log-Normal",
+    "loglogistic": "Log-Logistic",
+    "gamma": "Gamma",
+}
+
+_METHOD_DISPLAY: dict[str, str] = {
+    "ltm": "LTM",
+    "cox": "Cox",
+}
+
+# Model family descriptions (templates)
+_FAMILY_DESC: dict[str, str] = {
+    "frailty": "Proportional hazards with {dist} baseline; frailty exp(\u03b2\u00b7L) scales hazard",
+    "cure_frailty": "Mixture cure model ({dist} baseline): liability threshold for case status, frailty for age-at-onset",
+    "adult": {
+        "ltm": "Liability threshold for case status, deterministic probit CIP for age-at-onset",
+        "cox": "Ranking for case status, stochastic Weibull CIP for age-at-onset",
+    },
     "first_passage": (
-        "First-Passage Time",
         "Inverse Gaussian FPT: liability scales initial distance y\u2080 to boundary; "
-        "drift \u03bc controls progression",
+        "drift \u03bc controls progression"
     ),
 }
 
-# Common frailty model equation (line 1 for all 6 baseline hazard models)
+
+def _model_display_name(model: str, pp: dict) -> tuple[str, str]:
+    """Return (short_name, description) for a phenotype model + params."""
+    if model == "frailty":
+        dist = pp.get("distribution", "unknown")
+        dist_name = _DISTRIBUTION_DISPLAY.get(dist, dist.title())
+        return (
+            f"{dist_name} Frailty",
+            _FAMILY_DESC["frailty"].format(dist=dist_name),
+        )
+    if model == "cure_frailty":
+        dist = pp.get("distribution", "unknown")
+        dist_name = _DISTRIBUTION_DISPLAY.get(dist, dist.title())
+        return (
+            f"Cure Frailty ({dist_name})",
+            _FAMILY_DESC["cure_frailty"].format(dist=dist_name),
+        )
+    if model == "adult":
+        method = pp.get("method", "unknown")
+        method_name = _METHOD_DISPLAY.get(method, method.upper())
+        return (
+            f"ADuLT {method_name}",
+            _FAMILY_DESC["adult"].get(method, f"ADuLT {method_name} model"),
+        )
+    if model == "first_passage":
+        return ("First-Passage Time", _FAMILY_DESC["first_passage"])
+    return (model.title(), model)
+
+
+# Common frailty model equation (line 1 for all 6 baseline hazard distributions)
 _FRAILTY_LINE = (
     r"$h(t \mid L) = h_0(t) \cdot e^{\beta L \,+\, \beta_{\mathrm{sex}} \cdot \mathrm{sex}},"
     r" \qquad L = A + C + E$"
 )
 
-# Model-specific baseline hazard h₀(t) (line 2)
+# Distribution-specific baseline hazard h₀(t) (line 2)
 _BASELINE_LINE: dict[str, str] = {
-    "frailty_weibull": r"$h_0(t) = \dfrac{\rho}{s}\left(\dfrac{t}{s}\right)^{\!\rho-1}$",
-    "frailty_exponential": r"$h_0(t) = \lambda$",
-    "frailty_gompertz": r"$h_0(t) = b \, e^{\gamma t}$",
-    "frailty_lognormal": (
+    "weibull": r"$h_0(t) = \dfrac{\rho}{s}\left(\dfrac{t}{s}\right)^{\!\rho-1}$",
+    "exponential": r"$h_0(t) = \lambda$",
+    "gompertz": r"$h_0(t) = b \, e^{\gamma t}$",
+    "lognormal": (
         r"$h_0(t) = \dfrac{\phi(w)}{\sigma\, t\, (1-\Phi(w))},"
         r" \quad w = \dfrac{\ln t - \mu}{\sigma}$"
     ),
-    "frailty_loglogistic": r"$h_0(t) = \dfrac{(k/\alpha)(t/\alpha)^{k-1}}{1 + (t/\alpha)^k}$",
-    "frailty_gamma": r"$h_0(t) = f_\Gamma(t;\,k,\theta) \,/\, S_\Gamma(t;\,k,\theta)$",
+    "loglogistic": r"$h_0(t) = \dfrac{(k/\alpha)(t/\alpha)^{k-1}}{1 + (t/\alpha)^k}$",
+    "gamma": r"$h_0(t) = f_\Gamma(t;\,k,\theta) \,/\, S_\Gamma(t;\,k,\theta)$",
 }
 
-_FRAILTY_MODELS_SET = set(_BASELINE_LINE)
 
-
-def _equation_lines_for_model(model: str, label: str = "") -> list[str]:
+def _equation_lines_for_model(model: str, pp: dict, label: str = "") -> list[str]:
     """Return mathtext equation line(s) for a single phenotype model."""
     prefix = (r"\mathrm{" + label + r"\!:}\ ") if label else ""
 
-    if model in _BASELINE_LINE:
-        line1 = r"$" + prefix + _FRAILTY_LINE.strip("$") + r"$" if prefix else _FRAILTY_LINE
-        return [line1, _BASELINE_LINE[model]]
+    if model in ("frailty", "cure_frailty"):
+        dist = pp.get("distribution", "")
+        if model == "frailty" and dist in _BASELINE_LINE:
+            line1 = r"$" + prefix + _FRAILTY_LINE.strip("$") + r"$" if prefix else _FRAILTY_LINE
+            return [line1, _BASELINE_LINE[dist]]
+        if model == "cure_frailty":
+            return [
+                r"$"
+                + prefix
+                + r"\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad"
+                + r" t_{\mathrm{case}} \sim h_0(t) \cdot"
+                + r" e^{\beta L \,+\, \beta_{\mathrm{sex}} \cdot \mathrm{sex}}$",
+            ]
 
-    if model == "cure_frailty":
-        return [
-            r"$"
-            + prefix
-            + r"\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad"
-            + r" t_{\mathrm{case}} \sim h_0(t) \cdot"
-            + r" e^{\beta L \,+\, \beta_{\mathrm{sex}} \cdot \mathrm{sex}}$",
-        ]
-    if model == "adult_ltm":
-        return [
-            r"$" + prefix + r"\mathrm{CIP}(t) = \frac{K}{1 + e^{-k(t - x_0)}}$",
-            r"$\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad"
-            + r" t = x_0 + \frac{1}{k}\ln\!\frac{\Phi(-L)}{K - \Phi(-L)}$",
-        ]
-    if model == "adult_cox":
-        return [
-            r"$" + prefix + r"t_{\mathrm{raw}} = \sqrt{-\ln U \,/\, e^{L}}," + r" \quad U \sim \mathrm{Uniform}(0,1]$",
-            r"$\mathrm{case\!:}\ \mathrm{CIP}_{\mathrm{rank}} < K, \qquad"
-            + r" t = x_0 + \frac{1}{k}\ln\!\frac{\mathrm{CIP}}{K - \mathrm{CIP}}$",
-        ]
+    if model == "adult":
+        method = pp.get("method", "")
+        if method == "ltm":
+            return [
+                r"$" + prefix + r"\mathrm{CIP}(t) = \frac{K}{1 + e^{-k(t - x_0)}}$",
+                r"$\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad"
+                + r" t = x_0 + \frac{1}{k}\ln\!\frac{\Phi(-L)}{K - \Phi(-L)}$",
+            ]
+        if method == "cox":
+            return [
+                r"$" + prefix + r"t_{\mathrm{raw}} = \sqrt{-\ln U \,/\, e^{L}},"
+                + r" \quad U \sim \mathrm{Uniform}(0,1]$",
+                r"$\mathrm{case\!:}\ \mathrm{CIP}_{\mathrm{rank}} < K, \qquad"
+                + r" t = x_0 + \frac{1}{k}\ln\!\frac{\mathrm{CIP}}{K - \mathrm{CIP}}$",
+            ]
+
     if model == "first_passage":
         return [
             r"$"
@@ -135,31 +151,35 @@ def _equation_lines_for_model(model: str, label: str = "") -> list[str]:
 
 def get_model_equation(params: dict) -> list[str]:
     """Return mathtext equation lines for the scenario's phenotype model(s)."""
-    m1 = str(params.get("phenotype_model1", "weibull"))
-    m2 = str(params.get("phenotype_model2", "weibull"))
+    m1 = str(params.get("phenotype_model1", "frailty"))
+    m2 = str(params.get("phenotype_model2", "frailty"))
+    pp1 = params.get("phenotype_params1", {})
+    pp2 = params.get("phenotype_params2", {})
 
-    if m1 == m2:
-        return _equation_lines_for_model(m1)
+    if m1 == m2 and pp1.get("distribution") == pp2.get("distribution") and pp1.get("method") == pp2.get("method"):
+        return _equation_lines_for_model(m1, pp1)
 
     lines: list[str] = []
-    lines.extend(_equation_lines_for_model(m1, label="Trait 1"))
-    lines.extend(_equation_lines_for_model(m2, label="Trait 2"))
+    lines.extend(_equation_lines_for_model(m1, pp1, label="Trait 1"))
+    lines.extend(_equation_lines_for_model(m2, pp2, label="Trait 2"))
     return lines
 
 
 def get_model_family(params: dict) -> tuple[str, str]:
     """Return (display_name, description) for the scenario's phenotype model(s).
 
-    When both traits use the same family, return that family.
+    When both traits use the same model family and sub-type, return that family.
     When they differ, return a combined description.
     """
-    m1 = str(params.get("phenotype_model1", "weibull"))
-    m2 = str(params.get("phenotype_model2", "weibull"))
+    m1 = str(params.get("phenotype_model1", "frailty"))
+    m2 = str(params.get("phenotype_model2", "frailty"))
+    pp1 = params.get("phenotype_params1", {})
+    pp2 = params.get("phenotype_params2", {})
 
-    name1, desc1 = MODEL_FAMILY.get(m1, (m1.title(), m1))
-    name2, desc2 = MODEL_FAMILY.get(m2, (m2.title(), m2))
+    name1, desc1 = _model_display_name(m1, pp1)
+    name2, desc2 = _model_display_name(m2, pp2)
 
-    if m1 == m2:
+    if m1 == m2 and pp1.get("distribution") == pp2.get("distribution") and pp1.get("method") == pp2.get("method"):
         return name1, desc1
 
     return (

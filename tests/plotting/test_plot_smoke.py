@@ -46,10 +46,10 @@ def minimal_params():
         "beta2": 1.5,
         "beta_sex1": 0.0,
         "beta_sex2": 0.0,
-        "phenotype_model1": "frailty_weibull",
-        "phenotype_model2": "frailty_weibull",
-        "phenotype_params1": {"scale": 2160, "rho": 0.8},
-        "phenotype_params2": {"scale": 333, "rho": 1.2},
+        "phenotype_model1": "frailty",
+        "phenotype_model2": "frailty",
+        "phenotype_params1": {"distribution": "weibull", "scale": 2160, "rho": 0.8},
+        "phenotype_params2": {"distribution": "weibull", "scale": 333, "rho": 1.2},
         "censor_age": 80,
         "gen_censoring": {0: [80, 80], 1: [80, 80], 2: [0, 80]},
         "death_scale": 164,
@@ -291,7 +291,12 @@ class TestPlotAtlasHelpers:
     def test_get_model_equation_different_models(self):
         from sim_ace.plotting.plot_atlas import get_model_equation
 
-        params = {"phenotype_model1": "frailty_weibull", "phenotype_model2": "frailty_gompertz"}
+        params = {
+            "phenotype_model1": "frailty",
+            "phenotype_model2": "frailty",
+            "phenotype_params1": {"distribution": "weibull"},
+            "phenotype_params2": {"distribution": "gompertz"},
+        }
         lines = get_model_equation(params)
         assert len(lines) >= 2  # one set per model
 
@@ -306,26 +311,35 @@ class TestPlotAtlasHelpers:
     def test_get_model_family_different_models(self):
         from sim_ace.plotting.plot_atlas import get_model_family
 
-        params = {"phenotype_model1": "frailty_weibull", "phenotype_model2": "frailty_gompertz"}
+        params = {
+            "phenotype_model1": "frailty",
+            "phenotype_model2": "frailty",
+            "phenotype_params1": {"distribution": "weibull"},
+            "phenotype_params2": {"distribution": "gompertz"},
+        }
         name, _desc = get_model_family(params)
         assert isinstance(name, str)
 
-    def test_model_family_all_known_models(self):
-        from sim_ace.plotting.plot_atlas import MODEL_FAMILY
+    def test_model_display_all_families(self):
+        from sim_ace.plotting.plot_atlas import _model_display_name
 
-        expected_models = {
-            "frailty_weibull",
-            "frailty_exponential",
-            "frailty_gompertz",
-            "frailty_lognormal",
-            "frailty_loglogistic",
-            "frailty_gamma",
-            "cure_frailty",
-            "adult_ltm",
-            "adult_cox",
-            "first_passage",
-        }
-        assert set(MODEL_FAMILY.keys()) == expected_models
+        # Verify all model families produce valid display names
+        cases = [
+            ("frailty", {"distribution": "weibull"}),
+            ("frailty", {"distribution": "exponential"}),
+            ("frailty", {"distribution": "gompertz"}),
+            ("frailty", {"distribution": "lognormal"}),
+            ("frailty", {"distribution": "loglogistic"}),
+            ("frailty", {"distribution": "gamma"}),
+            ("cure_frailty", {"distribution": "lognormal"}),
+            ("adult", {"method": "ltm"}),
+            ("adult", {"method": "cox"}),
+            ("first_passage", {}),
+        ]
+        for model, pp in cases:
+            name, desc = _model_display_name(model, pp)
+            assert isinstance(name, str) and len(name) > 0, f"model={model}, pp={pp}"
+            assert isinstance(desc, str) and len(desc) > 0, f"model={model}, pp={pp}"
 
 
 # ---------------------------------------------------------------------------

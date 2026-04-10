@@ -114,7 +114,7 @@ def _log_pct_xaxis(ax: plt.Axes) -> None:
 
 def plot_epimight_bias_vs_prevalence(df: pd.DataFrame, output_path: Path) -> None:
     """h² vs prevalence, one panel per censoring level, lines by kind."""
-    nocensor = df[(df["C"] == 0) & (df["phenotype_model"] == "adult_ltm")]
+    nocensor = df[(df["C"] == 0) & (df["phenotype_model"] == "adult")]
     censors = [c for c in CENSOR_ORDER if c in nocensor["censor_label"].values]
     n_panels = len(censors)
     if n_panels == 0:
@@ -161,7 +161,7 @@ def plot_epimight_bias_vs_prevalence(df: pd.DataFrame, output_path: Path) -> Non
 
 def plot_epimight_bias_by_censoring(df: pd.DataFrame, output_path: Path) -> None:
     """Attenuation ratio grouped by censoring at each prevalence."""
-    sub = df[(df["C"] == 0) & (df["phenotype_model"] == "adult_ltm")]
+    sub = df[(df["C"] == 0) & (df["phenotype_model"] == "adult")]
     prevs = sorted(sub["prevalence"].dropna().unique())
     n_panels = len(prevs)
     if n_panels == 0:
@@ -201,7 +201,7 @@ def plot_epimight_bias_by_censoring(df: pd.DataFrame, output_path: Path) -> None
 
 def plot_epimight_bias_heatmap(df: pd.DataFrame, output_path: Path) -> None:
     """Heatmap of relative bias: kinds × scenarios."""
-    sub = df[(df["C"] == 0) & (df["phenotype_model"] == "adult_ltm")].copy()
+    sub = df[(df["C"] == 0) & (df["phenotype_model"] == "adult")].copy()
     if sub.empty:
         return
 
@@ -247,7 +247,7 @@ def plot_epimight_bias_heatmap(df: pd.DataFrame, output_path: Path) -> None:
 
 def plot_epimight_c_effect(df: pd.DataFrame, output_path: Path) -> None:
     """Paired comparison: C=0 vs C=0.2 at each prevalence."""
-    nocensor = df[(df["censor_label"] == "none") & (df["phenotype_model"] == "adult_ltm")]
+    nocensor = df[(df["censor_label"] == "none") & (df["phenotype_model"] == "adult")]
     c0 = nocensor[nocensor["C"] == 0]
     c02 = nocensor[nocensor["C"] == 0.2]
 
@@ -300,8 +300,10 @@ def plot_epimight_model_comparison(df: pd.DataFrame, output_path: Path) -> None:
     if len(models) == 0:
         return
 
+    label_col = "model_label" if "model_label" in baseline.columns else "phenotype_model"
+    labels = baseline[label_col].unique()
     model_order = ["adult_ltm", "frailty_weibull", "cure_frailty", "adult_cox"]
-    models = [m for m in model_order if m in models]
+    models = [m for m in model_order if m in labels]
     model_colors = {"adult_ltm": "C0", "frailty_weibull": "C1", "cure_frailty": "C2", "adult_cox": "C3"}
 
     fig, ax = plt.subplots(figsize=(12, 5))
@@ -309,7 +311,7 @@ def plot_epimight_model_comparison(df: pd.DataFrame, output_path: Path) -> None:
     width = 0.8 / len(models)
 
     for i, model in enumerate(models):
-        msub = baseline[baseline["phenotype_model"] == model]
+        msub = baseline[baseline[label_col] == model]
         vals = []
         errs = []
         for kind in KIND_ORDER:
@@ -376,7 +378,7 @@ def plot_epimight_forest(df: pd.DataFrame, output_path: Path, kind: str = "FS") 
 
 def plot_epimight_attenuation_summary(df: pd.DataFrame, output_path: Path) -> None:
     """Attenuation ratio vs prevalence, by kind, no-censoring C=0 only."""
-    sub = df[(df["censor_label"] == "none") & (df["C"] == 0) & (df["phenotype_model"] == "adult_ltm")]
+    sub = df[(df["censor_label"] == "none") & (df["C"] == 0) & (df["phenotype_model"] == "adult")]
     if sub.empty:
         return
 
@@ -525,7 +527,7 @@ def compute_dilution_corrected_h2(
 
 def plot_epimight_corrected_h2(df: pd.DataFrame, output_path: Path) -> None:
     """h² before and after dilution correction, by prevalence and kind."""
-    sub = df[(df["C"] == 0) & (df["phenotype_model"] == "adult_ltm") & (df["censor_label"] == "none")]
+    sub = df[(df["C"] == 0) & (df["phenotype_model"] == "adult") & (df["censor_label"] == "none")]
     if "h2_corrected" not in sub.columns:
         sub = compute_dilution_corrected_h2(sub)
     if sub.empty:
@@ -582,7 +584,7 @@ def plot_epimight_dilution_ratio(df: pd.DataFrame, output_path: Path) -> None:
         ax.plot(K_grid, dilutions, "-", color=KIND_COLORS[kind], label=f"{kind} (N={nr})", linewidth=1.5)
 
     # Overlay empirical points from the data
-    sub = df[(df["C"] == 0) & (df["phenotype_model"] == "adult_ltm") & (df["censor_label"] == "none")]
+    sub = df[(df["C"] == 0) & (df["phenotype_model"] == "adult") & (df["censor_label"] == "none")]
     if "dilution_ratio" in sub.columns:
         for kind in KIND_ORDER:
             ks = sub[sub["kind"] == kind].sort_values("prevalence")

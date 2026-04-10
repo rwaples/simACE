@@ -1,14 +1,16 @@
 adult_ltm_test:
   seed: 23042
   N: 50000
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.1
   prevalence2: 0.2
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.2
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.2
   C1: 0.0
@@ -27,14 +29,16 @@ adult_ltm_test:
 adult_cox_test:
   seed: 24042
   N: 50000
-  phenotype_model1: adult_cox
-  phenotype_model2: adult_cox
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.1
   prevalence2: 0.2
   phenotype_params1:
+    method: cox
     cip_x0: 50
     cip_k: 0.2
   phenotype_params2:
+    method: cox
     cip_x0: 50
     cip_k: 0.2
   C1: 0.0
@@ -53,8 +57,8 @@ adult_cox_test:
 adult_ltm_sex_prev:
   seed: 25042
   N: 5000
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1:
     female: 0.08
     male: 0.12
@@ -62,9 +66,11 @@ adult_ltm_sex_prev:
     female: 0.1
     male: 0.2
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.2
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.2
 first_passage_test:

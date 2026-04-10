@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 # Scenario name parsing helpers
 _PREV_MAP = {"K01": 0.01, "K05": 0.05, "K10": 0.10, "K20": 0.20, "K40": 0.40}
 _CENSOR_MAP = {"nocensor": "none", "death": "death_only", "window": "window_only", "both": "both"}
-_MODEL_MAP = {"ltm": "adult_ltm", "weibull": "frailty_weibull", "cure": "cure_frailty", "cox": "adult_cox"}
+_MODEL_MAP = {"ltm": "adult", "weibull": "frailty", "cure": "cure_frailty", "cox": "adult"}
+_MODEL_LABEL_MAP = {"ltm": "adult_ltm", "weibull": "frailty_weibull", "cure": "cure_frailty", "cox": "adult_cox"}
 
 
 def parse_scenario_name(name: str) -> dict[str, Any]:
@@ -38,6 +39,7 @@ def parse_scenario_name(name: str) -> dict[str, Any]:
 
     return {
         "phenotype_model": _MODEL_MAP.get(model_key, model_key),
+        "model_label": _MODEL_LABEL_MAP.get(model_key, model_key),
         "prevalence": _PREV_MAP.get(prev_key, np.nan),
         "C": 0.2 if c_key == "C02" else 0.0,
         "censor_label": _CENSOR_MAP.get(censor_key, censor_key),

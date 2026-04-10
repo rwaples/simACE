@@ -1447,9 +1447,9 @@ def main(
     elif cip_source == "true":
         if config is None:
             raise ValueError("config required for true CIP")
-        model = config.get(f"phenotype_model{trait_num}", "frailty_weibull")
+        model = config.get(f"phenotype_model{trait_num}", "frailty")
         params = config.get(f"phenotype_params{trait_num}", {})
-        if model == "frailty_weibull":
+        if model == "frailty" and params.get("distribution") == "weibull":
             cip_ages, cip_values = compute_true_cip_weibull(
                 scale=params["scale"],
                 rho=params["rho"],

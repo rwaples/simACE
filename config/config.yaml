@@ -8,15 +8,15 @@ defaults:
 
   # ── Liability variance components ─────────────────────────────────────────
   A1: 0.5
-  C1: 0.2
-  E1: 0.3
+  C1: 0.0
+  E1: 0.5
 
-  A2: 0.5
+  A2: 0.4
   C2: 0.2
-  E2: 0.3
+  E2: 0.4
 
-  rA: 0.3
-  rC: 0.5
+  rA: 0.0
+  rC: 0.0
   rE: 0.0
 
   standardize: true
@@ -33,24 +33,26 @@ defaults:
   assort_matrix: null # optional full 2x2 R_mf matrix, e.g. [[0.3, 0.05], [0.05, 0.15]]
 
   # ── Phenotype model ───────────────────────────────────────────────────────
-  # phenotype_model1/2: frailty_weibull | frailty_exponential | frailty_gompertz | frailty_lognormal | frailty_loglogistic | frailty_gamma | adult_ltm | adult_cox | cure_frailty
+  # phenotype_model1/2: frailty | cure_frailty | adult | first_passage
   # phenotype_params1/2: dict of model-specific parameters
-  #   frailty models: hazard distribution params (e.g. scale, rho for frailty_weibull)
-  #   adult_ltm/adult_cox: cip_x0 (midpoint age), cip_k (growth rate)
+  #   frailty/cure_frailty: distribution key + hazard params (e.g. distribution: weibull, scale, rho)
+  #   adult: method key (ltm/cox) + cip_x0 (midpoint age), cip_k (growth rate)
 
   # Trait 1
   beta1: 1.0
   beta_sex1: 0.0
-  phenotype_model1: frailty_weibull
+  phenotype_model1: frailty
   phenotype_params1:
+    distribution: weibull
     scale: 2160
     rho: 0.8
 
   # Trait 2
   beta2: 1.5
   beta_sex2: 0.0
-  phenotype_model2: frailty_weibull
+  phenotype_model2: frailty
   phenotype_params2:
+    distribution: weibull
     scale: 333
     rho: 1.2
 
@@ -79,8 +81,8 @@ defaults:
   plot_format: png
 
   # ── EPIMIGHT ─────────────────────────────────────────────────────────────
-  epimight_mi_K: 20  # number of MI resamples (Rubin's rules); K=1 = single draw
-  epimight_rubin_level: per_year  # "meta" = Meta→Rubin; "per_year" = Rubin→Meta
+  epimight_mi_K: 20 # number of MI resamples (Rubin's rules); K=1 = single draw
+  epimight_rubin_level: per_year # "meta" = Meta→Rubin; "per_year" = Rubin→Meta
   epimight_kinds:
     - PO
     - FS

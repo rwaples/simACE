@@ -1,11 +1,14 @@
 """Phenotype simulation for two correlated traits.
 
-Per-trait phenotype model selection via phenotype_model1/phenotype_model2:
-  Frailty models: "frailty_weibull", "frailty_exponential", "frailty_gompertz",
-                  "frailty_lognormal", "frailty_loglogistic", "frailty_gamma"
-  ADuLT models:   "adult_ltm", "adult_cox"
-  Cure models:    "cure_frailty"
-  FPT models:     "first_passage"
+Four model families, selected via phenotype_model1/phenotype_model2:
+
+  "frailty"       — proportional hazards frailty; requires ``distribution``
+                    key in phenotype_params (weibull, exponential, gompertz,
+                    lognormal, loglogistic, gamma)
+  "cure_frailty"  — mixture cure model; requires ``distribution`` key
+  "adult"         — ADuLT age-dependent liability threshold; requires ``method``
+                    key (ltm, cox)
+  "first_passage" — inverse-Gaussian first-passage time
 
 Frailty models convert liability to raw event times (age-at-onset) using a proportional
 hazards frailty model with pluggable baseline hazard.
@@ -16,23 +19,23 @@ Model (per trait):
     S(t | z) = exp(-H0(t) * z)   (conditional survival)
     t        = H0^{-1}(-log(U) / z)  where U ~ Uniform(0, 1]
 
-Baseline hazard models supported (via compute_hazard_terms):
-    "frailty_weibull"     : {"scale": s, "rho": rho}
-    "frailty_exponential" : {"rate": lam}  |  {"scale": s}
-    "frailty_gompertz"    : {"rate": b, "gamma": g}
-    "frailty_lognormal"   : {"mu": mu, "sigma": sigma}
-    "frailty_loglogistic" : {"scale": alpha, "shape": k}
-    "frailty_gamma"       : {"shape": k, "scale": theta}
+Baseline hazard distributions supported (via compute_hazard_terms):
+    "weibull"     : {"scale": s, "rho": rho}
+    "exponential" : {"rate": lam}  |  {"scale": s}
+    "gompertz"    : {"rate": b, "gamma": g}
+    "lognormal"   : {"mu": mu, "sigma": sigma}
+    "loglogistic" : {"scale": alpha, "shape": k}
+    "gamma"       : {"shape": k, "scale": theta}
 
 Inversion strategy:
-    Each model has an analytic/vectorized inverse — no per-individual loop.
+    Each distribution has an analytic/vectorized inverse — no per-individual loop.
     Weibull      → t = scale * (target / z)^(1/rho)
     Exponential  → t = target / (z * rate)
     Gompertz     → t = log1p(target * g / (z * b)) / g
     Lognormal    → t = exp(mu + sigma * norm.isf(exp(-target/z)))
     Loglogistic  → t = alpha * expm1(target/z)^(1/k)
     Gamma        → t = gamma_dist.isf(exp(-target/z), k, scale=theta)
-    Unknown      → KeyError (all supported models have analytic inverses)
+    Unknown      → KeyError (all supported distributions have analytic inverses)
 """
 
 from __future__ import annotations
@@ -612,12 +615,9 @@ def phenotype_first_passage(
     )
 
 
-_FRAILTY_PREFIX = "frailty_"
-_FRAILTY_BASELINES = {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
-_FRAILTY_MODELS = {f"{_FRAILTY_PREFIX}{b}" for b in _FRAILTY_BASELINES}
-_ADULT_MODELS = {"adult_ltm", "adult_cox"}
-_CURE_MODELS = {"cure_frailty"}
-_FPT_MODELS = {"first_passage"}
+_FRAILTY_DISTRIBUTIONS = frozenset({"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"})
+_ADULT_METHODS = frozenset({"ltm", "cox"})
+_MODEL_FAMILIES = frozenset({"frailty", "cure_frailty", "adult", "first_passage"})
 
 
 def _prevalence_to_array(prev, generation):
@@ -657,9 +657,7 @@ def _resolve_prevalence(params, trait_num, sex, generation):
     return _prevalence_to_array(prev, generation)
 
 
-_ALL_PHENOTYPE_MODELS = sorted(_FRAILTY_MODELS | _ADULT_MODELS | _CURE_MODELS | _FPT_MODELS)
-
-# Parameter names required per model
+# Parameter names required per distribution/model
 _MODEL_PARAMS: dict[str, list[str]] = {
     "weibull": ["scale", "rho"],
     "exponential": ["rate"],
@@ -669,10 +667,7 @@ _MODEL_PARAMS: dict[str, list[str]] = {
     "gamma": ["shape", "scale"],
     "first_passage": ["drift", "shape"],
 }
-_ADULT_PARAMS: dict[str, list[str]] = {
-    "adult_ltm": ["cip_x0", "cip_k"],
-    "adult_cox": ["cip_x0", "cip_k"],
-}
+_ADULT_PARAMS: list[str] = ["cip_x0", "cip_k"]
 
 
 def _validate_phenotype_params(
@@ -685,27 +680,55 @@ def _validate_phenotype_params(
     Raises:
         ValueError: if required keys are missing or unexpected keys are present
     """
-    if model in _FRAILTY_MODELS:
-        required = set(_MODEL_PARAMS[model.removeprefix(_FRAILTY_PREFIX)])
-    elif model in _FPT_MODELS:
-        required = set(_MODEL_PARAMS[model])
-    elif model in _ADULT_MODELS:
-        required = set(_ADULT_PARAMS[model])
-    elif model in _CURE_MODELS:
-        if "baseline" not in phenotype_params:
+    if model not in _MODEL_FAMILIES:
+        raise ValueError(
+            f"Unknown phenotype_model{trait_num}={model!r}; valid models: {sorted(_MODEL_FAMILIES)}"
+        )
+
+    if model == "frailty":
+        if "distribution" not in phenotype_params:
             raise ValueError(
-                f"phenotype_params{trait_num} for model {model!r} must include "
-                f"'baseline' key specifying the baseline hazard model"
+                f"phenotype_params{trait_num} for model 'frailty' must include "
+                f"'distribution' key specifying the baseline hazard distribution"
             )
-        baseline = phenotype_params["baseline"]
-        if baseline not in _FRAILTY_BASELINES:
+        dist = phenotype_params["distribution"]
+        if dist not in _FRAILTY_DISTRIBUTIONS:
             raise ValueError(
-                f"phenotype_params{trait_num} baseline={baseline!r} is not a valid "
-                f"frailty baseline; valid baselines: {sorted(_FRAILTY_BASELINES)}"
+                f"phenotype_params{trait_num} distribution={dist!r} invalid; "
+                f"valid distributions: {sorted(_FRAILTY_DISTRIBUTIONS)}"
             )
-        required = set(_MODEL_PARAMS[baseline]) | {"baseline"}
-    else:
-        raise ValueError(f"Unknown phenotype_model{trait_num}={model!r}; valid models: {_ALL_PHENOTYPE_MODELS}")
+        required = set(_MODEL_PARAMS[dist]) | {"distribution"}
+
+    elif model == "cure_frailty":
+        if "distribution" not in phenotype_params:
+            raise ValueError(
+                f"phenotype_params{trait_num} for model 'cure_frailty' must include "
+                f"'distribution' key specifying the baseline hazard distribution"
+            )
+        dist = phenotype_params["distribution"]
+        if dist not in _FRAILTY_DISTRIBUTIONS:
+            raise ValueError(
+                f"phenotype_params{trait_num} distribution={dist!r} invalid; "
+                f"valid distributions: {sorted(_FRAILTY_DISTRIBUTIONS)}"
+            )
+        required = set(_MODEL_PARAMS[dist]) | {"distribution"}
+
+    elif model == "adult":
+        if "method" not in phenotype_params:
+            raise ValueError(
+                f"phenotype_params{trait_num} for model 'adult' must include "
+                f"'method' key (valid: {sorted(_ADULT_METHODS)})"
+            )
+        method = phenotype_params["method"]
+        if method not in _ADULT_METHODS:
+            raise ValueError(
+                f"phenotype_params{trait_num} method={method!r} invalid; "
+                f"valid methods: {sorted(_ADULT_METHODS)}"
+            )
+        required = set(_ADULT_PARAMS) | {"method"}
+
+    else:  # first_passage
+        required = set(_MODEL_PARAMS["first_passage"])
 
     provided = set(phenotype_params.keys())
     missing = required - provided
@@ -744,11 +767,12 @@ def _simulate_one_trait(
 
     _validate_phenotype_params(model, phenotype_params, trait_num)
 
-    if model in _ADULT_MODELS:
+    if model == "adult":
+        method = phenotype_params["method"]
         sex = pedigree["sex"].values if "sex" in pedigree.columns else None
         generation = pedigree["generation"].values
         prevalence = _resolve_prevalence(params, trait_num, sex, generation)
-        func = phenotype_adult_ltm if model == "adult_ltm" else phenotype_adult_cox
+        func = phenotype_adult_ltm if method == "ltm" else phenotype_adult_cox
         return func(
             liability=pedigree[f"liability{trait_num}"].values,
             prevalence=prevalence,
@@ -761,16 +785,17 @@ def _simulate_one_trait(
             beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
         )
 
-    if model in _CURE_MODELS:
+    if model == "cure_frailty":
         sex = pedigree["sex"].values
         generation = pedigree["generation"].values
         prevalence = _resolve_prevalence(params, trait_num, sex, generation)
-        hazard_params = {k: v for k, v in phenotype_params.items() if k != "baseline"}
+        distribution = phenotype_params["distribution"]
+        hazard_params = {k: v for k, v in phenotype_params.items() if k != "distribution"}
         return phenotype_cure_frailty(
             liability=pedigree[f"liability{trait_num}"].values,
             prevalence=prevalence,
             beta=params[f"beta{trait_num}"],
-            baseline=phenotype_params["baseline"],
+            baseline=distribution,
             hazard_params=hazard_params,
             seed=seed,
             standardize=params["standardize"],
@@ -778,7 +803,7 @@ def _simulate_one_trait(
             beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
         )
 
-    if model in _FPT_MODELS:
+    if model == "first_passage":
         return phenotype_first_passage(
             liability=pedigree[f"liability{trait_num}"].values,
             beta=params[f"beta{trait_num}"],
@@ -790,12 +815,14 @@ def _simulate_one_trait(
             beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
         )
 
-    # Frailty model — strip prefix to get bare distribution name
+    # Frailty model — extract distribution from params
+    distribution = phenotype_params["distribution"]
+    hazard_params = {k: v for k, v in phenotype_params.items() if k != "distribution"}
     return simulate_phenotype(
         liability=pedigree[f"liability{trait_num}"].values,
         beta=params[f"beta{trait_num}"],
-        hazard_model=model.removeprefix(_FRAILTY_PREFIX),
-        hazard_params=phenotype_params,
+        hazard_model=distribution,
+        hazard_params=hazard_params,
         seed=seed,
         standardize=params["standardize"],
         sex=pedigree["sex"].values,
@@ -884,11 +911,13 @@ def cli() -> None:
 
     for k in (1, 2):
         g = parser.add_argument_group(f"Trait {k}")
-        g.add_argument(f"--phenotype-model{k}", choices=_ALL_PHENOTYPE_MODELS, default="weibull")
+        g.add_argument(f"--phenotype-model{k}", choices=sorted(_MODEL_FAMILIES), default="frailty")
+        g.add_argument(f"--distribution{k}", default=None, help="Baseline distribution (frailty/cure_frailty)")
+        g.add_argument(f"--method{k}", default=None, choices=sorted(_ADULT_METHODS), help="Adult method (ltm/cox)")
         g.add_argument(f"--beta{k}", type=float, default=1.0)
         g.add_argument(f"--beta-sex{k}", type=float, default=0.0)
-        # Frailty model parameters (user only needs to supply what their
-        # chosen model requires).
+        # Distribution parameters (user only needs to supply what their
+        # chosen distribution requires).
         g.add_argument(f"--scale{k}", type=float, default=None)
         g.add_argument(f"--rho{k}", type=float, default=None)
         g.add_argument(f"--rate{k}", type=float, default=None)
@@ -928,19 +957,36 @@ def cli() -> None:
     save_parquet(phenotype, args.output)
 
 
-def _build_phenotype_params(args: argparse.Namespace, trait: int) -> dict[str, float]:
+def _build_phenotype_params(args: argparse.Namespace, trait: int) -> dict[str, Any]:
     """Collect model-specific CLI floats into a phenotype_params dict."""
     model = getattr(args, f"phenotype_model{trait}")
 
-    if model in _ADULT_MODELS:
+    if model == "adult":
+        method = getattr(args, f"method{trait}")
+        if method is None:
+            raise ValueError(f"--method{trait} is required when --phenotype-model{trait}=adult")
         return {
+            "method": method,
             "cip_x0": getattr(args, f"cip_x0_{trait}"),
             "cip_k": getattr(args, f"cip_k_{trait}"),
         }
 
-    # Frailty or FPT model
-    required = _MODEL_PARAMS[model]
-    params: dict[str, float] = {}
+    if model in ("frailty", "cure_frailty"):
+        dist = getattr(args, f"distribution{trait}")
+        if dist is None:
+            raise ValueError(f"--distribution{trait} is required when --phenotype-model{trait}={model}")
+        required = _MODEL_PARAMS.get(dist, [])
+        params: dict[str, Any] = {"distribution": dist}
+        for key in required:
+            val = getattr(args, f"{key}{trait}", None)
+            if val is None:
+                raise ValueError(f"--{key}{trait} is required for distribution {dist!r}")
+            params[key] = val
+        return params
+
+    # first_passage
+    required = _MODEL_PARAMS["first_passage"]
+    params = {}
     for key in required:
         val = getattr(args, f"{key}{trait}", None)
         if val is None:

@@ -20,7 +20,8 @@ from fit_ace.epimight.epimight_bias_analysis import (
 class TestParseScenarioName:
     def test_ltm_scenario(self):
         r = parse_scenario_name("ebias_ltm_K10_C0_nocensor")
-        assert r["phenotype_model"] == "adult_ltm"
+        assert r["phenotype_model"] == "adult"
+        assert r["model_label"] == "adult_ltm"
         assert r["prevalence"] == pytest.approx(0.10)
         assert r["C"] == 0.0
         assert r["censor_label"] == "none"
@@ -29,7 +30,8 @@ class TestParseScenarioName:
 
     def test_weibull_scenario(self):
         r = parse_scenario_name("ebias_weibull_K05_C02_death")
-        assert r["phenotype_model"] == "frailty_weibull"
+        assert r["phenotype_model"] == "frailty"
+        assert r["model_label"] == "frailty_weibull"
         assert r["prevalence"] == pytest.approx(0.05)
         assert r["C"] == 0.2
         assert r["censor_label"] == "death_only"

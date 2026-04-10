@@ -11,14 +11,16 @@ ebias_ltm_K01_C0_nocensor_2M:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.01
   prevalence2: 0.01
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}
@@ -37,14 +39,16 @@ ebias_ltm_K05_C0_nocensor_2M:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.05
   prevalence2: 0.05
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}
@@ -63,14 +67,16 @@ ebias_ltm_K10_C0_nocensor_2M:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.1
   prevalence2: 0.1
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}
@@ -89,14 +95,16 @@ ebias_ltm_K20_C0_nocensor_2M:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.2
   prevalence2: 0.2
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}
@@ -115,14 +123,16 @@ ebias_ltm_K40_C0_nocensor_2M:
   E2: 0.5
   rA: 0.0
   rC: 0.0
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   prevalence1: 0.4
   prevalence2: 0.4
   phenotype_params1:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   phenotype_params2:
+    method: ltm
     cip_x0: 50
     cip_k: 0.15
   gen_censoring: {}

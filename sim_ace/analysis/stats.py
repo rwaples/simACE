@@ -1187,18 +1187,22 @@ def cli() -> None:
     init_logging(args)
 
     frailty_params = None
-    if args.beta1 is not None and args.phenotype_model1 and args.phenotype_params1:
+    if args.beta1 is not None and args.phenotype_model1 == "frailty" and args.phenotype_params1:
+        pp1 = json.loads(args.phenotype_params1)
+        pp2 = json.loads(args.phenotype_params2) if args.phenotype_params2 else {}
         frailty_params = {
             "trait1": {
                 "beta": args.beta1,
-                "hazard_model": args.phenotype_model1,
-                "hazard_params": json.loads(args.phenotype_params1),
+                "hazard_model": pp1.get("distribution", ""),
+                "hazard_params": {k: v for k, v in pp1.items() if k != "distribution"},
             },
             "trait2": {
                 "beta": args.beta2,
-                "hazard_model": args.phenotype_model2,
-                "hazard_params": json.loads(args.phenotype_params2),
-            },
+                "hazard_model": pp2.get("distribution", ""),
+                "hazard_params": {k: v for k, v in pp2.items() if k != "distribution"},
+            }
+            if args.phenotype_model2 == "frailty"
+            else {},
         }
 
     gen_censoring = None

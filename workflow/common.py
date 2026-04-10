@@ -47,6 +47,55 @@ def load_folder_configs(config, config_dir="config"):
                 params["folder"] = folder
             config["scenarios"][name] = params
 
+    _validate_phenotype_config(config)
+
+
+_VALID_MODEL_FAMILIES = {"frailty", "cure_frailty", "adult", "first_passage"}
+_VALID_DISTRIBUTIONS = {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
+_VALID_METHODS = {"ltm", "cox"}
+
+
+def _validate_phenotype_config(config):
+    """Validate phenotype model configuration for all scenarios at DAG construction time."""
+    for name, params in config.get("scenarios", {}).items():
+        for trait_num in (1, 2):
+            model_key = f"phenotype_model{trait_num}"
+            params_key = f"phenotype_params{trait_num}"
+            model = params.get(model_key, config["defaults"].get(model_key))
+            pp = params.get(params_key, config["defaults"].get(params_key, {}))
+
+            if model not in _VALID_MODEL_FAMILIES:
+                raise ValueError(
+                    f"Scenario '{name}': {model_key}={model!r} is not valid. "
+                    f"Choose from: {sorted(_VALID_MODEL_FAMILIES)}"
+                )
+
+            if model in ("frailty", "cure_frailty"):
+                if "distribution" not in pp:
+                    raise ValueError(
+                        f"Scenario '{name}': {params_key} for model '{model}' "
+                        f"must include 'distribution' key"
+                    )
+                if pp["distribution"] not in _VALID_DISTRIBUTIONS:
+                    raise ValueError(
+                        f"Scenario '{name}': {params_key} distribution="
+                        f"{pp['distribution']!r} invalid; "
+                        f"valid: {sorted(_VALID_DISTRIBUTIONS)}"
+                    )
+
+            if model == "adult":
+                if "method" not in pp:
+                    raise ValueError(
+                        f"Scenario '{name}': {params_key} for model 'adult' "
+                        f"must include 'method' key (valid: {sorted(_VALID_METHODS)})"
+                    )
+                if pp["method"] not in _VALID_METHODS:
+                    raise ValueError(
+                        f"Scenario '{name}': {params_key} method="
+                        f"{pp['method']!r} invalid; "
+                        f"valid: {sorted(_VALID_METHODS)}"
+                    )
+
 
 def get_param(config, scenario, param):
     """Get parameter value, falling back to defaults if not specified in scenario."""

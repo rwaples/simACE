@@ -4,11 +4,11 @@ solmi_neurodevelopmental:
   phenotype_model1: cure_frailty
   phenotype_model2: cure_frailty
   phenotype_params1:
-    baseline: lognormal
+    distribution: lognormal
     mu: 2.35342
     sigma: 0.710781
   phenotype_params2:
-    baseline: lognormal
+    distribution: lognormal
     mu: 2.35342
     sigma: 0.710781
   beta1: 0.0
@@ -24,12 +24,14 @@ solmi_neurodevelopmental:
 solmi_anxiety:
   seed: 31042
   N: 1000000
-  phenotype_model1: adult_cox
-  phenotype_model2: adult_cox
+  phenotype_model1: adult
+  phenotype_model2: adult
   phenotype_params1:
+    method: cox
     cip_x0: 17.4982
     cip_k: 0.119542
   phenotype_params2:
+    method: cox
     cip_x0: 17.4982
     cip_k: 0.119542
   beta1: 0.751962
@@ -48,11 +50,11 @@ solmi_ocd:
   phenotype_model1: cure_frailty
   phenotype_model2: cure_frailty
   phenotype_params1:
-    baseline: lognormal
+    distribution: lognormal
     mu: 2.98502
     sigma: 0.549797
   phenotype_params2:
-    baseline: lognormal
+    distribution: lognormal
     mu: 2.98502
     sigma: 0.549797
   beta1: 0.0
@@ -71,11 +73,11 @@ solmi_eating:
   phenotype_model1: cure_frailty
   phenotype_model2: cure_frailty
   phenotype_params1:
-    baseline: lognormal
+    distribution: lognormal
     mu: 2.91098
     sigma: 0.317321
   phenotype_params2:
-    baseline: lognormal
+    distribution: lognormal
     mu: 2.91098
     sigma: 0.317321
   beta1: 0.0
@@ -94,11 +96,11 @@ solmi_stress:
   phenotype_model1: cure_frailty
   phenotype_model2: cure_frailty
   phenotype_params1:
-    baseline: lognormal
+    distribution: lognormal
     mu: 8.0
     sigma: 1.49059
   phenotype_params2:
-    baseline: lognormal
+    distribution: lognormal
     mu: 8.0
     sigma: 1.49059
   beta1: 3.4573
@@ -117,11 +119,11 @@ solmi_substance_use:
   phenotype_model1: cure_frailty
   phenotype_model2: cure_frailty
   phenotype_params1:
-    baseline: loglogistic
+    distribution: loglogistic
     scale: 26.9111
     shape: 3.10664
   phenotype_params2:
-    baseline: loglogistic
+    distribution: loglogistic
     scale: 26.9111
     shape: 3.10664
   beta1: 0.0
@@ -137,12 +139,14 @@ solmi_substance_use:
 solmi_schizophrenia:
   seed: 36042
   N: 1000000
-  phenotype_model1: adult_ltm
-  phenotype_model2: adult_ltm
+  phenotype_model1: adult
+  phenotype_model2: adult
   phenotype_params1:
+    method: ltm
     cip_x0: 22.3464
     cip_k: 0.304667
   phenotype_params2:
+    method: ltm
     cip_x0: 22.3464
     cip_k: 0.304667
   beta1: 0.96043
@@ -161,11 +165,11 @@ solmi_personality:
   phenotype_model1: cure_frailty
   phenotype_model2: cure_frailty
   phenotype_params1:
-    baseline: lognormal
+    distribution: lognormal
     mu: 3.2367
     sigma: 0.350747
   phenotype_params2:
-    baseline: lognormal
+    distribution: lognormal
     mu: 3.2367
     sigma: 0.350747
   beta1: 0.0
@@ -184,11 +188,11 @@ solmi_mood:
   phenotype_model1: cure_frailty
   phenotype_model2: cure_frailty
   phenotype_params1:
-    baseline: lognormal
+    distribution: lognormal
     mu: 4.83164
     sigma: 0.884423
   phenotype_params2:
-    baseline: lognormal
+    distribution: lognormal
     mu: 4.83164
     sigma: 0.884423
   beta1: 1.5745

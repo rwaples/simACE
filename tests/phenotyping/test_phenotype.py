@@ -179,6 +179,64 @@ class TestBetaSex:
 
 
 # ---------------------------------------------------------------------------
+# Parametrized frailty distribution tests (all 6 distributions)
+# ---------------------------------------------------------------------------
+
+FRAILTY_DISTRIBUTIONS = [
+    pytest.param("weibull", {"scale": 316.228, "rho": 2.0}, id="weibull"),
+    pytest.param("exponential", {"rate": 0.01}, id="exponential"),
+    pytest.param("gompertz", {"rate": 0.0001, "gamma": 0.05}, id="gompertz"),
+    pytest.param("lognormal", {"mu": 4.0, "sigma": 0.8}, id="lognormal"),
+    pytest.param("loglogistic", {"scale": 60.0, "shape": 4.0}, id="loglogistic"),
+    pytest.param("gamma", {"shape": 2.0, "scale": 1000.0}, id="gamma"),
+]
+
+
+@pytest.mark.parametrize("hazard_model,hazard_params", FRAILTY_DISTRIBUTIONS)
+class TestFrailtyDistributions:
+    """Smoke tests for all 6 frailty baseline distributions via simulate_phenotype()."""
+
+    def test_output_shape(self, hazard_model, hazard_params):
+        liability = np.random.default_rng(0).standard_normal(500)
+        t = simulate_phenotype(liability, beta=1.0, hazard_model=hazard_model, hazard_params=hazard_params, seed=42)
+        assert t.shape == (500,)
+
+    def test_all_positive_times(self, hazard_model, hazard_params):
+        liability = np.random.default_rng(0).standard_normal(1000)
+        t = simulate_phenotype(liability, beta=1.0, hazard_model=hazard_model, hazard_params=hazard_params, seed=42)
+        assert np.all(t > 0)
+
+    def test_all_finite_times(self, hazard_model, hazard_params):
+        liability = np.random.default_rng(0).standard_normal(1000)
+        t = simulate_phenotype(liability, beta=1.0, hazard_model=hazard_model, hazard_params=hazard_params, seed=42)
+        assert np.all(np.isfinite(t))
+
+    def test_higher_liability_earlier_onset(self, hazard_model, hazard_params):
+        rng = np.random.default_rng(99)
+        n = 10000
+        liability = rng.standard_normal(n)
+        t = simulate_phenotype(
+            liability, beta=2.0, hazard_model=hazard_model, hazard_params=hazard_params, seed=42, standardize=False
+        )
+        high = liability > 1.0
+        low = liability < -1.0
+        assert t[high].mean() < t[low].mean()
+
+    def test_deterministic_with_same_seed(self, hazard_model, hazard_params):
+        liability = np.array([0.5, -0.3, 1.2, -1.0])
+        t1 = simulate_phenotype(liability, beta=1.0, hazard_model=hazard_model, hazard_params=hazard_params, seed=42)
+        t2 = simulate_phenotype(liability, beta=1.0, hazard_model=hazard_model, hazard_params=hazard_params, seed=42)
+        np.testing.assert_array_equal(t1, t2)
+
+    def test_zero_beta_no_liability_effect(self, hazard_model, hazard_params):
+        liability = np.concatenate([np.full(5000, -5.0), np.full(5000, 5.0)])
+        t = simulate_phenotype(
+            liability, beta=0.0, hazard_model=hazard_model, hazard_params=hazard_params, seed=42, standardize=False
+        )
+        assert abs(t[:5000].mean() - t[5000:].mean()) / t.mean() < 0.1
+
+
+# ---------------------------------------------------------------------------
 # ADuLT Liability Threshold Model tests
 # ---------------------------------------------------------------------------
 
@@ -448,22 +506,25 @@ class TestCureFrailty:
         np.testing.assert_array_equal(t1, t2)
 
     def test_multiple_baselines(self):
-        """weibull, lognormal, gompertz baselines should all work."""
+        """All 6 baseline distributions should work with cure_frailty."""
         n = 5000
         liability = np.random.default_rng(0).standard_normal(n)
         baselines = {
             "weibull": {"scale": 316.228, "rho": 2.0},
-            "lognormal": {"mu": 4.0, "sigma": 0.8},
+            "exponential": {"rate": 0.01},
             "gompertz": {"rate": 0.0133, "gamma": 0.2019},
+            "lognormal": {"mu": 4.0, "sigma": 0.8},
+            "loglogistic": {"scale": 60.0, "shape": 4.0},
+            "gamma": {"shape": 2.0, "scale": 1000.0},
         }
         for name, params in baselines.items():
             t = phenotype_cure_frailty(
                 liability, prevalence=0.10, beta=1.0, baseline=name, hazard_params=params, seed=42
             )
-            assert t.shape == (n,)
+            assert t.shape == (n,), f"baseline={name}"
             cases = t[t < 1e6]
-            assert len(cases) > 0
-            assert np.all(cases > 0)
+            assert len(cases) > 0, f"baseline={name}: no cases"
+            assert np.all(cases > 0), f"baseline={name}: negative onset times"
 
     def test_beta_zero(self):
         """beta=0 → all cases get identical frailty (z=1), same onset distribution."""
