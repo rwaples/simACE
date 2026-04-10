@@ -7,15 +7,15 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 - The ACE conda env is always active. Do NOT use `conda run -n ACE` — run commands directly.
 - Do NOT run `git push` under any circumstances
 - Do NOT include Co-Authored-By in commit messages
-- Only commit when explicitly asked
+- Commit when explicitly asked
 
 ## Snakemake
 
-- Root `Snakefile` is the entry point — never use `-s workflow/Snakefile`
+- Root `Snakefile` is the entry point — not `-s workflow/Snakefile`
 - Use `--cores 4` (testing) or `--cores 1` (debugging). Always dry-run (`-n`) before long runs.
 - Targets are per-scenario: `results/{folder}/{scenario}/{scenario,simulate,phenotype,validate,stats,epimight}.done`
 - Single stage: `results/{folder}/{scenario}/{simulate,phenotype,validate,stats}.done`
-- Force-rebuild plots: `snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.pdf`
+- Force-rebuild plot atlas: `snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.pdf`
 - Single EPIMIGHT kind: `snakemake --cores 4 results/{folder}/{scenario}/rep1/epimight/tsv/h2_d1_FS.tsv`
 
 ## Testing
