@@ -9,8 +9,15 @@ description = "Statistical model fitting for ACE pedigree simulation data"
 requires-python = ">=3.10"
 dependencies = [
     "sim-ace",
-    "numpy", "scipy", "pandas", "pyarrow",
-    "matplotlib",
+    "numpy>=2.2,<3",
+    "scipy>=1.14,<2",
+    "pandas>=3.0,<4",
+    "pyarrow>=17,<24",
+]
+
+[project.optional-dependencies]
+plot = [
+    "matplotlib>=3.9,<4",
 ]
 
 [tool.setuptools.packages.find]

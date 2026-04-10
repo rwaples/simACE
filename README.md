@@ -120,10 +120,8 @@ Cost is dominated by the sparse `P_g @ K` products, which scale with the number 
 ```bash
 git clone <repo-url>
 cd ACE
-conda env create -f environment.yml   # creates environment and installs sim_ace package
+conda env create -f environment.yml   # creates environment, installs all dependencies + both packages
 conda activate ACE
-pip install -e .                       # install sim_ace
-pip install -e fit_ace/                # install fit_ace
 ```
 
 ### Verify installation
