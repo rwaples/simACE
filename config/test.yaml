@@ -1,130 +1,161 @@
 adult_ltm_test:
   seed: 23042
   N: 50000
-  phenotype_model1: adult
-  phenotype_model2: adult
-  prevalence1: 0.1
-  prevalence2: 0.2
-  phenotype_params1:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.2
-  phenotype_params2:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.2
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.3
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      prevalence: 0.1
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+    trait2:
+      model: adult
+      prevalence: 0.2
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
   G_sim: 35
   G_ped: 30
   G_pheno: 30
-  gen_censoring:
-    0:
-    - 0
-    - 80
+  censoring:
+    gen_censoring:
+      0:
+      - 0
+      - 80
 adult_cox_test:
   seed: 24042
   N: 50000
-  phenotype_model1: adult
-  phenotype_model2: adult
-  prevalence1: 0.1
-  prevalence2: 0.2
-  phenotype_params1:
-    method: cox
-    cip_x0: 50
-    cip_k: 0.2
-  phenotype_params2:
-    method: cox
-    cip_x0: 50
-    cip_k: 0.2
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.3
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      prevalence: 0.1
+      params:
+        method: cox
+        cip_x0: 50
+        cip_k: 0.2
+    trait2:
+      model: adult
+      prevalence: 0.2
+      params:
+        method: cox
+        cip_x0: 50
+        cip_k: 0.2
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
   G_sim: 35
   G_ped: 30
   G_pheno: 30
-  gen_censoring:
-    0:
-    - 0
-    - 80
+  censoring:
+    gen_censoring:
+      0:
+      - 0
+      - 80
 adult_ltm_sex_prev:
   seed: 25042
   N: 5000
-  phenotype_model1: adult
-  phenotype_model2: adult
-  prevalence1:
-    female: 0.08
-    male: 0.12
-  prevalence2:
-    female: 0.1
-    male: 0.2
-  phenotype_params1:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.2
-  phenotype_params2:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.2
+  phenotype:
+    trait1:
+      model: adult
+      prevalence:
+        female: 0.08
+        male: 0.12
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+    trait2:
+      model: adult
+      prevalence:
+        female: 0.1
+        male: 0.2
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
 first_passage_test:
   seed: 26042
   N: 50000
-  phenotype_model1: first_passage
-  phenotype_model2: first_passage
-  phenotype_params1:
-    drift: -0.01
-    shape: 100
-  phenotype_params2:
-    drift: -0.005
-    shape: 80
-  beta1: 1.0
-  beta2: 1.5
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.3
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: first_passage
+      params:
+        drift: -0.01
+        shape: 100
+      beta: 1.0
+    trait2:
+      model: first_passage
+      params:
+        drift: -0.005
+        shape: 80
+      beta: 1.5
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
   G_sim: 35
   G_ped: 30
   G_pheno: 30
-  gen_censoring:
-    0:
-    - 0
-    - 80
+  censoring:
+    gen_censoring:
+      0:
+      - 0
+      - 80
 first_passage_cure_test:
   seed: 27042
   N: 50000
-  phenotype_model1: first_passage
-  phenotype_model2: first_passage
-  phenotype_params1:
-    drift: 0.05
-    shape: 100
-  phenotype_params2:
-    drift: 0.02
-    shape: 80
-  beta1: 1.0
-  beta2: 1.5
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.3
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: first_passage
+      params:
+        drift: 0.05
+        shape: 100
+      beta: 1.0
+    trait2:
+      model: first_passage
+      params:
+        drift: 0.02
+        shape: 80
+      beta: 1.5
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
   G_sim: 35
   G_ped: 30
   G_pheno: 30
-  gen_censoring:
-    0:
-    - 0
-    - 80
+  censoring:
+    gen_censoring:
+      0:
+      - 0
+      - 80
 small_test:
   seed: 12042
   N: 1000

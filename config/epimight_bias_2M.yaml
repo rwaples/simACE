@@ -2,139 +2,174 @@ ebias_ltm_K01_C0_nocensor_2M:
   seed: 50101
   N: 2000000
   replicates: 1
-  p_mztwin: 0
-  A1: 0.5
-  C1: 0.0
-  E1: 0.5
-  A2: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
-  phenotype_model1: adult
-  phenotype_model2: adult
-  prevalence1: 0.01
-  prevalence2: 0.01
-  phenotype_params1:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.15
-  phenotype_params2:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.15
-  gen_censoring: {}
-  death_scale: 1000000
-  death_rho: 1.0
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      prevalence: 0.01
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+    trait2:
+      model: adult
+      prevalence: 0.01
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
 ebias_ltm_K05_C0_nocensor_2M:
   seed: 50102
   N: 2000000
   replicates: 1
-  p_mztwin: 0
-  A1: 0.5
-  C1: 0.0
-  E1: 0.5
-  A2: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
-  phenotype_model1: adult
-  phenotype_model2: adult
-  prevalence1: 0.05
-  prevalence2: 0.05
-  phenotype_params1:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.15
-  phenotype_params2:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.15
-  gen_censoring: {}
-  death_scale: 1000000
-  death_rho: 1.0
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      prevalence: 0.05
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+    trait2:
+      model: adult
+      prevalence: 0.05
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
 ebias_ltm_K10_C0_nocensor_2M:
   seed: 50103
   N: 2000000
   replicates: 1
-  p_mztwin: 0
-  A1: 0.5
-  C1: 0.0
-  E1: 0.5
-  A2: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
-  phenotype_model1: adult
-  phenotype_model2: adult
-  prevalence1: 0.1
-  prevalence2: 0.1
-  phenotype_params1:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.15
-  phenotype_params2:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.15
-  gen_censoring: {}
-  death_scale: 1000000
-  death_rho: 1.0
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      prevalence: 0.1
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+    trait2:
+      model: adult
+      prevalence: 0.1
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
 ebias_ltm_K20_C0_nocensor_2M:
   seed: 50104
   N: 2000000
   replicates: 1
-  p_mztwin: 0
-  A1: 0.5
-  C1: 0.0
-  E1: 0.5
-  A2: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
-  phenotype_model1: adult
-  phenotype_model2: adult
-  prevalence1: 0.2
-  prevalence2: 0.2
-  phenotype_params1:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.15
-  phenotype_params2:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.15
-  gen_censoring: {}
-  death_scale: 1000000
-  death_rho: 1.0
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      prevalence: 0.2
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+    trait2:
+      model: adult
+      prevalence: 0.2
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
 ebias_ltm_K40_C0_nocensor_2M:
   seed: 50105
   N: 2000000
   replicates: 1
-  p_mztwin: 0
-  A1: 0.5
-  C1: 0.0
-  E1: 0.5
-  A2: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
-  phenotype_model1: adult
-  phenotype_model2: adult
-  prevalence1: 0.4
-  prevalence2: 0.4
-  phenotype_params1:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.15
-  phenotype_params2:
-    method: ltm
-    cip_x0: 50
-    cip_k: 0.15
-  gen_censoring: {}
-  death_scale: 1000000
-  death_rho: 1.0
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      prevalence: 0.4
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+    trait2:
+      model: adult
+      prevalence: 0.4
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0

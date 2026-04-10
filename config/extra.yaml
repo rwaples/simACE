@@ -2,7 +2,10 @@ baseline2M:
   seed: 99042
   replicates: 3
   N: 2000000
-  rA: 0.3
-  assort1: 0.1
-  assort2: 0.15
-  beta_sex1: 0.75
+  pedigree:
+    rA: 0.3
+    assort1: 0.1
+    assort2: 0.15
+  phenotype:
+    trait1:
+      beta_sex: 0.75

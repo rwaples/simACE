@@ -193,55 +193,53 @@ defaults:
   rA: 0.3                                   # Genetic correlation
   rC: 0.5                                   # Common environment correlation
 
-  # Population and reproduction
+  # Population and generation structure
   N: 100000                                 # Population size per generation
   G_ped: 6                                  # Generations to record in pedigree
   G_pheno: 3                                # Generations to phenotype (last G_pheno of G_ped)
   G_sim: 8                                  # Total generations (G_sim - G_ped = burn-in)
-  mating_lambda: 0.5                         # ZTP mating count lambda (~23% multi-partner)
-  p_mztwin: 0.02                            # Probability of MZ twin birth
-  assort1: 0                                 # Mate correlation on trait 1 liability ([-1, 1])
-  assort2: 0                                 # Mate correlation on trait 2 liability ([-1, 1])
+  standardize: true                          # Standardize liability before phenotyping
+
+  # Pedigree structure + variance components
+  pedigree:
+    mating_lambda: 0.5                       # ZTP mating count lambda (~23% multi-partner)
+    p_mztwin: 0.02                           # Probability of MZ twin birth
+    assort1: 0                               # Mate correlation on trait 1 liability
+    assort2: 0                               # Mate correlation on trait 2 liability
+    trait1: {A: 0.5, C: 0.0, E: 0.5}        # Trait 1 ACE variance components
+    trait2: {A: 0.4, C: 0.2, E: 0.4}        # Trait 2 ACE variance components
+    rA: 0.0                                  # Cross-trait additive genetic correlation
+    rC: 0.0                                  # Cross-trait shared environment correlation
 
   # Phenotype model per trait: frailty / cure_frailty / adult / first_passage
-  # Trait 1
-  beta1: 1.0                                # Effect of liability on log-hazard
-  phenotype_model1: frailty                 # Model family
-  phenotype_params1:
-    distribution: weibull                   # Baseline hazard distribution
-    scale: 2160                             # Weibull scale
-    rho: 0.8                                # Weibull shape (<1 = decreasing hazard)
+  phenotype:
+    trait1:
+      model: frailty                         # Model family
+      params:                                # Model-specific parameters
+        distribution: weibull                # Baseline hazard distribution
+        scale: 2160                          # Weibull scale
+        rho: 0.8                             # Weibull shape (<1 = decreasing hazard)
+      beta: 1.0                              # Effect of liability on log-hazard
+      prevalence: 0.10                       # Proportion affected per generation
+    trait2:
+      model: frailty
+      params: {distribution: weibull, scale: 333, rho: 1.2}
+      beta: 1.5
+      prevalence: 0.20
 
-  # Trait 2
-  beta2: 1.5
-  phenotype_model2: frailty
-  phenotype_params2:
-    distribution: weibull
-    scale: 333
-    rho: 1.2                                # Weibull shape (>1 = increasing hazard)
+  # Censoring + competing-risk mortality
+  censoring:
+    max_age: 80                              # Max censoring age
+    gen_censoring:                           # Per-generation [left, right] observation windows
+      { 0: [80, 80], 1: [80, 80], 2: [80, 80], 3: [40, 80], 4: [0, 80], 5: [0, 45] }
+    death_scale: 164                         # Competing-risk mortality Weibull scale
+    death_rho: 2.73                          # Competing-risk mortality Weibull shape
 
-  standardize: true                          # Standardize liability before phenotyping
-  # Note: for frailty and cure_frailty models, standardize=true normalizes
-  # liability across ALL generations pooled (global mean/std), so per-generation
-  # prevalence will vary when variance components (C, E) change across
-  # generations. The threshold (simple LTM) model standardizes per-generation,
-  # preserving exact prevalence within each generation.
-
-  # Censoring
-  censor_age: 80                             # Max censoring age
-  gen_censoring:                             # Per-generation [left, right] observation windows
-    { 0: [80, 80], 1: [80, 80], 2: [80, 80], 3: [40, 80], 4: [0, 80], 5: [0, 45] }
-  death_scale: 164                           # Competing-risk mortality Weibull scale
-  death_rho: 2.73                            # Competing-risk mortality Weibull shape
-
-  # Liability threshold model
-  prevalence1: 0.10                          # Trait 1: proportion affected per generation
-  prevalence2: 0.20                          # Trait 2: proportion affected per generation
-
-  # Statistics
-  N_sample: 0                                # Subsample phenotype before stats (0 = keep all)
-  case_ascertainment_ratio: 1                # Case sampling weight relative to controls (1 = uniform)
-  pedigree_dropout_rate: 0                   # Fraction of individuals to drop from pedigree (0 = none)
+  # Sampling
+  sampling:
+    N_sample: 0                              # Subsample phenotype before stats (0 = keep all)
+    case_ascertainment_ratio: 1              # Case sampling weight relative to controls
+    pedigree_dropout_rate: 0                 # Fraction of individuals to drop from pedigree
 
   # Plot output
   plot_format: png                           # Plot file format: png or pdf

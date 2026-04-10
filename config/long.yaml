@@ -1,85 +1,103 @@
 long_term:
   replicates: 1
   seed: 1879
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
   N: 200000
   G_sim: 35
   G_ped: 30
   G_pheno: 30
-  gen_censoring:
-    0:
-    - 0
-    - 80
+  censoring:
+    gen_censoring:
+      0:
+      - 0
+      - 80
 long_solmi_mood:
   replicates: 1
   seed: 1880
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
   N: 200000
   G_sim: 35
   G_ped: 30
   G_pheno: 30
-  gen_censoring:
-    0:
-    - 0
-    - 80
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.58381
-    sigma: 0.62896
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.58381
-    sigma: 0.62896
-  beta1: 0.1749
-  beta2: 0.1749
-  prevalence1: 0.15
-  prevalence2: 0.15
+  censoring:
+    gen_censoring:
+      0:
+      - 0
+      - 80
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.58381
+        sigma: 0.62896
+      beta: 0.1749
+      prevalence: 0.15
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.58381
+        sigma: 0.62896
+      beta: 0.1749
+      prevalence: 0.15
 long_beck_adhd:
   replicates: 1
   seed: 1881
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
   N: 200000
   G_sim: 35
   G_ped: 30
   G_pheno: 30
-  gen_censoring:
-    0:
-    - 0
-    - 80
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 2.88747
-    sigma: 0.658443
-  phenotype_params2:
-    distribution: lognormal
-    mu: 2.88747
-    sigma: 0.658443
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: 0.5009
-  beta_sex2: 0.5009
-  prevalence1:
-    female: 0.0481943
-    male: 0.083224
-  prevalence2:
-    female: 0.0481943
-    male: 0.083224
+  censoring:
+    gen_censoring:
+      0:
+      - 0
+      - 80
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.88747
+        sigma: 0.658443
+      beta: 0.0
+      beta_sex: 0.5009
+      prevalence:
+        female: 0.0481943
+        male: 0.083224
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.88747
+        sigma: 0.658443
+      beta: 0.0
+      beta_sex: 0.5009
+      prevalence:
+        female: 0.0481943
+        male: 0.083224

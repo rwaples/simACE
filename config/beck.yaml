@@ -1,638 +1,770 @@
 beck_adhd:
   seed: 40000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 2.88737
-    sigma: 0.658447
-  phenotype_params2:
-    distribution: lognormal
-    mu: 2.88737
-    sigma: 0.658447
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: 0.5003
-  beta_sex2: 0.5003
-  prevalence1:
-    female: 0.048193
-    male: 0.083224
-  prevalence2:
-    female: 0.048193
-    male: 0.083224
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.88737
+        sigma: 0.658447
+      beta: 0.0
+      beta_sex: 0.5003
+      prevalence:
+        female: 0.048193
+        male: 0.083224
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.88737
+        sigma: 0.658447
+      beta: 0.0
+      beta_sex: 0.5003
+      prevalence:
+        female: 0.048193
+        male: 0.083224
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_an:
   seed: 41000
   N: 1000000
-  phenotype_model1: adult
-  phenotype_model2: adult
-  phenotype_params1:
-    method: ltm
-    cip_x0: 16.2949
-    cip_k: 0.375793
-  phenotype_params2:
-    method: ltm
-    cip_x0: 16.2949
-    cip_k: 0.375793
-  beta1: 0.7985
-  beta2: 0.7985
-  beta_sex1: 0.5357
-  beta_sex2: 0.5357
-  prevalence1:
-    female: 0.0333
-    male: 0.001012
-  prevalence2:
-    female: 0.0333
-    male: 0.001012
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16.2949
+        cip_k: 0.375793
+      beta: 0.7985
+      beta_sex: 0.5357
+      prevalence:
+        female: 0.0333
+        male: 0.001012
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16.2949
+        cip_k: 0.375793
+      beta: 0.7985
+      beta_sex: 0.5357
+      prevalence:
+        female: 0.0333
+        male: 0.001012
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_any:
   seed: 42000
   N: 1000000
-  phenotype_model1: adult
-  phenotype_model2: adult
-  phenotype_params1:
-    method: ltm
-    cip_x0: 0.0
-    cip_k: 0.09746
-  phenotype_params2:
-    method: ltm
-    cip_x0: 0.0
-    cip_k: 0.09746
-  beta1: 0.2143
-  beta2: 0.2143
-  beta_sex1: 0.3757
-  beta_sex2: 0.3757
-  prevalence1:
-    female: 0.461393
-    male: 0.310272
-  prevalence2:
-    female: 0.461393
-    male: 0.310272
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 0.0
+        cip_k: 0.09746
+      beta: 0.2143
+      beta_sex: 0.3757
+      prevalence:
+        female: 0.461393
+        male: 0.310272
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 0.0
+        cip_k: 0.09746
+      beta: 0.2143
+      beta_sex: 0.3757
+      prevalence:
+        female: 0.461393
+        male: 0.310272
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_apd:
   seed: 43000
   N: 1000000
-  phenotype_model1: adult
-  phenotype_model2: adult
-  phenotype_params1:
-    method: ltm
-    cip_x0: 26.8445
-    cip_k: 0.175111
-  phenotype_params2:
-    method: ltm
-    cip_x0: 26.8445
-    cip_k: 0.175111
-  beta1: 0.8692
-  beta2: 0.8692
-  beta_sex1: -0.0594
-  beta_sex2: -0.0594
-  prevalence1:
-    female: 0.002997
-    male: 0.012299
-  prevalence2:
-    female: 0.002997
-    male: 0.012299
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 26.8445
+        cip_k: 0.175111
+      beta: 0.8692
+      beta_sex: -0.0594
+      prevalence:
+        female: 0.002997
+        male: 0.012299
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 26.8445
+        cip_k: 0.175111
+      beta: 0.8692
+      beta_sex: -0.0594
+      prevalence:
+        female: 0.002997
+        male: 0.012299
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_au:
   seed: 44000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.86639
-    sigma: 0.477996
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.86639
-    sigma: 0.477996
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: 0.1122
-  beta_sex2: 0.1122
-  prevalence1:
-    female: 0.028329
-    male: 0.051935
-  prevalence2:
-    female: 0.028329
-    male: 0.051935
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.86639
+        sigma: 0.477996
+      beta: 0.0
+      beta_sex: 0.1122
+      prevalence:
+        female: 0.028329
+        male: 0.051935
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.86639
+        sigma: 0.477996
+      beta: 0.0
+      beta_sex: 0.1122
+      prevalence:
+        female: 0.028329
+        male: 0.051935
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_bd:
   seed: 45000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.59391
-    sigma: 0.44395
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.59391
-    sigma: 0.44395
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: -0.3359
-  beta_sex2: -0.3359
-  prevalence1:
-    female: 0.022725
-    male: 0.016852
-  prevalence2:
-    female: 0.022725
-    male: 0.016852
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.59391
+        sigma: 0.44395
+      beta: 0.0
+      beta_sex: -0.3359
+      prevalence:
+        female: 0.022725
+        male: 0.016852
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.59391
+        sigma: 0.44395
+      beta: 0.0
+      beta_sex: -0.3359
+      prevalence:
+        female: 0.022725
+        male: 0.016852
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_bed:
   seed: 46000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 2.7745
-    sigma: 0.623828
-  phenotype_params2:
-    distribution: lognormal
-    mu: 2.7745
-    sigma: 0.623828
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: 0.4581
-  beta_sex2: 0.4581
-  prevalence1:
-    female: 0.072175
-    male: 0.109686
-  prevalence2:
-    female: 0.072175
-    male: 0.109686
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.7745
+        sigma: 0.623828
+      beta: 0.0
+      beta_sex: 0.4581
+      prevalence:
+        female: 0.072175
+        male: 0.109686
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.7745
+        sigma: 0.623828
+      beta: 0.0
+      beta_sex: 0.4581
+      prevalence:
+        female: 0.072175
+        male: 0.109686
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_bt:
   seed: 47000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.21288
-    sigma: 0.267314
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.21288
-    sigma: 0.267314
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: -0.4856
-  beta_sex2: -0.4856
-  prevalence1:
-    female: 0.029795
-    male: 0.003535
-  prevalence2:
-    female: 0.029795
-    male: 0.003535
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.21288
+        sigma: 0.267314
+      beta: 0.0
+      beta_sex: -0.4856
+      prevalence:
+        female: 0.029795
+        male: 0.003535
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.21288
+        sigma: 0.267314
+      beta: 0.0
+      beta_sex: -0.4856
+      prevalence:
+        female: 0.029795
+        male: 0.003535
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_ca:
   seed: 48000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 2.26905
-    sigma: 0.715307
-  phenotype_params2:
-    distribution: lognormal
-    mu: 2.26905
-    sigma: 0.715307
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: 0.3077
-  beta_sex2: 0.3077
-  prevalence1:
-    female: 0.006161
-    male: 0.019493
-  prevalence2:
-    female: 0.006161
-    male: 0.019493
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.26905
+        sigma: 0.715307
+      beta: 0.0
+      beta_sex: 0.3077
+      prevalence:
+        female: 0.006161
+        male: 0.019493
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.26905
+        sigma: 0.715307
+      beta: 0.0
+      beta_sex: 0.3077
+      prevalence:
+        female: 0.006161
+        male: 0.019493
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_cu:
   seed: 49000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.16287
-    sigma: 0.273653
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.16287
-    sigma: 0.273653
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: -0.4084
-  beta_sex2: -0.4084
-  prevalence1:
-    female: 0.01212
-    male: 0.0303
-  prevalence2:
-    female: 0.01212
-    male: 0.0303
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.16287
+        sigma: 0.273653
+      beta: 0.0
+      beta_sex: -0.4084
+      prevalence:
+        female: 0.01212
+        male: 0.0303
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.16287
+        sigma: 0.273653
+      beta: 0.0
+      beta_sex: -0.4084
+      prevalence:
+        female: 0.01212
+        male: 0.0303
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_dep:
   seed: 50000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.45363
-    sigma: 0.467117
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.45363
-    sigma: 0.467117
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: -0.2702
-  beta_sex2: -0.2702
-  prevalence1:
-    female: 0.156247
-    male: 0.095105
-  prevalence2:
-    female: 0.156247
-    male: 0.095105
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.45363
+        sigma: 0.467117
+      beta: 0.0
+      beta_sex: -0.2702
+      prevalence:
+        female: 0.156247
+        male: 0.095105
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.45363
+        sigma: 0.467117
+      beta: 0.0
+      beta_sex: -0.2702
+      prevalence:
+        female: 0.156247
+        male: 0.095105
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_ed:
   seed: 51000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.0016
-    sigma: 0.300346
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.0016
-    sigma: 0.300346
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: 0.4145
-  beta_sex2: 0.4145
-  prevalence1:
-    female: 0.037471
-    male: 0.002727
-  prevalence2:
-    female: 0.037471
-    male: 0.002727
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.0016
+        sigma: 0.300346
+      beta: 0.0
+      beta_sex: 0.4145
+      prevalence:
+        female: 0.037471
+        male: 0.002727
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.0016
+        sigma: 0.300346
+      beta: 0.0
+      beta_sex: 0.4145
+      prevalence:
+        female: 0.037471
+        male: 0.002727
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_id:
   seed: 52000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.14905
-    sigma: 0.964654
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.14905
-    sigma: 0.964654
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: 0.5853
-  beta_sex2: 0.5853
-  prevalence1:
-    female: 0.015062
-    male: 0.020301
-  prevalence2:
-    female: 0.015062
-    male: 0.020301
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.14905
+        sigma: 0.964654
+      beta: 0.0
+      beta_sex: 0.5853
+      prevalence:
+        female: 0.015062
+        male: 0.020301
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.14905
+        sigma: 0.964654
+      beta: 0.0
+      beta_sex: 0.5853
+      prevalence:
+        female: 0.015062
+        male: 0.020301
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_md:
   seed: 53000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.45197
-    sigma: 0.461638
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.45197
-    sigma: 0.461638
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: -0.2674
-  beta_sex2: -0.2674
-  prevalence1:
-    female: 0.168367
-    male: 0.105268
-  prevalence2:
-    female: 0.168367
-    male: 0.105268
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.45197
+        sigma: 0.461638
+      beta: 0.0
+      beta_sex: -0.2674
+      prevalence:
+        female: 0.168367
+        male: 0.105268
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.45197
+        sigma: 0.461638
+      beta: 0.0
+      beta_sex: -0.2674
+      prevalence:
+        female: 0.168367
+        male: 0.105268
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_nss:
   seed: 54000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 4.07936
-    sigma: 0.679115
-  phenotype_params2:
-    distribution: lognormal
-    mu: 4.07936
-    sigma: 0.679115
-  beta1: 1.2663
-  beta2: 1.2663
-  beta_sex1: -0.413
-  beta_sex2: -0.413
-  prevalence1:
-    female: 0.236239
-    male: 0.164327
-  prevalence2:
-    female: 0.236239
-    male: 0.164327
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 4.07936
+        sigma: 0.679115
+      beta: 1.2663
+      beta_sex: -0.413
+      prevalence:
+        female: 0.236239
+        male: 0.164327
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 4.07936
+        sigma: 0.679115
+      beta: 1.2663
+      beta_sex: -0.413
+      prevalence:
+        female: 0.236239
+        male: 0.164327
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_ocd:
   seed: 55000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.0876
-    sigma: 0.503178
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.0876
-    sigma: 0.503178
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: 0.2187
-  beta_sex2: 0.2187
-  prevalence1:
-    female: 0.024472
-    male: 0.013837
-  prevalence2:
-    female: 0.024472
-    male: 0.013837
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.0876
+        sigma: 0.503178
+      beta: 0.0
+      beta_sex: 0.2187
+      prevalence:
+        female: 0.024472
+        male: 0.013837
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.0876
+        sigma: 0.503178
+      beta: 0.0
+      beta_sex: 0.2187
+      prevalence:
+        female: 0.024472
+        male: 0.013837
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_pdd:
   seed: 56000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 6.3747
-    sigma: 1.32368
-  phenotype_params2:
-    distribution: lognormal
-    mu: 6.3747
-    sigma: 1.32368
-  beta1: 2.4569
-  beta2: 2.4569
-  beta_sex1: 1.3815
-  beta_sex2: 1.3815
-  prevalence1:
-    female: 0.02929
-    male: 0.060095
-  prevalence2:
-    female: 0.02929
-    male: 0.060095
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 6.3747
+        sigma: 1.32368
+      beta: 2.4569
+      beta_sex: 1.3815
+      prevalence:
+        female: 0.02929
+        male: 0.060095
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 6.3747
+        sigma: 1.32368
+      beta: 2.4569
+      beta_sex: 1.3815
+      prevalence:
+        female: 0.02929
+        male: 0.060095
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_sad:
   seed: 57000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.60824
-    sigma: 0.491508
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.60824
-    sigma: 0.491508
-  beta1: 0.0001
-  beta2: 0.0001
-  beta_sex1: -0.075
-  beta_sex2: -0.075
-  prevalence1:
-    female: 0.00287
-    male: 0.001986
-  prevalence2:
-    female: 0.00287
-    male: 0.001986
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.60824
+        sigma: 0.491508
+      beta: 0.0001
+      beta_sex: -0.075
+      prevalence:
+        female: 0.00287
+        male: 0.001986
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.60824
+        sigma: 0.491508
+      beta: 0.0001
+      beta_sex: -0.075
+      prevalence:
+        female: 0.00287
+        male: 0.001986
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_sch:
   seed: 58000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.29561
-    sigma: 0.339876
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.29561
-    sigma: 0.339876
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: -0.1507
-  beta_sex2: -0.1507
-  prevalence1:
-    female: 0.017574
-    male: 0.021816
-  prevalence2:
-    female: 0.017574
-    male: 0.021816
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.29561
+        sigma: 0.339876
+      beta: 0.0
+      beta_sex: -0.1507
+      prevalence:
+        female: 0.017574
+        male: 0.021816
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.29561
+        sigma: 0.339876
+      beta: 0.0
+      beta_sex: -0.1507
+      prevalence:
+        female: 0.017574
+        male: 0.021816
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_spd:
   seed: 59000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.26766
-    sigma: 0.304928
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.26766
-    sigma: 0.304928
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: -0.4436
-  beta_sex2: -0.4436
-  prevalence1:
-    female: 0.072013
-    male: 0.031209
-  prevalence2:
-    female: 0.072013
-    male: 0.031209
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.26766
+        sigma: 0.304928
+      beta: 0.0
+      beta_sex: -0.4436
+      prevalence:
+        female: 0.072013
+        male: 0.031209
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.26766
+        sigma: 0.304928
+      beta: 0.0
+      beta_sex: -0.4436
+      prevalence:
+        female: 0.072013
+        male: 0.031209
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_srd:
   seed: 60000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.33094
-    sigma: 0.424545
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.33094
-    sigma: 0.424545
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: -0.0802
-  beta_sex2: -0.0802
-  prevalence1:
-    female: 0.041309
-    male: 0.04545
-  prevalence2:
-    female: 0.041309
-    male: 0.04545
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.33094
+        sigma: 0.424545
+      beta: 0.0
+      beta_sex: -0.0802
+      prevalence:
+        female: 0.041309
+        male: 0.04545
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.33094
+        sigma: 0.424545
+      beta: 0.0
+      beta_sex: -0.0802
+      prevalence:
+        female: 0.041309
+        male: 0.04545
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 beck_su:
   seed: 61000
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.5622
-    sigma: 0.449406
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.5622
-    sigma: 0.449406
-  beta1: 0.0
-  beta2: 0.0
-  beta_sex1: 0.1269
-  beta_sex2: 0.1269
-  prevalence1:
-    female: 0.041511
-    male: 0.077669
-  prevalence2:
-    female: 0.041511
-    male: 0.077669
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5622
+        sigma: 0.449406
+      beta: 0.0
+      beta_sex: 0.1269
+      prevalence:
+        female: 0.041511
+        male: 0.077669
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5622
+        sigma: 0.449406
+      beta: 0.0
+      beta_sex: 0.1269
+      prevalence:
+        female: 0.041511
+        male: 0.077669
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0

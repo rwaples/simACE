@@ -1,15 +1,19 @@
 no_twins:
   seed: 14042
-  p_mztwin: 0
+  pedigree:
+    p_mztwin: 0
 assortative_mating:
   seed: 80042
-  assort1: 0.3
-  assort2: 0.0
+  pedigree:
+    assort1: 0.3
+    assort2: 0.0
 assortative_mating_both:
   seed: 81042
   N: 100000
-  assort1: 0.3
-  assort2: 0.15
+  pedigree:
+    assort1: 0.3
+    assort2: 0.15
 high_mating_lambda:
   seed: 15042
-  mating_lambda: 3.0
+  pedigree:
+    mating_lambda: 3.0

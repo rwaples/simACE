@@ -6,6 +6,101 @@ import re
 
 import yaml
 
+# ---------------------------------------------------------------------------
+# Hierarchical config → flat internal key mapping
+# ---------------------------------------------------------------------------
+
+_HIERARCHICAL_TO_FLAT = {
+    # pedigree section
+    ("pedigree", "mating_lambda"): "mating_lambda",
+    ("pedigree", "p_mztwin"): "p_mztwin",
+    ("pedigree", "assort1"): "assort1",
+    ("pedigree", "assort2"): "assort2",
+    ("pedigree", "assort_matrix"): "assort_matrix",
+    ("pedigree", "trait1", "A"): "A1",
+    ("pedigree", "trait1", "C"): "C1",
+    ("pedigree", "trait1", "E"): "E1",
+    ("pedigree", "trait2", "A"): "A2",
+    ("pedigree", "trait2", "C"): "C2",
+    ("pedigree", "trait2", "E"): "E2",
+    ("pedigree", "rA"): "rA",
+    ("pedigree", "rC"): "rC",
+    ("pedigree", "rE"): "rE",
+    # phenotype section
+    ("phenotype", "trait1", "model"): "phenotype_model1",
+    ("phenotype", "trait1", "params"): "phenotype_params1",
+    ("phenotype", "trait1", "beta"): "beta1",
+    ("phenotype", "trait1", "beta_sex"): "beta_sex1",
+    ("phenotype", "trait1", "prevalence"): "prevalence1",
+    ("phenotype", "trait2", "model"): "phenotype_model2",
+    ("phenotype", "trait2", "params"): "phenotype_params2",
+    ("phenotype", "trait2", "beta"): "beta2",
+    ("phenotype", "trait2", "beta_sex"): "beta_sex2",
+    ("phenotype", "trait2", "prevalence"): "prevalence2",
+    # censoring section
+    ("censoring", "max_age"): "censor_age",
+    ("censoring", "gen_censoring"): "gen_censoring",
+    ("censoring", "death_scale"): "death_scale",
+    ("censoring", "death_rho"): "death_rho",
+    # sampling section
+    ("sampling", "N_sample"): "N_sample",
+    ("sampling", "case_ascertainment_ratio"): "case_ascertainment_ratio",
+    ("sampling", "pedigree_dropout_rate"): "pedigree_dropout_rate",
+    # analysis section
+    ("analysis", "max_degree"): "max_degree",
+    ("analysis", "estimate_inbreeding"): "estimate_inbreeding",
+    # epimight section
+    ("epimight", "K"): "epimight_mi_K",
+    ("epimight", "rubin_level"): "epimight_rubin_level",
+    ("epimight", "kinds"): "epimight_kinds",
+    # pafgrs section
+    ("pafgrs", "max_degree_pafgrs"): "pafgrs_ndegree",
+}
+
+_SECTION_KEYS = frozenset({"pedigree", "phenotype", "censoring", "sampling", "analysis", "epimight", "pafgrs"})
+
+# Precompute valid intermediate prefixes for recursive traversal
+_VALID_PREFIXES = frozenset(
+    path[:i] for path in _HIERARCHICAL_TO_FLAT for i in range(1, len(path))
+)
+
+
+def _flatten_section(flat, prefix, d):
+    """Recursively walk a section dict, applying the mapping table."""
+    for key, value in d.items():
+        path = (*prefix, key)
+        if path in _HIERARCHICAL_TO_FLAT:
+            flat[_HIERARCHICAL_TO_FLAT[path]] = value
+        elif path in _VALID_PREFIXES and isinstance(value, dict):
+            _flatten_section(flat, path, value)
+        else:
+            raise ValueError(f"Unknown hierarchical config key: {'.'.join(path)}")
+
+
+def _flatten_hierarchical(d):
+    """Flatten a hierarchical config dict to flat internal keys.
+
+    Accepts both flat (legacy) and hierarchical formats. If no section keys
+    are detected, returns *d* unchanged. Mixed flat+hierarchical for the
+    same parameter raises ``ValueError``.
+    """
+    if not any(k in _SECTION_KEYS for k in d):
+        return d
+
+    top_level = {}
+    section_flat = {}
+    for key, value in d.items():
+        if key not in _SECTION_KEYS:
+            top_level[key] = value
+        else:
+            _flatten_section(section_flat, (key,), value)
+
+    overlap = set(top_level) & set(section_flat)
+    if overlap:
+        raise ValueError(f"Config keys specified in both flat and hierarchical form: {sorted(overlap)}")
+
+    return {**top_level, **section_flat}
+
 
 def load_folder_configs(config, config_dir="config"):
     """Load per-folder scenario YAML files and merge into config['scenarios'].
@@ -18,6 +113,7 @@ def load_folder_configs(config, config_dir="config"):
     or invalid folder names.
     """
     config.setdefault("scenarios", {})
+    config["defaults"] = _flatten_hierarchical(config["defaults"])
     valid_defaults = set(config["defaults"].keys())
     folder_pattern = re.compile(r"^[a-zA-Z0-9_]+$")
 
@@ -37,6 +133,7 @@ def load_folder_configs(config, config_dir="config"):
         for name, params in scenarios.items():
             if name in config["scenarios"]:
                 raise ValueError(f"Duplicate scenario '{name}': already defined, also found in {path}")
+            params = _flatten_hierarchical(params)
             unknown = set(params.keys()) - valid_defaults
             if unknown:
                 raise ValueError(

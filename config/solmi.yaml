@@ -1,207 +1,261 @@
 solmi_neurodevelopmental:
   seed: 30042
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 2.35342
-    sigma: 0.710781
-  phenotype_params2:
-    distribution: lognormal
-    mu: 2.35342
-    sigma: 0.710781
-  beta1: 0.0
-  beta2: 0.0
-  prevalence1: 0.08
-  prevalence2: 0.08
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.35342
+        sigma: 0.710781
+      beta: 0.0
+      prevalence: 0.08
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.35342
+        sigma: 0.710781
+      beta: 0.0
+      prevalence: 0.08
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 solmi_anxiety:
   seed: 31042
   N: 1000000
-  phenotype_model1: adult
-  phenotype_model2: adult
-  phenotype_params1:
-    method: cox
-    cip_x0: 17.4982
-    cip_k: 0.119542
-  phenotype_params2:
-    method: cox
-    cip_x0: 17.4982
-    cip_k: 0.119542
-  beta1: 0.751962
-  beta2: 0.751962
-  prevalence1: 0.15
-  prevalence2: 0.15
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: cox
+        cip_x0: 17.4982
+        cip_k: 0.119542
+      beta: 0.751962
+      prevalence: 0.15
+    trait2:
+      model: adult
+      params:
+        method: cox
+        cip_x0: 17.4982
+        cip_k: 0.119542
+      beta: 0.751962
+      prevalence: 0.15
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 solmi_ocd:
   seed: 32042
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 2.98502
-    sigma: 0.549797
-  phenotype_params2:
-    distribution: lognormal
-    mu: 2.98502
-    sigma: 0.549797
-  beta1: 0.0
-  beta2: 0.0
-  prevalence1: 0.025
-  prevalence2: 0.025
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.98502
+        sigma: 0.549797
+      beta: 0.0
+      prevalence: 0.025
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.98502
+        sigma: 0.549797
+      beta: 0.0
+      prevalence: 0.025
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 solmi_eating:
   seed: 33042
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 2.91098
-    sigma: 0.317321
-  phenotype_params2:
-    distribution: lognormal
-    mu: 2.91098
-    sigma: 0.317321
-  beta1: 0.0
-  beta2: 0.0
-  prevalence1: 0.03
-  prevalence2: 0.03
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.91098
+        sigma: 0.317321
+      beta: 0.0
+      prevalence: 0.03
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 2.91098
+        sigma: 0.317321
+      beta: 0.0
+      prevalence: 0.03
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 solmi_stress:
   seed: 34042
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 8.0
-    sigma: 1.49059
-  phenotype_params2:
-    distribution: lognormal
-    mu: 8.0
-    sigma: 1.49059
-  beta1: 3.4573
-  beta2: 3.4573
-  prevalence1: 0.07
-  prevalence2: 0.07
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 8.0
+        sigma: 1.49059
+      beta: 3.4573
+      prevalence: 0.07
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 8.0
+        sigma: 1.49059
+      beta: 3.4573
+      prevalence: 0.07
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 solmi_substance_use:
   seed: 35042
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: loglogistic
-    scale: 26.9111
-    shape: 3.10664
-  phenotype_params2:
-    distribution: loglogistic
-    scale: 26.9111
-    shape: 3.10664
-  beta1: 0.0
-  beta2: 0.0
-  prevalence1: 0.12
-  prevalence2: 0.12
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: loglogistic
+        scale: 26.9111
+        shape: 3.10664
+      beta: 0.0
+      prevalence: 0.12
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: loglogistic
+        scale: 26.9111
+        shape: 3.10664
+      beta: 0.0
+      prevalence: 0.12
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 solmi_schizophrenia:
   seed: 36042
   N: 1000000
-  phenotype_model1: adult
-  phenotype_model2: adult
-  phenotype_params1:
-    method: ltm
-    cip_x0: 22.3464
-    cip_k: 0.304667
-  phenotype_params2:
-    method: ltm
-    cip_x0: 22.3464
-    cip_k: 0.304667
-  beta1: 0.96043
-  beta2: 0.96043
-  prevalence1: 0.01
-  prevalence2: 0.01
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 22.3464
+        cip_k: 0.304667
+      beta: 0.96043
+      prevalence: 0.01
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 22.3464
+        cip_k: 0.304667
+      beta: 0.96043
+      prevalence: 0.01
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 solmi_personality:
   seed: 37042
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 3.2367
-    sigma: 0.350747
-  phenotype_params2:
-    distribution: lognormal
-    mu: 3.2367
-    sigma: 0.350747
-  beta1: 0.0
-  beta2: 0.0
-  prevalence1: 0.1
-  prevalence2: 0.1
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.2367
+        sigma: 0.350747
+      beta: 0.0
+      prevalence: 0.1
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.2367
+        sigma: 0.350747
+      beta: 0.0
+      prevalence: 0.1
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
 solmi_mood:
   seed: 38042
   N: 1000000
-  phenotype_model1: cure_frailty
-  phenotype_model2: cure_frailty
-  phenotype_params1:
-    distribution: lognormal
-    mu: 4.83164
-    sigma: 0.884423
-  phenotype_params2:
-    distribution: lognormal
-    mu: 4.83164
-    sigma: 0.884423
-  beta1: 1.5745
-  beta2: 1.5745
-  prevalence1: 0.15
-  prevalence2: 0.15
-  C1: 0.0
-  E1: 0.5
-  C2: 0.0
-  E2: 0.5
-  rA: 0.0
-  rC: 0.0
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 4.83164
+        sigma: 0.884423
+      beta: 1.5745
+      prevalence: 0.15
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 4.83164
+        sigma: 0.884423
+      beta: 1.5745
+      prevalence: 0.15
+  pedigree:
+    trait1:
+      C: 0.0
+      E: 0.5
+    trait2:
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0

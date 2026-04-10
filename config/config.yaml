@@ -1,100 +1,102 @@
 # ACE Simulation Configuration
 
 defaults:
-  # ── Simulation ────────────────────────────────────────────────────────────
+  # ── Globals ──────────────────────────────────────────────────────────────
   seed: 42
   replicates: 3
   folder: base
-
-  # ── Liability variance components ─────────────────────────────────────────
-  A1: 0.5
-  C1: 0.0
-  E1: 0.5
-
-  A2: 0.4
-  C2: 0.2
-  E2: 0.4
-
-  rA: 0.0
-  rC: 0.0
-  rE: 0.0
-
-  standardize: true
-
-  # ── Pedigree ──────────────────────────────────────────────────────────────
   N: 100000
   G_ped: 6
   G_pheno: 3
   G_sim: 8
-  mating_lambda: 0.5
-  p_mztwin: 0.02
-  assort1: 0
-  assort2: 0
-  assort_matrix: null # optional full 2x2 R_mf matrix, e.g. [[0.3, 0.05], [0.05, 0.15]]
-
-  # ── Phenotype model ───────────────────────────────────────────────────────
-  # phenotype_model1/2: frailty | cure_frailty | adult | first_passage
-  # phenotype_params1/2: dict of model-specific parameters
-  #   frailty/cure_frailty: distribution key + hazard params (e.g. distribution: weibull, scale, rho)
-  #   adult: method key (ltm/cox) + cip_x0 (midpoint age), cip_k (growth rate)
-
-  # Trait 1
-  beta1: 1.0
-  beta_sex1: 0.0
-  phenotype_model1: frailty
-  phenotype_params1:
-    distribution: weibull
-    scale: 2160
-    rho: 0.8
-
-  # Trait 2
-  beta2: 1.5
-  beta_sex2: 0.0
-  phenotype_model2: frailty
-  phenotype_params2:
-    distribution: weibull
-    scale: 333
-    rho: 1.2
-
-  # ── Censoring ─────────────────────────────────────────────────────────────
-  censor_age: 80
-  gen_censoring:
-    0: [80, 80]
-    1: [80, 80]
-    2: [80, 80]
-    3: [40, 80]
-    4: [0, 80]
-    5: [0, 45]
-  death_scale: 164
-  death_rho: 2.73
-
-  # ── Liability threshold model ──────────────────────────────────────────────
-  prevalence1: 0.10
-  prevalence2: 0.20
-
-  # ── Misc ──────────────────────────────────────────────────────────────────
-  max_degree: 2
-  estimate_inbreeding: false
-  N_sample: 0
-  case_ascertainment_ratio: 1
-  pedigree_dropout_rate: 0
+  standardize: true
   plot_format: png
 
-  # ── EPIMIGHT ─────────────────────────────────────────────────────────────
-  epimight_mi_K: 20 # number of MI resamples (Rubin's rules); K=1 = single draw
-  epimight_rubin_level: per_year # "meta" = Meta→Rubin; "per_year" = Rubin→Meta
-  epimight_kinds:
-    - PO
-    - FS
-    - HS
-    - mHS
-    - pHS
-    - Av
-    - 1G
-    - 1C
+  # ── Pedigree (structure + variance components) ──────────────────────────
+  pedigree:
+    mating_lambda: 0.5
+    p_mztwin: 0.02
+    assort1: 0
+    assort2: 0
+    assort_matrix: null # optional full 2x2 R_mf matrix, e.g. [[0.3, 0.05], [0.05, 0.15]]
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+    rA: 0.0
+    rC: 0.0
+    rE: 0.0
 
-  # ── PA-FGRS ────────────────────────────────────────────────────────────
-  pafgrs_ndegree: 2
+  # ── Phenotype ───────────────────────────────────────────────────────────
+  # model: frailty | cure_frailty | adult | first_passage
+  # params: model-specific parameters
+  #   frailty/cure_frailty: distribution key + hazard params
+  #   adult: method key (ltm/cox) + cip_x0, cip_k
+  phenotype:
+    trait1:
+      model: frailty
+      params:
+        distribution: weibull
+        scale: 2160
+        rho: 0.8
+      beta: 1.0
+      beta_sex: 0.0
+      prevalence: 0.10
+    trait2:
+      model: frailty
+      params:
+        distribution: weibull
+        scale: 333
+        rho: 1.2
+      beta: 1.5
+      beta_sex: 0.0
+      prevalence: 0.20
+
+  # ── Censoring ───────────────────────────────────────────────────────────
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [80, 80]
+      1: [80, 80]
+      2: [80, 80]
+      3: [40, 80]
+      4: [0, 80]
+      5: [0, 45]
+    death_scale: 164
+    death_rho: 2.73
+
+  # ── Sampling ────────────────────────────────────────────────────────────
+  sampling:
+    N_sample: 0
+    case_ascertainment_ratio: 1
+    pedigree_dropout_rate: 0
+
+  # ── Analysis ────────────────────────────────────────────────────────────
+  analysis:
+    max_degree: 2
+    estimate_inbreeding: false
+
+  # ── EPIMIGHT ────────────────────────────────────────────────────────────
+  epimight:
+    K: 20 # number of MI resamples (Rubin's rules); K=1 = single draw
+    rubin_level: per_year # "meta" = Meta→Rubin; "per_year" = Rubin→Meta
+    kinds:
+      - PO
+      - FS
+      - HS
+      - mHS
+      - pHS
+      - Av
+      - 1G
+      - 1C
+
+  # ── PA-FGRS ─────────────────────────────────────────────────────────────
+  pafgrs:
+    max_degree_pafgrs: 2
 
 # Scenarios are defined in per-folder files: config/{folder}.yaml
 # Each file contains bare scenario dicts. The folder name is inferred from
