@@ -162,35 +162,72 @@ class TestFlattenErrors:
 
 
 class TestRoundTrip:
-    """Loading the actual config.yaml and verifying it flattens to expected keys."""
+    """Loading the actual _default.yaml and verifying it flattens to expected keys."""
 
-    def test_config_yaml_flattens_to_expected_keys(self):
+    def test_default_yaml_flattens_to_expected_keys(self):
         import yaml
 
-        with open("config/config.yaml") as f:
+        with open("config/_default.yaml") as f:
             raw = yaml.safe_load(f)
         defaults = raw["defaults"]
         flat = _flatten_hierarchical(defaults)
 
         expected_keys = {
-            "seed", "replicates", "folder", "N", "G_ped", "G_pheno", "G_sim",
-            "standardize", "plot_format",
-            "mating_lambda", "p_mztwin", "assort1", "assort2", "assort_matrix",
-            "A1", "C1", "E1", "A2", "C2", "E2", "rA", "rC", "rE",
-            "phenotype_model1", "phenotype_params1", "beta1", "beta_sex1", "prevalence1",
-            "phenotype_model2", "phenotype_params2", "beta2", "beta_sex2", "prevalence2",
-            "censor_age", "gen_censoring", "death_scale", "death_rho",
-            "N_sample", "case_ascertainment_ratio", "pedigree_dropout_rate",
-            "max_degree", "estimate_inbreeding",
-            "epimight_mi_K", "epimight_rubin_level", "epimight_kinds",
+            "seed",
+            "replicates",
+            "folder",
+            "N",
+            "G_ped",
+            "G_pheno",
+            "G_sim",
+            "standardize",
+            "plot_format",
+            "mating_lambda",
+            "p_mztwin",
+            "assort1",
+            "assort2",
+            "assort_matrix",
+            "A1",
+            "C1",
+            "E1",
+            "A2",
+            "C2",
+            "E2",
+            "rA",
+            "rC",
+            "rE",
+            "phenotype_model1",
+            "phenotype_params1",
+            "beta1",
+            "beta_sex1",
+            "prevalence1",
+            "phenotype_model2",
+            "phenotype_params2",
+            "beta2",
+            "beta_sex2",
+            "prevalence2",
+            "censor_age",
+            "gen_censoring",
+            "death_scale",
+            "death_rho",
+            "N_sample",
+            "case_ascertainment_ratio",
+            "pedigree_dropout_rate",
+            "max_degree",
+            "estimate_inbreeding",
+            "epimight_mi_K",
+            "epimight_rubin_level",
+            "epimight_kinds",
             "pafgrs_ndegree",
+            "export_grm_threshold",
+            "export_pair_list_min_kinship",
         }
         assert set(flat.keys()) == expected_keys
 
-    def test_config_yaml_values_match(self):
+    def test_default_yaml_values_match(self):
         import yaml
 
-        with open("config/config.yaml") as f:
+        with open("config/_default.yaml") as f:
             raw = yaml.safe_load(f)
         flat = _flatten_hierarchical(raw["defaults"])
 

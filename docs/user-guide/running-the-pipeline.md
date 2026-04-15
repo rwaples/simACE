@@ -70,6 +70,6 @@ snakemake --cores 4 --rerun-incomplete
 | Problem | Solution |
 |---|---|
 | `ModuleNotFoundError: No module named 'sim_ace'` | Run `conda activate ACE` first |
-| `FileNotFoundError: config/config.yaml` | Run snakemake from the ACE repo root directory |
+| `FileNotFoundError: config/_default.yaml` | Run snakemake from the ACE repo root directory |
 | Simulation killed or frozen (large N) | Reduce `--cores` to lower parallel memory usage |
 | `IncompleteFilesException` on re-run | Run with `--rerun-incomplete` |

@@ -98,6 +98,14 @@ defaults:
   pafgrs:
     max_degree_pafgrs: 2
 
+  # ── Export ──────────────────────────────────────────────────────────────
+  # Settings for the tidy per-rep exports in `exports/` (cumulative
+  # incidence TSV, pairwise relatedness TSV, sparse GRM).  These rules
+  # are opt-in leaf targets — they do not run unless requested by path.
+  export:
+    grm_threshold: 0.05 # drop off-diagonal GRM entries below this (sparseREML default)
+    pair_list_min_kinship: 0.0625 # include pairs with kinship ≥ this; 1/16 = 1st-cousin level
+
 # Scenarios are defined in per-folder files: config/{folder}.yaml
 # Each file contains bare scenario dicts. The folder name is inferred from
 # the filename. See any existing config/*.yaml file for the format.

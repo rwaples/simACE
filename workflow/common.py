@@ -55,14 +55,26 @@ _HIERARCHICAL_TO_FLAT = {
     ("epimight", "kinds"): "epimight_kinds",
     # pafgrs section
     ("pafgrs", "max_degree_pafgrs"): "pafgrs_ndegree",
+    # export section
+    ("export", "grm_threshold"): "export_grm_threshold",
+    ("export", "pair_list_min_kinship"): "export_pair_list_min_kinship",
 }
 
-_SECTION_KEYS = frozenset({"pedigree", "phenotype", "censoring", "sampling", "analysis", "epimight", "pafgrs"})
+_SECTION_KEYS = frozenset(
+    {
+        "pedigree",
+        "phenotype",
+        "censoring",
+        "sampling",
+        "analysis",
+        "epimight",
+        "pafgrs",
+        "export",
+    }
+)
 
 # Precompute valid intermediate prefixes for recursive traversal
-_VALID_PREFIXES = frozenset(
-    path[:i] for path in _HIERARCHICAL_TO_FLAT for i in range(1, len(path))
-)
+_VALID_PREFIXES = frozenset(path[:i] for path in _HIERARCHICAL_TO_FLAT for i in range(1, len(path)))
 
 
 def _flatten_section(flat, prefix, d):
@@ -118,7 +130,7 @@ def load_folder_configs(config, config_dir="config"):
     folder_pattern = re.compile(r"^[a-zA-Z0-9_]+$")
 
     for path in sorted(glob.glob(os.path.join(config_dir, "*.yaml"))):
-        if os.path.basename(path) == "config.yaml":
+        if os.path.basename(path).startswith("_"):
             continue
 
         folder = os.path.splitext(os.path.basename(path))[0]
@@ -170,8 +182,7 @@ def _validate_phenotype_config(config):
             if model in ("frailty", "cure_frailty"):
                 if "distribution" not in pp:
                     raise ValueError(
-                        f"Scenario '{name}': {params_key} for model '{model}' "
-                        f"must include 'distribution' key"
+                        f"Scenario '{name}': {params_key} for model '{model}' must include 'distribution' key"
                     )
                 if pp["distribution"] not in _VALID_DISTRIBUTIONS:
                     raise ValueError(

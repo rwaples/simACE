@@ -30,6 +30,8 @@ from __future__ import annotations
 
 __all__ = [
     "ACE_SREML_MAGIC",
+    "GRM_ID_SUFFIX",
+    "GRM_SP_BIN_SUFFIX",
     "build_household_matrix",
     "collapse_mz_twins",
     "export_dense_grm_mph",
@@ -50,6 +52,11 @@ import pandas as pd
 import scipy.sparse as sp
 
 logger = logging.getLogger(__name__)
+
+
+# File suffixes produced by the sparse-GRM binary writer.
+GRM_SP_BIN_SUFFIX = ".grm.sp.bin"
+GRM_ID_SUFFIX = ".grm.id"
 
 
 # Binary sparse GRM: 8-byte magic + int64 n + int64 nnz + CSC arrays.
@@ -134,6 +141,7 @@ def export_sparse_grm_binary(
     prefix: str | Path,
     to_grm: bool = True,
     threshold: float = 0.0,
+    fids: np.ndarray | None = None,
 ) -> tuple[Path, Path]:
     """Write a sparse kinship in ace_sreml's binary CSC format.
 
@@ -158,6 +166,9 @@ def export_sparse_grm_binary(
             sparseREML's default ``GRM_range[0]`` and drops kinship ≲
             2nd-cousin level — crucial at n ≥ 10⁵ to keep Cholesky fill
             tractable.
+        fids: optional length-n family ids, aligned to *iids*.  If omitted,
+            the ``.grm.id`` file is written with FID=IID (every individual
+            as its own family).
 
     Returns:
         (bin_path, id_path).
@@ -166,8 +177,8 @@ def export_sparse_grm_binary(
 
     prefix = Path(prefix)
     prefix.parent.mkdir(parents=True, exist_ok=True)
-    bin_path = Path(f"{prefix}.grm.sp.bin")
-    id_path = Path(f"{prefix}.grm.id")
+    bin_path = Path(f"{prefix}{GRM_SP_BIN_SUFFIX}")
+    id_path = Path(f"{prefix}{GRM_ID_SUFFIX}")
 
     M_csc = _prepare_sparse_grm(
         K,
@@ -189,7 +200,7 @@ def export_sparse_grm_binary(
         fh.write(indices.tobytes())
         fh.write(data.tobytes())
 
-    _write_id_file(iids, id_path)
+    _write_id_file(iids, id_path, fids=fids)
     logger.info(
         "export_sparse_grm_binary: %s (%.1f MB, n=%d, nnz=%d), %s",
         bin_path.name,
@@ -577,12 +588,18 @@ def collapse_mz_twins(
 # ---------------------------------------------------------------------------
 
 
-def _write_id_file(iids: np.ndarray, path: Path) -> None:
-    """Write GCTA ``.grm.id`` — two tab-separated columns (FID, IID)."""
-    arr = np.asarray(iids).astype(str)
-    with path.open("w") as fh:
-        for x in arr:
-            fh.write(f"{x}\t{x}\n")
+def _write_id_file(iids: np.ndarray, path: Path, fids: np.ndarray | None = None) -> None:
+    """Write GCTA ``.grm.id`` — two tab-separated columns (FID, IID).
+
+    When *fids* is ``None`` (default), FID is copied from IID — the
+    conventional "every individual is its own family" layout.  Pass *fids*
+    (length n, aligned to *iids*) to emit real family structure.
+    """
+    iid_arr = np.asarray(iids).astype(str)
+    fid_arr = iid_arr if fids is None else np.asarray(fids).astype(str)
+    if len(fid_arr) != len(iid_arr):
+        raise ValueError(f"len(fids)={len(fid_arr)} does not match len(iids)={len(iid_arr)}")
+    np.savetxt(path, np.column_stack([fid_arr, iid_arr]), fmt="%s", delimiter="\t")
 
 
 def require_cols(df: pd.DataFrame, cols: list[str]) -> None:

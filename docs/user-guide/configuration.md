@@ -3,7 +3,7 @@
 ## Overview
 
 All simulation parameters are defined in YAML config files under `config/`.
-The main file `config/config.yaml` contains a `defaults` section and a `scenarios` section.
+The main file `config/_default.yaml` contains a `defaults` section and a `scenarios` section.
 Each scenario inherits all defaults and overrides only the parameters it needs.
 
 Additional config files (`config/{folder}.yaml`) are auto-discovered by Snakemake
