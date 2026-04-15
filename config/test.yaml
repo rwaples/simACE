@@ -31,8 +31,8 @@ adult_ltm_test:
   censoring:
     gen_censoring:
       0:
-      - 0
-      - 80
+        - 0
+        - 80
 adult_cox_test:
   seed: 24042
   N: 50000
@@ -66,8 +66,8 @@ adult_cox_test:
   censoring:
     gen_censoring:
       0:
-      - 0
-      - 80
+        - 0
+        - 80
 adult_ltm_sex_prev:
   seed: 25042
   N: 5000
@@ -121,8 +121,8 @@ first_passage_test:
   censoring:
     gen_censoring:
       0:
-      - 0
-      - 80
+        - 0
+        - 80
 first_passage_cure_test:
   seed: 27042
   N: 50000
@@ -154,8 +154,52 @@ first_passage_cure_test:
   censoring:
     gen_censoring:
       0:
-      - 0
-      - 80
+        - 0
+        - 80
+
 small_test:
   seed: 12042
   N: 1000
+
+test1K:
+  seed: 1000
+  N: 1000
+  A: 0.5
+  C: 0.2
+  E: 0.3
+test2K:
+  seed: 2000
+  N: 2000
+  A: 0.5
+  C: 0.2
+  E: 0.3
+test4K:
+  seed: 4000
+  N: 4000
+  A: 0.5
+  C: 0.2
+  E: 0.3
+test8K:
+  seed: 8000
+  N: 8000
+  A: 0.5
+  C: 0.2
+  E: 0.3
+test16K:
+  seed: 16000
+  N: 16000
+  A: 0.5
+  C: 0.2
+  E: 0.3
+test32K:
+  seed: 32000
+  N: 32000
+  A: 0.5
+  C: 0.2
+  E: 0.3
+test64K:
+  seed: 64000
+  N: 64000
+  A: 0.5
+  C: 0.2
+  E: 0.3
