@@ -7,10 +7,12 @@ import pandas as pd
 from sim_ace import _snakemake_tag, setup_logging
 from sim_ace.analysis.export_tables import export_cumulative_incidence
 
+_PHENOTYPE_COLS = ["sex", "generation", "affected1", "t_observed1", "affected2", "t_observed2"]
+
 
 def _run_snakemake():
     setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
-    phenotype_df = pd.read_parquet(snakemake.input.phenotype)
+    phenotype_df = pd.read_parquet(snakemake.input.phenotype, columns=_PHENOTYPE_COLS)
     export_cumulative_incidence(
         phenotype_df,
         censor_age=float(snakemake.params.censor_age),
@@ -30,7 +32,7 @@ def _cli():
     args = parser.parse_args()
     init_logging(args)
     export_cumulative_incidence(
-        pd.read_parquet(args.phenotype),
+        pd.read_parquet(args.phenotype, columns=_PHENOTYPE_COLS),
         censor_age=args.censor_age,
         out_path=args.out,
         n_points=args.n_points,

@@ -7,10 +7,12 @@ import pandas as pd
 from sim_ace import _snakemake_tag, setup_logging
 from sim_ace.analysis.export_tables import export_pairwise_relatedness
 
+_PEDIGREE_COLS = ["id", "mother", "father", "twin", "sex", "generation"]
+
 
 def _run_snakemake():
     setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
-    pedigree_df = pd.read_parquet(snakemake.input.pedigree)
+    pedigree_df = pd.read_parquet(snakemake.input.pedigree, columns=_PEDIGREE_COLS)
     export_pairwise_relatedness(
         pedigree_df,
         out_path=snakemake.output[0],
@@ -34,7 +36,7 @@ def _cli():
     args = parser.parse_args()
     init_logging(args)
     export_pairwise_relatedness(
-        pd.read_parquet(args.pedigree),
+        pd.read_parquet(args.pedigree, columns=_PEDIGREE_COLS),
         out_path=args.out,
         min_kinship=args.min_kinship,
     )

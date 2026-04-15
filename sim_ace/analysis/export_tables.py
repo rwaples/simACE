@@ -23,7 +23,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import scipy.sparse as sp
 from scipy.sparse.csgraph import connected_components
 
 from sim_ace.analysis.export_grm import export_sparse_grm_binary
@@ -133,20 +132,10 @@ def export_pairwise_relatedness(
     """Write a TSV of canonical relationship pairs.
 
     Columns: ``id1`` (lo), ``id2`` (hi), ``rel_code``
-    (e.g. ``MZ``/``FS``/``PO``/``MHS``/``Av``/``1C``), ``kinship``.
-
-    Only pairs with kinship >= ``min_kinship`` are emitted.  Internally we
-    ask :meth:`~sim_ace.core.pedigree_graph.PedigreeGraph.extract_pairs`
-    only for the smallest ``max_degree`` that still covers every code whose
-    nominal kinship meets the threshold, so we do not enumerate pairs we
-    would immediately discard.  A final per-row check enforces the
-    threshold exactly even when inbreeding perturbs pairwise kinship away
-    from its nominal lookup value.
-
-    ``kinship`` values come from
-    :meth:`~sim_ace.core.pedigree_graph.PedigreeGraph.compute_pair_kinship`,
-    which equals ``PAIR_KINSHIP[rel_code]`` in non-inbred pedigrees and
-    reads from the sparse kinship matrix otherwise.
+    (``MZ``/``FS``/``PO``/``MHS``/``Av``/``1C``/…), ``kinship``.  Only
+    pairs with kinship >= ``min_kinship`` are emitted.  The per-row check
+    uses the kinship returned by ``PedigreeGraph.compute_pair_kinship``,
+    which may exceed the nominal lookup under inbreeding.
     """
     max_degree = _min_max_degree_for_kinship(min_kinship)
     columns = ["id1", "id2", "rel_code", "kinship"]
@@ -203,7 +192,10 @@ def export_pairwise_relatedness(
 # ---------------------------------------------------------------------------
 
 
-def assign_founder_family_ids(pedigree_df: pd.DataFrame) -> pd.Series:
+def assign_founder_family_ids(
+    pedigree_df: pd.DataFrame,
+    graph: PedigreeGraph | None = None,
+) -> pd.Series:
     """Assign a family id (FID) to every individual in the pedigree.
 
     Two individuals share an FID iff they belong to the same connected
@@ -212,6 +204,10 @@ def assign_founder_family_ids(pedigree_df: pd.DataFrame) -> pd.Series:
     between founder lineages.  The FID value is the smallest ``id`` inside
     each connected component, giving a deterministic, human-readable label.
 
+    Pass *graph* when a :class:`PedigreeGraph` has already been built for
+    the same DataFrame; its pre-remapped parent matrices are reused to
+    avoid the redundant id→row translation.
+
     Returns:
         An ``int64`` :class:`pandas.Series` aligned to ``pedigree_df.index``.
     """
@@ -219,25 +215,13 @@ def assign_founder_family_ids(pedigree_df: pd.DataFrame) -> pd.Series:
     if n == 0:
         return pd.Series([], dtype=np.int64, name="FID")
 
-    ids = pedigree_df["id"].values
-    id_to_row = np.full(int(ids.max()) + 1, -1, dtype=np.int64)
-    id_to_row[ids] = np.arange(n, dtype=np.int64)
+    pg = graph if graph is not None else PedigreeGraph(pedigree_df)
+    _, labels = connected_components(pg._Am + pg._Af, directed=False)
 
-    mother = pedigree_df["mother"].values
-    father = pedigree_df["father"].values
-
-    row_idx = np.arange(n, dtype=np.int64)
-    m_mask = mother >= 0
-    f_mask = father >= 0
-    src = np.concatenate([row_idx[m_mask], row_idx[f_mask]])
-    dst = np.concatenate([id_to_row[mother[m_mask]], id_to_row[father[f_mask]]])
-
-    data = np.ones(len(src), dtype=np.int8)
-    graph = sp.coo_matrix((data, (src, dst)), shape=(n, n))
-    _, labels = connected_components(graph, directed=False)
-
-    fids = pd.Series(ids, index=pedigree_df.index).groupby(labels).transform("min")
-    return fids.astype(np.int64).rename("FID")
+    ids = pedigree_df["id"].to_numpy()
+    comp_min = np.full(labels.max() + 1, np.iinfo(np.int64).max, dtype=np.int64)
+    np.minimum.at(comp_min, labels, ids)
+    return pd.Series(comp_min[labels], index=pedigree_df.index, name="FID", dtype=np.int64)
 
 
 # ---------------------------------------------------------------------------
@@ -250,33 +234,21 @@ def export_sparse_grm(
     prefix: str | Path,
     threshold: float = 0.05,
 ) -> tuple[Path, Path]:
-    r"""Export a sparse GRM in ``ace_sreml`` binary format with founder FIDs.
+    """Export a sparse GRM in ``ace_sreml`` binary format with founder FIDs.
 
-    Wraps :func:`~sim_ace.analysis.export_grm.export_sparse_grm_binary`.
-    After the binary writer produces its default ``FID=IID`` id file, this
-    function overwrites the id file with ``<founder_fid>\t<iid>`` lines so
-    downstream tools (GCTA / PLINK / sparseREML) see family structure.
-
-    ``threshold`` is on the GRM scale (kinship * 2), matching the writer's
+    ``threshold`` is on the GRM scale (kinship × 2), matching the writer's
     convention; ``0.05`` is sparseREML's default ``GRM_range[0]``.
     """
     pg = PedigreeGraph(pedigree_df)
-    pg.compute_inbreeding()  # populates pg._kinship_matrix
-    K = pg._kinship_matrix
-
-    ids = np.asarray(pedigree_df["id"].values)
-    fids = assign_founder_family_ids(pedigree_df).to_numpy()
-
-    prefix = Path(prefix)
-    prefix.parent.mkdir(parents=True, exist_ok=True)
-    bin_path, id_path = export_sparse_grm_binary(K, iids=ids, prefix=prefix, to_grm=True, threshold=threshold)
-
-    with id_path.open("w") as fh:
-        for fid, iid in zip(fids, ids, strict=True):
-            fh.write(f"{int(fid)}\t{int(iid)}\n")
-    logger.info(
-        "export_sparse_grm: rewrote %s with %d founder-couple FIDs",
-        id_path.name,
-        len(np.unique(fids)),
+    pg.compute_inbreeding()
+    ids = pedigree_df["id"].to_numpy()
+    fids = assign_founder_family_ids(pedigree_df, graph=pg).to_numpy()
+    logger.info("export_sparse_grm: %d founder-couple FIDs", len(np.unique(fids)))
+    return export_sparse_grm_binary(
+        pg._kinship_matrix,
+        iids=ids,
+        prefix=prefix,
+        to_grm=True,
+        threshold=threshold,
+        fids=fids,
     )
-    return bin_path, id_path

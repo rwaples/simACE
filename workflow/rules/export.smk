@@ -40,17 +40,8 @@ rule parquet_to_tsv_uncompressed:
         "../scripts/parquet_to_tsv.py"
 
 
-# ---------------------------------------------------------------------------
-# Tidy per-rep exports for external-tool consumption (R, GCTA, PLINK,
-# sparseREML).  Three independent, on-demand rules — each is a leaf target
-# requested by path, e.g.:
-#
-#   snakemake results/{folder}/{scenario}/rep{N}/exports/pairwise_relatedness.tsv
-#   snakemake results/{folder}/{scenario}/rep{N}/exports/grm/sparse.grm.sp.bin
-#
-# No aggregator rule, no scenario-level sentinel — exports are opt-in and
-# are not consumed by any downstream pipeline stage.
-# ---------------------------------------------------------------------------
+# Opt-in per-rep exports (R / GCTA / PLINK / sparseREML).  Each rule is a
+# leaf target — no scenario sentinel, no downstream consumers.
 
 
 ruleorder: export_cumulative_incidence > parquet_to_tsv_uncompressed
