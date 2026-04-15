@@ -162,12 +162,12 @@ class TestFlattenErrors:
 
 
 class TestRoundTrip:
-    """Loading the actual config.yaml and verifying it flattens to expected keys."""
+    """Loading the actual _default.yaml and verifying it flattens to expected keys."""
 
-    def test_config_yaml_flattens_to_expected_keys(self):
+    def test_default_yaml_flattens_to_expected_keys(self):
         import yaml
 
-        with open("config/config.yaml") as f:
+        with open("config/_default.yaml") as f:
             raw = yaml.safe_load(f)
         defaults = raw["defaults"]
         flat = _flatten_hierarchical(defaults)
@@ -187,10 +187,10 @@ class TestRoundTrip:
         }
         assert set(flat.keys()) == expected_keys
 
-    def test_config_yaml_values_match(self):
+    def test_default_yaml_values_match(self):
         import yaml
 
-        with open("config/config.yaml") as f:
+        with open("config/_default.yaml") as f:
             raw = yaml.safe_load(f)
         flat = _flatten_hierarchical(raw["defaults"])
 

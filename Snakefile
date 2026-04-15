@@ -1,4 +1,4 @@
-configfile: "config/config.yaml"
+configfile: "config/_default.yaml"
 
 
 from workflow.common import (

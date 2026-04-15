@@ -118,7 +118,7 @@ def load_folder_configs(config, config_dir="config"):
     folder_pattern = re.compile(r"^[a-zA-Z0-9_]+$")
 
     for path in sorted(glob.glob(os.path.join(config_dir, "*.yaml"))):
-        if os.path.basename(path) == "config.yaml":
+        if os.path.basename(path).startswith("_"):
             continue
 
         folder = os.path.splitext(os.path.basename(path))[0]

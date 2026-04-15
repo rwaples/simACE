@@ -173,7 +173,7 @@ In snakemake, if a run is interrupted or fails, re-running the same command resu
 
 ## Configuration
 
-Define named scenarios in `config/config.yaml`. Defaults are inherited unless overridden:
+Define named scenarios in `config/{folder}.yaml`; defaults live in `config/_default.yaml` and are inherited unless overridden:
 
 ```yaml
 defaults:
@@ -376,7 +376,7 @@ snakemake --cores 1 results/base/baseline10K/rep1/pedigree.tsv.gz
 snakemake --cores 1 results/base/baseline10K/rep1/phenotype.tsv   # uncompressed
 ```
 
-Float precision for the Snakemake rule defaults to 4 and can be set globally via `tsv_float_precision` in `config/config.yaml` defaults.
+Float precision for the Snakemake rule defaults to 4 and can be set globally via `tsv_float_precision` in `config/_default.yaml` defaults.
 
 ## Project Structure
 
@@ -384,7 +384,8 @@ Float precision for the Snakemake rule defaults to 4 and can be set globally via
 ACE/
 ├── Snakefile                          # Root entry point (no -s flag needed)
 ├── config/
-│   └── config.yaml                    # Simulation parameters (named scenarios)
+│   ├── _default.yaml                 # Default simulation parameters
+│   └── {folder}.yaml                 # Per-folder scenario definitions
 │
 ├── sim_ace/                           # Simulation package (pip install -e .)
 │   ├── __init__.py                    # setup_logging(), _snakemake_tag()
@@ -457,7 +458,7 @@ ACE/
 | Problem | Solution |
 |---------|----------|
 | `ModuleNotFoundError: No module named 'sim_ace'` | Run `conda activate ACE` first — the package is only available inside the conda environment |
-| `FileNotFoundError: config/config.yaml` | Run snakemake from the ACE repo root directory |
+| `FileNotFoundError: config/_default.yaml` | Run snakemake from the ACE repo root directory |
 | Simulation killed or frozen (large N) | Reduce `--cores` to lower parallel memory usage, or skip N=1M/2M scenarios |
 | `IncompleteFilesException` on re-run | Snakemake detected a previously interrupted output; run `snakemake --cores 4 --rerun-incomplete` |
 
