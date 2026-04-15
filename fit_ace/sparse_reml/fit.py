@@ -116,6 +116,9 @@ def fit_sparse_reml(
     seed: int = 42,
     threads: int = 8,
     ordering: str = "auto",
+    int_mode: str = "auto",
+    precision: str = "single",
+    probe_batch_size: int = 25,
     log_level: str = "info",
     binary: Path | str | None = None,
     work_dir: Path | str | None = None,
@@ -144,6 +147,17 @@ def fit_sparse_reml(
             n ≳ 10⁴; ``0`` keeps everything.
         n_rand_vec, max_iter, tol, seed, threads, ordering, log_level:
             forwarded to ``ace_sreml``.
+        int_mode: ``auto`` (default) / ``int32`` / ``int64``.  Picks the
+            CHOLMOD integer API.  int32 cuts factor storage ~15–20% but
+            requires factor nnz < 2³¹; auto picks int32 for n ≤ 200k.
+        precision: ``single`` (default) / ``double``.  Single-precision
+            factor halves L's value-array storage and cuts solve time
+            ~45%; negligible accuracy impact for well-conditioned pedigree
+            matrices.  Override to ``double`` only when a scenario's
+            factor is ill-conditioned.
+        probe_batch_size: Hutchinson probes are processed in column chunks
+            of this size (default 25).  Smaller values cut probe RAM but
+            split each CHOLMOD triangular solve into more BLAS calls.
         binary: path to the compiled binary; defaults to
             ``default_binary()`` (env var ``ACE_SREML_BIN`` or the
             repo-relative build output).
@@ -248,6 +262,8 @@ def fit_sparse_reml(
             str(out_prefix),
             "--num_random_vectors",
             str(n_rand_vec),
+            "--probe_batch_size",
+            str(probe_batch_size),
             "--max_iter",
             str(max_iter),
             "--tol",
@@ -258,6 +274,10 @@ def fit_sparse_reml(
             str(threads),
             "--ordering",
             str(ordering),
+            "--int-mode",
+            str(int_mode),
+            "--precision",
+            str(precision),
             "--log-level",
             str(log_level),
         ]
