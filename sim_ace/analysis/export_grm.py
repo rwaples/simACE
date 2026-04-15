@@ -38,6 +38,7 @@ __all__ = [
     "export_pheno_plink",
     "export_sparse_grm_binary",
     "export_sparse_grm_gcta",
+    "require_cols",
 ]
 
 import logging
@@ -56,6 +57,70 @@ logger = logging.getLogger(__name__)
 # can memory-map arrays directly without conversion.  Full-symmetric storage
 # (both triangles) lets the reader skip triplet construction entirely.
 ACE_SREML_MAGIC = b"ACEGRM\x01\x00"
+
+
+# ---------------------------------------------------------------------------
+# Kinship / GRM helpers
+# ---------------------------------------------------------------------------
+
+
+def _validate_grm_shape(K: sp.spmatrix, iids: np.ndarray, threshold: float) -> tuple[int, np.ndarray]:
+    """Shape and dtype checks shared by every GRM exporter."""
+    n = K.shape[0]
+    if K.shape != (n, n):
+        raise ValueError(f"K must be square, got {K.shape}")
+    iids = np.asarray(iids)
+    if iids.shape[0] != n:
+        raise ValueError(f"len(iids)={iids.shape[0]} does not match K.shape={K.shape}")
+    if threshold < 0:
+        raise ValueError(f"threshold must be non-negative, got {threshold}")
+    return n, iids
+
+
+def _prepare_sparse_grm(
+    K: sp.spmatrix,
+    to_grm: bool,
+    threshold: float,
+    *,
+    symmetric_storage: bool,
+    log_name: str,
+) -> sp.spmatrix:
+    """Common pre-processing for the sparse GRM writers.
+
+    Multiplies by 2 (kinship → GRM) if requested, optionally symmetrizes to
+    full storage (binary writer wants both triangles; text writer wants
+    lower only), and optionally drops off-diagonal entries below a GRM-scale
+    threshold.
+    """
+    M = (K * 2.0) if to_grm else K
+    M_csc = sp.csc_matrix(M)
+
+    if symmetric_storage and (M_csc - M_csc.T).nnz != 0:
+        # Input stored only one triangle.  Symmetrize and halve the diagonal
+        # that the addition double-counted.
+        M_csc = (M_csc + M_csc.T).tocsc()
+        M_csc.setdiag(M_csc.diagonal() / 2)
+        M_csc.eliminate_zeros()
+    elif not symmetric_storage:
+        M_csc = sp.tril(M_csc).tocsc()
+
+    if threshold > 0.0:
+        nnz_before = M_csc.nnz
+        coo = M_csc.tocoo()
+        keep = (coo.row == coo.col) | (np.abs(coo.data) >= threshold)
+        M_csc = sp.coo_matrix(
+            (coo.data[keep], (coo.row[keep], coo.col[keep])),
+            shape=M_csc.shape,
+        ).tocsc()
+        logger.info(
+            "%s: threshold=%.4g kept %d of %d nonzeros (%.1f%%)",
+            log_name,
+            threshold,
+            M_csc.nnz,
+            nnz_before,
+            100.0 * M_csc.nnz / max(nnz_before, 1),
+        )
+    return M_csc
 
 
 # ---------------------------------------------------------------------------
@@ -97,45 +162,20 @@ def export_sparse_grm_binary(
     Returns:
         (bin_path, id_path).
     """
-    n = K.shape[0]
-    if K.shape != (n, n):
-        raise ValueError(f"K must be square, got {K.shape}")
-    iids = np.asarray(iids)
-    if iids.shape[0] != n:
-        raise ValueError(f"len(iids)={iids.shape[0]} does not match K.shape={K.shape}")
-    if threshold < 0:
-        raise ValueError(f"threshold must be non-negative, got {threshold}")
+    n, iids = _validate_grm_shape(K, iids, threshold)
 
     prefix = Path(prefix)
     prefix.parent.mkdir(parents=True, exist_ok=True)
     bin_path = Path(f"{prefix}.grm.sp.bin")
     id_path = Path(f"{prefix}.grm.id")
 
-    # Ensure symmetric, full-storage, CSC, sorted indices.
-    M = (K * 2.0) if to_grm else K
-    M_csc = sp.csc_matrix(M)
-    # Symmetrize if the input stored only one triangle.
-    if (M_csc - M_csc.T).nnz != 0:
-        M_csc = (M_csc + M_csc.T).tocsc()
-        # Diag was doubled; halve it back.
-        diag_vals = M_csc.diagonal()
-        M_csc.setdiag(diag_vals / 2)
-        M_csc.eliminate_zeros()
-    if threshold > 0.0:
-        nnz_before = M_csc.nnz
-        coo = M_csc.tocoo()
-        keep = (coo.row == coo.col) | (np.abs(coo.data) >= threshold)
-        M_csc = sp.coo_matrix(
-            (coo.data[keep], (coo.row[keep], coo.col[keep])),
-            shape=M_csc.shape,
-        ).tocsc()
-        logger.info(
-            "export_sparse_grm_binary: threshold=%.4g kept %d of %d nonzeros (%.1f%%)",
-            threshold,
-            M_csc.nnz,
-            nnz_before,
-            100.0 * M_csc.nnz / max(nnz_before, 1),
-        )
+    M_csc = _prepare_sparse_grm(
+        K,
+        to_grm,
+        threshold,
+        symmetric_storage=True,
+        log_name="export_sparse_grm_binary",
+    )
     M_csc.sort_indices()
     indptr = M_csc.indptr.astype(np.int64, copy=False)
     indices = M_csc.indices.astype(np.int64, copy=False)
@@ -185,34 +225,27 @@ def export_sparse_grm_gcta(
     Returns:
         (sp_path, id_path).
     """
-    n = K.shape[0]
-    if K.shape != (n, n):
-        raise ValueError(f"K must be square, got {K.shape}")
-    iids = np.asarray(iids)
-    if iids.shape[0] != n:
-        raise ValueError(f"len(iids)={iids.shape[0]} does not match K.shape={K.shape}")
-    if threshold < 0:
-        raise ValueError(f"threshold must be non-negative, got {threshold}")
+    n, iids = _validate_grm_shape(K, iids, threshold)
 
     prefix = Path(prefix)
     prefix.parent.mkdir(parents=True, exist_ok=True)
     sp_path = Path(f"{prefix}.grm.sp")
     id_path = Path(f"{prefix}.grm.id")
 
-    # Canonicalize: diagonal + lower triangle, drop explicit zeros, sum dupes.
-    M = (K * 2.0) if to_grm else K
-    lower = sp.tril(sp.csr_matrix(M)).tocoo()
+    lower = _prepare_sparse_grm(
+        K,
+        to_grm,
+        threshold,
+        symmetric_storage=False,
+        log_name="export_sparse_grm_gcta",
+    ).tocoo()
     mask = lower.data != 0.0
-    if threshold > 0.0:
-        # Keep diag unconditionally; below-threshold off-diag drops.
-        is_diag = lower.row == lower.col
-        mask &= is_diag | (np.abs(lower.data) >= threshold)
     rows = lower.row[mask]
     cols = lower.col[mask]
     vals = lower.data[mask]
 
     with sp_path.open("w") as fh:
-        for i, j, v in zip(rows, cols, vals, strict=False):
+        for i, j, v in zip(rows, cols, vals, strict=True):
             fh.write(f"{int(i)}\t{int(j)}\t{v:.10g}\n")
 
     _write_id_file(iids, id_path)
@@ -401,7 +434,7 @@ def export_pheno_plink(
     Returns:
         (pheno_path, covar_path).
     """
-    _require_cols(df, [id_col, pheno_col, *covar_cols])
+    require_cols(df, [id_col, pheno_col, *covar_cols])
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -456,7 +489,7 @@ def export_pheno_csv(
     Returns:
         (pheno_path, covar_path).
     """
-    _require_cols(df, [id_col, pheno_col, *covar_cols])
+    require_cols(df, [id_col, pheno_col, *covar_cols])
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     pheno_path = Path(f"{out_path}.pheno.csv")
@@ -515,7 +548,7 @@ def collapse_mz_twins(
         ``(filtered_df, filtered_K)`` — ``filtered_K`` is None when *K* is
         None. The DataFrame row index is reset.
     """
-    _require_cols(pedigree, [id_col, twin_col])
+    require_cols(pedigree, [id_col, twin_col])
     ids = pedigree[id_col].to_numpy()
     twins = pedigree[twin_col].to_numpy()
     if K is not None and K.shape[0] != len(pedigree):
@@ -552,7 +585,8 @@ def _write_id_file(iids: np.ndarray, path: Path) -> None:
             fh.write(f"{x}\t{x}\n")
 
 
-def _require_cols(df: pd.DataFrame, cols: list[str]) -> None:
+def require_cols(df: pd.DataFrame, cols: list[str]) -> None:
+    """Raise ValueError if *df* is missing any of *cols*."""
     missing = [c for c in cols if c not in df.columns]
     if missing:
         raise ValueError(f"DataFrame missing required columns: {missing}")

@@ -26,6 +26,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from sim_ace.analysis.export_grm import require_cols
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,10 +66,7 @@ def simulate_gaussian_ace(
         ValueError: if required columns are missing or a component has
             near-zero variance (cannot be rescaled).
     """
-    required = {"id", "household_id", "A1", "C1", "E1"}
-    missing = required - set(pedigree.columns)
-    if missing:
-        raise ValueError(f"pedigree missing required columns: {sorted(missing)}")
+    require_cols(pedigree, ["id", "household_id", "A1", "C1", "E1"])
     if var_a < 0 or var_c < 0 or var_e < 0:
         raise ValueError(f"variance components must be non-negative; got {var_a=}, {var_c=}, {var_e=}")
 
