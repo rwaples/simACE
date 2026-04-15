@@ -168,6 +168,26 @@ class TestInputValidation:
                 binary=tmp_path / "does_not_exist",
             )
 
+    @pytest.mark.parametrize(
+        ("kw", "bad_val", "match"),
+        [
+            ("ordering", "foo", "ordering='foo'"),
+            ("int_mode", "int48", "int_mode='int48'"),
+            ("precision", "quad", "precision='quad'"),
+            ("trace_method", "hutch", "trace_method='hutch'"),
+        ],
+    )
+    def test_invalid_choice_raises(self, tmp_path, kw, bad_val, match):
+        fake = tmp_path / "fake_bin"
+        fake.touch()
+        with pytest.raises(ValueError, match=match):
+            fit_sparse_reml(
+                y=np.zeros(3),
+                kinship=sp.eye(3, format="csr"),
+                binary=fake,
+                **{kw: bad_val},
+            )
+
 
 # ---------------------------------------------------------------------------
 # Integration — real binary, small simulated pedigree.  Skipped if the
@@ -270,6 +290,36 @@ class TestFitEndToEnd:
         assert "V(A)" in names
         assert "Ve" in names
         assert "V(C)" not in names
+
+    def test_hutchpp_end_to_end(self, tiny_ace_inputs):
+        """Hutch++ trace estimator gets the same accuracy on N=300 as
+        classical Hutchinson; the low-rank sketch + deflated residual should
+        return VCs within the same ±0.25 band as the smoke test above."""
+        inp = tiny_ace_inputs
+        r = fit_sparse_reml(
+            y=inp["y"],
+            kinship=inp["K"],
+            household_id=inp["household_id"],
+            n_rand_vec=50,
+            max_iter=30,
+            tol=1e-3,
+            threads=2,
+            ordering="auto",
+            log_level="warn",
+            trace_method="hutchpp",
+        )
+        assert r.converged
+        vc = r.vc.set_index("vc_name")
+        for name, truth in [
+            ("V(A)", inp["truth"]["var_a"]),
+            ("V(C)", inp["truth"]["var_c"]),
+            ("Ve", inp["truth"]["var_e"]),
+        ]:
+            est = float(vc.loc[name, "estimate"])
+            assert est == pytest.approx(truth, abs=0.25), f"{name}: est={est:.4f} truth={truth:.4f}"
+        # Cov matrix shape unchanged; per-iter log still populated.
+        assert r.cov.shape == (3, 3)
+        assert len(r.iter_log) >= 2
 
     def test_work_dir_is_kept_when_cleanup_false(self, tiny_ace_inputs, tmp_path):
         inp = tiny_ace_inputs

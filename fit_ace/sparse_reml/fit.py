@@ -30,7 +30,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, get_args
 
 import numpy as np
 import pandas as pd
@@ -47,6 +47,21 @@ from sim_ace.analysis.export_grm import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+# Enumerated backend knobs — kept in sync with ace_sreml's CLI parser.  The
+# Literal types give IDEs autocomplete and static type checkers teeth; the
+# runtime validator catches misspellings before the subprocess launches (a
+# silent mistake here is much more expensive than a one-line check).
+Ordering = Literal["auto", "amd", "metis", "nesdis", "colamd", "natural"]
+IntMode = Literal["auto", "int32", "int64"]
+Precision = Literal["single", "double"]
+TraceMethod = Literal["hutchinson", "hutchpp"]
+
+
+def _check_choice(value: str, choices: tuple[str, ...], arg_name: str) -> None:
+    if value not in choices:
+        raise ValueError(f"{arg_name}={value!r} not in {list(choices)}")
 
 
 # Binary discovery: ACE_SREML_BIN env var wins, else a repo-relative default.
@@ -115,9 +130,15 @@ def fit_sparse_reml(
     tol: float = 1e-3,
     seed: int = 42,
     threads: int = 8,
-    ordering: str = "auto",
-    int_mode: str = "auto",
-    precision: str = "single",
+    ordering: Ordering = "auto",
+    int_mode: IntMode = "auto",
+    precision: Precision = "single",
+    trace_method: TraceMethod = "hutchinson",
+    hutchpp_sketch_size: int = 0,
+    # 25 balances BLAS-3 efficiency (enough columns per triangular solve
+    # to saturate matmul kernels) with the workspace savings from not
+    # holding all m probes simultaneously.  Set equal to n_rand_vec to
+    # recover the legacy single-pass behavior.
     probe_batch_size: int = 25,
     log_level: str = "info",
     binary: Path | str | None = None,
@@ -145,8 +166,11 @@ def fit_sparse_reml(
             (after the ×2 kinship-to-GRM rescale).  ``0.05`` matches
             sparseREML's default and keeps Cholesky fill tractable at
             n ≳ 10⁴; ``0`` keeps everything.
-        n_rand_vec, max_iter, tol, seed, threads, ordering, log_level:
+        n_rand_vec, max_iter, tol, seed, threads, log_level:
             forwarded to ``ace_sreml``.
+        ordering: fill-reducing ordering for sparse Cholesky.  ``metis``
+            is strongly recommended for pedigree matrices at n ≥ 10k;
+            ``auto`` lets CHOLMOD pick.
         int_mode: ``auto`` (default) / ``int32`` / ``int64``.  Picks the
             CHOLMOD integer API.  int32 cuts factor storage ~15–20% but
             requires factor nnz < 2³¹; auto picks int32 for n ≤ 200k.
@@ -158,6 +182,15 @@ def fit_sparse_reml(
         probe_batch_size: Hutchinson probes are processed in column chunks
             of this size (default 25).  Smaller values cut probe RAM but
             split each CHOLMOD triangular solve into more BLAS calls.
+        trace_method: ``hutchinson`` (default) or ``hutchpp``.  Hutch++
+            (Meyer et al. 2021) deflates the dominant subspace via a shared
+            sketch before running Hutchinson on the residual, which cuts
+            variance to O(1/m²) at the price of roughly k extra multi-RHS
+            solves per iter for a k-column sketch.
+        hutchpp_sketch_size: number of sketch columns k for ``hutchpp``.
+            0 (default) means auto = ``n_rand_vec // 3``; the residual
+            Hutchinson then uses ``n_rand_vec - k`` probes.  Ignored when
+            ``trace_method == "hutchinson"``.
         binary: path to the compiled binary; defaults to
             ``default_binary()`` (env var ``ACE_SREML_BIN`` or the
             repo-relative build output).
@@ -179,6 +212,11 @@ def fit_sparse_reml(
     # ------------------------------------------------------------------
     # Validation
     # ------------------------------------------------------------------
+    _check_choice(ordering, get_args(Ordering), "ordering")
+    _check_choice(int_mode, get_args(IntMode), "int_mode")
+    _check_choice(precision, get_args(Precision), "precision")
+    _check_choice(trace_method, get_args(TraceMethod), "trace_method")
+
     y = np.asarray(y, dtype=np.float64).ravel()
     n = y.shape[0]
     if kinship.shape != (n, n):
@@ -278,6 +316,10 @@ def fit_sparse_reml(
             str(int_mode),
             "--precision",
             str(precision),
+            "--trace-method",
+            str(trace_method),
+            "--hutchpp_sketch_size",
+            str(hutchpp_sketch_size),
             "--log-level",
             str(log_level),
         ]
