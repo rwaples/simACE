@@ -5,14 +5,14 @@ no_twins:
 assortative_mating:
   seed: 80042
   pedigree:
-    assort1: 0.3
+    assort1: 0.4
     assort2: 0.0
 assortative_mating_both:
   seed: 81042
   N: 100000
   pedigree:
-    assort1: 0.3
-    assort2: 0.15
+    assort1: 0.4
+    assort2: 0.2
 high_mating_lambda:
   seed: 15042
   pedigree:
