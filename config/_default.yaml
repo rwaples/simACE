@@ -117,6 +117,7 @@ defaults:
   iter_reml_compute_logdet: true      # SLQ estimate of log|V| per iter → populates logLik (enables AIC/BIC/LRT)
   iter_reml_slq_lanczos_steps: 30     # SLQ Lanczos iterations per probe
   iter_reml_slq_probes: 30            # SLQ Rademacher probe count per iter
+  iter_reml_emit_probe_traces: false  # emit per-probe trace contribs to fit.probes.tsv + fit.probes.tsv.phase1 (Option-2 CV harness; default off — variance-reduction experiment closed, null result)
 
   # ── Export ──────────────────────────────────────────────────────────────
   # Settings for the tidy per-rep exports in `exports/` (cumulative

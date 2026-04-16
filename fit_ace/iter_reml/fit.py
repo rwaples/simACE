@@ -153,6 +153,7 @@ def fit_iter_reml(
     compute_logdet: bool = True,
     slq_lanczos_steps: int = 30,
     slq_probes: int = 30,
+    emit_probe_traces: bool = False,
     seed: int = 42,
     threads: int = 8,
     no_center: bool = False,
@@ -366,6 +367,9 @@ def fit_iter_reml(
             cmd.append("--skip_phase2")
         if not compute_logdet:
             cmd.append("--no-compute_logdet")
+        if emit_probe_traces:
+            probes_path = work / "out.probes.tsv"
+            cmd.extend(["--emit_probe_traces", str(probes_path)])
 
         log_path = work / "ace_iter_reml.log"
         logger.info("ace_iter_reml: %s", " ".join(cmd))

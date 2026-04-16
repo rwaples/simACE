@@ -89,6 +89,9 @@ interchangeable.  ``precision`` wildcard selects the PETSc build
         slq_probes=lambda w: int(
             get_param(config, w.scenario, "iter_reml_slq_probes")
         ),
+        emit_probe_traces=lambda w: bool(
+            get_param(config, w.scenario, "iter_reml_emit_probe_traces")
+        ),
     script:
         "../scripts/run_iter_reml.py"
 
