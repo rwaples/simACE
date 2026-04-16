@@ -221,6 +221,7 @@ class TestRoundTrip:
             "pafgrs_ndegree",
             "export_grm_threshold",
             "export_pair_list_min_kinship",
+            "export_pgs_r2",
         }
         assert set(flat.keys()) == expected_keys
 

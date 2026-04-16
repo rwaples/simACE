@@ -106,3 +106,27 @@ rule export_sparse_grm:
         grm_threshold=lambda w: get_param(config, w.scenario, "export_grm_threshold"),
     script:
         "../scripts/export_sparse_grm.py"
+
+
+rule export_pgs:
+    input:
+        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
+    output:
+        parquet="results/{folder}/{scenario}/rep{rep}/exports/pgs.parquet",
+        meta="results/{folder}/{scenario}/rep{rep}/exports/pgs.meta.json",
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/export_pgs.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/export_pgs.tsv"
+    threads: 1
+    resources:
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
+    params:
+        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
+        pgs_r2=lambda w: get_param(config, w.scenario, "export_pgs_r2"),
+        rA=lambda w: get_param(config, w.scenario, "rA"),
+        A1=lambda w: get_param(config, w.scenario, "A1"),
+        A2=lambda w: get_param(config, w.scenario, "A2"),
+    script:
+        "../scripts/export_pgs.py"

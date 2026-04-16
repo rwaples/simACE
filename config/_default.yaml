@@ -105,6 +105,7 @@ defaults:
   export:
     grm_threshold: 0.05 # drop off-diagonal GRM entries below this (sparseREML default)
     pair_list_min_kinship: 0.0625 # include pairs with kinship ≥ this; 1/16 = 1st-cousin level
+    pgs_r2: [0.2, 0.2] # per-trait E[cor(PGS, A)²]; PGS = √r²·A + √(Var(A)(1-r²))·e
 
 # Scenarios are defined in per-folder files: config/{folder}.yaml
 # Each file contains bare scenario dicts. The folder name is inferred from

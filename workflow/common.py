@@ -58,6 +58,7 @@ _HIERARCHICAL_TO_FLAT = {
     # export section
     ("export", "grm_threshold"): "export_grm_threshold",
     ("export", "pair_list_min_kinship"): "export_pair_list_min_kinship",
+    ("export", "pgs_r2"): "export_pgs_r2",
 }
 
 _SECTION_KEYS = frozenset(

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import struct
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from sim_ace.analysis.export_grm import ACE_SREML_MAGIC
 from sim_ace.analysis.export_tables import (
@@ -13,9 +15,11 @@ from sim_ace.analysis.export_tables import (
     assign_founder_family_ids,
     export_cumulative_incidence,
     export_pairwise_relatedness,
+    export_pgs,
     export_sparse_grm,
 )
 from sim_ace.core.pedigree_graph import PAIR_KINSHIP, count_relationship_pairs
+from sim_ace.simulation.simulate import generate_correlated_components
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -273,3 +277,207 @@ class TestExportSparseGrm:
         # At least some individuals share a FID — otherwise we haven't
         # actually applied founder-family grouping.
         assert len(np.unique(actual_fids)) < len(actual_fids)
+
+
+# ---------------------------------------------------------------------------
+# Proxy polygenic score
+# ---------------------------------------------------------------------------
+
+
+def _synthetic_A_frame(n: int, var_A: tuple[float, float], rA: float, seed: int) -> pd.DataFrame:
+    """Pedigree-shaped frame with analytically-known A1, A2 draws."""
+    rng = np.random.default_rng(seed)
+    sd1 = float(np.sqrt(var_A[0]))
+    sd2 = float(np.sqrt(var_A[1]))
+    A1, A2 = generate_correlated_components(rng, n, sd1, sd2, rA)
+    return pd.DataFrame(
+        {
+            "id": np.arange(n, dtype=np.int32),
+            "sex": rng.integers(0, 2, size=n, dtype=np.int8),
+            "generation": rng.integers(0, 4, size=n, dtype=np.int32),
+            "A1": A1.astype(np.float32),
+            "A2": A2.astype(np.float32),
+        }
+    )
+
+
+class TestExportPgs:
+    def test_shape_and_columns(self, tmp_path):
+        ped = _synthetic_A_frame(500, var_A=(1.0, 1.0), rA=0.0, seed=1)
+        out, meta = export_pgs(
+            ped,
+            r2=(0.2, 0.2),
+            rA=0.0,
+            var_A=(1.0, 1.0),
+            sub_seed=123,
+            out_path=tmp_path / "pgs.parquet",
+        )
+        assert out.exists()
+        assert meta.exists()
+        df = pd.read_parquet(out)
+        assert list(df.columns) == ["id", "sex", "generation", "A1", "A2", "PGS1", "PGS2"]
+        assert len(df) == len(ped)
+        np.testing.assert_array_equal(df["id"].to_numpy(), ped["id"].to_numpy())
+
+    def test_variance_matches_nominal(self, tmp_path):
+        # With large n, realized Var(PGS_t) should be close to nominal Var(A_t).
+        var_A = (1.0, 2.5)
+        ped = _synthetic_A_frame(20_000, var_A=var_A, rA=0.3, seed=2)
+        out, _ = export_pgs(
+            ped,
+            r2=(0.25, 0.5),
+            rA=0.3,
+            var_A=var_A,
+            sub_seed=42,
+            out_path=tmp_path / "pgs.parquet",
+        )
+        df = pd.read_parquet(out)
+        # Var(PGS_t) = r²·Var(A_t) + (1-r²)·Var(A_t) = Var(A_t) analytically;
+        # 3% slack covers finite-sample fluctuation at n=20k.
+        assert abs(df["PGS1"].var(ddof=0) - var_A[0]) < 0.03 * var_A[0]
+        assert abs(df["PGS2"].var(ddof=0) - var_A[1]) < 0.03 * var_A[1]
+
+    def test_realized_accuracy_matches_r2(self, tmp_path):
+        # Realized cor(PGS_t, A_t)² should be close to the nominal r²_t.
+        var_A = (1.0, 1.0)
+        r2 = (0.25, 0.5)
+        ped = _synthetic_A_frame(20_000, var_A=var_A, rA=0.2, seed=3)
+        out, _ = export_pgs(
+            ped,
+            r2=r2,
+            rA=0.2,
+            var_A=var_A,
+            sub_seed=7,
+            out_path=tmp_path / "pgs.parquet",
+        )
+        df = pd.read_parquet(out)
+        r1 = np.corrcoef(df["PGS1"], df["A1"])[0, 1] ** 2
+        r2_realized = np.corrcoef(df["PGS2"], df["A2"])[0, 1] ** 2
+        assert abs(r1 - r2[0]) < 0.02
+        assert abs(r2_realized - r2[1]) < 0.02
+
+    def test_cross_trait_correlation_formula(self, tmp_path):
+        # Expected Cor(PGS_1, PGS_2) = rA·[sqrt(r1·r2) + sqrt((1-r1)(1-r2))].
+        var_A = (1.0, 1.0)
+        r2 = (0.2, 0.8)
+        rA = 0.4
+        ped = _synthetic_A_frame(30_000, var_A=var_A, rA=rA, seed=4)
+        out, _ = export_pgs(
+            ped,
+            r2=r2,
+            rA=rA,
+            var_A=var_A,
+            sub_seed=11,
+            out_path=tmp_path / "pgs.parquet",
+        )
+        df = pd.read_parquet(out)
+        realized = np.corrcoef(df["PGS1"], df["PGS2"])[0, 1]
+        expected = rA * (np.sqrt(r2[0] * r2[1]) + np.sqrt((1 - r2[0]) * (1 - r2[1])))
+        assert abs(realized - expected) < 0.02
+
+    def test_determinism(self, tmp_path):
+        ped = _synthetic_A_frame(1_000, var_A=(1.0, 1.0), rA=0.3, seed=5)
+        out_a, _ = export_pgs(
+            ped,
+            r2=(0.3, 0.4),
+            rA=0.3,
+            var_A=(1.0, 1.0),
+            sub_seed=99,
+            out_path=tmp_path / "a.parquet",
+        )
+        out_b, _ = export_pgs(
+            ped,
+            r2=(0.3, 0.4),
+            rA=0.3,
+            var_A=(1.0, 1.0),
+            sub_seed=99,
+            out_path=tmp_path / "b.parquet",
+        )
+        df_a = pd.read_parquet(out_a)
+        df_b = pd.read_parquet(out_b)
+        np.testing.assert_array_equal(df_a["PGS1"].to_numpy(), df_b["PGS1"].to_numpy())
+        np.testing.assert_array_equal(df_a["PGS2"].to_numpy(), df_b["PGS2"].to_numpy())
+
+        # Different seed → different draws.
+        out_c, _ = export_pgs(
+            ped,
+            r2=(0.3, 0.4),
+            rA=0.3,
+            var_A=(1.0, 1.0),
+            sub_seed=100,
+            out_path=tmp_path / "c.parquet",
+        )
+        df_c = pd.read_parquet(out_c)
+        assert not np.array_equal(df_a["PGS1"].to_numpy(), df_c["PGS1"].to_numpy())
+
+    def test_r2_unity_returns_A(self, tmp_path):
+        # r² = 1 means PGS = A exactly (noise term vanishes).
+        ped = _synthetic_A_frame(500, var_A=(1.0, 2.0), rA=0.1, seed=6)
+        out, _ = export_pgs(
+            ped,
+            r2=(1.0, 1.0),
+            rA=0.1,
+            var_A=(1.0, 2.0),
+            sub_seed=1,
+            out_path=tmp_path / "pgs.parquet",
+        )
+        df = pd.read_parquet(out)
+        # float32 round-trip tolerance.
+        np.testing.assert_allclose(df["PGS1"].to_numpy(), df["A1"].to_numpy(), atol=1e-6)
+        np.testing.assert_allclose(df["PGS2"].to_numpy(), df["A2"].to_numpy(), atol=1e-6)
+
+    def test_r2_zero_is_pure_noise(self, tmp_path):
+        # r² = 0 means PGS is independent of A (pure rescaled noise).
+        ped = _synthetic_A_frame(20_000, var_A=(1.0, 1.0), rA=0.3, seed=7)
+        out, _ = export_pgs(
+            ped,
+            r2=(0.0, 0.0),
+            rA=0.3,
+            var_A=(1.0, 1.0),
+            sub_seed=2,
+            out_path=tmp_path / "pgs.parquet",
+        )
+        df = pd.read_parquet(out)
+        cor_a = np.corrcoef(df["PGS1"], df["A1"])[0, 1]
+        assert abs(cor_a) < 0.03
+
+    def test_metadata_sidecar(self, tmp_path):
+        ped = _synthetic_A_frame(2_000, var_A=(1.0, 1.0), rA=0.25, seed=8)
+        _, meta_path = export_pgs(
+            ped,
+            r2=(0.2, 0.3),
+            rA=0.25,
+            var_A=(1.0, 1.0),
+            sub_seed=321,
+            out_path=tmp_path / "pgs.parquet",
+        )
+        with open(meta_path) as fh:
+            meta = json.load(fh)
+        assert meta["pgs_r2"] == [0.2, 0.3]
+        assert meta["rA"] == 0.25
+        assert meta["var_A"] == [1.0, 1.0]
+        assert meta["sub_seed"] == 321
+        assert meta["n"] == 2_000
+        assert len(meta["realized_cor_pgs_a"]) == 2
+        assert isinstance(meta["realized_cor_pgs1_pgs2"], float)
+
+    def test_rejects_bad_r2(self, tmp_path):
+        ped = _synthetic_A_frame(10, var_A=(1.0, 1.0), rA=0.0, seed=9)
+        with pytest.raises(ValueError, match="r2"):
+            export_pgs(
+                ped,
+                r2=(1.5, 0.5),
+                rA=0.0,
+                var_A=(1.0, 1.0),
+                sub_seed=1,
+                out_path=tmp_path / "pgs.parquet",
+            )
+        with pytest.raises(ValueError, match="r2"):
+            export_pgs(
+                ped,
+                r2=(-0.1, 0.5),
+                rA=0.0,
+                var_A=(1.0, 1.0),
+                sub_seed=1,
+                out_path=tmp_path / "pgs.parquet",
+            )
