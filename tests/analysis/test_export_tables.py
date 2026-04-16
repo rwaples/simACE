@@ -14,6 +14,7 @@ from sim_ace.analysis.export_tables import (
     _min_max_degree_for_kinship,
     assign_founder_family_ids,
     export_cumulative_incidence,
+    export_inbreeding,
     export_pairwise_relatedness,
     export_pgs,
     export_sparse_grm,
@@ -481,3 +482,62 @@ class TestExportPgs:
                 sub_seed=1,
                 out_path=tmp_path / "pgs.parquet",
             )
+
+
+# ---------------------------------------------------------------------------
+# Inbreeding
+# ---------------------------------------------------------------------------
+
+
+def _cousin_marriage_pedigree() -> pd.DataFrame:
+    """Pedigree where individual 8 has F = 1/16 from first-cousin parents.
+
+    Gen 0 founders: 0 (F), 1 (M) — couple A; 2 (F), 3 (M) — unrelated spouses.
+    Gen 1: 4 (F, child of 0,1), 5 (M, child of 0,1) — full sibs from couple A.
+    Gen 2: 6 (F, child of 4 and 3), 7 (M, child of 5 and 2) — 1st cousins
+           through shared grandparents 0,1.
+    Gen 3: 8 (F, child of 6 and 7) — inbred with F = kinship(6,7) = 1/16.
+    """
+    return pd.DataFrame(
+        {
+            "id": np.arange(9, dtype=np.int32),
+            "sex": np.array([0, 1, 0, 1, 0, 1, 0, 1, 0], dtype=np.int8),
+            "mother": np.array([-1, -1, -1, -1, 0, 0, 4, 2, 6], dtype=np.int32),
+            "father": np.array([-1, -1, -1, -1, 1, 1, 3, 5, 7], dtype=np.int32),
+            "twin": np.full(9, -1, dtype=np.int32),
+            "generation": np.array([0, 0, 0, 0, 1, 1, 2, 2, 3], dtype=np.int32),
+        }
+    )
+
+
+class TestExportInbreeding:
+    def test_columns(self, tmp_path):
+        ped = _cousin_marriage_pedigree()
+        out = export_inbreeding(ped, out_path=tmp_path / "F.tsv")
+        assert out.exists()
+        df = pd.read_csv(out, sep="\t")
+        assert list(df.columns) == ["id", "F"]
+
+    def test_only_inbred_included(self, tmp_path):
+        ped = _cousin_marriage_pedigree()
+        out = export_inbreeding(ped, out_path=tmp_path / "F.tsv")
+        df = pd.read_csv(out, sep="\t")
+        # Only individual 8 has F > 0.
+        assert len(df) == 1
+        assert df.iloc[0]["id"] == 8
+        assert df.iloc[0]["F"] == pytest.approx(1 / 16)
+
+    def test_empty_when_no_inbreeding(self, tmp_path):
+        # Three-family fixture has no consanguinity.
+        ped = _three_family_pedigree()
+        out = export_inbreeding(ped, out_path=tmp_path / "F.tsv")
+        df = pd.read_csv(out, sep="\t")
+        assert len(df) == 0
+        assert list(df.columns) == ["id", "F"]
+
+    def test_sorted_by_id(self, tmp_path, small_pedigree):
+        out = export_inbreeding(small_pedigree, out_path=tmp_path / "F.tsv")
+        df = pd.read_csv(out, sep="\t")
+        if len(df) > 1:
+            assert df["id"].is_monotonic_increasing
+            assert (df["F"] > 0).all()

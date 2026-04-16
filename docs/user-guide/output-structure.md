@@ -56,7 +56,7 @@ Temp files are auto-deleted by Snakemake after downstream rules complete.
 
 ## On-demand exports
 
-Four opt-in leaf rules emit derived artifacts under
+Five opt-in leaf rules emit derived artifacts under
 `results/{folder}/{scenario}/rep{N}/exports/`. None run as part of
 `scenario.done` — build them by explicit path.
 
@@ -64,6 +64,7 @@ Four opt-in leaf rules emit derived artifacts under
 |---|---|---|
 | `exports/cumulative_incidence.tsv` | Long/tidy TSV, one row per `(trait, sex, generation, age)` with columns `cum_incidence`, `n_at_risk` | `censoring.max_age` |
 | `exports/pairwise_relatedness.tsv` | Canonical relationship pairs: `id1`, `id2`, `rel_code`, `kinship`; filtered by a minimum-kinship threshold | `export.pair_list_min_kinship` |
+| `exports/inbreeding.tsv` | Per-individual inbreeding coefficient: `id`, `F`; rows with `F == 0` are omitted (empty file in a non-consanguineous pedigree) | — |
 | `exports/grm/sparse.grm.sp.bin` + `.grm.id` | Sparse GRM in `ace_sreml` binary CSC format with founder-couple FIDs | `export.grm_threshold` |
 | `exports/pgs.parquet` + `pgs.meta.json` | Per-individual proxy polygenic score `PGS_t = √r²·A_t + √(Var(A_t)(1−r²))·e_t`, noise correlated across traits by `rA`; sidecar records the accuracy used and realized correlations | `export.pgs_r2` |
 

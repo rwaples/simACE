@@ -1,6 +1,6 @@
 """Tidy data exports for external-tool consumption (R, GCTA, PLINK, sparseREML).
 
-Four per-rep artifacts:
+Five per-rep artifacts:
 
 - :func:`export_cumulative_incidence` — long/tidy TSV with one row per
   ``(trait, sex, generation, age)`` stratum.
@@ -11,6 +11,8 @@ Four per-rep artifacts:
   with founder-couple FIDs in the accompanying ``.grm.id`` file.
 - :func:`export_pgs` — per-individual proxy polygenic score with a
   user-specified accuracy ``r²`` per trait, plus a JSON metadata sidecar.
+- :func:`export_inbreeding` — TSV of individuals with non-zero inbreeding
+  coefficient ``F``.
 
 Reuses :func:`~sim_ace.analysis.stats.compute_cumulative_incidence_by_sex_generation`,
 :class:`~sim_ace.core.pedigree_graph.PedigreeGraph`,
@@ -40,6 +42,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "assign_founder_family_ids",
     "export_cumulative_incidence",
+    "export_inbreeding",
     "export_pairwise_relatedness",
     "export_pgs",
     "export_sparse_grm",
@@ -380,3 +383,43 @@ def export_pgs(
         out_path.name,
     )
     return out_path, meta_path
+
+
+# ---------------------------------------------------------------------------
+# Per-individual inbreeding
+# ---------------------------------------------------------------------------
+
+
+def export_inbreeding(
+    pedigree_df: pd.DataFrame,
+    out_path: str | Path,
+) -> Path:
+    """Write a TSV of individuals with non-zero inbreeding coefficient.
+
+    Columns: ``id`` (int64), ``F`` (float64).  Rows are sorted by ``id``.
+    Individuals with ``F == 0`` (the vast majority in a non-consanguineous
+    pedigree) are omitted; the file is empty when no inbreeding exists.
+
+    ``F`` is computed by
+    :func:`~sim_ace.core.pedigree_graph.PedigreeGraph.compute_inbreeding`.
+    """
+    require_cols(pedigree_df, ["id", "mother", "father", "twin", "sex", "generation"])
+
+    pg = PedigreeGraph(pedigree_df)
+    F = pg.compute_inbreeding()
+
+    ids = pedigree_df["id"].to_numpy()
+    mask = F > 0
+    df = pd.DataFrame({"id": ids[mask].astype(np.int64), "F": F[mask].astype(np.float64)})
+    df = df.sort_values("id", kind="mergesort").reset_index(drop=True)
+
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(out_path, sep="\t", index=False)
+    logger.info(
+        "export_inbreeding: %d inbred individuals (of %d) -> %s",
+        len(df),
+        len(pedigree_df),
+        out_path.name,
+    )
+    return out_path

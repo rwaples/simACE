@@ -46,6 +46,7 @@ rule parquet_to_tsv_uncompressed:
 
 ruleorder: export_cumulative_incidence > parquet_to_tsv_uncompressed
 ruleorder: export_pairwise_relatedness > parquet_to_tsv_uncompressed
+ruleorder: export_inbreeding > parquet_to_tsv_uncompressed
 
 
 rule export_cumulative_incidence:
@@ -106,6 +107,23 @@ rule export_sparse_grm:
         grm_threshold=lambda w: get_param(config, w.scenario, "export_grm_threshold"),
     script:
         "../scripts/export_sparse_grm.py"
+
+
+rule export_inbreeding:
+    input:
+        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
+    output:
+        "results/{folder}/{scenario}/rep{rep}/exports/inbreeding.tsv",
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/export_inbreeding.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/export_inbreeding.tsv"
+    threads: 1
+    resources:
+        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
+        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
+    script:
+        "../scripts/export_inbreeding.py"
 
 
 rule export_pgs:
