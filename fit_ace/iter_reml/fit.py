@@ -150,6 +150,9 @@ def fit_iter_reml(
     deflation_k: int = 100,
     trace_method: TraceMethod = "hutchinson",
     hutchpp_sketch_size: int = 0,
+    compute_logdet: bool = True,
+    slq_lanczos_steps: int = 30,
+    slq_probes: int = 30,
     seed: int = 42,
     threads: int = 8,
     no_center: bool = False,
@@ -211,6 +214,19 @@ def fit_iter_reml(
         hutchpp_sketch_size: sketch columns k for ``hutchpp``.  0 →
             auto max(1, phase2_probes / 3).  Ignored when
             ``trace_method == "hutchinson"``.
+        compute_logdet: if ``True`` (default), estimate log|V| via
+            Stochastic Lanczos Quadrature at every outer iter and
+            populate ``IterREMLResult.logLik`` and the per-iter
+            ``logLik`` column in ``fit.iter.tsv``.  Enables LRT / AIC /
+            BIC downstream.  Cost is ~30 ms at n=10k, scales ~linearly
+            with n.  Set to ``False`` to skip (keeps ``logLik`` NaN).
+        slq_lanczos_steps: Lanczos iterations per SLQ probe (default
+            30).  Quadrature error decays rapidly for smooth f; 30 is
+            sufficient for ~1% accuracy on f=log.
+        slq_probes: Rademacher probes averaged for SLQ (default 30).
+            More probes reduce the variance of the logLik estimate;
+            the bias (Lanczos quadrature error at fixed k) is
+            independent of probe count.
         seed: RNG seed for Rademacher probes (Phase 1 + Phase 2).
         threads: OpenMP threads.
         no_center: by default y is mean-centered before the fit
@@ -336,6 +352,8 @@ def fit_iter_reml(
             "--deflation_k", str(deflation_k),
             "--trace_method", trace_method,
             "--hutchpp_sketch_size", str(hutchpp_sketch_size),
+            "--slq_lanczos_steps", str(slq_lanczos_steps),
+            "--slq_probes", str(slq_probes),
             "--seed", str(seed),
             "--threads", str(threads),
             "--log-level", log_level,
@@ -346,6 +364,8 @@ def fit_iter_reml(
             cmd.append("--skip_phase1")
         if skip_phase2:
             cmd.append("--skip_phase2")
+        if not compute_logdet:
+            cmd.append("--no-compute_logdet")
 
         log_path = work / "ace_iter_reml.log"
         logger.info("ace_iter_reml: %s", " ".join(cmd))

@@ -80,6 +80,15 @@ interchangeable.  ``precision`` wildcard selects the PETSc build
         hutchpp_sketch_size=lambda w: int(
             get_param(config, w.scenario, "iter_reml_hutchpp_sketch_size")
         ),
+        compute_logdet=lambda w: bool(
+            get_param(config, w.scenario, "iter_reml_compute_logdet")
+        ),
+        slq_lanczos_steps=lambda w: int(
+            get_param(config, w.scenario, "iter_reml_slq_lanczos_steps")
+        ),
+        slq_probes=lambda w: int(
+            get_param(config, w.scenario, "iter_reml_slq_probes")
+        ),
     script:
         "../scripts/run_iter_reml.py"
 

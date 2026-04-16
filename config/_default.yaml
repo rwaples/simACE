@@ -114,6 +114,9 @@ defaults:
   iter_reml_deflation_k: 100       # top-k eigenvectors of A; ignored when pc_type=jacobi
   iter_reml_trace_method: hutchinson  # "hutchinson" or "hutchpp" (shared-sketch variance reduction)
   iter_reml_hutchpp_sketch_size: 0    # sketch columns k for hutchpp; 0 → auto max(1, phase2_probes/3)
+  iter_reml_compute_logdet: true      # SLQ estimate of log|V| per iter → populates logLik (enables AIC/BIC/LRT)
+  iter_reml_slq_lanczos_steps: 30     # SLQ Lanczos iterations per probe
+  iter_reml_slq_probes: 30            # SLQ Rademacher probe count per iter
 
   # ── Export ──────────────────────────────────────────────────────────────
   # Settings for the tidy per-rep exports in `exports/` (cumulative
