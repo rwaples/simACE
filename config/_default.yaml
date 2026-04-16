@@ -98,6 +98,21 @@ defaults:
   pafgrs:
     max_degree_pafgrs: 2
 
+  # ── Iterative sparse REML (ace_iter_reml) ──────────────────────────────
+  # Two-phase A+C+E fit: RHE-mc warm-start → PCG-AI-REML.  Defaults are
+  # flat names so they can be overridden per-scenario via get_param().
+  iter_reml_trait: 1               # which trait's liability to fit (1 or 2)
+  iter_reml_ndegree: 2             # PA-FGRS kinship build_kinship_from_pairs depth
+  iter_reml_grm_threshold: 0.001   # keep entries >~ 7th-cousin; 0.05 drops positive contributions that break PSD for matrix-free PCG
+  iter_reml_phase1_probes: 100     # RHE-mc Rademacher probes
+  iter_reml_phase2_probes: 60      # AI-REML Hutchinson trace probes per outer iter
+  iter_reml_max_iter: 50           # AI-REML outer iter cap
+  iter_reml_tol: 1.0e-2            # |dLLpred| convergence threshold (m=60 stochastic-trace floor)
+  iter_reml_pcg_tol: 1.0e-5        # PCG relative residual tol
+  iter_reml_pcg_max_iter: 500      # PCG max iters per V⁻¹·b solve
+  iter_reml_pc_type: jacobi        # "jacobi" or "deflation"
+  iter_reml_deflation_k: 100       # top-k eigenvectors of A; ignored when pc_type=jacobi
+
   # ── Export ──────────────────────────────────────────────────────────────
   # Settings for the tidy per-rep exports in `exports/` (cumulative
   # incidence TSV, pairwise relatedness TSV, sparse GRM).  These rules

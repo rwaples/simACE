@@ -1,6 +1,9 @@
 # External tools and data
 external/
 
+# Standalone git repos vendored under tracked dirs
+fit_ace/ace_iter_reml/
+
 # Scripts (local benchmarks / utilities)
 scripts/
 
