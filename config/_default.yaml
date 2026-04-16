@@ -112,6 +112,8 @@ defaults:
   iter_reml_pcg_max_iter: 500      # PCG max iters per V⁻¹·b solve
   iter_reml_pc_type: jacobi        # "jacobi" or "deflation"
   iter_reml_deflation_k: 100       # top-k eigenvectors of A; ignored when pc_type=jacobi
+  iter_reml_trace_method: hutchinson  # "hutchinson" or "hutchpp" (shared-sketch variance reduction)
+  iter_reml_hutchpp_sketch_size: 0    # sketch columns k for hutchpp; 0 → auto max(1, phase2_probes/3)
 
   # ── Export ──────────────────────────────────────────────────────────────
   # Settings for the tidy per-rep exports in `exports/` (cumulative

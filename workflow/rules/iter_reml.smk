@@ -74,6 +74,12 @@ interchangeable.  ``precision`` wildcard selects the PETSc build
         deflation_k=lambda w: int(
             get_param(config, w.scenario, "iter_reml_deflation_k")
         ),
+        trace_method=lambda w: str(
+            get_param(config, w.scenario, "iter_reml_trace_method")
+        ),
+        hutchpp_sketch_size=lambda w: int(
+            get_param(config, w.scenario, "iter_reml_hutchpp_sketch_size")
+        ),
     script:
         "../scripts/run_iter_reml.py"
 

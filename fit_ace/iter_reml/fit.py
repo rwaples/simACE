@@ -52,6 +52,7 @@ logger = logging.getLogger(__name__)
 
 
 PcType = Literal["jacobi", "deflation"]
+TraceMethod = Literal["hutchinson", "hutchpp"]
 
 
 def _check_choice(value: str, choices: tuple[str, ...], arg_name: str) -> None:
@@ -147,6 +148,8 @@ def fit_iter_reml(
     pcg_max_iter: int = 500,
     pc_type: PcType = "jacobi",
     deflation_k: int = 100,
+    trace_method: TraceMethod = "hutchinson",
+    hutchpp_sketch_size: int = 0,
     seed: int = 42,
     threads: int = 8,
     no_center: bool = False,
@@ -188,6 +191,26 @@ def fit_iter_reml(
             required at large connected pedigrees).
         deflation_k: top-k eigenvectors of A to deflate; ignored when
             pc_type=jacobi.
+        trace_method: ``"hutchinson"`` (default, recommended) or
+            ``"hutchpp"``.  Hutch++ builds per-VC sketches
+            Q_A = orth(V⁻¹·A·Ω_A), Q_C = orth(V⁻¹·C·Ω_C) and estimates
+            only the residual, with the same per-iter PCG solve count as
+            Hutchinson plus a one-time k sketch-solve setup.
+
+            **Empirically ineffective for pedigree-kinship inputs.**
+            A 2026-04-16 bench at n ∈ {10k, 100k} with and without AM
+            showed the low-rank capture ratio stays ≤ 0.4% at n=10k
+            and ~0.0% at n=100k — the long flat spectrum of
+            V⁻¹·M_k for sparse pedigree kinship means the first k
+            eigendirections hold essentially none of the trace.
+            Variance is unchanged to mildly *worse* (~1.2× stddev).
+            The option is retained for non-pedigree GRMs with known
+            rank-deficient spectra; use ``"hutchinson"`` for all
+            current bench scenarios.  See
+            ``notes/iter_reml_adaptive_baselines/hutchpp_probe_variance.tsv``.
+        hutchpp_sketch_size: sketch columns k for ``hutchpp``.  0 →
+            auto max(1, phase2_probes / 3).  Ignored when
+            ``trace_method == "hutchinson"``.
         seed: RNG seed for Rademacher probes (Phase 1 + Phase 2).
         threads: OpenMP threads.
         no_center: by default y is mean-centered before the fit
@@ -212,6 +235,9 @@ def fit_iter_reml(
         ValueError: for malformed inputs (shape mismatch, NaNs, ...).
     """
     _check_choice(pc_type, get_args(PcType), "pc_type")
+    _check_choice(trace_method, get_args(TraceMethod), "trace_method")
+    if hutchpp_sketch_size < 0:
+        raise ValueError(f"hutchpp_sketch_size={hutchpp_sketch_size} must be >= 0")
 
     if (kinship is None) == (pedigree_arrays is None):
         raise ValueError("pass exactly one of kinship= (scipy sparse) "
@@ -308,6 +334,8 @@ def fit_iter_reml(
             "--pcg_max_iter", str(pcg_max_iter),
             "--pc_type", pc_type,
             "--deflation_k", str(deflation_k),
+            "--trace_method", trace_method,
+            "--hutchpp_sketch_size", str(hutchpp_sketch_size),
             "--seed", str(seed),
             "--threads", str(threads),
             "--log-level", log_level,
