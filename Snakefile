@@ -1,4 +1,4 @@
-configfile: "config/config.yaml"
+configfile: "config/_default.yaml"
 
 
 from workflow.common import (
@@ -45,4 +45,5 @@ include: "workflow/rules/epimight.smk"
 include: "workflow/rules/epimight_bias.smk"
 include: "workflow/rules/pafgrs.smk"
 include: "workflow/rules/grm.smk"
+include: "workflow/rules/iter_reml.smk"
 include: "workflow/rules/export.smk"

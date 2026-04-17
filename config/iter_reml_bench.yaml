@@ -1,0 +1,108 @@
+# Benchmark scenarios for ace_iter_reml.
+#
+# A+C+E scenarios with realistic-to-the-paper values
+# (sigma2 = 0.4 / 0.2 / 0.4, h2 = 0.4) at three pedigree sizes, each in
+# AM-on (assort1=0.3) and no-AM (assort1=0) variants.  AM drives the
+# dominant-eigenvalue spectrum that matters for the deflation
+# preconditioner; the no-AM siblings isolate size-scaling from
+# conditioning.
+#
+# N is the per-generation founder count; with G_pheno = 3 (default),
+# n_phenotyped ≈ N × G_pheno → N=3400 hits ~10k, N=17000 hits ~50k,
+# N=34000 hits ~100k.
+
+iter_reml_10k:
+  seed: 60010
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.3 # moderate AM → connected components grow
+    assort2: 0.0
+    trait1:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+    trait2:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+
+iter_reml_10k_noam:
+  seed: 60011
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+    trait2:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+
+iter_reml_50k:
+  seed: 60042
+  N: 17000
+  replicates: 1
+  pedigree:
+    assort1: 0.3
+    assort2: 0.0
+    trait1:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+    trait2:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+
+iter_reml_50k_noam:
+  seed: 60043
+  N: 17000
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+    trait2:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+
+iter_reml_100k:
+  seed: 60100
+  N: 34000
+  replicates: 1
+  pedigree:
+    assort1: 0.3
+    assort2: 0.0
+    trait1:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+    trait2:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+
+iter_reml_100k_noam:
+  seed: 60101
+  N: 34000
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+    trait2:
+      A: 0.4
+      C: 0.2
+      E: 0.4

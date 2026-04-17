@@ -17,3 +17,6 @@ baseline100K_sample50K:
 baseline1M:
   seed: 3042
   N: 1000000
+baseline2M:
+  seed: 99042
+  N: 2000000

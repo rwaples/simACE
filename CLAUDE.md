@@ -15,7 +15,6 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 - Root `Snakefile` is the entry point — not `-s workflow/Snakefile`
 - Use `--cores 4` (testing) or `--cores 1` (debugging). Always dry-run (`-n`) before long runs.
 - Targets are per-scenario: `results/{folder}/{scenario}/{scenario,simulate,phenotype,validate,stats,epimight}.done`
-- Single stage: `results/{folder}/{scenario}/{simulate,phenotype,validate,stats}.done`
 - Force-rebuild plot atlas: `snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.pdf`
 - Single EPIMIGHT kind: `snakemake --cores 4 results/{folder}/{scenario}/rep1/epimight/tsv/h2_d1_FS.tsv`
 
@@ -48,7 +47,7 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
   - `stan/` — Stan-based model fitting
   - `plotting/` — PA-FGRS and EPIMIGHT bias plots
 - `workflow/rules/*.smk` — Snakemake rules; `workflow/scripts/` — thin script wrappers
-- `config/config.yaml` — default parameters; `config/{folder}.yaml` — per-folder scenario files (auto-discovered)
+- `config/_default.yaml` — default parameters; `config/{folder}.yaml` — per-folder scenario files (auto-discovered; files starting with `_` are skipped)
 - `results/{folder}/{scenario}/` — output per scenario
 
 ## Versioning

@@ -1,6 +1,6 @@
 # Output Format Reference
 
-Complete documentation of all files produced by the ACE pipeline. Path patterns use `{folder}`, `{scenario}`, and `{rep}` as placeholders matching values from `config/config.yaml`.
+Complete documentation of all files produced by the ACE pipeline. Path patterns use `{folder}`, `{scenario}`, and `{rep}` as placeholders matching values from `config/_default.yaml`.
 
 ## File Inventory
 
@@ -294,7 +294,7 @@ Per-folder benchmarks:
 
 ## Plots
 
-Plot files are written as PNG by default (configurable via `plot_format` in `config.yaml`). All scenario plots live under `results/{folder}/{scenario}/plots/`.
+Plot files are written as PNG by default (configurable via `plot_format` in `_default.yaml`). All scenario plots live under `results/{folder}/{scenario}/plots/`.
 
 ### Phenotype plots
 
