@@ -34,8 +34,6 @@ ADHD_AUT_increaseE:
     rC: 0.0
     rE: 0.0
   standardize: true
-  epimight:
-    rubin_level: per_year
   phenotype:
     trait1:
       model: cure_frailty
@@ -121,8 +119,6 @@ ADHD_AUT_increaseE_nostd:
     rC: 0.0
     rE: 0.0
   standardize: false
-  epimight:
-    rubin_level: per_year
   phenotype:
     trait1:
       model: cure_frailty

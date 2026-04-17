@@ -100,7 +100,7 @@ class TestFlattenPhenotype:
 
 
 class TestFlattenOtherSections:
-    """Censoring, sampling, analysis, epimight, pafgrs sections."""
+    """Censoring, sampling, analysis sections."""
 
     def test_censoring(self):
         d = {"censoring": {"max_age": 80, "death_scale": 164, "death_rho": 2.73}}
@@ -116,16 +116,6 @@ class TestFlattenOtherSections:
         d = {"analysis": {"max_degree": 3, "estimate_inbreeding": True}}
         result = _flatten_hierarchical(d)
         assert result == {"max_degree": 3, "estimate_inbreeding": True}
-
-    def test_epimight(self):
-        d = {"epimight": {"K": 10, "rubin_level": "meta", "kinds": ["PO", "FS"]}}
-        result = _flatten_hierarchical(d)
-        assert result == {"epimight_mi_K": 10, "epimight_rubin_level": "meta", "epimight_kinds": ["PO", "FS"]}
-
-    def test_pafgrs(self):
-        d = {"pafgrs": {"max_degree_pafgrs": 4}}
-        result = _flatten_hierarchical(d)
-        assert result == {"pafgrs_ndegree": 4}
 
 
 class TestFlattenMixed:
@@ -215,32 +205,6 @@ class TestRoundTrip:
             "pedigree_dropout_rate",
             "max_degree",
             "estimate_inbreeding",
-            "epimight_mi_K",
-            "epimight_rubin_level",
-            "epimight_kinds",
-            "pafgrs_ndegree",
-            "iter_reml_trait",
-            "iter_reml_ndegree",
-            "iter_reml_grm_threshold",
-            "iter_reml_phase1_probes",
-            "iter_reml_phase2_probes",
-            "iter_reml_max_iter",
-            "iter_reml_tol",
-            "iter_reml_pcg_tol",
-            "iter_reml_pcg_max_iter",
-            "iter_reml_pc_type",
-            "iter_reml_deflation_k",
-            "iter_reml_trace_method",
-            "iter_reml_hutchpp_sketch_size",
-            "iter_reml_compute_logdet",
-            "iter_reml_slq_lanczos_steps",
-            "iter_reml_slq_probes",
-            "iter_reml_emit_probe_traces",
-            "grm_n_pcs",
-            "grm_min_kinship",
-            "export_grm_threshold",
-            "export_pair_list_min_kinship",
-            "export_pgs_r2",
         }
         assert set(flat.keys()) == expected_keys
 
@@ -261,5 +225,3 @@ class TestRoundTrip:
         assert flat["prevalence1"] == 0.10
         assert flat["censor_age"] == 80
         assert flat["death_scale"] == 164
-        assert flat["epimight_mi_K"] == 20
-        assert flat["pafgrs_ndegree"] == 2

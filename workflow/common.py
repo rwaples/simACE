@@ -49,19 +49,6 @@ _HIERARCHICAL_TO_FLAT = {
     # analysis section
     ("analysis", "max_degree"): "max_degree",
     ("analysis", "estimate_inbreeding"): "estimate_inbreeding",
-    # epimight section
-    ("epimight", "K"): "epimight_mi_K",
-    ("epimight", "rubin_level"): "epimight_rubin_level",
-    ("epimight", "kinds"): "epimight_kinds",
-    # pafgrs section
-    ("pafgrs", "max_degree_pafgrs"): "pafgrs_ndegree",
-    # grm section
-    ("grm", "n_pcs"): "grm_n_pcs",
-    ("grm", "min_kinship"): "grm_min_kinship",
-    # export section
-    ("export", "grm_threshold"): "export_grm_threshold",
-    ("export", "pair_list_min_kinship"): "export_pair_list_min_kinship",
-    ("export", "pgs_r2"): "export_pgs_r2",
 }
 
 _SECTION_KEYS = frozenset(
@@ -71,10 +58,6 @@ _SECTION_KEYS = frozenset(
         "censoring",
         "sampling",
         "analysis",
-        "epimight",
-        "pafgrs",
-        "grm",
-        "export",
     }
 )
 
@@ -232,21 +215,6 @@ def _scale_runtime(config, scenario, gen_key="G_pheno", min_per_1M=5, floor=5):
     return max(floor, int(n * g * min_per_1M / 1_000_000))
 
 
-def _epimight_mem(config, scenario, base_mb=6000, mb_per_K=50):
-    """Estimate mem_mb for EPIMIGHT MI rules (guide_yob).
-
-    Adds K × mb_per_K for MI resamples on top of the base population scaling.
-    Floor of 6000 MB covers R process overhead observed in benchmarks.
-    """
-    k = get_param(config, scenario, "epimight_mi_K")
-    return _scale_mem(config, scenario, mb_per_1k=2, floor=base_mb) + k * mb_per_K
-
-
-def _epimight_runtime(config, scenario):
-    """Estimate runtime (minutes) for EPIMIGHT R rules (slower than Python steps)."""
-    return _scale_runtime(config, scenario, min_per_1M=10)
-
-
 def get_folder(config, scenario):
     """Get the folder grouping for a scenario."""
     return get_param(config, scenario, "folder")
@@ -308,17 +276,6 @@ _PHENOTYPE_BASENAMES = [
     "cross_trait_tetrachoric",
 ]
 
-# Ordered to mirror phenotype: prevalence -> liability -> correlations.
-_SIMPLE_LTM_BASENAMES = [
-    "prevalence_by_generation",
-    "cross_trait.simple_ltm",
-    "liability_violin.simple_ltm",
-    "liability_violin.simple_ltm.by_generation",
-    "joint_affected.simple_ltm",
-    "tetrachoric.simple_ltm",
-    "cross_trait_tetrachoric.simple_ltm",
-]
-
 # Ordered: pedigree structure -> variance & heritability -> cross-trait ->
 # summary -> benchmarks.
 _VALIDATION_BASENAMES = [
@@ -357,12 +314,8 @@ def get_scenario_sim_outputs(config, scenario, plot_ext="png"):
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.simple_ltm.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/simple_ltm_stats.yaml")
     outputs.extend(
         f"results/{folder}/{scenario}/plots/{plot}" for plot in plot_filenames(_PHENOTYPE_BASENAMES, plot_ext)
-    )
-    outputs.extend(
-        f"results/{folder}/{scenario}/plots/{plot}" for plot in plot_filenames(_SIMPLE_LTM_BASENAMES, plot_ext)
     )
     outputs.append(f"results/{folder}/{scenario}/plots/atlas.pdf")
     return outputs

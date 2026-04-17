@@ -1,3 +1,0 @@
-[submodule "fit_ace/epimight/EPIMIGHT/epimight"]
-	path = fit_ace/epimight/EPIMIGHT/epimight
-	url = git@github.com:BioPsyk/epimight.git

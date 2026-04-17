@@ -70,16 +70,12 @@ rule stats_scenario:
     """Run phenotyping + stats + plots for a single scenario."""
     input:
         lambda w: [
-            f"results/{w.folder}/{w.scenario}/rep{r}/{f}"
+            f"results/{w.folder}/{w.scenario}/rep{r}/phenotype_stats.yaml"
             for r in range(1, get_param(config, w.scenario, "replicates") + 1)
-            for f in [
-                "phenotype_stats.yaml",
-                "simple_ltm_stats.yaml",
-            ]
         ],
         lambda w: [
             f"results/{w.folder}/{w.scenario}/plots/{plot}"
-            for plot in PHENOTYPE_PLOTS + SIMPLE_LTM_PLOTS
+            for plot in PHENOTYPE_PLOTS
         ],
     output:
         touch("results/{folder}/{scenario}/stats.done"),

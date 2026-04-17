@@ -60,7 +60,7 @@ include = ["sim_ace*"]
 [tool.ruff]
 target-version = "py313"
 line-length = 120
-extend-exclude = [".snakemake", "fit_ace/epimight/EPIMIGHT", "notes"]
+extend-exclude = [".snakemake", "notes"]
 
 [tool.ruff.lint]
 select = ["F", "E", "W", "I", "UP", "B", "SIM", "RUF", "A", "C4", "PT", "PIE", "PERF", "TCH", "RSE", "RET", "D"]
@@ -75,12 +75,9 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"fit_ace/plotting/plot_simple_ltm.py" = ["E402"]    # yaml_loader() before imports
 "workflow/scripts/**/*.py" = ["F821", "B018"]  # snakemake global injected at runtime; bare name check idiom
 "tests/*.py" = ["B011", "RUF012", "D"]       # assert False; mutable class attrs OK in tests; no docstrings needed
 "tests/**/*.py" = ["D"]                      # no docstrings needed in tests
-"fit_ace/**/*.py" = ["D"]                    # fit_ace docstrings deferred to future effort
-"fit_ace/stan/*.py" = ["F821", "B018"]       # experimental scripts, pre-existing issues
 "sim_ace/__init__.py" = ["F401"]             # setup_logging used via re-export
 "sim_ace/plotting/plot_phenotype.py" = ["E402"]      # yaml_loader() before imports
 "sim_ace/plotting/plot_validation.py" = ["E402"]     # yaml_loader() before imports
@@ -90,7 +87,7 @@ ignore = [
 convention = "google"
 
 [tool.ruff.lint.isort]
-known-first-party = ["sim_ace", "fit_ace"]
+known-first-party = ["sim_ace"]
 
 [tool.ruff.format]
 quote-style = "double"

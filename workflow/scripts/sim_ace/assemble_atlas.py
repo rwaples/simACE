@@ -22,7 +22,7 @@ def _run_snakemake():
     p = snakemake.params
 
     phenotype_paths = [Path(x) for x in snakemake.input.phenotype]
-    simple_ltm_paths = [Path(x) for x in snakemake.input.simple_ltm]
+    simple_ltm_paths = []
     output_path = Path(snakemake.output[0])
 
     with open(snakemake.input.params_yaml, encoding="utf-8") as fh:

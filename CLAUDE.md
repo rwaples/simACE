@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (shared environment), **E** (unique environment) variance components. The repo contains two packages: `sim_ace` (simulation, analysis, plotting) and `fit_ace` (statistical model fitting: EPIMIGHT, PA-FGRS, Weibull correlation, Stan models).
+simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (shared environment), **E** (unique environment) variance components. Provides simulate → phenotype → censor → sample → validate → stats → plot. Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan) lives in the sister repo [fitACE](../fitACE), which depends on sim_ace.
 
 ## Key Rules
 
@@ -14,9 +14,8 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 
 - Root `Snakefile` is the entry point — not `-s workflow/Snakefile`
 - Use `--cores 4` (testing) or `--cores 1` (debugging). Always dry-run (`-n`) before long runs.
-- Targets are per-scenario: `results/{folder}/{scenario}/{scenario,simulate,phenotype,validate,stats,epimight}.done`
+- Targets are per-scenario: `results/{folder}/{scenario}/{scenario,simulate,phenotype,validate,stats}.done`
 - Force-rebuild plot atlas: `snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.pdf`
-- Single EPIMIGHT kind: `snakemake --cores 4 results/{folder}/{scenario}/rep1/epimight/tsv/h2_d1_FS.tsv`
 
 ## Testing
 
@@ -34,25 +33,20 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 ## Project Layout
 
 - `sim_ace/` — simulation package (`pip install -e .`), organized into sub-packages:
-  - `core/` — shared infrastructure (utils, pedigree_graph, compute_hazard_terms, weibull_mle, cli_base)
+  - `core/` — shared infrastructure (utils, pedigree_graph, compute_hazard_terms, cli_base)
   - `simulation/` — pedigree simulation
   - `phenotyping/` — frailty/threshold phenotype models
   - `censoring/` — age-window and death censoring
   - `sampling/` — dropout and subsampling
-  - `analysis/` — stats, validation, Falconer h², survival correlation wrappers, gather
+  - `analysis/` — stats, validation, gather
   - `plotting/` — all plot modules and plot utilities
-- `fit_ace/` — model fitting package (`pip install -e fit_ace/`), organized into sub-packages:
-  - `pafgrs/` — PA-FGRS genetic risk scores
-  - `epimight/` — EPIMIGHT heritability pipeline (separate `epimight` conda env; uses `conda run -n epimight`)
-  - `stan/` — Stan-based model fitting
-  - `plotting/` — PA-FGRS and EPIMIGHT bias plots
-- `workflow/rules/{sim_ace,fit_ace}/*.smk` — Snakemake rules (partitioned by package); `workflow/scripts/{sim_ace,fit_ace}/` — thin script wrappers
+- `workflow/rules/sim_ace/*.smk` — Snakemake rules; `workflow/scripts/sim_ace/` — thin script wrappers
 - `config/_default.yaml` — default parameters; `config/{folder}.yaml` — per-folder scenario files (auto-discovered; files starting with `_` are skipped)
 - `results/{folder}/{scenario}/` — output per scenario
 
 ## Versioning
 
-- Both packages use **CalVer** (`YYYY.MM`) via `setuptools-scm`, derived from git tags
+- **CalVer** (`YYYY.MM`) via `setuptools-scm`, derived from git tags
 - Version is the single source of truth from git tags — never hardcode it
 - Tag format: `v2026.03`, `v2026.04`, `v2026.04.1` (second release same month)
 - Between tags, versions look like `2026.4.dev4+g<hash>` (dev build, 4 commits after tag)

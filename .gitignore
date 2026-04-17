@@ -1,9 +1,6 @@
 # External tools and data
 external/
 
-# Standalone git repos vendored under tracked dirs
-fit_ace/ace_iter_reml/
-
 # Scripts (local benchmarks / utilities)
 scripts/
 
@@ -39,11 +36,6 @@ __pycache__/
 
 # Generated PDFs
 *.pdf
-
-# Compiled Stan binaries
-workflow/scripts/fit_ace/ace_dii
-workflow/scripts/fit_ace/fit_pedigree_ace
-workflow/scripts/fit_ace/fit_pedigree_ace_reml
 
 # PowerPoint docs
 docs/*.pptx

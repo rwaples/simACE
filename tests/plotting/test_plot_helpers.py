@@ -284,14 +284,6 @@ class TestPlaceholderPaths:
         plot_censoring_cascade([{}], out, scenario="test")
         assert out.exists()
 
-    def test_simple_ltm_violin_by_gen_no_gen(self, tmp_path, sample_df):
-        from fit_ace.plotting.plot_simple_ltm import plot_liability_violin_by_generation
-
-        df = sample_df.drop(columns=["generation"])
-        out = tmp_path / "tv_gen.png"
-        plot_liability_violin_by_generation(df, [{}], 0.1, 0.1, out, scenario="test")
-        assert out.exists()
-
     def test_pedigree_counts_no_data(self, tmp_path):
         from sim_ace.plotting.plot_pedigree_counts import plot_pedigree_relationship_counts
 

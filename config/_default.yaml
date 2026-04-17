@@ -1,12 +1,6 @@
 # ACE Simulation Configuration
 
 defaults:
-  # ==========================================================================
-  # SIM — sim_ace parameters (pedigree structure, phenotyping, censoring,
-  # sampling, and shared globals).  These drive the simulate → phenotype →
-  # censor → sample → validate → stats pipeline.
-  # ==========================================================================
-
   # ── Globals ──────────────────────────────────────────────────────────────
   seed: 42
   replicates: 3
@@ -85,69 +79,6 @@ defaults:
   analysis:
     max_degree: 2
     estimate_inbreeding: false
-
-  # ==========================================================================
-  # FIT — fit_ace parameters (EPIMIGHT, PA-FGRS, GRM, REML, exports).  These
-  # drive downstream model-fitting rules that consume sim_ace outputs.  Safe
-  # to ignore (or delete) if only the sim-side pipeline is used.
-  # ==========================================================================
-
-  # ── EPIMIGHT ────────────────────────────────────────────────────────────
-  epimight:
-    K: 20 # number of MI resamples (Rubin's rules); K=1 = single draw
-    rubin_level: per_year # "meta" = Meta→Rubin; "per_year" = Rubin→Meta
-    kinds:
-      - PO
-      - FS
-      - HS
-      - mHS
-      - pHS
-      - Av
-      - 1G
-      - 1C
-
-  # ── PA-FGRS ─────────────────────────────────────────────────────────────
-  pafgrs:
-    max_degree_pafgrs: 2
-
-  # ── GRM ─────────────────────────────────────────────────────────────────
-  grm:
-    n_pcs: 30
-    # During the kinship DP, drop off-diagonal values below this (kinship
-    # scale, max 0.5).  Default 0.001 ≈ excludes beyond 4th cousins and
-    # gives ~2% top-eigenvalue error at G_ped=6 while speeding up deep
-    # pedigrees.  Set to 0 to keep everything.
-    min_kinship: 0.001
-
-  # ── Iterative sparse REML (ace_iter_reml) ──────────────────────────────
-  # Two-phase A+C+E fit: RHE-mc warm-start → PCG-AI-REML.  Defaults are
-  # flat names so they can be overridden per-scenario via get_param().
-  iter_reml_trait: 1               # which trait's liability to fit (1 or 2)
-  iter_reml_ndegree: 2             # PA-FGRS kinship build_kinship_from_pairs depth
-  iter_reml_grm_threshold: 0.001   # keep entries >~ 7th-cousin; 0.05 drops positive contributions that break PSD for matrix-free PCG
-  iter_reml_phase1_probes: 100     # RHE-mc Rademacher probes
-  iter_reml_phase2_probes: 60      # AI-REML Hutchinson trace probes per outer iter
-  iter_reml_max_iter: 50           # AI-REML outer iter cap
-  iter_reml_tol: 1.0e-2            # |dLLpred| convergence threshold (m=60 stochastic-trace floor)
-  iter_reml_pcg_tol: 1.0e-5        # PCG relative residual tol
-  iter_reml_pcg_max_iter: 500      # PCG max iters per V⁻¹·b solve
-  iter_reml_pc_type: jacobi        # "jacobi" or "deflation"
-  iter_reml_deflation_k: 100       # top-k eigenvectors of A; ignored when pc_type=jacobi
-  iter_reml_trace_method: hutchinson  # "hutchinson" or "hutchpp" (shared-sketch variance reduction)
-  iter_reml_hutchpp_sketch_size: 0    # sketch columns k for hutchpp; 0 → auto max(1, phase2_probes/3)
-  iter_reml_compute_logdet: true      # SLQ estimate of log|V| per iter → populates logLik (enables AIC/BIC/LRT)
-  iter_reml_slq_lanczos_steps: 30     # SLQ Lanczos iterations per probe
-  iter_reml_slq_probes: 30            # SLQ Rademacher probe count per iter
-  iter_reml_emit_probe_traces: false  # emit per-probe trace contribs to fit.probes.tsv + fit.probes.tsv.phase1 (Option-2 CV harness; default off — variance-reduction experiment closed, null result)
-
-  # ── Export ──────────────────────────────────────────────────────────────
-  # Settings for the tidy per-rep exports in `exports/` (cumulative
-  # incidence TSV, pairwise relatedness TSV, sparse GRM).  These rules
-  # are opt-in leaf targets — they do not run unless requested by path.
-  export:
-    grm_threshold: 0.05 # drop off-diagonal GRM entries below this (sparseREML default)
-    pair_list_min_kinship: 0.0625 # include pairs with kinship ≥ this; 1/16 = 1st-cousin level
-    pgs_r2: [0.2, 0.2] # per-trait E[cor(PGS, A)²]; PGS = √r²·A + √(Var(A)(1-r²))·e
 
 # Scenarios are defined in per-folder files: config/{folder}.yaml
 # Each file contains bare scenario dicts. The folder name is inferred from
