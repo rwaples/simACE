@@ -37,13 +37,13 @@ from sim_ace.core._numba_utils import (
 from sim_ace.core._numba_utils import (
     _norm_sf as _nb_norm_sf,
 )
+from sim_ace.core.kinship import build_kinship_from_pairs
 
 from .pafgrs import (
     _build_rel_kinship_arrays,
     _nb_csc_lookup,
     _nb_trunc_norm_mixture,
     _trunc_norm_mixture_py,
-    build_kinship_from_pairs,
     compute_thresholds_and_w,
     extract_relatives,
 )

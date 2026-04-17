@@ -6,7 +6,6 @@ import pytest
 from scipy.stats import norm, truncnorm
 
 from fit_ace.pafgrs.pafgrs import (
-    _compute_depth,
     _nb_trunc_norm,
     _nb_trunc_norm_above,
     _nb_trunc_norm_below,
@@ -15,14 +14,17 @@ from fit_ace.pafgrs.pafgrs import (
     _trunc_norm_below_py,
     _trunc_norm_mixture_py,
     _trunc_norm_py,
-    build_kinship_from_pairs,
-    build_sparse_kinship,
     compute_empirical_cip,
     compute_thresholds_and_w,
     compute_thresholds_and_w_by_sex,
     compute_true_cip_weibull,
     pa_fgrs,
     pa_fgrs_adt,
+)
+from sim_ace.core.kinship import (
+    _compute_depth,
+    build_kinship_from_pairs,
+    build_sparse_kinship,
 )
 
 # Alias old names for existing tests → Python fallback

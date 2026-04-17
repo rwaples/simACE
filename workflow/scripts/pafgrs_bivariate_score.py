@@ -13,7 +13,6 @@ def _run_snakemake():
     import pandas as pd
 
     from fit_ace.pafgrs.pafgrs import (
-        build_kinship_from_pairs,
         compute_empirical_cip,
         compute_thresholds_and_w,
         compute_true_cip_weibull,
@@ -26,6 +25,7 @@ def _run_snakemake():
     )
     from fit_ace.pafgrs.pafgrs_metrics import compute_bivariate_metrics
     from sim_ace.analysis.ltm_falconer import compute_ltm_falconer
+    from sim_ace.core.kinship import build_kinship_from_pairs
     from sim_ace.core.utils import save_parquet
 
     logger = logging.getLogger(__name__)
