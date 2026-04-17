@@ -98,6 +98,15 @@ defaults:
   pafgrs:
     max_degree_pafgrs: 2
 
+  # ── GRM ─────────────────────────────────────────────────────────────────
+  grm:
+    n_pcs: 30
+    # During the kinship DP, drop off-diagonal values below this (kinship
+    # scale, max 0.5).  Default 0.001 ≈ excludes beyond 4th cousins and
+    # gives ~2% top-eigenvalue error at G_ped=6 while speeding up deep
+    # pedigrees.  Set to 0 to keep everything.
+    min_kinship: 0.001
+
 # Scenarios are defined in per-folder files: config/{folder}.yaml
 # Each file contains bare scenario dicts. The folder name is inferred from
 # the filename. See any existing config/*.yaml file for the format.

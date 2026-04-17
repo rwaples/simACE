@@ -55,9 +55,14 @@ _HIERARCHICAL_TO_FLAT = {
     ("epimight", "kinds"): "epimight_kinds",
     # pafgrs section
     ("pafgrs", "max_degree_pafgrs"): "pafgrs_ndegree",
+    # grm section
+    ("grm", "n_pcs"): "grm_n_pcs",
+    ("grm", "min_kinship"): "grm_min_kinship",
 }
 
-_SECTION_KEYS = frozenset({"pedigree", "phenotype", "censoring", "sampling", "analysis", "epimight", "pafgrs"})
+_SECTION_KEYS = frozenset(
+    {"pedigree", "phenotype", "censoring", "sampling", "analysis", "epimight", "pafgrs", "grm"}
+)
 
 # Precompute valid intermediate prefixes for recursive traversal
 _VALID_PREFIXES = frozenset(
