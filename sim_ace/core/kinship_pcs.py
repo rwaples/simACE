@@ -102,12 +102,15 @@ def compute_kinship_pcs(
     v0 /= np.linalg.norm(v0)
 
     t_eig = time.perf_counter()
+    # tol=1e-6 is ~1.7x faster than tol=0 (machine precision) at N=50K-300K
+    # with subspace error ~1e-6 — indistinguishable from exact for downstream
+    # use as covariates, scree plots, or structure scatters.
     eigvals, eigvecs = spla.eigsh(
         kmat.astype(np.float64),
         k=k,
         which="LA",
         v0=v0,
-        tol=0,
+        tol=1e-6,
         maxiter=max(1000, 20 * k),
     )
 
