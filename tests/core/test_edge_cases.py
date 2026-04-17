@@ -6,10 +6,10 @@ all non-social fathers, single-generation pedigrees, etc.
 
 import numpy as np
 
-from sim_ace.censoring.censor import age_censor
-from sim_ace.phenotyping.phenotype import simulate_phenotype
-from sim_ace.phenotyping.threshold import apply_threshold
-from sim_ace.simulation.simulate import run_simulation
+from simace.censoring.censor import age_censor
+from simace.phenotyping.phenotype import simulate_phenotype
+from simace.phenotyping.threshold import apply_threshold
+from simace.simulation.simulate import run_simulation
 
 # ---------------------------------------------------------------------------
 # Shared minimal params

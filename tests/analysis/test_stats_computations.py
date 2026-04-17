@@ -1,4 +1,4 @@
-"""Unit tests for computation functions in sim_ace.stats.
+"""Unit tests for computation functions in simace.stats.
 
 Each test builds a small DataFrame with known values so expected outputs
 can be verified by hand.
@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sim_ace.analysis.stats import (
+from simace.analysis.stats import (
     compute_censoring_cascade,
     compute_censoring_confusion,
     compute_censoring_windows,
@@ -666,8 +666,8 @@ _DEFAULT_SIM_PARAMS = dict(
 @pytest.fixture(scope="module")
 def phenotyped_df():
     """Simulated + thresholded pedigree with all columns needed by stats functions."""
-    from sim_ace.phenotyping.threshold import apply_threshold
-    from sim_ace.simulation.simulate import run_simulation
+    from simace.phenotyping.threshold import apply_threshold
+    from simace.simulation.simulate import run_simulation
 
     ped = run_simulation(**_DEFAULT_SIM_PARAMS)
     gen = ped["generation"].values
@@ -685,7 +685,7 @@ def phenotyped_df():
 @pytest.fixture(scope="module")
 def extracted_pairs(phenotyped_df):
     """Pre-extracted relationship pairs."""
-    from sim_ace.core.pedigree_graph import extract_relationship_pairs
+    from simace.core.pedigree_graph import extract_relationship_pairs
 
     return extract_relationship_pairs(phenotyped_df)
 

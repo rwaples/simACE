@@ -1,10 +1,10 @@
-"""Unit tests for sim_ace.simulate functions."""
+"""Unit tests for simace.simulate functions."""
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from sim_ace.simulation.simulate import (
+from simace.simulation.simulate import (
     _assortative_pair_partners,
     add_to_pedigree,
     allocate_offspring,

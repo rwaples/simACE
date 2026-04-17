@@ -15,7 +15,7 @@ import yaml
 
 class TestCliBase:
     def test_add_logging_args_adds_verbose_and_quiet(self):
-        from sim_ace.core.cli_base import add_logging_args
+        from simace.core.cli_base import add_logging_args
 
         parser = argparse.ArgumentParser()
         add_logging_args(parser)
@@ -27,7 +27,7 @@ class TestCliBase:
         assert args.quiet is False
 
     def test_add_logging_args_verbose(self):
-        from sim_ace.core.cli_base import add_logging_args
+        from simace.core.cli_base import add_logging_args
 
         parser = argparse.ArgumentParser()
         add_logging_args(parser)
@@ -36,7 +36,7 @@ class TestCliBase:
         assert args.quiet is False
 
     def test_add_logging_args_quiet(self):
-        from sim_ace.core.cli_base import add_logging_args
+        from simace.core.cli_base import add_logging_args
 
         parser = argparse.ArgumentParser()
         add_logging_args(parser)
@@ -45,27 +45,27 @@ class TestCliBase:
         assert args.verbose is False
 
     def test_init_logging_verbose(self):
-        from sim_ace.core.cli_base import init_logging
+        from simace.core.cli_base import init_logging
 
         args = argparse.Namespace(verbose=True, quiet=False)
         init_logging(args)
-        pkg = logging.getLogger("sim_ace")
+        pkg = logging.getLogger("simace")
         assert pkg.level == logging.DEBUG
 
     def test_init_logging_quiet(self):
-        from sim_ace.core.cli_base import init_logging
+        from simace.core.cli_base import init_logging
 
         args = argparse.Namespace(verbose=False, quiet=True)
         init_logging(args)
-        pkg = logging.getLogger("sim_ace")
+        pkg = logging.getLogger("simace")
         assert pkg.level == logging.WARNING
 
     def test_init_logging_default(self):
-        from sim_ace.core.cli_base import init_logging
+        from simace.core.cli_base import init_logging
 
         args = argparse.Namespace(verbose=False, quiet=False)
         init_logging(args)
-        pkg = logging.getLogger("sim_ace")
+        pkg = logging.getLogger("simace")
         assert pkg.level == logging.INFO
 
 
@@ -142,7 +142,7 @@ _MINIMAL_VALIDATION = {
 
 class TestExtractMetrics:
     def test_extracts_scenario_and_rep_from_path(self, tmp_path):
-        from sim_ace.analysis.gather import extract_metrics
+        from simace.analysis.gather import extract_metrics
 
         # Create path that matches the expected pattern
         val_dir = tmp_path / "results" / "base" / "my_scenario" / "rep2"
@@ -155,7 +155,7 @@ class TestExtractMetrics:
         assert row["rep"] == 2
 
     def test_extracts_parameter_values(self, tmp_path):
-        from sim_ace.analysis.gather import extract_metrics
+        from simace.analysis.gather import extract_metrics
 
         val_dir = tmp_path / "results" / "base" / "scA" / "rep1"
         val_dir.mkdir(parents=True)
@@ -170,7 +170,7 @@ class TestExtractMetrics:
         assert row["variance_A1"] == pytest.approx(0.48)
 
     def test_unknown_path_pattern_defaults(self, tmp_path):
-        from sim_ace.analysis.gather import extract_metrics
+        from simace.analysis.gather import extract_metrics
 
         # When the path doesn't match the expected pattern, regex sub
         # returns the path unchanged, so bench_path == val_path. We need
@@ -191,7 +191,7 @@ class TestExtractMetrics:
 
 class TestGatherMain:
     def test_gathers_multiple_files_to_tsv(self, tmp_path):
-        from sim_ace.analysis.gather import main
+        from simace.analysis.gather import main
 
         # Create two validation files
         for sc, rep in [("scA", 1), ("scB", 1)]:
@@ -215,7 +215,7 @@ class TestGatherMain:
         assert "N" in header
 
     def test_sorted_by_scenario_and_rep(self, tmp_path):
-        from sim_ace.analysis.gather import main
+        from simace.analysis.gather import main
 
         for sc, rep in [("scB", 2), ("scA", 1), ("scB", 1)]:
             val_dir = tmp_path / "results" / "base" / sc / f"rep{rep}"
@@ -237,7 +237,7 @@ class TestGatherMain:
         assert scenarios == ["scA", "scB", "scB"]
 
     def test_empty_input_no_crash(self, tmp_path):
-        from sim_ace.analysis.gather import main
+        from simace.analysis.gather import main
 
         out_path = tmp_path / "empty.tsv"
         main([], str(out_path))

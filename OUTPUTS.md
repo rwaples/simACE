@@ -8,18 +8,18 @@ Complete documentation of all files produced by the ACE pipeline. Path patterns 
 
 | File | Format | Description | Writer |
 |------|--------|-------------|--------|
-| `pedigree.parquet` | Parquet | Pedigree structure with ACE variance components | `sim_ace/simulation/simulate.py` |
-| `phenotype.raw.parquet` | Parquet | Raw time-to-event phenotypes (before censoring) | `sim_ace/phenotyping/phenotype.py` |
-| `phenotype.parquet` | Parquet | Censored time-to-event phenotypes | `sim_ace/censoring/censor.py` |
+| `pedigree.parquet` | Parquet | Pedigree structure with ACE variance components | `simace/simulation/simulate.py` |
+| `phenotype.raw.parquet` | Parquet | Raw time-to-event phenotypes (before censoring) | `simace/phenotyping/phenotype.py` |
+| `phenotype.parquet` | Parquet | Censored time-to-event phenotypes | `simace/censoring/censor.py` |
 | `phenotype.sampled.parquet` | Parquet | Downsampled phenotype for plotting | `workflow/scripts/sample.py` |
-| `phenotype.simple_ltm.parquet` | Parquet | Binary affected status from liability-threshold model | `sim_ace/phenotyping/threshold.py` |
+| `phenotype.simple_ltm.parquet` | Parquet | Binary affected status from liability-threshold model | `simace/phenotyping/threshold.py` |
 | `phenotype.simple_ltm.sampled.parquet` | Parquet | Downsampled threshold phenotype for plotting | `workflow/scripts/sample.py` |
-| `params.yaml` | YAML | Simulation parameters for this replicate | `sim_ace/simulation/simulate.py` |
-| `phenotype_stats.yaml` | YAML | Phenotype statistics (correlations, prevalence, CIF, etc.) | `sim_ace/analysis/stats.py` |
-| `phenotype_samples.parquet` | Parquet | Further downsampled phenotype rows for stats scatter plots | `sim_ace/analysis/stats.py` |
-| `simple_ltm_stats.yaml` | YAML | Threshold phenotype statistics | `sim_ace/analysis/simple_ltm_stats.py` |
-| `simple_ltm_samples.parquet` | Parquet | Further downsampled threshold rows for stats scatter plots | `sim_ace/analysis/simple_ltm_stats.py` |
-| `validation.yaml` | YAML | Structural and statistical validation results | `sim_ace/analysis/validate.py` |
+| `params.yaml` | YAML | Simulation parameters for this replicate | `simace/simulation/simulate.py` |
+| `phenotype_stats.yaml` | YAML | Phenotype statistics (correlations, prevalence, CIF, etc.) | `simace/analysis/stats.py` |
+| `phenotype_samples.parquet` | Parquet | Further downsampled phenotype rows for stats scatter plots | `simace/analysis/stats.py` |
+| `simple_ltm_stats.yaml` | YAML | Threshold phenotype statistics | `simace/analysis/simple_ltm_stats.py` |
+| `simple_ltm_samples.parquet` | Parquet | Further downsampled threshold rows for stats scatter plots | `simace/analysis/simple_ltm_stats.py` |
+| `validation.yaml` | YAML | Structural and statistical validation results | `simace/analysis/validate.py` |
 
 ### Per-scenario files (`results/{folder}/{scenario}/`)
 
@@ -124,7 +124,7 @@ All sampled parquets share the same column schema as their source files.
 
 ### params.yaml
 
-Flat key-value file recording the simulation parameters used for a replicate. Written by `sim_ace/simulation/simulate.py`.
+Flat key-value file recording the simulation parameters used for a replicate. Written by `simace/simulation/simulate.py`.
 
 | Key | Type | Description |
 |-----|------|-------------|
@@ -145,7 +145,7 @@ Flat key-value file recording the simulation parameters used for a replicate. Wr
 
 ### phenotype_stats.yaml
 
-Phenotype statistics computed from the censored frailty phenotype. Written by `sim_ace/analysis/stats.py`. Top-level sections:
+Phenotype statistics computed from the censored frailty phenotype. Written by `simace/analysis/stats.py`. Top-level sections:
 
 | Section | Description |
 |---------|-------------|
@@ -182,7 +182,7 @@ Sections marked "conditional" are only present when the corresponding data or co
 
 ### simple_ltm_stats.yaml
 
-Statistics for the liability-threshold phenotype model. Written by `sim_ace/analysis/simple_ltm_stats.py`. Top-level sections:
+Statistics for the liability-threshold phenotype model. Written by `simace/analysis/simple_ltm_stats.py`. Top-level sections:
 
 | Section | Description |
 |---------|-------------|
@@ -196,7 +196,7 @@ Statistics for the liability-threshold phenotype model. Written by `sim_ace/anal
 
 ### validation.yaml
 
-Structural and statistical validation results. Written by `sim_ace/analysis/validate.py`. Top-level sections:
+Structural and statistical validation results. Written by `simace/analysis/validate.py`. Top-level sections:
 
 | Section | Description |
 |---------|-------------|
@@ -219,7 +219,7 @@ Each individual check within `structural`, `twins`, `half_sibs`, `statistical`, 
 
 ## validation_summary.tsv
 
-Aggregated metrics across all scenarios and replicates within a folder. Written by `sim_ace/analysis/gather.py`. One row per replicate.
+Aggregated metrics across all scenarios and replicates within a folder. Written by `simace/analysis/gather.py`. One row per replicate.
 
 | Column | Source |
 |--------|--------|

@@ -9,7 +9,7 @@ finite-sample stochastic simulation.
 import numpy as np
 import pytest
 
-from sim_ace.simulation.simulate import run_simulation
+from simace.simulation.simulate import run_simulation
 
 # Use a moderate-size simulation for statistical power
 STAT_PARAMS = dict(

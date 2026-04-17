@@ -1,11 +1,11 @@
-"""Unit tests for sim_ace.dropout and dropout-aware sibling detection."""
+"""Unit tests for simace.dropout and dropout-aware sibling detection."""
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from sim_ace.core.pedigree_graph import PedigreeGraph
-from sim_ace.sampling.dropout import run_dropout
+from simace.core.pedigree_graph import PedigreeGraph
+from simace.sampling.dropout import run_dropout
 
 # ---------------------------------------------------------------------------
 # Fixtures

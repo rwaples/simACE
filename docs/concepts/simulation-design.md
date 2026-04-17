@@ -50,7 +50,7 @@ The `max_degree` parameter controls extraction depth (default 2). Degree 3-5 typ
 require deeper matrix products and are only computed when requested.
 
 The full registry of 23 types is available as `REL_REGISTRY` and `PAIR_KINSHIP`
-from `sim_ace.core.pedigree_graph`.
+from `simace.core.pedigree_graph`.
 
 ## Pipeline stages
 

@@ -1,9 +1,9 @@
-"""Unit tests for sim_ace.threshold.apply_threshold and sex-specific prevalence."""
+"""Unit tests for simace.threshold.apply_threshold and sex-specific prevalence."""
 
 import numpy as np
 import pytest
 
-from sim_ace.phenotyping.threshold import _apply_threshold_sex_aware, apply_threshold
+from simace.phenotyping.threshold import _apply_threshold_sex_aware, apply_threshold
 
 
 class TestApplyThreshold:

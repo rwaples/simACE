@@ -4,7 +4,7 @@ simACE simulates millions of indiviudals in multi-generational pedigrees with he
 
 ## Overview
 The project contains two installable Python packages:
-- **sim_ace** -- Simulation, phenotyping, censoring, sampling, analysis, and plotting
+- **simace** -- Simulation, phenotyping, censoring, sampling, analysis, and plotting
 - **[fit_ace](fit_ace/README.md)** -- Statistical model fitting (EPIMIGHT heritability, PA-FGRS genetic risk scores, Weibull frailty correlation, Stan models) — see [fit_ace/README.md](fit_ace/README.md) for setup, usage, and outputs
 
 simACE is conceptually split into four simulation stages:
@@ -64,7 +64,7 @@ It it possiblle to further restrict the observed data via sampling to construct 
 
 ## Pedigree Relationship Types
 
-`PedigreeGraph` (in `sim_ace/core/pedigree_graph.py`) extracts 23 relationship categories from simulated pedigrees using sparse matrix algebra. Each type is parameterised by `(up, down, n_ancestors)` — meioses up from individual A to common ancestor(s), meioses down to individual B, and whether the link is through 1 (half/lineal) or 2 (full, mated-pair) ancestors. Kinship = `n_ancestors × (1/2)^(up + down + 1)`.
+`PedigreeGraph` (in `simace/core/pedigree_graph.py`) extracts 23 relationship categories from simulated pedigrees using sparse matrix algebra. Each type is parameterised by `(up, down, n_ancestors)` — meioses up from individual A to common ancestor(s), meioses down to individual B, and whether the link is through 1 (half/lineal) or 2 (full, mated-pair) ancestors. Kinship = `n_ancestors × (1/2)^(up + down + 1)`.
 
 | Code | Label | Up | Down | Ancestors | Kinship | Degree |
 |------|-------|---:|-----:|----------:|--------:|-------:|
@@ -92,7 +92,7 @@ It it possiblle to further restrict the observed data via sampling to construct 
 | 1C2R | 1st cousin 2R | 2 | 4 | 2 | 1/64 | 5 |
 | 2C | 2nd cousin | 3 | 3 | 2 | 1/64 | 5 |
 
-The `max_degree` parameter controls extraction depth (default 2, covering through 1st cousins). Degree 3-5 types require deeper matrix products and are only computed when requested. The registry is importable as `REL_REGISTRY` and `PAIR_KINSHIP` from `sim_ace.core.pedigree_graph`.
+The `max_degree` parameter controls extraction depth (default 2, covering through 1st cousins). Degree 3-5 types require deeper matrix products and are only computed when requested. The registry is importable as `REL_REGISTRY` and `PAIR_KINSHIP` from `simace.core.pedigree_graph`.
 
 ### Inbreeding and exact kinship
 
@@ -354,19 +354,19 @@ All simulation outputs are stored as parquet files. To convert them to tab-separ
 
 ```bash
 # Single file (writes .tsv.gz alongside the .parquet)
-sim-ace-parquet-to-tsv results/base/baseline10K/rep1/pedigree.parquet
+simace-parquet-to-tsv results/base/baseline10K/rep1/pedigree.parquet
 
 # Multiple files at once
-sim-ace-parquet-to-tsv results/base/baseline10K/rep1/*.parquet
+simace-parquet-to-tsv results/base/baseline10K/rep1/*.parquet
 
 # Uncompressed .tsv instead of .tsv.gz
-sim-ace-parquet-to-tsv --no-gzip results/base/baseline10K/rep1/pedigree.parquet
+simace-parquet-to-tsv --no-gzip results/base/baseline10K/rep1/pedigree.parquet
 
 # Control float precision (default: 4 decimal places)
-sim-ace-parquet-to-tsv -p 8 results/base/baseline10K/rep1/pedigree.parquet
+simace-parquet-to-tsv -p 8 results/base/baseline10K/rep1/pedigree.parquet
 
 # Custom output path
-sim-ace-parquet-to-tsv results/.../pedigree.parquet -o my_output.tsv.gz
+simace-parquet-to-tsv results/.../pedigree.parquet -o my_output.tsv.gz
 ```
 
 Via Snakemake, request any `.tsv.gz` or `.tsv` file and the generic rule will convert the matching `.parquet` automatically:
@@ -387,7 +387,7 @@ ACE/
 │   ├── _default.yaml                 # Default simulation parameters
 │   └── {folder}.yaml                 # Per-folder scenario definitions
 │
-├── sim_ace/                           # Simulation package (pip install -e .)
+├── simace/                           # Simulation package (pip install -e .)
 │   ├── __init__.py                    # setup_logging(), _snakemake_tag()
 │   ├── core/                          # Shared infrastructure
 │   │   ├── utils.py                   # save_parquet, safe_corrcoef, yaml_loader, PAIR_TYPES, etc.
@@ -438,7 +438,7 @@ ACE/
 │   │   ├── epimight.smk, pafgrs.smk   # fit_ace pipeline rules
 │   │   └── epimight_bias.smk          # EPIMIGHT bias analysis
 │   └── scripts/                       # Snakemake script wrappers
-├── tests/                             # Mirrors sim_ace/fit_ace sub-package structure
+├── tests/                             # Mirrors simace/fit_ace sub-package structure
 ├── external/                          # Reference implementations (gitignored)
 ├── results/{folder}/{scenario}/       # Per-scenario simulation outputs
 ├── logs/{folder}/{scenario}/          # Log files
@@ -457,7 +457,7 @@ ACE/
 
 | Problem | Solution |
 |---------|----------|
-| `ModuleNotFoundError: No module named 'sim_ace'` | Run `conda activate ACE` first — the package is only available inside the conda environment |
+| `ModuleNotFoundError: No module named 'simace'` | Run `conda activate ACE` first — the package is only available inside the conda environment |
 | `FileNotFoundError: config/_default.yaml` | Run snakemake from the ACE repo root directory |
 | Simulation killed or frozen (large N) | Reduce `--cores` to lower parallel memory usage, or skip N=1M/2M scenarios |
 | `IncompleteFilesException` on re-run | Snakemake detected a previously interrupted output; run `snakemake --cores 4 --rerun-incomplete` |

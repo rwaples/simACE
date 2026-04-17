@@ -1,10 +1,10 @@
-"""Unit tests for sim_ace.censor functions."""
+"""Unit tests for simace.censor functions."""
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from sim_ace.censoring.censor import age_censor, death_censor, run_censor
+from simace.censoring.censor import age_censor, death_censor, run_censor
 
 # ---------------------------------------------------------------------------
 # age_censor

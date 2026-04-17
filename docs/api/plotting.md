@@ -1,50 +1,50 @@
-# sim_ace.plotting
+# simace.plotting
 
-::: sim_ace.plotting
+::: simace.plotting
     options:
       show_root_heading: false
       show_if_no_docstring: false
 
 ## plot_style
 
-::: sim_ace.plotting.plot_style
+::: simace.plotting.plot_style
 
 ## plot_utils
 
-::: sim_ace.plotting.plot_utils
+::: simace.plotting.plot_utils
 
 ## plot_correlations
 
-::: sim_ace.plotting.plot_correlations
+::: simace.plotting.plot_correlations
 
 ## plot_distributions
 
-::: sim_ace.plotting.plot_distributions
+::: simace.plotting.plot_distributions
 
 ## plot_liability
 
-::: sim_ace.plotting.plot_liability
+::: simace.plotting.plot_liability
 
 ## plot_pedigree_counts
 
-::: sim_ace.plotting.plot_pedigree_counts
+::: simace.plotting.plot_pedigree_counts
 
 ## plot_phenotype
 
-::: sim_ace.plotting.plot_phenotype
+::: simace.plotting.plot_phenotype
 
 ## plot_validation
 
-::: sim_ace.plotting.plot_validation
+::: simace.plotting.plot_validation
 
 ## plot_pipeline
 
-::: sim_ace.plotting.plot_pipeline
+::: simace.plotting.plot_pipeline
 
 ## plot_atlas
 
-::: sim_ace.plotting.plot_atlas
+::: simace.plotting.plot_atlas
 
 ## plot_table1
 
-::: sim_ace.plotting.plot_table1
+::: simace.plotting.plot_table1

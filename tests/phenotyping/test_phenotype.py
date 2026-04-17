@@ -1,9 +1,9 @@
-"""Unit tests for sim_ace.phenotype functions."""
+"""Unit tests for simace.phenotype functions."""
 
 import numpy as np
 import pytest
 
-from sim_ace.phenotyping.phenotype import (
+from simace.phenotyping.phenotype import (
     phenotype_adult_cox,
     phenotype_adult_ltm,
     phenotype_cure_frailty,

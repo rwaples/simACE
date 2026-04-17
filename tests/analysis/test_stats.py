@@ -1,9 +1,9 @@
-"""Unit tests for sim_ace.stats.tetrachoric_corr_se."""
+"""Unit tests for simace.stats.tetrachoric_corr_se."""
 
 import numpy as np
 from scipy.stats import norm
 
-from sim_ace.analysis.stats import tetrachoric_corr, tetrachoric_corr_se
+from simace.analysis.stats import tetrachoric_corr, tetrachoric_corr_se
 
 
 class TestTetrachoricCorrSE:

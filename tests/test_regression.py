@@ -13,7 +13,7 @@ and tight tolerances for liabilities.
 import numpy as np
 import pytest
 
-from sim_ace.simulation.simulate import run_simulation
+from simace.simulation.simulate import run_simulation
 
 # Golden-seed scenario: N=500, G_ped=2, seed=99999
 GOLDEN_PARAMS = dict(

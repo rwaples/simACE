@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sim_ace.plotting.plot_utils import finalize_plot, save_placeholder_plot
+from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
 
 # ---------------------------------------------------------------------------
 # save_placeholder_plot
@@ -164,7 +164,7 @@ class TestPlotLiabilityJointGrid:
     """Smoke tests for the refactored _plot_joint_grid function."""
 
     def test_joint_plain(self, tmp_path, sample_df):
-        from sim_ace.plotting.plot_liability import plot_liability_joint
+        from simace.plotting.plot_liability import plot_liability_joint
 
         out = tmp_path / "joint.png"
         plot_liability_joint(sample_df, out, scenario="test")
@@ -172,7 +172,7 @@ class TestPlotLiabilityJointGrid:
         assert out.stat().st_size > 0
 
     def test_joint_affected(self, tmp_path, sample_df):
-        from sim_ace.plotting.plot_liability import plot_liability_joint_affected
+        from simace.plotting.plot_liability import plot_liability_joint_affected
 
         out = tmp_path / "joint_aff.png"
         plot_liability_joint_affected(sample_df, out, scenario="test")
@@ -181,7 +181,7 @@ class TestPlotLiabilityJointGrid:
 
     def test_joint_missing_columns(self, tmp_path, sample_df):
         """Works when some component columns (C, E) are absent."""
-        from sim_ace.plotting.plot_liability import plot_liability_joint
+        from simace.plotting.plot_liability import plot_liability_joint
 
         df = sample_df.drop(columns=["C1", "C2", "E1", "E2"])
         out = tmp_path / "joint_partial.png"
@@ -189,7 +189,7 @@ class TestPlotLiabilityJointGrid:
         assert out.exists()
 
     def test_no_figure_leak(self, tmp_path, sample_df):
-        from sim_ace.plotting.plot_liability import plot_liability_joint
+        from simace.plotting.plot_liability import plot_liability_joint
 
         n_before = len(plt.get_fignums())
         plot_liability_joint(sample_df, tmp_path / "leak.png")
@@ -205,28 +205,28 @@ class TestPlaceholderPaths:
     """Verify that placeholder early-return paths produce valid files."""
 
     def test_tetrachoric_by_gen_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_correlations import plot_tetrachoric_by_generation
+        from simace.plotting.plot_correlations import plot_tetrachoric_by_generation
 
         out = tmp_path / "tet_gen.png"
         plot_tetrachoric_by_generation([{}], out, scenario="test")
         assert out.exists()
 
     def test_heritability_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_correlations import plot_heritability_by_generation
+        from simace.plotting.plot_correlations import plot_heritability_by_generation
 
         out = tmp_path / "h2.png"
         plot_heritability_by_generation([{}], out, scenario="test")
         assert out.exists()
 
     def test_broad_heritability_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_correlations import plot_broad_heritability_by_generation
+        from simace.plotting.plot_correlations import plot_broad_heritability_by_generation
 
         out = tmp_path / "H2.png"
         plot_broad_heritability_by_generation([{}], out, scenario="test")
         assert out.exists()
 
     def test_parent_offspring_no_generation(self, tmp_path, sample_df):
-        from sim_ace.plotting.plot_correlations import plot_parent_offspring_liability
+        from simace.plotting.plot_correlations import plot_parent_offspring_liability
 
         df = sample_df.drop(columns=["generation"])
         out = tmp_path / "po.png"
@@ -234,7 +234,7 @@ class TestPlaceholderPaths:
         assert out.exists()
 
     def test_parent_offspring_with_params(self, tmp_path, sample_df):
-        from sim_ace.plotting.plot_correlations import plot_parent_offspring_liability
+        from simace.plotting.plot_correlations import plot_parent_offspring_liability
 
         out = tmp_path / "po_params.png"
         params = {"A1": 0.5, "C1": 0.3, "A2": 0.4, "C2": 0.2}
@@ -242,28 +242,28 @@ class TestPlaceholderPaths:
         assert out.exists()
 
     def test_cumulative_by_sex_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_distributions import plot_cumulative_incidence_by_sex
+        from simace.plotting.plot_distributions import plot_cumulative_incidence_by_sex
 
         out = tmp_path / "ci_sex.png"
         plot_cumulative_incidence_by_sex([{}], out, scenario="test")
         assert out.exists()
 
     def test_cumulative_by_sex_gen_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_distributions import plot_cumulative_incidence_by_sex_generation
+        from simace.plotting.plot_distributions import plot_cumulative_incidence_by_sex_generation
 
         out = tmp_path / "ci_sg.png"
         plot_cumulative_incidence_by_sex_generation([{}], out, scenario="test")
         assert out.exists()
 
     def test_censoring_windows_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_distributions import plot_censoring_windows
+        from simace.plotting.plot_distributions import plot_censoring_windows
 
         out = tmp_path / "cw.png"
         plot_censoring_windows([{"censoring": None}], out, scenario="test")
         assert out.exists()
 
     def test_liability_violin_by_gen_no_gen(self, tmp_path, sample_df):
-        from sim_ace.plotting.plot_liability import plot_liability_violin_by_generation
+        from simace.plotting.plot_liability import plot_liability_violin_by_generation
 
         df = sample_df.drop(columns=["generation"])
         out = tmp_path / "lv_gen.png"
@@ -271,21 +271,21 @@ class TestPlaceholderPaths:
         assert out.exists()
 
     def test_censoring_confusion_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_liability import plot_censoring_confusion
+        from simace.plotting.plot_liability import plot_censoring_confusion
 
         out = tmp_path / "cc.png"
         plot_censoring_confusion([{}], out, scenario="test")
         assert out.exists()
 
     def test_censoring_cascade_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_liability import plot_censoring_cascade
+        from simace.plotting.plot_liability import plot_censoring_cascade
 
         out = tmp_path / "cascade.png"
         plot_censoring_cascade([{}], out, scenario="test")
         assert out.exists()
 
     def test_pedigree_counts_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_pedigree_counts import plot_pedigree_relationship_counts
+        from simace.plotting.plot_pedigree_counts import plot_pedigree_relationship_counts
 
         out = tmp_path / "ped.png"
         plot_pedigree_relationship_counts([{}], out, scenario="test")
@@ -301,7 +301,7 @@ class TestFinalizePaths:
     """Smoke tests that full (non-placeholder) plot functions complete and close."""
 
     def test_liability_violin(self, tmp_path, sample_df, minimal_stats):
-        from sim_ace.plotting.plot_liability import plot_liability_violin
+        from simace.plotting.plot_liability import plot_liability_violin
 
         out = tmp_path / "violin.png"
         plot_liability_violin(sample_df, minimal_stats, out, scenario="test")
@@ -309,7 +309,7 @@ class TestFinalizePaths:
         assert len(plt.get_fignums()) == 0
 
     def test_joint_affection(self, tmp_path, sample_df, minimal_stats):
-        from sim_ace.plotting.plot_liability import plot_joint_affection
+        from simace.plotting.plot_liability import plot_joint_affection
 
         # Add joint_affection and cross_trait_tetrachoric to stats
         stats = minimal_stats[0].copy()
@@ -324,7 +324,7 @@ class TestFinalizePaths:
         assert out.exists()
 
     def test_censoring_confusion_full(self, tmp_path):
-        from sim_ace.plotting.plot_liability import plot_censoring_confusion
+        from simace.plotting.plot_liability import plot_censoring_confusion
 
         stats = [
             {
@@ -340,7 +340,7 @@ class TestFinalizePaths:
         assert len(plt.get_fignums()) == 0
 
     def test_censoring_cascade_full(self, tmp_path):
-        from sim_ace.plotting.plot_liability import plot_censoring_cascade
+        from simace.plotting.plot_liability import plot_censoring_cascade
 
         stats = [
             {
@@ -377,7 +377,7 @@ class TestFinalizePaths:
         assert out.exists()
 
     def test_death_age_distribution(self, tmp_path, minimal_stats):
-        from sim_ace.plotting.plot_distributions import plot_death_age_distribution
+        from simace.plotting.plot_distributions import plot_death_age_distribution
 
         out = tmp_path / "mortality.png"
         plot_death_age_distribution(minimal_stats, 100.0, out, scenario="test")
@@ -385,14 +385,14 @@ class TestFinalizePaths:
         assert len(plt.get_fignums()) == 0
 
     def test_trait_phenotype(self, tmp_path, sample_df):
-        from sim_ace.plotting.plot_distributions import plot_trait_phenotype
+        from simace.plotting.plot_distributions import plot_trait_phenotype
 
         out = tmp_path / "phenotype.png"
         plot_trait_phenotype(sample_df, out, scenario="test")
         assert out.exists()
 
     def test_cumulative_incidence(self, tmp_path, minimal_stats):
-        from sim_ace.plotting.plot_distributions import plot_cumulative_incidence
+        from simace.plotting.plot_distributions import plot_cumulative_incidence
 
         out = tmp_path / "ci.png"
         plot_cumulative_incidence(minimal_stats, 100.0, out, scenario="test")
@@ -400,7 +400,7 @@ class TestFinalizePaths:
         assert len(plt.get_fignums()) == 0
 
     def test_cumulative_incidence_by_sex(self, tmp_path):
-        from sim_ace.plotting.plot_distributions import plot_cumulative_incidence_by_sex
+        from simace.plotting.plot_distributions import plot_cumulative_incidence_by_sex
 
         ages = list(range(100))
         values = [i / 1000 for i in range(100)]

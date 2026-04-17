@@ -1,14 +1,14 @@
-# sim_ace.sampling
+# simace.sampling
 
-::: sim_ace.sampling
+::: simace.sampling
     options:
       show_root_heading: false
       show_if_no_docstring: false
 
 ## sample
 
-::: sim_ace.sampling.sample
+::: simace.sampling.sample
 
 ## dropout
 
-::: sim_ace.sampling.dropout
+::: simace.sampling.dropout

@@ -1,10 +1,10 @@
-# sim_ace.simulation
+# simace.simulation
 
-::: sim_ace.simulation
+::: simace.simulation
     options:
       show_root_heading: false
       show_if_no_docstring: false
 
 ## simulate
 
-::: sim_ace.simulation.simulate
+::: simace.simulation.simulate

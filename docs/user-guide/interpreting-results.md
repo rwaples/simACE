@@ -15,7 +15,7 @@ plot time. Per-scenario plots are compiled into atlas PDFs.
 
 ## Distribution Plots
 
-Source: [`sim_ace.plotting.plot_distributions`](../api/plotting.md#plot_distributions).
+Source: [`simace.plotting.plot_distributions`](../api/plotting.md#plot_distributions).
 Generated for Weibull frailty phenotypes.
 
 ### Mortality rate by decade (`death_age_distribution.png`)
@@ -83,7 +83,7 @@ Grid of panels: rows = traits ($\times 2$), columns = generations ($\times N$). 
 
 ## Liability Plots
 
-Source: [`sim_ace.plotting.plot_liability`](../api/plotting.md#plot_liability).
+Source: [`simace.plotting.plot_liability`](../api/plotting.md#plot_liability).
 Generated for Weibull frailty phenotypes.
 
 ### Cross-trait liability joint plots (`liability_joint.png`)
@@ -142,7 +142,7 @@ Single figure (7 $\times$ 6 in).
 
 ## Correlation Plots
 
-Source: [`sim_ace.plotting.plot_correlations`](../api/plotting.md#plot_correlations).
+Source: [`simace.plotting.plot_correlations`](../api/plotting.md#plot_correlations).
 Generated for Weibull frailty phenotypes.
 
 ### Tetrachoric correlations by relationship type (`tetrachoric_sibling.png`)
@@ -187,7 +187,7 @@ $1 \times 2$ figure (10 $\times$ 5 in), one panel per trait.
 - **$x$-axis**: Generation number.
 - **Interpretation**: Stable $h^2$ across generations confirms that the ACE variance decomposition is maintained through the simulation. Founders (generation 1) have variance components set exactly; subsequent generations should converge to equivalent values under random mating.
 
-Source: [`sim_ace.plotting.plot_correlations`](../api/plotting.md#plot_correlations).
+Source: [`simace.plotting.plot_correlations`](../api/plotting.md#plot_correlations).
 Data from `validation.yaml` -> `per_generation`.
 
 ### Broad-sense heritability by generation (`broad_heritability.by_generation.png`)
@@ -200,7 +200,7 @@ $1 \times 2$ figure (10 $\times$ 5 in), one panel per trait.
 - **$x$-axis**: Generation number.
 - **Interpretation**: Comparing $H^2$ with the narrow-sense $h^2$ above isolates the contribution of shared environment to familial resemblance.
 
-Source: [`sim_ace.plotting.plot_correlations`](../api/plotting.md#plot_correlations).
+Source: [`simace.plotting.plot_correlations`](../api/plotting.md#plot_correlations).
 Data from `validation.yaml` -> `per_generation`.
 
 ---
@@ -238,7 +238,7 @@ Scatter of trait 1 vs. trait 2 liability coloured by threshold affection status.
 
 ## Validation Summary Plots
 
-Source: [`sim_ace.plotting.plot_validation`](../api/plotting.md#plot_validation).
+Source: [`simace.plotting.plot_validation`](../api/plotting.md#plot_validation).
 Generated from `validation_summary.tsv` across all scenarios in a folder. Seaborn "whitegrid" theme with "Set2" palette.
 
 All strip plots share a common encoding:

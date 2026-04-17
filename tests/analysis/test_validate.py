@@ -1,10 +1,10 @@
-"""Tests for sim_ace.analysis.validate — pedigree validation functions."""
+"""Tests for simace.analysis.validate — pedigree validation functions."""
 
 from __future__ import annotations
 
 import pytest
 
-from sim_ace.analysis.validate import (
+from simace.analysis.validate import (
     compute_family_size_distribution,
     compute_per_generation_stats,
     validate_assortative_mating,
@@ -16,8 +16,8 @@ from sim_ace.analysis.validate import (
     validate_structural,
     validate_twins,
 )
-from sim_ace.core.pedigree_graph import extract_sibling_pairs
-from sim_ace.simulation.simulate import run_simulation
+from simace.core.pedigree_graph import extract_sibling_pairs
+from simace.simulation.simulate import run_simulation
 
 # ---------------------------------------------------------------------------
 # Module-scoped fixtures (simulation runs once per file)

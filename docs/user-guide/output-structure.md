@@ -76,7 +76,7 @@ snakemake --cores 1 results/base/baseline10K/rep1/exports/grm/sparse.grm.sp.bin
 ```
 
 The PGS noise draw is seeded deterministically from the rep seed, so
-rebuilds are bit-identical. See `sim_ace/analysis/export_tables.py` for
+rebuilds are bit-identical. See `simace/analysis/export_tables.py` for
 the full noise-model docstring and the cross-trait-correlation caveat
 when `r²_1 ≠ r²_2`.
 
@@ -86,16 +86,16 @@ All outputs are parquet files. Convert to TSV for R:
 
 ```bash
 # Single file (writes .tsv.gz alongside the .parquet)
-sim-ace-parquet-to-tsv results/base/baseline10K/rep1/pedigree.parquet
+simace-parquet-to-tsv results/base/baseline10K/rep1/pedigree.parquet
 
 # Multiple files
-sim-ace-parquet-to-tsv results/base/baseline10K/rep1/*.parquet
+simace-parquet-to-tsv results/base/baseline10K/rep1/*.parquet
 
 # Uncompressed .tsv
-sim-ace-parquet-to-tsv --no-gzip results/base/baseline10K/rep1/pedigree.parquet
+simace-parquet-to-tsv --no-gzip results/base/baseline10K/rep1/pedigree.parquet
 
 # Custom float precision (default: 4 decimal places)
-sim-ace-parquet-to-tsv -p 8 results/base/baseline10K/rep1/pedigree.parquet
+simace-parquet-to-tsv -p 8 results/base/baseline10K/rep1/pedigree.parquet
 ```
 
 Or via Snakemake (auto-converts matching `.parquet`):

@@ -1,0 +1,30 @@
+"""ACE simulation validation - Snakemake wrapper with CLI fallback."""
+
+import yaml
+
+from simace import _snakemake_tag, setup_logging
+from simace.analysis.validate import cli as _cli
+from simace.analysis.validate import run_validation
+from simace.core.utils import to_native
+
+
+def _run_snakemake():
+    setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
+    pedigree_path = snakemake.input.pedigree
+    params_path = snakemake.input.params
+    output_path = snakemake.output.report
+
+    results = run_validation(pedigree_path, params_path)
+    results = to_native(results)
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        yaml.dump(results, f, default_flow_style=False, sort_keys=False)
+
+
+if __name__ == "__main__":
+    try:
+        snakemake
+    except NameError:
+        _cli()
+    else:
+        _run_snakemake()

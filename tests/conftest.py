@@ -1,9 +1,9 @@
-"""Shared fixtures for sim_ace test suite."""
+"""Shared fixtures for simace test suite."""
 
 import numpy as np
 import pytest
 
-from sim_ace.simulation.simulate import (
+from simace.simulation.simulate import (
     generate_correlated_components,
     mating,
     reproduce,

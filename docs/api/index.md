@@ -1,6 +1,6 @@
 # API Reference
 
-API documentation for the `sim_ace` package. Each sub-package has its own page
+API documentation for the `simace` package. Each sub-package has its own page
 documenting public modules and their exported functions and classes.
 
 | Sub-package | Description |

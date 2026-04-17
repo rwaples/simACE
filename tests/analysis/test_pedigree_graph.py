@@ -1,4 +1,4 @@
-"""Tests for sim_ace.pedigree_graph relationship extraction."""
+"""Tests for simace.pedigree_graph relationship extraction."""
 
 import logging
 
@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sim_ace.analysis.validate import _count_sib_pairs_legacy
-from sim_ace.core.pedigree_graph import count_sib_pairs, extract_relationship_pairs
+from simace.analysis.validate import _count_sib_pairs_legacy
+from simace.core.pedigree_graph import count_sib_pairs, extract_relationship_pairs
 
 logger = logging.getLogger(__name__)
 

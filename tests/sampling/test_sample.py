@@ -1,10 +1,10 @@
-"""Unit tests for sim_ace.sample functions."""
+"""Unit tests for simace.sample functions."""
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from sim_ace.sampling.sample import run_sample
+from simace.sampling.sample import run_sample
 
 
 @pytest.fixture

@@ -1,18 +1,18 @@
-# sim_ace.phenotyping
+# simace.phenotyping
 
-::: sim_ace.phenotyping
+::: simace.phenotyping
     options:
       show_root_heading: false
       show_if_no_docstring: false
 
 ## phenotype
 
-::: sim_ace.phenotyping.phenotype
+::: simace.phenotyping.phenotype
 
 ## threshold
 
-::: sim_ace.phenotyping.threshold
+::: simace.phenotyping.threshold
 
 ## bimodal_phenotype
 
-::: sim_ace.phenotyping.bimodal_phenotype
+::: simace.phenotyping.bimodal_phenotype

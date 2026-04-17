@@ -30,11 +30,11 @@ wildcard_constraints:
     kind="[a-zA-Z0-9]+",
 
 
-include: "workflow/rules/sim_ace/targets.smk"
-include: "workflow/rules/sim_ace/simulate.smk"
-include: "workflow/rules/sim_ace/dropout.smk"
-include: "workflow/rules/sim_ace/phenotype.smk"
-include: "workflow/rules/sim_ace/sample.smk"
-include: "workflow/rules/sim_ace/validate.smk"
-include: "workflow/rules/sim_ace/stats.smk"
-include: "workflow/rules/sim_ace/utils.smk"
+include: "workflow/rules/simace/targets.smk"
+include: "workflow/rules/simace/simulate.smk"
+include: "workflow/rules/simace/dropout.smk"
+include: "workflow/rules/simace/phenotype.smk"
+include: "workflow/rules/simace/sample.smk"
+include: "workflow/rules/simace/validate.smk"
+include: "workflow/rules/simace/stats.smk"
+include: "workflow/rules/simace/utils.smk"

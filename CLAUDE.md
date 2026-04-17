@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (shared environment), **E** (unique environment) variance components. Provides simulate → phenotype → censor → sample → validate → stats → plot. Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan) lives in the sister repo [fitACE](../fitACE), which depends on sim_ace.
+simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (shared environment), **E** (unique environment) variance components. Provides simulate → phenotype → censor → sample → validate → stats → plot. Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan) lives in the sister repo [fitACE](../fitACE), which depends on simace.
 
 ## Key Rules
 
@@ -28,11 +28,11 @@ simACE simulates multi-generational pedigrees with **A** (additive genetic), **C
 
 - After modifying `plot_*.py`, force-regenerate the atlas to verify
 - Check that labels/titles fit within figure bounds
-- Page order is controlled in `sim_ace/plotting/plot_atlas.py`
+- Page order is controlled in `simace/plotting/plot_atlas.py`
 
 ## Project Layout
 
-- `sim_ace/` — simulation package (`pip install -e .`), organized into sub-packages:
+- `simace/` — simulation package (`pip install -e .`), organized into sub-packages:
   - `core/` — shared infrastructure (utils, pedigree_graph, compute_hazard_terms, cli_base)
   - `simulation/` — pedigree simulation
   - `phenotyping/` — frailty/threshold phenotype models
@@ -40,7 +40,7 @@ simACE simulates multi-generational pedigrees with **A** (additive genetic), **C
   - `sampling/` — dropout and subsampling
   - `analysis/` — stats, validation, gather
   - `plotting/` — all plot modules and plot utilities
-- `workflow/rules/sim_ace/*.smk` — Snakemake rules; `workflow/scripts/sim_ace/` — thin script wrappers
+- `workflow/rules/simace/*.smk` — Snakemake rules; `workflow/scripts/simace/` — thin script wrappers
 - `config/_default.yaml` — default parameters; `config/{folder}.yaml` — per-folder scenario files (auto-discovered; files starting with `_` are skipped)
 - `results/{folder}/{scenario}/` — output per scenario
 
@@ -51,7 +51,7 @@ simACE simulates multi-generational pedigrees with **A** (additive genetic), **C
 - Tag format: `v2026.03`, `v2026.04`, `v2026.04.1` (second release same month)
 - Between tags, versions look like `2026.4.dev4+g<hash>` (dev build, 4 commits after tag)
 - To cut a release: `git tag -a v2026.MM -m "description"`
-- Check current version: `python -c "import sim_ace; print(sim_ace.__version__)"`
+- Check current version: `python -c "import simace; print(simace.__version__)"`
 
 ## Linting
 

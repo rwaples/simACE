@@ -5,7 +5,7 @@ import pytest
 from scipy.stats import gamma as gamma_dist
 from scipy.stats import invgauss, lognorm, norm, weibull_min
 
-from sim_ace.core.compute_hazard_terms import compute_hazard_terms
+from simace.core.compute_hazard_terms import compute_hazard_terms
 
 
 # ---------------------------------------------------------------------------

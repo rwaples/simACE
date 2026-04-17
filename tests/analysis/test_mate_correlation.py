@@ -3,8 +3,8 @@
 import numpy as np
 import pandas as pd
 
-from sim_ace.analysis.stats import compute_mate_correlation
-from sim_ace.core.utils import expected_mate_corr_matrix
+from simace.analysis.stats import compute_mate_correlation
+from simace.core.utils import expected_mate_corr_matrix
 
 
 class TestExpectedMateCorr:
@@ -185,7 +185,7 @@ class TestComputeMateCorrelation:
 class TestPlotMateCorrelation:
     def test_runs_without_error(self, tmp_path):
         """plot_mate_correlation should produce an output file."""
-        from sim_ace.plotting.plot_liability import plot_mate_correlation
+        from simace.plotting.plot_liability import plot_mate_correlation
 
         stats = [
             {"mate_correlation": {"matrix": [[0.3, 0.1], [0.1, 0.2]], "n_pairs": 100}},
@@ -198,7 +198,7 @@ class TestPlotMateCorrelation:
 
     def test_both_nonzero_no_crash(self, tmp_path):
         """plot_mate_correlation should handle NaN expected values without error."""
-        from sim_ace.plotting.plot_liability import plot_mate_correlation
+        from simace.plotting.plot_liability import plot_mate_correlation
 
         stats = [
             {"mate_correlation": {"matrix": [[0.3, 0.2], [0.15, 0.4]], "n_pairs": 100}},
@@ -210,7 +210,7 @@ class TestPlotMateCorrelation:
 
     def test_placeholder_without_data(self, tmp_path):
         """Should produce placeholder when no mate_correlation in stats."""
-        from sim_ace.plotting.plot_liability import plot_mate_correlation
+        from simace.plotting.plot_liability import plot_mate_correlation
 
         out = tmp_path / "mate_correlation.png"
         plot_mate_correlation([{}], str(out), scenario="test")

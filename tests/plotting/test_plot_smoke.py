@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from sim_ace.core.utils import PAIR_TYPES
+from simace.core.utils import PAIR_TYPES
 
 matplotlib.use("Agg")
 
@@ -236,7 +236,7 @@ def _assert_no_leaked_figures(before: list[int], fig):
 
 class TestPlotPipeline:
     def test_render_pipeline_figure_returns_figure(self, minimal_params):
-        from sim_ace.plotting.plot_pipeline import render_pipeline_figure
+        from simace.plotting.plot_pipeline import render_pipeline_figure
 
         before = plt.get_fignums()
         fig = render_pipeline_figure(minimal_params, scenario="test_scenario")
@@ -244,7 +244,7 @@ class TestPlotPipeline:
         _assert_no_leaked_figures(before, fig)
 
     def test_render_pipeline_figure_no_scenario(self, minimal_params):
-        from sim_ace.plotting.plot_pipeline import render_pipeline_figure
+        from simace.plotting.plot_pipeline import render_pipeline_figure
 
         before = plt.get_fignums()
         fig = render_pipeline_figure(minimal_params, scenario="")
@@ -259,7 +259,7 @@ class TestPlotPipeline:
 
 class TestPlotTable1:
     def test_render_table1_figure_returns_figure(self, minimal_stats, minimal_params):
-        from sim_ace.plotting.plot_table1 import render_table1_figure
+        from simace.plotting.plot_table1 import render_table1_figure
 
         before = plt.get_fignums()
         fig = render_table1_figure([minimal_stats], minimal_params, scenario="test")
@@ -267,7 +267,7 @@ class TestPlotTable1:
         _assert_no_leaked_figures(before, fig)
 
     def test_render_table1_figure_multiple_reps(self, minimal_stats, minimal_params):
-        from sim_ace.plotting.plot_table1 import render_table1_figure
+        from simace.plotting.plot_table1 import render_table1_figure
 
         before = plt.get_fignums()
         fig = render_table1_figure([minimal_stats, minimal_stats], minimal_params, scenario="test")
@@ -282,14 +282,14 @@ class TestPlotTable1:
 
 class TestPlotAtlasHelpers:
     def test_get_model_equation_weibull(self, minimal_params):
-        from sim_ace.plotting.plot_atlas import get_model_equation
+        from simace.plotting.plot_atlas import get_model_equation
 
         lines = get_model_equation(minimal_params)
         assert isinstance(lines, list)
         assert len(lines) >= 1
 
     def test_get_model_equation_different_models(self):
-        from sim_ace.plotting.plot_atlas import get_model_equation
+        from simace.plotting.plot_atlas import get_model_equation
 
         params = {
             "phenotype_model1": "frailty",
@@ -301,7 +301,7 @@ class TestPlotAtlasHelpers:
         assert len(lines) >= 2  # one set per model
 
     def test_get_model_family_same_model(self, minimal_params):
-        from sim_ace.plotting.plot_atlas import get_model_family
+        from simace.plotting.plot_atlas import get_model_family
 
         name, desc = get_model_family(minimal_params)
         assert isinstance(name, str)
@@ -309,7 +309,7 @@ class TestPlotAtlasHelpers:
         assert "Weibull" in name
 
     def test_get_model_family_different_models(self):
-        from sim_ace.plotting.plot_atlas import get_model_family
+        from simace.plotting.plot_atlas import get_model_family
 
         params = {
             "phenotype_model1": "frailty",
@@ -321,7 +321,7 @@ class TestPlotAtlasHelpers:
         assert isinstance(name, str)
 
     def test_model_display_all_families(self):
-        from sim_ace.plotting.plot_atlas import _model_display_name
+        from simace.plotting.plot_atlas import _model_display_name
 
         # Verify all model families produce valid display names
         cases = [
@@ -349,7 +349,7 @@ class TestPlotAtlasHelpers:
 
 class TestPlotValidation:
     def test_plot_variance_components(self, validation_df, tmp_path):
-        from sim_ace.plotting.plot_validation import plot_variance_components
+        from simace.plotting.plot_validation import plot_variance_components
 
         before = plt.get_fignums()
         plot_variance_components(validation_df, tmp_path, ext="png")
@@ -357,7 +357,7 @@ class TestPlotValidation:
         assert plt.get_fignums() == before
 
     def test_plot_twin_rate(self, validation_df, tmp_path):
-        from sim_ace.plotting.plot_validation import plot_twin_rate
+        from simace.plotting.plot_validation import plot_twin_rate
 
         before = plt.get_fignums()
         plot_twin_rate(validation_df, tmp_path, ext="png")
@@ -365,7 +365,7 @@ class TestPlotValidation:
         assert plt.get_fignums() == before
 
     def test_plot_A_correlations(self, validation_df, tmp_path):
-        from sim_ace.plotting.plot_validation import plot_A_correlations
+        from simace.plotting.plot_validation import plot_A_correlations
 
         before = plt.get_fignums()
         plot_A_correlations(validation_df, tmp_path, ext="png")
@@ -373,7 +373,7 @@ class TestPlotValidation:
         assert plt.get_fignums() == before
 
     def test_plot_cross_trait_correlations(self, validation_df, tmp_path):
-        from sim_ace.plotting.plot_validation import plot_cross_trait_correlations
+        from simace.plotting.plot_validation import plot_cross_trait_correlations
 
         before = plt.get_fignums()
         plot_cross_trait_correlations(validation_df, tmp_path, ext="png")
@@ -381,7 +381,7 @@ class TestPlotValidation:
         assert plt.get_fignums() == before
 
     def test_plot_heritability_estimates(self, validation_df, tmp_path):
-        from sim_ace.plotting.plot_validation import plot_heritability_estimates
+        from simace.plotting.plot_validation import plot_heritability_estimates
 
         before = plt.get_fignums()
         plot_heritability_estimates(validation_df, tmp_path, ext="png")
@@ -389,7 +389,7 @@ class TestPlotValidation:
         assert plt.get_fignums() == before
 
     def test_plot_half_sib_proportions(self, validation_df, tmp_path):
-        from sim_ace.plotting.plot_validation import plot_half_sib_proportions
+        from simace.plotting.plot_validation import plot_half_sib_proportions
 
         before = plt.get_fignums()
         plot_half_sib_proportions(validation_df, tmp_path, ext="png")
@@ -397,7 +397,7 @@ class TestPlotValidation:
         assert plt.get_fignums() == before
 
     def test_plot_family_size(self, validation_df, tmp_path):
-        from sim_ace.plotting.plot_validation import plot_family_size
+        from simace.plotting.plot_validation import plot_family_size
 
         before = plt.get_fignums()
         plot_family_size(validation_df, tmp_path, ext="png")
@@ -405,7 +405,7 @@ class TestPlotValidation:
         assert plt.get_fignums() == before
 
     def test_plot_summary_bias(self, validation_df, tmp_path):
-        from sim_ace.plotting.plot_validation import plot_summary_bias
+        from simace.plotting.plot_validation import plot_summary_bias
 
         before = plt.get_fignums()
         plot_summary_bias(validation_df, tmp_path, ext="png")
@@ -413,7 +413,7 @@ class TestPlotValidation:
         assert plt.get_fignums() == before
 
     def test_plot_runtime(self, validation_df, tmp_path):
-        from sim_ace.plotting.plot_validation import plot_runtime
+        from simace.plotting.plot_validation import plot_runtime
 
         before = plt.get_fignums()
         plot_runtime(validation_df, tmp_path, ext="png")
@@ -421,7 +421,7 @@ class TestPlotValidation:
         assert plt.get_fignums() == before
 
     def test_plot_memory(self, validation_df, tmp_path):
-        from sim_ace.plotting.plot_validation import plot_memory
+        from simace.plotting.plot_validation import plot_memory
 
         before = plt.get_fignums()
         plot_memory(validation_df, tmp_path, ext="png")
@@ -593,7 +593,7 @@ def broad_h2_validations():
 
 class TestPlotCorrelationsExpanded:
     def test_plot_tetrachoric_by_sex(self, simple_ltm_stats, tmp_path):
-        from sim_ace.plotting.plot_correlations import plot_tetrachoric_by_sex
+        from simace.plotting.plot_correlations import plot_tetrachoric_by_sex
 
         before = plt.get_fignums()
         out = tmp_path / "tet_sex.png"
@@ -604,7 +604,7 @@ class TestPlotCorrelationsExpanded:
         assert plt.get_fignums() == before
 
     def test_plot_tetrachoric_by_sex_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_correlations import plot_tetrachoric_by_sex
+        from simace.plotting.plot_correlations import plot_tetrachoric_by_sex
 
         before = plt.get_fignums()
         out = tmp_path / "tet_sex_empty.png"
@@ -614,7 +614,7 @@ class TestPlotCorrelationsExpanded:
         assert plt.get_fignums() == before
 
     def test_plot_heritability_by_sex_generation(self, simple_ltm_stats, tmp_path):
-        from sim_ace.plotting.plot_correlations import plot_heritability_by_sex_generation
+        from simace.plotting.plot_correlations import plot_heritability_by_sex_generation
 
         before = plt.get_fignums()
         out = tmp_path / "h2_sex_gen.png"
@@ -625,7 +625,7 @@ class TestPlotCorrelationsExpanded:
         assert plt.get_fignums() == before
 
     def test_plot_heritability_by_sex_generation_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_correlations import plot_heritability_by_sex_generation
+        from simace.plotting.plot_correlations import plot_heritability_by_sex_generation
 
         before = plt.get_fignums()
         out = tmp_path / "h2_sex_gen_empty.png"
@@ -635,7 +635,7 @@ class TestPlotCorrelationsExpanded:
         assert plt.get_fignums() == before
 
     def test_plot_broad_heritability_by_generation(self, broad_h2_validations, tmp_path):
-        from sim_ace.plotting.plot_correlations import plot_broad_heritability_by_generation
+        from simace.plotting.plot_correlations import plot_broad_heritability_by_generation
 
         before = plt.get_fignums()
         out = tmp_path / "broad_h2_gen.png"
@@ -646,7 +646,7 @@ class TestPlotCorrelationsExpanded:
         assert plt.get_fignums() == before
 
     def test_plot_broad_heritability_by_generation_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_correlations import plot_broad_heritability_by_generation
+        from simace.plotting.plot_correlations import plot_broad_heritability_by_generation
 
         before = plt.get_fignums()
         out = tmp_path / "broad_h2_gen_empty.png"
@@ -663,7 +663,7 @@ class TestPlotCorrelationsExpanded:
 
 class TestPlotDistributionsExpanded:
     def test_plot_trait_regression(self, simple_ltm_samples, simple_ltm_stats, tmp_path):
-        from sim_ace.plotting.plot_distributions import plot_trait_regression
+        from simace.plotting.plot_distributions import plot_trait_regression
 
         before = plt.get_fignums()
         out = tmp_path / "trait_reg.png"
@@ -674,7 +674,7 @@ class TestPlotDistributionsExpanded:
         assert plt.get_fignums() == before
 
     def test_plot_family_structure(self, simple_ltm_stats, tmp_path):
-        from sim_ace.plotting.plot_distributions import plot_family_structure
+        from simace.plotting.plot_distributions import plot_family_structure
 
         before = plt.get_fignums()
         out = tmp_path / "family_struct.png"
@@ -685,7 +685,7 @@ class TestPlotDistributionsExpanded:
         assert plt.get_fignums() == before
 
     def test_plot_family_structure_no_data(self, tmp_path):
-        from sim_ace.plotting.plot_distributions import plot_family_structure
+        from simace.plotting.plot_distributions import plot_family_structure
 
         before = plt.get_fignums()
         out = tmp_path / "family_struct_empty.png"
