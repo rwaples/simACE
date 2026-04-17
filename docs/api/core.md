@@ -17,10 +17,6 @@
 
 ::: sim_ace.core.compute_hazard_terms
 
-## weibull_mle
-
-::: sim_ace.core.weibull_mle
-
 ## cli_base
 
 ::: sim_ace.core.cli_base

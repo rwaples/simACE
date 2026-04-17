@@ -105,6 +105,6 @@ fit_ace/
 
 | Rule file | Description |
 |-----------|-------------|
-| `workflow/rules/epimight.smk` | EPIMIGHT heritability pipeline |
-| `workflow/rules/epimight_bias.smk` | EPIMIGHT bias analysis |
-| `workflow/rules/pafgrs.smk` | PA-FGRS scoring pipeline |
+| `workflow/rules/fit_ace/epimight.smk` | EPIMIGHT heritability pipeline |
+| `workflow/rules/fit_ace/epimight_bias.smk` | EPIMIGHT bias analysis |
+| `workflow/rules/fit_ace/pafgrs.smk` | PA-FGRS scoring pipeline |

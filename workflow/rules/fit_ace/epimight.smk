@@ -1,0 +1,118 @@
+# ---------------------------------------------------------------------------
+# EPIMIGHT: heritability and genetic correlation from time-to-event data
+# ---------------------------------------------------------------------------
+#
+# Three-step pipeline per replicate:
+#   1. epimight_create_parquet  – phenotype.parquet → trait1/trait2 parquets + truth JSON
+#   2. epimight_guide_yob       – per relationship kind: CIF, h², GC analysis (R)
+#   3. epimight_atlas           – assemble all kinds into a plot atlas PDF
+#
+# Output directory: results/{folder}/{scenario}/rep{rep}/epimight/
+# ---------------------------------------------------------------------------
+
+EPIMIGHT_KINDS = config["defaults"].get("epimight_kinds", ["PO", "FS", "HS"])
+
+
+rule epimight_create_parquet:
+    """Convert ACE phenotype to EPIMIGHT time-to-event format."""
+    input:
+        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.parquet",
+    output:
+        t1="results/{folder}/{scenario}/rep{rep}/epimight/trait1.epimight_in.parquet",
+        t2="results/{folder}/{scenario}/rep{rep}/epimight/trait2.epimight_in.parquet",
+        truth="results/{folder}/{scenario}/rep{rep}/epimight/true_parameters.json",
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/epimight_create_parquet.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/epimight_create_parquet.tsv"
+    threads: 1
+    resources:
+        mem_mb=lambda w: _scale_mem(config, w.scenario),
+        runtime=lambda w: _scale_runtime(config, w.scenario),
+    script:
+        "../../scripts/fit_ace/epimight_create_parquet.py"
+
+
+rule epimight_guide_yob:
+    """Run EPIMIGHT MI analysis (h², GC with Rubin's rules) for one relationship kind."""
+    input:
+        t1="results/{folder}/{scenario}/rep{rep}/epimight/trait1.epimight_in.parquet",
+        t2="results/{folder}/{scenario}/rep{rep}/epimight/trait2.epimight_in.parquet",
+    output:
+        h2_d1_meta="results/{folder}/{scenario}/rep{rep}/epimight/tsv/h2_d1_meta_{kind}.tsv",
+        h2_d2_meta="results/{folder}/{scenario}/rep{rep}/epimight/tsv/h2_d2_meta_{kind}.tsv",
+        gc_meta="results/{folder}/{scenario}/rep{rep}/epimight/tsv/gc_meta_{kind}.tsv",
+        report="results/{folder}/{scenario}/rep{rep}/epimight/results_{kind}.md",
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/epimight_guide_yob_{kind}.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/epimight_guide_yob_{kind}.tsv"
+    threads: 1
+    resources:
+        mem_mb=lambda w: _epimight_mem(config, w.scenario),
+        runtime=lambda w: _epimight_runtime(config, w.scenario),
+    params:
+        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
+        K=lambda w: get_param(config, w.scenario, "epimight_mi_K"),
+        rubin_level=lambda w: get_param(config, w.scenario, "epimight_rubin_level"),
+    shell:
+        "conda run -n epimight "
+        "Rscript -e \"if (!requireNamespace('epimight', quietly=TRUE)) "
+        "install.packages('fit_ace/epimight/EPIMIGHT/epimight', repos=NULL, type='source')\" "
+        ">{log} 2>&1 && "
+        "conda run -n epimight "
+        "Rscript fit_ace/epimight/guide-yob.R "
+        "results/{wildcards.folder}/{wildcards.scenario}/rep{wildcards.rep}/epimight "
+        "{wildcards.kind} "
+        "{params.seed} "
+        "{params.K} "
+        "{params.rubin_level} "
+        ">>{log} 2>&1"
+
+
+rule epimight_atlas:
+    """Generate EPIMIGHT plot atlas comparing all relationship kinds."""
+    input:
+        tsv=lambda w: expand(
+            "results/{folder}/{scenario}/rep{rep}/epimight/tsv/h2_d1_meta_{kind}.tsv",
+            folder=w.folder,
+            scenario=w.scenario,
+            rep=w.rep,
+            kind=get_param(config, w.scenario, "epimight_kinds"),
+        ),
+        truth="results/{folder}/{scenario}/rep{rep}/epimight/true_parameters.json",
+    output:
+        atlas="results/{folder}/{scenario}/rep{rep}/epimight/plots/atlas.pdf",
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/epimight_atlas.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/epimight_atlas.tsv"
+    threads: 1
+    resources:
+        mem_mb=2000,
+        runtime=5,
+    script:
+        "../../scripts/fit_ace/epimight_atlas.py"
+
+
+rule epimight_folder:
+    """Run EPIMIGHT analysis for all scenarios in a folder."""
+    input:
+        lambda w: [
+            f"results/{w.folder}/{s}/rep{r}/epimight/plots/atlas.pdf"
+            for s in get_scenarios_for_folder(config, w.folder)
+            for r in range(1, get_param(config, s, "replicates") + 1)
+        ],
+    output:
+        touch("results/{folder}/epimight.done"),
+
+
+rule epimight_scenario:
+    """Run EPIMIGHT analysis for all replicates in a single scenario."""
+    input:
+        lambda w: [
+            f"results/{w.folder}/{w.scenario}/rep{r}/epimight/plots/atlas.pdf"
+            for r in range(1, get_param(config, w.scenario, "replicates") + 1)
+        ],
+    output:
+        touch("results/{folder}/{scenario}/epimight.done"),

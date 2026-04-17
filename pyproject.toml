@@ -47,10 +47,8 @@ sim-ace-threshold = "sim_ace.phenotyping.threshold:cli"
 sim-ace-sample = "sim_ace.sampling.sample:cli"
 sim-ace-validate = "sim_ace.analysis.validate:cli"
 sim-ace-phenotype-stats = "sim_ace.analysis.stats:cli"
-sim-ace-simple-ltm-stats = "sim_ace.analysis.simple_ltm_stats:cli"
 sim-ace-gather = "sim_ace.analysis.gather:cli"
 sim-ace-plot-phenotype = "sim_ace.plotting.plot_phenotype:cli"
-sim-ace-plot-simple-ltm = "sim_ace.plotting.plot_simple_ltm:cli"
 sim-ace-plot-validation = "sim_ace.plotting.plot_validation:cli"
 sim-ace-parquet-to-tsv = "sim_ace.core.parquet_to_tsv:cli"
 
@@ -77,14 +75,14 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"workflow/scripts/*.py" = ["F821", "B018"]  # snakemake global injected at runtime; bare name check idiom
+"fit_ace/plotting/plot_simple_ltm.py" = ["E402"]    # yaml_loader() before imports
+"workflow/scripts/**/*.py" = ["F821", "B018"]  # snakemake global injected at runtime; bare name check idiom
 "tests/*.py" = ["B011", "RUF012", "D"]       # assert False; mutable class attrs OK in tests; no docstrings needed
 "tests/**/*.py" = ["D"]                      # no docstrings needed in tests
 "fit_ace/**/*.py" = ["D"]                    # fit_ace docstrings deferred to future effort
 "fit_ace/stan/*.py" = ["F821", "B018"]       # experimental scripts, pre-existing issues
 "sim_ace/__init__.py" = ["F401"]             # setup_logging used via re-export
 "sim_ace/plotting/plot_phenotype.py" = ["E402"]      # yaml_loader() before imports
-"sim_ace/plotting/plot_simple_ltm.py" = ["E402"]     # yaml_loader() before imports
 "sim_ace/plotting/plot_validation.py" = ["E402"]     # yaml_loader() before imports
 "sim_ace/core/_numba_utils.py" = ["D"]               # private module, all functions private
 

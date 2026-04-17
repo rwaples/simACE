@@ -22,6 +22,7 @@ import scipy.sparse as sp
 from numba import njit, prange
 from scipy.stats import norm
 
+from fit_ace.kinship.kinship import build_kinship_from_pairs, build_sparse_kinship
 from sim_ace.core._numba_utils import (
     _ndtri_approx,
 )
@@ -34,7 +35,6 @@ from sim_ace.core._numba_utils import (
 from sim_ace.core._numba_utils import (
     _norm_sf as _nb_norm_sf,
 )
-from sim_ace.core.kinship import build_kinship_from_pairs, build_sparse_kinship
 
 logger = logging.getLogger(__name__)
 

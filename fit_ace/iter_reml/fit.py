@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 
     import scipy.sparse as sp
 
-from sim_ace.analysis.export_grm import (
+from fit_ace.kinship.export import (
     build_household_matrix,
     export_pheno_plink,
     export_sparse_grm_binary,

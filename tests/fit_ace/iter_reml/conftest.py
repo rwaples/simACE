@@ -54,8 +54,8 @@ def tiny_ace_inputs():
         pedigree_arrays: (ids, mothers, fathers, twins) for the fast path.
         phen_ids: (n,) same as iids; pedigree == phenotyped here.
     """
+    from fit_ace.phenotyping.gaussian_ace import simulate_gaussian_ace
     from sim_ace.core.pedigree_graph import PedigreeGraph
-    from sim_ace.phenotyping.gaussian_ace import simulate_gaussian_ace
     from sim_ace.simulation.simulate import run_simulation
 
     ped = run_simulation(

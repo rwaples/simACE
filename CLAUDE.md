@@ -46,7 +46,7 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
   - `epimight/` — EPIMIGHT heritability pipeline (separate `epimight` conda env; uses `conda run -n epimight`)
   - `stan/` — Stan-based model fitting
   - `plotting/` — PA-FGRS and EPIMIGHT bias plots
-- `workflow/rules/*.smk` — Snakemake rules; `workflow/scripts/` — thin script wrappers
+- `workflow/rules/{sim_ace,fit_ace}/*.smk` — Snakemake rules (partitioned by package); `workflow/scripts/{sim_ace,fit_ace}/` — thin script wrappers
 - `config/_default.yaml` — default parameters; `config/{folder}.yaml` — per-folder scenario files (auto-discovered; files starting with `_` are skipped)
 - `results/{folder}/{scenario}/` — output per scenario
 
@@ -64,7 +64,7 @@ ACE simulates multi-generational pedigrees with **A** (additive genetic), **C** 
 - Check: `ruff check`
 - Auto-fix: `ruff check --fix`
 - Format Python: `ruff format`
-- Format Snakemake: `snakefmt workflow/rules/*.smk Snakefile`
+- Format Snakemake: `snakefmt workflow/rules/**/*.smk Snakefile`
 
 ## Documentation & Citations
 

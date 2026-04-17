@@ -590,7 +590,7 @@ def broad_h2_validations():
 
 class TestPlotSimpleLtm:
     def test_plot_prevalence_by_generation(self, simple_ltm_stats, tmp_path):
-        from sim_ace.plotting.plot_simple_ltm import plot_prevalence_by_generation
+        from fit_ace.plotting.plot_simple_ltm import plot_prevalence_by_generation
 
         before = plt.get_fignums()
         out = tmp_path / "prev_gen.png"
@@ -601,7 +601,7 @@ class TestPlotSimpleLtm:
         assert plt.get_fignums() == before
 
     def test_plot_liability_violin(self, simple_ltm_samples, simple_ltm_stats, tmp_path):
-        from sim_ace.plotting.plot_simple_ltm import plot_liability_violin
+        from fit_ace.plotting.plot_simple_ltm import plot_liability_violin
 
         before = plt.get_fignums()
         out = tmp_path / "liab_violin.png"
@@ -612,7 +612,7 @@ class TestPlotSimpleLtm:
         assert plt.get_fignums() == before
 
     def test_plot_liability_violin_by_generation(self, simple_ltm_samples, simple_ltm_stats, tmp_path):
-        from sim_ace.plotting.plot_simple_ltm import plot_liability_violin_by_generation
+        from fit_ace.plotting.plot_simple_ltm import plot_liability_violin_by_generation
 
         before = plt.get_fignums()
         out = tmp_path / "liab_violin_gen.png"
@@ -630,7 +630,7 @@ class TestPlotSimpleLtm:
         assert plt.get_fignums() == before
 
     def test_plot_tetrachoric(self, simple_ltm_stats, tmp_path):
-        from sim_ace.plotting.plot_simple_ltm import plot_tetrachoric
+        from fit_ace.plotting.plot_simple_ltm import plot_tetrachoric
 
         before = plt.get_fignums()
         out = tmp_path / "tetrachoric.png"
@@ -641,7 +641,7 @@ class TestPlotSimpleLtm:
         assert plt.get_fignums() == before
 
     def test_plot_joint_affection(self, simple_ltm_stats, tmp_path):
-        from sim_ace.plotting.plot_simple_ltm import plot_joint_affection
+        from fit_ace.plotting.plot_simple_ltm import plot_joint_affection
 
         before = plt.get_fignums()
         out = tmp_path / "joint_aff.png"
@@ -652,7 +652,7 @@ class TestPlotSimpleLtm:
         assert plt.get_fignums() == before
 
     def test_plot_liability_joint(self, simple_ltm_samples, tmp_path):
-        from sim_ace.plotting.plot_simple_ltm import plot_liability_joint
+        from fit_ace.plotting.plot_simple_ltm import plot_liability_joint
 
         before = plt.get_fignums()
         out = tmp_path / "liab_joint.png"

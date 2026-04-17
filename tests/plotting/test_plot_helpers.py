@@ -285,7 +285,7 @@ class TestPlaceholderPaths:
         assert out.exists()
 
     def test_simple_ltm_violin_by_gen_no_gen(self, tmp_path, sample_df):
-        from sim_ace.plotting.plot_simple_ltm import plot_liability_violin_by_generation
+        from fit_ace.plotting.plot_simple_ltm import plot_liability_violin_by_generation
 
         df = sample_df.drop(columns=["generation"])
         out = tmp_path / "tv_gen.png"

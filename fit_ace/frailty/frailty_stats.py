@@ -35,7 +35,7 @@ def compute_frailty_correlations(
     Returns:
         (censored, uncensored) dicts keyed by "trait1"/"trait2"
     """
-    from sim_ace.analysis.survival_stats import compute_pair_corr
+    from fit_ace.frailty.survival_stats import compute_pair_corr
 
     result: dict[str, Any] = {}
     result_uncensored: dict[str, Any] = {}
@@ -71,7 +71,7 @@ def compute_frailty_cross_trait_corr(
     (censored, uncensored, stratified) dicts with keys {r, se, n}.
     The stratified estimate uses inverse-variance weighting over generations.
     """
-    from sim_ace.analysis.survival_stats import cross_trait_corr_se
+    from fit_ace.frailty.survival_stats import cross_trait_corr_se
 
     p1 = frailty_params.get("trait1", {})
     p2 = frailty_params.get("trait2", {})

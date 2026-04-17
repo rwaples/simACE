@@ -34,16 +34,21 @@ wildcard_constraints:
     kind="[a-zA-Z0-9]+",
 
 
-include: "workflow/rules/targets.smk"
-include: "workflow/rules/simulate.smk"
-include: "workflow/rules/dropout.smk"
-include: "workflow/rules/phenotype.smk"
-include: "workflow/rules/sample.smk"
-include: "workflow/rules/validate.smk"
-include: "workflow/rules/stats.smk"
-include: "workflow/rules/epimight.smk"
-include: "workflow/rules/epimight_bias.smk"
-include: "workflow/rules/pafgrs.smk"
-include: "workflow/rules/grm.smk"
-include: "workflow/rules/iter_reml.smk"
-include: "workflow/rules/export.smk"
+# ── sim_ace rules ──────────────────────────────────────────────────────────
+include: "workflow/rules/sim_ace/targets.smk"
+include: "workflow/rules/sim_ace/simulate.smk"
+include: "workflow/rules/sim_ace/dropout.smk"
+include: "workflow/rules/sim_ace/phenotype.smk"
+include: "workflow/rules/sim_ace/sample.smk"
+include: "workflow/rules/sim_ace/validate.smk"
+include: "workflow/rules/sim_ace/stats.smk"
+include: "workflow/rules/sim_ace/utils.smk"
+
+# ── fit_ace rules ──────────────────────────────────────────────────────────
+include: "workflow/rules/fit_ace/simple_ltm.smk"
+include: "workflow/rules/fit_ace/epimight.smk"
+include: "workflow/rules/fit_ace/epimight_bias.smk"
+include: "workflow/rules/fit_ace/pafgrs.smk"
+include: "workflow/rules/fit_ace/grm.smk"
+include: "workflow/rules/fit_ace/iter_reml.smk"
+include: "workflow/rules/fit_ace/export.smk"

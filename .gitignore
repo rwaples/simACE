@@ -41,9 +41,9 @@ __pycache__/
 *.pdf
 
 # Compiled Stan binaries
-workflow/scripts/ace_dii
-workflow/scripts/fit_pedigree_ace
-workflow/scripts/fit_pedigree_ace_reml
+workflow/scripts/fit_ace/ace_dii
+workflow/scripts/fit_ace/fit_pedigree_ace
+workflow/scripts/fit_ace/fit_pedigree_ace_reml
 
 # PowerPoint docs
 docs/*.pptx

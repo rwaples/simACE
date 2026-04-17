@@ -13,7 +13,7 @@ fuses into a single pass:
    round-trip that dominated the Python version (~95 s at n=102k).
 3. **Direct ACEGRM write** serialises the CSC arrays to
    `<prefix>.grm.sp.bin` using the same byte layout as
-   :func:`sim_ace.analysis.export_grm.export_sparse_grm_binary`.
+   :func:`fit_ace.kinship.export.export_sparse_grm_binary`.
 
 At n_ped=102k this drops the pipeline from ~5 min to ~15–20 s.
 """
@@ -29,7 +29,7 @@ import numba
 import numpy as np
 import pandas as pd
 
-from sim_ace.analysis.export_grm import (
+from fit_ace.kinship.export import (
     ACE_SREML_MAGIC,
     GRM_ID_SUFFIX,
     GRM_SP_BIN_SUFFIX,

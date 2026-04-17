@@ -33,10 +33,6 @@
 
 ::: sim_ace.plotting.plot_phenotype
 
-## plot_simple_ltm
-
-::: sim_ace.plotting.plot_simple_ltm
-
 ## plot_validation
 
 ::: sim_ace.plotting.plot_validation

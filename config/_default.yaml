@@ -1,6 +1,12 @@
 # ACE Simulation Configuration
 
 defaults:
+  # ==========================================================================
+  # SIM — sim_ace parameters (pedigree structure, phenotyping, censoring,
+  # sampling, and shared globals).  These drive the simulate → phenotype →
+  # censor → sample → validate → stats pipeline.
+  # ==========================================================================
+
   # ── Globals ──────────────────────────────────────────────────────────────
   seed: 42
   replicates: 3
@@ -79,6 +85,12 @@ defaults:
   analysis:
     max_degree: 2
     estimate_inbreeding: false
+
+  # ==========================================================================
+  # FIT — fit_ace parameters (EPIMIGHT, PA-FGRS, GRM, REML, exports).  These
+  # drive downstream model-fitting rules that consume sim_ace outputs.  Safe
+  # to ignore (or delete) if only the sim-side pipeline is used.
+  # ==========================================================================
 
   # ── EPIMIGHT ────────────────────────────────────────────────────────────
   epimight:

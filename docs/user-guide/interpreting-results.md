@@ -207,7 +207,7 @@ Data from `validation.yaml` -> `per_generation`.
 
 ## Simple LTM Plots
 
-Source: [`sim_ace.plotting.plot_simple_ltm`](../api/plotting.md#plot_simple_ltm).
+Source: `fit_ace.plotting.plot_simple_ltm`.
 Generated for liability-threshold binary phenotypes.
 
 ### Prevalence by generation (`prevalence_by_generation.png`)

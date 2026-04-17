@@ -6,12 +6,12 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from fit_ace.kinship.kinship import build_sparse_kinship
 from fit_ace.pafgrs.pafgrs import (
     extract_relatives,
     prepare_univariate_scoring,
     score_probands,
 )
-from sim_ace.core.kinship import build_sparse_kinship
 
 # ---------------------------------------------------------------------------
 # Fixtures

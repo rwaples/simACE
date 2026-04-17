@@ -24,6 +24,7 @@ from scipy.stats import norm
 if TYPE_CHECKING:
     import scipy.sparse as sp
 
+from fit_ace.kinship.kinship import build_kinship_from_pairs
 from sim_ace.core._numba_utils import (
     _bvn_cdf as _nb_bvn_cdf,
 )
@@ -37,7 +38,6 @@ from sim_ace.core._numba_utils import (
 from sim_ace.core._numba_utils import (
     _norm_sf as _nb_norm_sf,
 )
-from sim_ace.core.kinship import build_kinship_from_pairs
 
 from .pafgrs import (
     _build_rel_kinship_arrays,
