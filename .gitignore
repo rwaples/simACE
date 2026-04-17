@@ -1,3 +1,6 @@
+# Sister repo (nested, independent git history)
+/fitACE/
+
 # External tools and data
 external/
 

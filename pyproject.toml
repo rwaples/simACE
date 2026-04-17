@@ -57,10 +57,14 @@ include = ["sim_ace*"]
 
 [tool.setuptools_scm]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["fitACE", ".git", ".snakemake", "external", "site"]
+
 [tool.ruff]
 target-version = "py313"
 line-length = 120
-extend-exclude = [".snakemake", "notes"]
+extend-exclude = [".snakemake", "notes", "fitACE"]
 
 [tool.ruff.lint]
 select = ["F", "E", "W", "I", "UP", "B", "SIM", "RUF", "A", "C4", "PT", "PIE", "PERF", "TCH", "RSE", "RET", "D"]
