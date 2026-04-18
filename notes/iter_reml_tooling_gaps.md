@@ -9,6 +9,24 @@ The tools below are ranked by expected development-impact, not
 implementation cost.  User-selected for implementation: A, C, D, F,
 G, I (B, E, H deferred).
 
+## Implementation status (2026-04-18)
+
+| Item | Status | Commit | Location |
+|---|---|---|---|
+| A. Trajectory plotter | DONE | fitACE `5bdfed5` | `fitace/iter_reml/plot_trajectory.py` |
+| C. Auto grad-sanity | DONE | fitACE `5bdfed5` | `fitace/iter_reml/verify.py` |
+| D. Stan + dense reference | PARTIAL | fitACE `190d1f1` | `fitace/stan/fit_pedigree_ace_binary.stan` (text only, pending cmdstan env); `fitace/iter_reml/ref_dense.py` (NumPy reference usable now) |
+| F. C++ unit tests | DONE | ace_iter_reml `e6482d9` | `tests/test_laplace_primitives.cpp` |
+| G. JSONL debug log | DONE | ace_iter_reml `42b22f8` | `--em-debug-jsonl PATH` |
+| I. Memory profile | ALREADY IN PLACE | n/a | existing `<out>.bench.tsv` via `ACE_BENCH_RSS` |
+
+Dense reference (D, NumPy) was the actionable output — confirmed
+em_step's gradient matches the exact Laplace-marginal gradient to
+≤1 unit at self-consistent Xβ, and the dense optimiser found the
+true Laplace MLE is very different from where our live EM converges
+on the tiny fixture.  Cmdstan-backed Stan reference is deferred
+pending env setup.
+
 ## What already exists
 
 | Tool | Purpose | Location |
