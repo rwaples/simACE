@@ -1,0 +1,236 @@
+# Development scenarios for exercising iter_reml's Phase 2 Laplace
+# binary-trait path across sample sizes, ACE variance partitions,
+# prevalences, and AM regimes.  Ground truth comes from the simulator's
+# Gaussian A/C/E decomposition; run_iter_reml.py thresholds the
+# continuous liability at Φ⁻¹(1−K) when iter_reml_prevalence is set,
+# so these scenarios all use `iter_reml_liability_model: laplace`
+# (override to "mean" or leave null for Phase 1 comparison runs).
+#
+# N here is the per-generation founder count; with G_pheno=3 the
+# phenotyped sample size is ≈ N × G_pheno.  Rough sizes for reference:
+#   N=340    → ≈ 1k phenotyped
+#   N=1000   → ≈ 3k
+#   N=3400   → ≈ 10k
+#   N=10000  → ≈ 30k
+#   N=17000  → ≈ 50k
+
+# ─── Size sweep ───────────────────────────────────────────────────────
+# Fixed ACE = (0.5, 0.2, 0.3), K=0.15, no AM.  Isolates the
+# sample-size dependence of Laplace bias.
+
+dev_laplace_n1k:
+  seed: 70100
+  N: 340
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_laplace_n3k:
+  seed: 70101
+  N: 1000
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_laplace_n10k:
+  seed: 70102
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_laplace_n30k:
+  seed: 70103
+  N: 10000
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_laplace_n50k:
+  seed: 70104
+  N: 17000
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+# ─── Heritability sweep ───────────────────────────────────────────────
+# N=3400 (~10k phenotyped), K=0.15, no AM.  Varies h² with σ²_sum=1.
+
+dev_laplace_h2_low:
+  seed: 70200
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.2, C: 0.2, E: 0.6 }
+
+dev_laplace_h2_high:
+  seed: 70201
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.7, C: 0.1, E: 0.2 }
+
+dev_laplace_ae_only:
+  seed: 70202
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.0, E: 0.5 }
+
+dev_laplace_c2_high:
+  seed: 70203
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.3, C: 0.4, E: 0.3 }
+
+dev_laplace_ce_dominant:
+  seed: 70204
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.1, C: 0.5, E: 0.4 }
+
+# ─── Edge case: σ²_E below the ε² = 0.25 floor ────────────────────────
+# Probes the σ²_E_fit ≥ 0 clamp effect on the threshold-scale output.
+
+dev_laplace_low_e:
+  seed: 70300
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.6, C: 0.3, E: 0.1 }  # σ²_E=0.1 < ε²=0.25
+
+# ─── Prevalence sweep ─────────────────────────────────────────────────
+# N=3400, ACE = (0.5, 0.2, 0.3), no AM.  τ shifts with K; rarer traits
+# stress the tail-probability approximation.
+
+dev_laplace_K_rare:
+  seed: 70400
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_laplace_K_common:
+  seed: 70401
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_laplace_K_half:
+  seed: 70402
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+# ─── Assortative-mating variants ──────────────────────────────────────
+# AM changes the dominant-eigenvalue spectrum of A and increases
+# connected-component size.  Tests Laplace convergence under the
+# non-trivial conditioning that real-world psychiatric data exhibits.
+
+dev_laplace_am_light:
+  seed: 70500
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.2
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_laplace_am_strong:
+  seed: 70501
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.4
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_laplace_am_strong_50k:
+  seed: 70502
+  N: 17000
+  replicates: 1
+  pedigree:
+    assort1: 0.4
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+# ─── Continuous-liability oracle references ───────────────────────────
+# These fit iter_reml directly on the simulated continuous liability
+# (no binarisation, no prevalence set).  They bound the best-case
+# recovery the method can reach when the binarisation information loss
+# is removed.  Seeds match the corresponding Laplace scenarios so the
+# underlying pedigree + liability draws are identical.
+
+dev_cont_n10k:
+  seed: 70102  # matched to dev_laplace_n10k
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_cont_n50k:
+  seed: 70104  # matched to dev_laplace_n50k
+  N: 17000
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_cont_h2_high:
+  seed: 70201  # matched to dev_laplace_h2_high
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.7, C: 0.1, E: 0.2 }
+
+dev_cont_am_strong:
+  seed: 70501  # matched to dev_laplace_am_strong
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.4
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+# ─── Phase 1 baselines (same parameters as corresponding laplace
+# scenarios, with liability_model=mean) for side-by-side comparison ───
+
+dev_mean_n10k:
+  seed: 70102  # matched seed to dev_laplace_n10k
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_mean_n50k:
+  seed: 70104
+  N: 17000
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_mean_am_strong:
+  seed: 70501
+  N: 3400
+  replicates: 1
+  pedigree:
+    assort1: 0.4
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
