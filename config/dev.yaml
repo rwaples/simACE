@@ -244,7 +244,7 @@ dev_mean_am_strong:
 dev_mcem_n1k:
   seed: 70101  # matched to dev_laplace_n1k
   N: 340
-  replicates: 1
+  replicates: 5
   pedigree:
     assort1: 0.0
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
@@ -252,7 +252,7 @@ dev_mcem_n1k:
 dev_mcem_K_rare:
   seed: 70400  # matched to dev_laplace_K_rare
   N: 340
-  replicates: 1
+  replicates: 5
   pedigree:
     assort1: 0.0
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
@@ -260,7 +260,7 @@ dev_mcem_K_rare:
 dev_mcem_K_common:
   seed: 70401  # matched to dev_laplace_K_common
   N: 340
-  replicates: 1
+  replicates: 5
   pedigree:
     assort1: 0.0
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
@@ -268,7 +268,7 @@ dev_mcem_K_common:
 dev_mcem_h2_low:
   seed: 70202  # matched to dev_laplace_h2_low
   N: 340
-  replicates: 1
+  replicates: 5
   pedigree:
     assort1: 0.0
     trait1: { A: 0.2, C: 0.2, E: 0.6 }
