@@ -1,6 +1,21 @@
 # Phase 4 M3.2 – M5: MCEM outer loop, wiring, validation, release
 
-**Status:** plan, 2026-04-19.  Follow-up to
+**Status (2026-04-19):**
+* M3.1 — C++ TMVN sampler + unit tests: **landed** (ace_iter_reml `34366bd`)
+* M3.2 — MCEM outer-loop driver + AI preconditioner v2: **landed**
+  (`a3e2637`, `96aaf10`, `384325f`, `b4d64c1`)
+* M3.3 — CLI + Python wrapper + Snakemake: **landed** (`0b7a3b4`,
+  `23ca8cb`)
+* M3.4 — Integration tests: **partial**; smoke + rejection tests pass,
+  Python↔C++ cross-check deferred (requires bridge-sampled logLik)
+* M4 — Dev-grid validation: **partial failure**; MCEM diverges on
+  every real pedigree fixture.  See
+  `notes/iter_reml_phase4_m4_findings.md`.  Laplace + Mean +
+  Continuous all pass ship-gate with 0% divergence.
+* M5 — Release + docs: **partial**; Laplace shipped as default for
+  v2026.04.  MCEM held as experimental, infrastructure kept for v2.
+
+**Follow-up to**
 `iter_reml_binary_phase4_mcem.plan.md` and the M3.1 landing
 (ace_iter_reml `34366bd` — C++ TMVN sampler primitive + unit tests).
 

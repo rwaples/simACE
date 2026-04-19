@@ -153,3 +153,20 @@ In rough order.  See `git log fitace/ace_iter_reml` for details.
 
 These are small polish items.  Algorithm and tooling are
 production-ready.
+
+## Phase 4 (MCEM) status — informational
+
+Phase 4 MCEM was implemented on top of Phase 3 as a potential rare-K
+replacement for Laplace (`liability_model="mcem"`), but v1
+**diverges on real pedigree fixtures** despite passing synthetic
+diagonal-V unit tests in both the C++ port and the Python reference.
+Root cause is a β̂-drift / step-rule interaction on correlated V
+(Fisher info for σ²_C is small under binary outcomes + kinship).
+See `notes/iter_reml_phase4_m4_findings.md` for the complete
+diagnosis.
+
+For v2026.04 **Laplace remains the recommended binary-trait path**;
+MCEM is kept in-tree as experimental with unit tests + CLI + an
+integration-test skeleton ready for a v2 step-rule re-visit.
+Dev-grid MCEM scenarios live in `config/dev.yaml` as regression
+vehicles for the follow-up work.
