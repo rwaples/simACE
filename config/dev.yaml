@@ -234,3 +234,41 @@ dev_mean_am_strong:
   pedigree:
     assort1: 0.4
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+# ─── MCEM scenarios (Phase 4 M4 validation) ───────────────────────────
+# Seeds matched to corresponding Laplace scenarios so pedigree +
+# liability draws are identical — head-to-head bias comparison is
+# valid.  Smaller N (→ ~1k post-pedigree) keeps the v1 MCEM within
+# the dense-V⁻¹ n ≤ 2000 cap.
+
+dev_mcem_n1k:
+  seed: 70101  # matched to dev_laplace_n1k
+  N: 340
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_mcem_K_rare:
+  seed: 70400  # matched to dev_laplace_K_rare
+  N: 340
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_mcem_K_common:
+  seed: 70401  # matched to dev_laplace_K_common
+  N: 340
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+
+dev_mcem_h2_low:
+  seed: 70202  # matched to dev_laplace_h2_low
+  N: 340
+  replicates: 1
+  pedigree:
+    assort1: 0.0
+    trait1: { A: 0.2, C: 0.2, E: 0.6 }
