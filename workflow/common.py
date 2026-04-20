@@ -1,233 +1,75 @@
-"""Shared helpers for the ACE Snakemake workflows."""
+"""Snakemake-specific helpers for the simACE workflow.
 
-import glob
-import os
-import re
+Config resolution (flattening, validation, accessors) lives in
+``simace.config`` so that fitACE can consume the same sim-side state without
+duplicating YAML files.  This module only holds helpers that depend on
+Snakemake-specific concerns: resource scaling, plot-filename lists, and
+per-scenario/per-folder output collectors.
+"""
 
-import yaml
+from __future__ import annotations
 
-# ---------------------------------------------------------------------------
-# Hierarchical config → flat internal key mapping
-# ---------------------------------------------------------------------------
-
-_HIERARCHICAL_TO_FLAT = {
-    # pedigree section
-    ("pedigree", "mating_lambda"): "mating_lambda",
-    ("pedigree", "p_mztwin"): "p_mztwin",
-    ("pedigree", "assort1"): "assort1",
-    ("pedigree", "assort2"): "assort2",
-    ("pedigree", "assort_matrix"): "assort_matrix",
-    ("pedigree", "trait1", "A"): "A1",
-    ("pedigree", "trait1", "C"): "C1",
-    ("pedigree", "trait1", "E"): "E1",
-    ("pedigree", "trait2", "A"): "A2",
-    ("pedigree", "trait2", "C"): "C2",
-    ("pedigree", "trait2", "E"): "E2",
-    ("pedigree", "rA"): "rA",
-    ("pedigree", "rC"): "rC",
-    ("pedigree", "rE"): "rE",
-    # phenotype section
-    ("phenotype", "trait1", "model"): "phenotype_model1",
-    ("phenotype", "trait1", "params"): "phenotype_params1",
-    ("phenotype", "trait1", "beta"): "beta1",
-    ("phenotype", "trait1", "beta_sex"): "beta_sex1",
-    ("phenotype", "trait1", "prevalence"): "prevalence1",
-    ("phenotype", "trait2", "model"): "phenotype_model2",
-    ("phenotype", "trait2", "params"): "phenotype_params2",
-    ("phenotype", "trait2", "beta"): "beta2",
-    ("phenotype", "trait2", "beta_sex"): "beta_sex2",
-    ("phenotype", "trait2", "prevalence"): "prevalence2",
-    # censoring section
-    ("censoring", "max_age"): "censor_age",
-    ("censoring", "gen_censoring"): "gen_censoring",
-    ("censoring", "death_scale"): "death_scale",
-    ("censoring", "death_rho"): "death_rho",
-    # sampling section
-    ("sampling", "N_sample"): "N_sample",
-    ("sampling", "case_ascertainment_ratio"): "case_ascertainment_ratio",
-    ("sampling", "pedigree_dropout_rate"): "pedigree_dropout_rate",
-    # analysis section
-    ("analysis", "max_degree"): "max_degree",
-    ("analysis", "estimate_inbreeding"): "estimate_inbreeding",
-}
-
-_SECTION_KEYS = frozenset(
-    {
-        "pedigree",
-        "phenotype",
-        "censoring",
-        "sampling",
-        "analysis",
-    }
+from simace.config import (
+    KNOWN_SIM_KEYS,
+    flatten_hierarchical,
+    get_all_folders,
+    get_folder,
+    get_param,
+    get_scenarios_for_folder,
+    resolve_defaults,
+    resolve_scenarios,
 )
 
-# Precompute valid intermediate prefixes for recursive traversal
-_VALID_PREFIXES = frozenset(path[:i] for path in _HIERARCHICAL_TO_FLAT for i in range(1, len(path)))
+# Re-export names used directly by Snakemake rule files and existing tests.
+__all__ = [
+    "KNOWN_SIM_KEYS",
+    "_PHENOTYPE_BASENAMES",
+    "_VALIDATION_BASENAMES",
+    "_scale_mem",
+    "_scale_runtime",
+    "flatten_hierarchical",
+    "get_all_folders",
+    "get_folder",
+    "get_folder_validations",
+    "get_param",
+    "get_scenario_sim_outputs",
+    "get_scenarios_for_folder",
+    "load_folder_configs",
+    "plot_filenames",
+    "resolve_defaults",
+    "resolve_scenarios",
+]
 
 
-def _flatten_section(flat, prefix, d):
-    """Recursively walk a section dict, applying the mapping table."""
-    for key, value in d.items():
-        path = (*prefix, key)
-        if path in _HIERARCHICAL_TO_FLAT:
-            flat[_HIERARCHICAL_TO_FLAT[path]] = value
-        elif path in _VALID_PREFIXES and isinstance(value, dict):
-            _flatten_section(flat, path, value)
-        else:
-            raise ValueError(f"Unknown hierarchical config key: {'.'.join(path)}")
+def load_folder_configs(config: dict, config_dir: str = "config") -> None:
+    """Populate ``config['defaults']`` and ``config['scenarios']`` in place.
 
+    Snakemake-facing wrapper over ``simace.config.resolve_defaults`` and
+    ``resolve_scenarios``.  The input ``config`` is the dict Snakemake builds
+    from ``configfile:`` (so ``config['defaults']`` is already present, in
+    hierarchical YAML form); this function flattens it and loads scenario
+    files alongside.
 
-def _flatten_hierarchical(d):
-    """Flatten a hierarchical config dict to flat internal keys.
-
-    Accepts both flat (legacy) and hierarchical formats. If no section keys
-    are detected, returns *d* unchanged. Mixed flat+hierarchical for the
-    same parameter raises ``ValueError``.
+    Args:
+        config: the mutable Snakemake config dict.
+        config_dir: directory containing ``_default.yaml`` + per-folder YAMLs.
     """
-    if not any(k in _SECTION_KEYS for k in d):
-        return d
-
-    top_level = {}
-    section_flat = {}
-    for key, value in d.items():
-        if key not in _SECTION_KEYS:
-            top_level[key] = value
-        else:
-            _flatten_section(section_flat, (key,), value)
-
-    overlap = set(top_level) & set(section_flat)
-    if overlap:
-        raise ValueError(f"Config keys specified in both flat and hierarchical form: {sorted(overlap)}")
-
-    return {**top_level, **section_flat}
+    config["defaults"] = flatten_hierarchical(config["defaults"])
+    config["scenarios"] = resolve_scenarios(config_dir, defaults=config["defaults"])
 
 
-def load_folder_configs(config, config_dir="config"):
-    """Load per-folder scenario YAML files and merge into config['scenarios'].
-
-    Each file ``config/{folder}.yaml`` contains bare scenario dicts (no wrapper
-    key).  The folder name is inferred from the filename stem.  An explicit
-    ``folder`` key inside a scenario overrides the inferred name.
-
-    Raises ``ValueError`` on duplicate scenario names, unknown parameter keys,
-    or invalid folder names.
-    """
-    config.setdefault("scenarios", {})
-    config["defaults"] = _flatten_hierarchical(config["defaults"])
-    valid_defaults = set(config["defaults"].keys())
-    folder_pattern = re.compile(r"^[a-zA-Z0-9_]+$")
-
-    for path in sorted(glob.glob(os.path.join(config_dir, "*.yaml"))):
-        if os.path.basename(path).startswith("_"):
-            continue
-
-        folder = os.path.splitext(os.path.basename(path))[0]
-        if not folder_pattern.match(folder):
-            raise ValueError(f"Invalid folder name '{folder}' from {path}. Must match [a-zA-Z0-9_]+")
-
-        with open(path) as fh:
-            scenarios = yaml.safe_load(fh)
-        if scenarios is None:
-            continue
-
-        for name, params in scenarios.items():
-            if name in config["scenarios"]:
-                raise ValueError(f"Duplicate scenario '{name}': already defined, also found in {path}")
-            params = _flatten_hierarchical(params)
-            unknown = set(params.keys()) - valid_defaults
-            if unknown:
-                raise ValueError(
-                    f"Scenario '{name}' in {path} has unknown keys: "
-                    f"{sorted(unknown)}. Valid keys: {sorted(valid_defaults)}"
-                )
-            if "folder" not in params:
-                params["folder"] = folder
-            config["scenarios"][name] = params
-
-    _validate_phenotype_config(config)
-
-
-_VALID_MODEL_FAMILIES = {"frailty", "cure_frailty", "adult", "first_passage"}
-_VALID_DISTRIBUTIONS = {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
-_VALID_METHODS = {"ltm", "cox"}
-
-
-def _validate_phenotype_config(config):
-    """Validate phenotype model configuration for all scenarios at DAG construction time."""
-    for name, params in config.get("scenarios", {}).items():
-        for trait_num in (1, 2):
-            model_key = f"phenotype_model{trait_num}"
-            params_key = f"phenotype_params{trait_num}"
-            model = params.get(model_key, config["defaults"].get(model_key))
-            pp = params.get(params_key, config["defaults"].get(params_key, {}))
-
-            if model not in _VALID_MODEL_FAMILIES:
-                raise ValueError(
-                    f"Scenario '{name}': {model_key}={model!r} is not valid. "
-                    f"Choose from: {sorted(_VALID_MODEL_FAMILIES)}"
-                )
-
-            if model in ("frailty", "cure_frailty"):
-                if "distribution" not in pp:
-                    raise ValueError(
-                        f"Scenario '{name}': {params_key} for model '{model}' must include 'distribution' key"
-                    )
-                if pp["distribution"] not in _VALID_DISTRIBUTIONS:
-                    raise ValueError(
-                        f"Scenario '{name}': {params_key} distribution="
-                        f"{pp['distribution']!r} invalid; "
-                        f"valid: {sorted(_VALID_DISTRIBUTIONS)}"
-                    )
-
-            if model == "adult":
-                if "method" not in pp:
-                    raise ValueError(
-                        f"Scenario '{name}': {params_key} for model 'adult' "
-                        f"must include 'method' key (valid: {sorted(_VALID_METHODS)})"
-                    )
-                if pp["method"] not in _VALID_METHODS:
-                    raise ValueError(
-                        f"Scenario '{name}': {params_key} method="
-                        f"{pp['method']!r} invalid; "
-                        f"valid: {sorted(_VALID_METHODS)}"
-                    )
-
-
-def get_param(config, scenario, param):
-    """Get parameter value, falling back to defaults if not specified in scenario."""
-    scenario_config = config["scenarios"].get(scenario, {})
-    if param in scenario_config:
-        return scenario_config[param]
-    return config["defaults"][param]
-
-
-def _scale_mem(config, scenario, gen_key="G_pheno", mb_per_1k=2, floor=4000):
+def _scale_mem(config: dict, scenario: str, gen_key: str = "G_pheno", mb_per_1k: int = 2, floor: int = 4000) -> int:
     """Estimate mem_mb from population size: N × G × mb_per_1k/1000, with a floor."""
     n = get_param(config, scenario, "N")
     g = get_param(config, scenario, gen_key)
     return max(floor, int(n * g * mb_per_1k / 1000))
 
 
-def _scale_runtime(config, scenario, gen_key="G_pheno", min_per_1M=5, floor=5):
+def _scale_runtime(config: dict, scenario: str, gen_key: str = "G_pheno", min_per_1M: int = 5, floor: int = 5) -> int:
     """Estimate runtime (minutes) from population size."""
     n = get_param(config, scenario, "N")
     g = get_param(config, scenario, gen_key)
     return max(floor, int(n * g * min_per_1M / 1_000_000))
-
-
-def get_folder(config, scenario):
-    """Get the folder grouping for a scenario."""
-    return get_param(config, scenario, "folder")
-
-
-def get_scenarios_for_folder(config, folder):
-    """Return scenario names assigned to the given folder."""
-    return [s for s in config["scenarios"] if get_folder(config, s) == folder]
-
-
-def get_all_folders(config):
-    """Return sorted unique folder names across all scenarios."""
-    return sorted({get_folder(config, s) for s in config["scenarios"]})
 
 
 # -- Plot filename basenames (without extension) --
@@ -298,12 +140,12 @@ _VALIDATION_BASENAMES = [
 ]
 
 
-def plot_filenames(basenames, ext="png"):
+def plot_filenames(basenames: list[str], ext: str = "png") -> list[str]:
     """Return plot filenames by appending the given extension to each basename."""
     return [f"{name}.{ext}" for name in basenames]
 
 
-def get_scenario_sim_outputs(config, scenario, plot_ext="png"):
+def get_scenario_sim_outputs(config: dict, scenario: str, plot_ext: str = "png") -> list[str]:
     """Generate simulation, validation, and plot outputs for a single scenario."""
     folder = get_folder(config, scenario)
     n_reps = get_param(config, scenario, "replicates")
@@ -321,7 +163,7 @@ def get_scenario_sim_outputs(config, scenario, plot_ext="png"):
     return outputs
 
 
-def get_folder_validations(config, folder):
+def get_folder_validations(config: dict, folder: str) -> list[str]:
     """Generate validation file paths for scenarios in a given folder."""
     validations = []
     for scenario in get_scenarios_for_folder(config, folder):

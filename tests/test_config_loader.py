@@ -1,8 +1,8 @@
-"""Unit tests for the hierarchical config flattening logic in workflow/common.py."""
+"""Unit tests for the hierarchical config flattening logic in simace.config."""
 
 import pytest
 
-from workflow.common import _flatten_hierarchical
+from simace.config import flatten_hierarchical as _flatten_hierarchical
 
 
 class TestFlattenPassthrough:
