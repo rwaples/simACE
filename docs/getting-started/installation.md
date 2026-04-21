@@ -11,7 +11,7 @@
 ```bash
 git clone <repo-url>
 cd ACE
-conda env create -f environment.yml   # creates environment and installs simace package
+conda env create -f envs/environment.yml   # creates environment and installs simace package
 conda activate ACE
 pip install -e .                       # install simace
 pip install -e fit_ace/                # install fit_ace
