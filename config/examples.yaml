@@ -1,0 +1,66 @@
+am_none:
+  seed: 70421
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+      beta: 1.0
+      beta_sex: 0.0
+      prevalence: 0.1
+am_weak:
+  seed: 70422
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    assort1: 0.2
+    assort2: 0.0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+      beta: 1.0
+      beta_sex: 0.0
+      prevalence: 0.1
+am_strong:
+  seed: 70423
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    assort1: 0.4
+    assort2: 0.0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+      beta: 1.0
+      beta_sex: 0.0
+      prevalence: 0.1

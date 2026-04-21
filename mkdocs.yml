@@ -84,6 +84,8 @@ nav:
       - ACE Model: concepts/ace-model.md
       - Simulation Design: concepts/simulation-design.md
       - Model Fitting: concepts/model-fitting.md
+  - Examples:
+      - AM and Heritability: examples/am-and-heritability.md
   - API Reference:
       - api/index.md
       - Core: api/core.md

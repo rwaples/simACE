@@ -4,8 +4,8 @@
 # External tools and data
 external/
 
-# Scripts (local benchmarks / utilities)
-scripts/
+# Scripts (local benchmarks / utilities); root-only so workflow/scripts/ stays tracked
+/scripts/
 
 # Notebooks
 notebooks/
