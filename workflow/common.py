@@ -91,6 +91,7 @@ _PHENOTYPE_BASENAMES = [
     "heritability.by_generation",
     "heritability.by_sex.by_generation",
     "additive_shared.by_generation",
+    "observed_h2",
     # Liability by affected status
     "liability_violin.phenotype",
     "liability_violin.phenotype.by_generation",

@@ -8,6 +8,7 @@ Reads a single phenotype.parquet and produces:
 from __future__ import annotations
 
 __all__ = [
+    "compute_affected_correlations",
     "compute_censoring_cascade",
     "compute_censoring_confusion",
     "compute_censoring_windows",
@@ -20,6 +21,8 @@ __all__ = [
     "compute_mate_correlation",
     "compute_mean_family_size",
     "compute_mortality",
+    "compute_observed_h2_estimators",
+    "compute_parent_offspring_affected_corr",
     "compute_parent_offspring_corr",
     "compute_parent_offspring_corr_by_sex",
     "compute_parent_status",
@@ -506,6 +509,47 @@ def compute_liability_correlations(
     return result
 
 
+def compute_affected_correlations(
+    df: pd.DataFrame,
+    seed: int = 42,
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
+) -> dict[str, Any]:
+    """Compute Pearson correlations on binary affected status per pair type and trait.
+
+    This is the phi coefficient — Pearson r on {0, 1} data — and is the input
+    to observed-scale Falconer-style h² estimators (e.g. ``2·(r_MZ − r_FS)``).
+
+    Args:
+        df: Phenotype DataFrame with ``affected{1,2}`` columns.
+        seed: Random seed (unused, kept for API consistency).
+        pairs: Pre-extracted relationship pairs; extracted if None.
+
+    Returns:
+        Dict keyed by ``trait1``/``trait2``, each mapping pair type to phi r or
+        None (if fewer than 10 pairs, or either side is constant).
+    """
+    if pairs is None:
+        pairs = extract_relationship_pairs(df)
+    result = {}
+    for trait_num in [1, 2]:
+        affected = df[f"affected{trait_num}"].values.astype(np.float64)
+        trait_result: dict[str, float | None] = {}
+        for ptype in PAIR_TYPES:
+            idx1, idx2 = pairs[ptype]
+            if len(idx1) < 10:
+                trait_result[ptype] = None
+                continue
+            a1 = affected[idx1]
+            a2 = affected[idx2]
+            # Phi r is undefined when either indicator is constant.
+            if a1.std() < 1e-12 or a2.std() < 1e-12:
+                trait_result[ptype] = None
+                continue
+            trait_result[ptype] = float(_pearsonr_core(a1, a2))
+        result[f"trait{trait_num}"] = trait_result
+    return result
+
+
 def _tetrachoric_for_pairs(
     idx1: np.ndarray,
     idx2: np.ndarray,
@@ -719,6 +763,132 @@ def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
             gen_idx = np.where(gen_arr == gen)[0]
             trait_result[f"gen{gen}"] = _po_regression(gen_idx, liability, id_to_row, df)
         result[f"trait{trait_num}"] = trait_result
+    return result
+
+
+def compute_parent_offspring_affected_corr(df: pd.DataFrame) -> dict[str, Any]:
+    """Compute pooled midparent-offspring regression on binary affected status.
+
+    Regresses ``offspring.affected`` (0/1) on midparent affected status
+    ``(mother.affected + father.affected) / 2`` (values in {0, 0.5, 1}),
+    pooled across every non-founder individual whose parents are both in the
+    DataFrame.  The regression slope is the observed-scale PO heritability
+    estimator; under LTM it can be back-transformed to liability via
+    Dempster-Lerner.
+
+    Args:
+        df: Phenotype DataFrame with ``id``, ``mother``, ``father``, and
+            ``affected{1,2}`` columns.
+
+    Returns:
+        Dict keyed ``trait1``/``trait2``, each with
+        ``{slope, r, r2, intercept, stderr, pvalue, n_pairs}``.  Values are
+        None when fewer than 10 valid trios or midparent has zero variance.
+    """
+    if "id" not in df.columns or "mother" not in df.columns or "father" not in df.columns:
+        return {}
+
+    ids_arr = df["id"].values
+    id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
+    id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
+
+    non_founder_idx = np.where(df["mother"].values >= 0)[0]
+
+    null = {
+        "r": None,
+        "r2": None,
+        "slope": None,
+        "intercept": None,
+        "stderr": None,
+        "pvalue": None,
+        "n_pairs": 0,
+    }
+
+    # Precompute valid trios once (parents present, looked up via id_to_row).
+    mother_ids_arr = df["mother"].values[non_founder_idx]
+    father_ids_arr = df["father"].values[non_founder_idx]
+    has_m = (mother_ids_arr >= 0) & (mother_ids_arr < len(id_to_row))
+    has_f = (father_ids_arr >= 0) & (father_ids_arr < len(id_to_row))
+    m_rows = np.full(len(non_founder_idx), -1, dtype=np.int32)
+    f_rows = np.full(len(non_founder_idx), -1, dtype=np.int32)
+    m_rows[has_m] = id_to_row[mother_ids_arr[has_m]]
+    f_rows[has_f] = id_to_row[father_ids_arr[has_f]]
+    valid = (m_rows >= 0) & (f_rows >= 0)
+    n_pairs = int(valid.sum())
+
+    result: dict[str, Any] = {}
+    for trait_num in [1, 2]:
+        aff_col = f"affected{trait_num}"
+        if aff_col not in df.columns:
+            result[f"trait{trait_num}"] = {**null}
+            continue
+        affected = df[aff_col].values.astype(np.float64)
+        if n_pairs < 10:
+            result[f"trait{trait_num}"] = {**null, "n_pairs": n_pairs}
+            continue
+        midparent = (affected[m_rows[valid]] + affected[f_rows[valid]]) / 2.0
+        # Zero-variance midparent (all parents concordant) gives an undefined
+        # regression; surface as None rather than 0/0.
+        if float(np.var(midparent)) < 1e-12:
+            result[f"trait{trait_num}"] = {**null, "n_pairs": n_pairs}
+            continue
+        entry = _po_regression(non_founder_idx, affected, id_to_row, df)
+        slope = entry.get("slope")
+        if slope is not None and not np.isfinite(slope):
+            entry = {**null, "n_pairs": entry.get("n_pairs", 0)}
+        result[f"trait{trait_num}"] = entry
+    return result
+
+
+def compute_observed_h2_estimators(stats: dict[str, Any]) -> dict[str, Any]:
+    """Derive five naive observed-scale h² estimators from precomputed correlations.
+
+    Reads from ``stats["affected_correlations"]`` (phi r per pair type) and
+    ``stats["parent_offspring_affected_corr"]`` (PO regression slope on binary).
+    Each estimator is a closed-form combination that, under a liability-threshold
+    model, is an unbiased estimator of ``h²_liab · z(K)²/(K(1−K))`` — i.e. the
+    observed-scale h² — where K is the affected-status prevalence.
+
+    Args:
+        stats: The in-progress stats dict with ``affected_correlations`` and
+            ``parent_offspring_affected_corr`` already populated.
+
+    Returns:
+        Dict keyed ``trait1``/``trait2``, each mapping estimator name to a
+        float or None: ``{falconer, sibs, po, hs, cousins}``.
+    """
+    aff = stats.get("affected_correlations", {}) or {}
+    po_all = stats.get("parent_offspring_affected_corr", {}) or {}
+
+    def _two_diff(r_a: Any, r_b: Any) -> float | None:
+        if r_a is None or r_b is None:
+            return None
+        return 2.0 * (float(r_a) - float(r_b))
+
+    def _scale(r: Any, factor: float) -> float | None:
+        if r is None:
+            return None
+        return factor * float(r)
+
+    def _mean_hs(r_mhs: Any, r_phs: Any) -> float | None:
+        vals = [float(v) for v in (r_mhs, r_phs) if v is not None]
+        if not vals:
+            return None
+        return 4.0 * (sum(vals) / len(vals))
+
+    result: dict[str, Any] = {}
+    for trait_num in [1, 2]:
+        key = f"trait{trait_num}"
+        rs = aff.get(key, {}) or {}
+        po_entry = po_all.get(key, {}) or {}
+        po_slope = po_entry.get("slope")
+        result[key] = {
+            "falconer": _two_diff(rs.get("MZ"), rs.get("FS")),
+            "sibs": _scale(rs.get("FS"), 2.0),
+            "po": float(po_slope) if po_slope is not None else None,
+            "hs": _mean_hs(rs.get("MHS"), rs.get("PHS")),
+            "cousins": _scale(rs.get("1C"), 8.0),
+        }
     return result
 
 
@@ -1116,8 +1286,11 @@ def main(
 
     # Fast sequential computations
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
+    stats["affected_correlations"] = compute_affected_correlations(df, seed=seed, pairs=pairs)
     stats["parent_offspring_corr"] = compute_parent_offspring_corr(df)
     stats["parent_offspring_corr_by_sex"] = compute_parent_offspring_corr_by_sex(df)
+    stats["parent_offspring_affected_corr"] = compute_parent_offspring_affected_corr(df)
+    stats["observed_h2_estimators"] = compute_observed_h2_estimators(stats)
 
     # Expensive MLE computations — run in parallel (scipy.optimize releases the GIL)
     logger.info("Computing tetrachoric correlations in parallel...")

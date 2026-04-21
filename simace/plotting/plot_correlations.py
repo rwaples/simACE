@@ -2,16 +2,13 @@
 
 Contains: plot_tetrachoric_sibling, plot_tetrachoric_by_generation,
 plot_cross_trait_tetrachoric, plot_parent_offspring_liability,
-plot_heritability_by_generation, plot_broad_heritability_by_generation.
+plot_tetrachoric_by_sex.  Heritability pages live in ``plot_heritability``.
 """
 
 from __future__ import annotations
 
 __all__ = [
-    "plot_broad_heritability_by_generation",
     "plot_cross_trait_tetrachoric",
-    "plot_heritability_by_generation",
-    "plot_heritability_by_sex_generation",
     "plot_parent_offspring_liability",
     "plot_tetrachoric_by_generation",
     "plot_tetrachoric_by_sex",
@@ -32,8 +29,8 @@ from simace.core.utils import PAIR_TYPES
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
     COLOR_OBSERVED,
-    COLOR_UNCENSORED,
     COLOR_UNAFFECTED,
+    COLOR_UNCENSORED,
     enable_value_gridlines,
 )
 from simace.plotting.plot_utils import PAIR_COLORS, draw_colored_violins, finalize_plot, save_placeholder_plot
@@ -363,7 +360,9 @@ def plot_tetrachoric_by_generation(
     has_parametric = params is not None and params.get("A1") is not None and params.get("C1") is not None
     legend_handles = [Line2D([0], [0], color="black", linestyle="--", linewidth=1.0, label="Liability r")]
     if has_parametric:
-        legend_handles.append(Line2D([0], [0], color=COLOR_AFFECTED, linestyle=":", linewidth=1.0, label="Parametric E[r]"))
+        legend_handles.append(
+            Line2D([0], [0], color=COLOR_AFFECTED, linestyle=":", linewidth=1.0, label="Parametric E[r]")
+        )
     axes[0, -1].legend(
         handles=legend_handles,
         loc="upper right",
@@ -418,7 +417,14 @@ def plot_cross_trait_tetrachoric(
 
         mean_rs = [np.mean(gen_data[g]) for g in generations]
         ax_left.plot(
-            generations, mean_rs, color=COLOR_OBSERVED, linewidth=1.2, marker="o", markersize=5, zorder=6, label="Per-gen mean"
+            generations,
+            mean_rs,
+            color=COLOR_OBSERVED,
+            linewidth=1.2,
+            marker="o",
+            markersize=5,
+            zorder=6,
+            label="Per-gen mean",
         )
 
         # Overall same-person r (averaged across reps)
@@ -757,165 +763,12 @@ def plot_parent_offspring_liability(
         Line2D([0], [0], color=COLOR_MALE, linewidth=1.2, label="Sons"),
     ]
     if has_any_expected:
-        legend_handles.append(Line2D([0], [0], color=COLOR_UNAFFECTED, linestyle="--", linewidth=1.0, label="Expected (A)"))
+        legend_handles.append(
+            Line2D([0], [0], color=COLOR_UNAFFECTED, linestyle="--", linewidth=1.0, label="Expected (A)")
+        )
     axes[0, -1].legend(handles=legend_handles, loc="lower right", fontsize=8)
 
     finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
-
-
-def plot_heritability_by_generation(
-    all_validations: list[dict[str, Any]],
-    output_path: str | Path,
-    scenario: str = "",
-) -> None:
-    """Plot narrow-sense heritability h² = Var(A)/(Var(A)+Var(C)+Var(E)) per generation.
-
-    Uses per-generation variance components from validation.yaml.
-    """
-    # Extract per-generation data from each replicate
-    per_gen_all = [v.get("per_generation", {}) for v in all_validations]
-    if not per_gen_all or not per_gen_all[0]:
-        save_placeholder_plot(output_path, "No per-generation data")
-        return
-
-    # Determine generations from first replicate
-    gen_keys = sorted(per_gen_all[0].keys(), key=lambda k: int(k.split("_")[1]))
-    generations = [int(k.split("_")[1]) for k in gen_keys]
-
-    # Get configured heritability (expected value) from first replicate's parameters
-    params = all_validations[0].get("parameters", {})
-    expected_h2 = {1: params.get("A1", None), 2: params.get("A2", None)}
-
-    _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-
-    for col, trait_num in enumerate([1, 2]):
-        ax = axes[col]
-        a_key = f"A{trait_num}_var"
-        c_key = f"C{trait_num}_var"
-        e_key = f"E{trait_num}_var"
-
-        # Compute h² for each replicate and generation
-        h2_per_rep = []
-        for pg in per_gen_all:
-            rep_h2 = []
-            for gk in gen_keys:
-                gs = pg.get(gk, {})
-                a_var = gs.get(a_key, 0)
-                c_var = gs.get(c_key, 0)
-                e_var = gs.get(e_key, 0)
-                total = a_var + c_var + e_var
-                rep_h2.append(a_var / total if total > 0 else np.nan)
-            h2_per_rep.append(rep_h2)
-
-        h2_arr = np.array(h2_per_rep)  # shape (n_reps, n_gens)
-
-        # Plot per-replicate dots
-        for rep_idx in range(h2_arr.shape[0]):
-            jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08, len(generations))
-            ax.scatter(
-                np.array(generations) + jitter,
-                h2_arr[rep_idx],
-                color=COLOR_OBSERVED,
-                alpha=0.9,
-                s=25,
-                zorder=5,
-            )
-
-        # Expected heritability reference line
-        exp = expected_h2.get(trait_num)
-        if exp is not None:
-            ax.axhline(
-                y=exp, color=COLOR_UNAFFECTED, linestyle="--", linewidth=1.0, alpha=0.7, label=f"Parametric A{trait_num} = {exp}"
-            )
-            ax.legend(loc="lower left", fontsize=9)
-
-        ax.set_xlabel("Generation")
-        ax.set_ylabel("h\u00b2 = Var(A) / Var(L)")
-        ax.set_title(f"Trait {trait_num}")
-        ax.set_xticks(generations)
-        ax.set_ylim(0, 1)
-
-        enable_value_gridlines(ax)
-
-    finalize_plot(output_path, scenario=scenario)
-
-
-def plot_broad_heritability_by_generation(
-    all_validations: list[dict[str, Any]],
-    output_path: str | Path,
-    scenario: str = "",
-) -> None:
-    """Plot broad-sense heritability H² = (Var(A)+Var(C))/(Var(A)+Var(C)+Var(E)) per generation."""
-    per_gen_all = [v.get("per_generation", {}) for v in all_validations]
-    if not per_gen_all or not per_gen_all[0]:
-        save_placeholder_plot(output_path, "No per-generation data")
-        return
-
-    gen_keys = sorted(per_gen_all[0].keys(), key=lambda k: int(k.split("_")[1]))
-    generations = [int(k.split("_")[1]) for k in gen_keys]
-
-    params = all_validations[0].get("parameters", {})
-    expected_H2 = {}
-    for t in [1, 2]:
-        a = params.get(f"A{t}")
-        c = params.get(f"C{t}")
-        if a is not None and c is not None:
-            expected_H2[t] = a + c
-
-    _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-
-    for col, trait_num in enumerate([1, 2]):
-        ax = axes[col]
-        a_key = f"A{trait_num}_var"
-        c_key = f"C{trait_num}_var"
-        e_key = f"E{trait_num}_var"
-
-        H2_per_rep = []
-        for pg in per_gen_all:
-            rep_H2 = []
-            for gk in gen_keys:
-                gs = pg.get(gk, {})
-                a_var = gs.get(a_key, 0)
-                c_var = gs.get(c_key, 0)
-                e_var = gs.get(e_key, 0)
-                total = a_var + c_var + e_var
-                rep_H2.append((a_var + c_var) / total if total > 0 else np.nan)
-            H2_per_rep.append(rep_H2)
-
-        H2_arr = np.array(H2_per_rep)
-
-        for rep_idx in range(H2_arr.shape[0]):
-            jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08, len(generations))
-            ax.scatter(
-                np.array(generations) + jitter,
-                H2_arr[rep_idx],
-                color=COLOR_OBSERVED,
-                alpha=0.9,
-                s=25,
-                zorder=5,
-            )
-
-        exp = expected_H2.get(trait_num)
-        if exp is not None:
-            ax.axhline(
-                y=exp,
-                color=COLOR_UNAFFECTED,
-                linestyle="--",
-                linewidth=1.0,
-                alpha=0.7,
-                label=f"Parametric A{trait_num}+C{trait_num} = {exp}",
-            )
-            ax.legend(loc="lower left", fontsize=9)
-
-        ax.set_xlabel("Generation")
-        ax.set_ylabel("(Var(A)+Var(C)) / Var(L)")
-        ax.set_title(f"Trait {trait_num}")
-        ax.set_xticks(generations)
-        ax.set_ylim(0, 1)
-
-        enable_value_gridlines(ax)
-
-    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_tetrachoric_by_sex(
@@ -1032,94 +885,5 @@ def plot_tetrachoric_by_sex(
     for row in range(axes.shape[0]):
         for col in range(axes.shape[1]):
             enable_value_gridlines(axes[row, col])
-
-    finalize_plot(output_path, scenario=scenario)
-
-
-def plot_heritability_by_sex_generation(
-    all_stats: list[dict[str, Any]],
-    output_path: str | Path,
-    scenario: str = "",
-    params: dict[str, Any] | None = None,
-) -> None:
-    """Plot PO-regression heritability by offspring sex and generation.
-
-    1x2 panel (one per trait). Each panel shows per-rep h² dots in two
-    series: daughters (green) and sons (blue).
-    """
-    from simace.plotting.plot_style import COLOR_FEMALE, COLOR_MALE
-
-    has_data = any(s.get("parent_offspring_corr_by_sex") for s in all_stats)
-    if not has_data:
-        save_placeholder_plot(output_path, "No sex-stratified PO regression data")
-        return
-
-    # Discover generations from data
-    gen_set: set[int] = set()
-    for s in all_stats:
-        po_sex = s.get("parent_offspring_corr_by_sex", {})
-        for sex_key in ["female", "male"]:
-            for trait_key in ["trait1", "trait2"]:
-                for gk in po_sex.get(sex_key, {}).get(trait_key, {}):
-                    gen_set.add(int(gk.replace("gen", "")))
-    if not gen_set:
-        save_placeholder_plot(output_path, "No generation data in PO sex stats")
-        return
-    generations = sorted(gen_set)
-
-    _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-
-    for col, trait_num in enumerate([1, 2]):
-        ax = axes[col]
-        trait_key = f"trait{trait_num}"
-
-        for sex_key, sex_display, color in [
-            ("female", "Daughters", COLOR_FEMALE),
-            ("male", "Sons", COLOR_MALE),
-        ]:
-            for rep_idx, s in enumerate(all_stats):
-                po_data = s.get("parent_offspring_corr_by_sex", {}).get(sex_key, {}).get(trait_key, {})
-                h2_vals = []
-                gen_vals = []
-                for gen in generations:
-                    entry = po_data.get(f"gen{gen}", {})
-                    slope = entry.get("slope")
-                    if slope is not None:
-                        h2_vals.append(slope)
-                        gen_vals.append(gen)
-                if h2_vals:
-                    jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08, len(gen_vals))
-                    ax.scatter(
-                        np.array(gen_vals) + jitter,
-                        h2_vals,
-                        color=color,
-                        alpha=0.8,
-                        s=25,
-                        zorder=5,
-                        label=sex_display if rep_idx == 0 else None,
-                    )
-
-        # Parametric expected h²
-        if params is not None:
-            exp = params.get(f"A{trait_num}")
-            if exp is not None:
-                ax.axhline(
-                    y=exp,
-                    color=COLOR_UNAFFECTED,
-                    linestyle="--",
-                    linewidth=1.0,
-                    alpha=0.7,
-                    label=f"Parametric A{trait_num} = {exp}",
-                )
-
-        ax.set_xlabel("Generation")
-        ax.set_ylabel("h\u00b2 (PO regression slope)")
-        ax.set_title(f"Trait {trait_num}")
-        ax.set_xticks(generations)
-        ax.set_ylim(0, 1)
-        ax.legend(loc="lower left", fontsize=9)
-
-    for ax in axes:
-        enable_value_gridlines(ax)
 
     finalize_plot(output_path, scenario=scenario)

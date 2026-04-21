@@ -49,8 +49,7 @@ _FAMILY_DESC: dict[str, str] = {
         "cox": "Ranking for case status, stochastic Weibull CIP for age-at-onset",
     },
     "first_passage": (
-        "Inverse Gaussian FPT: liability scales initial distance y\u2080 to boundary; "
-        "drift \u03bc controls progression"
+        "Inverse Gaussian FPT: liability scales initial distance y\u2080 to boundary; drift \u03bc controls progression"
     ),
 }
 
@@ -131,7 +130,9 @@ def _equation_lines_for_model(model: str, pp: dict, label: str = "") -> list[str
             ]
         if method == "cox":
             return [
-                r"$" + prefix + r"t_{\mathrm{raw}} = \sqrt{-\ln U \,/\, e^{L}},"
+                r"$"
+                + prefix
+                + r"t_{\mathrm{raw}} = \sqrt{-\ln U \,/\, e^{L}},"
                 + r" \quad U \sim \mathrm{Uniform}(0,1]$",
                 r"$\mathrm{case\!:}\ \mathrm{CIP}_{\mathrm{rank}} < K, \qquad"
                 + r" t = x_0 + \frac{1}{k}\ln\!\frac{\mathrm{CIP}}{K - \mathrm{CIP}}$",
@@ -271,26 +272,42 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Orange dashed line marks the parametric value (A + C)."
     ),
     # -- Liability by affected status --
+    "observed_h2": (
+        "Figure 10: Observed-scale heritability from binary affected status.\n\n"
+        "2\u00d72 grid: rows = traits, columns = scale. Left column: observed-scale "
+        "h\u00b2 estimators computed directly from Pearson correlations on binary "
+        "affected indicators \u2014 Falconer 2(r_MZ \u2212 r_FS), Sibs 2\u00b7r_FS, "
+        "PO (midparent-offspring regression on binary affected status), "
+        "Half-sibs 4\u00b7mean(r_MHS, r_PHS), Cousins 8\u00b7r_1C. Blue per-rep "
+        "dots at each estimator; grey dotted line marks the Dempster\u2013Lerner expected "
+        "value A\u00b7z(K)\u00b2/(K\u00b7(1\u2212K)) at the mean observed prevalence K. "
+        "Right column: same per-rep estimates back-transformed to the liability scale "
+        "via h\u00b2_liab = h\u00b2_obs \u00b7 K(1\u2212K)/z(K)\u00b2. The D\u2013L correction "
+        "assumes a threshold-normal (LTM) mapping from liability to affected status; "
+        "it is biased under non-threshold phenotype models such as pure frailty "
+        "(see docs/examples/observed-vs-liability-h2.md)."
+    ),
+    # -- Liability by affected status --
     "liability_violin.phenotype": (
-        "Figure 10: Liability violin plots by affected status (survival model).\n\n"
+        "Figure 11: Liability violin plots by affected status (survival model).\n\n"
         "Split violin plots, one per trait. Left half = unaffected, right half = affected. "
         "Diamond markers show mean liability for each group with \u03bc annotations. "
         "Prevalence annotated below each trait."
     ),
     "liability_violin.phenotype.by_generation": (
-        "Figure 11: Liability violin plots by generation (survival model).\n\n"
+        "Figure 12: Liability violin plots by generation (survival model).\n\n"
         "Grid: rows = traits, columns = recorded generations. Split violins for affected vs. "
         "unaffected within each generation. Diamond markers and \u03bc annotations show per-group "
         "means. x-axis labels show observed generation-specific prevalence."
     ),
     "liability_violin.phenotype.by_sex.by_generation": (
-        "Figure 12: Liability violin plots by sex and generation (survival model).\n\n"
+        "Figure 13: Liability violin plots by sex and generation (survival model).\n\n"
         "Grid: rows = traits, columns = generations. Each cell has side-by-side "
         "split violins for female (left) and male (right), each showing "
         "unaffected vs. affected distribution. Sex-specific prevalence annotated."
     ),
     "liability_components.by_generation": (
-        "Figure 13: Liability components by generation.\n\n"
+        "Figure 14: Liability components by generation.\n\n"
         "2\u00d73 grid: rows = traits, columns = variance components (A, C, E). "
         "Each panel shows the mean component value among affected (red), unaffected "
         "(grey), and overall (black) individuals per generation. "
@@ -302,33 +319,33 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
     ),
     # -- Survival phenotype & censoring --
     "age_at_onset_death": (
-        "Figure 14: Age-at-onset and death-age histograms.\n\n"
+        "Figure 15: Age-at-onset and death-age histograms.\n\n"
         "A 2\u00d72 grid, rows = traits 1 and 2. Left column shows density histograms "
         "of observed age-at-onset for affected individuals (\u03b4 = 1). Right column shows "
         "age-at-death histograms for death-censored unaffected individuals."
     ),
     "mortality": (
-        "Figure 15: Mortality rate by decade.\n\n"
+        "Figure 16: Mortality rate by decade.\n\n"
         "Two-panel figure. Left panel shows per-decade mortality rate "
         "(deaths in decade / alive at start of decade), averaged across replicates. "
         "Right panel shows cumulative mortality, "
         "with cumulative survival probability annotated above each bar."
     ),
     "cumulative_incidence.by_sex": (
-        "Figure 16: Cumulative incidence by sex.\n\n"
+        "Figure 17: Cumulative incidence by sex.\n\n"
         "Two-panel figure, one per trait. Green line = female (sex=0), blue line = male "
         "(sex=1) observed cumulative incidence. Legend shows sample size and prevalence "
         "per sex. Statistics computed on full (non-subsampled) data."
     ),
     "cumulative_incidence.by_sex.by_generation": (
-        "Figure 17: Cumulative incidence by sex and generation.\n\n"
+        "Figure 18: Cumulative incidence by sex and generation.\n\n"
         "Grid: rows = traits, columns = generations. Each panel shows cumulative incidence "
         "curves for female (green) and male (blue) separately. Legend shows per-sex sample "
         "size and prevalence within each generation. Statistics computed on full "
         "(non-subsampled) data."
     ),
     "cumulative_incidence.phenotype": (
-        "Figure 18: Cumulative incidence curves.\n\n"
+        "Figure 19: Cumulative incidence curves.\n\n"
         "Two-panel figure, one per trait. Blue solid line = observed cumulative incidence "
         "from censored data (with min-max band across replicates). Grey solid line = true "
         "cumulative incidence from uncensored event times. Grey dashed crosshairs mark the "
@@ -336,14 +353,14 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Text box shows affected %, true prevalence %, and censored %."
     ),
     "censoring": (
-        "Figure 19: Censoring windows by generation.\n\n"
+        "Figure 20: Censoring windows by generation.\n\n"
         "Grid of panels: rows = traits, columns = generations. Grey line = true cumulative "
         "incidence, blue line = observed cumulative incidence. Text box shows affected %, "
         "left-censored %, right-censored %, and death-censored % per generation. Column "
         "titles show observation window [lo, hi]."
     ),
     "censoring_confusion": (
-        "Figure 20: Censoring confusion matrix.\n\n"
+        "Figure 21: Censoring confusion matrix.\n\n"
         "Per-trait 2\u00d72 confusion matrix comparing true affected status "
         "(event time < censor_age, from raw simulated times) vs. observed affected "
         "status (after generation-window and death censoring). "
@@ -354,7 +371,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Statistics computed on full (non-subsampled) data."
     ),
     "censoring_cascade": (
-        "Figure 21: Censoring cascade.\n\n"
+        "Figure 22: Censoring cascade.\n\n"
         "Per-trait stacked bar chart decomposing true cases (event time < censor_age) "
         "by generation into four mutually exclusive fates: observed (green), "
         "death-censored (red), right-censored (purple), and left-truncated (orange). "
@@ -364,7 +381,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Statistics computed on full (non-subsampled) data."
     ),
     "liability_vs_aoo": (
-        "Figure 22: Liability vs. age-at-onset.\n\n"
+        "Figure 23: Liability vs. age-at-onset.\n\n"
         "Side-by-side joint plots, one per trait. Central scatter of liability (x) vs. "
         "observed age-at-onset (y) for affected individuals, with regression line and "
         "95% CI band. Annotations show slope \u00b1 SE, Pearson r, n, and p-value, "
@@ -372,7 +389,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
     ),
     # -- Within-trait correlations --
     "tetrachoric.phenotype": (
-        "Figure 23: Tetrachoric correlations by relationship type (survival model).\n\n"
+        "Figure 24: Tetrachoric correlations by relationship type (survival model).\n\n"
         "Two-panel figure, one per trait. Coloured violins show the distribution of "
         "tetrachoric correlations (computed from censored binary affected status) across "
         "replicates for each relationship type. "
@@ -386,34 +403,34 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "0.5\u00b7A for parent\u2013offspring). N = mean pairs per replicate."
     ),
     "tetrachoric.phenotype.by_sex": (
-        "Figure 24: Tetrachoric correlations by sex (survival model).\n\n"
+        "Figure 25: Tetrachoric correlations by sex (survival model).\n\n"
         "2\u00d72 grid: rows = traits, columns = sex (female, male). Same encoding as "
-        "Figure 22: coloured violins show observed tetrachoric correlations for "
+        "Figure 23: coloured violins show observed tetrachoric correlations for "
         "same-sex pairs only (FF or MM). Black dashed = liability correlation, "
         "red dotted = parametric E[r]. Opposite-sex pairs are excluded."
     ),
     "tetrachoric.phenotype.by_generation": (
-        "Figure 25: Tetrachoric correlations by generation (survival model).\n\n"
-        "Grid: rows = traits, columns = generations. Same encoding as Figure 22 "
+        "Figure 26: Tetrachoric correlations by generation (survival model).\n\n"
+        "Grid: rows = traits, columns = generations. Same encoding as Figure 23 "
         "(violins = observed tetrachoric correlations, black dashed = true liability "
         "correlations, red dotted = parametric E[r], dots = per-replicate estimates), "
         "computed within each generation separately."
     ),
     # -- Cross-trait correlations --
     "cross_trait.phenotype": (
-        "Figure 26: Cross-trait liability joint plots coloured by affected status (trait 1).\n\n"
+        "Figure 27: Cross-trait liability joint plots coloured by affected status (trait 1).\n\n"
         "Same 2\u00d72 layout as Figure 5, but with affected-status colouring based on trait 1. "
         "Blue points = unaffected, orange points = affected (trait 1). Marginal histograms stacked "
         "by affected status."
     ),
     "cross_trait.phenotype.t2": (
-        "Figure 27: Cross-trait liability joint plots coloured by affected status (trait 2).\n\n"
+        "Figure 28: Cross-trait liability joint plots coloured by affected status (trait 2).\n\n"
         "Same 2\u00d72 layout as Figure 5, but with affected-status colouring based on trait 2. "
         "Blue points = unaffected, orange points = affected (trait 2). Marginal histograms stacked "
         "by affected status."
     ),
     "joint_affected.phenotype": (
-        "Figure 28: Joint affected status heatmap (survival model).\n\n"
+        "Figure 29: Joint affected status heatmap (survival model).\n\n"
         "2\u00d72 heatmap of joint affected status across both traits. Cell annotations "
         "show proportion and count. Title shows cross-trait correlation estimates: "
         "'r_tet' = tetrachoric correlation on censored binary affected status; "
@@ -424,7 +441,7 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
         "Statistics computed on full (non-subsampled) data."
     ),
     "cross_trait_tetrachoric": (
-        "Figure 29: Cross-trait tetrachoric correlations.\n\n"
+        "Figure 30: Cross-trait tetrachoric correlations.\n\n"
         "Two-panel figure measuring cross-trait association via tetrachoric "
         "correlation between affected1 and affected2. "
         "Left panel: same-person cross-trait r by generation (blue dots per rep, "
@@ -439,40 +456,40 @@ PHENOTYPE_CAPTIONS: dict[str, str] = {
 # prevalence -> liability -> correlations.
 SIMPLE_LTM_CAPTIONS: dict[str, str] = {
     "prevalence_by_generation": (
-        "Figure 30: Prevalence by generation (threshold model).\n\n"
+        "Figure 31: Prevalence by generation (threshold model).\n\n"
         "Bar chart comparing observed vs. configured prevalence per generation and trait. "
         "Configured values shown as reference markers."
     ),
     "cross_trait.simple_ltm": (
-        "Figure 31: Cross-trait liability joint plot (threshold model).\n\n"
+        "Figure 32: Cross-trait liability joint plot (threshold model).\n\n"
         "Scatter of trait 1 vs. trait 2 liability coloured by threshold affected status."
     ),
     "liability_violin.simple_ltm": (
-        "Figure 32: Liability violin plots by affected status (threshold model).\n\n"
+        "Figure 33: Liability violin plots by affected status (threshold model).\n\n"
         "Split violins showing liability for affected vs. unaffected under the threshold "
         "model. Diamond mean markers with \u03bc annotations and prevalence text."
     ),
     "liability_violin.simple_ltm.by_generation": (
-        "Figure 33: Liability violin plots by generation (threshold model).\n\n"
+        "Figure 34: Liability violin plots by generation (threshold model).\n\n"
         "Per-generation split violins with configured prevalence annotated. Same encoding "
-        "as Figure 10 but for the liability-threshold phenotype."
+        "as Figure 11 but for the liability-threshold phenotype."
     ),
     "joint_affected.simple_ltm": (
-        "Figure 34: Joint affected status heatmap (threshold model).\n\n"
+        "Figure 35: Joint affected status heatmap (threshold model).\n\n"
         "2\u00d72 heatmap of joint affected status proportions and counts with tetrachoric "
         "correlation annotated. Statistics computed on full (non-subsampled) data."
     ),
     "tetrachoric.simple_ltm": (
-        "Figure 35: Tetrachoric correlations by relationship type (threshold model).\n\n"
+        "Figure 36: Tetrachoric correlations by relationship type (threshold model).\n\n"
         "Violin plots of tetrachoric correlations for threshold affected status indicators. "
-        "Same encoding as Figure 23: coloured violins show observed tetrachoric correlations, "
+        "Same encoding as Figure 24: coloured violins show observed tetrachoric correlations, "
         "black dots are per-replicate estimates, black dashed "
         "lines are the ground-truth Pearson liability correlations, "
         "red dotted lines are the parametric E[r] from configured ACE components, "
         "and pair counts are annotated above each violin."
     ),
     "cross_trait_tetrachoric.simple_ltm": (
-        "Figure 36: Cross-trait tetrachoric correlations (threshold model).\n\n"
+        "Figure 37: Cross-trait tetrachoric correlations (threshold model).\n\n"
         "Same two-panel layout as the survival cross-trait tetrachoric figure. "
         "Left panel: same-person cross-trait r by generation. "
         "Right panel: cross-person cross-trait r by relationship type. "
@@ -669,8 +686,13 @@ def _render_table1_page(
 
 
 def _render_inline_caption(
-    fig, x: float, y: float, title: str, body: str,
-    fontsize: int = 11, fontfamily: str = "sans-serif",
+    fig,
+    x: float,
+    y: float,
+    title: str,
+    body: str,
+    fontsize: int = 11,
+    fontfamily: str = "sans-serif",
 ) -> None:
     """Render a caption with bold title inline with normal-weight body text.
 
@@ -687,15 +709,27 @@ def _render_inline_caption(
     chars_per_line = int(page_w * usable_frac * 11.5)
 
     if not body:
-        fig.text(x, y, title, fontsize=fontsize, fontweight="bold",
-                 fontfamily=fontfamily, verticalalignment="top",
-                 transform=fig.transFigure)
+        fig.text(
+            x,
+            y,
+            title,
+            fontsize=fontsize,
+            fontweight="bold",
+            fontfamily=fontfamily,
+            verticalalignment="top",
+            transform=fig.transFigure,
+        )
         return
 
     # Render bold title and measure its width via the renderer
     title_text = fig.text(
-        x, y, title, fontsize=fontsize, fontweight="bold",
-        fontfamily=fontfamily, verticalalignment="top",
+        x,
+        y,
+        title,
+        fontsize=fontsize,
+        fontweight="bold",
+        fontfamily=fontfamily,
+        verticalalignment="top",
         transform=fig.transFigure,
     )
     fig.canvas.draw()
@@ -718,9 +752,16 @@ def _render_inline_caption(
     if first_line_chars < 15:
         # Not enough room; put body on the next line
         wrapped = textwrap.fill(body, width=chars_per_line)
-        fig.text(x, y - line_h, wrapped, fontsize=fontsize,
-                 fontweight="medium", fontfamily=fontfamily,
-                 verticalalignment="top", transform=fig.transFigure)
+        fig.text(
+            x,
+            y - line_h,
+            wrapped,
+            fontsize=fontsize,
+            fontweight="medium",
+            fontfamily=fontfamily,
+            verticalalignment="top",
+            transform=fig.transFigure,
+        )
         return
 
     # Wrap body: first line shorter, subsequent lines full width
@@ -733,20 +774,34 @@ def _render_inline_caption(
         first_line_words.append(word)
         current_len += len(word) + (1 if len(first_line_words) > 1 else 0)
     first_line_body = " ".join(first_line_words)
-    remaining_body = body[len(first_line_body):].lstrip()
+    remaining_body = body[len(first_line_body) :].lstrip()
 
     # Render first-line body text
-    fig.text(body_x, y, first_line_body, fontsize=fontsize,
-             fontweight="medium", fontfamily=fontfamily,
-             verticalalignment="top", transform=fig.transFigure)
+    fig.text(
+        body_x,
+        y,
+        first_line_body,
+        fontsize=fontsize,
+        fontweight="medium",
+        fontfamily=fontfamily,
+        verticalalignment="top",
+        transform=fig.transFigure,
+    )
 
     # Wrap and render remaining lines
     if remaining_body:
         remaining_lines = textwrap.wrap(remaining_body, width=chars_per_line)
         for i, line in enumerate(remaining_lines):
-            fig.text(x, y - (i + 1) * line_h, line, fontsize=fontsize,
-                     fontweight="medium", fontfamily=fontfamily,
-                     verticalalignment="top", transform=fig.transFigure)
+            fig.text(
+                x,
+                y - (i + 1) * line_h,
+                line,
+                fontsize=fontsize,
+                fontweight="medium",
+                fontfamily=fontfamily,
+                verticalalignment="top",
+                transform=fig.transFigure,
+            )
 
 
 def assemble_atlas(
@@ -842,7 +897,9 @@ def assemble_atlas(
 
             # Thin hairline border around the figure image
             rect = plt.Rectangle(
-                (0, 0), 1, 1,
+                (0, 0),
+                1,
+                1,
                 transform=ax.transAxes,
                 linewidth=0.3,
                 edgecolor="#cccccc",
@@ -856,8 +913,13 @@ def assemble_atlas(
                 caption_y = caption_frac - 0.015
                 body_with_ref = f"{body}  [{rel}]" if body else f"[{rel}]"
                 _render_inline_caption(
-                    fig, 0.04, caption_y, title, body_with_ref,
-                    fontsize=11, fontfamily="sans-serif",
+                    fig,
+                    0.04,
+                    caption_y,
+                    title,
+                    body_with_ref,
+                    fontsize=11,
+                    fontfamily="sans-serif",
                 )
 
             pdf.savefig(fig, dpi=150)

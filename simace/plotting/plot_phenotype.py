@@ -26,10 +26,7 @@ logger = logging.getLogger(__name__)
 MAX_PLOT_POINTS = 200_000
 
 from simace.plotting.plot_correlations import (
-    plot_broad_heritability_by_generation,
     plot_cross_trait_tetrachoric,
-    plot_heritability_by_generation,
-    plot_heritability_by_sex_generation,
     plot_parent_offspring_liability,
     plot_tetrachoric_by_generation,
     plot_tetrachoric_by_sex,
@@ -45,11 +42,17 @@ from simace.plotting.plot_distributions import (
     plot_trait_phenotype,
     plot_trait_regression,
 )
+from simace.plotting.plot_heritability import (
+    plot_broad_heritability_by_generation,
+    plot_heritability_by_generation,
+    plot_heritability_by_sex_generation,
+    plot_observed_heritability,
+)
 from simace.plotting.plot_liability import (
     plot_censoring_cascade,
     plot_censoring_confusion,
-    plot_liability_components_by_generation,
     plot_joint_affection,
+    plot_liability_components_by_generation,
     plot_liability_joint,
     plot_liability_joint_affected,
     plot_liability_joint_affected_t2,
@@ -304,6 +307,14 @@ def main(
     plot_heritability_by_sex_generation(
         all_stats,
         out_dir / f"heritability.by_sex.by_generation.{ext}",
+        scenario,
+        params=validation_params,
+    )
+
+    # Observed-scale heritability from binary affected status + Dempster-Lerner lift
+    plot_observed_heritability(
+        all_stats,
+        out_dir / f"observed_h2.{ext}",
         scenario,
         params=validation_params,
     )

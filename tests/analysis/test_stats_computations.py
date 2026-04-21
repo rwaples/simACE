@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 from simace.analysis.stats import (
+    compute_affected_correlations,
     compute_censoring_cascade,
     compute_censoring_confusion,
     compute_censoring_windows,
@@ -23,6 +24,8 @@ from simace.analysis.stats import (
     compute_mate_correlation,
     compute_mean_family_size,
     compute_mortality,
+    compute_observed_h2_estimators,
+    compute_parent_offspring_affected_corr,
     compute_parent_offspring_corr,
     compute_parent_offspring_corr_by_sex,
     compute_parent_status,
@@ -1097,3 +1100,248 @@ class TestComputeMateCorrelation:
         for i in range(2):
             for j in range(2):
                 assert abs(result["matrix"][i][j]) < 0.15
+
+
+# ===================================================================
+# Tests for compute_affected_correlations
+# ===================================================================
+
+
+class TestComputeAffectedCorrelations:
+    def test_known_phi(self):
+        """Phi r on a synthetic MZ-pair set with hand-computable values.
+
+        20 pairs with (a1, a2):
+          4 (1,1), 2 (1,0), 2 (0,1), 12 (0,0)
+        p(a1=1) = 6/20 = 0.3, p(a2=1) = 6/20 = 0.3
+        p(1,1) = 4/20 = 0.2
+        Cov = 0.2 - 0.3*0.3 = 0.11
+        Var(a1) = Var(a2) = 0.3*0.7 = 0.21
+        phi = 0.11 / 0.21 ≈ 0.5238
+        """
+        n_pairs = 20
+        # 40 rows: first half = side A, second half = side B
+        a_side = np.array([1] * 4 + [1] * 2 + [0] * 2 + [0] * 12, dtype=np.float64)
+        b_side = np.array([1] * 4 + [0] * 2 + [1] * 2 + [0] * 12, dtype=np.float64)
+        affected1 = np.concatenate([a_side, b_side])
+
+        df = pd.DataFrame(
+            {
+                "id": np.arange(len(affected1), dtype=np.int64),
+                "affected1": affected1.astype(bool),
+                "affected2": np.zeros(len(affected1), dtype=bool),
+            }
+        )
+        idx1 = np.arange(n_pairs, dtype=np.int64)
+        idx2 = np.arange(n_pairs, 2 * n_pairs, dtype=np.int64)
+        pairs = {
+            "MZ": (idx1, idx2),
+            "FS": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
+            "MO": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
+            "FO": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
+            "MHS": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
+            "PHS": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
+            "1C": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
+        }
+
+        result = compute_affected_correlations(df, pairs=pairs)
+        assert result["trait1"]["MZ"] == pytest.approx(0.11 / 0.21, abs=1e-6)
+        # trait2 is constant (all unaffected): phi undefined -> None
+        assert result["trait2"]["MZ"] is None
+        # n_pairs < 10 -> None
+        assert result["trait1"]["FS"] is None
+
+    def test_constant_side_returns_none(self):
+        """Phi is undefined when either indicator has zero variance."""
+        df = pd.DataFrame(
+            {
+                "id": np.arange(30, dtype=np.int64),
+                "affected1": np.array([True] * 15 + [False] * 15, dtype=bool),
+                # Pair B (indices 15..29) is all-False -> constant -> None
+                "affected2": np.zeros(30, dtype=bool),
+            }
+        )
+        idx1 = np.arange(15, dtype=np.int64)
+        idx2 = np.arange(15, 30, dtype=np.int64)
+        pairs = {
+            "MZ": (idx1, idx2),
+            "FS": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
+            "MO": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
+            "FO": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
+            "MHS": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
+            "PHS": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
+            "1C": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
+        }
+        result = compute_affected_correlations(df, pairs=pairs)
+        # Side A varies (15 True + 0 False in idx1 -> wait, idx1 is 0..14 which is all True)
+        # Both sides constant -> None
+        assert result["trait1"]["MZ"] is None
+
+    def test_structure_matches_liability(self, phenotyped_df, extracted_pairs):
+        """Affected-side structure mirrors compute_liability_correlations."""
+        liab = compute_liability_correlations(phenotyped_df, pairs=extracted_pairs)
+        aff = compute_affected_correlations(phenotyped_df, pairs=extracted_pairs)
+        assert set(aff.keys()) == set(liab.keys())
+        for trait_key in ["trait1", "trait2"]:
+            assert set(aff[trait_key].keys()) == set(liab[trait_key].keys())
+
+
+# ===================================================================
+# Tests for compute_parent_offspring_affected_corr
+# ===================================================================
+
+
+class TestComputeParentOffspringAffectedCorr:
+    def test_known_slope(self):
+        """Trio df with hand-computable midparent-offspring regression slope.
+
+        20 trios; the midparent indicator is 1 in 10 trios and 0 in 10.
+        Offspring affected matches midparent in 16 of 20 trios and differs in 4.
+
+        Midparent mean = 10/20 = 0.5, offspring mean = 10/20 = 0.5 (symmetric flips).
+        Cov(mid, off) = (Σ (m_i - 0.5)(o_i - 0.5)) / (n - 1).
+        With (m, o) counts: (1,1)=8, (1,0)=2, (0,1)=2, (0,0)=8:
+          Σ (m-0.5)(o-0.5) = 8·0.25 + 2·(-0.25) + 2·(-0.25) + 8·0.25 = 3.0
+        Var(mid) = Σ (m - 0.5)² / (n-1) = (20·0.25)/19 = 5/19
+        slope = Cov / Var(mid) = (3/19) / (5/19) = 0.6
+        """
+        founder_ids = list(range(100, 140))  # 40 founders
+        mother_ids = founder_ids[0:20]
+        father_ids = founder_ids[20:40]
+        child_ids = list(range(1, 21))
+
+        # Parent pattern: first 10 trios have both parents True, last 10 both False.
+        parent_aff = [True] * 10 + [False] * 10
+        # Offspring pattern: flip 2 of the concordant-T trios to F and 2 of the
+        # concordant-F trios to T.  16 match, 4 don't.
+        child_aff = parent_aff[:]
+        child_aff[0] = False
+        child_aff[1] = False
+        child_aff[10] = True
+        child_aff[11] = True
+
+        founders_aff = [False] * 40
+        for i, m in enumerate(mother_ids):
+            founders_aff[founder_ids.index(m)] = parent_aff[i]
+        for i, f in enumerate(father_ids):
+            founders_aff[founder_ids.index(f)] = parent_aff[i]
+        ids = founder_ids + child_ids
+        mothers = [-1] * 40 + mother_ids
+        fathers = [-1] * 40 + father_ids
+        affected1 = founders_aff + child_aff
+        df = pd.DataFrame(
+            {
+                "id": ids,
+                "mother": mothers,
+                "father": fathers,
+                "affected1": affected1,
+                "affected2": [False] * len(ids),
+            }
+        )
+        result = compute_parent_offspring_affected_corr(df)
+        assert result["trait1"]["slope"] == pytest.approx(0.6, abs=1e-6)
+        assert result["trait1"]["n_pairs"] == 20
+        # trait2: all-unaffected midparents -> slope None
+        assert result["trait2"]["slope"] is None
+
+    def test_missing_columns_returns_empty(self):
+        df = pd.DataFrame({"affected1": [True, False]})
+        assert compute_parent_offspring_affected_corr(df) == {}
+
+    def test_too_few_trios_returns_null(self):
+        df = pd.DataFrame(
+            {
+                "id": [100, 101, 1, 2],
+                "mother": [-1, -1, 100, 100],
+                "father": [-1, -1, 101, 101],
+                "affected1": [True, False, True, False],
+                "affected2": [False, False, False, False],
+            }
+        )
+        result = compute_parent_offspring_affected_corr(df)
+        assert result["trait1"]["slope"] is None
+        assert result["trait1"]["n_pairs"] == 2
+
+    def test_smoke_on_pedigree(self, phenotyped_df):
+        """On a simulated pedigree the PO slope should be finite and in [-0.5, 1.5]."""
+        result = compute_parent_offspring_affected_corr(phenotyped_df)
+        for trait_key in ["trait1", "trait2"]:
+            entry = result[trait_key]
+            slope = entry["slope"]
+            if slope is not None:
+                assert -0.5 <= slope <= 1.5
+
+
+# ===================================================================
+# Tests for compute_observed_h2_estimators
+# ===================================================================
+
+
+class TestComputeObservedH2Estimators:
+    def test_closed_form(self):
+        """Algebraic check: each estimator combines its inputs correctly."""
+        stats = {
+            "affected_correlations": {
+                "trait1": {
+                    "MZ": 0.40,
+                    "FS": 0.15,
+                    "MO": 0.10,
+                    "FO": 0.10,
+                    "MHS": 0.05,
+                    "PHS": 0.05,
+                    "1C": 0.02,
+                },
+                "trait2": {
+                    "MZ": None,
+                    "FS": 0.20,
+                    "MO": None,
+                    "FO": None,
+                    "MHS": None,
+                    "PHS": None,
+                    "1C": None,
+                },
+            },
+            "parent_offspring_affected_corr": {
+                "trait1": {"slope": 0.12},
+                "trait2": {"slope": None},
+            },
+        }
+        result = compute_observed_h2_estimators(stats)
+        t1 = result["trait1"]
+        assert t1["falconer"] == pytest.approx(2.0 * (0.40 - 0.15))
+        assert t1["sibs"] == pytest.approx(2.0 * 0.15)
+        assert t1["po"] == pytest.approx(0.12)
+        assert t1["hs"] == pytest.approx(4.0 * 0.05)
+        assert t1["cousins"] == pytest.approx(8.0 * 0.02)
+
+        t2 = result["trait2"]
+        assert t2["falconer"] is None  # r_MZ is None
+        assert t2["sibs"] == pytest.approx(2.0 * 0.20)
+        assert t2["po"] is None
+        assert t2["hs"] is None
+        assert t2["cousins"] is None
+
+    def test_hs_averages_available_sides(self):
+        """When only one of MHS/PHS is present, HS uses that one × 4."""
+        stats = {
+            "affected_correlations": {
+                "trait1": {"MZ": None, "FS": None, "MO": None, "FO": None, "MHS": 0.07, "PHS": None, "1C": None},
+                "trait2": {"MZ": None, "FS": None, "MO": None, "FO": None, "MHS": None, "PHS": None, "1C": None},
+            },
+            "parent_offspring_affected_corr": {
+                "trait1": {"slope": None},
+                "trait2": {"slope": None},
+            },
+        }
+        result = compute_observed_h2_estimators(stats)
+        assert result["trait1"]["hs"] == pytest.approx(4.0 * 0.07)
+        assert result["trait2"]["hs"] is None
+
+    def test_missing_inputs_returns_all_none(self):
+        """Empty stats dict yields all-None estimators."""
+        result = compute_observed_h2_estimators({})
+        assert result["trait1"]["falconer"] is None
+        assert result["trait1"]["sibs"] is None
+        assert result["trait1"]["po"] is None
+        assert result["trait1"]["hs"] is None
+        assert result["trait1"]["cousins"] is None

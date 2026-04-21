@@ -212,14 +212,14 @@ class TestPlaceholderPaths:
         assert out.exists()
 
     def test_heritability_no_data(self, tmp_path):
-        from simace.plotting.plot_correlations import plot_heritability_by_generation
+        from simace.plotting.plot_heritability import plot_heritability_by_generation
 
         out = tmp_path / "h2.png"
         plot_heritability_by_generation([{}], out, scenario="test")
         assert out.exists()
 
     def test_broad_heritability_no_data(self, tmp_path):
-        from simace.plotting.plot_correlations import plot_broad_heritability_by_generation
+        from simace.plotting.plot_heritability import plot_broad_heritability_by_generation
 
         out = tmp_path / "H2.png"
         plot_broad_heritability_by_generation([{}], out, scenario="test")

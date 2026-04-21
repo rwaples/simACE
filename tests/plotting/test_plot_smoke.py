@@ -614,7 +614,7 @@ class TestPlotCorrelationsExpanded:
         assert plt.get_fignums() == before
 
     def test_plot_heritability_by_sex_generation(self, simple_ltm_stats, tmp_path):
-        from simace.plotting.plot_correlations import plot_heritability_by_sex_generation
+        from simace.plotting.plot_heritability import plot_heritability_by_sex_generation
 
         before = plt.get_fignums()
         out = tmp_path / "h2_sex_gen.png"
@@ -625,7 +625,7 @@ class TestPlotCorrelationsExpanded:
         assert plt.get_fignums() == before
 
     def test_plot_heritability_by_sex_generation_no_data(self, tmp_path):
-        from simace.plotting.plot_correlations import plot_heritability_by_sex_generation
+        from simace.plotting.plot_heritability import plot_heritability_by_sex_generation
 
         before = plt.get_fignums()
         out = tmp_path / "h2_sex_gen_empty.png"
@@ -635,7 +635,7 @@ class TestPlotCorrelationsExpanded:
         assert plt.get_fignums() == before
 
     def test_plot_broad_heritability_by_generation(self, broad_h2_validations, tmp_path):
-        from simace.plotting.plot_correlations import plot_broad_heritability_by_generation
+        from simace.plotting.plot_heritability import plot_broad_heritability_by_generation
 
         before = plt.get_fignums()
         out = tmp_path / "broad_h2_gen.png"
@@ -646,7 +646,7 @@ class TestPlotCorrelationsExpanded:
         assert plt.get_fignums() == before
 
     def test_plot_broad_heritability_by_generation_no_data(self, tmp_path):
-        from simace.plotting.plot_correlations import plot_broad_heritability_by_generation
+        from simace.plotting.plot_heritability import plot_broad_heritability_by_generation
 
         before = plt.get_fignums()
         out = tmp_path / "broad_h2_gen_empty.png"
