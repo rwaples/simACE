@@ -101,15 +101,18 @@ would have had to re-run the BFS by hand to know the scheme.
 
 ## Open questions → Round 2
 
-1. Confirm linear scaling holds to n=1M — simACE pedigree build above
-   n=100k has never been exercised, so the pedigree-generation phase
-   itself may surprise us.  PCGC cpp should not.
+1. Confirm linear scaling holds to n=1M.
 2. Jackknife stability with a single giant component at n=1M.  Current
    fallback is `pair_blocks`; dependence between adjacent pair blocks
    at biobank scale is presumed tolerable but not measured here.
 3. Re-run against a no-AM fixture at n=100k (e.g., `iter_reml_100k_noam`)
    to confirm σ²_A is recovered correctly when the sim truth is
    on-scale — a quick additional sanity check before scaling up.
+   **Done 2026-04-21** (see `pcgc_phase1_bias.md` follow-up section):
+   V(A) recovered within 2 SE at K=0.05 and cleanly at K ≥ 0.30;
+   the C/Ve partition, however, is systematically biased at K=0.05 in
+   an n-stable way.  Scale story is unaffected — V(A) / h² remains
+   the reliable output at rare K.
 
 ## Files produced
 

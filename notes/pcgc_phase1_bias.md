@@ -89,23 +89,72 @@ cpp vs numba on two scenarios picked for coverage:
 that cpp hasn't diverged from the validated numba path at rare K is
 clean.
 
+## Update (2026-04-21): rare-K C/E identifiability
+
+Round 2 gated on a no-AM σ²_A cross-check (open question #3 of the scale
+note).  Running PCGC on the existing `iter_reml_{10k,50k,100k}_noam`
+fixtures at K=0.05 surfaced a bias pattern the dev grid had missed:
+**V(C) absorbs Ve at rare K, regardless of n.**
+
+### Size sweep at K=0.05, AM=0.0 (truth A=0.4, C=0.2, Ve=0.4)
+
+| scenario | n_phen | V(A) (SE) | V(C) (SE) | Ve (SE) | bias_C | bias_Ve |
+|---|---:|---:|---:|---:|---:|---:|
+| iter_reml_10k_noam  |  10,200 | 0.438 (0.091) | 0.443 (0.121) | 0.119 (0.125) | +0.243 | −0.281 |
+| iter_reml_50k_noam  |  51,000 | 0.454 (0.040) | 0.405 (0.058) | 0.141 (0.068) | +0.205 | −0.259 |
+| iter_reml_100k_noam | 102,000 | 0.465 (0.035) | 0.431 (0.039) | 0.103 (0.050) | +0.231 | −0.297 |
+
+Bias is **stable across n** (not shrinking with sample size).  The SE
+shrinks ~1/√n as expected, so the z-score of the C/Ve bias climbs from
+~2σ at 10k to ~6σ at 100k — i.e. becomes *more detectable* at larger n,
+not less.  V(A) is lightly biased high (+0.04 to +0.07, within 2 SE
+everywhere) but stable.
+
+### K sweep at n=102k_noam (same fixture, only τ = Φ⁻¹(1−K) changes)
+
+| K | V(A) (SE) | V(C) (SE) | Ve (SE) | bias_A | bias_C | bias_Ve |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0.05 | 0.465 (0.035) | 0.431 (0.039) | 0.103 (0.050) | +0.065 | **+0.231** | **−0.297** |
+| 0.15 | 0.428 (0.018) | 0.259 (0.015) | 0.313 (0.022) | +0.028 | +0.059 | −0.087 |
+| 0.30 | 0.417 (0.011) | 0.205 (0.009) | 0.378 (0.010) | +0.017 | +0.005 | −0.022 |
+| 0.50 | 0.407 (0.011) | 0.206 (0.007) | 0.387 (0.009) | +0.007 | +0.006 | −0.013 |
+
+Bias is **monotone in K**.  At K=0.30 the partition is clean (≤ 0.02 in
+all components); at K=0.50 it's essentially perfect.  At K=0.05 the C/E
+split is unusable.  Not a bug, not an n-scaling issue, not a pedigree
+artifact — the fixture recovers cleanly at K=0.50, so the sim truth,
+the kinship build, and the 2×2 moment solver all work.  This is the
+rare-trait ascertainment compression that the PCGC literature warns
+about, quantified on our own fixtures.
+
+### Why Track 2 missed it
+
+Track 2's K-axis tests (`dev_laplace_K_{rare,common,half}`) were all at
+n=10k.  At n=10k the C/Ve SE is ~0.12, so the +0.23 C-bias is only
+~2σ — buried in noise.  The only large-n rare-K point Track 2 had was
+`iter_reml_100k` at K=0.05, but that fixture has AM=0.3 which conflates
+AM-induced Vp-inflation with the rare-K C/E bias.  The no-AM fixtures
+isolate the effect.
+
 ## Recommendations
 
-1. **Trust PCGC for** n ≥ 3k, K ∈ [0.1, 0.5], no or light AM, moderate
-   h² (0.1–0.7).  Expected bias ≤ 0.03 in h² terms.
-2. **Defer to MCEM / Laplace for**
-   - n < 3k with rare K (K ≤ 0.05): |bias_h²| can exceed 0.2.
-     PCGC still agrees with MCEM there — both are noisy.
-   - Any AM > 0.  The fix is either (a) re-derive truth at AM
-     equilibrium before comparing, or (b) refit without the AM
-     pedigree.  Not a PCGC issue per se, but the naive-vs-truth table
-     will look bad and the user should know.
+1. **Trust V(A) / h² for** n ≥ 3k, K ≥ 0.05, no AM, moderate h² (0.1–0.7).
+   Expected bias in h²: ≤ 0.03 at K ≥ 0.15, ≤ 0.07 at K=0.05.
+2. **Trust the V(C) / Ve partition only for K ≥ 0.15** (ideally ≥ 0.30).
+   At K=0.05 the partition is systematically wrong by ~0.2 in each
+   component; do not report C/E separately in that regime.  If the
+   scientific question requires C/E separation on a rare trait, fit at
+   a higher threshold or use a full-likelihood method.
+3. **Defer to MCEM / Laplace for**
+   - Any AM > 0.  Fix: re-derive truth at AM equilibrium before
+     comparing, or refit without the AM pedigree.  Not a PCGC issue
+     per se, but the naive-vs-truth table will look bad.
    - σ²_E very close to 0 (`low_e` scenario).
-3. **Round 2 (n=300k, n=1M)** does not need additional bias fixtures —
-   the dev_laplace_n{30k,50k} results at n=30k and n=50k show bias
-   already shrunk below 0.03, and no theoretical reason it should
-   grow at larger n.  Round 2's scale runs should include a no-AM
-   fixture so σ²_A recovery at the production target is checkable.
+4. **Round 2 (n=300k, n=1M)** does not need additional bias fixtures —
+   the n-axis story is now complete (bias is K-driven, n-stable), and
+   the dev_laplace_n{30k,50k} h² bias at K=0.15 already falls below
+   0.03.  Scale runs should still include a no-AM fixture so σ²_A
+   recovery at the production target is checkable.
 
 ## Caveats
 

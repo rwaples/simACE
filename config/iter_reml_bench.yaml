@@ -9,7 +9,7 @@
 #
 # N is the per-generation founder count; with G_pheno = 3 (default),
 # n_phenotyped ≈ N × G_pheno → N=3400 hits ~10k, N=17000 hits ~50k,
-# N=34000 hits ~100k.
+# N=34000 hits ~100k, N=100000 hits ~300k.
 
 iter_reml_10k:
   seed: 60010
@@ -95,6 +95,38 @@ iter_reml_100k_noam:
   seed: 60101
   N: 34000
   replicates: 1
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+    trait2:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+
+iter_reml_300k:
+  seed: 60300
+  N: 100000
+  replicates: 5
+  pedigree:
+    assort1: 0.3
+    assort2: 0.0
+    trait1:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+    trait2:
+      A: 0.4
+      C: 0.2
+      E: 0.4
+
+iter_reml_300k_noam:
+  seed: 60301
+  N: 100000
+  replicates: 5
   pedigree:
     assort1: 0.0
     assort2: 0.0
