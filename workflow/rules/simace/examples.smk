@@ -9,6 +9,17 @@ what keeps the docs site in sync with the latest simulation state.
 AM_HERITABILITY_SCENARIOS = ["am_none", "am_weak", "am_strong"]
 AM_HERITABILITY_LABELS = ["no AM", "weak AM (0.2)", "strong AM (0.4)"]
 
+OBSERVED_VS_LIABILITY_SCENARIOS = [
+    "model_ltm",
+    "model_cure_frailty_ln",
+    "model_frailty_wb",
+]
+OBSERVED_VS_LIABILITY_LABELS = [
+    "LTM",
+    "Cure-frailty (lognormal)",
+    "Frailty (Weibull)",
+]
+
 
 rule compare_am_heritability:
     input:
@@ -156,6 +167,44 @@ rule compare_am_naive_estimators:
         "../../scripts/simace/compare_am_naive_estimators.py"
 
 
+rule compare_observed_vs_liability_h2:
+    input:
+        pedigree=lambda w: [
+            f"results/examples/{scen}/rep{rep}/pedigree.parquet"
+            for scen in OBSERVED_VS_LIABILITY_SCENARIOS
+            for rep in range(1, get_param(config, scen, "replicates") + 1)
+        ],
+        phenotype_stats=lambda w: [
+            f"results/examples/{scen}/rep{rep}/phenotype_stats.yaml"
+            for scen in OBSERVED_VS_LIABILITY_SCENARIOS
+            for rep in range(1, get_param(config, scen, "replicates") + 1)
+        ],
+    output:
+        "docs/images/examples/models/observed_vs_liability.png",
+    log:
+        "logs/examples/compare_observed_vs_liability_h2.log",
+    threads: 1
+    resources:
+        mem_mb=4000,
+        runtime=5,
+    params:
+        labels=OBSERVED_VS_LIABILITY_LABELS,
+        input_h2=lambda w: (
+            get_param(config, OBSERVED_VS_LIABILITY_SCENARIOS[0], "A1")
+            / (
+                get_param(config, OBSERVED_VS_LIABILITY_SCENARIOS[0], "A1")
+                + get_param(config, OBSERVED_VS_LIABILITY_SCENARIOS[0], "C1")
+                + get_param(config, OBSERVED_VS_LIABILITY_SCENARIOS[0], "E1")
+            )
+        ),
+        reps_per_scenario=lambda w: [
+            get_param(config, scen, "replicates")
+            for scen in OBSERVED_VS_LIABILITY_SCENARIOS
+        ],
+    script:
+        "../../scripts/simace/compare_observed_vs_liability_h2.py"
+
+
 rule examples_all:
     """Aggregate target: build every comparison plot used by the docs/examples/ pages."""
     input:
@@ -164,3 +213,4 @@ rule examples_all:
         "docs/images/examples/am/corr_by_relclass.png",
         "docs/images/examples/am/sib_liability_scatter.png",
         "docs/images/examples/am/naive_estimators.png",
+        "docs/images/examples/models/observed_vs_liability.png",

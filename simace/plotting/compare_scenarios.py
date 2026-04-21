@@ -11,14 +11,17 @@ from __future__ import annotations
 
 __all__ = [
     "NAIVE_ESTIMATOR_DEFS",
+    "OBSERVED_LIABILITY_ESTIMATOR_DEFS",
     "POOLED_RELATIONSHIP_CLASSES",
     "SCENARIO_PALETTE",
     "compare_component_distributions",
     "compare_correlations_by_relclass",
     "compare_naive_estimators",
+    "compare_observed_vs_liability_h2",
     "compare_realized_variance_trajectory",
     "compare_sib_liability_scatter",
     "load_naive_estimator_h2",
+    "load_observed_vs_liability_h2",
     "load_pedigree_estimates",
     "load_per_generation",
     "load_pooled_liability_correlations",
@@ -931,6 +934,243 @@ def compare_naive_estimators(
     enable_value_gridlines(ax_raw)
     enable_value_gridlines(ax_bias)
     ax_raw.legend(loc="upper left", fontsize=9, frameon=False, ncol=2)
+
+    fig.tight_layout()
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Wrote %s", output_path)
+
+
+# ---------------------------------------------------------------------------
+# Observed-scale vs liability-scale h² (phenotype-model comparison)
+# ---------------------------------------------------------------------------
+
+# Two estimators of the same underlying narrow-sense h²:
+# - "Liability Falconer" uses the continuous (unobservable-in-real-data)
+#   liability values directly, via 2 * (r_MZ - r_FS).  It's an oracle
+#   reference: what a perfectly observable liability would give you.
+# - "Tetrachoric Falconer" uses tetrachoric correlations on binary affected
+#   status (observable), via 2 * (r_tetra_MZ - r_tetra_FS).  Under a clean
+#   liability-threshold model these match; under frailty / age-of-onset
+#   models they diverge, because the mapping from liability to "affected"
+#   isn't a single threshold.
+OBSERVED_LIABILITY_ESTIMATOR_DEFS: tuple[tuple[str, str], ...] = (
+    ("Liability Falconer", "liability_falconer"),
+    ("Tetrachoric Falconer", "tetrachoric_falconer"),
+)
+
+
+def _load_tetrachoric(phenotype_stats_path: Path, trait: int) -> dict[str, float]:
+    """Return a flat ``{MZ, FS, MO, FO, MHS, PHS, 1C}`` tetrachoric r dict."""
+    with open(phenotype_stats_path) as fh:
+        ps = yaml.safe_load(fh) or {}
+    tet = (ps.get("tetrachoric") or {}).get(f"trait{trait}", {}) or {}
+    out: dict[str, float] = {}
+    for key, entry in tet.items():
+        r = (entry or {}).get("r")
+        out[key] = float(r) if r is not None else float("nan")
+    return out
+
+
+def load_observed_vs_liability_h2(
+    pedigree_paths: list[Path],
+    phenotype_stats_paths: list[Path],
+    trait: int = 1,
+    min_generation: int | None = None,
+) -> dict[str, np.ndarray]:
+    """Per-rep liability-Falconer + tetrachoric-Falconer h² + realized h².
+
+    The two input lists must be in the same replicate order.  Liability
+    correlations and realized h² come from :func:`load_pedigree_estimates`
+    (pedigree.parquet); tetrachoric correlations come from
+    ``phenotype_stats.yaml.tetrachoric.trait{trait}``.
+
+    Args:
+        pedigree_paths: one ``pedigree.parquet`` path per rep.
+        phenotype_stats_paths: one ``phenotype_stats.yaml`` path per rep.
+        trait: 1 or 2.
+        min_generation: forwarded to :func:`load_pedigree_estimates` for the
+            liability correlations and realized h².  Tetrachoric values in
+            ``phenotype_stats.yaml`` are pre-aggregated over phenotyped
+            generations and not re-filtered here.
+
+    Returns:
+        Dict keyed ``{'liability_falconer', 'tetrachoric_falconer',
+        'realized'}``; each value is a per-rep ``np.ndarray``.
+    """
+    out: dict[str, list[float]] = {k: [] for k in ("liability_falconer", "tetrachoric_falconer", "realized")}
+    for ped_path, ps_path in zip(pedigree_paths, phenotype_stats_paths, strict=True):
+        est = load_pedigree_estimates(ped_path, trait=trait, min_generation=min_generation)
+        r_mz_liab = est.get("MZ", float("nan"))
+        r_fs_liab = est.get("FS", float("nan"))
+        tet = _load_tetrachoric(ps_path, trait=trait)
+        r_mz_tet = tet.get("MZ", float("nan"))
+        r_fs_tet = tet.get("FS", float("nan"))
+
+        out["liability_falconer"].append(
+            2.0 * (r_mz_liab - r_fs_liab) if np.isfinite(r_mz_liab) and np.isfinite(r_fs_liab) else float("nan")
+        )
+        out["tetrachoric_falconer"].append(
+            2.0 * (r_mz_tet - r_fs_tet) if np.isfinite(r_mz_tet) and np.isfinite(r_fs_tet) else float("nan")
+        )
+        out["realized"].append(est.get("realized_h2", float("nan")))
+    return {k: np.asarray(v, dtype=float) for k, v in out.items()}
+
+
+def compare_observed_vs_liability_h2(
+    pedigree_paths_per_scenario: list[list[Path]],
+    phenotype_stats_paths_per_scenario: list[list[Path]],
+    labels: list[str],
+    output_path: Path,
+    trait: int = 1,
+    min_generation: int | None = None,
+    input_h2: float | None = None,
+) -> None:
+    """Two-panel figure: observed-scale vs liability-scale h² by phenotype model.
+
+    Top panel: liability-Falconer and tetrachoric-Falconer h² per scenario,
+    with a dashed grey reference line at the simulation input h².  A short
+    dark-grey solid tick is drawn at each scenario's realized h² only when
+    it meaningfully differs from the input (otherwise the tick would just
+    overplot the dashed input reference).  Bottom panel: per-rep signed
+    bias of each estimator vs. that rep's realized h².
+
+    Args:
+        pedigree_paths_per_scenario: outer list = scenarios, inner list =
+            per-rep ``pedigree.parquet`` paths.
+        phenotype_stats_paths_per_scenario: same shape, per-rep
+            ``phenotype_stats.yaml`` paths.  Rep order must match.
+        labels: display label per scenario.
+        output_path: image path to save.
+        trait: 1 or 2.
+        min_generation: forwarded to :func:`load_pedigree_estimates`.
+        input_h2: simulation input h²; drawn as a dashed reference line.
+    """
+    n_scen = len(labels)
+    if len(pedigree_paths_per_scenario) != n_scen or len(phenotype_stats_paths_per_scenario) != n_scen:
+        raise ValueError("pedigree_paths, phenotype_stats_paths, and labels must have the same length")
+
+    apply_nature_style()
+    estimator_labels = [d[0] for d in OBSERVED_LIABILITY_ESTIMATOR_DEFS]
+    estimator_keys = [d[1] for d in OBSERVED_LIABILITY_ESTIMATOR_DEFS]
+    n_est = len(estimator_keys)
+
+    per_scen = [
+        load_observed_vs_liability_h2(
+            [Path(p) for p in ped_paths],
+            [Path(p) for p in ps_paths],
+            trait=trait,
+            min_generation=min_generation,
+        )
+        for ped_paths, ps_paths in zip(pedigree_paths_per_scenario, phenotype_stats_paths_per_scenario, strict=True)
+    ]
+
+    fig, (ax_raw, ax_bias) = plt.subplots(2, 1, figsize=(7.5, 8), sharex=True)
+    x = np.arange(n_scen, dtype=float)  # groups are scenarios (x-axis)
+    total_group_width = 0.7
+    bar_width = total_group_width / n_est
+
+    def _stats(arr: np.ndarray) -> tuple[float, float, float]:
+        valid = arr[np.isfinite(arr)]
+        if valid.size == 0:
+            return float("nan"), float("nan"), float("nan")
+        return float(valid.mean()), float(valid.min()), float(valid.max())
+
+    # Dedicated palette for the two estimators so scenarios are the x-axis.
+    est_colors = ("#4477AA", "#EE6677")
+
+    for est_idx, (est_label, est_key) in enumerate(zip(estimator_labels, estimator_keys, strict=True)):
+        raw_means = np.full(n_scen, np.nan)
+        raw_lows = np.full(n_scen, np.nan)
+        raw_highs = np.full(n_scen, np.nan)
+        bias_means = np.full(n_scen, np.nan)
+        bias_lows = np.full(n_scen, np.nan)
+        bias_highs = np.full(n_scen, np.nan)
+        for scen_idx, ests in enumerate(per_scen):
+            vals = ests[est_key]
+            realized = ests["realized"]
+            raw_means[scen_idx], raw_lows[scen_idx], raw_highs[scen_idx] = _stats(vals)
+            if vals.size == realized.size:
+                bias_means[scen_idx], bias_lows[scen_idx], bias_highs[scen_idx] = _stats(vals - realized)
+
+        offsets = x - total_group_width / 2 + bar_width / 2 + est_idx * bar_width
+        color = est_colors[est_idx]
+        for ax, means, lows, highs in (
+            (ax_raw, raw_means, raw_lows, raw_highs),
+            (ax_bias, bias_means, bias_lows, bias_highs),
+        ):
+            mask = np.isfinite(means)
+            err_low = np.where(mask, means - lows, 0.0)
+            err_high = np.where(mask, highs - means, 0.0)
+            ax.bar(
+                offsets[mask],
+                means[mask],
+                width=bar_width * 0.95,
+                color=color,
+                label=est_label if ax is ax_bias else None,
+                yerr=[err_low[mask], err_high[mask]],
+                capsize=3,
+                linewidth=0,
+            )
+
+    # Per-scenario realized-h² solid tick in the top panel.  Skip when the
+    # scenario's realized h² is effectively equal to the input h² (common in
+    # no-AM setups) so we don't double-draw the reference and visually
+    # clutter the bars.
+    for scen_idx, ests in enumerate(per_scen):
+        realized = ests["realized"]
+        valid = realized[np.isfinite(realized)]
+        if valid.size == 0:
+            continue
+        mean_r = float(valid.mean())
+        if input_h2 is not None and abs(mean_r - input_h2) < 0.01:
+            continue
+        # Narrow tick (half the bar-group width) centered on the scenario.
+        half = total_group_width / 4
+        ax_raw.hlines(
+            mean_r,
+            x[scen_idx] - half,
+            x[scen_idx] + half,
+            colors="#222222",
+            linestyles="solid",
+            linewidth=1.8,
+            zorder=6,
+        )
+
+    if input_h2 is not None:
+        ax_raw.axhline(
+            y=input_h2,
+            linestyle="--",
+            color="#888888",
+            linewidth=1,
+            alpha=0.8,
+        )
+        # Proxy handle so the bias panel's legend can document the dashed
+        # reference line (which lives on the raw panel).
+        ax_bias.plot(
+            [],
+            [],
+            linestyle="--",
+            color="#888888",
+            linewidth=1,
+            label=f"input / realized h² = {input_h2:.2f} (top panel)",
+        )
+
+    ax_bias.axhline(y=0, color="#444444", linewidth=1, alpha=0.9)
+    # Show scenario labels between panels (bottom of raw panel), not at figure bottom.
+    ax_raw.set_xticks(x)
+    ax_raw.set_xticklabels(labels)
+    ax_raw.tick_params(axis="x", labelbottom=True)
+    ax_bias.tick_params(axis="x", labelbottom=False)
+    ax_raw.set_ylabel(f"h² estimate (trait {trait})")
+    ax_bias.set_ylabel("Bias vs. realized h² (estimate - truth)")
+    ax_raw.set_title("Observed-scale vs liability-scale h² by phenotype model")
+    ax_bias.set_title("Bias vs realized h²")
+    enable_value_gridlines(ax_raw)
+    enable_value_gridlines(ax_bias)
+    ax_bias.legend(loc="lower left", fontsize=9, frameon=False)
 
     fig.tight_layout()
     output_path = Path(output_path)

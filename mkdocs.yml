@@ -86,6 +86,7 @@ nav:
       - Model Fitting: concepts/model-fitting.md
   - Examples:
       - AM and Heritability: examples/am-and-heritability.md
+      - Observed vs Liability h²: examples/observed-vs-liability-h2.md
   - API Reference:
       - api/index.md
       - Core: api/core.md
