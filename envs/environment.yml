@@ -16,9 +16,9 @@ dependencies:
   - seaborn=0.13.*
   - pillow=12.2.*
   # workflow
-  - snakemake=9.16.*
+  - snakemake=9.19.*
   - snakemake-executor-plugin-slurm
-  - snakefmt=1.0.*
+  - snakefmt=1.1.*
   # dev / test
   - pytest=9.0.*
   - ruff=0.15.*
