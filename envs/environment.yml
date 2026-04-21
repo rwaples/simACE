@@ -38,7 +38,7 @@ dependencies:
   # - pandoc
   # - tectonic
   - pip:
-      - -e ".[dev]"
-      - -e fit_ace/[plot]
+      - "-e ..[dev]"
+      - "-e ../fitACE[plot]"
 variables:
   MPLBACKEND: Agg
