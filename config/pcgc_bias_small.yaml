@@ -1,0 +1,54 @@
+# 4-cell small-N stress-test grid for TetraHer shakedown (Phase 0b).
+#
+# A fixed at 0.50.  Cells span the corners of K × C at
+# (K ∈ {0.01, 0.25}, C ∈ {0.00, 0.20}).  The C=0 cells serve as
+# identifiability baseline; the C=0.20, K=0.01 cell is the stress test
+# where PCGC's low-K + shared-environment behavior is most interesting.
+#
+# Seeds matched across K within each C group (same pedigree + liability;
+# only the fit-side threshold varies) — mirrors the pcgc_bias_map.yaml
+# invariant so TetraHer and PCGC are comparing the same individuals.
+#
+# N = 5000, G_ped/G_pheno inherit defaults (6/3); expected pair count
+# per rep at ndegree=2 is a few ×10k — single-threaded TetraHer should
+# take well under a minute per rep.
+
+pcgc_bias_small_A50_C00_K01:
+  seed: 71000
+  N: 5000
+  replicates: 2
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.00, E: 0.50}
+    trait2: {A: 0.50, C: 0.00, E: 0.50}
+
+pcgc_bias_small_A50_C00_K25:
+  seed: 71000
+  N: 5000
+  replicates: 2
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.00, E: 0.50}
+    trait2: {A: 0.50, C: 0.00, E: 0.50}
+
+pcgc_bias_small_A50_C20_K01:
+  seed: 71020
+  N: 5000
+  replicates: 2
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.20, E: 0.30}
+    trait2: {A: 0.50, C: 0.20, E: 0.30}
+
+pcgc_bias_small_A50_C20_K25:
+  seed: 71020
+  N: 5000
+  replicates: 2
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.20, E: 0.30}
+    trait2: {A: 0.50, C: 0.20, E: 0.30}
