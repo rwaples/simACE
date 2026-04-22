@@ -1,0 +1,187 @@
+# PCGC bias grid (Phase 2 rare-K identifiability investigation).
+#
+# 16 scenarios laid out as A × C × K = {0.25, 0.50} × {0.00, 0.20} × {0.01, 0.05, 0.15, 0.25}
+# at AM = 0, N = 34000 (n_phen ≈ 102k), 5 reps each.  Seeds are matched
+# across K within each (A, C) group — the same base seed is used for
+# all 4 K scenarios of a given truth, so the underlying pedigrees and
+# liabilities are byte-identical across K (only the fit-side threshold
+# τ = Φ⁻¹(1 − K) varies).  Storage cost is 4× per (A, C) group
+# (~30 MB × 3 redundant dirs ≈ 90 MB per group, ~360 MB total); the
+# simplicity of a single scenario-per-cell indexing is worth it.
+#
+# Base seeds:
+#   A025_C00 → 70000 (reps use 70000..70004)
+#   A025_C20 → 70020
+#   A050_C00 → 70050
+#   A050_C20 → 70070
+#
+# E = 1 − A − C is set implicitly via trait1 {A, C, E}.
+# trait2 mirrors trait1; PCGC only uses trait1 but simACE simulates both.
+
+# ── A = 0.25, C = 0.00, E = 0.75 ─────────────────────────────────────────
+
+pcgc_bias_A25_C00_K01:
+  seed: 70000
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.25, C: 0.00, E: 0.75}
+    trait2: {A: 0.25, C: 0.00, E: 0.75}
+
+pcgc_bias_A25_C00_K05:
+  seed: 70000
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.25, C: 0.00, E: 0.75}
+    trait2: {A: 0.25, C: 0.00, E: 0.75}
+
+pcgc_bias_A25_C00_K15:
+  seed: 70000
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.25, C: 0.00, E: 0.75}
+    trait2: {A: 0.25, C: 0.00, E: 0.75}
+
+pcgc_bias_A25_C00_K25:
+  seed: 70000
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.25, C: 0.00, E: 0.75}
+    trait2: {A: 0.25, C: 0.00, E: 0.75}
+
+# ── A = 0.25, C = 0.20, E = 0.55 ─────────────────────────────────────────
+
+pcgc_bias_A25_C20_K01:
+  seed: 70020
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.25, C: 0.20, E: 0.55}
+    trait2: {A: 0.25, C: 0.20, E: 0.55}
+
+pcgc_bias_A25_C20_K05:
+  seed: 70020
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.25, C: 0.20, E: 0.55}
+    trait2: {A: 0.25, C: 0.20, E: 0.55}
+
+pcgc_bias_A25_C20_K15:
+  seed: 70020
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.25, C: 0.20, E: 0.55}
+    trait2: {A: 0.25, C: 0.20, E: 0.55}
+
+pcgc_bias_A25_C20_K25:
+  seed: 70020
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.25, C: 0.20, E: 0.55}
+    trait2: {A: 0.25, C: 0.20, E: 0.55}
+
+# ── A = 0.50, C = 0.00, E = 0.50 ─────────────────────────────────────────
+
+pcgc_bias_A50_C00_K01:
+  seed: 70050
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.00, E: 0.50}
+    trait2: {A: 0.50, C: 0.00, E: 0.50}
+
+pcgc_bias_A50_C00_K05:
+  seed: 70050
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.00, E: 0.50}
+    trait2: {A: 0.50, C: 0.00, E: 0.50}
+
+pcgc_bias_A50_C00_K15:
+  seed: 70050
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.00, E: 0.50}
+    trait2: {A: 0.50, C: 0.00, E: 0.50}
+
+pcgc_bias_A50_C00_K25:
+  seed: 70050
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.00, E: 0.50}
+    trait2: {A: 0.50, C: 0.00, E: 0.50}
+
+# ── A = 0.50, C = 0.20, E = 0.30 ─────────────────────────────────────────
+
+pcgc_bias_A50_C20_K01:
+  seed: 70070
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.20, E: 0.30}
+    trait2: {A: 0.50, C: 0.20, E: 0.30}
+
+pcgc_bias_A50_C20_K05:
+  seed: 70070
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.20, E: 0.30}
+    trait2: {A: 0.50, C: 0.20, E: 0.30}
+
+pcgc_bias_A50_C20_K15:
+  seed: 70070
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.20, E: 0.30}
+    trait2: {A: 0.50, C: 0.20, E: 0.30}
+
+pcgc_bias_A50_C20_K25:
+  seed: 70070
+  N: 34000
+  replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.20, E: 0.30}
+    trait2: {A: 0.50, C: 0.20, E: 0.30}
