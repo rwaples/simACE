@@ -138,13 +138,30 @@ isolate the effect.
 
 ## Recommendations
 
+**Phase 4 update (2026-04-23):** the rare-K caveats below were
+derived under the Phase 2 Golan moment equation.  They remain valid
+for a **Phase 3-equivalent baseline fit** (`moment="hermite2"` or
+`moment="golan"`).  Post-Phase 4, the default production path is
+`moment="auto"` which dispatches to **bivnor** for K<0.1 (exact
+moment via Owen's T) and hermite2 for K≥0.1.  Under bivnor the
+K=0.05 V(C)/Ve partition bias drops from ~0.2 to ~0.02 on the
+worst cells — meaningfully usable.  See
+`notes/PCGC/phase4_bivnor_landing_plan.md` for the landing and
+`notes/PCGC/phase4_m36_auto_cutoff.md` for the auto-dispatch rule.
+
 1. **Trust V(A) / h² for** n ≥ 3k, K ≥ 0.05, no AM, moderate h² (0.1–0.7).
-   Expected bias in h²: ≤ 0.03 at K ≥ 0.15, ≤ 0.07 at K=0.05.
-2. **Trust the V(C) / Ve partition only for K ≥ 0.15** (ideally ≥ 0.30).
-   At K=0.05 the partition is systematically wrong by ~0.2 in each
-   component; do not report C/E separately in that regime.  If the
-   scientific question requires C/E separation on a rare trait, fit at
-   a higher threshold or use a full-likelihood method.
+   Expected bias in h²: ≤ 0.03 at K ≥ 0.15, ≤ 0.07 at K=0.05
+   **under Phase 3 Hermite-2**.  Under Phase 4 bivnor (auto default
+   for K<0.1): V(A) bias at K=0.01 drops from 0.10 to 0.02 on the
+   worst cell.
+2. **Trust the V(C) / Ve partition only for K ≥ 0.15** (ideally ≥ 0.30)
+   **under Phase 3 Hermite-2**.  Under Phase 4 bivnor this caveat
+   **relaxes to K ≥ 0.05**: at K=0.01 the V(E) bias drops from
+   Hermite-2's 0.10 to bivnor's 0.01 on the worst cell; V(C) is
+   similarly corrected.  See the extended bias grid in
+   `phase4_m36_auto_cutoff.md` for the per-(K, component, truth)
+   numbers.  For pre-Phase 4 output (moment="hermite2" or
+   "golan"), the original caveat stands.
 3. **Defer to MCEM / Laplace for**
    - Any AM > 0.  Fix: re-derive truth at AM equilibrium before
      comparing, or refit without the AM pedigree.  Not a PCGC issue

@@ -372,6 +372,16 @@ systematic bias.
 
 ## 5. Landing decision
 
+**Phase 4 update (2026-04-23):** both Hermite-2 and bivnor
+(full-series via Owen's T) have now shipped.  The `hermite_order=3`
+extension contemplated below is **obsolete** — bivnor sums the
+Hermite series to convergence and is the new default for K<0.1
+under `moment="auto"` (Phase 4 M3.6 cutoff).  See
+`notes/PCGC/phase4_bivnor_landing_plan.md` for the landing and
+`notes/PCGC/phase4_m36_auto_cutoff.md` for the auto-dispatch rule.
+The original Phase 3 landing decision below is preserved as
+historical record.
+
 The plan's decision criterion was "if the correction is numerically
 stable and strictly improves bias at every K ≥ 0.05, default
 replacement is preferred; otherwise opt-in."

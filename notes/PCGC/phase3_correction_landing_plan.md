@@ -3,6 +3,18 @@
 **Drafted:** 2026-04-22.  Supersedes the short "Implementation scope
 for M6 commit" list at the tail of `phase2_bias_derivation.md` §5.
 
+**Superseded by Phase 4 for K<0.1 (2026-04-23):** the
+`hermite_order=2` Phase 3 correction is the production path for
+K≥0.1; at lower K the Phase 4 `moment="bivnor"` exact-moment Newton
+is the new default under `moment="auto"` (cutoff frozen at 0.1 in
+`notes/PCGC/phase4_m36_auto_cutoff.md`).  Phase 4 replaces this
+plan's `hermite_order` API surface with `moment=`; the old parameter
+is preserved as a deprecated pass-through through 2026.07.  See
+`notes/PCGC/phase4_bivnor_landing_plan.md` for the landing and
+`jackknife_calibration_notes.md` for the SE miscalibration that
+remains unfixed (not a bivnor issue).  Content below preserved as
+historical record.
+
 ## Context
 
 Phase 2 (notes/PCGC/phase2_bias_derivation.md) derived and
