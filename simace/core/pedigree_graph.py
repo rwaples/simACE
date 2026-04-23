@@ -33,6 +33,8 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import numpy as np
 import scipy.sparse as sp
 
+from simace.core._kinship_kernel import _build_kinship_csc, _compute_depth
+
 if TYPE_CHECKING:
     import pandas as pd
 
@@ -126,6 +128,11 @@ class PedigreeGraph:
         # Optional boolean mask: True = "active" individual (in the sample).
         # When set, extract_pairs only returns pairs of active individuals.
         self._active = sample_mask
+
+        # Lazy kinship cache — populated by kinship_matrix(); keyed by
+        # the resolved min_kinship threshold.
+        self._kinship_cache: dict[float, sp.csc_matrix] = {}
+        self._inbreeding: np.ndarray | None = None
 
         # Build ID → row index mapping (int32: row indices fit in 2.1B)
         ids_arr = df["id"].values
@@ -1053,165 +1060,153 @@ class PedigreeGraph:
         return dict(self._raw_pair_counts)
 
     # ------------------------------------------------------------------
-    # Inbreeding and exact kinship
+    # Alternative constructor
     # ------------------------------------------------------------------
 
-    def compute_inbreeding(self) -> np.ndarray:
-        """Compute inbreeding coefficient *F* for each individual.
+    @classmethod
+    def from_arrays(
+        cls,
+        ids: np.ndarray,
+        mothers: np.ndarray,
+        fathers: np.ndarray,
+        twins: np.ndarray | None = None,
+        generation: np.ndarray | None = None,
+    ) -> PedigreeGraph:
+        """Construct a PedigreeGraph directly from numpy arrays.
 
-        Uses sparse matrix algebra, propagating kinship generation by
-        generation: ``K[gen_g, :] = P_g @ K`` where ``P`` is the
-        parent-averaging matrix (``0.5 × _A``).  ``F_i`` is read from
-        ``K[mother_i, father_i]`` each generation.
+        Used by hot-loop callers (PA-FGRS, external-tool exports) that
+        don't have a ``pedigree.parquet`` DataFrame handy.  When
+        *generation* is None, it is derived from the parent graph via a
+        fixed-point sweep (founders = 0, offspring = max(parent_gen)+1).
+        """
+        import pandas as pd
 
-        For non-consanguineous pedigrees (the ACE default), all values
-        are zero and the function returns quickly.
+        ids_arr = np.asarray(ids)
+        mothers_arr = np.asarray(mothers)
+        fathers_arr = np.asarray(fathers)
+        n = len(ids_arr)
+        twins_arr = np.full(n, -1, dtype=np.int64) if twins is None else np.asarray(twins)
+
+        # Generation column may be unknown here — fill a placeholder,
+        # instantiate the graph (which remaps parents to row indices),
+        # then derive depth from the already-remapped parent arrays.
+        derive_generation = generation is None
+        df = pd.DataFrame(
+            {
+                "id": ids_arr,
+                "mother": mothers_arr,
+                "father": fathers_arr,
+                "twin": twins_arr,
+                "sex": np.zeros(n, dtype=np.int8),
+                "generation": np.zeros(n, dtype=np.int32)
+                if derive_generation
+                else np.asarray(generation, dtype=np.int32),
+            }
+        )
+        pg = cls(df)
+        if derive_generation:
+            pg.generation = _compute_depth(pg.mother, pg.father, n)
+        return pg
+
+    # ------------------------------------------------------------------
+    # Sparse kinship, inbreeding, and exact pair kinship
+    # ------------------------------------------------------------------
+
+    def kinship_matrix(
+        self,
+        min_kinship: float = 0.0,
+        max_degree: int | None = None,
+    ) -> sp.csc_matrix:
+        """Build and cache the full-symmetric sparse kinship matrix (φ-scale).
+
+        Diagonal is ``(1 + F_i) / 2``; MZ off-diagonals are set to the
+        corresponding twin's self-kinship (= 0.5 without inbreeding).
+
+        Args:
+            min_kinship: kernel-side pruning threshold.  Off-diagonal
+                entries with ``value <= min_kinship`` are dropped during
+                DP propagation.  Diagonal always kept.
+            max_degree: convenience shortcut for ``min_kinship``.  Sets
+                the threshold to ``0.5 ** (max_degree + 1) - 1e-9`` so
+                that the boundary kinship (e.g. 1/16 at degree 3) is
+                retained.  The stricter of the two applies.
+
+        F side-effect: ``self._inbreeding`` is populated *only* when the
+        resolved ``min_kinship`` is 0.0.  Pruned builds do not touch F
+        because pruning can under-estimate F under consanguinity (a
+        truncated parent off-diagonal adds 0 into the child's
+        self-kinship).  F-correctness requires the unpruned build.
 
         Returns:
-            Float64 array of length *n* with per-individual *F*.
+            ``scipy.sparse.csc_matrix`` cached under the resolved
+            ``min_kinship`` in ``self._kinship_cache``.
         """
+        if max_degree is not None:
+            deg_threshold = 0.5 ** (max_degree + 1) - 1e-9
+            min_kinship = max(min_kinship, deg_threshold)
+
+        key = float(min_kinship)
+        cached = self._kinship_cache.get(key)
+        if cached is not None:
+            return cached
+
         t0 = time.perf_counter()
-        n = self.n
-        F = np.zeros(n, dtype=np.float64)
-        mother = self.mother
-        father = self.father
-        generation = self.generation
-
-        unique_gens = np.unique(generation)
-        if len(unique_gens) <= 1:
-            self._inbreeding = F
-            return F
-
-        # Parent-averaging matrix: P[child, parent] = 0.5
-        m_mask = mother >= 0
-        f_mask = father >= 0
-        m_idx = np.where(m_mask)[0]
-        f_idx = np.where(f_mask)[0]
-        P = sp.csr_matrix(
-            (
-                np.full(len(m_idx) + len(f_idx), 0.5),
-                (np.concatenate([m_idx, f_idx]), np.concatenate([mother[m_idx], father[f_idx]])),
-            ),
-            shape=(n, n),
+        indptr, indices, data = _build_kinship_csc(
+            self.n, self.mother, self.father, self.twin,
+            self.generation, min_kinship,
         )
+        K = sp.csc_matrix((data, indices, indptr), shape=(self.n, self.n))
+        self._kinship_cache[key] = K
 
-        # Build kinship matrix K generation by generation.
-        # K is symmetric; we maintain it as CSR and rebuild symmetry
-        # each generation via sparse addition.
-        K = sp.csr_matrix((n, n), dtype=np.float64)
+        if key == 0.0:
+            # Diagonal stores (1 + F_i) / 2; invert to extract F.
+            self._inbreeding = 2.0 * K.diagonal() - 1.0
 
-        for g in unique_gens:
-            idx_g = np.where(generation == g)[0]
-
-            if g == unique_gens[0]:
-                # Founders: self-kinship = 0.5
-                K = sp.csr_matrix(
-                    (np.full(len(idx_g), 0.5), (idx_g, idx_g)),
-                    shape=(n, n),
-                )
-                continue
-
-            # F_i = K[mother_i, father_i] for this generation
-            m_g = mother[idx_g]
-            f_g = father[idx_g]
-            both_known = (m_g >= 0) & (f_g >= 0)
-            if np.any(both_known):
-                bk_idx = np.where(both_known)[0]
-                # Extract specific elements from sparse K
-                K_csc = K.tocsc()
-                for k in bk_idx:
-                    F[idx_g[k]] = K_csc[m_g[k], f_g[k]]
-
-            # Kinship of gen-g with all earlier: K_cross = P_g @ K
-            P_g = P[idx_g, :]  # (n_g × n) sparse
-            K_cross = P_g @ K  # (n_g × n) sparse — kinship with earlier gens
-
-            # Kinship among gen-g individuals: K_within = P_g @ K @ P_g.T
-            # Since K only has earlier-gen entries, this correctly uses
-            # only parent-generation kinship (no circularity).
-            K_within = K_cross @ P_g.T  # (n_g × n_g) sparse
-
-            # Build update: cross-generation rows
-            cross_rows, cross_cols, cross_vals = sp.find(K_cross)
-            global_cross_rows = idx_g[cross_rows]
-
-            # Build update: within-generation (upper triangle only to avoid double-counting)
-            within_upper = sp.triu(K_within, k=1)
-            w_rows, w_cols, w_vals = sp.find(within_upper)
-            global_w_rows = idx_g[w_rows]
-            global_w_cols = idx_g[w_cols]
-
-            # Assemble all new entries
-            all_rows = np.concatenate([global_cross_rows, global_w_rows])
-            all_cols = np.concatenate([cross_cols, global_w_cols])
-            all_vals = np.concatenate([cross_vals, w_vals])
-            K_update = sp.csr_matrix((all_vals, (all_rows, all_cols)), shape=(n, n))
-
-            # Add new entries + transpose for symmetry
-            K = K + K_update + K_update.T
-
-            # Set self-kinship for gen_g: K[i,i] = (1 + F_i) / 2
-            diag_vals = (1.0 + F[idx_g]) / 2.0
-            K_diag_fix = sp.csr_matrix(
-                (diag_vals - K.diagonal()[idx_g], (idx_g, idx_g)),
-                shape=(n, n),
-            )
-            K = K + K_diag_fix
-
-            logger.debug(
-                "Inbreeding gen %d: %d individuals, K nnz=%d, F>0: %d",
-                g,
-                len(idx_g),
-                K.nnz,
-                np.count_nonzero(F[idx_g] > 0),
-            )
-
-        self._inbreeding = F
-        self._kinship_matrix = K
         logger.info(
-            "compute_inbreeding: %.1fs, K nnz=%d, n_inbred=%d, max_F=%.4f",
-            time.perf_counter() - t0,
-            K.nnz,
-            np.count_nonzero(F > 0),
-            F.max(),
+            "kinship_matrix: n=%d, nnz=%d, min_kinship=%.4g, %.2fs",
+            self.n, K.nnz, min_kinship, time.perf_counter() - t0,
         )
-        return F
+        return K
+
+    def compute_inbreeding(self) -> np.ndarray:
+        """Return the inbreeding coefficient *F* per individual.
+
+        Lazy: triggers ``self.kinship_matrix(min_kinship=0.0)`` on
+        first call, which populates ``self._inbreeding`` as a side
+        effect (see :meth:`kinship_matrix`).
+        """
+        if getattr(self, "_inbreeding", None) is None:
+            self.kinship_matrix(min_kinship=0.0)
+        return self._inbreeding
 
     def compute_pair_kinship(
         self,
         pairs: dict[str, tuple[np.ndarray, np.ndarray]],
     ) -> dict[str, np.ndarray]:
-        """Compute exact kinship for each extracted pair.
+        """Exact kinship per extracted pair.
 
-        When no inbreeding is detected (all ``F = 0``), returns nominal
-        kinship from ``PAIR_KINSHIP`` for each pair — a fast path.
-        Otherwise, looks up exact kinship from the sparse kinship matrix
-        built by ``compute_inbreeding()``.
+        Fast path (non-inbred, ``all(F == 0)``): returns
+        ``PAIR_KINSHIP[code]`` for each pair (MZ case handled via the
+        registry's special case = 0.5).
 
-        Call *after* ``extract_pairs()``.
+        Inbred path: reads values from the cached full kinship matrix.
+        MZ-correct because the kernel sets twin off-diagonals to the
+        inbred self-kinship ``(1 + F) / 2``.
 
-        Returns:
-            Dict mapping pair-type code to float64 array of kinship values,
-            parallel to the index arrays in *pairs*.
+        Call *after* :meth:`extract_pairs`.
         """
-        F = self._inbreeding if hasattr(self, "_inbreeding") else self.compute_inbreeding()
+        F = self.compute_inbreeding()
 
-        # Fast path: no inbreeding → nominal kinship is exact
         if np.all(F == 0):
             return {code: np.full(len(idx1), PAIR_KINSHIP.get(code, 0.0)) for code, (idx1, _) in pairs.items()}
 
-        # Use the sparse kinship matrix from compute_inbreeding
-        K = self._kinship_matrix.tocsr()
-
+        K = self.kinship_matrix(min_kinship=0.0).tocsr()
         result: dict[str, np.ndarray] = {}
         for code, (idx1, idx2) in pairs.items():
             if len(idx1) == 0:
                 result[code] = np.array([], dtype=np.float64)
                 continue
-            # Vectorized sparse element extraction via array indexing
-            kin = np.array(K[idx1, idx2]).ravel()
-            result[code] = kin
-
+            result[code] = np.array(K[idx1, idx2]).ravel()
         return result
 
 
