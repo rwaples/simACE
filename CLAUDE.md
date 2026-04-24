@@ -2,6 +2,19 @@
 
 simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (shared environment), **E** (unique environment) variance components. Provides simulate → phenotype → censor → sample → validate → stats → plot. Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan) lives in the sister repo [fitACE](../fitACE), which depends on simace.
 
+## Repo Map
+
+Four related repos, all under `rwaples/` on GitHub. simACE is the umbrella working directory; the others are nested checkouts (gitignored from simACE — no submodules).
+
+| Repo | Visibility | Local path | Role |
+|---|---|---|---|
+| [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate → phenotype → censor → sample → validate → stats → plot |
+| [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC). Consumes simACE outputs. |
+| [`ace_iter_reml`](https://github.com/rwaples/ace_iter_reml) | private | `./fitACE/fitace/ace_iter_reml/` | C++ PCG-AI-REML binary. Driven by `fitACE/fitace/iter_reml/`. |
+| [`tetraher_simace`](https://github.com/rwaples/tetraher_simace) | private | `./external/tetraher_simace/` | Fork of LDAK 6.2 (grouping + warm-start + OMP opt-in). Binary consumed by `fitACE/fitace/tetraher/`. |
+
+Each nested repo has its own `origin` wired to the matching GitHub repo — `git push` from inside each directory goes to the right place. Build artifacts (`build-fp*/`, `ldak6.2.simace`, Stan binaries) are gitignored — rebuild from source.
+
 ## Key Rules
 
 - The ACE conda env is always active. Do NOT use `conda run -n ACE` — run commands directly.
