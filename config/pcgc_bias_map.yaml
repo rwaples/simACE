@@ -65,7 +65,7 @@ pcgc_bias_A25_C00_K25:
 pcgc_bias_A25_C20_K01:
   seed: 70020
   N: 34000
-  replicates: 5
+  replicates: 20
   pedigree:
     assort1: 0.0
     assort2: 0.0
@@ -159,7 +159,7 @@ pcgc_bias_A50_C20_K01:
 pcgc_bias_A50_C20_K05:
   seed: 70070
   N: 34000
-  replicates: 5
+  replicates: 20
   pedigree:
     assort1: 0.0
     assort2: 0.0
@@ -180,6 +180,18 @@ pcgc_bias_A50_C20_K25:
   seed: 70070
   N: 34000
   replicates: 5
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1: {A: 0.50, C: 0.20, E: 0.30}
+    trait2: {A: 0.50, C: 0.20, E: 0.30}
+
+# Phase 5 SE-comparison non-rare cell (K=0.20).  Seed 70090 reserves
+# a disjoint 20-rep block from the A50_C20 K01/K05 bumps (70070..70089).
+pcgc_bias_A50_C20_K20:
+  seed: 70090
+  N: 34000
+  replicates: 20
   pedigree:
     assort1: 0.0
     assort2: 0.0
