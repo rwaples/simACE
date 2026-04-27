@@ -71,9 +71,15 @@ every replicate, so we can see this directly:
 
 ![Realized vA, vC, vE, h² by generation across E trajectories](../images/examples/increasing_e/realized_components_trajectory.png)
 
-(simACE labels generations 1-indexed in `validation.yaml`, so the plot's
-x-axis runs 1–10 corresponding to the config's gens 0–9 — gen 1 in the
-plot is the founder generation.)
+(A note on gen indexing: simACE stores 0-indexed generations in
+`pedigree.parquet` (gens 0–9 for `G_pheno=10`) but labels them 1-indexed
+in `validation.yaml` (`generation_1` … `generation_10`). The trajectory
+plot here reads `validation.yaml` so its x-axis is 1–10, with **gen 1 =
+founders**. The cohort plots later on this page (FS correlation,
+Falconer, components-by-generation) read `pedigree.parquet`, so their
+x-axis is 0–9 with **gen 0 = founders**. In both cases gen "$N$" is the
+same physical cohort under a different label; the figures just inherit
+the indexing of the file they read.)
 
 Read the bottom-left ($v_E$) panel first. The horizontal grey dashed
 line at 0.5 is the `e_flat` reference schedule, drawn for visual
@@ -116,7 +122,8 @@ gives:
 Top row (A) is the calibration check: $A_1$ is constant by config, so
 all three generations should have indistinguishable distributions in
 *every* scenario. They do — SDs sit between 0.705 and 0.708 across all
-12 panels, well within sampling noise.
+12 (scenario × generation) cells in the top row, well within sampling
+noise.
 
 Bottom row (total liability) is where the story is:
 
@@ -270,17 +277,17 @@ the same as their ancestors'. Read gens 4–9 only.
 
 ### What standardize actually does (gens 4–9)
 
-- **`e_flat`**: both lines sit at ≈ 0.099 across gens 4–9. Calibration
+- **`e_flat`**: both lines sit at ≈ 0.100 across gens 4–9. Calibration
   baseline; matches the configured $K = 0.10$ within sampling noise.
 - **`e_rise_mild`**: `standardize=true` rises 0.099 → 0.105
   (Δ = +0.006); `standardize=false` rises 0.104 → 0.111 (Δ = +0.007).
   The two slopes are nearly identical — `standardize` shifts the
   absolute level by ≈ 0.005–0.006 but doesn't reduce the per-gen drift.
-- **`e_rise_steep`**: `standardize=true` 0.097 → 0.110 (Δ = +0.013);
-  `standardize=false` 0.108 → 0.121 (Δ = +0.013). Same pattern, larger
-  swing because $v_E$ swings more.
-- **`e_fall_steep`**: `standardize=true` 0.101 → 0.087 (Δ = −0.014);
-  `standardize=false` 0.090 → 0.076 (Δ = −0.014). Direction symmetric;
+- **`e_rise_steep`**: `standardize=true` 0.098 → 0.109 (Δ = +0.011);
+  `standardize=false` 0.109 → 0.120 (Δ = +0.011). Same pattern, larger
+  swing than `e_rise_mild` because $v_E$ swings more.
+- **`e_fall_steep`**: `standardize=true` 0.101 → 0.086 (Δ = −0.015);
+  `standardize=false` 0.090 → 0.075 (Δ = −0.014). Direction symmetric;
   again the slopes match but the offset differs.
 
 The key observation: **the slopes are essentially identical between
@@ -306,12 +313,16 @@ you'd need *per-generation* standardization, which is what the simpler
 real population-level signal that happens to map onto the variance-by-gen
 axis.
 
-**TODO: Implement per-generation standardization of liability** in
-`phenotype_adult_ltm` (and the other adult-family models) so that
-`standardize=true` flattens per-cohort prevalence the way the simple
-threshold model already does — currently the only way to get per-gen
-flat prevalence under the LTM age-of-onset model is to bypass it via
-`phenotype_simple_ltm`.
+!!! note "Open work: per-generation standardization in `phenotype_adult_ltm`"
+    The `standardize=true` path in `phenotype_adult_ltm` (and the other
+    adult-family models) currently standardizes across the entire
+    pedigree, which is what produces the residual cohort drift visible
+    in the blue lines above. Switching to per-generation standardization
+    — matching what `apply_threshold` already does in
+    `simace/phenotyping/threshold.py` — would flatten the `_std` line at
+    exactly $K$ per gen. Until that lands, the only way to get per-gen
+    flat prevalence under the LTM age-of-onset model is to bypass it via
+    `phenotype_simple_ltm`.
 
 ### Practitioner's takeaway
 
