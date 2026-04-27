@@ -14,15 +14,20 @@ __all__ = [
     "OBSERVED_LIABILITY_ESTIMATOR_DEFS",
     "POOLED_RELATIONSHIP_CLASSES",
     "SCENARIO_PALETTE",
+    "compare_cohort_falconer",
+    "compare_cohort_fs_correlations",
     "compare_component_distributions",
+    "compare_components_by_generation",
     "compare_correlations_by_relclass",
     "compare_naive_estimators",
     "compare_observed_vs_liability_h2",
+    "compare_prevalence_drift",
     "compare_realized_variance_trajectory",
     "compare_sib_liability_scatter",
     "load_naive_estimator_h2",
     "load_observed_vs_liability_h2",
     "load_pedigree_estimates",
+    "load_pedigree_estimates_per_generation",
     "load_per_generation",
     "load_pooled_liability_correlations",
     "load_sib_pair_liabilities",
@@ -114,9 +119,9 @@ def compare_realized_variance_trajectory(
     labels: list[str],
     output_path: Path,
     trait: int = 1,
-    expected_A: float | None = None,
-    expected_C: float | None = None,
-    expected_E: float | None = None,
+    expected_A: float | list[float] | None = None,
+    expected_C: float | list[float] | None = None,
+    expected_E: float | list[float] | None = None,
 ) -> None:
     """Plot realized vA, vC, vE, and h² per generation, one line per scenario.
 
@@ -126,14 +131,34 @@ def compare_realized_variance_trajectory(
         labels: display label per scenario (same order as ``scenario_paths``).
         output_path: image path to save (extension determines format).
         trait: 1 or 2; which trait's variance components to plot.
-        expected_A: optional input vA to draw as a dashed reference line.
-        expected_C: optional input vC to draw as a dashed reference line.
-        expected_E: optional input vE to draw as a dashed reference line.
+        expected_A: optional input vA reference. Scalar draws a horizontal
+            dashed line; list draws a per-generation dashed curve.
+        expected_C: optional input vC reference, scalar or per-generation list.
+        expected_E: optional input vE reference, scalar or per-generation list.
             If all three ``expected_*`` are supplied, the h² reference is
-            ``A / (A + C + E)``.
+            ``A / (A + C + E)`` (computed per-generation when any input is
+            a list).
     """
     if len(scenario_paths) != len(labels):
         raise ValueError(f"scenario_paths ({len(scenario_paths)}) and labels ({len(labels)}) must match")
+
+    h2_expected = None
+    if expected_A is not None and expected_C is not None and expected_E is not None:
+        if any(isinstance(e, list) for e in (expected_A, expected_C, expected_E)):
+            n = max(
+                len(e) if isinstance(e, list) else 1
+                for e in (expected_A, expected_C, expected_E)
+            )
+            a_list = expected_A if isinstance(expected_A, list) else [expected_A] * n
+            c_list = expected_C if isinstance(expected_C, list) else [expected_C] * n
+            e_list = expected_E if isinstance(expected_E, list) else [expected_E] * n
+            h2_expected = [
+                a / (a + c + e) if (a + c + e) > 0 else None
+                for a, c, e in zip(a_list, c_list, e_list, strict=True)
+            ]
+        else:
+            total = expected_A + expected_C + expected_E
+            h2_expected = expected_A / total if total > 0 else None
 
     apply_nature_style()
     fig, axes = plt.subplots(2, 2, figsize=(10, 7), sharex=True)
@@ -141,12 +166,8 @@ def compare_realized_variance_trajectory(
         (axes[0, 0], 0, f"Realized vA (trait {trait})", expected_A),
         (axes[0, 1], 1, f"Realized vC (trait {trait})", expected_C),
         (axes[1, 0], 2, f"Realized vE (trait {trait})", expected_E),
-        (axes[1, 1], 3, f"Realized h² (trait {trait})", None),
+        (axes[1, 1], 3, f"Realized h² (trait {trait})", h2_expected),
     ]
-    if expected_A is not None and expected_C is not None and expected_E is not None:
-        total = expected_A + expected_C + expected_E
-        h2_expected = expected_A / total if total > 0 else None
-        panel_defs[3] = (axes[1, 1], 3, panel_defs[3][2], h2_expected)
 
     for scen_idx, (reps, label) in enumerate(zip(scenario_paths, labels, strict=True)):
         reps = [Path(p) for p in reps]
@@ -167,7 +188,17 @@ def compare_realized_variance_trajectory(
         ax.set_title(title)
         ax.set_ylabel("Variance" if _col < 3 else "h²")
         enable_value_gridlines(ax)
-        if expected is not None:
+        if expected is None:
+            continue
+        if isinstance(expected, list):
+            # Per-generation reference; align to gens 1..len (matches
+            # validation.yaml's 1-indexed generation_N keys).
+            ref_gens = list(range(1, len(expected) + 1))
+            ref_vals = [v for v in expected if v is not None]
+            ref_x = [g for g, v in zip(ref_gens, expected, strict=True) if v is not None]
+            if ref_vals:
+                ax.plot(ref_x, ref_vals, linestyle="--", color="#888888", linewidth=1, alpha=0.8)
+        else:
             ax.axhline(y=expected, linestyle="--", color="#888888", linewidth=1, alpha=0.8)
 
     for ax in axes[1, :]:
@@ -936,6 +967,524 @@ def compare_naive_estimators(
     ax_raw.legend(loc="upper left", fontsize=9, frameon=False, ncol=2)
 
     fig.tight_layout()
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Wrote %s", output_path)
+
+
+# ---------------------------------------------------------------------------
+# Time-varying E and h² drift (cohort-level correlations + Falconer + prevalence)
+# ---------------------------------------------------------------------------
+
+
+def compare_components_by_generation(
+    pedigree_paths_per_scenario: list[list[Path]],
+    labels: list[str],
+    output_path: Path,
+    trait: int = 1,
+    show_generations: tuple[int, ...] = (1, 5, 9),
+    n_bins: int = 50,
+) -> None:
+    """Per-generation distributions of A and total liability, one column per scenario.
+
+    Two rows × *n_scenarios* columns. Top row shows the additive genetic
+    component A; bottom row shows total liability (A + C + E). Within each
+    panel, distributions for *show_generations* are overlaid (lighter →
+    darker shade for earlier → later gens) so the reader can see the
+    cohort evolution of the per-individual distribution directly. The A
+    panels should look essentially identical across both gens and
+    scenarios (A is fixed by config); the liability panels widen,
+    narrow, or stay put depending on the per-gen E schedule.
+
+    Args:
+        pedigree_paths_per_scenario: outer list = scenarios, inner list =
+            per-rep ``pedigree.parquet`` paths.
+        labels: display label per scenario.
+        output_path: image path to save.
+        trait: 1 or 2.
+        show_generations: which generations to overlay within each panel.
+            Default (1, 5, 9) bookends + middle for a 10-gen pedigree.
+        n_bins: histogram bin count, shared across panels for comparability.
+    """
+    n_scen = len(labels)
+    if len(pedigree_paths_per_scenario) != n_scen:
+        raise ValueError("pedigree_paths and labels must have the same length")
+
+    apply_nature_style()
+    a_key = f"A{trait}"
+    l_key = f"liability{trait}"
+
+    # Pool reps within each (scenario, generation) cell.
+    per_scen_a: list[dict[int, np.ndarray]] = []
+    per_scen_l: list[dict[int, np.ndarray]] = []
+    for paths in pedigree_paths_per_scenario:
+        a_by_gen: dict[int, list[np.ndarray]] = {g: [] for g in show_generations}
+        l_by_gen: dict[int, list[np.ndarray]] = {g: [] for g in show_generations}
+        for path in paths:
+            df = pd.read_parquet(Path(path), columns=["generation", a_key, l_key])
+            for g in show_generations:
+                sub = df[df["generation"] == g]
+                if len(sub) == 0:
+                    continue
+                a_by_gen[g].append(sub[a_key].to_numpy())
+                l_by_gen[g].append(sub[l_key].to_numpy())
+        per_scen_a.append({g: np.concatenate(v) if v else np.array([]) for g, v in a_by_gen.items()})
+        per_scen_l.append({g: np.concatenate(v) if v else np.array([]) for g, v in l_by_gen.items()})
+
+    # Shared x-range across both rows + every panel for cross-comparability.
+    all_vals = np.concatenate(
+        [arr for d in per_scen_a + per_scen_l for arr in d.values() if arr.size]
+    )
+    lo = float(np.quantile(all_vals, 0.001))
+    hi = float(np.quantile(all_vals, 0.999))
+    pad = 0.05 * (hi - lo)
+    bins = np.linspace(lo - pad, hi + pad, n_bins + 1)
+
+    # Lighter → darker shade for earlier → later gens, using a perceptually
+    # uniform colormap so the gen ordering is unambiguous in the legend.
+    cmap = plt.get_cmap("viridis")
+    n_g = len(show_generations)
+    gen_colors = [cmap(0.15 + 0.7 * (i / max(1, n_g - 1))) for i in range(n_g)]
+
+    fig, axes = plt.subplots(2, n_scen, figsize=(3.2 * n_scen, 5.5), sharex=True, sharey="row")
+    if n_scen == 1:
+        axes = axes.reshape(2, 1)
+
+    for col, (label, a_dict, l_dict) in enumerate(
+        zip(labels, per_scen_a, per_scen_l, strict=True)
+    ):
+        for row_idx, (ax, vals_dict) in enumerate(
+            ((axes[0, col], a_dict), (axes[1, col], l_dict))
+        ):
+            for g_idx, g in enumerate(show_generations):
+                vals = vals_dict.get(g, np.array([]))
+                if vals.size == 0:
+                    continue
+                color = gen_colors[g_idx]
+                sd = float(np.std(vals, ddof=1))
+                ax.hist(
+                    vals,
+                    bins=bins,
+                    density=True,
+                    histtype="step",
+                    color=color,
+                    linewidth=1.6,
+                    label=f"gen {g}  (sd = {sd:.3f})",
+                )
+            if row_idx == 0:
+                ax.set_title(label, fontsize=10)
+            enable_value_gridlines(ax)
+
+        axes[0, col].legend(loc="upper left", fontsize=7, frameon=False)
+        axes[1, col].legend(loc="upper left", fontsize=7, frameon=False)
+
+    axes[0, 0].set_ylabel(f"Density — A{trait}")
+    axes[1, 0].set_ylabel(f"Density — liability {trait}")
+    for ax in axes[1, :]:
+        ax.set_xlabel(f"Value (trait {trait})")
+
+    fig.suptitle("Per-individual A and total liability by generation")
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Wrote %s", output_path)
+
+
+def load_pedigree_estimates_per_generation(
+    pedigree_path: Path,
+    trait: int = 1,
+    gens: list[int] | None = None,
+) -> dict[int, dict[str, float]]:
+    """Per-generation cohort liability correlations and realized h².
+
+    For each generation ``g``, the dataframe is filtered to ``generation == g``
+    (a single cohort) and MZ/FS pair correlations are computed on that cohort
+    only.  ``extract_relationship_pairs`` is called on the filtered cohort
+    so the returned FS pairs already exclude twins
+    (``simace/core/pedigree_graph.py:_sibling_pairs`` filters ``twin != -1``).
+    MZ pairs are read from the cohort directly.
+
+    Args:
+        pedigree_path: one ``pedigree.parquet`` path (one replicate).
+        trait: 1 or 2.
+        gens: which generations to compute for; defaults to every generation
+            present in the pedigree with ``>= 1`` non-founder individual.
+
+    Returns:
+        Dict ``g -> {MZ, FS, n_MZ, n_FS, realized_h2, vA, vC, vE}``.  Values
+        are ``NaN`` (or ``0`` for counts) where there aren't enough pairs.
+    """
+    cols = [
+        "id",
+        "sex",
+        "mother",
+        "father",
+        "twin",
+        "generation",
+        f"A{trait}",
+        f"C{trait}",
+        f"E{trait}",
+        f"liability{trait}",
+    ]
+    df_full = pd.read_parquet(pedigree_path, columns=cols)
+    if gens is None:
+        gens = sorted(int(g) for g in df_full["generation"].unique())
+
+    out: dict[int, dict[str, float]] = {}
+    for g in gens:
+        df = df_full[df_full["generation"] == g].reset_index(drop=True)
+        if len(df) == 0:
+            out[g] = {
+                "MZ": float("nan"), "FS": float("nan"),
+                "n_MZ": 0, "n_FS": 0,
+                "realized_h2": float("nan"),
+                "vA": float("nan"), "vC": float("nan"), "vE": float("nan"),
+            }
+            continue
+
+        pairs = extract_relationship_pairs(df, full_pedigree=df_full, max_degree=1)
+        liab = df[f"liability{trait}"].to_numpy()
+        cohort_corrs: dict[str, tuple[float, int]] = {}
+        for code in ("MZ", "FS"):
+            idx1, idx2 = pairs.get(code, (np.array([]), np.array([])))
+            n_pairs = len(idx1)
+            if n_pairs < 10:
+                cohort_corrs[code] = (float("nan"), n_pairs)
+            else:
+                cohort_corrs[code] = (float(np.corrcoef(liab[idx1], liab[idx2])[0, 1]), n_pairs)
+        r_mz, n_mz = cohort_corrs["MZ"]
+        r_fs, n_fs = cohort_corrs["FS"]
+
+        vA = float(df[f"A{trait}"].var(ddof=1))
+        vC = float(df[f"C{trait}"].var(ddof=1))
+        vE = float(df[f"E{trait}"].var(ddof=1))
+        total = vA + vC + vE
+        realized_h2 = vA / total if total > 0 else float("nan")
+
+        out[g] = {
+            "MZ": r_mz, "FS": r_fs,
+            "n_MZ": n_mz, "n_FS": n_fs,
+            "realized_h2": realized_h2,
+            "vA": vA, "vC": vC, "vE": vE,
+        }
+    return out
+
+
+def compare_cohort_fs_correlations(
+    pedigree_paths_per_scenario: list[list[Path]],
+    labels: list[str],
+    output_path: Path,
+    trait: int = 1,
+    expected_A: float | None = None,
+    expected_C: float | None = None,
+    min_generation: int = 1,
+) -> None:
+    """Per-generation FS liability correlation, one line per scenario.
+
+    Within each generation cohort, computes Pearson ``r`` on liability between
+    full-sib pairs (both members in the same generation; twins already
+    excluded by the extractor).  Plots ``r_FS(g)`` as a line per scenario
+    with min/max envelope across replicates.
+
+    Args:
+        pedigree_paths_per_scenario: outer list = scenarios, inner list =
+            per-rep ``pedigree.parquet`` paths.
+        labels: display label per scenario.
+        output_path: image path to save.
+        trait: 1 or 2.
+        expected_A: input ``A`` for the random-mating reference line at
+            ``0.5 * A`` (set ``C`` to non-None to include the C contribution
+            ``0.5*A + C``).  Omitted if ``None``.
+        expected_C: input ``C``; combined with ``expected_A`` for the
+            reference line.
+        min_generation: smallest generation to include (founders have no FS
+            pairs by construction; default 1).
+    """
+    n_scen = len(labels)
+    if len(pedigree_paths_per_scenario) != n_scen:
+        raise ValueError("pedigree_paths and labels must have the same length")
+
+    apply_nature_style()
+    fig, ax = plt.subplots(figsize=(9, 5))
+
+    for scen_idx, (paths, label) in enumerate(zip(pedigree_paths_per_scenario, labels, strict=True)):
+        per_rep = [
+            load_pedigree_estimates_per_generation(Path(p), trait=trait)
+            for p in paths
+        ]
+        # Union of generations seen across reps, restricted to >= min_generation.
+        gens = sorted({g for d in per_rep for g in d if g >= min_generation})
+        means, lows, highs = [], [], []
+        for g in gens:
+            vals = np.array(
+                [d[g]["FS"] for d in per_rep if g in d and np.isfinite(d[g]["FS"])],
+                dtype=float,
+            )
+            if vals.size == 0:
+                means.append(float("nan"))
+                lows.append(float("nan"))
+                highs.append(float("nan"))
+            else:
+                means.append(float(vals.mean()))
+                lows.append(float(vals.min()))
+                highs.append(float(vals.max()))
+        color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
+        ax.plot(gens, means, color=color, marker="o", label=label)
+        ax.fill_between(gens, lows, highs, color=color, alpha=0.15, linewidth=0)
+
+    if expected_A is not None:
+        ref = 0.5 * expected_A + (expected_C or 0.0)
+        ax.axhline(
+            y=ref,
+            linestyle="--",
+            color="#888888",
+            linewidth=1,
+            alpha=0.8,
+            label=f"random-mating expectation = 0.5·A{(' + C' if expected_C else '')} = {ref:.3f}",
+        )
+
+    ax.set_xlabel("Generation")
+    ax.set_ylabel(f"Within-cohort r(FS, liability {trait})")
+    ax.set_title("Per-cohort full-sib liability correlation")
+    enable_value_gridlines(ax)
+    ax.legend(loc="best", fontsize=9, frameon=False)
+
+    fig.tight_layout()
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Wrote %s", output_path)
+
+
+def _per_gen_envelope(
+    per_rep_pergen: list[dict[int, dict[str, float]]],
+    gens: list[int],
+    get_val,
+) -> tuple[list[float], list[float], list[float]]:
+    """Aggregate a per-rep, per-gen scalar to (mean, min, max) per generation.
+
+    Skips reps that don't have an entry for a given generation, and skips
+    NaN values within a generation.  Returns NaN-padded lists where no rep
+    contributed a finite value.
+    """
+    means, lows, highs = [], [], []
+    for g in gens:
+        vals = np.array(
+            [get_val(d[g]) for d in per_rep_pergen if g in d],
+            dtype=float,
+        )
+        vals = vals[np.isfinite(vals)]
+        if vals.size == 0:
+            means.append(float("nan"))
+            lows.append(float("nan"))
+            highs.append(float("nan"))
+        else:
+            means.append(float(vals.mean()))
+            lows.append(float(vals.min()))
+            highs.append(float(vals.max()))
+    return means, lows, highs
+
+
+def compare_cohort_falconer(
+    pedigree_paths_per_scenario: list[list[Path]],
+    labels: list[str],
+    output_path: Path,
+    trait: int = 1,
+    min_generation: int = 1,
+) -> None:
+    """Per-generation realized h² vs per-gen Falconer vs pooled Falconer.
+
+    Side-by-side panels (one per scenario, shared y-axis):
+      - per-gen realized h² (variance ratio in the cohort)
+      - per-gen Falconer = 2(r_MZ - r_FS) computed within the cohort
+      - horizontal dashed line: pooled-across-gens Falconer (computed on
+        the full pedigree).
+
+    Args:
+        pedigree_paths_per_scenario: outer list = scenarios, inner list =
+            per-rep ``pedigree.parquet`` paths.
+        labels: display label per scenario.
+        output_path: image path to save.
+        trait: 1 or 2.
+        min_generation: smallest generation to include in per-gen lines
+            (founders have no FS pairs).  Pooled estimate always uses every
+            individual.
+    """
+    n_scen = len(labels)
+    if len(pedigree_paths_per_scenario) != n_scen:
+        raise ValueError("pedigree_paths and labels must have the same length")
+
+    apply_nature_style()
+    fig, axes = plt.subplots(1, n_scen, figsize=(3.4 * n_scen, 4.5), sharey=True)
+    if n_scen == 1:
+        axes = np.array([axes])
+
+    for paths, label, ax in zip(pedigree_paths_per_scenario, labels, axes, strict=True):
+        per_rep_pergen = [
+            load_pedigree_estimates_per_generation(Path(p), trait=trait)
+            for p in paths
+        ]
+        per_rep_pooled = [
+            load_pedigree_estimates(Path(p), trait=trait, min_generation=None)
+            for p in paths
+        ]
+        gens = sorted({g for d in per_rep_pergen for g in d if g >= min_generation})
+
+        truth_m, truth_lo, truth_hi = _per_gen_envelope(
+            per_rep_pergen, gens, lambda d: d["realized_h2"]
+        )
+        falc_m, falc_lo, falc_hi = _per_gen_envelope(
+            per_rep_pergen,
+            gens,
+            lambda d: 2.0 * (d["MZ"] - d["FS"])
+            if np.isfinite(d["MZ"]) and np.isfinite(d["FS"])
+            else float("nan"),
+        )
+
+        truth_color = SCENARIO_PALETTE[0]
+        falc_color = SCENARIO_PALETTE[1]
+
+        ax.plot(gens, truth_m, color=truth_color, marker="o", label="Realized h²")
+        ax.fill_between(gens, truth_lo, truth_hi, color=truth_color, alpha=0.15, linewidth=0)
+        ax.plot(gens, falc_m, color=falc_color, marker="s", label="Per-cohort Falconer")
+        ax.fill_between(gens, falc_lo, falc_hi, color=falc_color, alpha=0.15, linewidth=0)
+
+        pooled_falconer_vals = np.array(
+            [
+                2.0 * (est.get("MZ", float("nan")) - est.get("FS", float("nan")))
+                for est in per_rep_pooled
+            ],
+            dtype=float,
+        )
+        pooled_falconer_vals = pooled_falconer_vals[np.isfinite(pooled_falconer_vals)]
+        if pooled_falconer_vals.size:
+            pooled_mean = float(pooled_falconer_vals.mean())
+            ax.axhline(
+                y=pooled_mean,
+                linestyle="--",
+                color="#444444",
+                linewidth=1.2,
+                alpha=0.9,
+                label=f"Pooled Falconer = {pooled_mean:.3f}",
+            )
+
+        ax.set_title(label)
+        ax.set_xlabel("Generation")
+        enable_value_gridlines(ax)
+        ax.legend(loc="best", fontsize=8, frameon=False)
+
+    axes[0].set_ylabel(f"h² (trait {trait})")
+    fig.suptitle("Per-cohort vs pooled-across-gens naive Falconer")
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Wrote %s", output_path)
+
+
+def _load_per_gen_prevalence(
+    phenotype_stats_paths: list[Path],
+    trait: int = 1,
+) -> dict[int, list[float]]:
+    """Read ``prevalence.by_generation.{N}.trait{trait}`` across replicates.
+
+    Returns dict ``g -> [per-rep prevalence values]``.  Generations are the
+    union of those present across reps; missing reps contribute nothing
+    to a given generation's list.
+    """
+    per_gen: dict[int, list[float]] = {}
+    for path in phenotype_stats_paths:
+        with open(path) as fh:
+            ps = yaml.safe_load(fh) or {}
+        by_gen = (ps.get("prevalence") or {}).get("by_generation") or {}
+        for g_key, entry in by_gen.items():
+            g = int(g_key)
+            val = entry.get(f"trait{trait}")
+            if val is None:
+                continue
+            per_gen.setdefault(g, []).append(float(val))
+    return per_gen
+
+
+def compare_prevalence_drift(
+    std_paths_per_trajectory: list[list[Path]],
+    nostd_paths_per_trajectory: list[list[Path]],
+    labels: list[str],
+    output_path: Path,
+    trait: int = 1,
+    target_prevalence: float | None = None,
+) -> None:
+    """Per-generation observed prevalence under standardize=true vs false.
+
+    One panel per E trajectory (e.g. e_flat / e_rise_mild / e_rise_steep /
+    e_fall_steep), with two lines per panel: ``standardize=true`` (held at
+    the input K by per-gen re-standardization) and ``standardize=false``
+    (drifts as v_E shifts the upper-tail mass past the fixed threshold).
+
+    Args:
+        std_paths_per_trajectory: outer list = trajectory, inner list =
+            per-rep ``phenotype_stats.yaml`` paths for the
+            ``standardize=true`` variant.
+        nostd_paths_per_trajectory: same shape, for ``standardize=false``.
+        labels: display label per trajectory.
+        output_path: image path to save.
+        trait: 1 or 2.
+        target_prevalence: input K to draw as dashed reference (typically
+            0.1).  Omitted if ``None``.
+    """
+    n_traj = len(labels)
+    if len(std_paths_per_trajectory) != n_traj or len(nostd_paths_per_trajectory) != n_traj:
+        raise ValueError(
+            "std_paths_per_trajectory, nostd_paths_per_trajectory, and labels "
+            "must all have the same length"
+        )
+
+    apply_nature_style()
+    fig, axes = plt.subplots(1, n_traj, figsize=(3.4 * n_traj, 4.5), sharey=True)
+    if n_traj == 1:
+        axes = np.array([axes])
+
+    std_color = SCENARIO_PALETTE[0]
+    nostd_color = SCENARIO_PALETTE[1]
+
+    for ax, label, std_paths, nostd_paths in zip(
+        axes, labels, std_paths_per_trajectory, nostd_paths_per_trajectory, strict=True
+    ):
+        for color, line_label, paths in (
+            (std_color, "standardize=true", std_paths),
+            (nostd_color, "standardize=false", nostd_paths),
+        ):
+            per_gen = _load_per_gen_prevalence([Path(p) for p in paths], trait=trait)
+            gens = sorted(per_gen.keys())
+            means = [float(np.mean(per_gen[g])) if per_gen[g] else float("nan") for g in gens]
+            lows = [float(np.min(per_gen[g])) if per_gen[g] else float("nan") for g in gens]
+            highs = [float(np.max(per_gen[g])) if per_gen[g] else float("nan") for g in gens]
+            ax.plot(gens, means, color=color, marker="o", label=line_label)
+            ax.fill_between(gens, lows, highs, color=color, alpha=0.15, linewidth=0)
+
+        if target_prevalence is not None:
+            ax.axhline(
+                y=target_prevalence,
+                linestyle="--",
+                color="#888888",
+                linewidth=1,
+                alpha=0.8,
+            )
+
+        ax.set_title(label)
+        ax.set_xlabel("Generation")
+        enable_value_gridlines(ax)
+        ax.legend(loc="best", fontsize=8, frameon=False)
+
+    axes[0].set_ylabel(f"Observed prevalence (trait {trait})")
+    fig.suptitle("Per-generation prevalence: standardize=true vs false")
+    fig.tight_layout(rect=(0, 0, 1, 0.96))
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(output_path, dpi=150, bbox_inches="tight")

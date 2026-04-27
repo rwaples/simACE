@@ -136,3 +136,291 @@ model_cure_frailty_ln:
       beta: 1.0
       beta_sex: 0.0
       prevalence: 0.1
+
+# --- Time-varying E and h² drift ---
+# All eight scenarios share A=0.5, C=0, no AM, single trait, adult/LTM
+# phenotype model.  All start at E=0.5 in gen 0 (identical founder state).
+# Each E trajectory has a `_std` and `_nostd` variant with matched seeds, so
+# the simulated liability columns are identical within a pair; only the
+# binary affected status (in phenotype.parquet) differs.
+
+e_flat_std:
+  seed: 70601
+  N: 100000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 10
+  replicates: 3
+  standardize: true
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E:
+        0: 0.5
+        1: 0.5
+        2: 0.5
+        3: 0.5
+        4: 0.5
+        5: 0.5
+        6: 0.5
+        7: 0.5
+        8: 0.5
+        9: 0.5
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16.3
+        cip_k: 0.376
+      beta: 1.0
+      beta_sex: 0.0
+      prevalence: 0.1
+e_flat_nostd:
+  seed: 70601
+  N: 100000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 10
+  replicates: 3
+  standardize: false
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E:
+        0: 0.5
+        1: 0.5
+        2: 0.5
+        3: 0.5
+        4: 0.5
+        5: 0.5
+        6: 0.5
+        7: 0.5
+        8: 0.5
+        9: 0.5
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16.3
+        cip_k: 0.376
+      beta: 1.0
+      beta_sex: 0.0
+      prevalence: 0.1
+e_rise_mild_std:
+  seed: 70602
+  N: 100000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 10
+  replicates: 3
+  standardize: true
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E:
+        0: 0.5000
+        1: 0.5111
+        2: 0.5222
+        3: 0.5333
+        4: 0.5444
+        5: 0.5556
+        6: 0.5667
+        7: 0.5778
+        8: 0.5889
+        9: 0.6000
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16.3
+        cip_k: 0.376
+      beta: 1.0
+      beta_sex: 0.0
+      prevalence: 0.1
+e_rise_mild_nostd:
+  seed: 70602
+  N: 100000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 10
+  replicates: 3
+  standardize: false
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E:
+        0: 0.5000
+        1: 0.5111
+        2: 0.5222
+        3: 0.5333
+        4: 0.5444
+        5: 0.5556
+        6: 0.5667
+        7: 0.5778
+        8: 0.5889
+        9: 0.6000
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16.3
+        cip_k: 0.376
+      beta: 1.0
+      beta_sex: 0.0
+      prevalence: 0.1
+e_rise_steep_std:
+  seed: 70603
+  N: 100000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 10
+  replicates: 3
+  standardize: true
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E:
+        0: 0.5000
+        1: 0.5222
+        2: 0.5444
+        3: 0.5667
+        4: 0.5889
+        5: 0.6111
+        6: 0.6333
+        7: 0.6556
+        8: 0.6778
+        9: 0.7000
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16.3
+        cip_k: 0.376
+      beta: 1.0
+      beta_sex: 0.0
+      prevalence: 0.1
+e_rise_steep_nostd:
+  seed: 70603
+  N: 100000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 10
+  replicates: 3
+  standardize: false
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E:
+        0: 0.5000
+        1: 0.5222
+        2: 0.5444
+        3: 0.5667
+        4: 0.5889
+        5: 0.6111
+        6: 0.6333
+        7: 0.6556
+        8: 0.6778
+        9: 0.7000
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16.3
+        cip_k: 0.376
+      beta: 1.0
+      beta_sex: 0.0
+      prevalence: 0.1
+e_fall_steep_std:
+  seed: 70604
+  N: 100000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 10
+  replicates: 3
+  standardize: true
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E:
+        0: 0.5000
+        1: 0.4778
+        2: 0.4556
+        3: 0.4333
+        4: 0.4111
+        5: 0.3889
+        6: 0.3667
+        7: 0.3444
+        8: 0.3222
+        9: 0.3000
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16.3
+        cip_k: 0.376
+      beta: 1.0
+      beta_sex: 0.0
+      prevalence: 0.1
+e_fall_steep_nostd:
+  seed: 70604
+  N: 100000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 10
+  replicates: 3
+  standardize: false
+  pedigree:
+    assort1: 0.0
+    assort2: 0.0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E:
+        0: 0.5000
+        1: 0.4778
+        2: 0.4556
+        3: 0.4333
+        4: 0.4111
+        5: 0.3889
+        6: 0.3667
+        7: 0.3444
+        8: 0.3222
+        9: 0.3000
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16.3
+        cip_k: 0.376
+      beta: 1.0
+      beta_sex: 0.0
+      prevalence: 0.1
