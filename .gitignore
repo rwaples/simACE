@@ -5,7 +5,8 @@
 external/
 
 # Scripts (local benchmarks / utilities); root-only so workflow/scripts/ stays tracked
-/scripts/
+/scripts/*
+!/scripts/run_epimight.py
 
 # Notebooks
 notebooks/
