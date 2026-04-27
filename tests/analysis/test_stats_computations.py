@@ -722,6 +722,28 @@ class TestComputePrevalence:
         assert result["trait1"] == pytest.approx(0.0)
         assert result["trait2"] == pytest.approx(0.0)
 
+    def test_no_generation_column_omits_by_generation(self):
+        df = pd.DataFrame({"affected1": [True, False], "affected2": [False, True]})
+        result = compute_prevalence(df)
+        assert "by_generation" not in result
+
+    def test_by_generation_with_generation_column(self):
+        df = pd.DataFrame(
+            {
+                "affected1": [True, True, False, False, True, False],
+                "affected2": [False, True, True, False, True, True],
+                "generation": [0, 0, 0, 1, 1, 1],
+            }
+        )
+        result = compute_prevalence(df)
+        assert result["trait1"] == pytest.approx(3 / 6)
+        assert result["trait2"] == pytest.approx(4 / 6)
+        assert set(result["by_generation"].keys()) == {0, 1}
+        assert result["by_generation"][0]["trait1"] == pytest.approx(2 / 3)
+        assert result["by_generation"][0]["trait2"] == pytest.approx(2 / 3)
+        assert result["by_generation"][1]["trait1"] == pytest.approx(1 / 3)
+        assert result["by_generation"][1]["trait2"] == pytest.approx(2 / 3)
+
 
 # ===================================================================
 # Tests for compute_mortality

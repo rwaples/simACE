@@ -253,16 +253,32 @@ def compute_regression(df: pd.DataFrame) -> dict[str, Any]:
     return result
 
 
-def compute_prevalence(df: pd.DataFrame) -> dict[str, float]:
+def compute_prevalence(df: pd.DataFrame) -> dict[str, Any]:
     """Compute observed prevalence for each trait.
 
     Args:
         df: Phenotype DataFrame with ``affected1`` and ``affected2`` columns.
+            If a ``generation`` column is present, per-generation prevalence
+            is also reported under ``by_generation``.
 
     Returns:
-        Dict with ``trait1`` and ``trait2`` prevalence fractions.
+        Dict with ``trait1`` and ``trait2`` marginal prevalence fractions, and
+        (when ``generation`` is present) a ``by_generation`` subkey mapping
+        ``int(generation) -> {"trait1": float, "trait2": float}``.
     """
-    return {"trait1": float(df["affected1"].mean()), "trait2": float(df["affected2"].mean())}
+    result: dict[str, Any] = {
+        "trait1": float(df["affected1"].mean()),
+        "trait2": float(df["affected2"].mean()),
+    }
+    if "generation" in df.columns:
+        by_gen: dict[int, dict[str, float]] = {}
+        for gen, grp in df.groupby("generation"):
+            by_gen[int(gen)] = {
+                "trait1": float(grp["affected1"].mean()),
+                "trait2": float(grp["affected2"].mean()),
+            }
+        result["by_generation"] = by_gen
+    return result
 
 
 def compute_joint_affection(df: pd.DataFrame) -> dict[str, Any]:
