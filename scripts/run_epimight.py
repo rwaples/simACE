@@ -304,9 +304,10 @@ def ensure_epimight_installed(r_cmd: list[str], pkg_source: Path) -> None:
             f"EPIMIGHT R package source not found at {pkg_source}.\n"
             "Pass --epimight-pkg <path> pointing to the EPIMIGHT/epimight directory."
         )
+    pkg = pkg_source.as_posix()  # uses / instead of \ on Windows
     check = (
-        f"if (!requireNamespace('epimight', quietly=TRUE)) "
-        f"install.packages('{pkg_source}', repos=NULL, type='source')"
+        "if (!requireNamespace('epimight', quietly=TRUE)) "
+        f"install.packages('{pkg}', repos=NULL, type='source')"
     )
     print(f"Ensuring epimight R package is installed (source: {pkg_source})...")
     subprocess.run([*r_cmd, "-e", check], check=True)
@@ -386,7 +387,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--rubin-level", choices=["meta", "per_year"], default="meta",
                    help="Rubin pooling granularity (default: meta).")
-    p.add_argument("--conda-env", default="epimight",
+    p.add_argument("--conda-env", default="",
                    help="Conda env containing R+epimight. Set to '' to use Rscript on PATH.")
     p.add_argument("--epimight-pkg", type=Path,
                    default=Path(__file__).resolve().parent.parent / "epimight" / "EPIMIGHT" / "epimight",
