@@ -86,6 +86,8 @@ nav:
       - Gene Drop and tstrait: concepts/gene-drop.md
       - Model Fitting: concepts/model-fitting.md
   - Examples:
+      - Minimal ACE: examples/minimal-ace.md
+      - Adding shared environment (C): examples/adding-shared-environment.md
       - AM and Heritability: examples/am-and-heritability.md
       - Time-varying E and h² drift: examples/time-varying-e.md
       - Observed vs Liability h²: examples/observed-vs-liability-h2.md

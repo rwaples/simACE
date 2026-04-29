@@ -1,3 +1,38 @@
+# ── Simple intro scenarios ───────────────────────────────────────────────
+# Used by docs/examples/minimal-ace.md and docs/examples/adding-shared-environment.md.
+# Both override only seed, replicates, and the per-trait ACE values; everything
+# else (N, generation counts, censoring, phenotype model) comes from
+# config/_default.yaml. Total variance is 1.0 for every trait.
+#
+# minimal_ace: two no-C traits at different h² (0.5 and 0.3).
+# with_c: trait1 has no C, trait2 has C=0.2 (same A as trait1) — the page
+# reads off the C effect from the within-scenario trait1↔trait2 comparison.
+minimal_ace:
+  seed: 90001
+  replicates: 1
+  pedigree:
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.3
+      C: 0.0
+      E: 0.7
+
+with_c:
+  seed: 90002
+  replicates: 1
+  pedigree:
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+
 am_none:
   seed: 70421
   G_sim: 10
