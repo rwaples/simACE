@@ -1,17 +1,4 @@
-# Per-chromosome pedigree drop + ancestry graft scenarios.
-#
-# These scenarios feed `rule simulate_genotypes` (workflow/rules/simace/
-# genotype_drop.smk) which builds a tskit grafted .trees per chromosome from
-# a simACE pedigree and the canonicalized p2 ancestry under preprocessed_p2/.
-#
-# Run:
-#   snakemake --use-conda --cores 4 \
-#     results/genotype_drop/p2_full/rep1/.simulate_genotypes.done
-
-# All 35,951 SimHumanity p2 individuals serve as founders (no random
-# subsampling). G_ped=10, no MZ twins, no assortative mating. Liability
-# components inherit defaults from config/_default.yaml.
-p2_full: &p2_full
+p2_full:
   seed: 4242
   N: 35951
   G_ped: 10
@@ -19,18 +6,17 @@ p2_full: &p2_full
   G_pheno: 3
   replicates: 1
   use_gene_drop: true
-  pedigree: &p2_pedigree
+  pedigree: &id003
     p_mztwin: 0
     assort1: 0
     assort2: 0
-    trait1: &p2_trait
+    trait1: &id001
       A: 0.4
       C: 0.1
       E: 0.5
-    trait2: *p2_trait
-  # Make trait2's phenotype match trait1's (defaults differ by scale/rho/beta/prev).
-  phenotype:
-    trait1: &p2_phenotype
+    trait2: *id001
+  phenotype: &id004
+    trait1: &id002
       model: frailty
       params:
         distribution: weibull
@@ -38,45 +24,69 @@ p2_full: &p2_full
         rho: 0.8
       beta: 1.0
       beta_sex: 0.0
-      prevalence: 0.10
-    trait2: *p2_phenotype
-
-# ── Causal-architecture sweep ────────────────────────────────────────────
-# Variants that share p2_full's pedigree+drop via `drop_from: p2_full`.
-# Snakemake will not re-run simulate_pedigree_liability or
-# simulate_genotypes_chrom for these — only the tstrait sub-pipeline
-# (assign_effects, gv_chrom, augment, phenotype) runs per variant.
-# Each scenario varies a single tstrait param against the p2_full anchor
-# (alpha=-0.5, num_causal=1000 from defaults).
-
-# Vary alpha at the default num_causal=1000.
+    trait2: *id002
 p2_full_a0:
-  <<: *p2_full
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
   drop_from: p2_full
   tstrait:
     alpha: 0.0
-
-# Vary num_causal at the default alpha=-0.5.
 p2_full_c100:
-  <<: *p2_full
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
   drop_from: p2_full
   tstrait:
     num_causal: 100
-
 p2_full_c10k:
-  <<: *p2_full
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
   drop_from: p2_full
   tstrait:
     num_causal: 10000
-
 p2_full_c100k:
-  <<: *p2_full
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
   drop_from: p2_full
   tstrait:
     num_causal: 100000
-
 p2_full_c1m:
-  <<: *p2_full
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
   drop_from: p2_full
   tstrait:
     num_causal: 1000000

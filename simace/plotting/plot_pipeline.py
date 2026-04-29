@@ -160,14 +160,22 @@ def _get_param_rows(
             a = float(params.get("A1", 0))
             c = param_as_float(params.get("C1", 0))
             e_val = params.get("E1")
-            label = f"[{a:g}, {c:g}, {1.0 - a - c:g}]" if e_val is None or not isinstance(e_val, dict) else f"[{a:g}, {c:g}, E1=dict]"
+            label = (
+                f"[{a:g}, {c:g}, {1.0 - a - c:g}]"
+                if e_val is None or not isinstance(e_val, dict)
+                else f"[{a:g}, {c:g}, E1=dict]"
+            )
             rows.append(("[A1, C1, E1]", label))
             continue
         if name == "_ACE2" and "A2" in params:
             a = float(params.get("A2", 0))
             c = param_as_float(params.get("C2", 0))
             e_val = params.get("E2")
-            label = f"[{a:g}, {c:g}, {1.0 - a - c:g}]" if e_val is None or not isinstance(e_val, dict) else f"[{a:g}, {c:g}, E2=dict]"
+            label = (
+                f"[{a:g}, {c:g}, {1.0 - a - c:g}]"
+                if e_val is None or not isinstance(e_val, dict)
+                else f"[{a:g}, {c:g}, E2=dict]"
+            )
             rows.append(("[A2, C2, E2]", label))
             continue
         if name == "_rAC" and "rA" in params:
@@ -222,11 +230,17 @@ def _get_param_rows(
             r = _format_param_value("death_rho", params["death_rho"])
             rows.append(("mortality [scale, \u03c1]", f"[{s}, {r}]"))
             continue
-        # Compact prevalence: one row per trait (scalar or dict)
+        # Compact prevalence: one row per trait. Read from inside the per-trait
+        # phenotype_params{N}.prevalence (PR3 moved this out of the top level).
+        # Models that don't carry a prevalence (frailty / first_passage) render
+        # "n/a" so the table reflects the type-encoded asymmetry.
         if name == "_prev12":
-            for t, key in [(1, "prevalence1"), (2, "prevalence2")]:
-                if key in params:
-                    rows.append((f"prevalence {t}", _format_param_value(key, params[key])))
+            for t in (1, 2):
+                pp = params.get(f"phenotype_params{t}", {})
+                if isinstance(pp, dict) and "prevalence" in pp:
+                    rows.append((f"prevalence {t}", _format_param_value(f"prevalence{t}", pp["prevalence"])))
+                else:
+                    rows.append((f"prevalence {t}", "n/a"))
             continue
         if name not in params:
             continue

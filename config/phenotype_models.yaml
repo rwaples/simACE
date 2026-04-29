@@ -130,36 +130,26 @@ increasing_prevalence:
   seed: 16042
   G_pheno: 4
   phenotype:
-    trait1:
-      prevalence:
-        2: 0.03
-        3: 0.05
-        4: 0.08
-        5: 0.12
-    trait2:
-      prevalence:
-        2: 0.03
-        3: 0.05
-        4: 0.08
-        5: 0.12
+    trait1: {}
+    trait2: {}
 adult_ltm:
   seed: 23042
   N: 50000
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.2
+        prevalence: 0.1
     trait2:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.2
+        prevalence: 0.2
   pedigree:
     trait1:
       C: 0.0
@@ -183,18 +173,18 @@ adult_cox:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.1
       params:
         method: cox
         cip_x0: 50
         cip_k: 0.2
+        prevalence: 0.1
     trait2:
       model: adult
-      prevalence: 0.2
       params:
         method: cox
         cip_x0: 50
         cip_k: 0.2
+        prevalence: 0.2
   pedigree:
     trait1:
       C: 0.0
@@ -218,22 +208,22 @@ adult_ltm_sex_prev:
   phenotype:
     trait1:
       model: adult
-      prevalence:
-        female: 0.08
-        male: 0.12
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.2
+        prevalence:
+          female: 0.08
+          male: 0.12
     trait2:
       model: adult
-      prevalence:
-        female: 0.1
-        male: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.2
+        prevalence:
+          female: 0.1
+          male: 0.2
 first_passage:
   seed: 26042
   N: 50000

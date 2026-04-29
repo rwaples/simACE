@@ -80,9 +80,15 @@ class AdultModel(PhenotypeModel):
                     f"phenotype_params{trait_num} for model 'adult' must include "
                     f"'method' key (one of {sorted(_ADULT_METHODS)})"
                 )
+            if "prevalence" not in phenotype_params:
+                raise ValueError(
+                    f"phenotype_params{trait_num} for model 'adult' must include "
+                    f"'prevalence' key (PR3 moved this from top-level "
+                    f"phenotype.trait{trait_num}.prevalence into params:)"
+                )
             return cls(
                 method=method,
-                prevalence=params[f"prevalence{trait_num}"],
+                prevalence=phenotype_params["prevalence"],
                 cip_x0=phenotype_params.get("cip_x0", 50.0),
                 cip_k=phenotype_params.get("cip_k", 0.2),
                 beta=params[f"beta{trait_num}"],
@@ -133,7 +139,12 @@ class AdultModel(PhenotypeModel):
         }
 
     def to_params_dict(self) -> dict[str, Any]:
-        return {"method": self.method, "cip_x0": self.cip_x0, "cip_k": self.cip_k}
+        return {
+            "method": self.method,
+            "cip_x0": self.cip_x0,
+            "cip_k": self.cip_k,
+            "prevalence": self.prevalence,
+        }
 
     # ------------------------------------------------------------------
     # Simulation

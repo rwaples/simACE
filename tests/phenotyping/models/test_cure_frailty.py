@@ -22,8 +22,7 @@ def test_missing_hazard_params_raises():
 
 def test_from_config_reads_prevalence_and_distribution():
     params = {
-        "phenotype_params1": {"distribution": "gompertz", **GOMPERTZ},
-        "prevalence1": 0.10,
+        "phenotype_params1": {"distribution": "gompertz", "prevalence": 0.10, **GOMPERTZ},
         "beta1": 1.0,
     }
     m = CureFrailtyModel.from_config(params, trait_num=1)
@@ -32,9 +31,15 @@ def test_from_config_reads_prevalence_and_distribution():
     assert m.prevalence == 0.10
 
 
-def test_to_params_dict_excludes_prevalence():
+def test_from_config_prevalence_missing_traitful_message():
+    params = {"phenotype_params1": {"distribution": "gompertz", **GOMPERTZ}, "beta1": 1.0}
+    with pytest.raises(ValueError, match=r"phenotype\.trait1.*'prevalence'"):
+        CureFrailtyModel.from_config(params, trait_num=1)
+
+
+def test_to_params_dict_includes_prevalence():
     m = CureFrailtyModel(distribution="gompertz", hazard_params=GOMPERTZ, prevalence=0.1)
-    assert m.to_params_dict() == {"distribution": "gompertz", **GOMPERTZ}
+    assert m.to_params_dict() == {"distribution": "gompertz", "prevalence": 0.1, **GOMPERTZ}
 
 
 def _parser_with_all_models():

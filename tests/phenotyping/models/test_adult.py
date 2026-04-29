@@ -20,8 +20,7 @@ def test_inf_beta_raises():
 
 def test_from_config_reads_phenotype_params():
     params = {
-        "phenotype_params1": {"method": "ltm", "cip_x0": 60.0, "cip_k": 0.3},
-        "prevalence1": 0.15,
+        "phenotype_params1": {"method": "ltm", "cip_x0": 60.0, "cip_k": 0.3, "prevalence": 0.15},
         "beta1": 1.0,
     }
     m = AdultModel.from_config(params, trait_num=1)
@@ -32,14 +31,25 @@ def test_from_config_reads_phenotype_params():
 
 
 def test_from_config_method_missing_traitful_message():
-    params = {"phenotype_params1": {"cip_x0": 60.0}, "prevalence1": 0.1, "beta1": 1.0}
+    params = {"phenotype_params1": {"cip_x0": 60.0, "prevalence": 0.1}, "beta1": 1.0}
     with pytest.raises(ValueError, match=r"phenotype\.trait1.*'method'"):
         AdultModel.from_config(params, trait_num=1)
 
 
-def test_to_params_dict_excludes_prevalence_and_beta():
+def test_from_config_prevalence_missing_traitful_message():
+    params = {"phenotype_params1": {"method": "ltm"}, "beta1": 1.0}
+    with pytest.raises(ValueError, match=r"phenotype\.trait1.*'prevalence'"):
+        AdultModel.from_config(params, trait_num=1)
+
+
+def test_to_params_dict_round_trips_prevalence():
     m = AdultModel(method="cox", prevalence=0.2, cip_x0=55.0, cip_k=0.25)
-    assert m.to_params_dict() == {"method": "cox", "cip_x0": 55.0, "cip_k": 0.25}
+    assert m.to_params_dict() == {
+        "method": "cox",
+        "cip_x0": 55.0,
+        "cip_k": 0.25,
+        "prevalence": 0.2,
+    }
 
 
 def _parser_with_all_models():

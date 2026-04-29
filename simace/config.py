@@ -44,17 +44,17 @@ _HIERARCHICAL_TO_FLAT: dict[tuple[str, ...], str] = {
     ("pedigree", "rA"): "rA",
     ("pedigree", "rC"): "rC",
     ("pedigree", "rE"): "rE",
-    # phenotype section
+    # phenotype section. Note: phenotype.trait{N}.prevalence is no longer a
+    # top-level mapping — PR3 moved prevalence inside per-model params for
+    # adult / cure_frailty (it is forbidden for frailty / first_passage).
     ("phenotype", "trait1", "model"): "phenotype_model1",
     ("phenotype", "trait1", "params"): "phenotype_params1",
     ("phenotype", "trait1", "beta"): "beta1",
     ("phenotype", "trait1", "beta_sex"): "beta_sex1",
-    ("phenotype", "trait1", "prevalence"): "prevalence1",
     ("phenotype", "trait2", "model"): "phenotype_model2",
     ("phenotype", "trait2", "params"): "phenotype_params2",
     ("phenotype", "trait2", "beta"): "beta2",
     ("phenotype", "trait2", "beta_sex"): "beta_sex2",
-    ("phenotype", "trait2", "prevalence"): "prevalence2",
     # censoring section
     ("censoring", "max_age"): "censor_age",
     ("censoring", "gen_censoring"): "gen_censoring",
@@ -126,6 +126,16 @@ def _flatten_section(
             flat[mapping[path]] = value
         elif path in valid_prefixes and isinstance(value, dict):
             _flatten_section(flat, path, value, mapping, valid_prefixes)
+        elif len(path) == 3 and path[0] == "phenotype" and path[1] in ("trait1", "trait2") and path[2] == "prevalence":
+            # Removed in PR3: phenotype.trait{N}.prevalence moved inside
+            # params: for adult / cure_frailty, deleted for frailty / first_passage.
+            raise ValueError(
+                f"Top-level {'.'.join(path)} is no longer supported. "
+                f"Move it inside phenotype.{path[1]}.params (for adult / "
+                f"cure_frailty) or remove it (for frailty / first_passage). "
+                f"Run scripts/migrate_prevalence_keys.py to migrate every "
+                f"config/*.yaml automatically."
+            )
         else:
             raise ValueError(f"Unknown hierarchical config key: {'.'.join(path)}")
 
@@ -234,6 +244,24 @@ def _validate_phenotype_config(config: dict) -> None:
                         f"{pp['method']!r} invalid; "
                         f"valid: {sorted(_VALID_METHODS)}"
                     )
+
+            # Prevalence is required for threshold-based models, forbidden
+            # for hazard-only models. Top-level placement was deprecated
+            # in PR3 and is rejected outright.
+            if model in ("adult", "cure_frailty"):
+                if "prevalence" not in pp:
+                    raise ValueError(
+                        f"Scenario '{name}': {params_key} for model {model!r} must include "
+                        f"'prevalence' key. If your YAML still has top-level "
+                        f"phenotype.trait{trait_num}.prevalence, run "
+                        f"scripts/migrate_prevalence_keys.py to move it inside params:."
+                    )
+            elif model in ("frailty", "first_passage") and "prevalence" in pp:
+                raise ValueError(
+                    f"Scenario '{name}': {params_key} for model {model!r} must NOT include "
+                    f"'prevalence' (only adult / cure_frailty accept it). "
+                    f"Drop the key or run scripts/migrate_prevalence_keys.py."
+                )
 
 
 # ---------------------------------------------------------------------------

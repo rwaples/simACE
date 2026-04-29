@@ -173,10 +173,6 @@ def cli() -> None:
         params[f"phenotype_params{trait}"] = instance.to_params_dict()
         params[f"beta{trait}"] = getattr(args, f"beta{trait}")
         params[f"beta_sex{trait}"] = getattr(args, f"beta_sex{trait}")
-        # Adult and cure_frailty currently still consume prevalence{trait}
-        # at the top level (PR3 will move this inside phenotype_params).
-        if hasattr(instance, "prevalence"):
-            params[f"prevalence{trait}"] = instance.prevalence
 
     pedigree = pd.read_parquet(args.pedigree)
     phenotype = run_phenotype(pedigree, params)

@@ -17,18 +17,18 @@ ebias_ltm_K01_C0_nocensor_2M:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
     trait2:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -52,18 +52,18 @@ ebias_ltm_K05_C0_nocensor_2M:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
     trait2:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -87,18 +87,18 @@ ebias_ltm_K10_C0_nocensor_2M:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
     trait2:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -122,18 +122,18 @@ ebias_ltm_K20_C0_nocensor_2M:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
     trait2:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -157,18 +157,18 @@ ebias_ltm_K40_C0_nocensor_2M:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
     trait2:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
   censoring:
     gen_censoring: {}
     death_scale: 1000000

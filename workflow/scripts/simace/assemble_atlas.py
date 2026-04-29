@@ -46,8 +46,6 @@ def _run_snakemake():
         "gen_censoring",
         "death_scale",
         "death_rho",
-        "prevalence1",
-        "prevalence2",
         "G_pheno",
         "N_sample",
         "pedigree_dropout_rate",

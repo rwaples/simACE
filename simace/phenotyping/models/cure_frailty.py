@@ -83,7 +83,13 @@ class CureFrailtyModel(PhenotypeModel):
                     f"phenotype_params{trait_num} for model 'cure_frailty' must include "
                     f"'distribution' key (one of {sorted(BASELINE_HAZARDS)})"
                 )
-            prevalence = params[f"prevalence{trait_num}"]
+            if "prevalence" not in phenotype_params:
+                raise ValueError(
+                    f"phenotype_params{trait_num} for model 'cure_frailty' must include "
+                    f"'prevalence' key (PR3 moved this from top-level "
+                    f"phenotype.trait{trait_num}.prevalence into params:)"
+                )
+            prevalence = phenotype_params.pop("prevalence")
             return cls(
                 distribution=distribution,
                 hazard_params=phenotype_params,
@@ -143,7 +149,7 @@ class CureFrailtyModel(PhenotypeModel):
         return attrs
 
     def to_params_dict(self) -> dict[str, Any]:
-        return {"distribution": self.distribution, **self.hazard_params}
+        return {"distribution": self.distribution, "prevalence": self.prevalence, **self.hazard_params}
 
     # ------------------------------------------------------------------
     # Simulation

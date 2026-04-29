@@ -55,7 +55,6 @@ defaults:
         rho: 0.8
       beta: 1.0
       beta_sex: 0.0
-      prevalence: 0.10
     trait2:
       model: frailty
       params:
@@ -64,7 +63,6 @@ defaults:
         rho: 1.2
       beta: 1.5
       beta_sex: 0.0
-      prevalence: 0.20
 
   # ── Censoring ───────────────────────────────────────────────────────────
   censoring:
