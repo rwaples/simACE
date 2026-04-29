@@ -113,43 +113,72 @@ def _apply_threshold_sex_aware(
     return apply_threshold(liability, generation, prev, standardize=standardize)
 
 
-def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
-    """Orchestrate threshold phenotype from pedigree and parameter dict.
+_DEFAULT_THRESHOLD_PREVALENCE: tuple[float, float] = (0.10, 0.20)
+
+
+def run_threshold(
+    pedigree: pd.DataFrame,
+    *,
+    phenotype_params1: dict | None,
+    phenotype_params2: dict | None,
+    G_pheno: int,
+    standardize: bool = True,
+) -> pd.DataFrame:
+    """Orchestrate threshold phenotype from pedigree and per-trait params.
+
+    Prevalence is extracted from the per-trait ``phenotype_params{N}`` dicts
+    (the canonical home for adult / cure_frailty model prevalence after PR3).
+    Traits whose primary model doesn't carry one (frailty / first_passage)
+    fall back to a documented default so the model-agnostic threshold path
+    still has a prevalence to use.
 
     Args:
-        pedigree: DataFrame with pedigree data
-        params: dict with keys: G_pheno, prevalence1, prevalence2
+        pedigree: DataFrame with pedigree data.
+        phenotype_params1: trait-1 model-specific param dict.  Its
+            ``"prevalence"`` value (scalar, per-generation dict, or
+            sex-specific dict; see :func:`apply_threshold`) is used as the
+            threshold target.
+        phenotype_params2: trait-2 model-specific param dict (same shape
+            options as ``phenotype_params1``).
+        G_pheno: number of trailing generations to phenotype.
+        standardize: if True, standardize liability per-generation before
+            thresholding.
 
     Returns:
         phenotype DataFrame
     """
-    p1, p2 = params["prevalence1"], params["prevalence2"]
-    if isinstance(p1, dict) or isinstance(p2, dict):
-        logger.info("Applying threshold model: prevalence1=%s, prevalence2=%s", p1, p2)
+    pp1 = dict(phenotype_params1 or {})
+    pp2 = dict(phenotype_params2 or {})
+    prevalence1 = pp1.get("prevalence", _DEFAULT_THRESHOLD_PREVALENCE[0])
+    prevalence2 = pp2.get("prevalence", _DEFAULT_THRESHOLD_PREVALENCE[1])
+
+    if isinstance(prevalence1, dict) or isinstance(prevalence2, dict):
+        logger.info("Applying threshold model: prevalence1=%s, prevalence2=%s", prevalence1, prevalence2)
     else:
-        logger.info("Applying threshold model: prevalence1=%.3f, prevalence2=%.3f", p1, p2)
+        logger.info("Applying threshold model: prevalence1=%.3f, prevalence2=%.3f", prevalence1, prevalence2)
     t0 = time.perf_counter()
     # Filter to last G_pheno generations
     max_gen = pedigree["generation"].max()
-    min_pheno_gen = max_gen - params["G_pheno"] + 1
-    assert min_pheno_gen >= 0, f"G_pheno ({params['G_pheno']}) > available generations ({max_gen + 1})"
+    min_pheno_gen = max_gen - G_pheno + 1
+    assert min_pheno_gen >= 0, f"G_pheno ({G_pheno}) > available generations ({max_gen + 1})"
     pedigree = pedigree[pedigree["generation"] >= min_pheno_gen].reset_index(drop=True)
 
     generation = pedigree["generation"].values
     sex = pedigree["sex"].values
 
+    helper_params = {"prevalence1": prevalence1, "prevalence2": prevalence2, "standardize": standardize}
     affected1 = _apply_threshold_sex_aware(
         pedigree["liability1"].values,
         generation,
         sex,
-        params,
+        helper_params,
         trait_num=1,
     )
     affected2 = _apply_threshold_sex_aware(
         pedigree["liability2"].values,
         generation,
         sex,
-        params,
+        helper_params,
         trait_num=2,
     )
 
@@ -199,10 +228,10 @@ def cli() -> None:
     init_logging(args)
 
     pedigree = pd.read_parquet(args.pedigree)
-    params = {
-        "G_pheno": args.G_pheno,
-        "prevalence1": _parse_prevalence_arg(args.prevalence1, args.prevalence1_by_gen),
-        "prevalence2": _parse_prevalence_arg(args.prevalence2, args.prevalence2_by_gen),
-    }
-    phenotype = run_threshold(pedigree, params)
+    phenotype = run_threshold(
+        pedigree,
+        G_pheno=args.G_pheno,
+        phenotype_params1={"prevalence": _parse_prevalence_arg(args.prevalence1, args.prevalence1_by_gen)},
+        phenotype_params2={"prevalence": _parse_prevalence_arg(args.prevalence2, args.prevalence2_by_gen)},
+    )
     save_parquet(phenotype, args.output)

@@ -9,7 +9,6 @@ __all__ = ["age_censor", "death_censor", "run_censor"]
 import argparse
 import logging
 import time
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -70,13 +69,26 @@ def death_censor(
     return t, censored
 
 
-def run_censor(phenotype: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
+def run_censor(
+    phenotype: pd.DataFrame,
+    *,
+    censor_age: float,
+    seed: int,
+    gen_censoring: dict[int, list[float]],
+    death_scale: float,
+    death_rho: float,
+) -> pd.DataFrame:
     """Apply censoring to raw phenotype event times.
 
     Args:
-        phenotype: DataFrame with raw event times (t1, t2) from run_phenotype
-        params: dict with keys: censor_age, gen_censoring, seed,
-                death_scale, death_rho
+        phenotype: DataFrame with raw event times (t1, t2) from run_phenotype.
+        censor_age: maximum follow-up age (right boundary of the default
+            observation window).
+        seed: RNG seed for the competing-risk death draw.
+        gen_censoring: per-generation ``{gen: [left, right]}`` observation
+            windows.  Generations not listed use ``[0, censor_age]``.
+        death_scale: Weibull scale for the competing-risk death hazard.
+        death_rho: Weibull shape for the competing-risk death hazard.
 
     Returns:
         DataFrame with original columns plus censoring columns:
@@ -87,17 +99,16 @@ def run_censor(phenotype: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     t0 = time.perf_counter()
 
     generations = phenotype["generation"].values
-    gen_censoring = params["gen_censoring"]
     left_censor = np.zeros(len(phenotype))
-    right_censor = np.full(len(phenotype), float(params["censor_age"]))
+    right_censor = np.full(len(phenotype), float(censor_age))
     for gen, (lo, hi) in gen_censoring.items():
         mask = generations == int(gen)
         left_censor[mask] = lo
         right_censor[mask] = hi
 
-    rng_death = np.random.default_rng(params["seed"] + 1000)
+    rng_death = np.random.default_rng(seed + 1000)
     u_death = 1.0 - rng_death.uniform(size=len(phenotype))
-    death_age = params["death_scale"] * (-np.log(u_death)) ** (1 / params["death_rho"])
+    death_age = death_scale * (-np.log(u_death)) ** (1 / death_rho)
 
     t1_after_age, age_censored1 = age_censor(phenotype["t1"].values.copy(), left_censor, right_censor)
     death_censored1 = t1_after_age > death_age
@@ -157,12 +168,12 @@ def cli() -> None:
     phenotype = pd.read_parquet(args.phenotype)
     gen_censoring = json.loads(args.gen_censoring) if args.gen_censoring else {}
     gen_censoring = {int(k): v for k, v in gen_censoring.items()}
-    params = {
-        "censor_age": args.censor_age,
-        "seed": args.seed,
-        "gen_censoring": gen_censoring,
-        "death_scale": args.death_scale,
-        "death_rho": args.death_rho,
-    }
-    result = run_censor(phenotype, params)
+    result = run_censor(
+        phenotype,
+        censor_age=args.censor_age,
+        seed=args.seed,
+        gen_censoring=gen_censoring,
+        death_scale=args.death_scale,
+        death_rho=args.death_rho,
+    )
     save_parquet(result, args.output)

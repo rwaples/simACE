@@ -73,13 +73,35 @@ def pedigree(integration_params):
 @pytest.fixture(scope="module")
 def phenotype(pedigree, integration_params):
     """Run phenotype step."""
-    return run_phenotype(pedigree, integration_params)
+    p = integration_params
+    return run_phenotype(
+        pedigree,
+        G_pheno=p["G_pheno"],
+        seed=p["seed"],
+        standardize=p["standardize"],
+        phenotype_model1=p["phenotype_model1"],
+        phenotype_model2=p["phenotype_model2"],
+        beta1=p["beta1"],
+        beta_sex1=p["beta_sex1"],
+        phenotype_params1=p["phenotype_params1"],
+        beta2=p["beta2"],
+        beta_sex2=p["beta_sex2"],
+        phenotype_params2=p["phenotype_params2"],
+    )
 
 
 @pytest.fixture(scope="module")
 def censored(phenotype, integration_params):
     """Run censor step."""
-    return run_censor(phenotype, integration_params)
+    p = integration_params
+    return run_censor(
+        phenotype,
+        censor_age=p["censor_age"],
+        seed=p["seed"],
+        gen_censoring=p["gen_censoring"],
+        death_scale=p["death_scale"],
+        death_rho=p["death_rho"],
+    )
 
 
 class TestSimulateStep:

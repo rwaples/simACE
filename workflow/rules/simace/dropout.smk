@@ -21,7 +21,7 @@ rule pedigree_dropout:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
         runtime=5,
     params:
-        dropout_rate=lambda w: get_param(config, w.scenario, "pedigree_dropout_rate"),
+        pedigree_dropout_rate=lambda w: get_param(config, w.scenario, "pedigree_dropout_rate"),
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
     script:
         "../../scripts/simace/dropout.py"

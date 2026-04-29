@@ -3,19 +3,17 @@
 from simace import _snakemake_tag, setup_logging
 from simace.core.parquet_to_tsv import cli as _cli
 from simace.core.parquet_to_tsv import convert
+from simace.core.snakemake_adapter import cli_or_snakemake
 
 
-def _run_snakemake():
+def _run() -> None:
     setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
-    precision = snakemake.params.get("float_precision", 4)
-    use_gzip = snakemake.params.get("gzip", True)
-    convert(snakemake.input[0], snakemake.output[0], float_precision=precision, gzip=use_gzip)
+    convert(
+        snakemake.input[0],
+        snakemake.output[0],
+        float_precision=snakemake.params.get("float_precision", 4),
+        gzip=snakemake.params.get("gzip", True),
+    )
 
 
-try:
-    snakemake
-except NameError:
-    if __name__ == "__main__":
-        _cli()
-else:
-    _run_snakemake()
+cli_or_snakemake(_cli, _run, globals())

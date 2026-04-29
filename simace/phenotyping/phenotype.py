@@ -55,18 +55,42 @@ def _simulate_one_trait(
     )
 
 
-def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
-    """Simulate phenotype from pedigree and parameter dict.
+def run_phenotype(
+    pedigree: pd.DataFrame,
+    *,
+    G_pheno: int,
+    seed: int,
+    standardize: bool,
+    phenotype_model1: str,
+    phenotype_model2: str,
+    beta1: float,
+    beta_sex1: float,
+    phenotype_params1: dict,
+    beta2: float,
+    beta_sex2: float,
+    phenotype_params2: dict,
+) -> pd.DataFrame:
+    """Simulate phenotype event times for two correlated traits.
 
-    Expected keys in ``params``:
-        ``G_pheno``, ``seed``, ``standardize``,
-        ``phenotype_model1``, ``phenotype_params1``, ``beta1``, ``beta_sex1``,
-        ``phenotype_model2``, ``phenotype_params2``, ``beta2``, ``beta_sex2``.
+    Per-trait prevalence (for adult / cure_frailty) lives inside
+    ``phenotype_params{N}``; frailty / first_passage do not carry one.
 
     Args:
         pedigree: DataFrame with ``liability1``, ``liability2``, ``generation``,
-                  ``sex``, plus the genealogy columns preserved on output.
-        params:   simulation parameter dict (see above).
+            ``sex``, plus the genealogy columns preserved on output.
+        G_pheno: number of trailing generations to phenotype.
+        seed: RNG seed (trait 2 uses ``seed + 100``).
+        standardize: if True, standardize liability per-generation.
+        phenotype_model1: trait-1 model family (``frailty``, ``cure_frailty``,
+            ``adult``, ``first_passage``).
+        phenotype_model2: trait-2 model family (same options).
+        beta1: trait-1 liability → log-hazard slope.
+        beta_sex1: trait-1 sex → log-hazard slope.
+        phenotype_params1: trait-1 model-specific parameter dict (e.g.
+            ``{"distribution": "weibull", "scale": ..., "rho": ...}``).
+        beta2: trait-2 liability → log-hazard slope.
+        beta_sex2: trait-2 sex → log-hazard slope.
+        phenotype_params2: trait-2 model-specific parameter dict.
 
     Returns:
         Phenotype DataFrame with columns ``t1``, ``t2`` (raw event times)
@@ -77,13 +101,26 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     t0 = time.perf_counter()
 
     max_gen = pedigree["generation"].max()
-    min_gen = max_gen - params["G_pheno"] + 1
+    min_gen = max_gen - G_pheno + 1
     if min_gen < 0:
-        raise ValueError(f"G_pheno ({params['G_pheno']}) exceeds available generations ({max_gen + 1})")
+        raise ValueError(f"G_pheno ({G_pheno}) exceeds available generations ({max_gen + 1})")
     pedigree = pedigree[pedigree["generation"] >= min_gen].reset_index(drop=True)
 
-    t1 = _simulate_one_trait(pedigree, params, trait_num=1, seed_offset=0)
-    t2 = _simulate_one_trait(pedigree, params, trait_num=2, seed_offset=100)
+    helper_params: dict[str, Any] = {
+        "G_pheno": G_pheno,
+        "seed": seed,
+        "standardize": standardize,
+        "phenotype_model1": phenotype_model1,
+        "phenotype_model2": phenotype_model2,
+        "beta1": beta1,
+        "beta_sex1": beta_sex1,
+        "phenotype_params1": phenotype_params1,
+        "beta2": beta2,
+        "beta_sex2": beta_sex2,
+        "phenotype_params2": phenotype_params2,
+    }
+    t1 = _simulate_one_trait(pedigree, helper_params, trait_num=1, seed_offset=0)
+    t2 = _simulate_one_trait(pedigree, helper_params, trait_num=2, seed_offset=100)
 
     phenotype = pedigree.assign(t1=t1, t2=t2)
 
@@ -138,7 +175,7 @@ def cli() -> None:
     args = parser.parse_args()
     init_logging(args)
 
-    params: dict[str, Any] = {
+    kwargs: dict[str, Any] = {
         "G_pheno": args.G_pheno,
         "seed": args.seed,
         "standardize": args.standardize,
@@ -147,11 +184,11 @@ def cli() -> None:
         model_name = getattr(args, f"phenotype_model{trait}")
         model_cls = MODELS[model_name]
         instance = model_cls.from_cli(args, trait)
-        params[f"phenotype_model{trait}"] = model_name
-        params[f"phenotype_params{trait}"] = instance.to_params_dict()
-        params[f"beta{trait}"] = getattr(args, f"beta{trait}")
-        params[f"beta_sex{trait}"] = getattr(args, f"beta_sex{trait}")
+        kwargs[f"phenotype_model{trait}"] = model_name
+        kwargs[f"phenotype_params{trait}"] = instance.to_params_dict()
+        kwargs[f"beta{trait}"] = getattr(args, f"beta{trait}")
+        kwargs[f"beta_sex{trait}"] = getattr(args, f"beta_sex{trait}")
 
     pedigree = pd.read_parquet(args.pedigree)
-    phenotype = run_phenotype(pedigree, params)
+    phenotype = run_phenotype(pedigree, **kwargs)
     save_parquet(phenotype, args.output)

@@ -15,7 +15,12 @@ from simace.core.schema import PEDIGREE, assert_schema
 logger = logging.getLogger(__name__)
 
 
-def run_dropout(pedigree: pd.DataFrame, params: dict) -> pd.DataFrame:
+def run_dropout(
+    pedigree: pd.DataFrame,
+    *,
+    pedigree_dropout_rate: float = 0,
+    seed: int = 42,
+) -> pd.DataFrame:
     """Remove a random fraction of individuals from the pedigree.
 
     Dropped individuals are deleted entirely. Any mother/father/twin links
@@ -23,15 +28,15 @@ def run_dropout(pedigree: pd.DataFrame, params: dict) -> pd.DataFrame:
 
     Args:
         pedigree: DataFrame with columns id, mother, father, twin, etc.
-        params: dict with keys ``pedigree_dropout_rate`` (float 0-1) and
-                ``seed`` (int).
+        pedigree_dropout_rate: fraction of individuals to drop, in ``[0, 1)``.
+        seed: RNG seed.
 
     Returns:
         DataFrame with dropped rows removed and dangling links severed.
     """
     assert_schema(pedigree, PEDIGREE, where="dropout input")
-    rate = float(params.get("pedigree_dropout_rate", 0))
-    seed = int(params.get("seed", 42))
+    rate = float(pedigree_dropout_rate)
+    seed = int(seed)
 
     if rate <= 0:
         logger.info("Dropout pass-through: rate=%.3f, keeping all %d individuals", rate, len(pedigree))
@@ -93,6 +98,5 @@ def cli() -> None:
     init_logging(args)
 
     pedigree = pd.read_parquet(args.pedigree)
-    params = {"pedigree_dropout_rate": args.dropout_rate, "seed": args.seed}
-    result = run_dropout(pedigree, params)
+    result = run_dropout(pedigree, pedigree_dropout_rate=args.dropout_rate, seed=args.seed)
     save_parquet(result, args.output)

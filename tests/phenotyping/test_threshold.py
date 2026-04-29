@@ -264,7 +264,12 @@ def _tiny_pedigree(n_per_gen: int = 1000, n_gens: int = 2, seed: int = 0) -> pd.
 class TestRunThreshold:
     def test_emits_expected_columns(self):
         df = _tiny_pedigree(n_per_gen=500, n_gens=2)
-        out = run_threshold(df, {"G_pheno": 2, "prevalence1": 0.1, "prevalence2": 0.2})
+        out = run_threshold(
+            df,
+            G_pheno=2,
+            phenotype_params1={"prevalence": 0.1},
+            phenotype_params2={"prevalence": 0.2},
+        )
         for col in ("id", "sex", "generation", "affected1", "affected2", "liability1", "liability2"):
             assert col in out.columns
         assert out["affected1"].dtype == bool
@@ -273,13 +278,23 @@ class TestRunThreshold:
     def test_filters_to_last_g_pheno_generations(self):
         df = _tiny_pedigree(n_per_gen=500, n_gens=3)
         # Keep only the last 2 generations: gens 1 and 2
-        out = run_threshold(df, {"G_pheno": 2, "prevalence1": 0.1, "prevalence2": 0.1})
+        out = run_threshold(
+            df,
+            G_pheno=2,
+            phenotype_params1={"prevalence": 0.1},
+            phenotype_params2={"prevalence": 0.1},
+        )
         assert set(out["generation"].unique()) == {1, 2}
         assert len(out) == 2 * 500
 
     def test_observed_prevalence_matches(self):
         df = _tiny_pedigree(n_per_gen=20_000, n_gens=1, seed=42)
-        out = run_threshold(df, {"G_pheno": 1, "prevalence1": 0.1, "prevalence2": 0.2})
+        out = run_threshold(
+            df,
+            G_pheno=1,
+            phenotype_params1={"prevalence": 0.1},
+            phenotype_params2={"prevalence": 0.2},
+        )
         assert abs(out["affected1"].mean() - 0.1) < 0.02
         assert abs(out["affected2"].mean() - 0.2) < 0.02
 
@@ -288,11 +303,9 @@ class TestRunThreshold:
         with caplog.at_level("INFO"):
             run_threshold(
                 df,
-                {
-                    "G_pheno": 2,
-                    "prevalence1": {0: 0.05, 1: 0.10},
-                    "prevalence2": 0.15,
-                },
+                G_pheno=2,
+                phenotype_params1={"prevalence": {0: 0.05, 1: 0.10}},
+                phenotype_params2={"prevalence": 0.15},
             )
         # Ensures the dict-aware log branch (vs %.3f format) was taken
         assert any("Applying threshold model" in m for m in caplog.messages)
@@ -300,7 +313,12 @@ class TestRunThreshold:
     def test_g_pheno_too_large_raises(self):
         df = _tiny_pedigree(n_per_gen=500, n_gens=2)
         with pytest.raises(AssertionError, match="G_pheno"):
-            run_threshold(df, {"G_pheno": 5, "prevalence1": 0.1, "prevalence2": 0.1})
+            run_threshold(
+                df,
+                G_pheno=5,
+                phenotype_params1={"prevalence": 0.1},
+                phenotype_params2={"prevalence": 0.1},
+            )
 
 
 class TestParsePrevalenceArg:

@@ -34,32 +34,27 @@ def tiny_phenotype():
         assort2=0.0,
     )
     pedigree = run_simulation(**sim_params)
-    pheno_params = {
-        **sim_params,
-        "G_pheno": 2,
-        "standardize": True,
-        "beta1": 1.0,
-        "beta2": 1.0,
-        "beta_sex1": 0.0,
-        "beta_sex2": 0.0,
-        "phenotype_model1": "frailty",
-        "phenotype_params1": {"distribution": "weibull", "scale": 2160, "rho": 0.8},
-        "phenotype_model2": "frailty",
-        "phenotype_params2": {"distribution": "weibull", "scale": 333, "rho": 1.2},
-        "censor_age": 80,
-        "death_scale": 164,
-        "death_rho": 2.73,
-    }
-    phenotype = run_phenotype(pedigree, pheno_params)
+    phenotype = run_phenotype(
+        pedigree,
+        G_pheno=2,
+        seed=7,
+        standardize=True,
+        phenotype_model1="frailty",
+        phenotype_params1={"distribution": "weibull", "scale": 2160, "rho": 0.8},
+        beta1=1.0,
+        beta_sex1=0.0,
+        phenotype_model2="frailty",
+        phenotype_params2={"distribution": "weibull", "scale": 333, "rho": 1.2},
+        beta2=1.0,
+        beta_sex2=0.0,
+    )
     censored = run_censor(
         phenotype,
-        {
-            "censor_age": 80,
-            "seed": 7,
-            "gen_censoring": {},
-            "death_scale": 164,
-            "death_rho": 2.73,
-        },
+        censor_age=80,
+        seed=7,
+        gen_censoring={},
+        death_scale=164,
+        death_rho=2.73,
     )
     return pedigree, censored
 

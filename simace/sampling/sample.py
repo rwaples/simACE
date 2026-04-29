@@ -15,15 +15,23 @@ from simace.core.schema import CENSORED, assert_schema
 logger = logging.getLogger(__name__)
 
 
-def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
+def run_sample(
+    phenotype: pd.DataFrame,
+    *,
+    N_sample: int = 0,
+    case_ascertainment_ratio: float = 1.0,
+    seed: int = 42,
+) -> pd.DataFrame:
     """Optionally subsample phenotyped individuals.
 
     Args:
         phenotype: DataFrame of phenotyped individuals.
-        params: dict with keys ``N_sample`` (int), ``seed`` (int), and
-            optionally ``case_ascertainment_ratio`` (float, default 1.0).
-            When ratio != 1, cases (``affected1 == True``) are sampled
-            with weight=ratio relative to controls (weight=1).
+        N_sample: target sample size. ``<= 0`` or ``>= len(phenotype)``
+            passes everything through.
+        case_ascertainment_ratio: sampling weight for cases
+            (``affected1 == True``) relative to controls. ``1.0`` =
+            uniform; ``0`` = controls only.
+        seed: RNG seed.
 
     Returns:
         DataFrame with at most ``N_sample`` rows (or all rows if
@@ -31,9 +39,9 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
     """
     assert_schema(phenotype, CENSORED, where="sample input")
     n_total = len(phenotype)
-    n_sample = int(params.get("N_sample", 0))
-    seed = int(params.get("seed", 42))
-    ratio = float(params.get("case_ascertainment_ratio", 1.0))
+    n_sample = int(N_sample)
+    seed = int(seed)
+    ratio = float(case_ascertainment_ratio)
 
     if ratio < 0:
         raise ValueError(f"case_ascertainment_ratio must be >= 0, got {ratio}")
@@ -141,10 +149,10 @@ def cli() -> None:
     init_logging(args)
 
     phenotype = pd.read_parquet(args.phenotype)
-    params = {
-        "N_sample": args.N_sample,
-        "case_ascertainment_ratio": args.case_ascertainment_ratio,
-        "seed": args.seed,
-    }
-    result = run_sample(phenotype, params)
+    result = run_sample(
+        phenotype,
+        N_sample=args.N_sample,
+        case_ascertainment_ratio=args.case_ascertainment_ratio,
+        seed=args.seed,
+    )
     save_parquet(result, args.output)

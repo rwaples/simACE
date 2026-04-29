@@ -97,12 +97,12 @@ def large_pedigree():
 class TestDropoutBasic:
     def test_zero_rate_is_noop(self, small_pedigree):
         """rate=0 returns identical DataFrame."""
-        result = run_dropout(small_pedigree, {"pedigree_dropout_rate": 0, "seed": 42})
+        result = run_dropout(small_pedigree, pedigree_dropout_rate=0, seed=42)
         pd.testing.assert_frame_equal(result, small_pedigree)
 
     def test_dropped_individuals_absent(self, small_pedigree):
         """Correct count removed, remaining IDs are a subset."""
-        result = run_dropout(small_pedigree, {"pedigree_dropout_rate": 0.3, "seed": 42})
+        result = run_dropout(small_pedigree, pedigree_dropout_rate=0.3, seed=42)
         n_expected = len(small_pedigree) - round(len(small_pedigree) * 0.3)
         assert len(result) == n_expected
         assert set(result["id"].values).issubset(set(small_pedigree["id"].values))
@@ -111,13 +111,13 @@ class TestDropoutBasic:
         """n_dropped == round(n * rate)."""
         rate = 0.25
         n = len(small_pedigree)
-        result = run_dropout(small_pedigree, {"pedigree_dropout_rate": rate, "seed": 42})
+        result = run_dropout(small_pedigree, pedigree_dropout_rate=rate, seed=42)
         n_dropped = n - len(result)
         assert n_dropped == round(n * rate)
 
     def test_parent_links_rewritten(self, small_pedigree):
         """No surviving row references a dropped ID as mother/father."""
-        result = run_dropout(small_pedigree, {"pedigree_dropout_rate": 0.3, "seed": 42})
+        result = run_dropout(small_pedigree, pedigree_dropout_rate=0.3, seed=42)
         surviving_ids = set(result["id"].values.tolist())
         surviving_ids.add(-1)  # -1 is valid (unknown)
         for col in ("mother", "father"):
@@ -127,7 +127,7 @@ class TestDropoutBasic:
     def test_twin_links_rewritten(self, twin_pedigree):
         """If one twin is dropped, the surviving twin's twin field is set to -1."""
         for seed in range(100):
-            result = run_dropout(twin_pedigree, {"pedigree_dropout_rate": 0.5, "seed": seed})
+            result = run_dropout(twin_pedigree, pedigree_dropout_rate=0.5, seed=seed)
             surviving_ids = set(result["id"].values.tolist())
             if 4 not in surviving_ids and 5 in surviving_ids:
                 row5 = result[result["id"] == 5].iloc[0]
@@ -142,14 +142,14 @@ class TestDropoutBasic:
     def test_deterministic_with_same_seed(self, small_pedigree):
         """Same seed → same result."""
         params = {"pedigree_dropout_rate": 0.3, "seed": 77}
-        r1 = run_dropout(small_pedigree, params)
-        r2 = run_dropout(small_pedigree, params)
+        r1 = run_dropout(small_pedigree, **params)
+        r2 = run_dropout(small_pedigree, **params)
         pd.testing.assert_frame_equal(r1, r2)
 
     def test_different_seed_different_result(self, small_pedigree):
         """Different seed → different drop set."""
-        r1 = run_dropout(small_pedigree, {"pedigree_dropout_rate": 0.3, "seed": 77})
-        r2 = run_dropout(small_pedigree, {"pedigree_dropout_rate": 0.3, "seed": 78})
+        r1 = run_dropout(small_pedigree, pedigree_dropout_rate=0.3, seed=77)
+        r2 = run_dropout(small_pedigree, pedigree_dropout_rate=0.3, seed=78)
         assert not r1["id"].equals(r2["id"])
 
 
@@ -234,13 +234,13 @@ class TestDropoutStatistical:
         """Verify exact fraction on a large pedigree."""
         rate = 0.2
         n = len(large_pedigree)
-        result = run_dropout(large_pedigree, {"pedigree_dropout_rate": rate, "seed": 42})
+        result = run_dropout(large_pedigree, pedigree_dropout_rate=rate, seed=42)
         n_dropped = n - len(result)
         assert n_dropped == round(n * rate)
 
     def test_no_dangling_parent_refs(self, large_pedigree):
         """All mother/father/twin values are either -1 or a surviving ID."""
-        result = run_dropout(large_pedigree, {"pedigree_dropout_rate": 0.3, "seed": 42})
+        result = run_dropout(large_pedigree, pedigree_dropout_rate=0.3, seed=42)
         surviving = set(result["id"].values.tolist())
         surviving.add(-1)
         for col in ("mother", "father", "twin"):
@@ -249,5 +249,5 @@ class TestDropoutStatistical:
 
     def test_index_reset(self, large_pedigree):
         """Output has clean 0-based integer index."""
-        result = run_dropout(large_pedigree, {"pedigree_dropout_rate": 0.3, "seed": 42})
+        result = run_dropout(large_pedigree, pedigree_dropout_rate=0.3, seed=42)
         assert list(result.index) == list(range(len(result)))

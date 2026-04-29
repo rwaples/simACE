@@ -149,7 +149,7 @@ class TestRunCensor:
         }
 
     def test_output_columns(self, raw_phenotype, censor_params):
-        result = run_censor(raw_phenotype, censor_params)
+        result = run_censor(raw_phenotype, **censor_params)
         expected_new = {
             "death_age",
             "age_censored1",
@@ -164,14 +164,14 @@ class TestRunCensor:
         assert expected_new.issubset(set(result.columns))
 
     def test_preserves_input_columns(self, raw_phenotype, censor_params):
-        result = run_censor(raw_phenotype, censor_params)
+        result = run_censor(raw_phenotype, **censor_params)
         for col in raw_phenotype.columns:
             assert col in result.columns
             np.testing.assert_array_equal(result[col].values, raw_phenotype[col].values)
 
     def test_affected_consistency(self, raw_phenotype, censor_params):
         """affected should be True only when neither age- nor death-censored."""
-        result = run_censor(raw_phenotype, censor_params)
+        result = run_censor(raw_phenotype, **censor_params)
         for trait in ["1", "2"]:
             affected = result[f"affected{trait}"].values
             age_cens = result[f"age_censored{trait}"].values
@@ -179,12 +179,12 @@ class TestRunCensor:
             np.testing.assert_array_equal(affected, ~age_cens & ~death_cens)
 
     def test_deterministic_with_seed(self, raw_phenotype, censor_params):
-        r1 = run_censor(raw_phenotype, censor_params)
-        r2 = run_censor(raw_phenotype, censor_params)
+        r1 = run_censor(raw_phenotype, **censor_params)
+        r2 = run_censor(raw_phenotype, **censor_params)
         np.testing.assert_array_equal(r1["t_observed1"].values, r2["t_observed1"].values)
         np.testing.assert_array_equal(r1["t_observed2"].values, r2["t_observed2"].values)
         np.testing.assert_array_equal(r1["death_age"].values, r2["death_age"].values)
 
     def test_row_count_unchanged(self, raw_phenotype, censor_params):
-        result = run_censor(raw_phenotype, censor_params)
+        result = run_censor(raw_phenotype, **censor_params)
         assert len(result) == len(raw_phenotype)
