@@ -284,7 +284,7 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
         if not _FOLDER_PATTERN.match(folder):
             raise ValueError(f"Invalid folder name '{folder}' from {path}. Must match [a-zA-Z0-9_]+")
 
-        with open(path) as fh:
+        with open(path, encoding="utf-8") as fh:
             file_scenarios = yaml.safe_load(fh)
         if file_scenarios is None:
             continue
