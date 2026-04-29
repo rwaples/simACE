@@ -67,6 +67,15 @@ _HIERARCHICAL_TO_FLAT: dict[tuple[str, ...], str] = {
     # analysis section
     ("analysis", "max_degree"): "max_degree",
     ("analysis", "estimate_inbreeding"): "estimate_inbreeding",
+    # tstrait section
+    ("tstrait", "num_causal"): "tstrait_num_causal",
+    ("tstrait", "frac_causal"): "tstrait_frac_causal",
+    ("tstrait", "maf_threshold"): "tstrait_maf_threshold",
+    ("tstrait", "alpha"): "tstrait_alpha",
+    ("tstrait", "effect_mean"): "tstrait_effect_mean",
+    ("tstrait", "effect_var"): "tstrait_effect_var",
+    ("tstrait", "trait_id"): "tstrait_trait_id",
+    ("tstrait", "share_architecture"): "tstrait_share_architecture",
 }
 
 # Top-level flat keys (globals) that live in _default.yaml without a section.
@@ -81,6 +90,8 @@ _SIM_FLAT_GLOBALS: frozenset[str] = frozenset(
         "G_sim",
         "standardize",
         "plot_format",
+        "drop_from",
+        "use_gene_drop",
     }
 )
 

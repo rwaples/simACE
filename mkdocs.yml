@@ -83,11 +83,13 @@ nav:
   - Concepts:
       - ACE Model: concepts/ace-model.md
       - Simulation Design: concepts/simulation-design.md
+      - Gene Drop and tstrait: concepts/gene-drop.md
       - Model Fitting: concepts/model-fitting.md
   - Examples:
       - AM and Heritability: examples/am-and-heritability.md
       - Time-varying E and h² drift: examples/time-varying-e.md
       - Observed vs Liability h²: examples/observed-vs-liability-h2.md
+      - Gene-drop architecture sweep: examples/gene-drop-architecture-sweep.md
   - API Reference:
       - api/index.md
       - Core: api/core.md

@@ -92,6 +92,42 @@ Prevalence can be a scalar (same for all generations) or a per-generation dict
 | `estimate_inbreeding` | bool | false | Compute exact inbreeding coefficients |
 | `plot_format` | str | `png` | Plot file format (`png` or `pdf`) |
 
+### tstrait and gene drop
+
+The [gene-drop branch](../concepts/gene-drop.md) replaces the parametric $A$
+with a tstrait-derived genetic value computed from real founder haplotypes
+dropped through the simACE pedigree. Three top-level globals control how
+that branch wires into the standard pipeline; nine `tstrait.*` keys control
+the causal architecture.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `use_gene_drop` | bool | `false` | When true, `pedigree_dropout` reads `pedigree.full.tstrait.parquet` (rescaled gene-drop $A$) instead of the parametric `pedigree.full.parquet`. Triggers the full tstrait sub-pipeline + augment as upstream dependencies. |
+| `drop_from` | str / null | `null` | Name of another scenario whose `pedigree.full.parquet` and `genotypes_chrom_*.trees` this scenario should consume — used for architecture sweeps that share one expensive drop+graft across many tstrait variants. `null` = run own drop. |
+| `tstrait.num_causal` | int / null | 1000 | Absolute number of causal sites. Mutually exclusive with `frac_causal`. |
+| `tstrait.frac_causal` | float / null | `null` | Fraction of post-MAF eligible sites to mark as causal. Mutually exclusive with `num_causal`. |
+| `tstrait.maf_threshold` | float | 0.01 | Drop sites with $\min(\mathrm{AF}, 1-\mathrm{AF}) \le$ this. `0` disables the filter. |
+| `tstrait.alpha` | float | -0.5 | Effect-size frequency-dependence exponent: $\beta = \mathcal{N}(\mu, \sigma_\beta^2) \cdot [2p(1-p)]^{\alpha}$. `0` = no MAF dependence; `-0.5` = LDAK-thin / Speed et al. |
+| `tstrait.effect_mean` | float | 0.0 | Raw $\beta$ mean. |
+| `tstrait.effect_var` | float | 1.0 | Raw $\beta$ variance (before MAF scaling). The augment step rescales the realised genome-wide $A$ to match `A1` regardless of this value. |
+| `tstrait.trait_id` | int | 0 | Single-trait only for now; trait 2's $A_2$ stays parametric. |
+| `tstrait.share_architecture` | bool | `false` | If true, causal sites + effects are shared across reps within a scenario (only env noise differs). |
+
+Heritability for the gene-drop branch is **derived** from the standard
+A/C/E components: $h^2 = A_1 / (A_1 + C_1 + E_1)$. There is no separate
+`tstrait.h2` knob.
+
+The `tskit_preprocess` block (also under top-level config) points at the
+SimHumanity source and the directory where the canonicalized chromosomes
+and shared site catalog are written:
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `tskit_preprocess.source_dir` | str | `/data/Documents/humanity_sim/simhumanity_trees_RO` | Directory containing per-chromosome SimHumanity `.trees` files. |
+| `tskit_preprocess.output_dir` | str | `/data/Documents/humanity_sim/preprocessed_p2` | Where the canonicalized chroms, concat .trees, and `site_catalog.parquet` are written. |
+| `tskit_preprocess.pop` | str | `p2` | Population name to filter to (founders for the drop). |
+| `tskit_preprocess.chroms` | list[int] | 1..22 | Autosomes to include. |
+
 ## Defining scenarios
 
 Add named scenarios under the `scenarios` key. Each scenario only needs to specify

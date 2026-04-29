@@ -1,6 +1,15 @@
+def _dropout_pedigree_input(w):
+    """Pick the parametric or gene-drop-augmented pedigree based on use_gene_drop."""
+    if get_param(config, w.scenario, "use_gene_drop"):
+        return (
+            f"results/{w.folder}/{w.scenario}/rep{w.rep}/pedigree.full.tstrait.parquet"
+        )
+    return f"results/{w.folder}/{w.scenario}/rep{w.rep}/pedigree.full.parquet"
+
+
 rule pedigree_dropout:
     input:
-        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.full.parquet",
+        pedigree=_dropout_pedigree_input,
     output:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     log:

@@ -172,6 +172,8 @@ class TestRoundTrip:
             "G_sim",
             "standardize",
             "plot_format",
+            "drop_from",
+            "use_gene_drop",
             "mating_lambda",
             "p_mztwin",
             "assort1",
@@ -205,6 +207,14 @@ class TestRoundTrip:
             "pedigree_dropout_rate",
             "max_degree",
             "estimate_inbreeding",
+            "tstrait_num_causal",
+            "tstrait_frac_causal",
+            "tstrait_maf_threshold",
+            "tstrait_alpha",
+            "tstrait_effect_mean",
+            "tstrait_effect_var",
+            "tstrait_trait_id",
+            "tstrait_share_architecture",
         }
         assert set(flat.keys()) == expected_keys
 

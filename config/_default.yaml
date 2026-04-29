@@ -11,6 +11,16 @@ defaults:
   G_sim: 8
   standardize: true
   plot_format: png
+  # When set to another scenario's name, this scenario reads
+  # pedigree.full.parquet and genotypes_chrom_*.trees from that scenario
+  # instead of running its own drop. Used to share genotypes across
+  # tstrait-architecture variants without re-running the expensive drop+graft.
+  drop_from: null
+  # When true, the pedigree_dropout rule reads pedigree.full.tstrait.parquet
+  # (rescaled GV from real genotypes) instead of pedigree.full.parquet
+  # (parametric A1). The downstream phenotype/sample/stats/atlas pipeline
+  # then runs on the gene-drop-derived A1.
+  use_gene_drop: false
 
   # ── Pedigree (structure + variance components) ──────────────────────────
   pedigree:
@@ -80,6 +90,53 @@ defaults:
     max_degree: 2
     estimate_inbreeding: false
 
+  # ── tstrait quantitative phenotype (per-chrom drop+graft .trees) ────────
+  # Operates on the per-chrom genotype_drop outputs. Uses a shared founder-AF
+  # site catalog computed from the canonicalized .trees (see tskit_preprocess).
+  tstrait:
+    num_causal: 1000 # absolute count; mutually exclusive with frac_causal
+    frac_causal: null # fraction of post-MAF eligible; null disables
+    maf_threshold: 0.01 # min(AF, 1-AF) > this; 0 disables
+    alpha: -0.5 # effect-size frequency-dependence exponent
+    effect_mean: 0.0 # raw beta mean (TraitModelNormal)
+    effect_var: 1.0 # raw beta variance (before AF scaling)
+    trait_id: 0 # single-trait only for now
+    share_architecture: false # if true, causal sites + effects shared across reps
+
 # Scenarios are defined in per-folder files: config/{folder}.yaml
 # Each file contains bare scenario dicts. The folder name is inferred from
 # the filename. See any existing config/*.yaml file for the format.
+
+# ── tskit per-chromosome preprocessing ─────────────────────────────────────
+# Standalone one-shot workflow (not scenario-bound). Canonicalizes the
+# SimHumanity per-chrom .trees into a single multi-chromosome ancestry tree
+# sequence used as graft input. Run with `--use-conda`.
+tskit_preprocess:
+  source_dir: /data/Documents/humanity_sim/simhumanity_trees_RO
+  output_dir: /data/Documents/humanity_sim/preprocessed_p2
+  pop: p2
+  chroms:
+    [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+    ]

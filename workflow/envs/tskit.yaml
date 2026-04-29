@@ -1,0 +1,17 @@
+name: tskit
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python
+  - pandas
+  - numpy
+  - scipy
+  - matplotlib
+  - seaborn
+  - tskit
+  - msprime
+  - pyslim
+  - tstrait
+  - tszip
+  - pyarrow
