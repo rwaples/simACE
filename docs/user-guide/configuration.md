@@ -2,12 +2,10 @@
 
 ## Overview
 
-All simulation parameters are defined in YAML config files under `config/`.
-The main file `config/_default.yaml` contains a `defaults` section and a `scenarios` section.
-Each scenario inherits all defaults and overrides only the parameters it needs.
-
-Additional config files (`config/{folder}.yaml`) are auto-discovered by Snakemake
-and their scenarios are merged into the pipeline.
+Simulation parameters are defined in YAML config files in the `config/` folder.
+The `config/_default.yaml` file contains the default parameter values. Simulations are 
+configured via additional config files (`config/{folder}.yaml`). Each scenario inherits 
+all defaults and can override any parameters to change them.
 
 ## Parameter reference
 
@@ -21,60 +19,53 @@ and their scenarios are merged into the pipeline.
 
 ### Variance components
 
-Trait liability is decomposed as $L = A + C + E$ with unit variance ($A + C + E = 1$).
+Trait liability ($L$) is decomposed as $L = A + C + E$, and can optionally be standardized to unit variance ($A + C + E = 1$).
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `A1`, `A2` | float | 0.5 | Additive genetic variance (trait 1, 2) |
 | `C1`, `C2` | float | 0.2 | Common environment variance |
 | `rA` | float | 0.3 | Cross-trait genetic correlation |
-| `rC` | float | 0.5 | Cross-trait common environment correlation |
+| `rC` | float | 0.5 | Cross-trait common environment correlation ([-1, 1]) |
+| `rE` | float | 0.0 | Cross-trait unique environment correlation ([-1, 1]) |
 | `standardize` | bool | true | Standardise liability before phenotyping |
 
-$E$ is computed as $1 - A - C$ for each trait. Cross-trait $r_E$ is fixed at 0.
 
 ### Pedigree
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `N` | int | 100000 | Population size per generation |
-| `G_ped` | int | 6 | Generations recorded in the pedigree |
 | `G_pheno` | int | 3 | Generations to phenotype (last G_pheno of G_ped) |
-| `G_sim` | int | 8 | Total generations simulated (G_sim - G_ped = burn-in) |
-| `mating_lambda` | float | 0.5 | ZTP mating count parameter (~23% multi-partner) |
+| `G_ped` | int | 6 | Generations recorded in the pedigree |
+| `G_sim` | int | 8 | Total generations simulated (G_sim - G_ped = burn-in, not observed) |
+| `mating_lambda` | float | 0.5 | mating parameter (~23% multi-partner) |
 | `p_mztwin` | float | 0.02 | Probability of MZ twin birth |
 | `assort1` | float | 0 | Mate correlation on trait 1 liability ([-1, 1]) |
 | `assort2` | float | 0 | Mate correlation on trait 2 liability ([-1, 1]) |
 
 ### Phenotype model
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `phenotype_model1/2` | str | `weibull` | Baseline hazard model |
-| `phenotype_params1/2` | dict | -- | Model-specific parameters (e.g., `scale`, `rho`) |
-| `beta1/2` | float | 1.0 / 1.5 | Liability effect on log-hazard |
-| `beta_sex1/2` | float | 0 | Sex effect on log-hazard |
-
-Supported models: `weibull`, `exponential`, `gompertz`, `lognormal`, `loglogistic`,
-`gamma`, `cure_frailty`, `adult_ltm`, `adult_cox`.
+Each trait's phenotype is configured under `phenotype.trait1` and
+`phenotype.trait2`, with sub-keys `model`, `params`, `beta`, `beta_sex`,
+and `prevalence`. The `model` selects one of four families
+(`frailty`, `cure_frailty`, `adult`, `first_passage`); `params` carries
+the family-specific hazard or threshold parameters; `prevalence` sets
+the target affection prevalence and may be a scalar, a per-generation
+dict, or a sex-specific dict. See
+[Phenotype Models](phenotype-models.md) for the full catalogue of
+families, their required `params`, the supported `prevalence` forms,
+and the parallel `phenotype.simple_ltm.parquet` output that every
+scenario produces alongside the configured family.
 
 ### Censoring
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `censor_age` | int | 80 | Maximum censoring age |
+| `censor_age` | int | 80 | Maximum censoring age - no age-of-onset can be observed later than this|
 | `gen_censoring` | dict | per-gen windows | Per-generation `[left, right]` observation windows |
 | `death_scale` | float | 164 | Competing-risk mortality Weibull scale |
 | `death_rho` | float | 2.73 | Competing-risk mortality Weibull shape |
-
-### Liability threshold model
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `prevalence1/2` | float or dict | 0.10 / 0.20 | Proportion affected per generation |
-
-Prevalence can be a scalar (same for all generations) or a per-generation dict
-(e.g., `{ 2: 0.03, 3: 0.05, 4: 0.08, 5: 0.12 }`).
 
 ### Sampling and ascertainment
 

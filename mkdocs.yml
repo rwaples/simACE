@@ -77,6 +77,7 @@ nav:
       - Quick Start: getting-started/quickstart.md
   - User Guide:
       - Configuration: user-guide/configuration.md
+      - Phenotype Models: user-guide/phenotype-models.md
       - Running the Pipeline: user-guide/running-the-pipeline.md
       - Output Structure: user-guide/output-structure.md
       - Interpreting Results: user-guide/interpreting-results.md
