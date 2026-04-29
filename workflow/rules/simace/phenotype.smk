@@ -23,8 +23,6 @@ rule phenotype:
         standardize=lambda w: get_param(config, w.scenario, "standardize"),
         phenotype_model1=lambda w: get_param(config, w.scenario, "phenotype_model1"),
         phenotype_model2=lambda w: get_param(config, w.scenario, "phenotype_model2"),
-        prevalence1=lambda w: get_param(config, w.scenario, "prevalence1"),
-        prevalence2=lambda w: get_param(config, w.scenario, "prevalence2"),
         beta1=lambda w: get_param(config, w.scenario, "beta1"),
         beta_sex1=lambda w: get_param(config, w.scenario, "beta_sex1"),
         phenotype_params1=lambda w: get_param(config, w.scenario, "phenotype_params1"),
@@ -72,8 +70,11 @@ rule phenotype_simple_ltm:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
     params:
-        prevalence1=lambda w: get_param(config, w.scenario, "prevalence1"),
-        prevalence2=lambda w: get_param(config, w.scenario, "prevalence2"),
+        # PR3: prevalence now lives inside per-trait phenotype_params (for
+        # adult / cure_frailty); the threshold path falls back to a default
+        # for traits whose main model doesn't carry one (frailty / first_passage).
+        phenotype_params1=lambda w: get_param(config, w.scenario, "phenotype_params1"),
+        phenotype_params2=lambda w: get_param(config, w.scenario, "phenotype_params2"),
         G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
         standardize=lambda w: get_param(config, w.scenario, "standardize"),
     script:

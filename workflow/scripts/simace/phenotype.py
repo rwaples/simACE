@@ -18,8 +18,6 @@ def _run_snakemake() -> None:
         "standardize": p.standardize,
         "phenotype_model1": p.phenotype_model1,
         "phenotype_model2": p.phenotype_model2,
-        "prevalence1": getattr(p, "prevalence1", 0.10),
-        "prevalence2": getattr(p, "prevalence2", 0.20),
         "beta1": p.beta1,
         "beta_sex1": p.beta_sex1,
         "phenotype_params1": p.phenotype_params1,

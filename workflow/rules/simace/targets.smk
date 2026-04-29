@@ -74,8 +74,7 @@ rule stats_scenario:
             for r in range(1, get_param(config, w.scenario, "replicates") + 1)
         ],
         lambda w: [
-            f"results/{w.folder}/{w.scenario}/plots/{plot}"
-            for plot in PHENOTYPE_PLOTS
+            f"results/{w.folder}/{w.scenario}/plots/{plot}" for plot in PHENOTYPE_PLOTS
         ],
     output:
         touch("results/{folder}/{scenario}/stats.done"),

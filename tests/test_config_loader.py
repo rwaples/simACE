@@ -75,14 +75,19 @@ class TestFlattenPhenotype:
         assert result == {"phenotype_params1": params}
 
     def test_full_trait(self):
+        # PR3: prevalence lives inside per-model params (adult/cure_frailty only).
         d = {
             "phenotype": {
                 "trait1": {
                     "model": "cure_frailty",
-                    "params": {"distribution": "lognormal", "mu": 2.35, "sigma": 0.71},
+                    "params": {
+                        "distribution": "lognormal",
+                        "mu": 2.35,
+                        "sigma": 0.71,
+                        "prevalence": 0.05,
+                    },
                     "beta": 0.8,
                     "beta_sex": 0.5,
-                    "prevalence": 0.05,
                 },
             }
         }
@@ -90,13 +95,31 @@ class TestFlattenPhenotype:
         assert result["phenotype_model1"] == "cure_frailty"
         assert result["beta1"] == 0.8
         assert result["beta_sex1"] == 0.5
-        assert result["prevalence1"] == 0.05
+        assert result["phenotype_params1"]["prevalence"] == 0.05
         assert result["phenotype_params1"]["distribution"] == "lognormal"
 
     def test_sex_specific_prevalence_preserved(self):
-        d = {"phenotype": {"trait1": {"prevalence": {"female": 0.08, "male": 0.12}}}}
+        # PR3: prevalence is now a per-model param, not a top-level trait key.
+        d = {
+            "phenotype": {
+                "trait1": {
+                    "model": "adult",
+                    "params": {
+                        "method": "ltm",
+                        "prevalence": {"female": 0.08, "male": 0.12},
+                    },
+                }
+            }
+        }
         result = _flatten_hierarchical(d)
-        assert result == {"prevalence1": {"female": 0.08, "male": 0.12}}
+        assert result["phenotype_model1"] == "adult"
+        assert result["phenotype_params1"]["prevalence"] == {"female": 0.08, "male": 0.12}
+
+    def test_top_level_prevalence_rejected(self):
+        # PR3: top-level phenotype.traitN.prevalence is no longer accepted.
+        d = {"phenotype": {"trait1": {"prevalence": 0.05}}}
+        with pytest.raises(ValueError, match="no longer supported"):
+            _flatten_hierarchical(d)
 
 
 class TestFlattenOtherSections:
@@ -192,12 +215,10 @@ class TestRoundTrip:
             "phenotype_params1",
             "beta1",
             "beta_sex1",
-            "prevalence1",
             "phenotype_model2",
             "phenotype_params2",
             "beta2",
             "beta_sex2",
-            "prevalence2",
             "censor_age",
             "gen_censoring",
             "death_scale",
@@ -232,6 +253,7 @@ class TestRoundTrip:
         assert flat["phenotype_params1"]["distribution"] == "weibull"
         assert flat["phenotype_params1"]["scale"] == 2160
         assert flat["beta2"] == 1.5
-        assert flat["prevalence1"] == 0.10
+        # PR3: _default.yaml uses frailty for both traits, which carries no prevalence.
+        assert "prevalence" not in flat["phenotype_params1"]
         assert flat["censor_age"] == 80
         assert flat["death_scale"] == 164

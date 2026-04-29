@@ -1,15 +1,123 @@
-"""Unit tests for simace.phenotype functions."""
+"""Unit tests for the phenotype model classes.
+
+These tests target the per-trait simulation behavior of the four
+``PhenotypeModel`` subclasses through positional/keyword shims that
+preserve the call shape of the deleted entry-point functions
+(``simulate_phenotype``, ``phenotype_adult_ltm/cox``,
+``phenotype_cure_frailty``, ``phenotype_first_passage``). The shims
+exist only here, in test code; production has been collapsed onto the
+class API.
+"""
 
 import numpy as np
 import pytest
 
-from simace.phenotyping.phenotype import (
-    phenotype_adult_cox,
-    phenotype_adult_ltm,
-    phenotype_cure_frailty,
-    phenotype_first_passage,
-    simulate_phenotype,
-)
+from simace.phenotyping.models import AdultModel, CureFrailtyModel, FirstPassageModel, FrailtyModel
+
+
+def _zeros_gen(liability):
+    return np.zeros(len(liability), dtype=int)
+
+
+def simulate_phenotype(liability, beta, hazard_model, hazard_params, seed, standardize=True, sex=None, beta_sex=0.0):
+    return FrailtyModel(distribution=hazard_model, hazard_params=hazard_params, beta=beta, beta_sex=beta_sex).simulate(
+        liability=liability,
+        seed=seed,
+        standardize=standardize,
+        sex=sex,
+        generation=_zeros_gen(liability),
+    )
+
+
+def phenotype_adult_ltm(
+    liability,
+    prevalence,
+    beta=1.0,
+    cip_x0=50.0,
+    cip_k=0.2,
+    seed=42,
+    standardize=True,
+    sex=None,
+    beta_sex=0.0,
+):
+    return AdultModel(
+        method="ltm",
+        prevalence=prevalence,
+        cip_x0=cip_x0,
+        cip_k=cip_k,
+        beta=beta,
+        beta_sex=beta_sex,
+    ).simulate(
+        liability=liability,
+        seed=seed,
+        standardize=standardize,
+        sex=sex,
+        generation=_zeros_gen(liability),
+    )
+
+
+def phenotype_adult_cox(
+    liability,
+    prevalence,
+    beta=1.0,
+    cip_x0=50.0,
+    cip_k=0.2,
+    seed=42,
+    standardize=True,
+    sex=None,
+    beta_sex=0.0,
+):
+    return AdultModel(
+        method="cox",
+        prevalence=prevalence,
+        cip_x0=cip_x0,
+        cip_k=cip_k,
+        beta=beta,
+        beta_sex=beta_sex,
+    ).simulate(
+        liability=liability,
+        seed=seed,
+        standardize=standardize,
+        sex=sex,
+        generation=_zeros_gen(liability),
+    )
+
+
+def phenotype_cure_frailty(
+    liability,
+    prevalence,
+    beta,
+    baseline,
+    hazard_params,
+    seed,
+    standardize=True,
+    sex=None,
+    beta_sex=0.0,
+):
+    return CureFrailtyModel(
+        distribution=baseline,
+        hazard_params=hazard_params,
+        prevalence=prevalence,
+        beta=beta,
+        beta_sex=beta_sex,
+    ).simulate(
+        liability=liability,
+        seed=seed,
+        standardize=standardize,
+        sex=sex,
+        generation=_zeros_gen(liability),
+    )
+
+
+def phenotype_first_passage(liability, beta, drift, shape, seed, standardize=True, sex=None, beta_sex=0.0):
+    return FirstPassageModel(drift=drift, shape=shape, beta=beta, beta_sex=beta_sex).simulate(
+        liability=liability,
+        seed=seed,
+        standardize=standardize,
+        sex=sex,
+        generation=_zeros_gen(liability),
+    )
+
 
 # ---------------------------------------------------------------------------
 # Default Weibull params for tests
@@ -91,15 +199,15 @@ class TestSimulatePhenotype:
     # --- Validation error tests ---
 
     def test_unknown_model_raises(self):
-        with pytest.raises(ValueError, match="Unknown hazard model"):
+        with pytest.raises(ValueError, match="unknown frailty distribution"):
             simulate_phenotype(np.array([1.0]), beta=1.0, hazard_model="unknown", hazard_params=WEIBULL_PARAMS, seed=42)
 
     def test_missing_scale_raises(self):
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError, match="missing required hazard params"):
             simulate_phenotype(np.array([1.0]), beta=1.0, hazard_model="weibull", hazard_params={"rho": 2.0}, seed=42)
 
     def test_missing_rho_raises(self):
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError, match="missing required hazard params"):
             simulate_phenotype(
                 np.array([1.0]), beta=1.0, hazard_model="weibull", hazard_params={"scale": 316.228}, seed=42
             )
@@ -192,7 +300,7 @@ FRAILTY_DISTRIBUTIONS = [
 ]
 
 
-@pytest.mark.parametrize("hazard_model,hazard_params", FRAILTY_DISTRIBUTIONS)
+@pytest.mark.parametrize(("hazard_model", "hazard_params"), FRAILTY_DISTRIBUTIONS)
 class TestFrailtyDistributions:
     """Smoke tests for all 6 frailty baseline distributions via simulate_phenotype()."""
 

@@ -7,9 +7,23 @@ all non-social fathers, single-generation pedigrees, etc.
 import numpy as np
 
 from simace.censoring.censor import age_censor
-from simace.phenotyping.phenotype import simulate_phenotype
+from simace.phenotyping.models import FrailtyModel
 from simace.phenotyping.threshold import apply_threshold
 from simace.simulation.simulate import run_simulation
+
+
+def simulate_phenotype(liability, beta, hazard_model, hazard_params, seed, standardize=True, sex=None, beta_sex=0.0):
+    """Test shim — wraps FrailtyModel.simulate to preserve the deleted
+    entry-point's call signature so this edge-case suite stays focused on
+    pipeline edges rather than API plumbing."""
+    return FrailtyModel(distribution=hazard_model, hazard_params=hazard_params, beta=beta, beta_sex=beta_sex).simulate(
+        liability=liability,
+        seed=seed,
+        standardize=standardize,
+        sex=sex,
+        generation=np.zeros(len(liability), dtype=int),
+    )
+
 
 # ---------------------------------------------------------------------------
 # Shared minimal params
