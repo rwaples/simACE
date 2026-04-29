@@ -4,7 +4,7 @@
     This documentation is a work in progress. Pages are incomplete.
 
 simACE simulates age-of-onset phenotypes for related individuals. It uses realistic pedigrees 
-and family structures to generate multi-generational family relationships and to simulate heritable triats.
+and family structures to generate multi-generational family relationships and to simulate heritable traits.
 
 ## What is simACE?
 
@@ -22,10 +22,9 @@ estimate heritability and familial correlations from population health registrie
 - Age-window and competing-risk mortality censoring
 - Case ascertainment and pedigree dropout
 - Statistical validation of simulated data
-- Built-it diagnostic plots
+- Built-in diagnostic plots
 - Snakemake pipeline for reproducible, parallelised execution
 - It is fast - less than 3 minutes for 1M individuals x 3 generations x 3 reps using 4 cores and <16 GB RAM
-- 
 
 ## Quick links
 
