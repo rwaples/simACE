@@ -9,8 +9,7 @@ def _run_snakemake():
     setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
     p = snakemake.params
 
-    gen_censoring_raw = p.get("gen_censoring", None)
-    gen_censoring = {int(k): v for k, v in gen_censoring_raw.items()} if gen_censoring_raw else None
+    gen_censoring = p.get("gen_censoring") or None
 
     pm1, pm2 = p.phenotype_model1, p.phenotype_model2
     pp1, pp2 = p.phenotype_params1 or {}, p.phenotype_params2 or {}

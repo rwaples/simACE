@@ -12,13 +12,10 @@ def _run_snakemake():
     phenotype = pd.read_parquet(snakemake.input.phenotype)
     params = snakemake.params
 
-    gen_censoring_raw = params.gen_censoring
-    gen_censoring = {int(k): v for k, v in gen_censoring_raw.items()}
-
     param_dict = {
         "censor_age": params.censor_age,
         "seed": params.seed,
-        "gen_censoring": gen_censoring,
+        "gen_censoring": params.gen_censoring,
         "death_scale": params.death_scale,
         "death_rho": params.death_rho,
     }

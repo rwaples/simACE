@@ -1,8 +1,17 @@
 """Unit tests for the hierarchical config flattening logic in simace.config."""
 
-import pytest
+from pathlib import Path
 
-from simace.config import flatten_hierarchical as _flatten_hierarchical
+import pytest
+import yaml
+
+from simace.config import (
+    flatten_hierarchical as _flatten_hierarchical,
+)
+from simace.config import (
+    resolve_defaults,
+    resolve_scenarios,
+)
 
 
 class TestFlattenPassthrough:
@@ -178,8 +187,6 @@ class TestRoundTrip:
     """Loading the actual _default.yaml and verifying it flattens to expected keys."""
 
     def test_default_yaml_flattens_to_expected_keys(self):
-        import yaml
-
         with open("config/_default.yaml") as f:
             raw = yaml.safe_load(f)
         defaults = raw["defaults"]
@@ -240,8 +247,6 @@ class TestRoundTrip:
         assert set(flat.keys()) == expected_keys
 
     def test_default_yaml_values_match(self):
-        import yaml
-
         with open("config/_default.yaml") as f:
             raw = yaml.safe_load(f)
         flat = _flatten_hierarchical(raw["defaults"])
@@ -257,3 +262,134 @@ class TestRoundTrip:
         assert "prevalence" not in flat["phenotype_params1"]
         assert flat["censor_age"] == 80
         assert flat["death_scale"] == 164
+
+
+class TestGenCensoringCoercion:
+    """resolve_defaults / resolve_scenarios coerce gen_censoring keys to int.
+
+    YAML loads unquoted scalar keys per their parsed type, so a config that
+    quotes its generation keys (``'0': [80, 80]``) would otherwise reach
+    downstream code as ``str`` keys and break ``gen_censoring[gen_int]``
+    lookups.  The coercion makes wrappers and rules robust to the YAML quirk.
+    """
+
+    def _write(self, tmp_path: Path, name: str, body: dict) -> Path:
+        path = tmp_path / name
+        with open(path, "w") as fh:
+            yaml.safe_dump(body, fh)
+        return path
+
+    def test_resolve_defaults_string_keys_coerced(self, tmp_path):
+        body = {
+            "defaults": {
+                "seed": 1,
+                "censoring": {
+                    "max_age": 80,
+                    "gen_censoring": {"0": [80, 80], "1": [40, 80]},
+                    "death_scale": 164,
+                    "death_rho": 2.73,
+                },
+            }
+        }
+        self._write(tmp_path, "_default.yaml", body)
+        flat = resolve_defaults(tmp_path)
+        assert flat["gen_censoring"] == {0: [80, 80], 1: [40, 80]}
+        assert all(isinstance(k, int) for k in flat["gen_censoring"])
+
+    def test_resolve_defaults_int_keys_passthrough(self, tmp_path):
+        body = {
+            "defaults": {
+                "censoring": {
+                    "max_age": 80,
+                    "gen_censoring": {0: [80, 80], 1: [40, 80]},
+                    "death_scale": 164,
+                    "death_rho": 2.73,
+                },
+            }
+        }
+        self._write(tmp_path, "_default.yaml", body)
+        flat = resolve_defaults(tmp_path)
+        assert flat["gen_censoring"] == {0: [80, 80], 1: [40, 80]}
+
+    def test_resolve_scenarios_coerces_overrides(self, tmp_path):
+        # Defaults supply a complete config so per-folder overrides are valid.
+        defaults_body = {
+            "defaults": {
+                "seed": 42,
+                "replicates": 1,
+                "folder": "x",
+                "N": 100,
+                "G_ped": 4,
+                "G_pheno": 4,
+                "G_sim": 4,
+                "standardize": True,
+                "plot_format": "png",
+                "drop_from": 0,
+                "use_gene_drop": False,
+                "pedigree": {
+                    "mating_lambda": 0.5,
+                    "p_mztwin": 0.0,
+                    "assort1": 0.0,
+                    "assort2": 0.0,
+                    "assort_matrix": None,
+                    "trait1": {"A": 0.5, "C": 0.0, "E": 0.5},
+                    "trait2": {"A": 0.5, "C": 0.0, "E": 0.5},
+                    "rA": 0.0,
+                    "rC": 0.0,
+                    "rE": 0.0,
+                },
+                "phenotype": {
+                    "trait1": {
+                        "model": "frailty",
+                        "params": {"distribution": "weibull", "scale": 2000, "rho": 1.0},
+                        "beta": 1.0,
+                        "beta_sex": 0.0,
+                        "prevalence": 0.1,
+                    },
+                    "trait2": {
+                        "model": "frailty",
+                        "params": {"distribution": "weibull", "scale": 2000, "rho": 1.0},
+                        "beta": 1.0,
+                        "beta_sex": 0.0,
+                        "prevalence": 0.1,
+                    },
+                },
+                "censoring": {
+                    "max_age": 80,
+                    "gen_censoring": {0: [80, 80]},
+                    "death_scale": 164,
+                    "death_rho": 2.73,
+                },
+                "sampling": {"N_sample": 100, "case_ascertainment_ratio": 1.0, "pedigree_dropout_rate": 0.0},
+                "analysis": {"max_degree": 2, "estimate_inbreeding": False},
+                "tstrait": {
+                    "num_causal": 0,
+                    "frac_causal": 0.0,
+                    "maf_threshold": 0.0,
+                    "alpha": 0.0,
+                    "effect_mean": 0.0,
+                    "effect_var": 0.0,
+                    "trait_id": "t1",
+                    "share_architecture": False,
+                },
+            }
+        }
+        self._write(tmp_path, "_default.yaml", defaults_body)
+        scenario_body = {
+            "scen_quoted": {
+                "censoring": {
+                    "max_age": 80,
+                    "gen_censoring": {"2": [0, 80], "3": [0, 45]},
+                    "death_scale": 164,
+                    "death_rho": 2.73,
+                },
+            }
+        }
+        self._write(tmp_path, "x.yaml", scenario_body)
+        scenarios = resolve_scenarios(tmp_path)
+        assert scenarios["scen_quoted"]["gen_censoring"] == {2: [0, 80], 3: [0, 45]}
+
+    def test_real_default_yaml_keys_are_ints(self):
+        """The shipped _default.yaml round-trips to int keys via the loader."""
+        flat = resolve_defaults("config")
+        assert all(isinstance(k, int) for k in flat["gen_censoring"])
