@@ -94,11 +94,11 @@ Prevalence can be a scalar (same for all generations) or a per-generation dict
 
 ### tstrait and gene drop
 
-The [gene-drop branch](../concepts/gene-drop.md) replaces the parametric $A$
-with a tstrait-derived genetic value computed from real founder haplotypes
-dropped through the simACE pedigree. Three top-level globals control how
-that branch wires into the standard pipeline; nine `tstrait.*` keys control
-the causal architecture.
+The [gene-drop branch](../concepts/gene-drop.md) replaces the
+parametric $A$ with a tstrait-derived genetic value computed from real
+founder haplotypes dropped through the simACE pedigree. Three top-level
+globals control how that branch is wired into the standard pipeline;
+nine `tstrait.*` keys control the causal architecture.
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -110,12 +110,12 @@ the causal architecture.
 | `tstrait.alpha` | float | -0.5 | Effect-size frequency-dependence exponent: $\beta = \mathcal{N}(\mu, \sigma_\beta^2) \cdot [2p(1-p)]^{\alpha}$. `0` = no MAF dependence; `-0.5` = LDAK-thin / Speed et al. |
 | `tstrait.effect_mean` | float | 0.0 | Raw $\beta$ mean. |
 | `tstrait.effect_var` | float | 1.0 | Raw $\beta$ variance (before MAF scaling). The augment step rescales the realised genome-wide $A$ to match `A1` regardless of this value. |
-| `tstrait.trait_id` | int | 0 | Single-trait only for now; trait 2's $A_2$ stays parametric. |
+| `tstrait.trait_id` | int | 0 | Single-trait only at present; trait 2's $A_2$ remains parametric. |
 | `tstrait.share_architecture` | bool | `false` | If true, causal sites + effects are shared across reps within a scenario (only env noise differs). |
 
 Heritability for the gene-drop branch is **derived** from the standard
 A/C/E components: $h^2 = A_1 / (A_1 + C_1 + E_1)$. There is no separate
-`tstrait.h2` knob.
+`tstrait.h2` parameter.
 
 The `tskit_preprocess` block (also under top-level config) points at the
 SimHumanity source and the directory where the canonicalized chromosomes

@@ -2,29 +2,31 @@
 
 ## Multi-generational pedigree
 
-The simulation creates `G_sim` total generations. Of these:
+The simulation generates `G_sim` total generations:
 
 - `G_sim - G_ped` are **burn-in** generations (simulated but not recorded)
 - `G_ped` generations are recorded in the pedigree
 - The last `G_pheno` of `G_ped` are phenotyped
 
-Each generation has `N` individuals. With default settings (N=100K, G_ped=6),
-the recorded pedigree contains ~600K individuals.
+Each generation contains `N` individuals. With default settings
+($N = 100{,}000$, $G_{ped} = 6$), the recorded pedigree contains
+approximately $600{,}000$ individuals.
 
 ## Mating and reproduction
 
-Each generation, couples are formed from potential parents:
+In each generation, couples are formed from the potential parent pool
+according to the following rules:
 
-- An individual can be part of multiple couples
-- Males and females are paired randomly by default, or assortatively on liability
-  (`assort1`, `assort2`)
-- Offspring are distributed across matings via a multinomial draw
-- Population size is kept constant; some couples produce no offspring
-- MZ twins are assigned to matings with 2+ offspring
+- An individual may participate in multiple couples.
+- Males and females are paired randomly by default, or assortatively
+  on liability via `assort1` and `assort2`.
+- Offspring are distributed across matings by a multinomial draw.
+- Population size is held constant; some couples produce no offspring.
+- MZ twins are assigned to matings with two or more offspring.
 
-At default settings (`mating_lambda=0.5`), ~77% of individuals have one partner and
-~23% have two or more, producing a natural mix of full-sibs, maternal half-sibs,
-and paternal half-sibs.
+At default settings (`mating_lambda = 0.5`), approximately 77% of
+individuals have a single partner and 23% have two or more, producing
+a natural mix of full sibs, maternal half-sibs, and paternal half-sibs.
 
 ## Pedigree relationship types
 
@@ -46,8 +48,9 @@ Each type is parameterised by `(up, down, n_ancestors)`:
 | Av | Avuncular | 1 | 2 | 2 | 1/8 | 2 |
 | 1C | 1st cousin | 2 | 2 | 2 | 1/16 | 3 |
 
-The `max_degree` parameter controls extraction depth (default 2). Degree 3-5 types
-require deeper matrix products and are only computed when requested.
+The `max_degree` parameter controls extraction depth (default 2).
+Degree 3–5 types require deeper matrix products and are computed only
+when requested.
 
 The full registry of 23 types is available as `REL_REGISTRY` and `PAIR_KINSHIP`
 from `simace.core.pedigree_graph`.

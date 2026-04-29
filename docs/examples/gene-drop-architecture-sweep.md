@@ -1,11 +1,12 @@
 # Gene-drop architecture sweep
 
-How does the genetic architecture (`alpha` and `num_causal`) shape the
-realized $A$ distribution under [gene drop](../concepts/gene-drop.md)? This
-example walks through six scenarios that vary one architecture knob at a
-time against a fixed pedigree+drop, showing both the raw genetic-value
-distributions and what they look like after the `tstrait_augment_pedigree`
-rescale that puts them on the same scale as Gaussian-$A$ scenarios.
+This page examines how the genetic architecture (`alpha` and
+`num_causal`) shapes the realized $A$ distribution under
+[gene drop](../concepts/gene-drop.md). Six scenarios vary one
+architecture parameter at a time against a fixed pedigree+drop,
+documenting both the raw genetic-value distributions and their form
+after the `tstrait_augment_pedigree` rescale, which places them on the
+same scale as Gaussian-$A$ scenarios.
 
 ## Scenarios
 
@@ -99,38 +100,43 @@ variance to exactly the configured `A1`:
 The realized $h^2$ matches $A_1 / (A_1 + C_1 + E_1) = 0.4 / 1.0 = 0.4$
 exactly — the tstrait `sim_env` step targets that derived value.
 
-## What's left to compare in the atlas
+## Remaining comparisons in the atlas
 
-After the augment, every scenario's `pedigree.full.tstrait.parquet` has
-$A_1$ with var = 0.4. What still differs between scenarios is the
-**distribution shape** of $A_1$ across the sample population: a 100-causal
-architecture has fatter tails (a few large-effect carriers dominate) than a
-1M-causal architecture (which converges to Gaussian by CLT).
+After the augment, every scenario's `pedigree.full.tstrait.parquet`
+has $A_1$ with variance $0.4$. What still differs between scenarios is
+the **distribution shape** of $A_1$ across the sample population: a
+100-causal architecture has fatter tails (a few large-effect carriers
+dominate) than a 1M-causal architecture (which converges to Gaussian
+by the CLT).
 
-The per-scenario atlas (`results/genotype_drop/{scenario}/plots/atlas.pdf`)
-runs the full simACE phenotype → censor → sample → stats chain on the
-augmented pedigree, so the kinship-based heritability estimates,
-relative-pair correlations, and prevalence plots all reflect the gene-drop
+The per-scenario atlas
+(`results/genotype_drop/{scenario}/plots/atlas.pdf`) runs the full
+simACE phenotype → censor → sample → stats chain on the augmented
+pedigree; kinship-based heritability estimates, relative-pair
+correlations, and prevalence plots therefore reflect the gene-drop
 $A$.
 
-Compare the atlases pairwise to see how the architecture affects:
+Pairwise comparison of the atlases reveals how the architecture
+affects:
 
-- **Phenotype prevalence per generation** — should be identical to within
-  sampling noise, since the rescale puts every $A_1$ at the same variance
-  and the threshold is calibrated against unit-variance liability.
-- **Heritability estimates** (Falconer, regression-on-relatives) — should
-  also be ~0.4 across scenarios, but estimator variance may differ as a
-  function of the underlying architecture (sparse architectures with rare
-  large-effect variants are harder to estimate).
-- **Relative-pair correlations vs theoretical kinship** — the line should
-  pass through the expected slope $h^2 = 0.4$ in all cases.
+- **Phenotype prevalence per generation** — should be identical to
+  within sampling noise, because the rescale fixes every $A_1$ at the
+  same variance and the threshold is calibrated against unit-variance
+  liability.
+- **Heritability estimates** (Falconer, regression-on-relatives) —
+  should also be approximately $0.4$ across scenarios, but estimator
+  variance may differ as a function of the underlying architecture
+  (sparse architectures with rare large-effect variants are harder to
+  estimate).
+- **Relative-pair correlations vs theoretical kinship** — the line
+  should pass through the expected slope $h^2 = 0.4$ in all cases.
 
-If a method's heritability estimate degrades under sparse architectures,
-this sweep is what surfaces it.
+A method whose heritability estimate degrades under sparse
+architectures will exhibit that degradation in this sweep.
 
 ## Cost
 
-On the local box (single workstation):
+On a single workstation:
 
 - Pre-pipeline (one-shot): ~10 min for `tskit_preprocess`, ~10 min for
   `site_catalog`. Reusable across all gene-drop scenarios forever.

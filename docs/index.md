@@ -27,10 +27,10 @@ estimate heritability and familial correlations from population health registrie
 
 ## Quick links
 
-- [Installation](getting-started/installation.md) -- set up the conda environment
-- [Quick Start](getting-started/quickstart.md) -- run your first simulation
-- [Configuration](user-guide/configuration.md) -- parameter reference
-- [API Reference](api/index.md) -- Python API docs for `simace`
+- [Installation](getting-started/installation.md) — conda environment setup
+- [Quick Start](getting-started/quickstart.md) — running an initial simulation
+- [Configuration](user-guide/configuration.md) — parameter reference
+- [API Reference](api/index.md) — Python API documentation for `simace`
 
 ## Two packages
 
@@ -39,4 +39,4 @@ estimate heritability and familial correlations from population health registrie
 | `simace` | Simulation, phenotyping, censoring, sampling, analysis, plotting | `pip install -e .` |
 | `fit_ace` | Model fitting (EPIMIGHT, PA-FGRS, Stan) | `pip install -e fit_ace/` |
 
-This documentation covers `simace`. See the fit_ace directory for model fitting documentation.
+This documentation covers `simace`. See the `fit_ace` directory for model-fitting documentation.

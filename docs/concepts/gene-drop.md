@@ -12,13 +12,13 @@ This page is the conceptual overview. For the worked alpha / num_causal
 sweep see [Architecture sweep](../examples/gene-drop-architecture-sweep.md).
 For the relevant config keys see [Configuration](../user-guide/configuration.md#tstrait-and-gene-drop).
 
-## Why bother?
+## Motivation
 
-The Gaussian-$A$ model says "trait genetics looks like a sum of infinitely
-many tiny effects" — a very smooth distribution that ignores how real
-heritability emerges from a finite causal-variant architecture.
+The Gaussian-$A$ model treats trait genetics as a sum of infinitely
+many tiny effects, producing a smooth distribution that ignores how
+real heritability emerges from a finite causal-variant architecture.
 
-Gene drop instead simulates the actual mechanism:
+Gene drop simulates the actual mechanism:
 
 1. Founder haplotypes carry SLiM-derived mutations from the SimHumanity
    ancestral simulation.
@@ -30,16 +30,16 @@ Gene drop instead simulates the actual mechanism:
 4. Per-individual genetic value is the sum of dosage × effect across causal
    sites.
 
-The shape and tails of the realized $A$ distribution reflect the genetic
-architecture rather than a Gaussian assumption — important when you want to
-stress-test methods that estimate variance components from real-looking
-pedigree data.
+The shape and tails of the realized $A$ distribution reflect the
+genetic architecture rather than a Gaussian assumption — relevant when
+methods that estimate variance components from realistic pedigree data
+are stress-tested.
 
-After computing the realistic $A$, the pipeline **rescales it to match the
-configured `A1` variance** so the simACE phenotype models (frailty,
-threshold, censoring) operate on the same scale as a Gaussian-$A$ run. This
-makes the gene-drop and Gaussian-$A$ results directly comparable on every
-downstream plot.
+After computing the realistic $A$, the pipeline **rescales it to match
+the configured `A1` variance** so that the simACE phenotype models
+(frailty, threshold, censoring) operate on the same scale as a
+Gaussian-$A$ run. This renders the gene-drop and Gaussian-$A$ results
+directly comparable on every downstream plot.
 
 ## Pipeline
 
@@ -152,8 +152,8 @@ Older ancestors keep their original parametric `A1`. This asymmetry is
 intentional: only sample-gen individuals appear in downstream model fits
 that rely on the sampled phenotype.
 
-`A2` is not touched — gene drop is single-trait. If you want both traits to
-share the gene-drop $A$, you'll need to extend the augment script.
+`A2` is not touched — gene drop is single-trait. Sharing the gene-drop
+$A$ between both traits requires extending the augment script.
 
 ### Stage 5 — feed it into the standard simACE pipeline
 
@@ -165,21 +165,21 @@ gene-drop-derived $A$ column.
 
 ## Sharing drops across variants
 
-Drop+graft is expensive. When you want to vary only the **architecture**
-(`tstrait.alpha`, `tstrait.num_causal`, etc.) holding the genotypes fixed,
-set `drop_from: <base_scenario>` on the variant. The `tstrait_gv_chrom` and
-`tstrait_augment_pedigree` rules then read the base scenario's `.trees` and
-`pedigree.full.parquet`; only the cheap tstrait sub-pipeline runs per
-variant.
+Drop+graft is expensive. To vary only the **architecture**
+(`tstrait.alpha`, `tstrait.num_causal`, etc.) while holding the
+genotypes fixed, set `drop_from: <base_scenario>` on the variant. The
+`tstrait_gv_chrom` and `tstrait_augment_pedigree` rules then read the
+base scenario's `.trees` and `pedigree.full.parquet`; only the cheap
+tstrait sub-pipeline runs per variant.
 
-This means a 6-scenario architecture sweep over `num_causal ∈ {100, 1k,
-10k, 100k, 1m}` and `alpha ∈ {0, -0.5}` reuses one set of drops instead of
-running drop+graft six times.
+A six-scenario architecture sweep over
+`num_causal ∈ {100, 1k, 10k, 100k, 1m}` and `alpha ∈ {0, -0.5}` therefore
+reuses a single set of drops instead of running drop+graft six times.
 
-## Heritability and the `h2` knob
+## Heritability and the `h2` parameter
 
-The `tstrait.h2` config key is **not** used. The pipeline derives $h^2$ from
-the standard simACE variance components:
+The `tstrait.h2` config key is **not** used. The pipeline derives
+$h^2$ from the standard simACE variance components:
 
 $$h^2 = \frac{A_1}{A_1 + C_1 + E_1}$$
 
@@ -196,4 +196,4 @@ Gaussian-$A$ scenarios. The realized $h^2$ in the meta JSON
 | Cost per rep | ~seconds | ~5-10 min wall (drop+graft dominates) |
 | Comparability | trivially same scale | exact-match scale via rescale |
 | Multi-trait | yes (trait1 + trait2) | trait1 only; trait2 still parametric |
-| Knobs | `A1`, `C1`, `E1`, `assort1`, ... | + `tstrait.{num_causal, alpha, maf_threshold, ...}`, `drop_from`, `use_gene_drop` |
+| Parameters | `A1`, `C1`, `E1`, `assort1`, ... | + `tstrait.{num_causal, alpha, maf_threshold, ...}`, `drop_from`, `use_gene_drop` |

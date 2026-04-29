@@ -60,7 +60,7 @@ Five opt-in leaf rules emit derived artifacts under
 `results/{folder}/{scenario}/rep{N}/exports/`. None run as part of
 `scenario.done` — build them by explicit path.
 
-| Path | Description | Config knob |
+| Path | Description | Config parameter |
 |---|---|---|
 | `exports/cumulative_incidence.tsv` | Long/tidy TSV, one row per `(trait, sex, generation, age)` with columns `cum_incidence`, `n_at_risk` | `censoring.max_age` |
 | `exports/pairwise_relatedness.tsv` | Canonical relationship pairs: `id1`, `id2`, `rel_code`, `kinship`; filtered by a minimum-kinship threshold | `export.pair_list_min_kinship` |
