@@ -17,7 +17,7 @@ __all__ = [
 import numpy as np
 
 from simace.core._numba_utils import _ndtri_approx
-from simace.phenotyping.phenotype import _INVERTERS, _standardize_beta
+from simace.phenotyping.hazards import BASELINE_HAZARDS, standardize_beta
 
 
 def phenotype_mixture_cip(
@@ -133,7 +133,7 @@ def phenotype_mixture_cure_frailty(
         Array of simulated event times, shape (n,)
     """
     n = len(liability)
-    mean, scaled_beta = _standardize_beta(liability, beta, standardize)
+    mean, scaled_beta = standardize_beta(liability, beta, standardize)
 
     if standardize:
         std = np.std(liability)
@@ -158,9 +158,9 @@ def phenotype_mixture_cure_frailty(
         L_cases = L[is_case]
 
         # Component 1
-        t1 = _INVERTERS[baseline](neg_log_u, L_cases, mean, scaled_beta, hazard_params_1)
+        t1 = BASELINE_HAZARDS[baseline](neg_log_u, L_cases, mean, scaled_beta, hazard_params_1)
         # Component 2
-        t2 = _INVERTERS[baseline](neg_log_u, L_cases, mean, scaled_beta, hazard_params_2)
+        t2 = BASELINE_HAZARDS[baseline](neg_log_u, L_cases, mean, scaled_beta, hazard_params_2)
 
         t[is_case] = np.where(comp1, t1, t2)
 

@@ -3,39 +3,19 @@
 Four model families, selected via phenotype_model1/phenotype_model2:
 
   "frailty"       — proportional hazards frailty; requires ``distribution``
-                    key in phenotype_params (weibull, exponential, gompertz,
-                    lognormal, loglogistic, gamma)
+                    key in phenotype_params (see ``simace.phenotyping.hazards``)
   "cure_frailty"  — mixture cure model; requires ``distribution`` key
   "adult"         — ADuLT age-dependent liability threshold; requires ``method``
                     key (ltm, cox)
   "first_passage" — inverse-Gaussian first-passage time
 
-Frailty models convert liability to raw event times (age-at-onset) using a proportional
-hazards frailty model with pluggable baseline hazard.
+Frailty / cure_frailty share the baseline-hazard registry in
+``simace.phenotyping.hazards``. Per-trait model (frailty case):
 
-Model (per trait):
     L        = A + C + E          (liability from pedigree)
     z        = exp(beta * L)      (frailty / hazard multiplier)
     S(t | z) = exp(-H0(t) * z)   (conditional survival)
     t        = H0^{-1}(-log(U) / z)  where U ~ Uniform(0, 1]
-
-Baseline hazard distributions supported (via compute_hazard_terms):
-    "weibull"     : {"scale": s, "rho": rho}
-    "exponential" : {"rate": lam}  |  {"scale": s}
-    "gompertz"    : {"rate": b, "gamma": g}
-    "lognormal"   : {"mu": mu, "sigma": sigma}
-    "loglogistic" : {"scale": alpha, "shape": k}
-    "gamma"       : {"shape": k, "scale": theta}
-
-Inversion strategy:
-    Each distribution has an analytic/vectorized inverse — no per-individual loop.
-    Weibull      → t = scale * (target / z)^(1/rho)
-    Exponential  → t = target / (z * rate)
-    Gompertz     → t = log1p(target * g / (z * b)) / g
-    Lognormal    → t = exp(mu + sigma * norm.isf(exp(-target/z)))
-    Loglogistic  → t = alpha * expm1(target/z)^(1/k)
-    Gamma        → t = gamma_dist.isf(exp(-target/z), k, scale=theta)
-    Unknown      → KeyError (all supported distributions have analytic inverses)
 """
 
 from __future__ import annotations
@@ -57,84 +37,24 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from numba import njit, prange
-from scipy.stats import gamma as gamma_dist
 
 from simace.core._numba_utils import _ndtri_approx
 from simace.core.compute_hazard_terms import compute_hazard_terms
 from simace.core.utils import save_parquet
+from simace.phenotyping.hazards import (
+    BASELINE_HAZARDS,
+    BASELINE_PARAMS,
+    compute_event_times,
+    standardize_beta,
+)
 
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Numba kernels — fuse frailty computation + inversion in a single pass
-# ---------------------------------------------------------------------------
-
-
-@njit(parallel=True, cache=True)
-def _nb_weibull(neg_log_u, liability, mean, scaled_beta, scale, inv_rho):
-    n = len(neg_log_u)
-    t = np.empty(n)
-    for i in prange(n):
-        z = np.exp(scaled_beta * (liability[i] - mean))
-        t[i] = scale * np.exp(np.log(neg_log_u[i] / z) * inv_rho)
-    return t
-
-
-@njit(parallel=True, cache=True)
-def _nb_exponential(neg_log_u, liability, mean, scaled_beta, inv_rate):
-    n = len(neg_log_u)
-    t = np.empty(n)
-    for i in prange(n):
-        z = np.exp(scaled_beta * (liability[i] - mean))
-        val = neg_log_u[i] * inv_rate / z
-        t[i] = min(max(val, 1e-10), 1e6)
-    return t
-
-
-@njit(parallel=True, cache=True)
-def _nb_gompertz(neg_log_u, liability, mean, scaled_beta, g_over_b, inv_g):
-    n = len(neg_log_u)
-    t = np.empty(n)
-    for i in prange(n):
-        z = np.exp(scaled_beta * (liability[i] - mean))
-        target = neg_log_u[i] / z
-        val = np.log1p(target * g_over_b) * inv_g
-        t[i] = min(max(val, 1e-10), 1e6)
-    return t
-
-
-@njit(parallel=True, cache=True)
-def _nb_lognormal(neg_log_u, liability, mean, scaled_beta, mu, sigma):
-    n = len(neg_log_u)
-    t = np.empty(n)
-    for i in prange(n):
-        z = np.exp(scaled_beta * (liability[i] - mean))
-        target = neg_log_u[i] / z
-        surv = np.exp(-target)
-        if surv <= 0.0:
-            t[i] = 1e6
-        else:
-            # norm.isf(surv) = -ndtri(surv) for symmetric normal
-            val = np.exp(mu - sigma * _ndtri_approx(surv))
-            t[i] = min(max(val, 1e-10), 1e6)
-    return t
-
-
-@njit(parallel=True, cache=True)
-def _nb_loglogistic(neg_log_u, liability, mean, scaled_beta, alpha, inv_k):
-    n = len(neg_log_u)
-    t = np.empty(n)
-    for i in prange(n):
-        z = np.exp(scaled_beta * (liability[i] - mean))
-        target = neg_log_u[i] / z
-        val = alpha * np.exp(np.log(np.expm1(target)) * inv_k)
-        t[i] = min(max(val, 1e-10), 1e6)
-    return t
-
-
 # First-passage time kernels — fuse y0 computation + Michael-Schucany-Haas
 # inverse Gaussian sampling in a single parallel pass.
+# ---------------------------------------------------------------------------
 
 
 @njit(cache=True)
@@ -184,74 +104,6 @@ def _nb_fpt_cure(normals, uniforms, cure_draws, liability, mean, scaled_beta, se
 
 
 # ---------------------------------------------------------------------------
-# Python wrappers — unpack params dict, call numba kernel
-# ---------------------------------------------------------------------------
-
-
-def _invert_weibull(neg_log_u, liability, mean, scaled_beta, params):
-    return _nb_weibull(neg_log_u, liability, mean, scaled_beta, params["scale"], 1.0 / params["rho"])
-
-
-def _invert_exponential(neg_log_u, liability, mean, scaled_beta, params):
-    rate = params["rate"] if "rate" in params else 1.0 / params["scale"]
-    return _nb_exponential(neg_log_u, liability, mean, scaled_beta, 1.0 / rate)
-
-
-def _invert_gompertz(neg_log_u, liability, mean, scaled_beta, params):
-    b, g = params["rate"], params["gamma"]
-    return _nb_gompertz(neg_log_u, liability, mean, scaled_beta, g / b, 1.0 / g)
-
-
-def _invert_lognormal(neg_log_u, liability, mean, scaled_beta, params):
-    return _nb_lognormal(neg_log_u, liability, mean, scaled_beta, params["mu"], params["sigma"])
-
-
-def _invert_loglogistic(neg_log_u, liability, mean, scaled_beta, params):
-    return _nb_loglogistic(neg_log_u, liability, mean, scaled_beta, params["scale"], 1.0 / params["shape"])
-
-
-def _invert_gamma(neg_log_u, liability, mean, scaled_beta, params):
-    """Gamma inverse — scipy iterative solver, not numba-fusible."""
-    frailty = np.exp(scaled_beta * (liability - mean))
-    target = neg_log_u / frailty
-    t = gamma_dist.isf(np.exp(-target), params["shape"], scale=params["scale"])
-    np.clip(t, 1e-10, 1e6, out=t)
-    return t
-
-
-# Dispatch table: model name → inversion function
-_INVERTERS = {
-    "weibull": _invert_weibull,
-    "exponential": _invert_exponential,
-    "gompertz": _invert_gompertz,
-    "lognormal": _invert_lognormal,
-    "loglogistic": _invert_loglogistic,
-    "gamma": _invert_gamma,
-}
-
-
-# ---------------------------------------------------------------------------
-# Shared helpers
-# ---------------------------------------------------------------------------
-
-
-def _standardize_beta(liability: np.ndarray, beta: float, standardize: bool) -> tuple[float, float]:
-    """Compute liability mean and scaled beta for frailty/FPT models.
-
-    Returns (mean, scaled_beta) where scaled_beta = beta / std(liability)
-    when standardize is True, or (0.0, beta) when False.
-    """
-    if standardize:
-        std = np.std(liability)
-        mean = liability.mean()
-        scaled_beta = beta / std if std > 0 else 0.0
-    else:
-        mean = 0.0
-        scaled_beta = beta
-    return mean, scaled_beta
-
-
-# ---------------------------------------------------------------------------
 # Core simulation
 # ---------------------------------------------------------------------------
 
@@ -291,14 +143,14 @@ def simulate_phenotype(
     compute_hazard_terms(hazard_model, np.array([1.0]), hazard_params)
 
     rng = np.random.default_rng(seed)
-    mean, scaled_beta = _standardize_beta(liability, beta, standardize)
+    mean, scaled_beta = standardize_beta(liability, beta, standardize)
 
     neg_log_u = rng.exponential(size=len(liability))  # -log(U), U ~ (0,1]
 
     if beta_sex != 0.0 and sex is not None:
         neg_log_u = neg_log_u / np.exp(beta_sex * sex)
 
-    return _INVERTERS[hazard_model](neg_log_u, liability, mean, scaled_beta, hazard_params)
+    return compute_event_times(neg_log_u, liability, mean, scaled_beta, hazard_model, hazard_params)
 
 
 # ---------------------------------------------------------------------------
@@ -507,7 +359,7 @@ def phenotype_cure_frailty(
         Array of simulated event times, shape (n,)
     """
     n = len(liability)
-    mean, scaled_beta = _standardize_beta(liability, beta, standardize)
+    mean, scaled_beta = standardize_beta(liability, beta, standardize)
 
     # Standardize liability for thresholding (cure_frailty needs N(0,1) scale)
     if standardize:
@@ -529,11 +381,12 @@ def phenotype_cure_frailty(
         if beta_sex != 0.0 and sex is not None:
             neg_log_u = neg_log_u / np.exp(beta_sex * sex[is_case])
 
-        t[is_case] = _INVERTERS[baseline](
+        t[is_case] = compute_event_times(
             neg_log_u,
             L[is_case],
             mean,
             scaled_beta,
+            baseline,
             hazard_params,
         )
 
@@ -588,7 +441,7 @@ def phenotype_first_passage(
 
     n = len(liability)
     rng = np.random.default_rng(seed)
-    mean, scaled_beta = _standardize_beta(liability, beta, standardize)
+    mean, scaled_beta = standardize_beta(liability, beta, standardize)
 
     y0_base = np.sqrt(shape)
     normals = rng.standard_normal(n)
@@ -615,7 +468,7 @@ def phenotype_first_passage(
     )
 
 
-_FRAILTY_DISTRIBUTIONS = frozenset({"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"})
+_FRAILTY_DISTRIBUTIONS = frozenset(BASELINE_HAZARDS)
 _ADULT_METHODS = frozenset({"ltm", "cox"})
 _MODEL_FAMILIES = frozenset({"frailty", "cure_frailty", "adult", "first_passage"})
 
@@ -657,16 +510,10 @@ def _resolve_prevalence(params, trait_num, sex, generation):
     return _prevalence_to_array(prev, generation)
 
 
-# Parameter names required per distribution/model
-_MODEL_PARAMS: dict[str, list[str]] = {
-    "weibull": ["scale", "rho"],
-    "exponential": ["rate"],
-    "gompertz": ["rate", "gamma"],
-    "lognormal": ["mu", "sigma"],
-    "loglogistic": ["scale", "shape"],
-    "gamma": ["shape", "scale"],
-    "first_passage": ["drift", "shape"],
-}
+# Parameter names required per distribution/model. Frailty distributions are
+# sourced from ``hazards.BASELINE_PARAMS`` to avoid drift; first_passage is the
+# only non-baseline-hazard family that this dispatcher knows about.
+_MODEL_PARAMS: dict[str, list[str]] = {**BASELINE_PARAMS, "first_passage": ["drift", "shape"]}
 _ADULT_PARAMS: list[str] = ["cip_x0", "cip_k"]
 
 
@@ -681,9 +528,7 @@ def _validate_phenotype_params(
         ValueError: if required keys are missing or unexpected keys are present
     """
     if model not in _MODEL_FAMILIES:
-        raise ValueError(
-            f"Unknown phenotype_model{trait_num}={model!r}; valid models: {sorted(_MODEL_FAMILIES)}"
-        )
+        raise ValueError(f"Unknown phenotype_model{trait_num}={model!r}; valid models: {sorted(_MODEL_FAMILIES)}")
 
     if model == "frailty":
         if "distribution" not in phenotype_params:
@@ -722,8 +567,7 @@ def _validate_phenotype_params(
         method = phenotype_params["method"]
         if method not in _ADULT_METHODS:
             raise ValueError(
-                f"phenotype_params{trait_num} method={method!r} invalid; "
-                f"valid methods: {sorted(_ADULT_METHODS)}"
+                f"phenotype_params{trait_num} method={method!r} invalid; valid methods: {sorted(_ADULT_METHODS)}"
             )
         required = set(_ADULT_PARAMS) | {"method"}
 
