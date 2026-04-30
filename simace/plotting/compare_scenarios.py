@@ -43,7 +43,7 @@ import pandas as pd
 import yaml
 from scipy import stats as sci_stats
 
-from simace.core.pedigree_graph import extract_relationship_pairs
+from simace.core.pedigree_graph import PedigreeGraph
 from simace.core.relationships import PAIR_TYPES
 from simace.plotting.plot_style import (
     apply_nature_style,
@@ -145,16 +145,12 @@ def compare_realized_variance_trajectory(
     h2_expected = None
     if expected_A is not None and expected_C is not None and expected_E is not None:
         if any(isinstance(e, list) for e in (expected_A, expected_C, expected_E)):
-            n = max(
-                len(e) if isinstance(e, list) else 1
-                for e in (expected_A, expected_C, expected_E)
-            )
+            n = max(len(e) if isinstance(e, list) else 1 for e in (expected_A, expected_C, expected_E))
             a_list = expected_A if isinstance(expected_A, list) else [expected_A] * n
             c_list = expected_C if isinstance(expected_C, list) else [expected_C] * n
             e_list = expected_E if isinstance(expected_E, list) else [expected_E] * n
             h2_expected = [
-                a / (a + c + e) if (a + c + e) > 0 else None
-                for a, c, e in zip(a_list, c_list, e_list, strict=True)
+                a / (a + c + e) if (a + c + e) > 0 else None for a, c, e in zip(a_list, c_list, e_list, strict=True)
             ]
         else:
             total = expected_A + expected_C + expected_E
@@ -397,7 +393,7 @@ def load_pedigree_estimates(
     else:
         df = df_full.reset_index(drop=True)
 
-    pairs = extract_relationship_pairs(df, full_pedigree=df_full, max_degree=2)
+    pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=2)
     liab = df[f"liability{trait}"].to_numpy()
 
     corrs: dict[str, float] = {}
@@ -1034,9 +1030,7 @@ def compare_components_by_generation(
         per_scen_l.append({g: np.concatenate(v) if v else np.array([]) for g, v in l_by_gen.items()})
 
     # Shared x-range across both rows + every panel for cross-comparability.
-    all_vals = np.concatenate(
-        [arr for d in per_scen_a + per_scen_l for arr in d.values() if arr.size]
-    )
+    all_vals = np.concatenate([arr for d in per_scen_a + per_scen_l for arr in d.values() if arr.size])
     lo = float(np.quantile(all_vals, 0.001))
     hi = float(np.quantile(all_vals, 0.999))
     pad = 0.05 * (hi - lo)
@@ -1052,12 +1046,8 @@ def compare_components_by_generation(
     if n_scen == 1:
         axes = axes.reshape(2, 1)
 
-    for col, (label, a_dict, l_dict) in enumerate(
-        zip(labels, per_scen_a, per_scen_l, strict=True)
-    ):
-        for row_idx, (ax, vals_dict) in enumerate(
-            ((axes[0, col], a_dict), (axes[1, col], l_dict))
-        ):
+    for col, (label, a_dict, l_dict) in enumerate(zip(labels, per_scen_a, per_scen_l, strict=True)):
+        for row_idx, (ax, vals_dict) in enumerate(((axes[0, col], a_dict), (axes[1, col], l_dict))):
             for g_idx, g in enumerate(show_generations):
                 vals = vals_dict.get(g, np.array([]))
                 if vals.size == 0:
@@ -1103,7 +1093,7 @@ def load_pedigree_estimates_per_generation(
 
     For each generation ``g``, the dataframe is filtered to ``generation == g``
     (a single cohort) and MZ/FS pair correlations are computed on that cohort
-    only.  ``extract_relationship_pairs`` is called on the filtered cohort
+    only.  ``PedigreeGraph.from_subsample`` is built on the filtered cohort
     so the returned FS pairs already exclude twins
     (``simace/core/pedigree_graph.py:_sibling_pairs`` filters ``twin != -1``).
     MZ pairs are read from the cohort directly.
@@ -1139,14 +1129,18 @@ def load_pedigree_estimates_per_generation(
         df = df_full[df_full["generation"] == g].reset_index(drop=True)
         if len(df) == 0:
             out[g] = {
-                "MZ": float("nan"), "FS": float("nan"),
-                "n_MZ": 0, "n_FS": 0,
+                "MZ": float("nan"),
+                "FS": float("nan"),
+                "n_MZ": 0,
+                "n_FS": 0,
                 "realized_h2": float("nan"),
-                "vA": float("nan"), "vC": float("nan"), "vE": float("nan"),
+                "vA": float("nan"),
+                "vC": float("nan"),
+                "vE": float("nan"),
             }
             continue
 
-        pairs = extract_relationship_pairs(df, full_pedigree=df_full, max_degree=1)
+        pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=1)
         liab = df[f"liability{trait}"].to_numpy()
         cohort_corrs: dict[str, tuple[float, int]] = {}
         for code in ("MZ", "FS"):
@@ -1166,10 +1160,14 @@ def load_pedigree_estimates_per_generation(
         realized_h2 = vA / total if total > 0 else float("nan")
 
         out[g] = {
-            "MZ": r_mz, "FS": r_fs,
-            "n_MZ": n_mz, "n_FS": n_fs,
+            "MZ": r_mz,
+            "FS": r_fs,
+            "n_MZ": n_mz,
+            "n_FS": n_fs,
             "realized_h2": realized_h2,
-            "vA": vA, "vC": vC, "vE": vE,
+            "vA": vA,
+            "vC": vC,
+            "vE": vE,
         }
     return out
 
@@ -1212,10 +1210,7 @@ def compare_cohort_fs_correlations(
     fig, ax = plt.subplots(figsize=(9, 5))
 
     for scen_idx, (paths, label) in enumerate(zip(pedigree_paths_per_scenario, labels, strict=True)):
-        per_rep = [
-            load_pedigree_estimates_per_generation(Path(p), trait=trait)
-            for p in paths
-        ]
+        per_rep = [load_pedigree_estimates_per_generation(Path(p), trait=trait) for p in paths]
         # Union of generations seen across reps, restricted to >= min_generation.
         gens = sorted({g for d in per_rep for g in d if g >= min_generation})
         means, lows, highs = [], [], []
@@ -1325,25 +1320,15 @@ def compare_cohort_falconer(
         axes = np.array([axes])
 
     for paths, label, ax in zip(pedigree_paths_per_scenario, labels, axes, strict=True):
-        per_rep_pergen = [
-            load_pedigree_estimates_per_generation(Path(p), trait=trait)
-            for p in paths
-        ]
-        per_rep_pooled = [
-            load_pedigree_estimates(Path(p), trait=trait, min_generation=None)
-            for p in paths
-        ]
+        per_rep_pergen = [load_pedigree_estimates_per_generation(Path(p), trait=trait) for p in paths]
+        per_rep_pooled = [load_pedigree_estimates(Path(p), trait=trait, min_generation=None) for p in paths]
         gens = sorted({g for d in per_rep_pergen for g in d if g >= min_generation})
 
-        truth_m, truth_lo, truth_hi = _per_gen_envelope(
-            per_rep_pergen, gens, lambda d: d["realized_h2"]
-        )
+        truth_m, truth_lo, truth_hi = _per_gen_envelope(per_rep_pergen, gens, lambda d: d["realized_h2"])
         falc_m, falc_lo, falc_hi = _per_gen_envelope(
             per_rep_pergen,
             gens,
-            lambda d: 2.0 * (d["MZ"] - d["FS"])
-            if np.isfinite(d["MZ"]) and np.isfinite(d["FS"])
-            else float("nan"),
+            lambda d: 2.0 * (d["MZ"] - d["FS"]) if np.isfinite(d["MZ"]) and np.isfinite(d["FS"]) else float("nan"),
         )
 
         truth_color = SCENARIO_PALETTE[0]
@@ -1355,10 +1340,7 @@ def compare_cohort_falconer(
         ax.fill_between(gens, falc_lo, falc_hi, color=falc_color, alpha=0.15, linewidth=0)
 
         pooled_falconer_vals = np.array(
-            [
-                2.0 * (est.get("MZ", float("nan")) - est.get("FS", float("nan")))
-                for est in per_rep_pooled
-            ],
+            [2.0 * (est.get("MZ", float("nan")) - est.get("FS", float("nan"))) for est in per_rep_pooled],
             dtype=float,
         )
         pooled_falconer_vals = pooled_falconer_vals[np.isfinite(pooled_falconer_vals)]
@@ -1441,8 +1423,7 @@ def compare_prevalence_drift(
     n_traj = len(labels)
     if len(std_paths_per_trajectory) != n_traj or len(nostd_paths_per_trajectory) != n_traj:
         raise ValueError(
-            "std_paths_per_trajectory, nostd_paths_per_trajectory, and labels "
-            "must all have the same length"
+            "std_paths_per_trajectory, nostd_paths_per_trajectory, and labels must all have the same length"
         )
 
     apply_nature_style()

@@ -6,8 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from simace.analysis.validate import _count_sib_pairs_legacy
-from simace.core.pedigree_graph import count_sib_pairs, extract_relationship_pairs
+from simace.core.pedigree_graph import PedigreeGraph
 
 logger = logging.getLogger(__name__)
 
@@ -197,7 +196,7 @@ class TestGoldenComparison:
         """
         df = small_pedigree
         legacy = _extract_relationship_pairs_legacy(df, seed=42)
-        new = extract_relationship_pairs(df, max_degree=4)
+        new = PedigreeGraph(df).extract_pairs(max_degree=4)
 
         exact_keys = [
             "MZ",
@@ -239,24 +238,12 @@ class TestGoldenComparison:
         # 1C and H1C must be disjoint
         assert not (new_1c & new_h1c), f"1C and H1C overlap: {len(new_1c & new_h1c)} pairs"
 
-    def test_golden_sib_counts_match(self, small_pedigree):
-        """count_sib_pairs must match _count_sib_pairs_legacy."""
-        df = small_pedigree
-        non_founders = df[df["mother"] != -1]
-        non_twin_sibs = non_founders[non_founders["twin"] == -1][["id", "mother", "father"]]
-
-        legacy = _count_sib_pairs_legacy(non_twin_sibs)
-        new = count_sib_pairs(non_twin_sibs)
-
-        for key in legacy:
-            assert legacy[key] == new[key], f"{key}: legacy={legacy[key]}, new={new[key]}"
-
 
 class TestNewRelationships:
     """Test the 3 new relationship categories."""
 
     def test_has_new_keys(self, small_pedigree):
-        pairs = extract_relationship_pairs(small_pedigree)
+        pairs = PedigreeGraph(small_pedigree).extract_pairs()
         assert "GP" in pairs
         assert "Av" in pairs
         assert "2C" in pairs
@@ -264,7 +251,7 @@ class TestNewRelationships:
     def test_grandparent_grandchild_structure(self, small_pedigree):
         """Each grandparent-grandchild pair must be separated by 2 generations."""
         df = small_pedigree
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
         gc, gp = pairs["GP"]
         if len(gc) == 0:
             pytest.skip("No grandparent-grandchild pairs found")
@@ -276,7 +263,7 @@ class TestNewRelationships:
     def test_grandparent_grandchild_ancestry(self, small_pedigree):
         """Each grandchild must have the grandparent as a parent of a parent."""
         df = small_pedigree
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
         gc_arr, gp_arr = pairs["GP"]
         mother = df["mother"].values
         father = df["father"].values
@@ -300,7 +287,7 @@ class TestNewRelationships:
     def test_avuncular_structure(self, small_pedigree):
         """Avuncular pairs span exactly 1 generation."""
         df = small_pedigree
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
         a1, a2 = pairs["Av"]
         if len(a1) == 0:
             pytest.skip("No avuncular pairs found")
@@ -316,7 +303,7 @@ class TestStructuralCorrectness:
 
     def test_full_sibs_share_both_parents(self, small_pedigree):
         df = small_pedigree
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
         idx1, idx2 = pairs["FS"]
         if len(idx1) == 0:
             pytest.skip("No full sib pairs")
@@ -328,7 +315,7 @@ class TestStructuralCorrectness:
 
     def test_half_sibs_share_exactly_one_parent(self, small_pedigree):
         df = small_pedigree
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
 
         mother = df["mother"].values
         father = df["father"].values
@@ -351,7 +338,7 @@ class TestStructuralCorrectness:
     def test_cousins_share_grandparent(self, small_pedigree):
         """Every 1st cousin pair must share at least one grandparent and not be a self-pair."""
         df = small_pedigree
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
         idx1, idx2 = pairs["1C"]
         if len(idx1) == 0:
             pytest.skip("No cousin pairs")
@@ -382,7 +369,7 @@ class TestStructuralCorrectness:
 
     def test_no_pair_overlap_within_sibling_types(self, small_pedigree):
         """Full sib, maternal half sib, paternal half sib should be mutually exclusive."""
-        pairs = extract_relationship_pairs(small_pedigree)
+        pairs = PedigreeGraph(small_pedigree).extract_pairs()
         sib_keys = ["FS", "MHS", "PHS"]
         sib_sets = {k: _pairs_to_set(*pairs[k]) for k in sib_keys}
 
@@ -393,7 +380,7 @@ class TestStructuralCorrectness:
 
     def test_no_pair_overlap_twins_and_siblings(self, small_pedigree):
         """MZ twins should not also appear as siblings."""
-        pairs = extract_relationship_pairs(small_pedigree)
+        pairs = PedigreeGraph(small_pedigree).extract_pairs()
         twin_set = _pairs_to_set(*pairs["MZ"])
         for key in ["FS", "MHS", "PHS"]:
             sib_set = _pairs_to_set(*pairs[key])
@@ -406,8 +393,8 @@ class TestNoSubsamplingLoss:
 
     def test_exact_cousin_count(self, small_pedigree):
         """Verify cousin count is deterministic (no RNG-dependent cap)."""
-        pairs1 = extract_relationship_pairs(small_pedigree)
-        pairs2 = extract_relationship_pairs(small_pedigree)
+        pairs1 = PedigreeGraph(small_pedigree).extract_pairs()
+        pairs2 = PedigreeGraph(small_pedigree).extract_pairs()
         assert len(pairs1["1C"][0]) == len(pairs2["1C"][0])
 
 
@@ -424,7 +411,7 @@ class TestEdgeCases:
                 "generation": np.zeros(100, dtype=int),
             }
         )
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
         for key in [
             "FS",
             "MHS",
@@ -471,7 +458,7 @@ class TestEdgeCases:
                 "generation": gen,
             }
         )
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
         assert len(pairs["FS"][0]) == 0
         assert len(pairs["MHS"][0]) == 0
         assert len(pairs["PHS"][0]) == 0
@@ -514,23 +501,23 @@ class TestKnownTinyPedigree:
         return pd.DataFrame(data)
 
     def test_full_sib_count(self, tiny_pedigree):
-        pairs = extract_relationship_pairs(tiny_pedigree)
+        pairs = PedigreeGraph(tiny_pedigree).extract_pairs()
         sib_set = _pairs_to_set(*pairs["FS"])
         expected = {(4, 5), (6, 7), (8, 10)}
         assert sib_set == expected, f"Got {sib_set}"
 
     def test_mother_offspring_count(self, tiny_pedigree):
-        pairs = extract_relationship_pairs(tiny_pedigree)
+        pairs = PedigreeGraph(tiny_pedigree).extract_pairs()
         mo_set = _pairs_to_set(*pairs["MO"])
         assert len(mo_set) == 7
 
     def test_father_offspring_count(self, tiny_pedigree):
-        pairs = extract_relationship_pairs(tiny_pedigree)
+        pairs = PedigreeGraph(tiny_pedigree).extract_pairs()
         fo_set = _pairs_to_set(*pairs["FO"])
         assert len(fo_set) == 7
 
     def test_cousin_count(self, tiny_pedigree):
-        pairs = extract_relationship_pairs(tiny_pedigree)
+        pairs = PedigreeGraph(tiny_pedigree).extract_pairs()
         cousin_set = _pairs_to_set(*pairs["1C"])
         # 8's parents: (4, 6). 9's parents: (5, 7).
         # 4 & 5 share grandparents 0,1. 6 & 7 share grandparents 2,3.
@@ -541,7 +528,7 @@ class TestKnownTinyPedigree:
         assert cousin_set == expected, f"Got {cousin_set}"
 
     def test_grandparent_grandchild_count(self, tiny_pedigree):
-        pairs = extract_relationship_pairs(tiny_pedigree)
+        pairs = PedigreeGraph(tiny_pedigree).extract_pairs()
         gp_set = _pairs_to_set(*pairs["GP"])
         # 8 → grandparents 0,1,2,3
         # 9 → grandparents 0,1,2,3
@@ -563,7 +550,7 @@ class TestKnownTinyPedigree:
         assert gp_set == expected, f"Got {gp_set}, expected {expected}"
 
     def test_avuncular_count(self, tiny_pedigree):
-        pairs = extract_relationship_pairs(tiny_pedigree)
+        pairs = PedigreeGraph(tiny_pedigree).extract_pairs()
         avunc_set = _pairs_to_set(*pairs["Av"])
         # 5 is full sib of 4 (mother of 8, 10) → 5 is aunt of 8, 10
         # 4 is full sib of 5 (mother of 9) → 4 is aunt of 9
@@ -726,18 +713,18 @@ class TestSecondCousinFullVsHalf:
 
     def test_full_2c_included(self, pedigree_with_half_2c):
         """Full 2nd cousin pair (10, 11) must be in 2C."""
-        pairs = extract_relationship_pairs(pedigree_with_half_2c, max_degree=5)
+        pairs = PedigreeGraph(pedigree_with_half_2c).extract_pairs(max_degree=5)
         sc_set = _pairs_to_set(*pairs["2C"])
         assert (10, 11) in sc_set, f"Full 2C pair (10,11) missing from 2C: {sc_set}"
 
     def test_half_2c_excluded(self, pedigree_with_half_2c):
         """Half 2nd cousin pair (23, 24) must NOT be in 2C."""
-        pairs = extract_relationship_pairs(pedigree_with_half_2c, max_degree=5)
+        pairs = PedigreeGraph(pedigree_with_half_2c).extract_pairs(max_degree=5)
         sc_set = _pairs_to_set(*pairs["2C"])
         assert (23, 24) not in sc_set, f"Half 2C pair (23,24) incorrectly in 2C: {sc_set}"
 
     def test_2c_count(self, pedigree_with_half_2c):
         """Only 1 full 2C pair should exist in this pedigree."""
-        pairs = extract_relationship_pairs(pedigree_with_half_2c, max_degree=5)
+        pairs = PedigreeGraph(pedigree_with_half_2c).extract_pairs(max_degree=5)
         sc_set = _pairs_to_set(*pairs["2C"])
         assert sc_set == {(10, 11)}, f"Expected exactly {{(10,11)}}, got {sc_set}"

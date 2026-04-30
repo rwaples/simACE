@@ -105,14 +105,14 @@ def _count_total_relatives(pair_list, n, unidirectional=False):
 
 def build_epimight_inputs(phenotype_path: Path, output_dir: Path) -> None:
     """phenotype.parquet -> trait{1,2}.epimight_in.parquet + true_parameters.json."""
-    from simace.core.pedigree_graph import extract_relationship_pairs
+    from simace.core.pedigree_graph import PedigreeGraph
 
     output_dir.mkdir(parents=True, exist_ok=True)
     df = pd.read_parquet(phenotype_path)
     n = len(df)
 
     print(f"Extracting relationship pairs from {n} rows...")
-    all_pairs = extract_relationship_pairs(df)
+    all_pairs = PedigreeGraph(df).extract_pairs()
 
     affected1 = df["affected1"].values.astype(bool)
     affected2 = df["affected2"].values.astype(bool)
@@ -287,6 +287,7 @@ message("Done.")
 # R invocation
 # ---------------------------------------------------------------------------
 
+
 def _r_command(conda_env: str | None) -> list[str]:
     """Build the prefix used to invoke Rscript (with or without conda)."""
     if conda_env:
@@ -305,15 +306,15 @@ def ensure_epimight_installed(r_cmd: list[str], pkg_source: Path) -> None:
             "Pass --epimight-pkg <path> pointing to the EPIMIGHT/epimight directory."
         )
     check = (
-        f"if (!requireNamespace('epimight', quietly=TRUE)) "
-        f"install.packages('{pkg_source}', repos=NULL, type='source')"
+        f"if (!requireNamespace('epimight', quietly=TRUE)) install.packages('{pkg_source}', repos=NULL, type='source')"
     )
     print(f"Ensuring epimight R package is installed (source: {pkg_source})...")
     subprocess.run([*r_cmd, "-e", check], check=True)
 
 
-def run_kind(r_cmd: list[str], r_script: Path, output_dir: Path,
-             kind: str, seed: int, K: int, rubin_level: str) -> None:
+def run_kind(
+    r_cmd: list[str], r_script: Path, output_dir: Path, kind: str, seed: int, K: int, rubin_level: str
+) -> None:
     """Run the EPIMIGHT R driver for a single relationship kind."""
     print(f"\n=== EPIMIGHT: kind={kind} K={K} seed={seed} rubin_level={rubin_level} ===")
     subprocess.run(
@@ -326,6 +327,7 @@ def run_kind(r_cmd: list[str], r_script: Path, output_dir: Path,
 # Aggregation
 # ---------------------------------------------------------------------------
 
+
 def aggregate_summary(output_dir: Path, kinds: list[str]) -> Path:
     """Concatenate per-kind meta TSVs into one tidy summary.tsv."""
     tsv_dir = output_dir / "tsv"
@@ -334,7 +336,7 @@ def aggregate_summary(output_dir: Path, kinds: list[str]) -> Path:
         for param, fname in [
             ("h2_d1", f"h2_d1_meta_{kind}.tsv"),
             ("h2_d2", f"h2_d2_meta_{kind}.tsv"),
-            ("gc",    f"gc_meta_{kind}.tsv"),
+            ("gc", f"gc_meta_{kind}.tsv"),
         ]:
             path = tsv_dir / fname
             if not path.exists():
@@ -354,7 +356,7 @@ def aggregate_summary(output_dir: Path, kinds: list[str]) -> Path:
         truth_map = {
             "h2_d1": truth.get("h2_trait1_true"),
             "h2_d2": truth.get("h2_trait2_true"),
-            "gc":    truth.get("genetic_correlation_true"),
+            "gc": truth.get("genetic_correlation_true"),
         }
         summary["true"] = summary["parameter"].map(truth_map)
 
@@ -369,28 +371,31 @@ def aggregate_summary(output_dir: Path, kinds: list[str]) -> Path:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
-    p = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--phenotype", required=True, type=Path, help="Path to phenotype.parquet from a simACE rep.")
+    p.add_argument("--output-dir", required=True, type=Path, help="Output directory (created if missing).")
+    p.add_argument(
+        "--kinds",
+        default="PO,FS,HS",
+        help=f"Comma-separated relationship kinds. Choices: {','.join(KIND_TO_PAIRS)}. Default: PO,FS,HS",
     )
-    p.add_argument("--phenotype", required=True, type=Path,
-                   help="Path to phenotype.parquet from a simACE rep.")
-    p.add_argument("--output-dir", required=True, type=Path,
-                   help="Output directory (created if missing).")
-    p.add_argument("--kinds", default="PO,FS,HS",
-                   help=f"Comma-separated relationship kinds. "
-                        f"Choices: {','.join(KIND_TO_PAIRS)}. Default: PO,FS,HS")
-    p.add_argument("--K", type=int, default=20,
-                   help="Number of resamples for multiple imputation (default: 20).")
+    p.add_argument("--K", type=int, default=20, help="Number of resamples for multiple imputation (default: 20).")
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--rubin-level", choices=["meta", "per_year"], default="meta",
-                   help="Rubin pooling granularity (default: meta).")
-    p.add_argument("--conda-env", default="epimight",
-                   help="Conda env containing R+epimight. Set to '' to use Rscript on PATH.")
-    p.add_argument("--epimight-pkg", type=Path,
-                   default=Path(__file__).resolve().parent.parent / "epimight" / "EPIMIGHT" / "epimight",
-                   help="Path to the EPIMIGHT R package source (for first-run install).")
+    p.add_argument(
+        "--rubin-level", choices=["meta", "per_year"], default="meta", help="Rubin pooling granularity (default: meta)."
+    )
+    p.add_argument(
+        "--conda-env", default="epimight", help="Conda env containing R+epimight. Set to '' to use Rscript on PATH."
+    )
+    p.add_argument(
+        "--epimight-pkg",
+        type=Path,
+        default=Path(__file__).resolve().parent.parent / "epimight" / "EPIMIGHT" / "epimight",
+        help="Path to the EPIMIGHT R package source (for first-run install).",
+    )
     return p.parse_args()
 
 

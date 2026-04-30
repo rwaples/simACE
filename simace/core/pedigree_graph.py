@@ -17,11 +17,6 @@ __all__ = [
     "REL_REGISTRY",
     "PedigreeGraph",
     "RelType",
-    "count_relationship_pairs",
-    "count_sib_pairs",
-    "extract_and_count_relationship_pairs",
-    "extract_relationship_pairs",
-    "extract_sibling_pairs",
 ]
 
 import logging
@@ -121,13 +116,16 @@ class PedigreeGraph:
         df: Pedigree DataFrame with columns id, mother, father, twin, sex, generation.
     """
 
-    def __init__(self, df: pd.DataFrame, sample_mask: np.ndarray | None = None) -> None:
+    def __init__(self, df: pd.DataFrame) -> None:
         n = len(df)
         self.n = n
 
-        # Optional boolean mask: True = "active" individual (in the sample).
-        # When set, extract_pairs only returns pairs of active individuals.
-        self._active = sample_mask
+        # Subsample state — set only by from_subsample. When _sample_mask is
+        # set, extract_pairs filters to pairs where both endpoints are active.
+        # When _subsample_remap is set, extract_pairs additionally remaps
+        # graph row indices to caller-input (df) row indices.
+        self._sample_mask: np.ndarray | None = None
+        self._subsample_remap: np.ndarray | None = None
 
         # Lazy kinship cache — populated by kinship_matrix(); keyed by
         # the resolved min_kinship threshold.
@@ -723,8 +721,12 @@ class PedigreeGraph:
     ) -> dict[str, tuple[np.ndarray, np.ndarray]]:
         """Extract all relationship categories.
 
-        When ``sample_mask`` was provided at construction, only pairs where
-        both individuals are active are returned.
+        Returned indices are always in caller-input coordinates:
+
+        - ``__init__(df)``: indices into *df* rows.
+        - ``from_subsample(full_pedigree, df)``: indices into *df* rows;
+          pairs are filtered to those with both endpoints in *df*.
+        - ``from_arrays(ids, ...)``: positions in the input *ids* array.
 
         Args:
             max_degree: Maximum kinship degree to extract (1-5). Degree 2
@@ -1023,14 +1025,14 @@ class PedigreeGraph:
             for code in ("2C", "G3GP", "HGGAv", "G3Av", "H1C1R", "1C2R"):
                 pairs[code] = (empty, empty)
 
-        # Save raw counts before sample_mask filtering (used by count_pairs)
+        # Save raw counts before sample_mask filtering (used by count_pairs(scope="full"))
         self._raw_pair_counts = {k: len(v[0]) for k, v in pairs.items()}
 
         # Restrict to active (sampled) individuals when a mask is set
-        if self._active is not None:
+        if self._sample_mask is not None:
             for k, (idx1, idx2) in pairs.items():
                 if len(idx1) > 0:
-                    mask = self._active[idx1] & self._active[idx2]
+                    mask = self._sample_mask[idx1] & self._sample_mask[idx2]
                     pairs[k] = (idx1[mask].astype(np.intp), idx2[mask].astype(np.intp))
                 else:
                     pairs[k] = (empty, empty)
@@ -1039,7 +1041,22 @@ class PedigreeGraph:
                 ", ".join(f"{k}: {len(v[0])}" for k, v in pairs.items()),
             )
 
-        # Free all cached sparse matrices — only pair arrays and _raw_pair_counts
+        # Remap graph row indices to caller-input row indices when a remap is set.
+        # After this, pair indices are in caller-input coordinates regardless
+        # of which constructor was used.
+        if self._subsample_remap is not None:
+            remap = self._subsample_remap
+            for k, (idx1, idx2) in pairs.items():
+                if len(idx1) > 0:
+                    pairs[k] = (
+                        remap[idx1].astype(np.intp),
+                        remap[idx2].astype(np.intp),
+                    )
+
+        # Cache subsample-filtered counts so count_pairs(scope="subsample") is O(1).
+        self._subsample_pair_counts = {k: len(v[0]) for k, v in pairs.items()}
+
+        # Free all cached sparse matrices — only pair arrays and count caches
         # are needed after this point.
         for attr in ("_A", "_A2", "_A3", "_A4", "_A5", "_S", "_A2_shared", "_full_sib_matrix", "_half_sib_matrix"):
             self.__dict__.pop(attr, None)
@@ -1047,17 +1064,33 @@ class PedigreeGraph:
         logger.info("extract_pairs total: %.3fs", time.perf_counter() - t_total)
         return pairs
 
-    def count_pairs(self, max_degree: int = 2) -> dict[str, int]:
+    def count_pairs(self, max_degree: int = 2, scope: str = "subsample") -> dict[str, int]:
         """Count all relationship categories.
 
         If ``extract_pairs()`` was already called on this instance, returns
-        the cached pre-filter counts (nearly free).  Otherwise runs
+        the matching cached counts (nearly free).  Otherwise runs
         ``extract_pairs()`` to compute all types up to *max_degree*.
+
+        Args:
+            max_degree: Maximum kinship degree to compute when extract_pairs
+                has not yet been called on this instance.
+            scope: ``"subsample"`` (default) returns counts that match
+                ``extract_pairs`` output (mask-filtered, in caller-input
+                coordinates).  ``"full"`` returns the pre-mask counts over
+                the underlying graph — the cache-reuse fast path used when a
+                full-pedigree summary is needed alongside subsample-restricted
+                pairs.  For graphs not constructed via ``from_subsample`` the
+                two scopes are equivalent.
         """
-        if hasattr(self, "_raw_pair_counts"):
+        if scope not in ("subsample", "full"):
+            raise ValueError(f"scope must be 'subsample' or 'full', got {scope!r}")
+
+        if not hasattr(self, "_raw_pair_counts"):
+            self.extract_pairs(max_degree=max_degree)
+
+        if scope == "full":
             return dict(self._raw_pair_counts)
-        self.extract_pairs(max_degree=max_degree)
-        return dict(self._raw_pair_counts)
+        return dict(self._subsample_pair_counts)
 
     # ------------------------------------------------------------------
     # Alternative constructor
@@ -1108,6 +1141,64 @@ class PedigreeGraph:
             pg.generation = _compute_depth(pg.mother, pg.father, n)
         return pg
 
+    @classmethod
+    def from_subsample(
+        cls,
+        full_pedigree: pd.DataFrame,
+        df: pd.DataFrame,
+    ) -> PedigreeGraph:
+        """Construct a graph over *full_pedigree*, restricted to *df*.
+
+        Builds the full-pedigree graph (so multi-hop relationships are
+        detected through ancestors absent from *df*), then sets a private
+        sample mask + remap so that ``extract_pairs`` returns indices into
+        *df* (filtered to pairs where both endpoints are in *df*).
+
+        Args:
+            full_pedigree: Complete pedigree DataFrame.
+            df: Subsample of *full_pedigree*.  Must have unique IDs and
+                each ID must appear in ``full_pedigree["id"]``.  Empty *df*
+                is permitted and yields a graph whose ``extract_pairs``
+                returns empty arrays.
+
+        Raises:
+            ValueError: if *df* has duplicate IDs, or if any ID in *df* is
+                missing from *full_pedigree*.
+        """
+        df_ids = np.asarray(df["id"].values)
+        if len(df_ids) != len(np.unique(df_ids)):
+            dup_count = len(df_ids) - len(np.unique(df_ids))
+            raise ValueError(f"from_subsample: df has {dup_count} duplicate id(s)")
+
+        full_ids = np.asarray(full_pedigree["id"].values)
+        if len(df_ids) > 0:
+            in_full = np.isin(df_ids, full_ids)
+            if not in_full.all():
+                missing = df_ids[~in_full]
+                preview = missing[:10].tolist()
+                raise ValueError(
+                    f"from_subsample: {len(missing)} id(s) in df not present in "
+                    f"full_pedigree (first {min(len(missing), 10)}: {preview})"
+                )
+
+        pg = cls(full_pedigree)
+
+        if len(df_ids) == 0:
+            # Empty subsample → mask filters everything; remap unused.
+            pg._sample_mask = np.zeros(len(full_ids), dtype=bool)
+            pg._subsample_remap = np.full(len(full_ids), -1, dtype=np.intp)
+            return pg
+
+        pg._sample_mask = np.isin(full_ids, df_ids)
+
+        # Build full-graph-row → df-row table.
+        max_id = int(max(int(full_ids.max()), int(df_ids.max()))) + 1
+        id_to_df_row = np.full(max_id, -1, dtype=np.intp)
+        id_to_df_row[df_ids] = np.arange(len(df_ids), dtype=np.intp)
+        pg._subsample_remap = id_to_df_row[full_ids]
+
+        return pg
+
     # ------------------------------------------------------------------
     # Sparse kinship, inbreeding, and exact pair kinship
     # ------------------------------------------------------------------
@@ -1152,8 +1243,12 @@ class PedigreeGraph:
 
         t0 = time.perf_counter()
         indptr, indices, data = _build_kinship_csc(
-            self.n, self.mother, self.father, self.twin,
-            self.generation, min_kinship,
+            self.n,
+            self.mother,
+            self.father,
+            self.twin,
+            self.generation,
+            min_kinship,
         )
         K = sp.csc_matrix((data, indices, indptr), shape=(self.n, self.n))
         self._kinship_cache[key] = K
@@ -1164,7 +1259,10 @@ class PedigreeGraph:
 
         logger.info(
             "kinship_matrix: n=%d, nnz=%d, min_kinship=%.4g, %.2fs",
-            self.n, K.nnz, min_kinship, time.perf_counter() - t0,
+            self.n,
+            K.nnz,
+            min_kinship,
+            time.perf_counter() - t0,
         )
         return K
 
@@ -1208,198 +1306,3 @@ class PedigreeGraph:
                 continue
             result[code] = np.array(K[idx1, idx2]).ravel()
         return result
-
-
-def _build_graph_and_remap(
-    df: pd.DataFrame,
-    full_pedigree: pd.DataFrame,
-    max_degree: int,
-) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], dict[str, int], np.ndarray]:
-    """Build PedigreeGraph on full pedigree, extract pairs, remap to df indices.
-
-    Returns (remapped_pairs, full_pedigree_counts, full_ids).
-    """
-    pheno_ids = set(df["id"].values.tolist())
-    full_ids = full_pedigree["id"].values
-    sample_mask = np.array([int(x) in pheno_ids for x in full_ids], dtype=bool)
-
-    pg = PedigreeGraph(full_pedigree, sample_mask=sample_mask)
-    raw_pairs = pg.extract_pairs(max_degree=max_degree)
-    full_counts = dict(pg._raw_pair_counts)
-
-    # Remap full-pedigree row indices → phenotype (df) row indices
-    pheno_id_arr = df["id"].values
-    max_id = int(max(full_ids.max(), pheno_id_arr.max())) + 1
-    id_to_pheno = np.full(max_id, -1, dtype=np.int32)
-    id_to_pheno[pheno_id_arr] = np.arange(len(df), dtype=np.int32)
-
-    result: dict[str, tuple[np.ndarray, np.ndarray]] = {}
-    for ptype, (idx1, idx2) in raw_pairs.items():
-        if len(idx1) > 0:
-            ids1 = full_ids[idx1]
-            ids2 = full_ids[idx2]
-            result[ptype] = (
-                id_to_pheno[ids1].astype(np.intp),
-                id_to_pheno[ids2].astype(np.intp),
-            )
-        else:
-            result[ptype] = (np.array([], dtype=np.intp), np.array([], dtype=np.intp))
-
-    return result, full_counts, full_ids
-
-
-def extract_and_count_relationship_pairs(
-    df: pd.DataFrame,
-    full_pedigree: pd.DataFrame | None = None,
-    max_degree: int = 2,
-) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], dict[str, int] | None]:
-    """Extract relationship pairs and count full-pedigree pairs in one pass.
-
-    Builds a single PedigreeGraph; the cached matrix products computed during
-    extraction make the subsequent count nearly free.
-
-    Returns:
-        (pairs_dict, full_counts_dict).  full_counts_dict is None when
-        *full_pedigree* is not provided.
-    """
-    if full_pedigree is not None:
-        pairs, full_counts, _ = _build_graph_and_remap(
-            df,
-            full_pedigree,
-            max_degree,
-        )
-        return pairs, full_counts
-
-    pg = PedigreeGraph(df)
-    pairs = pg.extract_pairs(max_degree=max_degree)
-    return pairs, None
-
-
-def extract_relationship_pairs(
-    df: pd.DataFrame,
-    full_pedigree: pd.DataFrame | None = None,
-    max_degree: int = 2,
-) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-    """Extract relationship pairs, returning row indices into *df*.
-
-    When *full_pedigree* is provided the graph is built from the complete
-    pedigree (all G_ped generations) so that multi-hop relationships
-    (grandparent, avuncular, cousin) are detected through ancestors not
-    present in *df*.  Output pairs are filtered to individuals in *df*
-    and remapped to *df* row indices.
-
-    Returns dict keyed by relationship code (e.g. "MZ", "FS", "1C").
-    """
-    pairs, _ = extract_and_count_relationship_pairs(
-        df,
-        full_pedigree=full_pedigree,
-        max_degree=max_degree,
-    )
-    return pairs
-
-
-def count_relationship_pairs(
-    df: pd.DataFrame,
-    max_degree: int = 2,
-) -> dict[str, int]:
-    """Count relationship pairs without materializing full index arrays.
-
-    Memory-efficient alternative to extract_relationship_pairs() when only
-    pair counts are needed (e.g. for the full pedigree summary).
-    """
-    pg = PedigreeGraph(df)
-    return pg.count_pairs(max_degree=max_degree)
-
-
-def extract_sibling_pairs(
-    df: pd.DataFrame,
-) -> dict[str, tuple[np.ndarray, np.ndarray]]:
-    """Extract only sibling pairs (full, maternal HS, paternal HS).
-
-    Much cheaper than extract_relationship_pairs — skips cousin,
-    grandparent, avuncular, and 2nd cousin extraction.
-    """
-    pg = PedigreeGraph(df)
-    full_sib, mat_hs, pat_hs = pg._sibling_pairs()
-    return {
-        "FS": full_sib,
-        "MHS": mat_hs,
-        "PHS": pat_hs,
-    }
-
-
-def count_sib_pairs(df: pd.DataFrame) -> dict[str, int]:
-    """Drop-in replacement for validate._count_sib_pairs.
-
-    Accepts a DataFrame of non-twin non-founders with columns id, mother, father.
-    """
-    # Build a minimal full DataFrame for PedigreeGraph
-    # The input is a subset; we need to create a graph over the full ID space
-    # Instead, replicate the counting logic directly without building a full graph
-    _twin_col = df["twin"].values if "twin" in df.columns else np.full(len(df), -1, dtype=np.int32)
-    mother_col = df["mother"].values
-    father_col = df["father"].values
-
-    n_full_sib = 0
-    n_maternal_hs = 0
-    n_paternal_hs = 0
-    n_offspring_with_sibs = 0
-    n_offspring_with_maternal_hs = 0
-
-    # Group by mother
-    ids = df["id"].values
-    sort_m = np.argsort(mother_col, kind="mergesort")
-    sorted_mothers = mother_col[sort_m]
-    _sorted_ids = ids[sort_m]
-    sorted_fathers = father_col[sort_m]
-
-    u_m, starts_m, counts_m = np.unique(sorted_mothers, return_index=True, return_counts=True)
-
-    for i in range(len(u_m)):
-        s, c = starts_m[i], counts_m[i]
-        group_fathers = sorted_fathers[s : s + c]
-
-        if c < 2:
-            continue
-
-        n_offspring_with_sibs += c
-
-        u_f, f_counts = np.unique(group_fathers, return_counts=True)
-        for fc in f_counts:
-            if fc >= 2:
-                n_full_sib += fc * (fc - 1) // 2
-
-        if len(u_f) >= 2:
-            total_pairs = c * (c - 1) // 2
-            full_pairs = sum(fc * (fc - 1) // 2 for fc in f_counts)
-            n_maternal_hs += total_pairs - full_pairs
-            n_offspring_with_maternal_hs += c
-
-    # Group by father for paternal half sibs
-    sort_f = np.argsort(father_col, kind="mergesort")
-    sorted_fathers2 = father_col[sort_f]
-    sorted_mothers2 = mother_col[sort_f]
-
-    u_f, starts_f, counts_f = np.unique(sorted_fathers2, return_index=True, return_counts=True)
-
-    for i in range(len(u_f)):
-        s, c = starts_f[i], counts_f[i]
-        if c < 2:
-            continue
-
-        group_mothers = sorted_mothers2[s : s + c]
-        u_m2, m_counts = np.unique(group_mothers, return_counts=True)
-        if len(u_m2) < 2:
-            continue
-
-        total_pairs = c * (c - 1) // 2
-        full_pairs = sum(mc * (mc - 1) // 2 for mc in m_counts)
-        n_paternal_hs += total_pairs - full_pairs
-
-    return {
-        "n_maternal_half_sib_pairs": n_maternal_hs,
-        "n_paternal_half_sib_pairs": n_paternal_hs,
-        "n_full_sib_pairs": n_full_sib,
-        "n_offspring_with_maternal_half_sib": n_offspring_with_maternal_hs,
-        "n_offspring_with_sibs": n_offspring_with_sibs,
-    }
