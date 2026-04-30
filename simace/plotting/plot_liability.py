@@ -130,7 +130,7 @@ def _plot_joint_grid(
             ax_marg_x.hist(x, bins=50, edgecolor="none", alpha=0.7)
             ax_marg_y.hist(y, bins=50, orientation="horizontal", edgecolor="none", alpha=0.7)
 
-        from simace.core.utils import fast_pearsonr
+        from simace.core.numerics import fast_pearsonr
 
         r, _p = fast_pearsonr(x, y)
         ann = f"r = {r:.4f}"
@@ -768,7 +768,7 @@ def plot_mate_correlation(
     params: dict | None = None,
 ) -> None:
     """Plot 2x2 heatmap of empirical mate liability correlations with expected values."""
-    from simace.core.utils import expected_mate_corr_matrix
+    from simace.simulation.mate_correlation import expected_mate_corr_matrix
 
     # Average observed matrices across replicates
     matrices = []

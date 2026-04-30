@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from simace.core.utils import PAIR_TYPES
+from simace.core.relationships import PAIR_TYPES
 
 matplotlib.use("Agg")
 

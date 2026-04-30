@@ -163,7 +163,7 @@ def plot_trait_regression(
             stderr_vals = [r["stderr"] for r in reg_stats if r.get("stderr") is not None]
             mean_stderr = float(np.mean(stderr_vals)) if stderr_vals else None
         elif len(x) >= 2:
-            from simace.core.utils import fast_linregress
+            from simace.core.numerics import fast_linregress
 
             mean_slope, mean_intercept, mean_r, mean_stderr, _mean_pvalue = fast_linregress(x, y)
             mean_n = len(x)

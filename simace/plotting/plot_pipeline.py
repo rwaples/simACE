@@ -546,7 +546,7 @@ def cli() -> None:
     args = parser.parse_args()
     init_logging(args)
 
-    from simace.core.utils import yaml_loader
+    from simace.core.yaml_io import yaml_loader
 
     with open(args.params, encoding="utf-8") as fh:
         params = yaml.load(fh, Loader=yaml_loader())

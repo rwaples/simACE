@@ -3,7 +3,7 @@
 import pandas as pd
 
 from simace import _snakemake_tag, setup_logging
-from simace.core.utils import save_parquet
+from simace.core.parquet import save_parquet
 from simace.sampling.sample import cli as _cli
 from simace.sampling.sample import run_sample
 

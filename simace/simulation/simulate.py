@@ -37,7 +37,7 @@ import yaml
 from scipy.spatial import cKDTree
 
 from simace.core._numba_utils import _ndtri_approx
-from simace.core.utils import save_parquet
+from simace.core.parquet import save_parquet
 
 try:
     from numba import njit

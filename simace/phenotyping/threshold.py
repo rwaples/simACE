@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 
 from simace.core._numba_utils import _ndtri_approx
-from simace.core.utils import save_parquet
+from simace.core.parquet import save_parquet
 
 logger = logging.getLogger(__name__)
 

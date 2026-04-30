@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 from simace.analysis.stats import compute_mate_correlation
-from simace.core.utils import expected_mate_corr_matrix
+from simace.simulation.mate_correlation import expected_mate_corr_matrix
 
 
 class TestExpectedMateCorr:

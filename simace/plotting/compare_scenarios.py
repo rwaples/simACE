@@ -44,7 +44,7 @@ import yaml
 from scipy import stats as sci_stats
 
 from simace.core.pedigree_graph import extract_relationship_pairs
-from simace.core.utils import PAIR_TYPES
+from simace.core.relationships import PAIR_TYPES
 from simace.plotting.plot_style import (
     apply_nature_style,
     enable_value_gridlines,

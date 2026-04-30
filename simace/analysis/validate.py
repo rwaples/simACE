@@ -28,11 +28,18 @@ import numpy as np
 import pandas as pd
 import yaml
 
+from simace.core.numerics import safe_corrcoef, safe_linregress
 from simace.core.pedigree_graph import extract_sibling_pairs
-from simace.core.utils import safe_corrcoef, safe_linregress, to_native
-from simace.core.utils import validation_result as _result
+from simace.core.yaml_io import to_native
 
 logger = logging.getLogger(__name__)
+
+
+def _result(passed: bool, details: str, **extra: Any) -> dict[str, Any]:
+    """Build a standardized validation result dict."""
+    d: dict[str, Any] = {"passed": passed, "details": details}
+    d.update(extra)
+    return d
 
 
 def _check_variance(founders: pd.DataFrame, col: str, expected: float, tol: float = 0.1) -> dict[str, Any]:

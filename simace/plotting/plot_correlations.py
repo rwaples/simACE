@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from simace.core.utils import PAIR_TYPES
+from simace.core.relationships import PAIR_TYPES
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
     COLOR_OBSERVED,
@@ -650,7 +650,7 @@ def plot_parent_offspring_liability(
                 mean_n = int(np.mean(n_vals))
                 mean_stderr = float(np.mean(stderr_vals)) if stderr_vals else None
             else:
-                from simace.core.utils import fast_linregress
+                from simace.core.numerics import fast_linregress
 
                 mean_slope, mean_intercept, mean_r, mean_stderr, _mean_pvalue = fast_linregress(
                     midparent_liab, offspring_liab

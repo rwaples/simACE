@@ -15,7 +15,7 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
-from simace.core.utils import yaml_loader
+from simace.core.yaml_io import yaml_loader
 
 _yaml_loader = yaml_loader()
 

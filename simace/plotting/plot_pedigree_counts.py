@@ -448,7 +448,7 @@ def cli() -> None:
     import yaml
 
     from simace.core.cli_base import add_logging_args, init_logging
-    from simace.core.utils import yaml_loader
+    from simace.core.yaml_io import yaml_loader
 
     _yaml_loader = yaml_loader()
 

@@ -51,7 +51,9 @@ import yaml
 
 from simace.core._numba_utils import _ndtri_approx, _norm_cdf, _pearsonr_core, _tetrachoric_core
 from simace.core.pedigree_graph import extract_and_count_relationship_pairs, extract_relationship_pairs
-from simace.core.utils import PAIR_TYPES, fast_linregress, save_parquet
+from simace.core.numerics import fast_linregress
+from simace.core.parquet import save_parquet
+from simace.core.relationships import PAIR_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -976,7 +978,7 @@ def compute_mate_correlation(df: pd.DataFrame) -> dict:
     Each unique (mother, father) pair is counted once (not weighted by offspring).
     Only non-founders are considered.
     """
-    from simace.core.utils import safe_corrcoef
+    from simace.core.numerics import safe_corrcoef
 
     nf = df[df["mother"] != -1][["mother", "father"]].drop_duplicates()
     if len(nf) < 2:
