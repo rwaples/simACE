@@ -30,6 +30,5 @@ __all__ = [
 
 
 MODELS: dict[str, type[PhenotypeModel]] = {
-    cls.name: cls
-    for cls in (FrailtyModel, CureFrailtyModel, AdultModel, FirstPassageModel)
+    cls.name: cls for cls in (FrailtyModel, CureFrailtyModel, AdultModel, FirstPassageModel)
 }

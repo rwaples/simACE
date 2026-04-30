@@ -201,9 +201,7 @@ def validate_hazard_params(
     others must contain every key listed in ``BASELINE_PARAMS[distribution]``.
     """
     if distribution not in BASELINE_HAZARDS:
-        raise ValueError(
-            f"unknown {model_name} distribution {distribution!r}; valid: {sorted(BASELINE_HAZARDS)}"
-        )
+        raise ValueError(f"unknown {model_name} distribution {distribution!r}; valid: {sorted(BASELINE_HAZARDS)}")
     required = set(BASELINE_PARAMS[distribution])
     if distribution == "exponential" and "scale" in hazard_params:
         required = (required - {"rate"}) | {"scale"}

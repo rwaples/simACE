@@ -1052,9 +1052,7 @@ class PedigreeGraph:
         logger.info("extract_pairs total: %.3fs", time.perf_counter() - t_total)
         return pairs
 
-    def count_pairs(
-        self, max_degree: int = 2, scope: Literal["subsample", "full"] = "subsample"
-    ) -> dict[str, int]:
+    def count_pairs(self, max_degree: int = 2, scope: Literal["subsample", "full"] = "subsample") -> dict[str, int]:
         """Count all relationship categories.
 
         If ``extract_pairs()`` was already called on this instance, returns

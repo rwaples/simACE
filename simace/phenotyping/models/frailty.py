@@ -85,9 +85,7 @@ class FrailtyModel(PhenotypeModel):
     def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
         check_no_foreign_flags(cls, args, trait)
         with wrap_trait_error(trait):
-            distribution, hazard_params = parse_hazard_cli(
-                args, trait, attr_prefix="frailty", kebab_prefix="frailty"
-            )
+            distribution, hazard_params = parse_hazard_cli(args, trait, attr_prefix="frailty", kebab_prefix="frailty")
             return cls(
                 distribution=distribution,
                 hazard_params=hazard_params,

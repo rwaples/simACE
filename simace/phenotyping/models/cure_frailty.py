@@ -76,9 +76,7 @@ class CureFrailtyModel(PhenotypeModel):
                     f"'distribution' key (one of {sorted(BASELINE_HAZARDS)})"
                 )
             if "prevalence" not in phenotype_params:
-                raise ValueError(
-                    f"phenotype_params{trait_num} for model 'cure_frailty' must include 'prevalence' key"
-                )
+                raise ValueError(f"phenotype_params{trait_num} for model 'cure_frailty' must include 'prevalence' key")
             prevalence = phenotype_params.pop("prevalence")
             return cls(
                 distribution=distribution,

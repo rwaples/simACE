@@ -81,9 +81,7 @@ class AdultModel(PhenotypeModel):
                     f"'method' key (one of {sorted(_ADULT_METHODS)})"
                 )
             if "prevalence" not in phenotype_params:
-                raise ValueError(
-                    f"phenotype_params{trait_num} for model 'adult' must include 'prevalence' key"
-                )
+                raise ValueError(f"phenotype_params{trait_num} for model 'adult' must include 'prevalence' key")
             return cls(
                 method=method,
                 prevalence=phenotype_params["prevalence"],
