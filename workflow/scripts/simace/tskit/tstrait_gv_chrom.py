@@ -13,7 +13,7 @@ chrom), that's days of compute. The numba kernel iterates the trees once,
 maintains left_child/right_sib incrementally as edges enter/exit, and DFS's
 each causal site's mutation node into per-individual GV — total cost is
 roughly `total_edges + sum(descendants_per_causal)`. ~5x faster at n=1k,
-similar at n=50k, and finishes c1m in seconds rather than hours.
+similar at n=50k, and finishes ~1M causal sites in seconds rather than hours.
 
 Equivalence: byte-equivalent to tstrait up to float-summation order
 (verified at n=1k,10k,50k with max abs diff < 3e-12).

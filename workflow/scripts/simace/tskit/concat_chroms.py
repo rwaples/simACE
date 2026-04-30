@@ -134,7 +134,7 @@ def stream_concat(canonical_paths: list[Path], out_path: Path) -> dict:
     ts_all = tables.tree_sequence()
     ts_all.dump(str(out_path))
 
-    return {
+    return ts_all, {
         "total_seqlen": cum_offset,
         "num_samples": int(ts_all.num_samples),
         "num_individuals": int(ts_all.num_individuals),
@@ -224,7 +224,7 @@ def main() -> None:
 
     log.info("concatenating %d chromosomes -> %s", len(canon_paths), out_trees)
     t0 = time.perf_counter()
-    concat_stats = stream_concat(canon_paths, out_trees)
+    ts_all, concat_stats = stream_concat(canon_paths, out_trees)
     elapsed_concat = time.perf_counter() - t0
     log.info(
         "  concat in %.1fs: total seqlen=%.1f Mb, sites=%d, muts=%d, file=%.1f MB",
@@ -237,7 +237,6 @@ def main() -> None:
 
     log.info("computing sidecar fingerprint")
     t = time.perf_counter()
-    ts_all = tskit.load(str(out_trees))
     fp_hex = fingerprint_tables(ts_all)
     out_fp.write_text(fp_hex + "\n")
     log.info("  fingerprint blake2b-128 = %s (%.1fs)", fp_hex, time.perf_counter() - t)

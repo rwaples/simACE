@@ -102,7 +102,7 @@ def main() -> None:
     gv_map = pd.Series(rescaled_arr, index=gvs["individual_id"].to_numpy())
     mask = ped["id"].isin(gv_map.index)
     n_overwritten = int(mask.sum())
-    n_in_gv_not_in_ped = int(~gv_map.index.isin(ped["id"]).all())
+    n_in_gv_not_in_ped = int((~gv_map.index.isin(ped["id"])).sum())
     if n_in_gv_not_in_ped:
         raise ValueError(
             f"{n_in_gv_not_in_ped} GV individual_ids not present in pedigree.id — "
