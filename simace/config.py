@@ -184,6 +184,27 @@ def flatten_hierarchical(d: dict, mapping: dict[tuple[str, ...], str] | None = N
 
 
 # ---------------------------------------------------------------------------
+# Sim-domain type coercions applied after flattening
+# ---------------------------------------------------------------------------
+
+
+def _coerce_sim_types(flat: dict) -> dict:
+    """Coerce known sim-domain values to their runtime types.
+
+    YAML loads dict keys as their scalar type, so unquoted ``0:`` parses as
+    ``int`` but a quoted ``'0':`` parses as ``str``.  Sim-domain code expects
+    integer generation keys for ``gen_censoring``; coerce here so wrappers
+    and rules don't need to know about the YAML quirk.
+
+    Idempotent: safe to call on values that already have the expected types.
+    """
+    gen_censoring = flat.get("gen_censoring")
+    if gen_censoring:
+        flat["gen_censoring"] = {int(k): v for k, v in gen_censoring.items()}
+    return flat
+
+
+# ---------------------------------------------------------------------------
 # Phenotype model validation
 # ---------------------------------------------------------------------------
 
@@ -286,7 +307,7 @@ def resolve_defaults(config_dir: Path | str) -> dict:
     config_dir = Path(config_dir)
     with open(config_dir / "_default.yaml") as fh:
         raw = yaml.safe_load(fh)
-    return flatten_hierarchical(raw["defaults"])
+    return _coerce_sim_types(flatten_hierarchical(raw["defaults"]))
 
 
 def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> dict[str, dict]:
@@ -331,7 +352,7 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
         for name, params in file_scenarios.items():
             if name in scenarios:
                 raise ValueError(f"Duplicate scenario '{name}': already defined, also found in {path}")
-            params = flatten_hierarchical(params)
+            params = _coerce_sim_types(flatten_hierarchical(params))
             unknown = set(params.keys()) - valid_defaults
             if unknown:
                 raise ValueError(
