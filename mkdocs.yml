@@ -84,6 +84,7 @@ nav:
   - Concepts:
       - ACE Model: concepts/ace-model.md
       - Simulation Design: concepts/simulation-design.md
+      - Pipeline Schema: concepts/pipeline-schema.md
       - Gene Drop and tstrait: concepts/gene-drop.md
       - Model Fitting: concepts/model-fitting.md
   - Examples:

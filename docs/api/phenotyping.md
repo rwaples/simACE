@@ -13,6 +13,6 @@
 
 ::: simace.phenotyping.threshold
 
-## bimodal_phenotype
+## bimodal_phenotype (prototype)
 
-::: simace.phenotyping.bimodal_phenotype
+::: simace.phenotyping._prototypes.bimodal_phenotype
