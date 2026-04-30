@@ -50,7 +50,7 @@ import pandas as pd
 import yaml
 
 from simace.core._numba_utils import _ndtri_approx, _norm_cdf, _pearsonr_core, _tetrachoric_core
-from simace.core.pedigree_graph import extract_and_count_relationship_pairs, extract_relationship_pairs
+from simace.core.pedigree_graph import PedigreeGraph
 from simace.core.utils import PAIR_TYPES, fast_linregress, save_parquet
 
 logger = logging.getLogger(__name__)
@@ -513,7 +513,7 @@ def compute_liability_correlations(
         Dict keyed by ``trait1``/``trait2``, each mapping pair type to correlation.
     """
     if pairs is None:
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
     result = {}
     for trait_num in [1, 2]:
         liability = df[f"liability{trait_num}"].values
@@ -545,7 +545,7 @@ def compute_affected_correlations(
         None (if fewer than 10 pairs, or either side is constant).
     """
     if pairs is None:
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
     result = {}
     for trait_num in [1, 2]:
         affected = df[f"affected{trait_num}"].values.astype(np.float64)
@@ -608,7 +608,7 @@ def compute_tetrachoric(
         ``{r, se, n_pairs}``.
     """
     if pairs is None:
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
     result = {}
     for trait_num in [1, 2]:
         affected = df[f"affected{trait_num}"].values.astype(bool)
@@ -639,7 +639,7 @@ def compute_tetrachoric_by_generation(
     if "generation" not in df.columns:
         return {}
     if pairs is None:
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
     gen_arr = df["generation"].values
     max_gen = int(gen_arr.max())
     plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
@@ -679,7 +679,7 @@ def compute_cross_trait_tetrachoric(
         and ``cross_person``.
     """
     if pairs is None:
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
     a1 = df["affected1"].values.astype(bool)
     a2 = df["affected2"].values.astype(bool)
     r_sp, se_sp = tetrachoric_corr_se(a1, a2)
@@ -919,7 +919,7 @@ def compute_tetrachoric_by_sex(
     per-pair-type {r, se, n_pairs, liability_r}.
     """
     if pairs is None:
-        pairs = extract_relationship_pairs(df)
+        pairs = PedigreeGraph(df).extract_pairs()
     sex_arr = df["sex"].values
     result: dict[str, Any] = {}
     for sex_val, sex_label in [(0, "female"), (1, "male")]:
@@ -1269,11 +1269,13 @@ def main(
 
     logger.info("Extracting relationship pairs...")
     t0 = time.perf_counter()
-    pairs, full_counts = extract_and_count_relationship_pairs(
-        df,
-        full_pedigree=df_ped,
-        max_degree=max_degree,
-    )
+    if df_ped is not None:
+        pg = PedigreeGraph.from_subsample(df_ped, df)
+        pairs = pg.extract_pairs(max_degree=max_degree)
+        full_counts = pg.count_pairs(max_degree=max_degree, scope="full")
+    else:
+        pairs = PedigreeGraph(df).extract_pairs(max_degree=max_degree)
+        full_counts = None
     logger.info(
         "Relationship pairs extracted in %.1fs: %s",
         time.perf_counter() - t0,

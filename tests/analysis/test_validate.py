@@ -16,7 +16,7 @@ from simace.analysis.validate import (
     validate_structural,
     validate_twins,
 )
-from simace.core.pedigree_graph import extract_sibling_pairs
+from simace.core.pedigree_graph import PedigreeGraph
 from simace.simulation.simulate import run_simulation
 
 # ---------------------------------------------------------------------------
@@ -58,7 +58,8 @@ def val_indexed(val_pedigree):
 
 @pytest.fixture(scope="module")
 def val_sibling_pairs(val_pedigree):
-    return extract_sibling_pairs(val_pedigree)
+    all_pairs = PedigreeGraph(val_pedigree).extract_pairs(max_degree=1)
+    return {k: all_pairs[k] for k in ("FS", "MHS", "PHS")}
 
 
 @pytest.fixture(scope="module")
