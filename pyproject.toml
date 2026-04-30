@@ -87,6 +87,7 @@ ignore = [
 "simace/plotting/plot_validation.py" = ["E402"]     # yaml_loader() before imports
 "simace/core/_numba_utils.py" = ["D"]               # private module, all functions private
 "simace/phenotyping/models/*.py" = ["D102"]         # method docstrings inherited from PhenotypeModel ABC
+"simace/plotting/atlas_manifest.py" = ["RUF001"]    # caption strings use scientific × − – etc.
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
