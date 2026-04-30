@@ -11,8 +11,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
+from scipy.special import ndtri
 
-from simace.core._numba_utils import _ndtri_approx
 from simace.phenotyping.hazards import (
     BASELINE_HAZARDS,
     BASELINE_PARAMS,
@@ -85,9 +85,7 @@ class CureFrailtyModel(PhenotypeModel):
                 )
             if "prevalence" not in phenotype_params:
                 raise ValueError(
-                    f"phenotype_params{trait_num} for model 'cure_frailty' must include "
-                    f"'prevalence' key (PR3 moved this from top-level "
-                    f"phenotype.trait{trait_num}.prevalence into params:)"
+                    f"phenotype_params{trait_num} for model 'cure_frailty' must include 'prevalence' key"
                 )
             prevalence = phenotype_params.pop("prevalence")
             return cls(
@@ -171,12 +169,11 @@ class CureFrailtyModel(PhenotypeModel):
 
         if standardize:
             std = np.std(liability)
-            L = (liability - liability.mean()) / std if std > 0 else liability - liability.mean()
+            L = (liability - mean) / std if std > 0 else liability - mean
         else:
             L = liability
 
-        _ndtri_vec = np.vectorize(_ndtri_approx)
-        threshold = _ndtri_vec(1.0 - prevalence)
+        threshold = ndtri(1.0 - np.asarray(prevalence))
         is_case = threshold < L
 
         t = np.full(n, 1e6)

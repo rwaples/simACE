@@ -31,10 +31,11 @@ __all__ = ["HAZARD_FLAG_ROOTS", "FrailtyModel"]
 
 
 # Hazard-parameter flag roots, shared by FrailtyModel and CureFrailtyModel.
-# Covers every key that any baseline distribution may require (see
-# ``simace.phenotyping.hazards.BASELINE_PARAMS``); plus exponential's
+# Union of every key any baseline distribution requires, plus exponential's
 # alternate ``scale``.
-HAZARD_FLAG_ROOTS: tuple[str, ...] = ("scale", "rho", "rate", "gamma", "mu", "sigma", "shape")
+HAZARD_FLAG_ROOTS: tuple[str, ...] = tuple(
+    sorted({k for params in BASELINE_PARAMS.values() for k in params} | {"scale"})
+)
 
 
 @dataclass(frozen=True)

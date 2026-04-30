@@ -18,9 +18,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
-from scipy.special import erfc
+from scipy.special import erfc, ndtri
 
-from simace.core._numba_utils import _ndtri_approx
 from simace.phenotyping.models._base import (
     PhenotypeModel,
     check_no_foreign_flags,
@@ -82,9 +81,7 @@ class AdultModel(PhenotypeModel):
                 )
             if "prevalence" not in phenotype_params:
                 raise ValueError(
-                    f"phenotype_params{trait_num} for model 'adult' must include "
-                    f"'prevalence' key (PR3 moved this from top-level "
-                    f"phenotype.trait{trait_num}.prevalence into params:)"
+                    f"phenotype_params{trait_num} for model 'adult' must include 'prevalence' key"
                 )
             return cls(
                 method=method,
@@ -171,14 +168,13 @@ class AdultModel(PhenotypeModel):
         sex: np.ndarray | None,
         standardize: bool,
     ) -> np.ndarray:
-        L = liability.copy()
+        L = liability
         if standardize:
             std = np.std(L)
             if std > 0:
                 L = (L - L.mean()) / std
 
-        _ndtri_vec = np.vectorize(_ndtri_approx)
-        threshold = _ndtri_vec(1.0 - prevalence)
+        threshold = ndtri(1.0 - np.asarray(prevalence))
         is_case = threshold < L
 
         t = np.full(len(L), 1e6)
@@ -207,7 +203,7 @@ class AdultModel(PhenotypeModel):
         standardize: bool,
     ) -> np.ndarray:
         rng = np.random.default_rng(seed)
-        L = liability.copy()
+        L = liability
         if standardize:
             std = np.std(L)
             if std > 0:

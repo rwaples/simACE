@@ -45,13 +45,13 @@ def _simulate_one_trait(
     """Dispatch a single trait to the appropriate phenotype model class."""
     model_cls = MODELS[params[f"phenotype_model{trait_num}"]]
     model = model_cls.from_config(params, trait_num)
-    sex = pedigree["sex"].values if "sex" in pedigree.columns else None
+    sex = pedigree["sex"].to_numpy() if "sex" in pedigree.columns else None
     return model.simulate(
-        liability=pedigree[f"liability{trait_num}"].values,
+        liability=pedigree[f"liability{trait_num}"].to_numpy(),
         seed=params["seed"] + seed_offset,
         standardize=params["standardize"],
         sex=sex,
-        generation=pedigree["generation"].values,
+        generation=pedigree["generation"].to_numpy(),
     )
 
 
