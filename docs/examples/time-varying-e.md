@@ -258,10 +258,10 @@ liability to binary affected status). Observation 4 examines that flag
 explicitly. Under the `adult` / `method: ltm` phenotype model, the
 threshold is set as $T = \Phi^{-1}(1 - K)$ where $K$ is the configured
 prevalence. With `standardize=true` (the default),
-`phenotype_adult_ltm` standardizes liability to mean $0$ and standard
-deviation $1$ across *the entire pedigree* — not per-generation —
-before comparing to $T$. With `standardize=false`, raw liability is
-compared to $T$ directly.
+`AdultModel._simulate_ltm` standardizes liability to mean $0$ and
+standard deviation $1$ across *the entire pedigree* — not
+per-generation — before comparing to $T$. With `standardize=false`,
+raw liability is compared to $T$ directly.
 
 The matched-seed pairs (`e_*_std` vs `e_*_nostd`) make this contrast
 exact: the pedigree and liability columns are identical within a pair,
@@ -318,22 +318,22 @@ differences.
 
 ### Why `standardize=true` does not flatten here
 
-`phenotype_adult_ltm` (`simace/phenotyping/phenotype.py:309`) computes
-`L = (L - L.mean()) / L.std()` across *the entire pedigree*. This
-collapses the population mean and standard deviation to $(0, 1)$ but
-leaves the *between-generation* variance ratios intact. A generation
-with above-average $v_E$ retains above-average post-standardization
-variance and therefore retains more upper-tail mass beyond the fixed
-threshold. Eliminating per-generation drift requires
-*per-generation* standardization, as performed by the simpler
+`AdultModel._simulate_ltm` (`simace/phenotyping/models/adult.py`)
+computes `L = (L - L.mean()) / L.std()` across *the entire pedigree*.
+This collapses the population mean and standard deviation to $(0, 1)$
+but leaves the *between-generation* variance ratios intact. A
+generation with above-average $v_E$ retains above-average
+post-standardization variance and therefore retains more upper-tail
+mass beyond the fixed threshold. Eliminating per-generation drift
+requires *per-generation* standardization, as performed by the simpler
 `apply_threshold` function in `simace/phenotyping/threshold.py` (see
 the `phenotype_simple_ltm` rule). That model does flatten the
 `std=true` line at exactly $K$ per generation, at the cost of also
 erasing any real population-level signal that happens to map onto the
 variance-by-generation axis.
 
-!!! note "Open work: per-generation standardization in `phenotype_adult_ltm`"
-    The `standardize=true` path in `phenotype_adult_ltm` (and the other
+!!! note "Open work: per-generation standardization for `adult` family"
+    The `standardize=true` path in `AdultModel` (and the other
     adult-family models) currently standardizes across the entire
     pedigree, which produces the residual cohort drift visible in the
     blue lines above. Switching to per-generation standardization — to

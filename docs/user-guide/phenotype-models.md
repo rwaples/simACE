@@ -41,10 +41,7 @@ phenotype:
 
 `frailty` and `first_passage` reject `prevalence` outright — case
 fraction emerges from the hazard for those families and a target
-prevalence is meaningless. Earlier configurations that placed
-`prevalence` at the top level of the trait block are no longer accepted;
-run `python scripts/migrate_prevalence_keys.py` once to migrate every
-`config/*.yaml` to the per-model placement.
+prevalence is meaningless.
 
 | Key | Type | Description |
 |---|---|---|

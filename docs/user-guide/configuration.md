@@ -47,16 +47,16 @@ Trait liability ($L$) is decomposed as $L = A + C + E$, and can optionally be st
 ### Phenotype model
 
 Each trait's phenotype is configured under `phenotype.trait1` and
-`phenotype.trait2`, with sub-keys `model`, `params`, `beta`, `beta_sex`,
-and `prevalence`. The `model` selects one of four families
-(`frailty`, `cure_frailty`, `adult`, `first_passage`); `params` carries
-the family-specific hazard or threshold parameters; `prevalence` sets
-the target affection prevalence and may be a scalar, a per-generation
-dict, or a sex-specific dict. See
-[Phenotype Models](phenotype-models.md) for the full catalogue of
-families, their required `params`, the supported `prevalence` forms,
-and the parallel `phenotype.simple_ltm.parquet` output that every
-scenario produces alongside the configured family.
+`phenotype.trait2`, with sub-keys `model`, `params`, `beta`, and
+`beta_sex`. The `model` selects one of four families (`frailty`,
+`cure_frailty`, `adult`, `first_passage`); `params` carries the
+family-specific hazard or threshold parameters. For threshold-based
+families (`adult`, `cure_frailty`), `params` includes a `prevalence`
+key that may be a scalar, a per-generation dict, or a sex-specific
+dict. See [Phenotype Models](phenotype-models.md) for the full
+catalogue of families, their required `params`, the supported
+`prevalence` forms, and the parallel `phenotype.simple_ltm.parquet`
+output that every scenario produces alongside the configured family.
 
 ### Censoring
 

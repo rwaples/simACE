@@ -41,14 +41,14 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 
 - After modifying `plot_*.py`, force-regenerate the atlas to verify
 - Check that labels/titles fit within figure bounds
-- Page order is controlled in `simace/plotting/plot_atlas.py`
+- Page order is controlled in `simace/plotting/atlas_manifest.py`
 
 ## Project Layout
 
 - `simace/` — simulation package (`pip install -e .`), organized into sub-packages:
-  - `core/` — shared infrastructure: `pedigree_graph`, `compute_hazard_terms`, `cli_base`, `numerics`, `parquet`, `relationships`, `schema`, `yaml_io` (utils.py was split into intent-named modules)
+  - `core/` — shared infrastructure: `pedigree_graph`, `compute_hazard_terms`, `cli_base`, `numerics`, `parquet`, `relationships`, `schema`, `yaml_io`
   - `simulation/` — pedigree simulation
-  - `phenotyping/` — phenotype models: `phenotype.py` (frailty), `threshold.py`, `hazards.py`, plus a `models/` sub-package of model classes inheriting from a `PhenotypeModel` ABC
+  - `phenotyping/` — `phenotype.py` (run_phenotype dispatcher), `threshold.py`, `hazards.py`, plus a `models/` sub-package of model classes inheriting from a `PhenotypeModel` ABC
   - `censoring/` — age-window and death censoring
   - `sampling/` — dropout and subsampling
   - `analysis/` — `stats/` (package: censoring, correlations, incidence, pedigree, sampling, tetrachoric, runner), `validate.py`, `gather.py`
