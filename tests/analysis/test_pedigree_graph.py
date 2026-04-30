@@ -728,3 +728,205 @@ class TestSecondCousinFullVsHalf:
         pairs = PedigreeGraph(pedigree_with_half_2c).extract_pairs(max_degree=5)
         sc_set = _pairs_to_set(*pairs["2C"])
         assert sc_set == {(10, 11)}, f"Expected exactly {{(10,11)}}, got {sc_set}"
+
+
+# ---------------------------------------------------------------------------
+# Constructors: from_arrays, from_subsample
+# ---------------------------------------------------------------------------
+
+
+class TestFromArrays:
+    def test_round_trip_matches_dataframe_construction(self, small_pedigree):
+        ids = small_pedigree["id"].values
+        mothers = small_pedigree["mother"].values
+        fathers = small_pedigree["father"].values
+        twins = small_pedigree["twin"].values
+        generation = small_pedigree["generation"].values
+
+        pg_df = PedigreeGraph(small_pedigree)
+        pg_arr = PedigreeGraph.from_arrays(ids, mothers, fathers, twins, generation)
+
+        # Same n, same remapped parent indices
+        assert pg_df.n == pg_arr.n
+        np.testing.assert_array_equal(pg_df.mother, pg_arr.mother)
+        np.testing.assert_array_equal(pg_df.father, pg_arr.father)
+        np.testing.assert_array_equal(pg_df.generation, pg_arr.generation)
+
+    def test_derives_generation_when_none(self):
+        # Three-gen lineage: 0 founder, 1 child of 0, 2 child of 1
+        pg = PedigreeGraph.from_arrays(
+            ids=np.array([0, 1, 2]),
+            mothers=np.array([-1, 0, 1]),
+            fathers=np.array([-1, -1, -1]),
+            twins=None,
+            generation=None,
+        )
+        np.testing.assert_array_equal(pg.generation, [0, 1, 2])
+
+    def test_default_twins_is_no_twins(self):
+        pg = PedigreeGraph.from_arrays(
+            ids=np.array([0, 1, 2]),
+            mothers=np.array([-1, -1, 0]),
+            fathers=np.array([-1, -1, 1]),
+            twins=None,
+            generation=np.array([0, 0, 1]),
+        )
+        # All twin entries remap to -1 (no twins)
+        assert np.all(pg.twin == -1)
+
+
+class TestFromSubsample:
+    @pytest.fixture
+    def lineage_pedigree(self):
+        # 3-gen lineage: 0 founder, 1=child(0,2), 2 founder, 3=child(0,2), 4=child(1,3)
+        return pd.DataFrame(
+            {
+                "id": np.arange(5),
+                "mother": np.array([-1, 0, -1, 0, 1]),
+                "father": np.array([-1, 2, -1, 2, 3]),
+                "twin": np.full(5, -1),
+                "sex": np.array([0, 1, 0, 1, 0]),
+                "generation": np.array([0, 1, 0, 1, 2]),
+            }
+        )
+
+    def test_extract_pairs_filters_to_subsample(self, lineage_pedigree):
+        sub = lineage_pedigree[lineage_pedigree["id"].isin([1, 3, 4])].reset_index(drop=True)
+        pg = PedigreeGraph.from_subsample(lineage_pedigree, sub)
+        pairs = pg.extract_pairs(max_degree=2)
+        # All extracted pair endpoints must be valid sub-row indices
+        for code, (idx1, idx2) in pairs.items():
+            for i, j in zip(idx1, idx2, strict=True):
+                assert 0 <= i < len(sub), f"{code}: i={i} out of range"
+                assert 0 <= j < len(sub), f"{code}: j={j} out of range"
+
+    def test_empty_subsample_yields_no_pairs(self, lineage_pedigree):
+        empty = lineage_pedigree.iloc[:0]
+        pg = PedigreeGraph.from_subsample(lineage_pedigree, empty)
+        pairs = pg.extract_pairs(max_degree=2)
+        for code, (idx1, _) in pairs.items():
+            assert len(idx1) == 0, f"{code} should be empty"
+
+    def test_duplicate_ids_raises(self, lineage_pedigree):
+        dup = pd.concat([lineage_pedigree.iloc[:2], lineage_pedigree.iloc[:1]], ignore_index=True)
+        with pytest.raises(ValueError, match="duplicate id"):
+            PedigreeGraph.from_subsample(lineage_pedigree, dup)
+
+    def test_id_not_in_full_pedigree_raises(self, lineage_pedigree):
+        bogus = pd.DataFrame(
+            {
+                "id": [99],
+                "mother": [-1],
+                "father": [-1],
+                "twin": [-1],
+                "sex": [0],
+                "generation": [0],
+            }
+        )
+        with pytest.raises(ValueError, match="not present in full_pedigree"):
+            PedigreeGraph.from_subsample(lineage_pedigree, bogus)
+
+    def test_count_pairs_full_vs_subsample(self, lineage_pedigree):
+        sub = lineage_pedigree[lineage_pedigree["id"].isin([1, 3, 4])].reset_index(drop=True)
+        pg = PedigreeGraph.from_subsample(lineage_pedigree, sub)
+        full = pg.count_pairs(max_degree=2, scope="full")
+        partial = pg.count_pairs(max_degree=2, scope="subsample")
+        # Full counts >= subsample counts for every relationship code
+        for code in full:
+            assert full[code] >= partial[code], f"{code}: full={full[code]} < sub={partial[code]}"
+
+    def test_count_pairs_invalid_scope_raises(self, lineage_pedigree):
+        pg = PedigreeGraph(lineage_pedigree)
+        with pytest.raises(ValueError, match="scope must be"):
+            pg.count_pairs(scope="bogus")
+
+
+# ---------------------------------------------------------------------------
+# kinship + compute_pair_kinship (inbred branch)
+# ---------------------------------------------------------------------------
+
+
+class TestComputePairKinship:
+    def _inbred_pedigree(self):
+        # Same layout as the kinship-kernel inbred-MZ test:
+        # G0: 0,1 founders; G1: 2,3 full-sibs of (0,1); G2: 4,5 MZ twins of (2,3)
+        return pd.DataFrame(
+            {
+                "id": np.arange(6),
+                "mother": np.array([-1, -1, 0, 0, 2, 2]),
+                "father": np.array([-1, -1, 1, 1, 3, 3]),
+                "twin": np.array([-1, -1, -1, -1, 5, 4]),
+                "sex": np.array([0, 1, 0, 1, 0, 1]),
+                "generation": np.array([0, 0, 1, 1, 2, 2]),
+            }
+        )
+
+    def test_non_inbred_uses_fast_path(self):
+        df = pd.DataFrame(
+            {
+                "id": np.arange(4),
+                "mother": np.array([-1, -1, 0, 0]),
+                "father": np.array([-1, -1, 1, 1]),
+                "twin": np.full(4, -1),
+                "sex": np.array([0, 1, 0, 1]),
+                "generation": np.array([0, 0, 1, 1]),
+            }
+        )
+        pg = PedigreeGraph(df)
+        pairs = pg.extract_pairs(max_degree=1)
+        F = pg.compute_inbreeding()
+        assert np.all(F == 0)
+        out = pg.compute_pair_kinship(pairs)
+        # Full siblings → kinship 0.25
+        assert np.all(out["FS"] == 0.25)
+
+    def test_inbred_path_returns_correct_mz_and_full_sib(self):
+        df = self._inbred_pedigree()
+        pg = PedigreeGraph(df)
+        pairs = pg.extract_pairs(max_degree=1)
+        F = pg.compute_inbreeding()
+        # Twins (rows 4, 5) inbred with F = 0.25
+        assert F[4] == pytest.approx(0.25)
+        assert F[5] == pytest.approx(0.25)
+
+        out = pg.compute_pair_kinship(pairs)
+        # MZ off-diagonal = (1 + F) / 2 = 0.625
+        assert out["MZ"].tolist() == [pytest.approx(0.625)]
+        # G1 full sibs (2, 3) — both non-inbred, so FS kinship = 0.25
+        assert all(v == pytest.approx(0.25) for v in out["FS"])
+
+    def test_compute_inbreeding_idempotent(self):
+        df = self._inbred_pedigree()
+        pg = PedigreeGraph(df)
+        F1 = pg.compute_inbreeding()
+        F2 = pg.compute_inbreeding()
+        np.testing.assert_array_equal(F1, F2)
+
+    def test_kinship_matrix_max_degree_shortcut(self):
+        df = pd.DataFrame(
+            {
+                "id": np.arange(4),
+                "mother": np.array([-1, 0, 1, 2]),
+                "father": np.full(4, -1),
+                "twin": np.full(4, -1),
+                "sex": np.zeros(4, dtype=int),
+                "generation": np.array([0, 1, 2, 3]),
+            }
+        )
+        pg = PedigreeGraph(df)
+        # max_degree=2 → threshold = 0.5**3 - 1e-9 ≈ 0.125
+        # Kinship 0,1 = 0.25 (kept), 0,2 = 0.125 (kept boundary), 0,3 = 0.0625 (dropped)
+        K = pg.kinship_matrix(max_degree=2).toarray()
+        assert K[0, 1] == 0.25
+        assert K[0, 2] == 0.125
+        assert K[0, 3] == 0.0  # dropped by max_degree=2 threshold
+
+    def test_empty_pair_array_handled(self):
+        df = self._inbred_pedigree()
+        pg = PedigreeGraph(df)
+        # Force inbred path with empty MHS pairs
+        pairs = pg.extract_pairs(max_degree=1)
+        if len(pairs["MHS"][0]) == 0:
+            out = pg.compute_pair_kinship(pairs)
+            assert out["MHS"].dtype == np.float64
+            assert len(out["MHS"]) == 0

@@ -1,9 +1,20 @@
 """Unit tests for simace.threshold.apply_threshold and sex-specific prevalence."""
 
+import sys
+
 import numpy as np
+import pandas as pd
 import pytest
 
-from simace.phenotyping.threshold import _apply_threshold_sex_aware, apply_threshold
+from simace.phenotyping.threshold import (
+    _apply_threshold_sex_aware,
+    _parse_prevalence_arg,
+    apply_threshold,
+    run_threshold,
+)
+from simace.phenotyping.threshold import (
+    cli as threshold_cli,
+)
 
 
 class TestApplyThreshold:
@@ -220,3 +231,148 @@ class TestThresholdSexPrevalence:
             assert abs(affected[male_mask].mean() - exp_m) < 0.02, (
                 f"gen {gen} male: expected ~{exp_m}, got {affected[male_mask].mean()}"
             )
+
+
+# ---------------------------------------------------------------------------
+# run_threshold orchestrator
+# ---------------------------------------------------------------------------
+
+
+def _tiny_pedigree(n_per_gen: int = 1000, n_gens: int = 2, seed: int = 0) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    n = n_per_gen * n_gens
+    return pd.DataFrame(
+        {
+            "id": np.arange(n, dtype=np.int64),
+            "mother": np.full(n, -1, dtype=np.int64),
+            "father": np.full(n, -1, dtype=np.int64),
+            "twin": np.full(n, -1, dtype=np.int64),
+            "sex": rng.integers(0, 2, size=n).astype(np.int8),
+            "generation": np.repeat(np.arange(n_gens), n_per_gen).astype(np.int32),
+            "A1": rng.standard_normal(n).astype(np.float32),
+            "C1": rng.standard_normal(n).astype(np.float32),
+            "E1": rng.standard_normal(n).astype(np.float32),
+            "liability1": rng.standard_normal(n).astype(np.float32),
+            "A2": rng.standard_normal(n).astype(np.float32),
+            "C2": rng.standard_normal(n).astype(np.float32),
+            "E2": rng.standard_normal(n).astype(np.float32),
+            "liability2": rng.standard_normal(n).astype(np.float32),
+        }
+    )
+
+
+class TestRunThreshold:
+    def test_emits_expected_columns(self):
+        df = _tiny_pedigree(n_per_gen=500, n_gens=2)
+        out = run_threshold(df, {"G_pheno": 2, "prevalence1": 0.1, "prevalence2": 0.2})
+        for col in ("id", "sex", "generation", "affected1", "affected2", "liability1", "liability2"):
+            assert col in out.columns
+        assert out["affected1"].dtype == bool
+        assert out["affected2"].dtype == bool
+
+    def test_filters_to_last_g_pheno_generations(self):
+        df = _tiny_pedigree(n_per_gen=500, n_gens=3)
+        # Keep only the last 2 generations: gens 1 and 2
+        out = run_threshold(df, {"G_pheno": 2, "prevalence1": 0.1, "prevalence2": 0.1})
+        assert set(out["generation"].unique()) == {1, 2}
+        assert len(out) == 2 * 500
+
+    def test_observed_prevalence_matches(self):
+        df = _tiny_pedigree(n_per_gen=20_000, n_gens=1, seed=42)
+        out = run_threshold(df, {"G_pheno": 1, "prevalence1": 0.1, "prevalence2": 0.2})
+        assert abs(out["affected1"].mean() - 0.1) < 0.02
+        assert abs(out["affected2"].mean() - 0.2) < 0.02
+
+    def test_dict_prevalence_logging_path(self, caplog):
+        df = _tiny_pedigree(n_per_gen=500, n_gens=2)
+        with caplog.at_level("INFO"):
+            run_threshold(
+                df,
+                {
+                    "G_pheno": 2,
+                    "prevalence1": {0: 0.05, 1: 0.10},
+                    "prevalence2": 0.15,
+                },
+            )
+        # Ensures the dict-aware log branch (vs %.3f format) was taken
+        assert any("Applying threshold model" in m for m in caplog.messages)
+
+    def test_g_pheno_too_large_raises(self):
+        df = _tiny_pedigree(n_per_gen=500, n_gens=2)
+        with pytest.raises(AssertionError, match="G_pheno"):
+            run_threshold(df, {"G_pheno": 5, "prevalence1": 0.1, "prevalence2": 0.1})
+
+
+class TestParsePrevalenceArg:
+    def test_scalar_passthrough(self):
+        assert _parse_prevalence_arg(0.1, None) == 0.1
+
+    def test_none_passthrough(self):
+        assert _parse_prevalence_arg(None, None) is None
+
+    def test_by_gen_json_parses_to_int_keyed_dict(self):
+        result = _parse_prevalence_arg(None, '{"0": 0.05, "1": 0.10}')
+        assert result == {0: 0.05, 1: 0.10}
+        assert all(isinstance(k, int) for k in result)
+        assert all(isinstance(v, float) for v in result.values())
+
+    def test_by_gen_takes_precedence_over_scalar(self):
+        # If the JSON arg is set, the scalar is ignored.
+        result = _parse_prevalence_arg(0.5, '{"0": 0.1}')
+        assert result == {0: 0.1}
+
+
+class TestThresholdCli:
+    def test_writes_phenotype_parquet(self, tmp_path, monkeypatch):
+        df = _tiny_pedigree(n_per_gen=200, n_gens=2)
+        ped_path = tmp_path / "pedigree.parquet"
+        df.to_parquet(ped_path)
+
+        out_path = tmp_path / "phenotype.parquet"
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "threshold",
+                "--pedigree",
+                str(ped_path),
+                "--output",
+                str(out_path),
+                "--G-pheno",
+                "2",
+                "--prevalence1",
+                "0.1",
+                "--prevalence2",
+                "0.2",
+            ],
+        )
+        threshold_cli()
+        assert out_path.exists()
+        out = pd.read_parquet(out_path)
+        assert {"affected1", "affected2", "id"}.issubset(out.columns)
+
+    def test_per_gen_json_path(self, tmp_path, monkeypatch):
+        df = _tiny_pedigree(n_per_gen=200, n_gens=2)
+        ped_path = tmp_path / "pedigree.parquet"
+        df.to_parquet(ped_path)
+
+        out_path = tmp_path / "phenotype.parquet"
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "threshold",
+                "--pedigree",
+                str(ped_path),
+                "--output",
+                str(out_path),
+                "--G-pheno",
+                "2",
+                "--prevalence1-by-gen",
+                '{"0": 0.05, "1": 0.15}',
+                "--prevalence2",
+                "0.1",
+            ],
+        )
+        threshold_cli()
+        assert out_path.exists()

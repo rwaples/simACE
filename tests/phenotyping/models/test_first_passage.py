@@ -120,3 +120,78 @@ def test_cli_flag_attrs_set():
         "first_passage_drift1",
         "first_passage_shape1",
     }
+
+
+def test_from_cli_missing_drift_raises():
+    parser = _parser_with_all_models()
+    args = parser.parse_args(
+        [
+            "--phenotype-model1",
+            "first_passage",
+            # drift omitted
+            "--first-passage-shape1",
+            "1.0",
+            "--phenotype-model2",
+            "first_passage",
+            "--first-passage-drift2",
+            "-0.5",
+            "--first-passage-shape2",
+            "1.0",
+        ]
+    )
+    with pytest.raises(ValueError, match=r"--first-passage-drift1 is required"):
+        FirstPassageModel.from_cli(args, 1)
+
+
+def test_from_cli_missing_shape_raises():
+    parser = _parser_with_all_models()
+    args = parser.parse_args(
+        [
+            "--phenotype-model1",
+            "first_passage",
+            "--first-passage-drift1",
+            "-0.5",
+            # shape omitted
+            "--phenotype-model2",
+            "first_passage",
+            "--first-passage-drift2",
+            "-0.5",
+            "--first-passage-shape2",
+            "1.0",
+        ]
+    )
+    with pytest.raises(ValueError, match=r"--first-passage-shape1 is required"):
+        FirstPassageModel.from_cli(args, 1)
+
+
+def test_simulate_positive_drift_emits_cure_fraction():
+    """Positive drift → some individuals never hit; output saturates at 1e6."""
+    m = FirstPassageModel(drift=0.5, shape=1.0, beta=1.0)
+    liability = np.random.default_rng(0).standard_normal(2000)
+    t = m.simulate(
+        liability=liability,
+        seed=42,
+        standardize=True,
+        sex=None,
+        generation=np.zeros(2000, dtype=int),
+    )
+    assert t.shape == (2000,)
+    # With drift > 0, a non-trivial fraction is censored at 1e6 (the
+    # cure-fraction sentinel set by _nb_fpt_cure).
+    assert (t >= 1e6 - 1).any(), "expected some 1e6 sentinels under positive drift"
+    assert (t < 1e6).any(), "expected some finite onsets too"
+
+
+def test_simulate_with_sex_effect():
+    """beta_sex != 0 shifts y0; runs without crashing and produces finite times."""
+    m = FirstPassageModel(drift=-0.5, shape=1.0, beta=1.0, beta_sex=0.5)
+    liability = np.random.default_rng(0).standard_normal(500)
+    sex = np.random.default_rng(1).integers(0, 2, size=500)
+    t = m.simulate(
+        liability=liability,
+        seed=42,
+        standardize=True,
+        sex=sex,
+        generation=np.zeros(500, dtype=int),
+    )
+    assert np.all(np.isfinite(t))
