@@ -43,7 +43,7 @@ The relative-pair correlation page from
 ![Liability and tetrachoric correlations by relative class, with_c](../images/examples/with_c/relpair_correlations.png)
 
 In simACE the C component is shared per household, where a household
-is defined by the mother (`simace/simulation/simulate.py:764`). Full
+is defined by the mother (`simace/simulation/simulate.py:761`). Full
 siblings and maternal half-siblings therefore share C, whereas
 parents and their offspring, paternal half-siblings, and cousins draw
 C independently.
