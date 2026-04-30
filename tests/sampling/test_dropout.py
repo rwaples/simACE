@@ -16,10 +16,11 @@ from tests.conftest import schema_pad
 
 @pytest.fixture
 def small_pedigree():
-    """A small 3-generation pedigree (20 individuals)."""
-    # Gen 0: founders (IDs 0-5), no parents, no twins
-    # Gen 1: children of gen-0 couples (IDs 6-11)
-    # Gen 2: children of gen-1 couples (IDs 12-19)
+    """A small 3-generation pedigree (20 individuals).
+
+    Gen 0: founders (IDs 0-5). Gen 1: children of gen-0 couples (IDs 6-11).
+    Gen 2: children of gen-1 couples (IDs 12-19). No twins.
+    """
     ids = list(range(20))
     mothers = [-1] * 6 + [0, 0, 2, 2, 4, 4] + [6, 6, 8, 8, 10, 10, 10, 10]
     fathers = [-1] * 6 + [1, 1, 3, 3, 5, 5] + [9, 9, 7, 7, 11, 11, 11, 11]
@@ -70,7 +71,6 @@ def large_pedigree():
     sex = rng.integers(0, 2, n)
     generation = np.zeros(n, dtype=np.int32)
 
-    # Assign parents to children
     for i in range(n_founders, n):
         mothers[i] = rng.integers(0, n_founders)
         fathers[i] = rng.integers(0, n_founders)
@@ -126,17 +126,13 @@ class TestDropoutBasic:
 
     def test_twin_links_rewritten(self, twin_pedigree):
         """If one twin is dropped, the surviving twin's twin field is set to -1."""
-        # Force drop individual 4 (twin of 5) by using a specific seed
-        # Instead, drop at 50% rate repeatedly until we get a case
         for seed in range(100):
             result = run_dropout(twin_pedigree, {"pedigree_dropout_rate": 0.5, "seed": seed})
             surviving_ids = set(result["id"].values.tolist())
-            # Check: if 4 dropped but 5 survives
             if 4 not in surviving_ids and 5 in surviving_ids:
                 row5 = result[result["id"] == 5].iloc[0]
                 assert row5["twin"] == -1, "Twin link not severed when partner dropped"
                 return
-            # Or 5 dropped but 4 survives
             if 5 not in surviving_ids and 4 in surviving_ids:
                 row4 = result[result["id"] == 4].iloc[0]
                 assert row4["twin"] == -1, "Twin link not severed when partner dropped"

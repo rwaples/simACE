@@ -86,7 +86,6 @@ def run_censor(phenotype: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     logger.info("Running censoring for %d individuals", len(phenotype))
     t0 = time.perf_counter()
 
-    # Per-generation censoring windows
     generations = phenotype["generation"].values
     gen_censoring = params["gen_censoring"]
     left_censor = np.zeros(len(phenotype))
@@ -96,17 +95,14 @@ def run_censor(phenotype: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
         left_censor[mask] = lo
         right_censor[mask] = hi
 
-    # Single death age per individual, shared across both traits
     rng_death = np.random.default_rng(params["seed"] + 1000)
     u_death = 1.0 - rng_death.uniform(size=len(phenotype))
     death_age = params["death_scale"] * (-np.log(u_death)) ** (1 / params["death_rho"])
 
-    # === Trait 1 ===
     t1_after_age, age_censored1 = age_censor(phenotype["t1"].values.copy(), left_censor, right_censor)
     death_censored1 = t1_after_age > death_age
     t_observed1 = np.where(death_censored1, death_age, t1_after_age)
 
-    # === Trait 2 ===
     t2_after_age, age_censored2 = age_censor(phenotype["t2"].values.copy(), left_censor, right_censor)
     death_censored2 = t2_after_age > death_age
     t_observed2 = np.where(death_censored2, death_age, t2_after_age)
@@ -122,7 +118,6 @@ def run_censor(phenotype: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     result["death_censored2"] = death_censored2
     result["affected2"] = ~age_censored2 & ~death_censored2
 
-    # Data shape: prevalence after censoring
     prev1 = result["affected1"].mean()
     prev2 = result["affected2"].mean()
     logger.info("Prevalence after censoring: trait1=%.3f, trait2=%.3f", prev1, prev2)

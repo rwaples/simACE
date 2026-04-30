@@ -50,21 +50,16 @@ def run_dropout(pedigree: pd.DataFrame, params: dict) -> pd.DataFrame:
     t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     drop_indices = rng.choice(n_total, n_drop, replace=False)
+    drop_ids = pedigree["id"].values[drop_indices]
 
-    # Collect IDs to drop
-    all_ids = pedigree["id"].values
-    drop_ids = set(all_ids[drop_indices].tolist())
-
-    # Keep non-dropped rows
     keep_mask = np.ones(n_total, dtype=bool)
     keep_mask[drop_indices] = False
     result = pedigree.loc[keep_mask].copy()
 
-    # Sever parent links pointing to dropped individuals
     for col in ("mother", "father", "twin"):
         if col in result.columns:
             vals = result[col].values
-            dangling = np.isin(vals, list(drop_ids)) & (vals >= 0)
+            dangling = np.isin(vals, drop_ids) & (vals >= 0)
             if dangling.any():
                 result.loc[result.index[dangling], col] = -1
 

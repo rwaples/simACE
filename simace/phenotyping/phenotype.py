@@ -63,9 +63,6 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
         ``phenotype_model1``, ``phenotype_params1``, ``beta1``, ``beta_sex1``,
         ``phenotype_model2``, ``phenotype_params2``, ``beta2``, ``beta_sex2``.
 
-    Adult / cure_frailty additionally require ``prevalence{N}`` (PR3 will
-    move this inside ``phenotype_params{N}``).
-
     Args:
         pedigree: DataFrame with ``liability1``, ``liability2``, ``generation``,
                   ``sex``, plus the genealogy columns preserved on output.
@@ -88,27 +85,7 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
     t1 = _simulate_one_trait(pedigree, params, trait_num=1, seed_offset=0)
     t2 = _simulate_one_trait(pedigree, params, trait_num=2, seed_offset=100)
 
-    phenotype = pd.DataFrame(
-        {
-            "id": pedigree["id"].values,
-            "generation": pedigree["generation"].values,
-            "sex": pedigree["sex"].values,
-            "household_id": pedigree["household_id"].values,
-            "mother": pedigree["mother"].values,
-            "father": pedigree["father"].values,
-            "twin": pedigree["twin"].values,
-            "A1": pedigree["A1"].values,
-            "C1": pedigree["C1"].values,
-            "E1": pedigree["E1"].values,
-            "liability1": pedigree["liability1"].values,
-            "A2": pedigree["A2"].values,
-            "C2": pedigree["C2"].values,
-            "E2": pedigree["E2"].values,
-            "liability2": pedigree["liability2"].values,
-            "t1": t1,
-            "t2": t2,
-        }
-    )
+    phenotype = pedigree.assign(t1=t1, t2=t2)
 
     assert_schema(phenotype, PHENOTYPE, where="phenotype output")
     logger.info(

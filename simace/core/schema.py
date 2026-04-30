@@ -1,8 +1,6 @@
 """Schema contracts for the phenotype → censor → sample handoff.
 
-Each pipeline stage produces a DataFrame whose shape the next stage relies on.
-Until now those expectations were tribal knowledge; renaming a column would
-fail silently far downstream. This module makes them explicit:
+Each pipeline stage produces a DataFrame whose shape the next stage relies on:
 
   PEDIGREE  — output of simulate / dropout
   PHENOTYPE — output of run_phenotype (PEDIGREE + raw event times)

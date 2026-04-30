@@ -53,11 +53,9 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
 
     if ratio == 1.0:
-        # Fast path: uniform sampling
         indices = np.sort(rng.choice(n_total, n_sample, replace=False))
     else:
-        # Weighted sampling: cases get weight=ratio, controls get weight=1
-        is_case = phenotype["affected1"].values.astype(bool)
+        is_case = phenotype["affected1"].values
         n_cases = int(is_case.sum())
         n_controls = n_total - n_cases
 
@@ -75,7 +73,6 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
             )
             indices = np.sort(rng.choice(n_total, n_sample, replace=False))
         elif ratio == 0:
-            # Only controls sampled
             actual_n = min(n_sample, n_controls)
             if actual_n < n_sample:
                 logger.warning(
@@ -90,7 +87,6 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
             weights = np.where(is_case, ratio, 1.0)
             probabilities = weights / weights.sum()
 
-            # Warn if >90% of cases would be expected in sample
             expected_case_prob = (ratio * n_cases) / (ratio * n_cases + n_controls)
             expected_cases_drawn = expected_case_prob * n_sample
             if expected_cases_drawn > 0.9 * n_cases:
