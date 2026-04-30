@@ -1,8 +1,5 @@
 # simACE documentation
 
-!!! warning "Under construction"
-    This documentation is a work in progress. Pages are incomplete.
-
 simACE simulates age-of-onset phenotypes for related individuals. It uses realistic pedigrees 
 and family structures to generate multi-generational family relationships and to simulate heritable traits.
 

@@ -79,6 +79,7 @@ nav:
       - Configuration: user-guide/configuration.md
       - Phenotype Models: user-guide/phenotype-models.md
       - Running the Pipeline: user-guide/running-the-pipeline.md
+      - Subsampling and Dropout: user-guide/subsampling-and-dropout.md
       - Output Structure: user-guide/output-structure.md
       - Interpreting Results: user-guide/interpreting-results.md
   - Concepts:
@@ -86,6 +87,8 @@ nav:
       - Simulation Design: concepts/simulation-design.md
       - Pipeline Schema: concepts/pipeline-schema.md
       - Gene Drop and tstrait: concepts/gene-drop.md
+      - Methods: concepts/methods.md
+      - Project Structure: concepts/project-structure.md
       - Model Fitting: concepts/model-fitting.md
   - Examples:
       - Minimal ACE: examples/minimal-ace.md

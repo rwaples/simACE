@@ -200,13 +200,15 @@ MZ twins share identical $A$ (and $C$) values: the second twin's breeding values
 
 ### Burn-in and recording
 
-Early generations are not recorded so that the recorded data is not influenced by the arbitrary starting conditions of the founder generation.
+See [Simulation Design § Multi-generational pedigree](simulation-design.md#multi-generational-pedigree) for the burn-in / recording / phenotyping split across $G_{\text{sim}}$, $G_{\text{ped}}$, and $G_{\text{pheno}}$.
 
-The simulation runs for $G_{\text{sim}}$ total generations (default 6), of which the first $G_{\text{sim}} - G_{\text{ped}}$ generations (default 2) serve as burn-in to reduce founder-specific effects and approach equilibrium allele-frequency distributions. Only the final $G_{\text{ped}}$ generations (default 4) are recorded in the output pedigree. The recorded pedigree contains $N \times G_{\text{ped}}$ individuals with contiguous identifiers, each annotated with generation number, parental identifiers, MZ twin partner (if any), household identifier, all six variance components, and both trait liabilities.
+The recorded pedigree contains $N \times G_{\text{ped}}$ individuals with contiguous identifiers, each annotated with generation number, parental identifiers, MZ twin partner (if any), household identifier, all six variance components, and both trait liabilities.
 
 ## Pedigree Dropout
 
-As an optional post-simulation step, a random fraction of individuals can be removed from the pedigree to simulate incomplete observation of family structure. A dropout rate $d \in [0, 1)$ specifies the proportion of individuals to remove. $n_{\text{drop}} = \lfloor N_{\text{total}} \cdot d \rceil$ individuals are selected uniformly at random (without replacement) and deleted from the pedigree. Any mother, father, or twin link that references a deleted individual is set to $-1$ (unknown), severing that relationship for downstream analyses. This degrades the observed pedigree connectivity without biasing which relationship types are affected, since deletion is unconditional on family structure.
+As an optional post-simulation step, a random fraction of individuals can be removed from the pedigree to simulate incomplete observation of family structure. A dropout rate $d \in [0, 1)$ specifies the proportion to remove; $n_{\text{drop}} = \lfloor N_{\text{total}} \cdot d \rceil$ individuals are deleted uniformly at random without replacement. Deletion is unconditional on family structure, so it degrades pedigree connectivity without biasing which relationship types are affected.
+
+See [Subsampling and Dropout § Pedigree dropout](../user-guide/subsampling-and-dropout.md#pedigree-dropout-pedigree_dropout_rate) for how broken parent/twin links propagate through downstream stages and which pre-configured scenarios use it.
 
 ## Phenotype Models
 
