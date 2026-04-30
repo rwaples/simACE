@@ -78,11 +78,15 @@ nav:
   - User Guide:
       - Configuration: user-guide/configuration.md
       - Running the Pipeline: user-guide/running-the-pipeline.md
+      - Phenotype Models: user-guide/phenotype-models.md
+      - Subsampling and Dropout: user-guide/subsampling-and-dropout.md
       - Output Structure: user-guide/output-structure.md
       - Interpreting Results: user-guide/interpreting-results.md
   - Concepts:
       - ACE Model: concepts/ace-model.md
       - Simulation Design: concepts/simulation-design.md
+      - Methods: concepts/methods.md
+      - Project Structure: concepts/project-structure.md
       - Model Fitting: concepts/model-fitting.md
   - Examples:
       - AM and Heritability: examples/am-and-heritability.md
