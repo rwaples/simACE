@@ -14,6 +14,8 @@ from scipy import stats
 
 from simace.core._numba_utils import _linregress_core, _pearsonr_core, _t_sf
 
+_ZERO_VAR_THRESHOLD = 1e-10
+
 
 def safe_corrcoef(x: np.ndarray, y: np.ndarray) -> float:
     """Compute Pearson correlation, returning nan if either array has zero variance.
@@ -25,7 +27,7 @@ def safe_corrcoef(x: np.ndarray, y: np.ndarray) -> float:
     Returns:
         Pearson correlation coefficient, or nan if variance is near-zero.
     """
-    if np.std(x) < 1e-10 or np.std(y) < 1e-10:
+    if np.std(x) < _ZERO_VAR_THRESHOLD or np.std(y) < _ZERO_VAR_THRESHOLD:
         return float("nan")
     return float(_pearsonr_core(x, y))
 
@@ -40,7 +42,7 @@ def safe_linregress(x: np.ndarray, y: np.ndarray) -> Any:
     Returns:
         ``scipy.stats.LinregressResult`` or None if *x* has near-zero variance.
     """
-    if np.std(x) < 1e-10:
+    if np.std(x) < _ZERO_VAR_THRESHOLD:
         return None
     return stats.linregress(x, y)
 

@@ -1,14 +1,10 @@
-"""Relationship-pair vocabulary used across stats and plotting.
+"""Relationship-pair and sex vocabulary used across stats and plotting."""
 
-Currently exposes ``PAIR_TYPES`` — the canonical 7-element subset of
-``REL_REGISTRY`` (defined in ``simace.core.pedigree_graph``) used for
-tetrachoric / liability correlation analyses. Future home for additional
-relationship-pair constants when ``pedigree_graph.py`` is restructured.
-"""
+__all__ = ["PAIR_TYPES", "SEX_LEVELS"]
 
-__all__ = ["PAIR_TYPES"]
-
-# Subset of REL_REGISTRY codes used for correlation analyses.
+# Canonical 7-element subset of REL_REGISTRY (defined in
+# ``simace.core.pedigree_graph``) used for tetrachoric / liability correlation
+# analyses.
 PAIR_TYPES: list[str] = [
     "MZ",
     "FS",
@@ -18,3 +14,6 @@ PAIR_TYPES: list[str] = [
     "PHS",
     "1C",
 ]
+
+# Encoding of the binary ``sex`` column used throughout the pipeline.
+SEX_LEVELS: list[tuple[int, str]] = [(0, "female"), (1, "male")]

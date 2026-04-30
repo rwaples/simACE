@@ -22,6 +22,7 @@ import pandas as pd
 
 from simace.core._numba_utils import _ndtri_approx
 from simace.core.parquet import save_parquet
+from simace.core.relationships import SEX_LEVELS
 
 logger = logging.getLogger(__name__)
 
@@ -80,14 +81,9 @@ def apply_threshold(
         mask = generation == gen
         L = liability[mask]
         if standardize:
-            L = L.copy()
             mean = L.mean()
             std = L.std()
-            if std > 0:
-                L = (L - mean) / std
-            else:
-                L = L - mean
-        # Look up per-gen prevalence
+            L = (L - mean) / std if std > 0 else L - mean
         prev = prevalence[int(gen)] if isinstance(prevalence, dict) else prevalence
         threshold = _ndtri_approx(1.0 - prev)
         affected[mask] = threshold <= L
@@ -113,7 +109,7 @@ def _apply_threshold_sex_aware(
     standardize = params.get("standardize", True)
     if isinstance(prev, dict) and "female" in prev and "male" in prev:
         affected = np.zeros(len(liability), dtype=bool)
-        for sex_val, key in [(0, "female"), (1, "male")]:
+        for sex_val, key in SEX_LEVELS:
             mask = sex == sex_val
             affected[mask] = apply_threshold(liability[mask], generation[mask], prev[key], standardize=standardize)
         return affected
@@ -160,26 +156,7 @@ def run_threshold(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
         trait_num=2,
     )
 
-    phenotype = pd.DataFrame(
-        {
-            "id": pedigree["id"].values,
-            "sex": pedigree["sex"].values,
-            "generation": generation,
-            "mother": pedigree["mother"].values,
-            "father": pedigree["father"].values,
-            "twin": pedigree["twin"].values,
-            "A1": pedigree["A1"].values,
-            "C1": pedigree["C1"].values,
-            "E1": pedigree["E1"].values,
-            "liability1": pedigree["liability1"].values,
-            "A2": pedigree["A2"].values,
-            "C2": pedigree["C2"].values,
-            "E2": pedigree["E2"].values,
-            "liability2": pedigree["liability2"].values,
-            "affected1": affected1,
-            "affected2": affected2,
-        }
-    )
+    phenotype = pedigree.assign(affected1=affected1, affected2=affected2)
 
     elapsed = time.perf_counter() - t0
     logger.info("Threshold model complete in %.1fs: %d individuals", elapsed, len(phenotype))

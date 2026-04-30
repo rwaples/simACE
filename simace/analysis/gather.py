@@ -10,9 +10,11 @@ import re
 from pathlib import Path
 from typing import Any
 
-import yaml
+from simace.core.yaml_io import load_yaml
 
 logger = logging.getLogger(__name__)
+
+_VALIDATION_PATH_RE = re.compile(r"results/([^/]+)/([^/]+)/rep(\d+)/validation\.yaml")
 
 
 def _get_nested(d: Any, *keys: str, default: Any = None) -> Any:
@@ -27,31 +29,22 @@ def _get_nested(d: Any, *keys: str, default: Any = None) -> Any:
 
 def extract_metrics(validation_path: str) -> dict[str, Any]:
     """Extract key metrics from a validation YAML file."""
-    with open(validation_path, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+    data = load_yaml(validation_path)
 
-    # Normalise to forward slashes so the regex works on Windows too
     validation_path = str(validation_path).replace("\\", "/")
 
-    # Extract scenario and rep from path: results/{folder}/{scenario}/rep{rep}/validation.yaml
-    match = re.search(r"results/([^/]+)/([^/]+)/rep(\d+)/validation\.yaml", validation_path)
+    match = _VALIDATION_PATH_RE.search(validation_path)
     if match:
-        scenario = match.group(2)  # group(1) is folder
-        rep = int(match.group(3))
+        folder, scenario, rep_str = match.group(1), match.group(2), match.group(3)
+        rep = int(rep_str)
+        bench_path = Path(f"benchmarks/{folder}/{scenario}/rep{rep_str}/simulate.tsv")
     else:
         scenario = "unknown"
         rep = 1
+        bench_path = Path("")
 
-    # Parse simulate benchmark time from corresponding TSV
     simulate_seconds = None
     simulate_max_rss_mb = None
-    bench_path = Path(
-        re.sub(
-            r"results/([^/]+)/([^/]+)/rep(\d+)/validation\.yaml",
-            r"benchmarks/\1/\2/rep\3/simulate.tsv",
-            validation_path,
-        )
-    )
     if bench_path.exists():
         with open(bench_path, encoding="utf-8", newline="") as bf:
             reader = csv.DictReader(bf, delimiter="\t")

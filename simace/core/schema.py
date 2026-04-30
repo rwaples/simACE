@@ -8,8 +8,7 @@ Each pipeline stage produces a DataFrame whose shape the next stage relies on:
 
 Dtypes are checked at the coarse ``numpy.dtype.kind`` level (``i`` integer,
 ``f`` float, ``b`` bool). This tolerates the int32/int8/float32 narrowing
-applied by ``optimize_dtypes`` at parquet save time without losing the
-contract.
+applied by the parquet writer at save time without losing the contract.
 """
 
 from __future__ import annotations

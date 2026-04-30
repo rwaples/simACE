@@ -24,11 +24,10 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import yaml
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
 from simace.core.pedigree_graph import PedigreeGraph
-from simace.core.yaml_io import to_native
+from simace.core.yaml_io import dump_yaml, load_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -1083,8 +1082,7 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
     """
     logger.info("Validating pedigree: %s", pedigree_path)
     df = pd.read_parquet(pedigree_path)
-    with open(params_path, encoding="utf-8") as f:
-        params = yaml.safe_load(f)
+    params = load_yaml(params_path)
 
     df_indexed = df.set_index("id")
 
@@ -1155,7 +1153,4 @@ def cli() -> None:
     init_logging(args)
 
     results = run_validation(args.pedigree, args.params)
-    results = to_native(results)
-
-    with open(args.output, "w", encoding="utf-8") as f:
-        yaml.dump(results, f, default_flow_style=False, sort_keys=False)
+    dump_yaml(results, args.output)

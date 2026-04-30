@@ -1,7 +1,8 @@
-"""YAML serialization helpers: numpy → Python conversion and fast loader factory."""
+"""YAML serialization helpers: numpy → Python conversion, fast loader, and file I/O wrappers."""
 
-__all__ = ["to_native", "yaml_loader"]
+__all__ = ["dump_yaml", "load_yaml", "to_native", "yaml_loader"]
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -40,3 +41,19 @@ def yaml_loader() -> type:
     import yaml
 
     return getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
+
+def load_yaml(path: str | Path) -> Any:
+    """Load a YAML file using the fastest available SafeLoader."""
+    import yaml
+
+    with open(path, encoding="utf-8") as fh:
+        return yaml.load(fh, Loader=yaml_loader())
+
+
+def dump_yaml(obj: Any, path: str | Path, *, sort_keys: bool = False) -> None:
+    """Dump ``obj`` to ``path`` as YAML, normalizing numpy types via ``to_native``."""
+    import yaml
+
+    with open(path, "w", encoding="utf-8") as fh:
+        yaml.dump(to_native(obj), fh, default_flow_style=False, sort_keys=sort_keys)
