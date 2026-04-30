@@ -172,9 +172,7 @@ def _gv_kernel(
     return gv
 
 
-def compute_gv(
-    ts: tskit.TreeSequence, chrom_effects: pd.DataFrame, trait_id: int
-) -> tuple[pd.DataFrame, float]:
+def compute_gv(ts: tskit.TreeSequence, chrom_effects: pd.DataFrame, trait_id: int) -> tuple[pd.DataFrame, float]:
     """Run the numba kernel and return (sample-filtered GV df, elapsed seconds).
 
     Assumes `chrom_effects` is sorted by `site_id` (== sorted by position
@@ -220,9 +218,7 @@ def compute_gv(
     return df, elapsed
 
 
-def remap_effects_by_position(
-    chrom_effects: pd.DataFrame, ts: tskit.TreeSequence
-) -> tuple[pd.DataFrame, int]:
+def remap_effects_by_position(chrom_effects: pd.DataFrame, ts: tskit.TreeSequence) -> tuple[pd.DataFrame, int]:
     """Map canonical site_ids in chrom_effects -> grafted site_ids by position.
 
     Returns ``(remapped, n_dropped)``. Causal sites whose POS is not present

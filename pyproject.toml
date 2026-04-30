@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "simace"
 dynamic = ["version"]
 description = "ACE pedigree simulation with A/C/E variance components"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 dependencies = [
     "numpy>=2.2,<3",
     "scipy>=1.14,<2",

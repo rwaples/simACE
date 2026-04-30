@@ -11,8 +11,8 @@ import time
 import numpy as np
 import pandas as pd
 
-from simace.core.schema import PEDIGREE, assert_schema
 from simace.core.parquet import save_parquet
+from simace.core.schema import PEDIGREE, assert_schema
 
 logger = logging.getLogger(__name__)
 

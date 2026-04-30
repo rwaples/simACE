@@ -26,8 +26,8 @@ from typing import Any
 
 import pandas as pd
 
-from simace.core.schema import PEDIGREE, PHENOTYPE, assert_schema
 from simace.core.parquet import save_parquet
+from simace.core.schema import PEDIGREE, PHENOTYPE, assert_schema
 from simace.phenotyping.models import MODELS
 
 logger = logging.getLogger(__name__)

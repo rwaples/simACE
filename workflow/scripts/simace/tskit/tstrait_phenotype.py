@@ -82,10 +82,7 @@ def main() -> None:
     log.info("  loaded in %.1fs; per-chrom rows: %s", time.perf_counter() - t, n_inds_per_chrom)
 
     cat = pd.concat(dfs, ignore_index=True)
-    summed = (
-        cat.groupby(["trait_id", "individual_id"], as_index=False, sort=True)["genetic_value"]
-        .sum()
-    )
+    summed = cat.groupby(["trait_id", "individual_id"], as_index=False, sort=True)["genetic_value"].sum()
     log.info(
         "summed: %d (trait_id, individual_id) rows; var(GV)=%.4f, mean(GV)=%.4f",
         len(summed),

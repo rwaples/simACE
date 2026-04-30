@@ -20,6 +20,7 @@ __all__ = [
 ]
 
 import argparse
+import contextlib
 import logging
 from typing import TYPE_CHECKING
 
@@ -119,10 +120,8 @@ def stripplot(
     # Filter out non-numeric values (e.g. per-generation dict strings)
     numeric_vals = []
     for v in all_vals:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             numeric_vals.append(float(v))
-        except (TypeError, ValueError):
-            pass
     all_vals = np.array(numeric_vals, dtype=float)
     all_vals = all_vals[np.isfinite(all_vals)]
     if len(all_vals) > 0:

@@ -19,9 +19,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 log = logging.getLogger("genotype_drop")
 
 
-def pedigree_to_msprime(
-    ped: pd.DataFrame, G_ped: int, G_pheno: int, Ne: int
-) -> msprime.PedigreeBuilder:
+def pedigree_to_msprime(ped: pd.DataFrame, G_ped: int, G_pheno: int, Ne: int) -> msprime.PedigreeBuilder:
     """Build an msprime PedigreeBuilder from a simACE pedigree DataFrame.
 
     msprime time runs backward (present = 0); simACE generation runs forward

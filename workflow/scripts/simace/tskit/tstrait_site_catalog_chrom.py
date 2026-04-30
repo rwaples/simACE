@@ -71,8 +71,7 @@ def build_catalog(ts: tskit.TreeSequence, chrom_n: int) -> pd.DataFrame:
     if not np.all(mut_counts == 1):
         bad = int(np.sum(mut_counts != 1))
         raise ValueError(
-            f"chr{chrom_n}: {bad} sites do not have exactly one mutation; "
-            "canonicalize step should have filtered these"
+            f"chr{chrom_n}: {bad} sites do not have exactly one mutation; canonicalize step should have filtered these"
         )
 
     site_to_mut = np.empty(n_sites, dtype=np.int64)

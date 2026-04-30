@@ -118,10 +118,14 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         "mz_twin_liability2_corr": _get_nested(data, "heritability", "mz_twin_liability2_correlation", "observed"),
         # DZ sibling correlations (trait 1)
         "dz_sibling_A1_corr": _get_nested(data, "heritability", "dz_sibling_A1_correlation", "observed"),
-        "dz_sibling_liability1_corr": _get_nested(data, "heritability", "dz_sibling_liability1_correlation", "observed"),
+        "dz_sibling_liability1_corr": _get_nested(
+            data, "heritability", "dz_sibling_liability1_correlation", "observed"
+        ),
         # DZ sibling correlations (trait 2)
         "dz_sibling_A2_corr": _get_nested(data, "heritability", "dz_sibling_A2_correlation", "observed"),
-        "dz_sibling_liability2_corr": _get_nested(data, "heritability", "dz_sibling_liability2_correlation", "observed"),
+        "dz_sibling_liability2_corr": _get_nested(
+            data, "heritability", "dz_sibling_liability2_correlation", "observed"
+        ),
         # Half-sib statistics
         "half_sib_prop_expected": _get_nested(data, "half_sibs", "half_sib_pair_proportion", "expected"),
         "half_sib_prop_observed": _get_nested(data, "half_sibs", "half_sib_pair_proportion", "observed"),

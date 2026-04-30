@@ -264,8 +264,7 @@ def _build_concat_ts(chroms: dict) -> tuple[tskit.TreeSequence, pd.DataFrame]:
     cum = float(ts0.sequence_length)
 
     site_map_records: list[dict] = [
-        {"CHR": ordered[0][0], "local_site_id": s.id, "global_site_id": s.id}
-        for s in ts0.sites()
+        {"CHR": ordered[0][0], "local_site_id": s.id, "global_site_id": s.id} for s in ts0.sites()
     ]
 
     n_initial = ts0.num_samples
@@ -304,9 +303,7 @@ def _build_concat_ts(chroms: dict) -> tuple[tskit.TreeSequence, pd.DataFrame]:
             metadata_offset=ss.metadata_offset,
         )
         new_mut_node = np.where(sm.node < n_initial, sm.node, sm.node + node_offset)
-        new_mut_parent = np.where(
-            sm.parent == tskit.NULL, tskit.NULL, sm.parent + mut_id_offset
-        )
+        new_mut_parent = np.where(sm.parent == tskit.NULL, tskit.NULL, sm.parent + mut_id_offset)
         tables.mutations.append_columns(
             site=sm.site + site_id_offset,
             node=new_mut_node,
@@ -318,8 +315,7 @@ def _build_concat_ts(chroms: dict) -> tuple[tskit.TreeSequence, pd.DataFrame]:
             time=sm.time,
         )
         site_map_records.extend(
-            {"CHR": chrom_n, "local_site_id": s.id, "global_site_id": s.id + site_id_offset}
-            for s in ts.sites()
+            {"CHR": chrom_n, "local_site_id": s.id, "global_site_id": s.id + site_id_offset} for s in ts.sites()
         )
         cum += float(ts.sequence_length)
 
@@ -370,14 +366,13 @@ def test_per_chrom_gv_sum_equals_oneshot(effects_mod, catalog, chroms):
         how="left",
     )
     assert effects_global["global_site_id"].notna().all()
-    one_shot_input = effects_global[["global_site_id", "effect_size", "causal_allele", "trait_id"]].rename(
-        columns={"global_site_id": "site_id"}
-    ).sort_values("site_id").reset_index(drop=True)
-    one_shot = (
-        tstrait.genetic_value(ts_all, one_shot_input)
-        .sort_values("individual_id")
+    one_shot_input = (
+        effects_global[["global_site_id", "effect_size", "causal_allele", "trait_id"]]
+        .rename(columns={"global_site_id": "site_id"})
+        .sort_values("site_id")
         .reset_index(drop=True)
     )
+    one_shot = tstrait.genetic_value(ts_all, one_shot_input).sort_values("individual_id").reset_index(drop=True)
 
     np.testing.assert_allclose(
         summed["genetic_value"].to_numpy(),
@@ -515,9 +510,7 @@ def test_remap_effects_by_position_drops_missing(gv_chrom_mod, chroms, effects_m
     remapped, n_dropped = gv_chrom_mod.remap_effects_by_position(chrom1, ts_lossy)
     # Confirm survivors point to valid grafted-ts site_ids
     assert n_dropped == len(drop_pos)
-    new_pos = np.asarray(ts_lossy.tables.sites.position).astype(np.int64)[
-        remapped["site_id"].to_numpy()
-    ]
+    new_pos = np.asarray(ts_lossy.tables.sites.position).astype(np.int64)[remapped["site_id"].to_numpy()]
     assert np.array_equal(np.sort(new_pos), np.sort(remapped["POS"].to_numpy().astype(np.int64)))
     # site_ids are sorted ascending after the remap
     assert remapped["site_id"].is_monotonic_increasing

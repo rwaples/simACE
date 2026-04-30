@@ -14,11 +14,15 @@ __all__ = [
 ]
 
 # Re-export from plot_style for backward compatibility
-from simace.plotting.plot_style import PAIR_COLORS as PAIR_COLORS
-
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+from simace.plotting.plot_style import PAIR_COLORS as PAIR_COLORS
+
+if TYPE_CHECKING:
+    import matplotlib.pyplot as plt
+
 
 def param_as_float(val: float | dict | None, default: float = 0.0) -> float:
     """Convert a scalar or per-generation dict param to a single float.
@@ -30,7 +34,6 @@ def param_as_float(val: float | dict | None, default: float = 0.0) -> float:
     if isinstance(val, dict):
         return float(val[min(val)])
     return float(val)
-
 
 
 # PAIR_COLORS is now imported from plot_style (see re-export above)

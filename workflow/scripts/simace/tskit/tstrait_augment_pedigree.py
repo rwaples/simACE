@@ -88,11 +88,7 @@ def main() -> None:
 
     log.info("summing per-chrom GVs across %d files", len(gv_paths))
     gv_dfs = [pd.read_parquet(p) for p in gv_paths]
-    gvs = (
-        pd.concat(gv_dfs, ignore_index=True)
-        .groupby("individual_id", as_index=False)["genetic_value"]
-        .sum()
-    )
+    gvs = pd.concat(gv_dfs, ignore_index=True).groupby("individual_id", as_index=False)["genetic_value"].sum()
     log.info("  GV summed: %d unique individuals", len(gvs))
 
     rescaled_arr, rescale_info = rescale_gv(gvs["genetic_value"].to_numpy(), target_var_a)
@@ -121,9 +117,7 @@ def main() -> None:
     ped_out["A1"] = a1_new.astype(np.float32)
     if "liability1" in ped_out.columns:
         ped_out["liability1"] = (
-            ped_out["A1"].astype(np.float64)
-            + ped_out["C1"].astype(np.float64)
-            + ped_out["E1"].astype(np.float64)
+            ped_out["A1"].astype(np.float64) + ped_out["C1"].astype(np.float64) + ped_out["E1"].astype(np.float64)
         )
 
     log.info("writing %s", out_pedigree)
@@ -138,9 +132,7 @@ def main() -> None:
         "var_A1_after_in_overwritten": float(np.var(a1_new[sample_mask], ddof=0)),
         "mean_A1_after_in_overwritten": float(np.mean(a1_new[sample_mask])),
         "var_A1_orig_in_overwritten": float(np.var(a1_orig[sample_mask], ddof=0)),
-        "var_A1_orig_in_kept": (
-            float(np.var(a1_orig[~sample_mask], ddof=0)) if (~sample_mask).any() else None
-        ),
+        "var_A1_orig_in_kept": (float(np.var(a1_orig[~sample_mask], ddof=0)) if (~sample_mask).any() else None),
     }
     out_meta.write_text(json.dumps(meta, indent=2, default=float))
     log.info(

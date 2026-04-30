@@ -121,10 +121,7 @@ def test_canonicalize_one_mutation_per_site(canonicalize_mod, chrom_dir):
         assert int(counts.max()) == 1
     # stats track the drop accounting
     assert stats["num_sites_post"] == stats["num_mutations_post"]
-    assert (
-        stats["num_sites_post"]
-        == stats["num_sites_post_simplify"] - stats["num_sites_dropped_multimut"]
-    )
+    assert stats["num_sites_post"] == stats["num_sites_post_simplify"] - stats["num_sites_dropped_multimut"]
 
 
 def test_canonicalize_unknown_pop_raises(canonicalize_mod, chrom_dir):

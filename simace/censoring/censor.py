@@ -16,8 +16,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from simace.core.schema import CENSORED, PHENOTYPE, assert_schema
 from simace.core.parquet import save_parquet
+from simace.core.schema import CENSORED, PHENOTYPE, assert_schema
 
 logger = logging.getLogger(__name__)
 

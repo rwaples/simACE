@@ -14,9 +14,7 @@ from pathlib import Path
 import numpy as np
 import tskit
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
 log = logging.getLogger("canonicalize_chrom")
 
 
@@ -46,9 +44,7 @@ def eligible_individuals(ts: tskit.TreeSequence, pop_name: str | None) -> np.nda
     return np.unique(node_ind[in_pop & (node_ind != tskit.NULL)])
 
 
-def canonicalize(
-    ts: tskit.TreeSequence, pop_name: str | None
-) -> tuple[tskit.TreeSequence, dict]:
+def canonicalize(ts: tskit.TreeSequence, pop_name: str | None) -> tuple[tskit.TreeSequence, dict]:
     """Sort eligible individuals by ID and simplify to a canonical sample-node order.
 
     After this, sample node `2*j` and `2*j+1` always belong to the j-th

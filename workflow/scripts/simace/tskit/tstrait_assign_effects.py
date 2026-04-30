@@ -42,13 +42,9 @@ def _resolve_n_causal(
     n_eligible: int,
 ) -> int:
     if num_causal is not None and frac_causal is not None:
-        raise ValueError(
-            "tstrait: set exactly one of `num_causal` or `frac_causal`; both are set"
-        )
+        raise ValueError("tstrait: set exactly one of `num_causal` or `frac_causal`; both are set")
     if num_causal is None and frac_causal is None:
-        raise ValueError(
-            "tstrait: set exactly one of `num_causal` or `frac_causal`; both are null"
-        )
+        raise ValueError("tstrait: set exactly one of `num_causal` or `frac_causal`; both are null")
     if num_causal is not None:
         n = int(num_causal)
     else:
@@ -58,9 +54,7 @@ def _resolve_n_causal(
     if n <= 0:
         raise ValueError(f"tstrait: resolved n_causal={n} is non-positive")
     if n > n_eligible:
-        raise ValueError(
-            f"tstrait: n_causal={n} exceeds n_eligible={n_eligible} after MAF filter"
-        )
+        raise ValueError(f"tstrait: n_causal={n} exceeds n_eligible={n_eligible} after MAF filter")
     return n
 
 
@@ -90,8 +84,7 @@ def assign_effects(
     n_eligible = int(eligible_idx.size)
     if n_eligible == 0:
         raise ValueError(
-            f"tstrait: 0 sites pass MAF filter (maf_threshold={maf_threshold}); "
-            f"catalog has {n_total} sites"
+            f"tstrait: 0 sites pass MAF filter (maf_threshold={maf_threshold}); catalog has {n_total} sites"
         )
 
     n_causal = _resolve_n_causal(num_causal, frac_causal, n_eligible)
@@ -133,9 +126,7 @@ def assign_effects(
         "var_raw_beta": float(np.var(raw_beta, ddof=0)),
         "var_effect_size": float(np.var(effect_size, ddof=0)),
         "mean_af_factor": float(af_factor.mean()),
-        "per_chromosome": (
-            out.groupby("CHR")["site_id"].count().rename("n_causal").reset_index().to_dict("records")
-        ),
+        "per_chromosome": (out.groupby("CHR")["site_id"].count().rename("n_causal").reset_index().to_dict("records")),
     }
     return out, meta
 

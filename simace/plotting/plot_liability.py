@@ -10,8 +10,8 @@ from __future__ import annotations
 __all__ = [
     "plot_censoring_cascade",
     "plot_censoring_confusion",
-    "plot_liability_components_by_generation",
     "plot_joint_affection",
+    "plot_liability_components_by_generation",
     "plot_liability_joint",
     "plot_liability_joint_affected",
     "plot_liability_joint_affected_t2",
@@ -163,8 +163,7 @@ def _plot_joint_grid(
             Line2D([0], [0], marker="o", color="w", markerfacecolor=COLOR_UNAFFECTED, markersize=6, label="Unaffected"),
             Line2D([0], [0], marker="o", color="w", markerfacecolor=COLOR_AFFECTED, markersize=6, label=aff_label),
         ]
-        fig.legend(handles=legend_handles, loc="lower left", fontsize=10,
-                   bbox_to_anchor=(0.05, 0.02))
+        fig.legend(handles=legend_handles, loc="lower left", fontsize=10, bbox_to_anchor=(0.05, 0.02))
 
     finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 

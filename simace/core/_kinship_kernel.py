@@ -86,9 +86,15 @@ def _grow_global(cols: np.ndarray, vals: np.ndarray, min_size: int):
 
 @numba.njit(cache=True)
 def _append_entry(
-    cols: np.ndarray, vals: np.ndarray,
-    row_start: np.ndarray, row_count: np.ndarray, row_cap: np.ndarray,
-    next_alloc: np.int64, row_idx: np.int32, col_idx: np.int32, val: np.float64,
+    cols: np.ndarray,
+    vals: np.ndarray,
+    row_start: np.ndarray,
+    row_count: np.ndarray,
+    row_cap: np.ndarray,
+    next_alloc: np.int64,
+    row_idx: np.int32,
+    col_idx: np.int32,
+    val: np.float64,
 ):
     """Append (col_idx, val) to row_idx.
 
@@ -245,8 +251,15 @@ def _dp_kinship(
                 # Append (k, val) to row j.  Merge walk yields columns in
                 # ascending order, so row j stays sorted.
                 cols, vals, next_alloc = _append_entry(
-                    cols, vals, row_start, row_count, row_cap,
-                    next_alloc, np.int32(j), k, val,
+                    cols,
+                    vals,
+                    row_start,
+                    row_count,
+                    row_cap,
+                    next_alloc,
+                    np.int32(j),
+                    k,
+                    val,
                 )
                 # Symmetric fill: append (j, val) to row k.  Since j is
                 # processed in depth order and higher j means later
@@ -254,8 +267,15 @@ def _dp_kinship(
                 # to row k come in ascending j order → row k stays
                 # sorted.
                 cols, vals, next_alloc = _append_entry(
-                    cols, vals, row_start, row_count, row_cap,
-                    next_alloc, k, np.int32(j), val,
+                    cols,
+                    vals,
+                    row_start,
+                    row_count,
+                    row_cap,
+                    next_alloc,
+                    k,
+                    np.int32(j),
+                    val,
                 )
 
             # --- Append diagonal (j, self_kin) to row j AFTER merge walk.
@@ -263,8 +283,15 @@ def _dp_kinship(
             # the largest column — row j stays sorted.
             self_kin = (1.0 + km_f) / 2.0
             cols, vals, next_alloc = _append_entry(
-                cols, vals, row_start, row_count, row_cap,
-                next_alloc, np.int32(j), np.int32(j), self_kin,
+                cols,
+                vals,
+                row_start,
+                row_count,
+                row_cap,
+                next_alloc,
+                np.int32(j),
+                np.int32(j),
+                self_kin,
             )
 
         # MZ twin pass for this generation.
@@ -310,8 +337,15 @@ def _dp_kinship(
                 # Need to insert in-place; falls back to append then
                 # sort.  Only happens for twins so rare; cheap.
                 cols, vals, next_alloc = _append_entry(
-                    cols, vals, row_start, row_count, row_cap,
-                    next_alloc, np.int32(j), np.int32(tw), self_k,
+                    cols,
+                    vals,
+                    row_start,
+                    row_count,
+                    row_cap,
+                    next_alloc,
+                    np.int32(j),
+                    np.int32(tw),
+                    self_k,
                 )
                 # Re-sort row j (bubble the new entry into place).  Small
                 # per-row cost, rare.
@@ -331,8 +365,15 @@ def _dp_kinship(
                 vals[rs_t + lo] = self_k
             else:
                 cols, vals, next_alloc = _append_entry(
-                    cols, vals, row_start, row_count, row_cap,
-                    next_alloc, np.int32(tw), np.int32(j), self_k,
+                    cols,
+                    vals,
+                    row_start,
+                    row_count,
+                    row_cap,
+                    next_alloc,
+                    np.int32(tw),
+                    np.int32(j),
+                    self_k,
                 )
                 _sort_row_inplace(cols, vals, row_start[tw], row_count[tw])
 
@@ -346,8 +387,10 @@ def _dp_kinship(
 
 @numba.njit(cache=True)
 def _assemble_csc(
-    cols: np.ndarray, vals: np.ndarray,
-    row_start: np.ndarray, row_count: np.ndarray,
+    cols: np.ndarray,
+    vals: np.ndarray,
+    row_start: np.ndarray,
+    row_count: np.ndarray,
     phen_pos: np.ndarray,
     to_grm: bool,
 ):
@@ -476,10 +519,20 @@ def _build_kinship_csc(
         depth = np.ascontiguousarray(generation, dtype=np.int32)
 
     cols, vals, row_start, row_count = _dp_kinship(
-        n, m_idx, f_idx, tw_idx, depth, float(min_kinship),
+        n,
+        m_idx,
+        f_idx,
+        tw_idx,
+        depth,
+        float(min_kinship),
     )
     phen_pos = np.arange(n, dtype=np.int32)
     indptr, indices, values = _assemble_csc(
-        cols, vals, row_start, row_count, phen_pos, False,
+        cols,
+        vals,
+        row_start,
+        row_count,
+        phen_pos,
+        False,
     )
     return indptr, indices, values

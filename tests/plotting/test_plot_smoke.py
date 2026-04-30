@@ -338,8 +338,10 @@ class TestPlotAtlasHelpers:
         ]
         for model, pp in cases:
             name, desc = _model_display_name(model, pp)
-            assert isinstance(name, str) and len(name) > 0, f"model={model}, pp={pp}"
-            assert isinstance(desc, str) and len(desc) > 0, f"model={model}, pp={pp}"
+            assert isinstance(name, str), f"model={model}, pp={pp}"
+            assert len(name) > 0, f"model={model}, pp={pp}"
+            assert isinstance(desc, str), f"model={model}, pp={pp}"
+            assert len(desc) > 0, f"model={model}, pp={pp}"
 
 
 # ---------------------------------------------------------------------------
