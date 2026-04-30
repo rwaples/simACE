@@ -28,29 +28,71 @@ and paternal half-sibs.
 
 ## Pedigree relationship types
 
-`PedigreeGraph` extracts 23 relationship categories using sparse matrix algebra.
-Each type is parameterised by `(up, down, n_ancestors)`:
-
-- **up**: meioses from individual A up to common ancestor(s)
-- **down**: meioses down from ancestor(s) to individual B
-- **n_ancestors**: 1 (half/lineal) or 2 (full, mated-pair)
-- **kinship**: $n_{\text{ancestors}} \times (1/2)^{(\text{up} + \text{down} + 1)}$
+`PedigreeGraph` (in `simace/core/pedigree_graph.py`) extracts 23 relationship
+categories from simulated pedigrees using sparse matrix algebra. Each type is
+parameterised by `(up, down, n_ancestors)` -- meioses up from individual A to
+common ancestor(s), meioses down to individual B, and whether the link is
+through 1 (half/lineal) or 2 (full, mated-pair) ancestors. Kinship is
+$n_{\text{ancestors}} \times (1/2)^{(\text{up} + \text{down} + 1)}$.
 
 | Code | Label | Up | Down | Ancestors | Kinship | Degree |
 |------|-------|---:|-----:|----------:|--------:|-------:|
-| MZ | MZ twin | -- | -- | -- | 1/2 | 0 |
+| MZ | MZ twin | — | — | — | 1/2 | 0 |
+| MO | Mother-offspring | 1 | 0 | 1 | 1/4 | 1 |
+| FO | Father-offspring | 1 | 0 | 1 | 1/4 | 1 |
 | FS | Full sib | 1 | 1 | 2 | 1/4 | 1 |
 | MHS | Maternal half sib | 1 | 1 | 1 | 1/8 | 2 |
 | PHS | Paternal half sib | 1 | 1 | 1 | 1/8 | 2 |
 | GP | Grandparent | 2 | 0 | 1 | 1/8 | 2 |
 | Av | Avuncular | 1 | 2 | 2 | 1/8 | 2 |
+| GGP | Great-grandparent | 3 | 0 | 1 | 1/16 | 3 |
+| HAv | Half-avuncular | 1 | 2 | 1 | 1/16 | 3 |
+| GAv | Great-avuncular | 1 | 3 | 2 | 1/16 | 3 |
 | 1C | 1st cousin | 2 | 2 | 2 | 1/16 | 3 |
+| GGGP | Great²-grandparent | 4 | 0 | 1 | 1/32 | 4 |
+| HGAv | Half-great-avuncular | 1 | 3 | 1 | 1/32 | 4 |
+| GGAv | Great²-avuncular | 1 | 4 | 2 | 1/32 | 4 |
+| H1C | Half-1st-cousin | 2 | 2 | 1 | 1/32 | 4 |
+| 1C1R | 1st cousin 1R | 2 | 3 | 2 | 1/32 | 4 |
+| G3GP | Great³-grandparent | 5 | 0 | 1 | 1/64 | 5 |
+| HGGAv | Half-great²-avuncular | 1 | 4 | 1 | 1/64 | 5 |
+| G3Av | Great³-avuncular | 1 | 5 | 2 | 1/64 | 5 |
+| H1C1R | Half-1st-cousin 1R | 2 | 3 | 1 | 1/64 | 5 |
+| 1C2R | 1st cousin 2R | 2 | 4 | 2 | 1/64 | 5 |
+| 2C | 2nd cousin | 3 | 3 | 2 | 1/64 | 5 |
 
-The `max_degree` parameter controls extraction depth (default 2). Degree 3-5 types
-require deeper matrix products and are only computed when requested.
+The `max_degree` parameter controls extraction depth (default 2, covering
+through 1st cousins). Degree 3-5 types require deeper matrix products and are
+only computed when requested. The registry is importable as `REL_REGISTRY` and
+`PAIR_KINSHIP` from `simace.core.pedigree_graph`.
 
-The full registry of 23 types is available as `REL_REGISTRY` and `PAIR_KINSHIP`
-from `simace.core.pedigree_graph`.
+### Inbreeding and exact kinship
+
+By default, kinship values are computed from the `(up, down, n_ancestors)`
+formula, which assumes no inbreeding. When `estimate_inbreeding: true` is set
+in config, `PedigreeGraph` computes exact inbreeding coefficients and pairwise
+kinship using sparse matrix propagation:
+
+1. **`compute_inbreeding()`** builds the kinship matrix `K` generation by
+   generation using sparse products (`P_g @ K` for cross-generation,
+   `K_cross @ P_g.T` for within-generation). The inbreeding coefficient
+   `F_i = K[mother_i, father_i]` is extracted each generation. For
+   non-consanguineous pedigrees (all `F = 0`), both functions short-circuit
+   instantly.
+
+2. **`compute_pair_kinship(pairs)`** looks up exact kinship for each extracted
+   pair from the cached sparse `K` matrix. When inbreeding is present, kinship
+   values deviate from the nominal formula by a factor of $(1 + F_a)$ where
+   $F_a$ is the inbreeding coefficient of the common ancestor.
+
+| Pedigree | `compute_inbreeding` | `compute_pair_kinship` | Total |
+|----------|---------------------:|-----------------------:|------:|
+| N=10K, 6 gens (60K individuals) | 12.9s | 2.3s | 15.2s |
+| N=100K, 4 gens (400K individuals) | 11.9s | 0.9s | 12.7s |
+
+Cost is dominated by the sparse `P_g @ K` products, which scale with the number
+of nonzero kinship entries (i.e., the number of related pairs in the pedigree).
+Fewer generations means sparser `K` and faster computation, even at larger `N`.
 
 ## Pipeline stages
 
@@ -62,3 +104,19 @@ The simulation is conceptually split into four stages, plus downstream analysis:
 4. **Sample** -- optionally subsample and apply ascertainment bias
 
 Followed by: validation, summary statistics, model fitting, and plotting.
+
+## Pipeline rule graph
+
+The Snakemake rule graph showing how rules feed into each other:
+
+![simACE rule graph](../images/rulegraph.png)
+
+Regenerate the image after changes to the Snakefile or workflow rules:
+
+```bash
+scripts/regen_rulegraph.sh
+```
+
+The script writes `docs/images/rulegraph.png`. Pass an alternative target as
+the first argument to render a different sub-DAG (default:
+`results/test/small_test/scenario.done`).

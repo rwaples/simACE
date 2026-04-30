@@ -1,8 +1,5 @@
 # simACE documentation
 
-!!! warning "Under construction"
-    This documentation is a work in progress. Some pages may be incomplete.
-
 simACE simulates registry-scale age-of-onset phenotypes with realistic
 multi-generational pedigrees and the ACE (Additive genetic, Common environment,
 unique Environment) liability model.
@@ -37,6 +34,9 @@ estimate heritability and familial correlations from population health registrie
 | Package | Purpose | Install |
 |---|---|---|
 | `simace` | Simulation, phenotyping, censoring, sampling, analysis, plotting | `pip install -e .` |
-| `fit_ace` | Model fitting (EPIMIGHT, PA-FGRS, Stan) | `pip install -e fit_ace/` |
+| `fitACE` | Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC) | `pip install -e fitACE/` |
 
-This documentation covers `simace`. See the fit_ace directory for model fitting documentation.
+This documentation covers `simace`. Model fitting lives in the sister
+[`fitACE`](https://github.com/rwaples/fitACE) repo, checked out under
+`./fitACE/`. See [Project Structure](concepts/project-structure.md) for the
+full repo map.
