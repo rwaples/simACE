@@ -22,20 +22,22 @@ __all__ = [
 import argparse
 import contextlib
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-logger = logging.getLogger(__name__)
-from pathlib import Path
-
-import matplotlib.pyplot as plt
 import seaborn as sns
 
-from simace.plotting.plot_style import COLOR_AFFECTED, COLOR_OBSERVED, enable_value_gridlines
+from simace.plotting.plot_style import (
+    COLOR_AFFECTED,
+    COLOR_EXPECTED,
+    COLOR_OBSERVED,
+    enable_value_gridlines,
+)
 
-COLOR_EXPECTED = "#EE7733"  # orange, for expected/reference markers
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Callable

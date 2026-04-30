@@ -3,6 +3,7 @@
 __all__ = [
     "CENSORING_COLORS",
     "COLOR_AFFECTED",
+    "COLOR_EXPECTED",
     "COLOR_FEMALE",
     "COLOR_MALE",
     "COLOR_OBSERVED",
@@ -50,6 +51,7 @@ COLOR_MALE = "#EE7733"  # orange
 # Observed vs true data lines
 COLOR_OBSERVED = "#4477AA"  # blue (matches MZ pair color)
 COLOR_TRUE = "#888888"  # grey
+COLOR_EXPECTED = "#EE7733"  # orange, for expected/reference markers
 
 # Censoring cascade
 CENSORING_COLORS: dict[str, str] = {

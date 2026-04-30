@@ -11,9 +11,7 @@ from simace.plotting.atlas_manifest import (
     validation_basenames,
 )
 
-# Frozen-list regression assertion: confirms the migration didn't lose or
-# reorder entries vs. the pre-PR8 _PHENOTYPE_BASENAMES literal in
-# workflow/common.py. Update intentionally when reordering plots.
+# Frozen-list regression: update intentionally when reordering plots.
 EXPECTED_PHENOTYPE_BASENAMES = [
     "pedigree_counts.ped",
     "pedigree_counts",

@@ -345,12 +345,11 @@ def _render_inline_caption(
         verticalalignment="top",
         transform=fig.transFigure,
     )
-    fig.canvas.draw()
+    fig.draw_without_rendering()
     renderer = fig.canvas.get_renderer()
     bb = title_text.get_window_extent(renderer=renderer)
     title_width_fig = bb.width / fig.dpi / page_w
 
-    # Measure width of 3 spaces in medium weight at same fontsize
     fp = FontProperties(family=fontfamily, size=fontsize, weight="medium")
     space_text = fig.text(0, 0, "   ", fontproperties=fp, transform=fig.transFigure)
     space_bb = space_text.get_window_extent(renderer=renderer)
@@ -480,7 +479,6 @@ def assemble_atlas(
                 logger.warning("Atlas: skipping missing plot %s", path)
                 continue
 
-            img = Image.open(str(path))
             try:
                 rel = path.resolve().relative_to(atlas_dir)
             except ValueError:
@@ -489,8 +487,6 @@ def assemble_atlas(
             title = f"Figure {plot_idx}: {item.title}"
             body = item.body
 
-            # Caption space scales with text length so long captions don't
-            # overflow. Length proxy uses the rendered title + body.
             caption_len = len(title) + 2 + len(body)
             if caption_len < 300:
                 caption_frac = 0.13
@@ -502,9 +498,9 @@ def assemble_atlas(
 
             fig = plt.figure(figsize=(_PAGE_W, _PAGE_H))
 
-            # Image axes: below top margin, above caption
             ax = fig.add_axes([0.005, caption_frac + 0.005, 0.99, img_frac - 0.005])
-            ax.imshow(img)
+            with Image.open(path) as img:
+                ax.imshow(img)
             ax.axis("off")
 
             # Thin hairline border around the figure image
