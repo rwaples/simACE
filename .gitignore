@@ -7,6 +7,7 @@ external/
 # Scripts (local benchmarks / utilities); root-only so workflow/scripts/ stays tracked
 /scripts/*
 !/scripts/run_epimight.py
+!/scripts/regen_rulegraph.sh
 
 # Notebooks
 notebooks/
