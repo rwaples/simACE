@@ -1,7 +1,5 @@
 """Subsample phenotyped individuals before stats/plotting."""
 
-from __future__ import annotations
-
 __all__ = ["run_sample"]
 
 import argparse

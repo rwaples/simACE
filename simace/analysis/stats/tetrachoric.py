@@ -5,8 +5,6 @@ Low-level helpers for tetrachoric MLE on binary arrays plus the
 computations.
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Any
 

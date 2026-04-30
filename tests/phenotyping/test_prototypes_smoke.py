@@ -6,8 +6,6 @@ This module exists to catch silent rot when shared dependencies (notably
 ``simace.phenotyping.hazards``) evolve.
 """
 
-from __future__ import annotations
-
 import numpy as np
 
 from simace.phenotyping._prototypes.bimodal_phenotype import (

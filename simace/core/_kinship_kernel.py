@@ -10,8 +10,6 @@ The kernel is moved (not rewritten) from
 to pandas: all inputs are numpy arrays remapped to 0..n-1 row indices.
 """
 
-from __future__ import annotations
-
 __all__ = [
     "_assemble_csc",
     "_build_kinship_csc",

@@ -4,8 +4,6 @@ Applies age-window censoring and competing-risk death censoring
 to raw event times produced by the Weibull frailty phenotype model.
 """
 
-from __future__ import annotations
-
 __all__ = ["age_censor", "death_censor", "run_censor"]
 
 import argparse

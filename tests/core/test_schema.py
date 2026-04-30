@@ -1,7 +1,5 @@
 """Tests for the pipeline-stage schema contracts in ``simace.core.schema``."""
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

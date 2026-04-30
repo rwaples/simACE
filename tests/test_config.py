@@ -5,8 +5,6 @@ Covers the resolver surface (``resolve_defaults`` / ``resolve_scenarios``),
 on, and the cross-domain rejection of unknown keys.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 
 import pytest

@@ -4,8 +4,6 @@ Each test builds a small DataFrame with known values so expected outputs
 can be verified by hand.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

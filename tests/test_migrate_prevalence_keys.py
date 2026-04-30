@@ -5,8 +5,6 @@ synthetic YAML structures, plus an end-to-end file rewrite + idempotency
 check via ``migrate_file``.
 """
 
-from __future__ import annotations
-
 import importlib.util
 import sys
 from pathlib import Path

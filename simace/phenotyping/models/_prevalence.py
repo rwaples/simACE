@@ -12,8 +12,6 @@ Prevalence may be:
     may itself be a scalar or a per-generation dict.
 """
 
-from __future__ import annotations
-
 import numpy as np
 
 __all__ = ["prevalence_to_array", "resolve_prevalence"]

@@ -17,8 +17,6 @@ Public API is re-exported from focused sub-modules:
 - :mod:`.runner` — ``main`` and ``cli`` entry point
 """
 
-from __future__ import annotations
-
 from .censoring import (
     compute_censoring_cascade,
     compute_censoring_confusion,

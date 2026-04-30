@@ -20,8 +20,6 @@ The :data:`MODEL_SECTION` sentinel is resolved at render time by
 ``get_model_equation`` against the scenario params.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Any
 

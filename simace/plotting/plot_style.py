@@ -1,7 +1,5 @@
 """Central visual style for Nature Genetics-inspired plots."""
 
-from __future__ import annotations
-
 __all__ = [
     "CENSORING_COLORS",
     "COLOR_AFFECTED",

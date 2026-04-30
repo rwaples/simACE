@@ -4,8 +4,6 @@ Reads a single phenotype.parquet, runs every stats computation, and writes
 ``phenotype_stats.yaml`` plus ``phenotype_samples.parquet``.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import logging

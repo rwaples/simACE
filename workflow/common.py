@@ -7,8 +7,6 @@ Snakemake-specific concerns: resource scaling, plot-filename lists, and
 per-scenario/per-folder output collectors.
 """
 
-from __future__ import annotations
-
 from simace.config import (
     KNOWN_SIM_KEYS,
     flatten_hierarchical,

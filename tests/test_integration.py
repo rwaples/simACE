@@ -4,8 +4,6 @@ Runs on a tiny scenario (N=100, G_ped=2) to verify interface compatibility
 between modules. Asserts output structure, not numerical correctness.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

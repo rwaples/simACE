@@ -3,8 +3,6 @@ logic from `workflow/scripts/simace/tskit/`. Skipped if tskit/msprime are
 not available (the simACE env doesn't ship them; the workflow uses a
 dedicated conda env)."""
 
-from __future__ import annotations
-
 import importlib.util
 import sys
 from pathlib import Path

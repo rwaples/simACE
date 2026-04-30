@@ -4,8 +4,6 @@ Renders a single-page figure showing the Snakemake pipeline structure with
 each step's relevant parameters displayed inside its box.
 """
 
-from __future__ import annotations
-
 __all__ = ["plot_pipeline", "render_pipeline_figure"]
 
 import argparse

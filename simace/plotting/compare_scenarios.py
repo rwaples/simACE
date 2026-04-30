@@ -7,8 +7,6 @@ more scenarios on the same axes.  This module hosts those comparison plots;
 each new Examples topic adds one function here.
 """
 
-from __future__ import annotations
-
 __all__ = [
     "NAIVE_ESTIMATOR_DEFS",
     "OBSERVED_LIABILITY_ESTIMATOR_DEFS",

@@ -10,8 +10,6 @@ threshold, so realised prevalence drifts with the liability variance.
 No time-to-event or censoring -- purely binary outcome.
 """
 
-from __future__ import annotations
-
 __all__ = ["apply_threshold", "run_threshold"]
 
 import argparse

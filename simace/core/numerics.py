@@ -1,7 +1,5 @@
 """Numerical helpers: safe and numba-accelerated correlation/regression."""
 
-from __future__ import annotations
-
 __all__ = [
     "fast_linregress",
     "fast_pearsonr",

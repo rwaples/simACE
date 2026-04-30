@@ -4,8 +4,6 @@ Validates simulation outputs for structural integrity, statistical properties,
 and heritability estimates.
 """
 
-from __future__ import annotations
-
 __all__ = [
     "compute_family_size_distribution",
     "compute_per_generation_stats",

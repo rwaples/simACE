@@ -1,7 +1,5 @@
 """Unit tests for simace.phenotyping.hazards."""
 
-from __future__ import annotations
-
 import numpy as np
 import pytest
 

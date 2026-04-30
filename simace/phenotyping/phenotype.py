@@ -15,8 +15,6 @@ Adding a new model is a single new file under
 ``simace/phenotyping/models/__init__.py``'s ``MODELS`` dict.
 """
 
-from __future__ import annotations
-
 __all__ = ["run_phenotype"]
 
 import argparse

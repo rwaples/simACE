@@ -1,7 +1,5 @@
 """Sanity checks on the atlas manifest registry."""
 
-from __future__ import annotations
-
 from simace.plotting.atlas_manifest import (
     MODEL_SECTION,
     PHENOTYPE_ATLAS,

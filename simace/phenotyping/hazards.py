@@ -23,8 +23,6 @@ Supported distributions and required ``params`` keys:
     "gamma"       : {"shape": k, "scale": theta}
 """
 
-from __future__ import annotations
-
 __all__ = [
     "BASELINE_HAZARDS",
     "BASELINE_PARAMS",

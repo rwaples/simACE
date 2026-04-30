@@ -1,7 +1,5 @@
 """Gather validation results from all scenarios into a single TSV file."""
 
-from __future__ import annotations
-
 __all__ = ["extract_metrics"]
 
 import argparse

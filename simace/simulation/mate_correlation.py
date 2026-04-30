@@ -8,8 +8,6 @@ validation and plotting code to compare observed vs. expected mate
 correlations. Change one, change the other.
 """
 
-from __future__ import annotations
-
 __all__ = ["expected_mate_corr_matrix"]
 
 import numpy as np

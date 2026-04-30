@@ -4,8 +4,6 @@ Each test calls the render/plot function with minimal inputs and asserts
 a matplotlib Figure is returned and no figures leak.
 """
 
-from __future__ import annotations
-
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np

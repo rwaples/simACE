@@ -1,7 +1,5 @@
 """Randomly drop individuals from a pedigree to simulate incomplete observation."""
 
-from __future__ import annotations
-
 __all__ = ["run_dropout"]
 
 import argparse

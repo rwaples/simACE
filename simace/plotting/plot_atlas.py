@@ -1,7 +1,5 @@
 """Assemble individual plots into a multi-page PDF atlas with figure captions."""
 
-from __future__ import annotations
-
 __all__ = [
     "assemble_atlas",
     "get_model_equation",

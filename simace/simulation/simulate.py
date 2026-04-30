@@ -9,8 +9,6 @@ Supports single-trait and two-trait (bivariate) modes with configurable
 cross-trait correlations for genetic (rA) and common environment (rC) components.
 """
 
-from __future__ import annotations
-
 __all__ = [
     "add_to_pedigree",
     "allocate_offspring",

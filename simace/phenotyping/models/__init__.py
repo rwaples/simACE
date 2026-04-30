@@ -13,8 +13,6 @@ The hand-authored dict is the single source of truth for which model names
 the dispatcher accepts.
 """
 
-from __future__ import annotations
-
 from simace.phenotyping.models._base import PhenotypeModel
 from simace.phenotyping.models.adult import AdultModel
 from simace.phenotyping.models.cure_frailty import CureFrailtyModel

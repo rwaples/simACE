@@ -14,8 +14,6 @@ Family structure (4 generations):
   Gen 3  *Proband*  MZ-twin  Full-sib  Pat-HS  Mat-HS  Cousin  2nd-Cousin
 """
 
-from __future__ import annotations
-
 __all__ = ["plot_pedigree_relationship_counts"]
 
 import argparse

@@ -6,8 +6,6 @@ Three models that produce bimodal age-of-onset distributions:
   3. two_threshold:        Two liability thresholds with separate CIP per stratum
 """
 
-from __future__ import annotations
-
 __all__ = [
     "phenotype_mixture_cip",
     "phenotype_mixture_cure_frailty",

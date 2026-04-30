@@ -15,8 +15,6 @@ The fitACE sister repo imports ``KNOWN_SIM_KEYS`` and ``flatten_hierarchical`` t
 load its own fit-domain overlays on top of sim-side scenarios.
 """
 
-from __future__ import annotations
-
 import glob
 import os
 import re

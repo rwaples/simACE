@@ -1,7 +1,5 @@
 """YAML serialization helpers: numpy → Python conversion and fast loader factory."""
 
-from __future__ import annotations
-
 __all__ = ["to_native", "yaml_loader"]
 
 from typing import Any

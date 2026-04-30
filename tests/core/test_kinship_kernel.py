@@ -6,8 +6,6 @@ previous matrix-product kinship path got wrong (returned 0.375 for the
 MZ off-diagonal instead of the correct (1 + F)/2 = 0.625).
 """
 
-from __future__ import annotations
-
 import numpy as np
 import scipy.sparse as sp
 
