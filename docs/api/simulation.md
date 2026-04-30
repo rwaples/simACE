@@ -8,3 +8,7 @@
 ## simulate
 
 ::: simace.simulation.simulate
+
+## mate_correlation
+
+::: simace.simulation.mate_correlation

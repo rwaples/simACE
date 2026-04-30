@@ -9,9 +9,21 @@
 
 ::: simace.core.schema
 
-## utils
+## parquet
 
-::: simace.core.utils
+::: simace.core.parquet
+
+## yaml_io
+
+::: simace.core.yaml_io
+
+## numerics
+
+::: simace.core.numerics
+
+## relationships
+
+::: simace.core.relationships
 
 ## pedigree_graph
 

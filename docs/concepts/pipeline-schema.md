@@ -47,7 +47,7 @@ additional fields without breaking the contract.
 
 Dtypes are checked at the kind level (`i`/`u` integer, `f` float, `b`
 bool) rather than exact dtypes. This tolerates the `int8`/`int32`/`float32`
-narrowing applied by [`optimize_dtypes`][simace.core.utils.optimize_dtypes]
+narrowing applied by [`save_parquet`][simace.core.parquet.save_parquet]
 at parquet save time — a column may arrive as `int32` in memory and round-trip
 as `int8` on disk without violating the contract — while still catching
 real-world regressions like a boolean column written as `int8`, a string
