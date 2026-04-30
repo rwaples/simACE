@@ -46,12 +46,12 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 ## Project Layout
 
 - `simace/` — simulation package (`pip install -e .`), organized into sub-packages:
-  - `core/` — shared infrastructure (utils, pedigree_graph, compute_hazard_terms, cli_base)
+  - `core/` — shared infrastructure: `pedigree_graph`, `compute_hazard_terms`, `cli_base`, `numerics`, `parquet`, `relationships`, `schema`, `yaml_io` (utils.py was split into intent-named modules)
   - `simulation/` — pedigree simulation
-  - `phenotyping/` — frailty/threshold phenotype models
+  - `phenotyping/` — phenotype models: `phenotype.py` (frailty), `threshold.py`, `hazards.py`, plus a `models/` sub-package of model classes inheriting from a `PhenotypeModel` ABC
   - `censoring/` — age-window and death censoring
   - `sampling/` — dropout and subsampling
-  - `analysis/` — stats, validation, gather
+  - `analysis/` — `stats/` (package: censoring, correlations, incidence, pedigree, sampling, tetrachoric, runner), `validate.py`, `gather.py`
   - `plotting/` — all plot modules and plot utilities
 - `workflow/rules/simace/*.smk` — Snakemake rules; `workflow/scripts/simace/` — thin script wrappers
 - `config/_default.yaml` — default parameters; `config/{folder}.yaml` — per-folder scenario files (auto-discovered; files starting with `_` are skipped)
@@ -75,7 +75,11 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 
 ## Documentation & Citations
 
-- When generating citations or DOI references, never fabricate details. Always verify every DOI and bibliographic entry against actual sources before including them.
+- Never generate citations, DOIs, author lists, journal names, years, page numbers, or any bibliographic field from memory. Memory recall of bib metadata is treated as fabrication.
+- Verify every entry against a live source before writing it: resolve `https://doi.org/<doi>` via WebFetch, or pull from Crossref/PubMed/publisher page. Confirm the DOI resolves AND that the returned title/authors/year match the citation you are about to write.
+- One verification per field set — do not extrapolate. If you verified the DOI but not the author list, the author list is still unverified.
+- If verification fails (DOI 404s, source unreachable, ambiguous match), do NOT write the entry. Insert a `% TODO: verify <what>` placeholder and tell the user which entries could not be verified.
+- Apply this to BibTeX, inline references in docs, citation comments in code, and prose mentions in notes. Same rule everywhere.
 
 ## Implementation Approach
 
