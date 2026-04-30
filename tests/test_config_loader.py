@@ -344,14 +344,12 @@ class TestGenCensoringCoercion:
                         "params": {"distribution": "weibull", "scale": 2000, "rho": 1.0},
                         "beta": 1.0,
                         "beta_sex": 0.0,
-                        "prevalence": 0.1,
                     },
                     "trait2": {
                         "model": "frailty",
                         "params": {"distribution": "weibull", "scale": 2000, "rho": 1.0},
                         "beta": 1.0,
                         "beta_sex": 0.0,
-                        "prevalence": 0.1,
                     },
                 },
                 "censoring": {
