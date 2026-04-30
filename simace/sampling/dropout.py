@@ -11,6 +11,7 @@ import time
 import numpy as np
 import pandas as pd
 
+from simace.core.schema import PEDIGREE, assert_schema
 from simace.core.utils import save_parquet
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ def run_dropout(pedigree: pd.DataFrame, params: dict) -> pd.DataFrame:
     Returns:
         DataFrame with dropped rows removed and dangling links severed.
     """
+    assert_schema(pedigree, PEDIGREE, where="dropout input")
     rate = float(params.get("pedigree_dropout_rate", 0))
     seed = int(params.get("seed", 42))
 

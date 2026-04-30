@@ -4,7 +4,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from simace.core.schema import CENSORED
 from simace.sampling.sample import run_sample
+from tests.conftest import schema_pad
 
 
 @pytest.fixture
@@ -12,7 +14,7 @@ def phenotype_df():
     """Create a minimal phenotype DataFrame for sampling tests."""
     rng = np.random.default_rng(42)
     n = 200
-    return pd.DataFrame(
+    df = pd.DataFrame(
         {
             "id": np.arange(n),
             "generation": np.repeat([3, 4, 5], [60, 70, 70]),
@@ -25,6 +27,7 @@ def phenotype_df():
             "affected2": rng.choice([True, False], n),
         }
     )
+    return schema_pad(df, CENSORED)
 
 
 @pytest.fixture
@@ -34,7 +37,7 @@ def phenotype_df_low_prevalence():
     n = 1000
     # ~10% cases
     affected1 = rng.random(n) < 0.10
-    return pd.DataFrame(
+    df = pd.DataFrame(
         {
             "id": np.arange(n),
             "generation": np.repeat([3, 4, 5], [300, 350, 350]),
@@ -47,6 +50,7 @@ def phenotype_df_low_prevalence():
             "affected2": rng.choice([True, False], n),
         }
     )
+    return schema_pad(df, CENSORED)
 
 
 class TestPassThrough:

@@ -1,6 +1,9 @@
 """Shared fixtures for simace test suite."""
 
+from collections.abc import Mapping
+
 import numpy as np
+import pandas as pd
 import pytest
 
 from simace.simulation.simulate import (
@@ -9,6 +12,25 @@ from simace.simulation.simulate import (
     reproduce,
     run_simulation,
 )
+
+
+def schema_pad(df: pd.DataFrame, schema: Mapping[str, str]) -> pd.DataFrame:
+    """Pad ``df`` with zero/false defaults for any columns required by ``schema``.
+
+    Lets unit-test fixtures stay focused on the columns under test while still
+    producing a frame that satisfies the pipeline-stage schema contract.
+    """
+    n = len(df)
+    for col, kinds in schema.items():
+        if col in df.columns:
+            continue
+        if "f" in kinds:
+            df[col] = np.zeros(n, dtype=np.float32)
+        elif "b" in kinds:
+            df[col] = np.zeros(n, dtype=bool)
+        else:
+            df[col] = np.zeros(n, dtype=np.int32)
+    return df
 
 
 @pytest.fixture

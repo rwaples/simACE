@@ -5,7 +5,9 @@ import pandas as pd
 import pytest
 
 from simace.core.pedigree_graph import PedigreeGraph
+from simace.core.schema import PEDIGREE
 from simace.sampling.dropout import run_dropout
+from tests.conftest import schema_pad
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -24,7 +26,7 @@ def small_pedigree():
     twins = [-1] * 20
     sex = [0, 1] * 10
     gens = [0] * 6 + [1] * 6 + [2] * 8
-    return pd.DataFrame(
+    df = pd.DataFrame(
         {
             "id": ids,
             "mother": mothers,
@@ -34,12 +36,13 @@ def small_pedigree():
             "generation": gens,
         }
     )
+    return schema_pad(df, PEDIGREE)
 
 
 @pytest.fixture
 def twin_pedigree():
     """A pedigree with one twin pair (IDs 4 and 5)."""
-    return pd.DataFrame(
+    df = pd.DataFrame(
         {
             "id": [0, 1, 2, 3, 4, 5],
             "mother": [-1, -1, 0, 0, 0, 0],
@@ -49,6 +52,7 @@ def twin_pedigree():
             "generation": [0, 0, 1, 1, 1, 1],
         }
     )
+    return schema_pad(df, PEDIGREE)
 
 
 @pytest.fixture
@@ -72,7 +76,7 @@ def large_pedigree():
         fathers[i] = rng.integers(0, n_founders)
         generation[i] = 1
 
-    return pd.DataFrame(
+    df = pd.DataFrame(
         {
             "id": ids,
             "mother": mothers,
@@ -82,6 +86,7 @@ def large_pedigree():
             "generation": generation,
         }
     )
+    return schema_pad(df, PEDIGREE)
 
 
 # ---------------------------------------------------------------------------

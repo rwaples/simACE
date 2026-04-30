@@ -11,6 +11,7 @@ import time
 import numpy as np
 import pandas as pd
 
+from simace.core.schema import CENSORED, assert_schema
 from simace.core.utils import save_parquet
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,7 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
         DataFrame with at most ``N_sample`` rows (or all rows if
         ``N_sample <= 0`` or ``N_sample >= len(phenotype)``).
     """
+    assert_schema(phenotype, CENSORED, where="sample input")
     n_total = len(phenotype)
     n_sample = int(params.get("N_sample", 0))
     seed = int(params.get("seed", 42))

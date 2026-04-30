@@ -26,6 +26,7 @@ from typing import Any
 
 import pandas as pd
 
+from simace.core.schema import PEDIGREE, PHENOTYPE, assert_schema
 from simace.core.utils import save_parquet
 from simace.phenotyping.models import MODELS
 
@@ -76,6 +77,7 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
         Phenotype DataFrame with columns ``t1``, ``t2`` (raw event times)
         plus the preserved pedigree columns.
     """
+    assert_schema(pedigree, PEDIGREE, where="phenotype input")
     logger.info("Running phenotype simulation for %d individuals", len(pedigree))
     t0 = time.perf_counter()
 
@@ -110,6 +112,7 @@ def run_phenotype(pedigree: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
         }
     )
 
+    assert_schema(phenotype, PHENOTYPE, where="phenotype output")
     logger.info(
         "Phenotype simulation complete in %.1fs: %d individuals",
         time.perf_counter() - t0,
