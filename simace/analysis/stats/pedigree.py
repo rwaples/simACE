@@ -8,7 +8,7 @@ import pandas as pd
 from simace.core.relationships import SEX_LEVELS
 
 
-def _offspring_count_dist(counts: pd.Series | np.ndarray, n: int) -> dict[str, float]:
+def _offspring_count_dist(counts: pd.Series, n: int) -> dict[str, float]:
     """Return ``{"0", "1", "2", "3", "4+"}`` proportions of ``counts`` over ``n``."""
     out = {"0": round(int((counts == 0).sum()) / n, 4)}
     for k in (1, 2, 3):

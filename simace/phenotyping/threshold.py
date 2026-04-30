@@ -80,9 +80,7 @@ def apply_threshold(
     affected = np.zeros(len(liability), dtype=bool)
     for gen in unique_gens:
         mask = generation == gen
-        L = liability[mask]
-        if standardize:
-            L = standardize_liability(L)
+        L = standardize_liability(liability[mask], standardize)
         prev = prevalence[int(gen)] if isinstance(prevalence, dict) else prevalence
         threshold = _ndtri_approx(1.0 - prev)
         affected[mask] = threshold <= L

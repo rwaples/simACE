@@ -188,26 +188,25 @@ def compute_cumulative_incidence_by_sex(
         return {}
 
     ages = np.linspace(0, censor_age, n_points)
+    sex = df["sex"].values
     result = {}
     for trait_num in [1, 2]:
         aff = df[f"affected{trait_num}"].values.astype(bool)
-        t_obs = df[f"t_observed{trait_num}"].values
-        sex = df["sex"].values
+        t_obs_aff = df[f"t_observed{trait_num}"].values[aff]
+        sex_aff = sex[aff]
 
         trait_result = {}
         for sex_val, sex_label in SEX_LEVELS:
-            mask = sex == sex_val
-            n_sex = int(mask.sum())
+            n_sex = int((sex == sex_val).sum())
             if n_sex == 0:
                 continue
-            aff_sex = aff[mask]
-            inc = _cumulative_curve(t_obs, ages, n_sex, mask=mask & aff)
-            prev = float(aff_sex.sum() / n_sex)
+            in_stratum_aff = sex_aff == sex_val
+            inc = _cumulative_curve(t_obs_aff, ages, n_sex, mask=in_stratum_aff)
             trait_result[sex_label] = {
                 "ages": ages.tolist(),
                 "values": inc.tolist(),
                 "n": n_sex,
-                "prevalence": prev,
+                "prevalence": float(in_stratum_aff.sum() / n_sex),
             }
         result[f"trait{trait_num}"] = trait_result
     return result
@@ -224,30 +223,29 @@ def compute_cumulative_incidence_by_sex_generation(
 
     ages = np.linspace(0, censor_age, n_points)
     generations = sorted(df["generation"].unique())
+    sex = df["sex"].values
+    gen_arr = df["generation"].values
     result = {}
     for trait_num in [1, 2]:
         aff = df[f"affected{trait_num}"].values.astype(bool)
-        t_obs = df[f"t_observed{trait_num}"].values
-        sex = df["sex"].values
-        gen_arr = df["generation"].values
+        t_obs_aff = df[f"t_observed{trait_num}"].values[aff]
+        sex_aff = sex[aff]
+        gen_aff = gen_arr[aff]
 
         trait_result: dict[str, Any] = {}
         for gen in generations:
             gen_result: dict[str, Any] = {}
-            gen_mask = gen_arr == gen
             for sex_val, sex_label in SEX_LEVELS:
-                mask = gen_mask & (sex == sex_val)
-                n_sex = int(mask.sum())
+                n_sex = int(((gen_arr == gen) & (sex == sex_val)).sum())
                 if n_sex == 0:
                     continue
-                aff_sex = aff[mask]
-                inc = _cumulative_curve(t_obs, ages, n_sex, mask=mask & aff)
-                prev = float(aff_sex.sum() / n_sex)
+                in_stratum_aff = (gen_aff == gen) & (sex_aff == sex_val)
+                inc = _cumulative_curve(t_obs_aff, ages, n_sex, mask=in_stratum_aff)
                 gen_result[sex_label] = {
                     "ages": ages.tolist(),
                     "values": inc.tolist(),
                     "n": n_sex,
-                    "prevalence": prev,
+                    "prevalence": float(in_stratum_aff.sum() / n_sex),
                 }
             trait_result[f"gen{int(gen)}"] = gen_result
         result[f"trait{trait_num}"] = trait_result

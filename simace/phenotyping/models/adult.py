@@ -167,7 +167,7 @@ class AdultModel(PhenotypeModel):
         sex: np.ndarray | None,
         standardize: bool,
     ) -> np.ndarray:
-        L = standardize_liability(liability) if standardize else liability
+        L = standardize_liability(liability, standardize)
 
         threshold = ndtri(1.0 - np.asarray(prevalence))
         is_case = threshold < L
@@ -198,7 +198,7 @@ class AdultModel(PhenotypeModel):
         standardize: bool,
     ) -> np.ndarray:
         rng = np.random.default_rng(seed)
-        L = standardize_liability(liability) if standardize else liability
+        L = standardize_liability(liability, standardize)
 
         n = len(L)
         neg_log_u = rng.exponential(size=n)

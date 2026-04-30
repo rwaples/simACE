@@ -179,7 +179,7 @@ BASELINE_PARAMS: dict[str, list[str]] = {
 
 
 # Union of every key any baseline distribution requires, plus exponential's
-# alternate ``scale``.  Shared by FrailtyModel and CureFrailtyModel CLI plumbing.
+# alternate ``scale``.
 HAZARD_FLAG_ROOTS: tuple[str, ...] = tuple(
     sorted({k for params in BASELINE_PARAMS.values() for k in params} | {"scale"})
 )
@@ -216,23 +216,24 @@ def add_hazard_cli_args(
     parser: argparse.ArgumentParser,
     trait: int,
     *,
-    kebab_prefix: str,
-    model_label: str,
+    name: str,
 ) -> argparse._ArgumentGroup:
-    """Register ``--{kebab_prefix}-distribution{trait}`` + one flag per HAZARD_FLAG_ROOTS.
+    """Register ``--{name}-distribution{trait}`` + one flag per HAZARD_FLAG_ROOTS.
 
+    ``name`` is the kebab-form model name (e.g. ``"frailty"``, ``"cure-frailty"``).
     Returns the argument group so callers can attach model-specific flags
     (e.g. cure_frailty's ``--cure-frailty-prevalence{trait}``).
     """
-    group = parser.add_argument_group(f"Trait {trait} — {model_label}")
+    attr_name = name.replace("-", "_")
+    group = parser.add_argument_group(f"Trait {trait} — {attr_name}")
     group.add_argument(
-        f"--{kebab_prefix}-distribution{trait}",
+        f"--{name}-distribution{trait}",
         default=None,
         choices=sorted(BASELINE_HAZARDS),
-        help=f"Baseline hazard for trait {trait} when phenotype-model{trait}={model_label}",
+        help=f"Baseline hazard for trait {trait} when phenotype-model{trait}={attr_name}",
     )
     for flag_root in HAZARD_FLAG_ROOTS:
-        group.add_argument(f"--{kebab_prefix}-{flag_root}{trait}", type=float, default=None)
+        group.add_argument(f"--{name}-{flag_root}{trait}", type=float, default=None)
     return group
 
 
@@ -240,51 +241,40 @@ def parse_hazard_cli(
     args: argparse.Namespace,
     trait: int,
     *,
-    attr_prefix: str,
-    kebab_prefix: str,
+    name: str,
 ) -> tuple[str, dict[str, float]]:
     """Pull hazard-distribution + per-param values from argparse ``Namespace``.
 
-    Returns ``(distribution, hazard_params)``.  Raises if the distribution flag
-    is missing or any required per-distribution param flag is unset.
+    ``name`` is the kebab-form model name; the snake form is derived for attribute lookup.
+    Returns ``(distribution, hazard_params)``.  Raises if the distribution flag is missing
+    or any required per-distribution param flag is unset.
     """
-    distribution = getattr(args, f"{attr_prefix}_distribution{trait}")
+    attr_name = name.replace("-", "_")
+    distribution = getattr(args, f"{attr_name}_distribution{trait}")
     if distribution is None:
-        raise ValueError(
-            f"--{kebab_prefix}-distribution{trait} is required when --phenotype-model{trait}={attr_prefix}"
-        )
+        raise ValueError(f"--{name}-distribution{trait} is required when --phenotype-model{trait}={attr_name}")
     hazard_params: dict[str, float] = {}
     for key in BASELINE_PARAMS[distribution]:
-        val = getattr(args, f"{attr_prefix}_{key}{trait}", None)
+        val = getattr(args, f"{attr_name}_{key}{trait}", None)
         if val is None:
-            raise ValueError(
-                f"--{kebab_prefix}-{key}{trait} is required for --{kebab_prefix}-distribution{trait}={distribution}"
-            )
+            raise ValueError(f"--{name}-{key}{trait} is required for --{name}-distribution{trait}={distribution}")
         hazard_params[key] = val
     return distribution, hazard_params
 
 
-def hazard_cli_flag_attrs(trait: int, *, attr_prefix: str) -> set[str]:
+def hazard_cli_flag_attrs(trait: int, *, name: str) -> set[str]:
     """Return the argparse attrs registered by ``add_hazard_cli_args``."""
-    attrs = {f"{attr_prefix}_distribution{trait}"}
-    attrs.update(f"{attr_prefix}_{root}{trait}" for root in HAZARD_FLAG_ROOTS)
+    attr_name = name.replace("-", "_")
+    attrs = {f"{attr_name}_distribution{trait}"}
+    attrs.update(f"{attr_name}_{root}{trait}" for root in HAZARD_FLAG_ROOTS)
     return attrs
 
 
-def standardize_liability(liability: np.ndarray) -> np.ndarray:
-    """Mean-center and (when possible) scale liability to unit variance.
-
-    When ``std(liability) > 0``, returns ``(L - mean) / std``.  When the
-    input has zero variance (degenerate edge case, unreachable on real
-    sims), returns ``L - mean`` (a vector of zeros) — a defined fallback
-    that keeps downstream threshold comparisons well-typed.
-    """
-    mean = liability.mean()
-    centered = liability - mean
-    std = liability.std()
-    if std > 0:
-        return centered / std
-    return centered
+def standardize_liability(liability: np.ndarray, standardize: bool = True) -> np.ndarray:
+    """Mean-center and scale liability to unit variance when ``standardize`` is True."""
+    if not standardize:
+        return liability
+    return (liability - liability.mean()) / liability.std()
 
 
 def standardize_beta(liability: np.ndarray, beta: float, standardize: bool) -> tuple[float, float]:

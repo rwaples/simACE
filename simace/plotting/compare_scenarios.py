@@ -1121,14 +1121,10 @@ def load_pedigree_estimates_per_generation(
     if gens is None:
         gens = sorted(int(g) for g in df_full["generation"].unique())
 
-    # Build the full graph and extract pairs once; per-generation cohorts come
-    # from filtering the full pair set by gen mask (same idea used in
-    # ``correlations.py:compute_tetrachoric_by_generation``).
     pairs_full = PedigreeGraph(df_full).extract_pairs(max_degree=1)
     gen_arr = df_full["generation"].to_numpy()
     liab_full = df_full[f"liability{trait}"].to_numpy()
-    # Promote to float64 so np.var matches pandas Series.var (which promotes
-    # internally) — A/C/E columns are stored as float32 (parquet narrowing).
+    # float64 to match pandas Series.var(ddof=1) precision used previously.
     A_full = df_full[f"A{trait}"].to_numpy(dtype=np.float64)
     C_full = df_full[f"C{trait}"].to_numpy(dtype=np.float64)
     E_full = df_full[f"E{trait}"].to_numpy(dtype=np.float64)
@@ -1150,9 +1146,10 @@ def load_pedigree_estimates_per_generation(
             continue
 
         cohort_corrs: dict[str, tuple[float, int]] = {}
+        # MZ + FS are within-generation by construction; gen_mask[idx1] alone is sufficient.
         for code in ("MZ", "FS"):
             idx1, idx2 = pairs_full.get(code, (np.array([]), np.array([])))
-            pair_mask = gen_mask[idx1] & gen_mask[idx2]
+            pair_mask = gen_mask[idx1]
             idx1_g, idx2_g = idx1[pair_mask], idx2[pair_mask]
             n_pairs = len(idx1_g)
             if n_pairs < 10:

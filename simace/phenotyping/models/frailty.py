@@ -79,13 +79,13 @@ class FrailtyModel(PhenotypeModel):
 
     @classmethod
     def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:
-        add_hazard_cli_args(parser, trait, kebab_prefix="frailty", model_label="frailty")
+        add_hazard_cli_args(parser, trait, name="frailty")
 
     @classmethod
     def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
         check_no_foreign_flags(cls, args, trait)
         with wrap_trait_error(trait):
-            distribution, hazard_params = parse_hazard_cli(args, trait, attr_prefix="frailty", kebab_prefix="frailty")
+            distribution, hazard_params = parse_hazard_cli(args, trait, name="frailty")
             return cls(
                 distribution=distribution,
                 hazard_params=hazard_params,
@@ -95,7 +95,7 @@ class FrailtyModel(PhenotypeModel):
 
     @classmethod
     def cli_flag_attrs(cls, trait: int) -> set[str]:
-        return hazard_cli_flag_attrs(trait, attr_prefix="frailty")
+        return hazard_cli_flag_attrs(trait, name="frailty")
 
     def to_params_dict(self) -> dict[str, Any]:
         return {"distribution": self.distribution, **self.hazard_params}

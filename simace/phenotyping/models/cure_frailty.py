@@ -88,16 +88,14 @@ class CureFrailtyModel(PhenotypeModel):
 
     @classmethod
     def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:
-        group = add_hazard_cli_args(parser, trait, kebab_prefix="cure-frailty", model_label="cure_frailty")
+        group = add_hazard_cli_args(parser, trait, name="cure-frailty")
         group.add_argument(f"--cure-frailty-prevalence{trait}", type=float, default=None)
 
     @classmethod
     def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
         check_no_foreign_flags(cls, args, trait)
         with wrap_trait_error(trait):
-            distribution, hazard_params = parse_hazard_cli(
-                args, trait, attr_prefix="cure_frailty", kebab_prefix="cure-frailty"
-            )
+            distribution, hazard_params = parse_hazard_cli(args, trait, name="cure-frailty")
             prevalence = getattr(args, f"cure_frailty_prevalence{trait}")
             if prevalence is None:
                 raise ValueError(
@@ -113,7 +111,7 @@ class CureFrailtyModel(PhenotypeModel):
 
     @classmethod
     def cli_flag_attrs(cls, trait: int) -> set[str]:
-        return hazard_cli_flag_attrs(trait, attr_prefix="cure_frailty") | {f"cure_frailty_prevalence{trait}"}
+        return hazard_cli_flag_attrs(trait, name="cure-frailty") | {f"cure_frailty_prevalence{trait}"}
 
     def to_params_dict(self) -> dict[str, Any]:
         return {"distribution": self.distribution, "prevalence": self.prevalence, **self.hazard_params}
@@ -136,7 +134,7 @@ class CureFrailtyModel(PhenotypeModel):
 
         mean, scaled_beta = standardize_beta(liability, self.beta, standardize)
 
-        L = standardize_liability(liability) if standardize else liability
+        L = standardize_liability(liability, standardize)
 
         threshold = ndtri(1.0 - np.asarray(prevalence))
         is_case = threshold < L
