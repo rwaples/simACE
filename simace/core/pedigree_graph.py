@@ -23,7 +23,7 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple
 
 import numpy as np
 import scipy.sparse as sp
@@ -186,14 +186,6 @@ class PedigreeGraph:
         t0 = time.perf_counter()
         result = self._Am + self._Af
         logger.debug("_A (Am + Af) computed in %.3fs", time.perf_counter() - t0)
-        return result
-
-    @cached_property
-    def _S(self):
-        """Shared-any-parent matrix: A @ A.T."""
-        t0 = time.perf_counter()
-        result = self._A @ self._A.T
-        logger.debug("_S = A @ A.T computed in %.3fs (nnz=%d)", time.perf_counter() - t0, result.nnz)
         return result
 
     @cached_property
@@ -910,10 +902,6 @@ class PedigreeGraph:
                 if code not in pairs:
                     pairs[code] = (empty, empty)
 
-            # _S is a cached_property but currently has no consumers;
-            # free it if it was triggered by other code.
-            self.__dict__.pop("_S", None)
-
             logger.info(
                 "Degree 4: GGGP=%d, HGAv=%d, GGAv=%d, H1C=%d, 1C1R=%d (%.3fs)",
                 len(pairs["GGGP"][0]),
@@ -1058,13 +1046,15 @@ class PedigreeGraph:
 
         # Free all cached sparse matrices — only pair arrays and count caches
         # are needed after this point.
-        for attr in ("_A", "_A2", "_A3", "_A4", "_A5", "_S", "_A2_shared", "_full_sib_matrix", "_half_sib_matrix"):
+        for attr in ("_A", "_A2", "_A3", "_A4", "_A5", "_A2_shared", "_full_sib_matrix", "_half_sib_matrix"):
             self.__dict__.pop(attr, None)
 
         logger.info("extract_pairs total: %.3fs", time.perf_counter() - t_total)
         return pairs
 
-    def count_pairs(self, max_degree: int = 2, scope: str = "subsample") -> dict[str, int]:
+    def count_pairs(
+        self, max_degree: int = 2, scope: Literal["subsample", "full"] = "subsample"
+    ) -> dict[str, int]:
         """Count all relationship categories.
 
         If ``extract_pairs()`` was already called on this instance, returns

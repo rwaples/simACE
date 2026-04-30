@@ -108,23 +108,21 @@ def compute_parent_status(
     if "mother" not in df.columns or "father" not in df.columns:
         return {}
 
-    pheno_ids = set(df["id"].values)
+    pheno_ids = df["id"].to_numpy()
     mothers = df["mother"].values
     fathers = df["father"].values
 
-    # Parents phenotyped
-    m_pheno = np.isin(mothers, list(pheno_ids)) & (mothers != -1)
-    f_pheno = np.isin(fathers, list(pheno_ids)) & (fathers != -1)
+    m_pheno = np.isin(mothers, pheno_ids) & (mothers != -1)
+    f_pheno = np.isin(fathers, pheno_ids) & (fathers != -1)
     n_parents_pheno = m_pheno.astype(int) + f_pheno.astype(int)
     result: dict[str, Any] = {
         "phenotyped": {str(k): int((n_parents_pheno == k).sum()) for k in [0, 1, 2]},
     }
 
-    # Parents in pedigree
     if df_ped is not None:
-        ped_ids = set(df_ped["id"].values)
-        m_ped = np.isin(mothers, list(ped_ids)) & (mothers != -1)
-        f_ped = np.isin(fathers, list(ped_ids)) & (fathers != -1)
+        ped_ids = df_ped["id"].to_numpy()
+        m_ped = np.isin(mothers, ped_ids) & (mothers != -1)
+        f_ped = np.isin(fathers, ped_ids) & (fathers != -1)
         n_parents_ped = m_ped.astype(int) + f_ped.astype(int)
         result["in_pedigree"] = {str(k): int((n_parents_ped == k).sum()) for k in [0, 1, 2]}
 

@@ -39,8 +39,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import yaml
-from scipy import stats as sci_stats
 
+from simace.core.numerics import safe_corrcoef, safe_linregress
 from simace.core.pedigree_graph import PedigreeGraph
 from simace.core.relationships import PAIR_TYPES
 from simace.plotting.plot_style import (
@@ -400,7 +400,7 @@ def load_pedigree_estimates(
         if len(idx1) < 10:
             corrs[ptype] = float("nan")
         else:
-            corrs[ptype] = float(np.corrcoef(liab[idx1], liab[idx2])[0, 1])
+            corrs[ptype] = safe_corrcoef(liab[idx1], liab[idx2])
 
     # Midparent-offspring regression: offspring from filtered subset, parent
     # liabilities looked up in the full pedigree (may be pre-filter).
@@ -412,9 +412,9 @@ def load_pedigree_estimates(
         offspring = sub[f"liability{trait}"].to_numpy()
         midparent = (mother_liab + father_liab) / 2.0
         mask = np.isfinite(midparent) & np.isfinite(offspring)
-        if mask.sum() >= 10 and np.var(midparent[mask]) > 0:
-            reg = sci_stats.linregress(midparent[mask], offspring[mask])
-            po_slope = float(reg.slope)
+        if mask.sum() >= 10:
+            reg = safe_linregress(midparent[mask], offspring[mask])
+            po_slope = float(reg.slope) if reg is not None else float("nan")
         else:
             po_slope = float("nan")
     else:
@@ -731,7 +731,7 @@ def compare_sib_liability_scatter(
         if liab_a.size == 0:
             continue
         color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
-        r = float(np.corrcoef(liab_a, liab_b)[0, 1])
+        r = safe_corrcoef(liab_a, liab_b)
         # Regression through (mean_a, mean_b) with slope = r * (sd_b/sd_a).
         mean_a, mean_b = float(liab_a.mean()), float(liab_b.mean())
         sd_a = float(liab_a.std(ddof=1))
@@ -1147,7 +1147,7 @@ def load_pedigree_estimates_per_generation(
             if n_pairs < 10:
                 cohort_corrs[code] = (float("nan"), n_pairs)
             else:
-                cohort_corrs[code] = (float(np.corrcoef(liab[idx1], liab[idx2])[0, 1]), n_pairs)
+                cohort_corrs[code] = (safe_corrcoef(liab[idx1], liab[idx2]), n_pairs)
         r_mz, n_mz = cohort_corrs["MZ"]
         r_fs, n_fs = cohort_corrs["FS"]
 

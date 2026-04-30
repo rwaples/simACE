@@ -45,6 +45,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from simace.core.numerics import safe_corrcoef
+
 # ---------------------------------------------------------------------------
 # Vendored from fitace.epimight.create_parquet (kept in sync as of 2026-04)
 # ---------------------------------------------------------------------------
@@ -164,8 +166,8 @@ def build_epimight_inputs(phenotype_path: Path, output_dir: Path) -> None:
         truth = {
             "h2_trait1_true": float(np.var(df["A1"]) / np.var(L1)),
             "h2_trait2_true": float(np.var(df["A2"]) / np.var(L2)),
-            "genetic_correlation_true": float(np.corrcoef(df["A1"], df["A2"])[0, 1]),
-            "phenotypic_correlation_true": float(np.corrcoef(L1, L2)[0, 1]),
+            "genetic_correlation_true": safe_corrcoef(df["A1"].to_numpy(), df["A2"].to_numpy()),
+            "phenotypic_correlation_true": safe_corrcoef(L1.to_numpy(), L2.to_numpy()),
         }
         truth_path = output_dir / "true_parameters.json"
         truth_path.write_text(json.dumps(truth, indent=2))
