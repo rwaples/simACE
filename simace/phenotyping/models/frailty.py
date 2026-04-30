@@ -14,9 +14,12 @@ import numpy as np
 
 from simace.phenotyping.hazards import (
     BASELINE_HAZARDS,
-    BASELINE_PARAMS,
+    add_hazard_cli_args,
     compute_event_times,
+    hazard_cli_flag_attrs,
+    parse_hazard_cli,
     standardize_beta,
+    validate_hazard_params,
 )
 from simace.phenotyping.models._base import (
     PhenotypeModel,
@@ -27,15 +30,7 @@ from simace.phenotyping.models._base import (
 if TYPE_CHECKING:
     import argparse
 
-__all__ = ["HAZARD_FLAG_ROOTS", "FrailtyModel"]
-
-
-# Hazard-parameter flag roots, shared by FrailtyModel and CureFrailtyModel.
-# Union of every key any baseline distribution requires, plus exponential's
-# alternate ``scale``.
-HAZARD_FLAG_ROOTS: tuple[str, ...] = tuple(
-    sorted({k for params in BASELINE_PARAMS.values() for k in params} | {"scale"})
-)
+__all__ = ["FrailtyModel"]
 
 
 @dataclass(frozen=True)
@@ -57,17 +52,7 @@ class FrailtyModel(PhenotypeModel):
     name: ClassVar[str] = "frailty"
 
     def __post_init__(self) -> None:
-        if self.distribution not in BASELINE_HAZARDS:
-            raise ValueError(f"unknown frailty distribution {self.distribution!r}; valid: {sorted(BASELINE_HAZARDS)}")
-        required = set(BASELINE_PARAMS[self.distribution])
-        # Exponential accepts either "rate" or "scale".
-        if self.distribution == "exponential" and "scale" in self.hazard_params:
-            required = (required - {"rate"}) | {"scale"}
-        missing = required - set(self.hazard_params)
-        if missing:
-            raise ValueError(
-                f"frailty distribution {self.distribution!r} missing required hazard params: {sorted(missing)}"
-            )
+        validate_hazard_params(self.distribution, self.hazard_params, model_name="frailty")
         if not np.isfinite(self.beta):
             raise ValueError(f"beta must be finite, got {self.beta}")
 
@@ -94,32 +79,15 @@ class FrailtyModel(PhenotypeModel):
 
     @classmethod
     def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:
-        group = parser.add_argument_group(f"Trait {trait} — frailty")
-        group.add_argument(
-            f"--frailty-distribution{trait}",
-            default=None,
-            choices=sorted(BASELINE_HAZARDS),
-            help=f"Baseline hazard for trait {trait} when phenotype-model{trait}=frailty",
-        )
-        for flag_root in HAZARD_FLAG_ROOTS:
-            group.add_argument(f"--frailty-{flag_root}{trait}", type=float, default=None)
+        add_hazard_cli_args(parser, trait, kebab_prefix="frailty", model_label="frailty")
 
     @classmethod
     def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
         check_no_foreign_flags(cls, args, trait)
         with wrap_trait_error(trait):
-            distribution = getattr(args, f"frailty_distribution{trait}")
-            if distribution is None:
-                raise ValueError(f"--frailty-distribution{trait} is required when --phenotype-model{trait}=frailty")
-            required = list(BASELINE_PARAMS[distribution])
-            hazard_params: dict[str, float] = {}
-            for key in required:
-                val = getattr(args, f"frailty_{key}{trait}", None)
-                if val is None:
-                    raise ValueError(
-                        f"--frailty-{key}{trait} is required for --frailty-distribution{trait}={distribution}"
-                    )
-                hazard_params[key] = val
+            distribution, hazard_params = parse_hazard_cli(
+                args, trait, attr_prefix="frailty", kebab_prefix="frailty"
+            )
             return cls(
                 distribution=distribution,
                 hazard_params=hazard_params,
@@ -129,9 +97,7 @@ class FrailtyModel(PhenotypeModel):
 
     @classmethod
     def cli_flag_attrs(cls, trait: int) -> set[str]:
-        attrs = {f"frailty_distribution{trait}"}
-        attrs.update(f"frailty_{root}{trait}" for root in HAZARD_FLAG_ROOTS)
-        return attrs
+        return hazard_cli_flag_attrs(trait, attr_prefix="frailty")
 
     def to_params_dict(self) -> dict[str, Any]:
         return {"distribution": self.distribution, **self.hazard_params}

@@ -3,9 +3,8 @@
 import logging
 from pathlib import Path
 
-import yaml
-
 from simace import _snakemake_tag, setup_logging
+from simace.core.yaml_io import load_yaml
 from simace.plotting.atlas_manifest import build_phenotype_atlas
 from simace.plotting.plot_atlas import assemble_atlas
 
@@ -20,8 +19,7 @@ def _run_snakemake():
     output_path = Path(snakemake.output[0])
     plot_dir = phenotype_paths[0].parent
 
-    with open(snakemake.input.params_yaml, encoding="utf-8") as fh:
-        scenario_params = yaml.safe_load(fh)
+    scenario_params = load_yaml(snakemake.input.params_yaml)
 
     # Merge in config-level parameters not present in params.yaml
     extra_keys = [
@@ -57,10 +55,7 @@ def _run_snakemake():
     items = build_phenotype_atlas(scenario_params)
 
     # Load per-rep phenotype stats for Table 1
-    all_stats = []
-    for stats_path in snakemake.input.stats:
-        with open(stats_path, encoding="utf-8") as fh:
-            all_stats.append(yaml.safe_load(fh))
+    all_stats = [load_yaml(stats_path) for stats_path in snakemake.input.stats]
 
     assemble_atlas(
         items,
@@ -93,14 +88,10 @@ if __name__ == "__main__":
 
         scenario_params = None
         if args.params_yaml:
-            with open(args.params_yaml, encoding="utf-8") as fh:
-                scenario_params = yaml.safe_load(fh)
+            scenario_params = load_yaml(args.params_yaml)
             scenario_params["scenario"] = args.scenario
 
-        all_stats = []
-        for sp in args.stats:
-            with open(sp, encoding="utf-8") as fh:
-                all_stats.append(yaml.safe_load(fh))
+        all_stats = [load_yaml(sp) for sp in args.stats]
 
         items = build_phenotype_atlas(scenario_params)
         assemble_atlas(

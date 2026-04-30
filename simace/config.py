@@ -20,7 +20,7 @@ import os
 import re
 from pathlib import Path
 
-import yaml
+from simace.core.yaml_io import load_yaml
 
 # ---------------------------------------------------------------------------
 # Hierarchical config → flat internal key mapping (sim domain only)
@@ -191,14 +191,19 @@ def _coerce_sim_types(flat: dict) -> dict:
 
     YAML loads dict keys as their scalar type, so unquoted ``0:`` parses as
     ``int`` but a quoted ``'0':`` parses as ``str``.  Sim-domain code expects
-    integer generation keys for ``gen_censoring``; coerce here so wrappers
-    and rules don't need to know about the YAML quirk.
+    integer generation keys for ``gen_censoring`` and the per-generation
+    variance-component dicts (``A1``, ``A2``, ``C1``, ``C2``, ``E1``, ``E2``);
+    coerce here so wrappers and rules don't need to know about the YAML quirk.
 
     Idempotent: safe to call on values that already have the expected types.
     """
     gen_censoring = flat.get("gen_censoring")
     if gen_censoring:
         flat["gen_censoring"] = {int(k): v for k, v in gen_censoring.items()}
+    for key in ("A1", "A2", "C1", "C2", "E1", "E2"):
+        value = flat.get(key)
+        if isinstance(value, dict):
+            flat[key] = {int(gen): v for gen, v in value.items()}
     return flat
 
 
@@ -303,8 +308,7 @@ def resolve_defaults(config_dir: Path | str) -> dict:
         Flat defaults dict (flattened per the sim-domain mapping).
     """
     config_dir = Path(config_dir)
-    with open(config_dir / "_default.yaml") as fh:
-        raw = yaml.safe_load(fh)
+    raw = load_yaml(config_dir / "_default.yaml")
     return _coerce_sim_types(flatten_hierarchical(raw["defaults"]))
 
 
@@ -342,8 +346,7 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
         if not _FOLDER_PATTERN.match(folder):
             raise ValueError(f"Invalid folder name '{folder}' from {path}. Must match [a-zA-Z0-9_]+")
 
-        with open(path) as fh:
-            file_scenarios = yaml.safe_load(fh)
+        file_scenarios = load_yaml(path)
         if file_scenarios is None:
             continue
 

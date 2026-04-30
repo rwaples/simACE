@@ -60,7 +60,6 @@ def main(
     samples_output: str,
     seed: int = 42,
     gen_censoring: dict[int, list[float]] | None = None,
-    frailty_params: dict[str, dict[str, Any]] | None = None,
     pedigree_path: str | None = None,
     max_degree: int = 2,
     case_ascertainment_ratio: float = 1.0,
@@ -184,39 +183,8 @@ def cli() -> None:
         help="Maximum kinship degree for pair extraction (1-5, default 2)",
     )
 
-    # Trait 1 frailty params
-    parser.add_argument("--beta1", type=float, default=None)
-    parser.add_argument("--phenotype-model1", default=None)
-    parser.add_argument(
-        "--phenotype-params1", type=str, default=None, help='JSON dict, e.g. \'{"scale": 2160, "rho": 0.8}\''
-    )
-
-    # Trait 2 frailty params
-    parser.add_argument("--beta2", type=float, default=None)
-    parser.add_argument("--phenotype-model2", default=None)
-    parser.add_argument("--phenotype-params2", type=str, default=None)
-
     args = parser.parse_args()
     init_logging(args)
-
-    frailty_params = None
-    if args.beta1 is not None and args.phenotype_model1 == "frailty" and args.phenotype_params1:
-        pp1 = json.loads(args.phenotype_params1)
-        pp2 = json.loads(args.phenotype_params2) if args.phenotype_params2 else {}
-        frailty_params = {
-            "trait1": {
-                "beta": args.beta1,
-                "hazard_model": pp1.get("distribution", ""),
-                "hazard_params": {k: v for k, v in pp1.items() if k != "distribution"},
-            },
-            "trait2": {
-                "beta": args.beta2,
-                "hazard_model": pp2.get("distribution", ""),
-                "hazard_params": {k: v for k, v in pp2.items() if k != "distribution"},
-            }
-            if args.phenotype_model2 == "frailty"
-            else {},
-        }
 
     gen_censoring = None
     if args.gen_censoring:
@@ -229,7 +197,6 @@ def cli() -> None:
         args.samples_output,
         seed=args.seed,
         gen_censoring=gen_censoring,
-        frailty_params=frailty_params,
         pedigree_path=args.pedigree,
         max_degree=args.max_degree,
     )

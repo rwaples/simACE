@@ -22,8 +22,6 @@ from simace.plotting.atlas_manifest import phenotype_basenames, validation_basen
 # Re-export names used directly by Snakemake rule files and existing tests.
 __all__ = [
     "KNOWN_SIM_KEYS",
-    "_PHENOTYPE_BASENAMES",
-    "_VALIDATION_BASENAMES",
     "_scale_mem",
     "_scale_runtime",
     "flatten_hierarchical",
@@ -34,9 +32,11 @@ __all__ = [
     "get_scenario_sim_outputs",
     "get_scenarios_for_folder",
     "load_folder_configs",
+    "phenotype_basenames",
     "plot_filenames",
     "resolve_defaults",
     "resolve_scenarios",
+    "validation_basenames",
 ]
 
 
@@ -71,15 +71,6 @@ def _scale_runtime(config: dict, scenario: str, gen_key: str = "G_pheno", min_pe
     return max(floor, int(n * g * min_per_1M / 1_000_000))
 
 
-# -- Plot filename basenames (without extension) --
-#
-# Re-exported for the root Snakefile and external callers. The single
-# source of truth for ordering, captions, and section breaks now lives in
-# ``simace.plotting.atlas_manifest`` — adding a plot is one entry there.
-_PHENOTYPE_BASENAMES = phenotype_basenames()
-_VALIDATION_BASENAMES = validation_basenames()
-
-
 def plot_filenames(basenames: list[str], ext: str = "png") -> list[str]:
     """Return plot filenames by appending the given extension to each basename."""
     return [f"{name}.{ext}" for name in basenames]
@@ -97,7 +88,7 @@ def get_scenario_sim_outputs(config: dict, scenario: str, plot_ext: str = "png")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml")
     outputs.extend(
-        f"results/{folder}/{scenario}/plots/{plot}" for plot in plot_filenames(_PHENOTYPE_BASENAMES, plot_ext)
+        f"results/{folder}/{scenario}/plots/{plot}" for plot in plot_filenames(phenotype_basenames(), plot_ext)
     )
     outputs.append(f"results/{folder}/{scenario}/plots/atlas.pdf")
     return outputs

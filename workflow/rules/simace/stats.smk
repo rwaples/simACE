@@ -26,12 +26,6 @@ rule stats_phenotype:
         case_ascertainment_ratio=lambda w: get_param(
             config, w.scenario, "case_ascertainment_ratio"
         ),
-        beta1=lambda w: get_param(config, w.scenario, "beta1"),
-        phenotype_model1=lambda w: get_param(config, w.scenario, "phenotype_model1"),
-        phenotype_params1=lambda w: get_param(config, w.scenario, "phenotype_params1"),
-        beta2=lambda w: get_param(config, w.scenario, "beta2"),
-        phenotype_model2=lambda w: get_param(config, w.scenario, "phenotype_model2"),
-        phenotype_params2=lambda w: get_param(config, w.scenario, "phenotype_params2"),
     script:
         "../../scripts/simace/compute_phenotype_stats.py"
 

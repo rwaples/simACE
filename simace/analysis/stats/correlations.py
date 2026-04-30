@@ -15,8 +15,7 @@ import numpy as np
 
 from simace.core._numba_utils import _pearsonr_core
 from simace.core.numerics import fast_linregress, safe_corrcoef
-from simace.core.pedigree_graph import PedigreeGraph
-from simace.core.relationships import PAIR_TYPES
+from simace.core.relationships import PAIR_TYPES, SEX_LEVELS
 
 from .tetrachoric import _tetrachoric_for_pairs, tetrachoric_corr_se
 
@@ -27,20 +26,19 @@ if TYPE_CHECKING:
 def compute_liability_correlations(
     df: pd.DataFrame,
     seed: int = 42,
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
+    *,
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> dict[str, Any]:
     """Compute Pearson liability correlations per pair type and trait.
 
     Args:
         df: Phenotype DataFrame with liability columns.
         seed: Random seed (unused, kept for API consistency).
-        pairs: Pre-extracted relationship pairs; extracted if None.
+        pairs: Pre-extracted relationship pairs.
 
     Returns:
         Dict keyed by ``trait1``/``trait2``, each mapping pair type to correlation.
     """
-    if pairs is None:
-        pairs = PedigreeGraph(df).extract_pairs()
     result = {}
     for trait_num in [1, 2]:
         liability = df[f"liability{trait_num}"].values
@@ -55,7 +53,8 @@ def compute_liability_correlations(
 def compute_affected_correlations(
     df: pd.DataFrame,
     seed: int = 42,
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
+    *,
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> dict[str, Any]:
     """Compute Pearson correlations on binary affected status per pair type and trait.
 
@@ -65,14 +64,12 @@ def compute_affected_correlations(
     Args:
         df: Phenotype DataFrame with ``affected{1,2}`` columns.
         seed: Random seed (unused, kept for API consistency).
-        pairs: Pre-extracted relationship pairs; extracted if None.
+        pairs: Pre-extracted relationship pairs.
 
     Returns:
         Dict keyed by ``trait1``/``trait2``, each mapping pair type to phi r or
         None (if fewer than 10 pairs, or either side is constant).
     """
-    if pairs is None:
-        pairs = PedigreeGraph(df).extract_pairs()
     result = {}
     for trait_num in [1, 2]:
         affected = df[f"affected{trait_num}"].values.astype(np.float64)
@@ -91,21 +88,20 @@ def compute_affected_correlations(
 def compute_tetrachoric(
     df: pd.DataFrame,
     seed: int = 42,
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
+    *,
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> dict[str, Any]:
     """Compute tetrachoric correlations per pair type and trait.
 
     Args:
         df: Phenotype DataFrame with binary affection columns.
         seed: Random seed (unused, kept for API consistency).
-        pairs: Pre-extracted relationship pairs; extracted if None.
+        pairs: Pre-extracted relationship pairs.
 
     Returns:
         Dict keyed by ``trait1``/``trait2``, each mapping pair type to
         ``{r, se, n_pairs}``.
     """
-    if pairs is None:
-        pairs = PedigreeGraph(df).extract_pairs()
     result = {}
     for trait_num in [1, 2]:
         affected = df[f"affected{trait_num}"].values.astype(bool)
@@ -120,14 +116,15 @@ def compute_tetrachoric(
 def compute_tetrachoric_by_generation(
     df: pd.DataFrame,
     seed: int = 42,
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
+    *,
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> dict[str, Any]:
     """Compute tetrachoric correlations stratified by generation.
 
     Args:
         df: Phenotype DataFrame with generation and affection columns.
         seed: Random seed (unused, kept for API consistency).
-        pairs: Pre-extracted relationship pairs; extracted if None.
+        pairs: Pre-extracted relationship pairs.
 
     Returns:
         Dict keyed by ``gen{N}``, each containing per-trait per-pair-type
@@ -135,8 +132,6 @@ def compute_tetrachoric_by_generation(
     """
     if "generation" not in df.columns:
         return {}
-    if pairs is None:
-        pairs = PedigreeGraph(df).extract_pairs()
     gen_arr = df["generation"].values
     max_gen = int(gen_arr.max())
     plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
@@ -159,7 +154,8 @@ def compute_tetrachoric_by_generation(
 def compute_cross_trait_tetrachoric(
     df: pd.DataFrame,
     seed: int = 42,
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
+    *,
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> dict[str, Any]:
     """Compute cross-trait tetrachoric correlations (trait 1 vs trait 2).
 
@@ -169,14 +165,12 @@ def compute_cross_trait_tetrachoric(
     Args:
         df: Phenotype DataFrame with binary affection columns for both traits.
         seed: Random seed (unused, kept for API consistency).
-        pairs: Pre-extracted relationship pairs; extracted if None.
+        pairs: Pre-extracted relationship pairs.
 
     Returns:
         Dict with keys ``same_person``, ``same_person_by_generation``,
         and ``cross_person``.
     """
-    if pairs is None:
-        pairs = PedigreeGraph(df).extract_pairs()
     a1 = df["affected1"].values.astype(bool)
     a2 = df["affected2"].values.astype(bool)
     r_sp, se_sp = tetrachoric_corr_se(a1, a2)
@@ -225,18 +219,17 @@ def compute_cross_trait_tetrachoric(
 def compute_tetrachoric_by_sex(
     df: pd.DataFrame,
     seed: int = 42,
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]] | None = None,
+    *,
+    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> dict[str, Any]:
     """Compute tetrachoric correlations for same-sex pairs only (FF and MM).
 
     Returns dict keyed by "female"/"male", each containing per-trait
     per-pair-type {r, se, n_pairs, liability_r}.
     """
-    if pairs is None:
-        pairs = PedigreeGraph(df).extract_pairs()
     sex_arr = df["sex"].values
     result: dict[str, Any] = {}
-    for sex_val, sex_label in [(0, "female"), (1, "male")]:
+    for sex_val, sex_label in SEX_LEVELS:
         sex_result: dict[str, Any] = {}
         for trait_num in [1, 2]:
             affected = df[f"affected{trait_num}"].values.astype(bool)
@@ -397,7 +390,7 @@ def compute_parent_offspring_corr_by_sex(df: pd.DataFrame) -> dict[str, Any]:
     gen_arr = df["generation"].values
     sex_arr = df["sex"].values
     result: dict[str, Any] = {}
-    for sex_val, sex_label in [(0, "female"), (1, "male")]:
+    for sex_val, sex_label in SEX_LEVELS:
         sex_result: dict[str, Any] = {}
         for trait_num in [1, 2]:
             liability = df[f"liability{trait_num}"].values

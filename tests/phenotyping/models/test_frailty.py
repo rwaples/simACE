@@ -11,8 +11,8 @@ import argparse
 import numpy as np
 import pytest
 
+from simace.phenotyping.hazards import HAZARD_FLAG_ROOTS
 from simace.phenotyping.models import FrailtyModel
-from simace.phenotyping.models.frailty import HAZARD_FLAG_ROOTS
 
 WEIBULL = {"distribution": "weibull", "scale": 316.228, "rho": 2.0}
 

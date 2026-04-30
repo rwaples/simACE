@@ -15,9 +15,12 @@ from scipy.special import ndtri
 
 from simace.phenotyping.hazards import (
     BASELINE_HAZARDS,
-    BASELINE_PARAMS,
+    add_hazard_cli_args,
     compute_event_times,
+    hazard_cli_flag_attrs,
+    parse_hazard_cli,
     standardize_beta,
+    validate_hazard_params,
 )
 from simace.phenotyping.models._base import (
     PhenotypeModel,
@@ -25,7 +28,6 @@ from simace.phenotyping.models._base import (
     wrap_trait_error,
 )
 from simace.phenotyping.models._prevalence import resolve_prevalence
-from simace.phenotyping.models.frailty import HAZARD_FLAG_ROOTS
 
 if TYPE_CHECKING:
     import argparse
@@ -54,18 +56,7 @@ class CureFrailtyModel(PhenotypeModel):
     name: ClassVar[str] = "cure_frailty"
 
     def __post_init__(self) -> None:
-        if self.distribution not in BASELINE_HAZARDS:
-            raise ValueError(
-                f"unknown cure_frailty distribution {self.distribution!r}; valid: {sorted(BASELINE_HAZARDS)}"
-            )
-        required = set(BASELINE_PARAMS[self.distribution])
-        if self.distribution == "exponential" and "scale" in self.hazard_params:
-            required = (required - {"rate"}) | {"scale"}
-        missing = required - set(self.hazard_params)
-        if missing:
-            raise ValueError(
-                f"cure_frailty distribution {self.distribution!r} missing required hazard params: {sorted(missing)}"
-            )
+        validate_hazard_params(self.distribution, self.hazard_params, model_name="cure_frailty")
         if not np.isfinite(self.beta):
             raise ValueError(f"beta must be finite, got {self.beta}")
 
@@ -98,35 +89,16 @@ class CureFrailtyModel(PhenotypeModel):
 
     @classmethod
     def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:
-        group = parser.add_argument_group(f"Trait {trait} — cure_frailty")
-        group.add_argument(
-            f"--cure-frailty-distribution{trait}",
-            default=None,
-            choices=sorted(BASELINE_HAZARDS),
-            help=f"Baseline hazard for trait {trait} when phenotype-model{trait}=cure_frailty",
-        )
-        for flag_root in HAZARD_FLAG_ROOTS:
-            group.add_argument(f"--cure-frailty-{flag_root}{trait}", type=float, default=None)
+        group = add_hazard_cli_args(parser, trait, kebab_prefix="cure-frailty", model_label="cure_frailty")
         group.add_argument(f"--cure-frailty-prevalence{trait}", type=float, default=None)
 
     @classmethod
     def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
         check_no_foreign_flags(cls, args, trait)
         with wrap_trait_error(trait):
-            distribution = getattr(args, f"cure_frailty_distribution{trait}")
-            if distribution is None:
-                raise ValueError(
-                    f"--cure-frailty-distribution{trait} is required when --phenotype-model{trait}=cure_frailty"
-                )
-            required = list(BASELINE_PARAMS[distribution])
-            hazard_params: dict[str, float] = {}
-            for key in required:
-                val = getattr(args, f"cure_frailty_{key}{trait}", None)
-                if val is None:
-                    raise ValueError(
-                        f"--cure-frailty-{key}{trait} is required for --cure-frailty-distribution{trait}={distribution}"
-                    )
-                hazard_params[key] = val
+            distribution, hazard_params = parse_hazard_cli(
+                args, trait, attr_prefix="cure_frailty", kebab_prefix="cure-frailty"
+            )
             prevalence = getattr(args, f"cure_frailty_prevalence{trait}")
             if prevalence is None:
                 raise ValueError(
@@ -142,9 +114,7 @@ class CureFrailtyModel(PhenotypeModel):
 
     @classmethod
     def cli_flag_attrs(cls, trait: int) -> set[str]:
-        attrs = {f"cure_frailty_distribution{trait}", f"cure_frailty_prevalence{trait}"}
-        attrs.update(f"cure_frailty_{root}{trait}" for root in HAZARD_FLAG_ROOTS)
-        return attrs
+        return hazard_cli_flag_attrs(trait, attr_prefix="cure_frailty") | {f"cure_frailty_prevalence{trait}"}
 
     def to_params_dict(self) -> dict[str, Any]:
         return {"distribution": self.distribution, "prevalence": self.prevalence, **self.hazard_params}

@@ -38,11 +38,11 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import yaml
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
 from simace.core.pedigree_graph import PedigreeGraph
 from simace.core.relationships import PAIR_TYPES
+from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import (
     apply_nature_style,
     enable_value_gridlines,
@@ -80,8 +80,7 @@ def load_per_generation(
     """
     per_rep: list[dict[int, tuple[float, float, float, float]]] = []
     for path in validation_paths:
-        with open(path) as fh:
-            data = yaml.safe_load(fh)
+        data = load_yaml(path)
         per_gen = data.get("per_generation", {})
         rep_dict: dict[int, tuple[float, float, float, float]] = {}
         for gen_key, gen_data in per_gen.items():
@@ -1380,8 +1379,7 @@ def _load_per_gen_prevalence(
     """
     per_gen: dict[int, list[float]] = {}
     for path in phenotype_stats_paths:
-        with open(path) as fh:
-            ps = yaml.safe_load(fh) or {}
+        ps = load_yaml(path) or {}
         by_gen = (ps.get("prevalence") or {}).get("by_generation") or {}
         for g_key, entry in by_gen.items():
             g = int(g_key)
@@ -1492,8 +1490,7 @@ OBSERVED_LIABILITY_ESTIMATOR_DEFS: tuple[tuple[str, str], ...] = (
 
 def _load_tetrachoric(phenotype_stats_path: Path, trait: int) -> dict[str, float]:
     """Return a flat ``{MZ, FS, MO, FO, MHS, PHS, 1C}`` tetrachoric r dict."""
-    with open(phenotype_stats_path) as fh:
-        ps = yaml.safe_load(fh) or {}
+    ps = load_yaml(phenotype_stats_path) or {}
     tet = (ps.get("tetrachoric") or {}).get(f"trait{trait}", {}) or {}
     out: dict[str, float] = {}
     for key, entry in tet.items():

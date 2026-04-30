@@ -11,16 +11,16 @@ from workflow.common import (
     plot_filenames,
     _scale_mem,
     _scale_runtime,
-    _PHENOTYPE_BASENAMES,
-    _VALIDATION_BASENAMES,
+    phenotype_basenames,
+    validation_basenames,
     load_folder_configs,
 )
 
 load_folder_configs(config)
 
 PLOT_EXT = config["defaults"].get("plot_format", "png")
-PHENOTYPE_PLOTS = plot_filenames(_PHENOTYPE_BASENAMES, PLOT_EXT)
-VALIDATION_PLOTS = plot_filenames(_VALIDATION_BASENAMES, PLOT_EXT)
+PHENOTYPE_PLOTS = plot_filenames(phenotype_basenames(), PLOT_EXT)
+VALIDATION_PLOTS = plot_filenames(validation_basenames(), PLOT_EXT)
 
 
 wildcard_constraints:

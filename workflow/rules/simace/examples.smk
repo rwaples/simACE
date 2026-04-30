@@ -40,7 +40,7 @@ def _increasing_e_per_gen_E(scen):
     """Resolve per-gen E1 schedule from the config dict for a scenario."""
     e_dict = get_param(config, scen, "E1")
     if isinstance(e_dict, dict):
-        sorted_keys = sorted(int(k) for k in e_dict)
+        sorted_keys = sorted(e_dict)
         return [float(e_dict[k]) for k in sorted_keys]
     # Constant fallback (shouldn't occur for these scenarios but stay robust).
     return [float(e_dict)] * 10

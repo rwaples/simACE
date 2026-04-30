@@ -11,9 +11,9 @@ import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import yaml
 from matplotlib.patches import FancyBboxPatch
 
+from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_atlas import _model_display_name
 from simace.plotting.plot_utils import param_as_float
 
@@ -544,10 +544,7 @@ def cli() -> None:
     args = parser.parse_args()
     init_logging(args)
 
-    from simace.core.yaml_io import yaml_loader
-
-    with open(args.params, encoding="utf-8") as fh:
-        params = yaml.load(fh, Loader=yaml_loader())
+    params = load_yaml(args.params)
 
     plot_pipeline(params, args.output, scenario=args.scenario)
 

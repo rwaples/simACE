@@ -222,7 +222,7 @@ class TestRunnerCli:
         assert stats_yaml.exists()
         assert samples_pq.exists()
 
-    def test_cli_with_frailty_params_and_gen_censoring(self, tmp_path, tiny_phenotype, monkeypatch):
+    def test_cli_with_gen_censoring(self, tmp_path, tiny_phenotype, monkeypatch):
         pedigree, phenotype = tiny_phenotype
         ped_path = tmp_path / "pedigree.parquet"
         phe_path = tmp_path / "phenotype.parquet"
@@ -244,18 +244,6 @@ class TestRunnerCli:
                 str(ped_path),
                 "--gen-censoring",
                 '{"0": [80, 80], "1": [0, 80]}',
-                "--beta1",
-                "1.0",
-                "--phenotype-model1",
-                "frailty",
-                "--phenotype-params1",
-                '{"distribution": "weibull", "scale": 2160, "rho": 0.8}',
-                "--beta2",
-                "1.0",
-                "--phenotype-model2",
-                "frailty",
-                "--phenotype-params2",
-                '{"distribution": "weibull", "scale": 333, "rho": 1.2}',
             ],
         )
         run_stats_cli()

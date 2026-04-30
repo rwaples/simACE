@@ -5,6 +5,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from simace.core.relationships import SEX_LEVELS
+
 
 def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
     """Compute mean realised family size (offspring per mating pair).
@@ -54,7 +56,7 @@ def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
     person_dist_by_sex: dict[str, dict[str, float]] = {}
     if "sex" in df.columns:
         sex_by_id = df.set_index("id")["sex"]
-        for sex_label, sex_val in [("female", 0), ("male", 1)]:
+        for sex_val, sex_label in SEX_LEVELS:
             sex_ids = sex_by_id[sex_by_id == sex_val].index
             sex_counts = offspring_counts.reindex(sex_ids, fill_value=0)
             n_sex = len(sex_counts)

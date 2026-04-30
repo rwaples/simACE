@@ -1019,7 +1019,7 @@ class TestComputeTetrachoricByGeneration:
 
     def test_missing_generation_returns_empty(self):
         df = pd.DataFrame({"affected1": [True], "affected2": [False], "liability1": [1.0], "liability2": [1.0]})
-        assert compute_tetrachoric_by_generation(df) == {}
+        assert compute_tetrachoric_by_generation(df, pairs={}) == {}
 
 
 # ===================================================================

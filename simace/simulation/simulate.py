@@ -75,7 +75,7 @@ def resolve_per_gen_param(value: float | dict[int, float], G: int, name: str = "
         raise ValueError(f"{name} dict must not be empty")
 
     # Sort keys and validate
-    sorted_keys = sorted(int(k) for k in value)
+    sorted_keys = sorted(value)
     if sorted_keys[0] > 0:
         raise ValueError(
             f"{name} dict must have a key <= 0 so generation 0 is defined; smallest key is {sorted_keys[0]}"

@@ -23,18 +23,30 @@ Supported distributions and required ``params`` keys:
     "gamma"       : {"shape": k, "scale": theta}
 """
 
+from __future__ import annotations
+
 __all__ = [
     "BASELINE_HAZARDS",
     "BASELINE_PARAMS",
+    "HAZARD_FLAG_ROOTS",
+    "add_hazard_cli_args",
     "compute_event_times",
+    "hazard_cli_flag_attrs",
+    "parse_hazard_cli",
     "standardize_beta",
+    "validate_hazard_params",
 ]
+
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numba import njit, prange
 from scipy.stats import gamma as gamma_dist
 
 from simace.core._numba_utils import _ndtri_approx
+
+if TYPE_CHECKING:
+    import argparse
 
 # ---------------------------------------------------------------------------
 # Numba kernels — fuse frailty computation + inversion in a single pass
@@ -165,9 +177,99 @@ BASELINE_PARAMS: dict[str, list[str]] = {
 }
 
 
+# Union of every key any baseline distribution requires, plus exponential's
+# alternate ``scale``.  Shared by FrailtyModel and CureFrailtyModel CLI plumbing.
+HAZARD_FLAG_ROOTS: tuple[str, ...] = tuple(
+    sorted({k for params in BASELINE_PARAMS.values() for k in params} | {"scale"})
+)
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
+
+def validate_hazard_params(
+    distribution: str,
+    hazard_params: dict[str, float],
+    model_name: str,
+) -> None:
+    """Validate distribution name and required ``hazard_params`` keys.
+
+    Exponential accepts either ``rate`` or ``scale`` as the canonical key;
+    others must contain every key listed in ``BASELINE_PARAMS[distribution]``.
+    """
+    if distribution not in BASELINE_HAZARDS:
+        raise ValueError(
+            f"unknown {model_name} distribution {distribution!r}; valid: {sorted(BASELINE_HAZARDS)}"
+        )
+    required = set(BASELINE_PARAMS[distribution])
+    if distribution == "exponential" and "scale" in hazard_params:
+        required = (required - {"rate"}) | {"scale"}
+    missing = required - set(hazard_params)
+    if missing:
+        raise ValueError(
+            f"{model_name} distribution {distribution!r} missing required hazard params: {sorted(missing)}"
+        )
+
+
+def add_hazard_cli_args(
+    parser: argparse.ArgumentParser,
+    trait: int,
+    *,
+    kebab_prefix: str,
+    model_label: str,
+) -> argparse._ArgumentGroup:
+    """Register ``--{kebab_prefix}-distribution{trait}`` + one flag per HAZARD_FLAG_ROOTS.
+
+    Returns the argument group so callers can attach model-specific flags
+    (e.g. cure_frailty's ``--cure-frailty-prevalence{trait}``).
+    """
+    group = parser.add_argument_group(f"Trait {trait} — {model_label}")
+    group.add_argument(
+        f"--{kebab_prefix}-distribution{trait}",
+        default=None,
+        choices=sorted(BASELINE_HAZARDS),
+        help=f"Baseline hazard for trait {trait} when phenotype-model{trait}={model_label}",
+    )
+    for flag_root in HAZARD_FLAG_ROOTS:
+        group.add_argument(f"--{kebab_prefix}-{flag_root}{trait}", type=float, default=None)
+    return group
+
+
+def parse_hazard_cli(
+    args: argparse.Namespace,
+    trait: int,
+    *,
+    attr_prefix: str,
+    kebab_prefix: str,
+) -> tuple[str, dict[str, float]]:
+    """Pull hazard-distribution + per-param values from argparse ``Namespace``.
+
+    Returns ``(distribution, hazard_params)``.  Raises if the distribution flag
+    is missing or any required per-distribution param flag is unset.
+    """
+    distribution = getattr(args, f"{attr_prefix}_distribution{trait}")
+    if distribution is None:
+        raise ValueError(
+            f"--{kebab_prefix}-distribution{trait} is required when --phenotype-model{trait}={attr_prefix}"
+        )
+    hazard_params: dict[str, float] = {}
+    for key in BASELINE_PARAMS[distribution]:
+        val = getattr(args, f"{attr_prefix}_{key}{trait}", None)
+        if val is None:
+            raise ValueError(
+                f"--{kebab_prefix}-{key}{trait} is required for --{kebab_prefix}-distribution{trait}={distribution}"
+            )
+        hazard_params[key] = val
+    return distribution, hazard_params
+
+
+def hazard_cli_flag_attrs(trait: int, *, attr_prefix: str) -> set[str]:
+    """Return the argparse attrs registered by ``add_hazard_cli_args``."""
+    attrs = {f"{attr_prefix}_distribution{trait}"}
+    attrs.update(f"{attr_prefix}_{root}{trait}" for root in HAZARD_FLAG_ROOTS)
+    return attrs
 
 
 def standardize_beta(liability: np.ndarray, beta: float, standardize: bool) -> tuple[float, float]:

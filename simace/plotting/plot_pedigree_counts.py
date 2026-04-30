@@ -443,12 +443,8 @@ def plot_pedigree_relationship_counts(
 
 def cli() -> None:
     """Command-line interface for pedigree relationship counts plot."""
-    import yaml
-
     from simace.core.cli_base import add_logging_args, init_logging
-    from simace.core.yaml_io import yaml_loader
-
-    _yaml_loader = yaml_loader()
+    from simace.core.yaml_io import load_yaml
 
     parser = argparse.ArgumentParser(description="Plot pedigree relationship pair counts diagram")
     add_logging_args(parser)
@@ -458,9 +454,6 @@ def cli() -> None:
     args = parser.parse_args()
     init_logging(args)
 
-    all_stats = []
-    for p in args.stats:
-        with open(p, encoding="utf-8") as f:
-            all_stats.append(yaml.load(f, Loader=_yaml_loader))
+    all_stats = [load_yaml(p) for p in args.stats]
 
     plot_pedigree_relationship_counts(all_stats, args.output, args.scenario)

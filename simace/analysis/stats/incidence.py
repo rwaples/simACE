@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from simace.core.numerics import fast_linregress
+from simace.core.relationships import SEX_LEVELS
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -151,7 +152,7 @@ def compute_joint_affection(df: pd.DataFrame) -> dict[str, Any]:
     # Sex-specific co-affection proportions
     by_sex: dict[str, float] = {}
     if "sex" in df.columns:
-        for sex_val, sex_label in [(0, "female"), (1, "male")]:
+        for sex_val, sex_label in SEX_LEVELS:
             mask = df["sex"].values == sex_val
             n_sex = int(mask.sum())
             if n_sex > 0:
@@ -177,7 +178,7 @@ def compute_cumulative_incidence_by_sex(
         sex = df["sex"].values
 
         trait_result = {}
-        for sex_val, sex_label in [(0, "female"), (1, "male")]:
+        for sex_val, sex_label in SEX_LEVELS:
             mask = sex == sex_val
             n_sex = int(mask.sum())
             if n_sex == 0:
@@ -218,7 +219,7 @@ def compute_cumulative_incidence_by_sex_generation(
         for gen in generations:
             gen_result: dict[str, Any] = {}
             gen_mask = gen_arr == gen
-            for sex_val, sex_label in [(0, "female"), (1, "male")]:
+            for sex_val, sex_label in SEX_LEVELS:
                 mask = gen_mask & (sex == sex_val)
                 n_sex = int(mask.sum())
                 if n_sex == 0:
