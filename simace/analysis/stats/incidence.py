@@ -13,6 +13,25 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
+def _cumulative_curve(
+    times: np.ndarray,
+    ages: np.ndarray,
+    n: int,
+    *,
+    mask: np.ndarray | None = None,
+) -> np.ndarray:
+    """Empirical cumulative incidence ``F(a) = #{t_i <= a, valid_i} / n``.
+
+    When ``mask`` is given, only individuals where ``mask`` is True
+    contribute events to the numerator; ``n`` is the cohort size in the
+    denominator (typically larger than ``mask.sum()`` because individuals
+    who never experience the event still count toward the at-risk pool).
+    """
+    selected = times[mask] if mask is not None else times
+    sorted_t = np.sort(selected)
+    return np.searchsorted(sorted_t, ages, side="right") / n
+
+
 def compute_mortality(df: pd.DataFrame, censor_age: float) -> dict[str, Any]:
     """Compute decade-binned mortality rates from death ages.
 
@@ -60,10 +79,8 @@ def compute_cumulative_incidence(
         aff = df[f"affected{trait_num}"].values.astype(bool)
         t_obs = df[f"t_observed{trait_num}"].values
         t_raw = df[f"t{trait_num}"].values
-        sorted_obs = np.sort(t_obs[aff])
-        sorted_raw = np.sort(t_raw)
-        obs_inc = np.searchsorted(sorted_obs, ages, side="right") / n
-        true_inc = np.searchsorted(sorted_raw, ages, side="right") / n
+        obs_inc = _cumulative_curve(t_obs, ages, n, mask=aff)
+        true_inc = _cumulative_curve(t_raw, ages, n)
         half_idx = np.searchsorted(obs_inc, obs_inc[-1] / 2)
         result[f"trait{trait_num}"] = {
             "ages": ages.tolist(),
@@ -184,8 +201,7 @@ def compute_cumulative_incidence_by_sex(
             if n_sex == 0:
                 continue
             aff_sex = aff[mask]
-            sorted_t = np.sort(t_obs[mask & aff])
-            inc = np.searchsorted(sorted_t, ages, side="right") / n_sex
+            inc = _cumulative_curve(t_obs, ages, n_sex, mask=mask & aff)
             prev = float(aff_sex.sum() / n_sex)
             trait_result[sex_label] = {
                 "ages": ages.tolist(),
@@ -225,8 +241,7 @@ def compute_cumulative_incidence_by_sex_generation(
                 if n_sex == 0:
                     continue
                 aff_sex = aff[mask]
-                sorted_t = np.sort(t_obs[mask & aff])
-                inc = np.searchsorted(sorted_t, ages, side="right") / n_sex
+                inc = _cumulative_curve(t_obs, ages, n_sex, mask=mask & aff)
                 prev = float(aff_sex.sum() / n_sex)
                 gen_result[sex_label] = {
                     "ages": ages.tolist(),

@@ -34,6 +34,7 @@ __all__ = [
     "hazard_cli_flag_attrs",
     "parse_hazard_cli",
     "standardize_beta",
+    "standardize_liability",
     "validate_hazard_params",
 ]
 
@@ -270,6 +271,22 @@ def hazard_cli_flag_attrs(trait: int, *, attr_prefix: str) -> set[str]:
     attrs = {f"{attr_prefix}_distribution{trait}"}
     attrs.update(f"{attr_prefix}_{root}{trait}" for root in HAZARD_FLAG_ROOTS)
     return attrs
+
+
+def standardize_liability(liability: np.ndarray) -> np.ndarray:
+    """Mean-center and (when possible) scale liability to unit variance.
+
+    When ``std(liability) > 0``, returns ``(L - mean) / std``.  When the
+    input has zero variance (degenerate edge case, unreachable on real
+    sims), returns ``L - mean`` (a vector of zeros) — a defined fallback
+    that keeps downstream threshold comparisons well-typed.
+    """
+    mean = liability.mean()
+    centered = liability - mean
+    std = liability.std()
+    if std > 0:
+        return centered / std
+    return centered
 
 
 def standardize_beta(liability: np.ndarray, beta: float, standardize: bool) -> tuple[float, float]:

@@ -8,6 +8,15 @@ import pandas as pd
 from simace.core.relationships import SEX_LEVELS
 
 
+def _offspring_count_dist(counts: pd.Series | np.ndarray, n: int) -> dict[str, float]:
+    """Return ``{"0", "1", "2", "3", "4+"}`` proportions of ``counts`` over ``n``."""
+    out = {"0": round(int((counts == 0).sum()) / n, 4)}
+    for k in (1, 2, 3):
+        out[str(k)] = round(int((counts == k).sum()) / n, 4)
+    out["4+"] = round(int((counts >= 4).sum()) / n, 4)
+    return out
+
+
 def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
     """Compute mean realised family size (offspring per mating pair).
 
@@ -34,23 +43,17 @@ def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
         dist[str(k)] = round(int((family_sizes == k).sum()) / n_fam, 4)
     dist["4+"] = round(int((family_sizes >= 4).sum()) / n_fam, 4)
 
-    # Offspring per person (including 0 for childless individuals)
-    parent_ids = set(children["mother"].values) | set(children["father"].values)
-    parent_ids.discard(-1)
-    # Count offspring per person (as parent)
-    n_as_mother = children.groupby("mother").size()
-    n_as_father = children.groupby("father").size()
-    offspring_counts = pd.Series(0, index=df["id"])
-    offspring_counts.update(n_as_mother.rename_axis("id"))
-    # Add father counts (some people may be both, though unlikely)
-    father_counts = n_as_father.rename_axis("id")
-    offspring_counts = offspring_counts.add(father_counts, fill_value=0).astype(int)
+    # Offspring per person (including 0 for childless individuals).
+    # Count via bincount on row positions: faster than groupby + Series.update/add.
+    ids_arr = df["id"].to_numpy()
     n_total = len(df)
-    person_dist: dict[str, float] = {}
-    person_dist["0"] = round(int((offspring_counts == 0).sum()) / n_total, 4)
-    for k in [1, 2, 3]:
-        person_dist[str(k)] = round(int((offspring_counts == k).sum()) / n_total, 4)
-    person_dist["4+"] = round(int((offspring_counts >= 4).sum()) / n_total, 4)
+    id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
+    id_to_row[ids_arr] = np.arange(n_total, dtype=np.int32)
+    m_rows = id_to_row[children["mother"].to_numpy()]
+    f_rows = id_to_row[children["father"].to_numpy()]
+    counts_arr = np.bincount(m_rows, minlength=n_total) + np.bincount(f_rows, minlength=n_total)
+    offspring_counts = pd.Series(counts_arr, index=df["id"])
+    person_dist = _offspring_count_dist(offspring_counts, n_total)
 
     # Offspring per person by sex
     person_dist_by_sex: dict[str, dict[str, float]] = {}
@@ -59,14 +62,8 @@ def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
         for sex_val, sex_label in SEX_LEVELS:
             sex_ids = sex_by_id[sex_by_id == sex_val].index
             sex_counts = offspring_counts.reindex(sex_ids, fill_value=0)
-            n_sex = len(sex_counts)
-            if n_sex > 0:
-                sd: dict[str, float] = {}
-                sd["0"] = round(int((sex_counts == 0).sum()) / n_sex, 4)
-                for k in [1, 2, 3]:
-                    sd[str(k)] = round(int((sex_counts == k).sum()) / n_sex, 4)
-                sd["4+"] = round(int((sex_counts >= 4).sum()) / n_sex, 4)
-                person_dist_by_sex[sex_label] = sd
+            if len(sex_counts) > 0:
+                person_dist_by_sex[sex_label] = _offspring_count_dist(sex_counts, len(sex_counts))
 
     # Number of mates by sex
     # Females: unique fathers per mother

@@ -135,12 +135,14 @@ def compute_tetrachoric_by_generation(
     gen_arr = df["generation"].values
     max_gen = int(gen_arr.max())
     plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
+    affected_by_trait = {n: df[f"affected{n}"].values.astype(bool) for n in (1, 2)}
+    liability_by_trait = {n: df[f"liability{n}"].values for n in (1, 2)}
     result = {}
     for gen in plot_gens:
         gen_result = {}
-        for trait_num in [1, 2]:
-            affected = df[f"affected{trait_num}"].values.astype(bool)
-            liability = df[f"liability{trait_num}"].values
+        for trait_num in (1, 2):
+            affected = affected_by_trait[trait_num]
+            liability = liability_by_trait[trait_num]
             trait_result = {}
             for ptype in PAIR_TYPES:
                 idx1, idx2 = pairs[ptype]
@@ -228,12 +230,14 @@ def compute_tetrachoric_by_sex(
     per-pair-type {r, se, n_pairs, liability_r}.
     """
     sex_arr = df["sex"].values
+    affected_by_trait = {n: df[f"affected{n}"].values.astype(bool) for n in (1, 2)}
+    liability_by_trait = {n: df[f"liability{n}"].values for n in (1, 2)}
     result: dict[str, Any] = {}
     for sex_val, sex_label in SEX_LEVELS:
         sex_result: dict[str, Any] = {}
-        for trait_num in [1, 2]:
-            affected = df[f"affected{trait_num}"].values.astype(bool)
-            liability = df[f"liability{trait_num}"].values
+        for trait_num in (1, 2):
+            affected = affected_by_trait[trait_num]
+            liability = liability_by_trait[trait_num]
             trait_result: dict[str, Any] = {}
             for ptype in PAIR_TYPES:
                 idx1, idx2 = pairs[ptype]

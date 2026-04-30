@@ -23,6 +23,7 @@ from simace.phenotyping.hazards import (
 )
 from simace.phenotyping.models._base import (
     PhenotypeModel,
+    check_finite_beta,
     check_no_foreign_flags,
     wrap_trait_error,
 )
@@ -53,8 +54,7 @@ class FrailtyModel(PhenotypeModel):
 
     def __post_init__(self) -> None:
         validate_hazard_params(self.distribution, self.hazard_params, model_name="frailty")
-        if not np.isfinite(self.beta):
-            raise ValueError(f"beta must be finite, got {self.beta}")
+        check_finite_beta(self.beta)
 
     # ------------------------------------------------------------------
     # Construction from config dict / CLI args

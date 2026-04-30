@@ -20,8 +20,10 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 import numpy as np
 from scipy.special import erfc, ndtri
 
+from simace.phenotyping.hazards import standardize_liability
 from simace.phenotyping.models._base import (
     PhenotypeModel,
+    check_finite_beta,
     check_no_foreign_flags,
     wrap_trait_error,
 )
@@ -62,8 +64,7 @@ class AdultModel(PhenotypeModel):
     def __post_init__(self) -> None:
         if self.method not in _ADULT_METHODS:
             raise ValueError(f"unknown adult method {self.method!r}; valid: {sorted(_ADULT_METHODS)}")
-        if not np.isfinite(self.beta):
-            raise ValueError(f"beta must be finite, got {self.beta}")
+        check_finite_beta(self.beta)
 
     # ------------------------------------------------------------------
     # Construction
@@ -168,11 +169,7 @@ class AdultModel(PhenotypeModel):
         sex: np.ndarray | None,
         standardize: bool,
     ) -> np.ndarray:
-        L = liability
-        if standardize:
-            std = np.std(L)
-            if std > 0:
-                L = (L - L.mean()) / std
+        L = standardize_liability(liability) if standardize else liability
 
         threshold = ndtri(1.0 - np.asarray(prevalence))
         is_case = threshold < L
@@ -203,11 +200,7 @@ class AdultModel(PhenotypeModel):
         standardize: bool,
     ) -> np.ndarray:
         rng = np.random.default_rng(seed)
-        L = liability
-        if standardize:
-            std = np.std(L)
-            if std > 0:
-                L = (L - L.mean()) / std
+        L = standardize_liability(liability) if standardize else liability
 
         n = len(L)
         neg_log_u = rng.exponential(size=n)

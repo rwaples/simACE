@@ -22,6 +22,7 @@ from numba import njit, prange
 from simace.phenotyping.hazards import standardize_beta
 from simace.phenotyping.models._base import (
     PhenotypeModel,
+    check_finite_beta,
     check_no_foreign_flags,
     wrap_trait_error,
 )
@@ -109,8 +110,7 @@ class FirstPassageModel(PhenotypeModel):
     name: ClassVar[str] = "first_passage"
 
     def __post_init__(self) -> None:
-        if not np.isfinite(self.beta):
-            raise ValueError(f"beta must be finite, got {self.beta}")
+        check_finite_beta(self.beta)
         if self.drift == 0.0:
             raise ValueError("first_passage drift must be non-zero")
 

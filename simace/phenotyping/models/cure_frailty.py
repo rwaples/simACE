@@ -20,10 +20,12 @@ from simace.phenotyping.hazards import (
     hazard_cli_flag_attrs,
     parse_hazard_cli,
     standardize_beta,
+    standardize_liability,
     validate_hazard_params,
 )
 from simace.phenotyping.models._base import (
     PhenotypeModel,
+    check_finite_beta,
     check_no_foreign_flags,
     wrap_trait_error,
 )
@@ -57,8 +59,7 @@ class CureFrailtyModel(PhenotypeModel):
 
     def __post_init__(self) -> None:
         validate_hazard_params(self.distribution, self.hazard_params, model_name="cure_frailty")
-        if not np.isfinite(self.beta):
-            raise ValueError(f"beta must be finite, got {self.beta}")
+        check_finite_beta(self.beta)
 
     # ------------------------------------------------------------------
     # Construction
@@ -137,11 +138,7 @@ class CureFrailtyModel(PhenotypeModel):
 
         mean, scaled_beta = standardize_beta(liability, self.beta, standardize)
 
-        if standardize:
-            std = np.std(liability)
-            L = (liability - mean) / std if std > 0 else liability - mean
-        else:
-            L = liability
+        L = standardize_liability(liability) if standardize else liability
 
         threshold = ndtri(1.0 - np.asarray(prevalence))
         is_case = threshold < L

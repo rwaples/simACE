@@ -32,6 +32,7 @@ in isolation.
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
@@ -40,7 +41,13 @@ if TYPE_CHECKING:
 
     import numpy as np
 
-__all__ = ["PhenotypeModel", "check_no_foreign_flags", "wrap_trait_error"]
+__all__ = ["PhenotypeModel", "check_finite_beta", "check_no_foreign_flags", "wrap_trait_error"]
+
+
+def check_finite_beta(beta: float) -> None:
+    """Raise ``ValueError`` if beta is non-finite (NaN or +/-inf)."""
+    if not math.isfinite(beta):
+        raise ValueError(f"beta must be finite, got {beta}")
 
 
 class PhenotypeModel(ABC):

@@ -23,6 +23,7 @@ import pandas as pd
 from simace.core._numba_utils import _ndtri_approx
 from simace.core.parquet import save_parquet
 from simace.core.relationships import SEX_LEVELS
+from simace.phenotyping.hazards import standardize_liability
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +82,7 @@ def apply_threshold(
         mask = generation == gen
         L = liability[mask]
         if standardize:
-            mean = L.mean()
-            std = L.std()
-            L = (L - mean) / std if std > 0 else L - mean
+            L = standardize_liability(L)
         prev = prevalence[int(gen)] if isinstance(prevalence, dict) else prevalence
         threshold = _ndtri_approx(1.0 - prev)
         affected[mask] = threshold <= L

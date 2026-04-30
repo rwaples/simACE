@@ -1121,10 +1121,22 @@ def load_pedigree_estimates_per_generation(
     if gens is None:
         gens = sorted(int(g) for g in df_full["generation"].unique())
 
+    # Build the full graph and extract pairs once; per-generation cohorts come
+    # from filtering the full pair set by gen mask (same idea used in
+    # ``correlations.py:compute_tetrachoric_by_generation``).
+    pairs_full = PedigreeGraph(df_full).extract_pairs(max_degree=1)
+    gen_arr = df_full["generation"].to_numpy()
+    liab_full = df_full[f"liability{trait}"].to_numpy()
+    # Promote to float64 so np.var matches pandas Series.var (which promotes
+    # internally) — A/C/E columns are stored as float32 (parquet narrowing).
+    A_full = df_full[f"A{trait}"].to_numpy(dtype=np.float64)
+    C_full = df_full[f"C{trait}"].to_numpy(dtype=np.float64)
+    E_full = df_full[f"E{trait}"].to_numpy(dtype=np.float64)
+
     out: dict[int, dict[str, float]] = {}
     for g in gens:
-        df = df_full[df_full["generation"] == g].reset_index(drop=True)
-        if len(df) == 0:
+        gen_mask = gen_arr == g
+        if not gen_mask.any():
             out[g] = {
                 "MZ": float("nan"),
                 "FS": float("nan"),
@@ -1137,22 +1149,22 @@ def load_pedigree_estimates_per_generation(
             }
             continue
 
-        pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=1)
-        liab = df[f"liability{trait}"].to_numpy()
         cohort_corrs: dict[str, tuple[float, int]] = {}
         for code in ("MZ", "FS"):
-            idx1, idx2 = pairs.get(code, (np.array([]), np.array([])))
-            n_pairs = len(idx1)
+            idx1, idx2 = pairs_full.get(code, (np.array([]), np.array([])))
+            pair_mask = gen_mask[idx1] & gen_mask[idx2]
+            idx1_g, idx2_g = idx1[pair_mask], idx2[pair_mask]
+            n_pairs = len(idx1_g)
             if n_pairs < 10:
                 cohort_corrs[code] = (float("nan"), n_pairs)
             else:
-                cohort_corrs[code] = (safe_corrcoef(liab[idx1], liab[idx2]), n_pairs)
+                cohort_corrs[code] = (safe_corrcoef(liab_full[idx1_g], liab_full[idx2_g]), n_pairs)
         r_mz, n_mz = cohort_corrs["MZ"]
         r_fs, n_fs = cohort_corrs["FS"]
 
-        vA = float(df[f"A{trait}"].var(ddof=1))
-        vC = float(df[f"C{trait}"].var(ddof=1))
-        vE = float(df[f"E{trait}"].var(ddof=1))
+        vA = float(np.var(A_full[gen_mask], ddof=1))
+        vC = float(np.var(C_full[gen_mask], ddof=1))
+        vE = float(np.var(E_full[gen_mask], ddof=1))
         total = vA + vC + vE
         realized_h2 = vA / total if total > 0 else float("nan")
 
