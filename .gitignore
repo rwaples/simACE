@@ -8,6 +8,7 @@ external/
 /scripts/*
 !/scripts/run_epimight.py
 !/scripts/migrate_prevalence_keys.py
+!/scripts/migrate_atlas_captions.py
 
 # Notebooks
 notebooks/

@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 __all__ = [
-    "PHENOTYPE_CAPTIONS",
-    "SIMPLE_LTM_CAPTIONS",
-    "VALIDATION_CAPTIONS",
     "assemble_atlas",
     "get_model_equation",
     "get_model_family",
@@ -17,6 +14,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from PIL import Image
+
+from simace.plotting.atlas_manifest import AtlasItem, PlotEntry, SectionBreak
 
 logger = logging.getLogger(__name__)
 
@@ -190,392 +189,8 @@ def get_model_family(params: dict) -> tuple[str, str]:
 
 
 # ---------------------------------------------------------------------------
-# Caption text for each plot, keyed by basename (filename without extension).
-# Content drawn from plots.md.
+# Page renderers
 # ---------------------------------------------------------------------------
-
-# Captions ordered to match _PHENOTYPE_BASENAMES in workflow/common.py:
-# liability structure -> affected status -> survival & censoring ->
-# within-trait correlations -> cross-trait correlations.
-PHENOTYPE_CAPTIONS: dict[str, str] = {
-    # -- Pedigree structure --
-    "pedigree_counts.ped": (
-        "Figure 1: Pedigree relationship pair counts (G_ped).\n\n"
-        "Schematic multi-generational pedigree diagram showing the 10 relationship "
-        "categories extracted from the full simulated pedigree spanning all G_ped "
-        "generations. Mean pair counts (averaged across replicates) are superimposed. "
-        "Node shapes follow standard pedigree conventions: squares = male, circles = female."
-    ),
-    "pedigree_counts": (
-        "Figure 2: Pedigree relationship pair counts (G_pheno).\n\n"
-        "Same diagram as Figure 1, but restricted to the phenotyped population "
-        "(last G_pheno generations), after any N_sample subsampling."
-    ),
-    # -- Family structure --
-    "family_structure": (
-        "Figure 3: Family structure.\n\n"
-        "Three-panel figure showing offspring and partner count distributions, "
-        "averaged across replicates. Left: number of offspring per couple. "
-        "Centre: number of offspring per person "
-        "(including childless individuals at 0). Right: fraction of parents "
-        "with 1 vs. 2+ partners, grouped by sex."
-    ),
-    # -- Mate correlation --
-    "mate_correlation": (
-        "Figure 4: Mate liability correlation.\n\n"
-        "2\u00d72 heatmap of Pearson correlations between mated pairs\u2019 liabilities "
-        "(female traits on rows, male traits on columns). Each unique "
-        "(mother, father) pair counted once, pooled across all non-founder "
-        "generations. Bold white text shows observed r; smaller gray text "
-        "shows expected target correlation on diagonal cells "
-        "(off-diagonal not predicted for both-trait assortment). "
-        "Diverging RdBu colormap centred at 0, range [\u22121, 1]."
-    ),
-    # -- Liability structure --
-    "cross_trait": (
-        "Figure 5: Cross-trait liability joint plots.\n\n"
-        "2\u00d72 grid of joint plots for Liability, A (additive genetic), C (common environment), "
-        "and E (unique environment). Central scatter of Trait 1 (x) vs. Trait 2 (y) with "
-        "Pearson r annotation and marginal histograms."
-    ),
-    # -- Liability-scale heritability --
-    "parent_offspring_liability.by_generation": (
-        "Figure 6: Parent-offspring liability regressions.\n\n"
-        "Grid: rows = traits, columns = last 3 non-founder generations. Scatter of "
-        "midparent liability (x) vs. offspring liability (y) coloured by offspring sex "
-        "(green = daughters, blue = sons). Observed pooled regression line (solid orange, "
-        "with 95% CI band), sex-specific regression lines, and expected slope from "
-        "configured A (dashed). Text box shows pooled h\u00b2 and sex-specific h\u00b2\u2640/h\u00b2\u2642 "
-        "(slope \u00b1 SE), Pearson r, pair count n, and p-value, averaged across replicates."
-    ),
-    "heritability.by_generation": (
-        "Figure 7: Narrow-sense liability-scale heritability by generation.\n\n"
-        "1\u00d72 figure, one panel per trait. Narrow-sense heritability "
-        "h\u00b2 = Var(A) / (Var(A) + Var(C) + Var(E)) is computed from the "
-        "per-generation variance components for each replicate. Blue dots show "
-        "per-replicate h\u00b2 estimates. "
-        "Orange dashed line marks the parametric heritability (A parameter)."
-    ),
-    "heritability.by_sex.by_generation": (
-        "Figure 8: PO-regression heritability by offspring sex.\n\n"
-        "1\u00d72 figure, one panel per trait. Heritability h\u00b2 estimated from "
-        "midparent-offspring regression slope, stratified by offspring sex. "
-        "Green dots = per-replicate daughter h\u00b2, blue dots = per-replicate son h\u00b2. "
-        "Orange dashed line marks the parametric heritability (A parameter)."
-    ),
-    "additive_shared.by_generation": (
-        "Figure 9: Additive genetic and shared environment by generation.\n\n"
-        "1\u00d72 figure, one panel per trait. Combined proportion "
-        "(Var(A) + Var(C)) / (Var(A) + Var(C) + Var(E)) is computed from "
-        "the per-generation variance components for each replicate. Blue dots show "
-        "per-replicate estimates. "
-        "Orange dashed line marks the parametric value (A + C)."
-    ),
-    # -- Liability by affected status --
-    "observed_h2": (
-        "Figure 10: Observed-scale heritability from binary affected status.\n\n"
-        "2\u00d72 grid: rows = traits, columns = scale. Left column: observed-scale "
-        "h\u00b2 estimators computed directly from Pearson correlations on binary "
-        "affected indicators \u2014 Falconer 2(r_MZ \u2212 r_FS), Sibs 2\u00b7r_FS, "
-        "PO (midparent-offspring regression on binary affected status), "
-        "Half-sibs 4\u00b7mean(r_MHS, r_PHS), Cousins 8\u00b7r_1C. Blue per-rep "
-        "dots at each estimator; grey dotted line marks the Dempster\u2013Lerner expected "
-        "value A\u00b7z(K)\u00b2/(K\u00b7(1\u2212K)) at the mean observed prevalence K. "
-        "Right column: same per-rep estimates back-transformed to the liability scale "
-        "via h\u00b2_liab = h\u00b2_obs \u00b7 K(1\u2212K)/z(K)\u00b2. The D\u2013L correction "
-        "assumes a threshold-normal (LTM) mapping from liability to affected status; "
-        "it is biased under non-threshold phenotype models such as pure frailty "
-        "(see docs/examples/observed-vs-liability-h2.md)."
-    ),
-    # -- Liability by affected status --
-    "liability_violin.phenotype": (
-        "Figure 11: Liability violin plots by affected status (survival model).\n\n"
-        "Split violin plots, one per trait. Left half = unaffected, right half = affected. "
-        "Diamond markers show mean liability for each group with \u03bc annotations. "
-        "Prevalence annotated below each trait."
-    ),
-    "liability_violin.phenotype.by_generation": (
-        "Figure 12: Liability violin plots by generation (survival model).\n\n"
-        "Grid: rows = traits, columns = recorded generations. Split violins for affected vs. "
-        "unaffected within each generation. Diamond markers and \u03bc annotations show per-group "
-        "means. x-axis labels show observed generation-specific prevalence."
-    ),
-    "liability_violin.phenotype.by_sex.by_generation": (
-        "Figure 13: Liability violin plots by sex and generation (survival model).\n\n"
-        "Grid: rows = traits, columns = generations. Each cell has side-by-side "
-        "split violins for female (left) and male (right), each showing "
-        "unaffected vs. affected distribution. Sex-specific prevalence annotated."
-    ),
-    "liability_components.by_generation": (
-        "Figure 14: Liability components by generation.\n\n"
-        "2\u00d73 grid: rows = traits, columns = variance components (A, C, E). "
-        "Each panel shows the mean component value among affected (red), unaffected "
-        "(grey), and overall (black) individuals per generation. "
-        "Selection on A is visible as separation between affected and unaffected lines: "
-        "affected individuals have higher mean A (positive selection). "
-        "C and E show no systematic selection since they are independent of liability "
-        "threshold crossing conditional on total liability. "
-        "Generation-specific prevalence annotated on x-axis."
-    ),
-    # -- Survival phenotype & censoring --
-    "age_at_onset_death": (
-        "Figure 15: Age-at-onset and death-age histograms.\n\n"
-        "A 2\u00d72 grid, rows = traits 1 and 2. Left column shows density histograms "
-        "of observed age-at-onset for affected individuals (\u03b4 = 1). Right column shows "
-        "age-at-death histograms for death-censored unaffected individuals."
-    ),
-    "mortality": (
-        "Figure 16: Mortality rate by decade.\n\n"
-        "Two-panel figure. Left panel shows per-decade mortality rate "
-        "(deaths in decade / alive at start of decade), averaged across replicates. "
-        "Right panel shows cumulative mortality, "
-        "with cumulative survival probability annotated above each bar."
-    ),
-    "cumulative_incidence.by_sex": (
-        "Figure 17: Cumulative incidence by sex.\n\n"
-        "Two-panel figure, one per trait. Green line = female (sex=0), blue line = male "
-        "(sex=1) observed cumulative incidence. Legend shows sample size and prevalence "
-        "per sex. Statistics computed on full (non-subsampled) data."
-    ),
-    "cumulative_incidence.by_sex.by_generation": (
-        "Figure 18: Cumulative incidence by sex and generation.\n\n"
-        "Grid: rows = traits, columns = generations. Each panel shows cumulative incidence "
-        "curves for female (green) and male (blue) separately. Legend shows per-sex sample "
-        "size and prevalence within each generation. Statistics computed on full "
-        "(non-subsampled) data."
-    ),
-    "cumulative_incidence.phenotype": (
-        "Figure 19: Cumulative incidence curves.\n\n"
-        "Two-panel figure, one per trait. Blue solid line = observed cumulative incidence "
-        "from censored data (with min-max band across replicates). Grey solid line = true "
-        "cumulative incidence from uncensored event times. Grey dashed crosshairs mark the "
-        "ages at which 25% (Q1), 50%, and 75% (Q3) of lifetime cases have occurred. "
-        "Text box shows affected %, true prevalence %, and censored %."
-    ),
-    "censoring": (
-        "Figure 20: Censoring windows by generation.\n\n"
-        "Grid of panels: rows = traits, columns = generations. Grey line = true cumulative "
-        "incidence, blue line = observed cumulative incidence. Text box shows affected %, "
-        "left-censored %, right-censored %, and death-censored % per generation. Column "
-        "titles show observation window [lo, hi]."
-    ),
-    "censoring_confusion": (
-        "Figure 21: Censoring confusion matrix.\n\n"
-        "Per-trait 2\u00d72 confusion matrix comparing true affected status "
-        "(event time < censor_age, from raw simulated times) vs. observed affected "
-        "status (after generation-window and death censoring). "
-        "Rows = true status, columns = observed status. Cell annotations show "
-        "proportion and count. Title shows sensitivity (true positive rate) and "
-        "specificity (true negative rate). Only phenotyped generations "
-        "(those with non-degenerate observation windows) are included. "
-        "Statistics computed on full (non-subsampled) data."
-    ),
-    "censoring_cascade": (
-        "Figure 22: Censoring cascade.\n\n"
-        "Per-trait stacked bar chart decomposing true cases (event time < censor_age) "
-        "by generation into four mutually exclusive fates: observed (green), "
-        "death-censored (red), right-censored (purple), and left-truncated (orange). "
-        "Total bar height equals true case count per generation. Sensitivity "
-        "(observed / true) is annotated per generation; subplot titles show overall "
-        "sensitivity. Only generations with non-degenerate observation windows are shown. "
-        "Statistics computed on full (non-subsampled) data."
-    ),
-    "liability_vs_aoo": (
-        "Figure 23: Liability vs. age-at-onset.\n\n"
-        "Side-by-side joint plots, one per trait. Central scatter of liability (x) vs. "
-        "observed age-at-onset (y) for affected individuals, with regression line and "
-        "95% CI band. Annotations show slope \u00b1 SE, Pearson r, n, and p-value, "
-        "averaged across replicates. Marginal histograms on top and right."
-    ),
-    # -- Within-trait correlations --
-    "tetrachoric.phenotype": (
-        "Figure 24: Tetrachoric correlations by relationship type (survival model).\n\n"
-        "Two-panel figure, one per trait. Coloured violins show the distribution of "
-        "tetrachoric correlations (computed from censored binary affected status) across "
-        "replicates for each relationship type. "
-        "Black dots = individual per-replicate tetrachoric estimates. "
-        "Black dashed lines = mean Pearson liability correlation (ground-truth "
-        "correlation on the continuous latent liability). "
-        "Green dash-dot lines = mean uncensored frailty pairwise survival-time "
-        "correlation (present when available). "
-        "Red dotted lines = parametric expected correlation from the configured ACE "
-        "variance components (e.g. E[r] = 0.5\u00b7A + C for full sibs, "
-        "0.5\u00b7A for parent\u2013offspring). N = mean pairs per replicate."
-    ),
-    "tetrachoric.phenotype.by_sex": (
-        "Figure 25: Tetrachoric correlations by sex (survival model).\n\n"
-        "2\u00d72 grid: rows = traits, columns = sex (female, male). Same encoding as "
-        "Figure 23: coloured violins show observed tetrachoric correlations for "
-        "same-sex pairs only (FF or MM). Black dashed = liability correlation, "
-        "red dotted = parametric E[r]. Opposite-sex pairs are excluded."
-    ),
-    "tetrachoric.phenotype.by_generation": (
-        "Figure 26: Tetrachoric correlations by generation (survival model).\n\n"
-        "Grid: rows = traits, columns = generations. Same encoding as Figure 23 "
-        "(violins = observed tetrachoric correlations, black dashed = true liability "
-        "correlations, red dotted = parametric E[r], dots = per-replicate estimates), "
-        "computed within each generation separately."
-    ),
-    # -- Cross-trait correlations --
-    "cross_trait.phenotype": (
-        "Figure 27: Cross-trait liability joint plots coloured by affected status (trait 1).\n\n"
-        "Same 2\u00d72 layout as Figure 5, but with affected-status colouring based on trait 1. "
-        "Blue points = unaffected, orange points = affected (trait 1). Marginal histograms stacked "
-        "by affected status."
-    ),
-    "cross_trait.phenotype.t2": (
-        "Figure 28: Cross-trait liability joint plots coloured by affected status (trait 2).\n\n"
-        "Same 2\u00d72 layout as Figure 5, but with affected-status colouring based on trait 2. "
-        "Blue points = unaffected, orange points = affected (trait 2). Marginal histograms stacked "
-        "by affected status."
-    ),
-    "joint_affected.phenotype": (
-        "Figure 29: Joint affected status heatmap (survival model).\n\n"
-        "2\u00d72 heatmap of joint affected status across both traits. Cell annotations "
-        "show proportion and count. Title shows cross-trait correlation estimates: "
-        "'r_tet' = tetrachoric correlation on censored binary affected status; "
-        "'r_frailty' = frailty-estimated liability correlation from uncensored survival "
-        "data (oracle); 'stratified' = generation-stratified estimate that "
-        "computes per-generation correlations and combines via inverse-variance "
-        "weighting; 'naive' = unweighted pooled censored estimate. "
-        "Statistics computed on full (non-subsampled) data."
-    ),
-    "cross_trait_tetrachoric": (
-        "Figure 30: Cross-trait tetrachoric correlations.\n\n"
-        "Two-panel figure measuring cross-trait association via tetrachoric "
-        "correlation between affected1 and affected2. "
-        "Left panel: same-person cross-trait r by generation (blue dots per rep, "
-        "line = mean), with overall r (black dashed) and frailty oracle (green "
-        "dash-dot) reference lines when available. "
-        "Right panel: cross-person cross-trait r by relationship type "
-        "(coloured violins + black dots)."
-    ),
-}
-
-# Captions ordered to match _SIMPLE_LTM_BASENAMES in workflow/common.py:
-# prevalence -> liability -> correlations.
-SIMPLE_LTM_CAPTIONS: dict[str, str] = {
-    "prevalence_by_generation": (
-        "Figure 31: Prevalence by generation (threshold model).\n\n"
-        "Bar chart comparing observed vs. configured prevalence per generation and trait. "
-        "Configured values shown as reference markers."
-    ),
-    "cross_trait.simple_ltm": (
-        "Figure 32: Cross-trait liability joint plot (threshold model).\n\n"
-        "Scatter of trait 1 vs. trait 2 liability coloured by threshold affected status."
-    ),
-    "liability_violin.simple_ltm": (
-        "Figure 33: Liability violin plots by affected status (threshold model).\n\n"
-        "Split violins showing liability for affected vs. unaffected under the threshold "
-        "model. Diamond mean markers with \u03bc annotations and prevalence text."
-    ),
-    "liability_violin.simple_ltm.by_generation": (
-        "Figure 34: Liability violin plots by generation (threshold model).\n\n"
-        "Per-generation split violins with configured prevalence annotated. Same encoding "
-        "as Figure 11 but for the liability-threshold phenotype."
-    ),
-    "joint_affected.simple_ltm": (
-        "Figure 35: Joint affected status heatmap (threshold model).\n\n"
-        "2\u00d72 heatmap of joint affected status proportions and counts with tetrachoric "
-        "correlation annotated. Statistics computed on full (non-subsampled) data."
-    ),
-    "tetrachoric.simple_ltm": (
-        "Figure 36: Tetrachoric correlations by relationship type (threshold model).\n\n"
-        "Violin plots of tetrachoric correlations for threshold affected status indicators. "
-        "Same encoding as Figure 24: coloured violins show observed tetrachoric correlations, "
-        "black dots are per-replicate estimates, black dashed "
-        "lines are the ground-truth Pearson liability correlations, "
-        "red dotted lines are the parametric E[r] from configured ACE components, "
-        "and pair counts are annotated above each violin."
-    ),
-    "cross_trait_tetrachoric.simple_ltm": (
-        "Figure 37: Cross-trait tetrachoric correlations (threshold model).\n\n"
-        "Same two-panel layout as the survival cross-trait tetrachoric figure. "
-        "Left panel: same-person cross-trait r by generation. "
-        "Right panel: cross-person cross-trait r by relationship type. "
-        "Uses the liability-threshold phenotype affected indicators."
-    ),
-}
-
-# Captions ordered to match _VALIDATION_BASENAMES in workflow/common.py:
-# pedigree structure -> variance & heritability -> cross-trait -> summary -> benchmarks.
-VALIDATION_CAPTIONS: dict[str, str] = {
-    "family_size": (
-        "Figure 1: Family size.\n\n"
-        "Mean offspring per mother (blue, left-offset) and per father (orange, right-offset) "
-        "among parents with \u22651 child. Orange dashes mark expected ~2.0 "
-        "(N / n_mothers for balanced sex ratio)."
-    ),
-    "twin_rate": (
-        "Figure 2: MZ twin rate.\n\n"
-        "Observed MZ twin individual rate per replicate (blue dots) vs. configured "
-        "p_mztwin (orange dashes)."
-    ),
-    "half_sib_proportions": (
-        "Figure 3: Half-sibling proportions.\n\n"
-        "Left panel: Observed maternal half-sibling pair proportion (driven by "
-        "mating_lambda). Right panel: Proportion of offspring with "
-        "at least one half-sibling."
-    ),
-    "consanguineous_matings": (
-        "Figure 4: Consanguineous matings.\n\n"
-        "Left panel: Number of half-sibling matings per replicate (random "
-        "mating produces a small number by chance). Right panel: Missing "
-        "grandparent-grandchild links caused by shared grandparents. "
-        "Reconciliation verifies that all missing links are explained by "
-        "consanguineous matings."
-    ),
-    "variance_components": (
-        "Figure 5: Variance components.\n\n"
-        "2\u00d73 grid, rows = traits 1 and 2, columns = A, C, E. Blue dots show "
-        "observed founder-generation variance for each component per replicate. Orange "
-        "dashes mark configured variance parameters."
-    ),
-    "correlations_A": (
-        "Figure 6: A-component correlations.\n\n"
-        "2\u00d72 grid. Panel 1: MZ twin A\u2081 correlation (expected = 1.0). "
-        "Panel 2: DZ (full-sibling) A\u2081 correlation (expected = 0.5). "
-        "Panel 3: Half-sibling A\u2081 correlation (expected = 0.25). "
-        "Panel 4: Midparent-offspring A\u2081 R\u00b2 (expected = 0.5). "
-        "Each panel shows blue dots with orange dashed reference line."
-    ),
-    "correlations_phenotype": (
-        "Figure 7: Phenotype (liability) correlations.\n\n"
-        "2\u00d72 grid. Expected values computed per-scenario from configured variance "
-        "components. Panel 1: MZ twin liability\u2081 correlation (expected = A\u2081 + C\u2081). "
-        "Panel 2: DZ sibling liability\u2081 correlation (expected = 0.5A\u2081 + C\u2081). "
-        "Panel 3: Half-sibling liability\u2081 correlation (expected = 0.25A\u2081). "
-        "Panel 4: Midparent-offspring liability\u2081 slope (expected = A\u2081)."
-    ),
-    "heritability_estimates": (
-        "Figure 8: Heritability estimates.\n\n"
-        "2\u00d72 grid, rows = traits 1 and 2. Left: Falconer's h\u00b2 vs. configured A. "
-        "Right: Midparent-offspring liability slope vs. configured A."
-    ),
-    "cross_trait_correlations": (
-        "Figure 9: Cross-trait correlations.\n\n"
-        "1\u00d73 figure. Panel 1: Observed r_A vs. configured rA. Panel 2: Observed "
-        "r_C vs. configured rC. Panel 3: Observed r_E with reference at 0 "
-        "(theoretical independence)."
-    ),
-    "summary_bias": (
-        "Figure 10: Summary bias.\n\n"
-        "2\u00d73 grid of strip plots showing observed \u2212 expected for six metrics: "
-        "A\u2081 bias, C\u2081 bias, E\u2081 bias, twin rate bias, DZ A\u2081 correlation "
-        "bias (vs. 0.5), half-sibling A\u2081 correlation bias (vs. 0.25). Red dashed "
-        "reference line at 0 (no bias)."
-    ),
-    "runtime": (
-        "Figure 11: Simulation runtime.\n\n"
-        "Log-log scatter of population size N (x) vs. simulation wall-clock seconds (y), "
-        "coloured by scenario."
-    ),
-    "memory": (
-        "Figure 12: Memory usage.\n\n"
-        "Log-log scatter of population size N (x) vs. peak resident set size in MB (y), "
-        "coloured by scenario."
-    ),
-}
 
 
 def _render_params_page(
@@ -805,36 +420,40 @@ def _render_inline_caption(
 
 
 def assemble_atlas(
-    plot_paths: list[Path],
-    captions: dict[str, str],
+    items: list[AtlasItem],
+    plot_dir: Path,
     output_path: Path,
+    *,
+    plot_ext: str = "png",
     scenario_params: dict | None = None,
-    section_breaks: dict[int, tuple] | None = None,
     stats_data: list[dict] | None = None,
 ) -> None:
-    """Combine saved plot images into a multi-page PDF with captions below each plot.
+    """Combine plots and section breaks into a multi-page PDF with captions.
 
-    Each page contains the plot image in the upper portion and the figure
-    caption text below it on the same page.
+    Walks ``items`` linearly. ``PlotEntry`` items render as a plot+caption
+    page; the ``"Figure {N}: "`` prefix is derived from the running plot
+    index (1-based, counting only :class:`PlotEntry` items). ``SectionBreak``
+    items render as a section divider page.
 
     Args:
-        plot_paths: Ordered list of plot image files (png or pdf).
-        captions: Map from plot basename (without extension) to caption text.
+        items: Ordered atlas manifest, mixing
+            :class:`~simace.plotting.atlas_manifest.PlotEntry` and
+            :class:`~simace.plotting.atlas_manifest.SectionBreak`.
+        plot_dir: Directory containing the plot image files; each
+            ``PlotEntry.basename`` resolves to ``plot_dir / f"{basename}.{plot_ext}"``.
         output_path: Path for the combined PDF.
-        scenario_params: If provided, a dict with keys 'scenario' and parameter
-            names.  A title page with all parameters is rendered first.
-        section_breaks: Map from plot index to (title, subtitle) or
-            (title, subtitle, equations) tuples.
-            A section divider page is inserted before the plot at each index.
+        plot_ext: Image extension (default ``"png"``).
+        scenario_params: If provided, a dict with key ``"scenario"`` and
+            parameter names. A title page with all parameters is rendered first.
         stats_data: If provided, a list of phenotype_stats dicts (one per rep).
             A Table 1 page is rendered after the title page.
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
+    plot_dir = Path(plot_dir)
     atlas_dir = output_path.parent.resolve()
-    if section_breaks is None:
-        section_breaks = {}
+
+    n_plots = sum(1 for item in items if isinstance(item, PlotEntry))
 
     with PdfPages(str(output_path)) as pdf:
         # Optional title page with scenario parameters
@@ -846,49 +465,44 @@ def assemble_atlas(
             if stats_data:
                 _render_table1_page(pdf, stats_data, scenario_name, scenario_params)
 
-        for idx, path in enumerate(plot_paths):
-            # Insert section divider page if configured for this index
-            if idx in section_breaks:
-                brk = section_breaks[idx]
-                sec_title, sec_subtitle = brk[0], brk[1]
-                sec_equations = brk[2] if len(brk) > 2 else None
-                _render_section_page(pdf, sec_title, sec_subtitle, equations=sec_equations)
-            path = Path(path)
+        plot_idx = 0
+        for item in items:
+            if isinstance(item, SectionBreak):
+                _render_section_page(
+                    pdf,
+                    item.title,
+                    item.subtitle,
+                    equations=list(item.equations) if item.equations else None,
+                )
+                continue
+
+            plot_idx += 1
+            path = plot_dir / f"{item.basename}.{plot_ext}"
             if not path.exists():
                 logger.warning("Atlas: skipping missing plot %s", path)
                 continue
 
             img = Image.open(str(path))
-            basename = path.stem
-            caption = captions.get(basename, "")
-
-            # Relative path from the atlas PDF to the source plot
             try:
                 rel = path.resolve().relative_to(atlas_dir)
             except ValueError:
                 rel = path.name
 
-            # Split caption into title and body
-            title, body = "", ""
-            if caption:
-                lines = caption.split("\n", 1)
-                title = lines[0]
-                body = lines[1].lstrip("\n") if len(lines) > 1 else ""
+            title = f"Figure {plot_idx}: {item.title}"
+            body = item.body
 
-            # A4 landscape page; reserve bottom for caption, top for margin
-            page_w, page_h = _PAGE_W, _PAGE_H
-            # Scale caption space by text length so long captions don't overflow
-            if not caption:
-                caption_frac = 0.0
-            elif len(caption) < 300:
+            # Caption space scales with text length so long captions don't
+            # overflow. Length proxy uses the rendered title + body.
+            caption_len = len(title) + 2 + len(body)
+            if caption_len < 300:
                 caption_frac = 0.13
-            elif len(caption) < 500:
+            elif caption_len < 500:
                 caption_frac = 0.18
             else:
                 caption_frac = 0.24
             img_frac = 1.0 - caption_frac - _TOP_MARGIN
 
-            fig = plt.figure(figsize=(page_w, page_h))
+            fig = plt.figure(figsize=(_PAGE_W, _PAGE_H))
 
             # Image axes: below top margin, above caption
             ax = fig.add_axes([0.005, caption_frac + 0.005, 0.99, img_frac - 0.005])
@@ -909,20 +523,19 @@ def assemble_atlas(
             ax.add_patch(rect)
 
             # Caption text in the lower portion — inline bold title + body
-            if caption:
-                caption_y = caption_frac - 0.015
-                body_with_ref = f"{body}  [{rel}]" if body else f"[{rel}]"
-                _render_inline_caption(
-                    fig,
-                    0.04,
-                    caption_y,
-                    title,
-                    body_with_ref,
-                    fontsize=11,
-                    fontfamily="sans-serif",
-                )
+            caption_y = caption_frac - 0.015
+            body_with_ref = f"{body}  [{rel}]" if body else f"[{rel}]"
+            _render_inline_caption(
+                fig,
+                0.04,
+                caption_y,
+                title,
+                body_with_ref,
+                fontsize=11,
+                fontfamily="sans-serif",
+            )
 
             pdf.savefig(fig, dpi=150)
             plt.close(fig)
 
-    logger.info("Atlas saved to %s (%d plots)", output_path, len(plot_paths))
+    logger.info("Atlas saved to %s (%d plots)", output_path, n_plots)
