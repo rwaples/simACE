@@ -17,6 +17,7 @@ import yaml
 
 from simace.core.parquet import save_parquet
 from simace.core.pedigree_graph import PedigreeGraph
+from simace.core.yaml_io import to_native
 
 from .censoring import (
     compute_censoring_cascade,
@@ -126,9 +127,7 @@ def main(
     if df_ped is not None:
         logger.info("Computing mate liability correlations...")
         stats["mate_correlation"] = compute_mate_correlation(df_ped)
-        del df_ped
-    else:
-        del df_ped
+    del df_ped
 
     # Fast sequential computations
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
@@ -156,7 +155,7 @@ def main(
     stats_path = Path(stats_output)
     stats_path.parent.mkdir(parents=True, exist_ok=True)
     with open(stats_path, "w", encoding="utf-8") as fh:
-        yaml.dump(stats, fh, default_flow_style=False, sort_keys=False)
+        yaml.dump(to_native(stats), fh, default_flow_style=False, sort_keys=False)
     logger.info("Stats written to %s", stats_path)
 
     sample_df = create_sample(df, seed=seed)

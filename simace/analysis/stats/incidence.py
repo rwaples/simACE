@@ -126,13 +126,11 @@ def compute_prevalence(df: pd.DataFrame) -> dict[str, Any]:
         "trait2": float(df["affected2"].mean()),
     }
     if "generation" in df.columns:
-        by_gen: dict[int, dict[str, float]] = {}
-        for gen, grp in df.groupby("generation"):
-            by_gen[int(gen)] = {
-                "trait1": float(grp["affected1"].mean()),
-                "trait2": float(grp["affected2"].mean()),
-            }
-        result["by_generation"] = by_gen
+        means = df.groupby("generation")[["affected1", "affected2"]].mean()
+        result["by_generation"] = {
+            int(gen): {"trait1": float(row["affected1"]), "trait2": float(row["affected2"])}
+            for gen, row in means.iterrows()
+        }
     return result
 
 

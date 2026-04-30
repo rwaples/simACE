@@ -82,13 +82,8 @@ def compute_affected_correlations(
             if len(idx1) < 10:
                 trait_result[ptype] = None
                 continue
-            a1 = affected[idx1]
-            a2 = affected[idx2]
-            # Phi r is undefined when either indicator is constant.
-            if a1.std() < 1e-12 or a2.std() < 1e-12:
-                trait_result[ptype] = None
-                continue
-            trait_result[ptype] = float(_pearsonr_core(a1, a2))
+            r = safe_corrcoef(affected[idx1], affected[idx2])
+            trait_result[ptype] = None if np.isnan(r) else r
         result[f"trait{trait_num}"] = trait_result
     return result
 

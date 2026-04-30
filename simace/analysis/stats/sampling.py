@@ -25,14 +25,15 @@ def create_sample(
     max_id = int(ids.max()) + 1
     id_to_row = np.full(max_id, -1, dtype=np.int32)
     id_to_row[ids] = np.arange(len(df), dtype=np.int32)
-    selected = set()
+    sampled_chunks = []
     for gen in unique_gens:
         gen_idx = np.where(generations == gen)[0]
-        chosen = rng.choice(gen_idx, min(len(gen_idx), n_per_gen), replace=False)
-        selected.update(chosen.tolist())
-    tmp = np.array(list(selected), dtype=np.intp)
-    for pid_arr in [df["mother"].values[tmp], df["father"].values[tmp]]:
+        sampled_chunks.append(rng.choice(gen_idx, min(len(gen_idx), n_per_gen), replace=False))
+    sampled_rows = np.concatenate(sampled_chunks)
+    parent_rows = []
+    for pid_arr in (df["mother"].values[sampled_rows], df["father"].values[sampled_rows]):
         valid = (pid_arr >= 0) & (pid_arr < max_id)
         rows = id_to_row[pid_arr[valid]]
-        selected.update(rows[rows >= 0].tolist())
-    return df.iloc[np.sort(np.array(list(selected), dtype=np.intp))].copy()
+        parent_rows.append(rows[rows >= 0])
+    final_rows = np.unique(np.concatenate([sampled_rows, *parent_rows]))
+    return df.iloc[final_rows].copy()
