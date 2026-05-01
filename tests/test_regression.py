@@ -24,8 +24,10 @@ GOLDEN_PARAMS = dict(
     p_mztwin=0.02,
     A1=0.5,
     C1=0.2,
+    E1=0.3,
     A2=0.4,
     C2=0.3,
+    E2=0.3,
     rA=0.3,
     rC=0.5,
 )

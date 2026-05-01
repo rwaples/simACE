@@ -369,7 +369,35 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
             scenarios[name] = params
 
     _validate_phenotype_config({"defaults": defaults, "scenarios": scenarios})
+    _validate_pedigree_config({"defaults": defaults, "scenarios": scenarios})
     return scenarios
+
+
+def _validate_pedigree_config(config: dict) -> None:
+    """Reject scenarios whose effective E1 / E2 resolve to ``None``.
+
+    Closes the gap where pre-PR3 config-loading allowed ``E: null`` and the
+    runtime fell back to ``1 - A - C`` inside ``run_simulation``.  After PR3,
+    every scenario must declare a numeric (or per-generation dict) value for
+    each unique-environment variance, either in the scenario file itself or
+    via ``_default.yaml``.
+
+    Args:
+        config: the merged ``{"defaults": ..., "scenarios": ...}`` dict.
+
+    Raises:
+        ValueError: if any scenario's effective E1 or E2 is ``None``.
+    """
+    defaults = config["defaults"]
+    for name, params in config.get("scenarios", {}).items():
+        for key in ("E1", "E2"):
+            value = params.get(key, defaults.get(key))
+            if value is None:
+                raise ValueError(
+                    f"Scenario '{name}': {key} is null. "
+                    f"Declare {key} explicitly in the scenario or in "
+                    f"config/_default.yaml under pedigree.trait{key[-1]}.E."
+                )
 
 
 # ---------------------------------------------------------------------------

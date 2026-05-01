@@ -31,7 +31,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
-import yaml
 from scipy.spatial import cKDTree
 
 from simace.core._numba_utils import _ndtri_approx
@@ -1033,8 +1032,8 @@ def run_simulation(
     rA: float,
     rC: float,
     rE: float = 0.0,
-    E1: float | dict[int, float] | None = None,
-    E2: float | dict[int, float] | None = None,
+    E1: float | dict[int, float],
+    E2: float | dict[int, float],
     G_sim: int | None = None,
     assort1: float = 0.0,
     assort2: float = 0.0,
@@ -1046,9 +1045,6 @@ def run_simulation(
     E (unique environment) are specified as absolute variances.  A is constant
     across generations; C and E may be specified per-generation via a dict
     mapping generation index to value (forward-filled for missing keys).
-
-    When E1/E2 are omitted, they default to ``1 - A - C`` for backward
-    compatibility (total variance = 1).
 
     Args:
         seed: Random seed
@@ -1089,12 +1085,6 @@ def run_simulation(
     for name, val in [("A1", A1), ("C1", C1), ("A2", A2), ("C2", C2)]:
         if not (isinstance(val, (int, float)) and val >= 0):
             raise ValueError(f"{name} must be a non-negative scalar, got {val}")
-
-    # Default E to residual (1 - A - C) for backward compatibility
-    if E1 is None:
-        E1 = 1.0 - A1 - C1
-    if E2 is None:
-        E2 = 1.0 - A2 - C2
 
     if not (int(N) == N and N > 0):
         raise ValueError(f"N must be a positive integer, got {N}")
@@ -1320,7 +1310,11 @@ def run_simulation(
 
 def cli() -> None:
     """Command-line interface for running ACE simulations."""
+    import json
+
     from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.yaml_io import dump_yaml
+    from simace.simulation.emit_params import emit_params
 
     parser = argparse.ArgumentParser(description="Run ACE pedigree simulation")
     add_logging_args(parser)
@@ -1332,25 +1326,29 @@ def cli() -> None:
     parser.add_argument("--p-mztwin", type=float, default=0.02, help="Probability of MZ twinning")
     parser.add_argument("--A1", type=float, default=0.5, help="Additive genetic variance for trait 1")
     parser.add_argument("--C1", type=float, default=0.2, help="Shared environment variance for trait 1")
-    parser.add_argument(
-        "--E1", type=float, default=None, help="Unique environment variance for trait 1 (default: 1-A1-C1)"
-    )
+    parser.add_argument("--E1", type=float, required=True, help="Unique environment variance for trait 1")
     parser.add_argument("--A2", type=float, default=0.5, help="Additive genetic variance for trait 2")
     parser.add_argument("--C2", type=float, default=0.2, help="Shared environment variance for trait 2")
-    parser.add_argument(
-        "--E2", type=float, default=None, help="Unique environment variance for trait 2 (default: 1-A2-C2)"
-    )
+    parser.add_argument("--E2", type=float, required=True, help="Unique environment variance for trait 2")
     parser.add_argument("--rA", type=float, default=0.5, help="Cross-trait genetic correlation")
     parser.add_argument("--rC", type=float, default=0.3, help="Cross-trait shared environment correlation")
     parser.add_argument("--rE", type=float, default=0.0, help="Cross-trait unique environment correlation")
     parser.add_argument("--assort1", type=float, default=0.0, help="Mate correlation on trait 1 liability")
     parser.add_argument("--assort2", type=float, default=0.0, help="Mate correlation on trait 2 liability")
+    parser.add_argument(
+        "--assort-matrix",
+        type=str,
+        default=None,
+        help='Optional 2x2 mate correlation matrix as JSON, e.g. \'[[0.3, 0.05], [0.05, 0.15]]\'',
+    )
     parser.add_argument("--output-pedigree", required=True, help="Output pedigree parquet path")
     parser.add_argument("--output-params", required=True, help="Output params YAML path")
     parser.add_argument("--rep", type=int, default=1, help="Replicate number")
     args = parser.parse_args()
 
     init_logging(args)
+
+    assort_matrix = json.loads(args.assort_matrix) if args.assort_matrix else None
 
     pedigree = run_simulation(
         seed=args.seed,
@@ -1370,31 +1368,30 @@ def cli() -> None:
         G_sim=args.G_sim,
         assort1=args.assort1,
         assort2=args.assort2,
+        assort_matrix=assort_matrix,
     )
 
     save_parquet(pedigree, args.output_pedigree)
 
-    _E1 = args.E1 if args.E1 is not None else 1.0 - args.A1 - args.C1
-    _E2 = args.E2 if args.E2 is not None else 1.0 - args.A2 - args.C2
-    params_dict = {
-        "seed": args.seed,
-        "rep": args.rep,
-        "A1": args.A1,
-        "C1": args.C1,
-        "E1": _E1,
-        "A2": args.A2,
-        "C2": args.C2,
-        "E2": _E2,
-        "rA": args.rA,
-        "rC": args.rC,
-        "rE": args.rE,
-        "N": args.N,
-        "G_ped": args.G_ped,
-        "G_sim": args.G_sim or args.G_ped,
-        "mating_lambda": args.mating_lambda,
-        "p_mztwin": args.p_mztwin,
-        "assort1": args.assort1,
-        "assort2": args.assort2,
-    }
-    with open(args.output_params, "w", encoding="utf-8") as f:
-        yaml.dump(params_dict, f, default_flow_style=False)
+    params_dict = emit_params(
+        seed=args.seed,
+        rep=args.rep,
+        A1=args.A1,
+        C1=args.C1,
+        E1=args.E1,
+        A2=args.A2,
+        C2=args.C2,
+        E2=args.E2,
+        rA=args.rA,
+        rC=args.rC,
+        rE=args.rE,
+        N=args.N,
+        G_ped=args.G_ped,
+        G_sim=args.G_sim,
+        mating_lambda=args.mating_lambda,
+        p_mztwin=args.p_mztwin,
+        assort1=args.assort1,
+        assort2=args.assort2,
+        assort_matrix=assort_matrix,
+    )
+    dump_yaml(params_dict, args.output_params, sort_keys=True)

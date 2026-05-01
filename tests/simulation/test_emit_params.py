@@ -55,13 +55,6 @@ class TestEmitParamsShape:
 
 
 class TestEchoSemantics:
-    def test_e_values_echoed_as_is(self, baseline_kwargs):
-        """PR2 mirrors prior Snakemake wrapper exactly: E echoed as-is, including None."""
-        kwargs = {**baseline_kwargs, "E1": None, "E2": None}
-        out = emit_params(**kwargs)
-        assert out["E1"] is None
-        assert out["E2"] is None
-
     def test_g_sim_none_echoed(self, baseline_kwargs):
         kwargs = {**baseline_kwargs, "G_sim": None}
         out = emit_params(**kwargs)

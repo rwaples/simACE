@@ -391,3 +391,127 @@ class TestGenCensoringCoercion:
         """The shipped _default.yaml round-trips to int keys via the loader."""
         flat = resolve_defaults("config")
         assert all(isinstance(k, int) for k in flat["gen_censoring"])
+
+
+class TestPedigreeConfigValidation:
+    """β config-load validator: reject scenarios whose effective E1/E2 is null."""
+
+    def _write(self, tmp_path: Path, name: str, body: dict) -> Path:
+        path = tmp_path / name
+        with open(path, "w") as fh:
+            yaml.safe_dump(body, fh)
+        return path
+
+    def _baseline_defaults(self) -> dict:
+        return {
+            "defaults": {
+                "seed": 42,
+                "replicates": 1,
+                "folder": "x",
+                "N": 100,
+                "G_ped": 2,
+                "G_pheno": 2,
+                "G_sim": 2,
+                "standardize": True,
+                "plot_format": "png",
+                "drop_from": 0,
+                "use_gene_drop": False,
+                "pedigree": {
+                    "mating_lambda": 0.5,
+                    "p_mztwin": 0.0,
+                    "assort1": 0.0,
+                    "assort2": 0.0,
+                    "assort_matrix": None,
+                    "trait1": {"A": 0.5, "C": 0.0, "E": 0.5},
+                    "trait2": {"A": 0.5, "C": 0.0, "E": 0.5},
+                    "rA": 0.0,
+                    "rC": 0.0,
+                    "rE": 0.0,
+                },
+                "phenotype": {
+                    "trait1": {
+                        "model": "frailty",
+                        "params": {"distribution": "weibull", "scale": 2000, "rho": 1.0},
+                        "beta": 1.0,
+                        "beta_sex": 0.0,
+                    },
+                    "trait2": {
+                        "model": "frailty",
+                        "params": {"distribution": "weibull", "scale": 2000, "rho": 1.0},
+                        "beta": 1.0,
+                        "beta_sex": 0.0,
+                    },
+                },
+                "censoring": {
+                    "max_age": 80,
+                    "gen_censoring": {0: [80, 80]},
+                    "death_scale": 164,
+                    "death_rho": 2.73,
+                },
+                "sampling": {"N_sample": 0, "case_ascertainment_ratio": 1.0, "pedigree_dropout_rate": 0.0},
+                "analysis": {"max_degree": 2, "estimate_inbreeding": False},
+                "tstrait": {
+                    "num_causal": 0,
+                    "frac_causal": 0.0,
+                    "maf_threshold": 0.0,
+                    "alpha": 0.0,
+                    "effect_mean": 0.0,
+                    "effect_var": 0.0,
+                    "trait_id": "t1",
+                    "share_architecture": False,
+                },
+            }
+        }
+
+    def test_baseline_defaults_pass(self, tmp_path):
+        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
+        self._write(tmp_path, "x.yaml", {"ok_scenario": {}})
+        scenarios = resolve_scenarios(tmp_path)
+        assert "ok_scenario" in scenarios
+
+    def test_scenario_E1_null_rejected(self, tmp_path):
+        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
+        self._write(
+            tmp_path,
+            "x.yaml",
+            {
+                "bad": {
+                    "pedigree": {
+                        "trait1": {"A": 0.5, "C": 0.0, "E": None},
+                    },
+                },
+            },
+        )
+        with pytest.raises(ValueError, match=r"Scenario 'bad'.*E1 is null"):
+            resolve_scenarios(tmp_path)
+
+    def test_scenario_E2_null_rejected(self, tmp_path):
+        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
+        self._write(
+            tmp_path,
+            "x.yaml",
+            {
+                "bad": {
+                    "pedigree": {
+                        "trait2": {"A": 0.5, "C": 0.0, "E": None},
+                    },
+                },
+            },
+        )
+        with pytest.raises(ValueError, match=r"Scenario 'bad'.*E2 is null"):
+            resolve_scenarios(tmp_path)
+
+    def test_defaults_E_null_rejected(self, tmp_path):
+        body = self._baseline_defaults()
+        body["defaults"]["pedigree"]["trait1"]["E"] = None
+        self._write(tmp_path, "_default.yaml", body)
+        self._write(tmp_path, "x.yaml", {"inheriting": {}})
+        with pytest.raises(ValueError, match=r"E1 is null"):
+            resolve_scenarios(tmp_path)
+
+    def test_scenario_inherits_default_E_passes(self, tmp_path):
+        """A scenario that omits E entirely inherits the (numeric) default."""
+        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
+        self._write(tmp_path, "x.yaml", {"inheriting": {"seed": 99}})
+        scenarios = resolve_scenarios(tmp_path)
+        assert scenarios["inheriting"]["seed"] == 99

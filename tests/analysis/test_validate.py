@@ -37,8 +37,10 @@ _DEFAULT_PARAMS = dict(
     p_mztwin=0.02,
     A1=0.5,
     C1=0.2,
+    E1=0.3,
     A2=0.5,
     C2=0.2,
+    E2=0.3,
     rA=0.3,
     rC=0.5,
     assort1=0.0,
@@ -53,7 +55,7 @@ def val_pedigree():
 
 @pytest.fixture(scope="module")
 def val_params():
-    return {**_DEFAULT_PARAMS, "E1": 0.3, "E2": 0.3, "rE": 0.0}
+    return {**_DEFAULT_PARAMS, "rE": 0.0}
 
 
 @pytest.fixture(scope="module")

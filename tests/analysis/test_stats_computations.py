@@ -660,7 +660,8 @@ class TestComputeCensoringWindows:
 
 _DEFAULT_SIM_PARAMS = dict(
     seed=42, N=1000, G_ped=3, G_sim=3, mating_lambda=0.5, p_mztwin=0.02,
-    A1=0.5, C1=0.2, A2=0.5, C2=0.2, rA=0.3, rC=0.5, assort1=0.0, assort2=0.0,
+    A1=0.5, C1=0.2, E1=0.3, A2=0.5, C2=0.2, E2=0.3,
+    rA=0.3, rC=0.5, assort1=0.0, assort2=0.0,
 )  # fmt: skip
 
 

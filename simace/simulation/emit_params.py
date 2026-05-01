@@ -7,10 +7,11 @@ echo of the scenario config — no computation; ``run_simulation`` does
 not need to produce it — so it lives in its own rule and uses the same
 ``run_wrapper`` seam as every other stage.
 
-PR2 mirrors the prior hand-rolled wrapper output exactly: ``E1``/``E2``
-are echoed as-is (``null`` allowed), ``assort_matrix`` is included only
-when not ``None``.  PR3 will reconcile this with the CLI's stricter
-behavior.
+After PR3, ``E1`` / ``E2`` are guaranteed numeric by the config-load
+validator (:func:`simace.config._validate_pedigree_config`); both the
+CLI and the Snakemake path go through this single helper so
+``params.yaml`` looks identical regardless of how the pipeline was
+launched.  ``assort_matrix`` is included only when not ``None``.
 """
 
 from __future__ import annotations
@@ -27,10 +28,10 @@ def emit_params(
     rep: int,
     A1: float,
     C1: float,
-    E1: float | None,
+    E1: float,
     A2: float,
     C2: float,
-    E2: float | None,
+    E2: float,
     rA: float,
     rC: float,
     rE: float,
@@ -54,12 +55,10 @@ def emit_params(
         rep: replicate number (1-based).
         A1: trait-1 additive-genetic variance.
         C1: trait-1 shared-environment variance.
-        E1: trait-1 unique-environment variance.  Echoed as-is —
-            ``None`` round-trips as ``null`` in YAML, matching the prior
-            hand-rolled wrapper.
+        E1: trait-1 unique-environment variance.
         A2: trait-2 additive-genetic variance.
         C2: trait-2 shared-environment variance.
-        E2: trait-2 unique-environment variance.  Echoed as-is.
+        E2: trait-2 unique-environment variance.
         rA: cross-trait genetic correlation.
         rC: cross-trait shared-environment correlation.
         rE: cross-trait unique-environment correlation.
@@ -121,10 +120,10 @@ def cli() -> None:
         rep=args.rep,
         A1=cfg["A1"],
         C1=cfg["C1"],
-        E1=cfg.get("E1"),
+        E1=cfg["E1"],
         A2=cfg["A2"],
         C2=cfg["C2"],
-        E2=cfg.get("E2"),
+        E2=cfg["E2"],
         rA=cfg["rA"],
         rC=cfg["rC"],
         rE=cfg.get("rE", 0.0),
