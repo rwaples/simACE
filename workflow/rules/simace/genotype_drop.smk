@@ -25,9 +25,37 @@ _GD_PREPROCESSED = config["tskit_preprocess"]["output_dir"]
 _GD_SIMHUMANITY = "external/SimHumanity"
 
 
-rule simulate_genotypes_chrom:
+rule build_pedigree_tables:
+    """Build the msprime fixed-pedigree TableCollection once per rep.
+
+    Saves ~80s/rep over the previous per-chrom rebuild on baseline100K.
+    Output is a tskit .trees file with placeholder sequence_length=1; each
+    chrom-drop rule mutates sequence_length to its per-chrom value.
+    """
     input:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.full.parquet",
+    output:
+        tables="results/{folder}/{scenario}/rep{rep}/pedigree_tables.trees",
+    log:
+        "logs/{folder}/{scenario}/rep{rep}/build_pedigree_tables.log",
+    benchmark:
+        "benchmarks/{folder}/{scenario}/rep{rep}/build_pedigree_tables.tsv"
+    conda:
+        "../../envs/tskit.yaml"
+    threads: 1
+    resources:
+        mem_mb=4000,
+        runtime=15,
+    params:
+        G_ped=lambda w: get_param(config, w.scenario, "G_ped"),
+        G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
+    script:
+        "../../scripts/simace/tskit/build_pedigree_tables.py"
+
+
+rule simulate_genotypes_chrom:
+    input:
+        pedigree_tables="results/{folder}/{scenario}/rep{rep}/pedigree_tables.trees",
         trees=f"{_GD_PREPROCESSED}/canonicalized/chromosome_{{n}}.trees",
         recomb=f"{_GD_SIMHUMANITY}/stdpopsim extraction/extracted/chr{{n}}_recombination.txt",
     output:
@@ -46,7 +74,6 @@ rule simulate_genotypes_chrom:
         runtime=60,
     params:
         G_ped=lambda w: get_param(config, w.scenario, "G_ped"),
-        G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
         seed=lambda w: get_param(config, w.scenario, "seed")
         + (int(w.rep) - 1)
         + 100 * int(w.n),

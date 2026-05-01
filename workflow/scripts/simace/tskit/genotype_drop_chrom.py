@@ -1,8 +1,11 @@
 """Snakemake wrapper: per-chromosome pedigree drop + ancestry graft.
 
-Self-contained: inlines pedigree_to_msprime, drop_one_chromosome, and
-graft_ancestry from external/tskit/run_trial_graft.py (which is gitignored).
-Recombination uses the per-chromosome SimHumanity HapMapII_GRCh38 rate map.
+Self-contained: inlines drop_one_chromosome and graft_ancestry from
+external/tskit/run_trial_graft.py (which is gitignored). The msprime
+fixed-pedigree TableCollection is built once per rep upstream by
+``build_pedigree_tables.py`` and loaded here; we mutate sequence_length
+to the per-chrom value before sim_ancestry. Recombination uses the
+per-chromosome SimHumanity HapMapII_GRCh38 rate map.
 Runs in the workflow's tskit conda env via `--use-conda`.
 """
 
@@ -12,40 +15,10 @@ from pathlib import Path
 
 import msprime
 import numpy as np
-import pandas as pd
 import tskit
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
 log = logging.getLogger("genotype_drop")
-
-
-def pedigree_to_msprime(ped: pd.DataFrame, G_ped: int, G_pheno: int, Ne: int) -> msprime.PedigreeBuilder:
-    """Build an msprime PedigreeBuilder from a simACE pedigree DataFrame.
-
-    msprime time runs backward (present = 0); simACE generation runs forward
-    (founders = 0). Founders (mother == -1) get parents=None; the most recent
-    G_pheno generations are marked as samples (so downstream tstrait gets
-    correct dosages for every individual that will be phenotyped).
-    """
-    if G_pheno < 1 or G_pheno > G_ped:
-        raise ValueError(f"G_pheno must be in [1, G_ped]; got G_pheno={G_pheno}, G_ped={G_ped}")
-    demography = msprime.Demography()
-    demography.add_population(name="A", initial_size=Ne)
-    pb = msprime.PedigreeBuilder(demography=demography)
-    sim_to_ms: dict[int, int] = {}
-
-    latest_gen = G_ped - 1
-    earliest_sample_gen = latest_gen - (G_pheno - 1)
-    for row in ped.itertuples(index=False):
-        time_ago = latest_gen - row.generation
-        is_sample = row.generation >= earliest_sample_gen
-        if row.mother == -1:
-            parents = None
-        else:
-            parents = [sim_to_ms[int(row.mother)], sim_to_ms[int(row.father)]]
-        ms_id = pb.add_individual(time=time_ago, is_sample=is_sample, parents=parents)
-        sim_to_ms[int(row.id)] = ms_id
-    return pb
 
 
 def drop_one_chromosome(
@@ -229,21 +202,21 @@ def _route_logging_to_snakemake_log() -> None:
 def main() -> None:
     """Snakemake entry: pedigree drop + ancestry graft for one chromosome."""
     _route_logging_to_snakemake_log()
-    pedigree_path = Path(snakemake.input.pedigree)
+    pedigree_tables_path = Path(snakemake.input.pedigree_tables)
     trees_path = Path(snakemake.input.trees)
     simhumanity_dir = Path(snakemake.params.simhumanity_dir)
-    g_ped = int(snakemake.params.G_ped)
-    g_pheno = int(snakemake.params.G_pheno)
     seed = int(snakemake.params.seed)
     chrom_n = int(snakemake.wildcards.n)
     out_path = Path(snakemake.output.trees)
+    g_ped = int(snakemake.params.G_ped)
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    log.info("loading pedigree %s", pedigree_path)
-    ped = pd.read_parquet(pedigree_path)
-    n_founders = int((ped["generation"] == 0).sum())
-    log.info("  pedigree: %d rows, %d founders, G_ped=%d", len(ped), n_founders, g_ped)
+    log.info("loading pedigree tables %s", pedigree_tables_path)
+    pedigree_tables = tskit.TableCollection.load(str(pedigree_tables_path))
+    parents_arr = pedigree_tables.individuals.parents.reshape(-1, 2)
+    n_founders = int((parents_arr == -1).all(axis=1).sum())
+    log.info("  pedigree tables: %d individuals, %d founders", pedigree_tables.individuals.num_rows, n_founders)
 
     log.info("loading ancestry %s", trees_path)
     t = time.perf_counter()
@@ -264,6 +237,9 @@ def main() -> None:
             f"{n_eligible} canonical individuals — config N must equal n_eligible_p2"
         )
 
+    # Mutate sequence_length to per-chrom; the upstream rule wrote a placeholder.
+    pedigree_tables.sequence_length = ts_anc.sequence_length
+
     chosen_inds = chosen_inds_from_canonical(ts_anc)
     log.info("  chosen_inds: %d (first 10: %s)", len(chosen_inds), chosen_inds[:10].tolist())
 
@@ -274,12 +250,6 @@ def main() -> None:
         len(rate_map.rate),
         float(rate_map.mean_rate),
     )
-
-    log.info("building msprime pedigree (Ne=%d, G_pheno=%d)", n_founders, g_pheno)
-    t = time.perf_counter()
-    pb = pedigree_to_msprime(ped, G_ped=g_ped, G_pheno=g_pheno, Ne=n_founders)
-    pedigree_tables = pb.finalise(sequence_length=ts_anc.sequence_length)
-    log.info("  built (%.1fs)", time.perf_counter() - t)
 
     log.info("dropping pedigree (seed=%d)", seed)
     t = time.perf_counter()
