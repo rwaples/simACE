@@ -39,18 +39,25 @@ def _marker_obs_per_rep() -> dict:
     return dict(s=42, color="0.45", zorder=5)
 
 
-def _marker_obs_mean() -> dict:
-    return dict(marker=_WIDE_PLUS, s=200, color="black", linewidths=2.2, zorder=8)
+def _marker_obs_mean(color: str = "black") -> dict:
+    return dict(marker=_WIDE_PLUS, s=200, color=color, linewidths=2.8, zorder=8)
+
+
+def _marker_obs_mean_halo() -> dict:
+    """Wider black ``+`` drawn under the coloured cross to give it a halo."""
+    return dict(marker=_WIDE_PLUS, s=200, color="black", linewidths=5.0, zorder=7)
 
 
 def _marker_liab() -> dict:
     return dict(marker="D", s=95, facecolor="white", edgecolor="black", linewidths=1.5, zorder=6)
 
 
-def _marker_param() -> dict:
-    from simace.plotting.plot_style import COLOR_AFFECTED
+def _marker_param(color: str | None = None) -> dict:
+    if color is None:
+        from simace.plotting.plot_style import COLOR_AFFECTED
 
-    return dict(marker="*", s=240, color=COLOR_AFFECTED, zorder=7, edgecolor="none")
+        color = COLOR_AFFECTED
+    return dict(marker="*", s=240, color=color, zorder=7, edgecolor="none")
 
 
 def _marker_frailty() -> dict:
@@ -323,8 +330,10 @@ def setup_pair_type_panel(
             jitter = np.zeros(1)
         for x, v in zip(i + jitter, rep_vals, strict=False):
             obs_records.append((ax, float(x), float(v)))
-        ax.scatter(i, float(np.mean(rep_vals)), **_marker_obs_mean())
-        ref_values.append(float(np.mean(rep_vals)))
+        mean_v = float(np.mean(rep_vals))
+        ax.scatter(i, mean_v, **_marker_obs_mean_halo())
+        ax.scatter(i, mean_v, **_marker_obs_mean(color=pair_colors[ptype]))
+        ref_values.append(mean_v)
 
     if liability_r:
         for i, ptype in enumerate(pair_types):
@@ -344,7 +353,7 @@ def setup_pair_type_panel(
         for i, ptype in enumerate(pair_types):
             v = parametric_r.get(ptype)
             if v is not None:
-                ax.scatter(i, float(v), **_marker_param())
+                ax.scatter(i, float(v), **_marker_param(color=pair_colors[ptype]))
                 ref_values.append(float(v))
 
     ax.set_xticks(range(len(pair_types)))
