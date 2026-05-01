@@ -45,12 +45,18 @@ def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
 
     # Offspring per person (including 0 for childless individuals).
     # Count via bincount on row positions: faster than groupby + Series.update/add.
+    # When df is a subsample, a child's parent may not be in df["id"]; id_to_row
+    # marks those as -1 and they must be masked out before bincount (which rejects
+    # negatives). This matches the prior groupby+update semantics, which only
+    # counted offspring against parents present in df["id"].
     ids_arr = df["id"].to_numpy()
     n_total = len(df)
     id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
     id_to_row[ids_arr] = np.arange(n_total, dtype=np.int32)
     m_rows = id_to_row[children["mother"].to_numpy()]
     f_rows = id_to_row[children["father"].to_numpy()]
+    m_rows = m_rows[m_rows >= 0]
+    f_rows = f_rows[f_rows >= 0]
     counts_arr = np.bincount(m_rows, minlength=n_total) + np.bincount(f_rows, minlength=n_total)
     offspring_counts = pd.Series(counts_arr, index=df["id"])
     person_dist = _offspring_count_dist(offspring_counts, n_total)
