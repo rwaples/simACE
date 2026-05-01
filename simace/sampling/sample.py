@@ -10,11 +10,13 @@ import numpy as np
 import pandas as pd
 
 from simace.core.parquet import save_parquet
-from simace.core.schema import CENSORED, assert_schema
+from simace.core.schema import CENSORED
+from simace.core.stage import stage
 
 logger = logging.getLogger(__name__)
 
 
+@stage(reads=CENSORED, writes=CENSORED)
 def run_sample(
     phenotype: pd.DataFrame,
     *,
@@ -37,7 +39,6 @@ def run_sample(
         DataFrame with at most ``N_sample`` rows (or all rows if
         ``N_sample <= 0`` or ``N_sample >= len(phenotype)``).
     """
-    assert_schema(phenotype, CENSORED, where="sample input")
     n_total = len(phenotype)
     n_sample = int(N_sample)
     seed = int(seed)

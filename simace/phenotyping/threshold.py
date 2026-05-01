@@ -34,6 +34,8 @@ import pandas as pd
 from simace.core._numba_utils import _ndtri_approx
 from simace.core.parquet import save_parquet
 from simace.core.relationships import SEX_LEVELS
+from simace.core.schema import PEDIGREE, PHENOTYPE
+from simace.core.stage import stage
 from simace.phenotyping.hazards import StandardizeMode, coerce_standardize_mode, standardize_liability
 
 logger = logging.getLogger(__name__)
@@ -173,6 +175,7 @@ def _apply_threshold_sex_aware(
 _DEFAULT_THRESHOLD_PREVALENCE: tuple[float, float] = (0.10, 0.20)
 
 
+@stage(reads=PEDIGREE, writes=PHENOTYPE)
 def run_threshold(
     pedigree: pd.DataFrame,
     *,
@@ -241,7 +244,8 @@ def run_threshold(
         trait_num=2,
     )
 
-    phenotype = pedigree.assign(affected1=affected1, affected2=affected2)
+    nan_t = np.full(len(pedigree), np.nan, dtype=np.float64)
+    phenotype = pedigree.assign(affected1=affected1, affected2=affected2, t1=nan_t, t2=nan_t)
 
     elapsed = time.perf_counter() - t0
     logger.info("Threshold model complete in %.1fs: %d individuals", elapsed, len(phenotype))

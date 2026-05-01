@@ -10,11 +10,13 @@ import numpy as np
 import pandas as pd
 
 from simace.core.parquet import save_parquet
-from simace.core.schema import PEDIGREE, assert_schema
+from simace.core.schema import PEDIGREE
+from simace.core.stage import stage
 
 logger = logging.getLogger(__name__)
 
 
+@stage(reads=PEDIGREE, writes=PEDIGREE)
 def run_dropout(
     pedigree: pd.DataFrame,
     *,
@@ -34,7 +36,6 @@ def run_dropout(
     Returns:
         DataFrame with dropped rows removed and dangling links severed.
     """
-    assert_schema(pedigree, PEDIGREE, where="dropout input")
     rate = float(pedigree_dropout_rate)
     seed = int(seed)
 

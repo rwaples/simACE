@@ -14,7 +14,8 @@ import numpy as np
 import pandas as pd
 
 from simace.core.parquet import save_parquet
-from simace.core.schema import CENSORED, PHENOTYPE, assert_schema
+from simace.core.schema import CENSORED, PHENOTYPE
+from simace.core.stage import stage
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +70,7 @@ def death_censor(
     return t, censored
 
 
+@stage(reads=PHENOTYPE, writes=CENSORED)
 def run_censor(
     phenotype: pd.DataFrame,
     *,
@@ -94,7 +96,6 @@ def run_censor(
         DataFrame with original columns plus censoring columns:
         death_age, age_censored1/2, t_observed1/2, death_censored1/2, affected1/2
     """
-    assert_schema(phenotype, PHENOTYPE, where="censor input")
     logger.info("Running censoring for %d individuals", len(phenotype))
     t0 = time.perf_counter()
 
@@ -133,7 +134,6 @@ def run_censor(
     prev2 = result["affected2"].mean()
     logger.info("Prevalence after censoring: trait1=%.3f, trait2=%.3f", prev1, prev2)
 
-    assert_schema(result, CENSORED, where="censor output")
     elapsed = time.perf_counter() - t0
     logger.info("Censoring complete in %.1fs: %d individuals", elapsed, len(result))
 

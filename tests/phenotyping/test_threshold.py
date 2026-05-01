@@ -351,6 +351,7 @@ def _tiny_pedigree(n_per_gen: int = 1000, n_gens: int = 2, seed: int = 0) -> pd.
             "twin": np.full(n, -1, dtype=np.int64),
             "sex": rng.integers(0, 2, size=n).astype(np.int8),
             "generation": np.repeat(np.arange(n_gens), n_per_gen).astype(np.int32),
+            "household_id": np.arange(n, dtype=np.int64),
             "A1": rng.standard_normal(n).astype(np.float32),
             "C1": rng.standard_normal(n).astype(np.float32),
             "E1": rng.standard_normal(n).astype(np.float32),
