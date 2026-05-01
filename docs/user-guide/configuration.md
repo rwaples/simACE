@@ -28,7 +28,7 @@ Trait liability ($L$) is decomposed as $L = A + C + E$, and can optionally be st
 | `rA` | float | 0.3 | Cross-trait genetic correlation |
 | `rC` | float | 0.5 | Cross-trait common environment correlation ([-1, 1]) |
 | `rE` | float | 0.0 | Cross-trait unique environment correlation ([-1, 1]) |
-| `standardize` | bool | true | Standardise liability before phenotyping |
+| `standardize` | str | `global` | Liability standardization mode for phenotyping: `none`, `global`, or `per_generation`. Legacy bools accepted (`true → global`, `false → none`). See [ACE Model § Standardisation](../concepts/ace-model.md#standardisation). |
 
 
 ### Pedigree

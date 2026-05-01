@@ -102,13 +102,41 @@ Set under `params.method`:
 ## Parallel `simple_ltm` output
 
 Independently of the configured family, every scenario produces a
-parallel `phenotype.simple_ltm.parquet` output via a per-generation
-liability-threshold cut on `liability1` / `liability2`. For `adult` /
-`cure_frailty` traits this path uses the configured `params.prevalence`;
-for `frailty` / `first_passage` traits it falls back to the documented
-defaults `(0.10, 0.20)`. The cut is applied by
-`simace.phenotyping.threshold.apply_threshold` regardless of which
-`model` is selected above.
+parallel `phenotype.simple_ltm.parquet` output by applying
+`simace.phenotyping.threshold.apply_threshold` to `liability1` /
+`liability2`. For `adult` / `cure_frailty` traits this path uses the
+configured `params.prevalence`; for `frailty` / `first_passage` traits
+it falls back to the documented defaults `(0.10, 0.20)`. The cut respects
+the global `standardize` flag (so `standardize: per_generation` makes the
+benchmark prevalence-preserving per generation; `global` matches the
+cohort-wide z-score).
+
+## Standardization
+
+The global `standardize` flag (`none` / `global` / `per_generation`)
+controls how liability is normalised before phenotyping. The four
+hazard-bearing families additionally accept a per-trait override
+`standardize_hazard` inside `params`:
+
+```yaml
+phenotype:
+  trait1:
+    model: cure_frailty
+    params:
+      distribution: weibull
+      scale: 2160
+      rho: 0.8
+      prevalence: 0.10
+      standardize_hazard: per_generation   # overrides global standardize
+                                           # for the hazard step only
+    beta: 1.0
+```
+
+When omitted, `standardize_hazard` inherits the global `standardize`
+value. `threshold` and `adult` with `method: ltm` reject the field —
+they have no separate hazard step. See [ACE Model §
+Standardisation](../concepts/ace-model.md#standardisation) for the
+per-model routing table and `cure_frailty`'s two-knob behaviour.
 
 ## Prevalence
 

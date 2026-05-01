@@ -13,7 +13,7 @@ $h^2 = v_A / (v_A + v_C + v_E)$ moves with it, even when $v_A$ remains
 unchanged. This page describes the form of that drift in simACE output,
 its signature in within-cohort relative-pair correlations, the
 mis-aggregation incurred by a naive heritability estimator pooled
-across cohorts, and the role of the `standardize` configuration flag in
+across cohorts, and the role of the `standardize` configuration mode in
 determining whether observed-scale prevalence remains stable or drifts
 in lockstep.
 
@@ -46,10 +46,15 @@ The four E trajectories differ in how $E_1$ moves across generations 0–9:
 Each trajectory has a `_std` and `_nostd` variant with **matched
 seeds**: the simulated liability columns are byte-identical within a
 pair; only the binary affected status (in `phenotype.parquet`) differs.
-Observations 1–3 use the four `_std` scenarios because they concern
-the liability scale, where the standardize flag is invisible.
-Observation 4 contrasts `_std` against `_nostd`, since that contrast
-is precisely the observed-scale axis.
+The `_std` scenarios use the legacy bool form `standardize: true`,
+which the config-load shim resolves to `standardize: "global"`; the
+`_nostd` scenarios use `standardize: false` (resolved to
+`standardize: "none"`). The third available mode, `"per_generation"`,
+is discussed in Observation 4 below as the prevalence-flattening
+alternative. Observations 1–3 use the four `_std` scenarios because
+they concern the liability scale, where the standardize mode is
+invisible. Observation 4 contrasts `_std` against `_nostd`, since that
+contrast is precisely the observed-scale axis.
 
 Rebuild all four (and the comparison plots on this page) with:
 
@@ -250,29 +255,34 @@ numbers result, the population is signalling that the
 random-stationarity assumption underlying a single pooled $h^2$ is
 wrong for that population.
 
-## Observation 4 — `standardize=true` offsets but does not flatten prevalence drift under the adult/LTM model
+## Observation 4 — `standardize="global"` offsets but does not flatten prevalence drift under the adult/LTM model
 
 Observations 1–3 concern the liability scale, where the `standardize`
-configuration flag is invisible (it affects only the mapping from
-liability to binary affected status). Observation 4 examines that flag
-explicitly. Under the `adult` / `method: ltm` phenotype model, the
-threshold is set as $T = \Phi^{-1}(1 - K)$ where $K$ is the configured
-prevalence. With `standardize=true` (the default),
-`AdultModel._simulate_ltm` standardizes liability to mean $0$ and
-standard deviation $1$ across *the entire pedigree* — not
-per-generation — before comparing to $T$. With `standardize=false`,
-raw liability is compared to $T$ directly.
+mode is invisible (it affects only the mapping from liability to binary
+affected status). Observation 4 examines that mode explicitly. Under
+the `adult` / `method: ltm` phenotype model, the threshold is set as
+$T = \Phi^{-1}(1 - K)$ where $K$ is the configured prevalence. With
+`standardize="global"` (the default; equivalent to the legacy
+`standardize: true`), `AdultModel._simulate_ltm` standardizes liability
+to mean $0$ and standard deviation $1$ across *the entire pedigree* —
+not per-generation — before comparing to $T$. With
+`standardize="none"` (legacy `standardize: false`), raw liability is
+compared to $T$ directly. A third mode, `standardize="per_generation"`,
+flattens the per-cohort drift entirely; see the subsection below.
 
-The matched-seed pairs (`e_*_std` vs `e_*_nostd`) make this contrast
-exact: the pedigree and liability columns are identical within a pair,
-so any per-generation prevalence difference is *purely* due to the
-standardize choice.
+The matched-seed pairs (`e_*_std` vs `e_*_nostd`) make the
+`global`-vs-`none` contrast exact: the pedigree and liability columns
+are identical within a pair, so any per-generation prevalence
+difference is *purely* due to the standardize choice.
 
-![Per-gen observed prevalence: standardize=true vs false](../images/examples/increasing_e/prevalence_drift.png)
+![Per-gen observed prevalence: standardize=global vs none vs per_generation](../images/examples/increasing_e/prevalence_drift.png)
 
-Each panel is one trajectory. The blue line is `standardize=true`, the
-rose line is `standardize=false`. The grey dashed line is the input
-$K = 0.10$.
+Each panel is one trajectory. Three lines per panel: `standardize="global"`
+(legacy `true`), `standardize="none"` (legacy `false`), and
+`standardize="per_generation"`. The grey dashed line is the input
+$K = 0.10$. The matched-seed `e_*_std` and `e_*_nostd` scenarios feed
+the first two lines; the new `e_*_pergen` scenarios (matched seeds again)
+feed the third.
 
 ### The age-censoring artefact (gens 0–3)
 
@@ -288,68 +298,73 @@ have not aged into onset by their censor window and therefore appear
 0%-affected even though their *liabilities* match those of their
 ancestors. Generations 4–9 should be read.
 
-### Effect of standardize (gens 4–9)
+### Effect of `global` vs `none` (gens 4–9)
 
 - **`e_flat`**: both lines sit at $\approx 0.100$ across gens 4–9. This
   is the calibration baseline; it matches the configured $K = 0.10$
   within sampling noise.
-- **`e_rise_mild`**: `standardize=true` rises $0.099 \to 0.105$
-  ($\Delta = +0.006$); `standardize=false` rises $0.104 \to 0.111$
+- **`e_rise_mild`**: `standardize="global"` rises $0.099 \to 0.105$
+  ($\Delta = +0.006$); `standardize="none"` rises $0.104 \to 0.111$
   ($\Delta = +0.007$). The two slopes are nearly identical;
-  `standardize` shifts the absolute level by $\approx 0.005$–$0.006$
-  but does not reduce the per-generation drift.
-- **`e_rise_steep`**: `standardize=true` $0.098 \to 0.109$
-  ($\Delta = +0.011$); `standardize=false` $0.109 \to 0.120$
-  ($\Delta = +0.011$). The same pattern obtains; the swing is larger
-  than for `e_rise_mild` because $v_E$ swings more.
-- **`e_fall_steep`**: `standardize=true` $0.101 \to 0.086$
-  ($\Delta = -0.015$); `standardize=false` $0.090 \to 0.075$
-  ($\Delta = -0.014$). Direction symmetric; slopes again match but
-  the offsets differ.
+  `"global"` shifts the absolute level by $\approx 0.005$–$0.006$ but
+  does not reduce the per-generation drift.
+- **`e_rise_steep`**: `"global"` $0.098 \to 0.109$ ($\Delta = +0.011$);
+  `"none"` $0.109 \to 0.120$ ($\Delta = +0.011$). The same pattern
+  obtains; the swing is larger than for `e_rise_mild` because $v_E$
+  swings more.
+- **`e_fall_steep`**: `"global"` $0.101 \to 0.086$ ($\Delta = -0.015$);
+  `"none"` $0.090 \to 0.075$ ($\Delta = -0.014$). Direction symmetric;
+  slopes again match but the offsets differ.
 
 The key fact is that the slopes are essentially identical between
-`_std` and `_nostd`. The standardize flag adjusts the *level* of the
+`_std` and `_nostd`. The `"global"` mode adjusts the *level* of the
 per-generation prevalence — rising-$E$ scenarios have lower prevalence
-under `std=true` because the global standardization scales liability
-by $\sqrt{\text{global } v_L}$, which exceeds $1$ when late-generation
-$v_E$ is high, and falling-$E$ exhibits the opposite shift — but it
-does not undo the per-cohort drift caused by per-generation $v_E$
-differences.
+under `"global"` because the cohort-wide standardization scales
+liability by $\sqrt{\text{global } v_L}$, which exceeds $1$ when
+late-generation $v_E$ is high, and falling-$E$ exhibits the opposite
+shift — but it does not undo the per-cohort drift caused by
+per-generation $v_E$ differences.
 
-### Why `standardize=true` does not flatten here
+### Why `standardize="global"` does not flatten here
 
-`AdultModel._simulate_ltm` (`simace/phenotyping/models/adult.py`)
-computes `L = (L - L.mean()) / L.std()` across *the entire pedigree*.
-This collapses the population mean and standard deviation to $(0, 1)$
-but leaves the *between-generation* variance ratios intact. A
-generation with above-average $v_E$ retains above-average
-post-standardization variance and therefore retains more upper-tail
-mass beyond the fixed threshold. Eliminating per-generation drift
-requires *per-generation* standardization, as performed by the simpler
-`apply_threshold` function in `simace/phenotyping/threshold.py` (see
-the `phenotype_simple_ltm` rule). That model does flatten the
-`std=true` line at exactly $K$ per generation, at the cost of also
-erasing any real population-level signal that happens to map onto the
-variance-by-generation axis.
+`AdultModel._simulate_ltm` (`simace/phenotyping/models/adult.py`) under
+`standardize="global"` computes `L = (L - L.mean()) / L.std()` across
+*the entire pedigree*. This collapses the population mean and standard
+deviation to $(0, 1)$ but leaves the *between-generation* variance
+ratios intact. A generation with above-average $v_E$ retains
+above-average post-standardization variance and therefore retains more
+upper-tail mass beyond the fixed threshold.
 
-!!! note "Open work: per-generation standardization for `adult` family"
-    The `standardize=true` path in `AdultModel` (and the other
-    adult-family models) currently standardizes across the entire
-    pedigree, which produces the residual cohort drift visible in the
-    blue lines above. Switching to per-generation standardization — to
-    match what `apply_threshold` already does in
-    `simace/phenotyping/threshold.py` — would flatten the `_std` line
-    at exactly $K$ per generation. Until that change lands, the only
-    way to obtain per-generation flat prevalence under the LTM
-    age-of-onset model is to bypass it via `phenotype_simple_ltm`.
+### How `standardize="per_generation"` flattens it
+
+The third mode, `standardize="per_generation"`, z-scores liability
+within each generation independently before comparing to $T$. Under
+this mode every generation hits its target $K$ exactly, regardless of
+how $v_E$ drifts across cohorts — visible directly in the green line
+in each panel above, which sits flat at $K = 0.10$ for all four E
+trajectories. The same thing happens automatically in the
+`phenotype.simple_ltm.parquet` benchmark output that every scenario
+produces alongside its main phenotype: that benchmark calls
+`apply_threshold` from `simace/phenotyping/threshold.py`, which honors
+the same global `standardize` flag. So setting
+`standardize: per_generation` in the scenario YAML simultaneously
+flattens the `adult` / `method: ltm` prevalence drift *and* the
+simple-LTM benchmark drift.
+
+The trade-off is the same as before: per-generation standardization
+erases any real population-level signal that happens to map onto the
+variance-by-generation axis. Choose the mode that matches the question
+being asked.
 
 ### Implications
 
-The choice of phenotype model, and within it whether standardization
-is per-population or per-cohort, silently determines whether
-registry-style prevalence will drift across cohorts under
-non-stationary $E$. The adult/LTM model used here is one common
-choice; the simpler per-generation-standardized threshold model is
-another. Both are legitimate, but they answer different questions.
-The pitfall is to treat either as "calibrated to $K$" without checking
-what its standardize step actually performs.
+The choice of phenotype model, and within it which `standardize` mode
+is selected, silently determines whether registry-style prevalence will
+drift across cohorts under non-stationary $E$. `standardize="global"`
+preserves prevalence cohort-wide but lets it drift per generation;
+`standardize="per_generation"` preserves prevalence per generation but
+absorbs the per-cohort variance signal; `standardize="none"` reports
+the raw drift directly. All three are legitimate, but they answer
+different questions. The pitfall is to treat any of them as
+"calibrated to $K$" without checking what its standardize step
+actually performs.
