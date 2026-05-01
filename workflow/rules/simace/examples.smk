@@ -34,6 +34,7 @@ INCREASING_E_LABELS = [
 ]
 INCREASING_E_STD_SCENARIOS = [f"{traj}_std" for traj in INCREASING_E_TRAJECTORIES]
 INCREASING_E_NOSTD_SCENARIOS = [f"{traj}_nostd" for traj in INCREASING_E_TRAJECTORIES]
+INCREASING_E_PERGEN_SCENARIOS = [f"{traj}_pergen" for traj in INCREASING_E_TRAJECTORIES]
 
 
 def _increasing_e_per_gen_E(scen):
@@ -343,7 +344,7 @@ rule compare_increasing_e_prevalence:
         lambda w: [
             f"results/examples/{scen}/rep{rep}/phenotype_stats.yaml"
             for traj in INCREASING_E_TRAJECTORIES
-            for scen in (f"{traj}_std", f"{traj}_nostd")
+            for scen in (f"{traj}_std", f"{traj}_nostd", f"{traj}_pergen")
             for rep in range(1, get_param(config, scen, "replicates") + 1)
         ],
     output:
