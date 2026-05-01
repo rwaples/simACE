@@ -29,6 +29,7 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 import tskit
+from _allele_counts import allele_counts
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
 log = logging.getLogger("tstrait_site_catalog_chrom")
@@ -78,13 +79,7 @@ def build_catalog(ts: tskit.TreeSequence, chrom_n: int) -> pd.DataFrame:
     site_to_mut[mut_table.site] = np.arange(mut_table.num_rows)
 
     pos = site_table.position.astype(np.int64)
-    ac = np.zeros(n_sites, dtype=np.int64)
-    for tree in ts.trees():
-        if tree.num_sites == 0:
-            continue
-        for site in tree.sites():
-            mut = site.mutations[0]
-            ac[site.id] = tree.num_samples(mut.node)
+    ac = allele_counts(ts)
 
     af = ac.astype(np.float64) / float(n_samples)
 
