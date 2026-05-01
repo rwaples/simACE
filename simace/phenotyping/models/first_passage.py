@@ -22,7 +22,6 @@ from numba import njit, prange
 from simace.phenotyping.hazards import (
     StandardizeMode,
     add_standardize_hazard_cli_arg,
-    coerce_standardize_mode,
     iter_generation_groups,
     resolve_hazard_mode,
     standardize_beta,
@@ -32,6 +31,8 @@ from simace.phenotyping.models._base import (
     PhenotypeModel,
     check_finite_beta,
     check_no_foreign_flags,
+    emit_standardize_hazard,
+    validate_standardize_hazard,
     wrap_trait_error,
 )
 
@@ -122,8 +123,7 @@ class FirstPassageModel(PhenotypeModel):
         check_finite_beta(self.beta)
         if self.drift == 0.0:
             raise ValueError("first_passage drift must be non-zero")
-        if self.standardize_hazard is not None:
-            coerce_standardize_mode(self.standardize_hazard)
+        validate_standardize_hazard(self.standardize_hazard)
 
     # ------------------------------------------------------------------
     # Construction
@@ -188,8 +188,7 @@ class FirstPassageModel(PhenotypeModel):
 
     def to_params_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {"drift": self.drift, "shape": self.shape}
-        if self.standardize_hazard is not None:
-            out["standardize_hazard"] = self.standardize_hazard
+        emit_standardize_hazard(out, self.standardize_hazard)
         return out
 
     # ------------------------------------------------------------------

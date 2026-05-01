@@ -71,3 +71,5 @@ presentations/
 
 #epimight
 /epimight/EPIMIGHT
+# Added by code-review-graph
+.code-review-graph/

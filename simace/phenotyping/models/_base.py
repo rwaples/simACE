@@ -43,13 +43,35 @@ if TYPE_CHECKING:
 
     from simace.phenotyping.hazards import StandardizeMode
 
-__all__ = ["PhenotypeModel", "check_finite_beta", "check_no_foreign_flags", "wrap_trait_error"]
+__all__ = [
+    "PhenotypeModel",
+    "check_finite_beta",
+    "check_no_foreign_flags",
+    "emit_standardize_hazard",
+    "validate_standardize_hazard",
+    "wrap_trait_error",
+]
 
 
 def check_finite_beta(beta: float) -> None:
     """Raise ``ValueError`` if beta is non-finite (NaN or +/-inf)."""
     if not math.isfinite(beta):
         raise ValueError(f"beta must be finite, got {beta}")
+
+
+def validate_standardize_hazard(value: StandardizeMode | None) -> None:
+    """Validate the per-trait ``standardize_hazard`` override (``None`` = inherit)."""
+    if value is None:
+        return
+    from simace.phenotyping.hazards import coerce_standardize_mode
+
+    coerce_standardize_mode(value)
+
+
+def emit_standardize_hazard(out: dict[str, Any], value: StandardizeMode | None) -> None:
+    """Write ``standardize_hazard`` into ``out`` only when set (non-``None``)."""
+    if value is not None:
+        out["standardize_hazard"] = value
 
 
 class PhenotypeModel(ABC):

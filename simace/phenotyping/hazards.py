@@ -29,6 +29,7 @@ __all__ = [
     "BASELINE_HAZARDS",
     "BASELINE_PARAMS",
     "HAZARD_FLAG_ROOTS",
+    "STANDARDIZE_CHOICES",
     "StandardizeMode",
     "add_hazard_cli_args",
     "add_standardize_hazard_cli_arg",
@@ -56,8 +57,9 @@ if TYPE_CHECKING:
     import argparse
     from collections.abc import Iterator
 
+STANDARDIZE_CHOICES: tuple[str, ...] = ("none", "global", "per_generation")
 StandardizeMode = Literal["none", "global", "per_generation"]
-_VALID_STD_MODES: frozenset[str] = frozenset({"none", "global", "per_generation"})
+_VALID_STD_MODES: frozenset[str] = frozenset(STANDARDIZE_CHOICES)
 
 # ---------------------------------------------------------------------------
 # Numba kernels — fuse frailty computation + inversion in a single pass
@@ -295,7 +297,7 @@ def add_standardize_hazard_cli_arg(
     parser_or_group.add_argument(
         f"--{name}-standardize-hazard{trait}",
         default=None,
-        choices=["none", "global", "per_generation"],
+        choices=list(STANDARDIZE_CHOICES),
         help=(
             f"Per-trait override of the hazard-step standardization mode for trait {trait} "
             f"when phenotype-model{trait}={name.replace('-', '_')} (default: inherit from --standardize)"

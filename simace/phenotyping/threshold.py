@@ -36,7 +36,12 @@ from simace.core.parquet import save_parquet
 from simace.core.relationships import SEX_LEVELS
 from simace.core.schema import PEDIGREE, PHENOTYPE
 from simace.core.stage import stage
-from simace.phenotyping.hazards import StandardizeMode, coerce_standardize_mode, standardize_liability
+from simace.phenotyping.hazards import (
+    STANDARDIZE_CHOICES,
+    StandardizeMode,
+    coerce_standardize_mode,
+    standardize_liability,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +60,7 @@ def _validate_per_gen_prevalence(prev_dict: dict[int, float], unique_gens: np.nd
             f"but data contains generations {sorted(int(g) for g in unique_gens)}"
         )
     for gen_key, prev_val in prev_dict.items():
-        _validate_per_gen_value(prev_val, f" for generation {gen_key}")
-
-
-def _validate_per_gen_value(prev_val: float, where: str) -> None:
-    _validate_prevalence_value(prev_val, where)
+        _validate_prevalence_value(prev_val, f" for generation {gen_key}")
 
 
 def _resolve_prev_for_gen(prev_spec: float | dict[int, float], gen: int) -> float:
@@ -87,6 +88,7 @@ def _apply_thresholds_to_standardized(
     if isinstance(prev_spec, dict) and "female" in prev_spec and "male" in prev_spec:
         if sex is None:
             raise ValueError("sex array required for sex-keyed prevalence dict")
+        gen_masks = {int(g): generation == g for g in unique_gens}
         for sex_val, key in SEX_LEVELS:
             sub_spec = prev_spec[key]
             if isinstance(sub_spec, dict):
@@ -94,11 +96,11 @@ def _apply_thresholds_to_standardized(
             else:
                 _validate_prevalence_value(sub_spec, "")
             sex_mask = sex == sex_val
-            for gen in unique_gens:
-                cell = sex_mask & (generation == gen)
+            for gen, gen_mask in gen_masks.items():
+                cell = sex_mask & gen_mask
                 if not cell.any():
                     continue
-                prev = _resolve_prev_for_gen(sub_spec, int(gen))
+                prev = _resolve_prev_for_gen(sub_spec, gen)
                 threshold = _ndtri_approx(1.0 - prev)
                 affected[cell] = threshold <= L_all[cell]
         return affected
@@ -288,7 +290,7 @@ def cli() -> None:
     )
     parser.add_argument(
         "--standardize",
-        choices=["none", "global", "per_generation"],
+        choices=list(STANDARDIZE_CHOICES),
         default="global",
         help="Liability standardization mode (default: global)",
     )

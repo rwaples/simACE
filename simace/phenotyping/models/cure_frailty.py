@@ -33,6 +33,8 @@ from simace.phenotyping.models._base import (
     PhenotypeModel,
     check_finite_beta,
     check_no_foreign_flags,
+    emit_standardize_hazard,
+    validate_standardize_hazard,
     wrap_trait_error,
 )
 from simace.phenotyping.models._prevalence import resolve_prevalence
@@ -75,8 +77,7 @@ class CureFrailtyModel(PhenotypeModel):
     def __post_init__(self) -> None:
         validate_hazard_params(self.distribution, self.hazard_params, model_name="cure_frailty")
         check_finite_beta(self.beta)
-        if self.standardize_hazard is not None:
-            coerce_standardize_mode(self.standardize_hazard)
+        validate_standardize_hazard(self.standardize_hazard)
 
     # ------------------------------------------------------------------
     # Construction
@@ -143,8 +144,7 @@ class CureFrailtyModel(PhenotypeModel):
             "prevalence": self.prevalence,
             **self.hazard_params,
         }
-        if self.standardize_hazard is not None:
-            out["standardize_hazard"] = self.standardize_hazard
+        emit_standardize_hazard(out, self.standardize_hazard)
         return out
 
     # ------------------------------------------------------------------
@@ -189,13 +189,9 @@ class CureFrailtyModel(PhenotypeModel):
                 continue
             m = float(mean_arr[cell][0])
             b = float(beta_arr[cell][0])
-            # Pass RAW liability (not standardized L) so the kernel's
-            # ``z = exp(scaled_beta * (L - mean))`` evaluates to
-            # ``exp(beta * z_score(L_raw))`` as intended.  Passing L (the
-            # threshold-standardized liability) here would double-shift,
-            # introducing a constant ``-beta * mean / std`` offset in the
-            # log-hazard; silent under default A+C+E=1 configs but real
-            # under non-zero-mean or non-unit-variance liability.
+            # Pass raw ``liability`` here (not threshold-standardized ``L``):
+            # the kernel does ``exp(scaled_beta * (L - mean))`` and double-
+            # shifting silently biases the log-hazard under non-unit-variance L.
             t[cell] = compute_event_times(
                 neg_log_u_full[cell],
                 liability[cell],

@@ -27,7 +27,7 @@ import pandas as pd
 from simace.core.parquet import save_parquet
 from simace.core.schema import PEDIGREE, PHENOTYPE
 from simace.core.stage import stage
-from simace.phenotyping.hazards import StandardizeMode
+from simace.phenotyping.hazards import STANDARDIZE_CHOICES, StandardizeMode
 from simace.phenotyping.models import MODELS
 
 logger = logging.getLogger(__name__)
@@ -168,7 +168,7 @@ def cli() -> None:
     parser.add_argument("--G-pheno", type=int, default=3)
     parser.add_argument(
         "--standardize",
-        choices=["none", "global", "per_generation"],
+        choices=list(STANDARDIZE_CHOICES),
         default="global",
         help="Liability standardization mode (default: global)",
     )

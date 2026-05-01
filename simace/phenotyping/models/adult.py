@@ -45,6 +45,8 @@ from simace.phenotyping.models._base import (
     PhenotypeModel,
     check_finite_beta,
     check_no_foreign_flags,
+    emit_standardize_hazard,
+    validate_standardize_hazard,
     wrap_trait_error,
 )
 from simace.phenotyping.models._prevalence import resolve_prevalence
@@ -91,13 +93,12 @@ class AdultModel(PhenotypeModel):
         if self.method not in _ADULT_METHODS:
             raise ValueError(f"unknown adult method {self.method!r}; valid: {sorted(_ADULT_METHODS)}")
         check_finite_beta(self.beta)
-        if self.standardize_hazard is not None:
-            coerce_standardize_mode(self.standardize_hazard)
-            if self.method == "ltm":
-                raise ValueError(
-                    "standardize_hazard is only valid when adult.method='cox' "
-                    "(this model has method='ltm'; use the global 'standardize' flag instead)"
-                )
+        validate_standardize_hazard(self.standardize_hazard)
+        if self.standardize_hazard is not None and self.method == "ltm":
+            raise ValueError(
+                "standardize_hazard is only valid when adult.method='cox' "
+                "(this model has method='ltm'; use the global 'standardize' flag instead)"
+            )
 
     # ------------------------------------------------------------------
     # Construction
@@ -178,8 +179,7 @@ class AdultModel(PhenotypeModel):
             "cip_k": self.cip_k,
             "prevalence": self.prevalence,
         }
-        if self.standardize_hazard is not None:
-            out["standardize_hazard"] = self.standardize_hazard
+        emit_standardize_hazard(out, self.standardize_hazard)
         return out
 
     # ------------------------------------------------------------------

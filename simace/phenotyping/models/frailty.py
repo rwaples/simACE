@@ -17,7 +17,6 @@ from simace.phenotyping.hazards import (
     StandardizeMode,
     add_hazard_cli_args,
     add_standardize_hazard_cli_arg,
-    coerce_standardize_mode,
     compute_event_times,
     hazard_cli_flag_attrs,
     iter_generation_groups,
@@ -31,6 +30,8 @@ from simace.phenotyping.models._base import (
     PhenotypeModel,
     check_finite_beta,
     check_no_foreign_flags,
+    emit_standardize_hazard,
+    validate_standardize_hazard,
     wrap_trait_error,
 )
 
@@ -65,8 +66,7 @@ class FrailtyModel(PhenotypeModel):
     def __post_init__(self) -> None:
         validate_hazard_params(self.distribution, self.hazard_params, model_name="frailty")
         check_finite_beta(self.beta)
-        if self.standardize_hazard is not None:
-            coerce_standardize_mode(self.standardize_hazard)  # validates value
+        validate_standardize_hazard(self.standardize_hazard)
 
     # ------------------------------------------------------------------
     # Construction from config dict / CLI args
@@ -115,8 +115,7 @@ class FrailtyModel(PhenotypeModel):
 
     def to_params_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {"distribution": self.distribution, **self.hazard_params}
-        if self.standardize_hazard is not None:
-            out["standardize_hazard"] = self.standardize_hazard
+        emit_standardize_hazard(out, self.standardize_hazard)
         return out
 
     # ------------------------------------------------------------------
