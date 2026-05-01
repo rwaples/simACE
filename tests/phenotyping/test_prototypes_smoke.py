@@ -63,3 +63,24 @@ def test_two_threshold_runs():
     assert t.shape == (200,)
     assert np.all(np.isfinite(t))
     assert np.all(t > 0)
+
+
+def test_per_generation_rejected_by_prototypes():
+    """The bimodal prototypes don't take a generation array, so the
+    per-generation mode is explicitly rejected."""
+    import pytest
+
+    for fn, kwargs in [
+        (phenotype_mixture_cip, {"prevalence": 0.1, "beta": 1.0, "pi": 0.5}),
+        (phenotype_two_threshold, {"prevalence_early": 0.05, "prevalence_late": 0.10}),
+    ]:
+        with pytest.raises(ValueError, match="per_generation"):
+            fn(liability=_liability(), standardize="per_generation", **kwargs)
+
+
+def test_legacy_bool_resolves_to_global():
+    """standardize=True and standardize='global' should produce identical output."""
+    L = _liability()
+    t_true = phenotype_mixture_cip(liability=L, prevalence=0.1, beta=1.0, standardize=True)
+    t_global = phenotype_mixture_cip(liability=L, prevalence=0.1, beta=1.0, standardize="global")
+    np.testing.assert_array_equal(t_true, t_global)

@@ -4,7 +4,14 @@ Three models that produce bimodal age-of-onset distributions:
   1. mixture_cip:          Two logistic CIP components, shared β
   2. mixture_cure_frailty: Two cure-frailty hazards, shared β
   3. two_threshold:        Two liability thresholds with separate CIP per stratum
+
+Standardization: each function accepts ``standardize`` as one of
+``"none"``, ``"global"``, or a legacy bool (``True`` → ``"global"``,
+``False`` → ``"none"``). ``"per_generation"`` is not supported here —
+these prototypes do not take a ``generation`` array.
 """
+
+from __future__ import annotations
 
 __all__ = [
     "phenotype_mixture_cip",
@@ -13,9 +20,31 @@ __all__ = [
 ]
 
 import numpy as np
+from scipy.special import erfc
 
 from simace.core._numba_utils import _ndtri_approx
-from simace.phenotyping.hazards import BASELINE_HAZARDS, standardize_beta
+from simace.phenotyping.hazards import (
+    BASELINE_HAZARDS,
+    StandardizeMode,
+    coerce_standardize_mode,
+    standardize_beta,
+    standardize_liability,
+)
+
+
+def _resolve_mode(standardize: StandardizeMode | bool) -> StandardizeMode:
+    """Resolve the standardize argument and reject ``per_generation``.
+
+    The bimodal prototypes do not take a ``generation`` array, so the
+    per-generation path is not reachable from these entry points.
+    """
+    mode = coerce_standardize_mode(standardize)
+    if mode == "per_generation":
+        raise ValueError(
+            "phenotype_mixture_*/_two_threshold prototypes do not accept "
+            "standardize='per_generation' (no 'generation' input). Use 'global' or 'none'."
+        )
+    return mode
 
 
 def phenotype_mixture_cip(
@@ -28,7 +57,7 @@ def phenotype_mixture_cip(
     cip_x0_2: float = 40.0,
     cip_k_2: float = 0.2,
     seed: int = 42,
-    standardize: bool = True,
+    standardize: StandardizeMode | bool = "global",
     sex: np.ndarray | None = None,
     beta_sex: float = 0.0,
 ) -> np.ndarray:
@@ -49,18 +78,16 @@ def phenotype_mixture_cip(
         cip_x0_2:    logistic CIP midpoint for component 2 (late)
         cip_k_2:     logistic CIP growth rate for component 2
         seed:        random seed for component assignment
-        standardize: if True, standardize liability to N(0,1)
+        standardize: standardization mode for liability (``"none"``, ``"global"``,
+                     or legacy bool).  ``"per_generation"`` is not accepted.
         sex:         binary sex covariate (0/1), shape (n,), or None
         beta_sex:    probit-scale coefficient for sex
 
     Returns:
         Array of simulated event times, shape (n,)
     """
-    L = liability.copy()
-    if standardize:
-        std = np.std(L)
-        if std > 0:
-            L = (L - L.mean()) / std
+    mode = _resolve_mode(standardize)
+    L = standardize_liability(liability, mode)
 
     _ndtri_vec = np.vectorize(_ndtri_approx)
     threshold = _ndtri_vec(1.0 - prevalence)
@@ -73,7 +100,6 @@ def phenotype_mixture_cip(
         L_eff = beta * L[is_case]
         if beta_sex != 0.0 and sex is not None:
             L_eff = L_eff + beta_sex * sex[is_case]
-        from scipy.special import erfc
 
         cir = 0.5 * erfc(L_eff / np.sqrt(2.0))
         valid = cir < prev_case
@@ -104,7 +130,7 @@ def phenotype_mixture_cure_frailty(
     hazard_params_1: dict[str, float],
     hazard_params_2: dict[str, float],
     seed: int,
-    standardize: bool = True,
+    standardize: StandardizeMode | bool = "global",
     sex: np.ndarray | None = None,
     beta_sex: float = 0.0,
 ) -> np.ndarray:
@@ -123,26 +149,26 @@ def phenotype_mixture_cure_frailty(
         hazard_params_1: hazard parameters for component 1
         hazard_params_2: hazard parameters for component 2
         seed:            random seed
-        standardize:     if True, standardize liability to N(0,1)
+        standardize:     standardization mode for liability (``"none"``,
+                         ``"global"``, or legacy bool).  ``"per_generation"``
+                         is not accepted.
         sex:             binary sex covariate (0/1), shape (n,), or None
         beta_sex:        effect of sex on log-hazard
 
     Returns:
         Array of simulated event times, shape (n,)
     """
-    n = len(liability)
-    mean, scaled_beta = standardize_beta(liability, beta, standardize)
-
-    if standardize:
-        std = np.std(liability)
-        L = (liability - liability.mean()) / std if std > 0 else liability - liability.mean()
-    else:
-        L = liability
+    mode = _resolve_mode(standardize)
+    L = standardize_liability(liability, mode)
+    mean_arr, beta_arr = standardize_beta(liability, beta, mode)
+    mean = float(mean_arr[0])
+    scaled_beta = float(beta_arr[0])
 
     _ndtri_vec = np.vectorize(_ndtri_approx)
     threshold = _ndtri_vec(1.0 - prevalence)
     is_case = threshold < L
 
+    n = len(liability)
     t = np.full(n, 1e6)
     n_cases = is_case.sum()
     if n_cases > 0:
@@ -153,11 +179,12 @@ def phenotype_mixture_cure_frailty(
         if beta_sex != 0.0 and sex is not None:
             neg_log_u = neg_log_u / np.exp(beta_sex * sex[is_case])
 
-        L_cases = L[is_case]
-
-        # Component 1
+        # Pass RAW liability to the hazard kernel (mirrors the cure_frailty
+        # fix in models/cure_frailty.py): the kernel computes
+        # ``z = exp(scaled_beta * (L - mean))`` and expects the raw L; passing
+        # the standardized L_z would double-shift.
+        L_cases = liability[is_case]
         t1 = BASELINE_HAZARDS[baseline](neg_log_u, L_cases, mean, scaled_beta, hazard_params_1)
-        # Component 2
         t2 = BASELINE_HAZARDS[baseline](neg_log_u, L_cases, mean, scaled_beta, hazard_params_2)
 
         t[is_case] = np.where(comp1, t1, t2)
@@ -175,7 +202,7 @@ def phenotype_two_threshold(
     cip_x0_2: float = 40.0,
     cip_k_2: float = 0.2,
     seed: int = 42,
-    standardize: bool = True,
+    standardize: StandardizeMode | bool = "global",
     sex: np.ndarray | None = None,
     beta_sex: float = 0.0,
 ) -> np.ndarray:
@@ -197,18 +224,17 @@ def phenotype_two_threshold(
         cip_x0_2:        logistic CIP midpoint for late component
         cip_k_2:         logistic CIP growth rate for late component
         seed:             unused (deterministic model)
-        standardize:      if True, standardize liability to N(0,1)
+        standardize:      standardization mode for liability (``"none"``,
+                          ``"global"``, or legacy bool).  ``"per_generation"``
+                          is not accepted.
         sex:              binary sex covariate (0/1), shape (n,), or None
         beta_sex:         probit-scale coefficient for sex
 
     Returns:
         Array of simulated event times, shape (n,)
     """
-    L = liability.copy()
-    if standardize:
-        std = np.std(L)
-        if std > 0:
-            L = (L - L.mean()) / std
+    mode = _resolve_mode(standardize)
+    L = standardize_liability(liability, mode)
 
     _ndtri_vec = np.vectorize(_ndtri_approx)
     K_total = np.asarray(prevalence_early) + np.asarray(prevalence_late)
@@ -219,8 +245,6 @@ def phenotype_two_threshold(
     late = (tau2 < L) & (~early)
 
     t = np.full(len(L), 1e6)
-
-    from scipy.special import erfc
 
     for mask, prev_param, x0, k in [
         (early, prevalence_early, cip_x0_1, cip_k_1),
