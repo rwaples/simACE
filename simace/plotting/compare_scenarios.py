@@ -1406,46 +1406,57 @@ def compare_prevalence_drift(
     output_path: Path,
     trait: int = 1,
     target_prevalence: float | None = None,
+    std_label: str = "standardize=global",
+    nostd_label: str = "standardize=none",
+    pergen_paths_per_trajectory: list[list[Path]] | None = None,
+    pergen_label: str = "standardize=per_generation",
 ) -> None:
-    """Per-generation observed prevalence under standardize=true vs false.
+    """Per-generation observed prevalence comparing two or three ``standardize`` modes.
 
     One panel per E trajectory (e.g. e_flat / e_rise_mild / e_rise_steep /
-    e_fall_steep), with two lines per panel: ``standardize=true`` (held at
-    the input K by per-gen re-standardization) and ``standardize=false``
-    (drifts as v_E shifts the upper-tail mass past the fixed threshold).
+    e_fall_steep). Two lines per panel by default; if
+    ``pergen_paths_per_trajectory`` is supplied, a third line is drawn for
+    the ``per_generation`` mode (which preserves K per generation
+    regardless of how :math:`v_E` drifts across cohorts).
 
     Args:
         std_paths_per_trajectory: outer list = trajectory, inner list =
-            per-rep ``phenotype_stats.yaml`` paths for the
-            ``standardize=true`` variant.
-        nostd_paths_per_trajectory: same shape, for ``standardize=false``.
+            per-rep ``phenotype_stats.yaml`` paths for the first variant.
+        nostd_paths_per_trajectory: same shape, for the second variant.
         labels: display label per trajectory.
         output_path: image path to save.
         trait: 1 or 2.
         target_prevalence: input K to draw as dashed reference (typically
             0.1).  Omitted if ``None``.
+        std_label: legend label for the ``std_paths_per_trajectory`` series.
+        nostd_label: legend label for the ``nostd_paths_per_trajectory`` series.
+        pergen_paths_per_trajectory: optional third series; when present,
+            plotted as the per-generation comparison line.
+        pergen_label: legend label for the third series.
     """
     n_traj = len(labels)
     if len(std_paths_per_trajectory) != n_traj or len(nostd_paths_per_trajectory) != n_traj:
         raise ValueError(
             "std_paths_per_trajectory, nostd_paths_per_trajectory, and labels must all have the same length"
         )
+    if pergen_paths_per_trajectory is not None and len(pergen_paths_per_trajectory) != n_traj:
+        raise ValueError("pergen_paths_per_trajectory must have the same length as labels")
 
     apply_nature_style()
     fig, axes = plt.subplots(1, n_traj, figsize=(3.4 * n_traj, 4.5), sharey=True)
     if n_traj == 1:
         axes = np.array([axes])
 
-    std_color = SCENARIO_PALETTE[0]
-    nostd_color = SCENARIO_PALETTE[1]
+    series: list[tuple[str, str, list[list[Path]]]] = [
+        (SCENARIO_PALETTE[0], std_label, std_paths_per_trajectory),
+        (SCENARIO_PALETTE[1], nostd_label, nostd_paths_per_trajectory),
+    ]
+    if pergen_paths_per_trajectory is not None:
+        series.append((SCENARIO_PALETTE[2], pergen_label, pergen_paths_per_trajectory))
 
-    for ax, label, std_paths, nostd_paths in zip(
-        axes, labels, std_paths_per_trajectory, nostd_paths_per_trajectory, strict=True
-    ):
-        for color, line_label, paths in (
-            (std_color, "standardize=true", std_paths),
-            (nostd_color, "standardize=false", nostd_paths),
-        ):
+    for traj_idx, (ax, traj_label) in enumerate(zip(axes, labels, strict=True)):
+        for color, line_label, paths_per_traj in series:
+            paths = paths_per_traj[traj_idx]
             per_gen = _load_per_gen_prevalence([Path(p) for p in paths], trait=trait)
             gens = sorted(per_gen.keys())
             means = [float(np.mean(per_gen[g])) if per_gen[g] else float("nan") for g in gens]
@@ -1463,13 +1474,14 @@ def compare_prevalence_drift(
                 alpha=0.8,
             )
 
-        ax.set_title(label)
+        ax.set_title(traj_label)
         ax.set_xlabel("Generation")
         enable_value_gridlines(ax)
         ax.legend(loc="best", fontsize=8, frameon=False)
 
     axes[0].set_ylabel(f"Observed prevalence (trait {trait})")
-    fig.suptitle("Per-generation prevalence: standardize=true vs false")
+    title_labels = [s[1] for s in series]
+    fig.suptitle("Per-generation prevalence: " + " vs ".join(title_labels))
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)

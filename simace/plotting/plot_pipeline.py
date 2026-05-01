@@ -417,6 +417,14 @@ def render_pipeline_figure(
     std = params.get("standardize")
     if std is not None:
         meta_parts.append(f"standardize = {str(std).lower()}")
+    # Surface per-trait standardize_hazard overrides when set and distinct
+    # from the global standardize value (so plot readers can tell when the
+    # hazard step is decoupled from the threshold step).
+    for t in (1, 2):
+        pp = params.get(f"phenotype_params{t}") or {}
+        haz = pp.get("standardize_hazard")
+        if haz is not None and haz != std:
+            meta_parts.append(f"standardize_hazard.t{t} = {str(haz).lower()}")
     if meta_parts:
         fig.text(
             0.71,
