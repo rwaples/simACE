@@ -4,6 +4,11 @@ Replaces the per-mutation ``tree.num_samples(mut.node)`` Python call with a
 numba kernel that maintains ``num_samples[node]`` incrementally as edges
 enter/leave each tree.  Assumes one mutation per site (canonicalized data;
 ``tstrait_site_catalog_chrom`` enforces with ``mut_counts == 1``).
+
+Shares the hand-rolled edge-diff cursor pattern with ``_gv_kernel`` in
+``tstrait_gv_chrom.py``.  ``tskit.jit.numba.TreeIndex`` would consolidate
+both, but numba's persistent cache (``cache=True``) breaks when a kernel
+takes a jitclass argument, so we keep arrays-only signatures here.
 """
 
 import numba
