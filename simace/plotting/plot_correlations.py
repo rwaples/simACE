@@ -21,9 +21,10 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pathlib import Path
 
+    import pandas as pd
+
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 
 from simace.core.relationships import PAIR_TYPES
 from simace.plotting.plot_style import (
@@ -31,9 +32,14 @@ from simace.plotting.plot_style import (
     COLOR_OBSERVED,
     COLOR_UNAFFECTED,
     COLOR_UNCENSORED,
-    enable_value_gridlines,
 )
-from simace.plotting.plot_utils import PAIR_COLORS, draw_colored_violins, finalize_plot, save_placeholder_plot
+from simace.plotting.plot_utils import (
+    finalize_pair_type_panels,
+    finalize_plot,
+    pair_type_legend_handles,
+    save_placeholder_plot,
+    setup_pair_type_panel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,160 +64,139 @@ def _expected_liability_corr(A: float, C: float, pair_type: str) -> float | None
     return coeffs[0] * A + coeffs[1] * C
 
 
+def _extract_pair_type_observed(
+    all_stats: list[dict[str, Any]],
+    container_key: str,
+    trait_key: str,
+    pair_types: list[str],
+) -> tuple[dict[str, list[float]], dict[str, int]]:
+    """Pull per-rep ``r`` values and total pair counts for one trait."""
+    observed: dict[str, list[float]] = {pt: [] for pt in pair_types}
+    n_pairs: dict[str, int] = dict.fromkeys(pair_types, 0)
+    for s in all_stats:
+        for ptype in pair_types:
+            entry = s.get(container_key, {}).get(trait_key, {}).get(ptype, {})
+            r = entry.get("r")
+            if r is not None:
+                observed[ptype].append(float(r))
+            n_pairs[ptype] += int(entry.get("n_pairs", 0) or 0)
+    return observed, n_pairs
+
+
+def _mean_per_pair_type(
+    all_stats: list[dict[str, Any]],
+    extractor,
+    pair_types: list[str],
+) -> dict[str, float]:
+    """Average a per-rep value across reps for each pair type.
+
+    Returns only pair types where at least one rep produced a value.
+    """
+    out: dict[str, float] = {}
+    for ptype in pair_types:
+        vals = [extractor(s, ptype) for s in all_stats]
+        vals = [v for v in vals if v is not None]
+        if vals:
+            out[ptype] = float(np.mean(vals))
+    return out
+
+
+def _parametric_per_pair_type(
+    params: dict[str, Any] | None,
+    trait_num: int,
+    pair_types: list[str],
+) -> dict[str, float]:
+    if params is None:
+        return {}
+    A = params.get(f"A{trait_num}")
+    C = params.get(f"C{trait_num}")
+    if A is None or C is None:
+        return {}
+    out: dict[str, float] = {}
+    for ptype in pair_types:
+        exp_r = _expected_liability_corr(float(A), float(C), ptype)
+        if exp_r is not None:
+            out[ptype] = float(exp_r)
+    return out
+
+
 def plot_tetrachoric_sibling(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str,
     params: dict[str, Any] | None = None,
 ) -> None:
-    """Plot tetrachoric correlations by relationship type, violin with rep dots."""
-    pair_types = PAIR_TYPES
-    pair_colors = PAIR_COLORS
+    """Plot tetrachoric correlations by relationship type using marker-based references.
 
-    _fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+    For each pair type, draws shapes stacked at the same x position: gray dots
+    per rep (observed r), a black wide cross (mean of observed), an open black
+    diamond (mean liability r), a red star (parametric E[r]), and a green plus
+    (frailty r on uncensored frailties, when available). Faint violins appear
+    only when reps >= 4 so the spread is visible without dominating the panel.
+    """
+    pair_types = PAIR_TYPES
+    n_reps = max(len(all_stats), 1)
+
+    fig, axes = plt.subplots(1, 2, figsize=(13, 6.5), sharey=True)
+
+    has_uncens_any = any(s.get("frailty_corr_uncensored") for s in all_stats)
+    has_parametric_any = bool(params) and any(params.get(f"A{t}") is not None for t in (1, 2))
+
+    panel_states: list[dict] = []
 
     for col_idx, trait_num in enumerate([1, 2]):
         ax = axes[col_idx]
-        key = f"trait{trait_num}"
+        trait_key = f"trait{trait_num}"
 
-        # Build long-format data for violin plot
-        rows = []
-        total_pairs = {}
-        for ptype in pair_types:
-            n_total = 0
-            for s in all_stats:
-                entry = s["tetrachoric"][key].get(ptype, {})
-                r = entry.get("r")
-                n_p = entry.get("n_pairs", 0)
-                n_total += n_p
-                if r is not None:
-                    rows.append({"pair_type": ptype, "r": r})
-            total_pairs[ptype] = n_total
-
-        df_plot = pd.DataFrame(rows)
-
-        if not df_plot.empty:
-            datasets = [df_plot.loc[df_plot["pair_type"] == pt, "r"].values for pt in pair_types]
-            colors = [pair_colors[pt] for pt in pair_types]
-            draw_colored_violins(ax, datasets, list(range(len(pair_types))), colors)
-
-            # Overlay per-rep dots
-            for i, ptype in enumerate(pair_types):
-                rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
-                if len(rep_vals):
-                    jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
-                    ax.scatter(
-                        i + jitter,
-                        rep_vals,
-                        color="black",
-                        s=10,
-                        alpha=0.9,
-                        zorder=5,
-                    )
-
-            # Collect liability + frailty reference values for annotation placement
-            liab_ref = {}
-            for _i, ptype in enumerate(pair_types):
-                liab_vals = [s.get("liability_correlations", {}).get(key, {}).get(ptype) for s in all_stats]
-                liab_vals = [v for v in liab_vals if v is not None]
-                liab_ref[ptype] = np.mean(liab_vals) if liab_vals else -np.inf
-
-            # Annotate mean N pairs per rep (above dots AND reference lines)
-            n_reps = len(all_stats)
-            for i, ptype in enumerate(pair_types):
-                rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
-                if len(rep_vals):
-                    top = max(rep_vals.max(), liab_ref[ptype])
-                    ax.text(
-                        i,
-                        top + 0.04,
-                        f"n={total_pairs[ptype] // n_reps:,}",
-                        ha="center",
-                        va="bottom",
-                        fontsize=7,
-                    )
-
-        # Liability correlation lines (averaged across reps)
-        for i, ptype in enumerate(pair_types):
-            liab_vals = [s.get("liability_correlations", {}).get(key, {}).get(ptype) for s in all_stats]
-            liab_vals = [v for v in liab_vals if v is not None]
-            if liab_vals:
-                mean_liab_r = np.mean(liab_vals)
-                ax.hlines(
-                    mean_liab_r,
-                    i - 0.35,
-                    i + 0.35,
-                    colors="black",
-                    linestyles="dashed",
-                    linewidth=1.0,
-                    zorder=4,
-                )
-
-        # Uncensored frailty pairwise correlation lines (averaged across reps)
-        has_uncens = any(s.get("frailty_corr_uncensored") for s in all_stats)
-        if has_uncens:
-            for i, ptype in enumerate(pair_types):
-                uncens_vals = [
-                    s.get("frailty_corr_uncensored", {}).get(key, {}).get(ptype, {}).get("r") for s in all_stats
-                ]
-                uncens_vals = [v for v in uncens_vals if v is not None]
-                if uncens_vals:
-                    mean_uncens_r = np.mean(uncens_vals)
-                    ax.hlines(
-                        mean_uncens_r,
-                        i - 0.35,
-                        i + 0.35,
-                        colors=COLOR_UNCENSORED,
-                        linestyles="dashdot",
-                        linewidth=1.0,
-                        zorder=5,
-                    )
-
-        # Parametric expected liability correlations
-        has_parametric = False
-        if params is not None:
-            A = params.get(f"A{trait_num}")
-            C = params.get(f"C{trait_num}")
-            if A is not None and C is not None:
-                for i, ptype in enumerate(pair_types):
-                    exp_r = _expected_liability_corr(float(A), float(C), ptype)
-                    if exp_r is not None:
-                        has_parametric = True
-                        ax.hlines(
-                            exp_r,
-                            i - 0.35,
-                            i + 0.35,
-                            colors=COLOR_AFFECTED,
-                            linestyles="dotted",
-                            linewidth=1.0,
-                            zorder=4,
-                        )
-
-        ax.set_xticks(range(len(pair_types)))
-        ax.set_xticklabels(pair_types, fontsize=9, rotation=15, ha="right")
-        ax.set_xlabel("")
-        ax.set_ylabel("Tetrachoric Correlation")
-        ax.set_title(f"Trait {trait_num}")
-        ax.set_ylim(-0.1, 1.1)
-
-        from matplotlib.lines import Line2D
-
-        legend_elements = [
-            Line2D([0], [0], color="black", linestyle="--", linewidth=1.0, label="Liability r"),
-        ]
-        if has_uncens:
-            legend_elements.append(
-                Line2D([0], [0], color=COLOR_UNCENSORED, linestyle="-.", linewidth=1.0, label="Frailty r (uncensored)"),
+        observed, n_pairs = _extract_pair_type_observed(all_stats, "tetrachoric", trait_key, pair_types)
+        liability = _mean_per_pair_type(
+            all_stats,
+            lambda s, pt, _tk=trait_key: s.get("liability_correlations", {}).get(_tk, {}).get(pt),
+            pair_types,
+        )
+        frailty = (
+            _mean_per_pair_type(
+                all_stats,
+                lambda s, pt, _tk=trait_key: s.get("frailty_corr_uncensored", {}).get(_tk, {}).get(pt, {}).get("r"),
+                pair_types,
             )
-        if has_parametric:
-            legend_elements.append(
-                Line2D([0], [0], color=COLOR_AFFECTED, linestyle=":", linewidth=1.0, label="Parametric E[r]"),
-            )
-        ax.legend(handles=legend_elements, loc="upper right")
+            if has_uncens_any
+            else None
+        )
+        parametric = _parametric_per_pair_type(params, trait_num, pair_types)
 
-        enable_value_gridlines(ax)
+        state = setup_pair_type_panel(
+            ax,
+            pair_types=pair_types,
+            n_pairs_per_ptype=n_pairs,
+            n_reps=n_reps,
+            observed_per_rep=observed,
+            liability_r=liability or None,
+            parametric_r=parametric or None,
+            frailty_r=frailty,
+        )
+        if col_idx == 0:
+            ax.set_ylabel("Tetrachoric correlation", fontsize=12)
+        ax.set_title(f"Trait {trait_num}", fontsize=13)
+        panel_states.append(state)
 
-    finalize_plot(output_path, scenario=scenario)
+    finalize_pair_type_panels(panel_states)
+
+    fig.legend(
+        handles=pair_type_legend_handles(
+            has_observed_mean=True,
+            has_liability=True,
+            has_frailty=has_uncens_any,
+            has_parametric=has_parametric_any,
+        ),
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.0),
+        ncol=4,
+        fontsize=10,
+        frameon=False,
+    )
+
+    finalize_plot(output_path, scenario=scenario, tight_rect=[0, 0, 1, 0.94])
 
 
 def plot_tetrachoric_by_generation(
@@ -222,158 +207,90 @@ def plot_tetrachoric_by_generation(
 ) -> None:
     """Plot tetrachoric correlations by relationship type, broken out by generation.
 
-    2 rows (traits) x N cols (last 3 non-founder generations) grid.
-    Each panel is a bar chart of 7 pair types with dashed liability reference lines.
+    2 rows (traits) x N cols (last 3 non-founder generations). Each cell shares
+    the same marker conventions as :func:`plot_tetrachoric_sibling`. Y-axis is
+    shared across cells of the same trait row so generation-to-generation drift
+    is directly comparable.
     """
-    # Determine which generations are available across reps
     gen_keys_sets = [set(s.get("tetrachoric_by_generation", {}).keys()) for s in all_stats]
     if not gen_keys_sets or not gen_keys_sets[0]:
         save_placeholder_plot(output_path, "No per-generation tetrachoric data")
         return
 
-    # Intersection of available gens across all reps, sorted
     gen_keys = sorted(set.intersection(*gen_keys_sets))
     if not gen_keys:
         save_placeholder_plot(output_path, "No per-generation tetrachoric data")
         return
 
     pair_types = PAIR_TYPES
-    pair_colors = PAIR_COLORS
-
+    n_reps = max(len(all_stats), 1)
     n_cols = len(gen_keys)
-    _fig, axes = plt.subplots(2, n_cols, figsize=(5 * n_cols, 5 * 2), squeeze=False)
+
+    fig, axes = plt.subplots(2, n_cols, figsize=(6.0 * n_cols, 10), squeeze=False)
+
+    has_parametric_any = bool(params) and any(params.get(f"A{t}") is not None for t in (1, 2))
 
     for row, trait_num in enumerate([1, 2]):
         trait_key = f"trait{trait_num}"
+        row_states: list[dict] = []
 
         for col, gen_key in enumerate(gen_keys):
             ax = axes[row, col]
 
-            # Build long-format data for violin plot
-            rows_data = []
-            total_pairs = {}
-            mean_liab_rs = []
-
-            for ptype in pair_types:
-                liab_rs = []
-                n_total = 0
-
-                for s in all_stats:
-                    gen_data = s.get("tetrachoric_by_generation", {}).get(gen_key, {})
-                    entry = gen_data.get(trait_key, {}).get(ptype, {})
+            observed: dict[str, list[float]] = {pt: [] for pt in pair_types}
+            n_pairs: dict[str, int] = dict.fromkeys(pair_types, 0)
+            for s in all_stats:
+                cell = s.get("tetrachoric_by_generation", {}).get(gen_key, {}).get(trait_key, {})
+                for ptype in pair_types:
+                    entry = cell.get(ptype, {})
                     r = entry.get("r")
-                    n_p = entry.get("n_pairs", 0)
-                    liab_r = entry.get("liability_r")
                     if r is not None:
-                        rows_data.append({"pair_type": ptype, "r": r})
-                    if liab_r is not None:
-                        liab_rs.append(liab_r)
-                    n_total += n_p
+                        observed[ptype].append(float(r))
+                    n_pairs[ptype] += int(entry.get("n_pairs", 0) or 0)
 
-                total_pairs[ptype] = n_total
-                mean_liab_rs.append(np.mean(liab_rs) if liab_rs else np.nan)
+            liability = _mean_per_pair_type(
+                all_stats,
+                lambda s, pt, _gk=gen_key, _tk=trait_key: (
+                    s.get("tetrachoric_by_generation", {}).get(_gk, {}).get(_tk, {}).get(pt, {}).get("liability_r")
+                ),
+                pair_types,
+            )
+            parametric = _parametric_per_pair_type(params, trait_num, pair_types)
 
-            df_plot = pd.DataFrame(rows_data)
-
-            if not df_plot.empty:
-                datasets = [df_plot.loc[df_plot["pair_type"] == pt, "r"].values for pt in pair_types]
-                colors = [pair_colors[pt] for pt in pair_types]
-                draw_colored_violins(ax, datasets, list(range(len(pair_types))), colors)
-
-                # Overlay per-rep dots
-                for i, ptype in enumerate(pair_types):
-                    rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
-                    if len(rep_vals):
-                        jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
-                        ax.scatter(
-                            i + jitter,
-                            rep_vals,
-                            color="black",
-                            s=12,
-                            alpha=0.9,
-                            zorder=5,
-                        )
-
-                # Annotate mean N pairs per rep (above dots AND liability line)
-                n_reps = len(all_stats)
-                for i, ptype in enumerate(pair_types):
-                    rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
-                    if len(rep_vals):
-                        top = rep_vals.max()
-                        # Also consider the liability reference line
-                        liab_val = mean_liab_rs[i] if not np.isnan(mean_liab_rs[i]) else -np.inf
-                        top = max(top, liab_val)
-                        ax.text(
-                            i,
-                            top + 0.04,
-                            f"n={total_pairs[ptype] // n_reps:,}",
-                            ha="center",
-                            va="bottom",
-                            fontsize=6,
-                        )
-
-            # Liability correlation reference lines (dashed)
-            for i, liab_r in enumerate(mean_liab_rs):
-                if not np.isnan(liab_r):
-                    ax.hlines(
-                        liab_r,
-                        i - 0.35,
-                        i + 0.35,
-                        colors="black",
-                        linestyles="dashed",
-                        linewidth=1.0,
-                        zorder=4,
-                    )
-
-            # Parametric expected liability correlations
-            if params is not None:
-                A = params.get(f"A{trait_num}")
-                C = params.get(f"C{trait_num}")
-                if A is not None and C is not None:
-                    for i, ptype in enumerate(pair_types):
-                        exp_r = _expected_liability_corr(float(A), float(C), ptype)
-                        if exp_r is not None:
-                            ax.hlines(
-                                exp_r,
-                                i - 0.35,
-                                i + 0.35,
-                                colors=COLOR_AFFECTED,
-                                linestyles="dotted",
-                                linewidth=1.0,
-                                zorder=4,
-                            )
-
-            ax.set_xticks(range(len(pair_types)))
-            ax.set_xticklabels(pair_types, fontsize=7, rotation=30, ha="right")
-            ax.set_xlabel("")
-            ax.set_ylim(-0.1, 1.1)
+            state = setup_pair_type_panel(
+                ax,
+                pair_types=pair_types,
+                n_pairs_per_ptype=n_pairs,
+                n_reps=n_reps,
+                observed_per_rep=observed,
+                liability_r=liability or None,
+                parametric_r=parametric or None,
+            )
 
             if row == 0:
-                # Extract gen number from key like "gen3"
                 gen_num = gen_key.replace("gen", "")
-                ax.set_title(f"Gen {gen_num}", fontsize=12)
+                ax.set_title(f"Gen {gen_num}", fontsize=13)
             if col == 0:
-                ax.set_ylabel(f"Trait {trait_num}\nTetrachoric Correlation")
+                ax.set_ylabel(f"Trait {trait_num}\nTetrachoric correlation", fontsize=12)
+            row_states.append(state)
 
-    from matplotlib.lines import Line2D
+        finalize_pair_type_panels(row_states)
 
-    has_parametric = params is not None and params.get("A1") is not None and params.get("C1") is not None
-    legend_handles = [Line2D([0], [0], color="black", linestyle="--", linewidth=1.0, label="Liability r")]
-    if has_parametric:
-        legend_handles.append(
-            Line2D([0], [0], color=COLOR_AFFECTED, linestyle=":", linewidth=1.0, label="Parametric E[r]")
-        )
-    axes[0, -1].legend(
-        handles=legend_handles,
-        loc="upper right",
-        fontsize=8,
+    fig.legend(
+        handles=pair_type_legend_handles(
+            has_observed_mean=True,
+            has_liability=True,
+            has_frailty=False,
+            has_parametric=has_parametric_any,
+        ),
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.0),
+        ncol=4,
+        fontsize=10,
+        frameon=False,
     )
 
-    for row in range(axes.shape[0]):
-        for col in range(axes.shape[1]):
-            enable_value_gridlines(axes[row, col])
-
-    finalize_plot(output_path, scenario=scenario)
+    finalize_plot(output_path, scenario=scenario, tight_rect=[0, 0, 1, 0.96])
 
 
 def plot_cross_trait_tetrachoric(
@@ -389,7 +306,6 @@ def plot_cross_trait_tetrachoric(
            relatedness induces cross-trait association.
     """
     pair_types = PAIR_TYPES
-    pair_colors = PAIR_COLORS
 
     _fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
@@ -465,63 +381,33 @@ def plot_cross_trait_tetrachoric(
 
     # ---- Right panel: cross-person by pair type ----
     ax_right = axes[1]
+    n_reps = max(len(all_stats), 1)
 
-    rows = []
-    total_pairs: dict[str, int] = {}
-    for ptype in pair_types:
-        n_total = 0
-        for s in all_stats:
-            ct = s.get("cross_trait_tetrachoric", {})
-            entry = ct.get("cross_person", {}).get(ptype, {})
+    observed: dict[str, list[float]] = {pt: [] for pt in pair_types}
+    n_pairs: dict[str, int] = dict.fromkeys(pair_types, 0)
+    for s in all_stats:
+        cell = s.get("cross_trait_tetrachoric", {}).get("cross_person", {})
+        for ptype in pair_types:
+            entry = cell.get(ptype, {})
             r = entry.get("r")
-            n_p = entry.get("n_pairs", 0)
-            n_total += n_p
             if r is not None:
-                rows.append({"pair_type": ptype, "r": r})
-        total_pairs[ptype] = n_total
+                observed[ptype].append(float(r))
+            n_pairs[ptype] += int(entry.get("n_pairs", 0) or 0)
 
-    df_plot = pd.DataFrame(rows)
-
-    if not df_plot.empty:
-        datasets = [df_plot.loc[df_plot["pair_type"] == pt, "r"].values for pt in pair_types]
-        colors = [pair_colors[pt] for pt in pair_types]
-        draw_colored_violins(ax_right, datasets, list(range(len(pair_types))), colors)
-
-        for i, ptype in enumerate(pair_types):
-            rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
-            if len(rep_vals):
-                jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
-                ax_right.scatter(
-                    i + jitter,
-                    rep_vals,
-                    color="black",
-                    s=10,
-                    alpha=0.9,
-                    zorder=5,
-                )
-
-        # N annotations
-        n_reps = len(all_stats)
-        for i, ptype in enumerate(pair_types):
-            rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
-            if len(rep_vals):
-                top = rep_vals.max()
-                ax_right.text(
-                    i,
-                    top + 0.04,
-                    f"n={total_pairs[ptype] // n_reps:,}",
-                    ha="center",
-                    va="bottom",
-                    fontsize=7,
-                )
+    if any(observed.values()):
+        right_state = setup_pair_type_panel(
+            ax_right,
+            pair_types=pair_types,
+            n_pairs_per_ptype=n_pairs,
+            n_reps=n_reps,
+            observed_per_rep=observed,
+        )
+        finalize_pair_type_panels([right_state])
     else:
         ax_right.text(0.5, 0.5, "No cross-person data", ha="center", va="center", transform=ax_right.transAxes)
 
-    ax_right.set_xticks(range(len(pair_types)))
-    ax_right.set_xticklabels(pair_types, fontsize=9, rotation=15, ha="right")
-    ax_right.set_xlabel("")
-    ax_right.set_ylabel("Cross-trait tetrachoric r")
-    ax_right.set_title("Cross-Person: personA.affected1 vs personB.affected2")
+    ax_right.set_ylabel("Cross-trait tetrachoric r", fontsize=12)
+    ax_right.set_title("Cross-Person: personA.affected1 vs personB.affected2", fontsize=13)
 
     finalize_plot(output_path, scenario=scenario)
 
@@ -777,113 +663,82 @@ def plot_tetrachoric_by_sex(
     scenario: str = "",
     params: dict[str, Any] | None = None,
 ) -> None:
-    """Tetrachoric correlations for same-sex pairs: 2 rows (traits) x 2 cols (F/M)."""
+    """Tetrachoric correlations for same-sex pairs: 2 rows (traits) x 2 cols (F/M).
+
+    Same marker conventions as :func:`plot_tetrachoric_sibling`. Each trait row
+    shares its y-axis across the female and male panels so cross-sex magnitude
+    differences are directly comparable; the two trait rows are independent.
+    """
     pair_types = PAIR_TYPES
-    pair_colors = PAIR_COLORS
-
     sex_labels = [("female", "Female"), ("male", "Male")]
+    n_reps = max(len(all_stats), 1)
 
-    # Check if data exists
-    has_data = any(s.get("tetrachoric_by_sex") for s in all_stats)
-    if not has_data:
+    if not any(s.get("tetrachoric_by_sex") for s in all_stats):
         save_placeholder_plot(output_path, "No sex-stratified tetrachoric data")
         return
 
-    _fig, axes = plt.subplots(2, 2, figsize=(16, 10), squeeze=False)
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10), squeeze=False)
 
-    for col_idx, (sex_key, sex_display) in enumerate(sex_labels):
-        for row_idx, trait_num in enumerate([1, 2]):
+    has_parametric_any = bool(params) and any(params.get(f"A{t}") is not None for t in (1, 2))
+
+    for row_idx, trait_num in enumerate([1, 2]):
+        trait_key = f"trait{trait_num}"
+        row_states: list[dict] = []
+
+        for col_idx, (sex_key, sex_display) in enumerate(sex_labels):
             ax = axes[row_idx, col_idx]
-            key = f"trait{trait_num}"
 
-            rows = []
-            total_pairs: dict[str, int] = {}
-            for ptype in pair_types:
-                n_total = 0
-                for s in all_stats:
-                    entry = s.get("tetrachoric_by_sex", {}).get(sex_key, {}).get(key, {}).get(ptype, {})
+            observed: dict[str, list[float]] = {pt: [] for pt in pair_types}
+            n_pairs: dict[str, int] = dict.fromkeys(pair_types, 0)
+            for s in all_stats:
+                cell = s.get("tetrachoric_by_sex", {}).get(sex_key, {}).get(trait_key, {})
+                for ptype in pair_types:
+                    entry = cell.get(ptype, {})
                     r = entry.get("r")
-                    n_p = entry.get("n_pairs", 0)
-                    n_total += n_p
                     if r is not None:
-                        rows.append({"pair_type": ptype, "r": r})
-                total_pairs[ptype] = n_total
+                        observed[ptype].append(float(r))
+                    n_pairs[ptype] += int(entry.get("n_pairs", 0) or 0)
 
-            df_plot = pd.DataFrame(rows)
+            liability = _mean_per_pair_type(
+                all_stats,
+                lambda s, pt, _sk=sex_key, _tk=trait_key: (
+                    s.get("tetrachoric_by_sex", {}).get(_sk, {}).get(_tk, {}).get(pt, {}).get("liability_r")
+                ),
+                pair_types,
+            )
+            parametric = _parametric_per_pair_type(params, trait_num, pair_types)
 
-            if not df_plot.empty:
-                datasets = [df_plot.loc[df_plot["pair_type"] == pt, "r"].values for pt in pair_types]
-                colors = [pair_colors[pt] for pt in pair_types]
-                draw_colored_violins(ax, datasets, list(range(len(pair_types))), colors)
+            state = setup_pair_type_panel(
+                ax,
+                pair_types=pair_types,
+                n_pairs_per_ptype=n_pairs,
+                n_reps=n_reps,
+                observed_per_rep=observed,
+                liability_r=liability or None,
+                parametric_r=parametric or None,
+            )
 
-                # Per-rep dots
-                for i, ptype in enumerate(pair_types):
-                    rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
-                    if len(rep_vals):
-                        jitter = np.random.default_rng(42).uniform(-0.08, 0.08, len(rep_vals))
-                        ax.scatter(i + jitter, rep_vals, color="black", s=10, alpha=0.9, zorder=5)
-
-                # Liability reference lines
-                for i, ptype in enumerate(pair_types):
-                    liab_vals = [
-                        s.get("tetrachoric_by_sex", {}).get(sex_key, {}).get(key, {}).get(ptype, {}).get("liability_r")
-                        for s in all_stats
-                    ]
-                    liab_vals = [v for v in liab_vals if v is not None]
-                    if liab_vals:
-                        ax.hlines(
-                            np.mean(liab_vals),
-                            i - 0.35,
-                            i + 0.35,
-                            colors="black",
-                            linestyles="dashed",
-                            linewidth=1.0,
-                            zorder=4,
-                        )
-
-                # Parametric expected
-                if params is not None:
-                    A = params.get(f"A{trait_num}")
-                    C = params.get(f"C{trait_num}")
-                    if A is not None and C is not None:
-                        for i, ptype in enumerate(pair_types):
-                            exp_r = _expected_liability_corr(float(A), float(C), ptype)
-                            if exp_r is not None:
-                                ax.hlines(
-                                    exp_r,
-                                    i - 0.35,
-                                    i + 0.35,
-                                    colors=COLOR_AFFECTED,
-                                    linestyles="dotted",
-                                    linewidth=1.0,
-                                    zorder=4,
-                                )
-
-                # N pairs annotation
-                n_reps = len(all_stats)
-                for i, ptype in enumerate(pair_types):
-                    rep_vals = df_plot.loc[df_plot["pair_type"] == ptype, "r"].values
-                    if len(rep_vals):
-                        ax.text(
-                            i,
-                            ax.get_ylim()[1] - 0.02,
-                            f"n={total_pairs[ptype] // n_reps:,}",
-                            ha="center",
-                            va="top",
-                            fontsize=7,
-                        )
-
-            ax.set_xticks(range(len(pair_types)))
-            ax.set_xticklabels(pair_types, fontsize=8, rotation=15, ha="right")
-            ax.set_ylabel("Tetrachoric r")
-            ax.set_ylim(-0.1, 1.1)
+            if col_idx == 0:
+                ax.set_ylabel(f"Trait {trait_num}\nTetrachoric correlation", fontsize=12)
             if row_idx == 0:
-                ax.set_title(f"{sex_display} — Trait {trait_num}")
-            else:
-                ax.set_title(f"Trait {trait_num}")
+                ax.set_title(f"{sex_display}", fontsize=13)
+            row_states.append(state)
 
-    for row in range(axes.shape[0]):
-        for col in range(axes.shape[1]):
-            enable_value_gridlines(axes[row, col])
+        # Shared y-axis within a trait row only — cross-trait magnitudes differ.
+        finalize_pair_type_panels(row_states)
 
-    finalize_plot(output_path, scenario=scenario)
+    fig.legend(
+        handles=pair_type_legend_handles(
+            has_observed_mean=True,
+            has_liability=True,
+            has_frailty=False,
+            has_parametric=has_parametric_any,
+        ),
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.0),
+        ncol=4,
+        fontsize=10,
+        frameon=False,
+    )
+
+    finalize_plot(output_path, scenario=scenario, tight_rect=[0, 0, 1, 0.96])
