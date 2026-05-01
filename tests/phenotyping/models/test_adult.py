@@ -141,4 +141,5 @@ def test_cli_flag_attrs_set():
         "adult_cip_x0_2",
         "adult_cip_k_2",
         "adult_prevalence2",
+        "adult_standardize_hazard2",
     }

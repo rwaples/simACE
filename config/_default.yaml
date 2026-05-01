@@ -9,7 +9,12 @@ defaults:
   G_ped: 6
   G_pheno: 3
   G_sim: 8
-  standardize: true
+  # Liability standardization mode: "none" | "global" | "per_generation".
+  # Legacy bools are accepted: true → "global", false → "none".
+  # Hazard-bearing models (frailty, cure_frailty, first_passage, adult.cox)
+  # additionally accept a per-trait override ``standardize_hazard`` inside
+  # ``phenotype.trait{N}.params`` that defaults to inheriting this value.
+  standardize: global
   plot_format: png
   # When set to another scenario's name, this scenario reads
   # pedigree.full.parquet and genotypes_chrom_*.trees from that scenario

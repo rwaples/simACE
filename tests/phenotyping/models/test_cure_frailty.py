@@ -131,3 +131,64 @@ def test_simulate_runs():
     assert t.shape == (500,)
     cases = t < 1e6
     assert cases.sum() > 0
+
+
+def test_hazard_invariant_to_liability_shift_under_global():
+    """Under standardize='global', shifting liability by a constant ``c`` should
+    not change case-onset times: z-scores absorb the shift, the threshold step
+    sees the same cases, and the hazard step's ``z = exp(beta * z_score(L))``
+    is shift-invariant.
+
+    A pre-refactor bug in cure_frailty passed the *standardized* L to the
+    hazard kernel (which expects raw L) — the kernel then computed
+    ``exp(scaled_beta * (L_z - mean))`` instead of ``exp(scaled_beta * (L_raw - mean))``,
+    introducing a constant ``-beta * mean / std`` offset that made onset times
+    drift with mean shifts even under standardize='global'.
+    """
+    rng = np.random.default_rng(0)
+    n = 5000
+    base = rng.normal(0.0, 1.0, n)
+    sex = np.zeros(n)
+    generation = np.zeros(n, dtype=int)
+    m = CureFrailtyModel(
+        distribution="gompertz",
+        hazard_params=GOMPERTZ,
+        prevalence=0.3,
+        beta=1.5,
+    )
+    t_centered = m.simulate(liability=base, seed=42, standardize="global", sex=sex, generation=generation)
+    t_shifted = m.simulate(
+        liability=base + 5.0,  # additive shift
+        seed=42,
+        standardize="global",
+        sex=sex,
+        generation=generation,
+    )
+    np.testing.assert_allclose(t_centered, t_shifted, rtol=1e-10, atol=1e-10)
+
+
+def test_hazard_invariant_to_liability_scale_under_global():
+    """Same invariance under multiplicative scale: shifting variance changes
+    ``std`` but z-scores and ``beta / std`` compensate so that the realised
+    hazard is unchanged. Pre-refactor cure_frailty had a 1/std² instead of
+    1/std error that broke this invariance."""
+    rng = np.random.default_rng(1)
+    n = 5000
+    base = rng.normal(0.0, 1.0, n)
+    sex = np.zeros(n)
+    generation = np.zeros(n, dtype=int)
+    m = CureFrailtyModel(
+        distribution="gompertz",
+        hazard_params=GOMPERTZ,
+        prevalence=0.3,
+        beta=1.5,
+    )
+    t_unit = m.simulate(liability=base, seed=42, standardize="global", sex=sex, generation=generation)
+    t_wide = m.simulate(
+        liability=base * 3.0,  # std=3 instead of 1
+        seed=42,
+        standardize="global",
+        sex=sex,
+        generation=generation,
+    )
+    np.testing.assert_allclose(t_unit, t_wide, rtol=1e-10, atol=1e-10)

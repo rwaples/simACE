@@ -119,6 +119,7 @@ def test_cli_flag_attrs_set():
     assert FirstPassageModel.cli_flag_attrs(1) == {
         "first_passage_drift1",
         "first_passage_shape1",
+        "first_passage_standardize_hazard1",
     }
 
 

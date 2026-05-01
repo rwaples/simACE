@@ -204,6 +204,10 @@ def _coerce_sim_types(flat: dict) -> dict:
         value = flat.get(key)
         if isinstance(value, dict):
             flat[key] = {int(gen): v for gen, v in value.items()}
+    if "standardize" in flat:
+        from simace.phenotyping.hazards import coerce_standardize_mode
+
+        flat["standardize"] = coerce_standardize_mode(flat["standardize"])
     return flat
 
 

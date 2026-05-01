@@ -43,13 +43,14 @@ class TestApplyThreshold:
         assert abs(observed - prev) < 0.01
 
     def test_prevalence_per_generation(self):
-        """Each generation should independently have ~prevalence fraction affected."""
+        """Each generation should independently have ~prevalence fraction affected
+        when standardize='per_generation'."""
         rng = np.random.default_rng(42)
         n_per_gen = 5000
         liability = rng.standard_normal(3 * n_per_gen)
         generation = np.repeat([0, 1, 2], n_per_gen)
         prev = 0.10
-        affected = apply_threshold(liability, generation, prevalence=prev)
+        affected = apply_threshold(liability, generation, prevalence=prev, standardize="per_generation")
         for gen in [0, 1, 2]:
             mask = generation == gen
             gen_prev = affected[mask].mean()
@@ -87,27 +88,83 @@ class TestApplyThreshold:
         affected = apply_threshold(liability, generation, prevalence=0.5)
         assert affected.dtype == bool
 
-    def test_standardize_false_prevalence_drifts(self):
-        """With standardize=False and non-unit variance, prevalence should differ from K."""
+    def test_standardize_none_prevalence_drifts(self):
+        """With standardize='none' and non-unit variance, prevalence drifts from K."""
         rng = np.random.default_rng(42)
         n = 20000
         # Wide distribution: std=2, so threshold ndtri(0.9) ≈ 1.28 is easier to exceed
         liability = rng.normal(0, 2.0, n)
         generation = np.zeros(n, dtype=int)
-        affected = apply_threshold(liability, generation, prevalence=0.1, standardize=False)
+        affected = apply_threshold(liability, generation, prevalence=0.1, standardize="none")
         observed = affected.mean()
         # With std=2, more people cross the N(0,1) threshold → prevalence > 0.1
         assert observed > 0.15, f"Expected prevalence > 0.15 with wide distribution, got {observed:.3f}"
 
-    def test_standardize_true_preserves_prevalence(self):
-        """With standardize=True (default), prevalence should match K regardless of variance."""
+    def test_standardize_false_aliases_none(self):
+        """Legacy bool ``standardize=False`` resolves to ``'none'``."""
         rng = np.random.default_rng(42)
         n = 20000
         liability = rng.normal(0, 2.0, n)
         generation = np.zeros(n, dtype=int)
-        affected = apply_threshold(liability, generation, prevalence=0.1, standardize=True)
+        a_false = apply_threshold(liability, generation, prevalence=0.1, standardize=False)
+        a_none = apply_threshold(liability, generation, prevalence=0.1, standardize="none")
+        np.testing.assert_array_equal(a_false, a_none)
+
+    def test_standardize_global_preserves_prevalence_single_cohort(self):
+        """With standardize='global' and a single cohort, prevalence matches K."""
+        rng = np.random.default_rng(42)
+        n = 20000
+        liability = rng.normal(0, 2.0, n)
+        generation = np.zeros(n, dtype=int)
+        affected = apply_threshold(liability, generation, prevalence=0.1, standardize="global")
         observed = affected.mean()
-        assert abs(observed - 0.1) < 0.02, f"Expected ~0.1 with standardize=True, got {observed:.3f}"
+        assert abs(observed - 0.1) < 0.02
+
+    def test_standardize_true_aliases_global(self):
+        """Legacy bool ``standardize=True`` resolves to ``'global'``."""
+        rng = np.random.default_rng(42)
+        n = 20000
+        liability = rng.normal(0, 2.0, n)
+        generation = np.zeros(n, dtype=int)
+        a_true = apply_threshold(liability, generation, prevalence=0.1, standardize=True)
+        a_global = apply_threshold(liability, generation, prevalence=0.1, standardize="global")
+        np.testing.assert_array_equal(a_true, a_global)
+
+    def test_standardize_per_generation_preserves_per_gen_prevalence(self):
+        """With heteroscedastic per-gen liability, only 'per_generation' preserves K per gen."""
+        rng = np.random.default_rng(7)
+        n_per = 20_000
+        # gen 0 std=1, gen 1 std=3
+        gen0 = rng.normal(0.0, 1.0, n_per)
+        gen1 = rng.normal(0.0, 3.0, n_per)
+        liability = np.concatenate([gen0, gen1])
+        generation = np.repeat([0, 1], n_per)
+        affected = apply_threshold(liability, generation, prevalence=0.1, standardize="per_generation")
+        for gen in (0, 1):
+            mask = generation == gen
+            assert abs(affected[mask].mean() - 0.1) < 0.01
+
+    def test_standardize_global_multi_gen_drifts_when_var_changes(self):
+        """Same heteroscedastic input under 'global' yields drifted per-gen prevalence."""
+        rng = np.random.default_rng(7)
+        n_per = 20_000
+        gen0 = rng.normal(0.0, 1.0, n_per)
+        gen1 = rng.normal(0.0, 3.0, n_per)
+        liability = np.concatenate([gen0, gen1])
+        generation = np.repeat([0, 1], n_per)
+        affected = apply_threshold(liability, generation, prevalence=0.1, standardize="global")
+        gen0_obs = affected[generation == 0].mean()
+        gen1_obs = affected[generation == 1].mean()
+        # The narrow gen sees fewer cases (its tails are inside the global threshold);
+        # the wide gen sees more.
+        assert gen0_obs < 0.05
+        assert gen1_obs > 0.15
+
+    def test_standardize_invalid_string_raises(self):
+        liability = np.array([0.0, 1.0])
+        generation = np.array([0, 0])
+        with pytest.raises(ValueError, match="standardize must be one of"):
+            apply_threshold(liability, generation, prevalence=0.1, standardize="per_gen")
 
 
 class TestApplyThresholdDictPrevalence:
@@ -151,13 +208,13 @@ class TestApplyThresholdDictPrevalence:
         with pytest.raises(ValueError, match="prevalence must be between 0 and 1"):
             apply_threshold(liability, generation, prevalence={0: -0.1})
 
-    def test_scalar_backward_compatible(self):
-        """Scalar prevalence still works identically to before."""
+    def test_scalar_per_generation_exact(self):
+        """Scalar prevalence with standardize='per_generation' hits K exactly per gen."""
         rng = np.random.default_rng(99)
         n = 5000
         liability = rng.standard_normal(n)
         generation = np.repeat([0, 1], n // 2)
-        affected = apply_threshold(liability, generation, prevalence=0.15)
+        affected = apply_threshold(liability, generation, prevalence=0.15, standardize="per_generation")
         for gen in [0, 1]:
             mask = generation == gen
             observed = affected[mask].mean()
@@ -206,7 +263,8 @@ class TestThresholdSexPrevalence:
         np.testing.assert_array_equal(affected_sex_aware, affected_direct)
 
     def test_sex_specific_with_per_gen_dict(self):
-        """Sex-specific + per-generation dict prevalence should compose."""
+        """Sex-specific + per-generation dict prevalence should compose under
+        ``standardize='per_generation'``."""
         rng = np.random.default_rng(42)
         n_per_gen = 10000
         n = 2 * n_per_gen
@@ -218,6 +276,7 @@ class TestThresholdSexPrevalence:
         prev_m = {0: 0.10, 1: 0.20}
         params = {
             "prevalence1": {"female": prev_f, "male": prev_m},
+            "standardize": "per_generation",
         }
         affected = _apply_threshold_sex_aware(liability, generation, sex, params, trait_num=1)
 
@@ -231,6 +290,49 @@ class TestThresholdSexPrevalence:
             assert abs(affected[male_mask].mean() - exp_m) < 0.02, (
                 f"gen {gen} male: expected ~{exp_m}, got {affected[male_mask].mean()}"
             )
+
+    def test_sex_aware_per_gen_pools_across_sexes(self):
+        """Under standardize='per_generation', L is z-scored once per gen across
+        both sexes — sex-shifted means therefore yield sex-specific realised rates."""
+        rng = np.random.default_rng(13)
+        n_per_sex = 20_000
+        # Single generation. Female liability shifted +1.0, male shifted -1.0.
+        liab_f = rng.normal(1.0, 1.0, n_per_sex)
+        liab_m = rng.normal(-1.0, 1.0, n_per_sex)
+        liability = np.concatenate([liab_f, liab_m])
+        sex = np.array([0] * n_per_sex + [1] * n_per_sex)
+        generation = np.zeros(2 * n_per_sex, dtype=int)
+        params = {
+            "prevalence1": {"female": 0.10, "male": 0.10},
+            "standardize": "per_generation",
+        }
+        affected = _apply_threshold_sex_aware(liability, generation, sex, params, trait_num=1)
+        female_rate = affected[:n_per_sex].mean()
+        male_rate = affected[n_per_sex:].mean()
+        # Pooled z-score puts female mean above 0 and male mean below 0; with a
+        # K=0.10 threshold (~ +1 SD pooled), females cross it far more often.
+        assert female_rate > 0.20
+        assert male_rate < 0.05
+
+    def test_sex_aware_global_unchanged(self):
+        """Under standardize='global', sex-aware path matches today's pooled-global behavior."""
+        rng = np.random.default_rng(13)
+        n_per_sex = 20_000
+        liab_f = rng.normal(1.0, 1.0, n_per_sex)
+        liab_m = rng.normal(-1.0, 1.0, n_per_sex)
+        liability = np.concatenate([liab_f, liab_m])
+        sex = np.array([0] * n_per_sex + [1] * n_per_sex)
+        generation = np.zeros(2 * n_per_sex, dtype=int)
+        params = {
+            "prevalence1": {"female": 0.10, "male": 0.10},
+            "standardize": "global",
+        }
+        affected = _apply_threshold_sex_aware(liability, generation, sex, params, trait_num=1)
+        # Same shape: pooled z-score → female mean > 0, male mean < 0.
+        female_rate = affected[:n_per_sex].mean()
+        male_rate = affected[n_per_sex:].mean()
+        assert female_rate > 0.20
+        assert male_rate < 0.05
 
 
 # ---------------------------------------------------------------------------

@@ -29,16 +29,22 @@ __all__ = [
     "BASELINE_HAZARDS",
     "BASELINE_PARAMS",
     "HAZARD_FLAG_ROOTS",
+    "StandardizeMode",
     "add_hazard_cli_args",
+    "add_standardize_hazard_cli_arg",
+    "coerce_standardize_mode",
     "compute_event_times",
     "hazard_cli_flag_attrs",
+    "iter_generation_groups",
     "parse_hazard_cli",
+    "resolve_hazard_mode",
     "standardize_beta",
+    "standardize_hazard_cli_attr",
     "standardize_liability",
     "validate_hazard_params",
 ]
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from numba import njit, prange
@@ -48,6 +54,10 @@ from simace.core._numba_utils import _ndtri_approx
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Iterator
+
+StandardizeMode = Literal["none", "global", "per_generation"]
+_VALID_STD_MODES: frozenset[str] = frozenset({"none", "global", "per_generation"})
 
 # ---------------------------------------------------------------------------
 # Numba kernels — fuse frailty computation + inversion in a single pass
@@ -270,27 +280,163 @@ def hazard_cli_flag_attrs(trait: int, *, name: str) -> set[str]:
     return attrs
 
 
-def standardize_liability(liability: np.ndarray, standardize: bool = True) -> np.ndarray:
-    """Mean-center and scale liability to unit variance when ``standardize`` is True."""
-    if not standardize:
-        return liability
-    return (liability - liability.mean()) / liability.std()
+def add_standardize_hazard_cli_arg(
+    parser_or_group: argparse.ArgumentParser | argparse._ArgumentGroup,
+    trait: int,
+    *,
+    name: str,
+) -> None:
+    """Register ``--{name}-standardize-hazard{trait}`` flag.
 
-
-def standardize_beta(liability: np.ndarray, beta: float, standardize: bool) -> tuple[float, float]:
-    """Compute liability mean and scaled beta for frailty/FPT models.
-
-    Returns (mean, scaled_beta) where scaled_beta = beta / std(liability)
-    when standardize is True, or (0.0, beta) when False.
+    The flag is namespaced per model so foreign-flag detection
+    (:func:`check_no_foreign_flags`) cleanly distinguishes overrides
+    intended for one model from those intended for another.
     """
-    if standardize:
-        std = np.std(liability)
-        mean = liability.mean()
-        scaled_beta = beta / std if std > 0 else 0.0
-    else:
-        mean = 0.0
-        scaled_beta = beta
-    return mean, scaled_beta
+    parser_or_group.add_argument(
+        f"--{name}-standardize-hazard{trait}",
+        default=None,
+        choices=["none", "global", "per_generation"],
+        help=(
+            f"Per-trait override of the hazard-step standardization mode for trait {trait} "
+            f"when phenotype-model{trait}={name.replace('-', '_')} (default: inherit from --standardize)"
+        ),
+    )
+
+
+def standardize_hazard_cli_attr(trait: int, *, name: str) -> str:
+    """Return the argparse attribute name for the standardize_hazard CLI flag."""
+    attr_name = name.replace("-", "_")
+    return f"{attr_name}_standardize_hazard{trait}"
+
+
+def coerce_standardize_mode(value: object) -> StandardizeMode:
+    """Resolve a user-supplied standardize value to one of the canonical modes.
+
+    Accepts the legacy bool form (``True`` → ``"global"``, ``False`` → ``"none"``)
+    or one of the three string modes. Raises ``ValueError`` otherwise.
+    """
+    if isinstance(value, bool):
+        return "global" if value else "none"
+    if isinstance(value, str) and value in _VALID_STD_MODES:
+        return value  # type: ignore[return-value]
+    raise ValueError(f"standardize must be one of {sorted(_VALID_STD_MODES)} or bool; got {value!r}")
+
+
+def resolve_hazard_mode(
+    standardize: StandardizeMode | bool,
+    standardize_hazard: StandardizeMode | bool | None,
+) -> StandardizeMode:
+    """Pick the mode used for hazard-step beta/L scaling.
+
+    ``standardize_hazard`` is the per-trait override stored inside
+    ``phenotype_params{N}``. ``None`` means "inherit from the global
+    ``standardize`` flag". Bools accepted on either argument for the same
+    legacy reason as ``coerce_standardize_mode``.
+    """
+    if standardize_hazard is None:
+        return coerce_standardize_mode(standardize)
+    return coerce_standardize_mode(standardize_hazard)
+
+
+def standardize_liability(
+    liability: np.ndarray,
+    mode: StandardizeMode | bool,
+    generation: np.ndarray | None = None,
+) -> np.ndarray:
+    """Return liability transformed per ``mode``.
+
+    Modes:
+      * ``"none"`` — returned unchanged.
+      * ``"global"`` — ``(L - L.mean()) / L.std()`` across all rows.
+      * ``"per_generation"`` — same z-score applied within each unique
+        ``generation`` value; ``generation`` must be supplied.
+
+    A degenerate group (singleton or all-equal liability) gets
+    ``L - mean`` rather than NaN; the caller's downstream comparison
+    against an N(0,1) threshold then reduces to the centered raw value.
+    """
+    mode = coerce_standardize_mode(mode)
+    if mode == "none":
+        return liability
+    if mode == "global":
+        std = float(liability.std())
+        mean = float(liability.mean())
+        if std < 1e-12:
+            return liability - mean
+        return (liability - mean) / std
+    if generation is None:
+        raise ValueError("standardize_liability: generation is required for mode='per_generation'")
+    out = np.asarray(liability, dtype=np.float64).copy()
+    for g in np.unique(generation):
+        mask = generation == g
+        sub = liability[mask]
+        m = float(sub.mean())
+        s = float(sub.std())
+        if s < 1e-12:
+            out[mask] = sub - m
+        else:
+            out[mask] = (sub - m) / s
+    return out
+
+
+def standardize_beta(
+    liability: np.ndarray,
+    beta: float,
+    mode: StandardizeMode | bool,
+    generation: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return per-individual ``(mean, scaled_beta)`` arrays of length ``n``.
+
+    Modes:
+      * ``"none"`` — ``mean[i] = 0``, ``scaled_beta[i] = beta`` everywhere.
+      * ``"global"`` — ``mean[i] = L.mean()``, ``scaled_beta[i] = beta/L.std()``
+        broadcast to all rows (``scaled_beta = 0`` when std is degenerate).
+      * ``"per_generation"`` — per individual filled from their generation's
+        mean and ``beta / std_g``; ``generation`` must be supplied.
+
+    Returning arrays (not scalars) lets callers slice ``mean[mask][0]`` /
+    ``scaled_beta[mask][0]`` inside an ``iter_generation_groups`` loop and
+    pass the per-group scalars to ``compute_event_times`` without branching.
+    """
+    mode = coerce_standardize_mode(mode)
+    n = len(liability)
+    if mode == "none":
+        return np.zeros(n, dtype=np.float64), np.full(n, beta, dtype=np.float64)
+    if mode == "global":
+        std = float(liability.std())
+        mean = float(liability.mean())
+        scaled = 0.0 if std < 1e-12 else beta / std
+        return np.full(n, mean, dtype=np.float64), np.full(n, scaled, dtype=np.float64)
+    if generation is None:
+        raise ValueError("standardize_beta: generation is required for mode='per_generation'")
+    mean_arr = np.zeros(n, dtype=np.float64)
+    beta_arr = np.zeros(n, dtype=np.float64)
+    for g in np.unique(generation):
+        mask = generation == g
+        sub = liability[mask]
+        m = float(sub.mean())
+        s = float(sub.std())
+        mean_arr[mask] = m
+        beta_arr[mask] = 0.0 if s < 1e-12 else beta / s
+    return mean_arr, beta_arr
+
+
+def iter_generation_groups(
+    mode: StandardizeMode | bool,
+    generation: np.ndarray,
+) -> Iterator[np.ndarray]:
+    """Yield boolean masks for the per-group loop pattern in model ``simulate()``.
+
+    Under ``"none"`` or ``"global"`` yields a single full-coverage mask, so
+    the caller's loop runs once over all rows. Under ``"per_generation"``
+    yields one mask per unique value of ``generation``.
+    """
+    mode = coerce_standardize_mode(mode)
+    if mode != "per_generation":
+        yield np.ones(len(generation), dtype=bool)
+        return
+    for g in np.unique(generation):
+        yield generation == g
 
 
 def compute_event_times(

@@ -19,7 +19,15 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 import numpy as np
 from numba import njit, prange
 
-from simace.phenotyping.hazards import standardize_beta
+from simace.phenotyping.hazards import (
+    StandardizeMode,
+    add_standardize_hazard_cli_arg,
+    coerce_standardize_mode,
+    iter_generation_groups,
+    resolve_hazard_mode,
+    standardize_beta,
+    standardize_hazard_cli_attr,
+)
 from simace.phenotyping.models._base import (
     PhenotypeModel,
     check_finite_beta,
@@ -106,6 +114,7 @@ class FirstPassageModel(PhenotypeModel):
     shape: float
     beta: float = 1.0
     beta_sex: float = 0.0
+    standardize_hazard: StandardizeMode | None = None
 
     name: ClassVar[str] = "first_passage"
 
@@ -113,6 +122,8 @@ class FirstPassageModel(PhenotypeModel):
         check_finite_beta(self.beta)
         if self.drift == 0.0:
             raise ValueError("first_passage drift must be non-zero")
+        if self.standardize_hazard is not None:
+            coerce_standardize_mode(self.standardize_hazard)
 
     # ------------------------------------------------------------------
     # Construction
@@ -121,7 +132,7 @@ class FirstPassageModel(PhenotypeModel):
     @classmethod
     def from_config(cls, params: dict[str, Any], trait_num: int) -> Self:
         with wrap_trait_error(trait_num):
-            phenotype_params = params.get(f"phenotype_params{trait_num}", {})
+            phenotype_params = dict(params.get(f"phenotype_params{trait_num}", {}))
             try:
                 drift = phenotype_params["drift"]
                 shape = phenotype_params["shape"]
@@ -135,6 +146,7 @@ class FirstPassageModel(PhenotypeModel):
                 shape=shape,
                 beta=params[f"beta{trait_num}"],
                 beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
+                standardize_hazard=phenotype_params.get("standardize_hazard"),
             )
 
     @classmethod
@@ -142,6 +154,7 @@ class FirstPassageModel(PhenotypeModel):
         group = parser.add_argument_group(f"Trait {trait} — first_passage")
         group.add_argument(f"--first-passage-drift{trait}", type=float, default=None)
         group.add_argument(f"--first-passage-shape{trait}", type=float, default=None)
+        add_standardize_hazard_cli_arg(group, trait, name="first-passage")
 
     @classmethod
     def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
@@ -162,14 +175,22 @@ class FirstPassageModel(PhenotypeModel):
                 shape=shape,
                 beta=getattr(args, f"beta{trait}"),
                 beta_sex=getattr(args, f"beta_sex{trait}", 0.0),
+                standardize_hazard=getattr(args, standardize_hazard_cli_attr(trait, name="first-passage")),
             )
 
     @classmethod
     def cli_flag_attrs(cls, trait: int) -> set[str]:
-        return {f"first_passage_drift{trait}", f"first_passage_shape{trait}"}
+        return {
+            f"first_passage_drift{trait}",
+            f"first_passage_shape{trait}",
+            standardize_hazard_cli_attr(trait, name="first-passage"),
+        }
 
     def to_params_dict(self) -> dict[str, Any]:
-        return {"drift": self.drift, "shape": self.shape}
+        out: dict[str, Any] = {"drift": self.drift, "shape": self.shape}
+        if self.standardize_hazard is not None:
+            out["standardize_hazard"] = self.standardize_hazard
+        return out
 
     # ------------------------------------------------------------------
     # Simulation
@@ -180,13 +201,14 @@ class FirstPassageModel(PhenotypeModel):
         liability: np.ndarray,
         *,
         seed: int,
-        standardize: bool,
+        standardize: StandardizeMode | bool,
         sex: np.ndarray | None,
         generation: np.ndarray,
     ) -> np.ndarray:
+        mode_haz = resolve_hazard_mode(standardize, self.standardize_hazard)
         n = len(liability)
         rng = np.random.default_rng(seed)
-        mean, scaled_beta = standardize_beta(liability, self.beta, standardize)
+        mean_arr, beta_arr = standardize_beta(liability, self.beta, mode_haz, generation)
 
         y0_base = np.sqrt(self.shape)
         normals = rng.standard_normal(n)
@@ -194,20 +216,36 @@ class FirstPassageModel(PhenotypeModel):
         sex_arr = sex if (sex is not None and self.beta_sex != 0.0) else np.zeros(n)
         sex_beta = self.beta_sex if sex is not None else 0.0
         inv_drift = 1.0 / abs(self.drift)
+        cure_draws = rng.random(n) if self.drift > 0 else None
 
-        if self.drift < 0:
-            return _nb_fpt(normals, uniforms, liability, mean, scaled_beta, sex_arr, sex_beta, y0_base, inv_drift)
-        cure_draws = rng.random(n)
-        return _nb_fpt_cure(
-            normals,
-            uniforms,
-            cure_draws,
-            liability,
-            mean,
-            scaled_beta,
-            sex_arr,
-            sex_beta,
-            y0_base,
-            self.drift,
-            inv_drift,
-        )
+        t = np.empty(n)
+        for mask in iter_generation_groups(mode_haz, generation):
+            m = float(mean_arr[mask][0])
+            b = float(beta_arr[mask][0])
+            if self.drift < 0:
+                t[mask] = _nb_fpt(
+                    normals[mask],
+                    uniforms[mask],
+                    liability[mask],
+                    m,
+                    b,
+                    sex_arr[mask],
+                    sex_beta,
+                    y0_base,
+                    inv_drift,
+                )
+            else:
+                t[mask] = _nb_fpt_cure(
+                    normals[mask],
+                    uniforms[mask],
+                    cure_draws[mask],
+                    liability[mask],
+                    m,
+                    b,
+                    sex_arr[mask],
+                    sex_beta,
+                    y0_base,
+                    self.drift,
+                    inv_drift,
+                )
+        return t

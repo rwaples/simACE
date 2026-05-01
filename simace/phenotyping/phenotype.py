@@ -26,6 +26,7 @@ import pandas as pd
 
 from simace.core.parquet import save_parquet
 from simace.core.schema import PEDIGREE, PHENOTYPE, assert_schema
+from simace.phenotyping.hazards import StandardizeMode
 from simace.phenotyping.models import MODELS
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ def run_phenotype(
     *,
     G_pheno: int,
     seed: int,
-    standardize: bool,
+    standardize: StandardizeMode | bool,
     phenotype_model1: str,
     phenotype_model2: str,
     beta1: float,
@@ -80,14 +81,22 @@ def run_phenotype(
             ``sex``, plus the genealogy columns preserved on output.
         G_pheno: number of trailing generations to phenotype.
         seed: RNG seed (trait 2 uses ``seed + 100``).
-        standardize: if True, standardize liability per-generation.
+        standardize: global liability-standardization mode applied to
+            threshold-style consumers (``threshold``, ``adult.ltm``,
+            ``cure_frailty``'s threshold step). One of ``"none" | "global" |
+            "per_generation"``; legacy bools accepted (``True`` → ``"global"``,
+            ``False`` → ``"none"``). Hazard-bearing models (``frailty``,
+            ``cure_frailty``, ``first_passage``, ``adult.cox``) inherit this
+            for their hazard step unless the per-trait
+            ``phenotype_params{N}["standardize_hazard"]`` overrides it.
         phenotype_model1: trait-1 model family (``frailty``, ``cure_frailty``,
             ``adult``, ``first_passage``).
         phenotype_model2: trait-2 model family (same options).
         beta1: trait-1 liability → log-hazard slope.
         beta_sex1: trait-1 sex → log-hazard slope.
         phenotype_params1: trait-1 model-specific parameter dict (e.g.
-            ``{"distribution": "weibull", "scale": ..., "rho": ...}``).
+            ``{"distribution": "weibull", "scale": ..., "rho": ...}``;
+            optionally ``"standardize_hazard": "..."``).
         beta2: trait-2 liability → log-hazard slope.
         beta_sex2: trait-2 sex → log-hazard slope.
         phenotype_params2: trait-2 model-specific parameter dict.
@@ -157,7 +166,12 @@ def cli() -> None:
     parser.add_argument("--output", required=True)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--G-pheno", type=int, default=3)
-    parser.add_argument("--standardize", action="store_true", default=True)
+    parser.add_argument(
+        "--standardize",
+        choices=["none", "global", "per_generation"],
+        default="global",
+        help="Liability standardization mode (default: global)",
+    )
 
     for trait in (1, 2):
         shared = parser.add_argument_group(f"Trait {trait} — shared")

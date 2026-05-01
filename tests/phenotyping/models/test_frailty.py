@@ -156,5 +156,5 @@ def test_simulate_finite_array():
 
 def test_cli_flag_attrs_covers_all_hazard_roots():
     attrs = FrailtyModel.cli_flag_attrs(1)
-    expected = {"frailty_distribution1"} | {f"frailty_{r}1" for r in HAZARD_FLAG_ROOTS}
+    expected = {"frailty_distribution1", "frailty_standardize_hazard1"} | {f"frailty_{r}1" for r in HAZARD_FLAG_ROOTS}
     assert attrs == expected

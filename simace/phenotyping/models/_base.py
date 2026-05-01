@@ -41,6 +41,8 @@ if TYPE_CHECKING:
 
     import numpy as np
 
+    from simace.phenotyping.hazards import StandardizeMode
+
 __all__ = ["PhenotypeModel", "check_finite_beta", "check_no_foreign_flags", "wrap_trait_error"]
 
 
@@ -97,11 +99,27 @@ class PhenotypeModel(ABC):
         liability: np.ndarray,
         *,
         seed: int,
-        standardize: bool,
+        standardize: StandardizeMode | bool,
         sex: np.ndarray | None,
         generation: np.ndarray,
     ) -> np.ndarray:
-        """Simulate event times for one trait."""
+        """Simulate event times for one trait.
+
+        ``standardize`` is the global liability-standardization mode
+        (``"none" | "global" | "per_generation"``); legacy ``True``/``False``
+        bools are accepted via the same shim used at config-load.
+
+        Concrete subclasses route ``standardize`` differently:
+
+        * Threshold-style models (``threshold``, ``adult.ltm``) consume it
+          directly to standardize liability before the threshold comparison.
+        * Hazard-bearing models (``frailty``, ``cure_frailty``,
+          ``first_passage``, ``adult.cox``) carry an additional per-trait
+          field ``standardize_hazard`` (defaulting to ``None`` → inherit) and
+          resolve it via :func:`simace.phenotyping.hazards.resolve_hazard_mode`
+          for the hazard step. ``cure_frailty`` is the only model that
+          honors both knobs (threshold step + hazard step).
+        """
 
 
 def wrap_trait_error(trait_num: int):

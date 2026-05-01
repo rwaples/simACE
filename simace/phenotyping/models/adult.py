@@ -10,6 +10,19 @@ Two sub-methods, selected by ``method``:
 
 Both share the CIP shape parameters ``cip_x0`` and ``cip_k``. Reference:
 Pedersen et al., Nat Commun 2023 (ADuLT).
+
+Standardization routing is asymmetric across the two sub-methods:
+
+* ``method="ltm"`` is a threshold-on-liability model. It honors the global
+  ``standardize`` flag for the liability z-score and **rejects**
+  ``standardize_hazard`` in its params.
+* ``method="cox"`` is a hazard-on-liability model. It honors
+  ``standardize_hazard`` (defaulting to the global ``standardize`` when
+  unset) for the L scaling that feeds ``np.exp(beta * L)``.
+
+Toggling ``method`` therefore silently changes which knob controls L
+scaling for that trait. The validation in ``__post_init__`` surfaces this
+in the error message when the field is set on an LTM-method instance.
 """
 
 from __future__ import annotations
@@ -20,7 +33,14 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 import numpy as np
 from scipy.special import erfc, ndtri
 
-from simace.phenotyping.hazards import standardize_liability
+from simace.phenotyping.hazards import (
+    StandardizeMode,
+    add_standardize_hazard_cli_arg,
+    coerce_standardize_mode,
+    resolve_hazard_mode,
+    standardize_hazard_cli_attr,
+    standardize_liability,
+)
 from simace.phenotyping.models._base import (
     PhenotypeModel,
     check_finite_beta,
@@ -43,13 +63,18 @@ class AdultModel(PhenotypeModel):
     """ADuLT phenotype model.
 
     Parameters:
-        method:     ``"ltm"`` or ``"cox"``.
-        prevalence: case fraction K (scalar, per-generation, or sex-specific).
-        cip_x0:     logistic CIP midpoint age (default 50.0).
-        cip_k:      logistic CIP growth rate (default 0.2).
-        beta:       liability scaling factor on the probit (ltm) or log-hazard
-                    (cox) scale (1.0 = no scaling).
-        beta_sex:   sex coefficient (0.0 = no effect).
+        method:             ``"ltm"`` or ``"cox"``.
+        prevalence:         case fraction K (scalar, per-generation, or sex-specific).
+        cip_x0:             logistic CIP midpoint age (default 50.0).
+        cip_k:              logistic CIP growth rate (default 0.2).
+        beta:               liability scaling factor on the probit (ltm) or
+                            log-hazard (cox) scale (1.0 = no scaling).
+        beta_sex:           sex coefficient (0.0 = no effect).
+        standardize_hazard: per-trait override for the hazard-step L
+            standardization mode under ``method="cox"``.  ``None`` inherits
+            from the global ``standardize`` flag.  **Must be ``None`` when
+            ``method="ltm"``** (threshold-style models honor the global flag
+            directly).
     """
 
     method: str
@@ -58,6 +83,7 @@ class AdultModel(PhenotypeModel):
     cip_k: float = 0.2
     beta: float = 1.0
     beta_sex: float = 0.0
+    standardize_hazard: StandardizeMode | None = None
 
     name: ClassVar[str] = "adult"
 
@@ -65,6 +91,13 @@ class AdultModel(PhenotypeModel):
         if self.method not in _ADULT_METHODS:
             raise ValueError(f"unknown adult method {self.method!r}; valid: {sorted(_ADULT_METHODS)}")
         check_finite_beta(self.beta)
+        if self.standardize_hazard is not None:
+            coerce_standardize_mode(self.standardize_hazard)
+            if self.method == "ltm":
+                raise ValueError(
+                    "standardize_hazard is only valid when adult.method='cox' "
+                    "(this model has method='ltm'; use the global 'standardize' flag instead)"
+                )
 
     # ------------------------------------------------------------------
     # Construction
@@ -89,6 +122,7 @@ class AdultModel(PhenotypeModel):
                 cip_k=phenotype_params.get("cip_k", 0.2),
                 beta=params[f"beta{trait_num}"],
                 beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
+                standardize_hazard=phenotype_params.get("standardize_hazard"),
             )
 
     @classmethod
@@ -103,6 +137,7 @@ class AdultModel(PhenotypeModel):
         group.add_argument(f"--adult-cip-x0-{trait}", type=float, default=None)
         group.add_argument(f"--adult-cip-k-{trait}", type=float, default=None)
         group.add_argument(f"--adult-prevalence{trait}", type=float, default=None)
+        add_standardize_hazard_cli_arg(group, trait, name="adult")
 
     @classmethod
     def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
@@ -123,6 +158,7 @@ class AdultModel(PhenotypeModel):
                 cip_k=cip_k if cip_k is not None else 0.2,
                 beta=getattr(args, f"beta{trait}"),
                 beta_sex=getattr(args, f"beta_sex{trait}", 0.0),
+                standardize_hazard=getattr(args, standardize_hazard_cli_attr(trait, name="adult")),
             )
 
     @classmethod
@@ -132,15 +168,19 @@ class AdultModel(PhenotypeModel):
             f"adult_cip_x0_{trait}",
             f"adult_cip_k_{trait}",
             f"adult_prevalence{trait}",
+            standardize_hazard_cli_attr(trait, name="adult"),
         }
 
     def to_params_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "method": self.method,
             "cip_x0": self.cip_x0,
             "cip_k": self.cip_k,
             "prevalence": self.prevalence,
         }
+        if self.standardize_hazard is not None:
+            out["standardize_hazard"] = self.standardize_hazard
+        return out
 
     # ------------------------------------------------------------------
     # Simulation
@@ -151,23 +191,26 @@ class AdultModel(PhenotypeModel):
         liability: np.ndarray,
         *,
         seed: int,
-        standardize: bool,
+        standardize: StandardizeMode | bool,
         sex: np.ndarray | None,
         generation: np.ndarray,
     ) -> np.ndarray:
         prevalence = resolve_prevalence(self.prevalence, sex, generation)
         if self.method == "ltm":
-            return self._simulate_ltm(liability, prevalence, sex, standardize)
-        return self._simulate_cox(liability, prevalence, sex, seed, standardize)
+            mode = coerce_standardize_mode(standardize)
+            return self._simulate_ltm(liability, prevalence, sex, generation, mode)
+        mode = resolve_hazard_mode(standardize, self.standardize_hazard)
+        return self._simulate_cox(liability, prevalence, sex, generation, seed, mode)
 
     def _simulate_ltm(
         self,
         liability: np.ndarray,
         prevalence: float | np.ndarray,
         sex: np.ndarray | None,
-        standardize: bool,
+        generation: np.ndarray,
+        mode: StandardizeMode,
     ) -> np.ndarray:
-        L = standardize_liability(liability, standardize)
+        L = standardize_liability(liability, mode, generation)
 
         threshold = ndtri(1.0 - np.asarray(prevalence))
         is_case = threshold < L
@@ -194,11 +237,12 @@ class AdultModel(PhenotypeModel):
         liability: np.ndarray,
         prevalence: float | np.ndarray,
         sex: np.ndarray | None,
+        generation: np.ndarray,
         seed: int,
-        standardize: bool,
+        mode: StandardizeMode,
     ) -> np.ndarray:
         rng = np.random.default_rng(seed)
-        L = standardize_liability(liability, standardize)
+        L = standardize_liability(liability, mode, generation)
 
         n = len(L)
         neg_log_u = rng.exponential(size=n)
