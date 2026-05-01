@@ -36,6 +36,8 @@ from scipy.spatial import cKDTree
 
 from simace.core._numba_utils import _ndtri_approx
 from simace.core.parquet import save_parquet
+from simace.core.schema import PEDIGREE
+from simace.core.stage import stage
 
 try:
     from numba import njit
@@ -1016,7 +1018,9 @@ def add_to_pedigree(
     return df
 
 
+@stage(reads=None, writes=PEDIGREE)
 def run_simulation(
+    *,
     seed: int,
     N: int,
     G_ped: int,

@@ -201,6 +201,68 @@ def test_phenotype_threshold_wrapper(tmp_path, pedigree_parquet):
     assert df["affected1"].dtype == bool
 
 
+def test_emit_params_wrapper(tmp_path):
+    out = tmp_path / "params.yaml"
+    sm = _make_snakemake(
+        inputs={},
+        outputs={"params": str(out)},
+        params={
+            "seed": 42,
+            "rep": 1,
+            "A1": 0.5, "C1": 0.2, "E1": 0.3,
+            "A2": 0.4, "C2": 0.1, "E2": 0.5,
+            "rA": 0.5, "rC": 0.3, "rE": 0.0,
+            "N": 1000,
+            "G_ped": 3,
+            "G_sim": 5,
+            "mating_lambda": 0.5,
+            "p_mztwin": 0.02,
+            "assort1": 0.0,
+            "assort2": 0.0,
+            "assort_matrix": None,
+        },
+        log_path=tmp_path / "emit_params.log",
+    )
+    _exec_wrapper(SCRIPT_DIR / "emit_params.py", sm)
+    assert out.exists()
+
+    from simace.core.yaml_io import load_yaml
+
+    loaded = load_yaml(out)
+    assert loaded["seed"] == 42
+    assert loaded["rep"] == 1
+    assert loaded["E1"] == 0.3
+    assert "assort_matrix" not in loaded
+
+
+def test_simulate_wrapper(tmp_path):
+    out_pedigree = tmp_path / "pedigree.full.parquet"
+    sm = _make_snakemake(
+        inputs={},
+        outputs={"pedigree": str(out_pedigree)},
+        params={
+            "seed": 42,
+            "N": 50,
+            "G_ped": 2,
+            "G_sim": 2,
+            "mating_lambda": 0.5,
+            "p_mztwin": 0.0,
+            "A1": 0.5, "C1": 0.2, "E1": 0.3,
+            "A2": 0.4, "C2": 0.1, "E2": 0.5,
+            "rA": 0.0, "rC": 0.0, "rE": 0.0,
+            "assort1": 0.0,
+            "assort2": 0.0,
+            "assort_matrix": None,
+        },
+        log_path=tmp_path / "simulate.log",
+    )
+    _exec_wrapper(SCRIPT_DIR / "simulate.py", sm)
+    assert out_pedigree.exists()
+    df = pd.read_parquet(out_pedigree)
+    for col in ("id", "generation", "liability1", "liability2"):
+        assert col in df.columns
+
+
 def test_parquet_to_tsv_wrapper(tmp_path, pedigree_parquet):
     out = tmp_path / "pedigree.tsv.gz"
     sm = SimpleNamespace(
