@@ -10,20 +10,14 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-def _optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
-    """Downcast DataFrame columns for compact parquet storage.
+def _optimize_dtypes(df: pd.DataFrame) -> None:
+    """Downcast DataFrame columns in-place for compact parquet storage.
 
     Dtype strategy (matching pedigree generation-time dtypes):
     - int32 for ID columns and generation (supports up to 2.1B individuals)
     - int8 for sex (0/1)
     - float32 for ACE components and event times (~7 significant digits)
     - float64 for liabilities (full precision for phenotype models)
-
-    Args:
-        df: Pedigree DataFrame to optimize in-place.
-
-    Returns:
-        The same DataFrame with downcasted column dtypes.
     """
     int32_cols = ["id", "mother", "father", "twin", "household_id", "generation"]
     int8_cols = ["sex"]
@@ -49,7 +43,6 @@ def _optimize_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     for c in float32_cols:
         if c in df.columns:
             df[c] = df[c].astype("float32")
-    return df
 
 
 def save_parquet(df: pd.DataFrame, path: Any, **kwargs: Any) -> None:

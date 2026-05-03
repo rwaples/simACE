@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import yaml
+
+_LOADER: type = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 
 def to_native(obj: Any) -> Any:
@@ -33,27 +36,17 @@ def to_native(obj: Any) -> Any:
 
 
 def yaml_loader() -> type:
-    """Return the fastest available YAML SafeLoader.
-
-    Returns:
-        ``yaml.CSafeLoader`` if the C extension is available, else ``yaml.SafeLoader``.
-    """
-    import yaml
-
-    return getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+    """Return the fastest available YAML SafeLoader (``CSafeLoader`` if present)."""
+    return _LOADER
 
 
 def load_yaml(path: str | Path) -> Any:
     """Load a YAML file using the fastest available SafeLoader."""
-    import yaml
-
     with open(path, encoding="utf-8") as fh:
-        return yaml.load(fh, Loader=yaml_loader())
+        return yaml.load(fh, Loader=_LOADER)
 
 
 def dump_yaml(obj: Any, path: str | Path, *, sort_keys: bool = False) -> None:
     """Dump ``obj`` to ``path`` as YAML, normalizing numpy types via ``to_native``."""
-    import yaml
-
     with open(path, "w", encoding="utf-8") as fh:
         yaml.dump(to_native(obj), fh, default_flow_style=False, sort_keys=sort_keys)
