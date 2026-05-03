@@ -212,8 +212,8 @@ class FirstPassageModel(PhenotypeModel):
         y0_base = np.sqrt(self.shape)
         normals = rng.standard_normal(n)
         uniforms = rng.random(n)
-        sex_arr = sex if (sex is not None and self.beta_sex != 0.0) else np.zeros(n)
-        sex_beta = self.beta_sex if sex is not None else 0.0
+        sex_arr = sex if sex is not None else np.zeros(n)
+        sex_beta = self.beta_sex
         inv_drift = 1.0 / abs(self.drift)
         cure_draws = rng.random(n) if self.drift > 0 else None
 

@@ -235,10 +235,12 @@ class TestThresholdSexPrevalence:
         generation = np.zeros(n, dtype=int)
         sex = np.array([0] * (n // 2) + [1] * (n // 2))
         prev_f, prev_m = 0.08, 0.15
-        params = {
-            "prevalence1": {"female": prev_f, "male": prev_m},
-        }
-        affected = _apply_threshold_sex_aware(liability, generation, sex, params, trait_num=1)
+        affected = _apply_threshold_sex_aware(
+            liability,
+            generation,
+            sex,
+            prevalence={"female": prev_f, "male": prev_m},
+        )
         female_rate = affected[: n // 2].mean()
         male_rate = affected[n // 2 :].mean()
         assert abs(female_rate - prev_f) < 0.02
@@ -251,13 +253,11 @@ class TestThresholdSexPrevalence:
         liability = rng.standard_normal(n)
         generation = np.repeat([0, 1], n // 2)
         sex = rng.integers(0, 2, size=n)
-        params = {"prevalence1": 0.15}
         affected_sex_aware = _apply_threshold_sex_aware(
             liability,
             generation,
             sex,
-            params,
-            trait_num=1,
+            prevalence=0.15,
         )
         affected_direct = apply_threshold(liability, generation, prevalence=0.15)
         np.testing.assert_array_equal(affected_sex_aware, affected_direct)
@@ -274,11 +274,13 @@ class TestThresholdSexPrevalence:
 
         prev_f = {0: 0.05, 1: 0.10}
         prev_m = {0: 0.10, 1: 0.20}
-        params = {
-            "prevalence1": {"female": prev_f, "male": prev_m},
-            "standardize": "per_generation",
-        }
-        affected = _apply_threshold_sex_aware(liability, generation, sex, params, trait_num=1)
+        affected = _apply_threshold_sex_aware(
+            liability,
+            generation,
+            sex,
+            prevalence={"female": prev_f, "male": prev_m},
+            standardize="per_generation",
+        )
 
         for gen, exp_f, exp_m in [(0, 0.05, 0.10), (1, 0.10, 0.20)]:
             gen_mask = generation == gen
@@ -302,11 +304,13 @@ class TestThresholdSexPrevalence:
         liability = np.concatenate([liab_f, liab_m])
         sex = np.array([0] * n_per_sex + [1] * n_per_sex)
         generation = np.zeros(2 * n_per_sex, dtype=int)
-        params = {
-            "prevalence1": {"female": 0.10, "male": 0.10},
-            "standardize": "per_generation",
-        }
-        affected = _apply_threshold_sex_aware(liability, generation, sex, params, trait_num=1)
+        affected = _apply_threshold_sex_aware(
+            liability,
+            generation,
+            sex,
+            prevalence={"female": 0.10, "male": 0.10},
+            standardize="per_generation",
+        )
         female_rate = affected[:n_per_sex].mean()
         male_rate = affected[n_per_sex:].mean()
         # Pooled z-score puts female mean above 0 and male mean below 0; with a
@@ -323,11 +327,13 @@ class TestThresholdSexPrevalence:
         liability = np.concatenate([liab_f, liab_m])
         sex = np.array([0] * n_per_sex + [1] * n_per_sex)
         generation = np.zeros(2 * n_per_sex, dtype=int)
-        params = {
-            "prevalence1": {"female": 0.10, "male": 0.10},
-            "standardize": "global",
-        }
-        affected = _apply_threshold_sex_aware(liability, generation, sex, params, trait_num=1)
+        affected = _apply_threshold_sex_aware(
+            liability,
+            generation,
+            sex,
+            prevalence={"female": 0.10, "male": 0.10},
+            standardize="global",
+        )
         # Same shape: pooled z-score → female mean > 0, male mean < 0.
         female_rate = affected[:n_per_sex].mean()
         male_rate = affected[n_per_sex:].mean()

@@ -26,7 +26,6 @@ __all__ = ["apply_threshold", "run_threshold"]
 import argparse
 import logging
 import time
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -155,23 +154,23 @@ def _apply_threshold_sex_aware(
     liability: np.ndarray,
     generation: np.ndarray,
     sex: np.ndarray,
-    params: dict[str, Any],
-    trait_num: int,
+    *,
+    prevalence: float | dict,
+    standardize: StandardizeMode | bool = "global",
 ) -> np.ndarray:
     """Apply threshold with optional sex-specific prevalence.
 
-    When ``prevalence{N}`` is a dict with ``"female"`` and ``"male"`` keys,
+    When ``prevalence`` is a dict with ``"female"`` and ``"male"`` keys,
     liability is standardized once across both sexes (so sex-shifted means
     yield sex-specific realised prevalences) and then thresholded
     per-(sex, gen) cell.  Otherwise behaves identically to
     :func:`apply_threshold` with the scalar/dict prevalence directly.
     """
-    prev = params[f"prevalence{trait_num}"]
-    mode = coerce_standardize_mode(params.get("standardize", "global"))
+    mode = coerce_standardize_mode(standardize)
     L_all = standardize_liability(liability, mode, generation)
-    if isinstance(prev, dict) and "female" in prev and "male" in prev:
-        return _apply_thresholds_to_standardized(L_all, generation, sex, prev)
-    return _apply_thresholds_to_standardized(L_all, generation, sex=None, prev_spec=prev)
+    if isinstance(prevalence, dict) and "female" in prevalence and "male" in prevalence:
+        return _apply_thresholds_to_standardized(L_all, generation, sex, prevalence)
+    return _apply_thresholds_to_standardized(L_all, generation, sex=None, prev_spec=prevalence)
 
 
 _DEFAULT_THRESHOLD_PREVALENCE: tuple[float, float] = (0.10, 0.20)
@@ -230,20 +229,19 @@ def run_threshold(
     generation = pedigree["generation"].values
     sex = pedigree["sex"].values
 
-    helper_params = {"prevalence1": prevalence1, "prevalence2": prevalence2, "standardize": standardize}
     affected1 = _apply_threshold_sex_aware(
         pedigree["liability1"].values,
         generation,
         sex,
-        helper_params,
-        trait_num=1,
+        prevalence=prevalence1,
+        standardize=standardize,
     )
     affected2 = _apply_threshold_sex_aware(
         pedigree["liability2"].values,
         generation,
         sex,
-        helper_params,
-        trait_num=2,
+        prevalence=prevalence2,
+        standardize=standardize,
     )
 
     nan_t = np.full(len(pedigree), np.nan, dtype=np.float64)

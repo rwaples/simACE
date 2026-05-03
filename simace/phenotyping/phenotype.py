@@ -22,6 +22,7 @@ import logging
 import time
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from simace.core.parquet import save_parquet
@@ -40,20 +41,31 @@ logger = logging.getLogger(__name__)
 
 def _simulate_one_trait(
     pedigree: pd.DataFrame,
-    params: dict[str, Any],
+    *,
     trait_num: int,
-    seed_offset: int,
+    model_name: str,
+    phenotype_params: dict,
+    beta: float,
+    beta_sex: float,
+    seed: int,
+    standardize: StandardizeMode | bool,
+    sex: np.ndarray | None,
+    generation: np.ndarray,
 ):
     """Dispatch a single trait to the appropriate phenotype model class."""
-    model_cls = MODELS[params[f"phenotype_model{trait_num}"]]
-    model = model_cls.from_config(params, trait_num)
-    sex = pedigree["sex"].to_numpy() if "sex" in pedigree.columns else None
+    model_cls = MODELS[model_name]
+    config = {
+        f"phenotype_params{trait_num}": phenotype_params,
+        f"beta{trait_num}": beta,
+        f"beta_sex{trait_num}": beta_sex,
+    }
+    model = model_cls.from_config(config, trait_num)
     return model.simulate(
         liability=pedigree[f"liability{trait_num}"].to_numpy(),
-        seed=params["seed"] + seed_offset,
-        standardize=params["standardize"],
+        seed=seed,
+        standardize=standardize,
         sex=sex,
-        generation=pedigree["generation"].to_numpy(),
+        generation=generation,
     )
 
 
@@ -116,21 +128,32 @@ def run_phenotype(
         raise ValueError(f"G_pheno ({G_pheno}) exceeds available generations ({max_gen + 1})")
     pedigree = pedigree[pedigree["generation"] >= min_gen].reset_index(drop=True)
 
-    helper_params: dict[str, Any] = {
-        "G_pheno": G_pheno,
-        "seed": seed,
-        "standardize": standardize,
-        "phenotype_model1": phenotype_model1,
-        "phenotype_model2": phenotype_model2,
-        "beta1": beta1,
-        "beta_sex1": beta_sex1,
-        "phenotype_params1": phenotype_params1,
-        "beta2": beta2,
-        "beta_sex2": beta_sex2,
-        "phenotype_params2": phenotype_params2,
-    }
-    t1 = _simulate_one_trait(pedigree, helper_params, trait_num=1, seed_offset=0)
-    t2 = _simulate_one_trait(pedigree, helper_params, trait_num=2, seed_offset=100)
+    sex = pedigree["sex"].to_numpy() if "sex" in pedigree.columns else None
+    generation = pedigree["generation"].to_numpy()
+    t1 = _simulate_one_trait(
+        pedigree,
+        trait_num=1,
+        model_name=phenotype_model1,
+        phenotype_params=phenotype_params1,
+        beta=beta1,
+        beta_sex=beta_sex1,
+        seed=seed,
+        standardize=standardize,
+        sex=sex,
+        generation=generation,
+    )
+    t2 = _simulate_one_trait(
+        pedigree,
+        trait_num=2,
+        model_name=phenotype_model2,
+        phenotype_params=phenotype_params2,
+        beta=beta2,
+        beta_sex=beta_sex2,
+        seed=seed + 100,
+        standardize=standardize,
+        sex=sex,
+        generation=generation,
+    )
 
     phenotype = pedigree.assign(t1=t1, t2=t2)
 
