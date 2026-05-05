@@ -1092,7 +1092,7 @@ def load_pedigree_estimates_per_generation(
     (a single cohort) and MZ/FS pair correlations are computed on that cohort
     only.  ``PedigreeGraph.from_subsample`` is built on the filtered cohort
     so the returned FS pairs already exclude twins
-    (``simace/core/pedigree_graph.py:_sibling_pairs`` filters ``twin != -1``).
+    (``simace/core/pedigree_graph.py:sibling_pairs`` filters ``twin != -1``).
     MZ pairs are read from the cohort directly.
 
     Args:

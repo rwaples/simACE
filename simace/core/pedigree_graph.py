@@ -263,7 +263,7 @@ class PedigreeGraph:
         if hasattr(self, "_full_sib_matrix"):
             return
         # Trigger sibling extraction which sets _full_sib_matrix
-        self._sibling_pairs()
+        self.sibling_pairs()
 
     def _build_half_sib_matrix(
         self,
@@ -395,7 +395,7 @@ class PedigreeGraph:
             self.father[f_children].astype(np.intp),
         )
 
-    def _sibling_pairs(
+    def sibling_pairs(
         self,
     ) -> tuple[
         tuple[np.ndarray, np.ndarray],
@@ -774,7 +774,7 @@ class PedigreeGraph:
         pairs["FO"] = fo
 
         t0 = time.perf_counter()
-        full_sib, mat_hs, pat_hs = self._sibling_pairs()
+        full_sib, mat_hs, pat_hs = self.sibling_pairs()
         pairs["FS"] = full_sib
         pairs["MHS"] = mat_hs if need_hs else (empty, empty)
         pairs["PHS"] = pat_hs if need_hs else (empty, empty)

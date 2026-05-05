@@ -198,7 +198,7 @@ class TestDropoutRelationships:
             }
         )
         pg = PedigreeGraph(df)
-        full_sib, mat_hs, _pat_hs = pg._sibling_pairs()
+        full_sib, mat_hs, _pat_hs = pg.sibling_pairs()
 
         # Should NOT be full sibs (father unknown for both)
         assert len(full_sib[0]) == 0, "Should not be full sibs with unknown father"
@@ -220,7 +220,7 @@ class TestDropoutRelationships:
             }
         )
         pg = PedigreeGraph(df)
-        _full_sib, mat_hs, _pat_hs = pg._sibling_pairs()
+        _full_sib, mat_hs, _pat_hs = pg.sibling_pairs()
         assert len(mat_hs[0]) == 1, "Should detect half-sibs through surviving parent"
 
 
