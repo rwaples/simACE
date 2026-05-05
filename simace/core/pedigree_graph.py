@@ -36,6 +36,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+_REQUIRED_COLUMNS: tuple[str, ...] = ("id", "mother", "father", "twin", "sex", "generation")
+
+
+def _coerce_to_array_dict(data: dict[str, np.ndarray] | pd.DataFrame) -> dict[str, np.ndarray]:
+    """Normalize input to a dict of numpy arrays.
+
+    Accepts either a ``dict[str, np.ndarray]`` (returned as-is) or a
+    pandas ``DataFrame`` (each required column extracted via ``.values``).
+    No pandas import is performed in the dict path.
+    """
+    if isinstance(data, dict):
+        return data
+    return {col: data[col].values for col in _REQUIRED_COLUMNS}
+
+
 # ---------------------------------------------------------------------------
 # Relationship type registry
 # ---------------------------------------------------------------------------
@@ -108,22 +123,27 @@ PAIR_KINSHIP: dict[str, float] = {rt.code: rt.kinship for rt in REL_REGISTRY.val
 class PedigreeGraph:
     """Parent→child DAG for efficient relationship queries.
 
-    Each individual is a vertex whose index equals its DataFrame row index.
-    Sparse CSR matrices encode parent-child edges for O(nnz) relationship
-    extraction via matrix products.
+    Each individual is a vertex whose index equals its row index in the
+    input.  Sparse CSR matrices encode parent-child edges for O(nnz)
+    relationship extraction via matrix products.
 
     Args:
-        df: Pedigree DataFrame with columns id, mother, father, twin, sex, generation.
+        data: Either a ``dict[str, np.ndarray]`` keyed by ``id``, ``mother``,
+            ``father``, ``twin``, ``sex``, ``generation``, or a pandas
+            ``DataFrame`` with those columns.  The dict path requires no
+            pandas import.
     """
 
-    def __init__(self, df: pd.DataFrame) -> None:
-        n = len(df)
+    def __init__(self, data: dict[str, np.ndarray] | pd.DataFrame) -> None:
+        arrays = _coerce_to_array_dict(data)
+        ids_arr = np.asarray(arrays["id"])
+        n = len(ids_arr)
         self.n = n
 
         # Subsample state — set only by from_subsample. When _sample_mask is
         # set, extract_pairs filters to pairs where both endpoints are active.
         # When _subsample_remap is set, extract_pairs additionally remaps
-        # graph row indices to caller-input (df) row indices.
+        # graph row indices to caller-input row indices.
         self._sample_mask: np.ndarray | None = None
         self._subsample_remap: np.ndarray | None = None
 
@@ -133,7 +153,6 @@ class PedigreeGraph:
         self._inbreeding: np.ndarray | None = None
 
         # Build ID → row index mapping (int32: row indices fit in 2.1B)
-        ids_arr = df["id"].values
         self._ids = ids_arr
         if n > np.iinfo(np.int32).max:
             raise ValueError(f"Pedigree has {n:,} rows, exceeding int32 max for row indices")
@@ -149,15 +168,15 @@ class PedigreeGraph:
 
         # Original pedigree parent IDs (for sibling classification —
         # valid even when the parent isn't in the sample).
-        self._orig_mother = df["mother"].values
-        self._orig_father = df["father"].values
+        self._orig_mother = np.asarray(arrays["mother"])
+        self._orig_father = np.asarray(arrays["father"])
 
         # Remap parent/twin IDs to row indices (for sparse matrices)
         self.mother = _remap(self._orig_mother)
         self.father = _remap(self._orig_father)
-        self.twin = _remap(df["twin"].values)
-        self.sex = df["sex"].values.astype(np.int8)
-        self.generation = df["generation"].values.astype(np.int32)
+        self.twin = _remap(np.asarray(arrays["twin"]))
+        self.sex = np.asarray(arrays["sex"]).astype(np.int8)
+        self.generation = np.asarray(arrays["generation"]).astype(np.int32)
 
         # Build parent→child matrices using ALL available edges.
         # Each matrix is built independently so partial-pedigree data
@@ -1085,6 +1104,16 @@ class PedigreeGraph:
     # ------------------------------------------------------------------
 
     @classmethod
+    def from_dataframe(cls, df: pd.DataFrame) -> PedigreeGraph:
+        """Construct from a pandas ``DataFrame``.
+
+        Explicit DataFrame entry point.  ``__init__`` also accepts
+        DataFrames directly via type dispatch; this classmethod is
+        provided for callers that want the intent in the call site.
+        """
+        return cls(df)
+
+    @classmethod
     def from_arrays(
         cls,
         ids: np.ndarray,
@@ -1100,8 +1129,6 @@ class PedigreeGraph:
         *generation* is None, it is derived from the parent graph via a
         fixed-point sweep (founders = 0, offspring = max(parent_gen)+1).
         """
-        import pandas as pd
-
         ids_arr = np.asarray(ids)
         mothers_arr = np.asarray(mothers)
         fathers_arr = np.asarray(fathers)
@@ -1112,19 +1139,17 @@ class PedigreeGraph:
         # instantiate the graph (which remaps parents to row indices),
         # then derive depth from the already-remapped parent arrays.
         derive_generation = generation is None
-        df = pd.DataFrame(
-            {
-                "id": ids_arr,
-                "mother": mothers_arr,
-                "father": fathers_arr,
-                "twin": twins_arr,
-                "sex": np.zeros(n, dtype=np.int8),
-                "generation": np.zeros(n, dtype=np.int32)
-                if derive_generation
-                else np.asarray(generation, dtype=np.int32),
-            }
-        )
-        pg = cls(df)
+        data: dict[str, np.ndarray] = {
+            "id": ids_arr,
+            "mother": mothers_arr,
+            "father": fathers_arr,
+            "twin": twins_arr,
+            "sex": np.zeros(n, dtype=np.int8),
+            "generation": (
+                np.zeros(n, dtype=np.int32) if derive_generation else np.asarray(generation, dtype=np.int32)
+            ),
+        }
+        pg = cls(data)
         if derive_generation:
             pg.generation = _compute_depth(pg.mother, pg.father, n)
         return pg
@@ -1132,8 +1157,8 @@ class PedigreeGraph:
     @classmethod
     def from_subsample(
         cls,
-        full_pedigree: pd.DataFrame,
-        df: pd.DataFrame,
+        full_pedigree: dict[str, np.ndarray] | pd.DataFrame,
+        df: dict[str, np.ndarray] | pd.DataFrame,
     ) -> PedigreeGraph:
         """Construct a graph over *full_pedigree*, restricted to *df*.
 
@@ -1143,22 +1168,25 @@ class PedigreeGraph:
         *df* (filtered to pairs where both endpoints are in *df*).
 
         Args:
-            full_pedigree: Complete pedigree DataFrame.
-            df: Subsample of *full_pedigree*.  Must have unique IDs and
-                each ID must appear in ``full_pedigree["id"]``.  Empty *df*
-                is permitted and yields a graph whose ``extract_pairs``
-                returns empty arrays.
+            full_pedigree: Complete pedigree as ``dict[str, np.ndarray]`` or
+                pandas ``DataFrame``.
+            df: Subsample of *full_pedigree* in the same form.  Must have
+                unique IDs and each ID must appear in *full_pedigree*'s
+                ``id`` column.  Empty *df* is permitted and yields a graph
+                whose ``extract_pairs`` returns empty arrays.
 
         Raises:
             ValueError: if *df* has duplicate IDs, or if any ID in *df* is
                 missing from *full_pedigree*.
         """
-        df_ids = np.asarray(df["id"].values)
+        df_arrays = _coerce_to_array_dict(df)
+        df_ids = np.asarray(df_arrays["id"])
         if len(df_ids) != len(np.unique(df_ids)):
             dup_count = len(df_ids) - len(np.unique(df_ids))
             raise ValueError(f"from_subsample: df has {dup_count} duplicate id(s)")
 
-        full_ids = np.asarray(full_pedigree["id"].values)
+        full_arrays = _coerce_to_array_dict(full_pedigree)
+        full_ids = np.asarray(full_arrays["id"])
         if len(df_ids) > 0:
             in_full = np.isin(df_ids, full_ids)
             if not in_full.all():
@@ -1169,7 +1197,7 @@ class PedigreeGraph:
                     f"full_pedigree (first {min(len(missing), 10)}: {preview})"
                 )
 
-        pg = cls(full_pedigree)
+        pg = cls(full_arrays)
 
         if len(df_ids) == 0:
             # Empty subsample → mask filters everything; remap unused.
