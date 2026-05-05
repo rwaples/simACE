@@ -107,7 +107,7 @@ def _count_total_relatives(pair_list, n, unidirectional=False):
 
 def build_epimight_inputs(phenotype_path: Path, output_dir: Path) -> None:
     """phenotype.parquet -> trait{1,2}.epimight_in.parquet + true_parameters.json."""
-    from simace.core.pedigree_graph import PedigreeGraph
+    from pedigree_graph import PedigreeGraph
 
     output_dir.mkdir(parents=True, exist_ok=True)
     df = pd.read_parquet(phenotype_path)

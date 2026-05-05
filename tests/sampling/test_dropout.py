@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from simace.core.pedigree_graph import PedigreeGraph
+from pedigree_graph import PedigreeGraph
 from simace.core.schema import PEDIGREE
 from simace.sampling.dropout import run_dropout
 from tests.conftest import schema_pad

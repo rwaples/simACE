@@ -30,7 +30,7 @@ a natural mix of full sibs, maternal half-sibs, and paternal half-sibs.
 
 ## Pedigree relationship types
 
-`PedigreeGraph` (in `simace/core/pedigree_graph.py`) extracts 23 relationship
+`PedigreeGraph` (from the [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) package) extracts 23 relationship
 categories from simulated pedigrees using sparse matrix algebra. Each type is
 parameterised by `(up, down, n_ancestors)` -- meioses up from individual A to
 common ancestor(s), meioses down to individual B, and whether the link is
@@ -66,7 +66,7 @@ $n_{\text{ancestors}} \times (1/2)^{(\text{up} + \text{down} + 1)}$.
 The `max_degree` parameter controls extraction depth (default 2, covering
 through 1st cousins). Degree 3–5 types require deeper matrix products and
 are computed only when requested. The registry is importable as
-`REL_REGISTRY` and `PAIR_KINSHIP` from `simace.core.pedigree_graph`.
+`REL_REGISTRY` and `PAIR_KINSHIP` from `pedigree_graph`.
 
 ### Inbreeding and exact kinship
 

@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
-from simace.core.pedigree_graph import PedigreeGraph
+from pedigree_graph import PedigreeGraph
 from simace.core.yaml_io import dump_yaml, load_yaml
 
 logger = logging.getLogger(__name__)

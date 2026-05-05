@@ -3,7 +3,7 @@
 __all__ = ["PAIR_TYPES", "SEX_LEVELS"]
 
 # Canonical 7-element subset of REL_REGISTRY (defined in
-# ``simace.core.pedigree_graph``) used for tetrachoric / liability correlation
+# ``pedigree_graph``) used for tetrachoric / liability correlation
 # analyses.
 PAIR_TYPES: list[str] = [
     "MZ",

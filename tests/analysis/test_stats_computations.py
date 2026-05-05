@@ -687,7 +687,7 @@ def phenotyped_df():
 @pytest.fixture(scope="module")
 def extracted_pairs(phenotyped_df):
     """Pre-extracted relationship pairs."""
-    from simace.core.pedigree_graph import PedigreeGraph
+    from pedigree_graph import PedigreeGraph
 
     return PedigreeGraph(phenotyped_df).extract_pairs()
 

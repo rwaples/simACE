@@ -25,10 +25,6 @@
 
 ::: simace.core.relationships
 
-## pedigree_graph
-
-::: simace.core.pedigree_graph
-
 ## compute_hazard_terms
 
 ::: simace.core.compute_hazard_terms

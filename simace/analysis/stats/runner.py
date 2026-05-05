@@ -16,7 +16,7 @@ import pandas as pd
 import yaml
 
 from simace.core.parquet import save_parquet
-from simace.core.pedigree_graph import PedigreeGraph
+from pedigree_graph import PedigreeGraph
 from simace.core.yaml_io import to_native
 
 from .censoring import (
