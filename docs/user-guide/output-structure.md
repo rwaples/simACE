@@ -10,7 +10,6 @@ results/{folder}/{scenario}/
 │   ├── phenotype.parquet                  # Censored time-to-event phenotypes
 │   ├── phenotype.simple_ltm.parquet       # Liability-threshold binary phenotype
 │   ├── phenotype_stats.yaml               # Phenotype statistics
-│   ├── simple_ltm_stats.yaml              # Threshold phenotype statistics
 │   └── validation.yaml                    # Structural + statistical validation
 ├── rep2/
 ├── rep3/
@@ -32,7 +31,6 @@ results/{folder}/{scenario}/
 | `phenotype.simple_ltm.sampled.parquet` | Subsampled threshold phenotype | Yes |
 | `params.yaml` | Simulation parameters for this replicate | No |
 | `phenotype_stats.yaml` | Per-replicate phenotype statistics | No |
-| `simple_ltm_stats.yaml` | Per-replicate threshold statistics | No |
 
 Temp files are auto-deleted by Snakemake after downstream rules complete.
 
@@ -53,32 +51,6 @@ Temp files are auto-deleted by Snakemake after downstream rules complete.
 | `results/{folder}/{scenario}/plots/atlas.pdf` | Per-scenario atlas |
 | `results/{folder}/plots/atlas.pdf` | Per-folder cross-scenario validation atlas |
 | `results/{folder}/{scenario}/rep{N}/epimight/plots/atlas.pdf` | EPIMIGHT atlas |
-
-## On-demand exports
-
-Five opt-in leaf rules emit derived artifacts under
-`results/{folder}/{scenario}/rep{N}/exports/`. None run as part of
-`scenario.done` — build them by explicit path.
-
-| Path | Description | Config parameter |
-|---|---|---|
-| `exports/cumulative_incidence.tsv` | Long/tidy TSV, one row per `(trait, sex, generation, age)` with columns `cum_incidence`, `n_at_risk` | `censoring.max_age` |
-| `exports/pairwise_relatedness.tsv` | Canonical relationship pairs: `id1`, `id2`, `rel_code`, `kinship`; filtered by a minimum-kinship threshold | `export.pair_list_min_kinship` |
-| `exports/inbreeding.tsv` | Per-individual inbreeding coefficient: `id`, `F`; rows with `F == 0` are omitted (empty file in a non-consanguineous pedigree) | — |
-| `exports/grm/sparse.grm.sp.bin` + `.grm.id` | Sparse GRM in `ace_sreml` binary CSC format with founder-couple FIDs | `export.grm_threshold` |
-| `exports/pgs.parquet` + `pgs.meta.json` | Per-individual proxy polygenic score `PGS_t = √r²·A_t + √(Var(A_t)(1−r²))·e_t`, noise correlated across traits by `rA`; sidecar records the accuracy used and realized correlations | `export.pgs_r2` |
-
-Build any target with Snakemake:
-
-```bash
-snakemake --cores 1 results/base/baseline10K/rep1/exports/pgs.parquet
-snakemake --cores 1 results/base/baseline10K/rep1/exports/grm/sparse.grm.sp.bin
-```
-
-The PGS noise draw is seeded deterministically from the rep seed, so
-rebuilds are bit-identical. See `simace/analysis/export_tables.py` for
-the full noise-model docstring and the cross-trait-correlation caveat
-when `r²_1 ≠ r²_2`.
 
 ## Exporting to R
 
@@ -120,14 +92,12 @@ as placeholders matching values from `config/_default.yaml`.
 | `pedigree.parquet` | Parquet | Pedigree structure with ACE variance components | `simace/simulation/simulate.py` |
 | `phenotype.raw.parquet` | Parquet | Raw time-to-event phenotypes (before censoring) | `simace/phenotyping/phenotype.py` |
 | `phenotype.parquet` | Parquet | Censored time-to-event phenotypes | `simace/censoring/censor.py` |
-| `phenotype.sampled.parquet` | Parquet | Downsampled phenotype for plotting | `workflow/scripts/sample.py` |
+| `phenotype.sampled.parquet` | Parquet | Downsampled phenotype for plotting and stats | `workflow/scripts/simace/sample.py` |
 | `phenotype.simple_ltm.parquet` | Parquet | Binary affected status from liability-threshold model | `simace/phenotyping/threshold.py` |
-| `phenotype.simple_ltm.sampled.parquet` | Parquet | Downsampled threshold phenotype for plotting | `workflow/scripts/sample.py` |
+| `phenotype.simple_ltm.sampled.parquet` | Parquet | Downsampled threshold phenotype | `workflow/scripts/simace/sample.py` |
 | `params.yaml` | YAML | Simulation parameters for this replicate | `simace/simulation/simulate.py` |
-| `phenotype_stats.yaml` | YAML | Phenotype statistics (correlations, prevalence, CIF, etc.) | `simace/analysis/stats.py` |
-| `phenotype_samples.parquet` | Parquet | Further downsampled phenotype rows for stats scatter plots | `simace/analysis/stats.py` |
-| `simple_ltm_stats.yaml` | YAML | Threshold phenotype statistics | `simace/analysis/simple_ltm_stats.py` |
-| `simple_ltm_samples.parquet` | Parquet | Further downsampled threshold rows for stats scatter plots | `simace/analysis/simple_ltm_stats.py` |
+| `phenotype_stats.yaml` | YAML | Phenotype statistics (correlations, prevalence, CIF, etc.) | `workflow/scripts/simace/compute_phenotype_stats.py` → `simace/analysis/stats/runner.py` |
+| `phenotype_samples.parquet` | Parquet | Further downsampled phenotype rows for stats scatter plots | `workflow/scripts/simace/compute_phenotype_stats.py` → `simace/analysis/stats/runner.py` |
 | `validation.yaml` | YAML | Structural and statistical validation results | `simace/analysis/validate.py` |
 
 ### Per-scenario, per-folder, and sentinel files
@@ -216,9 +186,8 @@ The pipeline produces several downsampled parquet files to keep plotting and sta
 | File | Source | Purpose |
 |------|--------|---------|
 | `phenotype.sampled.parquet` | `phenotype.parquet` | Downsampled rows for phenotype stats input; preserves parents of sampled individuals |
-| `phenotype.simple_ltm.sampled.parquet` | `phenotype.simple_ltm.parquet` | Downsampled rows for threshold stats input |
+| `phenotype.simple_ltm.sampled.parquet` | `phenotype.simple_ltm.parquet` | Downsampled threshold rows retained for explicit downstream targets |
 | `phenotype_samples.parquet` | `phenotype.sampled.parquet` | Further downsampled during stats computation for scatter/histogram plots |
-| `simple_ltm_samples.parquet` | `phenotype.simple_ltm.sampled.parquet` | Further downsampled during threshold stats for scatter/histogram plots |
 
 All sampled parquets share the same column schema as their source files.
 
@@ -249,7 +218,9 @@ Flat key-value file recording the simulation parameters used for a replicate. Wr
 
 ### phenotype_stats.yaml
 
-Phenotype statistics computed from the censored frailty phenotype. Written by `simace/analysis/stats.py`. Top-level sections:
+Phenotype statistics computed from the censored phenotype. Written by
+`workflow/scripts/simace/compute_phenotype_stats.py`, which calls
+`simace.analysis.stats.runner`. Top-level sections:
 
 | Section | Description |
 |---------|-------------|
@@ -283,20 +254,6 @@ Phenotype statistics computed from the censored frailty phenotype. Written by `s
 | `cross_trait_tetrachoric` | Cross-trait tetrachoric correlations (`same_person`, `same_person_by_generation`, `cross_person`) |
 
 Sections marked "conditional" are only present when the corresponding data or config options are available.
-
-### simple_ltm_stats.yaml
-
-Statistics for the liability-threshold phenotype model. Written by `simace/analysis/simple_ltm_stats.py`. Top-level sections:
-
-| Section | Description |
-|---------|-------------|
-| `n_individuals` | Total individual count |
-| `prevalence` | Per-trait prevalence with per-generation breakdown (`generations`, `prevalence`, `overall`) |
-| `joint_affection` | Cross-trait joint affection (`counts`, `proportions`, `n`) |
-| `liability_by_status` | Per-trait liability distribution by affection status (`affected_mean`, `affected_std`, `unaffected_mean`, `unaffected_std`) |
-| `liability_correlations` | Pearson correlations of liability by trait and pair type |
-| `tetrachoric` | Tetrachoric correlations of affection status by trait and pair type (`r`, `se`, `n_pairs`) |
-| `cross_trait_tetrachoric` | Cross-trait tetrachoric correlations (`same_person`, `same_person_by_generation`, `cross_person`) |
 
 ### validation.yaml
 
@@ -380,13 +337,11 @@ Benchmark files are written for each pipeline rule. Per-replicate benchmarks:
 - `benchmarks/{folder}/{scenario}/rep{rep}/sample_phenotype.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/sample_simple_ltm.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_stats.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/simple_ltm_stats.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/validate.tsv`
 
 Per-scenario benchmarks:
 
 - `benchmarks/{folder}/{scenario}/plot_phenotype.tsv`
-- `benchmarks/{folder}/{scenario}/plot_simple_ltm.tsv`
 - `benchmarks/{folder}/{scenario}/assemble_atlas.tsv`
 
 Per-folder benchmarks:
@@ -435,18 +390,6 @@ Ordered by narrative flow: pedigree structure, liability, phenotype, censoring, 
 | `cross_trait.phenotype.t2.{ext}` | Cross-trait phenotype correlations (trait 2 focus) |
 | `cross_trait_tetrachoric.{ext}` | Cross-trait tetrachoric correlations |
 
-### Simple LTM phenotype plots
-
-| File | Description |
-|------|-------------|
-| `prevalence_by_generation.{ext}` | Prevalence by generation |
-| `cross_trait.simple_ltm.{ext}` | Cross-trait liability scatter (simple LTM) |
-| `liability_violin.simple_ltm.{ext}` | Liability violins by affection status |
-| `liability_violin.simple_ltm.by_generation.{ext}` | Liability violins by generation |
-| `joint_affected.simple_ltm.{ext}` | Cross-trait joint affection (simple LTM) |
-| `tetrachoric.simple_ltm.{ext}` | Tetrachoric correlation heatmap (simple LTM) |
-| `cross_trait_tetrachoric.simple_ltm.{ext}` | Cross-trait tetrachoric (simple LTM) |
-
 ### Validation plots (`results/{folder}/plots/`)
 
 | File | Description |
@@ -469,7 +412,7 @@ Multi-page PDF atlases combine all plots for a scope into a single document with
 
 | File | Contents |
 |------|----------|
-| `results/{folder}/{scenario}/plots/atlas.pdf` | All phenotype + simple LTM figures for one scenario |
+| `results/{folder}/{scenario}/plots/atlas.pdf` | All phenotype figures for one scenario |
 | `results/{folder}/plots/atlas.pdf` | All cross-scenario validation figures for one folder |
 | `results/{folder}/{scenario}/rep{rep}/epimight/plots/atlas.pdf` | EPIMIGHT CIF, heritability, and genetic correlation figures |
 

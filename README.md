@@ -13,7 +13,7 @@ which depends on simACE.
 ## Prerequisites
 
 - [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) (Miniconda or Miniforge)
-- Python 3.10+
+- Python 3.13+
 - Linux or macOS (Windows users may try [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install))
 
 ## Setup
@@ -22,7 +22,7 @@ which depends on simACE.
 git clone <repo-url>
 cd simACE
 conda env create -f envs/environment.yml   # creates env, installs dependencies + simace
-conda activate ACE
+conda activate simACE
 ```
 
 ### Verify installation
@@ -126,7 +126,7 @@ inventory, parquet column schemas, YAML structures, and plot listings.
 
 | Problem | Solution |
 |---------|----------|
-| `ModuleNotFoundError: No module named 'simace'` | Run `conda activate ACE` first — the package is only available inside the conda environment |
+| `ModuleNotFoundError: No module named 'simace'` | Run `conda activate simACE` first — the package is only available inside the conda environment |
 | `FileNotFoundError: config/_default.yaml` | Run snakemake from the simACE repo root directory |
 | Simulation killed or frozen (large N) | Reduce `--cores` to lower parallel memory usage, or skip large-N scenarios |
 | `IncompleteFilesException` on re-run | Snakemake detected a previously interrupted output; run `snakemake --cores 4 --rerun-incomplete` |

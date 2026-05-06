@@ -2,145 +2,225 @@
 
 ## Overview
 
-Simulation parameters are defined in YAML config files in the `config/` folder.
-The `config/_default.yaml` file contains the default parameter values. Simulations are 
-configured via additional config files (`config/{folder}.yaml`). Each scenario inherits 
-all defaults and can override any parameters to change them.
+Simulation parameters are defined in YAML files under `config/`.
+`config/_default.yaml` contains the global defaults, while each
+`config/{folder}.yaml` file defines scenarios for one output folder. Scenario
+files use bare scenario names; the folder name is inferred from the filename.
 
-## Parameter reference
+Each scenario inherits the defaults and overrides only the values that differ.
+The preferred authoring style is the hierarchical schema shown below. The
+loader still accepts older flat keys such as `A1` or `censor_age` for
+compatibility, but new configs should use the sectioned form.
 
-### Simulation
+## Defaults
+
+### Top-level globals
 
 | Parameter | Type | Default | Description |
-|---|---|---|---|
-| `seed` | int | 42 | Random seed for reproducibility |
+|---|---|---:|---|
+| `seed` | int | 42 | Base random seed; replicate seeds are derived from this value |
 | `replicates` | int | 3 | Number of independent replicates per scenario |
-| `folder` | str | `base` | Output folder name under `results/` |
+| `folder` | str | `base` | Output folder under `results/` |
+| `N` | int | 100000 | Population size per generation |
+| `G_ped` | int | 6 | Recorded pedigree generations |
+| `G_pheno` | int | 3 | Last `G_pheno` generations to phenotype |
+| `G_sim` | int | 8 | Total simulated generations; `G_sim - G_ped` is burn-in |
+| `standardize` | str | `global` | Liability standardization mode: `none`, `global`, or `per_generation` |
+| `plot_format` | str | `png` | Plot extension, usually `png` or `pdf` |
+| `drop_from` | str / null | `null` | Reuse another scenario's pedigree and gene-drop outputs |
+| `use_gene_drop` | bool | `false` | Use tstrait-derived `A1` instead of parametric `A1` downstream |
 
-### Variance components
-
-Trait liability ($L$) is decomposed as $L = A + C + E$, and can optionally be standardized to unit variance ($A + C + E = 1$).
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `A1`, `A2` | float | 0.5 | Additive genetic variance (trait 1, 2) |
-| `C1`, `C2` | float | 0.2 | Common environment variance |
-| `rA` | float | 0.3 | Cross-trait genetic correlation |
-| `rC` | float | 0.5 | Cross-trait common environment correlation ([-1, 1]) |
-| `rE` | float | 0.0 | Cross-trait unique environment correlation ([-1, 1]) |
-| `standardize` | str | `global` | Liability standardization mode for phenotyping: `none`, `global`, or `per_generation`. Legacy bools accepted (`true → global`, `false → none`). See [ACE Model § Standardisation](../concepts/ace-model.md#standardisation). |
-
+See [ACE Model § Standardisation](../concepts/ace-model.md#standardisation)
+for how `standardize` interacts with threshold and hazard-bearing models.
 
 ### Pedigree
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `N` | int | 100000 | Population size per generation |
-| `G_pheno` | int | 3 | Generations to phenotype (last G_pheno of G_ped) |
-| `G_ped` | int | 6 | Generations recorded in the pedigree |
-| `G_sim` | int | 8 | Total generations simulated (G_sim - G_ped = burn-in, not observed) |
-| `mating_lambda` | float | 0.5 | mating parameter (~23% multi-partner) |
-| `p_mztwin` | float | 0.02 | Probability of MZ twin birth |
-| `assort1` | float | 0 | Mate correlation on trait 1 liability ([-1, 1]) |
-| `assort2` | float | 0 | Mate correlation on trait 2 liability ([-1, 1]) |
+```yaml
+pedigree:
+  mating_lambda: 0.5
+  p_mztwin: 0.02
+  assort1: 0
+  assort2: 0
+  assort_matrix: null
+  trait1:
+    A: 0.5
+    C: 0.0
+    E: 0.5
+  trait2:
+    A: 0.4
+    C: 0.2
+    E: 0.4
+  rA: 0.0
+  rC: 0.0
+  rE: 0.0
+```
 
-### Phenotype model
+| Parameter | Description |
+|---|---|
+| `mating_lambda` | Zero-truncated Poisson mating-count parameter; default gives about 23% multi-partner individuals |
+| `p_mztwin` | Probability of monozygotic twin birth |
+| `assort1`, `assort2` | Mate correlation on trait 1 and trait 2 liability |
+| `assort_matrix` | Optional full 2x2 female/male mate-correlation matrix |
+| `trait{1,2}.A` | Additive genetic variance component |
+| `trait{1,2}.C` | Shared/common environment variance component |
+| `trait{1,2}.E` | Unique environment variance component |
+| `rA`, `rC`, `rE` | Cross-trait correlations for A, C, and E |
 
-Each trait's phenotype is configured under `phenotype.trait1` and
-`phenotype.trait2`, with sub-keys `model`, `params`, `beta`, and
-`beta_sex`. The `model` selects one of four families (`frailty`,
-`cure_frailty`, `adult`, `first_passage`); `params` carries the
-family-specific hazard or threshold parameters. For threshold-based
-families (`adult`, `cure_frailty`), `params` includes a `prevalence`
-key that may be a scalar, a per-generation dict, or a sex-specific
-dict. See [Phenotype Models](phenotype-models.md) for the full
-catalogue of families, their required `params`, the supported
-`prevalence` forms, and the parallel `phenotype.simple_ltm.parquet`
-output that every scenario produces alongside the configured family.
+### Phenotype
+
+Each trait is configured independently under `phenotype.trait1` and
+`phenotype.trait2`:
+
+```yaml
+phenotype:
+  trait1:
+    model: frailty
+    params:
+      distribution: weibull
+      scale: 2160
+      rho: 0.8
+    beta: 1.0
+    beta_sex: 0.0
+  trait2:
+    model: frailty
+    params:
+      distribution: weibull
+      scale: 333
+      rho: 1.2
+    beta: 1.5
+    beta_sex: 0.0
+```
+
+`model` must be one of `frailty`, `cure_frailty`, `adult`, or
+`first_passage`. `params` is model-specific; threshold-based families
+(`adult` and `cure_frailty`) require `params.prevalence`. See
+[Phenotype Models](phenotype-models.md) for the full model catalogue,
+required parameters, supported prevalence forms, and `standardize_hazard`
+rules.
 
 ### Censoring
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `censor_age` | int | 80 | Maximum censoring age - no age-of-onset can be observed later than this|
-| `gen_censoring` | dict | per-gen windows | Per-generation `[left, right]` observation windows |
-| `death_scale` | float | 164 | Competing-risk mortality Weibull scale |
-| `death_rho` | float | 2.73 | Competing-risk mortality Weibull shape |
+```yaml
+censoring:
+  max_age: 80
+  gen_censoring:
+    0: [80, 80]
+    1: [80, 80]
+    2: [80, 80]
+    3: [40, 80]
+    4: [0, 80]
+    5: [0, 45]
+  death_scale: 164
+  death_rho: 2.73
+```
 
-### Sampling and ascertainment
+| Parameter | Description |
+|---|---|
+| `max_age` | Maximum follow-up age |
+| `gen_censoring` | Per-generation `[left, right]` observation windows |
+| `death_scale`, `death_rho` | Weibull competing-risk mortality parameters |
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `N_sample` | int | 0 | Subsample size (0 = keep all) |
-| `case_ascertainment_ratio` | float | 1 | Case sampling weight relative to controls |
-| `pedigree_dropout_rate` | float | 0 | Fraction of individuals to drop from pedigree |
+### Sampling and analysis
 
-### Miscellaneous
+```yaml
+sampling:
+  N_sample: 0
+  case_ascertainment_ratio: 1
+  pedigree_dropout_rate: 0
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `max_degree` | int | 2 | Max relationship degree to extract |
-| `estimate_inbreeding` | bool | false | Compute exact inbreeding coefficients |
-| `plot_format` | str | `png` | Plot file format (`png` or `pdf`) |
+analysis:
+  max_degree: 2
+  estimate_inbreeding: false
+```
 
-### tstrait and gene drop
+| Parameter | Description |
+|---|---|
+| `sampling.N_sample` | Subsample size; `0` keeps all phenotyped individuals |
+| `sampling.case_ascertainment_ratio` | Case sampling weight relative to controls |
+| `sampling.pedigree_dropout_rate` | Fraction of individuals removed from the pedigree before downstream stages |
+| `analysis.max_degree` | Maximum relationship degree to extract |
+| `analysis.estimate_inbreeding` | Compute exact inbreeding coefficients and exact pairwise kinship |
 
-The [gene-drop branch](../concepts/gene-drop.md) replaces the
-parametric $A$ with a tstrait-derived genetic value computed from real
-founder haplotypes dropped through the simACE pedigree. Three top-level
-globals control how that branch is wired into the standard pipeline;
-nine `tstrait.*` keys control the causal architecture.
+## tstrait and gene drop
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `use_gene_drop` | bool | `false` | When true, `pedigree_dropout` reads `pedigree.full.tstrait.parquet` (rescaled gene-drop $A$) instead of the parametric `pedigree.full.parquet`. Triggers the full tstrait sub-pipeline + augment as upstream dependencies. |
-| `drop_from` | str / null | `null` | Name of another scenario whose `pedigree.full.parquet` and `genotypes_chrom_*.trees` this scenario should consume — used for architecture sweeps that share one expensive drop+graft across many tstrait variants. `null` = run own drop. |
-| `tstrait.num_causal` | int / null | 1000 | Absolute number of causal sites. Mutually exclusive with `frac_causal`. |
-| `tstrait.frac_causal` | float / null | `null` | Fraction of post-MAF eligible sites to mark as causal. Mutually exclusive with `num_causal`. |
-| `tstrait.maf_threshold` | float | 0.01 | Drop sites with $\min(\mathrm{AF}, 1-\mathrm{AF}) \le$ this. `0` disables the filter. |
-| `tstrait.alpha` | float | -0.5 | Effect-size frequency-dependence exponent: $\beta = \mathcal{N}(\mu, \sigma_\beta^2) \cdot [2p(1-p)]^{\alpha}$. `0` = no MAF dependence; `-0.5` = LDAK-thin / Speed et al. |
-| `tstrait.effect_mean` | float | 0.0 | Raw $\beta$ mean. |
-| `tstrait.effect_var` | float | 1.0 | Raw $\beta$ variance (before MAF scaling). The augment step rescales the realised genome-wide $A$ to match `A1` regardless of this value. |
-| `tstrait.trait_id` | int | 0 | Single-trait only at present; trait 2's $A_2$ remains parametric. |
-| `tstrait.share_architecture` | bool | `false` | If true, causal sites + effects are shared across reps within a scenario (only env noise differs). |
+The [gene-drop branch](../concepts/gene-drop.md) replaces the parametric
+trait-1 additive component with a tstrait-derived genetic value computed from
+founder haplotypes dropped through the simACE pedigree.
 
-Heritability for the gene-drop branch is **derived** from the standard
-A/C/E components: $h^2 = A_1 / (A_1 + C_1 + E_1)$. There is no separate
-`tstrait.h2` parameter.
+```yaml
+tstrait:
+  num_causal: 1000
+  frac_causal: null
+  maf_threshold: 0.01
+  alpha: -0.5
+  effect_mean: 0.0
+  effect_var: 1.0
+  trait_id: 0
+  share_architecture: false
+```
 
-The `tskit_preprocess` block (also under top-level config) points at the
-SimHumanity source and the directory where the canonicalized chromosomes
-and shared site catalog are written:
+| Parameter | Description |
+|---|---|
+| `use_gene_drop` | Top-level switch that makes downstream stages read `pedigree.full.tstrait.parquet` |
+| `drop_from` | Top-level scenario name to reuse an existing drop/graft |
+| `tstrait.num_causal` | Absolute number of causal sites; mutually exclusive with `frac_causal` |
+| `tstrait.frac_causal` | Fraction of MAF-eligible sites to use as causal; mutually exclusive with `num_causal` |
+| `tstrait.maf_threshold` | Minimum minor-allele frequency filter; `0` disables filtering |
+| `tstrait.alpha` | Effect-size frequency-dependence exponent |
+| `tstrait.effect_mean`, `tstrait.effect_var` | Raw effect-size distribution parameters before MAF scaling |
+| `tstrait.trait_id` | Single-trait selector; trait 2 remains parametric |
+| `tstrait.share_architecture` | Share causal sites and effects across replicates |
 
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `tskit_preprocess.source_dir` | str | `/data/Documents/humanity_sim/simhumanity_trees_RO` | Directory containing per-chromosome SimHumanity `.trees` files. |
-| `tskit_preprocess.output_dir` | str | `/data/Documents/humanity_sim/preprocessed_p2` | Where the canonicalized chroms, concat .trees, and `site_catalog.parquet` are written. |
-| `tskit_preprocess.pop` | str | `p2` | Population name to filter to (founders for the drop). |
-| `tskit_preprocess.chroms` | list[int] | 1..22 | Autosomes to include. |
+The gene-drop branch derives heritability from the standard A/C/E components:
+$h^2 = A_1 / (A_1 + C_1 + E_1)$. There is no separate `tstrait.h2` parameter.
+
+`tskit_preprocess` is a standalone top-level block for canonicalizing source
+tree sequences:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `tskit_preprocess.source_dir` | `/data/Documents/humanity_sim/simhumanity_trees_RO` | Source directory for per-chromosome SimHumanity `.trees` files |
+| `tskit_preprocess.output_dir` | `/data/Documents/humanity_sim/preprocessed_p2` | Output directory for canonicalized chromosomes, concatenated trees, and site catalog |
+| `tskit_preprocess.pop` | `p2` | Founder population to filter |
+| `tskit_preprocess.chroms` | `1..22` | Autosomes to include |
 
 ## Defining scenarios
 
-Add named scenarios under the `scenarios` key. Each scenario only needs to specify
-parameters that differ from defaults:
+Per-folder files contain only scenario dictionaries. For example,
+`config/base.yaml`:
 
 ```yaml
-scenarios:
-  baseline10K:
-    seed: 1042
-    N: 10000
+baseline10K:
+  seed: 1042
+  N: 10000
 
-  high_heritability:
-    folder: heritability
-    seed: 4042
-    A1: 0.8
-    C1: 0.0
-    A2: 0.8
-    C2: 0.0
+baseline100K_sample5K:
+  seed: 2042
+  N: 100000
+  sampling:
+    N_sample: 5000
 ```
 
-## Per-folder configuration
+Nested sections are merged over the defaults, so a scenario can override only
+one field inside a section:
 
-Additional config files placed in `config/` are auto-discovered by Snakemake.
-For example, `config/cross_trait.yaml` defines scenarios that output to `results/cross_trait/`.
-Each file follows the same `defaults` + `scenarios` structure.
+```yaml
+high_heritability:
+  folder: heritability
+  seed: 4042
+  pedigree:
+    trait1:
+      A: 0.8
+      C: 0.0
+      E: 0.2
+    trait2:
+      A: 0.8
+      C: 0.0
+      E: 0.2
+```
+
+Run a scenario by targeting its resolved folder and scenario name:
+
+```bash
+snakemake --cores 4 results/base/baseline10K/scenario.done
+```
