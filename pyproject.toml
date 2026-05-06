@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "ACE pedigree simulation with A/C/E variance components"
 requires-python = ">=3.13"
 dependencies = [
-    "pedigree-graph @ git+https://github.com/rwaples/pedigree-graph.git@v0.1.0",
+    "pedigree-graph @ git+https://github.com/rwaples/pedigree-graph.git@v0.2.0",
     "numpy>=2.2,<3",
     "scipy>=1.14,<2",
     "pandas>=3.0,<4",
