@@ -68,6 +68,7 @@ def _route_logging_to_snakemake_log() -> None:
 
 
 def main() -> None:
+    """Build msprime pedigree tables from a parquet pedigree and pickle them."""
     _route_logging_to_snakemake_log()
     pedigree_path = Path(snakemake.input.pedigree)
     g_ped = int(snakemake.params.G_ped)

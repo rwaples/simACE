@@ -14,9 +14,9 @@ from typing import Any
 
 import pandas as pd
 import yaml
+from pedigree_graph import PedigreeGraph
 
 from simace.core.parquet import save_parquet
-from pedigree_graph import PedigreeGraph
 from simace.core.yaml_io import to_native
 
 from .censoring import (

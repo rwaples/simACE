@@ -4,6 +4,7 @@ import sys
 
 import pytest
 import yaml
+from pedigree_graph import PedigreeGraph
 
 from simace.analysis.validate import (
     cli as validate_cli,
@@ -21,7 +22,6 @@ from simace.analysis.validate import (
     validate_structural,
     validate_twins,
 )
-from pedigree_graph import PedigreeGraph
 from simace.simulation.simulate import run_simulation
 
 # ---------------------------------------------------------------------------

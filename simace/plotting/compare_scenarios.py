@@ -38,9 +38,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from pedigree_graph import PedigreeGraph
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
-from pedigree_graph import PedigreeGraph
 from simace.core.relationships import PAIR_TYPES
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import (
