@@ -38,6 +38,7 @@ from .correlations import (
     compute_tetrachoric_by_generation,
     compute_tetrachoric_by_sex,
 )
+from .effective_size import compute_effective_size
 from .incidence import (
     compute_cumulative_incidence,
     compute_cumulative_incidence_by_sex,
@@ -63,6 +64,7 @@ def main(
     pedigree_path: str | None = None,
     max_degree: int = 2,
     case_ascertainment_ratio: float = 1.0,
+    params: dict[str, Any] | None = None,
 ) -> None:
     """Compute all stats for a single rep and write outputs."""
     df = pd.read_parquet(phenotype_path)
@@ -102,7 +104,8 @@ def main(
         pairs = pg.extract_pairs(max_degree=max_degree)
         full_counts = pg.count_pairs(max_degree=max_degree, scope="full")
     else:
-        pairs = PedigreeGraph(df).extract_pairs(max_degree=max_degree)
+        pg = PedigreeGraph(df)
+        pairs = pg.extract_pairs(max_degree=max_degree)
         full_counts = None
     logger.info(
         "Relationship pairs extracted in %.1fs: %s",
@@ -127,6 +130,11 @@ def main(
         logger.info("Computing mate liability correlations...")
         stats["mate_correlation"] = compute_mate_correlation(df_ped)
     del df_ped
+
+    logger.info("Computing effective population size estimators...")
+    t0 = time.perf_counter()
+    stats["effective_size"] = compute_effective_size(pg, config=params)
+    logger.info("Ne estimators computed in %.1fs", time.perf_counter() - t0)
 
     # Fast sequential computations
     stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
@@ -182,6 +190,11 @@ def cli() -> None:
         default=2,
         help="Maximum kinship degree for pair extraction (1-5, default 2)",
     )
+    parser.add_argument(
+        "--params",
+        default=None,
+        help="Per-rep params.yaml; enables theoretical Ne expectations",
+    )
 
     args = parser.parse_args()
     init_logging(args)
@@ -189,6 +202,12 @@ def cli() -> None:
     gen_censoring = None
     if args.gen_censoring:
         gen_censoring = {int(k): v for k, v in json.loads(args.gen_censoring).items()}
+
+    params = None
+    if args.params:
+        from simace.core.yaml_io import load_yaml
+
+        params = load_yaml(args.params)
 
     main(
         args.phenotype,
@@ -199,4 +218,5 @@ def cli() -> None:
         gen_censoring=gen_censoring,
         pedigree_path=args.pedigree,
         max_degree=args.max_degree,
+        params=params,
     )

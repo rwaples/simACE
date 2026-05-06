@@ -36,6 +36,7 @@ from .correlations import (
     compute_tetrachoric_by_generation,
     compute_tetrachoric_by_sex,
 )
+from .effective_size import compute_effective_size, theoretical_expectations
 from .incidence import (
     compute_cumulative_incidence,
     compute_cumulative_incidence_by_sex,
@@ -60,6 +61,7 @@ __all__ = [
     "compute_cumulative_incidence",
     "compute_cumulative_incidence_by_sex",
     "compute_cumulative_incidence_by_sex_generation",
+    "compute_effective_size",
     "compute_joint_affection",
     "compute_liability_correlations",
     "compute_mate_correlation",
@@ -80,4 +82,5 @@ __all__ = [
     "main",
     "tetrachoric_corr",
     "tetrachoric_corr_se",
+    "theoretical_expectations",
 ]

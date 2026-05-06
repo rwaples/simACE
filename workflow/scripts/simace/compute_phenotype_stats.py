@@ -3,6 +3,7 @@
 from simace import _snakemake_tag, setup_logging
 from simace.analysis.stats import cli as _cli
 from simace.analysis.stats import main
+from simace.core.yaml_io import load_yaml
 
 
 def _run_snakemake():
@@ -10,6 +11,7 @@ def _run_snakemake():
     p = snakemake.params
 
     gen_censoring = p.get("gen_censoring") or None
+    params = load_yaml(snakemake.input.params)
 
     main(
         snakemake.input.phenotype,
@@ -21,6 +23,7 @@ def _run_snakemake():
         pedigree_path=snakemake.input.pedigree,
         max_degree=p.get("max_degree", 2),
         case_ascertainment_ratio=p.get("case_ascertainment_ratio", 1.0),
+        params=params,
     )
 
 
