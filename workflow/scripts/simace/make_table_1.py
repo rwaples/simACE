@@ -1,12 +1,16 @@
-import sys
+"""Build a scenario-level validation summary table from validation_summary.tsv."""
+
 import argparse
 from pathlib import Path
-import pandas as pd
 
+import pandas as pd
 
 # ---------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------
+
+# Column names below must match the schema produced by
+# simace.analysis.gather.extract_metrics (validation_summary.tsv).
 
 # Columns representing true simulation parameters
 # (constant within each scenario)
@@ -44,9 +48,9 @@ PAPER_COL_ORDER = [
 # ---------------------------------------------------------------------
 
 def build_paper_table(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Collapse replication-level results into one row per scenario,
-    reporting mean ± standard deviation.
+    """Collapse replication-level results into one row per scenario.
+
+    Each numeric column is summarized as ``mean ± standard deviation``.
     """
     rows = []
 
@@ -87,14 +91,17 @@ def build_paper_table(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------
 
 def save_word_table(paper_df: pd.DataFrame, out_path: Path) -> Path:
-    """
-    Save the summary table as a Word document using python-docx.
-    """
-    from docx import Document
-    from docx.shared import Pt, Inches
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.enum.table import WD_TABLE_ALIGNMENT
-    from docx.enum.section import WD_ORIENTATION
+    """Save the summary table as a Word document using python-docx."""
+    try:
+        from docx import Document
+        from docx.enum.section import WD_ORIENTATION
+        from docx.enum.table import WD_TABLE_ALIGNMENT
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.shared import Inches, Pt
+    except ImportError as exc:
+        raise ImportError(
+            "--word requires python-docx; install with `pip install python-docx`."
+        ) from exc
 
     doc = Document()
 
@@ -124,7 +131,7 @@ def save_word_table(paper_df: pd.DataFrame, out_path: Path) -> Path:
     doc.add_paragraph("")
 
     # Create table
-    n_rows, n_cols = paper_df.shape
+    n_cols = paper_df.shape[1]
     table = doc.add_table(rows=1, cols=n_cols)
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     table.style = "Table Grid"
@@ -159,7 +166,8 @@ def save_word_table(paper_df: pd.DataFrame, out_path: Path) -> Path:
 # Main entry point
 # ---------------------------------------------------------------------
 
-def main(summary_tsv: str, out_dir: str = "paper") -> None:
+def main(summary_tsv: str, out_dir: str = "paper", word: bool = False) -> None:
+    """Read a validation summary TSV and write a scenario-level CSV (and optional DOCX)."""
     summary_path = Path(summary_tsv)
     if not summary_path.exists():
         raise FileNotFoundError(f"Summary TSV not found: {summary_path.resolve()}")
@@ -174,10 +182,6 @@ def main(summary_tsv: str, out_dir: str = "paper") -> None:
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    # Save full replication-level results
-    all_file = out_path / "validation_all.csv"
-    df.to_csv(all_file, index=False)
-
     # Build scenario-level summary table
     paper_df = build_paper_table(df)
     paper_file = out_path / "table_1.csv"
@@ -186,13 +190,13 @@ def main(summary_tsv: str, out_dir: str = "paper") -> None:
     print("\n=== Table 1 (mean ± SD across replications) ===")
     print(paper_df.to_string(index=False))
 
-    # Export Word version of the table
-    word_file = save_word_table(paper_df, out_path)
-
     print("\nSaved files:")
-    print(f"  {all_file}")
     print(f"  {paper_file}")
-    print(f"  {word_file}")
+
+    if word:
+        # python-docx is an optional dependency; only required for --word
+        word_file = save_word_table(paper_df, out_path)
+        print(f"  {word_file}")
 
 
 if __name__ == "__main__":
@@ -209,6 +213,11 @@ if __name__ == "__main__":
         default="paper",
         help="Output directory (default: paper/).",
     )
+    parser.add_argument(
+        "--word",
+        action="store_true",
+        help="Also export table_1.docx (requires python-docx).",
+    )
 
     args = parser.parse_args()
-    main(args.summary, args.out_dir)
+    main(args.summary, args.out_dir, word=args.word)
