@@ -36,7 +36,12 @@ from .correlations import (
     compute_tetrachoric_by_generation,
     compute_tetrachoric_by_sex,
 )
-from .effective_size import compute_effective_size, theoretical_expectations
+from .effective_size import (
+    compute_effective_size,
+    ne_v_expected_ztp,
+    regression_estimator_regime_ok,
+    theoretical_expectations,
+)
 from .incidence import (
     compute_cumulative_incidence,
     compute_cumulative_incidence_by_sex,
@@ -80,6 +85,8 @@ __all__ = [
     "compute_tetrachoric_by_sex",
     "create_sample",
     "main",
+    "ne_v_expected_ztp",
+    "regression_estimator_regime_ok",
     "tetrachoric_corr",
     "tetrachoric_corr_se",
     "theoretical_expectations",
