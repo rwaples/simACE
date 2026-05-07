@@ -121,11 +121,14 @@ _MINIMAL_VALIDATION = {
         "parent_offspring_liability2_regression": {"slope": 0.50, "r_squared": 0.50},
     },
     "half_sibs": {
-        "half_sib_pair_proportion": {"expected": 0.10, "observed": 0.11},
-        "offspring_with_half_sib": {"expected": 0.15, "observed": 0.14},
+        "half_sib_pair_proportion": {"observed": 0.11},
+        "offspring_with_half_sib": {"observed": 0.14},
         "half_sib_A1_correlation": {"observed": 0.25},
         "half_sib_liability1_correlation": {"observed": 0.25},
         "half_sib_shared_C1": {"observed": 0.0},
+        "half_sib_A2_correlation": {"observed": 0.25},
+        "half_sib_liability2_correlation": {"observed": 0.25},
+        "half_sib_shared_C2": {"observed": 0.0},
     },
     "assortative_mating": {
         "mate_corr_liability1": {"observed": 0.01},

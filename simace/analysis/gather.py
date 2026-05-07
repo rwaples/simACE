@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from simace.analysis.validation_schema import METRIC_REGISTRY
 from simace.core.yaml_io import load_yaml
 
 logger = logging.getLogger(__name__)
@@ -63,7 +64,7 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
     params = data["parameters"]
     summary = data["summary"]
 
-    return {
+    row: dict[str, Any] = {
         "scenario": scenario,
         "rep": rep,
         "N": params.get("N"),
@@ -87,82 +88,13 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         "assort2": params.get("assort2"),
         "seed": params.get("seed"),
         "checks_failed": summary.get("checks_failed"),
-        # Twin rate
-        "observed_twin_rate": _get_nested(data, "twins", "twin_rate", "observed_rate"),
-        # Trait 1 variances
-        "variance_A1": _get_nested(data, "statistical", "variance_A1", "observed"),
-        "variance_C1": _get_nested(data, "statistical", "variance_C1", "observed"),
-        "variance_E1": _get_nested(data, "statistical", "variance_E1", "observed"),
-        # Trait 2 variances
-        "variance_A2": _get_nested(data, "statistical", "variance_A2", "observed"),
-        "variance_C2": _get_nested(data, "statistical", "variance_C2", "observed"),
-        "variance_E2": _get_nested(data, "statistical", "variance_E2", "observed"),
-        # Cross-trait correlations (observed)
-        "observed_rA": _get_nested(data, "statistical", "cross_trait_rA", "observed"),
-        "observed_rC": _get_nested(data, "statistical", "cross_trait_rC", "observed"),
-        "observed_rE": _get_nested(data, "statistical", "cross_trait_rE", "observed"),
-        # MZ twin correlations (trait 1)
-        "mz_twin_A1_corr": _get_nested(data, "heritability", "mz_twin_A1_correlation", "observed"),
-        "mz_twin_liability1_corr": _get_nested(data, "heritability", "mz_twin_liability1_correlation", "observed"),
-        # MZ twin correlations (trait 2)
-        "mz_twin_A2_corr": _get_nested(data, "heritability", "mz_twin_A2_correlation", "observed"),
-        "mz_twin_liability2_corr": _get_nested(data, "heritability", "mz_twin_liability2_correlation", "observed"),
-        # DZ sibling correlations (trait 1)
-        "dz_sibling_A1_corr": _get_nested(data, "heritability", "dz_sibling_A1_correlation", "observed"),
-        "dz_sibling_liability1_corr": _get_nested(
-            data, "heritability", "dz_sibling_liability1_correlation", "observed"
-        ),
-        # DZ sibling correlations (trait 2)
-        "dz_sibling_A2_corr": _get_nested(data, "heritability", "dz_sibling_A2_correlation", "observed"),
-        "dz_sibling_liability2_corr": _get_nested(
-            data, "heritability", "dz_sibling_liability2_correlation", "observed"
-        ),
-        # Half-sib statistics
-        "half_sib_prop_expected": _get_nested(data, "half_sibs", "half_sib_pair_proportion", "expected"),
-        "half_sib_prop_observed": _get_nested(data, "half_sibs", "half_sib_pair_proportion", "observed"),
-        "offspring_with_half_sib_expected": _get_nested(data, "half_sibs", "offspring_with_half_sib", "expected"),
-        "offspring_with_half_sib_observed": _get_nested(data, "half_sibs", "offspring_with_half_sib", "observed"),
-        "half_sib_A1_corr": _get_nested(data, "half_sibs", "half_sib_A1_correlation", "observed"),
-        "half_sib_liability1_corr": _get_nested(data, "half_sibs", "half_sib_liability1_correlation", "observed"),
-        "half_sib_shared_C1": _get_nested(data, "half_sibs", "half_sib_shared_C1", "observed"),
-        # Mate correlation (assortative mating)
-        "mate_corr_liability1": _get_nested(data, "assortative_mating", "mate_corr_liability1", "observed"),
-        "mate_corr_liability2": _get_nested(data, "assortative_mating", "mate_corr_liability2", "observed"),
-        # Benchmark timing and memory
-        "simulate_seconds": simulate_seconds,
-        "simulate_max_rss_mb": simulate_max_rss_mb,
-        # Family size distribution
-        "mother_mean_offspring": _get_nested(data, "family_size_distribution", "mother", "mean"),
-        "father_mean_offspring": _get_nested(data, "family_size_distribution", "father", "mean"),
-        # Falconer heritability estimates
-        "falconer_h2_trait1": _get_nested(data, "heritability", "falconer_estimate_trait1", "observed"),
-        "falconer_h2_trait2": _get_nested(data, "heritability", "falconer_estimate_trait2", "observed"),
-        # Parent-offspring regressions (trait 1)
-        "parent_offspring_A1_slope": _get_nested(data, "heritability", "parent_offspring_A1_regression", "slope"),
-        "parent_offspring_A1_r2": _get_nested(data, "heritability", "parent_offspring_A1_regression", "r_squared"),
-        "parent_offspring_liability1_slope": _get_nested(
-            data, "heritability", "parent_offspring_liability1_regression", "slope"
-        ),
-        "parent_offspring_liability1_r2": _get_nested(
-            data, "heritability", "parent_offspring_liability1_regression", "r_squared"
-        ),
-        # Parent-offspring regressions (trait 2)
-        "parent_offspring_A2_slope": _get_nested(data, "heritability", "parent_offspring_A2_regression", "slope"),
-        "parent_offspring_A2_r2": _get_nested(data, "heritability", "parent_offspring_A2_regression", "r_squared"),
-        "parent_offspring_liability2_slope": _get_nested(
-            data, "heritability", "parent_offspring_liability2_regression", "slope"
-        ),
-        "parent_offspring_liability2_r2": _get_nested(
-            data, "heritability", "parent_offspring_liability2_regression", "r_squared"
-        ),
-        # Consanguineous matings
-        "n_half_sib_matings": _get_nested(data, "consanguineous_matings", "consanguineous_count", "n_half_sib_matings"),
-        "n_full_sib_matings": _get_nested(data, "consanguineous_matings", "consanguineous_count", "n_full_sib_matings"),
-        "missing_gp_links": _get_nested(
-            data, "consanguineous_matings", "consanguineous_count", "total_missing_gp_links"
-        ),
-        "gp_reconciled": _get_nested(data, "consanguineous_matings", "grandparent_reconciliation", "passed"),
     }
+    for spec in METRIC_REGISTRY:
+        row[spec.column] = _get_nested(data, *spec.path)
+    # Benchmark timing and memory live alongside parameters, not in the YAML
+    row["simulate_seconds"] = simulate_seconds
+    row["simulate_max_rss_mb"] = simulate_max_rss_mb
+    return row
 
 
 def main(validation_files: list[str], output_path: str) -> None:

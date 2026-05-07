@@ -229,7 +229,7 @@ def plot_heritability_estimates(df: pd.DataFrame, out: Path, ext: str = "png") -
 def plot_half_sib_proportions(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     """Plot observed vs expected half-sib proportions."""
     fig, axes = plt.subplots(1, 2, figsize=_figsize(ncols=2))
-    stripplot(df, axes[0], "half_sib_prop_observed", expected="half_sib_prop_expected")
+    stripplot(df, axes[0], "half_sib_prop_observed")
     axes[0].set_title("Half-Sibling Pair Proportion")
     axes[0].set_ylabel("Proportion")
     enable_value_gridlines(axes[0])

@@ -65,7 +65,7 @@ def val_indexed(val_pedigree):
 
 @pytest.fixture(scope="module")
 def val_sibling_pairs(val_pedigree):
-    all_pairs = PedigreeGraph(val_pedigree).extract_pairs(max_degree=1)
+    all_pairs = PedigreeGraph(val_pedigree).extract_pairs(max_degree=2)
     return {k: all_pairs[k] for k in ("FS", "MHS", "PHS")}
 
 
@@ -116,12 +116,12 @@ class TestValidateTwins:
 
 
 class TestValidateHalfSibs:
-    def test_passes(self, val_pedigree, val_params, val_sibling_pairs):
-        result = validate_half_sibs(val_pedigree, val_params, val_sibling_pairs)
+    def test_passes(self, val_pedigree, val_params, val_indexed, val_sibling_pairs):
+        result = validate_half_sibs(val_pedigree, val_params, val_indexed, val_sibling_pairs)
         _all_passed(result)
 
-    def test_numeric_fields(self, val_pedigree, val_params, val_sibling_pairs):
-        result = validate_half_sibs(val_pedigree, val_params, val_sibling_pairs)
+    def test_numeric_fields(self, val_pedigree, val_params, val_indexed, val_sibling_pairs):
+        result = validate_half_sibs(val_pedigree, val_params, val_indexed, val_sibling_pairs)
         for value in result.values():
             if isinstance(value, dict) and "observed" in value:
                 assert isinstance(value["observed"], (int, float))

@@ -1,3 +1,24 @@
 small_test:
   seed: 12042
   N: 1000
+
+# Tuned to populate every column in
+# simace.analysis.validation_schema.METRIC_REGISTRY: half-sib pairs
+# (mating_lambda=0.5, N=2000), MZ twins (p_mztwin=0.05), and a meaningfully
+# non-zero mate liability correlation (assort1/2=0.3). The
+# tests/analysis/test_validation_schema.py contract test runs against the
+# resulting validation YAML.
+coverage_scenario:
+  seed: 1234
+  N: 2000
+  G_sim: 4
+  G_ped: 4
+  replicates: 1
+  pedigree:
+    mating_lambda: 0.5
+    p_mztwin: 0.05
+    assort1: 0.3
+    assort2: 0.3
+    # Non-zero C1 so half_sib_shared_C1 has positive variance (else NaN).
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+    trait2: { A: 0.4, C: 0.2, E: 0.4 }
