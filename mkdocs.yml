@@ -1,5 +1,7 @@
 site_name: simACE documentation
 site_description: Simulate registry-scale age-of-onset phenotypes with realistic pedigrees and the ACE liability model.
+site_url: https://rwaples.github.io/simACE/
+repo_url: https://github.com/rwaples/simACE
 docs_dir: docs
 
 theme:

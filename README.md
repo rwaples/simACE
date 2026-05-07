@@ -6,9 +6,9 @@ for evaluating and benchmarking statistical methods that estimate
 heritability and familial correlations from population health registries.
 
 📖 **Full documentation**: see the [`docs/`](docs/) directory (built with mkdocs)
-or the rendered site. Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml,
-Stan, PCGC) lives in the sister repo [`fitACE`](https://github.com/rwaples/fitACE),
-which depends on simACE.
+or the [rendered site](https://rwaples.github.io/simACE/). Model fitting
+(EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC) lives in the sister repo
+[`fitACE`](https://github.com/rwaples/fitACE), which depends on simACE.
 
 ## Prerequisites
 
