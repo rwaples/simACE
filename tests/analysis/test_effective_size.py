@@ -1,4 +1,4 @@
-"""Per-rep Ne wrapper: compute_effective_size + validator + runner integration."""
+"""Per-rep Ne wrapper: compute_effective_size + validator + main() integration."""
 
 import numpy as np
 import pandas as pd
@@ -12,7 +12,9 @@ from simace.analysis.stats.effective_size import (
     regression_estimator_regime_ok,
     theoretical_expectations,
 )
-from simace.analysis.stats.runner import main as run_stats
+from simace.analysis.stats.effective_size import (
+    main as run_effective_size,
+)
 from simace.analysis.validate import validate_effective_size
 
 EXPECTED_KEYS = {
@@ -204,39 +206,33 @@ class TestComputeEffectiveSize:
 
 class TestValidateEffectiveSize:
     def test_passes_when_observed_within_tolerance(self):
-        stats = {
-            "effective_size": {
-                "ne_inbreeding": {"ne": 195.0, "expected": 200.0},
-                "ne_sex_ratio": {"ne": 200.0, "expected": 200.0},
-            },
+        ne_stats = {
+            "ne_inbreeding": {"ne": 195.0, "expected": 200.0},
+            "ne_sex_ratio": {"ne": 200.0, "expected": 200.0},
         }
-        out = validate_effective_size(stats, params={})
+        out = validate_effective_size(ne_stats, params={})
         assert out["ne_inbreeding"]["passed"] is True
         assert out["ne_sex_ratio"]["passed"] is True
 
     def test_fails_when_observed_off_by_more_than_20pct(self):
-        stats = {
-            "effective_size": {
-                "ne_inbreeding": {"ne": 100.0, "expected": 200.0},  # 50% off
-            },
+        ne_stats = {
+            "ne_inbreeding": {"ne": 100.0, "expected": 200.0},  # 50% off
         }
-        out = validate_effective_size(stats, params={})
+        out = validate_effective_size(ne_stats, params={})
         assert out["ne_inbreeding"]["passed"] is False
         assert out["ne_inbreeding"]["relative_error"] == pytest.approx(0.5)
 
     def test_passes_vacuously_when_expected_none(self):
-        stats = {
-            "effective_size": {
-                "ne_inbreeding": {"ne": 200.0, "expected": None},
-            },
+        ne_stats = {
+            "ne_inbreeding": {"ne": 200.0, "expected": None},
         }
-        out = validate_effective_size(stats, params={})
+        out = validate_effective_size(ne_stats, params={})
         assert out["ne_inbreeding"]["passed"] is True
         assert out["ne_inbreeding"]["expected"] is None
 
-    def test_returns_empty_when_no_effective_size_block(self):
-        out = validate_effective_size({}, params={})
-        assert out == {}
+    def test_returns_empty_when_ne_stats_empty(self):
+        assert validate_effective_size({}, params={}) == {}
+        assert validate_effective_size(None, params={}) == {}
 
 
 # ---------------------------------------------------------------------------
@@ -301,10 +297,16 @@ def test_ne_v_formula_matches_simulator_mc():
             G_sim=5,
             mating_lambda=mating_lambda,
             p_mztwin=0.0,
-            A1=0.5, C1=0.0, E1=0.5,
-            A2=0.5, C2=0.0, E2=0.5,
-            rA=0.0, rC=0.0,
-            assort1=0.0, assort2=0.0,
+            A1=0.5,
+            C1=0.0,
+            E1=0.5,
+            A2=0.5,
+            C2=0.0,
+            E2=0.5,
+            rA=0.0,
+            rC=0.0,
+            assort1=0.0,
+            assort2=0.0,
         )
         pg = PedigreeGraph(ped)
         result = ne_variance_family_size(pg)
@@ -369,63 +371,38 @@ def test_cross_estimator_consistency_under_wf():
 # ---------------------------------------------------------------------------
 
 
-def test_runner_attaches_effective_size_block(tmp_path, tiny_pedigree):
-    """run_stats should include an `effective_size` block with all 8 keys.
+def test_effective_size_main_writes_yaml(tmp_path, tiny_pedigree):
+    """`effective_size.main` should write a yaml with all 8 estimator keys.
 
-    Uses the pedigree as both the phenotype input (no censoring needed) and the
-    pedigree input — the runner only requires the phenotype DataFrame to expose
-    enough columns for downstream stats.  Per-rep `params` is passed inline so
-    the validator-facing `expected` field is populated.
+    Phenotype input is restricted to the late generation so the closure logic
+    is exercised (founders/intermediate ancestors are pulled back through
+    parent-pointer walking).  Per-rep ``params.yaml`` is supplied inline so
+    the validator-facing ``expected`` field is populated.
     """
-    from simace.censoring.censor import run_censor
-    from simace.phenotyping.phenotype import run_phenotype
-
-    phenotype = run_phenotype(
-        tiny_pedigree,
-        G_pheno=2,
-        seed=7,
-        standardize=True,
-        phenotype_model1="frailty",
-        phenotype_params1={"distribution": "weibull", "scale": 2160, "rho": 0.8},
-        beta1=1.0,
-        beta_sex1=0.0,
-        phenotype_model2="frailty",
-        phenotype_params2={"distribution": "weibull", "scale": 333, "rho": 1.2},
-        beta2=1.0,
-        beta_sex2=0.0,
-    )
-    censored = run_censor(
-        phenotype,
-        censor_age=80,
-        seed=7,
-        gen_censoring={},
-        death_scale=164,
-        death_rho=2.73,
-    )
-
     ped_path = tmp_path / "pedigree.parquet"
     phe_path = tmp_path / "phenotype.parquet"
+    params_path = tmp_path / "params.yaml"
+    out_path = tmp_path / "effective_size.yaml"
+
     tiny_pedigree.to_parquet(ped_path)
-    censored.to_parquet(phe_path)
+    # Observed = last generation only — closure must recover all ancestors.
+    last_gen = int(tiny_pedigree["generation"].max())
+    df_phe = tiny_pedigree.loc[tiny_pedigree["generation"] == last_gen, ["id"]].copy()
+    df_phe.to_parquet(phe_path)
+    with open(params_path, "w") as f:
+        yaml.safe_dump({"N": 200, "mating_lambda": 0.5}, f)
 
-    stats_yaml = tmp_path / "phenotype_stats.yaml"
-    samples_pq = tmp_path / "phenotype_samples.parquet"
-
-    run_stats(
-        phenotype_path=str(phe_path),
-        censor_age=80.0,
-        stats_output=str(stats_yaml),
-        samples_output=str(samples_pq),
-        seed=42,
+    run_effective_size(
         pedigree_path=str(ped_path),
-        max_degree=2,
-        params={"N": 200, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5},
+        phenotype_path=str(phe_path),
+        params_path=str(params_path),
+        output_path=str(out_path),
     )
 
-    with open(stats_yaml, encoding="utf-8") as fh:
+    assert out_path.exists()
+    with open(out_path, encoding="utf-8") as fh:
         loaded = yaml.safe_load(fh)
-    assert "effective_size" in loaded
-    assert set(loaded["effective_size"].keys()) == EXPECTED_KEYS
-    for entry in loaded["effective_size"].values():
+    assert set(loaded.keys()) == EXPECTED_KEYS
+    for entry in loaded.values():
         assert "ne" in entry
         assert "expected" in entry

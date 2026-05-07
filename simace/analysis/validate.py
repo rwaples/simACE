@@ -1066,18 +1066,19 @@ def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_ind
 _NE_TOLERANCE = 0.20  # ±20 % per master plan
 
 
-def validate_effective_size(stats: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
+def validate_effective_size(ne_stats: dict[str, Any] | None, params: dict[str, Any]) -> dict[str, Any]:
     """Validate Ne observed-vs-expected for the eight estimators.
 
-    Each estimator entry in ``stats["effective_size"]`` (as written by
+    Each estimator entry in ``ne_stats`` (as written by
     :func:`simace.analysis.stats.compute_effective_size`) supplies an
     ``expected`` field (``None`` under non-standard configs) and a
     scalar ``ne``.  A check passes when either ``expected`` is ``None``
     (vacuous), or ``abs(ne / expected − 1) < 0.20``.
 
     Args:
-        stats: Loaded ``phenotype_stats.yaml`` dict.  Returns an empty
-            dict when ``effective_size`` is absent.
+        ne_stats: Loaded ``effective_size.yaml`` dict (estimator-keyed
+            mapping).  Returns an empty dict when input is ``None`` or
+            empty.
         params: Per-rep params.yaml dict (unused, accepted for parity
             with other validators).
 
@@ -1086,8 +1087,8 @@ def validate_effective_size(stats: dict[str, Any], params: dict[str, Any]) -> di
         ``observed`` / ``details`` fields.
     """
     del params  # accepted for API parity
-    es = stats.get("effective_size")
-    if es is None:
+    es = ne_stats
+    if not es:
         return {}
     out: dict[str, Any] = {}
     for name, entry in es.items():

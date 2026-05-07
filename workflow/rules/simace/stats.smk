@@ -7,7 +7,6 @@ rule stats_phenotype:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.sampled.parquet",
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
-        params="results/{folder}/{scenario}/rep{rep}/params.yaml",
     output:
         stats="results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
         samples=temp("results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet"),

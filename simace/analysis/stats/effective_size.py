@@ -13,20 +13,24 @@ config has non-standard knobs such as assortative mating).
 from __future__ import annotations
 
 __all__ = [
+    "cli",
     "compute_effective_size",
+    "main",
     "ne_v_expected_ztp",
     "regression_estimator_regime_ok",
     "theoretical_expectations",
 ]
 
+import argparse
 import math
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+import pandas as pd
 from pedigree_graph import PedigreeGraph, compute_all_ne
 
-if TYPE_CHECKING:
-    import pandas as pd
-
+from simace.core.cli_base import add_logging_args, init_logging
+from simace.core.pedigree_filter import filter_pedigree_to_observed
+from simace.core.yaml_io import dump_yaml, load_yaml
 
 # Bias on regression-based Ne estimators (Ne_I, Ne_C, Ne_CT) scales as
 # ``Ne_V / (N · G²)`` due to Jensen inversion of a noisy slope; we mark
@@ -192,3 +196,42 @@ def compute_effective_size(
         d["expected"] = expected.get(name)
         out[name] = d
     return out
+
+
+def main(
+    pedigree_path: str,
+    phenotype_path: str,
+    params_path: str,
+    output_path: str,
+) -> None:
+    """Compute Ne for one rep and write ``effective_size.yaml``.
+
+    Reads ``pedigree_path`` and ``phenotype_path``, restricts the pedigree to
+    observed (phenotyped) IDs plus their ancestor closure within
+    ``pedigree_path`` (so kinship arithmetic still works through pre-phenotyping
+    ancestors), builds a :class:`PedigreeGraph`, runs
+    :func:`compute_effective_size`, and dumps the YAML-ready dict to
+    ``output_path``.
+    """
+    df_ped = pd.read_parquet(pedigree_path)
+    df_phe = pd.read_parquet(phenotype_path)
+    params = load_yaml(params_path)
+
+    df_observed = filter_pedigree_to_observed(df_ped, df_phe["id"].to_numpy())
+    pg = PedigreeGraph(df_observed)
+    result = compute_effective_size(pg, config=params)
+
+    dump_yaml(result, output_path)
+
+
+def cli() -> None:
+    """Argparse entry point for running outside Snakemake."""
+    parser = argparse.ArgumentParser(description="Compute Ne estimators")
+    add_logging_args(parser)
+    parser.add_argument("--pedigree", required=True, help="Pedigree parquet (post-dropout)")
+    parser.add_argument("--phenotype", required=True, help="Sampled phenotype parquet (defines observed set)")
+    parser.add_argument("--params", required=True, help="Per-rep params.yaml")
+    parser.add_argument("--output", required=True, help="Output effective_size.yaml")
+    args = parser.parse_args()
+    init_logging(args)
+    main(args.pedigree, args.phenotype, args.params, args.output)
