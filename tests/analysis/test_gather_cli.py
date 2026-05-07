@@ -1,7 +1,5 @@
 """Tests for gather.py and cli_base.py."""
 
-from __future__ import annotations
-
 import argparse
 import logging
 

@@ -17,18 +17,18 @@ ebias_ltm_K01_C0_nocensor:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
     trait2:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -52,18 +52,18 @@ ebias_ltm_K01_C0_death:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
     trait2:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
   censoring:
     gen_censoring: {}
     death_scale: 164
@@ -87,18 +87,18 @@ ebias_ltm_K01_C0_window:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
     trait2:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
   censoring:
     gen_censoring:
       3:
@@ -131,18 +131,18 @@ ebias_ltm_K01_C0_both:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
     trait2:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
   censoring:
     gen_censoring:
       3:
@@ -175,18 +175,18 @@ ebias_ltm_K05_C0_nocensor:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
     trait2:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -210,18 +210,18 @@ ebias_ltm_K05_C0_death:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
     trait2:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
   censoring:
     gen_censoring: {}
     death_scale: 164
@@ -245,18 +245,18 @@ ebias_ltm_K05_C0_window:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
     trait2:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
   censoring:
     gen_censoring:
       3:
@@ -289,18 +289,18 @@ ebias_ltm_K05_C0_both:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
     trait2:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
   censoring:
     gen_censoring:
       3:
@@ -333,18 +333,18 @@ ebias_ltm_K10_C0_nocensor:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
     trait2:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -368,18 +368,18 @@ ebias_ltm_K10_C0_death:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
     trait2:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
   censoring:
     gen_censoring: {}
     death_scale: 164
@@ -403,18 +403,18 @@ ebias_ltm_K10_C0_window:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
     trait2:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
   censoring:
     gen_censoring:
       3:
@@ -447,18 +447,18 @@ ebias_ltm_K10_C0_both:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
     trait2:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
   censoring:
     gen_censoring:
       3:
@@ -491,18 +491,18 @@ ebias_ltm_K20_C0_nocensor:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
     trait2:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -526,18 +526,18 @@ ebias_ltm_K20_C0_death:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
     trait2:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
   censoring:
     gen_censoring: {}
     death_scale: 164
@@ -561,18 +561,18 @@ ebias_ltm_K20_C0_window:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
     trait2:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
   censoring:
     gen_censoring:
       3:
@@ -605,18 +605,18 @@ ebias_ltm_K20_C0_both:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
     trait2:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
   censoring:
     gen_censoring:
       3:
@@ -649,18 +649,18 @@ ebias_ltm_K40_C0_nocensor:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
     trait2:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -684,18 +684,18 @@ ebias_ltm_K40_C0_death:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
     trait2:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
   censoring:
     gen_censoring: {}
     death_scale: 164
@@ -719,18 +719,18 @@ ebias_ltm_K40_C0_window:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
     trait2:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
   censoring:
     gen_censoring:
       3:
@@ -763,18 +763,18 @@ ebias_ltm_K40_C0_both:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
     trait2:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
   censoring:
     gen_censoring:
       3:
@@ -807,18 +807,18 @@ ebias_ltm_K01_C02_nocensor:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
     trait2:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -842,18 +842,18 @@ ebias_ltm_K05_C02_nocensor:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
     trait2:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -877,18 +877,18 @@ ebias_ltm_K10_C02_nocensor:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
     trait2:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -912,18 +912,18 @@ ebias_ltm_K20_C02_nocensor:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
     trait2:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -947,18 +947,18 @@ ebias_ltm_K40_C02_nocensor:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
     trait2:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -986,14 +986,12 @@ ebias_weibull_K10_C0_nocensor:
         distribution: weibull
         scale: 70
         rho: 2.0
-      prevalence: 0.1
     trait2:
       model: frailty
       params:
         distribution: weibull
         scale: 70
         rho: 2.0
-      prevalence: 0.1
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -1017,18 +1015,18 @@ ebias_cure_K10_C0_nocensor:
   phenotype:
     trait1:
       model: cure_frailty
-      prevalence: 0.1
       params:
         distribution: weibull
         scale: 2160
         rho: 0.8
+        prevalence: 0.1
     trait2:
       model: cure_frailty
-      prevalence: 0.1
       params:
         distribution: weibull
         scale: 2160
         rho: 0.8
+        prevalence: 0.1
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -1052,18 +1050,18 @@ ebias_cox_K10_C0_nocensor:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.1
       params:
         method: cox
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
     trait2:
       model: adult
-      prevalence: 0.1
       params:
         method: cox
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
   censoring:
     gen_censoring: {}
     death_scale: 1000000

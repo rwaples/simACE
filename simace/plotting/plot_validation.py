@@ -20,21 +20,24 @@ __all__ = [
 ]
 
 import argparse
+import contextlib
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-logger = logging.getLogger(__name__)
-from pathlib import Path
-
-import matplotlib.pyplot as plt
 import seaborn as sns
 
-from simace.plotting.plot_style import COLOR_AFFECTED, COLOR_OBSERVED, enable_value_gridlines
+from simace.plotting.plot_style import (
+    COLOR_AFFECTED,
+    COLOR_EXPECTED,
+    COLOR_OBSERVED,
+    enable_value_gridlines,
+)
 
-COLOR_EXPECTED = "#EE7733"  # orange, for expected/reference markers
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -119,10 +122,8 @@ def stripplot(
     # Filter out non-numeric values (e.g. per-generation dict strings)
     numeric_vals = []
     for v in all_vals:
-        try:
+        with contextlib.suppress(TypeError, ValueError):
             numeric_vals.append(float(v))
-        except (TypeError, ValueError):
-            pass
     all_vals = np.array(numeric_vals, dtype=float)
     all_vals = all_vals[np.isfinite(all_vals)]
     if len(all_vals) > 0:
@@ -537,25 +538,12 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
     plot_memory(df, out, ext=plot_ext)
     plot_consanguineous_matings(df, out, ext=plot_ext)
 
-    # Assemble validation atlas PDF
-    from simace.plotting.plot_atlas import VALIDATION_CAPTIONS, assemble_atlas
+    # Assemble validation atlas PDF — order, captions, and (future) section
+    # breaks live in the manifest.
+    from simace.plotting.atlas_manifest import VALIDATION_ATLAS
+    from simace.plotting.plot_atlas import assemble_atlas
 
-    _VALIDATION_BASENAMES = [
-        "family_size",
-        "twin_rate",
-        "half_sib_proportions",
-        "consanguineous_matings",
-        "variance_components",
-        "correlations_A",
-        "correlations_phenotype",
-        "heritability_estimates",
-        "cross_trait_correlations",
-        "summary_bias",
-        "runtime",
-        "memory",
-    ]
-    atlas_paths = [out / f"{name}.{plot_ext}" for name in _VALIDATION_BASENAMES]
-    assemble_atlas(atlas_paths, VALIDATION_CAPTIONS, out / "atlas.pdf")
+    assemble_atlas(list(VALIDATION_ATLAS), out, out / "atlas.pdf", plot_ext=plot_ext)
 
 
 def cli() -> None:

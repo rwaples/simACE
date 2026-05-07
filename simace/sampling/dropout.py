@@ -1,7 +1,5 @@
 """Randomly drop individuals from a pedigree to simulate incomplete observation."""
 
-from __future__ import annotations
-
 __all__ = ["run_dropout"]
 
 import argparse
@@ -11,12 +9,20 @@ import time
 import numpy as np
 import pandas as pd
 
-from simace.core.utils import save_parquet
+from simace.core.parquet import save_parquet
+from simace.core.schema import PEDIGREE
+from simace.core.stage import stage
 
 logger = logging.getLogger(__name__)
 
 
-def run_dropout(pedigree: pd.DataFrame, params: dict) -> pd.DataFrame:
+@stage(reads=PEDIGREE, writes=PEDIGREE)
+def run_dropout(
+    pedigree: pd.DataFrame,
+    *,
+    pedigree_dropout_rate: float = 0,
+    seed: int = 42,
+) -> pd.DataFrame:
     """Remove a random fraction of individuals from the pedigree.
 
     Dropped individuals are deleted entirely. Any mother/father/twin links
@@ -24,14 +30,14 @@ def run_dropout(pedigree: pd.DataFrame, params: dict) -> pd.DataFrame:
 
     Args:
         pedigree: DataFrame with columns id, mother, father, twin, etc.
-        params: dict with keys ``pedigree_dropout_rate`` (float 0-1) and
-                ``seed`` (int).
+        pedigree_dropout_rate: fraction of individuals to drop, in ``[0, 1)``.
+        seed: RNG seed.
 
     Returns:
         DataFrame with dropped rows removed and dangling links severed.
     """
-    rate = float(params.get("pedigree_dropout_rate", 0))
-    seed = int(params.get("seed", 42))
+    rate = float(pedigree_dropout_rate)
+    seed = int(seed)
 
     if rate <= 0:
         logger.info("Dropout pass-through: rate=%.3f, keeping all %d individuals", rate, len(pedigree))
@@ -50,21 +56,16 @@ def run_dropout(pedigree: pd.DataFrame, params: dict) -> pd.DataFrame:
     t0 = time.perf_counter()
     rng = np.random.default_rng(seed)
     drop_indices = rng.choice(n_total, n_drop, replace=False)
+    drop_ids = pedigree["id"].values[drop_indices]
 
-    # Collect IDs to drop
-    all_ids = pedigree["id"].values
-    drop_ids = set(all_ids[drop_indices].tolist())
-
-    # Keep non-dropped rows
     keep_mask = np.ones(n_total, dtype=bool)
     keep_mask[drop_indices] = False
     result = pedigree.loc[keep_mask].copy()
 
-    # Sever parent links pointing to dropped individuals
     for col in ("mother", "father", "twin"):
         if col in result.columns:
             vals = result[col].values
-            dangling = np.isin(vals, list(drop_ids)) & (vals >= 0)
+            dangling = np.isin(vals, drop_ids) & (vals >= 0)
             if dangling.any():
                 result.loc[result.index[dangling], col] = -1
 
@@ -98,6 +99,5 @@ def cli() -> None:
     init_logging(args)
 
     pedigree = pd.read_parquet(args.pedigree)
-    params = {"pedigree_dropout_rate": args.dropout_rate, "seed": args.seed}
-    result = run_dropout(pedigree, params)
+    result = run_dropout(pedigree, pedigree_dropout_rate=args.dropout_rate, seed=args.seed)
     save_parquet(result, args.output)

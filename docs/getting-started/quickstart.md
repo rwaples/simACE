@@ -2,7 +2,8 @@
 
 ## Run the smoke test
 
-Run the smallest scenario to confirm everything works (takes a minute or two):
+Run the smallest scenario to confirm the pipeline is functional (this
+takes a minute or two):
 
 ```bash
 snakemake --cores 4 results/test/small_test/scenario.done
@@ -34,7 +35,7 @@ Per-scenario plots are compiled into a multi-page PDF atlas:
 results/test/small_test/plots/atlas.pdf
 ```
 
-See [Interpreting Results](../user-guide/interpreting-results.md) for what each plot means.
+See [Interpreting Results](../user-guide/interpreting-results.md) for descriptions of each plot.
 
 ## Next steps
 

@@ -15,14 +15,12 @@ The fitACE sister repo imports ``KNOWN_SIM_KEYS`` and ``flatten_hierarchical`` t
 load its own fit-domain overlays on top of sim-side scenarios.
 """
 
-from __future__ import annotations
-
 import glob
 import os
 import re
 from pathlib import Path
 
-import yaml
+from simace.core.yaml_io import load_yaml
 
 # ---------------------------------------------------------------------------
 # Hierarchical config → flat internal key mapping (sim domain only)
@@ -44,17 +42,17 @@ _HIERARCHICAL_TO_FLAT: dict[tuple[str, ...], str] = {
     ("pedigree", "rA"): "rA",
     ("pedigree", "rC"): "rC",
     ("pedigree", "rE"): "rE",
-    # phenotype section
+    # phenotype section. Note: phenotype.trait{N}.prevalence is no longer a
+    # top-level mapping — PR3 moved prevalence inside per-model params for
+    # adult / cure_frailty (it is forbidden for frailty / first_passage).
     ("phenotype", "trait1", "model"): "phenotype_model1",
     ("phenotype", "trait1", "params"): "phenotype_params1",
     ("phenotype", "trait1", "beta"): "beta1",
     ("phenotype", "trait1", "beta_sex"): "beta_sex1",
-    ("phenotype", "trait1", "prevalence"): "prevalence1",
     ("phenotype", "trait2", "model"): "phenotype_model2",
     ("phenotype", "trait2", "params"): "phenotype_params2",
     ("phenotype", "trait2", "beta"): "beta2",
     ("phenotype", "trait2", "beta_sex"): "beta_sex2",
-    ("phenotype", "trait2", "prevalence"): "prevalence2",
     # censoring section
     ("censoring", "max_age"): "censor_age",
     ("censoring", "gen_censoring"): "gen_censoring",
@@ -67,6 +65,15 @@ _HIERARCHICAL_TO_FLAT: dict[tuple[str, ...], str] = {
     # analysis section
     ("analysis", "max_degree"): "max_degree",
     ("analysis", "estimate_inbreeding"): "estimate_inbreeding",
+    # tstrait section
+    ("tstrait", "num_causal"): "tstrait_num_causal",
+    ("tstrait", "frac_causal"): "tstrait_frac_causal",
+    ("tstrait", "maf_threshold"): "tstrait_maf_threshold",
+    ("tstrait", "alpha"): "tstrait_alpha",
+    ("tstrait", "effect_mean"): "tstrait_effect_mean",
+    ("tstrait", "effect_var"): "tstrait_effect_var",
+    ("tstrait", "trait_id"): "tstrait_trait_id",
+    ("tstrait", "share_architecture"): "tstrait_share_architecture",
 }
 
 # Top-level flat keys (globals) that live in _default.yaml without a section.
@@ -81,6 +88,8 @@ _SIM_FLAT_GLOBALS: frozenset[str] = frozenset(
         "G_sim",
         "standardize",
         "plot_format",
+        "drop_from",
+        "use_gene_drop",
     }
 )
 
@@ -115,6 +124,16 @@ def _flatten_section(
             flat[mapping[path]] = value
         elif path in valid_prefixes and isinstance(value, dict):
             _flatten_section(flat, path, value, mapping, valid_prefixes)
+        elif len(path) == 3 and path[0] == "phenotype" and path[1] in ("trait1", "trait2") and path[2] == "prevalence":
+            # Removed in PR3: phenotype.trait{N}.prevalence moved inside
+            # params: for adult / cure_frailty, deleted for frailty / first_passage.
+            raise ValueError(
+                f"Top-level {'.'.join(path)} is no longer supported. "
+                f"Move it inside phenotype.{path[1]}.params (for adult / "
+                f"cure_frailty) or remove it (for frailty / first_passage). "
+                f"Run scripts/migrate_prevalence_keys.py to migrate every "
+                f"config/*.yaml automatically."
+            )
         else:
             raise ValueError(f"Unknown hierarchical config key: {'.'.join(path)}")
 
@@ -160,6 +179,36 @@ def flatten_hierarchical(d: dict, mapping: dict[tuple[str, ...], str] | None = N
         raise ValueError(f"Config keys specified in both flat and hierarchical form: {sorted(overlap)}")
 
     return {**top_level, **section_flat}
+
+
+# ---------------------------------------------------------------------------
+# Sim-domain type coercions applied after flattening
+# ---------------------------------------------------------------------------
+
+
+def _coerce_sim_types(flat: dict) -> dict:
+    """Coerce known sim-domain values to their runtime types.
+
+    YAML loads dict keys as their scalar type, so unquoted ``0:`` parses as
+    ``int`` but a quoted ``'0':`` parses as ``str``.  Sim-domain code expects
+    integer generation keys for ``gen_censoring`` and the per-generation
+    variance-component dicts (``A1``, ``A2``, ``C1``, ``C2``, ``E1``, ``E2``);
+    coerce here so wrappers and rules don't need to know about the YAML quirk.
+
+    Idempotent: safe to call on values that already have the expected types.
+    """
+    gen_censoring = flat.get("gen_censoring")
+    if gen_censoring:
+        flat["gen_censoring"] = {int(k): v for k, v in gen_censoring.items()}
+    for key in ("A1", "A2", "C1", "C2", "E1", "E2"):
+        value = flat.get(key)
+        if isinstance(value, dict):
+            flat[key] = {int(gen): v for gen, v in value.items()}
+    if "standardize" in flat:
+        from simace.phenotyping.hazards import coerce_standardize_mode
+
+        flat["standardize"] = coerce_standardize_mode(flat["standardize"])
+    return flat
 
 
 # ---------------------------------------------------------------------------
@@ -224,6 +273,24 @@ def _validate_phenotype_config(config: dict) -> None:
                         f"valid: {sorted(_VALID_METHODS)}"
                     )
 
+            # Prevalence is required for threshold-based models, forbidden
+            # for hazard-only models. Top-level placement was deprecated
+            # in PR3 and is rejected outright.
+            if model in ("adult", "cure_frailty"):
+                if "prevalence" not in pp:
+                    raise ValueError(
+                        f"Scenario '{name}': {params_key} for model {model!r} must include "
+                        f"'prevalence' key. If your YAML still has top-level "
+                        f"phenotype.trait{trait_num}.prevalence, run "
+                        f"scripts/migrate_prevalence_keys.py to move it inside params:."
+                    )
+            elif model in ("frailty", "first_passage") and "prevalence" in pp:
+                raise ValueError(
+                    f"Scenario '{name}': {params_key} for model {model!r} must NOT include "
+                    f"'prevalence' (only adult / cure_frailty accept it). "
+                    f"Drop the key or run scripts/migrate_prevalence_keys.py."
+                )
+
 
 # ---------------------------------------------------------------------------
 # Resolvers
@@ -245,9 +312,8 @@ def resolve_defaults(config_dir: Path | str) -> dict:
         Flat defaults dict (flattened per the sim-domain mapping).
     """
     config_dir = Path(config_dir)
-    with open(config_dir / "_default.yaml") as fh:
-        raw = yaml.safe_load(fh)
-    return flatten_hierarchical(raw["defaults"])
+    raw = load_yaml(config_dir / "_default.yaml")
+    return _coerce_sim_types(flatten_hierarchical(raw["defaults"]))
 
 
 def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> dict[str, dict]:
@@ -284,15 +350,14 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
         if not _FOLDER_PATTERN.match(folder):
             raise ValueError(f"Invalid folder name '{folder}' from {path}. Must match [a-zA-Z0-9_]+")
 
-        with open(path, encoding="utf-8") as fh:
-            file_scenarios = yaml.safe_load(fh)
+        file_scenarios = load_yaml(path)
         if file_scenarios is None:
             continue
 
         for name, params in file_scenarios.items():
             if name in scenarios:
                 raise ValueError(f"Duplicate scenario '{name}': already defined, also found in {path}")
-            params = flatten_hierarchical(params)
+            params = _coerce_sim_types(flatten_hierarchical(params))
             unknown = set(params.keys()) - valid_defaults
             if unknown:
                 raise ValueError(
@@ -304,7 +369,35 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
             scenarios[name] = params
 
     _validate_phenotype_config({"defaults": defaults, "scenarios": scenarios})
+    _validate_pedigree_config({"defaults": defaults, "scenarios": scenarios})
     return scenarios
+
+
+def _validate_pedigree_config(config: dict) -> None:
+    """Reject scenarios whose effective E1 / E2 resolve to ``None``.
+
+    Closes the gap where pre-PR3 config-loading allowed ``E: null`` and the
+    runtime fell back to ``1 - A - C`` inside ``run_simulation``.  After PR3,
+    every scenario must declare a numeric (or per-generation dict) value for
+    each unique-environment variance, either in the scenario file itself or
+    via ``_default.yaml``.
+
+    Args:
+        config: the merged ``{"defaults": ..., "scenarios": ...}`` dict.
+
+    Raises:
+        ValueError: if any scenario's effective E1 or E2 is ``None``.
+    """
+    defaults = config["defaults"]
+    for name, params in config.get("scenarios", {}).items():
+        for key in ("E1", "E2"):
+            value = params.get(key, defaults.get(key))
+            if value is None:
+                raise ValueError(
+                    f"Scenario '{name}': {key} is null. "
+                    f"Declare {key} explicitly in the scenario or in "
+                    f"config/_default.yaml under pedigree.trait{key[-1]}.E."
+                )
 
 
 # ---------------------------------------------------------------------------

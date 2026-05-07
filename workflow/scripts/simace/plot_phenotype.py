@@ -12,8 +12,7 @@ def _run_snakemake():
     stats_paths = snakemake.input.stats
     sample_paths = snakemake.input.samples
     censor_age = snakemake.params.censor_age
-    gen_censoring_raw = snakemake.params.gen_censoring
-    gen_censoring = {int(k): v for k, v in gen_censoring_raw.items()} if gen_censoring_raw else None
+    gen_censoring = snakemake.params.gen_censoring or None
     plot_format = snakemake.params.plot_format
     output_dir = Path(snakemake.output[0]).parent
 

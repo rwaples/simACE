@@ -77,17 +77,26 @@ nav:
       - Quick Start: getting-started/quickstart.md
   - User Guide:
       - Configuration: user-guide/configuration.md
+      - Phenotype Models: user-guide/phenotype-models.md
       - Running the Pipeline: user-guide/running-the-pipeline.md
+      - Subsampling and Dropout: user-guide/subsampling-and-dropout.md
       - Output Structure: user-guide/output-structure.md
       - Interpreting Results: user-guide/interpreting-results.md
   - Concepts:
       - ACE Model: concepts/ace-model.md
       - Simulation Design: concepts/simulation-design.md
+      - Pipeline Schema: concepts/pipeline-schema.md
+      - Gene Drop and tstrait: concepts/gene-drop.md
+      - Methods: concepts/methods.md
+      - Project Structure: concepts/project-structure.md
       - Model Fitting: concepts/model-fitting.md
   - Examples:
+      - Minimal ACE: examples/minimal-ace.md
+      - Adding shared environment (C): examples/adding-shared-environment.md
       - AM and Heritability: examples/am-and-heritability.md
       - Time-varying E and h² drift: examples/time-varying-e.md
       - Observed vs Liability h²: examples/observed-vs-liability-h2.md
+      - Gene-drop architecture sweep: examples/gene-drop-architecture-sweep.md
   - API Reference:
       - api/index.md
       - Core: api/core.md

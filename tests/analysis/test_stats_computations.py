@@ -4,8 +4,6 @@ Each test builds a small DataFrame with known values so expected outputs
 can be verified by hand.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -662,7 +660,8 @@ class TestComputeCensoringWindows:
 
 _DEFAULT_SIM_PARAMS = dict(
     seed=42, N=1000, G_ped=3, G_sim=3, mating_lambda=0.5, p_mztwin=0.02,
-    A1=0.5, C1=0.2, A2=0.5, C2=0.2, rA=0.3, rC=0.5, assort1=0.0, assort2=0.0,
+    A1=0.5, C1=0.2, E1=0.3, A2=0.5, C2=0.2, E2=0.3,
+    rA=0.3, rC=0.5, assort1=0.0, assort2=0.0,
 )  # fmt: skip
 
 
@@ -688,9 +687,9 @@ def phenotyped_df():
 @pytest.fixture(scope="module")
 def extracted_pairs(phenotyped_df):
     """Pre-extracted relationship pairs."""
-    from simace.core.pedigree_graph import extract_relationship_pairs
+    from pedigree_graph import PedigreeGraph
 
-    return extract_relationship_pairs(phenotyped_df)
+    return PedigreeGraph(phenotyped_df).extract_pairs()
 
 
 # ===================================================================
@@ -1021,7 +1020,7 @@ class TestComputeTetrachoricByGeneration:
 
     def test_missing_generation_returns_empty(self):
         df = pd.DataFrame({"affected1": [True], "affected2": [False], "liability1": [1.0], "liability2": [1.0]})
-        assert compute_tetrachoric_by_generation(df) == {}
+        assert compute_tetrachoric_by_generation(df, pairs={}) == {}
 
 
 # ===================================================================

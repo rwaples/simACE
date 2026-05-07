@@ -7,6 +7,7 @@ rule stats_phenotype:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.sampled.parquet",
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
+        params="results/{folder}/{scenario}/rep{rep}/params.yaml",
     output:
         stats="results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
         samples=temp("results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet"),
@@ -26,12 +27,6 @@ rule stats_phenotype:
         case_ascertainment_ratio=lambda w: get_param(
             config, w.scenario, "case_ascertainment_ratio"
         ),
-        beta1=lambda w: get_param(config, w.scenario, "beta1"),
-        phenotype_model1=lambda w: get_param(config, w.scenario, "phenotype_model1"),
-        phenotype_params1=lambda w: get_param(config, w.scenario, "phenotype_params1"),
-        beta2=lambda w: get_param(config, w.scenario, "beta2"),
-        phenotype_model2=lambda w: get_param(config, w.scenario, "phenotype_model2"),
-        phenotype_params2=lambda w: get_param(config, w.scenario, "phenotype_params2"),
     script:
         "../../scripts/simace/compute_phenotype_stats.py"
 
@@ -114,8 +109,8 @@ rule assemble_scenario_atlas:
         gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
         death_scale=lambda w: get_param(config, w.scenario, "death_scale"),
         death_rho=lambda w: get_param(config, w.scenario, "death_rho"),
-        prevalence1=lambda w: get_param(config, w.scenario, "prevalence1"),
-        prevalence2=lambda w: get_param(config, w.scenario, "prevalence2"),
+        # PR3: prevalence is now inside phenotype_params{N}; the atlas's
+        # plot_pipeline reads it from there directly.
         G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
         N_sample=lambda w: get_param(config, w.scenario, "N_sample"),
         pedigree_dropout_rate=lambda w: get_param(

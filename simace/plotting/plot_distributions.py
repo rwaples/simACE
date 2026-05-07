@@ -48,7 +48,7 @@ def plot_death_age_distribution(
     all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = ""
 ) -> None:
     """Plot mortality rate and cumulative mortality by decade, averaged across reps."""
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    _fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
     # Average mortality rates across reps
     all_rates = np.array([s["mortality"]["rates"] for s in all_stats])
@@ -87,7 +87,7 @@ def plot_trait_phenotype(
     df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = ""
 ) -> None:
     """Plot phenotype distributions for both traits in a 2x2 grid."""
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    _fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
     for row, trait_num in enumerate([1, 2]):
         affected_col = f"affected{trait_num}"
@@ -163,7 +163,7 @@ def plot_trait_regression(
             stderr_vals = [r["stderr"] for r in reg_stats if r.get("stderr") is not None]
             mean_stderr = float(np.mean(stderr_vals)) if stderr_vals else None
         elif len(x) >= 2:
-            from simace.core.utils import fast_linregress
+            from simace.core.numerics import fast_linregress
 
             mean_slope, mean_intercept, mean_r, mean_stderr, _mean_pvalue = fast_linregress(x, y)
             mean_n = len(x)
@@ -245,7 +245,7 @@ def plot_cumulative_incidence(
     all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = ""
 ) -> None:
     """Plot cumulative incidence by age, mean +/- band across reps."""
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+    _fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
     for trait_num, ax in zip([1, 2], axes, strict=True):
         key = f"trait{trait_num}"
@@ -354,7 +354,7 @@ def plot_cumulative_incidence_by_sex(
         save_placeholder_plot(output_path, "No sex-stratified incidence data")
         return
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+    _fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
     for trait_num, ax in zip([1, 2], axes, strict=True):
         key = f"trait{trait_num}"
@@ -410,7 +410,7 @@ def plot_cumulative_incidence_by_sex_generation(
 
     traits = [1, 2]
 
-    fig, axes = plt.subplots(
+    _fig, axes = plt.subplots(
         len(traits),
         len(gen_keys),
         figsize=(5 * len(gen_keys), 4 * len(traits)),
@@ -501,7 +501,7 @@ def plot_censoring_windows(
 
     traits = [1, 2]
 
-    fig, axes = plt.subplots(
+    _fig, axes = plt.subplots(
         len(traits),
         len(gen_keys),
         figsize=(5 * len(gen_keys), 4 * len(traits)),
@@ -606,7 +606,7 @@ def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenar
         save_placeholder_plot(output_path, "Family Structure\nNo family_size data")
         return
 
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    _fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
     # --- Panel 1: Offspring per mating ---
     ax = axes[0]

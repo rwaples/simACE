@@ -1,7 +1,5 @@
 """Subsample phenotyped individuals before stats/plotting."""
 
-from __future__ import annotations
-
 __all__ = ["run_sample"]
 
 import argparse
@@ -11,29 +9,40 @@ import time
 import numpy as np
 import pandas as pd
 
-from simace.core.utils import save_parquet
+from simace.core.parquet import save_parquet
+from simace.core.schema import CENSORED
+from simace.core.stage import stage
 
 logger = logging.getLogger(__name__)
 
 
-def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
+@stage(reads=CENSORED, writes=CENSORED)
+def run_sample(
+    phenotype: pd.DataFrame,
+    *,
+    N_sample: int = 0,
+    case_ascertainment_ratio: float = 1.0,
+    seed: int = 42,
+) -> pd.DataFrame:
     """Optionally subsample phenotyped individuals.
 
     Args:
         phenotype: DataFrame of phenotyped individuals.
-        params: dict with keys ``N_sample`` (int), ``seed`` (int), and
-            optionally ``case_ascertainment_ratio`` (float, default 1.0).
-            When ratio != 1, cases (``affected1 == True``) are sampled
-            with weight=ratio relative to controls (weight=1).
+        N_sample: target sample size. ``<= 0`` or ``>= len(phenotype)``
+            passes everything through.
+        case_ascertainment_ratio: sampling weight for cases
+            (``affected1 == True``) relative to controls. ``1.0`` =
+            uniform; ``0`` = controls only.
+        seed: RNG seed.
 
     Returns:
         DataFrame with at most ``N_sample`` rows (or all rows if
         ``N_sample <= 0`` or ``N_sample >= len(phenotype)``).
     """
     n_total = len(phenotype)
-    n_sample = int(params.get("N_sample", 0))
-    seed = int(params.get("seed", 42))
-    ratio = float(params.get("case_ascertainment_ratio", 1.0))
+    n_sample = int(N_sample)
+    seed = int(seed)
+    ratio = float(case_ascertainment_ratio)
 
     if ratio < 0:
         raise ValueError(f"case_ascertainment_ratio must be >= 0, got {ratio}")
@@ -53,11 +62,9 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
 
     if ratio == 1.0:
-        # Fast path: uniform sampling
         indices = np.sort(rng.choice(n_total, n_sample, replace=False))
     else:
-        # Weighted sampling: cases get weight=ratio, controls get weight=1
-        is_case = phenotype["affected1"].values.astype(bool)
+        is_case = phenotype["affected1"].values
         n_cases = int(is_case.sum())
         n_controls = n_total - n_cases
 
@@ -75,7 +82,6 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
             )
             indices = np.sort(rng.choice(n_total, n_sample, replace=False))
         elif ratio == 0:
-            # Only controls sampled
             actual_n = min(n_sample, n_controls)
             if actual_n < n_sample:
                 logger.warning(
@@ -90,7 +96,6 @@ def run_sample(phenotype: pd.DataFrame, params: dict) -> pd.DataFrame:
             weights = np.where(is_case, ratio, 1.0)
             probabilities = weights / weights.sum()
 
-            # Warn if >90% of cases would be expected in sample
             expected_case_prob = (ratio * n_cases) / (ratio * n_cases + n_controls)
             expected_cases_drawn = expected_case_prob * n_sample
             if expected_cases_drawn > 0.9 * n_cases:
@@ -145,10 +150,10 @@ def cli() -> None:
     init_logging(args)
 
     phenotype = pd.read_parquet(args.phenotype)
-    params = {
-        "N_sample": args.N_sample,
-        "case_ascertainment_ratio": args.case_ascertainment_ratio,
-        "seed": args.seed,
-    }
-    result = run_sample(phenotype, params)
+    result = run_sample(
+        phenotype,
+        N_sample=args.N_sample,
+        case_ascertainment_ratio=args.case_ascertainment_ratio,
+        seed=args.seed,
+    )
     save_parquet(result, args.output)

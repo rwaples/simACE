@@ -2,8 +2,8 @@
 
 ## Snakemake basics
 
-Always run from the repo root directory. The root `Snakefile` is the entry point --
-never use the `-s` flag.
+All commands are issued from the repository root directory. The root
+`Snakefile` is the entry point; the `-s` flag should not be used.
 
 ```bash
 snakemake --cores 4    # 4 parallel jobs (use --cores 1 for debugging)
@@ -11,7 +11,7 @@ snakemake --cores 4    # 4 parallel jobs (use --cores 1 for debugging)
 
 ## Dry run
 
-Preview what will be executed without running anything:
+To preview what will be executed without running anything:
 
 ```bash
 snakemake -n --cores 4
@@ -54,12 +54,13 @@ The pipeline runs stages in order, with each stage depending on the previous:
 simulate -> dropout -> phenotype -> censor -> sample -> stats/validate -> plots
 ```
 
-Snakemake tracks file dependencies automatically. If a run is interrupted,
-re-running the same command resumes from where it left off.
+Snakemake tracks file dependencies automatically; re-running the same
+command after an interrupted run resumes from where it stopped.
 
 ## Resuming interrupted runs
 
-If Snakemake detects incomplete files from a previously interrupted run:
+When Snakemake detects incomplete files from a previously interrupted
+run:
 
 ```bash
 snakemake --cores 4 --rerun-incomplete
@@ -69,7 +70,7 @@ snakemake --cores 4 --rerun-incomplete
 
 | Problem | Solution |
 |---|---|
-| `ModuleNotFoundError: No module named 'simace'` | Run `conda activate ACE` first |
-| `FileNotFoundError: config/_default.yaml` | Run snakemake from the ACE repo root directory |
+| `ModuleNotFoundError: No module named 'simace'` | Run `conda activate simACE` first |
+| `FileNotFoundError: config/_default.yaml` | Run snakemake from the simACE repo root directory |
 | Simulation killed or frozen (large N) | Reduce `--cores` to lower parallel memory usage |
 | `IncompleteFilesException` on re-run | Run with `--rerun-incomplete` |

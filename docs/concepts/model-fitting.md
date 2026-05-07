@@ -1,8 +1,8 @@
 # Model Fitting
 
-The `fit_ace` package handles statistical model fitting on simulated data.
-This page gives conceptual context; see the
-[fit_ace README](https://github.com/ryanwaples/ACE/blob/master/fit_ace/README.md) for usage instructions.
+The [`fitACE`](https://github.com/rwaples/fitACE) package handles
+statistical model fitting on simulated data. This page provides
+conceptual context; see the fitACE README for usage instructions.
 
 ## Phenotype models
 
@@ -10,7 +10,7 @@ Continuous liabilities are mapped to age-of-onset phenotypes via time-to-event m
 
 | Model | Description |
 |---|---|
-| **Frailty** | Proportional hazards with choice of baseline hazard (Weibull, Gompertz, lognormal, etc.). Liability scales hazard via $z = \exp(\beta L)$. Given enough time, everyone eventually becomes affected. |
+| **Frailty** | Proportional hazards with choice of baseline hazard (Weibull, Gompertz, lognormal, etc.). Liability scales hazard via $z = \exp(\beta L)$. Given sufficient time, every individual eventually becomes affected. |
 | **Cure-Frailty** | Mixture model separating **who** gets the disease (susceptible vs. non-susceptible) from **when** (age-of-onset among susceptibles). Supports sex-specific prevalence. |
 | **ADuLT LTM** | Deterministic liability threshold model with logistic cumulative incidence proportion (Pedersen et al., 2023). |
 | **ADuLT Cox** | Proportional hazards with Weibull noise and rank-based CIP-to-age mapping (Pedersen et al., 2023). |
@@ -29,7 +29,8 @@ The combined effect: only a fraction of true cases are observed as affected.
 
 ## Subsampling and ascertainment
 
-The pipeline can restrict observed data to study the impact on downstream estimates:
+The pipeline can restrict observed data, allowing the impact on
+downstream estimates to be studied:
 
 - **Subsampling** (`N_sample`) -- random subset of phenotyped individuals
 - **Case ascertainment** (`case_ascertainment_ratio`) -- cases sampled at higher rate

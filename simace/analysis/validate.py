@@ -4,14 +4,13 @@ Validates simulation outputs for structural integrity, statistical properties,
 and heritability estimates.
 """
 
-from __future__ import annotations
-
 __all__ = [
     "compute_family_size_distribution",
     "compute_per_generation_stats",
     "run_validation",
     "validate_assortative_mating",
     "validate_consanguineous_matings",
+    "validate_effective_size",
     "validate_half_sibs",
     "validate_heritability",
     "validate_population",
@@ -26,13 +25,19 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import yaml
+from pedigree_graph import PedigreeGraph
 
-from simace.core.pedigree_graph import extract_sibling_pairs
-from simace.core.utils import safe_corrcoef, safe_linregress, to_native
-from simace.core.utils import validation_result as _result
+from simace.core.numerics import safe_corrcoef, safe_linregress
+from simace.core.yaml_io import dump_yaml, load_yaml
 
 logger = logging.getLogger(__name__)
+
+
+def _result(passed: bool, details: str, **extra: Any) -> dict[str, Any]:
+    """Build a standardized validation result dict."""
+    d: dict[str, Any] = {"passed": passed, "details": details}
+    d.update(extra)
+    return d
 
 
 def _check_variance(founders: pd.DataFrame, col: str, expected: float, tol: float = 0.1) -> dict[str, Any]:
@@ -61,55 +66,6 @@ def _midparent_regression(
             "details": f"Midparent-offspring {label} regression: slope={reg.slope:.4f}, R²={reg.rvalue**2:.4f}",
         }
     return {"details": f"Zero variance in midparent {label} values"}
-
-
-def _count_sib_pairs_legacy(non_twin_sibs: pd.DataFrame) -> dict[str, int]:
-    """Legacy implementation kept for golden testing. Use pedigree_graph.count_sib_pairs instead."""
-    cols = non_twin_sibs[["id", "mother", "father"]]
-
-    # Maternal grouping: self-merge on mother
-    sib_counts = cols.groupby("mother").size()
-    multi_mothers = sib_counts[sib_counts >= 2].index
-    mat_sib = cols[cols["mother"].isin(multi_mothers)]
-
-    n_full_sib = 0
-    n_maternal_hs = 0
-    n_offspring_with_sibs = len(mat_sib)
-
-    if len(mat_sib) > 0:
-        mat_pairs = mat_sib.merge(mat_sib, on="mother", suffixes=("_1", "_2"))
-        mat_pairs = mat_pairs[mat_pairs["id_1"] < mat_pairs["id_2"]]
-        same_father = mat_pairs["father_1"] == mat_pairs["father_2"]
-        n_full_sib = int(same_father.sum())
-        n_maternal_hs = int((~same_father).sum())
-
-    # Count offspring with maternal half-sibs (families with >1 unique father)
-    if len(mat_sib) > 0:
-        n_fathers_per_mother = mat_sib.groupby("mother")["father"].nunique()
-        mothers_with_hs = n_fathers_per_mother[n_fathers_per_mother > 1].index
-        n_offspring_with_maternal_hs = int(mat_sib[mat_sib["mother"].isin(mothers_with_hs)].shape[0])
-    else:
-        n_offspring_with_maternal_hs = 0
-
-    # Paternal grouping: self-merge on father, different mother
-    pat_counts = cols.groupby("father").size()
-    multi_fathers = pat_counts[pat_counts >= 2].index
-    pat_sib = cols[cols["father"].isin(multi_fathers)]
-
-    n_paternal_hs = 0
-    if len(pat_sib) > 0:
-        pat_pairs = pat_sib.merge(pat_sib, on="father", suffixes=("_1", "_2"))
-        pat_pairs = pat_pairs[pat_pairs["id_1"] < pat_pairs["id_2"]]
-        diff_mother = pat_pairs["mother_1"] != pat_pairs["mother_2"]
-        n_paternal_hs = int(diff_mother.sum())
-
-    return {
-        "n_maternal_half_sib_pairs": n_maternal_hs,
-        "n_paternal_half_sib_pairs": n_paternal_hs,
-        "n_full_sib_pairs": n_full_sib,
-        "n_offspring_with_maternal_half_sib": n_offspring_with_maternal_hs,
-        "n_offspring_with_sibs": n_offspring_with_sibs,
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -352,7 +308,8 @@ def validate_half_sibs(
     Args:
         df: Pedigree DataFrame with columns id, mother, father, twin.
         params: Scenario parameters; requires key ``mating_lambda``.
-        sibling_pairs: Pre-extracted sibling pairs from extract_sibling_pairs().
+        sibling_pairs: Dict with keys ``FS``, ``MHS``, ``PHS`` mapping to
+            ``(idx1, idx2)`` row-index arrays.
 
     Returns:
         Dict of check-name to result dicts.
@@ -535,6 +492,7 @@ def validate_statistical(df: pd.DataFrame, params: dict[str, Any], df_indexed: p
         """Resolve a scalar or per-gen dict to the founder generation value."""
         if isinstance(val, dict):
             from simace.simulation.simulate import resolve_per_gen_param
+
             return resolve_per_gen_param(val, G_sim)[founder_sim_gen]
         return val
 
@@ -837,7 +795,8 @@ def validate_heritability(
         df: Pedigree DataFrame.
         params: Scenario parameters; requires keys ``A1``, ``A2``, ``seed``.
         df_indexed: Pedigree DataFrame indexed by ``id``.
-        sibling_pairs: Pre-extracted sibling pairs from extract_sibling_pairs().
+        sibling_pairs: Dict with keys ``FS``, ``MHS``, ``PHS`` mapping to
+            ``(idx1, idx2)`` row-index arrays.
 
     Returns:
         Dict of check-name to result dicts, including MZ/DZ correlations,
@@ -1104,6 +1063,66 @@ def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_ind
     return results
 
 
+_NE_TOLERANCE = 0.20  # ±20 % per master plan
+
+
+def validate_effective_size(stats: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
+    """Validate Ne observed-vs-expected for the eight estimators.
+
+    Each estimator entry in ``stats["effective_size"]`` (as written by
+    :func:`simace.analysis.stats.compute_effective_size`) supplies an
+    ``expected`` field (``None`` under non-standard configs) and a
+    scalar ``ne``.  A check passes when either ``expected`` is ``None``
+    (vacuous), or ``abs(ne / expected − 1) < 0.20``.
+
+    Args:
+        stats: Loaded ``phenotype_stats.yaml`` dict.  Returns an empty
+            dict when ``effective_size`` is absent.
+        params: Per-rep params.yaml dict (unused, accepted for parity
+            with other validators).
+
+    Returns:
+        Dict keyed on estimator name with ``passed`` / ``expected`` /
+        ``observed`` / ``details`` fields.
+    """
+    del params  # accepted for API parity
+    es = stats.get("effective_size")
+    if es is None:
+        return {}
+    out: dict[str, Any] = {}
+    for name, entry in es.items():
+        if not isinstance(entry, dict):
+            continue
+        expected = entry.get("expected")
+        observed = entry.get("ne")
+        if expected is None:
+            out[name] = _result(
+                True,
+                f"{name}: no theoretical expectation under this config",
+                expected=None,
+                observed=None if observed is None else float(observed),
+            )
+            continue
+        if observed is None:
+            out[name] = _result(
+                False,
+                f"{name}: expected {expected:.3g} but observed is None",
+                expected=float(expected),
+                observed=None,
+            )
+            continue
+        rel_err = abs(observed / expected - 1.0)
+        passed = rel_err < _NE_TOLERANCE
+        out[name] = _result(
+            passed,
+            f"{name}: observed {observed:.3g} vs expected {expected:.3g} (rel err {rel_err:.3f}, tol {_NE_TOLERANCE})",
+            expected=float(expected),
+            observed=float(observed),
+            relative_error=float(rel_err),
+        )
+    return out
+
+
 def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
     """Run all validation checks and return results.
 
@@ -1124,12 +1143,12 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
     """
     logger.info("Validating pedigree: %s", pedigree_path)
     df = pd.read_parquet(pedigree_path)
-    with open(params_path, encoding="utf-8") as f:
-        params = yaml.safe_load(f)
+    params = load_yaml(params_path)
 
     df_indexed = df.set_index("id")
 
-    sibling_pairs = extract_sibling_pairs(df)
+    all_pairs = PedigreeGraph(df).extract_pairs(max_degree=1)
+    sibling_pairs = {k: all_pairs[k] for k in ("FS", "MHS", "PHS")}
 
     results = {
         "structural": validate_structural(df, params),
@@ -1195,7 +1214,4 @@ def cli() -> None:
     init_logging(args)
 
     results = run_validation(args.pedigree, args.params)
-    results = to_native(results)
-
-    with open(args.output, "w", encoding="utf-8") as f:
-        yaml.dump(results, f, default_flow_style=False, sort_keys=False)
+    dump_yaml(results, args.output)

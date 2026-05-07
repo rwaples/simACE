@@ -4,8 +4,6 @@ Runs on a tiny scenario (N=100, G_ped=2) to verify interface compatibility
 between modules. Asserts output structure, not numerical correctness.
 """
 
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -28,8 +26,10 @@ def integration_params():
         "p_mztwin": 0.02,
         "A1": 0.5,
         "C1": 0.2,
+        "E1": 0.3,
         "A2": 0.5,
         "C2": 0.2,
+        "E2": 0.3,
         "rA": 0.3,
         "rC": 0.5,
         "assort1": 0.0,
@@ -63,8 +63,10 @@ def pedigree(integration_params):
         p_mztwin=p["p_mztwin"],
         A1=p["A1"],
         C1=p["C1"],
+        E1=p["E1"],
         A2=p["A2"],
         C2=p["C2"],
+        E2=p["E2"],
         rA=p["rA"],
         rC=p["rC"],
         assort1=p["assort1"],
@@ -75,13 +77,35 @@ def pedigree(integration_params):
 @pytest.fixture(scope="module")
 def phenotype(pedigree, integration_params):
     """Run phenotype step."""
-    return run_phenotype(pedigree, integration_params)
+    p = integration_params
+    return run_phenotype(
+        pedigree,
+        G_pheno=p["G_pheno"],
+        seed=p["seed"],
+        standardize=p["standardize"],
+        phenotype_model1=p["phenotype_model1"],
+        phenotype_model2=p["phenotype_model2"],
+        beta1=p["beta1"],
+        beta_sex1=p["beta_sex1"],
+        phenotype_params1=p["phenotype_params1"],
+        beta2=p["beta2"],
+        beta_sex2=p["beta_sex2"],
+        phenotype_params2=p["phenotype_params2"],
+    )
 
 
 @pytest.fixture(scope="module")
 def censored(phenotype, integration_params):
     """Run censor step."""
-    return run_censor(phenotype, integration_params)
+    p = integration_params
+    return run_censor(
+        phenotype,
+        censor_age=p["censor_age"],
+        seed=p["seed"],
+        gen_censoring=p["gen_censoring"],
+        death_scale=p["death_scale"],
+        death_rho=p["death_rho"],
+    )
 
 
 class TestSimulateStep:

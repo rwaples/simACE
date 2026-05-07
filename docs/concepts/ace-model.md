@@ -45,11 +45,64 @@ Two traits can be correlated through their components:
 
 ## Standardisation
 
-When `standardize: true`, liability is normalised before phenotyping.
+The `standardize` config flag controls how liability is normalised before
+phenotyping. It accepts three values:
 
-For frailty and cure-frailty models, standardisation uses the **global** mean and
-standard deviation across all generations pooled. This means per-generation prevalence
-will vary when variance components change across generations.
+| Mode | Behaviour |
+|---|---|
+| `none` | Raw liability is compared to the N(0,1)-scale threshold. Realised prevalence drifts whenever the cohort variance differs from 1. |
+| `global` (default) | Liability is z-scored once across the whole phenotyped cohort: $L_z = (L - \bar L) / \mathrm{sd}(L)$. Per-generation prevalence still drifts when variance changes generation-to-generation. |
+| `per_generation` | Liability is z-scored within each generation independently. Each generation hits its target prevalence exactly, regardless of how $\mathrm{Var}(C)$ or $\mathrm{Var}(E)$ drifts across cohorts. |
 
-The simple liability-threshold model standardises **per-generation**, preserving exact
-prevalence within each generation.
+Legacy boolean values are accepted at config load (`true → "global"`,
+`false → "none"`) so older scenario files continue to work unchanged.
+
+### Per-trait hazard override
+
+The four hazard-bearing model families (`frailty`, `cure_frailty`,
+`first_passage`, and `adult` with `method: cox`) accept a per-trait
+override `standardize_hazard` inside `phenotype.trait{N}.params`:
+
+```yaml
+phenotype:
+  trait1:
+    model: cure_frailty
+    params:
+      distribution: weibull
+      scale: 2160
+      rho: 0.8
+      prevalence: 0.10
+      standardize_hazard: per_generation   # overrides global flag for the hazard step
+```
+
+`standardize_hazard` accepts the same three modes (`none`, `global`,
+`per_generation`) and defaults to inheriting whatever was selected for
+the global `standardize`. Models that have no hazard step (`threshold`
+and `adult` with `method: ltm`) reject the field with a trait-prefixed
+error.
+
+`cure_frailty` is the only family that honors **both** knobs
+independently: `standardize` sets the threshold step (case status) while
+`standardize_hazard` sets the hazard step (case-onset distribution). A
+mixed setting like `standardize: per_generation` together with
+`standardize_hazard: global` preserves per-generation prevalence while
+keeping the hazard slope constant across generations.
+
+### Per-model routing
+
+| Model | Threshold step uses | Hazard step uses |
+|---|---|---|
+| `threshold` | `standardize` | — |
+| `adult.ltm` | `standardize` | — |
+| `adult.cox` | — | `standardize_hazard` (default = `standardize`) |
+| `frailty` | — | `standardize_hazard` (default = `standardize`) |
+| `first_passage` | — | `standardize_hazard` (default = `standardize`) |
+| `cure_frailty` | `standardize` | `standardize_hazard` (default = `standardize`) |
+
+Note that toggling `params.method` between `"ltm"` and `"cox"` on the
+`adult` family silently changes which knob controls L scaling for that
+trait — LTM honors the global `standardize`, Cox honors
+`standardize_hazard`. This asymmetry reflects the underlying math (LTM
+is a threshold-on-L, Cox is a hazard-on-L). Setting
+`standardize_hazard` on an `adult.ltm` model raises a validation error
+that points back at this rule.

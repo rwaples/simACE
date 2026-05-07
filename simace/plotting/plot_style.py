@@ -1,16 +1,15 @@
 """Central visual style for Nature Genetics-inspired plots."""
 
-from __future__ import annotations
-
 __all__ = [
     "CENSORING_COLORS",
     "COLOR_AFFECTED",
+    "COLOR_EXPECTED",
     "COLOR_FEMALE",
     "COLOR_MALE",
     "COLOR_OBSERVED",
     "COLOR_TRUE",
-    "COLOR_UNCENSORED",
     "COLOR_UNAFFECTED",
+    "COLOR_UNCENSORED",
     "PAIR_COLORS",
     "add_scenario_label",
     "apply_nature_style",
@@ -36,29 +35,30 @@ PAIR_COLORS: dict[str, str] = {
 # Extended palette for pedigree diagrams (10 relationship types)
 PEDIGREE_COLORS: dict[str, str] = {
     **PAIR_COLORS,
-    "GP": "#CC6633",   # muted brown
-    "Av": "#999933",   # muted dark olive
-    "2C": "#DDDDDD",   # light grey
+    "GP": "#CC6633",  # muted brown
+    "Av": "#999933",  # muted dark olive
+    "2C": "#DDDDDD",  # light grey
 }
 
 # Affected / unaffected status
-COLOR_AFFECTED = "#CC4444"    # muted red
+COLOR_AFFECTED = "#CC4444"  # muted red
 COLOR_UNAFFECTED = "#999999"  # medium grey
 
 # Sex encoding
 COLOR_FEMALE = "#44AA99"  # teal
-COLOR_MALE = "#EE7733"    # orange
+COLOR_MALE = "#EE7733"  # orange
 
 # Observed vs true data lines
 COLOR_OBSERVED = "#4477AA"  # blue (matches MZ pair color)
-COLOR_TRUE = "#888888"      # grey
+COLOR_TRUE = "#888888"  # grey
+COLOR_EXPECTED = "#EE7733"  # orange, for expected/reference markers
 
 # Censoring cascade
 CENSORING_COLORS: dict[str, str] = {
     "observed": "#228833",  # green
-    "death": "#CC4444",     # red
-    "right": "#AA3377",     # purple
-    "left": "#EE7733",      # orange
+    "death": "#CC4444",  # red
+    "right": "#AA3377",  # purple
+    "left": "#EE7733",  # orange
 }
 
 # Frailty / uncensored oracle reference lines
@@ -69,41 +69,44 @@ COLOR_UNCENSORED = "#228833"  # muted green
 # Style application
 # ---------------------------------------------------------------------------
 
+
 def apply_nature_style() -> None:
     """Set matplotlib rcParams for Nature Genetics-inspired figures."""
-    mpl.rcParams.update({
-        # Fonts
-        "font.family": "sans-serif",
-        "font.sans-serif": ["Helvetica", "Arial", "DejaVu Sans"],
-        # Axes
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-        "axes.linewidth": 0.7,
-        "axes.grid": False,
-        "axes.facecolor": "white",
-        "axes.labelsize": 11,
-        "axes.titlesize": 12,
-        # Lines
-        "lines.linewidth": 1.2,
-        "lines.markersize": 5,
-        # Ticks
-        "xtick.direction": "out",
-        "ytick.direction": "out",
-        "xtick.major.width": 0.7,
-        "ytick.major.width": 0.7,
-        "xtick.major.size": 4,
-        "ytick.major.size": 4,
-        "xtick.labelsize": 10,
-        "ytick.labelsize": 10,
-        # Legend
-        "legend.frameon": False,
-        "legend.fontsize": 9,
-        # Figure
-        "figure.facecolor": "white",
-        "figure.dpi": 100,
-        "savefig.dpi": 150,
-        "savefig.bbox": "tight",
-    })
+    mpl.rcParams.update(
+        {
+            # Fonts
+            "font.family": "sans-serif",
+            "font.sans-serif": ["Helvetica", "Arial", "DejaVu Sans"],
+            # Axes
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "axes.linewidth": 0.7,
+            "axes.grid": False,
+            "axes.facecolor": "white",
+            "axes.labelsize": 11,
+            "axes.titlesize": 12,
+            # Lines
+            "lines.linewidth": 1.2,
+            "lines.markersize": 5,
+            # Ticks
+            "xtick.direction": "out",
+            "ytick.direction": "out",
+            "xtick.major.width": 0.7,
+            "ytick.major.width": 0.7,
+            "xtick.major.size": 4,
+            "ytick.major.size": 4,
+            "xtick.labelsize": 10,
+            "ytick.labelsize": 10,
+            # Legend
+            "legend.frameon": False,
+            "legend.fontsize": 9,
+            # Figure
+            "figure.facecolor": "white",
+            "figure.dpi": 100,
+            "savefig.dpi": 150,
+            "savefig.bbox": "tight",
+        }
+    )
 
 
 def enable_value_gridlines(ax) -> None:

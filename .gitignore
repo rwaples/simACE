@@ -7,6 +7,8 @@ external/
 # Scripts (local benchmarks / utilities); root-only so workflow/scripts/ stays tracked
 /scripts/*
 !/scripts/run_epimight.py
+!/scripts/migrate_prevalence_keys.py
+!/scripts/regen_rulegraph.sh
 
 # Notebooks
 notebooks/
@@ -69,3 +71,5 @@ presentations/
 
 #epimight
 /epimight/EPIMIGHT
+# Added by code-review-graph
+.code-review-graph/

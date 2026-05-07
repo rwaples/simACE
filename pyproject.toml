@@ -6,8 +6,9 @@ build-backend = "setuptools.build_meta"
 name = "simace"
 dynamic = ["version"]
 description = "ACE pedigree simulation with A/C/E variance components"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
 dependencies = [
+    "pedigree-graph @ git+https://github.com/rwaples/pedigree-graph.git@v0.2.0",
     "numpy>=2.2,<3",
     "scipy>=1.14,<2",
     "pandas>=3.0,<4",
@@ -60,6 +61,9 @@ include = ["simace*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = ["fitACE", ".git", ".snakemake", "external", "site"]
+markers = [
+    "slow: heavyweight tests (Monte Carlo, large pedigrees); deselect with -m 'not slow'",
+]
 
 [tool.ruff]
 target-version = "py313"
@@ -83,9 +87,9 @@ ignore = [
 "tests/*.py" = ["B011", "RUF012", "D"]       # assert False; mutable class attrs OK in tests; no docstrings needed
 "tests/**/*.py" = ["D"]                      # no docstrings needed in tests
 "simace/__init__.py" = ["F401"]             # setup_logging used via re-export
-"simace/plotting/plot_phenotype.py" = ["E402"]      # yaml_loader() before imports
-"simace/plotting/plot_validation.py" = ["E402"]     # yaml_loader() before imports
 "simace/core/_numba_utils.py" = ["D"]               # private module, all functions private
+"simace/phenotyping/models/*.py" = ["D102"]         # method docstrings inherited from PhenotypeModel ABC
+"simace/plotting/atlas_manifest.py" = ["RUF001"]    # caption strings use scientific × − – etc.
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

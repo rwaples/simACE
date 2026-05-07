@@ -1,12 +1,18 @@
 """Tests for simace.analysis.validate — pedigree validation functions."""
 
-from __future__ import annotations
+import sys
 
 import pytest
+import yaml
+from pedigree_graph import PedigreeGraph
 
+from simace.analysis.validate import (
+    cli as validate_cli,
+)
 from simace.analysis.validate import (
     compute_family_size_distribution,
     compute_per_generation_stats,
+    run_validation,
     validate_assortative_mating,
     validate_consanguineous_matings,
     validate_half_sibs,
@@ -16,7 +22,6 @@ from simace.analysis.validate import (
     validate_structural,
     validate_twins,
 )
-from simace.core.pedigree_graph import extract_sibling_pairs
 from simace.simulation.simulate import run_simulation
 
 # ---------------------------------------------------------------------------
@@ -32,8 +37,10 @@ _DEFAULT_PARAMS = dict(
     p_mztwin=0.02,
     A1=0.5,
     C1=0.2,
+    E1=0.3,
     A2=0.5,
     C2=0.2,
+    E2=0.3,
     rA=0.3,
     rC=0.5,
     assort1=0.0,
@@ -48,7 +55,7 @@ def val_pedigree():
 
 @pytest.fixture(scope="module")
 def val_params():
-    return {**_DEFAULT_PARAMS, "E1": 0.3, "E2": 0.3, "rE": 0.0}
+    return {**_DEFAULT_PARAMS, "rE": 0.0}
 
 
 @pytest.fixture(scope="module")
@@ -58,7 +65,8 @@ def val_indexed(val_pedigree):
 
 @pytest.fixture(scope="module")
 def val_sibling_pairs(val_pedigree):
-    return extract_sibling_pairs(val_pedigree)
+    all_pairs = PedigreeGraph(val_pedigree).extract_pairs(max_degree=1)
+    return {k: all_pairs[k] for k in ("FS", "MHS", "PHS")}
 
 
 @pytest.fixture(scope="module")
@@ -219,3 +227,97 @@ class TestValidateAssortativeMating:
         result = validate_assortative_mating(val_pedigree, val_params, val_indexed)
         corr_keys = [k for k in result if "mate" in k.lower() or "corr" in k.lower()]
         assert len(corr_keys) > 0
+
+    def test_cross_trait_branch_when_both_assort(self, val_pedigree, val_indexed, val_params):
+        # Force the cross-trait branch by claiming both traits assort.
+        params = {**val_params, "assort1": 0.2, "assort2": 0.3}
+        result = validate_assortative_mating(val_pedigree, params, val_indexed)
+        assert "mate_corr_cross_12" in result
+        assert "mate_corr_cross_21" in result
+        for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
+            assert "expected" in result[key]
+            assert "observed" in result[key]
+
+    def test_cross_trait_uses_assort_matrix_when_provided(self, val_pedigree, val_indexed, val_params):
+        params = {
+            **val_params,
+            "assort1": 0.2,
+            "assort2": 0.3,
+            "assort_matrix": [[0.2, 0.05], [0.05, 0.3]],
+        }
+        result = validate_assortative_mating(val_pedigree, params, val_indexed)
+        assert result["mate_corr_cross_12"]["expected"] == pytest.approx(0.05)
+
+
+# ---------------------------------------------------------------------------
+# run_validation orchestrator + CLI
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def written_scenario(tmp_path_factory, val_pedigree, val_params):
+    tmp = tmp_path_factory.mktemp("validate_scenario")
+    ped_path = tmp / "pedigree.parquet"
+    params_path = tmp / "params.yaml"
+    val_pedigree.to_parquet(ped_path)
+    with open(params_path, "w", encoding="utf-8") as fh:
+        yaml.safe_dump(val_params, fh)
+    return ped_path, params_path, tmp
+
+
+class TestRunValidation:
+    def test_returns_summary(self, written_scenario):
+        ped_path, params_path, _ = written_scenario
+        result = run_validation(str(ped_path), str(params_path))
+        assert "summary" in result
+        s = result["summary"]
+        assert s["checks_total"] == s["checks_passed"] + s["checks_failed"]
+        assert s["passed"] is (s["checks_failed"] == 0)
+
+    def test_top_level_categories_present(self, written_scenario):
+        ped_path, params_path, _ = written_scenario
+        result = run_validation(str(ped_path), str(params_path))
+        for cat in (
+            "structural",
+            "twins",
+            "half_sibs",
+            "statistical",
+            "heritability",
+            "population",
+            "per_generation",
+            "assortative_mating",
+            "consanguineous_matings",
+            "summary",
+            "family_size_distribution",
+            "parameters",
+        ):
+            assert cat in result, f"missing category {cat!r}"
+
+    def test_parameters_round_trip(self, written_scenario, val_params):
+        ped_path, params_path, _ = written_scenario
+        result = run_validation(str(ped_path), str(params_path))
+        # Loaded params should match what we wrote
+        assert result["parameters"]["A1"] == val_params["A1"]
+        assert result["parameters"]["seed"] == val_params["seed"]
+
+
+class TestValidateCli:
+    def test_writes_output_yaml(self, written_scenario, monkeypatch):
+        ped_path, params_path, tmp = written_scenario
+        out_path = tmp / "validation.yaml"
+        argv = [
+            "validate",
+            "--pedigree",
+            str(ped_path),
+            "--params",
+            str(params_path),
+            "--output",
+            str(out_path),
+        ]
+        monkeypatch.setattr(sys, "argv", argv)
+        validate_cli()
+        assert out_path.exists()
+        with open(out_path, encoding="utf-8") as fh:
+            loaded = yaml.safe_load(fh)
+        assert "summary" in loaded
+        assert "structural" in loaded

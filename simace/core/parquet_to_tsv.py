@@ -1,7 +1,5 @@
 """Convert parquet files to TSV (optionally gzipped) for use in R."""
 
-from __future__ import annotations
-
 __all__ = ["convert"]
 
 import argparse

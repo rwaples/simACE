@@ -5,13 +5,25 @@
       show_root_heading: false
       show_if_no_docstring: false
 
-## utils
+## schema
 
-::: simace.core.utils
+::: simace.core.schema
 
-## pedigree_graph
+## parquet
 
-::: simace.core.pedigree_graph
+::: simace.core.parquet
+
+## yaml_io
+
+::: simace.core.yaml_io
+
+## numerics
+
+::: simace.core.numerics
+
+## relationships
+
+::: simace.core.relationships
 
 ## compute_hazard_terms
 

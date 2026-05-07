@@ -4,8 +4,6 @@ Renders a single-page figure showing the Snakemake pipeline structure with
 each step's relevant parameters displayed inside its box.
 """
 
-from __future__ import annotations
-
 __all__ = ["plot_pipeline", "render_pipeline_figure"]
 
 import argparse
@@ -13,9 +11,9 @@ import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import yaml
 from matplotlib.patches import FancyBboxPatch
 
+from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_atlas import _model_display_name
 from simace.plotting.plot_utils import param_as_float
 
@@ -160,14 +158,22 @@ def _get_param_rows(
             a = float(params.get("A1", 0))
             c = param_as_float(params.get("C1", 0))
             e_val = params.get("E1")
-            label = f"[{a:g}, {c:g}, {1.0 - a - c:g}]" if e_val is None or not isinstance(e_val, dict) else f"[{a:g}, {c:g}, E1=dict]"
+            label = (
+                f"[{a:g}, {c:g}, {1.0 - a - c:g}]"
+                if e_val is None or not isinstance(e_val, dict)
+                else f"[{a:g}, {c:g}, E1=dict]"
+            )
             rows.append(("[A1, C1, E1]", label))
             continue
         if name == "_ACE2" and "A2" in params:
             a = float(params.get("A2", 0))
             c = param_as_float(params.get("C2", 0))
             e_val = params.get("E2")
-            label = f"[{a:g}, {c:g}, {1.0 - a - c:g}]" if e_val is None or not isinstance(e_val, dict) else f"[{a:g}, {c:g}, E2=dict]"
+            label = (
+                f"[{a:g}, {c:g}, {1.0 - a - c:g}]"
+                if e_val is None or not isinstance(e_val, dict)
+                else f"[{a:g}, {c:g}, E2=dict]"
+            )
             rows.append(("[A2, C2, E2]", label))
             continue
         if name == "_rAC" and "rA" in params:
@@ -222,11 +228,17 @@ def _get_param_rows(
             r = _format_param_value("death_rho", params["death_rho"])
             rows.append(("mortality [scale, \u03c1]", f"[{s}, {r}]"))
             continue
-        # Compact prevalence: one row per trait (scalar or dict)
+        # Compact prevalence: one row per trait. Read from inside the per-trait
+        # phenotype_params{N}.prevalence (PR3 moved this out of the top level).
+        # Models that don't carry a prevalence (frailty / first_passage) render
+        # "n/a" so the table reflects the type-encoded asymmetry.
         if name == "_prev12":
-            for t, key in [(1, "prevalence1"), (2, "prevalence2")]:
-                if key in params:
-                    rows.append((f"prevalence {t}", _format_param_value(key, params[key])))
+            for t in (1, 2):
+                pp = params.get(f"phenotype_params{t}", {})
+                if isinstance(pp, dict) and "prevalence" in pp:
+                    rows.append((f"prevalence {t}", _format_param_value(f"prevalence{t}", pp["prevalence"])))
+                else:
+                    rows.append((f"prevalence {t}", "n/a"))
             continue
         if name not in params:
             continue
@@ -405,6 +417,14 @@ def render_pipeline_figure(
     std = params.get("standardize")
     if std is not None:
         meta_parts.append(f"standardize = {str(std).lower()}")
+    # Surface per-trait standardize_hazard overrides when set and distinct
+    # from the global standardize value (so plot readers can tell when the
+    # hazard step is decoupled from the threshold step).
+    for t in (1, 2):
+        pp = params.get(f"phenotype_params{t}") or {}
+        haz = pp.get("standardize_hazard")
+        if haz is not None and haz != std:
+            meta_parts.append(f"standardize_hazard.t{t} = {str(haz).lower()}")
     if meta_parts:
         fig.text(
             0.71,
@@ -532,10 +552,7 @@ def cli() -> None:
     args = parser.parse_args()
     init_logging(args)
 
-    from simace.core.utils import yaml_loader
-
-    with open(args.params, encoding="utf-8") as fh:
-        params = yaml.load(fh, Loader=yaml_loader())
+    params = load_yaml(args.params)
 
     plot_pipeline(params, args.output, scenario=args.scenario)
 

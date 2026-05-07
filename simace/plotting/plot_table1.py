@@ -1,7 +1,5 @@
 """Render an epidemiological Table 1 summarising the simulated study population."""
 
-from __future__ import annotations
-
 __all__ = ["render_table1_figure"]
 
 import logging

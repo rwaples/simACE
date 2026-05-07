@@ -8,8 +8,6 @@ compiles them in dependency order so that each function resolves its callees
 to already-jitted versions.
 """
 
-from __future__ import annotations
-
 import math
 
 import numpy as np

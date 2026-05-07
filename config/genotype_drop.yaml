@@ -1,0 +1,92 @@
+p2_full:
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: &id003
+    p_mztwin: 0
+    assort1: 0
+    assort2: 0
+    trait1: &id001
+      A: 0.4
+      C: 0.1
+      E: 0.5
+    trait2: *id001
+  phenotype: &id004
+    trait1: &id002
+      model: frailty
+      params:
+        distribution: weibull
+        scale: 2160
+        rho: 0.8
+      beta: 1.0
+      beta_sex: 0.0
+    trait2: *id002
+p2_full_a0:
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
+  drop_from: p2_full
+  tstrait:
+    alpha: 0.0
+p2_full_c100:
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
+  drop_from: p2_full
+  tstrait:
+    num_causal: 100
+p2_full_c10k:
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
+  drop_from: p2_full
+  tstrait:
+    num_causal: 10000
+p2_full_c100k:
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
+  drop_from: p2_full
+  tstrait:
+    num_causal: 100000
+p2_full_c1m:
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
+  drop_from: p2_full
+  tstrait:
+    num_causal: 1000000

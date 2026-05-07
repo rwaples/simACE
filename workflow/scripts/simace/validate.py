@@ -5,7 +5,7 @@ import yaml
 from simace import _snakemake_tag, setup_logging
 from simace.analysis.validate import cli as _cli
 from simace.analysis.validate import run_validation
-from simace.core.utils import to_native
+from simace.core.yaml_io import to_native
 
 
 def _run_snakemake():

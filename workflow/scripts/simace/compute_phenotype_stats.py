@@ -3,33 +3,15 @@
 from simace import _snakemake_tag, setup_logging
 from simace.analysis.stats import cli as _cli
 from simace.analysis.stats import main
+from simace.core.yaml_io import load_yaml
 
 
 def _run_snakemake():
     setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
     p = snakemake.params
 
-    gen_censoring_raw = p.get("gen_censoring", None)
-    gen_censoring = {int(k): v for k, v in gen_censoring_raw.items()} if gen_censoring_raw else None
-
-    pm1, pm2 = p.phenotype_model1, p.phenotype_model2
-    pp1, pp2 = p.phenotype_params1 or {}, p.phenotype_params2 or {}
-    frailty_params = {
-        "trait1": {
-            "beta": p.beta1,
-            "hazard_model": pp1.get("distribution", ""),
-            "hazard_params": {k: v for k, v in pp1.items() if k != "distribution"},
-        }
-        if pm1 == "frailty"
-        else {},
-        "trait2": {
-            "beta": p.beta2,
-            "hazard_model": pp2.get("distribution", ""),
-            "hazard_params": {k: v for k, v in pp2.items() if k != "distribution"},
-        }
-        if pm2 == "frailty"
-        else {},
-    }
+    gen_censoring = p.get("gen_censoring") or None
+    params = load_yaml(snakemake.input.params)
 
     main(
         snakemake.input.phenotype,
@@ -38,10 +20,10 @@ def _run_snakemake():
         snakemake.output.samples,
         seed=p.seed,
         gen_censoring=gen_censoring,
-        frailty_params=frailty_params,
         pedigree_path=snakemake.input.pedigree,
         max_degree=p.get("max_degree", 2),
         case_ascertainment_ratio=p.get("case_ascertainment_ratio", 1.0),
+        params=params,
     )
 
 

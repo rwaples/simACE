@@ -7,8 +7,6 @@ more scenarios on the same axes.  This module hosts those comparison plots;
 each new Examples topic adds one function here.
 """
 
-from __future__ import annotations
-
 __all__ = [
     "NAIVE_ESTIMATOR_DEFS",
     "OBSERVED_LIABILITY_ESTIMATOR_DEFS",
@@ -40,11 +38,11 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import yaml
-from scipy import stats as sci_stats
+from pedigree_graph import PedigreeGraph
 
-from simace.core.pedigree_graph import extract_relationship_pairs
-from simace.core.utils import PAIR_TYPES
+from simace.core.numerics import safe_corrcoef, safe_linregress
+from simace.core.relationships import PAIR_TYPES
+from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import (
     apply_nature_style,
     enable_value_gridlines,
@@ -82,8 +80,7 @@ def load_per_generation(
     """
     per_rep: list[dict[int, tuple[float, float, float, float]]] = []
     for path in validation_paths:
-        with open(path) as fh:
-            data = yaml.safe_load(fh)
+        data = load_yaml(path)
         per_gen = data.get("per_generation", {})
         rep_dict: dict[int, tuple[float, float, float, float]] = {}
         for gen_key, gen_data in per_gen.items():
@@ -145,16 +142,12 @@ def compare_realized_variance_trajectory(
     h2_expected = None
     if expected_A is not None and expected_C is not None and expected_E is not None:
         if any(isinstance(e, list) for e in (expected_A, expected_C, expected_E)):
-            n = max(
-                len(e) if isinstance(e, list) else 1
-                for e in (expected_A, expected_C, expected_E)
-            )
+            n = max(len(e) if isinstance(e, list) else 1 for e in (expected_A, expected_C, expected_E))
             a_list = expected_A if isinstance(expected_A, list) else [expected_A] * n
             c_list = expected_C if isinstance(expected_C, list) else [expected_C] * n
             e_list = expected_E if isinstance(expected_E, list) else [expected_E] * n
             h2_expected = [
-                a / (a + c + e) if (a + c + e) > 0 else None
-                for a, c, e in zip(a_list, c_list, e_list, strict=True)
+                a / (a + c + e) if (a + c + e) > 0 else None for a, c, e in zip(a_list, c_list, e_list, strict=True)
             ]
         else:
             total = expected_A + expected_C + expected_E
@@ -397,7 +390,7 @@ def load_pedigree_estimates(
     else:
         df = df_full.reset_index(drop=True)
 
-    pairs = extract_relationship_pairs(df, full_pedigree=df_full, max_degree=2)
+    pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=2)
     liab = df[f"liability{trait}"].to_numpy()
 
     corrs: dict[str, float] = {}
@@ -406,7 +399,7 @@ def load_pedigree_estimates(
         if len(idx1) < 10:
             corrs[ptype] = float("nan")
         else:
-            corrs[ptype] = float(np.corrcoef(liab[idx1], liab[idx2])[0, 1])
+            corrs[ptype] = safe_corrcoef(liab[idx1], liab[idx2])
 
     # Midparent-offspring regression: offspring from filtered subset, parent
     # liabilities looked up in the full pedigree (may be pre-filter).
@@ -418,9 +411,9 @@ def load_pedigree_estimates(
         offspring = sub[f"liability{trait}"].to_numpy()
         midparent = (mother_liab + father_liab) / 2.0
         mask = np.isfinite(midparent) & np.isfinite(offspring)
-        if mask.sum() >= 10 and np.var(midparent[mask]) > 0:
-            reg = sci_stats.linregress(midparent[mask], offspring[mask])
-            po_slope = float(reg.slope)
+        if mask.sum() >= 10:
+            reg = safe_linregress(midparent[mask], offspring[mask])
+            po_slope = float(reg.slope) if reg is not None else float("nan")
         else:
             po_slope = float("nan")
     else:
@@ -737,7 +730,7 @@ def compare_sib_liability_scatter(
         if liab_a.size == 0:
             continue
         color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
-        r = float(np.corrcoef(liab_a, liab_b)[0, 1])
+        r = safe_corrcoef(liab_a, liab_b)
         # Regression through (mean_a, mean_b) with slope = r * (sd_b/sd_a).
         mean_a, mean_b = float(liab_a.mean()), float(liab_b.mean())
         sd_a = float(liab_a.std(ddof=1))
@@ -1034,9 +1027,7 @@ def compare_components_by_generation(
         per_scen_l.append({g: np.concatenate(v) if v else np.array([]) for g, v in l_by_gen.items()})
 
     # Shared x-range across both rows + every panel for cross-comparability.
-    all_vals = np.concatenate(
-        [arr for d in per_scen_a + per_scen_l for arr in d.values() if arr.size]
-    )
+    all_vals = np.concatenate([arr for d in per_scen_a + per_scen_l for arr in d.values() if arr.size])
     lo = float(np.quantile(all_vals, 0.001))
     hi = float(np.quantile(all_vals, 0.999))
     pad = 0.05 * (hi - lo)
@@ -1052,12 +1043,8 @@ def compare_components_by_generation(
     if n_scen == 1:
         axes = axes.reshape(2, 1)
 
-    for col, (label, a_dict, l_dict) in enumerate(
-        zip(labels, per_scen_a, per_scen_l, strict=True)
-    ):
-        for row_idx, (ax, vals_dict) in enumerate(
-            ((axes[0, col], a_dict), (axes[1, col], l_dict))
-        ):
+    for col, (label, a_dict, l_dict) in enumerate(zip(labels, per_scen_a, per_scen_l, strict=True)):
+        for row_idx, (ax, vals_dict) in enumerate(((axes[0, col], a_dict), (axes[1, col], l_dict))):
             for g_idx, g in enumerate(show_generations):
                 vals = vals_dict.get(g, np.array([]))
                 if vals.size == 0:
@@ -1103,9 +1090,9 @@ def load_pedigree_estimates_per_generation(
 
     For each generation ``g``, the dataframe is filtered to ``generation == g``
     (a single cohort) and MZ/FS pair correlations are computed on that cohort
-    only.  ``extract_relationship_pairs`` is called on the filtered cohort
+    only.  ``PedigreeGraph.from_subsample`` is built on the filtered cohort
     so the returned FS pairs already exclude twins
-    (``simace/core/pedigree_graph.py:_sibling_pairs`` filters ``twin != -1``).
+    (``simace/core/pedigree_graph.py:sibling_pairs`` filters ``twin != -1``).
     MZ pairs are read from the cohort directly.
 
     Args:
@@ -1134,42 +1121,59 @@ def load_pedigree_estimates_per_generation(
     if gens is None:
         gens = sorted(int(g) for g in df_full["generation"].unique())
 
+    pairs_full = PedigreeGraph(df_full).extract_pairs(max_degree=1)
+    gen_arr = df_full["generation"].to_numpy()
+    liab_full = df_full[f"liability{trait}"].to_numpy()
+    # float64 to match pandas Series.var(ddof=1) precision used previously.
+    A_full = df_full[f"A{trait}"].to_numpy(dtype=np.float64)
+    C_full = df_full[f"C{trait}"].to_numpy(dtype=np.float64)
+    E_full = df_full[f"E{trait}"].to_numpy(dtype=np.float64)
+
     out: dict[int, dict[str, float]] = {}
     for g in gens:
-        df = df_full[df_full["generation"] == g].reset_index(drop=True)
-        if len(df) == 0:
+        gen_mask = gen_arr == g
+        if not gen_mask.any():
             out[g] = {
-                "MZ": float("nan"), "FS": float("nan"),
-                "n_MZ": 0, "n_FS": 0,
+                "MZ": float("nan"),
+                "FS": float("nan"),
+                "n_MZ": 0,
+                "n_FS": 0,
                 "realized_h2": float("nan"),
-                "vA": float("nan"), "vC": float("nan"), "vE": float("nan"),
+                "vA": float("nan"),
+                "vC": float("nan"),
+                "vE": float("nan"),
             }
             continue
 
-        pairs = extract_relationship_pairs(df, full_pedigree=df_full, max_degree=1)
-        liab = df[f"liability{trait}"].to_numpy()
         cohort_corrs: dict[str, tuple[float, int]] = {}
+        # MZ + FS are within-generation by construction; gen_mask[idx1] alone is sufficient.
         for code in ("MZ", "FS"):
-            idx1, idx2 = pairs.get(code, (np.array([]), np.array([])))
-            n_pairs = len(idx1)
+            idx1, idx2 = pairs_full.get(code, (np.array([]), np.array([])))
+            pair_mask = gen_mask[idx1]
+            idx1_g, idx2_g = idx1[pair_mask], idx2[pair_mask]
+            n_pairs = len(idx1_g)
             if n_pairs < 10:
                 cohort_corrs[code] = (float("nan"), n_pairs)
             else:
-                cohort_corrs[code] = (float(np.corrcoef(liab[idx1], liab[idx2])[0, 1]), n_pairs)
+                cohort_corrs[code] = (safe_corrcoef(liab_full[idx1_g], liab_full[idx2_g]), n_pairs)
         r_mz, n_mz = cohort_corrs["MZ"]
         r_fs, n_fs = cohort_corrs["FS"]
 
-        vA = float(df[f"A{trait}"].var(ddof=1))
-        vC = float(df[f"C{trait}"].var(ddof=1))
-        vE = float(df[f"E{trait}"].var(ddof=1))
+        vA = float(np.var(A_full[gen_mask], ddof=1))
+        vC = float(np.var(C_full[gen_mask], ddof=1))
+        vE = float(np.var(E_full[gen_mask], ddof=1))
         total = vA + vC + vE
         realized_h2 = vA / total if total > 0 else float("nan")
 
         out[g] = {
-            "MZ": r_mz, "FS": r_fs,
-            "n_MZ": n_mz, "n_FS": n_fs,
+            "MZ": r_mz,
+            "FS": r_fs,
+            "n_MZ": n_mz,
+            "n_FS": n_fs,
             "realized_h2": realized_h2,
-            "vA": vA, "vC": vC, "vE": vE,
+            "vA": vA,
+            "vC": vC,
+            "vE": vE,
         }
     return out
 
@@ -1212,10 +1216,7 @@ def compare_cohort_fs_correlations(
     fig, ax = plt.subplots(figsize=(9, 5))
 
     for scen_idx, (paths, label) in enumerate(zip(pedigree_paths_per_scenario, labels, strict=True)):
-        per_rep = [
-            load_pedigree_estimates_per_generation(Path(p), trait=trait)
-            for p in paths
-        ]
+        per_rep = [load_pedigree_estimates_per_generation(Path(p), trait=trait) for p in paths]
         # Union of generations seen across reps, restricted to >= min_generation.
         gens = sorted({g for d in per_rep for g in d if g >= min_generation})
         means, lows, highs = [], [], []
@@ -1325,25 +1326,15 @@ def compare_cohort_falconer(
         axes = np.array([axes])
 
     for paths, label, ax in zip(pedigree_paths_per_scenario, labels, axes, strict=True):
-        per_rep_pergen = [
-            load_pedigree_estimates_per_generation(Path(p), trait=trait)
-            for p in paths
-        ]
-        per_rep_pooled = [
-            load_pedigree_estimates(Path(p), trait=trait, min_generation=None)
-            for p in paths
-        ]
+        per_rep_pergen = [load_pedigree_estimates_per_generation(Path(p), trait=trait) for p in paths]
+        per_rep_pooled = [load_pedigree_estimates(Path(p), trait=trait, min_generation=None) for p in paths]
         gens = sorted({g for d in per_rep_pergen for g in d if g >= min_generation})
 
-        truth_m, truth_lo, truth_hi = _per_gen_envelope(
-            per_rep_pergen, gens, lambda d: d["realized_h2"]
-        )
+        truth_m, truth_lo, truth_hi = _per_gen_envelope(per_rep_pergen, gens, lambda d: d["realized_h2"])
         falc_m, falc_lo, falc_hi = _per_gen_envelope(
             per_rep_pergen,
             gens,
-            lambda d: 2.0 * (d["MZ"] - d["FS"])
-            if np.isfinite(d["MZ"]) and np.isfinite(d["FS"])
-            else float("nan"),
+            lambda d: 2.0 * (d["MZ"] - d["FS"]) if np.isfinite(d["MZ"]) and np.isfinite(d["FS"]) else float("nan"),
         )
 
         truth_color = SCENARIO_PALETTE[0]
@@ -1355,10 +1346,7 @@ def compare_cohort_falconer(
         ax.fill_between(gens, falc_lo, falc_hi, color=falc_color, alpha=0.15, linewidth=0)
 
         pooled_falconer_vals = np.array(
-            [
-                2.0 * (est.get("MZ", float("nan")) - est.get("FS", float("nan")))
-                for est in per_rep_pooled
-            ],
+            [2.0 * (est.get("MZ", float("nan")) - est.get("FS", float("nan"))) for est in per_rep_pooled],
             dtype=float,
         )
         pooled_falconer_vals = pooled_falconer_vals[np.isfinite(pooled_falconer_vals)]
@@ -1400,8 +1388,7 @@ def _load_per_gen_prevalence(
     """
     per_gen: dict[int, list[float]] = {}
     for path in phenotype_stats_paths:
-        with open(path) as fh:
-            ps = yaml.safe_load(fh) or {}
+        ps = load_yaml(path) or {}
         by_gen = (ps.get("prevalence") or {}).get("by_generation") or {}
         for g_key, entry in by_gen.items():
             g = int(g_key)
@@ -1419,47 +1406,57 @@ def compare_prevalence_drift(
     output_path: Path,
     trait: int = 1,
     target_prevalence: float | None = None,
+    std_label: str = "standardize=global",
+    nostd_label: str = "standardize=none",
+    pergen_paths_per_trajectory: list[list[Path]] | None = None,
+    pergen_label: str = "standardize=per_generation",
 ) -> None:
-    """Per-generation observed prevalence under standardize=true vs false.
+    """Per-generation observed prevalence comparing two or three ``standardize`` modes.
 
     One panel per E trajectory (e.g. e_flat / e_rise_mild / e_rise_steep /
-    e_fall_steep), with two lines per panel: ``standardize=true`` (held at
-    the input K by per-gen re-standardization) and ``standardize=false``
-    (drifts as v_E shifts the upper-tail mass past the fixed threshold).
+    e_fall_steep). Two lines per panel by default; if
+    ``pergen_paths_per_trajectory`` is supplied, a third line is drawn for
+    the ``per_generation`` mode (which preserves K per generation
+    regardless of how :math:`v_E` drifts across cohorts).
 
     Args:
         std_paths_per_trajectory: outer list = trajectory, inner list =
-            per-rep ``phenotype_stats.yaml`` paths for the
-            ``standardize=true`` variant.
-        nostd_paths_per_trajectory: same shape, for ``standardize=false``.
+            per-rep ``phenotype_stats.yaml`` paths for the first variant.
+        nostd_paths_per_trajectory: same shape, for the second variant.
         labels: display label per trajectory.
         output_path: image path to save.
         trait: 1 or 2.
         target_prevalence: input K to draw as dashed reference (typically
             0.1).  Omitted if ``None``.
+        std_label: legend label for the ``std_paths_per_trajectory`` series.
+        nostd_label: legend label for the ``nostd_paths_per_trajectory`` series.
+        pergen_paths_per_trajectory: optional third series; when present,
+            plotted as the per-generation comparison line.
+        pergen_label: legend label for the third series.
     """
     n_traj = len(labels)
     if len(std_paths_per_trajectory) != n_traj or len(nostd_paths_per_trajectory) != n_traj:
         raise ValueError(
-            "std_paths_per_trajectory, nostd_paths_per_trajectory, and labels "
-            "must all have the same length"
+            "std_paths_per_trajectory, nostd_paths_per_trajectory, and labels must all have the same length"
         )
+    if pergen_paths_per_trajectory is not None and len(pergen_paths_per_trajectory) != n_traj:
+        raise ValueError("pergen_paths_per_trajectory must have the same length as labels")
 
     apply_nature_style()
     fig, axes = plt.subplots(1, n_traj, figsize=(3.4 * n_traj, 4.5), sharey=True)
     if n_traj == 1:
         axes = np.array([axes])
 
-    std_color = SCENARIO_PALETTE[0]
-    nostd_color = SCENARIO_PALETTE[1]
+    series: list[tuple[str, str, list[list[Path]]]] = [
+        (SCENARIO_PALETTE[0], std_label, std_paths_per_trajectory),
+        (SCENARIO_PALETTE[1], nostd_label, nostd_paths_per_trajectory),
+    ]
+    if pergen_paths_per_trajectory is not None:
+        series.append((SCENARIO_PALETTE[2], pergen_label, pergen_paths_per_trajectory))
 
-    for ax, label, std_paths, nostd_paths in zip(
-        axes, labels, std_paths_per_trajectory, nostd_paths_per_trajectory, strict=True
-    ):
-        for color, line_label, paths in (
-            (std_color, "standardize=true", std_paths),
-            (nostd_color, "standardize=false", nostd_paths),
-        ):
+    for traj_idx, (ax, traj_label) in enumerate(zip(axes, labels, strict=True)):
+        for color, line_label, paths_per_traj in series:
+            paths = paths_per_traj[traj_idx]
             per_gen = _load_per_gen_prevalence([Path(p) for p in paths], trait=trait)
             gens = sorted(per_gen.keys())
             means = [float(np.mean(per_gen[g])) if per_gen[g] else float("nan") for g in gens]
@@ -1477,13 +1474,14 @@ def compare_prevalence_drift(
                 alpha=0.8,
             )
 
-        ax.set_title(label)
+        ax.set_title(traj_label)
         ax.set_xlabel("Generation")
         enable_value_gridlines(ax)
         ax.legend(loc="best", fontsize=8, frameon=False)
 
     axes[0].set_ylabel(f"Observed prevalence (trait {trait})")
-    fig.suptitle("Per-generation prevalence: standardize=true vs false")
+    title_labels = [s[1] for s in series]
+    fig.suptitle("Per-generation prevalence: " + " vs ".join(title_labels))
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1513,8 +1511,7 @@ OBSERVED_LIABILITY_ESTIMATOR_DEFS: tuple[tuple[str, str], ...] = (
 
 def _load_tetrachoric(phenotype_stats_path: Path, trait: int) -> dict[str, float]:
     """Return a flat ``{MZ, FS, MO, FO, MHS, PHS, 1C}`` tetrachoric r dict."""
-    with open(phenotype_stats_path) as fh:
-        ps = yaml.safe_load(fh) or {}
+    ps = load_yaml(phenotype_stats_path) or {}
     tet = (ps.get("tetrachoric") or {}).get(f"trait{trait}", {}) or {}
     out: dict[str, float] = {}
     for key, entry in tet.items():

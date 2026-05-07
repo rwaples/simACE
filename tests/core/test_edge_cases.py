@@ -7,9 +7,23 @@ all non-social fathers, single-generation pedigrees, etc.
 import numpy as np
 
 from simace.censoring.censor import age_censor
-from simace.phenotyping.phenotype import simulate_phenotype
+from simace.phenotyping.models import FrailtyModel
 from simace.phenotyping.threshold import apply_threshold
 from simace.simulation.simulate import run_simulation
+
+
+def simulate_phenotype(liability, beta, hazard_model, hazard_params, seed, standardize=True, sex=None, beta_sex=0.0):
+    """Test shim — wraps FrailtyModel.simulate to preserve the deleted
+    entry-point's call signature so this edge-case suite stays focused on
+    pipeline edges rather than API plumbing."""
+    return FrailtyModel(distribution=hazard_model, hazard_params=hazard_params, beta=beta, beta_sex=beta_sex).simulate(
+        liability=liability,
+        seed=seed,
+        standardize=standardize,
+        sex=sex,
+        generation=np.zeros(len(liability), dtype=int),
+    )
+
 
 # ---------------------------------------------------------------------------
 # Shared minimal params
@@ -23,8 +37,10 @@ MINIMAL_PARAMS = dict(
     p_mztwin=0.02,
     A1=0.5,
     C1=0.2,
+    E1=0.3,
     A2=0.5,
     C2=0.2,
+    E2=0.3,
     rA=0.3,
     rC=0.5,
 )
@@ -37,7 +53,7 @@ MINIMAL_PARAMS = dict(
 
 class TestZeroA:
     def test_A_zero_both_traits(self):
-        params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.3, "A2": 0.0, "C2": 0.3}
+        params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.3, "E1": 0.7, "A2": 0.0, "C2": 0.3, "E2": 0.7}
         ped = run_simulation(**params)
         # All A values should be zero for founders
         founders = ped[ped["mother"] == -1]
@@ -46,13 +62,13 @@ class TestZeroA:
 
     def test_A_zero_offspring_A_also_zero(self):
         """With A=0, offspring A should also be zero (midparent=0, noise sd=0)."""
-        params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.3, "A2": 0.0, "C2": 0.3}
+        params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.3, "E1": 0.7, "A2": 0.0, "C2": 0.3, "E2": 0.7}
         ped = run_simulation(**params)
         np.testing.assert_array_equal(ped["A1"].values, 0.0)
         np.testing.assert_array_equal(ped["A2"].values, 0.0)
 
     def test_A_zero_liability_equals_C_plus_E(self):
-        params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.3, "A2": 0.0, "C2": 0.3}
+        params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.3, "E1": 0.7, "A2": 0.0, "C2": 0.3, "E2": 0.7}
         ped = run_simulation(**params)
         # ACE columns are float32, liability is float64
         np.testing.assert_allclose(
@@ -69,13 +85,13 @@ class TestZeroA:
 
 class TestZeroC:
     def test_C_zero_both_traits(self):
-        params = {**MINIMAL_PARAMS, "A1": 0.5, "C1": 0.0, "A2": 0.5, "C2": 0.0}
+        params = {**MINIMAL_PARAMS, "A1": 0.5, "C1": 0.0, "E1": 0.5, "A2": 0.5, "C2": 0.0, "E2": 0.5}
         ped = run_simulation(**params)
         np.testing.assert_array_equal(ped["C1"].values, 0.0)
         np.testing.assert_array_equal(ped["C2"].values, 0.0)
 
     def test_C_zero_liability_equals_A_plus_E(self):
-        params = {**MINIMAL_PARAMS, "A1": 0.5, "C1": 0.0, "A2": 0.5, "C2": 0.0}
+        params = {**MINIMAL_PARAMS, "A1": 0.5, "C1": 0.0, "E1": 0.5, "A2": 0.5, "C2": 0.0, "E2": 0.5}
         ped = run_simulation(**params)
         # ACE columns are float32, liability is float64
         np.testing.assert_allclose(
@@ -92,7 +108,7 @@ class TestZeroC:
 
 class TestZeroACE:
     def test_all_zero_variance_components(self):
-        params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.0, "A2": 0.0, "C2": 0.0}
+        params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.0, "E1": 1.0, "A2": 0.0, "C2": 0.0, "E2": 1.0}
         ped = run_simulation(**params)
         # E should carry all variance (E = 1 - 0 - 0 = 1)
         np.testing.assert_array_equal(ped["A1"].values, 0.0)
@@ -101,7 +117,7 @@ class TestZeroACE:
         np.testing.assert_allclose(ped["liability1"].values, ped["E1"].values)
 
     def test_pure_E_variance_near_one(self):
-        params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.0, "A2": 0.0, "C2": 0.0}
+        params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.0, "E1": 1.0, "A2": 0.0, "C2": 0.0, "E2": 1.0}
         ped = run_simulation(**params)
         var = ped["E1"].var()
         assert abs(var - 1.0) < 0.15
@@ -320,13 +336,13 @@ class TestEZero:
         Note: 1.0 - 0.7 - 0.3 has floating-point roundoff (~5.5e-17),
         so sd_E ~ 7.4e-9, producing tiny but non-zero draws.
         """
-        params = {**MINIMAL_PARAMS, "A1": 0.7, "C1": 0.3, "A2": 0.6, "C2": 0.4}
+        params = {**MINIMAL_PARAMS, "A1": 0.7, "C1": 0.3, "E1": 0.0, "A2": 0.6, "C2": 0.4, "E2": 0.0}
         ped = run_simulation(**params)
         np.testing.assert_allclose(ped["E1"].values, 0.0, atol=1e-6)
         np.testing.assert_allclose(ped["E2"].values, 0.0, atol=1e-6)
 
     def test_E_zero_liability_equals_A_plus_C(self):
-        params = {**MINIMAL_PARAMS, "A1": 0.7, "C1": 0.3, "A2": 0.6, "C2": 0.4}
+        params = {**MINIMAL_PARAMS, "A1": 0.7, "C1": 0.3, "E1": 0.0, "A2": 0.6, "C2": 0.4, "E2": 0.0}
         ped = run_simulation(**params)
         np.testing.assert_allclose(
             ped["liability1"].values,

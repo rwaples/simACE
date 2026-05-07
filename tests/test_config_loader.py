@@ -1,8 +1,17 @@
 """Unit tests for the hierarchical config flattening logic in simace.config."""
 
-import pytest
+from pathlib import Path
 
-from simace.config import flatten_hierarchical as _flatten_hierarchical
+import pytest
+import yaml
+
+from simace.config import (
+    flatten_hierarchical as _flatten_hierarchical,
+)
+from simace.config import (
+    resolve_defaults,
+    resolve_scenarios,
+)
 
 
 class TestFlattenPassthrough:
@@ -75,14 +84,19 @@ class TestFlattenPhenotype:
         assert result == {"phenotype_params1": params}
 
     def test_full_trait(self):
+        # PR3: prevalence lives inside per-model params (adult/cure_frailty only).
         d = {
             "phenotype": {
                 "trait1": {
                     "model": "cure_frailty",
-                    "params": {"distribution": "lognormal", "mu": 2.35, "sigma": 0.71},
+                    "params": {
+                        "distribution": "lognormal",
+                        "mu": 2.35,
+                        "sigma": 0.71,
+                        "prevalence": 0.05,
+                    },
                     "beta": 0.8,
                     "beta_sex": 0.5,
-                    "prevalence": 0.05,
                 },
             }
         }
@@ -90,13 +104,31 @@ class TestFlattenPhenotype:
         assert result["phenotype_model1"] == "cure_frailty"
         assert result["beta1"] == 0.8
         assert result["beta_sex1"] == 0.5
-        assert result["prevalence1"] == 0.05
+        assert result["phenotype_params1"]["prevalence"] == 0.05
         assert result["phenotype_params1"]["distribution"] == "lognormal"
 
     def test_sex_specific_prevalence_preserved(self):
-        d = {"phenotype": {"trait1": {"prevalence": {"female": 0.08, "male": 0.12}}}}
+        # PR3: prevalence is now a per-model param, not a top-level trait key.
+        d = {
+            "phenotype": {
+                "trait1": {
+                    "model": "adult",
+                    "params": {
+                        "method": "ltm",
+                        "prevalence": {"female": 0.08, "male": 0.12},
+                    },
+                }
+            }
+        }
         result = _flatten_hierarchical(d)
-        assert result == {"prevalence1": {"female": 0.08, "male": 0.12}}
+        assert result["phenotype_model1"] == "adult"
+        assert result["phenotype_params1"]["prevalence"] == {"female": 0.08, "male": 0.12}
+
+    def test_top_level_prevalence_rejected(self):
+        # PR3: top-level phenotype.traitN.prevalence is no longer accepted.
+        d = {"phenotype": {"trait1": {"prevalence": 0.05}}}
+        with pytest.raises(ValueError, match="no longer supported"):
+            _flatten_hierarchical(d)
 
 
 class TestFlattenOtherSections:
@@ -155,8 +187,6 @@ class TestRoundTrip:
     """Loading the actual _default.yaml and verifying it flattens to expected keys."""
 
     def test_default_yaml_flattens_to_expected_keys(self):
-        import yaml
-
         with open("config/_default.yaml") as f:
             raw = yaml.safe_load(f)
         defaults = raw["defaults"]
@@ -172,6 +202,8 @@ class TestRoundTrip:
             "G_sim",
             "standardize",
             "plot_format",
+            "drop_from",
+            "use_gene_drop",
             "mating_lambda",
             "p_mztwin",
             "assort1",
@@ -190,12 +222,10 @@ class TestRoundTrip:
             "phenotype_params1",
             "beta1",
             "beta_sex1",
-            "prevalence1",
             "phenotype_model2",
             "phenotype_params2",
             "beta2",
             "beta_sex2",
-            "prevalence2",
             "censor_age",
             "gen_censoring",
             "death_scale",
@@ -205,12 +235,18 @@ class TestRoundTrip:
             "pedigree_dropout_rate",
             "max_degree",
             "estimate_inbreeding",
+            "tstrait_num_causal",
+            "tstrait_frac_causal",
+            "tstrait_maf_threshold",
+            "tstrait_alpha",
+            "tstrait_effect_mean",
+            "tstrait_effect_var",
+            "tstrait_trait_id",
+            "tstrait_share_architecture",
         }
         assert set(flat.keys()) == expected_keys
 
     def test_default_yaml_values_match(self):
-        import yaml
-
         with open("config/_default.yaml") as f:
             raw = yaml.safe_load(f)
         flat = _flatten_hierarchical(raw["defaults"])
@@ -222,6 +258,260 @@ class TestRoundTrip:
         assert flat["phenotype_params1"]["distribution"] == "weibull"
         assert flat["phenotype_params1"]["scale"] == 2160
         assert flat["beta2"] == 1.5
-        assert flat["prevalence1"] == 0.10
+        # PR3: _default.yaml uses frailty for both traits, which carries no prevalence.
+        assert "prevalence" not in flat["phenotype_params1"]
         assert flat["censor_age"] == 80
         assert flat["death_scale"] == 164
+
+
+class TestGenCensoringCoercion:
+    """resolve_defaults / resolve_scenarios coerce gen_censoring keys to int.
+
+    YAML loads unquoted scalar keys per their parsed type, so a config that
+    quotes its generation keys (``'0': [80, 80]``) would otherwise reach
+    downstream code as ``str`` keys and break ``gen_censoring[gen_int]``
+    lookups.  The coercion makes wrappers and rules robust to the YAML quirk.
+    """
+
+    def _write(self, tmp_path: Path, name: str, body: dict) -> Path:
+        path = tmp_path / name
+        with open(path, "w") as fh:
+            yaml.safe_dump(body, fh)
+        return path
+
+    def test_resolve_defaults_string_keys_coerced(self, tmp_path):
+        body = {
+            "defaults": {
+                "seed": 1,
+                "censoring": {
+                    "max_age": 80,
+                    "gen_censoring": {"0": [80, 80], "1": [40, 80]},
+                    "death_scale": 164,
+                    "death_rho": 2.73,
+                },
+            }
+        }
+        self._write(tmp_path, "_default.yaml", body)
+        flat = resolve_defaults(tmp_path)
+        assert flat["gen_censoring"] == {0: [80, 80], 1: [40, 80]}
+        assert all(isinstance(k, int) for k in flat["gen_censoring"])
+
+    def test_resolve_defaults_int_keys_passthrough(self, tmp_path):
+        body = {
+            "defaults": {
+                "censoring": {
+                    "max_age": 80,
+                    "gen_censoring": {0: [80, 80], 1: [40, 80]},
+                    "death_scale": 164,
+                    "death_rho": 2.73,
+                },
+            }
+        }
+        self._write(tmp_path, "_default.yaml", body)
+        flat = resolve_defaults(tmp_path)
+        assert flat["gen_censoring"] == {0: [80, 80], 1: [40, 80]}
+
+    def test_resolve_scenarios_coerces_overrides(self, tmp_path):
+        # Defaults supply a complete config so per-folder overrides are valid.
+        defaults_body = {
+            "defaults": {
+                "seed": 42,
+                "replicates": 1,
+                "folder": "x",
+                "N": 100,
+                "G_ped": 4,
+                "G_pheno": 4,
+                "G_sim": 4,
+                "standardize": True,
+                "plot_format": "png",
+                "drop_from": 0,
+                "use_gene_drop": False,
+                "pedigree": {
+                    "mating_lambda": 0.5,
+                    "p_mztwin": 0.0,
+                    "assort1": 0.0,
+                    "assort2": 0.0,
+                    "assort_matrix": None,
+                    "trait1": {"A": 0.5, "C": 0.0, "E": 0.5},
+                    "trait2": {"A": 0.5, "C": 0.0, "E": 0.5},
+                    "rA": 0.0,
+                    "rC": 0.0,
+                    "rE": 0.0,
+                },
+                "phenotype": {
+                    "trait1": {
+                        "model": "frailty",
+                        "params": {"distribution": "weibull", "scale": 2000, "rho": 1.0},
+                        "beta": 1.0,
+                        "beta_sex": 0.0,
+                    },
+                    "trait2": {
+                        "model": "frailty",
+                        "params": {"distribution": "weibull", "scale": 2000, "rho": 1.0},
+                        "beta": 1.0,
+                        "beta_sex": 0.0,
+                    },
+                },
+                "censoring": {
+                    "max_age": 80,
+                    "gen_censoring": {0: [80, 80]},
+                    "death_scale": 164,
+                    "death_rho": 2.73,
+                },
+                "sampling": {"N_sample": 100, "case_ascertainment_ratio": 1.0, "pedigree_dropout_rate": 0.0},
+                "analysis": {"max_degree": 2, "estimate_inbreeding": False},
+                "tstrait": {
+                    "num_causal": 0,
+                    "frac_causal": 0.0,
+                    "maf_threshold": 0.0,
+                    "alpha": 0.0,
+                    "effect_mean": 0.0,
+                    "effect_var": 0.0,
+                    "trait_id": "t1",
+                    "share_architecture": False,
+                },
+            }
+        }
+        self._write(tmp_path, "_default.yaml", defaults_body)
+        scenario_body = {
+            "scen_quoted": {
+                "censoring": {
+                    "max_age": 80,
+                    "gen_censoring": {"2": [0, 80], "3": [0, 45]},
+                    "death_scale": 164,
+                    "death_rho": 2.73,
+                },
+            }
+        }
+        self._write(tmp_path, "x.yaml", scenario_body)
+        scenarios = resolve_scenarios(tmp_path)
+        assert scenarios["scen_quoted"]["gen_censoring"] == {2: [0, 80], 3: [0, 45]}
+
+    def test_real_default_yaml_keys_are_ints(self):
+        """The shipped _default.yaml round-trips to int keys via the loader."""
+        flat = resolve_defaults("config")
+        assert all(isinstance(k, int) for k in flat["gen_censoring"])
+
+
+class TestPedigreeConfigValidation:
+    """β config-load validator: reject scenarios whose effective E1/E2 is null."""
+
+    def _write(self, tmp_path: Path, name: str, body: dict) -> Path:
+        path = tmp_path / name
+        with open(path, "w") as fh:
+            yaml.safe_dump(body, fh)
+        return path
+
+    def _baseline_defaults(self) -> dict:
+        return {
+            "defaults": {
+                "seed": 42,
+                "replicates": 1,
+                "folder": "x",
+                "N": 100,
+                "G_ped": 2,
+                "G_pheno": 2,
+                "G_sim": 2,
+                "standardize": True,
+                "plot_format": "png",
+                "drop_from": 0,
+                "use_gene_drop": False,
+                "pedigree": {
+                    "mating_lambda": 0.5,
+                    "p_mztwin": 0.0,
+                    "assort1": 0.0,
+                    "assort2": 0.0,
+                    "assort_matrix": None,
+                    "trait1": {"A": 0.5, "C": 0.0, "E": 0.5},
+                    "trait2": {"A": 0.5, "C": 0.0, "E": 0.5},
+                    "rA": 0.0,
+                    "rC": 0.0,
+                    "rE": 0.0,
+                },
+                "phenotype": {
+                    "trait1": {
+                        "model": "frailty",
+                        "params": {"distribution": "weibull", "scale": 2000, "rho": 1.0},
+                        "beta": 1.0,
+                        "beta_sex": 0.0,
+                    },
+                    "trait2": {
+                        "model": "frailty",
+                        "params": {"distribution": "weibull", "scale": 2000, "rho": 1.0},
+                        "beta": 1.0,
+                        "beta_sex": 0.0,
+                    },
+                },
+                "censoring": {
+                    "max_age": 80,
+                    "gen_censoring": {0: [80, 80]},
+                    "death_scale": 164,
+                    "death_rho": 2.73,
+                },
+                "sampling": {"N_sample": 0, "case_ascertainment_ratio": 1.0, "pedigree_dropout_rate": 0.0},
+                "analysis": {"max_degree": 2, "estimate_inbreeding": False},
+                "tstrait": {
+                    "num_causal": 0,
+                    "frac_causal": 0.0,
+                    "maf_threshold": 0.0,
+                    "alpha": 0.0,
+                    "effect_mean": 0.0,
+                    "effect_var": 0.0,
+                    "trait_id": "t1",
+                    "share_architecture": False,
+                },
+            }
+        }
+
+    def test_baseline_defaults_pass(self, tmp_path):
+        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
+        self._write(tmp_path, "x.yaml", {"ok_scenario": {}})
+        scenarios = resolve_scenarios(tmp_path)
+        assert "ok_scenario" in scenarios
+
+    def test_scenario_E1_null_rejected(self, tmp_path):
+        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
+        self._write(
+            tmp_path,
+            "x.yaml",
+            {
+                "bad": {
+                    "pedigree": {
+                        "trait1": {"A": 0.5, "C": 0.0, "E": None},
+                    },
+                },
+            },
+        )
+        with pytest.raises(ValueError, match=r"Scenario 'bad'.*E1 is null"):
+            resolve_scenarios(tmp_path)
+
+    def test_scenario_E2_null_rejected(self, tmp_path):
+        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
+        self._write(
+            tmp_path,
+            "x.yaml",
+            {
+                "bad": {
+                    "pedigree": {
+                        "trait2": {"A": 0.5, "C": 0.0, "E": None},
+                    },
+                },
+            },
+        )
+        with pytest.raises(ValueError, match=r"Scenario 'bad'.*E2 is null"):
+            resolve_scenarios(tmp_path)
+
+    def test_defaults_E_null_rejected(self, tmp_path):
+        body = self._baseline_defaults()
+        body["defaults"]["pedigree"]["trait1"]["E"] = None
+        self._write(tmp_path, "_default.yaml", body)
+        self._write(tmp_path, "x.yaml", {"inheriting": {}})
+        with pytest.raises(ValueError, match=r"E1 is null"):
+            resolve_scenarios(tmp_path)
+
+    def test_scenario_inherits_default_E_passes(self, tmp_path):
+        """A scenario that omits E entirely inherits the (numeric) default."""
+        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
+        self._write(tmp_path, "x.yaml", {"inheriting": {"seed": 99}})
+        scenarios = resolve_scenarios(tmp_path)
+        assert scenarios["inheriting"]["seed"] == 99

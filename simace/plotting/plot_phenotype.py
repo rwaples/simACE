@@ -4,27 +4,16 @@ Reads phenotype_stats.yaml and phenotype_samples.parquet files (one per rep)
 produced by compute_phenotype_stats.py. No full phenotype parquet loading needed.
 """
 
-from __future__ import annotations
-
 __all__: list[str] = []
 
 import argparse
 import json
+import logging
 from pathlib import Path
 
 import pandas as pd
-import yaml
 
-from simace.core.utils import yaml_loader
-
-_yaml_loader = yaml_loader()
-
-import logging
-
-logger = logging.getLogger(__name__)
-
-MAX_PLOT_POINTS = 200_000
-
+from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_correlations import (
     plot_cross_trait_tetrachoric,
     plot_parent_offspring_liability,
@@ -64,6 +53,10 @@ from simace.plotting.plot_liability import (
 from simace.plotting.plot_pedigree_counts import plot_pedigree_relationship_counts
 from simace.plotting.plot_utils import save_placeholder_plot
 
+logger = logging.getLogger(__name__)
+
+MAX_PLOT_POINTS = 200_000
+
 
 def main(
     stats_paths: list[str],
@@ -84,10 +77,7 @@ def main(
 
     apply_nature_style()
 
-    all_stats = []
-    for p in stats_paths:
-        with open(p, encoding="utf-8") as f:
-            all_stats.append(yaml.load(f, Loader=_yaml_loader))
+    all_stats = [load_yaml(p) for p in stats_paths]
 
     df_samples = pd.concat([pd.read_parquet(p) for p in sample_paths], ignore_index=True)
     subsample_note = ""
@@ -102,10 +92,7 @@ def main(
     all_validations = None
     validation_params = None
     if validation_paths:
-        all_validations = []
-        for p in validation_paths:
-            with open(p, encoding="utf-8") as f:
-                all_validations.append(yaml.load(f, Loader=_yaml_loader))
+        all_validations = [load_yaml(p) for p in validation_paths]
         validation_params = all_validations[0].get("parameters", {})
 
     # Pedigree relationship pair counts

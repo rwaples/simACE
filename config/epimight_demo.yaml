@@ -20,18 +20,18 @@ demo_prev01:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
     trait2:
       model: adult
-      prevalence: 0.01
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.01
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -58,18 +58,18 @@ demo_prev05:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
     trait2:
       model: adult
-      prevalence: 0.05
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.05
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -96,18 +96,18 @@ demo_prev10:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
     trait2:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -134,18 +134,18 @@ demo_prev20:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
     trait2:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -172,18 +172,18 @@ demo_prev40:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
     trait2:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -210,18 +210,18 @@ demo_K1_prev20:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
     trait2:
       model: adult
-      prevalence: 0.2
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.2
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -248,18 +248,18 @@ demo_K1_prev40:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
     trait2:
       model: adult
-      prevalence: 0.4
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.4
   censoring:
     gen_censoring: {}
     death_scale: 1000000
@@ -286,18 +286,18 @@ demo_realistic:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
     trait2:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
   censoring:
     gen_censoring:
       2:
@@ -342,18 +342,18 @@ demo_realistic_ref:
   phenotype:
     trait1:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
     trait2:
       model: adult
-      prevalence: 0.1
       params:
         method: ltm
         cip_x0: 50
         cip_k: 0.15
+        prevalence: 0.1
   censoring:
     gen_censoring: {}
     death_scale: 1000000

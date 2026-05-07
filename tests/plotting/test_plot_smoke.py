@@ -4,15 +4,13 @@ Each test calls the render/plot function with minimal inputs and asserts
 a matplotlib Figure is returned and no figures leak.
 """
 
-from __future__ import annotations
-
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
 
-from simace.core.utils import PAIR_TYPES
+from simace.core.relationships import PAIR_TYPES
 
 matplotlib.use("Agg")
 
@@ -338,8 +336,10 @@ class TestPlotAtlasHelpers:
         ]
         for model, pp in cases:
             name, desc = _model_display_name(model, pp)
-            assert isinstance(name, str) and len(name) > 0, f"model={model}, pp={pp}"
-            assert isinstance(desc, str) and len(desc) > 0, f"model={model}, pp={pp}"
+            assert isinstance(name, str), f"model={model}, pp={pp}"
+            assert len(name) > 0, f"model={model}, pp={pp}"
+            assert isinstance(desc, str), f"model={model}, pp={pp}"
+            assert len(desc) > 0, f"model={model}, pp={pp}"
 
 
 # ---------------------------------------------------------------------------
