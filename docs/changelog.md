@@ -7,6 +7,60 @@ simACE uses [CalVer](https://calver.org/) versioning (`YYYY.MM`) derived from gi
 
 ## Unreleased
 
+## 2026.05.1 — 2026-05-07
+
+### Highlights
+
+1. **Phenotype model architecture.** Replaces much of the monolithic
+   phenotype dispatch with a `PhenotypeModel` ABC and separate model
+   modules for `frailty`, `cure_frailty`, `adult`, and `first_passage`.
+2. **Prevalence config moved into model params.** Threshold-style
+   prevalence is now model-owned under
+   `phenotype.traitN.params.prevalence`, with migration tooling and
+   validation for old top-level prevalence keys.
+3. **Hazard and standardization overhaul.** Adds a hazard registry,
+   three-way liability standardization (`none`, `global`,
+   `per_generation`), and per-trait `standardize_hazard` overrides for
+   hazard-bearing models.
+4. **Hierarchical config support.** Config loading now supports
+   sectioned YAML (`pedigree`, `phenotype`, `censoring`, `sampling`,
+   `analysis`, `tstrait`) while still flattening internally for
+   workflow use.
+5. **Snakemake wrapper simplification.** Adds shared Snakemake adapter
+   utilities, reduces repeated wrapper boilerplate, splits simulation
+   into pedigree/params stages, and adds an explicit `emit_params`
+   path.
+6. **Documentation + repo cleanup.** Moves docs fully into MkDocs,
+   adds concept/user-guide/example pages, refreshes API docs, removes
+   stale standalone docs and the public `notes/`, adds rule graph
+   generation, and updates README/setup docs for Python `>=3.13`.
+7. **Plotting and atlas refactor.** Introduces an atlas manifest,
+   collapses plot dispatch, updates captions, redesigns
+   tetrachoric/reference panels, and improves plot styling and example
+   figures.
+8. **Pipeline schema contracts.** Adds explicit DataFrame schema
+   contracts for pedigree → phenotype → censor/sample handoffs, plus a
+   `@stage` decorator to enforce and expose stage input/output
+   metadata.
+9. **PedigreeGraph externalized.** Removes internal pedigree graph and
+   kinship-kernel code in favor of the standalone `pedigree-graph`
+   package pinned at `v0.2.0`.
+10. **Stats package split.** The old `simace/analysis/stats.py` was
+    split into focused modules: correlations, tetrachoric, incidence,
+    censoring, pedigree, sampling, effective size, and runner
+    orchestration.
+11. **Effective population size estimators.** Adds per-replicate Ne
+    summaries, theoretical expectations for the ZTP mating model, and
+    validation/reference tests for those estimators.
+12. **Gene-drop + tstrait pipeline.** Adds a full tskit/tstrait branch
+    for realistic genotype inheritance: preprocessing SimHumanity
+    trees, fixed-pedigree drops, causal-effect assignment,
+    genetic-value calculation, and `A1` augmentation.
+
+Secondary theme: test coverage expanded across config loading,
+phenotyping models, tskit/tstrait, stats, core schema/stage helpers,
+workflow scripts, and plotting.
+
 ### Added
 
 - MkDocs documentation site with Material theme
