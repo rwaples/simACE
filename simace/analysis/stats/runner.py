@@ -40,6 +40,9 @@ from .correlations import (
 )
 from .incidence import (
     compute_cumulative_incidence,
+    compute_cumulative_incidence_aj,
+    compute_cumulative_incidence_aj_by_sex,
+    compute_cumulative_incidence_aj_by_sex_generation,
     compute_cumulative_incidence_by_sex,
     compute_cumulative_incidence_by_sex_generation,
     compute_joint_affection,
@@ -83,6 +86,13 @@ def main(
     stats["joint_affection"] = compute_joint_affection(df)
     stats["cumulative_incidence_by_sex"] = compute_cumulative_incidence_by_sex(df, censor_age)
     stats["cumulative_incidence_by_sex_generation"] = compute_cumulative_incidence_by_sex_generation(df, censor_age)
+    stats["cumulative_incidence_aj"] = compute_cumulative_incidence_aj(df, censor_age, gen_censoring=gen_censoring)
+    stats["cumulative_incidence_aj_by_sex"] = compute_cumulative_incidence_aj_by_sex(
+        df, censor_age, gen_censoring=gen_censoring
+    )
+    stats["cumulative_incidence_aj_by_sex_generation"] = compute_cumulative_incidence_aj_by_sex_generation(
+        df, censor_age, gen_censoring=gen_censoring
+    )
 
     if gen_censoring is not None:
         stats["censoring"] = compute_censoring_windows(df, censor_age, gen_censoring)

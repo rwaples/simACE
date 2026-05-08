@@ -273,6 +273,38 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         ),
     ),
     PlotEntry(
+        basename="cumulative_incidence_aj.phenotype",
+        title="Aalen-Johansen cumulative incidence (competing risks).",
+        body=(
+            "Two-panel figure, one per trait. Solid coloured line = Aalen-Johansen disease "
+            "cumulative incidence treating death as a competing event. Dashed grey line = "
+            "AJ death CIF. Light overlay = empirical observed CIF (#affected/n) for "
+            "comparison. Min-max band across replicates is shown for both AJ curves. The "
+            "annotation reports terminal AJ disease F(∞), AJ death F(∞), and overall survival "
+            "S(∞), which sum to 1 by construction. Per-generation observation windows "
+            "(``gen_censoring``) are honoured via delayed entry."
+        ),
+    ),
+    PlotEntry(
+        basename="cumulative_incidence_aj.by_sex",
+        title="Aalen-Johansen cumulative incidence by sex.",
+        body=(
+            "Two-panel figure, one per trait. Green line = female (sex=0), blue line = male "
+            "(sex=1) Aalen-Johansen disease CIF. Legend shows sample size and prevalence per "
+            "sex. Statistics computed on full (non-subsampled) data."
+        ),
+    ),
+    PlotEntry(
+        basename="cumulative_incidence_aj.by_sex.by_generation",
+        title="Aalen-Johansen cumulative incidence by sex and generation.",
+        body=(
+            "Grid: rows = traits, columns = generations. Each panel shows AJ disease CIF for "
+            "female (green) and male (blue) separately. Legend shows per-sex sample size and "
+            "prevalence within each generation. Per-generation observation windows are "
+            "honoured via delayed entry."
+        ),
+    ),
+    PlotEntry(
         basename="censoring",
         title="Censoring windows by generation.",
         body=(

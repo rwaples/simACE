@@ -44,6 +44,9 @@ from .effective_size import (
 )
 from .incidence import (
     compute_cumulative_incidence,
+    compute_cumulative_incidence_aj,
+    compute_cumulative_incidence_aj_by_sex,
+    compute_cumulative_incidence_aj_by_sex_generation,
     compute_cumulative_incidence_by_sex,
     compute_cumulative_incidence_by_sex_generation,
     compute_joint_affection,
@@ -64,6 +67,9 @@ __all__ = [
     "compute_censoring_windows",
     "compute_cross_trait_tetrachoric",
     "compute_cumulative_incidence",
+    "compute_cumulative_incidence_aj",
+    "compute_cumulative_incidence_aj_by_sex",
+    "compute_cumulative_incidence_aj_by_sex_generation",
     "compute_cumulative_incidence_by_sex",
     "compute_cumulative_incidence_by_sex_generation",
     "compute_effective_size",

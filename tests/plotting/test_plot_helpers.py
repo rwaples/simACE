@@ -421,3 +421,132 @@ class TestFinalizePaths:
         out = tmp_path / "ci_sex.png"
         plot_cumulative_incidence_by_sex(stats, out, scenario="test")
         assert out.exists()
+
+    def test_cumulative_incidence_aj(self, tmp_path, minimal_stats):
+        from simace.plotting.plot_distributions import plot_cumulative_incidence_aj
+
+        ages = list(range(100))
+        aj_vals = [i / 1000 for i in range(100)]
+        aj_death = [i / 2000 for i in range(100)]
+        aj_surv = [1.0 - aj_vals[i] - aj_death[i] for i in range(100)]
+        stats = [
+            {
+                **minimal_stats[0],
+                "cumulative_incidence_aj": {
+                    "trait1": {
+                        "ages": ages,
+                        "aj_values": aj_vals,
+                        "aj_death_values": aj_death,
+                        "aj_survival": aj_surv,
+                        "n": 100,
+                        "n_events_disease": 10,
+                        "n_events_death": 5,
+                        "half_target_age": 50.0,
+                    },
+                    "trait2": {
+                        "ages": ages,
+                        "aj_values": aj_vals,
+                        "aj_death_values": aj_death,
+                        "aj_survival": aj_surv,
+                        "n": 100,
+                        "n_events_disease": 8,
+                        "n_events_death": 5,
+                        "half_target_age": 55.0,
+                    },
+                },
+            }
+        ]
+        out = tmp_path / "ci_aj.png"
+        plot_cumulative_incidence_aj(stats, 100.0, out, scenario="test")
+        assert out.exists()
+        assert len(plt.get_fignums()) == 0
+
+    def test_cumulative_incidence_aj_by_sex(self, tmp_path):
+        from simace.plotting.plot_distributions import plot_cumulative_incidence_aj_by_sex
+
+        ages = list(range(100))
+        vals = [i / 1000 for i in range(100)]
+        deaths = [i / 2000 for i in range(100)]
+        surv = [1.0 - vals[i] - deaths[i] for i in range(100)]
+
+        def per_sex():
+            return {
+                "ages": ages,
+                "aj_values": vals,
+                "aj_death_values": deaths,
+                "aj_survival": surv,
+                "n": 50,
+                "n_events_disease": 5,
+                "n_events_death": 2,
+                "prevalence": 0.10,
+            }
+
+        stats = [
+            {
+                "cumulative_incidence_aj_by_sex": {
+                    "trait1": {"female": per_sex(), "male": per_sex()},
+                    "trait2": {"female": per_sex(), "male": per_sex()},
+                }
+            }
+        ]
+        out = tmp_path / "ci_aj_sex.png"
+        plot_cumulative_incidence_aj_by_sex(stats, out, scenario="test")
+        assert out.exists()
+
+    def test_cumulative_incidence_aj_by_sex_generation(self, tmp_path):
+        from simace.plotting.plot_distributions import plot_cumulative_incidence_aj_by_sex_generation
+
+        ages = list(range(100))
+        vals = [i / 1000 for i in range(100)]
+        deaths = [i / 2000 for i in range(100)]
+        surv = [1.0 - vals[i] - deaths[i] for i in range(100)]
+
+        def per_sex():
+            return {
+                "ages": ages,
+                "aj_values": vals,
+                "aj_death_values": deaths,
+                "aj_survival": surv,
+                "n": 25,
+                "n_events_disease": 2,
+                "n_events_death": 1,
+                "prevalence": 0.08,
+            }
+
+        stats = [
+            {
+                "cumulative_incidence_aj_by_sex_generation": {
+                    "trait1": {
+                        "gen0": {"female": per_sex(), "male": per_sex()},
+                        "gen1": {"female": per_sex(), "male": per_sex()},
+                    },
+                    "trait2": {
+                        "gen0": {"female": per_sex(), "male": per_sex()},
+                        "gen1": {"female": per_sex(), "male": per_sex()},
+                    },
+                }
+            }
+        ]
+        out = tmp_path / "ci_aj_sex_gen.png"
+        plot_cumulative_incidence_aj_by_sex_generation(stats, out, scenario="test")
+        assert out.exists()
+
+    def test_cumulative_incidence_aj_missing_keys_placeholder(self, tmp_path, minimal_stats):
+        """When stats lack the AJ keys, the plot must produce a placeholder, not crash."""
+        from simace.plotting.plot_distributions import (
+            plot_cumulative_incidence_aj,
+            plot_cumulative_incidence_aj_by_sex,
+            plot_cumulative_incidence_aj_by_sex_generation,
+        )
+
+        out1 = tmp_path / "aj_missing.png"
+        plot_cumulative_incidence_aj(minimal_stats, 100.0, out1, scenario="test")
+        assert out1.exists()
+
+        out2 = tmp_path / "aj_sex_missing.png"
+        plot_cumulative_incidence_aj_by_sex([{}], out2, scenario="test")
+        assert out2.exists()
+
+        out3 = tmp_path / "aj_sex_gen_missing.png"
+        plot_cumulative_incidence_aj_by_sex_generation([{}], out3, scenario="test")
+        assert out3.exists()

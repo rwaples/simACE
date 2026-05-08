@@ -24,6 +24,9 @@ from simace.plotting.plot_correlations import (
 from simace.plotting.plot_distributions import (
     plot_censoring_windows,
     plot_cumulative_incidence,
+    plot_cumulative_incidence_aj,
+    plot_cumulative_incidence_aj_by_sex,
+    plot_cumulative_incidence_aj_by_sex_generation,
     plot_cumulative_incidence_by_sex,
     plot_cumulative_incidence_by_sex_generation,
     plot_death_age_distribution,
@@ -212,6 +215,22 @@ def main(
     plot_cumulative_incidence_by_sex_generation(
         all_stats,
         out_dir / f"cumulative_incidence.by_sex.by_generation.{ext}",
+        scenario,
+    )
+    plot_cumulative_incidence_aj(
+        all_stats,
+        censor_age,
+        out_dir / f"cumulative_incidence_aj.phenotype.{ext}",
+        scenario,
+    )
+    plot_cumulative_incidence_aj_by_sex(
+        all_stats,
+        out_dir / f"cumulative_incidence_aj.by_sex.{ext}",
+        scenario,
+    )
+    plot_cumulative_incidence_aj_by_sex_generation(
+        all_stats,
+        out_dir / f"cumulative_incidence_aj.by_sex.by_generation.{ext}",
         scenario,
     )
     plot_joint_affection(
