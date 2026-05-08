@@ -235,6 +235,7 @@ class TestRoundTrip:
             "pedigree_dropout_rate",
             "max_degree",
             "estimate_inbreeding",
+            "skip_full_kinship_matrix",
             "tstrait_num_causal",
             "tstrait_frac_causal",
             "tstrait_maf_threshold",

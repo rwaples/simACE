@@ -171,6 +171,7 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
 def compute_effective_size(
     pedigree: pd.DataFrame | PedigreeGraph,
     config: dict[str, Any] | None = None,
+    skip_full_kinship_matrix: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """Run all eight Ne estimators on ``pedigree`` and serialize to dicts.
 
@@ -181,6 +182,10 @@ def compute_effective_size(
             constructed one for relationship extraction.
         config: Per-rep params (e.g. loaded from ``params.yaml``).
             Used solely to derive theoretical expectations.
+        skip_full_kinship_matrix: forwarded to :func:`compute_all_ne`.
+            When True, ``ne_coancestry`` is reported as None (skipped)
+            and the full sparse kinship matrix is never built — required
+            on very large pedigrees where K would OOM.
 
     Returns:
         Dict keyed on estimator name; each value is the matching
@@ -188,7 +193,7 @@ def compute_effective_size(
         field (``float`` or ``None``).
     """
     pg = pedigree if isinstance(pedigree, PedigreeGraph) else PedigreeGraph(pedigree)
-    raw = compute_all_ne(pg)
+    raw = compute_all_ne(pg, skip_full_kinship_matrix=skip_full_kinship_matrix)
     expected = theoretical_expectations(config)
     out: dict[str, dict[str, Any]] = {}
     for name, result in raw.items():
@@ -203,6 +208,7 @@ def main(
     phenotype_path: str,
     params_path: str,
     output_path: str,
+    skip_full_kinship_matrix: bool = False,
 ) -> None:
     """Compute Ne for one rep and write ``effective_size.yaml``.
 
@@ -219,7 +225,9 @@ def main(
 
     df_observed = filter_pedigree_to_observed(df_ped, df_phe["id"].to_numpy())
     pg = PedigreeGraph(df_observed)
-    result = compute_effective_size(pg, config=params)
+    result = compute_effective_size(
+        pg, config=params, skip_full_kinship_matrix=skip_full_kinship_matrix
+    )
 
     dump_yaml(result, output_path)
 
@@ -232,6 +240,17 @@ def cli() -> None:
     parser.add_argument("--phenotype", required=True, help="Sampled phenotype parquet (defines observed set)")
     parser.add_argument("--params", required=True, help="Per-rep params.yaml")
     parser.add_argument("--output", required=True, help="Output effective_size.yaml")
+    parser.add_argument(
+        "--skip-full-kinship-matrix",
+        action="store_true",
+        help="Skip building the full sparse kinship matrix; ne_coancestry is reported as None.",
+    )
     args = parser.parse_args()
     init_logging(args)
-    main(args.pedigree, args.phenotype, args.params, args.output)
+    main(
+        args.pedigree,
+        args.phenotype,
+        args.params,
+        args.output,
+        skip_full_kinship_matrix=args.skip_full_kinship_matrix,
+    )

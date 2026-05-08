@@ -12,6 +12,10 @@ rule effective_size_phenotype:
 The phenotype.sampled.parquet is `temp()` upstream — opting in after a
 normal stats run will trigger a sample-step rebuild (cheap; phenotype
 and earlier files are persistent).
+
+`skip_full_kinship_matrix`: per-scenario opt-in (default False).  When
+True, ne_coancestry is skipped (full sparse K not built) — required on
+very large pedigrees where K would OOM.
 """
     input:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
@@ -23,6 +27,8 @@ and earlier files are persistent).
         "logs/{folder}/{scenario}/rep{rep}/effective_size.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/effective_size.tsv"
+    params:
+        skip_full_kinship_matrix=lambda w: get_param(config, w.scenario, "skip_full_kinship_matrix"),
     threads: 1  # compute_all_ne is sequential numba DP; no internal parallelism.
     resources:
         # Reuses stats_phenotype's scaling factor.  At very large N the sparse
