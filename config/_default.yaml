@@ -95,7 +95,7 @@ defaults:
     # When true, the effective_size rule skips building the full sparse
     # kinship matrix and reports ne_coancestry as None.  Required at very
     # large N (e.g. baseline1M) where K would OOM.
-    skip_full_kinship_matrix: false
+    skip_ne_coancestry: false
 
   # ── tstrait quantitative phenotype (per-chrom drop+graft .trees) ────────
   # Operates on the per-chrom genotype_drop outputs. Uses a shared founder-AF

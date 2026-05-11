@@ -171,7 +171,7 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
 def compute_effective_size(
     pedigree: pd.DataFrame | PedigreeGraph,
     config: dict[str, Any] | None = None,
-    skip_full_kinship_matrix: bool = False,
+    skip_ne_coancestry: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """Run all eight Ne estimators on ``pedigree`` and serialize to dicts.
 
@@ -182,7 +182,7 @@ def compute_effective_size(
             constructed one for relationship extraction.
         config: Per-rep params (e.g. loaded from ``params.yaml``).
             Used solely to derive theoretical expectations.
-        skip_full_kinship_matrix: forwarded to :func:`compute_all_ne`.
+        skip_ne_coancestry: forwarded to :func:`compute_all_ne`.
             When True, ``ne_coancestry`` is reported as None (skipped)
             and the full sparse kinship matrix is never built — required
             on very large pedigrees where K would OOM.
@@ -193,7 +193,7 @@ def compute_effective_size(
         field (``float`` or ``None``).
     """
     pg = pedigree if isinstance(pedigree, PedigreeGraph) else PedigreeGraph(pedigree)
-    raw = compute_all_ne(pg, skip_full_kinship_matrix=skip_full_kinship_matrix)
+    raw = compute_all_ne(pg, skip_ne_coancestry=skip_ne_coancestry)
     expected = theoretical_expectations(config)
     # Hill 1979's closed-form Ne_V passthrough only applies under the
     # strictly-discrete simACE simulator (L = 1).  When pg.birth_year is
@@ -215,7 +215,7 @@ def main(
     phenotype_path: str,
     params_path: str,
     output_path: str,
-    skip_full_kinship_matrix: bool = False,
+    skip_ne_coancestry: bool = False,
 ) -> None:
     """Compute Ne for one rep and write ``effective_size.yaml``.
 
@@ -233,7 +233,7 @@ def main(
     df_observed = filter_pedigree_to_observed(df_ped, df_phe["id"].to_numpy())
     pg = PedigreeGraph(df_observed)
     result = compute_effective_size(
-        pg, config=params, skip_full_kinship_matrix=skip_full_kinship_matrix
+        pg, config=params, skip_ne_coancestry=skip_ne_coancestry
     )
 
     dump_yaml(result, output_path)
@@ -259,5 +259,5 @@ def cli() -> None:
         args.phenotype,
         args.params,
         args.output,
-        skip_full_kinship_matrix=args.skip_full_kinship_matrix,
+        skip_ne_coancestry=args.skip_ne_coancestry,
     )

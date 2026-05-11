@@ -13,7 +13,7 @@ The phenotype.sampled.parquet is `temp()` upstream — opting in after a
 normal stats run will trigger a sample-step rebuild (cheap; phenotype
 and earlier files are persistent).
 
-`skip_full_kinship_matrix`: per-scenario opt-in (default False).  When
+`skip_ne_coancestry`: per-scenario opt-in (default False).  When
 True, ne_coancestry is skipped (full sparse K not built) — required on
 very large pedigrees where K would OOM.
 """
@@ -28,7 +28,7 @@ very large pedigrees where K would OOM.
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/effective_size.tsv"
     params:
-        skip_full_kinship_matrix=lambda w: get_param(config, w.scenario, "skip_full_kinship_matrix"),
+        skip_ne_coancestry=lambda w: get_param(config, w.scenario, "skip_ne_coancestry"),
     threads: 1  # compute_all_ne is sequential numba DP; no internal parallelism.
     resources:
         # Reuses stats_phenotype's scaling factor.  At very large N the sparse

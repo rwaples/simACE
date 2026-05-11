@@ -65,7 +65,7 @@ _HIERARCHICAL_TO_FLAT: dict[tuple[str, ...], str] = {
     # analysis section
     ("analysis", "max_degree"): "max_degree",
     ("analysis", "estimate_inbreeding"): "estimate_inbreeding",
-    ("analysis", "skip_full_kinship_matrix"): "skip_full_kinship_matrix",
+    ("analysis", "skip_ne_coancestry"): "skip_ne_coancestry",
     # tstrait section
     ("tstrait", "num_causal"): "tstrait_num_causal",
     ("tstrait", "frac_causal"): "tstrait_frac_causal",

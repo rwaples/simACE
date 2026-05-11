@@ -13,7 +13,7 @@ def _run() -> None:
         phenotype_path=snakemake.input.phenotype,
         params_path=snakemake.input.params,
         output_path=snakemake.output.stats,
-        skip_full_kinship_matrix=snakemake.params.skip_full_kinship_matrix,
+        skip_ne_coancestry=snakemake.params.skip_ne_coancestry,
     )
 
 
