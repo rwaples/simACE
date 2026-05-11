@@ -198,6 +198,34 @@ class TestComputeEffectiveSize:
         assert len(result["ne_coancestry"]["mean_theta_per_gen"]) == n_gens
         assert len(result["ne_sex_ratio"]["n_male_per_gen"]) == n_gens
 
+    def test_ne_hill_birth_year_branch_round_trips(self, tiny_pedigree):
+        # Add a synthetic birth_year column so the wrapper engages the
+        # Hill 1979 eq. (10) branch.  In simACE, generations are
+        # strictly discrete so this is artificial — but the wrapper
+        # contract is what we're testing.
+        df = tiny_pedigree.copy()
+        df["birth_year"] = df["generation"].astype(int) * 5 + 2000
+        result = compute_effective_size(df)
+        h = result["ne_hill_overlapping"]
+        assert h["collapses_to_ne_v"] is False
+        assert h["cohort_window"] is not None
+        assert h["T_m"] is not None
+        # When birth_year is set, the analytic Ne_V expectation no longer
+        # applies → expected must be overridden to None.
+        assert h["expected"] is None
+
+    def test_ne_hill_expected_overridden_to_none_when_birth_year_set(self, tiny_pedigree):
+        # Even when a config that would normally set an expectation is
+        # passed, the birth-year branch overrides it to None because no
+        # closed-form expectation exists for Hill 1979 eq. (10).
+        cfg = {"N": 200, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5, "G_ped": 20}
+        df = tiny_pedigree.copy()
+        df["birth_year"] = df["generation"].astype(int) * 5 + 2000
+        result = compute_effective_size(df, config=cfg)
+        assert result["ne_hill_overlapping"]["expected"] is None
+        # Other estimators still receive their expected values.
+        assert result["ne_variance_family_size"]["expected"] is not None
+
 
 # ---------------------------------------------------------------------------
 # validate_effective_size

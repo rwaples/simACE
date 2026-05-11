@@ -195,6 +195,13 @@ def compute_effective_size(
     pg = pedigree if isinstance(pedigree, PedigreeGraph) else PedigreeGraph(pedigree)
     raw = compute_all_ne(pg, skip_full_kinship_matrix=skip_full_kinship_matrix)
     expected = theoretical_expectations(config)
+    # Hill 1979's closed-form Ne_V passthrough only applies under the
+    # strictly-discrete simACE simulator (L = 1).  When pg.birth_year is
+    # set, ne_hill_overlapping computes the true overlapping-generation
+    # form (Hill 1979 eq. 10) with a non-trivial L; no analytic
+    # expectation is available, so the validator passes vacuously.
+    if pg.birth_year is not None:
+        expected["ne_hill_overlapping"] = None
     out: dict[str, dict[str, Any]] = {}
     for name, result in raw.items():
         d = result.to_dict()
