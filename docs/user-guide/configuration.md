@@ -131,6 +131,7 @@ sampling:
 analysis:
   max_degree: 2
   estimate_inbreeding: false
+  skip_ne_coancestry: false
 ```
 
 | Parameter | Description |
@@ -140,6 +141,7 @@ analysis:
 | `sampling.pedigree_dropout_rate` | Fraction of individuals removed from the pedigree before downstream stages |
 | `analysis.max_degree` | Maximum relationship degree to extract |
 | `analysis.estimate_inbreeding` | Compute exact inbreeding coefficients and exact pairwise kinship |
+| `analysis.skip_ne_coancestry` | Skip the Ne_C (coancestry-rate) estimator and its kinship DP. The remaining seven Ne estimators still run. Useful on very large pedigrees when only F-based and family-size estimators are needed. |
 
 ## tstrait and gene drop
 
