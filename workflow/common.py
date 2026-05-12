@@ -17,13 +17,19 @@ from simace.config import (
     resolve_defaults,
     resolve_scenarios,
 )
-from simace.plotting.atlas_manifest import phenotype_basenames, validation_basenames
+from simace.plotting.atlas_manifest import (
+    effective_size_basenames,
+    phenotype_basenames,
+    validation_basenames,
+)
 
 # Re-export names used directly by Snakemake rule files and existing tests.
 __all__ = [
     "KNOWN_SIM_KEYS",
     "_scale_mem",
+    "_scale_mem_effective_size",
     "_scale_runtime",
+    "effective_size_basenames",
     "flatten_hierarchical",
     "get_all_folders",
     "get_folder",
@@ -69,6 +75,60 @@ def _scale_runtime(config: dict, scenario: str, gen_key: str = "G_pheno", min_pe
     n = get_param(config, scenario, "N")
     g = get_param(config, scenario, gen_key)
     return max(floor, int(n * g * min_per_1M / 1_000_000))
+
+
+def _scale_mem_effective_size(config: dict, scenario: str) -> int:
+    """Memory budget for ``effective_size_phenotype`` (MB).
+
+    Two regimes after the streaming-θ refactor (notes/ne_next_steps.plan.md
+    Phase 2):
+
+    ``skip_ne_coancestry: true`` (α path)
+        All seven non-coancestry estimators run; no DP, no CSC.  Phase 1b
+        profile at G_ped=6 (scripts/profile_no_k_path.py) measured peak
+        RSS of 0.36 GB at N=100K per-gen and 1.62 GB at N=1M per-gen,
+        yielding ``peak_mb ≈ 0.0016 · N + 320``.  The dominant
+        contributor is ``_caballero_toro_accumulators``.  Scales linearly
+        with ``(G_ped + 1) / 7`` for depths other than 6.
+
+    ``skip_ne_coancestry: false`` (β path)
+        Ne_C runs via streaming θ̄ (plan 3); no K materialized but DP
+        scratch dominates.  Initial guess based on May 10 K-build
+        numbers minus the ~3.3 GB CSC: ``peak_mb ≈ 0.085 · N + 320``.
+        **Provisional** — recalibrate once Phase 5a's 100K + 500K
+        benches land.
+
+    A 50 % safety margin is applied so Snakemake throttles parallel jobs
+    against ``--resources mem_mb``.  The β-path DP's ``_grow_global``
+    geometric-doubling event briefly holds both the old half-size and
+    new full-size buffers simultaneously, lifting transient RSS ~20 %
+    above the steady-state working set; the May-12 baseline100K bench
+    measured ``max_rss = 12.7 GB`` against an 8.8 GB steady-state
+    estimate (1.44×).  1.5× covers that spike plus ~10 % rep-to-rep
+    variance with ~2σ of headroom.
+
+    Args:
+        config: Snakemake config dict.
+        scenario: Scenario name.
+
+    Returns:
+        Memory budget in MB; floors at 4 GB for tiny scenarios.
+    """
+    n = get_param(config, scenario, "N")
+    g = get_param(config, scenario, "G_ped")
+    skip = bool(get_param(config, scenario, "skip_ne_coancestry"))
+    if skip:
+        # α path — calibrated against Phase 1b profile.  No DP doubling
+        # spike here, so 1.2 × is still enough headroom for the α path.
+        per_indiv_mb = 0.0016 * ((g + 1) / 7.0)
+        safety = 1.2
+    else:
+        # β path — streaming-θ DP scratch dominates.  PROVISIONAL.
+        # 1.5 × accounts for the _grow_global doubling event.
+        per_indiv_mb = 0.085 * (g / 6.0)
+        safety = 1.5
+    peak = per_indiv_mb * n + 320.0
+    return max(4000, int(peak * safety))
 
 
 def plot_filenames(basenames: list[str], ext: str = "png") -> list[str]:

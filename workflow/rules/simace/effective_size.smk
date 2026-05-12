@@ -31,10 +31,12 @@ very large pedigrees where K would OOM.
         skip_ne_coancestry=lambda w: get_param(config, w.scenario, "skip_ne_coancestry"),
     threads: 1  # compute_all_ne is sequential numba DP; no internal parallelism.
     resources:
-        # Reuses stats_phenotype's scaling factor.  At very large N the sparse
-        # kinship matrix may dominate — bump the G_ped multiplier in
-        # _scale_mem if this OOMs on bigger scenarios.
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
+        # Streaming-θ DP (and the optional kinship matrix path) dominates RAM
+        # at large N; _scale_mem_effective_size is the calibrated estimate
+        # (α path or β path depending on skip_ne_coancestry).  The generic
+        # _scale_mem floor of 4 GB underestimates by 2-3× at N=100K and
+        # lets Snakemake over-parallelize into OOM.
+        mem_mb=lambda w: _scale_mem_effective_size(config, w.scenario),
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
     script:
         "../../scripts/simace/compute_effective_size.py"
