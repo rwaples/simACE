@@ -1339,7 +1339,7 @@ def cli() -> None:
         "--assort-matrix",
         type=str,
         default=None,
-        help='Optional 2x2 mate correlation matrix as JSON, e.g. \'[[0.3, 0.05], [0.05, 0.15]]\'',
+        help="Optional 2x2 mate correlation matrix as JSON, e.g. '[[0.3, 0.05], [0.05, 0.15]]'",
     )
     parser.add_argument("--output-pedigree", required=True, help="Output pedigree parquet path")
     parser.add_argument("--output-params", required=True, help="Output params YAML path")

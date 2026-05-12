@@ -35,12 +35,24 @@ class TestEmitParamsShape:
     def test_returns_dict_with_expected_keys(self, baseline_kwargs):
         out = emit_params(**baseline_kwargs)
         expected = {
-            "seed", "rep",
-            "A1", "C1", "E1", "A2", "C2", "E2",
-            "rA", "rC", "rE",
-            "N", "G_ped", "G_sim",
-            "mating_lambda", "p_mztwin",
-            "assort1", "assort2",
+            "seed",
+            "rep",
+            "A1",
+            "C1",
+            "E1",
+            "A2",
+            "C2",
+            "E2",
+            "rA",
+            "rC",
+            "rE",
+            "N",
+            "G_ped",
+            "G_sim",
+            "mating_lambda",
+            "p_mztwin",
+            "assort1",
+            "assort2",
         }
         assert set(out.keys()) == expected
 
