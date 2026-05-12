@@ -15,6 +15,7 @@ from __future__ import annotations
 __all__ = [
     "cli",
     "compute_effective_size",
+    "family_size_variance_expected_ztp",
     "main",
     "ne_v_expected_ztp",
     "regression_estimator_regime_ok",
@@ -85,6 +86,44 @@ def ne_v_expected_ztp(n: float, mating_lambda: float) -> float:
     e_m = mating_lambda / p
     var_m = e_m * (1.0 + mating_lambda) - e_m * e_m
     return float(n) / (1.0 + 2.0 * var_m / (e_m * e_m))
+
+
+def family_size_variance_expected_ztp(mating_lambda: float) -> dict[str, float]:
+    """Closed-form ``(v, cov)`` per-sex-quadrant family-size decomposition.
+
+    Splits :func:`ne_v_expected_ztp`'s total offspring-count variance
+    ``V(k) = 2 + 4 · Var[m] / E[m]²`` into the per-(parent-sex ×
+    offspring-sex) variance ``v`` and the between-offspring-sex
+    covariance ``cov`` reported by :func:`pedigree_graph.ne_variance_family_size`.
+
+    Under balanced 50/50 offspring sex assignment within each mating
+    (``k_M | k ~ Binomial(k, 0.5)``), the law of total variance gives
+
+        ``v   = E[k]/4 + V(k)/4 = 1 + Var[m] / E[m]²``,
+        ``cov = -E[k]/4 + V(k)/4 = Var[m] / E[m]²``,
+
+    so that ``2 · v + 2 · cov = V(k)`` and downstream Ne_V is consistent
+    with :func:`ne_v_expected_ztp`.  All four quadrants
+    (``v_mm = v_mf = v_fm = v_ff``) share the same closed-form ``v``,
+    and both covariances (``cov_m = cov_f``) share the same ``cov``,
+    because the parent and offspring sex labels are exchangeable under
+    the balanced-mating regime.
+
+    Limits:
+        * ``λ → 0⁺``: ``v = 1``, ``cov = 0`` (m=1 degenerate; pure
+          binomial sex split, no overdispersion).
+        * ``λ → ∞``: ``v = 1``, ``cov = 0`` (Poisson limit).
+        * Default ``λ = 0.5``: ``v ≈ 1.180``, ``cov ≈ 0.180``.
+
+    Returns a dict with keys ``"v"`` and ``"cov"``.
+    """
+    if mating_lambda <= 0:
+        return {"v": 1.0, "cov": 0.0}
+    p = 1.0 - math.exp(-mating_lambda)
+    e_m = mating_lambda / p
+    var_m = e_m * (1.0 + mating_lambda) - e_m * e_m
+    ratio = var_m / (e_m * e_m)
+    return {"v": 1.0 + ratio, "cov": ratio}
 
 
 def regression_estimator_regime_ok(n: float, g_ped: int, ne_v: float) -> bool:
