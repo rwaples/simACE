@@ -204,6 +204,7 @@ class TestRoundTrip:
             "plot_format",
             "drop_from",
             "use_gene_drop",
+            "blended_diagnosis",
             "mating_lambda",
             "p_mztwin",
             "assort1",

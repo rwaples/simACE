@@ -69,6 +69,54 @@ def test_per_gen_E_uses_raw_iter_keys():
 
 
 @pytest.mark.regression
+def test_per_gen_assort1_dict_accepted():
+    """assort1 as a per-gen dict should be accepted (not rejected as invalid scalar).
+
+    Tests the resolver accepts dicts for assort1/assort2 and threads per-iter
+    values into the mating loop. Smoke-only — does not assert on observed
+    spousal correlation, which is noisy at small N.
+    """
+    pedigree = run_simulation(
+        N=200,
+        G_ped=4,
+        G_sim=8,
+        seed=99,
+        A1=0.5, A2=0.5, rA=0.0,
+        C1=0.0, C2=0.0, rC=0.0,
+        rE=0.0,
+        E1=0.5, E2=0.5,
+        mating_lambda=0.5,
+        p_mztwin=0.0,
+        # Raw-iter keyed AM schedule. Forward-filled: iters 0..3 → 0, 4..7 → 0.4.
+        assort1={0: 0.0, 4: 0.4},
+        assort2={0: 0.0, 4: 0.4},
+    )
+    assert len(pedigree) == 200 * 4, "expected N * G_ped rows"
+    assert set(pedigree["generation"].unique()) == {0, 1, 2, 3}
+
+
+@pytest.mark.regression
+def test_assort_matrix_rejects_per_gen_assort_dict():
+    """assort_matrix is incompatible with per-gen assort dicts (v1 restriction)."""
+    with pytest.raises(ValueError, match="assort_matrix is incompatible"):
+        run_simulation(
+            N=100,
+            G_ped=3,
+            G_sim=4,
+            seed=11,
+            A1=0.5, A2=0.5, rA=0.0,
+            C1=0.0, C2=0.0, rC=0.0,
+            rE=0.0,
+            E1=0.5, E2=0.5,
+            mating_lambda=0.5,
+            p_mztwin=0.0,
+            assort1={0: 0.0, 2: 0.3},
+            assort2=0.3,
+            assort_matrix=[[0.3, 0.1], [0.1, 0.3]],
+        )
+
+
+@pytest.mark.regression
 def test_per_gen_E_with_dense_raw_iter_schedule():
     """Dense raw-iter schedule lets us target specific output generations.
 

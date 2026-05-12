@@ -182,8 +182,8 @@ def _get_param_rows(
             rows.append(("[rA, rC]", f"[{ra:g}, {rc:g}]"))
             continue
         if name == "_assort":
-            a1 = float(params.get("assort1", 0))
-            a2 = float(params.get("assort2", 0))
+            a1 = param_as_float(params.get("assort1", 0))
+            a2 = param_as_float(params.get("assort2", 0))
             if a1 != 0 or a2 != 0:
                 rows.append(("[assort1, assort2]", f"[{a1:g}, {a2:g}]"))
             continue

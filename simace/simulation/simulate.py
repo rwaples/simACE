@@ -46,7 +46,12 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
-def resolve_per_gen_param(value: float | dict[int, float], G: int, name: str = "param") -> list[float]:
+def resolve_per_gen_param(
+    value: float | dict[int, float],
+    G: int,
+    name: str = "param",
+    allow_negative: bool = False,
+) -> list[float]:
     """Resolve a variance-component parameter to a per-generation list.
 
     Args:
@@ -55,17 +60,21 @@ def resolve_per_gen_param(value: float | dict[int, float], G: int, name: str = "
                forward-filled from the most recent earlier key.
         G: total number of generations to resolve for (indices 0..G-1).
         name: parameter name, used in error messages.
+        allow_negative: if False (default), values must be ≥ 0. Set True for
+            parameters with a natural negative range (e.g. assortative-mating
+            correlations).
 
     Returns:
         List of length *G* with the resolved value for each generation.
 
     Raises:
-        ValueError: if any resolved value is negative or if a dict has no
-            key <= 0 (so generation 0 would be undefined).
+        ValueError: if any resolved value is negative (and allow_negative is
+            False) or if a dict has no key <= 0 (so generation 0 would be
+            undefined).
     """
     if isinstance(value, (int, float)):
         v = float(value)
-        if v < 0:
+        if not allow_negative and v < 0:
             raise ValueError(f"{name} must be >= 0, got {v}")
         return [v] * G
 
@@ -81,10 +90,11 @@ def resolve_per_gen_param(value: float | dict[int, float], G: int, name: str = "
         raise ValueError(
             f"{name} dict must have a key <= 0 so generation 0 is defined; smallest key is {sorted_keys[0]}"
         )
-    for k in sorted_keys:
-        v = float(value[k])
-        if v < 0:
-            raise ValueError(f"{name}[{k}] must be >= 0, got {v}")
+    if not allow_negative:
+        for k in sorted_keys:
+            v = float(value[k])
+            if v < 0:
+                raise ValueError(f"{name}[{k}] must be >= 0, got {v}")
 
     # Forward-fill
     result = [0.0] * G
@@ -1035,8 +1045,8 @@ def run_simulation(
     E1: float | dict[int, float],
     E2: float | dict[int, float],
     G_sim: int | None = None,
-    assort1: float = 0.0,
-    assort2: float = 0.0,
+    assort1: float | dict[int, float] = 0.0,
+    assort2: float | dict[int, float] = 0.0,
     assort_matrix: list[list[float]] | np.ndarray | None = None,
 ) -> pd.DataFrame:
     """Run the full ACE simulation for two correlated traits.
@@ -1066,9 +1076,14 @@ def run_simulation(
         G_sim: Total generations to simulate (default: G_ped). First G_sim - G_ped
                generations are burn-in and discarded from output.
         assort1: Target mate Pearson correlation on trait 1 liability, in [-1, 1].
-        assort2: Target mate Pearson correlation on trait 2 liability, in [-1, 1].
+            Scalar (constant across generations) or dict mapping raw simulation
+            iteration → value (forward-filled, same coordinate system as E/C).
+            **Mutually exclusive with ``assort_matrix``** — pass scalar AM if
+            you want a fixed 2x2 mate-correlation matrix.
+        assort2: Same format as assort1, for trait 2.
         assort_matrix: Optional full 2x2 mate correlation matrix R_mf.
-            Overrides assort1/assort2 diagonal with matrix diagonal.
+            Overrides assort1/assort2 diagonal with matrix diagonal. Only
+            valid when both assort1 and assort2 are scalars.
 
     Returns:
         Pedigree DataFrame with columns id, sex, mother, father, twin,
@@ -1100,10 +1115,30 @@ def run_simulation(
         raise ValueError(f"rC must be in [-1, 1], got {rC}")
     if not (-1 <= rE <= 1):
         raise ValueError(f"rE must be in [-1, 1], got {rE}")
-    if not (-1 <= assort1 <= 1):
-        raise ValueError(f"assort1 must be in [-1, 1], got {assort1}")
-    if not (-1 <= assort2 <= 1):
-        raise ValueError(f"assort2 must be in [-1, 1], got {assort2}")
+    # assort1/assort2 may be scalar or per-gen dict (raw-iter keyed,
+    # forward-filled). Validate each before resolving.
+    def _validate_assort_value(name: str, value: float | dict[int, float]) -> None:
+        if isinstance(value, dict):
+            for k, v in value.items():
+                if not (-1 <= float(v) <= 1):
+                    raise ValueError(f"{name}[{k}] must be in [-1, 1], got {v}")
+        elif not (-1 <= float(value) <= 1):
+            raise ValueError(f"{name} must be in [-1, 1], got {value}")
+
+    _validate_assort_value("assort1", assort1)
+    _validate_assort_value("assort2", assort2)
+
+    # Per-gen assort dicts are incompatible with a fixed `assort_matrix`
+    # because the matrix specifies one off-diagonal cross-AM, while per-gen
+    # AM implies the cross-AM also varies per generation. v1 rejects this
+    # combination — users wanting a fixed cross-AM must use scalar
+    # assort1/assort2.
+    if assort_matrix is not None and (isinstance(assort1, dict) or isinstance(assort2, dict)):
+        raise ValueError(
+            "assort_matrix is incompatible with per-generation assort1/assort2 "
+            "(dict-valued). Pass scalar assort1/assort2 with assort_matrix, or "
+            "use per-gen dicts and let cross-AM auto-compute from rho_w."
+        )
 
     # Resolve assort_matrix
     R_mf = None
@@ -1113,6 +1148,7 @@ def run_simulation(
             raise ValueError(f"assort_matrix must be 2x2, got shape {R_mf.shape}")
         if abs(R_mf[0, 1] - R_mf[1, 0]) > 1e-10:
             raise ValueError(f"assort_matrix must be symmetric: got [{R_mf[0, 1]}, {R_mf[1, 0]}]")
+        # Scalar assort1/assort2 override from the matrix diagonal.
         assort1 = float(R_mf[0, 0])
         assort2 = float(R_mf[1, 1])
         if not (-1 <= assort1 <= 1):
@@ -1129,7 +1165,11 @@ def run_simulation(
     rng = np.random.default_rng(seed)
 
     # Resolve per-generation C and E variance components
-    # C1/C2 may be scalar or per-gen dict; A is always scalar (constant)
+    # C1/C2 may be scalar or per-gen dict; A is always scalar (constant).
+    # assort1/assort2 may also be scalar or per-gen dict (raw-iter keyed).
+    # AM correlations can be negative so we pass allow_negative=True.
+    assort1_per_gen = resolve_per_gen_param(assort1, G_sim, name="assort1", allow_negative=True)
+    assort2_per_gen = resolve_per_gen_param(assort2, G_sim, name="assort2", allow_negative=True)
     C1_per_gen = resolve_per_gen_param(C1, G_sim, name="C1")
     C2_per_gen = resolve_per_gen_param(C2, G_sim, name="C2")
     E1_per_gen = resolve_per_gen_param(E1, G_sim, name="E1")
@@ -1152,37 +1192,41 @@ def run_simulation(
         for g in range(G_sim)
     ]
 
-    # Validate |rho_w| < 1 for all C/E generations
-    if assort1 != 0 and assort2 != 0:
-        for g, rw in enumerate(rho_w_per_ce):
-            if abs(rw) >= 1.0 - 1e-10:
-                raise ValueError(
-                    f"Both-trait assortative mating requires |rho_w| < 1 "
-                    f"(got rho_w={rw:.4f} at C/E generation {g}). "
-                    f"Traits are perfectly correlated; "
-                    f"use single-trait assortment instead."
-                )
+    # Validate |rho_w| < 1 for all C/E generations where both-trait AM is on.
+    # With per-gen AM the both-trait check is per-iteration.
+    for g, rw in enumerate(rho_w_per_ce):
+        if assort1_per_gen[g] != 0 and assort2_per_gen[g] != 0 and abs(rw) >= 1.0 - 1e-10:
+            raise ValueError(
+                f"Both-trait assortative mating requires |rho_w| < 1 "
+                f"(got rho_w={rw:.4f} at C/E generation {g}). "
+                f"Traits are perfectly correlated; "
+                f"use single-trait assortment instead."
+            )
 
     # Track whether R_mf was provided explicitly (vs. auto-computed from rho_w)
     R_mf_user = R_mf
 
-    # Validate PSD of full 4x4 Sigma for each generation's rho_w
-    if R_mf_user is not None or (assort1 != 0 and assort2 != 0):
-        for g, rw in enumerate(rho_w_per_ce):
-            if R_mf_user is not None:
-                R_mf_g = R_mf_user
-            else:
-                c = rw * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
-                R_mf_g = np.array([[assort1, c], [c, assort2]])
-            R_ff = np.array([[1.0, rw], [rw, 1.0]])
-            Sigma_4 = np.block([[R_ff, R_mf_g.T], [R_mf_g, R_ff]])
-            eigvals = np.linalg.eigvalsh(Sigma_4)
-            if eigvals[0] < -1e-8:
-                raise ValueError(
-                    f"Full 4x4 mate correlation matrix Sigma_4 is not PSD "
-                    f"(min eigenvalue = {eigvals[0]:.6f} at C/E generation {g}). "
-                    f"Reduce the magnitude of assort_matrix off-diagonal entries."
-                )
+    # Validate PSD of full 4x4 Sigma for each generation's rho_w + AM.
+    for g, rw in enumerate(rho_w_per_ce):
+        a1_g = assort1_per_gen[g]
+        a2_g = assort2_per_gen[g]
+        if R_mf_user is None and not (a1_g != 0 and a2_g != 0):
+            continue  # PSD check is only meaningful when both-trait AM is active
+        if R_mf_user is not None:
+            R_mf_g = R_mf_user
+        else:
+            c = rw * np.sqrt(abs(a1_g * a2_g)) * np.sign(a1_g * a2_g)
+            R_mf_g = np.array([[a1_g, c], [c, a2_g]])
+        R_ff = np.array([[1.0, rw], [rw, 1.0]])
+        Sigma_4 = np.block([[R_ff, R_mf_g.T], [R_mf_g, R_ff]])
+        eigvals = np.linalg.eigvalsh(Sigma_4)
+        if eigvals[0] < -1e-8:
+            raise ValueError(
+                f"Full 4x4 mate correlation matrix Sigma_4 is not PSD "
+                f"(min eigenvalue = {eigvals[0]:.6f} at C/E generation {g}). "
+                f"Reduce the magnitude of assort_matrix off-diagonal entries "
+                f"or per-gen assort1/assort2."
+            )
 
     # Initialize founders with correlated components (using gen-0 C/E variances)
     sex = rng.binomial(size=N, n=1, p=0.5)
@@ -1225,10 +1269,14 @@ def run_simulation(
         parent_ce_gen = max(0, i - 1)
         rho_w_i = rho_w_per_ce[parent_ce_gen]
 
-        # Auto-compute R_mf for this generation's rho_w if not user-provided
-        if R_mf_user is None and assort1 != 0 and assort2 != 0:
-            c = rho_w_i * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
-            R_mf_i = np.array([[assort1, c], [c, assort2]])
+        # Per-iter AM values (constant across iters for scalar assort1/assort2).
+        a1_i = assort1_per_gen[i]
+        a2_i = assort2_per_gen[i]
+
+        # Auto-compute R_mf for this generation's rho_w if not user-provided.
+        if R_mf_user is None and a1_i != 0 and a2_i != 0:
+            c = rho_w_i * np.sqrt(abs(a1_i * a2_i)) * np.sign(a1_i * a2_i)
+            R_mf_i = np.array([[a1_i, c], [c, a2_i]])
         else:
             R_mf_i = R_mf_user
 
@@ -1238,8 +1286,8 @@ def run_simulation(
             mating_lambda,
             p_mztwin,
             pheno=pheno,
-            assort1=assort1,
-            assort2=assort2,
+            assort1=a1_i,
+            assort2=a2_i,
             rho_w=rho_w_i,
             assort_matrix=R_mf_i,
         )

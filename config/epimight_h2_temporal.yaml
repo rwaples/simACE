@@ -216,6 +216,58 @@ shrinking_E:
     skip_ne_coancestry: true
 
 
+growing_AM:
+  # Growing assortative mating: assort1 = assort2 rises linearly 0 → 0.35
+  # across all raw simulation iters 0..24. Wright–Crow inflation
+  # accumulates across generations → per-cohort A variance and h² rise
+  # monotonically. Tests whether AM intensification (e.g. educational/
+  # occupational homogamy growth) could plausibly explain a rising h²
+  # trajectory in early cohorts of the inverted-U arc.
+  seed: 90007
+  N: 1000000
+  G_sim: 25
+  G_ped: 12
+  G_pheno: 10
+  replicates: 1
+  standardize: per_generation
+  pedigree:
+    p_mztwin: 0
+    assort1: {0: 0.0, 1: 0.014583333333333332, 2: 0.029166666666666664, 3: 0.04374999999999999, 4: 0.05833333333333333, 5: 0.07291666666666667, 6: 0.08749999999999998, 7: 0.10208333333333332, 8: 0.11666666666666665, 9: 0.13125, 10: 0.14583333333333334, 11: 0.16041666666666665, 12: 0.17499999999999996, 13: 0.18958333333333333, 14: 0.20416666666666664, 15: 0.21875, 16: 0.2333333333333333, 17: 0.24791666666666665, 18: 0.2625, 19: 0.2770833333333333, 20: 0.2916666666666667, 21: 0.30624999999999997, 22: 0.3208333333333333, 23: 0.33541666666666664, 24: 0.3499999999999999}
+    assort2: {0: 0.0, 1: 0.014583333333333332, 2: 0.029166666666666664, 3: 0.04374999999999999, 4: 0.05833333333333333, 5: 0.07291666666666667, 6: 0.08749999999999998, 7: 0.10208333333333332, 8: 0.11666666666666665, 9: 0.13125, 10: 0.14583333333333334, 11: 0.16041666666666665, 12: 0.17499999999999996, 13: 0.18958333333333333, 14: 0.20416666666666664, 15: 0.21875, 16: 0.2333333333333333, 17: 0.24791666666666665, 18: 0.2625, 19: 0.2770833333333333, 20: 0.2916666666666667, 21: 0.30624999999999997, 22: 0.3208333333333333, 23: 0.33541666666666664, 24: 0.3499999999999999}
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.5
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
+  analysis:
+    skip_ne_coancestry: true
+
+
 inverted_U_E:
   # Sufficient-mechanism inverted-U: U-shaped E (raw iter anchors
   # 15, 17, 19, 22, 24 → 1.0, 0.6, 0.4, 0.6, 1.0). Per-cohort h²

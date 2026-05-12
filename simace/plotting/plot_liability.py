@@ -786,8 +786,8 @@ def plot_mate_correlation(
     if params is not None:
         am = params.get("assort_matrix", None)
         exp = expected_mate_corr_matrix(
-            assort1=float(params.get("assort1", 0)),
-            assort2=float(params.get("assort2", 0)),
+            assort1=param_as_float(params.get("assort1", 0)),
+            assort2=param_as_float(params.get("assort2", 0)),
             rA=float(params.get("rA", 0)),
             rC=float(params.get("rC", 0)),
             A1=float(params.get("A1", 0)),
@@ -821,8 +821,8 @@ def plot_mate_correlation(
         xticklabels=xlabels,
         yticklabels=ylabels,
     )
-    a1 = float(params.get("assort1", 0)) if params else 0
-    a2 = float(params.get("assort2", 0)) if params else 0
+    a1 = param_as_float(params.get("assort1", 0)) if params else 0
+    a2 = param_as_float(params.get("assort2", 0)) if params else 0
     exp_title = "Expected"
     if a1 != 0 or a2 != 0:
         exp_title += f"\nassort1={a1}, assort2={a2}"

@@ -1081,6 +1081,20 @@ def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_ind
     assort1 = params.get("assort1", 0.0)
     assort2 = params.get("assort2", 0.0)
 
+    # Per-gen AM (dict) is not currently validated — observed pairs span
+    # multiple generations with potentially different per-gen AM strengths,
+    # so a single-value tolerance check is ill-defined. Skip with a
+    # passing result. A future improvement: stratify pairs by generation
+    # and validate each cohort against its per-gen target.
+    if isinstance(assort1, dict) or isinstance(assort2, dict):
+        msg = (
+            "Per-generation assort1/assort2 (dict-valued); skipping pooled "
+            "mate-correlation check (would conflate cohort-varying targets)."
+        )
+        results["mate_corr_liability1"] = _result(True, msg)
+        results["mate_corr_liability2"] = _result(True, msg)
+        return results
+
     non_founders = df[df["mother"] != -1]
     if len(non_founders) == 0:
         results["mate_corr_liability1"] = _result(True, "No non-founders to check")
