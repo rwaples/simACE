@@ -27,6 +27,16 @@ defaults:
   # then runs on the gene-drop-derived A1.
   use_gene_drop: false
 
+  # Post-hoc blended-diagnosis transform applied between phenotyping and
+  # EPIMIGHT. When non-null the fitACE `blended_phenotype` rule re-derives
+  # trait-1 case status from a per-generation blend of L1 and L2 liabilities;
+  # see notes/heritability/epimight_h2_temporal.md. Opaque to the simulator
+  # itself. Expected shape when set:
+  #   blended_diagnosis:
+  #     alpha_by_gen: {2: 0.0, ..., 11: 0.55}   # output-gen-keyed
+  #     K_by_gen:     {2: 0.03, ..., 11: 0.08}  # output-gen-keyed
+  blended_diagnosis: null
+
   # ── Pedigree (structure + variance components) ──────────────────────────
   pedigree:
     mating_lambda: 0.5

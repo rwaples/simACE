@@ -91,6 +91,10 @@ _SIM_FLAT_GLOBALS: frozenset[str] = frozenset(
         "plot_format",
         "drop_from",
         "use_gene_drop",
+        # Opaque dict consumed by fitACE's blended_phenotype rule. When non-null
+        # the rule re-derives trait-1 case status from a per-generation blend of
+        # L1 and L2 liabilities. See notes/heritability/epimight_h2_temporal.md.
+        "blended_diagnosis",
     }
 )
 
