@@ -10,7 +10,9 @@ from workflow.common import (
     get_scenario_sim_outputs,
     plot_filenames,
     _scale_mem,
+    _scale_mem_effective_size,
     _scale_runtime,
+    effective_size_basenames,
     phenotype_basenames,
     validation_basenames,
     load_folder_configs,
@@ -21,6 +23,7 @@ load_folder_configs(config)
 PLOT_EXT = config["defaults"].get("plot_format", "png")
 PHENOTYPE_PLOTS = plot_filenames(phenotype_basenames(), PLOT_EXT)
 VALIDATION_PLOTS = plot_filenames(validation_basenames(), PLOT_EXT)
+EFFECTIVE_SIZE_PLOTS = plot_filenames(effective_size_basenames(), PLOT_EXT)
 
 
 wildcard_constraints:
