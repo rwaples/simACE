@@ -205,7 +205,7 @@ def _coerce_sim_types(flat: dict) -> dict:
     gen_censoring = flat.get("gen_censoring")
     if gen_censoring:
         flat["gen_censoring"] = {int(k): v for k, v in gen_censoring.items()}
-    for key in ("A1", "A2", "C1", "C2", "E1", "E2"):
+    for key in ("A1", "A2", "C1", "C2", "E1", "E2", "assort1", "assort2"):
         value = flat.get(key)
         if isinstance(value, dict):
             flat[key] = {int(gen): v for gen, v in value.items()}

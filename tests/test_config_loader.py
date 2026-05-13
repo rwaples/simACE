@@ -394,6 +394,25 @@ class TestGenCensoringCoercion:
         flat = resolve_defaults("config")
         assert all(isinstance(k, int) for k in flat["gen_censoring"])
 
+    def test_resolve_defaults_coerces_per_gen_assort_keys(self, tmp_path):
+        """Per-gen assort1/assort2 dicts must be int-keyed downstream so that
+        resolve_per_gen_param's sorted-key comparison does not crash on str."""
+        body = {
+            "defaults": {
+                "seed": 1,
+                "pedigree": {
+                    "assort1": {"0": 0.0, "4": 0.4},
+                    "assort2": {"0": 0.0, "4": 0.2},
+                },
+            }
+        }
+        self._write(tmp_path, "_default.yaml", body)
+        flat = resolve_defaults(tmp_path)
+        assert flat["assort1"] == {0: 0.0, 4: 0.4}
+        assert flat["assort2"] == {0: 0.0, 4: 0.2}
+        assert all(isinstance(k, int) for k in flat["assort1"])
+        assert all(isinstance(k, int) for k in flat["assort2"])
+
 
 class TestPedigreeConfigValidation:
     """β config-load validator: reject scenarios whose effective E1/E2 is null."""
