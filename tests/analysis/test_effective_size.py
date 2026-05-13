@@ -434,3 +434,30 @@ def test_effective_size_main_writes_yaml(tmp_path, tiny_pedigree):
     for entry in loaded.values():
         assert "ne" in entry
         assert "expected" in entry
+
+
+def test_cli_routes_skip_full_kinship_matrix(monkeypatch):
+    """--skip-full-kinship-matrix must populate args.skip_ne_coancestry and
+    propagate to main()."""
+    from simace.analysis.stats import effective_size as mod
+
+    captured: dict[str, object] = {}
+
+    def fake_main(pedigree_path, phenotype_path, params_path, output_path, *,
+                  skip_ne_coancestry=False):
+        captured["skip_ne_coancestry"] = skip_ne_coancestry
+
+    monkeypatch.setattr(mod, "main", fake_main)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "compute_effective_size",
+            "--pedigree", "/dev/null/ped",
+            "--phenotype", "/dev/null/phe",
+            "--params", "/dev/null/params",
+            "--output", "/dev/null/out",
+            "--skip-full-kinship-matrix",
+        ],
+    )
+    mod.cli()
+    assert captured == {"skip_ne_coancestry": True}

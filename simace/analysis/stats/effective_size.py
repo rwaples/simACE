@@ -288,6 +288,7 @@ def cli() -> None:
     parser.add_argument("--output", required=True, help="Output effective_size.yaml")
     parser.add_argument(
         "--skip-full-kinship-matrix",
+        dest="skip_ne_coancestry",
         action="store_true",
         help="Skip building the full sparse kinship matrix; ne_coancestry is reported as None.",
     )
