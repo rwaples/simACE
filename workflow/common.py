@@ -93,19 +93,24 @@ def _scale_mem_effective_size(config: dict, scenario: str) -> int:
 
     ``skip_ne_coancestry: false`` (β path)
         Ne_C runs via streaming θ̄ (plan 3); no K materialized but DP
-        scratch dominates.  Initial guess based on May 10 K-build
-        numbers minus the ~3.3 GB CSC: ``peak_mb ≈ 0.085 · N + 320``.
-        **Provisional** — recalibrate once Phase 5a's 100K + 500K
-        benches land.
+        scratch dominates.  Phase-7 lazy row-slot allocation (May-13)
+        eliminated the ``N × init_cap × 8B`` eager floor so the buffer
+        tracks the working set rather than the static pre-allocation.
+        Stream100K end-to-end measured ``max_rss = 4722 MB`` at N=100K
+        per-gen, G_ped=5 (vs 8950 MB pre-Phase-7, -47%).  Backing out
+        the constant: ``per_indiv ≈ (4722 − 320) / 100000 = 0.044 MB``
+        at g=5; normalized by ``g/6`` gives slope ≈ 0.053.  Rounded
+        upward to 0.05 with the 1.5× safety to absorb single-point
+        uncertainty until stream500K and stream1M anchors land.
 
     A 50 % safety margin is applied so Snakemake throttles parallel jobs
     against ``--resources mem_mb``.  The β-path DP's ``_grow_global``
     geometric-doubling event briefly holds both the old half-size and
     new full-size buffers simultaneously, lifting transient RSS ~20 %
-    above the steady-state working set; the May-12 baseline100K bench
-    measured ``max_rss = 12.7 GB`` against an 8.8 GB steady-state
-    estimate (1.44×).  1.5× covers that spike plus ~10 % rep-to-rep
-    variance with ~2σ of headroom.
+    above the steady-state working set.  1.5× covers that spike plus
+    ~10 % rep-to-rep variance with ~2σ of headroom (verified against
+    the Phase-7 stream100K bench: 4722 MB measured vs 4487 MB
+    pre-safety predicted → 1.42× transient headroom).
 
     Args:
         config: Snakemake config dict.
@@ -123,9 +128,10 @@ def _scale_mem_effective_size(config: dict, scenario: str) -> int:
         per_indiv_mb = 0.0016 * ((g + 1) / 7.0)
         safety = 1.2
     else:
-        # β path — streaming-θ DP scratch dominates.  PROVISIONAL.
-        # 1.5 × accounts for the _grow_global doubling event.
-        per_indiv_mb = 0.085 * (g / 6.0)
+        # β path — streaming-θ DP scratch dominates.  Phase-7-anchored
+        # against stream100K (4722 MB measured); 1.5× safety covers the
+        # _grow_global doubling event and rep-to-rep variance.
+        per_indiv_mb = 0.05 * (g / 6.0)
         safety = 1.5
     peak = per_indiv_mb * n + 320.0
     return max(4000, int(peak * safety))
