@@ -543,6 +543,66 @@ VALIDATION_ATLAS: tuple[AtlasItem, ...] = (
     ),
 )
 
+# ---------------------------------------------------------------------------
+# Effective-size atlas
+# ---------------------------------------------------------------------------
+
+EFFECTIVE_SIZE_ATLAS: tuple[AtlasItem, ...] = (
+    PlotEntry(
+        basename="effective_size.estimators",
+        title="Ne estimator headline.",
+        body=(
+            "Per-rep aggregate Ne for all eight estimators on a log y-axis. Blue dots show "
+            "per-replicate values; orange dashed lines show closed-form expectations from "
+            "theoretical_expectations() where applicable (Ne_V for variance/iΔF/Hill, N for "
+            "Ne_sr, Ne_V/2 for Ne_LTC, and the regression estimators when N·G² satisfies the "
+            "Jensen-bias gate). Per-estimator mean ± SD across reps annotated above each "
+            "column. Reps that returned None (commonly Ne_LTC at G_ped=6) are shown as open "
+            "markers below the axis. Subtitle reports the scenario header (N, λ, G_ped, "
+            "expected Ne_V)."
+        ),
+    ),
+    PlotEntry(
+        basename="effective_size.by_generation",
+        title="Ne by generation / transition.",
+        body=(
+            "2×3 grid: per-generation Ne_g for the six estimators that expose a vector. Five "
+            "panels (Ne_I, Ne_C, Ne_sr, Ne_iΔF, Ne_CT) index generation 0..G_ped-1 from "
+            "ne_per_gen. The Ne_V panel uses ne_per_transition and is x-axis-labelled "
+            "'transition (g→g+1)' with half-integer tick positions to make the offset from "
+            "generation indexing visually obvious. One coloured line per replicate; orange "
+            "dashed horizontal lines show the closed-form expectation when defined. NaN "
+            "entries (e.g. early-generation Ne_I before drift accumulates) are skipped."
+        ),
+    ),
+    PlotEntry(
+        basename="effective_size.drift",
+        title="Underlying drift signals (mean F, θ, self-coancestry).",
+        body=(
+            "1×3 grid showing the per-generation drift quantities that the slope-based Ne "
+            "estimators invert. Left: mean inbreeding F per generation (drives Ne_inbreeding). "
+            "Centre: mean coancestry θ per generation (drives Ne_coancestry). Right: mean "
+            "founder self-coancestry per generation (drives Ne_caballero_toro). One line per "
+            "replicate. Linear growth in these quantities is the signal; non-monotone or "
+            "near-flat traces flag estimators that are fitting noise."
+        ),
+    ),
+    PlotEntry(
+        basename="effective_size.family_size_variance",
+        title="Family-size variance and covariance (ZTP diagnostic).",
+        body=(
+            "1×2 diagnostic for Ne_variance_family_size. Left: per-transition offspring-count "
+            "variance for the four parent-sex × offspring-sex quadrants (v_mm, v_mf, v_fm, "
+            "v_ff), with the ZTP(λ) closed-form 1 + Var[m]/E[m]² overlaid as an orange dashed "
+            "reference. Right: per-transition between-mate covariance (cov_m, cov_f) with the "
+            "ZTP closed-form Var[m]/E[m]² overlaid. At λ=0.5 the references sit at ≈1.180 and "
+            "≈0.180 respectively. Convergence of the four v lines to the reference is the "
+            "primary check that the simACE mating model is producing the intended ZTP "
+            "family-size distribution."
+        ),
+    ),
+)
+
 
 # ---------------------------------------------------------------------------
 # Public helpers
@@ -560,6 +620,11 @@ def phenotype_basenames() -> list[str]:
 def validation_basenames() -> list[str]:
     """Ordered validation plot basenames (excluding section breaks)."""
     return [e.basename for e in VALIDATION_ATLAS if isinstance(e, PlotEntry)]
+
+
+def effective_size_basenames() -> list[str]:
+    """Ordered effective-size plot basenames (excluding section breaks)."""
+    return [e.basename for e in EFFECTIVE_SIZE_ATLAS if isinstance(e, PlotEntry)]
 
 
 def build_phenotype_atlas(params: dict[str, Any] | None) -> list[AtlasItem]:

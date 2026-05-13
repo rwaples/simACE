@@ -7,6 +7,7 @@ from simace.plotting.atlas_manifest import (
     PlotEntry,
     SectionBreak,
     build_phenotype_atlas,
+    effective_size_basenames,
     phenotype_basenames,
     validation_basenames,
 )
@@ -65,6 +66,13 @@ EXPECTED_VALIDATION_BASENAMES = [
     "memory",
 ]
 
+EXPECTED_EFFECTIVE_SIZE_BASENAMES = [
+    "effective_size.estimators",
+    "effective_size.by_generation",
+    "effective_size.drift",
+    "effective_size.family_size_variance",
+]
+
 
 def test_phenotype_basenames_match_frozen_list():
     assert phenotype_basenames() == EXPECTED_PHENOTYPE_BASENAMES
@@ -72,6 +80,10 @@ def test_phenotype_basenames_match_frozen_list():
 
 def test_validation_basenames_match_frozen_list():
     assert validation_basenames() == EXPECTED_VALIDATION_BASENAMES
+
+
+def test_effective_size_basenames_match_frozen_list():
+    assert effective_size_basenames() == EXPECTED_EFFECTIVE_SIZE_BASENAMES
 
 
 def test_phenotype_basenames_are_unique():
@@ -84,10 +96,18 @@ def test_validation_basenames_are_unique():
     assert len(names) == len(set(names))
 
 
+def test_effective_size_basenames_are_unique():
+    names = effective_size_basenames()
+    assert len(names) == len(set(names))
+
+
 def test_no_basename_collision_across_atlases():
     p = set(phenotype_basenames())
     v = set(validation_basenames())
+    e = set(effective_size_basenames())
     assert p.isdisjoint(v)
+    assert p.isdisjoint(e)
+    assert v.isdisjoint(e)
 
 
 def test_model_section_appears_at_most_once():
