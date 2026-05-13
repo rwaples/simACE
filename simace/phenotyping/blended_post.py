@@ -42,6 +42,9 @@ import numpy as np
 import pandas as pd
 from scipy.special import erfc, ndtri
 
+from simace.phenotyping.hazards import standardize_liability
+from simace.phenotyping.models._prevalence import prevalence_to_array
+
 #: Right-censoring age for late-onset cases. Matches the simACE default
 #: `censoring.max_age`.
 MAX_AGE = 80.0
@@ -51,39 +54,6 @@ MAX_AGE = 80.0
 #: scenario uses non-default values they should be passed in.
 DEFAULT_CIP_X0 = 50.0
 DEFAULT_CIP_K = 0.15
-
-
-def _per_gen_dict(values: dict[int, float], gen: np.ndarray, name: str) -> np.ndarray:
-    """Expand a per-output-generation dict to a per-individual array.
-
-    Mirrors `simace.phenotyping.models._prevalence.prevalence_to_array`:
-    every observed generation must appear in `values` (no interpolation).
-    """
-    int_keys = {int(k): float(v) for k, v in values.items()}
-    out = np.empty(len(gen), dtype=np.float64)
-    for g in np.unique(gen):
-        gi = int(g)
-        if gi not in int_keys:
-            raise ValueError(
-                f"{name} dict missing generation {gi}; "
-                f"got keys {sorted(int_keys)} for observed gens {sorted({int(x) for x in np.unique(gen)})}"
-            )
-        out[gen == g] = int_keys[gi]
-    return out
-
-
-def _standardize_per_generation(x: np.ndarray, gen: np.ndarray) -> np.ndarray:
-    """Per-generation z-score (matches `standardize_liability(mode='per_generation')`)."""
-    out = np.empty_like(x, dtype=np.float64)
-    for g in np.unique(gen):
-        mask = gen == g
-        v = x[mask]
-        sd = v.std()
-        if sd == 0:
-            out[mask] = 0.0
-        else:
-            out[mask] = (v - v.mean()) / sd
-    return out
 
 
 def _compute_onset(L_eff: np.ndarray, K: np.ndarray, cip_x0: float, cip_k: float) -> np.ndarray:
@@ -132,8 +102,10 @@ def blended_diagnosis(
     pheno = phenotype.copy()
     gen = pheno["generation"].to_numpy()
 
-    alpha = _per_gen_dict(alpha_by_gen, gen, "alpha_by_gen")
-    K = _per_gen_dict(K_by_gen, gen, "K_by_gen")
+    # Reuse the prevalence resolver (raises ValueError on missing keys); it
+    # accepts arbitrary per-gen dicts and produces a per-individual array.
+    alpha = np.asarray(prevalence_to_array(alpha_by_gen, gen), dtype=np.float64)
+    K = np.asarray(prevalence_to_array(K_by_gen, gen), dtype=np.float64)
 
     A1 = pheno["A1"].to_numpy()
     C1 = pheno["C1"].to_numpy()
@@ -152,25 +124,24 @@ def blended_diagnosis(
     L_blend = (1.0 - alpha) * L1 + alpha * L2
 
     # Per-generation-standardised blend → threshold by per-gen K.
-    L_blend_std = _standardize_per_generation(L_blend, gen)
+    L_blend_std = standardize_liability(L_blend, mode="per_generation", generation=gen)
     threshold = ndtri(1.0 - K)
     is_case = L_blend_std > threshold
 
-    # Onset ages for cases via the ADuLT/LTM inverse-CIF formula.
-    onset = np.full(len(pheno), MAX_AGE, dtype=np.float64)
+    # Onset ages for cases via the ADuLT/LTM inverse-CIF formula. Non-cases
+    # and late-onset cases keep the latent-onset placeholder of MAX_AGE.
+    latent_onset = np.full(len(pheno), MAX_AGE, dtype=np.float64)
     if is_case.any():
-        L_eff = L_blend_std[is_case]
-        K_case = K[is_case]
-        onset[is_case] = _compute_onset(L_eff, K_case, cip_x0, cip_k)
+        latent_onset[is_case] = _compute_onset(
+            L_blend_std[is_case], K[is_case], cip_x0, cip_k
+        )
+    age_right_censored = is_case & (latent_onset > MAX_AGE)
+    follow_up = np.minimum(latent_onset, MAX_AGE)
 
-    # Right-censor late-onset cases (onset > MAX_AGE).
-    age_right_censored = is_case & (onset > MAX_AGE)
-    onset[age_right_censored] = MAX_AGE
-
-    # Death-censor cases whose onset exceeds death age.
-    death_censored = is_case & (onset > death_age) & ~age_right_censored
-    onset[death_censored] = death_age[death_censored]
-
+    # Apply competing-risk death censoring uniformly across cases and
+    # non-cases, matching the canonical censoring/censor.py pipeline.
+    death_censored = death_age < follow_up
+    onset = np.where(death_censored, death_age, follow_up)
     affected = is_case & ~death_censored & ~age_right_censored
 
     pheno["affected1"] = affected
