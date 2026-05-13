@@ -1,5 +1,6 @@
-# Sister repo (nested, independent git history)
+# Sister repos (nested, independent git history)
 /fitACE/
+/ADHD_heritability/
 
 # External tools and data
 external/
