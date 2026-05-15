@@ -81,7 +81,12 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         # Cross-trait correlations
         "rA": params.get("rA"),
         "rC": params.get("rC"),
-        # Population parameters
+        # Population parameters.  ``mating_model`` defaults to "standard" so
+        # validation YAMLs predating this column still gather cleanly.
+        # ``expected_twin_rate`` is sourced from the validation YAML via
+        # METRIC_REGISTRY (see validation_schema.py) — validate_twins emits
+        # it for both standard (= p_mztwin) and WF (= 0) branches.
+        "mating_model": params.get("mating_model", "standard"),
         "p_mztwin": params.get("p_mztwin"),
         "mating_lambda": params.get("mating_lambda"),
         "assort1": params.get("assort1"),

@@ -113,6 +113,44 @@ class TestTheoreticalExpectations:
         exp = theoretical_expectations(cfg)
         assert all(v is None for v in exp.values())
 
+    # ── Wright-Fisher branch ─────────────────────────────────────────────
+
+    def test_wf_short_g_ped_drops_regression(self):
+        # WF: regression gate reduces to G_ped² ≥ 120 ⇒ G_ped ≥ 11.  At G_ped=4
+        # the regression-based estimators must be None; variance-family ones
+        # equal N exactly.  N is independent of the gate under WF.
+        cfg = {"mating_model": "wright_fisher", "N": 2000, "G_ped": 4}
+        exp = theoretical_expectations(cfg)
+        assert exp["ne_inbreeding"] is None
+        assert exp["ne_coancestry"] is None
+        assert exp["ne_caballero_toro"] is None
+        assert exp["ne_variance_family_size"] == pytest.approx(2000.0)
+        assert exp["ne_sex_ratio"] == pytest.approx(2000.0)
+        assert exp["ne_individual_delta_f"] == pytest.approx(2000.0)
+        assert exp["ne_hill_overlapping"] == pytest.approx(2000.0)
+        assert exp["ne_long_term_contributions"] == pytest.approx(1000.0)
+
+    def test_wf_long_g_ped_populates_regression(self):
+        # G_ped=12 ⇒ G_ped² = 144 ≥ 120 ⇒ regression-based estimators populated.
+        cfg = {"mating_model": "wright_fisher", "N": 2000, "G_ped": 12}
+        exp = theoretical_expectations(cfg)
+        assert exp["ne_inbreeding"] == pytest.approx(2000.0)
+        assert exp["ne_coancestry"] == pytest.approx(2000.0)
+        assert exp["ne_caballero_toro"] == pytest.approx(2000.0)
+
+    def test_wf_ignores_inherited_assort_and_lambda(self):
+        # Inherited standard-only knobs must not gate WF expectations.
+        cfg = {
+            "mating_model": "wright_fisher",
+            "N": 2000,
+            "G_ped": 4,
+            "assort1": 0.3,  # would zero out standard exps
+            "assort2": 0.2,
+            "mating_lambda": None,  # would None-out standard exps
+        }
+        exp = theoretical_expectations(cfg)
+        assert exp["ne_variance_family_size"] == pytest.approx(2000.0)
+
 
 # ---------------------------------------------------------------------------
 # ne_v_expected_ztp closed-form limits

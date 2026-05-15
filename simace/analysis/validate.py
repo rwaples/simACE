@@ -147,19 +147,40 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
     and sex for MZ pairs, and that the observed twin rate matches the
     expected rate ``2 * p_mztwin * eligible_fraction``.
 
+    Under ``mating_model="wright_fisher"`` no MZ twins are produced; the
+    block returns vacuously-passing results with ``expected_rate=0.0``
+    and ``observed_rate=0.0`` so downstream gather/plotting see a coherent
+    schema (cf. ``METRIC_REGISTRY`` in ``simace.analysis.validation_schema``).
+
     Args:
         df: Pedigree DataFrame.
-        params: Scenario parameters; requires key ``p_mztwin``.
+        params: Scenario parameters; requires key ``p_mztwin`` (and optional
+            ``mating_model``, defaulted to ``"standard"``).
         df_indexed: Pedigree DataFrame indexed by ``id`` for fast lookups.
 
     Returns:
         Dict of check-name to result dicts.
     """
     results = {}
+    mating_model = params.get("mating_model", "standard")
     p_mztwin = params["p_mztwin"]
 
     twins_df = df[df["twin"] != -1]
     n_twins = len(twins_df)
+
+    if mating_model == "wright_fisher":
+        results["twin_bidirectional"] = _result(True, "No twins under mating_model=wright_fisher")
+        results["twin_same_parents"] = _result(True, "No twins under mating_model=wright_fisher")
+        for t in [1, 2]:
+            results[f"twin_same_A{t}"] = _result(True, "No twins under mating_model=wright_fisher")
+        results["twin_same_sex"] = _result(True, "No twins under mating_model=wright_fisher")
+        results["twin_rate"] = _result(
+            True,
+            "No twins expected under mating_model=wright_fisher",
+            expected_rate=0.0,
+            observed_rate=0.0,
+        )
+        return results
 
     if n_twins == 0:
         results["twin_bidirectional"] = _result(True, "No twins found")

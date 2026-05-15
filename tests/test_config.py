@@ -13,6 +13,8 @@ from simace.config import (
     _HIERARCHICAL_TO_FLAT,
     _SIM_FLAT_GLOBALS,
     KNOWN_SIM_KEYS,
+    _is_zero_assort,
+    _validate_pedigree_config,
     flatten_hierarchical,
     get_all_folders,
     get_folder,
@@ -149,3 +151,121 @@ class TestFlattenHierarchicalWithCustomMapping:
     def test_mapping_none_uses_sim_mapping(self):
         d = {"pedigree": {"trait1": {"A": 0.3}}}
         assert flatten_hierarchical(d) == {"A1": 0.3}
+
+
+class TestIsZeroAssort:
+    """``_is_zero_assort`` distinguishes no-op AM settings from non-no-op."""
+
+    def test_scalar_zero(self):
+        assert _is_zero_assort(0)
+        assert _is_zero_assort(0.0)
+
+    def test_scalar_nonzero(self):
+        assert not _is_zero_assort(0.3)
+        assert not _is_zero_assort(-0.1)
+
+    def test_dict_all_zero(self):
+        assert _is_zero_assort({0: 0, 1: 0, 2: 0})
+        assert _is_zero_assort({})  # vacuously zero
+
+    def test_dict_any_nonzero(self):
+        assert not _is_zero_assort({0: 0, 1: 0.3})
+        assert not _is_zero_assort({0: -0.1})
+
+
+class TestMatingModelValidation:
+    """Strict-WF override validation in ``_validate_pedigree_config``.
+
+    Operates on scenario-level overrides only — defaults from `_default.yaml`
+    that the scenario doesn't explicitly touch are silently ignored at runtime.
+    """
+
+    @staticmethod
+    def _wrap(scenario_overrides: dict) -> dict:
+        """Build a minimal merged-config dict for the validator."""
+        return {
+            "defaults": {
+                "E1": 0.5,
+                "E2": 0.5,
+                "mating_model": "standard",
+            },
+            "scenarios": {"sc": {**scenario_overrides, "E1": 0.5, "E2": 0.5}},
+        }
+
+    def test_default_standard_passes(self):
+        _validate_pedigree_config(self._wrap({}))
+
+    def test_explicit_wright_fisher_passes(self):
+        _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher"}))
+
+    def test_invalid_mating_model_raises(self):
+        with pytest.raises(ValueError, match="mating_model='foobar'"):
+            _validate_pedigree_config(self._wrap({"mating_model": "foobar"}))
+
+    def test_wf_with_explicit_mating_lambda_raises(self):
+        # Any explicit mating_lambda override is rejected under WF, even at default.
+        with pytest.raises(ValueError, match="mating_lambda"):
+            _validate_pedigree_config(
+                self._wrap({"mating_model": "wright_fisher", "mating_lambda": 0.5})
+            )
+
+    def test_wf_with_explicit_p_mztwin_zero_passes(self):
+        _validate_pedigree_config(
+            self._wrap({"mating_model": "wright_fisher", "p_mztwin": 0})
+        )
+
+    def test_wf_with_explicit_p_mztwin_nonzero_raises(self):
+        with pytest.raises(ValueError, match="p_mztwin"):
+            _validate_pedigree_config(
+                self._wrap({"mating_model": "wright_fisher", "p_mztwin": 0.05})
+            )
+
+    def test_wf_with_inherited_default_p_mztwin_passes(self):
+        # Default `p_mztwin: 0.02` lives in defaults; scenario doesn't touch it
+        # → not flagged.
+        config = {
+            "defaults": {
+                "E1": 0.5,
+                "E2": 0.5,
+                "mating_model": "standard",
+                "p_mztwin": 0.02,
+            },
+            "scenarios": {"sc": {"mating_model": "wright_fisher", "E1": 0.5, "E2": 0.5}},
+        }
+        _validate_pedigree_config(config)
+
+    def test_wf_with_assort1_zero_dict_passes(self):
+        _validate_pedigree_config(
+            self._wrap({"mating_model": "wright_fisher", "assort1": {0: 0, 1: 0}})
+        )
+
+    def test_wf_with_assort1_nonzero_dict_raises(self):
+        with pytest.raises(ValueError, match="assort1"):
+            _validate_pedigree_config(
+                self._wrap({"mating_model": "wright_fisher", "assort1": {0: 0, 1: 0.3}})
+            )
+
+    def test_wf_with_assort1_nonzero_scalar_raises(self):
+        with pytest.raises(ValueError, match="assort1"):
+            _validate_pedigree_config(
+                self._wrap({"mating_model": "wright_fisher", "assort1": 0.3})
+            )
+
+    def test_wf_with_assort2_nonzero_raises(self):
+        with pytest.raises(ValueError, match="assort2"):
+            _validate_pedigree_config(
+                self._wrap({"mating_model": "wright_fisher", "assort2": 0.4})
+            )
+
+    def test_wf_with_assort_matrix_raises(self):
+        with pytest.raises(ValueError, match="assort_matrix"):
+            _validate_pedigree_config(
+                self._wrap(
+                    {"mating_model": "wright_fisher", "assort_matrix": [[0.3, 0.05], [0.05, 0.2]]}
+                )
+            )
+
+    def test_wf_with_assort_matrix_explicit_none_passes(self):
+        _validate_pedigree_config(
+            self._wrap({"mating_model": "wright_fisher", "assort_matrix": None})
+        )

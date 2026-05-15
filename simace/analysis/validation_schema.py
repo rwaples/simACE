@@ -29,6 +29,7 @@ class MetricSpec(NamedTuple):
 METRIC_REGISTRY: list[MetricSpec] = [
     # ── twins ─────────────────────────────────────────────────────────────
     MetricSpec("observed_twin_rate", ("twins", "twin_rate", "observed_rate")),
+    MetricSpec("expected_twin_rate", ("twins", "twin_rate", "expected_rate")),
 
     # ── statistical: founder variance components ──────────────────────────
     MetricSpec("variance_A1", ("statistical", "variance_A1", "observed")),

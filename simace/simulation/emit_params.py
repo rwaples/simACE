@@ -38,6 +38,7 @@ def emit_params(
     N: int,
     G_ped: int,
     G_sim: int | None,
+    mating_model: str,
     mating_lambda: float,
     p_mztwin: float,
     assort1: float,
@@ -65,6 +66,8 @@ def emit_params(
         N: founder population size.
         G_ped: pedigree generations.
         G_sim: simulation generations including burn-in.
+        mating_model: ``"standard"`` or ``"wright_fisher"``.  Recorded as
+            scenario provenance; downstream consumers branch on this.
         mating_lambda: ZTP mating count parameter.
         p_mztwin: MZ twin probability.
         assort1: trait-1 assortative-mating correlation.
@@ -90,6 +93,7 @@ def emit_params(
         "N": N,
         "G_ped": G_ped,
         "G_sim": G_sim,
+        "mating_model": mating_model,
         "mating_lambda": mating_lambda,
         "p_mztwin": p_mztwin,
         "assort1": assort1,
@@ -130,6 +134,7 @@ def cli() -> None:
         N=cfg["N"],
         G_ped=cfg["G_ped"],
         G_sim=cfg.get("G_sim"),
+        mating_model=cfg.get("mating_model", "standard"),
         mating_lambda=cfg["mating_lambda"],
         p_mztwin=cfg["p_mztwin"],
         assort1=cfg.get("assort1", 0.0),

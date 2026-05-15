@@ -6,6 +6,7 @@ import pytest
 
 from simace.simulation.simulate import (
     _assortative_pair_partners,
+    _mating_wf,
     add_to_pedigree,
     allocate_offspring,
     assign_twins,
@@ -825,3 +826,134 @@ class TestCrossTraitRE:
         multi_sib = e_by_mother[e_by_mother.index.map(lambda m: (non_founders["mother"] == m).sum() > 1)]
         if len(multi_sib) > 0:
             assert (multi_sib > 1).all(), "Siblings should have different E1 values"
+
+
+# ---------------------------------------------------------------------------
+# Wright-Fisher mating model
+# ---------------------------------------------------------------------------
+
+
+class TestMatingWF:
+    """Unit tests for the ``_mating_wf`` sex-structured WF sampler."""
+
+    def test_shapes(self):
+        rng = np.random.default_rng(42)
+        sex = rng.binomial(size=200, n=1, p=0.5)
+        parents, twins, hh = _mating_wf(rng, sex, N=200, generation=0)
+        assert parents.shape == (200, 2)
+        assert twins.shape == (0, 2)
+        assert hh.shape == (200,)
+
+    def test_household_grouped_by_mother(self):
+        rng = np.random.default_rng(7)
+        sex = rng.binomial(size=300, n=1, p=0.5)
+        parents, _, hh = _mating_wf(rng, sex, N=300, generation=0)
+        # Every offspring sharing a mother shares a household.
+        df = pd.DataFrame({"mother": parents[:, 0], "household": hh})
+        assert (df.groupby("mother")["household"].nunique() == 1).all()
+
+    def test_household_ids_contiguous_from_zero(self):
+        rng = np.random.default_rng(11)
+        sex = rng.binomial(size=200, n=1, p=0.5)
+        _, _, hh = _mating_wf(rng, sex, N=200, generation=0)
+        n_hh = int(hh.max()) + 1
+        assert set(hh.tolist()) == set(range(n_hh))
+
+    def test_no_females_raises(self):
+        rng = np.random.default_rng(3)
+        sex = np.ones(50, dtype=int)  # all male
+        with pytest.raises(ValueError, match="generation 5.*female"):
+            _mating_wf(rng, sex, N=50, generation=5)
+
+    def test_no_males_raises(self):
+        rng = np.random.default_rng(4)
+        sex = np.zeros(50, dtype=int)  # all female
+        with pytest.raises(ValueError, match="generation 9.*male"):
+            _mating_wf(rng, sex, N=50, generation=9)
+
+
+class TestMatingDispatcher:
+    """The public ``mating()`` routes by ``mating_model``."""
+
+    def test_default_routes_to_standard(self):
+        rng = np.random.default_rng(5)
+        sex = rng.binomial(size=200, n=1, p=0.5)
+        # Default mating_model="standard" — should use ZTP path and may produce twins.
+        parents, twins, _ = mating(rng, sex, mating_lambda=0.5, p_mztwin=0.1)
+        assert parents.shape == (200, 2)
+        # With p_mztwin=0.1 we expect some twins on average; just check the call works.
+        assert twins.shape[1] == 2
+
+    def test_wf_routes_to_wf(self):
+        rng = np.random.default_rng(5)
+        sex = rng.binomial(size=200, n=1, p=0.5)
+        _, twins, _ = mating(rng, sex, mating_model="wright_fisher", generation=0)
+        assert twins.shape == (0, 2)
+
+    def test_unknown_model_raises(self):
+        rng = np.random.default_rng(5)
+        sex = rng.binomial(size=200, n=1, p=0.5)
+        with pytest.raises(ValueError, match="Unknown mating_model"):
+            mating(rng, sex, mating_model="foo")
+
+
+class TestRunSimulationWF:
+    """End-to-end sanity for ``run_simulation(mating_model='wright_fisher')``."""
+
+    @staticmethod
+    def _wf_params(**overrides):
+        # Inherited defaults of mating_lambda / p_mztwin must flow through
+        # silently — WF's gating in run_simulation skips the standard-only
+        # validation that would otherwise reject p_mztwin=0.02 etc.
+        base = dict(
+            seed=42,
+            N=500,
+            G_ped=3,
+            mating_lambda=0.5,
+            p_mztwin=0.02,
+            A1=0.5,
+            C1=0.0,
+            E1=0.5,
+            A2=0.4,
+            C2=0.0,
+            E2=0.6,
+            rA=0.0,
+            rC=0.0,
+            rE=0.0,
+            mating_model="wright_fisher",
+        )
+        base.update(overrides)
+        return base
+
+    def test_runs_with_inherited_standard_defaults(self):
+        ped = run_simulation(**self._wf_params())
+        # All WF offspring have twin == -1 (twins disabled).
+        assert (ped["twin"] == -1).all()
+
+    def test_household_grouped_by_mother(self):
+        ped = run_simulation(**self._wf_params(seed=99))
+        non_founders = ped[ped["mother"] != -1]
+        # All offspring of the same mother share a household.
+        assert (non_founders.groupby(["generation", "mother"])["household_id"].nunique() == 1).all()
+
+    def test_C_still_works_under_wf(self):
+        ped = run_simulation(**self._wf_params(C1=0.2, E1=0.3))
+        # Household-grouped C: variance across households should be ≈ 0.2; total variance > 0.
+        assert ped["C1"].var() > 0.05
+        # Within a household, C is a single value.
+        non_founders = ped[ped["mother"] != -1]
+        assert (non_founders.groupby("household_id")["C1"].nunique() == 1).all()
+
+    def test_invalid_mating_model_raises(self):
+        with pytest.raises(ValueError, match="mating_model must be"):
+            run_simulation(**{**self._wf_params(), "mating_model": "foo"})
+
+    def test_standard_model_unchanged_when_omitted(self):
+        # Existing call sites that don't pass mating_model get standard behavior.
+        params = {**self._wf_params()}
+        del params["mating_model"]
+        ped = run_simulation(**params)
+        # Standard model produces some twins at p_mztwin=0.02.
+        # With small N=500 / G_ped=3 this isn't guaranteed every seed but should
+        # at least not be all -1 in expectation; just check the shape.
+        assert "twin" in ped.columns

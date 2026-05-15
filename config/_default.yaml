@@ -40,6 +40,11 @@ defaults:
 
   # ── Pedigree (structure + variance components) ──────────────────────────
   pedigree:
+    # "standard" | "wright_fisher". See CONTEXT.md and docs/adr/0002.
+    # mating_lambda, p_mztwin, assort1, assort2, assort_matrix are no-ops
+    # when mating_model is "wright_fisher"; explicit overrides of those
+    # keys in a WF scenario are rejected at config-load.
+    mating_model: standard
     mating_lambda: 0.5
     p_mztwin: 0.02
     assort1: 0

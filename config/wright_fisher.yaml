@@ -1,0 +1,35 @@
+# Wright-Fisher mating-model smoke scenarios.
+#
+# The regression-regime gate for Ne_inbreeding / Ne_coancestry / Ne_caballero_toro
+# under WF reduces to G_ped² ≥ 120, i.e. G_ped ≥ 11.  Two scenarios exercise both
+# branches:
+#   - wf_smoke_short: G_ped=4, regression-based estimators report expected = None.
+#   - wf_smoke_long:  G_ped=12, regression-based estimators report expected = N.
+#
+# Inherited defaults of mating_lambda / p_mztwin / assort1/2 are silently ignored
+# at runtime because the WF code path doesn't consult them.  See
+# docs/adr/0002-wright-fisher-mating-model.md.
+
+wf_smoke_short:
+  seed: 7777
+  replicates: 1
+  N: 2000
+  G_sim: 4
+  G_ped: 4
+  G_pheno: 2
+  pedigree:
+    mating_model: wright_fisher
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+    trait2: { A: 0.4, C: 0.2, E: 0.4 }
+
+wf_smoke_long:
+  seed: 7778
+  replicates: 1
+  N: 2000
+  G_sim: 12
+  G_ped: 12
+  G_pheno: 3
+  pedigree:
+    mating_model: wright_fisher
+    trait1: { A: 0.5, C: 0.2, E: 0.3 }
+    trait2: { A: 0.4, C: 0.2, E: 0.4 }

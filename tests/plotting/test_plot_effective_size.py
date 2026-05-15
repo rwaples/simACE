@@ -9,6 +9,7 @@ import yaml
 
 from simace.plotting.plot_effective_size import (
     _NE_KEYS_ORDERED,
+    _build_subtitle,
     gather_effective_size,
     main,
 )
@@ -188,3 +189,37 @@ def test_main_writes_all_outputs(two_rep_yamls, params_path, tmp_path: Path):
     ]
     for fname in expected_files:
         assert (out_dir / fname).exists(), f"missing {fname}"
+
+
+# ---------------------------------------------------------------------------
+# _build_subtitle: WF branch
+# ---------------------------------------------------------------------------
+
+
+class TestBuildSubtitleWF:
+    """Subtitle omits λ and shows Ne_V≈N under WF."""
+
+    def test_wf_omits_lambda_and_shows_n(self):
+        params = {
+            "mating_model": "wright_fisher",
+            "N": 2000,
+            "G_ped": 6,
+            "mating_lambda": 0.5,  # inherited default — must be ignored
+        }
+        subtitle = _build_subtitle(params, scenario="wf_smoke")
+        assert "λ=" not in subtitle
+        assert "WF" in subtitle
+        assert "Ne_V≈2,000" in subtitle
+        assert "N=2,000" in subtitle
+
+    def test_standard_unchanged(self):
+        params = {
+            "mating_model": "standard",
+            "N": 2000,
+            "G_ped": 6,
+            "mating_lambda": 0.5,
+        }
+        subtitle = _build_subtitle(params, scenario="std_smoke")
+        assert "λ=0.5" in subtitle
+        # Standard ZTP(0.5) gives Ne_V ≈ 0.7349·N ≈ 1470, not N.
+        assert "Ne_V≈1,470" in subtitle

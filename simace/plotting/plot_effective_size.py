@@ -525,20 +525,31 @@ def _save(fig, path: Path) -> None:
 
 
 def _build_subtitle(params: dict, scenario: str | None = None) -> str:
-    """Compose the Figure 1 subtitle from the rep params.yaml dict."""
+    """Compose the Figure 1 subtitle from the rep params.yaml dict.
+
+    Branches on ``mating_model``: under WF, omits the ZTP λ term and
+    reports ``Ne_V≈N`` (the idealized-WF expectation) instead of the
+    ZTP-derived value.
+    """
     scenario = scenario or params.get("scenario") or params.get("scenario_name") or "scenario"
+    mating_model = params.get("mating_model", "standard")
     n = params.get("N")
     lam = params.get("mating_lambda")
     g_ped = params.get("G_ped")
     parts = [str(scenario)]
     if n is not None:
         parts.append(f"N={int(n):,}")
-    if lam is not None:
+    if mating_model == "wright_fisher":
+        parts.append("WF")
+    elif lam is not None:
         parts.append(f"λ={float(lam):g}")
     if g_ped is not None:
         parts.append(f"G_ped={int(g_ped)}")
-    if n is not None and lam is not None:
-        parts.append(f"Ne_V≈{ne_v_expected_ztp(float(n), float(lam)):,.0f}")
+    if n is not None:
+        if mating_model == "wright_fisher":
+            parts.append(f"Ne_V≈{int(n):,}")
+        elif lam is not None:
+            parts.append(f"Ne_V≈{ne_v_expected_ztp(float(n), float(lam)):,.0f}")
     return "  ".join(parts)
 
 
@@ -577,13 +588,22 @@ def main(
     plot_ne_by_generation(series_df, scalar_df, out, ext=plot_ext)
     plot_drift_signals(series_df, out, ext=plot_ext)
 
-    lam = params.get("mating_lambda")
-    if lam is None:
-        expected_v = expected_cov = None
+    mating_model = params.get("mating_model", "standard")
+    if mating_model == "wright_fisher":
+        # Sex-structured WF: per-sex family-size is Poisson-like with mean 1
+        # offspring per sex-slot, so the within-sex variance v → 1 and the
+        # within-mating covariance cov → 0 (no per-pair fecundity).  Matches
+        # the limits documented in simace/analysis/stats/effective_size.py.
+        expected_v: float | None = 1.0
+        expected_cov: float | None = 0.0
     else:
-        ztp = family_size_variance_expected_ztp(float(lam))
-        expected_v = ztp["v"]
-        expected_cov = ztp["cov"]
+        lam = params.get("mating_lambda")
+        if lam is None:
+            expected_v = expected_cov = None
+        else:
+            ztp = family_size_variance_expected_ztp(float(lam))
+            expected_v = ztp["v"]
+            expected_cov = ztp["cov"]
     plot_family_size_variance(series_df, expected_v, expected_cov, out, ext=plot_ext)
 
     assemble_atlas(

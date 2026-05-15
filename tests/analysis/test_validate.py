@@ -114,6 +114,16 @@ class TestValidateTwins:
         assert "twin_rate" in result
         assert "observed_rate" in result["twin_rate"]
 
+    def test_wf_with_inherited_default_p_mztwin_passes_vacuously(self, val_pedigree, val_indexed):
+        # Under WF, inherited p_mztwin=0.02 must NOT trigger a failed twin_rate
+        # check (the standard branch fails because 0.02 > 0.01).  Branch on
+        # mating_model and report observed_rate=0.0, expected_rate=0.0.
+        wf_params = {"mating_model": "wright_fisher", "p_mztwin": 0.02}
+        result = validate_twins(val_pedigree, wf_params, val_indexed)
+        _all_passed(result)
+        assert result["twin_rate"]["expected_rate"] == 0.0
+        assert result["twin_rate"]["observed_rate"] == 0.0
+
 
 class TestValidateHalfSibs:
     def test_passes(self, val_pedigree, val_params, val_indexed, val_sibling_pairs):

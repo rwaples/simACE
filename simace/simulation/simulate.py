@@ -688,7 +688,7 @@ def assign_twins(rng: np.random.Generator, offspring_counts: np.ndarray, p_mztwi
     return mask
 
 
-def mating(
+def _mating_standard(
     rng: np.random.Generator,
     parental_sex: np.ndarray,
     mating_lambda: float,
@@ -784,6 +784,123 @@ def mating(
         twins = np.array([], dtype=int).reshape(0, 2)
 
     return parent_idxs, twins, household_ids
+
+
+def _mating_wf(
+    rng: np.random.Generator,
+    parental_sex: np.ndarray,
+    N: int,
+    generation: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Sex-structured idealized Wright-Fisher mating for one generation.
+
+    For each of ``N`` offspring, draw one mother uniformly at random from the
+    prior generation's females and one father uniformly at random from the
+    males (both with replacement; selfing is impossible because parents are
+    constrained to opposite sexes).  Multinomial offspring counts per parent;
+    no persistent mating-pair structure; no MZ twins.
+
+    Args:
+        rng: numpy random generator.
+        parental_sex: array of sex values (0=female, 1=male) for parents.
+        N: number of offspring to produce.
+        generation: simulation iteration index (used only for error messages
+            so an empty-pool failure names the offending generation).
+
+    Returns:
+        parent_idxs: ``(N, 2)`` array of ``[mother_idx, father_idx]``.
+        twins: ``(0, 2)`` empty int array (WF has no MZ twins).
+        household_ids: ``(N,)`` contiguous ``[0, n_mothers)`` mapping each
+            offspring to a maternal household, matching the standard path's
+            grouping convention.
+
+    Raises:
+        ValueError: if ``parental_sex`` contains zero males or zero females.
+    """
+    male_idxs = np.where(parental_sex == 1)[0]
+    female_idxs = np.where(parental_sex == 0)[0]
+    if len(female_idxs) == 0:
+        raise ValueError(
+            f"WF mating: parent generation {generation} has 0 female individuals; "
+            f"cannot sample mothers."
+        )
+    if len(male_idxs) == 0:
+        raise ValueError(
+            f"WF mating: parent generation {generation} has 0 male individuals; "
+            f"cannot sample fathers."
+        )
+
+    mother_idx = rng.choice(female_idxs, size=N, replace=True)
+    father_idx = rng.choice(male_idxs, size=N, replace=True)
+    parent_idxs = np.column_stack([mother_idx, father_idx])
+
+    twins = np.empty((0, 2), dtype=int)
+    _, household_ids = np.unique(mother_idx, return_inverse=True)
+
+    return parent_idxs, twins, household_ids
+
+
+def mating(
+    rng: np.random.Generator,
+    parental_sex: np.ndarray,
+    mating_lambda: float = 0.5,
+    p_mztwin: float = 0.0,
+    pheno: np.ndarray | None = None,
+    assort1: float = 0.0,
+    assort2: float = 0.0,
+    rho_w: float = 0.0,
+    assort_matrix: np.ndarray | None = None,
+    *,
+    mating_model: str = "standard",
+    generation: int = 0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Dispatch to the configured mating implementation.
+
+    Public entry point used by tests and any external caller; ``run_simulation``
+    branches directly to ``_mating_standard`` / ``_mating_wf`` from inside the
+    generation loop because the standard path needs per-iter AM variables that
+    don't exist under WF.
+
+    Args:
+        rng: numpy random generator.
+        parental_sex: array of sex values (0=female, 1=male) for parents.
+        mating_lambda: Poisson lambda for the ZTP mating-count distribution.
+            Standard-model only; ignored under WF.
+        p_mztwin: Probability of MZ twinning per eligible mating.
+            Standard-model only; ignored under WF.
+        pheno: ``(n, 6)`` phenotype matrix used for assortative mating.
+            Standard-model only; ignored under WF.
+        assort1: Mate correlation on trait-1 liability.  Standard-model
+            only; ignored under WF.
+        assort2: Mate correlation on trait-2 liability.  Standard-model
+            only; ignored under WF.
+        rho_w: Within-person cross-trait liability correlation.
+            Standard-model only; ignored under WF.
+        assort_matrix: Optional 2x2 mate-correlation matrix.
+            Standard-model only; ignored under WF.
+        mating_model: ``"standard"`` (default) or ``"wright_fisher"``.
+        generation: Passed to ``_mating_wf`` for error-message provenance.
+            Ignored under the standard path.
+
+    Returns:
+        ``(parent_idxs, twins, household_ids)`` as produced by the chosen
+        backend.
+    """
+    if mating_model == "wright_fisher":
+        return _mating_wf(rng, parental_sex, len(parental_sex), generation)
+    if mating_model == "standard":
+        return _mating_standard(
+            rng,
+            parental_sex,
+            mating_lambda,
+            p_mztwin,
+            pheno=pheno,
+            assort1=assort1,
+            assort2=assort2,
+            rho_w=rho_w,
+            assort_matrix=assort_matrix,
+        )
+    raise ValueError(f"Unknown mating_model={mating_model!r}; expected 'standard' or 'wright_fisher'.")
 
 
 def reproduce(
@@ -1048,6 +1165,7 @@ def run_simulation(
     assort1: float | dict[int, float] = 0.0,
     assort2: float | dict[int, float] = 0.0,
     assort_matrix: list[list[float]] | np.ndarray | None = None,
+    mating_model: str = "standard",
 ) -> pd.DataFrame:
     """Run the full ACE simulation for two correlated traits.
 
@@ -1084,6 +1202,13 @@ def run_simulation(
         assort_matrix: Optional full 2x2 mate correlation matrix R_mf.
             Overrides assort1/assort2 diagonal with matrix diagonal. Only
             valid when both assort1 and assort2 are scalars.
+        mating_model: ``"standard"`` (default) or ``"wright_fisher"``.
+            Under ``"wright_fisher"``, ``mating_lambda``, ``p_mztwin``,
+            ``assort1``, ``assort2``, and ``assort_matrix`` are silently
+            ignored at runtime — the WF path samples each offspring's
+            mother and father independently from the prior generation's
+            females / males, with multinomial offspring counts and no MZ
+            twins.  See ``docs/adr/0002-wright-fisher-mating-model.md``.
 
     Returns:
         Pedigree DataFrame with columns id, sex, mother, father, twin,
@@ -1096,6 +1221,16 @@ def run_simulation(
     if G_sim is None:
         G_sim = G_ped
 
+    # --- mating_model allowed-value check (gates standard-only validation
+    # below — config-load enforces this too, but run_simulation is also a
+    # public API exercised by tests) ---
+    from simace.config import VALID_MATING_MODELS
+
+    if mating_model not in VALID_MATING_MODELS:
+        raise ValueError(
+            f"mating_model must be one of {sorted(VALID_MATING_MODELS)}, got {mating_model!r}"
+        )
+
     # --- Input validation ---
     for name, val in [("A1", A1), ("C1", C1), ("A2", A2), ("C2", C2)]:
         if not (isinstance(val, (int, float)) and val >= 0):
@@ -1105,44 +1240,51 @@ def run_simulation(
         raise ValueError(f"N must be a positive integer, got {N}")
     if not (G_ped == int(G_ped) and G_ped >= 1):
         raise ValueError(f"G_ped must be an integer >= 1, got {G_ped}")
-    if not (mating_lambda > 0):
-        raise ValueError(f"mating_lambda must be > 0, got {mating_lambda}")
-    if not (0 <= p_mztwin < 1):
-        raise ValueError(f"p_mztwin must be in [0, 1), got {p_mztwin}")
     if not (-1 <= rA <= 1):
         raise ValueError(f"rA must be in [-1, 1], got {rA}")
     if not (-1 <= rC <= 1):
         raise ValueError(f"rC must be in [-1, 1], got {rC}")
     if not (-1 <= rE <= 1):
         raise ValueError(f"rE must be in [-1, 1], got {rE}")
-    # assort1/assort2 may be scalar or per-gen dict (raw-iter keyed,
-    # forward-filled). Validate each before resolving.
-    def _validate_assort_value(name: str, value: float | dict[int, float]) -> None:
-        if isinstance(value, dict):
-            for k, v in value.items():
-                if not (-1 <= float(v) <= 1):
-                    raise ValueError(f"{name}[{k}] must be in [-1, 1], got {v}")
-        elif not (-1 <= float(value) <= 1):
-            raise ValueError(f"{name} must be in [-1, 1], got {value}")
 
-    _validate_assort_value("assort1", assort1)
-    _validate_assort_value("assort2", assort2)
+    # Standard-model-only validation: mating_lambda, p_mztwin, assort* are
+    # no-ops under WF (each offspring picks parents independently → no ZTP,
+    # no twin-eligible matings, no AM by construction). Skip these checks
+    # so callers can pass inherited defaults under WF without pre-zeroing.
+    if mating_model == "standard":
+        if not (mating_lambda > 0):
+            raise ValueError(f"mating_lambda must be > 0, got {mating_lambda}")
+        if not (0 <= p_mztwin < 1):
+            raise ValueError(f"p_mztwin must be in [0, 1), got {p_mztwin}")
 
-    # Per-gen assort dicts are incompatible with a fixed `assort_matrix`
-    # because the matrix specifies one off-diagonal cross-AM, while per-gen
-    # AM implies the cross-AM also varies per generation. v1 rejects this
-    # combination — users wanting a fixed cross-AM must use scalar
-    # assort1/assort2.
-    if assort_matrix is not None and (isinstance(assort1, dict) or isinstance(assort2, dict)):
-        raise ValueError(
-            "assort_matrix is incompatible with per-generation assort1/assort2 "
-            "(dict-valued). Pass scalar assort1/assort2 with assort_matrix, or "
-            "use per-gen dicts and let cross-AM auto-compute from rho_w."
-        )
+        # assort1/assort2 may be scalar or per-gen dict (raw-iter keyed,
+        # forward-filled). Validate each before resolving.
+        def _validate_assort_value(name: str, value: float | dict[int, float]) -> None:
+            if isinstance(value, dict):
+                for k, v in value.items():
+                    if not (-1 <= float(v) <= 1):
+                        raise ValueError(f"{name}[{k}] must be in [-1, 1], got {v}")
+            elif not (-1 <= float(value) <= 1):
+                raise ValueError(f"{name} must be in [-1, 1], got {value}")
 
-    # Resolve assort_matrix
+        _validate_assort_value("assort1", assort1)
+        _validate_assort_value("assort2", assort2)
+
+        # Per-gen assort dicts are incompatible with a fixed `assort_matrix`
+        # because the matrix specifies one off-diagonal cross-AM, while per-gen
+        # AM implies the cross-AM also varies per generation. v1 rejects this
+        # combination — users wanting a fixed cross-AM must use scalar
+        # assort1/assort2.
+        if assort_matrix is not None and (isinstance(assort1, dict) or isinstance(assort2, dict)):
+            raise ValueError(
+                "assort_matrix is incompatible with per-generation assort1/assort2 "
+                "(dict-valued). Pass scalar assort1/assort2 with assort_matrix, or "
+                "use per-gen dicts and let cross-AM auto-compute from rho_w."
+            )
+
+    # Resolve assort_matrix (standard-only — WF has no AM)
     R_mf = None
-    if assort_matrix is not None:
+    if mating_model == "standard" and assort_matrix is not None:
         R_mf = np.asarray(assort_matrix, dtype=np.float64)
         if R_mf.shape != (2, 2):
             raise ValueError(f"assort_matrix must be 2x2, got shape {R_mf.shape}")
@@ -1164,12 +1306,9 @@ def run_simulation(
 
     rng = np.random.default_rng(seed)
 
-    # Resolve per-generation C and E variance components
-    # C1/C2 may be scalar or per-gen dict; A is always scalar (constant).
-    # assort1/assort2 may also be scalar or per-gen dict (raw-iter keyed).
-    # AM correlations can be negative so we pass allow_negative=True.
-    assort1_per_gen = resolve_per_gen_param(assort1, G_sim, name="assort1", allow_negative=True)
-    assort2_per_gen = resolve_per_gen_param(assort2, G_sim, name="assort2", allow_negative=True)
+    # Resolve per-generation C and E variance components.  C1/C2 may be
+    # scalar or per-gen dict; A is always scalar (constant).  These run
+    # for both mating models since reproduce() needs them.
     C1_per_gen = resolve_per_gen_param(C1, G_sim, name="C1")
     C2_per_gen = resolve_per_gen_param(C2, G_sim, name="C2")
     E1_per_gen = resolve_per_gen_param(E1, G_sim, name="E1")
@@ -1185,48 +1324,60 @@ def run_simulation(
     sd_A1 = np.sqrt(A1)
     sd_A2 = np.sqrt(A2)
 
-    # Within-person cross-trait liability correlation per C/E generation
-    _rho_w_A = rA * np.sqrt(A1 * A2)
-    rho_w_per_ce = [
-        _rho_w_A + rC * np.sqrt(C1_per_gen[g] * C2_per_gen[g]) + rE * np.sqrt(E1_per_gen[g] * E2_per_gen[g])
-        for g in range(G_sim)
-    ]
+    # Standard-model AM resolution: per-gen assort, rho_w, PSD checks.
+    # WF skips this entirely — no AM, no rho_w-driven cross-AM.
+    assort1_per_gen: list[float] | None = None
+    assort2_per_gen: list[float] | None = None
+    rho_w_per_ce: list[float] | None = None
+    R_mf_user = None
+    if mating_model == "standard":
+        # assort1/assort2 may be scalar or per-gen dict (raw-iter keyed).
+        # AM correlations can be negative so we pass allow_negative=True.
+        assort1_per_gen = resolve_per_gen_param(assort1, G_sim, name="assort1", allow_negative=True)
+        assort2_per_gen = resolve_per_gen_param(assort2, G_sim, name="assort2", allow_negative=True)
 
-    # Validate |rho_w| < 1 for all C/E generations where both-trait AM is on.
-    # With per-gen AM the both-trait check is per-iteration.
-    for g, rw in enumerate(rho_w_per_ce):
-        if assort1_per_gen[g] != 0 and assort2_per_gen[g] != 0 and abs(rw) >= 1.0 - 1e-10:
-            raise ValueError(
-                f"Both-trait assortative mating requires |rho_w| < 1 "
-                f"(got rho_w={rw:.4f} at C/E generation {g}). "
-                f"Traits are perfectly correlated; "
-                f"use single-trait assortment instead."
-            )
+        # Within-person cross-trait liability correlation per C/E generation
+        _rho_w_A = rA * np.sqrt(A1 * A2)
+        rho_w_per_ce = [
+            _rho_w_A + rC * np.sqrt(C1_per_gen[g] * C2_per_gen[g]) + rE * np.sqrt(E1_per_gen[g] * E2_per_gen[g])
+            for g in range(G_sim)
+        ]
 
-    # Track whether R_mf was provided explicitly (vs. auto-computed from rho_w)
-    R_mf_user = R_mf
+        # Validate |rho_w| < 1 for all C/E generations where both-trait AM is on.
+        # With per-gen AM the both-trait check is per-iteration.
+        for g, rw in enumerate(rho_w_per_ce):
+            if assort1_per_gen[g] != 0 and assort2_per_gen[g] != 0 and abs(rw) >= 1.0 - 1e-10:
+                raise ValueError(
+                    f"Both-trait assortative mating requires |rho_w| < 1 "
+                    f"(got rho_w={rw:.4f} at C/E generation {g}). "
+                    f"Traits are perfectly correlated; "
+                    f"use single-trait assortment instead."
+                )
 
-    # Validate PSD of full 4x4 Sigma for each generation's rho_w + AM.
-    for g, rw in enumerate(rho_w_per_ce):
-        a1_g = assort1_per_gen[g]
-        a2_g = assort2_per_gen[g]
-        if R_mf_user is None and not (a1_g != 0 and a2_g != 0):
-            continue  # PSD check is only meaningful when both-trait AM is active
-        if R_mf_user is not None:
-            R_mf_g = R_mf_user
-        else:
-            c = rw * np.sqrt(abs(a1_g * a2_g)) * np.sign(a1_g * a2_g)
-            R_mf_g = np.array([[a1_g, c], [c, a2_g]])
-        R_ff = np.array([[1.0, rw], [rw, 1.0]])
-        Sigma_4 = np.block([[R_ff, R_mf_g.T], [R_mf_g, R_ff]])
-        eigvals = np.linalg.eigvalsh(Sigma_4)
-        if eigvals[0] < -1e-8:
-            raise ValueError(
-                f"Full 4x4 mate correlation matrix Sigma_4 is not PSD "
-                f"(min eigenvalue = {eigvals[0]:.6f} at C/E generation {g}). "
-                f"Reduce the magnitude of assort_matrix off-diagonal entries "
-                f"or per-gen assort1/assort2."
-            )
+        # Track whether R_mf was provided explicitly (vs. auto-computed from rho_w)
+        R_mf_user = R_mf
+
+        # Validate PSD of full 4x4 Sigma for each generation's rho_w + AM.
+        for g, rw in enumerate(rho_w_per_ce):
+            a1_g = assort1_per_gen[g]
+            a2_g = assort2_per_gen[g]
+            if R_mf_user is None and not (a1_g != 0 and a2_g != 0):
+                continue  # PSD check is only meaningful when both-trait AM is active
+            if R_mf_user is not None:
+                R_mf_g = R_mf_user
+            else:
+                c = rw * np.sqrt(abs(a1_g * a2_g)) * np.sign(a1_g * a2_g)
+                R_mf_g = np.array([[a1_g, c], [c, a2_g]])
+            R_ff = np.array([[1.0, rw], [rw, 1.0]])
+            Sigma_4 = np.block([[R_ff, R_mf_g.T], [R_mf_g, R_ff]])
+            eigvals = np.linalg.eigvalsh(Sigma_4)
+            if eigvals[0] < -1e-8:
+                raise ValueError(
+                    f"Full 4x4 mate correlation matrix Sigma_4 is not PSD "
+                    f"(min eigenvalue = {eigvals[0]:.6f} at C/E generation {g}). "
+                    f"Reduce the magnitude of assort_matrix off-diagonal entries "
+                    f"or per-gen assort1/assort2."
+                )
 
     # Initialize founders with correlated components (using gen-0 C/E variances)
     sex = rng.binomial(size=N, n=1, p=0.5)
@@ -1264,33 +1415,36 @@ def run_simulation(
     for i in range(G_sim):
         t_gen = time.perf_counter()
 
-        # rho_w for the current parental population:
-        # founders (i=0) have gen-0 C/E; offspring from iter j have per_gen[j] C/E
-        parent_ce_gen = max(0, i - 1)
-        rho_w_i = rho_w_per_ce[parent_ce_gen]
+        if mating_model == "standard":
+            # rho_w for the current parental population:
+            # founders (i=0) have gen-0 C/E; offspring from iter j have per_gen[j] C/E
+            parent_ce_gen = max(0, i - 1)
+            rho_w_i = rho_w_per_ce[parent_ce_gen]
 
-        # Per-iter AM values (constant across iters for scalar assort1/assort2).
-        a1_i = assort1_per_gen[i]
-        a2_i = assort2_per_gen[i]
+            # Per-iter AM values (constant across iters for scalar assort1/assort2).
+            a1_i = assort1_per_gen[i]
+            a2_i = assort2_per_gen[i]
 
-        # Auto-compute R_mf for this generation's rho_w if not user-provided.
-        if R_mf_user is None and a1_i != 0 and a2_i != 0:
-            c = rho_w_i * np.sqrt(abs(a1_i * a2_i)) * np.sign(a1_i * a2_i)
-            R_mf_i = np.array([[a1_i, c], [c, a2_i]])
-        else:
-            R_mf_i = R_mf_user
+            # Auto-compute R_mf for this generation's rho_w if not user-provided.
+            if R_mf_user is None and a1_i != 0 and a2_i != 0:
+                c = rho_w_i * np.sqrt(abs(a1_i * a2_i)) * np.sign(a1_i * a2_i)
+                R_mf_i = np.array([[a1_i, c], [c, a2_i]])
+            else:
+                R_mf_i = R_mf_user
 
-        parents, twins, household_ids = mating(
-            rng,
-            sex,
-            mating_lambda,
-            p_mztwin,
-            pheno=pheno,
-            assort1=a1_i,
-            assort2=a2_i,
-            rho_w=rho_w_i,
-            assort_matrix=R_mf_i,
-        )
+            parents, twins, household_ids = _mating_standard(
+                rng,
+                sex,
+                mating_lambda,
+                p_mztwin,
+                pheno=pheno,
+                assort1=a1_i,
+                assort2=a2_i,
+                rho_w=rho_w_i,
+                assort_matrix=R_mf_i,
+            )
+        else:  # wright_fisher
+            parents, twins, household_ids = _mating_wf(rng, sex, N, generation=i)
         t_mate = time.perf_counter()
         pheno, sex = reproduce(
             rng,
@@ -1370,8 +1524,15 @@ def cli() -> None:
     parser.add_argument("--N", type=int, default=1000, help="Founder population size")
     parser.add_argument("--G-ped", type=int, default=3, help="Number of pedigree generations")
     parser.add_argument("--G-sim", type=int, default=None, help="Number of burn-in generations (default: G_ped)")
-    parser.add_argument("--mating-lambda", type=float, default=0.5, help="ZTP mating count lambda")
-    parser.add_argument("--p-mztwin", type=float, default=0.02, help="Probability of MZ twinning")
+    parser.add_argument(
+        "--mating-model",
+        type=str,
+        default="standard",
+        choices=("standard", "wright_fisher"),
+        help="Mating model: standard (ZTP fecundity, paired) or wright_fisher (sex-structured idealized WF).",
+    )
+    parser.add_argument("--mating-lambda", type=float, default=0.5, help="ZTP mating count lambda (standard model only)")
+    parser.add_argument("--p-mztwin", type=float, default=0.02, help="Probability of MZ twinning (standard model only)")
     parser.add_argument("--A1", type=float, default=0.5, help="Additive genetic variance for trait 1")
     parser.add_argument("--C1", type=float, default=0.2, help="Shared environment variance for trait 1")
     parser.add_argument("--E1", type=float, required=True, help="Unique environment variance for trait 1")
@@ -1417,6 +1578,7 @@ def cli() -> None:
         assort1=args.assort1,
         assort2=args.assort2,
         assort_matrix=assort_matrix,
+        mating_model=args.mating_model,
     )
 
     save_parquet(pedigree, args.output_pedigree)
@@ -1436,6 +1598,7 @@ def cli() -> None:
         N=args.N,
         G_ped=args.G_ped,
         G_sim=args.G_sim,
+        mating_model=args.mating_model,
         mating_lambda=args.mating_lambda,
         p_mztwin=args.p_mztwin,
         assort1=args.assort1,

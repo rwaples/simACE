@@ -165,9 +165,14 @@ def plot_variance_components(df: pd.DataFrame, out: Path, ext: str = "png") -> N
 
 
 def plot_twin_rate(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
-    """Plot observed MZ twin rate vs expected across scenarios."""
+    """Plot observed MZ twin rate vs expected across scenarios.
+
+    Reads ``expected_twin_rate`` (derived in ``gather.extract_metrics``)
+    rather than ``p_mztwin`` so the WF case (expected = 0) is plotted
+    correctly without a per-plot branch.
+    """
     fig, ax = plt.subplots(figsize=_figsize())
-    stripplot(df, ax, "observed_twin_rate", expected="p_mztwin")
+    stripplot(df, ax, "observed_twin_rate", expected="expected_twin_rate")
     ax.set_title("MZ Twin Rate: Observed vs Expected")
     ax.set_ylabel("Twin Rate")
     enable_value_gridlines(ax)
@@ -331,7 +336,9 @@ def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     dp["A1 Bias"] = dp["variance_A1"] - dp["A1"]
     dp["C1 Bias"] = dp["variance_C1"] - dp["C1"]
     dp["E1 Bias"] = dp["variance_E1"] - dp["E1"]
-    dp["Twin Rate Bias"] = dp["observed_twin_rate"] - dp["p_mztwin"]
+    # Use derived expected_twin_rate (0 under WF, p_mztwin otherwise) so
+    # WF scenarios don't show a spurious negative bias.
+    dp["Twin Rate Bias"] = dp["observed_twin_rate"] - dp["expected_twin_rate"]
     dp["DZ A1 Corr Bias"] = dp["dz_sibling_A1_corr"] - 0.5
     dp["Half-sib A1 Bias"] = dp["half_sib_A1_corr"] - 0.25
 

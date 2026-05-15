@@ -86,7 +86,7 @@ The full multi-generational graph stored in `pedigree.parquet`, covering all $G_
 _Avoid_: family tree, genealogy.
 
 **Mating**:
-An event linking one male and one female parent, producing zero or more offspring. Each individual may participate in multiple matings (mating count drawn from a zero-truncated Poisson). "Mating pair" is the same thing in prose.
+An event linking one male and one female parent, producing zero or more offspring. Under the **standard mating model** each individual may participate in multiple matings (mating count drawn from a zero-truncated Poisson). Under the **Wright-Fisher mating model** there is no persistent mating-pair structure: each offspring's two parents are drawn independently, so each offspring is conceptually its own degenerate one-offspring mating event. "Mating pair" is the same thing in prose.
 _Avoid_: couple, partnership, union, pair (ambiguous — see **Relationship pair**).
 
 **Household**:
@@ -171,6 +171,14 @@ The *merged runtime parameter set* for a specific scenario — i.e., what comes 
 _Avoid_: settings, spec, parameter dict (acceptable internally but not the canonical name).
 
 **Folder / scenario / replicate** are a strict 3-level hierarchy: every replicate belongs to exactly one scenario, every scenario to exactly one folder. There are no cross-folder scenarios and no scenarios without replicates.
+
+**Mating model**:
+The algorithm simACE uses to sample mating pairs and offspring counts each generation. One of `standard` (default) or `wright_fisher`. Config key: `pedigree.mating_model`. The choice is global to a scenario — there is no per-generation switching. Recorded faithfully in `params.yaml` so downstream stages (`validate`, `stats`, `plot`) can branch on it.
+_Avoid_: mating algorithm, mating scheme, pedigree model.
+
+**Wright-Fisher mating model** (`mating_model: wright_fisher`):
+Sex-structured idealized Wright-Fisher: two sexes are retained; for each of the $N$ offspring next generation, one mother is drawn uniformly at random from the prior generation's females and one father uniformly from the males (both with replacement). Multinomial offspring counts per parent, no persistent mating-pair structure, no MZ twins. Households-per-mother (and therefore $C$) still apply because each offspring has a well-defined mother. Under random mating with 50/50 sex ratio, $N_e \to N$ by construction (Crow-Kimura). The standard-model knobs `mating_lambda`, `p_mztwin`, `assort1`, `assort2`, and `assort_matrix` are no-ops under WF; explicit non-no-op overrides of these in a WF scenario are rejected at config-load. See `docs/adr/0002-wright-fisher-mating-model.md`.
+_Avoid_: hermaphroditic WF (this is *sex-structured* WF — a deliberate divergence from textbook hermaphroditic Wright-Fisher; see ADR 0002).
 
 ### Relatedness, kinship, and relationship types
 

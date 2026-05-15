@@ -175,21 +175,30 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
     if config is None:
         return dict.fromkeys(_NE_KEYS)
 
-    assort1 = float(config.get("assort1") or 0.0)
-    assort2 = float(config.get("assort2") or 0.0)
-    if assort1 != 0.0 or assort2 != 0.0:
-        return dict.fromkeys(_NE_KEYS)
-
     N = config.get("N")
     if N is None:
         return dict.fromkeys(_NE_KEYS)
 
-    mating_lambda = config.get("mating_lambda")
-    if mating_lambda is None:
-        return dict.fromkeys(_NE_KEYS)
-
+    mating_model = config.get("mating_model", "standard")
     n = float(N)
-    ne_v = ne_v_expected_ztp(n, float(mating_lambda))
+
+    if mating_model == "wright_fisher":
+        # Sex-structured idealized WF: per-individual offspring count has
+        # mean 2 and variance ≈ 2 (Poisson(2)), giving Ne_V → N via
+        # Crow-Kimura. assort1/assort2/mating_lambda are no-ops.  The
+        # regression-based estimators still carry the same Jensen-bias
+        # gate; under WF the gate reduces to G_ped² ≥ 120.
+        ne_v = n
+    else:
+        # Standard model: AM nullifies expectations; mating_lambda required.
+        assort1 = float(config.get("assort1") or 0.0)
+        assort2 = float(config.get("assort2") or 0.0)
+        if assort1 != 0.0 or assort2 != 0.0:
+            return dict.fromkeys(_NE_KEYS)
+        mating_lambda = config.get("mating_lambda")
+        if mating_lambda is None:
+            return dict.fromkeys(_NE_KEYS)
+        ne_v = ne_v_expected_ztp(n, float(mating_lambda))
 
     g_ped = config.get("G_ped")
     regression_ok = g_ped is not None and regression_estimator_regime_ok(n, int(g_ped), ne_v)
