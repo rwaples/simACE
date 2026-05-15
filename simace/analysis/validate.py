@@ -147,10 +147,11 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
     and sex for MZ pairs, and that the observed twin rate matches the
     expected rate ``2 * p_mztwin * eligible_fraction``.
 
-    Under ``mating_model="wright_fisher"`` no MZ twins are produced; the
-    block returns vacuously-passing results with ``expected_rate=0.0``
-    and ``observed_rate=0.0`` so downstream gather/plotting see a coherent
-    schema (cf. ``METRIC_REGISTRY`` in ``simace.analysis.validation_schema``).
+    Under ``mating_model="wright_fisher"`` no MZ twins are produced by
+    design (see ADR 0002), so ``expected_rate`` is ``0.0`` and any
+    twin present in the pedigree is a violation that fails the rate
+    check.  Structural checks still run when twins are present so a
+    corrupted WF output is also flagged for malformed twin records.
 
     Args:
         df: Pedigree DataFrame.
@@ -164,34 +165,31 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
     results = {}
     mating_model = params.get("mating_model", "standard")
     p_mztwin = params["p_mztwin"]
+    is_wf = mating_model == "wright_fisher"
+    expected_rate = 0.0 if is_wf else float(p_mztwin)
 
     twins_df = df[df["twin"] != -1]
     n_twins = len(twins_df)
 
-    if mating_model == "wright_fisher":
-        results["twin_bidirectional"] = _result(True, "No twins under mating_model=wright_fisher")
-        results["twin_same_parents"] = _result(True, "No twins under mating_model=wright_fisher")
-        for t in [1, 2]:
-            results[f"twin_same_A{t}"] = _result(True, "No twins under mating_model=wright_fisher")
-        results["twin_same_sex"] = _result(True, "No twins under mating_model=wright_fisher")
-        results["twin_rate"] = _result(
-            True,
-            "No twins expected under mating_model=wright_fisher",
-            expected_rate=0.0,
-            observed_rate=0.0,
-        )
-        return results
-
     if n_twins == 0:
-        results["twin_bidirectional"] = _result(True, "No twins found")
-        results["twin_same_parents"] = _result(True, "No twins found")
+        no_twins_msg = "No twins expected under mating_model=wright_fisher" if is_wf else "No twins found"
+        results["twin_bidirectional"] = _result(True, no_twins_msg)
+        results["twin_same_parents"] = _result(True, no_twins_msg)
         for t in [1, 2]:
-            results[f"twin_same_A{t}"] = _result(True, "No twins found")
-        results["twin_same_sex"] = _result(True, "No twins found")
+            results[f"twin_same_A{t}"] = _result(True, no_twins_msg)
+        results["twin_same_sex"] = _result(True, no_twins_msg)
+        # WF passes always (expected=observed=0); standard passes if
+        # p_mztwin is small enough that zero observed twins is plausible.
+        rate_pass = True if is_wf else p_mztwin < 0.01
+        rate_msg = (
+            "No twins expected under mating_model=wright_fisher"
+            if is_wf
+            else f"No twins found, expected rate: {p_mztwin}"
+        )
         results["twin_rate"] = _result(
-            p_mztwin < 0.01,
-            f"No twins found, expected rate: {p_mztwin}",
-            expected_rate=p_mztwin,
+            rate_pass,
+            rate_msg,
+            expected_rate=expected_rate,
             observed_rate=0.0,
         )
         return results
@@ -253,15 +251,28 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
         nf_twin_partners = nf_twins["twin"].values
         nf_pairs = int(np.sum(nf_twin_ids < nf_twin_partners))
         observed_rate = nf_pairs * 2 / n_nf
-        # Under the mating-pair model, twins are assigned per mating with >=2
-        # offspring. Use a generous range check since the expected rate depends
-        # on the offspring allocation distribution.
-        rate_tol = max(0.01, 3 * p_mztwin)
-        rate_ok = observed_rate < rate_tol
+        if is_wf:
+            # WF documents zero twins (ADR 0002).  Any presence is a
+            # violation of the no-MZ-twins invariant.
+            rate_ok = nf_pairs == 0
+            rate_msg = (
+                f"Twin rate under mating_model=wright_fisher: {observed_rate:.4f} "
+                f"(expected 0.0); pedigree contains {nf_pairs} unexpected twin pair(s)."
+            )
+        else:
+            # Standard mating-pair model: twins are assigned per mating with
+            # >=2 offspring.  Generous range check because the expected rate
+            # depends on the offspring-allocation distribution.
+            rate_tol = max(0.01, 3 * p_mztwin)
+            rate_ok = observed_rate < rate_tol
+            rate_msg = (
+                f"Twin rate in non-founders: {observed_rate:.4f} "
+                f"(p_mztwin={p_mztwin:.4f}, tol: {rate_tol:.4f})"
+            )
         results["twin_rate"] = _result(
             rate_ok,
-            f"Twin rate in non-founders: {observed_rate:.4f} (p_mztwin={p_mztwin:.4f}, tol: {rate_tol:.4f})",
-            expected_rate=float(p_mztwin),
+            rate_msg,
+            expected_rate=expected_rate,
             observed_rate=float(observed_rate),
             twin_pairs=nf_pairs,
         )
