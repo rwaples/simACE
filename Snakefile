@@ -7,6 +7,7 @@ from workflow.common import (
     get_scenarios_for_folder,
     get_all_folders,
     get_folder_validations,
+    get_scenario_simulation_outputs,
     get_scenario_sim_outputs,
     plot_filenames,
     _pre_ascertainment_pedigree_input,

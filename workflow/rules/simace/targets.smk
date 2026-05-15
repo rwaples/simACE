@@ -30,10 +30,7 @@ rule scenario:
 rule simulate_scenario:
     """Run pedigree simulation only for a single scenario."""
     input:
-        lambda w: [
-            f"results/{w.folder}/{w.scenario}/rep{r}/pedigree.parquet"
-            for r in range(1, get_param(config, w.scenario, "replicates") + 1)
-        ],
+        lambda w: get_scenario_simulation_outputs(config, w.scenario),
     output:
         touch("results/{folder}/{scenario}/simulate.done"),
 

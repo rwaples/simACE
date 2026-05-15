@@ -35,6 +35,7 @@ __all__ = [
     "get_all_folders",
     "get_folder",
     "get_folder_validations",
+    "get_scenario_simulation_outputs",
     "get_param",
     "get_scenario_sim_outputs",
     "get_scenarios_for_folder",
@@ -171,6 +172,16 @@ def get_scenario_sim_outputs(config: dict, scenario: str, plot_ext: str = "png")
     )
     outputs.append(f"results/{folder}/{scenario}/plots/atlas.pdf")
     return outputs
+
+
+def get_scenario_simulation_outputs(config: dict, scenario: str) -> list[str]:
+    """Generate raw pedigree outputs for a simulate-only scenario target."""
+    folder = get_folder(config, scenario)
+    n_reps = get_param(config, scenario, "replicates")
+    return [
+        f"results/{folder}/{scenario}/rep{rep}/pedigree.full.parquet"
+        for rep in range(1, n_reps + 1)
+    ]
 
 
 def get_folder_validations(config: dict, folder: str) -> list[str]:
