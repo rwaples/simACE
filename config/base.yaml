@@ -24,3 +24,8 @@ baseline2M:
   N: 2000000
   analysis:
     skip_ne_coancestry: true
+baseline10M:
+  seed: 10042
+  N: 10000000
+  analysis:
+    skip_ne_coancestry: true
