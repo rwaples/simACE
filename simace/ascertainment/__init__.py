@@ -35,6 +35,92 @@ def _sever_dangling_links(df: pd.DataFrame, valid_ids: np.ndarray) -> pd.DataFra
     return result
 
 
+def _apply_dropout(pedigree: pd.DataFrame, rate: float, rng: np.random.Generator) -> pd.DataFrame:
+    """Remove a uniform random subset of the full pedigree."""
+    n_total = len(pedigree)
+    n_drop = round(n_total * rate)
+    if n_drop <= 0:
+        return pedigree
+    if n_drop >= n_total:
+        raise ValueError(f"dropout_rate {rate} would remove all {n_total} individuals")
+
+    drop_idx = rng.choice(n_total, n_drop, replace=False)
+    keep_mask = np.ones(n_total, dtype=bool)
+    keep_mask[drop_idx] = False
+    return pedigree.loc[keep_mask].reset_index(drop=True)
+
+
+def _filter_to_ids(df: pd.DataFrame, ids: np.ndarray) -> pd.DataFrame:
+    """Filter a trait-like DataFrame to an ID set, preserving row order."""
+    return df[df["id"].isin(ids)].reset_index(drop=True)
+
+
+def _sample_trait_ids(
+    trait_post_dropout: pd.DataFrame,
+    *,
+    case_ascertainment_ratio: float,
+    N_sample: int,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, str]:
+    """Draw the shared post-ascertainment trait ID set."""
+    n_pool = len(trait_post_dropout)
+    if n_pool == 0:
+        dtype = trait_post_dropout["id"].dtype if "id" in trait_post_dropout.columns else np.int64
+        return np.empty(0, dtype=dtype), "empty pool"
+
+    if N_sample <= 0 or N_sample >= n_pool:
+        if N_sample > 0:
+            logger.info(
+                "Ascertainment: N_sample=%d >= post-dropout pool of %d; passing all through",
+                N_sample,
+                n_pool,
+            )
+        return trait_post_dropout["id"].to_numpy(), f"pass-through (N_sample={N_sample}, pool={n_pool})"
+
+    is_case = trait_post_dropout["affected1"].to_numpy()
+    n_cases = int(is_case.sum())
+    n_controls = n_pool - n_cases
+
+    if case_ascertainment_ratio == 1.0 or n_cases == 0 or n_cases == n_pool:
+        if case_ascertainment_ratio != 1.0:
+            logger.warning(
+                "case_ascertainment_ratio=%.2f ignored (degenerate: n_cases=%d, n_pool=%d)",
+                case_ascertainment_ratio,
+                n_cases,
+                n_pool,
+            )
+        sample_idx = rng.choice(n_pool, N_sample, replace=False)
+    elif case_ascertainment_ratio == 0:
+        actual_n = min(N_sample, n_controls)
+        if actual_n < N_sample:
+            logger.warning(
+                "case_ascertainment_ratio=0: clamping N_sample from %d to %d (only %d controls)",
+                N_sample,
+                actual_n,
+                n_controls,
+            )
+        control_indices = np.where(~is_case)[0]
+        sample_idx = rng.choice(control_indices, actual_n, replace=False)
+    else:
+        weights = np.where(is_case, case_ascertainment_ratio, 1.0)
+        probabilities = weights / weights.sum()
+        sample_idx = rng.choice(n_pool, N_sample, replace=False, p=probabilities)
+
+    sampled_ids = trait_post_dropout["id"].to_numpy()[np.sort(sample_idx)]
+    return sampled_ids, f"ratio={case_ascertainment_ratio}, n_cases={n_cases}/{n_pool}"
+
+
+def _pedigree_closure_for_ids(pedigree: pd.DataFrame, sampled_ids: np.ndarray) -> pd.DataFrame:
+    """Filter pedigree to sampled IDs plus ancestors, then sever dangling links."""
+    if len(sampled_ids) == 0:
+        ped_closure = pedigree.iloc[0:0].copy()
+    else:
+        ped_closure = filter_pedigree_to_observed(pedigree, sampled_ids)
+
+    closure_ids = ped_closure["id"].to_numpy()
+    return _sever_dangling_links(ped_closure, closure_ids).reset_index(drop=True)
+
+
 def run_ascertainment(
     pedigree: pd.DataFrame,
     trait: pd.DataFrame,
@@ -92,83 +178,21 @@ def run_ascertainment(
     rng = np.random.default_rng(seed)
     t0 = time.perf_counter()
 
-    # Step 1: uniform dropout from the full pedigree.
-    n_drop = round(n_total * rate)
-    if n_drop > 0:
-        if n_drop >= n_total:
-            raise ValueError(f"dropout_rate {rate} would remove all {n_total} individuals")
-        drop_idx = rng.choice(n_total, n_drop, replace=False)
-        keep_mask = np.ones(n_total, dtype=bool)
-        keep_mask[drop_idx] = False
-        ped_post_dropout = pedigree.loc[keep_mask].reset_index(drop=True)
-    else:
-        ped_post_dropout = pedigree
+    ped_post_dropout = _apply_dropout(pedigree, rate, rng)
     ped_post_dropout_ids = ped_post_dropout["id"].to_numpy()
 
-    # Step 2: intersect trait branches with dropout survivors.
-    trait_post_dropout = trait[trait["id"].isin(ped_post_dropout_ids)].reset_index(drop=True)
-    simple_ltm_post_dropout = trait_simple_ltm[trait_simple_ltm["id"].isin(ped_post_dropout_ids)].reset_index(drop=True)
+    trait_post_dropout = _filter_to_ids(trait, ped_post_dropout_ids)
+    simple_ltm_post_dropout = _filter_to_ids(trait_simple_ltm, ped_post_dropout_ids)
+    sampled_ids, case_summary = _sample_trait_ids(
+        trait_post_dropout,
+        case_ascertainment_ratio=ratio,
+        N_sample=n_sample,
+        rng=rng,
+    )
 
-    # Step 3: case-weighted draw from the main trait branch.
-    n_pool = len(trait_post_dropout)
-    if n_pool == 0:
-        sampled_ids = np.empty(0, dtype=trait_post_dropout["id"].dtype if "id" in trait_post_dropout.columns else np.int64)
-        case_summary = "empty pool"
-    elif n_sample <= 0 or n_sample >= n_pool:
-        if n_sample > 0:
-            logger.info(
-                "Ascertainment: N_sample=%d >= post-dropout pool of %d; passing all through",
-                n_sample,
-                n_pool,
-            )
-        sampled_ids = trait_post_dropout["id"].to_numpy()
-        case_summary = f"pass-through (N_sample={n_sample}, pool={n_pool})"
-    else:
-        is_case = trait_post_dropout["affected1"].to_numpy()
-        n_cases = int(is_case.sum())
-        n_controls = n_pool - n_cases
-
-        if ratio == 1.0 or n_cases == 0 or n_cases == n_pool:
-            if ratio != 1.0:
-                logger.warning(
-                    "case_ascertainment_ratio=%.2f ignored (degenerate: n_cases=%d, n_pool=%d)",
-                    ratio,
-                    n_cases,
-                    n_pool,
-                )
-            sample_idx = rng.choice(n_pool, n_sample, replace=False)
-        elif ratio == 0:
-            actual_n = min(n_sample, n_controls)
-            if actual_n < n_sample:
-                logger.warning(
-                    "case_ascertainment_ratio=0: clamping N_sample from %d to %d (only %d controls)",
-                    n_sample,
-                    actual_n,
-                    n_controls,
-                )
-            control_indices = np.where(~is_case)[0]
-            sample_idx = rng.choice(control_indices, actual_n, replace=False)
-        else:
-            weights = np.where(is_case, ratio, 1.0)
-            probabilities = weights / weights.sum()
-            sample_idx = rng.choice(n_pool, n_sample, replace=False, p=probabilities)
-
-        sampled_ids = trait_post_dropout["id"].to_numpy()[np.sort(sample_idx)]
-        case_summary = f"ratio={ratio}, n_cases={n_cases}/{n_pool}"
-
-    # Step 4: filter both trait branches to sampled IDs (identical IDs guaranteed).
-    trait_out = trait_post_dropout[trait_post_dropout["id"].isin(sampled_ids)].reset_index(drop=True)
-    simple_ltm_out = simple_ltm_post_dropout[simple_ltm_post_dropout["id"].isin(sampled_ids)].reset_index(drop=True)
-
-    # Step 5: pedigree = ancestor closure of sampled IDs within post-dropout pedigree.
-    if len(sampled_ids) == 0:
-        ped_closure = ped_post_dropout.iloc[0:0].copy()
-    else:
-        ped_closure = filter_pedigree_to_observed(ped_post_dropout, sampled_ids)
-
-    # Step 6: explicit fixup — twin (and any other) refs pointing outside the closure → -1.
-    closure_ids = ped_closure["id"].to_numpy()
-    ped_out = _sever_dangling_links(ped_closure, closure_ids).reset_index(drop=True)
+    trait_out = _filter_to_ids(trait_post_dropout, sampled_ids)
+    simple_ltm_out = _filter_to_ids(simple_ltm_post_dropout, sampled_ids)
+    ped_out = _pedigree_closure_for_ids(ped_post_dropout, sampled_ids)
 
     elapsed = time.perf_counter() - t0
     logger.info(
