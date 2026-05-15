@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from simace.core.relationships import PAIR_TYPES
+from simace.core.relationships import RELATIONSHIP_TYPES
 
 matplotlib.use("Agg")
 
@@ -55,7 +55,7 @@ def minimal_params():
         "standardize": True,
         "N_sample": 0,
         "case_ascertainment_ratio": 1,
-        "pedigree_dropout_rate": 0,
+        "dropout_rate": 0,
         "prevalence1": 0.10,
         "prevalence2": 0.20,
     }
@@ -451,12 +451,12 @@ def simple_ltm_stats():
                 "trait2": {"overall": 0.20, "generations": [0, 1, 2], "prevalence": [0.19, 0.20, 0.21]},
             },
             "tetrachoric": {
-                "trait1": {pt: _make_pair_data(0.5 - i * 0.05, 100 - i * 10) for i, pt in enumerate(PAIR_TYPES)},
-                "trait2": {pt: _make_pair_data(0.5 - i * 0.05, 100 - i * 10) for i, pt in enumerate(PAIR_TYPES)},
+                "trait1": {pt: _make_pair_data(0.5 - i * 0.05, 100 - i * 10) for i, pt in enumerate(RELATIONSHIP_TYPES)},
+                "trait2": {pt: _make_pair_data(0.5 - i * 0.05, 100 - i * 10) for i, pt in enumerate(RELATIONSHIP_TYPES)},
             },
             "liability_correlations": {
-                "trait1": {pt: 0.6 - i * 0.05 for i, pt in enumerate(PAIR_TYPES)},
-                "trait2": {pt: 0.6 - i * 0.05 for i, pt in enumerate(PAIR_TYPES)},
+                "trait1": {pt: 0.6 - i * 0.05 for i, pt in enumerate(RELATIONSHIP_TYPES)},
+                "trait2": {pt: 0.6 - i * 0.05 for i, pt in enumerate(RELATIONSHIP_TYPES)},
             },
             "joint_affection": {
                 "counts": {"both": 10, "trait1_only": 40, "trait2_only": 90, "neither": 360},
@@ -471,7 +471,7 @@ def simple_ltm_stats():
                     "gen1": {"r": 0.32, "se": 0.05, "n": 170},
                     "gen2": {"r": 0.30, "se": 0.05, "n": 170},
                 },
-                "cross_person": {pt: _make_pair_data(0.2, 80) for pt in PAIR_TYPES},
+                "cross_person": {pt: _make_pair_data(0.2, 80) for pt in RELATIONSHIP_TYPES},
             },
             "regression": {
                 "trait1": {
@@ -512,7 +512,7 @@ def simple_ltm_stats():
                 },
             },
             "tetrachoric_by_sex": {
-                sex: {f"trait{t}": {pt: _make_pair_data(0.4, 50, liab_r=0.4) for pt in PAIR_TYPES} for t in [1, 2]}
+                sex: {f"trait{t}": {pt: _make_pair_data(0.4, 50, liab_r=0.4) for pt in RELATIONSHIP_TYPES} for t in [1, 2]}
                 for sex in ["female", "male"]
             },
             "parent_offspring_corr_by_sex": {

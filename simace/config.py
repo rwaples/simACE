@@ -58,10 +58,10 @@ _HIERARCHICAL_TO_FLAT: dict[tuple[str, ...], str] = {
     ("censoring", "gen_censoring"): "gen_censoring",
     ("censoring", "death_scale"): "death_scale",
     ("censoring", "death_rho"): "death_rho",
-    # sampling section
-    ("sampling", "N_sample"): "N_sample",
-    ("sampling", "case_ascertainment_ratio"): "case_ascertainment_ratio",
-    ("sampling", "pedigree_dropout_rate"): "pedigree_dropout_rate",
+    # ascertainment section (formerly "sampling" with pedigree_dropout_rate)
+    ("ascertainment", "N_sample"): "N_sample",
+    ("ascertainment", "case_ascertainment_ratio"): "case_ascertainment_ratio",
+    ("ascertainment", "dropout_rate"): "dropout_rate",
     # analysis section
     ("analysis", "max_degree"): "max_degree",
     ("analysis", "estimate_inbreeding"): "estimate_inbreeding",
@@ -210,7 +210,7 @@ def _coerce_sim_types(flat: dict) -> dict:
         if isinstance(value, dict):
             flat[key] = {int(gen): v for gen, v in value.items()}
     if "standardize" in flat:
-        from simace.phenotyping.hazards import coerce_standardize_mode
+        from simace.phenotype.hazards import coerce_standardize_mode
 
         flat["standardize"] = coerce_standardize_mode(flat["standardize"])
     return flat

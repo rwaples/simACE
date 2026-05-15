@@ -6,9 +6,10 @@
 results/{folder}/{scenario}/
 ├── rep1/
 │   ├── params.yaml                        # Resolved parameters for this replicate
-│   ├── pedigree.parquet                   # Pedigree after dropout
-│   ├── phenotype.parquet                  # Censored time-to-event phenotypes
-│   ├── phenotype.simple_ltm.parquet       # Liability-threshold binary phenotype
+│   ├── pedigree.full.parquet              # Full pre-ascertainment pedigree (persistent for validation)
+│   ├── pedigree.parquet                   # Post-ascertainment pedigree (ancestor closure of sampled IDs)
+│   ├── trait.parquet                      # Post-ascertainment censored time-to-event phenotypes
+│   ├── trait.simple_ltm.parquet           # Post-ascertainment liability-threshold benchmark
 │   ├── phenotype_stats.yaml               # Phenotype statistics
 │   └── validation.yaml                    # Structural + statistical validation
 ├── rep2/
@@ -22,13 +23,13 @@ results/{folder}/{scenario}/
 
 | File | Description | Temp? |
 |---|---|---|
-| `pedigree.full.parquet` | Full pedigree before dropout | Yes |
-| `pedigree.parquet` | Pedigree after dropout (identical to full when `dropout_rate=0`) | No |
-| `phenotype.raw.parquet` | Raw time-to-event phenotypes before censoring | Yes |
-| `phenotype.parquet` | Censored time-to-event phenotypes | No |
-| `phenotype.sampled.parquet` | Subsampled phenotype for stats | Yes |
-| `phenotype.simple_ltm.parquet` | Liability-threshold binary affected status | No |
-| `phenotype.simple_ltm.sampled.parquet` | Subsampled threshold phenotype | Yes |
+| `pedigree.full.parquet` | Full simulated pedigree (post-burn-in, pre-ascertainment) — consumed by validation, phenotype, phenotype_simple_ltm, and ascertainment | No |
+| `pedigree.parquet` | Post-ascertainment pedigree (ancestor closure of sampled IDs; identical row count to `.full` when `dropout_rate=0` and `N_sample=0`) | No |
+| `trait.raw.parquet` | Raw time-to-event phenotypes before censoring | Yes |
+| `trait.full.parquet` | Post-censor time-to-event phenotypes (full population, pre-ascertainment) | Yes |
+| `trait.simple_ltm.full.parquet` | Pre-ascertainment liability-threshold benchmark | Yes |
+| `trait.parquet` | Post-ascertainment censored time-to-event phenotypes (canonical output) | No |
+| `trait.simple_ltm.parquet` | Post-ascertainment liability-threshold benchmark (canonical output) | No |
 | `params.yaml` | Simulation parameters for this replicate | No |
 | `phenotype_stats.yaml` | Per-replicate phenotype statistics | No |
 
@@ -89,12 +90,10 @@ as placeholders matching values from `config/_default.yaml`.
 
 | File | Format | Description | Writer |
 |------|--------|-------------|--------|
-| `pedigree.parquet` | Parquet | Pedigree structure with ACE variance components | `simace/simulation/simulate.py` |
-| `phenotype.raw.parquet` | Parquet | Raw time-to-event phenotypes (before censoring) | `simace/phenotyping/phenotype.py` |
-| `phenotype.parquet` | Parquet | Censored time-to-event phenotypes | `simace/censoring/censor.py` |
-| `phenotype.sampled.parquet` | Parquet | Downsampled phenotype for plotting and stats | `workflow/scripts/simace/sample.py` |
-| `phenotype.simple_ltm.parquet` | Parquet | Binary affected status from liability-threshold model | `simace/phenotyping/threshold.py` |
-| `phenotype.simple_ltm.sampled.parquet` | Parquet | Downsampled threshold phenotype | `workflow/scripts/simace/sample.py` |
+| `pedigree.full.parquet` | Parquet | Full simulated pedigree (post-burn-in, pre-ascertainment); persistent for validation | `simace/simulation/simulate.py` |
+| `pedigree.parquet` | Parquet | Post-ascertainment pedigree (ancestor closure of sampled IDs, dangling refs severed) | `simace/ascertainment/__init__.py` |
+| `trait.parquet` | Parquet | Post-ascertainment per-individual trait outcomes (censored time-to-event + affected status) | `simace/ascertainment/__init__.py` |
+| `trait.simple_ltm.parquet` | Parquet | Post-ascertainment per-individual simple-LTM benchmark (parallel LTM trait) | `simace/ascertainment/__init__.py` |
 | `params.yaml` | YAML | Simulation parameters for this replicate | `simace/simulation/simulate.py` |
 | `phenotype_stats.yaml` | YAML | Phenotype statistics (correlations, prevalence, CIF, etc.) | `workflow/scripts/simace/compute_phenotype_stats.py` → `simace/analysis/stats/runner.py` |
 | `phenotype_samples.parquet` | Parquet | Further downsampled phenotype rows for stats scatter plots | `workflow/scripts/simace/compute_phenotype_stats.py` → `simace/analysis/stats/runner.py` |
@@ -152,7 +151,7 @@ Raw time-to-event phenotypes before age-window and competing-risk censoring. Sub
 |--------|------|-------------|
 | `t1`, `t2` | float32 | Raw (uncensored) age-at-onset from the phenotype model |
 
-### phenotype.parquet
+### trait.parquet
 
 Extends phenotype.raw with censoring applied via age windows and competing-risk death. Contains all pedigree and raw phenotype columns, plus:
 
@@ -164,7 +163,7 @@ Extends phenotype.raw with censoring applied via age windows and competing-risk 
 | `death_censored1`, `death_censored2` | bool | True if onset occurs after death |
 | `affected1`, `affected2` | bool | True if the individual is observed as affected (not age- or death-censored) |
 
-### phenotype.simple_ltm.parquet
+### trait.simple_ltm.parquet
 
 Binary affected status from a liability-threshold model. Each generation has an independent prevalence-based threshold.
 
@@ -179,17 +178,16 @@ Binary affected status from a liability-threshold model. Each generation has an 
 | `A2`, `C2`, `E2`, `liability2` | float32 | Trait 2 variance components and liability |
 | `affected1`, `affected2` | bool | True if liability exceeds the generation-specific threshold |
 
-### Sampled parquets
+### Ascertained outputs
 
-The pipeline produces several downsampled parquet files to keep plotting and stats computation tractable for large populations:
+`pedigree.parquet`, `trait.parquet`, and `trait.simple_ltm.parquet` are the canonical post-ascertainment outputs that both simACE-stats and fitACE consume. Under non-trivial ascertainment (`dropout_rate > 0` or `N_sample > 0`), these files contain a subset of the full simulated population:
 
-| File | Source | Purpose |
-|------|--------|---------|
-| `phenotype.sampled.parquet` | `phenotype.parquet` | Downsampled rows for phenotype stats input; preserves parents of sampled individuals |
-| `phenotype.simple_ltm.sampled.parquet` | `phenotype.simple_ltm.parquet` | Downsampled threshold rows retained for explicit downstream targets |
-| `phenotype_samples.parquet` | `phenotype.sampled.parquet` | Further downsampled during stats computation for scatter/histogram plots |
+- `pedigree.parquet` is the **ancestor closure** of the sampled IDs within the post-dropout pedigree, with dangling `mother` / `father` / `twin` references rewritten to −1.
+- `trait.parquet` and `trait.simple_ltm.parquet` share an identical `id` column (the sampled set), restricted to the trailing `G_pheno` generations.
 
-All sampled parquets share the same column schema as their source files.
+The pre-ascertainment outputs (`trait.raw.parquet`, `trait.full.parquet`, `trait.simple_ltm.full.parquet`) are Snakemake `temp()` files — auto-deleted once ascertainment has consumed them.
+
+`phenotype_samples.parquet` is a *further* downsampled parquet produced inside the stats stage for scatter/histogram plots; it shares the trait.parquet schema.
 
 ---
 

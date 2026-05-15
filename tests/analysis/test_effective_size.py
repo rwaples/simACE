@@ -408,7 +408,7 @@ def test_effective_size_main_writes_yaml(tmp_path, tiny_pedigree):
     the validator-facing ``expected`` field is populated.
     """
     ped_path = tmp_path / "pedigree.parquet"
-    phe_path = tmp_path / "phenotype.parquet"
+    phe_path = tmp_path / "trait.parquet"
     params_path = tmp_path / "params.yaml"
     out_path = tmp_path / "effective_size.yaml"
 

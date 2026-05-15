@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-r"""Standalone EPIMIGHT runner for a single simACE phenotype.parquet.
+r"""Standalone EPIMIGHT runner for a single simACE trait.parquet.
 
 Drives the full pipeline without Snakemake or the private fitACE repo:
 
-    phenotype.parquet
+    trait.parquet
         -> trait{1,2}.epimight_in.parquet  +  true_parameters.json   (Python)
         -> tsv/{h2_d1,h2_d2,gc}_meta_<kind>.tsv per relationship kind (R)
         -> summary.tsv aggregated over kinds                          (Python)
@@ -25,7 +25,7 @@ Requirements
 Example:
 -------
     python scripts/run_epimight.py \\
-        --phenotype results/dev/test/rep1/phenotype.parquet \\
+        --phenotype results/dev/test/rep1/trait.parquet \\
         --output-dir /tmp/epimight_run \\
         --kinds PO,FS,HS \\
         --K 20 --seed 42
@@ -106,7 +106,7 @@ def _count_total_relatives(pair_list, n, unidirectional=False):
 
 
 def build_epimight_inputs(phenotype_path: Path, output_dir: Path) -> None:
-    """phenotype.parquet -> trait{1,2}.epimight_in.parquet + true_parameters.json."""
+    """trait.parquet -> trait{1,2}.epimight_in.parquet + true_parameters.json."""
     from pedigree_graph import PedigreeGraph
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -121,8 +121,8 @@ def build_epimight_inputs(phenotype_path: Path, output_dir: Path) -> None:
     generations = df["generation"].values
 
     diag1, diag2, nrel = {}, {}, {}
-    for kind, pair_types in KIND_TO_PAIRS.items():
-        pairs = [(all_pairs[pt][0], all_pairs[pt][1]) for pt in pair_types if pt in all_pairs]
+    for kind, relationship_types in KIND_TO_PAIRS.items():
+        pairs = [(all_pairs[pt][0], all_pairs[pt][1]) for pt in relationship_types if pt in all_pairs]
         uni = kind in _UNIDIRECTIONAL_KINDS
         if uni and kind == "Av":
             pairs = _orient_pairs_by_generation(pairs, generations)
@@ -376,7 +376,7 @@ def aggregate_summary(output_dir: Path, kinds: list[str]) -> Path:
 def parse_args() -> argparse.Namespace:
     """Parse command-line arguments."""
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--phenotype", required=True, type=Path, help="Path to phenotype.parquet from a simACE rep.")
+    p.add_argument("--phenotype", required=True, type=Path, help="Path to trait.parquet from a simACE rep.")
     p.add_argument("--output-dir", required=True, type=Path, help="Output directory (created if missing).")
     p.add_argument(
         "--kinds",
@@ -409,7 +409,7 @@ def main() -> None:
     if unknown:
         sys.exit(f"Unknown kinds: {unknown}. Choices: {list(KIND_TO_PAIRS)}")
 
-    # 1. Build EPIMIGHT input parquets + truth from phenotype.parquet
+    # 1. Build EPIMIGHT input parquets + truth from trait.parquet
     build_epimight_inputs(args.phenotype.resolve(), output_dir)
 
     # 2. Run EPIMIGHT R driver per kind

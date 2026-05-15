@@ -1,6 +1,6 @@
 """Compute per-rep phenotype statistics for downstream plotting.
 
-Reads a single phenotype.parquet and produces:
+Reads a single trait.parquet and produces:
   - phenotype_stats.yaml: scalar and array statistics
   - phenotype_samples.parquet: downsampled rows for scatter/histogram plots
 

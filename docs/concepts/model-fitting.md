@@ -27,15 +27,18 @@ Two censoring layers mimic real-world data limitations:
 
 The combined effect: only a fraction of true cases are observed as affected.
 
-## Subsampling and ascertainment
+## Ascertainment
 
-The pipeline can restrict observed data, allowing the impact on
-downstream estimates to be studied:
+The pipeline can restrict the observed analysis dataset via a unified
+**ascertainment** stage (see [ADR 0001](../adr/0001-unified-ascertainment-stage.md))
+that combines three knobs in two explicit steps (dropout → case-weighted draw):
 
-- **Subsampling** (`N_sample`) -- random subset of phenotyped individuals
-- **Case ascertainment** (`case_ascertainment_ratio`) -- cases sampled at higher rate
-- **Pedigree dropout** (`pedigree_dropout_rate`) -- random removal of individuals,
-  breaking pedigree links and downgrading relationship types
+- **Dropout** (`dropout_rate`) -- uniform random removal of individuals from
+  the pedigree; severs parent/twin references to removed IDs
+- **Case ascertainment** (`case_ascertainment_ratio`) -- weights cases (vs
+  controls) during the `N_sample` draw
+- **Subsample size** (`N_sample`) -- target size of the post-ascertainment
+  analysis dataset; pass-through when `0` or `>= post-dropout pool`
 
 ## Heritability estimation
 

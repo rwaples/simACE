@@ -61,16 +61,10 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
         ["G_pheno", "_prev12"],
     ),
     (
-        "sample_phenotype",
-        "Sample",
+        "ascertainment",
+        "Ascertainment",
         "#EAECEE",
-        ["N_sample", "case_ascertainment_ratio", "pedigree_dropout_rate"],
-    ),
-    (
-        "sample_simple_ltm",
-        "Sample",
-        "#EAECEE",
-        ["N_sample", "case_ascertainment_ratio", "pedigree_dropout_rate"],
+        ["N_sample", "case_ascertainment_ratio", "dropout_rate"],
     ),
 ]
 
@@ -79,18 +73,17 @@ _PIPELINE_EDGES: list[tuple[str, str]] = [
     ("simulate", "phenotype"),
     ("simulate", "phenotype_simple_ltm"),
     ("phenotype", "censor"),
-    ("censor", "sample_phenotype"),
-    ("phenotype_simple_ltm", "sample_simple_ltm"),
+    ("censor", "ascertainment"),
+    ("phenotype_simple_ltm", "ascertainment"),
 ]
 
 # Step positions in data coordinates (cx, cy)
 _STEP_POSITIONS: dict[str, tuple[float, float]] = {
-    "simulate": (0.27, 0.84),
-    "phenotype": (0.27, 0.52),
-    "phenotype_simple_ltm": (0.73, 0.52),
-    "censor": (0.27, 0.28),
-    "sample_phenotype": (0.27, 0.09),
-    "sample_simple_ltm": (0.73, 0.09),
+    "simulate": (0.5, 0.85),
+    "phenotype": (0.27, 0.55),
+    "phenotype_simple_ltm": (0.73, 0.55),
+    "censor": (0.27, 0.30),
+    "ascertainment": (0.5, 0.10),
 }
 
 # Publication-friendly display names for parameters
@@ -104,7 +97,7 @@ _PARAM_DISPLAY: dict[str, str] = {
     "censor_age": "max age",
     "gen_censoring": "gen. windows",
     "N_sample": "N_sample",
-    "pedigree_dropout_rate": "dropout rate",
+    "dropout_rate": "dropout rate",
     "case_ascertainment_ratio": "ascertainment ratio",
 }
 

@@ -671,7 +671,7 @@ _DEFAULT_SIM_PARAMS = dict(
 @pytest.fixture(scope="module")
 def phenotyped_df():
     """Simulated + thresholded pedigree with all columns needed by stats functions."""
-    from simace.phenotyping.threshold import apply_threshold
+    from simace.phenotype.threshold import apply_threshold
     from simace.simulation.simulate import run_simulation
 
     ped = run_simulation(**_DEFAULT_SIM_PARAMS)

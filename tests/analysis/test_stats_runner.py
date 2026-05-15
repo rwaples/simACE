@@ -14,7 +14,7 @@ from simace.analysis.stats.runner import main as run_stats
 def tiny_phenotype():
     """Build a tiny censored phenotype DataFrame via simulate → phenotype → censor."""
     from simace.censoring.censor import run_censor
-    from simace.phenotyping.phenotype import run_phenotype
+    from simace.phenotype import run_phenotype
     from simace.simulation.simulate import run_simulation
 
     sim_params = dict(
@@ -65,7 +65,7 @@ def tiny_phenotype():
 def runner_outputs(tmp_path, tiny_phenotype):
     pedigree, phenotype = tiny_phenotype
     ped_path = tmp_path / "pedigree.parquet"
-    phe_path = tmp_path / "phenotype.parquet"
+    phe_path = tmp_path / "trait.parquet"
     pedigree.to_parquet(ped_path)
     phenotype.to_parquet(phe_path)
 
@@ -128,7 +128,7 @@ class TestRunnerMain:
 
     def test_runs_without_pedigree(self, tmp_path, tiny_phenotype):
         _, phenotype = tiny_phenotype
-        phe_path = tmp_path / "phenotype.parquet"
+        phe_path = tmp_path / "trait.parquet"
         phenotype.to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
@@ -150,7 +150,7 @@ class TestRunnerMain:
 
     def test_case_ascertainment_ratio_recorded(self, tmp_path, tiny_phenotype):
         _, phenotype = tiny_phenotype
-        phe_path = tmp_path / "phenotype.parquet"
+        phe_path = tmp_path / "trait.parquet"
         phenotype.to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
@@ -169,7 +169,7 @@ class TestRunnerMain:
 
     def test_gen_censoring_branch(self, tmp_path, tiny_phenotype):
         _, phenotype = tiny_phenotype
-        phe_path = tmp_path / "phenotype.parquet"
+        phe_path = tmp_path / "trait.parquet"
         phenotype.to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
@@ -194,7 +194,7 @@ class TestRunnerCli:
     def test_cli_invokes_main(self, tmp_path, tiny_phenotype, monkeypatch):
         pedigree, phenotype = tiny_phenotype
         ped_path = tmp_path / "pedigree.parquet"
-        phe_path = tmp_path / "phenotype.parquet"
+        phe_path = tmp_path / "trait.parquet"
         pedigree.to_parquet(ped_path)
         phenotype.to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"
@@ -222,7 +222,7 @@ class TestRunnerCli:
     def test_cli_with_gen_censoring(self, tmp_path, tiny_phenotype, monkeypatch):
         pedigree, phenotype = tiny_phenotype
         ped_path = tmp_path / "pedigree.parquet"
-        phe_path = tmp_path / "phenotype.parquet"
+        phe_path = tmp_path / "trait.parquet"
         pedigree.to_parquet(ped_path)
         phenotype.to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"

@@ -1,6 +1,6 @@
 """Orchestration entry point for per-rep phenotype statistics.
 
-Reads a single phenotype.parquet, runs every stats computation, and writes
+Reads a single trait.parquet, runs every stats computation, and writes
 ``phenotype_stats.yaml`` plus ``phenotype_samples.parquet``.
 """
 

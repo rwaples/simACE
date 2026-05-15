@@ -39,14 +39,14 @@ rule simulate_scenario:
 
 
 rule phenotype_scenario:
-    """Run simulation + phenotyping for a single scenario."""
+    """Run simulation + phenotyping + ascertainment for a single scenario."""
     input:
         lambda w: [
             f"results/{w.folder}/{w.scenario}/rep{r}/{f}"
             for r in range(1, get_param(config, w.scenario, "replicates") + 1)
             for f in [
-                "phenotype.parquet",
-                "phenotype.simple_ltm.parquet",
+                "trait.parquet",
+                "trait.simple_ltm.parquet",
             ]
         ],
     output:

@@ -5,7 +5,7 @@
 
 rule stats_phenotype:
     input:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.sampled.parquet",
+        phenotype="results/{folder}/{scenario}/rep{rep}/trait.parquet",
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
         stats="results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
@@ -112,12 +112,11 @@ rule assemble_scenario_atlas:
         # plot_pipeline reads it from there directly.
         G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
         N_sample=lambda w: get_param(config, w.scenario, "N_sample"),
-        pedigree_dropout_rate=lambda w: get_param(
-            config, w.scenario, "pedigree_dropout_rate"
-        ),
+        dropout_rate=lambda w: get_param(config, w.scenario, "dropout_rate"),
         case_ascertainment_ratio=lambda w: get_param(
             config, w.scenario, "case_ascertainment_ratio"
         ),
+
         max_degree=lambda w: get_param(config, w.scenario, "max_degree"),
         plot_format=lambda w: config["defaults"].get("plot_format", "png"),
     script:

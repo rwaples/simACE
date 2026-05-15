@@ -41,7 +41,7 @@ def _run_snakemake():
         "death_rho",
         "G_pheno",
         "N_sample",
-        "pedigree_dropout_rate",
+        "dropout_rate",
         "case_ascertainment_ratio",
         "max_degree",
         "plot_format",

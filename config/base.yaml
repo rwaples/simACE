@@ -7,12 +7,12 @@ baseline100K:
 baseline100K_sample5K:
   seed: 2042
   N: 100000
-  sampling:
+  ascertainment:
     N_sample: 5000
 baseline100K_sample50K:
   seed: 2042
   N: 100000
-  sampling:
+  ascertainment:
     N_sample: 50000
 baseline1M:
   seed: 3042

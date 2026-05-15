@@ -43,9 +43,9 @@ dev = [
 
 [project.scripts]
 simace-simulate = "simace.simulation.simulate:cli"
-simace-phenotype = "simace.phenotyping.phenotype:cli"
-simace-threshold = "simace.phenotyping.threshold:cli"
-simace-sample = "simace.sampling.sample:cli"
+simace-phenotype = "simace.phenotype:cli"
+simace-threshold = "simace.phenotype.threshold:cli"
+simace-ascertain = "simace.ascertainment:cli"
 simace-validate = "simace.analysis.validate:cli"
 simace-phenotype-stats = "simace.analysis.stats:cli"
 simace-gather = "simace.analysis.gather:cli"
@@ -88,7 +88,7 @@ ignore = [
 "tests/**/*.py" = ["D"]                      # no docstrings needed in tests
 "simace/__init__.py" = ["F401"]             # setup_logging used via re-export
 "simace/core/_numba_utils.py" = ["D"]               # private module, all functions private
-"simace/phenotyping/models/*.py" = ["D102"]         # method docstrings inherited from PhenotypeModel ABC
+"simace/phenotype/models/*.py" = ["D102"]         # method docstrings inherited from PhenotypeModel ABC
 "simace/plotting/atlas_manifest.py" = ["RUF001"]    # caption strings use scientific × − – etc.
 
 [tool.ruff.lint.pydocstyle]

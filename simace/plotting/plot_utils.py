@@ -9,12 +9,12 @@ __all__ = [
     "annotate_heatmap",
     "draw_colored_violins",
     "draw_split_violin",
-    "finalize_pair_type_panels",
+    "finalize_relationship_type_panels",
     "finalize_plot",
-    "pair_type_legend_handles",
+    "relationship_type_legend_handles",
     "param_as_float",
     "save_placeholder_plot",
-    "setup_pair_type_panel",
+    "setup_relationship_type_panel",
 ]
 
 # Re-export from plot_style for backward compatibility
@@ -272,9 +272,9 @@ def draw_colored_violins(
         body.set_zorder(zorder)
 
 
-def setup_pair_type_panel(
+def setup_relationship_type_panel(
     ax,
-    pair_types: list[str],
+    relationship_types: list[str],
     n_pairs_per_ptype: dict[str, int],
     n_reps: int,
     observed_per_rep: dict[str, list[float]],
@@ -294,7 +294,7 @@ def setup_pair_type_panel(
       * filled red star at parametric E[r] (if provided)
       * green filled plus at frailty r (if provided)
 
-    The per-rep observed dots are deferred so :func:`finalize_pair_type_panels`
+    The per-rep observed dots are deferred so :func:`finalize_relationship_type_panels`
     can decide a shared y-axis range across panels and clip outliers to the
     axis edges. Bold pair-type labels and parenthesised pair counts are drawn
     here; titles and y-labels remain caller-specific.
@@ -310,17 +310,17 @@ def setup_pair_type_panel(
     obs_records: list[tuple[Any, float, float]] = []
 
     if n_reps >= show_violins_threshold:
-        datasets = [list(observed_per_rep.get(pt, [])) for pt in pair_types]
+        datasets = [list(observed_per_rep.get(pt, [])) for pt in relationship_types]
         if any(len(d) >= 2 for d in datasets):
-            colors = [pair_colors[pt] for pt in pair_types]
-            draw_colored_violins(ax, datasets, list(range(len(pair_types))), colors)
+            colors = [pair_colors[pt] for pt in relationship_types]
+            draw_colored_violins(ax, datasets, list(range(len(relationship_types))), colors)
 
     # Light vertical separators between categories
-    for i in range(len(pair_types) - 1):
+    for i in range(len(relationship_types) - 1):
         ax.axvline(i + 0.5, color="0.88", linewidth=0.6, zorder=0)
 
     rng = np.random.default_rng(rng_seed)
-    for i, ptype in enumerate(pair_types):
+    for i, ptype in enumerate(relationship_types):
         rep_vals = list(observed_per_rep.get(ptype, []))
         if not rep_vals:
             continue
@@ -336,31 +336,31 @@ def setup_pair_type_panel(
         ref_values.append(mean_v)
 
     if liability_r:
-        for i, ptype in enumerate(pair_types):
+        for i, ptype in enumerate(relationship_types):
             v = liability_r.get(ptype)
             if v is not None:
                 ax.scatter(i, float(v), **_marker_liab())
                 ref_values.append(float(v))
 
     if frailty_r:
-        for i, ptype in enumerate(pair_types):
+        for i, ptype in enumerate(relationship_types):
             v = frailty_r.get(ptype)
             if v is not None:
                 ax.scatter(i, float(v), **_marker_frailty())
                 ref_values.append(float(v))
 
     if parametric_r:
-        for i, ptype in enumerate(pair_types):
+        for i, ptype in enumerate(relationship_types):
             v = parametric_r.get(ptype)
             if v is not None:
                 ax.scatter(i, float(v), **_marker_param(color=pair_colors[ptype]))
                 ref_values.append(float(v))
 
-    ax.set_xticks(range(len(pair_types)))
-    ax.set_xticklabels(pair_types, fontsize=15, fontweight="bold")
+    ax.set_xticks(range(len(relationship_types)))
+    ax.set_xticklabels(relationship_types, fontsize=15, fontweight="bold")
     ax.tick_params(axis="x", pad=4)
     ax.tick_params(axis="y", labelsize=11)
-    for i, pt in enumerate(pair_types):
+    for i, pt in enumerate(relationship_types):
         ax.annotate(
             f"({n_pairs_per_ptype.get(pt, 0) // max(n_reps, 1):,})",
             xy=(i, 0),
@@ -373,13 +373,13 @@ def setup_pair_type_panel(
             color="0.35",
         )
     ax.set_xlabel("")
-    ax.set_xlim(-0.6, len(pair_types) - 0.4)
+    ax.set_xlim(-0.6, len(relationship_types) - 0.4)
     enable_value_gridlines(ax)
 
     return {"ax": ax, "ref_values": ref_values, "obs_records": obs_records}
 
 
-def finalize_pair_type_panels(
+def finalize_relationship_type_panels(
     panel_states: list[dict],
     sane_band: tuple[float, float] = PAIR_TYPE_SANE_BAND,
 ) -> tuple[float, float]:
@@ -425,7 +425,7 @@ def finalize_pair_type_panels(
     return ylim_lo, ylim_hi
 
 
-def pair_type_legend_handles(
+def relationship_type_legend_handles(
     has_observed_mean: bool = True,
     has_liability: bool = True,
     has_frailty: bool = False,
@@ -433,7 +433,7 @@ def pair_type_legend_handles(
 ) -> list:
     """Return ``Line2D`` proxies for ``fig.legend``.
 
-    Markers match those used by :func:`setup_pair_type_panel`. Only the
+    Markers match those used by :func:`setup_relationship_type_panel`. Only the
     requested series are included.
     """
     from matplotlib.lines import Line2D

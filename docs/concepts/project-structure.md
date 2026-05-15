@@ -19,21 +19,21 @@ simACE/
 │   │   ├── parquet.py                    # save_parquet and parquet I/O helpers
 │   │   ├── parquet_to_tsv.py             # `simace-parquet-to-tsv` CLI entry point
 │   │   ├── pedigree_graph.py             # Sparse-matrix pedigree relationship extraction
-│   │   ├── relationships.py              # Relationship registry (REL_REGISTRY, PAIR_KINSHIP, PAIR_TYPES)
+│   │   ├── relationships.py              # Relationship registry (REL_REGISTRY, PAIR_KINSHIP, RELATIONSHIP_TYPES)
 │   │   ├── schema.py                     # Pipeline data-schema contracts (phenotype → censor → sample handoff)
 │   │   └── yaml_io.py                    # load_yaml, dump_yaml helpers
 │   ├── simulation/
 │   │   ├── simulate.py                   # Pedigree simulation (mating, reproduce, run_simulation)
 │   │   └── mate_correlation.py           # Assortative-mating helpers
-│   ├── phenotyping/
-│   │   ├── phenotype.py                  # PhenotypeModel ABC + frailty / cure-frailty / ADuLT / first-passage models
+│   ├── phenotype/
+│   │   ├── __init__.py                   # run_phenotype dispatcher (frailty / cure-frailty / ADuLT / first-passage)
 │   │   ├── threshold.py                  # Liability-threshold binary phenotype
-│   │   └── hazards.py                    # Baseline-hazard registry (Weibull, exponential, Gompertz, ...)
+│   │   ├── hazards.py                    # Baseline-hazard registry (Weibull, exponential, Gompertz, ...)
+│   │   └── models/                       # PhenotypeModel subclasses (one file per family)
 │   ├── censoring/
 │   │   └── censor.py                     # Age-window and competing-risk death censoring
-│   ├── sampling/
-│   │   ├── dropout.py                    # Pedigree dropout (random individual removal)
-│   │   └── sample.py                     # Subsampling with case ascertainment bias
+│   ├── ascertainment/
+│   │   └── __init__.py                   # run_ascertainment: unified dropout + case-weighted N_sample (per ADR 0001)
 │   ├── analysis/
 │   │   ├── stats/                        # Per-concern stats package (split from old stats.py)
 │   │   │   ├── runner.py                 # Orchestrator (computes phenotype_stats.yaml)
@@ -67,8 +67,9 @@ simACE/
 │   ├── common.py                         # Shared helpers (get_param, get_folder, etc.)
 │   └── rules/simace/                     # Modular Snakemake rule files
 │       ├── targets.smk                   # Target rules: all, scenario, per-stage sentinels
-│       ├── simulate.smk, dropout.smk     # Pedigree simulation and dropout
-│       ├── phenotype.smk, sample.smk     # Phenotyping and sampling
+│       ├── simulate.smk                  # Pedigree simulation
+│       ├── phenotype.smk                 # Phenotype + censor + simple-LTM rules
+│       ├── ascertainment.smk             # Unified dropout + case-weighted N_sample (per ADR 0001)
 │       ├── validate.smk, stats.smk       # Validation and statistics
 │       ├── examples.smk                  # Example-page targets (minimal-ace, with-c, ...)
 │       ├── tskit_preprocess.smk          # tskit founder preprocessing for gene-drop
@@ -90,7 +91,7 @@ checkouts of sister repos (gitignored from simACE — no submodules):
 
 | Repo | Visibility | Local path | Role |
 |---|---|---|---|
-| [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate → phenotype → censor → sample → validate → stats → plot |
+| [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate → phenotype → censor → ascertainment → validate → stats → plot |
 | [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC). Consumes simACE outputs. |
 | [`ace_iter_reml`](https://github.com/rwaples/ace_iter_reml) | private | `./fitACE/fitace/ace_iter_reml/` | C++ PCG-AI-REML binary. |
 | [`tetraher_simace`](https://github.com/rwaples/tetraher_simace) | private | `./external/tetraher_simace/` | Fork of LDAK 6.2 (grouping + warm-start + OMP opt-in). |

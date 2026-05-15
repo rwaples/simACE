@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from simace.censoring.censor import run_censor
-from simace.phenotyping.phenotype import run_phenotype
+from simace.phenotype import run_phenotype
 from simace.simulation.simulate import run_simulation
 
 

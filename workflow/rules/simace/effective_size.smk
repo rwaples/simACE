@@ -9,9 +9,8 @@
 rule effective_size_phenotype:
     """Per-rep Ne estimators on the observed-and-ancestors sub-pedigree.
 
-The phenotype.sampled.parquet is `temp()` upstream — opting in after a
-normal stats run will trigger a sample-step rebuild (cheap; phenotype
-and earlier files are persistent).
+The post-ascertainment trait.parquet is the canonical input (it contains
+the ascertained subset). `pedigree.parquet` is the ancestor closure.
 
 `skip_ne_coancestry`: per-scenario opt-in (default False).  When
 True, ne_coancestry is skipped (full sparse K not built) — required on
@@ -19,7 +18,7 @@ very large pedigrees where K would OOM.
 """
     input:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.sampled.parquet",
+        phenotype="results/{folder}/{scenario}/rep{rep}/trait.parquet",
         params="results/{folder}/{scenario}/rep{rep}/params.yaml",
     output:
         stats="results/{folder}/{scenario}/rep{rep}/effective_size.yaml",

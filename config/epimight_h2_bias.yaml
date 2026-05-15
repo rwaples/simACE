@@ -191,7 +191,7 @@ ascertain:
     gen_censoring: {}
     death_scale: 1000000
     death_rho: 1.0
-  sampling:
+  ascertainment:
     N_sample: 1500000
     case_ascertainment_ratio: 1.5
   analysis:
@@ -385,7 +385,7 @@ ascertain_strong:
     gen_censoring: {}
     death_scale: 1000000
     death_rho: 1.0
-  sampling:
+  ascertainment:
     N_sample: 300000
     case_ascertainment_ratio: 10
   analysis:

@@ -26,6 +26,7 @@ from simace.plotting.atlas_manifest import (
 # Re-export names used directly by Snakemake rule files and existing tests.
 __all__ = [
     "KNOWN_SIM_KEYS",
+    "_pre_ascertainment_pedigree_input",
     "_scale_mem",
     "_scale_mem_effective_size",
     "_scale_runtime",
@@ -44,6 +45,18 @@ __all__ = [
     "resolve_scenarios",
     "validation_basenames",
 ]
+
+
+def _pre_ascertainment_pedigree_input(w, config: dict) -> str:
+    """Return the pre-ascertainment pedigree path, respecting use_gene_drop.
+
+    Used by the phenotype, phenotype_simple_ltm, and ascertainment rules so
+    all three consume the same pedigree variant (tstrait-augmented when
+    use_gene_drop is set; parametric otherwise).
+    """
+    if get_param(config, w.scenario, "use_gene_drop"):
+        return f"results/{w.folder}/{w.scenario}/rep{w.rep}/pedigree.full.tstrait.parquet"
+    return f"results/{w.folder}/{w.scenario}/rep{w.rep}/pedigree.full.parquet"
 
 
 def load_folder_configs(config: dict, config_dir: str = "config") -> None:
@@ -149,8 +162,8 @@ def get_scenario_sim_outputs(config: dict, scenario: str, plot_ext: str = "png")
     outputs = []
     for rep in range(1, n_reps + 1):
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/pedigree.parquet")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.parquet")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype.simple_ltm.parquet")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.parquet")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.simple_ltm.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml")
     outputs.extend(

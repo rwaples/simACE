@@ -9,6 +9,7 @@ from workflow.common import (
     get_folder_validations,
     get_scenario_sim_outputs,
     plot_filenames,
+    _pre_ascertainment_pedigree_input,
     _scale_mem,
     _scale_mem_effective_size,
     _scale_runtime,
@@ -35,9 +36,8 @@ wildcard_constraints:
 
 include: "workflow/rules/simace/targets.smk"
 include: "workflow/rules/simace/simulate.smk"
-include: "workflow/rules/simace/dropout.smk"
 include: "workflow/rules/simace/phenotype.smk"
-include: "workflow/rules/simace/sample.smk"
+include: "workflow/rules/simace/ascertainment.smk"
 include: "workflow/rules/simace/validate.smk"
 include: "workflow/rules/simace/stats.smk"
 include: "workflow/rules/simace/effective_size.smk"

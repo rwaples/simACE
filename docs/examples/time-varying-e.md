@@ -45,7 +45,7 @@ The four E trajectories differ in how $E_1$ moves across generations 0–9:
 
 Each trajectory has a `_std` and `_nostd` variant with **matched
 seeds**: the simulated liability columns are byte-identical within a
-pair; only the binary affected status (in `phenotype.parquet`) differs.
+pair; only the binary affected status (in `trait.parquet`) differs.
 The `_std` scenarios use the legacy bool form `standardize: true`,
 which the config-load shim resolves to `standardize: "global"`; the
 `_nostd` scenarios use `standardize: false` (resolved to
@@ -327,7 +327,7 @@ per-generation $v_E$ differences.
 
 ### Why `standardize="global"` does not flatten here
 
-`AdultModel._simulate_ltm` (`simace/phenotyping/models/adult.py`) under
+`AdultModel._simulate_ltm` (`simace/phenotype/models/adult.py`) under
 `standardize="global"` computes `L = (L - L.mean()) / L.std()` across
 *the entire pedigree*. This collapses the population mean and standard
 deviation to $(0, 1)$ but leaves the *between-generation* variance
@@ -343,9 +343,9 @@ this mode every generation hits its target $K$ exactly, regardless of
 how $v_E$ drifts across cohorts — visible directly in the green line
 in each panel above, which sits flat at $K = 0.10$ for all four E
 trajectories. The same thing happens automatically in the
-`phenotype.simple_ltm.parquet` benchmark output that every scenario
+`trait.simple_ltm.parquet` benchmark output that every scenario
 produces alongside its main phenotype: that benchmark calls
-`apply_threshold` from `simace/phenotyping/threshold.py`, which honors
+`apply_threshold` from `simace/phenotype/threshold.py`, which honors
 the same global `standardize` flag. So setting
 `standardize: per_generation` in the scenario YAML simultaneously
 flattens the `adult` / `method: ltm` prevalence drift *and* the

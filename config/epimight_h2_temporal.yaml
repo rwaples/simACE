@@ -118,7 +118,7 @@ blended_diagnosis:
   # Post-hoc Narrative B: diagnostic broadening pulls ASD-loaded cases
   # into trait-1 case definition. α rises 0 → 0.55 across output gens
   # 2..11; K rises 3% → 8%. fitACE's blended_phenotype rule emits
-  # phenotype.blended.parquet from phenotype.parquet.
+  # phenotype.blended.parquet from trait.parquet.
   seed: 90003
   N: 1000000
   G_sim: 25

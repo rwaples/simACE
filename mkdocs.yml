@@ -81,7 +81,7 @@ nav:
       - Configuration: user-guide/configuration.md
       - Phenotype Models: user-guide/phenotype-models.md
       - Running the Pipeline: user-guide/running-the-pipeline.md
-      - Subsampling and Dropout: user-guide/subsampling-and-dropout.md
+      - Ascertainment: user-guide/ascertainment.md
       - Output Structure: user-guide/output-structure.md
       - Interpreting Results: user-guide/interpreting-results.md
   - Concepts:
@@ -92,6 +92,8 @@ nav:
       - Methods: concepts/methods.md
       - Project Structure: concepts/project-structure.md
       - Model Fitting: concepts/model-fitting.md
+  - Architecture Decisions:
+      - "ADR 0001: Unified ascertainment stage": adr/0001-unified-ascertainment-stage.md
   - Examples:
       - Minimal ACE: examples/minimal-ace.md
       - Adding shared environment (C): examples/adding-shared-environment.md
@@ -103,9 +105,9 @@ nav:
       - api/index.md
       - Core: api/core.md
       - Simulation: api/simulation.md
-      - Phenotyping: api/phenotyping.md
+      - Phenotype: api/phenotype.md
       - Censoring: api/censoring.md
-      - Sampling: api/sampling.md
+      - Ascertainment: api/ascertainment.md
       - Analysis: api/analysis.md
       - Plotting: api/plotting.md
   - Changelog: changelog.md

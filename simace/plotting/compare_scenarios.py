@@ -41,7 +41,7 @@ import pandas as pd
 from pedigree_graph import PedigreeGraph
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
-from simace.core.relationships import PAIR_TYPES
+from simace.core.relationships import RELATIONSHIP_TYPES
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import (
     apply_nature_style,
@@ -394,7 +394,7 @@ def load_pedigree_estimates(
     liab = df[f"liability{trait}"].to_numpy()
 
     corrs: dict[str, float] = {}
-    for ptype in PAIR_TYPES:
+    for ptype in RELATIONSHIP_TYPES:
         idx1, idx2 = pairs.get(ptype, (np.array([]), np.array([])))
         if len(idx1) < 10:
             corrs[ptype] = float("nan")

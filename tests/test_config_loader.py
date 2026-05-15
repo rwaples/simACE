@@ -132,17 +132,17 @@ class TestFlattenPhenotype:
 
 
 class TestFlattenOtherSections:
-    """Censoring, sampling, analysis sections."""
+    """Censoring, ascertainment, analysis sections."""
 
     def test_censoring(self):
         d = {"censoring": {"max_age": 80, "death_scale": 164, "death_rho": 2.73}}
         result = _flatten_hierarchical(d)
         assert result == {"censor_age": 80, "death_scale": 164, "death_rho": 2.73}
 
-    def test_sampling(self):
-        d = {"sampling": {"N_sample": 5000, "case_ascertainment_ratio": 2.0}}
+    def test_ascertainment(self):
+        d = {"ascertainment": {"N_sample": 5000, "case_ascertainment_ratio": 2.0, "dropout_rate": 0.1}}
         result = _flatten_hierarchical(d)
-        assert result == {"N_sample": 5000, "case_ascertainment_ratio": 2.0}
+        assert result == {"N_sample": 5000, "case_ascertainment_ratio": 2.0, "dropout_rate": 0.1}
 
     def test_analysis(self):
         d = {"analysis": {"max_degree": 3, "estimate_inbreeding": True}}
@@ -233,7 +233,7 @@ class TestRoundTrip:
             "death_rho",
             "N_sample",
             "case_ascertainment_ratio",
-            "pedigree_dropout_rate",
+            "dropout_rate",
             "max_degree",
             "estimate_inbreeding",
             "skip_ne_coancestry",
@@ -360,7 +360,7 @@ class TestGenCensoringCoercion:
                     "death_scale": 164,
                     "death_rho": 2.73,
                 },
-                "sampling": {"N_sample": 100, "case_ascertainment_ratio": 1.0, "pedigree_dropout_rate": 0.0},
+                "ascertainment": {"N_sample": 100, "case_ascertainment_ratio": 1.0, "dropout_rate": 0.0},
                 "analysis": {"max_degree": 2, "estimate_inbreeding": False},
                 "tstrait": {
                     "num_causal": 0,
@@ -469,7 +469,7 @@ class TestPedigreeConfigValidation:
                     "death_scale": 164,
                     "death_rho": 2.73,
                 },
-                "sampling": {"N_sample": 0, "case_ascertainment_ratio": 1.0, "pedigree_dropout_rate": 0.0},
+                "ascertainment": {"N_sample": 0, "case_ascertainment_ratio": 1.0, "dropout_rate": 0.0},
                 "analysis": {"max_degree": 2, "estimate_inbreeding": False},
                 "tstrait": {
                     "num_causal": 0,

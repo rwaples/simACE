@@ -17,7 +17,7 @@ estimate heritability and familial correlations from population health registrie
 - ACE trait liability model for two heritable traits at a time
 - Multiple phenotype models: Weibull frailty, cure-frailty, ADuLT LTM, ADuLT Cox, and simple liability threshold
 - Age-window and competing-risk mortality censoring
-- Case ascertainment and pedigree dropout
+- Unified ascertainment stage: random dropout + case-weighted sampling (per ADR 0001)
 - Statistical validation of simulated data
 - Built-in diagnostic plots
 - Snakemake pipeline for reproducible, parallelised execution

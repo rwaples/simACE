@@ -15,7 +15,7 @@ import numpy as np
 
 from simace.core._numba_utils import _pearsonr_core
 from simace.core.numerics import fast_linregress, safe_corrcoef
-from simace.core.relationships import PAIR_TYPES, SEX_LEVELS
+from simace.core.relationships import RELATIONSHIP_TYPES, SEX_LEVELS
 
 from .tetrachoric import _tetrachoric_for_pairs, tetrachoric_corr_se
 
@@ -43,7 +43,7 @@ def compute_liability_correlations(
     for trait_num in [1, 2]:
         liability = df[f"liability{trait_num}"].values
         trait_result: dict[str, float | None] = {}
-        for ptype in PAIR_TYPES:
+        for ptype in RELATIONSHIP_TYPES:
             idx1, idx2 = pairs[ptype]
             trait_result[ptype] = float(_pearsonr_core(liability[idx1], liability[idx2])) if len(idx1) >= 10 else None
         result[f"trait{trait_num}"] = trait_result
@@ -74,7 +74,7 @@ def compute_affected_correlations(
     for trait_num in [1, 2]:
         affected = df[f"affected{trait_num}"].values.astype(np.float64)
         trait_result: dict[str, float | None] = {}
-        for ptype in PAIR_TYPES:
+        for ptype in RELATIONSHIP_TYPES:
             idx1, idx2 = pairs[ptype]
             if len(idx1) < 10:
                 trait_result[ptype] = None
@@ -106,7 +106,7 @@ def compute_tetrachoric(
     for trait_num in [1, 2]:
         affected = df[f"affected{trait_num}"].values.astype(bool)
         trait_result = {}
-        for ptype in PAIR_TYPES:
+        for ptype in RELATIONSHIP_TYPES:
             idx1, idx2 = pairs[ptype]
             trait_result[ptype] = _tetrachoric_for_pairs(idx1, idx2, affected)
         result[f"trait{trait_num}"] = trait_result
@@ -144,7 +144,7 @@ def compute_tetrachoric_by_generation(
             affected = affected_by_trait[trait_num]
             liability = liability_by_trait[trait_num]
             trait_result = {}
-            for ptype in PAIR_TYPES:
+            for ptype in RELATIONSHIP_TYPES:
                 idx1, idx2 = pairs[ptype]
                 mask = gen_arr[idx1] == gen
                 trait_result[ptype] = _tetrachoric_for_pairs(idx1[mask], idx2[mask], affected, liability)
@@ -202,7 +202,7 @@ def compute_cross_trait_tetrachoric(
             }
     result["same_person_by_generation"] = by_gen
     cross: dict[str, Any] = {}
-    for ptype in PAIR_TYPES:
+    for ptype in RELATIONSHIP_TYPES:
         idx1, idx2 = pairs[ptype]
         n_p = len(idx1)
         if n_p < 10:
@@ -239,7 +239,7 @@ def compute_tetrachoric_by_sex(
             affected = affected_by_trait[trait_num]
             liability = liability_by_trait[trait_num]
             trait_result: dict[str, Any] = {}
-            for ptype in PAIR_TYPES:
+            for ptype in RELATIONSHIP_TYPES:
                 idx1, idx2 = pairs[ptype]
                 sex_mask = (sex_arr[idx1] == sex_val) & (sex_arr[idx2] == sex_val)
                 trait_result[ptype] = _tetrachoric_for_pairs(idx1[sex_mask], idx2[sex_mask], affected, liability)

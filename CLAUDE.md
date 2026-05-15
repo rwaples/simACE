@@ -1,16 +1,16 @@
 # CLAUDE.md
 
-simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (shared environment), **E** (unique environment) variance components. Provides simulate → phenotype → censor → sample → validate → stats → plot. Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan) lives in the sister repo [fitACE](../fitACE), which depends on simace.
+simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (common environment), **E** (unique environment) variance components. Provides simulate → phenotype → censor → ascertainment → validate → stats → plot. Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan) lives in the sister repo [fitACE](../fitACE), which depends on simace.
 
 
 ## Project Layout
 
 - `simace/` — simulation package (`pip install -e .`), organized into sub-packages:
-  - `core/` — shared infrastructure: `pedigree_graph`, `compute_hazard_terms`, `cli_base`, `numerics`, `parquet`, `relationships`, `schema`, `yaml_io`
+  - `core/` — shared infrastructure: `pedigree_graph`, `compute_hazard_terms`, `cli_base`, `numerics`, `parquet`, `pedigree_filter`, `relationships`, `schema`, `yaml_io`
   - `simulation/` — pedigree simulation
-  - `phenotyping/` — `phenotype.py` (run_phenotype dispatcher), `threshold.py`, `hazards.py`, plus a `models/` sub-package of model classes inheriting from a `PhenotypeModel` 
+  - `phenotype/` — `__init__.py` (run_phenotype dispatcher), `threshold.py`, `hazards.py`, plus a `models/` sub-package of model classes inheriting from a `PhenotypeModel`
   - `censoring/` — age-window and death censoring
-  - `sampling/` — dropout and subsampling
+  - `ascertainment/` — unified dropout + case-weighted N_sample selection (per ADR 0001)
   - `analysis/` — `stats/` (package: censoring, correlations, incidence, pedigree, sampling, tetrachoric, runner), `validate.py`, `gather.py`
   - `plotting/` — all plot modules and plot utilities
 - `workflow/rules/simace/*.smk` — Snakemake rules; `workflow/scripts/simace/` — thin script wrappers
@@ -43,7 +43,7 @@ Five related repos, all under `rwaples/` on GitHub. simACE is the umbrella worki
 
 | Repo | Visibility | Local path | Role |
 |---|---|---|---|
-| [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate → phenotype → censor → sample → validate → stats → plot |
+| [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate → phenotype → censor → ascertainment → validate → stats → plot |
 | [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC). Consumes simACE outputs. |
 | [`ace_iter_reml`](https://github.com/rwaples/ace_iter_reml) | private | `./fitACE/fitace/ace_iter_reml/` | C++ PCG-AI-REML binary. Driven by `fitACE/fitace/iter_reml/`. |
 | [`tetraher_simace`](https://github.com/rwaples/tetraher_simace) | private | `./external/tetraher_simace/` | Fork of LDAK 6.2 (grouping + warm-start + OMP opt-in). Binary consumed by `fitACE/fitace/tetraher/`. |
@@ -137,3 +137,17 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 2. Use `detect_changes` for code review.
 3. Use `get_affected_flows` to understand impact.
 4. Use `query_graph` pattern="tests_for" to check coverage.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues at github.com/rwaples/simACE/issues, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical defaults (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

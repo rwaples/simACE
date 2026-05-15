@@ -138,7 +138,7 @@ workflow scripts, and plotting.
   accepts an optional third series via
   `pergen_paths_per_trajectory` / `pergen_label`; the existing two-series
   call signature is unchanged.
-- `simace.phenotyping._prototypes.bimodal_phenotype` (`phenotype_mixture_cip`,
+- `simace.phenotype._prototypes.bimodal_phenotype` (`phenotype_mixture_cip`,
   `phenotype_mixture_cure_frailty`, `phenotype_two_threshold`) ported to
   the mode-aware standardize API (`StandardizeMode | bool`, with
   `per_generation` rejected since these prototypes don't take a

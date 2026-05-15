@@ -1,6 +1,6 @@
 # ACE Simulation Framework: Methods
 
-*This document describes the ACE simulation framework: how it generates synthetic multi-generational family data with known genetic and environmental parameters, assigns disease phenotypes via pluggable survival and threshold models, and validates statistical recovery of those parameters. The framework supports random or assortative mating, six baseline hazard distributions, mixture cure and ADuLT phenotype models, sex-specific effects, observation-window and competing-risk censoring, pedigree dropout, and case-ascertainment subsampling. It provides a controlled testbed for evaluating twin- and family-study methods, where ground-truth values are available for comparison against estimates.*
+*This document describes the ACE simulation framework: how it generates synthetic multi-generational family data with known genetic and environmental parameters, assigns disease phenotypes via pluggable survival and threshold models, and validates statistical recovery of those parameters. The framework supports random or assortative mating, six baseline hazard distributions, mixture cure and ADuLT phenotype models, sex-specific effects, observation-window and competing-risk censoring, and a unified ascertainment stage that combines random pedigree dropout with case-weighted subsampling. It provides a controlled testbed for evaluating twin- and family-study methods, where ground-truth values are available for comparison against estimates.*
 
 ---
 
@@ -204,12 +204,6 @@ See [Simulation Design § Multi-generational pedigree](simulation-design.md#mult
 
 The recorded pedigree contains $N \times G_{\text{ped}}$ individuals with contiguous identifiers, each annotated with generation number, parental identifiers, MZ twin partner (if any), household identifier, all six variance components, and both trait liabilities.
 
-## Pedigree Dropout
-
-As an optional post-simulation step, a random fraction of individuals can be removed from the pedigree to simulate incomplete observation of family structure. A dropout rate $d \in [0, 1)$ specifies the proportion to remove; $n_{\text{drop}} = \lfloor N_{\text{total}} \cdot d \rceil$ individuals are deleted uniformly at random without replacement. Deletion is unconditional on family structure, so it degrades pedigree connectivity without biasing which relationship types are affected.
-
-See [Subsampling and Dropout § Pedigree dropout](../user-guide/subsampling-and-dropout.md#pedigree-dropout-pedigree_dropout_rate) for how broken parent/twin links propagate through downstream stages and which pre-configured scenarios use it.
-
 ## Phenotype Models
 
 The pedigree simulation produces continuous liabilities, but real studies observe discrete outcomes — a diagnosis age or an affected/unaffected classification. The models below translate liabilities into these observable phenotypes.
@@ -375,19 +369,23 @@ $$
 
 where each sex-specific value may itself be a per-generation dictionary. This produces sex-differentiated thresholds and case rates, reflecting the sex differences in disease prevalence observed in many real conditions.
 
-## Subsampling and Case Ascertainment
+## Ascertainment
 
-After phenotyping and censoring, an optional subsampling step draws a study sample of $N_{\text{sample}}$ individuals from the full population. Two modes are supported:
+After phenotyping and censoring, the unified **ascertainment** stage (see [ADR 0001](../adr/0001-unified-ascertainment-stage.md)) reduces the full population to the analysis dataset. Two explicit steps applied to *IDs* — not weights, which would silently cancel under a fixed-size weighted draw:
 
-**Uniform subsampling.** When the case-ascertainment ratio is 1.0 (default), $N_{\text{sample}}$ individuals are drawn uniformly at random without replacement.
+**Step 1 — Uniform dropout.** A dropout rate $d \in [0, 1)$ specifies the proportion to remove from the pedigree; $n_{\text{drop}} = \mathrm{round}(N_{\text{total}} \cdot d)$ individuals are deleted uniformly at random. Removal is independent of trait, sex, or generation. Dangling `mother` / `father` / `twin` references to removed individuals are set to $-1$.
 
-**Case-ascertainment bias.** When the ratio $\alpha \neq 1$, cases (individuals with $\delta_1 = 1$) are sampled with weight $\alpha$ relative to controls (weight 1). The sampling probability for individual $i$ is:
+**Step 2 — Case-weighted $N_{\text{sample}}$ draw.** From the post-dropout trait pool, $N_{\text{sample}}$ individuals are drawn. When the case-ascertainment ratio $\alpha = 1$ the draw is uniform; when $\alpha \neq 1$ each individual's sampling probability is
 
 $$
 p_i = \frac{w_i}{\sum_j w_j}, \quad w_i = \begin{cases} \alpha & \text{if } \delta_{i,1} = 1 \\ 1 & \text{otherwise} \end{cases}
 $$
 
 With $\alpha > 1$, cases are overrepresented in the sample (enrichment), mimicking case-control study designs. With $\alpha < 1$, cases are underrepresented. With $\alpha = 0$, only controls are sampled.
+
+The same sampled IDs are applied to both the main trait branch and the simple-LTM benchmark, so both files share an identical `id` column. The output pedigree is the **ancestor closure** of the sampled IDs within the post-dropout pedigree — every parent reachable through unbroken edges is retained — and any remaining dangling twin references are then rewritten to $-1$ so kinship and relationship-pair extraction work correctly on the analysis dataset.
+
+Validation is unaffected: `validate_*` continues to consume `pedigree.full.parquet` (the pre-ascertainment full pedigree).
 
 ## Validation via Statistical Analysis
 
@@ -413,7 +411,7 @@ The following matrix products identify relationship categories:
 
 **MZ twins.** Twin pairs are identified directly from the twin-partner column in the pedigree, deduplicated so that each pair appears once.
 
-In total, ten relationship categories are extracted: MZ twins, full siblings, maternal half-siblings, paternal half-siblings, mother-offspring, father-offspring, avuncular, grandparent-grandchild, first cousins, and second cousins. When a sample mask is provided (e.g., after subsampling), only pairs where both individuals are in the sample are returned.
+In total, ten relationship categories are extracted: MZ twins, full siblings, maternal half-siblings, paternal half-siblings, mother-offspring, father-offspring, avuncular, grandparent-grandchild, first cousins, and second cousins. When a sample mask is provided (e.g., the post-ascertainment subset), only pairs where both individuals are in the sample are returned.
 
 ### Tetrachoric correlation estimation
 

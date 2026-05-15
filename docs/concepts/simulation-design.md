@@ -121,9 +121,9 @@ The simulation is conceptually split into four stages, plus downstream analysis:
 1. **Simulate** -- generate multi-generational pedigree with ACE liability components
 2. **Phenotype** -- map liability to age-of-onset via time-to-event models
 3. **Censor** -- apply age-window and competing-risk mortality censoring
-4. **Sample** -- optionally subsample and apply ascertainment bias
+4. **Ascertainment** -- unified random dropout + case-weighted `N_sample` selection (per [ADR 0001](../adr/0001-unified-ascertainment-stage.md))
 
-Followed by: validation, summary statistics, model fitting, and plotting.
+Followed by: validation (on the full pre-ascertainment pedigree), summary statistics, model fitting, and plotting.
 
 ## Pipeline rule graph
 
