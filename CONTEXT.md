@@ -184,7 +184,7 @@ _Avoid_: coancestry (suppressed in canonical vocabulary — see Flagged ambiguit
 
 **Relationship type**:
 The categorical label for a related pair — one of the 23 codes in the `REL_REGISTRY` from `pedigree-graph` (e.g., `MZ`, `FS`, `MHS`, `PHS`, `MO`, `GP`, `1C`, ...). Used in plotting, stats, validation, and analysis. The full table — codes, kinship values, and (up, down, n_ancestors) tuples — lives in `docs/concepts/simulation-design.md`; do not duplicate here.
-_Avoid_: pair type (the legacy code name `relationship_type` is being renamed to `relationship_type` — do not introduce new uses), pair category, rel_type, kinship class.
+_Avoid_: pair type (the legacy code name was `pair_type`; renamed to `relationship_type` — do not reintroduce), pair category, rel_type, kinship class.
 
 **Relationship pair** (or **relative pair**):
 An unordered $(i, j)$ tuple of two individuals together with a known **relationship type**. Distinct from **mating pair** (a male-female parental event) and from **MZ twin** (a specific relationship type).
@@ -252,17 +252,17 @@ When in doubt: if it's a number you'd plot directly from a stats YAML, it's desc
 
 - **"liability"** is intentionally polysemous: it can refer to the raw $L = A + C + E$ or to its standardized form $\tilde L$. Both readings are legitimate; the right one is inferable from context (raw inside `pedigree.parquet` columns; standardized inside phenotype-model code that consumes it). **Do not** "fix" this by renaming — the dual usage is load-bearing.
 
-- **"phenotype"** is never used bare for the *observable outcome* — that's called a **trait** (per-individual instance). "Phenotype" appears only in qualified form: **phenotype model** (the family) or **phenotype stage** (the pipeline step). Output files (`phenotype.parquet`, `phenotype.simple_ltm.parquet`) are being renamed to `trait.parquet` / `trait.simple_ltm.parquet` to match.
+- **"phenotype"** is never used bare for the *observable outcome* — that's called a **trait** (per-individual instance). "Phenotype" appears only in qualified form: **phenotype model** (the family) or **phenotype stage** (the pipeline step). Canonical output files are `trait.parquet` and `trait.simple_ltm.parquet` (renamed from the legacy `phenotype.parquet` / `phenotype.simple_ltm.parquet`).
 
-- **Noun, not gerund** for the phenotype stage: the canonical package name is `simace/phenotype/` (noun). Older code paths may still use `simace/phenotype/` (gerund); these are being renamed. Do not introduce new "phenotyping" identifiers.
+- **Noun, not gerund** for the phenotype stage: the canonical package is `simace/phenotype/` (noun). The legacy `simace/phenotyping/` gerund form was renamed in lockstep. Do not reintroduce "phenotyping" identifiers.
 
 - **"trait"** carries both an *axis* sense ("the two traits") and a *per-individual instance* sense ("individual $i$'s trait 1"). Unlike liability, both senses always co-occur in the same code/text and context makes the right reading unambiguous — no special care needed.
 
-- **"pedigree dropout" and "subsampling"** are *deprecated names* — both have been folded into the unified **ascertainment** stage (see ADR 0001). Older code paths, scenario YAMLs, and docs may still reference these; do not introduce new uses. The corresponding config keys `pedigree_dropout_rate` → `dropout_rate` and the implicit "sample" stage → ascertainment stage are migrating in lockstep.
+- **"pedigree dropout" and "subsampling"** are *deprecated names* — both have been folded into the unified **ascertainment** stage (see ADR 0001). The config key `pedigree_dropout_rate` is renamed to `dropout_rate` and the YAML block `sampling:` is renamed to `ascertainment:`. The legacy `dropout.smk` / `sample.smk` rules and `simace/sampling/` package have been removed. Do not reintroduce these names.
 
 - **"coancestry"** is suppressed in canonical simACE vocabulary — use **kinship** for per-pair coefficients and **mean kinship** for the generation-aggregate form. The legacy estimator name `ne_coancestry` (and column names like `mean_self_coancestry`) survive in code because they match published-literature names for the coancestry-rate $N_e$ estimator; treat these as fixed external identifiers, not as a glossary term to extend.
 
-- **"pair type"** is the deprecated code name for **relationship type**. The `relationship_type` identifiers in `simace.plotting` and `simace.analysis.stats` are being renamed. Do not introduce new uses.
+- **"pair type"** is the deprecated code name for **relationship type**. The `pair_type` identifiers in `simace.plotting`, `simace.analysis.stats`, and `simace.core.relationships.PAIR_TYPES` were renamed to `relationship_type` / `RELATIONSHIP_TYPES` across both simACE and fitACE. Do not reintroduce them.
 
 ## Example dialogue
 
