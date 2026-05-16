@@ -20,7 +20,6 @@ contract" for the design discussion.
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
 
 from simace.simulation.simulate import run_simulation

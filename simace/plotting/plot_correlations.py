@@ -34,8 +34,8 @@ from simace.plotting.plot_style import (
     COLOR_UNCENSORED,
 )
 from simace.plotting.plot_utils import (
-    finalize_relationship_type_panels,
     finalize_plot,
+    finalize_relationship_type_panels,
     relationship_type_legend_handles,
     save_placeholder_plot,
     setup_relationship_type_panel,

@@ -36,14 +36,18 @@ and writes its output to `phenotype.blended.parquet` alongside.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 __all__ = ["blended_diagnosis"]
 
 import numpy as np
-import pandas as pd
 from scipy.special import erfc, ndtri
 
 from simace.phenotype.hazards import standardize_liability
 from simace.phenotype.models._prevalence import prevalence_to_array
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 #: Right-censoring age for late-onset cases. Matches the simACE default
 #: `censoring.max_age`.
@@ -85,8 +89,10 @@ def blended_diagnosis(
             Must include every distinct value in ``phenotype["generation"]``.
         K_by_gen: per-output-generation diagnostic prevalence. Same key
             constraint as ``alpha_by_gen``.
-        cip_x0, cip_k: logistic CIP shape parameters for the onset-age
-            inversion. Default to ``adult/ltm`` defaults.
+        cip_x0: logistic CIP shape parameter (location) for the onset-age
+            inversion. Defaults to the ``adult/ltm`` default.
+        cip_k: logistic CIP shape parameter (slope) for the onset-age
+            inversion. Defaults to the ``adult/ltm`` default.
 
     Returns:
         Copy of `phenotype` with overwritten trait-1 status columns and

@@ -862,13 +862,13 @@ class TestMatingWF:
     def test_no_females_raises(self):
         rng = np.random.default_rng(3)
         sex = np.ones(50, dtype=int)  # all male
-        with pytest.raises(ValueError, match="generation 5.*female"):
+        with pytest.raises(ValueError, match=r"generation 5.*female"):
             _mating_wf(rng, sex, N=50, generation=5)
 
     def test_no_males_raises(self):
         rng = np.random.default_rng(4)
         sex = np.zeros(50, dtype=int)  # all female
-        with pytest.raises(ValueError, match="generation 9.*male"):
+        with pytest.raises(ValueError, match=r"generation 9.*male"):
             _mating_wf(rng, sex, N=50, generation=9)
 
 

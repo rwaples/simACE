@@ -7,8 +7,6 @@ import pandas as pd
 import pytest
 
 from simace.phenotype.blended_post import (
-    DEFAULT_CIP_K,
-    DEFAULT_CIP_X0,
     MAX_AGE,
     blended_diagnosis,
 )

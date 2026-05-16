@@ -9,10 +9,10 @@ __all__ = [
     "annotate_heatmap",
     "draw_colored_violins",
     "draw_split_violin",
-    "finalize_relationship_type_panels",
     "finalize_plot",
-    "relationship_type_legend_handles",
+    "finalize_relationship_type_panels",
     "param_as_float",
+    "relationship_type_legend_handles",
     "save_placeholder_plot",
     "setup_relationship_type_panel",
 ]
