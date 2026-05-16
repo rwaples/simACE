@@ -69,6 +69,11 @@ presentations/
 
 # Claude Code
 .claude/
+.agents/
+skills-lock.json
+
+# Local code-review-graph eval harness
+evaluate/
 
 #epimight
 /epimight/EPIMIGHT
