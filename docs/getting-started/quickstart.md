@@ -24,7 +24,7 @@ A successful run produces these key files per replicate:
 | `phenotype.parquet` | Censored time-to-event phenotypes (age-at-onset, affected status) |
 | `phenotype.simple_ltm.parquet` | Liability-threshold binary affected status |
 | `validation.yaml` | Structural and statistical validation results |
-| `phenotype_stats.yaml` | Phenotype statistics (correlations, prevalence, CIF) |
+| `stats_report.yaml` | Grouped per-replicate stats report (correlations, prevalence, CIF) |
 | `params.yaml` | The resolved parameters for this replicate |
 
 ## Explore the atlas

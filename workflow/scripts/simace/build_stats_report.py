@@ -1,4 +1,4 @@
-"""Compute phenotype statistics - Snakemake wrapper with CLI fallback."""
+"""Build the per-replicate stats report - Snakemake wrapper with CLI fallback."""
 
 from simace import _snakemake_tag, setup_logging
 from simace.analysis.stats import cli as _cli

@@ -340,10 +340,6 @@ def plot_ne_by_generation(
             ax.set_title(_SHORT_LABEL[est])
             continue
 
-        # Clip non-positive Ne to NaN so log scale doesn't crash on the
-        # occasional 1.0 Caballero–Toro artifact.
-        ne_clipped = sub["ne"].where(sub["ne"] > 0)
-
         for _rep, rep_df in sub.groupby("rep"):
             xs = rep_df["index"].to_numpy()
             if kind == "transition":

@@ -407,25 +407,30 @@ def compute_parent_offspring_corr_by_sex(df: pd.DataFrame) -> dict[str, Any]:
     return result
 
 
-def compute_observed_h2_estimators(stats: dict[str, Any]) -> dict[str, Any]:
+def compute_observed_h2_estimators(
+    affected_correlations: dict[str, Any],
+    parent_offspring_affected_corr: dict[str, Any],
+) -> dict[str, Any]:
     """Derive five naive observed-scale h² estimators from precomputed correlations.
 
-    Reads from ``stats["affected_correlations"]`` (phi r per pair type) and
-    ``stats["parent_offspring_affected_corr"]`` (PO regression slope on binary).
+    Reads from affected-status correlations (phi r per relationship type) and
+    parent-offspring affected-status regression slopes.
     Each estimator is a closed-form combination that, under a liability-threshold
     model, is an unbiased estimator of ``h²_liab · z(K)²/(K(1−K))`` — i.e. the
     observed-scale h² — where K is the affected-status prevalence.
 
     Args:
-        stats: The in-progress stats dict with ``affected_correlations`` and
-            ``parent_offspring_affected_corr`` already populated.
+        affected_correlations: Per-trait affected-status correlations by
+            relationship type.
+        parent_offspring_affected_corr: Per-trait parent-offspring regression
+            on binary affected status.
 
     Returns:
         Dict keyed ``trait1``/``trait2``, each mapping estimator name to a
         float or None: ``{falconer, sibs, po, hs, cousins}``.
     """
-    aff = stats.get("affected_correlations", {}) or {}
-    po_all = stats.get("parent_offspring_affected_corr", {}) or {}
+    aff = affected_correlations or {}
+    po_all = parent_offspring_affected_corr or {}
 
     def _two_diff(r_a: Any, r_b: Any) -> float | None:
         if r_a is None or r_b is None:

@@ -63,7 +63,7 @@ def minimal_params():
 
 @pytest.fixture
 def minimal_stats():
-    """Minimal phenotype_stats dict for Table 1 rendering."""
+    """Minimal stats report dict for Table 1 rendering."""
     return {
         "n_individuals": 500,
         "n_males": 250,

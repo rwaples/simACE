@@ -47,6 +47,7 @@ from simace.plotting.plot_style import (
     apply_nature_style,
     enable_value_gridlines,
 )
+from simace.plotting.stats_report import plotting_stats_view
 
 logger = logging.getLogger(__name__)
 
@@ -327,7 +328,7 @@ def compare_component_distributions(
 # ---------------------------------------------------------------------------
 
 # Display-ordered relationship classes, pooled from the raw classes in
-# phenotype_stats.yaml.  Expected liability correlation under random mating is
+# stats_report.yaml. Expected liability correlation under random mating is
 # ``k * A + c * C`` where k is the kinship coefficient; the middle column
 # below is k so callers can draw reference bars.  MZ twins are deliberately
 # omitted — their liability correlation is pinned at ``A + C`` regardless of
@@ -1377,7 +1378,7 @@ def compare_cohort_falconer(
 
 
 def _load_per_gen_prevalence(
-    phenotype_stats_paths: list[Path],
+    stats_report_paths: list[Path],
     trait: int = 1,
 ) -> dict[int, list[float]]:
     """Read ``prevalence.by_generation.{N}.trait{trait}`` across replicates.
@@ -1387,8 +1388,8 @@ def _load_per_gen_prevalence(
     to a given generation's list.
     """
     per_gen: dict[int, list[float]] = {}
-    for path in phenotype_stats_paths:
-        ps = load_yaml(path) or {}
+    for path in stats_report_paths:
+        ps = plotting_stats_view(load_yaml(path))
         by_gen = (ps.get("prevalence") or {}).get("by_generation") or {}
         for g_key, entry in by_gen.items():
             g = int(g_key)
@@ -1421,7 +1422,7 @@ def compare_prevalence_drift(
 
     Args:
         std_paths_per_trajectory: outer list = trajectory, inner list =
-            per-rep ``phenotype_stats.yaml`` paths for the first variant.
+            per-replicate ``stats_report.yaml`` paths for the first variant.
         nostd_paths_per_trajectory: same shape, for the second variant.
         labels: display label per trajectory.
         output_path: image path to save.
@@ -1509,9 +1510,9 @@ OBSERVED_LIABILITY_ESTIMATOR_DEFS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _load_tetrachoric(phenotype_stats_path: Path, trait: int) -> dict[str, float]:
+def _load_tetrachoric(stats_report_path: Path, trait: int) -> dict[str, float]:
     """Return a flat ``{MZ, FS, MO, FO, MHS, PHS, 1C}`` tetrachoric r dict."""
-    ps = load_yaml(phenotype_stats_path) or {}
+    ps = plotting_stats_view(load_yaml(stats_report_path))
     tet = (ps.get("tetrachoric") or {}).get(f"trait{trait}", {}) or {}
     out: dict[str, float] = {}
     for key, entry in tet.items():
@@ -1522,7 +1523,7 @@ def _load_tetrachoric(phenotype_stats_path: Path, trait: int) -> dict[str, float
 
 def load_observed_vs_liability_h2(
     pedigree_paths: list[Path],
-    phenotype_stats_paths: list[Path],
+    stats_report_paths: list[Path],
     trait: int = 1,
     min_generation: int | None = None,
 ) -> dict[str, np.ndarray]:
@@ -1531,15 +1532,15 @@ def load_observed_vs_liability_h2(
     The two input lists must be in the same replicate order.  Liability
     correlations and realized h² come from :func:`load_pedigree_estimates`
     (pedigree.parquet); tetrachoric correlations come from
-    ``phenotype_stats.yaml.tetrachoric.trait{trait}``.
+    ``stats_report.yaml``.
 
     Args:
         pedigree_paths: one ``pedigree.parquet`` path per rep.
-        phenotype_stats_paths: one ``phenotype_stats.yaml`` path per rep.
+        stats_report_paths: one ``stats_report.yaml`` path per replicate.
         trait: 1 or 2.
         min_generation: forwarded to :func:`load_pedigree_estimates` for the
             liability correlations and realized h².  Tetrachoric values in
-            ``phenotype_stats.yaml`` are pre-aggregated over phenotyped
+            ``stats_report.yaml`` values are pre-aggregated over phenotyped
             generations and not re-filtered here.
 
     Returns:
@@ -1547,7 +1548,7 @@ def load_observed_vs_liability_h2(
         'realized'}``; each value is a per-rep ``np.ndarray``.
     """
     out: dict[str, list[float]] = {k: [] for k in ("liability_falconer", "tetrachoric_falconer", "realized")}
-    for ped_path, ps_path in zip(pedigree_paths, phenotype_stats_paths, strict=True):
+    for ped_path, ps_path in zip(pedigree_paths, stats_report_paths, strict=True):
         est = load_pedigree_estimates(ped_path, trait=trait, min_generation=min_generation)
         r_mz_liab = est.get("MZ", float("nan"))
         r_fs_liab = est.get("FS", float("nan"))
@@ -1567,7 +1568,7 @@ def load_observed_vs_liability_h2(
 
 def compare_observed_vs_liability_h2(
     pedigree_paths_per_scenario: list[list[Path]],
-    phenotype_stats_paths_per_scenario: list[list[Path]],
+    stats_report_paths_per_scenario: list[list[Path]],
     labels: list[str],
     output_path: Path,
     trait: int = 1,
@@ -1586,8 +1587,8 @@ def compare_observed_vs_liability_h2(
     Args:
         pedigree_paths_per_scenario: outer list = scenarios, inner list =
             per-rep ``pedigree.parquet`` paths.
-        phenotype_stats_paths_per_scenario: same shape, per-rep
-            ``phenotype_stats.yaml`` paths.  Rep order must match.
+        stats_report_paths_per_scenario: same shape, per-replicate
+            ``stats_report.yaml`` paths. Rep order must match.
         labels: display label per scenario.
         output_path: image path to save.
         trait: 1 or 2.
@@ -1595,8 +1596,8 @@ def compare_observed_vs_liability_h2(
         input_h2: simulation input h²; drawn as a dashed reference line.
     """
     n_scen = len(labels)
-    if len(pedigree_paths_per_scenario) != n_scen or len(phenotype_stats_paths_per_scenario) != n_scen:
-        raise ValueError("pedigree_paths, phenotype_stats_paths, and labels must have the same length")
+    if len(pedigree_paths_per_scenario) != n_scen or len(stats_report_paths_per_scenario) != n_scen:
+        raise ValueError("pedigree_paths, stats_report_paths, and labels must have the same length")
 
     apply_nature_style()
     estimator_labels = [d[0] for d in OBSERVED_LIABILITY_ESTIMATOR_DEFS]
@@ -1610,7 +1611,7 @@ def compare_observed_vs_liability_h2(
             trait=trait,
             min_generation=min_generation,
         )
-        for ped_paths, ps_paths in zip(pedigree_paths_per_scenario, phenotype_stats_paths_per_scenario, strict=True)
+        for ped_paths, ps_paths in zip(pedigree_paths_per_scenario, stats_report_paths_per_scenario, strict=True)
     ]
 
     fig, (ax_raw, ax_bias) = plt.subplots(2, 1, figsize=(7.5, 8), sharex=True)

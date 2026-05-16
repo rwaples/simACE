@@ -28,3 +28,5 @@ def test_full_scenario_outputs_keep_canonical_ascertained_pedigrees():
 
     assert "results/test/small/rep1/pedigree.parquet" in outputs
     assert "results/test/small/rep1/pedigree.full.parquet" not in outputs
+    assert "results/test/small/rep1/stats_report.yaml" in outputs
+    assert "results/test/small/rep1/phenotype_stats.yaml" not in outputs

@@ -1,8 +1,8 @@
-"""Compute per-rep phenotype statistics for downstream plotting.
+"""Compute per-replicate stats reports for downstream plotting.
 
 Reads a single trait.parquet and produces:
-  - phenotype_stats.yaml: scalar and array statistics
-  - phenotype_samples.parquet: downsampled rows for scatter/histogram plots
+  - stats_report.yaml: grouped scalar and array statistics
+  - plotting_sample.parquet: downsampled rows for scatter/histogram plots
 
 Public API is re-exported from focused sub-modules:
 
@@ -55,11 +55,12 @@ from .incidence import (
     compute_regression,
 )
 from .pedigree import compute_mean_family_size, compute_parent_status
-from .runner import cli, main
+from .runner import build_stats_report, cli, main
 from .sampling import create_sample
 from .tetrachoric import tetrachoric_corr, tetrachoric_corr_se
 
 __all__ = [
+    "build_stats_report",
     "cli",
     "compute_affected_correlations",
     "compute_censoring_cascade",

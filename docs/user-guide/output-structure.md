@@ -10,7 +10,7 @@ results/{folder}/{scenario}/
 │   ├── pedigree.parquet                   # Post-ascertainment pedigree (ancestor closure of sampled IDs)
 │   ├── trait.parquet                      # Post-ascertainment censored time-to-event phenotypes
 │   ├── trait.simple_ltm.parquet           # Post-ascertainment liability-threshold benchmark
-│   ├── phenotype_stats.yaml               # Phenotype statistics
+│   ├── stats_report.yaml                  # Grouped per-replicate stats report
 │   └── validation.yaml                    # Structural + statistical validation
 ├── rep2/
 ├── rep3/
@@ -31,7 +31,7 @@ results/{folder}/{scenario}/
 | `trait.parquet` | Post-ascertainment censored time-to-event phenotypes (canonical output) | No |
 | `trait.simple_ltm.parquet` | Post-ascertainment liability-threshold benchmark (canonical output) | No |
 | `params.yaml` | Simulation parameters for this replicate | No |
-| `phenotype_stats.yaml` | Per-replicate phenotype statistics | No |
+| `stats_report.yaml` | Grouped per-replicate stats report | No |
 
 Temp files are auto-deleted by Snakemake after downstream rules complete.
 
@@ -95,8 +95,8 @@ as placeholders matching values from `config/_default.yaml`.
 | `trait.parquet` | Parquet | Post-ascertainment per-individual trait outcomes (censored time-to-event + affected status) | `simace/ascertainment/__init__.py` |
 | `trait.simple_ltm.parquet` | Parquet | Post-ascertainment per-individual simple-LTM benchmark (parallel LTM trait) | `simace/ascertainment/__init__.py` |
 | `params.yaml` | YAML | Simulation parameters for this replicate | `simace/simulation/simulate.py` |
-| `phenotype_stats.yaml` | YAML | Phenotype statistics (correlations, prevalence, CIF, etc.) | `workflow/scripts/simace/compute_phenotype_stats.py` → `simace/analysis/stats/runner.py` |
-| `phenotype_samples.parquet` | Parquet | Further downsampled phenotype rows for stats scatter plots | `workflow/scripts/simace/compute_phenotype_stats.py` → `simace/analysis/stats/runner.py` |
+| `stats_report.yaml` | YAML | Grouped per-replicate stats report (correlations, prevalence, CIF, etc.) | `workflow/scripts/simace/build_stats_report.py` → `simace/analysis/stats/runner.py` |
+| `plotting_sample.parquet` | Parquet | Further downsampled trait rows for stats scatter plots | `workflow/scripts/simace/build_stats_report.py` → `simace/analysis/stats/runner.py` |
 | `validation.yaml` | YAML | Structural and statistical validation results | `simace/analysis/validate.py` |
 
 ### Per-scenario, per-folder, and sentinel files
@@ -187,7 +187,7 @@ Binary affected status from a liability-threshold model. Each generation has an 
 
 The pre-ascertainment outputs (`trait.raw.parquet`, `trait.full.parquet`, `trait.simple_ltm.full.parquet`) are Snakemake `temp()` files — auto-deleted once ascertainment has consumed them.
 
-`phenotype_samples.parquet` is a *further* downsampled parquet produced inside the stats stage for scatter/histogram plots; it shares the trait.parquet schema.
+`plotting_sample.parquet` is a *further* downsampled parquet produced inside the Stats stage for scatter/histogram plots; it shares the `trait.parquet` schema.
 
 ---
 
@@ -214,42 +214,20 @@ Flat key-value file recording the simulation parameters used for a replicate. Wr
 | `assort1` | float | Mate correlation on trait 1 liability (0 = random) |
 | `assort2` | float | Mate correlation on trait 2 liability (0 = random) |
 
-### phenotype_stats.yaml
+### stats_report.yaml
 
-Phenotype statistics computed from the censored phenotype. Written by
-`workflow/scripts/simace/compute_phenotype_stats.py`, which calls
-`simace.analysis.stats.runner`. Top-level sections:
+Grouped per-replicate stats report computed from `trait.parquet`. Written by
+`workflow/scripts/simace/build_stats_report.py`, which calls
+`simace.analysis.stats.runner`. Top-level groups:
 
-| Section | Description |
+| Group | Description |
 |---------|-------------|
-| `n_individuals` | Total individual count |
-| `n_generations` | Number of phenotyped generations |
-| `case_ascertainment_ratio` | Ascertainment ratio used for sampling (conditional; only when ratio != 1.0) |
-| `prevalence` | Per-trait observed prevalence (float per trait) |
-| `mortality` | Decade-binned mortality rates (`decade_labels`, `rates`) |
-| `person_years` | Total and per-trait person-years at risk |
-| `family_size` | Family size statistics: `mean`, `median`, `q1`, `q3`, `n_families`, and size distribution |
-| `regression` | Liability-vs-age-at-onset regression per trait (`slope`, `intercept`, `r`, `r2`, `n`) |
-| `cumulative_incidence` | Cumulative incidence curves per trait (`ages`, `observed_values`, `true_values`, `half_target_age`) |
-| `joint_affection` | Cross-trait joint affection counts and proportions |
-| `cumulative_incidence_by_sex` | CIF curves stratified by trait and sex |
-| `cumulative_incidence_by_sex_generation` | CIF curves stratified by trait, generation, and sex |
-| `censoring` | Generation observation windows and censor age (present when `gen_censoring` is configured) |
-| `censoring_confusion` | Per-trait confusion matrix for censoring vs true affection (conditional) |
-| `censoring_cascade` | Per-trait, per-generation censoring cascade counts (conditional) |
-| `mate_correlation` | 2×2 Pearson correlation matrix between mated pairs' liabilities (`matrix`, `n_pairs`); conditional on pedigree |
-| `pair_counts` | Count of extracted relationship pairs by type (MZ, FS, HS, PO, etc.) |
-| `pair_counts_ped` | Pair counts from full pedigree (when pedigree file is provided; conditional) |
-| `n_individuals_ped` | Individual count in full pedigree (conditional) |
-| `n_generations_ped` | Generation count in full pedigree (conditional) |
-| `liability_correlations` | Pearson correlations of liability by trait and pair type |
-| `parent_offspring_corr` | Parent-offspring liability correlations by trait and generation |
-| `parent_offspring_corr_by_sex` | Parent-offspring liability correlations stratified by parent sex |
-| `parent_status` | Parent affection status breakdown (affected/unaffected parent counts and offspring prevalence) |
-| `tetrachoric` | Tetrachoric correlations of affection status by trait and pair type (`r`, `se`, `n_pairs`) |
-| `tetrachoric_by_generation` | Tetrachoric correlations stratified by generation |
-| `tetrachoric_by_sex` | Tetrachoric correlations stratified by sex |
-| `cross_trait_tetrachoric` | Cross-trait tetrachoric correlations (`same_person`, `same_person_by_generation`, `cross_person`) |
+| `metadata` | Analysis-dataset row counts and conditional `case_ascertainment_ratio` |
+| `incidence` | Observed prevalence, mortality, regression, cumulative-incidence, and Aalen-Johansen summaries |
+| `censoring` | Person-years plus generation windows, confusion, and cascade summaries when generation censoring is configured |
+| `pedigree` | Sample relationship-pair counts, family-size summaries, parent status, and conditional full-pedigree counts |
+| `correlations` | Liability, affected, parent-offspring, mate, tetrachoric, cross-trait tetrachoric, and joint-affection summaries |
+| `heritability` | Observed-scale h² estimators |
 
 Sections marked "conditional" are only present when the corresponding data or config options are available.
 
@@ -334,7 +312,7 @@ Benchmark files are written for each pipeline rule. Per-replicate benchmarks:
 - `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/sample_phenotype.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/sample_simple_ltm.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_stats.tsv`
+- `benchmarks/{folder}/{scenario}/rep{rep}/stats_report.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/validate.tsv`
 
 Per-scenario benchmarks:

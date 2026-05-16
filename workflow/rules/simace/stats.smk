@@ -3,17 +3,17 @@
 # ---------------------------------------------------------------------------
 
 
-rule stats_phenotype:
+rule build_stats_report:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/trait.parquet",
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
-        stats="results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
-        samples=temp("results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet"),
+        stats="results/{folder}/{scenario}/rep{rep}/stats_report.yaml",
+        samples=temp("results/{folder}/{scenario}/rep{rep}/plotting_sample.parquet"),
     log:
-        "logs/{folder}/{scenario}/rep{rep}/phenotype_stats.log",
+        "logs/{folder}/{scenario}/rep{rep}/stats_report.log",
     benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_stats.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/stats_report.tsv"
     threads: 5
     resources:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
@@ -27,19 +27,19 @@ rule stats_phenotype:
             config, w.scenario, "case_ascertainment_ratio"
         ),
     script:
-        "../../scripts/simace/compute_phenotype_stats.py"
+        "../../scripts/simace/build_stats_report.py"
 
 
 rule plot_phenotype:
     input:
         stats=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
+            "results/{folder}/{scenario}/rep{rep}/stats_report.yaml",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
         samples=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet",
+            "results/{folder}/{scenario}/rep{rep}/plotting_sample.parquet",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
@@ -76,7 +76,7 @@ rule assemble_scenario_atlas:
         ),
         params_yaml="results/{folder}/{scenario}/rep1/params.yaml",
         stats=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
+            "results/{folder}/{scenario}/rep{rep}/stats_report.yaml",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),

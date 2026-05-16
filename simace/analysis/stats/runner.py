@@ -1,7 +1,7 @@
-"""Orchestration entry point for per-rep phenotype statistics.
+"""Orchestration entry point for per-replicate stats reports.
 
 Reads a single trait.parquet, runs every stats computation, and writes
-``phenotype_stats.yaml`` plus ``phenotype_samples.parquet``.
+``stats_report.yaml`` plus ``plotting_sample.parquet``.
 """
 
 import argparse
@@ -9,6 +9,7 @@ import json
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -55,56 +56,33 @@ from .sampling import create_sample
 
 logger = logging.getLogger(__name__)
 
+PEDIGREE_REPORT_COLUMNS = ["id", "mother", "father", "twin", "sex", "generation", "liability1", "liability2"]
+REPORT_GROUPS = ("metadata", "incidence", "censoring", "pedigree", "correlations", "heritability")
 
-def main(
-    phenotype_path: str,
-    censor_age: float,
-    stats_output: str,
-    samples_output: str,
-    seed: int = 42,
-    gen_censoring: dict[int, list[float]] | None = None,
-    pedigree_path: str | None = None,
-    max_degree: int = 2,
-    case_ascertainment_ratio: float = 1.0,
-) -> None:
-    """Compute all stats for a single rep and write outputs."""
-    df = pd.read_parquet(phenotype_path)
-    logger.info("Computing stats for %s (%d rows)", phenotype_path, len(df))
 
-    stats: dict[str, Any] = {
-        "n_individuals": len(df),
-        "n_generations": int(df["generation"].nunique()) if "generation" in df.columns else 1,
-    }
+@dataclass(frozen=True)
+class RelationshipContext:
+    """Extracted relationship pairs and per-relation full-pedigree pair counts."""
 
-    if case_ascertainment_ratio != 1.0:
-        stats["case_ascertainment_ratio"] = case_ascertainment_ratio
+    pairs: dict[str, tuple[Any, Any]]
+    full_counts: dict[str, int] | None
 
-    stats["prevalence"] = compute_prevalence(df)
-    stats["mortality"] = compute_mortality(df, censor_age)
-    stats["regression"] = compute_regression(df)
-    stats["cumulative_incidence"] = compute_cumulative_incidence(df, censor_age)
-    stats["joint_affection"] = compute_joint_affection(df)
-    stats["cumulative_incidence_by_sex"] = compute_cumulative_incidence_by_sex(df, censor_age)
-    stats["cumulative_incidence_by_sex_generation"] = compute_cumulative_incidence_by_sex_generation(df, censor_age)
-    stats["cumulative_incidence_aj"] = compute_cumulative_incidence_aj(df, censor_age, gen_censoring=gen_censoring)
-    stats["cumulative_incidence_aj_by_sex"] = compute_cumulative_incidence_aj_by_sex(
-        df, censor_age, gen_censoring=gen_censoring
-    )
-    stats["cumulative_incidence_aj_by_sex_generation"] = compute_cumulative_incidence_aj_by_sex_generation(
-        df, censor_age, gen_censoring=gen_censoring
-    )
 
-    if gen_censoring is not None:
-        stats["censoring"] = compute_censoring_windows(df, censor_age, gen_censoring)
-        stats["censoring_confusion"] = compute_censoring_confusion(df, censor_age, gen_censoring)
-        stats["censoring_cascade"] = compute_censoring_cascade(df, censor_age, gen_censoring)
+def _log_elapsed(label: str, start: float) -> None:
+    logger.info("%s completed in %.1fs", label, time.perf_counter() - start)
 
-    stats["person_years"] = compute_person_years(df, censor_age, gen_censoring)
-    stats["family_size"] = compute_mean_family_size(df)
 
-    # Read full pedigree once (used for both pair extraction and pair counts)
-    df_ped = pd.read_parquet(pedigree_path) if pedigree_path is not None else None
+def _read_pedigree(path: str | None) -> pd.DataFrame | None:
+    if path is None:
+        return None
+    return pd.read_parquet(path, columns=PEDIGREE_REPORT_COLUMNS)
 
+
+def _build_relationship_context(
+    df: pd.DataFrame,
+    df_ped: pd.DataFrame | None,
+    max_degree: int,
+) -> RelationshipContext:
     logger.info("Extracting relationship pairs...")
     t0 = time.perf_counter()
     if df_ped is not None:
@@ -120,34 +98,104 @@ def main(
         time.perf_counter() - t0,
         ", ".join(f"{k}: {len(v[0])}" for k, v in pairs.items()),
     )
+    return RelationshipContext(pairs=pairs, full_counts=full_counts)
 
-    stats["pair_counts"] = {k: len(v[0]) for k, v in pairs.items()}
 
-    stats["parent_status"] = compute_parent_status(df, df_ped)
+def build_stats_report(
+    df: pd.DataFrame,
+    censor_age: float,
+    *,
+    seed: int = 42,
+    gen_censoring: dict[int, list[float]] | None = None,
+    df_ped: pd.DataFrame | None = None,
+    max_degree: int = 2,
+    case_ascertainment_ratio: float = 1.0,
+) -> dict[str, Any]:
+    """Build the grouped per-replicate stats report in memory."""
+    report: dict[str, Any] = {group: {} for group in REPORT_GROUPS}
 
-    if df_ped is not None and full_counts is not None:
-        stats["pair_counts_ped"] = full_counts
-        stats["n_individuals_ped"] = len(df_ped)
-        stats["n_generations_ped"] = int(df_ped["generation"].nunique()) if "generation" in df_ped.columns else 1
+    t0 = time.perf_counter()
+    metadata = {
+        "n_individuals": len(df),
+        "n_generations": int(df["generation"].nunique()) if "generation" in df.columns else 1,
+    }
+    if case_ascertainment_ratio != 1.0:
+        metadata["case_ascertainment_ratio"] = case_ascertainment_ratio
+    report["metadata"] = metadata
+    _log_elapsed("Metadata stats", t0)
+
+    t0 = time.perf_counter()
+    incidence = {
+        "prevalence": compute_prevalence(df),
+        "mortality": compute_mortality(df, censor_age),
+        "regression": compute_regression(df),
+        "cumulative_incidence": compute_cumulative_incidence(df, censor_age),
+        "cumulative_incidence_by_sex": compute_cumulative_incidence_by_sex(df, censor_age),
+        "cumulative_incidence_by_sex_generation": compute_cumulative_incidence_by_sex_generation(df, censor_age),
+        "cumulative_incidence_aj": compute_cumulative_incidence_aj(df, censor_age, gen_censoring=gen_censoring),
+        "cumulative_incidence_aj_by_sex": compute_cumulative_incidence_aj_by_sex(
+            df, censor_age, gen_censoring=gen_censoring
+        ),
+        "cumulative_incidence_aj_by_sex_generation": compute_cumulative_incidence_aj_by_sex_generation(
+            df, censor_age, gen_censoring=gen_censoring
+        ),
+    }
+    _log_elapsed("Incidence stats", t0)
+
+    t0 = time.perf_counter()
+    censoring = {
+        "person_years": compute_person_years(df, censor_age, gen_censoring),
+    }
+    if gen_censoring is not None:
+        censoring["windows"] = compute_censoring_windows(df, censor_age, gen_censoring)
+        censoring["confusion"] = compute_censoring_confusion(df, censor_age, gen_censoring)
+        censoring["cascade"] = compute_censoring_cascade(df, censor_age, gen_censoring)
+    _log_elapsed("Censoring stats", t0)
+
+    t0 = time.perf_counter()
+    relationship_context = _build_relationship_context(df, df_ped, max_degree)
+    _log_elapsed("Relationship context", t0)
+
+    pairs = relationship_context.pairs
+    t0 = time.perf_counter()
+    pedigree: dict[str, Any] = {
+        "family_size": compute_mean_family_size(df),
+        "relationship_pair_counts": {k: len(v[0]) for k, v in pairs.items()},
+        "parent_status": compute_parent_status(df, df_ped),
+    }
+    if df_ped is not None and relationship_context.full_counts is not None:
+        pedigree["full"] = {
+            "relationship_pair_counts": relationship_context.full_counts,
+            "n_individuals": len(df_ped),
+            "n_generations": int(df_ped["generation"].nunique()) if "generation" in df_ped.columns else 1,
+        }
         logger.info(
             "Pedigree pair counts (from same graph): %s",
-            ", ".join(f"{k}: {v}" for k, v in full_counts.items()),
+            ", ".join(f"{k}: {v}" for k, v in relationship_context.full_counts.items()),
         )
+    _log_elapsed("Pedigree stats", t0)
 
+    t0 = time.perf_counter()
+    correlations = {
+        "liability_correlations": compute_liability_correlations(df, seed=seed, pairs=pairs),
+        "affected_correlations": compute_affected_correlations(df, seed=seed, pairs=pairs),
+        "parent_offspring_corr": compute_parent_offspring_corr(df),
+        "parent_offspring_corr_by_sex": compute_parent_offspring_corr_by_sex(df),
+        "parent_offspring_affected_corr": compute_parent_offspring_affected_corr(df),
+        "joint_affection": compute_joint_affection(df),
+    }
     if df_ped is not None:
         logger.info("Computing mate liability correlations...")
-        stats["mate_correlation"] = compute_mate_correlation(df_ped)
-    del df_ped
+        correlations["mate_correlation"] = compute_mate_correlation(df_ped)
+    _log_elapsed("Fast correlation stats", t0)
 
-    # Fast sequential computations
-    stats["liability_correlations"] = compute_liability_correlations(df, seed=seed, pairs=pairs)
-    stats["affected_correlations"] = compute_affected_correlations(df, seed=seed, pairs=pairs)
-    stats["parent_offspring_corr"] = compute_parent_offspring_corr(df)
-    stats["parent_offspring_corr_by_sex"] = compute_parent_offspring_corr_by_sex(df)
-    stats["parent_offspring_affected_corr"] = compute_parent_offspring_affected_corr(df)
-    stats["observed_h2_estimators"] = compute_observed_h2_estimators(stats)
+    report["heritability"] = {
+        "observed_h2_estimators": compute_observed_h2_estimators(
+            correlations["affected_correlations"],
+            correlations["parent_offspring_affected_corr"],
+        )
+    }
 
-    # Expensive MLE computations — run in parallel (scipy.optimize releases the GIL)
     logger.info("Computing tetrachoric correlations in parallel...")
     t_mle = time.perf_counter()
     with ThreadPoolExecutor(max_workers=5) as pool:
@@ -156,28 +204,68 @@ def main(
         fut_cross = pool.submit(compute_cross_trait_tetrachoric, df, seed=seed, pairs=pairs)
         fut_tetra_sex = pool.submit(compute_tetrachoric_by_sex, df, seed=seed, pairs=pairs)
 
-        stats["tetrachoric"] = fut_tetra.result()
-        stats["tetrachoric_by_generation"] = fut_tetra_gen.result()
-        stats["cross_trait_tetrachoric"] = fut_cross.result()
-        stats["tetrachoric_by_sex"] = fut_tetra_sex.result()
+        correlations["tetrachoric"] = fut_tetra.result()
+        correlations["tetrachoric_by_generation"] = fut_tetra_gen.result()
+        correlations["cross_trait_tetrachoric"] = fut_cross.result()
+        correlations["tetrachoric_by_sex"] = fut_tetra_sex.result()
     logger.info("All MLE correlations computed in %.1fs", time.perf_counter() - t_mle)
+
+    report["incidence"] = incidence
+    report["censoring"] = censoring
+    report["pedigree"] = pedigree
+    report["correlations"] = correlations
+    return report
+
+
+def main(
+    phenotype_path: str,
+    censor_age: float,
+    stats_output: str,
+    samples_output: str,
+    seed: int = 42,
+    gen_censoring: dict[int, list[float]] | None = None,
+    pedigree_path: str | None = None,
+    max_degree: int = 2,
+    case_ascertainment_ratio: float = 1.0,
+) -> None:
+    """Compute all stats for a single replicate and write outputs."""
+    t0 = time.perf_counter()
+    df = pd.read_parquet(phenotype_path)
+    logger.info("Computing stats for %s (%d rows)", phenotype_path, len(df))
+    df_ped = _read_pedigree(pedigree_path)
+    _log_elapsed("Input load", t0)
+
+    stats = build_stats_report(
+        df,
+        censor_age,
+        seed=seed,
+        gen_censoring=gen_censoring,
+        df_ped=df_ped,
+        max_degree=max_degree,
+        case_ascertainment_ratio=case_ascertainment_ratio,
+    )
+    del df_ped
 
     stats_path = Path(stats_output)
     stats_path.parent.mkdir(parents=True, exist_ok=True)
+    t0 = time.perf_counter()
     with open(stats_path, "w", encoding="utf-8") as fh:
         yaml.dump(to_native(stats), fh, default_flow_style=False, sort_keys=False)
     logger.info("Stats written to %s", stats_path)
+    _log_elapsed("YAML write", t0)
 
+    t0 = time.perf_counter()
     sample_df = create_sample(df, seed=seed)
     save_parquet(sample_df, Path(samples_output))
-    logger.info("Sample (%d rows) written to %s", len(sample_df), samples_output)
+    logger.info("Plotting sample (%d rows) written to %s", len(sample_df), samples_output)
+    _log_elapsed("Plotting sample write", t0)
 
 
 def cli() -> None:
     """Command-line interface for phenotype statistics computation."""
     from simace.core.cli_base import add_logging_args, init_logging
 
-    parser = argparse.ArgumentParser(description="Compute phenotype statistics")
+    parser = argparse.ArgumentParser(description="Build per-replicate stats report")
     add_logging_args(parser)
     parser.add_argument("phenotype", help="Input phenotype parquet")
     parser.add_argument("censor_age", type=float)

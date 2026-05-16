@@ -1330,7 +1330,10 @@ class TestComputeObservedH2Estimators:
                 "trait2": {"slope": None},
             },
         }
-        result = compute_observed_h2_estimators(stats)
+        result = compute_observed_h2_estimators(
+            stats["affected_correlations"],
+            stats["parent_offspring_affected_corr"],
+        )
         t1 = result["trait1"]
         assert t1["falconer"] == pytest.approx(2.0 * (0.40 - 0.15))
         assert t1["sibs"] == pytest.approx(2.0 * 0.15)
@@ -1357,13 +1360,16 @@ class TestComputeObservedH2Estimators:
                 "trait2": {"slope": None},
             },
         }
-        result = compute_observed_h2_estimators(stats)
+        result = compute_observed_h2_estimators(
+            stats["affected_correlations"],
+            stats["parent_offspring_affected_corr"],
+        )
         assert result["trait1"]["hs"] == pytest.approx(4.0 * 0.07)
         assert result["trait2"]["hs"] is None
 
     def test_missing_inputs_returns_all_none(self):
         """Empty stats dict yields all-None estimators."""
-        result = compute_observed_h2_estimators({})
+        result = compute_observed_h2_estimators({}, {})
         assert result["trait1"]["falconer"] is None
         assert result["trait1"]["sibs"] is None
         assert result["trait1"]["po"] is None

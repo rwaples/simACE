@@ -35,9 +35,9 @@ __all__ = [
     "get_all_folders",
     "get_folder",
     "get_folder_validations",
-    "get_scenario_simulation_outputs",
     "get_param",
     "get_scenario_sim_outputs",
+    "get_scenario_simulation_outputs",
     "get_scenarios_for_folder",
     "load_folder_configs",
     "phenotype_basenames",
@@ -166,7 +166,7 @@ def get_scenario_sim_outputs(config: dict, scenario: str, plot_ext: str = "png")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.simple_ltm.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/stats_report.yaml")
     outputs.extend(
         f"results/{folder}/{scenario}/plots/{plot}" for plot in plot_filenames(phenotype_basenames(), plot_ext)
     )

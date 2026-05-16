@@ -332,7 +332,7 @@ def plot_observed_heritability(
       biased under non-threshold phenotype models (e.g. pure frailty).
 
     Args:
-        all_stats: per-rep ``phenotype_stats.yaml`` dicts.  Must contain
+        all_stats: per-replicate stats report dicts. Must contain
             ``observed_h2_estimators`` and ``prevalence``.
         output_path: image path to save.
         scenario: scenario label (for subtitle).

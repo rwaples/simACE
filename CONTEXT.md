@@ -230,6 +230,14 @@ The pipeline runs the following stages in order. Stage names match the Snakemake
 
 _Avoid_: "phenotyping" (killed), "subsampling" / "dropout stage" (killed — see **Ascertainment**), "validation stage" (use "validate stage"), "statistics" (use "stats"), "simulation stage" (just say "the simulate stage").
 
+**Per-replicate stats report**:
+The Stats-stage summary for one replicate, combining incidence, censoring, pedigree, correlation, and observed-heritability summaries. The report describes one replicate after ascertainment; it is not a cross-replicate aggregate and does not replace validation.
+_Avoid_: phenotype statistics, stats dump, summary YAML.
+
+**Plotting sample**:
+A downsampled set of trait rows used only to draw dense scatter and histogram plots. It is distinct from the post-ascertainment analysis dataset and must not be used as an analysis sample.
+_Avoid_: phenotype sample, stats sample, subsample.
+
 ### simACE, fitACE, and the ACE model
 
 **simACE**:
