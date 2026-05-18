@@ -29,9 +29,7 @@ def _make_phenotype(
     else:
         death_ages = np.asarray(death_age, dtype=np.float64)
         if death_ages.shape != (n_total,):
-            raise ValueError(
-                f"death_age array must have shape ({n_total},), got {death_ages.shape}"
-            )
+            raise ValueError(f"death_age array must have shape ({n_total},), got {death_ages.shape}")
     rows = []
     for g in gens:
         A1 = rng.normal(0.0, np.sqrt(0.5), n_per_gen)
@@ -42,18 +40,26 @@ def _make_phenotype(
         L2 = A2 + E2
         for i in range(n_per_gen):
             idx = len(rows)
-            rows.append({
-                "id": idx,
-                "generation": g,
-                "sex": rng.integers(0, 2),
-                "A1": A1[i], "C1": 0.0, "E1": E1[i], "liability1": L1[i],
-                "A2": A2[i], "C2": 0.0, "E2": E2[i], "liability2": L2[i],
-                "death_age": death_ages[idx],
-                "affected1": False,
-                "t_observed1": MAX_AGE,
-                "age_censored1": True,
-                "death_censored1": False,
-            })
+            rows.append(
+                {
+                    "id": idx,
+                    "generation": g,
+                    "sex": rng.integers(0, 2),
+                    "A1": A1[i],
+                    "C1": 0.0,
+                    "E1": E1[i],
+                    "liability1": L1[i],
+                    "A2": A2[i],
+                    "C2": 0.0,
+                    "E2": E2[i],
+                    "liability2": L2[i],
+                    "death_age": death_ages[idx],
+                    "affected1": False,
+                    "t_observed1": MAX_AGE,
+                    "age_censored1": True,
+                    "death_censored1": False,
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -82,9 +88,7 @@ class TestBlendedDiagnosis:
         rates = out.groupby("generation")["affected1"].mean()
         for g in (2, 3, 4):
             target = K[g]
-            assert abs(rates[g] - target) < 0.01, (
-                f"gen {g}: realized K={rates[g]:.3f} vs target {target}"
-            )
+            assert abs(rates[g] - target) < 0.01, f"gen {g}: realized K={rates[g]:.3f} vs target {target}"
 
     def test_late_onset_cases_right_censored(self):
         """Onset > MAX_AGE should be right-censored: affected1=False, t_observed1=MAX_AGE."""

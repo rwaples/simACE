@@ -453,8 +453,12 @@ def simple_ltm_stats():
                 "trait2": {"overall": 0.20, "generations": [0, 1, 2], "prevalence": [0.19, 0.20, 0.21]},
             },
             "tetrachoric": {
-                "trait1": {pt: _make_pair_data(0.5 - i * 0.05, 100 - i * 10) for i, pt in enumerate(RELATIONSHIP_TYPES)},
-                "trait2": {pt: _make_pair_data(0.5 - i * 0.05, 100 - i * 10) for i, pt in enumerate(RELATIONSHIP_TYPES)},
+                "trait1": {
+                    pt: _make_pair_data(0.5 - i * 0.05, 100 - i * 10) for i, pt in enumerate(RELATIONSHIP_TYPES)
+                },
+                "trait2": {
+                    pt: _make_pair_data(0.5 - i * 0.05, 100 - i * 10) for i, pt in enumerate(RELATIONSHIP_TYPES)
+                },
             },
             "liability_correlations": {
                 "trait1": {pt: 0.6 - i * 0.05 for i, pt in enumerate(RELATIONSHIP_TYPES)},
@@ -514,7 +518,9 @@ def simple_ltm_stats():
                 },
             },
             "tetrachoric_by_sex": {
-                sex: {f"trait{t}": {pt: _make_pair_data(0.4, 50, liab_r=0.4) for pt in RELATIONSHIP_TYPES} for t in [1, 2]}
+                sex: {
+                    f"trait{t}": {pt: _make_pair_data(0.4, 50, liab_r=0.4) for pt in RELATIONSHIP_TYPES} for t in [1, 2]
+                }
                 for sex in ["female", "male"]
             },
             "parent_offspring_corr_by_sex": {

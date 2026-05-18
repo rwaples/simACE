@@ -120,11 +120,24 @@ class TestValidateTwins:
         # mating_model and report observed_rate=0.0, expected_rate=0.0.
         wf_params = {"mating_model": "wright_fisher", "p_mztwin": 0.02}
         # Use a freshly-simulated WF pedigree so n_twins is actually 0.
-        wf_ped = run_simulation(seed=11, N=500, G_ped=2, G_sim=2,
-                                mating_lambda=0.5, p_mztwin=0.02,
-                                A1=0.5, C1=0.0, E1=0.5, A2=0.4, C2=0.0, E2=0.6,
-                                rA=0.0, rC=0.0, rE=0.0,
-                                mating_model="wright_fisher")
+        wf_ped = run_simulation(
+            seed=11,
+            N=500,
+            G_ped=2,
+            G_sim=2,
+            mating_lambda=0.5,
+            p_mztwin=0.02,
+            A1=0.5,
+            C1=0.0,
+            E1=0.5,
+            A2=0.4,
+            C2=0.0,
+            E2=0.6,
+            rA=0.0,
+            rC=0.0,
+            rE=0.0,
+            mating_model="wright_fisher",
+        )
         wf_indexed = wf_ped.set_index("id")
         result = validate_twins(wf_ped, wf_params, wf_indexed)
         _all_passed(result)

@@ -205,20 +205,14 @@ class TestMatingModelValidation:
     def test_wf_with_explicit_mating_lambda_raises(self):
         # Any explicit mating_lambda override is rejected under WF, even at default.
         with pytest.raises(ValueError, match="mating_lambda"):
-            _validate_pedigree_config(
-                self._wrap({"mating_model": "wright_fisher", "mating_lambda": 0.5})
-            )
+            _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "mating_lambda": 0.5}))
 
     def test_wf_with_explicit_p_mztwin_zero_passes(self):
-        _validate_pedigree_config(
-            self._wrap({"mating_model": "wright_fisher", "p_mztwin": 0})
-        )
+        _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "p_mztwin": 0}))
 
     def test_wf_with_explicit_p_mztwin_nonzero_raises(self):
         with pytest.raises(ValueError, match="p_mztwin"):
-            _validate_pedigree_config(
-                self._wrap({"mating_model": "wright_fisher", "p_mztwin": 0.05})
-            )
+            _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "p_mztwin": 0.05}))
 
     def test_wf_with_inherited_default_p_mztwin_passes(self):
         # Default `p_mztwin: 0.02` lives in defaults; scenario doesn't touch it
@@ -235,37 +229,25 @@ class TestMatingModelValidation:
         _validate_pedigree_config(config)
 
     def test_wf_with_assort1_zero_dict_passes(self):
-        _validate_pedigree_config(
-            self._wrap({"mating_model": "wright_fisher", "assort1": {0: 0, 1: 0}})
-        )
+        _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "assort1": {0: 0, 1: 0}}))
 
     def test_wf_with_assort1_nonzero_dict_raises(self):
         with pytest.raises(ValueError, match="assort1"):
-            _validate_pedigree_config(
-                self._wrap({"mating_model": "wright_fisher", "assort1": {0: 0, 1: 0.3}})
-            )
+            _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "assort1": {0: 0, 1: 0.3}}))
 
     def test_wf_with_assort1_nonzero_scalar_raises(self):
         with pytest.raises(ValueError, match="assort1"):
-            _validate_pedigree_config(
-                self._wrap({"mating_model": "wright_fisher", "assort1": 0.3})
-            )
+            _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "assort1": 0.3}))
 
     def test_wf_with_assort2_nonzero_raises(self):
         with pytest.raises(ValueError, match="assort2"):
-            _validate_pedigree_config(
-                self._wrap({"mating_model": "wright_fisher", "assort2": 0.4})
-            )
+            _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "assort2": 0.4}))
 
     def test_wf_with_assort_matrix_raises(self):
         with pytest.raises(ValueError, match="assort_matrix"):
             _validate_pedigree_config(
-                self._wrap(
-                    {"mating_model": "wright_fisher", "assort_matrix": [[0.3, 0.05], [0.05, 0.2]]}
-                )
+                self._wrap({"mating_model": "wright_fisher", "assort_matrix": [[0.3, 0.05], [0.05, 0.2]]})
             )
 
     def test_wf_with_assort_matrix_explicit_none_passes(self):
-        _validate_pedigree_config(
-            self._wrap({"mating_model": "wright_fisher", "assort_matrix": None})
-        )
+        _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "assort_matrix": None}))

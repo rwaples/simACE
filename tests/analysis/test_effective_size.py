@@ -481,8 +481,7 @@ def test_cli_routes_skip_full_kinship_matrix(monkeypatch):
 
     captured: dict[str, object] = {}
 
-    def fake_main(pedigree_path, phenotype_path, params_path, output_path, *,
-                  skip_ne_coancestry=False):
+    def fake_main(pedigree_path, phenotype_path, params_path, output_path, *, skip_ne_coancestry=False):
         captured["skip_ne_coancestry"] = skip_ne_coancestry
 
     monkeypatch.setattr(mod, "main", fake_main)
@@ -490,10 +489,14 @@ def test_cli_routes_skip_full_kinship_matrix(monkeypatch):
         "sys.argv",
         [
             "compute_effective_size",
-            "--pedigree", "/dev/null/ped",
-            "--phenotype", "/dev/null/phe",
-            "--params", "/dev/null/params",
-            "--output", "/dev/null/out",
+            "--pedigree",
+            "/dev/null/ped",
+            "--phenotype",
+            "/dev/null/phe",
+            "--params",
+            "/dev/null/params",
+            "--output",
+            "/dev/null/out",
             "--skip-full-kinship-matrix",
         ],
     )

@@ -12,8 +12,7 @@ def require_grouped_stats_report(report: dict[str, Any] | None) -> dict[str, Any
     missing = [group for group in REPORT_GROUPS if group not in report]
     if missing:
         raise ValueError(
-            "Stats report does not use the grouped schema; missing top-level groups: "
-            + ", ".join(missing)
+            "Stats report does not use the grouped schema; missing top-level groups: " + ", ".join(missing)
         )
     return report
 

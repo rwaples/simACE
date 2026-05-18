@@ -265,10 +265,7 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
             # depends on the offspring-allocation distribution.
             rate_tol = max(0.01, 3 * p_mztwin)
             rate_ok = observed_rate < rate_tol
-            rate_msg = (
-                f"Twin rate in non-founders: {observed_rate:.4f} "
-                f"(p_mztwin={p_mztwin:.4f}, tol: {rate_tol:.4f})"
-            )
+            rate_msg = f"Twin rate in non-founders: {observed_rate:.4f} (p_mztwin={p_mztwin:.4f}, tol: {rate_tol:.4f})"
         results["twin_rate"] = _result(
             rate_ok,
             rate_msg,

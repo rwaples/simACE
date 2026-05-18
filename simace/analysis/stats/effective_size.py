@@ -280,9 +280,7 @@ def main(
 
     df_observed = filter_pedigree_to_observed(df_ped, df_phe["id"].to_numpy())
     pg = PedigreeGraph(df_observed)
-    result = compute_effective_size(
-        pg, config=params, skip_ne_coancestry=skip_ne_coancestry
-    )
+    result = compute_effective_size(pg, config=params, skip_ne_coancestry=skip_ne_coancestry)
 
     dump_yaml(result, output_path)
 

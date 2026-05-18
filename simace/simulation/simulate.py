@@ -820,15 +820,9 @@ def _mating_wf(
     male_idxs = np.where(parental_sex == 1)[0]
     female_idxs = np.where(parental_sex == 0)[0]
     if len(female_idxs) == 0:
-        raise ValueError(
-            f"WF mating: parent generation {generation} has 0 female individuals; "
-            f"cannot sample mothers."
-        )
+        raise ValueError(f"WF mating: parent generation {generation} has 0 female individuals; cannot sample mothers.")
     if len(male_idxs) == 0:
-        raise ValueError(
-            f"WF mating: parent generation {generation} has 0 male individuals; "
-            f"cannot sample fathers."
-        )
+        raise ValueError(f"WF mating: parent generation {generation} has 0 male individuals; cannot sample fathers.")
 
     mother_idx = rng.choice(female_idxs, size=N, replace=True)
     father_idx = rng.choice(male_idxs, size=N, replace=True)
@@ -1227,9 +1221,7 @@ def run_simulation(
     from simace.config import VALID_MATING_MODELS
 
     if mating_model not in VALID_MATING_MODELS:
-        raise ValueError(
-            f"mating_model must be one of {sorted(VALID_MATING_MODELS)}, got {mating_model!r}"
-        )
+        raise ValueError(f"mating_model must be one of {sorted(VALID_MATING_MODELS)}, got {mating_model!r}")
 
     # --- Input validation ---
     for name, val in [("A1", A1), ("C1", C1), ("A2", A2), ("C2", C2)]:
@@ -1531,7 +1523,9 @@ def cli() -> None:
         choices=("standard", "wright_fisher"),
         help="Mating model: standard (ZTP fecundity, paired) or wright_fisher (sex-structured idealized WF).",
     )
-    parser.add_argument("--mating-lambda", type=float, default=0.5, help="ZTP mating count lambda (standard model only)")
+    parser.add_argument(
+        "--mating-lambda", type=float, default=0.5, help="ZTP mating count lambda (standard model only)"
+    )
     parser.add_argument("--p-mztwin", type=float, default=0.02, help="Probability of MZ twinning (standard model only)")
     parser.add_argument("--A1", type=float, default=0.5, help="Additive genetic variance for trait 1")
     parser.add_argument("--C1", type=float, default=0.2, help="Shared environment variance for trait 1")

@@ -97,9 +97,7 @@ class TestPassThrough:
 
 
 class TestDropout:
-    def test_dropout_reduces_trait_when_nsample_zero(
-        self, small_sim_pedigree, trait_data, trait_simple_ltm_data
-    ):
+    def test_dropout_reduces_trait_when_nsample_zero(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
         """dropout_rate > 0, N_sample = 0 → trait+pedigree row counts strictly drop."""
         _, trait_out, _ = run_ascertainment(
             small_sim_pedigree,
@@ -182,9 +180,7 @@ class TestBranchConsistency:
 
 
 class TestAncestorClosure:
-    def test_every_sampled_id_has_ancestors_in_pedigree(
-        self, small_sim_pedigree, trait_data, trait_simple_ltm_data
-    ):
+    def test_every_sampled_id_has_ancestors_in_pedigree(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
         """Walking parent edges from any sampled id never hits a missing id."""
         ped_out, trait_out, _ = run_ascertainment(
             small_sim_pedigree,
@@ -240,9 +236,7 @@ class TestAncestorClosure:
 
 
 class TestCaseAscertainment:
-    def test_enrichment_increases_case_fraction(
-        self, small_sim_pedigree, trait_data, trait_simple_ltm_data
-    ):
+    def test_enrichment_increases_case_fraction(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
         """case_ascertainment_ratio > 1 raises observed case fraction vs uniform."""
         n_sample = 40
         _, trait_uniform, _ = run_ascertainment(

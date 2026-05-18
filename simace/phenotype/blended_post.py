@@ -99,8 +99,7 @@ def blended_diagnosis(
         new ``A_blend`` / ``C_blend`` / ``E_blend`` / ``liability_blend``
         columns.
     """
-    required = {"generation", "A1", "C1", "E1", "A2", "C2", "E2",
-                "liability1", "liability2", "death_age"}
+    required = {"generation", "A1", "C1", "E1", "A2", "C2", "E2", "liability1", "liability2", "death_age"}
     missing = required - set(phenotype.columns)
     if missing:
         raise ValueError(f"phenotype is missing required columns: {sorted(missing)}")
@@ -138,9 +137,7 @@ def blended_diagnosis(
     # and late-onset cases keep the latent-onset placeholder of MAX_AGE.
     latent_onset = np.full(len(pheno), MAX_AGE, dtype=np.float64)
     if is_case.any():
-        latent_onset[is_case] = _compute_onset(
-            L_blend_std[is_case], K[is_case], cip_x0, cip_k
-        )
+        latent_onset[is_case] = _compute_onset(L_blend_std[is_case], K[is_case], cip_x0, cip_k)
     age_right_censored = is_case & (latent_onset > MAX_AGE)
     follow_up = np.minimum(latent_onset, MAX_AGE)
 

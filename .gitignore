@@ -72,6 +72,19 @@ presentations/
 .agents/
 skills-lock.json
 
+# Other AI coding agents (Cursor, Windsurf, Gemini, Kiro, Qoder, OpenCode, VS Code, Copilot)
+.cursorrules
+.windsurfrules
+AGENTS.md
+GEMINI.md
+QODER.md
+.gemini/
+.kiro/
+.qoder/
+.vscode/
+.opencode.json
+.github/code-review-graph.instruction.md
+
 # Local code-review-graph eval harness
 evaluate/
 
