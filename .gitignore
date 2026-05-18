@@ -72,12 +72,8 @@ presentations/
 .agents/
 skills-lock.json
 
-# Other AI coding agents (Cursor, Windsurf, Gemini, Kiro, Qoder, OpenCode, VS Code, Copilot)
-.cursorrules
-.windsurfrules
-AGENTS.md
-GEMINI.md
-QODER.md
+# Other AI coding agents (machine-specific configs — Gemini, Kiro, Qoder, VS Code, OpenCode, Copilot)
+# Note: AGENTS.md is tracked as a symlink to CLAUDE.md (single source of truth)
 .gemini/
 .kiro/
 .qoder/
