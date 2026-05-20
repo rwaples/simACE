@@ -15,6 +15,9 @@ from simace.analysis.stats import (
     compute_censoring_windows,
     compute_cross_trait_tetrachoric,
     compute_cumulative_incidence,
+    compute_cumulative_incidence_aj,
+    compute_cumulative_incidence_aj_by_sex,
+    compute_cumulative_incidence_aj_by_sex_generation,
     compute_cumulative_incidence_by_sex,
     compute_cumulative_incidence_by_sex_generation,
     compute_joint_affection,
@@ -668,7 +671,7 @@ _DEFAULT_SIM_PARAMS = dict(
 @pytest.fixture(scope="module")
 def phenotyped_df():
     """Simulated + thresholded pedigree with all columns needed by stats functions."""
-    from simace.phenotyping.threshold import apply_threshold
+    from simace.phenotype.threshold import apply_threshold
     from simace.simulation.simulate import run_simulation
 
     ped = run_simulation(**_DEFAULT_SIM_PARAMS)
@@ -1327,7 +1330,10 @@ class TestComputeObservedH2Estimators:
                 "trait2": {"slope": None},
             },
         }
-        result = compute_observed_h2_estimators(stats)
+        result = compute_observed_h2_estimators(
+            stats["affected_correlations"],
+            stats["parent_offspring_affected_corr"],
+        )
         t1 = result["trait1"]
         assert t1["falconer"] == pytest.approx(2.0 * (0.40 - 0.15))
         assert t1["sibs"] == pytest.approx(2.0 * 0.15)
@@ -1354,15 +1360,297 @@ class TestComputeObservedH2Estimators:
                 "trait2": {"slope": None},
             },
         }
-        result = compute_observed_h2_estimators(stats)
+        result = compute_observed_h2_estimators(
+            stats["affected_correlations"],
+            stats["parent_offspring_affected_corr"],
+        )
         assert result["trait1"]["hs"] == pytest.approx(4.0 * 0.07)
         assert result["trait2"]["hs"] is None
 
     def test_missing_inputs_returns_all_none(self):
         """Empty stats dict yields all-None estimators."""
-        result = compute_observed_h2_estimators({})
+        result = compute_observed_h2_estimators({}, {})
         assert result["trait1"]["falconer"] is None
         assert result["trait1"]["sibs"] is None
         assert result["trait1"]["po"] is None
         assert result["trait1"]["hs"] is None
         assert result["trait1"]["cousins"] is None
+
+
+# ===================================================================
+# Tests for compute_cumulative_incidence_aj (Aalen-Johansen)
+# ===================================================================
+
+
+def _make_aj_df(rows):
+    """Helper: build a tiny phenotype-shaped DataFrame for AJ tests.
+
+    Each row is (affected, death_censored, t_observed). Trait 2 is filled
+    with all-False / 80.0 placeholders so the dispatcher's loop over both
+    traits has well-defined inputs but the trait-1 outputs carry the
+    interesting values.
+    """
+    affected = [r[0] for r in rows]
+    death_censored = [r[1] for r in rows]
+    t_obs = [r[2] for r in rows]
+    n = len(rows)
+    return pd.DataFrame(
+        {
+            "id": np.arange(n),
+            "affected1": np.array(affected, dtype=bool),
+            "death_censored1": np.array(death_censored, dtype=bool),
+            "t_observed1": np.array(t_obs, dtype=float),
+            "affected2": np.zeros(n, dtype=bool),
+            "death_censored2": np.zeros(n, dtype=bool),
+            "t_observed2": np.full(n, 80.0),
+        }
+    )
+
+
+class TestAalenJohansen:
+    def test_no_censoring_matches_empirical(self):
+        """When all individuals are diseased and no one is censored or dead,
+        AJ disease CIF equals the empirical CDF exactly: each event contributes
+        S(t-) * 1/Y(t) = (Y(t)/n) * (1/Y(t)) = 1/n."""
+        df = _make_aj_df([(True, False, t) for t in [10.0, 20.0, 30.0, 40.0, 50.0]])
+        result = compute_cumulative_incidence_aj(df, censor_age=80, n_points=81)
+        ages = np.array(result["trait1"]["ages"])
+        aj = np.array(result["trait1"]["aj_values"])
+        # At age 25, two events have occurred → 2/5
+        idx_25 = int(np.argmin(np.abs(ages - 25)))
+        assert aj[idx_25] == pytest.approx(0.4)
+        idx_45 = int(np.argmin(np.abs(ages - 45)))
+        assert aj[idx_45] == pytest.approx(0.8)
+        assert aj[-1] == pytest.approx(1.0)
+
+    def test_death_only_competing(self):
+        """Half die before any disease event, half are diseased.
+
+        Walk:
+          t=10: Y=4, d_death=1 → S=3/4, F_death=1/4
+          t=20: Y=3, d_disease=1 → S=2/4=1/2, F_disease=3/4*1/3 = 1/4
+          t=30: Y=2, d_disease=1 → S=1/4,    F_disease=1/4 + 1/2*1/2 = 1/2
+          t=40: Y=1, d_death=1 → S=0,       F_death=1/4 + 1/4 = 1/2
+        Final: F_disease=1/2, F_death=1/2, S=0; sum=1.
+        """
+        df = _make_aj_df(
+            [
+                (False, True, 10.0),
+                (True, False, 20.0),
+                (True, False, 30.0),
+                (False, True, 40.0),
+            ]
+        )
+        result = compute_cumulative_incidence_aj(df, censor_age=80, n_points=200)
+        t1 = result["trait1"]
+        assert t1["aj_values"][-1] == pytest.approx(0.5)
+        assert t1["aj_death_values"][-1] == pytest.approx(0.5)
+        assert t1["aj_survival"][-1] == pytest.approx(0.0, abs=1e-12)
+
+    def test_right_censoring_aj_above_empirical(self):
+        """Half admin-censored before onset, half diseased after.
+
+        4 individuals:
+          - 2 admin-censored at age 50 (affected=False, death_censored=False, t=50)
+          - 1 diseased at 60, 1 diseased at 70
+        At t=60: Y=4-2=2, d_disease=1 → F_disease=0 + 1*1/2 = 1/2, S=1/2
+        At t=70: Y=2-1=1, d_disease=1 → F_disease=1/2 + 1/2*1 = 1.0, S=0
+        Empirical final: 2/4 = 0.5; AJ final: 1.0.
+        """
+        df = _make_aj_df(
+            [
+                (False, False, 50.0),
+                (False, False, 50.0),
+                (True, False, 60.0),
+                (True, False, 70.0),
+            ]
+        )
+        result = compute_cumulative_incidence_aj(df, censor_age=80, n_points=81)
+        t1 = result["trait1"]
+        ages = np.array(t1["ages"])
+        aj = np.array(t1["aj_values"])
+        idx_60 = int(np.searchsorted(ages, 60.0, side="left"))
+        idx_70 = int(np.searchsorted(ages, 70.0, side="left"))
+        assert aj[idx_60] == pytest.approx(0.5)
+        assert aj[idx_70] == pytest.approx(1.0)
+        # AJ strictly above empirical (2/4) at the terminal age
+        assert aj[-1] > 0.5
+
+    def test_sum_invariant(self):
+        """F_disease + F_death + S = 1 at every age."""
+        df = _make_aj_df(
+            [
+                (True, False, 12.0),
+                (False, True, 18.0),
+                (True, False, 25.0),
+                (False, True, 33.0),
+                (True, False, 50.0),
+                (False, False, 60.0),
+            ]
+        )
+        result = compute_cumulative_incidence_aj(df, censor_age=80, n_points=200)
+        t1 = result["trait1"]
+        s = np.array(t1["aj_values"]) + np.array(t1["aj_death_values"]) + np.array(t1["aj_survival"])
+        assert np.allclose(s, 1.0, atol=1e-9)
+
+    def test_greenwood_hand_calculated(self):
+        """4-row case with one disease, one death, two censored.
+
+        Marubini-Valsecchi variance for F_disease at both event times
+        works out to 3/64 (term1 and term3 cancel; only the second-term
+        cumulative-sum contributes).
+        """
+        df = _make_aj_df(
+            [
+                (True, False, 10.0),  # disease
+                (False, True, 20.0),  # death
+                (False, False, 30.0),  # censored
+                (False, False, 40.0),  # censored
+            ]
+        )
+        result = compute_cumulative_incidence_aj(df, censor_age=80, n_points=81, greenwood=True)
+        t1 = result["trait1"]
+        ages = np.array(t1["ages"])
+        se = np.array(t1["aj_se"])
+        idx_10 = int(np.searchsorted(ages, 10.0, side="left"))
+        idx_20 = int(np.searchsorted(ages, 20.0, side="left"))
+        expected_se = np.sqrt(3.0 / 64.0)
+        assert se[idx_10] == pytest.approx(expected_se, rel=1e-10)
+        assert se[idx_20] == pytest.approx(expected_se, rel=1e-10)
+        assert (se >= 0).all()
+        assert not np.any(np.isnan(se))
+
+    def test_greenwood_off_by_default(self):
+        df = _make_aj_df([(True, False, 30.0), (False, False, 60.0)])
+        result = compute_cumulative_incidence_aj(df, censor_age=80, n_points=50)
+        assert "aj_se" not in result["trait1"]
+
+    def test_by_sex_smoke(self):
+        n = 20
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame(
+            {
+                "id": np.arange(n),
+                "sex": np.tile([0, 1], n // 2),
+                "generation": np.repeat([0, 1], n // 2),
+                "affected1": rng.uniform(size=n) < 0.4,
+                "affected2": rng.uniform(size=n) < 0.4,
+                "death_censored1": np.zeros(n, dtype=bool),
+                "death_censored2": np.zeros(n, dtype=bool),
+                "t_observed1": rng.uniform(20, 70, size=n),
+                "t_observed2": rng.uniform(20, 70, size=n),
+            }
+        )
+        sex_result = compute_cumulative_incidence_aj_by_sex(df, censor_age=80, n_points=80)
+        assert "trait1" in sex_result
+        for sex in ["female", "male"]:
+            assert sex in sex_result["trait1"]
+            stratum = sex_result["trait1"][sex]
+            assert "aj_values" in stratum
+            assert "aj_death_values" in stratum
+            assert stratum["n"] > 0
+            assert "prevalence" in stratum
+
+        gen_result = compute_cumulative_incidence_aj_by_sex_generation(df, censor_age=80, n_points=80)
+        assert "trait1" in gen_result
+        gens = list(gen_result["trait1"].keys())
+        assert len(gens) >= 2
+
+    def test_by_sex_missing_returns_empty(self):
+        df = _make_aj_df([(True, False, 30.0)])
+        assert compute_cumulative_incidence_aj_by_sex(df, censor_age=80) == {}
+
+    def test_delayed_entry_equivalence_when_all_left_zero(self):
+        """gen_censoring with all left=0 must equal gen_censoring=None bit-for-bit."""
+        n = 10
+        rng = np.random.default_rng(1)
+        df = pd.DataFrame(
+            {
+                "id": np.arange(n),
+                "generation": np.repeat([0, 1], n // 2),
+                "affected1": rng.uniform(size=n) < 0.5,
+                "affected2": np.zeros(n, dtype=bool),
+                "death_censored1": np.zeros(n, dtype=bool),
+                "death_censored2": np.zeros(n, dtype=bool),
+                "t_observed1": rng.uniform(10, 70, size=n),
+                "t_observed2": np.full(n, 80.0),
+            }
+        )
+        a = compute_cumulative_incidence_aj(df, censor_age=80, n_points=50)
+        b = compute_cumulative_incidence_aj(
+            df, censor_age=80, n_points=50, gen_censoring={0: [0.0, 80.0], 1: [0.0, 80.0]}
+        )
+        assert a["trait1"]["aj_values"] == b["trait1"]["aj_values"]
+        assert a["trait1"]["aj_death_values"] == b["trait1"]["aj_death_values"]
+
+    def test_delayed_entry_hand_calculated(self):
+        """Two generations; gen 1 enters at age 10.
+
+        4 individuals:
+          - id 0 (gen 0): disease at t=5
+          - id 1 (gen 0): censored at t=50
+          - id 2 (gen 1): disease at t=20  (entry=10)
+          - id 3 (gen 1): censored at t=60 (entry=10)
+
+        Without delayed entry (e_i = 0 for all):
+          t=5:  Y=4, d=1 → S=3/4, F=1/4
+          t=20: Y=3, d=1 → F=1/4 + 3/4*1/3 = 1/2
+        With delayed entry (gen 1 enters at 10):
+          t=5:  Y(5) = entries_by_5 (=2, gen0 only) − exits_before_5 (=0) = 2
+                d=1 → S=1/2, F=1/2
+          t=20: Y(20) = entries_by_20 (=4) − exits_before_20 (=1, disease at 5) = 3
+                d=1 → F = 1/2 + 1/2*1/3 = 2/3
+        """
+        df = pd.DataFrame(
+            {
+                "id": [0, 1, 2, 3],
+                "generation": [0, 0, 1, 1],
+                "affected1": [True, False, True, False],
+                "death_censored1": [False, False, False, False],
+                "t_observed1": [5.0, 50.0, 20.0, 60.0],
+                "affected2": [False] * 4,
+                "death_censored2": [False] * 4,
+                "t_observed2": [80.0] * 4,
+            }
+        )
+        # Without delayed entry
+        a = compute_cumulative_incidence_aj(df, censor_age=80, n_points=81)
+        ages = np.array(a["trait1"]["ages"])
+        idx_20 = int(np.searchsorted(ages, 20.0, side="left"))
+        idx_5 = int(np.searchsorted(ages, 5.0, side="left"))
+        aj_a = np.array(a["trait1"]["aj_values"])
+        assert aj_a[idx_5] == pytest.approx(0.25)
+        assert aj_a[idx_20] == pytest.approx(0.5)
+
+        # With delayed entry — gen 1 enters at 10
+        b = compute_cumulative_incidence_aj(
+            df, censor_age=80, n_points=81, gen_censoring={0: [0.0, 80.0], 1: [10.0, 80.0]}
+        )
+        aj_b = np.array(b["trait1"]["aj_values"])
+        assert aj_b[idx_5] == pytest.approx(0.5)
+        assert aj_b[idx_20] == pytest.approx(2.0 / 3.0)
+
+    def test_degenerate_window_filtered(self):
+        """Zero-width window [80, 80]: individuals who die before 80 have
+        e_i (80) > t_i (death_age) and must be filtered."""
+        df = pd.DataFrame(
+            {
+                "id": [0, 1],
+                "generation": [0, 0],
+                "affected1": [False, False],
+                "death_censored1": [True, False],
+                "t_observed1": [20.0, 80.0],
+                "affected2": [False, False],
+                "death_censored2": [False, False],
+                "t_observed2": [80.0, 80.0],
+            }
+        )
+        result = compute_cumulative_incidence_aj(df, censor_age=80, n_points=50, gen_censoring={0: [80.0, 80.0]})
+        t1 = result["trait1"]
+        # id 0 filtered (e=80 > t=20); id 1 kept but contributes no event.
+        assert t1["n"] == 1
+        assert t1["n_events_disease"] == 0
+        assert t1["n_events_death"] == 0
+        # No NaNs anywhere
+        assert not np.any(np.isnan(np.array(t1["aj_values"])))
+        assert not np.any(np.isnan(np.array(t1["aj_death_values"])))

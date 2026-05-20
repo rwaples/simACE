@@ -7,8 +7,8 @@ documenting public modules and their exported functions and classes.
 |---|---|
 | [Core](core.md) | Shared infrastructure: utilities, pedigree graph, hazard models, CLI helpers |
 | [Simulation](simulation.md) | Multi-generational pedigree simulation engine |
-| [Phenotyping](phenotyping.md) | Frailty, threshold, cure, and bimodal phenotype models |
+| [Phenotype](phenotype.md) | Frailty, threshold, cure, and bimodal phenotype models |
 | [Censoring](censoring.md) | Age-window and competing-risk death censoring |
-| [Sampling](sampling.md) | Pedigree subsampling and random dropout |
+| [Ascertainment](ascertainment.md) | Unified dropout + case-weighted N_sample selection (per ADR 0001) |
 | [Analysis](analysis.md) | Statistical validation, correlations, heritability, and metric gathering |
 | [Plotting](plotting.md) | Publication-quality diagnostic and summary plots |

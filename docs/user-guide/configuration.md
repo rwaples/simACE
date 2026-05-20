@@ -120,26 +120,28 @@ censoring:
 | `gen_censoring` | Per-generation `[left, right]` observation windows |
 | `death_scale`, `death_rho` | Weibull competing-risk mortality parameters |
 
-### Sampling and analysis
+### Ascertainment and analysis
 
 ```yaml
-sampling:
+ascertainment:
   N_sample: 0
   case_ascertainment_ratio: 1
-  pedigree_dropout_rate: 0
+  dropout_rate: 0
 
 analysis:
   max_degree: 2
   estimate_inbreeding: false
+  skip_ne_coancestry: false
 ```
 
 | Parameter | Description |
 |---|---|
-| `sampling.N_sample` | Subsample size; `0` keeps all phenotyped individuals |
-| `sampling.case_ascertainment_ratio` | Case sampling weight relative to controls |
-| `sampling.pedigree_dropout_rate` | Fraction of individuals removed from the pedigree before downstream stages |
+| `ascertainment.N_sample` | Target post-ascertainment sample size; `0` keeps the full post-dropout population |
+| `ascertainment.case_ascertainment_ratio` | Case sampling weight relative to controls during the `N_sample` draw |
+| `ascertainment.dropout_rate` | Fraction of individuals removed uniformly from the pedigree (applied before the case-weighted draw; see [Ascertainment](ascertainment.md) for the two-step algorithm) |
 | `analysis.max_degree` | Maximum relationship degree to extract |
 | `analysis.estimate_inbreeding` | Compute exact inbreeding coefficients and exact pairwise kinship |
+| `analysis.skip_ne_coancestry` | Skip the Ne_C (coancestry-rate) estimator and its kinship DP. The remaining seven Ne estimators still run. Useful on very large pedigrees when only F-based and family-size estimators are needed. |
 
 ## tstrait and gene drop
 

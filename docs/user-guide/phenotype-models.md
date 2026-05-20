@@ -80,7 +80,7 @@ Set under `params.distribution`:
 | `loglogistic` | `scale`, `shape` |
 | `gamma` | `shape`, `scale` |
 
-The registry is in `simace.phenotyping.hazards.BASELINE_HAZARDS`; each
+The registry is in `simace.phenotype.hazards.BASELINE_HAZARDS`; each
 entry maps a distribution name to a vectorized inverter.
 
 ## ADuLT methods for `adult`
@@ -103,7 +103,7 @@ Set under `params.method`:
 
 Independently of the configured family, every scenario produces a
 parallel `phenotype.simple_ltm.parquet` output by applying
-`simace.phenotyping.threshold.apply_threshold` to `liability1` /
+`simace.phenotype.threshold.apply_threshold` to `liability1` /
 `liability2`. For `adult` / `cure_frailty` traits this path uses the
 configured `params.prevalence`; for `frailty` / `first_passage` traits
 it falls back to the documented defaults `(0.10, 0.20)`. The cut respects
@@ -153,21 +153,21 @@ accepted:
 
 ## Adding a new phenotype model
 
-Each model family is a frozen dataclass under `simace/phenotyping/models/`
+Each model family is a frozen dataclass under `simace/phenotype/models/`
 that subclasses `PhenotypeModel`. To add a fifth family:
 
-1. Write `simace/phenotyping/models/my_model.py` exposing a class
+1. Write `simace/phenotype/models/my_model.py` exposing a class
    `MyModel(PhenotypeModel)` with typed parameter fields and the abstract
    methods (`from_config`, `add_cli_args`, `from_cli`, `cli_flag_attrs`,
    `to_params_dict`, `simulate`).
 2. Validate parameters in `__post_init__`. `from_config` and `from_cli`
    should wrap any `ValueError` / `TypeError` from construction with
    trait context via the `wrap_trait_error` helper.
-3. Import the class in `simace/phenotyping/models/__init__.py` and add
+3. Import the class in `simace/phenotype/models/__init__.py` and add
    `"my_model": MyModel` to the `MODELS` dict.
 
 That's the entire registration surface — no decorator, no auto-discovery.
-The dispatcher in `simace.phenotyping.phenotype._simulate_one_trait`,
+The dispatcher in `simace.phenotype._simulate_one_trait`,
 the validator in `simace.config._validate_phenotype_config`, and the
-CLI in `simace.phenotyping.phenotype.cli` all read from `MODELS` and
+CLI in `simace.phenotype.cli` all read from `MODELS` and
 pick up the new family automatically.

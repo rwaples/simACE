@@ -6,10 +6,11 @@
 results/{folder}/{scenario}/
 ├── rep1/
 │   ├── params.yaml                        # Resolved parameters for this replicate
-│   ├── pedigree.parquet                   # Pedigree after dropout
-│   ├── phenotype.parquet                  # Censored time-to-event phenotypes
-│   ├── phenotype.simple_ltm.parquet       # Liability-threshold binary phenotype
-│   ├── phenotype_stats.yaml               # Phenotype statistics
+│   ├── pedigree.full.parquet              # Full pre-ascertainment pedigree (persistent for validation)
+│   ├── pedigree.parquet                   # Post-ascertainment pedigree (ancestor closure of sampled IDs)
+│   ├── trait.parquet                      # Post-ascertainment censored time-to-event phenotypes
+│   ├── trait.simple_ltm.parquet           # Post-ascertainment liability-threshold benchmark
+│   ├── stats_report.yaml                  # Grouped per-replicate stats report
 │   └── validation.yaml                    # Structural + statistical validation
 ├── rep2/
 ├── rep3/
@@ -22,15 +23,15 @@ results/{folder}/{scenario}/
 
 | File | Description | Temp? |
 |---|---|---|
-| `pedigree.full.parquet` | Full pedigree before dropout | Yes |
-| `pedigree.parquet` | Pedigree after dropout (identical to full when `dropout_rate=0`) | No |
-| `phenotype.raw.parquet` | Raw time-to-event phenotypes before censoring | Yes |
-| `phenotype.parquet` | Censored time-to-event phenotypes | No |
-| `phenotype.sampled.parquet` | Subsampled phenotype for stats | Yes |
-| `phenotype.simple_ltm.parquet` | Liability-threshold binary affected status | No |
-| `phenotype.simple_ltm.sampled.parquet` | Subsampled threshold phenotype | Yes |
+| `pedigree.full.parquet` | Full simulated pedigree (post-burn-in, pre-ascertainment) — consumed by validation, phenotype, phenotype_simple_ltm, and ascertainment | No |
+| `pedigree.parquet` | Post-ascertainment pedigree (ancestor closure of sampled IDs; identical row count to `.full` when `dropout_rate=0` and `N_sample=0`) | No |
+| `trait.raw.parquet` | Raw time-to-event phenotypes before censoring | Yes |
+| `trait.full.parquet` | Post-censor time-to-event phenotypes (full population, pre-ascertainment) | Yes |
+| `trait.simple_ltm.full.parquet` | Pre-ascertainment liability-threshold benchmark | Yes |
+| `trait.parquet` | Post-ascertainment censored time-to-event phenotypes (canonical output) | No |
+| `trait.simple_ltm.parquet` | Post-ascertainment liability-threshold benchmark (canonical output) | No |
 | `params.yaml` | Simulation parameters for this replicate | No |
-| `phenotype_stats.yaml` | Per-replicate phenotype statistics | No |
+| `stats_report.yaml` | Grouped per-replicate stats report | No |
 
 Temp files are auto-deleted by Snakemake after downstream rules complete.
 
@@ -89,15 +90,13 @@ as placeholders matching values from `config/_default.yaml`.
 
 | File | Format | Description | Writer |
 |------|--------|-------------|--------|
-| `pedigree.parquet` | Parquet | Pedigree structure with ACE variance components | `simace/simulation/simulate.py` |
-| `phenotype.raw.parquet` | Parquet | Raw time-to-event phenotypes (before censoring) | `simace/phenotyping/phenotype.py` |
-| `phenotype.parquet` | Parquet | Censored time-to-event phenotypes | `simace/censoring/censor.py` |
-| `phenotype.sampled.parquet` | Parquet | Downsampled phenotype for plotting and stats | `workflow/scripts/simace/sample.py` |
-| `phenotype.simple_ltm.parquet` | Parquet | Binary affected status from liability-threshold model | `simace/phenotyping/threshold.py` |
-| `phenotype.simple_ltm.sampled.parquet` | Parquet | Downsampled threshold phenotype | `workflow/scripts/simace/sample.py` |
+| `pedigree.full.parquet` | Parquet | Full simulated pedigree (post-burn-in, pre-ascertainment); persistent for validation | `simace/simulation/simulate.py` |
+| `pedigree.parquet` | Parquet | Post-ascertainment pedigree (ancestor closure of sampled IDs, dangling refs severed) | `simace/ascertainment/__init__.py` |
+| `trait.parquet` | Parquet | Post-ascertainment per-individual trait outcomes (censored time-to-event + affected status) | `simace/ascertainment/__init__.py` |
+| `trait.simple_ltm.parquet` | Parquet | Post-ascertainment per-individual simple-LTM benchmark (parallel LTM trait) | `simace/ascertainment/__init__.py` |
 | `params.yaml` | YAML | Simulation parameters for this replicate | `simace/simulation/simulate.py` |
-| `phenotype_stats.yaml` | YAML | Phenotype statistics (correlations, prevalence, CIF, etc.) | `workflow/scripts/simace/compute_phenotype_stats.py` → `simace/analysis/stats/runner.py` |
-| `phenotype_samples.parquet` | Parquet | Further downsampled phenotype rows for stats scatter plots | `workflow/scripts/simace/compute_phenotype_stats.py` → `simace/analysis/stats/runner.py` |
+| `stats_report.yaml` | YAML | Grouped per-replicate stats report (correlations, prevalence, CIF, etc.) | `workflow/scripts/simace/build_stats_report.py` → `simace/analysis/stats/runner.py` |
+| `plotting_sample.parquet` | Parquet | Further downsampled trait rows for stats scatter plots | `workflow/scripts/simace/build_stats_report.py` → `simace/analysis/stats/runner.py` |
 | `validation.yaml` | YAML | Structural and statistical validation results | `simace/analysis/validate.py` |
 
 ### Per-scenario, per-folder, and sentinel files
@@ -152,7 +151,7 @@ Raw time-to-event phenotypes before age-window and competing-risk censoring. Sub
 |--------|------|-------------|
 | `t1`, `t2` | float32 | Raw (uncensored) age-at-onset from the phenotype model |
 
-### phenotype.parquet
+### trait.parquet
 
 Extends phenotype.raw with censoring applied via age windows and competing-risk death. Contains all pedigree and raw phenotype columns, plus:
 
@@ -164,7 +163,7 @@ Extends phenotype.raw with censoring applied via age windows and competing-risk 
 | `death_censored1`, `death_censored2` | bool | True if onset occurs after death |
 | `affected1`, `affected2` | bool | True if the individual is observed as affected (not age- or death-censored) |
 
-### phenotype.simple_ltm.parquet
+### trait.simple_ltm.parquet
 
 Binary affected status from a liability-threshold model. Each generation has an independent prevalence-based threshold.
 
@@ -179,17 +178,16 @@ Binary affected status from a liability-threshold model. Each generation has an 
 | `A2`, `C2`, `E2`, `liability2` | float32 | Trait 2 variance components and liability |
 | `affected1`, `affected2` | bool | True if liability exceeds the generation-specific threshold |
 
-### Sampled parquets
+### Ascertained outputs
 
-The pipeline produces several downsampled parquet files to keep plotting and stats computation tractable for large populations:
+`pedigree.parquet`, `trait.parquet`, and `trait.simple_ltm.parquet` are the canonical post-ascertainment outputs that both simACE-stats and fitACE consume. Under non-trivial ascertainment (`dropout_rate > 0` or `N_sample > 0`), these files contain a subset of the full simulated population:
 
-| File | Source | Purpose |
-|------|--------|---------|
-| `phenotype.sampled.parquet` | `phenotype.parquet` | Downsampled rows for phenotype stats input; preserves parents of sampled individuals |
-| `phenotype.simple_ltm.sampled.parquet` | `phenotype.simple_ltm.parquet` | Downsampled threshold rows retained for explicit downstream targets |
-| `phenotype_samples.parquet` | `phenotype.sampled.parquet` | Further downsampled during stats computation for scatter/histogram plots |
+- `pedigree.parquet` is the **ancestor closure** of the sampled IDs within the post-dropout pedigree, with dangling `mother` / `father` / `twin` references rewritten to −1.
+- `trait.parquet` and `trait.simple_ltm.parquet` share an identical `id` column (the sampled set), restricted to the trailing `G_pheno` generations.
 
-All sampled parquets share the same column schema as their source files.
+The pre-ascertainment outputs (`trait.raw.parquet`, `trait.full.parquet`, `trait.simple_ltm.full.parquet`) are Snakemake `temp()` files — auto-deleted once ascertainment has consumed them.
+
+`plotting_sample.parquet` is a *further* downsampled parquet produced inside the Stats stage for scatter/histogram plots; it shares the `trait.parquet` schema.
 
 ---
 
@@ -216,42 +214,20 @@ Flat key-value file recording the simulation parameters used for a replicate. Wr
 | `assort1` | float | Mate correlation on trait 1 liability (0 = random) |
 | `assort2` | float | Mate correlation on trait 2 liability (0 = random) |
 
-### phenotype_stats.yaml
+### stats_report.yaml
 
-Phenotype statistics computed from the censored phenotype. Written by
-`workflow/scripts/simace/compute_phenotype_stats.py`, which calls
-`simace.analysis.stats.runner`. Top-level sections:
+Grouped per-replicate stats report computed from `trait.parquet`. Written by
+`workflow/scripts/simace/build_stats_report.py`, which calls
+`simace.analysis.stats.runner`. Top-level groups:
 
-| Section | Description |
+| Group | Description |
 |---------|-------------|
-| `n_individuals` | Total individual count |
-| `n_generations` | Number of phenotyped generations |
-| `case_ascertainment_ratio` | Ascertainment ratio used for sampling (conditional; only when ratio != 1.0) |
-| `prevalence` | Per-trait observed prevalence (float per trait) |
-| `mortality` | Decade-binned mortality rates (`decade_labels`, `rates`) |
-| `person_years` | Total and per-trait person-years at risk |
-| `family_size` | Family size statistics: `mean`, `median`, `q1`, `q3`, `n_families`, and size distribution |
-| `regression` | Liability-vs-age-at-onset regression per trait (`slope`, `intercept`, `r`, `r2`, `n`) |
-| `cumulative_incidence` | Cumulative incidence curves per trait (`ages`, `observed_values`, `true_values`, `half_target_age`) |
-| `joint_affection` | Cross-trait joint affection counts and proportions |
-| `cumulative_incidence_by_sex` | CIF curves stratified by trait and sex |
-| `cumulative_incidence_by_sex_generation` | CIF curves stratified by trait, generation, and sex |
-| `censoring` | Generation observation windows and censor age (present when `gen_censoring` is configured) |
-| `censoring_confusion` | Per-trait confusion matrix for censoring vs true affection (conditional) |
-| `censoring_cascade` | Per-trait, per-generation censoring cascade counts (conditional) |
-| `mate_correlation` | 2×2 Pearson correlation matrix between mated pairs' liabilities (`matrix`, `n_pairs`); conditional on pedigree |
-| `pair_counts` | Count of extracted relationship pairs by type (MZ, FS, HS, PO, etc.) |
-| `pair_counts_ped` | Pair counts from full pedigree (when pedigree file is provided; conditional) |
-| `n_individuals_ped` | Individual count in full pedigree (conditional) |
-| `n_generations_ped` | Generation count in full pedigree (conditional) |
-| `liability_correlations` | Pearson correlations of liability by trait and pair type |
-| `parent_offspring_corr` | Parent-offspring liability correlations by trait and generation |
-| `parent_offspring_corr_by_sex` | Parent-offspring liability correlations stratified by parent sex |
-| `parent_status` | Parent affection status breakdown (affected/unaffected parent counts and offspring prevalence) |
-| `tetrachoric` | Tetrachoric correlations of affection status by trait and pair type (`r`, `se`, `n_pairs`) |
-| `tetrachoric_by_generation` | Tetrachoric correlations stratified by generation |
-| `tetrachoric_by_sex` | Tetrachoric correlations stratified by sex |
-| `cross_trait_tetrachoric` | Cross-trait tetrachoric correlations (`same_person`, `same_person_by_generation`, `cross_person`) |
+| `metadata` | Analysis-dataset row counts and conditional `case_ascertainment_ratio` |
+| `incidence` | Observed prevalence, mortality, regression, cumulative-incidence, and Aalen-Johansen summaries |
+| `censoring` | Person-years plus generation windows, confusion, and cascade summaries when generation censoring is configured |
+| `pedigree` | Sample relationship-pair counts, family-size summaries, parent status, and conditional full-pedigree counts |
+| `correlations` | Liability, affected, parent-offspring, mate, tetrachoric, cross-trait tetrachoric, and joint-affection summaries |
+| `heritability` | Observed-scale h² estimators |
 
 Sections marked "conditional" are only present when the corresponding data or config options are available.
 
@@ -336,7 +312,7 @@ Benchmark files are written for each pipeline rule. Per-replicate benchmarks:
 - `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/sample_phenotype.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/sample_simple_ltm.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_stats.tsv`
+- `benchmarks/{folder}/{scenario}/rep{rep}/stats_report.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/validate.tsv`
 
 Per-scenario benchmarks:

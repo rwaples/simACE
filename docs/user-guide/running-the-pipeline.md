@@ -25,7 +25,7 @@ snakemake -n --cores 4
 | `results/{folder}/{scenario}/epimight.done` | EPIMIGHT heritability estimation |
 | `results/{folder}/{scenario}/scenario.done` | All stages for one scenario |
 | `results/{folder}/{scenario}/simulate.done` | Pedigree simulation only |
-| `results/{folder}/{scenario}/phenotype.done` | Simulation + phenotyping |
+| `results/{folder}/{scenario}/phenotype.done` | Simulation + phenotyping + ascertainment (produces `trait.parquet` and `trait.simple_ltm.parquet`) |
 | `results/{folder}/{scenario}/validate.done` | Simulation + validation + folder summaries |
 | `results/{folder}/{scenario}/stats.done` | Phenotyping + stats + plots |
 
@@ -51,7 +51,7 @@ snakemake --cores 4 -f results/base/baseline10K/plots/atlas.pdf
 The pipeline runs stages in order, with each stage depending on the previous:
 
 ```
-simulate -> dropout -> phenotype -> censor -> sample -> stats/validate -> plots
+simulate -> phenotype -> censor -> ascertainment -> stats/validate -> plots
 ```
 
 Snakemake tracks file dependencies automatically; re-running the same

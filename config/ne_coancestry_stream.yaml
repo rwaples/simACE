@@ -1,0 +1,24 @@
+# Streaming-θ Ne_C bench scenarios.
+#
+# Targets the K-free path in pedigree-graph v0.4.0
+# (``pg.per_gen_mean_kinship()``).  These scenarios run all 8 Ne
+# estimators including Ne_C without materializing the full sparse
+# kinship matrix.
+#
+# Phase 5a (100K, 500K): runs locally; bit-identical θ̄_g at 100K
+# against the K-path is checked in
+# ``tests/test_streaming_theta_parity.py``; peak RSS budgeted
+# under 5 GB (100K) and 25 GB (500K).  Phase 5b/5c (1M, 5M, 10M)
+# require cluster + big-mem.
+
+stream100K:
+  seed: 5142
+  N: 100000
+  analysis:
+    skip_ne_coancestry: false
+
+stream500K:
+  seed: 5143
+  N: 500000
+  analysis:
+    skip_ne_coancestry: false

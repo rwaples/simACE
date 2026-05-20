@@ -1,5 +1,6 @@
-# Sister repo (nested, independent git history)
+# Sister repos (nested, independent git history)
 /fitACE/
+/ADHD_heritability/
 
 # External tools and data
 external/
@@ -68,8 +69,24 @@ presentations/
 
 # Claude Code
 .claude/
+.agents/
+skills-lock.json
+
+# Other AI coding agents (machine-specific configs — Gemini, Kiro, Qoder, VS Code, OpenCode, Copilot)
+# Note: AGENTS.md is tracked as a symlink to CLAUDE.md (single source of truth)
+.gemini/
+.kiro/
+.qoder/
+.vscode/
+.opencode.json
+.pi/
+.github/code-review-graph.instruction.md
+
+# Local code-review-graph eval harness
+evaluate/
 
 #epimight
 /epimight/EPIMIGHT
 # Added by code-review-graph
 .code-review-graph/
+.mcp.json

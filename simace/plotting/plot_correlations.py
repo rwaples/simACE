@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 import matplotlib.pyplot as plt
 import numpy as np
 
-from simace.core.relationships import PAIR_TYPES
+from simace.core.relationships import RELATIONSHIP_TYPES
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
     COLOR_OBSERVED,
@@ -34,18 +34,18 @@ from simace.plotting.plot_style import (
     COLOR_UNCENSORED,
 )
 from simace.plotting.plot_utils import (
-    finalize_pair_type_panels,
     finalize_plot,
-    pair_type_legend_handles,
+    finalize_relationship_type_panels,
+    relationship_type_legend_handles,
     save_placeholder_plot,
-    setup_pair_type_panel,
+    setup_relationship_type_panel,
 )
 
 logger = logging.getLogger(__name__)
 
 # Parametric expected liability correlations under the ACE model
 _EXPECTED_R_COEFFICIENTS: dict[str, tuple[float, float]] = {
-    # pair_type: (coefficient of A, coefficient of C)
+    # relationship_type: (coefficient of A, coefficient of C)
     "MZ": (1.0, 1.0),
     "FS": (0.5, 1.0),
     "MHS": (0.25, 1.0),  # maternal half-sibs share household (assigned by mother)
@@ -56,25 +56,25 @@ _EXPECTED_R_COEFFICIENTS: dict[str, tuple[float, float]] = {
 }
 
 
-def _expected_liability_corr(A: float, C: float, pair_type: str) -> float | None:
+def _expected_liability_corr(A: float, C: float, relationship_type: str) -> float | None:
     """Return parametric E[r] for the given pair type, or None if unknown."""
-    coeffs = _EXPECTED_R_COEFFICIENTS.get(pair_type)
+    coeffs = _EXPECTED_R_COEFFICIENTS.get(relationship_type)
     if coeffs is None:
         return None
     return coeffs[0] * A + coeffs[1] * C
 
 
-def _extract_pair_type_observed(
+def _extract_relationship_type_observed(
     all_stats: list[dict[str, Any]],
     container_key: str,
     trait_key: str,
-    pair_types: list[str],
+    relationship_types: list[str],
 ) -> tuple[dict[str, list[float]], dict[str, int]]:
     """Pull per-rep ``r`` values and total pair counts for one trait."""
-    observed: dict[str, list[float]] = {pt: [] for pt in pair_types}
-    n_pairs: dict[str, int] = dict.fromkeys(pair_types, 0)
+    observed: dict[str, list[float]] = {pt: [] for pt in relationship_types}
+    n_pairs: dict[str, int] = dict.fromkeys(relationship_types, 0)
     for s in all_stats:
-        for ptype in pair_types:
+        for ptype in relationship_types:
             entry = s.get(container_key, {}).get(trait_key, {}).get(ptype, {})
             r = entry.get("r")
             if r is not None:
@@ -83,17 +83,17 @@ def _extract_pair_type_observed(
     return observed, n_pairs
 
 
-def _mean_per_pair_type(
+def _mean_per_relationship_type(
     all_stats: list[dict[str, Any]],
     extractor,
-    pair_types: list[str],
+    relationship_types: list[str],
 ) -> dict[str, float]:
     """Average a per-rep value across reps for each pair type.
 
     Returns only pair types where at least one rep produced a value.
     """
     out: dict[str, float] = {}
-    for ptype in pair_types:
+    for ptype in relationship_types:
         vals = [extractor(s, ptype) for s in all_stats]
         vals = [v for v in vals if v is not None]
         if vals:
@@ -101,10 +101,10 @@ def _mean_per_pair_type(
     return out
 
 
-def _parametric_per_pair_type(
+def _parametric_per_relationship_type(
     params: dict[str, Any] | None,
     trait_num: int,
-    pair_types: list[str],
+    relationship_types: list[str],
 ) -> dict[str, float]:
     if params is None:
         return {}
@@ -113,7 +113,7 @@ def _parametric_per_pair_type(
     if A is None or C is None:
         return {}
     out: dict[str, float] = {}
-    for ptype in pair_types:
+    for ptype in relationship_types:
         exp_r = _expected_liability_corr(float(A), float(C), ptype)
         if exp_r is not None:
             out[ptype] = float(exp_r)
@@ -134,7 +134,7 @@ def plot_tetrachoric_sibling(
     (frailty r on uncensored frailties, when available). Faint violins appear
     only when reps >= 4 so the spread is visible without dominating the panel.
     """
-    pair_types = PAIR_TYPES
+    relationship_types = RELATIONSHIP_TYPES
     n_reps = max(len(all_stats), 1)
 
     fig, axes = plt.subplots(1, 2, figsize=(13, 6.5), sharey=True)
@@ -148,26 +148,26 @@ def plot_tetrachoric_sibling(
         ax = axes[col_idx]
         trait_key = f"trait{trait_num}"
 
-        observed, n_pairs = _extract_pair_type_observed(all_stats, "tetrachoric", trait_key, pair_types)
-        liability = _mean_per_pair_type(
+        observed, n_pairs = _extract_relationship_type_observed(all_stats, "tetrachoric", trait_key, relationship_types)
+        liability = _mean_per_relationship_type(
             all_stats,
             lambda s, pt, _tk=trait_key: s.get("liability_correlations", {}).get(_tk, {}).get(pt),
-            pair_types,
+            relationship_types,
         )
         frailty = (
-            _mean_per_pair_type(
+            _mean_per_relationship_type(
                 all_stats,
                 lambda s, pt, _tk=trait_key: s.get("frailty_corr_uncensored", {}).get(_tk, {}).get(pt, {}).get("r"),
-                pair_types,
+                relationship_types,
             )
             if has_uncens_any
             else None
         )
-        parametric = _parametric_per_pair_type(params, trait_num, pair_types)
+        parametric = _parametric_per_relationship_type(params, trait_num, relationship_types)
 
-        state = setup_pair_type_panel(
+        state = setup_relationship_type_panel(
             ax,
-            pair_types=pair_types,
+            relationship_types=relationship_types,
             n_pairs_per_ptype=n_pairs,
             n_reps=n_reps,
             observed_per_rep=observed,
@@ -180,10 +180,10 @@ def plot_tetrachoric_sibling(
         ax.set_title(f"Trait {trait_num}", fontsize=13)
         panel_states.append(state)
 
-    finalize_pair_type_panels(panel_states)
+    finalize_relationship_type_panels(panel_states)
 
     fig.legend(
-        handles=pair_type_legend_handles(
+        handles=relationship_type_legend_handles(
             has_observed_mean=True,
             has_liability=True,
             has_frailty=has_uncens_any,
@@ -222,7 +222,7 @@ def plot_tetrachoric_by_generation(
         save_placeholder_plot(output_path, "No per-generation tetrachoric data")
         return
 
-    pair_types = PAIR_TYPES
+    relationship_types = RELATIONSHIP_TYPES
     n_reps = max(len(all_stats), 1)
     n_cols = len(gen_keys)
 
@@ -237,29 +237,29 @@ def plot_tetrachoric_by_generation(
         for col, gen_key in enumerate(gen_keys):
             ax = axes[row, col]
 
-            observed: dict[str, list[float]] = {pt: [] for pt in pair_types}
-            n_pairs: dict[str, int] = dict.fromkeys(pair_types, 0)
+            observed: dict[str, list[float]] = {pt: [] for pt in relationship_types}
+            n_pairs: dict[str, int] = dict.fromkeys(relationship_types, 0)
             for s in all_stats:
                 cell = s.get("tetrachoric_by_generation", {}).get(gen_key, {}).get(trait_key, {})
-                for ptype in pair_types:
+                for ptype in relationship_types:
                     entry = cell.get(ptype, {})
                     r = entry.get("r")
                     if r is not None:
                         observed[ptype].append(float(r))
                     n_pairs[ptype] += int(entry.get("n_pairs", 0) or 0)
 
-            liability = _mean_per_pair_type(
+            liability = _mean_per_relationship_type(
                 all_stats,
                 lambda s, pt, _gk=gen_key, _tk=trait_key: (
                     s.get("tetrachoric_by_generation", {}).get(_gk, {}).get(_tk, {}).get(pt, {}).get("liability_r")
                 ),
-                pair_types,
+                relationship_types,
             )
-            parametric = _parametric_per_pair_type(params, trait_num, pair_types)
+            parametric = _parametric_per_relationship_type(params, trait_num, relationship_types)
 
-            state = setup_pair_type_panel(
+            state = setup_relationship_type_panel(
                 ax,
-                pair_types=pair_types,
+                relationship_types=relationship_types,
                 n_pairs_per_ptype=n_pairs,
                 n_reps=n_reps,
                 observed_per_rep=observed,
@@ -274,10 +274,10 @@ def plot_tetrachoric_by_generation(
                 ax.set_ylabel(f"Trait {trait_num}\nTetrachoric correlation", fontsize=12)
             row_states.append(state)
 
-        finalize_pair_type_panels(row_states)
+        finalize_relationship_type_panels(row_states)
 
     fig.legend(
-        handles=pair_type_legend_handles(
+        handles=relationship_type_legend_handles(
             has_observed_mean=True,
             has_liability=True,
             has_frailty=False,
@@ -305,7 +305,7 @@ def plot_cross_trait_tetrachoric(
     Right: Cross-person cross-trait r by pair type (violin/dots), showing how
            relatedness induces cross-trait association.
     """
-    pair_types = PAIR_TYPES
+    relationship_types = RELATIONSHIP_TYPES
 
     _fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 
@@ -383,11 +383,11 @@ def plot_cross_trait_tetrachoric(
     ax_right = axes[1]
     n_reps = max(len(all_stats), 1)
 
-    observed: dict[str, list[float]] = {pt: [] for pt in pair_types}
-    n_pairs: dict[str, int] = dict.fromkeys(pair_types, 0)
+    observed: dict[str, list[float]] = {pt: [] for pt in relationship_types}
+    n_pairs: dict[str, int] = dict.fromkeys(relationship_types, 0)
     for s in all_stats:
         cell = s.get("cross_trait_tetrachoric", {}).get("cross_person", {})
-        for ptype in pair_types:
+        for ptype in relationship_types:
             entry = cell.get(ptype, {})
             r = entry.get("r")
             if r is not None:
@@ -395,14 +395,14 @@ def plot_cross_trait_tetrachoric(
             n_pairs[ptype] += int(entry.get("n_pairs", 0) or 0)
 
     if any(observed.values()):
-        right_state = setup_pair_type_panel(
+        right_state = setup_relationship_type_panel(
             ax_right,
-            pair_types=pair_types,
+            relationship_types=relationship_types,
             n_pairs_per_ptype=n_pairs,
             n_reps=n_reps,
             observed_per_rep=observed,
         )
-        finalize_pair_type_panels([right_state])
+        finalize_relationship_type_panels([right_state])
     else:
         ax_right.text(0.5, 0.5, "No cross-person data", ha="center", va="center", transform=ax_right.transAxes)
 
@@ -669,7 +669,7 @@ def plot_tetrachoric_by_sex(
     shares its y-axis across the female and male panels so cross-sex magnitude
     differences are directly comparable; the two trait rows are independent.
     """
-    pair_types = PAIR_TYPES
+    relationship_types = RELATIONSHIP_TYPES
     sex_labels = [("female", "Female"), ("male", "Male")]
     n_reps = max(len(all_stats), 1)
 
@@ -688,29 +688,29 @@ def plot_tetrachoric_by_sex(
         for col_idx, (sex_key, sex_display) in enumerate(sex_labels):
             ax = axes[row_idx, col_idx]
 
-            observed: dict[str, list[float]] = {pt: [] for pt in pair_types}
-            n_pairs: dict[str, int] = dict.fromkeys(pair_types, 0)
+            observed: dict[str, list[float]] = {pt: [] for pt in relationship_types}
+            n_pairs: dict[str, int] = dict.fromkeys(relationship_types, 0)
             for s in all_stats:
                 cell = s.get("tetrachoric_by_sex", {}).get(sex_key, {}).get(trait_key, {})
-                for ptype in pair_types:
+                for ptype in relationship_types:
                     entry = cell.get(ptype, {})
                     r = entry.get("r")
                     if r is not None:
                         observed[ptype].append(float(r))
                     n_pairs[ptype] += int(entry.get("n_pairs", 0) or 0)
 
-            liability = _mean_per_pair_type(
+            liability = _mean_per_relationship_type(
                 all_stats,
                 lambda s, pt, _sk=sex_key, _tk=trait_key: (
                     s.get("tetrachoric_by_sex", {}).get(_sk, {}).get(_tk, {}).get(pt, {}).get("liability_r")
                 ),
-                pair_types,
+                relationship_types,
             )
-            parametric = _parametric_per_pair_type(params, trait_num, pair_types)
+            parametric = _parametric_per_relationship_type(params, trait_num, relationship_types)
 
-            state = setup_pair_type_panel(
+            state = setup_relationship_type_panel(
                 ax,
-                pair_types=pair_types,
+                relationship_types=relationship_types,
                 n_pairs_per_ptype=n_pairs,
                 n_reps=n_reps,
                 observed_per_rep=observed,
@@ -725,10 +725,10 @@ def plot_tetrachoric_by_sex(
             row_states.append(state)
 
         # Shared y-axis within a trait row only — cross-trait magnitudes differ.
-        finalize_pair_type_panels(row_states)
+        finalize_relationship_type_panels(row_states)
 
     fig.legend(
-        handles=pair_type_legend_handles(
+        handles=relationship_type_legend_handles(
             has_observed_mean=True,
             has_liability=True,
             has_frailty=False,

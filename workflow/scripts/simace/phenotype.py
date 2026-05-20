@@ -5,8 +5,8 @@ import pandas as pd
 from simace import _snakemake_tag, setup_logging
 from simace.core.parquet import save_parquet
 from simace.core.snakemake_adapter import cli_or_snakemake, run_wrapper
-from simace.phenotyping.phenotype import cli as _cli
-from simace.phenotyping.phenotype import run_phenotype
+from simace.phenotype import cli as _cli
+from simace.phenotype import run_phenotype
 
 
 def _run() -> None:

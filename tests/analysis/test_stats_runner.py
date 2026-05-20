@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 import yaml
 
+from simace.analysis.stats.runner import build_stats_report
 from simace.analysis.stats.runner import cli as run_stats_cli
 from simace.analysis.stats.runner import main as run_stats
 
@@ -14,7 +15,7 @@ from simace.analysis.stats.runner import main as run_stats
 def tiny_phenotype():
     """Build a tiny censored phenotype DataFrame via simulate → phenotype → censor."""
     from simace.censoring.censor import run_censor
-    from simace.phenotyping.phenotype import run_phenotype
+    from simace.phenotype import run_phenotype
     from simace.simulation.simulate import run_simulation
 
     sim_params = dict(
@@ -65,12 +66,12 @@ def tiny_phenotype():
 def runner_outputs(tmp_path, tiny_phenotype):
     pedigree, phenotype = tiny_phenotype
     ped_path = tmp_path / "pedigree.parquet"
-    phe_path = tmp_path / "phenotype.parquet"
+    phe_path = tmp_path / "trait.parquet"
     pedigree.to_parquet(ped_path)
     phenotype.to_parquet(phe_path)
 
-    stats_yaml = tmp_path / "phenotype_stats.yaml"
-    samples_pq = tmp_path / "phenotype_samples.parquet"
+    stats_yaml = tmp_path / "stats_report.yaml"
+    samples_pq = tmp_path / "plotting_sample.parquet"
 
     run_stats(
         phenotype_path=str(phe_path),
@@ -95,40 +96,45 @@ class TestRunnerMain:
         df = pd.read_parquet(samples_pq)
         assert len(df) > 0
 
-    def test_stats_yaml_has_expected_top_level_keys(self, runner_outputs):
+    def test_build_stats_report_returns_grouped_schema(self, tiny_phenotype):
+        pedigree, phenotype = tiny_phenotype
+        stats = build_stats_report(phenotype, 80.0, df_ped=pedigree, max_degree=2)
+        assert set(stats) == {"metadata", "incidence", "censoring", "pedigree", "correlations", "heritability"}
+        flat_keys = {
+            "prevalence",
+            "pair_counts",
+            "pair_counts_ped",
+            "mate_correlation",
+            "observed_h2_estimators",
+        }
+        assert flat_keys.isdisjoint(stats)
+
+    def test_stats_yaml_has_expected_grouped_keys(self, runner_outputs):
         stats_yaml, _ = runner_outputs
         with open(stats_yaml, encoding="utf-8") as fh:
             stats = yaml.safe_load(fh)
-        expected = {
-            "n_individuals",
-            "n_generations",
-            "prevalence",
-            "mortality",
-            "regression",
-            "cumulative_incidence",
-            "joint_affection",
-            "person_years",
-            "family_size",
-            "pair_counts",
-            "parent_status",
-            "liability_correlations",
-            "affected_correlations",
-            "tetrachoric",
-        }
-        assert expected.issubset(set(stats.keys())), f"missing keys: {sorted(expected - set(stats.keys()))}"
+        assert set(stats) == {"metadata", "incidence", "censoring", "pedigree", "correlations", "heritability"}
+        assert "n_individuals" in stats["metadata"]
+        assert "prevalence" in stats["incidence"]
+        assert "person_years" in stats["censoring"]
+        assert "relationship_pair_counts" in stats["pedigree"]
+        assert "affected_correlations" in stats["correlations"]
+        assert "tetrachoric" in stats["correlations"]
+        assert "observed_h2_estimators" in stats["heritability"]
 
     def test_pedigree_keys_when_pedigree_provided(self, runner_outputs):
         stats_yaml, _ = runner_outputs
         with open(stats_yaml, encoding="utf-8") as fh:
             stats = yaml.safe_load(fh)
         # Pedigree branch — present only because pedigree_path is supplied.
-        assert "pair_counts_ped" in stats
-        assert "n_individuals_ped" in stats
-        assert "mate_correlation" in stats
+        assert "full" in stats["pedigree"]
+        assert "relationship_pair_counts" in stats["pedigree"]["full"]
+        assert "n_individuals" in stats["pedigree"]["full"]
+        assert "mate_correlation" in stats["correlations"]
 
     def test_runs_without_pedigree(self, tmp_path, tiny_phenotype):
         _, phenotype = tiny_phenotype
-        phe_path = tmp_path / "phenotype.parquet"
+        phe_path = tmp_path / "trait.parquet"
         phenotype.to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
@@ -144,13 +150,13 @@ class TestRunnerMain:
         with open(stats_yaml, encoding="utf-8") as fh:
             stats = yaml.safe_load(fh)
         # The pedigree-dependent branches are skipped.
-        assert "pair_counts_ped" not in stats
-        assert "n_individuals_ped" not in stats
-        assert "mate_correlation" not in stats
+        assert "full" not in stats["pedigree"]
+        assert "in_pedigree" not in stats["pedigree"]["parent_status"]
+        assert "mate_correlation" not in stats["correlations"]
 
     def test_case_ascertainment_ratio_recorded(self, tmp_path, tiny_phenotype):
         _, phenotype = tiny_phenotype
-        phe_path = tmp_path / "phenotype.parquet"
+        phe_path = tmp_path / "trait.parquet"
         phenotype.to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
@@ -165,11 +171,11 @@ class TestRunnerMain:
         )
         with open(stats_yaml, encoding="utf-8") as fh:
             stats = yaml.safe_load(fh)
-        assert stats["case_ascertainment_ratio"] == pytest.approx(0.7)
+        assert stats["metadata"]["case_ascertainment_ratio"] == pytest.approx(0.7)
 
     def test_gen_censoring_branch(self, tmp_path, tiny_phenotype):
         _, phenotype = tiny_phenotype
-        phe_path = tmp_path / "phenotype.parquet"
+        phe_path = tmp_path / "trait.parquet"
         phenotype.to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
@@ -185,16 +191,16 @@ class TestRunnerMain:
         with open(stats_yaml, encoding="utf-8") as fh:
             stats = yaml.safe_load(fh)
         # gen_censoring populates these branch keys
-        assert "censoring" in stats
-        assert "censoring_confusion" in stats
-        assert "censoring_cascade" in stats
+        assert "windows" in stats["censoring"]
+        assert "confusion" in stats["censoring"]
+        assert "cascade" in stats["censoring"]
 
 
 class TestRunnerCli:
     def test_cli_invokes_main(self, tmp_path, tiny_phenotype, monkeypatch):
         pedigree, phenotype = tiny_phenotype
         ped_path = tmp_path / "pedigree.parquet"
-        phe_path = tmp_path / "phenotype.parquet"
+        phe_path = tmp_path / "trait.parquet"
         pedigree.to_parquet(ped_path)
         phenotype.to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"
@@ -222,7 +228,7 @@ class TestRunnerCli:
     def test_cli_with_gen_censoring(self, tmp_path, tiny_phenotype, monkeypatch):
         pedigree, phenotype = tiny_phenotype
         ped_path = tmp_path / "pedigree.parquet"
-        phe_path = tmp_path / "phenotype.parquet"
+        phe_path = tmp_path / "trait.parquet"
         pedigree.to_parquet(ped_path)
         phenotype.to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"

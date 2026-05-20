@@ -30,23 +30,20 @@ rule scenario:
 rule simulate_scenario:
     """Run pedigree simulation only for a single scenario."""
     input:
-        lambda w: [
-            f"results/{w.folder}/{w.scenario}/rep{r}/pedigree.parquet"
-            for r in range(1, get_param(config, w.scenario, "replicates") + 1)
-        ],
+        lambda w: get_scenario_simulation_outputs(config, w.scenario),
     output:
         touch("results/{folder}/{scenario}/simulate.done"),
 
 
 rule phenotype_scenario:
-    """Run simulation + phenotyping for a single scenario."""
+    """Run simulation + phenotyping + ascertainment for a single scenario."""
     input:
         lambda w: [
             f"results/{w.folder}/{w.scenario}/rep{r}/{f}"
             for r in range(1, get_param(config, w.scenario, "replicates") + 1)
             for f in [
-                "phenotype.parquet",
-                "phenotype.simple_ltm.parquet",
+                "trait.parquet",
+                "trait.simple_ltm.parquet",
             ]
         ],
     output:
@@ -70,7 +67,7 @@ rule stats_scenario:
     """Run phenotyping + stats + plots for a single scenario."""
     input:
         lambda w: [
-            f"results/{w.folder}/{w.scenario}/rep{r}/phenotype_stats.yaml"
+            f"results/{w.folder}/{w.scenario}/rep{r}/stats_report.yaml"
             for r in range(1, get_param(config, w.scenario, "replicates") + 1)
         ],
         lambda w: [

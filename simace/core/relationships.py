@@ -1,11 +1,11 @@
 """Relationship-pair and sex vocabulary used across stats and plotting."""
 
-__all__ = ["PAIR_TYPES", "SEX_LEVELS"]
+__all__ = ["RELATIONSHIP_TYPES", "SEX_LEVELS"]
 
 # Canonical 7-element subset of REL_REGISTRY (defined in
 # ``pedigree_graph``) used for tetrachoric / liability correlation
 # analyses.
-PAIR_TYPES: list[str] = [
+RELATIONSHIP_TYPES: list[str] = [
     "MZ",
     "FS",
     "MO",

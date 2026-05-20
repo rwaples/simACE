@@ -1,7 +1,7 @@
-"""Plot phenotype distributions from pre-computed per-rep statistics.
+"""Plot phenotype distributions from pre-computed per-replicate stats reports.
 
-Reads phenotype_stats.yaml and phenotype_samples.parquet files (one per rep)
-produced by compute_phenotype_stats.py. No full phenotype parquet loading needed.
+Reads stats_report.yaml and plotting_sample.parquet files (one per replicate).
+No full trait parquet loading needed.
 """
 
 __all__: list[str] = []
@@ -24,6 +24,9 @@ from simace.plotting.plot_correlations import (
 from simace.plotting.plot_distributions import (
     plot_censoring_windows,
     plot_cumulative_incidence,
+    plot_cumulative_incidence_aj,
+    plot_cumulative_incidence_aj_by_sex,
+    plot_cumulative_incidence_aj_by_sex_generation,
     plot_cumulative_incidence_by_sex,
     plot_cumulative_incidence_by_sex_generation,
     plot_death_age_distribution,
@@ -52,6 +55,7 @@ from simace.plotting.plot_liability import (
 )
 from simace.plotting.plot_pedigree_counts import plot_pedigree_relationship_counts
 from simace.plotting.plot_utils import save_placeholder_plot
+from simace.plotting.stats_report import plotting_stats_views
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +81,7 @@ def main(
 
     apply_nature_style()
 
-    all_stats = [load_yaml(p) for p in stats_paths]
+    all_stats = plotting_stats_views([load_yaml(p) for p in stats_paths])
 
     df_samples = pd.concat([pd.read_parquet(p) for p in sample_paths], ignore_index=True)
     subsample_note = ""
@@ -212,6 +216,22 @@ def main(
     plot_cumulative_incidence_by_sex_generation(
         all_stats,
         out_dir / f"cumulative_incidence.by_sex.by_generation.{ext}",
+        scenario,
+    )
+    plot_cumulative_incidence_aj(
+        all_stats,
+        censor_age,
+        out_dir / f"cumulative_incidence_aj.phenotype.{ext}",
+        scenario,
+    )
+    plot_cumulative_incidence_aj_by_sex(
+        all_stats,
+        out_dir / f"cumulative_incidence_aj.by_sex.{ext}",
+        scenario,
+    )
+    plot_cumulative_incidence_aj_by_sex_generation(
+        all_stats,
+        out_dir / f"cumulative_incidence_aj.by_sex.by_generation.{ext}",
         scenario,
     )
     plot_joint_affection(

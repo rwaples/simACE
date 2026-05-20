@@ -461,7 +461,7 @@ def render_table1_figure(
     """Build and return the Table 1 figure (11 x 8.5 landscape).
 
     Args:
-        all_stats: List of phenotype_stats dicts, one per replicate.
+        all_stats: List of stats report dicts, one per replicate.
         scenario_params: Merged scenario config parameters.
         scenario: Scenario name for the title.
 

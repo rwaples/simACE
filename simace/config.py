@@ -19,6 +19,7 @@ import glob
 import os
 import re
 from pathlib import Path
+from typing import Any
 
 from simace.core.yaml_io import load_yaml
 
@@ -28,6 +29,7 @@ from simace.core.yaml_io import load_yaml
 
 _HIERARCHICAL_TO_FLAT: dict[tuple[str, ...], str] = {
     # pedigree section
+    ("pedigree", "mating_model"): "mating_model",
     ("pedigree", "mating_lambda"): "mating_lambda",
     ("pedigree", "p_mztwin"): "p_mztwin",
     ("pedigree", "assort1"): "assort1",
@@ -58,13 +60,14 @@ _HIERARCHICAL_TO_FLAT: dict[tuple[str, ...], str] = {
     ("censoring", "gen_censoring"): "gen_censoring",
     ("censoring", "death_scale"): "death_scale",
     ("censoring", "death_rho"): "death_rho",
-    # sampling section
-    ("sampling", "N_sample"): "N_sample",
-    ("sampling", "case_ascertainment_ratio"): "case_ascertainment_ratio",
-    ("sampling", "pedigree_dropout_rate"): "pedigree_dropout_rate",
+    # ascertainment section (formerly "sampling" with pedigree_dropout_rate)
+    ("ascertainment", "N_sample"): "N_sample",
+    ("ascertainment", "case_ascertainment_ratio"): "case_ascertainment_ratio",
+    ("ascertainment", "dropout_rate"): "dropout_rate",
     # analysis section
     ("analysis", "max_degree"): "max_degree",
     ("analysis", "estimate_inbreeding"): "estimate_inbreeding",
+    ("analysis", "skip_ne_coancestry"): "skip_ne_coancestry",
     # tstrait section
     ("tstrait", "num_causal"): "tstrait_num_causal",
     ("tstrait", "frac_causal"): "tstrait_frac_causal",
@@ -90,6 +93,10 @@ _SIM_FLAT_GLOBALS: frozenset[str] = frozenset(
         "plot_format",
         "drop_from",
         "use_gene_drop",
+        # Opaque dict consumed by fitACE's blended_phenotype rule. When non-null
+        # the rule re-derives trait-1 case status from a per-generation blend of
+        # L1 and L2 liabilities. See notes/heritability/epimight_h2_temporal.md.
+        "blended_diagnosis",
     }
 )
 
@@ -200,12 +207,12 @@ def _coerce_sim_types(flat: dict) -> dict:
     gen_censoring = flat.get("gen_censoring")
     if gen_censoring:
         flat["gen_censoring"] = {int(k): v for k, v in gen_censoring.items()}
-    for key in ("A1", "A2", "C1", "C2", "E1", "E2"):
+    for key in ("A1", "A2", "C1", "C2", "E1", "E2", "assort1", "assort2"):
         value = flat.get(key)
         if isinstance(value, dict):
             flat[key] = {int(gen): v for gen, v in value.items()}
     if "standardize" in flat:
-        from simace.phenotyping.hazards import coerce_standardize_mode
+        from simace.phenotype.hazards import coerce_standardize_mode
 
         flat["standardize"] = coerce_standardize_mode(flat["standardize"])
     return flat
@@ -373,23 +380,47 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
     return scenarios
 
 
-def _validate_pedigree_config(config: dict) -> None:
-    """Reject scenarios whose effective E1 / E2 resolve to ``None``.
+#: Allowed values for ``pedigree.mating_model``.  Re-exported so
+#: :func:`simace.simulation.simulate.run_simulation` can validate against
+#: the same source of truth without re-declaring the set.
+VALID_MATING_MODELS: frozenset[str] = frozenset({"standard", "wright_fisher"})
 
-    Closes the gap where pre-PR3 config-loading allowed ``E: null`` and the
-    runtime fell back to ``1 - A - C`` inside ``run_simulation``.  After PR3,
-    every scenario must declare a numeric (or per-generation dict) value for
-    each unique-environment variance, either in the scenario file itself or
-    via ``_default.yaml``.
+
+def _is_zero_assort(value: Any) -> bool:
+    """Return True if ``value`` is a no-op assortative-mating setting.
+
+    Accepts both scalar (numeric ``0``) and per-generation dict forms;
+    a dict whose values are all ``0`` is also treated as a no-op.
+    """
+    if isinstance(value, dict):
+        return all(float(v) == 0 for v in value.values())
+    return float(value) == 0
+
+
+def _validate_pedigree_config(config: dict) -> None:
+    """Validate pedigree-section config, including mating-model compatibility.
+
+    Two checks:
+
+    1. Reject scenarios whose effective E1 / E2 resolve to ``None``.  Closes
+       the pre-PR3 fallback where ``E: null`` was filled from ``1 - A - C``
+       inside ``run_simulation``; every scenario must now declare a numeric
+       (or per-generation dict) value for each unique-environment variance.
+    2. Validate ``mating_model`` against the allowed set, and reject WF
+       scenarios that explicitly override standard-only knobs to non-no-op
+       values (``mating_lambda``, ``p_mztwin``, ``assort1``, ``assort2``,
+       ``assort_matrix``).  Inherited defaults are silently ignored at
+       runtime — only *explicit* scenario overrides are flagged here.
 
     Args:
         config: the merged ``{"defaults": ..., "scenarios": ...}`` dict.
 
     Raises:
-        ValueError: if any scenario's effective E1 or E2 is ``None``.
+        ValueError: if any scenario fails either check.
     """
     defaults = config["defaults"]
     for name, params in config.get("scenarios", {}).items():
+        # E1 / E2 nullability
         for key in ("E1", "E2"):
             value = params.get(key, defaults.get(key))
             if value is None:
@@ -397,6 +428,49 @@ def _validate_pedigree_config(config: dict) -> None:
                     f"Scenario '{name}': {key} is null. "
                     f"Declare {key} explicitly in the scenario or in "
                     f"config/_default.yaml under pedigree.trait{key[-1]}.E."
+                )
+
+        # mating_model allowed-value check.  Defaults to "standard" if
+        # neither scenario nor defaults set it, so minimal test fixtures
+        # without the key still validate.
+        effective_mm = params.get("mating_model", defaults.get("mating_model", "standard"))
+        if effective_mm not in VALID_MATING_MODELS:
+            raise ValueError(
+                f"Scenario '{name}': mating_model={effective_mm!r} is not valid. "
+                f"Choose from: {sorted(VALID_MATING_MODELS)}"
+            )
+
+        # Strict WF-override check.  ``params`` is the scenario-only flat dict
+        # (see resolve_scenarios) so ``key in params`` reliably means
+        # "explicitly overridden in scenario YAML".
+        if effective_mm == "wright_fisher":
+            if "mating_lambda" in params:
+                raise ValueError(
+                    f"Scenario '{name}': mating_lambda={params['mating_lambda']!r} "
+                    f"conflicts with mating_model=wright_fisher (mating_lambda is a "
+                    f"standard-model knob with no defensible WF value). Remove the "
+                    f"mating_lambda override or switch to mating_model=standard."
+                )
+            if "p_mztwin" in params and float(params["p_mztwin"]) != 0:
+                raise ValueError(
+                    f"Scenario '{name}': p_mztwin={params['p_mztwin']!r} conflicts "
+                    f"with mating_model=wright_fisher (no MZ twins under WF). "
+                    f"Remove the p_mztwin override or set it to 0."
+                )
+            for assort_key in ("assort1", "assort2"):
+                if assort_key in params and not _is_zero_assort(params[assort_key]):
+                    raise ValueError(
+                        f"Scenario '{name}': {assort_key}={params[assort_key]!r} "
+                        f"conflicts with mating_model=wright_fisher (WF is uniform "
+                        f"random mating). Remove the {assort_key} override or switch "
+                        f"to mating_model=standard."
+                    )
+            if "assort_matrix" in params and params["assort_matrix"] is not None:
+                raise ValueError(
+                    f"Scenario '{name}': assort_matrix={params['assort_matrix']!r} "
+                    f"conflicts with mating_model=wright_fisher (WF is uniform random "
+                    f"mating). Remove the assort_matrix override or switch to "
+                    f"mating_model=standard."
                 )
 
 

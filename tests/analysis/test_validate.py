@@ -65,7 +65,7 @@ def val_indexed(val_pedigree):
 
 @pytest.fixture(scope="module")
 def val_sibling_pairs(val_pedigree):
-    all_pairs = PedigreeGraph(val_pedigree).extract_pairs(max_degree=1)
+    all_pairs = PedigreeGraph(val_pedigree).extract_pairs(max_degree=2)
     return {k: all_pairs[k] for k in ("FS", "MHS", "PHS")}
 
 
@@ -114,14 +114,60 @@ class TestValidateTwins:
         assert "twin_rate" in result
         assert "observed_rate" in result["twin_rate"]
 
+    def test_wf_with_inherited_default_p_mztwin_passes_vacuously(self, val_pedigree, val_indexed):
+        # Under WF, inherited p_mztwin=0.02 must NOT trigger a failed twin_rate
+        # check (the standard branch fails because 0.02 > 0.01).  Branch on
+        # mating_model and report observed_rate=0.0, expected_rate=0.0.
+        wf_params = {"mating_model": "wright_fisher", "p_mztwin": 0.02}
+        # Use a freshly-simulated WF pedigree so n_twins is actually 0.
+        wf_ped = run_simulation(
+            seed=11,
+            N=500,
+            G_ped=2,
+            G_sim=2,
+            mating_lambda=0.5,
+            p_mztwin=0.02,
+            A1=0.5,
+            C1=0.0,
+            E1=0.5,
+            A2=0.4,
+            C2=0.0,
+            E2=0.6,
+            rA=0.0,
+            rC=0.0,
+            rE=0.0,
+            mating_model="wright_fisher",
+        )
+        wf_indexed = wf_ped.set_index("id")
+        result = validate_twins(wf_ped, wf_params, wf_indexed)
+        _all_passed(result)
+        assert result["twin_rate"]["expected_rate"] == 0.0
+        assert result["twin_rate"]["observed_rate"] == 0.0
+
+    def test_wf_fails_when_twins_present(self, val_pedigree, val_indexed):
+        """If a pedigree labelled mating_model=wright_fisher contains any twins
+        (regression / corruption), validate_twins must fail the rate check
+        rather than silently pass.  The val_pedigree fixture is a standard-model
+        pedigree with twins; relabelling its params as WF must surface the
+        violation.
+        """
+        wf_params = {"mating_model": "wright_fisher", "p_mztwin": 0.02}
+        result = validate_twins(val_pedigree, wf_params, val_indexed)
+        assert (val_pedigree["twin"] != -1).any(), "fixture sanity: pedigree must contain twins"
+        rate = result["twin_rate"]
+        assert rate["passed"] is False
+        assert rate["expected_rate"] == 0.0
+        assert rate["observed_rate"] > 0.0
+        assert rate["twin_pairs"] > 0
+
 
 class TestValidateHalfSibs:
-    def test_passes(self, val_pedigree, val_params, val_sibling_pairs):
-        result = validate_half_sibs(val_pedigree, val_params, val_sibling_pairs)
+    def test_passes(self, val_pedigree, val_params, val_indexed, val_sibling_pairs):
+        result = validate_half_sibs(val_pedigree, val_params, val_indexed, val_sibling_pairs)
         _all_passed(result)
 
-    def test_numeric_fields(self, val_pedigree, val_params, val_sibling_pairs):
-        result = validate_half_sibs(val_pedigree, val_params, val_sibling_pairs)
+    def test_numeric_fields(self, val_pedigree, val_params, val_indexed, val_sibling_pairs):
+        result = validate_half_sibs(val_pedigree, val_params, val_indexed, val_sibling_pairs)
         for value in result.values():
             if isinstance(value, dict) and "observed" in value:
                 assert isinstance(value["observed"], (int, float))

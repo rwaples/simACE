@@ -7,8 +7,8 @@ all non-social fathers, single-generation pedigrees, etc.
 import numpy as np
 
 from simace.censoring.censor import age_censor
-from simace.phenotyping.models import FrailtyModel
-from simace.phenotyping.threshold import apply_threshold
+from simace.phenotype.models import FrailtyModel
+from simace.phenotype.threshold import apply_threshold
 from simace.simulation.simulate import run_simulation
 
 

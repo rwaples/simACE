@@ -7,6 +7,7 @@ from simace import _snakemake_tag, setup_logging
 from simace.core.yaml_io import load_yaml
 from simace.plotting.atlas_manifest import build_phenotype_atlas
 from simace.plotting.plot_atlas import assemble_atlas
+from simace.plotting.stats_report import plotting_stats_views
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def _run_snakemake():
         "death_rho",
         "G_pheno",
         "N_sample",
-        "pedigree_dropout_rate",
+        "dropout_rate",
         "case_ascertainment_ratio",
         "max_degree",
         "plot_format",
@@ -54,8 +55,8 @@ def _run_snakemake():
     plot_ext = scenario_params.get("plot_format", "png")
     items = build_phenotype_atlas(scenario_params)
 
-    # Load per-rep phenotype stats for Table 1
-    all_stats = [load_yaml(stats_path) for stats_path in snakemake.input.stats]
+    # Load per-replicate stats reports for Table 1
+    all_stats = plotting_stats_views([load_yaml(stats_path) for stats_path in snakemake.input.stats])
 
     assemble_atlas(
         items,
@@ -79,7 +80,7 @@ if __name__ == "__main__":
         add_logging_args(parser)
         parser.add_argument("--plot-dir", required=True, help="Directory containing the plot PNGs")
         parser.add_argument("--params-yaml", default=None, help="Scenario params.yaml for title page")
-        parser.add_argument("--stats", nargs="*", default=[], help="phenotype_stats.yaml paths (one per rep)")
+        parser.add_argument("--stats", nargs="*", default=[], help="stats_report.yaml paths (one per replicate)")
         parser.add_argument("--scenario", default="unknown", help="Scenario name")
         parser.add_argument("--output", required=True, help="Output PDF path")
         parser.add_argument("--plot-ext", default="png", help="Plot file extension (default: png)")
@@ -91,7 +92,7 @@ if __name__ == "__main__":
             scenario_params = load_yaml(args.params_yaml)
             scenario_params["scenario"] = args.scenario
 
-        all_stats = [load_yaml(sp) for sp in args.stats]
+        all_stats = plotting_stats_views([load_yaml(sp) for sp in args.stats])
 
         items = build_phenotype_atlas(scenario_params)
         assemble_atlas(

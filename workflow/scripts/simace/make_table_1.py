@@ -10,7 +10,9 @@ import pandas as pd
 # ---------------------------------------------------------------------
 
 # Column names below must match the schema produced by
-# simace.analysis.gather.extract_metrics (validation_summary.tsv).
+# simace.analysis.gather.extract_metrics (validation_summary.tsv); the
+# observed-metric columns are defined in
+# simace.analysis.validation_schema.METRIC_REGISTRY.
 
 # Columns representing true simulation parameters
 # (constant within each scenario)
@@ -18,34 +20,57 @@ TRUE_COLS = ["N", "A1", "C1", "E1", "A2", "C2", "E2", "rA", "rC"]
 
 # Observed numeric columns to summarize as mean ± standard deviation
 NUMERIC_COLS = [
-    "variance_A1", "variance_C1", "variance_E1",
-    "variance_A2", "variance_C2", "variance_E2",
-    "observed_rA", "observed_rC", "observed_rE",
-    "falconer_h2_trait1", "falconer_h2_trait2",
-    "mz_twin_liability1_corr", "mz_twin_liability2_corr",
-    "dz_sibling_liability1_corr", "dz_sibling_liability2_corr",
+    "variance_A1",
+    "variance_C1",
+    "variance_E1",
+    "variance_A2",
+    "variance_C2",
+    "variance_E2",
+    "observed_rA",
+    "observed_rC",
+    "observed_rE",
+    "falconer_h2_trait1",
+    "falconer_h2_trait2",
+    "mz_twin_liability1_corr",
+    "mz_twin_liability2_corr",
+    "dz_sibling_liability1_corr",
+    "dz_sibling_liability2_corr",
     "half_sib_liability1_corr",
-    "mate_corr_liability1", "mate_corr_liability2",
-    "parent_offspring_liability1_slope", "parent_offspring_liability2_slope",
+    "mate_corr_liability1",
+    "mate_corr_liability2",
+    "parent_offspring_liability1_slope",
+    "parent_offspring_liability2_slope",
 ]
 
 # Column order for the final paper-ready table
 PAPER_COL_ORDER = [
-    "scenario", "N",
-    "A1", "falconer_h2_trait1", "variance_A1",
-    "A2", "falconer_h2_trait2", "variance_A2",
-    "C1", "variance_C1",
-    "C2", "variance_C2",
-    "rA", "observed_rA",
-    "mz_twin_liability1_corr", "dz_sibling_liability1_corr",
-    "mz_twin_liability2_corr", "dz_sibling_liability2_corr",
-    "mate_corr_liability1", "mate_corr_liability2",
+    "scenario",
+    "N",
+    "A1",
+    "falconer_h2_trait1",
+    "variance_A1",
+    "A2",
+    "falconer_h2_trait2",
+    "variance_A2",
+    "C1",
+    "variance_C1",
+    "C2",
+    "variance_C2",
+    "rA",
+    "observed_rA",
+    "mz_twin_liability1_corr",
+    "dz_sibling_liability1_corr",
+    "mz_twin_liability2_corr",
+    "dz_sibling_liability2_corr",
+    "mate_corr_liability1",
+    "mate_corr_liability2",
 ]
 
 
 # ---------------------------------------------------------------------
 # Table construction
 # ---------------------------------------------------------------------
+
 
 def build_paper_table(df: pd.DataFrame) -> pd.DataFrame:
     """Collapse replication-level results into one row per scenario.
@@ -74,11 +99,7 @@ def build_paper_table(df: pd.DataFrame) -> pd.DataFrame:
     # Attach true simulation parameters (identical within each scenario)
     true_present = [c for c in TRUE_COLS if c in df.columns]
     if true_present:
-        true_vals = (
-            df.groupby("scenario", sort=False)[true_present]
-            .first()
-            .reset_index()
-        )
+        true_vals = df.groupby("scenario", sort=False)[true_present].first().reset_index()
         paper_df = paper_df.merge(true_vals, on="scenario", how="left")
 
     # Enforce predefined column order
@@ -90,6 +111,7 @@ def build_paper_table(df: pd.DataFrame) -> pd.DataFrame:
 # Word export
 # ---------------------------------------------------------------------
 
+
 def save_word_table(paper_df: pd.DataFrame, out_path: Path) -> Path:
     """Save the summary table as a Word document using python-docx."""
     try:
@@ -99,9 +121,7 @@ def save_word_table(paper_df: pd.DataFrame, out_path: Path) -> Path:
         from docx.enum.text import WD_ALIGN_PARAGRAPH
         from docx.shared import Inches, Pt
     except ImportError as exc:
-        raise ImportError(
-            "--word requires python-docx; install with `pip install python-docx`."
-        ) from exc
+        raise ImportError("--word requires python-docx; install with `pip install python-docx`.") from exc
 
     doc = Document()
 
@@ -118,10 +138,7 @@ def save_word_table(paper_df: pd.DataFrame, out_path: Path) -> Path:
     section.right_margin = Inches(0.5)
 
     # Table title
-    title = doc.add_heading(
-        "Table 1 — Validation summary (mean ± SD across replications)",
-        level=1
-    )
+    title = doc.add_heading("Table 1 — Validation summary (mean ± SD across replications)", level=1)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
     for run in title.runs:
         run.font.name = "Arial"
@@ -166,6 +183,7 @@ def save_word_table(paper_df: pd.DataFrame, out_path: Path) -> Path:
 # Main entry point
 # ---------------------------------------------------------------------
 
+
 def main(summary_tsv: str, out_dir: str = "paper", word: bool = False) -> None:
     """Read a validation summary TSV and write a scenario-level CSV (and optional DOCX)."""
     summary_path = Path(summary_tsv)
@@ -175,9 +193,7 @@ def main(summary_tsv: str, out_dir: str = "paper", word: bool = False) -> None:
     df = pd.read_csv(summary_path, sep="\t")
 
     if "scenario" not in df.columns:
-        raise ValueError(
-            "Expected a 'scenario' column in the input file."
-        )
+        raise ValueError("Expected a 'scenario' column in the input file.")
 
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
@@ -200,9 +216,7 @@ def main(summary_tsv: str, out_dir: str = "paper", word: bool = False) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Build a scenario-level validation summary table."
-    )
+    parser = argparse.ArgumentParser(description="Build a scenario-level validation summary table.")
     parser.add_argument(
         "--summary",
         required=True,

@@ -3,18 +3,17 @@
 # ---------------------------------------------------------------------------
 
 
-rule stats_phenotype:
+rule build_stats_report:
     input:
-        phenotype="results/{folder}/{scenario}/rep{rep}/phenotype.sampled.parquet",
+        phenotype="results/{folder}/{scenario}/rep{rep}/trait.parquet",
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
-        params="results/{folder}/{scenario}/rep{rep}/params.yaml",
     output:
-        stats="results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
-        samples=temp("results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet"),
+        stats="results/{folder}/{scenario}/rep{rep}/stats_report.yaml",
+        samples=temp("results/{folder}/{scenario}/rep{rep}/plotting_sample.parquet"),
     log:
-        "logs/{folder}/{scenario}/rep{rep}/phenotype_stats.log",
+        "logs/{folder}/{scenario}/rep{rep}/stats_report.log",
     benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_stats.tsv"
+        "benchmarks/{folder}/{scenario}/rep{rep}/stats_report.tsv"
     threads: 5
     resources:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
@@ -28,19 +27,19 @@ rule stats_phenotype:
             config, w.scenario, "case_ascertainment_ratio"
         ),
     script:
-        "../../scripts/simace/compute_phenotype_stats.py"
+        "../../scripts/simace/build_stats_report.py"
 
 
 rule plot_phenotype:
     input:
         stats=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
+            "results/{folder}/{scenario}/rep{rep}/stats_report.yaml",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
         samples=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/phenotype_samples.parquet",
+            "results/{folder}/{scenario}/rep{rep}/plotting_sample.parquet",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
@@ -77,7 +76,7 @@ rule assemble_scenario_atlas:
         ),
         params_yaml="results/{folder}/{scenario}/rep1/params.yaml",
         stats=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/phenotype_stats.yaml",
+            "results/{folder}/{scenario}/rep{rep}/stats_report.yaml",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
@@ -113,12 +112,11 @@ rule assemble_scenario_atlas:
         # plot_pipeline reads it from there directly.
         G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
         N_sample=lambda w: get_param(config, w.scenario, "N_sample"),
-        pedigree_dropout_rate=lambda w: get_param(
-            config, w.scenario, "pedigree_dropout_rate"
-        ),
+        dropout_rate=lambda w: get_param(config, w.scenario, "dropout_rate"),
         case_ascertainment_ratio=lambda w: get_param(
             config, w.scenario, "case_ascertainment_ratio"
         ),
+
         max_degree=lambda w: get_param(config, w.scenario, "max_degree"),
         plot_format=lambda w: config["defaults"].get("plot_format", "png"),
     script:

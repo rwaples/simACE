@@ -147,30 +147,49 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
     and sex for MZ pairs, and that the observed twin rate matches the
     expected rate ``2 * p_mztwin * eligible_fraction``.
 
+    Under ``mating_model="wright_fisher"`` no MZ twins are produced by
+    design (see ADR 0002), so ``expected_rate`` is ``0.0`` and any
+    twin present in the pedigree is a violation that fails the rate
+    check.  Structural checks still run when twins are present so a
+    corrupted WF output is also flagged for malformed twin records.
+
     Args:
         df: Pedigree DataFrame.
-        params: Scenario parameters; requires key ``p_mztwin``.
+        params: Scenario parameters; requires key ``p_mztwin`` (and optional
+            ``mating_model``, defaulted to ``"standard"``).
         df_indexed: Pedigree DataFrame indexed by ``id`` for fast lookups.
 
     Returns:
         Dict of check-name to result dicts.
     """
     results = {}
+    mating_model = params.get("mating_model", "standard")
     p_mztwin = params["p_mztwin"]
+    is_wf = mating_model == "wright_fisher"
+    expected_rate = 0.0 if is_wf else float(p_mztwin)
 
     twins_df = df[df["twin"] != -1]
     n_twins = len(twins_df)
 
     if n_twins == 0:
-        results["twin_bidirectional"] = _result(True, "No twins found")
-        results["twin_same_parents"] = _result(True, "No twins found")
+        no_twins_msg = "No twins expected under mating_model=wright_fisher" if is_wf else "No twins found"
+        results["twin_bidirectional"] = _result(True, no_twins_msg)
+        results["twin_same_parents"] = _result(True, no_twins_msg)
         for t in [1, 2]:
-            results[f"twin_same_A{t}"] = _result(True, "No twins found")
-        results["twin_same_sex"] = _result(True, "No twins found")
+            results[f"twin_same_A{t}"] = _result(True, no_twins_msg)
+        results["twin_same_sex"] = _result(True, no_twins_msg)
+        # WF passes always (expected=observed=0); standard passes if
+        # p_mztwin is small enough that zero observed twins is plausible.
+        rate_pass = True if is_wf else p_mztwin < 0.01
+        rate_msg = (
+            "No twins expected under mating_model=wright_fisher"
+            if is_wf
+            else f"No twins found, expected rate: {p_mztwin}"
+        )
         results["twin_rate"] = _result(
-            p_mztwin < 0.01,
-            f"No twins found, expected rate: {p_mztwin}",
-            expected_rate=p_mztwin,
+            rate_pass,
+            rate_msg,
+            expected_rate=expected_rate,
             observed_rate=0.0,
         )
         return results
@@ -232,15 +251,25 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
         nf_twin_partners = nf_twins["twin"].values
         nf_pairs = int(np.sum(nf_twin_ids < nf_twin_partners))
         observed_rate = nf_pairs * 2 / n_nf
-        # Under the mating-pair model, twins are assigned per mating with >=2
-        # offspring. Use a generous range check since the expected rate depends
-        # on the offspring allocation distribution.
-        rate_tol = max(0.01, 3 * p_mztwin)
-        rate_ok = observed_rate < rate_tol
+        if is_wf:
+            # WF documents zero twins (ADR 0002).  Any presence is a
+            # violation of the no-MZ-twins invariant.
+            rate_ok = nf_pairs == 0
+            rate_msg = (
+                f"Twin rate under mating_model=wright_fisher: {observed_rate:.4f} "
+                f"(expected 0.0); pedigree contains {nf_pairs} unexpected twin pair(s)."
+            )
+        else:
+            # Standard mating-pair model: twins are assigned per mating with
+            # >=2 offspring.  Generous range check because the expected rate
+            # depends on the offspring-allocation distribution.
+            rate_tol = max(0.01, 3 * p_mztwin)
+            rate_ok = observed_rate < rate_tol
+            rate_msg = f"Twin rate in non-founders: {observed_rate:.4f} (p_mztwin={p_mztwin:.4f}, tol: {rate_tol:.4f})"
         results["twin_rate"] = _result(
             rate_ok,
-            f"Twin rate in non-founders: {observed_rate:.4f} (p_mztwin={p_mztwin:.4f}, tol: {rate_tol:.4f})",
-            expected_rate=float(p_mztwin),
+            rate_msg,
+            expected_rate=expected_rate,
             observed_rate=float(observed_rate),
             twin_pairs=nf_pairs,
         )
@@ -248,6 +277,11 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
         results["twin_rate"] = _result(True, "No non-founders to check twin rate")
 
     return results
+
+
+_MAX_CORR_PAIRS = 5000  # cap pair-correlation samples for cost
+_MIN_PAIRS_FOR_CORR = 10  # below this, skip the correlation check
+_DEFAULT_RNG_SEED = 42
 
 
 def _corr_se(expected_r: float, n_pairs: int) -> float:
@@ -259,6 +293,22 @@ def _corr_tolerance(expected_r: float, n_pairs: int, min_tol: float = 0.05, n_se
     """Compute SE-based tolerance for correlation checks."""
     se = _corr_se(expected_r, n_pairs)
     return max(n_se * se, min_tol)
+
+
+def _subsample_pairs(
+    idx1: np.ndarray, idx2: np.ndarray, rng: np.random.Generator, max_pairs: int = _MAX_CORR_PAIRS
+) -> tuple[np.ndarray, np.ndarray, int]:
+    """Cap (idx1, idx2) pair arrays at ``max_pairs`` via without-replacement sampling."""
+    n = len(idx1)
+    if n <= max_pairs:
+        return idx1, idx2, n
+    sel = rng.choice(n, max_pairs, replace=False)
+    return idx1[sel], idx2[sel], max_pairs
+
+
+def _extract_comp_vals(df_indexed: pd.DataFrame) -> dict[str, np.ndarray]:
+    """Pull A/C/E component arrays for both traits as numpy views (no copy)."""
+    return {f"{c}{t}": df_indexed[f"{c}{t}"].values for c in ("A", "C", "E") for t in (1, 2)}
 
 
 def _sib_counts_from_pairs(
@@ -295,8 +345,83 @@ def _sib_counts_from_pairs(
     }
 
 
+def _validate_half_sib_correlations(
+    sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+    comp_vals: dict[str, np.ndarray],
+    A_params: dict[int, float],
+    rng: np.random.Generator,
+    results: dict[str, Any],
+) -> None:
+    """Compute half-sib correlations for A, liability, and shared C.
+
+    Pooling rule:
+    - **A correlation** uses MHS ∪ PHS — both share kinship 0.25 for the
+      additive component, so pooling is a sample-size win. Expected: 0.25
+      (kinship), regardless of A's variance share.
+    - **Liability and shared-C correlations** use PHS only. Maternal
+      half-sibs share households, so MHS liability corr = 0.25·A + 1·C and
+      MHS shared_C ≠ 0; PHS gives the clean expected formulas (0.25·A and 0).
+    """
+    pooled_idx1 = np.concatenate([sibling_pairs["MHS"][0], sibling_pairs["PHS"][0]])
+    pooled_idx2 = np.concatenate([sibling_pairs["MHS"][1], sibling_pairs["PHS"][1]])
+    pooled_idx1, pooled_idx2, n_pooled = _subsample_pairs(pooled_idx1, pooled_idx2, rng)
+    phs_idx1, phs_idx2, n_phs = _subsample_pairs(sibling_pairs["PHS"][0], sibling_pairs["PHS"][1], rng)
+
+    expected_a = 0.25
+    if n_pooled >= _MIN_PAIRS_FOR_CORR:
+        for t in [1, 2]:
+            col = f"A{t}"
+            obs = safe_corrcoef(comp_vals[col][pooled_idx1], comp_vals[col][pooled_idx2])
+            tol = _corr_tolerance(expected_a, n_pooled)
+            ok = (A_params[t] == 0) if np.isnan(obs) else (abs(obs - expected_a) < tol)
+            results[f"half_sib_{col}_correlation"] = _result(
+                ok,
+                f"Half-sib (pooled MHS+PHS) {col} correlation: {obs:.4f} (expected: {expected_a}, tol: {tol:.4f})",
+                expected=expected_a,
+                observed=float(obs),
+                n_pairs=n_pooled,
+            )
+    else:
+        for t in [1, 2]:
+            results[f"half_sib_A{t}_correlation"] = _result(
+                True, f"Not enough pooled half-sib pairs ({n_pooled}) for A{t} correlation"
+            )
+
+    if n_phs >= _MIN_PAIRS_FOR_CORR:
+        for t in [1, 2]:
+            P1 = comp_vals[f"A{t}"][phs_idx1] + comp_vals[f"C{t}"][phs_idx1] + comp_vals[f"E{t}"][phs_idx1]
+            P2 = comp_vals[f"A{t}"][phs_idx2] + comp_vals[f"C{t}"][phs_idx2] + comp_vals[f"E{t}"][phs_idx2]
+            phs_pheno = safe_corrcoef(P1, P2)
+            results[f"half_sib_liability{t}_correlation"] = {
+                "observed": float(phs_pheno),
+                "details": f"PHS liability{t} correlation: {phs_pheno:.4f} (expected ~0.25·A{t})",
+                "n_pairs": n_phs,
+            }
+
+            c_col = f"C{t}"
+            obs_c = safe_corrcoef(comp_vals[c_col][phs_idx1], comp_vals[c_col][phs_idx2])
+            tol = _corr_tolerance(0.0, n_phs)
+            ok_c = True if np.isnan(obs_c) else abs(obs_c) < tol
+            results[f"half_sib_shared_C{t}"] = _result(
+                ok_c,
+                f"PHS shared C{t} correlation: {obs_c:.4f} (expected: ~0, tol: {tol:.4f})",
+                expected=0.0,
+                observed=float(obs_c),
+                n_pairs=n_phs,
+            )
+    else:
+        for t in [1, 2]:
+            results[f"half_sib_liability{t}_correlation"] = _result(
+                True, f"Not enough PHS pairs ({n_phs}) for liability{t} correlation"
+            )
+            results[f"half_sib_shared_C{t}"] = _result(True, f"Not enough PHS pairs ({n_phs}) for C{t} correlation")
+
+
 def validate_half_sibs(
-    df: pd.DataFrame, params: dict[str, Any], sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]]
+    df: pd.DataFrame,
+    params: dict[str, Any],
+    df_indexed: pd.DataFrame,
+    sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> dict[str, Any]:
     """Validate half-sibling structure under the mating-pair model.
 
@@ -305,16 +430,22 @@ def validate_half_sibs(
     zero-truncated Poisson mating model, both maternal and paternal
     half-sibs arise naturally when individuals have multiple partners.
 
+    Also computes half-sib variance-component correlations (A, liability,
+    shared C) — see ``_validate_half_sib_correlations`` for pooling rules.
+
     Args:
         df: Pedigree DataFrame with columns id, mother, father, twin.
-        params: Scenario parameters; requires key ``mating_lambda``.
+        params: Scenario parameters; requires keys ``mating_lambda``, ``A1``,
+            ``A2``, ``seed``.
+        df_indexed: Pedigree DataFrame indexed by ``id``; supplies the
+            variance-component arrays for the correlation checks.
         sibling_pairs: Dict with keys ``FS``, ``MHS``, ``PHS`` mapping to
             ``(idx1, idx2)`` row-index arrays.
 
     Returns:
         Dict of check-name to result dicts.
     """
-    results = {}
+    results: dict[str, Any] = {}
 
     sib_info = _sib_counts_from_pairs(sibling_pairs)
 
@@ -351,6 +482,11 @@ def validate_half_sibs(
         )
     else:
         results["offspring_with_half_sib"] = _result(True, "No non-twin offspring with siblings to check")
+
+    comp_vals = _extract_comp_vals(df_indexed)
+    A_params = {1: params["A1"], 2: params["A2"]}
+    rng = np.random.default_rng(params.get("seed", _DEFAULT_RNG_SEED))
+    _validate_half_sib_correlations(sibling_pairs, comp_vals, A_params, rng, results)
 
     return results
 
@@ -599,7 +735,7 @@ def _validate_mz_correlations(
     t2_arr = twin_partners[mask]
 
     mz_pheno_corr: dict[int, float | None] = {}
-    if len(t1_arr) >= 10:
+    if len(t1_arr) >= _MIN_PAIRS_FOR_CORR:
         idx1 = id_to_idx.reindex(t1_arr).values.astype(int)
         idx2 = id_to_idx.reindex(t2_arr).values.astype(int)
 
@@ -644,20 +780,11 @@ def _validate_dz_correlations(
     results: dict[str, Any],
 ) -> tuple[dict[int, float | None], int]:
     """Validate DZ sibling correlations. Returns (dz_pheno_corr, n_dz_pairs)."""
-    idx1, idx2 = full_sib_pairs
-
+    rng = np.random.default_rng(params.get("seed", _DEFAULT_RNG_SEED))
+    idx1, idx2, n_dz_pairs = _subsample_pairs(full_sib_pairs[0], full_sib_pairs[1], rng)
     dz_pheno_corr: dict[int, float | None] = {}
-    n_dz_pairs = len(idx1)
 
-    max_pairs = 5000
-    if n_dz_pairs > max_pairs:
-        rng = np.random.default_rng(params.get("seed", 42))
-        sel = rng.choice(n_dz_pairs, max_pairs, replace=False)
-        idx1 = idx1[sel]
-        idx2 = idx2[sel]
-        n_dz_pairs = max_pairs
-
-    if n_dz_pairs >= 10:
+    if n_dz_pairs >= _MIN_PAIRS_FOR_CORR:
         for t in [1, 2]:
             col = f"A{t}"
             dz_v1, dz_v2 = comp_vals[col][idx1], comp_vals[col][idx2]
@@ -686,7 +813,7 @@ def _validate_dz_correlations(
                 "n_pairs": n_dz_pairs,
             }
 
-    if n_dz_pairs < 10:
+    if n_dz_pairs < _MIN_PAIRS_FOR_CORR:
         for t in [1, 2]:
             results[f"dz_sibling_A{t}_correlation"] = _result(
                 True,
@@ -804,11 +931,7 @@ def validate_heritability(
     """
     results: dict[str, Any] = {}
     A_params = {1: params["A1"], 2: params["A2"]}
-
-    comp_vals = {}
-    for comp in ["A", "C", "E"]:
-        for t in [1, 2]:
-            comp_vals[f"{comp}{t}"] = df_indexed[f"{comp}{t}"].values
+    comp_vals = _extract_comp_vals(df_indexed)
     id_to_idx = pd.Series(np.arange(len(df_indexed)), index=df_indexed.index)
 
     mz_pheno_corr, n_mz_pairs = _validate_mz_correlations(
@@ -987,6 +1110,20 @@ def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_ind
     assort1 = params.get("assort1", 0.0)
     assort2 = params.get("assort2", 0.0)
 
+    # Per-gen AM (dict) is not currently validated — observed pairs span
+    # multiple generations with potentially different per-gen AM strengths,
+    # so a single-value tolerance check is ill-defined. Skip with a
+    # passing result. A future improvement: stratify pairs by generation
+    # and validate each cohort against its per-gen target.
+    if isinstance(assort1, dict) or isinstance(assort2, dict):
+        msg = (
+            "Per-generation assort1/assort2 (dict-valued); skipping pooled "
+            "mate-correlation check (would conflate cohort-varying targets)."
+        )
+        results["mate_corr_liability1"] = _result(True, msg)
+        results["mate_corr_liability2"] = _result(True, msg)
+        return results
+
     non_founders = df[df["mother"] != -1]
     if len(non_founders) == 0:
         results["mate_corr_liability1"] = _result(True, "No non-founders to check")
@@ -1066,18 +1203,19 @@ def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_ind
 _NE_TOLERANCE = 0.20  # ±20 % per master plan
 
 
-def validate_effective_size(stats: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
+def validate_effective_size(ne_stats: dict[str, Any] | None, params: dict[str, Any]) -> dict[str, Any]:
     """Validate Ne observed-vs-expected for the eight estimators.
 
-    Each estimator entry in ``stats["effective_size"]`` (as written by
+    Each estimator entry in ``ne_stats`` (as written by
     :func:`simace.analysis.stats.compute_effective_size`) supplies an
     ``expected`` field (``None`` under non-standard configs) and a
     scalar ``ne``.  A check passes when either ``expected`` is ``None``
     (vacuous), or ``abs(ne / expected − 1) < 0.20``.
 
     Args:
-        stats: Loaded ``phenotype_stats.yaml`` dict.  Returns an empty
-            dict when ``effective_size`` is absent.
+        ne_stats: Loaded ``effective_size.yaml`` dict (estimator-keyed
+            mapping).  Returns an empty dict when input is ``None`` or
+            empty.
         params: Per-rep params.yaml dict (unused, accepted for parity
             with other validators).
 
@@ -1086,8 +1224,8 @@ def validate_effective_size(stats: dict[str, Any], params: dict[str, Any]) -> di
         ``observed`` / ``details`` fields.
     """
     del params  # accepted for API parity
-    es = stats.get("effective_size")
-    if es is None:
+    es = ne_stats
+    if not es:
         return {}
     out: dict[str, Any] = {}
     for name, entry in es.items():
@@ -1147,13 +1285,15 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
 
     df_indexed = df.set_index("id")
 
-    all_pairs = PedigreeGraph(df).extract_pairs(max_degree=1)
+    # max_degree=2 is required to populate MHS/PHS (kinship 1/8 = degree 2);
+    # min_kinship=0.125 keeps MHS/PHS (=0.125) and skips 1C (=0.0625).
+    all_pairs = PedigreeGraph(df).extract_pairs(max_degree=2, min_kinship=0.125)
     sibling_pairs = {k: all_pairs[k] for k in ("FS", "MHS", "PHS")}
 
     results = {
         "structural": validate_structural(df, params),
         "twins": validate_twins(df, params, df_indexed),
-        "half_sibs": validate_half_sibs(df, params, sibling_pairs),
+        "half_sibs": validate_half_sibs(df, params, df_indexed, sibling_pairs),
         "statistical": validate_statistical(df, params, df_indexed),
         "heritability": validate_heritability(df, params, df_indexed, sibling_pairs),
         "population": validate_population(df, params),

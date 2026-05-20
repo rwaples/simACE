@@ -181,6 +181,20 @@ class TestComputeMateCorrelation:
         result = compute_mate_correlation(df)
         assert result["n_pairs"] == 0
 
+    def test_dangling_parent_links_are_ignored(self):
+        """Ascertainment dropout can sever parent links; skip incomplete mating pairs."""
+        df = pd.DataFrame(
+            {
+                "id": [0, 1, 2, 3, 4, 5],
+                "mother": [-1, -1, -1, -1, 0, 2],
+                "father": [-1, -1, -1, -1, -1, 3],
+                "liability1": [0.0, 1.0, 2.0, 3.0, 4.0, 5.0],
+                "liability2": [5.0, 4.0, 3.0, 2.0, 1.0, 0.0],
+            }
+        )
+        result = compute_mate_correlation(df)
+        assert result["n_pairs"] == 0
+
 
 class TestPlotMateCorrelation:
     def test_runs_without_error(self, tmp_path):

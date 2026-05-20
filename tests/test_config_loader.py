@@ -132,17 +132,17 @@ class TestFlattenPhenotype:
 
 
 class TestFlattenOtherSections:
-    """Censoring, sampling, analysis sections."""
+    """Censoring, ascertainment, analysis sections."""
 
     def test_censoring(self):
         d = {"censoring": {"max_age": 80, "death_scale": 164, "death_rho": 2.73}}
         result = _flatten_hierarchical(d)
         assert result == {"censor_age": 80, "death_scale": 164, "death_rho": 2.73}
 
-    def test_sampling(self):
-        d = {"sampling": {"N_sample": 5000, "case_ascertainment_ratio": 2.0}}
+    def test_ascertainment(self):
+        d = {"ascertainment": {"N_sample": 5000, "case_ascertainment_ratio": 2.0, "dropout_rate": 0.1}}
         result = _flatten_hierarchical(d)
-        assert result == {"N_sample": 5000, "case_ascertainment_ratio": 2.0}
+        assert result == {"N_sample": 5000, "case_ascertainment_ratio": 2.0, "dropout_rate": 0.1}
 
     def test_analysis(self):
         d = {"analysis": {"max_degree": 3, "estimate_inbreeding": True}}
@@ -204,6 +204,8 @@ class TestRoundTrip:
             "plot_format",
             "drop_from",
             "use_gene_drop",
+            "blended_diagnosis",
+            "mating_model",
             "mating_lambda",
             "p_mztwin",
             "assort1",
@@ -232,9 +234,10 @@ class TestRoundTrip:
             "death_rho",
             "N_sample",
             "case_ascertainment_ratio",
-            "pedigree_dropout_rate",
+            "dropout_rate",
             "max_degree",
             "estimate_inbreeding",
+            "skip_ne_coancestry",
             "tstrait_num_causal",
             "tstrait_frac_causal",
             "tstrait_maf_threshold",
@@ -358,7 +361,7 @@ class TestGenCensoringCoercion:
                     "death_scale": 164,
                     "death_rho": 2.73,
                 },
-                "sampling": {"N_sample": 100, "case_ascertainment_ratio": 1.0, "pedigree_dropout_rate": 0.0},
+                "ascertainment": {"N_sample": 100, "case_ascertainment_ratio": 1.0, "dropout_rate": 0.0},
                 "analysis": {"max_degree": 2, "estimate_inbreeding": False},
                 "tstrait": {
                     "num_causal": 0,
@@ -391,6 +394,25 @@ class TestGenCensoringCoercion:
         """The shipped _default.yaml round-trips to int keys via the loader."""
         flat = resolve_defaults("config")
         assert all(isinstance(k, int) for k in flat["gen_censoring"])
+
+    def test_resolve_defaults_coerces_per_gen_assort_keys(self, tmp_path):
+        """Per-gen assort1/assort2 dicts must be int-keyed downstream so that
+        resolve_per_gen_param's sorted-key comparison does not crash on str."""
+        body = {
+            "defaults": {
+                "seed": 1,
+                "pedigree": {
+                    "assort1": {"0": 0.0, "4": 0.4},
+                    "assort2": {"0": 0.0, "4": 0.2},
+                },
+            }
+        }
+        self._write(tmp_path, "_default.yaml", body)
+        flat = resolve_defaults(tmp_path)
+        assert flat["assort1"] == {0: 0.0, 4: 0.4}
+        assert flat["assort2"] == {0: 0.0, 4: 0.2}
+        assert all(isinstance(k, int) for k in flat["assort1"])
+        assert all(isinstance(k, int) for k in flat["assort2"])
 
 
 class TestPedigreeConfigValidation:
@@ -448,7 +470,7 @@ class TestPedigreeConfigValidation:
                     "death_scale": 164,
                     "death_rho": 2.73,
                 },
-                "sampling": {"N_sample": 0, "case_ascertainment_ratio": 1.0, "pedigree_dropout_rate": 0.0},
+                "ascertainment": {"N_sample": 0, "case_ascertainment_ratio": 1.0, "dropout_rate": 0.0},
                 "analysis": {"max_degree": 2, "estimate_inbreeding": False},
                 "tstrait": {
                     "num_causal": 0,

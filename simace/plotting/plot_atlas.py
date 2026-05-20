@@ -442,7 +442,7 @@ def assemble_atlas(
         plot_ext: Image extension (default ``"png"``).
         scenario_params: If provided, a dict with key ``"scenario"`` and
             parameter names. A title page with all parameters is rendered first.
-        stats_data: If provided, a list of phenotype_stats dicts (one per rep).
+        stats_data: If provided, a list of stats report dicts (one per replicate).
             A Table 1 page is rendered after the title page.
     """
     output_path = Path(output_path)

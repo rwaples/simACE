@@ -23,11 +23,11 @@ def _run_snakemake():
     input_h2 = snakemake.params.input_h2
 
     pedigree_paths = _regroup(list(snakemake.input.pedigree), reps_per_scenario)
-    phenotype_stats_paths = _regroup(list(snakemake.input.phenotype_stats), reps_per_scenario)
+    stats_report_paths = _regroup(list(snakemake.input.stats_report), reps_per_scenario)
 
     compare_observed_vs_liability_h2(
         pedigree_paths_per_scenario=pedigree_paths,
-        phenotype_stats_paths_per_scenario=phenotype_stats_paths,
+        stats_report_paths_per_scenario=stats_report_paths,
         labels=labels,
         output_path=Path(snakemake.output[0]),
         trait=1,

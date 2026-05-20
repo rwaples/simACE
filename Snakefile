@@ -7,10 +7,14 @@ from workflow.common import (
     get_scenarios_for_folder,
     get_all_folders,
     get_folder_validations,
+    get_scenario_simulation_outputs,
     get_scenario_sim_outputs,
     plot_filenames,
+    _pre_ascertainment_pedigree_input,
     _scale_mem,
+    _scale_mem_effective_size,
     _scale_runtime,
+    effective_size_basenames,
     phenotype_basenames,
     validation_basenames,
     load_folder_configs,
@@ -21,6 +25,7 @@ load_folder_configs(config)
 PLOT_EXT = config["defaults"].get("plot_format", "png")
 PHENOTYPE_PLOTS = plot_filenames(phenotype_basenames(), PLOT_EXT)
 VALIDATION_PLOTS = plot_filenames(validation_basenames(), PLOT_EXT)
+EFFECTIVE_SIZE_PLOTS = plot_filenames(effective_size_basenames(), PLOT_EXT)
 
 
 wildcard_constraints:
@@ -32,11 +37,11 @@ wildcard_constraints:
 
 include: "workflow/rules/simace/targets.smk"
 include: "workflow/rules/simace/simulate.smk"
-include: "workflow/rules/simace/dropout.smk"
 include: "workflow/rules/simace/phenotype.smk"
-include: "workflow/rules/simace/sample.smk"
+include: "workflow/rules/simace/ascertainment.smk"
 include: "workflow/rules/simace/validate.smk"
 include: "workflow/rules/simace/stats.smk"
+include: "workflow/rules/simace/effective_size.smk"
 include: "workflow/rules/simace/utils.smk"
 include: "workflow/rules/simace/examples.smk"
 include: "workflow/rules/simace/tskit_preprocess.smk"

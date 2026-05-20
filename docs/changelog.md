@@ -7,6 +7,39 @@ simACE uses [CalVer](https://calver.org/) versioning (`YYYY.MM`) derived from gi
 
 ## Unreleased
 
+### Changed
+
+- **K-free coancestry-rate Ne (Ne_C).** `compute_all_ne` now streams the
+  per-generation mean kinship `θ̄_g` directly from the kinship DP instead
+  of materializing the full sparse `K` matrix. The new
+  `PedigreeGraph.per_gen_mean_kinship(min_kinship=0.0)` method exposes
+  this path (cached, keyed by `min_kinship`). At N=100K (per-gen) on the
+  reference workstation: peak RSS drops ~30 % (12 → 9 GB) and `K`'s
+  ~3 GB CSC is never built. Above N≈3M the streaming path is the only
+  viable one — the K-build's int32 CSC indices overflow.
+- **Config flag rename: `skip_full_kinship_matrix` → `skip_ne_coancestry`.**
+  Hard rename across all simACE configs, workflow scripts, and CLI
+  surfaces; no deprecation alias. Old name was misleading once Ne_C no
+  longer requires `K` — the flag now describes what it actually does
+  (skip the Ne_C estimator and its DP run). External users of simACE
+  YAMLs must update their scenarios.
+- **pedigree-graph pin bumped twice: `v0.2.0 → v0.3.0 → v0.4.0`.**
+  v0.3.0 widens `row_start` in the DP kernel from int32 to int64 to
+  support N > ~525K at `init_cap_per_row=4096` (where the flat-buffer
+  offset crosses 2³¹). v0.4.0 adds the streaming-θ kernel
+  (`_compute_theta_per_gen`, `_per_gen_mean_kinship_from_dp`) and the
+  `pg.per_gen_mean_kinship()` wrapper.
+
+### Added
+
+- New bench scenarios in `config/ne_coancestry_stream.yaml` (`stream100K`,
+  `stream500K`) exercising the K-free Ne_C path end-to-end through the
+  pipeline. Per-rep wall time at 100K is ~73 s.
+- `ne_coancestry(pg, K=None, theta_per_gen=None)` accepts a
+  pre-streamed θ̄_g directly when callers want to skip both the K-build
+  and the streaming DP (e.g., they already have θ̄_g from
+  `compute_all_ne`).
+
 ## 2026.05.1 — 2026-05-07
 
 ### Highlights
@@ -105,7 +138,7 @@ workflow scripts, and plotting.
   accepts an optional third series via
   `pergen_paths_per_trajectory` / `pergen_label`; the existing two-series
   call signature is unchanged.
-- `simace.phenotyping._prototypes.bimodal_phenotype` (`phenotype_mixture_cip`,
+- `simace.phenotype._prototypes.bimodal_phenotype` (`phenotype_mixture_cip`,
   `phenotype_mixture_cure_frailty`, `phenotype_two_threshold`) ported to
   the mode-aware standardize API (`StandardizeMode | bool`, with
   `per_generation` rejected since these prototypes don't take a

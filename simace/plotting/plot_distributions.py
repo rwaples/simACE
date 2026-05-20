@@ -12,6 +12,9 @@ __all__ = [
     "COLOR_MALE",
     "plot_censoring_windows",
     "plot_cumulative_incidence",
+    "plot_cumulative_incidence_aj",
+    "plot_cumulative_incidence_aj_by_sex",
+    "plot_cumulative_incidence_aj_by_sex_generation",
     "plot_cumulative_incidence_by_sex",
     "plot_cumulative_incidence_by_sex_generation",
     "plot_death_age_distribution",
@@ -452,6 +455,188 @@ def plot_cumulative_incidence_by_sex_generation(
                 ax.set_title(f"Gen {gen_num}", fontsize=12)
             if col == 0:
                 ax.set_ylabel(f"Trait {trait_num}\nCumulative Incidence")
+            if row == len(traits) - 1:
+                ax.set_xlabel("Age")
+            if col == len(gen_keys) - 1:
+                ax.legend(loc="lower right", fontsize=8)
+
+    finalize_plot(output_path, scenario=scenario)
+
+
+def plot_cumulative_incidence_aj(
+    all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = ""
+) -> None:
+    """Plot Aalen-Johansen disease + death CIFs, with empirical overlay."""
+    stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_aj")]
+    if not stats_with_data:
+        logger.warning("Skipping cumulative_incidence_aj: no data in stats")
+        save_placeholder_plot(output_path, "No Aalen-Johansen data (re-run stats)")
+        return
+
+    _fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+
+    for trait_num, ax in zip([1, 2], axes, strict=True):
+        key = f"trait{trait_num}"
+        ages = np.array(stats_with_data[0]["cumulative_incidence_aj"][key]["ages"])
+        aj_disease = np.array([s["cumulative_incidence_aj"][key]["aj_values"] for s in stats_with_data])
+        aj_death = np.array([s["cumulative_incidence_aj"][key]["aj_death_values"] for s in stats_with_data])
+
+        mean_disease = aj_disease.mean(axis=0)
+        mean_death = aj_death.mean(axis=0)
+
+        ax.plot(ages, mean_disease, color=COLOR_AFFECTED, linewidth=1.4, label="AJ disease")
+        if len(stats_with_data) > 1:
+            ax.fill_between(ages, aj_disease.min(axis=0), aj_disease.max(axis=0), alpha=0.18, color=COLOR_AFFECTED)
+
+        ax.plot(ages, mean_death, color=COLOR_UNAFFECTED, linewidth=1.2, linestyle="--", label="AJ death")
+        if len(stats_with_data) > 1:
+            ax.fill_between(ages, aj_death.min(axis=0), aj_death.max(axis=0), alpha=0.12, color=COLOR_UNAFFECTED)
+
+        emp_stats = [s for s in stats_with_data if s.get("cumulative_incidence")]
+        if emp_stats:
+            emp_key = "observed_values" if "observed_values" in emp_stats[0]["cumulative_incidence"][key] else "values"
+            emp = np.array([s["cumulative_incidence"][key][emp_key] for s in emp_stats])
+            ax.plot(ages, emp.mean(axis=0), color=COLOR_OBSERVED, linewidth=1.0, alpha=0.85, label="Empirical")
+
+        F_d = mean_disease[-1]
+        F_x = mean_death[-1]
+        S_terminal = 1.0 - F_d - F_x
+        ax.text(
+            0.03,
+            0.97,
+            f"AJ disease: {F_d:.1%}\nAJ death: {F_x:.1%}\nSurvival: {S_terminal:.1%}",
+            transform=ax.transAxes,
+            ha="left",
+            va="top",
+            fontsize=9,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.85),
+        )
+
+        ax.set_title(f"Trait {trait_num}")
+        ax.set_xlabel("Age")
+        ax.set_xlim(0, censor_age)
+        ax.legend(loc="lower right", fontsize=9)
+
+    axes[0].set_ylabel("Cumulative Incidence (Aalen-Johansen)")
+    finalize_plot(output_path, scenario=scenario)
+
+
+def plot_cumulative_incidence_aj_by_sex(
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+) -> None:
+    """Plot Aalen-Johansen disease CIF stratified by sex."""
+    stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_aj_by_sex")]
+    if not stats_with_data:
+        logger.warning("Skipping cumulative_incidence_aj_by_sex: no data in stats")
+        save_placeholder_plot(output_path, "No sex-stratified AJ data")
+        return
+
+    _fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+
+    for trait_num, ax in zip([1, 2], axes, strict=True):
+        key = f"trait{trait_num}"
+
+        for sex_label, display, color in [
+            ("female", "Female", COLOR_FEMALE),
+            ("male", "Male", COLOR_MALE),
+        ]:
+            rep_data = [
+                s["cumulative_incidence_aj_by_sex"][key][sex_label]
+                for s in stats_with_data
+                if sex_label in s["cumulative_incidence_aj_by_sex"].get(key, {})
+            ]
+            if not rep_data:
+                continue
+
+            ages = np.array(rep_data[0]["ages"])
+            all_values = np.array([d["aj_values"] for d in rep_data])
+            mean_values = all_values.mean(axis=0)
+            mean_n = np.mean([d["n"] for d in rep_data])
+            mean_prev = np.mean([d["prevalence"] for d in rep_data])
+
+            ax.plot(
+                ages,
+                mean_values,
+                color=color,
+                linewidth=1.4,
+                label=f"{display} ({mean_prev:.1%}, n={int(mean_n)})",
+            )
+
+        ax.set_title(f"Trait {trait_num}")
+        ax.set_xlabel("Age")
+        ax.legend(loc="lower right", fontsize=9)
+
+    axes[0].set_ylabel("Cumulative Incidence (Aalen-Johansen)")
+    finalize_plot(output_path, scenario=scenario)
+
+
+def plot_cumulative_incidence_aj_by_sex_generation(
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+) -> None:
+    """Plot Aalen-Johansen disease CIF stratified by sex and generation."""
+    stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_aj_by_sex_generation")]
+    if not stats_with_data:
+        logger.warning("Skipping cumulative_incidence_aj_by_sex_generation: no data in stats")
+        save_placeholder_plot(output_path, "No sex/generation AJ data")
+        return
+
+    first_trait = stats_with_data[0]["cumulative_incidence_aj_by_sex_generation"].get("trait1", {})
+    gen_keys = sorted(first_trait.keys())
+    if not gen_keys:
+        save_placeholder_plot(output_path, "No generations")
+        return
+
+    traits = [1, 2]
+    _fig, axes = plt.subplots(
+        len(traits),
+        len(gen_keys),
+        figsize=(5 * len(gen_keys), 4 * len(traits)),
+        sharex=True,
+        sharey=True,
+        squeeze=False,
+    )
+
+    for col, gk in enumerate(gen_keys):
+        gen_num = gk.replace("gen", "")
+
+        for row, trait_num in enumerate(traits):
+            ax = axes[row, col]
+            key = f"trait{trait_num}"
+
+            for sex_label, display, color in [
+                ("female", "Female", COLOR_FEMALE),
+                ("male", "Male", COLOR_MALE),
+            ]:
+                rep_data = [
+                    s["cumulative_incidence_aj_by_sex_generation"][key][gk][sex_label]
+                    for s in stats_with_data
+                    if sex_label in s["cumulative_incidence_aj_by_sex_generation"].get(key, {}).get(gk, {})
+                ]
+                if not rep_data:
+                    continue
+
+                ages = np.array(rep_data[0]["ages"])
+                all_values = np.array([d["aj_values"] for d in rep_data])
+                mean_values = all_values.mean(axis=0)
+                mean_n = np.mean([d["n"] for d in rep_data])
+                mean_prev = np.mean([d["prevalence"] for d in rep_data])
+
+                ax.plot(
+                    ages,
+                    mean_values,
+                    color=color,
+                    linewidth=1.4,
+                    label=f"{display} ({mean_prev:.1%}, n={int(mean_n)})",
+                )
+
+            if row == 0:
+                ax.set_title(f"Gen {gen_num}", fontsize=12)
+            if col == 0:
+                ax.set_ylabel(f"Trait {trait_num}\nAJ Cumulative Incidence")
             if row == len(traits) - 1:
                 ax.set_xlabel("Age")
             if col == len(gen_keys) - 1:

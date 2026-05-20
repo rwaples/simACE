@@ -13,20 +13,25 @@ config has non-standard knobs such as assortative mating).
 from __future__ import annotations
 
 __all__ = [
+    "cli",
     "compute_effective_size",
+    "family_size_variance_expected_ztp",
+    "main",
     "ne_v_expected_ztp",
     "regression_estimator_regime_ok",
     "theoretical_expectations",
 ]
 
+import argparse
 import math
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
+import pandas as pd
 from pedigree_graph import PedigreeGraph, compute_all_ne
 
-if TYPE_CHECKING:
-    import pandas as pd
-
+from simace.core.cli_base import add_logging_args, init_logging
+from simace.core.pedigree_filter import filter_pedigree_to_observed
+from simace.core.yaml_io import dump_yaml, load_yaml
 
 # Bias on regression-based Ne estimators (Ne_I, Ne_C, Ne_CT) scales as
 # ``Ne_V / (N · G²)`` due to Jensen inversion of a noisy slope; we mark
@@ -83,6 +88,44 @@ def ne_v_expected_ztp(n: float, mating_lambda: float) -> float:
     return float(n) / (1.0 + 2.0 * var_m / (e_m * e_m))
 
 
+def family_size_variance_expected_ztp(mating_lambda: float) -> dict[str, float]:
+    """Closed-form ``(v, cov)`` per-sex-quadrant family-size decomposition.
+
+    Splits :func:`ne_v_expected_ztp`'s total offspring-count variance
+    ``V(k) = 2 + 4 · Var[m] / E[m]²`` into the per-(parent-sex ×
+    offspring-sex) variance ``v`` and the between-offspring-sex
+    covariance ``cov`` reported by :func:`pedigree_graph.ne_variance_family_size`.
+
+    Under balanced 50/50 offspring sex assignment within each mating
+    (``k_M | k ~ Binomial(k, 0.5)``), the law of total variance gives
+
+        ``v   = E[k]/4 + V(k)/4 = 1 + Var[m] / E[m]²``,
+        ``cov = -E[k]/4 + V(k)/4 = Var[m] / E[m]²``,
+
+    so that ``2 · v + 2 · cov = V(k)`` and downstream Ne_V is consistent
+    with :func:`ne_v_expected_ztp`.  All four quadrants
+    (``v_mm = v_mf = v_fm = v_ff``) share the same closed-form ``v``,
+    and both covariances (``cov_m = cov_f``) share the same ``cov``,
+    because the parent and offspring sex labels are exchangeable under
+    the balanced-mating regime.
+
+    Limits:
+        * ``λ → 0⁺``: ``v = 1``, ``cov = 0`` (m=1 degenerate; pure
+          binomial sex split, no overdispersion).
+        * ``λ → ∞``: ``v = 1``, ``cov = 0`` (Poisson limit).
+        * Default ``λ = 0.5``: ``v ≈ 1.180``, ``cov ≈ 0.180``.
+
+    Returns a dict with keys ``"v"`` and ``"cov"``.
+    """
+    if mating_lambda <= 0:
+        return {"v": 1.0, "cov": 0.0}
+    p = 1.0 - math.exp(-mating_lambda)
+    e_m = mating_lambda / p
+    var_m = e_m * (1.0 + mating_lambda) - e_m * e_m
+    ratio = var_m / (e_m * e_m)
+    return {"v": 1.0 + ratio, "cov": ratio}
+
+
 def regression_estimator_regime_ok(n: float, g_ped: int, ne_v: float) -> bool:
     """Whether the regression-based Ne estimators are reliable at this scale.
 
@@ -132,21 +175,30 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
     if config is None:
         return dict.fromkeys(_NE_KEYS)
 
-    assort1 = float(config.get("assort1") or 0.0)
-    assort2 = float(config.get("assort2") or 0.0)
-    if assort1 != 0.0 or assort2 != 0.0:
-        return dict.fromkeys(_NE_KEYS)
-
     N = config.get("N")
     if N is None:
         return dict.fromkeys(_NE_KEYS)
 
-    mating_lambda = config.get("mating_lambda")
-    if mating_lambda is None:
-        return dict.fromkeys(_NE_KEYS)
-
+    mating_model = config.get("mating_model", "standard")
     n = float(N)
-    ne_v = ne_v_expected_ztp(n, float(mating_lambda))
+
+    if mating_model == "wright_fisher":
+        # Sex-structured idealized WF: per-individual offspring count has
+        # mean 2 and variance ≈ 2 (Poisson(2)), giving Ne_V → N via
+        # Crow-Kimura. assort1/assort2/mating_lambda are no-ops.  The
+        # regression-based estimators still carry the same Jensen-bias
+        # gate; under WF the gate reduces to G_ped² ≥ 120.
+        ne_v = n
+    else:
+        # Standard model: AM nullifies expectations; mating_lambda required.
+        assort1 = float(config.get("assort1") or 0.0)
+        assort2 = float(config.get("assort2") or 0.0)
+        if assort1 != 0.0 or assort2 != 0.0:
+            return dict.fromkeys(_NE_KEYS)
+        mating_lambda = config.get("mating_lambda")
+        if mating_lambda is None:
+            return dict.fromkeys(_NE_KEYS)
+        ne_v = ne_v_expected_ztp(n, float(mating_lambda))
 
     g_ped = config.get("G_ped")
     regression_ok = g_ped is not None and regression_estimator_regime_ok(n, int(g_ped), ne_v)
@@ -167,6 +219,7 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
 def compute_effective_size(
     pedigree: pd.DataFrame | PedigreeGraph,
     config: dict[str, Any] | None = None,
+    skip_ne_coancestry: bool = False,
 ) -> dict[str, dict[str, Any]]:
     """Run all eight Ne estimators on ``pedigree`` and serialize to dicts.
 
@@ -177,6 +230,10 @@ def compute_effective_size(
             constructed one for relationship extraction.
         config: Per-rep params (e.g. loaded from ``params.yaml``).
             Used solely to derive theoretical expectations.
+        skip_ne_coancestry: forwarded to :func:`compute_all_ne`.
+            When True, ``ne_coancestry`` is reported as None (skipped)
+            and the full sparse kinship matrix is never built — required
+            on very large pedigrees where K would OOM.
 
     Returns:
         Dict keyed on estimator name; each value is the matching
@@ -184,11 +241,70 @@ def compute_effective_size(
         field (``float`` or ``None``).
     """
     pg = pedigree if isinstance(pedigree, PedigreeGraph) else PedigreeGraph(pedigree)
-    raw = compute_all_ne(pg)
+    raw = compute_all_ne(pg, skip_ne_coancestry=skip_ne_coancestry)
     expected = theoretical_expectations(config)
+    # Hill 1979's closed-form Ne_V passthrough only applies under the
+    # strictly-discrete simACE simulator (L = 1).  When pg.birth_year is
+    # set, ne_hill_overlapping computes the true overlapping-generation
+    # form (Hill 1979 eq. 10) with a non-trivial L; no analytic
+    # expectation is available, so the validator passes vacuously.
+    if pg.birth_year is not None:
+        expected["ne_hill_overlapping"] = None
     out: dict[str, dict[str, Any]] = {}
     for name, result in raw.items():
         d = result.to_dict()
         d["expected"] = expected.get(name)
         out[name] = d
     return out
+
+
+def main(
+    pedigree_path: str,
+    phenotype_path: str,
+    params_path: str,
+    output_path: str,
+    skip_ne_coancestry: bool = False,
+) -> None:
+    """Compute Ne for one rep and write ``effective_size.yaml``.
+
+    Reads ``pedigree_path`` and ``phenotype_path``, restricts the pedigree to
+    observed (phenotyped) IDs plus their ancestor closure within
+    ``pedigree_path`` (so kinship arithmetic still works through pre-phenotyping
+    ancestors), builds a :class:`PedigreeGraph`, runs
+    :func:`compute_effective_size`, and dumps the YAML-ready dict to
+    ``output_path``.
+    """
+    df_ped = pd.read_parquet(pedigree_path)
+    df_phe = pd.read_parquet(phenotype_path)
+    params = load_yaml(params_path)
+
+    df_observed = filter_pedigree_to_observed(df_ped, df_phe["id"].to_numpy())
+    pg = PedigreeGraph(df_observed)
+    result = compute_effective_size(pg, config=params, skip_ne_coancestry=skip_ne_coancestry)
+
+    dump_yaml(result, output_path)
+
+
+def cli() -> None:
+    """Argparse entry point for running outside Snakemake."""
+    parser = argparse.ArgumentParser(description="Compute Ne estimators")
+    add_logging_args(parser)
+    parser.add_argument("--pedigree", required=True, help="Pedigree parquet (post-dropout)")
+    parser.add_argument("--phenotype", required=True, help="Sampled phenotype parquet (defines observed set)")
+    parser.add_argument("--params", required=True, help="Per-rep params.yaml")
+    parser.add_argument("--output", required=True, help="Output effective_size.yaml")
+    parser.add_argument(
+        "--skip-full-kinship-matrix",
+        dest="skip_ne_coancestry",
+        action="store_true",
+        help="Skip building the full sparse kinship matrix; ne_coancestry is reported as None.",
+    )
+    args = parser.parse_args()
+    init_logging(args)
+    main(
+        args.pedigree,
+        args.phenotype,
+        args.params,
+        args.output,
+        skip_ne_coancestry=args.skip_ne_coancestry,
+    )

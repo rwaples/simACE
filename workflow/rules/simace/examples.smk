@@ -200,8 +200,8 @@ rule compare_observed_vs_liability_h2:
             for scen in OBSERVED_VS_LIABILITY_SCENARIOS
             for rep in range(1, get_param(config, scen, "replicates") + 1)
         ],
-        phenotype_stats=lambda w: [
-            f"results/examples/{scen}/rep{rep}/phenotype_stats.yaml"
+        stats_report=lambda w: [
+            f"results/examples/{scen}/rep{rep}/stats_report.yaml"
             for scen in OBSERVED_VS_LIABILITY_SCENARIOS
             for rep in range(1, get_param(config, scen, "replicates") + 1)
         ],
@@ -342,7 +342,7 @@ rule compare_increasing_e_components_by_gen:
 rule compare_increasing_e_prevalence:
     input:
         lambda w: [
-            f"results/examples/{scen}/rep{rep}/phenotype_stats.yaml"
+            f"results/examples/{scen}/rep{rep}/stats_report.yaml"
             for traj in INCREASING_E_TRAJECTORIES
             for scen in (f"{traj}_std", f"{traj}_nostd", f"{traj}_pergen")
             for rep in range(1, get_param(config, scen, "replicates") + 1)

@@ -1,0 +1,393 @@
+# EPIMIGHT h2 bias scenarios
+#
+# Motivated by an upward bias in EPIMIGHT h2 estimates on registry ADHD data,
+# with bias greater in 1C than in FS pairs. Each scenario isolates one
+# candidate mechanism. Trait1 is the ADHD-like focal trait throughout.
+#
+# Common: N=1M, G_sim=20 (12 burn-in), G_ped=8, G_pheno=3, no censoring,
+# adult/ltm phenotype model.
+
+ref:
+  # Reference: no AM, no ascertainment, no censoring.
+  seed: 80001
+  N: 1000000
+  G_sim: 20
+  G_ped: 8
+  G_pheno: 3
+  replicates: 1
+  pedigree:
+    p_mztwin: 0
+    assort1: 0
+    assort2: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.5
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
+  analysis:
+    skip_ne_coancestry: true
+
+am:
+  # Assortative mating: within-trait spousal r=0.35, cross-trait spousal r=0.21.
+  # Cross-AM is pinned via assort_matrix because the rho_w-mediated default
+  # (0.25 * 0.35 = 0.0875) is below the empirical ADHD/AUT cross-spouse value.
+  seed: 80002
+  N: 1000000
+  G_sim: 20
+  G_ped: 8
+  G_pheno: 3
+  replicates: 1
+  pedigree:
+    p_mztwin: 0
+    assort1: 0.35
+    assort2: 0.35
+    assort_matrix: [[0.35, 0.21], [0.21, 0.35]]
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.5
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
+  analysis:
+    skip_ne_coancestry: true
+
+am_proxy:
+  # Stratification-via-AM: trait2 acts as a high-h2, high-prevalence,
+  # high-AM proxy that drags trait1 through cross-trait AM and rA, mimicking
+  # the kinship-independent same-stratum covariance produced by population
+  # stratification. Cross-AM auto-computed via copula path (~0.25).
+  seed: 80003
+  N: 1000000
+  G_sim: 20
+  G_ped: 8
+  G_pheno: 3
+  replicates: 1
+  pedigree:
+    p_mztwin: 0
+    assort1: 0.0
+    assort2: 0.5
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.7
+      C: 0.0
+      E: 0.3
+    rA: 0.75
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.5
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
+  analysis:
+    skip_ne_coancestry: true
+
+ascertain:
+  # Case-enriched ascertainment: subsample 1.5M of ~3M phenotyped (G_pheno=3 x N)
+  # with 1.5x oversampling of trait1 cases.
+  seed: 80004
+  N: 1000000
+  G_sim: 20
+  G_ped: 8
+  G_pheno: 3
+  replicates: 1
+  pedigree:
+    p_mztwin: 0
+    assort1: 0
+    assort2: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.5
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
+  ascertainment:
+    N_sample: 1500000
+    case_ascertainment_ratio: 1.5
+  analysis:
+    skip_ne_coancestry: true
+
+shared_env:
+  # Reference + shared family environment (C=0.2): tests whether nuclear-family
+  # shared C produces a different bias signature from AM. C is shared only
+  # within nuclear sibships in simACE — 1C share zero C by construction.
+  seed: 80005
+  N: 1000000
+  G_sim: 20
+  G_ped: 8
+  G_pheno: 3
+  replicates: 1
+  pedigree:
+    p_mztwin: 0
+    assort1: 0
+    assort2: 0
+    trait1:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+    trait2:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+    rA: 0.5
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
+  analysis:
+    skip_ne_coancestry: true
+
+am_t1:
+  # Single-trait AM: trait 1 has spousal r=0.35, trait 2 has none. Cross-trait
+  # AM auto-computed via the single-trait copula path (rho_w-mediated).
+  seed: 80006
+  N: 1000000
+  G_sim: 20
+  G_ped: 8
+  G_pheno: 3
+  replicates: 1
+  pedigree:
+    p_mztwin: 0
+    assort1: 0.35
+    assort2: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.5
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
+  analysis:
+    skip_ne_coancestry: true
+
+am_plus_c:
+  # AM stacked on household environment: tests whether the AM gradient and
+  # the nuclear-family C signature (mHS >> pHS) add linearly or interact.
+  # Most realistic combo for registry ADHD where both mechanisms plausibly
+  # operate. assort_matrix same as `am`; A/C/E split like `shared_env`.
+  seed: 80007
+  N: 1000000
+  G_sim: 20
+  G_ped: 8
+  G_pheno: 3
+  replicates: 1
+  pedigree:
+    p_mztwin: 0
+    assort1: 0.35
+    assort2: 0.35
+    assort_matrix: [[0.35, 0.21], [0.21, 0.35]]
+    trait1:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+    trait2:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+    rA: 0.5
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
+  analysis:
+    skip_ne_coancestry: true
+
+ascertain_strong:
+  # Strong case-control ascertainment: N_sample=300k of ~3M phenotyped, with
+  # ratio=10 oversampling. Expected sample case fraction ~34%, matching real
+  # case-control regime. Tests whether ascertainment alone produces a 1C/FS
+  # gradient at empirically realistic enrichment (the prior `ascertain` at
+  # 1.5x was null).
+  seed: 80008
+  N: 1000000
+  G_sim: 20
+  G_ped: 8
+  G_pheno: 3
+  replicates: 1
+  pedigree:
+    p_mztwin: 0
+    assort1: 0
+    assort2: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.5
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
+  ascertainment:
+    N_sample: 300000
+    case_ascertainment_ratio: 10
+  analysis:
+    skip_ne_coancestry: true
+

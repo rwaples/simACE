@@ -1,0 +1,35 @@
+"""Ascertainment - Snakemake wrapper with CLI fallback.
+
+Custom wrapper (not run_wrapper-based) because the rule has three named
+outputs and run_wrapper only writes one.
+"""
+
+import pandas as pd
+
+from simace import _snakemake_tag, setup_logging
+from simace.ascertainment import cli as _cli
+from simace.ascertainment import run_ascertainment
+from simace.core.parquet import save_parquet
+from simace.core.snakemake_adapter import cli_or_snakemake
+
+
+def _run() -> None:
+    setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
+    df_ped = pd.read_parquet(snakemake.input.pedigree)
+    df_trait = pd.read_parquet(snakemake.input.trait)
+    df_simple_ltm = pd.read_parquet(snakemake.input.trait_simple_ltm)
+    df_ped_out, df_trait_out, df_simple_ltm_out = run_ascertainment(
+        df_ped,
+        df_trait,
+        df_simple_ltm,
+        dropout_rate=snakemake.params.dropout_rate,
+        case_ascertainment_ratio=snakemake.params.case_ascertainment_ratio,
+        N_sample=snakemake.params.N_sample,
+        seed=snakemake.params.seed,
+    )
+    save_parquet(df_ped_out, snakemake.output.pedigree)
+    save_parquet(df_trait_out, snakemake.output.trait)
+    save_parquet(df_simple_ltm_out, snakemake.output.trait_simple_ltm)
+
+
+cli_or_snakemake(_cli, _run, globals())

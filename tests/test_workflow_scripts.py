@@ -103,37 +103,40 @@ def censored_phenotype_parquet(tmp_path, phenotype_parquet):
     df["t_observed2"] = rng.uniform(10, 200, n).astype(float)
     df["death_censored2"] = rng.choice([True, False], n)
     df["affected2"] = rng.choice([True, False], n)
-    path = tmp_path / "phenotype.parquet"
+    path = tmp_path / "trait.full.parquet"
     df.to_parquet(path, index=False)
     return path
 
 
-def test_sample_wrapper(tmp_path, censored_phenotype_parquet):
-    out = tmp_path / "phenotype.sampled.parquet"
+def test_ascertainment_wrapper(tmp_path, pedigree_parquet, censored_phenotype_parquet):
+    """Smoke test the unified ascertainment wrapper: three inputs → three outputs."""
+    ped_out = tmp_path / "pedigree.parquet"
+    trait_out = tmp_path / "trait.parquet"
+    simple_ltm_out = tmp_path / "trait.simple_ltm.parquet"
     sm = _make_snakemake(
-        inputs={"phenotype": str(censored_phenotype_parquet)},
-        outputs={"phenotype": str(out)},
-        params={"N_sample": 30, "case_ascertainment_ratio": 1.0, "seed": 42},
-        log_path=tmp_path / "sample.log",
+        inputs={
+            "pedigree": str(pedigree_parquet),
+            "trait": str(censored_phenotype_parquet),
+            "trait_simple_ltm": str(censored_phenotype_parquet),
+        },
+        outputs={
+            "pedigree": str(ped_out),
+            "trait": str(trait_out),
+            "trait_simple_ltm": str(simple_ltm_out),
+        },
+        params={"dropout_rate": 0.2, "case_ascertainment_ratio": 1.0, "N_sample": 30, "seed": 42},
+        log_path=tmp_path / "ascertainment.log",
     )
-    _exec_wrapper(SCRIPT_DIR / "sample.py", sm)
-    assert out.exists()
-    assert len(pd.read_parquet(out)) == 30
-
-
-def test_dropout_wrapper(tmp_path, pedigree_parquet):
-    out = tmp_path / "pedigree.dropped.parquet"
-    sm = _make_snakemake(
-        inputs={"pedigree": str(pedigree_parquet)},
-        outputs={"pedigree": str(out)},
-        params={"pedigree_dropout_rate": 0.2, "seed": 42},
-        log_path=tmp_path / "dropout.log",
+    _exec_wrapper(SCRIPT_DIR / "ascertainment.py", sm)
+    assert ped_out.exists()
+    assert trait_out.exists()
+    assert simple_ltm_out.exists()
+    assert len(pd.read_parquet(trait_out)) == 30
+    # Both trait branches must have identical id columns.
+    np.testing.assert_array_equal(
+        np.sort(pd.read_parquet(trait_out)["id"].to_numpy()),
+        np.sort(pd.read_parquet(simple_ltm_out)["id"].to_numpy()),
     )
-    _exec_wrapper(SCRIPT_DIR / "dropout.py", sm)
-    assert out.exists()
-    n_in = len(pd.read_parquet(pedigree_parquet))
-    n_out = len(pd.read_parquet(out))
-    assert n_out == n_in - round(n_in * 0.2)
 
 
 def test_censor_wrapper(tmp_path, phenotype_parquet):
@@ -209,12 +212,19 @@ def test_emit_params_wrapper(tmp_path):
         params={
             "seed": 42,
             "rep": 1,
-            "A1": 0.5, "C1": 0.2, "E1": 0.3,
-            "A2": 0.4, "C2": 0.1, "E2": 0.5,
-            "rA": 0.5, "rC": 0.3, "rE": 0.0,
+            "A1": 0.5,
+            "C1": 0.2,
+            "E1": 0.3,
+            "A2": 0.4,
+            "C2": 0.1,
+            "E2": 0.5,
+            "rA": 0.5,
+            "rC": 0.3,
+            "rE": 0.0,
             "N": 1000,
             "G_ped": 3,
             "G_sim": 5,
+            "mating_model": "standard",
             "mating_lambda": 0.5,
             "p_mztwin": 0.02,
             "assort1": 0.0,
@@ -245,11 +255,18 @@ def test_simulate_wrapper(tmp_path):
             "N": 50,
             "G_ped": 2,
             "G_sim": 2,
+            "mating_model": "standard",
             "mating_lambda": 0.5,
             "p_mztwin": 0.0,
-            "A1": 0.5, "C1": 0.2, "E1": 0.3,
-            "A2": 0.4, "C2": 0.1, "E2": 0.5,
-            "rA": 0.0, "rC": 0.0, "rE": 0.0,
+            "A1": 0.5,
+            "C1": 0.2,
+            "E1": 0.3,
+            "A2": 0.4,
+            "C2": 0.1,
+            "E2": 0.5,
+            "rA": 0.0,
+            "rC": 0.0,
+            "rE": 0.0,
             "assort1": 0.0,
             "assort2": 0.0,
             "assort_matrix": None,

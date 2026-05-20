@@ -42,7 +42,7 @@ snakemake --cores 4 results/test/small_test/scenario.done
 Check the output:
 
 ```bash
-ls results/test/small_test/rep1/    # pedigree.parquet, phenotype files, validation, stats
+ls results/test/small_test/rep1/    # pedigree.parquet, trait files, validation, stats
 cat logs/test/small_test/rep1/simulate.log
 ```
 
@@ -111,7 +111,7 @@ scenarios:
 ```
 
 To add new simulations, simply add a new scenario to a config file. For the
-full parameter reference (phenotype models, censoring, sampling, etc.), see
+full parameter reference (phenotype models, censoring, ascertainment, etc.), see
 [Configuration](docs/user-guide/configuration.md).
 
 ## Outputs

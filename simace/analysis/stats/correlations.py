@@ -15,7 +15,7 @@ import numpy as np
 
 from simace.core._numba_utils import _pearsonr_core
 from simace.core.numerics import fast_linregress, safe_corrcoef
-from simace.core.relationships import PAIR_TYPES, SEX_LEVELS
+from simace.core.relationships import RELATIONSHIP_TYPES, SEX_LEVELS
 
 from .tetrachoric import _tetrachoric_for_pairs, tetrachoric_corr_se
 
@@ -43,7 +43,7 @@ def compute_liability_correlations(
     for trait_num in [1, 2]:
         liability = df[f"liability{trait_num}"].values
         trait_result: dict[str, float | None] = {}
-        for ptype in PAIR_TYPES:
+        for ptype in RELATIONSHIP_TYPES:
             idx1, idx2 = pairs[ptype]
             trait_result[ptype] = float(_pearsonr_core(liability[idx1], liability[idx2])) if len(idx1) >= 10 else None
         result[f"trait{trait_num}"] = trait_result
@@ -74,7 +74,7 @@ def compute_affected_correlations(
     for trait_num in [1, 2]:
         affected = df[f"affected{trait_num}"].values.astype(np.float64)
         trait_result: dict[str, float | None] = {}
-        for ptype in PAIR_TYPES:
+        for ptype in RELATIONSHIP_TYPES:
             idx1, idx2 = pairs[ptype]
             if len(idx1) < 10:
                 trait_result[ptype] = None
@@ -106,7 +106,7 @@ def compute_tetrachoric(
     for trait_num in [1, 2]:
         affected = df[f"affected{trait_num}"].values.astype(bool)
         trait_result = {}
-        for ptype in PAIR_TYPES:
+        for ptype in RELATIONSHIP_TYPES:
             idx1, idx2 = pairs[ptype]
             trait_result[ptype] = _tetrachoric_for_pairs(idx1, idx2, affected)
         result[f"trait{trait_num}"] = trait_result
@@ -144,7 +144,7 @@ def compute_tetrachoric_by_generation(
             affected = affected_by_trait[trait_num]
             liability = liability_by_trait[trait_num]
             trait_result = {}
-            for ptype in PAIR_TYPES:
+            for ptype in RELATIONSHIP_TYPES:
                 idx1, idx2 = pairs[ptype]
                 mask = gen_arr[idx1] == gen
                 trait_result[ptype] = _tetrachoric_for_pairs(idx1[mask], idx2[mask], affected, liability)
@@ -202,7 +202,7 @@ def compute_cross_trait_tetrachoric(
             }
     result["same_person_by_generation"] = by_gen
     cross: dict[str, Any] = {}
-    for ptype in PAIR_TYPES:
+    for ptype in RELATIONSHIP_TYPES:
         idx1, idx2 = pairs[ptype]
         n_p = len(idx1)
         if n_p < 10:
@@ -239,7 +239,7 @@ def compute_tetrachoric_by_sex(
             affected = affected_by_trait[trait_num]
             liability = liability_by_trait[trait_num]
             trait_result: dict[str, Any] = {}
-            for ptype in PAIR_TYPES:
+            for ptype in RELATIONSHIP_TYPES:
                 idx1, idx2 = pairs[ptype]
                 sex_mask = (sex_arr[idx1] == sex_val) & (sex_arr[idx2] == sex_val)
                 trait_result[ptype] = _tetrachoric_for_pairs(idx1[sex_mask], idx2[sex_mask], affected, liability)
@@ -407,25 +407,30 @@ def compute_parent_offspring_corr_by_sex(df: pd.DataFrame) -> dict[str, Any]:
     return result
 
 
-def compute_observed_h2_estimators(stats: dict[str, Any]) -> dict[str, Any]:
+def compute_observed_h2_estimators(
+    affected_correlations: dict[str, Any],
+    parent_offspring_affected_corr: dict[str, Any],
+) -> dict[str, Any]:
     """Derive five naive observed-scale h² estimators from precomputed correlations.
 
-    Reads from ``stats["affected_correlations"]`` (phi r per pair type) and
-    ``stats["parent_offspring_affected_corr"]`` (PO regression slope on binary).
+    Reads from affected-status correlations (phi r per relationship type) and
+    parent-offspring affected-status regression slopes.
     Each estimator is a closed-form combination that, under a liability-threshold
     model, is an unbiased estimator of ``h²_liab · z(K)²/(K(1−K))`` — i.e. the
     observed-scale h² — where K is the affected-status prevalence.
 
     Args:
-        stats: The in-progress stats dict with ``affected_correlations`` and
-            ``parent_offspring_affected_corr`` already populated.
+        affected_correlations: Per-trait affected-status correlations by
+            relationship type.
+        parent_offspring_affected_corr: Per-trait parent-offspring regression
+            on binary affected status.
 
     Returns:
         Dict keyed ``trait1``/``trait2``, each mapping estimator name to a
         float or None: ``{falconer, sibs, po, hs, cousins}``.
     """
-    aff = stats.get("affected_correlations", {}) or {}
-    po_all = stats.get("parent_offspring_affected_corr", {}) or {}
+    aff = affected_correlations or {}
+    po_all = parent_offspring_affected_corr or {}
 
     def _two_diff(r_a: Any, r_b: Any) -> float | None:
         if r_a is None or r_b is None:
@@ -465,11 +470,13 @@ def compute_mate_correlation(df: pd.DataFrame) -> dict:
     Each unique (mother, father) pair is counted once (not weighted by offspring).
     Only non-founders are considered.
     """
-    nf = df[df["mother"] != -1][["mother", "father"]].drop_duplicates()
+    lookup = df.set_index("id")[["liability1", "liability2"]]
+    nf = df[(df["mother"] != -1) & (df["father"] != -1)][["mother", "father"]].drop_duplicates()
+    parents_present = nf["mother"].isin(lookup.index) & nf["father"].isin(lookup.index)
+    nf = nf.loc[parents_present]
     if len(nf) < 2:
         return {"matrix": [[float("nan")] * 2] * 2, "n_pairs": 0}
 
-    lookup = df.set_index("id")[["liability1", "liability2"]]
     f_liab = lookup.loc[nf["mother"].values].values  # (N, 2)
     m_liab = lookup.loc[nf["father"].values].values  # (N, 2)
 
