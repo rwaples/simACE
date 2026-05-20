@@ -49,6 +49,10 @@ Five related repos, all under `rwaples/` on GitHub. simACE is the umbrella worki
 | [`tetraher_simace`](https://github.com/rwaples/tetraher_simace) | private | `./external/tetraher_simace/` | Fork of LDAK 6.2 (grouping + warm-start + OMP opt-in). Binary consumed by `fitACE/fitace/tetraher/`. |
 | [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Sparse-matrix pedigree relationship extraction and kinship computation. |
 
+## Cross-repo edits (simACE + fitACE)
+
+- Treat simACE and fitACE as a coordinated pair when work spans both. Verify edits land in each repo's working tree (`git status` in both), run tests in both, and make parallel commits — do not assume changes propagate.
+
 ## Git usage
 - Do NOT run `git push` under any circumstances
 - Do NOT include Co-Authored-By in commit messages
@@ -85,6 +89,7 @@ Five related repos, all under `rwaples/` on GitHub. simACE is the umbrella worki
 ## Planning and Implementation
 
 - For non-trivial implementation tasks, propose 2-3 approaches with tradeoffs before writing code. Wait for approval.
+- For non-trivial plans/refactors (multi-file, cross-repo, or with unresolved design decisions), default to invoking the `grill-with-docs` skill before proposing implementation. Lock each design decision explicitly before exiting plan mode. Skip grilling for bugfixes, doc tweaks, and renames.
 - When starting a design interview or /grill-me session, if there is no existing plan, first explore the relevant codebase 
 and read key files and related modules before asking questions. Ground the interview in what the code actually does.
 
