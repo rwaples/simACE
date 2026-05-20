@@ -57,14 +57,9 @@ COLORS = {
 def _require(path: Path) -> Path:
     if path.exists():
         return path
-    targets = " ".join(
-        f"results/examples/{scenario.name}/rep1/stats_report.yaml"
-        for scenario in SCENARIOS
-    )
+    targets = " ".join(f"results/examples/{scenario.name}/rep1/stats_report.yaml" for scenario in SCENARIOS)
     raise FileNotFoundError(
-        f"Required file is missing: {path}\n"
-        "Generate the example outputs first, e.g.:\n"
-        f"  snakemake --cores 4 {targets}"
+        f"Required file is missing: {path}\nGenerate the example outputs first, e.g.:\n  snakemake --cores 4 {targets}"
     )
 
 
@@ -181,7 +176,7 @@ def plot_sample_sizes(df: pd.DataFrame) -> None:
     axes[0].set_ylabel("Rows")
     axes[0].set_title("A fixed 50K trait sample still has a pedigree closure")
     axes[0].legend(frameon=False, fontsize=8)
-    axes[0].yaxis.set_major_formatter(lambda val, _pos: f"{val/1000:.0f}K")
+    axes[0].yaxis.set_major_formatter(lambda val, _pos: f"{val / 1000:.0f}K")
     _style_axes(axes[0])
 
     bars = axes[1].bar(df["label"], df["closure_ratio"], color=COLORS["pedigree"], width=0.68)
