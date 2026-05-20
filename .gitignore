@@ -79,6 +79,7 @@ skills-lock.json
 .qoder/
 .vscode/
 .opencode.json
+.pi/
 .github/code-review-graph.instruction.md
 
 # Local code-review-graph eval harness
