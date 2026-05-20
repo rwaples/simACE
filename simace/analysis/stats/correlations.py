@@ -470,11 +470,13 @@ def compute_mate_correlation(df: pd.DataFrame) -> dict:
     Each unique (mother, father) pair is counted once (not weighted by offspring).
     Only non-founders are considered.
     """
-    nf = df[df["mother"] != -1][["mother", "father"]].drop_duplicates()
+    lookup = df.set_index("id")[["liability1", "liability2"]]
+    nf = df[(df["mother"] != -1) & (df["father"] != -1)][["mother", "father"]].drop_duplicates()
+    parents_present = nf["mother"].isin(lookup.index) & nf["father"].isin(lookup.index)
+    nf = nf.loc[parents_present]
     if len(nf) < 2:
         return {"matrix": [[float("nan")] * 2] * 2, "n_pairs": 0}
 
-    lookup = df.set_index("id")[["liability1", "liability2"]]
     f_liab = lookup.loc[nf["mother"].values].values  # (N, 2)
     m_liab = lookup.loc[nf["father"].values].values  # (N, 2)
 
