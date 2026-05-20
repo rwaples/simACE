@@ -8,6 +8,9 @@ The stage has two knobs — a uniform `dropout_rate` and a trait-weighted
 are the canonical `pedigree.parquet` / `trait.parquet` / `trait.simple_ltm.parquet`
 that downstream stats and fitACE consume.
 
+For a worked example showing how dropout and case-weighted sampling change the
+analysis dataset, see [When the study sample is not the population](../examples/ascertainment-bias.md).
+
 ## Algorithm
 
 Two explicit steps applied to IDs (not weights, which would silently cancel

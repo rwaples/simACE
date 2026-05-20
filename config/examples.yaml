@@ -579,3 +579,85 @@ e_fall_steep_pergen:
         prevalence: 0.1
       beta: 1.0
       beta_sex: 0.0
+
+# ── ascertainment worked example ────────────────────────────────────────
+# Same seeded source population and phenotype model; only the post-censor
+# ascertainment settings differ.  The anchor lives on a real scenario because
+# scenario keys beginning with '_' are still loaded by the config resolver.
+ascertainment_uniform50k: &ascertainment_example_base
+  seed: 70701
+  N: 100000
+  replicates: 1
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 6
+  standardize: global
+  pedigree:
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16.3
+        cip_k: 0.376
+        prevalence: 0.1
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16.3
+        cip_k: 0.376
+        prevalence: 0.1
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 80]
+      4: [0, 80]
+      5: [0, 80]
+      6: [0, 80]
+      7: [0, 80]
+      8: [0, 80]
+      9: [0, 80]
+  ascertainment:
+    N_sample: 50000
+    dropout_rate: 0.0
+    case_ascertainment_ratio: 1
+
+ascertainment_dropout30_50k:
+  <<: *ascertainment_example_base
+  ascertainment:
+    N_sample: 50000
+    dropout_rate: 0.3
+    case_ascertainment_ratio: 1
+
+ascertainment_case5x_50k:
+  <<: *ascertainment_example_base
+  ascertainment:
+    N_sample: 50000
+    dropout_rate: 0.0
+    case_ascertainment_ratio: 5
+
+ascertainment_dropout30_case5x_50k:
+  <<: *ascertainment_example_base
+  ascertainment:
+    N_sample: 50000
+    dropout_rate: 0.3
+    case_ascertainment_ratio: 5
