@@ -101,6 +101,7 @@ nav:
       - Time-varying E and h² drift: examples/time-varying-e.md
       - Observed vs Liability h²: examples/observed-vs-liability-h2.md
       - Gene-drop architecture sweep: examples/gene-drop-architecture-sweep.md
+      - Ascertainment bias: examples/ascertainment-bias.md
   - API Reference:
       - api/index.md
       - Core: api/core.md

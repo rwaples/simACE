@@ -8,8 +8,8 @@ and censoring windows fixed.
 
 ## Scenarios / Configuration
 
-The scenarios are defined in [`config/examples.yaml`](../../config/examples.yaml)
-under a shared YAML anchor so the upstream simulation settings are identical.
+The scenarios are defined in `config/examples.yaml` under a shared YAML
+anchor so the upstream simulation settings are identical.
 All four scenarios use the same seed and a fixed target analysis sample size of
 50,000 individuals.
 
