@@ -85,8 +85,6 @@ skills-lock.json
 # Local code-review-graph eval harness
 evaluate/
 
-#epimight
-/epimight/EPIMIGHT
 # Added by code-review-graph
 .code-review-graph/
 .mcp.json

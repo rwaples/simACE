@@ -17,7 +17,7 @@ Requirements
 - Python: pandas, numpy, pyarrow, simace (public sister repo, importable).
 - R: the EPIMIGHT package plus arrow, data.table, dplyr, dtplyr, readr,
   jsonlite. The package source ships with simACE at
-  ``simACE/epimight/EPIMIGHT/epimight``; this script will install it on
+  ``simACE/external/epimight``; this script will install it on
   first run if not already installed.
 - The user's R env can be reached either as a plain ``Rscript`` on PATH
   or via ``--conda-env <name>`` (defaults to ``epimight``).
@@ -305,7 +305,7 @@ def ensure_epimight_installed(r_cmd: list[str], pkg_source: Path) -> None:
     if not pkg_source.exists():
         sys.exit(
             f"EPIMIGHT R package source not found at {pkg_source}.\n"
-            "Pass --epimight-pkg <path> pointing to the EPIMIGHT/epimight directory."
+            "Pass --epimight-pkg <path> pointing to the external/epimight directory."
         )
     pkg = pkg_source.as_posix()  # uses / instead of \ on Windows
     check = f"if (!requireNamespace('epimight', quietly=TRUE)) install.packages('{pkg}', repos=NULL, type='source')"
@@ -392,7 +392,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument(
         "--epimight-pkg",
         type=Path,
-        default=Path(__file__).resolve().parent.parent / "epimight" / "EPIMIGHT" / "epimight",
+        default=Path(__file__).resolve().parent.parent / "external" / "epimight",
         help="Path to the EPIMIGHT R package source (for first-run install).",
     )
     return p.parse_args()
