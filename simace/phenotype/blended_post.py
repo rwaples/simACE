@@ -56,8 +56,8 @@ MAX_AGE = 80.0
 #: track those of the source `adult/ltm` phenotype model — the temporal
 #: scenarios all use these defaults, so we hardcode them here. If a
 #: scenario uses non-default values they should be passed in.
-DEFAULT_CIP_X0 = 50.0
-DEFAULT_CIP_K = 0.15
+DEFAULT_CIF_X0 = 50.0
+DEFAULT_CIF_K = 0.15
 
 
 def _compute_onset(L_eff: np.ndarray, K: np.ndarray, cip_x0: float, cip_k: float) -> np.ndarray:
@@ -74,8 +74,8 @@ def blended_diagnosis(
     *,
     alpha_by_gen: dict[int, float],
     K_by_gen: dict[int, float],
-    cip_x0: float = DEFAULT_CIP_X0,
-    cip_k: float = DEFAULT_CIP_K,
+    cip_x0: float = DEFAULT_CIF_X0,
+    cip_k: float = DEFAULT_CIF_K,
 ) -> pd.DataFrame:
     """Return a copy of `phenotype` with trait-1 case status redefined.
 
@@ -89,9 +89,9 @@ def blended_diagnosis(
             Must include every distinct value in ``phenotype["generation"]``.
         K_by_gen: per-output-generation diagnostic prevalence. Same key
             constraint as ``alpha_by_gen``.
-        cip_x0: logistic CIP shape parameter (location) for the onset-age
+        cip_x0: logistic CIF shape parameter (location) for the onset-age
             inversion. Defaults to the ``adult/ltm`` default.
-        cip_k: logistic CIP shape parameter (slope) for the onset-age
+        cip_k: logistic CIF shape parameter (slope) for the onset-age
             inversion. Defaults to the ``adult/ltm`` default.
 
     Returns:

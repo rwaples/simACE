@@ -110,9 +110,9 @@ _Avoid_: rate (overloaded — could mean hazard), case rate, K-value (just say "
 The affected fraction visible in output data, after censoring (and after sampling, if applied). This is what a downstream model fit on the simulated output would estimate. May differ from the configured prevalence due to censoring (some events fall outside the age window or are pre-empted by death) and ascertainment.
 _Avoid_: empirical prevalence (ambiguous), sample prevalence (reserve "sample" for explicit subsampling).
 
-**Cumulative incidence** (CIP, cumulative incidence proportion, cumulative incidence fraction):
-The proportion of a cohort that has experienced the trait event by a given age. A function of age, not a single scalar — distinct from prevalence, which is the lifetime / asymptotic limit. Used directly by the ADuLT phenotype models (`adult` family), where `cip_x0` and `cip_k` parameterize a logistic CIP curve that maps liability rank to age-at-onset. "CIP", "cumulative incidence proportion", and "cumulative incidence fraction" are equivalent.
-_Avoid_: incidence rate (a per-time hazard, different concept), case rate.
+**Cumulative incidence** (CIF, cumulative incidence function):
+The proportion of a cohort that has experienced the trait event by a given age. A function of age, not a single scalar — distinct from prevalence, which is the lifetime / asymptotic limit. Used directly by the ADuLT phenotype models (`adult` family), where `cip_x0` and `cip_k` (legacy parameter names — see Flagged ambiguities) parameterize the logistic CIF curve that maps liability rank to age-at-onset. CIF is also the canonical word in [fitACE_epimight](../fitACE/fitACE_epimight) — adopted from EPIMIGHT v2.0's survival/competing-risks framing.
+_Avoid_: CIP, "cumulative incidence proportion", "cumulative incidence fraction" (deprecated — CIF is the cross-repo canonical); incidence rate (a per-time hazard, different concept); case rate.
 
 **Cure fraction**:
 In the mixture cure model (`cure_frailty`), the proportion of the population that will *never* experience the trait event regardless of follow-up. Equal to $1 - K$. Implemented by assigning non-susceptible individuals a sentinel onset of $10^6$ so they are right-censored under any realistic window.
@@ -279,6 +279,8 @@ When in doubt: if it's a number you'd plot directly from a stats YAML, it's desc
 - **"coancestry"** is suppressed in canonical simACE vocabulary — use **kinship** for per-pair coefficients and **mean kinship** for the generation-aggregate form. The legacy estimator name `ne_coancestry` (and column names like `mean_self_coancestry`) survive in code because they match published-literature names for the coancestry-rate $N_e$ estimator; treat these as fixed external identifiers, not as a glossary term to extend.
 
 - **"pair type"** is the deprecated code name for **relationship type**. The `pair_type` identifiers in `simace.plotting`, `simace.analysis.stats`, and `simace.core.relationships.PAIR_TYPES` were renamed to `relationship_type` / `RELATIONSHIP_TYPES` across both simACE and fitACE. Do not reintroduce them.
+
+- **`cip_x0` / `cip_k`** are *legacy parameter names* in `simace.phenotype.models.adult` — the *concept* renamed CIP → CIF (see **Cumulative incidence**), but the parameter identifiers retain the `cip_` prefix to avoid a config-migration sweep across scenario YAMLs. Don't rename these to `cif_x0`/`cif_k` in code; do say "CIF" in prose, comments, and plot labels.
 
 ## Example dialogue
 

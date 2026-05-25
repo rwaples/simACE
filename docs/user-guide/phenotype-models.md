@@ -90,7 +90,7 @@ Set under `params.method`:
 | Method | Required params | Description |
 |---|---|---|
 | `ltm` | `cip_x0`, `cip_k`, `prevalence` | Deterministic liability-threshold with logistic cumulative-incidence proportion. |
-| `cox` | `cip_x0`, `cip_k`, `prevalence` | Proportional hazards with Weibull noise and rank-based CIP-to-age mapping. |
+| `cox` | `cip_x0`, `cip_k`, `prevalence` | Proportional hazards with Weibull noise and rank-based CIF-to-age mapping. |
 
 ## `first_passage` params
 

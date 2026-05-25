@@ -12,8 +12,8 @@ Continuous liabilities are mapped to age-of-onset phenotypes via time-to-event m
 |---|---|
 | **Frailty** | Proportional hazards with choice of baseline hazard (Weibull, Gompertz, lognormal, etc.). Liability scales hazard via $z = \exp(\beta L)$. Given sufficient time, every individual eventually becomes affected. |
 | **Cure-Frailty** | Mixture model separating **who** gets the disease (susceptible vs. non-susceptible) from **when** (age-of-onset among susceptibles). Supports sex-specific prevalence. |
-| **ADuLT LTM** | Deterministic liability threshold model with logistic cumulative incidence proportion (Pedersen et al., 2023). |
-| **ADuLT Cox** | Proportional hazards with Weibull noise and rank-based CIP-to-age mapping (Pedersen et al., 2023). |
+| **ADuLT LTM** | Deterministic liability threshold model with logistic cumulative incidence function (Pedersen et al., 2023). |
+| **ADuLT Cox** | Proportional hazards with Weibull noise and rank-based CIF-to-age mapping (Pedersen et al., 2023). |
 | **Simple LTM** | Binary affected status from liability threshold, without age-of-onset or censoring. |
 
 ## Censoring

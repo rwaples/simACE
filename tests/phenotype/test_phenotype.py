@@ -700,7 +700,7 @@ class TestAdultLtmSexPrevalence:
         np.testing.assert_array_equal(t_scalar, t_again)
 
     def test_sex_specific_ages_use_own_prevalence(self):
-        """CIP mapping should use sex-specific K: per-individual ages differ from scalar."""
+        """CIF mapping should use sex-specific K: per-individual ages differ from scalar."""
         n = 10000
         rng = np.random.default_rng(0)
         liability = rng.standard_normal(n)
