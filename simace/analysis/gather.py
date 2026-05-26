@@ -38,15 +38,15 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
     if match:
         folder, scenario, rep_str = match.group(1), match.group(2), match.group(3)
         rep = int(rep_str)
-        bench_path = Path(f"benchmarks/{folder}/{scenario}/rep{rep_str}/simulate.tsv")
+        bench_path: Path | None = Path(f"benchmarks/{folder}/{scenario}/rep{rep_str}/simulate.tsv")
     else:
         scenario = "unknown"
         rep = 1
-        bench_path = Path("")
+        bench_path = None
 
     simulate_seconds = None
     simulate_max_rss_mb = None
-    if bench_path.exists():
+    if bench_path is not None and bench_path.exists():
         with open(bench_path, encoding="utf-8", newline="") as bf:
             reader = csv.DictReader(bf, delimiter="\t")
             for row_b in reader:
