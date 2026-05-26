@@ -10,7 +10,6 @@ from simace.simulation.simulate import (
     generate_correlated_components,
     mating,
     reproduce,
-    run_simulation,
 )
 
 
@@ -37,35 +36,6 @@ def schema_pad(df: pd.DataFrame, schema: Mapping[str, str]) -> pd.DataFrame:
 def rng():
     """Seeded random generator for reproducible tests."""
     return np.random.default_rng(42)
-
-
-@pytest.fixture
-def default_params():
-    """Default simulation parameters matching config defaults."""
-    return dict(
-        seed=42,
-        N=1000,
-        G_ped=3,
-        G_sim=3,
-        mating_lambda=0.5,
-        p_mztwin=0.02,
-        A1=0.5,
-        C1=0.2,
-        E1=0.3,
-        A2=0.5,
-        C2=0.2,
-        E2=0.3,
-        rA=0.3,
-        rC=0.5,
-        assort1=0.0,
-        assort2=0.0,
-    )
-
-
-@pytest.fixture
-def small_pedigree(default_params):
-    """A small pedigree (N=1000, G_ped=3) for fast tests."""
-    return run_simulation(**default_params)
 
 
 @pytest.fixture
