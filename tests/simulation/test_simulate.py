@@ -957,3 +957,156 @@ class TestRunSimulationWF:
         # With small N=500 / G_ped=3 this isn't guaranteed every seed but should
         # at least not be all -1 in expectation; just check the shape.
         assert "twin" in ped.columns
+
+    def test_output_independent_of_mating_lambda(self):
+        """Under WF, mating_lambda is a no-op — changing it must not change output."""
+        ped_a = run_simulation(**self._wf_params(mating_lambda=0.5))
+        ped_b = run_simulation(**self._wf_params(mating_lambda=10.0))
+        pd.testing.assert_frame_equal(ped_a, ped_b)
+
+
+class TestAssortMatrixValidation:
+    """Validation branches for the explicit ``assort_matrix`` argument."""
+
+    def test_wrong_shape_raises(self, default_params):
+        with pytest.raises(ValueError, match="must be 2x2"):
+            run_simulation(**{**default_params, "assort_matrix": [[0.1]]})
+
+    def test_not_symmetric_raises(self, default_params):
+        with pytest.raises(ValueError, match="must be symmetric"):
+            run_simulation(**{**default_params, "assort_matrix": [[0.2, 0.05], [0.07, 0.2]]})
+
+    def test_diagonal_out_of_range_raises(self, default_params):
+        with pytest.raises(ValueError, match=r"assort_matrix\[0,0\]"):
+            run_simulation(**{**default_params, "assort_matrix": [[1.5, 0.0], [0.0, 0.2]]})
+
+    def test_with_per_gen_dict_assort_raises(self, default_params):
+        """Per-gen dict assort* + assort_matrix is rejected (cross-AM ambiguity)."""
+        with pytest.raises(ValueError, match="incompatible"):
+            run_simulation(
+                **{
+                    **default_params,
+                    "assort1": {0: 0.1},
+                    "assort_matrix": [[0.2, 0.05], [0.05, 0.2]],
+                }
+            )
+
+    def test_happy_path(self, default_params):
+        """Valid assort_matrix runs end-to-end."""
+        ped = run_simulation(**{**default_params, "assort_matrix": [[0.2, 0.05], [0.05, 0.15]]})
+        assert len(ped) == default_params["N"] * default_params["G_ped"]
+        assert "twin" in ped.columns
+
+
+class TestPSDFailure:
+    """The 4x4 mate-correlation matrix must be PSD across all generations."""
+
+    def test_non_psd_off_diagonal_raises(self, default_params):
+        # Force rho_w=0 by zeroing the cross-trait correlations, then push the
+        # assort_matrix off-diagonal large enough that Sigma_4 = [[I, R_mf],
+        # [R_mf, I]] has min-eigenvalue 1 - λ_max(R_mf) < 0.
+        with pytest.raises(ValueError, match="not PSD"):
+            run_simulation(
+                **{
+                    **default_params,
+                    "rA": 0.0,
+                    "rC": 0.0,
+                    "rE": 0.0,
+                    "assort_matrix": [[0.8, 0.95], [0.95, 0.8]],
+                }
+            )
+
+
+class TestSimulateCLI:
+    """End-to-end CLI for ``simace.simulation.simulate:cli``."""
+
+    @staticmethod
+    def _run_cli(monkeypatch, argv):
+        import sys
+
+        from simace.simulation.simulate import cli as simulate_cli
+
+        monkeypatch.setattr(sys, "argv", ["simulate", *argv])
+        simulate_cli()
+
+    def test_writes_both_outputs(self, tmp_path, monkeypatch):
+        import yaml
+
+        out_pedigree = tmp_path / "pedigree.parquet"
+        out_params = tmp_path / "params.yaml"
+
+        self._run_cli(
+            monkeypatch,
+            [
+                "--seed",
+                "42",
+                "--N",
+                "100",
+                "--G-ped",
+                "2",
+                "--G-sim",
+                "2",
+                "--E1",
+                "0.3",
+                "--E2",
+                "0.3",
+                "--A1",
+                "0.5",
+                "--A2",
+                "0.5",
+                "--C1",
+                "0.2",
+                "--C2",
+                "0.2",
+                "--output-pedigree",
+                str(out_pedigree),
+                "--output-params",
+                str(out_params),
+            ],
+        )
+
+        assert out_pedigree.exists()
+        assert out_params.exists()
+
+        ped = pd.read_parquet(out_pedigree)
+        assert len(ped) == 100 * 2
+        assert {"id", "mother", "father", "twin", "A1", "C1", "E1"}.issubset(ped.columns)
+
+        params = yaml.safe_load(out_params.read_text())
+        assert params["N"] == 100
+        assert params["G_ped"] == 2
+        assert params["mating_model"] == "standard"
+
+    def test_assort_matrix_json_round_trip(self, tmp_path, monkeypatch):
+        """--assort-matrix takes a JSON string and recovers the same values in params.yaml."""
+        import yaml
+
+        out_pedigree = tmp_path / "pedigree.parquet"
+        out_params = tmp_path / "params.yaml"
+
+        self._run_cli(
+            monkeypatch,
+            [
+                "--seed",
+                "7",
+                "--N",
+                "100",
+                "--G-ped",
+                "2",
+                "--G-sim",
+                "2",
+                "--E1",
+                "0.3",
+                "--E2",
+                "0.3",
+                "--assort-matrix",
+                "[[0.2, 0.05], [0.05, 0.15]]",
+                "--output-pedigree",
+                str(out_pedigree),
+                "--output-params",
+                str(out_params),
+            ],
+        )
+
+        params = yaml.safe_load(out_params.read_text())
+        assert params["assort_matrix"] == [[0.2, 0.05], [0.05, 0.15]]
