@@ -66,7 +66,9 @@ rule phenotype_simple_ltm:
     input:
         pedigree=lambda w: _pre_ascertainment_pedigree_input(w, config),
     output:
-        phenotype=temp("results/{folder}/{scenario}/rep{rep}/trait.simple_ltm.full.parquet"),
+        phenotype=temp(
+            "results/{folder}/{scenario}/rep{rep}/trait.simple_ltm.full.parquet"
+        ),
     log:
         "logs/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.log",
     benchmark:

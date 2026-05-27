@@ -116,7 +116,6 @@ rule assemble_scenario_atlas:
         case_ascertainment_ratio=lambda w: get_param(
             config, w.scenario, "case_ascertainment_ratio"
         ),
-
         max_degree=lambda w: get_param(config, w.scenario, "max_degree"),
         plot_format=lambda w: config["defaults"].get("plot_format", "png"),
     script:
