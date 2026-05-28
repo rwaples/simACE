@@ -1,14 +1,16 @@
-"""Single source of truth mapping TSV columns to validation YAML paths.
+"""Single source of truth mapping TSV columns to v2 ``report.yaml`` paths.
 
 `gather.extract_metrics` walks `METRIC_REGISTRY` to produce one column per entry.
-The contract is enforced by `tests/analysis/test_validation_schema.py`: every
-registered path must resolve to a non-`None` value when applied to a fully
-populated coverage validation YAML, so a producer-side rename in
-`simace/analysis/validate.py` cannot silently empty a TSV column.
+Every registered path is relative to the report root and resolves into the
+curated ``truth`` / ``estimators`` groups (ADR 0008). The contract is enforced
+by `tests/analysis/test_validation_schema.py`: every registered path must
+resolve to a non-`None` value against a fully populated coverage report, so a
+producer-side rename in `validate.py` / `report.py` cannot silently empty a
+column.
 
 Path-derived fields (scenario, rep, benchmark timing) and shallow
-``parameters.*`` / ``summary.*`` extractions remain inline in
-`extract_metrics` — they don't go through the YAML check tree.
+``inputs.parameters.*`` / ``quality_checks.summary.*`` extractions remain inline
+in `extract_metrics` — they don't go through the registry tree.
 """
 
 from __future__ import annotations
@@ -25,75 +27,75 @@ class MetricSpec(NamedTuple):
     path: tuple[str, ...]
 
 
+_TRUTH = ("truth", "recorded_pedigree")
+_FS = (*_TRUTH, "family_structure")
+_LIAB = ("estimators", "heritability", "liability_scale")
+
 # fmt: off
 METRIC_REGISTRY: list[MetricSpec] = [
     # ── twins ─────────────────────────────────────────────────────────────
-    MetricSpec("observed_twin_rate", ("twins", "twin_rate", "observed_rate")),
-    MetricSpec("expected_twin_rate", ("twins", "twin_rate", "expected_rate")),
+    MetricSpec("observed_twin_rate", (*_FS, "twin_rate", "observed")),
+    MetricSpec("expected_twin_rate", (*_FS, "twin_rate", "expected")),
 
-    # ── statistical: founder variance components ──────────────────────────
-    MetricSpec("variance_A1", ("statistical", "variance_A1", "observed")),
-    MetricSpec("variance_C1", ("statistical", "variance_C1", "observed")),
-    MetricSpec("variance_E1", ("statistical", "variance_E1", "observed")),
-    MetricSpec("variance_A2", ("statistical", "variance_A2", "observed")),
-    MetricSpec("variance_C2", ("statistical", "variance_C2", "observed")),
-    MetricSpec("variance_E2", ("statistical", "variance_E2", "observed")),
+    # ── truth: realized variance components ───────────────────────────────
+    MetricSpec("variance_A1", (*_TRUTH, "traits", "trait1", "realized", "var_A")),
+    MetricSpec("variance_C1", (*_TRUTH, "traits", "trait1", "realized", "var_C")),
+    MetricSpec("variance_E1", (*_TRUTH, "traits", "trait1", "realized", "var_E")),
+    MetricSpec("variance_A2", (*_TRUTH, "traits", "trait2", "realized", "var_A")),
+    MetricSpec("variance_C2", (*_TRUTH, "traits", "trait2", "realized", "var_C")),
+    MetricSpec("variance_E2", (*_TRUTH, "traits", "trait2", "realized", "var_E")),
 
-    # ── statistical: cross-trait correlations ─────────────────────────────
-    MetricSpec("observed_rA", ("statistical", "cross_trait_rA", "observed")),
-    MetricSpec("observed_rC", ("statistical", "cross_trait_rC", "observed")),
-    MetricSpec("observed_rE", ("statistical", "cross_trait_rE", "observed")),
+    # ── truth: cross-trait correlations ───────────────────────────────────
+    MetricSpec("observed_rA", (*_TRUTH, "cross_trait", "rA")),
+    MetricSpec("observed_rC", (*_TRUTH, "cross_trait", "rC")),
+    MetricSpec("observed_rE", (*_TRUTH, "cross_trait", "rE")),
 
-    # ── heritability: MZ twin correlations ────────────────────────────────
-    MetricSpec("mz_twin_A1_corr", ("heritability", "mz_twin_A1_correlation", "observed")),
-    MetricSpec("mz_twin_liability1_corr", ("heritability", "mz_twin_liability1_correlation", "observed")),
-    MetricSpec("mz_twin_A2_corr", ("heritability", "mz_twin_A2_correlation", "observed")),
-    MetricSpec("mz_twin_liability2_corr", ("heritability", "mz_twin_liability2_correlation", "observed")),
+    # ── estimators: MZ twin correlations ──────────────────────────────────
+    MetricSpec("mz_twin_A1_corr", (*_LIAB, "trait1", "mz_twin_A_corr")),
+    MetricSpec("mz_twin_liability1_corr", (*_LIAB, "trait1", "mz_twin_liability_corr")),
+    MetricSpec("mz_twin_A2_corr", (*_LIAB, "trait2", "mz_twin_A_corr")),
+    MetricSpec("mz_twin_liability2_corr", (*_LIAB, "trait2", "mz_twin_liability_corr")),
 
-    # ── heritability: DZ sibling correlations ─────────────────────────────
-    MetricSpec("dz_sibling_A1_corr", ("heritability", "dz_sibling_A1_correlation", "observed")),
-    MetricSpec("dz_sibling_liability1_corr", ("heritability", "dz_sibling_liability1_correlation", "observed")),
-    MetricSpec("dz_sibling_A2_corr", ("heritability", "dz_sibling_A2_correlation", "observed")),
-    MetricSpec("dz_sibling_liability2_corr", ("heritability", "dz_sibling_liability2_correlation", "observed")),
+    # ── estimators: DZ sibling correlations ───────────────────────────────
+    MetricSpec("dz_sibling_A1_corr", (*_LIAB, "trait1", "dz_sibling_A_corr")),
+    MetricSpec("dz_sibling_liability1_corr", (*_LIAB, "trait1", "dz_sibling_liability_corr")),
+    MetricSpec("dz_sibling_A2_corr", (*_LIAB, "trait2", "dz_sibling_A_corr")),
+    MetricSpec("dz_sibling_liability2_corr", (*_LIAB, "trait2", "dz_sibling_liability_corr")),
 
-    # ── heritability: Falconer + parent-offspring regressions ─────────────
-    MetricSpec("falconer_h2_trait1", ("heritability", "falconer_estimate_trait1", "observed")),
-    MetricSpec("falconer_h2_trait2", ("heritability", "falconer_estimate_trait2", "observed")),
-    MetricSpec("parent_offspring_A1_slope", ("heritability", "parent_offspring_A1_regression", "slope")),
-    MetricSpec("parent_offspring_A1_r2", ("heritability", "parent_offspring_A1_regression", "r_squared")),
-    MetricSpec("parent_offspring_liability1_slope", ("heritability", "parent_offspring_liability1_regression", "slope")),
-    MetricSpec("parent_offspring_liability1_r2", ("heritability", "parent_offspring_liability1_regression", "r_squared")),
-    MetricSpec("parent_offspring_A2_slope", ("heritability", "parent_offspring_A2_regression", "slope")),
-    MetricSpec("parent_offspring_A2_r2", ("heritability", "parent_offspring_A2_regression", "r_squared")),
-    MetricSpec("parent_offspring_liability2_slope", ("heritability", "parent_offspring_liability2_regression", "slope")),
-    MetricSpec("parent_offspring_liability2_r2", ("heritability", "parent_offspring_liability2_regression", "r_squared")),
+    # ── estimators: Falconer + parent-offspring regressions ───────────────
+    MetricSpec("falconer_h2_trait1", (*_LIAB, "trait1", "falconer")),
+    MetricSpec("falconer_h2_trait2", (*_LIAB, "trait2", "falconer")),
+    MetricSpec("parent_offspring_A1_slope", (*_LIAB, "trait1", "parent_offspring_A_slope")),
+    MetricSpec("parent_offspring_A1_r2", (*_LIAB, "trait1", "parent_offspring_A_r2")),
+    MetricSpec("parent_offspring_liability1_slope", (*_LIAB, "trait1", "parent_offspring_liability_slope")),
+    MetricSpec("parent_offspring_liability1_r2", (*_LIAB, "trait1", "parent_offspring_liability_r2")),
+    MetricSpec("parent_offspring_A2_slope", (*_LIAB, "trait2", "parent_offspring_A_slope")),
+    MetricSpec("parent_offspring_A2_r2", (*_LIAB, "trait2", "parent_offspring_A_r2")),
+    MetricSpec("parent_offspring_liability2_slope", (*_LIAB, "trait2", "parent_offspring_liability_slope")),
+    MetricSpec("parent_offspring_liability2_r2", (*_LIAB, "trait2", "parent_offspring_liability_r2")),
 
-    # ── half-sibs: structural counts ──────────────────────────────────────
-    MetricSpec("half_sib_prop_observed", ("half_sibs", "half_sib_pair_proportion", "observed")),
-    MetricSpec("offspring_with_half_sib_observed", ("half_sibs", "offspring_with_half_sib", "observed")),
+    # ── truth: half-sib structure ─────────────────────────────────────────
+    MetricSpec("half_sib_prop_observed", (*_FS, "half_sibs", "pair_proportion")),
+    MetricSpec("offspring_with_half_sib_observed", (*_FS, "half_sibs", "offspring_with_half_sib")),
+    MetricSpec("half_sib_A1_corr", (*_FS, "half_sibs", "trait1", "A_corr")),
+    MetricSpec("half_sib_liability1_corr", (*_FS, "half_sibs", "trait1", "liability_corr")),
+    MetricSpec("half_sib_shared_C1", (*_FS, "half_sibs", "trait1", "shared_C")),
+    MetricSpec("half_sib_A2_corr", (*_FS, "half_sibs", "trait2", "A_corr")),
+    MetricSpec("half_sib_liability2_corr", (*_FS, "half_sibs", "trait2", "liability_corr")),
+    MetricSpec("half_sib_shared_C2", (*_FS, "half_sibs", "trait2", "shared_C")),
 
-    # ── half-sibs: variance-component correlations ────────────────────────
-    # See `_validate_half_sib_correlations` in simace.analysis.validate for the
-    # MHS+PHS pooling rule and PHS-only restriction.
-    MetricSpec("half_sib_A1_corr", ("half_sibs", "half_sib_A1_correlation", "observed")),
-    MetricSpec("half_sib_liability1_corr", ("half_sibs", "half_sib_liability1_correlation", "observed")),
-    MetricSpec("half_sib_shared_C1", ("half_sibs", "half_sib_shared_C1", "observed")),
-    MetricSpec("half_sib_A2_corr", ("half_sibs", "half_sib_A2_correlation", "observed")),
-    MetricSpec("half_sib_liability2_corr", ("half_sibs", "half_sib_liability2_correlation", "observed")),
-    MetricSpec("half_sib_shared_C2", ("half_sibs", "half_sib_shared_C2", "observed")),
+    # ── truth: assortative mating ─────────────────────────────────────────
+    MetricSpec("mate_corr_liability1", (*_TRUTH, "assortative_mating", "mate_corr_liability1")),
+    MetricSpec("mate_corr_liability2", (*_TRUTH, "assortative_mating", "mate_corr_liability2")),
 
-    # ── assortative mating: mate correlations ─────────────────────────────
-    MetricSpec("mate_corr_liability1", ("assortative_mating", "mate_corr_liability1", "observed")),
-    MetricSpec("mate_corr_liability2", ("assortative_mating", "mate_corr_liability2", "observed")),
+    # ── truth: offspring distribution ─────────────────────────────────────
+    MetricSpec("mother_mean_offspring", (*_FS, "offspring_distribution", "mother", "mean")),
+    MetricSpec("father_mean_offspring", (*_FS, "offspring_distribution", "father", "mean")),
 
-    # ── family size distribution ──────────────────────────────────────────
-    MetricSpec("mother_mean_offspring", ("family_size_distribution", "mother", "mean")),
-    MetricSpec("father_mean_offspring", ("family_size_distribution", "father", "mean")),
-
-    # ── consanguineous matings ────────────────────────────────────────────
-    MetricSpec("n_half_sib_matings", ("consanguineous_matings", "consanguineous_count", "n_half_sib_matings")),
-    MetricSpec("n_full_sib_matings", ("consanguineous_matings", "consanguineous_count", "n_full_sib_matings")),
-    MetricSpec("missing_gp_links", ("consanguineous_matings", "consanguineous_count", "total_missing_gp_links")),
-    MetricSpec("gp_reconciled", ("consanguineous_matings", "grandparent_reconciliation", "passed")),
+    # ── truth: consanguineous matings ─────────────────────────────────────
+    MetricSpec("n_half_sib_matings", (*_FS, "consanguineous_matings", "n_half_sib_matings")),
+    MetricSpec("n_full_sib_matings", (*_FS, "consanguineous_matings", "n_full_sib_matings")),
+    MetricSpec("missing_gp_links", (*_FS, "consanguineous_matings", "total_missing_gp_links")),
+    MetricSpec("gp_reconciled", (*_FS, "consanguineous_matings", "grandparent_reconciliation_passed")),
 ]
 # fmt: on

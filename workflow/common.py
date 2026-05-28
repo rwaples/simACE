@@ -163,6 +163,7 @@ def get_scenario_sim_outputs(config: dict, scenario: str, plot_ext: str = "png")
     outputs = []
     for rep in range(1, n_reps + 1):
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/pedigree.parquet")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.full.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.simple_ltm.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/report.yaml")

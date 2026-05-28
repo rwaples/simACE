@@ -1,24 +1,22 @@
-"""Combined Analyze stage: Validate + Stats in one job.
+"""Combined Analyze stage: produce the curated v2 ``report.yaml`` in one job.
 
-Runs the two analysis halves sequentially within a single process and writes a
-single combined ``report.yaml`` (ADR 0007):
+Runs three phases sequentially within a single process (ADR 0007/0008), each
+freeing its large frame before the next so peak memory is the max of the three
+phases rather than their sum (ADR 0006):
 
-1. **Validate** — ground-truth sanity checks on the full, pre-ascertainment
+1. **Validate** — ground-truth checks on the full, pre-ascertainment recorded
    pedigree (``pedigree.full.parquet`` + ``params.yaml``).
-2. **Stats** — descriptive statistics on the post-ascertainment subsample
-   (``trait.parquet`` + ``pedigree.parquet``), plus ``plotting_sample.parquet``.
+2. **Phenotyped population** — lightweight prevalence summaries on the full
+   pre-ascertainment phenotyped rows (``trait.full.parquet``), used to quantify
+   ascertainment distortion.
+3. **Analysis sample** — descriptive statistics on the post-ascertainment
+   subsample (``trait.parquet`` + ``pedigree.parquet``), plus
+   ``plotting_sample.parquet``.
 
-The report holds the six stats groups (``metadata``, ``incidence``,
-``censoring``, ``pedigree``, ``correlations``, ``heritability``) at the top
-level and the validation report nested under a ``validation`` group. Dense
-plot-only arrays (incidence curves, censoring-window incidence) are split out
-into a companion ``plot_payload.yaml`` so the report stays scalar-only.
-
-The two halves read disjoint inputs over different pedigree scopes, so there is
-no cross-stage graph/pair sharing here — that efficiency work is deferred (see
-ADR 0006). Phase 1's full-pedigree frame and graph are explicitly freed before
-Phase 2 loads its inputs, so peak memory is ``max(validate, stats)`` rather than
-their sum.
+These are re-homed into the v2 scientific report (``schema``, ``replicate``,
+``inputs``, ``scopes``, ``quality_checks``, ``truth``, ``observed``,
+``estimators``) by :mod:`simace.analysis.report`. Dense plot-only arrays go to a
+companion ``plot_payload.yaml`` so the report stays scalar-only.
 """
 
 from __future__ import annotations
@@ -36,8 +34,14 @@ import pandas as pd
 from simace.core.parquet import save_parquet
 from simace.core.yaml_io import dump_yaml, load_yaml
 
-from .stats.runner import PEDIGREE_REPORT_COLUMNS, build_stats_report, create_sample, split_plot_payload
+from .report import assemble_report
+from .stats.incidence import compute_prevalence
+from .stats.runner import PEDIGREE_REPORT_COLUMNS, build_stats_report, create_sample
 from .validate import build_validation_report
+
+
+def _n_generations(df: pd.DataFrame) -> int:
+    return int(df["generation"].nunique()) if "generation" in df.columns else 1
 
 logger = logging.getLogger(__name__)
 
@@ -46,56 +50,75 @@ def run_analysis(
     *,
     pedigree_full_path: str,
     params_path: str,
+    trait_full_path: str,
     trait_path: str,
     pedigree_path: str,
     report_output: str,
     plot_payload_output: str,
     samples_output: str,
+    folder: str = "",
+    scenario: str = "",
+    rep: int = 1,
     seed: int = 42,
     censor_age: float,
     gen_censoring: dict[int, list[float]] | None = None,
     max_degree: int = 2,
     case_ascertainment_ratio: float = 1.0,
 ) -> dict[str, Any]:
-    """Run Validate then Stats in one process and write the combined report.
+    """Run the three Analyze phases in one process and write the v2 report.
 
     Args:
-        pedigree_full_path: Full, pre-ascertainment pedigree parquet (Validate).
-        params_path: Scenario parameters YAML (Validate).
-        trait_path: Post-ascertainment trait parquet (Stats).
-        pedigree_path: Post-ascertainment pedigree parquet (Stats).
-        report_output: Output path for the combined ``report.yaml``.
+        pedigree_full_path: Full, pre-ascertainment recorded pedigree parquet.
+        params_path: Scenario parameters YAML.
+        trait_full_path: Full pre-ascertainment phenotyped rows parquet.
+        trait_path: Post-ascertainment (analysis-sample) trait parquet.
+        pedigree_path: Post-ascertainment (analysis) pedigree parquet.
+        report_output: Output path for the curated ``report.yaml``.
         plot_payload_output: Output path for the dense ``plot_payload.yaml``.
         samples_output: Output path for ``plotting_sample.parquet``.
+        folder: Folder name recorded in the report's replicate block.
+        scenario: Scenario name recorded in the report's replicate block.
+        rep: Replicate number recorded in the report's replicate block.
         seed: Random seed for stats sampling / correlations.
         censor_age: Administrative censoring age.
         gen_censoring: Optional per-generation censoring windows.
         max_degree: Maximum kinship degree for stats pair extraction.
-        case_ascertainment_ratio: Recorded in stats metadata when != 1.0.
+        case_ascertainment_ratio: Configured case-ascertainment ratio.
 
     Returns:
-        The combined report dict: the six stats groups at top level plus a
-        ``validation`` group, for in-process callers and tests.
+        The assembled v2 report dict, for in-process callers and tests.
     """
-    # --- Phase 1: Validate (full, pre-ascertainment pedigree) ---
-    logger.info("Analyze phase 1/2: validating %s", pedigree_full_path)
-    df_full = pd.read_parquet(pedigree_full_path)
     params = load_yaml(params_path)
-    validation_report = build_validation_report(df_full, params)
+    scope_counts: dict[str, Any] = {}
 
-    # Free the full-pedigree frame (and the graph/pairs that build_validation_report
-    # built and has now released) before loading Stats inputs, so peak memory
-    # stays at max(validate, stats), not their sum (ADR 0006). The validation
-    # report itself is a small summary dict, so holding it through Phase 2 to
-    # merge into the combined report costs nothing.
+    # --- Phase 1: Validate (full, pre-ascertainment recorded pedigree) ---
+    logger.info("Analyze phase 1/3: validating %s", pedigree_full_path)
+    df_full = pd.read_parquet(pedigree_full_path)
+    validation_report = build_validation_report(df_full, params)
+    scope_counts["recorded_pedigree"] = {
+        "source": "pedigree.full.parquet",
+        "n_individuals": len(df_full),
+        "n_generations": _n_generations(df_full),
+    }
     del df_full
     gc.collect()
 
-    # --- Phase 2: Stats (post-ascertainment subsample) ---
-    logger.info("Analyze phase 2/2: stats on %s", trait_path)
+    # --- Phase 2: Phenotyped population (full pre-ascertainment trait rows) ---
+    logger.info("Analyze phase 2/3: phenotyped-population summaries on %s", trait_full_path)
+    df_trait_full = pd.read_parquet(trait_full_path)
+    prevalence_phenotyped = compute_prevalence(df_trait_full)
+    scope_counts["phenotyped_population"] = {
+        "source": "trait.full.parquet",
+        "n_individuals": len(df_trait_full),
+        "n_generations": _n_generations(df_trait_full),
+    }
+    del df_trait_full
+    gc.collect()
+
+    # --- Phase 3: Analysis sample (post-ascertainment subsample) ---
+    logger.info("Analyze phase 3/3: stats on %s", trait_path)
     df = pd.read_parquet(trait_path)
     df_ped = pd.read_parquet(pedigree_path, columns=PEDIGREE_REPORT_COLUMNS)
-
     stats_report = build_stats_report(
         df,
         censor_age,
@@ -105,18 +128,34 @@ def run_analysis(
         max_degree=max_degree,
         case_ascertainment_ratio=case_ascertainment_ratio,
     )
+    metadata = stats_report.get("metadata", {})
+    sample_n = metadata.get("n_individuals", len(df))
+    scope_counts["analysis_sample"] = {
+        "source": "trait.parquet",
+        "n_individuals": sample_n,
+        "n_generations": metadata.get("n_generations", _n_generations(df)),
+    }
+    pedigree_full = (stats_report.get("pedigree") or {}).get("full") or {}
+    pedigree_n = pedigree_full.get("n_individuals", len(df_ped))
+    scope_counts["analysis_pedigree"] = {
+        "source": "pedigree.parquet",
+        "n_individuals": pedigree_n,
+        "n_generations": pedigree_full.get("n_generations", _n_generations(df_ped)),
+        "ancestor_closure_ratio": (pedigree_n / sample_n) if sample_n else None,
+    }
     del df_ped
 
-    # Split dense plot arrays out of the stats groups before assembling the
-    # report (ADR 0007). The report keeps scalar landmark summaries; the dense
-    # curves/window arrays go to plot_payload.yaml.
-    report_stats, plot_payload = split_plot_payload(stats_report)
-
-    # Merge into one report: the six (now scalar) stats groups at top level +
-    # validation folded in as its own group.
-    report = {**report_stats, "validation": validation_report}
+    report, plot_payload = assemble_report(
+        replicate={"folder": folder, "scenario": scenario, "rep": rep, "seed": seed},
+        params=params,
+        case_ascertainment_ratio=case_ascertainment_ratio,
+        validation_report=validation_report,
+        stats_report=stats_report,
+        prevalence_phenotyped=prevalence_phenotyped,
+        scope_counts=scope_counts,
+    )
     dump_yaml(report, report_output)
-    logger.info("Combined report written to %s", report_output)
+    logger.info("Curated report written to %s", report_output)
     dump_yaml(plot_payload, plot_payload_output)
     logger.info("Plot payload written to %s", plot_payload_output)
 
@@ -135,9 +174,13 @@ def cli() -> None:
     add_logging_args(parser)
     parser.add_argument("--pedigree-full", required=True, help="Full pre-ascertainment pedigree parquet")
     parser.add_argument("--params", required=True, help="Scenario params YAML")
+    parser.add_argument("--trait-full", required=True, help="Full pre-ascertainment trait parquet")
     parser.add_argument("--trait", required=True, help="Post-ascertainment trait parquet")
     parser.add_argument("--pedigree", required=True, help="Post-ascertainment pedigree parquet")
-    parser.add_argument("--report-output", required=True, help="Output combined report YAML")
+    parser.add_argument("--folder", default="", help="Folder name (replicate identity)")
+    parser.add_argument("--scenario", default="", help="Scenario name (replicate identity)")
+    parser.add_argument("--rep", type=int, default=1, help="Replicate number")
+    parser.add_argument("--report-output", required=True, help="Output curated report YAML")
     parser.add_argument("--plot-payload-output", required=True, help="Output dense plot payload YAML")
     parser.add_argument("--samples-output", required=True, help="Output plotting sample parquet")
     parser.add_argument("--censor-age", type=float, required=True)
@@ -156,11 +199,15 @@ def cli() -> None:
     run_analysis(
         pedigree_full_path=args.pedigree_full,
         params_path=args.params,
+        trait_full_path=args.trait_full,
         trait_path=args.trait,
         pedigree_path=args.pedigree,
         report_output=args.report_output,
         plot_payload_output=args.plot_payload_output,
         samples_output=args.samples_output,
+        folder=args.folder,
+        scenario=args.scenario,
+        rep=args.rep,
         seed=args.seed,
         censor_age=args.censor_age,
         gen_censoring=gen_censoring,

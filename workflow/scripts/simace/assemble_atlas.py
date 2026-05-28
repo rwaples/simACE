@@ -7,7 +7,7 @@ from simace import _snakemake_tag, setup_logging
 from simace.core.yaml_io import load_yaml
 from simace.plotting.atlas_manifest import build_phenotype_atlas
 from simace.plotting.plot_atlas import assemble_atlas
-from simace.plotting.stats_report import merge_plot_payload, plotting_stats_views
+from simace.plotting.stats_report import plotting_report_views
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ def _run_snakemake():
     # plot_payload arrays are merged back so Table 1 can derive onset quartiles.
     reports = [load_yaml(p) for p in snakemake.input.report]
     payloads = [load_yaml(p) for p in snakemake.input.plot_payload]
-    all_stats = plotting_stats_views([merge_plot_payload(r, pl) for r, pl in zip(reports, payloads, strict=True)])
+    all_stats = plotting_report_views(reports, payloads)
 
     assemble_atlas(
         items,
@@ -100,10 +100,8 @@ if __name__ == "__main__":
             scenario_params["scenario"] = args.scenario
 
         reports = [load_yaml(rp) for rp in args.report]
-        payloads = [load_yaml(pp) for pp in args.plot_payload] if args.plot_payload else [{}] * len(reports)
-        all_stats = plotting_stats_views(
-            [merge_plot_payload(r, pl) for r, pl in zip(reports, payloads, strict=True)]
-        )
+        payloads = [load_yaml(pp) for pp in args.plot_payload] if args.plot_payload else [None] * len(reports)
+        all_stats = plotting_report_views(reports, payloads)
 
         items = build_phenotype_atlas(scenario_params)
         assemble_atlas(

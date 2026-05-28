@@ -29,12 +29,13 @@ def _get_nested(d: Any, *keys: str, default: Any = None) -> Any:
 
 
 def extract_metrics(report_path: str) -> dict[str, Any]:
-    """Extract key metrics from the ``validation`` group of a report YAML file.
+    """Extract key metrics from a curated v2 ``report.yaml`` file.
 
-    The combined ``report.yaml`` (ADR 0007) nests the validation report under a
-    ``validation`` key; METRIC_REGISTRY paths are relative to that group's root.
+    METRIC_REGISTRY paths are relative to the report root and resolve into the
+    ``truth`` / ``estimators`` groups (ADR 0008). Parameters and the quality
+    summary are read inline from ``inputs`` / ``quality_checks``.
     """
-    data = load_yaml(report_path)["validation"]
+    data = load_yaml(report_path)
 
     report_path = str(report_path).replace("\\", "/")
 
@@ -65,8 +66,8 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
 
                 break
 
-    params = data["parameters"]
-    summary = data["summary"]
+    params = _get_nested(data, "inputs", "parameters", default={})
+    summary = _get_nested(data, "quality_checks", "summary", default={})
 
     row: dict[str, Any] = {
         "scenario": scenario,
@@ -96,7 +97,7 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
         "assort1": params.get("assort1"),
         "assort2": params.get("assort2"),
         "seed": params.get("seed"),
-        "checks_failed": summary.get("checks_failed"),
+        "checks_failed": summary.get("n_failed"),
     }
     for spec in METRIC_REGISTRY:
         row[spec.column] = _get_nested(data, *spec.path)

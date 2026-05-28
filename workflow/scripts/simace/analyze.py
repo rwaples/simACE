@@ -11,14 +11,19 @@ def _run_snakemake():
 
     gen_censoring = p.get("gen_censoring") or None
 
+    w = snakemake.wildcards
     run_analysis(
         pedigree_full_path=snakemake.input.pedigree_full,
         params_path=snakemake.input.params,
+        trait_full_path=snakemake.input.trait_full,
         trait_path=snakemake.input.trait,
         pedigree_path=snakemake.input.pedigree,
         report_output=snakemake.output.report,
         plot_payload_output=snakemake.output.plot_payload,
         samples_output=snakemake.output.samples,
+        folder=w.folder,
+        scenario=w.scenario,
+        rep=int(w.rep),
         seed=p.seed,
         censor_age=p.censor_age,
         gen_censoring=gen_censoring,

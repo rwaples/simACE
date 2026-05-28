@@ -47,7 +47,7 @@ from simace.plotting.plot_style import (
     apply_nature_style,
     enable_value_gridlines,
 )
-from simace.plotting.stats_report import plotting_stats_view
+from simace.plotting.stats_report import plotting_report_view, report_per_generation
 
 logger = logging.getLogger(__name__)
 
@@ -81,8 +81,7 @@ def load_per_generation(
     """
     per_rep: list[dict[int, tuple[float, float, float, float]]] = []
     for path in validation_paths:
-        data = load_yaml(path).get("validation", {})
-        per_gen = data.get("per_generation", {})
+        per_gen = report_per_generation(load_yaml(path))
         rep_dict: dict[int, tuple[float, float, float, float]] = {}
         for gen_key, gen_data in per_gen.items():
             gen = int(str(gen_key).removeprefix("generation_"))
@@ -1389,7 +1388,7 @@ def _load_per_gen_prevalence(
     """
     per_gen: dict[int, list[float]] = {}
     for path in stats_report_paths:
-        ps = plotting_stats_view(load_yaml(path))
+        ps = plotting_report_view(load_yaml(path))
         by_gen = (ps.get("prevalence") or {}).get("by_generation") or {}
         for g_key, entry in by_gen.items():
             g = int(g_key)
@@ -1512,7 +1511,7 @@ OBSERVED_LIABILITY_ESTIMATOR_DEFS: tuple[tuple[str, str], ...] = (
 
 def _load_tetrachoric(stats_report_path: Path, trait: int) -> dict[str, float]:
     """Return a flat ``{MZ, FS, MO, FO, MHS, PHS, 1C}`` tetrachoric r dict."""
-    ps = plotting_stats_view(load_yaml(stats_report_path))
+    ps = plotting_report_view(load_yaml(stats_report_path))
     tet = (ps.get("tetrachoric") or {}).get(f"trait{trait}", {}) or {}
     out: dict[str, float] = {}
     for key, entry in tet.items():

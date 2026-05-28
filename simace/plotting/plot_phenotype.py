@@ -58,7 +58,7 @@ from simace.plotting.plot_liability import (
 )
 from simace.plotting.plot_pedigree_counts import plot_pedigree_relationship_counts
 from simace.plotting.plot_utils import save_placeholder_plot
-from simace.plotting.stats_report import merge_plot_payload, plotting_stats_views
+from simace.plotting.stats_report import plotting_report_views
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +86,7 @@ def main(
 
     reports = [load_yaml(p) for p in report_paths]
     payloads = [load_yaml(p) for p in plot_payload_paths]
-    all_stats = plotting_stats_views([merge_plot_payload(r, pl) for r, pl in zip(reports, payloads, strict=True)])
+    all_stats = plotting_report_views(reports, payloads)
 
     df_samples = pd.concat([pd.read_parquet(p) for p in sample_paths], ignore_index=True)
     subsample_note = ""
@@ -97,10 +97,9 @@ def main(
 
     ext = plot_ext
 
-    # Validation data lives in each report's `validation` group; pull params
-    # early so they are available for correlation plots.
-    all_validations = [r.get("validation", {}) for r in reports]
-    validation_params = all_validations[0].get("parameters", {})
+    # Resolved scenario parameters (from inputs.parameters) reconstructed into
+    # the flat view; needed by the correlation/heritability reference lines.
+    validation_params = all_stats[0].get("parameters", {})
 
     # Pedigree relationship pair counts
     plot_pedigree_relationship_counts(
@@ -297,21 +296,19 @@ def main(
         subsample_note=subsample_note,
         params=validation_params,
     )
-    # Per-generation heritability (requires validation data)
-    if all_validations:
-        plot_heritability_by_generation(
-            all_validations,
-            out_dir / f"heritability.by_generation.{ext}",
-            scenario,
-        )
-        plot_broad_heritability_by_generation(
-            all_validations,
-            out_dir / f"additive_shared.by_generation.{ext}",
-            scenario,
-        )
-    else:
-        for name in ["heritability.by_generation", "additive_shared.by_generation"]:
-            save_placeholder_plot(out_dir / f"{name}.{ext}", "No validation data available")
+    # Per-generation heritability (from truth.realized_by_generation, exposed as
+    # `per_generation` in the view). Both helpers fall back to a placeholder
+    # when no per-generation data is present.
+    plot_heritability_by_generation(
+        all_stats,
+        out_dir / f"heritability.by_generation.{ext}",
+        scenario,
+    )
+    plot_broad_heritability_by_generation(
+        all_stats,
+        out_dir / f"additive_shared.by_generation.{ext}",
+        scenario,
+    )
 
     # PO-regression heritability by sex
     plot_heritability_by_sex_generation(

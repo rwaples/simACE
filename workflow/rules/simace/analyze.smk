@@ -1,5 +1,8 @@
 # ---------------------------------------------------------------------------
-# Combined Analyze stage: Validate + Stats in one job, one report (ADR 0006, 0007)
+# Combined Analyze stage: one job produces the curated report.yaml +
+# plot_payload.yaml (ADR 0006, 0007, 0008). Three phases over disjoint scopes:
+# recorded pedigree (validate), phenotyped population (trait.full), and the
+# post-ascertainment analysis sample.
 # ---------------------------------------------------------------------------
 
 
@@ -7,6 +10,7 @@ rule analyze:
     input:
         pedigree_full="results/{folder}/{scenario}/rep{rep}/pedigree.full.parquet",
         params="results/{folder}/{scenario}/rep{rep}/params.yaml",
+        trait_full="results/{folder}/{scenario}/rep{rep}/trait.full.parquet",
         trait="results/{folder}/{scenario}/rep{rep}/trait.parquet",
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:

@@ -1,18 +1,24 @@
-"""End-to-end smoke test for the combined Analyze stage (Validate + Stats)."""
+"""End-to-end smoke test for the combined Analyze stage (curated v2 report)."""
 
 import pytest
 import yaml
 
 from simace.analysis.analyze import run_analysis
-from simace.analysis.stats.runner import DENSE_ARRAY_KEYS
-from simace.plotting.stats_report import merge_plot_payload
+from simace.analysis.report_schema import (
+    REPORT_SCHEMA_VERSION,
+    REPORT_TOP_LEVEL_GROUPS,
+    assert_report_contract,
+    find_dense_keys,
+)
+from simace.plotting.stats_report import plotting_report_view
 
 # ---------------------------------------------------------------------------
 # Module-scoped fixture: simulate -> phenotype -> censor, once per file.
 #
-# Validate runs on the full simulated pedigree; Stats runs on the censored
-# trait + pedigree subsample. Sizing matches test_validate (N=1000, G_ped=3,
-# seed=42) so the validation checks pass deterministically.
+# Validate runs on the full simulated pedigree; the phenotyped-population and
+# analysis-sample phases run on the censored trait (no ascertainment in this
+# fixture, so trait.full == trait). Sizing matches test_validate (N=1000,
+# G_ped=3, seed=42) so the validation checks pass deterministically.
 # ---------------------------------------------------------------------------
 
 _SIM_PARAMS = dict(
@@ -73,10 +79,12 @@ def analyze_outputs(tmp_path, analyze_data):
     pedigree, censored, params = analyze_data
     ped_full = tmp_path / "pedigree.full.parquet"
     ped = tmp_path / "pedigree.parquet"
+    trait_full = tmp_path / "trait.full.parquet"
     trait = tmp_path / "trait.parquet"
     params_path = tmp_path / "params.yaml"
     pedigree.to_parquet(ped_full)
     pedigree.to_parquet(ped)
+    censored.to_parquet(trait_full)
     censored.to_parquet(trait)
     with open(params_path, "w", encoding="utf-8") as fh:
         yaml.safe_dump(params, fh)
@@ -88,11 +96,15 @@ def analyze_outputs(tmp_path, analyze_data):
     report = run_analysis(
         pedigree_full_path=str(ped_full),
         params_path=str(params_path),
+        trait_full_path=str(trait_full),
         trait_path=str(trait),
         pedigree_path=str(ped),
         report_output=str(report_yaml),
         plot_payload_output=str(plot_payload_yaml),
         samples_output=str(samples_pq),
+        folder="test",
+        scenario="analyze_unit",
+        rep=1,
         seed=42,
         censor_age=80.0,
         max_degree=2,
@@ -105,73 +117,88 @@ def analyze_outputs(tmp_path, analyze_data):
     }
 
 
-def _find_dense_keys(node, path=""):
-    """Yield dotted paths of any DENSE_ARRAY_KEYS found anywhere in a nested dict."""
-    if isinstance(node, dict):
-        for key, value in node.items():
-            here = f"{path}.{key}" if path else key
-            if key in DENSE_ARRAY_KEYS:
-                yield here
-            yield from _find_dense_keys(value, here)
-
-
-_REPORT_GROUPS = {
-    "metadata",
-    "incidence",
-    "censoring",
-    "pedigree",
-    "correlations",
-    "heritability",
-    "validation",
-}
-
-
 class TestRunAnalysis:
     def test_outputs_written(self, analyze_outputs):
         assert analyze_outputs["report_yaml"].exists()
         assert analyze_outputs["plot_payload_yaml"].exists()
         assert analyze_outputs["samples_pq"].exists()
 
-    def test_validation_summary_passes(self, analyze_outputs):
-        summary = analyze_outputs["report"]["validation"]["summary"]
-        assert summary["checks_total"] == summary["checks_passed"] + summary["checks_failed"]
-        assert summary["passed"] is True
+    def test_schema_is_v2(self, analyze_outputs):
+        assert analyze_outputs["report"]["schema"] == {
+            "name": "simace_report",
+            "version": REPORT_SCHEMA_VERSION,
+        }
 
-    def test_report_has_six_stats_groups_plus_validation(self, analyze_outputs):
-        assert set(analyze_outputs["report"]) == _REPORT_GROUPS
+    def test_top_level_groups_match_contract(self, analyze_outputs):
+        assert set(analyze_outputs["report"]) == set(REPORT_TOP_LEVEL_GROUPS)
+
+    def test_report_passes_contract(self, analyze_outputs):
+        # Validates schema, required groups, and absence of dense plot arrays.
+        assert_report_contract(analyze_outputs["report"])
+
+    def test_quality_checks_normalized(self, analyze_outputs):
+        qc = analyze_outputs["report"]["quality_checks"]
+        assert qc["summary"]["passed"] is True
+        assert qc["summary"]["n_failed"] == 0
+        assert qc["checks"], "expected at least one normalized check row"
+        row = qc["checks"][0]
+        assert set(row) >= {"id", "scope", "severity", "status", "observed", "expected", "tolerance", "message"}
+        assert all(c["scope"] == "recorded_pedigree" for c in qc["checks"])
+
+    def test_truth_realized_variances(self, analyze_outputs):
+        realized = analyze_outputs["report"]["truth"]["recorded_pedigree"]["traits"]["trait1"]["realized"]
+        assert realized["var_A"] is not None
+        assert realized["h2_liability"] is not None
+        assert "realized_by_generation" in analyze_outputs["report"]["truth"]["recorded_pedigree"]["traits"]["trait1"]
+
+    def test_observed_ascertainment_before_after(self, analyze_outputs):
+        asc = analyze_outputs["report"]["observed"]["ascertainment"]
+        enr = asc["trait_enrichment"]["trait1"]
+        assert "affected_fraction_before" in enr
+        assert "affected_fraction_after" in enr
+        assert asc["counts"]["retained_fraction"] is not None
+
+    def test_estimators_present(self, analyze_outputs):
+        her = analyze_outputs["report"]["estimators"]["heritability"]
+        assert "observed_scale" in her
+        assert her["liability_scale"]["trait1"]["falconer"] is not None
+
+    def test_scopes_cover_four_populations(self, analyze_outputs):
+        scopes = analyze_outputs["report"]["scopes"]
+        assert set(scopes) == {
+            "recorded_pedigree",
+            "phenotyped_population",
+            "analysis_sample",
+            "analysis_pedigree",
+        }
+        assert scopes["analysis_pedigree"]["ancestor_closure_ratio"] is not None
 
     def test_written_yaml_matches_returned_report(self, analyze_outputs):
         with open(analyze_outputs["report_yaml"], encoding="utf-8") as fh:
             report = yaml.safe_load(fh)
-        assert set(report) == _REPORT_GROUPS
-        # Validation folded in as its own group.
-        assert "summary" in report["validation"]
-        assert "structural" in report["validation"]
-        # Stats ran on the (sub)sampled pedigree, so the full-pedigree branch is present.
-        assert "full" in report["pedigree"]
-        assert "mate_correlation" in report["correlations"]
-
-    def test_report_has_no_dense_arrays(self, analyze_outputs):
-        report = analyze_outputs["report"]
-        assert list(_find_dense_keys(report)) == []
+        assert set(report) == set(REPORT_TOP_LEVEL_GROUPS)
+        assert list(find_dense_keys(report)) == []
 
     def test_plot_payload_has_dense_arrays(self, analyze_outputs):
         with open(analyze_outputs["plot_payload_yaml"], encoding="utf-8") as fh:
             payload = yaml.safe_load(fh)
         # gen_censoring is None for this fixture, so only the incidence curves
-        # are dense; the AJ/observed curves carry ages.
-        assert "incidence" in payload
-        dense = set(_find_dense_keys(payload))
+        # are dense; they live under analysis_sample, carrying ages.
+        assert "analysis_sample" in payload
+        dense = set(find_dense_keys(payload))
         assert any(p.endswith(".ages") for p in dense)
         assert any(p.endswith(".observed_values") for p in dense)
 
-    def test_merge_round_trip_reunites_scalars_and_arrays(self, analyze_outputs):
+    def test_adapter_round_trip_reunites_scalars_and_arrays(self, analyze_outputs):
         report = analyze_outputs["report"]
         with open(analyze_outputs["plot_payload_yaml"], encoding="utf-8") as fh:
             payload = yaml.safe_load(fh)
-        merged = merge_plot_payload(report, payload)
-        ci = merged["incidence"]["cumulative_incidence"]["trait1"]
+        view = plotting_report_view(report, payload)
+        ci = view["cumulative_incidence"]["trait1"]
         # Array (from payload) and scalar landmark (from report) sit together.
         assert "ages" in ci
         assert "half_target_age" in ci
         assert len(ci["ages"]) == len(ci["observed_values"])
+        # Validation-derived per-generation table is reconstructed for plots.
+        assert view["per_generation"]
+        assert view["parameters"].get("A1") is not None

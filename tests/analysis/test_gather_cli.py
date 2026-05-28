@@ -6,6 +6,8 @@ import logging
 import pytest
 import yaml
 
+from simace.analysis.report import assemble_report
+
 # ---------------------------------------------------------------------------
 # cli_base
 # ---------------------------------------------------------------------------
@@ -140,8 +142,17 @@ _MINIMAL_VALIDATION = {
     },
 }
 
-# extract_metrics reads the `validation` group of a combined report (ADR 0007).
-_MINIMAL_REPORT = {"validation": _MINIMAL_VALIDATION}
+# extract_metrics reads a curated v2 report (ADR 0008). Funnel the
+# validation-shaped fixture through the real builder so registry paths line up.
+_MINIMAL_REPORT, _ = assemble_report(
+    replicate={"folder": "base", "scenario": "minimal", "rep": 1, "seed": 42},
+    params=_MINIMAL_VALIDATION["parameters"],
+    case_ascertainment_ratio=1.0,
+    validation_report=_MINIMAL_VALIDATION,
+    stats_report={},
+    prevalence_phenotyped={},
+    scope_counts={},
+)
 
 
 class TestExtractMetrics:

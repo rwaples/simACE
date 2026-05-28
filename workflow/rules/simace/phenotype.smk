@@ -2,10 +2,11 @@
 # Phenotype simulation rules
 #
 # All three rules consume the *pre-ascertainment* pedigree via the shared
-# _pre_ascertainment_pedigree_input helper (respects use_gene_drop).  Outputs
-# are temp files (trait.raw, trait.full, trait.simple_ltm.full); the
-# ascertainment stage produces the canonical post-stage trait.parquet /
-# trait.simple_ltm.parquet that downstream consumers read.
+# _pre_ascertainment_pedigree_input helper (respects use_gene_drop).  trait.raw
+# and trait.simple_ltm.full are temp; trait.full is durable (ADR 0008) so the
+# Analyze stage can quantify ascertainment distortion against the full
+# phenotyped population. The ascertainment stage produces the canonical
+# post-stage trait.parquet / trait.simple_ltm.parquet downstream consumers read.
 # ---------------------------------------------------------------------------
 
 
@@ -43,7 +44,7 @@ rule censor_weibull:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/trait.raw.parquet",
     output:
-        phenotype=temp("results/{folder}/{scenario}/rep{rep}/trait.full.parquet"),
+        phenotype="results/{folder}/{scenario}/rep{rep}/trait.full.parquet",
     log:
         "logs/{folder}/{scenario}/rep{rep}/censor_weibull.log",
     benchmark:
@@ -66,7 +67,9 @@ rule phenotype_simple_ltm:
     input:
         pedigree=lambda w: _pre_ascertainment_pedigree_input(w, config),
     output:
-        phenotype=temp("results/{folder}/{scenario}/rep{rep}/trait.simple_ltm.full.parquet"),
+        phenotype=temp(
+            "results/{folder}/{scenario}/rep{rep}/trait.simple_ltm.full.parquet"
+        ),
     log:
         "logs/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.log",
     benchmark:

@@ -1,11 +1,13 @@
-"""Contract tests for METRIC_REGISTRY ↔ validate.run_validation.
+"""Contract tests for METRIC_REGISTRY ↔ the curated v2 report.
 
 The registry in `simace.analysis.validation_schema` is the single source of
-truth for validation TSV columns. These tests run a small, parameter-tuned
-coverage simulation through `run_validation` and assert that **every**
-registered path resolves to a non-None value. If a producer-side rename in
-`validate.py` empties a registry-tracked column, this suite fails — which is
-the silent-drop bug class this whole refactor closes.
+truth for the report-summary TSV columns. These tests run a small,
+parameter-tuned coverage simulation through `run_validation`, assemble it into a
+v2 report, and assert that **every** registered path resolves to a non-None
+value. If a producer-side rename in `validate.py` / `report.py` empties a
+registry-tracked column, this suite fails — the silent-drop bug class this
+refactor closes. Every registry path lives in ``truth`` / ``estimators``, both
+derived from the validation report, so the stats half can be empty here.
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ from __future__ import annotations
 import pytest
 
 from simace.analysis.gather import _get_nested, extract_metrics
+from simace.analysis.report import assemble_report
 from simace.analysis.validate import run_validation
 from simace.analysis.validation_schema import METRIC_REGISTRY
 from simace.core.yaml_io import dump_yaml, load_yaml
@@ -44,11 +47,12 @@ _COVERAGE_PARAMS = dict(
 
 
 @pytest.fixture(scope="session")
-def coverage_validation_yaml(tmp_path_factory) -> dict:
-    """Run a small coverage simulation once and return the validation YAML.
+def coverage_report(tmp_path_factory) -> dict:
+    """Run a coverage simulation, assemble a v2 report, and round-trip it.
 
-    Round-trips through `dump_yaml` / `load_yaml` so the test sees what
-    `gather` would actually read off disk.
+    The registry reads only ``truth`` / ``estimators`` (both derived from the
+    validation report), so ``stats_report`` is empty here. Round-trips through
+    `dump_yaml` / `load_yaml` so the test sees what `gather` reads off disk.
     """
     work = tmp_path_factory.mktemp("coverage_scenario")
     pedigree = run_simulation(**_COVERAGE_PARAMS)
@@ -58,9 +62,18 @@ def coverage_validation_yaml(tmp_path_factory) -> dict:
     params_path = work / "params.yaml"
     dump_yaml(_COVERAGE_PARAMS, params_path)
 
-    results = run_validation(str(pedigree_path), str(params_path))
-    out_path = work / "validation.yaml"
-    dump_yaml(results, out_path)
+    validation = run_validation(str(pedigree_path), str(params_path))
+    report, _payload = assemble_report(
+        replicate={"folder": "test", "scenario": "coverage", "rep": 1, "seed": 1234},
+        params=_COVERAGE_PARAMS,
+        case_ascertainment_ratio=1.0,
+        validation_report=validation,
+        stats_report={},
+        prevalence_phenotyped={},
+        scope_counts={},
+    )
+    out_path = work / "report.yaml"
+    dump_yaml(report, out_path)
     return load_yaml(out_path)
 
 
@@ -70,25 +83,25 @@ def test_unique_columns():
     assert not duplicates, f"Duplicate columns in METRIC_REGISTRY: {sorted(duplicates)}"
 
 
-def test_every_registry_path_resolves(coverage_validation_yaml):
-    """Each registered path must hit a non-None leaf in the coverage YAML."""
+def test_every_registry_path_resolves(coverage_report):
+    """Each registered path must hit a non-None leaf in the coverage report."""
     missing = []
     for spec in METRIC_REGISTRY:
-        value = _get_nested(coverage_validation_yaml, *spec.path)
+        value = _get_nested(coverage_report, *spec.path)
         if value is None:
             missing.append((spec.column, "/".join(spec.path)))
     assert not missing, (
-        "Registry paths that did not resolve in the coverage validation YAML "
+        "Registry paths that did not resolve in the coverage report "
         "(producer must emit these keys, or registry must be updated): " + repr(missing)
     )
 
 
-def test_extract_metrics_populates_registry_columns(tmp_path, coverage_validation_yaml):
+def test_extract_metrics_populates_registry_columns(tmp_path, coverage_report):
     """End-to-end: extract_metrics returns a non-None value for every registered column."""
     val_dir = tmp_path / "results" / "test" / "coverage_scenario" / "rep1"
     val_dir.mkdir(parents=True)
     report_path = val_dir / "report.yaml"
-    dump_yaml({"validation": coverage_validation_yaml}, report_path)
+    dump_yaml(coverage_report, report_path)
 
     row = extract_metrics(str(report_path))
     missing = [spec.column for spec in METRIC_REGISTRY if row.get(spec.column) is None]
