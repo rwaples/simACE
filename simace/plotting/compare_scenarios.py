@@ -63,13 +63,13 @@ SCENARIO_PALETTE: tuple[str, ...] = (
 
 
 def load_per_generation(
-    validation_paths: list[Path],
+    report_paths: list[Path],
     trait: int = 1,
 ) -> dict[int, np.ndarray]:
     """Read ``per_generation`` variance components from report.yaml files.
 
     Args:
-        validation_paths: one path per replicate (of a single scenario).
+        report_paths: one path per replicate (of a single scenario).
         trait: 1 or 2.
 
     Returns:
@@ -80,7 +80,7 @@ def load_per_generation(
         consistent gen axis.
     """
     per_rep: list[dict[int, tuple[float, float, float, float]]] = []
-    for path in validation_paths:
+    for path in report_paths:
         per_gen = report_per_generation(load_yaml(path))
         rep_dict: dict[int, tuple[float, float, float, float]] = {}
         for gen_key, gen_data in per_gen.items():
@@ -1377,7 +1377,7 @@ def compare_cohort_falconer(
 
 
 def _load_per_gen_prevalence(
-    stats_report_paths: list[Path],
+    report_paths: list[Path],
     trait: int = 1,
 ) -> dict[int, list[float]]:
     """Read ``prevalence.by_generation.{N}.trait{trait}`` across replicates.
@@ -1387,7 +1387,7 @@ def _load_per_gen_prevalence(
     to a given generation's list.
     """
     per_gen: dict[int, list[float]] = {}
-    for path in stats_report_paths:
+    for path in report_paths:
         ps = plotting_report_view(load_yaml(path))
         by_gen = (ps.get("prevalence") or {}).get("by_generation") or {}
         for g_key, entry in by_gen.items():
@@ -1522,7 +1522,7 @@ def _load_tetrachoric(stats_report_path: Path, trait: int) -> dict[str, float]:
 
 def load_observed_vs_liability_h2(
     pedigree_paths: list[Path],
-    stats_report_paths: list[Path],
+    report_paths: list[Path],
     trait: int = 1,
     min_generation: int | None = None,
 ) -> dict[str, np.ndarray]:
@@ -1535,7 +1535,7 @@ def load_observed_vs_liability_h2(
 
     Args:
         pedigree_paths: one ``pedigree.parquet`` path per rep.
-        stats_report_paths: one ``report.yaml`` path per replicate.
+        report_paths: one ``report.yaml`` path per replicate.
         trait: 1 or 2.
         min_generation: forwarded to :func:`load_pedigree_estimates` for the
             liability correlations and realized h².  Tetrachoric values in
@@ -1547,7 +1547,7 @@ def load_observed_vs_liability_h2(
         'realized'}``; each value is a per-rep ``np.ndarray``.
     """
     out: dict[str, list[float]] = {k: [] for k in ("liability_falconer", "tetrachoric_falconer", "realized")}
-    for ped_path, ps_path in zip(pedigree_paths, stats_report_paths, strict=True):
+    for ped_path, ps_path in zip(pedigree_paths, report_paths, strict=True):
         est = load_pedigree_estimates(ped_path, trait=trait, min_generation=min_generation)
         r_mz_liab = est.get("MZ", float("nan"))
         r_fs_liab = est.get("FS", float("nan"))
@@ -1567,7 +1567,7 @@ def load_observed_vs_liability_h2(
 
 def compare_observed_vs_liability_h2(
     pedigree_paths_per_scenario: list[list[Path]],
-    stats_report_paths_per_scenario: list[list[Path]],
+    report_paths_per_scenario: list[list[Path]],
     labels: list[str],
     output_path: Path,
     trait: int = 1,
@@ -1586,7 +1586,7 @@ def compare_observed_vs_liability_h2(
     Args:
         pedigree_paths_per_scenario: outer list = scenarios, inner list =
             per-rep ``pedigree.parquet`` paths.
-        stats_report_paths_per_scenario: same shape, per-replicate
+        report_paths_per_scenario: same shape, per-replicate
             ``report.yaml`` paths. Rep order must match.
         labels: display label per scenario.
         output_path: image path to save.
@@ -1595,8 +1595,8 @@ def compare_observed_vs_liability_h2(
         input_h2: simulation input h²; drawn as a dashed reference line.
     """
     n_scen = len(labels)
-    if len(pedigree_paths_per_scenario) != n_scen or len(stats_report_paths_per_scenario) != n_scen:
-        raise ValueError("pedigree_paths, stats_report_paths, and labels must have the same length")
+    if len(pedigree_paths_per_scenario) != n_scen or len(report_paths_per_scenario) != n_scen:
+        raise ValueError("pedigree_paths, report_paths, and labels must have the same length")
 
     apply_nature_style()
     estimator_labels = [d[0] for d in OBSERVED_LIABILITY_ESTIMATOR_DEFS]
@@ -1610,7 +1610,7 @@ def compare_observed_vs_liability_h2(
             trait=trait,
             min_generation=min_generation,
         )
-        for ped_paths, ps_paths in zip(pedigree_paths_per_scenario, stats_report_paths_per_scenario, strict=True)
+        for ped_paths, ps_paths in zip(pedigree_paths_per_scenario, report_paths_per_scenario, strict=True)
     ]
 
     fig, (ax_raw, ax_bias) = plt.subplots(2, 1, figsize=(7.5, 8), sharex=True)

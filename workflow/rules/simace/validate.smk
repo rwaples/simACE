@@ -9,7 +9,7 @@ import platform
 
 rule gather_report_summary:
     input:
-        reports=lambda w: get_folder_validations(config, w.folder),
+        reports=lambda w: get_folder_reports(config, w.folder),
     output:
         tsv="results/{folder}/report_summary.tsv",
     log:

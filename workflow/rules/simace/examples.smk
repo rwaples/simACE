@@ -200,7 +200,7 @@ rule compare_observed_vs_liability_h2:
             for scen in OBSERVED_VS_LIABILITY_SCENARIOS
             for rep in range(1, get_param(config, scen, "replicates") + 1)
         ],
-        stats_report=lambda w: [
+        report=lambda w: [
             f"results/examples/{scen}/rep{rep}/report.yaml"
             for scen in OBSERVED_VS_LIABILITY_SCENARIOS
             for rep in range(1, get_param(config, scen, "replicates") + 1)
