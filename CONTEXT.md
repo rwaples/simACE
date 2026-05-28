@@ -230,9 +230,13 @@ The pipeline runs the following stages in order. Stage names match the Snakemake
 
 _Avoid_: "phenotyping" (killed), "subsampling" / "dropout stage" (killed — see **Ascertainment**), "validation stage" (use "validate stage"), "statistics" (use "stats"), "simulation stage" (just say "the simulate stage").
 
-**Per-replicate stats report**:
-The Stats-stage summary for one replicate, combining incidence, censoring, pedigree, correlation, and observed-heritability summaries. The report describes one replicate after ascertainment; it is not a cross-replicate aggregate and does not replace validation.
-_Avoid_: phenotype statistics, stats dump, summary YAML.
+**Per-replicate scientific report**:
+The curated Analyze-stage report for one replicate. It summarizes quality checks, ground truth, observed post-ascertainment summaries, and estimator outputs, with every quantity labeled by the population scope it describes. Report scopes are **recorded pedigree** (full pre-ascertainment recorded pedigree), **phenotyped population** (full pre-ascertainment phenotyped/censored rows), **analysis sample** (final ascertained trait rows), and **analysis pedigree** (ancestor-closure pedigree supporting the analysis sample). It is not a plot cache and not a cross-replicate aggregate.
+_Avoid_: phenotype statistics, stats dump, summary YAML, plot payload.
+
+**Plot payload**:
+A durable companion artifact for dense arrays needed only to render plots, such as age grids and full curve values. It is derived from the same replicate outputs as the scientific report but is not itself the scientific report.
+_Avoid_: report, stats report, scientific summary.
 
 **Plotting sample**:
 A downsampled set of trait rows used only to draw dense scatter and histogram plots. It is distinct from the post-ascertainment analysis dataset and must not be used as an analysis sample.
@@ -245,7 +249,7 @@ This package — the simulation pipeline. Generates pedigrees, applies phenotype
 _Avoid_: "the simulator", "the framework" (overloaded), "ACE" alone (ACE is the model, not this package).
 
 **fitACE**:
-The model-fitting sister repo. Consumes simACE outputs (`trait.parquet`, `pedigree.parquet`, stats YAMLs) and runs inferential methods (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC) to estimate variance components and recover ground-truth parameters. The boundary is **one-way**: simACE → fitACE, with no feedback loop into simACE.
+The model-fitting sister repo. Consumes simACE outputs (`trait.parquet`, `pedigree.parquet`, `report.yaml`) and runs inferential methods (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC) to estimate variance components and recover ground-truth parameters. The boundary is **one-way**: simACE → fitACE, with no feedback loop into simACE.
 _Avoid_: "the fitter", "the estimator suite" (subset), "the analysis package" (simACE also has `analysis/`).
 
 **ACE** (the model):
@@ -258,11 +262,11 @@ _Avoid_: true values (acceptable in prose but less specific), simulated values, 
 
 ### Descriptive vs inferential analysis
 
-simACE-side `simace.analysis.stats` produces **descriptive** statistics: per-pair tetrachoric correlations, pairwise Weibull survival correlations, kinship-weighted regressions, mean kinship, $N_e$ estimators, prevalence summaries. These are quantities a researcher would compute directly from observable data — they describe the simulated dataset without committing to a generative model.
+simACE-side `simace.analysis.stats` produces **observed summaries** and simple **estimators**. Observed summaries are quantities directly measured from a scoped output population: prevalence, person-years, relationship counts, liability/affected/tetrachoric correlations, and mate correlations. Estimators are values derived from observed summaries to estimate a target quantity, such as naive observed-scale heritability from affected-status relationship correlations.
 
 fitACE-side methods are **inferential**: they fit a full variance-component model (often with explicit pedigree structure, censoring, and ascertainment correction) and estimate $\sigma^2_A$, $\sigma^2_C$, $\sigma^2_E$, $r_A$, $r_C$, and related parameters with uncertainty.
 
-When in doubt: if it's a number you'd plot directly from a stats YAML, it's descriptive (simACE). If it's a variance-component estimate with a standard error from a likelihood, it's inferential (fitACE).
+When in doubt: if it directly describes a scoped simACE output population, it is an observed summary. If it transforms observed summaries into a target quantity such as $h^2$, it is an estimator. If it comes from fitting a variance-component model with uncertainty, it is inferential fitACE output.
 
 ## Flagged ambiguities
 
