@@ -30,12 +30,19 @@ from .report_schema import (
 _NON_CHECK_CATEGORIES = frozenset({"per_generation", "summary", "family_size_distribution", "parameters"})
 
 
-def _first(result: dict[str, Any], prefixes: tuple[str, ...]) -> Any:
-    """Return the first value whose key starts with one of ``prefixes``."""
-    for key, value in result.items():
-        if key.startswith(prefixes):
-            return value
-    return None
+def _single(result: dict[str, Any], prefix: str) -> Any:
+    """Return the value of the one key starting with ``prefix`` (or None).
+
+    Validator results carry at most one ``observed_*`` / ``expected_*`` field
+    each, so a uniform check row can record it unambiguously. If a result ever
+    grows two matching keys, picking one by dict order would be silently
+    arbitrary — raise instead so the field map is made explicit.
+    """
+    hits = [value for key, value in result.items() if key.startswith(prefix)]
+    if len(hits) > 1:
+        matched = sorted(k for k in result if k.startswith(prefix))
+        raise ValueError(f"Ambiguous {prefix!r} fields in check result: {matched}")
+    return hits[0] if hits else None
 
 
 def normalize_quality_checks(validation_report: dict[str, Any]) -> dict[str, Any]:
@@ -63,8 +70,8 @@ def normalize_quality_checks(validation_report: dict[str, Any]) -> dict[str, Any
                     "scope": "recorded_pedigree",
                     "severity": "error",
                     "status": "pass" if passed else "fail",
-                    "observed": _first(result, ("observed",)),
-                    "expected": _first(result, ("expected",)),
+                    "observed": _single(result, "observed"),
+                    "expected": _single(result, "expected"),
                     "tolerance": result.get("tolerance"),
                     "message": result.get("details"),
                 }
@@ -235,16 +242,19 @@ def _rebucket_analysis_pedigree(stats_report: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_ascertainment_summary(
-    params: dict[str, Any],
-    case_ascertainment_ratio: float,
     prevalence_phenotyped: dict[str, Any],
     prevalence_sample: dict[str, Any],
     scope_counts: dict[str, Any],
 ) -> dict[str, Any]:
-    """Compare the phenotyped population to the ascertained analysis sample."""
+    """Summarize how ascertainment distorts the phenotyped population.
+
+    Carries only the distortion story (retained fraction, per-trait
+    case-enrichment). Raw scope sizes and the ancestor-closure ratio live once
+    in ``scopes`` (their canonical home) and are not restated here. Configured
+    knobs likewise live once in ``inputs.ascertainment``.
+    """
     pheno_n = (scope_counts.get("phenotyped_population") or {}).get("n_individuals")
     sample_n = (scope_counts.get("analysis_sample") or {}).get("n_individuals")
-    pedigree_n = (scope_counts.get("analysis_pedigree") or {}).get("n_individuals")
     trait_enrichment: dict[str, Any] = {}
     for t in (1, 2):
         before = prevalence_phenotyped.get(f"trait{t}")
@@ -255,22 +265,8 @@ def build_ascertainment_summary(
             "enrichment_ratio": (after / before) if before else None,
         }
     return {
-        "configured": {
-            "dropout_rate": params.get("dropout_rate"),
-            "case_ascertainment_ratio": case_ascertainment_ratio,
-            "N_sample": params.get("N_sample"),
-        },
-        "counts": {
-            "phenotyped_population_n": pheno_n,
-            "analysis_sample_n": sample_n,
-            "retained_fraction": (sample_n / pheno_n) if pheno_n else None,
-        },
+        "retained_fraction": (sample_n / pheno_n) if pheno_n else None,
         "trait_enrichment": trait_enrichment,
-        "pedigree_closure": {
-            "analysis_sample_n": sample_n,
-            "analysis_pedigree_n": pedigree_n,
-            "ancestor_closure_ratio": (scope_counts.get("analysis_pedigree") or {}).get("ancestor_closure_ratio"),
-        },
     }
 
 
@@ -304,9 +300,7 @@ def assemble_report(
     Returns ``(report, plot_payload)``.
     """
     prevalence_sample = (stats_report.get("incidence") or {}).get("prevalence", {})
-    ascertainment = build_ascertainment_summary(
-        params, case_ascertainment_ratio, prevalence_phenotyped, prevalence_sample, scope_counts
-    )
+    ascertainment = build_ascertainment_summary(prevalence_phenotyped, prevalence_sample, scope_counts)
 
     # Split dense plot arrays out of every scope in one pass: the scalar half is
     # the scientific report, the dense half becomes the plot payload (keyed by

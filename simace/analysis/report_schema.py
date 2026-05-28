@@ -215,7 +215,7 @@ REPORT_SUMMARY_REGISTRY: list[MetricSpec] = [
     MetricSpec("ancestor_closure_ratio", (*_SCOPES, "analysis_pedigree", "ancestor_closure_ratio")),
 
     # ── ascertainment distortion ──────────────────────────────────────────
-    MetricSpec("retained_fraction", (*_ASC, "counts", "retained_fraction")),
+    MetricSpec("retained_fraction", (*_ASC, "retained_fraction")),
     MetricSpec("trait1_affected_before", (*_ASC, "trait_enrichment", "trait1", "affected_fraction_before")),
     MetricSpec("trait1_affected_after", (*_ASC, "trait_enrichment", "trait1", "affected_fraction_after")),
     MetricSpec("trait2_affected_before", (*_ASC, "trait_enrichment", "trait2", "affected_fraction_before")),

@@ -236,7 +236,7 @@ phenotyped rows), `analysis_sample` (ascertained `trait.parquet`), and
 | `scopes` | Per-scope source file, `n_individuals`, `n_generations` (+ `ancestor_closure_ratio` for the analysis pedigree) |
 | `quality_checks` | Normalized pass/fail rows `{id, scope, severity, status, observed, expected, tolerance, message}` plus a `summary` |
 | `truth` | Generated/realized ground truth on `recorded_pedigree`: realized A/C/E variances + liability h² (per trait, with `realized_by_generation`), `cross_trait` correlations, `family_structure` (twin rate, half-sibs, consanguinity, offspring distribution), `assortative_mating` |
-| `observed` | Descriptive summaries bucketed by scope: a first-class `ascertainment` block (before/after affected fractions, retained fraction, closure), `phenotyped_population` prevalence, and the re-bucketed `analysis_sample` / `analysis_pedigree` stats |
+| `observed` | Descriptive summaries bucketed by scope: a first-class `ascertainment` block (per-trait before/after affected fractions + enrichment, retained fraction; raw scope sizes and closure live once in `scopes`), `phenotyped_population` prevalence, and the re-bucketed `analysis_sample` / `analysis_pedigree` stats |
 | `estimators` | Heritability split into `observed_scale` (binary-affected) and `liability_scale` (twin/sibling/parent-offspring) |
 
 ### plot_payload.yaml

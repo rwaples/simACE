@@ -156,7 +156,7 @@ class TestRunAnalysis:
         enr = asc["trait_enrichment"]["trait1"]
         assert "affected_fraction_before" in enr
         assert "affected_fraction_after" in enr
-        assert asc["counts"]["retained_fraction"] is not None
+        assert asc["retained_fraction"] is not None
 
     def test_estimators_present(self, analyze_outputs):
         her = analyze_outputs["report"]["estimators"]["heritability"]
