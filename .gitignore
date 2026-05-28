@@ -9,6 +9,7 @@ external/
 /scripts/*
 !/scripts/migrate_prevalence_keys.py
 !/scripts/regen_rulegraph.sh
+!/scripts/calibrate_frailty_scale.py
 
 # Notebooks
 notebooks/
