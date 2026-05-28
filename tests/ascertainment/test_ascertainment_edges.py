@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from simace.ascertainment import _sever_dangling_links, run_ascertainment
+from simace.ascertainment import _sever_dangling_links, copy_passthrough_if_possible, run_ascertainment
 from simace.ascertainment import cli as ascertain_cli
 from simace.core.schema import CENSORED
 from simace.simulation.simulate import run_simulation
@@ -184,6 +184,67 @@ class TestSeverDanglingTwinLinks:
         assert out.loc[0, "twin"] == -1  # dangling severed
         assert out.loc[1, "twin"] == 2  # in-set survives
         assert out.loc[2, "twin"] == 1
+
+
+class TestPassThroughCopyFastPath:
+    """File-level no-op ascertainment can copy exact-ID inputs unchanged."""
+
+    def test_copies_when_all_inputs_have_same_ordered_ids(self, tmp_path, small_pedigree):
+        ped_path = tmp_path / "pedigree.parquet"
+        trait_path = tmp_path / "trait.parquet"
+        ltm_path = tmp_path / "trait.simple_ltm.parquet"
+        out_ped = tmp_path / "out_ped.parquet"
+        out_trait = tmp_path / "out_trait.parquet"
+        out_ltm = tmp_path / "out_ltm.parquet"
+
+        small_pedigree.to_parquet(ped_path)
+        small_pedigree.to_parquet(trait_path)
+        small_pedigree.to_parquet(ltm_path)
+
+        copied = copy_passthrough_if_possible(
+            ped_path,
+            trait_path,
+            ltm_path,
+            out_ped,
+            out_trait,
+            out_ltm,
+            dropout_rate=0.0,
+            N_sample=0,
+        )
+
+        assert copied is True
+        pd.testing.assert_frame_equal(pd.read_parquet(out_ped), small_pedigree)
+        pd.testing.assert_frame_equal(pd.read_parquet(out_trait), small_pedigree)
+        pd.testing.assert_frame_equal(pd.read_parquet(out_ltm), small_pedigree)
+
+    def test_declines_when_trait_is_only_a_phenotyped_subset(self, tmp_path, small_pedigree):
+        ped_path = tmp_path / "pedigree.parquet"
+        trait_path = tmp_path / "trait.parquet"
+        ltm_path = tmp_path / "trait.simple_ltm.parquet"
+        out_ped = tmp_path / "out_ped.parquet"
+        out_trait = tmp_path / "out_trait.parquet"
+        out_ltm = tmp_path / "out_ltm.parquet"
+
+        small_pedigree.to_parquet(ped_path)
+        trait = _build_trait(small_pedigree, g_pheno=1, n_cases=10, seed=1)
+        trait.to_parquet(trait_path)
+        trait.to_parquet(ltm_path)
+
+        copied = copy_passthrough_if_possible(
+            ped_path,
+            trait_path,
+            ltm_path,
+            out_ped,
+            out_trait,
+            out_ltm,
+            dropout_rate=0.0,
+            N_sample=0,
+        )
+
+        assert copied is False
+        assert not out_ped.exists()
+        assert not out_trait.exists()
+        assert not out_ltm.exists()
 
 
 class TestAscertainmentCLI:
