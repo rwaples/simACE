@@ -1,10 +1,9 @@
 """Plot phenotype distributions from pre-computed per-replicate reports.
 
-Reads report.yaml (six stats groups + a `validation` group), the companion
-plot_payload.yaml (dense incidence/censoring arrays), and
-plotting_sample.parquet files (one per replicate). The report and payload are
-recombined before building the plotting view. No full trait parquet loading
-needed.
+Reads the curated v2 report.yaml, the companion plot_payload.yaml (dense
+incidence/censoring arrays), and plotting_sample.parquet files (one per
+replicate). The report and payload are recombined into the flat plotting view
+before plotting. No full trait parquet loading needed.
 """
 
 __all__: list[str] = []

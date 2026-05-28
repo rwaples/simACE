@@ -1,27 +1,27 @@
 import platform
 
-# NOTE: validation results are now produced by the combined `analyze` rule
-# (analyze.smk, ADR 0006/0007) inside report.yaml's `validation` group; the
-# standalone validation.yaml artifact is gone. The standalone simace-validate
-# CLI / script wrapper is retained for early, ascertainment-independent
-# debugging on the full pedigree, but no Snakemake rule invokes it.
+# NOTE: per-replicate scientific results are produced by the combined `analyze`
+# rule (analyze.smk, ADR 0006/0007/0008) as the curated report.yaml; the
+# folder-level report_summary.tsv is gathered from those reports. The standalone
+# simace-validate CLI / script wrapper is retained for early,
+# ascertainment-independent debugging on the full pedigree, but no rule invokes it.
 
 
-rule gather_validation:
+rule gather_report_summary:
     input:
-        validations=lambda w: get_folder_validations(config, w.folder),
+        reports=lambda w: get_folder_validations(config, w.folder),
     output:
-        tsv="results/{folder}/validation_summary.tsv",
+        tsv="results/{folder}/report_summary.tsv",
     log:
-        "logs/{folder}/gather_validation.log",
+        "logs/{folder}/gather_report_summary.log",
     benchmark:
-        "benchmarks/{folder}/gather_validation.tsv"
+        "benchmarks/{folder}/gather_report_summary.tsv"
     threads: 1
     resources:
         mem_mb=1000,
         runtime=5,
     script:
-        "../../scripts/simace/gather_validation.py"
+        "../../scripts/simace/gather_report_summary.py"
 
 
 # Windows patch
@@ -33,7 +33,7 @@ if platform.system() == "Windows":
 
 rule plot_validation:
     input:
-        tsv="results/{folder}/validation_summary.tsv",
+        tsv="results/{folder}/report_summary.tsv",
     output:
         expand("results/{{folder}}/plots/{plot}", plot=filtered_plots),
         "results/{folder}/plots/atlas.pdf",

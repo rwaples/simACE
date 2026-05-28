@@ -247,8 +247,9 @@ class TestGatherMain:
         main(files, str(out_path))
 
         lines = out_path.read_text().strip().split("\n")
-        data_rows = lines[1:]
-        scenarios = [row.split("\t")[0] for row in data_rows]
+        header = lines[0].split("\t")
+        sc_idx = header.index("scenario")
+        scenarios = [row.split("\t")[sc_idx] for row in lines[1:]]
         assert scenarios == ["scA", "scB", "scB"]
 
     def test_empty_input_no_crash(self, tmp_path):

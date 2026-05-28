@@ -2,11 +2,11 @@
 # Statistics and plotting rules (sim-side)
 # ---------------------------------------------------------------------------
 #
-# NOTE: report.yaml + plotting_sample.parquet are produced by the combined
-# `analyze` rule (analyze.smk, ADR 0006/0007). report.yaml merges the former
-# validation.yaml + stats_report.yaml (six stats groups + a `validation` group).
-# The standalone simace-phenotype-stats CLI / script wrapper is retained for
-# debugging.
+# NOTE: report.yaml + plot_payload.yaml + plotting_sample.parquet are produced
+# by the combined `analyze` rule (analyze.smk, ADR 0006/0007/0008). report.yaml
+# is the curated v2 scientific report; plot_payload.yaml holds the dense plot
+# arrays. The standalone simace-phenotype-stats CLI / script wrapper is retained
+# for debugging.
 
 
 rule plot_phenotype:

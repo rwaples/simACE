@@ -72,7 +72,9 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 
 
 def _relationship_counts(stats: dict[str, Any]) -> dict[str, int]:
-    counts = stats.get("pedigree", {}).get("relationship_pair_counts", {})
+    # v2 report (ADR 0008): within-sample relationship pair counts live under
+    # observed.analysis_sample.
+    counts = stats.get("observed", {}).get("analysis_sample", {}).get("relationship_pair_counts", {})
     if not isinstance(counts, dict):
         return {}
     out = {str(k): int(v) for k, v in counts.items()}

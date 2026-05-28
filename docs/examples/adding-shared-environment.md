@@ -58,7 +58,7 @@ C independently.
 | PHS   | 0.125         | 0.125           | $0.25\,v_A = 0.125$       | no (different mothers) |
 | 1C    | 0.0625        | 0.0625          | $0.0625\,v_A = 0.0625$    | no                     |
 
-The variance-component checks in `report.yaml`'s `validation` group recover $(0.5, 0.0,
+The realized variance components in `report.yaml`'s `truth` group recover $(0.5, 0.0,
 0.5)$ for trait 1 and $(0.5, 0.2, 0.3)$ for trait 2, in agreement with
 the configured inputs.
 

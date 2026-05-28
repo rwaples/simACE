@@ -55,9 +55,9 @@ def _run_snakemake():
     plot_ext = scenario_params.get("plot_format", "png")
     items = build_phenotype_atlas(scenario_params)
 
-    # Load per-replicate combined reports for Table 1 (six stats groups read
-    # via the view; the extra `validation` group is ignored). The dense
-    # plot_payload arrays are merged back so Table 1 can derive onset quartiles.
+    # Build per-replicate plotting views for Table 1 from the curated v2 report
+    # plus its plot_payload (dense arrays merged back so Table 1 can derive
+    # onset quartiles).
     reports = [load_yaml(p) for p in snakemake.input.report]
     payloads = [load_yaml(p) for p in snakemake.input.plot_payload]
     all_stats = plotting_report_views(reports, payloads)

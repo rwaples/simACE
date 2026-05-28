@@ -3,7 +3,10 @@
 ## Status
 
 Accepted. Supersedes the "No Validate-stage change" non-goal of ADR 0003 and the
-"No schema or artifact-path change" non-goal of ADR 0006.
+"No schema or artifact-path change" non-goal of ADR 0006. **Superseded in part by
+ADR 0008**, which replaces the `validation` + six-stats-group shape with the
+curated `quality_checks` / `truth` / `observed` / `estimators` groups and splits
+dense plot arrays into `plot_payload.yaml`.
 
 ## Context
 
