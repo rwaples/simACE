@@ -5,6 +5,7 @@ and heritability estimates.
 """
 
 __all__ = [
+    "build_validation_report",
     "compute_family_size_distribution",
     "compute_per_generation_stats",
     "run_validation",
@@ -1261,15 +1262,26 @@ def validate_effective_size(ne_stats: dict[str, Any] | None, params: dict[str, A
     return out
 
 
-def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
-    """Run all validation checks and return results.
+def build_validation_report(
+    df: pd.DataFrame,
+    params: dict[str, Any],
+    *,
+    df_indexed: pd.DataFrame | None = None,
+    sibling_pairs: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Run all validation checks on an in-memory pedigree and return results.
 
-    Loads a pedigree and its parameters, then runs structural, twin,
-    half-sibling, statistical, heritability, and population checks.
+    Runs structural, twin, half-sibling, statistical, heritability, and
+    population checks. ``df_indexed`` and ``sibling_pairs`` are derived from
+    ``df`` when not supplied; callers that already hold them (e.g. the combined
+    Analyze stage) can pass them in to avoid recomputation.
 
     Args:
-        pedigree_path: Path to the pedigree parquet file.
-        params_path: Path to the scenario parameters YAML file.
+        df: Pedigree DataFrame (full, pre-ascertainment).
+        params: Scenario parameters.
+        df_indexed: ``df`` indexed by ``id``. Defaults to ``df.set_index("id")``.
+        sibling_pairs: ``{"FS", "MHS", "PHS"}`` pair arrays. Defaults to
+            extracting them from ``df`` via ``PedigreeGraph``.
 
     Returns:
         Nested dict with keys ``"structural"``, ``"twins"``, ``"half_sibs"``,
@@ -1279,16 +1291,14 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
         ``passed`` (bool), ``checks_passed``, ``checks_failed``, and
         ``checks_total`` counts.
     """
-    logger.info("Validating pedigree: %s", pedigree_path)
-    df = pd.read_parquet(pedigree_path)
-    params = load_yaml(params_path)
+    if df_indexed is None:
+        df_indexed = df.set_index("id")
 
-    df_indexed = df.set_index("id")
-
-    # max_degree=2 is required to populate MHS/PHS (kinship 1/8 = degree 2);
-    # min_kinship=0.125 keeps MHS/PHS (=0.125) and skips 1C (=0.0625).
-    all_pairs = PedigreeGraph(df).extract_pairs(max_degree=2, min_kinship=0.125)
-    sibling_pairs = {k: all_pairs[k] for k in ("FS", "MHS", "PHS")}
+    if sibling_pairs is None:
+        # max_degree=2 is required to populate MHS/PHS (kinship 1/8 = degree 2);
+        # min_kinship=0.125 keeps MHS/PHS (=0.125) and skips 1C (=0.0625).
+        all_pairs = PedigreeGraph(df).extract_pairs(max_degree=2, min_kinship=0.125)
+        sibling_pairs = {k: all_pairs[k] for k in ("FS", "MHS", "PHS")}
 
     results = {
         "structural": validate_structural(df, params),
@@ -1338,6 +1348,24 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
     )
 
     return results
+
+
+def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
+    """Load a pedigree + params from disk and run all validation checks.
+
+    Thin wrapper around :func:`build_validation_report` that reads the inputs.
+
+    Args:
+        pedigree_path: Path to the pedigree parquet file.
+        params_path: Path to the scenario parameters YAML file.
+
+    Returns:
+        The validation report dict (see :func:`build_validation_report`).
+    """
+    logger.info("Validating pedigree: %s", pedigree_path)
+    df = pd.read_parquet(pedigree_path)
+    params = load_yaml(params_path)
+    return build_validation_report(df, params)
 
 
 def cli() -> None:

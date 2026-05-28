@@ -1,22 +1,9 @@
 import platform
 
-
-rule validate_pedigree_liability:
-    input:
-        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.full.parquet",
-        params="results/{folder}/{scenario}/rep{rep}/params.yaml",
-    output:
-        report="results/{folder}/{scenario}/rep{rep}/validation.yaml",
-    log:
-        "logs/{folder}/{scenario}/rep{rep}/validate.log",
-    benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/validate.tsv"
-    threads: 1
-    resources:
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
-        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
-    script:
-        "../../scripts/simace/validate.py"
+# NOTE: validation.yaml is now produced by the combined `analyze` rule
+# (analyze.smk, ADR 0006). The standalone simace-validate CLI / script wrapper
+# is retained for early, ascertainment-independent debugging on the full
+# pedigree, but no Snakemake rule invokes it.
 
 
 rule gather_validation:
