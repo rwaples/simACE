@@ -78,7 +78,7 @@ MZ is the limiting class for twin-based heritability estimators: at
 $N = 100{,}000$ and a twin rate of $\approx 0.012$, only $n \approx 1{,}800$
 MZ pairs are available, compared with $n \approx 230{,}000$ full-sib
 pairs. As a result, the single-replicate MZ–FS Falconer estimate in
-`validation.yaml` is visibly noisier than the realized $h^2$ in
+`report.yaml`'s `validation` group is visibly noisier than the realized $h^2$ in
 Observation 1, even though both target the same quantity.
 
 The black dots are tetrachoric correlations computed on binary affected

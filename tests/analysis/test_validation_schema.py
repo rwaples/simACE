@@ -87,9 +87,9 @@ def test_extract_metrics_populates_registry_columns(tmp_path, coverage_validatio
     """End-to-end: extract_metrics returns a non-None value for every registered column."""
     val_dir = tmp_path / "results" / "test" / "coverage_scenario" / "rep1"
     val_dir.mkdir(parents=True)
-    val_path = val_dir / "validation.yaml"
-    dump_yaml(coverage_validation_yaml, val_path)
+    report_path = val_dir / "report.yaml"
+    dump_yaml({"validation": coverage_validation_yaml}, report_path)
 
-    row = extract_metrics(str(val_path))
+    row = extract_metrics(str(report_path))
     missing = [spec.column for spec in METRIC_REGISTRY if row.get(spec.column) is None]
     assert not missing, f"extract_metrics returned None for registry columns: {missing}"

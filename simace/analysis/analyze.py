@@ -1,19 +1,22 @@
 """Combined Analyze stage: Validate + Stats in one job.
 
-Runs the two analysis halves sequentially within a single process:
+Runs the two analysis halves sequentially within a single process and writes a
+single combined ``report.yaml`` (ADR 0007):
 
 1. **Validate** — ground-truth sanity checks on the full, pre-ascertainment
-   pedigree (``pedigree.full.parquet`` + ``params.yaml``) → ``validation.yaml``.
+   pedigree (``pedigree.full.parquet`` + ``params.yaml``).
 2. **Stats** — descriptive statistics on the post-ascertainment subsample
-   (``trait.parquet`` + ``pedigree.parquet``) → ``stats_report.yaml`` +
-   ``plotting_sample.parquet``.
+   (``trait.parquet`` + ``pedigree.parquet``), plus ``plotting_sample.parquet``.
+
+The report holds the six stats groups (``metadata``, ``incidence``,
+``censoring``, ``pedigree``, ``correlations``, ``heritability``) at the top
+level and the validation report nested under a ``validation`` group.
 
 The two halves read disjoint inputs over different pedigree scopes, so there is
 no cross-stage graph/pair sharing here — that efficiency work is deferred (see
-ADR 0006). The one concrete benefit is one scheduler job / process / import
-instead of two. Phase 1's full-pedigree frame and graph are explicitly freed
-before Phase 2 loads its inputs, so peak memory is ``max(validate, stats)``
-rather than their sum.
+ADR 0006). Phase 1's full-pedigree frame and graph are explicitly freed before
+Phase 2 loads its inputs, so peak memory is ``max(validate, stats)`` rather than
+their sum.
 """
 
 from __future__ import annotations
@@ -43,24 +46,22 @@ def run_analysis(
     params_path: str,
     trait_path: str,
     pedigree_path: str,
-    validation_output: str,
-    stats_output: str,
+    report_output: str,
     samples_output: str,
     seed: int = 42,
     censor_age: float,
     gen_censoring: dict[int, list[float]] | None = None,
     max_degree: int = 2,
     case_ascertainment_ratio: float = 1.0,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Run Validate then Stats in one process and write all three artifacts.
+) -> dict[str, Any]:
+    """Run Validate then Stats in one process and write the combined report.
 
     Args:
         pedigree_full_path: Full, pre-ascertainment pedigree parquet (Validate).
         params_path: Scenario parameters YAML (Validate).
         trait_path: Post-ascertainment trait parquet (Stats).
         pedigree_path: Post-ascertainment pedigree parquet (Stats).
-        validation_output: Output path for ``validation.yaml``.
-        stats_output: Output path for ``stats_report.yaml``.
+        report_output: Output path for the combined ``report.yaml``.
         samples_output: Output path for ``plotting_sample.parquet``.
         seed: Random seed for stats sampling / correlations.
         censor_age: Administrative censoring age.
@@ -69,19 +70,20 @@ def run_analysis(
         case_ascertainment_ratio: Recorded in stats metadata when != 1.0.
 
     Returns:
-        ``(validation_report, stats_report)`` for in-process callers and tests.
+        The combined report dict: the six stats groups at top level plus a
+        ``validation`` group, for in-process callers and tests.
     """
     # --- Phase 1: Validate (full, pre-ascertainment pedigree) ---
     logger.info("Analyze phase 1/2: validating %s", pedigree_full_path)
     df_full = pd.read_parquet(pedigree_full_path)
     params = load_yaml(params_path)
     validation_report = build_validation_report(df_full, params)
-    dump_yaml(validation_report, validation_output)
-    logger.info("Validation written to %s", validation_output)
 
     # Free the full-pedigree frame (and the graph/pairs that build_validation_report
     # built and has now released) before loading Stats inputs, so peak memory
-    # stays at max(validate, stats), not their sum (ADR 0006).
+    # stays at max(validate, stats), not their sum (ADR 0006). The validation
+    # report itself is a small summary dict, so holding it through Phase 2 to
+    # merge into the combined report costs nothing.
     del df_full
     gc.collect()
 
@@ -100,14 +102,18 @@ def run_analysis(
         case_ascertainment_ratio=case_ascertainment_ratio,
     )
     del df_ped
-    dump_yaml(stats_report, stats_output)
-    logger.info("Stats written to %s", stats_output)
+
+    # Merge into one report: the six stats groups at top level + validation
+    # folded in as its own group (ADR 0007).
+    report = {**stats_report, "validation": validation_report}
+    dump_yaml(report, report_output)
+    logger.info("Combined report written to %s", report_output)
 
     sample_df = create_sample(df, seed=seed)
     save_parquet(sample_df, samples_output)
     logger.info("Plotting sample (%d rows) written to %s", len(sample_df), samples_output)
 
-    return validation_report, stats_report
+    return report
 
 
 def cli() -> None:
@@ -120,8 +126,7 @@ def cli() -> None:
     parser.add_argument("--params", required=True, help="Scenario params YAML")
     parser.add_argument("--trait", required=True, help="Post-ascertainment trait parquet")
     parser.add_argument("--pedigree", required=True, help="Post-ascertainment pedigree parquet")
-    parser.add_argument("--validation-output", required=True, help="Output validation YAML")
-    parser.add_argument("--stats-output", required=True, help="Output stats YAML")
+    parser.add_argument("--report-output", required=True, help="Output combined report YAML")
     parser.add_argument("--samples-output", required=True, help="Output plotting sample parquet")
     parser.add_argument("--censor-age", type=float, required=True)
     parser.add_argument("--seed", type=int, default=42)
@@ -141,8 +146,7 @@ def cli() -> None:
         params_path=args.params,
         trait_path=args.trait,
         pedigree_path=args.pedigree,
-        validation_output=args.validation_output,
-        stats_output=args.stats_output,
+        report_output=args.report_output,
         samples_output=args.samples_output,
         seed=args.seed,
         censor_age=args.censor_age,

@@ -66,7 +66,7 @@ def load_per_generation(
     validation_paths: list[Path],
     trait: int = 1,
 ) -> dict[int, np.ndarray]:
-    """Read ``per_generation`` variance components from validation.yaml files.
+    """Read ``per_generation`` variance components from report.yaml files.
 
     Args:
         validation_paths: one path per replicate (of a single scenario).
@@ -81,7 +81,7 @@ def load_per_generation(
     """
     per_rep: list[dict[int, tuple[float, float, float, float]]] = []
     for path in validation_paths:
-        data = load_yaml(path)
+        data = load_yaml(path).get("validation", {})
         per_gen = data.get("per_generation", {})
         rep_dict: dict[int, tuple[float, float, float, float]] = {}
         for gen_key, gen_data in per_gen.items():
@@ -125,7 +125,7 @@ def compare_realized_variance_trajectory(
 
     Args:
         scenario_paths: outer list = scenarios, inner list = replicate
-            ``validation.yaml`` paths for that scenario.
+            ``report.yaml`` paths for that scenario.
         labels: display label per scenario (same order as ``scenario_paths``).
         output_path: image path to save (extension determines format).
         trait: 1 or 2; which trait's variance components to plot.
@@ -186,7 +186,7 @@ def compare_realized_variance_trajectory(
             continue
         if isinstance(expected, list):
             # Per-generation reference; align to gens 1..len (matches
-            # validation.yaml's 1-indexed generation_N keys).
+            # report.yaml's 1-indexed generation_N keys).
             ref_gens = list(range(1, len(expected) + 1))
             ref_vals = [v for v in expected if v is not None]
             ref_x = [g for g, v in zip(ref_gens, expected, strict=True) if v is not None]
@@ -328,7 +328,7 @@ def compare_component_distributions(
 # ---------------------------------------------------------------------------
 
 # Display-ordered relationship classes, pooled from the raw classes in
-# stats_report.yaml. Expected liability correlation under random mating is
+# report.yaml. Expected liability correlation under random mating is
 # ``k * A + c * C`` where k is the kinship coefficient; the middle column
 # below is k so callers can draw reference bars.  MZ twins are deliberately
 # omitted — their liability correlation is pinned at ``A + C`` regardless of
@@ -1422,7 +1422,7 @@ def compare_prevalence_drift(
 
     Args:
         std_paths_per_trajectory: outer list = trajectory, inner list =
-            per-replicate ``stats_report.yaml`` paths for the first variant.
+            per-replicate ``report.yaml`` paths for the first variant.
         nostd_paths_per_trajectory: same shape, for the second variant.
         labels: display label per trajectory.
         output_path: image path to save.
@@ -1532,15 +1532,15 @@ def load_observed_vs_liability_h2(
     The two input lists must be in the same replicate order.  Liability
     correlations and realized h² come from :func:`load_pedigree_estimates`
     (pedigree.parquet); tetrachoric correlations come from
-    ``stats_report.yaml``.
+    ``report.yaml``.
 
     Args:
         pedigree_paths: one ``pedigree.parquet`` path per rep.
-        stats_report_paths: one ``stats_report.yaml`` path per replicate.
+        stats_report_paths: one ``report.yaml`` path per replicate.
         trait: 1 or 2.
         min_generation: forwarded to :func:`load_pedigree_estimates` for the
             liability correlations and realized h².  Tetrachoric values in
-            ``stats_report.yaml`` values are pre-aggregated over phenotyped
+            ``report.yaml`` values are pre-aggregated over phenotyped
             generations and not re-filtered here.
 
     Returns:
@@ -1588,7 +1588,7 @@ def compare_observed_vs_liability_h2(
         pedigree_paths_per_scenario: outer list = scenarios, inner list =
             per-rep ``pedigree.parquet`` paths.
         stats_report_paths_per_scenario: same shape, per-replicate
-            ``stats_report.yaml`` paths. Rep order must match.
+            ``report.yaml`` paths. Rep order must match.
         labels: display label per scenario.
         output_path: image path to save.
         trait: 1 or 2.
@@ -1762,7 +1762,7 @@ def cli() -> None:
         required=True,
         metavar="LABEL=PATH1,PATH2,...",
         help="Repeat per scenario. LABEL is the legend label, PATHS is a "
-        "comma-separated list of validation.yaml files (one per replicate).",
+        "comma-separated list of report.yaml files (one per replicate).",
     )
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--trait", type=int, default=1, choices=[1, 2])

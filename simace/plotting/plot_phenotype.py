@@ -1,7 +1,8 @@
-"""Plot phenotype distributions from pre-computed per-replicate stats reports.
+"""Plot phenotype distributions from pre-computed per-replicate reports.
 
-Reads stats_report.yaml and plotting_sample.parquet files (one per replicate).
-No full trait parquet loading needed.
+Reads report.yaml (six stats groups + a `validation` group) and
+plotting_sample.parquet files (one per replicate). No full trait parquet
+loading needed.
 """
 
 __all__: list[str] = []
@@ -63,16 +64,15 @@ MAX_PLOT_POINTS = 200_000
 
 
 def main(
-    stats_paths: list[str],
+    report_paths: list[str],
     sample_paths: list[str],
     output_dir: str,
     censor_age: float,
     gen_censoring: dict[int, list[float]] | None = None,
     plot_ext: str = "png",
-    validation_paths: list[str] | None = None,
     max_degree: int = 2,
 ) -> None:
-    """Generate all phenotype plots from pre-computed stats."""
+    """Generate all phenotype plots from pre-computed combined reports."""
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -81,7 +81,8 @@ def main(
 
     apply_nature_style()
 
-    all_stats = plotting_stats_views([load_yaml(p) for p in stats_paths])
+    reports = [load_yaml(p) for p in report_paths]
+    all_stats = plotting_stats_views(reports)
 
     df_samples = pd.concat([pd.read_parquet(p) for p in sample_paths], ignore_index=True)
     subsample_note = ""
@@ -92,12 +93,10 @@ def main(
 
     ext = plot_ext
 
-    # Load validation data early so params are available for correlation plots
-    all_validations = None
-    validation_params = None
-    if validation_paths:
-        all_validations = [load_yaml(p) for p in validation_paths]
-        validation_params = all_validations[0].get("parameters", {})
+    # Validation data lives in each report's `validation` group; pull params
+    # early so they are available for correlation plots.
+    all_validations = [r.get("validation", {}) for r in reports]
+    validation_params = all_validations[0].get("parameters", {})
 
     # Pedigree relationship pair counts
     plot_pedigree_relationship_counts(
@@ -335,7 +334,7 @@ def cli() -> None:
 
     parser = argparse.ArgumentParser(description="Plot phenotype distributions")
     add_logging_args(parser)
-    parser.add_argument("--stats", nargs="+", required=True, help="Stats YAML paths")
+    parser.add_argument("--report", nargs="+", required=True, help="report.yaml paths")
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")
     parser.add_argument("--output-dir", required=True, help="Output directory")
     parser.add_argument("--censor-age", type=float, required=True, help="Maximum follow-up age")
@@ -343,7 +342,6 @@ def cli() -> None:
     parser.add_argument(
         "--plot-format", choices=["png", "pdf"], default="png", help="Output plot format (default: png)"
     )
-    parser.add_argument("--validations", nargs="*", default=None, help="Validation YAML paths")
     args = parser.parse_args()
 
     init_logging(args)
@@ -353,11 +351,10 @@ def cli() -> None:
         gen_censoring = {int(k): v for k, v in json.loads(args.gen_censoring).items()}
 
     main(
-        args.stats,
+        args.report,
         args.samples,
         args.output_dir,
         args.censor_age,
         gen_censoring=gen_censoring,
         plot_ext=args.plot_format,
-        validation_paths=args.validations,
     )

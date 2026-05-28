@@ -2,28 +2,23 @@
 # Statistics and plotting rules (sim-side)
 # ---------------------------------------------------------------------------
 #
-# NOTE: stats_report.yaml + plotting_sample.parquet are now produced by the
-# combined `analyze` rule (analyze.smk, ADR 0006), alongside validation.yaml.
+# NOTE: report.yaml + plotting_sample.parquet are produced by the combined
+# `analyze` rule (analyze.smk, ADR 0006/0007). report.yaml merges the former
+# validation.yaml + stats_report.yaml (six stats groups + a `validation` group).
 # The standalone simace-phenotype-stats CLI / script wrapper is retained for
 # debugging.
 
 
 rule plot_phenotype:
     input:
-        stats=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/stats_report.yaml",
+        report=lambda w: expand(
+            "results/{folder}/{scenario}/rep{rep}/report.yaml",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
         samples=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/plotting_sample.parquet",
-            folder=w.folder,
-            scenario=w.scenario,
-            rep=range(1, get_param(config, w.scenario, "replicates") + 1),
-        ),
-        validations=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/validation.yaml",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
@@ -53,8 +48,8 @@ rule assemble_scenario_atlas:
             "results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS
         ),
         params_yaml="results/{folder}/{scenario}/rep1/params.yaml",
-        stats=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/stats_report.yaml",
+        report=lambda w: expand(
+            "results/{folder}/{scenario}/rep{rep}/report.yaml",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),

@@ -10,8 +10,7 @@ results/{folder}/{scenario}/
 │   ├── pedigree.parquet                   # Post-ascertainment pedigree (ancestor closure of sampled IDs)
 │   ├── trait.parquet                      # Post-ascertainment censored time-to-event phenotypes
 │   ├── trait.simple_ltm.parquet           # Post-ascertainment liability-threshold benchmark
-│   ├── stats_report.yaml                  # Grouped per-replicate stats report
-│   └── validation.yaml                    # Structural + statistical validation
+│   └── report.yaml                        # Combined report: six stats groups + a validation group
 ├── rep2/
 ├── rep3/
 └── plots/
@@ -31,7 +30,7 @@ results/{folder}/{scenario}/
 | `trait.parquet` | Post-ascertainment censored time-to-event phenotypes (canonical output) | No |
 | `trait.simple_ltm.parquet` | Post-ascertainment liability-threshold benchmark (canonical output) | No |
 | `params.yaml` | Simulation parameters for this replicate | No |
-| `stats_report.yaml` | Grouped per-replicate stats report | No |
+| `report.yaml` | Combined per-replicate report: six stats groups + a `validation` group | No |
 
 Temp files are auto-deleted by Snakemake after downstream rules complete.
 
@@ -39,8 +38,8 @@ Temp files are auto-deleted by Snakemake after downstream rules complete.
 
 | File | Description |
 |---|---|
-| `results/{folder}/{scenario}/rep{N}/validation.yaml` | Per-replicate validation results |
-| `results/{folder}/validation_summary.tsv` | Aggregated metrics across scenarios |
+| `results/{folder}/{scenario}/rep{N}/report.yaml` | Per-replicate combined report (stats groups + a `validation` group) |
+| `results/{folder}/validation_summary.tsv` | Aggregated validation metrics across scenarios (gathered from the `validation` group) |
 | `results/{folder}/plots/` | Cross-scenario validation and phenotype plots |
 | `logs/{folder}/{scenario}/` | Log files |
 | `benchmarks/{folder}/{scenario}/` | Runtime and memory benchmarks |
@@ -95,9 +94,8 @@ as placeholders matching values from `config/_default.yaml`.
 | `trait.parquet` | Parquet | Post-ascertainment per-individual trait outcomes (censored time-to-event + affected status) | `simace/ascertainment/__init__.py` |
 | `trait.simple_ltm.parquet` | Parquet | Post-ascertainment per-individual simple-LTM benchmark (parallel LTM trait) | `simace/ascertainment/__init__.py` |
 | `params.yaml` | YAML | Simulation parameters for this replicate | `simace/simulation/simulate.py` |
-| `stats_report.yaml` | YAML | Grouped per-replicate stats report (correlations, prevalence, CIF, etc.) | `workflow/scripts/simace/build_stats_report.py` → `simace/analysis/stats/runner.py` |
-| `plotting_sample.parquet` | Parquet | Further downsampled trait rows for stats scatter plots | `workflow/scripts/simace/build_stats_report.py` → `simace/analysis/stats/runner.py` |
-| `validation.yaml` | YAML | Structural and statistical validation results | `simace/analysis/validate.py` |
+| `report.yaml` | YAML | Combined per-replicate report: six stats groups (correlations, prevalence, CIF, etc.) + a `validation` group | `workflow/scripts/simace/analyze.py` → `simace/analysis/analyze.py` |
+| `plotting_sample.parquet` | Parquet | Further downsampled trait rows for stats scatter plots | `workflow/scripts/simace/analyze.py` → `simace/analysis/analyze.py` |
 
 ### Per-scenario, per-folder, and sentinel files
 
@@ -214,11 +212,14 @@ Flat key-value file recording the simulation parameters used for a replicate. Wr
 | `assort1` | float | Mate correlation on trait 1 liability (0 = random) |
 | `assort2` | float | Mate correlation on trait 2 liability (0 = random) |
 
-### stats_report.yaml
+### report.yaml
 
-Grouped per-replicate stats report computed from `trait.parquet`. Written by
-`workflow/scripts/simace/build_stats_report.py`, which calls
-`simace.analysis.stats.runner`. Top-level groups:
+Combined per-replicate report written by `workflow/scripts/simace/analyze.py`,
+which calls `simace.analysis.analyze.run_analysis` (ADR 0007). It merges the
+former `stats_report.yaml` and `validation.yaml`: the six stats groups below sit
+at the top level alongside a `validation` group (documented after them).
+
+**Stats groups** (computed from `trait.parquet`):
 
 | Group | Description |
 |---------|-------------|
@@ -231,9 +232,11 @@ Grouped per-replicate stats report computed from `trait.parquet`. Written by
 
 Sections marked "conditional" are only present when the corresponding data or config options are available.
 
-### validation.yaml
+**`validation` group**
 
-Structural and statistical validation results. Written by `simace/analysis/validate.py`. Top-level sections:
+Structural and statistical validation results, nested under the `report.yaml`
+`validation` key. Computed from the full pre-ascertainment pedigree by
+`simace/analysis/validate.py`. Sub-sections:
 
 | Section | Description |
 |---------|-------------|
@@ -312,8 +315,7 @@ Benchmark files are written for each pipeline rule. Per-replicate benchmarks:
 - `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/sample_phenotype.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/sample_simple_ltm.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/stats_report.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/validate.tsv`
+- `benchmarks/{folder}/{scenario}/rep{rep}/analyze.tsv`
 
 Per-scenario benchmarks:
 

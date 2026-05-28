@@ -4,7 +4,7 @@
 Run from the repository root after generating the four ascertainment example
 scenarios, for example:
 
-    snakemake --cores 4 results/examples/ascertainment_uniform50k/rep1/stats_report.yaml
+    snakemake --cores 4 results/examples/ascertainment_uniform50k/rep1/report.yaml
     python docs/examples/scripts/build_ascertainment_bias.py
 """
 
@@ -57,7 +57,7 @@ COLORS = {
 def _require(path: Path) -> Path:
     if path.exists():
         return path
-    targets = " ".join(f"results/examples/{scenario.name}/rep1/stats_report.yaml" for scenario in SCENARIOS)
+    targets = " ".join(f"results/examples/{scenario.name}/rep1/report.yaml" for scenario in SCENARIOS)
     raise FileNotFoundError(
         f"Required file is missing: {path}\nGenerate the example outputs first, e.g.:\n  snakemake --cores 4 {targets}"
     )
@@ -88,7 +88,7 @@ def load_metrics() -> pd.DataFrame:
         trait_path = _require(rep_dir / "trait.parquet")
         pedigree_path = _require(rep_dir / "pedigree.parquet")
         full_pedigree_path = _require(rep_dir / "pedigree.full.parquet")
-        stats_path = _require(rep_dir / "stats_report.yaml")
+        stats_path = _require(rep_dir / "report.yaml")
 
         trait = pd.read_parquet(trait_path, columns=["affected1"])
         pedigree = pd.read_parquet(pedigree_path, columns=["id"])

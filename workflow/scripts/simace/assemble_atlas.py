@@ -55,8 +55,9 @@ def _run_snakemake():
     plot_ext = scenario_params.get("plot_format", "png")
     items = build_phenotype_atlas(scenario_params)
 
-    # Load per-replicate stats reports for Table 1
-    all_stats = plotting_stats_views([load_yaml(stats_path) for stats_path in snakemake.input.stats])
+    # Load per-replicate combined reports for Table 1 (six stats groups read
+    # via the view; the extra `validation` group is ignored).
+    all_stats = plotting_stats_views([load_yaml(report_path) for report_path in snakemake.input.report])
 
     assemble_atlas(
         items,
@@ -80,7 +81,7 @@ if __name__ == "__main__":
         add_logging_args(parser)
         parser.add_argument("--plot-dir", required=True, help="Directory containing the plot PNGs")
         parser.add_argument("--params-yaml", default=None, help="Scenario params.yaml for title page")
-        parser.add_argument("--stats", nargs="*", default=[], help="stats_report.yaml paths (one per replicate)")
+        parser.add_argument("--report", nargs="*", default=[], help="report.yaml paths (one per replicate)")
         parser.add_argument("--scenario", default="unknown", help="Scenario name")
         parser.add_argument("--output", required=True, help="Output PDF path")
         parser.add_argument("--plot-ext", default="png", help="Plot file extension (default: png)")
@@ -92,7 +93,7 @@ if __name__ == "__main__":
             scenario_params = load_yaml(args.params_yaml)
             scenario_params["scenario"] = args.scenario
 
-        all_stats = plotting_stats_views([load_yaml(sp) for sp in args.stats])
+        all_stats = plotting_stats_views([load_yaml(rp) for rp in args.report])
 
         items = build_phenotype_atlas(scenario_params)
         assemble_atlas(

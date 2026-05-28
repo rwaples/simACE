@@ -21,9 +21,10 @@ def plotting_stats_view(report: dict[str, Any] | None) -> dict[str, Any]:
     """Build the internal plotting view from a grouped stats report.
 
     This is not an old-schema compatibility layer: input must already be the
-    grouped `stats_report.yaml` shape. The returned view preserves the
-    existing plotting helpers' flat key names while report files remain
-    grouped at the Interface.
+    grouped stats-report shape (the six stats groups, as found at the top level
+    of `report.yaml`; any extra keys such as `validation` are ignored). The
+    returned view preserves the existing plotting helpers' flat key names while
+    report files remain grouped at the Interface.
     """
     grouped = require_grouped_stats_report(report)
     metadata = grouped["metadata"] or {}

@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Combined Analyze stage: Validate + Stats in one job (ADR 0006)
+# Combined Analyze stage: Validate + Stats in one job, one report (ADR 0006, 0007)
 # ---------------------------------------------------------------------------
 
 
@@ -10,8 +10,7 @@ rule analyze:
         trait="results/{folder}/{scenario}/rep{rep}/trait.parquet",
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
-        validation="results/{folder}/{scenario}/rep{rep}/validation.yaml",
-        stats="results/{folder}/{scenario}/rep{rep}/stats_report.yaml",
+        report="results/{folder}/{scenario}/rep{rep}/report.yaml",
         samples=temp("results/{folder}/{scenario}/rep{rep}/plotting_sample.parquet"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/analyze.log",

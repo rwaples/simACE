@@ -165,8 +165,7 @@ def get_scenario_sim_outputs(config: dict, scenario: str, plot_ext: str = "png")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/pedigree.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.simple_ltm.parquet")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/stats_report.yaml")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/report.yaml")
     outputs.extend(
         f"results/{folder}/{scenario}/plots/{plot}" for plot in plot_filenames(phenotype_basenames(), plot_ext)
     )
@@ -182,9 +181,9 @@ def get_scenario_simulation_outputs(config: dict, scenario: str) -> list[str]:
 
 
 def get_folder_validations(config: dict, folder: str) -> list[str]:
-    """Generate validation file paths for scenarios in a given folder."""
+    """Generate combined-report file paths for scenarios in a given folder."""
     validations = []
     for scenario in get_scenarios_for_folder(config, folder):
         n_reps = get_param(config, scenario, "replicates")
-        validations.extend(f"results/{folder}/{scenario}/rep{rep}/validation.yaml" for rep in range(1, n_reps + 1))
+        validations.extend(f"results/{folder}/{scenario}/rep{rep}/report.yaml" for rep in range(1, n_reps + 1))
     return validations

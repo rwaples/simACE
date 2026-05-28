@@ -44,7 +44,7 @@ def plot_heritability_by_generation(
 ) -> None:
     """Plot narrow-sense heritability h² = Var(A)/(Var(A)+Var(C)+Var(E)) per generation.
 
-    Uses per-generation variance components from validation.yaml.
+    Uses per-generation variance components from the report's validation group.
     """
     # Extract per-generation data from each replicate
     per_gen_all = [v.get("per_generation", {}) for v in all_validations]

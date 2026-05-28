@@ -15,7 +15,7 @@ from simace.core.yaml_io import load_yaml
 
 logger = logging.getLogger(__name__)
 
-_VALIDATION_PATH_RE = re.compile(r"results/([^/]+)/([^/]+)/rep(\d+)/validation\.yaml")
+_VALIDATION_PATH_RE = re.compile(r"results/([^/]+)/([^/]+)/rep(\d+)/report\.yaml")
 
 
 def _get_nested(d: Any, *keys: str, default: Any = None) -> Any:
@@ -28,13 +28,17 @@ def _get_nested(d: Any, *keys: str, default: Any = None) -> Any:
     return d
 
 
-def extract_metrics(validation_path: str) -> dict[str, Any]:
-    """Extract key metrics from a validation YAML file."""
-    data = load_yaml(validation_path)
+def extract_metrics(report_path: str) -> dict[str, Any]:
+    """Extract key metrics from the ``validation`` group of a report YAML file.
 
-    validation_path = str(validation_path).replace("\\", "/")
+    The combined ``report.yaml`` (ADR 0007) nests the validation report under a
+    ``validation`` key; METRIC_REGISTRY paths are relative to that group's root.
+    """
+    data = load_yaml(report_path)["validation"]
 
-    match = _VALIDATION_PATH_RE.search(validation_path)
+    report_path = str(report_path).replace("\\", "/")
+
+    match = _VALIDATION_PATH_RE.search(report_path)
     if match:
         folder, scenario, rep_str = match.group(1), match.group(2), match.group(3)
         rep = int(rep_str)

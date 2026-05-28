@@ -36,7 +36,7 @@ simACE/
 │   │   └── __init__.py                   # run_ascertainment: unified dropout + case-weighted N_sample (per ADR 0001)
 │   ├── analysis/
 │   │   ├── stats/                        # Per-concern stats package (split from old stats.py)
-│   │   │   ├── runner.py                 # Orchestrator (builds stats_report.yaml)
+│   │   │   ├── runner.py                 # Stats orchestrator (builds the stats groups of report.yaml)
 │   │   │   ├── correlations.py           # Pairwise correlations and parent-offspring regressions
 │   │   │   ├── tetrachoric.py            # Tetrachoric correlations + Falconer h²
 │   │   │   ├── pedigree.py               # Pair counts and family-structure stats

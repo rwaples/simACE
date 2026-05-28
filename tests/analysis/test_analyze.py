@@ -79,54 +79,58 @@ def analyze_outputs(tmp_path, analyze_data):
     with open(params_path, "w", encoding="utf-8") as fh:
         yaml.safe_dump(params, fh)
 
-    validation_yaml = tmp_path / "validation.yaml"
-    stats_yaml = tmp_path / "stats_report.yaml"
+    report_yaml = tmp_path / "report.yaml"
     samples_pq = tmp_path / "plotting_sample.parquet"
 
-    validation_report, stats_report = run_analysis(
+    report = run_analysis(
         pedigree_full_path=str(ped_full),
         params_path=str(params_path),
         trait_path=str(trait),
         pedigree_path=str(ped),
-        validation_output=str(validation_yaml),
-        stats_output=str(stats_yaml),
+        report_output=str(report_yaml),
         samples_output=str(samples_pq),
         seed=42,
         censor_age=80.0,
         max_degree=2,
     )
     return {
-        "validation_report": validation_report,
-        "stats_report": stats_report,
-        "validation_yaml": validation_yaml,
-        "stats_yaml": stats_yaml,
+        "report": report,
+        "report_yaml": report_yaml,
         "samples_pq": samples_pq,
     }
 
 
+_REPORT_GROUPS = {
+    "metadata",
+    "incidence",
+    "censoring",
+    "pedigree",
+    "correlations",
+    "heritability",
+    "validation",
+}
+
+
 class TestRunAnalysis:
-    def test_all_three_outputs_written(self, analyze_outputs):
-        assert analyze_outputs["validation_yaml"].exists()
-        assert analyze_outputs["stats_yaml"].exists()
+    def test_outputs_written(self, analyze_outputs):
+        assert analyze_outputs["report_yaml"].exists()
         assert analyze_outputs["samples_pq"].exists()
 
     def test_validation_summary_passes(self, analyze_outputs):
-        summary = analyze_outputs["validation_report"]["summary"]
+        summary = analyze_outputs["report"]["validation"]["summary"]
         assert summary["checks_total"] == summary["checks_passed"] + summary["checks_failed"]
         assert summary["passed"] is True
 
-    def test_stats_report_has_six_groups(self, analyze_outputs):
-        stats = analyze_outputs["stats_report"]
-        assert set(stats) == {"metadata", "incidence", "censoring", "pedigree", "correlations", "heritability"}
+    def test_report_has_six_stats_groups_plus_validation(self, analyze_outputs):
+        assert set(analyze_outputs["report"]) == _REPORT_GROUPS
 
-    def test_written_yaml_matches_returned_reports(self, analyze_outputs):
-        with open(analyze_outputs["validation_yaml"], encoding="utf-8") as fh:
-            validation = yaml.safe_load(fh)
-        with open(analyze_outputs["stats_yaml"], encoding="utf-8") as fh:
-            stats = yaml.safe_load(fh)
-        assert "summary" in validation
-        assert "structural" in validation
-        assert set(stats) == {"metadata", "incidence", "censoring", "pedigree", "correlations", "heritability"}
+    def test_written_yaml_matches_returned_report(self, analyze_outputs):
+        with open(analyze_outputs["report_yaml"], encoding="utf-8") as fh:
+            report = yaml.safe_load(fh)
+        assert set(report) == _REPORT_GROUPS
+        # Validation folded in as its own group.
+        assert "summary" in report["validation"]
+        assert "structural" in report["validation"]
         # Stats ran on the (sub)sampled pedigree, so the full-pedigree branch is present.
-        assert "full" in stats["pedigree"]
-        assert "mate_correlation" in stats["correlations"]
+        assert "full" in report["pedigree"]
+        assert "mate_correlation" in report["correlations"]

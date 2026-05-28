@@ -140,6 +140,9 @@ _MINIMAL_VALIDATION = {
     },
 }
 
+# extract_metrics reads the `validation` group of a combined report (ADR 0007).
+_MINIMAL_REPORT = {"validation": _MINIMAL_VALIDATION}
+
 
 class TestExtractMetrics:
     def test_extracts_scenario_and_rep_from_path(self, tmp_path):
@@ -148,8 +151,8 @@ class TestExtractMetrics:
         # Create path that matches the expected pattern
         val_dir = tmp_path / "results" / "base" / "my_scenario" / "rep2"
         val_dir.mkdir(parents=True)
-        val_path = val_dir / "validation.yaml"
-        val_path.write_text(yaml.dump(_MINIMAL_VALIDATION))
+        val_path = val_dir / "report.yaml"
+        val_path.write_text(yaml.dump(_MINIMAL_REPORT))
 
         row = extract_metrics(str(val_path))
         assert row["scenario"] == "my_scenario"
@@ -160,8 +163,8 @@ class TestExtractMetrics:
 
         val_dir = tmp_path / "results" / "base" / "scA" / "rep1"
         val_dir.mkdir(parents=True)
-        val_path = val_dir / "validation.yaml"
-        val_path.write_text(yaml.dump(_MINIMAL_VALIDATION))
+        val_path = val_dir / "report.yaml"
+        val_path.write_text(yaml.dump(_MINIMAL_REPORT))
 
         row = extract_metrics(str(val_path))
         assert row["N"] == 1000
@@ -179,8 +182,8 @@ class TestExtractMetrics:
         # extension that won't be found.
         val_dir = tmp_path / "results" / "folder" / "scX" / "rep1"
         val_dir.mkdir(parents=True)
-        val_path = val_dir / "validation.yaml"
-        val_path.write_text(yaml.dump(_MINIMAL_VALIDATION))
+        val_path = val_dir / "report.yaml"
+        val_path.write_text(yaml.dump(_MINIMAL_REPORT))
         # This matches the pattern, so scenario/rep are extracted from path.
         # To truly test "unknown", we'd need a path that doesn't match,
         # but that triggers a bug in gather.py (bench_path == val_path).
@@ -198,13 +201,13 @@ class TestGatherMain:
         for sc, rep in [("scA", 1), ("scB", 1)]:
             val_dir = tmp_path / "results" / "base" / sc / f"rep{rep}"
             val_dir.mkdir(parents=True)
-            val_path = val_dir / "validation.yaml"
-            val_path.write_text(yaml.dump(_MINIMAL_VALIDATION))
+            val_path = val_dir / "report.yaml"
+            val_path.write_text(yaml.dump(_MINIMAL_REPORT))
 
         out_path = tmp_path / "summary.tsv"
         files = [
-            str(tmp_path / "results" / "base" / "scA" / "rep1" / "validation.yaml"),
-            str(tmp_path / "results" / "base" / "scB" / "rep1" / "validation.yaml"),
+            str(tmp_path / "results" / "base" / "scA" / "rep1" / "report.yaml"),
+            str(tmp_path / "results" / "base" / "scB" / "rep1" / "report.yaml"),
         ]
         main(files, str(out_path))
 
@@ -221,14 +224,14 @@ class TestGatherMain:
         for sc, rep in [("scB", 2), ("scA", 1), ("scB", 1)]:
             val_dir = tmp_path / "results" / "base" / sc / f"rep{rep}"
             val_dir.mkdir(parents=True)
-            val_path = val_dir / "validation.yaml"
-            val_path.write_text(yaml.dump(_MINIMAL_VALIDATION))
+            val_path = val_dir / "report.yaml"
+            val_path.write_text(yaml.dump(_MINIMAL_REPORT))
 
         out_path = tmp_path / "summary.tsv"
         files = [
-            str(tmp_path / "results" / "base" / "scB" / "rep2" / "validation.yaml"),
-            str(tmp_path / "results" / "base" / "scA" / "rep1" / "validation.yaml"),
-            str(tmp_path / "results" / "base" / "scB" / "rep1" / "validation.yaml"),
+            str(tmp_path / "results" / "base" / "scB" / "rep2" / "report.yaml"),
+            str(tmp_path / "results" / "base" / "scA" / "rep1" / "report.yaml"),
+            str(tmp_path / "results" / "base" / "scB" / "rep1" / "report.yaml"),
         ]
         main(files, str(out_path))
 

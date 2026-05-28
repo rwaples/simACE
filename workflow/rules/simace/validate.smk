@@ -1,9 +1,10 @@
 import platform
 
-# NOTE: validation.yaml is now produced by the combined `analyze` rule
-# (analyze.smk, ADR 0006). The standalone simace-validate CLI / script wrapper
-# is retained for early, ascertainment-independent debugging on the full
-# pedigree, but no Snakemake rule invokes it.
+# NOTE: validation results are now produced by the combined `analyze` rule
+# (analyze.smk, ADR 0006/0007) inside report.yaml's `validation` group; the
+# standalone validation.yaml artifact is gone. The standalone simace-validate
+# CLI / script wrapper is retained for early, ascertainment-independent
+# debugging on the full pedigree, but no Snakemake rule invokes it.
 
 
 rule gather_validation:

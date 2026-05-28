@@ -56,10 +56,10 @@ Generate the four scenario reports from the repository root:
 
 ```bash
 snakemake --cores 4 \
-  results/examples/ascertainment_uniform50k/rep1/stats_report.yaml \
-  results/examples/ascertainment_dropout30_50k/rep1/stats_report.yaml \
-  results/examples/ascertainment_case5x_50k/rep1/stats_report.yaml \
-  results/examples/ascertainment_dropout30_case5x_50k/rep1/stats_report.yaml
+  results/examples/ascertainment_uniform50k/rep1/report.yaml \
+  results/examples/ascertainment_dropout30_50k/rep1/report.yaml \
+  results/examples/ascertainment_case5x_50k/rep1/report.yaml \
+  results/examples/ascertainment_dropout30_case5x_50k/rep1/report.yaml
 ```
 
 Then regenerate the documentation figures:
