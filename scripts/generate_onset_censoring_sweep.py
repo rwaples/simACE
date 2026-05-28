@@ -105,6 +105,13 @@ def _trait_block(k: float, x0: int) -> dict:
             "cip_k": CIP_K,
             "prevalence": k,
         },
+        # Set beta explicitly on BOTH traits. _default.yaml carries an
+        # asymmetric default (beta1=1.0, beta2=1.5); leaving it unset makes
+        # trait2's liability 1.5x, which at small cip_x0 clips every trait2
+        # case to the onset floor (degenerate CIF -> EPIMIGHT rg-join fails).
+        # This study wants two identically-parameterised traits.
+        "beta": 1.0,
+        "beta_sex": 0.0,
     }
 
 

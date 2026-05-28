@@ -39,6 +39,8 @@ eoc_K01_x08_c10:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -46,6 +48,8 @@ eoc_K01_x08_c10:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -77,6 +81,8 @@ eoc_K01_x08_c20:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -84,6 +90,8 @@ eoc_K01_x08_c20:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -115,6 +123,8 @@ eoc_K01_x08_c40:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -122,6 +132,8 @@ eoc_K01_x08_c40:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -153,6 +165,8 @@ eoc_K01_x08_c80:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -160,6 +174,8 @@ eoc_K01_x08_c80:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -191,6 +207,8 @@ eoc_K01_x16_c10:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -198,6 +216,8 @@ eoc_K01_x16_c10:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -229,6 +249,8 @@ eoc_K01_x16_c20:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -236,6 +258,8 @@ eoc_K01_x16_c20:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -267,6 +291,8 @@ eoc_K01_x16_c40:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -274,6 +300,8 @@ eoc_K01_x16_c40:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -305,6 +333,8 @@ eoc_K01_x16_c80:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -312,6 +342,8 @@ eoc_K01_x16_c80:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -343,6 +375,8 @@ eoc_K01_x32_c10:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -350,6 +384,8 @@ eoc_K01_x32_c10:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -381,6 +417,8 @@ eoc_K01_x32_c20:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -388,6 +426,8 @@ eoc_K01_x32_c20:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -419,6 +459,8 @@ eoc_K01_x32_c40:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -426,6 +468,8 @@ eoc_K01_x32_c40:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -457,6 +501,8 @@ eoc_K01_x32_c80:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -464,6 +510,8 @@ eoc_K01_x32_c80:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -495,6 +543,8 @@ eoc_K01_x64_c10:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -502,6 +552,8 @@ eoc_K01_x64_c10:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -533,6 +585,8 @@ eoc_K01_x64_c20:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -540,6 +594,8 @@ eoc_K01_x64_c20:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -571,6 +627,8 @@ eoc_K01_x64_c40:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -578,6 +636,8 @@ eoc_K01_x64_c40:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -609,6 +669,8 @@ eoc_K01_x64_c80:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -616,6 +678,8 @@ eoc_K01_x64_c80:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -647,6 +711,8 @@ eoc_K05_x08_c10:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -654,6 +720,8 @@ eoc_K05_x08_c10:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -685,6 +753,8 @@ eoc_K05_x08_c20:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -692,6 +762,8 @@ eoc_K05_x08_c20:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -723,6 +795,8 @@ eoc_K05_x08_c40:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -730,6 +804,8 @@ eoc_K05_x08_c40:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -761,6 +837,8 @@ eoc_K05_x08_c80:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -768,6 +846,8 @@ eoc_K05_x08_c80:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -799,6 +879,8 @@ eoc_K05_x16_c10:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -806,6 +888,8 @@ eoc_K05_x16_c10:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -837,6 +921,8 @@ eoc_K05_x16_c20:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -844,6 +930,8 @@ eoc_K05_x16_c20:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -875,6 +963,8 @@ eoc_K05_x16_c40:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -882,6 +972,8 @@ eoc_K05_x16_c40:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -913,6 +1005,8 @@ eoc_K05_x16_c80:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -920,6 +1014,8 @@ eoc_K05_x16_c80:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -951,6 +1047,8 @@ eoc_K05_x32_c10:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -958,6 +1056,8 @@ eoc_K05_x32_c10:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -989,6 +1089,8 @@ eoc_K05_x32_c20:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -996,6 +1098,8 @@ eoc_K05_x32_c20:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -1027,6 +1131,8 @@ eoc_K05_x32_c40:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1034,6 +1140,8 @@ eoc_K05_x32_c40:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -1065,6 +1173,8 @@ eoc_K05_x32_c80:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1072,6 +1182,8 @@ eoc_K05_x32_c80:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -1103,6 +1215,8 @@ eoc_K05_x64_c10:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1110,6 +1224,8 @@ eoc_K05_x64_c10:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -1141,6 +1257,8 @@ eoc_K05_x64_c20:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1148,6 +1266,8 @@ eoc_K05_x64_c20:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -1179,6 +1299,8 @@ eoc_K05_x64_c40:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1186,6 +1308,8 @@ eoc_K05_x64_c40:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -1217,6 +1341,8 @@ eoc_K05_x64_c80:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1224,6 +1350,8 @@ eoc_K05_x64_c80:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -1255,6 +1383,8 @@ eoc_K25_x08_c10:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1262,6 +1392,8 @@ eoc_K25_x08_c10:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -1293,6 +1425,8 @@ eoc_K25_x08_c20:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1300,6 +1434,8 @@ eoc_K25_x08_c20:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -1331,6 +1467,8 @@ eoc_K25_x08_c40:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1338,6 +1476,8 @@ eoc_K25_x08_c40:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -1369,6 +1509,8 @@ eoc_K25_x08_c80:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1376,6 +1518,8 @@ eoc_K25_x08_c80:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -1407,6 +1551,8 @@ eoc_K25_x16_c10:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1414,6 +1560,8 @@ eoc_K25_x16_c10:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -1445,6 +1593,8 @@ eoc_K25_x16_c20:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1452,6 +1602,8 @@ eoc_K25_x16_c20:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -1483,6 +1635,8 @@ eoc_K25_x16_c40:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1490,6 +1644,8 @@ eoc_K25_x16_c40:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -1521,6 +1677,8 @@ eoc_K25_x16_c80:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1528,6 +1686,8 @@ eoc_K25_x16_c80:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -1559,6 +1719,8 @@ eoc_K25_x32_c10:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1566,6 +1728,8 @@ eoc_K25_x32_c10:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -1597,6 +1761,8 @@ eoc_K25_x32_c20:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1604,6 +1770,8 @@ eoc_K25_x32_c20:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -1635,6 +1803,8 @@ eoc_K25_x32_c40:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1642,6 +1812,8 @@ eoc_K25_x32_c40:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -1673,6 +1845,8 @@ eoc_K25_x32_c80:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1680,6 +1854,8 @@ eoc_K25_x32_c80:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -1711,6 +1887,8 @@ eoc_K25_x64_c10:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1718,6 +1896,8 @@ eoc_K25_x64_c10:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -1749,6 +1929,8 @@ eoc_K25_x64_c20:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1756,6 +1938,8 @@ eoc_K25_x64_c20:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -1787,6 +1971,8 @@ eoc_K25_x64_c40:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1794,6 +1980,8 @@ eoc_K25_x64_c40:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -1825,6 +2013,8 @@ eoc_K25_x64_c80:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1832,6 +2022,8 @@ eoc_K25_x64_c80:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -1863,6 +2055,8 @@ eoc_K50_x08_c10:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1870,6 +2064,8 @@ eoc_K50_x08_c10:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -1901,6 +2097,8 @@ eoc_K50_x08_c20:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1908,6 +2106,8 @@ eoc_K50_x08_c20:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -1939,6 +2139,8 @@ eoc_K50_x08_c40:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1946,6 +2148,8 @@ eoc_K50_x08_c40:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -1977,6 +2181,8 @@ eoc_K50_x08_c80:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -1984,6 +2190,8 @@ eoc_K50_x08_c80:
         cip_x0: 8
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -2015,6 +2223,8 @@ eoc_K50_x16_c10:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -2022,6 +2232,8 @@ eoc_K50_x16_c10:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -2053,6 +2265,8 @@ eoc_K50_x16_c20:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -2060,6 +2274,8 @@ eoc_K50_x16_c20:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -2091,6 +2307,8 @@ eoc_K50_x16_c40:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -2098,6 +2316,8 @@ eoc_K50_x16_c40:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -2129,6 +2349,8 @@ eoc_K50_x16_c80:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -2136,6 +2358,8 @@ eoc_K50_x16_c80:
         cip_x0: 16
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -2167,6 +2391,8 @@ eoc_K50_x32_c10:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -2174,6 +2400,8 @@ eoc_K50_x32_c10:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -2205,6 +2433,8 @@ eoc_K50_x32_c20:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -2212,6 +2442,8 @@ eoc_K50_x32_c20:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -2243,6 +2475,8 @@ eoc_K50_x32_c40:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -2250,6 +2484,8 @@ eoc_K50_x32_c40:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -2281,6 +2517,8 @@ eoc_K50_x32_c80:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -2288,6 +2526,8 @@ eoc_K50_x32_c80:
         cip_x0: 32
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
@@ -2319,6 +2559,8 @@ eoc_K50_x64_c10:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -2326,6 +2568,8 @@ eoc_K50_x64_c10:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 10], 1: [0, 10], 2: [0, 10], 3: [0, 10], 4: [0, 10], 5: [0, 10], 6: [0, 10], 7: [0, 10], 8: [0, 10], 9: [0, 10]}
     death_scale: 164
@@ -2357,6 +2601,8 @@ eoc_K50_x64_c20:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -2364,6 +2610,8 @@ eoc_K50_x64_c20:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 20], 1: [0, 20], 2: [0, 20], 3: [0, 20], 4: [0, 20], 5: [0, 20], 6: [0, 20], 7: [0, 20], 8: [0, 20], 9: [0, 20]}
     death_scale: 164
@@ -2395,6 +2643,8 @@ eoc_K50_x64_c40:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -2402,6 +2652,8 @@ eoc_K50_x64_c40:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 40], 1: [0, 40], 2: [0, 40], 3: [0, 40], 4: [0, 40], 5: [0, 40], 6: [0, 40], 7: [0, 40], 8: [0, 40], 9: [0, 40]}
     death_scale: 164
@@ -2433,6 +2685,8 @@ eoc_K50_x64_c80:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
     trait2:
       model: adult
       params:
@@ -2440,6 +2694,8 @@ eoc_K50_x64_c80:
         cip_x0: 64
         cip_k: 0.15
         prevalence: 0.5
+      beta: 1.0
+      beta_sex: 0.0
   censoring:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
