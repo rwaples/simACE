@@ -10,7 +10,9 @@ single combined ``report.yaml`` (ADR 0007):
 
 The report holds the six stats groups (``metadata``, ``incidence``,
 ``censoring``, ``pedigree``, ``correlations``, ``heritability``) at the top
-level and the validation report nested under a ``validation`` group.
+level and the validation report nested under a ``validation`` group. Dense
+plot-only arrays (incidence curves, censoring-window incidence) are split out
+into a companion ``plot_payload.yaml`` so the report stays scalar-only.
 
 The two halves read disjoint inputs over different pedigree scopes, so there is
 no cross-stage graph/pair sharing here — that efficiency work is deferred (see
@@ -34,7 +36,7 @@ import pandas as pd
 from simace.core.parquet import save_parquet
 from simace.core.yaml_io import dump_yaml, load_yaml
 
-from .stats.runner import PEDIGREE_REPORT_COLUMNS, build_stats_report, create_sample
+from .stats.runner import PEDIGREE_REPORT_COLUMNS, build_stats_report, create_sample, split_plot_payload
 from .validate import build_validation_report
 
 logger = logging.getLogger(__name__)
@@ -47,6 +49,7 @@ def run_analysis(
     trait_path: str,
     pedigree_path: str,
     report_output: str,
+    plot_payload_output: str,
     samples_output: str,
     seed: int = 42,
     censor_age: float,
@@ -62,6 +65,7 @@ def run_analysis(
         trait_path: Post-ascertainment trait parquet (Stats).
         pedigree_path: Post-ascertainment pedigree parquet (Stats).
         report_output: Output path for the combined ``report.yaml``.
+        plot_payload_output: Output path for the dense ``plot_payload.yaml``.
         samples_output: Output path for ``plotting_sample.parquet``.
         seed: Random seed for stats sampling / correlations.
         censor_age: Administrative censoring age.
@@ -103,11 +107,18 @@ def run_analysis(
     )
     del df_ped
 
-    # Merge into one report: the six stats groups at top level + validation
-    # folded in as its own group (ADR 0007).
-    report = {**stats_report, "validation": validation_report}
+    # Split dense plot arrays out of the stats groups before assembling the
+    # report (ADR 0007). The report keeps scalar landmark summaries; the dense
+    # curves/window arrays go to plot_payload.yaml.
+    report_stats, plot_payload = split_plot_payload(stats_report)
+
+    # Merge into one report: the six (now scalar) stats groups at top level +
+    # validation folded in as its own group.
+    report = {**report_stats, "validation": validation_report}
     dump_yaml(report, report_output)
     logger.info("Combined report written to %s", report_output)
+    dump_yaml(plot_payload, plot_payload_output)
+    logger.info("Plot payload written to %s", plot_payload_output)
 
     sample_df = create_sample(df, seed=seed)
     save_parquet(sample_df, samples_output)
@@ -127,6 +138,7 @@ def cli() -> None:
     parser.add_argument("--trait", required=True, help="Post-ascertainment trait parquet")
     parser.add_argument("--pedigree", required=True, help="Post-ascertainment pedigree parquet")
     parser.add_argument("--report-output", required=True, help="Output combined report YAML")
+    parser.add_argument("--plot-payload-output", required=True, help="Output dense plot payload YAML")
     parser.add_argument("--samples-output", required=True, help="Output plotting sample parquet")
     parser.add_argument("--censor-age", type=float, required=True)
     parser.add_argument("--seed", type=int, default=42)
@@ -147,6 +159,7 @@ def cli() -> None:
         trait_path=args.trait,
         pedigree_path=args.pedigree,
         report_output=args.report_output,
+        plot_payload_output=args.plot_payload_output,
         samples_output=args.samples_output,
         seed=args.seed,
         censor_age=args.censor_age,

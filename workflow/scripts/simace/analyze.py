@@ -17,6 +17,7 @@ def _run_snakemake():
         trait_path=snakemake.input.trait,
         pedigree_path=snakemake.input.pedigree,
         report_output=snakemake.output.report,
+        plot_payload_output=snakemake.output.plot_payload,
         samples_output=snakemake.output.samples,
         seed=p.seed,
         censor_age=p.censor_age,

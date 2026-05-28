@@ -17,6 +17,12 @@ rule plot_phenotype:
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
+        plot_payload=lambda w: expand(
+            "results/{folder}/{scenario}/rep{rep}/plot_payload.yaml",
+            folder=w.folder,
+            scenario=w.scenario,
+            rep=range(1, get_param(config, w.scenario, "replicates") + 1),
+        ),
         samples=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/plotting_sample.parquet",
             folder=w.folder,
@@ -50,6 +56,12 @@ rule assemble_scenario_atlas:
         params_yaml="results/{folder}/{scenario}/rep1/params.yaml",
         report=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/report.yaml",
+            folder=w.folder,
+            scenario=w.scenario,
+            rep=range(1, get_param(config, w.scenario, "replicates") + 1),
+        ),
+        plot_payload=lambda w: expand(
+            "results/{folder}/{scenario}/rep{rep}/plot_payload.yaml",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),

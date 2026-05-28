@@ -1,8 +1,10 @@
 """Plot phenotype distributions from pre-computed per-replicate reports.
 
-Reads report.yaml (six stats groups + a `validation` group) and
-plotting_sample.parquet files (one per replicate). No full trait parquet
-loading needed.
+Reads report.yaml (six stats groups + a `validation` group), the companion
+plot_payload.yaml (dense incidence/censoring arrays), and
+plotting_sample.parquet files (one per replicate). The report and payload are
+recombined before building the plotting view. No full trait parquet loading
+needed.
 """
 
 __all__: list[str] = []
@@ -56,7 +58,7 @@ from simace.plotting.plot_liability import (
 )
 from simace.plotting.plot_pedigree_counts import plot_pedigree_relationship_counts
 from simace.plotting.plot_utils import save_placeholder_plot
-from simace.plotting.stats_report import plotting_stats_views
+from simace.plotting.stats_report import merge_plot_payload, plotting_stats_views
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +67,7 @@ MAX_PLOT_POINTS = 200_000
 
 def main(
     report_paths: list[str],
+    plot_payload_paths: list[str],
     sample_paths: list[str],
     output_dir: str,
     censor_age: float,
@@ -82,7 +85,8 @@ def main(
     apply_nature_style()
 
     reports = [load_yaml(p) for p in report_paths]
-    all_stats = plotting_stats_views(reports)
+    payloads = [load_yaml(p) for p in plot_payload_paths]
+    all_stats = plotting_stats_views([merge_plot_payload(r, pl) for r, pl in zip(reports, payloads, strict=True)])
 
     df_samples = pd.concat([pd.read_parquet(p) for p in sample_paths], ignore_index=True)
     subsample_note = ""
@@ -335,6 +339,7 @@ def cli() -> None:
     parser = argparse.ArgumentParser(description="Plot phenotype distributions")
     add_logging_args(parser)
     parser.add_argument("--report", nargs="+", required=True, help="report.yaml paths")
+    parser.add_argument("--plot-payload", nargs="+", required=True, help="plot_payload.yaml paths")
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")
     parser.add_argument("--output-dir", required=True, help="Output directory")
     parser.add_argument("--censor-age", type=float, required=True, help="Maximum follow-up age")
@@ -352,6 +357,7 @@ def cli() -> None:
 
     main(
         args.report,
+        args.plot_payload,
         args.samples,
         args.output_dir,
         args.censor_age,

@@ -217,6 +217,70 @@ def build_stats_report(
     return report
 
 
+# Leaf keys whose values are dense per-replicate arrays (incidence curves,
+# censoring-window incidence) used only to render plots. They are split out of
+# report.yaml into plot_payload.yaml so the scientific report stays scalar-only.
+DENSE_ARRAY_KEYS = frozenset(
+    {
+        "ages",
+        "values",
+        "observed_values",
+        "true_values",
+        "aj_values",
+        "aj_death_values",
+        "aj_survival",
+        "aj_se",
+        "censoring_ages",
+        "true_incidence",
+        "observed_incidence",
+    }
+)
+
+
+def _partition_dense(node: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Recursively split a nested dict into (scalar_part, dense_part).
+
+    Leaf keys in ``DENSE_ARRAY_KEYS`` go to ``dense_part``; everything else
+    (scalars, small tables, decade-rate lists) stays in ``scalar_part``. Both
+    halves mirror the input nesting; empty branches are dropped.
+    """
+    scalar: dict[str, Any] = {}
+    dense: dict[str, Any] = {}
+    for key, value in node.items():
+        if key in DENSE_ARRAY_KEYS:
+            dense[key] = value
+        elif isinstance(value, dict):
+            sub_scalar, sub_dense = _partition_dense(value)
+            if sub_scalar:
+                scalar[key] = sub_scalar
+            if sub_dense:
+                dense[key] = sub_dense
+        else:
+            scalar[key] = value
+    return scalar, dense
+
+
+def split_plot_payload(stats_report: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Separate dense plot arrays from the scalar stats report.
+
+    Walks the ``incidence`` and ``censoring`` groups (the only dense-array
+    bearers), moving array leaves into a parallel ``plot_payload`` dict and
+    leaving scalar landmark summaries in the report. Other groups pass through
+    untouched. Returns ``(report_stats, plot_payload)``.
+    """
+    report_stats = dict(stats_report)
+    plot_payload: dict[str, Any] = {}
+    for group in ("incidence", "censoring"):
+        group_data = report_stats.get(group)
+        if not group_data:
+            continue
+        scalar, dense = _partition_dense(group_data)
+        report_stats[group] = scalar
+        if dense:
+            plot_payload[group] = dense
+    return report_stats, plot_payload
+
+
 def main(
     phenotype_path: str,
     censor_age: float,

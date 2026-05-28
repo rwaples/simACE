@@ -11,6 +11,7 @@ rule analyze:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
     output:
         report="results/{folder}/{scenario}/rep{rep}/report.yaml",
+        plot_payload="results/{folder}/{scenario}/rep{rep}/plot_payload.yaml",
         samples=temp("results/{folder}/{scenario}/rep{rep}/plotting_sample.parquet"),
     log:
         "logs/{folder}/{scenario}/rep{rep}/analyze.log",

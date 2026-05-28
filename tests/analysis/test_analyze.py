@@ -4,6 +4,8 @@ import pytest
 import yaml
 
 from simace.analysis.analyze import run_analysis
+from simace.analysis.stats.runner import DENSE_ARRAY_KEYS
+from simace.plotting.stats_report import merge_plot_payload
 
 # ---------------------------------------------------------------------------
 # Module-scoped fixture: simulate -> phenotype -> censor, once per file.
@@ -80,6 +82,7 @@ def analyze_outputs(tmp_path, analyze_data):
         yaml.safe_dump(params, fh)
 
     report_yaml = tmp_path / "report.yaml"
+    plot_payload_yaml = tmp_path / "plot_payload.yaml"
     samples_pq = tmp_path / "plotting_sample.parquet"
 
     report = run_analysis(
@@ -88,6 +91,7 @@ def analyze_outputs(tmp_path, analyze_data):
         trait_path=str(trait),
         pedigree_path=str(ped),
         report_output=str(report_yaml),
+        plot_payload_output=str(plot_payload_yaml),
         samples_output=str(samples_pq),
         seed=42,
         censor_age=80.0,
@@ -96,8 +100,19 @@ def analyze_outputs(tmp_path, analyze_data):
     return {
         "report": report,
         "report_yaml": report_yaml,
+        "plot_payload_yaml": plot_payload_yaml,
         "samples_pq": samples_pq,
     }
+
+
+def _find_dense_keys(node, path=""):
+    """Yield dotted paths of any DENSE_ARRAY_KEYS found anywhere in a nested dict."""
+    if isinstance(node, dict):
+        for key, value in node.items():
+            here = f"{path}.{key}" if path else key
+            if key in DENSE_ARRAY_KEYS:
+                yield here
+            yield from _find_dense_keys(value, here)
 
 
 _REPORT_GROUPS = {
@@ -114,6 +129,7 @@ _REPORT_GROUPS = {
 class TestRunAnalysis:
     def test_outputs_written(self, analyze_outputs):
         assert analyze_outputs["report_yaml"].exists()
+        assert analyze_outputs["plot_payload_yaml"].exists()
         assert analyze_outputs["samples_pq"].exists()
 
     def test_validation_summary_passes(self, analyze_outputs):
@@ -134,3 +150,28 @@ class TestRunAnalysis:
         # Stats ran on the (sub)sampled pedigree, so the full-pedigree branch is present.
         assert "full" in report["pedigree"]
         assert "mate_correlation" in report["correlations"]
+
+    def test_report_has_no_dense_arrays(self, analyze_outputs):
+        report = analyze_outputs["report"]
+        assert list(_find_dense_keys(report)) == []
+
+    def test_plot_payload_has_dense_arrays(self, analyze_outputs):
+        with open(analyze_outputs["plot_payload_yaml"], encoding="utf-8") as fh:
+            payload = yaml.safe_load(fh)
+        # gen_censoring is None for this fixture, so only the incidence curves
+        # are dense; the AJ/observed curves carry ages.
+        assert "incidence" in payload
+        dense = set(_find_dense_keys(payload))
+        assert any(p.endswith(".ages") for p in dense)
+        assert any(p.endswith(".observed_values") for p in dense)
+
+    def test_merge_round_trip_reunites_scalars_and_arrays(self, analyze_outputs):
+        report = analyze_outputs["report"]
+        with open(analyze_outputs["plot_payload_yaml"], encoding="utf-8") as fh:
+            payload = yaml.safe_load(fh)
+        merged = merge_plot_payload(report, payload)
+        ci = merged["incidence"]["cumulative_incidence"]["trait1"]
+        # Array (from payload) and scalar landmark (from report) sit together.
+        assert "ages" in ci
+        assert "half_target_age" in ci
+        assert len(ci["ages"]) == len(ci["observed_values"])

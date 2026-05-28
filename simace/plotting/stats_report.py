@@ -62,3 +62,28 @@ def plotting_stats_view(report: dict[str, Any] | None) -> dict[str, Any]:
 def plotting_stats_views(reports: list[dict[str, Any] | None]) -> list[dict[str, Any]]:
     """Build plotting views for a list of grouped stats reports."""
     return [plotting_stats_view(report) for report in reports]
+
+
+def _deep_merge(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    """Recursively merge ``extra`` into a copy of ``base`` (``extra`` wins)."""
+    merged = dict(base)
+    for key, value in extra.items():
+        existing = merged.get(key)
+        if isinstance(existing, dict) and isinstance(value, dict):
+            merged[key] = _deep_merge(existing, value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def merge_plot_payload(report: dict[str, Any], plot_payload: dict[str, Any] | None) -> dict[str, Any]:
+    """Recombine a scalar report with its dense plot_payload arrays.
+
+    Inverse of ``split_plot_payload``: returns a new dict where the dense
+    incidence/censoring arrays are merged back into the report's nested groups,
+    reconstructing the structure the plotting view builder expects. ``report``
+    is not mutated.
+    """
+    if not plot_payload:
+        return report
+    return _deep_merge(report, plot_payload)
