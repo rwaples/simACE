@@ -9,6 +9,12 @@ plot code does not need to know about the v2 scientific grouping.
 
 from typing import Any
 
+from simace.analysis.report_schema import (
+    ANALYSIS_SAMPLE_CORRELATION_KEYS,
+    ANALYSIS_SAMPLE_INCIDENCE_KEYS,
+    CENSORING_RENAME,
+)
+
 __all__ = [
     "plotting_report_view",
     "plotting_report_views",
@@ -16,27 +22,9 @@ __all__ = [
 ]
 
 # analysis_sample keys that map straight through to the flat view by name.
-_SAMPLE_PASSTHROUGH = (
-    "prevalence",
-    "mortality",
-    "regression",
-    "cumulative_incidence",
-    "cumulative_incidence_by_sex",
-    "cumulative_incidence_by_sex_generation",
-    "cumulative_incidence_aj",
-    "cumulative_incidence_aj_by_sex",
-    "cumulative_incidence_aj_by_sex_generation",
-    "joint_affection",
-    "liability_correlations",
-    "affected_correlations",
-    "parent_offspring_corr",
-    "parent_offspring_corr_by_sex",
-    "parent_offspring_affected_corr",
-    "tetrachoric",
-    "tetrachoric_by_generation",
-    "tetrachoric_by_sex",
-    "cross_trait_tetrachoric",
-)
+# Derived from the producer's source-of-truth sets (report_schema) so the
+# adapter cannot drift out of sync with what the report actually emits.
+_SAMPLE_PASSTHROUGH = (*ANALYSIS_SAMPLE_INCIDENCE_KEYS, *ANALYSIS_SAMPLE_CORRELATION_KEYS)
 
 
 def _deep_merge(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
@@ -94,12 +82,16 @@ def plotting_report_view(report: dict[str, Any] | None, plot_payload: dict[str, 
             view[key] = sample[key]
 
     view["person_years"] = sample.get("person_years")
-    if "censoring_windows" in sample:
-        view["censoring"] = sample["censoring_windows"]
-    if "censoring_confusion" in sample:
-        view["censoring_confusion"] = sample["censoring_confusion"]
-    if "censoring_cascade" in sample:
-        view["censoring_cascade"] = sample["censoring_cascade"]
+    # Censoring fields were renamed on the way into the report (CENSORING_RENAME);
+    # the plot helpers want the windows curve under the bare key "censoring", and
+    # the confusion/cascade tables under their renamed keys.
+    windows_field = CENSORING_RENAME["windows"]
+    if windows_field in sample:
+        view["censoring"] = sample[windows_field]
+    for src in ("confusion", "cascade"):
+        field = CENSORING_RENAME[src]
+        if field in sample:
+            view[field] = sample[field]
     view["family_size"] = sample.get("family_size")
     view["pair_counts"] = sample.get("relationship_pair_counts")
 

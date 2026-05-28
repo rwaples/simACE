@@ -14,17 +14,20 @@ __all__ = ["assemble_report"]
 from typing import Any
 
 from .report_schema import (
+    ANALYSIS_SAMPLE_CORRELATION_KEYS,
+    ANALYSIS_SAMPLE_INCIDENCE_KEYS,
+    ANALYSIS_SAMPLE_PEDIGREE_KEYS,
+    CENSORING_RENAME,
     PLOT_PAYLOAD_SCHEMA_NAME,
     PLOT_PAYLOAD_SCHEMA_VERSION,
     REPORT_SCHEMA_NAME,
     REPORT_SCHEMA_VERSION,
+    assert_report_contract,
     partition_dense,
 )
 
 # Skip these when normalizing validation checks — they carry no pass/fail rows.
-_NON_CHECK_CATEGORIES = frozenset(
-    {"per_generation", "summary", "family_size_distribution", "parameters"}
-)
+_NON_CHECK_CATEGORIES = frozenset({"per_generation", "summary", "family_size_distribution", "parameters"})
 
 
 def _first(result: dict[str, Any], prefixes: tuple[str, ...]) -> Any:
@@ -205,37 +208,14 @@ def _rebucket_analysis_sample(stats_report: dict[str, Any]) -> dict[str, Any]:
     ped = stats_report.get("pedigree", {})
     cor = stats_report.get("correlations", {})
     sample: dict[str, Any] = {}
-    incidence_keys = (
-        "prevalence",
-        "mortality",
-        "regression",
-        "cumulative_incidence",
-        "cumulative_incidence_by_sex",
-        "cumulative_incidence_by_sex_generation",
-        "cumulative_incidence_aj",
-        "cumulative_incidence_aj_by_sex",
-        "cumulative_incidence_aj_by_sex_generation",
-    )
-    sample.update({k: inc[k] for k in incidence_keys if k in inc})
+    sample.update({k: inc[k] for k in ANALYSIS_SAMPLE_INCIDENCE_KEYS if k in inc})
     if "person_years" in cen:
         sample["person_years"] = cen["person_years"]
-    for src, dst in (("windows", "censoring_windows"), ("confusion", "censoring_confusion"), ("cascade", "censoring_cascade")):
+    for src, dst in CENSORING_RENAME.items():
         if src in cen:
             sample[dst] = cen[src]
-    sample.update({k: ped[k] for k in ("family_size", "relationship_pair_counts") if k in ped})
-    correlation_keys = (
-        "liability_correlations",
-        "affected_correlations",
-        "parent_offspring_corr",
-        "parent_offspring_corr_by_sex",
-        "parent_offspring_affected_corr",
-        "tetrachoric",
-        "tetrachoric_by_generation",
-        "tetrachoric_by_sex",
-        "cross_trait_tetrachoric",
-        "joint_affection",
-    )
-    sample.update({k: cor[k] for k in correlation_keys if k in cor})
+    sample.update({k: ped[k] for k in ANALYSIS_SAMPLE_PEDIGREE_KEYS if k in ped})
+    sample.update({k: cor[k] for k in ANALYSIS_SAMPLE_CORRELATION_KEYS if k in cor})
     return sample
 
 
@@ -296,8 +276,7 @@ def build_ascertainment_summary(
 
 def _build_inputs(params: dict[str, Any], case_ascertainment_ratio: float) -> dict[str, Any]:
     trait_model = {
-        f"trait{t}": {"A": params.get(f"A{t}"), "C": params.get(f"C{t}"), "E": params.get(f"E{t}")}
-        for t in (1, 2)
+        f"trait{t}": {"A": params.get(f"A{t}"), "C": params.get(f"C{t}"), "E": params.get(f"E{t}")} for t in (1, 2)
     }
     return {
         "parameters": params,
@@ -329,15 +308,17 @@ def assemble_report(
         params, case_ascertainment_ratio, prevalence_phenotyped, prevalence_sample, scope_counts
     )
 
-    sample_full = _rebucket_analysis_sample(stats_report)
-    sample_scalar, sample_dense = partition_dense(sample_full)
-
-    observed = {
+    # Split dense plot arrays out of every scope in one pass: the scalar half is
+    # the scientific report, the dense half becomes the plot payload (keyed by
+    # the same scopes, so the payload mirrors observed). This makes the
+    # report's no-dense-arrays guarantee structural rather than per-scope.
+    observed_full = {
         "ascertainment": ascertainment,
         "phenotyped_population": {"prevalence": prevalence_phenotyped},
-        "analysis_sample": sample_scalar,
+        "analysis_sample": _rebucket_analysis_sample(stats_report),
         "analysis_pedigree": _rebucket_analysis_pedigree(stats_report),
     }
+    observed, observed_dense = partition_dense(observed_full)
 
     report = {
         "schema": {"name": REPORT_SCHEMA_NAME, "version": REPORT_SCHEMA_VERSION},
@@ -349,10 +330,11 @@ def assemble_report(
         "observed": observed,
         "estimators": extract_estimators(validation_report, stats_report),
     }
+    assert_report_contract(report)
 
     plot_payload = {
         "schema": {"name": PLOT_PAYLOAD_SCHEMA_NAME, "version": PLOT_PAYLOAD_SCHEMA_VERSION},
         "replicate": {k: replicate.get(k) for k in ("folder", "scenario", "rep")},
-        "analysis_sample": sample_dense,
+        **observed_dense,
     }
     return report, plot_payload
