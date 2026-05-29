@@ -1,6 +1,6 @@
 # simACE
 
-simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (common environment), and **E** (unique environment) variance components, then runs phenotype → censor → ascertainment → validate → stats → plot. It exists as a controlled testbed for evaluating family-study and twin-study statistical methods, where the ground truth is known.
+simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (common environment), and **E** (unique environment) variance components, then runs phenotype → censor → ascertainment → analyze → plot. It exists as a controlled testbed for evaluating family-study and twin-study statistical methods, where the ground truth is known.
 
 This file is a disambiguation glossary for AI agents and future maintainers — it picks canonical names for concepts that have competing aliases in the code, docs, and conversation. It is **not** a methods write-up (see `docs/concepts/methods.md` for that) and contains no implementation details.
 
@@ -224,14 +224,17 @@ The pipeline runs the following stages in order. Stage names match the Snakemake
 2. **Phenotype** — apply the phenotype model per trait to produce binary affection + onset. Package: `simace/phenotype/` (noun form, **not** "phenotyping"). The only stage where noun-form is enforced because "phenotype" the noun is also a domain word.
 3. **Censor** — apply age-window and death censoring to event times. Package: `simace/censoring/`.
 4. **Ascertainment** — unified dropout + case-ascertainment + $N_{\text{sample}}$ selection (per ADR 0001). Noun form. Replaces the older `dropout` + `sample` two-stage split.
-5. **Validate** — ground-truth sanity checks. Verb form (rule: `validate.smk`). Module: `simace/analysis/validate.py`.
-6. **Stats** — compute correlations, kinship, effective-size estimators, etc. Matches code: `simace/analysis/stats/`.
-7. **Plot** — generate the per-scenario plot atlas. Package: `simace/plotting/`.
+5. **Analyze** — combined production of ground-truth sanity checks and descriptive stats. Verb form. Preserves the distinct validate and stats outputs while treating them as one pipeline stage.
+6. **Plot** — generate the per-scenario plot atlas. Package: `simace/plotting/`.
 
-_Avoid_: "phenotyping" (killed), "subsampling" / "dropout stage" (killed — see **Ascertainment**), "validation stage" (use "validate stage"), "statistics" (use "stats"), "simulation stage" (just say "the simulate stage").
+_Avoid_: "phenotyping" (killed), "subsampling" / "dropout stage" (killed — see **Ascertainment**), "validation stage" / "stats stage" as separate pipeline stages (use **Analyze** for the combined stage; use **Validate output** / **Stats output** when referring to artifacts), "statistics" (use "stats"), "simulation stage" (just say "the simulate stage").
 
-**Per-replicate stats report**:
-The Stats-stage summary for one replicate, combining incidence, censoring, pedigree, correlation, and observed-heritability summaries. The report describes one replicate after ascertainment; it is not a cross-replicate aggregate and does not replace validation.
+**Validate output**:
+The Analyze-stage ground-truth sanity-check artifact for one replicate. It validates the full recorded pedigree before ascertainment and remains distinct from descriptive stats.
+_Avoid_: validation stage, validation report (ambiguous with the pipeline stage), stats report.
+
+**Stats output**:
+The Analyze-stage descriptive summary for one replicate, combining incidence, censoring, pedigree, correlation, and observed-heritability summaries. The report describes one replicate after ascertainment; it is not a cross-replicate aggregate and does not replace validation.
 _Avoid_: phenotype statistics, stats dump, summary YAML.
 
 **Plotting sample**:
