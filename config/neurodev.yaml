@@ -92,7 +92,7 @@ ADHD:
       model: cure_frailty
       params:
         distribution: weibull
-        scale: 9.0
+        scale: 40.0 # onset-tuned (was 9.0) so susceptibles land in school-age 6-10y
         rho: 1.6
         prevalence: 0.06 # K=0.06 susceptible; hazard sets school-age onset
       beta: 1.0
@@ -101,7 +101,7 @@ ADHD:
       model: cure_frailty
       params:
         distribution: weibull
-        scale: 10.5
+        scale: 36.5 # onset-tuned (was 10.5) so susceptibles land in school-age 6-10y
         rho: 1.5
         prevalence: 0.09 # K=0.09 susceptible; hazard sets school-age onset
       beta: 1.0
@@ -165,7 +165,7 @@ ASD:
       model: cure_frailty
       params:
         distribution: lognormal
-        mu: 2.1
+        mu: 3.45 # onset-tuned (was 2.1) so susceptible median ~10y
         sigma: 0.65
         prevalence: 0.012 # K=1.2% susceptible (narrow ASD); hazard sets onset age
       beta: 1.0
@@ -174,7 +174,7 @@ ASD:
       model: cure_frailty
       params:
         distribution: lognormal
-        mu: 2.3
+        mu: 3.57 # onset-tuned (was 2.3) so susceptible median ~11y
         sigma: 0.70
         prevalence: 0.022 # K=2.2% susceptible (broad ASD); hazard sets onset age
       beta: 1.0
@@ -242,7 +242,7 @@ ID:
       model: cure_frailty
       params:
         distribution: weibull
-        scale: 4.0
+        scale: 20.0 # onset-tuned (was 4.0) so susceptibles spread across birth-5y
         rho: 1.8
         prevalence: 0.004 # K=0.4% susceptible (moderate-severe ID); hazard sets infancy onset
       beta: 1.0
@@ -251,7 +251,7 @@ ID:
       model: cure_frailty
       params:
         distribution: lognormal
-        mu: 1.8
+        mu: 3.12 # onset-tuned (was 1.8) so susceptible median ~6y (early school)
         sigma: 0.80
         prevalence: 0.015 # K=1.5% susceptible (mild-severe ID); hazard sets early-childhood onset
       beta: 1.0

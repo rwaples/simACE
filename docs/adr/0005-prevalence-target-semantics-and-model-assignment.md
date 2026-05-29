@@ -1,6 +1,6 @@
 # Prevalence-target semantics and phenotype-model assignment for the calibrated scenario folders
 
-- **Status:** proposed
+- **Status:** accepted
 
 The `neurodev` and `paper_simulation` folders were authored with documented
 target prevalences (e.g. ADHD 6%, ID 0.4%, the `prev_*` sweep 2%/10%/35%) but

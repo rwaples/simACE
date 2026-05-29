@@ -227,7 +227,7 @@ onset_early:
       model: cure_frailty
       params:
         distribution: lognormal
-        mu: 2.5
+        mu: 3.34 # onset-tuned (was 2.5) so susceptible median ~12y
         sigma: 0.7
         prevalence: 0.1 # K susceptible; lognormal hazard sets early onset
       beta: 1.0
@@ -235,7 +235,7 @@ onset_early:
       model: cure_frailty
       params:
         distribution: lognormal
-        mu: 2.8
+        mu: 3.63 # onset-tuned (was 2.8) so susceptible median ~16y
         sigma: 0.6
         prevalence: 0.2 # K susceptible; lognormal hazard sets early onset
       beta: 1.5
@@ -727,7 +727,7 @@ stress_low_herit_early_rare:
       model: cure_frailty
       params:
         distribution: lognormal
-        mu: 2.5
+        mu: 3.57 # onset-tuned (was 2.5) so susceptible median ~12y
         sigma: 0.7
         prevalence: 0.02 # K susceptible; lognormal hazard sets early onset
       beta: 1.0
@@ -735,7 +735,7 @@ stress_low_herit_early_rare:
       model: cure_frailty
       params:
         distribution: lognormal
-        mu: 2.8
+        mu: 4.02 # onset-tuned (was 2.8) so susceptible median ~16y
         sigma: 0.6
         prevalence: 0.02 # K susceptible; lognormal hazard sets early onset
       beta: 1.5
