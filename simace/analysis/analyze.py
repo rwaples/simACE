@@ -39,11 +39,11 @@ from .stats.incidence import compute_prevalence
 from .stats.runner import PEDIGREE_REPORT_COLUMNS, build_stats_report, create_sample
 from .validate import build_validation_report
 
+logger = logging.getLogger(__name__)
+
 
 def _n_generations(df: pd.DataFrame) -> int:
     return int(df["generation"].nunique()) if "generation" in df.columns else 1
-
-logger = logging.getLogger(__name__)
 
 
 def run_analysis(

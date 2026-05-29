@@ -55,18 +55,11 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
     simulate_max_rss_mb = None
     if bench_path.exists():
         with open(bench_path, encoding="utf-8", newline="") as bf:
-            reader = csv.DictReader(bf, delimiter="\t")
-            for row_b in reader:
-                simulate_seconds = float(row_b["s"])
-
-                if platform.system() == "Windows":
-                    # Windows does not support max_rss
-                    simulate_max_rss_mb = float(1)
-                else:
-                    # Linux/macOS → normal
-                    simulate_max_rss_mb = float(row_b["max_rss"])
-
-                break
+            first_row = next(csv.DictReader(bf, delimiter="\t"), None)
+        if first_row is not None:
+            simulate_seconds = float(first_row["s"])
+            # Windows benchmarks have no max_rss column; fall back to a sentinel.
+            simulate_max_rss_mb = 1.0 if platform.system() == "Windows" else float(first_row["max_rss"])
 
     params = _get_nested(data, "inputs", "parameters", default={})
     summary = _get_nested(data, "quality_checks", "summary", default={})
