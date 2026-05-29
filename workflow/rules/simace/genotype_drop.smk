@@ -28,10 +28,10 @@ _GD_SIMHUMANITY = "external/SimHumanity"
 rule build_pedigree_tables:
     """Build the msprime fixed-pedigree TableCollection once per rep.
 
-    Saves ~80s/rep over the previous per-chrom rebuild on baseline100K.
-    Output is a tskit .trees file with placeholder sequence_length=1; each
-    chrom-drop rule mutates sequence_length to its per-chrom value.
-    """
+Saves ~80s/rep over the previous per-chrom rebuild on baseline100K.
+Output is a tskit .trees file with placeholder sequence_length=1; each
+chrom-drop rule mutates sequence_length to its per-chrom value.
+"""
     input:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.full.parquet",
     output:

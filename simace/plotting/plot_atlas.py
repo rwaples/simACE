@@ -42,8 +42,8 @@ _FAMILY_DESC: dict[str, str] = {
     "frailty": "Proportional hazards with {dist} baseline; frailty exp(\u03b2\u00b7L) scales hazard",
     "cure_frailty": "Mixture cure model ({dist} baseline): liability threshold for case status, frailty for age-at-onset",
     "adult": {
-        "ltm": "Liability threshold for case status, deterministic probit CIP for age-at-onset",
-        "cox": "Ranking for case status, stochastic Weibull CIP for age-at-onset",
+        "ltm": "Liability threshold for case status, deterministic probit CIF for age-at-onset",
+        "cox": "Ranking for case status, stochastic Weibull CIF for age-at-onset",
     },
     "first_passage": (
         "Inverse Gaussian FPT: liability scales initial distance y\u2080 to boundary; drift \u03bc controls progression"
@@ -121,7 +121,7 @@ def _equation_lines_for_model(model: str, pp: dict, label: str = "") -> list[str
         method = pp.get("method", "")
         if method == "ltm":
             return [
-                r"$" + prefix + r"\mathrm{CIP}(t) = \frac{K}{1 + e^{-k(t - x_0)}}$",
+                r"$" + prefix + r"\mathrm{CIF}(t) = \frac{K}{1 + e^{-k(t - x_0)}}$",
                 r"$\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad"
                 + r" t = x_0 + \frac{1}{k}\ln\!\frac{\Phi(-L)}{K - \Phi(-L)}$",
             ]
@@ -131,8 +131,8 @@ def _equation_lines_for_model(model: str, pp: dict, label: str = "") -> list[str
                 + prefix
                 + r"t_{\mathrm{raw}} = \sqrt{-\ln U \,/\, e^{L}},"
                 + r" \quad U \sim \mathrm{Uniform}(0,1]$",
-                r"$\mathrm{case\!:}\ \mathrm{CIP}_{\mathrm{rank}} < K, \qquad"
-                + r" t = x_0 + \frac{1}{k}\ln\!\frac{\mathrm{CIP}}{K - \mathrm{CIP}}$",
+                r"$\mathrm{case\!:}\ \mathrm{CIF}_{\mathrm{rank}} < K, \qquad"
+                + r" t = x_0 + \frac{1}{k}\ln\!\frac{\mathrm{CIF}}{K - \mathrm{CIF}}$",
             ]
 
     if model == "first_passage":

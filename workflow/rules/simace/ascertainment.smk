@@ -27,7 +27,9 @@ rule ascertainment:
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
     params:
         dropout_rate=lambda w: get_param(config, w.scenario, "dropout_rate"),
-        case_ascertainment_ratio=lambda w: get_param(config, w.scenario, "case_ascertainment_ratio"),
+        case_ascertainment_ratio=lambda w: get_param(
+            config, w.scenario, "case_ascertainment_ratio"
+        ),
         N_sample=lambda w: get_param(config, w.scenario, "N_sample"),
         seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
     script:

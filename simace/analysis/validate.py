@@ -1295,10 +1295,10 @@ def build_validation_report(
         df_indexed = df.set_index("id")
 
     if sibling_pairs is None:
-        # max_degree=2 is required to populate MHS/PHS (kinship 1/8 = degree 2);
-        # min_kinship=0.125 keeps MHS/PHS (=0.125) and skips 1C (=0.0625).
-        all_pairs = PedigreeGraph(df).extract_pairs(max_degree=2, min_kinship=0.125)
-        sibling_pairs = {k: all_pairs[k] for k in ("FS", "MHS", "PHS")}
+        # Validation only needs sibling categories (FS/MHS/PHS); avoid full
+        # degree-2 extraction, which also materializes GP/Av pairs.
+        full_sib, mat_hs, pat_hs = PedigreeGraph(df).sibling_pairs()
+        sibling_pairs = {"FS": full_sib, "MHS": mat_hs, "PHS": pat_hs}
 
     results = {
         "structural": validate_structural(df, params),

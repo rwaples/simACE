@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import yaml
 from pedigree_graph import PedigreeGraph
@@ -78,15 +79,32 @@ def _read_pedigree(path: str | None) -> pd.DataFrame | None:
     return pd.read_parquet(path, columns=PEDIGREE_REPORT_COLUMNS)
 
 
+def _same_ordered_ids(left: pd.DataFrame, right: pd.DataFrame) -> bool:
+    """Return True when two frames contain the same ordered ``id`` column."""
+    if len(left) != len(right):
+        return False
+    return bool(np.array_equal(left["id"].to_numpy(copy=False), right["id"].to_numpy(copy=False)))
+
+
 def _build_relationship_context(
     df: pd.DataFrame,
     df_ped: pd.DataFrame | None,
     max_degree: int,
 ) -> RelationshipContext:
     logger.info("Extracting relationship pairs...")
+    # TODO(performance): design streaming/sample-based relationship stats in
+    # pedigree-graph/simACE so large-N reports can compute counts and
+    # correlations without materializing 100M+ pair arrays. Coordinate with
+    # fitACE consumers before changing relationship-extraction semantics.
     t0 = time.perf_counter()
     if df_ped is not None:
-        pg = PedigreeGraph.from_subsample(df_ped, df)
+        if _same_ordered_ids(df_ped, df):
+            # Fast path for the common no-ascertainment case: the phenotype
+            # and pedigree tables are the same ordered individuals, so a
+            # subsample mask/remap would be pure overhead.
+            pg = PedigreeGraph(df)
+        else:
+            pg = PedigreeGraph.from_subsample(df_ped, df)
         pairs = pg.extract_pairs(max_degree=max_degree)
         full_counts = pg.count_pairs(max_degree=max_degree, scope="full")
     else:

@@ -6,11 +6,13 @@ post-stage ``pedigree.parquet`` and ``trait.parquet`` outputs that both
 simACE-stats and fitACE consume.
 """
 
-__all__ = ["run_ascertainment"]
+__all__ = ["copy_passthrough_if_possible", "run_ascertainment"]
 
 import argparse
 import logging
+import shutil
 import time
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -53,6 +55,84 @@ def _apply_dropout(pedigree: pd.DataFrame, rate: float, rng: np.random.Generator
 def _filter_to_ids(df: pd.DataFrame, ids: np.ndarray) -> pd.DataFrame:
     """Filter a trait-like DataFrame to an ID set, preserving row order."""
     return df[df["id"].isin(ids)].reset_index(drop=True)
+
+
+def _read_id_column(path: str | Path) -> pd.Series:
+    """Read only the ``id`` column from a parquet file."""
+    return pd.read_parquet(path, columns=["id"])["id"]
+
+
+def _same_id_sequence(left: pd.Series, right: pd.Series) -> bool:
+    """Return True when two id columns have identical length, order, and values."""
+    if len(left) != len(right):
+        return False
+    return bool(np.array_equal(left.to_numpy(copy=False), right.to_numpy(copy=False)))
+
+
+def _copy_file(src: str | Path, dst: str | Path) -> None:
+    """Copy one file, creating the output directory and tolerating same-file calls."""
+    src_path = Path(src)
+    dst_path = Path(dst)
+    dst_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        if src_path.samefile(dst_path):
+            return
+    except FileNotFoundError:
+        pass
+    shutil.copy2(src_path, dst_path)
+
+
+def copy_passthrough_if_possible(
+    pedigree_path: str | Path,
+    trait_path: str | Path,
+    trait_simple_ltm_path: str | Path,
+    out_pedigree_path: str | Path,
+    out_trait_path: str | Path,
+    out_trait_simple_ltm_path: str | Path,
+    *,
+    dropout_rate: float | None = 0.0,
+    N_sample: int | None = 0,
+) -> bool:
+    """Fast-path no-op ascertainment by copying parquet inputs to outputs.
+
+    The DataFrame API deliberately preserves the semantic ancestor-closure
+    step even when ``dropout_rate=0`` and ``N_sample`` passes all trait rows.
+    The file-level Snakemake/CLI path can skip the expensive pandas
+    decode/filter/re-encode cycle only when the phenotype and pedigree files
+    already contain the exact same ordered ID set, making the closure equal to
+    the input pedigree.
+
+    Returns ``True`` when all three outputs were copied and the caller can
+    skip regular ascertainment. Returns ``False`` when regular ascertainment
+    must run to preserve semantics.
+    """
+    rate = float(dropout_rate or 0.0)
+    n_sample = int(N_sample or 0)
+    if rate != 0.0:
+        return False
+
+    trait_ids = _read_id_column(trait_path)
+    if n_sample > 0 and n_sample < len(trait_ids):
+        return False
+
+    simple_ids = _read_id_column(trait_simple_ltm_path)
+    if not _same_id_sequence(trait_ids, simple_ids):
+        return False
+
+    pedigree_ids = _read_id_column(pedigree_path)
+    if not _same_id_sequence(pedigree_ids, trait_ids):
+        return False
+
+    _copy_file(pedigree_path, out_pedigree_path)
+    _copy_file(trait_path, out_trait_path)
+    _copy_file(trait_simple_ltm_path, out_trait_simple_ltm_path)
+    logger.info(
+        "Ascertainment pass-through: copied %d rows unchanged (dropout=%.3f, N_sample=%d)",
+        len(trait_ids),
+        rate,
+        n_sample,
+    )
+    return True
 
 
 def _sample_trait_ids(
@@ -230,6 +310,18 @@ def cli() -> None:
 
     args = parser.parse_args()
     init_logging(args)
+
+    if copy_passthrough_if_possible(
+        args.pedigree,
+        args.trait,
+        args.trait_simple_ltm,
+        args.out_pedigree,
+        args.out_trait,
+        args.out_trait_simple_ltm,
+        dropout_rate=args.dropout_rate,
+        N_sample=args.N_sample,
+    ):
+        return
 
     ped = pd.read_parquet(args.pedigree)
     trait = pd.read_parquet(args.trait)

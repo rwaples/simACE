@@ -384,6 +384,22 @@ class TestFinalizePaths:
         assert out.exists()
         assert len(plt.get_fignums()) == 0
 
+    def test_death_age_distribution_tiny_rates(self, tmp_path):
+        # Regression: a fixed +0.01 data-coord offset on bar labels used to
+        # expand the saved PNG to ~120M pixels when rates were ~1e-5
+        # (death_scale=1e6 scenarios). bar_label(padding=) fixes it.
+        from PIL import Image
+
+        from simace.plotting.plot_distributions import plot_death_age_distribution
+
+        stats = [{"mortality": {"rates": [1e-5] * 8, "decade_labels": [f"{i}0s" for i in range(8)]}}]
+        out = tmp_path / "mortality.png"
+        plot_death_age_distribution(stats, 80.0, out, scenario="test")
+        with Image.open(out) as im:
+            assert im.width * im.height < 5_000_000, (
+                f"image exploded to {im.width}x{im.height} ({im.width * im.height / 1e6:.0f}M px)"
+            )
+
     def test_trait_phenotype(self, tmp_path, sample_df):
         from simace.plotting.plot_distributions import plot_trait_phenotype
 

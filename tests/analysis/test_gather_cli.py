@@ -259,3 +259,75 @@ class TestGatherMain:
         main([], str(out_path))
         # No file written for empty input
         assert not out_path.exists()
+
+
+class TestExtractMetricsBranches:
+    """Branches in ``extract_metrics`` not exercised elsewhere."""
+
+    def test_path_without_results_pattern_defaults_to_unknown(self, tmp_path):
+        """A report YAML whose path doesn't match ``results/{folder}/{scenario}/rep{N}``
+        falls through to ``scenario='unknown'`` / ``rep=1``."""
+        from simace.analysis.gather import extract_metrics
+
+        val_path = tmp_path / "stray_report.yaml"
+        val_path.write_text(yaml.dump(_MINIMAL_REPORT))
+
+        row = extract_metrics(str(val_path))
+        assert row["scenario"] == "unknown"
+        assert row["rep"] == 1
+        assert row["simulate_seconds"] is None
+        assert row["simulate_max_rss_mb"] is None
+
+    def test_benchmark_tsv_populates_timing_fields(self, tmp_path, monkeypatch):
+        """When ``benchmarks/{folder}/{scenario}/rep{N}/simulate.tsv`` exists,
+        ``simulate_seconds`` and ``simulate_max_rss_mb`` are read from it."""
+        import platform
+
+        from simace.analysis.gather import extract_metrics
+
+        monkeypatch.chdir(tmp_path)
+
+        val_dir = tmp_path / "results" / "base" / "myscenario" / "rep1"
+        val_dir.mkdir(parents=True)
+        val_path = val_dir / "report.yaml"
+        val_path.write_text(yaml.dump(_MINIMAL_REPORT))
+
+        bench_dir = tmp_path / "benchmarks" / "base" / "myscenario" / "rep1"
+        bench_dir.mkdir(parents=True)
+        bench_path = bench_dir / "simulate.tsv"
+        bench_path.write_text("s\tmax_rss\tio_in\n1.23\t456.7\t0\n")
+
+        row = extract_metrics(str(val_path))
+        assert row["simulate_seconds"] == pytest.approx(1.23)
+        if platform.system() == "Windows":
+            assert row["simulate_max_rss_mb"] == pytest.approx(1.0)
+        else:
+            assert row["simulate_max_rss_mb"] == pytest.approx(456.7)
+
+
+class TestGatherCli:
+    """End-to-end CLI smoke for ``simace.analysis.gather:cli``."""
+
+    def test_cli_writes_tsv(self, tmp_path, monkeypatch):
+        import sys
+
+        from simace.analysis.gather import cli as gather_cli
+
+        # Two scenario YAMLs.
+        files = []
+        for sc in ("scA", "scB"):
+            val_dir = tmp_path / "results" / "base" / sc / "rep1"
+            val_dir.mkdir(parents=True)
+            val_path = val_dir / "report.yaml"
+            val_path.write_text(yaml.dump(_MINIMAL_REPORT))
+            files.append(str(val_path))
+
+        out_path = tmp_path / "summary.tsv"
+        monkeypatch.setattr(sys, "argv", ["gather", *files, "--output", str(out_path)])
+        gather_cli()
+
+        assert out_path.exists()
+        lines = out_path.read_text().strip().split("\n")
+        assert len(lines) == 3  # header + 2 rows
+        header = lines[0].split("\t")
+        assert {"scenario", "rep", "N", "A1"}.issubset(set(header))

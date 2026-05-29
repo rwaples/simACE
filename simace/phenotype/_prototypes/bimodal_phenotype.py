@@ -1,9 +1,9 @@
 """Bimodal phenotype models (prototype).
 
 Three models that produce bimodal age-of-onset distributions:
-  1. mixture_cip:          Two logistic CIP components, shared β
+  1. mixture_cip:          Two logistic CIF components, shared β
   2. mixture_cure_frailty: Two cure-frailty hazards, shared β
-  3. two_threshold:        Two liability thresholds with separate CIP per stratum
+  3. two_threshold:        Two liability thresholds with separate CIF per stratum
 
 Standardization: each function accepts ``standardize`` as one of
 ``"none"``, ``"global"``, or a legacy bool (``True`` → ``"global"``,
@@ -61,22 +61,22 @@ def phenotype_mixture_cip(
     sex: np.ndarray | None = None,
     beta_sex: float = 0.0,
 ) -> np.ndarray:
-    """Mixture of two logistic CIP curves with shared liability threshold.
+    """Mixture of two logistic CIF curves with shared liability threshold.
 
     Each case is randomly assigned to component 1 (probability π) or
     component 2 (probability 1−π).  Both components share the same
     prevalence K and liability scaling (β, β_sex), but have different
-    CIP midpoints (x₀) and steepness (k), producing bimodal onset.
+    CIF midpoints (x₀) and steepness (k), producing bimodal onset.
 
     Args:
         liability:   quantitative liability, shape (n,)
         prevalence:  population prevalence K; scalar or per-individual array
         beta:        probit scaling factor for liability
         pi:          mixing weight for component 1 (0–1)
-        cip_x0_1:    logistic CIP midpoint for component 1 (early)
-        cip_k_1:     logistic CIP growth rate for component 1
-        cip_x0_2:    logistic CIP midpoint for component 2 (late)
-        cip_k_2:     logistic CIP growth rate for component 2
+        cip_x0_1:    logistic CIF midpoint for component 1 (early)
+        cip_k_1:     logistic CIF growth rate for component 1
+        cip_x0_2:    logistic CIF midpoint for component 2 (late)
+        cip_k_2:     logistic CIF growth rate for component 2
         seed:        random seed for component assignment
         standardize: standardization mode for liability (``"none"``, ``"global"``,
                      or legacy bool).  ``"per_generation"`` is not accepted.
@@ -109,7 +109,7 @@ def phenotype_mixture_cip(
         rng = np.random.default_rng(seed)
         comp1 = rng.random(n_cases) < pi
 
-        # Invert through each component's logistic CIP
+        # Invert through each component's logistic CIF
         onset_1 = cip_x0_1 + (1.0 / cip_k_1) * np.log(cir_clipped / (prev_case - cir_clipped))
         onset_2 = cip_x0_2 + (1.0 / cip_k_2) * np.log(cir_clipped / (prev_case - cir_clipped))
 
@@ -206,11 +206,11 @@ def phenotype_two_threshold(
     sex: np.ndarray | None = None,
     beta_sex: float = 0.0,
 ) -> np.ndarray:
-    """Two-threshold liability model with separate CIP per stratum.
+    """Two-threshold liability model with separate CIF per stratum.
 
     High-liability individuals (L > τ₁) are early-onset cases mapped
-    through CIP₁.  Moderate-liability individuals (τ₂ < L ≤ τ₁) are
-    late-onset cases mapped through CIP₂.  This preserves a single
+    through CIF₁.  Moderate-liability individuals (τ₂ < L ≤ τ₁) are
+    late-onset cases mapped through CIF₂.  This preserves a single
     liability dimension while producing bimodal age-of-onset.
 
     Args:
@@ -219,10 +219,10 @@ def phenotype_two_threshold(
         prevalence_late:  K_late (fraction with τ₂ < L ≤ τ₁);
                           total prevalence = K_early + K_late
         beta:             probit scaling factor for liability
-        cip_x0_1:        logistic CIP midpoint for early component
-        cip_k_1:         logistic CIP growth rate for early component
-        cip_x0_2:        logistic CIP midpoint for late component
-        cip_k_2:         logistic CIP growth rate for late component
+        cip_x0_1:        logistic CIF midpoint for early component
+        cip_k_1:         logistic CIF growth rate for early component
+        cip_x0_2:        logistic CIF midpoint for late component
+        cip_k_2:         logistic CIF growth rate for late component
         seed:             unused (deterministic model)
         standardize:      standardization mode for liability (``"none"``,
                           ``"global"``, or legacy bool).  ``"per_generation"``

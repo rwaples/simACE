@@ -69,15 +69,10 @@ def plot_death_age_distribution(
     survival = np.cumprod(1 - mean_rates)
     cumulative = 1 - survival
     bars = axes[1].bar(decade_labels, cumulative, edgecolor="black", alpha=0.7)
-    for bar, s in zip(bars, survival, strict=True):
-        axes[1].text(
-            bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + 0.01,
-            f"S={s:.2f}",
-            ha="center",
-            va="bottom",
-            fontsize=8,
-        )
+    # `padding` is in points, independent of data scale — without this, a
+    # fixed 0.01 data-coord offset blew the bbox up when mortality rates
+    # were tiny (cumulative ~1e-4), expanding the saved PNG to 60-85k px tall.
+    axes[1].bar_label(bars, labels=[f"S={s:.2f}" for s in survival], padding=3, fontsize=8)
     axes[1].set_title("Cumulative Mortality by Decade")
     axes[1].set_xlabel("Age Decade")
     axes[1].set_ylabel("Cumulative Mortality")
