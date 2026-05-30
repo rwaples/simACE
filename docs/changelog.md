@@ -8,6 +8,8 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
+## 2026.05.3 — 2026-05-30
+
 Headline: **Analyze replaces separate Validate and Stats stages.** It writes
 `report.yaml` v2 plus `plot_payload.yaml`, adds applied scenario suites, and
 cleans up plotting/relationship semantics.
