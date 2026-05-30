@@ -26,7 +26,7 @@ The simulation code is written in Python and the pipeline is orchestrated by Sna
 - **Prevalence** — the proportion of individuals classified as affected in a given generation.
 - **Assortative mating** — non-random partner selection in which individuals with similar (positive assortment) or dissimilar (negative assortment) liability values mate preferentially, inflating parent-offspring and sibling resemblance beyond what random mating produces.
 - **Cure fraction** — the proportion of the population that will never develop the disease regardless of follow-up time; in the mixture cure model this equals $1 - K$, where $K$ is the prevalence.
-- **Cumulative incidence proportion (CIP)** — the probability that an individual has experienced the event by a given age; used in the ADuLT models to map liability rank to age-at-onset.
+- **Cumulative incidence proportion (CIF)** — the probability that an individual has experienced the event by a given age; used in the ADuLT models to map liability rank to age-at-onset.
 
 ## Conceptual simulation steps
 
@@ -309,9 +309,9 @@ The key difference from the standard frailty model is that the frailty mechanism
 
 ### ADuLT phenotype models
 
-The Age-Dependent Liability Threshold (ADuLT) models (Pedersen et al., *Nature Communications*, 2023) combine a liability threshold for case/control classification with a cumulative incidence proportion (CIP) mapping for age-at-onset assignment.
+The Age-Dependent Liability Threshold (ADuLT) models (Pedersen et al., *Nature Communications*, 2023) combine a liability threshold for case/control classification with a cumulative incidence function (CIF) mapping for age-at-onset assignment.
 
-**ADuLT-LTM (liability threshold model).** Case status is determined by the liability threshold as in the simple threshold model. Among cases, onset age is assigned via a logistic CIP function. The effective liability is computed on the probit scale:
+**ADuLT-LTM (liability threshold model).** Case status is determined by the liability threshold as in the simple threshold model. Among cases, onset age is assigned via a logistic CIF function. The effective liability is computed on the probit scale:
 
 $$
 L_{\text{eff},i} = \beta \, \tilde{L}_i + \beta_{\text{sex}} \cdot \text{sex}_i
@@ -323,27 +323,27 @@ $$
 \text{CIR}_i = \Phi(-L_{\text{eff},i})
 $$
 
-which is then clipped to $[\epsilon,\; K - \epsilon]$ (where $K$ is the prevalence) and mapped to onset age via the inverse logistic CIP function:
+which is then clipped to $[\epsilon,\; K - \epsilon]$ (where $K$ is the prevalence) and mapped to onset age via the inverse logistic CIF function:
 
 $$
 t_i = x_0 + \frac{1}{k} \log\!\left(\frac{\text{CIR}_i}{K - \text{CIR}_i}\right)
 $$
 
-where $x_0$ is the midpoint age and $k$ is the growth rate of the logistic CIP curve. Higher liability (more positive $L_{\text{eff}}$) produces smaller $\text{CIR}$ values (since $\Phi(-L)$ decreases) and therefore earlier onset. Controls (below the threshold) are assigned $t = 10^6$.
+where $x_0$ is the midpoint age and $k$ is the growth rate of the logistic CIF curve. Higher liability (more positive $L_{\text{eff}}$) produces smaller $\text{CIR}$ values (since $\Phi(-L)$ decreases) and therefore earlier onset. Controls (below the threshold) are assigned $t = 10^6$.
 
-**ADuLT-Cox (proportional hazards model).** A Weibull(shape=2) proportional hazards model generates raw event times, which are then rank-mapped to onset ages via the CIP function:
+**ADuLT-Cox (proportional hazards model).** A Weibull(shape=2) proportional hazards model generates raw event times, which are then rank-mapped to onset ages via the CIF function:
 
 $$
 \tilde{t}_i = \sqrt{\frac{-\log U_i}{\exp(\beta \, \tilde{L}_i) \cdot \exp(\beta_{\text{sex}} \cdot \text{sex}_i)}}, \quad U_i \sim \text{Uniform}(0, 1]
 $$
 
-Individuals are sorted by $\tilde{t}_i$ and assigned a running CIP: $\text{CIP}_i = \text{rank}_i / (n + 1)$. Cases are those with $\text{CIP}_i < K$, and their onset age is:
+Individuals are sorted by $\tilde{t}_i$ and assigned a running CIF: $\text{CIF}_i = \text{rank}_i / (n + 1)$. Cases are those with $\text{CIF}_i < K$, and their onset age is:
 
 $$
-t_i = x_0 + \frac{1}{k} \log\!\left(\frac{\text{CIP}_i}{K - \text{CIP}_i}\right)
+t_i = x_0 + \frac{1}{k} \log\!\left(\frac{\text{CIF}_i}{K - \text{CIF}_i}\right)
 $$
 
-Controls ($\text{CIP}_i \geq K$) receive $t = 10^6$. When prevalence varies by group (sex, generation, or sex$\times$generation), ranking and CIP assignment are performed within each group separately to ensure exact per-group case rates.
+Controls ($\text{CIF}_i \geq K$) receive $t = 10^6$. When prevalence varies by group (sex, generation, or sex$\times$generation), ranking and CIF assignment are performed within each group separately to ensure exact per-group case rates.
 
 ### Sex-specific effects
 

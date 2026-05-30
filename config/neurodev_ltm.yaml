@@ -1,0 +1,193 @@
+# ============================================================
+# ACE Simulation — Neurodevelopmental Scenarios (LTM arm)
+# ADHD · Autism Spectrum Disorder · Intellectual Disability
+# ============================================================
+#
+# Threshold-model counterpart to config/neurodev.yaml. Each
+# scenario mirrors its cure_frailty origin but draws case status
+# from the adult/LTM liability-threshold model at matched
+# lifetime prevalence K. The CIF midpoint (cip_x0, years) and
+# steepness (cip_k) reproduce the documented age-at-diagnosis
+# window; the cure_frailty originals instead place that timing
+# via a baseline hazard among susceptibles.
+#
+# Paired design: each scenario reuses the SAME seed as its
+# frailty origin, so the simulate stage draws an identical
+# pedigree + liability. The two arms differ only in the
+# phenotype mechanism (cure_frailty hazard vs. LTM CIF), giving
+# a clean different-mechanism comparison at matched K with no
+# pedigree-draw confound. Pedigree, N, generations, and the
+# censoring schedule are copied verbatim from the origin.
+#
+# CIF params (prevalence = K, cip_x0 = half-K age, cip_k = rate):
+#   ADHD_ltm : t1 K=6%   x0=8  k=0.40 | t2 K=9%   x0=10 k=0.35
+#   ASD_ltm  : t1 K=1.2% x0=10 k=0.30 | t2 K=2.2% x0=12 k=0.30
+#   ID_ltm   : t1 K=0.4% x0=3  k=0.50 | t2 K=1.5% x0=7  k=0.40
+#
+# beta / beta_sex are carried over from the frailty origins for
+# onset-timing realism. Under LTM, beta_sex shifts the onset age
+# of male cases (not the per-sex case probability), so prevalence
+# is pooled across sex (matching the originals' pooled K).
+# ============================================================
+
+
+ADHD_ltm:
+  seed: 51000
+  N: 500000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.78
+      C: 0.00
+      E: 0.22
+    trait2:
+      A: 0.76
+      C: 0.00
+      E: 0.24
+    rA: 0.80
+    rC: 0.00
+    rE: 0.00
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.40
+        prevalence: 0.06
+      beta: 1.0
+      beta_sex: 0.35
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 10
+        cip_k: 0.35
+        prevalence: 0.09
+      beta: 1.0
+      beta_sex: 0.20
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+
+ASD_ltm:
+  seed: 52000
+  N: 500000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.74
+      C: 0.05
+      E: 0.21
+    trait2:
+      A: 0.75
+      C: 0.05
+      E: 0.20
+    rA: 0.70
+    rC: 0.50
+    rE: 0.00
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 10
+        cip_k: 0.30
+        prevalence: 0.012
+      beta: 1.0
+      beta_sex: 0.60
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 12
+        cip_k: 0.30
+        prevalence: 0.022
+      beta: 1.0
+      beta_sex: 0.45
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+
+ID_ltm:
+  seed: 53000
+  N: 1000000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.756
+      C: 0.10
+      E: 0.144
+    trait2:
+      A: 0.75
+      C: 0.10
+      E: 0.15
+    rA: 0.60
+    rC: 0.50
+    rE: 0.00
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 3
+        cip_k: 0.50
+        prevalence: 0.004
+      beta: 1.0
+      beta_sex: 0.15
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 7
+        cip_k: 0.40
+        prevalence: 0.015
+      beta: 1.0
+      beta_sex: 0.10
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73

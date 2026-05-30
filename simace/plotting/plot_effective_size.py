@@ -20,7 +20,9 @@ __all__ = [
 
 import argparse
 import logging
+from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -33,6 +35,9 @@ from simace.analysis.stats.effective_size import (
 )
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import COLOR_EXPECTED, COLOR_OBSERVED
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -561,6 +566,54 @@ def _infer_scenario_from_path(params_path: str | Path) -> str | None:
     return None
 
 
+@dataclass(frozen=True)
+class EffectiveSizeContext:
+    """Prepared inputs shared by the effective-size renderers."""
+
+    scalar_df: pd.DataFrame
+    series_df: pd.DataFrame
+    subtitle: str
+    expected_v: float | None
+    expected_cov: float | None
+
+
+@dataclass(frozen=True)
+class EffectiveSizeRenderSpec:
+    """One effective-size plot: output basename and how to render it.
+
+    The plot functions self-name their file; ``basename`` is the manifest-facing
+    label kept in lockstep with
+    :data:`simace.plotting.atlas_manifest.EFFECTIVE_SIZE_ATLAS` by the
+    renderer-coverage test in ``tests/plotting/test_atlas_manifest.py``.
+    """
+
+    basename: str
+    render: Callable[[EffectiveSizeContext, Path, str], None]
+
+
+# Registry binding each effective-size basename to its renderer. Adding a plot
+# means adding a PlotEntry to EFFECTIVE_SIZE_ATLAS *and* a spec here; the
+# renderer-coverage test fails if the two basename sets diverge.
+EFFECTIVE_SIZE_RENDERERS: tuple[EffectiveSizeRenderSpec, ...] = (
+    EffectiveSizeRenderSpec(
+        "effective_size.estimators",
+        lambda ctx, out, ext: plot_estimators_overview(ctx.scalar_df, ctx.subtitle, out, ext=ext),
+    ),
+    EffectiveSizeRenderSpec(
+        "effective_size.by_generation",
+        lambda ctx, out, ext: plot_ne_by_generation(ctx.series_df, ctx.scalar_df, out, ext=ext),
+    ),
+    EffectiveSizeRenderSpec(
+        "effective_size.drift",
+        lambda ctx, out, ext: plot_drift_signals(ctx.series_df, out, ext=ext),
+    ),
+    EffectiveSizeRenderSpec(
+        "effective_size.family_size_variance",
+        lambda ctx, out, ext: plot_family_size_variance(ctx.series_df, ctx.expected_v, ctx.expected_cov, out, ext=ext),
+    ),
+)
+
+
 def main(
     yaml_paths: list[str],
     params_path: str,
@@ -580,9 +633,6 @@ def main(
     scalar_df, series_df = gather_effective_size([Path(p) for p in yaml_paths])
 
     subtitle = _build_subtitle(params, scenario=_infer_scenario_from_path(params_path))
-    plot_estimators_overview(scalar_df, subtitle, out, ext=plot_ext)
-    plot_ne_by_generation(series_df, scalar_df, out, ext=plot_ext)
-    plot_drift_signals(series_df, out, ext=plot_ext)
 
     mating_model = params.get("mating_model", "standard")
     if mating_model == "wright_fisher":
@@ -600,7 +650,16 @@ def main(
             ztp = family_size_variance_expected_ztp(float(lam))
             expected_v = ztp["v"]
             expected_cov = ztp["cov"]
-    plot_family_size_variance(series_df, expected_v, expected_cov, out, ext=plot_ext)
+
+    ctx = EffectiveSizeContext(
+        scalar_df=scalar_df,
+        series_df=series_df,
+        subtitle=subtitle,
+        expected_v=expected_v,
+        expected_cov=expected_cov,
+    )
+    for spec in EFFECTIVE_SIZE_RENDERERS:
+        spec.render(ctx, out, ext=plot_ext)
 
     assemble_atlas(
         list(EFFECTIVE_SIZE_ATLAS),

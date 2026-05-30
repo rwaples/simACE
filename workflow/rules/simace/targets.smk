@@ -21,7 +21,7 @@ rule scenario:
     """Build all sim/validation/plot outputs for a single scenario."""
     input:
         lambda w: get_scenario_sim_outputs(config, w.scenario, plot_ext=PLOT_EXT),
-        lambda w: f"results/{get_folder(config, w.scenario)}/validation_summary.tsv",
+        lambda w: f"results/{get_folder(config, w.scenario)}/report_summary.tsv",
         lambda w: f"results/{get_folder(config, w.scenario)}/plots/{VALIDATION_PLOTS[0]}",
     output:
         touch("results/{folder}/{scenario}/scenario.done"),
@@ -54,10 +54,10 @@ rule validate_scenario:
     """Run simulation + validation for a single scenario."""
     input:
         lambda w: [
-            f"results/{w.folder}/{w.scenario}/rep{r}/validation.yaml"
+            f"results/{w.folder}/{w.scenario}/rep{r}/report.yaml"
             for r in range(1, get_param(config, w.scenario, "replicates") + 1)
         ],
-        lambda w: f"results/{get_folder(config, w.scenario)}/validation_summary.tsv",
+        lambda w: f"results/{get_folder(config, w.scenario)}/report_summary.tsv",
         lambda w: f"results/{get_folder(config, w.scenario)}/plots/{VALIDATION_PLOTS[0]}",
     output:
         touch("results/{folder}/{scenario}/validate.done"),
@@ -67,7 +67,7 @@ rule stats_scenario:
     """Run phenotyping + stats + plots for a single scenario."""
     input:
         lambda w: [
-            f"results/{w.folder}/{w.scenario}/rep{r}/stats_report.yaml"
+            f"results/{w.folder}/{w.scenario}/rep{r}/report.yaml"
             for r in range(1, get_param(config, w.scenario, "replicates") + 1)
         ],
         lambda w: [

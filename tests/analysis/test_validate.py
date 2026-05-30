@@ -347,6 +347,54 @@ class TestRunValidation:
         assert result["parameters"]["seed"] == val_params["seed"]
 
 
+class TestValidateNegativePaths:
+    """Corrupted pedigrees are caught by the appropriate structural / twin check."""
+
+    @staticmethod
+    def _tiny_params():
+        return {**_DEFAULT_PARAMS, "rE": 0.0, "N": 100, "G_ped": 2, "G_sim": 2}
+
+    @staticmethod
+    def _tiny_pedigree():
+        return run_simulation(**TestValidateNegativePaths._tiny_params())
+
+    def test_non_contiguous_ids_fails_id_integrity(self):
+        ped = self._tiny_pedigree()
+        # Skip an integer in the id column — sort(ids) != arange(N*G_ped).
+        ped.loc[ped.index[5], "id"] = ped["id"].max() + 99
+        result = validate_structural(ped, self._tiny_params())
+        assert result["id_integrity"]["passed"] is False
+
+    def test_dangling_parent_id_fails_parent_references(self):
+        ped = self._tiny_pedigree()
+        params = self._tiny_params()
+        # Force a mother index outside [0, N*G_ped) and not -1.
+        non_founder_idx = ped.index[ped["mother"] != -1][0]
+        ped.loc[non_founder_idx, "mother"] = params["N"] * params["G_ped"] + 50
+        result = validate_structural(ped, params)
+        assert result["parent_references"]["passed"] is False
+
+    def test_wrong_parent_sex_fails_sex_consistency(self):
+        ped = self._tiny_pedigree()
+        non_founder = ped[ped["mother"] != -1].iloc[0]
+        ped.loc[ped["id"] == non_founder["mother"], "sex"] = 1  # 1 = male
+        result = validate_structural(ped, self._tiny_params())
+        assert result["sex_parent_consistency"]["passed"] is False
+
+    def test_non_bidirectional_twin_fails_bidirectional_check(self):
+        """A twin pointer that doesn't bounce back must fail twin_bidirectional."""
+        ped = self._tiny_pedigree()
+        # Pick three contiguous IDs to wire as a broken twin chain.
+        a, b, c = 0, 1, 2
+        ped.loc[ped["id"] == a, "twin"] = b
+        ped.loc[ped["id"] == b, "twin"] = c  # broken: should be `a` to be bidirectional
+        ped.loc[ped["id"] == c, "twin"] = b
+        params = self._tiny_params()
+        params["p_mztwin"] = 0.02
+        result = validate_twins(ped, params, ped.set_index("id"))
+        assert result["twin_bidirectional"]["passed"] is False
+
+
 class TestValidateCli:
     def test_writes_output_yaml(self, written_scenario, monkeypatch):
         ped_path, params_path, tmp = written_scenario

@@ -6,12 +6,13 @@
 results/{folder}/{scenario}/
 ├── rep1/
 │   ├── params.yaml                        # Resolved parameters for this replicate
-│   ├── pedigree.full.parquet              # Full pre-ascertainment pedigree (persistent for validation)
-│   ├── pedigree.parquet                   # Post-ascertainment pedigree (ancestor closure of sampled IDs)
-│   ├── trait.parquet                      # Post-ascertainment censored time-to-event phenotypes
+│   ├── pedigree.full.parquet              # Recorded pedigree (full pre-ascertainment)
+│   ├── pedigree.parquet                   # Analysis pedigree (ancestor closure of sampled IDs)
+│   ├── trait.full.parquet                 # Phenotyped population (full pre-ascertainment, durable)
+│   ├── trait.parquet                      # Analysis sample (post-ascertainment censored phenotypes)
 │   ├── trait.simple_ltm.parquet           # Post-ascertainment liability-threshold benchmark
-│   ├── stats_report.yaml                  # Grouped per-replicate stats report
-│   └── validation.yaml                    # Structural + statistical validation
+│   ├── report.yaml                        # Curated v2 scientific report (scopes/quality_checks/truth/observed/estimators)
+│   └── plot_payload.yaml                  # Dense incidence/censoring arrays for plotting
 ├── rep2/
 ├── rep3/
 └── plots/
@@ -26,12 +27,13 @@ results/{folder}/{scenario}/
 | `pedigree.full.parquet` | Full simulated pedigree (post-burn-in, pre-ascertainment) — consumed by validation, phenotype, phenotype_simple_ltm, and ascertainment | No |
 | `pedigree.parquet` | Post-ascertainment pedigree (ancestor closure of sampled IDs; identical row count to `.full` when `dropout_rate=0` and `N_sample=0`) | No |
 | `trait.raw.parquet` | Raw time-to-event phenotypes before censoring | Yes |
-| `trait.full.parquet` | Post-censor time-to-event phenotypes (full population, pre-ascertainment) | Yes |
+| `trait.full.parquet` | Phenotyped population — post-censor phenotypes for the full pre-ascertainment population; durable so Analyze can quantify ascertainment distortion (ADR 0008) | No |
 | `trait.simple_ltm.full.parquet` | Pre-ascertainment liability-threshold benchmark | Yes |
 | `trait.parquet` | Post-ascertainment censored time-to-event phenotypes (canonical output) | No |
 | `trait.simple_ltm.parquet` | Post-ascertainment liability-threshold benchmark (canonical output) | No |
 | `params.yaml` | Simulation parameters for this replicate | No |
-| `stats_report.yaml` | Grouped per-replicate stats report | No |
+| `report.yaml` | Curated v2 per-replicate scientific report (`scopes`, `quality_checks`, `truth`, `observed`, `estimators`) | No |
+| `plot_payload.yaml` | Dense incidence/censoring arrays for reproducible plotting (companion to `report.yaml`) | No |
 
 Temp files are auto-deleted by Snakemake after downstream rules complete.
 
@@ -39,8 +41,8 @@ Temp files are auto-deleted by Snakemake after downstream rules complete.
 
 | File | Description |
 |---|---|
-| `results/{folder}/{scenario}/rep{N}/validation.yaml` | Per-replicate validation results |
-| `results/{folder}/validation_summary.tsv` | Aggregated metrics across scenarios |
+| `results/{folder}/{scenario}/rep{N}/report.yaml` | Curated v2 per-replicate scientific report |
+| `results/{folder}/report_summary.tsv` | Aggregated metrics across scenarios (gathered from each report's `truth`/`estimators`/`scopes`) |
 | `results/{folder}/plots/` | Cross-scenario validation and phenotype plots |
 | `logs/{folder}/{scenario}/` | Log files |
 | `benchmarks/{folder}/{scenario}/` | Runtime and memory benchmarks |
@@ -95,9 +97,9 @@ as placeholders matching values from `config/_default.yaml`.
 | `trait.parquet` | Parquet | Post-ascertainment per-individual trait outcomes (censored time-to-event + affected status) | `simace/ascertainment/__init__.py` |
 | `trait.simple_ltm.parquet` | Parquet | Post-ascertainment per-individual simple-LTM benchmark (parallel LTM trait) | `simace/ascertainment/__init__.py` |
 | `params.yaml` | YAML | Simulation parameters for this replicate | `simace/simulation/simulate.py` |
-| `stats_report.yaml` | YAML | Grouped per-replicate stats report (correlations, prevalence, CIF, etc.) | `workflow/scripts/simace/build_stats_report.py` → `simace/analysis/stats/runner.py` |
-| `plotting_sample.parquet` | Parquet | Further downsampled trait rows for stats scatter plots | `workflow/scripts/simace/build_stats_report.py` → `simace/analysis/stats/runner.py` |
-| `validation.yaml` | YAML | Structural and statistical validation results | `simace/analysis/validate.py` |
+| `report.yaml` | YAML | Curated v2 per-replicate scientific report (`scopes`, `quality_checks`, `truth`, `observed`, `estimators`) | `workflow/scripts/simace/analyze.py` → `simace/analysis/analyze.py` |
+| `plot_payload.yaml` | YAML | Dense incidence/censoring arrays for plotting (companion to `report.yaml`) | `workflow/scripts/simace/analyze.py` → `simace/analysis/analyze.py` |
+| `plotting_sample.parquet` | Parquet | Further downsampled trait rows for stats scatter plots | `workflow/scripts/simace/analyze.py` → `simace/analysis/analyze.py` |
 
 ### Per-scenario, per-folder, and sentinel files
 
@@ -106,7 +108,7 @@ as placeholders matching values from `config/_default.yaml`.
 | `results/{folder}/{scenario}/plots/*.png` | PNG (or PDF) | Phenotype and simple LTM figures (see [Plots](#plots)) |
 | `results/{folder}/{scenario}/plots/atlas.pdf` | PDF | Multi-page atlas combining all scenario figures |
 | `results/{folder}/{scenario}/scenario.done` | Sentinel | Empty file indicating scenario completion |
-| `results/{folder}/validation_summary.tsv` | TSV | Aggregated validation metrics across scenarios and replicates |
+| `results/{folder}/report_summary.tsv` | TSV | Aggregated validation metrics across scenarios and replicates |
 | `results/{folder}/plots/*.png` | PNG | Cross-scenario validation plots |
 | `results/{folder}/plots/atlas.pdf` | PDF | Multi-page atlas of cross-scenario validation figures |
 | `results/{folder}/folder.done` | Sentinel | Empty file indicating folder completion |
@@ -214,75 +216,61 @@ Flat key-value file recording the simulation parameters used for a replicate. Wr
 | `assort1` | float | Mate correlation on trait 1 liability (0 = random) |
 | `assort2` | float | Mate correlation on trait 2 liability (0 = random) |
 
-### stats_report.yaml
+### report.yaml
 
-Grouped per-replicate stats report computed from `trait.parquet`. Written by
-`workflow/scripts/simace/build_stats_report.py`, which calls
-`simace.analysis.stats.runner`. Top-level groups:
+Curated per-replicate **scientific report** written by
+`workflow/scripts/simace/analyze.py`, which calls
+`simace.analysis.analyze.run_analysis` (ADR 0008, `schema.version: 2`). It holds
+scalars, small categorical tables, and by-generation summaries only — dense plot
+arrays live in the companion `plot_payload.yaml`. Values are organized by what
+they *mean*, and tagged with one of four population **scopes**: `recorded_pedigree`
+(full pre-ascertainment pedigree), `phenotyped_population` (full pre-ascertainment
+phenotyped rows), `analysis_sample` (ascertained `trait.parquet`), and
+`analysis_pedigree` (ancestor closure supporting the sample).
 
 | Group | Description |
 |---------|-------------|
-| `metadata` | Analysis-dataset row counts and conditional `case_ascertainment_ratio` |
-| `incidence` | Observed prevalence, mortality, regression, cumulative-incidence, and Aalen-Johansen summaries |
-| `censoring` | Person-years plus generation windows, confusion, and cascade summaries when generation censoring is configured |
-| `pedigree` | Sample relationship-pair counts, family-size summaries, parent status, and conditional full-pedigree counts |
-| `correlations` | Liability, affected, parent-offspring, mate, tetrachoric, cross-trait tetrachoric, and joint-affection summaries |
-| `heritability` | Observed-scale h² estimators |
+| `schema` | `{name: simace_report, version: 2}` |
+| `replicate` | `folder`, `scenario`, `rep`, `seed` |
+| `inputs` | Full resolved `parameters`, plus curated `trait_model` and `ascertainment` summaries |
+| `scopes` | Per-scope source file, `n_individuals`, `n_generations` (+ `ancestor_closure_ratio` for the analysis pedigree) |
+| `quality_checks` | Normalized pass/fail rows `{id, scope, severity, status, observed, expected, tolerance, message}` plus a `summary` |
+| `truth` | Generated/realized ground truth on `recorded_pedigree`: realized A/C/E variances + liability h² (per trait, with `realized_by_generation`), `cross_trait` correlations, `family_structure` (twin rate, half-sibs, consanguinity, offspring distribution), `assortative_mating` |
+| `observed` | Descriptive summaries bucketed by scope: a first-class `ascertainment` block (per-trait before/after affected fractions + enrichment, retained fraction; raw scope sizes and closure live once in `scopes`), `phenotyped_population` prevalence, and the re-bucketed `analysis_sample` / `analysis_pedigree` stats |
+| `estimators` | Heritability split into `observed_scale` (binary-affected) and `liability_scale` (twin/sibling/parent-offspring) |
 
-Sections marked "conditional" are only present when the corresponding data or config options are available.
+### plot_payload.yaml
 
-### validation.yaml
-
-Structural and statistical validation results. Written by `simace/analysis/validate.py`. Top-level sections:
-
-| Section | Description |
-|---------|-------------|
-| `structural` | Pedigree integrity checks: `id_integrity`, `parent_references`, `sex_parent_consistency`, `sex_distribution` |
-| `twins` | Twin validation: `twin_bidirectional`, `twin_same_parents`, `twin_same_A1`, `twin_same_A2`, `twin_same_sex`, `twin_rate` |
-| `half_sibs` | Half-sibling checks: `half_sib_pair_proportion`, `offspring_with_half_sib` |
-| `statistical` | Variance component checks: `variance_A1`..`E2`, `total_variance_trait1/2`, `cross_trait_rA/rC/rE`, `c1/2_inheritance`, `e1_independence` |
-| `heritability` | Heritability estimates: MZ/DZ twin correlations, Falconer estimates, parent-offspring regressions (per trait) |
-| `population` | Population structure: `generation_sizes`, `generation_count`, `family_size` |
-| `per_generation` | Per-generation stats: `n`, liability mean/variance/sd, component A/C/E mean/variance |
-| `summary` | Overall result: `passed` (bool), `checks_passed`, `checks_failed`, `checks_total` |
-| `assortative_mating` | Mate liability correlation checks: observed vs expected mate correlations per trait |
-| `consanguineous_matings` | Consanguineous mating detection: shared grandparent counts, grandparent-link discrepancy reconciliation |
-| `family_size_distribution` | Family size by parent sex: `mother`/`father` each with `mean`, `median`, `std`, `n_parents` |
-| `parameters` | Full scenario parameters (copy of config values used) |
-
-Each individual check within `structural`, `twins`, `half_sibs`, `statistical`, `heritability`, `population`, `assortative_mating`, and `consanguineous_matings` is a dict containing at minimum `passed` (bool) and `details` (str), plus check-specific fields like `observed`, `expected`, and `tolerance`.
+Durable companion (`schema.version: 1`) holding the dense incidence and
+censoring-window arrays (`ages`, `observed_values`, `aj_values`, …) needed to
+render plots reproducibly. Organized by scope to mirror `observed`. It is part of
+plot regeneration, not the scientific report; where a scalar is duplicated,
+`report.yaml` is canonical.
 
 ---
 
-## validation_summary.tsv
+## report_summary.tsv
 
 Aggregated metrics across all scenarios and replicates within a folder. Written by `simace/analysis/gather.py`. One row per replicate.
 
+Columns are emitted from `REPORT_SUMMARY_REGISTRY` (`simace/analysis/report_schema.py`); paths below are relative to the `report.yaml` root.
+
 | Column | Source |
 |--------|--------|
-| `scenario`, `rep` | Parsed from file path |
-| `N`, `G_ped`, `G_sim` | `parameters` |
-| `A1`, `C1`, `E1`, `A2`, `C2`, `E2` | `parameters` |
-| `rA`, `rC` | `parameters` |
-| `p_mztwin`, `mating_lambda`, `seed` | `parameters` |
-| `checks_failed` | `summary.checks_failed` |
-| `observed_twin_rate` | `twins.twin_rate.observed_rate` |
-| `variance_A1`..`E2` | `statistical.variance_*.observed` |
-| `observed_rA`, `observed_rC`, `observed_rE` | `statistical.cross_trait_r*.observed` |
-| `mz_twin_A1_corr`, `mz_twin_liability1_corr` | `heritability.mz_twin_*_correlation.observed` |
-| `mz_twin_A2_corr`, `mz_twin_liability2_corr` | `heritability.mz_twin_*_correlation.observed` |
-| `dz_sibling_A1_corr`, `dz_sibling_liability1_corr` | `heritability.dz_sibling_*_correlation.observed` |
-| `dz_sibling_A2_corr`, `dz_sibling_liability2_corr` | `heritability.dz_sibling_*_correlation.observed` |
-| `half_sib_prop_expected`, `half_sib_prop_observed` | `half_sibs.half_sib_pair_proportion.*` |
-| `offspring_with_half_sib_expected`, `offspring_with_half_sib_observed` | `half_sibs.offspring_with_half_sib.*` |
-| `half_sib_A1_corr`, `half_sib_liability1_corr`, `half_sib_shared_C1` | `half_sibs.half_sib_*.*` |
+| `folder`, `scenario`, `rep` | Parsed from file path |
+| `N`, `G_ped`, `G_sim`, `A1`..`E2`, `rA`, `rC`, `p_mztwin`, `mating_lambda`, `seed` | `inputs.parameters` |
+| `quality_passed`, `checks_failed`, `quality_n_warn` | `quality_checks.summary` (`passed` / `n_failed` / `n_warn`) |
+| `recorded_pedigree_n`, `phenotyped_population_n`, `analysis_sample_n`, `analysis_pedigree_n`, `ancestor_closure_ratio` | `scopes.*` |
+| `retained_fraction`, `trait{1,2}_affected_before`, `trait{1,2}_affected_after` | `observed.ascertainment.*` |
+| `observed_twin_rate`, `expected_twin_rate` | `truth.recorded_pedigree.family_structure.twin_rate.*` |
+| `variance_A1`..`E2` | `truth.recorded_pedigree.traits.trait{1,2}.realized.var_*` |
+| `observed_rA`, `observed_rC`, `observed_rE` | `truth.recorded_pedigree.cross_trait.*` |
+| `mz_twin_*_corr`, `dz_sibling_*_corr`, `falconer_h2_trait{1,2}`, `parent_offspring_*` | `estimators.heritability.liability_scale.trait{1,2}.*` |
+| `half_sib_prop_observed`, `offspring_with_half_sib_observed`, `half_sib_*_corr`, `half_sib_shared_C{1,2}` | `truth.recorded_pedigree.family_structure.half_sibs.*` |
+| `mate_corr_liability{1,2}` | `truth.recorded_pedigree.assortative_mating.*` |
+| `mother_mean_offspring`, `father_mean_offspring` | `truth.recorded_pedigree.family_structure.offspring_distribution.*.mean` |
+| `n_half_sib_matings`, `n_full_sib_matings`, `missing_gp_links`, `gp_reconciled` | `truth.recorded_pedigree.family_structure.consanguineous_matings.*` |
 | `simulate_seconds`, `simulate_max_rss_mb` | Parsed from benchmark TSV |
-| `mother_mean_offspring`, `father_mean_offspring` | `family_size_distribution.*.mean` |
-| `falconer_h2_trait1`, `falconer_h2_trait2` | `heritability.falconer_estimate_*.observed` |
-| `parent_offspring_A1_slope`, `parent_offspring_A1_r2` | `heritability.parent_offspring_A1_regression.*` |
-| `parent_offspring_liability1_slope`, `parent_offspring_liability1_r2` | `heritability.parent_offspring_liability1_regression.*` |
-| `parent_offspring_A2_slope`, `parent_offspring_A2_r2` | `heritability.parent_offspring_A2_regression.*` |
-| `parent_offspring_liability2_slope`, `parent_offspring_liability2_r2` | `heritability.parent_offspring_liability2_regression.*` |
 
 ---
 
@@ -312,8 +300,7 @@ Benchmark files are written for each pipeline rule. Per-replicate benchmarks:
 - `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/sample_phenotype.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/sample_simple_ltm.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/stats_report.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/validate.tsv`
+- `benchmarks/{folder}/{scenario}/rep{rep}/analyze.tsv`
 
 Per-scenario benchmarks:
 
@@ -322,7 +309,7 @@ Per-scenario benchmarks:
 
 Per-folder benchmarks:
 
-- `benchmarks/{folder}/gather_validation.tsv`
+- `benchmarks/{folder}/gather_report_summary.tsv`
 - `benchmarks/{folder}/plot_validation.tsv`
 
 ---

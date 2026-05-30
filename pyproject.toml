@@ -11,7 +11,8 @@ dependencies = [
     "pedigree-graph @ git+https://github.com/rwaples/pedigree-graph.git@v0.5.1",
     "numpy>=2.2,<3",
     "scipy>=1.14,<2",
-    "pandas>=3.0,<4",
+    # Snakemake/eido and the SLURM executor plugin currently require pandas <3.
+    "pandas>=2.2,<3",
     "pyarrow>=17,<24",
     "pyyaml>=6,<7",
     "numba>=0.60,<1",
@@ -48,6 +49,7 @@ simace-threshold = "simace.phenotype.threshold:cli"
 simace-ascertain = "simace.ascertainment:cli"
 simace-validate = "simace.analysis.validate:cli"
 simace-phenotype-stats = "simace.analysis.stats:cli"
+simace-analyze = "simace.analysis.analyze:cli"
 simace-gather = "simace.analysis.gather:cli"
 simace-plot-phenotype = "simace.plotting.plot_phenotype:cli"
 simace-plot-validation = "simace.plotting.plot_validation:cli"

@@ -38,16 +38,16 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from pedigree_graph import PedigreeGraph
+from pedigree_graph import PAIR_KINSHIP, PedigreeGraph
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
-from simace.core.relationships import RELATIONSHIP_TYPES
+from simace.core.relationships import RELATIONSHIP_TYPES, expected_liability_corr
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import (
     apply_nature_style,
     enable_value_gridlines,
 )
-from simace.plotting.stats_report import plotting_stats_view
+from simace.plotting.stats_report import plotting_report_view, report_per_generation
 
 logger = logging.getLogger(__name__)
 
@@ -63,13 +63,13 @@ SCENARIO_PALETTE: tuple[str, ...] = (
 
 
 def load_per_generation(
-    validation_paths: list[Path],
+    report_paths: list[Path],
     trait: int = 1,
 ) -> dict[int, np.ndarray]:
-    """Read ``per_generation`` variance components from validation.yaml files.
+    """Read ``per_generation`` variance components from report.yaml files.
 
     Args:
-        validation_paths: one path per replicate (of a single scenario).
+        report_paths: one path per replicate (of a single scenario).
         trait: 1 or 2.
 
     Returns:
@@ -80,9 +80,8 @@ def load_per_generation(
         consistent gen axis.
     """
     per_rep: list[dict[int, tuple[float, float, float, float]]] = []
-    for path in validation_paths:
-        data = load_yaml(path)
-        per_gen = data.get("per_generation", {})
+    for path in report_paths:
+        per_gen = report_per_generation(load_yaml(path))
         rep_dict: dict[int, tuple[float, float, float, float]] = {}
         for gen_key, gen_data in per_gen.items():
             gen = int(str(gen_key).removeprefix("generation_"))
@@ -125,7 +124,7 @@ def compare_realized_variance_trajectory(
 
     Args:
         scenario_paths: outer list = scenarios, inner list = replicate
-            ``validation.yaml`` paths for that scenario.
+            ``report.yaml`` paths for that scenario.
         labels: display label per scenario (same order as ``scenario_paths``).
         output_path: image path to save (extension determines format).
         trait: 1 or 2; which trait's variance components to plot.
@@ -186,7 +185,7 @@ def compare_realized_variance_trajectory(
             continue
         if isinstance(expected, list):
             # Per-generation reference; align to gens 1..len (matches
-            # validation.yaml's 1-indexed generation_N keys).
+            # report.yaml's 1-indexed generation_N keys).
             ref_gens = list(range(1, len(expected) + 1))
             ref_vals = [v for v in expected if v is not None]
             ref_x = [g for g, v in zip(ref_gens, expected, strict=True) if v is not None]
@@ -328,16 +327,21 @@ def compare_component_distributions(
 # ---------------------------------------------------------------------------
 
 # Display-ordered relationship classes, pooled from the raw classes in
-# stats_report.yaml. Expected liability correlation under random mating is
-# ``k * A + c * C`` where k is the kinship coefficient; the middle column
-# below is k so callers can draw reference bars.  MZ twins are deliberately
+# report.yaml. Expected liability correlation under random mating is
+# ``k * A + c * C`` where k is the relatedness 2*kinship; the middle column
+# below is k so callers can draw reference bars.  k is sourced from
+# ``PAIR_KINSHIP`` (members of a pooled class share one kinship value, so the
+# first member is representative) — see ADR 0009.  MZ twins are deliberately
 # omitted — their liability correlation is pinned at ``A + C`` regardless of
 # AM, so including them washes out the visual story that this plot tells.
-POOLED_RELATIONSHIP_CLASSES: tuple[tuple[str, float, tuple[str, ...]], ...] = (
-    ("FS", 0.5, ("FS",)),
-    ("PO", 0.5, ("MO", "FO")),
-    ("HS", 0.25, ("MHS", "PHS")),
-    ("1C", 0.125, ("1C",)),
+POOLED_RELATIONSHIP_CLASSES: tuple[tuple[str, float, tuple[str, ...]], ...] = tuple(
+    (name, 2.0 * PAIR_KINSHIP[members[0]], members)
+    for name, members in (
+        ("FS", ("FS",)),
+        ("PO", ("MO", "FO")),
+        ("HS", ("MHS", "PHS")),
+        ("1C", ("1C",)),
+    )
 )
 
 
@@ -1239,7 +1243,7 @@ def compare_cohort_fs_correlations(
         ax.fill_between(gens, lows, highs, color=color, alpha=0.15, linewidth=0)
 
     if expected_A is not None:
-        ref = 0.5 * expected_A + (expected_C or 0.0)
+        ref = expected_liability_corr("FS", expected_A, expected_C or 0.0)
         ax.axhline(
             y=ref,
             linestyle="--",
@@ -1378,7 +1382,7 @@ def compare_cohort_falconer(
 
 
 def _load_per_gen_prevalence(
-    stats_report_paths: list[Path],
+    report_paths: list[Path],
     trait: int = 1,
 ) -> dict[int, list[float]]:
     """Read ``prevalence.by_generation.{N}.trait{trait}`` across replicates.
@@ -1388,8 +1392,8 @@ def _load_per_gen_prevalence(
     to a given generation's list.
     """
     per_gen: dict[int, list[float]] = {}
-    for path in stats_report_paths:
-        ps = plotting_stats_view(load_yaml(path))
+    for path in report_paths:
+        ps = plotting_report_view(load_yaml(path))
         by_gen = (ps.get("prevalence") or {}).get("by_generation") or {}
         for g_key, entry in by_gen.items():
             g = int(g_key)
@@ -1422,7 +1426,7 @@ def compare_prevalence_drift(
 
     Args:
         std_paths_per_trajectory: outer list = trajectory, inner list =
-            per-replicate ``stats_report.yaml`` paths for the first variant.
+            per-replicate ``report.yaml`` paths for the first variant.
         nostd_paths_per_trajectory: same shape, for the second variant.
         labels: display label per trajectory.
         output_path: image path to save.
@@ -1512,7 +1516,7 @@ OBSERVED_LIABILITY_ESTIMATOR_DEFS: tuple[tuple[str, str], ...] = (
 
 def _load_tetrachoric(stats_report_path: Path, trait: int) -> dict[str, float]:
     """Return a flat ``{MZ, FS, MO, FO, MHS, PHS, 1C}`` tetrachoric r dict."""
-    ps = plotting_stats_view(load_yaml(stats_report_path))
+    ps = plotting_report_view(load_yaml(stats_report_path))
     tet = (ps.get("tetrachoric") or {}).get(f"trait{trait}", {}) or {}
     out: dict[str, float] = {}
     for key, entry in tet.items():
@@ -1523,7 +1527,7 @@ def _load_tetrachoric(stats_report_path: Path, trait: int) -> dict[str, float]:
 
 def load_observed_vs_liability_h2(
     pedigree_paths: list[Path],
-    stats_report_paths: list[Path],
+    report_paths: list[Path],
     trait: int = 1,
     min_generation: int | None = None,
 ) -> dict[str, np.ndarray]:
@@ -1532,15 +1536,15 @@ def load_observed_vs_liability_h2(
     The two input lists must be in the same replicate order.  Liability
     correlations and realized h² come from :func:`load_pedigree_estimates`
     (pedigree.parquet); tetrachoric correlations come from
-    ``stats_report.yaml``.
+    ``report.yaml``.
 
     Args:
         pedigree_paths: one ``pedigree.parquet`` path per rep.
-        stats_report_paths: one ``stats_report.yaml`` path per replicate.
+        report_paths: one ``report.yaml`` path per replicate.
         trait: 1 or 2.
         min_generation: forwarded to :func:`load_pedigree_estimates` for the
             liability correlations and realized h².  Tetrachoric values in
-            ``stats_report.yaml`` values are pre-aggregated over phenotyped
+            ``report.yaml`` values are pre-aggregated over phenotyped
             generations and not re-filtered here.
 
     Returns:
@@ -1548,7 +1552,7 @@ def load_observed_vs_liability_h2(
         'realized'}``; each value is a per-rep ``np.ndarray``.
     """
     out: dict[str, list[float]] = {k: [] for k in ("liability_falconer", "tetrachoric_falconer", "realized")}
-    for ped_path, ps_path in zip(pedigree_paths, stats_report_paths, strict=True):
+    for ped_path, ps_path in zip(pedigree_paths, report_paths, strict=True):
         est = load_pedigree_estimates(ped_path, trait=trait, min_generation=min_generation)
         r_mz_liab = est.get("MZ", float("nan"))
         r_fs_liab = est.get("FS", float("nan"))
@@ -1568,7 +1572,7 @@ def load_observed_vs_liability_h2(
 
 def compare_observed_vs_liability_h2(
     pedigree_paths_per_scenario: list[list[Path]],
-    stats_report_paths_per_scenario: list[list[Path]],
+    report_paths_per_scenario: list[list[Path]],
     labels: list[str],
     output_path: Path,
     trait: int = 1,
@@ -1587,8 +1591,8 @@ def compare_observed_vs_liability_h2(
     Args:
         pedigree_paths_per_scenario: outer list = scenarios, inner list =
             per-rep ``pedigree.parquet`` paths.
-        stats_report_paths_per_scenario: same shape, per-replicate
-            ``stats_report.yaml`` paths. Rep order must match.
+        report_paths_per_scenario: same shape, per-replicate
+            ``report.yaml`` paths. Rep order must match.
         labels: display label per scenario.
         output_path: image path to save.
         trait: 1 or 2.
@@ -1596,8 +1600,8 @@ def compare_observed_vs_liability_h2(
         input_h2: simulation input h²; drawn as a dashed reference line.
     """
     n_scen = len(labels)
-    if len(pedigree_paths_per_scenario) != n_scen or len(stats_report_paths_per_scenario) != n_scen:
-        raise ValueError("pedigree_paths, stats_report_paths, and labels must have the same length")
+    if len(pedigree_paths_per_scenario) != n_scen or len(report_paths_per_scenario) != n_scen:
+        raise ValueError("pedigree_paths, report_paths, and labels must have the same length")
 
     apply_nature_style()
     estimator_labels = [d[0] for d in OBSERVED_LIABILITY_ESTIMATOR_DEFS]
@@ -1611,7 +1615,7 @@ def compare_observed_vs_liability_h2(
             trait=trait,
             min_generation=min_generation,
         )
-        for ped_paths, ps_paths in zip(pedigree_paths_per_scenario, stats_report_paths_per_scenario, strict=True)
+        for ped_paths, ps_paths in zip(pedigree_paths_per_scenario, report_paths_per_scenario, strict=True)
     ]
 
     fig, (ax_raw, ax_bias) = plt.subplots(2, 1, figsize=(7.5, 8), sharex=True)
@@ -1762,7 +1766,7 @@ def cli() -> None:
         required=True,
         metavar="LABEL=PATH1,PATH2,...",
         help="Repeat per scenario. LABEL is the legend label, PATHS is a "
-        "comma-separated list of validation.yaml files (one per replicate).",
+        "comma-separated list of report.yaml files (one per replicate).",
     )
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--trait", type=int, default=1, choices=[1, 2])

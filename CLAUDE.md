@@ -37,17 +37,70 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 
 - The ACE conda env is always active. Do NOT use `conda run -n ACE` — run commands directly.
 
+## Code review gotchas (statistical correctness)
+
+Bugs that have occurred in pedigree/variance/phenotyping code. Check these
+patterns whenever changing the relevant module.
+
+1. **Booleanise sparse matrices only AFTER using multiplicity.** Sparse
+   matrix products counting shared ancestors must preserve edge weights
+   before thresholding. Booleanising too early collapses full vs half
+   distinctions. Has occurred ≥3 times: `_cousin_pairs` (1C/H1C),
+   `_second_cousin_matrix` (2C/H2C), and the up=1 avuncular variant.
+   Correct pattern: `data[data < 2] = 0; eliminate_zeros()` before
+   booleanising.
+2. **Full vs half classification needs ≥2 shared ancestors through a
+   mated pair.** Code that checks `> 0` instead of `>= 2` silently
+   misclassifies.
+3. **`_get_Ak(0)` must return identity**, not chain through the parent
+   adjacency matrix. Chaining adds a spurious parent hop to up=1
+   relationships.
+4. **Cross-package coupling**: both `fit_ace` and simace import
+   `PAIR_KINSHIP` and pair extraction (`PedigreeGraph.extract_pairs`) from the
+   external top-level `pedigree_graph` package (not from simace). Changes to
+   pair extraction or kinship values in `pedigree_graph` silently bias
+   `fit_ace` heritability and PA-FGRS. Additionally, `fitace/ltm/falconer.py`
+   maintains its own `KINSHIP` dict at EPIMIGHT-kind granularity that must
+   stay in sync with `PAIR_KINSHIP`.
+5. **Generation-dependent C/E variance can bias `rho_w`** (assortative
+   mating correlation) calculations.
+6. **`affected = NOT (age_censored OR death_censored)`** — preserve this
+   identity through any censoring change.
+7. **Degree-gating side effects.** Pair extraction proceeds degree by
+   degree; lower-degree methods populate caches consumed at higher
+   degrees (e.g., `_cousin_pairs` → `_h1c_pairs_cache`). `max_degree >= N`
+   and `_needed()` guards can skip producing methods; downstream
+   `getattr(self, "_cache", fallback)` reads then silently return empty
+   results.
+8. **Pair key encoding `lo * max_id + hi`** (int64) requires canonical
+   `lo < hi` ordering and overflows beyond ~3B individuals.
+
+### Liability correlation expected values
+
+Formula: `r = 2 * kinship * A + C_shared` where C_shared = C if the pair
+shares a household, 0 otherwise. **Household is assigned by mother**
+(`simulate.py`: `np.unique(parent_idxs[:, 0])`) — so maternal half-sibs
+share C but paternal half-sibs do not.
+
+Reference: MZ = A+C, FS = 0.5A+C, MHS = 0.25A+C, PHS = 0.25A, PO = 0.5A.
+Source of truth for kinship: `PAIR_KINSHIP` in the external `pedigree_graph`
+package (`pedigree_graph/_registry.py`). With inbreeding,
+`PedigreeGraph.compute_pair_kinship()` returns per-pair values that may differ
+from `PAIR_KINSHIP`.
+
 ## Repo Map
 
-Five related repos, all under `rwaples/` on GitHub. simACE is the umbrella working directory; the others are nested checkouts (gitignored from simACE — no submodules).
+Seven related repos, all under `rwaples/` on GitHub. simACE is the umbrella working directory; the others are nested checkouts (gitignored from simACE — no submodules).
 
 | Repo | Visibility | Local path | Role |
 |---|---|---|---|
 | [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate → phenotype → censor → ascertainment → validate → stats → plot |
-| [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC). Consumes simACE outputs. |
+| [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model fitting (PA-FGRS, sparseREML, iter_reml, Stan, PCGC). Consumes simACE outputs. |
+| [`fitACE_epimight`](https://github.com/rwaples/fitACE_epimight) | private | `./fitACE/fitACE_epimight/` | EPIMIGHT v2.0 integration for fitACE: long-form input emitter, Snakemake rules, atlas/bias plotting. Included by `fitACE/Snakefile` via cross-repo `include:` directives. |
 | [`ace_iter_reml`](https://github.com/rwaples/ace_iter_reml) | private | `./fitACE/fitace/ace_iter_reml/` | C++ PCG-AI-REML binary. Driven by `fitACE/fitace/iter_reml/`. |
 | [`tetraher_simace`](https://github.com/rwaples/tetraher_simace) | private | `./external/tetraher_simace/` | Fork of LDAK 6.2 (grouping + warm-start + OMP opt-in). Binary consumed by `fitACE/fitace/tetraher/`. |
 | [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Sparse-matrix pedigree relationship extraction and kinship computation. |
+| [`pedsum`](https://github.com/rwaples/pedsum) | public | `./external/pedsum/` | Pedigree summary CLI: structure, relatedness, inbreeding, Ne estimators. Built on `pedigree-graph`. |
 
 ## Cross-repo edits (simACE + fitACE)
 
@@ -108,41 +161,75 @@ and read key files and related modules before asking questions. Ground the inter
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph
 
-**IMPORTANT: This project has a knowledge graph. ALWAYS use the
-code-review-graph MCP tools BEFORE using Grep/Glob/Read to explore
-the codebase.** The graph is faster, cheaper (fewer tokens), and gives
-you structural context (callers, dependents, test coverage) that file
-scanning cannot.
+This project has a knowledge graph (embeddings on, auto-updated on session
+start). Reach for the graph when a question is *structural* — relationships,
+impact, coverage, flows — not when you already know the path you want to read.
 
-### When to use graph tools FIRST
+### Cheap entry point
 
-- **Exploring code**: `semantic_search_nodes` or `query_graph` instead of Grep
-- **Understanding impact**: `get_impact_radius` instead of manually tracing imports
-- **Code review**: `detect_changes` + `get_review_context` instead of reading entire files
-- **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
-- **Architecture questions**: `get_architecture_overview` + `list_communities`
+Before any non-trivial graph exploration, call `get_minimal_context` (~100
+tokens). It returns risk score, top communities/flows, and suggests which
+tool to call next. Cheaper than guessing wrong.
 
-Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
+### Use the graph for
 
-### Key Tools
+| Task | Tool | Notes |
+|------|------|-------|
+| Review a diff / PR | `detect_changes` | Primary review tool; risk-scored + prioritized. Supersedes `get_review_context` for change-aware work. |
+| Blast radius of a change | `get_impact_radius` | Beats manually tracing imports. |
+| Which entry points are affected | `get_affected_flows` | Identifies user-facing/critical paths touched by a diff. |
+| Trace a single relationship | `query_graph` | Patterns: `callers_of`, `callees_of`, `imports_of`, `importers_of`, `tests_for`, `children_of`, `inheritors_of`, `file_summary`. |
+| Find a symbol by name/concept | `semantic_search_nodes` | FTS5 + embeddings; faster than `grep` for fuzzy lookups. |
+| High-level architecture | `get_architecture_overview` + `list_communities` | Use when onboarding to an unfamiliar area. |
+| Trace an execution path | `list_flows` → `get_flow` | Each flow = call chain from entry point (CLI, test, etc.). |
+| Where are the risks | `get_suggested_questions`, `get_knowledge_gaps`, `get_surprising_connections` | Use at start of review to surface untested hubs, thin communities, cross-community coupling. |
+| Decomposition audit | `find_large_functions` | Line-count threshold; filter by file path. |
+| Rename / dead code | `refactor_tool` (modes: `rename`, `dead_code`, `suggest`) | Rename preview returns an edit list; apply via `apply_refactor_tool`. |
 
-| Tool | Use when |
-|------|----------|
-| `detect_changes` | Reviewing code changes — gives risk-scored analysis |
-| `get_review_context` | Need source snippets for review — token-efficient |
-| `get_impact_radius` | Understanding blast radius of a change |
-| `get_affected_flows` | Finding which execution paths are impacted |
-| `query_graph` | Tracing callers, callees, imports, tests, dependencies |
-| `semantic_search_nodes` | Finding functions/classes by name or keyword |
-| `get_architecture_overview` | Understanding high-level codebase structure |
-| `refactor_tool` | Planning renames, finding dead code |
+### Cross-repo searches
 
-### Workflow
+`cross_repo_search` covers all 7 repos in the Repo Map above (registered
+under `~/.code-review-graph/registry.json`):
 
-1. The graph auto-updates on file changes (via hooks).
-2. Use `detect_changes` for code review.
-3. Use `get_affected_flows` to understand impact.
-4. Use `query_graph` pattern="tests_for" to check coverage.
+| Repo | Languages indexed | Embeddings |
+|------|-------------------|------------|
+| simACE | python, bash | yes |
+| fitACE | python | yes |
+| fitACE_epimight | python, r | yes |
+| pedigree-graph | python | yes |
+| pedsum | python | yes |
+| ace_iter_reml | cpp | yes |
+| tetraher_simace | c, python, bash | yes |
+
+Use `cross_repo_search` when:
+
+- A symbol/concept might live in *any* of the related repos (e.g. "kinship",
+  "reml", "tetrachoric").
+- You're coordinating cross-repo edits (per the simACE↔fitACE note above).
+- You're tracing how a simACE concept is consumed downstream.
+
+Stick with single-repo tools (`semantic_search_nodes`, `query_graph`) when
+you know which repo to look in — same hits, less noise.
+
+**Adding a new repo:**
+
+```
+code-review-graph build --repo <path>       # if no graph DB exists yet
+code-review-graph register <path> --alias <name>
+# then via MCP: embed_graph_tool(repo_root="<path>")
+```
+
+### Skip the graph when
+
+- You already know the exact file path → just `Read` it.
+- You need a string literal that won't be a graph node (config values,
+  error messages, log strings) → `grep`.
+- You're editing a file you just read in this session.
+
+### Maintenance
+
+Graph auto-updates on file changes via the hook in `.claude/settings.json`.
+If stats look stale, run `code-review-graph status`.
 
 ## Agent skills
 

@@ -1,39 +1,27 @@
 import platform
 
+# NOTE: per-replicate scientific results are produced by the combined `analyze`
+# rule (analyze.smk, ADR 0006/0007/0008) as the curated report.yaml; the
+# folder-level report_summary.tsv is gathered from those reports. The standalone
+# simace-validate CLI / script wrapper is retained for early,
+# ascertainment-independent debugging on the full pedigree, but no rule invokes it.
 
-rule validate_pedigree_liability:
+
+rule gather_report_summary:
     input:
-        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.full.parquet",
-        params="results/{folder}/{scenario}/rep{rep}/params.yaml",
+        reports=lambda w: get_folder_reports(config, w.folder),
     output:
-        report="results/{folder}/{scenario}/rep{rep}/validation.yaml",
+        tsv="results/{folder}/report_summary.tsv",
     log:
-        "logs/{folder}/{scenario}/rep{rep}/validate.log",
+        "logs/{folder}/gather_report_summary.log",
     benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/validate.tsv"
-    threads: 1
-    resources:
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
-        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
-    script:
-        "../../scripts/simace/validate.py"
-
-
-rule gather_validation:
-    input:
-        validations=lambda w: get_folder_validations(config, w.folder),
-    output:
-        tsv="results/{folder}/validation_summary.tsv",
-    log:
-        "logs/{folder}/gather_validation.log",
-    benchmark:
-        "benchmarks/{folder}/gather_validation.tsv"
+        "benchmarks/{folder}/gather_report_summary.tsv"
     threads: 1
     resources:
         mem_mb=1000,
         runtime=5,
     script:
-        "../../scripts/simace/gather_validation.py"
+        "../../scripts/simace/gather_report_summary.py"
 
 
 # Windows patch
@@ -45,7 +33,7 @@ if platform.system() == "Windows":
 
 rule plot_validation:
     input:
-        tsv="results/{folder}/validation_summary.tsv",
+        tsv="results/{folder}/report_summary.tsv",
     output:
         expand("results/{{folder}}/plots/{plot}", plot=filtered_plots),
         "results/{folder}/plots/atlas.pdf",

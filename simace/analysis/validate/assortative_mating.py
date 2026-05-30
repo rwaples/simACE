@@ -1,0 +1,119 @@
+"""Mate-correlation (assortative-mating) validation."""
+
+from typing import Any
+
+import numpy as np
+import pandas as pd
+
+from simace.core.numerics import safe_corrcoef
+
+from ._common import _corr_se, _result
+
+
+def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
+    """Validate mate correlation on liability when assortative mating is configured.
+
+    Extracts unique mating pairs from non-founders, computes Pearson
+    correlation of mother and father liability for each trait, and checks
+    against the configured ``assort1`` / ``assort2`` parameters.
+
+    Args:
+        df: Pedigree DataFrame.
+        params: Scenario parameters; uses keys ``assort1``, ``assort2``.
+        df_indexed: Pedigree DataFrame indexed by ``id``.
+
+    Returns:
+        Dict of check-name to result dicts.
+    """
+    results: dict[str, Any] = {}
+    assort1 = params.get("assort1", 0.0)
+    assort2 = params.get("assort2", 0.0)
+
+    # Per-gen AM (dict) is not currently validated — observed pairs span
+    # multiple generations with potentially different per-gen AM strengths,
+    # so a single-value tolerance check is ill-defined. Skip with a
+    # passing result. A future improvement: stratify pairs by generation
+    # and validate each cohort against its per-gen target.
+    if isinstance(assort1, dict) or isinstance(assort2, dict):
+        msg = (
+            "Per-generation assort1/assort2 (dict-valued); skipping pooled "
+            "mate-correlation check (would conflate cohort-varying targets)."
+        )
+        results["mate_corr_liability1"] = _result(True, msg)
+        results["mate_corr_liability2"] = _result(True, msg)
+        return results
+
+    non_founders = df[df["mother"] != -1]
+    if len(non_founders) == 0:
+        results["mate_corr_liability1"] = _result(True, "No non-founders to check")
+        results["mate_corr_liability2"] = _result(True, "No non-founders to check")
+        return results
+
+    # Extract unique mating pairs
+    pairs = non_founders[["mother", "father"]].drop_duplicates()
+    mother_ids = pairs["mother"].values
+    father_ids = pairs["father"].values
+    n_pairs = len(pairs)
+
+    for t, expected in [(1, assort1), (2, assort2)]:
+        m_liab = df_indexed.loc[mother_ids, f"liability{t}"].values
+        f_liab = df_indexed.loc[father_ids, f"liability{t}"].values
+        obs = safe_corrcoef(m_liab, f_liab)
+
+        if np.isnan(obs):
+            results[f"mate_corr_liability{t}"] = _result(
+                True,
+                f"Cannot compute mate correlation for trait {t} (zero variance)",
+                expected=float(expected),
+                observed=float(obs),
+            )
+            continue
+
+        se = _corr_se(expected, n_pairs)
+        tol = max(0.1, 3 * se)
+        ok = abs(obs - expected) < tol
+        results[f"mate_corr_liability{t}"] = _result(
+            ok,
+            f"Mate correlation liability{t}: {obs:.4f} (expected: {expected}, tol: {tol:.4f})",
+            expected=float(expected),
+            observed=float(obs),
+            n_pairs=n_pairs,
+        )
+
+    # Cross-trait validation (only when both traits assort)
+    if assort1 != 0 and assort2 != 0:
+        am = params.get("assort_matrix")
+        if am is not None:
+            c_expected = float(np.asarray(am)[0, 1])
+        else:
+            rho_w = params.get("rA", 0) * np.sqrt(params.get("A1", 0) * params.get("A2", 0)) + params.get(
+                "rC", 0
+            ) * np.sqrt(params.get("C1", 0) * params.get("C2", 0))
+            c_expected = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
+
+        for label, fi, mi in [("cross_12", 1, 2), ("cross_21", 2, 1)]:
+            m_liab = df_indexed.loc[mother_ids, f"liability{fi}"].values
+            f_liab = df_indexed.loc[father_ids, f"liability{mi}"].values
+            obs = safe_corrcoef(m_liab, f_liab)
+
+            if np.isnan(obs):
+                results[f"mate_corr_{label}"] = _result(
+                    True,
+                    f"Cannot compute mate correlation {label} (zero variance)",
+                    expected=float(c_expected),
+                    observed=float(obs),
+                )
+                continue
+
+            se = _corr_se(c_expected, n_pairs)
+            tol = max(0.1, 3 * se)
+            ok = abs(obs - c_expected) < tol
+            results[f"mate_corr_{label}"] = _result(
+                ok,
+                f"Mate correlation {label}: {obs:.4f} (expected: {c_expected:.4f}, tol: {tol:.4f})",
+                expected=float(c_expected),
+                observed=float(obs),
+                n_pairs=n_pairs,
+            )
+
+    return results

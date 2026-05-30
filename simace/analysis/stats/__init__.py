@@ -1,7 +1,7 @@
 """Compute per-replicate stats reports for downstream plotting.
 
 Reads a single trait.parquet and produces:
-  - stats_report.yaml: grouped scalar and array statistics
+  - the six grouped stats sections (the stats portion of report.yaml; ADR 0007)
   - plotting_sample.parquet: downsampled rows for scatter/histogram plots
 
 Public API is re-exported from focused sub-modules:

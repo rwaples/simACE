@@ -1,0 +1,273 @@
+# ============================================================
+# ACE Simulation — Applied Neurodevelopmental Scenarios
+# ADHD · Autism Spectrum Disorder · Intellectual Disability
+# ============================================================
+#
+# These scenarios are calibrated to empirical estimates from
+# the published twin and register-based literature. They are
+# intended for applied validation and are distinct from the
+# methodological validation scenarios in the companion file.
+#
+# Heritability targets (A)
+# ------------------------
+#   ADHD : ~0.76–0.80  (Larsson et al. 2014; Faraone et al. 2021)
+#   ASD  : ~0.74–0.75  (Sandin et al. 2017; Tick et al. 2016)
+#   ID   : ~0.75–0.76  (Reichenberg et al. 2016)
+#
+# Phenotype model
+# ---------------
+# All three conditions use cure_frailty early-onset models: a
+# liability threshold sets the susceptible fraction K (= the target
+# lifetime prevalence), and the baseline hazard governs onset age
+# among susceptibles. Onset distributions are parameterised to match
+# observed age-at-diagnosis distributions from population registers.
+# The parallel neurodev_ltm folder runs the same scenarios under the
+# adult/LTM threshold model at matched K (paired seeds) for a
+# different-mechanism comparison.
+#
+# Censoring schedule
+# ------------------
+# Identical fixed 10-generation schedule across all scenarios,
+# consistent with the companion validation study. Progressive
+# reduction of upper follow-up bound reflects incomplete
+# calendar-time observation in recent birth cohorts.
+#
+#   gen 0–2 : [0, 80]   fully observed historical cohorts
+#   gen 3   : [0, 70]
+#   gen 4   : [0, 60]
+#   gen 5   : [0, 50]
+#   gen 6   : [0, 40]
+#   gen 7   : [0, 30]
+#   gen 8   : [0, 20]
+#   gen 9   : [0, 10]   most recent cohort
+# ============================================================
+
+
+#   gen 3   : [0, 30]
+#   gen 4   : [0, 29]
+#   gen 5   : [0, 28]
+#   gen 6   : [0, 27]
+#   gen 7   : [0, 26]
+#   gen 8   : [0, 25]
+
+
+# ── ADHD ──────────────────────────────────────────────────────
+# Heritability: A ≈ 0.76–0.80 (target mid-point 0.78)
+# Shared environment: C ≈ 0.00–0.05 (negligible in most
+#   large register studies; set to 0.00)
+# Prevalence: trait1 (combined presentation) ≈ 5–7%;
+#             trait2 (any ADHD presentation)  ≈ 8–10%
+#   Sex differences in prevalence are well documented
+#   (male > female approximately 2:1 for combined type)
+#   but pooled estimates are used here for simplicity.
+# Age-at-diagnosis: peak ascertainment 6–10 years in most
+#   registers; Weibull with moderate scale and shape
+#   captures the school-age concentration.
+# Genetic correlation between presentations (rA): 0.80
+#   reflecting substantial but incomplete overlap between
+#   combined and inattentive/hyperactive subtypes.
+# N increased to 500 000 to ensure adequate power for
+#   rare-relative pair types across 10 generations.
+
+ADHD:
+  seed: 51000
+  N: 500000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.78
+      C: 0.00
+      E: 0.22
+    trait2:
+      A: 0.76
+      C: 0.00
+      E: 0.24
+    rA: 0.80
+    rC: 0.00
+    rE: 0.00
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: weibull
+        scale: 40.0 # onset-tuned (was 9.0) so susceptibles land in school-age 6-10y
+        rho: 1.6
+        prevalence: 0.06 # K=0.06 susceptible; hazard sets school-age onset
+      beta: 1.0
+      beta_sex: 0.35
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: weibull
+        scale: 36.5 # onset-tuned (was 10.5) so susceptibles land in school-age 6-10y
+        rho: 1.5
+        prevalence: 0.09 # K=0.09 susceptible; hazard sets school-age onset
+      beta: 1.0
+      beta_sex: 0.20
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+
+# ── AUTISM SPECTRUM DISORDER ──────────────────────────────────
+# Heritability: A ≈ 0.74–0.75 (target mid-point 0.74)
+# Shared environment: C ≈ 0.00–0.10; recent large register
+#   studies suggest C close to zero after controlling for
+#   diagnostic expansion; set to 0.05 as a conservative
+#   estimate.
+# Prevalence: trait1 (narrowly defined ASD) ≈ 1.0–1.5%;
+#             trait2 (broadly defined ASD)  ≈ 2.0–2.5%
+#   Consistent with Nordic register estimates (Lundström
+#   et al. 2015; Sandin et al. 2017).
+# Age-at-diagnosis: broader distribution than ADHD, with
+#   substantial ascertainment from age 3 through adolescence;
+#   lognormal frailty with mu=2.3 (median ≈ 10 yr) captures
+#   the right-skewed register-based distribution.
+# Genetic correlation (rA): 0.70 between narrow and broad
+#   phenotype definitions, reflecting partial genetic overlap.
+# Sex effect (beta_sex): males diagnosed approximately
+#   3–4x more frequently; log-hazard ratio ≈ 0.60.
+
+ASD:
+  seed: 52000
+  N: 500000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.74
+      C: 0.05
+      E: 0.21
+    trait2:
+      A: 0.75
+      C: 0.05
+      E: 0.20
+    rA: 0.70
+    rC: 0.50
+    rE: 0.00
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.45 # onset-tuned (was 2.1) so susceptible median ~10y
+        sigma: 0.65
+        prevalence: 0.012 # K=1.2% susceptible (narrow ASD); hazard sets onset age
+      beta: 1.0
+      beta_sex: 0.60
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.57 # onset-tuned (was 2.3) so susceptible median ~11y
+        sigma: 0.70
+        prevalence: 0.022 # K=2.2% susceptible (broad ASD); hazard sets onset age
+      beta: 1.0
+      beta_sex: 0.45
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+
+# ── INTELLECTUAL DISABILITY ───────────────────────────────────
+# Heritability: A ≈ 0.75–0.76 (target mid-point 0.756)
+# Shared environment: C ≈ 0.10–0.15; ID shows a somewhat
+#   larger C component than ADHD/ASD, partly reflecting
+#   shared perinatal and socioeconomic risk factors
+#   (Reichenberg et al. 2016); set to 0.10.
+# Prevalence: trait1 (moderate–severe ID, IQ < 50) ≈ 0.3–0.5%
+#             trait2 (mild–severe ID, IQ < 70)     ≈ 1.0–2.0%
+#   Consistent with meta-analytic estimates (Maulik et al.
+#   2011; Stoltenberg et al. 1994).
+# Age-at-diagnosis: concentrated very early (birth to 5 yr
+#   for severe forms; extending to early school age for mild
+#   forms); Weibull with low scale and higher shape for
+#   trait1, lognormal for trait2 to capture the broader
+#   mild ID ascertainment window.
+# Genetic correlation (rA): 0.60 between severity strata,
+#   reflecting shared but partially distinct genetic
+#   architecture.
+# N increased to 1 000 000 given very low prevalence of
+#   moderate-severe ID; larger sample required for stable
+#   estimation of familial correlations in rare-relative
+#   pairs.
+
+ID:
+  seed: 53000
+  N: 1000000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.756
+      C: 0.10
+      E: 0.144
+    trait2:
+      A: 0.75
+      C: 0.10
+      E: 0.15
+    rA: 0.60
+    rC: 0.50
+    rE: 0.00
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: weibull
+        scale: 20.0 # onset-tuned (was 4.0) so susceptibles spread across birth-5y
+        rho: 1.8
+        prevalence: 0.004 # K=0.4% susceptible (moderate-severe ID); hazard sets infancy onset
+      beta: 1.0
+      beta_sex: 0.15
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.12 # onset-tuned (was 1.8) so susceptible median ~6y (early school)
+        sigma: 0.80
+        prevalence: 0.015 # K=1.5% susceptible (mild-severe ID); hazard sets early-childhood onset
+      beta: 1.0
+      beta_sex: 0.10
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73

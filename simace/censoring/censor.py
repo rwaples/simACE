@@ -65,9 +65,10 @@ def death_censor(
     dt = scale * (-np.log(u)) ** (1 / rho)
     censored = t > dt
 
-    t[censored] = dt[censored]
+    t_out = t.copy()
+    t_out[censored] = dt[censored]
 
-    return t, censored
+    return t_out, censored
 
 
 @stage(reads=PHENOTYPE, writes=CENSORED)
@@ -111,11 +112,11 @@ def run_censor(
     u_death = 1.0 - rng_death.uniform(size=len(phenotype))
     death_age = death_scale * (-np.log(u_death)) ** (1 / death_rho)
 
-    t1_after_age, age_censored1 = age_censor(phenotype["t1"].values.copy(), left_censor, right_censor)
+    t1_after_age, age_censored1 = age_censor(phenotype["t1"].values, left_censor, right_censor)
     death_censored1 = t1_after_age > death_age
     t_observed1 = np.where(death_censored1, death_age, t1_after_age)
 
-    t2_after_age, age_censored2 = age_censor(phenotype["t2"].values.copy(), left_censor, right_censor)
+    t2_after_age, age_censored2 = age_censor(phenotype["t2"].values, left_censor, right_censor)
     death_censored2 = t2_after_age > death_age
     t_observed2 = np.where(death_censored2, death_age, t2_after_age)
 

@@ -8,13 +8,25 @@ import pandas as pd
 
 from simace import _snakemake_tag, setup_logging
 from simace.ascertainment import cli as _cli
-from simace.ascertainment import run_ascertainment
+from simace.ascertainment import copy_passthrough_if_possible, run_ascertainment
 from simace.core.parquet import save_parquet
 from simace.core.snakemake_adapter import cli_or_snakemake
 
 
 def _run() -> None:
     setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
+    if copy_passthrough_if_possible(
+        snakemake.input.pedigree,
+        snakemake.input.trait,
+        snakemake.input.trait_simple_ltm,
+        snakemake.output.pedigree,
+        snakemake.output.trait,
+        snakemake.output.trait_simple_ltm,
+        dropout_rate=snakemake.params.dropout_rate,
+        N_sample=snakemake.params.N_sample,
+    ):
+        return
+
     df_ped = pd.read_parquet(snakemake.input.pedigree)
     df_trait = pd.read_parquet(snakemake.input.trait)
     df_simple_ltm = pd.read_parquet(snakemake.input.trait_simple_ltm)

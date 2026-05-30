@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted.
+Accepted. The "No Validate-stage change" non-goal is superseded by ADR 0007,
+which merges `validation.yaml` and `stats_report.yaml` into a single
+`report.yaml` (the six stats groups + a `validation` group).
 
 ## Context
 

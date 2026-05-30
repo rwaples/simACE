@@ -1,6 +1,6 @@
 """Cross-scenario comparison plots that feed the Examples docs pages.
 
-Each rule collects validation.yaml outputs across a hardcoded scenario group
+Each rule collects report.yaml outputs across a hardcoded scenario group
 and writes a comparison PNG directly into ``docs/images/examples/<topic>/``.
 The mkdocs pages reference those image paths, so rebuilding these rules is
 what keeps the docs site in sync with the latest simulation state.
@@ -50,7 +50,7 @@ def _increasing_e_per_gen_E(scen):
 rule compare_am_heritability:
     input:
         lambda w: [
-            f"results/examples/{scen}/rep{rep}/validation.yaml"
+            f"results/examples/{scen}/rep{rep}/report.yaml"
             for scen in AM_HERITABILITY_SCENARIOS
             for rep in range(1, get_param(config, scen, "replicates") + 1)
         ],
@@ -200,8 +200,8 @@ rule compare_observed_vs_liability_h2:
             for scen in OBSERVED_VS_LIABILITY_SCENARIOS
             for rep in range(1, get_param(config, scen, "replicates") + 1)
         ],
-        stats_report=lambda w: [
-            f"results/examples/{scen}/rep{rep}/stats_report.yaml"
+        report=lambda w: [
+            f"results/examples/{scen}/rep{rep}/report.yaml"
             for scen in OBSERVED_VS_LIABILITY_SCENARIOS
             for rep in range(1, get_param(config, scen, "replicates") + 1)
         ],
@@ -234,7 +234,7 @@ rule compare_observed_vs_liability_h2:
 rule compare_increasing_e_trajectory:
     input:
         lambda w: [
-            f"results/examples/{scen}/rep{rep}/validation.yaml"
+            f"results/examples/{scen}/rep{rep}/report.yaml"
             for scen in INCREASING_E_STD_SCENARIOS
             for rep in range(1, get_param(config, scen, "replicates") + 1)
         ],
@@ -342,7 +342,7 @@ rule compare_increasing_e_components_by_gen:
 rule compare_increasing_e_prevalence:
     input:
         lambda w: [
-            f"results/examples/{scen}/rep{rep}/stats_report.yaml"
+            f"results/examples/{scen}/rep{rep}/report.yaml"
             for traj in INCREASING_E_TRAJECTORIES
             for scen in (f"{traj}_std", f"{traj}_nostd", f"{traj}_pergen")
             for rep in range(1, get_param(config, scen, "replicates") + 1)

@@ -1,6 +1,6 @@
 # simACE
 
-simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (common environment), and **E** (unique environment) variance components, then runs phenotype → censor → ascertainment → validate → stats → plot. It exists as a controlled testbed for evaluating family-study and twin-study statistical methods, where the ground truth is known.
+simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (common environment), and **E** (unique environment) variance components, then runs phenotype → censor → ascertainment → analyze → plot. It exists as a controlled testbed for evaluating family-study and twin-study statistical methods, where the ground truth is known.
 
 This file is a disambiguation glossary for AI agents and future maintainers — it picks canonical names for concepts that have competing aliases in the code, docs, and conversation. It is **not** a methods write-up (see `docs/concepts/methods.md` for that) and contains no implementation details.
 
@@ -110,9 +110,9 @@ _Avoid_: rate (overloaded — could mean hazard), case rate, K-value (just say "
 The affected fraction visible in output data, after censoring (and after sampling, if applied). This is what a downstream model fit on the simulated output would estimate. May differ from the configured prevalence due to censoring (some events fall outside the age window or are pre-empted by death) and ascertainment.
 _Avoid_: empirical prevalence (ambiguous), sample prevalence (reserve "sample" for explicit subsampling).
 
-**Cumulative incidence** (CIP, cumulative incidence proportion, cumulative incidence fraction):
-The proportion of a cohort that has experienced the trait event by a given age. A function of age, not a single scalar — distinct from prevalence, which is the lifetime / asymptotic limit. Used directly by the ADuLT phenotype models (`adult` family), where `cip_x0` and `cip_k` parameterize a logistic CIP curve that maps liability rank to age-at-onset. "CIP", "cumulative incidence proportion", and "cumulative incidence fraction" are equivalent.
-_Avoid_: incidence rate (a per-time hazard, different concept), case rate.
+**Cumulative incidence** (CIF, cumulative incidence function):
+The proportion of a cohort that has experienced the trait event by a given age. A function of age, not a single scalar — distinct from prevalence, which is the lifetime / asymptotic limit. Used directly by the ADuLT phenotype models (`adult` family), where `cip_x0` and `cip_k` (legacy parameter names — see Flagged ambiguities) parameterize the logistic CIF curve that maps liability rank to age-at-onset. CIF is also the canonical word in [fitACE_epimight](../fitACE/fitACE_epimight) — adopted from EPIMIGHT v2.0's survival/competing-risks framing.
+_Avoid_: CIP, "cumulative incidence proportion", "cumulative incidence fraction" (deprecated — CIF is the cross-repo canonical); incidence rate (a per-time hazard, different concept); case rate.
 
 **Cure fraction**:
 In the mixture cure model (`cure_frailty`), the proportion of the population that will *never* experience the trait event regardless of follow-up. Equal to $1 - K$. Implemented by assigning non-susceptible individuals a sentinel onset of $10^6$ so they are right-censored under any realistic window.
@@ -224,15 +224,18 @@ The pipeline runs the following stages in order. Stage names match the Snakemake
 2. **Phenotype** — apply the phenotype model per trait to produce binary affection + onset. Package: `simace/phenotype/` (noun form, **not** "phenotyping"). The only stage where noun-form is enforced because "phenotype" the noun is also a domain word.
 3. **Censor** — apply age-window and death censoring to event times. Package: `simace/censoring/`.
 4. **Ascertainment** — unified dropout + case-ascertainment + $N_{\text{sample}}$ selection (per ADR 0001). Noun form. Replaces the older `dropout` + `sample` two-stage split.
-5. **Validate** — ground-truth sanity checks. Verb form (rule: `validate.smk`). Module: `simace/analysis/validate.py`.
-6. **Stats** — compute correlations, kinship, effective-size estimators, etc. Matches code: `simace/analysis/stats/`.
-7. **Plot** — generate the per-scenario plot atlas. Package: `simace/plotting/`.
+5. **Analyze** — combined production of ground-truth sanity checks and descriptive stats. Verb form. Folds the former validate and stats steps into one pipeline stage that emits a single curated per-replicate report plus a plot payload (ADR 0008).
+6. **Plot** — generate the per-scenario plot atlas. Package: `simace/plotting/`.
 
-_Avoid_: "phenotyping" (killed), "subsampling" / "dropout stage" (killed — see **Ascertainment**), "validation stage" (use "validate stage"), "statistics" (use "stats"), "simulation stage" (just say "the simulate stage").
+_Avoid_: "phenotyping" (killed), "subsampling" / "dropout stage" (killed — see **Ascertainment**), "validation stage" / "stats stage" as separate pipeline stages (use **Analyze** for the combined stage; use **Per-replicate scientific report** / **Plot payload** when referring to artifacts), "statistics" (use "stats"), "simulation stage" (just say "the simulate stage").
 
-**Per-replicate stats report**:
-The Stats-stage summary for one replicate, combining incidence, censoring, pedigree, correlation, and observed-heritability summaries. The report describes one replicate after ascertainment; it is not a cross-replicate aggregate and does not replace validation.
-_Avoid_: phenotype statistics, stats dump, summary YAML.
+**Per-replicate scientific report**:
+The curated Analyze-stage report for one replicate. It summarizes quality checks, ground truth, observed post-ascertainment summaries, and estimator outputs, with every quantity labeled by the population scope it describes. Report scopes are **recorded pedigree** (full pre-ascertainment recorded pedigree), **phenotyped population** (full pre-ascertainment phenotyped/censored rows), **analysis sample** (final ascertained trait rows), and **analysis pedigree** (ancestor-closure pedigree supporting the analysis sample). It is not a plot cache and not a cross-replicate aggregate.
+_Avoid_: phenotype statistics, stats dump, summary YAML, plot payload.
+
+**Plot payload**:
+A durable companion artifact for dense arrays needed only to render plots, such as age grids and full curve values. It is derived from the same replicate outputs as the scientific report but is not itself the scientific report.
+_Avoid_: report, stats report, scientific summary.
 
 **Plotting sample**:
 A downsampled set of trait rows used only to draw dense scatter and histogram plots. It is distinct from the post-ascertainment analysis dataset and must not be used as an analysis sample.
@@ -245,7 +248,7 @@ This package — the simulation pipeline. Generates pedigrees, applies phenotype
 _Avoid_: "the simulator", "the framework" (overloaded), "ACE" alone (ACE is the model, not this package).
 
 **fitACE**:
-The model-fitting sister repo. Consumes simACE outputs (`trait.parquet`, `pedigree.parquet`, stats YAMLs) and runs inferential methods (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC) to estimate variance components and recover ground-truth parameters. The boundary is **one-way**: simACE → fitACE, with no feedback loop into simACE.
+The model-fitting sister repo. Consumes simACE outputs (`trait.parquet`, `pedigree.parquet`, `report.yaml`) and runs inferential methods (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC) to estimate variance components and recover ground-truth parameters. The boundary is **one-way**: simACE → fitACE, with no feedback loop into simACE.
 _Avoid_: "the fitter", "the estimator suite" (subset), "the analysis package" (simACE also has `analysis/`).
 
 **ACE** (the model):
@@ -258,11 +261,11 @@ _Avoid_: true values (acceptable in prose but less specific), simulated values, 
 
 ### Descriptive vs inferential analysis
 
-simACE-side `simace.analysis.stats` produces **descriptive** statistics: per-pair tetrachoric correlations, pairwise Weibull survival correlations, kinship-weighted regressions, mean kinship, $N_e$ estimators, prevalence summaries. These are quantities a researcher would compute directly from observable data — they describe the simulated dataset without committing to a generative model.
+simACE-side `simace.analysis.stats` produces **observed summaries** and simple **estimators**. Observed summaries are quantities directly measured from a scoped output population: prevalence, person-years, relationship counts, liability/affected/tetrachoric correlations, and mate correlations. Estimators are values derived from observed summaries to estimate a target quantity, such as naive observed-scale heritability from affected-status relationship correlations.
 
 fitACE-side methods are **inferential**: they fit a full variance-component model (often with explicit pedigree structure, censoring, and ascertainment correction) and estimate $\sigma^2_A$, $\sigma^2_C$, $\sigma^2_E$, $r_A$, $r_C$, and related parameters with uncertainty.
 
-When in doubt: if it's a number you'd plot directly from a stats YAML, it's descriptive (simACE). If it's a variance-component estimate with a standard error from a likelihood, it's inferential (fitACE).
+When in doubt: if it directly describes a scoped simACE output population, it is an observed summary. If it transforms observed summaries into a target quantity such as $h^2$, it is an estimator. If it comes from fitting a variance-component model with uncertainty, it is inferential fitACE output.
 
 ## Flagged ambiguities
 
@@ -279,6 +282,8 @@ When in doubt: if it's a number you'd plot directly from a stats YAML, it's desc
 - **"coancestry"** is suppressed in canonical simACE vocabulary — use **kinship** for per-pair coefficients and **mean kinship** for the generation-aggregate form. The legacy estimator name `ne_coancestry` (and column names like `mean_self_coancestry`) survive in code because they match published-literature names for the coancestry-rate $N_e$ estimator; treat these as fixed external identifiers, not as a glossary term to extend.
 
 - **"pair type"** is the deprecated code name for **relationship type**. The `pair_type` identifiers in `simace.plotting`, `simace.analysis.stats`, and `simace.core.relationships.PAIR_TYPES` were renamed to `relationship_type` / `RELATIONSHIP_TYPES` across both simACE and fitACE. Do not reintroduce them.
+
+- **`cip_x0` / `cip_k`** are *legacy parameter names* in `simace.phenotype.models.adult` — the *concept* renamed CIP → CIF (see **Cumulative incidence**), but the parameter identifiers retain the `cip_` prefix to avoid a config-migration sweep across scenario YAMLs. Don't rename these to `cif_x0`/`cif_k` in code; do say "CIF" in prose, comments, and plot labels.
 
 ## Example dialogue
 

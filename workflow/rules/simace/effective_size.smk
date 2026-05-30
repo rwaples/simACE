@@ -26,8 +26,6 @@ very large pedigrees where K would OOM.
         "logs/{folder}/{scenario}/rep{rep}/effective_size.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/effective_size.tsv"
-    params:
-        skip_ne_coancestry=lambda w: get_param(config, w.scenario, "skip_ne_coancestry"),
     threads: 1  # compute_all_ne is sequential numba DP; no internal parallelism.
     resources:
         # Streaming-θ DP (and the optional kinship matrix path) dominates RAM
@@ -37,6 +35,8 @@ very large pedigrees where K would OOM.
         # lets Snakemake over-parallelize into OOM.
         mem_mb=lambda w: _scale_mem_effective_size(config, w.scenario),
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
+    params:
+        skip_ne_coancestry=lambda w: get_param(config, w.scenario, "skip_ne_coancestry"),
     script:
         "../../scripts/simace/compute_effective_size.py"
 

@@ -1,4 +1,4 @@
-"""Gather validation results from all scenarios into a single TSV file."""
+"""Gather per-replicate report summaries into a single wide TSV file."""
 
 __all__ = ["extract_metrics"]
 
@@ -10,12 +10,12 @@ import re
 from pathlib import Path
 from typing import Any
 
-from simace.analysis.validation_schema import METRIC_REGISTRY
+from simace.analysis.report_schema import REPORT_SUMMARY_REGISTRY
 from simace.core.yaml_io import load_yaml
 
 logger = logging.getLogger(__name__)
 
-_VALIDATION_PATH_RE = re.compile(r"results/([^/]+)/([^/]+)/rep(\d+)/validation\.yaml")
+_REPORT_PATH_RE = re.compile(r"results/([^/]+)/([^/]+)/rep(\d+)/report\.yaml")
 
 
 def _get_nested(d: Any, *keys: str, default: Any = None) -> Any:
@@ -28,43 +28,44 @@ def _get_nested(d: Any, *keys: str, default: Any = None) -> Any:
     return d
 
 
-def extract_metrics(validation_path: str) -> dict[str, Any]:
-    """Extract key metrics from a validation YAML file."""
-    data = load_yaml(validation_path)
+def extract_metrics(report_path: str) -> dict[str, Any]:
+    """Extract key metrics from a curated v2 ``report.yaml`` file.
 
-    validation_path = str(validation_path).replace("\\", "/")
+    REPORT_SUMMARY_REGISTRY paths are relative to the report root and resolve
+    into the ``scopes`` / ``observed`` / ``truth`` / ``estimators`` groups (ADR
+    0008). Identity, parameters, and the quality summary are read inline from
+    the path / ``inputs`` / ``quality_checks``.
+    """
+    data = load_yaml(report_path)
 
-    match = _VALIDATION_PATH_RE.search(validation_path)
+    report_path = str(report_path).replace("\\", "/")
+
+    match = _REPORT_PATH_RE.search(report_path)
     if match:
         folder, scenario, rep_str = match.group(1), match.group(2), match.group(3)
         rep = int(rep_str)
-        bench_path = Path(f"benchmarks/{folder}/{scenario}/rep{rep_str}/simulate.tsv")
+        bench_path: Path | None = Path(f"benchmarks/{folder}/{scenario}/rep{rep_str}/simulate.tsv")
     else:
+        folder = "unknown"
         scenario = "unknown"
         rep = 1
-        bench_path = Path("")
+        bench_path = None
 
     simulate_seconds = None
     simulate_max_rss_mb = None
-    if bench_path.exists():
+    if bench_path is not None and bench_path.exists():
         with open(bench_path, encoding="utf-8", newline="") as bf:
-            reader = csv.DictReader(bf, delimiter="\t")
-            for row_b in reader:
-                simulate_seconds = float(row_b["s"])
+            first_row = next(csv.DictReader(bf, delimiter="\t"), None)
+        if first_row is not None:
+            simulate_seconds = float(first_row["s"])
+            # Windows benchmarks have no max_rss column; fall back to a sentinel.
+            simulate_max_rss_mb = 1.0 if platform.system() == "Windows" else float(first_row["max_rss"])
 
-                if platform.system() == "Windows":
-                    # Windows does not support max_rss
-                    simulate_max_rss_mb = float(1)
-                else:
-                    # Linux/macOS → normal
-                    simulate_max_rss_mb = float(row_b["max_rss"])
-
-                break
-
-    params = data["parameters"]
-    summary = data["summary"]
+    params = _get_nested(data, "inputs", "parameters", default={})
+    summary = _get_nested(data, "quality_checks", "summary", default={})
 
     row: dict[str, Any] = {
+        "folder": folder,
         "scenario": scenario,
         "rep": rep,
         "N": params.get("N"),
@@ -82,9 +83,9 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         "rA": params.get("rA"),
         "rC": params.get("rC"),
         # Population parameters.  ``mating_model`` defaults to "standard" so
-        # validation YAMLs predating this column still gather cleanly.
-        # ``expected_twin_rate`` is sourced from the validation YAML via
-        # METRIC_REGISTRY (see validation_schema.py) — validate_twins emits
+        # reports predating this column still gather cleanly.
+        # ``expected_twin_rate`` is sourced from the report via
+        # REPORT_SUMMARY_REGISTRY (see report_schema.py) — validate_twins emits
         # it for both standard (= p_mztwin) and WF (= 0) branches.
         "mating_model": params.get("mating_model", "standard"),
         "p_mztwin": params.get("p_mztwin"),
@@ -92,9 +93,11 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
         "assort1": params.get("assort1"),
         "assort2": params.get("assort2"),
         "seed": params.get("seed"),
-        "checks_failed": summary.get("checks_failed"),
+        "quality_passed": summary.get("passed"),
+        "checks_failed": summary.get("n_failed"),
+        "quality_n_warn": summary.get("n_warn"),
     }
-    for spec in METRIC_REGISTRY:
+    for spec in REPORT_SUMMARY_REGISTRY:
         row[spec.column] = _get_nested(data, *spec.path)
     # Benchmark timing and memory live alongside parameters, not in the YAML
     row["simulate_seconds"] = simulate_seconds
@@ -102,17 +105,17 @@ def extract_metrics(validation_path: str) -> dict[str, Any]:
     return row
 
 
-def main(validation_files: list[str], output_path: str) -> None:
-    """Gather all validation results into a TSV file."""
+def main(report_files: list[str], output_path: str) -> None:
+    """Gather report summaries from many replicates into a wide TSV file."""
     rows = []
-    for validation_path in validation_files:
-        row = extract_metrics(validation_path)
+    for report_path in report_files:
+        row = extract_metrics(report_path)
         rows.append(row)
 
     # Sort by scenario name, then by rep
     rows.sort(key=lambda x: (x["scenario"], x["rep"]))
 
-    logger.info("Gathered %d validation results -> %s", len(rows), output_path)
+    logger.info("Gathered %d report summaries -> %s", len(rows), output_path)
 
     # Write TSV
     if rows:
@@ -133,15 +136,15 @@ def main(validation_files: list[str], output_path: str) -> None:
 
 
 def cli() -> None:
-    """Command-line interface for gathering validation results."""
+    """Command-line interface for gathering report summaries."""
     from simace.core.cli_base import add_logging_args, init_logging
 
-    parser = argparse.ArgumentParser(description="Gather validation results into TSV")
+    parser = argparse.ArgumentParser(description="Gather report summaries into TSV")
     add_logging_args(parser)
-    parser.add_argument("validations", nargs="+", help="Validation YAML paths")
+    parser.add_argument("reports", nargs="+", help="report.yaml paths")
     parser.add_argument("--output", required=True, help="Output TSV path")
     args = parser.parse_args()
 
     init_logging(args)
 
-    main(args.validations, args.output)
+    main(args.reports, args.output)

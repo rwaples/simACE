@@ -1,51 +1,30 @@
 # ---------------------------------------------------------------------------
 # Statistics and plotting rules (sim-side)
 # ---------------------------------------------------------------------------
-
-
-rule build_stats_report:
-    input:
-        phenotype="results/{folder}/{scenario}/rep{rep}/trait.parquet",
-        pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",
-    output:
-        stats="results/{folder}/{scenario}/rep{rep}/stats_report.yaml",
-        samples=temp("results/{folder}/{scenario}/rep{rep}/plotting_sample.parquet"),
-    log:
-        "logs/{folder}/{scenario}/rep{rep}/stats_report.log",
-    benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/stats_report.tsv"
-    threads: 5
-    resources:
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
-        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
-    params:
-        seed=lambda w: get_param(config, w.scenario, "seed") + int(w.rep) - 1,
-        censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
-        gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
-        max_degree=lambda w: get_param(config, w.scenario, "max_degree"),
-        case_ascertainment_ratio=lambda w: get_param(
-            config, w.scenario, "case_ascertainment_ratio"
-        ),
-    script:
-        "../../scripts/simace/build_stats_report.py"
+#
+# NOTE: report.yaml + plot_payload.yaml + plotting_sample.parquet are produced
+# by the combined `analyze` rule (analyze.smk, ADR 0006/0007/0008). report.yaml
+# is the curated v2 scientific report; plot_payload.yaml holds the dense plot
+# arrays. The standalone simace-phenotype-stats CLI / script wrapper is retained
+# for debugging.
 
 
 rule plot_phenotype:
     input:
-        stats=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/stats_report.yaml",
+        report=lambda w: expand(
+            "results/{folder}/{scenario}/rep{rep}/report.yaml",
+            folder=w.folder,
+            scenario=w.scenario,
+            rep=range(1, get_param(config, w.scenario, "replicates") + 1),
+        ),
+        plot_payload=lambda w: expand(
+            "results/{folder}/{scenario}/rep{rep}/plot_payload.yaml",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
         ),
         samples=lambda w: expand(
             "results/{folder}/{scenario}/rep{rep}/plotting_sample.parquet",
-            folder=w.folder,
-            scenario=w.scenario,
-            rep=range(1, get_param(config, w.scenario, "replicates") + 1),
-        ),
-        validations=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/validation.yaml",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
@@ -75,8 +54,14 @@ rule assemble_scenario_atlas:
             "results/{{folder}}/{{scenario}}/plots/{plot}", plot=PHENOTYPE_PLOTS
         ),
         params_yaml="results/{folder}/{scenario}/rep1/params.yaml",
-        stats=lambda w: expand(
-            "results/{folder}/{scenario}/rep{rep}/stats_report.yaml",
+        report=lambda w: expand(
+            "results/{folder}/{scenario}/rep{rep}/report.yaml",
+            folder=w.folder,
+            scenario=w.scenario,
+            rep=range(1, get_param(config, w.scenario, "replicates") + 1),
+        ),
+        plot_payload=lambda w: expand(
+            "results/{folder}/{scenario}/rep{rep}/plot_payload.yaml",
             folder=w.folder,
             scenario=w.scenario,
             rep=range(1, get_param(config, w.scenario, "replicates") + 1),
@@ -116,7 +101,6 @@ rule assemble_scenario_atlas:
         case_ascertainment_ratio=lambda w: get_param(
             config, w.scenario, "case_ascertainment_ratio"
         ),
-
         max_degree=lambda w: get_param(config, w.scenario, "max_degree"),
         plot_format=lambda w: config["defaults"].get("plot_format", "png"),
     script:

@@ -47,8 +47,8 @@ $h^2 = v_A / (v_A + v_E)$ that any estimator should recover is therefore
 *higher* than the input $0.5$ — the estimator is not biased; the
 population itself has moved.
 
-`validation.yaml` records the per-generation realized ACE components for
-every replicate, allowing this drift to be examined directly:
+`report.yaml` (its `truth` group) records the per-generation realized ACE
+components for every replicate, allowing this drift to be examined directly:
 
 ![Realized variance components by generation, trait 1, across AM levels](../images/examples/am/vA_trajectory.png)
 
