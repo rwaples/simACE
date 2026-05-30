@@ -85,9 +85,7 @@ if __name__ == "__main__":
         parser.add_argument("--plot-dir", required=True, help="Directory containing the plot PNGs")
         parser.add_argument("--params-yaml", default=None, help="Scenario params.yaml for title page")
         parser.add_argument("--report", nargs="*", default=[], help="report.yaml paths (one per replicate)")
-        parser.add_argument(
-            "--plot-payload", nargs="*", default=[], help="plot_payload.yaml paths (one per replicate)"
-        )
+        parser.add_argument("--plot-payload", nargs="*", default=[], help="plot_payload.yaml paths (one per replicate)")
         parser.add_argument("--scenario", default="unknown", help="Scenario name")
         parser.add_argument("--output", required=True, help="Output PDF path")
         parser.add_argument("--plot-ext", default="png", help="Plot file extension (default: png)")
