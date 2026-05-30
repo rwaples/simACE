@@ -121,8 +121,11 @@ def _validate_half_sib_correlations(
             )
     else:
         for t in [1, 2]:
-            results[f"half_sib_liability{t}_correlation"] = _result(
-                True, f"Not enough PHS pairs ({n_phs}) for liability{t} correlation"
+            # Liability correlation is informational in the enough-data branch
+            # above, so its insufficient-data fallback is informational too —
+            # not a trivially-passing scored check.
+            results[f"half_sib_liability{t}_correlation"] = _info(
+                f"Not enough PHS pairs ({n_phs}) for liability{t} correlation"
             )
             results[f"half_sib_shared_C{t}"] = _result(True, f"Not enough PHS pairs ({n_phs}) for C{t} correlation")
 
@@ -165,8 +168,7 @@ def validate_half_sibs(
         observed_half_sib_prop = sib_info["n_maternal_half_sib_pairs"] / total_maternal_pairs
         # Range check: at lambda=0.5, most people have 1 partner, so half-sibs
         # should be present but not dominant. Wide tolerance for any lambda.
-        results["half_sib_pair_proportion"] = _result(
-            True,
+        results["half_sib_pair_proportion"] = _info(
             f"Maternal half-sib pair proportion: {observed_half_sib_prop:.4f} "
             f"(full={sib_info['n_full_sib_pairs']}, mat_hs={sib_info['n_maternal_half_sib_pairs']}, "
             f"pat_hs={sib_info['n_paternal_half_sib_pairs']})",
@@ -176,22 +178,21 @@ def validate_half_sibs(
             n_paternal_half_sib_pairs=int(sib_info["n_paternal_half_sib_pairs"]),
         )
     else:
-        results["half_sib_pair_proportion"] = _result(True, "No maternal sibling pairs to check")
+        results["half_sib_pair_proportion"] = _info("No maternal sibling pairs to check")
 
     # Offspring with maternal half-sib (informational)
     n_offspring_with_sibs = sib_info["n_offspring_with_sibs"]
     n_offspring_with_hs = sib_info["n_offspring_with_maternal_half_sib"]
     if n_offspring_with_sibs > 0:
         observed_frac = n_offspring_with_hs / n_offspring_with_sibs
-        results["offspring_with_half_sib"] = _result(
-            True,
+        results["offspring_with_half_sib"] = _info(
             f"Offspring with maternal half-sib: {observed_frac:.4f} ({n_offspring_with_hs}/{n_offspring_with_sibs})",
             observed=float(observed_frac),
             n_offspring_with_half_sib=int(n_offspring_with_hs),
             n_offspring_with_sibs=int(n_offspring_with_sibs),
         )
     else:
-        results["offspring_with_half_sib"] = _result(True, "No non-twin offspring with siblings to check")
+        results["offspring_with_half_sib"] = _info("No non-twin offspring with siblings to check")
 
     comp_vals = _extract_comp_vals(df_indexed)
     A_params = {1: params["A1"], 2: params["A2"]}

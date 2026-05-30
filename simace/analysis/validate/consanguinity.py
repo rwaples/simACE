@@ -5,7 +5,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from ._common import _result
+from ._common import _info, _result
 
 
 def validate_consanguineous_matings(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
@@ -52,7 +52,7 @@ def validate_consanguineous_matings(df: pd.DataFrame, params: dict[str, Any]) ->
     eligible_fathers = fathers[eligible]
 
     if len(eligible_ids) == 0:
-        results["consanguineous_count"] = _result(True, "No individuals with grandparents in pedigree")
+        results["consanguineous_count"] = _info("No individuals with grandparents in pedigree")
         return results
 
     # Look up all 4 grandparents for eligible individuals
@@ -88,8 +88,7 @@ def validate_consanguineous_matings(df: pd.DataFrame, params: dict[str, Any]) ->
     explained_missing = int((shared_count[is_consanguineous] * pair_counts[is_consanguineous]).sum())
 
     # Informational: report counts
-    results["consanguineous_count"] = _result(
-        True,
+    results["consanguineous_count"] = _info(
         f"Consanguineous matings: {n_half_sib_matings} half-sib, "
         f"{n_full_sib_matings} full-sib "
         f"(total missing GP links: {total_missing})",
