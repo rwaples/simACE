@@ -33,8 +33,8 @@ def write_parquet_plain(df: pd.DataFrame, path: str) -> None:
     """Write a DataFrame as parquet without dtype narrowing or compression tweaks.
 
     Mirrors the prior wrapper behavior of ``df.to_parquet(path, index=False)``,
-    distinct from :func:`simace.core.utils.save_parquet` which also calls
-    :func:`optimize_dtypes` and uses zstd.
+    distinct from :func:`simace.core.parquet.save_parquet` which also narrows
+    dtypes and uses zstd.
     """
     df.to_parquet(path, index=False)
 
