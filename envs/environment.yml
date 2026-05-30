@@ -24,9 +24,6 @@ dependencies:
   # dev / test
   - pytest=9.0.*
   - ruff=0.15.*
-  # notebook
-  - jupyter
-  - notebook
   # graphics
   - graphviz
   # MKL / linear algebra
