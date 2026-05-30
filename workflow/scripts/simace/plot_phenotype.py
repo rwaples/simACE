@@ -9,24 +9,24 @@ from simace.plotting.plot_phenotype import main
 
 def _run_snakemake():
     setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
-    stats_paths = snakemake.input.stats
+    report_paths = snakemake.input.report
+    plot_payload_paths = snakemake.input.plot_payload
     sample_paths = snakemake.input.samples
     censor_age = snakemake.params.censor_age
     gen_censoring = snakemake.params.gen_censoring or None
     plot_format = snakemake.params.plot_format
     output_dir = Path(snakemake.output[0]).parent
 
-    validation_paths = list(snakemake.input.validations)
     max_degree = int(getattr(snakemake.params, "max_degree", 2))
 
     main(
-        stats_paths,
+        report_paths,
+        plot_payload_paths,
         sample_paths,
         output_dir,
         censor_age,
         gen_censoring=gen_censoring,
         plot_ext=plot_format,
-        validation_paths=validation_paths,
         max_degree=max_degree,
     )
 

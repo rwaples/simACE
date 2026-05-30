@@ -1,0 +1,706 @@
+# ============================================================
+# ACE Simulation Validation Study — LTM arm
+# Threshold-model counterpart to config/paper_simulation.yaml
+# ============================================================
+#
+# Each scenario mirrors its frailty origin in paper_simulation.yaml
+# but draws case status from the adult/LTM liability-threshold
+# model at a true configured lifetime prevalence K. The CIF
+# midpoint (cip_x0, years) and steepness (cip_k) set the onset-age
+# profile; the frailty originals instead emit onset from a baseline
+# hazard calibrated to the same prevalence-by-80.
+#
+# Paired design: each scenario reuses the SAME seed as its frailty
+# origin, so the simulate stage draws an identical pedigree +
+# liability and the two arms differ only in phenotype mechanism.
+# Pedigree, N, generations, and the censoring schedule are copied
+# verbatim from the origin.
+#
+# onset_adult has no LTM copy here: it is ALREADY adult/ltm in
+# paper_simulation.yaml, so under the paired-seed design its copy
+# would be byte-for-byte identical. It stands alone as the LTM
+# reference; this file holds the 13 paired frailty -> LTM scenarios.
+#
+# Expected divergence (by design, not a bug): late-onset LTM copies
+# (onset_late_ltm, stress_high_herit_late_rare_ltm) realize observed
+# prevalence BELOW their configured K, because the CIF is not
+# saturated by age 80 and competing death removes late cases. The
+# K-vs-observed gap is a reported output of the comparison.
+# ============================================================
+
+
+# ══════════════════════════════════════════════════════════════
+# 1. HERITABILITY SERIES
+# ══════════════════════════════════════════════════════════════
+
+herit_low_ltm:
+  seed: 31000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.2
+      C: 0.0
+      E: 0.8
+    trait2:
+      A: 0.2
+      C: 0.0
+      E: 0.8
+    rA: 0.3
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.10
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.20
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+herit_moderate_ltm:
+  seed: 32000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.10
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.20
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+herit_high_ltm:
+  seed: 33000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.8
+      C: 0.0
+      E: 0.2
+    trait2:
+      A: 0.8
+      C: 0.0
+      E: 0.2
+    rA: 0.3
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.10
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.20
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+
+# ══════════════════════════════════════════════════════════════
+# 2. AGE-AT-ONSET SERIES  (onset_adult lives in paper_simulation)
+# ══════════════════════════════════════════════════════════════
+
+onset_early_ltm:
+  seed: 34000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 12
+        cip_k: 0.3
+        prevalence: 0.10
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16
+        cip_k: 0.3
+        prevalence: 0.20
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+onset_late_ltm:
+  seed: 36000
+  N: 100000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 65
+        cip_k: 0.15
+        prevalence: 0.10
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 60
+        cip_k: 0.15
+        prevalence: 0.20
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+
+# ══════════════════════════════════════════════════════════════
+# 3. PREVALENCE SERIES
+# ══════════════════════════════════════════════════════════════
+
+prev_rare_ltm:
+  seed: 37000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.02
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.02
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+prev_moderate_ltm:
+  seed: 38000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.10
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.15
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+prev_common_ltm:
+  seed: 39000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.35
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.40
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+
+# ══════════════════════════════════════════════════════════════
+# 4. CENSORING AND MORTALITY CONTRAST
+# ══════════════════════════════════════════════════════════════
+
+censoring_no_mortality_ltm:
+  seed: 40000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.10
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.20
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 100000
+    death_rho: 2.73
+
+censoring_with_mortality_ltm:
+  seed: 41000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.10
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.20
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+
+# ══════════════════════════════════════════════════════════════
+# 5. STRESS-TEST / COMBINED SCENARIOS
+# ══════════════════════════════════════════════════════════════
+
+stress_high_herit_late_rare_ltm:
+  seed: 42000
+  N: 100000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.8
+      C: 0.0
+      E: 0.2
+    trait2:
+      A: 0.8
+      C: 0.0
+      E: 0.2
+    rA: 0.5
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 65
+        cip_k: 0.15
+        prevalence: 0.02
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 60
+        cip_k: 0.15
+        prevalence: 0.02
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+stress_shared_env_common_ltm:
+  seed: 43000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.3
+      C: 0.3
+      E: 0.4
+    trait2:
+      A: 0.3
+      C: 0.3
+      E: 0.4
+    rA: 0.3
+    rC: 0.3
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.35
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.2
+        prevalence: 0.40
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73
+
+stress_low_herit_early_rare_ltm:
+  seed: 44000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  pedigree:
+    trait1:
+      A: 0.2
+      C: 0.0
+      E: 0.8
+    trait2:
+      A: 0.2
+      C: 0.0
+      E: 0.8
+    rA: 0.1
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 12
+        cip_k: 0.3
+        prevalence: 0.02
+      beta: 1.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 16
+        cip_k: 0.3
+        prevalence: 0.02
+      beta: 1.5
+  censoring:
+    max_age: 80
+    gen_censoring:
+      0: [0, 80]
+      1: [0, 80]
+      2: [0, 80]
+      3: [0, 70]
+      4: [0, 60]
+      5: [0, 50]
+      6: [0, 40]
+      7: [0, 30]
+      8: [0, 20]
+      9: [0, 10]
+    death_scale: 164
+    death_rho: 2.73

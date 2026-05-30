@@ -196,3 +196,55 @@ def test_simulate_with_sex_effect():
         generation=np.zeros(500, dtype=int),
     )
     assert np.all(np.isfinite(t))
+
+
+def test_cure_fraction_matches_analytical_formula():
+    """Observed cure fraction matches ``1 - exp(-2*y0_base*drift)`` (drift > 0).
+
+    With a homogeneous liability=0 population and ``standardize='none'``,
+    ``y0 = sqrt(shape) = y0_base = 1`` so the cure fraction reduces to
+    ``1 - exp(-2*drift)``.
+    """
+    drift = 0.5
+    n = 20_000
+    m = FirstPassageModel(drift=drift, shape=1.0, beta=1.0, standardize_hazard="none")
+    liability = np.zeros(n)
+    t = m.simulate(
+        liability=liability,
+        seed=42,
+        standardize="none",
+        sex=np.zeros(n, dtype=int),
+        generation=np.zeros(n, dtype=int),
+    )
+    observed_cure = (t >= 1e6 - 1).mean()
+    expected_cure = 1.0 - np.exp(-2.0 * 1.0 * drift)
+    assert observed_cure == pytest.approx(expected_cure, abs=0.02), (
+        f"cure fraction {observed_cure:.4f} != predicted {expected_cure:.4f}"
+    )
+
+
+def test_higher_liability_shortens_event_times_on_average():
+    """Larger liability shrinks ``y0`` via ``y0 = y0_base * exp(-beta*(liability-mean))``,
+    so a higher-liability cohort onsets earlier on average. Compare paired runs
+    that share seed and standardization and differ only in the input liability."""
+    n = 5_000
+    rng = np.random.default_rng(0)
+    base_liability = rng.standard_normal(n)
+    high_liability = base_liability + 1.0
+    m = FirstPassageModel(drift=-0.5, shape=1.0, beta=1.0, standardize_hazard="none")
+    t_base = m.simulate(
+        liability=base_liability,
+        seed=42,
+        standardize="none",
+        sex=np.zeros(n, dtype=int),
+        generation=np.zeros(n, dtype=int),
+    )
+    t_high = m.simulate(
+        liability=high_liability,
+        seed=42,
+        standardize="none",
+        sex=np.zeros(n, dtype=int),
+        generation=np.zeros(n, dtype=int),
+    )
+    # Mean event time strictly drops when liability is shifted up.
+    assert t_high.mean() < t_base.mean()

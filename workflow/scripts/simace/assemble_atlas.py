@@ -7,7 +7,7 @@ from simace import _snakemake_tag, setup_logging
 from simace.core.yaml_io import load_yaml
 from simace.plotting.atlas_manifest import build_phenotype_atlas
 from simace.plotting.plot_atlas import assemble_atlas
-from simace.plotting.stats_report import plotting_stats_views
+from simace.plotting.stats_report import plotting_report_views
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +55,12 @@ def _run_snakemake():
     plot_ext = scenario_params.get("plot_format", "png")
     items = build_phenotype_atlas(scenario_params)
 
-    # Load per-replicate stats reports for Table 1
-    all_stats = plotting_stats_views([load_yaml(stats_path) for stats_path in snakemake.input.stats])
+    # Build per-replicate plotting views for Table 1 from the curated v2 report
+    # plus its plot_payload (dense arrays merged back so Table 1 can derive
+    # onset quartiles).
+    reports = [load_yaml(p) for p in snakemake.input.report]
+    payloads = [load_yaml(p) for p in snakemake.input.plot_payload]
+    all_stats = plotting_report_views(reports, payloads)
 
     assemble_atlas(
         items,
@@ -80,7 +84,8 @@ if __name__ == "__main__":
         add_logging_args(parser)
         parser.add_argument("--plot-dir", required=True, help="Directory containing the plot PNGs")
         parser.add_argument("--params-yaml", default=None, help="Scenario params.yaml for title page")
-        parser.add_argument("--stats", nargs="*", default=[], help="stats_report.yaml paths (one per replicate)")
+        parser.add_argument("--report", nargs="*", default=[], help="report.yaml paths (one per replicate)")
+        parser.add_argument("--plot-payload", nargs="*", default=[], help="plot_payload.yaml paths (one per replicate)")
         parser.add_argument("--scenario", default="unknown", help="Scenario name")
         parser.add_argument("--output", required=True, help="Output PDF path")
         parser.add_argument("--plot-ext", default="png", help="Plot file extension (default: png)")
@@ -92,7 +97,9 @@ if __name__ == "__main__":
             scenario_params = load_yaml(args.params_yaml)
             scenario_params["scenario"] = args.scenario
 
-        all_stats = plotting_stats_views([load_yaml(sp) for sp in args.stats])
+        reports = [load_yaml(rp) for rp in args.report]
+        payloads = [load_yaml(pp) for pp in args.plot_payload] if args.plot_payload else [None] * len(reports)
+        all_stats = plotting_report_views(reports, payloads)
 
         items = build_phenotype_atlas(scenario_params)
         assemble_atlas(

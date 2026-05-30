@@ -3,42 +3,96 @@
 All notable changes to simACE are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
-simACE uses [CalVer](https://calver.org/) versioning (`YYYY.MM`) derived from git tags.
+simACE uses [CalVer](https://calver.org/) versioning (`YYYY.MM[.patch]`) from
+Git tags via `setuptools-scm`.
 
 ## Unreleased
 
-### Changed
+## 2026.05.3 — 2026-05-30
 
-- **K-free coancestry-rate Ne (Ne_C).** `compute_all_ne` now streams the
-  per-generation mean kinship `θ̄_g` directly from the kinship DP instead
-  of materializing the full sparse `K` matrix. The new
-  `PedigreeGraph.per_gen_mean_kinship(min_kinship=0.0)` method exposes
-  this path (cached, keyed by `min_kinship`). At N=100K (per-gen) on the
-  reference workstation: peak RSS drops ~30 % (12 → 9 GB) and `K`'s
-  ~3 GB CSC is never built. Above N≈3M the streaming path is the only
-  viable one — the K-build's int32 CSC indices overflow.
-- **Config flag rename: `skip_full_kinship_matrix` → `skip_ne_coancestry`.**
-  Hard rename across all simACE configs, workflow scripts, and CLI
-  surfaces; no deprecation alias. Old name was misleading once Ne_C no
-  longer requires `K` — the flag now describes what it actually does
-  (skip the Ne_C estimator and its DP run). External users of simACE
-  YAMLs must update their scenarios.
-- **pedigree-graph pin bumped twice: `v0.2.0 → v0.3.0 → v0.4.0`.**
-  v0.3.0 widens `row_start` in the DP kernel from int32 to int64 to
-  support N > ~525K at `init_cap_per_row=4096` (where the flat-buffer
-  offset crosses 2³¹). v0.4.0 adds the streaming-θ kernel
-  (`_compute_theta_per_gen`, `_per_gen_mean_kinship_from_dp`) and the
-  `pg.per_gen_mean_kinship()` wrapper.
+Headline: **Analyze replaces separate Validate and Stats stages.** It writes
+`report.yaml` v2 plus `plot_payload.yaml`, adds applied scenario suites, and
+cleans up plotting/relationship semantics.
+
+### Analyze (ADR 0006–0008)
+
+- **Merged stage.** `simace-analyze`, `simace.analysis.analyze`, and the
+  `analyze` rule run validation, full-population summaries, and sample stats in
+  one pass.
+- **Report v2.** `report.yaml` now uses scoped groups (`schema`, `replicate`,
+  `inputs`, `scopes`, `quality_checks`, `truth`, `observed`, `estimators`);
+  dense plot arrays moved to `plot_payload.yaml`.
+- **Old outputs removed.** `validation.yaml`, `stats_report.yaml`, and
+  `validation_summary.tsv` were replaced by `report.yaml`, `plot_payload.yaml`,
+  and `report_summary.tsv`.
+- **Ascertainment comparison.** `trait.full.parquet` is retained so reports
+  compare pre- and post-ascertainment populations.
 
 ### Added
 
-- New bench scenarios in `config/ne_coancestry_stream.yaml` (`stream100K`,
-  `stream500K`) exercising the K-free Ne_C path end-to-end through the
-  pipeline. Per-rep wall time at 100K is ~73 s.
-- `ne_coancestry(pg, K=None, theta_per_gen=None)` accepts a
-  pre-streamed θ̄_g directly when callers want to skip both the K-build
-  and the streaming DP (e.g., they already have θ̄_g from
-  `compute_all_ne`).
+- **Applied scenario suites.** Added `neurodev`, `neurodev_ltm`,
+  `paper_simulation`, and `paper_simulation_ltm` for ADHD/ASD/ID and
+  validation-study runs.
+- **Bias grid.** Added 64-cell `config/epimight_onset_censoring.yaml` sweep over
+  lifetime prevalence, onset midpoint, and right-censoring.
+- **Frailty calibration.** Added `scripts/calibrate_frailty_scale.py` to tune
+  baseline scales to target gen-0 prevalence.
+
+### Changed
+
+- **Expected correlations centralized.** Correlation plots now use
+  `core.relationships.expected_liability_corr` instead of hard-coded formulas;
+  unknown relationship types now error.
+- **Plot atlases registry-driven.** Phenotype, validation, and effective-size
+  atlases now dispatch through renderer registries covered by manifest tests.
+
+### Fixed
+
+- `death_censor()` no longer mutates inputs.
+- `gather` handles non-pattern paths.
+- Mortality plot labels fit at very low death rates.
+
+### Testing, workflow & environment
+
+- Added CLI, edge-case, report, registry, and shared-parquet coverage.
+- Added no-op stage performance checks and a 30 GB workflow `mem_mb` cap.
+- Pinned pandas `<3` and adopted CIF terminology.
+- Dropped unused `jupyter` / `notebook` from the conda env files.
+
+## 2026.05.2 — 2026-05-20
+
+Headline: **Unified ascertainment, Wright-Fisher mating, K-free Ne_C, and grouped
+stats reports.**
+
+### Added
+
+- **Unified ascertainment (ADR 0001).** Dropout and case-weighted `N_sample`
+  selection now run in one post-censor stage.
+- **Wright-Fisher mating (ADR 0002).** Added `mating_model: wright_fisher` with
+  two retained sexes, independent parent draws, no persistent pairs, and no MZ
+  twins.
+- **Ascertainment-bias example** plus pedigree-filter and effective-size
+  analysis modules.
+- **Ne_C benchmark scenarios.** Added `stream100K` and `stream500K` in
+  `config/ne_coancestry_stream.yaml`; `stream100K` runs in ~73 s per replicate.
+- `ne_coancestry(..., theta_per_gen=...)` can use pre-streamed per-generation
+  mean kinship and skip K construction/DP.
+
+### Changed
+
+- **Grouped stats reports (ADR 0003).** Replaced `phenotype_stats.yaml` and
+  `phenotype_samples.parquet` with `stats_report.yaml` and
+  `plotting_sample.parquet`; no compatibility reader. Superseded by the
+  Unreleased Analyze merge.
+- **K-free Ne_C.** `compute_all_ne` streams per-generation mean kinship via
+  `PedigreeGraph.per_gen_mean_kinship()` instead of building sparse `K`; at
+  N=100K peak RSS drops ~30% (12→9 GB), and the path avoids CSC index overflow
+  above ~3M.
+- **Config flag rename.** `skip_full_kinship_matrix` is now
+  `skip_ne_coancestry`; no alias.
+- **pedigree-graph pinned to `v0.5.1`.** Adds int64 DP `row_start` support and
+  the streaming-θ kernel.
+- **Python pinned to `3.13`** with Snakemake/SLURM plugin updates.
 
 ## 2026.05.1 — 2026-05-07
 

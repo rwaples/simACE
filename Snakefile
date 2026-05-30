@@ -6,7 +6,7 @@ from workflow.common import (
     get_folder,
     get_scenarios_for_folder,
     get_all_folders,
-    get_folder_validations,
+    get_folder_reports,
     get_scenario_simulation_outputs,
     get_scenario_sim_outputs,
     plot_filenames,
@@ -41,6 +41,7 @@ include: "workflow/rules/simace/phenotype.smk"
 include: "workflow/rules/simace/ascertainment.smk"
 include: "workflow/rules/simace/validate.smk"
 include: "workflow/rules/simace/stats.smk"
+include: "workflow/rules/simace/analyze.smk"
 include: "workflow/rules/simace/effective_size.smk"
 include: "workflow/rules/simace/utils.smk"
 include: "workflow/rules/simace/examples.smk"

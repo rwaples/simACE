@@ -1,4 +1,4 @@
-"""Build a scenario-level validation summary table from validation_summary.tsv."""
+"""Build a scenario-level validation summary table from report_summary.tsv."""
 
 import argparse
 from pathlib import Path
@@ -10,9 +10,9 @@ import pandas as pd
 # ---------------------------------------------------------------------
 
 # Column names below must match the schema produced by
-# simace.analysis.gather.extract_metrics (validation_summary.tsv); the
+# simace.analysis.gather.extract_metrics (report_summary.tsv); the
 # observed-metric columns are defined in
-# simace.analysis.validation_schema.METRIC_REGISTRY.
+# simace.analysis.report_schema.REPORT_SUMMARY_REGISTRY.
 
 # Columns representing true simulation parameters
 # (constant within each scenario)
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--summary",
         required=True,
-        help="Path to validation_summary.tsv.",
+        help="Path to report_summary.tsv.",
     )
     parser.add_argument(
         "--out_dir",

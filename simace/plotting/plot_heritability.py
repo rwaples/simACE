@@ -38,16 +38,17 @@ logger = logging.getLogger(__name__)
 
 
 def plot_heritability_by_generation(
-    all_validations: list[dict[str, Any]],
+    all_views: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
     """Plot narrow-sense heritability h² = Var(A)/(Var(A)+Var(C)+Var(E)) per generation.
 
-    Uses per-generation variance components from validation.yaml.
+    Uses per-generation variance components from ``truth.realized_by_generation``,
+    surfaced as ``per_generation`` in the flat plotting view.
     """
     # Extract per-generation data from each replicate
-    per_gen_all = [v.get("per_generation", {}) for v in all_validations]
+    per_gen_all = [v.get("per_generation", {}) for v in all_views]
     if not per_gen_all or not per_gen_all[0]:
         save_placeholder_plot(output_path, "No per-generation data")
         return
@@ -57,7 +58,7 @@ def plot_heritability_by_generation(
     generations = [int(k.split("_")[1]) for k in gen_keys]
 
     # Get configured heritability (expected value) from first replicate's parameters
-    params = all_validations[0].get("parameters", {})
+    params = all_views[0].get("parameters", {})
     expected_h2 = {1: params.get("A1", None), 2: params.get("A2", None)}
 
     _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
@@ -120,12 +121,12 @@ def plot_heritability_by_generation(
 
 
 def plot_broad_heritability_by_generation(
-    all_validations: list[dict[str, Any]],
+    all_views: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
     """Plot broad-sense heritability H² = (Var(A)+Var(C))/(Var(A)+Var(C)+Var(E)) per generation."""
-    per_gen_all = [v.get("per_generation", {}) for v in all_validations]
+    per_gen_all = [v.get("per_generation", {}) for v in all_views]
     if not per_gen_all or not per_gen_all[0]:
         save_placeholder_plot(output_path, "No per-generation data")
         return
@@ -133,7 +134,7 @@ def plot_broad_heritability_by_generation(
     gen_keys = sorted(per_gen_all[0].keys(), key=lambda k: int(k.split("_")[1]))
     generations = [int(k.split("_")[1]) for k in gen_keys]
 
-    params = all_validations[0].get("parameters", {})
+    params = all_views[0].get("parameters", {})
     expected_H2 = {}
     for t in [1, 2]:
         a = params.get(f"A{t}")

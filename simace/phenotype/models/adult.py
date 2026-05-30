@@ -3,12 +3,12 @@
 Two sub-methods, selected by ``method``:
 
 * ``ltm`` — liability threshold model: case status from raw liability vs.
-  threshold; case onset age via logistic-CIP transform of the case CIR
+  threshold; case onset age via logistic-CIF transform of the case CIR
   computed from a probit scaling of liability + sex.
 * ``cox`` — Weibull(shape=2) proportional hazards: case status by
-  rank/(N+1) capped at K; case onset age via logistic CIP inverse.
+  rank/(N+1) capped at K; case onset age via logistic CIF inverse.
 
-Both share the CIP shape parameters ``cip_x0`` and ``cip_k``. Reference:
+Both share the CIF shape parameters ``cip_x0`` and ``cip_k``. Reference:
 Pedersen et al., Nat Commun 2023 (ADuLT).
 
 Standardization routing is asymmetric across the two sub-methods:
@@ -67,8 +67,8 @@ class AdultModel(PhenotypeModel):
     Parameters:
         method:             ``"ltm"`` or ``"cox"``.
         prevalence:         case fraction K (scalar, per-generation, or sex-specific).
-        cip_x0:             logistic CIP midpoint age (default 50.0).
-        cip_k:              logistic CIP growth rate (default 0.2).
+        cip_x0:             logistic CIF midpoint age (default 50.0).
+        cip_k:              logistic CIF growth rate (default 0.2).
         beta:               liability scaling factor on the probit (ltm) or
                             log-hazard (cox) scale (1.0 = no scaling).
         beta_sex:           sex coefficient (0.0 = no effect).

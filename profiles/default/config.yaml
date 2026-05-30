@@ -1,0 +1,14 @@
+# Auto-discovered workflow profile (Snakemake >= 7.30): applied to every
+# invocation of the root Snakefile without needing --profile.
+#
+# Caps total memory. Per-job mem_mb hints (workflow/common.py _scale_mem)
+# are ADVISORY — Snakemake ignores them for scheduling unless a global
+# mem_mb budget exists. Without this cap, `--cores 8` could run 8
+# simulate/phenotype jobs at ~6 GB each (~48 GB) on a 30 GB box,
+# thrashing swap until the machine locks up. With the budget, the
+# scheduler caps concurrency at floor(30000 / per_job_mem_mb); large
+# (N=2M) sims that request ~24 GB then run one at a time.
+#
+# 30000 ≈ full RAM on this machine; drop to 24000 for more headroom.
+resources:
+  mem_mb: 30000

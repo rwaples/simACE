@@ -22,6 +22,7 @@ __all__ = [
 import argparse
 import contextlib
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -30,6 +31,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from simace.core.relationships import expected_liability_corr
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
     COLOR_EXPECTED,
@@ -200,9 +202,21 @@ def plot_A_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
 def plot_phenotype_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     """Plot MZ twin and full-sib liability correlations vs expected."""
     panels = [
-        ("mz_twin_liability1_corr", lambda d: d["A1"].iloc[0] + d["C1"].iloc[0], "MZ Twin Liability1 Corr"),
-        ("dz_sibling_liability1_corr", lambda d: 0.5 * d["A1"].iloc[0] + d["C1"].iloc[0], "DZ Sibling Liability1 Corr"),
-        ("half_sib_liability1_corr", lambda d: 0.25 * d["A1"].iloc[0], "Half-Sib Liability1 Corr"),
+        (
+            "mz_twin_liability1_corr",
+            lambda d: expected_liability_corr("MZ", d["A1"].iloc[0], d["C1"].iloc[0]),
+            "MZ Twin Liability1 Corr",
+        ),
+        (
+            "dz_sibling_liability1_corr",
+            lambda d: expected_liability_corr("FS", d["A1"].iloc[0], d["C1"].iloc[0]),
+            "DZ Sibling Liability1 Corr",
+        ),
+        (
+            "half_sib_liability1_corr",
+            lambda d: expected_liability_corr("PHS", d["A1"].iloc[0], d["C1"].iloc[0]),
+            "Half-Sib Liability1 Corr",
+        ),
         ("parent_offspring_liability1_slope", lambda d: d["A1"].iloc[0], "Midparent-Offspring Liability1 Slope"),
     ]
     fig, axes = plt.subplots(2, 2, figsize=_figsize(nrows=2, ncols=2))
@@ -516,6 +530,39 @@ def plot_consanguineous_matings(df: pd.DataFrame, out: Path, ext: str = "png") -
     save(fig, out / f"consanguineous_matings.{ext}")
 
 
+@dataclass(frozen=True)
+class ValidationRenderSpec:
+    """One validation plot: its output basename and the function that renders it.
+
+    The plot functions self-name their file (``out / f"<basename>.<ext>"``);
+    ``basename`` here is the manifest-facing label kept in lockstep with
+    :data:`simace.plotting.atlas_manifest.VALIDATION_ATLAS` by the
+    renderer-coverage test in ``tests/plotting/test_atlas_manifest.py``.
+    """
+
+    basename: str
+    render: Callable[[pd.DataFrame, Path, str], None]
+
+
+# Registry binding each validation basename to its renderer. Adding a plot means
+# adding a PlotEntry to VALIDATION_ATLAS *and* a spec here; the renderer-coverage
+# test fails if the two basename sets diverge.
+VALIDATION_RENDERERS: tuple[ValidationRenderSpec, ...] = (
+    ValidationRenderSpec("family_size", plot_family_size),
+    ValidationRenderSpec("twin_rate", plot_twin_rate),
+    ValidationRenderSpec("half_sib_proportions", plot_half_sib_proportions),
+    ValidationRenderSpec("consanguineous_matings", plot_consanguineous_matings),
+    ValidationRenderSpec("variance_components", plot_variance_components),
+    ValidationRenderSpec("correlations_A", plot_A_correlations),
+    ValidationRenderSpec("correlations_phenotype", plot_phenotype_correlations),
+    ValidationRenderSpec("heritability_estimates", plot_heritability_estimates),
+    ValidationRenderSpec("cross_trait_correlations", plot_cross_trait_correlations),
+    ValidationRenderSpec("summary_bias", plot_summary_bias),
+    ValidationRenderSpec("runtime", plot_runtime),
+    ValidationRenderSpec("memory", plot_memory),
+)
+
+
 def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
     """Generate all validation plots from a gathered metrics TSV."""
     out = Path(output_dir)
@@ -532,18 +579,8 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
         df["scenario"] = pd.Categorical(df["scenario"], categories=scenario_order, ordered=True)
         df = df.sort_values("scenario").reset_index(drop=True)
 
-    plot_variance_components(df, out, ext=plot_ext)
-    plot_twin_rate(df, out, ext=plot_ext)
-    plot_A_correlations(df, out, ext=plot_ext)
-    plot_phenotype_correlations(df, out, ext=plot_ext)
-    plot_heritability_estimates(df, out, ext=plot_ext)
-    plot_half_sib_proportions(df, out, ext=plot_ext)
-    plot_cross_trait_correlations(df, out, ext=plot_ext)
-    plot_family_size(df, out, ext=plot_ext)
-    plot_summary_bias(df, out, ext=plot_ext)
-    plot_runtime(df, out, ext=plot_ext)
-    plot_memory(df, out, ext=plot_ext)
-    plot_consanguineous_matings(df, out, ext=plot_ext)
+    for spec in VALIDATION_RENDERERS:
+        spec.render(df, out, ext=plot_ext)
 
     # Assemble validation atlas PDF — order, captions, and (future) section
     # breaks live in the manifest.

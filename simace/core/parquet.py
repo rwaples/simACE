@@ -10,8 +10,11 @@ if TYPE_CHECKING:
     import pandas as pd
 
 
-def _optimize_dtypes(df: pd.DataFrame) -> None:
-    """Downcast DataFrame columns in-place for compact parquet storage.
+def _optimized_dtypes(df: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy of ``df`` with columns downcast for compact parquet storage.
+
+    Does **not** mutate the input — narrowing is applied via ``df.astype`` to a
+    new DataFrame.
 
     Dtype strategy (matching pedigree generation-time dtypes):
     - int32 for ID columns and generation (supports up to 2.1B individuals)
@@ -34,26 +37,32 @@ def _optimize_dtypes(df: pd.DataFrame) -> None:
         "t_observed1",
         "t_observed2",
     ]
+    mapping: dict[str, str] = {}
     for c in int32_cols:
         if c in df.columns:
-            df[c] = df[c].astype("int32")
+            mapping[c] = "int32"
     for c in int8_cols:
         if c in df.columns:
-            df[c] = df[c].astype("int8")
+            mapping[c] = "int8"
     for c in float32_cols:
         if c in df.columns:
-            df[c] = df[c].astype("float32")
+            mapping[c] = "float32"
+
+    if not mapping:
+        return df
+    return df.astype(mapping)
 
 
 def save_parquet(df: pd.DataFrame, path: Any, **kwargs: Any) -> None:
     """Save DataFrame as parquet with optimized dtypes and zstd compression.
 
-    Calls ``_optimize_dtypes`` before writing to minimize file size.
+    Narrows dtypes via :func:`_optimized_dtypes` (to minimize file size) before
+    writing. The caller's ``df`` is **not** mutated — narrowing is applied to an
+    internal copy.
 
     Args:
         df: DataFrame to save.
         path: Output file path.
         **kwargs: Extra keyword arguments passed to ``DataFrame.to_parquet``.
     """
-    _optimize_dtypes(df)
-    df.to_parquet(path, index=False, compression="zstd", **kwargs)
+    _optimized_dtypes(df).to_parquet(path, index=False, compression="zstd", **kwargs)

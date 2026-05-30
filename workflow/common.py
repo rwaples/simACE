@@ -34,7 +34,7 @@ __all__ = [
     "flatten_hierarchical",
     "get_all_folders",
     "get_folder",
-    "get_folder_validations",
+    "get_folder_reports",
     "get_param",
     "get_scenario_sim_outputs",
     "get_scenario_simulation_outputs",
@@ -163,10 +163,11 @@ def get_scenario_sim_outputs(config: dict, scenario: str, plot_ext: str = "png")
     outputs = []
     for rep in range(1, n_reps + 1):
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/pedigree.parquet")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.full.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.simple_ltm.parquet")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/validation.yaml")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/stats_report.yaml")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/report.yaml")
+        outputs.append(f"results/{folder}/{scenario}/rep{rep}/plot_payload.yaml")
     outputs.extend(
         f"results/{folder}/{scenario}/plots/{plot}" for plot in plot_filenames(phenotype_basenames(), plot_ext)
     )
@@ -181,10 +182,10 @@ def get_scenario_simulation_outputs(config: dict, scenario: str) -> list[str]:
     return [f"results/{folder}/{scenario}/rep{rep}/pedigree.full.parquet" for rep in range(1, n_reps + 1)]
 
 
-def get_folder_validations(config: dict, folder: str) -> list[str]:
-    """Generate validation file paths for scenarios in a given folder."""
-    validations = []
+def get_folder_reports(config: dict, folder: str) -> list[str]:
+    """Generate combined-report (report.yaml) file paths for a given folder."""
+    reports = []
     for scenario in get_scenarios_for_folder(config, folder):
         n_reps = get_param(config, scenario, "replicates")
-        validations.extend(f"results/{folder}/{scenario}/rep{rep}/validation.yaml" for rep in range(1, n_reps + 1))
-    return validations
+        reports.extend(f"results/{folder}/{scenario}/rep{rep}/report.yaml" for rep in range(1, n_reps + 1))
+    return reports

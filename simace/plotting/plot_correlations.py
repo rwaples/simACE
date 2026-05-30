@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 import matplotlib.pyplot as plt
 import numpy as np
 
-from simace.core.relationships import RELATIONSHIP_TYPES
+from simace.core.relationships import RELATIONSHIP_TYPES, expected_liability_corr
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
     COLOR_OBSERVED,
@@ -42,26 +42,6 @@ from simace.plotting.plot_utils import (
 )
 
 logger = logging.getLogger(__name__)
-
-# Parametric expected liability correlations under the ACE model
-_EXPECTED_R_COEFFICIENTS: dict[str, tuple[float, float]] = {
-    # relationship_type: (coefficient of A, coefficient of C)
-    "MZ": (1.0, 1.0),
-    "FS": (0.5, 1.0),
-    "MHS": (0.25, 1.0),  # maternal half-sibs share household (assigned by mother)
-    "PHS": (0.25, 0.0),
-    "MO": (0.5, 0.0),
-    "FO": (0.5, 0.0),
-    "1C": (0.125, 0.0),
-}
-
-
-def _expected_liability_corr(A: float, C: float, relationship_type: str) -> float | None:
-    """Return parametric E[r] for the given pair type, or None if unknown."""
-    coeffs = _EXPECTED_R_COEFFICIENTS.get(relationship_type)
-    if coeffs is None:
-        return None
-    return coeffs[0] * A + coeffs[1] * C
 
 
 def _extract_relationship_type_observed(
@@ -112,12 +92,7 @@ def _parametric_per_relationship_type(
     C = params.get(f"C{trait_num}")
     if A is None or C is None:
         return {}
-    out: dict[str, float] = {}
-    for ptype in relationship_types:
-        exp_r = _expected_liability_corr(float(A), float(C), ptype)
-        if exp_r is not None:
-            out[ptype] = float(exp_r)
-    return out
+    return {ptype: expected_liability_corr(ptype, float(A), float(C)) for ptype in relationship_types}
 
 
 def plot_tetrachoric_sibling(

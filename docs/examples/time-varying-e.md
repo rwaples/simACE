@@ -74,15 +74,15 @@ exactly; $v_A$ should remain flat at the input $0.5$ (no AM, no
 selection); and $h^2 = v_A / (v_A + v_E)$ should drift inversely to
 $v_E$.
 
-`validation.yaml` records the per-generation realized ACE components
+`report.yaml` records the per-generation realized ACE components
 for every replicate, allowing this drift to be examined directly:
 
 ![Realized vA, vC, vE, h² by generation across E trajectories](../images/examples/increasing_e/realized_components_trajectory.png)
 
 (A note on gen indexing: simACE stores 0-indexed generations in
 `pedigree.parquet` (gens 0–9 for `G_pheno=10`) but labels them 1-indexed
-in `validation.yaml` (`generation_1` … `generation_10`). The trajectory
-plot here reads `validation.yaml` so its x-axis is 1–10, with **gen 1 =
+in `report.yaml` (`generation_1` … `generation_10`). The trajectory
+plot here reads `report.yaml` so its x-axis is 1–10, with **gen 1 =
 founders**. The cohort plots later on this page (FS correlation,
 Falconer, components-by-generation) read `pedigree.parquet`, so their
 x-axis is 0–9 with **gen 0 = founders**. In both cases gen "$N$" is the

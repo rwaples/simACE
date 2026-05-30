@@ -36,7 +36,7 @@ simACE/
 │   │   └── __init__.py                   # run_ascertainment: unified dropout + case-weighted N_sample (per ADR 0001)
 │   ├── analysis/
 │   │   ├── stats/                        # Per-concern stats package (split from old stats.py)
-│   │   │   ├── runner.py                 # Orchestrator (builds stats_report.yaml)
+│   │   │   ├── runner.py                 # Stats orchestrator (analysis-sample stats for report.yaml)
 │   │   │   ├── correlations.py           # Pairwise correlations and parent-offspring regressions
 │   │   │   ├── tetrachoric.py            # Tetrachoric correlations + Falconer h²
 │   │   │   ├── pedigree.py               # Pair counts and family-structure stats
@@ -44,7 +44,7 @@ simACE/
 │   │   │   ├── censoring.py              # Censoring confusion / cascade
 │   │   │   └── sampling.py               # Sample-summary statistics
 │   │   ├── validate.py                   # Structural + statistical validation
-│   │   └── gather.py                     # Gather validation results into validation_summary.tsv
+│   │   └── gather.py                     # Gather per-replicate report summaries into report_summary.tsv
 │   └── plotting/
 │       ├── plot_utils.py                 # Shared plotting helpers (finalize_plot, violin, heatmap)
 │       ├── plot_style.py                 # Color palette and shared style tokens

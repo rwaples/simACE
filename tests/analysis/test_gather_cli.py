@@ -6,6 +6,8 @@ import logging
 import pytest
 import yaml
 
+from simace.analysis.report import assemble_report
+
 # ---------------------------------------------------------------------------
 # cli_base
 # ---------------------------------------------------------------------------
@@ -140,6 +142,18 @@ _MINIMAL_VALIDATION = {
     },
 }
 
+# extract_metrics reads a curated v2 report (ADR 0008). Funnel the
+# validation-shaped fixture through the real builder so registry paths line up.
+_MINIMAL_REPORT, _ = assemble_report(
+    replicate={"folder": "base", "scenario": "minimal", "rep": 1, "seed": 42},
+    params=_MINIMAL_VALIDATION["parameters"],
+    case_ascertainment_ratio=1.0,
+    validation_report=_MINIMAL_VALIDATION,
+    stats_report={},
+    prevalence_phenotyped={},
+    scope_counts={},
+)
+
 
 class TestExtractMetrics:
     def test_extracts_scenario_and_rep_from_path(self, tmp_path):
@@ -148,8 +162,8 @@ class TestExtractMetrics:
         # Create path that matches the expected pattern
         val_dir = tmp_path / "results" / "base" / "my_scenario" / "rep2"
         val_dir.mkdir(parents=True)
-        val_path = val_dir / "validation.yaml"
-        val_path.write_text(yaml.dump(_MINIMAL_VALIDATION))
+        val_path = val_dir / "report.yaml"
+        val_path.write_text(yaml.dump(_MINIMAL_REPORT))
 
         row = extract_metrics(str(val_path))
         assert row["scenario"] == "my_scenario"
@@ -160,8 +174,8 @@ class TestExtractMetrics:
 
         val_dir = tmp_path / "results" / "base" / "scA" / "rep1"
         val_dir.mkdir(parents=True)
-        val_path = val_dir / "validation.yaml"
-        val_path.write_text(yaml.dump(_MINIMAL_VALIDATION))
+        val_path = val_dir / "report.yaml"
+        val_path.write_text(yaml.dump(_MINIMAL_REPORT))
 
         row = extract_metrics(str(val_path))
         assert row["N"] == 1000
@@ -179,8 +193,8 @@ class TestExtractMetrics:
         # extension that won't be found.
         val_dir = tmp_path / "results" / "folder" / "scX" / "rep1"
         val_dir.mkdir(parents=True)
-        val_path = val_dir / "validation.yaml"
-        val_path.write_text(yaml.dump(_MINIMAL_VALIDATION))
+        val_path = val_dir / "report.yaml"
+        val_path.write_text(yaml.dump(_MINIMAL_REPORT))
         # This matches the pattern, so scenario/rep are extracted from path.
         # To truly test "unknown", we'd need a path that doesn't match,
         # but that triggers a bug in gather.py (bench_path == val_path).
@@ -198,13 +212,13 @@ class TestGatherMain:
         for sc, rep in [("scA", 1), ("scB", 1)]:
             val_dir = tmp_path / "results" / "base" / sc / f"rep{rep}"
             val_dir.mkdir(parents=True)
-            val_path = val_dir / "validation.yaml"
-            val_path.write_text(yaml.dump(_MINIMAL_VALIDATION))
+            val_path = val_dir / "report.yaml"
+            val_path.write_text(yaml.dump(_MINIMAL_REPORT))
 
         out_path = tmp_path / "summary.tsv"
         files = [
-            str(tmp_path / "results" / "base" / "scA" / "rep1" / "validation.yaml"),
-            str(tmp_path / "results" / "base" / "scB" / "rep1" / "validation.yaml"),
+            str(tmp_path / "results" / "base" / "scA" / "rep1" / "report.yaml"),
+            str(tmp_path / "results" / "base" / "scB" / "rep1" / "report.yaml"),
         ]
         main(files, str(out_path))
 
@@ -221,20 +235,21 @@ class TestGatherMain:
         for sc, rep in [("scB", 2), ("scA", 1), ("scB", 1)]:
             val_dir = tmp_path / "results" / "base" / sc / f"rep{rep}"
             val_dir.mkdir(parents=True)
-            val_path = val_dir / "validation.yaml"
-            val_path.write_text(yaml.dump(_MINIMAL_VALIDATION))
+            val_path = val_dir / "report.yaml"
+            val_path.write_text(yaml.dump(_MINIMAL_REPORT))
 
         out_path = tmp_path / "summary.tsv"
         files = [
-            str(tmp_path / "results" / "base" / "scB" / "rep2" / "validation.yaml"),
-            str(tmp_path / "results" / "base" / "scA" / "rep1" / "validation.yaml"),
-            str(tmp_path / "results" / "base" / "scB" / "rep1" / "validation.yaml"),
+            str(tmp_path / "results" / "base" / "scB" / "rep2" / "report.yaml"),
+            str(tmp_path / "results" / "base" / "scA" / "rep1" / "report.yaml"),
+            str(tmp_path / "results" / "base" / "scB" / "rep1" / "report.yaml"),
         ]
         main(files, str(out_path))
 
         lines = out_path.read_text().strip().split("\n")
-        data_rows = lines[1:]
-        scenarios = [row.split("\t")[0] for row in data_rows]
+        header = lines[0].split("\t")
+        sc_idx = header.index("scenario")
+        scenarios = [row.split("\t")[sc_idx] for row in lines[1:]]
         assert scenarios == ["scA", "scB", "scB"]
 
     def test_empty_input_no_crash(self, tmp_path):
@@ -244,3 +259,75 @@ class TestGatherMain:
         main([], str(out_path))
         # No file written for empty input
         assert not out_path.exists()
+
+
+class TestExtractMetricsBranches:
+    """Branches in ``extract_metrics`` not exercised elsewhere."""
+
+    def test_path_without_results_pattern_defaults_to_unknown(self, tmp_path):
+        """A report YAML whose path doesn't match ``results/{folder}/{scenario}/rep{N}``
+        falls through to ``scenario='unknown'`` / ``rep=1``."""
+        from simace.analysis.gather import extract_metrics
+
+        val_path = tmp_path / "stray_report.yaml"
+        val_path.write_text(yaml.dump(_MINIMAL_REPORT))
+
+        row = extract_metrics(str(val_path))
+        assert row["scenario"] == "unknown"
+        assert row["rep"] == 1
+        assert row["simulate_seconds"] is None
+        assert row["simulate_max_rss_mb"] is None
+
+    def test_benchmark_tsv_populates_timing_fields(self, tmp_path, monkeypatch):
+        """When ``benchmarks/{folder}/{scenario}/rep{N}/simulate.tsv`` exists,
+        ``simulate_seconds`` and ``simulate_max_rss_mb`` are read from it."""
+        import platform
+
+        from simace.analysis.gather import extract_metrics
+
+        monkeypatch.chdir(tmp_path)
+
+        val_dir = tmp_path / "results" / "base" / "myscenario" / "rep1"
+        val_dir.mkdir(parents=True)
+        val_path = val_dir / "report.yaml"
+        val_path.write_text(yaml.dump(_MINIMAL_REPORT))
+
+        bench_dir = tmp_path / "benchmarks" / "base" / "myscenario" / "rep1"
+        bench_dir.mkdir(parents=True)
+        bench_path = bench_dir / "simulate.tsv"
+        bench_path.write_text("s\tmax_rss\tio_in\n1.23\t456.7\t0\n")
+
+        row = extract_metrics(str(val_path))
+        assert row["simulate_seconds"] == pytest.approx(1.23)
+        if platform.system() == "Windows":
+            assert row["simulate_max_rss_mb"] == pytest.approx(1.0)
+        else:
+            assert row["simulate_max_rss_mb"] == pytest.approx(456.7)
+
+
+class TestGatherCli:
+    """End-to-end CLI smoke for ``simace.analysis.gather:cli``."""
+
+    def test_cli_writes_tsv(self, tmp_path, monkeypatch):
+        import sys
+
+        from simace.analysis.gather import cli as gather_cli
+
+        # Two scenario YAMLs.
+        files = []
+        for sc in ("scA", "scB"):
+            val_dir = tmp_path / "results" / "base" / sc / "rep1"
+            val_dir.mkdir(parents=True)
+            val_path = val_dir / "report.yaml"
+            val_path.write_text(yaml.dump(_MINIMAL_REPORT))
+            files.append(str(val_path))
+
+        out_path = tmp_path / "summary.tsv"
+        monkeypatch.setattr(sys, "argv", ["gather", *files, "--output", str(out_path)])
+        gather_cli()
+
+        assert out_path.exists()
+        lines = out_path.read_text().strip().split("\n")
+        assert len(lines) == 3  # header + 2 rows
+        header = lines[0].split("\t")
+        assert {"scenario", "rep", "N", "A1"}.issubset(set(header))
