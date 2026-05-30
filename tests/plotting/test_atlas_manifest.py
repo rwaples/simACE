@@ -11,31 +11,9 @@ from simace.plotting.atlas_manifest import (
     phenotype_basenames,
     validation_basenames,
 )
+from simace.plotting.plot_effective_size import EFFECTIVE_SIZE_RENDERERS
 from simace.plotting.plot_phenotype import PHENOTYPE_RENDERERS
-
-# Includes ``consanguineous_matings`` at index 3 — the entry that
-# ``workflow/common.py`` pre-PR8 was missing despite it being rendered.
-EXPECTED_VALIDATION_BASENAMES = [
-    "family_size",
-    "twin_rate",
-    "half_sib_proportions",
-    "consanguineous_matings",
-    "variance_components",
-    "correlations_A",
-    "correlations_phenotype",
-    "heritability_estimates",
-    "cross_trait_correlations",
-    "summary_bias",
-    "runtime",
-    "memory",
-]
-
-EXPECTED_EFFECTIVE_SIZE_BASENAMES = [
-    "effective_size.estimators",
-    "effective_size.by_generation",
-    "effective_size.drift",
-    "effective_size.family_size_variance",
-]
+from simace.plotting.plot_validation import VALIDATION_RENDERERS
 
 
 def test_every_phenotype_basename_has_exactly_one_renderer():
@@ -51,12 +29,22 @@ def test_every_phenotype_basename_has_exactly_one_renderer():
     assert len(reg) == len(set(reg))
 
 
-def test_validation_basenames_match_frozen_list():
-    assert validation_basenames() == EXPECTED_VALIDATION_BASENAMES
+def test_every_validation_basename_has_exactly_one_renderer():
+    """VALIDATION_RENDERERS and VALIDATION_ATLAS must declare the same basenames.
+
+    Drift gate that replaced the frozen validation basename list (mirrors the
+    phenotype equivalent). Parity is asserted on the set, not the order.
+    """
+    reg = [spec.basename for spec in VALIDATION_RENDERERS]
+    assert sorted(reg) == sorted(validation_basenames())
+    assert len(reg) == len(set(reg))
 
 
-def test_effective_size_basenames_match_frozen_list():
-    assert effective_size_basenames() == EXPECTED_EFFECTIVE_SIZE_BASENAMES
+def test_every_effective_size_basename_has_exactly_one_renderer():
+    """EFFECTIVE_SIZE_RENDERERS and EFFECTIVE_SIZE_ATLAS must declare the same basenames."""
+    reg = [spec.basename for spec in EFFECTIVE_SIZE_RENDERERS]
+    assert sorted(reg) == sorted(effective_size_basenames())
+    assert len(reg) == len(set(reg))
 
 
 def test_phenotype_basenames_are_unique():

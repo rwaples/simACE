@@ -22,6 +22,7 @@ __all__ = [
 import argparse
 import contextlib
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -529,6 +530,39 @@ def plot_consanguineous_matings(df: pd.DataFrame, out: Path, ext: str = "png") -
     save(fig, out / f"consanguineous_matings.{ext}")
 
 
+@dataclass(frozen=True)
+class ValidationRenderSpec:
+    """One validation plot: its output basename and the function that renders it.
+
+    The plot functions self-name their file (``out / f"<basename>.<ext>"``);
+    ``basename`` here is the manifest-facing label kept in lockstep with
+    :data:`simace.plotting.atlas_manifest.VALIDATION_ATLAS` by the
+    renderer-coverage test in ``tests/plotting/test_atlas_manifest.py``.
+    """
+
+    basename: str
+    render: Callable[[pd.DataFrame, Path, str], None]
+
+
+# Registry binding each validation basename to its renderer. Adding a plot means
+# adding a PlotEntry to VALIDATION_ATLAS *and* a spec here; the renderer-coverage
+# test fails if the two basename sets diverge.
+VALIDATION_RENDERERS: tuple[ValidationRenderSpec, ...] = (
+    ValidationRenderSpec("family_size", plot_family_size),
+    ValidationRenderSpec("twin_rate", plot_twin_rate),
+    ValidationRenderSpec("half_sib_proportions", plot_half_sib_proportions),
+    ValidationRenderSpec("consanguineous_matings", plot_consanguineous_matings),
+    ValidationRenderSpec("variance_components", plot_variance_components),
+    ValidationRenderSpec("correlations_A", plot_A_correlations),
+    ValidationRenderSpec("correlations_phenotype", plot_phenotype_correlations),
+    ValidationRenderSpec("heritability_estimates", plot_heritability_estimates),
+    ValidationRenderSpec("cross_trait_correlations", plot_cross_trait_correlations),
+    ValidationRenderSpec("summary_bias", plot_summary_bias),
+    ValidationRenderSpec("runtime", plot_runtime),
+    ValidationRenderSpec("memory", plot_memory),
+)
+
+
 def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
     """Generate all validation plots from a gathered metrics TSV."""
     out = Path(output_dir)
@@ -545,18 +579,8 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
         df["scenario"] = pd.Categorical(df["scenario"], categories=scenario_order, ordered=True)
         df = df.sort_values("scenario").reset_index(drop=True)
 
-    plot_variance_components(df, out, ext=plot_ext)
-    plot_twin_rate(df, out, ext=plot_ext)
-    plot_A_correlations(df, out, ext=plot_ext)
-    plot_phenotype_correlations(df, out, ext=plot_ext)
-    plot_heritability_estimates(df, out, ext=plot_ext)
-    plot_half_sib_proportions(df, out, ext=plot_ext)
-    plot_cross_trait_correlations(df, out, ext=plot_ext)
-    plot_family_size(df, out, ext=plot_ext)
-    plot_summary_bias(df, out, ext=plot_ext)
-    plot_runtime(df, out, ext=plot_ext)
-    plot_memory(df, out, ext=plot_ext)
-    plot_consanguineous_matings(df, out, ext=plot_ext)
+    for spec in VALIDATION_RENDERERS:
+        spec.render(df, out, ext=plot_ext)
 
     # Assemble validation atlas PDF — order, captions, and (future) section
     # breaks live in the manifest.
