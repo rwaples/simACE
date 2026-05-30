@@ -37,6 +37,8 @@ from simace.core._numba_utils import _ndtri_approx
 from simace.core.parquet import save_parquet
 from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
+from simace.simulation.assortment import AssortmentPlan
+from simace.simulation.params import SimulationParams
 
 try:
     from numba import njit
@@ -1212,86 +1214,35 @@ def run_simulation(
     Raises:
         ValueError: if any parameter is outside its valid range
     """
-    if G_sim is None:
-        G_sim = G_ped
-
-    # --- mating_model allowed-value check (gates standard-only validation
-    # below — config-load enforces this too, but run_simulation is also a
-    # public API exercised by tests) ---
-    from simace.config import VALID_MATING_MODELS
-
-    if mating_model not in VALID_MATING_MODELS:
-        raise ValueError(f"mating_model must be one of {sorted(VALID_MATING_MODELS)}, got {mating_model!r}")
-
-    # --- Input validation ---
-    for name, val in [("A1", A1), ("C1", C1), ("A2", A2), ("C2", C2)]:
-        if not (isinstance(val, (int, float)) and val >= 0):
-            raise ValueError(f"{name} must be a non-negative scalar, got {val}")
-
-    if not (int(N) == N and N > 0):
-        raise ValueError(f"N must be a positive integer, got {N}")
-    if not (G_ped == int(G_ped) and G_ped >= 1):
-        raise ValueError(f"G_ped must be an integer >= 1, got {G_ped}")
-    if not (-1 <= rA <= 1):
-        raise ValueError(f"rA must be in [-1, 1], got {rA}")
-    if not (-1 <= rC <= 1):
-        raise ValueError(f"rC must be in [-1, 1], got {rC}")
-    if not (-1 <= rE <= 1):
-        raise ValueError(f"rE must be in [-1, 1], got {rE}")
-
-    # Standard-model-only validation: mating_lambda, p_mztwin, assort* are
-    # no-ops under WF (each offspring picks parents independently → no ZTP,
-    # no twin-eligible matings, no AM by construction). Skip these checks
-    # so callers can pass inherited defaults under WF without pre-zeroing.
-    if mating_model == "standard":
-        if not (mating_lambda > 0):
-            raise ValueError(f"mating_lambda must be > 0, got {mating_lambda}")
-        if not (0 <= p_mztwin < 1):
-            raise ValueError(f"p_mztwin must be in [0, 1), got {p_mztwin}")
-
-        # assort1/assort2 may be scalar or per-gen dict (raw-iter keyed,
-        # forward-filled). Validate each before resolving.
-        def _validate_assort_value(name: str, value: float | dict[int, float]) -> None:
-            if isinstance(value, dict):
-                for k, v in value.items():
-                    if not (-1 <= float(v) <= 1):
-                        raise ValueError(f"{name}[{k}] must be in [-1, 1], got {v}")
-            elif not (-1 <= float(value) <= 1):
-                raise ValueError(f"{name} must be in [-1, 1], got {value}")
-
-        _validate_assort_value("assort1", assort1)
-        _validate_assort_value("assort2", assort2)
-
-        # Per-gen assort dicts are incompatible with a fixed `assort_matrix`
-        # because the matrix specifies one off-diagonal cross-AM, while per-gen
-        # AM implies the cross-AM also varies per generation. v1 rejects this
-        # combination — users wanting a fixed cross-AM must use scalar
-        # assort1/assort2.
-        if assort_matrix is not None and (isinstance(assort1, dict) or isinstance(assort2, dict)):
-            raise ValueError(
-                "assort_matrix is incompatible with per-generation assort1/assort2 "
-                "(dict-valued). Pass scalar assort1/assort2 with assort_matrix, or "
-                "use per-gen dicts and let cross-AM auto-compute from rho_w."
-            )
-
-    # Resolve assort_matrix (standard-only — WF has no AM)
-    R_mf = None
-    if mating_model == "standard" and assort_matrix is not None:
-        R_mf = np.asarray(assort_matrix, dtype=np.float64)
-        if R_mf.shape != (2, 2):
-            raise ValueError(f"assort_matrix must be 2x2, got shape {R_mf.shape}")
-        if abs(R_mf[0, 1] - R_mf[1, 0]) > 1e-10:
-            raise ValueError(f"assort_matrix must be symmetric: got [{R_mf[0, 1]}, {R_mf[1, 0]}]")
-        # Scalar assort1/assort2 override from the matrix diagonal.
-        assort1 = float(R_mf[0, 0])
-        assort2 = float(R_mf[1, 1])
-        if not (-1 <= assort1 <= 1):
-            raise ValueError(f"assort_matrix[0,0] must be in [-1, 1], got {assort1}")
-        if not (-1 <= assort2 <= 1):
-            raise ValueError(f"assort_matrix[1,1] must be in [-1, 1], got {assort2}")
-
-    if G_sim < G_ped:
-        raise ValueError(f"G_sim ({G_sim}) must be >= G_ped ({G_ped})")
+    # Validate + normalize inputs (incl. assort_matrix → assort1/assort2/R_mf).
+    # run_simulation is also a public test API, so validation cannot rely on
+    # config-load having run. See simace.simulation.params.SimulationParams.
+    params = SimulationParams.create(
+        seed=seed,
+        N=N,
+        G_ped=G_ped,
+        mating_lambda=mating_lambda,
+        p_mztwin=p_mztwin,
+        A1=A1,
+        C1=C1,
+        A2=A2,
+        C2=C2,
+        rA=rA,
+        rC=rC,
+        rE=rE,
+        E1=E1,
+        E2=E2,
+        G_sim=G_sim,
+        assort1=assort1,
+        assort2=assort2,
+        assort_matrix=assort_matrix,
+        mating_model=mating_model,
+    )
+    # Rebind the values normalization changed; everything else is unchanged.
+    G_sim = params.G_sim
+    assort1 = params.assort1
+    assort2 = params.assort2
+    R_mf = params.R_mf
 
     logger.info("Starting simulation: N=%d, G_ped=%d, seed=%d", N, G_ped, seed)
     t0 = time.perf_counter()
@@ -1316,60 +1267,26 @@ def run_simulation(
     sd_A1 = np.sqrt(A1)
     sd_A2 = np.sqrt(A2)
 
-    # Standard-model AM resolution: per-gen assort, rho_w, PSD checks.
+    # Standard-model AM plan: per-gen assort resolution, rho_w, and the
+    # |rho_w| < 1 + 4x4 PSD checks are validated up front inside build().
     # WF skips this entirely — no AM, no rho_w-driven cross-AM.
-    assort1_per_gen: list[float] | None = None
-    assort2_per_gen: list[float] | None = None
-    rho_w_per_ce: list[float] | None = None
-    R_mf_user = None
+    plan: AssortmentPlan | None = None
     if mating_model == "standard":
-        # assort1/assort2 may be scalar or per-gen dict (raw-iter keyed).
-        # AM correlations can be negative so we pass allow_negative=True.
-        assort1_per_gen = resolve_per_gen_param(assort1, G_sim, name="assort1", allow_negative=True)
-        assort2_per_gen = resolve_per_gen_param(assort2, G_sim, name="assort2", allow_negative=True)
-
-        # Within-person cross-trait liability correlation per C/E generation
-        _rho_w_A = rA * np.sqrt(A1 * A2)
-        rho_w_per_ce = [
-            _rho_w_A + rC * np.sqrt(C1_per_gen[g] * C2_per_gen[g]) + rE * np.sqrt(E1_per_gen[g] * E2_per_gen[g])
-            for g in range(G_sim)
-        ]
-
-        # Validate |rho_w| < 1 for all C/E generations where both-trait AM is on.
-        # With per-gen AM the both-trait check is per-iteration.
-        for g, rw in enumerate(rho_w_per_ce):
-            if assort1_per_gen[g] != 0 and assort2_per_gen[g] != 0 and abs(rw) >= 1.0 - 1e-10:
-                raise ValueError(
-                    f"Both-trait assortative mating requires |rho_w| < 1 "
-                    f"(got rho_w={rw:.4f} at C/E generation {g}). "
-                    f"Traits are perfectly correlated; "
-                    f"use single-trait assortment instead."
-                )
-
-        # Track whether R_mf was provided explicitly (vs. auto-computed from rho_w)
-        R_mf_user = R_mf
-
-        # Validate PSD of full 4x4 Sigma for each generation's rho_w + AM.
-        for g, rw in enumerate(rho_w_per_ce):
-            a1_g = assort1_per_gen[g]
-            a2_g = assort2_per_gen[g]
-            if R_mf_user is None and not (a1_g != 0 and a2_g != 0):
-                continue  # PSD check is only meaningful when both-trait AM is active
-            if R_mf_user is not None:
-                R_mf_g = R_mf_user
-            else:
-                c = rw * np.sqrt(abs(a1_g * a2_g)) * np.sign(a1_g * a2_g)
-                R_mf_g = np.array([[a1_g, c], [c, a2_g]])
-            R_ff = np.array([[1.0, rw], [rw, 1.0]])
-            Sigma_4 = np.block([[R_ff, R_mf_g.T], [R_mf_g, R_ff]])
-            eigvals = np.linalg.eigvalsh(Sigma_4)
-            if eigvals[0] < -1e-8:
-                raise ValueError(
-                    f"Full 4x4 mate correlation matrix Sigma_4 is not PSD "
-                    f"(min eigenvalue = {eigvals[0]:.6f} at C/E generation {g}). "
-                    f"Reduce the magnitude of assort_matrix off-diagonal entries "
-                    f"or per-gen assort1/assort2."
-                )
+        plan = AssortmentPlan.build(
+            assort1=assort1,
+            assort2=assort2,
+            R_mf_user=R_mf,
+            rA=rA,
+            rC=rC,
+            rE=rE,
+            A1=A1,
+            A2=A2,
+            C1_per_gen=C1_per_gen,
+            C2_per_gen=C2_per_gen,
+            E1_per_gen=E1_per_gen,
+            E2_per_gen=E2_per_gen,
+            G_sim=G_sim,
+        )
 
     # Initialize founders with correlated components (using gen-0 C/E variances)
     sex = rng.binomial(size=N, n=1, p=0.5)
@@ -1408,22 +1325,7 @@ def run_simulation(
         t_gen = time.perf_counter()
 
         if mating_model == "standard":
-            # rho_w for the current parental population:
-            # founders (i=0) have gen-0 C/E; offspring from iter j have per_gen[j] C/E
-            parent_ce_gen = max(0, i - 1)
-            rho_w_i = rho_w_per_ce[parent_ce_gen]
-
-            # Per-iter AM values (constant across iters for scalar assort1/assort2).
-            a1_i = assort1_per_gen[i]
-            a2_i = assort2_per_gen[i]
-
-            # Auto-compute R_mf for this generation's rho_w if not user-provided.
-            if R_mf_user is None and a1_i != 0 and a2_i != 0:
-                c = rho_w_i * np.sqrt(abs(a1_i * a2_i)) * np.sign(a1_i * a2_i)
-                R_mf_i = np.array([[a1_i, c], [c, a2_i]])
-            else:
-                R_mf_i = R_mf_user
-
+            a1_i, a2_i, rho_w_i, R_mf_i = plan.for_generation(i)
             parents, twins, household_ids = _mating_standard(
                 rng,
                 sex,
