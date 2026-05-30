@@ -19,8 +19,8 @@ dependencies:
   - pillow=12.2.*
   # workflow
   - snakemake=9.20.*
-  - snakemake-executor-plugin-slurm=2.6.*
-  - snakefmt=1.1.*
+#  - snakemake-executor-plugin-slurm=2.6.*
+#  - snakefmt=1.1.*
   # dev / test
   - pytest=9.0.*
   - ruff=0.15.*
