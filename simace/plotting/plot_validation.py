@@ -30,6 +30,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from simace.core.relationships import expected_liability_corr
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
     COLOR_EXPECTED,
@@ -200,9 +201,21 @@ def plot_A_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
 def plot_phenotype_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     """Plot MZ twin and full-sib liability correlations vs expected."""
     panels = [
-        ("mz_twin_liability1_corr", lambda d: d["A1"].iloc[0] + d["C1"].iloc[0], "MZ Twin Liability1 Corr"),
-        ("dz_sibling_liability1_corr", lambda d: 0.5 * d["A1"].iloc[0] + d["C1"].iloc[0], "DZ Sibling Liability1 Corr"),
-        ("half_sib_liability1_corr", lambda d: 0.25 * d["A1"].iloc[0], "Half-Sib Liability1 Corr"),
+        (
+            "mz_twin_liability1_corr",
+            lambda d: expected_liability_corr("MZ", d["A1"].iloc[0], d["C1"].iloc[0]),
+            "MZ Twin Liability1 Corr",
+        ),
+        (
+            "dz_sibling_liability1_corr",
+            lambda d: expected_liability_corr("FS", d["A1"].iloc[0], d["C1"].iloc[0]),
+            "DZ Sibling Liability1 Corr",
+        ),
+        (
+            "half_sib_liability1_corr",
+            lambda d: expected_liability_corr("PHS", d["A1"].iloc[0], d["C1"].iloc[0]),
+            "Half-Sib Liability1 Corr",
+        ),
         ("parent_offspring_liability1_slope", lambda d: d["A1"].iloc[0], "Midparent-Offspring Liability1 Slope"),
     ]
     fig, axes = plt.subplots(2, 2, figsize=_figsize(nrows=2, ncols=2))

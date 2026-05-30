@@ -4,6 +4,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from pedigree_graph import PAIR_KINSHIP
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
 
@@ -59,11 +60,14 @@ def _validate_mz_correlations(
             col = f"A{t}"
             mz_v1, mz_v2 = comp_vals[col][idx1], comp_vals[col][idx2]
             mz_corr = safe_corrcoef(mz_v1, mz_v2)
-            mz_ok = mz_corr > 0.99 if not np.isnan(mz_corr) else A_params[t] == 0
+            # MZ twins share identical A, so the A-component correlation equals
+            # the relatedness 2*kinship == 1.0; 0.01 is the near-equality band.
+            expected_mz = 2.0 * PAIR_KINSHIP["MZ"]
+            mz_ok = mz_corr > expected_mz - 0.01 if not np.isnan(mz_corr) else A_params[t] == 0
             results[f"mz_twin_{col}_correlation"] = _result(
                 mz_ok,
-                f"MZ twin {col} correlation: {mz_corr:.4f} (expected: 1.0)",
-                expected=1.0,
+                f"MZ twin {col} correlation: {mz_corr:.4f} (expected: {expected_mz})",
+                expected=expected_mz,
                 observed=float(mz_corr),
                 n_pairs=len(t1_arr),
             )
@@ -105,7 +109,8 @@ def _validate_dz_correlations(
             col = f"A{t}"
             dz_v1, dz_v2 = comp_vals[col][idx1], comp_vals[col][idx2]
             dz_corr = safe_corrcoef(dz_v1, dz_v2)
-            expected_dz = 0.5
+            # Full-sib (DZ) A-component correlation == relatedness 2*kinship.
+            expected_dz = 2.0 * PAIR_KINSHIP["FS"]
             dz_tol = _corr_tolerance(expected_dz, n_dz_pairs)
             if np.isnan(dz_corr):
                 dz_ok = A_params[t] == 0
@@ -113,7 +118,7 @@ def _validate_dz_correlations(
                 dz_ok = abs(dz_corr - expected_dz) < dz_tol
             results[f"dz_sibling_{col}_correlation"] = _result(
                 dz_ok,
-                f"DZ sibling {col} correlation: {dz_corr:.4f} (expected: ~0.5, tol: {dz_tol:.4f})",
+                f"DZ sibling {col} correlation: {dz_corr:.4f} (expected: ~{expected_dz}, tol: {dz_tol:.4f})",
                 expected=expected_dz,
                 observed=float(dz_corr),
                 n_pairs=n_dz_pairs,

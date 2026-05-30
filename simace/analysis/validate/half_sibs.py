@@ -4,6 +4,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from pedigree_graph import PAIR_KINSHIP
 
 from simace.core.numerics import safe_corrcoef
 
@@ -73,7 +74,9 @@ def _validate_half_sib_correlations(
     pooled_idx1, pooled_idx2, n_pooled = _subsample_pairs(pooled_idx1, pooled_idx2, rng)
     phs_idx1, phs_idx2, n_phs = _subsample_pairs(sibling_pairs["PHS"][0], sibling_pairs["PHS"][1], rng)
 
-    expected_a = 0.25
+    # Half-sib A-component correlation == relatedness 2*kinship. MHS and PHS
+    # share the same kinship, so either key gives the pooled expectation.
+    expected_a = 2.0 * PAIR_KINSHIP["MHS"]
     if n_pooled >= _MIN_PAIRS_FOR_CORR:
         for t in [1, 2]:
             col = f"A{t}"

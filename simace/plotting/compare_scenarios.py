@@ -38,10 +38,10 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from pedigree_graph import PedigreeGraph
+from pedigree_graph import PAIR_KINSHIP, PedigreeGraph
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
-from simace.core.relationships import RELATIONSHIP_TYPES
+from simace.core.relationships import RELATIONSHIP_TYPES, expected_liability_corr
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import (
     apply_nature_style,
@@ -328,15 +328,20 @@ def compare_component_distributions(
 
 # Display-ordered relationship classes, pooled from the raw classes in
 # report.yaml. Expected liability correlation under random mating is
-# ``k * A + c * C`` where k is the kinship coefficient; the middle column
-# below is k so callers can draw reference bars.  MZ twins are deliberately
+# ``k * A + c * C`` where k is the relatedness 2*kinship; the middle column
+# below is k so callers can draw reference bars.  k is sourced from
+# ``PAIR_KINSHIP`` (members of a pooled class share one kinship value, so the
+# first member is representative) — see ADR 0009.  MZ twins are deliberately
 # omitted — their liability correlation is pinned at ``A + C`` regardless of
 # AM, so including them washes out the visual story that this plot tells.
-POOLED_RELATIONSHIP_CLASSES: tuple[tuple[str, float, tuple[str, ...]], ...] = (
-    ("FS", 0.5, ("FS",)),
-    ("PO", 0.5, ("MO", "FO")),
-    ("HS", 0.25, ("MHS", "PHS")),
-    ("1C", 0.125, ("1C",)),
+POOLED_RELATIONSHIP_CLASSES: tuple[tuple[str, float, tuple[str, ...]], ...] = tuple(
+    (name, 2.0 * PAIR_KINSHIP[members[0]], members)
+    for name, members in (
+        ("FS", ("FS",)),
+        ("PO", ("MO", "FO")),
+        ("HS", ("MHS", "PHS")),
+        ("1C", ("1C",)),
+    )
 )
 
 
@@ -1238,7 +1243,7 @@ def compare_cohort_fs_correlations(
         ax.fill_between(gens, lows, highs, color=color, alpha=0.15, linewidth=0)
 
     if expected_A is not None:
-        ref = 0.5 * expected_A + (expected_C or 0.0)
+        ref = expected_liability_corr("FS", expected_A, expected_C or 0.0)
         ax.axhline(
             y=ref,
             linestyle="--",
