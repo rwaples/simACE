@@ -55,12 +55,13 @@ patterns whenever changing the relevant module.
 3. **`_get_Ak(0)` must return identity**, not chain through the parent
    adjacency matrix. Chaining adds a spurious parent hop to up=1
    relationships.
-4. **Cross-package coupling**: `fit_ace` imports `PAIR_KINSHIP` and
-   `extract_relationship_pairs` from `simace.core.pedigree_graph`. Changes
-   to pair extraction or kinship values in simace silently bias `fit_ace`
-   heritability and PA-FGRS. Additionally, `ltm_falconer.py` maintains its
-   own `KINSHIP` dict at EPIMIGHT-kind granularity that must stay in sync
-   with `PAIR_KINSHIP`.
+4. **Cross-package coupling**: both `fit_ace` and simace import
+   `PAIR_KINSHIP` and pair extraction (`PedigreeGraph.extract_pairs`) from the
+   external top-level `pedigree_graph` package (not from simace). Changes to
+   pair extraction or kinship values in `pedigree_graph` silently bias
+   `fit_ace` heritability and PA-FGRS. Additionally, `fitace/ltm/falconer.py`
+   maintains its own `KINSHIP` dict at EPIMIGHT-kind granularity that must
+   stay in sync with `PAIR_KINSHIP`.
 5. **Generation-dependent C/E variance can bias `rho_w`** (assortative
    mating correlation) calculations.
 6. **`affected = NOT (age_censored OR death_censored)`** — preserve this
@@ -82,10 +83,10 @@ shares a household, 0 otherwise. **Household is assigned by mother**
 share C but paternal half-sibs do not.
 
 Reference: MZ = A+C, FS = 0.5A+C, MHS = 0.25A+C, PHS = 0.25A, PO = 0.5A.
-Source of truth for kinship: `PAIR_KINSHIP` in
-`simace/core/pedigree_graph.py`. With inbreeding,
-`exact_kinship_for_pairs()` returns per-pair values that may differ from
-`PAIR_KINSHIP`.
+Source of truth for kinship: `PAIR_KINSHIP` in the external `pedigree_graph`
+package (`pedigree_graph/_registry.py`). With inbreeding,
+`PedigreeGraph.compute_pair_kinship()` returns per-pair values that may differ
+from `PAIR_KINSHIP`.
 
 ## Repo Map
 
