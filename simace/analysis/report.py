@@ -59,7 +59,9 @@ def normalize_quality_checks(validation_report: dict[str, Any]) -> dict[str, Any
         if category in _NON_CHECK_CATEGORIES or not isinstance(items, dict):
             continue
         for name, result in items.items():
-            if not isinstance(result, dict) or "passed" not in result:
+            # Skip informational metrics (no closed-form pass/fail): those
+            # flagged via validate._info, or any dict lacking a ``passed`` key.
+            if not isinstance(result, dict) or result.get("informational") or "passed" not in result:
                 continue
             passed = bool(result["passed"])
             n_passed += passed

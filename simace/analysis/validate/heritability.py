@@ -14,6 +14,7 @@ from ._common import (
     _corr_se,
     _corr_tolerance,
     _extract_comp_vals,
+    _info,
     _result,
     _subsample_pairs,
 )
@@ -27,13 +28,13 @@ def _midparent_regression(
     offspring = vals[offspring_idx]
     reg = safe_linregress(midparent, offspring)
     if reg is not None:
-        return {
-            "slope": float(reg.slope),
-            "intercept": float(reg.intercept),
-            "r_squared": float(reg.rvalue**2),
-            "details": f"Midparent-offspring {label} regression: slope={reg.slope:.4f}, R²={reg.rvalue**2:.4f}",
-        }
-    return {"details": f"Zero variance in midparent {label} values"}
+        return _info(
+            f"Midparent-offspring {label} regression: slope={reg.slope:.4f}, R²={reg.rvalue**2:.4f}",
+            slope=float(reg.slope),
+            intercept=float(reg.intercept),
+            r_squared=float(reg.rvalue**2),
+        )
+    return _info(f"Zero variance in midparent {label} values")
 
 
 def _validate_mz_correlations(
@@ -76,11 +77,11 @@ def _validate_mz_correlations(
             P2 = mz_v2 + comp_vals[f"C{t}"][idx2] + comp_vals[f"E{t}"][idx2]
             pheno_corr = safe_corrcoef(P1, P2)
             mz_pheno_corr[t] = pheno_corr
-            results[f"mz_twin_liability{t}_correlation"] = {
-                "observed": float(pheno_corr),
-                "details": f"MZ twin liability{t} correlation: {pheno_corr:.4f}",
-                "n_pairs": len(t1_arr),
-            }
+            results[f"mz_twin_liability{t}_correlation"] = _info(
+                f"MZ twin liability{t} correlation: {pheno_corr:.4f}",
+                observed=float(pheno_corr),
+                n_pairs=len(t1_arr),
+            )
     else:
         for t in [1, 2]:
             results[f"mz_twin_A{t}_correlation"] = _result(
@@ -128,11 +129,11 @@ def _validate_dz_correlations(
             P2 = dz_v2 + comp_vals[f"C{t}"][idx2] + comp_vals[f"E{t}"][idx2]
             pheno_corr = safe_corrcoef(P1, P2)
             dz_pheno_corr[t] = pheno_corr
-            results[f"dz_sibling_liability{t}_correlation"] = {
-                "observed": float(pheno_corr),
-                "details": f"DZ sibling liability{t} correlation: {pheno_corr:.4f}",
-                "n_pairs": n_dz_pairs,
-            }
+            results[f"dz_sibling_liability{t}_correlation"] = _info(
+                f"DZ sibling liability{t} correlation: {pheno_corr:.4f}",
+                observed=float(pheno_corr),
+                n_pairs=n_dz_pairs,
+            )
 
     if n_dz_pairs < _MIN_PAIRS_FOR_CORR:
         for t in [1, 2]:
@@ -214,16 +215,14 @@ def _validate_parent_offspring(
                 )
         else:
             for t in [1, 2]:
-                results[f"parent_offspring_A{t}_regression"] = {
-                    "details": "Not enough offspring with both parents in data"
-                }
-                results[f"parent_offspring_liability{t}_regression"] = {
-                    "details": "Not enough offspring with both parents in data"
-                }
+                results[f"parent_offspring_A{t}_regression"] = _info("Not enough offspring with both parents in data")
+                results[f"parent_offspring_liability{t}_regression"] = _info(
+                    "Not enough offspring with both parents in data"
+                )
     else:
         for t in [1, 2]:
-            results[f"parent_offspring_A{t}_regression"] = {"details": "Not enough non-founders for regression"}
-            results[f"parent_offspring_liability{t}_regression"] = {"details": "Not enough non-founders for regression"}
+            results[f"parent_offspring_A{t}_regression"] = _info("Not enough non-founders for regression")
+            results[f"parent_offspring_liability{t}_regression"] = _info("Not enough non-founders for regression")
 
 
 def validate_heritability(

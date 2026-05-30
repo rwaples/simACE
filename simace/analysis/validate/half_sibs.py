@@ -13,6 +13,7 @@ from ._common import (
     _MIN_PAIRS_FOR_CORR,
     _corr_tolerance,
     _extract_comp_vals,
+    _info,
     _result,
     _subsample_pairs,
 )
@@ -101,11 +102,11 @@ def _validate_half_sib_correlations(
             P1 = comp_vals[f"A{t}"][phs_idx1] + comp_vals[f"C{t}"][phs_idx1] + comp_vals[f"E{t}"][phs_idx1]
             P2 = comp_vals[f"A{t}"][phs_idx2] + comp_vals[f"C{t}"][phs_idx2] + comp_vals[f"E{t}"][phs_idx2]
             phs_pheno = safe_corrcoef(P1, P2)
-            results[f"half_sib_liability{t}_correlation"] = {
-                "observed": float(phs_pheno),
-                "details": f"PHS liability{t} correlation: {phs_pheno:.4f} (expected ~0.25·A{t})",
-                "n_pairs": n_phs,
-            }
+            results[f"half_sib_liability{t}_correlation"] = _info(
+                f"PHS liability{t} correlation: {phs_pheno:.4f} (expected ~0.25·A{t})",
+                observed=float(phs_pheno),
+                n_pairs=n_phs,
+            )
 
             c_col = f"C{t}"
             obs_c = safe_corrcoef(comp_vals[c_col][phs_idx1], comp_vals[c_col][phs_idx2])
