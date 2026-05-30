@@ -76,11 +76,17 @@ narrows dtypes **in place**, mutating the caller's DataFrame. Latent today
 **Locked scope:** copy before narrowing, or rename the helper to make mutation
 explicit and document it. No behavior change to written output.
 
-## Issue 5 (KEEP, LOW PRIORITY) — Move implementation out of `__init__.py`
+## Issue 5 (LANDED) — Move implementation out of `__init__.py`
 
 **Verdict: keep as a consistency cleanup only.** Not a bug fix — no concrete
 import side effect exists. Justified solely by matching `stats/`, which already
 uses a `runner.py` + re-export `__init__` shape.
+
+**Status: landed 2026-05-30.** Implementation moved to `ascertainment/runner.py`
+and `phenotype/runner.py`; both `__init__.py` files are now package-docstring +
+re-exports. Entry points `simace.ascertainment:cli` / `simace.phenotype:cli`
+still resolve; the private `_sever_dangling_links` is re-exported for the test
+that imports it. 351 ascertainment + phenotype + integration tests pass.
 
 **Locked scope:**
 - `simace/ascertainment/__init__.py` (340L) → `ascertainment/runner.py`.
@@ -89,7 +95,7 @@ uses a `runner.py` + re-export `__init__` shape.
 - `__init__.py` becomes re-exports + metadata; CLI entry points and script
   wrappers continue to resolve.
 
-## Issue 1 (KEEP, REFRAMED) — Split `simulate.py` around params + assortment
+## Issue 1 (LANDED) — Split `simulate.py` around params + assortment
 
 **Verdict: keep, reframed and gated.** `run_simulation()` (~360 lines) is long,
 but most of it is already model-agnostic and factored into helpers
@@ -101,6 +107,17 @@ setup (~55 lines) and the per-generation `R_mf` computation inside the loop
 `simulate.py` is the scientific core — nearly every CLAUDE.md gotcha is a
 pedigree/simulation correctness bug — so this trades silent-bug risk for
 readability and must be done behind a safety net.
+
+**Status: landed 2026-05-30.** The golden test landed first
+(`tests/simulation/test_simulate_golden.py`, 5 configs incl. both-trait AM and
+per-gen dicts), capturing pre-refactor pedigree digests. `SimulationParams`
+(`simulation/params.py`) now owns input validation + `assort_matrix` resolution;
+`AssortmentPlan` (`simulation/assortment.py`) owns per-gen assort resolution,
+`rho_w`, the `|rho_w|<1` and 4×4 PSD checks, and per-gen `R_mf`. Both
+`if standard` blocks collapsed to a `build(...)` call + a one-line
+`for_generation(i)`; `run_simulation` dropped 360 → 262 lines. `MatingStrategy`
+and `SimulationState` were never introduced. Golden test + full suite (1133)
+pass — provably behavior-preserving.
 
 **Locked scope (reduced from the original 4-concept proposal):**
 - Extract `SimulationParams` — the validation block (it currently duplicates
@@ -143,12 +160,14 @@ recorded incident. Revisit only if a corrupt/partial output actually bites.
 
 ## Revised execution order
 
-1. **Issue 3** — relationship semantics (independent, low-risk; see ADR 0009).
-2. **Issue 2** — validate package split (independent, low-risk).
-3. **Issue 6a** — `save_parquet` mutation fix (tiny).
-4. **Issue 5** — `runner.py` extraction (low priority, consistency only).
-5. **Issue 1** — `simulate.py` split (last; golden test first, then extract
-   `SimulationParams` + `AssortmentPlan`).
+All five surviving issues are landed (2026-05-30):
+
+1. **Issue 3** — relationship semantics (independent, low-risk; see ADR 0009). ✅
+2. **Issue 2** — validate package split (independent, low-risk). ✅
+3. **Issue 6a** — `save_parquet` mutation fix (tiny). ✅
+4. **Issue 5** — `runner.py` extraction (low priority, consistency only). ✅
+5. **Issue 1** — `simulate.py` split (golden test first, then extract
+   `SimulationParams` + `AssortmentPlan`). ✅
 
 ## Side-fixes surfaced during triage (independent of the above)
 
