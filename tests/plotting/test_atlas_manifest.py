@@ -11,43 +11,7 @@ from simace.plotting.atlas_manifest import (
     phenotype_basenames,
     validation_basenames,
 )
-
-# Frozen-list regression: update intentionally when reordering plots.
-EXPECTED_PHENOTYPE_BASENAMES = [
-    "pedigree_counts.ped",
-    "pedigree_counts",
-    "family_structure",
-    "mate_correlation",
-    "cross_trait",
-    "parent_offspring_liability.by_generation",
-    "heritability.by_generation",
-    "heritability.by_sex.by_generation",
-    "additive_shared.by_generation",
-    "observed_h2",
-    "liability_violin.phenotype",
-    "liability_violin.phenotype.by_generation",
-    "liability_violin.phenotype.by_sex.by_generation",
-    "liability_components.by_generation",
-    "age_at_onset_death",
-    "mortality",
-    "cumulative_incidence.by_sex",
-    "cumulative_incidence.by_sex.by_generation",
-    "cumulative_incidence.phenotype",
-    "cumulative_incidence_aj.phenotype",
-    "cumulative_incidence_aj.by_sex",
-    "cumulative_incidence_aj.by_sex.by_generation",
-    "censoring",
-    "censoring_confusion",
-    "censoring_cascade",
-    "liability_vs_aoo",
-    "tetrachoric.phenotype",
-    "tetrachoric.phenotype.by_sex",
-    "tetrachoric.phenotype.by_generation",
-    "cross_trait.phenotype",
-    "cross_trait.phenotype.t2",
-    "joint_affected.phenotype",
-    "cross_trait_tetrachoric",
-]
+from simace.plotting.plot_phenotype import PHENOTYPE_RENDERERS
 
 # Includes ``consanguineous_matings`` at index 3 — the entry that
 # ``workflow/common.py`` pre-PR8 was missing despite it being rendered.
@@ -74,8 +38,17 @@ EXPECTED_EFFECTIVE_SIZE_BASENAMES = [
 ]
 
 
-def test_phenotype_basenames_match_frozen_list():
-    assert phenotype_basenames() == EXPECTED_PHENOTYPE_BASENAMES
+def test_every_phenotype_basename_has_exactly_one_renderer():
+    """The renderer registry and the manifest must declare the same basenames.
+
+    This is the drift gate that replaced the frozen phenotype basename list:
+    adding a plot requires both a PlotEntry in PHENOTYPE_ATLAS and a
+    PlotRenderSpec in PHENOTYPE_RENDERERS, or this fails. Render order is
+    irrelevant to outputs, so parity is asserted on the *set*, not the order.
+    """
+    reg = [spec.basename for spec in PHENOTYPE_RENDERERS]
+    assert sorted(reg) == sorted(phenotype_basenames())
+    assert len(reg) == len(set(reg))
 
 
 def test_validation_basenames_match_frozen_list():
