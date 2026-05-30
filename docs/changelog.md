@@ -57,6 +57,7 @@ cleans up plotting/relationship semantics.
 - Added CLI, edge-case, report, registry, and shared-parquet coverage.
 - Added no-op stage performance checks and a 30 GB workflow `mem_mb` cap.
 - Pinned pandas `<3` and adopted CIF terminology.
+- Dropped unused `jupyter` / `notebook` from the conda env files.
 
 ## 2026.05.2 — 2026-05-20
 
