@@ -18,6 +18,16 @@ from dataclasses import dataclass
 import numpy as np
 
 
+def _cross_am_matrix(assort1: float, assort2: float, rho_w: float) -> np.ndarray:
+    """Build the 2x2 mate-correlation matrix ``R_mf`` for both-trait assortment.
+
+    The off-diagonal cross-AM term is derived from ``rho_w``:
+    ``c = rho_w * sqrt(|assort1 * assort2|) * sign(assort1 * assort2)``.
+    """
+    c = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
+    return np.array([[assort1, c], [c, assort2]])
+
+
 @dataclass(frozen=True)
 class AssortmentPlan:
     """Per-generation assortative-mating schedule for the standard mating model.
@@ -106,8 +116,7 @@ class AssortmentPlan:
             if R_mf_user is not None:
                 R_mf_g = R_mf_user
             else:
-                c = rw * np.sqrt(abs(a1_g * a2_g)) * np.sign(a1_g * a2_g)
-                R_mf_g = np.array([[a1_g, c], [c, a2_g]])
+                R_mf_g = _cross_am_matrix(a1_g, a2_g, rw)
             R_ff = np.array([[1.0, rw], [rw, 1.0]])
             Sigma_4 = np.block([[R_ff, R_mf_g.T], [R_mf_g, R_ff]])
             eigvals = np.linalg.eigvalsh(Sigma_4)
@@ -146,8 +155,7 @@ class AssortmentPlan:
 
         # Auto-compute R_mf for this generation's rho_w if not user-provided.
         if self.R_mf_user is None and a1_i != 0 and a2_i != 0:
-            c = rho_w_i * np.sqrt(abs(a1_i * a2_i)) * np.sign(a1_i * a2_i)
-            R_mf_i = np.array([[a1_i, c], [c, a2_i]])
+            R_mf_i = _cross_am_matrix(a1_i, a2_i, rho_w_i)
         else:
             R_mf_i = self.R_mf_user
 
