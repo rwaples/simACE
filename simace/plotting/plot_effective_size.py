@@ -395,11 +395,11 @@ def plot_ne_by_generation(
 
 
 def plot_drift_signals(series_df: pd.DataFrame, out: Path, ext: str = "png") -> None:
-    """Figure 3: mean F, θ, self-coancestry per generation (1×3)."""
+    """Figure 3: mean F, θ, self-kinship per generation (1×3)."""
     panels = [
         ("ne_inbreeding", "mean_f", "mean F"),
         ("ne_coancestry", "mean_theta", "mean θ"),
-        ("ne_caballero_toro", "mean_self_coancestry", "mean self-coancestry (founders)"),
+        ("ne_caballero_toro", "mean_self_coancestry", "mean self-kinship (founders)"),
     ]
     fig, axes = plt.subplots(1, 3, figsize=(12.0, 4.0))
     for ax, (est, col, label) in zip(axes, panels, strict=True):

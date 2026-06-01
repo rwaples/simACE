@@ -461,7 +461,7 @@ def plot_cumulative_incidence_by_sex_generation(
 def plot_cumulative_incidence_aj(
     all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = ""
 ) -> None:
-    """Plot Aalen-Johansen disease + death CIFs, with empirical overlay."""
+    """Plot Aalen-Johansen trait + death CIFs, with empirical overlay."""
     stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_aj")]
     if not stats_with_data:
         logger.warning("Skipping cumulative_incidence_aj: no data in stats")
@@ -521,7 +521,7 @@ def plot_cumulative_incidence_aj_by_sex(
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
-    """Plot Aalen-Johansen disease CIF stratified by sex."""
+    """Plot Aalen-Johansen trait CIF stratified by sex."""
     stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_aj_by_sex")]
     if not stats_with_data:
         logger.warning("Skipping cumulative_incidence_aj_by_sex: no data in stats")
@@ -572,7 +572,7 @@ def plot_cumulative_incidence_aj_by_sex_generation(
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
-    """Plot Aalen-Johansen disease CIF stratified by sex and generation."""
+    """Plot Aalen-Johansen trait CIF stratified by sex and generation."""
     stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_aj_by_sex_generation")]
     if not stats_with_data:
         logger.warning("Skipping cumulative_incidence_aj_by_sex_generation: no data in stats")

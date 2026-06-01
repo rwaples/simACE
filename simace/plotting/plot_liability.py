@@ -490,7 +490,7 @@ def plot_censoring_confusion(
 ) -> None:
     """Per-trait 2x2 confusion matrix: true affected vs. observed affected.
 
-    Uses pre-computed censoring_confusion stats from full (non-subsampled) data.
+    Uses pre-computed censoring_confusion stats from the full phenotyped population (pre-ascertainment).
     """
     stats_with_data = [s for s in all_stats if s.get("censoring_confusion")]
     if not stats_with_data:
@@ -553,7 +553,7 @@ def plot_censoring_cascade(
 ) -> None:
     """Per-trait stacked bar chart decomposing true cases by censoring fate per generation.
 
-    Uses pre-computed censoring_cascade stats from full (non-subsampled) data.
+    Uses pre-computed censoring_cascade stats from the full phenotyped population (pre-ascertainment).
     """
     stats_with_data = [s for s in all_stats if s.get("censoring_cascade")]
     if not stats_with_data:

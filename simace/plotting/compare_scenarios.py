@@ -619,7 +619,7 @@ def load_sib_pair_liabilities(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return arrays of paired sibling liabilities across all reps.
 
-    Picks two full (DZ) sibs per family — the first two by ``id`` within each
+    Picks two full siblings per mating — the first two by ``id`` within each
     ``(mother, father)`` group.  Founders (mother == -1) and MZ twins
     (``twin != -1``) are excluded, so the returned pairs have an expected
     kinship of exactly 0.5 under random mating.
