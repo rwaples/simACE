@@ -317,7 +317,7 @@ def main(
     if len(df_samples) > MAX_PLOT_POINTS:
         original_n = len(df_samples)
         df_samples = df_samples.sample(n=MAX_PLOT_POINTS, random_state=42).reset_index(drop=True)
-        subsample_note = f"Subsampled: {MAX_PLOT_POINTS:,} of {original_n:,} individuals shown"
+        subsample_note = f"Plotting sample: {MAX_PLOT_POINTS:,} of {original_n:,} shown"
 
     # Resolved scenario parameters (from inputs.parameters) reconstructed into
     # the flat view; needed by the correlation/heritability reference lines.

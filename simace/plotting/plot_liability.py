@@ -629,7 +629,7 @@ def plot_censoring_cascade(
         bottom += bars_death
         ax.bar(x, bars_right, bar_width, bottom=bottom, color=color_right, label="Right-censored")
         bottom += bars_right
-        ax.bar(x, bars_left, bar_width, bottom=bottom, color=color_left, label="Left-truncated")
+        ax.bar(x, bars_left, bar_width, bottom=bottom, color=color_left, label="Left-censored")
         bottom += bars_left
 
         # Annotate segments (skip if < 3% of bar height)
