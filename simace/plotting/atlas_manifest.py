@@ -100,7 +100,7 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
     ),
     PlotEntry(
         basename="mate_correlation",
-        title="Mate liability correlation.",
+        title="Assortative mating",
         body=(
             "2×2 heatmap of Pearson correlations between mated pairs’ liabilities (female "
             "traits on rows, male traits on columns). Each unique (mother, father) pair "
@@ -120,45 +120,14 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         ),
     ),
     PlotEntry(
-        basename="parent_offspring_liability.by_generation",
-        title="Parent-offspring liability regressions.",
-        body=(
-            "Grid: rows = traits, columns = last 3 non-founder generations. Scatter of "
-            "midparent liability (x) vs. offspring liability (y) coloured by offspring sex "
-            "(green = daughters, blue = sons). Observed pooled regression line (solid orange,"
-            " with 95% CI band), sex-specific regression lines, and expected slope from "
-            "configured A (dashed). Text box shows pooled h² and sex-specific h²♀/h²♂ (slope "
-            "± SE), Pearson r, pair count n, and p-value, averaged across replicates."
-        ),
-    ),
-    PlotEntry(
         basename="heritability.by_generation",
-        title="Narrow-sense liability-scale heritability by generation.",
-        body=(
-            "1×2 figure, one panel per trait. Narrow-sense heritability h² = Var(A) / (Var(A)"
-            " + Var(C) + Var(E)) is computed from the per-generation variance components for "
-            "each replicate. Blue dots show per-replicate h² estimates. Orange dashed line "
-            "marks the parametric heritability (A parameter)."
-        ),
-    ),
-    PlotEntry(
-        basename="heritability.by_sex.by_generation",
-        title="PO-regression heritability by offspring sex.",
-        body=(
-            "1×2 figure, one panel per trait. Heritability h² estimated from midparent-"
-            "offspring regression slope, stratified by offspring sex. Green dots = per-"
-            "replicate daughter h², blue dots = per-replicate son h². Orange dashed line "
-            "marks the parametric heritability (A parameter)."
-        ),
-    ),
-    PlotEntry(
-        basename="additive_shared.by_generation",
         title="Additive genetic and common environment by generation.",
         body=(
-            "1×2 figure, one panel per trait. Combined proportion (Var(A) + Var(C)) / (Var(A)"
-            " + Var(C) + Var(E)) is computed from the per-generation variance components for "
-            "each replicate. Blue dots show per-replicate estimates. Orange dashed line marks"
-            " the parametric value (A + C)."
+            "1×2 figure, one panel per trait. Realized per-generation variance proportions "
+            "Var(A) / Var(L) and Var(C) / Var(L) are computed from per-replicate variance "
+            "components. Blue points/line show additive genetic A (narrow-sense h²); orange "
+            "points/line show common environment C. Dashed lines mark the configured A and C "
+            "parameters. A and C are shown separately rather than summed."
         ),
     ),
     PlotEntry(
@@ -189,24 +158,6 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         ),
     ),
     PlotEntry(
-        basename="liability_violin.phenotype.by_generation",
-        title="Liability violin plots by generation.",
-        body=(
-            "Grid: rows = traits, columns = recorded generations. Split violins for affected "
-            "vs. unaffected within each generation. Diamond markers and μ annotations show "
-            "per-group means. x-axis labels show observed generation-specific prevalence."
-        ),
-    ),
-    PlotEntry(
-        basename="liability_violin.phenotype.by_sex.by_generation",
-        title="Liability violin plots by sex and generation.",
-        body=(
-            "Grid: rows = traits, columns = generations. Each cell has side-by-side split "
-            "violins for female (left) and male (right), each showing unaffected vs. affected"
-            " distribution. Sex-specific observed prevalence annotated."
-        ),
-    ),
-    PlotEntry(
         basename="liability_components.by_generation",
         title="Liability components by generation.",
         body=(
@@ -224,86 +175,23 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         subtitle="Age-at-onset, mortality, cumulative incidence, and censoring analysis",
     ),
     PlotEntry(
-        basename="age_at_onset_death",
-        title="Age-at-onset and death-age histograms.",
-        body=(
-            "A 2×2 grid, rows = traits 1 and 2. Left column shows density histograms of "
-            "observed age-at-onset for affected individuals (δ = 1). Right column shows age-"
-            "at-death histograms for death-censored unaffected individuals."
-        ),
-    ),
-    PlotEntry(
         basename="mortality",
-        title="Mortality rate by decade.",
+        title="mortality",
         body=(
-            "Two-panel figure. Left panel shows per-decade mortality rate (deaths in decade /"
-            " alive at start of decade), averaged across replicates. Right panel shows "
-            "cumulative mortality, with cumulative survival probability annotated above each "
-            "bar."
+            "Four-panel figure. Left column shows per-decade mortality rate (deaths in "
+            "decade / alive at start of decade) and cumulative mortality, averaged across "
+            "replicates; cumulative survival probability is annotated above each bar. Right "
+            "column shows age-at-death histograms for death-censored unaffected individuals "
+            "for traits 1 and 2."
         ),
     ),
     PlotEntry(
-        basename="cumulative_incidence.by_sex",
-        title="Cumulative incidence by sex.",
+        basename="age_at_onset_death",
+        title="Age-at-onset.",
         body=(
-            "Two-panel figure, one per trait. Green line = female (sex=0), blue line = male "
-            "(sex=1) observed cumulative incidence. Legend shows sample size and observed "
-            "prevalence per sex. Statistics computed over the full phenotyped population "
-            "(pre-ascertainment)."
-        ),
-    ),
-    PlotEntry(
-        basename="cumulative_incidence.by_sex.by_generation",
-        title="Cumulative incidence by sex and generation.",
-        body=(
-            "Grid: rows = traits, columns = generations. Each panel shows cumulative "
-            "incidence curves for female (green) and male (blue) separately. Legend shows "
-            "per-sex sample size and observed prevalence within each generation. Statistics "
-            "computed over the full phenotyped population (pre-ascertainment)."
-        ),
-    ),
-    PlotEntry(
-        basename="cumulative_incidence.phenotype",
-        title="Cumulative incidence curves.",
-        body=(
-            "Two-panel figure, one per trait. Blue solid line = observed cumulative incidence"
-            " from censored data (with min-max band across replicates). Grey solid line = "
-            "true cumulative incidence from uncensored event times. Grey dashed crosshairs "
-            "mark the ages at which 25% (Q1), 50%, and 75% (Q3) of lifetime cases have "
-            "occurred. Text box shows affected %, true prevalence %, and censored %."
-        ),
-    ),
-    PlotEntry(
-        basename="cumulative_incidence_aj.phenotype",
-        title="Aalen-Johansen cumulative incidence (competing risks).",
-        body=(
-            "Two-panel figure, one per trait. Solid coloured line = Aalen-Johansen trait-event "
-            "cumulative incidence treating death as a competing event. Dashed grey line = "
-            "AJ death CIF. Light overlay = empirical observed CIF (#affected/n) for "
-            "comparison. Min-max band across replicates is shown for both AJ curves. The "
-            "annotation reports terminal AJ trait F(∞), AJ death F(∞), and overall survival "
-            "S(∞), which sum to 1 by construction. Per-generation observation windows "
-            "(``gen_censoring``) are honoured via delayed entry."
-        ),
-    ),
-    PlotEntry(
-        basename="cumulative_incidence_aj.by_sex",
-        title="Aalen-Johansen cumulative incidence by sex.",
-        body=(
-            "Two-panel figure, one per trait. Green line = female (sex=0), blue line = male "
-            "(sex=1) Aalen-Johansen trait CIF. Legend shows sample size and observed "
-            "prevalence per sex. Statistics computed over the full phenotyped population "
-            "(pre-ascertainment)."
-        ),
-    ),
-    PlotEntry(
-        basename="cumulative_incidence_aj.by_sex.by_generation",
-        title="Aalen-Johansen cumulative incidence by sex and generation.",
-        body=(
-            "Grid: rows = traits, columns = generations. Each panel shows AJ trait CIF for "
-            "female (green) and male (blue) separately. Legend shows per-sex sample size and "
-            "prevalence within each generation. Per-generation observation windows are "
-            "honoured via delayed entry."
+            "Two-panel figure, one panel per trait. Each panel shows the density histogram "
+            "of observed age-at-onset for affected individuals (δ = 1). Death-age "
+            "distributions are shown in the mortality figure."
         ),
     ),
     PlotEntry(
@@ -317,13 +205,48 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         ),
     ),
     PlotEntry(
+        basename="cumulative_incidence.phenotype",
+        title="Cumulative incidence.",
+        body=(
+            "Two-panel figure, one per trait. Blue solid line = observed cumulative incidence"
+            " from censored data (with min-max band across replicates). Grey solid line = "
+            "true cumulative incidence from uncensored event times. Grey dashed crosshairs "
+            "mark the ages at which 25% (Q1), 50%, and 75% (Q3) of lifetime cases have "
+            "occurred. Text box shows affected %, true prevalence %, and censored %."
+        ),
+    ),
+    PlotEntry(
+        basename="cumulative_incidence_aj.phenotype",
+        title="Aalen-Johansen cumulative incidence (competing risks).",
+        body=(
+            "Two-panel figure, one per trait. Solid coloured line = Aalen-Johansen trait-event "
+            "cumulative incidence treating death as a competing event. Dotted grey line = "
+            "true disease CIF from uncensored event times. Light overlay = empirical "
+            "observed CIF (#affected/n) for comparison. Min-max band across replicates is "
+            "shown for the AJ trait curve. The "
+            "annotation reports terminal AJ trait F(∞), AJ death F(∞), and overall survival "
+            "S(∞), which sum to 1 by construction. Per-generation observation windows "
+            "(``gen_censoring``) are honoured via delayed entry."
+        ),
+    ),
+    PlotEntry(
+        basename="cumulative_incidence.by_sex",
+        title="Cumulative incidence by sex.",
+        body=(
+            "Two-panel figure, one per trait. Green line = female (sex=0), blue line = male "
+            "(sex=1) observed cumulative incidence. Legend shows sample size and observed "
+            "prevalence per sex. Statistics computed over the full phenotyped population "
+            "(pre-ascertainment)."
+        ),
+    ),
+    PlotEntry(
         basename="censoring_confusion",
         title="Censoring confusion matrix.",
         body=(
             "Per-trait 2×2 confusion matrix comparing true affected status (event time < "
             "censor_age, from raw simulated times) vs. observed affected status (after "
             "generation-window and death censoring). Rows = true status, columns = observed "
-            "status. Cell annotations show proportion and count. Title shows sensitivity "
+            "status. Unshaded cells use annotations to show proportion and count. Title shows sensitivity "
             "(true positive rate) and specificity (true negative rate). Only phenotyped "
             "generations (those with non-degenerate observation windows) are included. "
             "Statistics computed over the full phenotyped population (pre-ascertainment)."
@@ -345,6 +268,28 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
     SectionBreak(
         title="Within-Trait Correlations",
         subtitle="Familial tetrachoric correlations",
+    ),
+    PlotEntry(
+        basename="parent_offspring_liability.by_generation",
+        title="Parent-offspring liability regressions.",
+        body=(
+            "Grid: rows = traits, columns = last 3 non-founder generations. Scatter of "
+            "midparent liability (x) vs. offspring liability (y) coloured by offspring sex "
+            "(green = daughters, blue = sons). Observed pooled regression line (solid orange,"
+            " with 95% CI band), sex-specific regression lines, and expected slope from "
+            "configured A (dashed). Text box shows pooled h² and sex-specific h²♀/h²♂ (slope "
+            "± SE), Pearson r, pair count n, and p-value, averaged across replicates."
+        ),
+    ),
+    PlotEntry(
+        basename="heritability.by_sex.by_generation",
+        title="PO-regression heritability by offspring sex.",
+        body=(
+            "1×2 figure, one panel per trait. Heritability h² estimated from midparent-"
+            "offspring regression slope, stratified by offspring sex. Green dots = per-"
+            "replicate daughter h², blue dots = per-replicate son h². Orange dashed line "
+            "marks the parametric heritability (A parameter)."
+        ),
     ),
     PlotEntry(
         basename="liability_vs_aoo",
@@ -375,25 +320,25 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         basename="tetrachoric.phenotype.by_sex",
         title="Tetrachoric correlations by sex.",
         body=(
-            "2×2 grid: rows = traits, columns = sex (female, male). Same encoding as Figure "
-            "23: coloured violins show observed tetrachoric correlations for same-sex pairs "
+            "2×2 grid: rows = traits, columns = sex (female, male). Same encoding as the "
+            "relationship-type tetrachoric correlation plot: coloured violins show observed tetrachoric correlations for same-sex pairs "
             "only (FF or MM). Black dashed = liability correlation, red dotted = parametric "
             "E[r]. Opposite-sex pairs are excluded."
         ),
-    ),
-    SectionBreak(
-        title="Cross-Trait Correlations",
-        subtitle="Cross-trait correlation by generation and relationship type",
     ),
     PlotEntry(
         basename="tetrachoric.phenotype.by_generation",
         title="Tetrachoric correlations by generation.",
         body=(
-            "Grid: rows = traits, columns = generations. Same encoding as Figure 23 (violins "
-            "= observed tetrachoric correlations, black dashed = true liability correlations,"
+            "Grid: rows = traits, columns = generations. Same encoding as the relationship-type "
+            "tetrachoric correlation plot (violins = observed tetrachoric correlations, black dashed = true liability correlations,"
             " red dotted = parametric E[r], dots = per-replicate estimates), computed within "
             "each generation separately."
         ),
+    ),
+    SectionBreak(
+        title="Cross-Trait Correlations",
+        subtitle="Association between the two traits: joint liability, joint affection, and cross-trait tetrachoric correlation",
     ),
     PlotEntry(
         basename="cross_trait.phenotype",
@@ -435,6 +380,58 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "generation (blue dots per rep, line = mean), with overall r (black dashed) and "
             "frailty oracle (green dash-dot) reference lines when available. Right panel: "
             "cross-person cross-trait r by relationship type (coloured violins + black dots)."
+        ),
+    ),
+    SectionBreak(
+        title="Additional per-generation and sex-specific figures.",
+        subtitle="Supplemental stratified views moved out of the main narrative flow",
+    ),
+    PlotEntry(
+        basename="liability_violin.phenotype.by_generation",
+        title="Liability violin plots by generation.",
+        body=(
+            "Grid: rows = traits, columns = recorded generations. Split violins for affected "
+            "vs. unaffected within each generation. Diamond markers and μ annotations show "
+            "per-group means. x-axis labels show observed generation-specific prevalence."
+        ),
+    ),
+    PlotEntry(
+        basename="liability_violin.phenotype.by_sex.by_generation",
+        title="Liability violin plots by sex and generation.",
+        body=(
+            "Grid: rows = traits, columns = generations. Each cell has side-by-side split "
+            "violins for female (left) and male (right), each showing unaffected vs. affected"
+            " distribution. Sex-specific observed prevalence annotated."
+        ),
+    ),
+    PlotEntry(
+        basename="cumulative_incidence.by_sex.by_generation",
+        title="Cumulative incidence by sex and generation.",
+        body=(
+            "Grid: rows = traits, columns = generations. Each panel shows cumulative "
+            "incidence curves for female (green) and male (blue) separately. Legend shows "
+            "per-sex sample size and observed prevalence within each generation. Statistics "
+            "computed over the full phenotyped population (pre-ascertainment)."
+        ),
+    ),
+    PlotEntry(
+        basename="cumulative_incidence_aj.by_sex",
+        title="Aalen-Johansen cumulative incidence by sex.",
+        body=(
+            "Two-panel figure, one per trait. Green line = female (sex=0), blue line = male "
+            "(sex=1) Aalen-Johansen trait CIF. Legend shows sample size and observed "
+            "prevalence per sex. Statistics computed over the full phenotyped population "
+            "(pre-ascertainment)."
+        ),
+    ),
+    PlotEntry(
+        basename="cumulative_incidence_aj.by_sex.by_generation",
+        title="Aalen-Johansen cumulative incidence by sex and generation.",
+        body=(
+            "Grid: rows = traits, columns = generations. Each panel shows AJ trait CIF for "
+            "female (green) and male (blue) separately. Legend shows per-sex sample size and "
+            "prevalence within each generation. Per-generation observation windows are "
+            "honoured via delayed entry."
         ),
     ),
 )

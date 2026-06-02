@@ -18,7 +18,7 @@ Start with these checks before diving into individual plot details:
 | Check | What to look at | Why it matters |
 |---|---|---|
 | Pedigree structure | `pedigree_counts.*`, `family_structure.*` | Confirms the simulated relationship mix, family sizes, and sampling/dropout shape |
-| Liability structure | `cross_trait.*`, `heritability.by_generation.*`, `additive_shared.by_generation.*` | Confirms the realized A/C/E components and cross-trait liability correlations |
+| Liability structure | `cross_trait.*`, `heritability.by_generation.*` | Confirms the realized A/C/E components and cross-trait liability correlations |
 | Phenotype separation | `liability_violin.phenotype.*`, `liability_components.by_generation.*` | Shows whether affected individuals are enriched for higher liability as expected |
 | Incidence and censoring | `cumulative_incidence.*`, `censoring.*`, `censoring_cascade.*` | Separates true event-time behavior from age-window and death censoring effects |
 | Familial signal | `tetrachoric.phenotype.*`, `parent_offspring_liability.by_generation.*` | Shows whether observed familial correlations track the latent liability structure |
@@ -35,34 +35,26 @@ control, the table above is usually the fastest path through the atlas.
 Source: [`simace.plotting.plot_distributions`](../api/plotting.md#plot_distributions).
 Generated for Weibull frailty phenotypes.
 
-### Mortality rate by decade (`death_age_distribution.png`)
+### Mortality (`mortality.png`)
 
-Two-panel figure (14 $\times$ 5 in).
+Four-panel figure (14 $\times$ 9 in). The left column summarises the mortality process; the right column shows the death-age distributions moved out of the age-at-onset figure.
 
-**Left panel -- Mortality Rate by Decade.**
+**Left column -- mortality by decade.**
 
-- **Bars**: Per-decade mortality rate (deaths in decade / alive at start of decade), averaged across replicates. Semi-transparent blue fill with black edges.
-- **x-axis**: Age decade labels (e.g., "0-10", "10-20", ...).
-- **y-axis**: Mortality rate (proportion).
+- **Top panel**: Per-decade mortality rate (deaths in decade / alive at start of decade), averaged across replicates.
+- **Bottom panel**: Cumulative mortality $F(t) = 1 - \prod_{d \leq t}(1 - r_d)$.
+- **Text annotations**: Above each cumulative-mortality bar, survival probability $S = 1 - F(t)$ formatted as "S=0.XX".
 
-**Right panel -- Cumulative Mortality by Decade.**
+**Right column -- death-censored unaffected individuals.**
 
-- **Bars**: Cumulative mortality $F(t) = 1 - \prod_{d \leq t}(1 - r_d)$, same style as left.
-- **Text annotations**: Above each bar, survival probability $S = 1 - F(t)$ formatted as "S=0.XX".
+- **Histograms**: Density histograms of observed death age for individuals with $\delta = 0$ and death-censored = True, shown separately for traits 1 and 2.
 
-### Age-at-onset and death-age histograms (`trait_phenotype.png`)
+### Age-at-onset histograms (`age_at_onset_death.png`)
 
-A $2 \times 2$ grid (14 $\times$ 10 in), rows = traits 1 and 2.
+Two-panel figure (14 $\times$ 5 in), one panel per trait.
 
-**Left column -- Affected individuals.**
-
-- **Histogram**: Density histogram (50 bins) of observed time-to-event (`t_observed`) for individuals with $\delta = 1$. Orange fill (`C3`), black edges.
-- **Title**: "Trait $k$: Age at Onset (affected)".
-
-**Right column -- Death-censored unaffected.**
-
-- **Histogram**: Density histogram of observed time for individuals with $\delta = 0$ and death-censored = True. Blue fill (`C0`), black edges.
-- **Title**: "Trait $k$: Age at Death (death-censored, unaffected)".
+- **Histogram**: Density histogram (50 bins) of observed time-to-event (`t_observed`) for individuals with $\delta = 1$. Orange fill, black edges.
+- **Title**: "Trait $k$: age at onset (affected)".
 
 ### Liability vs. age-at-onset (`trait_regression.png`)
 
@@ -194,30 +186,18 @@ Grid: rows = traits ($\times 2$), columns = last 3 non-founder generations. Size
 - **Column titles**: "Gen $g$".
 - **Row labels**: "Trait $k$ / Offspring Liability" ($y$-axis), "Midparent Liability" ($x$-axis, bottom row only).
 
-### Narrow-sense heritability by generation (`heritability.by_generation.png`)
+### Additive genetic and common environment by generation (`heritability.by_generation.png`)
 
 $1 \times 2$ figure (10 $\times$ 5 in), one panel per trait.
 
-- **Blue dots**: Per-replicate $h^2 = \text{Var}(A) / (\text{Var}(A) + \text{Var}(C) + \text{Var}(E))$ for each generation, computed from per-generation variance components in the `truth` group of `report.yaml`.
-- **Orange dashed line**: Configured heritability ($A_k$ parameter), the expected $h^2$.
-- **$y$-axis**: $[0, 1]$, labelled $h^2 = \text{Var}(A) / \text{Var}(L)$.
+- **Blue points/line**: Per-replicate and mean $\text{Var}(A) / \text{Var}(L)$ for each generation. This is the narrow-sense liability-scale heritability $h^2$.
+- **Orange points/line**: Per-replicate and mean $\text{Var}(C) / \text{Var}(L)$ for each generation.
+- **Dashed lines**: Configured $A_k$ and $C_k$ parameters, shown in the matching series colour.
+- **$y$-axis**: $[0, 1]$, labelled variance proportion over total liability variance.
 - **$x$-axis**: Generation number.
-- **Interpretation**: Stable $h^2$ across generations confirms that the ACE variance decomposition is maintained through the simulation. Founders (generation 1) have variance components set exactly; subsequent generations should converge to equivalent values under random mating.
+- **Interpretation**: Stable A and C proportions across generations confirm that the ACE variance decomposition is maintained through the simulation. Showing A and C separately avoids hiding shifts in C behind an $A + C$ broad-sense summary.
 
-Source: [`simace.plotting.plot_correlations`](../api/plotting.md#plot_correlations).
-Data from `report.yaml` -> `truth` -> `recorded_pedigree` -> `traits` -> `trait{N}` -> `realized_by_generation`.
-
-### Broad-sense heritability by generation (`broad_heritability.by_generation.png`)
-
-$1 \times 2$ figure (10 $\times$ 5 in), one panel per trait.
-
-- **Blue dots**: Per-replicate $H^2 = (\text{Var}(A) + \text{Var}(C)) / (\text{Var}(A) + \text{Var}(C) + \text{Var}(E))$ for each generation.
-- **Orange dashed line**: Parametric value ($A_k + C_k$).
-- **$y$-axis**: $[0, 1]$, labelled $H^2 = (\text{Var}(A)+\text{Var}(C)) / \text{Var}(L)$.
-- **$x$-axis**: Generation number.
-- **Interpretation**: Comparing $H^2$ with the narrow-sense $h^2$ above isolates the contribution of shared environment to familial resemblance.
-
-Source: [`simace.plotting.plot_correlations`](../api/plotting.md#plot_correlations).
+Source: [`simace.plotting.plot_heritability`](../api/plotting.md#plot_heritability).
 Data from `report.yaml` -> `truth` -> `recorded_pedigree` -> `traits` -> `trait{N}` -> `realized_by_generation`.
 
 ---

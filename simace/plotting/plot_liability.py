@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from matplotlib.colors import ListedColormap
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -146,6 +147,8 @@ def _plot_joint_grid(
         ax_joint.set_box_aspect(1)
         ax_joint.set_xlabel(f"{title} (Trait 1)")
         ax_joint.set_ylabel(f"{title} (Trait 2)")
+        ax_joint.set_axisbelow(True)
+        ax_joint.grid(True, color="black", linewidth=0.35, alpha=0.18)
 
         ax_marg_x.set_title(f"{title}: Trait 1 vs Trait 2", fontsize=11)
         ax_marg_x.tick_params(labelbottom=False, labelleft=False)
@@ -497,6 +500,8 @@ def plot_censoring_confusion(
         save_placeholder_plot(output_path, "No censoring confusion data")
         return
 
+    unshaded_cmap = ListedColormap(["white"])
+
     _fig, axes = plt.subplots(1, 2, figsize=(14, 6))
 
     for col, trait in enumerate([1, 2]):
@@ -523,20 +528,20 @@ def plot_censoring_confusion(
         ppv = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
         npv = tn / (tn + fn) if (tn + fn) > 0 else float("nan")
 
-        is_last = col == len(axes) - 1
         sns.heatmap(
             props,
             annot=False,
-            cmap=HEATMAP_CMAP,
+            cmap=unshaded_cmap,
             ax=ax,
             xticklabels=["Observed Yes", "Observed No"],
             yticklabels=["True Yes", "True No"],
             vmin=0,
             vmax=1,
-            cbar=is_last,
-            cbar_kws={"label": "Proportion"} if is_last else {},
+            linewidths=0.5,
+            linecolor="black",
+            cbar=False,
         )
-        annotate_heatmap(ax, props, counts)
+        annotate_heatmap(ax, props, counts, prop_color="black", count_color=(0, 0, 0, 0.65))
 
         metrics = (
             f"Sens: {sensitivity:.3f}   Spec: {specificity:.3f}   PPV: {ppv:.3f}   NPV: {npv:.3f}   n = {int(n):,}"
@@ -632,14 +637,15 @@ def plot_censoring_cascade(
         ax.bar(x, bars_left, bar_width, bottom=bottom, color=color_left, label="Left-censored")
         bottom += bars_left
 
-        # Annotate segments (skip if < 3% of bar height)
+        # Annotate segments only when there is enough vertical room for the
+        # label; tiny slivers make the count text collide with segment borders.
         for i in range(n_bars):
             total = bottom[i]
             if total == 0:
                 continue
             cum = 0.0
             for count in [bars_obs[i], bars_death[i], bars_right[i], bars_left[i]]:
-                if count > 0 and count / total >= 0.03:
+                if count > 0 and count / total >= 0.05:
                     mid = cum + count / 2
                     ax.text(x[i], mid, f"{int(count)}", ha="center", va="center", fontsize=8, fontweight="bold")
                 cum += count
@@ -659,11 +665,12 @@ def plot_censoring_cascade(
         ax.set_xticklabels(x_labels, fontsize=9)
         ax.set_ylabel("True affected count")
 
-    # Shared legend above the subplots
+    # Shared legend above the subplots, with top space reserved so it does not
+    # collide with the per-trait titles.
     handles, labels = axes[0].get_legend_handles_labels()
-    fig.legend(handles, labels, loc="upper center", ncol=4, fontsize=9, bbox_to_anchor=(0.5, 0.98))
+    fig.legend(handles, labels, loc="upper center", ncol=4, fontsize=9, bbox_to_anchor=(0.5, 1.0))
 
-    finalize_plot(output_path, scenario=scenario)
+    finalize_plot(output_path, scenario=scenario, tight_rect=[0, 0, 1, 0.90])
 
 
 def plot_joint_affection(
@@ -819,6 +826,8 @@ def plot_mate_correlation(
         fmt=".2f",
         annot_kws={"fontsize": 16, "fontweight": "bold"},
         square=True,
+        linewidths=0.5,
+        linecolor="black",
         cbar=False,
         xticklabels=xlabels,
         yticklabels=ylabels,
@@ -840,6 +849,8 @@ def plot_mate_correlation(
         fmt=".2f",
         annot_kws={"fontsize": 16, "fontweight": "bold"},
         square=True,
+        linewidths=0.5,
+        linecolor="black",
         cbar_kws={"label": "Pearson r"},
         xticklabels=xlabels,
         yticklabels=[],

@@ -642,6 +642,17 @@ class TestPlotCorrelationsExpanded:
         plt.close("all")
         assert plt.get_fignums() == before
 
+    def test_plot_heritability_by_generation(self, broad_h2_validations, tmp_path):
+        from simace.plotting.plot_heritability import plot_heritability_by_generation
+
+        before = plt.get_fignums()
+        out = tmp_path / "h2_gen.png"
+        plot_heritability_by_generation(broad_h2_validations, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
     def test_plot_broad_heritability_by_generation(self, broad_h2_validations, tmp_path):
         from simace.plotting.plot_heritability import plot_broad_heritability_by_generation
 

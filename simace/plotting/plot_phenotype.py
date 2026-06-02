@@ -41,7 +41,6 @@ from simace.plotting.plot_distributions import (
     plot_trait_regression,
 )
 from simace.plotting.plot_heritability import (
-    plot_broad_heritability_by_generation,
     plot_heritability_by_generation,
     plot_heritability_by_sex_generation,
     plot_observed_heritability,
@@ -146,7 +145,14 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
     # Distribution plots
     PlotRenderSpec(
         "mortality",
-        lambda ctx, p: plot_death_age_distribution(ctx.all_stats, ctx.censor_age, p, ctx.scenario),
+        lambda ctx, p: plot_death_age_distribution(
+            ctx.all_stats,
+            ctx.censor_age,
+            p,
+            ctx.scenario,
+            df_samples=ctx.df_samples,
+            subsample_note=ctx.subsample_note,
+        ),
     ),
     PlotRenderSpec(
         "age_at_onset_death",
@@ -271,10 +277,6 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
     PlotRenderSpec(
         "heritability.by_generation",
         lambda ctx, p: plot_heritability_by_generation(ctx.all_stats, p, ctx.scenario),
-    ),
-    PlotRenderSpec(
-        "additive_shared.by_generation",
-        lambda ctx, p: plot_broad_heritability_by_generation(ctx.all_stats, p, ctx.scenario),
     ),
     # PO-regression heritability by sex
     PlotRenderSpec(

@@ -12,6 +12,31 @@ from simace.plotting.stats_report import plotting_report_views
 logger = logging.getLogger(__name__)
 
 
+def _load_cli_scenario_params(params_yaml: str | None, scenario: str, config_dir: Path) -> dict | None:
+    """Load CLI scenario metadata, enriching old params.yaml files with config defaults when possible."""
+    if params_yaml is None and scenario == "unknown":
+        return None
+
+    params = load_yaml(params_yaml) if params_yaml else {}
+    if params is None:
+        params = {}
+
+    merged = dict(params)
+    if scenario != "unknown" and config_dir.exists():
+        try:
+            from simace.config import resolve_defaults, resolve_scenarios
+
+            defaults = resolve_defaults(config_dir)
+            scenarios = resolve_scenarios(config_dir, defaults)
+            if scenario in scenarios:
+                merged = {**defaults, **scenarios[scenario], **params}
+        except Exception as exc:  # pragma: no cover - fallback should not fail atlas assembly
+            logger.warning("Could not merge CLI atlas metadata from %s: %s", config_dir, exc)
+
+    merged["scenario"] = scenario
+    return merged
+
+
 def _run_snakemake():
     setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
     p = snakemake.params
@@ -84,18 +109,25 @@ if __name__ == "__main__":
         add_logging_args(parser)
         parser.add_argument("--plot-dir", required=True, help="Directory containing the plot PNGs")
         parser.add_argument("--params-yaml", default=None, help="Scenario params.yaml for title page")
+        parser.add_argument(
+            "--config-dir",
+            default="config",
+            help="Config directory used to enrich CLI atlas metadata with defaults (default: config)",
+        )
         parser.add_argument("--report", nargs="*", default=[], help="report.yaml paths (one per replicate)")
         parser.add_argument("--plot-payload", nargs="*", default=[], help="plot_payload.yaml paths (one per replicate)")
         parser.add_argument("--scenario", default="unknown", help="Scenario name")
         parser.add_argument("--output", required=True, help="Output PDF path")
+        parser.add_argument(
+            "--html-output",
+            default=None,
+            help="Optional output HTML atlas path (CLI prototype; Snakemake does not pass this flag)",
+        )
         parser.add_argument("--plot-ext", default="png", help="Plot file extension (default: png)")
         args = parser.parse_args()
         init_logging(args)
 
-        scenario_params = None
-        if args.params_yaml:
-            scenario_params = load_yaml(args.params_yaml)
-            scenario_params["scenario"] = args.scenario
+        scenario_params = _load_cli_scenario_params(args.params_yaml, args.scenario, Path(args.config_dir))
 
         reports = [load_yaml(rp) for rp in args.report]
         payloads = [load_yaml(pp) for pp in args.plot_payload] if args.plot_payload else [None] * len(reports)
@@ -110,5 +142,16 @@ if __name__ == "__main__":
             scenario_params=scenario_params,
             stats_data=all_stats or None,
         )
+        if args.html_output:
+            from simace.plotting.plot_atlas_html import assemble_html_atlas
+
+            assemble_html_atlas(
+                items,
+                Path(args.plot_dir),
+                Path(args.html_output),
+                plot_ext=args.plot_ext,
+                scenario_params=scenario_params,
+                stats_data=all_stats or None,
+            )
     else:
         _run_snakemake()

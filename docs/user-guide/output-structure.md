@@ -330,18 +330,17 @@ Ordered by narrative flow: pedigree structure, liability, phenotype, censoring, 
 | `mate_correlation.{ext}` | Mate liability correlations (assortative mating) |
 | `cross_trait.{ext}` | Cross-trait liability scatter |
 | `parent_offspring_liability.by_generation.{ext}` | Parent-offspring liability correlations by generation |
-| `heritability.by_generation.{ext}` | Liability-scale heritability by generation |
+| `heritability.by_generation.{ext}` | Additive genetic and common environment variance proportions by generation |
 | `heritability.by_sex.by_generation.{ext}` | Liability-scale heritability by sex and generation |
-| `additive_shared.by_generation.{ext}` | Additive and shared environment by generation |
 | `liability_violin.phenotype.{ext}` | Liability violin plots by affection status |
 | `liability_violin.phenotype.by_generation.{ext}` | Liability violins by generation and affection status |
 | `liability_violin.phenotype.by_sex.by_generation.{ext}` | Liability violins by sex, generation, and affection status |
-| `age_at_onset_death.{ext}` | Age-at-onset and death age distributions |
-| `mortality.{ext}` | Mortality rates by decade |
+| `mortality.{ext}` | Mortality rates and death-age distributions |
+| `age_at_onset_death.{ext}` | Age-at-onset distributions |
 | `cumulative_incidence.phenotype.{ext}` | Cumulative incidence curves by trait |
+| `censoring.{ext}` | Censoring window visualization |
 | `cumulative_incidence.by_sex.{ext}` | Cumulative incidence by sex |
 | `cumulative_incidence.by_sex.by_generation.{ext}` | Cumulative incidence by sex and generation |
-| `censoring.{ext}` | Censoring window visualization |
 | `censoring_confusion.{ext}` | Censoring confusion matrix |
 | `censoring_cascade.{ext}` | Censoring cascade by generation |
 | `liability_vs_aoo.{ext}` | Liability vs age-at-onset scatter |

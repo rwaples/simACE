@@ -48,66 +48,55 @@ logger = logging.getLogger(__name__)
 
 
 def plot_death_age_distribution(
-    all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = ""
+    all_stats: list[dict[str, Any]],
+    censor_age: float,
+    output_path: str | Path,
+    scenario: str = "",
+    df_samples: pd.DataFrame | None = None,
+    subsample_note: str = "",
 ) -> None:
-    """Plot mortality rate and cumulative mortality by decade, averaged across reps."""
-    _fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    """Plot mortality rates plus optional death-age histograms."""
+    if df_samples is None:
+        _fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        rate_ax, cumulative_ax = axes
+        death_axes = []
+    else:
+        _fig, axes = plt.subplots(2, 2, figsize=(14, 9))
+        rate_ax = axes[0, 0]
+        cumulative_ax = axes[1, 0]
+        death_axes = [axes[0, 1], axes[1, 1]]
 
     # Average mortality rates across reps
     all_rates = np.array([s["mortality"]["rates"] for s in all_stats])
     mean_rates = all_rates.mean(axis=0)
     decade_labels = all_stats[0]["mortality"]["decade_labels"]
 
-    # Left: mortality rate per decade
-    axes[0].bar(decade_labels, mean_rates, edgecolor="black", alpha=0.7)
-    axes[0].set_title("Mortality Rate by Decade")
-    axes[0].set_xlabel("Age Decade")
-    axes[0].set_ylabel("Mortality Rate")
-    axes[0].tick_params(axis="x", rotation=45)
+    # Mortality rate per decade
+    rate_ax.bar(decade_labels, mean_rates, edgecolor="black", alpha=0.7)
+    rate_ax.set_title("Mortality rate by decade")
+    rate_ax.set_xlabel("Age decade")
+    rate_ax.set_ylabel("Mortality rate")
+    rate_ax.tick_params(axis="x", rotation=45)
 
-    # Right: cumulative mortality per decade with survival annotations
+    # Cumulative mortality per decade with survival annotations
     survival = np.cumprod(1 - mean_rates)
     cumulative = 1 - survival
-    bars = axes[1].bar(decade_labels, cumulative, edgecolor="black", alpha=0.7)
+    bars = cumulative_ax.bar(decade_labels, cumulative, edgecolor="black", alpha=0.7)
     # `padding` is in points, independent of data scale — without this, a
     # fixed 0.01 data-coord offset blew the bbox up when mortality rates
     # were tiny (cumulative ~1e-4), expanding the saved PNG to 60-85k px tall.
-    axes[1].bar_label(bars, labels=[f"S={s:.2f}" for s in survival], padding=3, fontsize=8)
-    axes[1].set_title("Cumulative Mortality by Decade")
-    axes[1].set_xlabel("Age Decade")
-    axes[1].set_ylabel("Cumulative Mortality")
-    axes[1].tick_params(axis="x", rotation=45)
+    cumulative_ax.bar_label(bars, labels=[f"S={s:.2f}" for s in survival], padding=3, fontsize=8)
+    cumulative_ax.set_title("Cumulative mortality by decade")
+    cumulative_ax.set_xlabel("Age decade")
+    cumulative_ax.set_ylabel("Cumulative mortality")
+    cumulative_ax.tick_params(axis="x", rotation=45)
 
-    finalize_plot(output_path, scenario=scenario)
-
-
-def plot_trait_phenotype(
-    df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = ""
-) -> None:
-    """Plot phenotype distributions for both traits in a 2x2 grid."""
-    _fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-
-    for row, trait_num in enumerate([1, 2]):
+    for ax, trait_num in zip(death_axes, [1, 2], strict=False):
         affected_col = f"affected{trait_num}"
         t_col = f"t_observed{trait_num}"
         death_censored_col = f"death_censored{trait_num}"
-
-        affected = df_samples[df_samples[affected_col]]
         death_censored = df_samples[~df_samples[affected_col] & df_samples[death_censored_col]]
-
-        axes[row, 0].hist(
-            affected[t_col].dropna(),
-            bins=50,
-            density=True,
-            edgecolor="black",
-            alpha=0.7,
-            color=COLOR_AFFECTED,
-        )
-        axes[row, 0].set_title(f"Trait {trait_num}: Age at Onset (affected)")
-        axes[row, 0].set_xlabel("Age")
-        axes[row, 0].set_ylabel("Density")
-
-        axes[row, 1].hist(
+        ax.hist(
             death_censored[t_col].dropna(),
             bins=50,
             density=True,
@@ -115,9 +104,36 @@ def plot_trait_phenotype(
             alpha=0.7,
             color=COLOR_UNAFFECTED,
         )
-        axes[row, 1].set_title(f"Trait {trait_num}: Age at Death (death-censored, unaffected)")
-        axes[row, 1].set_xlabel("Age")
-        axes[row, 1].set_ylabel("Density")
+        ax.set_title(f"Trait {trait_num}: age at death (death-censored, unaffected)")
+        ax.set_xlabel("Age")
+        ax.set_ylabel("Density")
+
+    finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
+
+
+def plot_trait_phenotype(
+    df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = ""
+) -> None:
+    """Plot age-at-onset distributions for affected individuals in both traits."""
+    _fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
+
+    for ax, trait_num in zip(axes, [1, 2], strict=True):
+        affected_col = f"affected{trait_num}"
+        t_col = f"t_observed{trait_num}"
+
+        affected = df_samples[df_samples[affected_col]]
+
+        ax.hist(
+            affected[t_col].dropna(),
+            bins=50,
+            density=True,
+            edgecolor="black",
+            alpha=0.7,
+            color=COLOR_AFFECTED,
+        )
+        ax.set_title(f"Trait {trait_num}: age at onset (affected)")
+        ax.set_xlabel("Age")
+        ax.set_ylabel("Density")
 
     finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
 
@@ -479,19 +495,37 @@ def plot_cumulative_incidence_aj(
         mean_disease = aj_disease.mean(axis=0)
         mean_death = aj_death.mean(axis=0)
 
-        ax.plot(ages, mean_disease, color=COLOR_AFFECTED, linewidth=1.4, label="AJ trait")
+        ax.plot(ages, mean_disease, color=COLOR_AFFECTED, linewidth=3.0, label="AJ trait", zorder=2)
         if len(stats_with_data) > 1:
             ax.fill_between(ages, aj_disease.min(axis=0), aj_disease.max(axis=0), alpha=0.18, color=COLOR_AFFECTED)
-
-        ax.plot(ages, mean_death, color=COLOR_UNAFFECTED, linewidth=1.2, linestyle="--", label="AJ death")
-        if len(stats_with_data) > 1:
-            ax.fill_between(ages, aj_death.min(axis=0), aj_death.max(axis=0), alpha=0.12, color=COLOR_UNAFFECTED)
 
         emp_stats = [s for s in stats_with_data if s.get("cumulative_incidence")]
         if emp_stats:
             emp_key = "observed_values" if "observed_values" in emp_stats[0]["cumulative_incidence"][key] else "values"
+            emp_ages = np.array(emp_stats[0]["cumulative_incidence"][key]["ages"])
             emp = np.array([s["cumulative_incidence"][key][emp_key] for s in emp_stats])
-            ax.plot(ages, emp.mean(axis=0), color=COLOR_OBSERVED, linewidth=1.0, alpha=0.85, label="Empirical")
+            ax.plot(
+                emp_ages, emp.mean(axis=0), color=COLOR_OBSERVED, linewidth=3.0, alpha=0.85, label="Empirical", zorder=3
+            )
+
+        true_stats = [
+            s
+            for s in stats_with_data
+            if s.get("cumulative_incidence") and "true_values" in s["cumulative_incidence"].get(key, {})
+        ]
+        if true_stats:
+            true_ages = np.array(true_stats[0]["cumulative_incidence"][key]["ages"])
+            true_cif = np.array([s["cumulative_incidence"][key]["true_values"] for s in true_stats])
+            ax.plot(
+                true_ages,
+                true_cif.mean(axis=0),
+                color=COLOR_TRUE,
+                linewidth=3.0,
+                linestyle=":",
+                alpha=0.95,
+                label="True CIF",
+                zorder=4,  # draw the true CIF on top of the AJ-trait and empirical curves
+            )
 
         F_d = mean_disease[-1]
         F_x = mean_death[-1]
