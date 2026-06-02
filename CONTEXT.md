@@ -42,7 +42,7 @@ _Avoid_: phenotyping (gerund form is suppressed across the codebase — see Flag
 
 **Affected** / **Unaffected**:
 An individual's *ground-truth* binary status for a given trait. Stored as `affected1` / `affected2` (boolean). "Affected" is a truth about the individual produced by the phenotype model + censoring; it is not contingent on study enrollment.
-_Avoid_: case (reserved for the sampling/ascertainment context — see **Case** / **Control**), diagnosed, positive, sick, affection, "affected status" (just say "affected").
+_Avoid_: case (reserved for the sampling/ascertainment context — see **Case** / **Control**), diagnosed, positive, sick, affection, "affected status" (just say "affected"). (Caption exception: "true cases" is permitted for ground-truth affecteds at the **censoring** stage — see **Plot captions & annotations**.)
 
 **Case** / **Control**:
 Roles a sampled individual occupies in a study-design context: a **case** is an affected individual drawn into the sample; a **control** is an unaffected one. Only meaningful after the sample stage and only with case-ascertainment weighting in play. The split between "affected" (truth) and "case" (study role) is load-bearing because simACE exists to study how case ascertainment biases estimates relative to the underlying truth.
@@ -50,7 +50,7 @@ _Avoid_: using "case" / "control" for un-sampled individuals or for the raw `aff
 
 **Onset** (age-at-onset):
 The age at which an affected individual experiences the trait event, as produced by time-to-event phenotype models (`frailty`, `cure_frailty`, `adult` with `method: cox`, `first_passage`) and clipped by censoring. Stored as `onset1` / `onset2`. "Onset" is canonical for column names and short-form references; "age-at-onset" is acceptable in prose.
-_Avoid_: event time, time-to-event (these are *method* names, not column names), age of diagnosis, age of disease.
+_Avoid_: event time, time-to-event (these are *method* names, not column names), age of diagnosis, age of disease. (Caption exception: bare "event time" is permitted for the raw pre-censoring simulated time, distinct from the clipped `onset` column — see **Plot captions & annotations**.)
 
 ### Generations
 
@@ -99,6 +99,10 @@ _Avoid_: identical twin (colloquial), DZ twin (**simACE has no concept of DZ twi
 
 **Sibship**:
 **Not a domain term in simACE.** Do not introduce it. The cardinality is wrong (paternal half-sibs would belong to a sibship but not a household, breaking the C-sharing intuition). Use **household**, **siblings**, or **mating** instead, depending on which structural fact you actually mean.
+
+**Family size**:
+The number of offspring per parent — counted per **mother** or per **father** — not household size and not pedigree "family" size. The `family_size` validation plot (mean offspring per mother/father among parents with ≥1 child) and the `family_size_variance` effective-size diagnostic both use this offspring-count sense. simACE has no household-size or pedigree-family-size concept; when a plot or stat says "family size" it means offspring count per parent.
+_Avoid_: household size, sibship size, pedigree family size (all wrong cardinality — see **Household**, **Sibship**), kids per couple (see **Mating**).
 
 ### Prevalence and incidence
 
@@ -266,6 +270,17 @@ simACE-side `simace.analysis.stats` produces **observed summaries** and simple *
 fitACE-side methods are **inferential**: they fit a full variance-component model (often with explicit pedigree structure, censoring, and ascertainment correction) and estimate $\sigma^2_A$, $\sigma^2_C$, $\sigma^2_E$, $r_A$, $r_C$, and related parameters with uncertainty.
 
 When in doubt: if it directly describes a scoped simACE output population, it is an observed summary. If it transforms observed summaries into a target quantity such as $h^2$, it is an estimator. If it comes from fitting a variance-component model with uncertainty, it is inferential fitACE output.
+
+### Plot captions & annotations
+
+Conventions for the text rendered in the plot atlas — both the `PlotEntry` `title` / `body` captions in `simace/plotting/atlas_manifest.py` and the inline matplotlib annotations (panel titles, axis labels, the plotting-sample note) in the `plot_*.py` modules. The goal: a reader of any atlas page sees the same canonical terms this glossary defines. Python identifiers, stats-output keys, and docstrings are **exempt** — they may retain legacy words (e.g. `dz_sibling_A1_corr`, the `left_truncated` stats key, `subsample_note`, `mean_self_coancestry`).
+
+- **Population scope.** Name a population using the canonical report scopes — **recorded pedigree**, **phenotyped population**, **analysis sample**, **analysis pedigree** (see **Per-replicate scientific report**) — never ad-hoc phrases like "full (non-subsampled) data". Quantities measured before the ascertainment stage are scoped to the **phenotyped population**; add "(pre-ascertainment)" where the contrast matters.
+- **Plotting sample.** The downsample note on dense scatter/histogram plots says "plotting sample" (see **Plotting sample**), never "subsampled".
+- **Observed prevalence.** A post-censoring affected fraction shown on a plot is **observed prevalence** (see the entry); reserve bare "prevalence" / $K$ for the configured target.
+- **Trait, not disease.** The event of interest in a time-to-event / competing-risks caption is the **trait event** (as already used in the **Onset** entry); write "AJ trait CIF" vs "AJ death CIF", "terminal AJ trait F(∞)". Do not call it "disease" — simACE traits are abstract (see **Trait**, _Avoid_: disease).
+- **Blessed caption compounds.** Two survival-analysis terms are permitted in caption / annotation prose as a narrow carve-out from the bare-word _Avoid_ rules (which target running prose): **"true cases"** for ground-truth affecteds at the **censoring** stage (pre-ascertainment, where the study-role meaning of "case" is not in play), and bare **"event time"** for the raw pre-censoring simulated time (distinct from the clipped `onset` column). Both stay confined to censoring-stage captions.
+- **Retired / corrected labels.** "survival model" is no longer used as a plot qualifier — it is inaccurate for the threshold `adult` / `ltm` family, and the model-aware section break already names the configured family. In caption prose, age-window censoring before the window opens is **left-censored**, never "left-truncated" (which survives only as a stats key); "delayed entry" remains correct in the Aalen-Johansen captions, where it names how per-generation observation windows are honoured. "coancestry" stays out of caption prose (use **kinship** / **mean kinship**); only the fixed estimator identifiers `Ne_coancestry` / `mean_self_coancestry` / `Ne_caballero_toro` keep the word.
 
 ## Flagged ambiguities
 

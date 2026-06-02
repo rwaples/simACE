@@ -11,8 +11,20 @@
 ```bash
 git clone <repo-url>
 cd simACE
-conda env create -f envs/environment.yml   # creates environment and installs simace + fitACE
+conda env create -f envs/environment.yml   # creates environment and installs simace
 conda activate simACE
+```
+
+## Combined simACE + fitACE development (optional)
+
+Model fitting lives in the private sister repo
+[`fitACE`](https://github.com/rwaples/fitACE), which depends on simace. A
+fresh simACE clone does not include it, so the base environment installs
+simace only. If you have the `fitACE` checkout alongside simACE (at
+`../fitACE` relative to `envs/`), layer it in:
+
+```bash
+conda env update -n simACE -f envs/environment-fitace.yml
 ```
 
 ## Verify installation

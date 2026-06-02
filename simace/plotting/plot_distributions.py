@@ -461,7 +461,7 @@ def plot_cumulative_incidence_by_sex_generation(
 def plot_cumulative_incidence_aj(
     all_stats: list[dict[str, Any]], censor_age: float, output_path: str | Path, scenario: str = ""
 ) -> None:
-    """Plot Aalen-Johansen disease + death CIFs, with empirical overlay."""
+    """Plot Aalen-Johansen trait + death CIFs, with empirical overlay."""
     stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_aj")]
     if not stats_with_data:
         logger.warning("Skipping cumulative_incidence_aj: no data in stats")
@@ -479,7 +479,7 @@ def plot_cumulative_incidence_aj(
         mean_disease = aj_disease.mean(axis=0)
         mean_death = aj_death.mean(axis=0)
 
-        ax.plot(ages, mean_disease, color=COLOR_AFFECTED, linewidth=1.4, label="AJ disease")
+        ax.plot(ages, mean_disease, color=COLOR_AFFECTED, linewidth=1.4, label="AJ trait")
         if len(stats_with_data) > 1:
             ax.fill_between(ages, aj_disease.min(axis=0), aj_disease.max(axis=0), alpha=0.18, color=COLOR_AFFECTED)
 
@@ -499,7 +499,7 @@ def plot_cumulative_incidence_aj(
         ax.text(
             0.03,
             0.97,
-            f"AJ disease: {F_d:.1%}\nAJ death: {F_x:.1%}\nSurvival: {S_terminal:.1%}",
+            f"AJ trait: {F_d:.1%}\nAJ death: {F_x:.1%}\nSurvival: {S_terminal:.1%}",
             transform=ax.transAxes,
             ha="left",
             va="top",
@@ -521,7 +521,7 @@ def plot_cumulative_incidence_aj_by_sex(
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
-    """Plot Aalen-Johansen disease CIF stratified by sex."""
+    """Plot Aalen-Johansen trait CIF stratified by sex."""
     stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_aj_by_sex")]
     if not stats_with_data:
         logger.warning("Skipping cumulative_incidence_aj_by_sex: no data in stats")
@@ -572,7 +572,7 @@ def plot_cumulative_incidence_aj_by_sex_generation(
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
-    """Plot Aalen-Johansen disease CIF stratified by sex and generation."""
+    """Plot Aalen-Johansen trait CIF stratified by sex and generation."""
     stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_aj_by_sex_generation")]
     if not stats_with_data:
         logger.warning("Skipping cumulative_incidence_aj_by_sex_generation: no data in stats")
@@ -797,9 +797,9 @@ def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenar
     for i, v in enumerate(mean_vals):
         ax.text(i, v + 0.005, f"{v:.1%}", ha="center", va="bottom", fontsize=10)
     mean_size = np.mean([fs.get("mean", 0) for fs in fs_list])
-    ax.set_title("Offspring per Couple")
+    ax.set_title("Offspring per Mating")
     ax.set_xlabel("Number of offspring")
-    ax.set_ylabel("Fraction of couples")
+    ax.set_ylabel("Fraction of matings")
     ax.text(
         0.97,
         0.95,
@@ -883,9 +883,9 @@ def plot_family_structure(all_stats: list[dict], output_path: str | Path, scenar
             fontsize=10,
         )
     ax.set_xticks(x)
-    ax.set_xticklabels(["1 partner", "2+ partners"])
+    ax.set_xticklabels(["1 mate", "2+ mates"])
     ax.set_ylabel("Fraction of parents")
-    ax.set_title("Partners per Parent")
+    ax.set_title("Mates per Parent")
     ax.legend(fontsize=10)
     f_mean = np.mean([m.get("female_mean", 0) for m in mates_list])
     m_mean = np.mean([m.get("male_mean", 0) for m in mates_list])

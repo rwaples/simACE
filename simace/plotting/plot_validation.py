@@ -185,7 +185,7 @@ def plot_A_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     """Plot MZ twin and full-sib additive genetic correlations."""
     panels = [
         ("mz_twin_A1_corr", 1.0, "MZ Twin A1 Correlation"),
-        ("dz_sibling_A1_corr", 0.5, "DZ Sibling A1 Correlation"),
+        ("dz_sibling_A1_corr", 0.5, "Full-Sibling A1 Correlation"),
         ("half_sib_A1_corr", 0.25, "Half-Sibling A1 Correlation"),
         ("parent_offspring_A1_r2", 0.5, "Midparent-Offspring A1 R²"),
     ]
@@ -210,7 +210,7 @@ def plot_phenotype_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -
         (
             "dz_sibling_liability1_corr",
             lambda d: expected_liability_corr("FS", d["A1"].iloc[0], d["C1"].iloc[0]),
-            "DZ Sibling Liability1 Corr",
+            "Full-Sibling Liability1 Corr",
         ),
         (
             "half_sib_liability1_corr",
@@ -353,7 +353,7 @@ def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     # Use derived expected_twin_rate (0 under WF, p_mztwin otherwise) so
     # WF scenarios don't show a spurious negative bias.
     dp["Twin Rate Bias"] = dp["observed_twin_rate"] - dp["expected_twin_rate"]
-    dp["DZ A1 Corr Bias"] = dp["dz_sibling_A1_corr"] - 0.5
+    dp["Full-Sibling A1 Corr Bias"] = dp["dz_sibling_A1_corr"] - 0.5
     dp["Half-sib A1 Bias"] = dp["half_sib_A1_corr"] - 0.25
 
     panels = [
@@ -361,7 +361,7 @@ def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         "C1 Bias",
         "E1 Bias",
         "Twin Rate Bias",
-        "DZ A1 Corr Bias",
+        "Full-Sibling A1 Corr Bias",
         "Half-sib A1 Bias",
     ]
     scenarios = dp["scenario"].unique()

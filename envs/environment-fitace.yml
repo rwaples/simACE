@@ -1,0 +1,15 @@
+# Umbrella dev overlay: layers the private sister repo fitACE onto an
+# existing simACE conda env. fitACE depends on simace (not the reverse),
+# so this is an opt-in convenience for working on both repos together.
+#
+# Requires the private ../fitACE checkout (relative to this envs/ dir).
+# It is gitignored and not a submodule, so a fresh simACE clone will not
+# have it — clone it first if absent.
+#
+# Usage (after `conda env create -f envs/environment.yml`):
+#   conda env update -n simACE -f envs/environment-fitace.yml
+name: simACE
+dependencies:
+  - pip
+  - pip:
+      - "-e ../fitACE[plot]"

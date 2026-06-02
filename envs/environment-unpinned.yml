@@ -38,6 +38,8 @@ dependencies:
   # - tectonic
   - pip:
       - "-e ..[dev]"
-      - "-e ../fitACE[plot]"
+  # For combined simACE + fitACE dev, layer in the private sister repo
+  # (requires the ../fitACE checkout) after creating this env:
+  #   conda env update -n simACE -f envs/environment-fitace.yml
 variables:
   MPLBACKEND: Agg
