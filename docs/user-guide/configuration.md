@@ -26,7 +26,7 @@ compatibility, but new configs should use the sectioned form.
 | `G_pheno` | int | 3 | Last `G_pheno` generations to phenotype |
 | `G_sim` | int | 8 | Total simulated generations; `G_sim - G_ped` is burn-in |
 | `standardize` | str | `global` | Liability standardization mode: `none`, `global`, or `per_generation` |
-| `plot_format` | str | `png` | Plot extension, usually `png` or `pdf` |
+| `plot_format` | str | `png` | Plot image extension. The default `atlas.html` embeds plots inline, so it needs a browser-displayable source (`png` recommended, or `svg` for crisp vector plots). `pdf` is valid **only** for the on-demand `atlas.pdf` export (see [output structure](output-structure.md)). |
 | `drop_from` | str / null | `null` | Reuse another scenario's pedigree and gene-drop outputs |
 | `use_gene_drop` | bool | `false` | Use tstrait-derived `A1` instead of parametric `A1` downstream |
 

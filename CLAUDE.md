@@ -25,7 +25,7 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 - Use `--cores 4` running one scenario, `--cores 8` for multiple scenarios, `--cores 1` for debugging. 
 - Always dry-run (`-n`) before long runs.
 - Targets are per-scenario: `results/{folder}/{scenario}/{scenario,simulate,phenotype,validate,stats}.done`
-- Force-rebuild plot atlas: `snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.pdf`
+- Force-rebuild plot atlas (HTML is the default artifact; PDF is on-demand): `snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.html` (or `.../atlas.pdf` for the PDF export)
 
 ## Plotting
 

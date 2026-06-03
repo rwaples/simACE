@@ -28,11 +28,15 @@ A successful run produces these key files per replicate:
 
 ## Explore the atlas
 
-Per-scenario plots are compiled into a multi-page PDF atlas:
+Per-scenario plots are compiled into a self-contained HTML atlas (open it in any
+browser):
 
 ```
-results/test/small_test/plots/atlas.pdf
+results/test/small_test/plots/atlas.html
 ```
+
+A multi-page PDF atlas is available on demand — build it with
+`snakemake --cores 4 results/test/small_test/plots/atlas.pdf`.
 
 See [Interpreting Results](../user-guide/interpreting-results.md) for descriptions of each plot.
 

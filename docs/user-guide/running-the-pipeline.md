@@ -42,7 +42,10 @@ The `scenario.done` sentinel file signals that all stages are complete for that 
 Use `-f` to force-rebuild a specific output:
 
 ```bash
-# Regenerate plots for a scenario
+# Regenerate a scenario's atlas (HTML is the default artifact)
+snakemake --cores 4 -f results/base/baseline10K/plots/atlas.html
+
+# The PDF atlas is an on-demand export
 snakemake --cores 4 -f results/base/baseline10K/plots/atlas.pdf
 ```
 

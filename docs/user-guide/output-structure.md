@@ -17,7 +17,8 @@ results/{folder}/{scenario}/
 ├── rep3/
 └── plots/
     ├── *.png                              # Per-scenario diagnostic plots
-    └── atlas.pdf                          # Multi-page PDF atlas
+    ├── atlas.html                         # Self-contained HTML atlas (default)
+    └── atlas.pdf                          # Multi-page PDF atlas (on-demand export)
 ```
 
 ## Simulation data files
@@ -51,8 +52,10 @@ Temp files are auto-deleted by Snakemake after downstream rules complete.
 
 | File | Description |
 |---|---|
-| `results/{folder}/{scenario}/plots/atlas.pdf` | Per-scenario atlas |
-| `results/{folder}/plots/atlas.pdf` | Per-folder cross-scenario validation atlas |
+| `results/{folder}/{scenario}/plots/atlas.html` | Per-scenario atlas (default, self-contained HTML) |
+| `results/{folder}/{scenario}/plots/atlas.pdf` | Per-scenario atlas (on-demand PDF export) |
+| `results/{folder}/plots/atlas.html` | Per-folder cross-scenario validation atlas (default) |
+| `results/{folder}/plots/atlas.pdf` | Per-folder validation atlas (on-demand PDF export) |
 | `results/{folder}/{scenario}/rep{N}/epimight/plots/atlas.pdf` | EPIMIGHT atlas |
 
 ## Exporting to R
@@ -106,11 +109,13 @@ as placeholders matching values from `config/_default.yaml`.
 | File | Format | Description |
 |------|--------|-------------|
 | `results/{folder}/{scenario}/plots/*.png` | PNG (or PDF) | Phenotype and simple LTM figures (see [Plots](#plots)) |
-| `results/{folder}/{scenario}/plots/atlas.pdf` | PDF | Multi-page atlas combining all scenario figures |
+| `results/{folder}/{scenario}/plots/atlas.html` | HTML | Self-contained scenario atlas (default build) |
+| `results/{folder}/{scenario}/plots/atlas.pdf` | PDF | Multi-page scenario atlas (on-demand export) |
 | `results/{folder}/{scenario}/scenario.done` | Sentinel | Empty file indicating scenario completion |
 | `results/{folder}/report_summary.tsv` | TSV | Aggregated validation metrics across scenarios and replicates |
 | `results/{folder}/plots/*.png` | PNG | Cross-scenario validation plots |
-| `results/{folder}/plots/atlas.pdf` | PDF | Multi-page atlas of cross-scenario validation figures |
+| `results/{folder}/plots/atlas.html` | HTML | Self-contained cross-scenario validation atlas (default build) |
+| `results/{folder}/plots/atlas.pdf` | PDF | Cross-scenario validation atlas (on-demand export) |
 | `results/{folder}/folder.done` | Sentinel | Empty file indicating folder completion |
 | `results/{folder}/epimight.done` | Sentinel | Empty file indicating EPIMIGHT completion |
 
@@ -370,13 +375,17 @@ Ordered by narrative flow: pedigree structure, liability, phenotype, censoring, 
 
 ### Atlases
 
-Multi-page PDF atlases combine all plots for a scope into a single document with figure captions:
+An atlas combines all plots for a scope into a single document with figure
+captions. The default is a self-contained HTML atlas (embedded plots, native
+overview + Table 1, inline-SVG equations); a multi-page PDF atlas is an
+on-demand export (ADR 0010 — build with `snakemake .../atlas.pdf`):
 
 | File | Contents |
 |------|----------|
-| `results/{folder}/{scenario}/plots/atlas.pdf` | All phenotype figures for one scenario |
-| `results/{folder}/{scenario}/plots/atlas.html` | Single-page HTML phenotype atlas with native overview and Table 1 |
-| `results/{folder}/plots/atlas.pdf` | All cross-scenario validation figures for one folder |
+| `results/{folder}/{scenario}/plots/atlas.html` | All phenotype figures for one scenario (default) |
+| `results/{folder}/{scenario}/plots/atlas.pdf` | Same scenario figures, on-demand PDF export |
+| `results/{folder}/plots/atlas.html` | All cross-scenario validation figures for one folder (default) |
+| `results/{folder}/plots/atlas.pdf` | Same validation figures, on-demand PDF export |
 | `results/{folder}/{scenario}/rep{rep}/epimight/plots/atlas.pdf` | EPIMIGHT CIF, heritability, and genetic correlation figures |
 
 ---

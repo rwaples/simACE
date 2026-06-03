@@ -3,12 +3,13 @@
 The pipeline produces diagnostic and summary plots organised into five categories.
 All per-scenario plots are generated from pre-computed per-replicate statistics and
 downsampled data (capped at 100,000 points) to avoid loading full phenotype files at
-plot time. Per-scenario plots are compiled into atlas PDFs.
+plot time. Per-scenario plots are compiled into a self-contained HTML atlas (with a
+PDF atlas available on demand).
 
 !!! tip "Regenerating plots"
-    Force-rebuild a scenario's atlas:
+    Force-rebuild a scenario's atlas (HTML is the default; pass `.pdf` for the export):
     ```bash
-    snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.pdf
+    snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.html
     ```
 
 ## Reading the atlas
