@@ -56,7 +56,7 @@ Temp files are auto-deleted by Snakemake after downstream rules complete.
 | `results/{folder}/{scenario}/plots/atlas.pdf` | Per-scenario atlas (on-demand PDF export) |
 | `results/{folder}/plots/atlas.html` | Per-folder cross-scenario validation atlas (default) |
 | `results/{folder}/plots/atlas.pdf` | Per-folder validation atlas (on-demand PDF export) |
-| `results/{folder}/{scenario}/rep{N}/epimight/plots/atlas.pdf` | EPIMIGHT atlas |
+| `results/{folder}/{scenario}/rep{N}/epimight/plots/atlas.html` | EPIMIGHT atlas (default; `.pdf` on demand) |
 
 ## Exporting to R
 
@@ -386,7 +386,7 @@ on-demand export (ADR 0010 — build with `snakemake .../atlas.pdf`):
 | `results/{folder}/{scenario}/plots/atlas.pdf` | Same scenario figures, on-demand PDF export |
 | `results/{folder}/plots/atlas.html` | All cross-scenario validation figures for one folder (default) |
 | `results/{folder}/plots/atlas.pdf` | Same validation figures, on-demand PDF export |
-| `results/{folder}/{scenario}/rep{rep}/epimight/plots/atlas.pdf` | EPIMIGHT CIF, heritability, and genetic correlation figures |
+| `results/{folder}/{scenario}/rep{rep}/epimight/plots/atlas.html` | EPIMIGHT CIF, heritability, and genetic correlation figures (default; `.pdf` on demand) |
 
 ---
 
@@ -410,4 +410,4 @@ Key output files:
 | `tsv/h2_d1_{kind}.tsv` | TSV | Heritability estimates for trait 1 |
 | `tsv/h2_d2_{kind}.tsv` | TSV | Heritability estimates for trait 2 |
 | `tsv/gc_full_{kind}.tsv` | TSV | Genetic correlation full grid |
-| `plots/atlas.pdf` | PDF | Multi-page PDF of all EPIMIGHT figures |
+| `plots/atlas.html` | HTML | Self-contained atlas of all EPIMIGHT figures (default; `.pdf` on demand) |
