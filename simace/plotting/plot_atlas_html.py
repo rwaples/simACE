@@ -260,8 +260,10 @@ def _equations_svg(equations: tuple[str, ...], gid_prefix: str) -> str:
     finally:
         plt.close(fig)
     svg = buf.getvalue().decode("utf-8")
+    # Strip the XML prolog + DOCTYPE so the <svg> can be inlined directly.
     start = svg.find("<svg")
-    svg = svg[start:] if start != -1 else svg
+    if start != -1:
+        svg = svg[start:]
     return _namespace_svg_ids(svg, gid_prefix)
 
 

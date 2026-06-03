@@ -78,7 +78,7 @@ def _run_snakemake():
     # Merge in config-level parameters not present in params.yaml. The rule
     # supplies them as a single `meta` dict (see _scenario_atlas_params in
     # stats.smk), shared by the atlas.html and atlas.pdf rules.
-    for key, val in dict(snakemake.params.meta).items():
+    for key, val in snakemake.params.meta.items():
         if val is not None:
             scenario_params[key] = val
 
