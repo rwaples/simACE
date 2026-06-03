@@ -229,7 +229,7 @@ The pipeline runs the following stages in order. Stage names match the Snakemake
 3. **Censor** — apply age-window and death censoring to event times. Package: `simace/censoring/`.
 4. **Ascertainment** — unified dropout + case-ascertainment + $N_{\text{sample}}$ selection (per ADR 0001). Noun form. Replaces the older `dropout` + `sample` two-stage split.
 5. **Analyze** — combined production of ground-truth sanity checks and descriptive stats. Verb form. Folds the former validate and stats steps into one pipeline stage that emits a single curated per-replicate report plus a plot payload (ADR 0008).
-6. **Plot** — generate the per-scenario plot atlas. Package: `simace/plotting/`.
+6. **Plot** — render each scope's plot **atlas**. Package: `simace/plotting/`. The default, always-built rendering is a self-contained **HTML atlas** (`atlas.html`); a multi-page **PDF atlas** (`atlas.pdf`) is an on-demand export (ADR 0010).
 
 _Avoid_: "phenotyping" (killed), "subsampling" / "dropout stage" (killed — see **Ascertainment**), "validation stage" / "stats stage" as separate pipeline stages (use **Analyze** for the combined stage; use **Per-replicate scientific report** / **Plot payload** when referring to artifacts), "statistics" (use "stats"), "simulation stage" (just say "the simulate stage").
 
@@ -244,6 +244,10 @@ _Avoid_: report, stats report, scientific summary.
 **Plotting sample**:
 A downsampled set of trait rows used only to draw dense scatter and histogram plots. It is distinct from the post-ascertainment analysis dataset and must not be used as an analysis sample.
 _Avoid_: phenotype sample, stats sample, subsample.
+
+**Atlas**:
+The ordered set of figures, captions, and section breaks assembled for one **scope** into a single navigable document. An atlas is defined by its *manifest* — the figure order, caption text, and section dividers — and is independent of how it is rendered. Each atlas has two **renderings**: a self-contained **HTML atlas** (`atlas.html`) — the primary, default-built artifact, one portable file with figures embedded and equations as inline SVG — and a **PDF atlas** (`atlas.pdf`), an on-demand export (ADR 0010). Atlas scopes: the per-**scenario** atlas (phenotype figures plus a parameter overview and Table 1), the per-folder **validation** atlas (cross-scenario figures), and the fitACE-side **EPIMIGHT**, EPIMIGHT-bias, and onset-censoring atlases. The PA-FGRS atlas is a separate bespoke artifact, not part of this shared atlas family.
+_Avoid_: "the PDF" / "the atlas PDF" as a synonym for the atlas (the PDF is now just one rendering — the HTML atlas is primary); "report" (an atlas is figures, not the **Per-replicate scientific report**).
 
 ### simACE, fitACE, and the ACE model
 

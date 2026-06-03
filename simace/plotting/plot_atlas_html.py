@@ -2,10 +2,11 @@
 
 __all__ = ["assemble_html_atlas"]
 
+import base64
 import logging
-import os
 import re
 from html import escape
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
@@ -16,7 +17,17 @@ from simace.plotting.plot_table1 import Table1Row, Table1Section, Table1Summary,
 
 logger = logging.getLogger(__name__)
 
-_BROWSER_IMAGE_EXTS = {"png", "jpg", "jpeg", "gif", "webp", "svg"}
+# Browser-displayable plot sources and their data-URI MIME types. Keys must
+# stay in sync with _MIME_BY_EXT below (the HTML atlas embeds every plot inline).
+_MIME_BY_EXT = {
+    "png": "image/png",
+    "jpg": "image/jpeg",
+    "jpeg": "image/jpeg",
+    "gif": "image/gif",
+    "webp": "image/webp",
+    "svg": "image/svg+xml",
+}
+_BROWSER_IMAGE_EXTS = frozenset(_MIME_BY_EXT)
 
 
 def _validate_plot_ext(plot_ext: str) -> str:
@@ -25,16 +36,23 @@ def _validate_plot_ext(plot_ext: str) -> str:
     if normalised not in _BROWSER_IMAGE_EXTS:
         allowed = ", ".join(sorted(_BROWSER_IMAGE_EXTS))
         raise ValueError(
-            "HTML atlas requires a browser-displayable plot_ext "
-            f"({allowed}); got {plot_ext!r}. Use PNG/JPG/SVG/WebP-style plot outputs instead."
+            "The HTML atlas embeds plots inline and needs a browser-displayable "
+            f"plot source ({allowed}); got {plot_ext!r}. Use png or svg for the "
+            "HTML atlas, or build the on-demand PDF atlas (atlas.pdf) when the "
+            "plot source is pdf."
         )
     return normalised
 
 
-def _rel_href(path: Path, base_dir: Path) -> str:
-    """Return a POSIX relative href from ``base_dir`` to ``path``."""
-    rel = os.path.relpath(path.resolve(), start=base_dir.resolve())
-    return Path(rel).as_posix()
+def _data_uri(path: Path, ext: str) -> str:
+    """Return a base64 ``data:`` URI embedding the plot file bytes.
+
+    ``ext`` is a normalised extension from :func:`_validate_plot_ext`, so it is
+    guaranteed to have a MIME mapping. Embedding keeps the atlas a single
+    self-contained file with no sibling assets.
+    """
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{_MIME_BY_EXT[ext]};base64,{encoded}"
 
 
 def _slug(text: str, fallback: str) -> str:
@@ -107,6 +125,8 @@ h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); line-height: 1.1; }
 .card h2 { margin: 0 0 0.5rem; font-size: 1.45rem; }
 .card p { margin: 0.35rem 0 0; color: var(--muted); }
 .card img { display: block; max-width: 100%; height: auto; margin: 0.85rem auto 0; border-radius: 0.35rem; }
+.equation-svg { margin: 0.85rem auto 0; }
+.equation-svg svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
 .overview-card > p { max-width: 58rem; }
 .overview-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1rem; margin-top: 1rem; }
 .overview-panel { padding: 1rem; border: 1px solid var(--line); border-radius: 0.65rem; background: #fbfcff; }
@@ -196,21 +216,28 @@ figcaption strong { font-weight: 800; }
 """
 
 
-def _save_figure(fig: plt.Figure, output_path: Path, *, tight: bool = False) -> None:
-    """Save and close a matplotlib figure as a 150-dpi PNG."""
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        save_kwargs = {"dpi": 150}
-        if tight:
-            save_kwargs.update({"bbox_inches": "tight", "pad_inches": 0.2})
-        fig.savefig(output_path, **save_kwargs)
-    finally:
-        plt.close(fig)
+def _namespace_svg_ids(svg: str, prefix: str) -> str:
+    """Prefix every id and intra-document reference in one SVG fragment.
+
+    matplotlib reuses ids (``figure_1``, glyph ids like ``DejaVuSans-30``,
+    clip-path ids) across figures. Inlining several equation SVGs into one
+    page would otherwise produce duplicate ids; prefixing every id and its
+    ``#`` / ``url(#…)`` references with a per-block ``prefix`` keeps the
+    single-page document valid and each block self-contained.
+    """
+    svg = re.sub(r'\bid="([^"]+)"', lambda m: f'id="{prefix}{m.group(1)}"', svg)
+    svg = re.sub(r'\bhref="#([^"]+)"', lambda m: f'href="#{prefix}{m.group(1)}"', svg)
+    return re.sub(r"url\(#([^)]+)\)", lambda m: f"url(#{prefix}{m.group(1)})", svg)
 
 
-def _render_equations_asset(asset_dir: Path, equations: tuple[str, ...]) -> Path:
-    """Render model mathtext equations as a companion PNG asset."""
-    output_path = asset_dir / "model_equations.png"
+def _equations_svg(equations: tuple[str, ...], gid_prefix: str) -> str:
+    """Render model mathtext equations to inline ``<svg>`` markup.
+
+    Returns dependency-free SVG (no on-disk asset) with the XML prolog and
+    DOCTYPE stripped so it can be inlined directly into the atlas body, with
+    all ids namespaced by ``gid_prefix`` so multiple inlined equation blocks
+    cannot collide. Equations stay crisp at any zoom.
+    """
     height = max(1.1, 0.55 * len(equations) + 0.25)
     fig = plt.figure(figsize=(10.5, height))
     step = min(0.28, 0.8 / max(len(equations), 1))
@@ -227,19 +254,15 @@ def _render_equations_asset(asset_dir: Path, equations: tuple[str, ...]) -> Path
             transform=fig.transFigure,
         )
         y -= step
-    _save_figure(fig, output_path, tight=True)
-    return output_path
-
-
-def _render_asset_card(anchor_id: str, title: str, body: str, href: str, alt: str) -> str:
-    """Render a top-card image asset."""
-    return f"""
-<section id="{escape(anchor_id, quote=True)}" class="card asset-card">
-<h2>{escape(title)}</h2>
-<p>{escape(body)}</p>
-<img src="{escape(href, quote=True)}" alt="{escape(alt, quote=True)}">
-</section>
-""".strip()
+    buf = BytesIO()
+    try:
+        fig.savefig(buf, format="svg", bbox_inches="tight", pad_inches=0.2)
+    finally:
+        plt.close(fig)
+    svg = buf.getvalue().decode("utf-8")
+    start = svg.find("<svg")
+    svg = svg[start:] if start != -1 else svg
+    return _namespace_svg_ids(svg, gid_prefix)
 
 
 def _render_table1_row(section: Table1Section, row: Table1Row) -> str:
@@ -670,38 +693,42 @@ def _render_overview_card(params: dict | None) -> str:
 """.strip()
 
 
-def _render_section_break(anchor_id: str, item: SectionBreak, equation_href: str | None = None) -> str:
-    """Render a manifest section break as a semantic HTML section card."""
+def _render_section_break(anchor_id: str, item: SectionBreak, equation_svg: str | None = None) -> str:
+    """Render a manifest section break as a semantic HTML section card.
+
+    ``equation_svg`` is inline ``<svg>`` markup (not a link); it is embedded
+    verbatim so the atlas stays a single self-contained file.
+    """
     subtitle = f'<p class="subtitle">{escape(item.subtitle)}</p>' if item.subtitle else ""
-    equation_img = ""
-    if equation_href:
-        equation_img = f'<img src="{escape(equation_href, quote=True)}" alt="Model equations">'
+    equation_block = ""
+    if equation_svg:
+        equation_block = f'<div class="equation-svg" role="img" aria-label="Model equations">{equation_svg}</div>'
     return f"""
 <section id="{escape(anchor_id, quote=True)}" class="card section-card">
 <h2>{escape(item.title)}</h2>
 {subtitle}
-{equation_img}
+{equation_block}
 </section>
 """.strip()
 
 
-def _render_image_card(item: PlotEntry, plot_idx: int, href: str) -> str:
-    """Render a normal figure card with linked plot image and caption."""
+def _render_image_card(item: PlotEntry, plot_idx: int, src: str) -> str:
+    """Render a normal figure card with an embedded plot image and caption."""
     return f"""
 <figure id="figure-{plot_idx}" class="card figure-card">
 <h2>Figure {plot_idx}: {escape(item.title)}</h2>
-<img src="{escape(href, quote=True)}" alt="{escape(item.title, quote=True)}">
+<img src="{escape(src, quote=True)}" alt="{escape(item.title, quote=True)}">
 <figcaption><strong>Figure {plot_idx}: {escape(item.title)}</strong> {escape(item.body)}</figcaption>
 </figure>
 """.strip()
 
 
-def _render_missing_plot_card(item: PlotEntry, plot_idx: int, href: str) -> str:
+def _render_missing_plot_card(item: PlotEntry, plot_idx: int, filename: str) -> str:
     """Render a visible placeholder for a missing plot while preserving numbering."""
     return f"""
 <figure id="figure-{plot_idx}" class="card figure-card missing-card">
 <h2>Figure {plot_idx}: {escape(item.title)}</h2>
-<div class="missing-placeholder">Missing plot image: {escape(href)}</div>
+<div class="missing-placeholder">Missing plot image: {escape(filename)}</div>
 <figcaption><strong>Figure {plot_idx}: {escape(item.title)}</strong> {escape(item.body)}</figcaption>
 </figure>
 """.strip()
@@ -733,11 +760,6 @@ def assemble_html_atlas(
     plot_dir = Path(plot_dir)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_dir = output_path.parent
-    asset_dir = output_dir / "atlas_assets"
-    stale_table1_png = asset_dir / "table1.png"
-    if stale_table1_png.exists():
-        stale_table1_png.unlink()
 
     scenario_name = "unknown"
     if scenario_params:
@@ -764,24 +786,20 @@ def assemble_html_atlas(
         if isinstance(item, SectionBreak):
             section_idx += 1
             anchor_id = f"section-{section_idx}-{_slug(item.title, 'section')}"
-            equation_href = None
-            if item.equations:
-                equation_path = _render_equations_asset(asset_dir, item.equations)
-                equation_href = _rel_href(equation_path, output_dir)
+            equation_svg = _equations_svg(item.equations, f"eq{section_idx}-") if item.equations else None
             nav.append(_toc_item(f"#{anchor_id}", item.title, item_class="section"))
-            body.append(_render_section_break(anchor_id, item, equation_href))
+            body.append(_render_section_break(anchor_id, item, equation_svg))
             continue
 
         plot_idx += 1
         plot_path = plot_dir / f"{item.basename}.{normalised_ext}"
-        href = _rel_href(plot_path, output_dir)
         nav_class = ""
         if plot_path.exists():
-            card = _render_image_card(item, plot_idx, href)
+            card = _render_image_card(item, plot_idx, _data_uri(plot_path, normalised_ext))
         else:
             logger.warning("HTML atlas: missing plot %s", plot_path)
             nav_class = "missing"
-            card = _render_missing_plot_card(item, plot_idx, href)
+            card = _render_missing_plot_card(item, plot_idx, plot_path.name)
         nav.append(_toc_item(f"#figure-{plot_idx}", f"Figure {plot_idx}: {item.title}", item_class=nav_class))
         body.append(card)
 

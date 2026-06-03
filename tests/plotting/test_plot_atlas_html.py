@@ -1,6 +1,7 @@
-"""Unit tests for the HTML atlas prototype."""
+"""Unit tests for the self-contained HTML atlas."""
 
 import logging
+import re
 
 import pytest
 
@@ -15,7 +16,7 @@ def _touch_plot(plot_dir, basename: str, ext: str = "png"):
     return path
 
 
-def test_creates_html_and_links_existing_image(tmp_path):
+def test_creates_html_and_embeds_existing_image(tmp_path):
     plot_dir = tmp_path / "plots"
     _touch_plot(plot_dir, "example")
     output = plot_dir / "atlas.html"
@@ -28,10 +29,41 @@ def test_creates_html_and_links_existing_image(tmp_path):
 
     html = output.read_text(encoding="utf-8")
     assert output.exists()
-    assert 'src="example.png"' in html
+    # Self-contained: the plot is base64-embedded, not linked, and no sibling
+    # asset directory is written.
+    assert 'src="data:image/png;base64,' in html
+    assert 'src="example.png"' not in html
+    assert not (plot_dir / "atlas_assets").exists()
     assert "<h2>Figure 1: Example title</h2>" in html
     assert "Figure 1: Example title" in html
     assert "Caption body." in html
+
+
+@pytest.mark.parametrize(
+    ("ext", "mime"),
+    [
+        ("png", "image/png"),
+        ("jpg", "image/jpeg"),
+        ("jpeg", "image/jpeg"),
+        ("gif", "image/gif"),
+        ("webp", "image/webp"),
+        ("svg", "image/svg+xml"),
+    ],
+)
+def test_embeds_correct_mime_per_plot_ext(tmp_path, ext, mime):
+    plot_dir = tmp_path / "plots"
+    _touch_plot(plot_dir, "example", ext=ext)
+    output = plot_dir / "atlas.html"
+
+    assemble_html_atlas(
+        [PlotEntry(basename="example", title="T", body="B")],
+        plot_dir,
+        output,
+        plot_ext=ext,
+    )
+
+    html = output.read_text(encoding="utf-8")
+    assert f'src="data:{mime};base64,' in html
 
 
 def test_missing_plot_placeholder_preserves_caption_and_warns(tmp_path, caplog):
@@ -81,7 +113,7 @@ def test_rejects_pdf_plot_extension(tmp_path):
         assemble_html_atlas([], tmp_path, tmp_path / "atlas.html", plot_ext="pdf")
 
 
-def test_section_equations_render_to_asset_png(tmp_path):
+def test_section_equations_render_inline_svg(tmp_path):
     plot_dir = tmp_path / "plots"
     output = plot_dir / "atlas.html"
 
@@ -91,10 +123,37 @@ def test_section_equations_render_to_asset_png(tmp_path):
         output,
     )
 
-    assert (plot_dir / "atlas_assets" / "model_equations.png").exists()
     html = output.read_text(encoding="utf-8")
-    assert 'src="atlas_assets/model_equations.png"' in html
-    assert r"$h_0(t) = \lambda$" not in html
+    # Equations are inlined as dependency-free SVG, not a companion PNG asset.
+    assert 'class="equation-svg"' in html
+    assert "<svg" in html
+    assert "atlas_assets" not in html
+    assert not (plot_dir / "atlas_assets").exists()
+    # The mathtext is rendered into vector glyph paths.
+    assert "<path" in html
+
+
+def test_multiple_equation_sections_have_unique_svg_ids(tmp_path):
+    plot_dir = tmp_path / "plots"
+    output = plot_dir / "atlas.html"
+
+    assemble_html_atlas(
+        [
+            SectionBreak(title="Model A", subtitle="a", equations=(r"$h_0(t) = \lambda$",)),
+            SectionBreak(title="Model B", subtitle="b", equations=(r"$\theta > 0$",)),
+        ],
+        plot_dir,
+        output,
+    )
+
+    html = output.read_text(encoding="utf-8")
+    assert html.count("<svg") == 2
+    # Per-block id namespacing keeps the single-page document free of the
+    # duplicate ids matplotlib would otherwise emit across inlined SVGs.
+    ids = re.findall(r'\bid="([^"]+)"', html)
+    assert len(ids) == len(set(ids))
+    assert any(i.startswith("eq1-") for i in ids)
+    assert any(i.startswith("eq2-") for i in ids)
 
 
 def test_overview_renders_native_parameter_dashboard(tmp_path):
@@ -142,9 +201,6 @@ def test_overview_renders_native_parameter_dashboard(tmp_path):
 
 def test_native_table1_renders_when_inputs_exist(tmp_path):
     plot_dir = tmp_path / "plots"
-    stale_asset = plot_dir / "atlas_assets" / "table1.png"
-    stale_asset.parent.mkdir(parents=True)
-    stale_asset.write_bytes(b"old png")
     output = plot_dir / "atlas.html"
     assemble_html_atlas(
         [],
@@ -159,8 +215,8 @@ def test_native_table1_renders_when_inputs_exist(tmp_path):
     assert '<table class="table1-table">' in html
     assert "A. Population" in html
     assert "Total phenotyped individuals, n" in html
-    assert not stale_asset.exists()
-    assert 'src="atlas_assets/table1.png"' not in html
+    # Table 1 is native HTML; no companion asset directory is written.
+    assert not (plot_dir / "atlas_assets").exists()
 
 
 def test_no_stats_omits_table1_but_renders(tmp_path):
