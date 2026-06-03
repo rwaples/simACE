@@ -22,7 +22,9 @@ rule scenario:
     input:
         lambda w: get_scenario_sim_outputs(config, w.scenario, plot_ext=PLOT_EXT),
         lambda w: f"results/{get_folder(config, w.scenario)}/report_summary.tsv",
-        lambda w: f"results/{get_folder(config, w.scenario)}/plots/{VALIDATION_PLOTS[0]}",
+        # Require the validation atlas explicitly (ADR 0010); the plot_validation
+        # rule emits it alongside every validation plot.
+        lambda w: f"results/{get_folder(config, w.scenario)}/plots/atlas.html",
     output:
         touch("results/{folder}/{scenario}/scenario.done"),
 
@@ -58,7 +60,9 @@ rule validate_scenario:
             for r in range(1, get_param(config, w.scenario, "replicates") + 1)
         ],
         lambda w: f"results/{get_folder(config, w.scenario)}/report_summary.tsv",
-        lambda w: f"results/{get_folder(config, w.scenario)}/plots/{VALIDATION_PLOTS[0]}",
+        # Validation atlas is a first-class artifact (ADR 0010); the
+        # plot_validation rule emits it alongside every validation plot.
+        lambda w: f"results/{get_folder(config, w.scenario)}/plots/atlas.html",
     output:
         touch("results/{folder}/{scenario}/validate.done"),
 

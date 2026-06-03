@@ -171,7 +171,8 @@ def get_scenario_sim_outputs(config: dict, scenario: str, plot_ext: str = "png")
     outputs.extend(
         f"results/{folder}/{scenario}/plots/{plot}" for plot in plot_filenames(phenotype_basenames(), plot_ext)
     )
-    outputs.append(f"results/{folder}/{scenario}/plots/atlas.pdf")
+    # HTML is the primary atlas artifact (ADR 0010); the PDF is on-demand.
+    outputs.append(f"results/{folder}/{scenario}/plots/atlas.html")
     return outputs
 
 

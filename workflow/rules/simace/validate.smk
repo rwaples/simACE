@@ -36,11 +36,33 @@ rule plot_validation:
         tsv="results/{folder}/report_summary.tsv",
     output:
         expand("results/{{folder}}/plots/{plot}", plot=filtered_plots),
-        "results/{folder}/plots/atlas.pdf",
+        "results/{folder}/plots/atlas.html",
     log:
         "logs/{folder}/plot_validation.log",
     benchmark:
         "benchmarks/{folder}/plot_validation.tsv"
+    threads: 1
+    resources:
+        mem_mb=1000,
+        runtime=5,
+    params:
+        plot_format=config["defaults"].get("plot_format", "png"),
+    script:
+        "../../scripts/simace/plot_validation.py"
+
+
+# On-demand PDF export of the validation atlas (ADR 0010). Inputs the plots the
+# default rule already produced so it does not re-own them; build explicitly
+# with `snakemake results/{folder}/plots/atlas.pdf`.
+rule plot_validation_pdf:
+    input:
+        plots=expand("results/{{folder}}/plots/{plot}", plot=filtered_plots),
+    output:
+        "results/{folder}/plots/atlas.pdf",
+    log:
+        "logs/{folder}/plot_validation_pdf.log",
+    benchmark:
+        "benchmarks/{folder}/plot_validation_pdf.tsv"
     threads: 1
     resources:
         mem_mb=1000,

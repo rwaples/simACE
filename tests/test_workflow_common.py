@@ -34,3 +34,6 @@ def test_full_scenario_outputs_keep_canonical_ascertained_pedigrees():
     assert "results/test/small/rep1/stats_report.yaml" not in outputs
     assert "results/test/small/rep1/validation.yaml" not in outputs
     assert "results/test/small/rep1/phenotype_stats.yaml" not in outputs
+    # HTML is the primary atlas artifact (ADR 0010); the PDF is on-demand.
+    assert "results/test/small/plots/atlas.html" in outputs
+    assert "results/test/small/plots/atlas.pdf" not in outputs
