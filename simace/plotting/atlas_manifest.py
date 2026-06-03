@@ -326,16 +326,6 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "E[r]. Opposite-sex pairs are excluded."
         ),
     ),
-    PlotEntry(
-        basename="tetrachoric.phenotype.by_generation",
-        title="Tetrachoric correlations by generation.",
-        body=(
-            "Grid: rows = traits, columns = generations. Same encoding as the relationship-type "
-            "tetrachoric correlation plot (violins = observed tetrachoric correlations, black dashed = true liability correlations,"
-            " red dotted = parametric E[r], dots = per-replicate estimates), computed within "
-            "each generation separately."
-        ),
-    ),
     SectionBreak(
         title="Cross-Trait Correlations",
         subtitle="Association between the two traits: joint liability, joint affection, and cross-trait tetrachoric correlation",
@@ -412,6 +402,16 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "incidence curves for female (green) and male (blue) separately. Legend shows "
             "per-sex sample size and observed prevalence within each generation. Statistics "
             "computed over the full phenotyped population (pre-ascertainment)."
+        ),
+    ),
+    PlotEntry(
+        basename="tetrachoric.phenotype.by_generation",
+        title="Tetrachoric correlations by generation.",
+        body=(
+            "Grid: rows = traits, columns = generations. Same encoding as the relationship-type "
+            "tetrachoric correlation plot (violins = observed tetrachoric correlations, black dashed = true liability correlations,"
+            " red dotted = parametric E[r], dots = per-replicate estimates), computed within "
+            "each generation separately."
         ),
     ),
     PlotEntry(

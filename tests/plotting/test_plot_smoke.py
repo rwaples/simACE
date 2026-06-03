@@ -274,6 +274,19 @@ class TestPlotTable1:
         assert isinstance(fig, plt.Figure)
         _assert_no_leaked_figures(before, fig)
 
+    def test_build_table1_summary_returns_sections(self, minimal_stats, minimal_params):
+        from simace.plotting.plot_table1 import build_table1_summary
+
+        summary = build_table1_summary([minimal_stats], minimal_params, scenario="test")
+
+        assert "test" in summary.title
+        assert [section.title for section in summary.sections] == [
+            "A. Population",
+            "B. Disease Characteristics",
+            "C. Censoring",
+        ]
+        assert summary.sections[0].rows[0].label == "Total phenotyped individuals, n"
+
 
 # ---------------------------------------------------------------------------
 # plot_atlas helpers

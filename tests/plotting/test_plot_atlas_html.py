@@ -2,14 +2,10 @@
 
 import logging
 
-import matplotlib
-import matplotlib.pyplot as plt
 import pytest
 
 from simace.plotting.atlas_manifest import PlotEntry, SectionBreak
 from simace.plotting.plot_atlas_html import assemble_html_atlas
-
-matplotlib.use("Agg")
 
 
 def _touch_plot(plot_dir, basename: str, ext: str = "png"):
@@ -17,12 +13,6 @@ def _touch_plot(plot_dir, basename: str, ext: str = "png"):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"placeholder image bytes")
     return path
-
-
-def _dummy_figure(*_args, **_kwargs):
-    fig = plt.figure(figsize=(1, 1))
-    fig.text(0.5, 0.5, "dummy", ha="center", va="center")
-    return fig
 
 
 def test_creates_html_and_links_existing_image(tmp_path):
@@ -150,35 +140,30 @@ def test_overview_renders_native_parameter_dashboard(tmp_path):
     assert not (plot_dir / "atlas_assets" / "pipeline.png").exists()
 
 
-def test_companion_assets_written_when_inputs_exist(tmp_path, monkeypatch):
-    import simace.plotting.plot_atlas_html as plot_atlas_html
-
-    monkeypatch.setattr(plot_atlas_html, "render_table1_figure", _dummy_figure)
-
+def test_native_table1_renders_when_inputs_exist(tmp_path):
     plot_dir = tmp_path / "plots"
+    stale_asset = plot_dir / "atlas_assets" / "table1.png"
+    stale_asset.parent.mkdir(parents=True)
+    stale_asset.write_bytes(b"old png")
     output = plot_dir / "atlas.html"
     assemble_html_atlas(
         [],
         plot_dir,
         output,
-        scenario_params={"scenario": "small_test"},
-        stats_data=[{"n_individuals": 1}],
+        scenario_params={"scenario": "small_test", "censor_age": 80},
+        stats_data=[{"n_individuals": 1, "n_generations": 1}],
     )
 
-    assert (plot_dir / "atlas_assets" / "table1.png").exists()
     html = output.read_text(encoding="utf-8")
-    assert 'src="atlas_assets/table1.png"' in html
+    assert '<section id="table1" class="card table1-card">' in html
+    assert '<table class="table1-table">' in html
+    assert "A. Population" in html
+    assert "Total phenotyped individuals, n" in html
+    assert not stale_asset.exists()
+    assert 'src="atlas_assets/table1.png"' not in html
 
 
-def test_no_stats_omits_table1_asset_but_renders(tmp_path, monkeypatch):
-    import simace.plotting.plot_atlas_html as plot_atlas_html
-
-    monkeypatch.setattr(
-        plot_atlas_html,
-        "render_table1_figure",
-        lambda *_args, **_kwargs: pytest.fail("Table 1 should not render without stats"),
-    )
-
+def test_no_stats_omits_table1_but_renders(tmp_path):
     plot_dir = tmp_path / "plots"
     output = plot_dir / "atlas.html"
     assemble_html_atlas([], plot_dir, output, scenario_params={"scenario": "small_test"}, stats_data=[])

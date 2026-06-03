@@ -12,7 +12,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 
 from simace.plotting.atlas_manifest import AtlasItem, PlotEntry, SectionBreak
-from simace.plotting.plot_table1 import render_table1_figure
+from simace.plotting.plot_table1 import Table1Row, Table1Section, Table1Summary, build_table1_summary
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +123,19 @@ h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); line-height: 1.1; }
 .param-table .subheader-row th { padding-top: 0.8rem; color: var(--accent); font-size: 0.82rem; }
 .param-table td.value { font-weight: 650; }
 .param-table td.missing { color: var(--muted); font-style: italic; }
+.table1-card > p { margin-bottom: 1rem; }
+.table1-section { margin-top: 1.1rem; }
+.table1-section h3 { margin: 0 0 0.45rem; font-size: 1rem; color: var(--accent); }
+.table1-scroll { overflow-x: auto; border: 1px solid #e4e7ec; border-radius: 0.55rem; }
+.table1-table { width: 100%; min-width: 44rem; border-collapse: collapse; font-size: 0.9rem; background: #ffffff; }
+.table1-table th, .table1-table td { padding: 0.48rem 0.6rem; border-top: 1px solid #e4e7ec; text-align: left; vertical-align: top; }
+.table1-table thead th { border-top: 0; background: #f8fbff; color: var(--muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.table1-table tbody tr:nth-child(even) { background: #fbfcff; }
+.table1-table tbody th { width: 34%; font-weight: 650; color: var(--ink); }
+.table1-table td { font-variant-numeric: tabular-nums; }
+.table1-table tr.muted th, .table1-table tr.muted td { color: var(--muted); }
+.table1-table td.empty { color: var(--muted); }
+.table1-footnotes { margin: 0.9rem 0 0; padding-left: 1.2rem; color: var(--muted); font-size: 0.88rem; }
 .nested-table { width: auto; min-width: 16rem; border-collapse: collapse; margin: 0.15rem 0; font-size: 0.9rem; }
 .nested-table th, .nested-table td { padding: 0.35rem 0.55rem; border-top: 1px solid #e4e7ec; text-align: left; }
 .nested-table thead th { border-top: 0; color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -195,15 +208,6 @@ def _save_figure(fig: plt.Figure, output_path: Path, *, tight: bool = False) -> 
         plt.close(fig)
 
 
-def _render_table1_asset(asset_dir: Path, stats_data: list[dict], scenario_params: dict) -> Path:
-    """Render Table 1 as a companion PNG asset."""
-    output_path = asset_dir / "table1.png"
-    scenario = str(scenario_params.get("scenario", "unknown"))
-    fig = render_table1_figure(stats_data, scenario_params, scenario=scenario)
-    _save_figure(fig, output_path)
-    return output_path
-
-
 def _render_equations_asset(asset_dir: Path, equations: tuple[str, ...]) -> Path:
     """Render model mathtext equations as a companion PNG asset."""
     output_path = asset_dir / "model_equations.png"
@@ -228,12 +232,68 @@ def _render_equations_asset(asset_dir: Path, equations: tuple[str, ...]) -> Path
 
 
 def _render_asset_card(anchor_id: str, title: str, body: str, href: str, alt: str) -> str:
-    """Render a top-card image asset such as the overview or Table 1."""
+    """Render a top-card image asset."""
     return f"""
 <section id="{escape(anchor_id, quote=True)}" class="card asset-card">
 <h2>{escape(title)}</h2>
 <p>{escape(body)}</p>
 <img src="{escape(href, quote=True)}" alt="{escape(alt, quote=True)}">
+</section>
+""".strip()
+
+
+def _render_table1_row(section: Table1Section, row: Table1Row) -> str:
+    """Render one native HTML Table 1 row."""
+    row_class = ' class="muted"' if row.muted else ""
+    value_cells: list[str] = []
+    if len(row.values) == 1 and len(section.columns) > 1:
+        value_cells.append(f'<td colspan="{len(section.columns)}">{escape(row.values[0])}</td>')
+    else:
+        for idx in range(len(section.columns)):
+            value = row.values[idx] if idx < len(row.values) else ""
+            cell_class = ' class="empty"' if not value else ""
+            value_cells.append(f"<td{cell_class}>{escape(value)}</td>")
+    return f"""
+<tr{row_class}>
+<th scope="row">{escape(row.label)}</th>
+{chr(10).join(value_cells)}
+</tr>
+""".strip()
+
+
+def _render_table1_section(section: Table1Section) -> str:
+    """Render one Table 1 section as a native HTML table."""
+    col_headers = ["Characteristic", *section.columns]
+    header_cells = "\n".join(f'<th scope="col">{escape(col)}</th>' for col in col_headers)
+    rows = "\n".join(_render_table1_row(section, row) for row in section.rows)
+    return f"""
+<div class="table1-section">
+<h3>{escape(section.title)}</h3>
+<div class="table1-scroll">
+<table class="table1-table">
+<thead><tr>{header_cells}</tr></thead>
+<tbody>
+{rows}
+</tbody>
+</table>
+</div>
+</div>
+""".strip()
+
+
+def _render_table1_card(summary: Table1Summary) -> str:
+    """Render Table 1 as native HTML instead of a PNG asset."""
+    sections = "\n".join(_render_table1_section(section) for section in summary.sections)
+    footnotes = ""
+    if summary.footnotes:
+        items = "\n".join(f"<li>{escape(note)}</li>" for note in summary.footnotes)
+        footnotes = f'<ol class="table1-footnotes">\n{items}\n</ol>'
+    return f"""
+<section id="table1" class="card table1-card">
+<h2>Table 1</h2>
+<p>{escape(summary.title)}</p>
+{sections}
+{footnotes}
 </section>
 """.strip()
 
@@ -675,6 +735,9 @@ def assemble_html_atlas(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_dir = output_path.parent
     asset_dir = output_dir / "atlas_assets"
+    stale_table1_png = asset_dir / "table1.png"
+    if stale_table1_png.exists():
+        stale_table1_png.unlink()
 
     scenario_name = "unknown"
     if scenario_params:
@@ -687,17 +750,13 @@ def assemble_html_atlas(
     body.append(_render_overview_card(scenario_params))
 
     if stats_data and scenario_params:
-        table1_path = _render_table1_asset(asset_dir, stats_data, scenario_params)
-        nav.append(_toc_item("#table1", "Table 1"))
-        body.append(
-            _render_asset_card(
-                "table1",
-                "Table 1",
-                "Study population characteristics rendered from the plotting report.",
-                _rel_href(table1_path, output_dir),
-                "Table 1 study population characteristics",
-            )
+        table1_summary = build_table1_summary(
+            stats_data,
+            scenario_params,
+            scenario=str(scenario_params.get("scenario", "")),
         )
+        nav.append(_toc_item("#table1", "Table 1"))
+        body.append(_render_table1_card(table1_summary))
 
     plot_idx = 0
     section_idx = 0

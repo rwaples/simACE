@@ -157,11 +157,12 @@ def test_additional_stratified_figures_live_in_final_section():
         "liability_violin.phenotype.by_generation",
         "liability_violin.phenotype.by_sex.by_generation",
         "cumulative_incidence.by_sex.by_generation",
+        "tetrachoric.phenotype.by_generation",
         "cumulative_incidence_aj.by_sex",
         "cumulative_incidence_aj.by_sex.by_generation",
     )
     assert all(titles_or_names.index(basename) > section_idx for basename in moved_basenames)
-    assert titles_or_names[-5:] == list(moved_basenames)
+    assert titles_or_names[-6:] == list(moved_basenames)
 
 
 def test_plot_entries_have_no_figure_prefix_in_title():

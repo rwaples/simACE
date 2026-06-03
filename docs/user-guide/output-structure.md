@@ -375,6 +375,7 @@ Multi-page PDF atlases combine all plots for a scope into a single document with
 | File | Contents |
 |------|----------|
 | `results/{folder}/{scenario}/plots/atlas.pdf` | All phenotype figures for one scenario |
+| `results/{folder}/{scenario}/plots/atlas.html` | Single-page HTML phenotype atlas with native overview and Table 1 |
 | `results/{folder}/plots/atlas.pdf` | All cross-scenario validation figures for one folder |
 | `results/{folder}/{scenario}/rep{rep}/epimight/plots/atlas.pdf` | EPIMIGHT CIF, heritability, and genetic correlation figures |
 

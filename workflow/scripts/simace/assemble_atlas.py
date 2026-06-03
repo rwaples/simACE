@@ -37,6 +37,35 @@ def _load_cli_scenario_params(params_yaml: str | None, scenario: str, config_dir
     return merged
 
 
+def _discover_cli_stats(plot_dir: Path) -> tuple[list[Path], list[Path | None]]:
+    """Find per-replicate stats beside a CLI plot directory when not passed explicitly."""
+    scenario_dir = plot_dir.parent
+    report_paths = sorted(scenario_dir.glob("rep*/report.yaml"))
+    if report_paths:
+        payload_paths = []
+        for report_path in report_paths:
+            payload_path = report_path.parent / "plot_payload.yaml"
+            payload_paths.append(payload_path if payload_path.exists() else None)
+        return report_paths, payload_paths
+
+    flat_stats_paths = sorted(scenario_dir.glob("rep*/phenotype_stats.yaml"))
+    return flat_stats_paths, [None] * len(flat_stats_paths)
+
+
+def _is_curated_report(report: dict | None) -> bool:
+    """Return true for current v2 report.yaml payloads that need adaptation."""
+    return isinstance(report, dict) and any(key in report for key in ("observed", "scopes", "inputs"))
+
+
+def _stats_for_atlas(reports: list[dict | None], payloads: list[dict | None]) -> list[dict]:
+    """Return flat plotting stats for current report.yaml or legacy phenotype_stats.yaml inputs."""
+    if not reports:
+        return []
+    if any(_is_curated_report(report) for report in reports):
+        return plotting_report_views(reports, payloads)
+    return [report for report in reports if report]
+
+
 def _run_snakemake():
     setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
     p = snakemake.params
@@ -129,9 +158,19 @@ if __name__ == "__main__":
 
         scenario_params = _load_cli_scenario_params(args.params_yaml, args.scenario, Path(args.config_dir))
 
-        reports = [load_yaml(rp) for rp in args.report]
-        payloads = [load_yaml(pp) for pp in args.plot_payload] if args.plot_payload else [None] * len(reports)
-        all_stats = plotting_report_views(reports, payloads)
+        report_paths = [Path(rp) for rp in args.report]
+        payload_paths: list[Path | None] = [Path(pp) for pp in args.plot_payload]
+        if not report_paths:
+            report_paths, payload_paths = _discover_cli_stats(Path(args.plot_dir))
+        elif not payload_paths:
+            payload_paths = []
+            for report_path in report_paths:
+                sibling_payload = report_path.parent / "plot_payload.yaml"
+                payload_paths.append(sibling_payload if sibling_payload.exists() else None)
+
+        reports = [load_yaml(rp) for rp in report_paths]
+        payloads = [load_yaml(pp) if pp is not None else None for pp in payload_paths]
+        all_stats = _stats_for_atlas(reports, payloads)
 
         items = build_phenotype_atlas(scenario_params)
         assemble_atlas(
