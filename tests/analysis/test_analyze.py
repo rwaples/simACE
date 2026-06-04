@@ -64,6 +64,7 @@ def analyze_data():
     )
     censored = run_censor(
         phenotype,
+        pedigree,
         censor_age=80,
         seed=42,
         gen_censoring={},

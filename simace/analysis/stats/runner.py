@@ -1,7 +1,8 @@
 """Orchestration entry point for per-replicate stats reports.
 
-Reads a single trait.parquet, runs every stats computation, and writes
-``stats_report.yaml`` plus ``plotting_sample.parquet``.
+Reads outcomes-only ``trait.parquet`` plus ``pedigree.parquet``, hydrates the
+trait rows for computations, and writes ``stats_report.yaml`` plus
+``plotting_sample.parquet``.
 """
 
 import argparse
@@ -19,6 +20,7 @@ import yaml
 from pedigree_graph import PedigreeGraph
 
 from simace.core.parquet import save_parquet
+from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import to_native
 
 from .censoring import (
@@ -248,9 +250,14 @@ def main(
 ) -> None:
     """Compute all stats for a single replicate and write outputs."""
     t0 = time.perf_counter()
-    df = pd.read_parquet(phenotype_path)
-    logger.info("Computing stats for %s (%d rows)", phenotype_path, len(df))
+    df_trait = pd.read_parquet(phenotype_path)
+    logger.info("Computing stats for %s (%d rows)", phenotype_path, len(df_trait))
     df_ped = _read_pedigree(pedigree_path)
+    df = (
+        hydrate_trait(df_trait, df_ped, kind="censored", columns=PEDIGREE_REPORT_COLUMNS)
+        if df_ped is not None
+        else df_trait
+    )
     _log_elapsed("Input load", t0)
 
     stats = build_stats_report(
@@ -262,7 +269,7 @@ def main(
         max_degree=max_degree,
         case_ascertainment_ratio=case_ascertainment_ratio,
     )
-    del df_ped
+    del df_trait, df_ped
 
     stats_path = Path(stats_output)
     stats_path.parent.mkdir(parents=True, exist_ok=True)

@@ -26,12 +26,12 @@ results/{folder}/{scenario}/
 | File | Description | Temp? |
 |---|---|---|
 | `pedigree.full.parquet` | Full simulated pedigree (post-burn-in, pre-ascertainment) — consumed by validation, phenotype, phenotype_simple_ltm, and ascertainment | No |
-| `pedigree.parquet` | Post-ascertainment pedigree (ancestor closure of sampled IDs; identical row count to `.full` when `dropout_rate=0` and `N_sample=0`) | No |
-| `trait.raw.parquet` | Raw time-to-event phenotypes before censoring | Yes |
-| `trait.full.parquet` | Phenotyped population — post-censor phenotypes for the full pre-ascertainment population; durable so Analyze can quantify ascertainment distortion (ADR 0008) | No |
-| `trait.simple_ltm.full.parquet` | Pre-ascertainment liability-threshold benchmark | Yes |
-| `trait.parquet` | Post-ascertainment censored time-to-event phenotypes (canonical output) | No |
-| `trait.simple_ltm.parquet` | Post-ascertainment liability-threshold benchmark (canonical output) | No |
+| `pedigree.parquet` | Analysis pedigree: ancestor closure of final trait IDs, with dangling refs severed | No |
+| `trait.raw.parquet` | Outcomes-only raw time-to-event traits before censoring (`id`, `t1`, `t2`) | Yes |
+| `trait.full.parquet` | Outcomes-only phenotyped population — post-censor traits for the full pre-ascertainment population; durable so Analyze can quantify ascertainment distortion (ADR 0008/0011) | No |
+| `trait.simple_ltm.full.parquet` | Outcomes-only pre-ascertainment liability-threshold benchmark | Yes |
+| `trait.parquet` | Outcomes-only post-ascertainment censored time-to-event traits (canonical output) | No |
+| `trait.simple_ltm.parquet` | Outcomes-only post-ascertainment liability-threshold benchmark (canonical output) | No |
 | `params.yaml` | Simulation parameters for this replicate | No |
 | `report.yaml` | Curated v2 per-replicate scientific report (`scopes`, `quality_checks`, `truth`, `observed`, `estimators`) | No |
 | `plot_payload.yaml` | Dense incidence/censoring arrays for reproducible plotting (companion to `report.yaml`) | No |
@@ -150,39 +150,36 @@ Core pedigree structure with latent variance components for two correlated trait
 | `E1`, `E2` | float32 | Unique environment component |
 | `liability1`, `liability2` | float32 | Total liability (A + C + E) |
 
-### phenotype.raw.parquet
+### trait.raw.parquet
 
-Raw time-to-event phenotypes before age-window and competing-risk censoring. Subset of generations defined by `G_pheno`. Includes pedigree columns plus:
+Outcomes-only raw time-to-event traits before age-window and competing-risk censoring. The row set is the subset of generations defined by `G_pheno`; generation, sex, liabilities, and pedigree links remain in the corresponding pedigree file.
 
 | Column | Type | Description |
 |--------|------|-------------|
+| `id` | int64 | Individual identifier |
 | `t1`, `t2` | float32 | Raw (uncensored) age-at-onset from the phenotype model |
 
-### trait.parquet
+### trait.full.parquet and trait.parquet
 
-Extends phenotype.raw with censoring applied via age windows and competing-risk death. Contains all pedigree and raw phenotype columns, plus:
+Outcomes-only censored time-to-event traits. `trait.full.parquet` covers the full pre-ascertainment phenotyped population; `trait.parquet` covers the final post-ascertainment analysis sample. Hydrate with the appropriate pedigree file when generation, sex, family links, ACE components, household IDs, or liabilities are needed (ADR 0011).
 
 | Column | Type | Description |
 |--------|------|-------------|
+| `id` | int64 | Individual identifier |
+| `t1`, `t2` | float32 | Raw (uncensored) age-at-onset from the phenotype model |
 | `death_age` | float32 | Age at death from competing-risk mortality |
 | `t_observed1`, `t_observed2` | float32 | Observed age-at-onset after age and death censoring |
 | `age_censored1`, `age_censored2` | bool | True if onset falls outside the generation's observation window |
 | `death_censored1`, `death_censored2` | bool | True if onset occurs after death |
 | `affected1`, `affected2` | bool | True if the individual is observed as affected (not age- or death-censored) |
 
-### trait.simple_ltm.parquet
+### trait.simple_ltm.full.parquet and trait.simple_ltm.parquet
 
-Binary affected status from a liability-threshold model. Each generation has an independent prevalence-based threshold.
+Outcomes-only binary affected status from a liability-threshold model. Each generation has an independent prevalence-based threshold; hydrate with the appropriate pedigree file to recover generation labels or liabilities.
 
 | Column | Type | Description |
 |--------|------|-------------|
 | `id` | int64 | Individual identifier |
-| `generation` | int8 | Generation number |
-| `sex` | int8 | 0 = female, 1 = male |
-| `mother`, `father`, `twin` | int64 | Family links (same as pedigree) |
-| `household_id` | int64 | Shared-environment household group |
-| `A1`, `C1`, `E1`, `liability1` | float32 | Trait 1 variance components and liability |
-| `A2`, `C2`, `E2`, `liability2` | float32 | Trait 2 variance components and liability |
 | `affected1`, `affected2` | bool | True if liability exceeds the generation-specific threshold |
 
 ### Ascertained outputs
@@ -192,9 +189,9 @@ Binary affected status from a liability-threshold model. Each generation has an 
 - `pedigree.parquet` is the **ancestor closure** of the sampled IDs within the post-dropout pedigree, with dangling `mother` / `father` / `twin` references rewritten to −1.
 - `trait.parquet` and `trait.simple_ltm.parquet` share an identical `id` column (the sampled set), restricted to the trailing `G_pheno` generations.
 
-The pre-ascertainment outputs (`trait.raw.parquet`, `trait.full.parquet`, `trait.simple_ltm.full.parquet`) are Snakemake `temp()` files — auto-deleted once ascertainment has consumed them.
+The pre-ascertainment intermediates `trait.raw.parquet` and `trait.simple_ltm.full.parquet` are Snakemake `temp()` files. `trait.full.parquet` is durable because Analyze uses it to quantify ascertainment distortion (ADR 0008).
 
-`plotting_sample.parquet` is a *further* downsampled parquet produced inside the Stats stage for scatter/histogram plots; it shares the `trait.parquet` schema.
+`plotting_sample.parquet` is a *further* downsampled, hydrated parquet produced inside the Analyze stage for scatter/histogram plots. It is a plot cache, not an analysis input.
 
 ---
 

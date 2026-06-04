@@ -15,8 +15,9 @@ import numpy as np
 import pandas as pd
 
 from simace.core.parquet import save_parquet
-from simace.core.schema import PEDIGREE, PHENOTYPE
+from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
+from simace.core.trait_schema import RAW_TRAIT, strip_trait_to_outcomes
 from simace.phenotype.hazards import STANDARDIZE_CHOICES, StandardizeMode
 from simace.phenotype.models import MODELS
 
@@ -58,7 +59,7 @@ def _simulate_one_trait(
     )
 
 
-@stage(reads=PEDIGREE, writes=PHENOTYPE)
+@stage(reads=PEDIGREE, writes=RAW_TRAIT)
 def run_phenotype(
     pedigree: pd.DataFrame,
     *,
@@ -144,7 +145,7 @@ def run_phenotype(
         generation=generation,
     )
 
-    phenotype = pedigree.assign(t1=t1, t2=t2)
+    phenotype = strip_trait_to_outcomes(pedigree.assign(t1=t1, t2=t2), "raw")
 
     logger.info(
         "Phenotype simulation complete in %.1fs: %d individuals",

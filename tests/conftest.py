@@ -120,8 +120,10 @@ def tiny_censored_parquet(tmp_path: Path, tiny_phenotype_parquet: Path) -> Path:
     from simace.censoring.censor import run_censor
 
     phenotype = pd.read_parquet(tiny_phenotype_parquet)
+    pedigree = pd.read_parquet(tiny_pedigree_parquet)
     censored = run_censor(
         phenotype,
+        pedigree,
         censor_age=80.0,
         seed=42,
         gen_censoring={},

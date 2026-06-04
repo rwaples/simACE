@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from simace.censoring.censor import run_censor
+from simace.core.trait_schema import hydrate_trait
 from simace.phenotype import run_phenotype
 from simace.simulation.simulate import run_simulation
 
@@ -95,17 +96,24 @@ def phenotype(pedigree, integration_params):
 
 
 @pytest.fixture(scope="module")
-def censored(phenotype, integration_params):
+def censored(phenotype, pedigree, integration_params):
     """Run censor step."""
     p = integration_params
     return run_censor(
         phenotype,
+        pedigree,
         censor_age=p["censor_age"],
         seed=p["seed"],
         gen_censoring=p["gen_censoring"],
         death_scale=p["death_scale"],
         death_rho=p["death_rho"],
     )
+
+
+@pytest.fixture(scope="module")
+def censored_hydrated(censored, pedigree):
+    """Hydrated censored trait frame for stats helpers that need pedigree columns."""
+    return hydrate_trait(censored, pedigree, kind="censored")
 
 
 class TestSimulateStep:
@@ -156,11 +164,8 @@ class TestPhenotypeStep:
         assert np.isfinite(phenotype["t1"]).all()
         assert np.isfinite(phenotype["t2"]).all()
 
-    def test_preserves_pedigree_columns(self, phenotype):
-        assert "id" in phenotype.columns
-        assert "generation" in phenotype.columns
-        assert "sex" in phenotype.columns
-        assert "liability1" in phenotype.columns
+    def test_outputs_outcomes_only(self, phenotype):
+        assert list(phenotype.columns) == ["id", "t1", "t2"]
 
 
 class TestCensorStep:
@@ -200,11 +205,11 @@ class TestCensorStep:
 
 
 class TestStatsStep:
-    def test_compute_person_years_on_censored(self, censored, integration_params):
+    def test_compute_person_years_on_censored(self, censored_hydrated, integration_params):
         from simace.analysis.stats import compute_person_years
 
         result = compute_person_years(
-            censored,
+            censored_hydrated,
             integration_params["censor_age"],
             integration_params["gen_censoring"],
         )
@@ -214,20 +219,20 @@ class TestStatsStep:
         assert "trait2" in result
         assert result["total"] > 0
 
-    def test_compute_mean_family_size_on_censored(self, censored):
+    def test_compute_mean_family_size_on_censored(self, censored_hydrated):
         from simace.analysis.stats import compute_mean_family_size
 
-        result = compute_mean_family_size(censored)
+        result = compute_mean_family_size(censored_hydrated)
         if result:  # may be empty if only one generation phenotyped
             assert "mean" in result
             assert "n_families" in result
             assert result["mean"] > 0
 
-    def test_compute_censoring_confusion(self, censored, integration_params):
+    def test_compute_censoring_confusion(self, censored_hydrated, integration_params):
         from simace.analysis.stats import compute_censoring_confusion
 
         result = compute_censoring_confusion(
-            censored,
+            censored_hydrated,
             integration_params["censor_age"],
             integration_params["gen_censoring"],
         )

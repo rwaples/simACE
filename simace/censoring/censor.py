@@ -14,8 +14,9 @@ import numpy as np
 import pandas as pd
 
 from simace.core.parquet import save_parquet
-from simace.core.schema import CENSORED, PHENOTYPE
+from simace.core.schema import PEDIGREE, assert_schema
 from simace.core.stage import stage
+from simace.core.trait_schema import CENSORED_TRAIT, RAW_TRAIT, hydrate_trait, strip_trait_to_outcomes
 
 logger = logging.getLogger(__name__)
 
@@ -71,9 +72,10 @@ def death_censor(
     return t_out, censored
 
 
-@stage(reads=PHENOTYPE, writes=CENSORED)
+@stage(reads=RAW_TRAIT, writes=CENSORED_TRAIT)
 def run_censor(
     phenotype: pd.DataFrame,
+    pedigree: pd.DataFrame,
     *,
     censor_age: float,
     seed: int,
@@ -84,7 +86,8 @@ def run_censor(
     """Apply censoring to raw phenotype event times.
 
     Args:
-        phenotype: DataFrame with raw event times (t1, t2) from run_phenotype.
+        phenotype: Outcomes-only DataFrame with raw event times (id, t1, t2) from run_phenotype.
+        pedigree: Pedigree DataFrame for the same IDs, used to hydrate generation-specific censoring windows.
         censor_age: maximum follow-up age (right boundary of the default
             observation window).
         seed: RNG seed for the competing-risk death draw.
@@ -94,13 +97,15 @@ def run_censor(
         death_rho: Weibull shape for the competing-risk death hazard.
 
     Returns:
-        DataFrame with original columns plus censoring columns:
-        death_age, age_censored1/2, t_observed1/2, death_censored1/2, affected1/2
+        Outcomes-only DataFrame with id, raw event times, and censoring columns:
+        death_age, age_censored1/2, t_observed1/2, death_censored1/2, affected1/2.
     """
     logger.info("Running censoring for %d individuals", len(phenotype))
     t0 = time.perf_counter()
 
-    generations = phenotype["generation"].values
+    assert_schema(pedigree, PEDIGREE, where="censor pedigree input")
+    hydrated = hydrate_trait(phenotype, pedigree, kind="raw", columns=["generation"])
+    generations = hydrated["generation"].values
     left_censor = np.zeros(len(phenotype))
     right_censor = np.full(len(phenotype), float(censor_age))
     for gen, (lo, hi) in gen_censoring.items():
@@ -112,11 +117,11 @@ def run_censor(
     u_death = 1.0 - rng_death.uniform(size=len(phenotype))
     death_age = death_scale * (-np.log(u_death)) ** (1 / death_rho)
 
-    t1_after_age, age_censored1 = age_censor(phenotype["t1"].values, left_censor, right_censor)
+    t1_after_age, age_censored1 = age_censor(hydrated["t1"].values, left_censor, right_censor)
     death_censored1 = t1_after_age > death_age
     t_observed1 = np.where(death_censored1, death_age, t1_after_age)
 
-    t2_after_age, age_censored2 = age_censor(phenotype["t2"].values, left_censor, right_censor)
+    t2_after_age, age_censored2 = age_censor(hydrated["t2"].values, left_censor, right_censor)
     death_censored2 = t2_after_age > death_age
     t_observed2 = np.where(death_censored2, death_age, t2_after_age)
 
@@ -135,6 +140,8 @@ def run_censor(
     prev2 = result["affected2"].mean()
     logger.info("Prevalence after censoring: trait1=%.3f, trait2=%.3f", prev1, prev2)
 
+    result = strip_trait_to_outcomes(result, "censored")
+
     elapsed = time.perf_counter() - t0
     logger.info("Censoring complete in %.1fs: %d individuals", elapsed, len(result))
 
@@ -147,8 +154,11 @@ def cli() -> None:
 
     parser = argparse.ArgumentParser(description="Apply observation censoring to phenotype data")
     add_logging_args(parser)
-    parser.add_argument("--phenotype", required=True, help="Input raw phenotype parquet")
-    parser.add_argument("--output", required=True, help="Output censored phenotype parquet")
+    parser.add_argument("--phenotype", required=True, help="Input raw trait parquet")
+    parser.add_argument(
+        "--pedigree", required=True, help="Input pedigree parquet used for generation-specific censoring"
+    )
+    parser.add_argument("--output", required=True, help="Output censored trait parquet")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--censor-age", type=float, default=100, help="Maximum follow-up age")
     parser.add_argument("--death-scale", type=float, default=79.433, help="Competing death hazard scale")
@@ -167,10 +177,12 @@ def cli() -> None:
     import json
 
     phenotype = pd.read_parquet(args.phenotype)
+    pedigree = pd.read_parquet(args.pedigree)
     gen_censoring = json.loads(args.gen_censoring) if args.gen_censoring else {}
     gen_censoring = {int(k): v for k, v in gen_censoring.items()}
     result = run_censor(
         phenotype,
+        pedigree,
         censor_age=args.censor_age,
         seed=args.seed,
         gen_censoring=gen_censoring,

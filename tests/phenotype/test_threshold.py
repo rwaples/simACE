@@ -379,8 +379,7 @@ class TestRunThreshold:
             phenotype_params1={"prevalence": 0.1},
             phenotype_params2={"prevalence": 0.2},
         )
-        for col in ("id", "sex", "generation", "affected1", "affected2", "liability1", "liability2"):
-            assert col in out.columns
+        assert list(out.columns) == ["id", "affected1", "affected2"]
         assert out["affected1"].dtype == bool
         assert out["affected2"].dtype == bool
 
@@ -393,7 +392,7 @@ class TestRunThreshold:
             phenotype_params1={"prevalence": 0.1},
             phenotype_params2={"prevalence": 0.1},
         )
-        assert set(out["generation"].unique()) == {1, 2}
+        assert set(out["id"]) == set(df.loc[df["generation"].isin([1, 2]), "id"])
         assert len(out) == 2 * 500
 
     def test_observed_prevalence_matches(self):
