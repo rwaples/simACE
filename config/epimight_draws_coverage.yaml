@@ -1,0 +1,185 @@
+# epimight_draws_coverage — frequentist CI-coverage experiment for EPIMIGHT h².
+#
+# Two near-unbiased onset_censoring cells re-simulated R=200 times each so we can
+# measure the *actual* coverage of EPIMIGHT's 95% CI for liability h² as a
+# function of draws (MI K). The draws-sensitivity study showed the headline CI is
+# conservative at K>=5 and calibrated at K=1, but only from one replicate per cell;
+# this measures coverage directly across independent replicates.
+#
+# Scenario params are copied verbatim from config/epimight_onset_censoring.yaml
+# (the eoc_K01_x08_c80 and eoc_K25_x08_c80 blocks) so the DGP matches the sweep;
+# only `replicates` (1 -> 200) and the seed base (fresh, clear of the sweep's
+# 60000-60063) differ. EPIMIGHT draws and the FS/PO kind restriction are handled
+# fitACE-side (fitACE/config/epimight_draws_coverage.yaml + scripts/draws_coverage.py).
+
+cov_K01_x08_c80:
+  seed: 200000
+  N: 250000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  replicates: 200
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+cov_K25_x08_c80:
+  seed: 210000
+  N: 250000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  replicates: 200
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# Reduced-N fractional-membership dev cells. covsmoke is for plumbing only;
+# covdev preserves enough rare-prevalence 1C information for methodology iteration.
+covsmoke_K01_x08_c80:
+  seed: 220000
+  N: 25000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  replicates: 200
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+covdev_K01_x08_c80:
+  seed: 230000
+  N: 100000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  replicates: 200
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
