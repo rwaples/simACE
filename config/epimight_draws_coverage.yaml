@@ -183,3 +183,222 @@ covdev_K01_x08_c80:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [0, 80], 4: [0, 80], 5: [0, 80], 6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
     death_rho: 2.73
+
+# Added for the overnight coverage grid: 5% prevalence (cov_K05) and the
+# small-N dev cells covdev_K05/K25 (N=100k). Same DGP, truth h2=0.5.
+cov_K05_x08_c80:
+  seed: 205000
+  N: 250000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  replicates: 200
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring:
+      0:
+      - 0
+      - 80
+      1:
+      - 0
+      - 80
+      2:
+      - 0
+      - 80
+      3:
+      - 0
+      - 80
+      4:
+      - 0
+      - 80
+      5:
+      - 0
+      - 80
+      6:
+      - 0
+      - 80
+      7:
+      - 0
+      - 80
+      8:
+      - 0
+      - 80
+      9:
+      - 0
+      - 80
+    death_scale: 164
+    death_rho: 2.73
+covdev_K05_x08_c80:
+  seed: 235000
+  N: 100000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  replicates: 200
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring:
+      0:
+      - 0
+      - 80
+      1:
+      - 0
+      - 80
+      2:
+      - 0
+      - 80
+      3:
+      - 0
+      - 80
+      4:
+      - 0
+      - 80
+      5:
+      - 0
+      - 80
+      6:
+      - 0
+      - 80
+      7:
+      - 0
+      - 80
+      8:
+      - 0
+      - 80
+      9:
+      - 0
+      - 80
+    death_scale: 164
+    death_rho: 2.73
+covdev_K25_x08_c80:
+  seed: 240000
+  N: 100000
+  G_sim: 12
+  G_ped: 10
+  G_pheno: 10
+  replicates: 200
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 8
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring:
+      0:
+      - 0
+      - 80
+      1:
+      - 0
+      - 80
+      2:
+      - 0
+      - 80
+      3:
+      - 0
+      - 80
+      4:
+      - 0
+      - 80
+      5:
+      - 0
+      - 80
+      6:
+      - 0
+      - 80
+      7:
+      - 0
+      - 80
+      8:
+      - 0
+      - 80
+      9:
+      - 0
+      - 80
+    death_scale: 164
+    death_rho: 2.73
