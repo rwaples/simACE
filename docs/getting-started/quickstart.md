@@ -12,7 +12,7 @@ snakemake --cores 4 results/test/small_test/scenario.done
 ## Check the output
 
 ```bash
-ls results/test/small_test/rep1/    # pedigree.parquet, phenotype files, validation, stats
+ls results/test/small_test/rep1/    # pedigree.parquet, trait files, reports, params
 cat logs/test/small_test/rep1/simulate.log
 ```
 
@@ -20,9 +20,9 @@ A successful run produces these key files per replicate:
 
 | File | What it contains |
 |---|---|
-| `pedigree.parquet` | Full pedigree with parent links, generation, sex, liability components |
-| `phenotype.parquet` | Censored time-to-event phenotypes (age-at-onset, affected status) |
-| `phenotype.simple_ltm.parquet` | Liability-threshold binary affected status |
+| `pedigree.parquet` | Analysis pedigree: parent links, generation, sex, household IDs, ACE components, liabilities |
+| `trait.parquet` | Outcomes-only censored time-to-event traits (`id`, onset/censoring/affected columns) |
+| `trait.simple_ltm.parquet` | Outcomes-only liability-threshold binary affected status |
 | `report.yaml` | Curated v2 scientific report: `scopes`, `quality_checks`, `truth`, `observed`, `estimators` (dense plot arrays go to `plot_payload.yaml`) |
 | `params.yaml` | The resolved parameters for this replicate |
 

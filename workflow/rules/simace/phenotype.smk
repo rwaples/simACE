@@ -43,6 +43,7 @@ rule phenotype:
 rule censor_weibull:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/trait.raw.parquet",
+        pedigree=lambda w: _pre_ascertainment_pedigree_input(w, config),
     output:
         phenotype="results/{folder}/{scenario}/rep{rep}/trait.full.parquet",
     log:

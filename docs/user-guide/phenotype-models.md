@@ -102,7 +102,7 @@ Set under `params.method`:
 ## Parallel `simple_ltm` output
 
 Independently of the configured family, every scenario produces a
-parallel `phenotype.simple_ltm.parquet` output by applying
+parallel outcomes-only `trait.simple_ltm.parquet` output by applying
 `simace.phenotype.threshold.apply_threshold` to `liability1` /
 `liability2`. For `adult` / `cure_frailty` traits this path uses the
 configured `params.prevalence`; for `frailty` / `first_passage` traits

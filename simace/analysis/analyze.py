@@ -32,6 +32,7 @@ from typing import Any
 import pandas as pd
 
 from simace.core.parquet import save_parquet
+from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import dump_yaml, load_yaml
 
 from .report import assemble_report
@@ -106,19 +107,22 @@ def run_analysis(
     # --- Phase 2: Phenotyped population (full pre-ascertainment trait rows) ---
     logger.info("Analyze phase 2/3: phenotyped-population summaries on %s", trait_full_path)
     df_trait_full = pd.read_parquet(trait_full_path)
-    prevalence_phenotyped = compute_prevalence(df_trait_full)
+    df_trait_full_ped = pd.read_parquet(pedigree_full_path, columns=["id", "generation"])
+    df_trait_full_hydrated = hydrate_trait(df_trait_full, df_trait_full_ped, kind="censored", columns=["generation"])
+    prevalence_phenotyped = compute_prevalence(df_trait_full_hydrated)
     scope_counts["phenotyped_population"] = {
         "source": "trait.full.parquet",
         "n_individuals": len(df_trait_full),
         "n_generations": _n_generations(df_trait_full),
     }
-    del df_trait_full
+    del df_trait_full, df_trait_full_ped, df_trait_full_hydrated
     gc.collect()
 
     # --- Phase 3: Analysis sample (post-ascertainment subsample) ---
     logger.info("Analyze phase 3/3: stats on %s", trait_path)
-    df = pd.read_parquet(trait_path)
+    df_trait = pd.read_parquet(trait_path)
     df_ped = pd.read_parquet(pedigree_path, columns=PEDIGREE_REPORT_COLUMNS)
+    df = hydrate_trait(df_trait, df_ped, kind="censored", columns=PEDIGREE_REPORT_COLUMNS)
     stats_report = build_stats_report(
         df,
         censor_age,
@@ -143,7 +147,7 @@ def run_analysis(
         "n_generations": pedigree_full.get("n_generations", _n_generations(df_ped)),
         "ancestor_closure_ratio": (pedigree_n / sample_n) if sample_n else None,
     }
-    del df_ped
+    del df_trait, df_ped
 
     report, plot_payload = assemble_report(
         replicate={"folder": folder, "scenario": scenario, "rep": rep, "seed": seed},

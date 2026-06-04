@@ -15,6 +15,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from simace.core.trait_schema import strip_trait_to_outcomes
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_DIR = REPO_ROOT / "workflow" / "scripts" / "simace"
 
@@ -78,19 +80,19 @@ def pedigree_parquet(tmp_path):
 
 @pytest.fixture
 def phenotype_parquet(tmp_path, pedigree_parquet):
-    """Raw phenotype parquet (pedigree columns + t1/t2)."""
+    """Raw outcomes-only trait parquet."""
     df = pd.read_parquet(pedigree_parquet)
     rng = np.random.default_rng(1)
     df["t1"] = rng.uniform(10, 200, len(df))
     df["t2"] = rng.uniform(10, 200, len(df))
     path = tmp_path / "phenotype.raw.parquet"
-    df.to_parquet(path, index=False)
+    strip_trait_to_outcomes(df, "raw").to_parquet(path, index=False)
     return path
 
 
 @pytest.fixture
 def censored_phenotype_parquet(tmp_path, phenotype_parquet):
-    """Censored phenotype parquet — provides the full CENSORED schema sample reads."""
+    """Censored outcomes-only trait parquet."""
     df = pd.read_parquet(phenotype_parquet)
     rng = np.random.default_rng(2)
     n = len(df)
@@ -104,11 +106,20 @@ def censored_phenotype_parquet(tmp_path, phenotype_parquet):
     df["death_censored2"] = rng.choice([True, False], n)
     df["affected2"] = rng.choice([True, False], n)
     path = tmp_path / "trait.full.parquet"
-    df.to_parquet(path, index=False)
+    strip_trait_to_outcomes(df, "censored").to_parquet(path, index=False)
     return path
 
 
-def test_ascertainment_wrapper(tmp_path, pedigree_parquet, censored_phenotype_parquet):
+@pytest.fixture
+def simple_ltm_parquet(tmp_path, censored_phenotype_parquet):
+    """Simple-LTM outcomes-only trait parquet."""
+    df = pd.read_parquet(censored_phenotype_parquet)
+    path = tmp_path / "trait.simple_ltm.full.parquet"
+    strip_trait_to_outcomes(df, "simple_ltm").to_parquet(path, index=False)
+    return path
+
+
+def test_ascertainment_wrapper(tmp_path, pedigree_parquet, censored_phenotype_parquet, simple_ltm_parquet):
     """Smoke test the unified ascertainment wrapper: three inputs → three outputs."""
     ped_out = tmp_path / "pedigree.parquet"
     trait_out = tmp_path / "trait.parquet"
@@ -117,7 +128,7 @@ def test_ascertainment_wrapper(tmp_path, pedigree_parquet, censored_phenotype_pa
         inputs={
             "pedigree": str(pedigree_parquet),
             "trait": str(censored_phenotype_parquet),
-            "trait_simple_ltm": str(censored_phenotype_parquet),
+            "trait_simple_ltm": str(simple_ltm_parquet),
         },
         outputs={
             "pedigree": str(ped_out),
@@ -139,10 +150,10 @@ def test_ascertainment_wrapper(tmp_path, pedigree_parquet, censored_phenotype_pa
     )
 
 
-def test_censor_wrapper(tmp_path, phenotype_parquet):
+def test_censor_wrapper(tmp_path, phenotype_parquet, pedigree_parquet):
     out = tmp_path / "phenotype.censored.parquet"
     sm = _make_snakemake(
-        inputs={"phenotype": str(phenotype_parquet)},
+        inputs={"phenotype": str(phenotype_parquet), "pedigree": str(pedigree_parquet)},
         outputs={"phenotype": str(out)},
         params={
             "censor_age": 80,

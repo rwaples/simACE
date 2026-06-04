@@ -9,6 +9,7 @@ import yaml
 from simace.analysis.stats.runner import build_stats_report
 from simace.analysis.stats.runner import cli as run_stats_cli
 from simace.analysis.stats.runner import main as run_stats
+from simace.core.trait_schema import hydrate_trait
 
 
 @pytest.fixture(scope="module")
@@ -53,6 +54,7 @@ def tiny_phenotype():
     )
     censored = run_censor(
         phenotype,
+        pedigree,
         censor_age=80,
         seed=7,
         gen_censoring={},
@@ -98,7 +100,8 @@ class TestRunnerMain:
 
     def test_build_stats_report_returns_grouped_schema(self, tiny_phenotype):
         pedigree, phenotype = tiny_phenotype
-        stats = build_stats_report(phenotype, 80.0, df_ped=pedigree, max_degree=2)
+        hydrated = hydrate_trait(phenotype, pedigree, kind="censored")
+        stats = build_stats_report(hydrated, 80.0, df_ped=pedigree, max_degree=2)
         assert set(stats) == {"metadata", "incidence", "censoring", "pedigree", "correlations", "heritability"}
         flat_keys = {
             "prevalence",
@@ -133,9 +136,9 @@ class TestRunnerMain:
         assert "mate_correlation" in stats["correlations"]
 
     def test_runs_without_pedigree(self, tmp_path, tiny_phenotype):
-        _, phenotype = tiny_phenotype
+        pedigree, phenotype = tiny_phenotype
         phe_path = tmp_path / "trait.parquet"
-        phenotype.to_parquet(phe_path)
+        hydrate_trait(phenotype, pedigree, kind="censored").to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
         run_stats(
@@ -155,9 +158,9 @@ class TestRunnerMain:
         assert "mate_correlation" not in stats["correlations"]
 
     def test_case_ascertainment_ratio_recorded(self, tmp_path, tiny_phenotype):
-        _, phenotype = tiny_phenotype
+        pedigree, phenotype = tiny_phenotype
         phe_path = tmp_path / "trait.parquet"
-        phenotype.to_parquet(phe_path)
+        hydrate_trait(phenotype, pedigree, kind="censored").to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
         run_stats(
@@ -174,9 +177,9 @@ class TestRunnerMain:
         assert stats["metadata"]["case_ascertainment_ratio"] == pytest.approx(0.7)
 
     def test_gen_censoring_branch(self, tmp_path, tiny_phenotype):
-        _, phenotype = tiny_phenotype
+        pedigree, phenotype = tiny_phenotype
         phe_path = tmp_path / "trait.parquet"
-        phenotype.to_parquet(phe_path)
+        hydrate_trait(phenotype, pedigree, kind="censored").to_parquet(phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
         run_stats(

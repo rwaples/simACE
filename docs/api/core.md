@@ -9,6 +9,10 @@
 
 ::: simace.core.schema
 
+## trait_schema
+
+::: simace.core.trait_schema
+
 ## parquet
 
 ::: simace.core.parquet

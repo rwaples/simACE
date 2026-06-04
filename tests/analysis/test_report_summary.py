@@ -74,6 +74,7 @@ def coverage_report(tmp_path_factory) -> dict:
     )
     censored = run_censor(
         phenotype,
+        pedigree,
         censor_age=80,
         seed=_COVERAGE_PARAMS["seed"],
         gen_censoring={},
