@@ -134,7 +134,8 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         basename="observed_h2",
         title="Observed-scale heritability from binary affected status.",
         body=(
-            "2×2 grid: rows = traits, columns = scale. Left column: observed-scale h² "
+            "UNDER CONSTRUCTION: this diagnostic is provisional and should not be used as "
+            "a final heritability estimate. 2×2 grid: rows = traits, columns = scale. Left column: observed-scale h² "
             "estimators computed directly from Pearson correlations on binary affected "
             "indicators — Falconer 2(r_MZ − r_FS), Sibs 2·r_FS, PO (midparent-offspring "
             "regression on binary affected status), Half-sibs 4·mean(r_MHS, r_PHS), Cousins "

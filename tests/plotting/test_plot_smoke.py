@@ -655,6 +655,35 @@ class TestPlotCorrelationsExpanded:
         plt.close("all")
         assert plt.get_fignums() == before
 
+    def test_plot_observed_heritability_has_under_construction_watermark(self, tmp_path, monkeypatch):
+        import simace.plotting.plot_heritability as plot_heritability
+
+        seen_texts = []
+
+        def fake_finalize(output_path, **_kwargs):
+            fig = plt.gcf()
+            seen_texts.extend(text.get_text() for text in fig.texts)
+            output_path.write_bytes(b"placeholder")
+            plt.close(fig)
+
+        monkeypatch.setattr(plot_heritability, "finalize_plot", fake_finalize)
+        stats = [
+            {
+                "prevalence": {"trait1": 0.1, "trait2": 0.2},
+                "observed_h2_estimators": {
+                    "trait1": {"falconer": 0.1, "sibs": 0.1, "po": 0.1, "hs": 0.1, "cousins": 0.1},
+                    "trait2": {"falconer": 0.2, "sibs": 0.2, "po": 0.2, "hs": 0.2, "cousins": 0.2},
+                },
+            }
+        ]
+        out = tmp_path / "observed_h2.png"
+
+        plot_heritability.plot_observed_heritability(stats, out, scenario="test", params={"A1": 0.5, "A2": 0.4})
+
+        assert out.exists()
+        assert "UNDER CONSTRUCTION" in seen_texts
+        assert len(plt.get_fignums()) == 0
+
     def test_plot_heritability_by_generation(self, broad_h2_validations, tmp_path):
         from simace.plotting.plot_heritability import plot_heritability_by_generation
 

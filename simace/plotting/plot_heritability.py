@@ -491,4 +491,18 @@ def plot_observed_heritability(
     )
 
     fig.tight_layout(rect=(0, 0, 1, 0.97))
+    fig.text(
+        0.5,
+        0.5,
+        "UNDER CONSTRUCTION",
+        ha="center",
+        va="center",
+        rotation=25,
+        fontsize=46,
+        fontweight="bold",
+        color="0.25",
+        alpha=0.18,
+        zorder=1000,
+        transform=fig.transFigure,
+    )
     finalize_plot(output_path, scenario=scenario)
