@@ -1,10 +1,16 @@
 """Numerical helpers: safe and numba-accelerated correlation/regression."""
 
 __all__ = [
+    "bvn_cdf",
     "fast_linregress",
     "fast_pearsonr",
+    "ndtri",
+    "norm_cdf",
+    "norm_pdf",
+    "norm_sf",
     "safe_corrcoef",
     "safe_linregress",
+    "tetrachoric_core",
 ]
 
 from typing import Any
@@ -12,7 +18,30 @@ from typing import Any
 import numpy as np
 from scipy import stats
 
+# Public re-exports of the numba distributional / bivariate-normal kernels for
+# downstream packages (fitACE PA-FGRS). Re-exported, not re-implemented, so the
+# object identity is the same jitted dispatcher — the kernels stay callable from
+# within downstream ``@njit`` code. This is simACE's public surface for these
+# primitives; the underlying ``_numba_utils`` module is internal.
+from simace.core._numba_utils import (
+    _bvn_cdf as bvn_cdf,
+)
 from simace.core._numba_utils import _linregress_core, _pearsonr_core, _t_sf
+from simace.core._numba_utils import (
+    _ndtri_approx as ndtri,
+)
+from simace.core._numba_utils import (
+    _norm_cdf as norm_cdf,
+)
+from simace.core._numba_utils import (
+    _norm_pdf as norm_pdf,
+)
+from simace.core._numba_utils import (
+    _norm_sf as norm_sf,
+)
+from simace.core._numba_utils import (
+    _tetrachoric_core as tetrachoric_core,
+)
 
 _ZERO_VAR_THRESHOLD = 1e-10
 

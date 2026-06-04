@@ -256,8 +256,20 @@ This package — the simulation pipeline. Generates pedigrees, applies phenotype
 _Avoid_: "the simulator", "the framework" (overloaded), "ACE" alone (ACE is the model, not this package).
 
 **fitACE**:
-The model-fitting sister repo. Consumes simACE outputs (`trait.parquet`, `pedigree.parquet`, `report.yaml`) and runs inferential methods (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC) to estimate variance components and recover ground-truth parameters. The boundary is **one-way**: simACE → fitACE, with no feedback loop into simACE.
+The model-fitting sister repo — a **core + Snakemake orchestrator** (`fitace`) whose inferential methods (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC, frailty) live in `fitACE_<x>` **method sisters** (see below). Consumes simACE outputs (`trait.parquet`, `pedigree.parquet`, `report.yaml`) to estimate variance components and recover ground-truth parameters. The boundary is **one-way**: simACE → fitACE, with no feedback loop into simACE.
 _Avoid_: "the fitter", "the estimator suite" (subset), "the analysis package" (simACE also has `analysis/`).
+
+**Public surface** (simACE → downstream):
+The set of simACE modules that fitACE and its method sisters may import. Downstream imports only these *public* modules — never an underscore-private module such as `simace.core._numba_utils`. When a downstream package needs a private primitive, it is **promoted** into a public module rather than reached into (e.g. the bivariate-normal / tetrachoric numba kernels now exported from `simace.core.numerics`).
+_Avoid_: treating "underscore = private" as advisory across the repo boundary; importing `simace.core._*` from fitACE.
+
+**Method sister** (`fitACE_<x>` repo):
+A repo holding exactly one fitting method's implementation, private helpers, Snakemake rule, and tests — `fitACE_epimight`, `fitACE_pcgc`, `fitACE_iter_reml`, `fitACE_tetraher`, `fitACE_pafgrs`, `fitACE_stan`, `fitACE_frailty`. Each depends on `fitace` + `simace`, never on another method sister. (See fitACE ADR 0001 for the core-vs-sister placement rule.)
+_Avoid_: plugin, git submodule (they are gitignored sibling checkouts, not submodules), "fitACE module" (the methods are no longer inside `fitace/` core).
+
+**Dormant** (method sister):
+A method sister whose Snakemake rule file is **not** `include:`d in the core fitACE `Snakefile` — installed, importable, embedded for cross-repo search, and tested, but not wired into the pipeline DAG. *Active* = its rule file is included; activation is a one-line include. (`fitACE_stan` and `fitACE_frailty` are dormant; dormancy is about the DAG, not code coupling.)
+_Avoid_: disabled, deprecated, inactive, retired (dormant code is live and tested — it is simply not orchestrated).
 
 **ACE** (the model):
 The variance-component decomposition $L = A + C + E$. The conceptual subject of both repos; **not** a package or a piece of software. When somebody says "the ACE model" they mean the math, not the code.
