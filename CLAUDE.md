@@ -137,6 +137,7 @@ Thirteen related repos, all under `rwaples/` on GitHub. simACE is the umbrella w
 - Auto-fix: `ruff check --fix`
 - Format Python: `ruff format`
 - Format Snakemake: `snakefmt workflow/rules/**/*.smk Snakefile`
+- Run `ruff check` with **no extra `--select`**. The configured rules (incl. `D`/pydocstyle) plus the `ignore` and `per-file-ignores` in `pyproject.toml` are authoritative. Passing any `--select` (e.g. `--select D`) discards those ignores and surfaces false positives.
 
 ## Documentation & Citations
 
@@ -151,6 +152,7 @@ Thirteen related repos, all under `rwaples/` on GitHub. simACE is the umbrella w
 - For non-trivial plans/refactors (multi-file, cross-repo, or with unresolved design decisions), default to invoking the `grill-with-docs` skill before proposing implementation. Lock each design decision explicitly before exiting plan mode. Skip grilling for bugfixes, doc tweaks, and renames.
 - When starting a design interview or /grill-me session, if there is no existing plan, first explore the relevant codebase 
 and read key files and related modules before asking questions. Ground the interview in what the code actually does.
+- When a plan relies on formulas, thresholds, complexity claims, or memory/allocation models, enumerate each such assumption explicitly and verify it against the primary source and the actual codebase before locking the decision. Treat quantitative claims recalled from memory as unverified; flag any you cannot confirm rather than proceeding on them.
 
 ## Performance Optimization
 
@@ -162,6 +164,7 @@ and read key files and related modules before asking questions. Ground the inter
 
 - Prefer focused sessions (one feature per session)
 - Run pipeline commands in background when >30 seconds
+- For pipelines with verbose output, redirect to a log file and grep/tail a summary rather than streaming everything — streaming full output floods context and can hit the output-token ceiling. The `run_in_background` + Monitor tools do this natively.
 - Use targeted line ranges instead of reading entire large files
 
 <!-- code-review-graph MCP tools -->
