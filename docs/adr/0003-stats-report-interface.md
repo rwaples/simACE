@@ -2,9 +2,13 @@
 
 ## Status
 
-Accepted. The "No Validate-stage change" non-goal is superseded by ADR 0007,
-which merges `validation.yaml` and `stats_report.yaml` into a single
-`report.yaml` (the six stats groups + a `validation` group).
+Accepted, but superseded. ADR 0007 replaced the `stats_report.yaml` artifact
+with a single `report.yaml`, and ADR 0008 then replaced the six-group shape with
+the curated `quality_checks` / `truth` / `observed` / `estimators` groups. The
+"No Validate-stage change" non-goal is likewise superseded by ADR 0007. This ADR
+remains the historical origin of the grouped report; see ADR 0007/0008 for the
+current shape. (`plotting_sample.parquet`, introduced here, is unchanged by those
+ADRs.)
 
 ## Context
 
