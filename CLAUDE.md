@@ -59,9 +59,9 @@ patterns whenever changing the relevant module.
    `PAIR_KINSHIP` and pair extraction (`PedigreeGraph.extract_pairs`) from the
    external top-level `pedigree_graph` package (not from simace). Changes to
    pair extraction or kinship values in `pedigree_graph` silently bias
-   `fit_ace` heritability and PA-FGRS. Additionally, `fitace/ltm/falconer.py`
-   maintains its own `KINSHIP` dict at EPIMIGHT-kind granularity that must
-   stay in sync with `PAIR_KINSHIP`.
+   `fit_ace` heritability and PA-FGRS. Additionally, `fitace.relationships`
+   maintains fitACE relationship-type kinship at EPIMIGHT-compatible granularity
+   and must stay in sync with `PAIR_KINSHIP`.
 5. **Generation-dependent C/E variance can bias `rho_w`** (assortative
    mating correlation) calculations.
 6. **`affected = NOT (age_censored OR death_censored)`** — preserve this
