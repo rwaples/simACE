@@ -323,7 +323,6 @@ def _render_table1_card(summary: Table1Summary) -> str:
 """.strip()
 
 
-_MISSING = object()
 _OVERVIEW_EXPECTED_KEYS = (
     "N",
     "G_sim",
