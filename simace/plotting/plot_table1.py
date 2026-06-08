@@ -775,12 +775,11 @@ def _draw_section_col_headers(fig, y: float, section: Table1Section) -> float:
 
 
 def _draw_model_row(fig, ax, y: float, section: Table1Section, row: Table1Row, shade: bool) -> float:
-    """Draw one ``Table1Row`` with the drawer its layout and value count select."""
+    """Draw one ``Table1Row`` with the drawer selected by its layout and value count."""
     label = f"  {row.label}" if row.subrow else row.label
     color = "0.55" if row.muted else "black"
     if section.layout == "four_sex_trait":
-        t1f, t1m, t2f, t2m = (*row.values, "", "", "", "")[:4]
-        return _draw_row4(fig, ax, y, label, t1f, t1m, t2f, t2m, shade)
+        return _draw_row4(fig, ax, y, label, *row.values, shade)
     if len(row.values) == 1:
         # A single composite value spans the section's value columns.
         return _draw_row(fig, ax, y, label, row.values[0], shade, color=color)
