@@ -287,6 +287,30 @@ class TestPlotTable1:
         ]
         assert summary.sections[0].rows[0].label == "Total phenotyped individuals, n"
 
+    def test_pdf_view_renders_every_model_row(self, minimal_stats, minimal_params):
+        """The PDF figure must draw exactly the shared model's sections and rows.
+
+        ``render_table1_figure`` consumes ``build_table1_summary`` and the HTML
+        atlas renders the same model, so this guards against the two atlases
+        drifting apart. Value strings are not asserted because ``_draw_row3``
+        splits decimal values across two text artists; value correctness is
+        covered by ``test_build_table1_summary_returns_sections``.
+        """
+        from simace.plotting.plot_table1 import build_table1_summary, render_table1_figure
+
+        summary = build_table1_summary([minimal_stats], minimal_params, scenario="test")
+        before = plt.get_fignums()
+        fig = render_table1_figure([minimal_stats], minimal_params, scenario="test")
+        rendered = [text.get_text() for text in fig.texts]
+
+        for section in summary.sections:
+            assert section.title in rendered, f"missing section header: {section.title!r}"
+            for row in section.rows:
+                # Sub-rows are indented in the PDF, so match on substring.
+                assert any(row.label in text for text in rendered), f"missing row label: {row.label!r}"
+
+        _assert_no_leaked_figures(before, fig)
+
 
 # ---------------------------------------------------------------------------
 # plot_atlas helpers
