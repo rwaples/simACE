@@ -11,6 +11,8 @@ external/
 !/scripts/audit_results_footprint.py
 !/scripts/regen_rulegraph.sh
 !/scripts/calibrate_frailty_scale.py
+# Fresh-computer install-verification suite (shareable; see scripts/verify/README.md)
+!/scripts/verify/
 
 # Notebooks
 notebooks/
