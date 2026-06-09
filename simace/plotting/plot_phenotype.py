@@ -299,7 +299,7 @@ def main(
     censor_age: float,
     gen_censoring: dict[int, list[float]] | None = None,
     plot_ext: str = "png",
-    max_degree: int = 2,
+    max_degree: int = 3,
 ) -> None:
     """Generate all phenotype plots from pre-computed combined reports."""
     out_dir = Path(output_dir)

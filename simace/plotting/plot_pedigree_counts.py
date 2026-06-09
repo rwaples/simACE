@@ -261,7 +261,7 @@ def plot_pedigree_relationship_counts(
     scenario: str = "",
     stats_key: str = "pair_counts",
     generations_label: str = "",
-    max_degree: int = 2,
+    max_degree: int = 3,
 ) -> None:
     """Draw a proband-centric pedigree diagram with relationship pair counts.
 

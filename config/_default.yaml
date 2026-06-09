@@ -111,7 +111,7 @@ defaults:
 
   # ── Analysis ────────────────────────────────────────────────────────────
   analysis:
-    max_degree: 2
+    max_degree: 3
     estimate_inbreeding: false
     # When true, the effective_size rule skips building the full sparse
     # kinship matrix and reports ne_coancestry as None.  Required at very

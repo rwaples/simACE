@@ -27,7 +27,7 @@ def _run_snakemake():
         seed=p.seed,
         censor_age=p.censor_age,
         gen_censoring=gen_censoring,
-        max_degree=p.get("max_degree", 2),
+        max_degree=p.get("max_degree", 3),
         case_ascertainment_ratio=p.get("case_ascertainment_ratio", 1.0),
     )
 

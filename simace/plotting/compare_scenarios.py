@@ -395,7 +395,7 @@ def load_pedigree_estimates(
     else:
         df = df_full.reset_index(drop=True)
 
-    pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=2)
+    pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=3)
     liab = df[f"liability{trait}"].to_numpy()
 
     corrs: dict[str, float] = {}

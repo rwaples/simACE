@@ -17,7 +17,7 @@ def _run_snakemake():
     plot_format = snakemake.params.plot_format
     output_dir = Path(snakemake.output[0]).parent
 
-    max_degree = int(getattr(snakemake.params, "max_degree", 2))
+    max_degree = int(getattr(snakemake.params, "max_degree", 3))
 
     main(
         report_paths,
