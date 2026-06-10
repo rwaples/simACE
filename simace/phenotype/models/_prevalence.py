@@ -34,8 +34,9 @@ def _validate_prevalence(value) -> None:
     cases or all cases — with no error.
     """
     arr = np.asarray(value, dtype=float)
-    if not np.all((arr > 0.0) & (arr < 1.0)):
-        bad = np.unique(arr[(arr <= 0.0) | (arr >= 1.0)]).tolist()
+    in_range = (arr > 0.0) & (arr < 1.0)
+    if not np.all(in_range):
+        bad = np.unique(arr[~in_range]).tolist()
         raise ValueError(f"prevalence must be in the open interval (0, 1), got out-of-range value(s) {bad}")
 
 
