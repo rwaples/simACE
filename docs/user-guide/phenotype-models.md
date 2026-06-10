@@ -99,17 +99,30 @@ Set under `params.method`:
 | `drift` | Drift rate of the latent random walk. Negative drift caps the susceptible fraction (cure-like behaviour); non-negative drift gives an eventually-affected population. |
 | `shape` | Boundary parameter governing the time scale of first passage. |
 
-## Parallel `simple_ltm` output
+## `simple_ltm` params
 
-Independently of the configured family, every scenario produces a
-parallel outcomes-only `trait.simple_ltm.parquet` output by applying
-`simace.phenotype.threshold.apply_threshold` to `liability1` /
-`liability2`. For `adult` / `cure_frailty` traits this path uses the
-configured `params.prevalence`; for `frailty` / `first_passage` traits
-it falls back to the documented defaults `(0.10, 0.20)`. The cut respects
-the global `standardize` flag (so `standardize: per_generation` makes the
-benchmark prevalence-preserving per generation; `global` matches the
-cohort-wide z-score).
+The `simple_ltm` model sets case status by a probit liability threshold at
+prevalence `K` (respecting the global `standardize` flag, like `adult` with
+`method: ltm`), then assigns an age-of-onset via an `onset` sub-model. Onset is
+independent of liability, and onset times flow through the standard censor stage
+like every other model, so the *observed* affected rate after censoring is below
+`K`.
+
+| Param | Description |
+|---|---|
+| `prevalence` | Case fraction `K` — scalar, per-generation dict, or `{female:, male:}` dict. |
+| `onset` | Onset sub-model. `{kind: fixed, age: A}` — every case onsets at age `A`; or `{kind: normal, mean: M, sd: S}` — case onset ~ `Normal(M, S)`. |
+
+```yaml
+phenotype:
+  trait1: { model: simple_ltm, params: { prevalence: 0.10, onset: { kind: fixed,  age: 30 } } }
+  trait2: { model: simple_ltm, params: { prevalence: 0.20, onset: { kind: normal, mean: 35, sd: 8 } } }
+```
+
+There is no longer a separate censoring-free `trait.simple_ltm.parquet` output.
+The fit-side descriptive binary statistics (prevalence-by-generation,
+tetrachoric correlations, Falconer h²) are computed from the censored
+`trait.parquet` for every scenario — see fitACE's **observed-binary** outputs.
 
 ## Standardization
 

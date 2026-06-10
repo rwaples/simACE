@@ -7,7 +7,6 @@ import pytest
 from simace.core.trait_schema import (
     TRAIT_CENSORED_COLUMNS,
     TRAIT_RAW_COLUMNS,
-    TRAIT_SIMPLE_LTM_COLUMNS,
     hydrate_trait,
     strip_trait_to_outcomes,
 )
@@ -47,16 +46,6 @@ def _censored_trait() -> pd.DataFrame:
     return df
 
 
-def _simple_ltm_trait() -> pd.DataFrame:
-    return pd.DataFrame(
-        {
-            "id": np.array([2, 3], dtype=np.int32),
-            "affected1": np.array([True, False]),
-            "affected2": np.array([False, True]),
-        }
-    )
-
-
 class TestStripTraitToOutcomes:
     def test_strips_raw_trait_to_ordered_schema(self):
         df = _raw_trait().assign(generation=[0, 1], extra="drop")
@@ -72,13 +61,6 @@ class TestStripTraitToOutcomes:
         out = strip_trait_to_outcomes(df, "censored")
 
         assert list(out.columns) == list(TRAIT_CENSORED_COLUMNS)
-
-    def test_strips_simple_ltm_trait_to_ordered_schema(self):
-        df = _simple_ltm_trait().assign(generation=[0, 1])
-
-        out = strip_trait_to_outcomes(df, "simple_ltm")
-
-        assert list(out.columns) == list(TRAIT_SIMPLE_LTM_COLUMNS)
 
     def test_rejects_missing_required_outcome_column(self):
         df = _raw_trait().drop(columns=["t2"])

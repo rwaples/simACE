@@ -322,7 +322,7 @@ Conventions for the text rendered in the plot atlas — both the `PlotEntry` `ti
 
 - **"liability"** is intentionally polysemous: it can refer to the raw $L = A + C + E$ or to its standardized form $\tilde L$. Both readings are legitimate; the right one is inferable from context (raw inside `pedigree.parquet` columns; standardized inside phenotype-model code that consumes it). **Do not** "fix" this by renaming — the dual usage is load-bearing.
 
-- **"phenotype"** is never used bare for the *observable outcome* — that's called a **trait** (per-individual instance). "Phenotype" appears only in qualified form: **phenotype model** (the family) or **phenotype stage** (the pipeline step). Canonical output files are `trait.parquet` and `trait.simple_ltm.parquet` (renamed from the legacy `phenotype.parquet` / `phenotype.simple_ltm.parquet`).
+- **"phenotype"** is never used bare for the *observable outcome* — that's called a **trait** (per-individual instance). "Phenotype" appears only in qualified form: **phenotype model** (the family) or **phenotype stage** (the pipeline step). The canonical post-ascertainment output file is `trait.parquet` (renamed from the legacy `phenotype.parquet`). `simple_ltm` is a phenotype **model** (liability threshold + fixed/normal onset), not a separate output; the former parallel `trait.simple_ltm.parquet` was retired (ADR 0011 amendment). The descriptive binary stats that consumed it are now fitACE's **observed-binary** outputs, computed from `trait.parquet` for every scenario.
 
 - **Noun, not gerund** for the phenotype stage: the canonical package is `simace/phenotype/` (noun). The legacy `simace/phenotyping/` gerund form was renamed in lockstep. Do not reintroduce "phenotyping" identifiers.
 

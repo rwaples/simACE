@@ -8,6 +8,24 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
+### Phenotype models
+
+- **`simple_ltm` is now a phenotype model**, not a parallel output. It sets case
+  status by a probit liability threshold at prevalence `K`, then assigns an
+  age-of-onset via an `onset` sub-model (`{kind: fixed, age}` or
+  `{kind: normal, mean, sd}`), and flows through the standard
+  `phenotype → censor → ascertainment` pipeline like every other model. Select
+  it with `phenotype.trait{N}.model: simple_ltm`.
+- **Parallel `trait.simple_ltm.*` outputs removed** (ADR 0011 amendment). The
+  `phenotype_simple_ltm` rule, `simace.phenotype.threshold`, the `simple_ltm`
+  trait kind, and the third ascertainment branch are gone; `run_ascertainment`
+  now returns `(pedigree, trait)`.
+- **fitACE LTM stats repointed.** Falconer h², tetrachoric/prevalence stats, and
+  the former `*.simple_ltm` plots now read `affected1`/`affected2` from the
+  censored `trait.parquet` for every scenario and are emitted as
+  **observed-binary** outputs (`observed_binary_stats.yaml`,
+  `*.observed_binary` plots).
+
 ## 2026.05.3 — 2026-05-30
 
 Headline: **Analyze replaces separate Validate and Stats stages.** It writes

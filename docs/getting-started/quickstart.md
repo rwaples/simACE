@@ -22,7 +22,6 @@ A successful run produces these key files per replicate:
 |---|---|
 | `pedigree.parquet` | Analysis pedigree: parent links, generation, sex, household IDs, ACE components, liabilities |
 | `trait.parquet` | Outcomes-only censored time-to-event traits (`id`, onset/censoring/affected columns) |
-| `trait.simple_ltm.parquet` | Outcomes-only liability-threshold binary affected status |
 | `report.yaml` | Curated v2 scientific report: `scopes`, `quality_checks`, `truth`, `observed`, `estimators` (dense plot arrays go to `plot_payload.yaml`) |
 | `params.yaml` | The resolved parameters for this replicate |
 

@@ -481,8 +481,8 @@ def _make_pair_data(r=0.5, n=100, liab_r=None):
 
 
 @pytest.fixture
-def simple_ltm_stats():
-    """Minimal stats dict for plot_simple_ltm functions."""
+def observed_binary_stats():
+    """Minimal stats dict for observed-binary plot functions."""
     return [
         {
             "prevalence": {
@@ -583,8 +583,8 @@ def simple_ltm_stats():
 
 
 @pytest.fixture
-def simple_ltm_samples():
-    """Minimal sample DataFrame for plot_simple_ltm functions."""
+def observed_binary_samples():
+    """Minimal sample DataFrame for observed-binary plot functions."""
     rng = np.random.default_rng(42)
     n = 200
     return pd.DataFrame(
@@ -628,7 +628,7 @@ def broad_h2_validations():
     ]
 
 
-# plot_simple_ltm smoke tests live in the sister fitACE repo.
+# observed-binary plot smoke tests live in the sister fitACE repo.
 
 
 # ---------------------------------------------------------------------------
@@ -637,12 +637,12 @@ def broad_h2_validations():
 
 
 class TestPlotCorrelationsExpanded:
-    def test_plot_tetrachoric_by_sex(self, simple_ltm_stats, tmp_path):
+    def test_plot_tetrachoric_by_sex(self, observed_binary_stats, tmp_path):
         from simace.plotting.plot_correlations import plot_tetrachoric_by_sex
 
         before = plt.get_fignums()
         out = tmp_path / "tet_sex.png"
-        plot_tetrachoric_by_sex(simple_ltm_stats, out, scenario="test")
+        plot_tetrachoric_by_sex(observed_binary_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
         plt.close("all")
@@ -658,12 +658,12 @@ class TestPlotCorrelationsExpanded:
         plt.close("all")
         assert plt.get_fignums() == before
 
-    def test_plot_heritability_by_sex_generation(self, simple_ltm_stats, tmp_path):
+    def test_plot_heritability_by_sex_generation(self, observed_binary_stats, tmp_path):
         from simace.plotting.plot_heritability import plot_heritability_by_sex_generation
 
         before = plt.get_fignums()
         out = tmp_path / "h2_sex_gen.png"
-        plot_heritability_by_sex_generation(simple_ltm_stats, out, scenario="test")
+        plot_heritability_by_sex_generation(observed_binary_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
         plt.close("all")
@@ -747,23 +747,23 @@ class TestPlotCorrelationsExpanded:
 
 
 class TestPlotDistributionsExpanded:
-    def test_plot_trait_regression(self, simple_ltm_samples, simple_ltm_stats, tmp_path):
+    def test_plot_trait_regression(self, observed_binary_samples, observed_binary_stats, tmp_path):
         from simace.plotting.plot_distributions import plot_trait_regression
 
         before = plt.get_fignums()
         out = tmp_path / "trait_reg.png"
-        plot_trait_regression(simple_ltm_samples, simple_ltm_stats, out, scenario="test")
+        plot_trait_regression(observed_binary_samples, observed_binary_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
         plt.close("all")
         assert plt.get_fignums() == before
 
-    def test_plot_family_structure(self, simple_ltm_stats, tmp_path):
+    def test_plot_family_structure(self, observed_binary_stats, tmp_path):
         from simace.plotting.plot_distributions import plot_family_structure
 
         before = plt.get_fignums()
         out = tmp_path / "family_struct.png"
-        plot_family_structure(simple_ltm_stats, out, scenario="test")
+        plot_family_structure(observed_binary_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
         plt.close("all")

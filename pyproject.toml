@@ -45,7 +45,6 @@ dev = [
 [project.scripts]
 simace-simulate = "simace.simulation.simulate:cli"
 simace-phenotype = "simace.phenotype:cli"
-simace-threshold = "simace.phenotype.threshold:cli"
 simace-ascertain = "simace.ascertainment:cli"
 simace-validate = "simace.analysis.validate:cli"
 simace-phenotype-stats = "simace.analysis.stats:cli"

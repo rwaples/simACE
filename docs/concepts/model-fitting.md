@@ -14,7 +14,7 @@ Continuous liabilities are mapped to age-of-onset phenotypes via time-to-event m
 | **Cure-Frailty** | Mixture model separating **who** gets the disease (susceptible vs. non-susceptible) from **when** (age-of-onset among susceptibles). Supports sex-specific prevalence. |
 | **ADuLT LTM** | Deterministic liability threshold model with logistic cumulative incidence function (Pedersen et al., 2023). |
 | **ADuLT Cox** | Proportional hazards with Weibull noise and rank-based CIF-to-age mapping (Pedersen et al., 2023). |
-| **Simple LTM** | Binary affected status from liability threshold, without age-of-onset or censoring. |
+| **Simple LTM** | Liability threshold for case status at prevalence `K`, with a fixed or normally-distributed age-of-onset. Onset flows through the standard censor stage like the other models. |
 
 ## Censoring
 

@@ -10,7 +10,6 @@ results/{folder}/{scenario}/
 │   ├── pedigree.parquet                   # Analysis pedigree (ancestor closure of sampled IDs)
 │   ├── trait.full.parquet                 # Phenotyped population (full pre-ascertainment, durable)
 │   ├── trait.parquet                      # Analysis sample (post-ascertainment censored phenotypes)
-│   ├── trait.simple_ltm.parquet           # Post-ascertainment liability-threshold benchmark
 │   ├── report.yaml                        # Curated v2 scientific report (scopes/quality_checks/truth/observed/estimators)
 │   └── plot_payload.yaml                  # Dense incidence/censoring arrays for plotting
 ├── rep2/
@@ -25,13 +24,11 @@ results/{folder}/{scenario}/
 
 | File | Description | Temp? |
 |---|---|---|
-| `pedigree.full.parquet` | Full simulated pedigree (post-burn-in, pre-ascertainment) — consumed by validation, phenotype, phenotype_simple_ltm, and ascertainment | No |
+| `pedigree.full.parquet` | Full simulated pedigree (post-burn-in, pre-ascertainment) — consumed by validation, phenotype, censor, and ascertainment | No |
 | `pedigree.parquet` | Analysis pedigree: ancestor closure of final trait IDs, with dangling refs severed | No |
 | `trait.raw.parquet` | Outcomes-only raw time-to-event traits before censoring (`id`, `t1`, `t2`) | Yes |
 | `trait.full.parquet` | Outcomes-only phenotyped population — post-censor traits for the full pre-ascertainment population; durable so Analyze can quantify ascertainment distortion (ADR 0008/0011) | No |
-| `trait.simple_ltm.full.parquet` | Outcomes-only pre-ascertainment liability-threshold benchmark | Yes |
 | `trait.parquet` | Outcomes-only post-ascertainment censored time-to-event traits (canonical output) | No |
-| `trait.simple_ltm.parquet` | Outcomes-only post-ascertainment liability-threshold benchmark (canonical output) | No |
 | `params.yaml` | Simulation parameters for this replicate | No |
 | `report.yaml` | Curated v2 per-replicate scientific report (`scopes`, `quality_checks`, `truth`, `observed`, `estimators`) | No |
 | `plot_payload.yaml` | Dense incidence/censoring arrays for reproducible plotting (companion to `report.yaml`) | No |
@@ -98,7 +95,6 @@ as placeholders matching values from `config/_default.yaml`.
 | `pedigree.full.parquet` | Parquet | Full simulated pedigree (post-burn-in, pre-ascertainment); persistent for validation | `simace/simulation/simulate.py` |
 | `pedigree.parquet` | Parquet | Post-ascertainment pedigree (ancestor closure of sampled IDs, dangling refs severed) | `simace/ascertainment/__init__.py` |
 | `trait.parquet` | Parquet | Post-ascertainment per-individual trait outcomes (censored time-to-event + affected status) | `simace/ascertainment/__init__.py` |
-| `trait.simple_ltm.parquet` | Parquet | Post-ascertainment per-individual simple-LTM benchmark (parallel LTM trait) | `simace/ascertainment/__init__.py` |
 | `params.yaml` | YAML | Simulation parameters for this replicate | `simace/simulation/simulate.py` |
 | `report.yaml` | YAML | Curated v2 per-replicate scientific report (`scopes`, `quality_checks`, `truth`, `observed`, `estimators`) | `workflow/scripts/simace/analyze.py` → `simace/analysis/analyze.py` |
 | `plot_payload.yaml` | YAML | Dense incidence/censoring arrays for plotting (companion to `report.yaml`) | `workflow/scripts/simace/analyze.py` → `simace/analysis/analyze.py` |
@@ -108,7 +104,7 @@ as placeholders matching values from `config/_default.yaml`.
 
 | File | Format | Description |
 |------|--------|-------------|
-| `results/{folder}/{scenario}/plots/*.png` | PNG (or PDF) | Phenotype and simple LTM figures (see [Plots](#plots)) |
+| `results/{folder}/{scenario}/plots/*.png` | PNG (or PDF) | Phenotype and observed-binary figures (see [Plots](#plots)) |
 | `results/{folder}/{scenario}/plots/atlas.html` | HTML | Self-contained scenario atlas (default build) |
 | `results/{folder}/{scenario}/plots/atlas.pdf` | PDF | Multi-page scenario atlas (on-demand export) |
 | `results/{folder}/{scenario}/scenario.done` | Sentinel | Empty file indicating scenario completion |
@@ -173,23 +169,14 @@ Outcomes-only censored time-to-event traits. `trait.full.parquet` covers the ful
 | `death_censored1`, `death_censored2` | bool | True if onset occurs after death |
 | `affected1`, `affected2` | bool | True if the individual is observed as affected (not age- or death-censored) |
 
-### trait.simple_ltm.full.parquet and trait.simple_ltm.parquet
-
-Outcomes-only binary affected status from a liability-threshold model. Each generation has an independent prevalence-based threshold; hydrate with the appropriate pedigree file to recover generation labels or liabilities.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | int64 | Individual identifier |
-| `affected1`, `affected2` | bool | True if liability exceeds the generation-specific threshold |
-
 ### Ascertained outputs
 
-`pedigree.parquet`, `trait.parquet`, and `trait.simple_ltm.parquet` are the canonical post-ascertainment outputs that both simACE-stats and fitACE consume. Under non-trivial ascertainment (`dropout_rate > 0` or `N_sample > 0`), these files contain a subset of the full simulated population:
+`pedigree.parquet` and `trait.parquet` are the canonical post-ascertainment outputs that both simACE-stats and fitACE consume. Under non-trivial ascertainment (`dropout_rate > 0` or `N_sample > 0`), these files contain a subset of the full simulated population:
 
 - `pedigree.parquet` is the **ancestor closure** of the sampled IDs within the post-dropout pedigree, with dangling `mother` / `father` / `twin` references rewritten to −1.
-- `trait.parquet` and `trait.simple_ltm.parquet` share an identical `id` column (the sampled set), restricted to the trailing `G_pheno` generations.
+- `trait.parquet` is restricted to the sampled IDs, within the trailing `G_pheno` generations.
 
-The pre-ascertainment intermediates `trait.raw.parquet` and `trait.simple_ltm.full.parquet` are Snakemake `temp()` files. `trait.full.parquet` is durable because Analyze uses it to quantify ascertainment distortion (ADR 0008).
+The pre-ascertainment intermediate `trait.raw.parquet` is a Snakemake `temp()` file. `trait.full.parquet` is durable because Analyze uses it to quantify ascertainment distortion (ADR 0008).
 
 `plotting_sample.parquet` is a *further* downsampled, hydrated parquet produced inside the Analyze stage for scatter/histogram plots. It is a plot cache, not an analysis input.
 
@@ -299,9 +286,7 @@ Benchmark files are written for each pipeline rule. Per-replicate benchmarks:
 - `benchmarks/{folder}/{scenario}/rep{rep}/dropout.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/phenotype.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/censor_weibull.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/sample_phenotype.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/sample_simple_ltm.tsv`
 - `benchmarks/{folder}/{scenario}/rep{rep}/analyze.tsv`
 
 Per-scenario benchmarks:

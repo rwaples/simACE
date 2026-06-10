@@ -671,7 +671,7 @@ _DEFAULT_SIM_PARAMS = dict(
 @pytest.fixture(scope="module")
 def phenotyped_df():
     """Simulated + thresholded pedigree with all columns needed by stats functions."""
-    from simace.phenotype.threshold import apply_threshold
+    from simace.phenotype.models._prevalence import case_status_from_liability
     from simace.simulation.simulate import run_simulation
 
     ped = run_simulation(**_DEFAULT_SIM_PARAMS)
@@ -679,7 +679,7 @@ def phenotyped_df():
     rng = np.random.default_rng(42)
     for t in [1, 2]:
         liab = ped[f"liability{t}"].values
-        ped[f"affected{t}"] = apply_threshold(liab, gen, 0.10)
+        ped[f"affected{t}"] = case_status_from_liability(liab, 0.10, None, gen, "global")
         aff = ped[f"affected{t}"].values
         ped[f"t_observed{t}"] = np.where(aff, rng.uniform(10, 70, len(ped)), 80.0)
         ped[f"t{t}"] = np.where(aff, ped[f"t_observed{t}"], rng.uniform(85, 200, len(ped)))

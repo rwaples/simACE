@@ -11,11 +11,9 @@ from __future__ import annotations
 __all__ = [
     "CENSORED_TRAIT",
     "RAW_TRAIT",
-    "SIMPLE_LTM_TRAIT",
     "TRAIT_CENSORED_COLUMNS",
     "TRAIT_OUTCOME_COLUMNS_BY_KIND",
     "TRAIT_RAW_COLUMNS",
-    "TRAIT_SIMPLE_LTM_COLUMNS",
     "TraitKind",
     "hydrate_trait",
     "strip_trait_to_outcomes",
@@ -28,7 +26,7 @@ if TYPE_CHECKING:
 
     import pandas as pd
 
-TraitKind = Literal["raw", "censored", "simple_ltm"]
+TraitKind = Literal["raw", "censored"]
 
 TRAIT_RAW_COLUMNS: tuple[str, ...] = ("id", "t1", "t2")
 TRAIT_CENSORED_COLUMNS: tuple[str, ...] = (
@@ -45,12 +43,9 @@ TRAIT_CENSORED_COLUMNS: tuple[str, ...] = (
     "death_censored2",
     "affected2",
 )
-TRAIT_SIMPLE_LTM_COLUMNS: tuple[str, ...] = ("id", "affected1", "affected2")
-
 TRAIT_OUTCOME_COLUMNS_BY_KIND: dict[TraitKind, tuple[str, ...]] = {
     "raw": TRAIT_RAW_COLUMNS,
     "censored": TRAIT_CENSORED_COLUMNS,
-    "simple_ltm": TRAIT_SIMPLE_LTM_COLUMNS,
 }
 
 RAW_TRAIT: dict[str, str] = {"id": "iu", "t1": "f", "t2": "f"}
@@ -66,7 +61,6 @@ CENSORED_TRAIT: dict[str, str] = {
     "death_censored2": "b",
     "affected2": "b",
 }
-SIMPLE_LTM_TRAIT: dict[str, str] = {"id": "iu", "affected1": "b", "affected2": "b"}
 
 _ID = "id"
 
@@ -114,7 +108,7 @@ def strip_trait_to_outcomes(df: pd.DataFrame, kind: TraitKind) -> pd.DataFrame:
 
     Args:
         df: Trait-like DataFrame, potentially carrying hydrated pedigree columns.
-        kind: Trait file kind: ``"raw"``, ``"censored"``, or ``"simple_ltm"``.
+        kind: Trait file kind: ``"raw"`` or ``"censored"``.
 
     Returns:
         A copy with only the canonical outcomes-only columns for ``kind``, in

@@ -342,14 +342,12 @@ within each generation independently before comparing to $T$. Under
 this mode every generation hits its target $K$ exactly, regardless of
 how $v_E$ drifts across cohorts — visible directly in the green line
 in each panel above, which sits flat at $K = 0.10$ for all four E
-trajectories. The same thing happens automatically in the
-`trait.simple_ltm.parquet` benchmark output that every scenario
-produces alongside its main phenotype: that benchmark calls
-`apply_threshold` from `simace/phenotype/threshold.py`, which honors
-the same global `standardize` flag. So setting
-`standardize: per_generation` in the scenario YAML simultaneously
-flattens the `adult` / `method: ltm` prevalence drift *and* the
-simple-LTM benchmark drift.
+trajectories. Every threshold-based phenotype model shares this
+behaviour: case status comes from `case_status_from_liability`
+(`simace/phenotype/models/_prevalence.py`), which honors the same
+global `standardize` flag. So setting `standardize: per_generation`
+in the scenario YAML flattens prevalence drift for any threshold model
+— `adult` with `method: ltm` and the `simple_ltm` model alike.
 
 The trade-off is the same as before: per-generation standardization
 erases any real population-level signal that happens to map onto the

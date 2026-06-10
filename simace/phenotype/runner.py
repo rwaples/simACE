@@ -94,7 +94,7 @@ def run_phenotype(
             for their hazard step unless the per-trait
             ``phenotype_params{N}["standardize_hazard"]`` overrides it.
         phenotype_model1: trait-1 model family (``frailty``, ``cure_frailty``,
-            ``adult``, ``first_passage``).
+            ``adult``, ``first_passage``, ``simple_ltm``).
         phenotype_model2: trait-2 model family (same options).
         beta1: trait-1 liability → log-hazard slope.
         beta_sex1: trait-1 sex → log-hazard slope.

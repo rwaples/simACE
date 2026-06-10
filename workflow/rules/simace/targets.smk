@@ -45,7 +45,6 @@ rule phenotype_scenario:
             for r in range(1, get_param(config, w.scenario, "replicates") + 1)
             for f in [
                 "trait.parquet",
-                "trait.simple_ltm.parquet",
             ]
         ],
     output:

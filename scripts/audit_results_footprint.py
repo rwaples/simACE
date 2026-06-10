@@ -23,7 +23,6 @@ from typing import Any
 
 LEGACY_RENAMED = {
     "phenotype.parquet": "trait.parquet",
-    "phenotype.simple_ltm.parquet": "trait.simple_ltm.parquet",
 }
 
 AUTO_DELETE_SAFE = frozenset({"legacy-renamed-simace-shadowed"})
@@ -34,7 +33,6 @@ CURRENT_SIMACE_BASENAMES = frozenset(
         "pedigree.parquet",
         "trait.full.parquet",
         "trait.parquet",
-        "trait.simple_ltm.parquet",
         "params.yaml",
         "report.yaml",
         "plot_payload.yaml",
@@ -51,7 +49,6 @@ CURRENT_SIMACE_BASENAMES = frozenset(
 SIMACE_TEMP_BASENAMES = frozenset(
     {
         "trait.raw.parquet",
-        "trait.simple_ltm.full.parquet",
         "plotting_sample.parquet",
     }
 )

@@ -13,8 +13,11 @@ Prevalence may be:
 """
 
 import numpy as np
+from scipy.special import ndtri
 
-__all__ = ["prevalence_to_array", "resolve_prevalence"]
+from simace.phenotype.hazards import StandardizeMode, standardize_liability
+
+__all__ = ["case_status_from_liability", "prevalence_to_array", "resolve_prevalence"]
 
 
 def prevalence_to_array(prev, generation: np.ndarray) -> float | np.ndarray:
@@ -52,3 +55,39 @@ def resolve_prevalence(
         m_prev = prevalence_to_array(prev["male"], generation)
         return np.where(sex == 1, m_prev, f_prev)
     return prevalence_to_array(prev, generation)
+
+
+def case_status_from_liability(
+    liability: np.ndarray,
+    prevalence,
+    sex: np.ndarray | None,
+    generation: np.ndarray,
+    mode: StandardizeMode,
+) -> np.ndarray:
+    """Probit liability-threshold case status.
+
+    Standardizes ``liability`` under ``mode`` then flags individuals above the
+    probit threshold ``ndtri(1 - K)`` as cases.  This is the single home for the
+    standardize-then-threshold idiom shared by ``adult.ltm``, ``cure_frailty``,
+    and ``simple_ltm``.
+
+    The comparison is strict (``threshold < L``): on continuous liability the
+    tie set is measure-zero, so the realised case fraction matches ``K`` and the
+    ``<`` / ``<=`` choice is immaterial in practice.
+
+    Args:
+        liability: per-individual liability values.
+        prevalence: case fraction ``K`` — scalar, per-generation dict, or
+            ``{"female": ..., "male": ...}`` dict (resolved via
+            :func:`resolve_prevalence`).
+        sex: per-individual sex codes; required only for sex-specific prevalence.
+        generation: per-individual generation labels (for standardization and
+            per-generation prevalence).
+        mode: liability standardization mode (``"none" | "global" | "per_generation"``).
+
+    Returns:
+        Boolean array, ``True`` for cases.
+    """
+    L = standardize_liability(liability, mode, generation)
+    prev = resolve_prevalence(prevalence, sex, generation)
+    return ndtri(1.0 - np.asarray(prev)) < L

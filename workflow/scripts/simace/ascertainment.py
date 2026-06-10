@@ -1,6 +1,6 @@
 """Ascertainment - Snakemake wrapper with CLI fallback.
 
-Custom wrapper (not run_wrapper-based) because the rule has three named
+Custom wrapper (not run_wrapper-based) because the rule has two named
 outputs and run_wrapper only writes one.
 """
 
@@ -18,10 +18,8 @@ def _run() -> None:
     if copy_passthrough_if_possible(
         snakemake.input.pedigree,
         snakemake.input.trait,
-        snakemake.input.trait_simple_ltm,
         snakemake.output.pedigree,
         snakemake.output.trait,
-        snakemake.output.trait_simple_ltm,
         dropout_rate=snakemake.params.dropout_rate,
         N_sample=snakemake.params.N_sample,
     ):
@@ -29,11 +27,9 @@ def _run() -> None:
 
     df_ped = pd.read_parquet(snakemake.input.pedigree)
     df_trait = pd.read_parquet(snakemake.input.trait)
-    df_simple_ltm = pd.read_parquet(snakemake.input.trait_simple_ltm)
-    df_ped_out, df_trait_out, df_simple_ltm_out = run_ascertainment(
+    df_ped_out, df_trait_out = run_ascertainment(
         df_ped,
         df_trait,
-        df_simple_ltm,
         dropout_rate=snakemake.params.dropout_rate,
         case_ascertainment_ratio=snakemake.params.case_ascertainment_ratio,
         N_sample=snakemake.params.N_sample,
@@ -41,7 +37,6 @@ def _run() -> None:
     )
     save_parquet(df_ped_out, snakemake.output.pedigree)
     save_parquet(df_trait_out, snakemake.output.trait)
-    save_parquet(df_simple_ltm_out, snakemake.output.trait_simple_ltm)
 
 
 cli_or_snakemake(_cli, _run, globals())

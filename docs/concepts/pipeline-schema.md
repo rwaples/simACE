@@ -45,13 +45,6 @@ corresponding pedigree parquet and are joined explicitly when needed.
 | `age_censored1`, `death_censored1`, `affected1` | `b` (bool) |
 | `age_censored2`, `death_censored2`, `affected2` | `b` |
 
-### `SIMPLE_LTM_TRAIT` — `trait.simple_ltm.full.parquet` and `trait.simple_ltm.parquet`
-
-| Column | Kind |
-|---|---|
-| `id` | `iu` |
-| `affected1`, `affected2` | `b` |
-
 ## Hydration
 
 Consumers that need a self-contained frame call:
