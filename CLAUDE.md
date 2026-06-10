@@ -35,7 +35,7 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 
 ## Key Rules
 
-- The ACE conda env is always active. Do NOT use `conda run -n ACE` — run commands directly.
+- The `simACE` conda env is always active. Do NOT use `conda run -n simACE` — run commands directly.
 
 ## Code review gotchas (statistical correctness)
 
