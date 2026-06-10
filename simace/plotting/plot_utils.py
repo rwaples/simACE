@@ -406,7 +406,8 @@ def finalize_relationship_type_panels(
     seed = all_ref + all_obs_sane
     if seed:
         ymax = max(seed)
-        ymin = min(min(seed), 0.0)
+        ymin = min(seed)
+        ymin = min(ymin, 0.0)
         span = max(ymax - ymin, 0.05)
         pad = 0.10 * span
         ylim_lo = max(ymin - pad, sane_lo)

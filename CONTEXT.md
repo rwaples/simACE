@@ -279,6 +279,24 @@ _Avoid_: ACE-model package, ACE framework, ACE-package.
 The known, configured-and-realized parameter values used to generate a scenario — the values that fitACE estimates will be benchmarked against. Includes the $A$, $C$, $E$ component values per individual, the cross-trait correlations, the per-individual trait status, the per-pair relationship type, and the configured prevalences. Distinct from any *estimate* fitACE produces.
 _Avoid_: true values (acceptable in prose but less specific), simulated values, target values (target prevalence is a config *input* — it's only ground truth once realized).
 
+### Versioning
+
+**Lockstep family**:
+The set of repos released under one shared version, tagged together each release — simACE, fitACE core, the seven method sisters, and the `ace_iter_reml` binary. External dependencies (`pedigree-graph`, `pedsum`, `tetraher_simace`) are **not** members and keep independent versions.
+_Avoid_: "fitACE family" (excludes simACE by name), monorepo (separate repos, separate origins), submodule set.
+
+**Family version**:
+The single CalVer (`vYYYY.MM[.patch]`) every Lockstep family repo carries. Identical across repos at a tagged release; between releases each repo's dev build diverges only by its setuptools-scm commit-distance suffix.
+_Avoid_: "the simACE version" / "the fitACE version" (under lockstep there is no per-repo version), build number.
+
+**Family floor**:
+The single minimum compatible Family version — the source of truth in `fitace._deps` that fitACE core and the method sisters pin (`>=`) and runtime-guard. simACE is upstream of the floor and does not import it.
+_Avoid_: separate simACE / fitACE floors (collapsed into one under lockstep), version pin, minimum requirement.
+
+- Each **Lockstep family** repo carries the same **Family version** at a tagged release.
+- A **Method sister** is a **Lockstep family** member; an external dependency is not.
+- fitACE core and the **Method sisters** pin and guard the single **Family floor**; simACE does not.
+
 ### Descriptive vs inferential analysis
 
 simACE-side `simace.analysis.stats` produces **observed summaries** and simple **estimators**. Observed summaries are quantities directly measured from a scoped output population: prevalence, person-years, relationship counts, liability/affected/tetrachoric correlations, and mate correlations. Estimators are values derived from observed summaries to estimate a target quantity, such as naive observed-scale heritability from affected-status relationship correlations.
@@ -299,6 +317,8 @@ Conventions for the text rendered in the plot atlas — both the `PlotEntry` `ti
 - **Retired / corrected labels.** "survival model" is no longer used as a plot qualifier — it is inaccurate for the threshold `adult` / `ltm` family, and the model-aware section break already names the configured family. In caption prose, age-window censoring before the window opens is **left-censored**, never "left-truncated" (which survives only as a stats key); "delayed entry" remains correct in the Aalen-Johansen captions, where it names how per-generation observation windows are honoured. "coancestry" stays out of caption prose (use **kinship** / **mean kinship**); only the fixed estimator identifiers `Ne_coancestry` / `mean_self_coancestry` / `Ne_caballero_toro` keep the word.
 
 ## Flagged ambiguities
+
+- **"fitACE family"** reads as fitACE-only, but the **Lockstep family** (the versioned set) also contains simACE and the `ace_iter_reml` binary. Use **Lockstep family** when you mean the repos that share a **Family version**; reserve "fitACE core + method sisters" for the fit-only subset.
 
 - **"liability"** is intentionally polysemous: it can refer to the raw $L = A + C + E$ or to its standardized form $\tilde L$. Both readings are legitimate; the right one is inferable from context (raw inside `pedigree.parquet` columns; standardized inside phenotype-model code that consumes it). **Do not** "fix" this by renaming — the dual usage is load-bearing.
 

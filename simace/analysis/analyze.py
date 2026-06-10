@@ -172,10 +172,11 @@ def run_analysis(
 
 def cli() -> None:
     """Command-line interface for the combined Analyze stage (debug parity)."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Run combined Validate + Stats analysis")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("--pedigree-full", required=True, help="Full pre-ascertainment pedigree parquet")
     parser.add_argument("--params", required=True, help="Scenario params YAML")
     parser.add_argument("--trait-full", required=True, help="Full pre-ascertainment trait parquet")

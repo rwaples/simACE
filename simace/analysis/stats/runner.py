@@ -288,10 +288,11 @@ def main(
 
 def cli() -> None:
     """Command-line interface for phenotype statistics computation."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Build per-replicate stats report")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("phenotype", help="Input phenotype parquet")
     parser.add_argument("censor_age", type=float)
     parser.add_argument("stats_output", help="Output stats YAML")

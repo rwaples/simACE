@@ -168,13 +168,14 @@ def cli() -> None:
     argument groups. Each model's ``from_cli`` rejects flags belonging to
     a different family when invoked alongside that model's selection.
     """
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(
         description="Simulate phenotype event times for two correlated traits",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("--pedigree", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--seed", type=int, default=42)

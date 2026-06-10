@@ -38,10 +38,11 @@ def convert(parquet_path: str, output_path: str | None = None, float_precision: 
 
 def cli() -> None:
     """Command-line interface: parquet-to-tsv."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Convert parquet to TSV (gzipped by default)")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("parquet", nargs="+", help="Input parquet file(s)")
     parser.add_argument("-o", "--output", default=None, help="Output path (only valid with a single input)")
     parser.add_argument("-p", "--precision", type=int, default=4, help="Decimal places for float columns (default: 4)")

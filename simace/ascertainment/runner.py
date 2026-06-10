@@ -289,10 +289,11 @@ def run_ascertainment(
 
 def cli() -> None:
     """Command-line entry point for the ascertainment stage."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Unified ascertainment: dropout + case-weighted N_sample draw")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("--pedigree", required=True, help="Input pre-ascertainment pedigree parquet")
     parser.add_argument("--trait", required=True, help="Input post-censor trait parquet")
     parser.add_argument("--trait-simple-ltm", required=True, help="Input simple-LTM trait parquet")

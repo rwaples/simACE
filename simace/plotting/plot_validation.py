@@ -131,7 +131,7 @@ def stripplot(
     if len(all_vals) > 0:
         lo, hi = float(all_vals.min()), float(all_vals.max())
         span = hi - lo
-        pad = max(span * 0.15, max(0.002, abs(lo + hi) / 2 * 0.01))
+        pad = max(span * 0.15, 0.002, abs(lo + hi) / 2 * 0.01)
         ax.set_ylim(lo - pad, hi + pad)
 
 
@@ -602,10 +602,11 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png", *, atlas_
 
 def cli() -> None:
     """Command-line interface for generating validation plots."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Plot validation results")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("tsv", help="Validation summary TSV path")
     parser.add_argument("output_dir", help="Output directory")
     parser.add_argument(

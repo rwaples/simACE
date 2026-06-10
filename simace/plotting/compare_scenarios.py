@@ -162,8 +162,8 @@ def compare_realized_variance_trajectory(
         (axes[1, 1], 3, f"Realized h² (trait {trait})", h2_expected),
     ]
 
-    for scen_idx, (reps, label) in enumerate(zip(scenario_paths, labels, strict=True)):
-        reps = [Path(p) for p in reps]
+    for scen_idx, (rep_paths, label) in enumerate(zip(scenario_paths, labels, strict=True)):
+        reps = [Path(p) for p in rep_paths]
         per_gen = load_per_generation(reps, trait=trait)
         gens = sorted(per_gen.keys())
         color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]

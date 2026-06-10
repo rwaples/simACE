@@ -21,6 +21,8 @@ __all__ = ["cli", "emit_params"]
 import argparse
 from typing import Any
 
+import simace
+
 
 def emit_params(
     *,
@@ -77,6 +79,10 @@ def emit_params(
 
     Returns:
         Dict to be serialized to ``params.yaml`` via :func:`dump_yaml`.
+        Always carries ``simace_version`` (the installed ``simace``
+        distribution version) for lockstep-family provenance; this is
+        stamped here rather than passed in, so it is not a ``run_wrapper``
+        parameter.
     """
     out: dict[str, Any] = {
         "seed": seed,
@@ -98,6 +104,7 @@ def emit_params(
         "p_mztwin": p_mztwin,
         "assort1": assort1,
         "assort2": assort2,
+        "simace_version": simace.__version__,
     }
     if assort_matrix is not None:
         out["assort_matrix"] = assort_matrix

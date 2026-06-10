@@ -265,10 +265,11 @@ def _parse_prevalence_arg(scalar: float | None, by_gen_json: str | None) -> floa
 
 def cli() -> None:
     """Command-line interface for threshold phenotype simulation."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Apply liability threshold model")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("--pedigree", required=True, help="Input pedigree parquet")
     parser.add_argument("--output", required=True, help="Output phenotype parquet")
     parser.add_argument("--G-pheno", type=int, default=3, help="Number of generations to assign phenotypes")

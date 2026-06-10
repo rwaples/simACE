@@ -390,7 +390,7 @@ def _metropolis_full_python(
         r2_err = abs(S2 / M - T2 / M)
         r12_err = abs(S12 / M - T12 / M)
         r21_err = abs(S21 / M - T21 / M)
-        if max(r1_err, max(r2_err, max(r12_err, r21_err))) < tol:
+        if max(r1_err, r2_err, r12_err, r21_err) < tol:
             break
 
         batch = min(M // 2, max_proposals - proposals_done)
@@ -1408,12 +1408,13 @@ def cli() -> None:
     """Command-line interface for running ACE simulations."""
     import json
 
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
     from simace.core.yaml_io import dump_yaml
     from simace.simulation.emit_params import emit_params
 
     parser = argparse.ArgumentParser(description="Run ACE pedigree simulation")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--N", type=int, default=1000, help="Founder population size")
     parser.add_argument("--G-ped", type=int, default=3, help="Number of pedigree generations")

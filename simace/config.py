@@ -361,10 +361,10 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
         if file_scenarios is None:
             continue
 
-        for name, params in file_scenarios.items():
+        for name, raw_params in file_scenarios.items():
             if name in scenarios:
                 raise ValueError(f"Duplicate scenario '{name}': already defined, also found in {path}")
-            params = _coerce_sim_types(flatten_hierarchical(params))
+            params = _coerce_sim_types(flatten_hierarchical(raw_params))
             unknown = set(params.keys()) - valid_defaults
             if unknown:
                 raise ValueError(

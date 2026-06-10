@@ -34,7 +34,6 @@ import numpy as np
 from scipy.special import erfc, ndtri
 
 from simace.phenotype.hazards import (
-    StandardizeMode,
     add_standardize_hazard_cli_arg,
     coerce_standardize_mode,
     resolve_hazard_mode,
@@ -53,6 +52,8 @@ from simace.phenotype.models._prevalence import resolve_prevalence
 
 if TYPE_CHECKING:
     import argparse
+
+    from simace.phenotype.hazards import StandardizeMode
 
 __all__ = ["AdultModel"]
 

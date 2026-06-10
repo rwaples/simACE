@@ -55,8 +55,14 @@ class TestEmitParamsShape:
             "p_mztwin",
             "assort1",
             "assort2",
+            "simace_version",
         }
         assert set(out.keys()) == expected
+
+    def test_simace_version_is_stamped(self, baseline_kwargs):
+        out = emit_params(**baseline_kwargs)
+        assert isinstance(out["simace_version"], str)
+        assert out["simace_version"]  # non-empty
 
     def test_assort_matrix_omitted_when_none(self, baseline_kwargs):
         out = emit_params(**baseline_kwargs, assort_matrix=None)

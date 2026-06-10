@@ -71,6 +71,8 @@ def test_cli_round_trip(tmp_path, monkeypatch):
         "assort2",
     }
     assert required.issubset(params.keys())
+    assert isinstance(params["simace_version"], str)
+    assert params["simace_version"]
     assert params["rep"] == 1
     assert params["seed"] == 100  # seed + rep - 1 = 100 + 1 - 1
     assert params["N"] == MINIMAL_CFG["N"]

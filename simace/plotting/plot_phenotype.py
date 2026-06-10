@@ -343,10 +343,11 @@ def main(
 
 def cli() -> None:
     """Command-line interface for generating phenotype plots."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Plot phenotype distributions")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("--report", nargs="+", required=True, help="report.yaml paths")
     parser.add_argument("--plot-payload", nargs="+", required=True, help="plot_payload.yaml paths")
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")

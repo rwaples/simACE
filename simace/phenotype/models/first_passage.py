@@ -20,7 +20,6 @@ import numpy as np
 from numba import njit, prange
 
 from simace.phenotype.hazards import (
-    StandardizeMode,
     add_standardize_hazard_cli_arg,
     iter_generation_groups,
     resolve_hazard_mode,
@@ -38,6 +37,8 @@ from simace.phenotype.models._base import (
 
 if TYPE_CHECKING:
     import argparse
+
+    from simace.phenotype.hazards import StandardizeMode
 
 __all__ = ["FirstPassageModel"]
 
