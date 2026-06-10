@@ -55,16 +55,18 @@ public and/or independently consumed and keep their own (SemVer) versions.
 6. **Runtime version strings.** Every family Python package exposes
    `__version__` (the `importlib.metadata.version(...)` one-liner simACE already
    uses). A shared `cli_base.add_version_arg(parser, dist)` wires `--version`
-   into the nine existing console entry points; the C++ binary gains
-   `project(VERSION)` + a `--version` flag.
+   into the 14 installed console scripts (11 simACE + 2 fitACE + 1 epimight);
+   the C++ binary embeds its `git describe` string via a CMake `configure_file`
+   (raw, not PEP 440-normalized) and gains a `--version` flag.
 
 7. **Provenance: stamp the real per-layer versions** (not a single
    `family_version`, which would be fiction on divergent dev builds). simACE's
    `params.yaml` records `simace_version`; the Fit-result metadata sidecar
    records `simace_version` + `fitace_version` (added in the core-owned
    `FitRunContext.base_meta`); each method-sister adapter stamps its own
-   `<package>_version`; the iter_reml adapter additionally stamps
-   `ace_iter_reml_version`.
+   `<package>_version`; the iter_reml path additionally stamps both the Python
+   wrapper layer (`fitace_iter_reml_version`) and the C++ binary
+   (`ace_iter_reml_version`, self-stamped into the `.vc.tsv.meta` sidecar).
 
 ## Considered Options
 
@@ -97,7 +99,8 @@ public and/or independently consumed and keep their own (SemVer) versions.
   `test_dependency_floors`.
 - Every on-disk result records the real version chain that produced it — honest
   even on divergent dev builds.
-- `ace_iter_reml` gains `project(VERSION)` + a git-describe embed + `--version`.
+- `ace_iter_reml` gains a CMake git-describe version embed (via `configure_file`
+  into `version.h`) + a `--version` flag.
 - The "**six** `fitACE_*` method repos" prose in `CLAUDE.md` is corrected to
   **seven** (the repo-map table and disk already show seven).
 

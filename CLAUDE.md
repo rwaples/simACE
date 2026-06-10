@@ -90,7 +90,7 @@ from `PAIR_KINSHIP`.
 
 ## Repo Map
 
-Thirteen related repos, all under `rwaples/` on GitHub. simACE is the umbrella working directory; the others are nested checkouts (gitignored from simACE — no submodules). The six `fitACE_*` method repos were peeled out of fitACE in the method-split (each depends on `fitace`/`simace`, never on another method repo).
+Thirteen related repos, all under `rwaples/` on GitHub. simACE is the umbrella working directory; the others are nested checkouts (gitignored from simACE — no submodules). The seven `fitACE_*` method repos were peeled out of fitACE in the method-split (each depends on `fitace`/`simace`, never on another method repo).
 
 | Repo | Visibility | Local path | Role |
 |---|---|---|---|
@@ -119,10 +119,18 @@ Thirteen related repos, all under `rwaples/` on GitHub. simACE is the umbrella w
 - Prefer batching commits — changed files grouped by purpose
 
 ## Versioning
-- **CalVer** (`YYYY.MM`) via `setuptools-scm`, derived from git tags
-- Tag format: `v2026.03`, `v2026.04`, `v2026.04.1` (second release same month)
-- Between tags: `2026.4.dev4+g<hash>`
-- To cut a release: `git tag -a v2026.MM -m "description"`
+- **Lockstep family CalVer.** simACE, fitACE core, the seven `fitACE_*` method
+  sisters, and the `ace_iter_reml` binary share **one** CalVer
+  (`vYYYY.MM[.patch]`), tagged together each release (ADR 0012). External deps
+  (`pedigree-graph`, `pedsum`, `tetraher_simace`) keep their own versions.
+- **CalVer** (`YYYY.MM`) via `setuptools-scm`, derived from git tags; the
+  `ace_iter_reml` binary embeds `git describe` via CMake.
+- Tag format: `v2026.06`, `v2026.06.1` (second release same month). First unified
+  lockstep release: `v2026.06`. Between tags: `2026.6.dev4+g<hash>`.
+- Compatibility is one `FAMILY_FLOOR` in `fitace._deps` (`>=` semantics),
+  enforced across every family `pyproject.toml` by `test_dependency_floors`.
+- To cut a release: `python tools/release.py vYYYY.MM` tags all ten repos
+  locally and prints the per-repo `git push` commands (it never pushes).
 
 ## Testing
 
@@ -198,7 +206,7 @@ tool to call next. Cheaper than guessing wrong.
 ### Cross-repo searches
 
 `cross_repo_search` covers the repos registered under
-`~/.code-review-graph/registry.json` (below). The six `fitACE_*` method repos
+`~/.code-review-graph/registry.json` (below). The seven `fitACE_*` method repos
 from the method-split are pending registration (see **Adding a new repo**);
 register them once they're cloned into the layout.
 
