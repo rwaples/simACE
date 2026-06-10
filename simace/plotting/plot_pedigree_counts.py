@@ -25,6 +25,7 @@ import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 
+from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.plotting.plot_style import PEDIGREE_COLORS
 from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
 
@@ -261,7 +262,7 @@ def plot_pedigree_relationship_counts(
     scenario: str = "",
     stats_key: str = "pair_counts",
     generations_label: str = "",
-    max_degree: int = 3,
+    max_degree: int = DEFAULT_MAX_DEGREE,
 ) -> None:
     """Draw a proband-centric pedigree diagram with relationship pair counts.
 

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from simace import _snakemake_tag, setup_logging
+from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.plotting.plot_phenotype import cli as _cli
 from simace.plotting.plot_phenotype import main
 
@@ -17,7 +18,7 @@ def _run_snakemake():
     plot_format = snakemake.params.plot_format
     output_dir = Path(snakemake.output[0]).parent
 
-    max_degree = int(getattr(snakemake.params, "max_degree", 3))
+    max_degree = int(getattr(snakemake.params, "max_degree", DEFAULT_MAX_DEGREE))
 
     main(
         report_paths,

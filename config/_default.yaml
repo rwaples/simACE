@@ -111,6 +111,8 @@ defaults:
 
   # ── Analysis ────────────────────────────────────────────────────────────
   analysis:
+    # Mirror of simace.core.relationships.DEFAULT_MAX_DEGREE (3 = includes 1C);
+    # keep the two in sync.
     max_degree: 3
     estimate_inbreeding: false
     # When true, the effective_size rule skips building the full sparse

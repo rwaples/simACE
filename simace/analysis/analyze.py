@@ -32,6 +32,7 @@ from typing import Any
 import pandas as pd
 
 from simace.core.parquet import save_parquet
+from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import dump_yaml, load_yaml
 
@@ -63,7 +64,7 @@ def run_analysis(
     seed: int = 42,
     censor_age: float,
     gen_censoring: dict[int, list[float]] | None = None,
-    max_degree: int = 3,
+    max_degree: int = DEFAULT_MAX_DEGREE,
     case_ascertainment_ratio: float = 1.0,
 ) -> dict[str, Any]:
     """Run the three Analyze phases in one process and write the v2 report.
@@ -191,7 +192,7 @@ def cli() -> None:
     parser.add_argument("--censor-age", type=float, required=True)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--gen-censoring", default=None, help="Per-generation censoring windows as JSON dict")
-    parser.add_argument("--max-degree", dest="max_degree", type=int, default=3)
+    parser.add_argument("--max-degree", dest="max_degree", type=int, default=DEFAULT_MAX_DEGREE)
     parser.add_argument("--case-ascertainment-ratio", dest="case_ascertainment_ratio", type=float, default=1.0)
 
     args = parser.parse_args()

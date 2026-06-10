@@ -11,6 +11,12 @@ Controls are censored at ``1e6``.  Onset times flow through the standard censor
 stage like every other model, so the *observed* affected rate after age-window
 and death censoring is below ``K``.
 
+Case onsets are clipped to ``[0.01, 1e6]``.  With realistic ``onset`` parameters
+they never reach the ``1e6`` control sentinel, but a pathological ``normal``
+onset (e.g. ``sd`` orders of magnitude beyond a human lifespan) can clip a case
+onto ``1e6`` and so be miscounted as a never-affected control.  Keep ``normal``
+onset on a human-lifespan scale to preserve the case/control distinction.
+
 This is a threshold-on-liability model: it consumes the global ``standardize``
 flag directly (like ``adult.ltm``) and does not accept ``standardize_hazard``.
 ``beta`` / ``beta_sex`` are parsed for uniformity with the other models but are

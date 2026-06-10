@@ -20,6 +20,7 @@ import yaml
 from pedigree_graph import PedigreeGraph
 
 from simace.core.parquet import save_parquet
+from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import to_native
 
@@ -128,7 +129,7 @@ def build_stats_report(
     seed: int = 42,
     gen_censoring: dict[int, list[float]] | None = None,
     df_ped: pd.DataFrame | None = None,
-    max_degree: int = 3,
+    max_degree: int = DEFAULT_MAX_DEGREE,
     case_ascertainment_ratio: float = 1.0,
 ) -> dict[str, Any]:
     """Build the grouped per-replicate stats report in memory."""
@@ -245,7 +246,7 @@ def main(
     seed: int = 42,
     gen_censoring: dict[int, list[float]] | None = None,
     pedigree_path: str | None = None,
-    max_degree: int = 3,
+    max_degree: int = DEFAULT_MAX_DEGREE,
     case_ascertainment_ratio: float = 1.0,
 ) -> None:
     """Compute all stats for a single replicate and write outputs."""
@@ -304,7 +305,7 @@ def cli() -> None:
         "--max-degree",
         dest="max_degree",
         type=int,
-        default=3,
+        default=DEFAULT_MAX_DEGREE,
         help="Maximum kinship degree for pair extraction (0-5, default 3; includes 1C)",
     )
 

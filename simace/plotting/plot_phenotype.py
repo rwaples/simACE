@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_correlations import (
     plot_cross_trait_tetrachoric,
@@ -299,7 +300,7 @@ def main(
     censor_age: float,
     gen_censoring: dict[int, list[float]] | None = None,
     plot_ext: str = "png",
-    max_degree: int = 3,
+    max_degree: int = DEFAULT_MAX_DEGREE,
 ) -> None:
     """Generate all phenotype plots from pre-computed combined reports."""
     out_dir = Path(output_dir)

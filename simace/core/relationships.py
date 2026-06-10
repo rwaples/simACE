@@ -10,6 +10,7 @@ See ``docs/adr/0009-relationship-semantics-home.md``.
 from pedigree_graph import PAIR_KINSHIP
 
 __all__ = [
+    "DEFAULT_MAX_DEGREE",
     "RELATIONSHIP_TYPES",
     "SEX_LEVELS",
     "expected_liability_corr",
@@ -28,6 +29,14 @@ RELATIONSHIP_TYPES: list[str] = [
     "PHS",
     "1C",
 ]
+
+# Default relationship-extraction depth for the analysis and plotting paths.
+# Follows ``pedigree_graph``'s registry cutoff exactly: degree 3 is the depth
+# that first includes 1st cousins (``1C`` above); degree 2 stops at half-sibs,
+# grandparents, and avuncular pairs. Single source of truth for the many
+# ``extract_pairs(max_degree=...)`` call sites — keep ``config/_default.yaml``
+# (``analysis.max_degree``) in sync with this value.
+DEFAULT_MAX_DEGREE: int = 3
 
 # Encoding of the binary ``sex`` column used throughout the pipeline.
 SEX_LEVELS: list[tuple[int, str]] = [(0, "female"), (1, "male")]
