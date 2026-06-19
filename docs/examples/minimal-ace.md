@@ -40,8 +40,8 @@ snakemake --cores 4 results/examples/minimal_ace/scenario.done
 
 ## Observations
 
-The per-scenario atlas at `results/examples/minimal_ace/plots/atlas.pdf`
-contains two pages relevant to calibration. In each figure below the
+The per-scenario atlas at `results/examples/minimal_ace/plots/atlas.html`
+contains two figures relevant to calibration. In each figure below the
 left panel corresponds to trait 1 ($h^2_1 = 0.5$) and the right panel
 to trait 2 ($h^2_2 = 0.3$).
 

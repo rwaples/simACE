@@ -1,10 +1,9 @@
-"""Schema contracts for the phenotype → censor → sample handoff.
+"""Schema contracts for pedigree and hydrated in-memory trait frames.
 
-Each pipeline stage produces a DataFrame whose shape the next stage relies on:
-
-  PEDIGREE  — output of simulate / dropout
-  PHENOTYPE — output of run_phenotype (PEDIGREE + raw event times)
-  CENSORED  — output of run_censor / run_sample (PHENOTYPE + censoring cols)
+The on-disk trait-family parquet contract is outcomes-only and lives in
+:mod:`simace.core.trait_schema`.  The cumulative ``PHENOTYPE`` and ``CENSORED``
+schemas below remain useful for hydrated in-memory frames and legacy unit-test
+fixtures that include pedigree columns plus trait outcomes.
 
 Dtypes are checked at the coarse ``numpy.dtype.kind`` level (``i`` integer,
 ``f`` float, ``b`` bool). This tolerates the int32/int8/float32 narrowing

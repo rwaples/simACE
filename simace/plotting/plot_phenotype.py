@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 
+from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_correlations import (
     plot_cross_trait_tetrachoric,
@@ -41,7 +42,6 @@ from simace.plotting.plot_distributions import (
     plot_trait_regression,
 )
 from simace.plotting.plot_heritability import (
-    plot_broad_heritability_by_generation,
     plot_heritability_by_generation,
     plot_heritability_by_sex_generation,
     plot_observed_heritability,
@@ -146,7 +146,14 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
     # Distribution plots
     PlotRenderSpec(
         "mortality",
-        lambda ctx, p: plot_death_age_distribution(ctx.all_stats, ctx.censor_age, p, ctx.scenario),
+        lambda ctx, p: plot_death_age_distribution(
+            ctx.all_stats,
+            ctx.censor_age,
+            p,
+            ctx.scenario,
+            df_samples=ctx.df_samples,
+            subsample_note=ctx.subsample_note,
+        ),
     ),
     PlotRenderSpec(
         "age_at_onset_death",
@@ -272,10 +279,6 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
         "heritability.by_generation",
         lambda ctx, p: plot_heritability_by_generation(ctx.all_stats, p, ctx.scenario),
     ),
-    PlotRenderSpec(
-        "additive_shared.by_generation",
-        lambda ctx, p: plot_broad_heritability_by_generation(ctx.all_stats, p, ctx.scenario),
-    ),
     # PO-regression heritability by sex
     PlotRenderSpec(
         "heritability.by_sex.by_generation",
@@ -297,7 +300,7 @@ def main(
     censor_age: float,
     gen_censoring: dict[int, list[float]] | None = None,
     plot_ext: str = "png",
-    max_degree: int = 2,
+    max_degree: int = DEFAULT_MAX_DEGREE,
 ) -> None:
     """Generate all phenotype plots from pre-computed combined reports."""
     out_dir = Path(output_dir)
@@ -341,10 +344,11 @@ def main(
 
 def cli() -> None:
     """Command-line interface for generating phenotype plots."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Plot phenotype distributions")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("--report", nargs="+", required=True, help="report.yaml paths")
     parser.add_argument("--plot-payload", nargs="+", required=True, help="plot_payload.yaml paths")
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")

@@ -38,7 +38,7 @@ snakemake --cores 4 results/examples/with_c/scenario.done
 ## Comparison between trait 1 and trait 2
 
 The relative-pair correlation page from
-`results/examples/with_c/plots/atlas.pdf`:
+`results/examples/with_c/plots/atlas.html`:
 
 ![Liability and tetrachoric correlations by relative class, with_c](../images/examples/with_c/relpair_correlations.png)
 

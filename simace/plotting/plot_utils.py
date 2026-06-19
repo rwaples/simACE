@@ -117,6 +117,8 @@ def annotate_heatmap(
     fmt_prop: str = ".2f",
     prop_size: int = 18,
     count_size: int = 11,
+    prop_color: str | tuple[float, ...] = "white",
+    count_color: str | tuple[float, ...] = (1, 1, 1, 0.7),
 ) -> None:
     """Add two-line annotations to a heatmap: large bold proportion, smaller count.
 
@@ -127,6 +129,8 @@ def annotate_heatmap(
         fmt_prop: Format spec for proportion values.
         prop_size: Font size for the proportion line.
         count_size: Font size for the count line.
+        prop_color: Color for the proportion annotation.
+        count_color: Color for the count annotation.
     """
     proportions = np.asarray(proportions)
     counts = np.asarray(counts)
@@ -143,9 +147,9 @@ def annotate_heatmap(
                 va="center",
                 fontsize=prop_size,
                 fontweight="bold",
-                color="white",
+                color=prop_color,
             )
-            ax.text(j + 0.5, i + 0.62, c_str, ha="center", va="center", fontsize=count_size, color=(1, 1, 1, 0.7))
+            ax.text(j + 0.5, i + 0.62, c_str, ha="center", va="center", fontsize=count_size, color=count_color)
 
 
 def finalize_plot(
@@ -402,7 +406,8 @@ def finalize_relationship_type_panels(
     seed = all_ref + all_obs_sane
     if seed:
         ymax = max(seed)
-        ymin = min(min(seed), 0.0)
+        ymin = min(seed)
+        ymin = min(ymin, 0.0)
         span = max(ymax - ymin, 0.05)
         pad = 0.10 * span
         ylim_lo = max(ymin - pad, sane_lo)

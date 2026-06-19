@@ -185,7 +185,7 @@ def test_main_writes_all_outputs(two_rep_yamls, params_path, tmp_path: Path):
         "effective_size.by_generation.png",
         "effective_size.drift.png",
         "effective_size.family_size_variance.png",
-        "effective_size.atlas.pdf",
+        "effective_size.atlas.html",
     ]
     for fname in expected_files:
         assert (out_dir / fname).exists(), f"missing {fname}"

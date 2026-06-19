@@ -5,8 +5,8 @@ real-world data limitations through a single **ascertainment** stage that runs
 after censoring (per [ADR 0001](../adr/0001-unified-ascertainment-stage.md)).
 The stage has two knobs — a uniform `dropout_rate` and a trait-weighted
 `case_ascertainment_ratio` — plus a target sample size `N_sample`. Outputs
-are the canonical `pedigree.parquet` / `trait.parquet` / `trait.simple_ltm.parquet`
-that downstream stats and fitACE consume.
+are the canonical `pedigree.parquet` / `trait.parquet` that downstream stats
+and fitACE consume.
 
 For a worked example showing how dropout and case-weighted sampling change the
 analysis dataset, see [When the study sample is not the population](../examples/ascertainment-bias.md).
@@ -23,10 +23,10 @@ under a fixed-size weighted draw):
    are `case_ascertainment_ratio` for cases and `1` for controls; when
    `N_sample <= 0` or `>= len(post-dropout trait)`, everything passes through.
 
-The same sampled IDs are applied to both `trait.parquet` and
-`trait.simple_ltm.parquet`. The pedigree output is the **ancestor closure** of
-the sampled IDs within the post-dropout pedigree, with dangling parent / twin
-references rewritten to −1. Validation (`validate_*`) is unaffected — it
+The sampled IDs select the rows of `trait.parquet`. The pedigree output is the
+**ancestor closure** of the sampled IDs within the post-dropout pedigree, with
+dangling parent / twin references rewritten to −1. Validation (`validate_*`) is
+unaffected — it
 continues to consume `pedigree.full.parquet` (the pre-ascertainment full
 pedigree).
 

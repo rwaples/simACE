@@ -620,10 +620,10 @@ def main(
     output_dir: str | Path,
     plot_ext: str = "png",
 ) -> None:
-    """Build all four Ne plots plus the atlas PDF."""
+    """Build all four Ne plots plus the HTML atlas."""
     from simace.plotting.atlas_manifest import EFFECTIVE_SIZE_ATLAS
-    from simace.plotting.plot_atlas import assemble_atlas
     from simace.plotting.plot_style import apply_nature_style
+    from simace.plotting.render_atlas import render_atlas
 
     apply_nature_style()
     out = Path(output_dir)
@@ -661,10 +661,12 @@ def main(
     for spec in EFFECTIVE_SIZE_RENDERERS:
         spec.render(ctx, out, ext=plot_ext)
 
-    assemble_atlas(
+    # HTML is the primary atlas rendering (ADR 0010); pass a .pdf output path
+    # to render the on-demand PDF instead.
+    render_atlas(
         list(EFFECTIVE_SIZE_ATLAS),
         out,
-        out / "effective_size.atlas.pdf",
+        out / "effective_size.atlas.html",
         plot_ext=plot_ext,
     )
 

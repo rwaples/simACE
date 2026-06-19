@@ -81,10 +81,8 @@ def _copy_file(src: str | Path, dst: str | Path) -> None:
 def copy_passthrough_if_possible(
     pedigree_path: str | Path,
     trait_path: str | Path,
-    trait_simple_ltm_path: str | Path,
     out_pedigree_path: str | Path,
     out_trait_path: str | Path,
-    out_trait_simple_ltm_path: str | Path,
     *,
     dropout_rate: float | None = 0.0,
     N_sample: int | None = 0,
@@ -98,9 +96,9 @@ def copy_passthrough_if_possible(
     already contain the exact same ordered ID set, making the closure equal to
     the input pedigree.
 
-    Returns ``True`` when all three outputs were copied and the caller can
-    skip regular ascertainment. Returns ``False`` when regular ascertainment
-    must run to preserve semantics.
+    Returns ``True`` when both outputs were copied and the caller can skip
+    regular ascertainment. Returns ``False`` when regular ascertainment must
+    run to preserve semantics.
     """
     rate = float(dropout_rate or 0.0)
     n_sample = int(N_sample or 0)
@@ -111,17 +109,12 @@ def copy_passthrough_if_possible(
     if n_sample > 0 and n_sample < len(trait_ids):
         return False
 
-    simple_ids = _read_id_column(trait_simple_ltm_path)
-    if not _same_id_sequence(trait_ids, simple_ids):
-        return False
-
     pedigree_ids = _read_id_column(pedigree_path)
     if not _same_id_sequence(pedigree_ids, trait_ids):
         return False
 
     _copy_file(pedigree_path, out_pedigree_path)
     _copy_file(trait_path, out_trait_path)
-    _copy_file(trait_simple_ltm_path, out_trait_simple_ltm_path)
     logger.info(
         "Ascertainment pass-through: copied %d rows unchanged (dropout=%.3f, N_sample=%d)",
         len(trait_ids),
@@ -200,13 +193,12 @@ def _pedigree_closure_for_ids(pedigree: pd.DataFrame, sampled_ids: np.ndarray) -
 def run_ascertainment(
     pedigree: pd.DataFrame,
     trait: pd.DataFrame,
-    trait_simple_ltm: pd.DataFrame,
     *,
     dropout_rate: float = 0.0,
     case_ascertainment_ratio: float = 1.0,
     N_sample: int = 0,
     seed: int = 42,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Apply dropout + case-weighted sampling and return the ascertained subset.
 
     Two explicit steps, applied to IDs not weights, so ``dropout_rate``
@@ -219,9 +211,6 @@ def run_ascertainment(
        for cases vs ``1`` for controls. Pass-through when ``N_sample <= 0``
        or ``N_sample >= len(post-dropout trait)``.
 
-    The same sampled IDs are applied to both trait branches, guaranteeing
-    identical ``id`` columns in ``trait.parquet`` and ``trait.simple_ltm.parquet``.
-
     The pedigree output is the ancestor closure of the sampled IDs within
     the post-dropout pedigree, with all dangling parent/twin references
     rewritten to ``-1`` against the final closure ID set. Parent links are
@@ -231,14 +220,13 @@ def run_ascertainment(
     Args:
         pedigree: Full pre-ascertainment pedigree (post-burn-in, pre-dropout).
         trait: Per-individual censored trait observations (G_pheno generations).
-        trait_simple_ltm: Parallel simple-LTM trait observations.
         dropout_rate: Fraction of pedigree to remove uniformly at random.
         case_ascertainment_ratio: Sampling weight for cases relative to controls.
         N_sample: Target sample size; ``<=0`` or ``>= post-dropout pool`` passes everything through.
         seed: RNG seed.
 
     Returns:
-        Tuple of (pedigree_ascertained, trait_ascertained, trait_simple_ltm_ascertained).
+        Tuple of (pedigree_ascertained, trait_ascertained).
     """
     n_total = len(pedigree)
     rate = float(dropout_rate)
@@ -258,7 +246,6 @@ def run_ascertainment(
     ped_post_dropout_ids = ped_post_dropout["id"].to_numpy()
 
     trait_post_dropout = _filter_to_ids(trait, ped_post_dropout_ids)
-    simple_ltm_post_dropout = _filter_to_ids(trait_simple_ltm, ped_post_dropout_ids)
     sampled_ids, case_summary = _sample_trait_ids(
         trait_post_dropout,
         case_ascertainment_ratio=ratio,
@@ -267,38 +254,34 @@ def run_ascertainment(
     )
 
     trait_out = _filter_to_ids(trait_post_dropout, sampled_ids)
-    simple_ltm_out = _filter_to_ids(simple_ltm_post_dropout, sampled_ids)
     ped_out = _pedigree_closure_for_ids(ped_post_dropout, sampled_ids)
 
     elapsed = time.perf_counter() - t0
     logger.info(
-        "Ascertainment: ped %d → %d, trait %d → %d, simple_ltm %d → %d (dropout=%.3f, %s) in %.2fs (seed=%d)",
+        "Ascertainment: ped %d → %d, trait %d → %d (dropout=%.3f, %s) in %.2fs (seed=%d)",
         n_total,
         len(ped_out),
         len(trait),
         len(trait_out),
-        len(trait_simple_ltm),
-        len(simple_ltm_out),
         rate,
         case_summary,
         elapsed,
         seed,
     )
-    return ped_out, trait_out, simple_ltm_out
+    return ped_out, trait_out
 
 
 def cli() -> None:
     """Command-line entry point for the ascertainment stage."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Unified ascertainment: dropout + case-weighted N_sample draw")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("--pedigree", required=True, help="Input pre-ascertainment pedigree parquet")
     parser.add_argument("--trait", required=True, help="Input post-censor trait parquet")
-    parser.add_argument("--trait-simple-ltm", required=True, help="Input simple-LTM trait parquet")
     parser.add_argument("--out-pedigree", required=True, help="Output ascertained pedigree parquet")
     parser.add_argument("--out-trait", required=True, help="Output ascertained trait parquet")
-    parser.add_argument("--out-trait-simple-ltm", required=True, help="Output ascertained simple-LTM trait parquet")
     parser.add_argument("--dropout-rate", type=float, default=0.0, help="Fraction of pedigree to drop uniformly")
     parser.add_argument("--case-ascertainment-ratio", type=float, default=1.0, help="Case weight vs controls")
     parser.add_argument("--N-sample", type=int, default=0, help="Target sample size (0 = pass-through)")
@@ -310,10 +293,8 @@ def cli() -> None:
     if copy_passthrough_if_possible(
         args.pedigree,
         args.trait,
-        args.trait_simple_ltm,
         args.out_pedigree,
         args.out_trait,
-        args.out_trait_simple_ltm,
         dropout_rate=args.dropout_rate,
         N_sample=args.N_sample,
     ):
@@ -321,11 +302,9 @@ def cli() -> None:
 
     ped = pd.read_parquet(args.pedigree)
     trait = pd.read_parquet(args.trait)
-    simple_ltm = pd.read_parquet(args.trait_simple_ltm)
-    ped_out, trait_out, simple_ltm_out = run_ascertainment(
+    ped_out, trait_out = run_ascertainment(
         ped,
         trait,
-        simple_ltm,
         dropout_rate=args.dropout_rate,
         case_ascertainment_ratio=args.case_ascertainment_ratio,
         N_sample=args.N_sample,
@@ -333,4 +312,3 @@ def cli() -> None:
     )
     save_parquet(ped_out, args.out_pedigree)
     save_parquet(trait_out, args.out_trait)
-    save_parquet(simple_ltm_out, args.out_trait_simple_ltm)

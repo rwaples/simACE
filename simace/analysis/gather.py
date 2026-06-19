@@ -137,10 +137,11 @@ def main(report_files: list[str], output_path: str) -> None:
 
 def cli() -> None:
     """Command-line interface for gathering report summaries."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Gather report summaries into TSV")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("reports", nargs="+", help="report.yaml paths")
     parser.add_argument("--output", required=True, help="Output TSV path")
     args = parser.parse_args()

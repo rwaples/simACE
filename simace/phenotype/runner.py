@@ -15,8 +15,9 @@ import numpy as np
 import pandas as pd
 
 from simace.core.parquet import save_parquet
-from simace.core.schema import PEDIGREE, PHENOTYPE
+from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
+from simace.core.trait_schema import RAW_TRAIT, strip_trait_to_outcomes
 from simace.phenotype.hazards import STANDARDIZE_CHOICES, StandardizeMode
 from simace.phenotype.models import MODELS
 
@@ -58,7 +59,7 @@ def _simulate_one_trait(
     )
 
 
-@stage(reads=PEDIGREE, writes=PHENOTYPE)
+@stage(reads=PEDIGREE, writes=RAW_TRAIT)
 def run_phenotype(
     pedigree: pd.DataFrame,
     *,
@@ -93,7 +94,7 @@ def run_phenotype(
             for their hazard step unless the per-trait
             ``phenotype_params{N}["standardize_hazard"]`` overrides it.
         phenotype_model1: trait-1 model family (``frailty``, ``cure_frailty``,
-            ``adult``, ``first_passage``).
+            ``adult``, ``first_passage``, ``simple_ltm``).
         phenotype_model2: trait-2 model family (same options).
         beta1: trait-1 liability → log-hazard slope.
         beta_sex1: trait-1 sex → log-hazard slope.
@@ -144,7 +145,7 @@ def run_phenotype(
         generation=generation,
     )
 
-    phenotype = pedigree.assign(t1=t1, t2=t2)
+    phenotype = strip_trait_to_outcomes(pedigree.assign(t1=t1, t2=t2), "raw")
 
     logger.info(
         "Phenotype simulation complete in %.1fs: %d individuals",
@@ -167,13 +168,14 @@ def cli() -> None:
     argument groups. Each model's ``from_cli`` rejects flags belonging to
     a different family when invoked alongside that model's selection.
     """
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(
         description="Simulate phenotype event times for two correlated traits",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("--pedigree", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--seed", type=int, default=42)

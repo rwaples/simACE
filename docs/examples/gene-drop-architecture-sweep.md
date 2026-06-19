@@ -44,11 +44,11 @@ snakemake --use-conda --cores 8 \
 
 # Run all 5 variants (each only the tstrait sub-pipeline + augment + atlas)
 snakemake --use-conda --rerun-triggers mtime -j 8 \
-  results/genotype_drop/p2_full_a0/plots/atlas.pdf \
-  results/genotype_drop/p2_full_c100/plots/atlas.pdf \
-  results/genotype_drop/p2_full_c10k/plots/atlas.pdf \
-  results/genotype_drop/p2_full_c100k/plots/atlas.pdf \
-  results/genotype_drop/p2_full_c1m/plots/atlas.pdf
+  results/genotype_drop/p2_full_a0/plots/atlas.html \
+  results/genotype_drop/p2_full_c100/plots/atlas.html \
+  results/genotype_drop/p2_full_c10k/plots/atlas.html \
+  results/genotype_drop/p2_full_c100k/plots/atlas.html \
+  results/genotype_drop/p2_full_c1m/plots/atlas.html
 ```
 
 ## Raw GV variance scales linearly with `num_causal`
@@ -110,7 +110,7 @@ dominate) than a 1M-causal architecture (which converges to Gaussian
 by the CLT).
 
 The per-scenario atlas
-(`results/genotype_drop/{scenario}/plots/atlas.pdf`) runs the full
+(`results/genotype_drop/{scenario}/plots/atlas.html`) runs the full
 simACE phenotype → censor → sample → stats chain on the augmented
 pedigree; kinship-based heritability estimates, relative-pair
 correlations, and prevalence plots therefore reflect the gene-drop

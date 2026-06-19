@@ -32,6 +32,8 @@ from typing import Any
 import pandas as pd
 
 from simace.core.parquet import save_parquet
+from simace.core.relationships import DEFAULT_MAX_DEGREE
+from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import dump_yaml, load_yaml
 
 from .report import assemble_report
@@ -62,7 +64,7 @@ def run_analysis(
     seed: int = 42,
     censor_age: float,
     gen_censoring: dict[int, list[float]] | None = None,
-    max_degree: int = 2,
+    max_degree: int = DEFAULT_MAX_DEGREE,
     case_ascertainment_ratio: float = 1.0,
 ) -> dict[str, Any]:
     """Run the three Analyze phases in one process and write the v2 report.
@@ -106,19 +108,22 @@ def run_analysis(
     # --- Phase 2: Phenotyped population (full pre-ascertainment trait rows) ---
     logger.info("Analyze phase 2/3: phenotyped-population summaries on %s", trait_full_path)
     df_trait_full = pd.read_parquet(trait_full_path)
-    prevalence_phenotyped = compute_prevalence(df_trait_full)
+    df_trait_full_ped = pd.read_parquet(pedigree_full_path, columns=["id", "generation"])
+    df_trait_full_hydrated = hydrate_trait(df_trait_full, df_trait_full_ped, kind="censored", columns=["generation"])
+    prevalence_phenotyped = compute_prevalence(df_trait_full_hydrated)
     scope_counts["phenotyped_population"] = {
         "source": "trait.full.parquet",
         "n_individuals": len(df_trait_full),
         "n_generations": _n_generations(df_trait_full),
     }
-    del df_trait_full
+    del df_trait_full, df_trait_full_ped, df_trait_full_hydrated
     gc.collect()
 
     # --- Phase 3: Analysis sample (post-ascertainment subsample) ---
     logger.info("Analyze phase 3/3: stats on %s", trait_path)
-    df = pd.read_parquet(trait_path)
+    df_trait = pd.read_parquet(trait_path)
     df_ped = pd.read_parquet(pedigree_path, columns=PEDIGREE_REPORT_COLUMNS)
+    df = hydrate_trait(df_trait, df_ped, kind="censored", columns=PEDIGREE_REPORT_COLUMNS)
     stats_report = build_stats_report(
         df,
         censor_age,
@@ -143,7 +148,7 @@ def run_analysis(
         "n_generations": pedigree_full.get("n_generations", _n_generations(df_ped)),
         "ancestor_closure_ratio": (pedigree_n / sample_n) if sample_n else None,
     }
-    del df_ped
+    del df_trait, df_ped
 
     report, plot_payload = assemble_report(
         replicate={"folder": folder, "scenario": scenario, "rep": rep, "seed": seed},
@@ -168,10 +173,11 @@ def run_analysis(
 
 def cli() -> None:
     """Command-line interface for the combined Analyze stage (debug parity)."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Run combined Validate + Stats analysis")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("--pedigree-full", required=True, help="Full pre-ascertainment pedigree parquet")
     parser.add_argument("--params", required=True, help="Scenario params YAML")
     parser.add_argument("--trait-full", required=True, help="Full pre-ascertainment trait parquet")
@@ -186,7 +192,7 @@ def cli() -> None:
     parser.add_argument("--censor-age", type=float, required=True)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--gen-censoring", default=None, help="Per-generation censoring windows as JSON dict")
-    parser.add_argument("--max-degree", dest="max_degree", type=int, default=2)
+    parser.add_argument("--max-degree", dest="max_degree", type=int, default=DEFAULT_MAX_DEGREE)
     parser.add_argument("--case-ascertainment-ratio", dest="case_ascertainment_ratio", type=float, default=1.0)
 
     args = parser.parse_args()

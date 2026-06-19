@@ -44,7 +44,7 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
     ),
     (
         "phenotype",
-        "Phenotype (survival)",
+        "Phenotype",
         "#D5F5E3",
         ["G_pheno", "_frailty1", "_frailty2"],
     ),
@@ -53,12 +53,6 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
         "Censor",
         "#FCF3CF",
         ["censor_age", "gen_censoring", "_mortality"],
-    ),
-    (
-        "phenotype_simple_ltm",
-        "Phenotype (threshold)",
-        "#E8DAEF",
-        ["G_pheno", "_prev12"],
     ),
     (
         "ascertainment",
@@ -71,18 +65,15 @@ _PIPELINE_STEPS: list[tuple[str, str, str, list[str]]] = [
 # Edges as (source_key, target_key)
 _PIPELINE_EDGES: list[tuple[str, str]] = [
     ("simulate", "phenotype"),
-    ("simulate", "phenotype_simple_ltm"),
     ("phenotype", "censor"),
     ("censor", "ascertainment"),
-    ("phenotype_simple_ltm", "ascertainment"),
 ]
 
 # Step positions in data coordinates (cx, cy)
 _STEP_POSITIONS: dict[str, tuple[float, float]] = {
     "simulate": (0.5, 0.85),
-    "phenotype": (0.27, 0.55),
-    "phenotype_simple_ltm": (0.73, 0.55),
-    "censor": (0.27, 0.30),
+    "phenotype": (0.5, 0.55),
+    "censor": (0.5, 0.30),
     "ascertainment": (0.5, 0.10),
 }
 

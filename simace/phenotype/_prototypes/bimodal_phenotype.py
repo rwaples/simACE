@@ -13,6 +13,8 @@ these prototypes do not take a ``generation`` array.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 __all__ = [
     "phenotype_mixture_cip",
     "phenotype_mixture_cure_frailty",
@@ -25,11 +27,13 @@ from scipy.special import erfc
 from simace.core._numba_utils import _ndtri_approx
 from simace.phenotype.hazards import (
     BASELINE_HAZARDS,
-    StandardizeMode,
     coerce_standardize_mode,
     standardize_beta,
     standardize_liability,
 )
+
+if TYPE_CHECKING:
+    from simace.phenotype.hazards import StandardizeMode
 
 
 def _resolve_mode(standardize: StandardizeMode | bool) -> StandardizeMode:

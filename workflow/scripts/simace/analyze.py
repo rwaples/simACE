@@ -3,6 +3,7 @@
 from simace import _snakemake_tag, setup_logging
 from simace.analysis.analyze import cli as _cli
 from simace.analysis.analyze import run_analysis
+from simace.core.relationships import DEFAULT_MAX_DEGREE
 
 
 def _run_snakemake():
@@ -27,7 +28,7 @@ def _run_snakemake():
         seed=p.seed,
         censor_age=p.censor_age,
         gen_censoring=gen_censoring,
-        max_degree=p.get("max_degree", 2),
+        max_degree=p.get("max_degree", DEFAULT_MAX_DEGREE),
         case_ascertainment_ratio=p.get("case_ascertainment_ratio", 1.0),
     )
 

@@ -1,8 +1,8 @@
 """Heritability plots for the per-scenario atlas.
 
-Groups the narrow-sense (``Var(A)/Var(L)``), broad-sense
+Groups realized A/C variance proportions, broad-sense
 (``(Var(A)+Var(C))/Var(L)``), sex-stratified midparent-offspring, and
-observed-scale (phi-Falconer with Dempster-Lerner lift) heritability pages.
+observed-scale (phi-Falconer with Dempster-Lerner lift) heritability plots.
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ import numpy as np
 from scipy.stats import norm
 
 from simace.plotting.plot_style import (
+    COLOR_EXPECTED,
     COLOR_FEMALE,
     COLOR_MALE,
     COLOR_OBSERVED,
@@ -37,83 +38,107 @@ from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
 logger = logging.getLogger(__name__)
 
 
+def _component_expected_values(value: Any, generations: list[int]) -> np.ndarray | None:
+    """Return configured component values aligned to generation labels."""
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        vals = []
+        for gen in generations:
+            raw = value.get(gen, value.get(str(gen), np.nan))
+            vals.append(float(raw) if raw is not None else np.nan)
+        arr = np.array(vals, dtype=float)
+        return arr if np.isfinite(arr).any() else None
+    return np.full(len(generations), float(value), dtype=float)
+
+
 def plot_heritability_by_generation(
     all_views: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
 ) -> None:
-    """Plot narrow-sense heritability h² = Var(A)/(Var(A)+Var(C)+Var(E)) per generation.
+    """Plot realized A and C variance proportions per generation.
 
-    Uses per-generation variance components from ``truth.realized_by_generation``,
-    surfaced as ``per_generation`` in the flat plotting view.
+    The A series is the narrow-sense heritability h². The C series is shown
+    separately rather than folded into a broad-sense ``A + C`` panel.
     """
-    # Extract per-generation data from each replicate
     per_gen_all = [v.get("per_generation", {}) for v in all_views]
     if not per_gen_all or not per_gen_all[0]:
         save_placeholder_plot(output_path, "No per-generation data")
         return
 
-    # Determine generations from first replicate
     gen_keys = sorted(per_gen_all[0].keys(), key=lambda k: int(k.split("_")[1]))
     generations = [int(k.split("_")[1]) for k in gen_keys]
+    x = np.array(generations, dtype=float)
 
-    # Get configured heritability (expected value) from first replicate's parameters
     params = all_views[0].get("parameters", {})
-    expected_h2 = {1: params.get("A1", None), 2: params.get("A2", None)}
+    component_specs = (
+        ("A", "Additive genetic (A)", COLOR_OBSERVED, -0.06),
+        ("C", "Common environment (C)", COLOR_EXPECTED, 0.06),
+    )
 
     _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 
     for col, trait_num in enumerate([1, 2]):
         ax = axes[col]
-        a_key = f"A{trait_num}_var"
-        c_key = f"C{trait_num}_var"
         e_key = f"E{trait_num}_var"
 
-        # Compute h² for each replicate and generation
-        h2_per_rep = []
-        for pg in per_gen_all:
-            rep_h2 = []
-            for gk in gen_keys:
-                gs = pg.get(gk, {})
-                a_var = gs.get(a_key, 0)
-                c_var = gs.get(c_key, 0)
-                e_var = gs.get(e_key, 0)
-                total = a_var + c_var + e_var
-                rep_h2.append(a_var / total if total > 0 else np.nan)
-            h2_per_rep.append(rep_h2)
+        for component, label, color, offset in component_specs:
+            component_key = f"{component}{trait_num}_var"
+            component_per_rep = []
+            for pg in per_gen_all:
+                rep_values = []
+                for gk in gen_keys:
+                    gs = pg.get(gk, {})
+                    a_var = gs.get(f"A{trait_num}_var", 0)
+                    c_var = gs.get(f"C{trait_num}_var", 0)
+                    e_var = gs.get(e_key, 0)
+                    total = a_var + c_var + e_var
+                    rep_values.append(gs.get(component_key, 0) / total if total > 0 else np.nan)
+                component_per_rep.append(rep_values)
 
-        h2_arr = np.array(h2_per_rep)  # shape (n_reps, n_gens)
+            component_arr = np.array(component_per_rep, dtype=float)
+            for rep_idx in range(component_arr.shape[0]):
+                values = component_arr[rep_idx]
+                finite = np.isfinite(values)
+                if not finite.any():
+                    continue
+                jitter = np.random.default_rng(42 + rep_idx).uniform(-0.025, 0.025, len(generations))
+                ax.scatter(
+                    x[finite] + offset + jitter[finite],
+                    values[finite],
+                    color=color,
+                    alpha=0.8,
+                    s=25,
+                    zorder=5,
+                )
 
-        # Plot per-replicate dots
-        for rep_idx in range(h2_arr.shape[0]):
-            jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08, len(generations))
-            ax.scatter(
-                np.array(generations) + jitter,
-                h2_arr[rep_idx],
-                color=COLOR_OBSERVED,
-                alpha=0.9,
-                s=25,
-                zorder=5,
-            )
+            if np.isfinite(component_arr).any():
+                mean_values = np.nanmean(component_arr, axis=0)
+                finite_mean = np.isfinite(mean_values)
+                if finite_mean.any():
+                    ax.plot(x[finite_mean], mean_values[finite_mean], color=color, linewidth=1.4, label=f"Mean {label}")
 
-        # Expected heritability reference line
-        exp = expected_h2.get(trait_num)
-        if exp is not None:
-            ax.axhline(
-                y=exp,
-                color=COLOR_UNAFFECTED,
-                linestyle="--",
-                linewidth=1.0,
-                alpha=0.7,
-                label=f"Parametric A{trait_num} = {exp}",
-            )
-            ax.legend(loc="lower left", fontsize=9)
+            expected = _component_expected_values(params.get(f"{component}{trait_num}"), generations)
+            if expected is not None:
+                finite_expected = np.isfinite(expected)
+                if finite_expected.any():
+                    ax.plot(
+                        x[finite_expected],
+                        expected[finite_expected],
+                        color=color,
+                        linestyle="--",
+                        linewidth=1.0,
+                        alpha=0.7,
+                        label=f"Configured {component}{trait_num}",
+                    )
 
         ax.set_xlabel("Generation")
-        ax.set_ylabel("h² = Var(A) / Var(L)")
+        ax.set_ylabel("Variance proportion / Var(L)")
         ax.set_title(f"Trait {trait_num}")
         ax.set_xticks(generations)
         ax.set_ylim(0, 1)
+        ax.legend(loc="best", fontsize=8)
 
         enable_value_gridlines(ax)
 
@@ -466,4 +491,18 @@ def plot_observed_heritability(
     )
 
     fig.tight_layout(rect=(0, 0, 1, 0.97))
+    fig.text(
+        0.5,
+        0.5,
+        "UNDER CONSTRUCTION",
+        ha="center",
+        va="center",
+        rotation=25,
+        fontsize=46,
+        fontweight="bold",
+        color="0.25",
+        alpha=0.18,
+        zorder=1000,
+        transform=fig.transFigure,
+    )
     finalize_plot(output_path, scenario=scenario)

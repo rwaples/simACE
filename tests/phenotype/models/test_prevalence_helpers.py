@@ -1,4 +1,4 @@
-"""Direct tests for the prevalence-resolution helpers shared by adult/cure_frailty."""
+"""Direct tests for the prevalence-resolution helpers shared by the threshold-based models."""
 
 import numpy as np
 import pytest
@@ -21,6 +21,12 @@ class TestPrevalenceToArray:
         gen = np.array([0, 1, 2])
         with pytest.raises(ValueError, match="missing generation 2"):
             prevalence_to_array({0: 0.1, 1: 0.2}, gen)
+
+    def test_does_not_range_validate(self):
+        # A general expander reused for the blend weight alpha (0 and 1 valid);
+        # range-checking is resolve_prevalence's job, not this helper's.
+        gen = np.array([0, 1])
+        np.testing.assert_array_equal(prevalence_to_array({0: 0.0, 1: 1.0}, gen), [0.0, 1.0])
 
 
 class TestResolvePrevalence:
@@ -63,6 +69,25 @@ class TestResolvePrevalence:
                 sex,
                 gen,
             )
+
+    @pytest.mark.parametrize("bad", [0.0, 1.0, -0.1, 1.5])
+    def test_scalar_out_of_range_raises(self, bad):
+        sex = np.zeros(3, dtype=int)
+        gen = np.array([0, 0, 1])
+        with pytest.raises(ValueError, match=r"prevalence must be in the open interval \(0, 1\)"):
+            resolve_prevalence(bad, sex, gen)
+
+    def test_per_gen_out_of_range_raises(self):
+        sex = np.zeros(2, dtype=int)
+        gen = np.array([0, 1])
+        with pytest.raises(ValueError, match=r"prevalence must be in the open interval \(0, 1\)"):
+            resolve_prevalence({0: 0.1, 1: 1.0}, sex, gen)
+
+    def test_sex_specific_out_of_range_raises(self):
+        sex = np.array([0, 1])
+        gen = np.array([0, 0])
+        with pytest.raises(ValueError, match=r"prevalence must be in the open interval \(0, 1\)"):
+            resolve_prevalence({"female": 0.05, "male": 1.2}, sex, gen)
 
     def test_only_one_sex_key_falls_through_to_scalar_path(self):
         # A dict without both 'female' AND 'male' is treated as a per-gen dict.

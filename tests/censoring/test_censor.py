@@ -112,8 +112,8 @@ class TestDeathCensor:
 
 class TestRunCensor:
     @pytest.fixture
-    def raw_phenotype(self):
-        """Create a minimal raw phenotype DataFrame matching run_phenotype output."""
+    def raw_pedigree(self):
+        """Create a minimal pedigree DataFrame used to hydrate censoring windows."""
         rng = np.random.default_rng(42)
         n = 200
         return pd.DataFrame(
@@ -133,6 +133,17 @@ class TestRunCensor:
                 "C2": rng.standard_normal(n),
                 "E2": rng.standard_normal(n),
                 "liability2": rng.standard_normal(n),
+            }
+        )
+
+    @pytest.fixture
+    def raw_phenotype(self, raw_pedigree):
+        """Create an outcomes-only raw trait DataFrame matching run_phenotype output."""
+        rng = np.random.default_rng(43)
+        n = len(raw_pedigree)
+        return pd.DataFrame(
+            {
+                "id": raw_pedigree["id"].to_numpy(),
                 "t1": rng.uniform(10, 200, n),
                 "t2": rng.uniform(10, 200, n),
             }
@@ -148,8 +159,8 @@ class TestRunCensor:
             "death_rho": 2.73,
         }
 
-    def test_output_columns(self, raw_phenotype, censor_params):
-        result = run_censor(raw_phenotype, **censor_params)
+    def test_output_columns(self, raw_phenotype, raw_pedigree, censor_params):
+        result = run_censor(raw_phenotype, raw_pedigree, **censor_params)
         expected_new = {
             "death_age",
             "age_censored1",
@@ -163,30 +174,30 @@ class TestRunCensor:
         }
         assert expected_new.issubset(set(result.columns))
 
-    def test_preserves_input_columns(self, raw_phenotype, censor_params):
-        result = run_censor(raw_phenotype, **censor_params)
+    def test_preserves_input_columns(self, raw_phenotype, raw_pedigree, censor_params):
+        result = run_censor(raw_phenotype, raw_pedigree, **censor_params)
         for col in raw_phenotype.columns:
             assert col in result.columns
             np.testing.assert_array_equal(result[col].values, raw_phenotype[col].values)
 
-    def test_affected_consistency(self, raw_phenotype, censor_params):
+    def test_affected_consistency(self, raw_phenotype, raw_pedigree, censor_params):
         """affected should be True only when neither age- nor death-censored."""
-        result = run_censor(raw_phenotype, **censor_params)
+        result = run_censor(raw_phenotype, raw_pedigree, **censor_params)
         for trait in ["1", "2"]:
             affected = result[f"affected{trait}"].values
             age_cens = result[f"age_censored{trait}"].values
             death_cens = result[f"death_censored{trait}"].values
             np.testing.assert_array_equal(affected, ~age_cens & ~death_cens)
 
-    def test_deterministic_with_seed(self, raw_phenotype, censor_params):
-        r1 = run_censor(raw_phenotype, **censor_params)
-        r2 = run_censor(raw_phenotype, **censor_params)
+    def test_deterministic_with_seed(self, raw_phenotype, raw_pedigree, censor_params):
+        r1 = run_censor(raw_phenotype, raw_pedigree, **censor_params)
+        r2 = run_censor(raw_phenotype, raw_pedigree, **censor_params)
         np.testing.assert_array_equal(r1["t_observed1"].values, r2["t_observed1"].values)
         np.testing.assert_array_equal(r1["t_observed2"].values, r2["t_observed2"].values)
         np.testing.assert_array_equal(r1["death_age"].values, r2["death_age"].values)
 
-    def test_row_count_unchanged(self, raw_phenotype, censor_params):
-        result = run_censor(raw_phenotype, **censor_params)
+    def test_row_count_unchanged(self, raw_phenotype, raw_pedigree, censor_params):
+        result = run_censor(raw_phenotype, raw_pedigree, **censor_params)
         assert len(result) == len(raw_phenotype)
 
 
@@ -199,7 +210,7 @@ class TestRunCensorGenDefaults:
     """Per-generation window defaulting and edge cases."""
 
     @pytest.fixture
-    def phenotype_3gen(self):
+    def pedigree_3gen(self):
         n_per_gen = 50
         n = 3 * n_per_gen
         rng = np.random.default_rng(0)
@@ -220,6 +231,16 @@ class TestRunCensorGenDefaults:
                 "C2": rng.standard_normal(n),
                 "E2": rng.standard_normal(n),
                 "liability2": rng.standard_normal(n),
+            }
+        )
+
+    @pytest.fixture
+    def phenotype_3gen(self, pedigree_3gen):
+        rng = np.random.default_rng(1)
+        n = len(pedigree_3gen)
+        return pd.DataFrame(
+            {
+                "id": pedigree_3gen["id"].to_numpy(),
                 # Onset times in (30, 75) — within the default [0, censor_age=80] window
                 # for generations 1 and 2, but outside [40, 80] for left-censorable gen 0.
                 "t1": rng.uniform(30.0, 75.0, n),
@@ -227,10 +248,11 @@ class TestRunCensorGenDefaults:
             }
         )
 
-    def test_missing_generation_uses_default_window(self, phenotype_3gen):
+    def test_missing_generation_uses_default_window(self, phenotype_3gen, pedigree_3gen):
         """Generations absent from gen_censoring must fall back to [0, censor_age]."""
         result = run_censor(
             phenotype_3gen,
+            pedigree_3gen,
             censor_age=80.0,
             seed=42,
             gen_censoring={0: [40.0, 80.0]},  # only gen 0 specified
@@ -240,24 +262,25 @@ class TestRunCensorGenDefaults:
         # All gen-1 and gen-2 onsets are between 30 and 75 — strictly within
         # [0, 80] — so the age-censoring mask must be all-False there.
         for gen in (1, 2):
-            mask = result["generation"] == gen
+            mask = pedigree_3gen["generation"] == gen
             assert not result.loc[mask, "age_censored1"].any()
             assert not result.loc[mask, "age_censored2"].any()
         # Gen-0 onsets between 30 and 40 are left-censored under [40, 80] → some censored.
-        gen0 = result["generation"] == 0
+        gen0 = pedigree_3gen["generation"] == 0
         assert result.loc[gen0, "age_censored1"].any()
 
-    def test_zero_width_window_fully_censors(self, phenotype_3gen):
+    def test_zero_width_window_fully_censors(self, phenotype_3gen, pedigree_3gen):
         """A zero-width window [a, a] flags every member of the generation."""
         result = run_censor(
             phenotype_3gen,
+            pedigree_3gen,
             censor_age=80.0,
             seed=42,
             gen_censoring={0: [80.0, 80.0]},
             death_scale=1e9,
             death_rho=10.0,
         )
-        gen0 = result["generation"] == 0
+        gen0 = pedigree_3gen["generation"] == 0
         assert result.loc[gen0, "age_censored1"].all()
         assert result.loc[gen0, "age_censored2"].all()
 
@@ -287,13 +310,17 @@ class TestRunCensorCLI:
         monkeypatch.setattr(sys, "argv", ["censor", *argv])
         censor_cli()
 
-    def test_cli_gen_censoring_json_round_trip(self, tmp_path, monkeypatch, tiny_phenotype_parquet):
+    def test_cli_gen_censoring_json_round_trip(
+        self, tmp_path, monkeypatch, tiny_phenotype_parquet, tiny_pedigree_parquet
+    ):
         out_path = tmp_path / "censored.parquet"
         self._run_cli(
             monkeypatch,
             [
                 "--phenotype",
                 str(tiny_phenotype_parquet),
+                "--pedigree",
+                str(tiny_pedigree_parquet),
                 "--output",
                 str(out_path),
                 "--seed",
@@ -308,7 +335,8 @@ class TestRunCensorCLI:
         result = pd.read_parquet(out_path)
         # JSON keys parsed as ints → gen-1 must use the [0, 45] window.
         # Anything in gen 1 with onset > 45 should be age-censored.
-        gen1 = result["generation"] == 1
+        pedigree = pd.read_parquet(tiny_pedigree_parquet)
+        gen1 = pedigree["generation"] == 1
         if gen1.any():
             high_onset = result.loc[gen1, "t1"] > 45
             # All gen-1 rows with t1 > 45 are age-censored.

@@ -8,7 +8,7 @@ simACE simulates multi-generational pedigrees with **A** (additive genetic), **C
 - `simace/` — simulation package (`pip install -e .`), organized into sub-packages:
   - `core/` — shared infrastructure: `pedigree_graph`, `compute_hazard_terms`, `cli_base`, `numerics`, `parquet`, `pedigree_filter`, `relationships`, `schema`, `yaml_io`
   - `simulation/` — pedigree simulation
-  - `phenotype/` — `__init__.py` (run_phenotype dispatcher), `threshold.py`, `hazards.py`, plus a `models/` sub-package of model classes inheriting from a `PhenotypeModel`
+  - `phenotype/` — `runner.py` (run_phenotype dispatcher, re-exported from `__init__.py`), `hazards.py`, `blended_post.py`, plus a `models/` sub-package of model classes inheriting from a `PhenotypeModel` (the liability-threshold idiom lives in `models/_prevalence.py`)
   - `censoring/` — age-window and death censoring
   - `ascertainment/` — unified dropout + case-weighted N_sample selection (per ADR 0001)
   - `analysis/` — `stats/` (package: censoring, correlations, incidence, pedigree, sampling, tetrachoric, runner), `validate.py`, `gather.py`
@@ -25,7 +25,7 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 - Use `--cores 4` running one scenario, `--cores 8` for multiple scenarios, `--cores 1` for debugging. 
 - Always dry-run (`-n`) before long runs.
 - Targets are per-scenario: `results/{folder}/{scenario}/{scenario,simulate,phenotype,validate,stats}.done`
-- Force-rebuild plot atlas: `snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.pdf`
+- Force-rebuild plot atlas (HTML is the default artifact; PDF is on-demand): `snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.html` (or `.../atlas.pdf` for the PDF export)
 
 ## Plotting
 
@@ -35,7 +35,7 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 
 ## Key Rules
 
-- The ACE conda env is always active. Do NOT use `conda run -n ACE` — run commands directly.
+- The `simACE` conda env is always active. Do NOT use `conda run -n simACE` — run commands directly.
 
 ## Code review gotchas (statistical correctness)
 
@@ -59,9 +59,9 @@ patterns whenever changing the relevant module.
    `PAIR_KINSHIP` and pair extraction (`PedigreeGraph.extract_pairs`) from the
    external top-level `pedigree_graph` package (not from simace). Changes to
    pair extraction or kinship values in `pedigree_graph` silently bias
-   `fit_ace` heritability and PA-FGRS. Additionally, `fitace/ltm/falconer.py`
-   maintains its own `KINSHIP` dict at EPIMIGHT-kind granularity that must
-   stay in sync with `PAIR_KINSHIP`.
+   `fit_ace` heritability and PA-FGRS. Additionally, `fitace.relationships`
+   maintains fitACE relationship-type kinship at EPIMIGHT-compatible granularity
+   and must stay in sync with `PAIR_KINSHIP`.
 5. **Generation-dependent C/E variance can bias `rho_w`** (assortative
    mating correlation) calculations.
 6. **`affected = NOT (age_censored OR death_censored)`** — preserve this
@@ -90,14 +90,20 @@ from `PAIR_KINSHIP`.
 
 ## Repo Map
 
-Seven related repos, all under `rwaples/` on GitHub. simACE is the umbrella working directory; the others are nested checkouts (gitignored from simACE — no submodules).
+Thirteen related repos, all under `rwaples/` on GitHub. simACE is the umbrella working directory; the others are nested checkouts (gitignored from simACE — no submodules). The seven `fitACE_*` method repos were peeled out of fitACE in the method-split (each depends on `fitace`/`simace`, never on another method repo).
 
 | Repo | Visibility | Local path | Role |
 |---|---|---|---|
 | [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate → phenotype → censor → ascertainment → validate → stats → plot |
-| [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model fitting (PA-FGRS, sparseREML, iter_reml, Stan, PCGC). Consumes simACE outputs. |
+| [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model-fitting **core + Snakemake orchestrator**: kinship, config, LTM/Falconer, GRM export, phenotyping, shared result writers + cross-method plots. The fitting methods live in the `fitACE_*` sister repos below. Consumes simACE outputs. |
 | [`fitACE_epimight`](https://github.com/rwaples/fitACE_epimight) | private | `./fitACE/fitACE_epimight/` | EPIMIGHT v2.0 integration for fitACE: long-form input emitter, Snakemake rules, atlas/bias plotting. Included by `fitACE/Snakefile` via cross-repo `include:` directives. |
-| [`ace_iter_reml`](https://github.com/rwaples/ace_iter_reml) | private | `./fitACE/fitace/ace_iter_reml/` | C++ PCG-AI-REML binary. Driven by `fitACE/fitace/iter_reml/`. |
+| [`fitACE_pcgc`](https://github.com/rwaples/fitACE_pcgc) | private | `./fitACE/fitACE_pcgc/` | PCGC / Haseman–Elston moment estimator (reference/numba/cpp backends + `ace_pcgc` C++ binary). |
+| [`fitACE_iter_reml`](https://github.com/rwaples/fitACE_iter_reml) | private | `./fitACE/fitACE_iter_reml/` | Iterative PCG-AI-REML (`ace_iter_reml`) + sparse REML (`ace_sreml`, env-only). Holds packages `fitace_iter_reml` + `fitace_sreml`. |
+| [`fitACE_tetraher`](https://github.com/rwaples/fitACE_tetraher) | private | `./fitACE/fitACE_tetraher/` | LDAK TetraHer (`--tetra-her`) liability-scale A+C+E. Consumes the `tetraher_simace` LDAK fork. |
+| [`fitACE_pafgrs`](https://github.com/rwaples/fitACE_pafgrs) | private | `./fitACE/fitACE_pafgrs/` | PA-FGRS (Pearson–Aitken Family Genetic Risk Scores) + diagnostic atlas. |
+| [`fitACE_stan`](https://github.com/rwaples/fitACE_stan) | private | `./fitACE/fitACE_stan/` | Stan/cmdstanpy Bayesian ACE fitting. Dormant (no Snakemake rule). |
+| [`fitACE_frailty`](https://github.com/rwaples/fitACE_frailty) | private | `./fitACE/fitACE_frailty/` | Weibull-frailty pairwise correlation stats. Dormant (no Snakemake rule). |
+| [`ace_iter_reml`](https://github.com/rwaples/ace_iter_reml) | private | `./fitACE/fitACE_iter_reml/ace_iter_reml/` | C++ PCG-AI-REML binary. Driven by `fitACE_iter_reml`. |
 | [`tetraher_simace`](https://github.com/rwaples/tetraher_simace) | private | `./external/tetraher_simace/` | Fork of LDAK 6.2 (grouping + warm-start + OMP opt-in). Binary consumed by `fitACE/fitace/tetraher/`. |
 | [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Sparse-matrix pedigree relationship extraction and kinship computation. |
 | [`pedsum`](https://github.com/rwaples/pedsum) | public | `./external/pedsum/` | Pedigree summary CLI: structure, relatedness, inbreeding, Ne estimators. Built on `pedigree-graph`. |
@@ -113,10 +119,18 @@ Seven related repos, all under `rwaples/` on GitHub. simACE is the umbrella work
 - Prefer batching commits — changed files grouped by purpose
 
 ## Versioning
-- **CalVer** (`YYYY.MM`) via `setuptools-scm`, derived from git tags
-- Tag format: `v2026.03`, `v2026.04`, `v2026.04.1` (second release same month)
-- Between tags: `2026.4.dev4+g<hash>`
-- To cut a release: `git tag -a v2026.MM -m "description"`
+- **Lockstep family CalVer.** simACE, fitACE core, the seven `fitACE_*` method
+  sisters, and the `ace_iter_reml` binary share **one** CalVer
+  (`vYYYY.MM[.patch]`), tagged together each release (ADR 0012). External deps
+  (`pedigree-graph`, `pedsum`, `tetraher_simace`) keep their own versions.
+- **CalVer** (`YYYY.MM`) via `setuptools-scm`, derived from git tags; the
+  `ace_iter_reml` binary embeds `git describe` via CMake.
+- Tag format: `v2026.06`, `v2026.06.1` (second release same month). First unified
+  lockstep release: `v2026.06`. Between tags: `2026.6.dev4+g<hash>`.
+- Compatibility is one `FAMILY_FLOOR` in `fitace._deps` (`>=` semantics),
+  enforced across every family `pyproject.toml` by `test_dependency_floors`.
+- To cut a release: `python tools/release.py vYYYY.MM` tags all ten repos
+  locally and prints the per-repo `git push` commands (it never pushes).
 
 ## Testing
 
@@ -131,6 +145,7 @@ Seven related repos, all under `rwaples/` on GitHub. simACE is the umbrella work
 - Auto-fix: `ruff check --fix`
 - Format Python: `ruff format`
 - Format Snakemake: `snakefmt workflow/rules/**/*.smk Snakefile`
+- Run `ruff check` with **no extra `--select`**. The configured rules (incl. `D`/pydocstyle) plus the `ignore` and `per-file-ignores` in `pyproject.toml` are authoritative. Passing any `--select` (e.g. `--select D`) discards those ignores and surfaces false positives.
 
 ## Documentation & Citations
 
@@ -145,6 +160,7 @@ Seven related repos, all under `rwaples/` on GitHub. simACE is the umbrella work
 - For non-trivial plans/refactors (multi-file, cross-repo, or with unresolved design decisions), default to invoking the `grill-with-docs` skill before proposing implementation. Lock each design decision explicitly before exiting plan mode. Skip grilling for bugfixes, doc tweaks, and renames.
 - When starting a design interview or /grill-me session, if there is no existing plan, first explore the relevant codebase 
 and read key files and related modules before asking questions. Ground the interview in what the code actually does.
+- When a plan relies on formulas, thresholds, complexity claims, or memory/allocation models, enumerate each such assumption explicitly and verify it against the primary source and the actual codebase before locking the decision. Treat quantitative claims recalled from memory as unverified; flag any you cannot confirm rather than proceeding on them.
 
 ## Performance Optimization
 
@@ -156,6 +172,7 @@ and read key files and related modules before asking questions. Ground the inter
 
 - Prefer focused sessions (one feature per session)
 - Run pipeline commands in background when >30 seconds
+- For pipelines with verbose output, redirect to a log file and grep/tail a summary rather than streaming everything — streaming full output floods context and can hit the output-token ceiling. The `run_in_background` + Monitor tools do this natively.
 - Use targeted line ranges instead of reading entire large files
 
 <!-- code-review-graph MCP tools -->
@@ -188,8 +205,10 @@ tool to call next. Cheaper than guessing wrong.
 
 ### Cross-repo searches
 
-`cross_repo_search` covers all 7 repos in the Repo Map above (registered
-under `~/.code-review-graph/registry.json`):
+`cross_repo_search` covers the repos registered under
+`~/.code-review-graph/registry.json` (below). The seven `fitACE_*` method repos
+from the method-split are pending registration (see **Adding a new repo**);
+register them once they're cloned into the layout.
 
 | Repo | Languages indexed | Embeddings |
 |------|-------------------|------------|

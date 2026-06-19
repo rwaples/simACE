@@ -51,9 +51,9 @@ __all__ = [
 def _pre_ascertainment_pedigree_input(w, config: dict) -> str:
     """Return the pre-ascertainment pedigree path, respecting use_gene_drop.
 
-    Used by the phenotype, phenotype_simple_ltm, and ascertainment rules so
-    all three consume the same pedigree variant (tstrait-augmented when
-    use_gene_drop is set; parametric otherwise).
+    Used by the phenotype, censor, and ascertainment rules so they all
+    consume the same pedigree variant (tstrait-augmented when use_gene_drop
+    is set; parametric otherwise).
     """
     if get_param(config, w.scenario, "use_gene_drop"):
         return f"results/{w.folder}/{w.scenario}/rep{w.rep}/pedigree.full.tstrait.parquet"
@@ -165,13 +165,13 @@ def get_scenario_sim_outputs(config: dict, scenario: str, plot_ext: str = "png")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/pedigree.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.full.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.parquet")
-        outputs.append(f"results/{folder}/{scenario}/rep{rep}/trait.simple_ltm.parquet")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/report.yaml")
         outputs.append(f"results/{folder}/{scenario}/rep{rep}/plot_payload.yaml")
     outputs.extend(
         f"results/{folder}/{scenario}/plots/{plot}" for plot in plot_filenames(phenotype_basenames(), plot_ext)
     )
-    outputs.append(f"results/{folder}/{scenario}/plots/atlas.pdf")
+    # HTML is the primary atlas artifact (ADR 0010); the PDF is on-demand.
+    outputs.append(f"results/{folder}/{scenario}/plots/atlas.html")
     return outputs
 
 

@@ -62,31 +62,23 @@ def trait_data(small_sim_pedigree):
     return _make_trait(small_sim_pedigree, g_pheno=2, case_rate=0.10, seed=11)
 
 
-@pytest.fixture
-def trait_simple_ltm_data(small_sim_pedigree):
-    """Synthetic simple-LTM trait covering the same individuals as trait_data."""
-    return _make_trait(small_sim_pedigree, g_pheno=2, case_rate=0.10, seed=11)
-
-
 # ---------------------------------------------------------------------------
 # Pass-through tests
 # ---------------------------------------------------------------------------
 
 
 class TestPassThrough:
-    def test_no_dropout_no_sampling(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
-        """dropout_rate=0, N_sample=0 → trait/simple_ltm unchanged; pedigree narrows to ancestor closure."""
-        ped_out, trait_out, simple_out = run_ascertainment(
+    def test_no_dropout_no_sampling(self, small_sim_pedigree, trait_data):
+        """dropout_rate=0, N_sample=0 → trait unchanged; pedigree narrows to ancestor closure."""
+        ped_out, trait_out = run_ascertainment(
             small_sim_pedigree,
             trait_data,
-            trait_simple_ltm_data,
             dropout_rate=0.0,
             N_sample=0,
             seed=42,
         )
         # All trait rows preserved.
         assert len(trait_out) == len(trait_data)
-        assert len(simple_out) == len(trait_simple_ltm_data)
         # Pedigree is the ancestor closure — should include every phenotyped id plus their ancestors.
         assert set(trait_data["id"]).issubset(set(ped_out["id"]))
 
@@ -97,12 +89,11 @@ class TestPassThrough:
 
 
 class TestDropout:
-    def test_dropout_reduces_trait_when_nsample_zero(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
+    def test_dropout_reduces_trait_when_nsample_zero(self, small_sim_pedigree, trait_data):
         """dropout_rate > 0, N_sample = 0 → trait+pedigree row counts strictly drop."""
-        _, trait_out, _ = run_ascertainment(
+        _, trait_out = run_ascertainment(
             small_sim_pedigree,
             trait_data,
-            trait_simple_ltm_data,
             dropout_rate=0.5,
             N_sample=0,
             seed=42,
@@ -110,7 +101,7 @@ class TestDropout:
         # Trait drops because half the pedigree (incl. phenotyped IDs) is removed.
         assert len(trait_out) < len(trait_data)
 
-    def test_dropout_affects_pool_with_nsample(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
+    def test_dropout_affects_pool_with_nsample(self, small_sim_pedigree, trait_data):
         """Deterministic clamp test: with extreme dropout, output is clamped to trait survivors.
 
         Picks dropout_rate high enough that *trait-level* survivors < N_sample.
@@ -123,10 +114,9 @@ class TestDropout:
         rate = 0.95
         n_sample = len(trait_data)  # more than trait survivors with dropout=0.95
 
-        _, trait_out, _ = run_ascertainment(
+        _, trait_out = run_ascertainment(
             small_sim_pedigree,
             trait_data,
-            trait_simple_ltm_data,
             dropout_rate=rate,
             N_sample=n_sample,
             seed=42,
@@ -152,40 +142,16 @@ class TestDropout:
 
 
 # ---------------------------------------------------------------------------
-# Cross-branch consistency
-# ---------------------------------------------------------------------------
-
-
-class TestBranchConsistency:
-    def test_both_branches_identical_ids(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
-        """trait and trait_simple_ltm outputs must have identical id columns after ascertainment."""
-        _, trait_out, simple_out = run_ascertainment(
-            small_sim_pedigree,
-            trait_data,
-            trait_simple_ltm_data,
-            dropout_rate=0.3,
-            case_ascertainment_ratio=1.5,
-            N_sample=30,
-            seed=42,
-        )
-        np.testing.assert_array_equal(
-            np.sort(trait_out["id"].to_numpy()),
-            np.sort(simple_out["id"].to_numpy()),
-        )
-
-
-# ---------------------------------------------------------------------------
 # Ancestor-closure invariant
 # ---------------------------------------------------------------------------
 
 
 class TestAncestorClosure:
-    def test_every_sampled_id_has_ancestors_in_pedigree(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
+    def test_every_sampled_id_has_ancestors_in_pedigree(self, small_sim_pedigree, trait_data):
         """Walking parent edges from any sampled id never hits a missing id."""
-        ped_out, trait_out, _ = run_ascertainment(
+        ped_out, trait_out = run_ascertainment(
             small_sim_pedigree,
             trait_data,
-            trait_simple_ltm_data,
             dropout_rate=0.2,
             N_sample=20,
             seed=42,
@@ -212,12 +178,11 @@ class TestAncestorClosure:
                         nxt.append(int(p))
                 cur = nxt
 
-    def test_no_dangling_links(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
+    def test_no_dangling_links(self, small_sim_pedigree, trait_data):
         """All mother/father/twin references in output point to ids that exist in output or are -1."""
-        ped_out, _, _ = run_ascertainment(
+        ped_out, _ = run_ascertainment(
             small_sim_pedigree,
             trait_data,
-            trait_simple_ltm_data,
             dropout_rate=0.3,
             N_sample=30,
             seed=42,
@@ -236,22 +201,20 @@ class TestAncestorClosure:
 
 
 class TestCaseAscertainment:
-    def test_enrichment_increases_case_fraction(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
+    def test_enrichment_increases_case_fraction(self, small_sim_pedigree, trait_data):
         """case_ascertainment_ratio > 1 raises observed case fraction vs uniform."""
         n_sample = 40
-        _, trait_uniform, _ = run_ascertainment(
+        _, trait_uniform = run_ascertainment(
             small_sim_pedigree,
             trait_data,
-            trait_simple_ltm_data,
             dropout_rate=0.0,
             case_ascertainment_ratio=1.0,
             N_sample=n_sample,
             seed=42,
         )
-        _, trait_enriched, _ = run_ascertainment(
+        _, trait_enriched = run_ascertainment(
             small_sim_pedigree,
             trait_data,
-            trait_simple_ltm_data,
             dropout_rate=0.0,
             case_ascertainment_ratio=10.0,
             N_sample=n_sample,
@@ -269,34 +232,31 @@ class TestCaseAscertainment:
 
 
 class TestInputValidation:
-    def test_rejects_negative_dropout_rate(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
+    def test_rejects_negative_dropout_rate(self, small_sim_pedigree, trait_data):
         with pytest.raises(ValueError, match="dropout_rate"):
             run_ascertainment(
                 small_sim_pedigree,
                 trait_data,
-                trait_simple_ltm_data,
                 dropout_rate=-0.1,
                 N_sample=0,
                 seed=42,
             )
 
-    def test_rejects_full_dropout(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
+    def test_rejects_full_dropout(self, small_sim_pedigree, trait_data):
         with pytest.raises(ValueError, match="dropout_rate"):
             run_ascertainment(
                 small_sim_pedigree,
                 trait_data,
-                trait_simple_ltm_data,
                 dropout_rate=1.0,
                 N_sample=0,
                 seed=42,
             )
 
-    def test_rejects_negative_ratio(self, small_sim_pedigree, trait_data, trait_simple_ltm_data):
+    def test_rejects_negative_ratio(self, small_sim_pedigree, trait_data):
         with pytest.raises(ValueError, match="case_ascertainment_ratio"):
             run_ascertainment(
                 small_sim_pedigree,
                 trait_data,
-                trait_simple_ltm_data,
                 dropout_rate=0.0,
                 case_ascertainment_ratio=-0.5,
                 N_sample=10,

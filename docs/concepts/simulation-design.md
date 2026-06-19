@@ -63,38 +63,42 @@ $n_{\text{ancestors}} \times (1/2)^{(\text{up} + \text{down} + 1)}$.
 | 1C2R | 1st cousin 2R | 2 | 4 | 2 | 1/64 | 5 |
 | 2C | 2nd cousin | 3 | 3 | 2 | 1/64 | 5 |
 
-The `max_degree` parameter controls extraction depth (default 2, covering
-through 1st cousins). Degree 3–5 types require deeper matrix products and
-are computed only when requested. The registry is importable as
-`REL_REGISTRY` and `PAIR_KINSHIP` from `pedigree_graph`.
+The `max_degree` parameter controls extraction depth (default 3, covering
+through 1st cousins). It follows the registry degree exactly: degree 2 stops
+at half-sibs, grandparents, and avuncular pairs; degree 3 adds 1st cousins
+and the other degree-3 categories; degree 5 reaches 2nd cousins. The registry
+is importable as `REL_REGISTRY` and `PAIR_KINSHIP` from `pedigree_graph`.
 
 ### Inbreeding and exact kinship
 
-By default, kinship values are computed from the `(up, down, n_ancestors)`
-formula, which assumes no inbreeding. When `estimate_inbreeding: true` is set
-in config, `PedigreeGraph` computes exact inbreeding coefficients and pairwise
-kinship using sparse matrix propagation:
+By default, relationship pairs carry the nominal `(up, down, n_ancestors)`
+kinship, which assumes a single relationship path and no inbreeding. When
+`estimate_inbreeding: true` is set in config, `PedigreeGraph` reports exact
+values instead:
 
-1. **`compute_inbreeding()`** builds the kinship matrix `K` generation by
-   generation using sparse products (`P_g @ K` for cross-generation,
-   `K_cross @ P_g.T` for within-generation). The inbreeding coefficient
-   `F_i = K[mother_i, father_i]` is extracted each generation. For
-   non-consanguineous pedigrees (all `F = 0`), both functions short-circuit
-   instantly.
+1. **`compute_inbreeding()`** returns per-individual inbreeding coefficients
+   `F` via the Meuwissen–Luo ML ancestor-walk (`_compute_F_meuwissen_luo`). It
+   does **not** build the full kinship matrix, and it is MZ-naive (twins are
+   treated as full sibs). For non-consanguineous pedigrees every `F = 0`.
 
-2. **`compute_pair_kinship(pairs)`** looks up exact kinship for each extracted
-   pair from the cached sparse `K` matrix. When inbreeding is present, kinship
-   values deviate from the nominal formula by a factor of $(1 + F_a)$ where
-   $F_a$ is the inbreeding coefficient of the common ancestor.
+2. **`compute_pair_kinship(pairs)`** returns the *exact* kinship for each
+   requested pair via a direct memoized recurrence
+   (`pedigree_graph._kinship_pairwise`), computing only the requested pairs and
+   never materializing the `n × n` matrix (it samples a cached
+   `kinship_matrix(0.0)` only when one already exists). Exact kinship can exceed
+   the nominal value because of inbreeding, MZ co-coalescence, **or multiple
+   relationship paths** — e.g. double first cousins have kinship `0.125`, twice
+   the nominal first-cousin `0.0625`. Its derived `F` is
+   `phi(mother, father)` computed exactly as the kinship-matrix DP does, so it
+   is MZ-aware (unlike the ML `compute_inbreeding`). There is no nominal fast
+   path; see pedigree-graph ADR 0005.
 
-| Pedigree | `compute_inbreeding` | `compute_pair_kinship` | Total |
-|----------|---------------------:|-----------------------:|------:|
-| N=10K, 6 gens (60K individuals) | 12.9s | 2.3s | 15.2s |
-| N=100K, 4 gens (400K individuals) | 11.9s | 0.9s | 12.7s |
-
-Cost is dominated by the sparse `P_g @ K` products, which scale with the number
-of nonzero kinship entries (i.e., the number of related pairs in the pedigree).
-Fewer generations means sparser `K` and faster computation, even at larger `N`.
+The recurrence costs roughly `O(requested pairs + distinct ancestor-pairs
+reached)` — far below the full-matrix build it replaced, which materialized a
+near-dense `K` (≈53M nonzeros at 16K individuals) and OOM'd on large pedigrees.
+The honest worst case is `O(P · A²)` in the max distinct-ancestor count `A`;
+deeply inbred / high-overlap pedigrees are out of scope for the scaling
+guarantee.
 
 ### K-free per-generation mean kinship
 

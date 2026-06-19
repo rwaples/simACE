@@ -1,7 +1,8 @@
 """Orchestration entry point for per-replicate stats reports.
 
-Reads a single trait.parquet, runs every stats computation, and writes
-``stats_report.yaml`` plus ``plotting_sample.parquet``.
+Reads outcomes-only ``trait.parquet`` plus ``pedigree.parquet``, hydrates the
+trait rows for computations, and writes ``stats_report.yaml`` plus
+``plotting_sample.parquet``.
 """
 
 import argparse
@@ -19,6 +20,8 @@ import yaml
 from pedigree_graph import PedigreeGraph
 
 from simace.core.parquet import save_parquet
+from simace.core.relationships import DEFAULT_MAX_DEGREE
+from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import to_native
 
 from .censoring import (
@@ -126,7 +129,7 @@ def build_stats_report(
     seed: int = 42,
     gen_censoring: dict[int, list[float]] | None = None,
     df_ped: pd.DataFrame | None = None,
-    max_degree: int = 2,
+    max_degree: int = DEFAULT_MAX_DEGREE,
     case_ascertainment_ratio: float = 1.0,
 ) -> dict[str, Any]:
     """Build the grouped per-replicate stats report in memory."""
@@ -243,14 +246,19 @@ def main(
     seed: int = 42,
     gen_censoring: dict[int, list[float]] | None = None,
     pedigree_path: str | None = None,
-    max_degree: int = 2,
+    max_degree: int = DEFAULT_MAX_DEGREE,
     case_ascertainment_ratio: float = 1.0,
 ) -> None:
     """Compute all stats for a single replicate and write outputs."""
     t0 = time.perf_counter()
-    df = pd.read_parquet(phenotype_path)
-    logger.info("Computing stats for %s (%d rows)", phenotype_path, len(df))
+    df_trait = pd.read_parquet(phenotype_path)
+    logger.info("Computing stats for %s (%d rows)", phenotype_path, len(df_trait))
     df_ped = _read_pedigree(pedigree_path)
+    df = (
+        hydrate_trait(df_trait, df_ped, kind="censored", columns=PEDIGREE_REPORT_COLUMNS)
+        if df_ped is not None
+        else df_trait
+    )
     _log_elapsed("Input load", t0)
 
     stats = build_stats_report(
@@ -262,7 +270,7 @@ def main(
         max_degree=max_degree,
         case_ascertainment_ratio=case_ascertainment_ratio,
     )
-    del df_ped
+    del df_trait, df_ped
 
     stats_path = Path(stats_output)
     stats_path.parent.mkdir(parents=True, exist_ok=True)
@@ -281,10 +289,11 @@ def main(
 
 def cli() -> None:
     """Command-line interface for phenotype statistics computation."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Build per-replicate stats report")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("phenotype", help="Input phenotype parquet")
     parser.add_argument("censor_age", type=float)
     parser.add_argument("stats_output", help="Output stats YAML")
@@ -296,8 +305,8 @@ def cli() -> None:
         "--max-degree",
         dest="max_degree",
         type=int,
-        default=2,
-        help="Maximum kinship degree for pair extraction (1-5, default 2)",
+        default=DEFAULT_MAX_DEGREE,
+        help="Maximum kinship degree for pair extraction (0-5, default 3; includes 1C)",
     )
 
     args = parser.parse_args()

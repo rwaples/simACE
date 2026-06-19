@@ -26,7 +26,7 @@ compatibility, but new configs should use the sectioned form.
 | `G_pheno` | int | 3 | Last `G_pheno` generations to phenotype |
 | `G_sim` | int | 8 | Total simulated generations; `G_sim - G_ped` is burn-in |
 | `standardize` | str | `global` | Liability standardization mode: `none`, `global`, or `per_generation` |
-| `plot_format` | str | `png` | Plot extension, usually `png` or `pdf` |
+| `plot_format` | str | `png` | Plot image extension. The default `atlas.html` embeds plots inline, so it needs a browser-displayable source (`png` recommended, or `svg` for crisp vector plots). `pdf` is valid **only** for the on-demand `atlas.pdf` export (see [output structure](output-structure.md)). |
 | `drop_from` | str / null | `null` | Reuse another scenario's pedigree and gene-drop outputs |
 | `use_gene_drop` | bool | `false` | Use tstrait-derived `A1` instead of parametric `A1` downstream |
 
@@ -129,7 +129,7 @@ ascertainment:
   dropout_rate: 0
 
 analysis:
-  max_degree: 2
+  max_degree: 3
   estimate_inbreeding: false
   skip_ne_coancestry: false
 ```
@@ -139,7 +139,7 @@ analysis:
 | `ascertainment.N_sample` | Target post-ascertainment sample size; `0` keeps the full post-dropout population |
 | `ascertainment.case_ascertainment_ratio` | Case sampling weight relative to controls during the `N_sample` draw |
 | `ascertainment.dropout_rate` | Fraction of individuals removed uniformly from the pedigree (applied before the case-weighted draw; see [Ascertainment](ascertainment.md) for the two-step algorithm) |
-| `analysis.max_degree` | Maximum relationship degree to extract |
+| `analysis.max_degree` | Maximum relationship degree to extract (`3` includes 1st cousins; `2` stops at degree-2 relatives such as half-sibs, grandparents, and avuncular pairs) |
 | `analysis.estimate_inbreeding` | Compute exact inbreeding coefficients and exact pairwise kinship |
 | `analysis.skip_ne_coancestry` | Skip the Ne_C (coancestry-rate) estimator and its kinship DP. The remaining seven Ne estimators still run. Useful on very large pedigrees when only F-based and family-size estimators are needed. |
 

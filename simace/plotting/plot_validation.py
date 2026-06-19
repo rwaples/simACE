@@ -131,7 +131,7 @@ def stripplot(
     if len(all_vals) > 0:
         lo, hi = float(all_vals.min()), float(all_vals.max())
         span = hi - lo
-        pad = max(span * 0.15, max(0.002, abs(lo + hi) / 2 * 0.01))
+        pad = max(span * 0.15, 0.002, abs(lo + hi) / 2 * 0.01)
         ax.set_ylim(lo - pad, hi + pad)
 
 
@@ -563,8 +563,23 @@ VALIDATION_RENDERERS: tuple[ValidationRenderSpec, ...] = (
 )
 
 
-def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
-    """Generate all validation plots from a gathered metrics TSV."""
+def assemble_validation_atlas(output_dir: str | Path, output_name: str = "atlas.html", plot_ext: str = "png") -> None:
+    """Assemble the validation atlas from already-rendered plots.
+
+    Order, captions, and section breaks live in the
+    :data:`~simace.plotting.atlas_manifest.VALIDATION_ATLAS` manifest. The
+    ``output_name`` extension selects the rendering (``atlas.html`` is the
+    primary artifact; ``atlas.pdf`` is the on-demand export — ADR 0010).
+    """
+    from simace.plotting.atlas_manifest import VALIDATION_ATLAS
+    from simace.plotting.render_atlas import render_atlas
+
+    out = Path(output_dir)
+    render_atlas(list(VALIDATION_ATLAS), out, out / output_name, plot_ext=plot_ext)
+
+
+def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png", *, atlas_name: str = "atlas.html") -> None:
+    """Generate all validation plots from a gathered metrics TSV, plus the atlas."""
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     logger.info("Generating validation plots in %s", out)
@@ -582,20 +597,16 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png") -> None:
     for spec in VALIDATION_RENDERERS:
         spec.render(df, out, ext=plot_ext)
 
-    # Assemble validation atlas PDF — order, captions, and (future) section
-    # breaks live in the manifest.
-    from simace.plotting.atlas_manifest import VALIDATION_ATLAS
-    from simace.plotting.plot_atlas import assemble_atlas
-
-    assemble_atlas(list(VALIDATION_ATLAS), out, out / "atlas.pdf", plot_ext=plot_ext)
+    assemble_validation_atlas(out, atlas_name, plot_ext=plot_ext)
 
 
 def cli() -> None:
     """Command-line interface for generating validation plots."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Plot validation results")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("tsv", help="Validation summary TSV path")
     parser.add_argument("output_dir", help="Output directory")
     parser.add_argument(

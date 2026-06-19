@@ -41,7 +41,7 @@ import pandas as pd
 from pedigree_graph import PAIR_KINSHIP, PedigreeGraph
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
-from simace.core.relationships import RELATIONSHIP_TYPES, expected_liability_corr
+from simace.core.relationships import DEFAULT_MAX_DEGREE, RELATIONSHIP_TYPES, expected_liability_corr
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import (
     apply_nature_style,
@@ -162,8 +162,8 @@ def compare_realized_variance_trajectory(
         (axes[1, 1], 3, f"Realized h² (trait {trait})", h2_expected),
     ]
 
-    for scen_idx, (reps, label) in enumerate(zip(scenario_paths, labels, strict=True)):
-        reps = [Path(p) for p in reps]
+    for scen_idx, (rep_paths, label) in enumerate(zip(scenario_paths, labels, strict=True)):
+        reps = [Path(p) for p in rep_paths]
         per_gen = load_per_generation(reps, trait=trait)
         gens = sorted(per_gen.keys())
         color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
@@ -395,7 +395,10 @@ def load_pedigree_estimates(
     else:
         df = df_full.reset_index(drop=True)
 
-    pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=2)
+    # Examples-page pedigree estimates extract at the analysis default depth.
+    # NB: this is not plumbed from analysis.max_degree config — a scenario that
+    # raises max_degree above the default still extracts at DEFAULT_MAX_DEGREE here.
+    pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=DEFAULT_MAX_DEGREE)
     liab = df[f"liability{trait}"].to_numpy()
 
     corrs: dict[str, float] = {}

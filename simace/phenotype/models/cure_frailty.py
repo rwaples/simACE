@@ -11,11 +11,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
-from scipy.special import ndtri
 
 from simace.phenotype.hazards import (
     BASELINE_HAZARDS,
-    StandardizeMode,
     add_hazard_cli_args,
     add_standardize_hazard_cli_arg,
     coerce_standardize_mode,
@@ -26,7 +24,6 @@ from simace.phenotype.hazards import (
     resolve_hazard_mode,
     standardize_beta,
     standardize_hazard_cli_attr,
-    standardize_liability,
     validate_hazard_params,
 )
 from simace.phenotype.models._base import (
@@ -37,10 +34,12 @@ from simace.phenotype.models._base import (
     validate_standardize_hazard,
     wrap_trait_error,
 )
-from simace.phenotype.models._prevalence import resolve_prevalence
+from simace.phenotype.models._prevalence import case_status_from_liability
 
 if TYPE_CHECKING:
     import argparse
+
+    from simace.phenotype.hazards import StandardizeMode
 
 __all__ = ["CureFrailtyModel"]
 
@@ -162,10 +161,7 @@ class CureFrailtyModel(PhenotypeModel):
     ) -> np.ndarray:
         # Threshold step: uses the global ``standardize`` mode for liability.
         mode_thr = coerce_standardize_mode(standardize)
-        L = standardize_liability(liability, mode_thr, generation)
-        prevalence = resolve_prevalence(self.prevalence, sex, generation)
-        threshold = ndtri(1.0 - np.asarray(prevalence))
-        is_case = threshold < L
+        is_case = case_status_from_liability(liability, self.prevalence, sex, generation, mode_thr)
 
         n = len(liability)
         t = np.full(n, 1e6)
@@ -189,9 +185,10 @@ class CureFrailtyModel(PhenotypeModel):
                 continue
             m = float(mean_arr[cell][0])
             b = float(beta_arr[cell][0])
-            # Pass raw ``liability`` here (not threshold-standardized ``L``):
-            # the kernel does ``exp(scaled_beta * (L - mean))`` and double-
-            # shifting silently biases the log-hazard under non-unit-variance L.
+            # Pass raw ``liability`` here, not the standardized liability the
+            # threshold step uses: the kernel does ``exp(scaled_beta * (L - mean))``
+            # and double-shifting silently biases the log-hazard under
+            # non-unit-variance liability.
             t[cell] = compute_event_times(
                 neg_log_u_full[cell],
                 liability[cell],

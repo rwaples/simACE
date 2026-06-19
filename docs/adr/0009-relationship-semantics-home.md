@@ -2,7 +2,16 @@
 
 ## Status
 
-Accepted.
+Accepted. **Update (2026-06-05):** the helpers below are current and used by the
+plotting modules (`plot_correlations.py`, `plot_validation.py`,
+`compare_scenarios.py`), but the `validate` package (since refactored from
+`validate.py` into `simace/analysis/validate/`) does **not** call them — it
+derives expectations inline directly from `pedigree_graph.PAIR_KINSHIP` (e.g.
+`expected_a = 2.0 * PAIR_KINSHIP["MHS"]` in `validate/half_sibs.py`,
+`expected_dz = 2.0 * PAIR_KINSHIP["FS"]` in `validate/heritability.py`). The
+decision's intent — no kinship literals, everything traces to `PAIR_KINSHIP` —
+holds in both places; only validate's *mechanism* differs from the Consequences
+as written below.
 
 ## Context
 
@@ -19,7 +28,7 @@ and `SEX_LEVELS` already live in `simace/core/relationships.py`, but the
 
 Kinship coefficients are *not* simACE's to own: the source of truth is the
 external `pedigree_graph` package (`PAIR_KINSHIP`, `REL_REGISTRY`), which
-`validate.py`, `stats`, and `fit_ace` all import. CLAUDE.md gotcha #4 records
+`validate`, `stats`, and `fit_ace` all import. CLAUDE.md gotcha #4 records
 that `fit_ace` couples to `PAIR_KINSHIP` and that `ltm_falconer.py` keeps a
 parallel `KINSHIP` dict that must stay in sync. Any place simACE re-declares a
 kinship literal is a latent drift bug that can silently bias downstream fitACE
@@ -53,8 +62,10 @@ plotting). No `pooled_relationship_classes()` is added to `core`.
 
 ## Consequences
 
-- `validate.py` and plotting stop hard-coding `0.25` / `0.5` / `1.0` and the
-  PHS-shared-C-is-zero rule; they call the helpers instead.
+- Plotting stops hard-coding `0.25` / `0.5` / `1.0` and the
+  PHS-shared-C-is-zero rule; it calls the helpers instead. (The `validate`
+  package reaches the same values inline from `PAIR_KINSHIP` rather than via the
+  helpers — see the Update note under Status.)
 - The maternal- vs paternal-half-sib C behavior gets one tested home, with an
   explicit test that MHS and PHS differ in shared C.
 - Coefficients cannot drift from the registry, because they trace back to

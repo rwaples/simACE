@@ -14,7 +14,6 @@ import numpy as np
 
 from simace.phenotype.hazards import (
     BASELINE_HAZARDS,
-    StandardizeMode,
     add_hazard_cli_args,
     add_standardize_hazard_cli_arg,
     compute_event_times,
@@ -37,6 +36,8 @@ from simace.phenotype.models._base import (
 
 if TYPE_CHECKING:
     import argparse
+
+    from simace.phenotype.hazards import StandardizeMode
 
 __all__ = ["FrailtyModel"]
 

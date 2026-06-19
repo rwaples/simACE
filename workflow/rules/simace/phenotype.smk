@@ -1,12 +1,12 @@
 # ---------------------------------------------------------------------------
 # Phenotype simulation rules
 #
-# All three rules consume the *pre-ascertainment* pedigree via the shared
+# Both rules consume the *pre-ascertainment* pedigree via the shared
 # _pre_ascertainment_pedigree_input helper (respects use_gene_drop).  trait.raw
-# and trait.simple_ltm.full are temp; trait.full is durable (ADR 0008) so the
-# Analyze stage can quantify ascertainment distortion against the full
-# phenotyped population. The ascertainment stage produces the canonical
-# post-stage trait.parquet / trait.simple_ltm.parquet downstream consumers read.
+# is temp; trait.full is durable (ADR 0008) so the Analyze stage can quantify
+# ascertainment distortion against the full phenotyped population. The
+# ascertainment stage produces the canonical post-stage trait.parquet that
+# downstream consumers read.
 # ---------------------------------------------------------------------------
 
 
@@ -43,6 +43,7 @@ rule phenotype:
 rule censor_weibull:
     input:
         phenotype="results/{folder}/{scenario}/rep{rep}/trait.raw.parquet",
+        pedigree=lambda w: _pre_ascertainment_pedigree_input(w, config),
     output:
         phenotype="results/{folder}/{scenario}/rep{rep}/trait.full.parquet",
     log:
@@ -61,30 +62,3 @@ rule censor_weibull:
         gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
     script:
         "../../scripts/simace/censor.py"
-
-
-rule phenotype_simple_ltm:
-    input:
-        pedigree=lambda w: _pre_ascertainment_pedigree_input(w, config),
-    output:
-        phenotype=temp(
-            "results/{folder}/{scenario}/rep{rep}/trait.simple_ltm.full.parquet"
-        ),
-    log:
-        "logs/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.log",
-    benchmark:
-        "benchmarks/{folder}/{scenario}/rep{rep}/phenotype_simple_ltm.tsv"
-    threads: 1
-    resources:
-        mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
-        runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),
-    params:
-        # PR3: prevalence now lives inside per-trait phenotype_params (for
-        # adult / cure_frailty); the threshold path falls back to a default
-        # for traits whose main model doesn't carry one (frailty / first_passage).
-        phenotype_params1=lambda w: get_param(config, w.scenario, "phenotype_params1"),
-        phenotype_params2=lambda w: get_param(config, w.scenario, "phenotype_params2"),
-        G_pheno=lambda w: get_param(config, w.scenario, "G_pheno"),
-        standardize=lambda w: get_param(config, w.scenario, "standardize"),
-    script:
-        "../../scripts/simace/phenotype_threshold.py"

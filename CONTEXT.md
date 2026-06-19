@@ -229,7 +229,7 @@ The pipeline runs the following stages in order. Stage names match the Snakemake
 3. **Censor** — apply age-window and death censoring to event times. Package: `simace/censoring/`.
 4. **Ascertainment** — unified dropout + case-ascertainment + $N_{\text{sample}}$ selection (per ADR 0001). Noun form. Replaces the older `dropout` + `sample` two-stage split.
 5. **Analyze** — combined production of ground-truth sanity checks and descriptive stats. Verb form. Folds the former validate and stats steps into one pipeline stage that emits a single curated per-replicate report plus a plot payload (ADR 0008).
-6. **Plot** — generate the per-scenario plot atlas. Package: `simace/plotting/`.
+6. **Plot** — render each scope's plot **atlas**. Package: `simace/plotting/`. The default, always-built rendering is a self-contained **HTML atlas** (`atlas.html`); a multi-page **PDF atlas** (`atlas.pdf`) is an on-demand export (ADR 0010).
 
 _Avoid_: "phenotyping" (killed), "subsampling" / "dropout stage" (killed — see **Ascertainment**), "validation stage" / "stats stage" as separate pipeline stages (use **Analyze** for the combined stage; use **Per-replicate scientific report** / **Plot payload** when referring to artifacts), "statistics" (use "stats"), "simulation stage" (just say "the simulate stage").
 
@@ -245,6 +245,10 @@ _Avoid_: report, stats report, scientific summary.
 A downsampled set of trait rows used only to draw dense scatter and histogram plots. It is distinct from the post-ascertainment analysis dataset and must not be used as an analysis sample.
 _Avoid_: phenotype sample, stats sample, subsample.
 
+**Atlas**:
+The ordered set of figures, captions, and section breaks assembled for one **scope** into a single navigable document. An atlas is defined by its *manifest* — the figure order, caption text, and section dividers — and is independent of how it is rendered. Each atlas has two **renderings**: a self-contained **HTML atlas** (`atlas.html`) — the primary, default-built artifact, one portable file with figures embedded and equations as inline SVG — and a **PDF atlas** (`atlas.pdf`), an on-demand export (ADR 0010). Atlas scopes: the per-**scenario** atlas (phenotype figures plus a parameter overview and Table 1), the per-folder **validation** atlas (cross-scenario figures), and the fitACE-side **EPIMIGHT**, EPIMIGHT-bias, and onset-censoring atlases. The PA-FGRS atlas is a separate bespoke artifact, not part of this shared atlas family.
+_Avoid_: "the PDF" / "the atlas PDF" as a synonym for the atlas (the PDF is now just one rendering — the HTML atlas is primary); "report" (an atlas is figures, not the **Per-replicate scientific report**).
+
 ### simACE, fitACE, and the ACE model
 
 **simACE**:
@@ -252,8 +256,20 @@ This package — the simulation pipeline. Generates pedigrees, applies phenotype
 _Avoid_: "the simulator", "the framework" (overloaded), "ACE" alone (ACE is the model, not this package).
 
 **fitACE**:
-The model-fitting sister repo. Consumes simACE outputs (`trait.parquet`, `pedigree.parquet`, `report.yaml`) and runs inferential methods (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC) to estimate variance components and recover ground-truth parameters. The boundary is **one-way**: simACE → fitACE, with no feedback loop into simACE.
+The model-fitting sister repo — a **core + Snakemake orchestrator** (`fitace`) whose inferential methods (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC, frailty) live in `fitACE_<x>` **method sisters** (see below). Consumes simACE outputs (`trait.parquet`, `pedigree.parquet`, `report.yaml`) to estimate variance components and recover ground-truth parameters. The boundary is **one-way**: simACE → fitACE, with no feedback loop into simACE.
 _Avoid_: "the fitter", "the estimator suite" (subset), "the analysis package" (simACE also has `analysis/`).
+
+**Public surface** (simACE → downstream):
+The set of simACE modules that fitACE and its method sisters may import. Downstream imports only these *public* modules — never an underscore-private module such as `simace.core._numba_utils`. When a downstream package needs a private primitive, it is **promoted** into a public module rather than reached into (e.g. the bivariate-normal / tetrachoric numba kernels now exported from `simace.core.numerics`).
+_Avoid_: treating "underscore = private" as advisory across the repo boundary; importing `simace.core._*` from fitACE.
+
+**Method sister** (`fitACE_<x>` repo):
+A repo holding exactly one fitting method's implementation, private helpers, Snakemake rule, and tests — `fitACE_epimight`, `fitACE_pcgc`, `fitACE_iter_reml`, `fitACE_tetraher`, `fitACE_pafgrs`, `fitACE_stan`, `fitACE_frailty`. Each depends on `fitace` + `simace`, never on another method sister. (See fitACE ADR 0001 for the core-vs-sister placement rule.)
+_Avoid_: plugin, git submodule (they are gitignored sibling checkouts, not submodules), "fitACE module" (the methods are no longer inside `fitace/` core).
+
+**Dormant** (method sister):
+A method sister whose Snakemake rule file is **not** `include:`d in the core fitACE `Snakefile` — installed, importable, embedded for cross-repo search, and tested, but not wired into the pipeline DAG. *Active* = its rule file is included; activation is a one-line include. (`fitACE_stan` and `fitACE_frailty` are dormant; dormancy is about the DAG, not code coupling.)
+_Avoid_: disabled, deprecated, inactive, retired (dormant code is live and tested — it is simply not orchestrated).
 
 **ACE** (the model):
 The variance-component decomposition $L = A + C + E$. The conceptual subject of both repos; **not** a package or a piece of software. When somebody says "the ACE model" they mean the math, not the code.
@@ -262,6 +278,24 @@ _Avoid_: ACE-model package, ACE framework, ACE-package.
 **Ground truth**:
 The known, configured-and-realized parameter values used to generate a scenario — the values that fitACE estimates will be benchmarked against. Includes the $A$, $C$, $E$ component values per individual, the cross-trait correlations, the per-individual trait status, the per-pair relationship type, and the configured prevalences. Distinct from any *estimate* fitACE produces.
 _Avoid_: true values (acceptable in prose but less specific), simulated values, target values (target prevalence is a config *input* — it's only ground truth once realized).
+
+### Versioning
+
+**Lockstep family**:
+The set of repos released under one shared version, tagged together each release — simACE, fitACE core, the seven method sisters, and the `ace_iter_reml` binary. External dependencies (`pedigree-graph`, `pedsum`, `tetraher_simace`) are **not** members and keep independent versions.
+_Avoid_: "fitACE family" (excludes simACE by name), monorepo (separate repos, separate origins), submodule set.
+
+**Family version**:
+The single CalVer (`vYYYY.MM[.patch]`) every Lockstep family repo carries. Identical across repos at a tagged release; between releases each repo's dev build diverges only by its setuptools-scm commit-distance suffix.
+_Avoid_: "the simACE version" / "the fitACE version" (under lockstep there is no per-repo version), build number.
+
+**Family floor**:
+The single minimum compatible Family version — the source of truth in `fitace._deps` that fitACE core and the method sisters pin (`>=`) and runtime-guard. simACE is upstream of the floor and does not import it.
+_Avoid_: separate simACE / fitACE floors (collapsed into one under lockstep), version pin, minimum requirement.
+
+- Each **Lockstep family** repo carries the same **Family version** at a tagged release.
+- A **Method sister** is a **Lockstep family** member; an external dependency is not.
+- fitACE core and the **Method sisters** pin and guard the single **Family floor**; simACE does not.
 
 ### Descriptive vs inferential analysis
 
@@ -284,9 +318,11 @@ Conventions for the text rendered in the plot atlas — both the `PlotEntry` `ti
 
 ## Flagged ambiguities
 
+- **"fitACE family"** reads as fitACE-only, but the **Lockstep family** (the versioned set) also contains simACE and the `ace_iter_reml` binary. Use **Lockstep family** when you mean the repos that share a **Family version**; reserve "fitACE core + method sisters" for the fit-only subset.
+
 - **"liability"** is intentionally polysemous: it can refer to the raw $L = A + C + E$ or to its standardized form $\tilde L$. Both readings are legitimate; the right one is inferable from context (raw inside `pedigree.parquet` columns; standardized inside phenotype-model code that consumes it). **Do not** "fix" this by renaming — the dual usage is load-bearing.
 
-- **"phenotype"** is never used bare for the *observable outcome* — that's called a **trait** (per-individual instance). "Phenotype" appears only in qualified form: **phenotype model** (the family) or **phenotype stage** (the pipeline step). Canonical output files are `trait.parquet` and `trait.simple_ltm.parquet` (renamed from the legacy `phenotype.parquet` / `phenotype.simple_ltm.parquet`).
+- **"phenotype"** is never used bare for the *observable outcome* — that's called a **trait** (per-individual instance). "Phenotype" appears only in qualified form: **phenotype model** (the family) or **phenotype stage** (the pipeline step). The canonical post-ascertainment output file is `trait.parquet` (renamed from the legacy `phenotype.parquet`). `simple_ltm` is a phenotype **model** (liability threshold + fixed/normal onset), not a separate output; the former parallel `trait.simple_ltm.parquet` was retired (ADR 0011 amendment). The descriptive binary stats that consumed it are now fitACE's **observed-binary** outputs, computed from `trait.parquet` for every scenario.
 
 - **Noun, not gerund** for the phenotype stage: the canonical package is `simace/phenotype/` (noun). The legacy `simace/phenotyping/` gerund form was renamed in lockstep. Do not reintroduce "phenotyping" identifiers.
 

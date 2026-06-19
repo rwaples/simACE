@@ -323,6 +323,55 @@ class TestFinalizePaths:
         plot_joint_affection([stats], out, scenario="test")
         assert out.exists()
 
+    def test_mate_correlation_heatmaps_have_cell_borders(self, tmp_path, monkeypatch):
+        import simace.plotting.plot_liability as plot_liability
+
+        heatmap_kwargs = []
+
+        def fake_heatmap(*_args, **kwargs):
+            heatmap_kwargs.append(kwargs)
+
+        monkeypatch.setattr(plot_liability.sns, "heatmap", fake_heatmap)
+        stats = [{"mate_correlation": {"matrix": [[0.1, 0.2], [0.3, 0.4]]}}]
+        out = tmp_path / "mate_correlation.png"
+
+        plot_liability.plot_mate_correlation(stats, out, scenario="test")
+
+        assert out.exists()
+        assert len(heatmap_kwargs) == 2
+        assert all(kwargs["linewidths"] == 0.5 for kwargs in heatmap_kwargs)
+        assert all(kwargs["linecolor"] == "black" for kwargs in heatmap_kwargs)
+        assert len(plt.get_fignums()) == 0
+
+    def test_censoring_confusion_heatmaps_are_unshaded_with_cell_borders(self, tmp_path, monkeypatch):
+        import simace.plotting.plot_liability as plot_liability
+
+        heatmap_kwargs = []
+
+        def fake_heatmap(*_args, **kwargs):
+            heatmap_kwargs.append(kwargs)
+
+        monkeypatch.setattr(plot_liability.sns, "heatmap", fake_heatmap)
+        stats = [
+            {
+                "censoring_confusion": {
+                    "trait1": {"tp": 50, "fn": 10, "fp": 2, "tn": 138, "n": 200},
+                    "trait2": {"tp": 40, "fn": 15, "fp": 1, "tn": 144, "n": 200},
+                },
+            }
+        ]
+        out = tmp_path / "cc_borders.png"
+
+        plot_liability.plot_censoring_confusion(stats, out, scenario="test")
+
+        assert out.exists()
+        assert len(heatmap_kwargs) == 2
+        assert all(kwargs["cbar"] is False for kwargs in heatmap_kwargs)
+        assert all(kwargs["cmap"].colors == ["white"] for kwargs in heatmap_kwargs)
+        assert all(kwargs["linewidths"] == 0.5 for kwargs in heatmap_kwargs)
+        assert all(kwargs["linecolor"] == "black" for kwargs in heatmap_kwargs)
+        assert len(plt.get_fignums()) == 0
+
     def test_censoring_confusion_full(self, tmp_path):
         from simace.plotting.plot_liability import plot_censoring_confusion
 
@@ -337,6 +386,51 @@ class TestFinalizePaths:
         out = tmp_path / "cc_full.png"
         plot_censoring_confusion(stats, out, scenario="test")
         assert out.exists()
+        assert len(plt.get_fignums()) == 0
+
+    def test_censoring_cascade_reserves_top_space_for_legend(self, tmp_path, monkeypatch):
+        import simace.plotting.plot_liability as plot_liability
+
+        finalize_kwargs = {}
+
+        def fake_finalize(output_path, **kwargs):
+            finalize_kwargs.update(kwargs)
+            output_path.write_bytes(b"placeholder")
+            plt.close(plt.gcf())
+
+        monkeypatch.setattr(plot_liability, "finalize_plot", fake_finalize)
+        stats = [
+            {
+                "censoring_cascade": {
+                    "trait1": {
+                        "gen1": {
+                            "observed": 30,
+                            "death_censored": 5,
+                            "right_censored": 10,
+                            "left_truncated": 5,
+                            "true_affected": 50,
+                            "window": [20, 80],
+                        },
+                    },
+                    "trait2": {
+                        "gen1": {
+                            "observed": 25,
+                            "death_censored": 8,
+                            "right_censored": 12,
+                            "left_truncated": 5,
+                            "true_affected": 50,
+                            "window": [20, 80],
+                        },
+                    },
+                },
+            }
+        ]
+        out = tmp_path / "cascade_spacing.png"
+
+        plot_liability.plot_censoring_cascade(stats, out, scenario="test")
+
+        assert out.exists()
+        assert finalize_kwargs["tight_rect"] == [0, 0, 1, 0.90]
         assert len(plt.get_fignums()) == 0
 
     def test_censoring_cascade_full(self, tmp_path):
@@ -381,6 +475,14 @@ class TestFinalizePaths:
 
         out = tmp_path / "mortality.png"
         plot_death_age_distribution(minimal_stats, 100.0, out, scenario="test")
+        assert out.exists()
+        assert len(plt.get_fignums()) == 0
+
+    def test_death_age_distribution_with_death_age_histograms(self, tmp_path, minimal_stats, sample_df):
+        from simace.plotting.plot_distributions import plot_death_age_distribution
+
+        out = tmp_path / "mortality_with_death_ages.png"
+        plot_death_age_distribution(minimal_stats, 100.0, out, scenario="test", df_samples=sample_df)
         assert out.exists()
         assert len(plt.get_fignums()) == 0
 
@@ -475,6 +577,64 @@ class TestFinalizePaths:
         out = tmp_path / "ci_aj.png"
         plot_cumulative_incidence_aj(stats, 100.0, out, scenario="test")
         assert out.exists()
+        assert len(plt.get_fignums()) == 0
+
+    def test_cumulative_incidence_aj_includes_true_cif_line_without_death_line(self, tmp_path, monkeypatch):
+        import simace.plotting.plot_distributions as plot_distributions
+
+        ages = [0, 1, 2, 3]
+        aj_vals = [0.0, 0.1, 0.2, 0.3]
+        aj_death = [0.0, 0.02, 0.04, 0.06]
+        aj_surv = [1.0 - aj_vals[i] - aj_death[i] for i in range(len(ages))]
+        true_vals = [0.0, 0.12, 0.24, 0.36]
+        observed_vals = [0.0, 0.08, 0.16, 0.24]
+        seen_labels = []
+
+        def fake_finalize(output_path, **_kwargs):
+            fig = plt.gcf()
+            for ax in fig.axes:
+                seen_labels.extend(line.get_label() for line in ax.lines)
+            output_path.write_bytes(b"placeholder")
+            plt.close(fig)
+
+        monkeypatch.setattr(plot_distributions, "finalize_plot", fake_finalize)
+        stats = [
+            {
+                "cumulative_incidence": {
+                    "trait1": {"ages": ages, "observed_values": observed_vals, "true_values": true_vals},
+                    "trait2": {"ages": ages, "observed_values": observed_vals, "true_values": true_vals},
+                },
+                "cumulative_incidence_aj": {
+                    "trait1": {
+                        "ages": ages,
+                        "aj_values": aj_vals,
+                        "aj_death_values": aj_death,
+                        "aj_survival": aj_surv,
+                        "n": 100,
+                        "n_events_disease": 10,
+                        "n_events_death": 5,
+                        "half_target_age": 2.0,
+                    },
+                    "trait2": {
+                        "ages": ages,
+                        "aj_values": aj_vals,
+                        "aj_death_values": aj_death,
+                        "aj_survival": aj_surv,
+                        "n": 100,
+                        "n_events_disease": 8,
+                        "n_events_death": 5,
+                        "half_target_age": 2.0,
+                    },
+                },
+            }
+        ]
+        out = tmp_path / "ci_aj_true.png"
+
+        plot_distributions.plot_cumulative_incidence_aj(stats, 3.0, out, scenario="test")
+
+        assert out.exists()
+        assert seen_labels.count("True CIF") == 2
+        assert "AJ death" not in seen_labels
         assert len(plt.get_fignums()) == 0
 
     def test_cumulative_incidence_aj_by_sex(self, tmp_path):

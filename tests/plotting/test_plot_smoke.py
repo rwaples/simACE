@@ -274,6 +274,43 @@ class TestPlotTable1:
         assert isinstance(fig, plt.Figure)
         _assert_no_leaked_figures(before, fig)
 
+    def test_build_table1_summary_returns_sections(self, minimal_stats, minimal_params):
+        from simace.plotting.plot_table1 import build_table1_summary
+
+        summary = build_table1_summary([minimal_stats], minimal_params, scenario="test")
+
+        assert "test" in summary.title
+        assert [section.title for section in summary.sections] == [
+            "A. Population",
+            "B. Disease Characteristics",
+            "C. Censoring",
+        ]
+        assert summary.sections[0].rows[0].label == "Total phenotyped individuals, n"
+
+    def test_pdf_view_renders_every_model_row(self, minimal_stats, minimal_params):
+        """The PDF figure must draw exactly the shared model's sections and rows.
+
+        ``render_table1_figure`` consumes ``build_table1_summary`` and the HTML
+        atlas renders the same model, so this guards against the two atlases
+        drifting apart. Value strings are not asserted because ``_draw_row3``
+        splits decimal values across two text artists; value correctness is
+        covered by ``test_build_table1_summary_returns_sections``.
+        """
+        from simace.plotting.plot_table1 import build_table1_summary, render_table1_figure
+
+        summary = build_table1_summary([minimal_stats], minimal_params, scenario="test")
+        before = plt.get_fignums()
+        fig = render_table1_figure([minimal_stats], minimal_params, scenario="test")
+        rendered = [text.get_text() for text in fig.texts]
+
+        for section in summary.sections:
+            assert section.title in rendered, f"missing section header: {section.title!r}"
+            for row in section.rows:
+                # Sub-rows are indented in the PDF, so match on substring.
+                assert any(row.label in text for text in rendered), f"missing row label: {row.label!r}"
+
+        _assert_no_leaked_figures(before, fig)
+
 
 # ---------------------------------------------------------------------------
 # plot_atlas helpers
@@ -444,8 +481,8 @@ def _make_pair_data(r=0.5, n=100, liab_r=None):
 
 
 @pytest.fixture
-def simple_ltm_stats():
-    """Minimal stats dict for plot_simple_ltm functions."""
+def observed_binary_stats():
+    """Minimal stats dict for observed-binary plot functions."""
     return [
         {
             "prevalence": {
@@ -546,8 +583,8 @@ def simple_ltm_stats():
 
 
 @pytest.fixture
-def simple_ltm_samples():
-    """Minimal sample DataFrame for plot_simple_ltm functions."""
+def observed_binary_samples():
+    """Minimal sample DataFrame for observed-binary plot functions."""
     rng = np.random.default_rng(42)
     n = 200
     return pd.DataFrame(
@@ -591,7 +628,7 @@ def broad_h2_validations():
     ]
 
 
-# plot_simple_ltm smoke tests live in the sister fitACE repo.
+# observed-binary plot smoke tests live in the sister fitACE repo.
 
 
 # ---------------------------------------------------------------------------
@@ -600,12 +637,12 @@ def broad_h2_validations():
 
 
 class TestPlotCorrelationsExpanded:
-    def test_plot_tetrachoric_by_sex(self, simple_ltm_stats, tmp_path):
+    def test_plot_tetrachoric_by_sex(self, observed_binary_stats, tmp_path):
         from simace.plotting.plot_correlations import plot_tetrachoric_by_sex
 
         before = plt.get_fignums()
         out = tmp_path / "tet_sex.png"
-        plot_tetrachoric_by_sex(simple_ltm_stats, out, scenario="test")
+        plot_tetrachoric_by_sex(observed_binary_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
         plt.close("all")
@@ -621,12 +658,12 @@ class TestPlotCorrelationsExpanded:
         plt.close("all")
         assert plt.get_fignums() == before
 
-    def test_plot_heritability_by_sex_generation(self, simple_ltm_stats, tmp_path):
+    def test_plot_heritability_by_sex_generation(self, observed_binary_stats, tmp_path):
         from simace.plotting.plot_heritability import plot_heritability_by_sex_generation
 
         before = plt.get_fignums()
         out = tmp_path / "h2_sex_gen.png"
-        plot_heritability_by_sex_generation(simple_ltm_stats, out, scenario="test")
+        plot_heritability_by_sex_generation(observed_binary_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
         plt.close("all")
@@ -639,6 +676,46 @@ class TestPlotCorrelationsExpanded:
         out = tmp_path / "h2_sex_gen_empty.png"
         plot_heritability_by_sex_generation([{}], out, scenario="test")
         assert out.exists()
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_observed_heritability_has_under_construction_watermark(self, tmp_path, monkeypatch):
+        import simace.plotting.plot_heritability as plot_heritability
+
+        seen_texts = []
+
+        def fake_finalize(output_path, **_kwargs):
+            fig = plt.gcf()
+            seen_texts.extend(text.get_text() for text in fig.texts)
+            output_path.write_bytes(b"placeholder")
+            plt.close(fig)
+
+        monkeypatch.setattr(plot_heritability, "finalize_plot", fake_finalize)
+        stats = [
+            {
+                "prevalence": {"trait1": 0.1, "trait2": 0.2},
+                "observed_h2_estimators": {
+                    "trait1": {"falconer": 0.1, "sibs": 0.1, "po": 0.1, "hs": 0.1, "cousins": 0.1},
+                    "trait2": {"falconer": 0.2, "sibs": 0.2, "po": 0.2, "hs": 0.2, "cousins": 0.2},
+                },
+            }
+        ]
+        out = tmp_path / "observed_h2.png"
+
+        plot_heritability.plot_observed_heritability(stats, out, scenario="test", params={"A1": 0.5, "A2": 0.4})
+
+        assert out.exists()
+        assert "UNDER CONSTRUCTION" in seen_texts
+        assert len(plt.get_fignums()) == 0
+
+    def test_plot_heritability_by_generation(self, broad_h2_validations, tmp_path):
+        from simace.plotting.plot_heritability import plot_heritability_by_generation
+
+        before = plt.get_fignums()
+        out = tmp_path / "h2_gen.png"
+        plot_heritability_by_generation(broad_h2_validations, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
         plt.close("all")
         assert plt.get_fignums() == before
 
@@ -670,23 +747,23 @@ class TestPlotCorrelationsExpanded:
 
 
 class TestPlotDistributionsExpanded:
-    def test_plot_trait_regression(self, simple_ltm_samples, simple_ltm_stats, tmp_path):
+    def test_plot_trait_regression(self, observed_binary_samples, observed_binary_stats, tmp_path):
         from simace.plotting.plot_distributions import plot_trait_regression
 
         before = plt.get_fignums()
         out = tmp_path / "trait_reg.png"
-        plot_trait_regression(simple_ltm_samples, simple_ltm_stats, out, scenario="test")
+        plot_trait_regression(observed_binary_samples, observed_binary_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
         plt.close("all")
         assert plt.get_fignums() == before
 
-    def test_plot_family_structure(self, simple_ltm_stats, tmp_path):
+    def test_plot_family_structure(self, observed_binary_stats, tmp_path):
         from simace.plotting.plot_distributions import plot_family_structure
 
         before = plt.get_fignums()
         out = tmp_path / "family_struct.png"
-        plot_family_structure(simple_ltm_stats, out, scenario="test")
+        plot_family_structure(observed_binary_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
         plt.close("all")

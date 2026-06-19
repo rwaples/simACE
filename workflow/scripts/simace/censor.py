@@ -14,7 +14,7 @@ def _run() -> None:
     run_wrapper(
         snakemake,
         run_censor,
-        inputs={"phenotype": pd.read_parquet},
+        inputs={"phenotype": pd.read_parquet, "pedigree": pd.read_parquet},
         output="phenotype",
         writer=save_parquet,
     )

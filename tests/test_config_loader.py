@@ -362,7 +362,7 @@ class TestGenCensoringCoercion:
                     "death_rho": 2.73,
                 },
                 "ascertainment": {"N_sample": 100, "case_ascertainment_ratio": 1.0, "dropout_rate": 0.0},
-                "analysis": {"max_degree": 2, "estimate_inbreeding": False},
+                "analysis": {"max_degree": 3, "estimate_inbreeding": False},
                 "tstrait": {
                     "num_causal": 0,
                     "frac_causal": 0.0,
@@ -471,7 +471,7 @@ class TestPedigreeConfigValidation:
                     "death_rho": 2.73,
                 },
                 "ascertainment": {"N_sample": 0, "case_ascertainment_ratio": 1.0, "dropout_rate": 0.0},
-                "analysis": {"max_degree": 2, "estimate_inbreeding": False},
+                "analysis": {"max_degree": 3, "estimate_inbreeding": False},
                 "tstrait": {
                     "num_causal": 0,
                     "frac_causal": 0.0,

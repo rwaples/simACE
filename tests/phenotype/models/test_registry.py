@@ -9,6 +9,7 @@ from simace.phenotype.models import (
     FirstPassageModel,
     FrailtyModel,
     PhenotypeModel,
+    SimpleLtmModel,
 )
 
 EXPECTED = {
@@ -16,6 +17,7 @@ EXPECTED = {
     "cure_frailty": CureFrailtyModel,
     "adult": AdultModel,
     "first_passage": FirstPassageModel,
+    "simple_ltm": SimpleLtmModel,
 }
 
 

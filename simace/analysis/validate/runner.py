@@ -133,10 +133,11 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
 
 def cli() -> None:
     """Command-line interface for running validation."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
     parser = argparse.ArgumentParser(description="Validate ACE simulation output")
     add_logging_args(parser)
+    add_version_arg(parser, "simace")
     parser.add_argument("--pedigree", required=True, help="Pedigree parquet path")
     parser.add_argument("--params", required=True, help="Params YAML path")
     parser.add_argument("--output", required=True, help="Output validation YAML path")

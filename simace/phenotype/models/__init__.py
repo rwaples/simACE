@@ -18,6 +18,7 @@ from simace.phenotype.models.adult import AdultModel
 from simace.phenotype.models.cure_frailty import CureFrailtyModel
 from simace.phenotype.models.first_passage import FirstPassageModel
 from simace.phenotype.models.frailty import FrailtyModel
+from simace.phenotype.models.simple_ltm import SimpleLtmModel
 
 __all__ = [
     "MODELS",
@@ -26,9 +27,10 @@ __all__ = [
     "FirstPassageModel",
     "FrailtyModel",
     "PhenotypeModel",
+    "SimpleLtmModel",
 ]
 
 
 MODELS: dict[str, type[PhenotypeModel]] = {
-    cls.name: cls for cls in (FrailtyModel, CureFrailtyModel, AdultModel, FirstPassageModel)
+    cls.name: cls for cls in (FrailtyModel, CureFrailtyModel, AdultModel, FirstPassageModel, SimpleLtmModel)
 }

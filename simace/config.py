@@ -222,11 +222,12 @@ def _coerce_sim_types(flat: dict) -> dict:
 # Phenotype model validation
 # ---------------------------------------------------------------------------
 
-_VALID_MODEL_FAMILIES: frozenset[str] = frozenset({"frailty", "cure_frailty", "adult", "first_passage"})
+_VALID_MODEL_FAMILIES: frozenset[str] = frozenset({"frailty", "cure_frailty", "adult", "first_passage", "simple_ltm"})
 _VALID_DISTRIBUTIONS: frozenset[str] = frozenset(
     {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
 )
 _VALID_METHODS: frozenset[str] = frozenset({"ltm", "cox"})
+_VALID_ONSET_KINDS: frozenset[str] = frozenset({"fixed", "normal"})
 
 
 def _validate_phenotype_config(config: dict) -> None:
@@ -280,10 +281,23 @@ def _validate_phenotype_config(config: dict) -> None:
                         f"valid: {sorted(_VALID_METHODS)}"
                     )
 
+            if model == "simple_ltm":
+                onset = pp.get("onset")
+                if not isinstance(onset, dict):
+                    raise ValueError(
+                        f"Scenario '{name}': {params_key} for model 'simple_ltm' must include an 'onset' dict "
+                        f"(e.g. {{'kind': 'fixed', 'age': 30}} or {{'kind': 'normal', 'mean': 30, 'sd': 8}})"
+                    )
+                if onset.get("kind") not in _VALID_ONSET_KINDS:
+                    raise ValueError(
+                        f"Scenario '{name}': {params_key} onset.kind="
+                        f"{onset.get('kind')!r} invalid; valid: {sorted(_VALID_ONSET_KINDS)}"
+                    )
+
             # Prevalence is required for threshold-based models, forbidden
             # for hazard-only models. Top-level placement was deprecated
             # in PR3 and is rejected outright.
-            if model in ("adult", "cure_frailty"):
+            if model in ("adult", "cure_frailty", "simple_ltm"):
                 if "prevalence" not in pp:
                     raise ValueError(
                         f"Scenario '{name}': {params_key} for model {model!r} must include "
@@ -361,10 +375,10 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
         if file_scenarios is None:
             continue
 
-        for name, params in file_scenarios.items():
+        for name, raw_params in file_scenarios.items():
             if name in scenarios:
                 raise ValueError(f"Duplicate scenario '{name}': already defined, also found in {path}")
-            params = _coerce_sim_types(flatten_hierarchical(params))
+            params = _coerce_sim_types(flatten_hierarchical(raw_params))
             unknown = set(params.keys()) - valid_defaults
             if unknown:
                 raise ValueError(

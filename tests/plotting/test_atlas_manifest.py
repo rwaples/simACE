@@ -130,6 +130,41 @@ def test_build_phenotype_atlas_frailty_resolves_model_section_with_no_equations(
     assert any("Frailty" in s.title or "Weibull" in s.title for s in section_breaks)
 
 
+def test_additive_and_common_environment_are_combined_in_one_atlas_page():
+    names = phenotype_basenames()
+    assert "heritability.by_generation" in names
+    assert "additive_shared.by_generation" not in names
+
+
+def test_parent_offspring_regression_plots_live_in_within_trait_section():
+    titles_or_names = [getattr(item, "basename", getattr(item, "title", "")) for item in PHENOTYPE_ATLAS]
+    section_idx = titles_or_names.index("Within-Trait Correlations")
+    for basename in ("parent_offspring_liability.by_generation", "heritability.by_sex.by_generation"):
+        assert titles_or_names.index(basename) > section_idx
+
+
+def test_age_onset_and_censoring_section_order():
+    titles_or_names = [getattr(item, "basename", getattr(item, "title", "")) for item in PHENOTYPE_ATLAS]
+    assert titles_or_names.index("mortality") < titles_or_names.index("age_at_onset_death")
+    assert titles_or_names.index("cumulative_incidence.by_sex") > titles_or_names.index("censoring")
+    assert titles_or_names.index("cumulative_incidence.by_sex") < titles_or_names.index("censoring_confusion")
+
+
+def test_additional_stratified_figures_live_in_final_section():
+    titles_or_names = [getattr(item, "basename", getattr(item, "title", "")) for item in PHENOTYPE_ATLAS]
+    section_idx = titles_or_names.index("Additional per-generation and sex-specific figures.")
+    moved_basenames = (
+        "liability_violin.phenotype.by_generation",
+        "liability_violin.phenotype.by_sex.by_generation",
+        "cumulative_incidence.by_sex.by_generation",
+        "tetrachoric.phenotype.by_generation",
+        "cumulative_incidence_aj.by_sex",
+        "cumulative_incidence_aj.by_sex.by_generation",
+    )
+    assert all(titles_or_names.index(basename) > section_idx for basename in moved_basenames)
+    assert titles_or_names[-6:] == list(moved_basenames)
+
+
 def test_plot_entries_have_no_figure_prefix_in_title():
     """The ``Figure N:`` prefix is derived at render time. Stored titles
     must not contain it (otherwise figure numbers would double-prefix)."""

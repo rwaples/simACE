@@ -48,6 +48,7 @@ _FAMILY_DESC: dict[str, str] = {
     "first_passage": (
         "Inverse Gaussian FPT: liability scales initial distance y\u2080 to boundary; drift \u03bc controls progression"
     ),
+    "simple_ltm": "Liability threshold for case status; {onset} age-at-onset (independent of liability)",
 }
 
 
@@ -76,6 +77,13 @@ def _model_display_name(model: str, pp: dict) -> tuple[str, str]:
         )
     if model == "first_passage":
         return ("First-Passage Time", _FAMILY_DESC["first_passage"])
+    if model == "simple_ltm":
+        kind = pp.get("onset", {}).get("kind", "unknown")
+        kind_name = {"fixed": "fixed onset", "normal": "normal onset"}.get(kind, f"{kind} onset")
+        return (
+            f"Simple LTM ({kind_name})",
+            _FAMILY_DESC["simple_ltm"].format(onset=kind_name),
+        )
     return (model.title(), model)
 
 
@@ -144,6 +152,15 @@ def _equation_lines_for_model(model: str, pp: dict, label: str = "") -> list[str
             + r"\quad Y(t) = y_0^{(i)} + \mu\,t + W(t),"
             + r"\quad T_i = \inf\{t : Y(t) \leq 0\}$",
         ]
+
+    if model == "simple_ltm":
+        onset = pp.get("onset", {})
+        lines = [r"$" + prefix + r"\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad L = A + C + E$"]
+        if onset.get("kind") == "fixed":
+            lines.append(r"$t_{\mathrm{case}} = a$")
+        elif onset.get("kind") == "normal":
+            lines.append(r"$t_{\mathrm{case}} \sim \mathcal{N}(\mu,\ \sigma^2)$")
+        return lines
     return []
 
 
@@ -154,7 +171,12 @@ def get_model_equation(params: dict) -> list[str]:
     pp1 = params.get("phenotype_params1", {})
     pp2 = params.get("phenotype_params2", {})
 
-    if m1 == m2 and pp1.get("distribution") == pp2.get("distribution") and pp1.get("method") == pp2.get("method"):
+    if (
+        m1 == m2
+        and pp1.get("distribution") == pp2.get("distribution")
+        and pp1.get("method") == pp2.get("method")
+        and pp1.get("onset") == pp2.get("onset")
+    ):
         return _equation_lines_for_model(m1, pp1)
 
     lines: list[str] = []

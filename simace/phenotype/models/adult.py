@@ -31,10 +31,9 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
-from scipy.special import erfc, ndtri
+from scipy.special import erfc
 
 from simace.phenotype.hazards import (
-    StandardizeMode,
     add_standardize_hazard_cli_arg,
     coerce_standardize_mode,
     resolve_hazard_mode,
@@ -49,10 +48,12 @@ from simace.phenotype.models._base import (
     validate_standardize_hazard,
     wrap_trait_error,
 )
-from simace.phenotype.models._prevalence import resolve_prevalence
+from simace.phenotype.models._prevalence import liability_threshold_mask, resolve_prevalence
 
 if TYPE_CHECKING:
     import argparse
+
+    from simace.phenotype.hazards import StandardizeMode
 
 __all__ = ["AdultModel"]
 
@@ -212,8 +213,7 @@ class AdultModel(PhenotypeModel):
     ) -> np.ndarray:
         L = standardize_liability(liability, mode, generation)
 
-        threshold = ndtri(1.0 - np.asarray(prevalence))
-        is_case = threshold < L
+        is_case = liability_threshold_mask(L, prevalence)
 
         t = np.full(len(L), 1e6)
         n_cases = is_case.sum()

@@ -2,9 +2,13 @@
 
 ## Status
 
-Accepted. The "No schema or artifact-path change" non-goal is superseded by
-ADR 0007, which merges `validation.yaml` and `stats_report.yaml` into a single
-`report.yaml` (the six stats groups + a `validation` group).
+Accepted; the combined-stage decision stands, but its written artifacts are
+superseded. The Decision below writes `validation.yaml` + `stats_report.yaml` +
+`plotting_sample.parquet`; ADR 0007 merged the first two into `report.yaml`, and
+ADR 0008 added `plot_payload.yaml` and recurated the shape. The "No schema or
+artifact-path change" non-goal is superseded by ADR 0007. The single-Analyze-job
+structure (Validate then Stats in one process, with phased memory frees) is
+current — see ADR 0007/0008 for the artifact shape.
 
 ## Context
 
@@ -36,9 +40,11 @@ Introduce one **Analyze** stage:
 - `simace/analysis/analyze.py::run_analysis()` runs Validate first, then Stats,
   in a single process, and writes all three frozen artifacts:
   `validation.yaml`, `stats_report.yaml`, `plotting_sample.parquet`.
-- `validate.py::run_validation` is split into a pure builder
+- `validate`'s `run_validation` is split into a pure builder
   (`build_validation_report(df, params, *, df_indexed=None, sibling_pairs=None)`)
   and a thin disk-loading wrapper. `run_analysis` calls the builder directly.
+  (`validate` is now the `simace/analysis/validate/` package; both functions live
+  in `validate/runner.py`.)
 - Stats reuses `build_stats_report` unchanged (Validate on the full pedigree,
   Stats on the post-ascertainment subsample — different scopes, no shared graph).
 - One merged Snakemake rule (`analyze`, `analyze.smk`) replaces

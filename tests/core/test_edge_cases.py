@@ -8,7 +8,7 @@ import numpy as np
 
 from simace.censoring.censor import age_censor
 from simace.phenotype.models import FrailtyModel
-from simace.phenotype.threshold import apply_threshold
+from simace.phenotype.models._prevalence import case_status_from_liability
 from simace.simulation.simulate import run_simulation
 
 
@@ -261,7 +261,7 @@ class TestThresholdEdgeCases:
         n = 10000
         liability = rng.standard_normal(n)
         generation = np.zeros(n, dtype=int)
-        affected = apply_threshold(liability, generation, prevalence=0.01)
+        affected = case_status_from_liability(liability, 0.01, None, generation, "global")
         assert 0.005 < affected.mean() < 0.02
 
     def test_very_high_prevalence(self):
@@ -270,14 +270,14 @@ class TestThresholdEdgeCases:
         n = 10000
         liability = rng.standard_normal(n)
         generation = np.zeros(n, dtype=int)
-        affected = apply_threshold(liability, generation, prevalence=0.99)
+        affected = case_status_from_liability(liability, 0.99, None, generation, "global")
         assert 0.98 < affected.mean() < 1.0
 
     def test_single_generation_single_individual(self):
         """Edge case: one individual."""
         liability = np.array([1.0])
         generation = np.array([0])
-        affected = apply_threshold(liability, generation, prevalence=0.5)
+        affected = case_status_from_liability(liability, 0.5, None, generation, "global")
         assert affected.dtype == bool
         assert len(affected) == 1
 

@@ -15,6 +15,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from simace.core.trait_schema import strip_trait_to_outcomes
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_DIR = REPO_ROOT / "workflow" / "scripts" / "simace"
 
@@ -78,19 +80,19 @@ def pedigree_parquet(tmp_path):
 
 @pytest.fixture
 def phenotype_parquet(tmp_path, pedigree_parquet):
-    """Raw phenotype parquet (pedigree columns + t1/t2)."""
+    """Raw outcomes-only trait parquet."""
     df = pd.read_parquet(pedigree_parquet)
     rng = np.random.default_rng(1)
     df["t1"] = rng.uniform(10, 200, len(df))
     df["t2"] = rng.uniform(10, 200, len(df))
     path = tmp_path / "phenotype.raw.parquet"
-    df.to_parquet(path, index=False)
+    strip_trait_to_outcomes(df, "raw").to_parquet(path, index=False)
     return path
 
 
 @pytest.fixture
 def censored_phenotype_parquet(tmp_path, phenotype_parquet):
-    """Censored phenotype parquet — provides the full CENSORED schema sample reads."""
+    """Censored outcomes-only trait parquet."""
     df = pd.read_parquet(phenotype_parquet)
     rng = np.random.default_rng(2)
     n = len(df)
@@ -104,25 +106,22 @@ def censored_phenotype_parquet(tmp_path, phenotype_parquet):
     df["death_censored2"] = rng.choice([True, False], n)
     df["affected2"] = rng.choice([True, False], n)
     path = tmp_path / "trait.full.parquet"
-    df.to_parquet(path, index=False)
+    strip_trait_to_outcomes(df, "censored").to_parquet(path, index=False)
     return path
 
 
 def test_ascertainment_wrapper(tmp_path, pedigree_parquet, censored_phenotype_parquet):
-    """Smoke test the unified ascertainment wrapper: three inputs → three outputs."""
+    """Smoke test the unified ascertainment wrapper: two inputs → two outputs."""
     ped_out = tmp_path / "pedigree.parquet"
     trait_out = tmp_path / "trait.parquet"
-    simple_ltm_out = tmp_path / "trait.simple_ltm.parquet"
     sm = _make_snakemake(
         inputs={
             "pedigree": str(pedigree_parquet),
             "trait": str(censored_phenotype_parquet),
-            "trait_simple_ltm": str(censored_phenotype_parquet),
         },
         outputs={
             "pedigree": str(ped_out),
             "trait": str(trait_out),
-            "trait_simple_ltm": str(simple_ltm_out),
         },
         params={"dropout_rate": 0.2, "case_ascertainment_ratio": 1.0, "N_sample": 30, "seed": 42},
         log_path=tmp_path / "ascertainment.log",
@@ -130,19 +129,13 @@ def test_ascertainment_wrapper(tmp_path, pedigree_parquet, censored_phenotype_pa
     _exec_wrapper(SCRIPT_DIR / "ascertainment.py", sm)
     assert ped_out.exists()
     assert trait_out.exists()
-    assert simple_ltm_out.exists()
     assert len(pd.read_parquet(trait_out)) == 30
-    # Both trait branches must have identical id columns.
-    np.testing.assert_array_equal(
-        np.sort(pd.read_parquet(trait_out)["id"].to_numpy()),
-        np.sort(pd.read_parquet(simple_ltm_out)["id"].to_numpy()),
-    )
 
 
-def test_censor_wrapper(tmp_path, phenotype_parquet):
+def test_censor_wrapper(tmp_path, phenotype_parquet, pedigree_parquet):
     out = tmp_path / "phenotype.censored.parquet"
     sm = _make_snakemake(
-        inputs={"phenotype": str(phenotype_parquet)},
+        inputs={"phenotype": str(phenotype_parquet), "pedigree": str(pedigree_parquet)},
         outputs={"phenotype": str(out)},
         params={
             "censor_age": 80,
@@ -183,25 +176,6 @@ def test_phenotype_wrapper(tmp_path, pedigree_parquet):
     df = pd.read_parquet(out)
     assert "t1" in df.columns
     assert "t2" in df.columns
-
-
-def test_phenotype_threshold_wrapper(tmp_path, pedigree_parquet):
-    out = tmp_path / "phenotype.threshold.parquet"
-    sm = _make_snakemake(
-        inputs={"pedigree": str(pedigree_parquet)},
-        outputs={"phenotype": str(out)},
-        params={
-            "phenotype_params1": {"prevalence": 0.10},
-            "phenotype_params2": {"prevalence": 0.20},
-            "G_pheno": 2,
-            "standardize": True,
-        },
-        log_path=tmp_path / "phenotype_threshold.log",
-    )
-    _exec_wrapper(SCRIPT_DIR / "phenotype_threshold.py", sm)
-    df = pd.read_parquet(out)
-    assert "affected1" in df.columns
-    assert df["affected1"].dtype == bool
 
 
 def test_emit_params_wrapper(tmp_path):
