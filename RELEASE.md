@@ -158,6 +158,11 @@ pip install -e fitACE                    # fitACE core
 for s in epimight pcgc iter_reml tetraher pafgrs stan frailty; do
   pip install -e "fitACE/fitACE_$s"
 done
+# Restore external editable deps the family reinstall may have clobbered:
+# `pip install -e .` re-resolves simACE's `pedigree-graph` pin and pulls the
+# latest *PyPI* release over the editable link (the family CalVer tags are not
+# on PyPI), shadowing the source checkout with a stale wheel.
+pip install -e external/pedigree-graph   # verify: pip show pedigree-graph → "Editable project location"
 ```
 
 (Reinstalling also regenerates the console-script wrappers, e.g. a stale
