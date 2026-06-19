@@ -8,7 +8,7 @@ simACE simulates multi-generational pedigrees with **A** (additive genetic), **C
 - `simace/` — simulation package (`pip install -e .`), organized into sub-packages:
   - `core/` — shared infrastructure: `pedigree_graph`, `compute_hazard_terms`, `cli_base`, `numerics`, `parquet`, `pedigree_filter`, `relationships`, `schema`, `yaml_io`
   - `simulation/` — pedigree simulation
-  - `phenotype/` — `__init__.py` (run_phenotype dispatcher), `threshold.py`, `hazards.py`, plus a `models/` sub-package of model classes inheriting from a `PhenotypeModel`
+  - `phenotype/` — `runner.py` (run_phenotype dispatcher, re-exported from `__init__.py`), `hazards.py`, `blended_post.py`, plus a `models/` sub-package of model classes inheriting from a `PhenotypeModel` (the liability-threshold idiom lives in `models/_prevalence.py`)
   - `censoring/` — age-window and death censoring
   - `ascertainment/` — unified dropout + case-weighted N_sample selection (per ADR 0001)
   - `analysis/` — `stats/` (package: censoring, correlations, incidence, pedigree, sampling, tetrachoric, runner), `validate.py`, `gather.py`
