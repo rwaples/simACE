@@ -1,12 +1,19 @@
 """Unit tests for simace.simulate functions."""
 
+import builtins
+import importlib
+
 import numpy as np
 import pandas as pd
 import pytest
 
+import simace.simulation.simulate as simulate_mod
 from simace.simulation.simulate import (
     _assortative_pair_partners,
+    _find_duplicate_pairs,
     _mating_wf,
+    _metropolis_full_python,
+    _metropolis_sweep_python,
     add_to_pedigree,
     allocate_offspring,
     assign_twins,
@@ -19,6 +26,33 @@ from simace.simulation.simulate import (
     resolve_per_gen_param,
     run_simulation,
 )
+
+# ---------------------------------------------------------------------------
+# optional numba fallback
+# ---------------------------------------------------------------------------
+
+
+class TestOptionalNumbaFallback:
+    def test_simulate_module_loads_without_numba(self, monkeypatch):
+        real_import = builtins.__import__
+
+        def blocked_import(name, global_vars=None, local_vars=None, fromlist=(), level=0):
+            if name == "numba":
+                raise ImportError("numba blocked for fallback test")
+            return real_import(name, global_vars, local_vars, fromlist, level)
+
+        try:
+            with monkeypatch.context() as m:
+                m.setattr(builtins, "__import__", blocked_import)
+                reloaded = importlib.reload(simulate_mod)
+                assert reloaded.njit is None
+                assert reloaded._quantile_normal_nb is reloaded._quantile_normal_nb_python
+                assert reloaded._midparent is reloaded._midparent_python
+                assert reloaded._metropolis_sweep is reloaded._metropolis_sweep_python
+                assert reloaded._metropolis_full is reloaded._metropolis_full_python
+        finally:
+            importlib.reload(simulate_mod)
+
 
 # ---------------------------------------------------------------------------
 # generate_correlated_components
@@ -171,6 +205,92 @@ class TestPairPartners:
         pairs = pair_partners(rng, males, mc, females, fc)
         assert np.all(np.isin(pairs[:, 1], males))
 
+    def test_dedup_breaks_when_no_non_duplicates(self, rng, monkeypatch):
+        """Defensive branch: if all pairs are flagged duplicate, stop swapping."""
+        monkeypatch.setattr(simulate_mod, "_find_duplicate_pairs", lambda matings: np.ones(len(matings), dtype=bool))
+        males = np.array([0, 1])
+        females = np.array([10, 11])
+        counts = np.array([1, 1])
+        pairs = pair_partners(rng, males, counts, females, counts)
+        assert pairs.shape == (2, 2)
+
+
+class TestFindDuplicatePairs:
+    def test_empty_input_returns_empty_mask(self):
+        mask = _find_duplicate_pairs(np.empty((0, 2), dtype=int))
+        assert mask.shape == (0,)
+        assert mask.dtype == bool
+
+
+class TestMetropolisHelpers:
+    """Directly exercise accept/reject branches in the Python fallback helpers."""
+
+    @staticmethod
+    def _sweep_inputs():
+        return dict(
+            f1_z=np.array([1.0, 0.0]),
+            f2_z=np.zeros(2),
+            m1_z=np.array([0.0, 1.0]),
+            m2_z=np.zeros(2),
+            male_perm=np.array([0, 1]),
+            idx_i=np.array([0]),
+            idx_j=np.array([1]),
+            S1=0.0,
+            S2=0.0,
+            S12=0.0,
+            S21=0.0,
+            T2=0.0,
+            T12=0.0,
+            T21=0.0,
+            batch=1,
+        )
+
+    def test_metropolis_sweep_accepts_improving_swap(self):
+        values = self._sweep_inputs()
+        result = _metropolis_sweep_python(**values, T1=10.0)
+        assert result[0] == 1.0
+        np.testing.assert_array_equal(values["male_perm"], np.array([1, 0]))
+
+    def test_metropolis_sweep_rejects_worsening_swap(self):
+        values = self._sweep_inputs()
+        result = _metropolis_sweep_python(**values, T1=0.0)
+        assert result[0] == 0.0
+        np.testing.assert_array_equal(values["male_perm"], np.array([0, 1]))
+
+    @staticmethod
+    def _full_inputs():
+        return dict(
+            fz=np.array([[1.0, 0.0], [0.0, 0.0]]),
+            mz=np.array([[0.0, 0.0], [1.0, 0.0]]),
+            male_perm=np.array([0, 1]),
+            S1=0.0,
+            S2=0.0,
+            S12=0.0,
+            S21=0.0,
+            T2=0.0,
+            T12=0.0,
+            T21=0.0,
+            M=2,
+            max_proposals=1,
+            seed=123,
+        )
+
+    def test_metropolis_full_breaks_when_already_within_tolerance(self):
+        result = _metropolis_full_python(**self._full_inputs(), T1=0.0, tol=1.0)
+        assert result[-1] == 0
+
+    def test_metropolis_full_accepts_improving_swap(self):
+        values = self._full_inputs()
+        result = _metropolis_full_python(**values, T1=10.0, tol=0.0)
+        assert result[0] == 1.0
+        assert result[-1] == 1
+
+    def test_metropolis_full_rejects_worsening_swap(self):
+        values = self._full_inputs()
+        result = _metropolis_full_python(**values, T1=0.1, tol=0.0)
+        assert result[0] == 0.0
+        assert result[-1] == 1
+
 
 # ---------------------------------------------------------------------------
 # allocate_offspring
@@ -211,6 +331,11 @@ class TestAssignTwins:
     def test_no_twins_p_zero(self, rng):
         counts = np.array([3, 4, 5])
         mask = assign_twins(rng, counts, 0.0)
+        assert not mask.any()
+
+    def test_no_eligible_matings(self, rng):
+        counts = np.array([0, 1, 1])
+        mask = assign_twins(rng, counts, 1.0)
         assert not mask.any()
 
     def test_shape(self, rng):
@@ -493,6 +618,14 @@ class TestRunSimulation:
         with pytest.raises(ValueError, match=r"G_sim .* must be >= G_ped"):
             run_simulation(**{**default_params, "G_sim": 1, "G_ped": 3})
 
+    def test_total_pedigree_size_int32_limit_raises(self, default_params, monkeypatch):
+        class TinyIntInfo:
+            max = 10
+
+        monkeypatch.setattr(simulate_mod.np, "iinfo", lambda _dtype: TinyIntInfo())
+        with pytest.raises(ValueError, match="exceeds int32 max"):
+            run_simulation(**{**default_params, "N": 4, "G_ped": 3, "G_sim": 3})
+
     def test_rA_out_of_range_raises(self, default_params):
         with pytest.raises(ValueError, match=r"rA must be in \[-1, 1\]"):
             run_simulation(**{**default_params, "rA": 1.5})
@@ -577,6 +710,21 @@ class TestAssortativePairPartners:
         liab1_f = pheno[pairs[:, 1], :3].sum(axis=1)
         corr = np.corrcoef(liab1_m, liab1_f)[0, 1]
         assert corr < -0.15
+
+    def test_negative_trait2_single_trait_branch(self, rng):
+        mi, mc, fi, fc, pheno = self._make_pop(rng, 2000)
+        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.0, -0.5, rho_w=0.0)
+        assert pairs.shape == (mc.sum(), 2)
+
+    def test_dedup_breaks_when_no_non_duplicates(self, rng, monkeypatch):
+        """Defensive branch: if all assortative pairs are flagged duplicate, stop swapping."""
+        monkeypatch.setattr(simulate_mod, "_find_duplicate_pairs", lambda matings: np.ones(len(matings), dtype=bool))
+        male_idxs = np.array([0, 1])
+        female_idxs = np.array([2, 3])
+        counts = np.ones(2, dtype=int)
+        pheno = rng.standard_normal((4, 6))
+        pairs = _assortative_pair_partners(rng, male_idxs, counts, female_idxs, counts, pheno, 0.3, 0.0)
+        assert pairs.shape == (2, 2)
 
     def test_both_traits_positive(self, rng):
         mi, mc, fi, fc, pheno = self._make_pop(rng, 10000)
@@ -686,6 +834,10 @@ class TestResolvePerGenParam:
     def test_no_key_le_zero_raises(self):
         with pytest.raises(ValueError, match="must have a key <= 0"):
             resolve_per_gen_param({2: 0.5}, 3, name="E1")
+
+    def test_non_scalar_non_dict_raises(self):
+        with pytest.raises(TypeError, match="must be a scalar or dict"):
+            resolve_per_gen_param([0.1], 3, name="E1")
 
     def test_empty_dict_raises(self):
         with pytest.raises(ValueError, match="must not be empty"):

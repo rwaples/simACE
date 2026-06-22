@@ -15,6 +15,7 @@ from simace.config import (
     KNOWN_SIM_KEYS,
     _is_zero_assort,
     _validate_pedigree_config,
+    _validate_phenotype_config,
     flatten_hierarchical,
     get_all_folders,
     get_folder,
@@ -109,6 +110,135 @@ class TestResolveScenarios:
         (tmp_path / "_ignored.yaml").write_text("ignored_scenario:\n  seed: 99\n")
         scenarios = resolve_scenarios(tmp_path)
         assert "ignored_scenario" not in scenarios
+
+
+class TestResolveScenariosEdgeCases:
+    """Focused resolver edge cases."""
+
+    @staticmethod
+    def _flat_defaults() -> dict:
+        return {
+            "seed": 1,
+            "replicates": 1,
+            "folder": "base",
+            "N": 10,
+            "G_ped": 2,
+            "G_pheno": 2,
+            "G_sim": 2,
+            "standardize": "global",
+            "plot_format": "png",
+            "E1": 0.5,
+            "E2": 0.5,
+            "phenotype_model1": "frailty",
+            "phenotype_params1": {"distribution": "weibull"},
+            "phenotype_model2": "frailty",
+            "phenotype_params2": {"distribution": "weibull"},
+            "mating_model": "standard",
+        }
+
+    def test_defaults_argument_skips_default_yaml_load(self, tmp_path):
+        (tmp_path / "base.yaml").write_text("ok:\n  seed: 2\n")
+        scenarios = resolve_scenarios(tmp_path, defaults=self._flat_defaults())
+        assert scenarios["ok"]["seed"] == 2
+
+    def test_invalid_folder_name_rejected(self, tmp_path):
+        (tmp_path / "bad-name.yaml").write_text("scenario:\n  seed: 2\n")
+        with pytest.raises(ValueError, match="Invalid folder name"):
+            resolve_scenarios(tmp_path, defaults=self._flat_defaults())
+
+    def test_empty_yaml_file_skipped(self, tmp_path):
+        (tmp_path / "empty.yaml").write_text("")
+        assert resolve_scenarios(tmp_path, defaults=self._flat_defaults()) == {}
+
+    def test_duplicate_scenario_name_rejected(self, tmp_path):
+        (tmp_path / "a.yaml").write_text("dup:\n  seed: 2\n")
+        (tmp_path / "b.yaml").write_text("dup:\n  seed: 3\n")
+        with pytest.raises(ValueError, match="Duplicate scenario"):
+            resolve_scenarios(tmp_path, defaults=self._flat_defaults())
+
+    def test_explicit_folder_is_preserved(self, tmp_path):
+        (tmp_path / "base.yaml").write_text("ok:\n  folder: explicit\n")
+        scenarios = resolve_scenarios(tmp_path, defaults=self._flat_defaults())
+        assert scenarios["ok"]["folder"] == "explicit"
+
+
+class TestPhenotypeConfigValidation:
+    """Focused phenotype-model validation edge cases."""
+
+    @staticmethod
+    def _wrap(overrides: dict) -> dict:
+        defaults = {
+            "phenotype_model1": "frailty",
+            "phenotype_params1": {"distribution": "weibull"},
+            "phenotype_model2": "frailty",
+            "phenotype_params2": {"distribution": "weibull"},
+        }
+        return {"defaults": defaults, "scenarios": {"sc": overrides}}
+
+    def test_invalid_model_rejected(self):
+        with pytest.raises(ValueError, match="not valid"):
+            _validate_phenotype_config(self._wrap({"phenotype_model1": "bogus"}))
+
+    def test_frailty_missing_distribution_rejected(self):
+        with pytest.raises(ValueError, match="must include 'distribution'"):
+            _validate_phenotype_config(self._wrap({"phenotype_model1": "frailty", "phenotype_params1": {}}))
+
+    def test_frailty_invalid_distribution_rejected(self):
+        with pytest.raises(ValueError, match="distribution='bad'"):
+            _validate_phenotype_config(
+                self._wrap({"phenotype_model1": "frailty", "phenotype_params1": {"distribution": "bad"}})
+            )
+
+    def test_adult_missing_method_rejected(self):
+        with pytest.raises(ValueError, match="must include 'method'"):
+            _validate_phenotype_config(
+                self._wrap({"phenotype_model1": "adult", "phenotype_params1": {"prevalence": 0.1}})
+            )
+
+    def test_adult_invalid_method_rejected(self):
+        with pytest.raises(ValueError, match="method='bad'"):
+            _validate_phenotype_config(
+                self._wrap({"phenotype_model1": "adult", "phenotype_params1": {"method": "bad", "prevalence": 0.1}})
+            )
+
+    def test_simple_ltm_missing_onset_rejected(self):
+        with pytest.raises(ValueError, match="must include an 'onset' dict"):
+            _validate_phenotype_config(
+                self._wrap({"phenotype_model1": "simple_ltm", "phenotype_params1": {"prevalence": 0.1}})
+            )
+
+    def test_simple_ltm_invalid_onset_kind_rejected(self):
+        with pytest.raises(ValueError, match=r"onset\.kind='bad'"):
+            _validate_phenotype_config(
+                self._wrap(
+                    {
+                        "phenotype_model1": "simple_ltm",
+                        "phenotype_params1": {"onset": {"kind": "bad"}, "prevalence": 0.1},
+                    }
+                )
+            )
+
+    def test_simple_ltm_valid_onset_passes(self):
+        _validate_phenotype_config(
+            self._wrap(
+                {
+                    "phenotype_model1": "simple_ltm",
+                    "phenotype_params1": {"onset": {"kind": "fixed", "age": 30}, "prevalence": 0.1},
+                }
+            )
+        )
+
+    def test_threshold_model_missing_prevalence_rejected(self):
+        with pytest.raises(ValueError, match="must include 'prevalence'"):
+            _validate_phenotype_config(
+                self._wrap({"phenotype_model1": "adult", "phenotype_params1": {"method": "ltm"}})
+            )
+
+    def test_hazard_model_with_prevalence_rejected(self):
+        with pytest.raises(ValueError, match="must NOT include 'prevalence'"):
+            _validate_phenotype_config(
+                self._wrap({"phenotype_model1": "first_passage", "phenotype_params1": {"prevalence": 0.1}})
+            )
 
 
 class TestAccessors:

@@ -30,6 +30,15 @@ class TestExpectedMateCorr:
         assert abs(result[1, 0] - 0.3 * rho_w) < 1e-10
         assert abs(result[1, 1] - 0.3 * rho_w**2) < 1e-10
 
+    def test_single_trait2_diagonal(self):
+        """When only assort2 is nonzero, trait-2 assortment propagates through rho_w."""
+        result = expected_mate_corr_matrix(0.0, 0.4, rA=0.5, rC=0.0, A1=0.5, C1=0.0, A2=0.5, C2=0.0)
+        rho_w = 0.25
+        assert abs(result[0, 0] - 0.4 * rho_w**2) < 1e-10
+        assert abs(result[0, 1] - 0.4 * rho_w) < 1e-10
+        assert abs(result[1, 0] - 0.4 * rho_w) < 1e-10
+        assert abs(result[1, 1] - 0.4) < 1e-10
+
     def test_shape(self):
         """Result should be a 2x2 numpy array."""
         result = expected_mate_corr_matrix(0.3, 0.5, rA=0.5, rC=0.3, A1=0.5, C1=0.2, A2=0.4, C2=0.1)
