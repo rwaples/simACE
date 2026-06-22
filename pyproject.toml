@@ -38,8 +38,9 @@ workflow = [
     "snakemake>=9,<10",
     "snakefmt>=1,<2",
 ]
+typecheck = ["ty==0.0.51"]
 dev = [
-    "simace[plot,test,docs,workflow]",
+    "simace[plot,test,docs,workflow,typecheck]",
 ]
 
 [project.scripts]
@@ -106,3 +107,17 @@ known-first-party = ["simace"]
 quote-style = "double"
 indent-style = "space"
 docstring-code-format = true
+
+[tool.ty.environment]
+python-version = "3.13"
+# ty can't follow the import-hook editable install (__editable__*.pth + _finder.py)
+# for pedigree_graph, so point it at the source checkout. Relies on the fixed
+# family checkout layout (see CLAUDE.md repo map).
+extra-paths = ["external/pedigree-graph"]
+
+[tool.ty.src]
+include = ["simace"]
+exclude = ["tests", "workflow/scripts"]
+
+[tool.ty.terminal]
+error-on-warning = false

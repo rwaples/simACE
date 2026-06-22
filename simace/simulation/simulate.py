@@ -31,7 +31,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import pandas as pd
-from scipy.spatial import cKDTree
+from scipy.spatial import cKDTree  # ty: ignore[unresolved-import]  # real class; scipy stubs omit it
 
 from simace.core._numba_utils import _ndtri_approx
 from simace.core.parquet import save_parquet
