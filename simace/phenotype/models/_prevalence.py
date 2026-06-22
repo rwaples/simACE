@@ -66,7 +66,7 @@ def prevalence_to_array(prev, generation: np.ndarray) -> float | np.ndarray:
 
 def resolve_prevalence(
     prev,
-    sex: np.ndarray,
+    sex: np.ndarray | None,
     generation: np.ndarray,
 ) -> float | np.ndarray:
     """Resolve prevalence to a scalar or per-individual array, validated to (0, 1).

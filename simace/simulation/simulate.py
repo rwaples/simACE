@@ -43,7 +43,7 @@ from simace.simulation.params import SimulationParams
 try:
     from numba import njit
 except ImportError:
-    njit = None
+    njit = None  # ty: ignore[invalid-assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -746,6 +746,7 @@ def _mating_standard(
 
     # 3. Pair partners -> (M, 2) of [mother_idx, father_idx]
     if assort1 != 0 or assort2 != 0:
+        assert pheno is not None  # required whenever assortment is active (see docstring)
         matings = _assortative_pair_partners(
             rng,
             male_idxs,
@@ -1325,6 +1326,7 @@ def run_simulation(
         t_gen = time.perf_counter()
 
         if mating_model == "standard":
+            assert plan is not None  # built above under the same guard
             a1_i, a2_i, rho_w_i, R_mf_i = plan.for_generation(i)
             parents, twins, household_ids = _mating_standard(
                 rng,

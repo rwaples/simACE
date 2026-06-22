@@ -45,7 +45,7 @@ __all__ = [
     "validate_hazard_params",
 ]
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 from numba import njit, prange
@@ -70,7 +70,7 @@ _VALID_STD_MODES: frozenset[str] = frozenset(STANDARDIZE_CHOICES)
 def _nb_weibull(neg_log_u, liability, mean, scaled_beta, scale, inv_rho):
     n = len(neg_log_u)
     t = np.empty(n)
-    for i in prange(n):
+    for i in prange(n):  # ty: ignore[not-iterable]
         z = np.exp(scaled_beta * (liability[i] - mean))
         t[i] = scale * np.exp(np.log(neg_log_u[i] / z) * inv_rho)
     return t
@@ -80,7 +80,7 @@ def _nb_weibull(neg_log_u, liability, mean, scaled_beta, scale, inv_rho):
 def _nb_exponential(neg_log_u, liability, mean, scaled_beta, inv_rate):
     n = len(neg_log_u)
     t = np.empty(n)
-    for i in prange(n):
+    for i in prange(n):  # ty: ignore[not-iterable]
         z = np.exp(scaled_beta * (liability[i] - mean))
         val = neg_log_u[i] * inv_rate / z
         t[i] = min(max(val, 1e-10), 1e6)
@@ -91,7 +91,7 @@ def _nb_exponential(neg_log_u, liability, mean, scaled_beta, inv_rate):
 def _nb_gompertz(neg_log_u, liability, mean, scaled_beta, g_over_b, inv_g):
     n = len(neg_log_u)
     t = np.empty(n)
-    for i in prange(n):
+    for i in prange(n):  # ty: ignore[not-iterable]
         z = np.exp(scaled_beta * (liability[i] - mean))
         target = neg_log_u[i] / z
         val = np.log1p(target * g_over_b) * inv_g
@@ -103,7 +103,7 @@ def _nb_gompertz(neg_log_u, liability, mean, scaled_beta, g_over_b, inv_g):
 def _nb_lognormal(neg_log_u, liability, mean, scaled_beta, mu, sigma):
     n = len(neg_log_u)
     t = np.empty(n)
-    for i in prange(n):
+    for i in prange(n):  # ty: ignore[not-iterable]
         z = np.exp(scaled_beta * (liability[i] - mean))
         target = neg_log_u[i] / z
         surv = np.exp(-target)
@@ -119,7 +119,7 @@ def _nb_lognormal(neg_log_u, liability, mean, scaled_beta, mu, sigma):
 def _nb_loglogistic(neg_log_u, liability, mean, scaled_beta, alpha, inv_k):
     n = len(neg_log_u)
     t = np.empty(n)
-    for i in prange(n):
+    for i in prange(n):  # ty: ignore[not-iterable]
         z = np.exp(scaled_beta * (liability[i] - mean))
         target = neg_log_u[i] / z
         val = alpha * np.exp(np.log(np.expm1(target)) * inv_k)
@@ -320,7 +320,7 @@ def coerce_standardize_mode(value: object) -> StandardizeMode:
     if isinstance(value, bool):
         return "global" if value else "none"
     if isinstance(value, str) and value in _VALID_STD_MODES:
-        return value  # type: ignore[return-value]
+        return cast("StandardizeMode", value)
     raise ValueError(f"standardize must be one of {sorted(_VALID_STD_MODES)} or bool; got {value!r}")
 
 

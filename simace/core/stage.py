@@ -53,7 +53,7 @@ def stage(
     """
 
     def decorate(fn: Callable[..., pd.DataFrame]) -> Callable[..., pd.DataFrame]:
-        stage_name = name if name is not None else fn.__name__.removeprefix("run_")
+        stage_name = name if name is not None else fn.__name__.removeprefix("run_")  # ty: ignore[unresolved-attribute]
         first_param = next(iter(inspect.signature(fn).parameters), None) if reads is not None else None
 
         @functools.wraps(fn)
@@ -71,9 +71,9 @@ def stage(
                 assert_schema(result, writes, where=f"{stage_name} output")
             return result
 
-        wrapper.reads = reads
-        wrapper.writes = writes
-        wrapper.stage_name = stage_name
+        wrapper.reads = reads  # ty: ignore[unresolved-attribute]
+        wrapper.writes = writes  # ty: ignore[unresolved-attribute]
+        wrapper.stage_name = stage_name  # ty: ignore[unresolved-attribute]
         return wrapper
 
     return decorate

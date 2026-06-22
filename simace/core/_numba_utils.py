@@ -15,7 +15,7 @@ import numpy as np
 try:
     from numba import njit
 except ImportError:
-    njit = None
+    njit = None  # ty: ignore[invalid-assignment]
 
 _SQRT2 = math.sqrt(2.0)
 _INV_SQRT2PI = 1.0 / math.sqrt(2.0 * math.pi)

@@ -150,7 +150,7 @@ def compare_realized_variance_trajectory(
                 a / (a + c + e) if (a + c + e) > 0 else None for a, c, e in zip(a_list, c_list, e_list, strict=True)
             ]
         else:
-            total = expected_A + expected_C + expected_E
+            total = expected_A + expected_C + expected_E  # ty: ignore[unsupported-operator]
             h2_expected = expected_A / total if total > 0 else None
 
     apply_nature_style()
