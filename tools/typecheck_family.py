@@ -82,7 +82,12 @@ def check_repo(repo: Path, python: str, verbose: bool) -> tuple[str, int, int]:
         print(f"    ty failed (exit {gate.returncode}): {(gate.stderr or gate.stdout).strip()}")
         return "ty-error", 0, 0
     blocker_lines = [ln for ln in (gate.stdout + gate.stderr).splitlines() if f"error[{BLOCKER_RULE}]" in ln]
-    n_blockers = (len(blocker_lines) or 1) if gate.returncode == 1 else 0
+    if gate.returncode == 1:
+        # Exit code is authoritative: report at least one blocker even if a
+        # future concise-output change means the parse above finds none.
+        n_blockers = len(blocker_lines) or 1
+    else:
+        n_blockers = 0
 
     # 2. Advisory enumeration: plain check, parsed only for the (non-blocking)
     #    report + budget.  Parsing here is low-stakes -- it never gates.
@@ -159,7 +164,8 @@ def main() -> int:
         if status in ("FAIL", "ty-error"):
             hard_fail = True
         elif status == "ok" and n_adv > allowed:
-            status, over_fail = "OVER", True
+            status = "OVER"
+            over_fail = True
         note = f"{n_block} blocking, {n_adv} advisory"
         if n_adv != allowed:
             note += f" (budget {allowed})"

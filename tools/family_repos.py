@@ -89,13 +89,6 @@ def main(argv: list[str] | None = None) -> int:
     """Emit a subset of the family as ``label|path`` lines for shell consumers."""
     parser = argparse.ArgumentParser(description="Emit the simACE/fitACE family repo list.")
     parser.add_argument("--subset", choices=tuple(_SUBSETS), default="all")
-    parser.add_argument(
-        "--format",
-        dest="fmt",
-        choices=("lines",),
-        default="lines",
-        help="lines: one 'label|path' per repo (the only format, for bash).",
-    )
     args = parser.parse_args(argv)
     for repo in _SUBSETS[args.subset]():
         print(f"{repo.label}|{repo.path}")
