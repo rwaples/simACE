@@ -37,14 +37,16 @@ _METHOD_DISPLAY: dict[str, str] = {
     "cox": "Cox",
 }
 
+# Per-method ADuLT descriptions (the only family with a sub-type split).
+_ADULT_DESC: dict[str, str] = {
+    "ltm": "Liability threshold for case status, deterministic probit CIF for age-at-onset",
+    "cox": "Ranking for case status, stochastic Weibull CIF for age-at-onset",
+}
+
 # Model family descriptions (templates)
-_FAMILY_DESC: dict[str, str] = {  # ty: ignore[invalid-assignment]
+_FAMILY_DESC: dict[str, str] = {
     "frailty": "Proportional hazards with {dist} baseline; frailty exp(\u03b2\u00b7L) scales hazard",
     "cure_frailty": "Mixture cure model ({dist} baseline): liability threshold for case status, frailty for age-at-onset",
-    "adult": {
-        "ltm": "Liability threshold for case status, deterministic probit CIF for age-at-onset",
-        "cox": "Ranking for case status, stochastic Weibull CIF for age-at-onset",
-    },
     "first_passage": (
         "Inverse Gaussian FPT: liability scales initial distance y\u2080 to boundary; drift \u03bc controls progression"
     ),
@@ -73,7 +75,7 @@ def _model_display_name(model: str, pp: dict) -> tuple[str, str]:
         method_name = _METHOD_DISPLAY.get(method, method.upper())
         return (
             f"ADuLT {method_name}",
-            _FAMILY_DESC["adult"].get(method, f"ADuLT {method_name} model"),  # ty: ignore[unresolved-attribute]
+            _ADULT_DESC.get(method, f"ADuLT {method_name} model"),
         )
     if model == "first_passage":
         return ("First-Passage Time", _FAMILY_DESC["first_passage"])
