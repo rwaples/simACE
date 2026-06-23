@@ -17,11 +17,13 @@ of the test suites.
   `code-review-graph`-owned `.git/hooks/pre-commit`.
 - **No CI / no GitHub Actions** — deliberate (ty is 0.0.x with churning
   diagnostics; nested repos have no CI). Revisit only if ty reaches a stable API.
-- **Drift-only gate:** the **only** blocking diagnostic is `unresolved-import`.
-  Every other ty finding is advisory (printed, non-blocking). ty has ~110 rules
-  and no wildcard severity, so "block only on unresolved-import" is enforced at
-  the gate/runner (block iff `error[unresolved-import]` appears), not via a
-  110-rule downgrade.
+- **Drift-only gate:** the **only** blocking diagnostic is `unresolved-import`
+  (the cross-repo / cross-module signature-drift class — a sibling renaming,
+  moving, or removing a symbol, including a missing member of an existing
+  module). The gate runs `ty check --ignore all --error unresolved-import` and
+  blocks on a **non-zero exit**: ty 0.0.51 supports wildcard severity
+  (`--ignore all` + `--error <rule>`), so every other finding is suppressed and
+  there is nothing to parse. Plain `ty check` still surfaces the advisory findings.
 - **Pin `ty==0.0.51`** via a `typecheck` extra, one shared version family-wide
   (folded into `dev` where a `dev` extra exists). Bumping the pin is its own
   change.
@@ -65,11 +67,23 @@ error-on-warning = false
 
 ## Manual family runner
 
-`tools/typecheck_family.py` — runs `ty check` from each present Python repo's
-root (so each repo's config + `extra-paths` apply), blocks only on
-`error[unresolved-import]`, prints a per-repo `blocking / advisory` summary, and
-exits non-zero if any repo has a blocker. Covers the whole family incl. the
-sisters + pedsum. `--verbose` also prints advisory findings.
+`tools/typecheck_family.py` — runs `ty` from each present Python repo's root (so
+each repo's config + `extra-paths` apply). The repo list comes from the shared
+`tools/family_repos.py` manifest (single source of truth, also consumed by
+`tools/release.py` and `repo-status.sh`). Two checks per repo:
+
+- **Drift gate:** `ty check --ignore all --error unresolved-import`; the exit
+  code is authoritative (no stdout parsing).
+- **Advisory ratchet:** a plain `ty check` enumerates the non-blocking findings,
+  compared against each repo's budget in `tools/ty_budget.json`; exceeding the
+  budget fails the sweep, so advisory findings can't silently re-accumulate.
+  `--update-budget` accepts the current counts (a deliberate step, like a pin
+  bump). `--verbose` prints advisory findings; `--repo <label> ...` limits the
+  sweep.
+
+Covers the whole family incl. the sisters + pedsum. Exits non-zero on any
+`unresolved-import` blocker, ty failure, or over-budget repo. The `ty` pin is
+kept in lockstep across every pyproject by `tests/test_ty_pin_consistency.py`.
 
 ## What landed
 
@@ -93,8 +107,15 @@ sisters + pedsum. `--verbose` also prints advisory findings.
   `/commit` stops on `error[unresolved-import]`; scipy/numba/None-union findings
   print but do not block.
 
-## Future ratchet (not done)
+## Ratchet & future work
 
-Tighten advisory→blocking per-rule as desired (e.g. promote a specific
-high-value rule via `[tool.ty.rules] <rule> = "error"`); add `tests/` to
-`src.include` once package code is clean; bump the `ty` pin deliberately.
+- **Done:** an advisory-budget ratchet (`tools/ty_budget.json`, enforced by
+  `tools/typecheck_family.py`) blocks new advisory findings from silently
+  accumulating; the shared `tools/family_repos.py` manifest + `TY_PIN` removes
+  the duplicated repo lists and pin across the tooling.
+- **Future:** promote a specific high-value rule advisory→blocking via
+  `[tool.ty.rules] <rule> = "error"` — note the highest-signal signature-drift
+  rules (`invalid-argument-type`, `no-matching-overload`) are also the noisiest
+  with library false positives, so this is gated on controlling that surface;
+  add `tests/` to `src.include` once package code is clean; bump the `ty` pin
+  deliberately (re-triaged, in lockstep across all pyprojects).
