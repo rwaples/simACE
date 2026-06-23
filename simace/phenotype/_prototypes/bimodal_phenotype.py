@@ -100,7 +100,7 @@ def phenotype_mixture_cip(
     t = np.full(len(L), 1e6)
     n_cases = is_case.sum()
     if n_cases > 0:
-        prev_case = prevalence[is_case] if isinstance(prevalence, np.ndarray) else prevalence
+        prev_case = prevalence[is_case] if isinstance(prevalence, np.ndarray) else prevalence  # ty: ignore[invalid-argument-type]
         L_eff = beta * L[is_case]
         if beta_sex != 0.0 and sex is not None:
             L_eff = L_eff + beta_sex * sex[is_case]
@@ -257,7 +257,7 @@ def phenotype_two_threshold(
         n_grp = mask.sum()
         if n_grp == 0:
             continue
-        prev_grp = prev_param[mask] if isinstance(prev_param, np.ndarray) else prev_param
+        prev_grp = prev_param[mask] if isinstance(prev_param, np.ndarray) else prev_param  # ty: ignore[invalid-argument-type]
         L_eff = beta * L[mask]
         if beta_sex != 0.0 and sex is not None:
             L_eff = L_eff + beta_sex * sex[mask]

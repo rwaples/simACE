@@ -779,7 +779,7 @@ def _draw_model_row(fig, ax, y: float, section: Table1Section, row: Table1Row, s
     label = f"  {row.label}" if row.subrow else row.label
     color = "0.55" if row.muted else "black"
     if section.layout == "four_sex_trait":
-        return _draw_row4(fig, ax, y, label, *row.values, shade)
+        return _draw_row4(fig, ax, y, label, *row.values, shade)  # ty: ignore[too-many-positional-arguments, invalid-argument-type]
     if len(row.values) == 1:
         # A single composite value spans the section's value columns.
         return _draw_row(fig, ax, y, label, row.values[0], shade, color=color)
@@ -814,7 +814,7 @@ def render_table1_figure(
     summary = build_table1_summary(all_stats, scenario_params, scenario)
 
     fig = plt.figure(figsize=(11.69, 8.27))
-    ax = fig.add_axes([0, 0, 1, 1])
+    ax = fig.add_axes([0, 0, 1, 1])  # ty: ignore[no-matching-overload]
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.axis("off")

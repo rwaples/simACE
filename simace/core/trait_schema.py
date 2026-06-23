@@ -160,7 +160,7 @@ def hydrate_trait(
     _require_columns(trait, [_ID], where="trait")
     _require_columns(pedigree, [_ID], where="pedigree")
 
-    pedigree_cols = _normalize_pedigree_columns(columns, pedigree.columns)
+    pedigree_cols = _normalize_pedigree_columns(columns, list(pedigree.columns))
     _require_columns(pedigree, pedigree_cols, where="pedigree")
 
     collisions = sorted((set(trait.columns) & set(pedigree_cols)) - {_ID})

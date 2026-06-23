@@ -82,8 +82,8 @@ def build_validation_report(
         if category == "per_generation":
             continue
         for check_name, check_result in checks.items():
-            if "passed" in check_result:
-                if check_result["passed"]:
+            if "passed" in check_result:  # ty: ignore[unsupported-operator]
+                if check_result["passed"]:  # ty: ignore[not-subscriptable]
                     checks_passed += 1
                 else:
                     checks_failed += 1
@@ -91,7 +91,7 @@ def build_validation_report(
                         "FAILED %s.%s: %s",
                         category,
                         check_name,
-                        check_result.get("details", ""),
+                        check_result.get("details", ""),  # ty: ignore[unresolved-attribute]
                     )
 
     results["summary"] = {

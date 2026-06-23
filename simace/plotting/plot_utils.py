@@ -103,7 +103,7 @@ def _make_heatmap_cmap():
     import matplotlib.colors as mcolors
     import matplotlib.pyplot as plt
 
-    gnbu = plt.cm.GnBu
+    gnbu = plt.cm.GnBu  # ty: ignore[unresolved-attribute]
     return mcolors.LinearSegmentedColormap.from_list("GnBu_dark", gnbu(np.linspace(0.4, 1.0, 256)))
 
 
@@ -184,7 +184,7 @@ def finalize_plot(
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message=".*tight_layout.*", category=UserWarning)
         if tight_rect is not None:
-            plt.tight_layout(rect=tight_rect)
+            plt.tight_layout(rect=tight_rect)  # ty: ignore[invalid-argument-type]
         else:
             plt.tight_layout()
     plt.savefig(output_path, dpi=dpi, bbox_inches="tight")

@@ -119,8 +119,8 @@ def _format_param_value(name: str, value: object) -> str:
         return str(value).lower()
     if isinstance(value, dict):
         if "female" in value and "male" in value:
-            f_val = _format_param_value("", value["female"])
-            m_val = _format_param_value("", value["male"])
+            f_val = _format_param_value("", value["female"])  # ty: ignore[invalid-argument-type]
+            m_val = _format_param_value("", value["male"])  # ty: ignore[invalid-argument-type]
             return f"F:{f_val} M:{m_val}"
         return "(see params)"
     if isinstance(value, float):
@@ -363,7 +363,7 @@ def render_pipeline_figure(
         The matplotlib Figure object.
     """
     fig = plt.figure(figsize=(11.69, 8.27))
-    ax = fig.add_axes([0.02, 0.06, 0.96, 0.88])
+    ax = fig.add_axes([0.02, 0.06, 0.96, 0.88])  # ty: ignore[no-matching-overload]
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.set_axis_off()

@@ -122,7 +122,7 @@ def gather_effective_size(
                 continue
             series_rows.extend(_extract_series_rows(rep_idx, est, entry))
 
-    scalar_df = pd.DataFrame(scalar_rows, columns=["rep", "estimator", "ne", "expected"])
+    scalar_df = pd.DataFrame(scalar_rows, columns=["rep", "estimator", "ne", "expected"])  # ty: ignore[invalid-argument-type]
     series_columns = [
         "rep",
         "estimator",
@@ -139,7 +139,7 @@ def gather_effective_size(
         "cov_m",
         "cov_f",
     ]
-    series_df = pd.DataFrame(series_rows, columns=series_columns)
+    series_df = pd.DataFrame(series_rows, columns=series_columns)  # ty: ignore[invalid-argument-type]
     return scalar_df, series_df
 
 
@@ -659,7 +659,7 @@ def main(
         expected_cov=expected_cov,
     )
     for spec in EFFECTIVE_SIZE_RENDERERS:
-        spec.render(ctx, out, ext=plot_ext)
+        spec.render(ctx, out, plot_ext)
 
     # HTML is the primary atlas rendering (ADR 0010); pass a .pdf output path
     # to render the on-demand PDF instead.

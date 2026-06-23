@@ -235,6 +235,9 @@ class FirstPassageModel(PhenotypeModel):
                     inv_drift,
                 )
             else:
+                # else of `drift < 0` and drift != 0 (1/abs(drift) above) => drift > 0,
+                # which is exactly when cure_draws was allocated.
+                assert cure_draws is not None
                 t[mask] = _nb_fpt_cure(
                     normals[mask],
                     uniforms[mask],

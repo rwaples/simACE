@@ -38,7 +38,7 @@ _METHOD_DISPLAY: dict[str, str] = {
 }
 
 # Model family descriptions (templates)
-_FAMILY_DESC: dict[str, str] = {
+_FAMILY_DESC: dict[str, str] = {  # ty: ignore[invalid-assignment]
     "frailty": "Proportional hazards with {dist} baseline; frailty exp(\u03b2\u00b7L) scales hazard",
     "cure_frailty": "Mixture cure model ({dist} baseline): liability threshold for case status, frailty for age-at-onset",
     "adult": {
@@ -73,7 +73,7 @@ def _model_display_name(model: str, pp: dict) -> tuple[str, str]:
         method_name = _METHOD_DISPLAY.get(method, method.upper())
         return (
             f"ADuLT {method_name}",
-            _FAMILY_DESC["adult"].get(method, f"ADuLT {method_name} model"),
+            _FAMILY_DESC["adult"].get(method, f"ADuLT {method_name} model"),  # ty: ignore[unresolved-attribute]
         )
     if model == "first_passage":
         return ("First-Passage Time", _FAMILY_DESC["first_passage"])
@@ -520,7 +520,7 @@ def assemble_atlas(
 
             fig = plt.figure(figsize=(_PAGE_W, _PAGE_H))
 
-            ax = fig.add_axes([0.005, caption_frac + 0.005, 0.99, img_frac - 0.005])
+            ax = fig.add_axes([0.005, caption_frac + 0.005, 0.99, img_frac - 0.005])  # ty: ignore[no-matching-overload]
             with Image.open(path) as img:
                 ax.imshow(img)
             ax.axis("off")

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NotRequired, TypedDict
 
 import numpy as np
 
@@ -108,6 +108,18 @@ def _build_entry_times(df: pd.DataFrame, gen_censoring: dict[int, list[float]] |
     return entry
 
 
+class _AJResult(TypedDict):
+    """Aalen-Johansen CIF grids + event counts (``aj_se`` present only when ``greenwood``)."""
+
+    aj_disease: np.ndarray
+    aj_death: np.ndarray
+    aj_survival: np.ndarray
+    n: int
+    n_events_disease: int
+    n_events_death: int
+    aj_se: NotRequired[np.ndarray]
+
+
 def _aalen_johansen(
     entry: np.ndarray,
     exit_time: np.ndarray,
@@ -115,7 +127,7 @@ def _aalen_johansen(
     ages: np.ndarray,
     *,
     greenwood: bool = False,
-) -> dict[str, np.ndarray | int]:
+) -> _AJResult:
     """Aalen-Johansen CIF for disease (cause 1) with death (cause 2) as competing event.
 
     Args:
@@ -197,7 +209,7 @@ def _aalen_johansen(
     F_death_grid = np.where(valid_idx, F_death[np.clip(idx, 0, n_unique - 1)], 0.0)
     S_grid = np.where(valid_idx, s_after[np.clip(idx, 0, n_unique - 1)], 1.0)
 
-    out: dict[str, Any] = {
+    out: _AJResult = {
         "aj_disease": F_disease_grid,
         "aj_death": F_death_grid,
         "aj_survival": S_grid,

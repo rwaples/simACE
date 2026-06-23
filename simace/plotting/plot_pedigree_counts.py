@@ -166,7 +166,7 @@ def _draw_node(
     y: float,
     sex: str,
     *,
-    fill: str = "white",
+    fill: str | tuple[float, float, float] = "white",
     edgecolor: str = "black",
     linewidth: float = 0.8,
 ) -> None:
@@ -223,7 +223,7 @@ def _draw_descent(
     child_positions = [_nc(c) for c in children]
     child_y = child_positions[0][1]
     mid_y = (py - NODE_RADIUS + child_y + NODE_RADIUS) / 2
-    kw = dict(color="black", linewidth=0.8, linestyle=linestyle, zorder=1)
+    kw: dict[str, Any] = dict(color="black", linewidth=0.8, linestyle=linestyle, zorder=1)
     ax.plot([px, px], [py - NODE_RADIUS, mid_y], **kw)
 
     if len(children) == 1:
@@ -302,7 +302,7 @@ def plot_pedigree_relationship_counts(
     rel_colors = {name: PEDIGREE_COLORS[name] for name in RELATIONSHIP_ORDER}
 
     # Build map: node → relationship colour (for node border colouring)
-    node_rel_color: dict[str, tuple[str, ...]] = {}
+    node_rel_color: dict[str, str] = {}
     for rel_name in RELATIONSHIP_ORDER:
         node = RELATIONSHIP_NODES[rel_name]
         node_rel_color[node] = rel_colors[rel_name]

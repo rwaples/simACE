@@ -105,7 +105,7 @@ def stripplot(
     if len(scenarios) > 3 or (len(scenarios) > 1 and _long):
         ax.tick_params(axis="x", rotation=30)
         for lbl in ax.get_xticklabels():
-            lbl.set_ha("right")
+            lbl.set_ha("right")  # ty: ignore[unresolved-attribute]
     if len(scenarios) == 1:
         ax.set_xlim(-0.5, 0.5)
 
@@ -590,12 +590,12 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png", *, atlas_
 
     # Sort scenarios by increasing N so x-axes read left-to-right by size
     if "N" in df.columns:
-        scenario_order = df.groupby("scenario")["N"].first().sort_values().index
+        scenario_order = df.groupby("scenario")["N"].first().sort_values().index  # ty: ignore[no-matching-overload]
         df["scenario"] = pd.Categorical(df["scenario"], categories=scenario_order, ordered=True)
         df = df.sort_values("scenario").reset_index(drop=True)
 
     for spec in VALIDATION_RENDERERS:
-        spec.render(df, out, ext=plot_ext)
+        spec.render(df, out, plot_ext)
 
     assemble_validation_atlas(out, atlas_name, plot_ext=plot_ext)
 

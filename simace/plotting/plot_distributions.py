@@ -92,6 +92,8 @@ def plot_death_age_distribution(
     cumulative_ax.tick_params(axis="x", rotation=45)
 
     for ax, trait_num in zip(death_axes, [1, 2], strict=False):
+        # death_axes is non-empty only in the `df_samples is not None` branch above.
+        assert df_samples is not None
         affected_col = f"affected{trait_num}"
         t_col = f"t_observed{trait_num}"
         death_censored_col = f"death_censored{trait_num}"

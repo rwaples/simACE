@@ -196,7 +196,7 @@ def compute_person_years(
         trait_py[f"trait{trait}"] = 0.0
 
     for g, df_g in df.groupby("generation"):
-        lo, hi = windows.get(int(g), (0.0, censor_age))
+        lo, hi = windows.get(int(g), (0.0, censor_age))  # ty: ignore[invalid-argument-type]
         if hi <= lo:
             continue
         n = len(df_g)
