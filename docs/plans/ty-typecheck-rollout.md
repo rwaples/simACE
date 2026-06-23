@@ -70,20 +70,22 @@ error-on-warning = false
 `tools/typecheck_family.py` — runs `ty` from each present Python repo's root (so
 each repo's config + `extra-paths` apply). The repo list comes from the shared
 `tools/family_repos.py` manifest (single source of truth, also consumed by
-`tools/release.py` and `repo-status.sh`). Two checks per repo:
+`tools/release.py` and `repo-status.sh`). **One hard-zero check per repo:**
 
-- **Drift gate:** `ty check --ignore all --error unresolved-import`; the exit
-  code is authoritative (no stdout parsing).
-- **Advisory ratchet:** a plain `ty check` enumerates the non-blocking findings,
-  compared against each repo's budget in `tools/ty_budget.json`; exceeding the
-  budget fails the sweep, so advisory findings can't silently re-accumulate.
-  `--update-budget` accepts the current counts (a deliberate step, like a pin
-  bump). `--verbose` prints advisory findings; `--repo <label> ...` limits the
-  sweep.
+- `ty check --output-format concise --color never --error-on-warning`; the
+  **exit code is authoritative** (no stdout parsing for the pass/fail decision).
+  `--error-on-warning` makes *any* finding — error or warning — fail the repo, so
+  the family is held at **zero** ty findings. A failure is labelled `DRIFT` (an
+  `unresolved-import`, the high-value cross-repo signature-drift class, always
+  printed) vs `ADVISORY` (a library-stub false positive) by parsing the output —
+  for the human only; the label never gates. `--verbose` prints advisory
+  findings; `--repo <label> ...` limits the sweep.
 
-Covers the whole family incl. the sisters + pedsum. Exits non-zero on any
-`unresolved-import` blocker, ty failure, or over-budget repo. The `ty` pin is
-kept in lockstep across every pyproject by `tests/test_ty_pin_consistency.py`.
+Covers the whole family incl. the sisters + pedsum. Exits non-zero on any finding
+or ty failure. Three invariants are enforced by the test suite alongside the
+sweep: the `ty` pin (`tests/test_ty_pin_consistency.py`), the shared
+`python-version` (`tests/test_ty_python_version_consistency.py`), and the
+rule-code discipline on every suppression (`tests/test_ty_suppressions_coded.py`).
 
 ## What landed
 
@@ -107,12 +109,20 @@ kept in lockstep across every pyproject by `tests/test_ty_pin_consistency.py`.
   `/commit` stops on `error[unresolved-import]`; scipy/numba/None-union findings
   print but do not block.
 
-## Ratchet & future work
+## Hard-zero & future work
 
-- **Done:** an advisory-budget ratchet (`tools/ty_budget.json`, enforced by
-  `tools/typecheck_family.py`) blocks new advisory findings from silently
-  accumulating; the shared `tools/family_repos.py` manifest + `TY_PIN` removes
-  the duplicated repo lists and pin across the tooling.
+- **Hard-zero (current):** the family sits at **zero** ty findings, so the sweep
+  enforces exactly that — one `ty check --error-on-warning` per repo, exit-code
+  authoritative (ADR 0013). The earlier per-repo advisory-budget ratchet
+  (`tools/ty_budget.json`) was retired once every repo reached zero: an all-zero
+  budget is just "advisory must be 0", which the exit code already gives. The
+  escape valve for a genuinely unavoidable false positive is a *specific*
+  `# ty: ignore[rule]` suppression — kept rule-coded by
+  `tests/test_ty_suppressions_coded.py`, so hard-zero stays safe.
+- **Shared manifest:** `tools/family_repos.py` holds the one repo list plus
+  `TY_PIN` and `TY_PYTHON_VERSION`, removing the duplicated lists/pins across the
+  tooling (enforced by `tests/test_ty_pin_consistency.py` +
+  `tests/test_ty_python_version_consistency.py`).
 - **Future:** promote a specific high-value rule advisory→blocking via
   `[tool.ty.rules] <rule> = "error"` — note the highest-signal signature-drift
   rules (`invalid-argument-type`, `no-matching-overload`) are also the noisiest

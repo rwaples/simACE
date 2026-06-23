@@ -28,6 +28,10 @@ from pathlib import Path
 #: The ``ty`` version pinned in every family ``typecheck`` extra.
 TY_PIN = "0.0.51"
 
+#: The ``python-version`` every family ``[tool.ty]`` / ``ty.toml`` config pins --
+#: one shared value, enforced by ``tests/test_ty_python_version_consistency.py``.
+TY_PYTHON_VERSION = "3.13"
+
 #: The simACE umbrella root (this file lives in ``<root>/tools/``).
 ROOT = Path(__file__).resolve().parent.parent
 
