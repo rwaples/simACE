@@ -34,21 +34,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-#: The ten lockstep family repos, relative to the simACE root (this file's
-#: grandparent): nine Python repos (simACE, fitACE core, the seven ``fitACE_*``
-#: sisters) plus the nested ``ace_iter_reml`` C++ binary.
-FAMILY_REPOS: tuple[str, ...] = (
-    ".",
-    "fitACE",
-    "fitACE/fitACE_epimight",
-    "fitACE/fitACE_pcgc",
-    "fitACE/fitACE_iter_reml",
-    "fitACE/fitACE_tetraher",
-    "fitACE/fitACE_pafgrs",
-    "fitACE/fitACE_stan",
-    "fitACE/fitACE_frailty",
-    "fitACE/fitACE_iter_reml/ace_iter_reml",
-)
+from family_repos import lockstep_repos
+
+#: The ten lockstep family repos, relative to the simACE root: nine Python repos
+#: (simACE, fitACE core, the seven ``fitACE_*`` sisters) plus the nested
+#: ``ace_iter_reml`` C++ binary.  Sourced from the shared ``family_repos``
+#: manifest so the repo list lives in exactly one place.
+FAMILY_REPOS: tuple[str, ...] = tuple(repo.path for repo in lockstep_repos())
 
 _SIMACE_ROOT = Path(__file__).resolve().parent.parent
 
