@@ -28,6 +28,7 @@ import argparse
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -40,10 +41,13 @@ from simace.core.stage import stage
 from simace.simulation.assortment import AssortmentPlan
 from simace.simulation.params import SimulationParams
 
-try:
+if TYPE_CHECKING:
     from numba import njit
-except ImportError:
-    njit = None  # ty: ignore[invalid-assignment]
+else:
+    try:
+        from numba import njit
+    except ImportError:
+        njit = None
 
 logger = logging.getLogger(__name__)
 

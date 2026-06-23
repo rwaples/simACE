@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
-from numba import njit, prange
+from numba import njit
 
 from simace.phenotype.hazards import (
     add_standardize_hazard_cli_arg,
@@ -39,6 +39,10 @@ if TYPE_CHECKING:
     import argparse
 
     from simace.phenotype.hazards import StandardizeMode
+
+    prange = range
+else:
+    from numba import prange
 
 __all__ = ["FirstPassageModel"]
 
@@ -65,7 +69,7 @@ def _nb_fpt(normals, uniforms, liability, mean, scaled_beta, sex, beta_sex, y0_b
     """Fused FPT kernel for drift < 0 (everyone hits)."""
     n = len(normals)
     t = np.empty(n)
-    for i in prange(n):  # ty: ignore[not-iterable]
+    for i in prange(n):
         y0 = y0_base * np.exp(-scaled_beta * (liability[i] - mean) - beta_sex * sex[i])
         if y0 < 1e-300:
             t[i] = 1e-10
@@ -81,7 +85,7 @@ def _nb_fpt_cure(normals, uniforms, cure_draws, liability, mean, scaled_beta, se
     """Fused FPT kernel for drift > 0 (emergent cure fraction)."""
     n = len(normals)
     t = np.empty(n)
-    for i in prange(n):  # ty: ignore[not-iterable]
+    for i in prange(n):
         y0 = y0_base * np.exp(-scaled_beta * (liability[i] - mean) - beta_sex * sex[i])
         if y0 < 1e-300:
             t[i] = 1e-10

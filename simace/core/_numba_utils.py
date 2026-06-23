@@ -9,13 +9,17 @@ to already-jitted versions.
 """
 
 import math
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-try:
+if TYPE_CHECKING:
     from numba import njit
-except ImportError:
-    njit = None  # ty: ignore[invalid-assignment]
+else:
+    try:
+        from numba import njit
+    except ImportError:
+        njit = None
 
 _SQRT2 = math.sqrt(2.0)
 _INV_SQRT2PI = 1.0 / math.sqrt(2.0 * math.pi)
