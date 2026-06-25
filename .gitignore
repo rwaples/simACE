@@ -88,6 +88,9 @@ skills-lock.json
 # Local code-review-graph eval harness
 evaluate/
 
+# Hypothesis property-based testing example database
+.hypothesis/
+
 # Added by code-review-graph
 .code-review-graph/
 .mcp.json

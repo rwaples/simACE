@@ -28,6 +28,7 @@ test = [
     "pytest>=9,<10",
     "pytest-cov>=7,<8",
     "ruff>=0.15,<0.16",
+    "hypothesis>=6,<7",
 ]
 docs = [
     "mkdocs>=1.6",
@@ -61,7 +62,7 @@ include = ["simace*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-norecursedirs = ["fitACE", ".git", ".snakemake", "external", "site"]
+norecursedirs = ["fitACE", ".git", ".snakemake", "external", "site", ".hypothesis"]
 markers = [
     "slow: heavyweight tests (Monte Carlo, large pedigrees); deselect with -m 'not slow'",
 ]
