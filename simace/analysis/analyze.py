@@ -38,7 +38,12 @@ from simace.core.yaml_io import dump_yaml, load_yaml
 
 from .report import assemble_report
 from .stats.incidence import compute_prevalence
-from .stats.runner import PEDIGREE_REPORT_COLUMNS, build_stats_report, create_sample
+from .stats.runner import (
+    LIABILITY_COMPONENT_COLUMNS,
+    PEDIGREE_REPORT_COLUMNS,
+    build_stats_report,
+    create_sample,
+)
 from .validate import build_validation_report
 
 logger = logging.getLogger(__name__)
@@ -165,6 +170,12 @@ def run_analysis(
     logger.info("Plot payload written to %s", plot_payload_output)
 
     sample_df = create_sample(df, seed=seed)
+    # The A/C/E component figures (joint component grid + components-by-generation)
+    # need the per-trait liability components, which live in the pedigree rather
+    # than the outcomes-only trait file. Hydrate them onto the plotting sample
+    # only; the stats `df` above is deliberately left lean.
+    components = pd.read_parquet(pedigree_path, columns=["id", *LIABILITY_COMPONENT_COLUMNS])
+    sample_df = sample_df.merge(components, on="id", how="left")
     save_parquet(sample_df, samples_output)
     logger.info("Plotting sample (%d rows) written to %s", len(sample_df), samples_output)
 

@@ -61,6 +61,10 @@ from .sampling import create_sample
 logger = logging.getLogger(__name__)
 
 PEDIGREE_REPORT_COLUMNS = ["id", "mother", "father", "twin", "sex", "generation", "liability1", "liability2"]
+# Per-trait additive (A), common-environment (C), and unique-environment (E)
+# liability components. Stored in the pedigree (the trait file is outcomes-only),
+# hydrated onto the plotting sample so the A/C/E component figures render.
+LIABILITY_COMPONENT_COLUMNS = ["A1", "A2", "C1", "C2", "E1", "E2"]
 REPORT_GROUPS = ("metadata", "incidence", "censoring", "pedigree", "correlations", "heritability")
 
 
