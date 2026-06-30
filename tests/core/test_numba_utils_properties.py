@@ -92,6 +92,7 @@ def test_owens_t_python_jit_parity(h, a):
 def test_bvn_cdf_in_unit_interval(h, k, r):
     p = _bvn_cdf(h, k, r)
     assert -1e-12 <= p <= 1.0 + 1e-12
-    # at r == 0 the joint CDF factorizes into the product of the marginals
+    # At r == 0 the joint CDF factorizes exactly; near zero, the first-order
+    # departure is O(r * phi(h) * phi(k)), so allow tolerance proportional to r.
     if abs(r) < 1e-9:
-        assert p == pytest.approx(_norm_cdf(h) * _norm_cdf(k), abs=1e-12)
+        assert p == pytest.approx(_norm_cdf(h) * _norm_cdf(k), abs=1e-12 + 0.2 * abs(r))
