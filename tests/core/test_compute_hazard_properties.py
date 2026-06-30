@@ -20,9 +20,7 @@ _pos = st.floats(min_value=0.1, max_value=100.0, allow_nan=False, allow_infinity
 @st.composite
 def _model_and_params(draw):
     model = draw(
-        st.sampled_from(
-            ["weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma", "first_passage"]
-        )
+        st.sampled_from(["weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma", "first_passage"])
     )
     if model == "weibull":
         params = {"scale": draw(_pos), "rho": draw(_pos)}

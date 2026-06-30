@@ -21,9 +21,7 @@ _AGES = np.linspace(0.0, 120.0, 50)
 @st.composite
 def _aj_inputs(draw):
     n = draw(st.integers(min_value=1, max_value=60))
-    exit_time = draw(
-        hnp.arrays(np.float64, n, elements=st.floats(0.1, 100.0, allow_nan=False, allow_infinity=False))
-    )
+    exit_time = draw(hnp.arrays(np.float64, n, elements=st.floats(0.1, 100.0, allow_nan=False, allow_infinity=False)))
     event_type = draw(hnp.arrays(np.int8, n, elements=st.integers(0, 2)))
     if draw(st.booleans()):
         entry = draw(hnp.arrays(np.float64, n, elements=st.floats(0.0, 100.0, allow_nan=False, allow_infinity=False)))
