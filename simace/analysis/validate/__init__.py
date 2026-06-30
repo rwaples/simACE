@@ -14,10 +14,12 @@ Public API is re-exported from focused sub-modules (mirrors
 - :mod:`.heritability` — MZ/DZ, Falconer, parent-offspring
 - :mod:`.population` — generation sizes, per-gen stats, family-size dist
 - :mod:`.assortative_mating` — mate correlation
+- :mod:`.am_equilibrium` — AM additive-variance (Bulmer) equilibrium
 - :mod:`.effective_size` — Ne observed-vs-expected
 - :mod:`.runner` — ``build_validation_report``, ``run_validation``, ``cli``
 """
 
+from .am_equilibrium import validate_am_equilibrium
 from .assortative_mating import validate_assortative_mating
 from .consanguinity import validate_consanguineous_matings
 from .effective_size import validate_effective_size
@@ -39,6 +41,7 @@ __all__ = [
     "compute_family_size_distribution",
     "compute_per_generation_stats",
     "run_validation",
+    "validate_am_equilibrium",
     "validate_assortative_mating",
     "validate_consanguineous_matings",
     "validate_effective_size",

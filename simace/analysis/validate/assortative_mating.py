@@ -7,7 +7,7 @@ import pandas as pd
 
 from simace.core.numerics import safe_corrcoef
 
-from ._common import _corr_se, _result
+from ._common import _corr_se, _info, _result
 
 
 def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
@@ -77,6 +77,19 @@ def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_ind
             f"Mate correlation liability{t}: {obs:.4f} (expected: {expected}, tol: {tol:.4f})",
             expected=float(expected),
             observed=float(obs),
+            n_pairs=n_pairs,
+        )
+
+    # Genetic (A-component) mate correlation mu_A — informational; consumed by
+    # the AM-corrected relative-correlation reference lines (see am_relatedness
+    # and plot_A_correlations). Reduces to ~0 with no assortment.
+    for t in [1, 2]:
+        m_a = df_indexed.loc[mother_ids, f"A{t}"].values
+        f_a = df_indexed.loc[father_ids, f"A{t}"].values
+        obs_a = safe_corrcoef(m_a, f_a)
+        results[f"mate_corr_A{t}"] = _info(
+            f"Genetic mate correlation A{t} (mu_A): {obs_a:.4f}",
+            observed=None if np.isnan(obs_a) else float(obs_a),
             n_pairs=n_pairs,
         )
 

@@ -21,6 +21,7 @@ import pandas as pd
 
 from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.yaml_io import load_yaml
+from simace.plotting.plot_am_equilibrium import plot_am_equilibrium
 from simace.plotting.plot_correlations import (
     plot_cross_trait_tetrachoric,
     plot_parent_offspring_liability,
@@ -278,6 +279,11 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
     PlotRenderSpec(
         "heritability.by_generation",
         lambda ctx, p: plot_heritability_by_generation(ctx.all_stats, p, ctx.scenario),
+    ),
+    # Assortative-mating additive-variance equilibrium
+    PlotRenderSpec(
+        "am_equilibrium",
+        lambda ctx, p: plot_am_equilibrium(ctx.all_stats, p, ctx.scenario),
     ),
     # PO-regression heritability by sex
     PlotRenderSpec(

@@ -9,6 +9,7 @@ from pedigree_graph import PedigreeGraph
 
 from simace.core.yaml_io import dump_yaml, load_yaml
 
+from .am_equilibrium import validate_am_equilibrium
 from .assortative_mating import validate_assortative_mating
 from .consanguinity import validate_consanguineous_matings
 from .half_sibs import validate_half_sibs
@@ -72,6 +73,7 @@ def build_validation_report(
         "population": validate_population(df, params),
         "per_generation": compute_per_generation_stats(df, params),
         "assortative_mating": validate_assortative_mating(df, params, df_indexed),
+        "am_equilibrium": validate_am_equilibrium(df, params, df_indexed),
         "consanguineous_matings": validate_consanguineous_matings(df, params),
     }
 

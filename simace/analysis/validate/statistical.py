@@ -7,7 +7,8 @@ import pandas as pd
 
 from simace.core.numerics import safe_corrcoef
 
-from ._common import _result
+from ._common import _info, _result
+from .am_relatedness import am_relatedness_mode
 
 
 def _check_variance(founders: pd.DataFrame, col: str, expected: float, tol: float = 0.1) -> dict[str, Any]:
@@ -58,21 +59,41 @@ def validate_statistical(df: pd.DataFrame, params: dict[str, Any], df_indexed: p
             return resolve_per_gen_param(val, G_sim)[founder_sim_gen]
         return val
 
-    # Variance checks for both traits
+    # Variance checks for both traits. Under assortative mating the additive
+    # variance inflates across generations (Bulmer), so the recorded "founders"
+    # (first recorded generation) no longer carry the configured A; the
+    # am_equilibrium check validates that inflation instead. Skip the
+    # A-variance (and the dependent total) for any trait with active AM. C and
+    # E are unaffected (drawn fresh each generation), so they remain asserted.
+    am_active = {t: am_relatedness_mode(params, t) != "none" for t in (1, 2)}
     for t in [1, 2]:
         for comp in ["A", "C", "E"]:
             col = f"{comp}{t}"
-            results[f"variance_{col}"] = _check_variance(founders, col, _resolve_founder_val(params[col]))
+            if comp == "A" and am_active[t]:
+                # Reported, not asserted: the am_equilibrium check validates the
+                # AM-inflated additive variance.
+                results[f"variance_{col}"] = _info(
+                    f"Var({col}): {founders[col].var():.4f} (AM-inflated; asserted by am_equilibrium)",
+                    observed=float(founders[col].var()),
+                )
+            else:
+                results[f"variance_{col}"] = _check_variance(founders, col, _resolve_founder_val(params[col]))
 
-    # Total variances
+    # Total variances (reported, not asserted, under AM — total inflates with V_A).
     for t in [1, 2]:
         total = sum(results[f"variance_{c}{t}"]["observed"] for c in ["A", "C", "E"])
-        results[f"total_variance_trait{t}"] = _result(
-            abs(total - 1.0) < 0.15,
-            f"Total variance trait {t}: {total:.4f} (expected: 1.0)",
-            expected=1.0,
-            observed=float(total),
-        )
+        if am_active[t]:
+            results[f"total_variance_trait{t}"] = _info(
+                f"Total variance trait {t}: {total:.4f} (AM-inflated; not asserted under AM)",
+                observed=float(total),
+            )
+        else:
+            results[f"total_variance_trait{t}"] = _result(
+                abs(total - 1.0) < 0.15,
+                f"Total variance trait {t}: {total:.4f} (expected: 1.0)",
+                expected=1.0,
+                observed=float(total),
+            )
 
     # Cross-trait correlations
     for comp, expected, label in [("A", rA_param, "A"), ("C", rC_param, "C")]:

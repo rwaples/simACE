@@ -177,6 +177,8 @@ def extract_truth(validation_report: dict[str, Any], params: dict[str, Any]) -> 
             "assortative_mating": {
                 "mate_corr_liability1": obs(am, "mate_corr_liability1"),
                 "mate_corr_liability2": obs(am, "mate_corr_liability2"),
+                "mate_corr_A1": obs(am, "mate_corr_A1"),
+                "mate_corr_A2": obs(am, "mate_corr_A2"),
             },
         }
     }

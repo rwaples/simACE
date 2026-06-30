@@ -411,6 +411,28 @@ class TestPlotValidation:
         assert (tmp_path / "correlations_A.png").exists()
         assert plt.get_fignums() == before
 
+    def test_am_reference_overlay(self, validation_df, tmp_path):
+        """AM-corrected markers are drawn only for scenarios with assortment."""
+        from simace.plotting.plot_validation import _draw_am_reference, plot_A_correlations
+
+        # No mate_corr_A1 column / no AM -> no AM reference, still renders.
+        _fig, ax = plt.subplots()
+        assert _draw_am_reference(validation_df, ax, "FS") is False
+        plt.close(_fig)
+
+        am_df = validation_df.copy()
+        am_df["assort1"] = [0.6] * len(am_df)
+        am_df["mate_corr_A1"] = [0.4] * len(am_df)
+        am_df["mate_corr_liability1"] = [0.6] * len(am_df)
+        _fig, ax = plt.subplots()
+        assert _draw_am_reference(am_df, ax, "FS") is True
+        plt.close(_fig)
+
+        before = plt.get_fignums()
+        plot_A_correlations(am_df, tmp_path, ext="png")
+        assert (tmp_path / "correlations_A.png").exists()
+        assert plt.get_fignums() == before
+
     def test_plot_cross_trait_correlations(self, validation_df, tmp_path):
         from simace.plotting.plot_validation import plot_cross_trait_correlations
 

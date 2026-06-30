@@ -17,6 +17,7 @@ from ._common import (
     _result,
     _subsample_pairs,
 )
+from .am_relatedness import resolve_expected_a_corr
 
 
 def _sib_counts_from_pairs(
@@ -54,9 +55,12 @@ def _sib_counts_from_pairs(
 
 
 def _validate_half_sib_correlations(
+    df: pd.DataFrame,
+    df_indexed: pd.DataFrame,
     sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
     comp_vals: dict[str, np.ndarray],
     A_params: dict[int, float],
+    params: dict[str, Any],
     rng: np.random.Generator,
     results: dict[str, Any],
 ) -> None:
@@ -65,7 +69,9 @@ def _validate_half_sib_correlations(
     Pooling rule:
     - **A correlation** uses MHS ∪ PHS — both share kinship 0.25 for the
       additive component, so pooling is a sample-size win. Expected: 0.25
-      (kinship), regardless of A's variance share.
+      (kinship) under random mating; under single-trait assortative mating it
+      inflates to ``(1 + 2·mu_A + mu_A·r_ho)/4`` (see :mod:`.am_relatedness`).
+      Both-trait AM skips the scored check.
     - **Liability and shared-C correlations** use PHS only. Maternal
       half-sibs share households, so MHS liability corr = 0.25·A + 1·C and
       MHS shared_C ≠ 0; PHS gives the clean expected formulas (0.25·A and 0).
@@ -75,21 +81,30 @@ def _validate_half_sib_correlations(
     pooled_idx1, pooled_idx2, n_pooled = _subsample_pairs(pooled_idx1, pooled_idx2, rng)
     phs_idx1, phs_idx2, n_phs = _subsample_pairs(sibling_pairs["PHS"][0], sibling_pairs["PHS"][1], rng)
 
-    # Half-sib A-component correlation == relatedness 2*kinship. MHS and PHS
-    # share the same kinship, so either key gives the pooled expectation.
-    expected_a = 2.0 * PAIR_KINSHIP["MHS"]
     if n_pooled >= _MIN_PAIRS_FOR_CORR:
         for t in [1, 2]:
             col = f"A{t}"
             obs = safe_corrcoef(comp_vals[col][pooled_idx1], comp_vals[col][pooled_idx2])
+            # Half-sib A correlation: 2*kinship under random mating, AM-inflated
+            # to (1 + 2*mu_A + mu_A*r_ho)/4 under single-trait assortment.
+            expected_a, skip, info = resolve_expected_a_corr(df, df_indexed, params, t, "HS", 2.0 * PAIR_KINSHIP["MHS"])
+            if skip is not None:
+                # Reported, not asserted: no single-trait formula under {skip}.
+                results[f"half_sib_{col}_correlation"] = _info(
+                    f"Half-sib (pooled MHS+PHS) {col} correlation: {obs:.4f} (not asserted — {skip})",
+                    observed=float(obs),
+                    n_pairs=n_pooled,
+                )
+                continue
             tol = _corr_tolerance(expected_a, n_pooled)
             ok = (A_params[t] == 0) if np.isnan(obs) else (abs(obs - expected_a) < tol)
             results[f"half_sib_{col}_correlation"] = _result(
                 ok,
-                f"Half-sib (pooled MHS+PHS) {col} correlation: {obs:.4f} (expected: {expected_a}, tol: {tol:.4f})",
-                expected=expected_a,
+                f"Half-sib (pooled MHS+PHS) {col} correlation: {obs:.4f} (expected: {expected_a:.4f}, tol: {tol:.4f})",
+                expected=float(expected_a),
                 observed=float(obs),
                 n_pairs=n_pooled,
+                **info,
             )
     else:
         for t in [1, 2]:
@@ -197,6 +212,6 @@ def validate_half_sibs(
     comp_vals = _extract_comp_vals(df_indexed)
     A_params = {1: params["A1"], 2: params["A2"]}
     rng = np.random.default_rng(params.get("seed", _DEFAULT_RNG_SEED))
-    _validate_half_sib_correlations(sibling_pairs, comp_vals, A_params, rng, results)
+    _validate_half_sib_correlations(df, df_indexed, sibling_pairs, comp_vals, A_params, params, rng, results)
 
     return results

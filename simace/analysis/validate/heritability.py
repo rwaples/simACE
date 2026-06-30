@@ -18,6 +18,7 @@ from ._common import (
     _result,
     _subsample_pairs,
 )
+from .am_relatedness import am_relatedness_mode, observed_mate_correlations, resolve_expected_a_corr
 
 
 def _midparent_regression(
@@ -94,13 +95,20 @@ def _validate_mz_correlations(
 
 
 def _validate_dz_correlations(
+    df: pd.DataFrame,
+    df_indexed: pd.DataFrame,
     params: dict[str, Any],
     A_params: dict[int, float],
     comp_vals: dict[str, np.ndarray],
     full_sib_pairs: tuple[np.ndarray, np.ndarray],
     results: dict[str, Any],
 ) -> tuple[dict[int, float | None], int]:
-    """Validate DZ sibling correlations. Returns (dz_pheno_corr, n_dz_pairs)."""
+    """Validate DZ sibling correlations. Returns (dz_pheno_corr, n_dz_pairs).
+
+    The full-sib A-component correlation is ``2·kinship`` (0.5) under random
+    mating; under single-trait assortative mating it inflates to ``(1+mu_A)/2``
+    (see :mod:`.am_relatedness`). Both-trait AM skips the scored check.
+    """
     rng = np.random.default_rng(params.get("seed", _DEFAULT_RNG_SEED))
     idx1, idx2, n_dz_pairs = _subsample_pairs(full_sib_pairs[0], full_sib_pairs[1], rng)
     dz_pheno_corr: dict[int, float | None] = {}
@@ -110,20 +118,30 @@ def _validate_dz_correlations(
             col = f"A{t}"
             dz_v1, dz_v2 = comp_vals[col][idx1], comp_vals[col][idx2]
             dz_corr = safe_corrcoef(dz_v1, dz_v2)
-            # Full-sib (DZ) A-component correlation == relatedness 2*kinship.
-            expected_dz = 2.0 * PAIR_KINSHIP["FS"]
-            dz_tol = _corr_tolerance(expected_dz, n_dz_pairs)
-            if np.isnan(dz_corr):
-                dz_ok = A_params[t] == 0
+            # Full-sib (DZ) A correlation: 2*kinship under random mating,
+            # AM-inflated to (1+mu_A)/2 under single-trait assortment.
+            expected_dz, skip, info = resolve_expected_a_corr(df, df_indexed, params, t, "FS", 2.0 * PAIR_KINSHIP["FS"])
+            if skip is not None:
+                # Reported, not asserted: no single-trait formula under {skip}.
+                results[f"dz_sibling_{col}_correlation"] = _info(
+                    f"DZ sibling {col} correlation: {dz_corr:.4f} (not asserted — {skip})",
+                    observed=float(dz_corr),
+                    n_pairs=n_dz_pairs,
+                )
             else:
-                dz_ok = abs(dz_corr - expected_dz) < dz_tol
-            results[f"dz_sibling_{col}_correlation"] = _result(
-                dz_ok,
-                f"DZ sibling {col} correlation: {dz_corr:.4f} (expected: ~{expected_dz}, tol: {dz_tol:.4f})",
-                expected=expected_dz,
-                observed=float(dz_corr),
-                n_pairs=n_dz_pairs,
-            )
+                dz_tol = _corr_tolerance(expected_dz, n_dz_pairs)
+                if np.isnan(dz_corr):
+                    dz_ok = A_params[t] == 0
+                else:
+                    dz_ok = abs(dz_corr - expected_dz) < dz_tol
+                results[f"dz_sibling_{col}_correlation"] = _result(
+                    dz_ok,
+                    f"DZ sibling {col} correlation: {dz_corr:.4f} (expected: ~{expected_dz:.4f}, tol: {dz_tol:.4f})",
+                    expected=float(expected_dz),
+                    observed=float(dz_corr),
+                    n_pairs=n_dz_pairs,
+                    **info,
+                )
 
             P1 = dz_v1 + comp_vals[f"C{t}"][idx1] + comp_vals[f"E{t}"][idx1]
             P2 = dz_v2 + comp_vals[f"C{t}"][idx2] + comp_vals[f"E{t}"][idx2]
@@ -146,7 +164,43 @@ def _validate_dz_correlations(
     return dz_pheno_corr, n_dz_pairs
 
 
+def _falconer_expected(
+    df: pd.DataFrame,
+    df_indexed: pd.DataFrame,
+    params: dict[str, Any],
+    comp_vals: dict[str, np.ndarray],
+    A_params: dict[int, float],
+    t: int,
+) -> tuple[float | None, str | None, str, dict[str, Any]]:
+    """Resolve the expected Falconer estimate for trait ``t``.
+
+    Returns ``(expected, skip_reason, label, info)``. Under random mating
+    Falconer estimates the configured ``A``. Under single-trait assortative
+    mating it is biased downward to ``Var(A)·(1 − mu_A)/V_P`` (the ``1 − mu_A``
+    factor cancels the AM variance inflation, leaving the heritability shrunk by
+    the inflated liability variance) — a known AM bias the check now asserts the
+    simulator reproduces. Both-trait AM skips (cross-trait bias not modelled).
+    """
+    mode = am_relatedness_mode(params, t)
+    if mode == "none":
+        return A_params[t], None, f"expected ~{A_params[t]}", {}
+    if mode == "bivariate":
+        return None, "both-trait AM active (cross-trait Falconer bias not modelled)", "", {}
+    mu_a, _r_ho, _n = observed_mate_correlations(df, df_indexed, t)
+    v_a = float(np.var(comp_vals[f"A{t}"]))
+    v_p = float(np.var(comp_vals[f"A{t}"] + comp_vals[f"C{t}"] + comp_vals[f"E{t}"]))
+    if v_p <= 0:
+        return A_params[t], None, f"expected ~{A_params[t]}", {}
+    expected = v_a * (1.0 - mu_a) / v_p
+    info = {"mu_A": mu_a, "var_A": v_a, "var_P": v_p}
+    return expected, None, f"AM-biased expected {expected:.4f} = Var(A)(1-mu_A)/V_P", info
+
+
 def _validate_falconer(
+    df: pd.DataFrame,
+    df_indexed: pd.DataFrame,
+    params: dict[str, Any],
+    comp_vals: dict[str, np.ndarray],
     A_params: dict[int, float],
     mz_pheno_corr: dict[int, float | None],
     dz_pheno_corr: dict[int, float | None],
@@ -154,28 +208,38 @@ def _validate_falconer(
     n_dz_pairs: int,
     results: dict[str, Any],
 ) -> None:
-    """Validate Falconer heritability estimates."""
+    """Validate Falconer heritability estimates (AM-aware expected value)."""
     for t in [1, 2]:
         mz_c = mz_pheno_corr.get(t)
         dz_c = dz_pheno_corr.get(t)
-        if mz_c is not None and dz_c is not None and not (np.isnan(mz_c) or np.isnan(dz_c)):
-            falconer = 2 * (mz_c - dz_c)
-            se_mz = _corr_se(mz_c, n_mz_pairs)
-            se_dz = _corr_se(dz_c, n_dz_pairs)
-            se_falconer = 2 * np.sqrt(se_mz**2 + se_dz**2)
-            falconer_tol = max(4 * se_falconer, 0.05)
-            results[f"falconer_estimate_trait{t}"] = _result(
-                abs(falconer - A_params[t]) < falconer_tol,
-                f"Falconer h²{chr(8320 + t)} = 2(r_MZ - r_DZ) = {falconer:.4f} "
-                f"(expected: ~{A_params[t]}, tol: {falconer_tol:.4f})",
-                expected=A_params[t],
-                observed=float(falconer),
-            )
-        else:
+        if mz_c is None or dz_c is None or np.isnan(mz_c) or np.isnan(dz_c):
             results[f"falconer_estimate_trait{t}"] = _result(
                 True,
                 "Cannot compute Falconer estimate without both MZ and DZ correlations",
             )
+            continue
+
+        falconer = 2 * (mz_c - dz_c)
+        expected, skip, label, info = _falconer_expected(df, df_indexed, params, comp_vals, A_params, t)
+        if skip is not None:
+            # Reported, not asserted: cross-trait Falconer bias not modelled.
+            results[f"falconer_estimate_trait{t}"] = _info(
+                f"Falconer h²{chr(8320 + t)} = {falconer:.4f} (not asserted — {skip})",
+                observed=float(falconer),
+            )
+            continue
+
+        se_mz = _corr_se(mz_c, n_mz_pairs)
+        se_dz = _corr_se(dz_c, n_dz_pairs)
+        se_falconer = 2 * np.sqrt(se_mz**2 + se_dz**2)
+        falconer_tol = max(4 * se_falconer, 0.05)
+        results[f"falconer_estimate_trait{t}"] = _result(
+            abs(falconer - expected) < falconer_tol,
+            f"Falconer h²{chr(8320 + t)} = 2(r_MZ - r_DZ) = {falconer:.4f} ({label}, tol: {falconer_tol:.4f})",
+            expected=float(expected),
+            observed=float(falconer),
+            **info,
+        )
 
 
 def _validate_parent_offspring(
@@ -262,6 +326,8 @@ def validate_heritability(
         results,
     )
     dz_pheno_corr, n_dz_pairs = _validate_dz_correlations(
+        df,
+        df_indexed,
         params,
         A_params,
         comp_vals,
@@ -269,6 +335,10 @@ def validate_heritability(
         results,
     )
     _validate_falconer(
+        df,
+        df_indexed,
+        params,
+        comp_vals,
         A_params,
         mz_pheno_corr,
         dz_pheno_corr,

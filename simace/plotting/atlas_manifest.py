@@ -131,6 +131,23 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         ),
     ),
     PlotEntry(
+        basename="am_equilibrium",
+        title="Assortative-mating additive-variance equilibrium.",
+        body=(
+            "1×2 figure, one panel per trait. Blue points/line show the realized per-"
+            "generation additive genetic variance Var(A) across replicates. Under phenotypic "
+            "assortative mating Var(A) inflates across generations (the Bulmer effect) toward "
+            "an equilibrium. The orange dashed line is the infinitesimal-model AM recursion "
+            "V_{t+1} = ½·V_t·(1 + r·h²_t) + ½·A, anchored at the founder variance A; the grey "
+            "dotted line marks its closed-form equilibrium a². This a² equals the assortative-"
+            "mating-only equilibrium additive variance of Herzig et al. (2026, Theoretical "
+            "Population Biology 170:26–35, doi:10.1016/j.tpb.2026.06.003): the simACE midparent "
+            "model and their explicit gametic-disequilibrium model share the same AM "
+            "equilibrium. Traits without assortative mating show the flat configured A "
+            "reference; per-generation A/C/E suppresses the theory overlay."
+        ),
+    ),
+    PlotEntry(
         basename="observed_h2",
         title="Observed-scale heritability from binary affected status.",
         body=(
@@ -491,7 +508,11 @@ VALIDATION_ATLAS: tuple[AtlasItem, ...] = (
             "2×2 grid. Panel 1: MZ twin A₁ correlation (expected = 1.0). Panel 2: Full-"
             "sibling (FS) A₁ correlation (expected = 0.5). Panel 3: Half-sibling A₁ correlation "
             "(expected = 0.25). Panel 4: Midparent-offspring A₁ R² (expected = 0.5). Each "
-            "panel shows blue dots with orange dashed reference line."
+            "panel shows blue dots with the orange random-mating reference line. For scenarios "
+            "with assortative mating, a purple marker adds the AM-corrected expectation computed "
+            "from the observed genetic and liability mate correlations — FS/PO = (1+μ_A)/2, "
+            "half-sib = (1+2μ_A+μ_A·r_ho)/4 — which the additive genetic correlations inflate "
+            "toward under AM. MZ is AM-invariant (no purple marker)."
         ),
     ),
     PlotEntry(

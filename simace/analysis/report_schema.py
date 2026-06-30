@@ -275,6 +275,8 @@ REPORT_SUMMARY_REGISTRY: list[MetricSpec] = [
     # ── truth: assortative mating ─────────────────────────────────────────
     MetricSpec("mate_corr_liability1", (*_TRUTH, "assortative_mating", "mate_corr_liability1")),
     MetricSpec("mate_corr_liability2", (*_TRUTH, "assortative_mating", "mate_corr_liability2")),
+    MetricSpec("mate_corr_A1", (*_TRUTH, "assortative_mating", "mate_corr_A1")),
+    MetricSpec("mate_corr_A2", (*_TRUTH, "assortative_mating", "mate_corr_A2")),
 
     # ── truth: offspring distribution ─────────────────────────────────────
     MetricSpec("mother_mean_offspring", (*_FS, "offspring_distribution", "mother", "mean")),

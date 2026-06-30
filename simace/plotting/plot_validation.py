@@ -181,21 +181,88 @@ def plot_twin_rate(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     save(fig, out / f"twin_rate.{ext}")
 
 
+_AM_REF_COLOR = "#AA3377"  # purple — AM-corrected expectation (vs orange = random mating)
+
+
+def _draw_am_reference(df: pd.DataFrame, ax: Axes, kind: str) -> bool:
+    """Overlay AM-corrected expected markers per scenario (additive to the RM line).
+
+    Drawn only for scenarios with trait-1 assortative mating. The AM-corrected
+    expectation uses the observed genetic mate correlation ``mu_A``
+    (``mate_corr_A1``) and liability mate correlation ``r_ho``
+    (``mate_corr_liability1``); see :mod:`simace.analysis.validate.am_relatedness`.
+    Returns True if any marker was drawn (so the caller can add a legend).
+    """
+    from simace.analysis.validate.am_relatedness import am_expected_a_correlation
+
+    if "mate_corr_A1" not in df.columns or "assort1" not in df.columns:
+        return False
+    drawn = False
+    for i, s in enumerate(df["scenario"].unique()):
+        sdf = df[df["scenario"] == s]
+        a1 = pd.to_numeric(sdf["assort1"], errors="coerce").fillna(0.0)
+        if (a1.abs() < 1e-9).all():
+            continue  # no assortative mating in this scenario
+        mu = pd.to_numeric(sdf["mate_corr_A1"], errors="coerce").mean()
+        rho = pd.to_numeric(sdf.get("mate_corr_liability1"), errors="coerce").mean()
+        if not np.isfinite(mu):
+            continue
+        val = am_expected_a_correlation(kind, float(mu), float(rho) if np.isfinite(rho) else 0.0)
+        ax.scatter(i, val, marker="_", s=200, linewidths=3, color=_AM_REF_COLOR, zorder=11)
+        drawn = True
+    return drawn
+
+
 def plot_A_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
-    """Plot MZ twin and full-sib additive genetic correlations."""
+    """Plot MZ twin, full-sib, half-sib, and PO additive genetic correlations.
+
+    Each panel shows the observed per-replicate values, the random-mating
+    expectation (orange), and — for scenarios with assortative mating — the
+    AM-corrected expectation (purple) computed from the observed genetic and
+    liability mate correlations. MZ is AM-invariant, so no AM marker is added.
+    """
     panels = [
-        ("mz_twin_A1_corr", 1.0, "MZ Twin A1 Correlation"),
-        ("dz_sibling_A1_corr", 0.5, "Full-Sibling A1 Correlation"),
-        ("half_sib_A1_corr", 0.25, "Half-Sibling A1 Correlation"),
-        ("parent_offspring_A1_r2", 0.5, "Midparent-Offspring A1 R²"),
+        ("mz_twin_A1_corr", 1.0, "MZ Twin A1 Correlation", "MZ"),
+        ("dz_sibling_A1_corr", 0.5, "Full-Sibling A1 Correlation", "FS"),
+        ("half_sib_A1_corr", 0.25, "Half-Sibling A1 Correlation", "HS"),
+        ("parent_offspring_A1_r2", 0.5, "Midparent-Offspring A1 R²", "PO"),
     ]
     fig, axes = plt.subplots(2, 2, figsize=_figsize(nrows=2, ncols=2))
-    for ax, (col, exp, title) in zip(axes.flat, panels, strict=True):
+    am_drawn = False
+    for ax, (col, exp, title, kind) in zip(axes.flat, panels, strict=True):
         stripplot(df, ax, col, expected=exp)
         ax.axhline(y=exp, color=COLOR_EXPECTED, linestyle="--", alpha=0.7)
+        if kind != "MZ" and _draw_am_reference(df, ax, kind):
+            am_drawn = True
         ax.set_title(title)
         ax.set_ylabel("Correlation")
         enable_value_gridlines(ax)
+    if am_drawn:
+        from matplotlib.lines import Line2D
+
+        handles = [
+            Line2D(
+                [0],
+                [0],
+                marker="_",
+                color=COLOR_EXPECTED,
+                linestyle="None",
+                markersize=12,
+                markeredgewidth=3,
+                label="Expected (random mating)",
+            ),
+            Line2D(
+                [0],
+                [0],
+                marker="_",
+                color=_AM_REF_COLOR,
+                linestyle="None",
+                markersize=12,
+                markeredgewidth=3,
+                label="Expected (AM-corrected)",
+            ),
+        ]
+        fig.legend(handles=handles, loc="lower center", ncol=2, fontsize=9, frameon=False, bbox_to_anchor=(0.5, -0.02))
     save(fig, out / f"correlations_A.{ext}")
 
 
