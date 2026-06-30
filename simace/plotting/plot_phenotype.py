@@ -43,9 +43,11 @@ from simace.plotting.plot_distributions import (
     plot_trait_regression,
 )
 from simace.plotting.plot_heritability import (
+    plot_ge_covariance_by_generation,
     plot_heritability_by_generation,
     plot_heritability_by_sex_generation,
     plot_observed_heritability,
+    plot_snp_like_heritability_by_generation,
 )
 from simace.plotting.plot_liability import (
     plot_censoring_cascade,
@@ -284,6 +286,15 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
     PlotRenderSpec(
         "am_equilibrium",
         lambda ctx, p: plot_am_equilibrium(ctx.all_stats, p, ctx.scenario),
+    ),
+    # GE covariance and SNP-like h² target
+    PlotRenderSpec(
+        "ge_covariance.by_generation",
+        lambda ctx, p: plot_ge_covariance_by_generation(ctx.all_stats, p, ctx.scenario),
+    ),
+    PlotRenderSpec(
+        "snp_like_h2.by_generation",
+        lambda ctx, p: plot_snp_like_heritability_by_generation(ctx.all_stats, p, ctx.scenario),
     ),
     # PO-regression heritability by sex
     PlotRenderSpec(

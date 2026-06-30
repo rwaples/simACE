@@ -112,10 +112,14 @@ def extract_truth(validation_report: dict[str, Any], params: dict[str, Any]) -> 
         h2 = var_a / var_liability if (var_a is not None and var_liability) else None
         realized_by_generation = {
             gen: {
+                "n": g.get("n"),
                 "var_A": g.get(f"A{t}_var"),
                 "var_C": g.get(f"C{t}_var"),
                 "var_E": g.get(f"E{t}_var"),
                 "var_liability": g.get(f"liability{t}_variance"),
+                "cov_A_non_genetic": g.get(f"A{t}_cov_non_genetic"),
+                "cov_A_C": g.get(f"A{t}_cov_C"),
+                "cov_A_E": g.get(f"A{t}_cov_E"),
             }
             for gen, g in per_gen.items()
         }

@@ -147,10 +147,16 @@ class TestRunAnalysis:
         assert all(c["scope"] == "recorded_pedigree" for c in qc["checks"])
 
     def test_truth_realized_variances(self, analyze_outputs):
-        realized = analyze_outputs["report"]["truth"]["recorded_pedigree"]["traits"]["trait1"]["realized"]
+        trait1 = analyze_outputs["report"]["truth"]["recorded_pedigree"]["traits"]["trait1"]
+        realized = trait1["realized"]
         assert realized["var_A"] is not None
         assert realized["h2_liability"] is not None
-        assert "realized_by_generation" in analyze_outputs["report"]["truth"]["recorded_pedigree"]["traits"]["trait1"]
+        assert "realized_by_generation" in trait1
+        gen1 = trait1["realized_by_generation"]["generation_1"]
+        assert gen1["n"] is not None
+        assert gen1["cov_A_non_genetic"] is not None
+        assert gen1["cov_A_C"] is not None
+        assert gen1["cov_A_E"] is not None
 
     def test_observed_ascertainment_before_after(self, analyze_outputs):
         asc = analyze_outputs["report"]["observed"]["ascertainment"]
@@ -202,4 +208,9 @@ class TestRunAnalysis:
         assert len(ci["ages"]) == len(ci["observed_values"])
         # Validation-derived per-generation table is reconstructed for plots.
         assert view["per_generation"]
+        gen1 = view["per_generation"]["generation_1"]
+        assert gen1["n"] is not None
+        assert gen1["A1_cov_non_genetic"] is not None
+        assert gen1["A1_cov_C"] is not None
+        assert gen1["A1_cov_E"] is not None
         assert view["parameters"].get("A1") is not None

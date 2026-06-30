@@ -9,9 +9,11 @@ from __future__ import annotations
 
 __all__ = [
     "plot_broad_heritability_by_generation",
+    "plot_ge_covariance_by_generation",
     "plot_heritability_by_generation",
     "plot_heritability_by_sex_generation",
     "plot_observed_heritability",
+    "plot_snp_like_heritability_by_generation",
 ]
 
 import logging
@@ -50,6 +52,147 @@ def _component_expected_values(value: Any, generations: list[int]) -> np.ndarray
         arr = np.array(vals, dtype=float)
         return arr if np.isfinite(arr).any() else None
     return np.full(len(generations), float(value), dtype=float)
+
+
+def _finite_float(value: Any) -> float:
+    """Return value as float, or NaN for missing/non-numeric values."""
+    if value is None:
+        return float("nan")
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+def _generation_keys(per_gen_all: list[dict[str, Any]]) -> list[str]:
+    """Return sorted generation keys from the first non-empty replicate."""
+    first = next((pg for pg in per_gen_all if pg), None)
+    if not first:
+        return []
+    return sorted(first.keys(), key=lambda k: int(k.split("_")[1]))
+
+
+def _derive_ge_h2_metrics(
+    var_a: Any,
+    var_liability: Any,
+    cov_a_non_genetic: Any,
+    n: Any = None,
+) -> dict[str, float]:
+    """Derive GE-covariance and SNP-like h² plotting metrics.
+
+    Inputs are per-generation primitives computed with population denominators
+    (ddof=0). ``var_non_genetic`` is derived from
+    ``Var(L) = Var(A) + Var(C+E) + 2 Cov(A,C+E)`` so the plots only require the
+    stored primitives.
+    """
+    a = _finite_float(var_a)
+    var_l = _finite_float(var_liability)
+    cov = _finite_float(cov_a_non_genetic)
+    n_float = _finite_float(n)
+
+    finite_core = np.isfinite([a, var_l, cov]).all()
+    if not finite_core:
+        return {
+            "ge_cov_fraction": float("nan"),
+            "h2_realized_A": float("nan"),
+            "h2_snp_like": float("nan"),
+            "var_non_genetic": float("nan"),
+            "null_sd": float("nan"),
+        }
+
+    var_u = var_l - a - 2.0 * cov
+    if var_u < 0 and np.isclose(var_u, 0.0, atol=1e-12):
+        var_u = 0.0
+
+    ge_cov_fraction = 2.0 * cov / var_l if var_l != 0 else float("nan")
+    h2_realized = a / var_l if var_l != 0 else float("nan")
+    h2_snp_like = ((a + cov) ** 2) / (a * var_l) if a > 0 and var_l > 0 else float("nan")
+
+    null_sd = float("nan")
+    if n_float > 1 and a >= 0 and var_u >= 0 and var_l > 0:
+        null_sd = abs(2.0 * np.sqrt(a * var_u) / var_l) / np.sqrt(n_float - 1.0)
+
+    return {
+        "ge_cov_fraction": float(ge_cov_fraction),
+        "h2_realized_A": float(h2_realized),
+        "h2_snp_like": float(h2_snp_like),
+        "var_non_genetic": float(var_u),
+        "null_sd": float(null_sd),
+    }
+
+
+def _metric_array(
+    per_gen_all: list[dict[str, Any]],
+    gen_keys: list[str],
+    trait_num: int,
+    metric: str,
+) -> np.ndarray:
+    """Build a replicate × generation array for a derived GE/h² metric."""
+    rows = []
+    for pg in per_gen_all:
+        row = []
+        for gk in gen_keys:
+            gs = pg.get(gk, {})
+            derived = _derive_ge_h2_metrics(
+                gs.get(f"A{trait_num}_var"),
+                gs.get(f"liability{trait_num}_variance"),
+                gs.get(f"A{trait_num}_cov_non_genetic"),
+                gs.get("n"),
+            )
+            row.append(derived[metric])
+        rows.append(row)
+    return np.array(rows, dtype=float)
+
+
+def _plot_replicate_points(
+    ax: plt.Axes,
+    x: np.ndarray,
+    values_by_rep: np.ndarray,
+    *,
+    color: str,
+    offset: float = 0.0,
+    jitter_width: float = 0.025,
+    alpha: float = 0.8,
+) -> None:
+    """Scatter finite per-replicate generation values with deterministic jitter."""
+    for rep_idx in range(values_by_rep.shape[0]):
+        values = values_by_rep[rep_idx]
+        finite = np.isfinite(values)
+        if not finite.any():
+            continue
+        jitter = np.random.default_rng(42 + rep_idx).uniform(-jitter_width, jitter_width, len(x))
+        ax.scatter(
+            x[finite] + offset + jitter[finite],
+            values[finite],
+            color=color,
+            alpha=alpha,
+            s=25,
+            zorder=5,
+        )
+
+
+def _plot_mean_line(ax: plt.Axes, x: np.ndarray, values_by_rep: np.ndarray, *, color: str, label: str) -> None:
+    """Plot a replicate mean line when at least one finite value exists."""
+    if not np.isfinite(values_by_rep).any():
+        return
+    mean_values = np.nanmean(values_by_rep, axis=0)
+    finite_mean = np.isfinite(mean_values)
+    if finite_mean.any():
+        ax.plot(x[finite_mean], mean_values[finite_mean], color=color, linewidth=1.4, label=label)
+
+
+def _finite_values(*arrays: np.ndarray) -> np.ndarray:
+    """Flatten finite values from one or more arrays into one vector."""
+    finite_parts = [arr[np.isfinite(arr)] for arr in arrays]
+    non_empty = [part for part in finite_parts if part.size]
+    return np.concatenate(non_empty) if non_empty else np.array([], dtype=float)
+
+
+def _add_legend_if_labeled(ax: plt.Axes) -> None:
+    """Add a legend only when at least one labeled artist exists."""
+    handles, _labels = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend(loc="best", fontsize=8)
 
 
 def plot_heritability_by_generation(
@@ -140,6 +283,107 @@ def plot_heritability_by_generation(
         ax.set_ylim(0, 1)
         ax.legend(loc="best", fontsize=8)
 
+        enable_value_gridlines(ax)
+
+    finalize_plot(output_path, scenario=scenario)
+
+
+def plot_ge_covariance_by_generation(
+    all_views: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+) -> None:
+    """Plot realized 2 Cov(A, C+E) / Var(L) by generation.
+
+    Under the current simACE model, C and E are drawn independently of A each
+    generation, so this diagnostic should fluctuate around zero on the
+    recorded pedigree.
+    """
+    per_gen_all = [v.get("per_generation", {}) for v in all_views]
+    gen_keys = _generation_keys(per_gen_all)
+    if not gen_keys:
+        save_placeholder_plot(output_path, "No per-generation data")
+        return
+
+    generations = [int(k.split("_")[1]) for k in gen_keys]
+    x = np.array(generations, dtype=float)
+
+    _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+
+    for col, trait_num in enumerate([1, 2]):
+        ax = axes[col]
+        ge_arr = _metric_array(per_gen_all, gen_keys, trait_num, "ge_cov_fraction")
+        null_sd_arr = _metric_array(per_gen_all, gen_keys, trait_num, "null_sd")
+
+        _plot_replicate_points(ax, x, ge_arr, color=COLOR_OBSERVED)
+        _plot_mean_line(ax, x, ge_arr, color=COLOR_OBSERVED, label="Mean")
+
+        if np.isfinite(null_sd_arr).any():
+            band = 1.96 * np.nanmean(null_sd_arr, axis=0)
+            finite_band = np.isfinite(band)
+            if finite_band.any():
+                ax.fill_between(
+                    x[finite_band],
+                    -band[finite_band],
+                    band[finite_band],
+                    color=COLOR_EXPECTED,
+                    alpha=0.18,
+                    label="Approx. null ±1.96 SD",
+                )
+
+        ax.axhline(0.0, color="0.35", linestyle="--", linewidth=1.0, alpha=0.8)
+        ax.set_xlabel("Generation")
+        ax.set_ylabel("2 Cov(A, C+E) / Var(L)")
+        ax.set_title(f"Trait {trait_num}")
+        ax.set_xticks(generations)
+        finite_values = _finite_values(ge_arr, 1.96 * null_sd_arr)
+        ylim = max(0.05, float(np.nanmax(np.abs(finite_values))) * 1.15) if finite_values.size else 0.05
+        ax.set_ylim(-ylim, ylim)
+        _add_legend_if_labeled(ax)
+        enable_value_gridlines(ax)
+
+    finalize_plot(output_path, scenario=scenario)
+
+
+def plot_snp_like_heritability_by_generation(
+    all_views: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+) -> None:
+    """Plot realized Var(A)/Var(L) against the SNP-like h² target."""
+    per_gen_all = [v.get("per_generation", {}) for v in all_views]
+    gen_keys = _generation_keys(per_gen_all)
+    if not gen_keys:
+        save_placeholder_plot(output_path, "No per-generation data")
+        return
+
+    generations = [int(k.split("_")[1]) for k in gen_keys]
+    x = np.array(generations, dtype=float)
+
+    _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+
+    for col, trait_num in enumerate([1, 2]):
+        ax = axes[col]
+        realized_arr = _metric_array(per_gen_all, gen_keys, trait_num, "h2_realized_A")
+        snp_like_arr = _metric_array(per_gen_all, gen_keys, trait_num, "h2_snp_like")
+
+        for label, arr, color, offset in (
+            ("Var(A) / Var(L)", realized_arr, COLOR_OBSERVED, -0.04),
+            ("SNP-like h² target", snp_like_arr, COLOR_EXPECTED, 0.04),
+        ):
+            _plot_replicate_points(ax, x, arr, color=color, offset=offset, jitter_width=0.02, alpha=0.75)
+            _plot_mean_line(ax, x, arr, color=color, label=label)
+
+        ax.set_xlabel("Generation")
+        ax.set_ylabel("h²-like fraction")
+        ax.set_title(f"Trait {trait_num}")
+        ax.set_xticks(generations)
+        finite_values = _finite_values(realized_arr, snp_like_arr)
+        if finite_values.size and np.nanmax(finite_values) > 1.02:
+            ax.set_ylim(0.0, float(np.nanmax(finite_values)) * 1.05)
+        else:
+            ax.set_ylim(0.0, 1.0)
+        _add_legend_if_labeled(ax)
         enable_value_gridlines(ax)
 
     finalize_plot(output_path, scenario=scenario)

@@ -148,6 +148,29 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         ),
     ),
     PlotEntry(
+        basename="ge_covariance.by_generation",
+        title="Genetic–non-genetic covariance by generation.",
+        body=(
+            "1×2 figure, one panel per trait. Points show per-replicate realized "
+            "2 Cov(A, C+E) / Var(L) by generation; the line shows the replicate mean. "
+            "The shaded band is an approximate null guide from finite-N sampling variation. "
+            "In current simACE, C and E are drawn independently of A each generation, so the "
+            "recorded-pedigree expectation is approximately zero. A nonzero signal before "
+            "VCT/autoregressive-C is enabled is a regression-warning signal."
+        ),
+    ),
+    PlotEntry(
+        basename="snp_like_h2.by_generation",
+        title="SNP-like h² target by generation.",
+        body=(
+            "1×2 figure, one panel per trait. The SNP-like h² target is not a fitted "
+            "GWAS/GRM estimate. It is the population plug-in estimand implied by realized "
+            "A and non-genetic C+E covariance: (Var(A)+Cov(A,C+E))²/(Var(A)Var(L)). "
+            "Under current simACE assumptions it should match Var(A)/Var(L); under VCT it "
+            "can diverge."
+        ),
+    ),
+    PlotEntry(
         basename="observed_h2",
         title="Observed-scale heritability from binary affected status.",
         body=(

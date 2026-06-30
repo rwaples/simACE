@@ -2,6 +2,8 @@
 
 import sys
 
+import numpy as np
+import pandas as pd
 import pytest
 import yaml
 from pedigree_graph import PedigreeGraph
@@ -84,6 +86,21 @@ def _all_passed(result: dict) -> None:
     for key, value in result.items():
         if isinstance(value, dict) and "passed" in value:
             assert value["passed"], f"Check '{key}' failed: {value.get('details', '')}"
+
+
+def _component_df(a: np.ndarray, c: np.ndarray, e: np.ndarray) -> pd.DataFrame:
+    """Build a one-generation two-trait DataFrame with matching components."""
+    return pd.DataFrame(
+        {
+            "id": np.arange(len(a)),
+            "A1": a,
+            "C1": c,
+            "E1": e,
+            "A2": a,
+            "C2": c,
+            "E2": e,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +252,50 @@ class TestComputePerGenerationStats:
         assert "liability1_mean" in gen1
         assert "liability1_variance" in gen1
         assert "A1_var" in gen1
+
+    def test_covariance_primitives_present(self, val_pedigree, val_params):
+        result = compute_per_generation_stats(val_pedigree, val_params)
+        gen1 = result["generation_1"]
+        assert "A1_cov_non_genetic" in gen1
+        assert "A1_cov_C" in gen1
+        assert "A1_cov_E" in gen1
+
+    def test_covariance_uses_population_denominator(self):
+        a = np.array([-1.0, 0.0, 1.0, 2.0])
+        c = a.copy()
+        e = np.zeros_like(a)
+        df = _component_df(a, c, e)
+        result = compute_per_generation_stats(df, {"N": len(df), "G_ped": 1})["generation_1"]
+        expected = np.mean((a - a.mean()) * ((c + e) - (c + e).mean()))
+        assert result["A1_cov_non_genetic"] == expected
+        assert result["A1_cov_non_genetic"] == result["A1_var"]
+
+    def test_independent_constructed_non_genetic_covariance_is_zero(self):
+        a = np.array([-1.0, -1.0, 1.0, 1.0])
+        c = np.array([-1.0, 1.0, -1.0, 1.0])
+        e = np.zeros_like(a)
+        df = _component_df(a, c, e)
+        result = compute_per_generation_stats(df, {"N": len(df), "G_ped": 1})["generation_1"]
+        assert result["A1_cov_non_genetic"] == 0.0
+
+    def test_constructed_non_genetic_equals_a_gives_snp_like_identity(self):
+        from simace.plotting.plot_heritability import _derive_ge_h2_metrics
+
+        a = np.array([-1.0, 0.0, 1.0, 2.0])
+        c = a.copy()
+        e = np.zeros_like(a)
+        df = _component_df(a, c, e)
+        result = compute_per_generation_stats(df, {"N": len(df), "G_ped": 1})["generation_1"]
+        derived = _derive_ge_h2_metrics(result["A1_var"], result["liability1_variance"], result["A1_cov_non_genetic"])
+        assert result["A1_cov_non_genetic"] == result["A1_var"]
+        assert derived["ge_cov_fraction"] == 2 * result["A1_var"] / result["liability1_variance"]
+        assert derived["h2_snp_like"] == 1.0
+
+    def test_zero_additive_variance_snp_like_is_nan(self):
+        from simace.plotting.plot_heritability import _derive_ge_h2_metrics
+
+        derived = _derive_ge_h2_metrics(var_a=0.0, var_liability=1.0, cov_a_non_genetic=0.0, n=10)
+        assert np.isnan(derived["h2_snp_like"])
 
 
 class TestValidatePopulation:

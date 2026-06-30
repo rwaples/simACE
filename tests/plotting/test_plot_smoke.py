@@ -639,9 +639,18 @@ def broad_h2_validations():
                     "A1_var": 0.48,
                     "C1_var": 0.19,
                     "E1_var": 0.30,
+                    "liability1_variance": 0.97,
+                    "A1_cov_non_genetic": 0.0,
+                    "A1_cov_C": 0.0,
+                    "A1_cov_E": 0.0,
                     "A2_var": 0.48,
                     "C2_var": 0.19,
                     "E2_var": 0.30,
+                    "liability2_variance": 0.97,
+                    "A2_cov_non_genetic": 0.0,
+                    "A2_cov_C": 0.0,
+                    "A2_cov_E": 0.0,
+                    "n": 1000,
                 }
                 for g in [1, 2, 3]
             },
@@ -758,6 +767,57 @@ class TestPlotCorrelationsExpanded:
         before = plt.get_fignums()
         out = tmp_path / "broad_h2_gen_empty.png"
         plot_broad_heritability_by_generation([{}], out, scenario="test")
+        assert out.exists()
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_ge_and_snp_like_helper_baseline_identity(self):
+        from simace.plotting.plot_heritability import _derive_ge_h2_metrics
+
+        derived = _derive_ge_h2_metrics(var_a=0.5, var_liability=1.0, cov_a_non_genetic=0.0, n=1000)
+        assert derived["ge_cov_fraction"] == 0.0
+        assert derived["h2_realized_A"] == 0.5
+        assert derived["h2_snp_like"] == 0.5
+        assert derived["null_sd"] > 0.0
+
+    def test_plot_ge_covariance_by_generation(self, broad_h2_validations, tmp_path):
+        from simace.plotting.plot_heritability import plot_ge_covariance_by_generation
+
+        before = plt.get_fignums()
+        out = tmp_path / "ge_cov_gen.png"
+        plot_ge_covariance_by_generation(broad_h2_validations, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_ge_covariance_by_generation_no_data(self, tmp_path):
+        from simace.plotting.plot_heritability import plot_ge_covariance_by_generation
+
+        before = plt.get_fignums()
+        out = tmp_path / "ge_cov_gen_empty.png"
+        plot_ge_covariance_by_generation([{}], out, scenario="test")
+        assert out.exists()
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_snp_like_heritability_by_generation(self, broad_h2_validations, tmp_path):
+        from simace.plotting.plot_heritability import plot_snp_like_heritability_by_generation
+
+        before = plt.get_fignums()
+        out = tmp_path / "snp_like_h2_gen.png"
+        plot_snp_like_heritability_by_generation(broad_h2_validations, out, scenario="test")
+        assert out.exists()
+        assert out.stat().st_size > 0
+        plt.close("all")
+        assert plt.get_fignums() == before
+
+    def test_plot_snp_like_heritability_by_generation_no_data(self, tmp_path):
+        from simace.plotting.plot_heritability import plot_snp_like_heritability_by_generation
+
+        before = plt.get_fignums()
+        out = tmp_path / "snp_like_h2_gen_empty.png"
+        plot_snp_like_heritability_by_generation([{}], out, scenario="test")
         assert out.exists()
         plt.close("all")
         assert plt.get_fignums() == before

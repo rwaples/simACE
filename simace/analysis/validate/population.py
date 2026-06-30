@@ -8,11 +8,16 @@ import pandas as pd
 from ._common import _result
 
 
+def _population_covariance(x: np.ndarray, y: np.ndarray) -> float:
+    """Return covariance with the population denominator (ddof=0)."""
+    return float(np.mean((x - x.mean()) * (y - y.mean())))
+
+
 def compute_per_generation_stats(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Compute per-generation statistics for two traits.
 
-    For each generation, computes liability mean/variance/sd and per-component
-    (A, C, E) mean/variance for both traits.
+    For each generation, computes liability mean/variance/sd, per-component
+    (A, C, E) mean/variance, and A-vs-(C+E) covariance primitives for both traits.
 
     Args:
         df: Pedigree DataFrame with columns id, A1, C1, E1, A2, C2, E2.
@@ -38,7 +43,8 @@ def compute_per_generation_stats(df: pd.DataFrame, params: dict[str, Any]) -> di
             a_vals = gen_df[f"A{t}"].values
             c_vals = gen_df[f"C{t}"].values
             e_vals = gen_df[f"E{t}"].values
-            liability = a_vals + c_vals + e_vals
+            non_genetic = c_vals + e_vals
+            liability = a_vals + non_genetic
             gen_stats[f"liability{t}_mean"] = float(liability.mean())
             gen_stats[f"liability{t}_variance"] = float(liability.var())
             gen_stats[f"liability{t}_sd"] = float(liability.std())
@@ -46,6 +52,12 @@ def compute_per_generation_stats(df: pd.DataFrame, params: dict[str, Any]) -> di
                 col = f"{comp}{t}"
                 gen_stats[f"{col}_mean"] = float(vals.mean())
                 gen_stats[f"{col}_var"] = float(vals.var())
+
+            # Match the population-variance convention above. np.cov defaults
+            # to ddof=1, which would break exact per-generation identities.
+            gen_stats[f"A{t}_cov_non_genetic"] = _population_covariance(a_vals, non_genetic)
+            gen_stats[f"A{t}_cov_C"] = _population_covariance(a_vals, c_vals)
+            gen_stats[f"A{t}_cov_E"] = _population_covariance(a_vals, e_vals)
 
         results[f"generation_{gen}"] = gen_stats
 

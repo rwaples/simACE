@@ -51,10 +51,15 @@ def report_per_generation(report: dict[str, Any] | None) -> dict[str, Any]:
         realized_by_generation = (traits.get(f"trait{t}") or {}).get("realized_by_generation", {})
         for gen_key, vals in realized_by_generation.items():
             entry = out.setdefault(gen_key, {})
+            if vals.get("n") is not None:
+                entry["n"] = vals.get("n")
             entry[f"A{t}_var"] = vals.get("var_A")
             entry[f"C{t}_var"] = vals.get("var_C")
             entry[f"E{t}_var"] = vals.get("var_E")
             entry[f"liability{t}_variance"] = vals.get("var_liability")
+            entry[f"A{t}_cov_non_genetic"] = vals.get("cov_A_non_genetic")
+            entry[f"A{t}_cov_C"] = vals.get("cov_A_C")
+            entry[f"A{t}_cov_E"] = vals.get("cov_A_E")
     return out
 
 
