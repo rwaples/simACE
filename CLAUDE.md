@@ -157,9 +157,11 @@ Thirteen related repos, all under `rwaples/` on GitHub. simACE is the umbrella w
 ## Planning and Implementation
 
 - For non-trivial implementation tasks, propose 2-3 approaches with tradeoffs before writing code. Wait for approval.
-- For non-trivial plans/refactors (multi-file, cross-repo, or with unresolved design decisions), default to invoking the `grill-with-docs` skill before proposing implementation. Lock each design decision explicitly before exiting plan mode. Skip grilling for bugfixes, doc tweaks, and renames.
+- For non-trivial plans/refactors (multi-file, cross-repo, or with unresolved design decisions), default to invoking the `grill-with-docs` skill before proposing implementation. Lock each design decision explicitly, then wait for an explicit go-ahead before calling `ExitPlanMode` — never auto-exit plan mode to present a plan as final. Skip grilling for bugfixes, doc tweaks, and renames.
+- Write working plan drafts to `plans/<slug>.md` (kebab-case, gitignored) and state the **absolute path** in chat when you do. Never overwrite an existing plan file — add a `-v2` suffix (etc.) or ask first. Promote a finalized plan to `docs/plans/` (tracked) when it should join the record; a locked architectural decision belongs in `docs/adr/`. See `plans/README.md`.
 - When starting a design interview or /grill-me session, if there is no existing plan, first explore the relevant codebase 
 and read key files and related modules before asking questions. Ground the interview in what the code actually does.
+- During code exploration, treat every dependency/coupling/structural claim as a hypothesis until cited: back it with the exact `file:line` that proves it, and list anything you couldn't confirm as unverified rather than asserting it. Hold `Task`/`Explore` subagents to the same standard in their instructions.
 - When a plan relies on formulas, thresholds, complexity claims, or memory/allocation models, enumerate each such assumption explicitly and verify it against the primary source and the actual codebase before locking the decision. Treat quantitative claims recalled from memory as unverified; flag any you cannot confirm rather than proceeding on them.
 
 ## Performance Optimization

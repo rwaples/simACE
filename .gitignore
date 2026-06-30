@@ -94,3 +94,8 @@ evaluate/
 # Added by code-review-graph
 .code-review-graph/
 .mcp.json
+
+# Working plan drafts (design-interview output). Finalized plans are promoted
+# to docs/plans/ (tracked). Keep the README so the location stays predictable.
+plans/*
+!plans/README.md
