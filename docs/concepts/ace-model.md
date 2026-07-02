@@ -59,9 +59,10 @@ Legacy boolean values are accepted at config load (`true → "global"`,
 
 ### Per-trait hazard override
 
-The four hazard-bearing model families (`frailty`, `cure_frailty`,
-`first_passage`, and `adult` with `method: cox`) accept a per-trait
-override `standardize_hazard` inside `phenotype.trait{N}.params`:
+Models with a separate hazard/onset-rate step (`frailty`,
+`cure_frailty`, `first_passage`, and `adult` with `method: cox`)
+accept a per-trait override `standardize_hazard` inside
+`phenotype.trait{N}.params`:
 
 ```yaml
 phenotype:
@@ -77,9 +78,9 @@ phenotype:
 
 `standardize_hazard` accepts the same three modes (`none`, `global`,
 `per_generation`) and defaults to inheriting whatever was selected for
-the global `standardize`. Models that have no hazard step (`threshold`
-and `adult` with `method: ltm`) reject the field with a trait-prefixed
-error.
+the global `standardize`. Threshold-only models with no hazard step
+(`simple_ltm` and `adult` with `method: ltm`) reject the field with a
+trait-prefixed error.
 
 `cure_frailty` is the only family that honors **both** knobs
 independently: `standardize` sets the threshold step (case status) while
@@ -92,7 +93,7 @@ keeping the hazard slope constant across generations.
 
 | Model | Threshold step uses | Hazard step uses |
 |---|---|---|
-| `threshold` | `standardize` | — |
+| `simple_ltm` | `standardize` | — |
 | `adult.ltm` | `standardize` | — |
 | `adult.cox` | — | `standardize_hazard` (default = `standardize`) |
 | `frailty` | — | `standardize_hazard` (default = `standardize`) |

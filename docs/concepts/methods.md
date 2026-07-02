@@ -309,9 +309,9 @@ The key difference from the standard frailty model is that the frailty mechanism
 
 ### ADuLT phenotype models
 
-The Age-Dependent Liability Threshold (ADuLT) models (Pedersen et al., *Nature Communications*, 2023) combine a liability threshold for case/control classification with a cumulative incidence function (CIF) mapping for age-at-onset assignment.
+The Age-Dependent Liability Threshold (ADuLT) family has two related mechanisms that share a logistic cumulative-incidence-function (CIF) age scale. `adult.ltm` uses a liability threshold for case/control classification and a deterministic CIF mapping for onset age. `adult.cox` instead draws stochastic Weibull proportional-hazards raw times, ranks those raw times, and caps cases at the target prevalence $K$ before mapping ranks onto the same CIF age scale.
 
-**ADuLT-LTM (liability threshold model).** Case status is determined by the liability threshold as in the simple threshold model. Among cases, onset age is assigned via a logistic CIF function. The effective liability is computed on the probit scale:
+**ADuLT-LTM (liability threshold model).** Case status is determined by the liability threshold as in the simple threshold model. Among cases, onset age is assigned via a logistic CIF function. This deterministic threshold/CIF mapping is **not** a proportional-hazards model. The effective liability is computed on the probit scale:
 
 $$
 L_{\text{eff},i} = \beta \, \tilde{L}_i + \beta_{\text{sex}} \cdot \text{sex}_i
@@ -331,7 +331,7 @@ $$
 
 where $x_0$ is the midpoint age and $k$ is the growth rate of the logistic CIF curve. Higher liability (more positive $L_{\text{eff}}$) produces smaller $\text{CIR}$ values (since $\Phi(-L)$ decreases) and therefore earlier onset. Controls (below the threshold) are assigned $t = 10^6$.
 
-**ADuLT-Cox (proportional hazards model).** A Weibull(shape=2) proportional hazards model generates raw event times, which are then rank-mapped to onset ages via the CIF function:
+**ADuLT-Cox (proportional hazards model).** A Weibull(shape=2) proportional-hazards model generates raw event times, which are then rank-mapped to onset ages via the CIF function:
 
 $$
 \tilde{t}_i = \sqrt{\frac{-\log U_i}{\exp(\beta \, \tilde{L}_i) \cdot \exp(\beta_{\text{sex}} \cdot \text{sex}_i)}}, \quad U_i \sim \text{Uniform}(0, 1]
@@ -343,7 +343,7 @@ $$
 t_i = x_0 + \frac{1}{k} \log\!\left(\frac{\text{CIF}_i}{K - \text{CIF}_i}\right)
 $$
 
-Controls ($\text{CIF}_i \geq K$) receive $t = 10^6$. When prevalence varies by group (sex, generation, or sex$\times$generation), ranking and CIF assignment are performed within each group separately to ensure exact per-group case rates.
+Controls ($\text{CIF}_i \geq K$) receive $t = 10^6$. The proportional-hazards interpretation applies to the raw time ordering: the raw survival law has $H_0(t)=t^2$ and multiplicative relative hazard $\exp(\beta\,\tilde{L} + \beta_{\text{sex}}\cdot\text{sex})$. When prevalence varies by group (sex, generation, or sex$\times$generation), ranking and CIF assignment are performed within each group separately to ensure exact per-group case rates.
 
 ### Sex-specific effects
 
