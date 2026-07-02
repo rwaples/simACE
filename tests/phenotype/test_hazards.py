@@ -1,5 +1,7 @@
 """Unit tests for simace.phenotype.hazards."""
 
+from itertools import pairwise
+
 import numpy as np
 import pytest
 
@@ -12,6 +14,7 @@ from simace.phenotype.hazards import (
     resolve_hazard_mode,
     standardize_beta,
     standardize_liability,
+    true_lifetime_prevalence_weibull,
 )
 
 ALL_DISTRIBUTIONS = sorted(BASELINE_HAZARDS)
@@ -287,3 +290,37 @@ def test_iter_generation_groups_empty_per_gen_yields_nothing():
     g = np.array([], dtype=int)
     masks = list(iter_generation_groups("per_generation", g))
     assert masks == []
+
+
+@pytest.mark.parametrize(
+    ("scale", "rho", "beta", "max_age", "expected"),
+    [
+        (2160.0, 0.8, 1.0, 80.0, 0.1029),  # baseline trait1
+        (333.0, 1.2, 1.5, 80.0, 0.2676),  # baseline trait2
+    ],
+)
+def test_true_lifetime_prevalence_weibull_known_values(scale, rho, beta, max_age, expected):
+    k = true_lifetime_prevalence_weibull(scale, rho, beta, max_age)
+    assert 0.0 < k < 1.0
+    assert k == pytest.approx(expected, abs=5e-3)
+
+
+def test_true_lifetime_prevalence_weibull_monotone_in_max_age():
+    ks = [true_lifetime_prevalence_weibull(2160.0, 0.8, 1.0, a) for a in (10.0, 40.0, 80.0, 120.0)]
+    assert ks[0] > 0.0
+    assert all(hi > lo for lo, hi in pairwise(ks))
+
+
+def test_true_lifetime_prevalence_weibull_matches_generative_model():
+    # The quadrature must reproduce the _nb_weibull inversion
+    # T = scale * (E / z) ** (1/rho), E ~ Exp(1), z = exp(beta * L), L ~ N(0,1).
+    scale, rho, beta, max_age = 2160.0, 0.8, 1.0, 80.0
+    rng = np.random.default_rng(0)
+    n = 1_000_000
+    liability = rng.standard_normal(n)
+    neg_log_u = rng.exponential(1.0, n)
+    z = np.exp(beta * liability)
+    t = scale * (neg_log_u / z) ** (1.0 / rho)
+    k_mc = float((t <= max_age).mean())
+    k = true_lifetime_prevalence_weibull(scale, rho, beta, max_age)
+    assert k == pytest.approx(k_mc, abs=2e-3)

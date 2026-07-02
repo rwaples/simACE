@@ -42,6 +42,7 @@ __all__ = [
     "standardize_beta",
     "standardize_hazard_cli_attr",
     "standardize_liability",
+    "true_lifetime_prevalence_weibull",
     "validate_hazard_params",
 ]
 
@@ -326,6 +327,43 @@ def coerce_standardize_mode(value: object) -> StandardizeMode:
     if isinstance(value, str) and value in _VALID_STD_MODES:
         return cast("StandardizeMode", value)
     raise ValueError(f"standardize must be one of {sorted(_VALID_STD_MODES)} or bool; got {value!r}")
+
+
+def true_lifetime_prevalence_weibull(
+    scale: float,
+    rho: float,
+    beta: float,
+    max_age: float,
+    n_quad: int = 64,
+) -> float:
+    """Marginal lifetime prevalence K of the Weibull-frailty model at ``max_age``.
+
+    Under the simACE generative model (:func:`_nb_weibull`) an individual's onset
+    time is ``T = scale * (E / z) ** (1 / rho)`` with ``E ~ Exp(1)`` and frailty
+    ``z = exp(scaled_beta * (L - mean))``.  When the liability is standardized
+    (``standardize`` in ``{"global", "per_generation"}``) it is N(0, 1) and
+    ``scaled_beta = beta`` (see :func:`standardize_beta`), so the cumulative hazard
+    is ``H0(t) = (t / scale) ** rho`` and
+
+        K = 1 - E_{L ~ N(0, 1)}[ exp(-H0(max_age) * exp(beta * L)) ],
+
+    evaluated here by Gauss-Hermite quadrature.
+
+    This is the *uncensored* population lifetime prevalence at ``max_age``; it does
+    not apply the age/death censoring the simulator later imposes, so the observed
+    sample prevalence is lower.
+
+    Precondition: an N(0, 1)-standardized liability (``standardize`` != ``"none"``);
+    the caller is responsible for that.
+    """
+    from numpy.polynomial.hermite import hermgauss
+
+    x, w = hermgauss(n_quad)
+    liab = np.sqrt(2.0) * x  # nodes on the N(0, 1) scale
+    wt = w / np.sqrt(np.pi)  # normalised weights (sum to 1)
+    h0 = (float(max_age) / float(scale)) ** float(rho)
+    integrand = np.exp(-h0 * np.exp(float(beta) * liab))
+    return float(1.0 - (integrand * wt).sum())
 
 
 def resolve_hazard_mode(
