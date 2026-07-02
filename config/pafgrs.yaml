@@ -1,0 +1,167 @@
+# PA-FGRS methods scenarios.
+#
+# Two cure-frailty traits scored through fitACE_pafgrs, as a bivariate
+# genetic-correlation contrast (rA = 0.5 vs 0.0). Everything else is identical
+# within a size class.
+#
+# Architecture (all scenarios, both traits):
+#   h2 (A)      = [0.30, 0.50]        # pure AE; E = 1 - A = [0.70, 0.50]
+#   prevalence  = [0.10, 0.05]        # cure-fraction set by the liability threshold
+#   onset       = lognormal(mu=3.5, sigma=0.7) among cases (WHEN, not WHO)
+#
+# Size classes (N per generation x G_pheno=3 = individuals scored):
+#   cure_rA50    / cure_rA00       N=666,666 => ~2.0M scored (full scale)
+#   cure_rA50_200k / cure_rA00_200k  N=66,666 => ~0.2M scored (10x smaller;
+#                                    for bivariate benchmarking — the bivariate
+#                                    scorer is ~hours at 2M, minutes at 200K)
+#
+# skip_ne_coancestry avoids OOM building the full sparse kinship in the
+# effective_size rule at large N (cf. baseline1M/2M).
+#
+# NOTE: fitACE_pafgrs implements the "true" CIP only for frailty+weibull; for
+# cure_frailty it falls back to the empirical CIP, so cip_source=true and
+# =empirical produce identical scores here.
+
+cure_rA50:
+  seed: 91042
+  N: 666666
+  analysis:
+    skip_ne_coancestry: true
+  pedigree:
+    rA: 0.5
+    rC: 0.0
+    trait1:
+      A: 0.3
+      C: 0.0
+      E: 0.7
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+        prevalence: 0.10
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
+
+cure_rA00:
+  seed: 92042
+  N: 666666
+  analysis:
+    skip_ne_coancestry: true
+  pedigree:
+    rA: 0.0
+    rC: 0.0
+    trait1:
+      A: 0.3
+      C: 0.0
+      E: 0.7
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+        prevalence: 0.10
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
+
+cure_rA50_200k:
+  seed: 93042
+  N: 66666
+  analysis:
+    skip_ne_coancestry: true
+  pedigree:
+    rA: 0.5
+    rC: 0.0
+    trait1:
+      A: 0.3
+      C: 0.0
+      E: 0.7
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+        prevalence: 0.10
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
+
+cure_rA00_200k:
+  seed: 94042
+  N: 66666
+  analysis:
+    skip_ne_coancestry: true
+  pedigree:
+    rA: 0.0
+    rC: 0.0
+    trait1:
+      A: 0.3
+      C: 0.0
+      E: 0.7
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+        prevalence: 0.10
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
