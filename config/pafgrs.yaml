@@ -11,6 +11,9 @@
 #
 # Size classes (N per generation x G_pheno=3 = individuals scored):
 #   cure_rA50    / cure_rA00       N=666,666 => ~2.0M scored (full scale)
+#   cure_rA50_400k                 N=133,332 => ~0.4M scored (2x the 200k class;
+#                                    scaling probe — pairs with cure_rA50_200k to
+#                                    measure how score_loop grows with N)
 #   cure_rA50_200k / cure_rA00_200k  N=66,666 => ~0.2M scored (10x smaller;
 #                                    for bivariate benchmarking — the bivariate
 #                                    scorer is ~hours at 2M, minutes at 200K)
@@ -137,6 +140,45 @@ cure_rA00_200k:
     skip_ne_coancestry: true
   pedigree:
     rA: 0.0
+    rC: 0.0
+    trait1:
+      A: 0.3
+      C: 0.0
+      E: 0.7
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+  phenotype:
+    trait1:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+        prevalence: 0.10
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: cure_frailty
+      params:
+        distribution: lognormal
+        mu: 3.5
+        sigma: 0.7
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
+
+# Scaling probe: exactly double cure_rA50_200k (N 66,666 -> 133,332). Same
+# seed family (+2000), same architecture, so score_loop timing vs the 200k
+# run isolates how cost grows with N at fixed pedigree depth.
+cure_rA50_400k:
+  seed: 95042
+  N: 133332
+  analysis:
+    skip_ne_coancestry: true
+  pedigree:
+    rA: 0.5
     rC: 0.0
     trait1:
       A: 0.3
