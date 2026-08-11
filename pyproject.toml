@@ -11,9 +11,11 @@ dependencies = [
     "pedigree-graph @ git+https://github.com/rwaples/pedigree-graph.git@v0.5.1",
     "numpy>=2.2,<3",
     "scipy>=1.14,<2",
-    # Snakemake/eido and the SLURM executor plugin currently require pandas <3.
+    # pandas 3 is released; the old upstream blockers are gone (eido >=0.2.6 and
+    # snakemake-executor-plugin-slurm >=2.8.0 both allow pandas 3). This cap is
+    # now ours alone, pending a validation pass across simACE + fitACE.
     "pandas>=2.2,<3",
-    "pyarrow>=17,<24",
+    "pyarrow>=17,<26",
     "pyyaml>=6,<7",
     "numba>=0.60,<1",
 ]
@@ -27,7 +29,7 @@ plot = [
 test = [
     "pytest>=9,<10",
     "pytest-cov>=7,<8",
-    "ruff>=0.15,<0.16",
+    "ruff>=0.16,<0.17",
     "hypothesis>=6,<7",
 ]
 docs = [
@@ -37,7 +39,7 @@ docs = [
 ]
 workflow = [
     "snakemake>=9,<10",
-    "snakefmt>=1,<2",
+    "snakefmt>=2,<3",
 ]
 typecheck = ["ty==0.0.51"]
 dev = [
@@ -70,7 +72,7 @@ markers = [
 
 [tool.ruff]
 target-version = "py313"
-required-version = ">=0.15,<0.16"
+required-version = ">=0.16,<0.17"
 line-length = 120
 extend-exclude = [".snakemake", "notes", "fitACE", "evaluate"]
 

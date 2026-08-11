@@ -6,24 +6,29 @@ channels:
 dependencies:
   - python=3.13.*
   # core
+  # numba caps numpy <2.5 (still true as of numba 0.66), so numpy stays on 2.4.x
+  # even though 2.5.x is released. Bump both together once numba lifts the cap.
   - numpy=2.4.*
-  - scipy=1.17.*
-  # Snakemake/eido and the SLURM executor plugin currently require pandas <3.
+  - scipy=1.18.*
+  # pandas 3 is released and the old upstream blockers are gone (eido >=0.2.6 and
+  # snakemake-executor-plugin-slurm >=2.8.0 both allow pandas 3). The remaining
+  # cap is our own `pandas>=2.2,<3` in the family pyprojects, pending a
+  # validation pass across simACE + fitACE.
   - pandas=2.3.*
-  - pyarrow=23.0.*
+  - pyarrow=25.0.*
   - pyyaml=6.0.*
-  - numba=0.65.*
+  - numba=0.66.*
   # plotting
-  - matplotlib=3.10.*
+  - matplotlib=3.11.*
   - seaborn=0.13.*
-  - pillow=12.2.*
+  - pillow=12.3.*
   # workflow
-  - snakemake=9.20.*
-#  - snakemake-executor-plugin-slurm=2.6.*
-#  - snakefmt=1.1.*
+  - snakemake=9.25.*
+#  - snakemake-executor-plugin-slurm=2.8.*
+#  - snakefmt=2.0.*
   # dev / test
-  - pytest=9.0.*
-  - ruff=0.15.*
+  - pytest=9.1.*
+  - ruff=0.16.*
   # graphics
   - graphviz
   # MKL / linear algebra

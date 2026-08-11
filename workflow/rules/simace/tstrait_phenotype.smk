@@ -286,11 +286,11 @@ rule tstrait_phenotype:
 rule tstrait_augment_pedigree:
     """Overwrite pedigree A1 with rescaled tstrait GV; recompute liability1.
 
-Produces a sibling pedigree.full.tstrait.parquet so downstream simACE
-phenotype models (frailty, threshold, etc.) can run on the augmented
-pedigree and use the standard A+C+E variance composition with a
-realistic A column derived from real genotypes.
-"""
+    Produces a sibling pedigree.full.tstrait.parquet so downstream simACE
+    phenotype models (frailty, threshold, etc.) can run on the augmented
+    pedigree and use the standard A+C+E variance composition with a
+    realistic A column derived from real genotypes.
+    """
     input:
         pedigree=_drop_pedigree_path,
         gv=lambda w: expand(
