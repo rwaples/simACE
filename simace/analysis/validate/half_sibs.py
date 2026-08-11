@@ -88,7 +88,7 @@ def _validate_half_sib_correlations(
             # Half-sib A correlation: 2*kinship under random mating, AM-inflated
             # to (1 + 2*mu_A + mu_A*r_ho)/4 under single-trait assortment.
             expected_a, skip, info = resolve_expected_a_corr(df, df_indexed, params, t, "HS", 2.0 * PAIR_KINSHIP["MHS"])
-            if skip is not None:
+            if expected_a is None:
                 # Reported, not asserted: no single-trait formula under {skip}.
                 results[f"half_sib_{col}_correlation"] = _info(
                     f"Half-sib (pooled MHS+PHS) {col} correlation: {obs:.4f} (not asserted — {skip})",

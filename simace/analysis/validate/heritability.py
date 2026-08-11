@@ -121,7 +121,7 @@ def _validate_dz_correlations(
             # Full-sib (DZ) A correlation: 2*kinship under random mating,
             # AM-inflated to (1+mu_A)/2 under single-trait assortment.
             expected_dz, skip, info = resolve_expected_a_corr(df, df_indexed, params, t, "FS", 2.0 * PAIR_KINSHIP["FS"])
-            if skip is not None:
+            if expected_dz is None:
                 # Reported, not asserted: no single-trait formula under {skip}.
                 results[f"dz_sibling_{col}_correlation"] = _info(
                     f"DZ sibling {col} correlation: {dz_corr:.4f} (not asserted — {skip})",
@@ -221,7 +221,7 @@ def _validate_falconer(
 
         falconer = 2 * (mz_c - dz_c)
         expected, skip, label, info = _falconer_expected(df, df_indexed, params, comp_vals, A_params, t)
-        if skip is not None:
+        if expected is None:
             # Reported, not asserted: cross-trait Falconer bias not modelled.
             results[f"falconer_estimate_trait{t}"] = _info(
                 f"Falconer h²{chr(8320 + t)} = {falconer:.4f} (not asserted — {skip})",
