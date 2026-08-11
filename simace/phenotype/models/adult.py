@@ -218,7 +218,7 @@ class AdultModel(PhenotypeModel):
         t = np.full(len(L), 1e6)
         n_cases = is_case.sum()
         if n_cases > 0:
-            prev_case = prevalence[is_case] if isinstance(prevalence, np.ndarray) else prevalence  # ty: ignore[invalid-argument-type]
+            prev_case = prevalence[is_case] if isinstance(prevalence, np.ndarray) else prevalence
             L_eff = self.beta * L[is_case]
             if self.beta_sex != 0.0 and sex is not None:
                 L_eff = L_eff + self.beta_sex * sex[is_case]

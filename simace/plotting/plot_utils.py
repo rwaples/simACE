@@ -103,7 +103,7 @@ def _make_heatmap_cmap():
     import matplotlib.colors as mcolors
     import matplotlib.pyplot as plt
 
-    gnbu = plt.cm.GnBu  # ty: ignore[unresolved-attribute]
+    gnbu = plt.cm.GnBu
     return mcolors.LinearSegmentedColormap.from_list("GnBu_dark", gnbu(np.linspace(0.4, 1.0, 256)))
 
 

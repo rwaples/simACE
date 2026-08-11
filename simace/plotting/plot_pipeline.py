@@ -119,8 +119,8 @@ def _format_param_value(name: str, value: object) -> str:
         return str(value).lower()
     if isinstance(value, dict):
         if "female" in value and "male" in value:
-            f_val = _format_param_value("", value["female"])  # ty: ignore[invalid-argument-type]
-            m_val = _format_param_value("", value["male"])  # ty: ignore[invalid-argument-type]
+            f_val = _format_param_value("", value["female"])
+            m_val = _format_param_value("", value["male"])
             return f"F:{f_val} M:{m_val}"
         return "(see params)"
     if isinstance(value, float):
