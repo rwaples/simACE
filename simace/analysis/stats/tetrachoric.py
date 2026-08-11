@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 
 from simace.core._numba_utils import _ndtri_approx, _norm_cdf, _pearsonr_core, _tetrachoric_core
+from simace.core.numerics import as_kernel_input
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +79,6 @@ def _tetrachoric_for_pairs(
         "n_pairs": int(n_p),
     }
     if liability is not None:
-        liab_r = float(_pearsonr_core(liability[idx1], liability[idx2]))
+        liab_r = float(_pearsonr_core(as_kernel_input(liability[idx1]), as_kernel_input(liability[idx2])))
         entry["liability_r"] = liab_r if not np.isnan(liab_r) else None
     return entry

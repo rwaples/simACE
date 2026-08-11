@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from simace.core._numba_utils import _pearsonr_core
-from simace.core.numerics import fast_linregress, safe_corrcoef
+from simace.core.numerics import as_kernel_input, fast_linregress, safe_corrcoef
 from simace.core.relationships import RELATIONSHIP_TYPES, SEX_LEVELS
 
 from .tetrachoric import _tetrachoric_for_pairs, tetrachoric_corr_se
@@ -45,7 +45,11 @@ def compute_liability_correlations(
         trait_result: dict[str, float | None] = {}
         for ptype in RELATIONSHIP_TYPES:
             idx1, idx2 = pairs[ptype]
-            trait_result[ptype] = float(_pearsonr_core(liability[idx1], liability[idx2])) if len(idx1) >= 10 else None
+            trait_result[ptype] = (
+                float(_pearsonr_core(as_kernel_input(liability[idx1]), as_kernel_input(liability[idx2])))
+                if len(idx1) >= 10
+                else None
+            )
         result[f"trait{trait_num}"] = trait_result
     return result
 
