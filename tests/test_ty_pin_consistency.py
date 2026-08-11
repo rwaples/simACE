@@ -6,10 +6,12 @@ can't import that constant, so this test enforces the link: each family repo tha
 ships a ``pyproject.toml`` declaring a ``ty`` requirement must pin exactly
 ``ty==TY_PIN``.  Bumping the pin in one repo and forgetting the rest fails here.
 
-The two ``ty.toml``-only repos (pedsum, tetraher_simace) declare no Python
-dependency metadata, so they have no pin to check and are out of scope.  In a
-standalone simACE checkout without the nested repos, only simACE's own pyproject
-is discovered and checked -- acceptable, same as ``test_dependency_floors``.
+``tetraher_simace`` is ``ty.toml``-only -- it declares no Python dependency
+metadata, so it has no pin to check and is out of scope.  ``pedsum`` gained a
+``pyproject.toml`` and is now checked like the rest, even though it keeps its
+lint/type config in standalone ``ruff.toml`` / ``ty.toml``.  In a standalone
+simACE checkout without the nested repos, only simACE's own pyproject is
+discovered and checked -- acceptable, same as ``test_dependency_floors``.
 """
 
 from __future__ import annotations
