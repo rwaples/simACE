@@ -26,7 +26,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 #: The ``ty`` version pinned in every family ``typecheck`` extra.
-TY_PIN = "0.0.51"
+TY_PIN = "0.0.70"
 
 #: The ``python-version`` every family ``[tool.ty]`` / ``ty.toml`` config pins --
 #: one shared value, enforced by ``tests/test_ty_python_version_consistency.py``.

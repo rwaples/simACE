@@ -41,7 +41,7 @@ workflow = [
     "snakemake>=9,<10",
     "snakefmt>=2,<3",
 ]
-typecheck = ["ty==0.0.51"]
+typecheck = ["ty==0.0.70"]
 dev = [
     "simace[plot,test,docs,workflow,typecheck]",
 ]
