@@ -42,7 +42,22 @@ from simace.simulation.assortment import AssortmentPlan
 from simace.simulation.params import SimulationParams
 
 if TYPE_CHECKING:
-    from numba import njit
+    from collections.abc import Callable
+    from typing import Any, TypeVar
+
+    _F = TypeVar("_F", bound=Callable[..., Any])
+
+    def njit(*args: Any, **kwargs: Any) -> Callable[[_F], _F]:
+        """Identity decorator under type checking only.
+
+        numba 0.66 became a PEP 561 typed package, so importing the real
+        ``njit`` here makes every jitted function a ``Dispatcher`` with an
+        opaque return type — which then propagates through
+        ``ThreadPoolExecutor.submit(...).result()`` and breaks inference at
+        unrelated call sites.  Aliasing to identity lets a type checker see
+        the underlying Python function's signature instead.
+        """
+
 else:
     try:
         from numba import njit
