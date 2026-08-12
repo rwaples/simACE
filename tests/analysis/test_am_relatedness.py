@@ -3,6 +3,7 @@
 import pytest
 
 from simace.analysis.validate import build_validation_report
+from simace.core.pedigree_arrays import PedigreeArrays
 from simace.analysis.validate.am_relatedness import (
     am_expected_a_correlation,
     am_relatedness_mode,
@@ -147,7 +148,7 @@ class TestIntegration:
     def test_observed_mate_correlations_positive_under_am(self):
         p = _params(assort1=0.6)
         df = run_simulation(**p)
-        mu_a, r_ho, n = observed_mate_correlations(df, df.set_index("id"), 1)
+        mu_a, r_ho, n = observed_mate_correlations(df, PedigreeArrays.from_frame(df), 1)
         assert n > 100
         assert 0.2 < r_ho < 0.8  # configured 0.6, sampled
         assert mu_a > 0.1  # genetic mate correlation induced by AM

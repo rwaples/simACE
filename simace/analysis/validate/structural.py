@@ -5,10 +5,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from simace.core.pedigree_arrays import PedigreeArrays
+
 from ._common import _result
 
 
-def validate_structural(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+def validate_structural(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeArrays) -> dict[str, Any]:
     """Validate structural integrity of the pedigree.
 
     Checks contiguous IDs, valid parent references, sex-parent consistency,
@@ -17,6 +19,7 @@ def validate_structural(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, A
     Args:
         df: Pedigree DataFrame with columns id, sex, mother, father.
         params: Scenario parameters; requires keys ``N`` and ``G_ped``.
+        ped: The same pedigree as id-addressable arrays.
 
     Returns:
         Dict of check-name to result dicts (keys: passed, details, …).
@@ -51,11 +54,12 @@ def validate_structural(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, A
     # Sex-parent consistency (only for non-founders)
     non_founders = df[df["mother"] != -1]
     if len(non_founders) > 0:
-        id_to_sex = df.set_index("id")["sex"]
-        mother_sex = id_to_sex.reindex(non_founders["mother"]).values
-        father_sex = id_to_sex.reindex(non_founders["father"]).values
-        mothers_female = (mother_sex == 0).all()
-        fathers_male = (father_sex == 1).all()
+        mothers = non_founders["mother"].to_numpy()
+        fathers = non_founders["father"].to_numpy()
+        # Short-circuits on an absent parent, matching the reindex this
+        # replaced: a missing id produced NaN, which failed the comparison.
+        mothers_female = bool(ped.contains(mothers).all()) and bool((ped.gather("sex", mothers) == 0).all())
+        fathers_male = bool(ped.contains(fathers).all()) and bool((ped.gather("sex", fathers) == 1).all())
         results["sex_parent_consistency"] = _result(
             bool(mothers_female and fathers_male),
             f"Mothers female: {mothers_female}, Fathers male: {fathers_male}",

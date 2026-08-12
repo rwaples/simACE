@@ -15,6 +15,7 @@ import numpy as np
 
 from simace.core._numba_utils import _pearsonr_core
 from simace.core.numerics import as_kernel_input, fast_linregress, safe_corrcoef
+from simace.core.pedigree_arrays import PedigreeArrays
 from simace.core.relationships import RELATIONSHIP_TYPES, SEX_LEVELS
 
 from .tetrachoric import _tetrachoric_for_pairs, tetrachoric_corr_se
@@ -474,15 +475,16 @@ def compute_mate_correlation(df: pd.DataFrame) -> dict:
     Each unique (mother, father) pair is counted once (not weighted by offspring).
     Only non-founders are considered.
     """
-    lookup = df.set_index("id")[["liability1", "liability2"]]
+    ped = PedigreeArrays.from_frame(df)
     nf = df[(df["mother"] != -1) & (df["father"] != -1)][["mother", "father"]].drop_duplicates()
-    parents_present = nf["mother"].isin(lookup.index) & nf["father"].isin(lookup.index)
+    parents_present = ped.contains(nf["mother"].to_numpy()) & ped.contains(nf["father"].to_numpy())
     nf = nf.loc[parents_present]
     if len(nf) < 2:
         return {"matrix": [[float("nan")] * 2] * 2, "n_pairs": 0}
 
-    f_liab = lookup.loc[nf["mother"].values].values  # (N, 2)
-    m_liab = lookup.loc[nf["father"].values].values  # (N, 2)
+    mothers, fathers = nf["mother"].to_numpy(), nf["father"].to_numpy()
+    f_liab = np.column_stack([ped.gather(f"liability{t}", mothers) for t in (1, 2)])  # (N, 2)
+    m_liab = np.column_stack([ped.gather(f"liability{t}", fathers) for t in (1, 2)])  # (N, 2)
 
     matrix = [[float(safe_corrcoef(f_liab[:, i], m_liab[:, j])) for j in range(2)] for i in range(2)]
     return {"matrix": matrix, "n_pairs": len(nf)}

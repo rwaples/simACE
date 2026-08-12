@@ -5,10 +5,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from simace.core.pedigree_arrays import PedigreeArrays
+
 from ._common import _result
 
 
-def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
+def validate_twins(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeArrays) -> dict[str, Any]:
     """Validate MZ twin properties for two-trait simulation.
 
     Checks bidirectional twin pointers, shared parents, identical A values
@@ -25,7 +27,7 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
         df: Pedigree DataFrame.
         params: Scenario parameters; requires key ``p_mztwin`` (and optional
             ``mating_model``, defaulted to ``"standard"``).
-        df_indexed: Pedigree DataFrame indexed by ``id`` for fast lookups.
+        ped: The same pedigree as id-addressable arrays.
 
     Returns:
         Dict of check-name to result dicts.
@@ -70,20 +72,20 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
     t2_arr = twin_partners[mask]
     n_pairs = len(t1_arr)
 
-    # Bidirectional check
-    twin_col = df_indexed["twin"]
-    reverse_check = twin_col.reindex(t2_arr).values
-    bidirectional = np.all(reverse_check == t1_arr)
+    # Bidirectional check. Tolerates a partner missing from the pedigree the
+    # way the reindex it replaces did: absent means the check simply fails.
+    partners_present = ped.contains(t2_arr)
+    bidirectional = bool(partners_present.all()) and np.all(ped.gather("twin", t2_arr) == t1_arr)
     results["twin_bidirectional"] = _result(
         bool(bidirectional),
         f"All {n_twins} twin references are bidirectional: {bidirectional}",
     )
 
     # Same parents
-    t1_mother = df_indexed.loc[t1_arr, "mother"].values
-    t2_mother = df_indexed.loc[t2_arr, "mother"].values
-    t1_father = df_indexed.loc[t1_arr, "father"].values
-    t2_father = df_indexed.loc[t2_arr, "father"].values
+    t1_mother = ped.gather("mother", t1_arr)
+    t2_mother = ped.gather("mother", t2_arr)
+    t1_father = ped.gather("father", t1_arr)
+    t2_father = ped.gather("father", t2_arr)
     same_parents = np.all((t1_mother == t2_mother) & (t1_father == t2_father))
     results["twin_same_parents"] = _result(
         bool(same_parents),
@@ -93,8 +95,8 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
     # Same A values and same sex - loop over traits for A
     for t in [1, 2]:
         col = f"A{t}"
-        v1 = df_indexed.loc[t1_arr, col].values
-        v2 = df_indexed.loc[t2_arr, col].values
+        v1 = ped.gather(col, t1_arr)
+        v2 = ped.gather(col, t2_arr)
         same = np.allclose(v1, v2)
         results[f"twin_same_{col}"] = _result(
             bool(same),
@@ -102,8 +104,8 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.Data
         )
 
     # Same sex
-    t1_sex = df_indexed.loc[t1_arr, "sex"].values
-    t2_sex = df_indexed.loc[t2_arr, "sex"].values
+    t1_sex = ped.gather("sex", t1_arr)
+    t2_sex = ped.gather("sex", t2_arr)
     same_sex = np.all(t1_sex == t2_sex)
     results["twin_same_sex"] = _result(
         bool(same_sex),

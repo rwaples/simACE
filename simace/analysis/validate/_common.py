@@ -8,7 +8,8 @@ helpers used by more than one validation module. Generic numerics live in
 from typing import Any
 
 import numpy as np
-import pandas as pd
+
+from simace.core.pedigree_arrays import PedigreeArrays
 
 _MAX_CORR_PAIRS = 5000  # cap pair-correlation samples for cost
 _MIN_PAIRS_FOR_CORR = 10  # below this, skip the correlation check
@@ -59,6 +60,6 @@ def _subsample_pairs(
     return idx1[sel], idx2[sel], max_pairs
 
 
-def _extract_comp_vals(df_indexed: pd.DataFrame) -> dict[str, np.ndarray]:
+def _extract_comp_vals(ped: PedigreeArrays) -> dict[str, np.ndarray]:
     """Pull A/C/E component arrays for both traits as numpy views (no copy)."""
-    return {f"{c}{t}": df_indexed[f"{c}{t}"].values for c in ("A", "C", "E") for t in (1, 2)}
+    return {f"{c}{t}": ped[f"{c}{t}"] for c in ("A", "C", "E") for t in (1, 2)}

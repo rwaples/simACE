@@ -7,6 +7,7 @@ import pandas as pd
 from pedigree_graph import PAIR_KINSHIP
 
 from simace.core.numerics import safe_corrcoef
+from simace.core.pedigree_arrays import PedigreeArrays
 
 from ._common import (
     _DEFAULT_RNG_SEED,
@@ -76,7 +77,7 @@ def _sib_counts_from_pairs(
 
 def _validate_half_sib_correlations(
     df: pd.DataFrame,
-    df_indexed: pd.DataFrame,
+    ped: PedigreeArrays,
     sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
     comp_vals: dict[str, np.ndarray],
     A_params: dict[int, float],
@@ -107,7 +108,7 @@ def _validate_half_sib_correlations(
             obs = safe_corrcoef(comp_vals[col][pooled_idx1], comp_vals[col][pooled_idx2])
             # Half-sib A correlation: 2*kinship under random mating, AM-inflated
             # to (1 + 2*mu_A + mu_A*r_ho)/4 under single-trait assortment.
-            expected_a, skip, info = resolve_expected_a_corr(df, df_indexed, params, t, "HS", 2.0 * PAIR_KINSHIP["MHS"])
+            expected_a, skip, info = resolve_expected_a_corr(df, ped, params, t, "HS", 2.0 * PAIR_KINSHIP["MHS"])
             if expected_a is None:
                 # Reported, not asserted: no single-trait formula under {skip}.
                 results[f"half_sib_{col}_correlation"] = _info(
@@ -168,7 +169,7 @@ def _validate_half_sib_correlations(
 def validate_half_sibs(
     df: pd.DataFrame,
     params: dict[str, Any],
-    df_indexed: pd.DataFrame,
+    ped: PedigreeArrays,
     sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> dict[str, Any]:
     """Validate half-sibling structure under the mating-pair model.
@@ -185,7 +186,7 @@ def validate_half_sibs(
         df: Pedigree DataFrame with columns id, mother, father, twin.
         params: Scenario parameters; requires keys ``mating_lambda``, ``A1``,
             ``A2``, ``seed``.
-        df_indexed: Pedigree DataFrame indexed by ``id``; supplies the
+        ped: The same pedigree as id-addressable arrays; supplies the
             variance-component arrays for the correlation checks.
         sibling_pairs: Dict with keys ``FS``, ``MHS``, ``PHS`` mapping to
             ``(idx1, idx2)`` row-index arrays.
@@ -229,9 +230,9 @@ def validate_half_sibs(
     else:
         results["offspring_with_half_sib"] = _info("No non-twin offspring with siblings to check")
 
-    comp_vals = _extract_comp_vals(df_indexed)
+    comp_vals = _extract_comp_vals(ped)
     A_params = {1: params["A1"], 2: params["A2"]}
     rng = np.random.default_rng(params.get("seed", _DEFAULT_RNG_SEED))
-    _validate_half_sib_correlations(df, df_indexed, sibling_pairs, comp_vals, A_params, params, rng, results)
+    _validate_half_sib_correlations(df, ped, sibling_pairs, comp_vals, A_params, params, rng, results)
 
     return results

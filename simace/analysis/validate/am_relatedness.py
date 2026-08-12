@@ -35,6 +35,7 @@ import numpy as np
 import pandas as pd
 
 from simace.core.numerics import safe_corrcoef
+from simace.core.pedigree_arrays import PedigreeArrays
 
 from ._common import _MIN_PAIRS_FOR_CORR
 
@@ -70,7 +71,7 @@ def am_relatedness_mode(params: dict[str, Any], t: int) -> str:
     return "bivariate" if _active(other) else "single"
 
 
-def observed_mate_correlations(df: pd.DataFrame, df_indexed: pd.DataFrame, t: int) -> tuple[float, float, int]:
+def observed_mate_correlations(df: pd.DataFrame, ped: PedigreeArrays, t: int) -> tuple[float, float, int]:
     """Measure ``(mu_A, r_ho, n_pairs)`` for trait ``t`` over unique mating pairs.
 
     ``mu_A`` is the genetic (A-component) mate correlation; ``r_ho`` the
@@ -81,18 +82,18 @@ def observed_mate_correlations(df: pd.DataFrame, df_indexed: pd.DataFrame, t: in
     non_founders = df[df["mother"] != -1]
     pairs = non_founders[["mother", "father"]].drop_duplicates()
     # Restrict to pairs whose parents are both present in the recorded pedigree.
-    in_idx = pairs["mother"].isin(df_indexed.index) & pairs["father"].isin(df_indexed.index)
+    in_idx = ped.contains(pairs["mother"].to_numpy()) & ped.contains(pairs["father"].to_numpy())
     pairs = pairs[in_idx]
     n_pairs = len(pairs)
     if n_pairs < _MIN_PAIRS_FOR_CORR:
         return 0.0, 0.0, n_pairs
 
-    m = pairs["mother"].values
-    f = pairs["father"].values
-    a_m = df_indexed.loc[m, f"A{t}"].values
-    a_f = df_indexed.loc[f, f"A{t}"].values
-    l_m = a_m + df_indexed.loc[m, f"C{t}"].values + df_indexed.loc[m, f"E{t}"].values
-    l_f = a_f + df_indexed.loc[f, f"C{t}"].values + df_indexed.loc[f, f"E{t}"].values
+    m = pairs["mother"].to_numpy()
+    f = pairs["father"].to_numpy()
+    a_m = ped.gather(f"A{t}", m)
+    a_f = ped.gather(f"A{t}", f)
+    l_m = a_m + ped.gather(f"C{t}", m) + ped.gather(f"E{t}", m)
+    l_f = a_f + ped.gather(f"C{t}", f) + ped.gather(f"E{t}", f)
 
     mu_a = safe_corrcoef(a_m, a_f)
     r_ho = safe_corrcoef(l_m, l_f)
@@ -123,7 +124,7 @@ def am_expected_a_correlation(kind: str, mu_a: float, r_ho: float) -> float:
 
 def resolve_expected_a_corr(
     df: pd.DataFrame,
-    df_indexed: pd.DataFrame,
+    ped: PedigreeArrays,
     params: dict[str, Any],
     t: int,
     kind: str,
@@ -143,6 +144,6 @@ def resolve_expected_a_corr(
         return default, None, {}
     if mode == "bivariate":
         return None, "both-trait AM active (cross-trait paths not in single-trait formula)", {}
-    mu_a, r_ho, n = observed_mate_correlations(df, df_indexed, t)
+    mu_a, r_ho, n = observed_mate_correlations(df, ped, t)
     expected = am_expected_a_correlation(kind, mu_a, r_ho)
     return expected, None, {"mu_A": mu_a, "r_ho": r_ho, "mate_pairs": n}

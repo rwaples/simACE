@@ -24,6 +24,7 @@ from simace.analysis.validate import (
     validate_structural,
     validate_twins,
 )
+from simace.core.pedigree_arrays import PedigreeArrays
 from simace.simulation.simulate import run_simulation
 
 # ---------------------------------------------------------------------------
@@ -61,8 +62,8 @@ def val_params():
 
 
 @pytest.fixture(scope="module")
-def val_indexed(val_pedigree):
-    return val_pedigree.set_index("id")
+def val_ped(val_pedigree):
+    return PedigreeArrays.from_frame(val_pedigree)
 
 
 @pytest.fixture(scope="module")
@@ -72,8 +73,8 @@ def val_sibling_pairs(val_pedigree):
 
 
 @pytest.fixture(scope="module")
-def heritability_result(val_pedigree, val_params, val_indexed, val_sibling_pairs):
-    return validate_heritability(val_pedigree, val_params, val_indexed, val_sibling_pairs)
+def heritability_result(val_pedigree, val_params, val_ped, val_sibling_pairs):
+    return validate_heritability(val_pedigree, val_params, val_ped, val_sibling_pairs)
 
 
 # ---------------------------------------------------------------------------
@@ -109,12 +110,12 @@ def _component_df(a: np.ndarray, c: np.ndarray, e: np.ndarray) -> pd.DataFrame:
 
 
 class TestValidateStructural:
-    def test_all_checks_pass(self, val_pedigree, val_params):
-        result = validate_structural(val_pedigree, val_params)
+    def test_all_checks_pass(self, val_pedigree, val_params, val_ped):
+        result = validate_structural(val_pedigree, val_params, val_ped)
         _all_passed(result)
 
-    def test_expected_keys(self, val_pedigree, val_params):
-        result = validate_structural(val_pedigree, val_params)
+    def test_expected_keys(self, val_pedigree, val_params, val_ped):
+        result = validate_structural(val_pedigree, val_params, val_ped)
         assert "id_integrity" in result
         assert "parent_references" in result
         assert "sex_parent_consistency" in result
@@ -122,16 +123,16 @@ class TestValidateStructural:
 
 
 class TestValidateTwins:
-    def test_all_checks_pass(self, val_pedigree, val_params, val_indexed):
-        result = validate_twins(val_pedigree, val_params, val_indexed)
+    def test_all_checks_pass(self, val_pedigree, val_params, val_ped):
+        result = validate_twins(val_pedigree, val_params, val_ped)
         _all_passed(result)
 
-    def test_twin_rate_present(self, val_pedigree, val_params, val_indexed):
-        result = validate_twins(val_pedigree, val_params, val_indexed)
+    def test_twin_rate_present(self, val_pedigree, val_params, val_ped):
+        result = validate_twins(val_pedigree, val_params, val_ped)
         assert "twin_rate" in result
         assert "observed_rate" in result["twin_rate"]
 
-    def test_wf_with_inherited_default_p_mztwin_passes_vacuously(self, val_pedigree, val_indexed):
+    def test_wf_with_inherited_default_p_mztwin_passes_vacuously(self, val_pedigree, val_ped):
         # Under WF, inherited p_mztwin=0.02 must NOT trigger a failed twin_rate
         # check (the standard branch fails because 0.02 > 0.01).  Branch on
         # mating_model and report observed_rate=0.0, expected_rate=0.0.
@@ -155,13 +156,12 @@ class TestValidateTwins:
             rE=0.0,
             mating_model="wright_fisher",
         )
-        wf_indexed = wf_ped.set_index("id")
-        result = validate_twins(wf_ped, wf_params, wf_indexed)
+        result = validate_twins(wf_ped, wf_params, PedigreeArrays.from_frame(wf_ped))
         _all_passed(result)
         assert result["twin_rate"]["expected_rate"] == 0.0
         assert result["twin_rate"]["observed_rate"] == 0.0
 
-    def test_wf_fails_when_twins_present(self, val_pedigree, val_indexed):
+    def test_wf_fails_when_twins_present(self, val_pedigree, val_ped):
         """If a pedigree labelled mating_model=wright_fisher contains any twins
         (regression / corruption), validate_twins must fail the rate check
         rather than silently pass.  The val_pedigree fixture is a standard-model
@@ -169,7 +169,7 @@ class TestValidateTwins:
         violation.
         """
         wf_params = {"mating_model": "wright_fisher", "p_mztwin": 0.02}
-        result = validate_twins(val_pedigree, wf_params, val_indexed)
+        result = validate_twins(val_pedigree, wf_params, val_ped)
         assert (val_pedigree["twin"] != -1).any(), "fixture sanity: pedigree must contain twins"
         rate = result["twin_rate"]
         assert rate["passed"] is False
@@ -179,12 +179,12 @@ class TestValidateTwins:
 
 
 class TestValidateHalfSibs:
-    def test_passes(self, val_pedigree, val_params, val_indexed, val_sibling_pairs):
-        result = validate_half_sibs(val_pedigree, val_params, val_indexed, val_sibling_pairs)
+    def test_passes(self, val_pedigree, val_params, val_ped, val_sibling_pairs):
+        result = validate_half_sibs(val_pedigree, val_params, val_ped, val_sibling_pairs)
         _all_passed(result)
 
-    def test_numeric_fields(self, val_pedigree, val_params, val_indexed, val_sibling_pairs):
-        result = validate_half_sibs(val_pedigree, val_params, val_indexed, val_sibling_pairs)
+    def test_numeric_fields(self, val_pedigree, val_params, val_ped, val_sibling_pairs):
+        result = validate_half_sibs(val_pedigree, val_params, val_ped, val_sibling_pairs)
         for value in result.values():
             if isinstance(value, dict) and "observed" in value:
                 assert isinstance(value["observed"], (int, float))
@@ -326,33 +326,33 @@ class TestComputeFamilySizeDistribution:
 
 
 class TestValidateAssortativeMating:
-    def test_zero_assort_near_zero_corr(self, val_pedigree, val_params, val_indexed):
-        result = validate_assortative_mating(val_pedigree, val_params, val_indexed)
+    def test_zero_assort_near_zero_corr(self, val_pedigree, val_params, val_ped):
+        result = validate_assortative_mating(val_pedigree, val_params, val_ped)
         _all_passed(result)
 
-    def test_result_has_mate_correlation(self, val_pedigree, val_params, val_indexed):
-        result = validate_assortative_mating(val_pedigree, val_params, val_indexed)
+    def test_result_has_mate_correlation(self, val_pedigree, val_params, val_ped):
+        result = validate_assortative_mating(val_pedigree, val_params, val_ped)
         corr_keys = [k for k in result if "mate" in k.lower() or "corr" in k.lower()]
         assert len(corr_keys) > 0
 
-    def test_cross_trait_branch_when_both_assort(self, val_pedigree, val_indexed, val_params):
+    def test_cross_trait_branch_when_both_assort(self, val_pedigree, val_ped, val_params):
         # Force the cross-trait branch by claiming both traits assort.
         params = {**val_params, "assort1": 0.2, "assort2": 0.3}
-        result = validate_assortative_mating(val_pedigree, params, val_indexed)
+        result = validate_assortative_mating(val_pedigree, params, val_ped)
         assert "mate_corr_cross_12" in result
         assert "mate_corr_cross_21" in result
         for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
             assert "expected" in result[key]
             assert "observed" in result[key]
 
-    def test_cross_trait_uses_assort_matrix_when_provided(self, val_pedigree, val_indexed, val_params):
+    def test_cross_trait_uses_assort_matrix_when_provided(self, val_pedigree, val_ped, val_params):
         params = {
             **val_params,
             "assort1": 0.2,
             "assort2": 0.3,
             "assort_matrix": [[0.2, 0.05], [0.05, 0.3]],
         }
-        result = validate_assortative_mating(val_pedigree, params, val_indexed)
+        result = validate_assortative_mating(val_pedigree, params, val_ped)
         assert result["mate_corr_cross_12"]["expected"] == pytest.approx(0.05)
 
 
@@ -423,7 +423,7 @@ class TestValidateNegativePaths:
         ped = self._tiny_pedigree()
         # Skip an integer in the id column — sort(ids) != arange(N*G_ped).
         ped.loc[ped.index[5], "id"] = ped["id"].max() + 99
-        result = validate_structural(ped, self._tiny_params())
+        result = validate_structural(ped, self._tiny_params(), PedigreeArrays.from_frame(ped))
         assert result["id_integrity"]["passed"] is False
 
     def test_dangling_parent_id_fails_parent_references(self):
@@ -432,14 +432,14 @@ class TestValidateNegativePaths:
         # Force a mother index outside [0, N*G_ped) and not -1.
         non_founder_idx = ped.index[ped["mother"] != -1][0]
         ped.loc[non_founder_idx, "mother"] = params["N"] * params["G_ped"] + 50
-        result = validate_structural(ped, params)
+        result = validate_structural(ped, params, PedigreeArrays.from_frame(ped))
         assert result["parent_references"]["passed"] is False
 
     def test_wrong_parent_sex_fails_sex_consistency(self):
         ped = self._tiny_pedigree()
         non_founder = ped[ped["mother"] != -1].iloc[0]
         ped.loc[ped["id"] == non_founder["mother"], "sex"] = 1  # 1 = male
-        result = validate_structural(ped, self._tiny_params())
+        result = validate_structural(ped, self._tiny_params(), PedigreeArrays.from_frame(ped))
         assert result["sex_parent_consistency"]["passed"] is False
 
     def test_non_bidirectional_twin_fails_bidirectional_check(self):
@@ -452,7 +452,7 @@ class TestValidateNegativePaths:
         ped.loc[ped["id"] == c, "twin"] = b
         params = self._tiny_params()
         params["p_mztwin"] = 0.02
-        result = validate_twins(ped, params, ped.set_index("id"))
+        result = validate_twins(ped, params, PedigreeArrays.from_frame(ped))
         assert result["twin_bidirectional"]["passed"] is False
 
 

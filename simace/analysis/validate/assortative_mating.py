@@ -6,11 +6,12 @@ import numpy as np
 import pandas as pd
 
 from simace.core.numerics import safe_corrcoef
+from simace.core.pedigree_arrays import PedigreeArrays
 
 from ._common import _corr_se, _info, _result
 
 
-def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
+def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeArrays) -> dict[str, Any]:
     """Validate mate correlation on liability when assortative mating is configured.
 
     Extracts unique mating pairs from non-founders, computes Pearson
@@ -20,7 +21,7 @@ def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_ind
     Args:
         df: Pedigree DataFrame.
         params: Scenario parameters; uses keys ``assort1``, ``assort2``.
-        df_indexed: Pedigree DataFrame indexed by ``id``.
+        ped: The same pedigree as id-addressable arrays.
 
     Returns:
         Dict of check-name to result dicts.
@@ -56,8 +57,8 @@ def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_ind
     n_pairs = len(pairs)
 
     for t, expected in [(1, assort1), (2, assort2)]:
-        m_liab = df_indexed.loc[mother_ids, f"liability{t}"].values
-        f_liab = df_indexed.loc[father_ids, f"liability{t}"].values
+        m_liab = ped.gather(f"liability{t}", mother_ids)
+        f_liab = ped.gather(f"liability{t}", father_ids)
         obs = safe_corrcoef(m_liab, f_liab)
 
         if np.isnan(obs):
@@ -84,8 +85,8 @@ def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_ind
     # the AM-corrected relative-correlation reference lines (see am_relatedness
     # and plot_A_correlations). Reduces to ~0 with no assortment.
     for t in [1, 2]:
-        m_a = df_indexed.loc[mother_ids, f"A{t}"].values
-        f_a = df_indexed.loc[father_ids, f"A{t}"].values
+        m_a = ped.gather(f"A{t}", mother_ids)
+        f_a = ped.gather(f"A{t}", father_ids)
         obs_a = safe_corrcoef(m_a, f_a)
         results[f"mate_corr_A{t}"] = _info(
             f"Genetic mate correlation A{t} (mu_A): {obs_a:.4f}",
@@ -105,8 +106,8 @@ def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], df_ind
             c_expected = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
 
         for label, fi, mi in [("cross_12", 1, 2), ("cross_21", 2, 1)]:
-            m_liab = df_indexed.loc[mother_ids, f"liability{fi}"].values
-            f_liab = df_indexed.loc[father_ids, f"liability{mi}"].values
+            m_liab = ped.gather(f"liability{fi}", mother_ids)
+            f_liab = ped.gather(f"liability{mi}", father_ids)
             obs = safe_corrcoef(m_liab, f_liab)
 
             if np.isnan(obs):

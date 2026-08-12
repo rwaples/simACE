@@ -5,10 +5,11 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from simace.core.pedigree_arrays import PedigreeArrays
 from simace.core.relationships import SEX_LEVELS
 
 
-def _offspring_count_dist(counts: pd.Series, n: int) -> dict[str, float]:
+def _offspring_count_dist(counts: np.ndarray, n: int) -> dict[str, float]:
     """Return ``{"0", "1", "2", "3", "4+"}`` proportions of ``counts`` over ``n``."""
     out = {"0": round(int((counts == 0).sum()) / n, 4)}
     for k in (1, 2, 3):
@@ -49,25 +50,23 @@ def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
     # marks those as -1 and they must be masked out before bincount (which rejects
     # negatives). This matches the prior groupby+update semantics, which only
     # counted offspring against parents present in df["id"].
-    ids_arr = df["id"].to_numpy()
+    ped = PedigreeArrays.from_frame(df)
     n_total = len(df)
-    id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
-    id_to_row[ids_arr] = np.arange(n_total, dtype=np.int32)
-    m_rows = id_to_row[children["mother"].to_numpy()]
-    f_rows = id_to_row[children["father"].to_numpy()]
-    m_rows = m_rows[m_rows >= 0]
-    f_rows = f_rows[f_rows >= 0]
+    mothers = children["mother"].to_numpy()
+    fathers = children["father"].to_numpy()
+    m_rows = ped.positions(mothers[ped.contains(mothers)])
+    f_rows = ped.positions(fathers[ped.contains(fathers)])
     counts_arr = np.bincount(m_rows, minlength=n_total) + np.bincount(f_rows, minlength=n_total)
-    offspring_counts = pd.Series(counts_arr, index=df["id"])
-    person_dist = _offspring_count_dist(offspring_counts, n_total)
+    person_dist = _offspring_count_dist(counts_arr, n_total)
 
     # Offspring per person by sex
     person_dist_by_sex: dict[str, dict[str, float]] = {}
     if "sex" in df.columns:
-        sex_by_id = df.set_index("id")["sex"]
+        # counts_arr is already in df row order, so selecting by sex is a
+        # mask -- the id round-trip this replaced was never needed.
+        sex_vals = df["sex"].to_numpy()
         for sex_val, sex_label in SEX_LEVELS:
-            sex_ids = sex_by_id[sex_by_id == sex_val].index
-            sex_counts = offspring_counts.reindex(sex_ids, fill_value=0)
+            sex_counts = counts_arr[sex_vals == sex_val]
             if len(sex_counts) > 0:
                 person_dist_by_sex[sex_label] = _offspring_count_dist(sex_counts, len(sex_counts))
 

@@ -7,6 +7,7 @@ import pandas as pd
 from pedigree_graph import PAIR_KINSHIP
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
+from simace.core.pedigree_arrays import PedigreeArrays
 
 from ._common import (
     _DEFAULT_RNG_SEED,
@@ -42,7 +43,7 @@ def _validate_mz_correlations(
     df: pd.DataFrame,
     A_params: dict[int, float],
     comp_vals: dict[str, np.ndarray],
-    id_to_idx: pd.Series,
+    ped: PedigreeArrays,
     results: dict[str, Any],
 ) -> tuple[dict[int, float | None], int]:
     """Validate MZ twin correlations. Returns (mz_pheno_corr, n_mz_pairs)."""
@@ -55,8 +56,8 @@ def _validate_mz_correlations(
 
     mz_pheno_corr: dict[int, float | None] = {}
     if len(t1_arr) >= _MIN_PAIRS_FOR_CORR:
-        idx1 = id_to_idx.reindex(t1_arr).values.astype(int)
-        idx2 = id_to_idx.reindex(t2_arr).values.astype(int)
+        idx1 = ped.positions(t1_arr)
+        idx2 = ped.positions(t2_arr)
 
         for t in [1, 2]:
             col = f"A{t}"
@@ -96,7 +97,7 @@ def _validate_mz_correlations(
 
 def _validate_dz_correlations(
     df: pd.DataFrame,
-    df_indexed: pd.DataFrame,
+    ped: PedigreeArrays,
     params: dict[str, Any],
     A_params: dict[int, float],
     comp_vals: dict[str, np.ndarray],
@@ -120,7 +121,7 @@ def _validate_dz_correlations(
             dz_corr = safe_corrcoef(dz_v1, dz_v2)
             # Full-sib (DZ) A correlation: 2*kinship under random mating,
             # AM-inflated to (1+mu_A)/2 under single-trait assortment.
-            expected_dz, skip, info = resolve_expected_a_corr(df, df_indexed, params, t, "FS", 2.0 * PAIR_KINSHIP["FS"])
+            expected_dz, skip, info = resolve_expected_a_corr(df, ped, params, t, "FS", 2.0 * PAIR_KINSHIP["FS"])
             if expected_dz is None:
                 # Reported, not asserted: no single-trait formula under {skip}.
                 results[f"dz_sibling_{col}_correlation"] = _info(
@@ -166,7 +167,7 @@ def _validate_dz_correlations(
 
 def _falconer_expected(
     df: pd.DataFrame,
-    df_indexed: pd.DataFrame,
+    ped: PedigreeArrays,
     params: dict[str, Any],
     comp_vals: dict[str, np.ndarray],
     A_params: dict[int, float],
@@ -186,7 +187,7 @@ def _falconer_expected(
         return A_params[t], None, f"expected ~{A_params[t]}", {}
     if mode == "bivariate":
         return None, "both-trait AM active (cross-trait Falconer bias not modelled)", "", {}
-    mu_a, _r_ho, _n = observed_mate_correlations(df, df_indexed, t)
+    mu_a, _r_ho, _n = observed_mate_correlations(df, ped, t)
     v_a = float(np.var(comp_vals[f"A{t}"]))
     v_p = float(np.var(comp_vals[f"A{t}"] + comp_vals[f"C{t}"] + comp_vals[f"E{t}"]))
     if v_p <= 0:
@@ -198,7 +199,7 @@ def _falconer_expected(
 
 def _validate_falconer(
     df: pd.DataFrame,
-    df_indexed: pd.DataFrame,
+    ped: PedigreeArrays,
     params: dict[str, Any],
     comp_vals: dict[str, np.ndarray],
     A_params: dict[int, float],
@@ -220,7 +221,7 @@ def _validate_falconer(
             continue
 
         falconer = 2 * (mz_c - dz_c)
-        expected, skip, label, info = _falconer_expected(df, df_indexed, params, comp_vals, A_params, t)
+        expected, skip, label, info = _falconer_expected(df, ped, params, comp_vals, A_params, t)
         if expected is None:
             # Reported, not asserted: cross-trait Falconer bias not modelled.
             results[f"falconer_estimate_trait{t}"] = _info(
@@ -245,21 +246,20 @@ def _validate_falconer(
 def _validate_parent_offspring(
     df: pd.DataFrame,
     comp_vals: dict[str, np.ndarray],
-    id_to_idx: pd.Series,
-    df_indexed: pd.DataFrame,
+    ped: PedigreeArrays,
     results: dict[str, Any],
 ) -> None:
     """Validate parent-offspring regression."""
     non_founders = df[df["mother"] != -1]
     if len(non_founders) > 100:
         valid_offspring = non_founders[
-            non_founders["mother"].isin(df_indexed.index) & non_founders["father"].isin(df_indexed.index)
+            ped.contains(non_founders["mother"].to_numpy()) & ped.contains(non_founders["father"].to_numpy())
         ]
 
         if len(valid_offspring) > 100:
-            mother_idx = id_to_idx.reindex(valid_offspring["mother"]).values.astype(int)
-            father_idx = id_to_idx.reindex(valid_offspring["father"]).values.astype(int)
-            offspring_idx = id_to_idx.reindex(valid_offspring["id"]).values.astype(int)
+            mother_idx = ped.positions(valid_offspring["mother"].to_numpy())
+            father_idx = ped.positions(valid_offspring["father"].to_numpy())
+            offspring_idx = ped.positions(valid_offspring["id"].to_numpy())
 
             for t in [1, 2]:
                 results[f"parent_offspring_A{t}_regression"] = _midparent_regression(
@@ -292,7 +292,7 @@ def _validate_parent_offspring(
 def validate_heritability(
     df: pd.DataFrame,
     params: dict[str, Any],
-    df_indexed: pd.DataFrame,
+    ped: PedigreeArrays,
     sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
 ) -> dict[str, Any]:
     """Validate heritability estimates for two-trait simulation.
@@ -305,7 +305,7 @@ def validate_heritability(
     Args:
         df: Pedigree DataFrame.
         params: Scenario parameters; requires keys ``A1``, ``A2``, ``seed``.
-        df_indexed: Pedigree DataFrame indexed by ``id``.
+        ped: The same pedigree as id-addressable arrays.
         sibling_pairs: Dict with keys ``FS``, ``MHS``, ``PHS`` mapping to
             ``(idx1, idx2)`` row-index arrays.
 
@@ -315,19 +315,18 @@ def validate_heritability(
     """
     results: dict[str, Any] = {}
     A_params = {1: params["A1"], 2: params["A2"]}
-    comp_vals = _extract_comp_vals(df_indexed)
-    id_to_idx = pd.Series(np.arange(len(df_indexed)), index=df_indexed.index)
+    comp_vals = _extract_comp_vals(ped)
 
     mz_pheno_corr, n_mz_pairs = _validate_mz_correlations(
         df,
         A_params,
         comp_vals,
-        id_to_idx,
+        ped,
         results,
     )
     dz_pheno_corr, n_dz_pairs = _validate_dz_correlations(
         df,
-        df_indexed,
+        ped,
         params,
         A_params,
         comp_vals,
@@ -336,7 +335,7 @@ def validate_heritability(
     )
     _validate_falconer(
         df,
-        df_indexed,
+        ped,
         params,
         comp_vals,
         A_params,
@@ -346,6 +345,6 @@ def validate_heritability(
         n_dz_pairs,
         results,
     )
-    _validate_parent_offspring(df, comp_vals, id_to_idx, df_indexed, results)
+    _validate_parent_offspring(df, comp_vals, ped, results)
 
     return results
