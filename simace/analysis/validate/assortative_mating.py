@@ -50,11 +50,21 @@ def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], ped: P
         results["mate_corr_liability2"] = _result(True, "No non-founders to check")
         return results
 
-    # Extract unique mating pairs
+    # Extract unique mating pairs, keeping only those whose parents are both
+    # in the pedigree -- the same guard observed_mate_correlations applies.
+    # Ascertainment severs mother and father independently, so a row can pass
+    # the mother != -1 filter above while carrying a severed father.
     pairs = non_founders[["mother", "father"]].drop_duplicates()
-    mother_ids = pairs["mother"].values
-    father_ids = pairs["father"].values
+    both_present = ped.contains(pairs["mother"].to_numpy()) & ped.contains(pairs["father"].to_numpy())
+    pairs = pairs[both_present]
+    mother_ids = pairs["mother"].to_numpy()
+    father_ids = pairs["father"].to_numpy()
     n_pairs = len(pairs)
+
+    if n_pairs == 0:
+        results["mate_corr_liability1"] = _result(True, "No mating pairs with both parents present")
+        results["mate_corr_liability2"] = _result(True, "No mating pairs with both parents present")
+        return results
 
     for t, expected in [(1, assort1), (2, assort2)]:
         m_liab = ped.gather(f"liability{t}", mother_ids)

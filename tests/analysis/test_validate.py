@@ -532,9 +532,22 @@ class TestValidateOnAscertainedPedigrees:
         report = build_validation_report(gapped_pedigree, val_params)
         assert report["summary"]["checks_total"] > 0
 
+    def test_severed_parents_do_not_raise(self, severed_pedigree, val_params):
+        mother = severed_pedigree["mother"].to_numpy()
+        father = severed_pedigree["father"].to_numpy()
+        assert ((mother == -1) ^ (father == -1)).any(), "fixture must have one-parent rows"
+        report = build_validation_report(severed_pedigree, val_params)
+        assert report["summary"]["checks_total"] > 0
+
     def test_consanguinity_skips_rows_with_a_severed_parent(self, severed_pedigree, val_params):
         """A row with one parent has no complete mating, so it is not eligible."""
         result = validate_consanguineous_matings(
             severed_pedigree, val_params, PedigreeArrays.from_frame(severed_pedigree)
         )
         assert "consanguineous_count" in result
+
+    def test_mate_correlation_drops_pairs_with_an_absent_parent(self, severed_pedigree, val_params):
+        """assortative_mating must apply the same guard observed_mate_correlations does."""
+        params = {**val_params, "assort1": 0.3, "assort2": 0.0}
+        result = validate_assortative_mating(severed_pedigree, params, PedigreeArrays.from_frame(severed_pedigree))
+        assert "mate_corr_liability1" in result
