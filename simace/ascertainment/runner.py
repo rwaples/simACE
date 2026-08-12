@@ -213,9 +213,13 @@ def run_ascertainment(
 
     The pedigree output is the ancestor closure of the sampled IDs within
     the post-dropout pedigree, with all dangling parent/twin references
-    rewritten to ``-1`` against the final closure ID set. Parent links are
-    safe by construction (closure follows them); twin links may dangle and
-    require the explicit fixup.
+    rewritten to ``-1`` against the final closure ID set. Twin links dangle
+    whenever a twin partner goes unsampled. Parent links are safe by
+    construction *only* at ``dropout_rate=0``, where the closure follows every
+    parent pointer: dropout removes individuals **before** the closure is
+    built, so an ancestor can be absent and unrecoverable. Each parent is
+    severed independently, so a row may carry one real parent and one ``-1``
+    (measured at ``dropout_rate=0.2`` on a small pedigree: ~140 such rows).
 
     Args:
         pedigree: Full pre-ascertainment pedigree (post-burn-in, pre-dropout).
