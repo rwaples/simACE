@@ -122,7 +122,7 @@ def gather_effective_size(
                 continue
             series_rows.extend(_extract_series_rows(rep_idx, est, entry))
 
-    scalar_df = pd.DataFrame(scalar_rows, columns=["rep", "estimator", "ne", "expected"])  # ty: ignore[invalid-argument-type]
+    scalar_df = pd.DataFrame(scalar_rows, columns=["rep", "estimator", "ne", "expected"])
     series_columns = [
         "rep",
         "estimator",
@@ -139,7 +139,7 @@ def gather_effective_size(
         "cov_m",
         "cov_f",
     ]
-    series_df = pd.DataFrame(series_rows, columns=series_columns)  # ty: ignore[invalid-argument-type]
+    series_df = pd.DataFrame(series_rows, columns=series_columns)
     return scalar_df, series_df
 
 
