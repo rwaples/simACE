@@ -10,11 +10,7 @@ dependencies:
   # even though 2.5.x is released. Bump both together once numba lifts the cap.
   - numpy=2.4.*
   - scipy=1.18.*
-  # pandas 3 is released and the old upstream blockers are gone (eido >=0.2.6 and
-  # snakemake-executor-plugin-slurm >=2.8.0 both allow pandas 3). The remaining
-  # cap is our own `pandas>=2.2,<3` in the family pyprojects, pending a
-  # validation pass across simACE + fitACE.
-  - pandas=2.3.*
+  - pandas=3.0.*
   - pyarrow=25.0.*
   - pyyaml=6.0.*
   - numba=0.66.*
@@ -23,9 +19,15 @@ dependencies:
   - seaborn=0.13.*
   - pillow=12.3.*
   # workflow
-  - snakemake=9.25.*
-#  - snakemake-executor-plugin-slurm=2.8.*
-#  - snakefmt=2.0.*
+  # snakemake-minimal, not the `snakemake` meta-package. The meta owns zero
+  # files and declares `pandas <3` directly in its own bioconda recipe, so it
+  # is the only thing blocking pandas 3; snakemake-minimal ships the CLI and
+  # core and has no pandas dependency. The meta's other extras are unused here:
+  # eido/peppy (PEP `pepfile:` support — imported lazily, and no pepfile exists
+  # in this workflow), pygments (HTML report highlighting), slack_sdk.
+  - snakemake-minimal=9.25.*
+  - snakemake-executor-plugin-slurm=2.8.*
+  - snakefmt=2.0.*
   # dev / test
   - pytest=9.1.*
   - ruff=0.16.*

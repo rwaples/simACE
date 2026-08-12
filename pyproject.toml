@@ -11,10 +11,7 @@ dependencies = [
     "pedigree-graph @ git+https://github.com/rwaples/pedigree-graph.git@v0.5.1",
     "numpy>=2.2,<3",
     "scipy>=1.14,<2",
-    # pandas 3 is released; the old upstream blockers are gone (eido >=0.2.6 and
-    # snakemake-executor-plugin-slurm >=2.8.0 both allow pandas 3). This cap is
-    # now ours alone, pending a validation pass across simACE + fitACE.
-    "pandas>=2.2,<3",
+    "pandas>=2.2,<4",
     "pyarrow>=17,<26",
     "pyyaml>=6,<7",
     "numba>=0.60,<1",

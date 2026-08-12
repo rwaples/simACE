@@ -8,11 +8,7 @@ dependencies:
   # core
   - numpy
   - scipy
-  # The old upstream blockers are gone (eido >=0.2.6 and
-  # snakemake-executor-plugin-slurm >=2.8.0 both allow pandas 3). This cap now
-  # just mirrors our own `pandas>=2.2,<3` in the family pyprojects, pending a
-  # validation pass across simACE + fitACE.
-  - pandas>=2.2,<3
+  - pandas>=3,<4
   - pyarrow
   - pyyaml
   - numba
@@ -21,7 +17,9 @@ dependencies:
   - seaborn
   - pillow
   # workflow
-  - snakemake
+  # snakemake-minimal, not the `snakemake` meta-package — the meta caps
+  # pandas <3 in its own recipe and owns zero files. See envs/environment.yml.
+  - snakemake-minimal
   - snakemake-executor-plugin-slurm
   - snakefmt
   # dev / test
