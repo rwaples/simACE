@@ -1,4 +1,15 @@
-"""Parquet writer with pedigree-aware dtype narrowing."""
+"""Parquet writer with pedigree-aware dtype narrowing.
+
+Writes go out through polars, which is substantially faster than the pandas /
+pyarrow writer at pedigree scale and produces smaller files (measured at 6M
+rows: 3.6s → 0.55s, 273 MB → 248 MB). Frames are still handed in and narrowed
+as pandas — the conversion is zero-copy for the numeric dtypes this pipeline
+writes, so it costs nothing.
+
+Reads deliberately stay on ``pandas.read_parquet``: ``pl.read_parquet`` is
+faster on its own, but the ``to_pandas()`` copy needed to keep the existing
+DataFrame-returning API more than cancels it out (410ms vs 297ms at 6M rows).
+"""
 
 from __future__ import annotations
 
@@ -58,11 +69,22 @@ def save_parquet(df: pd.DataFrame, path: Any, **kwargs: Any) -> None:
 
     Narrows dtypes via :func:`_optimized_dtypes` (to minimize file size) before
     writing. The caller's ``df`` is **not** mutated — narrowing is applied to an
-    internal copy.
+    internal copy. The pandas index is dropped (polars has no index), matching
+    the ``to_parquet(index=False)`` behavior this replaced.
+
+    ``nan_to_null=False`` is required on the conversion: polars distinguishes
+    NaN from null while pandas conflates them, and the default would rewrite
+    float NaNs as parquet nulls. A pandas round-trip still *looks* correct
+    either way, but the on-disk null mask differs — which matters for the
+    non-pandas readers of these files (LDAK, EPIMIGHT's R driver).
 
     Args:
         df: DataFrame to save.
-        path: Output file path.
-        **kwargs: Extra keyword arguments passed to ``DataFrame.to_parquet``.
+        path: Output file path, or any file-like object polars accepts.
+        **kwargs: Extra keyword arguments passed to
+            ``polars.DataFrame.write_parquet`` (previously ``to_parquet``; no
+            in-tree caller passes any).
     """
-    _optimized_dtypes(df).to_parquet(path, index=False, compression="zstd", **kwargs)
+    import polars as pl
+
+    pl.from_pandas(_optimized_dtypes(df), nan_to_null=False).write_parquet(path, compression="zstd", **kwargs)

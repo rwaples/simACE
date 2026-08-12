@@ -9,6 +9,7 @@ dependencies:
   - numpy
   - scipy
   - pandas>=3,<4
+  - polars>=1.20,<2
   - pyarrow
   - pyyaml
   - numba
