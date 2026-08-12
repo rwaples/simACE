@@ -9,9 +9,7 @@ import yaml
 from pedigree_graph import PedigreeGraph
 
 from simace.analysis.validate import (
-    cli as validate_cli,
-)
-from simace.analysis.validate import (
+    build_validation_report,
     compute_family_size_distribution,
     compute_per_generation_stats,
     run_validation,
@@ -24,6 +22,10 @@ from simace.analysis.validate import (
     validate_structural,
     validate_twins,
 )
+from simace.analysis.validate import (
+    cli as validate_cli,
+)
+from simace.ascertainment import run_ascertainment
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.simulation.simulate import run_simulation
 
@@ -191,12 +193,12 @@ class TestValidateHalfSibs:
 
 
 class TestValidateConsanguineous:
-    def test_passes(self, val_pedigree, val_params):
-        result = validate_consanguineous_matings(val_pedigree, val_params)
+    def test_passes(self, val_pedigree, val_params, val_ped):
+        result = validate_consanguineous_matings(val_pedigree, val_params, val_ped)
         _all_passed(result)
 
-    def test_non_negative_counts(self, val_pedigree, val_params):
-        result = validate_consanguineous_matings(val_pedigree, val_params)
+    def test_non_negative_counts(self, val_pedigree, val_params, val_ped):
+        result = validate_consanguineous_matings(val_pedigree, val_params, val_ped)
         for key, value in result.items():
             if isinstance(value, dict):
                 for k, v in value.items():
@@ -476,3 +478,63 @@ class TestValidateCli:
             loaded = yaml.safe_load(fh)
         assert "summary" in loaded
         assert "structural" in loaded
+
+
+def _trait_for(pedigree, seed=0):
+    """Minimal censored-trait frame for the trailing two generations."""
+    max_gen = int(pedigree["generation"].max())
+    phenotyped = pedigree[pedigree["generation"] >= max_gen - 1].reset_index(drop=True)
+    rng = np.random.default_rng(seed)
+    return pd.DataFrame(
+        {
+            "id": phenotyped["id"].to_numpy(),
+            "generation": phenotyped["generation"].to_numpy(),
+            "sex": phenotyped["sex"].to_numpy(),
+            "affected1": rng.random(len(phenotyped)) < 0.2,
+            "affected2": rng.random(len(phenotyped)) < 0.2,
+        }
+    )
+
+
+@pytest.fixture(scope="module")
+def gapped_pedigree(val_pedigree):
+    """An ascertained pedigree: ids sorted but no longer contiguous.
+
+    Built through run_ascertainment so parent references stay consistent --
+    an ancestor closure with dangling links severed, which is what the
+    pipeline actually writes to pedigree.parquet. A pedigree carrying
+    *unsevered* references to absent ids is malformed, and raises here as it
+    did before this work.
+    """
+    ascertained, _ = run_ascertainment(val_pedigree, _trait_for(val_pedigree), N_sample=250, seed=3)
+    return ascertained
+
+
+@pytest.fixture(scope="module")
+def severed_pedigree(val_pedigree):
+    """An ascertained pedigree carrying severed (-1) parent links."""
+    ascertained, _ = run_ascertainment(val_pedigree, _trait_for(val_pedigree), dropout_rate=0.2, seed=7)
+    return ascertained
+
+
+class TestValidateOnAscertainedPedigrees:
+    """Regression tests: validation used to crash on anything but a full pedigree.
+
+    `run_validation` accepts an arbitrary --pedigree path, so both shapes are
+    supported inputs. Gapped ids raised IndexError out of consanguinity's
+    id-indexed lookup (sized by row count, not max id); a severed parent raised
+    KeyError out of assortative_mating's unguarded .loc.
+    """
+
+    def test_gapped_ids_do_not_raise(self, gapped_pedigree, val_params):
+        ids = gapped_pedigree["id"].to_numpy()
+        assert ids.max() >= len(ids), "fixture must have non-contiguous ids"
+        report = build_validation_report(gapped_pedigree, val_params)
+        assert report["summary"]["checks_total"] > 0
+
+    def test_consanguinity_skips_rows_with_a_severed_parent(self, severed_pedigree, val_params):
+        """A row with one parent has no complete mating, so it is not eligible."""
+        result = validate_consanguineous_matings(
+            severed_pedigree, val_params, PedigreeArrays.from_frame(severed_pedigree)
+        )
+        assert "consanguineous_count" in result

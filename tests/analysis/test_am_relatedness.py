@@ -3,12 +3,12 @@
 import pytest
 
 from simace.analysis.validate import build_validation_report
-from simace.core.pedigree_arrays import PedigreeArrays
 from simace.analysis.validate.am_relatedness import (
     am_expected_a_correlation,
     am_relatedness_mode,
     observed_mate_correlations,
 )
+from simace.core.pedigree_arrays import PedigreeArrays
 from simace.simulation.simulate import run_simulation
 
 

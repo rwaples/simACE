@@ -5,10 +5,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from simace.core.pedigree_arrays import PedigreeArrays
+
 from ._common import _info, _result
 
 
-def validate_consanguineous_matings(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+def validate_consanguineous_matings(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeArrays) -> dict[str, Any]:
     """Detect consanguineous matings and reconcile grandparent-link discrepancy.
 
     When ``pair_partners()`` randomly pairs individuals, half-siblings (or
@@ -25,26 +27,27 @@ def validate_consanguineous_matings(df: pd.DataFrame, params: dict[str, Any]) ->
     Args:
         df: Pedigree DataFrame with columns id, mother, father.
         params: Scenario parameters (accepted for API consistency).
+        ped: The same pedigree as id-addressable arrays.
 
     Returns:
         Dict of check-name to result dicts.
     """
     results: dict[str, Any] = {}
 
-    ids = df["id"].values
-    mothers = df["mother"].values
-    fathers = df["father"].values
+    ids = ped["id"]
+    mothers = ped["mother"]
+    fathers = ped["father"]
 
-    # Build parent lookup arrays indexed by id (assumes contiguous 0-based ids)
-    n = len(ids)
-    mother_of = np.full(n, -1, dtype=np.int64)
-    father_of = np.full(n, -1, dtype=np.int64)
-    mother_of[ids] = mothers
-    father_of[ids] = fathers
+    # Both parents must be present. On a full pedigree this is exactly
+    # "not a founder", since parents are always set together. On an
+    # ascertained one it also excludes rows whose parent was severed to -1
+    # (ascertainment severs mother and father independently), which the
+    # previous id-indexed lookup silently read as the pedigree's last row.
+    has_parents = ped.contains(mothers) & ped.contains(fathers)
 
     # Identify individuals in gen >= 2 (parents are non-founders, so grandparents exist)
-    has_parents = mothers != -1
-    mothers_have_parents = np.where(has_parents, mother_of[mothers] != -1, False)
+    mothers_have_parents = np.zeros(len(ids), dtype=bool)
+    mothers_have_parents[has_parents] = ped.gather("mother", mothers[has_parents]) != -1
     eligible = has_parents & mothers_have_parents  # gen >= 2
 
     eligible_ids = ids[eligible]
@@ -56,10 +59,10 @@ def validate_consanguineous_matings(df: pd.DataFrame, params: dict[str, Any]) ->
         return results
 
     # Look up all 4 grandparents for eligible individuals
-    mgm = mother_of[eligible_mothers]  # maternal grandmother
-    mgf = father_of[eligible_mothers]  # maternal grandfather
-    fgm = mother_of[eligible_fathers]  # paternal grandmother
-    fgf = father_of[eligible_fathers]  # paternal grandfather
+    mgm = ped.gather("mother", eligible_mothers)  # maternal grandmother
+    mgf = ped.gather("father", eligible_mothers)  # maternal grandfather
+    fgm = ped.gather("mother", eligible_fathers)  # paternal grandmother
+    fgf = ped.gather("father", eligible_fathers)  # paternal grandfather
 
     # Count distinct grandparents per individual (vectorized via sorted rows)
     gp_stack = np.column_stack([mgm, mgf, fgm, fgf])  # (n_eligible, 4)
@@ -78,8 +81,8 @@ def validate_consanguineous_matings(df: pd.DataFrame, params: dict[str, Any]) ->
     mp_m = unique_keys // max_id  # mothers in each mating pair
     mp_f = unique_keys % max_id  # fathers in each mating pair
     # Check which parent IDs are shared between mates
-    share_mother = mother_of[mp_m] == mother_of[mp_f]
-    share_father = father_of[mp_m] == father_of[mp_f]
+    share_mother = ped.gather("mother", mp_m) == ped.gather("mother", mp_f)
+    share_father = ped.gather("father", mp_m) == ped.gather("father", mp_f)
     shared_count = share_mother.astype(np.int64) + share_father.astype(np.int64)
     is_consanguineous = shared_count > 0
 

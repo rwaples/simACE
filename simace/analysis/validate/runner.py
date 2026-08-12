@@ -63,7 +63,7 @@ def build_validation_report(df: pd.DataFrame, params: dict[str, Any]) -> dict[st
         "per_generation": compute_per_generation_stats(df, params),
         "assortative_mating": validate_assortative_mating(df, params, ped),
         "am_equilibrium": validate_am_equilibrium(df, params),
-        "consanguineous_matings": validate_consanguineous_matings(df, params),
+        "consanguineous_matings": validate_consanguineous_matings(df, params, ped),
     }
 
     checks_passed = 0
