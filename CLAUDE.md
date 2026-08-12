@@ -208,19 +208,25 @@ tool to call next. Cheaper than guessing wrong.
 ### Cross-repo searches
 
 `cross_repo_search` covers the repos registered under
-`~/.code-review-graph/registry.json` (below). The seven `fitACE_*` method repos
-from the method-split are pending registration (see **Adding a new repo**);
-register them once they're cloned into the layout.
+`~/.code-review-graph/registry.json` (below) — all thirteen family repos,
+including the seven `fitACE_*` method sisters. To add another, see
+**Adding a new repo**.
 
 | Repo | Languages indexed | Embeddings |
 |------|-------------------|------------|
 | simACE | python, bash | yes |
 | fitACE | python | yes |
 | fitACE_epimight | python, r | yes |
+| fitACE_pcgc | cpp, c, python | yes |
+| fitACE_iter_reml | python | yes |
+| fitACE_tetraher | python | yes |
+| fitACE_pafgrs | python | yes |
+| fitACE_stan | python | yes |
+| fitACE_frailty | python | yes |
+| ace_iter_reml | cpp, c | yes |
+| tetraher_simace | bash, c, python | yes |
 | pedigree-graph | python | yes |
 | pedsum | python | yes |
-| ace_iter_reml | cpp | yes |
-| tetraher_simace | c, python, bash | yes |
 
 Use `cross_repo_search` when:
 
