@@ -84,7 +84,7 @@ class TestValidation:
     def test_single_trait_am_passes(self):
         p = _params()
         df = run_simulation(**p)
-        res = validate_am_equilibrium(df, p, df.set_index("id"))
+        res = validate_am_equilibrium(df, p)
         assert "am_equilibrium_A1" in res
         assert "am_equilibrium_A2" not in res  # trait 2 does not assort
         check = res["am_equilibrium_A1"]
@@ -96,16 +96,16 @@ class TestValidation:
     def test_no_am_emits_no_checks(self):
         p = _params(assort1=0.0, assort2=0.0)
         df = run_simulation(**p)
-        assert validate_am_equilibrium(df, p, df.set_index("id")) == {}
+        assert validate_am_equilibrium(df, p) == {}
 
     def test_wright_fisher_emits_no_checks(self):
         p = _params(mating_model="wright_fisher")
         df = run_simulation(**p)
-        assert validate_am_equilibrium(df, p, df.set_index("id")) == {}
+        assert validate_am_equilibrium(df, p) == {}
 
     def test_bivariate_am_skips_with_reason(self):
         p = _params(assort2=0.5)
         df = run_simulation(**p)
-        res = validate_am_equilibrium(df, p, df.set_index("id"))
+        res = validate_am_equilibrium(df, p)
         assert res["am_equilibrium_A1"]["passed"]
         assert "cross-trait" in res["am_equilibrium_A1"]["details"]

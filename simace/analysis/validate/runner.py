@@ -26,26 +26,16 @@ from .twins import validate_twins
 logger = logging.getLogger(__name__)
 
 
-def build_validation_report(
-    df: pd.DataFrame,
-    params: dict[str, Any],
-    *,
-    df_indexed: pd.DataFrame | None = None,
-    sibling_pairs: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+def build_validation_report(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Run all validation checks on an in-memory pedigree and return results.
 
     Runs structural, twin, half-sibling, statistical, heritability, and
-    population checks. ``df_indexed`` and ``sibling_pairs`` are derived from
-    ``df`` when not supplied; callers that already hold them (e.g. the combined
-    Analyze stage) can pass them in to avoid recomputation.
+    population checks. The id-indexed frame and the sibling-pair arrays are
+    derived from ``df`` here.
 
     Args:
         df: Pedigree DataFrame (full, pre-ascertainment).
         params: Scenario parameters.
-        df_indexed: ``df`` indexed by ``id``. Defaults to ``df.set_index("id")``.
-        sibling_pairs: ``{"FS", "MHS", "PHS"}`` pair arrays. Defaults to
-            extracting them from ``df`` via ``PedigreeGraph``.
 
     Returns:
         Nested dict with keys ``"structural"``, ``"twins"``, ``"half_sibs"``,
@@ -55,25 +45,23 @@ def build_validation_report(
         ``passed`` (bool), ``checks_passed``, ``checks_failed``, and
         ``checks_total`` counts.
     """
-    if df_indexed is None:
-        df_indexed = df.set_index("id")
+    df_indexed = df.set_index("id")
 
-    if sibling_pairs is None:
-        # Validation only needs sibling categories (FS/MHS/PHS); avoid full
-        # degree-2 extraction, which also materializes GP/Av pairs.
-        full_sib, mat_hs, pat_hs = PedigreeGraph(df).sibling_pairs()
-        sibling_pairs = {"FS": full_sib, "MHS": mat_hs, "PHS": pat_hs}
+    # Validation only needs sibling categories (FS/MHS/PHS); avoid full
+    # degree-2 extraction, which also materializes GP/Av pairs.
+    full_sib, mat_hs, pat_hs = PedigreeGraph(df).sibling_pairs()
+    sibling_pairs = {"FS": full_sib, "MHS": mat_hs, "PHS": pat_hs}
 
     results = {
         "structural": validate_structural(df, params),
         "twins": validate_twins(df, params, df_indexed),
         "half_sibs": validate_half_sibs(df, params, df_indexed, sibling_pairs),
-        "statistical": validate_statistical(df, params, df_indexed),
+        "statistical": validate_statistical(df, params),
         "heritability": validate_heritability(df, params, df_indexed, sibling_pairs),
         "population": validate_population(df, params),
         "per_generation": compute_per_generation_stats(df, params),
         "assortative_mating": validate_assortative_mating(df, params, df_indexed),
-        "am_equilibrium": validate_am_equilibrium(df, params, df_indexed),
+        "am_equilibrium": validate_am_equilibrium(df, params),
         "consanguineous_matings": validate_consanguineous_matings(df, params),
     }
 

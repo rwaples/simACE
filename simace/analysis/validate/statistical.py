@@ -22,7 +22,7 @@ def _check_variance(founders: pd.DataFrame, col: str, expected: float, tol: floa
     )
 
 
-def validate_statistical(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
+def validate_statistical(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Validate statistical properties of variance components for two traits.
 
     Checks founder variances for A, C, E against configured values, total
@@ -34,7 +34,6 @@ def validate_statistical(df: pd.DataFrame, params: dict[str, Any], df_indexed: p
             A2, C2, E2.
         params: Scenario parameters; requires keys ``A1``, ``C1``, ``E1``,
             ``A2``, ``C2``, ``E2``, ``rA``, ``rC``.
-        df_indexed: Pedigree DataFrame indexed by ``id``.
 
     Returns:
         Dict of check-name to result dicts.

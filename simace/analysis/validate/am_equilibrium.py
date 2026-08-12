@@ -26,7 +26,7 @@ from ._common import _result
 from .am_relatedness import am_relatedness_mode
 
 
-def validate_am_equilibrium(df: pd.DataFrame, params: dict[str, Any], df_indexed: pd.DataFrame) -> dict[str, Any]:
+def validate_am_equilibrium(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Validate that ``Var(A)`` reaches the AM-inflated equilibrium per trait.
 
     Emits no checks when assortative mating is inactive (Wright-Fisher, or both
@@ -42,7 +42,6 @@ def validate_am_equilibrium(df: pd.DataFrame, params: dict[str, Any], df_indexed
         df: Pedigree DataFrame with ``id`` and ``A1``/``A2`` columns.
         params: Scenario parameters; uses ``assort1``/``assort2``, ``A{t}``,
             ``C{t}``, ``E{t}``, ``N``, ``G_ped``, ``G_sim``, ``mating_model``.
-        df_indexed: Pedigree indexed by ``id`` (unused; kept for API symmetry).
 
     Returns:
         Dict of check-name to result dicts (possibly empty).

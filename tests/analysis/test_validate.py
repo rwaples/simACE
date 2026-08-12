@@ -205,17 +205,17 @@ class TestValidateConsanguineous:
 
 
 class TestValidateStatistical:
-    def test_all_checks_pass(self, val_pedigree, val_params, val_indexed):
-        result = validate_statistical(val_pedigree, val_params, val_indexed)
+    def test_all_checks_pass(self, val_pedigree, val_params):
+        result = validate_statistical(val_pedigree, val_params)
         _all_passed(result)
 
-    def test_variance_keys(self, val_pedigree, val_params, val_indexed):
-        result = validate_statistical(val_pedigree, val_params, val_indexed)
+    def test_variance_keys(self, val_pedigree, val_params):
+        result = validate_statistical(val_pedigree, val_params)
         for comp in ["A1", "C1", "E1", "A2", "C2", "E2"]:
             assert f"variance_{comp}" in result
 
-    def test_total_variance_keys(self, val_pedigree, val_params, val_indexed):
-        result = validate_statistical(val_pedigree, val_params, val_indexed)
+    def test_total_variance_keys(self, val_pedigree, val_params):
+        result = validate_statistical(val_pedigree, val_params)
         assert "total_variance_trait1" in result
         assert "total_variance_trait2" in result
 
