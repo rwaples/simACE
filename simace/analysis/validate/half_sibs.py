@@ -20,16 +20,39 @@ from ._common import (
 from .am_relatedness import resolve_expected_a_corr
 
 
+def _count_distinct_members(parts: list[np.ndarray], n: int) -> int:
+    """Count distinct row indices across *parts* via a boolean mask.
+
+    Requires every index in ``[0, n)`` — guaranteed by ``extract_pairs``'
+    caller-coordinate contract, and much faster than ``np.unique`` on
+    large concatenated pair arrays.
+    """
+    if not parts:
+        return 0
+    seen = np.zeros(n, dtype=bool)
+    for p in parts:
+        seen[p] = True
+    return int(seen.sum())
+
+
 def _sib_counts_from_pairs(
     sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+    n: int,
 ) -> dict[str, int]:
-    """Derive sibling counts from pre-extracted pair arrays."""
+    """Derive sibling counts from pre-extracted pair arrays.
+
+    ``n`` is the pedigree row count; pair indices must be row positions
+    in ``[0, n)``.
+    """
     full = sibling_pairs["FS"]
     mat = sibling_pairs["MHS"]
     pat = sibling_pairs["PHS"]
     n_full = len(full[0])
     n_mat = len(mat[0])
     n_pat = len(pat[0])
+    for arr in (*full, *mat, *pat):
+        if len(arr) and (int(arr.min()) < 0 or int(arr.max()) >= n):
+            raise ValueError(f"pair index outside [0, {n}): got [{arr.min()}, {arr.max()}]")
 
     # Individuals with any maternal sibling (full or half)
     maternal_parts: list[np.ndarray] = []
@@ -37,13 +60,10 @@ def _sib_counts_from_pairs(
         maternal_parts.extend([full[0], full[1]])
     if n_mat > 0:
         maternal_parts.extend([mat[0], mat[1]])
-    n_with_sibs = len(np.unique(np.concatenate(maternal_parts))) if maternal_parts else 0
+    n_with_sibs = _count_distinct_members(maternal_parts, n)
 
     # Individuals with a maternal half-sib
-    if n_mat > 0:
-        n_with_mat_hs = len(np.unique(np.concatenate([mat[0], mat[1]])))
-    else:
-        n_with_mat_hs = 0
+    n_with_mat_hs = _count_distinct_members([mat[0], mat[1]], n) if n_mat > 0 else 0
 
     return {
         "n_full_sib_pairs": n_full,
@@ -175,7 +195,7 @@ def validate_half_sibs(
     """
     results: dict[str, Any] = {}
 
-    sib_info = _sib_counts_from_pairs(sibling_pairs)
+    sib_info = _sib_counts_from_pairs(sibling_pairs, len(df))
 
     # Report sibling structure (informational — no closed-form expected value)
     total_maternal_pairs = sib_info["n_full_sib_pairs"] + sib_info["n_maternal_half_sib_pairs"]
