@@ -31,6 +31,9 @@ site/
 # Conda environment
 env/
 
+# uv-managed development environment (optional simACE dev loop; uv.lock is tracked)
+.venv/
+
 # Jupyter
 .ipynb_checkpoints/
 
