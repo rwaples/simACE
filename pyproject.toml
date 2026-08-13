@@ -111,10 +111,6 @@ docstring-code-format = true
 
 [tool.ty.environment]
 python-version = "3.13"
-# ty can't follow the import-hook editable install (__editable__*.pth + _finder.py)
-# for pedigree_graph, so point it at the source checkout. Relies on the fixed
-# family checkout layout (see CLAUDE.md repo map).
-extra-paths = ["external/pedigree-graph"]
 
 [tool.ty.src]
 include = ["simace"]

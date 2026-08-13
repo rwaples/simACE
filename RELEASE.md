@@ -162,7 +162,11 @@ done
 # `pip install -e .` re-resolves simACE's `pedigree-graph` pin and pulls the
 # latest *PyPI* release over the editable link (the family CalVer tags are not
 # on PyPI), shadowing the source checkout with a stale wheel.
-pip install -e external/pedigree-graph   # verify: pip show pedigree-graph → "Editable project location"
+# `editable_mode=compat` writes a plain-path `.pth` that ty can follow; the
+# default import-hook mode (`__editable__*.pth` + `_finder.py`) is invisible to
+# ty and would surface `unresolved-import` errors for `pedigree_graph`.
+pip install -e external/pedigree-graph --config-settings editable_mode=compat
+# verify: pip show pedigree-graph → "Editable project location"
 ```
 
 (Reinstalling also regenerates the console-script wrappers, e.g. a stale
