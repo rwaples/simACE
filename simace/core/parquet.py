@@ -1,90 +1,120 @@
-"""Parquet writer with pedigree-aware dtype narrowing.
+"""Parquet reader/writer with pedigree-aware dtype narrowing and the null contract.
 
-Writes go out through polars, which is substantially faster than the pandas /
-pyarrow writer at pedigree scale and produces smaller files (measured at 6M
-rows: 3.6s → 0.55s, 273 MB → 248 MB). Frames are still handed in and narrowed
-as pandas — the conversion is zero-copy for the numeric dtypes this pipeline
-writes, so it costs nothing.
+Missing values are **parquet null** on disk and null in polars frames (ADR
+0015). NumPy compute boundaries may transiently materialize nulls as NaN, so
+the writer self-enforces the contract: float NaN is normalized to null before
+every write. This restores the historical pandas-era on-disk contract
+(``pd.to_parquet`` always wrote NaN as null); the ``nan_to_null=False`` escape
+hatch ADR 0014 added briefly inverted it and is gone.
 
-Reads deliberately stay on ``pandas.read_parquet``: ``pl.read_parquet`` is
-faster on its own, but the ``to_pandas()`` copy needed to keep the existing
-DataFrame-returning API more than cancels it out (410ms vs 297ms at 6M rows).
+Writes narrow dtypes by column name (int32 ids, int8 sex, float32 components)
+for compact storage; integer narrowing is range-checked, so overflow raises
+instead of wrapping. Reads return an eager ``pl.DataFrame`` via
+:func:`load_parquet`.
+
+Transitional (Wave 1 of the polars migration): :func:`save_parquet` accepts
+pandas *or* polars frames while pipeline stages migrate independently.
+Unmigrated stages keep reading with ``pd.read_parquet``; migrated stages must
+use :func:`load_parquet`. Pandas acceptance is removed in the coordinated
+Wave 2 boundary break (ADR 0015).
 """
 
 from __future__ import annotations
 
-__all__ = ["save_parquet"]
+__all__ = ["load_parquet", "save_parquet"]
 
 from typing import TYPE_CHECKING, Any
 
+import polars as pl
+
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     import pandas as pd
 
+_INT32_COLS = ("id", "mother", "father", "twin", "household_id", "generation")
+_INT8_COLS = ("sex",)
+_FLOAT32_COLS = (
+    "A1",
+    "C1",
+    "E1",
+    "A2",
+    "C2",
+    "E2",
+    "t1",
+    "t2",
+    "death_age",
+    "t_observed1",
+    "t_observed2",
+)
 
-def _optimized_dtypes(df: pd.DataFrame) -> pd.DataFrame:
-    """Return a copy of ``df`` with columns downcast for compact parquet storage.
 
-    Does **not** mutate the input — narrowing is applied via ``df.astype`` to a
-    new DataFrame.
+def _optimized_dtypes(df: pl.DataFrame) -> pl.DataFrame:
+    """Return ``df`` with columns downcast by name for compact parquet storage.
 
     Dtype strategy (matching pedigree generation-time dtypes):
     - int32 for ID columns and generation (supports up to 2.1B individuals)
     - int8 for sex (0/1)
     - float32 for ACE components and event times (~7 significant digits)
     - float64 for liabilities (full precision for phenotype models)
+
+    Integer narrowing uses strict casts: a value outside the target range
+    raises instead of wrapping.
+
+    Raises:
+        ValueError: If a narrowed integer column holds values outside the
+            target dtype's range.
     """
-    int32_cols = ["id", "mother", "father", "twin", "household_id", "generation"]
-    int8_cols = ["sex"]
-    float32_cols = [
-        "A1",
-        "C1",
-        "E1",
-        "A2",
-        "C2",
-        "E2",
-        "t1",
-        "t2",
-        "death_age",
-        "t_observed1",
-        "t_observed2",
-    ]
-    mapping: dict[str, str] = {}
-    for c in int32_cols:
-        if c in df.columns:
-            mapping[c] = "int32"
-    for c in int8_cols:
-        if c in df.columns:
-            mapping[c] = "int8"
-    for c in float32_cols:
-        if c in df.columns:
-            mapping[c] = "float32"
-
-    if not mapping:
-        return df
-    return df.astype(mapping)
+    casts: list[tuple[str, pl.DataType]] = []
+    for cols, target in ((_INT32_COLS, pl.Int32()), (_INT8_COLS, pl.Int8()), (_FLOAT32_COLS, pl.Float32())):
+        casts.extend((c, target) for c in cols if c in df.columns and df.schema[c] != target)
+    for col, target in casts:
+        if target in (pl.Int32(), pl.Int8()):
+            try:
+                df = df.with_columns(pl.col(col).cast(target))
+            except pl.exceptions.InvalidOperationError as e:
+                raise ValueError(f"save_parquet: column {col!r} does not fit {target}: {e}") from e
+        else:
+            df = df.with_columns(pl.col(col).cast(target))
+    return df
 
 
-def save_parquet(df: pd.DataFrame, path: Any, **kwargs: Any) -> None:
-    """Save DataFrame as parquet with optimized dtypes and zstd compression.
+def save_parquet(df: pd.DataFrame | pl.DataFrame, path: Any, **kwargs: Any) -> None:
+    """Save a DataFrame as parquet with optimized dtypes and zstd compression.
 
-    Narrows dtypes via :func:`_optimized_dtypes` (to minimize file size) before
-    writing. The caller's ``df`` is **not** mutated — narrowing is applied to an
-    internal copy. The pandas index is dropped (polars has no index), matching
-    the ``to_parquet(index=False)`` behavior this replaced.
-
-    ``nan_to_null=False`` is required on the conversion: polars distinguishes
-    NaN from null while pandas conflates them, and the default would rewrite
-    float NaNs as parquet nulls. A pandas round-trip still *looks* correct
-    either way, but the on-disk null mask differs — which matters for the
-    non-pandas readers of these files (LDAK, EPIMIGHT's R driver).
+    Narrows dtypes via the name-based mapping (int32 ids, int8 sex, float32
+    components; range-checked) and normalizes float NaN to null before writing,
+    so on-disk missing values are always parquet null (ADR 0015 null contract).
+    The caller's frame is never mutated. A pandas index is dropped — identity
+    and order live in explicit columns.
 
     Args:
-        df: DataFrame to save.
+        df: Frame to save. ``pl.DataFrame``, or (transitionally, until the
+            Wave 2 boundary break) ``pd.DataFrame``.
         path: Output file path, or any file-like object polars accepts.
         **kwargs: Extra keyword arguments passed to
-            ``polars.DataFrame.write_parquet`` (previously ``to_parquet``; no
-            in-tree caller passes any).
+            ``polars.DataFrame.write_parquet``.
     """
-    import polars as pl
+    if not isinstance(df, pl.DataFrame):
+        df = pl.from_pandas(df)
+    df = _optimized_dtypes(df)
+    df = df.with_columns(pl.col(pl.Float32, pl.Float64).fill_nan(None))
+    df.write_parquet(path, compression="zstd", **kwargs)
 
-    pl.from_pandas(_optimized_dtypes(df), nan_to_null=False).write_parquet(path, compression="zstd", **kwargs)
+
+def load_parquet(path: Any, columns: Sequence[str] | None = None, **kwargs: Any) -> pl.DataFrame:
+    """Read a parquet file into an eager ``pl.DataFrame``.
+
+    The single read entry point for migrated stage code — stages do not call
+    ``pl.read_parquet`` directly (and never expose ``LazyFrame``; lazy scanning
+    is a separate benchmark-driven follow-up, per ADR 0015).
+
+    Args:
+        path: Parquet file path, or any source polars accepts.
+        columns: Optional column subset to read.
+        **kwargs: Extra keyword arguments passed to ``polars.read_parquet``.
+
+    Returns:
+        The file contents; missing values are null, never NaN.
+    """
+    return pl.read_parquet(path, columns=columns, **kwargs)

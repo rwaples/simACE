@@ -8,6 +8,11 @@ fixtures that include pedigree columns plus trait outcomes.
 Dtypes are checked at the coarse ``numpy.dtype.kind`` level (``i`` integer,
 ``f`` float, ``b`` bool). This tolerates the int32/int8/float32 narrowing
 applied by the parquet writer at save time without losing the contract.
+
+Transitional (Wave 1 of the polars migration): :func:`assert_schema` checks
+pandas and polars frames alike, mapping polars logical dtypes onto the same
+kind characters. Pandas acceptance is removed in the coordinated Wave 2
+boundary break (ADR 0015).
 """
 
 from __future__ import annotations
@@ -15,6 +20,8 @@ from __future__ import annotations
 __all__ = ["CENSORED", "PEDIGREE", "PHENOTYPE", "assert_schema"]
 
 from typing import TYPE_CHECKING
+
+import polars as pl
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -59,11 +66,25 @@ CENSORED: Mapping[str, str] = {
 }
 
 
-def assert_schema(df: pd.DataFrame, schema: Mapping[str, str], *, where: str) -> None:
+def _polars_kind(dtype: pl.DataType) -> str:
+    """Map a polars logical dtype onto the ``numpy.dtype.kind`` character set."""
+    if dtype.is_signed_integer():
+        return "i"
+    if dtype.is_unsigned_integer():
+        return "u"
+    if dtype.is_float():
+        return "f"
+    if dtype == pl.Boolean():
+        return "b"
+    return "O"
+
+
+def assert_schema(df: pd.DataFrame | pl.DataFrame, schema: Mapping[str, str], *, where: str) -> None:
     """Verify ``df`` carries every column in ``schema`` with a compatible dtype kind.
 
     Args:
-        df: DataFrame to check.
+        df: DataFrame to check — ``pl.DataFrame``, or (transitionally, until
+            the Wave 2 boundary break) ``pd.DataFrame``.
         schema: Mapping of required column name → allowed ``numpy.dtype.kind``
             characters (e.g. ``"f"`` for float, ``"iu"`` for any integer).
         where: Stage label included in the error message (e.g.
@@ -74,14 +95,24 @@ def assert_schema(df: pd.DataFrame, schema: Mapping[str, str], *, where: str) ->
             Extra columns are allowed — stages are free to pass through
             additional fields.
     """
+    if isinstance(df, pl.LazyFrame):
+        raise TypeError(
+            f"{where}: stage frames are eager pl.DataFrame, never LazyFrame — collect() before the boundary"
+        )
+
     missing = [c for c in schema if c not in df.columns]
     if missing:
         raise ValueError(f"{where}: missing required columns {missing}")
 
+    is_polars = isinstance(df, pl.DataFrame)
     bad: list[str] = []
     for col, kinds in schema.items():
-        actual = df[col].dtype.kind
+        if is_polars:
+            dtype = df.schema[col]
+            actual, name = _polars_kind(dtype), str(dtype)
+        else:
+            actual, name = df[col].dtype.kind, df[col].dtype.name
         if actual not in kinds:
-            bad.append(f"{col}={df[col].dtype.name} (expected kind in {kinds!r})")
+            bad.append(f"{col}={name} (expected kind in {kinds!r})")
     if bad:
         raise ValueError(f"{where}: dtype mismatch — {'; '.join(bad)}")
