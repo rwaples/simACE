@@ -1,12 +1,22 @@
-"""Pedigree-structure summaries: family size and parent presence."""
+"""Pedigree-structure summaries: family size and parent presence.
 
-from typing import Any
+Library-agnostic over pandas/polars input (transitional, ADR 0015): columns
+come out through ``.to_numpy()`` and all grouping runs in NumPy, so both
+frame libraries produce identical results.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.core.relationships import SEX_LEVELS
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
 
 def _offspring_count_dist(counts: np.ndarray, n: int) -> dict[str, float]:
@@ -18,7 +28,7 @@ def _offspring_count_dist(counts: np.ndarray, n: int) -> dict[str, float]:
     return out
 
 
-def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
+def compute_mean_family_size(df: pd.DataFrame | pl.DataFrame) -> dict[str, Any]:
     """Compute mean realised family size (offspring per mating pair).
 
     Uses non-founder individuals (mother != -1) grouped by (mother, father).
@@ -26,16 +36,25 @@ def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
     if "mother" not in df.columns or "father" not in df.columns:
         return {}
 
-    children = df.loc[(df["mother"] != -1) & (df["father"] != -1)]
-    if len(children) == 0:
+    mothers_all = df["mother"].to_numpy()
+    fathers_all = df["father"].to_numpy()
+    child_mask = (mothers_all != -1) & (fathers_all != -1)
+    n_children = int(child_mask.sum())
+    if n_children == 0:
         return {}
 
-    family_sizes = children.groupby(["mother", "father"]).size()
+    mothers = mothers_all[child_mask]
+    fathers = fathers_all[child_mask]
+
+    # Group by (mother, father) via an int64 pair key (ids are int32, so
+    # base**2 fits int64 — same bound as the canonical pair-key encoding).
+    base = np.int64(max(int(mothers.max()), int(fathers.max())) + 1)
+    pair_key = mothers.astype(np.int64) * base + fathers.astype(np.int64)
+    uniq_pairs, pair_inverse, family_sizes = np.unique(pair_key, return_inverse=True, return_counts=True)
 
     # Fraction with at least one phenotyped full sibling
-    families_with_sibs = family_sizes[family_sizes >= 2].index
-    has_sib = children.set_index(["mother", "father"]).index.isin(families_with_sibs)
-    frac_with_full_sib = round(float(has_sib.sum()) / len(children), 4)
+    has_sib = family_sizes[pair_inverse] >= 2
+    frac_with_full_sib = round(float(has_sib.sum()) / n_children, 4)
 
     # Family size distribution per mating (1, 2, 3, 4+)
     n_fam = len(family_sizes)
@@ -52,8 +71,6 @@ def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
     # counted offspring against parents present in df["id"].
     ped = PedigreeArrays.from_frame(df)
     n_total = len(df)
-    mothers = children["mother"].to_numpy()
-    fathers = children["father"].to_numpy()
     m_rows = ped.positions(mothers[ped.contains(mothers)])
     f_rows = ped.positions(fathers[ped.contains(fathers)])
     counts_arr = np.bincount(m_rows, minlength=n_total) + np.bincount(f_rows, minlength=n_total)
@@ -70,11 +87,12 @@ def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
             if len(sex_counts) > 0:
                 person_dist_by_sex[sex_label] = _offspring_count_dist(sex_counts, len(sex_counts))
 
-    # Number of mates by sex
-    # Females: unique fathers per mother
-    mates_female = children.groupby("mother")["father"].nunique()
-    # Males: unique mothers per father
-    mates_male = children.groupby("father")["mother"].nunique()
+    # Number of mates by sex: each unique (mother, father) key is one distinct
+    # mating, so counting keys per mother (father) counts distinct mates.
+    pair_mothers = uniq_pairs // base
+    pair_fathers = uniq_pairs % base
+    mates_female = np.unique(pair_mothers, return_counts=True)[1]
+    mates_male = np.unique(pair_fathers, return_counts=True)[1]
     n_mothers = len(mates_female)
     n_fathers = len(mates_male)
     mates_by_sex: dict[str, Any] = {
@@ -88,9 +106,9 @@ def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
 
     return {
         "mean": round(float(family_sizes.mean()), 2),
-        "median": round(float(family_sizes.median()), 1),
-        "q1": round(float(family_sizes.quantile(0.25)), 1),
-        "q3": round(float(family_sizes.quantile(0.75)), 1),
+        "median": round(float(np.median(family_sizes)), 1),
+        "q1": round(float(np.quantile(family_sizes, 0.25)), 1),
+        "q3": round(float(np.quantile(family_sizes, 0.75)), 1),
         "n_families": len(family_sizes),
         "frac_with_full_sib": frac_with_full_sib,
         "size_dist": dist,
@@ -101,8 +119,8 @@ def compute_mean_family_size(df: pd.DataFrame) -> dict[str, Any]:
 
 
 def compute_parent_status(
-    df: pd.DataFrame,
-    df_ped: pd.DataFrame | None = None,
+    df: pd.DataFrame | pl.DataFrame,
+    df_ped: pd.DataFrame | pl.DataFrame | None = None,
 ) -> dict[str, Any]:
     """Count individuals by number of parents phenotyped and in pedigree.
 
@@ -113,8 +131,8 @@ def compute_parent_status(
         return {}
 
     pheno_ids = df["id"].to_numpy()
-    mothers = df["mother"].values
-    fathers = df["father"].values
+    mothers = df["mother"].to_numpy()
+    fathers = df["father"].to_numpy()
 
     m_pheno = np.isin(mothers, pheno_ids) & (mothers != -1)
     f_pheno = np.isin(fathers, pheno_ids) & (fathers != -1)

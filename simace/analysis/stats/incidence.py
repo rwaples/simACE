@@ -44,7 +44,7 @@ def compute_mortality(df: pd.DataFrame, censor_age: float) -> dict[str, Any]:
     """
     decade_edges = np.arange(0, censor_age + 10, 10)
     mortality_rates, decade_labels = [], []
-    death_ages = df["death_age"].values
+    death_ages = df["death_age"].to_numpy()
     for i in range(len(decade_edges) - 1):
         lo, hi = decade_edges[i], decade_edges[i + 1]
         if lo >= censor_age:
@@ -76,9 +76,9 @@ def compute_cumulative_incidence(
     n = len(df)
     result = {}
     for trait_num in [1, 2]:
-        aff = df[f"affected{trait_num}"].values.astype(bool)
-        t_obs = df[f"t_observed{trait_num}"].values
-        t_raw = df[f"t{trait_num}"].values
+        aff = df[f"affected{trait_num}"].to_numpy().astype(bool)
+        t_obs = df[f"t_observed{trait_num}"].to_numpy()
+        t_raw = df[f"t{trait_num}"].to_numpy()
         obs_inc = _cumulative_curve(t_obs, ages, n, mask=aff)
         true_inc = _cumulative_curve(t_raw, ages, n)
         half_idx = np.searchsorted(obs_inc, obs_inc[-1] / 2)
@@ -102,7 +102,7 @@ def _build_entry_times(df: pd.DataFrame, gen_censoring: dict[int, list[float]] |
     if gen_censoring is None or "generation" not in df.columns:
         return np.zeros(n)
     entry = np.zeros(n)
-    gens = df["generation"].values
+    gens = df["generation"].to_numpy()
     for gen, (lo, _hi) in gen_censoring.items():
         entry[gens == int(gen)] = float(lo)
     return entry
@@ -258,9 +258,9 @@ def _exit_event_arrays(df: pd.DataFrame, trait_num: int) -> tuple[np.ndarray, np
 
     event_type: 1=disease, 2=death, 0=censored.
     """
-    affected = df[f"affected{trait_num}"].values.astype(bool)
-    death_censored = df[f"death_censored{trait_num}"].values.astype(bool)
-    exit_time = df[f"t_observed{trait_num}"].values.astype(float)
+    affected = df[f"affected{trait_num}"].to_numpy().astype(bool)
+    death_censored = df[f"death_censored{trait_num}"].to_numpy().astype(bool)
+    exit_time = df[f"t_observed{trait_num}"].to_numpy().astype(float)
     event_type = np.where(affected, 1, np.where(death_censored, 2, 0)).astype(np.int8)
     return exit_time, event_type
 
@@ -324,7 +324,7 @@ def compute_cumulative_incidence_aj_by_sex(
         return {}
     ages = np.linspace(0, censor_age, n_points)
     entry = _build_entry_times(df, gen_censoring)
-    sex = df["sex"].values
+    sex = df["sex"].to_numpy()
     result: dict[str, Any] = {}
     for trait_num in [1, 2]:
         exit_time, event_type = _exit_event_arrays(df, trait_num)
@@ -365,8 +365,8 @@ def compute_cumulative_incidence_aj_by_sex_generation(
         return {}
     ages = np.linspace(0, censor_age, n_points)
     entry = _build_entry_times(df, gen_censoring)
-    sex = df["sex"].values
-    gen_arr = df["generation"].values
+    sex = df["sex"].to_numpy()
+    gen_arr = df["generation"].to_numpy()
     generations = sorted(df["generation"].unique())
     result: dict[str, Any] = {}
     for trait_num in [1, 2]:
@@ -417,11 +417,15 @@ def compute_regression(df: pd.DataFrame) -> dict[str, Any]:
         if liab_col not in df.columns:
             result[f"trait{trait_num}"] = None
             continue
-        sub = df[df[aff_col]].dropna(subset=[liab_col, t_col])
-        if len(sub) < 2:
+        aff = df[aff_col].to_numpy().astype(bool)
+        liab = df[liab_col].to_numpy().astype(float)
+        t_obs = df[t_col].to_numpy().astype(float)
+        keep = aff & ~np.isnan(liab) & ~np.isnan(t_obs)
+        n_kept = int(keep.sum())
+        if n_kept < 2:
             result[f"trait{trait_num}"] = None
             continue
-        slope, intercept, r, stderr, pvalue = fast_linregress(sub[liab_col].values, sub[t_col].values)
+        slope, intercept, r, stderr, pvalue = fast_linregress(liab[keep], t_obs[keep])
         result[f"trait{trait_num}"] = {
             "slope": slope,
             "intercept": intercept,
@@ -429,7 +433,7 @@ def compute_regression(df: pd.DataFrame) -> dict[str, Any]:
             "r2": r**2,
             "stderr": stderr,
             "pvalue": pvalue,
-            "n": len(sub),
+            "n": n_kept,
         }
     return result
 
@@ -452,18 +456,20 @@ def compute_prevalence(df: pd.DataFrame) -> dict[str, Any]:
         "trait2": float(df["affected2"].mean()),
     }
     if "generation" in df.columns:
-        means = df.groupby("generation")[["affected1", "affected2"]].mean()
+        gens = df["generation"].to_numpy()
+        a1 = df["affected1"].to_numpy().astype(bool)
+        a2 = df["affected2"].to_numpy().astype(bool)
         result["by_generation"] = {
-            int(gen): {"trait1": float(row["affected1"]), "trait2": float(row["affected2"])}
-            for gen, row in means.iterrows()
+            int(g): {"trait1": float(a1[gens == g].mean()), "trait2": float(a2[gens == g].mean())}
+            for g in np.unique(gens)
         }
     return result
 
 
 def compute_joint_affection(df: pd.DataFrame) -> dict[str, Any]:
     """Compute 2x2 contingency table for trait1 x trait2 affection status."""
-    a1 = df["affected1"].values.astype(bool)
-    a2 = df["affected2"].values.astype(bool)
+    a1 = df["affected1"].to_numpy().astype(bool)
+    a2 = df["affected2"].to_numpy().astype(bool)
     n = len(df)
 
     counts = {
@@ -478,7 +484,7 @@ def compute_joint_affection(df: pd.DataFrame) -> dict[str, Any]:
     by_sex: dict[str, float] = {}
     if "sex" in df.columns:
         for sex_val, sex_label in SEX_LEVELS:
-            mask = df["sex"].values == sex_val
+            mask = df["sex"].to_numpy() == sex_val
             n_sex = int(mask.sum())
             if n_sex > 0:
                 by_sex[sex_label] = round(float(np.sum(a1[mask] & a2[mask])) / n_sex, 4)
@@ -496,11 +502,11 @@ def compute_cumulative_incidence_by_sex(
         return {}
 
     ages = np.linspace(0, censor_age, n_points)
-    sex = df["sex"].values
+    sex = df["sex"].to_numpy()
     result = {}
     for trait_num in [1, 2]:
-        aff = df[f"affected{trait_num}"].values.astype(bool)
-        t_obs_aff = df[f"t_observed{trait_num}"].values[aff]
+        aff = df[f"affected{trait_num}"].to_numpy().astype(bool)
+        t_obs_aff = df[f"t_observed{trait_num}"].to_numpy()[aff]
         sex_aff = sex[aff]
 
         trait_result = {}
@@ -531,12 +537,12 @@ def compute_cumulative_incidence_by_sex_generation(
 
     ages = np.linspace(0, censor_age, n_points)
     generations = sorted(df["generation"].unique())
-    sex = df["sex"].values
-    gen_arr = df["generation"].values
+    sex = df["sex"].to_numpy()
+    gen_arr = df["generation"].to_numpy()
     result = {}
     for trait_num in [1, 2]:
-        aff = df[f"affected{trait_num}"].values.astype(bool)
-        t_obs_aff = df[f"t_observed{trait_num}"].values[aff]
+        aff = df[f"affected{trait_num}"].to_numpy().astype(bool)
+        t_obs_aff = df[f"t_observed{trait_num}"].to_numpy()[aff]
         sex_aff = sex[aff]
         gen_aff = gen_arr[aff]
 

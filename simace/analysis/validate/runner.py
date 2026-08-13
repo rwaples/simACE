@@ -1,14 +1,21 @@
 """Validation orchestration: build report, run from disk, CLI entry point."""
 
+from __future__ import annotations
+
 import argparse
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
 from pedigree_graph import PedigreeGraph
 
+from simace.core.frames import pedigree_graph_input
+from simace.core.parquet import load_parquet
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.core.yaml_io import dump_yaml, load_yaml
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
 from .am_equilibrium import validate_am_equilibrium
 from .assortative_mating import validate_assortative_mating
@@ -27,7 +34,7 @@ from .twins import validate_twins
 logger = logging.getLogger(__name__)
 
 
-def build_validation_report(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Run all validation checks on an in-memory pedigree and return results.
 
     Runs structural, twin, half-sibling, statistical, heritability, and
@@ -50,7 +57,7 @@ def build_validation_report(df: pd.DataFrame, params: dict[str, Any]) -> dict[st
 
     # Validation only needs sibling categories (FS/MHS/PHS); avoid full
     # degree-2 extraction, which also materializes GP/Av pairs.
-    full_sib, mat_hs, pat_hs = PedigreeGraph(df).sibling_pairs()
+    full_sib, mat_hs, pat_hs = PedigreeGraph(pedigree_graph_input(df)).sibling_pairs()
     sibling_pairs = {"FS": full_sib, "MHS": mat_hs, "PHS": pat_hs}
 
     results = {
@@ -117,7 +124,7 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
         The validation report dict (see :func:`build_validation_report`).
     """
     logger.info("Validating pedigree: %s", pedigree_path)
-    df = pd.read_parquet(pedigree_path)
+    df = load_parquet(pedigree_path)
     params = load_yaml(params_path)
     return build_validation_report(df, params)
 

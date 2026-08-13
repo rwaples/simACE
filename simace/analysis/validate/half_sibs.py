@@ -1,13 +1,13 @@
 """Half-sibling structure and variance-component correlation checks."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 from pedigree_graph import PAIR_KINSHIP
 
 from simace.core.numerics import safe_corrcoef
-from simace.core.pedigree_arrays import PedigreeArrays
 
 from ._common import (
     _DEFAULT_RNG_SEED,
@@ -19,6 +19,12 @@ from ._common import (
     _subsample_pairs,
 )
 from .am_relatedness import resolve_expected_a_corr
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    from simace.core.pedigree_arrays import PedigreeArrays
 
 
 def _count_distinct_members(parts: list[np.ndarray], n: int) -> int:
@@ -76,7 +82,7 @@ def _sib_counts_from_pairs(
 
 
 def _validate_half_sib_correlations(
-    df: pd.DataFrame,
+    df: pd.DataFrame | pl.DataFrame,
     ped: PedigreeArrays,
     sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
     comp_vals: dict[str, np.ndarray],
@@ -167,7 +173,7 @@ def _validate_half_sib_correlations(
 
 
 def validate_half_sibs(
-    df: pd.DataFrame,
+    df: pd.DataFrame | pl.DataFrame,
     params: dict[str, Any],
     ped: PedigreeArrays,
     sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],

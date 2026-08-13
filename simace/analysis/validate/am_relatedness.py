@@ -29,15 +29,21 @@ AM (Border et al. 2024) is out of scope and signalled via :func:`am_relatedness_
 so callers can skip rather than assert a single-trait formula.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 
 from simace.core.numerics import safe_corrcoef
-from simace.core.pedigree_arrays import PedigreeArrays
 
-from ._common import _MIN_PAIRS_FOR_CORR
+from ._common import _MIN_PAIRS_FOR_CORR, _unique_mating_pairs
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    from simace.core.pedigree_arrays import PedigreeArrays
 
 __all__ = [
     "am_expected_a_correlation",
@@ -71,7 +77,9 @@ def am_relatedness_mode(params: dict[str, Any], t: int) -> str:
     return "bivariate" if _active(other) else "single"
 
 
-def observed_mate_correlations(df: pd.DataFrame, ped: PedigreeArrays, t: int) -> tuple[float, float, int]:
+def observed_mate_correlations(
+    df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays, t: int
+) -> tuple[float, float, int]:
     """Measure ``(mu_A, r_ho, n_pairs)`` for trait ``t`` over unique mating pairs.
 
     ``mu_A`` is the genetic (A-component) mate correlation; ``r_ho`` the
@@ -79,17 +87,12 @@ def observed_mate_correlations(df: pd.DataFrame, ped: PedigreeArrays, t: int) ->
     non-founder generations. Returns ``(0.0, 0.0, n)`` when there are too few
     pairs or a correlation is undefined.
     """
-    non_founders = df[df["mother"] != -1]
-    pairs = non_founders[["mother", "father"]].drop_duplicates()
-    # Restrict to pairs whose parents are both present in the recorded pedigree.
-    in_idx = ped.contains(pairs["mother"].to_numpy()) & ped.contains(pairs["father"].to_numpy())
-    pairs = pairs[in_idx]
-    n_pairs = len(pairs)
+    # Unique matings restricted to pairs whose parents are both present in the
+    # recorded pedigree.
+    m, f = _unique_mating_pairs(df, ped)
+    n_pairs = len(m)
     if n_pairs < _MIN_PAIRS_FOR_CORR:
         return 0.0, 0.0, n_pairs
-
-    m = pairs["mother"].to_numpy()
-    f = pairs["father"].to_numpy()
     a_m = ped.gather(f"A{t}", m)
     a_f = ped.gather(f"A{t}", f)
     l_m = a_m + ped.gather(f"C{t}", m) + ped.gather(f"E{t}", m)
@@ -123,7 +126,7 @@ def am_expected_a_correlation(kind: str, mu_a: float, r_ho: float) -> float:
 
 
 def resolve_expected_a_corr(
-    df: pd.DataFrame,
+    df: pd.DataFrame | pl.DataFrame,
     ped: PedigreeArrays,
     params: dict[str, Any],
     t: int,

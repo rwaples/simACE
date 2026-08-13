@@ -1,16 +1,21 @@
 """Structural-integrity checks for the pedigree."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
-
-from simace.core.pedigree_arrays import PedigreeArrays
 
 from ._common import _result
 
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
-def validate_structural(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeArrays) -> dict[str, Any]:
+    from simace.core.pedigree_arrays import PedigreeArrays
+
+
+def validate_structural(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped: PedigreeArrays) -> dict[str, Any]:
     """Validate structural integrity of the pedigree.
 
     Checks contiguous IDs, valid parent references, sex-parent consistency,
@@ -30,7 +35,7 @@ def validate_structural(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeA
     expected_total = N * ngen
 
     # ID integrity
-    ids = df["id"].values
+    ids = df["id"].to_numpy()
     expected_ids = np.arange(expected_total)
     ids_contiguous = np.array_equal(np.sort(ids), expected_ids)
     results["id_integrity"] = _result(
@@ -41,21 +46,22 @@ def validate_structural(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeA
     )
 
     # Parent references: valid IDs (0..expected_total-1) or -1 for founders
-    mother_vals = df["mother"].values
-    father_vals = df["father"].values
+    mother_vals = df["mother"].to_numpy()
+    father_vals = df["father"].to_numpy()
     mothers_valid = (((mother_vals >= 0) & (mother_vals < expected_total)) | (mother_vals == -1)).all()
     fathers_valid = (((father_vals >= 0) & (father_vals < expected_total)) | (father_vals == -1)).all()
-    no_self_parent = ((df["mother"] != df["id"]) & (df["father"] != df["id"])).all()
+    id_vals = df["id"].to_numpy()
+    no_self_parent = bool(((mother_vals != id_vals) & (father_vals != id_vals)).all())
     results["parent_references"] = _result(
         bool(mothers_valid and fathers_valid and no_self_parent),
         f"Mothers valid: {mothers_valid}, Fathers valid: {fathers_valid}, No self-parenting: {no_self_parent}",
     )
 
     # Sex-parent consistency (only for non-founders)
-    non_founders = df[df["mother"] != -1]
-    if len(non_founders) > 0:
-        mothers = non_founders["mother"].to_numpy()
-        fathers = non_founders["father"].to_numpy()
+    nf_mask = mother_vals != -1
+    if nf_mask.any():
+        mothers = mother_vals[nf_mask]
+        fathers = father_vals[nf_mask]
         # Short-circuits on an absent parent, matching the reindex this
         # replaced: a missing id produced NaN, which failed the comparison.
         mothers_female = bool(ped.contains(mothers).all()) and bool((ped.gather("sex", mothers) == 0).all())

@@ -1,17 +1,25 @@
 """Mate-correlation (assortative-mating) validation."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 
 from simace.core.numerics import safe_corrcoef
-from simace.core.pedigree_arrays import PedigreeArrays
 
-from ._common import _corr_se, _info, _result
+from ._common import _corr_se, _info, _result, _unique_mating_pairs
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    from simace.core.pedigree_arrays import PedigreeArrays
 
 
-def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeArrays) -> dict[str, Any]:
+def validate_assortative_mating(
+    df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped: PedigreeArrays
+) -> dict[str, Any]:
     """Validate mate correlation on liability when assortative mating is configured.
 
     Extracts unique mating pairs from non-founders, computes Pearson
@@ -44,22 +52,15 @@ def validate_assortative_mating(df: pd.DataFrame, params: dict[str, Any], ped: P
         results["mate_corr_liability2"] = _result(True, msg)
         return results
 
-    non_founders = df[df["mother"] != -1]
-    if len(non_founders) == 0:
+    if not bool((df["mother"].to_numpy() != -1).any()):
         results["mate_corr_liability1"] = _result(True, "No non-founders to check")
         results["mate_corr_liability2"] = _result(True, "No non-founders to check")
         return results
 
-    # Extract unique mating pairs, keeping only those whose parents are both
-    # in the pedigree -- the same guard observed_mate_correlations applies.
-    # Ascertainment severs mother and father independently, so a row can pass
-    # the mother != -1 filter above while carrying a severed father.
-    pairs = non_founders[["mother", "father"]].drop_duplicates()
-    both_present = ped.contains(pairs["mother"].to_numpy()) & ped.contains(pairs["father"].to_numpy())
-    pairs = pairs[both_present]
-    mother_ids = pairs["mother"].to_numpy()
-    father_ids = pairs["father"].to_numpy()
-    n_pairs = len(pairs)
+    # Unique mating pairs whose parents are both in the pedigree -- the same
+    # guard observed_mate_correlations applies.
+    mother_ids, father_ids = _unique_mating_pairs(df, ped)
+    n_pairs = len(mother_ids)
 
     if n_pairs == 0:
         results["mate_corr_liability1"] = _result(True, "No mating pairs with both parents present")

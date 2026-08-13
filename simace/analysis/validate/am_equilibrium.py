@@ -15,18 +15,23 @@ assertion is against the recursion value at the actual ``G_sim`` (valid whether
 or not the run has converged).
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 
 from simace.simulation.am_equilibrium import am_equilibrium_variance, am_variance_trajectory
 
 from ._common import _result
 from .am_relatedness import am_relatedness_mode
 
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
-def validate_am_equilibrium(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+
+def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Validate that ``Var(A)`` reaches the AM-inflated equilibrium per trait.
 
     Emits no checks when assortative mating is inactive (Wright-Fisher, or both
@@ -62,7 +67,7 @@ def validate_am_equilibrium(df: pd.DataFrame, params: dict[str, Any]) -> dict[st
         return results
     G_sim = params.get("G_sim") or G_ped
 
-    gen_labels = df["id"].values // int(N)
+    gen_labels = df["id"].to_numpy() // int(N)
     last_mask = gen_labels == (int(G_ped) - 1)
     n_last = int(last_mask.sum())
 
@@ -99,7 +104,7 @@ def validate_am_equilibrium(df: pd.DataFrame, params: dict[str, Any]) -> dict[st
 
         V_pred = float(am_variance_trajectory(A_base, V_env, r_ho, int(G_sim))[-1])
         a2 = float(am_equilibrium_variance(A_base, V_env, r_ho))
-        obs = float(np.var(df[f"A{t}"].values[last_mask]))
+        obs = float(np.var(df[f"A{t}"].to_numpy()[last_mask]))
 
         # SE of a sample variance for ~Gaussian A: V·sqrt(2/(n-1)). The 5x
         # multiplier (floored at 0.03) absorbs the slight non-normality of A

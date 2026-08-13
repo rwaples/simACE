@@ -1,4 +1,9 @@
-"""Censoring window, confusion-matrix, cascade, and person-years statistics."""
+"""Censoring window, confusion-matrix, cascade, and person-years statistics.
+
+Library-agnostic over pandas/polars input (transitional, ADR 0015): columns
+come out through ``.to_numpy()`` and all slicing runs on NumPy masks, so both
+frame libraries produce identical results.
+"""
 
 from __future__ import annotations
 
@@ -8,10 +13,13 @@ import numpy as np
 
 if TYPE_CHECKING:
     import pandas as pd
+    import polars as pl
+
+    type _Frame = pd.DataFrame | pl.DataFrame
 
 
 def compute_censoring_windows(
-    df: pd.DataFrame,
+    df: _Frame,
     censor_age: float,
     gen_censoring: dict[int, list[float]],
     n_points: int = 300,
@@ -30,20 +38,21 @@ def compute_censoring_windows(
     if "generation" not in df.columns:
         return None
     ages = np.linspace(0, censor_age, n_points)
+    gens = df["generation"].to_numpy()
     result = {}
     for gen in sorted(gen_censoring.keys()):
         win_lo, win_hi = gen_censoring[gen]
-        gen_df = df[df["generation"] == gen]
-        n_gen = len(gen_df)
+        gen_mask = gens == gen
+        n_gen = int(gen_mask.sum())
         if n_gen == 0:
             result[f"gen{gen}"] = {"n": 0}
             continue
         gen_result: dict[str, Any] = {"n": int(n_gen)}
         for trait_num in [1, 2]:
-            t_raw = gen_df[f"t{trait_num}"].values
-            t_obs = gen_df[f"t_observed{trait_num}"].values
-            affected = gen_df[f"affected{trait_num}"].values.astype(bool)
-            death_c = gen_df[f"death_censored{trait_num}"].values.astype(bool)
+            t_raw = df[f"t{trait_num}"].to_numpy()[gen_mask]
+            t_obs = df[f"t_observed{trait_num}"].to_numpy()[gen_mask]
+            affected = df[f"affected{trait_num}"].to_numpy()[gen_mask].astype(bool)
+            death_c = df[f"death_censored{trait_num}"].to_numpy()[gen_mask].astype(bool)
             obs_inc = np.searchsorted(np.sort(t_obs[affected]), ages, side="right") / n_gen
             true_inc = np.searchsorted(np.sort(t_raw), ages, side="right") / n_gen
             gen_result[f"trait{trait_num}"] = {
@@ -59,7 +68,7 @@ def compute_censoring_windows(
 
 
 def compute_censoring_confusion(
-    df: pd.DataFrame,
+    df: _Frame,
     censor_age: float,
     gen_censoring: dict[int, list[float]],
 ) -> dict[str, Any]:
@@ -67,10 +76,12 @@ def compute_censoring_confusion(
 
     Only includes individuals from phenotyped generations (observation window > 0).
     """
+    keep = np.ones(len(df), dtype=bool)
     if "generation" in df.columns:
         active_gens = {int(g) for g, (lo, hi) in gen_censoring.items() if hi > lo}
         if active_gens:
-            df = df[df["generation"].isin(active_gens)]
+            gens = df["generation"].to_numpy()
+            keep = np.isin(gens, list(active_gens))
 
     result = {}
     for trait in [1, 2]:
@@ -78,9 +89,9 @@ def compute_censoring_confusion(
         a_col = f"affected{trait}"
         if t_col not in df.columns or a_col not in df.columns:
             continue
-        true_aff = df[t_col].values < censor_age
-        obs_aff = df[a_col].values.astype(bool)
-        n = len(df)
+        true_aff = df[t_col].to_numpy()[keep] < censor_age
+        obs_aff = df[a_col].to_numpy()[keep].astype(bool)
+        n = int(keep.sum())
         result[f"trait{trait}"] = {
             "tp": int(np.sum(true_aff & obs_aff)),
             "fn": int(np.sum(true_aff & ~obs_aff)),
@@ -92,7 +103,7 @@ def compute_censoring_confusion(
 
 
 def compute_censoring_cascade(
-    df: pd.DataFrame,
+    df: _Frame,
     censor_age: float,
     gen_censoring: dict[int, list[float]],
 ) -> dict[str, Any]:
@@ -115,15 +126,17 @@ def compute_censoring_cascade(
         a_col = f"affected{trait}"
         if t_col not in df.columns or a_col not in df.columns:
             continue
+        gens = df["generation"].to_numpy()
+        t_all = df[t_col].to_numpy()
+        death_all = df["death_age"].to_numpy() if has_death else None
         trait_result: dict[str, Any] = {}
         for g in sorted(windows.keys()):
             lo, hi = windows[g]
-            gen_mask = df["generation"] == g
-            df_g = df.loc[gen_mask]
-            t = df_g[t_col].values
+            gen_mask = gens == g
+            t = t_all[gen_mask]
             true_affected = t < censor_age
             n_true = int(true_affected.sum())
-            n_gen = len(df_g)
+            n_gen = int(gen_mask.sum())
 
             if n_true == 0:
                 trait_result[f"gen{g}"] = {
@@ -143,7 +156,7 @@ def compute_censoring_cascade(
             in_window = true_affected & (t >= lo) & (t <= hi)
 
             if has_death:
-                death_age = df_g["death_age"].values
+                death_age = death_all[gen_mask]
                 death_cens = in_window & (death_age < t)
                 observed = in_window & (death_age >= t)
             else:
@@ -166,7 +179,7 @@ def compute_censoring_cascade(
 
 
 def compute_person_years(
-    df: pd.DataFrame,
+    df: _Frame,
     censor_age: float,
     gen_censoring: dict[int, list[float]] | None = None,
 ) -> dict[str, Any]:
@@ -195,15 +208,18 @@ def compute_person_years(
     for trait in [1, 2]:
         trait_py[f"trait{trait}"] = 0.0
 
-    for g, df_g in df.groupby("generation"):
-        lo, hi = windows.get(int(g), (0.0, censor_age))  # ty: ignore[invalid-argument-type]
+    gens = df["generation"].to_numpy()
+    death_all = df["death_age"].to_numpy() if has_death else None
+    for g in np.unique(gens):
+        lo, hi = windows.get(int(g), (0.0, censor_age))
         if hi <= lo:
             continue
-        n = len(df_g)
+        gen_mask = gens == g
+        n = int(gen_mask.sum())
 
         # End of observation for each person (not trait-specific)
         if has_death:
-            death_ages = df_g["death_age"].values
+            death_ages = death_all[gen_mask]
             end = np.minimum(death_ages, hi)
             # Deaths observed during follow-up window
             total_deaths += int(((death_ages >= lo) & (death_ages < hi)).sum())
@@ -215,11 +231,11 @@ def compute_person_years(
         # Trait-specific at-risk person-years
         for trait in [1, 2]:
             t_col = f"t_observed{trait}"
-            if t_col not in df_g.columns:
+            if t_col not in df.columns:
                 continue
-            t_obs = df_g[t_col].values
+            t_obs = df[t_col].to_numpy()[gen_mask]
             if has_death:
-                trait_end = np.minimum(np.minimum(t_obs, df_g["death_age"].values), hi)
+                trait_end = np.minimum(np.minimum(t_obs, death_ages), hi)
             else:
                 trait_end = np.minimum(t_obs, hi)
             trait_py[f"trait{trait}"] += float(np.clip(trait_end - lo, 0, None).sum())

@@ -27,11 +27,11 @@ import argparse
 import gc
 import json
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
+import numpy as np
 
-from simace.core.parquet import save_parquet
+from simace.core.parquet import load_parquet, save_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import dump_yaml, load_yaml
@@ -46,11 +46,15 @@ from .stats.runner import (
 )
 from .validate import build_validation_report
 
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
 logger = logging.getLogger(__name__)
 
 
-def _n_generations(df: pd.DataFrame) -> int:
-    return int(df["generation"].nunique()) if "generation" in df.columns else 1
+def _n_generations(df: pd.DataFrame | pl.DataFrame) -> int:
+    return len(np.unique(df["generation"].to_numpy())) if "generation" in df.columns else 1
 
 
 def run_analysis(
@@ -100,7 +104,7 @@ def run_analysis(
 
     # --- Phase 1: Validate (full, pre-ascertainment recorded pedigree) ---
     logger.info("Analyze phase 1/3: validating %s", pedigree_full_path)
-    df_full = pd.read_parquet(pedigree_full_path)
+    df_full = load_parquet(pedigree_full_path)
     validation_report = build_validation_report(df_full, params)
     scope_counts["recorded_pedigree"] = {
         "source": "pedigree.full.parquet",
@@ -112,8 +116,8 @@ def run_analysis(
 
     # --- Phase 2: Phenotyped population (full pre-ascertainment trait rows) ---
     logger.info("Analyze phase 2/3: phenotyped-population summaries on %s", trait_full_path)
-    df_trait_full = pd.read_parquet(trait_full_path)
-    df_trait_full_ped = pd.read_parquet(pedigree_full_path, columns=["id", "generation"])
+    df_trait_full = load_parquet(trait_full_path)
+    df_trait_full_ped = load_parquet(pedigree_full_path, columns=["id", "generation"])
     df_trait_full_hydrated = hydrate_trait(df_trait_full, df_trait_full_ped, kind="censored", columns=["generation"])
     prevalence_phenotyped = compute_prevalence(df_trait_full_hydrated)
     scope_counts["phenotyped_population"] = {
@@ -126,8 +130,8 @@ def run_analysis(
 
     # --- Phase 3: Analysis sample (post-ascertainment subsample) ---
     logger.info("Analyze phase 3/3: stats on %s", trait_path)
-    df_trait = pd.read_parquet(trait_path)
-    df_ped = pd.read_parquet(pedigree_path, columns=PEDIGREE_REPORT_COLUMNS)
+    df_trait = load_parquet(trait_path)
+    df_ped = load_parquet(pedigree_path, columns=PEDIGREE_REPORT_COLUMNS)
     df = hydrate_trait(df_trait, df_ped, kind="censored", columns=PEDIGREE_REPORT_COLUMNS)
     stats_report = build_stats_report(
         df,
@@ -174,8 +178,8 @@ def run_analysis(
     # need the per-trait liability components, which live in the pedigree rather
     # than the outcomes-only trait file. Hydrate them onto the plotting sample
     # only; the stats `df` above is deliberately left lean.
-    components = pd.read_parquet(pedigree_path, columns=["id", *LIABILITY_COMPONENT_COLUMNS])
-    sample_df = sample_df.merge(components, on="id", how="left")
+    components = load_parquet(pedigree_path, columns=["id", *LIABILITY_COMPONENT_COLUMNS])
+    sample_df = sample_df.join(components, on="id", how="left", maintain_order="left")
     save_parquet(sample_df, samples_output)
     logger.info("Plotting sample (%d rows) written to %s", len(sample_df), samples_output)
 
