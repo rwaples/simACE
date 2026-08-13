@@ -96,3 +96,23 @@ def test_preserves_row_order_and_extra_columns():
     assert out["id"].tolist() == [0, 1, 2]
     assert out["sex"].tolist() == [1, 0, 1]
     assert out["generation"].tolist() == [0, 0, 1]
+
+
+def test_polars_same_type_dual_frame_matches_pandas():
+    """Transitional dual-frame API (ADR 0015): polars in, polars out, same rows."""
+    import polars as pl
+
+    df_ped = pd.DataFrame(
+        {
+            "id": [0, 1, 2, 3],
+            "mother": [-1, -1, 1, 1],
+            "father": [-1, -1, 0, 0],
+            "sex": [1, 0, 1, 0],
+        }
+    )
+    out_pd = filter_pedigree_to_observed(df_ped, np.array([2]))
+    out_pl = filter_pedigree_to_observed(pl.from_pandas(df_ped), pl.Series([2]))
+
+    assert isinstance(out_pl, pl.DataFrame)
+    assert out_pl["id"].to_list() == out_pd["id"].tolist()
+    assert out_pl["sex"].to_list() == out_pd["sex"].tolist()

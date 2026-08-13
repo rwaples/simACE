@@ -43,6 +43,15 @@ class TestConstruction:
         with pytest.raises(ValueError, match="requires an 'id' column"):
             PedigreeArrays({"sex": np.arange(3)})
 
+    def test_from_frame_accepts_polars(self):
+        import polars as pl
+
+        ped_pd = PedigreeArrays.from_frame(GAPPED)
+        ped_pl = PedigreeArrays.from_frame(pl.from_pandas(GAPPED))
+        assert ped_pl.columns == ped_pd.columns
+        np.testing.assert_array_equal(ped_pl.ids, ped_pd.ids)
+        np.testing.assert_array_equal(ped_pl.gather("A1", GAPPED["id"].to_numpy()), ped_pd["A1"])
+
     def test_duplicate_ids_rejected(self):
         with pytest.raises(ValueError, match="duplicated id"):
             PedigreeArrays.from_frame(_frame([0, 1, 1, 2]))

@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+import polars as pl
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -13,15 +14,16 @@ __all__ = ["filter_pedigree_to_observed"]
 
 
 def filter_pedigree_to_observed(
-    df_ped: pd.DataFrame,
-    observed_ids: np.ndarray | pd.Series,
-) -> pd.DataFrame:
+    df_ped: pd.DataFrame | pl.DataFrame,
+    observed_ids: np.ndarray | pd.Series | pl.Series,
+) -> pd.DataFrame | pl.DataFrame:
     """Restrict ``df_ped`` to ``observed_ids`` plus all ancestors needed for kinship.
 
     Iteratively walks parent pointers in ``df_ped`` from the observed set until
     fixed point.  Ancestors absent from ``df_ped`` (e.g. removed by pedigree
     dropout) are not added.  Returns a copy of ``df_ped`` filtered to the
-    closure, preserving original row order.
+    closure, preserving original row order. Same-type dual-frame API
+    (transitional, ADR 0015): returns the same frame library it was given.
 
     Args:
         df_ped: Pedigree with ``id``, ``mother``, ``father`` columns.  Missing
@@ -66,4 +68,6 @@ def filter_pedigree_to_observed(
         frontier = next_frontier
 
     keep_mask = np.isin(all_ids, list(closure))
+    if isinstance(df_ped, pl.DataFrame):
+        return df_ped.filter(pl.Series(keep_mask))
     return df_ped.loc[keep_mask].copy()

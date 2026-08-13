@@ -3,16 +3,22 @@
 __all__ = ["convert"]
 
 import argparse
+import gzip as gzip_module
 import logging
 import time
 
-import pandas as pd
+import polars as pl
 
 logger = logging.getLogger(__name__)
 
 
 def convert(parquet_path: str, output_path: str | None = None, float_precision: int = 4, gzip: bool = True) -> None:
     """Read a parquet file and write it as a TSV.
+
+    The text rendering matches the historical pandas writer that R consumers
+    parse: tab delimiter, header row, floats at fixed ``float_precision``
+    decimals, booleans as ``True``/``False``, and missing values as empty
+    fields.
 
     Args:
         parquet_path: Path to the input ``.parquet`` file.
@@ -27,11 +33,21 @@ def convert(parquet_path: str, output_path: str | None = None, float_precision: 
         output_path = parquet_path.removesuffix(".parquet") + suffix
 
     t0 = time.perf_counter()
-    df = pd.read_parquet(parquet_path)
-    logger.info("Read %s (%d rows, %d cols)", parquet_path, len(df), len(df.columns))
+    df = pl.read_parquet(parquet_path)
+    logger.info("Read %s (%d rows, %d cols)", parquet_path, df.height, df.width)
 
-    compression = "gzip" if gzip else None
-    df.to_csv(output_path, sep="\t", index=False, compression=compression, float_format=f"%.{float_precision}f")
+    bool_cols = [c for c, dtype in df.schema.items() if dtype == pl.Boolean()]
+    if bool_cols:
+        df = df.with_columns(
+            pl.col(c).cast(pl.String).str.replace_all("true", "True").str.replace_all("false", "False")
+            for c in bool_cols
+        )
+
+    if gzip:
+        with gzip_module.open(output_path, "wb") as fh:
+            df.write_csv(fh, separator="\t", float_precision=float_precision)
+    else:
+        df.write_csv(output_path, separator="\t", float_precision=float_precision)
     elapsed = time.perf_counter() - t0
     logger.info("Wrote %s (%.1fs)", output_path, elapsed)
 
