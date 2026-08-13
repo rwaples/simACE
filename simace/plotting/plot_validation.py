@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import polars as pl
 import seaborn as sns
 
 from simace.core.relationships import expected_liability_corr
@@ -110,7 +111,7 @@ def stripplot(
         ax.set_xlim(-0.5, 0.5)
 
     # Tight y-axis padding based on actual data range
-    data_vals = df[y].dropna().values
+    data_vals = df[y].dropna().to_numpy()
     all_vals = list(data_vals)
     if expected_func is not None:
         for scenario in scenarios:
@@ -118,7 +119,7 @@ def stripplot(
             all_vals.append(expected_func(sdf))
     elif expected is not None:
         if isinstance(expected, str):
-            all_vals.extend(df[expected].dropna().values)
+            all_vals.extend(df[expected].dropna().to_numpy())
         else:
             all_vals.append(expected)
     # Filter out non-numeric values (e.g. per-generation dict strings)
@@ -454,7 +455,7 @@ def plot_summary_bias(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         if n == 1:
             ax.set_xlim(-0.5, 0.5)
         # Tight y-axis: include zero (the reference line) in span
-        vals = dp[col].dropna().values
+        vals = dp[col].dropna().to_numpy()
         all_v = np.concatenate([vals, [0.0]])
         lo, hi = float(all_v.min()), float(all_v.max())
         span = hi - lo
@@ -653,11 +654,17 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png", *, atlas_
     from simace.plotting.plot_style import apply_nature_style
 
     apply_nature_style()
-    df = pd.read_csv(tsv_path, sep="\t", encoding="utf-8")
+    # Preprocess in polars; convert once at the renderer boundary — every
+    # renderer hands the frame straight to seaborn (documented pandas
+    # boundary, ADR 0015). R-style missing tokens are parsed explicitly.
+    df_pl = pl.read_csv(tsv_path, separator="\t", null_values=["NA", ""])
 
+    df = df_pl.to_pandas()
     # Sort scenarios by increasing N so x-axes read left-to-right by size
-    if "N" in df.columns:
-        scenario_order = df.groupby("scenario")["N"].first().sort_values().index  # ty: ignore[no-matching-overload]
+    if "N" in df_pl.columns:
+        scenario_order = (
+            df_pl.group_by("scenario", maintain_order=True).agg(pl.col("N").first()).sort("N")["scenario"].to_list()
+        )
         df["scenario"] = pd.Categorical(df["scenario"], categories=scenario_order, ordered=True)
         df = df.sort_values("scenario").reset_index(drop=True)
 

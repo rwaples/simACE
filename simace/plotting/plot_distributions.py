@@ -32,7 +32,7 @@ import numpy as np
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pandas as pd
+    import polars as pl
 
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
@@ -52,7 +52,7 @@ def plot_death_age_distribution(
     censor_age: float,
     output_path: str | Path,
     scenario: str = "",
-    df_samples: pd.DataFrame | None = None,
+    df_samples: pl.DataFrame | None = None,
     subsample_note: str = "",
 ) -> None:
     """Plot mortality rates plus optional death-age histograms."""
@@ -97,9 +97,11 @@ def plot_death_age_distribution(
         affected_col = f"affected{trait_num}"
         t_col = f"t_observed{trait_num}"
         death_censored_col = f"death_censored{trait_num}"
-        death_censored = df_samples[~df_samples[affected_col] & df_samples[death_censored_col]]
+        aff = df_samples[affected_col].to_numpy().astype(bool)
+        dc = df_samples[death_censored_col].to_numpy().astype(bool)
+        t_vals = df_samples[t_col].to_numpy()[~aff & dc]
         ax.hist(
-            death_censored[t_col].dropna(),
+            t_vals[~np.isnan(t_vals)],
             bins=50,
             density=True,
             edgecolor="black",
@@ -114,7 +116,7 @@ def plot_death_age_distribution(
 
 
 def plot_trait_phenotype(
-    df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = ""
+    df_samples: pl.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = ""
 ) -> None:
     """Plot age-at-onset distributions for affected individuals in both traits."""
     _fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
@@ -123,10 +125,11 @@ def plot_trait_phenotype(
         affected_col = f"affected{trait_num}"
         t_col = f"t_observed{trait_num}"
 
-        affected = df_samples[df_samples[affected_col]]
+        aff = df_samples[affected_col].to_numpy().astype(bool)
+        t_vals = df_samples[t_col].to_numpy()[aff]
 
         ax.hist(
-            affected[t_col].dropna(),
+            t_vals[~np.isnan(t_vals)],
             bins=50,
             density=True,
             edgecolor="black",
@@ -141,7 +144,7 @@ def plot_trait_phenotype(
 
 
 def plot_trait_regression(
-    df_samples: pd.DataFrame,
+    df_samples: pl.DataFrame,
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
@@ -161,9 +164,12 @@ def plot_trait_regression(
         if liability_col not in df_samples.columns:
             continue
 
-        affected = df_samples[df_samples[affected_col]].dropna(subset=[liability_col, t_col])
-        x = affected[liability_col].values
-        y = affected[t_col].values
+        aff = df_samples[affected_col].to_numpy().astype(bool)
+        liab_all = df_samples[liability_col].to_numpy()
+        t_all = df_samples[t_col].to_numpy()
+        keep = aff & ~np.isnan(liab_all) & ~np.isnan(t_all)
+        x = liab_all[keep]
+        y = t_all[keep]
 
         # Get regression stats from pre-computed stats (averaged across reps)
         reg_stats = [
