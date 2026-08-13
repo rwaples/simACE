@@ -159,9 +159,9 @@ for s in epimight pcgc iter_reml tetraher pafgrs stan frailty; do
   pip install -e "fitACE/fitACE_$s"
 done
 # Restore external editable deps the family reinstall may have clobbered:
-# `pip install -e .` re-resolves simACE's `pedigree-graph` pin and pulls the
-# latest *PyPI* release over the editable link (the family CalVer tags are not
-# on PyPI), shadowing the source checkout with a stale wheel.
+# `pip install -e .` re-resolves simACE's `pedigree-graph` range (pedigree-graph
+# publishes to PyPI as of v0.6.0) and installs the newest matching wheel over
+# the editable link, shadowing the source checkout.
 # `editable_mode=compat` writes a plain-path `.pth` that ty can follow; the
 # default import-hook mode (`__editable__*.pth` + `_finder.py`) is invisible to
 # ty and would surface `unresolved-import` errors for `pedigree_graph`.

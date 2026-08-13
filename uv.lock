@@ -1195,12 +1195,16 @@ wheels = [
 
 [[package]]
 name = "pedigree-graph"
-version = "0.5.4"
-source = { git = "https://github.com/rwaples/pedigree-graph.git?rev=v0.5.4#d2ac3660b0444bf99dc0fdd307a386fe7a2842fe" }
+version = "0.6.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "numba" },
     { name = "numpy" },
     { name = "scipy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/69/c7/fe66a17d3230c7bc811e1609e3012c77b38409392cb533c6a92edf55a507/pedigree_graph-0.6.0.tar.gz", hash = "sha256:47bc3dad3987fddf2c91bb8deba5b6efe4e5b2c30a1dd3ecf5df5e3c2e78ef30", size = 209415, upload-time = "2026-08-13T14:22:21.609Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/cc/c4/da018d1d5b18fa34f1fa7dcd1c4dc6030e1c0c17c0114dfc7d04f0754b7f/pedigree_graph-0.6.0-py3-none-any.whl", hash = "sha256:3ccf6d3c92cff09d7d6cf63a697cc4a42044321effed9c6474b2060c21a4618c", size = 101698, upload-time = "2026-08-13T14:22:20.309Z" },
 ]
 
 [[package]]
@@ -1868,7 +1872,7 @@ requires-dist = [
     { name = "numba", specifier = ">=0.60,<1" },
     { name = "numpy", specifier = ">=2.2,<3" },
     { name = "pandas", specifier = ">=2.2,<4" },
-    { name = "pedigree-graph", git = "https://github.com/rwaples/pedigree-graph.git?rev=v0.5.4" },
+    { name = "pedigree-graph", specifier = ">=0.6,<0.7" },
     { name = "pillow", marker = "extra == 'plot'", specifier = ">=10,<14" },
     { name = "polars", specifier = ">=1.20,<2" },
     { name = "pyarrow", specifier = ">=17,<26" },
