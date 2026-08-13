@@ -36,6 +36,7 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 ## Key Rules
 
 - The `simACE` conda env is always active. Do NOT use `conda run -n simACE` — run commands directly.
+- An optional locked uv environment (`uv sync --locked --extra test --extra plot --extra typecheck`, then `uv run --no-sync pytest|ruff|ty`) is allowed for simACE-only development checks. Conda remains mandatory for Snakemake/pipeline/scientific commands and all fitACE work. Normal uv commands must not rewrite `uv.lock`.
 
 ## Code review gotchas (statistical correctness)
 
