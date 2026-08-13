@@ -152,3 +152,35 @@ def test_cli_foreign_flag_rejected(tmp_path, monkeypatch):
                 "0.10",
             ],
         )
+
+
+def test_run_phenotype_polars_matches_pandas(tmp_path):
+    """Same-type dual-frame stage (ADR 0015): identical values, NaN→null normalized."""
+    import polars as pl
+    import polars.testing
+
+    from simace.phenotype import run_phenotype
+
+    ped_path = _write_pedigree(tmp_path, n=500, seed=3)
+    ped_pd = pd.read_parquet(ped_path)
+    kwargs = dict(
+        G_pheno=1,
+        seed=42,
+        standardize="global",
+        phenotype_model1="adult",
+        phenotype_params1={"method": "ltm", "prevalence": 0.10, "cip_x0": 50.0, "cip_k": 0.1},
+        beta1=1.0,
+        beta_sex1=0.0,
+        phenotype_model2="frailty",
+        phenotype_params2={"distribution": "weibull", "scale": 316.228, "rho": 2.0},
+        beta2=1.0,
+        beta_sex2=0.0,
+    )
+
+    out_pd = run_phenotype(ped_pd, **kwargs)
+    out_pl = run_phenotype(pl.from_pandas(ped_pd), **kwargs)
+
+    assert isinstance(out_pd, pd.DataFrame)
+    assert isinstance(out_pl, pl.DataFrame)
+    # from_pandas converts NaN→null, matching the polars branch's fill_nan
+    polars.testing.assert_frame_equal(out_pl, pl.from_pandas(out_pd))

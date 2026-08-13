@@ -6,20 +6,27 @@ package docstring in :mod:`simace.phenotype` for the family list). ``cli`` is
 the ``simace-phenotype`` entry point.
 """
 
+from __future__ import annotations
+
 import argparse
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
-import pandas as pd
+import polars as pl
 
-from simace.core.parquet import save_parquet
+from simace.core.parquet import load_parquet, save_parquet
 from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
 from simace.core.trait_schema import RAW_TRAIT, strip_trait_to_outcomes
-from simace.phenotype.hazards import STANDARDIZE_CHOICES, StandardizeMode
+from simace.phenotype.hazards import STANDARDIZE_CHOICES
 from simace.phenotype.models import MODELS
+
+if TYPE_CHECKING:
+    import numpy as np
+    import pandas as pd
+
+    from simace.phenotype.hazards import StandardizeMode
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 def _simulate_one_trait(
-    pedigree: pd.DataFrame,
+    pedigree: pd.DataFrame | pl.DataFrame,
     *,
     trait_num: int,
     model_name: str,
@@ -61,7 +68,7 @@ def _simulate_one_trait(
 
 @stage(reads=PEDIGREE, writes=RAW_TRAIT)
 def run_phenotype(
-    pedigree: pd.DataFrame,
+    pedigree: pd.DataFrame | pl.DataFrame,
     *,
     G_pheno: int,
     seed: int,
@@ -74,7 +81,7 @@ def run_phenotype(
     beta2: float,
     beta_sex2: float,
     phenotype_params2: dict,
-) -> pd.DataFrame:
+) -> pd.DataFrame | pl.DataFrame:
     """Simulate phenotype event times for two correlated traits.
 
     Per-trait prevalence (for adult / cure_frailty) lives inside
@@ -82,7 +89,11 @@ def run_phenotype(
 
     Args:
         pedigree: DataFrame with ``liability1``, ``liability2``, ``generation``,
-            ``sex``, plus the genealogy columns preserved on output.
+            ``sex``, plus the genealogy columns preserved on output. Same-type
+            dual-frame (transitional, ADR 0015): a polars pedigree returns a
+            polars frame, a pandas pedigree returns pandas. The pipeline path
+            is polars (wrapper/CLI load via ``load_parquet``); pandas remains
+            for in-memory chains fed by the unmigrated simulation stage.
         G_pheno: number of trailing generations to phenotype.
         seed: RNG seed (trait 2 uses ``seed + 100``).
         standardize: global liability-standardization mode applied to
@@ -112,11 +123,15 @@ def run_phenotype(
     logger.info("Running phenotype simulation for %d individuals", len(pedigree))
     t0 = time.perf_counter()
 
+    is_polars = isinstance(pedigree, pl.DataFrame)
     max_gen = pedigree["generation"].max()
     min_gen = max_gen - G_pheno + 1
     if min_gen < 0:
         raise ValueError(f"G_pheno ({G_pheno}) exceeds available generations ({max_gen + 1})")
-    pedigree = pedigree[pedigree["generation"] >= min_gen].reset_index(drop=True)
+    if is_polars:
+        pedigree = pedigree.filter(pl.col("generation") >= min_gen)
+    else:
+        pedigree = pedigree[pedigree["generation"] >= min_gen].reset_index(drop=True)
 
     sex = pedigree["sex"].to_numpy() if "sex" in pedigree.columns else None
     generation = pedigree["generation"].to_numpy()
@@ -145,7 +160,13 @@ def run_phenotype(
         generation=generation,
     )
 
-    phenotype = strip_trait_to_outcomes(pedigree.assign(t1=t1, t2=t2), "raw")
+    if is_polars:
+        # Null contract (ADR 0015 §3): models return numpy arrays where missing
+        # onset is NaN; normalize to null as the arrays re-enter a frame.
+        with_times = pedigree.with_columns(pl.Series("t1", t1).fill_nan(None), pl.Series("t2", t2).fill_nan(None))
+    else:
+        with_times = pedigree.assign(t1=t1, t2=t2)
+    phenotype = strip_trait_to_outcomes(with_times, "raw")
 
     logger.info(
         "Phenotype simulation complete in %.1fs: %d individuals",
@@ -217,6 +238,6 @@ def cli() -> None:
         kwargs[f"beta{trait}"] = getattr(args, f"beta{trait}")
         kwargs[f"beta_sex{trait}"] = getattr(args, f"beta_sex{trait}")
 
-    pedigree = pd.read_parquet(args.pedigree)
+    pedigree = load_parquet(args.pedigree)
     phenotype = run_phenotype(pedigree, **kwargs)
     save_parquet(phenotype, args.output)

@@ -204,3 +204,32 @@ class TestBlendedDiagnosis:
         )
         assert (~out["death_censored1"]).all()
         assert (out["t_observed1"] <= MAX_AGE).all()
+
+
+class TestDualFramePolars:
+    def test_polars_result_matches_pandas_exactly(self):
+        """Same-type dual-frame API (ADR 0015): identical values via either library."""
+        import polars as pl
+        import polars.testing
+
+        rng = np.random.default_rng(11)
+        pheno = _make_phenotype(rng, n_per_gen=2000, gens=(2, 3))
+        alpha = {2: 0.2, 3: 0.6}
+        K = {2: 0.05, 3: 0.08}
+
+        out_pd = blended_diagnosis(pheno, alpha_by_gen=alpha, K_by_gen=K)
+        out_pl = blended_diagnosis(pl.from_pandas(pheno), alpha_by_gen=alpha, K_by_gen=K)
+
+        assert isinstance(out_pl, pl.DataFrame)
+        polars.testing.assert_frame_equal(out_pl, pl.from_pandas(out_pd))
+
+    def test_polars_input_not_mutated(self):
+        import polars as pl
+
+        rng = np.random.default_rng(12)
+        pheno = pl.from_pandas(_make_phenotype(rng, n_per_gen=500, gens=(2,)))
+        before = pheno.clone()
+        blended_diagnosis(pheno, alpha_by_gen={2: 0.5}, K_by_gen={2: 0.05})
+        import polars.testing
+
+        polars.testing.assert_frame_equal(pheno, before)

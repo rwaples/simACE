@@ -41,6 +41,7 @@ from typing import TYPE_CHECKING
 __all__ = ["blended_diagnosis"]
 
 import numpy as np
+import polars as pl
 from scipy.special import erfc, ndtri
 
 from simace.phenotype.hazards import standardize_liability
@@ -70,14 +71,19 @@ def _compute_onset(L_eff: np.ndarray, K: np.ndarray, cip_x0: float, cip_k: float
 
 
 def blended_diagnosis(
-    phenotype: pd.DataFrame,
+    phenotype: pd.DataFrame | pl.DataFrame,
     *,
     alpha_by_gen: dict[int, float],
     K_by_gen: dict[int, float],
     cip_x0: float = DEFAULT_CIF_X0,
     cip_k: float = DEFAULT_CIF_K,
-) -> pd.DataFrame:
+) -> pd.DataFrame | pl.DataFrame:
     """Return a copy of `phenotype` with trait-1 case status redefined.
+
+    Same-type dual-frame API (transitional, ADR 0015): returns the same frame
+    library it was given. Cross-repo consumer: fitACE's
+    ``workflow/scripts/blended_phenotype.py``; goes polars-only at Wave 2
+    together with that wrapper.
 
     Args:
         phenotype: standard simACE phenotype DataFrame with at least
@@ -104,7 +110,8 @@ def blended_diagnosis(
     if missing:
         raise ValueError(f"phenotype is missing required columns: {sorted(missing)}")
 
-    pheno = phenotype.copy()
+    is_polars = isinstance(phenotype, pl.DataFrame)
+    pheno = phenotype if is_polars else phenotype.copy()
     gen = pheno["generation"].to_numpy()
 
     # Reuse the prevalence resolver (raises ValueError on missing keys); it
@@ -146,6 +153,20 @@ def blended_diagnosis(
     death_censored = death_age < follow_up
     onset = np.where(death_censored, death_age, follow_up)
     affected = is_case & ~death_censored & ~age_right_censored
+
+    if is_polars:
+        # with_columns replaces existing columns in place and appends the new
+        # audit columns at the end — same layout as the pandas assignments.
+        return pheno.with_columns(
+            pl.Series("affected1", affected),
+            pl.Series("t_observed1", onset),
+            pl.Series("age_censored1", ~affected & ~death_censored),
+            pl.Series("death_censored1", death_censored),
+            pl.Series("A_blend", A_blend.astype(np.float32)),
+            pl.Series("C_blend", C_blend.astype(np.float32)),
+            pl.Series("E_blend", E_blend.astype(np.float32)),
+            pl.Series("liability_blend", L_blend.astype(np.float32)),
+        )
 
     pheno["affected1"] = affected
     pheno["t_observed1"] = onset
