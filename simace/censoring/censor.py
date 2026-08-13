@@ -4,19 +4,25 @@ Applies age-window censoring and competing-risk death censoring
 to raw event times produced by the Weibull frailty phenotype model.
 """
 
+from __future__ import annotations
+
 __all__ = ["age_censor", "death_censor", "run_censor"]
 
 import argparse
 import logging
 import time
+from typing import TYPE_CHECKING
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
-from simace.core.parquet import save_parquet
+from simace.core.parquet import load_parquet, save_parquet
 from simace.core.schema import PEDIGREE, assert_schema
 from simace.core.stage import stage
 from simace.core.trait_schema import CENSORED_TRAIT, RAW_TRAIT, hydrate_trait, strip_trait_to_outcomes
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -74,16 +80,21 @@ def death_censor(
 
 @stage(reads=RAW_TRAIT, writes=CENSORED_TRAIT)
 def run_censor(
-    phenotype: pd.DataFrame,
-    pedigree: pd.DataFrame,
+    phenotype: pd.DataFrame | pl.DataFrame,
+    pedigree: pd.DataFrame | pl.DataFrame,
     *,
     censor_age: float,
     seed: int,
     gen_censoring: dict[int, list[float]],
     death_scale: float,
     death_rho: float,
-) -> pd.DataFrame:
+) -> pd.DataFrame | pl.DataFrame:
     """Apply censoring to raw phenotype event times.
+
+    Same-type dual-frame stage (transitional, ADR 0015): both frames must come
+    from the same library, and the result matches it. The pipeline path is
+    polars; pandas remains for in-memory chains fed by the unmigrated
+    simulation stage.
 
     Args:
         phenotype: Outcomes-only DataFrame with raw event times (id, t1, t2) from run_phenotype.
@@ -105,7 +116,7 @@ def run_censor(
 
     assert_schema(pedigree, PEDIGREE, where="censor pedigree input")
     hydrated = hydrate_trait(phenotype, pedigree, kind="raw", columns=["generation"])
-    generations = hydrated["generation"].values
+    generations = hydrated["generation"].to_numpy()
     left_censor = np.zeros(len(phenotype))
     right_censor = np.full(len(phenotype), float(censor_age))
     for gen, (lo, hi) in gen_censoring.items():
@@ -117,28 +128,41 @@ def run_censor(
     u_death = 1.0 - rng_death.uniform(size=len(phenotype))
     death_age = death_scale * (-np.log(u_death)) ** (1 / death_rho)
 
-    t1_after_age, age_censored1 = age_censor(hydrated["t1"].values, left_censor, right_censor)
+    t1_after_age, age_censored1 = age_censor(hydrated["t1"].to_numpy(), left_censor, right_censor)
     death_censored1 = t1_after_age > death_age
     t_observed1 = np.where(death_censored1, death_age, t1_after_age)
+    affected1 = ~age_censored1 & ~death_censored1
 
-    t2_after_age, age_censored2 = age_censor(hydrated["t2"].values, left_censor, right_censor)
+    t2_after_age, age_censored2 = age_censor(hydrated["t2"].to_numpy(), left_censor, right_censor)
     death_censored2 = t2_after_age > death_age
     t_observed2 = np.where(death_censored2, death_age, t2_after_age)
+    affected2 = ~age_censored2 & ~death_censored2
 
-    result = phenotype.copy()
-    result["death_age"] = death_age
-    result["age_censored1"] = age_censored1
-    result["t_observed1"] = t_observed1
-    result["death_censored1"] = death_censored1
-    result["affected1"] = ~age_censored1 & ~death_censored1
-    result["age_censored2"] = age_censored2
-    result["t_observed2"] = t_observed2
-    result["death_censored2"] = death_censored2
-    result["affected2"] = ~age_censored2 & ~death_censored2
+    if isinstance(phenotype, pl.DataFrame):
+        result = phenotype.with_columns(
+            pl.Series("death_age", death_age),
+            pl.Series("age_censored1", age_censored1),
+            pl.Series("t_observed1", t_observed1),
+            pl.Series("death_censored1", death_censored1),
+            pl.Series("affected1", affected1),
+            pl.Series("age_censored2", age_censored2),
+            pl.Series("t_observed2", t_observed2),
+            pl.Series("death_censored2", death_censored2),
+            pl.Series("affected2", affected2),
+        )
+    else:
+        result = phenotype.copy()
+        result["death_age"] = death_age
+        result["age_censored1"] = age_censored1
+        result["t_observed1"] = t_observed1
+        result["death_censored1"] = death_censored1
+        result["affected1"] = affected1
+        result["age_censored2"] = age_censored2
+        result["t_observed2"] = t_observed2
+        result["death_censored2"] = death_censored2
+        result["affected2"] = affected2
 
-    prev1 = result["affected1"].mean()
-    prev2 = result["affected2"].mean()
-    logger.info("Prevalence after censoring: trait1=%.3f, trait2=%.3f", prev1, prev2)
+    logger.info("Prevalence after censoring: trait1=%.3f, trait2=%.3f", affected1.mean(), affected2.mean())
 
     result = strip_trait_to_outcomes(result, "censored")
 
@@ -176,8 +200,8 @@ def cli() -> None:
 
     import json
 
-    phenotype = pd.read_parquet(args.phenotype)
-    pedigree = pd.read_parquet(args.pedigree)
+    phenotype = load_parquet(args.phenotype)
+    pedigree = load_parquet(args.pedigree)
     gen_censoring = json.loads(args.gen_censoring) if args.gen_censoring else {}
     gen_censoring = {int(k): v for k, v in gen_censoring.items()}
     result = run_censor(

@@ -1,11 +1,9 @@
 """Observation censoring - Snakemake wrapper with CLI fallback."""
 
-import pandas as pd
-
 from simace import _snakemake_tag, setup_logging
 from simace.censoring.censor import cli as _cli
 from simace.censoring.censor import run_censor
-from simace.core.parquet import save_parquet
+from simace.core.parquet import load_parquet, save_parquet
 from simace.core.snakemake_adapter import cli_or_snakemake, run_wrapper
 
 
@@ -14,7 +12,7 @@ def _run() -> None:
     run_wrapper(
         snakemake,
         run_censor,
-        inputs={"phenotype": pd.read_parquet, "pedigree": pd.read_parquet},
+        inputs={"phenotype": load_parquet, "pedigree": load_parquet},
         output="phenotype",
         writer=save_parquet,
     )

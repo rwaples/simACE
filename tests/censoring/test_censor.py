@@ -341,3 +341,55 @@ class TestRunCensorCLI:
             high_onset = result.loc[gen1, "t1"] > 45
             # All gen-1 rows with t1 > 45 are age-censored.
             assert (result.loc[gen1 & high_onset, "age_censored1"]).all()
+
+
+class TestDualFramePolars:
+    def test_run_censor_polars_matches_pandas(self):
+        """Same-type dual-frame stage (ADR 0015): identical values via either library."""
+        import polars as pl
+        import polars.testing
+
+        rng = np.random.default_rng(42)
+        n = 200
+        pedigree = pd.DataFrame(
+            {
+                "id": np.arange(n),
+                "generation": np.repeat([0, 1, 2, 3], n // 4),
+                "sex": rng.integers(0, 2, n),
+                "household_id": np.arange(n),
+                "mother": np.full(n, -1),
+                "father": np.full(n, -1),
+                "twin": np.full(n, -1),
+                "A1": rng.standard_normal(n),
+                "C1": rng.standard_normal(n),
+                "E1": rng.standard_normal(n),
+                "liability1": rng.standard_normal(n),
+                "A2": rng.standard_normal(n),
+                "C2": rng.standard_normal(n),
+                "E2": rng.standard_normal(n),
+                "liability2": rng.standard_normal(n),
+            }
+        )
+        rng2 = np.random.default_rng(43)
+        phenotype = pd.DataFrame(
+            {
+                "id": pedigree["id"].to_numpy(),
+                "t1": rng2.uniform(10, 200, n),
+                "t2": rng2.uniform(10, 200, n),
+            }
+        )
+        params = {
+            "censor_age": 80,
+            "seed": 42,
+            "gen_censoring": {0: [40, 80], 1: [0, 80], 2: [0, 80], 3: [0, 45]},
+            "death_scale": 163.265,
+            "death_rho": 2.73,
+        }
+
+        out_pd = run_censor(phenotype, pedigree, **params)
+        out_pl = run_censor(pl.from_pandas(phenotype), pl.from_pandas(pedigree), **params)
+
+        assert isinstance(out_pl, pl.DataFrame)
+        polars.testing.assert_frame_equal(out_pl, pl.from_pandas(out_pd))
+        # The affected identity survives in both libraries (gotcha #6).
+        assert (out_pl["affected1"] == ~(out_pl["age_censored1"] | out_pl["death_censored1"])).all()

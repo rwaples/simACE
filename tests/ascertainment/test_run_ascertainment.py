@@ -262,3 +262,31 @@ class TestInputValidation:
                 N_sample=10,
                 seed=42,
             )
+
+
+class TestDualFramePolars:
+    def test_fixed_seed_ids_identical_across_libraries(self, small_sim_pedigree, trait_data):
+        """Decision 14 (ADR 0015): scientific sampling keeps exact fixed-seed IDs.
+
+        The polars path must select byte-identical ID sets to the pandas path
+        because the NumPy RNG/row-position logic is shared, not reimplemented.
+        """
+        import polars as pl
+        import polars.testing
+
+        params = {
+            "dropout_rate": 0.2,
+            "case_ascertainment_ratio": 4.0,
+            "N_sample": 60,
+            "seed": 7,
+        }
+        ped_pd, trait_pd = run_ascertainment(small_sim_pedigree, trait_data, **params)
+        ped_pl, trait_pl = run_ascertainment(pl.from_pandas(small_sim_pedigree), pl.from_pandas(trait_data), **params)
+
+        assert isinstance(ped_pl, pl.DataFrame)
+        assert isinstance(trait_pl, pl.DataFrame)
+        # Exact same selected IDs, same order — then full-frame equality.
+        assert trait_pl["id"].to_list() == trait_pd["id"].tolist()
+        assert ped_pl["id"].to_list() == ped_pd["id"].tolist()
+        polars.testing.assert_frame_equal(trait_pl, pl.from_pandas(trait_pd))
+        polars.testing.assert_frame_equal(ped_pl, pl.from_pandas(ped_pd))
