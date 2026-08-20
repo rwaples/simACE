@@ -99,9 +99,9 @@ per-repo `git push` commands. **It never pushes** (repo-wide no-`git push`
 rule).
 
 ```bash
-python tools/release.py v2026.06            # tag all ten repos locally
-python tools/release.py v2026.06 --dry-run  # run checks + report; tag nothing
-python tools/release.py v2026.06.1 -m "hotfix: <summary>"
+python tools/release.py vYYYY.MM            # tag all ten repos locally
+python tools/release.py vYYYY.MM --dry-run  # run checks + report; tag nothing
+python tools/release.py vYYYY.MM.1 -m "hotfix: <summary>"
 ```
 
 It is **all-or-nothing**: it refuses (exit `1`) unless *every* member is
@@ -124,9 +124,9 @@ reinstalled — the push only *publishes*.
 
 This is a **hard cutover**: bumping `FAMILY_FLOOR` to a release the working tree
 hasn't been tagged at makes `import fitace.config` raise (the running build is
-still `2026.5.x.devN < 2026.06`). So most full fitACE test runs and any
-`import fitace.config` will fail **until** the local tags are cut and the family
-is reinstalled. Run the steps in this order.
+still the previous release's dev version, below the new floor). So most full
+fitACE test runs and any `import fitace.config` will fail **until** the local
+tags are cut and the family is reinstalled. Run the steps in this order.
 
 ### 0. Land and clean
 
@@ -134,7 +134,7 @@ Commit the final implementation/docs changes in each affected repo. Confirm all
 ten repos are clean (the helper refuses dirty repos):
 
 ```bash
-python tools/release.py v2026.06 --dry-run
+python tools/release.py vYYYY.MM --dry-run
 ```
 
 A green dry-run (`all 10 family repos are clean and untagged`) is the gate.
@@ -142,7 +142,7 @@ A green dry-run (`all 10 family repos are clean and untagged`) is the gate.
 ### 1. Tag locally
 
 ```bash
-python tools/release.py v2026.06
+python tools/release.py vYYYY.MM
 ```
 
 This creates the annotated tags in all ten repos. No push is needed for the
@@ -150,7 +150,7 @@ guard to clear.
 
 ### 2. Reinstall the family editable
 
-So the new `2026.06` versions and the `>=2026.06` floor take effect together:
+So the new versions and the matching floor take effect together:
 
 ```bash
 pip install -e .                         # simACE
@@ -198,7 +198,7 @@ python -c "import simace, fitace, fitace_epimight, fitace_pcgc, fitace_iter_reml
 
 # Console-script --version spot checks:
 simace-simulate --version
-fitace-simple-ltm-stats --version
+fitace-observed-binary-stats --version
 fitace-epimight-run --version
 ./fitACE/fitACE_iter_reml/ace_iter_reml/build-fp64/ace_iter_reml --version
 
@@ -223,7 +223,7 @@ The helper printed the per-repo push commands in step 1; run them (per the
 repo-wide rule, the helper never pushes):
 
 ```bash
-git -C <abspath> push origin v2026.06     # one per member, ten total
+git -C <abspath> push origin vYYYY.MM     # one per member, ten total
 ```
 
 ---
@@ -238,13 +238,14 @@ for rel in . fitACE fitACE/fitACE_epimight fitACE/fitACE_pcgc \
            fitACE/fitACE_iter_reml fitACE/fitACE_tetraher fitACE/fitACE_pafgrs \
            fitACE/fitACE_stan fitACE/fitACE_frailty \
            fitACE/fitACE_iter_reml/ace_iter_reml; do
-  git -C "$rel" tag -d v2026.06
+  git -C "$rel" tag -d vYYYY.MM
 done
 ```
 
 Deleting tags alone does **not** roll back a working tree that still contains
-`FAMILY_FLOOR = "2026.06"`. If the committed floor/version changes must also be
-backed out, reset/revert those (unpushed) commits and reinstall.
+`FAMILY_FLOOR` bumped to the new release. If the committed floor/version
+changes must also be backed out, reset/revert those (unpushed) commits and
+reinstall.
 
 ---
 
