@@ -18,13 +18,13 @@ from __future__ import annotations
 import inspect
 from typing import TYPE_CHECKING
 
-import polars as pl
-
 from simace import _snakemake_tag, setup_logging
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Any
+
+    import polars as pl
 
 __all__ = ["cli_or_snakemake", "run_wrapper", "write_parquet_plain"]
 
@@ -35,7 +35,13 @@ def write_parquet_plain(df: pl.DataFrame, path: str) -> None:
     Distinct from :func:`simace.core.parquet.save_parquet`, which also narrows
     dtypes and uses zstd. Float NaN is normalized to null, per the on-disk
     null contract (ADR 0015).
+
+    polars is imported here rather than at module scope: every Snakemake
+    wrapper imports this adapter, but most never write a parquet, and an
+    eager import cost each of them ~70ms of process startup.
     """
+    import polars as pl
+
     df.with_columns(pl.col(pl.Float32, pl.Float64).fill_nan(None)).write_parquet(path, compression="snappy")
 
 
