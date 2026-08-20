@@ -23,7 +23,11 @@ from simace.core.schema import assert_schema
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    import pandas as pd
+    import polars as pl
+
+    # Polars-only since the Wave 2 boundary break (ADR 0015). assert_schema
+    # enforces both frame type and eagerness at every stage boundary.
+    type _Frame = pl.DataFrame
 
 __all__ = ["stage"]
 
@@ -33,7 +37,7 @@ def stage(
     reads: Mapping[str, str] | None,
     writes: Mapping[str, str] | None,
     name: str | None = None,
-) -> Callable[[Callable[..., pd.DataFrame]], Callable[..., pd.DataFrame]]:
+) -> Callable[[Callable[..., _Frame]], Callable[..., _Frame]]:
     """Wrap a stage function with input/output schema assertions and metadata.
 
     Args:
@@ -52,7 +56,7 @@ def stage(
     can still introspect keyword-only parameters.
     """
 
-    def decorate(fn: Callable[..., pd.DataFrame]) -> Callable[..., pd.DataFrame]:
+    def decorate(fn: Callable[..., _Frame]) -> Callable[..., _Frame]:
         stage_name = name if name is not None else fn.__name__.removeprefix("run_")  # ty: ignore[unresolved-attribute]
         first_param = next(iter(inspect.signature(fn).parameters), None) if reads is not None else None
 

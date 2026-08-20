@@ -5,16 +5,16 @@ from __future__ import annotations
 import inspect
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 from simace.core.schema import CENSORED, PEDIGREE, PHENOTYPE
 from simace.core.stage import stage
 
 
-def _make_pedigree_df() -> pd.DataFrame:
+def _make_pedigree_df() -> pl.DataFrame:
     n = 4
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "id": np.arange(n, dtype=np.int32),
             "generation": np.zeros(n, dtype=np.int32),
@@ -35,11 +35,13 @@ def _make_pedigree_df() -> pd.DataFrame:
     )
 
 
-def _make_phenotype_df() -> pd.DataFrame:
+def _make_phenotype_df() -> pl.DataFrame:
     df = _make_pedigree_df()
-    df["t1"] = np.ones(len(df), dtype=np.float32)
-    df["t2"] = np.ones(len(df), dtype=np.float32)
-    return df
+    n = len(df)
+    return df.with_columns(
+        pl.Series("t1", np.ones(n, dtype=np.float32)),
+        pl.Series("t2", np.ones(n, dtype=np.float32)),
+    )
 
 
 class TestValidation:
@@ -56,7 +58,7 @@ class TestValidation:
         def run_phenotype(pedigree, *, k):
             return _make_phenotype_df()
 
-        bad = _make_pedigree_df().drop(columns=["liability1"])
+        bad = _make_pedigree_df().drop("liability1")
         with pytest.raises(ValueError, match=r"phenotype input.*liability1"):
             run_phenotype(bad, k=1)
 
@@ -98,7 +100,7 @@ class TestValidation:
         def run_phenotype(pedigree, *, k):
             return _make_phenotype_df()
 
-        bad = _make_pedigree_df().drop(columns=["liability1"])
+        bad = _make_pedigree_df().drop("liability1")
         with pytest.raises(ValueError, match=r"phenotype input.*liability1"):
             run_phenotype(pedigree=bad, k=1)
 
@@ -162,7 +164,7 @@ class TestMetadata:
         def run_dropout(pedigree):
             return pedigree
 
-        bad = _make_pedigree_df().drop(columns=["liability1"])
+        bad = _make_pedigree_df().drop("liability1")
         with pytest.raises(ValueError, match=r"custom input"):
             run_dropout(bad)
 
@@ -175,15 +177,18 @@ class TestPassthrough:
         def run_sample(phenotype, *, n_sample):
             if n_sample <= 0:
                 return phenotype  # early return passthrough
-            return phenotype.iloc[:n_sample].reset_index(drop=True)
+            return phenotype.head(n_sample)
 
         df = _make_phenotype_df()
+        n = len(df)
+        new_cols = []
         for trait in (1, 2):
-            df[f"age_censored{trait}"] = np.zeros(len(df), dtype=bool)
-            df[f"t_observed{trait}"] = np.ones(len(df), dtype=np.float32)
-            df[f"death_censored{trait}"] = np.zeros(len(df), dtype=bool)
-            df[f"affected{trait}"] = np.ones(len(df), dtype=bool)
-        df["death_age"] = np.full(len(df), 80.0, dtype=np.float32)
+            new_cols.append(pl.Series(f"age_censored{trait}", np.zeros(n, dtype=bool)))
+            new_cols.append(pl.Series(f"t_observed{trait}", np.ones(n, dtype=np.float32)))
+            new_cols.append(pl.Series(f"death_censored{trait}", np.zeros(n, dtype=bool)))
+            new_cols.append(pl.Series(f"affected{trait}", np.ones(n, dtype=bool)))
+        new_cols.append(pl.Series("death_age", np.full(n, 80.0, dtype=np.float32)))
+        df = df.with_columns(new_cols)
 
         out = run_sample(df, n_sample=0)
         assert len(out) == len(df)
@@ -195,7 +200,7 @@ class TestPassthrough:
         def run_dropout(pedigree, *, rate):
             if rate <= 0:
                 return pedigree
-            return pedigree.iloc[1:].reset_index(drop=True)
+            return pedigree.slice(1)
 
         df = _make_pedigree_df()
         out = run_dropout(df, rate=0)

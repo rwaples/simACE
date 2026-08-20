@@ -1,9 +1,7 @@
 """Frailty phenotype simulation - Snakemake wrapper with CLI fallback."""
 
-import pandas as pd
-
 from simace import _snakemake_tag, setup_logging
-from simace.core.parquet import save_parquet
+from simace.core.parquet import load_parquet, save_parquet
 from simace.core.snakemake_adapter import cli_or_snakemake, run_wrapper
 from simace.phenotype import cli as _cli
 from simace.phenotype import run_phenotype
@@ -14,7 +12,7 @@ def _run() -> None:
     run_wrapper(
         snakemake,
         run_phenotype,
-        inputs={"pedigree": pd.read_parquet},
+        inputs={"pedigree": load_parquet},
         output="phenotype",
         writer=save_parquet,
     )

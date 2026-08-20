@@ -1,11 +1,22 @@
-"""Population-level checks and per-generation / family-size summaries."""
+"""Population-level checks and per-generation / family-size summaries.
 
-from typing import Any
+Library-agnostic over pandas/polars input (transitional, ADR 0015): columns
+come out through ``.to_numpy()`` and all grouping/slicing runs in NumPy.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 
 from ._common import _result
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    type _Frame = pd.DataFrame | pl.DataFrame
 
 
 def _population_covariance(x: np.ndarray, y: np.ndarray) -> float:
@@ -13,7 +24,7 @@ def _population_covariance(x: np.ndarray, y: np.ndarray) -> float:
     return float(np.mean((x - x.mean()) * (y - y.mean())))
 
 
-def compute_per_generation_stats(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+def compute_per_generation_stats(df: _Frame, params: dict[str, Any]) -> dict[str, Any]:
     """Compute per-generation statistics for two traits.
 
     For each generation, computes liability mean/variance/sd, per-component
@@ -31,18 +42,18 @@ def compute_per_generation_stats(df: pd.DataFrame, params: dict[str, Any]) -> di
     ngen = params["G_ped"]
 
     # Assign generation labels once via integer division
-    gen_labels = df["id"].values // N
+    gen_labels = df["id"].to_numpy() // N
+    comp_all = {f"{c}{t}": df[f"{c}{t}"].to_numpy() for c in ("A", "C", "E") for t in (1, 2)}
 
     results = {}
     for gen in range(1, ngen + 1):
         gen_mask = gen_labels == (gen - 1)
-        gen_df = df[gen_mask]
 
         gen_stats: dict[str, int | float] = {"n": int(gen_mask.sum())}
         for t in [1, 2]:
-            a_vals = gen_df[f"A{t}"].values
-            c_vals = gen_df[f"C{t}"].values
-            e_vals = gen_df[f"E{t}"].values
+            a_vals = comp_all[f"A{t}"][gen_mask]
+            c_vals = comp_all[f"C{t}"][gen_mask]
+            e_vals = comp_all[f"E{t}"][gen_mask]
             non_genetic = c_vals + e_vals
             liability = a_vals + non_genetic
             gen_stats[f"liability{t}_mean"] = float(liability.mean())
@@ -64,7 +75,7 @@ def compute_per_generation_stats(df: pd.DataFrame, params: dict[str, Any]) -> di
     return results
 
 
-def validate_population(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+def validate_population(df: _Frame, params: dict[str, Any]) -> dict[str, Any]:
     """Validate population-level properties.
 
     Checks that each generation has exactly ``N`` individuals, the number of
@@ -82,7 +93,7 @@ def validate_population(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, A
     N = params["N"]
     ngen = params["G_ped"]
 
-    gen_assignments = df["id"].values // N
+    gen_assignments = df["id"].to_numpy() // N
     gen_sizes = np.bincount(gen_assignments, minlength=ngen)[:ngen].tolist()
 
     all_correct = all(s == N for s in gen_sizes)
@@ -100,10 +111,11 @@ def validate_population(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, A
         observed=len(gen_sizes),
     )
 
-    non_founders = df[df["mother"] != -1]
-    if len(non_founders) > 0:
-        family_sizes = non_founders.groupby("mother").size()
-        mean_fam = family_sizes.mean()
+    mothers_all = df["mother"].to_numpy()
+    mothers_nf = mothers_all[mothers_all != -1]
+    if mothers_nf.size > 0:
+        family_sizes = np.unique(mothers_nf, return_counts=True)[1]
+        mean_fam = float(family_sizes.mean())
         # Mean offspring per mother is ~N / n_mothers ~= 2.0 for balanced sex
         expected_mean = 2.0
         fam_ok = abs(mean_fam - expected_mean) < expected_mean * 0.5
@@ -119,7 +131,7 @@ def validate_population(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, A
     return results
 
 
-def compute_family_size_distribution(df: pd.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+def compute_family_size_distribution(df: _Frame, params: dict[str, Any]) -> dict[str, Any]:
     """Compute offspring count distributions per parent sex.
 
     Args:
@@ -131,19 +143,20 @@ def compute_family_size_distribution(df: pd.DataFrame, params: dict[str, Any]) -
         of summary statistics (mean, median, std, n_parents). Empty dict if
         no non-founders exist.
     """
-    non_founders = df[df["mother"] != -1]
-    if len(non_founders) == 0:
+    mothers_all = df["mother"].to_numpy()
+    nf_mask = mothers_all != -1
+    if not nf_mask.any():
         return {}
 
-    mother_counts = non_founders.groupby("mother").size()
-    father_counts = non_founders.groupby("father").size()
+    mother_counts = np.unique(mothers_all[nf_mask], return_counts=True)[1]
+    father_counts = np.unique(df["father"].to_numpy()[nf_mask], return_counts=True)[1]
 
     result = {}
     for label, counts in [("mother", mother_counts), ("father", father_counts)]:
         result[label] = {
             "mean": float(counts.mean()),
-            "median": float(counts.median()),
-            "std": float(counts.std()),
+            "median": float(np.median(counts)),
+            "std": float(np.std(counts, ddof=1)),
             "n_parents": len(counts),
         }
 

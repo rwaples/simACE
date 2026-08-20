@@ -16,8 +16,10 @@ from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
+import polars as pl
 import yaml
+
+from simace.core.parquet import load_parquet
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 RESULTS_ROOT = REPO_ROOT / "results" / "examples"
@@ -82,7 +84,7 @@ def _relationship_counts(stats: dict[str, Any]) -> dict[str, int]:
     return out
 
 
-def load_metrics() -> pd.DataFrame:
+def load_metrics() -> pl.DataFrame:
     """Load per-scenario values used by all three figures."""
     rows: list[dict[str, Any]] = []
     for idx, scenario in enumerate(SCENARIOS):
@@ -92,9 +94,9 @@ def load_metrics() -> pd.DataFrame:
         full_pedigree_path = _require(rep_dir / "pedigree.full.parquet")
         stats_path = _require(rep_dir / "report.yaml")
 
-        trait = pd.read_parquet(trait_path, columns=["affected1"])
-        pedigree = pd.read_parquet(pedigree_path, columns=["id"])
-        full_pedigree = pd.read_parquet(full_pedigree_path, columns=["id"])
+        trait = load_parquet(trait_path, columns=["affected1"])
+        pedigree = load_parquet(pedigree_path, columns=["id"])
+        full_pedigree = load_parquet(full_pedigree_path, columns=["id"])
         stats = _read_yaml(stats_path)
         rel_counts = _relationship_counts(stats)
 
@@ -113,7 +115,7 @@ def load_metrics() -> pd.DataFrame:
         for rel in RELATIONSHIP_TYPES:
             row[f"rel_{rel}"] = rel_counts.get(rel, 0)
         rows.append(row)
-    return pd.DataFrame(rows).sort_values("order").reset_index(drop=True)
+    return pl.DataFrame(rows).sort("order")
 
 
 def _style_axes(ax: plt.Axes, *, grid_axis: str = "y") -> None:
@@ -123,7 +125,7 @@ def _style_axes(ax: plt.Axes, *, grid_axis: str = "y") -> None:
     ax.set_axisbelow(True)
 
 
-def plot_case_fraction(df: pd.DataFrame) -> None:
+def plot_case_fraction(df: pl.DataFrame) -> None:
     """Plot sampled Trait 1 affected fraction by scenario."""
     fig, ax = plt.subplots(figsize=(7.0, 4.2), constrained_layout=True)
     colors = [COLORS["case"] if r > 1 else COLORS["neutral"] for r in df["case_ratio"]]
@@ -136,7 +138,7 @@ def plot_case_fraction(df: pd.DataFrame) -> None:
         linewidth=1.2,
         label="configured prevalence K = 0.10",
     )
-    baseline = float(df.loc[df["scenario"] == UNIFORM_SCENARIO, "affected_fraction"].iloc[0])
+    baseline = float(df.filter(pl.col("scenario") == UNIFORM_SCENARIO)["affected_fraction"][0])
     ax.axhline(
         baseline,
         color="#4C78A8",
@@ -164,7 +166,7 @@ def plot_case_fraction(df: pd.DataFrame) -> None:
     plt.close(fig)
 
 
-def plot_sample_sizes(df: pd.DataFrame) -> None:
+def plot_sample_sizes(df: pl.DataFrame) -> None:
     """Plot trait rows, pedigree rows, and ancestor-closure expansion."""
     fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.4), constrained_layout=True)
     x = np.arange(len(df))
@@ -200,11 +202,11 @@ def plot_sample_sizes(df: pd.DataFrame) -> None:
     plt.close(fig)
 
 
-def plot_relationship_pairs(df: pd.DataFrame) -> None:
+def plot_relationship_pairs(df: pl.DataFrame) -> None:
     """Plot relationship-pair counts relative to uniform 50K sampling."""
-    baseline = df.loc[df["scenario"] == UNIFORM_SCENARIO].iloc[0]
+    baseline = df.filter(pl.col("scenario") == UNIFORM_SCENARIO).row(0, named=True)
     rows = []
-    for _, row in df.iterrows():
+    for row in df.iter_rows(named=True):
         for rel in RELATIONSHIP_TYPES:
             denom = int(baseline[f"rel_{rel}"])
             value = int(row[f"rel_{rel}"])
@@ -216,7 +218,7 @@ def plot_relationship_pairs(df: pd.DataFrame) -> None:
                     "relative_count": value / denom if denom else np.nan,
                 }
             )
-    rel_df = pd.DataFrame(rows)
+    rel_df = pl.DataFrame(rows)
 
     fig, ax = plt.subplots(figsize=(8.8, 4.6), constrained_layout=True)
     x = np.arange(len(RELATIONSHIP_TYPES))
@@ -228,10 +230,9 @@ def plot_relationship_pairs(df: pd.DataFrame) -> None:
     for offset, scenario, color in zip(offsets, plotted, colors, strict=True):
         vals = [
             float(
-                rel_df.loc[
-                    (rel_df["scenario"] == scenario.name) & (rel_df["relationship"] == rel),
-                    "relative_count",
-                ].iloc[0]
+                rel_df.filter((pl.col("scenario") == scenario.name) & (pl.col("relationship") == rel))[
+                    "relative_count"
+                ][0]
             )
             for rel in RELATIONSHIP_TYPES
         ]

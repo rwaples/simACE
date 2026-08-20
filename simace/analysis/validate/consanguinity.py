@@ -1,16 +1,23 @@
 """Consanguineous-mating detection and grandparent-link reconciliation."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
-
-from simace.core.pedigree_arrays import PedigreeArrays
 
 from ._common import _info, _result
 
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
-def validate_consanguineous_matings(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeArrays) -> dict[str, Any]:
+    from simace.core.pedigree_arrays import PedigreeArrays
+
+
+def validate_consanguineous_matings(
+    df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped: PedigreeArrays
+) -> dict[str, Any]:
     """Detect consanguineous matings and reconcile grandparent-link discrepancy.
 
     When ``pair_partners()`` randomly pairs individuals, half-siblings (or

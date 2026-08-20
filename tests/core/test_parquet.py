@@ -2,12 +2,14 @@
 
 import numpy as np
 import pandas as pd
+import polars as pl
+import pytest
 
-from simace.core.parquet import save_parquet
+from simace.core.parquet import load_parquet, save_parquet
 
 
-def _pedigree_frame() -> pd.DataFrame:
-    return pd.DataFrame(
+def _pedigree_frame() -> pl.DataFrame:
+    return pl.DataFrame(
         {
             "id": np.arange(4, dtype="int64"),
             "mother": np.array([-1, -1, 0, 0], dtype="int64"),
@@ -22,15 +24,15 @@ def _pedigree_frame() -> pd.DataFrame:
 
 def test_save_parquet_does_not_mutate_caller(tmp_path):
     df = _pedigree_frame()
-    before = df.dtypes.copy()
+    before = dict(df.schema)
 
     save_parquet(df, tmp_path / "out.parquet")
 
-    # Caller's frame is untouched: dtypes (and the object identity of columns)
-    # are exactly as they were before the write.
-    pd.testing.assert_series_equal(df.dtypes, before)
-    assert df["id"].dtype == np.int64
-    assert df["A1"].dtype == np.float64
+    # Caller's frame is untouched: dtypes are exactly as they were before
+    # the write.
+    assert dict(df.schema) == before
+    assert df.schema["id"] == pl.Int64
+    assert df.schema["A1"] == pl.Float64
 
 
 def test_save_parquet_narrows_written_output(tmp_path):
@@ -38,12 +40,18 @@ def test_save_parquet_narrows_written_output(tmp_path):
     out = tmp_path / "out.parquet"
 
     save_parquet(df, out)
-    written = pd.read_parquet(out)
+    written = load_parquet(out)
 
-    assert written["id"].dtype == np.int32
-    assert written["sex"].dtype == np.int8
-    assert written["A1"].dtype == np.float32
+    assert written.schema["id"] == pl.Int32
+    assert written.schema["sex"] == pl.Int8
+    assert written.schema["A1"] == pl.Float32
     # Liabilities keep full precision.
-    assert written["liability1"].dtype == np.float64
+    assert written.schema["liability1"] == pl.Float64
     # Values round-trip unchanged.
     np.testing.assert_array_equal(written["id"].to_numpy(), df["id"].to_numpy())
+
+
+def test_save_parquet_rejects_pandas(tmp_path):
+    df = pd.DataFrame({"id": np.arange(4, dtype="int64")})
+    with pytest.raises(TypeError, match=r"polars DataFrame since the polars migration"):
+        save_parquet(df, tmp_path / "out.parquet")

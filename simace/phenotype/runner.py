@@ -6,20 +6,26 @@ package docstring in :mod:`simace.phenotype` for the family list). ``cli`` is
 the ``simace-phenotype`` entry point.
 """
 
+from __future__ import annotations
+
 import argparse
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import numpy as np
-import pandas as pd
+import polars as pl
 
-from simace.core.parquet import save_parquet
+from simace.core.parquet import load_parquet, save_parquet
 from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
 from simace.core.trait_schema import RAW_TRAIT, strip_trait_to_outcomes
-from simace.phenotype.hazards import STANDARDIZE_CHOICES, StandardizeMode
+from simace.phenotype.hazards import STANDARDIZE_CHOICES
 from simace.phenotype.models import MODELS
+
+if TYPE_CHECKING:
+    import numpy as np
+
+    from simace.phenotype.hazards import StandardizeMode
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 def _simulate_one_trait(
-    pedigree: pd.DataFrame,
+    pedigree: pl.DataFrame,
     *,
     trait_num: int,
     model_name: str,
@@ -61,7 +67,7 @@ def _simulate_one_trait(
 
 @stage(reads=PEDIGREE, writes=RAW_TRAIT)
 def run_phenotype(
-    pedigree: pd.DataFrame,
+    pedigree: pl.DataFrame,
     *,
     G_pheno: int,
     seed: int,
@@ -74,7 +80,7 @@ def run_phenotype(
     beta2: float,
     beta_sex2: float,
     phenotype_params2: dict,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Simulate phenotype event times for two correlated traits.
 
     Per-trait prevalence (for adult / cure_frailty) lives inside
@@ -116,7 +122,7 @@ def run_phenotype(
     min_gen = max_gen - G_pheno + 1
     if min_gen < 0:
         raise ValueError(f"G_pheno ({G_pheno}) exceeds available generations ({max_gen + 1})")
-    pedigree = pedigree[pedigree["generation"] >= min_gen].reset_index(drop=True)
+    pedigree = pedigree.filter(pl.col("generation") >= min_gen)
 
     sex = pedigree["sex"].to_numpy() if "sex" in pedigree.columns else None
     generation = pedigree["generation"].to_numpy()
@@ -145,7 +151,10 @@ def run_phenotype(
         generation=generation,
     )
 
-    phenotype = strip_trait_to_outcomes(pedigree.assign(t1=t1, t2=t2), "raw")
+    # Null contract (ADR 0015 §3): models return numpy arrays where missing
+    # onset is NaN; normalize to null as the arrays re-enter a frame.
+    with_times = pedigree.with_columns(pl.Series("t1", t1).fill_nan(None), pl.Series("t2", t2).fill_nan(None))
+    phenotype = strip_trait_to_outcomes(with_times, "raw")
 
     logger.info(
         "Phenotype simulation complete in %.1fs: %d individuals",
@@ -217,6 +226,6 @@ def cli() -> None:
         kwargs[f"beta{trait}"] = getattr(args, f"beta{trait}")
         kwargs[f"beta_sex{trait}"] = getattr(args, f"beta_sex{trait}")
 
-    pedigree = pd.read_parquet(args.pedigree)
+    pedigree = load_parquet(args.pedigree)
     phenotype = run_phenotype(pedigree, **kwargs)
     save_parquet(phenotype, args.output)

@@ -3,7 +3,7 @@
 import sys
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 import yaml
 from pedigree_graph import PedigreeGraph
@@ -26,6 +26,8 @@ from simace.analysis.validate import (
     cli as validate_cli,
 )
 from simace.ascertainment import run_ascertainment
+from simace.core.frames import pedigree_graph_input
+from simace.core.parquet import save_parquet
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.simulation.simulate import run_simulation
 
@@ -70,7 +72,7 @@ def val_ped(val_pedigree):
 
 @pytest.fixture(scope="module")
 def val_sibling_pairs(val_pedigree):
-    all_pairs = PedigreeGraph(val_pedigree).extract_pairs(max_degree=2)
+    all_pairs = PedigreeGraph(pedigree_graph_input(val_pedigree)).extract_pairs(max_degree=2)
     return {k: all_pairs[k] for k in ("FS", "MHS", "PHS")}
 
 
@@ -91,9 +93,9 @@ def _all_passed(result: dict) -> None:
             assert value["passed"], f"Check '{key}' failed: {value.get('details', '')}"
 
 
-def _component_df(a: np.ndarray, c: np.ndarray, e: np.ndarray) -> pd.DataFrame:
+def _component_df(a: np.ndarray, c: np.ndarray, e: np.ndarray) -> pl.DataFrame:
     """Build a one-generation two-trait DataFrame with matching components."""
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "id": np.arange(len(a)),
             "A1": a,
@@ -104,6 +106,11 @@ def _component_df(a: np.ndarray, c: np.ndarray, e: np.ndarray) -> pd.DataFrame:
             "E2": e,
         }
     )
+
+
+def _with_column_values(df: pl.DataFrame, col: str, values: np.ndarray) -> pl.DataFrame:
+    """Return ``df`` with column ``col`` replaced, preserving its dtype."""
+    return df.with_columns(pl.Series(col, values).cast(df.schema[col]))
 
 
 # ---------------------------------------------------------------------------
@@ -368,7 +375,7 @@ def written_scenario(tmp_path_factory, val_pedigree, val_params):
     tmp = tmp_path_factory.mktemp("validate_scenario")
     ped_path = tmp / "pedigree.parquet"
     params_path = tmp / "params.yaml"
-    val_pedigree.to_parquet(ped_path)
+    save_parquet(val_pedigree, ped_path)
     with open(params_path, "w", encoding="utf-8") as fh:
         yaml.safe_dump(val_params, fh)
     return ped_path, params_path, tmp
@@ -424,7 +431,9 @@ class TestValidateNegativePaths:
     def test_non_contiguous_ids_fails_id_integrity(self):
         ped = self._tiny_pedigree()
         # Skip an integer in the id column — sort(ids) != arange(N*G_ped).
-        ped.loc[ped.index[5], "id"] = ped["id"].max() + 99
+        ids = ped["id"].to_numpy().copy()
+        ids[5] = ids.max() + 99
+        ped = _with_column_values(ped, "id", ids)
         result = validate_structural(ped, self._tiny_params(), PedigreeArrays.from_frame(ped))
         assert result["id_integrity"]["passed"] is False
 
@@ -432,15 +441,19 @@ class TestValidateNegativePaths:
         ped = self._tiny_pedigree()
         params = self._tiny_params()
         # Force a mother index outside [0, N*G_ped) and not -1.
-        non_founder_idx = ped.index[ped["mother"] != -1][0]
-        ped.loc[non_founder_idx, "mother"] = params["N"] * params["G_ped"] + 50
+        mother = ped["mother"].to_numpy().copy()
+        non_founder_idx = np.flatnonzero(mother != -1)[0]
+        mother[non_founder_idx] = params["N"] * params["G_ped"] + 50
+        ped = _with_column_values(ped, "mother", mother)
         result = validate_structural(ped, params, PedigreeArrays.from_frame(ped))
         assert result["parent_references"]["passed"] is False
 
     def test_wrong_parent_sex_fails_sex_consistency(self):
         ped = self._tiny_pedigree()
-        non_founder = ped[ped["mother"] != -1].iloc[0]
-        ped.loc[ped["id"] == non_founder["mother"], "sex"] = 1  # 1 = male
+        mother_id = ped.filter(pl.col("mother") != -1)["mother"][0]
+        sex = ped["sex"].to_numpy().copy()
+        sex[ped["id"].to_numpy() == mother_id] = 1  # 1 = male
+        ped = _with_column_values(ped, "sex", sex)
         result = validate_structural(ped, self._tiny_params(), PedigreeArrays.from_frame(ped))
         assert result["sex_parent_consistency"]["passed"] is False
 
@@ -449,9 +462,12 @@ class TestValidateNegativePaths:
         ped = self._tiny_pedigree()
         # Pick three contiguous IDs to wire as a broken twin chain.
         a, b, c = 0, 1, 2
-        ped.loc[ped["id"] == a, "twin"] = b
-        ped.loc[ped["id"] == b, "twin"] = c  # broken: should be `a` to be bidirectional
-        ped.loc[ped["id"] == c, "twin"] = b
+        ids = ped["id"].to_numpy()
+        twin = ped["twin"].to_numpy().copy()
+        twin[ids == a] = b
+        twin[ids == b] = c  # broken: should be `a` to be bidirectional
+        twin[ids == c] = b
+        ped = _with_column_values(ped, "twin", twin)
         params = self._tiny_params()
         params["p_mztwin"] = 0.02
         result = validate_twins(ped, params, PedigreeArrays.from_frame(ped))
@@ -483,9 +499,9 @@ class TestValidateCli:
 def _trait_for(pedigree, seed=0):
     """Minimal censored-trait frame for the trailing two generations."""
     max_gen = int(pedigree["generation"].max())
-    phenotyped = pedigree[pedigree["generation"] >= max_gen - 1].reset_index(drop=True)
+    phenotyped = pedigree.filter(pl.col("generation") >= max_gen - 1)
     rng = np.random.default_rng(seed)
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "id": phenotyped["id"].to_numpy(),
             "generation": phenotyped["generation"].to_numpy(),

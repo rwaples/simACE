@@ -2,6 +2,7 @@
 
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 import yaml
 from pedigree_graph import PedigreeGraph
@@ -16,6 +17,7 @@ from simace.analysis.stats.effective_size import (
     main as run_effective_size,
 )
 from simace.analysis.validate import validate_effective_size
+from simace.core.parquet import save_parquet
 
 EXPECTED_KEYS = {
     "ne_inbreeding",
@@ -30,7 +32,7 @@ EXPECTED_KEYS = {
 
 
 @pytest.fixture(scope="module")
-def tiny_pedigree() -> pd.DataFrame:
+def tiny_pedigree() -> pl.DataFrame:
     """Reuse the 200-individual / G_ped=2 fixture without phenotype/censor cost."""
     from simace.simulation.simulate import run_simulation
 
@@ -241,8 +243,7 @@ class TestComputeEffectiveSize:
         # Hill 1979 eq. (10) branch.  In simACE, generations are
         # strictly discrete so this is artificial — but the wrapper
         # contract is what we're testing.
-        df = tiny_pedigree.copy()
-        df["birth_year"] = df["generation"].astype(int) * 5 + 2000
+        df = tiny_pedigree.with_columns((pl.col("generation").cast(pl.Int64) * 5 + 2000).alias("birth_year"))
         result = compute_effective_size(df)
         h = result["ne_hill_overlapping"]
         assert h["collapses_to_ne_v"] is False
@@ -257,8 +258,7 @@ class TestComputeEffectiveSize:
         # passed, the birth-year branch overrides it to None because no
         # closed-form expectation exists for Hill 1979 eq. (10).
         cfg = {"N": 200, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5, "G_ped": 20}
-        df = tiny_pedigree.copy()
-        df["birth_year"] = df["generation"].astype(int) * 5 + 2000
+        df = tiny_pedigree.with_columns((pl.col("generation").cast(pl.Int64) * 5 + 2000).alias("birth_year"))
         result = compute_effective_size(df, config=cfg)
         assert result["ne_hill_overlapping"]["expected"] is None
         # Other estimators still receive their expected values.
@@ -307,7 +307,12 @@ class TestValidateEffectiveSize:
 
 
 def _build_wf_pedigree(rng: np.random.Generator, n: int = 50, n_gens: int = 8) -> pd.DataFrame:
-    """Symmetric Wright–Fisher pedigree (alternating M/F sex, multinomial parents)."""
+    """Symmetric Wright–Fisher pedigree (alternating M/F sex, multinomial parents).
+
+    Stays pandas: it is fed directly to the external ``pedigree_graph``
+    package, whose constructor is pandas/array-dict-facing (not a simace
+    boundary).
+    """
     rows: list[dict] = [
         {"id": i, "sex": 1 if i % 2 == 0 else 0, "generation": 0, "mother": -1, "father": -1, "twin": -1}
         for i in range(n)
@@ -374,7 +379,9 @@ def test_ne_v_formula_matches_simulator_mc():
             assort1=0.0,
             assort2=0.0,
         )
-        pg = PedigreeGraph(ped)
+        # The external pedigree_graph package is pandas/array-dict-facing, so
+        # the polars pedigree crosses that boundary via to_pandas().
+        pg = PedigreeGraph(ped.to_pandas())
         result = ne_variance_family_size(pg)
         finite = result.ne_per_transition[np.isfinite(result.ne_per_transition)]
         per_transition.extend(finite.tolist())
@@ -450,11 +457,11 @@ def test_effective_size_main_writes_yaml(tmp_path, tiny_pedigree):
     params_path = tmp_path / "params.yaml"
     out_path = tmp_path / "effective_size.yaml"
 
-    tiny_pedigree.to_parquet(ped_path)
+    save_parquet(tiny_pedigree, ped_path)
     # Observed = last generation only — closure must recover all ancestors.
     last_gen = int(tiny_pedigree["generation"].max())
-    df_phe = tiny_pedigree.loc[tiny_pedigree["generation"] == last_gen, ["id"]].copy()
-    df_phe.to_parquet(phe_path)
+    df_phe = tiny_pedigree.filter(pl.col("generation") == last_gen).select("id")
+    save_parquet(df_phe, phe_path)
     with open(params_path, "w") as f:
         yaml.safe_dump({"N": 200, "mating_lambda": 0.5}, f)
 

@@ -24,19 +24,25 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Any
 
-    import pandas as pd
+    import polars as pl
 
 __all__ = ["cli_or_snakemake", "run_wrapper", "write_parquet_plain"]
 
 
-def write_parquet_plain(df: pd.DataFrame, path: str) -> None:
+def write_parquet_plain(df: pl.DataFrame, path: str) -> None:
     """Write a DataFrame as parquet without dtype narrowing or compression tweaks.
 
-    Mirrors the prior wrapper behavior of ``df.to_parquet(path, index=False)``,
-    distinct from :func:`simace.core.parquet.save_parquet` which also narrows
-    dtypes and uses zstd.
+    Distinct from :func:`simace.core.parquet.save_parquet`, which also narrows
+    dtypes and uses zstd. Float NaN is normalized to null, per the on-disk
+    null contract (ADR 0015).
+
+    polars is imported here rather than at module scope: every Snakemake
+    wrapper imports this adapter, but most never write a parquet, and an
+    eager import cost each of them ~70ms of process startup.
     """
-    df.to_parquet(path, index=False)
+    import polars as pl
+
+    df.with_columns(pl.col(pl.Float32, pl.Float64).fill_nan(None)).write_parquet(path, compression="snappy")
 
 
 def run_wrapper(

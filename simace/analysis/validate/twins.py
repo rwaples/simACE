@@ -1,16 +1,21 @@
 """MZ-twin validation checks."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
-
-from simace.core.pedigree_arrays import PedigreeArrays
 
 from ._common import _result
 
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
-def validate_twins(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeArrays) -> dict[str, Any]:
+    from simace.core.pedigree_arrays import PedigreeArrays
+
+
+def validate_twins(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped: PedigreeArrays) -> dict[str, Any]:
     """Validate MZ twin properties for two-trait simulation.
 
     Checks bidirectional twin pointers, shared parents, identical A values
@@ -38,8 +43,10 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeArrays
     is_wf = mating_model == "wright_fisher"
     expected_rate = 0.0 if is_wf else float(p_mztwin)
 
-    twins_df = df[df["twin"] != -1]
-    n_twins = len(twins_df)
+    twin_all = df["twin"].to_numpy()
+    id_all = df["id"].to_numpy()
+    twin_mask = twin_all != -1
+    n_twins = int(twin_mask.sum())
 
     if n_twins == 0:
         no_twins_msg = "No twins expected under mating_model=wright_fisher" if is_wf else "No twins found"
@@ -65,8 +72,8 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeArrays
         return results
 
     # Get unique twin pairs
-    twin_ids = twins_df["id"].values
-    twin_partners = twins_df["twin"].values
+    twin_ids = id_all[twin_mask]
+    twin_partners = twin_all[twin_mask]
     mask = twin_ids < twin_partners
     t1_arr = twin_ids[mask]
     t2_arr = twin_partners[mask]
@@ -113,12 +120,12 @@ def validate_twins(df: pd.DataFrame, params: dict[str, Any], ped: PedigreeArrays
     )
 
     # Twin rate (count only non-founder twin pairs; founders have twins but no parents in pedigree)
-    non_founders = df[df["mother"] != -1]
-    if len(non_founders) > 0:
-        n_nf = len(non_founders)
-        nf_twins = non_founders[non_founders["twin"] != -1]
-        nf_twin_ids = nf_twins["id"].values
-        nf_twin_partners = nf_twins["twin"].values
+    nf_mask = df["mother"].to_numpy() != -1
+    if nf_mask.any():
+        n_nf = int(nf_mask.sum())
+        nf_twin_mask = nf_mask & twin_mask
+        nf_twin_ids = id_all[nf_twin_mask]
+        nf_twin_partners = twin_all[nf_twin_mask]
         nf_pairs = int(np.sum(nf_twin_ids < nf_twin_partners))
         observed_rate = nf_pairs * 2 / n_nf
         if is_wf:

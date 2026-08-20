@@ -20,7 +20,7 @@ assertions, asserting agreement with the simace estimators to within
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 # Skip the entire module if rpy2 isn't installed.
@@ -32,6 +32,8 @@ from pedigree_graph import (  # noqa: E402  — after importorskip
     ne_inbreeding,
     ne_individual_delta_f,
 )
+
+from simace.core.frames import pedigree_graph_input  # noqa: E402  — after importorskip
 
 
 @pytest.fixture(scope="module")
@@ -46,7 +48,7 @@ def r_packages():
 
 
 @pytest.fixture(scope="module")
-def fixture_pedigree() -> tuple[pd.DataFrame, PedigreeGraph]:
+def fixture_pedigree() -> tuple[pl.DataFrame, PedigreeGraph]:
     """Small deterministic random-mating pedigree for cross-checking."""
     rng = np.random.default_rng(2026)
     n, n_gens = 50, 6
@@ -80,8 +82,8 @@ def fixture_pedigree() -> tuple[pd.DataFrame, PedigreeGraph]:
                 }
             )
             next_id += 1
-    df = pd.DataFrame(rows)
-    return df, PedigreeGraph(df)
+    df = pl.DataFrame(rows)
+    return df, PedigreeGraph(pedigree_graph_input(df))
 
 
 def test_ne_inbreeding_matches_optiSel(r_packages, fixture_pedigree):

@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from simace.analysis.stats.effective_size import (
     family_size_variance_expected_ztp,
@@ -83,7 +83,7 @@ _SHORT_LABEL = {
 
 def gather_effective_size(
     yaml_paths: list[Path] | list[str],
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Read per-rep yamls into long-form scalar and series DataFrames.
 
     Args:
@@ -122,7 +122,8 @@ def gather_effective_size(
                 continue
             series_rows.extend(_extract_series_rows(rep_idx, est, entry))
 
-    scalar_df = pd.DataFrame(scalar_rows, columns=["rep", "estimator", "ne", "expected"])
+    scalar_schema = {"rep": pl.Int64, "estimator": pl.String, "ne": pl.Float64, "expected": pl.Float64}
+    scalar_df = pl.DataFrame(scalar_rows, schema=scalar_schema)
     series_columns = [
         "rep",
         "estimator",
@@ -139,7 +140,9 @@ def gather_effective_size(
         "cov_m",
         "cov_f",
     ]
-    series_df = pd.DataFrame(series_rows, columns=series_columns)
+    series_schema: dict[str, type[pl.DataType]] = dict.fromkeys(series_columns, pl.Float64)
+    series_schema.update({"rep": pl.Int64, "estimator": pl.String, "index": pl.Int64, "kind": pl.String})
+    series_df = pl.DataFrame(series_rows, schema=series_schema)
     return scalar_df, series_df
 
 
@@ -202,7 +205,7 @@ def _coerce_float(value) -> float:
 
 
 def plot_estimators_overview(
-    scalar_df: pd.DataFrame,
+    scalar_df: pl.DataFrame,
     scenario_subtitle: str,
     out: Path,
     ext: str = "png",
@@ -220,8 +223,8 @@ def plot_estimators_overview(
     positions = np.arange(len(estimators))
 
     # Plot range derived from finite values across all estimators.
-    finite = scalar_df["ne"].dropna()
-    if not finite.empty:
+    finite = scalar_df["ne"].drop_nans().drop_nulls()
+    if not finite.is_empty():
         lo = max(finite.min() * 0.5, 1.0)
         hi = finite.max() * 2.0
     else:
@@ -230,9 +233,9 @@ def plot_estimators_overview(
     null_marker_y = lo * 0.6  # below the visible range, but log-axis-friendly
 
     for x, est in zip(positions, estimators, strict=True):
-        sub = scalar_df[scalar_df["estimator"] == est]
-        finite_vals = sub["ne"].dropna().to_numpy()
-        null_count = int(sub["ne"].isna().sum())
+        sub = scalar_df.filter(pl.col("estimator") == est)
+        finite_vals = sub["ne"].drop_nans().drop_nulls().to_numpy()
+        null_count = len(sub) - len(finite_vals)
 
         if finite_vals.size:
             jitter = np.random.default_rng(0).uniform(-0.12, 0.12, finite_vals.size)
@@ -267,8 +270,8 @@ def plot_estimators_overview(
                 zorder=3,
             )
 
-        expected_vals = sub["expected"].dropna().unique()
-        if expected_vals.size:
+        expected_vals = sub["expected"].drop_nans().drop_nulls().unique()
+        if len(expected_vals):
             exp = float(expected_vals[0])
             ax.hlines(
                 exp,
@@ -320,8 +323,8 @@ def _format_small_float(v: float) -> str:
 
 
 def plot_ne_by_generation(
-    series_df: pd.DataFrame,
-    scalar_df: pd.DataFrame,
+    series_df: pl.DataFrame,
+    scalar_df: pl.DataFrame,
     out: Path,
     ext: str = "png",
 ) -> None:
@@ -339,17 +342,18 @@ def plot_ne_by_generation(
     ]
     fig, axes = plt.subplots(2, 3, figsize=(11.0, 6.5), sharey=False)
     for ax, (est, kind) in zip(axes.flat, panels, strict=True):
-        sub = series_df[series_df["estimator"] == est]
-        if sub.empty:
+        sub = series_df.filter(pl.col("estimator") == est)
+        if sub.is_empty():
             ax.text(0.5, 0.5, "no data", ha="center", va="center", transform=ax.transAxes, color="0.5")
             ax.set_title(_SHORT_LABEL[est])
             continue
 
-        for _rep, rep_df in sub.groupby("rep"):
+        for (_rep,), rep_df in sub.group_by("rep", maintain_order=True):
             xs = rep_df["index"].to_numpy()
             if kind == "transition":
                 xs = xs + 0.5  # transition g→g+1 sits between gens g and g+1
-            ys = rep_df["ne"].where(rep_df["ne"] > 0).to_numpy()
+            ne_vals = rep_df["ne"].to_numpy().astype(float)
+            ys = np.where(ne_vals > 0, ne_vals, np.nan)
             ax.plot(
                 xs,
                 ys,
@@ -359,8 +363,8 @@ def plot_ne_by_generation(
                 alpha=0.7,
             )
 
-        expected_vals = scalar_df.loc[scalar_df["estimator"] == est, "expected"].dropna().unique()
-        expected_val = float(expected_vals[0]) if expected_vals.size else None
+        expected_vals = scalar_df.filter(pl.col("estimator") == est)["expected"].drop_nans().drop_nulls().unique()
+        expected_val = float(expected_vals[0]) if len(expected_vals) else None
         if expected_val is not None and expected_val > 0:
             ax.axhline(
                 expected_val,
@@ -394,7 +398,7 @@ def plot_ne_by_generation(
     _save(fig, out / f"effective_size.by_generation.{ext}")
 
 
-def plot_drift_signals(series_df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+def plot_drift_signals(series_df: pl.DataFrame, out: Path, ext: str = "png") -> None:
     """Figure 3: mean F, θ, self-kinship per generation (1×3)."""
     panels = [
         ("ne_inbreeding", "mean_f", "mean F"),
@@ -403,15 +407,16 @@ def plot_drift_signals(series_df: pd.DataFrame, out: Path, ext: str = "png") -> 
     ]
     fig, axes = plt.subplots(1, 3, figsize=(12.0, 4.0))
     for ax, (est, col, label) in zip(axes, panels, strict=True):
-        sub = series_df[series_df["estimator"] == est]
-        if sub.empty or sub[col].dropna().empty:
+        sub = series_df.filter(pl.col("estimator") == est)
+        if sub.is_empty() or sub[col].drop_nans().drop_nulls().is_empty():
             ax.text(0.5, 0.5, "no data", ha="center", va="center", transform=ax.transAxes, color="0.5")
             ax.set_title(label)
             continue
-        for _rep, rep_df in sub.groupby("rep"):
+        for (_rep,), rep_df in sub.group_by("rep", maintain_order=True):
             # Clip non-positive values (e.g. F=0 in gens 0/1) so log scale
             # doesn't choke; gaps appear as missing markers.
-            ys = rep_df[col].where(rep_df[col] > 0).to_numpy()
+            col_vals = rep_df[col].to_numpy().astype(float)
+            ys = np.where(col_vals > 0, col_vals, np.nan)
             ax.plot(
                 rep_df["index"].to_numpy(),
                 ys,
@@ -432,18 +437,18 @@ def plot_drift_signals(series_df: pd.DataFrame, out: Path, ext: str = "png") -> 
 
 
 def plot_family_size_variance(
-    series_df: pd.DataFrame,
+    series_df: pl.DataFrame,
     expected_v: float | None,
     expected_cov: float | None,
     out: Path,
     ext: str = "png",
 ) -> None:
     """Figure 4: per-transition v_** and cov_* with ZTP closed-form references."""
-    sub = series_df[series_df["estimator"] == "ne_variance_family_size"]
+    sub = series_df.filter(pl.col("estimator") == "ne_variance_family_size")
     fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.5))
     ax_v, ax_c = axes
 
-    if sub.empty:
+    if sub.is_empty():
         for ax in axes:
             ax.text(0.5, 0.5, "no data", ha="center", va="center", transform=ax.transAxes, color="0.5")
         _save(fig, out / f"effective_size.family_size_variance.{ext}")
@@ -459,7 +464,7 @@ def plot_family_size_variance(
     palette_c = ["#4477AA", "#EE7733"]
 
     for col, color in zip(v_cols, palette_v, strict=True):
-        for _rep, rep_df in sub.groupby("rep"):
+        for (_rep,), rep_df in sub.group_by("rep", maintain_order=True):
             xs = rep_df["index"].to_numpy() + 0.5
             ax_v.plot(
                 xs,
@@ -474,7 +479,7 @@ def plot_family_size_variance(
         ax_v.plot([], [], color=color, label=col)
 
     for col, color in zip(cov_cols, palette_c, strict=True):
-        for _rep, rep_df in sub.groupby("rep"):
+        for (_rep,), rep_df in sub.group_by("rep", maintain_order=True):
             xs = rep_df["index"].to_numpy() + 0.5
             ax_c.plot(
                 xs,
@@ -570,8 +575,8 @@ def _infer_scenario_from_path(params_path: str | Path) -> str | None:
 class EffectiveSizeContext:
     """Prepared inputs shared by the effective-size renderers."""
 
-    scalar_df: pd.DataFrame
-    series_df: pd.DataFrame
+    scalar_df: pl.DataFrame
+    series_df: pl.DataFrame
     subtitle: str
     expected_v: float | None
     expected_cov: float | None

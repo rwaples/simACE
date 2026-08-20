@@ -24,14 +24,19 @@ __all__ = [
 
 import argparse
 import math
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import pandas as pd
 from pedigree_graph import PedigreeGraph, compute_all_ne
 
 from simace.core.cli_base import add_logging_args, init_logging
+from simace.core.frames import pedigree_graph_input
+from simace.core.parquet import load_parquet
 from simace.core.pedigree_filter import filter_pedigree_to_observed
 from simace.core.yaml_io import dump_yaml, load_yaml
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
 
 # Bias on regression-based Ne estimators (Ne_I, Ne_C, Ne_CT) scales as
 # ``Ne_V / (N · G²)`` due to Jensen inversion of a noisy slope; we mark
@@ -217,7 +222,7 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
 
 
 def compute_effective_size(
-    pedigree: pd.DataFrame | PedigreeGraph,
+    pedigree: pd.DataFrame | pl.DataFrame | PedigreeGraph,
     config: dict[str, Any] | None = None,
     skip_ne_coancestry: bool = False,
 ) -> dict[str, dict[str, Any]]:
@@ -240,7 +245,7 @@ def compute_effective_size(
         dataclass's ``to_dict()`` payload merged with an ``expected``
         field (``float`` or ``None``).
     """
-    pg = pedigree if isinstance(pedigree, PedigreeGraph) else PedigreeGraph(pedigree)
+    pg = pedigree if isinstance(pedigree, PedigreeGraph) else PedigreeGraph(pedigree_graph_input(pedigree))
     raw = compute_all_ne(pg, skip_ne_coancestry=skip_ne_coancestry)
     expected = theoretical_expectations(config)
     # Hill 1979's closed-form Ne_V passthrough only applies under the
@@ -274,12 +279,12 @@ def main(
     :func:`compute_effective_size`, and dumps the YAML-ready dict to
     ``output_path``.
     """
-    df_ped = pd.read_parquet(pedigree_path)
-    df_phe = pd.read_parquet(phenotype_path)
+    df_ped = load_parquet(pedigree_path)
+    df_phe = load_parquet(phenotype_path)
     params = load_yaml(params_path)
 
     df_observed = filter_pedigree_to_observed(df_ped, df_phe["id"].to_numpy())
-    pg = PedigreeGraph(df_observed)
+    pg = PedigreeGraph(pedigree_graph_input(df_observed))
     result = compute_effective_size(pg, config=params, skip_ne_coancestry=skip_ne_coancestry)
 
     dump_yaml(result, output_path)

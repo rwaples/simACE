@@ -17,6 +17,7 @@ import pytest
 
 from simace.analysis.gather import _get_nested, extract_metrics
 from simace.analysis.report_schema import REPORT_SUMMARY_REGISTRY
+from simace.core.parquet import save_parquet
 from simace.core.yaml_io import dump_yaml, load_yaml
 
 # Coverage parameters mirror config/test.yaml::coverage_scenario. Tuned so every
@@ -87,10 +88,10 @@ def coverage_report(tmp_path_factory) -> dict:
     trait_full = work / "trait.full.parquet"
     trait = work / "trait.parquet"
     params_path = work / "params.yaml"
-    pedigree.to_parquet(ped_full)
-    pedigree.to_parquet(ped)
-    censored.to_parquet(trait_full)
-    censored.to_parquet(trait)
+    save_parquet(pedigree, ped_full)
+    save_parquet(pedigree, ped)
+    save_parquet(censored, trait_full)
+    save_parquet(censored, trait)
     dump_yaml(_COVERAGE_PARAMS, params_path)
 
     report_yaml = work / "report.yaml"

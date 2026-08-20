@@ -7,7 +7,7 @@ a matplotlib Figure is returned and no figures leak.
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 from simace.core.relationships import RELATIONSHIP_TYPES
@@ -147,10 +147,15 @@ def minimal_stats():
 
 @pytest.fixture
 def validation_df():
-    """Minimal validation summary DataFrame for plot_validation functions."""
+    """Minimal validation summary DataFrame for plot_validation functions.
+
+    Built in polars and handed over as pandas at the return: ``plot_validation``
+    is the seaborn/pandas boundary (ADR 0015 allowlist), and its CLI feeds it
+    the same way — ``pl.read_csv(...).to_pandas()``.
+    """
     rng = np.random.default_rng(42)
     n = 6  # 2 scenarios × 3 reps
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "scenario": ["scA"] * 3 + ["scB"] * 3,
             "rep": [1, 2, 3, 1, 2, 3],
@@ -214,7 +219,7 @@ def validation_df():
             "parent_offspring_liability2_slope": rng.normal(0.5, 0.02, n),
             "parent_offspring_liability2_r2": rng.normal(0.5, 0.02, n),
         }
-    )
+    ).to_pandas()
 
 
 # ---------------------------------------------------------------------------
@@ -609,7 +614,7 @@ def observed_binary_samples():
     """Minimal sample DataFrame for observed-binary plot functions."""
     rng = np.random.default_rng(42)
     n = 200
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "liability1": rng.normal(size=n),
             "liability2": rng.normal(size=n),

@@ -42,7 +42,7 @@ def compute_liability_correlations(
     """
     result = {}
     for trait_num in [1, 2]:
-        liability = df[f"liability{trait_num}"].values
+        liability = df[f"liability{trait_num}"].to_numpy()
         trait_result: dict[str, float | None] = {}
         for ptype in RELATIONSHIP_TYPES:
             idx1, idx2 = pairs[ptype]
@@ -77,7 +77,7 @@ def compute_affected_correlations(
     """
     result = {}
     for trait_num in [1, 2]:
-        affected = df[f"affected{trait_num}"].values.astype(np.float64)
+        affected = df[f"affected{trait_num}"].to_numpy().astype(np.float64)
         trait_result: dict[str, float | None] = {}
         for ptype in RELATIONSHIP_TYPES:
             idx1, idx2 = pairs[ptype]
@@ -109,7 +109,7 @@ def compute_tetrachoric(
     """
     result = {}
     for trait_num in [1, 2]:
-        affected = df[f"affected{trait_num}"].values.astype(bool)
+        affected = df[f"affected{trait_num}"].to_numpy().astype(bool)
         trait_result = {}
         for ptype in RELATIONSHIP_TYPES:
             idx1, idx2 = pairs[ptype]
@@ -137,11 +137,11 @@ def compute_tetrachoric_by_generation(
     """
     if "generation" not in df.columns:
         return {}
-    gen_arr = df["generation"].values
+    gen_arr = df["generation"].to_numpy()
     max_gen = int(gen_arr.max())
     plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
-    affected_by_trait = {n: df[f"affected{n}"].values.astype(bool) for n in (1, 2)}
-    liability_by_trait = {n: df[f"liability{n}"].values for n in (1, 2)}
+    affected_by_trait = {n: df[f"affected{n}"].to_numpy().astype(bool) for n in (1, 2)}
+    liability_by_trait = {n: df[f"liability{n}"].to_numpy() for n in (1, 2)}
     result = {}
     for gen in plot_gens:
         gen_result = {}
@@ -178,8 +178,8 @@ def compute_cross_trait_tetrachoric(
         Dict with keys ``same_person``, ``same_person_by_generation``,
         and ``cross_person``.
     """
-    a1 = df["affected1"].values.astype(bool)
-    a2 = df["affected2"].values.astype(bool)
+    a1 = df["affected1"].to_numpy().astype(bool)
+    a2 = df["affected2"].to_numpy().astype(bool)
     r_sp, se_sp = tetrachoric_corr_se(a1, a2)
     result: dict[str, Any] = {
         "same_person": {
@@ -190,7 +190,7 @@ def compute_cross_trait_tetrachoric(
     }
     by_gen: dict[str, Any] = {}
     if "generation" in df.columns:
-        gen_arr = df["generation"].values
+        gen_arr = df["generation"].to_numpy()
         max_gen = int(gen_arr.max())
         plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
         for gen in plot_gens:
@@ -234,9 +234,9 @@ def compute_tetrachoric_by_sex(
     Returns dict keyed by "female"/"male", each containing per-trait
     per-pair-type {r, se, n_pairs, liability_r}.
     """
-    sex_arr = df["sex"].values
-    affected_by_trait = {n: df[f"affected{n}"].values.astype(bool) for n in (1, 2)}
-    liability_by_trait = {n: df[f"liability{n}"].values for n in (1, 2)}
+    sex_arr = df["sex"].to_numpy()
+    affected_by_trait = {n: df[f"affected{n}"].to_numpy().astype(bool) for n in (1, 2)}
+    liability_by_trait = {n: df[f"liability{n}"].to_numpy() for n in (1, 2)}
     result: dict[str, Any] = {}
     for sex_val, sex_label in SEX_LEVELS:
         sex_result: dict[str, Any] = {}
@@ -255,8 +255,8 @@ def compute_tetrachoric_by_sex(
 
 def _po_regression(gen_idx: np.ndarray, liability: np.ndarray, id_to_row: np.ndarray, df: pd.DataFrame) -> dict:
     """Midparent-offspring regression for a given set of offspring indices."""
-    mother_ids = df["mother"].values[gen_idx]
-    father_ids = df["father"].values[gen_idx]
+    mother_ids = df["mother"].to_numpy()[gen_idx]
+    father_ids = df["father"].to_numpy()[gen_idx]
     has_m = (mother_ids >= 0) & (mother_ids < len(id_to_row))
     has_f = (father_ids >= 0) & (father_ids < len(id_to_row))
     m_rows = np.full(len(gen_idx), -1, dtype=np.int32)
@@ -295,13 +295,13 @@ def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
     if "generation" not in df.columns:
         return {}
     max_gen = int(df["generation"].max())
-    ids_arr = df["id"].values
+    ids_arr = df["id"].to_numpy()
     id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
     id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
-    gen_arr = df["generation"].values
+    gen_arr = df["generation"].to_numpy()
     result = {}
     for trait_num in [1, 2]:
-        liability = df[f"liability{trait_num}"].values
+        liability = df[f"liability{trait_num}"].to_numpy()
         trait_result = {}
         for gen in range(1, max_gen + 1):
             gen_idx = np.where(gen_arr == gen)[0]
@@ -332,11 +332,11 @@ def compute_parent_offspring_affected_corr(df: pd.DataFrame) -> dict[str, Any]:
     if "id" not in df.columns or "mother" not in df.columns or "father" not in df.columns:
         return {}
 
-    ids_arr = df["id"].values
+    ids_arr = df["id"].to_numpy()
     id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
     id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
 
-    non_founder_idx = np.where(df["mother"].values >= 0)[0]
+    non_founder_idx = np.where(df["mother"].to_numpy() >= 0)[0]
 
     null = {
         "r": None,
@@ -349,8 +349,8 @@ def compute_parent_offspring_affected_corr(df: pd.DataFrame) -> dict[str, Any]:
     }
 
     # Precompute valid trios once (parents present, looked up via id_to_row).
-    mother_ids_arr = df["mother"].values[non_founder_idx]
-    father_ids_arr = df["father"].values[non_founder_idx]
+    mother_ids_arr = df["mother"].to_numpy()[non_founder_idx]
+    father_ids_arr = df["father"].to_numpy()[non_founder_idx]
     has_m = (mother_ids_arr >= 0) & (mother_ids_arr < len(id_to_row))
     has_f = (father_ids_arr >= 0) & (father_ids_arr < len(id_to_row))
     m_rows = np.full(len(non_founder_idx), -1, dtype=np.int32)
@@ -366,7 +366,7 @@ def compute_parent_offspring_affected_corr(df: pd.DataFrame) -> dict[str, Any]:
         if aff_col not in df.columns:
             result[f"trait{trait_num}"] = {**null}
             continue
-        affected = df[aff_col].values.astype(np.float64)
+        affected = df[aff_col].to_numpy().astype(np.float64)
         if n_pairs < 10:
             result[f"trait{trait_num}"] = {**null, "n_pairs": n_pairs}
             continue
@@ -393,16 +393,16 @@ def compute_parent_offspring_corr_by_sex(df: pd.DataFrame) -> dict[str, Any]:
     if "generation" not in df.columns:
         return {}
     max_gen = int(df["generation"].max())
-    ids_arr = df["id"].values
+    ids_arr = df["id"].to_numpy()
     id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
     id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
-    gen_arr = df["generation"].values
-    sex_arr = df["sex"].values
+    gen_arr = df["generation"].to_numpy()
+    sex_arr = df["sex"].to_numpy()
     result: dict[str, Any] = {}
     for sex_val, sex_label in SEX_LEVELS:
         sex_result: dict[str, Any] = {}
         for trait_num in [1, 2]:
-            liability = df[f"liability{trait_num}"].values
+            liability = df[f"liability{trait_num}"].to_numpy()
             trait_result: dict[str, Any] = {}
             for gen in range(1, max_gen + 1):
                 gen_idx = np.where((gen_arr == gen) & (sex_arr == sex_val))[0]
@@ -476,15 +476,26 @@ def compute_mate_correlation(df: pd.DataFrame) -> dict:
     Only non-founders are considered.
     """
     ped = PedigreeArrays.from_frame(df)
-    nf = df[(df["mother"] != -1) & (df["father"] != -1)][["mother", "father"]].drop_duplicates()
-    parents_present = ped.contains(nf["mother"].to_numpy()) & ped.contains(nf["father"].to_numpy())
-    nf = nf.loc[parents_present]
-    if len(nf) < 2:
+    mothers_all = df["mother"].to_numpy()
+    fathers_all = df["father"].to_numpy()
+    child_mask = (mothers_all != -1) & (fathers_all != -1)
+    m_child = mothers_all[child_mask].astype(np.int64)
+    f_child = fathers_all[child_mask].astype(np.int64)
+    if m_child.size == 0:
         return {"matrix": [[float("nan")] * 2] * 2, "n_pairs": 0}
 
-    mothers, fathers = nf["mother"].to_numpy(), nf["father"].to_numpy()
+    # Unique (mother, father) matings via an int64 pair key (ids are int32).
+    base = np.int64(max(int(m_child.max()), int(f_child.max())) + 1)
+    uniq_pairs = np.unique(m_child * base + f_child)
+    mothers = uniq_pairs // base
+    fathers = uniq_pairs % base
+    parents_present = ped.contains(mothers) & ped.contains(fathers)
+    mothers, fathers = mothers[parents_present], fathers[parents_present]
+    if len(mothers) < 2:
+        return {"matrix": [[float("nan")] * 2] * 2, "n_pairs": 0}
+
     f_liab = np.column_stack([ped.gather(f"liability{t}", mothers) for t in (1, 2)])  # (N, 2)
     m_liab = np.column_stack([ped.gather(f"liability{t}", fathers) for t in (1, 2)])  # (N, 2)
 
     matrix = [[float(safe_corrcoef(f_liab[:, i], m_liab[:, j])) for j in range(2)] for i in range(2)]
-    return {"matrix": matrix, "n_pairs": len(nf)}
+    return {"matrix": matrix, "n_pairs": len(mothers)}

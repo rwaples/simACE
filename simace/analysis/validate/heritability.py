@@ -1,13 +1,13 @@
 """Heritability checks: MZ/DZ correlations, Falconer, parent-offspring."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 from pedigree_graph import PAIR_KINSHIP
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
-from simace.core.pedigree_arrays import PedigreeArrays
 
 from ._common import (
     _DEFAULT_RNG_SEED,
@@ -20,6 +20,12 @@ from ._common import (
     _subsample_pairs,
 )
 from .am_relatedness import am_relatedness_mode, observed_mate_correlations, resolve_expected_a_corr
+
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    from simace.core.pedigree_arrays import PedigreeArrays
 
 
 def _midparent_regression(
@@ -40,16 +46,17 @@ def _midparent_regression(
 
 
 def _validate_mz_correlations(
-    df: pd.DataFrame,
+    df: pd.DataFrame | pl.DataFrame,
     A_params: dict[int, float],
     comp_vals: dict[str, np.ndarray],
     ped: PedigreeArrays,
     results: dict[str, Any],
 ) -> tuple[dict[int, float | None], int]:
     """Validate MZ twin correlations. Returns (mz_pheno_corr, n_mz_pairs)."""
-    twins_df = df[df["twin"] != -1]
-    twin_ids = twins_df["id"].values
-    twin_partners = twins_df["twin"].values
+    twin_all = df["twin"].to_numpy()
+    twin_mask = twin_all != -1
+    twin_ids = df["id"].to_numpy()[twin_mask]
+    twin_partners = twin_all[twin_mask]
     mask = twin_ids < twin_partners
     t1_arr = twin_ids[mask]
     t2_arr = twin_partners[mask]
@@ -96,7 +103,7 @@ def _validate_mz_correlations(
 
 
 def _validate_dz_correlations(
-    df: pd.DataFrame,
+    df: pd.DataFrame | pl.DataFrame,
     ped: PedigreeArrays,
     params: dict[str, Any],
     A_params: dict[int, float],
@@ -166,7 +173,7 @@ def _validate_dz_correlations(
 
 
 def _falconer_expected(
-    df: pd.DataFrame,
+    df: pd.DataFrame | pl.DataFrame,
     ped: PedigreeArrays,
     params: dict[str, Any],
     comp_vals: dict[str, np.ndarray],
@@ -198,7 +205,7 @@ def _falconer_expected(
 
 
 def _validate_falconer(
-    df: pd.DataFrame,
+    df: pd.DataFrame | pl.DataFrame,
     ped: PedigreeArrays,
     params: dict[str, Any],
     comp_vals: dict[str, np.ndarray],
@@ -244,22 +251,24 @@ def _validate_falconer(
 
 
 def _validate_parent_offspring(
-    df: pd.DataFrame,
+    df: pd.DataFrame | pl.DataFrame,
     comp_vals: dict[str, np.ndarray],
     ped: PedigreeArrays,
     results: dict[str, Any],
 ) -> None:
     """Validate parent-offspring regression."""
-    non_founders = df[df["mother"] != -1]
-    if len(non_founders) > 100:
-        valid_offspring = non_founders[
-            ped.contains(non_founders["mother"].to_numpy()) & ped.contains(non_founders["father"].to_numpy())
-        ]
+    mothers_all = df["mother"].to_numpy()
+    fathers_all = df["father"].to_numpy()
+    nf_mask = mothers_all != -1
+    if int(nf_mask.sum()) > 100:
+        nf_mothers = mothers_all[nf_mask]
+        nf_fathers = fathers_all[nf_mask]
+        valid = ped.contains(nf_mothers) & ped.contains(nf_fathers)
 
-        if len(valid_offspring) > 100:
-            mother_idx = ped.positions(valid_offspring["mother"].to_numpy())
-            father_idx = ped.positions(valid_offspring["father"].to_numpy())
-            offspring_idx = ped.positions(valid_offspring["id"].to_numpy())
+        if int(valid.sum()) > 100:
+            mother_idx = ped.positions(nf_mothers[valid])
+            father_idx = ped.positions(nf_fathers[valid])
+            offspring_idx = ped.positions(df["id"].to_numpy()[nf_mask][valid])
 
             for t in [1, 2]:
                 results[f"parent_offspring_A{t}_regression"] = _midparent_regression(
@@ -290,7 +299,7 @@ def _validate_parent_offspring(
 
 
 def validate_heritability(
-    df: pd.DataFrame,
+    df: pd.DataFrame | pl.DataFrame,
     params: dict[str, Any],
     ped: PedigreeArrays,
     sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],

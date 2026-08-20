@@ -32,7 +32,7 @@ from matplotlib.colors import ListedColormap
 if TYPE_CHECKING:
     from pathlib import Path
 
-    import pandas as pd
+    import polars as pl
 
 from simace.plotting.plot_style import COLOR_AFFECTED, COLOR_FEMALE, COLOR_MALE, COLOR_UNAFFECTED  # noqa: F401
 from simace.plotting.plot_utils import (
@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 def _plot_joint_grid(
-    df_samples: pd.DataFrame,
+    df_samples: pl.DataFrame,
     output_path: str | Path,
     scenario: str = "",
     color_by_affected: bool = False,
@@ -72,7 +72,7 @@ def _plot_joint_grid(
     if color_by_affected:
         aff_col = f"affected{affected_trait}"
         aff_label = f"Affected (T{affected_trait})"
-        affected = df_samples[aff_col].values.astype(bool)
+        affected = df_samples[aff_col].to_numpy().astype(bool)
 
     for idx, (xcol, ycol, title) in enumerate(panels):
         inner = GridSpecFromSubplotSpec(
@@ -88,7 +88,7 @@ def _plot_joint_grid(
         ax_marg_x = fig.add_subplot(inner[0, 0], sharex=ax_joint)
         ax_marg_y = fig.add_subplot(inner[1, 1], sharey=ax_joint)
 
-        x, y = df_samples[xcol].values, df_samples[ycol].values
+        x, y = df_samples[xcol].to_numpy(), df_samples[ycol].to_numpy()
 
         if color_by_affected:
             bins_x = np.linspace(x.min(), x.max(), 51)
@@ -172,14 +172,14 @@ def _plot_joint_grid(
 
 
 def plot_liability_joint(
-    df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = ""
+    df_samples: pl.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = ""
 ) -> None:
     """2x2 grid of jointplots: Liability, A, C, E (trait 1 vs trait 2)."""
     _plot_joint_grid(df_samples, output_path, scenario, color_by_affected=False, subsample_note=subsample_note)
 
 
 def plot_liability_joint_affected(
-    df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = ""
+    df_samples: pl.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = ""
 ) -> None:
     """2x2 grid of jointplots colored by affected status (trait 1)."""
     _plot_joint_grid(
@@ -188,7 +188,7 @@ def plot_liability_joint_affected(
 
 
 def plot_liability_joint_affected_t2(
-    df_samples: pd.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = ""
+    df_samples: pl.DataFrame, output_path: str | Path, scenario: str = "", subsample_note: str = ""
 ) -> None:
     """2x2 grid of jointplots colored by affected status (trait 2)."""
     _plot_joint_grid(
@@ -197,7 +197,7 @@ def plot_liability_joint_affected_t2(
 
 
 def plot_liability_violin(
-    df_samples: pd.DataFrame,
+    df_samples: pl.DataFrame,
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
@@ -210,8 +210,8 @@ def plot_liability_violin(
 
     _fig, ax = plt.subplots(figsize=(8, 6))
     for i, trait_num in enumerate([1, 2]):
-        liab = df_samples[f"liability{trait_num}"].values
-        aff = df_samples[f"affected{trait_num}"].values.astype(bool)
+        liab = df_samples[f"liability{trait_num}"].to_numpy()
+        aff = df_samples[f"affected{trait_num}"].to_numpy().astype(bool)
         draw_split_violin(ax, liab[~aff], liab[aff], pos=i)
     ax.set_xticks([0, 1])
     ax.set_xticklabels([f"Trait 1\n{prev1:.1%}", f"Trait 2\n{prev2:.1%}"])
@@ -229,8 +229,8 @@ def plot_liability_violin(
 
     # Annotate mean liability for each trait x affected/unaffected group
     for i, trait_num in enumerate([1, 2]):
-        liab = df_samples[f"liability{trait_num}"].values
-        aff = df_samples[f"affected{trait_num}"].values.astype(bool)
+        liab = df_samples[f"liability{trait_num}"].to_numpy()
+        aff = df_samples[f"affected{trait_num}"].to_numpy().astype(bool)
         if aff.any():
             mean_aff = liab[aff].mean()
             ax.plot(i + 0.05, mean_aff, "D", color="black", markersize=5, zorder=5)
@@ -259,7 +259,7 @@ def plot_liability_violin(
 
 
 def plot_liability_violin_by_generation(
-    df_samples: pd.DataFrame,
+    df_samples: pl.DataFrame,
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
@@ -270,7 +270,8 @@ def plot_liability_violin_by_generation(
         save_placeholder_plot(output_path, "No generation data")
         return
 
-    gens = sorted(df_samples["generation"].unique())
+    gens_arr = df_samples["generation"].to_numpy()
+    gens = sorted(np.unique(gens_arr).tolist())
     n_gens = len(gens)
 
     _fig, axes = plt.subplots(2, n_gens, figsize=(4 * n_gens, 8), squeeze=False)
@@ -279,13 +280,14 @@ def plot_liability_violin_by_generation(
         liab_col = f"liability{trait_num}"
         aff_col = f"affected{trait_num}"
 
+        liab_all = df_samples[liab_col].to_numpy()
+        aff_all = df_samples[aff_col].to_numpy().astype(bool)
         for col, gen in enumerate(gens):
             ax = axes[row, col]
-            gen_mask = df_samples["generation"] == gen
-            df_gen = df_samples.loc[gen_mask]
+            gen_mask = gens_arr == gen
 
-            liab = df_gen[liab_col].values
-            aff = df_gen[aff_col].values.astype(bool)
+            liab = liab_all[gen_mask]
+            aff = aff_all[gen_mask]
 
             if len(liab) > 1:
                 draw_split_violin(ax, liab[~aff], liab[aff], pos=0)
@@ -330,7 +332,7 @@ def plot_liability_violin_by_generation(
 
 
 def plot_liability_violin_by_sex_generation(
-    df_samples: pd.DataFrame,
+    df_samples: pl.DataFrame,
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
@@ -345,9 +347,10 @@ def plot_liability_violin_by_sex_generation(
         save_placeholder_plot(output_path, "No generation data")
         return
 
-    gens = sorted(df_samples["generation"].unique())
+    gens_arr = df_samples["generation"].to_numpy()
+    gens = sorted(np.unique(gens_arr).tolist())
     n_gens = len(gens)
-    sex_arr = df_samples["sex"].values
+    sex_arr = df_samples["sex"].to_numpy()
 
     _fig, axes = plt.subplots(2, n_gens, figsize=(5 * n_gens, 8), squeeze=False)
 
@@ -355,9 +358,11 @@ def plot_liability_violin_by_sex_generation(
         liab_col = f"liability{trait_num}"
         aff_col = f"affected{trait_num}"
 
+        liab_all = df_samples[liab_col].to_numpy()
+        aff_all = df_samples[aff_col].to_numpy().astype(bool)
         for col, gen in enumerate(gens):
             ax = axes[row, col]
-            gen_mask = df_samples["generation"] == gen
+            gen_mask = gens_arr == gen
             sex_prev: dict[str, str] = {}
 
             for sex_val, sex_label, pos in [
@@ -365,9 +370,8 @@ def plot_liability_violin_by_sex_generation(
                 (1, "M", 0.3),
             ]:
                 mask = gen_mask & (sex_arr == sex_val)
-                df_sub = df_samples.loc[mask]
-                liab = df_sub[liab_col].values
-                aff = df_sub[aff_col].values.astype(bool)
+                liab = liab_all[mask]
+                aff = aff_all[mask]
 
                 if len(liab) > 1:
                     draw_split_violin(ax, liab[~aff], liab[aff], pos=pos, width=0.5)
@@ -416,7 +420,7 @@ def plot_liability_violin_by_sex_generation(
 
 
 def plot_liability_components_by_generation(
-    df_samples: pd.DataFrame,
+    df_samples: pl.DataFrame,
     output_path: str | Path,
     scenario: str = "",
     subsample_note: str = "",
@@ -427,7 +431,8 @@ def plot_liability_components_by_generation(
     component value for affected (red), unaffected (grey), and overall (black)
     individuals per generation.  Prevalence annotated on x-tick labels.
     """
-    gens = sorted(df_samples["generation"].unique())
+    gens_arr = df_samples["generation"].to_numpy()
+    gens = sorted(np.unique(gens_arr).tolist())
     n_gen = len(gens)
     if n_gen == 0:
         save_placeholder_plot(output_path, "No generation data")
@@ -442,10 +447,11 @@ def plot_liability_components_by_generation(
             continue
 
         # Compute prevalence per generation (shared across columns)
+        aff_all = df_samples[aff_col].to_numpy().astype(bool)
         prev = []
         for gen in gens:
-            g = df_samples[df_samples["generation"] == gen]
-            prev.append(g[aff_col].mean() if len(g) > 0 else 0)
+            gen_mask = gens_arr == gen
+            prev.append(aff_all[gen_mask].mean() if gen_mask.any() else 0)
 
         for col_idx, comp in enumerate(components):
             comp_col = f"{comp}{trait_num}"
@@ -453,14 +459,15 @@ def plot_liability_components_by_generation(
                 continue
 
             ax = axes[row, col_idx]
+            comp_all = df_samples[comp_col].to_numpy()
             mean_aff, mean_unaff, mean_all = [], [], []
             for gen in gens:
-                g = df_samples[df_samples["generation"] == gen]
-                aff = g[g[aff_col]]
-                unaff = g[~g[aff_col]]
-                mean_aff.append(aff[comp_col].mean() if len(aff) > 0 else float("nan"))
-                mean_unaff.append(unaff[comp_col].mean() if len(unaff) > 0 else float("nan"))
-                mean_all.append(g[comp_col].mean() if len(g) > 0 else float("nan"))
+                gen_mask = gens_arr == gen
+                aff_vals = comp_all[gen_mask & aff_all]
+                unaff_vals = comp_all[gen_mask & ~aff_all]
+                mean_aff.append(aff_vals.mean() if len(aff_vals) > 0 else float("nan"))
+                mean_unaff.append(unaff_vals.mean() if len(unaff_vals) > 0 else float("nan"))
+                mean_all.append(comp_all[gen_mask].mean() if gen_mask.any() else float("nan"))
 
             ax.plot(gens, mean_aff, "o-", color=COLOR_AFFECTED, label="Affected", markersize=5)
             ax.plot(gens, mean_unaff, "s-", color=COLOR_UNAFFECTED, label="Unaffected", markersize=5)

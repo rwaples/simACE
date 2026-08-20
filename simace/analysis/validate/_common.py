@@ -5,11 +5,17 @@ helpers used by more than one validation module. Generic numerics live in
 :mod:`simace.core.numerics`.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from simace.core.pedigree_arrays import PedigreeArrays
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    from simace.core.pedigree_arrays import PedigreeArrays
 
 _MAX_CORR_PAIRS = 5000  # cap pair-correlation samples for cost
 _MIN_PAIRS_FOR_CORR = 10  # below this, skip the correlation check
@@ -63,3 +69,30 @@ def _subsample_pairs(
 def _extract_comp_vals(ped: PedigreeArrays) -> dict[str, np.ndarray]:
     """Pull A/C/E component arrays for both traits as numpy views (no copy)."""
     return {f"{c}{t}": ped[f"{c}{t}"] for c in ("A", "C", "E") for t in (1, 2)}
+
+
+def _unique_mating_pairs(df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays) -> tuple[np.ndarray, np.ndarray]:
+    """Return unique (mother, father) id arrays with both parents present.
+
+    Library-agnostic (ADR 0015): non-founder rows are selected with a NumPy
+    mask and matings deduplicated via an int64 pair key (ids are int32, so
+    ``base**2`` fits int64). Pairs come back in sorted-key order; every
+    consumer computes order-invariant statistics over them. Ascertainment
+    severs mother and father independently, so a row can pass the
+    ``mother != -1`` filter while carrying a severed father — pairs whose
+    parents are not both present in ``ped`` are dropped.
+    """
+    mothers_all = df["mother"].to_numpy()
+    fathers_all = df["father"].to_numpy()
+    mask = mothers_all != -1
+    m = mothers_all[mask].astype(np.int64)
+    f = fathers_all[mask].astype(np.int64)
+    if m.size == 0:
+        return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.int64)
+    # Shift fathers by +1 so a severed father (-1) keys injectively.
+    base = np.int64(max(int(m.max()), int(f.max())) + 2)
+    uniq = np.unique(m * base + (f + 1))
+    mothers = uniq // base
+    fathers = uniq % base - 1
+    both = ped.contains(mothers) & ped.contains(fathers)
+    return mothers[both], fathers[both]

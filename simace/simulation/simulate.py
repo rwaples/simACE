@@ -31,7 +31,7 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 import numpy as np
-import pandas as pd
+import polars as pl
 from scipy.spatial import cKDTree  # ty: ignore[unresolved-import]  # real class; scipy stubs omit it
 
 from simace.core._numba_utils import _ndtri_approx
@@ -1114,9 +1114,9 @@ def _fill_pedigree_slice(
     arrays["liability2"][s] = pheno[:, 3] + pheno[:, 4] + pheno[:, 5]
 
 
-def _arrays_to_dataframe(arrays: dict[str, np.ndarray], total_rows: int) -> pd.DataFrame:
+def _arrays_to_dataframe(arrays: dict[str, np.ndarray], total_rows: int) -> pl.DataFrame:
     """Convert pre-allocated arrays to a pedigree DataFrame."""
-    return pd.DataFrame({col: arrays[col][:total_rows] for col in _PED_COLUMNS})
+    return pl.DataFrame({col: arrays[col][:total_rows] for col in _PED_COLUMNS})
 
 
 def add_to_pedigree(
@@ -1126,8 +1126,8 @@ def add_to_pedigree(
     twins: np.ndarray,
     household_ids: np.ndarray,
     generation: int,
-    pedigree: pd.DataFrame | None = None,
-) -> pd.DataFrame:
+    pedigree: pl.DataFrame | None = None,
+) -> pl.DataFrame:
     """Add a generation to the pedigree DataFrame (backward-compatible wrapper).
 
     The internal simulation loop uses pre-allocated arrays for performance.
@@ -1137,7 +1137,7 @@ def add_to_pedigree(
     is_founder = pedigree is None
     id_offset = 0 if is_founder else len(pedigree)
     parent_offset = id_offset - n if not is_founder else 0
-    household_offset = 0 if is_founder else int(pedigree["household_id"].iloc[-1]) + 1
+    household_offset = 0 if is_founder else int(pedigree["household_id"][-1]) + 1
 
     arrays = _init_pedigree_arrays(n)
     _fill_pedigree_slice(
@@ -1156,7 +1156,7 @@ def add_to_pedigree(
     )
     df = _arrays_to_dataframe(arrays, n)
     if pedigree is not None:
-        return pd.concat([pedigree, df], ignore_index=True)
+        return pl.concat([pedigree, df], how="vertical")
     return df
 
 
@@ -1182,7 +1182,7 @@ def run_simulation(
     assort2: float | dict[int, float] = 0.0,
     assort_matrix: list[list[float]] | np.ndarray | None = None,
     mating_model: str = "standard",
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Run the full ACE simulation for two correlated traits.
 
     Variance components A (additive genetic), C (shared environment), and
@@ -1329,7 +1329,7 @@ def run_simulation(
     # Simulate generations
     burnin = G_sim - G_ped
 
-    # Pre-allocate pedigree arrays (avoids pd.concat per generation)
+    # Pre-allocate pedigree arrays (avoids frame concat per generation)
     total_individuals = N * G_ped
     if total_individuals > np.iinfo(np.int32).max:
         raise ValueError(

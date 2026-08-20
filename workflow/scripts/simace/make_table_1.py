@@ -3,7 +3,7 @@
 import argparse
 from pathlib import Path
 
-import pandas as pd
+import polars as pl
 
 # ---------------------------------------------------------------------
 # Configuration
@@ -72,14 +72,14 @@ PAPER_COL_ORDER = [
 # ---------------------------------------------------------------------
 
 
-def build_paper_table(df: pd.DataFrame) -> pd.DataFrame:
+def build_paper_table(df: pl.DataFrame) -> pl.DataFrame:
     """Collapse replication-level results into one row per scenario.
 
     Each numeric column is summarized as ``mean ± standard deviation``.
     """
     rows = []
 
-    for scenario, group in df.groupby("scenario", sort=False):
+    for (scenario,), group in df.group_by("scenario", maintain_order=True):
         row = {"scenario": scenario}
 
         for col in NUMERIC_COLS:
@@ -87,24 +87,24 @@ def build_paper_table(df: pd.DataFrame) -> pd.DataFrame:
                 continue
             mean = group[col].mean()
             sd = group[col].std()
-            if pd.notna(sd):
+            if sd is not None:
                 row[col] = f"{mean:.4f} ± {sd:.4f}"
             else:
                 row[col] = f"{mean:.4f}"
 
         rows.append(row)
 
-    paper_df = pd.DataFrame(rows)
+    paper_df = pl.DataFrame(rows)
 
     # Attach true simulation parameters (identical within each scenario)
     true_present = [c for c in TRUE_COLS if c in df.columns]
     if true_present:
-        true_vals = df.groupby("scenario", sort=False)[true_present].first().reset_index()
-        paper_df = paper_df.merge(true_vals, on="scenario", how="left")
+        true_vals = df.group_by("scenario", maintain_order=True).agg(pl.col(c).first() for c in true_present)
+        paper_df = paper_df.join(true_vals, on="scenario", how="left", maintain_order="left")
 
     # Enforce predefined column order
     ordered_cols = [c for c in PAPER_COL_ORDER if c in paper_df.columns]
-    return paper_df[ordered_cols]
+    return paper_df.select(ordered_cols)
 
 
 # ---------------------------------------------------------------------
@@ -112,7 +112,7 @@ def build_paper_table(df: pd.DataFrame) -> pd.DataFrame:
 # ---------------------------------------------------------------------
 
 
-def save_word_table(paper_df: pd.DataFrame, out_path: Path) -> Path:
+def save_word_table(paper_df: pl.DataFrame, out_path: Path) -> Path:
     """Save the summary table as a Word document using python-docx."""
     try:
         from docx import Document
@@ -148,7 +148,7 @@ def save_word_table(paper_df: pd.DataFrame, out_path: Path) -> Path:
     doc.add_paragraph("")
 
     # Create table
-    n_cols = paper_df.shape[1]
+    n_cols = paper_df.width
     table = doc.add_table(rows=1, cols=n_cols)
     table.alignment = WD_TABLE_ALIGNMENT.CENTER
     table.style = "Table Grid"
@@ -164,10 +164,10 @@ def save_word_table(paper_df: pd.DataFrame, out_path: Path) -> Path:
         run.font.size = Pt(8)
 
     # Data rows
-    for _, row in paper_df.iterrows():
+    for row in paper_df.iter_rows():
         cells = table.add_row().cells
         for i, val in enumerate(row):
-            text = "" if pd.isna(val) else str(val)
+            text = "" if val is None else str(val)
             p = cells[i].paragraphs[0]
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             run = p.add_run(text)
@@ -190,7 +190,7 @@ def main(summary_tsv: str, out_dir: str = "paper", word: bool = False) -> None:
     if not summary_path.exists():
         raise FileNotFoundError(f"Summary TSV not found: {summary_path.resolve()}")
 
-    df = pd.read_csv(summary_path, sep="\t")
+    df = pl.read_csv(summary_path, separator="\t", null_values=["NA", ""])
 
     if "scenario" not in df.columns:
         raise ValueError("Expected a 'scenario' column in the input file.")
@@ -201,10 +201,11 @@ def main(summary_tsv: str, out_dir: str = "paper", word: bool = False) -> None:
     # Build scenario-level summary table
     paper_df = build_paper_table(df)
     paper_file = out_path / "table_1.csv"
-    paper_df.to_csv(paper_file, index=False)
+    paper_df.write_csv(paper_file)
 
     print("\n=== Table 1 (mean ± SD across replications) ===")
-    print(paper_df.to_string(index=False))
+    with pl.Config(tbl_rows=-1, tbl_cols=-1):
+        print(paper_df)
 
     print("\nSaved files:")
     print(f"  {paper_file}")

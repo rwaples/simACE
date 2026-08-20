@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import polars as pl
 import pytest
 import yaml
 
@@ -134,36 +135,36 @@ def test_gather_returns_two_frames_with_distinct_granularity(two_rep_yamls):
 
 def test_gather_kind_column_distinguishes_gen_vs_transition(two_rep_yamls):
     _, series_df = gather_effective_size(two_rep_yamls)
-    var_kinds = series_df.loc[series_df["estimator"] == "ne_variance_family_size", "kind"].unique()
-    other_kinds = series_df.loc[series_df["estimator"] != "ne_variance_family_size", "kind"].unique()
-    assert list(var_kinds) == ["transition"]
-    assert list(other_kinds) == ["generation"]
+    var_kinds = series_df.filter(pl.col("estimator") == "ne_variance_family_size")["kind"].unique()
+    other_kinds = series_df.filter(pl.col("estimator") != "ne_variance_family_size")["kind"].unique()
+    assert var_kinds.to_list() == ["transition"]
+    assert other_kinds.to_list() == ["generation"]
 
 
 def test_gather_handles_null_ne(two_rep_yamls):
     # ne_long_term_contributions has ne: None — must surface as NaN, no crash.
     scalar_df, _ = gather_effective_size(two_rep_yamls)
-    ltc = scalar_df[scalar_df["estimator"] == "ne_long_term_contributions"]
-    assert ltc["ne"].isna().all()
+    ltc = scalar_df.filter(pl.col("estimator") == "ne_long_term_contributions")
+    assert ltc["ne"].is_nan().all()
 
 
 def test_gather_handles_missing_per_gen_entries(two_rep_yamls):
     # ne_inbreeding.ne_per_gen has explicit nulls at indices 0, 1, 4 — must be NaN.
     _, series_df = gather_effective_size(two_rep_yamls)
-    inb = series_df[(series_df["estimator"] == "ne_inbreeding") & (series_df["rep"] == 1)]
-    assert inb.loc[inb["index"].isin([0, 1, 4]), "ne"].isna().all()
-    assert inb.loc[inb["index"] == 2, "ne"].notna().all()
+    inb = series_df.filter((pl.col("estimator") == "ne_inbreeding") & (pl.col("rep") == 1))
+    assert inb.filter(pl.col("index").is_in([0, 1, 4]))["ne"].is_nan().all()
+    assert not inb.filter(pl.col("index") == 2)["ne"].is_nan().any()
 
 
 def test_gather_drift_columns_filled_only_for_relevant_estimators(two_rep_yamls):
     _, series_df = gather_effective_size(two_rep_yamls)
     # mean_f only on ne_inbreeding rows
-    assert series_df.loc[series_df["estimator"] != "ne_inbreeding", "mean_f"].isna().all()
-    assert series_df.loc[series_df["estimator"] == "ne_inbreeding", "mean_f"].notna().any()
+    assert series_df.filter(pl.col("estimator") != "ne_inbreeding")["mean_f"].is_nan().all()
+    assert not series_df.filter(pl.col("estimator") == "ne_inbreeding")["mean_f"].is_nan().all()
     # mean_theta only on ne_coancestry
-    assert series_df.loc[series_df["estimator"] != "ne_coancestry", "mean_theta"].isna().all()
+    assert series_df.filter(pl.col("estimator") != "ne_coancestry")["mean_theta"].is_nan().all()
     # v_** only on ne_variance_family_size
-    assert series_df.loc[series_df["estimator"] != "ne_variance_family_size", "v_mm"].isna().all()
+    assert series_df.filter(pl.col("estimator") != "ne_variance_family_size")["v_mm"].is_nan().all()
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,12 @@
 # DataFrame library boundaries: polars writes, pandas transports, numpy computes
 
+**Status: superseded by [ADR 0015](0015-polars-primary-dataframe-library.md)**
+(polars-primary migration, 2026-08-13). The measurements below remain valid
+evidence; the three-layer boundary and the deferral decision no longer apply.
+Note: ADR 0015 also found that `nan_to_null=False` (presented as load-bearing
+below) had inverted the historical on-disk null contract rather than preserved
+it — see ADR 0015's context section.
+
 An investigation into replacing pandas with polars measured three candidate
 changes. Only the narrowest of them earned its place, which leaves the codebase
 in a state that looks accidental unless the reasoning is written down: **polars

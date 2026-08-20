@@ -2,20 +2,16 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import numpy as np
-
-if TYPE_CHECKING:
-    import pandas as pd
+import polars as pl
 
 __all__ = ["filter_pedigree_to_observed"]
 
 
 def filter_pedigree_to_observed(
-    df_ped: pd.DataFrame,
-    observed_ids: np.ndarray | pd.Series,
-) -> pd.DataFrame:
+    df_ped: pl.DataFrame,
+    observed_ids: np.ndarray | pl.Series,
+) -> pl.DataFrame:
     """Restrict ``df_ped`` to ``observed_ids`` plus all ancestors needed for kinship.
 
     Iteratively walks parent pointers in ``df_ped`` from the observed set until
@@ -66,4 +62,4 @@ def filter_pedigree_to_observed(
         frontier = next_frontier
 
     keep_mask = np.isin(all_ids, list(closure))
-    return df_ped.loc[keep_mask].copy()
+    return df_ped.filter(pl.Series(keep_mask))

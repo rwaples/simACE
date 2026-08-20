@@ -21,9 +21,11 @@ Marked ``slow`` — full run is ~30 s in the ACE conda env.
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 from pedigree_graph import PedigreeGraph, compute_all_ne
+
+from simace.core.frames import pedigree_graph_input
 
 N = 200
 N_GENS = 10
@@ -31,7 +33,7 @@ N_REPS = 30
 TOL_FRAC = 0.10  # ±10 %
 
 
-def _build_wf_pedigree(rng: np.random.Generator, n: int = N, n_gens: int = N_GENS) -> pd.DataFrame:
+def _build_wf_pedigree(rng: np.random.Generator, n: int = N, n_gens: int = N_GENS) -> pl.DataFrame:
     """Wright–Fisher pedigree builder.
 
     Sex is fixed-alternating (M/F/M/F/…) to lock ``Nm = Nf = N/2``;
@@ -71,7 +73,7 @@ def _build_wf_pedigree(rng: np.random.Generator, n: int = N, n_gens: int = N_GEN
             for i in range(n)
         )
         next_id += n
-    return pd.DataFrame(rows)
+    return pl.DataFrame(rows)
 
 
 @pytest.mark.slow
@@ -82,7 +84,7 @@ def test_wf_monte_carlo_recovers_N():
 
     for _ in range(N_REPS):
         df = _build_wf_pedigree(rng)
-        pg = PedigreeGraph(df)
+        pg = PedigreeGraph(pedigree_graph_input(df))
         results = compute_all_ne(pg)
         for name, r in results.items():
             ne = r.ne

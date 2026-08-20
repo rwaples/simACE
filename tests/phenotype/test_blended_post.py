@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import polars as pl
+import polars.testing
 import pytest
 
 from simace.phenotype.blended_post import (
@@ -17,7 +19,7 @@ def _make_phenotype(
     n_per_gen: int = 5000,
     gens: tuple[int, ...] = (2, 3, 4),
     death_age: float | np.ndarray = 1e6,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """Synthesize a minimal phenotype DataFrame with A1/C1/E1 + L1/L2 columns.
 
     ``death_age`` may be a scalar (broadcast to every row) or an array of
@@ -44,7 +46,7 @@ def _make_phenotype(
                 {
                     "id": idx,
                     "generation": g,
-                    "sex": rng.integers(0, 2),
+                    "sex": int(rng.integers(0, 2)),
                     "A1": A1[i],
                     "C1": 0.0,
                     "E1": E1[i],
@@ -60,7 +62,12 @@ def _make_phenotype(
                     "death_censored1": False,
                 }
             )
-    return pd.DataFrame(rows)
+    return pl.DataFrame(rows)
+
+
+def _rates_by_gen(out: pl.DataFrame) -> dict[int, float]:
+    agg = out.group_by("generation").agg(pl.col("affected1").mean())
+    return dict(zip(agg["generation"].to_list(), agg["affected1"].to_list(), strict=True))
 
 
 class TestBlendedDiagnosis:
@@ -74,8 +81,7 @@ class TestBlendedDiagnosis:
             K_by_gen={2: 0.05, 3: 0.05, 4: 0.05},
         )
         # Per-gen K should be ~5% within sampling tolerance.
-        rates = out.groupby("generation")["affected1"].mean()
-        for g, rate in rates.items():
+        for g, rate in _rates_by_gen(out).items():
             assert 0.035 < rate < 0.065, f"gen {g} case rate {rate:.3f} too far from 5%"
 
     def test_per_gen_K_targets(self):
@@ -85,7 +91,7 @@ class TestBlendedDiagnosis:
         alpha = {2: 0.0, 3: 0.3, 4: 0.55}
         K = {2: 0.03, 3: 0.05, 4: 0.10}
         out = blended_diagnosis(pheno, alpha_by_gen=alpha, K_by_gen=K)
-        rates = out.groupby("generation")["affected1"].mean()
+        rates = _rates_by_gen(out)
         for g in (2, 3, 4):
             target = K[g]
             assert abs(rates[g] - target) < 0.01, f"gen {g}: realized K={rates[g]:.3f} vs target {target}"
@@ -103,7 +109,7 @@ class TestBlendedDiagnosis:
         # No NaNs or impossibly young onsets
         assert (out["t_observed1"] > 0).all()
         # age_censored1 is a boolean flag
-        assert out["age_censored1"].dtype == bool
+        assert out["age_censored1"].dtype == pl.Boolean
 
     def test_audit_columns_present(self):
         """Output should expose A_blend, C_blend, E_blend, liability_blend."""
@@ -125,7 +131,7 @@ class TestBlendedDiagnosis:
         K = {2: 0.05, 3: 0.05, 4: 0.05}
         out = blended_diagnosis(pheno, alpha_by_gen=alpha, K_by_gen=K)
         for g, a in alpha.items():
-            sub = out[out["generation"] == g]
+            sub = out.filter(pl.col("generation") == g)
             expected_A = (1 - a) * sub["A1"] + a * sub["A2"]
             np.testing.assert_allclose(sub["A_blend"], expected_A, atol=1e-5)
 
@@ -146,7 +152,7 @@ class TestBlendedDiagnosis:
 
     def test_missing_required_columns_raises(self):
         """phenotype lacking A1 or liability1 should raise."""
-        df = pd.DataFrame({"generation": [2, 2], "sex": [0, 1]})
+        df = pl.DataFrame({"generation": [2, 2], "sex": [0, 1]})
         with pytest.raises(ValueError, match="missing required columns"):
             blended_diagnosis(df, alpha_by_gen={2: 0.0}, K_by_gen={2: 0.05})
 
@@ -182,13 +188,13 @@ class TestBlendedDiagnosis:
         # Core invariant: nobody is observed past their death.
         assert (out["t_observed1"] <= out["death_age"]).all()
         # Status flags are mutually exclusive.
-        flags = out[["affected1", "age_censored1", "death_censored1"]].to_numpy()
+        flags = out.select("affected1", "age_censored1", "death_censored1").to_numpy()
         assert (flags.sum(axis=1) == 1).all()
         # Every row that is not affected and has death_age < MAX_AGE must be
         # death-censored at death_age (covers non-cases and late-onset cases).
-        unobserved = ~out["affected1"]
-        assert out.loc[unobserved, "death_censored1"].all()
-        np.testing.assert_allclose(out.loc[unobserved, "t_observed1"], 70.0)
+        unobserved = out.filter(~pl.col("affected1"))
+        assert unobserved["death_censored1"].all()
+        np.testing.assert_allclose(unobserved["t_observed1"], 70.0)
         # The population should still contain affected cases (strong cases
         # whose onset precedes death).
         assert out["affected1"].any()
@@ -204,3 +210,16 @@ class TestBlendedDiagnosis:
         )
         assert (~out["death_censored1"]).all()
         assert (out["t_observed1"] <= MAX_AGE).all()
+
+    def test_input_not_mutated(self):
+        rng = np.random.default_rng(12)
+        pheno = _make_phenotype(rng, n_per_gen=500, gens=(2,))
+        before = pheno.clone()
+        blended_diagnosis(pheno, alpha_by_gen={2: 0.5}, K_by_gen={2: 0.05})
+
+        polars.testing.assert_frame_equal(pheno, before)
+
+    def test_rejects_pandas_input(self):
+        df = pd.DataFrame({"generation": [2, 2], "sex": [0, 1]})
+        with pytest.raises(TypeError, match=r"polars DataFrame since the polars migration"):
+            blended_diagnosis(df, alpha_by_gen={2: 0.0}, K_by_gen={2: 0.05})

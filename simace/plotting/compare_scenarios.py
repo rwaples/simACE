@@ -37,10 +37,12 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
+import polars as pl
 from pedigree_graph import PAIR_KINSHIP, PedigreeGraph
 
+from simace.core.frames import pedigree_graph_input
 from simace.core.numerics import safe_corrcoef, safe_linregress
+from simace.core.parquet import load_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE, RELATIONSHIP_TYPES, expected_liability_corr
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import (
@@ -260,9 +262,9 @@ def compare_component_distributions(
         a_parts: list[np.ndarray] = []
         l_parts: list[np.ndarray] = []
         for path in reps:
-            df = pd.read_parquet(Path(path), columns=["generation", a_key, l_key])
+            df = load_parquet(Path(path), columns=["generation", a_key, l_key])
             if min_generation is not None:
-                df = df[df["generation"] >= min_generation]
+                df = df.filter(pl.col("generation") >= min_generation)
             a_parts.append(df[a_key].to_numpy())
             l_parts.append(df[l_key].to_numpy())
         per_scen_a.append(np.concatenate(a_parts))
@@ -389,16 +391,15 @@ def load_pedigree_estimates(
         f"E{trait}",
         f"liability{trait}",
     ]
-    df_full = pd.read_parquet(pedigree_path, columns=cols)
-    if min_generation is not None:
-        df = df_full[df_full["generation"] >= min_generation].reset_index(drop=True)
-    else:
-        df = df_full.reset_index(drop=True)
+    df_full = load_parquet(pedigree_path, columns=cols)
+    df = df_full.filter(pl.col("generation") >= min_generation) if min_generation is not None else df_full
 
     # Examples-page pedigree estimates extract at the analysis default depth.
     # NB: this is not plumbed from analysis.max_degree config — a scenario that
     # raises max_degree above the default still extracts at DEFAULT_MAX_DEGREE here.
-    pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=DEFAULT_MAX_DEGREE)
+    pairs = PedigreeGraph.from_subsample(pedigree_graph_input(df_full), pedigree_graph_input(df)).extract_pairs(
+        max_degree=DEFAULT_MAX_DEGREE
+    )
     liab = df[f"liability{trait}"].to_numpy()
 
     corrs: dict[str, float] = {}
@@ -411,12 +412,23 @@ def load_pedigree_estimates(
 
     # Midparent-offspring regression: offspring from filtered subset, parent
     # liabilities looked up in the full pedigree (may be pre-filter).
-    id_to_liab = pd.Series(df_full[f"liability{trait}"].to_numpy(), index=df_full["id"].to_numpy())
-    sub = df[(df["mother"] >= 0) & (df["father"] >= 0)]
-    if len(sub) >= 10:
-        mother_liab = id_to_liab.reindex(sub["mother"].to_numpy()).to_numpy()
-        father_liab = id_to_liab.reindex(sub["father"].to_numpy()).to_numpy()
-        offspring = sub[f"liability{trait}"].to_numpy()
+    full_ids = df_full["id"].to_numpy()
+    max_id = int(full_ids.max()) if len(full_ids) else -1
+    id_to_liab = np.full(max_id + 1, np.nan)
+    id_to_liab[full_ids] = df_full[f"liability{trait}"].to_numpy()
+
+    def _liab_lookup(ids: np.ndarray) -> np.ndarray:
+        # Mirrors the pandas reindex this replaced: absent/out-of-range -> NaN.
+        in_range = (ids >= 0) & (ids <= max_id)
+        return np.where(in_range, id_to_liab[np.clip(ids, 0, max(max_id, 0))], np.nan)
+
+    mothers_arr = df["mother"].to_numpy()
+    fathers_arr = df["father"].to_numpy()
+    parent_mask = (mothers_arr >= 0) & (fathers_arr >= 0)
+    if int(parent_mask.sum()) >= 10:
+        mother_liab = _liab_lookup(mothers_arr[parent_mask])
+        father_liab = _liab_lookup(fathers_arr[parent_mask])
+        offspring = df[f"liability{trait}"].to_numpy()[parent_mask]
         midparent = (mother_liab + father_liab) / 2.0
         mask = np.isfinite(midparent) & np.isfinite(offspring)
         if mask.sum() >= 10:
@@ -427,9 +439,9 @@ def load_pedigree_estimates(
     else:
         po_slope = float("nan")
 
-    vA = float(df[f"A{trait}"].var(ddof=1))
-    vC = float(df[f"C{trait}"].var(ddof=1))
-    vE = float(df[f"E{trait}"].var(ddof=1))
+    vA = float(np.var(df[f"A{trait}"].to_numpy(), ddof=1, dtype=np.float64))
+    vC = float(np.var(df[f"C{trait}"].to_numpy(), ddof=1, dtype=np.float64))
+    vE = float(np.var(df[f"E{trait}"].to_numpy(), ddof=1, dtype=np.float64))
     total = vA + vC + vE
     realized_h2 = vA / total if total > 0 else float("nan")
 
@@ -640,20 +652,33 @@ def load_sib_pair_liabilities(
     a_list: list[np.ndarray] = []
     b_list: list[np.ndarray] = []
     for path in pedigree_paths:
-        df = pd.read_parquet(
+        df = load_parquet(
             path,
             columns=["id", "mother", "father", "twin", "generation", liab_col],
         )
-        df = df[(df["mother"] >= 0) & (df["twin"] == -1)]
+        mothers = df["mother"].to_numpy()
+        keep = (mothers >= 0) & (df["twin"].to_numpy() == -1)
         if min_generation is not None:
-            df = df[df["generation"] >= min_generation]
-        df = df.sort_values(["mother", "father", "id"], kind="stable")
-        rank = df.groupby(["mother", "father"], sort=False).cumcount()
-        first = df.loc[rank == 0, ["mother", "father", liab_col]].rename(columns={liab_col: "a"})
-        second = df.loc[rank == 1, ["mother", "father", liab_col]].rename(columns={liab_col: "b"})
-        pairs = first.merge(second, on=["mother", "father"], how="inner")
-        a_list.append(pairs["a"].to_numpy(dtype=float, copy=False))
-        b_list.append(pairs["b"].to_numpy(dtype=float, copy=False))
+            keep &= df["generation"].to_numpy() >= min_generation
+        mothers = df["mother"].to_numpy()[keep].astype(np.int64)
+        fathers = df["father"].to_numpy()[keep].astype(np.int64)
+        ids = df["id"].to_numpy()[keep]
+        liab = df[liab_col].to_numpy()[keep].astype(float)
+        if mothers.size == 0:
+            continue
+        # First two children per (mother, father) mating, in ascending id
+        # order — the sort/groupby-cumcount/merge idiom this replaced.
+        # Fathers shift by +1 so a severed father (-1) keys injectively.
+        base = np.int64(max(int(mothers.max()), int(fathers.max())) + 2)
+        pair_key = mothers * base + (fathers + 1)
+        order = np.lexsort((ids, pair_key))
+        sorted_keys = pair_key[order]
+        starts = np.flatnonzero(np.r_[True, sorted_keys[1:] != sorted_keys[:-1]])
+        sizes = np.diff(np.r_[starts, len(sorted_keys)])
+        multi = starts[sizes >= 2]
+        liab_sorted = liab[order]
+        a_list.append(liab_sorted[multi])
+        b_list.append(liab_sorted[multi + 1])
     return np.concatenate(a_list), np.concatenate(b_list)
 
 
@@ -1024,13 +1049,16 @@ def compare_components_by_generation(
         a_by_gen: dict[int, list[np.ndarray]] = {g: [] for g in show_generations}
         l_by_gen: dict[int, list[np.ndarray]] = {g: [] for g in show_generations}
         for path in paths:
-            df = pd.read_parquet(Path(path), columns=["generation", a_key, l_key])
+            df = load_parquet(Path(path), columns=["generation", a_key, l_key])
+            gen_arr = df["generation"].to_numpy()
+            a_arr = df[a_key].to_numpy()
+            l_arr = df[l_key].to_numpy()
             for g in show_generations:
-                sub = df[df["generation"] == g]
-                if len(sub) == 0:
+                gen_mask = gen_arr == g
+                if not gen_mask.any():
                     continue
-                a_by_gen[g].append(sub[a_key].to_numpy())
-                l_by_gen[g].append(sub[l_key].to_numpy())
+                a_by_gen[g].append(a_arr[gen_mask])
+                l_by_gen[g].append(l_arr[gen_mask])
         per_scen_a.append({g: np.concatenate(v) if v else np.array([]) for g, v in a_by_gen.items()})
         per_scen_l.append({g: np.concatenate(v) if v else np.array([]) for g, v in l_by_gen.items()})
 
@@ -1125,11 +1153,11 @@ def load_pedigree_estimates_per_generation(
         f"E{trait}",
         f"liability{trait}",
     ]
-    df_full = pd.read_parquet(pedigree_path, columns=cols)
+    df_full = load_parquet(pedigree_path, columns=cols)
     if gens is None:
-        gens = sorted(int(g) for g in df_full["generation"].unique())
+        gens = sorted(int(g) for g in np.unique(df_full["generation"].to_numpy()))
 
-    pairs_full = PedigreeGraph(df_full).extract_pairs(max_degree=1)
+    pairs_full = PedigreeGraph(pedigree_graph_input(df_full)).extract_pairs(max_degree=1)
     gen_arr = df_full["generation"].to_numpy()
     liab_full = df_full[f"liability{trait}"].to_numpy()
     # float64 to match pandas Series.var(ddof=1) precision used previously.

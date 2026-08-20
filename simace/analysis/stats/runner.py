@@ -5,6 +5,8 @@ trait rows for computations, and writes ``stats_report.yaml`` plus
 ``plotting_sample.parquet``.
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import logging
@@ -12,14 +14,14 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
 import yaml
 from pedigree_graph import PedigreeGraph
 
-from simace.core.parquet import save_parquet
+from simace.core.frames import pedigree_graph_input
+from simace.core.parquet import load_parquet, save_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import to_native
@@ -58,6 +60,12 @@ from .incidence import (
 from .pedigree import compute_mean_family_size, compute_parent_status
 from .sampling import create_sample
 
+if TYPE_CHECKING:
+    import pandas as pd
+    import polars as pl
+
+    type _Frame = pd.DataFrame | pl.DataFrame
+
 logger = logging.getLogger(__name__)
 
 PEDIGREE_REPORT_COLUMNS = ["id", "mother", "father", "twin", "sex", "generation", "liability1", "liability2"]
@@ -80,22 +88,26 @@ def _log_elapsed(label: str, start: float) -> None:
     logger.info("%s completed in %.1fs", label, time.perf_counter() - start)
 
 
-def _read_pedigree(path: str | None) -> pd.DataFrame | None:
+def _read_pedigree(path: str | None) -> pl.DataFrame | None:
     if path is None:
         return None
-    return pd.read_parquet(path, columns=PEDIGREE_REPORT_COLUMNS)
+    return load_parquet(path, columns=PEDIGREE_REPORT_COLUMNS)
 
 
-def _same_ordered_ids(left: pd.DataFrame, right: pd.DataFrame) -> bool:
+def _same_ordered_ids(left: _Frame, right: _Frame) -> bool:
     """Return True when two frames contain the same ordered ``id`` column."""
     if len(left) != len(right):
         return False
-    return bool(np.array_equal(left["id"].to_numpy(copy=False), right["id"].to_numpy(copy=False)))
+    return bool(np.array_equal(left["id"].to_numpy(), right["id"].to_numpy()))
+
+
+def _n_unique_generations(df: _Frame) -> int:
+    return len(np.unique(df["generation"].to_numpy())) if "generation" in df.columns else 1
 
 
 def _build_relationship_context(
-    df: pd.DataFrame,
-    df_ped: pd.DataFrame | None,
+    df: _Frame,
+    df_ped: _Frame | None,
     max_degree: int,
 ) -> RelationshipContext:
     logger.info("Extracting relationship pairs...")
@@ -109,13 +121,13 @@ def _build_relationship_context(
             # Fast path for the common no-ascertainment case: the phenotype
             # and pedigree tables are the same ordered individuals, so a
             # subsample mask/remap would be pure overhead.
-            pg = PedigreeGraph(df)
+            pg = PedigreeGraph(pedigree_graph_input(df))
         else:
-            pg = PedigreeGraph.from_subsample(df_ped, df)
+            pg = PedigreeGraph.from_subsample(pedigree_graph_input(df_ped), pedigree_graph_input(df))
         pairs = pg.extract_pairs(max_degree=max_degree)
         full_counts = pg.count_pairs(max_degree=max_degree, scope="full")
     else:
-        pg = PedigreeGraph(df)
+        pg = PedigreeGraph(pedigree_graph_input(df))
         pairs = pg.extract_pairs(max_degree=max_degree)
         full_counts = None
     logger.info(
@@ -127,12 +139,12 @@ def _build_relationship_context(
 
 
 def build_stats_report(
-    df: pd.DataFrame,
+    df: _Frame,
     censor_age: float,
     *,
     seed: int = 42,
     gen_censoring: dict[int, list[float]] | None = None,
-    df_ped: pd.DataFrame | None = None,
+    df_ped: _Frame | None = None,
     max_degree: int = DEFAULT_MAX_DEGREE,
     case_ascertainment_ratio: float = 1.0,
 ) -> dict[str, Any]:
@@ -142,7 +154,7 @@ def build_stats_report(
     t0 = time.perf_counter()
     metadata = {
         "n_individuals": len(df),
-        "n_generations": int(df["generation"].nunique()) if "generation" in df.columns else 1,
+        "n_generations": _n_unique_generations(df),
     }
     if case_ascertainment_ratio != 1.0:
         metadata["case_ascertainment_ratio"] = case_ascertainment_ratio
@@ -192,7 +204,7 @@ def build_stats_report(
         pedigree["full"] = {
             "relationship_pair_counts": relationship_context.full_counts,
             "n_individuals": len(df_ped),
-            "n_generations": int(df_ped["generation"].nunique()) if "generation" in df_ped.columns else 1,
+            "n_generations": _n_unique_generations(df_ped),
         }
         logger.info(
             "Pedigree pair counts (from same graph): %s",
@@ -255,7 +267,7 @@ def main(
 ) -> None:
     """Compute all stats for a single replicate and write outputs."""
     t0 = time.perf_counter()
-    df_trait = pd.read_parquet(phenotype_path)
+    df_trait = load_parquet(phenotype_path)
     logger.info("Computing stats for %s (%d rows)", phenotype_path, len(df_trait))
     df_ped = _read_pedigree(pedigree_path)
     df = (

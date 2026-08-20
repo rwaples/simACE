@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
     import pandas as pd
+    import polars as pl
 
 __all__ = ["PedigreeArrays"]
 
@@ -134,18 +135,21 @@ class PedigreeArrays:
         self._max_id = max_id
 
     @classmethod
-    def from_frame(cls, df: pd.DataFrame) -> PedigreeArrays:
+    def from_frame(cls, df: pd.DataFrame | pl.DataFrame) -> PedigreeArrays:
         """Build from a pedigree DataFrame, taking every column as an array.
 
         Row *i* of ``df`` is position *i* here — the id order is preserved
         exactly, so positions returned by :meth:`positions` index any array
-        derived from ``df`` in its original row order.
+        derived from ``df`` in its original row order. Accepts pandas and
+        polars frames alike — the columns come out through ``.to_numpy()``
+        either way (zero-copy for the null-free numeric dtypes this pipeline
+        carries).
 
         Args:
             df: Pedigree with an ``id`` column.
 
         Returns:
-            A ``PedigreeArrays`` sharing ``df``'s column memory.
+            A ``PedigreeArrays`` over ``df``'s columns.
         """
         return cls({name: df[name].to_numpy() for name in df.columns})
 

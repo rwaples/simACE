@@ -4,12 +4,10 @@ Custom wrapper (not run_wrapper-based) because the rule has two named
 outputs and run_wrapper only writes one.
 """
 
-import pandas as pd
-
 from simace import _snakemake_tag, setup_logging
 from simace.ascertainment import cli as _cli
 from simace.ascertainment import copy_passthrough_if_possible, run_ascertainment
-from simace.core.parquet import save_parquet
+from simace.core.parquet import load_parquet, save_parquet
 from simace.core.snakemake_adapter import cli_or_snakemake
 
 
@@ -25,8 +23,8 @@ def _run() -> None:
     ):
         return
 
-    df_ped = pd.read_parquet(snakemake.input.pedigree)
-    df_trait = pd.read_parquet(snakemake.input.trait)
+    df_ped = load_parquet(snakemake.input.pedigree)
+    df_trait = load_parquet(snakemake.input.trait)
     df_ped_out, df_trait_out = run_ascertainment(
         df_ped,
         df_trait,

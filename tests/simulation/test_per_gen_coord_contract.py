@@ -20,6 +20,7 @@ contract" for the design discussion.
 
 from __future__ import annotations
 
+import polars as pl
 import pytest
 
 from simace.simulation.simulate import run_simulation
@@ -59,7 +60,7 @@ def test_per_gen_E_uses_raw_iter_keys():
         assort2=0.0,
     )
 
-    e1_by_gen = pedigree.groupby("generation")["E1"].var()
+    e1_by_gen = dict(pedigree.group_by("generation").agg(pl.col("E1").var()).iter_rows())
 
     # Output gen 0 corresponds to raw iter 5 (still E=0.5)
     # Output gens 1..4 correspond to raw iters 6..9 (E=1.0)
@@ -157,7 +158,7 @@ def test_per_gen_E_with_dense_raw_iter_schedule():
         assort1=0.0,
         assort2=0.0,
     )
-    e1_by_gen = pedigree.groupby("generation")["E1"].var()
+    e1_by_gen = dict(pedigree.group_by("generation").agg(pl.col("E1").var()).iter_rows())
     # Expected: output gen 0 = raw 5 → 0.5; gen 1 = raw 6 → 0.7; gen 2 = raw 7 → 0.9;
     # gens 3, 4 = raw 8, 9 → 1.0.
     expected = {0: 0.5, 1: 0.7, 2: 0.9, 3: 1.0, 4: 1.0}

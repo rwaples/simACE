@@ -96,6 +96,27 @@ def test_cli_rejects_output_with_multiple_inputs(tmp_path, sample_df, monkeypatc
         cli()
 
 
+def test_text_contract_matches_historical_pandas_rendering(tmp_path):
+    # R consumers parse this format; pin the pandas-era rendering byte-for-byte:
+    # True/False booleans, empty-field missing values, fixed-decimal floats.
+    df = pd.DataFrame(
+        {
+            "id": [0, 1, 2],
+            "x": [0.123456789, np.nan, 99.9],
+            "flag": [True, False, True],
+            "name": ["a", None, "c"],
+        }
+    )
+    pq = tmp_path / "in.parquet"
+    df.to_parquet(pq)
+
+    out = tmp_path / "out.tsv"
+    convert(str(pq), output_path=str(out), gzip=False)
+
+    expected = df.to_csv(sep="\t", index=False, float_format="%.4f")
+    assert out.read_text() == expected
+
+
 def test_cli_no_gzip_flag(tmp_path, sample_df, monkeypatch):
     pq = tmp_path / "in.parquet"
     sample_df.to_parquet(pq)

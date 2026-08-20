@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import polars as pl
 import pytest
 
 from simace.ascertainment import run_ascertainment
@@ -42,6 +43,15 @@ class TestConstruction:
     def test_missing_id_column_rejected(self):
         with pytest.raises(ValueError, match="requires an 'id' column"):
             PedigreeArrays({"sex": np.arange(3)})
+
+    def test_from_frame_accepts_polars(self):
+        import polars as pl
+
+        ped_pd = PedigreeArrays.from_frame(GAPPED)
+        ped_pl = PedigreeArrays.from_frame(pl.from_pandas(GAPPED))
+        assert ped_pl.columns == ped_pd.columns
+        np.testing.assert_array_equal(ped_pl.ids, ped_pd.ids)
+        np.testing.assert_array_equal(ped_pl.gather("A1", GAPPED["id"].to_numpy()), ped_pd["A1"])
 
     def test_duplicate_ids_rejected(self):
         with pytest.raises(ValueError, match="duplicated id"):
@@ -169,9 +179,9 @@ def severed_pedigree():
         assort2=0.0,
     )
     max_gen = int(ped["generation"].max())
-    phenotyped = ped[ped["generation"] >= max_gen - 1].reset_index(drop=True)
+    phenotyped = ped.filter(pl.col("generation") >= max_gen - 1)
     rng = np.random.default_rng(0)
-    trait = pd.DataFrame(
+    trait = pl.DataFrame(
         {
             "id": phenotyped["id"].to_numpy(),
             "generation": phenotyped["generation"].to_numpy(),
@@ -203,25 +213,26 @@ class TestSeveredParentPedigree:
         ped = PedigreeArrays.from_frame(severed_pedigree)
         parents = severed_pedigree[col].to_numpy()
         assert (parents == -1).any(), f"no severed {col} in fixture"
-        expected = pd.Series(parents).isin(severed_pedigree["id"]).to_numpy()
+        expected = np.isin(parents, severed_pedigree["id"].to_numpy())
         np.testing.assert_array_equal(ped.contains(parents), expected)
 
     def test_reproduces_the_am_relatedness_parent_filter(self, severed_pedigree):
         """The exact idiom at am_relatedness.py:84, which sees these -1s."""
         ped = PedigreeArrays.from_frame(severed_pedigree)
-        indexed = severed_pedigree.set_index("id")
-        non_founders = severed_pedigree[severed_pedigree["mother"] != -1]
-        pairs = non_founders[["mother", "father"]].drop_duplicates()
+        all_ids = severed_pedigree["id"].to_numpy()
+        non_founders = severed_pedigree.filter(pl.col("mother") != -1)
+        pairs = non_founders.select("mother", "father").unique(maintain_order=True)
         mother, father = pairs["mother"].to_numpy(), pairs["father"].to_numpy()
         assert (father == -1).any(), "fixture should retain a mother-only row"
 
-        expected = pairs["mother"].isin(indexed.index).to_numpy() & pairs["father"].isin(indexed.index).to_numpy()
+        expected = np.isin(mother, all_ids) & np.isin(father, all_ids)
         np.testing.assert_array_equal(ped.contains(mother) & ped.contains(father), expected)
 
         # And the surviving pairs still gather identically to the .loc they replace.
+        lookup = dict(zip(all_ids.tolist(), severed_pedigree["A1"].to_list(), strict=True))
         kept_m, kept_f = mother[expected], father[expected]
-        np.testing.assert_array_equal(ped.gather("A1", kept_m), indexed.loc[kept_m, "A1"].to_numpy())
-        np.testing.assert_array_equal(ped.gather("A1", kept_f), indexed.loc[kept_f, "A1"].to_numpy())
+        np.testing.assert_array_equal(ped.gather("A1", kept_m), np.array([lookup[i] for i in kept_m], dtype=np.float32))
+        np.testing.assert_array_equal(ped.gather("A1", kept_f), np.array([lookup[i] for i in kept_f], dtype=np.float32))
 
     def test_gathering_severed_parents_raises_rather_than_wrapping(self, severed_pedigree):
         """Without the guard, pos[-1] would return the last row's values."""
@@ -233,7 +244,7 @@ class TestSeveredParentPedigree:
     def test_severed_twin_links_also_handled(self, severed_pedigree):
         ped = PedigreeArrays.from_frame(severed_pedigree)
         twin = severed_pedigree["twin"].to_numpy()
-        expected = pd.Series(twin).isin(severed_pedigree["id"]).to_numpy()
+        expected = np.isin(twin, severed_pedigree["id"].to_numpy())
         np.testing.assert_array_equal(ped.contains(twin), expected)
 
 

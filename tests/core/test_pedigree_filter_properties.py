@@ -8,7 +8,7 @@ hand-built topologies cannot exercise.
 """
 
 import numpy as np
-import pandas as pd
+import polars as pl
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -25,7 +25,7 @@ def _pedigree_and_observed(draw):
         choices = st.sampled_from([-1, absent, *range(i)])
         mothers.append(draw(choices))
         fathers.append(draw(choices))
-    df = pd.DataFrame(
+    df = pl.DataFrame(
         {
             "id": np.arange(n),
             "mother": np.array(mothers, dtype=np.int64),
@@ -39,9 +39,9 @@ def _pedigree_and_observed(draw):
     return df, observed
 
 
-def _parent_map(df: pd.DataFrame) -> dict[int, tuple[int, int]]:
+def _parent_map(df: pl.DataFrame) -> dict[int, tuple[int, int]]:
     """Map each id to its ``(mother, father)`` pair."""
-    return dict(zip(df["id"].tolist(), zip(df["mother"].tolist(), df["father"].tolist(), strict=True), strict=True))
+    return dict(zip(df["id"].to_list(), zip(df["mother"].to_list(), df["father"].to_list(), strict=True), strict=True))
 
 
 @given(_pedigree_and_observed())
@@ -49,8 +49,8 @@ def test_closure_subset_and_ancestor_closed(case):
     df, observed = case
     out = filter_pedigree_to_observed(df, observed)
 
-    kept = set(out["id"].tolist())
-    present = set(df["id"].tolist())
+    kept = set(out["id"].to_list())
+    present = set(df["id"].to_list())
     parents = _parent_map(df)
 
     # subset + every observed id retained
@@ -78,7 +78,7 @@ def test_closure_is_minimal(case):
     df, observed = case
     out = filter_pedigree_to_observed(df, observed)
 
-    kept = set(out["id"].tolist())
+    kept = set(out["id"].to_list())
     parents = _parent_map(df)
     obs = set(observed.tolist())
 

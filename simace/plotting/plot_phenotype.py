@@ -17,8 +17,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pandas as pd
+import polars as pl
 
+from simace.core.parquet import load_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_am_equilibrium import plot_am_equilibrium
@@ -79,7 +80,7 @@ class RenderContext:
     """Shared inputs handed to every phenotype plot renderer."""
 
     all_stats: list[dict]
-    df_samples: pd.DataFrame
+    df_samples: pl.DataFrame
     scenario: str
     censor_age: float
     subsample_note: str
@@ -332,11 +333,14 @@ def main(
     payloads = [load_yaml(p) for p in plot_payload_paths]
     all_stats = plotting_report_views(reports, payloads)
 
-    df_samples = pd.concat([pd.read_parquet(p) for p in sample_paths], ignore_index=True)
+    df_samples = pl.concat([load_parquet(p) for p in sample_paths], how="vertical")
     subsample_note = ""
     if len(df_samples) > MAX_PLOT_POINTS:
         original_n = len(df_samples)
-        df_samples = df_samples.sample(n=MAX_PLOT_POINTS, random_state=42).reset_index(drop=True)
+        # Plotting-only downsample (ADR 0015 decision 14): deterministic at a
+        # fixed seed, but selects different row IDs than the pandas-era
+        # `.sample(random_state=42)` — allowed for plot inputs only.
+        df_samples = df_samples.sample(n=MAX_PLOT_POINTS, seed=42)
         subsample_note = f"Plotting sample: {MAX_PLOT_POINTS:,} of {original_n:,} shown"
 
     # Resolved scenario parameters (from inputs.parameters) reconstructed into

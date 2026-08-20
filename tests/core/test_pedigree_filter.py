@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 from simace.core.pedigree_filter import filter_pedigree_to_observed
 
 
-def _ped(rows: list[tuple[int, int, int]]) -> pd.DataFrame:
+def _ped(rows: list[tuple[int, int, int]]) -> pl.DataFrame:
     """Build a minimal pedigree DataFrame from ``(id, mother, father)`` tuples."""
-    return pd.DataFrame(rows, columns=["id", "mother", "father"])
+    return pl.DataFrame(rows, schema=["id", "mother", "father"], orient="row")
 
 
 def test_empty_observed_returns_empty():
@@ -37,7 +37,7 @@ def test_single_observed_recovers_full_ancestry():
         ]
     )
     out = filter_pedigree_to_observed(df_ped, np.array([6]))
-    assert sorted(out["id"].tolist()) == [0, 1, 2, 3, 4, 5, 6]
+    assert sorted(out["id"].to_list()) == [0, 1, 2, 3, 4, 5, 6]
 
 
 def test_late_gen_only_recovers_full_pedigree():
@@ -45,14 +45,14 @@ def test_late_gen_only_recovers_full_pedigree():
     # Two-gen pedigree: 0,1 founders, 2,3 are kids
     df_ped = _ped([(0, -1, -1), (1, -1, -1), (2, 1, 0), (3, 1, 0)])
     out = filter_pedigree_to_observed(df_ped, np.array([2, 3]))
-    assert sorted(out["id"].tolist()) == [0, 1, 2, 3]
+    assert sorted(out["id"].to_list()) == [0, 1, 2, 3]
 
 
 def test_founder_observed_returns_just_self():
     """A founder has no ancestors to add."""
     df_ped = _ped([(0, -1, -1), (1, -1, -1), (2, 1, 0)])
     out = filter_pedigree_to_observed(df_ped, np.array([0]))
-    assert out["id"].tolist() == [0]
+    assert out["id"].to_list() == [0]
 
 
 def test_parent_absent_from_df_ped_halts_traversal():
@@ -61,7 +61,7 @@ def test_parent_absent_from_df_ped_halts_traversal():
     df_ped = _ped([(0, -1, -1), (2, 99, 0)])
     out = filter_pedigree_to_observed(df_ped, np.array([2]))
     # 2 + father (0) survive; mother 99 is omitted (not present)
-    assert sorted(out["id"].tolist()) == [0, 2]
+    assert sorted(out["id"].to_list()) == [0, 2]
 
 
 def test_unobserved_sibling_not_included():
@@ -70,7 +70,7 @@ def test_unobserved_sibling_not_included():
     df_ped = _ped([(0, -1, -1), (1, -1, -1), (2, 1, 0), (3, 1, 0)])
     out = filter_pedigree_to_observed(df_ped, np.array([2]))
     # 3 is a sibling, not an ancestor — must be excluded
-    assert sorted(out["id"].tolist()) == [0, 1, 2]
+    assert sorted(out["id"].to_list()) == [0, 1, 2]
 
 
 def test_raises_when_observed_id_missing():
@@ -82,7 +82,7 @@ def test_raises_when_observed_id_missing():
 
 def test_preserves_row_order_and_extra_columns():
     """Filter preserves original row order and any additional columns."""
-    df_ped = pd.DataFrame(
+    df_ped = pl.DataFrame(
         {
             "id": [0, 1, 2, 3],
             "mother": [-1, -1, 1, 1],
@@ -93,6 +93,23 @@ def test_preserves_row_order_and_extra_columns():
     )
     out = filter_pedigree_to_observed(df_ped, np.array([2]))
     # Order: 0, 1, 2 — same as input order
-    assert out["id"].tolist() == [0, 1, 2]
-    assert out["sex"].tolist() == [1, 0, 1]
-    assert out["generation"].tolist() == [0, 0, 1]
+    assert out["id"].to_list() == [0, 1, 2]
+    assert out["sex"].to_list() == [1, 0, 1]
+    assert out["generation"].to_list() == [0, 0, 1]
+
+
+def test_accepts_polars_series_seeds():
+    """Seeds may arrive as a pl.Series; result is a polars frame with the closure rows."""
+    df_ped = pl.DataFrame(
+        {
+            "id": [0, 1, 2, 3],
+            "mother": [-1, -1, 1, 1],
+            "father": [-1, -1, 0, 0],
+            "sex": [1, 0, 1, 0],
+        }
+    )
+    out = filter_pedigree_to_observed(df_ped, pl.Series([2]))
+
+    assert isinstance(out, pl.DataFrame)
+    assert out["id"].to_list() == [0, 1, 2]
+    assert out["sex"].to_list() == [1, 0, 1]
