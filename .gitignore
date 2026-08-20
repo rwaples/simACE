@@ -31,8 +31,8 @@ site/
 # Conda environment
 env/
 
-# uv-managed development environment (optional simACE dev loop; uv.lock is tracked)
-.venv/
+# pixi-managed canonical simACE environment (ADR 0016; pixi.lock is tracked)
+.pixi/
 
 # Jupyter
 .ipynb_checkpoints/

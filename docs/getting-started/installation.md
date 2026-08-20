@@ -27,27 +27,26 @@ simace only. If you have the `fitACE` checkout alongside simACE (at
 conda env update -n simACE -f envs/environment-fitace.yml
 ```
 
-## Optional: uv development environment
+## pixi: the canonical simACE environment (Linux)
 
-For simACE-only development checks (pytest, Ruff, ty) you can use
-[uv](https://docs.astral.sh/uv/) with the committed `uv.lock` instead of conda.
-Conda remains the reference environment for Snakemake pipelines and all
-scientific execution — the uv environment covers only the edit–test loop.
-The supported uv release is pinned in `pyproject.toml`
-(`tool.uv.required-version`).
+On Linux, simACE work runs in a locked [pixi](https://pixi.sh) environment
+(ADR 0016) covering the Snakemake pipeline and every development check. The
+supported pixi release is pinned in `pixi.toml` (`requires-pixi`).
 
 ```bash
-uv sync --locked --extra test --extra plot --extra typecheck
-uv run --no-sync pytest tests/
-uv run --no-sync ruff check
-uv run --no-sync ty check
+pixi install --locked          # materialize .pixi/ from the committed pixi.lock
+pixi run pytest tests/
+pixi run ruff check
+pixi run ty check
+pixi run snakemake --cores 4 results/test/small_test/scenario.done
 ```
 
-`uv sync --locked` validates `uv.lock` and refreshes the root `.venv/`;
-`uv run --no-sync` keeps individual commands from re-syncing or narrowing the
-installed extras. Normal commands never rewrite `uv.lock` — dependency
-upgrades are deliberate lock-update work (`uv lock --upgrade`, review the
-`uv.lock` diff, then re-run the four commands above).
+Normal commands never rewrite `pixi.lock` — dependency upgrades are deliberate
+lock-update work (edit `pixi.toml`, run `pixi lock`, review the diff, update
+`envs/environment.yml` in the same commit, then re-run the checks above).
+
+The conda environment remains the path for macOS, for combined simACE + fitACE
+development, and for editable `pedigree-graph` work (see `RELEASE.md`).
 
 ## Verify installation
 

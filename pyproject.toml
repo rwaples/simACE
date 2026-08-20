@@ -63,18 +63,6 @@ include = ["simace*"]
 
 [tool.setuptools_scm]
 
-# uv is an optional, locked environment for simACE-only development checks
-# (pytest / ruff / ty); conda remains the reference environment for pipeline
-# and scientific execution (see CLAUDE.md). pip ignores this section.
-[tool.uv]
-required-version = ">=0.12.3,<0.13"
-# Pin the lock to the scientific stack validated against the golden simulation
-# digests; upgrades beyond these series are deliberate lock-update work.
-constraint-dependencies = [
-    "numpy==2.4.*",
-    "numba==0.66.*",
-]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 norecursedirs = ["fitACE", ".git", ".snakemake", "external", "site", ".hypothesis"]

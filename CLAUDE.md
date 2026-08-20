@@ -21,11 +21,12 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 
 ## Snakemake
 
+- Runs in the pixi env: `pixi run snakemake …` (ADR 0016)
 - Root `Snakefile` is the entry point — not `-s workflow/Snakefile`
 - Use `--cores 4` running one scenario, `--cores 8` for multiple scenarios, `--cores 1` for debugging. 
 - Always dry-run (`-n`) before long runs.
 - Targets are per-scenario: `results/{folder}/{scenario}/{scenario,simulate,phenotype,validate,stats}.done`
-- Force-rebuild plot atlas (HTML is the default artifact; PDF is on-demand): `snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.html` (or `.../atlas.pdf` for the PDF export)
+- Force-rebuild plot atlas (HTML is the default artifact; PDF is on-demand): `pixi run snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.html` (or `.../atlas.pdf` for the PDF export)
 
 ## Plotting
 
@@ -35,8 +36,8 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 
 ## Key Rules
 
-- The `simACE` conda env is always active. Do NOT use `conda run -n simACE` — run commands directly.
-- An optional locked uv environment (`uv sync --locked --extra test --extra plot --extra typecheck`, then `uv run --no-sync pytest|ruff|ty`) is allowed for simACE-only development checks. Conda remains mandatory for Snakemake/pipeline/scientific commands and all fitACE work. Normal uv commands must not rewrite `uv.lock`.
+- **Environment routing (ADR 0016): simACE work = pixi, family work = conda.** Every simACE-scoped command runs `pixi run <cmd>` against the committed `pixi.lock` (`pixi install --locked` to materialize `.pixi/`). The always-active `simACE` conda env is the family environment: fitACE + sisters, editable pedigree-graph, and `tools/typecheck_family.py` run there directly (never `conda run -n simACE`).
+- `pixi.toml` is the authoritative simACE pin source; any dependency bump updates `envs/environment.yml` in the same commit (fitACE layers on it). Normal pixi commands must not rewrite `pixi.lock`; upgrades are deliberate (`pixi lock` after a manifest edit, review the diff).
 
 ## Code review gotchas (statistical correctness)
 
@@ -135,17 +136,17 @@ Thirteen related repos, all under `rwaples/` on GitHub. simACE is the umbrella w
 
 ## Testing
 
-- Full suite: `pytest tests/ -v`
-- Single module: `pytest tests/simulation/test_simulate.py -v`
+- Full suite: `pixi run pytest tests/ -v`
+- Single module: `pixi run pytest tests/simulation/test_simulate.py -v`
 - Run relevant tests before commit
-- Smoke test: `snakemake --cores 4 results/test/small_test/scenario.done`
+- Smoke test: `pixi run snakemake --cores 4 results/test/small_test/scenario.done`
 
 ## Linting
 
-- Check: `ruff check`
-- Auto-fix: `ruff check --fix`
-- Format Python: `ruff format`
-- Format Snakemake: `snakefmt workflow/rules/**/*.smk Snakefile`
+- Check: `pixi run ruff check`
+- Auto-fix: `pixi run ruff check --fix`
+- Format Python: `pixi run ruff format`
+- Format Snakemake: `pixi run snakefmt workflow/rules/**/*.smk Snakefile`
 - Run `ruff check` with **no extra `--select`**. The configured rules (incl. `D`/pydocstyle) plus the `ignore` and `per-file-ignores` in `pyproject.toml` are authoritative. Passing any `--select` (e.g. `--select D`) discards those ignores and surfaces false positives.
 
 ## Documentation & Citations

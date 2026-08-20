@@ -31,10 +31,11 @@ conda activate simACE
 pytest tests/           # unit tests, should complete in ~1s
 ```
 
-Optional: a locked [uv](https://docs.astral.sh/uv/) environment covers the
-simACE-only development checks (pytest / Ruff / ty) — see
-[installation](docs/getting-started/installation.md). Conda remains the
-reference environment for pipelines and scientific execution.
+Linux users: the canonical simACE environment is a locked
+[pixi](https://pixi.sh) environment covering the pipeline and all development
+checks — see [installation](docs/getting-started/installation.md). The conda
+environment above remains the path for macOS and for combined
+simACE + fitACE development.
 
 ## Quick start
 
