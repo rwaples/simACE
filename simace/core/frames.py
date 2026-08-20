@@ -1,10 +1,14 @@
-"""Frame-library compatibility helpers (transitional, ADR 0015).
+"""Frame-library compatibility helpers (ADR 0015).
 
-The external ``pedigree_graph`` package accepts ``dict[str, np.ndarray]`` and
-pandas frames but not (yet) polars. :func:`pedigree_graph_input` is the NumPy
-dict escape hatch the family uses so polars callers never exercise pandas
-compatibility. Once pedigree-graph's structural frame protocol lands, polars
-frames pass natively and this helper reduces to the identity for them too.
+``pedigree_graph`` grew a structural ``FrameLike`` protocol that accepts polars
+directly, but the family is pinned to a release predating it, and that pin is
+deliberate: pair-extraction changes upstream can silently bias heritability
+(CLAUDE.md gotcha #4). :func:`pedigree_graph_input` is the NumPy dict escape
+hatch that spans the gap, so polars callers never exercise pandas
+compatibility.
+
+Retire this once the pin moves to a release carrying ``FrameLike``: polars
+frames then pass natively and the helper reduces to the identity.
 """
 
 from __future__ import annotations

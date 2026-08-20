@@ -10,7 +10,7 @@ Cross-library compat is retained here: pandas-written files (pandas' own
 ``to_parquet``) must load as null-carrying polars frames.
 
 The EPIMIGHT emitter's int8/int16 schema freeze is covered where that emitter
-lives (fitACE_epimight, Wave 2); the narrow-integer mechanics it relies on are
+lives (fitACE_epimight); the narrow-integer mechanics it relies on are
 covered here via the writer's int32/int8 mappings.
 """
 
@@ -114,7 +114,7 @@ class TestCrossLibraryRoundTrip:
         out = tmp_path / "trait.parquet"
         save_parquet(pl.DataFrame({"id": [0, 1], "t1": [None, 30.0]}), out)
         back = pd.read_parquet(out)
-        # pandas re-conflates null as NaN — the transitional consumers' view
+        # pandas re-conflates null as NaN — what the allowlisted pandas edges see
         assert np.isnan(back["t1"].to_numpy()[0])
         assert back["t1"].to_numpy()[1] == np.float32(30.0)
 

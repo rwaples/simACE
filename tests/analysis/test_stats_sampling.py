@@ -101,7 +101,7 @@ class TestCreateSample:
         assert np.all(np.diff(idx) >= 0)
 
     def test_pandas_input_rejected_with_typeerror(self):
-        """The public boundary is polars-only (ADR 0015 Wave 2)."""
+        """The public boundary is polars-only (ADR 0015)."""
         pdf = pd.DataFrame(
             {
                 "id": [0, 1, 2],

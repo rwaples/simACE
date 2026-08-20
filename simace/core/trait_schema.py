@@ -5,7 +5,7 @@ demography, ACE components, and liabilities live in the corresponding pedigree
 parquet. Consumers that need a self-contained in-memory frame should call
 :func:`hydrate_trait` with the appropriate pedigree frame.
 
-Polars-only since the Wave 2 boundary break (ADR 0015): pandas frames are
+Polars-only (ADR 0015): pandas frames are
 rejected with an actionable ``TypeError`` — convert with
 ``pl.from_pandas(df)`` at the call site.
 """
@@ -91,7 +91,7 @@ def _require_unique_id(df: pl.DataFrame, *, where: str) -> None:
 
 
 def _require_polars(df: object, *, where: str) -> pl.DataFrame:
-    """Reject non-polars frames with an actionable error (ADR 0015 Wave 2)."""
+    """Reject non-polars frames with an actionable error (ADR 0015)."""
     if not isinstance(df, pl.DataFrame):
         raise TypeError(
             f"{where} must be a polars DataFrame since the polars migration "
@@ -168,7 +168,7 @@ def hydrate_trait(
         except the duplicate ``id``.
 
     Raises:
-        TypeError: If either frame is not a polars DataFrame (ADR 0015 Wave 2).
+        TypeError: If either frame is not a polars DataFrame (ADR 0015).
         ValueError: If required columns are missing, IDs are duplicated or
             missing, or requested pedigree columns collide with trait columns.
     """

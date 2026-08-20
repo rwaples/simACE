@@ -76,7 +76,7 @@ def blended_diagnosis(
     """Return a copy of `phenotype` with trait-1 case status redefined.
 
     Cross-repo consumer: fitACE's ``workflow/scripts/blended_phenotype.py``.
-    Polars-only since the Wave 2 boundary break (ADR 0015): pandas input is
+    Polars-only (ADR 0015): pandas input is
     rejected with an actionable ``TypeError``.
 
     Args:

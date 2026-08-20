@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
     import polars as pl
 
-    # Polars-only since the Wave 2 boundary break (ADR 0015). assert_schema
+    # Polars-only (ADR 0015). assert_schema
     # enforces both frame type and eagerness at every stage boundary.
     type _Frame = pl.DataFrame
 

@@ -1,8 +1,9 @@
 """Censoring window, confusion-matrix, cascade, and person-years statistics.
 
-Library-agnostic over pandas/polars input (transitional, ADR 0015): columns
-come out through ``.to_numpy()`` and all slicing runs on NumPy masks, so both
-frame libraries produce identical results.
+Library-agnostic by design (ADR 0015): columns come out through
+``.to_numpy()`` and all slicing runs on NumPy masks, so any frame exposing
+that interface yields identical results. polars is the canonical caller; the
+NumPy boundary is a deliberate contract, not a migration leftover.
 """
 
 from __future__ import annotations

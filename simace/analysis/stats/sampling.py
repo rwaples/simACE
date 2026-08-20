@@ -18,7 +18,7 @@ def create_sample(
     14). Cross-repo consumer: fitACE.
 
     Raises:
-        TypeError: If ``df`` is not a polars DataFrame (ADR 0015 Wave 2).
+        TypeError: If ``df`` is not a polars DataFrame (ADR 0015).
     """
     if not isinstance(df, pl.DataFrame):
         raise TypeError(

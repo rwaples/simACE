@@ -12,7 +12,7 @@ for compact storage; integer narrowing is range-checked, so overflow raises
 instead of wrapping. Reads return an eager ``pl.DataFrame`` via
 :func:`load_parquet`.
 
-Polars-only since the Wave 2 boundary break (ADR 0015): pandas frames are
+Polars-only (ADR 0015): pandas frames are
 rejected with an actionable ``TypeError`` — convert with
 ``pl.from_pandas(df)`` at the call site. Reads go through
 :func:`load_parquet`.
@@ -91,7 +91,7 @@ def save_parquet(df: pl.DataFrame, path: Any, **kwargs: Any) -> None:
             ``polars.DataFrame.write_parquet``.
 
     Raises:
-        TypeError: If ``df`` is not a polars DataFrame (ADR 0015 Wave 2) —
+        TypeError: If ``df`` is not a polars DataFrame (ADR 0015) —
             convert with ``pl.from_pandas(df)`` at the call site.
     """
     if not isinstance(df, pl.DataFrame):

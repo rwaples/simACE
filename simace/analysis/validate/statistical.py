@@ -1,7 +1,9 @@
 """Variance-component statistical checks (founder variances, correlations).
 
-Library-agnostic over pandas/polars input (transitional, ADR 0015): columns
-come out through ``.to_numpy()`` and all grouping/slicing runs in NumPy.
+Library-agnostic by design (ADR 0015): columns come out through
+``.to_numpy()`` and all grouping/slicing runs in NumPy, so any frame exposing
+that interface yields identical results. polars is the canonical caller; the
+NumPy boundary is a deliberate contract, not a migration leftover.
 """
 
 from __future__ import annotations
