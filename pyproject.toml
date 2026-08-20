@@ -10,7 +10,7 @@ requires-python = ">=3.13"
 dependencies = [
     # Minor-capped: pair extraction / PAIR_KINSHIP changes upstream can silently
     # bias fit_ace heritability (CLAUDE.md gotcha #4) — bump deliberately.
-    "pedigree-graph>=0.6,<0.7",
+    "pedigree-graph>=0.7,<0.8",
     "numpy>=2.2,<3",
     "scipy>=1.14,<2",
     "polars>=1.43.2,<2",

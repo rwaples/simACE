@@ -40,7 +40,6 @@ import numpy as np
 import polars as pl
 from pedigree_graph import PAIR_KINSHIP, PedigreeGraph
 
-from simace.core.frames import pedigree_graph_input
 from simace.core.numerics import safe_corrcoef, safe_linregress
 from simace.core.parquet import load_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE, RELATIONSHIP_TYPES, expected_liability_corr
@@ -397,9 +396,7 @@ def load_pedigree_estimates(
     # Examples-page pedigree estimates extract at the analysis default depth.
     # NB: this is not plumbed from analysis.max_degree config — a scenario that
     # raises max_degree above the default still extracts at DEFAULT_MAX_DEGREE here.
-    pairs = PedigreeGraph.from_subsample(pedigree_graph_input(df_full), pedigree_graph_input(df)).extract_pairs(
-        max_degree=DEFAULT_MAX_DEGREE
-    )
+    pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=DEFAULT_MAX_DEGREE)
     liab = df[f"liability{trait}"].to_numpy()
 
     corrs: dict[str, float] = {}
@@ -1157,7 +1154,7 @@ def load_pedigree_estimates_per_generation(
     if gens is None:
         gens = sorted(int(g) for g in np.unique(df_full["generation"].to_numpy()))
 
-    pairs_full = PedigreeGraph(pedigree_graph_input(df_full)).extract_pairs(max_degree=1)
+    pairs_full = PedigreeGraph(df_full).extract_pairs(max_degree=1)
     gen_arr = df_full["generation"].to_numpy()
     liab_full = df_full[f"liability{trait}"].to_numpy()
     # float64 to match pandas Series.var(ddof=1) precision used previously.

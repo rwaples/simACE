@@ -29,7 +29,6 @@ from typing import TYPE_CHECKING, Any
 from pedigree_graph import PedigreeGraph, compute_all_ne
 
 from simace.core.cli_base import add_logging_args, init_logging
-from simace.core.frames import pedigree_graph_input
 from simace.core.parquet import load_parquet
 from simace.core.pedigree_filter import filter_pedigree_to_observed
 from simace.core.yaml_io import dump_yaml, load_yaml
@@ -245,7 +244,7 @@ def compute_effective_size(
         dataclass's ``to_dict()`` payload merged with an ``expected``
         field (``float`` or ``None``).
     """
-    pg = pedigree if isinstance(pedigree, PedigreeGraph) else PedigreeGraph(pedigree_graph_input(pedigree))
+    pg = pedigree if isinstance(pedigree, PedigreeGraph) else PedigreeGraph(pedigree)
     raw = compute_all_ne(pg, skip_ne_coancestry=skip_ne_coancestry)
     expected = theoretical_expectations(config)
     # Hill 1979's closed-form Ne_V passthrough only applies under the
@@ -284,7 +283,7 @@ def main(
     params = load_yaml(params_path)
 
     df_observed = filter_pedigree_to_observed(df_ped, df_phe["id"].to_numpy())
-    pg = PedigreeGraph(pedigree_graph_input(df_observed))
+    pg = PedigreeGraph(df_observed)
     result = compute_effective_size(pg, config=params, skip_ne_coancestry=skip_ne_coancestry)
 
     dump_yaml(result, output_path)

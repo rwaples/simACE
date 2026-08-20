@@ -345,8 +345,8 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/b0/04/d1cff1c2ead4708a6a79c01d3736b6a25bd38a36678398f72a8dd33dfad9/coverage-7.15.4-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/b2/6d/77546d8c26f038fce314a507106954f76270f6c182488bcf9ac9721175df/mkdocstrings_python-2.0.7-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b5/e8/dbf020b4d98251a9860752a094d09a65e1b436ad181faf929983f697048f/watchdog-6.0.0-py3-none-manylinux2014_x86_64.whl
-      - pypi: https://files.pythonhosted.org/packages/cc/c4/da018d1d5b18fa34f1fa7dcd1c4dc6030e1c0c17c0114dfc7d04f0754b7f/pedigree_graph-0.6.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/d6/54/da572c98c0b77626a91b5d3b89f0231d8bff5125c225420908632f8b342d/pymdown_extensions-11.0.1-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/e9/35/fe313fcb0f218d2c0a258d82ff23276e6f0f7410aa6535f093e59bd2f211/pedigree_graph-0.7.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/f6/b6/f65ac785d4ac90dcf7c831ac6256f5dd4a19780f4e1575b2c0d6eeebe319/griffelib-2.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/f7/ec/67fbef5d497f86283db54c22eec6f6140243aae73265799baaaa19cd17fb/ghp_import-2.1.0-py3-none-any.whl
 packages:
@@ -5519,26 +5519,28 @@ packages:
 - pypi: ./
   name: simace
   requires_dist:
-  - pedigree-graph>=0.6,<0.7
+  - pedigree-graph>=0.7,<0.8
   - numpy>=2.2,<3
   - scipy>=1.14,<2
-  - pandas>=2.2,<4
-  - polars>=1.20,<2
+  - polars>=1.43.2,<2
   - pyarrow>=17,<26
   - pyyaml>=6,<7
   - numba>=0.60,<1
   - matplotlib>=3.9,<4 ; extra == 'plot'
   - seaborn>=0.13,<1 ; extra == 'plot'
   - pillow>=10,<14 ; extra == 'plot'
+  - pandas>=2.2,<4 ; extra == 'plot'
   - pytest>=9,<10 ; extra == 'test'
   - pytest-cov>=7,<8 ; extra == 'test'
   - ruff>=0.16,<0.17 ; extra == 'test'
   - hypothesis>=6,<7 ; extra == 'test'
+  - pandas>=2.2,<4 ; extra == 'test'
   - mkdocs>=1.6 ; extra == 'docs'
   - mkdocs-material>=9.5 ; extra == 'docs'
   - mkdocstrings[python]>=0.27 ; extra == 'docs'
   - snakemake>=9,<10 ; extra == 'workflow'
   - snakefmt>=2,<3 ; extra == 'workflow'
+  - pandas>=2.2,<4 ; extra == 'workflow'
   - ty==0.0.70 ; extra == 'typecheck'
   - simace[docs,plot,test,typecheck,workflow] ; extra == 'dev'
   requires_python: '>=3.13'
@@ -5786,22 +5788,6 @@ packages:
   requires_dist:
   - pyyaml>=3.10 ; extra == 'watchmedo'
   requires_python: '>=3.9'
-- pypi: https://files.pythonhosted.org/packages/cc/c4/da018d1d5b18fa34f1fa7dcd1c4dc6030e1c0c17c0114dfc7d04f0754b7f/pedigree_graph-0.6.0-py3-none-any.whl
-  name: pedigree-graph
-  version: 0.6.0
-  sha256: 3ccf6d3c92cff09d7d6cf63a697cc4a42044321effed9c6474b2060c21a4618c
-  requires_dist:
-  - numpy>=2.2,<3
-  - scipy>=1.14,<2
-  - numba>=0.60,<1
-  - pytest>=9,<10 ; extra == 'test'
-  - pytest-cov>=7,<8 ; extra == 'test'
-  - ruff>=0.16,<0.17 ; extra == 'test'
-  - hypothesis>=6,<7 ; extra == 'test'
-  - pandas>=3.0,<4 ; extra == 'test'
-  - pyarrow>=17,<26 ; extra == 'test'
-  - ty==0.0.70 ; extra == 'typecheck'
-  requires_python: '>=3.13'
 - pypi: https://files.pythonhosted.org/packages/d6/54/da572c98c0b77626a91b5d3b89f0231d8bff5125c225420908632f8b342d/pymdown_extensions-11.0.1-py3-none-any.whl
   name: pymdown-extensions
   version: 11.0.1
@@ -5811,6 +5797,23 @@ packages:
   - pyyaml
   - pygments>=2.19.1 ; extra == 'extra'
   requires_python: '>=3.10'
+- pypi: https://files.pythonhosted.org/packages/e9/35/fe313fcb0f218d2c0a258d82ff23276e6f0f7410aa6535f093e59bd2f211/pedigree_graph-0.7.0-py3-none-any.whl
+  name: pedigree-graph
+  version: 0.7.0
+  sha256: a7db207ce1bd6445a21bb390308dac88e1d549078314f73470430e9a4652870a
+  requires_dist:
+  - numpy>=2.2,<3
+  - scipy>=1.14,<2
+  - numba>=0.60,<1
+  - pytest>=9,<10 ; extra == 'test'
+  - pytest-cov>=7,<8 ; extra == 'test'
+  - ruff>=0.16,<0.17 ; extra == 'test'
+  - hypothesis>=6,<7 ; extra == 'test'
+  - pandas>=3.0,<4 ; extra == 'test'
+  - polars>=1.43.2,<2 ; extra == 'test'
+  - pyarrow>=17,<26 ; extra == 'test'
+  - ty==0.0.70 ; extra == 'typecheck'
+  requires_python: '>=3.13'
 - pypi: https://files.pythonhosted.org/packages/f6/b6/f65ac785d4ac90dcf7c831ac6256f5dd4a19780f4e1575b2c0d6eeebe319/griffelib-2.2.0-py3-none-any.whl
   name: griffelib
   version: 2.2.0

@@ -26,7 +26,6 @@ from simace.analysis.validate import (
     cli as validate_cli,
 )
 from simace.ascertainment import run_ascertainment
-from simace.core.frames import pedigree_graph_input
 from simace.core.parquet import save_parquet
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.simulation.simulate import run_simulation
@@ -72,7 +71,7 @@ def val_ped(val_pedigree):
 
 @pytest.fixture(scope="module")
 def val_sibling_pairs(val_pedigree):
-    all_pairs = PedigreeGraph(pedigree_graph_input(val_pedigree)).extract_pairs(max_degree=2)
+    all_pairs = PedigreeGraph(val_pedigree).extract_pairs(max_degree=2)
     return {k: all_pairs[k] for k in ("FS", "MHS", "PHS")}
 
 

@@ -20,7 +20,6 @@ import numpy as np
 import yaml
 from pedigree_graph import PedigreeGraph
 
-from simace.core.frames import pedigree_graph_input
 from simace.core.parquet import load_parquet, save_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.trait_schema import hydrate_trait
@@ -121,13 +120,13 @@ def _build_relationship_context(
             # Fast path for the common no-ascertainment case: the phenotype
             # and pedigree tables are the same ordered individuals, so a
             # subsample mask/remap would be pure overhead.
-            pg = PedigreeGraph(pedigree_graph_input(df))
+            pg = PedigreeGraph(df)
         else:
-            pg = PedigreeGraph.from_subsample(pedigree_graph_input(df_ped), pedigree_graph_input(df))
+            pg = PedigreeGraph.from_subsample(df_ped, df)
         pairs = pg.extract_pairs(max_degree=max_degree)
         full_counts = pg.count_pairs(max_degree=max_degree, scope="full")
     else:
-        pg = PedigreeGraph(pedigree_graph_input(df))
+        pg = PedigreeGraph(df)
         pairs = pg.extract_pairs(max_degree=max_degree)
         full_counts = None
     logger.info(

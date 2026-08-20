@@ -25,8 +25,6 @@ import polars as pl
 import pytest
 from pedigree_graph import PedigreeGraph, compute_all_ne
 
-from simace.core.frames import pedigree_graph_input
-
 N = 200
 N_GENS = 10
 N_REPS = 30
@@ -84,7 +82,7 @@ def test_wf_monte_carlo_recovers_N():
 
     for _ in range(N_REPS):
         df = _build_wf_pedigree(rng)
-        pg = PedigreeGraph(pedigree_graph_input(df))
+        pg = PedigreeGraph(df)
         results = compute_all_ne(pg)
         for name, r in results.items():
             ne = r.ne

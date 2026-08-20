@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any
 
 from pedigree_graph import PedigreeGraph
 
-from simace.core.frames import pedigree_graph_input
 from simace.core.parquet import load_parquet
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.core.yaml_io import dump_yaml, load_yaml
@@ -57,7 +56,7 @@ def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
 
     # Validation only needs sibling categories (FS/MHS/PHS); avoid full
     # degree-2 extraction, which also materializes GP/Av pairs.
-    full_sib, mat_hs, pat_hs = PedigreeGraph(pedigree_graph_input(df)).sibling_pairs()
+    full_sib, mat_hs, pat_hs = PedigreeGraph(df).sibling_pairs()
     sibling_pairs = {"FS": full_sib, "MHS": mat_hs, "PHS": pat_hs}
 
     results = {

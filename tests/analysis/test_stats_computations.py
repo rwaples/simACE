@@ -697,9 +697,7 @@ def extracted_pairs(phenotyped_df):
     """Pre-extracted relationship pairs."""
     from pedigree_graph import PedigreeGraph
 
-    from simace.core.frames import pedigree_graph_input
-
-    return PedigreeGraph(pedigree_graph_input(phenotyped_df)).extract_pairs()
+    return PedigreeGraph(phenotyped_df).extract_pairs()
 
 
 # ===================================================================

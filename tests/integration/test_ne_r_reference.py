@@ -33,8 +33,6 @@ from pedigree_graph import (  # noqa: E402  — after importorskip
     ne_individual_delta_f,
 )
 
-from simace.core.frames import pedigree_graph_input  # noqa: E402  — after importorskip
-
 
 @pytest.fixture(scope="module")
 def r_packages():
@@ -83,7 +81,7 @@ def fixture_pedigree() -> tuple[pl.DataFrame, PedigreeGraph]:
             )
             next_id += 1
     df = pl.DataFrame(rows)
-    return df, PedigreeGraph(pedigree_graph_input(df))
+    return df, PedigreeGraph(df)
 
 
 def test_ne_inbreeding_matches_optiSel(r_packages, fixture_pedigree):
