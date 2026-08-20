@@ -88,9 +88,14 @@ def test_run_simulation_structural_integrity(seed, N, G_ped, mating_lambda, p_mz
     gen = ped["generation"].to_numpy()
     mother = ped["mother"].to_numpy()
     father = ped["father"].to_numpy()
-    by_id = ped.set_index("id")
-    gen_by_id = by_id["generation"]
-    sex_by_id = by_id["sex"]
+    ids = ped["id"].to_numpy()
+    sex = ped["sex"].to_numpy()
+    order = np.argsort(ids)
+    sorted_ids = ids[order]
+
+    def _lookup(values, wanted_ids):
+        """Positional id -> value lookup (polars has no index)."""
+        return values[order][np.searchsorted(sorted_ids, wanted_ids)]
 
     founders = gen == uniq.min()
     assert np.all(mother[founders] == -1)
@@ -99,14 +104,14 @@ def test_run_simulation_structural_integrity(seed, N, G_ped, mating_lambda, p_mz
     nf = ~founders
     if nf.any():
         mom, dad, child_gen = mother[nf], father[nf], gen[nf]
-        assert np.all(np.isin(mom, by_id.index))
-        assert np.all(np.isin(dad, by_id.index))
+        assert np.all(np.isin(mom, ids))
+        assert np.all(np.isin(dad, ids))
         # parents live exactly one generation back
-        assert np.all(gen_by_id.loc[mom].to_numpy() == child_gen - 1)
-        assert np.all(gen_by_id.loc[dad].to_numpy() == child_gen - 1)
+        assert np.all(_lookup(gen, mom) == child_gen - 1)
+        assert np.all(_lookup(gen, dad) == child_gen - 1)
         # mother is female (0), father is male (1)
-        assert np.all(sex_by_id.loc[mom].to_numpy() == 0)
-        assert np.all(sex_by_id.loc[dad].to_numpy() == 1)
+        assert np.all(_lookup(sex, mom) == 0)
+        assert np.all(_lookup(sex, dad) == 1)
 
     # liability is the sum of its variance components (float32 inputs)
     for s in ("1", "2"):

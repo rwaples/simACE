@@ -8,7 +8,8 @@ import sys
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
+import polars as pl
+import polars.testing
 import pytest
 
 from simace.phenotype import cli as phenotype_cli
@@ -24,7 +25,7 @@ def _write_pedigree(tmp_path: Path, n: int = 100, seed: int = 0) -> Path:
     C2 = rng.standard_normal(n)
     E2 = rng.standard_normal(n)
     L2 = A2 + C2 + E2
-    df = pd.DataFrame(
+    df = pl.DataFrame(
         {
             "id": np.arange(n),
             "generation": np.zeros(n, dtype=int),
@@ -44,7 +45,7 @@ def _write_pedigree(tmp_path: Path, n: int = 100, seed: int = 0) -> Path:
         }
     )
     path = tmp_path / "pedigree.parquet"
-    df.to_parquet(path)
+    df.write_parquet(path)
     return path
 
 
@@ -85,11 +86,11 @@ def test_cli_frailty_round_trip(tmp_path, monkeypatch):
             "2.0",
         ],
     )
-    out = pd.read_parquet(output)
+    out = pl.read_parquet(output)
     assert "t1" in out.columns
     assert "t2" in out.columns
-    assert np.all(np.isfinite(out["t1"]))
-    assert np.all(out["t1"] > 0)
+    assert np.all(np.isfinite(out["t1"].to_numpy()))
+    assert np.all(out["t1"].to_numpy() > 0)
 
 
 def test_cli_adult_round_trip(tmp_path, monkeypatch):
@@ -118,7 +119,7 @@ def test_cli_adult_round_trip(tmp_path, monkeypatch):
             "0.20",
         ],
     )
-    out = pd.read_parquet(output)
+    out = pl.read_parquet(output)
     case_rate1 = (out["t1"] < 1e6).mean()
     assert 0.05 < case_rate1 < 0.20  # n=100 noisy; expect ~10%
 
@@ -154,15 +155,13 @@ def test_cli_foreign_flag_rejected(tmp_path, monkeypatch):
         )
 
 
-def test_run_phenotype_polars_matches_pandas(tmp_path):
-    """Same-type dual-frame stage (ADR 0015): identical values, NaN→null normalized."""
-    import polars as pl
-    import polars.testing
-
+def test_run_phenotype_polars_stage_contract(tmp_path):
+    """Polars-only stage (ADR 0015): eager polars out, deterministic, no in-frame NaN."""
+    from simace.core.parquet import load_parquet
     from simace.phenotype import run_phenotype
 
     ped_path = _write_pedigree(tmp_path, n=500, seed=3)
-    ped_pd = pd.read_parquet(ped_path)
+    ped = load_parquet(ped_path)
     kwargs = dict(
         G_pheno=1,
         seed=42,
@@ -177,10 +176,11 @@ def test_run_phenotype_polars_matches_pandas(tmp_path):
         beta_sex2=0.0,
     )
 
-    out_pd = run_phenotype(ped_pd, **kwargs)
-    out_pl = run_phenotype(pl.from_pandas(ped_pd), **kwargs)
+    out = run_phenotype(ped, **kwargs)
 
-    assert isinstance(out_pd, pd.DataFrame)
-    assert isinstance(out_pl, pl.DataFrame)
-    # from_pandas converts NaN→null, matching the polars branch's fill_nan
-    polars.testing.assert_frame_equal(out_pl, pl.from_pandas(out_pd))
+    assert isinstance(out, pl.DataFrame)
+    assert {"t1", "t2"} <= set(out.columns)
+    # missingness is null, never NaN, in stage frames (ADR 0015 null contract)
+    assert out["t1"].is_nan().fill_null(False).sum() == 0
+    # same seed → identical output
+    polars.testing.assert_frame_equal(run_phenotype(ped, **kwargs), out)

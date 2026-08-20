@@ -11,7 +11,7 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
@@ -100,7 +100,7 @@ def sample_df():
     """Minimal DataFrame that satisfies plot_liability functions."""
     rng = np.random.default_rng(99)
     n = 200
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "id": np.arange(n),
             "sex": rng.integers(0, 2, n),
@@ -183,7 +183,7 @@ class TestPlotLiabilityJointGrid:
         """Works when some component columns (C, E) are absent."""
         from simace.plotting.plot_liability import plot_liability_joint
 
-        df = sample_df.drop(columns=["C1", "C2", "E1", "E2"])
+        df = sample_df.drop(["C1", "C2", "E1", "E2"])
         out = tmp_path / "joint_partial.png"
         plot_liability_joint(df, out, scenario="test")
         assert out.exists()
@@ -228,7 +228,7 @@ class TestPlaceholderPaths:
     def test_parent_offspring_no_generation(self, tmp_path, sample_df):
         from simace.plotting.plot_correlations import plot_parent_offspring_liability
 
-        df = sample_df.drop(columns=["generation"])
+        df = sample_df.drop("generation")
         out = tmp_path / "po.png"
         plot_parent_offspring_liability(df, [{}], out, scenario="test")
         assert out.exists()
@@ -265,7 +265,7 @@ class TestPlaceholderPaths:
     def test_liability_violin_by_gen_no_gen(self, tmp_path, sample_df):
         from simace.plotting.plot_liability import plot_liability_violin_by_generation
 
-        df = sample_df.drop(columns=["generation"])
+        df = sample_df.drop("generation")
         out = tmp_path / "lv_gen.png"
         plot_liability_violin_by_generation(df, [{}], out, scenario="test")
         assert out.exists()

@@ -2,6 +2,8 @@
 
 import numpy as np
 import pandas as pd
+import polars as pl
+import polars.testing
 import pytest
 
 from simace.ascertainment import run_ascertainment
@@ -33,14 +35,14 @@ def small_sim_pedigree():
     )
 
 
-def _make_trait(pedigree: pd.DataFrame, g_pheno: int, case_rate: float, seed: int) -> pd.DataFrame:
+def _make_trait(pedigree: pl.DataFrame, g_pheno: int, case_rate: float, seed: int) -> pl.DataFrame:
     """Build a synthetic trait DataFrame for the trailing g_pheno generations."""
     rng = np.random.default_rng(seed)
     max_gen = int(pedigree["generation"].max())
     min_gen = max_gen - g_pheno + 1
-    phenotyped = pedigree[pedigree["generation"] >= min_gen].reset_index(drop=True)
+    phenotyped = pedigree.filter(pl.col("generation") >= min_gen)
     n = len(phenotyped)
-    df = pd.DataFrame(
+    df = pl.DataFrame(
         {
             "id": phenotyped["id"].to_numpy(),
             "generation": phenotyped["generation"].to_numpy(),
@@ -129,9 +131,9 @@ class TestDropout:
         drop_idx = rng.choice(n_total, n_drop, replace=False)
         keep_mask = np.ones(n_total, dtype=bool)
         keep_mask[drop_idx] = False
-        survivor_ids = small_sim_pedigree.loc[keep_mask, "id"].to_numpy()
-        dropped_ids = small_sim_pedigree.loc[~keep_mask, "id"].to_numpy()
-        expected_trait_survivors = int(trait_data["id"].isin(survivor_ids).sum())
+        survivor_ids = small_sim_pedigree.filter(pl.Series(keep_mask))["id"].to_numpy()
+        dropped_ids = small_sim_pedigree.filter(pl.Series(~keep_mask))["id"].to_numpy()
+        expected_trait_survivors = int(np.isin(trait_data["id"].to_numpy(), survivor_ids).sum())
 
         # (a) clamp to trait pool, not N_sample.
         assert len(trait_out) == expected_trait_survivors, (
@@ -264,29 +266,33 @@ class TestInputValidation:
             )
 
 
-class TestDualFramePolars:
-    def test_fixed_seed_ids_identical_across_libraries(self, small_sim_pedigree, trait_data):
+class TestPolarsBoundary:
+    def test_fixed_seed_ids_deterministic(self, small_sim_pedigree, trait_data):
         """Decision 14 (ADR 0015): scientific sampling keeps exact fixed-seed IDs.
 
-        The polars path must select byte-identical ID sets to the pandas path
-        because the NumPy RNG/row-position logic is shared, not reimplemented.
+        All random selection runs on shared NumPy RNG/row-position logic, so a
+        fixed seed must reproduce the identical ID sets and frames.
         """
-        import polars as pl
-        import polars.testing
-
         params = {
             "dropout_rate": 0.2,
             "case_ascertainment_ratio": 4.0,
             "N_sample": 60,
             "seed": 7,
         }
-        ped_pd, trait_pd = run_ascertainment(small_sim_pedigree, trait_data, **params)
-        ped_pl, trait_pl = run_ascertainment(pl.from_pandas(small_sim_pedigree), pl.from_pandas(trait_data), **params)
+        ped_a, trait_a = run_ascertainment(small_sim_pedigree, trait_data, **params)
+        ped_b, trait_b = run_ascertainment(small_sim_pedigree, trait_data, **params)
 
-        assert isinstance(ped_pl, pl.DataFrame)
-        assert isinstance(trait_pl, pl.DataFrame)
+        assert isinstance(ped_a, pl.DataFrame)
+        assert isinstance(trait_a, pl.DataFrame)
         # Exact same selected IDs, same order — then full-frame equality.
-        assert trait_pl["id"].to_list() == trait_pd["id"].tolist()
-        assert ped_pl["id"].to_list() == ped_pd["id"].tolist()
-        polars.testing.assert_frame_equal(trait_pl, pl.from_pandas(trait_pd))
-        polars.testing.assert_frame_equal(ped_pl, pl.from_pandas(ped_pd))
+        assert trait_a["id"].to_list() == trait_b["id"].to_list()
+        assert ped_a["id"].to_list() == ped_b["id"].to_list()
+        polars.testing.assert_frame_equal(trait_a, trait_b)
+        polars.testing.assert_frame_equal(ped_a, ped_b)
+
+    def test_rejects_pandas_input(self, small_sim_pedigree, trait_data):
+        pd_frame = pd.DataFrame({"id": [0, 1]})
+        with pytest.raises(TypeError, match=r"polars DataFrame since the polars migration"):
+            run_ascertainment(pd_frame, trait_data, dropout_rate=0.0, N_sample=0, seed=1)
+        with pytest.raises(TypeError, match=r"polars DataFrame since the polars migration"):
+            run_ascertainment(small_sim_pedigree, pd_frame, dropout_rate=0.0, N_sample=0, seed=1)

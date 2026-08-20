@@ -5,7 +5,7 @@ between modules. Asserts output structure, not numerical correctness.
 """
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 from simace.censoring.censor import run_censor
@@ -118,7 +118,7 @@ def censored_hydrated(censored, pedigree):
 
 class TestSimulateStep:
     def test_returns_dataframe(self, pedigree):
-        assert isinstance(pedigree, pd.DataFrame)
+        assert isinstance(pedigree, pl.DataFrame)
 
     def test_has_required_columns(self, pedigree):
         required = {
@@ -141,7 +141,7 @@ class TestSimulateStep:
         assert required.issubset(set(pedigree.columns))
 
     def test_has_expected_generations(self, pedigree, integration_params):
-        n_gens = pedigree["generation"].nunique()
+        n_gens = pedigree["generation"].n_unique()
         assert n_gens == integration_params["G_ped"]
 
     def test_nonempty(self, pedigree):
@@ -150,7 +150,7 @@ class TestSimulateStep:
 
 class TestPhenotypeStep:
     def test_returns_dataframe(self, phenotype):
-        assert isinstance(phenotype, pd.DataFrame)
+        assert isinstance(phenotype, pl.DataFrame)
 
     def test_has_event_time_columns(self, phenotype):
         assert "t1" in phenotype.columns
@@ -161,8 +161,8 @@ class TestPhenotypeStep:
         assert (phenotype["t2"] > 0).all()
 
     def test_event_times_finite(self, phenotype):
-        assert np.isfinite(phenotype["t1"]).all()
-        assert np.isfinite(phenotype["t2"]).all()
+        assert np.isfinite(phenotype["t1"].to_numpy()).all()
+        assert np.isfinite(phenotype["t2"].to_numpy()).all()
 
     def test_outputs_outcomes_only(self, phenotype):
         assert list(phenotype.columns) == ["id", "t1", "t2"]
@@ -170,7 +170,7 @@ class TestPhenotypeStep:
 
 class TestCensorStep:
     def test_returns_dataframe(self, censored):
-        assert isinstance(censored, pd.DataFrame)
+        assert isinstance(censored, pl.DataFrame)
 
     def test_has_censoring_columns(self, censored):
         required = {
@@ -187,8 +187,8 @@ class TestCensorStep:
         assert required.issubset(set(censored.columns))
 
     def test_affected_is_boolean(self, censored):
-        assert censored["affected1"].dtype == bool
-        assert censored["affected2"].dtype == bool
+        assert censored["affected1"].dtype == pl.Boolean
+        assert censored["affected2"].dtype == pl.Boolean
 
     def test_observed_times_positive(self, censored):
         assert (censored["t_observed1"] > 0).all()

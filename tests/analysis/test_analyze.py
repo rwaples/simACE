@@ -10,6 +10,7 @@ from simace.analysis.report_schema import (
     assert_report_contract,
     find_dense_keys,
 )
+from simace.core.parquet import save_parquet
 from simace.plotting.stats_report import plotting_report_view
 
 # ---------------------------------------------------------------------------
@@ -83,10 +84,10 @@ def analyze_outputs(tmp_path, analyze_data):
     trait_full = tmp_path / "trait.full.parquet"
     trait = tmp_path / "trait.parquet"
     params_path = tmp_path / "params.yaml"
-    pedigree.to_parquet(ped_full)
-    pedigree.to_parquet(ped)
-    censored.to_parquet(trait_full)
-    censored.to_parquet(trait)
+    save_parquet(pedigree, ped_full)
+    save_parquet(pedigree, ped)
+    save_parquet(censored, trait_full)
+    save_parquet(censored, trait)
     with open(params_path, "w", encoding="utf-8") as fh:
         yaml.safe_dump(params, fh)
 

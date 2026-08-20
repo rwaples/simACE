@@ -11,7 +11,6 @@ import logging
 import shutil
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -19,16 +18,12 @@ import polars as pl
 from simace.core.parquet import load_parquet, save_parquet
 from simace.core.pedigree_filter import filter_pedigree_to_observed
 
-if TYPE_CHECKING:
-    import pandas as pd
-
 logger = logging.getLogger(__name__)
 
 
-def _sever_dangling_links(df: pd.DataFrame | pl.DataFrame, valid_ids: np.ndarray) -> pd.DataFrame | pl.DataFrame:
+def _sever_dangling_links(df: pl.DataFrame, valid_ids: np.ndarray) -> pl.DataFrame:
     """Rewrite mother/father/twin references pointing outside ``valid_ids`` to -1."""
-    is_polars = isinstance(df, pl.DataFrame)
-    result = df if is_polars else df.copy()
+    result = df
     for col in ("mother", "father", "twin"):
         if col not in result.columns:
             continue
@@ -36,22 +31,17 @@ def _sever_dangling_links(df: pd.DataFrame | pl.DataFrame, valid_ids: np.ndarray
         in_valid = np.isin(vals, valid_ids)
         dangling = ~in_valid & (vals >= 0)
         if dangling.any():
-            if is_polars:
-                fixed = vals.copy()
-                fixed[dangling] = -1
-                result = result.with_columns(pl.Series(col, fixed))
-            else:
-                result.loc[result.index[dangling], col] = -1
+            fixed = vals.copy()
+            fixed[dangling] = -1
+            result = result.with_columns(pl.Series(col, fixed))
     return result
 
 
-def _apply_dropout(
-    pedigree: pd.DataFrame | pl.DataFrame, rate: float, rng: np.random.Generator
-) -> pd.DataFrame | pl.DataFrame:
+def _apply_dropout(pedigree: pl.DataFrame, rate: float, rng: np.random.Generator) -> pl.DataFrame:
     """Remove a uniform random subset of the full pedigree.
 
-    Row-position NumPy selection — the fixed-seed kept set is byte-identical
-    under either frame library (ADR 0015 decision 14).
+    Row-position NumPy selection — the fixed-seed kept set is unchanged by the
+    polars migration (ADR 0015 decision 14).
     """
     n_total = len(pedigree)
     n_drop = round(n_total * rate)
@@ -63,16 +53,12 @@ def _apply_dropout(
     drop_idx = rng.choice(n_total, n_drop, replace=False)
     keep_mask = np.ones(n_total, dtype=bool)
     keep_mask[drop_idx] = False
-    if isinstance(pedigree, pl.DataFrame):
-        return pedigree.filter(pl.Series(keep_mask))
-    return pedigree.loc[keep_mask].reset_index(drop=True)
+    return pedigree.filter(pl.Series(keep_mask))
 
 
-def _filter_to_ids(df: pd.DataFrame | pl.DataFrame, ids: np.ndarray) -> pd.DataFrame | pl.DataFrame:
+def _filter_to_ids(df: pl.DataFrame, ids: np.ndarray) -> pl.DataFrame:
     """Filter a trait-like DataFrame to an ID set, preserving row order."""
-    if isinstance(df, pl.DataFrame):
-        return df.filter(pl.Series(np.isin(df["id"].to_numpy(), ids)))
-    return df[df["id"].isin(ids)].reset_index(drop=True)
+    return df.filter(pl.Series(np.isin(df["id"].to_numpy(), ids)))
 
 
 def _read_id_column(path: str | Path) -> pl.Series:
@@ -147,7 +133,7 @@ def copy_passthrough_if_possible(
 
 
 def _sample_trait_ids(
-    trait_post_dropout: pd.DataFrame | pl.DataFrame,
+    trait_post_dropout: pl.DataFrame,
     *,
     case_ascertainment_ratio: float,
     N_sample: int,
@@ -201,38 +187,25 @@ def _sample_trait_ids(
     return sampled_ids, f"ratio={case_ascertainment_ratio}, n_cases={n_cases}/{n_pool}"
 
 
-def _pedigree_closure_for_ids(
-    pedigree: pd.DataFrame | pl.DataFrame, sampled_ids: np.ndarray
-) -> pd.DataFrame | pl.DataFrame:
+def _pedigree_closure_for_ids(pedigree: pl.DataFrame, sampled_ids: np.ndarray) -> pl.DataFrame:
     """Filter pedigree to sampled IDs plus ancestors, then sever dangling links."""
-    if isinstance(pedigree, pl.DataFrame):
-        ped_closure = pedigree.head(0) if len(sampled_ids) == 0 else filter_pedigree_to_observed(pedigree, sampled_ids)
-        return _sever_dangling_links(ped_closure, ped_closure["id"].to_numpy())
-
-    if len(sampled_ids) == 0:
-        ped_closure = pedigree.iloc[0:0].copy()
-    else:
-        ped_closure = filter_pedigree_to_observed(pedigree, sampled_ids)
-
-    closure_ids = ped_closure["id"].to_numpy()
-    return _sever_dangling_links(ped_closure, closure_ids).reset_index(drop=True)
+    ped_closure = pedigree.head(0) if len(sampled_ids) == 0 else filter_pedigree_to_observed(pedigree, sampled_ids)
+    return _sever_dangling_links(ped_closure, ped_closure["id"].to_numpy())
 
 
 def run_ascertainment(
-    pedigree: pd.DataFrame | pl.DataFrame,
-    trait: pd.DataFrame | pl.DataFrame,
+    pedigree: pl.DataFrame,
+    trait: pl.DataFrame,
     *,
     dropout_rate: float = 0.0,
     case_ascertainment_ratio: float = 1.0,
     N_sample: int = 0,
     seed: int = 42,
-) -> tuple[pd.DataFrame, pd.DataFrame] | tuple[pl.DataFrame, pl.DataFrame]:
+) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Apply dropout + case-weighted sampling and return the ascertained subset.
 
-    Same-type dual-frame stage (transitional, ADR 0015): both inputs must come
-    from the same frame library and the outputs match it. All random selection
-    runs on NumPy row positions, so the fixed-seed sampled IDs are identical
-    under either library (decision 14).
+    All random selection runs on NumPy row positions, so the fixed-seed
+    sampled IDs are unchanged by the polars migration (ADR 0015 decision 14).
 
     Two explicit steps, applied to IDs not weights, so ``dropout_rate``
     has effect even when ``N_sample > 0``:
@@ -265,9 +238,10 @@ def run_ascertainment(
     Returns:
         Tuple of (pedigree_ascertained, trait_ascertained).
     """
-    from simace.core.trait_schema import _require_same_library
+    from simace.core.trait_schema import _require_polars
 
-    _require_same_library(trait, pedigree)
+    _require_polars(pedigree, where="run_ascertainment: pedigree")
+    _require_polars(trait, where="run_ascertainment: trait")
 
     n_total = len(pedigree)
     rate = float(dropout_rate)

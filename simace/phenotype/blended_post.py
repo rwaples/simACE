@@ -36,8 +36,6 @@ and writes its output to `phenotype.blended.parquet` alongside.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 __all__ = ["blended_diagnosis"]
 
 import numpy as np
@@ -46,9 +44,6 @@ from scipy.special import erfc, ndtri
 
 from simace.phenotype.hazards import standardize_liability
 from simace.phenotype.models._prevalence import prevalence_to_array
-
-if TYPE_CHECKING:
-    import pandas as pd
 
 #: Right-censoring age for late-onset cases. Matches the simACE default
 #: `censoring.max_age`.
@@ -71,19 +66,18 @@ def _compute_onset(L_eff: np.ndarray, K: np.ndarray, cip_x0: float, cip_k: float
 
 
 def blended_diagnosis(
-    phenotype: pd.DataFrame | pl.DataFrame,
+    phenotype: pl.DataFrame,
     *,
     alpha_by_gen: dict[int, float],
     K_by_gen: dict[int, float],
     cip_x0: float = DEFAULT_CIF_X0,
     cip_k: float = DEFAULT_CIF_K,
-) -> pd.DataFrame | pl.DataFrame:
+) -> pl.DataFrame:
     """Return a copy of `phenotype` with trait-1 case status redefined.
 
-    Same-type dual-frame API (transitional, ADR 0015): returns the same frame
-    library it was given. Cross-repo consumer: fitACE's
-    ``workflow/scripts/blended_phenotype.py``; goes polars-only at Wave 2
-    together with that wrapper.
+    Cross-repo consumer: fitACE's ``workflow/scripts/blended_phenotype.py``.
+    Polars-only since the Wave 2 boundary break (ADR 0015): pandas input is
+    rejected with an actionable ``TypeError``.
 
     Args:
         phenotype: standard simACE phenotype DataFrame with at least
@@ -105,13 +99,17 @@ def blended_diagnosis(
         new ``A_blend`` / ``C_blend`` / ``E_blend`` / ``liability_blend``
         columns.
     """
+    if not isinstance(phenotype, pl.DataFrame):
+        raise TypeError(
+            "blended_diagnosis requires a polars DataFrame since the polars migration "
+            f"(ADR 0015); got {type(phenotype).__name__}. Convert with pl.from_pandas(...) at the call site."
+        )
     required = {"generation", "A1", "C1", "E1", "A2", "C2", "E2", "liability1", "liability2", "death_age"}
     missing = required - set(phenotype.columns)
     if missing:
         raise ValueError(f"phenotype is missing required columns: {sorted(missing)}")
 
-    is_polars = isinstance(phenotype, pl.DataFrame)
-    pheno = phenotype if is_polars else phenotype.copy()
+    pheno = phenotype
     gen = pheno["generation"].to_numpy()
 
     # Reuse the prevalence resolver (raises ValueError on missing keys); it
@@ -154,28 +152,15 @@ def blended_diagnosis(
     onset = np.where(death_censored, death_age, follow_up)
     affected = is_case & ~death_censored & ~age_right_censored
 
-    if is_polars:
-        # with_columns replaces existing columns in place and appends the new
-        # audit columns at the end — same layout as the pandas assignments.
-        return pheno.with_columns(
-            pl.Series("affected1", affected),
-            pl.Series("t_observed1", onset),
-            pl.Series("age_censored1", ~affected & ~death_censored),
-            pl.Series("death_censored1", death_censored),
-            pl.Series("A_blend", A_blend.astype(np.float32)),
-            pl.Series("C_blend", C_blend.astype(np.float32)),
-            pl.Series("E_blend", E_blend.astype(np.float32)),
-            pl.Series("liability_blend", L_blend.astype(np.float32)),
-        )
-
-    pheno["affected1"] = affected
-    pheno["t_observed1"] = onset
-    pheno["age_censored1"] = ~affected & ~death_censored
-    pheno["death_censored1"] = death_censored
-
-    pheno["A_blend"] = A_blend.astype(np.float32)
-    pheno["C_blend"] = C_blend.astype(np.float32)
-    pheno["E_blend"] = E_blend.astype(np.float32)
-    pheno["liability_blend"] = L_blend.astype(np.float32)
-
-    return pheno
+    # with_columns replaces existing columns in place and appends the new
+    # audit columns at the end.
+    return pheno.with_columns(
+        pl.Series("affected1", affected),
+        pl.Series("t_observed1", onset),
+        pl.Series("age_censored1", ~affected & ~death_censored),
+        pl.Series("death_censored1", death_censored),
+        pl.Series("A_blend", A_blend.astype(np.float32)),
+        pl.Series("C_blend", C_blend.astype(np.float32)),
+        pl.Series("E_blend", E_blend.astype(np.float32)),
+        pl.Series("liability_blend", L_blend.astype(np.float32)),
+    )

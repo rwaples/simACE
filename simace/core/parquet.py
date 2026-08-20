@@ -12,11 +12,10 @@ for compact storage; integer narrowing is range-checked, so overflow raises
 instead of wrapping. Reads return an eager ``pl.DataFrame`` via
 :func:`load_parquet`.
 
-Transitional (Wave 1 of the polars migration): :func:`save_parquet` accepts
-pandas *or* polars frames while pipeline stages migrate independently.
-Unmigrated stages keep reading with ``pd.read_parquet``; migrated stages must
-use :func:`load_parquet`. Pandas acceptance is removed in the coordinated
-Wave 2 boundary break (ADR 0015).
+Polars-only since the Wave 2 boundary break (ADR 0015): pandas frames are
+rejected with an actionable ``TypeError`` — convert with
+``pl.from_pandas(df)`` at the call site. Reads go through
+:func:`load_parquet`.
 """
 
 from __future__ import annotations
@@ -29,8 +28,6 @@ import polars as pl
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-
-    import pandas as pd
 
 _INT32_COLS = ("id", "mother", "father", "twin", "household_id", "generation")
 _INT8_COLS = ("sex",)
@@ -79,24 +76,29 @@ def _optimized_dtypes(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
-def save_parquet(df: pd.DataFrame | pl.DataFrame, path: Any, **kwargs: Any) -> None:
+def save_parquet(df: pl.DataFrame, path: Any, **kwargs: Any) -> None:
     """Save a DataFrame as parquet with optimized dtypes and zstd compression.
 
     Narrows dtypes via the name-based mapping (int32 ids, int8 sex, float32
     components; range-checked) and normalizes float NaN to null before writing,
     so on-disk missing values are always parquet null (ADR 0015 null contract).
-    The caller's frame is never mutated. A pandas index is dropped — identity
-    and order live in explicit columns.
+    The caller's frame is never mutated.
 
     Args:
-        df: Frame to save. ``pl.DataFrame``, or (transitionally, until the
-            Wave 2 boundary break) ``pd.DataFrame``.
+        df: Frame to save.
         path: Output file path, or any file-like object polars accepts.
         **kwargs: Extra keyword arguments passed to
             ``polars.DataFrame.write_parquet``.
+
+    Raises:
+        TypeError: If ``df`` is not a polars DataFrame (ADR 0015 Wave 2) —
+            convert with ``pl.from_pandas(df)`` at the call site.
     """
     if not isinstance(df, pl.DataFrame):
-        df = pl.from_pandas(df)
+        raise TypeError(
+            "save_parquet requires a polars DataFrame since the polars migration "
+            f"(ADR 0015); got {type(df).__name__}. Convert with pl.from_pandas(...) at the call site."
+        )
     df = _optimized_dtypes(df)
     df = df.with_columns(pl.col(pl.Float32, pl.Float64).fill_nan(None))
     df.write_parquet(path, compression="zstd", **kwargs)

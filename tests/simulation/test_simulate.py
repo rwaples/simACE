@@ -4,8 +4,9 @@ import builtins
 import importlib
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
+from polars.testing import assert_frame_equal
 
 import simace.simulation.simulate as simulate_mod
 from simace.simulation.simulate import (
@@ -493,7 +494,7 @@ class TestAddToPedigree:
         hh = np.arange(N)
 
         ped = add_to_pedigree(pheno, sex, parents, twins, hh, generation=0, pedigree=None)
-        np.testing.assert_array_equal(ped["id"].values, np.arange(N))
+        np.testing.assert_array_equal(ped["id"].to_numpy(), np.arange(N))
 
     def test_appending_generation(self, rng):
         N = 50
@@ -506,7 +507,7 @@ class TestAddToPedigree:
         ped = add_to_pedigree(pheno, sex, parents, twins, hh, generation=0, pedigree=None)
         ped = add_to_pedigree(pheno, sex, parents, twins, hh, generation=1, pedigree=ped)
         assert len(ped) == 2 * N
-        np.testing.assert_array_equal(ped["id"].values, np.arange(2 * N))
+        np.testing.assert_array_equal(ped["id"].to_numpy(), np.arange(2 * N))
 
     def test_liability_equals_sum(self, rng):
         N = 100
@@ -519,13 +520,13 @@ class TestAddToPedigree:
         ped = add_to_pedigree(pheno, sex, parents, twins, hh, generation=0, pedigree=None)
         # ACE columns are float32, liability is float64 — allow float32 precision loss
         np.testing.assert_allclose(
-            ped["liability1"].values,
-            ped["A1"].values + ped["C1"].values + ped["E1"].values,
+            ped["liability1"].to_numpy(),
+            ped["A1"].to_numpy() + ped["C1"].to_numpy() + ped["E1"].to_numpy(),
             atol=1e-6,
         )
         np.testing.assert_allclose(
-            ped["liability2"].values,
-            ped["A2"].values + ped["C2"].values + ped["E2"].values,
+            ped["liability2"].to_numpy(),
+            ped["A2"].to_numpy() + ped["C2"].to_numpy() + ped["E2"].to_numpy(),
             atol=1e-6,
         )
 
@@ -538,9 +539,10 @@ class TestAddToPedigree:
         hh = np.arange(N)
 
         ped = add_to_pedigree(pheno, sex, parents, twins, hh, generation=0, pedigree=None)
+        # ids are contiguous from 0, so row position == id.
         for t1, t2 in twins:
-            assert ped.loc[t1, "twin"] == t2
-            assert ped.loc[t2, "twin"] == t1
+            assert ped["twin"][int(t1)] == t2
+            assert ped["twin"][int(t2)] == t1
 
 
 # ---------------------------------------------------------------------------
@@ -551,7 +553,7 @@ class TestAddToPedigree:
 class TestRunSimulation:
     def test_output_is_dataframe(self, default_params):
         ped = run_simulation(**default_params)
-        assert isinstance(ped, pd.DataFrame)
+        assert isinstance(ped, pl.DataFrame)
 
     def test_output_size(self, default_params):
         ped = run_simulation(**default_params)
@@ -582,7 +584,7 @@ class TestRunSimulation:
     def test_deterministic_with_same_seed(self, default_params):
         ped1 = run_simulation(**default_params)
         ped2 = run_simulation(**default_params)
-        pd.testing.assert_frame_equal(ped1, ped2)
+        assert_frame_equal(ped1, ped2)
 
     def test_different_seeds_differ(self, default_params):
         p1 = {**default_params, "seed": 1}
@@ -665,7 +667,7 @@ class TestRunSimulation:
         """assort=0 should produce identical output to no assort params."""
         ped1 = run_simulation(**{**default_params, "assort1": 0.0, "assort2": 0.0})
         ped2 = run_simulation(**default_params)
-        pd.testing.assert_frame_equal(ped1, ped2)
+        assert_frame_equal(ped1, ped2)
 
 
 # ---------------------------------------------------------------------------
@@ -854,7 +856,7 @@ class TestPerGenerationVariance:
         """Scalar E1/E2 should produce identical results to omitting them."""
         ped_no_e = run_simulation(**default_params)
         ped_with_e = run_simulation(**{**default_params, "E1": 0.3, "E2": 0.3})
-        pd.testing.assert_frame_equal(ped_no_e, ped_with_e)
+        assert_frame_equal(ped_no_e, ped_with_e)
 
     def test_per_gen_E_changes_variance(self):
         """Per-gen E should produce different variance in different generations."""
@@ -877,8 +879,8 @@ class TestPerGenerationVariance:
         ped = run_simulation(**params)
 
         # Check that E variance differs across generations
-        gen0 = ped[ped["generation"] == 0]
-        gen2 = ped[ped["generation"] == 2]
+        gen0 = ped.filter(pl.col("generation") == 0)
+        gen2 = ped.filter(pl.col("generation") == 2)
         var_E1_gen0 = gen0["E1"].var()
         var_E1_gen2 = gen2["E1"].var()
 
@@ -908,7 +910,7 @@ class TestPerGenerationVariance:
         ped = run_simulation(**params)
 
         for gen_idx, expected_E1 in [(0, 0.2), (1, 0.5), (2, 1.0)]:
-            gen = ped[ped["generation"] == gen_idx]
+            gen = ped.filter(pl.col("generation") == gen_idx)
             liab_var = gen["liability1"].var()
             expected_total = 0.5 + 0.0 + expected_E1
             assert abs(liab_var - expected_total) < 0.15, (
@@ -926,7 +928,7 @@ class TestCrossTraitRE:
         """rE=0 (default) should produce bit-identical output to omitting rE."""
         ped1 = run_simulation(**default_params)
         ped2 = run_simulation(**{**default_params, "rE": 0.0})
-        pd.testing.assert_frame_equal(ped1, ped2)
+        assert_frame_equal(ped1, ped2)
 
     def test_rE_positive_correlates_E(self):
         """With rE=0.5, E1 and E2 should be positively correlated within individuals."""
@@ -948,8 +950,8 @@ class TestCrossTraitRE:
             rE=0.5,
         )
         ped = run_simulation(**params)
-        founders = ped[ped["generation"] == 0]
-        corr = np.corrcoef(founders["E1"].values, founders["E2"].values)[0, 1]
+        founders = ped.filter(pl.col("generation") == 0)
+        corr = np.corrcoef(founders["E1"].to_numpy(), founders["E2"].to_numpy())[0, 1]
         assert abs(corr - 0.5) < 0.1, f"Expected rE ≈ 0.5, got {corr:.3f}"
 
     def test_rE_does_not_share_E_between_siblings(self):
@@ -972,12 +974,15 @@ class TestCrossTraitRE:
             rE=0.8,
         )
         ped = run_simulation(**params)
-        non_founders = ped[ped["mother"] != -1]
+        non_founders = ped.filter(pl.col("mother") != -1)
         # Siblings should NOT share E values (E is unique per person)
-        e_by_mother = non_founders.groupby("mother")["E1"].nunique()
-        multi_sib = e_by_mother[e_by_mother.index.map(lambda m: (non_founders["mother"] == m).sum() > 1)]
+        per_mother = non_founders.group_by("mother").agg(
+            pl.col("E1").n_unique().alias("n_unique_E1"),
+            pl.len().alias("n_sibs"),
+        )
+        multi_sib = per_mother.filter(pl.col("n_sibs") > 1)
         if len(multi_sib) > 0:
-            assert (multi_sib > 1).all(), "Siblings should have different E1 values"
+            assert (multi_sib["n_unique_E1"] > 1).all(), "Siblings should have different E1 values"
 
 
 # ---------------------------------------------------------------------------
@@ -1001,8 +1006,8 @@ class TestMatingWF:
         sex = rng.binomial(size=300, n=1, p=0.5)
         parents, _, hh = _mating_wf(rng, sex, N=300, generation=0)
         # Every offspring sharing a mother shares a household.
-        df = pd.DataFrame({"mother": parents[:, 0], "household": hh})
-        assert (df.groupby("mother")["household"].nunique() == 1).all()
+        df = pl.DataFrame({"mother": parents[:, 0], "household": hh})
+        assert (df.group_by("mother").agg(pl.col("household").n_unique())["household"] == 1).all()
 
     def test_household_ids_contiguous_from_zero(self):
         rng = np.random.default_rng(11)
@@ -1084,17 +1089,19 @@ class TestRunSimulationWF:
 
     def test_household_grouped_by_mother(self):
         ped = run_simulation(**self._wf_params(seed=99))
-        non_founders = ped[ped["mother"] != -1]
+        non_founders = ped.filter(pl.col("mother") != -1)
         # All offspring of the same mother share a household.
-        assert (non_founders.groupby(["generation", "mother"])["household_id"].nunique() == 1).all()
+        hh_per_mother = non_founders.group_by("generation", "mother").agg(pl.col("household_id").n_unique())
+        assert (hh_per_mother["household_id"] == 1).all()
 
     def test_C_still_works_under_wf(self):
         ped = run_simulation(**self._wf_params(C1=0.2, E1=0.3))
         # Household-grouped C: variance across households should be ≈ 0.2; total variance > 0.
         assert ped["C1"].var() > 0.05
         # Within a household, C is a single value.
-        non_founders = ped[ped["mother"] != -1]
-        assert (non_founders.groupby("household_id")["C1"].nunique() == 1).all()
+        non_founders = ped.filter(pl.col("mother") != -1)
+        c1_per_hh = non_founders.group_by("household_id").agg(pl.col("C1").n_unique())
+        assert (c1_per_hh["C1"] == 1).all()
 
     def test_invalid_mating_model_raises(self):
         with pytest.raises(ValueError, match="mating_model must be"):
@@ -1114,7 +1121,7 @@ class TestRunSimulationWF:
         """Under WF, mating_lambda is a no-op — changing it must not change output."""
         ped_a = run_simulation(**self._wf_params(mating_lambda=0.5))
         ped_b = run_simulation(**self._wf_params(mating_lambda=10.0))
-        pd.testing.assert_frame_equal(ped_a, ped_b)
+        assert_frame_equal(ped_a, ped_b)
 
 
 class TestAssortMatrixValidation:
@@ -1220,7 +1227,7 @@ class TestSimulateCLI:
         assert out_pedigree.exists()
         assert out_params.exists()
 
-        ped = pd.read_parquet(out_pedigree)
+        ped = pl.read_parquet(out_pedigree)
         assert len(ped) == 100 * 2
         assert {"id", "mother", "father", "twin", "A1", "C1", "E1"}.issubset(ped.columns)
 

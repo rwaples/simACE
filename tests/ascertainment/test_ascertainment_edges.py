@@ -3,7 +3,8 @@
 import sys
 
 import numpy as np
-import pandas as pd
+import polars as pl
+import polars.testing
 import pytest
 
 from simace.ascertainment import _sever_dangling_links, copy_passthrough_if_possible, run_ascertainment
@@ -35,16 +36,16 @@ def small_pedigree():
     )
 
 
-def _build_trait(pedigree: pd.DataFrame, *, g_pheno: int, n_cases: int, seed: int) -> pd.DataFrame:
+def _build_trait(pedigree: pl.DataFrame, *, g_pheno: int, n_cases: int, seed: int) -> pl.DataFrame:
     """Build a trait DataFrame with exactly ``n_cases`` affected1 individuals."""
     rng = np.random.default_rng(seed)
     max_gen = int(pedigree["generation"].max())
     min_gen = max_gen - g_pheno + 1
-    phenotyped = pedigree[pedigree["generation"] >= min_gen].reset_index(drop=True)
+    phenotyped = pedigree.filter(pl.col("generation") >= min_gen)
     n = len(phenotyped)
     affected1 = np.zeros(n, dtype=bool)
     affected1[rng.choice(n, min(n_cases, n), replace=False)] = True
-    df = pd.DataFrame(
+    df = pl.DataFrame(
         {
             "id": phenotyped["id"].to_numpy(),
             "generation": phenotyped["generation"].to_numpy(),
@@ -64,7 +65,7 @@ class TestEmptyPool:
     """Empty post-dropout trait pool returns empty outputs without error."""
 
     def test_empty_trait_input(self, small_pedigree):
-        empty_trait = _build_trait(small_pedigree, g_pheno=1, n_cases=0, seed=1).iloc[0:0]
+        empty_trait = _build_trait(small_pedigree, g_pheno=1, n_cases=0, seed=1).head(0)
         ped_out, trait_out = run_ascertainment(
             small_pedigree,
             empty_trait,
@@ -115,7 +116,7 @@ class TestDegeneratePool:
 
     def test_all_case_pool_with_nonunit_ratio(self, small_pedigree):
         trait = _build_trait(small_pedigree, g_pheno=1, n_cases=0, seed=5)
-        trait["affected1"] = True
+        trait = trait.with_columns(pl.lit(True).alias("affected1"))
         _, trait_out = run_ascertainment(
             small_pedigree,
             trait,
@@ -164,7 +165,7 @@ class TestSeverDanglingTwinLinks:
     """``_sever_dangling_links`` rewrites twin pointers outside the valid set to -1."""
 
     def test_twin_link_to_outside_id_severed(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1, 2],
                 "mother": [-1, -1, -1],
@@ -174,9 +175,9 @@ class TestSeverDanglingTwinLinks:
             }
         )
         out = _sever_dangling_links(df, valid_ids=df["id"].to_numpy())
-        assert out.loc[0, "twin"] == -1  # dangling severed
-        assert out.loc[1, "twin"] == 2  # in-set survives
-        assert out.loc[2, "twin"] == 1
+        assert out["twin"][0] == -1  # dangling severed
+        assert out["twin"][1] == 2  # in-set survives
+        assert out["twin"][2] == 1
 
 
 class TestPassThroughCopyFastPath:
@@ -188,8 +189,8 @@ class TestPassThroughCopyFastPath:
         out_ped = tmp_path / "out_ped.parquet"
         out_trait = tmp_path / "out_trait.parquet"
 
-        small_pedigree.to_parquet(ped_path)
-        small_pedigree.to_parquet(trait_path)
+        small_pedigree.write_parquet(ped_path)
+        small_pedigree.write_parquet(trait_path)
 
         copied = copy_passthrough_if_possible(
             ped_path,
@@ -201,8 +202,8 @@ class TestPassThroughCopyFastPath:
         )
 
         assert copied is True
-        pd.testing.assert_frame_equal(pd.read_parquet(out_ped), small_pedigree)
-        pd.testing.assert_frame_equal(pd.read_parquet(out_trait), small_pedigree)
+        polars.testing.assert_frame_equal(pl.read_parquet(out_ped), small_pedigree)
+        polars.testing.assert_frame_equal(pl.read_parquet(out_trait), small_pedigree)
 
     def test_declines_when_trait_is_only_a_phenotyped_subset(self, tmp_path, small_pedigree):
         ped_path = tmp_path / "pedigree.parquet"
@@ -210,9 +211,9 @@ class TestPassThroughCopyFastPath:
         out_ped = tmp_path / "out_ped.parquet"
         out_trait = tmp_path / "out_trait.parquet"
 
-        small_pedigree.to_parquet(ped_path)
+        small_pedigree.write_parquet(ped_path)
         trait = _build_trait(small_pedigree, g_pheno=1, n_cases=10, seed=1)
-        trait.to_parquet(trait_path)
+        trait.write_parquet(trait_path)
 
         copied = copy_passthrough_if_possible(
             ped_path,
@@ -237,9 +238,9 @@ class TestAscertainmentCLI:
         out_ped = tmp_path / "out_ped.parquet"
         out_trait = tmp_path / "out_trait.parquet"
 
-        small_pedigree.to_parquet(ped_path)
+        small_pedigree.write_parquet(ped_path)
         trait = _build_trait(small_pedigree, g_pheno=2, n_cases=30, seed=1)
-        trait.to_parquet(trait_path)
+        trait.write_parquet(trait_path)
 
         monkeypatch.setattr(
             sys,
@@ -266,5 +267,5 @@ class TestAscertainmentCLI:
 
         assert out_ped.exists()
         assert out_trait.exists()
-        result_trait = pd.read_parquet(out_trait)
+        result_trait = pl.read_parquet(out_trait)
         assert len(result_trait) == 20

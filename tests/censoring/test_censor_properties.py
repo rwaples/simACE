@@ -12,7 +12,7 @@ alone (De Morgan of one assignment line) would not.
 """
 
 import numpy as np
-import pandas as pd
+import polars as pl
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hnp
@@ -45,7 +45,7 @@ def _censor_case(draw):
 def _make_frames(n, gens, t1, t2):
     ids = np.arange(n)
     zeros = np.zeros(n)
-    pedigree = pd.DataFrame(
+    pedigree = pl.DataFrame(
         {
             "id": ids,
             "generation": gens,
@@ -64,7 +64,7 @@ def _make_frames(n, gens, t1, t2):
             "liability2": zeros,
         }
     )
-    phenotype = pd.DataFrame({"id": ids, "t1": t1, "t2": t2})
+    phenotype = pl.DataFrame({"id": ids, "t1": t1, "t2": t2})
     return phenotype, pedigree
 
 

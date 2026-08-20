@@ -26,21 +26,16 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Any
 
-    import pandas as pd
-
 __all__ = ["cli_or_snakemake", "run_wrapper", "write_parquet_plain"]
 
 
-def write_parquet_plain(df: pd.DataFrame | pl.DataFrame, path: str) -> None:
+def write_parquet_plain(df: pl.DataFrame, path: str) -> None:
     """Write a DataFrame as parquet without dtype narrowing or compression tweaks.
 
-    Mirrors the prior wrapper behavior of ``df.to_parquet(path, index=False)``,
-    distinct from :func:`simace.core.parquet.save_parquet` which also narrows
-    dtypes and uses zstd. Accepts pandas (transitional, ADR 0015) or polars;
-    float NaN is normalized to null either way, per the on-disk null contract.
+    Distinct from :func:`simace.core.parquet.save_parquet`, which also narrows
+    dtypes and uses zstd. Float NaN is normalized to null, per the on-disk
+    null contract (ADR 0015).
     """
-    if not isinstance(df, pl.DataFrame):
-        df = pl.from_pandas(df)
     df.with_columns(pl.col(pl.Float32, pl.Float64).fill_nan(None)).write_parquet(path, compression="snappy")
 
 

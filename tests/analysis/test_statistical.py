@@ -7,6 +7,7 @@ finite-sample stochastic simulation.
 """
 
 import numpy as np
+import polars as pl
 import pytest
 
 from simace.simulation.simulate import run_simulation
@@ -29,6 +30,14 @@ STAT_PARAMS = dict(
 )
 
 
+def _by_id(df: pl.DataFrame, ids: np.ndarray, col: str) -> np.ndarray:
+    """Return column values for the given ids, in the order of ``ids``."""
+    all_ids = df["id"].to_numpy()
+    order = np.argsort(all_ids)
+    pos = order[np.searchsorted(all_ids, ids, sorter=order)]
+    return df[col].to_numpy()[pos]
+
+
 @pytest.fixture(scope="module")
 def stat_pedigree():
     """Module-scoped pedigree for statistical tests (expensive to create)."""
@@ -42,44 +51,44 @@ def stat_pedigree():
 
 class TestFounderVariances:
     def test_A1_variance(self, stat_pedigree):
-        founders = stat_pedigree[stat_pedigree["mother"] == -1]
+        founders = stat_pedigree.filter(pl.col("mother") == -1)
         var = founders["A1"].var()
         assert abs(var - STAT_PARAMS["A1"]) < 0.06
 
     def test_C1_variance(self, stat_pedigree):
-        founders = stat_pedigree[stat_pedigree["mother"] == -1]
+        founders = stat_pedigree.filter(pl.col("mother") == -1)
         var = founders["C1"].var()
         assert abs(var - STAT_PARAMS["C1"]) < 0.06
 
     def test_E1_variance(self, stat_pedigree):
-        founders = stat_pedigree[stat_pedigree["mother"] == -1]
+        founders = stat_pedigree.filter(pl.col("mother") == -1)
         E1 = 1.0 - STAT_PARAMS["A1"] - STAT_PARAMS["C1"]
         var = founders["E1"].var()
         assert abs(var - E1) < 0.06
 
     def test_A2_variance(self, stat_pedigree):
-        founders = stat_pedigree[stat_pedigree["mother"] == -1]
+        founders = stat_pedigree.filter(pl.col("mother") == -1)
         var = founders["A2"].var()
         assert abs(var - STAT_PARAMS["A2"]) < 0.06
 
     def test_C2_variance(self, stat_pedigree):
-        founders = stat_pedigree[stat_pedigree["mother"] == -1]
+        founders = stat_pedigree.filter(pl.col("mother") == -1)
         var = founders["C2"].var()
         assert abs(var - STAT_PARAMS["C2"]) < 0.06
 
     def test_E2_variance(self, stat_pedigree):
-        founders = stat_pedigree[stat_pedigree["mother"] == -1]
+        founders = stat_pedigree.filter(pl.col("mother") == -1)
         E2 = 1.0 - STAT_PARAMS["A2"] - STAT_PARAMS["C2"]
         var = founders["E2"].var()
         assert abs(var - E2) < 0.06
 
     def test_total_variance_trait1(self, stat_pedigree):
-        founders = stat_pedigree[stat_pedigree["mother"] == -1]
+        founders = stat_pedigree.filter(pl.col("mother") == -1)
         total = founders["liability1"].var()
         assert abs(total - 1.0) < 0.1
 
     def test_total_variance_trait2(self, stat_pedigree):
-        founders = stat_pedigree[stat_pedigree["mother"] == -1]
+        founders = stat_pedigree.filter(pl.col("mother") == -1)
         total = founders["liability2"].var()
         assert abs(total - 1.0) < 0.1
 
@@ -90,49 +99,39 @@ class TestFounderVariances:
 
 
 class TestMZTwinProperties:
+    def _twin_pairs(self, df):
+        """Return (twin1_ids, twin2_ids) with twin1 < twin2."""
+        twins = df.filter(pl.col("twin") != -1)
+        ids = twins["id"].to_numpy()
+        partners = twins["twin"].to_numpy()
+        mask = ids < partners
+        return ids[mask], partners[mask]
+
     def test_mz_twins_identical_A1(self, stat_pedigree):
         df = stat_pedigree
-        twins = df[df["twin"] != -1]
-        ids = twins["id"].values
-        partners = twins["twin"].values
-        mask = ids < partners
-        t1 = ids[mask]
-        t2 = partners[mask]
-        df_idx = df.set_index("id")
-        a1_twin1 = df_idx.loc[t1, "A1"].values
-        a1_twin2 = df_idx.loc[t2, "A1"].values
+        t1, t2 = self._twin_pairs(df)
+        a1_twin1 = _by_id(df, t1, "A1")
+        a1_twin2 = _by_id(df, t2, "A1")
         np.testing.assert_array_equal(a1_twin1, a1_twin2)
 
     def test_mz_twins_identical_A2(self, stat_pedigree):
         df = stat_pedigree
-        twins = df[df["twin"] != -1]
-        ids = twins["id"].values
-        partners = twins["twin"].values
-        mask = ids < partners
-        t1 = ids[mask]
-        t2 = partners[mask]
-        df_idx = df.set_index("id")
-        a2_twin1 = df_idx.loc[t1, "A2"].values
-        a2_twin2 = df_idx.loc[t2, "A2"].values
+        t1, t2 = self._twin_pairs(df)
+        a2_twin1 = _by_id(df, t1, "A2")
+        a2_twin2 = _by_id(df, t2, "A2")
         np.testing.assert_array_equal(a2_twin1, a2_twin2)
 
     def test_mz_twins_same_sex(self, stat_pedigree):
         df = stat_pedigree
-        twins = df[df["twin"] != -1]
-        ids = twins["id"].values
-        partners = twins["twin"].values
-        mask = ids < partners
-        t1 = ids[mask]
-        t2 = partners[mask]
-        df_idx = df.set_index("id")
-        sex1 = df_idx.loc[t1, "sex"].values
-        sex2 = df_idx.loc[t2, "sex"].values
+        t1, t2 = self._twin_pairs(df)
+        sex1 = _by_id(df, t1, "sex")
+        sex2 = _by_id(df, t2, "sex")
         np.testing.assert_array_equal(sex1, sex2)
 
     def test_twin_rate_matches_param(self, stat_pedigree):
         df = stat_pedigree
-        non_founders = df[df["mother"] != -1]
-        twins = non_founders[non_founders["twin"] != -1]
+        non_founders = df.filter(pl.col("mother") != -1)
+        twins = non_founders.filter(pl.col("twin") != -1)
         n_twin_individuals = len(twins)
         n_nf = len(non_founders)
         observed_rate = n_twin_individuals / n_nf
@@ -150,25 +149,24 @@ class TestMZTwinProperties:
 class TestSiblingCorrelation:
     def _get_full_sib_pairs(self, df):
         """Extract full-sib pairs (same mother + same father, no twins)."""
-        non_founders = df[(df["mother"] != -1) & (df["twin"] == -1)]
-        cols = non_founders[["id", "mother", "father"]].copy()
-        sib_counts = cols.groupby("mother").size()
-        multi = sib_counts[sib_counts >= 2].index
-        mat_sib = cols[cols["mother"].isin(multi)]
+        non_founders = df.filter((pl.col("mother") != -1) & (pl.col("twin") == -1))
+        cols = non_founders.select("id", "mother", "father")
+        sib_counts = cols.group_by("mother").len()
+        multi = sib_counts.filter(pl.col("len") >= 2)["mother"]
+        mat_sib = cols.filter(pl.col("mother").is_in(multi.implode()))
         if len(mat_sib) == 0:
             return np.array([]), np.array([])
-        pairs = mat_sib.merge(mat_sib, on="mother", suffixes=("_1", "_2"))
-        pairs = pairs[(pairs["id_1"] < pairs["id_2"]) & (pairs["father_1"] == pairs["father_2"])]
-        return pairs["id_1"].values, pairs["id_2"].values
+        pairs = mat_sib.join(mat_sib, on="mother", suffix="_2")
+        pairs = pairs.filter((pl.col("id") < pl.col("id_2")) & (pl.col("father") == pl.col("father_2")))
+        return pairs["id"].to_numpy(), pairs["id_2"].to_numpy()
 
     def test_sibling_A1_correlation_near_half(self, stat_pedigree):
         """Full-sib A1 correlation should be ~0.5."""
         df = stat_pedigree
         id1, id2 = self._get_full_sib_pairs(df)
         assert len(id1) > 100, "Need enough sib pairs"
-        df_idx = df.set_index("id")
-        a1 = df_idx.loc[id1, "A1"].values
-        a2 = df_idx.loc[id2, "A1"].values
+        a1 = _by_id(df, id1, "A1")
+        a2 = _by_id(df, id2, "A1")
         corr = np.corrcoef(a1, a2)[0, 1]
         assert abs(corr - 0.5) < 0.1
 
@@ -176,9 +174,8 @@ class TestSiblingCorrelation:
         df = stat_pedigree
         id1, id2 = self._get_full_sib_pairs(df)
         assert len(id1) > 100
-        df_idx = df.set_index("id")
-        a1 = df_idx.loc[id1, "A2"].values
-        a2 = df_idx.loc[id2, "A2"].values
+        a1 = _by_id(df, id1, "A2")
+        a2 = _by_id(df, id2, "A2")
         corr = np.corrcoef(a1, a2)[0, 1]
         assert abs(corr - 0.5) < 0.1
 
@@ -191,20 +188,20 @@ class TestSiblingCorrelation:
 class TestCrossTraitCorrelations:
     def test_cross_trait_A_correlation(self, stat_pedigree):
         """Cross-trait A correlation should match rA."""
-        founders = stat_pedigree[stat_pedigree["mother"] == -1]
-        corr = np.corrcoef(founders["A1"].values, founders["A2"].values)[0, 1]
+        founders = stat_pedigree.filter(pl.col("mother") == -1)
+        corr = np.corrcoef(founders["A1"].to_numpy(), founders["A2"].to_numpy())[0, 1]
         assert abs(corr - STAT_PARAMS["rA"]) < 0.1
 
     def test_cross_trait_C_correlation(self, stat_pedigree):
         """Cross-trait C correlation should match rC."""
-        founders = stat_pedigree[stat_pedigree["mother"] == -1]
-        corr = np.corrcoef(founders["C1"].values, founders["C2"].values)[0, 1]
+        founders = stat_pedigree.filter(pl.col("mother") == -1)
+        corr = np.corrcoef(founders["C1"].to_numpy(), founders["C2"].to_numpy())[0, 1]
         assert abs(corr - STAT_PARAMS["rC"]) < 0.1
 
     def test_cross_trait_E_independent(self, stat_pedigree):
         """Cross-trait E correlation should be ~0 (independent draws)."""
-        founders = stat_pedigree[stat_pedigree["mother"] == -1]
-        corr = np.corrcoef(founders["E1"].values, founders["E2"].values)[0, 1]
+        founders = stat_pedigree.filter(pl.col("mother") == -1)
+        corr = np.corrcoef(founders["E1"].to_numpy(), founders["E2"].to_numpy())[0, 1]
         assert abs(corr) < 0.1
 
 
@@ -217,14 +214,17 @@ class TestEIndependence:
     def test_sibling_E1_uncorrelated(self, stat_pedigree):
         """E1 values between siblings should be uncorrelated."""
         df = stat_pedigree
-        non_founders = df[(df["mother"] != -1) & (df["twin"] == -1)]
-        fam_sizes = non_founders.groupby("mother").size()
-        multi = fam_sizes[fam_sizes >= 2].index[:500]
-        multi_child = non_founders[non_founders["mother"].isin(multi)]
+        non_founders = df.filter((pl.col("mother") != -1) & (pl.col("twin") == -1))
+        fam_sizes = non_founders.group_by("mother").len().sort("mother")
+        multi = fam_sizes.filter(pl.col("len") >= 2)["mother"][:500]
+        multi_child = non_founders.filter(pl.col("mother").is_in(multi.implode()))
 
-        grouped = multi_child.groupby("mother")["E1"]
-        first = grouped.nth(0).values
-        second = grouped.nth(1).values
+        grouped = multi_child.group_by("mother", maintain_order=True).agg(
+            pl.col("E1").first().alias("first"),
+            pl.col("E1").get(1).alias("second"),
+        )
+        first = grouped["first"].to_numpy()
+        second = grouped["second"].to_numpy()
         valid = ~(np.isnan(first) | np.isnan(second))
         e1, e2 = first[valid], second[valid]
 
@@ -242,17 +242,17 @@ class TestCSharedWithinHousehold:
     def test_siblings_share_C1(self, stat_pedigree):
         """All siblings from the same mother should have identical C1."""
         df = stat_pedigree
-        non_founders = df[df["mother"] != -1]
-        c_by_mother = non_founders.groupby("mother")["C1"].nunique()
+        non_founders = df.filter(pl.col("mother") != -1)
+        c_by_mother = non_founders.group_by("mother").agg(pl.col("C1").n_unique().alias("n_unique"))
         # Allow tiny floating point differences
-        prop_shared = (c_by_mother == 1).mean()
+        prop_shared = (c_by_mother["n_unique"] == 1).mean()
         assert prop_shared > 0.99
 
     def test_siblings_share_C2(self, stat_pedigree):
         df = stat_pedigree
-        non_founders = df[df["mother"] != -1]
-        c_by_mother = non_founders.groupby("mother")["C2"].nunique()
-        prop_shared = (c_by_mother == 1).mean()
+        non_founders = df.filter(pl.col("mother") != -1)
+        c_by_mother = non_founders.group_by("mother").agg(pl.col("C2").n_unique().alias("n_unique"))
+        prop_shared = (c_by_mother["n_unique"] == 1).mean()
         assert prop_shared > 0.99
 
 
@@ -296,33 +296,28 @@ def assort_pedigree():
     return run_simulation(**ASSORT_PARAMS)
 
 
-class TestAssortativeMating:
-    def _mate_corr(self, df, trait):
-        """Compute Pearson correlation of mother/father liability for a trait."""
-        non_founders = df[df["mother"] != -1]
-        pairs = non_founders[["mother", "father"]].drop_duplicates()
-        df_idx = df.set_index("id")
-        m_liab = df_idx.loc[pairs["mother"].values, f"liability{trait}"].values
-        f_liab = df_idx.loc[pairs["father"].values, f"liability{trait}"].values
-        return np.corrcoef(m_liab, f_liab)[0, 1]
+def _mate_corr(df, trait):
+    """Compute Pearson correlation of mother/father liability for a trait."""
+    non_founders = df.filter(pl.col("mother") != -1)
+    pairs = non_founders.select("mother", "father").unique()
+    m_liab = _by_id(df, pairs["mother"].to_numpy(), f"liability{trait}")
+    f_liab = _by_id(df, pairs["father"].to_numpy(), f"liability{trait}")
+    return np.corrcoef(m_liab, f_liab)[0, 1]
 
+
+class TestAssortativeMating:
     def test_mate_correlation_trait1_positive(self, assort_pedigree):
-        corr = self._mate_corr(assort_pedigree, 1)
+        corr = _mate_corr(assort_pedigree, 1)
         assert abs(corr - 0.4) < 0.15
 
     def test_mate_correlation_trait2_near_zero(self, assort_pedigree):
-        corr = self._mate_corr(assort_pedigree, 2)
+        corr = _mate_corr(assort_pedigree, 2)
         assert abs(corr) < 0.15
 
     def test_negative_assortment(self):
         params = {**ASSORT_PARAMS, "seed": 9999, "assort1": -0.3}
         ped = run_simulation(**params)
-        non_founders = ped[ped["mother"] != -1]
-        pairs = non_founders[["mother", "father"]].drop_duplicates()
-        df_idx = ped.set_index("id")
-        m_liab = df_idx.loc[pairs["mother"].values, "liability1"].values
-        f_liab = df_idx.loc[pairs["father"].values, "liability1"].values
-        corr = np.corrcoef(m_liab, f_liab)[0, 1]
+        corr = _mate_corr(ped, 1)
         assert corr < -0.1
 
 
@@ -356,19 +351,10 @@ def assort_both_pedigree():
 
 
 class TestAssortativeMatingBoth:
-    def _mate_corr(self, df, trait):
-        """Compute Pearson correlation of mother/father liability for a trait."""
-        non_founders = df[df["mother"] != -1]
-        pairs = non_founders[["mother", "father"]].drop_duplicates()
-        df_idx = df.set_index("id")
-        m_liab = df_idx.loc[pairs["mother"].values, f"liability{trait}"].values
-        f_liab = df_idx.loc[pairs["father"].values, f"liability{trait}"].values
-        return np.corrcoef(m_liab, f_liab)[0, 1]
-
     def test_mate_correlation_trait1(self, assort_both_pedigree):
-        corr = self._mate_corr(assort_both_pedigree, 1)
+        corr = _mate_corr(assort_both_pedigree, 1)
         assert abs(corr - 0.4) < 0.15
 
     def test_mate_correlation_trait2(self, assort_both_pedigree):
-        corr = self._mate_corr(assort_both_pedigree, 2)
+        corr = _mate_corr(assort_both_pedigree, 2)
         assert abs(corr - 0.3) < 0.15

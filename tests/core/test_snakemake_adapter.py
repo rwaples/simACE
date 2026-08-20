@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from simace.core.snakemake_adapter import (
@@ -35,11 +35,11 @@ class TestRunWrapper:
         """Domain function's keyword-only params are pulled from snakemake.params."""
 
         def domain(df, *, multiplier, offset):
-            return df.assign(x=df["x"] * multiplier + offset)
+            return df.with_columns(x=pl.col("x") * multiplier + offset)
 
         in_path = tmp_path / "in.parquet"
         out_path = tmp_path / "out.parquet"
-        pd.DataFrame({"x": [1.0, 2.0, 3.0]}).to_parquet(in_path)
+        pl.DataFrame({"x": [1.0, 2.0, 3.0]}).write_parquet(in_path)
 
         sm = _make_snakemake(
             input_attrs={"df": str(in_path)},
@@ -50,12 +50,12 @@ class TestRunWrapper:
         run_wrapper(
             sm,
             domain,
-            inputs={"df": pd.read_parquet},
+            inputs={"df": pl.read_parquet},
             output="result",
             writer=write_parquet_plain,
         )
-        result = pd.read_parquet(out_path)
-        assert result["x"].tolist() == [11.0, 21.0, 31.0]
+        result = pl.read_parquet(out_path)
+        assert result["x"].to_list() == [11.0, 21.0, 31.0]
 
     def test_pass_through_loader_passes_raw_path(self, tmp_path):
         """A loader of None passes the raw path string (no IO at adapter)."""
@@ -64,7 +64,7 @@ class TestRunWrapper:
         def domain(in_path, *, scale):
             observed["in_path"] = in_path
             observed["scale"] = scale
-            return pd.DataFrame({"x": [scale]})
+            return pl.DataFrame({"x": [scale]})
 
         sm = _make_snakemake(
             input_attrs={"in_path": "/some/raw/path.parquet"},
@@ -89,7 +89,7 @@ class TestRunWrapper:
             return df
 
         in_path = tmp_path / "in.parquet"
-        pd.DataFrame({"x": [1]}).to_parquet(in_path)
+        pl.DataFrame({"x": [1]}).write_parquet(in_path)
         sm = _make_snakemake(
             input_attrs={"df": str(in_path)},
             output_attrs={"out": str(tmp_path / "out.parquet")},
@@ -100,7 +100,7 @@ class TestRunWrapper:
             run_wrapper(
                 sm,
                 domain,
-                inputs={"df": pd.read_parquet},
+                inputs={"df": pl.read_parquet},
                 output="out",
                 writer=write_parquet_plain,
             )
@@ -116,7 +116,7 @@ class TestRunWrapper:
             return {"got": k}
 
         in_path = tmp_path / "in.parquet"
-        pd.DataFrame({"x": [1]}).to_parquet(in_path)
+        pl.DataFrame({"x": [1]}).write_parquet(in_path)
         sm = _make_snakemake(
             input_attrs={"df": str(in_path)},
             output_attrs={"target": "/expected/output"},
@@ -126,7 +126,7 @@ class TestRunWrapper:
         run_wrapper(
             sm,
             domain,
-            inputs={"df": pd.read_parquet},
+            inputs={"df": pl.read_parquet},
             output="target",
             writer=writer,
         )
@@ -136,10 +136,10 @@ class TestRunWrapper:
         """Param names matching `inputs` keys are skipped during introspection."""
 
         def domain(df, *, k):
-            return df.assign(k=k)
+            return df.with_columns(k=pl.lit(k))
 
         in_path = tmp_path / "in.parquet"
-        pd.DataFrame({"x": [1]}).to_parquet(in_path)
+        pl.DataFrame({"x": [1]}).write_parquet(in_path)
         # `df` exists in params too — adapter must prefer the input loader,
         # not pull `df` as a kwarg from snakemake.params.
         sm = _make_snakemake(
@@ -151,12 +151,12 @@ class TestRunWrapper:
         run_wrapper(
             sm,
             domain,
-            inputs={"df": pd.read_parquet},
+            inputs={"df": pl.read_parquet},
             output="out",
             writer=write_parquet_plain,
         )
-        result = pd.read_parquet(tmp_path / "out.parquet")
-        assert result["k"].tolist() == [99]
+        result = pl.read_parquet(tmp_path / "out.parquet")
+        assert result["k"].to_list() == [99]
 
 
 # ---------------------------------------------------------------------------

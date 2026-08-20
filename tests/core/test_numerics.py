@@ -3,10 +3,10 @@
 ``as_kernel_input`` exists to keep one numba signature per kernel. numba types
 a read-only array (``readonly array(float64, 1d, C)``) as a **distinct** type
 from a writable one, so a kernel fed both compiles — and, with ``cache=True``,
-stores on disk — two signatures. Under pandas 3 (and pandas 2 with
-Copy-on-Write) arrays taken from a DataFrame are read-only, while fancy-indexed
-selections and fresh allocations are writable, so both variants reach the same
-kernels.
+stores on disk — two signatures. Arrays taken from a DataFrame column are
+read-only — polars' zero-copy ``Series.to_numpy()`` hands out a read-only view,
+as did pandas under Copy-on-Write — while fancy-indexed selections and fresh
+allocations are writable, so both variants reach the same kernels.
 
 The direction matters: normalising on the **writable** variant is what keeps
 the warm on-disk cache useful, because that is the signature every existing
@@ -19,7 +19,7 @@ that bug; the rest pin the helper's contract.
 """
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 from simace.core._numba_utils import _pearsonr_core
@@ -79,14 +79,18 @@ def test_noncontiguous_input_becomes_contiguous():
     np.testing.assert_array_equal(out, src)
 
 
-def test_pandas_copy_on_write_column_is_accepted():
-    """The pandas 3 path: DataFrame columns arrive read-only under CoW."""
-    with pd.option_context("mode.copy_on_write", True):
-        df = pd.DataFrame({"liability": np.arange(8.0)})
-        col = df["liability"].to_numpy()
-        assert not col.flags.writeable, "precondition: CoW yields a read-only array"
+def test_frame_column_is_accepted():
+    """The production path: DataFrame columns arrive read-only.
 
-        out = as_kernel_input(col)
+    Polars' ``Series.to_numpy()`` is zero-copy for a null-free numeric column
+    and therefore hands back a read-only view — the same hazard pandas'
+    Copy-on-Write posed before the polars migration (ADR 0015).
+    """
+    df = pl.DataFrame({"liability": np.arange(8.0)})
+    col = df["liability"].to_numpy()
+    assert not col.flags.writeable, "precondition: zero-copy to_numpy yields a read-only array"
+
+    out = as_kernel_input(col)
 
     assert out.flags.writeable
     np.testing.assert_array_equal(out, np.arange(8.0))

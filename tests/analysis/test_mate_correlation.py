@@ -1,7 +1,7 @@
 """Tests for mate correlation computation and expected value formula."""
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from simace.analysis.stats import compute_mate_correlation
 from simace.simulation.mate_correlation import expected_mate_corr_matrix
@@ -92,11 +92,11 @@ class TestComputeMateCorrelation:
         rng = np.random.default_rng(seed)
         # Founders: mothers (even ids), fathers (odd ids)
         n_founders = 2 * n_pairs
-        founders = pd.DataFrame(
+        founders = pl.DataFrame(
             {
-                "id": range(n_founders),
-                "mother": -1,
-                "father": -1,
+                "id": np.arange(n_founders),
+                "mother": np.full(n_founders, -1),
+                "father": np.full(n_founders, -1),
                 "liability1": rng.normal(size=n_founders),
                 "liability2": rng.normal(size=n_founders),
             }
@@ -106,9 +106,11 @@ class TestComputeMateCorrelation:
         mother_ids = list(range(0, n_founders, 2))
         father_ids = list(range(1, n_founders, 2))
 
-        # Sort by liability to induce positive correlation
-        mother_liabs = founders.set_index("id").loc[mother_ids, "liability1"].values
-        father_liabs = founders.set_index("id").loc[father_ids, "liability1"].values
+        # Sort by liability to induce positive correlation. Founder ids equal
+        # their row positions by construction, so id lookup is positional.
+        liability1 = founders["liability1"].to_numpy()
+        mother_liabs = liability1[mother_ids]
+        father_liabs = liability1[father_ids]
         m_order = np.argsort(mother_liabs)
         f_order = np.argsort(father_liabs)
         sorted_mothers = np.array(mother_ids)[m_order]
@@ -129,7 +131,7 @@ class TestComputeMateCorrelation:
             )
             child_id += 1
 
-        return pd.concat([founders, pd.DataFrame(children)], ignore_index=True)
+        return pl.concat([founders, pl.DataFrame(children)], how="vertical")
 
     def test_returns_matrix_and_count(self):
         """Should return dict with 'matrix' and 'n_pairs' keys."""
@@ -152,25 +154,25 @@ class TestComputeMateCorrelation:
         """Random mating should produce near-zero correlations."""
         rng = np.random.default_rng(99)
         n = 1000
-        founders = pd.DataFrame(
+        founders = pl.DataFrame(
             {
-                "id": range(2 * n),
-                "mother": -1,
-                "father": -1,
+                "id": np.arange(2 * n),
+                "mother": np.full(2 * n, -1),
+                "father": np.full(2 * n, -1),
                 "liability1": rng.normal(size=2 * n),
                 "liability2": rng.normal(size=2 * n),
             }
         )
-        children = pd.DataFrame(
+        children = pl.DataFrame(
             {
-                "id": range(2 * n, 3 * n),
+                "id": np.arange(2 * n, 3 * n),
                 "mother": rng.choice(range(0, 2 * n, 2), size=n),
                 "father": rng.choice(range(1, 2 * n, 2), size=n),
                 "liability1": rng.normal(size=n),
                 "liability2": rng.normal(size=n),
             }
         )
-        df = pd.concat([founders, children], ignore_index=True)
+        df = pl.concat([founders, children], how="vertical")
         result = compute_mate_correlation(df)
         for i in range(2):
             for j in range(2):
@@ -178,7 +180,7 @@ class TestComputeMateCorrelation:
 
     def test_empty_pedigree(self):
         """All-founder pedigree should return nan matrix."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1],
                 "mother": [-1, -1],
@@ -192,7 +194,7 @@ class TestComputeMateCorrelation:
 
     def test_dangling_parent_links_are_ignored(self):
         """Ascertainment dropout can sever parent links; skip incomplete mating pairs."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1, 2, 3, 4, 5],
                 "mother": [-1, -1, -1, -1, 0, 2],

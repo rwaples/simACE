@@ -12,9 +12,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
+from simace.core.parquet import load_parquet, save_parquet
 from simace.core.trait_schema import strip_trait_to_outcomes
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -56,57 +57,64 @@ def pedigree_parquet(tmp_path):
     rng = np.random.default_rng(0)
     n = 60
     path = tmp_path / "pedigree.parquet"
-    pd.DataFrame(
-        {
-            "id": np.arange(n),
-            "generation": np.repeat([0, 1, 2], n // 3),
-            "sex": rng.integers(0, 2, n),
-            "household_id": np.arange(n),
-            "mother": np.full(n, -1, dtype=np.int64),
-            "father": np.full(n, -1, dtype=np.int64),
-            "twin": np.full(n, -1, dtype=np.int64),
-            "A1": rng.standard_normal(n),
-            "C1": rng.standard_normal(n),
-            "E1": rng.standard_normal(n),
-            "liability1": rng.standard_normal(n),
-            "A2": rng.standard_normal(n),
-            "C2": rng.standard_normal(n),
-            "E2": rng.standard_normal(n),
-            "liability2": rng.standard_normal(n),
-        }
-    ).to_parquet(path, index=False)
+    save_parquet(
+        pl.DataFrame(
+            {
+                "id": np.arange(n),
+                "generation": np.repeat([0, 1, 2], n // 3),
+                "sex": rng.integers(0, 2, n),
+                "household_id": np.arange(n),
+                "mother": np.full(n, -1, dtype=np.int64),
+                "father": np.full(n, -1, dtype=np.int64),
+                "twin": np.full(n, -1, dtype=np.int64),
+                "A1": rng.standard_normal(n),
+                "C1": rng.standard_normal(n),
+                "E1": rng.standard_normal(n),
+                "liability1": rng.standard_normal(n),
+                "A2": rng.standard_normal(n),
+                "C2": rng.standard_normal(n),
+                "E2": rng.standard_normal(n),
+                "liability2": rng.standard_normal(n),
+            }
+        ),
+        path,
+    )
     return path
 
 
 @pytest.fixture
 def phenotype_parquet(tmp_path, pedigree_parquet):
     """Raw outcomes-only trait parquet."""
-    df = pd.read_parquet(pedigree_parquet)
+    df = load_parquet(pedigree_parquet)
     rng = np.random.default_rng(1)
-    df["t1"] = rng.uniform(10, 200, len(df))
-    df["t2"] = rng.uniform(10, 200, len(df))
+    df = df.with_columns(
+        pl.Series("t1", rng.uniform(10, 200, len(df))),
+        pl.Series("t2", rng.uniform(10, 200, len(df))),
+    )
     path = tmp_path / "phenotype.raw.parquet"
-    strip_trait_to_outcomes(df, "raw").to_parquet(path, index=False)
+    save_parquet(strip_trait_to_outcomes(df, "raw"), path)
     return path
 
 
 @pytest.fixture
 def censored_phenotype_parquet(tmp_path, phenotype_parquet):
     """Censored outcomes-only trait parquet."""
-    df = pd.read_parquet(phenotype_parquet)
+    df = load_parquet(phenotype_parquet)
     rng = np.random.default_rng(2)
     n = len(df)
-    df["death_age"] = rng.uniform(50, 90, n).astype(float)
-    df["age_censored1"] = rng.choice([True, False], n)
-    df["t_observed1"] = rng.uniform(10, 200, n).astype(float)
-    df["death_censored1"] = rng.choice([True, False], n)
-    df["affected1"] = rng.choice([True, False], n)
-    df["age_censored2"] = rng.choice([True, False], n)
-    df["t_observed2"] = rng.uniform(10, 200, n).astype(float)
-    df["death_censored2"] = rng.choice([True, False], n)
-    df["affected2"] = rng.choice([True, False], n)
+    df = df.with_columns(
+        pl.Series("death_age", rng.uniform(50, 90, n).astype(float)),
+        pl.Series("age_censored1", rng.choice([True, False], n)),
+        pl.Series("t_observed1", rng.uniform(10, 200, n).astype(float)),
+        pl.Series("death_censored1", rng.choice([True, False], n)),
+        pl.Series("affected1", rng.choice([True, False], n)),
+        pl.Series("age_censored2", rng.choice([True, False], n)),
+        pl.Series("t_observed2", rng.uniform(10, 200, n).astype(float)),
+        pl.Series("death_censored2", rng.choice([True, False], n)),
+        pl.Series("affected2", rng.choice([True, False], n)),
+    )
     path = tmp_path / "trait.full.parquet"
-    strip_trait_to_outcomes(df, "censored").to_parquet(path, index=False)
+    save_parquet(strip_trait_to_outcomes(df, "censored"), path)
     return path
 
 
@@ -129,7 +137,7 @@ def test_ascertainment_wrapper(tmp_path, pedigree_parquet, censored_phenotype_pa
     _exec_wrapper(SCRIPT_DIR / "ascertainment.py", sm)
     assert ped_out.exists()
     assert trait_out.exists()
-    assert len(pd.read_parquet(trait_out)) == 30
+    assert len(load_parquet(trait_out)) == 30
 
 
 def test_censor_wrapper(tmp_path, phenotype_parquet, pedigree_parquet):
@@ -147,7 +155,7 @@ def test_censor_wrapper(tmp_path, phenotype_parquet, pedigree_parquet):
         log_path=tmp_path / "censor.log",
     )
     _exec_wrapper(SCRIPT_DIR / "censor.py", sm)
-    df = pd.read_parquet(out)
+    df = load_parquet(out)
     assert "affected1" in df.columns
     assert "t_observed1" in df.columns
 
@@ -173,7 +181,7 @@ def test_phenotype_wrapper(tmp_path, pedigree_parquet):
         log_path=tmp_path / "phenotype.log",
     )
     _exec_wrapper(SCRIPT_DIR / "phenotype.py", sm)
-    df = pd.read_parquet(out)
+    df = load_parquet(out)
     assert "t1" in df.columns
     assert "t2" in df.columns
 
@@ -249,7 +257,7 @@ def test_simulate_wrapper(tmp_path):
     )
     _exec_wrapper(SCRIPT_DIR / "simulate.py", sm)
     assert out_pedigree.exists()
-    df = pd.read_parquet(out_pedigree)
+    df = load_parquet(out_pedigree)
     for col in ("id", "generation", "liability1", "liability2"):
         assert col in df.columns
 
@@ -267,5 +275,5 @@ def test_parquet_to_tsv_wrapper(tmp_path, pedigree_parquet):
     sm.params.get = lambda key, default=None: getattr(sm.params, key, default)
     _exec_wrapper(SCRIPT_DIR / "parquet_to_tsv.py", sm)
     assert out.exists()
-    df = pd.read_csv(out, sep="\t")
+    df = pl.read_csv(out, separator="\t")
     assert "id" in df.columns

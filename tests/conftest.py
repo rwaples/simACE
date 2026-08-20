@@ -4,9 +4,10 @@ from collections.abc import Mapping
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
+from simace.core.parquet import load_parquet, save_parquet
 from simace.simulation.simulate import (
     generate_correlated_components,
     mating,
@@ -15,23 +16,24 @@ from simace.simulation.simulate import (
 )
 
 
-def schema_pad(df: pd.DataFrame, schema: Mapping[str, str]) -> pd.DataFrame:
+def schema_pad(df: pl.DataFrame, schema: Mapping[str, str]) -> pl.DataFrame:
     """Pad ``df`` with zero/false defaults for any columns required by ``schema``.
 
     Lets unit-test fixtures stay focused on the columns under test while still
     producing a frame that satisfies the pipeline-stage schema contract.
     """
     n = len(df)
+    new_cols = []
     for col, kinds in schema.items():
         if col in df.columns:
             continue
         if "f" in kinds:
-            df[col] = np.zeros(n, dtype=np.float32)
+            new_cols.append(pl.Series(col, np.zeros(n, dtype=np.float32)))
         elif "b" in kinds:
-            df[col] = np.zeros(n, dtype=bool)
+            new_cols.append(pl.Series(col, np.zeros(n, dtype=bool)))
         else:
-            df[col] = np.zeros(n, dtype=np.int32)
-    return df
+            new_cols.append(pl.Series(col, np.zeros(n, dtype=np.int32)))
+    return df.with_columns(new_cols) if new_cols else df
 
 
 @pytest.fixture
@@ -85,7 +87,7 @@ def tiny_pedigree_parquet(tmp_path: Path) -> Path:
         assort2=0.0,
     )
     path = tmp_path / "pedigree.parquet"
-    pedigree.to_parquet(path)
+    save_parquet(pedigree, path)
     return path
 
 
@@ -94,7 +96,7 @@ def tiny_phenotype_parquet(tmp_path: Path, tiny_pedigree_parquet: Path) -> Path:
     """Tiny schema-valid phenotype parquet built from the pedigree fixture."""
     from simace.phenotype import run_phenotype
 
-    pedigree = pd.read_parquet(tiny_pedigree_parquet)
+    pedigree = load_parquet(tiny_pedigree_parquet)
     phenotype = run_phenotype(
         pedigree,
         G_pheno=1,
@@ -110,17 +112,17 @@ def tiny_phenotype_parquet(tmp_path: Path, tiny_pedigree_parquet: Path) -> Path:
         beta_sex2=0.0,
     )
     path = tmp_path / "phenotype.parquet"
-    phenotype.to_parquet(path)
+    save_parquet(phenotype, path)
     return path
 
 
 @pytest.fixture
-def tiny_censored_parquet(tmp_path: Path, tiny_phenotype_parquet: Path) -> Path:
+def tiny_censored_parquet(tmp_path: Path, tiny_phenotype_parquet: Path, tiny_pedigree_parquet: Path) -> Path:
     """Tiny schema-valid censored parquet built from the phenotype fixture."""
     from simace.censoring.censor import run_censor
 
-    phenotype = pd.read_parquet(tiny_phenotype_parquet)
-    pedigree = pd.read_parquet(tiny_pedigree_parquet)
+    phenotype = load_parquet(tiny_phenotype_parquet)
+    pedigree = load_parquet(tiny_pedigree_parquet)
     censored = run_censor(
         phenotype,
         pedigree,
@@ -131,7 +133,7 @@ def tiny_censored_parquet(tmp_path: Path, tiny_phenotype_parquet: Path) -> Path:
         death_rho=10.0,
     )
     path = tmp_path / "censored.parquet"
-    censored.to_parquet(path)
+    save_parquet(censored, path)
     return path
 
 

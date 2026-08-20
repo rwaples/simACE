@@ -23,13 +23,11 @@ from simace.core.schema import assert_schema
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    import pandas as pd
     import polars as pl
 
-    # Transitional (ADR 0015): stages accept/return either library during
-    # Wave 1; polars-only after the Wave 2 boundary break. assert_schema
-    # enforces eagerness — LazyFrame is rejected at every stage boundary.
-    type _Frame = pd.DataFrame | pl.DataFrame
+    # Polars-only since the Wave 2 boundary break (ADR 0015). assert_schema
+    # enforces both frame type and eagerness at every stage boundary.
+    type _Frame = pl.DataFrame
 
 __all__ = ["stage"]
 

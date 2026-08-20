@@ -5,7 +5,7 @@ can be verified by hand.
 """
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import pytest
 
 from simace.analysis.stats import (
@@ -56,7 +56,7 @@ def person_years_df():
       id=3: death_age=40, t_observed1=45, t_observed2=20
       id=4: death_age=100, t_observed1=10, t_observed2=70
     """
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "id": [0, 1, 2, 3, 4],
             "generation": [1, 1, 2, 2, 2],
@@ -83,7 +83,7 @@ def family_df():
 
     Plus 6 founders (ids 100-105) with mother=-1, father=-1.
     """
-    founders = pd.DataFrame(
+    founders = pl.DataFrame(
         {
             "id": [100, 101, 102, 103, 104, 105],
             "mother": [-1, -1, -1, -1, -1, -1],
@@ -91,7 +91,7 @@ def family_df():
             "sex": [0, 1, 0, 1, 0, 1],
         }
     )
-    children = pd.DataFrame(
+    children = pl.DataFrame(
         {
             "id": [1, 2, 3, 4, 5, 6, 7],
             "mother": [100, 100, 102, 102, 104, 104, 104],
@@ -99,7 +99,7 @@ def family_df():
             "sex": [0, 1, 0, 1, 0, 1, 0],
         }
     )
-    return pd.concat([founders, children], ignore_index=True)
+    return pl.concat([founders, children])
 
 
 @pytest.fixture
@@ -115,7 +115,7 @@ def confusion_df():
     id=4: t1=20 (true aff), affected1=True  (TP); t2=100(not aff), affected2=False (TN)
     id=5: t1=95 (not aff), affected1=True  (FP); t2=50 (true aff), affected2=True  (TP)
     """
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "id": [0, 1, 2, 3, 4, 5],
             "generation": [1, 1, 1, 1, 1, 1],
@@ -144,7 +144,7 @@ def cascade_df():
       id=6: t1=90, death_age=100 -> NOT true_aff (90 >= 80)
       id=7: t1=65, death_age=80  -> true_aff, t > hi(60) -> right_censored
     """
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "id": [0, 1, 2, 3, 4, 5, 6, 7],
             "generation": [1, 1, 1, 1, 2, 2, 2, 2],
@@ -209,7 +209,7 @@ class TestComputePersonYears:
         Gen 2 window [0, 60]:  3 people * 60 = 180
         Total = 300, deaths = 0
         """
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1, 2, 3, 4],
                 "generation": [1, 1, 2, 2, 2],
@@ -229,7 +229,7 @@ class TestComputePersonYears:
 
     def test_window_hi_le_lo(self):
         """Generation with hi <= lo is skipped entirely."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1],
                 "generation": [1, 1],
@@ -248,13 +248,13 @@ class TestComputePersonYears:
 
     def test_missing_generation_column(self):
         """Returns {} when generation column is absent."""
-        df = pd.DataFrame({"id": [0, 1], "death_age": [50.0, 60.0]})
+        df = pl.DataFrame({"id": [0, 1], "death_age": [50.0, 60.0]})
         result = compute_person_years(df, censor_age=100.0, gen_censoring={1: [0.0, 80.0]})
         assert result == {}
 
     def test_trait_column_missing(self):
         """Trait key still present but 0.0 when t_observed columns are absent."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1],
                 "generation": [1, 1],
@@ -271,7 +271,7 @@ class TestComputePersonYears:
 
     def test_no_gen_censoring_uses_default(self):
         """When gen_censoring is None, default window is [0, censor_age]."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1],
                 "generation": [1, 1],
@@ -323,7 +323,7 @@ class TestComputeMeanFamilySize:
 
     def test_all_founders(self):
         """All individuals are founders (mother=-1) -> returns {}."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1, 2],
                 "mother": [-1, -1, -1],
@@ -335,12 +335,12 @@ class TestComputeMeanFamilySize:
 
     def test_missing_columns(self):
         """Missing mother/father columns -> returns {}."""
-        df = pd.DataFrame({"id": [0, 1], "sex": [0, 1]})
+        df = pl.DataFrame({"id": [0, 1], "sex": [0, 1]})
         assert compute_mean_family_size(df) == {}
 
     def test_single_child_family(self):
         """One family of size 1: frac_with_full_sib = 0."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [100, 101, 1],
                 "mother": [-1, -1, 100],
@@ -415,7 +415,7 @@ class TestComputeCensoringConfusion:
           id=1: t1=40 < 100 (true_aff), affected1=True  -> TP
           id=2: t1=150 >= 100 (not aff), affected2=False -> TN
         """
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1, 2],
                 "generation": [1, 1, 1],
@@ -434,7 +434,7 @@ class TestComputeCensoringConfusion:
 
     def test_inactive_generation_excluded(self):
         """Generations with hi <= lo are excluded from the confusion matrix."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1],
                 "generation": [1, 2],
@@ -503,13 +503,13 @@ class TestComputeCensoringCascade:
 
     def test_missing_generation_column(self):
         """Returns {} when generation column is absent."""
-        df = pd.DataFrame({"id": [0], "t1": [50.0], "affected1": [True]})
+        df = pl.DataFrame({"id": [0], "t1": [50.0], "affected1": [True]})
         result = compute_censoring_cascade(df, censor_age=80.0, gen_censoring={1: [0.0, 80.0]})
         assert result == {}
 
     def test_empty_windows(self):
         """Returns {} when all windows have hi <= lo."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0],
                 "generation": [1],
@@ -526,7 +526,7 @@ class TestComputeCensoringCascade:
 
     def test_no_death_age_column(self):
         """Without death_age, death_censored should be 0 and in-window cases are all observed."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1],
                 "generation": [1, 1],
@@ -547,7 +547,7 @@ class TestComputeCensoringCascade:
 
     def test_no_true_affected(self):
         """When no individuals are truly affected, sensitivity is NaN."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0],
                 "generation": [1],
@@ -580,7 +580,7 @@ class TestComputeCensoringCascade:
 class TestComputeCensoringWindows:
     def test_structure(self):
         """Verify returned dict has expected top-level keys."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1],
                 "generation": [1, 1],
@@ -604,7 +604,7 @@ class TestComputeCensoringWindows:
 
     def test_returns_none_without_generation(self):
         """Returns None when generation column is missing."""
-        df = pd.DataFrame({"id": [0], "t1": [30.0]})
+        df = pl.DataFrame({"id": [0], "t1": [30.0]})
         result = compute_censoring_windows(df, censor_age=80.0, gen_censoring={1: [0.0, 80.0]})
         assert result is None
 
@@ -613,7 +613,7 @@ class TestComputeCensoringWindows:
 
         2 out of 4 individuals are affected for trait1.
         """
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1, 2, 3],
                 "generation": [1, 1, 1, 1],
@@ -636,7 +636,7 @@ class TestComputeCensoringWindows:
 
     def test_empty_generation(self):
         """Generation with no matching individuals gets n=0 entry."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0],
                 "generation": [1],
@@ -675,16 +675,21 @@ def phenotyped_df():
     from simace.simulation.simulate import run_simulation
 
     ped = run_simulation(**_DEFAULT_SIM_PARAMS)
-    gen = ped["generation"].values
+    gen = ped["generation"].to_numpy()
     rng = np.random.default_rng(42)
+    new_cols = []
     for t in [1, 2]:
-        liab = ped[f"liability{t}"].values
-        ped[f"affected{t}"] = case_status_from_liability(liab, 0.10, None, gen, "global")
-        aff = ped[f"affected{t}"].values
-        ped[f"t_observed{t}"] = np.where(aff, rng.uniform(10, 70, len(ped)), 80.0)
-        ped[f"t{t}"] = np.where(aff, ped[f"t_observed{t}"], rng.uniform(85, 200, len(ped)))
-    ped["death_age"] = rng.uniform(40, 100, len(ped))
-    return ped
+        liab = ped[f"liability{t}"].to_numpy()
+        aff = np.asarray(case_status_from_liability(liab, 0.10, None, gen, "global"))
+        t_obs = np.where(aff, rng.uniform(10, 70, len(ped)), 80.0)
+        t_true = np.where(aff, t_obs, rng.uniform(85, 200, len(ped)))
+        new_cols += [
+            pl.Series(f"affected{t}", aff),
+            pl.Series(f"t_observed{t}", t_obs),
+            pl.Series(f"t{t}", t_true),
+        ]
+    new_cols.append(pl.Series("death_age", rng.uniform(40, 100, len(ped))))
+    return ped.with_columns(new_cols)
 
 
 @pytest.fixture(scope="module")
@@ -692,7 +697,9 @@ def extracted_pairs(phenotyped_df):
     """Pre-extracted relationship pairs."""
     from pedigree_graph import PedigreeGraph
 
-    return PedigreeGraph(phenotyped_df).extract_pairs()
+    from simace.core.frames import pedigree_graph_input
+
+    return PedigreeGraph(pedigree_graph_input(phenotyped_df)).extract_pairs()
 
 
 # ===================================================================
@@ -702,7 +709,7 @@ def extracted_pairs(phenotyped_df):
 
 class TestComputePrevalence:
     def test_known_values(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "affected1": [True, True, False, False, False],
                 "affected2": [False, True, True, True, False],
@@ -713,24 +720,24 @@ class TestComputePrevalence:
         assert result["trait2"] == pytest.approx(0.6)
 
     def test_all_affected(self):
-        df = pd.DataFrame({"affected1": [True, True], "affected2": [True, True]})
+        df = pl.DataFrame({"affected1": [True, True], "affected2": [True, True]})
         result = compute_prevalence(df)
         assert result["trait1"] == pytest.approx(1.0)
         assert result["trait2"] == pytest.approx(1.0)
 
     def test_none_affected(self):
-        df = pd.DataFrame({"affected1": [False, False], "affected2": [False, False]})
+        df = pl.DataFrame({"affected1": [False, False], "affected2": [False, False]})
         result = compute_prevalence(df)
         assert result["trait1"] == pytest.approx(0.0)
         assert result["trait2"] == pytest.approx(0.0)
 
     def test_no_generation_column_omits_by_generation(self):
-        df = pd.DataFrame({"affected1": [True, False], "affected2": [False, True]})
+        df = pl.DataFrame({"affected1": [True, False], "affected2": [False, True]})
         result = compute_prevalence(df)
         assert "by_generation" not in result
 
     def test_by_generation_with_generation_column(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "affected1": [True, True, False, False, True, False],
                 "affected2": [False, True, True, False, True, True],
@@ -755,7 +762,7 @@ class TestComputePrevalence:
 class TestComputeMortality:
     def test_known_rates(self):
         """5 people, censor_age=50, decade bins [0-10), [10-20), ..., [40-50)."""
-        df = pd.DataFrame({"death_age": [5.0, 15.0, 25.0, 35.0, 95.0]})
+        df = pl.DataFrame({"death_age": [5.0, 15.0, 25.0, 35.0, 95.0]})
         result = compute_mortality(df, censor_age=50)
         assert len(result["decade_labels"]) == 5
         assert result["decade_labels"][0] == "0-9"
@@ -765,7 +772,7 @@ class TestComputeMortality:
         assert result["rates"][1] == pytest.approx(0.25)
 
     def test_no_deaths_before_censor(self):
-        df = pd.DataFrame({"death_age": [100.0, 200.0]})
+        df = pl.DataFrame({"death_age": [100.0, 200.0]})
         result = compute_mortality(df, censor_age=80)
         assert all(r == pytest.approx(0.0) for r in result["rates"])
 
@@ -778,7 +785,7 @@ class TestComputeMortality:
 class TestComputeRegression:
     def test_positive_slope(self):
         """Higher liability → earlier onset (negative slope with liability)."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "affected1": [True, True, True, True, False],
                 "affected2": [True, True, True, True, False],
@@ -794,7 +801,7 @@ class TestComputeRegression:
         assert result["trait1"]["r"] != 0
 
     def test_too_few_affected_returns_none(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "affected1": [True, False],
                 "affected2": [False, False],
@@ -810,7 +817,7 @@ class TestComputeRegression:
         assert result["trait2"] is None
 
     def test_missing_liability_returns_none(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "affected1": [True, True],
                 "affected2": [True, True],
@@ -830,7 +837,7 @@ class TestComputeRegression:
 
 class TestComputeJointAffection:
     def test_known_counts(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "affected1": [True, True, False, False, True],
                 "affected2": [True, False, True, False, True],
@@ -846,7 +853,7 @@ class TestComputeJointAffection:
         assert result["proportions"]["both"] == pytest.approx(0.4)
 
     def test_by_sex_present(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "affected1": [True, False, True, False],
                 "affected2": [True, True, False, False],
@@ -870,7 +877,7 @@ class TestComputeJointAffection:
 class TestComputeParentStatus:
     def test_known_structure(self):
         """3 founders + 2 children: children have 2 parents each."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1, 2, 3, 4],
                 "mother": [-1, -1, -1, 0, 0],
@@ -884,14 +891,14 @@ class TestComputeParentStatus:
         assert result["phenotyped"]["2"] == 2
 
     def test_with_ped_df(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [3, 4],
                 "mother": [0, 0],
                 "father": [1, 1],
             }
         )
-        df_ped = pd.DataFrame({"id": [0, 1, 2, 3, 4]})
+        df_ped = pl.DataFrame({"id": [0, 1, 2, 3, 4]})
         result = compute_parent_status(df, df_ped=df_ped)
         # Parents 0,1 not in df (phenotype), so phenotyped = 0 for both children
         assert result["phenotyped"]["0"] == 2
@@ -899,7 +906,7 @@ class TestComputeParentStatus:
         assert result["in_pedigree"]["2"] == 2
 
     def test_missing_columns(self):
-        df = pd.DataFrame({"id": [0, 1]})
+        df = pl.DataFrame({"id": [0, 1]})
         assert compute_parent_status(df) == {}
 
 
@@ -944,7 +951,7 @@ class TestComputeCumulativeIncidenceBySex:
                 assert 0 <= result[trait][sex]["prevalence"] <= 1
 
     def test_missing_sex_returns_empty(self):
-        df = pd.DataFrame({"affected1": [True], "affected2": [False], "t_observed1": [30.0], "t_observed2": [80.0]})
+        df = pl.DataFrame({"affected1": [True], "affected2": [False], "t_observed1": [30.0], "t_observed2": [80.0]})
         assert compute_cumulative_incidence_by_sex(df, censor_age=80) == {}
 
 
@@ -1022,7 +1029,7 @@ class TestComputeTetrachoricByGeneration:
             assert "trait2" in gen_data
 
     def test_missing_generation_returns_empty(self):
-        df = pd.DataFrame({"affected1": [True], "affected2": [False], "liability1": [1.0], "liability2": [1.0]})
+        df = pl.DataFrame({"affected1": [True], "affected2": [False], "liability1": [1.0], "liability2": [1.0]})
         assert compute_tetrachoric_by_generation(df, pairs={}) == {}
 
 
@@ -1067,7 +1074,7 @@ class TestComputeParentOffspringCorr:
                 break
 
     def test_missing_generation_returns_empty(self):
-        df = pd.DataFrame({"id": [0], "liability1": [1.0], "liability2": [1.0]})
+        df = pl.DataFrame({"id": [0], "liability1": [1.0], "liability2": [1.0]})
         assert compute_parent_offspring_corr(df) == {}
 
 
@@ -1100,7 +1107,7 @@ class TestComputeParentOffspringCorrBySex:
             assert "trait1" in result[sex]
 
     def test_missing_generation_returns_empty(self):
-        df = pd.DataFrame({"id": [0], "sex": [0], "liability1": [1.0], "liability2": [1.0]})
+        df = pl.DataFrame({"id": [0], "sex": [0], "liability1": [1.0], "liability2": [1.0]})
         assert compute_parent_offspring_corr_by_sex(df) == {}
 
 
@@ -1149,7 +1156,7 @@ class TestComputeAffectedCorrelations:
         b_side = np.array([1] * 4 + [0] * 2 + [1] * 2 + [0] * 12, dtype=np.float64)
         affected1 = np.concatenate([a_side, b_side])
 
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": np.arange(len(affected1), dtype=np.int64),
                 "affected1": affected1.astype(bool),
@@ -1177,7 +1184,7 @@ class TestComputeAffectedCorrelations:
 
     def test_constant_side_returns_none(self):
         """Phi is undefined when either indicator has zero variance."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": np.arange(30, dtype=np.int64),
                 "affected1": np.array([True] * 15 + [False] * 15, dtype=bool),
@@ -1253,7 +1260,7 @@ class TestComputeParentOffspringAffectedCorr:
         mothers = [-1] * 40 + mother_ids
         fathers = [-1] * 40 + father_ids
         affected1 = founders_aff + child_aff
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": ids,
                 "mother": mothers,
@@ -1269,11 +1276,11 @@ class TestComputeParentOffspringAffectedCorr:
         assert result["trait2"]["slope"] is None
 
     def test_missing_columns_returns_empty(self):
-        df = pd.DataFrame({"affected1": [True, False]})
+        df = pl.DataFrame({"affected1": [True, False]})
         assert compute_parent_offspring_affected_corr(df) == {}
 
     def test_too_few_trios_returns_null(self):
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [100, 101, 1, 2],
                 "mother": [-1, -1, 100, 100],
@@ -1394,7 +1401,7 @@ def _make_aj_df(rows):
     death_censored = [r[1] for r in rows]
     t_obs = [r[2] for r in rows]
     n = len(rows)
-    return pd.DataFrame(
+    return pl.DataFrame(
         {
             "id": np.arange(n),
             "affected1": np.array(affected, dtype=bool),
@@ -1528,7 +1535,7 @@ class TestAalenJohansen:
     def test_by_sex_smoke(self):
         n = 20
         rng = np.random.default_rng(0)
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": np.arange(n),
                 "sex": np.tile([0, 1], n // 2),
@@ -1564,7 +1571,7 @@ class TestAalenJohansen:
         """gen_censoring with all left=0 must equal gen_censoring=None bit-for-bit."""
         n = 10
         rng = np.random.default_rng(1)
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": np.arange(n),
                 "generation": np.repeat([0, 1], n // 2),
@@ -1601,7 +1608,7 @@ class TestAalenJohansen:
           t=20: Y(20) = entries_by_20 (=4) − exits_before_20 (=1, disease at 5) = 3
                 d=1 → F = 1/2 + 1/2*1/3 = 2/3
         """
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1, 2, 3],
                 "generation": [0, 0, 1, 1],
@@ -1633,7 +1640,7 @@ class TestAalenJohansen:
     def test_degenerate_window_filtered(self):
         """Zero-width window [80, 80]: individuals who die before 80 have
         e_i (80) > t_i (death_age) and must be filtered."""
-        df = pd.DataFrame(
+        df = pl.DataFrame(
             {
                 "id": [0, 1],
                 "generation": [0, 0],

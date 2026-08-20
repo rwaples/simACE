@@ -2,13 +2,13 @@
 
 import sys
 
-import pandas as pd
 import pytest
 import yaml
 
 from simace.analysis.stats.runner import build_stats_report
 from simace.analysis.stats.runner import cli as run_stats_cli
 from simace.analysis.stats.runner import main as run_stats
+from simace.core.parquet import load_parquet, save_parquet
 from simace.core.trait_schema import hydrate_trait
 
 
@@ -69,8 +69,8 @@ def runner_outputs(tmp_path, tiny_phenotype):
     pedigree, phenotype = tiny_phenotype
     ped_path = tmp_path / "pedigree.parquet"
     phe_path = tmp_path / "trait.parquet"
-    pedigree.to_parquet(ped_path)
-    phenotype.to_parquet(phe_path)
+    save_parquet(pedigree, ped_path)
+    save_parquet(phenotype, phe_path)
 
     stats_yaml = tmp_path / "stats_report.yaml"
     samples_pq = tmp_path / "plotting_sample.parquet"
@@ -95,7 +95,7 @@ class TestRunnerMain:
     def test_writes_samples_parquet(self, runner_outputs):
         _, samples_pq = runner_outputs
         assert samples_pq.exists()
-        df = pd.read_parquet(samples_pq)
+        df = load_parquet(samples_pq)
         assert len(df) > 0
 
     def test_build_stats_report_returns_grouped_schema(self, tiny_phenotype):
@@ -138,7 +138,7 @@ class TestRunnerMain:
     def test_runs_without_pedigree(self, tmp_path, tiny_phenotype):
         pedigree, phenotype = tiny_phenotype
         phe_path = tmp_path / "trait.parquet"
-        hydrate_trait(phenotype, pedigree, kind="censored").to_parquet(phe_path)
+        save_parquet(hydrate_trait(phenotype, pedigree, kind="censored"), phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
         run_stats(
@@ -160,7 +160,7 @@ class TestRunnerMain:
     def test_case_ascertainment_ratio_recorded(self, tmp_path, tiny_phenotype):
         pedigree, phenotype = tiny_phenotype
         phe_path = tmp_path / "trait.parquet"
-        hydrate_trait(phenotype, pedigree, kind="censored").to_parquet(phe_path)
+        save_parquet(hydrate_trait(phenotype, pedigree, kind="censored"), phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
         run_stats(
@@ -179,7 +179,7 @@ class TestRunnerMain:
     def test_gen_censoring_branch(self, tmp_path, tiny_phenotype):
         pedigree, phenotype = tiny_phenotype
         phe_path = tmp_path / "trait.parquet"
-        hydrate_trait(phenotype, pedigree, kind="censored").to_parquet(phe_path)
+        save_parquet(hydrate_trait(phenotype, pedigree, kind="censored"), phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
         run_stats(
@@ -204,8 +204,8 @@ class TestRunnerCli:
         pedigree, phenotype = tiny_phenotype
         ped_path = tmp_path / "pedigree.parquet"
         phe_path = tmp_path / "trait.parquet"
-        pedigree.to_parquet(ped_path)
-        phenotype.to_parquet(phe_path)
+        save_parquet(pedigree, ped_path)
+        save_parquet(phenotype, phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
 
@@ -232,8 +232,8 @@ class TestRunnerCli:
         pedigree, phenotype = tiny_phenotype
         ped_path = tmp_path / "pedigree.parquet"
         phe_path = tmp_path / "trait.parquet"
-        pedigree.to_parquet(ped_path)
-        phenotype.to_parquet(phe_path)
+        save_parquet(pedigree, ped_path)
+        save_parquet(phenotype, phe_path)
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
 
