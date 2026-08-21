@@ -45,7 +45,9 @@ def convert(parquet_path: str, output_path: str | None = None, float_precision: 
 
     if gzip:
         with gzip_module.open(output_path, "wb") as fh:
-            df.write_csv(fh, separator="\t", float_precision=float_precision)
+            # GzipFile satisfies the IO[bytes] target at runtime; polars' overloads
+            # spell it more narrowly than ty can match.
+            df.write_csv(fh, separator="\t", float_precision=float_precision)  # ty: ignore[no-matching-overload]
     else:
         df.write_csv(output_path, separator="\t", float_precision=float_precision)
     elapsed = time.perf_counter() - t0

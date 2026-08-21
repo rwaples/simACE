@@ -156,7 +156,7 @@ def compute_censoring_cascade(
             right_cens = true_affected & (t > hi)
             in_window = true_affected & (t >= lo) & (t <= hi)
 
-            if has_death:
+            if death_all is not None:
                 death_age = death_all[gen_mask]
                 death_cens = in_window & (death_age < t)
                 observed = in_window & (death_age >= t)
@@ -219,7 +219,7 @@ def compute_person_years(
         n = int(gen_mask.sum())
 
         # End of observation for each person (not trait-specific)
-        if has_death:
+        if death_all is not None:
             death_ages = death_all[gen_mask]
             end = np.minimum(death_ages, hi)
             # Deaths observed during follow-up window

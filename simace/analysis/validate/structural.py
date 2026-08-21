@@ -74,12 +74,12 @@ def validate_structural(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any],
         results["sex_parent_consistency"] = _result(True, "No non-founders to check")
 
     # Sex distribution
-    sex_ratio = df["sex"].mean()
+    sex_ratio = float(df["sex"].to_numpy().mean())
     sex_balanced = 0.45 <= sex_ratio <= 0.55
     results["sex_distribution"] = _result(
         sex_balanced,
         f"Male ratio: {sex_ratio:.3f} (expected ~0.5)",
-        observed_ratio=float(sex_ratio),
+        observed_ratio=sex_ratio,
     )
 
     return results

@@ -118,7 +118,7 @@ def run_phenotype(
     logger.info("Running phenotype simulation for %d individuals", len(pedigree))
     t0 = time.perf_counter()
 
-    max_gen = pedigree["generation"].max()
+    max_gen = int(pedigree["generation"].to_numpy().max())
     min_gen = max_gen - G_pheno + 1
     if min_gen < 0:
         raise ValueError(f"G_pheno ({G_pheno}) exceeds available generations ({max_gen + 1})")

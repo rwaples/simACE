@@ -455,8 +455,8 @@ def compute_prevalence(df: _Frame) -> dict[str, Any]:
         ``int(generation) -> {"trait1": float, "trait2": float}``.
     """
     result: dict[str, Any] = {
-        "trait1": float(df["affected1"].mean()),
-        "trait2": float(df["affected2"].mean()),
+        "trait1": float(df["affected1"].to_numpy().mean()),
+        "trait2": float(df["affected2"].to_numpy().mean()),
     }
     if "generation" in df.columns:
         gens = df["generation"].to_numpy()

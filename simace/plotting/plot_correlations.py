@@ -414,8 +414,8 @@ def plot_parent_offspring_liability(
     # The earliest phenotyped generation's parents may be outside the phenotype
     # window (e.g. G_pheno < G_ped), so we test each candidate generation.
     _sample_ids = set(ids_arr.tolist())
-    min_gen = int(df_samples["generation"].min())
-    max_gen = int(df_samples["generation"].max())
+    min_gen = int(df_samples["generation"].to_numpy().min())
+    max_gen = int(df_samples["generation"].to_numpy().max())
     candidate_gens = list(range(max(min_gen + 1, 1), max_gen + 1))
     plot_gens = []
     for gen in candidate_gens:

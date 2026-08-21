@@ -225,8 +225,9 @@ def plot_estimators_overview(
     # Plot range derived from finite values across all estimators.
     finite = scalar_df["ne"].drop_nans().drop_nulls()
     if not finite.is_empty():
-        lo = max(finite.min() * 0.5, 1.0)
-        hi = finite.max() * 2.0
+        finite_arr = finite.to_numpy()
+        lo = max(float(finite_arr.min()) * 0.5, 1.0)
+        hi = float(finite_arr.max()) * 2.0
     else:
         lo, hi = 1.0, 1e6
 
@@ -381,7 +382,7 @@ def plot_ne_by_generation(
         ax.autoscale_view()
         _apply_log_ne_yticks(ax)
 
-        n = int(sub["index"].max()) + 1
+        n = int(sub["index"].to_numpy().max()) + 1
         if kind == "transition":
             ax.set_xticks(np.arange(n) + 0.5)
             ax.set_xticklabels([f"{g}→{g + 1}" for g in range(n)], fontsize=8)
@@ -457,7 +458,7 @@ def plot_family_size_variance(
     v_cols = ["v_mm", "v_mf", "v_fm", "v_ff"]
     cov_cols = ["cov_m", "cov_f"]
 
-    n = int(sub["index"].max()) + 1
+    n = int(sub["index"].to_numpy().max()) + 1
     xs_base = np.arange(n) + 0.5
 
     palette_v = ["#4477AA", "#EE7733", "#228833", "#CC3311"]

@@ -119,4 +119,4 @@ def load_parquet(path: Any, columns: Sequence[str] | None = None, **kwargs: Any)
     Returns:
         The file contents; missing values are null, never NaN.
     """
-    return pl.read_parquet(path, columns=columns, **kwargs)
+    return pl.read_parquet(path, columns=list(columns) if columns is not None else None, **kwargs)

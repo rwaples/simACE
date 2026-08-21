@@ -22,10 +22,13 @@ from .tetrachoric import _tetrachoric_for_pairs, tetrachoric_corr_se
 
 if TYPE_CHECKING:
     import pandas as pd
+    import polars as pl
+
+    type _Frame = pd.DataFrame | pl.DataFrame
 
 
 def compute_liability_correlations(
-    df: pd.DataFrame,
+    df: _Frame,
     seed: int = 42,
     *,
     pairs: dict[str, tuple[np.ndarray, np.ndarray]],
@@ -56,7 +59,7 @@ def compute_liability_correlations(
 
 
 def compute_affected_correlations(
-    df: pd.DataFrame,
+    df: _Frame,
     seed: int = 42,
     *,
     pairs: dict[str, tuple[np.ndarray, np.ndarray]],
@@ -91,7 +94,7 @@ def compute_affected_correlations(
 
 
 def compute_tetrachoric(
-    df: pd.DataFrame,
+    df: _Frame,
     seed: int = 42,
     *,
     pairs: dict[str, tuple[np.ndarray, np.ndarray]],
@@ -119,7 +122,7 @@ def compute_tetrachoric(
 
 
 def compute_tetrachoric_by_generation(
-    df: pd.DataFrame,
+    df: _Frame,
     seed: int = 42,
     *,
     pairs: dict[str, tuple[np.ndarray, np.ndarray]],
@@ -159,7 +162,7 @@ def compute_tetrachoric_by_generation(
 
 
 def compute_cross_trait_tetrachoric(
-    df: pd.DataFrame,
+    df: _Frame,
     seed: int = 42,
     *,
     pairs: dict[str, tuple[np.ndarray, np.ndarray]],
@@ -224,7 +227,7 @@ def compute_cross_trait_tetrachoric(
 
 
 def compute_tetrachoric_by_sex(
-    df: pd.DataFrame,
+    df: _Frame,
     seed: int = 42,
     *,
     pairs: dict[str, tuple[np.ndarray, np.ndarray]],
@@ -253,7 +256,7 @@ def compute_tetrachoric_by_sex(
     return result
 
 
-def _po_regression(gen_idx: np.ndarray, liability: np.ndarray, id_to_row: np.ndarray, df: pd.DataFrame) -> dict:
+def _po_regression(gen_idx: np.ndarray, liability: np.ndarray, id_to_row: np.ndarray, df: _Frame) -> dict:
     """Midparent-offspring regression for a given set of offspring indices."""
     mother_ids = df["mother"].to_numpy()[gen_idx]
     father_ids = df["father"].to_numpy()[gen_idx]
@@ -282,7 +285,7 @@ def _po_regression(gen_idx: np.ndarray, liability: np.ndarray, id_to_row: np.nda
     }
 
 
-def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
+def compute_parent_offspring_corr(df: _Frame) -> dict[str, Any]:
     """Compute midparent-offspring liability regression per generation and trait.
 
     Args:
@@ -294,7 +297,7 @@ def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
     """
     if "generation" not in df.columns:
         return {}
-    max_gen = int(df["generation"].max())
+    max_gen = int(df["generation"].to_numpy().max())
     ids_arr = df["id"].to_numpy()
     id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
     id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
@@ -310,7 +313,7 @@ def compute_parent_offspring_corr(df: pd.DataFrame) -> dict[str, Any]:
     return result
 
 
-def compute_parent_offspring_affected_corr(df: pd.DataFrame) -> dict[str, Any]:
+def compute_parent_offspring_affected_corr(df: _Frame) -> dict[str, Any]:
     """Compute pooled midparent-offspring regression on binary affected status.
 
     Regresses ``offspring.affected`` (0/1) on midparent affected status
@@ -384,7 +387,7 @@ def compute_parent_offspring_affected_corr(df: pd.DataFrame) -> dict[str, Any]:
     return result
 
 
-def compute_parent_offspring_corr_by_sex(df: pd.DataFrame) -> dict[str, Any]:
+def compute_parent_offspring_corr_by_sex(df: _Frame) -> dict[str, Any]:
     """Compute midparent-offspring regression partitioned by offspring sex.
 
     Returns dict keyed by "female"/"male", each containing per-trait
@@ -392,7 +395,7 @@ def compute_parent_offspring_corr_by_sex(df: pd.DataFrame) -> dict[str, Any]:
     """
     if "generation" not in df.columns:
         return {}
-    max_gen = int(df["generation"].max())
+    max_gen = int(df["generation"].to_numpy().max())
     ids_arr = df["id"].to_numpy()
     id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
     id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
@@ -469,7 +472,7 @@ def compute_observed_h2_estimators(
     return result
 
 
-def compute_mate_correlation(df: pd.DataFrame) -> dict:
+def compute_mate_correlation(df: _Frame) -> dict:
     """Compute 2x2 Pearson correlation matrix between mated pairs' liabilities.
 
     Each unique (mother, father) pair is counted once (not weighted by offspring).
