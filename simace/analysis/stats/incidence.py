@@ -11,6 +11,9 @@ from simace.core.relationships import SEX_LEVELS
 
 if TYPE_CHECKING:
     import pandas as pd
+    import polars as pl
+
+    type _Frame = pd.DataFrame | pl.DataFrame
 
 
 def _cumulative_curve(
@@ -32,7 +35,7 @@ def _cumulative_curve(
     return np.searchsorted(sorted_t, ages, side="right") / n
 
 
-def compute_mortality(df: pd.DataFrame, censor_age: float) -> dict[str, Any]:
+def compute_mortality(df: _Frame, censor_age: float) -> dict[str, Any]:
     """Compute decade-binned mortality rates from death ages.
 
     Args:
@@ -57,7 +60,7 @@ def compute_mortality(df: pd.DataFrame, censor_age: float) -> dict[str, Any]:
 
 
 def compute_cumulative_incidence(
-    df: pd.DataFrame,
+    df: _Frame,
     censor_age: float,
     n_points: int = 200,
 ) -> dict[str, Any]:
@@ -91,7 +94,7 @@ def compute_cumulative_incidence(
     return result
 
 
-def _build_entry_times(df: pd.DataFrame, gen_censoring: dict[int, list[float]] | None) -> np.ndarray:
+def _build_entry_times(df: _Frame, gen_censoring: dict[int, list[float]] | None) -> np.ndarray:
     """Per-individual delayed-entry times from per-generation windows.
 
     Returns 0 for every individual when ``gen_censoring`` is None or no
@@ -253,7 +256,7 @@ def _aalen_johansen(
     return out
 
 
-def _exit_event_arrays(df: pd.DataFrame, trait_num: int) -> tuple[np.ndarray, np.ndarray]:
+def _exit_event_arrays(df: _Frame, trait_num: int) -> tuple[np.ndarray, np.ndarray]:
     """Build (exit_time, event_type) arrays from censoring columns for a trait.
 
     event_type: 1=disease, 2=death, 0=censored.
@@ -266,7 +269,7 @@ def _exit_event_arrays(df: pd.DataFrame, trait_num: int) -> tuple[np.ndarray, np
 
 
 def compute_cumulative_incidence_aj(
-    df: pd.DataFrame,
+    df: _Frame,
     censor_age: float,
     n_points: int = 200,
     *,
@@ -312,7 +315,7 @@ def compute_cumulative_incidence_aj(
 
 
 def compute_cumulative_incidence_aj_by_sex(
-    df: pd.DataFrame,
+    df: _Frame,
     censor_age: float,
     n_points: int = 200,
     *,
@@ -353,7 +356,7 @@ def compute_cumulative_incidence_aj_by_sex(
 
 
 def compute_cumulative_incidence_aj_by_sex_generation(
-    df: pd.DataFrame,
+    df: _Frame,
     censor_age: float,
     n_points: int = 200,
     *,
@@ -399,7 +402,7 @@ def compute_cumulative_incidence_aj_by_sex_generation(
     return result
 
 
-def compute_regression(df: pd.DataFrame) -> dict[str, Any]:
+def compute_regression(df: _Frame) -> dict[str, Any]:
     """Regress observed event time on liability for affected individuals.
 
     Args:
@@ -438,7 +441,7 @@ def compute_regression(df: pd.DataFrame) -> dict[str, Any]:
     return result
 
 
-def compute_prevalence(df: pd.DataFrame) -> dict[str, Any]:
+def compute_prevalence(df: _Frame) -> dict[str, Any]:
     """Compute observed prevalence for each trait.
 
     Args:
@@ -466,7 +469,7 @@ def compute_prevalence(df: pd.DataFrame) -> dict[str, Any]:
     return result
 
 
-def compute_joint_affection(df: pd.DataFrame) -> dict[str, Any]:
+def compute_joint_affection(df: _Frame) -> dict[str, Any]:
     """Compute 2x2 contingency table for trait1 x trait2 affection status."""
     a1 = df["affected1"].to_numpy().astype(bool)
     a2 = df["affected2"].to_numpy().astype(bool)
@@ -493,7 +496,7 @@ def compute_joint_affection(df: pd.DataFrame) -> dict[str, Any]:
 
 
 def compute_cumulative_incidence_by_sex(
-    df: pd.DataFrame,
+    df: _Frame,
     censor_age: float,
     n_points: int = 200,
 ) -> dict[str, Any]:
@@ -527,7 +530,7 @@ def compute_cumulative_incidence_by_sex(
 
 
 def compute_cumulative_incidence_by_sex_generation(
-    df: pd.DataFrame,
+    df: _Frame,
     censor_age: float,
     n_points: int = 200,
 ) -> dict[str, Any]:
