@@ -59,7 +59,7 @@ contrast is precisely the observed-scale axis.
 Rebuild all four (and the comparison plots on this page) with:
 
 ```bash
-snakemake --cores 4 examples_all
+pixi run snakemake --cores 4 examples_all
 ```
 
 ## Observation 1 — Realized $v_E$ tracks the configured trajectory; $h^2$ drifts with it

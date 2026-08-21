@@ -6,7 +6,7 @@ Run the smallest scenario to confirm the pipeline is functional (this
 takes a minute or two):
 
 ```bash
-snakemake --cores 4 results/test/small_test/scenario.done
+pixi run snakemake --cores 4 results/test/small_test/scenario.done
 ```
 
 ## Check the output
@@ -35,7 +35,7 @@ results/test/small_test/plots/atlas.html
 ```
 
 A multi-page PDF atlas is available on demand — build it with
-`snakemake --cores 4 results/test/small_test/plots/atlas.pdf`.
+`pixi run snakemake --cores 4 results/test/small_test/plots/atlas.pdf`.
 
 See [Interpreting Results](../user-guide/interpreting-results.md) for descriptions of each plot.
 

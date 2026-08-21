@@ -39,11 +39,11 @@ The drop+graft step (`simulate_genotypes_chrom`) only runs once for
 
 ```bash
 # Drop the founders through the simACE pedigree (one-shot, ~5 min wall at -j 8)
-snakemake --use-conda --cores 8 \
+pixi run snakemake --use-conda --cores 8 \
   results/genotype_drop/p2_full/rep1/.simulate_genotypes.done
 
 # Run all 5 variants (each only the tstrait sub-pipeline + augment + atlas)
-snakemake --use-conda --rerun-triggers mtime -j 8 \
+pixi run snakemake --use-conda --rerun-triggers mtime -j 8 \
   results/genotype_drop/p2_full_a0/plots/atlas.html \
   results/genotype_drop/p2_full_c100/plots/atlas.html \
   results/genotype_drop/p2_full_c10k/plots/atlas.html \

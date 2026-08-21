@@ -224,5 +224,5 @@ high_heritability:
 Run a scenario by targeting its resolved folder and scenario name:
 
 ```bash
-snakemake --cores 4 results/base/baseline10K/scenario.done
+pixi run snakemake --cores 4 results/base/baseline10K/scenario.done
 ```

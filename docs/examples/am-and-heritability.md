@@ -30,7 +30,7 @@ AM coefficient on trait 1.
 Rebuild all three (and the comparison plots on this page) with:
 
 ```bash
-snakemake --cores 4 examples_all
+pixi run snakemake --cores 4 examples_all
 ```
 
 ## Observation 1 — AM inflates realized $v_A$ at equilibrium

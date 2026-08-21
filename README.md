@@ -7,8 +7,9 @@ heritability and familial correlations from population health registries.
 
 📖 **Full documentation**: see the [`docs/`](docs/) directory (built with mkdocs)
 or the [rendered site](https://rwaples.github.io/simACE/). Model fitting
-(EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC) lives in the sister repo
-[`fitACE`](https://github.com/rwaples/fitACE), which depends on simACE.
+(EPIMIGHT, PCGC, iterative/sparse REML, LDAK TetraHer, PA-FGRS, Stan) lives in
+the private companion repo [`fitACE`](https://github.com/rwaples/fitACE),
+which depends on simACE.
 
 ## Prerequisites
 
@@ -78,47 +79,34 @@ For per-stage targets, force-rebuilding, and resuming interrupted runs, see
 
 ## Configuration
 
-Define named scenarios in `config/{folder}.yaml`; defaults live in
-`config/_default.yaml` and are inherited unless overridden:
+Global defaults live in `config/_default.yaml` under a `defaults:` key
+(seed, replicates, variance components, population structure, phenotype
+models, censoring, ascertainment, …). Scenarios live in per-folder files
+`config/{folder}.yaml` — each file holds **bare scenario dicts** (one
+top-level key per scenario), each overriding only the defaults it changes,
+and the results folder name comes from the filename:
 
 ```yaml
-defaults:
-  seed: 42
-  replicates: 3
-  folder: base                              # Output folder under results/
+# config/heritability.yaml → outputs under results/heritability/{scenario}/
+high_heritability:
+  A1: 0.8                                   # Trait 1: A + C <= 1.0; E = 1 - A - C
+  C1: 0.0
+  A2: 0.8                                   # Trait 2
+  C2: 0.0
 
-  # Trait 1 variance components (A + C <= 1.0; E = 1 - A - C)
-  A1: 0.5
-  C1: 0.2
-
-  # Trait 2 variance components
-  A2: 0.5
-  C2: 0.2
-
-  # Cross-trait correlations
-  rA: 0.3                                   # Genetic correlation
-  rC: 0.5                                   # Common environment correlation
-
-  # Population and generation structure
-  N: 100000                                 # Population size per generation
-  G_ped: 6                                  # Generations recorded in pedigree
-  G_pheno: 3                                # Generations to phenotype
-  G_sim: 8                                  # Total generations (G_sim - G_ped = burn-in)
-
-scenarios:
-  baseline10K:
-    seed: 1042
-    N: 10000
-
-  high_heritability:
-    folder: heritability
-    A1: 0.8
-    C1: 0.0
-    A2: 0.8
-    C2: 0.0
+baseline_small:
+  seed: 1042
+  N: 10000                                  # Population size per generation
 ```
 
-To add new simulations, simply add a new scenario to a config file. For the
+Key defaults you will most often override: `A1`/`C1`/`A2`/`C2` (variance
+components), `rA`/`rC` (cross-trait correlations), `N`, `G_ped`/`G_pheno`/
+`G_sim` (generations recorded / phenotyped / simulated), `seed`,
+`replicates`.
+
+To add new simulations, add a scenario to an existing folder file or create
+a new `config/{folder}.yaml` — files are auto-discovered (names starting
+with `_` are skipped). For the
 full parameter reference (phenotype models, censoring, ascertainment, etc.), see
 [Configuration](docs/user-guide/configuration.md).
 

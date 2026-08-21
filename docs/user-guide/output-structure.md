@@ -76,7 +76,7 @@ simace-parquet-to-tsv -p 8 results/base/baseline10K/rep1/pedigree.parquet
 Or via Snakemake (auto-converts matching `.parquet`):
 
 ```bash
-snakemake --cores 1 results/base/baseline10K/rep1/pedigree.tsv.gz
+pixi run snakemake --cores 1 results/base/baseline10K/rep1/pedigree.tsv.gz
 ```
 
 ---

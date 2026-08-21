@@ -98,7 +98,7 @@ gene-drop scenario.
 Run once with:
 
 ```bash
-snakemake --use-conda --cores 4 tskit_preprocess
+pixi run snakemake --use-conda --cores 4 tskit_preprocess
 ```
 
 ### Stage 2 — drop founders through the simACE pedigree

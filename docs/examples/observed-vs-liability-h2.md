@@ -45,7 +45,7 @@ at risk at all, and the hazard governs onset within that subset.
 Rebuild all three (and every other docs-embedded comparison plot) with:
 
 ```bash
-snakemake --cores 4 examples_all
+pixi run snakemake --cores 4 examples_all
 ```
 
 ## Observation — Tetrachoric Falconer depends on the *shape* of the liability→observed map
