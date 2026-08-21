@@ -1158,9 +1158,9 @@ def load_pedigree_estimates_per_generation(
     gen_arr = df_full["generation"].to_numpy()
     liab_full = df_full[f"liability{trait}"].to_numpy()
     # float64 to match pandas Series.var(ddof=1) precision used previously.
-    A_full = df_full[f"A{trait}"].to_numpy(dtype=np.float64)
-    C_full = df_full[f"C{trait}"].to_numpy(dtype=np.float64)
-    E_full = df_full[f"E{trait}"].to_numpy(dtype=np.float64)
+    A_full = df_full[f"A{trait}"].to_numpy().astype(np.float64)
+    C_full = df_full[f"C{trait}"].to_numpy().astype(np.float64)
+    E_full = df_full[f"E{trait}"].to_numpy().astype(np.float64)
 
     out: dict[int, dict[str, float]] = {}
     for g in gens:
