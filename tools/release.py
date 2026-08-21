@@ -1,13 +1,13 @@
 #!/usr/bin/env python
-"""Cut a lockstep family release: tag all ten simACE/fitACE repos at one CalVer.
+"""Cut a lockstep family release: tag the three simACE/fitACE checkouts at one CalVer.
 
 Run from anywhere (repo paths resolve relative to this file's location).  The
-helper creates an annotated git tag ``vYYYY.MM[.patch]`` in each of the ten
+helper creates an annotated git tag ``vYYYY.MM[.patch]`` in each of the three
 lockstep family repos **locally**, then PRINTS the per-repo ``git push``
 commands for the maintainer to run.  It never pushes — that is the maintainer's
 job, per the repo-wide no-``git push`` rule.
 
-The ten members (nine Python repos + the nested ``ace_iter_reml`` C++ binary)
+The three members (simACE, the fitACE monorepo, fitACE_epimight — ADR 0017)
 are tagged all-or-nothing: the helper refuses to tag anything unless *every*
 repo is present, has a clean working tree, and is not already tagged at the
 requested version.  If a tag creation fails partway, the tags already created
@@ -21,7 +21,7 @@ push is only needed to publish.  See simACE ADR 0012 (lockstep family
 versioning) and the Cutover section of the implementation plan.
 
 Examples:
-    python tools/release.py v2026.06            # tag all ten repos locally
+    python tools/release.py v2026.06            # tag the three checkouts locally
     python tools/release.py v2026.06 --dry-run  # check + report, tag nothing
     python tools/release.py v2026.06.1 -m "hotfix: ..."
 """
@@ -36,10 +36,10 @@ from pathlib import Path
 
 from family_repos import lockstep_repos
 
-#: The ten lockstep family repos, relative to the simACE root: nine Python repos
-#: (simACE, fitACE core, the seven ``fitACE_*`` sisters) plus the nested
-#: ``ace_iter_reml`` C++ binary.  Sourced from the shared ``family_repos``
-#: manifest so the repo list lives in exactly one place.
+#: The three lockstep checkouts, relative to the simACE root (ADR 0017):
+#: simACE, the fitACE monorepo (whose seven distributions + C++ binary all
+#: read its tag), and fitACE_epimight.  Sourced from the shared
+#: ``family_repos`` manifest so the repo list lives in exactly one place.
 FAMILY_REPOS: tuple[str, ...] = tuple(repo.path for repo in lockstep_repos())
 
 _SIMACE_ROOT = Path(__file__).resolve().parent.parent
@@ -102,10 +102,10 @@ def _push_commands(tag: str) -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Parse args, verify the family, tag all ten repos locally, print pushes."""
+    """Parse args, verify the family, tag the three checkouts locally, print pushes."""
     parser = argparse.ArgumentParser(
         prog="release.py",
-        description="Tag the ten lockstep simACE/fitACE repos at one CalVer (never pushes).",
+        description="Tag the three lockstep simACE/fitACE checkouts at one CalVer (never pushes).",
     )
     parser.add_argument("version", help="Release tag, e.g. v2026.06 or v2026.06.1")
     parser.add_argument(

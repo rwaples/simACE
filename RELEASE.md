@@ -1,8 +1,10 @@
 # Releasing the simACE / fitACE lockstep family
 
-This repository is the umbrella for a **lockstep family** of ten git repos that
-are developed together and versioned together. A release tags all ten at one
-CalVer (`vYYYY.MM[.patch]`) in a single coordinated step.
+This repository is the umbrella for a **lockstep family** developed and
+versioned together. Since ADR 0017 (family monorepo) a release tags **three
+checkouts** at one CalVer (`vYYYY.MM[.patch]`) in a single coordinated step;
+within the fitACE monorepo, all seven distributions and the C++ binary read
+that one tag, so intra-monorepo lockstep is structural.
 
 Authoritative design: [`docs/adr/0012-lockstep-family-versioning.md`](docs/adr/0012-lockstep-family-versioning.md)
 (simACE side) and [`fitACE/docs/adr/0002-lockstep-family-versioning.md`](fitACE/docs/adr/0002-lockstep-family-versioning.md)
@@ -11,30 +13,24 @@ version", "Family floor") lives in both `CONTEXT.md` files.
 
 ---
 
-## The ten members
+## The three tagged checkouts
 
-A release tags every member, **including untouched ones**, so the version is
+A release tags every checkout, **including untouched ones**, so the version is
 identical across the family at the tag.
 
-| # | Repo | Path (from this root) | Versioned by |
+| # | Checkout | Path (from this root) | Versioned by |
 |---|------|-----------------------|--------------|
 | 1 | simACE | `.` | setuptools-scm |
-| 2 | fitACE core | `fitACE` | setuptools-scm |
+| 2 | fitACE (monorepo) | `fitACE` | setuptools-scm (7 distributions: `fitace`, `fitace-pcgc`, `fitace-iter-reml`, `fitace-tetraher`, `fitace-pafgrs`, `fitace-stan`, `fitace-frailty` — each pyproject sets `[tool.setuptools_scm] root = ".."`); the `ace_iter_reml` binary via CMake `git describe` off the same tag |
 | 3 | fitACE_epimight | `fitACE/fitACE_epimight` | setuptools-scm |
-| 4 | fitACE_pcgc | `fitACE/fitACE_pcgc` | setuptools-scm |
-| 5 | fitACE_iter_reml | `fitACE/fitACE_iter_reml` | setuptools-scm |
-| 6 | fitACE_tetraher | `fitACE/fitACE_tetraher` | setuptools-scm |
-| 7 | fitACE_pafgrs | `fitACE/fitACE_pafgrs` | setuptools-scm |
-| 8 | fitACE_stan | `fitACE/fitACE_stan` | setuptools-scm |
-| 9 | fitACE_frailty | `fitACE/fitACE_frailty` | setuptools-scm |
-| 10 | ace_iter_reml (C++ binary) | `fitACE/fitACE_iter_reml/ace_iter_reml` | CMake `git describe` |
 
-> `fitace_sreml` is a *tenth import package* but **not** a separate
+> `fitace_sreml` is an extra *import package* but **not** a separate
 > distribution — it ships inside the `fitace_iter_reml` dist (one dist, two
-> import packages), so it has no tag of its own.
+> import packages).
 
-**Excluded** (keep their own independent SemVer): `pedigree-graph`, `pedsum`,
-`tetraher_simace`. These are public and/or independently consumed.
+**Excluded** (keep their own independent SemVer): `pedigree-graph`, `pedsum`.
+The `tetraher_simace` LDAK fork lives inside the fitACE monorepo since ADR
+0017 and simply rides its tags.
 
 ---
 
@@ -43,8 +39,8 @@ identical across the family at the tag.
 - **CalVer** `vYYYY.MM`, with an optional patch for a second release in the same
   month: `v2026.06`, `v2026.06.1`. The first unified lockstep release is
   `v2026.06`.
-- The nine Python repos derive their version from git tags via
-  **setuptools-scm**. Between tags a repo reports a dev version
+- Every Python distribution derives its version from git tags via
+  **setuptools-scm**. Between tags a checkout reports a dev version
   (`2026.6.dev4+g<hash>`); members are byte-identical only *at* a tagged
   release, and between releases diverge only by their setuptools-scm
   commit-distance suffix (accepted as cosmetic).
@@ -94,12 +90,12 @@ consistency test.
 
 ## The release helper
 
-[`tools/release.py`](tools/release.py) tags all ten repos locally and prints the
-per-repo `git push` commands. **It never pushes** (repo-wide no-`git push`
+[`tools/release.py`](tools/release.py) tags the three checkouts locally and prints the
+per-checkout `git push` commands. **It never pushes** (repo-wide no-`git push`
 rule).
 
 ```bash
-python tools/release.py vYYYY.MM            # tag all ten repos locally
+python tools/release.py vYYYY.MM            # tag the three checkouts locally
 python tools/release.py vYYYY.MM --dry-run  # run checks + report; tag nothing
 python tools/release.py vYYYY.MM.1 -m "hotfix: <summary>"
 ```
@@ -130,14 +126,14 @@ tags are cut and the family is reinstalled. Run the steps in this order.
 
 ### 0. Land and clean
 
-Commit the final implementation/docs changes in each affected repo. Confirm all
-ten repos are clean (the helper refuses dirty repos):
+Commit the final implementation/docs changes in each affected checkout. Confirm
+all three checkouts are clean (the helper refuses dirty repos):
 
 ```bash
 python tools/release.py vYYYY.MM --dry-run
 ```
 
-A green dry-run (`all 10 family repos are clean and untagged`) is the gate.
+A green dry-run (`all 3 family repos are clean and untagged`) is the gate.
 
 ### 1. Tag locally
 
@@ -145,12 +141,16 @@ A green dry-run (`all 10 family repos are clean and untagged`) is the gate.
 python tools/release.py vYYYY.MM
 ```
 
-This creates the annotated tags in all ten repos. No push is needed for the
+This creates the annotated tags in all three checkouts. No push is needed for the
 guard to clear.
 
 ### 2. Reinstall the family editable
 
 So the new versions and the matching floor take effect together:
+
+The install paths are unchanged by the monorepo (ADR 0017) — the method
+packages still live at `fitACE/fitACE_<x>/`, now as subdirectories of the
+fitACE checkout rather than nested repos:
 
 ```bash
 pip install -e .                         # simACE

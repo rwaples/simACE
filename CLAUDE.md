@@ -92,27 +92,19 @@ from `PAIR_KINSHIP`.
 
 ## Repo Map
 
-Thirteen related repos, all under `rwaples/` on GitHub. simACE is the umbrella working directory; the others are nested checkouts (gitignored from simACE — no submodules). The seven `fitACE_*` method repos were peeled out of fitACE in the method-split (each depends on `fitace`/`simace`, never on another method repo).
+Five repos, all under `rwaples/` on GitHub (ADR 0017 collapsed the former 13: fitACE became a private monorepo absorbing the six Python method sisters, the `ace_iter_reml` C++ source, and the `tetraher_simace` LDAK fork — the retired standalone repos are archived on GitHub with their pre-merge history). simACE is the umbrella working directory; fitACE and its nested fitACE_epimight are checkouts inside it (gitignored from simACE — no submodules). fitACE ADR 0001's package invariants are unchanged: method packages depend on `fitace`/`simace`, never on each other.
 
 | Repo | Visibility | Local path | Role |
 |---|---|---|---|
 | [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate → phenotype → censor → ascertainment → validate → stats → plot |
-| [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model-fitting **core + Snakemake orchestrator**: kinship, config, LTM/Falconer, GRM export, phenotyping, shared result writers + cross-method plots. The fitting methods live in the `fitACE_*` sister repos below. Consumes simACE outputs. |
-| [`fitACE_epimight`](https://github.com/rwaples/fitACE_epimight) | private | `./fitACE/fitACE_epimight/` | EPIMIGHT v2.0 integration for fitACE: long-form input emitter, Snakemake rules, atlas/bias plotting. Included by `fitACE/Snakefile` via cross-repo `include:` directives. |
-| [`fitACE_pcgc`](https://github.com/rwaples/fitACE_pcgc) | private | `./fitACE/fitACE_pcgc/` | PCGC / Haseman–Elston moment estimator (reference/numba/cpp backends + `ace_pcgc` C++ binary). |
-| [`fitACE_iter_reml`](https://github.com/rwaples/fitACE_iter_reml) | private | `./fitACE/fitACE_iter_reml/` | Iterative PCG-AI-REML (`ace_iter_reml`) + sparse REML (`ace_sreml`, env-only). Holds packages `fitace_iter_reml` + `fitace_sreml`. |
-| [`fitACE_tetraher`](https://github.com/rwaples/fitACE_tetraher) | private | `./fitACE/fitACE_tetraher/` | LDAK TetraHer (`--tetra-her`) liability-scale A+C+E. Consumes the `tetraher_simace` LDAK fork. |
-| [`fitACE_pafgrs`](https://github.com/rwaples/fitACE_pafgrs) | private | `./fitACE/fitACE_pafgrs/` | PA-FGRS (Pearson–Aitken Family Genetic Risk Scores) + diagnostic atlas. |
-| [`fitACE_stan`](https://github.com/rwaples/fitACE_stan) | private | `./fitACE/fitACE_stan/` | Stan/cmdstanpy Bayesian ACE fitting. Dormant (no Snakemake rule). |
-| [`fitACE_frailty`](https://github.com/rwaples/fitACE_frailty) | private | `./fitACE/fitACE_frailty/` | Weibull-frailty pairwise correlation stats. Dormant (no Snakemake rule). |
-| [`ace_iter_reml`](https://github.com/rwaples/ace_iter_reml) | private | `./fitACE/fitACE_iter_reml/ace_iter_reml/` | C++ PCG-AI-REML binary. Driven by `fitACE_iter_reml`. |
-| [`tetraher_simace`](https://github.com/rwaples/tetraher_simace) | private | `./external/tetraher_simace/` | Fork of LDAK 6.2 (grouping + warm-start + OMP opt-in). Binary consumed by `fitACE/fitace/tetraher/`. |
+| [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model-fitting **monorepo**: core + Snakemake orchestrator + method packages in `fitACE_<x>/` subdirs (PCGC, iter/sparse REML + `ace_iter_reml` C++ source, TetraHer + the `tetraher_simace` LDAK fork, PA-FGRS, Stan, frailty). Seven distributions, one repo — see `fitACE/CLAUDE.md` for the in-repo layout. Consumes simACE outputs. |
+| [`fitACE_epimight`](https://github.com/rwaples/fitACE_epimight) | private | `./fitACE/fitACE_epimight/` | EPIMIGHT integration: long-form input emitter, R driver, Snakemake rules, atlas/bias plotting. The one method outside the monorepo — its own repo, tracking the BioPsyk/epimight R upstream; included by `fitACE/Snakefile` via a cross-repo `include:`. |
 | [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Sparse-matrix pedigree relationship extraction and kinship computation. |
 | [`pedsum`](https://github.com/rwaples/pedsum) | public | `./external/pedsum/` | Pedigree summary CLI: structure, relatedness, inbreeding, Ne estimators. Built on `pedigree-graph`. |
 
-## Cross-repo edits (simACE + fitACE)
+## Cross-repo edits (simACE + fitACE + fitACE_epimight)
 
-- Treat simACE and fitACE as a coordinated pair when work spans both. Verify edits land in each repo's working tree (`git status` in both), run tests in both, and make parallel commits — do not assume changes propagate.
+- Treat simACE, fitACE, and fitACE_epimight as a coordinated set when work spans them. Verify edits land in each repo's working tree (`git status` in each), run tests in each, and make parallel commits — do not assume changes propagate. Edits across fitACE's method packages are ordinary single-repo commits since the monorepo (ADR 0017).
 
 ## Git usage
 - Do NOT run `git push` under any circumstances
@@ -210,9 +202,10 @@ tool to call next. Cheaper than guessing wrong.
 ### Cross-repo searches
 
 `cross_repo_search` covers the repos registered under
-`~/.code-review-graph/registry.json` (below) — all thirteen family repos,
-including the seven `fitACE_*` method sisters. To add another, see
-**Adding a new repo**.
+`~/.code-review-graph/registry.json` (below) — the registry still carries one
+DB per former standalone repo; since ADR 0017 the `fitACE_*` entries (except
+epimight) point at fitACE monorepo subdirectories, which keeps the search
+working at the same granularity. To add another, see **Adding a new repo**.
 
 | Repo | Languages indexed | Embeddings |
 |------|-------------------|------------|
