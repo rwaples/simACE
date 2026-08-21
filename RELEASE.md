@@ -144,39 +144,29 @@ python tools/release.py vYYYY.MM
 This creates the annotated tags in all three checkouts. No push is needed for the
 guard to clear.
 
-### 2. Reinstall the family editable
+### 2. Refresh the pixi environments' editables
 
-So the new versions and the matching floor take effect together:
-
-The install paths are unchanged by the monorepo (ADR 0017) — the method
-packages still live at `fitACE/fitACE_<x>/`, now as subdirectories of the
-fitACE checkout rather than nested repos:
+setuptools-scm bakes the version at editable-install time, so after tagging,
+reinstall the editable packages in each pixi environment (ADR 0018 — the
+conda family env is retired):
 
 ```bash
-pip install -e .                         # simACE
-pip install -e fitACE                    # fitACE core
-for s in epimight pcgc iter_reml tetraher pafgrs stan frailty; do
-  pip install -e "fitACE/fitACE_$s"
-done
-# Restore external editable deps the family reinstall may have clobbered:
-# `pip install -e .` re-resolves simACE's `pedigree-graph` range (pedigree-graph
-# publishes to PyPI as of v0.6.0) and installs the newest matching wheel over
-# the editable link, shadowing the source checkout.
-# `editable_mode=compat` writes a plain-path `.pth` that ty can follow; the
-# default import-hook mode (`__editable__*.pth` + `_finder.py`) is invisible to
-# ty and would surface `unresolved-import` errors for `pedigree_graph`.
-pip install -e external/pedigree-graph --config-settings editable_mode=compat
-# verify: pip show pedigree-graph → "Editable project location"
+pixi reinstall simace                                # umbrella env
+pixi reinstall --manifest-path fitACE/pixi.toml \
+  simace fitace fitace-epimight fitace-pcgc fitace-iter-reml \
+  fitace-tetraher fitace-pafgrs fitace-stan fitace-frailty
 ```
 
 (Reinstalling also regenerates the console-script wrappers, e.g. a stale
-`simace-analyze` entry point.)
+`simace-analyze` entry point. pedigree-graph is consumed as its PyPI wheel in
+these envs and keeps its own SemVer — nothing to refresh at a family release;
+its dev env lives in `external/pedigree-graph/pixi.toml`.)
 
 ### 3. Reconfigure + rebuild the binary
 
 `configure_file` regenerates `version.h` only on the CMake **configure** step,
 so reconfigure (don't just rebuild) after tagging. Build the binary in its own
-conda env (`ace_iter_reml` / `ace_iter_reml_fp32`), not the simACE env. The
+conda env (`ace_iter_reml` / `ace_iter_reml_fp32`) — these dedicated build envs remain after ADR 0018. The
 `build-fp*/` dirs are gitignored — rebuild, don't commit:
 
 ```bash

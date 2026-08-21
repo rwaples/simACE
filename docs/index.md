@@ -25,7 +25,7 @@ estimate heritability and familial correlations from population health registrie
 
 ## Quick links
 
-- [Installation](getting-started/installation.md) — conda environment setup
+- [Installation](getting-started/installation.md) — pixi environment setup
 - [Quick Start](getting-started/quickstart.md) — running an initial simulation
 - [Configuration](user-guide/configuration.md) — parameter reference
 - [Examples](examples/minimal-ace.md) — story-first walkthroughs of simulation mechanisms

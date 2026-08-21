@@ -1,8 +1,7 @@
-# Canonical simACE environment (ADR 0016): pixi runs every simACE-scoped
-# command (pytest / ruff / ty / snakefmt / snakemake). The conda env remains
-# solely the family environment (fitACE + sisters, editable pedigree-graph,
-# tools/typecheck_family.py). Dependency bumps here update
-# envs/environment.yml in the same commit until fitACE migrates.
+# Canonical simACE environment (ADR 0016; sole environment since the conda
+# retirement, ADR 0018): pixi runs every simACE-scoped command (pytest / ruff
+# / ty / snakefmt / snakemake). Family work runs in fitACE/pixi.toml;
+# editable pedigree-graph work in external/pedigree-graph/pixi.toml.
 [workspace]
 name = "simace"
 channels = ["conda-forge", "bioconda"]
@@ -23,7 +22,7 @@ numba = "0.66.*"
 matplotlib = "3.11.*"
 seaborn = "0.13.*"
 pillow = "12.3.*"
-# workflow (snakemake-minimal, not the meta-package — see envs/environment.yml)
+# workflow (snakemake-minimal, not the meta-package)
 snakemake-minimal = "9.25.*"
 snakemake-executor-plugin-slurm = "2.8.*"
 snakefmt = "2.0.*"

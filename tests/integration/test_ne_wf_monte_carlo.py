@@ -15,7 +15,7 @@ Coverage:
   ``external/pedigree-graph/tests/test_effective_size.py`` exercises the
   formula on a deterministic pedigree.
 
-Marked ``slow`` — full run is ~30 s in the ACE conda env.
+Marked ``slow`` — full run is ~30 s in the dev env.
 """
 
 from __future__ import annotations

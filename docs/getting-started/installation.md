@@ -72,19 +72,14 @@ pip install "simace @ git+https://github.com/rwaples/simACE"
 # or, from a clone: pip install -e .          (add ".[dev]" for the dev tools)
 ```
 
-## Conda fallback (macOS; family development)
+## Platform support
 
-The pixi lock currently covers `linux-64` only. On macOS, use the conda
-environment instead:
-
-```bash
-conda env create -f envs/environment.yml   # creates environment and installs simace
-conda activate simACE
-```
+The pipeline environment is **Linux-only** (`linux-64`; ADR 0018) — Windows
+users can run it under WSL2. There is no macOS pipeline environment; on macOS
+the plain-pip library install above is the supported path.
 
 Model fitting lives in the private [`fitACE`](https://github.com/rwaples/fitACE)
 monorepo (ADR 0017), which depends on simace and is developed as a nested
-checkout at `./fitACE/` — a fresh simACE clone does not include it. Combined
-simACE + fitACE development uses the conda environment above as the family
-base (see `RELEASE.md`); fitACE also carries its own committed pixi
-environment at `fitACE/pixi.toml`.
+checkout at `./fitACE/` — a fresh simACE clone does not include it. Family
+development runs in fitACE's own committed pixi environment
+(`pixi run --manifest-path fitACE/pixi.toml …`; see `RELEASE.md`).

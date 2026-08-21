@@ -1,4 +1,10 @@
 #!/usr/bin/env bash
+# STALE (2026-08-21): this harness predates the fitACE monorepo (ADR 0017) and
+# the conda retirement (ADR 0018) — it clones the retired standalone sister
+# repos and builds a conda family env that is no longer the documented flow.
+# Pending rewrite around: clone simACE + fitACE (monorepo) + fitACE_epimight,
+# `pixi install --locked` at fitACE/, EPIMIGHT R env unchanged.
+#
 # verify_simace_epimight.sh — fresh-computer cross-repo verification:
 # simACE + fitACE + fitACE_epimight + the BioPsyk EPIMIGHT R package, end to end.
 #

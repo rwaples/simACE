@@ -2,7 +2,7 @@
 
 Three **standalone** bash scripts that mimic a brand-new user on a clean
 machine. Each one clones what it needs **from GitHub** into a throwaway workdir,
-creates its own conda env(s), runs the documented install + smoke test, asserts
+creates its own throwaway env(s) (pixi for simACE since ADR 0018; conda in the stale epimight harness), runs the documented install + smoke test, asserts
 concrete non-empty outputs, reports PASS/FAIL, and tears everything down.
 
 At runtime the scripts **read no sibling repo or project files — only `lib.sh`

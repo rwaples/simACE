@@ -12,7 +12,7 @@ or the [rendered site](https://rwaples.github.io/simACE/). Model fitting
 
 ## Prerequisites
 
-- Linux (Windows users may use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install); macOS uses the conda fallback — see [installation](docs/getting-started/installation.md))
+- Linux (Windows users may use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install); the pipeline is not supported on macOS — the library install below works anywhere)
 - `git` and `curl`
 
 ## Setup
@@ -30,9 +30,8 @@ pixi install --locked
 ```
 
 To *consume* simace as a library from your own environment instead, a plain
-`pip install` works without pixi — see
-[installation](docs/getting-started/installation.md), which also covers the
-conda fallback for macOS and combined simACE + fitACE development.
+`pip install` works without pixi (and on any OS) — see
+[installation](docs/getting-started/installation.md).
 
 ### Verify installation
 
@@ -135,7 +134,7 @@ inventory, parquet column schemas, YAML structures, and plot listings.
 
 | Problem | Solution |
 |---------|----------|
-| `ModuleNotFoundError: No module named 'simace'` | Run commands through `pixi run …` from the repo root (or `conda activate simACE` if you use the conda fallback) |
+| `ModuleNotFoundError: No module named 'simace'` | Run commands through `pixi run …` from the repo root |
 | `FileNotFoundError: config/_default.yaml` | Run snakemake from the simACE repo root directory |
 | Simulation killed or frozen (large N) | Reduce `--cores` to lower parallel memory usage, or skip large-N scenarios |
 | `IncompleteFilesException` on re-run | Snakemake detected a previously interrupted output; run `pixi run snakemake --cores 4 --rerun-incomplete` |

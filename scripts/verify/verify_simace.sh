@@ -2,11 +2,12 @@
 # verify_simace.sh — fresh-computer install verification for simACE (public, no auth).
 #
 # Mimics a brand-new user on a clean machine: clones simACE from GitHub into a
-# throwaway workdir, creates its own conda env via the documented
-# envs/environment.yml, runs the documented import + pytest + Snakemake smoke,
-# asserts concrete outputs, then tears everything down. Reads no sibling repo or
-# project files — only lib.sh beside it. Run from any directory; needs only
-# `git` + `conda`.
+# throwaway workdir, materializes the documented pixi environment from the
+# committed lock (ADR 0016/0018), runs the documented import + pytest +
+# Snakemake smoke, asserts concrete outputs, then tears everything down. The
+# environment lives inside the workdir (.pixi/), so cleanup is the workdir
+# removal. Reads no sibling repo or project files — only lib.sh beside it.
+# Run from any directory; needs only `git` + `pixi`.
 #
 # Usage:
 #   bash verify_simace.sh [--simace-ref REF] [--simace-url URL] [--keep]
@@ -14,7 +15,7 @@
 # Flags (env-var equivalents in parens):
 #   --simace-ref REF   git ref to check out         (SIMACE_REF;  default: master)
 #   --simace-url URL   clone URL                     (SIMACE_URL;  default: rwaples/simACE)
-#   --keep             keep the env + workdir on exit (for debugging)
+#   --keep             keep the workdir on exit (for debugging)
 #   -h, --help         show this help
 
 set -euo pipefail
@@ -34,7 +35,9 @@ while [ $# -gt 0 ]; do
 done
 
 step "Preflight"
-preflight_tools
+require_cmd git
+require_cmd pixi
+ok "git + pixi present"
 
 make_workdir
 
@@ -42,30 +45,27 @@ step "Clone simACE ($SIMACE_REF)"
 clone "$SIMACE_URL" "$SIMACE_REF" "$WORK/simACE"
 ok "cloned simACE"
 
-step "Create conda env from envs/environment.yml"
-ENV="$(unique_env simace)"
-register_env "$ENV"                       # BEFORE create, so a partial solve is torn down
-# Mirror the documented command exactly (README: run from repo root with
-# `-f envs/environment.yml`); only `-n` is added to override the file's name.
-( cd "$WORK/simACE" && conda env create -f envs/environment.yml -n "$ENV" )
-ok "env $ENV created (editable simACE + pedigree-graph@v0.5.1)"
+step "Materialize the locked pixi environment (pixi install --locked)"
+# Mirror the documented command exactly (README quick start).
+( cd "$WORK/simACE" && pixi install --locked )
+ok "pixi env materialized from the committed lock"
 
 step "Import simACE + report version"
-if ver="$( cd "$WORK/simACE" && run_in_env "$ENV" -- python -c 'import simace; print(simace.__version__)' )"; then
+if ver="$( cd "$WORK/simACE" && pixi run python -c 'import simace; print(simace.__version__)' )"; then
   ok "import simace OK (version: $ver)"
 else
   fail "import simace failed"
 fi
 
-step "Run test suite (python -m pytest tests/ -q)"
-if ( cd "$WORK/simACE" && run_in_env "$ENV" -- python -m pytest tests/ -q ); then
+step "Run test suite (pixi run pytest tests/ -q)"
+if ( cd "$WORK/simACE" && pixi run python -m pytest tests/ -q ); then
   ok "pytest passed"
 else
   fail "pytest failed"
 fi
 
 step "Snakemake smoke (results/test/small_test/scenario.done)"
-if ( cd "$WORK/simACE" && run_in_env "$ENV" -- snakemake --cores 4 results/test/small_test/scenario.done ); then
+if ( cd "$WORK/simACE" && pixi run snakemake --cores 4 results/test/small_test/scenario.done ); then
   ok "snakemake smoke target built"
 else
   fail "snakemake smoke target failed"

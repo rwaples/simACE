@@ -6,7 +6,7 @@ All commands are issued from the repository root directory. The root
 `Snakefile` is the entry point; the `-s` flag should not be used.
 
 ```bash
-snakemake --cores 4    # 4 parallel jobs (use --cores 1 for debugging)
+pixi run snakemake --cores 4    # 4 parallel jobs (use --cores 1 for debugging)
 ```
 
 ## Dry run
@@ -14,7 +14,7 @@ snakemake --cores 4    # 4 parallel jobs (use --cores 1 for debugging)
 To preview what will be executed without running anything:
 
 ```bash
-snakemake -n --cores 4
+pixi run snakemake -n --cores 4
 ```
 
 ## Pipeline targets
@@ -32,7 +32,7 @@ snakemake -n --cores 4
 ## Running a single scenario
 
 ```bash
-snakemake --cores 4 results/base/baseline10K/scenario.done
+pixi run snakemake --cores 4 results/base/baseline10K/scenario.done
 ```
 
 The `scenario.done` sentinel file signals that all stages are complete for that scenario.
@@ -43,10 +43,10 @@ Use `-f` to force-rebuild a specific output:
 
 ```bash
 # Regenerate a scenario's atlas (HTML is the default artifact)
-snakemake --cores 4 -f results/base/baseline10K/plots/atlas.html
+pixi run snakemake --cores 4 -f results/base/baseline10K/plots/atlas.html
 
 # The PDF atlas is an on-demand export
-snakemake --cores 4 -f results/base/baseline10K/plots/atlas.pdf
+pixi run snakemake --cores 4 -f results/base/baseline10K/plots/atlas.pdf
 ```
 
 ## Pipeline stages
@@ -66,14 +66,14 @@ When Snakemake detects incomplete files from a previously interrupted
 run:
 
 ```bash
-snakemake --cores 4 --rerun-incomplete
+pixi run snakemake --cores 4 --rerun-incomplete
 ```
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---|---|
-| `ModuleNotFoundError: No module named 'simace'` | Run `conda activate simACE` first |
+| `ModuleNotFoundError: No module named 'simace'` | Run commands through `pixi run …` from the repo root |
 | `FileNotFoundError: config/_default.yaml` | Run snakemake from the simACE repo root directory |
 | Simulation killed or frozen (large N) | Reduce `--cores` to lower parallel memory usage |
 | `IncompleteFilesException` on re-run | Run with `--rerun-incomplete` |

@@ -36,8 +36,8 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 
 ## Key Rules
 
-- **Environment routing (ADR 0016): simACE work = pixi, family work = conda.** Every simACE-scoped command runs `pixi run <cmd>` against the committed `pixi.lock` (`pixi install --locked` to materialize `.pixi/`). The always-active `simACE` conda env is the family environment: fitACE + sisters, editable pedigree-graph, and `tools/typecheck_family.py` run there directly (never `conda run -n simACE`).
-- `pixi.toml` is the authoritative simACE pin source; any dependency bump updates `envs/environment.yml` in the same commit (fitACE layers on it). Normal pixi commands must not rewrite `pixi.lock`; upgrades are deliberate (`pixi lock` after a manifest edit, review the diff).
+- **Environment routing (ADR 0016 + 0018): everything is pixi; no ambient env.** simACE-scoped commands run `pixi run <cmd>` at the umbrella root against the committed `pixi.lock` (`pixi install --locked` to materialize `.pixi/`). Family-scoped work (fitACE + method packages + epimight, `tools/typecheck_family.py`) runs `pixi run --manifest-path fitACE/pixi.toml <cmd>`. Editable pedigree-graph work uses its own manifest in `external/pedigree-graph/`. The old always-active `simACE` conda env is retired (ADR 0018); the dedicated conda envs (`epimight-master`, `ace_iter_reml*`, `ace_sreml`) remain, invoked by name.
+- `pixi.toml` is the authoritative simACE pin source. Normal pixi commands must not rewrite `pixi.lock`; upgrades are deliberate (`pixi lock` after a manifest edit, review the diff).
 
 ## Code review gotchas (statistical correctness)
 
