@@ -25,17 +25,28 @@ effective parallelism in some phase (mean_load 0.67 vs 0.78). Ruled out by
 direct measurement: package builds (identical conda-forge builds), BLAS (same
 openblas), font caches (text-render microbench equal), thread-pool defaults
 (numba/polars/pyarrow all 12 in both), interpreter startup (0.02 vs 0.08s),
-allocator packages (none in either env). Root cause needs a profiler session
-(py-spy wall-clock flames of the stage in both envs) — bounded follow-up.
+allocator packages (none in either env). Root cause found by the py-spy
+follow-up — see the resolved disposition below.
 
 Scope note: the breach is confined to the presentation layer (atlas plotting,
 +3.3s absolute per scenario); no scientific stage regressed and memory
 improved. Raw data: scratchpad bench/ TSV archives (session-local).
 
-**Disposition (2026-08-21): gate CLOSED — accepted with follow-up.** The
-scientific pipeline is clean; the plotting breach is tracked as issue #11
-(py-spy wall-clock profiling of plot_phenotype in both envs; optimize if
-actionable). ADR 0016 stands.
+**Disposition (2026-08-21): gate CLOSED — resolved as no regression (#11).**
+The py-spy follow-up found the breach was a measurement artifact: `pixi run`
+exports `MPLBACKEND=Agg` (pixi.toml `[activation.env]`), while the conda side
+inherited the desktop session (`DISPLAY` set, `MPLBACKEND` unset) and rendered
+under **QtAgg**. The backend — not the environment — carries the entire
+signature: with Agg forced in both envs the stage is at parity (~24.3s wall,
+~530 MB RSS in both); the cross test (conda+Agg vs pixi+QtAgg) flips wall and
+RSS wholesale (conda+Agg 23.0s/521 MB, pixi+QtAgg 19.6s/824 MB). py-spy
+`--idle` profiles show the ~3s as off-CPU gaps spread uniformly across the
+Agg render stack at identical cpu_time (mean_load 66% vs 77%) — no blocking
+call, no hotspot, nothing actionable in simACE. QtAgg's extra ~300 MB is Qt6
+plus a QApplication, so the *pixi* configuration (headless Agg, deterministic,
+lighter) is the correct pipeline behavior; conda's faster wall was a
+desktop-session accident. ADR 0016 stands; issue #11 closed with the full
+evidence chain.
 
 Evidence base: plans/pixi-spike-findings.md (pixi 0.76.2 spike, all green).
 Decision record: docs/adr/0016-pixi-canonical-simace-environment.md.
