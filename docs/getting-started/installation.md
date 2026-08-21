@@ -1,73 +1,90 @@
 # Installation
 
+simACE runs in a locked [pixi](https://pixi.sh) environment (ADR 0016): one
+committed lockfile, so every install materializes the exact same environment.
+The supported pixi release is pinned in `pixi.toml` (`requires-pixi`).
+
 ## Prerequisites
 
-- [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) (Miniconda or Miniforge)
-- Python 3.13+
-- Linux or macOS (Windows users can try [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install))
+- Linux (Windows users can use
+  [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install); for macOS see
+  the conda fallback below)
+- `git` and `curl`
 
-## Environment setup
+## Quick start
 
 ```bash
-git clone <repo-url>
+# 1. Install pixi (single user-space binary; no root beyond curl/git)
+curl -fsSL https://pixi.sh/install.sh | bash
+exec $SHELL                    # restart the shell so ~/.pixi/bin is on PATH
+
+# 2. Get simACE
+git clone https://github.com/rwaples/simACE.git
 cd simACE
-conda env create -f envs/environment.yml   # creates environment and installs simace
-conda activate simACE
+
+# 3. Materialize the exact locked environment (first run downloads for a few minutes)
+pixi install --locked
+
+# 4. Smoke-test the whole pipeline (~30 s)
+pixi run snakemake --cores 4 results/test/small_test/scenario.done
 ```
 
-## Combined simACE + fitACE development (optional)
+## Run a real scenario
 
-Model fitting lives in the private sister repo
-[`fitACE`](https://github.com/rwaples/fitACE), which depends on simace. A
-fresh simACE clone does not include it, so the base environment installs
-simace only. If you have the `fitACE` checkout alongside simACE (at
-`../fitACE` relative to `envs/`), layer it in:
+For a single full scenario — simulate → phenotype → censor → ascertain →
+analyze → stats → plot atlas — target its `stats.done` plus the atlas
+(`scenario.done` additionally pulls in the folder-wide report gather, which
+wants the sibling scenarios built too):
 
 ```bash
-conda env update -n simACE -f envs/environment-fitace.yml
+pixi run snakemake -n      --cores 4 results/base/baseline100K/stats.done results/base/baseline100K/plots/atlas.html
+pixi run snakemake --cores 4 results/base/baseline100K/stats.done results/base/baseline100K/plots/atlas.html
 ```
 
-## pixi: the canonical simACE environment (Linux)
+Outputs land under `results/base/baseline100K/`: per-replicate parquet + YAML
+in `rep{1..3}/`, plots and the browsable `atlas.html` in `plots/`. Scenario
+parameters live in `config/base.yaml` (per-scenario overrides) and
+`config/_default.yaml` (defaults); the stock run needs no edits.
 
-On Linux, simACE work runs in a locked [pixi](https://pixi.sh) environment
-(ADR 0016) covering the Snakemake pipeline and every development check. The
-supported pixi release is pinned in `pixi.toml` (`requires-pixi`).
+## Development checks
+
+Every check runs in the same pixi environment (the editable `simace` install
+includes the dev extras — pytest, ruff, ty, snakefmt, mkdocs):
 
 ```bash
-pixi install --locked          # materialize .pixi/ from the committed pixi.lock
 pixi run pytest tests/
 pixi run ruff check
 pixi run ty check
-pixi run snakemake --cores 4 results/test/small_test/scenario.done
+pixi run mkdocs serve          # docs live-reload at http://127.0.0.1:8000
 ```
 
 Normal commands never rewrite `pixi.lock` — dependency upgrades are deliberate
 lock-update work (edit `pixi.toml`, run `pixi lock`, review the diff, update
 `envs/environment.yml` in the same commit, then re-run the checks above).
 
-The conda environment remains the path for macOS, for combined simACE + fitACE
-development, and for editable `pedigree-graph` work (see `RELEASE.md`).
+## Using simace as a library
 
-## Verify installation
-
-```bash
-pytest tests/           # unit tests, should complete in ~1s
-```
-
-## Developer dependencies
-
-The conda environment installs the developer dependencies from
-`pyproject.toml`. For an existing environment, install them manually with:
+You do not need pixi (or conda) to *consume* simace from your own
+environment — a plain pip install resolves every dependency from PyPI:
 
 ```bash
-pip install -e ".[dev]"
+pip install "simace @ git+https://github.com/rwaples/simACE"
+# or, from a clone: pip install -e .          (add ".[dev]" for the dev tools)
 ```
 
-This adds: mkdocs, mkdocs-material, mkdocstrings, ruff, pytest, snakemake, and snakefmt.
+## Conda fallback (macOS; family development)
 
-## Building the docs locally
+The pixi lock currently covers `linux-64` only. On macOS, use the conda
+environment instead:
 
 ```bash
-mkdocs serve       # live-reload at http://127.0.0.1:8000
-mkdocs build       # static site in site/
+conda env create -f envs/environment.yml   # creates environment and installs simace
+conda activate simACE
 ```
+
+Model fitting lives in the private [`fitACE`](https://github.com/rwaples/fitACE)
+monorepo (ADR 0017), which depends on simace and is developed as a nested
+checkout at `./fitACE/` — a fresh simACE clone does not include it. Combined
+simACE + fitACE development uses the conda environment above as the family
+base (see `RELEASE.md`); fitACE also carries its own committed pixi
+environment at `fitACE/pixi.toml`.

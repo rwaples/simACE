@@ -12,37 +12,40 @@ or the [rendered site](https://rwaples.github.io/simACE/). Model fitting
 
 ## Prerequisites
 
-- [Conda](https://docs.conda.io/projects/conda/en/latest/user-guide/install/) (Miniconda or Miniforge)
-- Python 3.13+
-- Linux or macOS (Windows users may try [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install))
+- Linux (Windows users may use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install); macOS uses the conda fallback — see [installation](docs/getting-started/installation.md))
+- `git` and `curl`
 
 ## Setup
 
+simACE runs in a locked [pixi](https://pixi.sh) environment (one committed
+lockfile — every install materializes the exact same environment):
+
 ```bash
-git clone <repo-url>
+curl -fsSL https://pixi.sh/install.sh | bash   # single user-space binary
+exec $SHELL                                     # pick up ~/.pixi/bin on PATH
+
+git clone https://github.com/rwaples/simACE.git
 cd simACE
-conda env create -f envs/environment.yml   # creates env, installs dependencies + simace
-conda activate simACE
+pixi install --locked
 ```
+
+To *consume* simace as a library from your own environment instead, a plain
+`pip install` works without pixi — see
+[installation](docs/getting-started/installation.md), which also covers the
+conda fallback for macOS and combined simACE + fitACE development.
 
 ### Verify installation
 
 ```bash
-pytest tests/           # unit tests, should complete in ~1s
+pixi run pytest tests/
 ```
-
-Linux users: the canonical simACE environment is a locked
-[pixi](https://pixi.sh) environment covering the pipeline and all development
-checks — see [installation](docs/getting-started/installation.md). The conda
-environment above remains the path for macOS and for combined
-simACE + fitACE development.
 
 ## Quick start
 
 Run the smallest scenario to confirm everything works (takes a minute or two):
 
 ```bash
-snakemake --cores 4 results/test/small_test/scenario.done
+pixi run snakemake --cores 4 results/test/small_test/scenario.done
 ```
 
 Check the output:
@@ -59,13 +62,13 @@ repo root — the root `Snakefile` is the entry point (no `-s` flag).
 
 ```bash
 # Run everything (default target — all scenarios, all stages)
-snakemake --cores 4
+pixi run snakemake --cores 4
 
 # Run a single scenario
-snakemake --cores 4 results/base/baseline10K/scenario.done
+pixi run snakemake --cores 4 results/base/baseline10K/scenario.done
 
 # Dry run to see what will be executed
-snakemake -n --cores 4
+pixi run snakemake -n --cores 4
 ```
 
 If a run is interrupted or fails, re-running the same command resumes from
@@ -124,7 +127,7 @@ full parameter reference (phenotype models, censoring, ascertainment, etc.), see
 
 Each scenario replicate produces a pedigree parquet, censored time-to-event
 phenotypes, a liability-threshold binary phenotype, per-replicate stats and
-validation YAMLs, and a multi-page PDF plot atlas. See
+validation YAMLs, and a browsable HTML plot atlas (PDF export on demand). See
 [Output Structure](docs/user-guide/output-structure.md) for the complete file
 inventory, parquet column schemas, YAML structures, and plot listings.
 
@@ -132,10 +135,10 @@ inventory, parquet column schemas, YAML structures, and plot listings.
 
 | Problem | Solution |
 |---------|----------|
-| `ModuleNotFoundError: No module named 'simace'` | Run `conda activate simACE` first — the package is only available inside the conda environment |
+| `ModuleNotFoundError: No module named 'simace'` | Run commands through `pixi run …` from the repo root (or `conda activate simACE` if you use the conda fallback) |
 | `FileNotFoundError: config/_default.yaml` | Run snakemake from the simACE repo root directory |
 | Simulation killed or frozen (large N) | Reduce `--cores` to lower parallel memory usage, or skip large-N scenarios |
-| `IncompleteFilesException` on re-run | Snakemake detected a previously interrupted output; run `snakemake --cores 4 --rerun-incomplete` |
+| `IncompleteFilesException` on re-run | Snakemake detected a previously interrupted output; run `pixi run snakemake --cores 4 --rerun-incomplete` |
 
 ## License
 
