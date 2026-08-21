@@ -5,10 +5,6 @@
       show_root_heading: false
       show_if_no_docstring: false
 
-## threshold
-
-::: simace.phenotype.threshold
-
 ## hazards
 
 ::: simace.phenotype.hazards
@@ -32,6 +28,10 @@
 ### models.first_passage
 
 ::: simace.phenotype.models.first_passage
+
+### models.simple_ltm
+
+::: simace.phenotype.models.simple_ltm
 
 ## bimodal_phenotype (prototype)
 
