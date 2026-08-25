@@ -367,7 +367,15 @@ def _tetrachoric_core_python(n11, n10, n01, n00, t_a, t_b, phi_ta, phi_tb):
     n_pairs = n11 + n10 + n01 + n00
     if denom <= 0:
         return r, np.nan
-    se = 1.0 / math.sqrt(n_pairs * bvn_pdf * bvn_pdf / denom)
+    # A table with an empty off-diagonal cell drives r to the +-0.999 bracket
+    # edge, where the bivariate-normal density underflows to exactly 0 and the
+    # Fisher information vanishes. The point estimate is still meaningful; only
+    # its SE is unidentifiable, so report it the same way as the two guards
+    # above rather than dividing by zero.
+    fisher = n_pairs * bvn_pdf * bvn_pdf / denom
+    if fisher <= 0.0:
+        return r, np.nan
+    se = 1.0 / math.sqrt(fisher)
     return r, se
 
 

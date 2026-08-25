@@ -158,16 +158,11 @@ def _sample_trait_ids(
     n_cases = int(is_case.sum())
     n_controls = n_pool - n_cases
 
-    if case_ascertainment_ratio == 1.0 or n_cases == 0 or n_cases == n_pool:
-        if case_ascertainment_ratio != 1.0:
-            logger.warning(
-                "case_ascertainment_ratio=%.2f ignored (degenerate: n_cases=%d, n_pool=%d)",
-                case_ascertainment_ratio,
-                n_cases,
-                n_pool,
-            )
-        sample_idx = rng.choice(n_pool, N_sample, replace=False)
-    elif case_ascertainment_ratio == 0:
+    # Zero case weight is checked before the degenerate branch: an all-case pool
+    # is degenerate for every *other* ratio, but for ratio=0 it has a defined
+    # answer -- no eligible controls, so nothing is drawn. Checking degeneracy
+    # first would silently draw cases under a zero case weight.
+    if case_ascertainment_ratio == 0:
         actual_n = min(N_sample, n_controls)
         if actual_n < N_sample:
             logger.warning(
@@ -178,6 +173,15 @@ def _sample_trait_ids(
             )
         control_indices = np.where(~is_case)[0]
         sample_idx = rng.choice(control_indices, actual_n, replace=False)
+    elif case_ascertainment_ratio == 1.0 or n_cases == 0 or n_cases == n_pool:
+        if case_ascertainment_ratio != 1.0:
+            logger.warning(
+                "case_ascertainment_ratio=%.2f ignored (degenerate: n_cases=%d, n_pool=%d)",
+                case_ascertainment_ratio,
+                n_cases,
+                n_pool,
+            )
+        sample_idx = rng.choice(n_pool, N_sample, replace=False)
     else:
         weights = np.where(is_case, case_ascertainment_ratio, 1.0)
         probabilities = weights / weights.sum()

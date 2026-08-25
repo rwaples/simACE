@@ -77,7 +77,8 @@ def _nb_weibull(neg_log_u, liability, mean, scaled_beta, scale, inv_rho):
     t = np.empty(n)
     for i in prange(n):
         z = np.exp(scaled_beta * (liability[i] - mean))
-        t[i] = scale * np.exp(np.log(neg_log_u[i] / z) * inv_rho)
+        val = scale * np.exp(np.log(neg_log_u[i] / z) * inv_rho)
+        t[i] = min(max(val, 1e-10), 1e6)
     return t
 
 
@@ -114,6 +115,11 @@ def _nb_lognormal(neg_log_u, liability, mean, scaled_beta, mu, sigma):
         surv = np.exp(-target)
         if surv <= 0.0:
             t[i] = 1e6
+        elif surv >= 1.0:
+            # target == 0 means S(t) == 1, i.e. an event time of 0, and
+            # _ndtri_approx diverges to NaN at exactly 1.0.  Mirror the
+            # surv <= 0 guard above and return the documented floor.
+            t[i] = 1e-10
         else:
             val = np.exp(mu - sigma * _ndtri_approx(surv))
             t[i] = min(max(val, 1e-10), 1e6)
@@ -270,8 +276,18 @@ def parse_hazard_cli(
     distribution = getattr(args, f"{attr_name}_distribution{trait}")
     if distribution is None:
         raise ValueError(f"--{name}-distribution{trait} is required when --phenotype-model{trait}={attr_name}")
+    required = list(BASELINE_PARAMS[distribution])
+    # The exponential inverter and validate_hazard_params both accept `scale`
+    # in place of the canonical `rate`; without this the CLI was the only layer
+    # that rejected it.  Canonical `rate` still wins when both flags are given.
+    if (
+        distribution == "exponential"
+        and getattr(args, f"{attr_name}_rate{trait}", None) is None
+        and getattr(args, f"{attr_name}_scale{trait}", None) is not None
+    ):
+        required = ["scale"]
     hazard_params: dict[str, float] = {}
-    for key in BASELINE_PARAMS[distribution]:
+    for key in required:
         val = getattr(args, f"{attr_name}_{key}{trait}", None)
         if val is None:
             raise ValueError(f"--{name}-{key}{trait} is required for --{name}-distribution{trait}={distribution}")

@@ -193,7 +193,13 @@ class TestComputeMateCorrelation:
         assert result["n_pairs"] == 0
 
     def test_dangling_parent_links_are_ignored(self):
-        """Ascertainment dropout can sever parent links; skip incomplete mating pairs."""
+        """Ascertainment dropout can sever parent links; skip incomplete mating pairs.
+
+        Row 4 carries a mother but no father and is skipped; row 5 is a complete
+        mating and is counted.  One pair is below the two needed for a
+        correlation, so the matrix is NaN — but ``n_pairs`` reports the real
+        count of valid matings rather than a hard-coded zero.
+        """
         df = pl.DataFrame(
             {
                 "id": [0, 1, 2, 3, 4, 5],
@@ -204,7 +210,8 @@ class TestComputeMateCorrelation:
             }
         )
         result = compute_mate_correlation(df)
-        assert result["n_pairs"] == 0
+        assert result["n_pairs"] == 1
+        assert all(np.isnan(value) for row in result["matrix"] for value in row)
 
 
 class TestPlotMateCorrelation:

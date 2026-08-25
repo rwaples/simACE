@@ -495,7 +495,10 @@ def compute_mate_correlation(df: _Frame) -> dict:
     parents_present = ped.contains(mothers) & ped.contains(fathers)
     mothers, fathers = mothers[parents_present], fathers[parents_present]
     if len(mothers) < 2:
-        return {"matrix": [[float("nan")] * 2] * 2, "n_pairs": 0}
+        # A correlation needs two points, so the matrix is NaN -- but n_pairs
+        # denotes the distinct valid-mating count everywhere else, so report
+        # the real count rather than hard-coding zero for the singleton case.
+        return {"matrix": [[float("nan")] * 2] * 2, "n_pairs": len(mothers)}
 
     f_liab = np.column_stack([ped.gather(f"liability{t}", mothers) for t in (1, 2)])  # (N, 2)
     m_liab = np.column_stack([ped.gather(f"liability{t}", fathers) for t in (1, 2)])  # (N, 2)

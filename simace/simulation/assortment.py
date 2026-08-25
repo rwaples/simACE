@@ -18,6 +18,18 @@ from dataclasses import dataclass
 import numpy as np
 
 
+def _parent_ce_gen(i: int) -> int:
+    """C/E generation of the population being mated at loop iteration ``i``.
+
+    Founders (``i=0``) carry gen-0 C/E and offspring from iteration ``j`` carry
+    ``per_gen[j]`` C/E, so the parents at iteration ``i`` carry
+    ``max(0, i - 1)``.  Shared by :meth:`AssortmentPlan.build`'s guards and
+    :meth:`AssortmentPlan.for_generation` so the validated schedule and the
+    runtime schedule cannot drift apart.
+    """
+    return max(0, i - 1)
+
+
 def _cross_am_matrix(assort1: float, assort2: float, rho_w: float) -> np.ndarray:
     """Build the 2x2 mate-correlation matrix ``R_mf`` for both-trait assortment.
 
@@ -96,34 +108,43 @@ class AssortmentPlan:
             for g in range(G_sim)
         ]
 
-        # Validate |rho_w| < 1 for all C/E generations where both-trait AM is on.
-        # With per-gen AM the both-trait check is per-iteration.
-        for g, rw in enumerate(rho_w_per_ce):
-            if assort1_per_gen[g] != 0 and assort2_per_gen[g] != 0 and abs(rw) >= 1.0 - 1e-10:
+        # Both guards below iterate over *mating iterations* and pair each
+        # iteration's assortment with the parental C/E generation the runtime
+        # actually uses -- ``rho_w_per_ce[max(0, i - 1)]``, matching
+        # :meth:`for_generation`.  Validating the ``g``-indexed pairing instead
+        # could reject a safe schedule or accept an invalid one under
+        # generation-dependent C/E, and validated the final offspring C/E
+        # generation even though that population is never mated.
+        for i in range(G_sim):
+            rw = rho_w_per_ce[_parent_ce_gen(i)]
+            if assort1_per_gen[i] != 0 and assort2_per_gen[i] != 0 and abs(rw) >= 1.0 - 1e-10:
                 raise ValueError(
                     f"Both-trait assortative mating requires |rho_w| < 1 "
-                    f"(got rho_w={rw:.4f} at C/E generation {g}). "
+                    f"(got rho_w={rw:.4f} at mating iteration {i}, "
+                    f"parental C/E generation {_parent_ce_gen(i)}). "
                     f"Traits are perfectly correlated; "
                     f"use single-trait assortment instead."
                 )
 
-        # Validate PSD of full 4x4 Sigma for each generation's rho_w + AM.
-        for g, rw in enumerate(rho_w_per_ce):
-            a1_g = assort1_per_gen[g]
-            a2_g = assort2_per_gen[g]
-            if R_mf_user is None and not (a1_g != 0 and a2_g != 0):
+        # Validate PSD of the full 4x4 Sigma actually used at each iteration.
+        for i in range(G_sim):
+            rw = rho_w_per_ce[_parent_ce_gen(i)]
+            a1_i = assort1_per_gen[i]
+            a2_i = assort2_per_gen[i]
+            if R_mf_user is None and not (a1_i != 0 and a2_i != 0):
                 continue  # PSD check is only meaningful when both-trait AM is active
             if R_mf_user is not None:
-                R_mf_g = R_mf_user
+                R_mf_i = R_mf_user
             else:
-                R_mf_g = _cross_am_matrix(a1_g, a2_g, rw)
+                R_mf_i = _cross_am_matrix(a1_i, a2_i, rw)
             R_ff = np.array([[1.0, rw], [rw, 1.0]])
-            Sigma_4 = np.block([[R_ff, R_mf_g.T], [R_mf_g, R_ff]])
+            Sigma_4 = np.block([[R_ff, R_mf_i.T], [R_mf_i, R_ff]])
             eigvals = np.linalg.eigvalsh(Sigma_4)
             if eigvals[0] < -1e-8:
                 raise ValueError(
                     f"Full 4x4 mate correlation matrix Sigma_4 is not PSD "
-                    f"(min eigenvalue = {eigvals[0]:.6f} at C/E generation {g}). "
+                    f"(min eigenvalue = {eigvals[0]:.6f} at mating iteration {i}, "
+                    f"parental C/E generation {_parent_ce_gen(i)}). "
                     f"Reduce the magnitude of assort_matrix off-diagonal entries "
                     f"or per-gen assort1/assort2."
                 )
@@ -144,10 +165,7 @@ class AssortmentPlan:
         from ``rho_w_i`` when both-trait AM is active and no explicit matrix was
         supplied, else it is the user matrix (possibly ``None``).
         """
-        # rho_w for the current parental population:
-        # founders (i=0) have gen-0 C/E; offspring from iter j have per_gen[j] C/E
-        parent_ce_gen = max(0, i - 1)
-        rho_w_i = self.rho_w_per_ce[parent_ce_gen]
+        rho_w_i = self.rho_w_per_ce[_parent_ce_gen(i)]
 
         # Per-iter AM values (constant across iters for scalar assort1/assort2).
         a1_i = self.assort1_per_gen[i]
