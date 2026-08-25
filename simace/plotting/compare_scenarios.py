@@ -676,6 +676,10 @@ def load_sib_pair_liabilities(
         liab_sorted = liab[order]
         a_list.append(liab_sorted[multi])
         b_list.append(liab_sorted[multi + 1])
+    if not a_list:
+        # Every pedigree was skipped (no qualifying pairs anywhere, or no paths
+        # given) — np.concatenate rejects an empty list.
+        return np.empty(0, dtype=float), np.empty(0, dtype=float)
     return np.concatenate(a_list), np.concatenate(b_list)
 
 

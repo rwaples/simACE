@@ -271,7 +271,7 @@ def plot_estimators_overview(
                 zorder=3,
             )
 
-        expected_vals = sub["expected"].drop_nans().drop_nulls().unique()
+        expected_vals = sub["expected"].drop_nans().drop_nulls().unique(maintain_order=True)
         if len(expected_vals):
             exp = float(expected_vals[0])
             ax.hlines(
@@ -364,7 +364,12 @@ def plot_ne_by_generation(
                 alpha=0.7,
             )
 
-        expected_vals = scalar_df.filter(pl.col("estimator") == est)["expected"].drop_nans().drop_nulls().unique()
+        expected_vals = (
+            scalar_df.filter(pl.col("estimator") == est)["expected"]
+            .drop_nans()
+            .drop_nulls()
+            .unique(maintain_order=True)
+        )
         expected_val = float(expected_vals[0]) if len(expected_vals) else None
         if expected_val is not None and expected_val > 0:
             ax.axhline(
