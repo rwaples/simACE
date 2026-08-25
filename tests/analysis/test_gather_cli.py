@@ -260,6 +260,33 @@ class TestGatherMain:
         # No file written for empty input
         assert not out_path.exists()
 
+    def test_nan_is_written_as_the_empty_field(self, tmp_path, monkeypatch):
+        """A NaN metric must not leave a literal ``nan`` token in the TSV.
+
+        polars infers any column holding ``nan`` as ``String`` (pandas read it
+        as missing), which silently turns a numeric metric into text and breaks
+        every downstream reader. ±inf still round-trips as a float.
+        """
+        import polars as pl
+
+        from simace.analysis import gather
+
+        rows = [
+            {"scenario": "scA", "rep": 1, "metric": float("nan"), "big": float("inf"), "ok": 0.5},
+            {"scenario": "scA", "rep": 2, "metric": 0.25, "big": float("-inf"), "ok": 0.75},
+        ]
+        monkeypatch.setattr(gather, "extract_metrics", lambda path: rows.pop(0))
+
+        out_path = tmp_path / "summary.tsv"
+        gather.main(["a.yaml", "b.yaml"], str(out_path))
+
+        text = out_path.read_text()
+        assert "nan" not in text
+        df = pl.read_csv(out_path, separator="\t", null_values=["NA", ""], infer_schema_length=None)
+        assert df["metric"].dtype == pl.Float64
+        assert df["metric"].to_list() == [None, 0.25]
+        assert df["big"].dtype == pl.Float64
+
 
 class TestExtractMetricsBranches:
     """Branches in ``extract_metrics`` not exercised elsewhere."""

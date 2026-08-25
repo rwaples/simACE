@@ -5,6 +5,7 @@ __all__ = ["extract_metrics"]
 import argparse
 import csv
 import logging
+import math
 import platform
 import re
 from pathlib import Path
@@ -129,7 +130,11 @@ def main(report_files: list[str], output_path: str) -> None:
                     if val is None:
                         values.append("")
                     elif isinstance(val, float):
-                        values.append(f"{val:.4g}")
+                        # NaN has no TSV spelling readers agree on: pandas took the
+                        # literal "nan" as missing, polars infers the whole column as
+                        # String (ADR 0015). Emit the same empty field used for None;
+                        # ±inf round-trips as a float either way.
+                        values.append("" if math.isnan(val) else f"{val:.4g}")
                     else:
                         values.append(str(val))
                 f.write("\t".join(values) + "\n")

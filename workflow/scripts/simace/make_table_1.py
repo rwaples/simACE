@@ -86,6 +86,11 @@ def build_paper_table(df: pl.DataFrame) -> pl.DataFrame:
             if col not in group.columns:
                 continue
             mean = group[col].mean()
+            if mean is None:
+                # Every rep is null for this scenario (e.g. observed_rC where
+                # rC == 0) — leave the cell blank rather than formatting a None.
+                row[col] = None
+                continue
             sd = group[col].std()
             if sd is not None:
                 row[col] = f"{mean:.4f} ± {sd:.4f}"
@@ -190,7 +195,9 @@ def main(summary_tsv: str, out_dir: str = "paper", word: bool = False) -> None:
     if not summary_path.exists():
         raise FileNotFoundError(f"Summary TSV not found: {summary_path.resolve()}")
 
-    df = pl.read_csv(summary_path, separator="\t", null_values=["NA", ""])
+    # infer_schema_length=None: the per-generation dict strings in A1/C1/E1 can
+    # land past polars' default 100-row inference window.
+    df = pl.read_csv(summary_path, separator="\t", null_values=["NA", ""], infer_schema_length=None)
 
     if "scenario" not in df.columns:
         raise ValueError("Expected a 'scenario' column in the input file.")

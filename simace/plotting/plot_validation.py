@@ -657,7 +657,10 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png", *, atlas_
     # Preprocess in polars; convert once at the renderer boundary — every
     # renderer hands the frame straight to seaborn (documented pandas
     # boundary, ADR 0015). R-style missing tokens are parsed explicitly.
-    df_pl = pl.read_csv(tsv_path, separator="\t", null_values=["NA", ""])
+    # infer_schema_length=None scans every row: A1/C1/E1 hold plain numbers in
+    # most scenarios and per-generation dict strings in others, and the first
+    # 100 rows do not decide the column (see the notes at :125 and :415).
+    df_pl = pl.read_csv(tsv_path, separator="\t", null_values=["NA", ""], infer_schema_length=None)
 
     df = df_pl.to_pandas()
     # Sort scenarios by increasing N so x-axes read left-to-right by size
