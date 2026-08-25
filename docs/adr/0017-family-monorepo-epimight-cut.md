@@ -2,9 +2,17 @@
 
 ## Status
 
-Accepted. Design interview (grill) 2026-08-21. Implementation pending — a
-staged scratch build; the live checkouts are untouched until it validates.
-Decision log: `plans/repo-organization.md` (session-local draft).
+Accepted and **implemented** 2026-08-21 (design interview / grill the same day).
+The staged scratch build validated and the live checkouts were swapped: the six
+Python method sisters, the `ace_iter_reml` C++ source, and the `tetraher_simace`
+LDAK fork now live in the fitACE monorepo at their original directory names,
+`fitACE_epimight` remains its own nested repo, and the eight retired GitHub
+repos are archived read-only. Lockstep tagging is down to the three checkouts
+(`tools/release.py`, `tools/family_repos.py::lockstep_repos`). Amends ADR 0012
+(lockstep membership: ten repos → three) and unblocks
+[ADR 0018](0018-retire-conda-family-environment.md), which retired the conda
+family environment the same day. Decision log: `plans/repo-organization.md`
+(session-local draft).
 
 ## Context
 

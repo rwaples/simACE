@@ -41,6 +41,16 @@ documentation. We therefore assign each frailty scenario to one of three tiers:
 | A. early-onset | `cure_frailty` ($K$=target, hazard preserved) | ADHD, ASD, ID, `onset_early`, `stress_low_herit_early_rare` |
 | B. late-onset | plain `frailty` (calibrate `scale` to observed-by-80) | `onset_late`, `stress_high_herit_late_rare` |
 | C. onset-agnostic | plain `frailty` (calibrate `scale` to observed-by-80) | `herit_low/moderate/high`, `prev_rare/moderate/common`, `censoring_no_mortality`, `censoring_with_mortality`, `stress_shared_env_common` |
+| D. already threshold-bearing | `adult` (`method: ltm`) — untouched by this ADR | `onset_adult` |
+
+Tier D is a bookkeeping row, not a reassignment. `paper_simulation`'s
+`onset_adult` was authored on `adult`/`ltm` from the start, so it never had the
+emergent-prevalence problem this ADR exists to fix: its `prevalence:` config
+(0.10 / 0.20) is already a true lifetime $K$ carried by a liability threshold,
+and its onset timing comes from the cumulative-incidence curve (`cip_x0`,
+`cip_k`) rather than from a Weibull hazard. It is listed here only so the table
+accounts for every scenario in the two folders — the three tiers above partition
+the *frailty* scenarios, which is what needed deciding.
 
 We rejected staying strictly in plain `frailty` everywhere (option i): the tier-A
 scenarios would lose the early-onset clustering that defines them. The parallel

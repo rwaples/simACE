@@ -1,7 +1,16 @@
 # 0016 — pixi is simACE's canonical environment; conda is demoted to the family environment
 
 Date: 2026-08-14
-Status: accepted
+
+Status: accepted, **amended by
+[ADR 0018](0018-retire-conda-family-environment.md)** (2026-08-21). The
+pixi-is-canonical-for-simACE decision stands and is unchanged. What no longer
+applies is the *other half* of this ADR — the conda env's survival as the
+family environment: `envs/` was deleted outright (all three recipes, including
+`environment.yml`), the same-commit pin-sync rule retired with it, and the
+family environment moved to `fitACE/pixi.toml` (ADR 0017). The macOS-via-conda
+path in Decision and Consequences below is likewise dropped — the pipeline is
+Linux/WSL2 only. See ADR 0018 for what replaced each dependent.
 
 ## Context
 

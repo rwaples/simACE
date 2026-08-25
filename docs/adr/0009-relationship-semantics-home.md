@@ -34,6 +34,14 @@ parallel `KINSHIP` dict that must stay in sync. Any place simACE re-declares a
 kinship literal is a latent drift bug that can silently bias downstream fitACE
 estimates.
 
+> **Update:** the `ltm_falconer.py` half of that coupling is gone. Falconer now
+> reads `kinship_for` from `fitace.relationships`, which asserts its registry
+> against `PAIR_KINSHIP` at import time rather than keeping a hand-maintained
+> parallel dict — so the drift is caught mechanically. CLAUDE.md gotcha #4
+> tracks the current shape. The decision below is unaffected; if anything the
+> "everything traces to `PAIR_KINSHIP`" intent now holds on both sides of the
+> repo boundary.
+
 Separately, some "relationship" logic is not a property of the relationship
 type at all but an *analysis-design choice* — e.g. validation pools MHS ∪ PHS
 for the additive-genetic correlation (both have kinship 0.25) but uses PHS-only

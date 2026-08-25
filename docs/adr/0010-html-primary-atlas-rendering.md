@@ -2,9 +2,12 @@
 
 ## Status
 
-Accepted. Permanentizes the prototype tracked in
+Accepted. Permanentizes what had been a CLI-only HTML prototype. (The two
+working notes this ADR was originally written against —
 `notes/html_atlas_prototype_compromises.md` and
-`notes/html_atlas_prototype_implementation_plan.md`.
+`notes/html_atlas_prototype_implementation_plan.md` — were session-local drafts
+under the gitignored `notes/` tree and no longer exist. The Decision below is
+self-contained; nothing in it depends on them.)
 
 ## Context
 

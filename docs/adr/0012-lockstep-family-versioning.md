@@ -2,7 +2,24 @@
 
 ## Status
 
-Accepted. Design interview 2026-06-10.
+Accepted. Design interview 2026-06-10. **Amended by
+[ADR 0017](0017-family-monorepo-epimight-cut.md)** (2026-08-21) — the lockstep
+*mechanism* below is unchanged, but its *membership* is not:
+
+- The family is **three tagged checkouts**, not ten repos: simACE, the fitACE
+  monorepo (whose seven Python distributions and the `ace_iter_reml` binary all
+  read its one tag), and `fitACE_epimight`. `tools/release.py` tags those three;
+  `tools/family_repos.py::lockstep_repos` is the source of truth.
+- `tetraher_simace` **rides family tags** now that it lives in the monorepo. The
+  Non-goal below excluding it from lockstep versioning no longer applies;
+  `pedigree-graph` and `pedsum` remain excluded and keep their own versions.
+- Within the monorepo, version drift is structurally impossible rather than
+  merely coordinated — there is one setuptools-scm tag for all seven
+  distributions.
+
+Consequence §6's console-script tally has also drifted with ordinary
+development (simACE ships 10 today, not 11); the `--version` wiring itself is
+unchanged.
 
 ## Context
 

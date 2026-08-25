@@ -114,17 +114,22 @@ Five repos, all under `rwaples/` on GitHub (ADR 0017 collapsed the former 13: fi
 
 ## Versioning
 - **Lockstep family CalVer.** simACE, fitACE core, the seven `fitACE_*` method
-  sisters, and the `ace_iter_reml` binary share **one** CalVer
-  (`vYYYY.MM[.patch]`), tagged together each release (ADR 0012). External deps
-  (`pedigree-graph`, `pedsum`, `tetraher_simace`) keep their own versions.
+  distributions, the `ace_iter_reml` binary, and the `tetraher_simace` LDAK fork
+  share **one** CalVer (`vYYYY.MM[.patch]`), tagged together each release
+  (ADR 0012, membership amended by ADR 0017). Since the monorepo that is
+  **three tagged checkouts** — simACE, fitACE, fitACE_epimight — because
+  everything inside fitACE reads fitACE's one tag. External deps
+  (`pedigree-graph`, `pedsum`) keep their own versions.
 - **CalVer** (`YYYY.MM`) via `setuptools-scm`, derived from git tags; the
   `ace_iter_reml` binary embeds `git describe` via CMake.
 - Tag format: `v2026.06`, `v2026.06.1` (second release same month). First unified
   lockstep release: `v2026.06`. Between tags: `2026.6.dev4+g<hash>`.
 - Compatibility is one `FAMILY_FLOOR` in `fitace._deps` (`>=` semantics),
   enforced across every family `pyproject.toml` by `test_dependency_floors`.
-- To cut a release: `python tools/release.py vYYYY.MM` tags all ten repos
-  locally and prints the per-repo `git push` commands (it never pushes).
+- To cut a release: `python tools/release.py vYYYY.MM` tags the three lockstep
+  checkouts locally (all-or-nothing, with rollback) and prints the per-repo
+  `git push` commands (it never pushes). `tools/family_repos.py::lockstep_repos`
+  is the source of truth for which checkouts those are.
 
 ## Testing
 
