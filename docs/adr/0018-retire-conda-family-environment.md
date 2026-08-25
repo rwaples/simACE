@@ -5,6 +5,10 @@
 Accepted. Design interview (grill) 2026-08-21; implementation same day.
 Closes the environment split ADR 0016 left open (amends ADR 0016).
 
+Follow-through 2026-08-25: pedsum adopted decision 2's pattern (its own
+committed manifest + lock), so the family now carries **four** pixi manifests,
+not three. No decision changed — see the Consequences note below.
+
 ## Context
 
 ADR 0016 made pixi canonical for simACE work but kept the always-active
@@ -73,9 +77,15 @@ retires.
 
 ## Consequences
 
-- One environment story: three pixi manifests (simACE, fitACE,
-  pedigree-graph), each with a committed lock; no sync rule, no undeclared
-  residents, no activation step.
+- One environment story: four pixi manifests (simACE, fitACE,
+  pedigree-graph, pedsum), each with a committed lock; no sync rule, no
+  undeclared residents, no activation step. pedsum joined on 2026-08-25, after
+  its named conda env was found stale enough that it could not collect the
+  suite; the checks had been silently borrowing the umbrella env. Its
+  `environment.yml` was **kept**, unlike simACE's `envs/` — the drift argument
+  above turns on nobody being left to vouch for the recipe, and pedsum is a
+  public repo whose outside users install from it. The stale `pedsum` conda env
+  was removed.
 - The macOS pipeline path is **dropped** — the sharpest cut here, and the
   reason this is an ADR. Revisit via pixi platform-conditional deps if a Mac
   ever matters.
