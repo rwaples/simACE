@@ -182,26 +182,27 @@ cmake -S . -B build-fp32 && cmake --build build-fp32 -j
 
 ```bash
 # Runtime version strings — all ten import packages (incl. fitace_sreml):
-python -c "import simace, fitace, fitace_epimight, fitace_pcgc, fitace_iter_reml, \
-  fitace_sreml, fitace_tetraher, fitace_pafgrs, fitace_stan, fitace_frailty as F; \
-  print(simace.__version__, fitace.__version__)"
+pixi run --manifest-path fitACE/pixi.toml python -c "import simace, fitace, \
+  fitace_epimight, fitace_pcgc, fitace_iter_reml, fitace_sreml, fitace_tetraher, \
+  fitace_pafgrs, fitace_stan, fitace_frailty; print(simace.__version__, fitace.__version__)"
 
 # Console-script --version spot checks:
-simace-simulate --version
-fitace-observed-binary-stats --version
-fitace-epimight-run --version
+pixi run simace-simulate --version
+pixi run --manifest-path fitACE/pixi.toml fitace-observed-binary-stats --version
+pixi run --manifest-path fitACE/pixi.toml fitace-epimight-run --version
 ./fitACE/fitACE_iter_reml/ace_iter_reml/build-fp64/ace_iter_reml --version
 
 # Floor + guard:
-pytest fitACE/tests/test_dependency_floors.py -q
-python -c "import fitace.config; print('guard cleared')"
+pixi run --manifest-path fitACE/pixi.toml python -m pytest fitACE/tests/test_dependency_floors.py -q
+pixi run --manifest-path fitACE/pixi.toml python -c "import fitace.config; print('guard cleared')"
 
 # Full suites:
-pytest tests/ -q                     # simACE
-cd fitACE && pytest tests/           # fitACE + touched sisters
+pixi run pytest tests/ -q                                        # simACE
+( cd fitACE && pixi run pytest tests/ -q )                       # fitACE core
+# (method-package suites: pytest fitACE/fitACE_<x>/tests/ via the fitACE env, when touched)
 
 # Provenance smoke (grep the sidecars):
-snakemake --cores 4 results/test/small_test/scenario.done
+pixi run snakemake --cores 4 results/test/small_test/scenario.done
 grep simace_version results/test/small_test/*/params.yaml
 # then run a pcgc + tetraher + iter_reml fit and grep *.vc.tsv.meta for
 # simace_version / fitace_version / fitace_<method>_version / ace_iter_reml_version
@@ -213,7 +214,7 @@ The helper printed the per-repo push commands in step 1; run them (per the
 repo-wide rule, the helper never pushes):
 
 ```bash
-git -C <abspath> push origin vYYYY.MM     # one per member, ten total
+git -C <abspath> push origin vYYYY.MM     # one per checkout, three total
 ```
 
 ---
@@ -221,13 +222,10 @@ git -C <abspath> push origin vYYYY.MM     # one per member, ten total
 ## Rollback
 
 If something fails between local-tag (step 1) and push (step 5), delete the
-local tags in all ten repos:
+local tags in the three checkouts:
 
 ```bash
-for rel in . fitACE fitACE/fitACE_epimight fitACE/fitACE_pcgc \
-           fitACE/fitACE_iter_reml fitACE/fitACE_tetraher fitACE/fitACE_pafgrs \
-           fitACE/fitACE_stan fitACE/fitACE_frailty \
-           fitACE/fitACE_iter_reml/ace_iter_reml; do
+for rel in . fitACE fitACE/fitACE_epimight; do
   git -C "$rel" tag -d vYYYY.MM
 done
 ```
