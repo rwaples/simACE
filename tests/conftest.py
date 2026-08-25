@@ -33,6 +33,25 @@ settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "fast"))
 # times per test.  cf. pedigree-graph's PEDIGREE_MAX_N = 25.
 PEDIGREE_MAX_N = 40
 
+# Shared strategy domain for valid baseline-hazard parameter dictionaries.
+HAZARD_PARAM_BOUNDS: dict[str, dict[str, tuple[float, float]]] = {
+    "weibull": {"scale": (1.0, 1000.0), "rho": (0.2, 10.0)},
+    "exponential": {"rate": (1e-4, 10.0)},
+    "gompertz": {"rate": (1e-6, 1.0), "gamma": (1e-4, 1.0)},
+    "lognormal": {"mu": (-2.0, 6.0), "sigma": (0.05, 3.0)},
+    "loglogistic": {"scale": (1.0, 1000.0), "shape": (0.2, 10.0)},
+    "gamma": {"shape": (0.1, 20.0), "scale": (0.1, 500.0)},
+}
+
+
+@st.composite
+def hazard_params(draw, distribution: str) -> dict[str, float]:
+    """Draw a valid parameter dict for one baseline-hazard distribution."""
+    return {
+        key: draw(st.floats(min_value=lo, max_value=hi, allow_nan=False, allow_infinity=False))
+        for key, (lo, hi) in HAZARD_PARAM_BOUNDS[distribution].items()
+    }
+
 
 def schema_pad(df: pl.DataFrame, schema: Mapping[str, str]) -> pl.DataFrame:
     """Pad ``df`` with zero/false defaults for any columns required by ``schema``.

@@ -31,7 +31,7 @@ _Avoid_: outcome, label, response, target, disease, variable, "trait A" / "trait
 ### Phenotype
 
 **Phenotype model**:
-The model family that maps a trait's liability → its observable outcome. One of `frailty`, `cure_frailty`, `adult` (with `method: ltm` or `cox`), or `first_passage`. Each is a frozen dataclass subclassing `PhenotypeModel`. Configured per-trait under `phenotype.trait1.model` / `phenotype.trait2.model`.
+The model family that maps a trait's liability → its observable outcome. One of `frailty`, `cure_frailty`, `adult` (with `method: ltm` or `cox`), `first_passage`, or `simple_ltm`. Each is a frozen dataclass subclassing `PhenotypeModel`. Configured per-trait under `phenotype.trait1.model` / `phenotype.trait2.model`.
 _Avoid_: phenotype family, liability-to-onset map, hazard model (only a subset of families have a hazard step).
 
 **Phenotype stage**:

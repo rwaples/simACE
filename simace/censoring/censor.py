@@ -88,8 +88,11 @@ def run_censor(
     """Apply censoring to raw phenotype event times.
 
     Args:
-        phenotype: Outcomes-only DataFrame with raw event times (id, t1, t2) from run_phenotype.
-        pedigree: Pedigree DataFrame for the same IDs, used to hydrate generation-specific censoring windows.
+        phenotype: Outcomes-only DataFrame with raw event times (id, t1, t2)
+            from run_phenotype. A null raw onset means the individual never
+            onsets and is censored at the applicable finite boundary.
+        pedigree: Pedigree DataFrame for the same IDs, used to hydrate
+            generation-specific censoring windows.
         censor_age: maximum follow-up age (right boundary of the default
             observation window).
         seed: RNG seed for the competing-risk death draw.
@@ -107,6 +110,8 @@ def run_censor(
 
     assert_schema(pedigree, PEDIGREE, where="censor pedigree input")
     hydrated = hydrate_trait(phenotype, pedigree, kind="raw", columns=["generation"])
+    onset1 = hydrated["t1"].fill_null(float("inf")).to_numpy()
+    onset2 = hydrated["t2"].fill_null(float("inf")).to_numpy()
     generations = hydrated["generation"].to_numpy()
     left_censor = np.zeros(len(phenotype))
     right_censor = np.full(len(phenotype), float(censor_age))
@@ -119,12 +124,12 @@ def run_censor(
     u_death = 1.0 - rng_death.uniform(size=len(phenotype))
     death_age = death_scale * (-np.log(u_death)) ** (1 / death_rho)
 
-    t1_after_age, age_censored1 = age_censor(hydrated["t1"].to_numpy(), left_censor, right_censor)
+    t1_after_age, age_censored1 = age_censor(onset1, left_censor, right_censor)
     death_censored1 = t1_after_age > death_age
     t_observed1 = np.where(death_censored1, death_age, t1_after_age)
     affected1 = ~age_censored1 & ~death_censored1
 
-    t2_after_age, age_censored2 = age_censor(hydrated["t2"].to_numpy(), left_censor, right_censor)
+    t2_after_age, age_censored2 = age_censor(onset2, left_censor, right_censor)
     death_censored2 = t2_after_age > death_age
     t_observed2 = np.where(death_censored2, death_age, t2_after_age)
     affected2 = ~age_censored2 & ~death_censored2

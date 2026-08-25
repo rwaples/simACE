@@ -8,7 +8,7 @@ covers floating-point error or the documented ``_ndtri_approx`` approximation,
 and is recorded beside its assertion with the domain it was measured over.
 
 Calibration (D4 gate), seed 20260825, 200_000 draws per distribution over
-exactly the strategy domain in ``_HAZARD_PARAM_BOUNDS`` / ``_hazard_call``:
+exactly the strategy domain in ``HAZARD_PARAM_BOUNDS`` / ``_hazard_call``:
 
     distribution   worst rel err   worst rel err (subnormal S(t))
     weibull            3.39e-15        3.70e-15
@@ -46,6 +46,7 @@ from simace.phenotype.hazards import (
     true_lifetime_prevalence_weibull,
     validate_hazard_params,
 )
+from tests.conftest import HAZARD_PARAM_BOUNDS, hazard_params
 
 CLAMP_LO, CLAMP_HI = 1e-10, 1e6
 
@@ -79,17 +80,6 @@ _ROUNDTRIP_RTOL = {
 _SURVIVAL_KERNELS = ("gamma", "lognormal")
 _SURVIVAL_ULP_SAFETY = 8.0
 
-# Strategy domain, fixed here so the calibration probe and the assertions below
-# cover exactly the same inputs.
-_HAZARD_PARAM_BOUNDS: dict[str, dict[str, tuple[float, float]]] = {
-    "weibull": {"scale": (1.0, 1000.0), "rho": (0.2, 10.0)},
-    "exponential": {"rate": (1e-4, 10.0)},
-    "gompertz": {"rate": (1e-6, 1.0), "gamma": (1e-4, 1.0)},
-    "lognormal": {"mu": (-2.0, 6.0), "sigma": (0.05, 3.0)},
-    "loglogistic": {"scale": (1.0, 1000.0), "shape": (0.2, 10.0)},
-    "gamma": {"shape": (0.1, 20.0), "scale": (0.1, 500.0)},
-}
-
 
 def _bounded_float(lo: float, hi: float):
     return st.floats(min_value=lo, max_value=hi, allow_nan=False, allow_infinity=False)
@@ -117,12 +107,6 @@ def _cumulative_hazard(distribution: str, t: np.ndarray, params: dict[str, float
 
 
 @st.composite
-def _hazard_params(draw, distribution: str) -> dict[str, float]:
-    """Draw a valid parameter dict for one baseline distribution."""
-    return {key: draw(_bounded_float(*bounds)) for key, bounds in _HAZARD_PARAM_BOUNDS[distribution].items()}
-
-
-@st.composite
 def _hazard_call(draw, *, distribution=None):
     """Draw ``(distribution, params, neg_log_u, liability, mean, scaled_beta)``.
 
@@ -131,8 +115,8 @@ def _hazard_call(draw, *, distribution=None):
     excluding it would hide the very inputs the bounds contract is about.
     """
     if distribution is None:
-        distribution = draw(st.sampled_from(sorted(BASELINE_HAZARDS)))
-    params = draw(_hazard_params(distribution))
+        distribution = draw(st.sampled_from(sorted(HAZARD_PARAM_BOUNDS)))
+    params = draw(hazard_params(distribution))
     n = draw(st.integers(min_value=1, max_value=12))
     neg_log_u = draw(
         hnp.arrays(
@@ -369,7 +353,7 @@ class TestHazardCli:
     )
     def test_cli_round_trip(self, trait, distribution, data):
         """Every distribution's canonical flags parse back to valid params."""
-        params = data.draw(_hazard_params(distribution))
+        params = data.draw(hazard_params(distribution))
         # ``--flag=value`` form throughout: several parameters are legitimately
         # negative (lognormal ``mu``), and argparse reads a bare ``-2.0`` as a flag.
         argv = [f"--{_CLI_NAME}-distribution{trait}={distribution}"]
