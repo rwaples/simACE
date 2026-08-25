@@ -122,14 +122,10 @@ Five repos, all under `rwaples/` on GitHub (ADR 0017 collapsed the former 13: fi
   (`pedigree-graph`, `pedsum`) keep their own versions.
 - **CalVer** (`YYYY.MM`) via `setuptools-scm`, derived from git tags; the
   `ace_iter_reml` binary embeds `git describe` via CMake.
-- Tag format: `v2026.06`, `v2026.06.1` (second release same month). First unified
-  lockstep release: `v2026.06`. Between tags: `2026.6.dev4+g<hash>`.
 - Compatibility is one `FAMILY_FLOOR` in `fitace._deps` (`>=` semantics),
   enforced across every family `pyproject.toml` by `test_dependency_floors`.
-- To cut a release: `python tools/release.py vYYYY.MM` tags the three lockstep
-  checkouts locally (all-or-nothing, with rollback) and prints the per-repo
-  `git push` commands (it never pushes). `tools/family_repos.py::lockstep_repos`
-  is the source of truth for which checkouts those are.
+- Cutting a release — tag formats, `tools/release.py`, the push handoff — is the
+  `coordinated-release` skill's job. Invoke it rather than working from memory.
 
 ## Testing
 
@@ -166,97 +162,7 @@ and read key files and related modules before asking questions. Ground the inter
 ## Performance Optimization
 
 - Always profile/benchmark first to identify the actual bottleneck before implementing changes
-- Do not assume which component is slow — show profiling data before proposing a solution
 - When narrowing numeric dtypes for memory optimization, never narrow below int32 or float32
-
-## Session Management
-
-- Prefer focused sessions (one feature per session)
-- Run pipeline commands in background when >30 seconds
-- For pipelines with verbose output, redirect to a log file and grep/tail a summary rather than streaming everything — streaming full output floods context and can hit the output-token ceiling. The `run_in_background` + Monitor tools do this natively.
-- Use targeted line ranges instead of reading entire large files
-
-<!-- code-review-graph MCP tools -->
-## MCP Tools: code-review-graph
-
-This project has a knowledge graph (embeddings on, auto-updated on session
-start). Reach for the graph when a question is *structural* — relationships,
-impact, coverage, flows — not when you already know the path you want to read.
-
-### Cheap entry point
-
-Before any non-trivial graph exploration, call `get_minimal_context` (~100
-tokens). It returns risk score, top communities/flows, and suggests which
-tool to call next. Cheaper than guessing wrong.
-
-### Use the graph for
-
-| Task | Tool | Notes |
-|------|------|-------|
-| Review a diff / PR | `detect_changes` | Primary review tool; risk-scored + prioritized. Supersedes `get_review_context` for change-aware work. |
-| Blast radius of a change | `get_impact_radius` | Beats manually tracing imports. |
-| Which entry points are affected | `get_affected_flows` | Identifies user-facing/critical paths touched by a diff. |
-| Trace a single relationship | `query_graph` | Patterns: `callers_of`, `callees_of`, `imports_of`, `importers_of`, `tests_for`, `children_of`, `inheritors_of`, `file_summary`. |
-| Find a symbol by name/concept | `semantic_search_nodes` | FTS5 + embeddings; faster than `grep` for fuzzy lookups. |
-| High-level architecture | `get_architecture_overview` + `list_communities` | Use when onboarding to an unfamiliar area. |
-| Trace an execution path | `list_flows` → `get_flow` | Each flow = call chain from entry point (CLI, test, etc.). |
-| Where are the risks | `get_suggested_questions`, `get_knowledge_gaps`, `get_surprising_connections` | Use at start of review to surface untested hubs, thin communities, cross-community coupling. |
-| Decomposition audit | `find_large_functions` | Line-count threshold; filter by file path. |
-| Rename / dead code | `refactor_tool` (modes: `rename`, `dead_code`, `suggest`) | Rename preview returns an edit list; apply via `apply_refactor_tool`. |
-
-### Cross-repo searches
-
-`cross_repo_search` covers the repos registered under
-`~/.code-review-graph/registry.json` (below) — the registry still carries one
-DB per former standalone repo; since ADR 0017 the `fitACE_*` entries (except
-epimight) point at fitACE monorepo subdirectories, which keeps the search
-working at the same granularity. To add another, see **Adding a new repo**.
-
-| Repo | Languages indexed | Embeddings |
-|------|-------------------|------------|
-| simACE | python, bash | yes |
-| fitACE | python | yes |
-| fitACE_epimight | python, r | yes |
-| fitACE_pcgc | cpp, c, python | yes |
-| fitACE_iter_reml | python | yes |
-| fitACE_tetraher | python | yes |
-| fitACE_pafgrs | python | yes |
-| fitACE_stan | python | yes |
-| fitACE_frailty | python | yes |
-| ace_iter_reml | cpp, c | yes |
-| tetraher_simace | bash, c, python | yes |
-| pedigree-graph | python | yes |
-| pedsum | python | yes |
-
-Use `cross_repo_search` when:
-
-- A symbol/concept might live in *any* of the related repos (e.g. "kinship",
-  "reml", "tetrachoric").
-- You're coordinating cross-repo edits (per the simACE↔fitACE note above).
-- You're tracing how a simACE concept is consumed downstream.
-
-Stick with single-repo tools (`semantic_search_nodes`, `query_graph`) when
-you know which repo to look in — same hits, less noise.
-
-**Adding a new repo:**
-
-```
-code-review-graph build --repo <path>       # if no graph DB exists yet
-code-review-graph register <path> --alias <name>
-# then via MCP: embed_graph_tool(repo_root="<path>")
-```
-
-### Skip the graph when
-
-- You already know the exact file path → just `Read` it.
-- You need a string literal that won't be a graph node (config values,
-  error messages, log strings) → `grep`.
-- You're editing a file you just read in this session.
-
-### Maintenance
-
-Graph auto-updates on file changes via the hook in `.claude/settings.json`.
-If stats look stale, run `code-review-graph status`.
 
 ## Agent skills
 
