@@ -13,6 +13,8 @@ from simace.plotting.plot_effective_size import (
     _build_subtitle,
     gather_effective_size,
     main,
+    plot_estimators_overview,
+    plot_ne_by_generation,
 )
 
 if TYPE_CHECKING:
@@ -190,6 +192,89 @@ def test_main_writes_all_outputs(two_rep_yamls, params_path, tmp_path: Path):
     ]
     for fname in expected_files:
         assert (out_dir / fname).exists(), f"missing {fname}"
+
+
+# ---------------------------------------------------------------------------
+# Expected-reference lines: plot_estimators_overview / plot_ne_by_generation
+#
+# Both read ``expected`` off scalar_df with a polars ``unique()``, whose order
+# is only defined because these ask for ``maintain_order=True``.  If an
+# estimator ever carries two distinct expected values across reps, the drawn
+# reference must be the first-appearing one rather than whichever the hash
+# table happened to yield.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def recorded_reference_lines(monkeypatch):
+    """Record y-values passed to ``Axes.hlines`` / ``Axes.axhline``, still drawing."""
+    from matplotlib.axes import Axes
+
+    drawn: dict[str, list[float]] = {"hlines": [], "axhline": []}
+    real_hlines, real_axhline = Axes.hlines, Axes.axhline
+
+    def spy_hlines(self, y, xmin, xmax, **kwargs):
+        drawn["hlines"].append(float(y))
+        return real_hlines(self, y, xmin, xmax, **kwargs)
+
+    def spy_axhline(self, y=0, *args, **kwargs):
+        drawn["axhline"].append(float(y))
+        return real_axhline(self, y, *args, **kwargs)
+
+    monkeypatch.setattr(Axes, "hlines", spy_hlines)
+    monkeypatch.setattr(Axes, "axhline", spy_axhline)
+    return drawn
+
+
+def _scalar_df(expected: list[float | None], estimator: str = "ne_sex_ratio") -> pl.DataFrame:
+    """Minimal scalar frame: one row per rep for a single estimator."""
+    return pl.DataFrame(
+        {
+            "rep": list(range(1, len(expected) + 1)),
+            "estimator": [estimator] * len(expected),
+            "ne": [7000.0 + 10 * i for i in range(len(expected))],
+            "expected": expected,
+        },
+        schema={"rep": pl.Int64, "estimator": pl.Utf8, "ne": pl.Float64, "expected": pl.Float64},
+    )
+
+
+def test_overview_reference_line_takes_the_first_expected(recorded_reference_lines, tmp_path: Path):
+    # The larger value appears first on purpose: an unordered unique() yields
+    # the smallest here, so this fails if maintain_order is ever dropped.
+    scalar_df = _scalar_df([11000.0, 9000.0, 9000.0])
+    plot_estimators_overview(scalar_df, "subtitle", tmp_path, "png")
+
+    assert recorded_reference_lines["hlines"] == [11000.0]
+
+
+def test_overview_draws_no_reference_when_expected_is_all_null(recorded_reference_lines, tmp_path: Path):
+    plot_estimators_overview(_scalar_df([None, None]), "subtitle", tmp_path, "png")
+
+    assert recorded_reference_lines["hlines"] == []
+    assert (tmp_path / "effective_size.estimators.png").exists()
+
+
+def _series_df(estimator: str = "ne_sex_ratio", n_gen: int = 3) -> pl.DataFrame:
+    """Minimal per-generation series for a single estimator, two reps."""
+    rows = [{"rep": rep, "estimator": estimator, "index": g, "ne": 7000.0 + g} for rep in (1, 2) for g in range(n_gen)]
+    return pl.DataFrame(rows, schema={"rep": pl.Int64, "estimator": pl.Utf8, "index": pl.Int64, "ne": pl.Float64})
+
+
+def test_by_generation_reference_line_takes_the_first_expected(recorded_reference_lines, tmp_path: Path):
+    # Larger value first, as above — an unordered unique() would draw 9000.
+    plot_ne_by_generation(_series_df(), _scalar_df([11000.0, 9000.0]), tmp_path, "png")
+
+    assert recorded_reference_lines["axhline"] == [11000.0]
+
+
+def test_by_generation_renders_empty_panels_without_crashing(recorded_reference_lines, tmp_path: Path):
+    # Only one of the six panels has data; the rest must fall to the "no data"
+    # branch rather than raising on an empty frame.
+    plot_ne_by_generation(_series_df(), _scalar_df([None]), tmp_path, "png")
+
+    assert recorded_reference_lines["axhline"] == []
+    assert (tmp_path / "effective_size.by_generation.png").exists()
 
 
 # ---------------------------------------------------------------------------
