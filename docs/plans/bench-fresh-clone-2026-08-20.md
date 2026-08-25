@@ -123,12 +123,20 @@ numbers in this document are the distributed record.
 - `tsv/sweep{1,2,3}/<scenario>/rep{1,2,3}/*.tsv` — per-rule snapshots
 - `runs/*.{log,time,freq}` — snakemake logs, `time -v`, clock samples
 - `memprobe-*.{txt,log,time}` — process-tree memory attribution
-- `run_bench.sh`, `aggregate.py`, `memprobe*.sh` — the drivers
 
-To repeat it, re-clone at the tag and re-run the drivers from the clone root:
+The driver scripts are **tracked**, generalized out of this one-off run:
+
+- `tools/bench_pipeline.sh` — the sweep driver
+- `tools/bench_aggregate.py` — the per-rule median/range tables
+- `tools/bench_memprobe.sh` — per-rule peak-memory attribution
+
+To repeat this benchmark on a clean tree:
 
     git clone https://github.com/rwaples/simACE.git <dir> && cd <dir>
     git checkout v2026.08 && pixi install --locked
-    cp -r <this-dir>/plans/bench-fresh-clone-2026-08-20-data bench-logs
-    bash bench-logs/run_bench.sh            # SWEEPS=3 CORES=4
-    pixi run python bench-logs/aggregate.py # paths inside assume the clone dir
+    SWEEPS=3 CORES=4 bash tools/bench_pipeline.sh
+    python tools/bench_aggregate.py bench-logs
+
+To re-read the numbers in this document from the preserved data:
+
+    python tools/bench_aggregate.py plans/bench-fresh-clone-2026-08-20-data

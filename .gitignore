@@ -98,6 +98,10 @@ evaluate/
 .code-review-graph/
 .mcp.json
 
+# Benchmark run output (tools/bench_pipeline.sh). The scripts are tracked;
+# the measurements they produce are machine-local.
+bench-logs/
+
 # Working plan drafts (design-interview output). Finalized plans are promoted
 # to docs/plans/ (tracked). Keep the README so the location stays predictable.
 plans/*
