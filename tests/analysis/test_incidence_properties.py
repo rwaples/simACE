@@ -9,7 +9,7 @@ cross-product a single hand-built table cannot cover.
 """
 
 import numpy as np
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hnp
 
@@ -30,7 +30,6 @@ def _aj_inputs(draw):
     return entry, exit_time, event_type
 
 
-@settings(deadline=None, max_examples=150)
 @given(inp=_aj_inputs(), greenwood=st.booleans())
 def test_aj_partition_bounds_monotonicity(inp, greenwood):
     entry, exit_time, event_type = inp

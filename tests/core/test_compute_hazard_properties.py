@@ -9,7 +9,7 @@ algebra that still matched at the fixed point would slip through.
 """
 
 import numpy as np
-from hypothesis import assume, given, settings
+from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from simace.core.compute_hazard_terms import compute_hazard_terms
@@ -56,7 +56,6 @@ def _t_grid(draw):
     return np.sort(np.asarray(ts, dtype=np.float64))
 
 
-@settings(deadline=None, max_examples=150)
 @given(mp=_model_and_params(), t=_t_grid())
 def test_cumulative_hazard_nonneg_nondecreasing(mp, t):
     model, params = mp

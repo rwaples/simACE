@@ -10,7 +10,7 @@ hand-picked table (equal prevalences hit only one branch) can demonstrate.
 
 import numpy as np
 import pytest
-from hypothesis import assume, given, settings
+from hypothesis import assume, given
 from hypothesis import strategies as st
 from scipy.special import ndtri
 
@@ -46,7 +46,6 @@ def _binary_pair(draw):
     return a, b
 
 
-@settings(deadline=None, max_examples=60)
 @given(_binary_pair())
 def test_tetrachoric_symmetry_relabel_bounds(ab):
     a, b = ab

@@ -14,7 +14,7 @@ import io
 
 import numpy as np
 import polars as pl
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hnp
 
@@ -48,7 +48,6 @@ def _pedigree_frame(draw):
     return pl.DataFrame(data)
 
 
-@settings(deadline=None, max_examples=75)
 @given(_pedigree_frame())
 def test_parquet_roundtrip_modulo_narrowing(df):
     orig_schema = dict(df.schema)

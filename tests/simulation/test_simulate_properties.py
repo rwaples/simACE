@@ -22,6 +22,8 @@ from hypothesis import strategies as st
 from simace.simulation.simulate import generate_correlated_components, run_simulation
 
 
+# Explicit budget, not the conftest profile: every example calls run_simulation,
+# so HYPOTHESIS_PROFILE=thorough would dominate suite wall-clock here.
 @settings(deadline=None, max_examples=50)
 @given(
     seed=st.integers(min_value=0, max_value=2**31 - 1),
@@ -61,6 +63,8 @@ _VARIANCES = dict(A1=0.3, C1=0.2, A2=0.3, C2=0.2, E1=0.5, E2=0.5, rA=0.0, rC=0.0
 
 
 @pytest.mark.slow
+# Explicit budget, not the conftest profile: run_simulation per example (see above).
+# suppress_health_check is independent of the example budget and is preserved.
 @settings(deadline=None, max_examples=15, suppress_health_check=[HealthCheck.too_slow])
 @given(
     seed=st.integers(min_value=0, max_value=2**31 - 1),

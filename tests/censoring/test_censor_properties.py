@@ -13,7 +13,7 @@ alone (De Morgan of one assignment line) would not.
 
 import numpy as np
 import polars as pl
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hnp
 
@@ -68,7 +68,6 @@ def _make_frames(n, gens, t1, t2):
     return phenotype, pedigree
 
 
-@settings(deadline=None, max_examples=60)
 @given(_censor_case())
 def test_censoring_identity_and_time_bounds(case):
     n, gens, t1, t2, censor_age, seed, gen_censoring = case

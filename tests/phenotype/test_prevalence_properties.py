@@ -8,7 +8,7 @@ and on a standardized liability the realized case fraction matches K
 """
 
 import numpy as np
-from hypothesis import given, settings
+from hypothesis import given
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hnp
 
@@ -31,7 +31,6 @@ def test_case_set_monotone_in_prevalence(liability, k1, k2):
     assert np.all(mask_lo <= mask_hi)
 
 
-@settings(deadline=None, max_examples=40)
 @given(seed=st.integers(min_value=0, max_value=2**31 - 1), k=st.floats(min_value=0.02, max_value=0.5))
 def test_realized_case_fraction_matches_prevalence(seed, k):
     n = 20_000

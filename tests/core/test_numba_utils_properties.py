@@ -10,7 +10,7 @@ The existing parity tests pin only fixed parametrize points.
 
 import numpy as np
 import pytest
-from hypothesis import assume, given, settings
+from hypothesis import assume, given
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hnp
 
@@ -40,14 +40,12 @@ def _xy(draw):
     return x, y
 
 
-@settings(deadline=None)
 @given(_xy())
 def test_pearsonr_core_python_jit_parity(xy):
     x, y = xy
     assert np.isclose(_pearsonr_core_python(x, y), _pearsonr_core(x, y), rtol=1e-9, atol=1e-12)
 
 
-@settings(deadline=None)
 @given(_xy())
 def test_linregress_core_python_jit_parity(xy):
     x, y = xy
@@ -62,7 +60,6 @@ def test_linregress_core_python_jit_parity(xy):
     assert np.allclose(py, jit, rtol=1e-7, atol=1e-10, equal_nan=True)
 
 
-@settings(deadline=None)
 @given(
     h=st.floats(-5, 5, allow_nan=False, allow_infinity=False),
     k=st.floats(-5, 5, allow_nan=False, allow_infinity=False),
@@ -72,7 +69,6 @@ def test_bvn_cdf_python_jit_parity(h, k, r):
     assert np.isclose(_bvn_cdf_python(h, k, r), _bvn_cdf(h, k, r), rtol=1e-9, atol=1e-12)
 
 
-@settings(deadline=None)
 @given(
     h=st.floats(-5, 5, allow_nan=False, allow_infinity=False),
     a=st.floats(-20, 20, allow_nan=False, allow_infinity=False),
@@ -83,7 +79,6 @@ def test_owens_t_python_jit_parity(h, a):
 
 # Bound sanity that holds for any valid CDF — a cheap companion that the parity
 # tests alone do not assert.
-@settings(deadline=None)
 @given(
     h=st.floats(-6, 6, allow_nan=False, allow_infinity=False),
     k=st.floats(-6, 6, allow_nan=False, allow_infinity=False),
