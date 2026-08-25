@@ -95,6 +95,20 @@ class TestControlsOnly:
         assert len(trait_out) == n_sample
         assert not trait_out["affected1"].any()
 
+    def test_zero_ratio_refuses_an_all_case_pool(self, small_pedigree):
+        """No control is eligible, so there is nothing to draw -- refuse rather than empty the cohort."""
+        trait = _build_trait(small_pedigree, g_pheno=1, n_cases=0, seed=5)
+        trait = trait.with_columns(pl.lit(True).alias("affected1"))
+        with pytest.raises(ValueError, match="would select nobody"):
+            run_ascertainment(
+                small_pedigree,
+                trait,
+                dropout_rate=0.0,
+                case_ascertainment_ratio=0.0,
+                N_sample=20,
+                seed=8,
+            )
+
     def test_zero_ratio_clamps_when_nsample_exceeds_controls(self, small_pedigree):
         trait = _build_trait(small_pedigree, g_pheno=2, n_cases=100, seed=11)
         n_controls = int((~trait["affected1"]).sum())

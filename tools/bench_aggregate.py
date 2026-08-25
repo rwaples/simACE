@@ -34,12 +34,18 @@ RULE_ORDER = [
 
 
 def read_tsv(path: Path) -> tuple[float, float] | None:
-    """Return ``(seconds, max_rss_mb)`` from one Snakemake benchmark TSV."""
+    """Return ``(seconds, max_rss_mb)`` from one Snakemake benchmark TSV, or None if unusable."""
     rows = path.read_text().splitlines()
     if len(rows) < 2:
         return None
     fields = rows[1].split("\t")
-    return float(fields[0]), float(fields[2])
+    try:
+        return float(fields[0]), float(fields[2])
+    except ValueError:
+        # Snakemake writes "-" for a column it never sampled, which happens for
+        # any rule that finishes inside the RSS sampling interval. Skip that
+        # sample rather than killing the whole aggregation run.
+        return None
 
 
 def collect(logs: Path, scenario: str, *, warm_only: bool) -> dict[str, list[tuple[float, float]]]:

@@ -159,10 +159,16 @@ def _sample_trait_ids(
     n_controls = n_pool - n_cases
 
     # Zero case weight is checked before the degenerate branch: an all-case pool
-    # is degenerate for every *other* ratio, but for ratio=0 it has a defined
-    # answer -- no eligible controls, so nothing is drawn. Checking degeneracy
-    # first would silently draw cases under a zero case weight.
+    # is degenerate for every *other* ratio, but under ratio=0 no individual in
+    # it is eligible. Checking degeneracy first would silently draw cases under
+    # a zero case weight; checking it here refuses instead, matching the stance
+    # _apply_dropout takes on a filter that would leave nobody behind.
     if case_ascertainment_ratio == 0:
+        if n_controls == 0:
+            raise ValueError(
+                f"case_ascertainment_ratio=0 would select nobody: "
+                f"the post-dropout pool of {n_pool} is all cases, so no individual is eligible"
+            )
         actual_n = min(N_sample, n_controls)
         if actual_n < N_sample:
             logger.warning(

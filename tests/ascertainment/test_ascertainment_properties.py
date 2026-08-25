@@ -121,6 +121,37 @@ def _ascertainment_case(draw, *, relabel=False) -> _Case:
     )
 
 
+def _refuses(trait: pl.DataFrame, *, ratio: float, n_sample: int) -> bool:
+    """True when ``_sample_trait_ids`` refuses this pool outright.
+
+    A zero case weight over an all-case pool leaves no eligible individual, so
+    the draw raises rather than returning an empty cohort — the same stance
+    ``_apply_dropout`` takes on a rate that would remove everyone.  Only the
+    weighted-draw branch can refuse; the ``N_sample`` pass-through paths are
+    ratio-independent and return the whole pool.
+    """
+    if not (0 < n_sample < len(trait)):
+        return False
+    return ratio == 0 and bool(trait["affected1"].to_numpy().all())
+
+
+def _run_or_none(case: "_Case", **kwargs) -> tuple[pl.DataFrame, pl.DataFrame] | None:
+    """Run the case, returning ``None`` when the zero-case-weight refusal fires.
+
+    ``run`` applies dropout first, so whether the surviving pool is all-case is
+    not a function of ``case.trait`` alone — catching the refusal is exact where
+    predicting it would not be.  Anything else propagates.  The refusal itself
+    is asserted directly in :class:`TestSampleTraitIds`; the invariants here
+    only bind on a cohort that exists.
+    """
+    try:
+        return case.run(**kwargs)
+    except ValueError as exc:
+        if "would select nobody" not in str(exc):
+            raise
+        return None
+
+
 def _row_positions(haystack: np.ndarray, needles: np.ndarray) -> np.ndarray:
     """Row positions of ``needles`` within ``haystack``; both must be id arrays."""
     order = np.argsort(haystack)
@@ -133,7 +164,10 @@ class TestRunAscertainment:
     @given(case=_ascertainment_case(relabel=True))
     def test_no_dangling_references(self, case):
         """Every mother/father/twin in the output resolves to -1 or an output id."""
-        ped_out, _ = case.run()
+        result = _run_or_none(case)
+        if result is None:
+            return
+        ped_out, _ = result
         out_ids = ped_out["id"].to_numpy()
         for col in ("mother", "father", "twin"):
             values = ped_out[col].to_numpy()
@@ -143,7 +177,10 @@ class TestRunAscertainment:
     @given(case=_ascertainment_case(relabel=True))
     def test_never_invents_individuals(self, case):
         """Outputs are subsets: ped ⊆ ped_in, trait ⊆ trait_in, and trait ⊆ ped_out."""
-        ped_out, trait_out = case.run()
+        result = _run_or_none(case)
+        if result is None:
+            return
+        ped_out, trait_out = result
         ped_in_ids = set(case.pedigree["id"].to_list())
         trait_in_ids = set(case.trait["id"].to_list())
         ped_out_ids = set(ped_out["id"].to_list())
@@ -164,7 +201,10 @@ class TestRunAscertainment:
         the closure is built and severing is legitimate, so the negation is not
         asserted there.
         """
-        ped_out, _ = case.run(dropout_rate=0.0)
+        result = _run_or_none(case, dropout_rate=0.0)
+        if result is None:
+            return
+        ped_out, _ = result
         if len(ped_out) == 0:
             return
         original = dict(
@@ -218,6 +258,10 @@ class TestSampleTraitIds:
     def test_sampled_ids_are_a_bounded_ordered_subset(self, case):
         """Sampled ids are unique, drawn from the pool, and keep pool row order."""
         pool_ids = case.trait["id"].to_numpy()
+        if _refuses(case.trait, ratio=case.ratio, n_sample=case.n_sample):
+            with pytest.raises(ValueError, match="would select nobody"):
+                case.sample_ids()
+            return
         sampled, _ = case.sample_ids()
         assert set(sampled.tolist()) <= set(pool_ids.tolist())
         assert len(set(sampled.tolist())) == len(sampled)
@@ -227,10 +271,14 @@ class TestSampleTraitIds:
 
     @given(case=_ascertainment_case())
     def test_sample_size_follows_the_documented_branches(self, case):
-        """Size is 0 / whole pool / ``N_sample`` / controls-clamped, per branch."""
+        """Size is 0 / whole pool / ``N_sample`` / controls-clamped, per branch — or a refusal."""
         n_pool = len(case.trait)
         is_case = case.trait["affected1"].to_numpy()
         n_controls = int((~is_case).sum())
+        if _refuses(case.trait, ratio=case.ratio, n_sample=case.n_sample):
+            with pytest.raises(ValueError, match="would select nobody"):
+                case.sample_ids()
+            return
         sampled, _ = case.sample_ids()
         if n_pool == 0:
             assert len(sampled) == 0
@@ -246,15 +294,19 @@ class TestSampleTraitIds:
         """A zero case weight selects no cases whenever a weighted draw occurs.
 
         The precondition is exactly ``0 < N_sample < n_pool`` — the branch where
-        a draw happens at all.  An all-case pool therefore yields an empty
-        selection; the ``N_sample`` pass-through path stays ratio-independent
-        and is excluded here.
+        a draw happens at all.  An all-case pool has no eligible individual at
+        all and is refused rather than silently emptied; the ``N_sample``
+        pass-through path stays ratio-independent and is excluded here.
         """
         n_pool = len(case.trait)
         if not (0 < case.n_sample < n_pool):
             return
         is_case = case.trait["affected1"].to_numpy()
         n_controls = int((~is_case).sum())
+        if n_controls == 0:
+            with pytest.raises(ValueError, match="would select nobody"):
+                case.sample_ids(ratio=0.0)
+            return
         sampled, _ = case.sample_ids(ratio=0.0)
         selected = case.trait.filter(pl.Series(np.isin(case.trait["id"].to_numpy(), sampled)))
         assert not selected["affected1"].any()

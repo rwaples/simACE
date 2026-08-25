@@ -150,7 +150,7 @@ The fraction of the population removed uniformly at random during ascertainment.
 _Avoid_: attrition, pruning, missingness rate.
 
 **Case-ascertainment ratio** ($\alpha$):
-The weight applied to affected individuals during ascertainment selection, relative to unaffected. $\alpha = 1$ → uniform selection; $\alpha > 1$ → cases enriched; $\alpha = 0$ → only controls. Config key: `case_ascertainment_ratio`. The weight applies only where a draw actually occurs: when $N_{\text{sample}}$ passes the whole post-dropout pool through, no selection happens and $\alpha$ has no effect.
+The weight applied to affected individuals during ascertainment selection, relative to unaffected. $\alpha = 1$ → uniform selection; $\alpha > 1$ → cases enriched; $\alpha = 0$ → only controls. Config key: `case_ascertainment_ratio`. The weight applies only where a draw actually occurs: when $N_{\text{sample}}$ passes the whole post-dropout pool through, no selection happens and $\alpha$ has no effect. Where a draw does occur, $\alpha = 0$ over an all-case pool leaves nothing eligible; that is an error, not an empty cohort.
 _Avoid_: ascertainment bias (that's the *result* of $\alpha \neq 1$, not the parameter itself), oversampling rate, enrichment factor.
 
 **$N_{\text{sample}}$**:
