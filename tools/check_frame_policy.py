@@ -129,14 +129,15 @@ def check(root: Path) -> tuple[list[str], list[str], list[str]]:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        for match in _PANDAS_IMPORT.finditer(text):
-            if _allowed(rel) is not None:
-                break
-            if _is_type_checking_only(text, match):
-                annotations.append(rel)
-            else:
+        if _allowed(rel) is None:
+            imports = list(_PANDAS_IMPORT.finditer(text))
+            # One runtime import outweighs any number of annotation-only ones:
+            # classifying on the first match alone let a function-local runtime
+            # import hide behind an ``if TYPE_CHECKING:`` import above it.
+            if any(not _is_type_checking_only(text, m) for m in imports):
                 violations.append(f"{rel}: imports pandas at runtime, outside the allowlist")
-            break
+            elif imports:
+                annotations.append(rel)
         for match in _INDEX_IDIOMS.finditer(text):
             line = text[: match.start()].count("\n") + 1
             warnings.append(f"{rel}:{line}: pandas-style index idiom {match.group(0)!r}")
