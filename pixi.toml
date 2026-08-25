@@ -42,8 +42,8 @@ simace = { path = ".", editable = true, extras = ["dev"] }
 # pedigree-graph resolves from PyPI (released wheel). For ad-hoc editable
 # development against the umbrella checkout, add locally (do NOT commit):
 #   pedigree-graph = { path = "external/pedigree-graph", editable = true }
-# Routine editable pedigree-graph work belongs in the conda family env
-# (compat-mode install, see RELEASE.md step 2).
+# Routine editable pedigree-graph work belongs in its own manifest,
+# external/pedigree-graph/pixi.toml (ADR 0018).
 
 [activation.env]
 MPLBACKEND = "Agg"
