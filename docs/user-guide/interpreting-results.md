@@ -9,7 +9,7 @@ PDF atlas available on demand).
 !!! tip "Regenerating plots"
     Force-rebuild a scenario's atlas (HTML is the default; pass `.pdf` for the export):
     ```bash
-    snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.html
+    pixi run snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.html
     ```
 
 ## Reading the atlas

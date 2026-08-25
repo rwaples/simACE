@@ -360,7 +360,7 @@ Ordered by narrative flow: pedigree structure, liability, phenotype, censoring, 
 An atlas combines all plots for a scope into a single document with figure
 captions. The default is a self-contained HTML atlas (embedded plots, native
 overview + Table 1, inline-SVG equations); a multi-page PDF atlas is an
-on-demand export (ADR 0010 — build with `snakemake .../atlas.pdf`):
+on-demand export (ADR 0010 — build with `pixi run snakemake .../atlas.pdf`):
 
 | File | Contents |
 |------|----------|

@@ -65,7 +65,7 @@ pixi run snakemake --cores 4 \
 Then regenerate the documentation figures:
 
 ```bash
-python docs/examples/scripts/build_ascertainment_bias.py
+pixi run python docs/examples/scripts/build_ascertainment_bias.py
 ```
 
 ## Observation 1 — Case weighting turns a 10% trait into an enriched study sample

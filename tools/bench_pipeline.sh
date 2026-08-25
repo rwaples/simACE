@@ -87,4 +87,4 @@ for sweep in $(seq 1 "$SWEEPS"); do
     echo "[$(date +%T)] DONE  $tag  wall=$wall rss=${rss}KB cpu=$cpu freq_max=${fmax}kHz"
   done
 done
-echo "[$(date +%T)] ALL SWEEPS COMPLETE -- aggregate with: python tools/bench_aggregate.py $OUT"
+echo "[$(date +%T)] ALL SWEEPS COMPLETE -- aggregate with: pixi run python tools/bench_aggregate.py $OUT"

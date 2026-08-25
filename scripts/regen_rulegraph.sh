@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Regenerate docs/images/rulegraph.png from the current Snakefile.
-# Requires graphviz (`dot`). Run from repo root.
+# Run from repo root. snakemake and graphviz (`dot`) both come from the umbrella
+# pixi env — there is no ambient environment (ADR 0018), so neither resolves bare.
 set -euo pipefail
 
 TARGET="${1:-results/test/small_test/scenario.done}"
 OUT="docs/images/rulegraph.png"
 
-snakemake --rulegraph -- "$TARGET" | dot -Tpng -Gdpi=150 > "$OUT"
+pixi run snakemake --rulegraph -- "$TARGET" | pixi run dot -Tpng -Gdpi=150 > "$OUT"
 echo "Wrote $OUT"

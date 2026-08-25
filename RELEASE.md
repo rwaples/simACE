@@ -95,9 +95,9 @@ per-checkout `git push` commands. **It never pushes** (repo-wide no-`git push`
 rule).
 
 ```bash
-python tools/release.py vYYYY.MM            # tag the three checkouts locally
-python tools/release.py vYYYY.MM --dry-run  # run checks + report; tag nothing
-python tools/release.py vYYYY.MM.1 -m "hotfix: <summary>"
+pixi run python tools/release.py vYYYY.MM            # tag the three checkouts locally
+pixi run python tools/release.py vYYYY.MM --dry-run  # run checks + report; tag nothing
+pixi run python tools/release.py vYYYY.MM.1 -m "hotfix: <summary>"
 ```
 
 It is **all-or-nothing**: it refuses (exit `1`) unless *every* member is
@@ -130,7 +130,7 @@ Commit the final implementation/docs changes in each affected checkout. Confirm
 all three checkouts are clean (the helper refuses dirty repos):
 
 ```bash
-python tools/release.py vYYYY.MM --dry-run
+pixi run python tools/release.py vYYYY.MM --dry-run
 ```
 
 A green dry-run (`all 3 family repos are clean and untagged`) is the gate.
@@ -138,7 +138,7 @@ A green dry-run (`all 3 family repos are clean and untagged`) is the gate.
 ### 1. Tag locally
 
 ```bash
-python tools/release.py vYYYY.MM
+pixi run python tools/release.py vYYYY.MM
 ```
 
 This creates the annotated tags in all three checkouts. No push is needed for the
@@ -199,7 +199,8 @@ pixi run --manifest-path fitACE/pixi.toml python -c "import fitace.config; print
 # Full suites:
 pixi run pytest tests/ -q                                        # simACE
 ( cd fitACE && pixi run pytest tests/ -q )                       # fitACE core
-# (method-package suites: pytest fitACE/fitACE_<x>/tests/ via the fitACE env, when touched)
+# (method-package suites, when touched:
+#   pixi run --manifest-path fitACE/pixi.toml pytest fitACE/fitACE_<x>/tests/ -q )
 
 # Provenance smoke (grep the sidecars):
 pixi run snakemake --cores 4 results/test/small_test/scenario.done
