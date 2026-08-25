@@ -12,9 +12,9 @@ rule effective_size_phenotype:
     The post-ascertainment trait.parquet is the canonical input (it contains
     the ascertained subset). `pedigree.parquet` is the ancestor closure.
 
-    `skip_ne_coancestry`: per-scenario opt-in (default False).  When
-    True, ne_coancestry is skipped (full sparse K not built) — required on
-    very large pedigrees where K would OOM.
+    `skip_ne_coancestry`: default True.  ne_coancestry is skipped (full
+    sparse K not built) unless a scenario opts back in with False — the
+    coancestry DP dominates this rule's memory and OOMs on large pedigrees.
     """
     input:
         pedigree="results/{folder}/{scenario}/rep{rep}/pedigree.parquet",

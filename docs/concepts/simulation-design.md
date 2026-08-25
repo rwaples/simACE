@@ -106,8 +106,8 @@ The coancestry-rate Ne estimator (`ne_coancestry`, `Ne_C`) needs only the
 per-generation mean kinship `θ̄_g`, not the full sparse `K`.
 `PedigreeGraph.per_gen_mean_kinship(min_kinship=0.0)` streams `θ̄_g`
 directly from the kinship DP without materializing `K`'s CSC arrays.
-This is the default path used by `compute_all_ne` unless
-`analysis.skip_ne_coancestry` is set.
+This is the path `compute_all_ne` uses whenever Ne_C runs at all — that
+is, when a scenario sets `analysis.skip_ne_coancestry: false`.
 
 The streaming traversal walks each row of the DP's ascending-col-sorted
 storage, counts each unordered same-generation non-twin pair once at
@@ -115,8 +115,9 @@ row index < col index, and accumulates a float64 sum per generation.
 For N > ~3M at `G_ped=6` the K-build path is no longer viable
 (`_assemble_csc`'s int32 nnz overflows); the streaming path scales to
 much larger pedigrees because it never holds the full matrix at once.
-Set `analysis.skip_ne_coancestry: true` to skip Ne_C and its DP entirely
-when only the seven non-coancestry Ne estimators are needed.
+`analysis.skip_ne_coancestry` defaults to `true`, skipping Ne_C and its DP
+entirely so only the seven non-coancestry Ne estimators run; set it to
+`false` on a scenario whose pedigree is small enough to afford the DP.
 
 ## Pipeline stages
 

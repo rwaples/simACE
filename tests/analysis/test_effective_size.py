@@ -481,9 +481,19 @@ def test_effective_size_main_writes_yaml(tmp_path, tiny_pedigree):
         assert "expected" in entry
 
 
-def test_cli_routes_skip_full_kinship_matrix(monkeypatch):
-    """--skip-full-kinship-matrix must populate args.skip_ne_coancestry and
-    propagate to main()."""
+@pytest.mark.parametrize(
+    ("argv_extra", "expected_skip"),
+    [
+        pytest.param([], True, id="default-skips-ne-c"),
+        pytest.param(["--ne-coancestry"], False, id="opt-in-runs-ne-c"),
+    ],
+)
+def test_cli_ne_coancestry_flag_routes_to_main(monkeypatch, argv_extra, expected_skip):
+    """``--ne-coancestry`` is a positive opt-in, negated on the way to main().
+
+    Off by default, matching the ``analysis.skip_ne_coancestry`` pipeline
+    default and pedsum's flag of the same name.
+    """
     from simace.analysis.stats import effective_size as mod
 
     captured: dict[str, object] = {}
@@ -504,8 +514,8 @@ def test_cli_routes_skip_full_kinship_matrix(monkeypatch):
             "/dev/null/params",
             "--output",
             "/dev/null/out",
-            "--skip-full-kinship-matrix",
+            *argv_extra,
         ],
     )
     mod.cli()
-    assert captured == {"skip_ne_coancestry": True}
+    assert captured == {"skip_ne_coancestry": expected_skip}

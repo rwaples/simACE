@@ -131,7 +131,7 @@ ascertainment:
 analysis:
   max_degree: 3
   estimate_inbreeding: false
-  skip_ne_coancestry: false
+  skip_ne_coancestry: true
 ```
 
 | Parameter | Description |
@@ -141,7 +141,7 @@ analysis:
 | `ascertainment.dropout_rate` | Fraction of individuals removed uniformly from the pedigree (applied before the case-weighted draw; see [Ascertainment](ascertainment.md) for the two-step algorithm) |
 | `analysis.max_degree` | Maximum relationship degree to extract (`3` includes 1st cousins; `2` stops at degree-2 relatives such as half-sibs, grandparents, and avuncular pairs) |
 | `analysis.estimate_inbreeding` | Compute exact inbreeding coefficients and exact pairwise kinship |
-| `analysis.skip_ne_coancestry` | Skip the Ne_C (coancestry-rate) estimator and its kinship DP. The remaining seven Ne estimators still run. Useful on very large pedigrees when only F-based and family-size estimators are needed. |
+| `analysis.skip_ne_coancestry` | Skip the Ne_C (coancestry-rate) estimator and its kinship DP. The remaining seven Ne estimators still run, and `ne_coancestry` is reported as null. Defaults to `true` because the DP dominates the `effective_size` rule's memory; set `false` per scenario to run Ne_C where the pedigree is small enough. |
 
 ## tstrait and gene drop
 

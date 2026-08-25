@@ -116,9 +116,11 @@ defaults:
     max_degree: 3
     estimate_inbreeding: false
     # When true, the effective_size rule skips building the full sparse
-    # kinship matrix and reports ne_coancestry as None.  Required at very
-    # large N (e.g. baseline1M) where K would OOM.
-    skip_ne_coancestry: false
+    # kinship matrix and reports ne_coancestry as None.  Defaults to true:
+    # the coancestry DP dominates the rule's memory (~31x the per-individual
+    # slope of the other seven estimators) and OOMs at large N.  Set false
+    # per scenario to run Ne_C where the pedigree is small enough.
+    skip_ne_coancestry: true
 
   # ── tstrait quantitative phenotype (per-chrom drop+graft .trees) ────────
   # Operates on the per-chrom genotype_drop outputs. Uses a shared founder-AF

@@ -8,6 +8,24 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
+### Effective population size
+
+- **`analysis.skip_ne_coancestry` now defaults to `true`.** The coancestry DP
+  dominates the `effective_size` rule's memory — roughly 31x the per-individual
+  slope of the other seven estimators — so the default put 152 of 331 scenarios
+  over a 24 GB budget, up to 150 GB for a single job. The remaining seven Ne
+  estimators are unchanged and `ne_coancestry` is reported as null, the same
+  shape the slot already took when skipped. Scenarios needing Ne_C opt back in
+  with `analysis.skip_ne_coancestry: false`; the `ne_coancestry_stream` folder
+  already does. The Python API default is unchanged (`compute_effective_size`
+  and `main` still take `skip_ne_coancestry=False`), staying in sync with
+  upstream `pedigree_graph.compute_all_ne`.
+- **CLI flag renamed to the positive form.** `--skip-full-kinship-matrix` is
+  replaced by `--ne-coancestry`, an opt-in that defaults to off — matching both
+  the new pipeline default and pedsum's flag of the same name. The old
+  double-negative flag is gone; `--ne-coancestry` now turns Ne_C *on* rather
+  than a `--skip-…` flag turning it off.
+
 ### Phenotype models
 
 - **`simple_ltm` is now a phenotype model**, not a parallel output. It sets case

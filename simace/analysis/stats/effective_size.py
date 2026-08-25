@@ -298,10 +298,11 @@ def cli() -> None:
     parser.add_argument("--params", required=True, help="Per-rep params.yaml")
     parser.add_argument("--output", required=True, help="Output effective_size.yaml")
     parser.add_argument(
-        "--skip-full-kinship-matrix",
-        dest="skip_ne_coancestry",
+        "--ne-coancestry",
         action="store_true",
-        help="Skip building the full sparse kinship matrix; ne_coancestry is reported as None.",
+        help="Include the coancestry-rate Ne_C estimator alongside the other seven. Off by "
+        "default because its kinship DP dominates memory on large pedigrees, matching the "
+        "analysis.skip_ne_coancestry pipeline default. Without it ne_coancestry is null.",
     )
     args = parser.parse_args()
     init_logging(args)
@@ -310,5 +311,5 @@ def cli() -> None:
         args.phenotype,
         args.params,
         args.output,
-        skip_ne_coancestry=args.skip_ne_coancestry,
+        skip_ne_coancestry=not args.ne_coancestry,
     )
