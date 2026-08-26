@@ -1,0 +1,209 @@
+# epimight_ci_testbed — reusable substrate for testing EPIMIGHT CI-estimation methods.
+#
+# Purpose differs from epimight_draws_coverage: that folder asks "is the shipped
+# CI calibrated?"; this one is a substrate against which *candidate* CI methods are
+# scored. The point estimator is fixed — only CI construction varies — which is what
+# lets the per-rep substrate be kept and re-scored instead of re-simulated.
+# Design: plans/epimight-ci-method-testbed.md (locked 2026-08-26).
+#
+# DGP choices that differ from the cov_*/covdev_* cells, and why:
+#
+#   cip_x0: 50 (not 8) — at x0=8 onset is Logistic(8, 6.67): median age 8, ~all
+#     cases done by 40, and clip(t, 0.01) piles ~a quarter of cases at the origin.
+#     Death thinning over that range is <1%, so the CIF is a near-step and the
+#     Aalen-Johansen sub-distribution correction is invisible. At x0=50 onsets span
+#     ~30-70 where S_death runs 0.990 -> 0.907: thinning is 1-9%, clipping ~0.05%.
+#     VERIFIED 2026-08-26 on 2M draws: KS p=0.21-0.28 vs Logistic(50, 6.667).
+#
+#   G_ped: 3 (not 10) — PO connected components percolate sharply between G_ped 3
+#     and 4, N-independently. Measured max_component_frac: 0.0003 at G_ped=3
+#     (49,982 components, max size 57) vs 0.9076 at 4 and 0.9412 at 5. Depth <= 3
+#     is what makes connected-component CI methods validatable on simACE at all.
+#     This contradicts fractional_coverage_status.md open item 4 and the
+#     po_component_codes docstring, which claim a local-mating substrate is needed.
+#
+#   N: 200000 (not 100000) — percolation is N-independent, so N buys the proband
+#     count back to 400k (parity with a G_ped=5/N=100k design) without re-entering
+#     the giant-component regime. Costs ~20% more total individuals.
+#
+#   rA: 0.55 (not 0.0) — the existing coverage cells sit at the parameter-space
+#     boundary. Non-zero costs nothing now and leaves the substrate rg-ready, so a
+#     future fractional-arm rg estimator can be scored without re-simulating.
+#
+# Yields 2 proband strata (born_at_year 1961-1962; founders are dropped as probands
+# by create_input.py). Truth: liability h2 = 0.5 for both traits.
+# Rel restriction (FS, PO) is fitACE-side: fitACE/config/epimight_ci_testbed.yaml.
+
+citb_K01_x50_c80:
+  seed: 300000
+  N: 200000
+  G_sim: 10
+  G_ped: 3
+  G_pheno: 3
+  replicates: 1000
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.55
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.01
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+citb_K05_x50_c80:
+  seed: 305000
+  N: 200000
+  G_sim: 10
+  G_ped: 3
+  G_pheno: 3
+  replicates: 1000
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.55
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+citb_K25_x50_c80:
+  seed: 310000
+  N: 200000
+  G_sim: 10
+  G_ped: 3
+  G_pheno: 3
+  replicates: 1000
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.55
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# Fast pipeline smoke: parameter-identical to citb_K05 but N=25k / 2 reps.
+# Use to validate the emit -> substrate -> score path before the ~7 h grid run.
+citbsmoke_K05_x50_c80:
+  seed: 315000
+  N: 25000
+  G_sim: 10
+  G_ped: 3
+  G_pheno: 3
+  replicates: 2
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.55
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
