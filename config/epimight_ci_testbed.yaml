@@ -8,11 +8,15 @@
 #
 # DGP choices that differ from the cov_*/covdev_* cells, and why:
 #
-#   cip_x0: 50 (not 8) — at x0=8 onset is Logistic(8, 6.67): median age 8, ~all
-#     cases done by 40, and clip(t, 0.01) piles ~a quarter of cases at the origin.
-#     Death thinning over that range is <1%, so the CIF is a near-step and the
-#     Aalen-Johansen sub-distribution correction is invisible. At x0=50 onsets span
-#     ~30-70 where S_death runs 0.990 -> 0.907: thinning is 1-9%, clipping ~0.05%.
+#   trait1 cip_x0: 50, trait2 cip_x0: 20 — two onset regimes, not one. At x0=8
+#     (the cov_* cells) onset is Logistic(8, 6.67): median age 8 and clip(t, 0.01)
+#     piles ~a quarter of cases at the origin. At x0=50 onsets span ~30-70, origin
+#     clipping ~0.05%, and the scoring age 40 sits on the steep rise (18th pct of
+#     onset) where bands are widest and CI methods differ most. Trait2 at x0=20 is
+#     deliberately the other regime: by age 40 its curve has essentially plateaued,
+#     so one scoring age exercises a rising CIF and a saturated one. Trait2 also
+#     recovers lifetime prevalence almost exactly (nearly all its cases fall inside
+#     the [0,80] window), where trait1 loses ~1-3% off the far tail.
 #     VERIFIED 2026-08-26 on 2M draws: KS p=0.21-0.28 vs Logistic(50, 6.667).
 #
 #   G_ped: 3 (not 10) — PO connected components percolate sharply between G_ped 3
@@ -26,12 +30,17 @@
 #     count back to 400k (parity with a G_ped=5/N=100k design) without re-entering
 #     the giant-component regime. Costs ~20% more total individuals.
 #
-#   rA: 0.55 (not 0.0) — the existing coverage cells sit at the parameter-space
+#   rA: 0.3 (not 0.0) — the existing coverage cells sit at the parameter-space
 #     boundary. Non-zero costs nothing now and leaves the substrate rg-ready, so a
-#     future fractional-arm rg estimator can be scored without re-simulating.
+#     future fractional-arm rg estimator can be scored without re-simulating. At
+#     A=0.5 this puts the liability correlation at rA*A = 0.15, low enough that the
+#     two traits read as near-independent checks on each other -- but they are NOT
+#     independent, so per-trait coverage must not be pooled into one Wilson
+#     interval (plan section 4a).
 #
 # Yields 2 proband strata (born_at_year 1961-1962; founders are dropped as probands
-# by create_input.py). Truth: liability h2 = 0.5 for both traits.
+# by create_input.py). Truth: liability h2 = 0.5 for both traits (the traits differ
+# in onset timing only -- same A/C/E, same prevalence).
 # Rel restriction (FS, PO) is fitACE-side: fitACE/config/epimight_ci_testbed.yaml.
 
 citb_K01_x50_c80:
@@ -51,7 +60,7 @@ citb_K01_x50_c80:
       A: 0.5
       C: 0.0
       E: 0.5
-    rA: 0.55
+    rA: 0.3
     rC: 0.0
   phenotype:
     trait1:
@@ -67,7 +76,7 @@ citb_K01_x50_c80:
       model: adult
       params:
         method: ltm
-        cip_x0: 50
+        cip_x0: 20
         cip_k: 0.15
         prevalence: 0.01
       beta: 1.0
@@ -94,7 +103,7 @@ citb_K05_x50_c80:
       A: 0.5
       C: 0.0
       E: 0.5
-    rA: 0.55
+    rA: 0.3
     rC: 0.0
   phenotype:
     trait1:
@@ -110,7 +119,7 @@ citb_K05_x50_c80:
       model: adult
       params:
         method: ltm
-        cip_x0: 50
+        cip_x0: 20
         cip_k: 0.15
         prevalence: 0.05
       beta: 1.0
@@ -137,7 +146,7 @@ citb_K25_x50_c80:
       A: 0.5
       C: 0.0
       E: 0.5
-    rA: 0.55
+    rA: 0.3
     rC: 0.0
   phenotype:
     trait1:
@@ -153,7 +162,7 @@ citb_K25_x50_c80:
       model: adult
       params:
         method: ltm
-        cip_x0: 50
+        cip_x0: 20
         cip_k: 0.15
         prevalence: 0.25
       beta: 1.0
@@ -182,7 +191,7 @@ citbsmoke_K05_x50_c80:
       A: 0.5
       C: 0.0
       E: 0.5
-    rA: 0.55
+    rA: 0.3
     rC: 0.0
   phenotype:
     trait1:
@@ -198,7 +207,7 @@ citbsmoke_K05_x50_c80:
       model: adult
       params:
         method: ltm
-        cip_x0: 50
+        cip_x0: 20
         cip_k: 0.15
         prevalence: 0.05
       beta: 1.0
