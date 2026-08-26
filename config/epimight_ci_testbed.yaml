@@ -23,8 +23,9 @@
 #     and 4, N-independently. Measured max_component_frac: 0.0003 at G_ped=3
 #     (49,982 components, max size 57) vs 0.9076 at 4 and 0.9412 at 5. Depth <= 3
 #     is what makes connected-component CI methods validatable on simACE at all.
-#     This contradicts fractional_coverage_status.md open item 4 and the
-#     po_component_codes docstring, which claim a local-mating substrate is needed.
+#     Both fractional_coverage_status.md open item 4 and the po_component_codes
+#     docstring used to claim a local-mating substrate was needed; both were
+#     corrected alongside these cells (ADR 0002 carries the amendment).
 #
 #   N: 200000 (not 100000) — percolation is N-independent, so N buys the proband
 #     count back to 400k (parity with a G_ped=5/N=100k design) without re-entering
