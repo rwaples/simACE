@@ -217,3 +217,215 @@ citbsmoke_K05_x50_c80:
     gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80]}
     death_scale: 164
     death_rho: 2.73
+
+# citb_K25_full — the K25 cell with the whole G_sim=10 ancestry RECORDED (G_ped: 10) while
+# phenotyping only the trailing 3 generations (G_pheno: 3), so the probands are the same
+# people as in citb_K25_x50_c80 but their burn-in relatives are visible. Used once, by
+# fitACE_epimight/scripts/ci_options/burnin_test.py, to measure how much of the h2 sampling
+# variance runs through relationships the 3-generation pedigree cannot show.
+citb_K25_full:
+  seed: 320000
+  N: 200000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 3
+  replicates: 2
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 20
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+
+# citb_K25_full_g4 — the deep calibration cell locked in the 2026-09-02 grilling
+# session (plans/sandwich-kinds-and-depth.md §0b, decision 3). Same K25 design, all
+# G_sim=10 generations recorded (G_ped: 10), but FOUR generations phenotyped
+# (G_pheno: 4 -> generations 6,7,8,9 = born_at_year 1966..1969).
+#
+# Why four and not three. A proband generation g can only have first cousins if
+# generation g-2 is in the emitted frame, since cousinhood is established through the
+# grandparents. At G_pheno=3 that holds for the last stratum only — measured on
+# citb_K25_full rep1, the fraction of probands with zero 1C relatives is 100% in 1968
+# and 7.2% in 1969 — so 1C collapses to a single estimable stratum. With G_pheno=4,
+# born_at_year 1966 is dropped as the founder year, 1967 still lacks cousins (it would
+# need generation 5), and *both* analysed strata 1968 and 1969 have complete cousin
+# sets. All four relationship types are then analysed on the same two strata.
+#
+# gen_censoring keys are ABSOLUTE generations here (censor.py:118 matches
+# `generations == int(gen)`), unlike the G_ped=3 cells where recording renumbers them
+# to 0..2. citb_K25_full's {0,1,2} keys never match its phenotyped 7,8,9 and are inert
+# — harmless only because censoring.max_age is already 80.
+#
+# replicates: the locked calibration run is R = 4000 (decision 5); 24 here is the
+# throughput check that must land before that is committed.
+citb_K25_full_g4:
+  seed: 330000
+  N: 200000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 24
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 20
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# Throughput probe only: the G_pheno=4 design at N=50k, to MEASURE the N lever
+# rather than extrapolate it. Not a calibration cell.
+citbprobe_K25_g4_n50k:
+  seed: 340000
+  N: 50000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 3
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 20
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# citb_K25_cal_n50k — THE CALIBRATION CELL (plans/sandwich-kinds-and-depth.md §5f).
+# The G_pheno=4 deep design at N=50k, R=4000, scored at max_degree=3.
+#
+# Why N=50k and not 200k: the 24-replicate throughput check measured the sandwich at
+# 154 s/rep and 17.8 GB peak at degree 5 (one worker fits in 30 GB -> 195 h for R=4000),
+# and 35.7 s/rep at degree 3 with N=200k (31.7 h). At N=50k degree 3 it is 8.3 s/rep and
+# 1.2 GB (9.5 h). `scale` and coverage are RATIOS, so neither moves with N; degree 3 was
+# shown adequate for all four relationship types (worst SE error 1.6%).
+#
+# Raw output is ~40 MB/rep = 160 GB at R=4000, so the driver cleans raw parquets per
+# batch and keeps only the narrowed pedigree plus the per-pair-type sums.
+citb_K25_cal_n50k:
+  seed: 350000
+  N: 50000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 4000
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.3
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 20
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
