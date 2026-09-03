@@ -9,7 +9,7 @@ relatives, and any quantity an investigator estimates from those
 correlations. This page presents three distinct manifestations of the
 effect in simACE output across a single set of scenarios.
 
-The [ACE Model](../concepts/ace-model.md) page explains the variance
+The [ACE model](../concepts/ace-model.md) page explains the variance
 decomposition used throughout.
 
 ## Scenarios
@@ -17,8 +17,8 @@ decomposition used throughout.
 All three scenarios use a lognormal cure-frailty phenotype model on trait 1
 (`model: cure_frailty`, `distribution: lognormal`, `mu=3.5`, `sigma=0.7`,
 `beta=1.0`, `beta_sex=0.0`, `prevalence=0.1`), identical variance inputs
-(A=0.5, C=0.0, E=0.5 for trait 1 — no shared-environment component and no sex
-effect on hazard, so the story stays about vA vs vE), and differ only in the
+(A=0.5, C=0.0, E=0.5 for trait 1, with no shared-environment component and no
+sex effect on hazard, so only vA and vE are in play), and differ only in the
 AM coefficient on trait 1.
 
 | Scenario    | `assort1` | `assort2` | N       | G_ped | G_pheno | G_sim | reps |
@@ -33,7 +33,7 @@ Rebuild all three (and the comparison plots on this page) with:
 pixi run snakemake --cores 4 examples_all
 ```
 
-## Observation 1 — AM inflates realized $v_A$ at equilibrium
+## Observation 1: AM inflates realized $v_A$ at equilibrium
 
 The input values `A=0.5, C=0.0, E=0.5` describe the variance
 decomposition in an idealized founder generation drawn under random
@@ -44,7 +44,7 @@ that this correlation increases the between-locus linkage disequilibrium,
 and the population's realized additive variance grows over generations
 until a new equilibrium is reached. The realized
 $h^2 = v_A / (v_A + v_E)$ that any estimator should recover is therefore
-*higher* than the input $0.5$ — the estimator is not biased; the
+*higher* than the input $0.5$. The estimator is not biased. The
 population itself has moved.
 
 `report.yaml` (its `truth` group) records the per-generation realized ACE
@@ -54,17 +54,17 @@ components for every replicate, allowing this drift to be examined directly:
 
 Read the top-left panel first. The grey dashed line is the simulation input
 ($v_A = 0.5$). The `am_none` trace sits on that line across all 10 generations
-(sampling noise only). The `am_strong` trace drifts upward — each generation
+(sampling noise only). The `am_strong` trace drifts upward. Each generation
 adds a small amount of shared genetic similarity between mates, and the
 cumulative effect on population vA is visible by generation 4–5 and stabilizes
 by generation 10. The `am_weak` trace sits in between.
 
 The top-right panel ($v_C$) is a flat line at zero for all three scenarios, by
-construction: we set C = 0 so the story is cleanly about how AM redistributes
-variance between A and E. The bottom-right panel turns $v_A$ and $v_E$ into
+construction: we set C = 0 so that AM can only redistribute variance
+between A and E. The bottom-right panel turns $v_A$ and $v_E$ into
 realized $h^2$: because $v_E$ stays close to its input value, inflation of
 $v_A$ flows directly into inflation of $h^2$. The *same* input ACE parameters
-can produce materially different "true" heritabilities depending on the mating
+can produce different "true" heritabilities depending on the mating
 system.
 
 The shaded band around each line is the min/max across the three
@@ -87,10 +87,9 @@ inflation visible in the top-left panel of the trajectory plot. The
 bottom panel shows that the inflation in $A$ propagates directly to the
 total phenotype: because $C_1 = 0$ and $E_1$ is fixed by construction,
 the liability distribution widens by exactly the amount that $A_1$
-does. Every panel in Observation 1 conveys the same fact, expressed
-once as a variance-component number and once as a distributional shape.
+does.
 
-## Observation 2 — AM distorts the similarity pattern among relatives
+## Observation 2: AM distorts the similarity pattern among relatives
 
 Observation 1 showed that AM moves the population's variance components.
 Observation 2 is the direct phenotypic consequence at the relative-pair
@@ -98,7 +97,7 @@ level: AM also distorts the *pattern* of similarity across relatives,
 and the distortion differs depending on which slice of the pedigree is
 examined. This matters because most practical heritability estimators
 (twin-study Falconer, pedigree regressions, variance-component REML)
-rely on the *structure* of these correlations — they assume that the
+rely on the *structure* of these correlations. They assume that the
 correlation between relatives of kinship $k$ is $k \cdot v_A + c \cdot v_C$.
 Breaking the structure causes silent drift in the estimator. Two views
 of the distortion follow: first a relationship-class summary (the
@@ -135,10 +134,10 @@ change) versus the `am_none` baseline for that relationship class, so
 that the qualitative pattern and the exact numbers can be read from
 the same chart. Reading the chart from left to right:
 
-- **FS and PO** both inflate under AM, and by visibly similar amounts — both
+- **FS and PO** both inflate under AM, and by visibly similar amounts. Both
   hinge on a single shared parent-to-offspring transmission step, and AM
   inflates the additive variance that passes through it.
-- **HS** inflate too, but less — they share only one parent, so only one
+- **HS** inflate too, but less. They share only one parent, so only one
   parent's AM-correlated genotype contributes to the shared liability.
 - **1C** inflate least in absolute terms but proportionally the most relative
   to their no-AM baseline.
@@ -147,7 +146,7 @@ A Falconer-style estimator takes two of these numbers, subtracts, and
 scales to obtain $h^2$. Under random mating, $h^2 \approx 2(r_{MZ} - r_{DZ})$
 and $h^2 \approx 2 \cdot r_{PO}$ yield the same answer. Under AM they
 do not: $r_{MZ}$ is pinned, $r_{DZ}$ inflates, $r_{PO}$ also inflates,
-so the two formulas diverge — and neither recovers the realized $h^2$,
+so the two formulas diverge, and neither recovers the realized $h^2$,
 which Observation 1 showed is itself moving.
 
 ### As a joint-distribution shape change
@@ -180,18 +179,16 @@ under strong AM). A steeper slope means that a sibling above the mean
 predicts a larger above-mean deviation in the other sibling; this is
 the phenotypic fingerprint of the AM-inflated FS correlation shown in
 the bar chart above, and of the AM-inflated additive variance from
-Observation 1. The three views describe a single phenomenon;
-Observation 3 picks up the estimator-bias consequence.
+Observation 1.
 
-## Observation 3 — AM biases naive estimators that assume random mating
+## Observation 3: AM biases naive estimators that assume random mating
 
 Observations 1 and 2 establish two failure modes under AM: the
 population's realized $v_A$ (and with it the realized $h^2$) has moved
 above the input value, and the correlations between relatives have
-inflated by a class-dependent amount. A "naive" heritability estimator
-— one that maps a single pedigree correlation (or regression slope) to
-$h^2$ under the assumption of random mating — is therefore guaranteed
-to mismatch the truth under AM. The remaining question is by how much,
+inflated by a class-dependent amount. A "naive" heritability estimator maps a single pedigree correlation (or
+regression slope) to $h^2$ under the assumption of random mating. It is
+therefore guaranteed to mismatch the truth under AM. The remaining question is by how much,
 and in which direction, for each estimator.
 
 Five textbook estimators are computed on each scenario:
@@ -236,15 +233,15 @@ Three patterns are evident:
 
 - **`am_none` calibrates cleanly.** Every estimator coincides with the
   realized-$h^2$ tick in the top panel and shows near-zero bias in the
-  bottom panel. The naive formulas behave as advertised when the
-  random-mating assumption is satisfied.
+  bottom panel. The naive formulas are correct when the random-mating
+  assumption is satisfied.
 - **Midparent-offspring regression is nearly AM-robust.** Even under
   `am_strong`, the midparent-PO slope tracks the realized $h^2$ to
   within sampling tolerance. This is the classical result that the
   midparent-offspring regression recovers $h^2$ at equilibrium largely
   independent of mating structure, because the regressor already pools
   the two AM-correlated parental genotypes.
-- **Cousin-only estimation explodes.** With a multiplier of $8\times$,
+- **Cousin-only estimation has the largest bias.** With a multiplier of $8\times$,
   even the modest inflation of $r_{1C}$ under AM produces a large
   absolute bias: the strong-AM estimate approaches $1.0$, well above
   the realized $h^2 \approx 0.56$. Half-sibs ($4\times$) drift less

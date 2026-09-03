@@ -68,7 +68,7 @@ Then regenerate the documentation figures:
 pixi run python docs/examples/scripts/build_ascertainment_bias.py
 ```
 
-## Observation 1 — Case weighting turns a 10% trait into an enriched study sample
+## Observation 1: Case weighting turns a 10% trait into an enriched study sample
 
 ![Sampled affected fraction under four ascertainment settings](../images/examples/ascertainment/case_fraction.png)
 
@@ -77,14 +77,14 @@ The dotted blue line marks the realized affected fraction in the uniform 50K
 sample. Dropout alone is not trait-targeted, so it should stay close to the
 uniform-sampling baseline. In contrast, `case_ascertainment_ratio: 5` gives
 affected individuals five times the sampling weight of unaffected individuals,
-so the final `trait.parquet` is intentionally case-enriched.
+so the final `trait.parquet` is case-enriched.
 
 The affected fraction is measured in the sampled `trait.parquet` after
 phenotype, censoring, and ascertainment. Small differences between the uniform
 and dropout-only bars should not be overinterpreted because this example uses a
 single seeded replicate for fast reproduction.
 
-## Observation 2 — A fixed trait sample still produces different pedigree closures
+## Observation 2: A fixed trait sample still produces different pedigree closures
 
 ![Trait rows, pedigree rows, and closure expansion under ascertainment](../images/examples/ascertainment/sample_sizes.png)
 
@@ -94,11 +94,11 @@ because it contains the sampled IDs plus their ancestor closure within the
 post-dropout pedigree. Dropout changes which ancestors remain recoverable, so
 the closure expansion can differ even when the trait sample size is fixed.
 
-This distinction is load-bearing for downstream methods: `trait.parquet` is the
-analysis trait table, while `pedigree.parquet` is the pedigree context available
+Downstream methods depend on this distinction. `trait.parquet` is the
+analysis trait table. `pedigree.parquet` is the pedigree context available
 for relationship recovery.
 
-## Observation 3 — Ascertainment changes which relationship evidence remains
+## Observation 3: Ascertainment changes which relationship evidence remains
 
 ![Relationship-pair counts relative to the uniform 50K sample](../images/examples/ascertainment/relationship_pairs.png)
 

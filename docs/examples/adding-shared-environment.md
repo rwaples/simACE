@@ -64,7 +64,7 @@ the configured inputs.
 
 ## Observations
 
-### Observation 1 — C inflates only the relative classes that share a mother
+### Observation 1: C inflates only the relative classes that share a mother
 
 MZ, FS, and MHS each gain exactly $v_C = 0.2$ between trait 1 and trait
 2; MO, FO, PHS, and 1C are unchanged. The increment is the same in
@@ -72,16 +72,15 @@ every class that shares C, regardless of the additional contribution
 from the additive component, because the C component is shared in full
 or not at all.
 
-### Observation 2 — The MZ–FS gap is invariant to $v_C$
+### Observation 2: The MZ–FS gap is invariant to $v_C$
 
 The difference $r_{MZ} - r_{FS} = 0.5 \, v_A$ is independent of $v_C$,
 because both MZ and FS share C in full and the $v_C$ term cancels.
 Consequently, Falconer's formula $2(r_{MZ} - r_{FS})$ estimates $h^2$
 rather than $h^2 + c^2$, and both traits return $\approx 0.5$ from
-Falconer despite their materially different relative-pair correlation
-patterns.
+Falconer despite their different relative-pair correlation patterns.
 
-### Observation 3 — The MHS–PHS contrast is a direct estimator of $v_C$
+### Observation 3: The MHS–PHS contrast is a direct estimator of $v_C$
 
 Maternal and paternal half-siblings share the same $0.25 \, v_A$ by
 relatedness; the only structural difference between them in this model
@@ -90,10 +89,9 @@ $r_{MHS} - r_{PHS} = v_C$ exactly. The trait 2 panel gives
 $0.325 - 0.125 = 0.20$, matching the configured input; the trait 1
 panel gives $0$, also as expected. This contrast is the identifiability
 condition that allows the ACE model to separate $v_C$ from $v_E$ (see
-the [ACE Model concept page](../concepts/ace-model.md)), and it relies
+the [ACE model concept page](../concepts/ace-model.md)), and it relies
 on the maternal household structure used by simACE.
 
-The case in which the clean C decomposition breaks — for example,
-under assortative mating, which moves variance into a covariance
-between mates — is treated in
-[AM and Heritability](am-and-heritability.md).
+The clean C decomposition breaks under assortative mating, which moves
+variance into a covariance between mates. That case is treated in
+[Assortative mating and heritability](am-and-heritability.md).

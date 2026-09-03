@@ -1,29 +1,20 @@
 # Time-varying E and h² drift
 
-A core assumption of the standard ACE model is that the variance
-components are *constants* of the population — fixed numbers attached
-to the trait, inherited from generation to generation as if they were
-physical constants of the trait itself. They are not. Real environments
-shift across cohorts: education, urbanization, diet, screening
-practices, public-health interventions, and many other factors alter
-the typical magnitude of the non-genetic, non-shared-environment
-contribution to a trait. When the unique-environment variance $v_E$
-moves across generations, the realized heritability
-$h^2 = v_A / (v_A + v_C + v_E)$ moves with it, even when $v_A$ remains
-unchanged. This page describes the form of that drift in simACE output,
-its signature in within-cohort relative-pair correlations, the
-mis-aggregation incurred by a naive heritability estimator pooled
-across cohorts, and the role of the `standardize` configuration mode in
-determining whether observed-scale prevalence remains stable or drifts
-in lockstep.
+The standard ACE model assumes that the variance components are
+*constants* of the population, fixed from generation to generation.
+They are not. Real environments shift across cohorts. Education,
+urbanization, diet, screening practices, and public-health
+interventions all alter the size of the unique-environment
+contribution to a trait. When $v_E$ moves across generations, the
+realized heritability $h^2 = v_A / (v_A + v_C + v_E)$ moves with it,
+even when $v_A$ is unchanged. This page shows that drift in simACE
+output and how the `standardize` mode determines whether observed-scale
+prevalence drifts with it.
 
-The [ACE Model](../concepts/ace-model.md) page explains the variance
-decomposition. The [AM and Heritability](am-and-heritability.md) page
-covers a different way the population can deviate from its inputs (the
-mating system); this page treats the temporal axis instead. Both pages
-share the same fundamental warning: the input numbers and the realized
-numbers can disagree, and naive estimators do not signal which is being
-reported.
+The [ACE model](../concepts/ace-model.md) page explains the variance
+decomposition. The [Assortative mating and heritability](am-and-heritability.md)
+page covers a different way the population can deviate from its inputs,
+the mating system. This page treats the temporal axis instead.
 
 ## Scenarios
 
@@ -54,7 +45,7 @@ is discussed in Observation 4 below as the prevalence-flattening
 alternative. Observations 1–3 use the four `_std` scenarios because
 they concern the liability scale, where the standardize mode is
 invisible. Observation 4 contrasts `_std` against `_nostd`, since that
-contrast is precisely the observed-scale axis.
+contrast is the observed-scale axis.
 
 Rebuild all four (and the comparison plots on this page) with:
 
@@ -62,7 +53,7 @@ Rebuild all four (and the comparison plots on this page) with:
 pixi run snakemake --cores 4 examples_all
 ```
 
-## Observation 1 — Realized $v_E$ tracks the configured trajectory; $h^2$ drifts with it
+## Observation 1: Realized $v_E$ tracks the configured trajectory; $h^2$ drifts with it
 
 The simulator reads the per-generation $E_1$ values from the
 configuration dictionary, draws independent normal noise of the
@@ -79,20 +70,19 @@ for every replicate, allowing this drift to be examined directly:
 
 ![Realized vA, vC, vE, h² by generation across E trajectories](../images/examples/increasing_e/realized_components_trajectory.png)
 
-(A note on gen indexing: simACE stores 0-indexed generations in
-`pedigree.parquet` (gens 0–9 for `G_pheno=10`) but labels them 1-indexed
-in `report.yaml` (`generation_1` … `generation_10`). The trajectory
-plot here reads `report.yaml` so its x-axis is 1–10, with **gen 1 =
-founders**. The cohort plots later on this page (FS correlation,
-Falconer, components-by-generation) read `pedigree.parquet`, so their
-x-axis is 0–9 with **gen 0 = founders**. In both cases gen "$N$" is the
-same physical cohort under a different label; the figures just inherit
-the indexing of the file they read.)
+!!! note "Generation indexing"
+    simACE stores 0-indexed generations in `pedigree.parquet` (gens 0–9 for
+    `G_pheno=10`) but labels them 1-indexed in `report.yaml` (`generation_1`
+    … `generation_10`). The trajectory plot reads `report.yaml`, so its
+    x-axis is 1–10 with gen 1 = founders. The cohort plots later on this
+    page (FS correlation, Falconer, components-by-generation) read
+    `pedigree.parquet`, so their x-axis is 0–9 with gen 0 = founders. The
+    figures inherit the indexing of the file they read.
 
 The bottom-left ($v_E$) panel: the horizontal grey dashed line at
 $0.5$ is the `e_flat` reference schedule, drawn for visual calibration.
-Each solid trace tracks the scenario's *configured* schedule
-essentially exactly, with sampling noise smaller than the line
+Each solid trace tracks the scenario's *configured* schedule,
+with sampling noise smaller than the line
 thickness at $N = 100{,}000$ per generation: `e_flat` is flat at $0.5$,
 the rising scenarios climb in straight lines toward $0.6$ / $0.7$, and
 `e_fall_steep` declines symmetrically toward $0.3$.
@@ -113,9 +103,9 @@ panel. At the final generation:
 - `e_rise_steep` ≈ 0.417 ($h^2$ fell by ~0.083)
 - `e_fall_steep` ≈ 0.625 ($h^2$ *rose* by ~0.125)
 
-The same input ACE parameters can therefore produce materially
-different "true" heritabilities across generations of a single
-population. This is purely a temporal/cohort effect, with no AM-like
+The same input ACE parameters can therefore produce different "true"
+heritabilities across generations of a single population. This is a
+cohort effect, with no AM-like
 mechanism, no selection, and no environmental cross-transmission.
 
 The trajectory plot displays the variance components as time-series
@@ -128,26 +118,21 @@ and total liability $A_1 + E_1$ (bottom):
 
 Top row (A) is the calibration check: $A_1$ is constant by config, so
 all three generations should have indistinguishable distributions in
-*every* scenario. They do — SDs sit between 0.705 and 0.708 across all
+*every* scenario. They do. SDs sit between 0.705 and 0.708 across all
 12 (scenario × generation) cells in the top row, well within sampling
 noise.
 
-Bottom row (total liability) is where the story is:
+Bottom row (total liability) shows the drift:
 
 - **`e_flat`**: all three gen curves overlap at SD ≈ 1.00. No drift.
 - **`e_rise_mild`**: gen 1 SD ≈ 1.005, gen 5 ≈ 1.027, gen 9 ≈ 1.047.
   Visible widening as later cohorts pick up more E variance.
 - **`e_rise_steep`**: gen 1 ≈ 1.009 → gen 9 ≈ 1.094. Wider swing; the
   gen 9 curve is visibly flatter at the peak and fatter in the tails.
-- **`e_fall_steep`**: gen 1 ≈ 0.988 → gen 9 ≈ 0.895. Reverse direction —
+- **`e_fall_steep`**: gen 1 ≈ 0.988 → gen 9 ≈ 0.895. Reverse direction:
   the gen 9 curve is *taller and narrower*, because $v_E$ has shrunk.
 
-The widening (or narrowing) of the bottom-row distributions is the
-same phenomenon as the bottom-left $v_E$ trace and the bottom-right
-$h^2$ trace in the trajectory plot, expressed as a shape change in
-per-individual values rather than as a numerical trajectory.
-
-## Observation 2 — Within-cohort FS correlation depends on the generation of the pair
+## Observation 2: Within-cohort FS correlation depends on the generation of the pair
 
 Observation 1 showed how the population's per-generation variance
 components shift. Observation 2 is the direct consequence at the
@@ -159,8 +144,8 @@ random-mating expectation $r_{FS} = 0.5 \cdot v_A + v_C$ holds only
 when the population has a stable variance structure; with
 non-stationary $v_E$, the FS correlation varies cohort by cohort.
 
-The correlation on `liability1` is computed between full-sib pairs in
-which *both* members reside in the same generation $g$. Founders are
+The build script computes the correlation on `liability1` between full-sib
+pairs in which *both* members reside in the same generation $g$. Founders are
 excluded (they have no parents, hence no FS pairs); MZ twins are
 excluded by construction (`simace/core/pedigree_graph.py:_sibling_pairs`
 filters on `twin == -1`). The per-replicate $r_{FS}(g)$ is averaged
@@ -195,7 +180,7 @@ and reports a single $r_{FS}$ averages over these moving cohorts; the
 returned value is a population-weighted average of cohort-specific
 truths, not the truth of any single cohort.
 
-## Observation 3 — Pooled-across-generations naive Falconer matches no generation's truth
+## Observation 3: Pooled-across-generations naive Falconer matches no generation's truth
 
 Observation 2 established the within-cohort signal; Observation 3
 concerns the consequence when the cohort axis is ignored and the
@@ -255,7 +240,7 @@ numbers result, the population is signalling that the
 random-stationarity assumption underlying a single pooled $h^2$ is
 wrong for that population.
 
-## Observation 4 — `standardize="global"` offsets but does not flatten prevalence drift under the adult/LTM model
+## Observation 4: `standardize="global"` offsets but does not flatten prevalence drift under the adult/LTM model
 
 Observations 1–3 concern the liability scale, where the `standardize`
 mode is invisible (it affects only the mapping from liability to binary
@@ -264,8 +249,8 @@ the `adult` / `method: ltm` phenotype model, the threshold is set as
 $T = \Phi^{-1}(1 - K)$ where $K$ is the configured prevalence. With
 `standardize="global"` (the default; equivalent to the legacy
 `standardize: true`), `AdultModel._simulate_ltm` standardizes liability
-to mean $0$ and standard deviation $1$ across *the entire pedigree* —
-not per-generation — before comparing to $T$. With
+to mean $0$ and standard deviation $1$ across *the entire pedigree*,
+not per generation, before comparing to $T$. With
 `standardize="none"` (legacy `standardize: false`), raw liability is
 compared to $T$ directly. A third mode, `standardize="per_generation"`,
 flattens the per-cohort drift entirely; see the subsection below.
@@ -273,7 +258,7 @@ flattens the per-cohort drift entirely; see the subsection below.
 The matched-seed pairs (`e_*_std` vs `e_*_nostd`) make the
 `global`-vs-`none` contrast exact: the pedigree and liability columns
 are identical within a pair, so any per-generation prevalence
-difference is *purely* due to the standardize choice.
+difference is due to the standardize choice alone.
 
 ![Per-gen observed prevalence: standardize=global vs none vs per_generation](../images/examples/increasing_e/prevalence_drift.png)
 
@@ -287,8 +272,7 @@ feed the third.
 ### The age-censoring artefact (gens 0–3)
 
 In every panel both lines sit at exactly $0$ for generations 0–3 and
-jump up at gen 4. This is not a bug; it reflects the LTM age-of-onset
-model. With `cip_x0 = 16.3` and `cip_k = 0.376`, the cumulative
+jump up at gen 4. This reflects the LTM age-of-onset model. With `cip_x0 = 16.3` and `cip_k = 0.376`, the cumulative
 incidence probability for a case is logistic with midpoint at age
 $16.3$, so cases that would eventually onset do not manifest until
 approximately age 12 or later. The pipeline assigns each generation an
@@ -316,14 +300,13 @@ ancestors. Generations 4–9 should be read.
   `"none"` $0.090 \to 0.075$ ($\Delta = -0.014$). Direction symmetric;
   slopes again match but the offsets differ.
 
-The key fact is that the slopes are essentially identical between
-`_std` and `_nostd`. The `"global"` mode adjusts the *level* of the
-per-generation prevalence — rising-$E$ scenarios have lower prevalence
-under `"global"` because the cohort-wide standardization scales
-liability by $\sqrt{\text{global } v_L}$, which exceeds $1$ when
-late-generation $v_E$ is high, and falling-$E$ exhibits the opposite
-shift — but it does not undo the per-cohort drift caused by
-per-generation $v_E$ differences.
+The slopes are the same between `_std` and `_nostd`. The `"global"` mode
+adjusts the *level* of the per-generation prevalence but does not undo the
+per-cohort drift caused by per-generation $v_E$ differences. Rising-$E$
+scenarios have lower prevalence under `"global"` because the cohort-wide
+standardization scales liability by $\sqrt{\text{global } v_L}$, which
+exceeds $1$ when late-generation $v_E$ is high. Falling-$E$ shows the
+opposite shift.
 
 ### Why `standardize="global"` does not flatten here
 
@@ -340,14 +323,14 @@ upper-tail mass beyond the fixed threshold.
 The third mode, `standardize="per_generation"`, z-scores liability
 within each generation independently before comparing to $T$. Under
 this mode every generation hits its target $K$ exactly, regardless of
-how $v_E$ drifts across cohorts — visible directly in the green line
+how $v_E$ drifts across cohorts. This is the green line
 in each panel above, which sits flat at $K = 0.10$ for all four E
 trajectories. Every threshold-based phenotype model shares this
 behaviour: case status comes from `case_status_from_liability`
 (`simace/phenotype/models/_prevalence.py`), which honors the same
 global `standardize` flag. So setting `standardize: per_generation`
-in the scenario YAML flattens prevalence drift for any threshold model
-— `adult` with `method: ltm` and the `simple_ltm` model alike.
+in the scenario YAML flattens prevalence drift for any threshold model,
+`adult` with `method: ltm` and `simple_ltm` alike.
 
 The trade-off is the same as before: per-generation standardization
 erases any real population-level signal that happens to map onto the

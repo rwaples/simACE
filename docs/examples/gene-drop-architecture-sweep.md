@@ -98,7 +98,7 @@ variance to exactly the configured `A1`:
 | `p2_full_c1m` | 0.4 | **0.4000** | 0.3999 |
 
 The realized $h^2$ matches $A_1 / (A_1 + C_1 + E_1) = 0.4 / 1.0 = 0.4$
-exactly — the tstrait `sim_env` step targets that derived value.
+exactly, because the tstrait `sim_env` step targets that derived value.
 
 ## Remaining comparisons in the atlas
 
@@ -119,16 +119,16 @@ $A$.
 Pairwise comparison of the atlases reveals how the architecture
 affects:
 
-- **Phenotype prevalence per generation** — should be identical to
+- **Phenotype prevalence per generation** should be identical to
   within sampling noise, because the rescale fixes every $A_1$ at the
   same variance and the threshold is calibrated against unit-variance
   liability.
-- **Heritability estimates** (Falconer, regression-on-relatives) —
+- **Heritability estimates** (Falconer, regression-on-relatives)
   should also be approximately $0.4$ across scenarios, but estimator
   variance may differ as a function of the underlying architecture
   (sparse architectures with rare large-effect variants are harder to
   estimate).
-- **Relative-pair correlations vs theoretical kinship** — the line
+- **Relative-pair correlations vs theoretical kinship**: the line
   should pass through the expected slope $h^2 = 0.4$ in all cases.
 
 A method whose heritability estimate degrades under sparse
@@ -143,5 +143,5 @@ On a single workstation:
 - `simulate_genotypes_chrom` × 22: ~2 hr CPU total, ~30 min wall at -j 8
   (chr1 alone takes ~16 min on one core). Done once for `p2_full`; variants
   reuse via `drop_from`.
-- Per variant: tstrait sub-pipeline + augment + phenotype + atlas — a few
+- Per variant: tstrait sub-pipeline + augment + phenotype + atlas, a few
   minutes each, dominated by `tstrait_gv_chrom` for `c1m` (~50 s/chrom × 22 / 8 cores ≈ 2-3 min wall).

@@ -45,7 +45,7 @@ contains two figures relevant to calibration. In each figure below the
 left panel corresponds to trait 1 ($h^2_1 = 0.5$) and the right panel
 to trait 2 ($h^2_2 = 0.3$).
 
-### Observation 1 — Realized $h^2$ matches the input across generations
+### Observation 1: Realized $h^2$ matches the input across generations
 
 ![Realized h² by generation, minimal_ace](../images/examples/minimal/heritability_by_gen.png)
 
@@ -55,7 +55,7 @@ In the absence of selection, assortative mating, and time-varying
 components, the variance ratio is invariant across generations, in
 agreement with the configured input.
 
-### Observation 2 — Liability correlations match ACE expectations across relative classes
+### Observation 2: Liability correlations match ACE expectations across relative classes
 
 ![Liability and tetrachoric correlations by relative class, minimal_ace](../images/examples/minimal/relpair_correlations.png)
 
@@ -95,10 +95,10 @@ expectation, simultaneously at two distinct heritabilities. Subsequent
 examples introduce specific deviations from this baseline: a non-zero
 shared-environment component
 ([Adding shared environment (C)](adding-shared-environment.md)),
-assortative mating ([AM and Heritability](am-and-heritability.md)),
+assortative mating ([Assortative mating and heritability](am-and-heritability.md)),
 alternative phenotype models
 ([Observed vs Liability h²](observed-vs-liability-h2.md)), and
 time-varying $E$ ([Time-varying E and h² drift](time-varying-e.md)).
 
 The full set of output files produced by one run is described in
-[Output Structure](../user-guide/output-structure.md).
+[Output structure](../user-guide/output-structure.md).
