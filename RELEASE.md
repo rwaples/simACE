@@ -178,6 +178,25 @@ cmake -S . -B build-fp32 && cmake --build build-fp32 -j
 > If a `build-fp*/` cache was created at an older source path, `cmake -S . -B`
 > errors with a path-mismatch — delete the dir and configure fresh.
 
+### 3b. Rebuild the TetraHer LDAK fork (when its runpath is stale)
+
+`tetraher_simace/ldak6.2.simace` carries no version stamp (it rides fitACE's
+tag), but it is dynamically linked against OpenBLAS with a `RUNPATH` baked in
+at build time. A binary built under the retired `simACE` conda env (ADR 0018)
+fails at runtime with `libopenblas.so.0: cannot open shared object file` once
+that env is gone. Check, and rebuild against the fitACE pixi env if needed
+(the binary is gitignored — rebuild, don't commit):
+
+```bash
+cd fitACE/tetraher_simace
+ldd ldak6.2.simace | grep 'not found'          # any hit → rebuild
+CONDA_PREFIX="$(readlink -f ../.pixi/envs/default)" bash build.sh
+ldd ldak6.2.simace | grep openblas             # expect .pixi/envs/default/lib
+```
+
+`build.sh` reads `CONDA_PREFIX` for `-L`/`-rpath`; pointing it at the pixi env
+is the intended use after ADR 0018.
+
 ### 4. Verify (now that the guard can pass)
 
 ```bash
@@ -207,6 +226,8 @@ pixi run snakemake --cores 4 results/test/small_test/scenario.done
 grep simace_version results/test/small_test/*/params.yaml
 # then run a pcgc + tetraher + iter_reml fit and grep *.vc.tsv.meta for
 # simace_version / fitace_version / fitace_<method>_version / ace_iter_reml_version
+# (small_test leaves tetraher_prevalence null, which disables the TetraHer
+#  rule — use a pcgc_bias_small cell, e.g. pcgc_bias_small_A50_C00_K25, N=5000)
 ```
 
 ### 5. Push
