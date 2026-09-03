@@ -73,30 +73,16 @@ Thumbs.db
 # Presentations
 presentations/
 
-# Claude Code
+# LLM coding-agent harnesses: Claude Code, Codex, Pi (see docs/agents/harnesses.md).
+# Machine-local; AGENTS.md is tracked as a symlink to CLAUDE.md (single source of truth).
 .claude/
+.codex/
+.pi/
 .agents/
 skills-lock.json
 
-# Other AI coding agents (machine-specific configs — Gemini, Kiro, Qoder, VS Code, OpenCode, Copilot)
-# Note: AGENTS.md is tracked as a symlink to CLAUDE.md (single source of truth)
-.gemini/
-.kiro/
-.qoder/
-.vscode/
-.opencode.json
-.pi/
-.github/code-review-graph.instruction.md
-
-# Local code-review-graph eval harness
-evaluate/
-
 # Hypothesis property-based testing example database
 .hypothesis/
-
-# Added by code-review-graph
-.code-review-graph/
-.mcp.json
 
 # Benchmark run output (tools/bench_pipeline.sh). The scripts are tracked;
 # the measurements they produce are machine-local.

@@ -166,6 +166,10 @@ and read key files and related modules before asking questions. Ground the inter
 
 ## Agent skills
 
+### Harnesses
+
+Claude Code, Codex, and Pi only. Skills are authored once in `.agents/skills/`. See `docs/agents/harnesses.md`.
+
 ### Issue tracker
 
 GitHub Issues at github.com/rwaples/simACE/issues, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
