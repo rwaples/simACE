@@ -17,7 +17,6 @@ __all__ = [
 from typing import Any
 
 import numpy as np
-from scipy import stats
 
 # Public re-exports of the numba distributional / bivariate-normal kernels for
 # downstream packages (fitACE PA-FGRS). Re-exported, not re-implemented, so the
@@ -113,6 +112,10 @@ def safe_linregress(x: np.ndarray, y: np.ndarray) -> Any:
     """
     if np.std(x) < _ZERO_VAR_THRESHOLD:
         return None
+    # Imported here, not at module level: scipy.stats costs ~0.5 s to import and
+    # this is the only caller, so keep it off the per-job startup path.
+    from scipy import stats
+
     return stats.linregress(x, y)
 
 
