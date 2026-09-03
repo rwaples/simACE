@@ -2,40 +2,29 @@
 
 ## Multi-generational pedigree
 
-The simulation generates `G_sim` total generations:
+The simulation runs `G_sim` generations:
 
-- `G_sim - G_ped` are **burn-in** generations (simulated but not recorded)
-- `G_ped` generations are recorded in the pedigree
-- The last `G_pheno` of `G_ped` are phenotyped
+- The first `G_sim - G_ped` generations are burn-in. They are simulated but not recorded.
+- The last `G_ped` generations are recorded in the pedigree.
+- The last `G_pheno` of those are phenotyped.
 
-Each generation contains `N` individuals. With default settings
-($N = 100{,}000$, $G_{ped} = 6$), the recorded pedigree contains
-approximately $600{,}000$ individuals.
+Each generation has `N` individuals. At the defaults, $N = 100{,}000$ and $G_{ped} = 6$, the recorded pedigree holds $600{,}000$ individuals.
 
 ## Mating and reproduction
 
-In each generation, couples are formed from the potential parent pool
-according to the following rules:
+In each generation the simulation forms couples from the parent pool under these rules:
 
-- An individual may participate in multiple couples.
-- Males and females are paired randomly by default, or assortatively
-  on liability via `assort1` and `assort2`.
-- Offspring are distributed across matings by a multinomial draw.
-- Population size is held constant; some couples produce no offspring.
-- MZ twins are assigned to matings with two or more offspring.
+- An individual may belong to more than one couple.
+- Males and females pair at random by default, or assortatively on liability through `assort1` and `assort2`.
+- A multinomial draw distributes the `N` offspring across the couples.
+- Population size stays constant, so some couples have no offspring.
+- MZ twins are assigned only to couples with two or more offspring.
 
-At default settings (`mating_lambda = 0.5`), approximately 77% of
-individuals have a single partner and 23% have two or more, producing
-a natural mix of full sibs, maternal half-sibs, and paternal half-sibs.
+At the default `mating_lambda = 0.5`, about 77% of individuals have one partner and 23% have two or more. That produces full sibs, maternal half-sibs, and paternal half-sibs in one pedigree.
 
 ## Pedigree relationship types
 
-`PedigreeGraph` (from the [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) package) extracts 23 relationship
-categories from simulated pedigrees using sparse matrix algebra. Each type is
-parameterised by `(up, down, n_ancestors)`: meioses up from individual A to
-common ancestor(s), meioses down to individual B, and whether the link is
-through 1 (half/lineal) or 2 (full, mated-pair) ancestors. Kinship is
-$n_{\text{ancestors}} \times (1/2)^{(\text{up} + \text{down} + 1)}$.
+`PedigreeGraph`, from the [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) package, uses sparse matrix algebra to extract 23 relationship categories from a pedigree. Each category is defined by three numbers: `up`, the meioses from individual A up to the common ancestor, `down`, the meioses from that ancestor to individual B, and `n_ancestors`, which is 1 for a half or lineal link and 2 for a link through a mated pair. Kinship is $n_{\text{ancestors}} \times (1/2)^{(\text{up} + \text{down} + 1)}$.
 
 | Code | Label | Up | Down | Ancestors | Kinship | Degree |
 |------|-------|---:|-----:|----------:|--------:|-------:|
@@ -63,85 +52,47 @@ $n_{\text{ancestors}} \times (1/2)^{(\text{up} + \text{down} + 1)}$.
 | 1C2R | 1st cousin 2R | 2 | 4 | 2 | 1/64 | 5 |
 | 2C | 2nd cousin | 3 | 3 | 2 | 1/64 | 5 |
 
-The `max_degree` parameter controls extraction depth (default 3, covering
-through 1st cousins). It follows the registry degree exactly: degree 2 stops
-at half-sibs, grandparents, and avuncular pairs; degree 3 adds 1st cousins
-and the other degree-3 categories; degree 5 reaches 2nd cousins. The registry
-is importable as `REL_REGISTRY` and `PAIR_KINSHIP` from `pedigree_graph`.
+The `max_degree` parameter sets how deep extraction goes. The default is 3, which reaches 1st cousins. The cutoff follows the Degree column exactly. Degree 2 stops at half-sibs, grandparents, and avuncular pairs. Degree 3 adds 1st cousins and the other degree-3 categories. Degree 5 reaches 2nd cousins. The registry is importable as `REL_REGISTRY` and `PAIR_KINSHIP` from `pedigree_graph`.
 
 ### Inbreeding and exact kinship
 
-By default, relationship pairs carry the nominal `(up, down, n_ancestors)`
-kinship, which assumes a single relationship path and no inbreeding. When
-`estimate_inbreeding: true` is set in config, `PedigreeGraph` reports exact
-values instead:
+By default each relationship pair carries the nominal kinship from the table above. That value assumes one relationship path and no inbreeding. When a scenario sets `estimate_inbreeding: true`, `PedigreeGraph` reports exact values through two methods.
 
-1. **`compute_inbreeding()`** returns per-individual inbreeding coefficients
-   `F` via the Meuwissen–Luo ML ancestor-walk (`_compute_F_meuwissen_luo`). It
-   does **not** build the full kinship matrix, and it is MZ-naive (twins are
-   treated as full sibs). For non-consanguineous pedigrees every `F = 0`.
+`compute_inbreeding()` returns each individual's inbreeding coefficient `F` by the Meuwissen and Luo ancestor walk in `_compute_F_meuwissen_luo`. It does not build the kinship matrix. It treats MZ twins as full sibs. In a pedigree with no consanguineous matings every `F` is 0.
 
-2. **`compute_pair_kinship(pairs)`** returns the *exact* kinship for each
-   requested pair via a direct memoized recurrence
-   (`pedigree_graph._kinship_pairwise`), computing only the requested pairs and
-   never materializing the `n × n` matrix (it samples a cached
-   `kinship_matrix(0.0)` only when one already exists). Exact kinship can exceed
-   the nominal value because of inbreeding, MZ co-coalescence, **or multiple
-   relationship paths**. Double first cousins, for example, have kinship `0.125`,
-   twice the nominal first-cousin `0.0625`. Its derived `F` is
-   `phi(mother, father)` computed exactly as the kinship-matrix DP does, so it
-   is MZ-aware (unlike the ML `compute_inbreeding`). There is no nominal fast
-   path; see pedigree-graph ADR 0005.
+`compute_pair_kinship(pairs)` returns the exact kinship of each requested pair by a memoised recurrence in `pedigree_graph._kinship_pairwise`. It computes only the requested pairs and never builds the $n \times n$ matrix. If a `kinship_matrix(0.0)` result is already cached it reads from that instead. Exact kinship can exceed the nominal value for three reasons: inbreeding, MZ co-coalescence, and multiple relationship paths. Double first cousins, for example, have kinship 0.125, twice the nominal first-cousin 0.0625. The recurrence derives `F` as the kinship of the parents, which is how the matrix build does it, so this `F` is MZ-aware. There is no nominal fast path. See pedigree-graph ADR 0005.
 
-The recurrence costs roughly `O(requested pairs + distinct ancestor-pairs
-reached)`, far below the full-matrix build it replaced, which materialized a
-near-dense `K` (≈53M nonzeros at 16K individuals) and OOM'd on large pedigrees.
-The worst case is `O(P · A²)` in the max distinct-ancestor count `A`;
-deeply inbred / high-overlap pedigrees are out of scope for the scaling
-guarantee.
+The recurrence costs about $O(\text{requested pairs} + \text{distinct ancestor pairs reached})$. The full matrix build it replaced materialised a near-dense $K$ and ran out of memory on large pedigrees. The worst case is $O(P \cdot A^2)$ in the number of distinct ancestors $A$. Deeply inbred pedigrees, and pedigrees with heavy ancestor overlap, fall outside that scaling guarantee.
 
-### K-free per-generation mean kinship
+### Per-generation mean kinship without K
 
-The coancestry-rate Ne estimator (`ne_coancestry`, `Ne_C`) needs only the
-per-generation mean kinship `θ̄_g`, not the full sparse `K`.
-`PedigreeGraph.per_gen_mean_kinship(min_kinship=0.0)` streams `θ̄_g`
-directly from the kinship DP without materializing `K`'s CSC arrays.
-This is the path `compute_all_ne` uses whenever Ne_C runs at all, that
-is, when a scenario sets `analysis.skip_ne_coancestry: false`.
+The coancestry-rate Ne estimator, `ne_coancestry` in `pedigree_graph`, needs only the mean kinship of each generation, $\bar\theta_g$. It does not need the sparse kinship matrix $K$. `PedigreeGraph.per_gen_mean_kinship(min_kinship=0.0)` streams $\bar\theta_g$ from the kinship recurrence without building $K$'s compressed sparse column arrays. `compute_all_ne` takes this path whenever the estimator runs, which is when a scenario sets `analysis.skip_ne_coancestry: false`.
 
-The streaming traversal walks each row of the DP's ascending-col-sorted
-storage, counts each unordered same-generation non-twin pair once at
-row index < col index, and accumulates a float64 sum per generation.
-For N > ~3M at `G_ped=6` the K-build path is no longer viable
-(`_assemble_csc`'s int32 nnz overflows); the streaming path scales to
-much larger pedigrees because it never holds the full matrix at once.
-`analysis.skip_ne_coancestry` defaults to `true`, skipping Ne_C and its DP
-entirely so only the seven non-coancestry Ne estimators run; set it to
-`false` on a scenario whose pedigree is small enough to afford the DP.
+The streaming pass walks each row of the recurrence's storage, whose columns are sorted ascending. It counts each unordered same-generation non-twin pair once, where the row index is below the column index. It accumulates one float64 sum per generation.
+
+Building $K$ stops working at a few million individuals with `G_ped=6`, because the nonzero count in `_assemble_csc` overflows int32. The streaming pass never holds the full matrix, so it scales further. `analysis.skip_ne_coancestry` defaults to `true`, which skips the coancestry estimator and its recurrence so only the seven other Ne estimators run. Set it to `false` on a scenario whose pedigree is small enough to afford the recurrence.
 
 ## Pipeline stages
 
-The simulation is conceptually split into four stages, plus downstream analysis:
+The pipeline has four simulation stages:
 
-1. **Simulate**: generate multi-generational pedigree with ACE liability components
-2. **Phenotype**: map liability to age-of-onset via time-to-event models
-3. **Censor**: apply age-window and competing-risk mortality censoring
-4. **Ascertainment**: unified random dropout + case-weighted `N_sample` selection (per [ADR 0001](../adr/0001-unified-ascertainment-stage.md))
+1. **Simulate**: build the multi-generational pedigree with ACE liability components.
+2. **Phenotype**: map liability to affected status and age at onset.
+3. **Censor**: apply age-window censoring and competing-risk death censoring.
+4. **Ascertainment**: drop individuals at random, then draw a case-weighted sample of size `N_sample` ([ADR 0001](../adr/0001-unified-ascertainment-stage.md)).
 
-Followed by: validation (on the full pre-ascertainment pedigree), summary statistics, model fitting, and plotting.
+Three analysis stages follow: validation, which reads the full pre-ascertainment pedigree, summary statistics, and plotting. Model fitting runs in fitACE.
 
 ## Pipeline rule graph
 
-The Snakemake rule graph showing how rules feed into each other:
+The Snakemake rule graph shows which rules feed which:
 
 ![simACE rule graph](../images/rulegraph.png)
 
-Regenerate the image after changes to the Snakefile or workflow rules:
+After you change the Snakefile or a rule file, regenerate the image:
 
 ```bash
 scripts/regen_rulegraph.sh
 ```
 
-The script writes `docs/images/rulegraph.png`. Pass an alternative target as
-the first argument to render a different sub-DAG (default:
-`results/test/small_test/scenario.done`).
+The script writes `docs/images/rulegraph.png`. To render a different sub-DAG, pass its target as the first argument. The default target is `results/test/small_test/scenario.done`.

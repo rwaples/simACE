@@ -37,7 +37,7 @@ simACE/
 │   │   └── emit_params.py                # Echo scenario parameters to a YAML sidecar
 │   ├── phenotype/
 │   │   ├── runner.py                     # run_phenotype dispatcher and CLI (re-exported from __init__.py)
-│   │   ├── hazards.py                    # Baseline-hazard registry (Weibull, exponential, Gompertz, ...)
+│   │   ├── hazards.py                    # Baseline-hazard registry (Weibull, exponential, Gompertz, and three more)
 │   │   ├── blended_post.py               # Post-hoc blended-diagnosis transform
 │   │   ├── models/                       # PhenotypeModel subclasses (one file per family)
 │   │   │   ├── _base.py                  # PhenotypeModel ABC
@@ -81,7 +81,7 @@ simACE/
 │       ├── plot_distributions.py         # Mortality, age-at-onset, cumulative incidence
 │       ├── plot_liability.py             # Joint liability, violin, affection plots
 │       ├── plot_correlations.py          # Tetrachoric + parent-offspring correlations
-│       ├── plot_heritability.py          # Heritability plots (by generation, sex, etc.)
+│       ├── plot_heritability.py          # Heritability plots by generation and by sex
 │       ├── plot_pedigree_counts.py       # Pedigree relationship pair counts diagram
 │       ├── plot_effective_size.py        # Effective-size atlas plots
 │       ├── plot_am_equilibrium.py        # Assortative-mating equilibrium plot
@@ -98,7 +98,7 @@ simACE/
 ├── fitACE/                              # Model-fitting monorepo checkout (gitignored, see Repo Map)
 │
 ├── workflow/
-│   ├── common.py                         # Shared helpers (get_param, get_folder, etc.)
+│   ├── common.py                         # Shared helpers such as get_param and get_folder
 │   ├── envs/                             # Conda env specs for named external tools
 │   ├── scripts/simace/                   # Thin script wrappers called by the rules
 │   └── rules/simace/                     # Modular Snakemake rule files
@@ -109,16 +109,16 @@ simACE/
 │       ├── validate.smk, stats.smk       # Validation and statistics
 │       ├── analyze.smk                   # Curated report.yaml
 │       ├── effective_size.smk            # Effective population size
-│       ├── examples.smk                  # Example-page targets (minimal-ace, with-c, ...)
+│       ├── examples.smk                  # Example-page targets such as minimal-ace and with-c
 │       ├── tskit_preprocess.smk          # tskit founder preprocessing for gene-drop
 │       ├── tstrait_phenotype.smk         # tstrait-based phenotype models
 │       ├── genotype_drop.smk             # Gene-drop pipeline (tskit-based recombination)
 │       └── utils.smk                     # Shared Snakemake utilities
-├── scripts/                             # Standalone helper scripts (regen_rulegraph.sh, bench_*.py, sweep generators, etc.)
+├── scripts/                             # Standalone helper scripts: regen_rulegraph.sh, bench_*.py, sweep generators
 ├── tools/                               # Maintenance tooling (release.py, family typecheck)
 ├── tests/                               # Mirrors simace/ sub-package structure
 ├── docs/                                # MkDocs sources, ADRs, plans
-├── external/                            # Reference implementations and the pedigree-graph / pedsum checkouts (gitignored)
+├── external/                            # Reference implementations plus the pedigree-graph and pedsum checkouts (gitignored)
 ├── results/{folder}/{scenario}/         # Per-scenario simulation outputs
 ├── logs/{folder}/{scenario}/            # Log files
 └── benchmarks/{folder}/{scenario}/      # Runtime and memory benchmarks
@@ -127,20 +127,20 @@ simACE/
 ## Repo map
 
 Five repos, all under `rwaples/` on GitHub. simACE is the umbrella working
-directory; fitACE and its nested fitACE_epimight are checkouts inside it
-(gitignored from simACE, no submodules). Since ADR 0017, fitACE is a
-monorepo: the method packages, the `ace_iter_reml` C++ source, and the
-`tetraher_simace` LDAK fork live in subdirectories of `./fitACE/` rather than
-in separate repos.
+directory. fitACE and its nested fitACE_epimight are checkouts inside it,
+gitignored from simACE, with no submodules. Since ADR 0017 fitACE is a
+monorepo. The method packages, the `ace_iter_reml` C++ source, and the
+`tetraher_simace` LDAK fork live in subdirectories of `./fitACE/`.
 
 | Repo | Visibility | Local path | Role |
 |---|---|---|---|
-| [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate → phenotype → censor → ascertainment → validate → stats → plot |
+| [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate, phenotype, censor, ascertainment, validate, stats, plot |
 | [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model-fitting monorepo: core + Snakemake orchestrator + method packages in `fitACE_<x>/` subdirs (PCGC, iter/sparse REML + the `ace_iter_reml` C++ source under `fitACE_iter_reml/`, TetraHer + the `tetraher_simace` LDAK fork, PA-FGRS, Stan, frailty). Consumes simACE outputs. |
 | [`fitACE_epimight`](https://github.com/rwaples/fitACE_epimight) | private | `./fitACE/fitACE_epimight/` | EPIMIGHT integration: long-form input emitter, R driver, Snakemake rules, atlas/bias plotting. Its own repo, tracking the BioPsyk/epimight R upstream; included by `fitACE/Snakefile`. |
 | [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Sparse-matrix pedigree relationship extraction and kinship computation. |
 | [`pedsum`](https://github.com/rwaples/pedsum) | public | `./external/pedsum/` | Pedigree summary CLI: structure, relatedness, inbreeding, Ne estimators. Built on `pedigree-graph`. |
 
 Each nested repo has its own `origin` wired to the matching GitHub repo.
-Build artifacts (`build-fp*/`, `ldak6.2.simace`, Stan binaries) are
-gitignored. Rebuild from source.
+The build artifacts `build-fp*/`, `ldak6.2.simace`, and the Stan binaries are
+gitignored. After a fresh checkout, rebuild them inside `./fitACE/`. The
+`coordinated-release` skill runs the same builds at release time.

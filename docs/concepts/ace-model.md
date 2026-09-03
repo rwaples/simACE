@@ -2,67 +2,57 @@
 
 ## Liability decomposition
 
-Total liability for individual $i$ on trait $k$ is:
+The liability of individual $i$ on trait $k$ is the sum of three components:
 
 $$L_i^{(k)} = A_i^{(k)} + C_i^{(k)} + E_i^{(k)}$$
 
-The three components sum to unit variance ($A + C + E = 1$):
+The three variances sum to one ($A + C + E = 1$), so each is a share of the total.
 
-- **A** (additive genetic): heritable component following the infinitesimal model
-- **C** (common/shared environment): shared by offspring of the same mother
-- **E** (unique/personal environment): independent per individual
+- **A**, additive genetic. Inherited under the infinitesimal model.
+- **C**, common environment. Shared by all offspring of the same mother.
+- **E**, unique environment. Drawn independently for each individual.
 
 ## Inheritance of A
 
-Additive genetic values are transmitted from parents to offspring via midparent averaging
-plus Mendelian sampling noise:
+Each offspring receives the midparent value plus Mendelian sampling noise:
 
 $$A_{\text{offspring}} = \frac{A_{\text{mother}} + A_{\text{father}}}{2} + \epsilon, \quad \epsilon \sim \mathcal{N}(0, \sigma_A^2 / 2)$$
 
-For the founder generation, additive values for both traits are drawn jointly from a
-bivariate normal with cross-trait genetic correlation $r_A$.
+Founders draw the two traits' additive values jointly from a bivariate normal with cross-trait genetic correlation $r_A$.
 
 ## Common environment (C)
 
-$C$ is shared by all offspring of the same mother (household effect). It is **not**
-inherited. There is no parent-to-child $C$ transmission. Each mother's household
-draws $C$ independently.
+Every offspring of the same mother shares one $C$ draw. The simulation calls that group a household. Parents do not pass $C$ to their children. Each household draws its own $C$.
 
 ## Unique environment (E)
 
-$E$ is drawn independently per individual per trait. By design, it contributes no
-familial correlation.
+Each individual draws $E$ independently for each trait. $E$ adds no familial correlation.
 
 ## Cross-trait correlations
 
-Two traits can be correlated through their components:
+Two traits can be correlated through each component:
 
 | Parameter | Meaning |
 |---|---|
 | $r_A$ | Cross-trait genetic correlation |
 | $r_C$ | Cross-trait common environment correlation |
-| $r_E$ | Cross-trait unique environment correlation (`rE`, defaults to 0) |
+| $r_E$ | Cross-trait unique environment correlation. Config key `rE`, default 0 |
 
 ## Standardisation
 
-The `standardize` config flag controls how liability is normalised before
-phenotyping. It accepts three values:
+The `standardize` config key sets how the phenotype stage normalises liability before it applies a threshold. It accepts three values:
 
 | Mode | Behaviour |
 |---|---|
-| `none` | Raw liability is compared to the N(0,1)-scale threshold. Realised prevalence drifts whenever the cohort variance differs from 1. |
-| `global` (default) | Liability is z-scored once across the whole phenotyped cohort: $L_z = (L - \bar L) / \mathrm{sd}(L)$. Per-generation prevalence still drifts when variance changes generation-to-generation. |
-| `per_generation` | Liability is z-scored within each generation independently. Each generation hits its target prevalence exactly, regardless of how $\mathrm{Var}(C)$ or $\mathrm{Var}(E)$ drifts across cohorts. |
+| `none` | The raw liability is compared to the N(0,1)-scale threshold. Realised prevalence drifts whenever the cohort variance differs from 1. |
+| `global` (default) | The liability is z-scored once across the whole phenotyped cohort: $L_z = (L - \bar L) / \mathrm{sd}(L)$. Per-generation prevalence still drifts when variance changes between generations. |
+| `per_generation` | The liability is z-scored within each generation. Each generation hits its target prevalence exactly, however $\mathrm{Var}(C)$ or $\mathrm{Var}(E)$ drifts across cohorts. |
 
-Legacy boolean values are accepted at config load (`true → "global"`,
-`false → "none"`) so older scenario files continue to work unchanged.
+Config loading still accepts the legacy booleans. `true` becomes `global` and `false` becomes `none`, so older scenario files keep working.
 
 ### Per-trait hazard override
 
-Models with a separate hazard/onset-rate step (`frailty`,
-`cure_frailty`, `first_passage`, and `adult` with `method: cox`)
-accept a per-trait override `standardize_hazard` inside
-`phenotype.trait{N}.params`:
+Models with a hazard step accept a per-trait key, `standardize_hazard`, inside `phenotype.trait{N}.params`. Those models are `frailty`, `cure_frailty`, `first_passage`, and `adult` with `method: cox`.
 
 ```yaml
 phenotype:
@@ -73,37 +63,22 @@ phenotype:
       scale: 2160
       rho: 0.8
       prevalence: 0.10
-      standardize_hazard: per_generation   # overrides global flag for the hazard step
+      standardize_hazard: per_generation   # overrides the global key for the hazard step
 ```
 
-`standardize_hazard` accepts the same three modes (`none`, `global`,
-`per_generation`) and defaults to inheriting whatever was selected for
-the global `standardize`. Threshold-only models with no hazard step
-(`simple_ltm` and `adult` with `method: ltm`) reject the field with a
-trait-prefixed error.
+`standardize_hazard` accepts the same three modes and defaults to the value of the global `standardize`. Models with no hazard step reject the key with a trait-prefixed error. Those models are `simple_ltm` and `adult` with `method: ltm`.
 
-`cure_frailty` is the only family that honors **both** knobs
-independently: `standardize` sets the threshold step (case status) while
-`standardize_hazard` sets the hazard step (case-onset distribution). A
-mixed setting like `standardize: per_generation` together with
-`standardize_hazard: global` preserves per-generation prevalence while
-keeping the hazard slope constant across generations.
+`cure_frailty` is the only model that reads both keys. `standardize` sets the threshold step, which decides case status. `standardize_hazard` sets the hazard step, which decides age at onset among cases. Setting `standardize: per_generation` with `standardize_hazard: global` holds per-generation prevalence exact while keeping one hazard slope across generations.
 
 ### Per-model routing
 
-| Model | Threshold step uses | Hazard step uses |
+| Model | Threshold step reads | Hazard step reads |
 |---|---|---|
-| `simple_ltm` | `standardize` | — |
-| `adult.ltm` | `standardize` | — |
-| `adult.cox` | — | `standardize_hazard` (default = `standardize`) |
-| `frailty` | — | `standardize_hazard` (default = `standardize`) |
-| `first_passage` | — | `standardize_hazard` (default = `standardize`) |
-| `cure_frailty` | `standardize` | `standardize_hazard` (default = `standardize`) |
+| `simple_ltm` | `standardize` | none |
+| `adult.ltm` | `standardize` | none |
+| `adult.cox` | none | `standardize_hazard`, default `standardize` |
+| `frailty` | none | `standardize_hazard`, default `standardize` |
+| `first_passage` | none | `standardize_hazard`, default `standardize` |
+| `cure_frailty` | `standardize` | `standardize_hazard`, default `standardize` |
 
-Note that toggling `params.method` between `"ltm"` and `"cox"` on the
-`adult` family silently changes which knob controls L scaling for that
-trait. LTM honors the global `standardize`, Cox honors
-`standardize_hazard`. This asymmetry reflects the underlying math (LTM
-is a threshold-on-L, Cox is a hazard-on-L). Setting
-`standardize_hazard` on an `adult.ltm` model raises a validation error
-that points back at this rule.
+Switching `params.method` on the `adult` model between `ltm` and `cox` changes which key scales the liability for that trait. `adult.ltm` applies a threshold to the liability, so it reads `standardize`. `adult.cox` applies a hazard to the liability, so it reads `standardize_hazard`. If you set `standardize_hazard` on an `adult.ltm` trait, config validation raises an error that names this rule.

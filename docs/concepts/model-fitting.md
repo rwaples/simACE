@@ -1,51 +1,33 @@
 # Model fitting
 
-The [`fitACE`](https://github.com/rwaples/fitACE) package handles
-statistical model fitting on simulated data. This page provides
-conceptual context; see the fitACE README for usage instructions.
+simACE simulates data. Fitting variance-component models to that data is the job of the sister repo [fitACE](https://github.com/rwaples/fitACE), a private monorepo checked out at `./fitACE/`. This page says which estimates each repo produces. Usage instructions are in the fitACE README.
 
-## Phenotype models
+## What simACE estimates itself
 
-Continuous liabilities are mapped to observable affected status and age-of-onset phenotypes via survival, cure, first-passage, and threshold models:
+The stats stage in `simace.analysis.stats` runs three estimators on every replicate. They exist to validate the simulation, not to compete with fitACE.
 
-| Model | Description |
-|---|---|
-| **Frailty** | Proportional hazards with choice of baseline hazard (Weibull, Gompertz, lognormal, etc.). Liability scales hazard via $z = \exp(\beta L)$. Given sufficient time, every individual eventually becomes affected. |
-| **Cure-Frailty** | Mixture model separating **who** gets the disease (susceptible vs. non-susceptible) from **when** (age-of-onset among susceptibles). Supports sex-specific prevalence. |
-| **ADuLT LTM** | Deterministic liability threshold model with logistic cumulative incidence function (Pedersen et al., 2023); **not** proportional hazards. |
-| **ADuLT Cox** | Weibull(shape=2) proportional hazards for raw event-time ordering, followed by rank-based CIF-to-age mapping (Pedersen et al., 2023). |
-| **Simple LTM** | Liability threshold for case status at prevalence `K`, with a fixed or normally-distributed age-of-onset. Onset flows through the standard censor stage like the other models. |
+- **Tetrachoric correlations** by relationship type and generation, from binary affection status.
+- **Falconer's $h^2$**, from the tetrachoric correlations of MZ and full-sibling pairs.
+- **Parent-offspring regression** of offspring liability on midparent liability.
 
-## Censoring
+The maths is in [Methods, validation via statistical analysis](methods.md#validation-via-statistical-analysis).
 
-Two censoring layers mimic real-world data limitations:
+## What fitACE estimates
 
-1. **Age-window censoring**: per-generation observation intervals `[left, right]`.
-   Events before `left` are left-truncated; events after `right` are right-censored.
-2. **Competing-risk mortality**: death age drawn from a Weibull distribution,
-   independent of disease liability. Individuals who die before onset are death-censored.
+fitACE reads the outcomes-only trait files and the analysis pedigree that the ascertainment stage writes. See [Pipeline schema](pipeline-schema.md) for the file contract. Its method packages are:
 
-The combined effect: only a fraction of true cases are observed as affected.
+- **PCGC**.
+- **Iterative and sparse REML**, including the `ace_iter_reml` C++ binary.
+- **TetraHer**, through the `tetraher_simace` LDAK fork.
+- **PA-FGRS**, family genetic risk scores.
+- **Stan** models.
+- **Frailty**, a pairwise Weibull maximum-likelihood estimator of liability correlation from censored onset times. The likelihood is in [Methods, pairwise Weibull survival correlation](methods.md#pairwise-weibull-survival-correlation-estimation).
+- **EPIMIGHT**, an R package for heritability from family data, integrated through the separate `fitACE_epimight` repo.
 
-## Ascertainment
+## What the simulation gives a fitter
 
-The pipeline can restrict the observed analysis dataset via a unified
-**ascertainment** stage (see [ADR 0001](../adr/0001-unified-ascertainment-stage.md))
-that combines three knobs in two explicit steps (dropout → case-weighted draw):
+Every simulated individual has known $A$, $C$, and $E$ values, so every fitted variance component can be compared to its true value. Three parts of the pipeline shape what a fitter sees:
 
-- **Dropout** (`dropout_rate`): uniform random removal of individuals from
-  the pedigree; severs parent/twin references to removed IDs
-- **Case ascertainment** (`case_ascertainment_ratio`): weights cases (vs
-  controls) during the `N_sample` draw
-- **Subsample size** (`N_sample`): target size of the post-ascertainment
-  analysis dataset; pass-through when `0` or `>= post-dropout pool`
-
-## Heritability estimation
-
-The simulation validates several heritability estimation approaches:
-
-- **Falconer's $h^2$**: from tetrachoric correlations between MZ and DZ twins
-- **Tetrachoric correlations**: by relationship type and generation
-- **Weibull frailty MLE**: pairwise survival-time correlation via Gauss-Hermite quadrature
-- **EPIMIGHT**: external R package for heritability from family data
-- **PA-FGRS**: polygenic risk scores from family history
+- The **phenotype models** map liability to affected status and age at onset. See [Methods, phenotype models](methods.md#phenotype-models).
+- The **censoring** stage hides events outside each generation's age window and events after death. See [Methods, censoring](methods.md#censoring).
+- The **ascertainment** stage drops individuals at random, then draws a case-weighted sample. See [Methods, ascertainment](methods.md#ascertainment) and [ADR 0001](../adr/0001-unified-ascertainment-stage.md).
