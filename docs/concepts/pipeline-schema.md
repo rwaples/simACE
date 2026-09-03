@@ -1,10 +1,10 @@
 # Pipeline Schema
 
-The pipeline is a chain of stages — `simulate → phenotype → censor → ascertainment → analyze` — each handing off a `pandas.DataFrame` or parquet file to the next. The columns expected at each handoff are a contract: every stage relies on its predecessor's column names by convention, and a downstream stage will fail far from the rename that broke it unless the contract is explicit.
+The pipeline is a chain of stages — `simulate → phenotype → censor → ascertainment → analyze` — each handing off a `polars.DataFrame` or parquet file to the next (Polars-only at stage boundaries, ADR 0015). The columns expected at each handoff are a contract: every stage relies on its predecessor's column names by convention, and a downstream stage will fail far from the rename that broke it unless the contract is explicit.
 
 simACE now has two related schema layers:
 
-- `simace.core.schema` defines the **pedigree** schema and hydrated in-memory schemas used by tests and analysis helpers.
+- `simace.core.schema` defines the **pedigree** schema (`PEDIGREE`) and the hydrated in-memory schemas (`PHENOTYPE`, `CENSORED`) used by tests and analysis helpers.
 - `simace.core.trait_schema` defines the **outcomes-only trait file** schemas and the hydration helper that joins trait outcomes to pedigree columns by `id` (ADR 0011).
 
 Extra columns are permitted by the low-level schema checker unless a hydration call asks for the same column from the pedigree; in that case `hydrate_trait` raises to prevent silently accepting old self-contained trait files.
@@ -79,22 +79,28 @@ time while still catching real regressions like a boolean column written as
 
 ## Where it's enforced
 
+The DataFrame stages are wrapped by the `@stage(reads=..., writes=...)`
+decorator in `simace.core.stage`, which asserts the input schema on the first
+argument and the output schema on the return value, and exposes both as
+`fn.reads` / `fn.writes` metadata. Every phenotype model, including the simple
+liability-threshold model, is an ordinary `PhenotypeModel` that flows through
+`run_phenotype` and `run_censor`; there is no separate threshold stage.
+
 ```mermaid
 flowchart LR
     sim[run_simulation] -- PEDIGREE --> phen[run_phenotype]
     phen -- RAW_TRAIT --> cen[run_censor]
     cen -- CENSORED_TRAIT --> asc[run_ascertainment]
-    phen2[run_threshold] -- SIMPLE_LTM_TRAIT --> asc
-    asc -- CENSORED_TRAIT + SIMPLE_LTM_TRAIT + PEDIGREE --> ana[analyze / stats]
+    asc -- CENSORED_TRAIT + PEDIGREE --> ana[analyze / stats]
     ana -- hydrate_trait --> hyd[hydrated in-memory frames]
 ```
 
 | Stage | Input asserted | Output asserted |
 |---|---|---|
+| `run_simulation` | none (no input frame) | `PEDIGREE` |
 | `run_phenotype` | `PEDIGREE` | `RAW_TRAIT` |
-| `run_threshold` | `PEDIGREE` | `SIMPLE_LTM_TRAIT` |
-| `run_censor` | `RAW_TRAIT` plus explicit `PEDIGREE` input | `CENSORED_TRAIT` |
-| `run_ascertainment` | outcomes-only trait files plus pedigree | outcomes-only trait files plus analysis pedigree |
+| `run_censor` | `RAW_TRAIT`, plus an explicit `PEDIGREE` check on the pedigree argument it hydrates `generation` from | `CENSORED_TRAIT` |
+| `run_ascertainment` | outcomes-only trait files plus pedigree (id-level checks, not `@stage`) | outcomes-only trait files plus analysis pedigree |
 | Analyze / Stats | outcomes-only trait files plus pedigree | hydrated in-memory frames for computations |
 
 A failure raises `ValueError` with the boundary label and the offending column,

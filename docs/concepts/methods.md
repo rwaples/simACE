@@ -101,7 +101,7 @@ E_{i,k} \sim \mathcal{N}(0,\; \sigma^2_{E_k}), \quad
 \sigma^2_{E_k} = 1 - \sigma^2_{A_k} - \sigma^2_{C_k}
 $$
 
-where $r_A$ and $r_C$ are the cross-trait genetic and shared-environment correlations, respectively. Unique-environment components $E_1$ and $E_2$ are drawn independently (no cross-trait $E$ correlation). Each founder's total liability is $L_{i,k} = A_{i,k} + C_{i,k} + E_{i,k}$.
+where $r_A$ and $r_C$ are the cross-trait genetic and shared-environment correlations, respectively. Unique-environment components $E_1$ and $E_2$ have cross-trait correlation $r_E$, which defaults to 0 (independent draws). Each founder's total liability is $L_{i,k} = A_{i,k} + C_{i,k} + E_{i,k}$.
 
 In plain terms, each founder receives a random genetic hand, a household environment, and individual noise that sum to their overall liability.
 
@@ -112,7 +112,7 @@ The simulation maintains a constant population size ($N$) across generations. Ea
 **Mating counts.** Each parent draws a mating count from a zero-truncated Poisson (ZTP) distribution — a Poisson draw conditioned on being at least 1, so every individual participates in at least one mating:
 
 $$
-n_{\text{matings},i} \sim \text{ZTP}(\lambda), \quad \lambda = 2.3 \text{ (default)}
+n_{\text{matings},i} \sim \text{ZTP}(\lambda), \quad \lambda = 0.5 \text{ (default)}
 $$
 
 The zero-truncated Poisson is implemented by rejection: Poisson draws of zero are redrawn until all counts are $\geq 1$. Males and females draw independently. The total mating-slot counts are then balanced by randomly trimming slots from the sex with more total slots, so that both sexes contribute the same total number of mating slots $T = \min(\sum n_{\text{male}}, \sum n_{\text{female}})$.
@@ -383,7 +383,7 @@ $$
 
 With $\alpha > 1$, cases are overrepresented in the sample (enrichment), mimicking case-control study designs. With $\alpha < 1$, cases are underrepresented. With $\alpha = 0$, only controls are sampled.
 
-The same sampled IDs are applied to both the main trait branch and the simple-LTM benchmark, so both files share an identical `id` column. The output pedigree is the **ancestor closure** of the sampled IDs within the post-dropout pedigree — every parent reachable through unbroken edges is retained — and any remaining dangling twin references are then rewritten to $-1$ so kinship and relationship-pair extraction work correctly on the analysis dataset.
+The output pedigree is the **ancestor closure** of the sampled IDs within the post-dropout pedigree — every parent reachable through unbroken edges is retained — and any remaining dangling twin references are then rewritten to $-1$ so kinship and relationship-pair extraction work correctly on the analysis dataset.
 
 Validation is unaffected: `validate_*` continues to consume `pedigree.full.parquet` (the pre-ascertainment full pedigree).
 
@@ -411,7 +411,7 @@ The following matrix products identify relationship categories:
 
 **MZ twins.** Twin pairs are identified directly from the twin-partner column in the pedigree, deduplicated so that each pair appears once.
 
-In total, ten relationship categories are extracted: MZ twins, full siblings, maternal half-siblings, paternal half-siblings, mother-offspring, father-offspring, avuncular, grandparent-grandchild, first cousins, and second cousins. When a sample mask is provided (e.g., the post-ascertainment subset), only pairs where both individuals are in the sample are returned.
+The products above describe the ten core categories: MZ twins, full siblings, maternal half-siblings, paternal half-siblings, mother-offspring, father-offspring, avuncular, grandparent-grandchild, first cousins, and second cousins. The `pedigree_graph` registry (`REL_REGISTRY`) extracts 23 categories in total, adding half, once- and twice-removed, and deeper-generation variants; the full table is in [Simulation Design](simulation-design.md). When a sample mask is provided (e.g., the post-ascertainment subset), only pairs where both individuals are in the sample are returned.
 
 ### Tetrachoric correlation estimation
 
@@ -493,7 +493,7 @@ Automated validation checks are performed on each simulated replicate and organi
 
 ## Implementation
 
-The simulation framework is implemented in Python as an installable package (`simace`) with NumPy for vectorised array operations, SciPy for optimisation and special functions, pandas and PyArrow for data management, and Numba for JIT-compiled numerical kernels (phenotype inversion, Metropolis sweeps, and pairwise survival likelihood evaluation). Relationship extraction uses SciPy sparse CSR matrices for $O(\text{nnz})$ computation of sibling, cousin, and higher-order relationship pairs via matrix products. The workflow is managed by Snakemake with per-scenario configuration, per-replicate seed offsets for reproducibility (seed incremented by replicate number), and support for SLURM-based HPC execution. All random number generation uses NumPy's PCG64 generator (`numpy.random.default_rng`) with deterministic seed management.
+The simulation framework is implemented in Python as an installable package (`simace`) with NumPy for vectorised array operations, SciPy for optimisation and special functions, pandas and PyArrow for data management, and Numba for JIT-compiled numerical kernels (phenotype inversion, Metropolis sweeps, and pairwise survival likelihood evaluation). Relationship extraction uses SciPy sparse CSR matrices for $O(\text{nnz})$ computation of sibling, cousin, and higher-order relationship pairs via matrix products. The workflow is managed by Snakemake with per-scenario configuration, per-replicate seed offsets for reproducibility (seed incremented by replicate number), and support for SLURM-based HPC execution via the `snakemake-executor-plugin-slurm` plugin pinned in `pixi.toml`. All random number generation uses NumPy's PCG64 generator (`numpy.random.default_rng`) with deterministic seed management.
 
 ## Assumptions and Limitations
 
@@ -501,7 +501,7 @@ Every simulation makes simplifying assumptions. The following are the most conse
 
 **No gene-environment interaction.** Liability is strictly additive ($L = A + C + E$) with no multiplicative or interactive terms. If the true data-generating process involves gene-environment interaction ($G \times E$) or gene-environment correlation ($rGE$), the ACE decomposition will absorb these effects into the additive components, potentially biasing variance estimates.
 
-**No cross-trait unique-environment correlation ($r_E = 0$).** Unique-environment components $E_1$ and $E_2$ are drawn independently across traits. This precludes modelling trait pairs where individual-specific environmental exposures (e.g., shared lifestyle factors) induce correlation beyond what is captured by $A$ and $C$.
+**Cross-trait unique-environment correlation defaults to zero ($r_E = 0$).** Unique-environment components $E_1$ and $E_2$ are drawn independently across traits unless the `rE` parameter is set. The default scenarios do not model trait pairs where individual-specific environmental exposures (e.g., shared lifestyle factors) induce correlation beyond what is captured by $A$ and $C$.
 
 **No environmental transmission across generations.** The common-environment component $C$ is drawn freshly per household each generation with no autoregressive transmission from parental $C$ values. This is the standard ACE assumption but does not capture intergenerational persistence of socioeconomic status, neighbourhood effects, or cultural transmission that may inflate parent-offspring resemblance in real populations.
 

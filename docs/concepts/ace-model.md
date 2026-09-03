@@ -41,7 +41,7 @@ Two traits can be correlated through their components:
 |---|---|
 | $r_A$ | Cross-trait genetic correlation |
 | $r_C$ | Cross-trait common environment correlation |
-| $r_E$ | Cross-trait unique environment correlation (fixed at 0) |
+| $r_E$ | Cross-trait unique environment correlation (`rE`, defaults to 0) |
 
 ## Standardisation
 
