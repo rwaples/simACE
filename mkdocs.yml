@@ -95,6 +95,7 @@ nav:
       - Methods: concepts/methods.md
       - Project structure: concepts/project-structure.md
       - Model fitting: concepts/model-fitting.md
+      - Related software: concepts/related-software.md
   - Examples:
       - Minimal ACE: examples/minimal-ace.md
       - Adding shared environment (C): examples/adding-shared-environment.md
