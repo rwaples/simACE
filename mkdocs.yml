@@ -74,35 +74,33 @@ plugins:
 
 nav:
   - Home: index.md
-  - Getting Started:
+  - Getting started:
       - Installation: getting-started/installation.md
-      - Quick Start: getting-started/quickstart.md
-  - User Guide:
+      - Quick start: getting-started/quickstart.md
+  - User guide:
       - Configuration: user-guide/configuration.md
-      - Phenotype Models: user-guide/phenotype-models.md
-      - Running the Pipeline: user-guide/running-the-pipeline.md
+      - Phenotype models: user-guide/phenotype-models.md
+      - Running the pipeline: user-guide/running-the-pipeline.md
       - Ascertainment: user-guide/ascertainment.md
-      - Output Structure: user-guide/output-structure.md
-      - Interpreting Results: user-guide/interpreting-results.md
+      - Output structure: user-guide/output-structure.md
+      - Interpreting results: user-guide/interpreting-results.md
   - Concepts:
-      - ACE Model: concepts/ace-model.md
-      - Simulation Design: concepts/simulation-design.md
-      - Pipeline Schema: concepts/pipeline-schema.md
-      - Gene Drop and tstrait: concepts/gene-drop.md
+      - ACE model: concepts/ace-model.md
+      - Simulation design: concepts/simulation-design.md
+      - Pipeline schema: concepts/pipeline-schema.md
+      - Gene drop and tstrait phenotyping: concepts/gene-drop.md
       - Methods: concepts/methods.md
-      - Project Structure: concepts/project-structure.md
-      - Model Fitting: concepts/model-fitting.md
-  - Architecture Decisions:
-      - "ADR 0001: Unified ascertainment stage": adr/0001-unified-ascertainment-stage.md
+      - Project structure: concepts/project-structure.md
+      - Model fitting: concepts/model-fitting.md
   - Examples:
       - Minimal ACE: examples/minimal-ace.md
       - Adding shared environment (C): examples/adding-shared-environment.md
-      - AM and Heritability: examples/am-and-heritability.md
+      - Assortative mating and heritability: examples/am-and-heritability.md
       - Time-varying E and h² drift: examples/time-varying-e.md
-      - Observed vs Liability h²: examples/observed-vs-liability-h2.md
+      - Observed-scale vs liability-scale heritability: examples/observed-vs-liability-h2.md
       - Gene-drop architecture sweep: examples/gene-drop-architecture-sweep.md
       - Ascertainment bias: examples/ascertainment-bias.md
-  - API Reference:
+  - API reference:
       - api/index.md
       - Core: api/core.md
       - Simulation: api/simulation.md
