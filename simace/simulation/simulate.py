@@ -32,7 +32,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
-from scipy.spatial import cKDTree  # ty: ignore[unresolved-import]  # real class; scipy stubs omit it
 
 from simace.core._numba_utils import _ndtri_approx
 from simace.core.parquet import save_parquet
@@ -503,6 +502,10 @@ def _assortative_pair_partners(
     Returns:
         ``(M, 2)`` array of ``[mother_idx, father_idx]``.
     """
+    # Imported here, not at module level: scipy.spatial costs ~160 ms to import
+    # and only assortative mating needs the tree.
+    from scipy.spatial import cKDTree  # ty: ignore[unresolved-import]  # real class; scipy stubs omit it
+
     # 1. Expand slots
     female_slots = np.repeat(female_idxs, female_counts)
     male_slots = np.repeat(male_idxs, male_counts)

@@ -40,7 +40,6 @@ __all__ = ["blended_diagnosis"]
 
 import numpy as np
 import polars as pl
-from scipy.special import erfc, ndtri
 
 from simace.phenotype.hazards import standardize_liability
 from simace.phenotype.models._prevalence import prevalence_to_array
@@ -58,6 +57,9 @@ DEFAULT_CIF_K = 0.15
 
 def _compute_onset(L_eff: np.ndarray, K: np.ndarray, cip_x0: float, cip_k: float) -> np.ndarray:
     """ADuLT/LTM onset-age inversion. Clipped to ``[0.01, 1e6]``."""
+    # Imported here, not at module level: scipy.special costs ~110 ms per job start.
+    from scipy.special import erfc
+
     cir = 0.5 * erfc(L_eff / np.sqrt(2.0))
     cir = np.clip(cir, 1e-10, K - 1e-10)
     onset = cip_x0 + (1.0 / cip_k) * np.log(cir / (K - cir))
@@ -99,6 +101,9 @@ def blended_diagnosis(
         new ``A_blend`` / ``C_blend`` / ``E_blend`` / ``liability_blend``
         columns.
     """
+    # Imported here, not at module level: scipy.special costs ~110 ms per job start.
+    from scipy.special import ndtri
+
     if not isinstance(phenotype, pl.DataFrame):
         raise TypeError(
             "blended_diagnosis requires a polars DataFrame since the polars migration "

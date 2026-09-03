@@ -13,7 +13,6 @@ Prevalence may be:
 """
 
 import numpy as np
-from scipy.special import ndtri
 
 from simace.phenotype.hazards import StandardizeMode, standardize_liability
 
@@ -110,6 +109,9 @@ def liability_threshold_mask(L: np.ndarray, prevalence) -> np.ndarray:
     Returns:
         Boolean array, ``True`` for cases.
     """
+    # Imported here, not at module level: scipy.special costs ~110 ms per job start.
+    from scipy.special import ndtri
+
     return ndtri(1.0 - np.asarray(prevalence)) < L
 
 

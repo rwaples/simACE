@@ -31,7 +31,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
-from scipy.special import erfc
 
 from simace.phenotype.hazards import (
     add_standardize_hazard_cli_arg,
@@ -211,6 +210,9 @@ class AdultModel(PhenotypeModel):
         generation: np.ndarray,
         mode: StandardizeMode,
     ) -> np.ndarray:
+        # Imported here, not at module level: scipy.special costs ~110 ms per job start.
+        from scipy.special import erfc
+
         L = standardize_liability(liability, mode, generation)
 
         is_case = liability_threshold_mask(L, prevalence)
