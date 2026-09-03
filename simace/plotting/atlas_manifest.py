@@ -84,8 +84,8 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         basename="pedigree_counts",
         title="Pedigree relationship pair counts (G_pheno).",
         body=(
-            "Same diagram as Figure 1, but restricted to the phenotyped population (last "
-            "G_pheno generations), after ascertainment."
+            "Same diagram as the G_ped pair-count figure, but restricted to the phenotyped "
+            "population (last G_pheno generations), after ascertainment."
         ),
     ),
     PlotEntry(
@@ -375,8 +375,8 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         basename="cross_trait.phenotype",
         title="Cross-trait liability joint plots coloured by affected status (trait 1).",
         body=(
-            "Same 2×2 layout as Figure 5, but with affected-status colouring based on trait "
-            "1. Blue points = unaffected, orange points = affected (trait 1). Marginal "
+            "Same 2×2 layout as the cross-trait liability joint plots, but with affected-status "
+            "colouring based on trait 1. Blue points = unaffected, orange points = affected (trait 1). Marginal "
             "histograms stacked by affected status."
         ),
     ),
@@ -384,8 +384,8 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         basename="cross_trait.phenotype.t2",
         title="Cross-trait liability joint plots coloured by affected status (trait 2).",
         body=(
-            "Same 2×2 layout as Figure 5, but with affected-status colouring based on trait "
-            "2. Blue points = unaffected, orange points = affected (trait 2). Marginal "
+            "Same 2×2 layout as the cross-trait liability joint plots, but with affected-status "
+            "colouring based on trait 2. Blue points = unaffected, orange points = affected (trait 2). Marginal "
             "histograms stacked by affected status."
         ),
     ),
