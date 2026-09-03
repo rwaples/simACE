@@ -1,25 +1,27 @@
-# simACE — Simulate registry-scale age-of-onset phenotypes with realistic pedigrees and the ACE liability model
+# simACE
+
+Simulate registry-scale age-of-onset phenotypes in multi-generational pedigrees under the ACE liability model.
 
 simACE simulates millions of individuals in multi-generational pedigrees with
 heritable ACE variance components for two correlated traits. It is designed
 for evaluating and benchmarking statistical methods that estimate
 heritability and familial correlations from population health registries.
 
-📖 **Full documentation**: see the [`docs/`](docs/) directory (built with mkdocs)
-or the [rendered site](https://rwaples.github.io/simACE/). Model fitting
+Full documentation is in the [`docs/`](docs/) directory (built with mkdocs)
+and on the [rendered site](https://rwaples.github.io/simACE/). Model fitting
 (EPIMIGHT, PCGC, iterative/sparse REML, LDAK TetraHer, PA-FGRS, Stan, frailty) lives in
 the private companion repo [`fitACE`](https://github.com/rwaples/fitACE),
 which depends on simACE.
 
 ## Prerequisites
 
-- Linux (Windows users may use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install); the pipeline is not supported on macOS — the library install below works anywhere)
+- Linux. Windows users may use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install). The pipeline is not supported on macOS, but the library install below works anywhere.
 - `git` and `curl`
 
 ## Setup
 
-simACE runs in a locked [pixi](https://pixi.sh) environment (one committed
-lockfile — every install materializes the exact same environment):
+simACE runs in a locked [pixi](https://pixi.sh) environment. One committed
+lockfile means every install materializes the same environment:
 
 ```bash
 curl -fsSL https://pixi.sh/install.sh | bash   # single user-space binary
@@ -30,8 +32,8 @@ cd simACE
 pixi install --locked
 ```
 
-To *consume* simace as a library from your own environment instead, a plain
-`pip install` works without pixi (and on any OS) — see
+To use simace as a library from your own environment instead, a plain
+`pip install` works without pixi and on any OS. See
 [installation](docs/getting-started/installation.md).
 
 ### Verify installation
@@ -58,10 +60,10 @@ cat logs/test/small_test/rep1/simulate.log
 ## Snakemake usage
 
 Use `--cores N` where N is the number of parallel jobs. Always run from the
-repo root — the root `Snakefile` is the entry point (no `-s` flag).
+repo root. The root `Snakefile` is the entry point, so no `-s` flag is needed.
 
 ```bash
-# Run everything (default target — all scenarios, all stages)
+# Run everything (default target: all scenarios, all stages)
 pixi run snakemake --cores 4
 
 # Run a single scenario
@@ -72,19 +74,19 @@ pixi run snakemake -n --cores 4
 ```
 
 If a run is interrupted or fails, re-running the same command resumes from
-where it left off — completed steps are skipped automatically.
+where it left off. Snakemake skips completed steps.
 
 For per-stage targets, force-rebuilding, and resuming interrupted runs, see
-[Running the Pipeline](docs/user-guide/running-the-pipeline.md).
+[Running the pipeline](docs/user-guide/running-the-pipeline.md).
 
 ## Configuration
 
 Global defaults live in `config/_default.yaml` under a `defaults:` key
 (seed, replicates, variance components, population structure, phenotype
 models, censoring, ascertainment, …). Scenarios live in per-folder files
-`config/{folder}.yaml` — each file holds **bare scenario dicts** (one
-top-level key per scenario), each overriding only the defaults it changes,
-and the results folder name comes from the filename:
+`config/{folder}.yaml`. Each file holds bare scenario dicts, one top-level
+key per scenario, each overriding only the defaults it changes. The results
+folder name comes from the filename:
 
 ```yaml
 # config/heritability.yaml → outputs under results/heritability/{scenario}/
@@ -106,8 +108,8 @@ phenotyped / simulated), `seed`, `replicates`. The loader still accepts the
 older flat keys (`A1`, `C1`, …) for compatibility.
 
 To add new simulations, add a scenario to an existing folder file or create
-a new `config/{folder}.yaml` — files are auto-discovered (names starting
-with `_` are skipped). For the
+a new `config/{folder}.yaml`. Files are auto-discovered, and names starting
+with `_` are skipped. For the
 full parameter reference (phenotype models, censoring, ascertainment, etc.), see
 [Configuration](docs/user-guide/configuration.md).
 
@@ -117,7 +119,7 @@ Each scenario replicate produces the full and post-ascertainment pedigree
 parquets, outcomes-only censored time-to-event trait parquets, a curated
 `report.yaml` with its `plot_payload.yaml` companion, and a browsable HTML
 plot atlas (PDF export on demand). See
-[Output Structure](docs/user-guide/output-structure.md) for the complete file
+[Output structure](docs/user-guide/output-structure.md) for the complete file
 inventory, parquet column schemas, YAML structures, and plot listings.
 
 ## Troubleshooting
