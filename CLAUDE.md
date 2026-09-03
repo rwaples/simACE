@@ -11,7 +11,7 @@ simACE simulates multi-generational pedigrees with **A** (additive genetic), **C
   - `phenotype/` — `runner.py` (run_phenotype dispatcher, re-exported from `__init__.py`), `hazards.py`, `blended_post.py`, plus a `models/` sub-package of model classes inheriting from a `PhenotypeModel` (the liability-threshold idiom lives in `models/_prevalence.py`)
   - `censoring/` — age-window and death censoring
   - `ascertainment/` — unified dropout + case-weighted N_sample selection (per ADR 0001)
-  - `analysis/` — `stats/` (package: censoring, correlations, incidence, pedigree, sampling, tetrachoric, runner), `validate.py`, `gather.py`
+  - `analysis/` — `stats/` (package: censoring, correlations, effective_size, incidence, pedigree, sampling, tetrachoric, runner), `validate/` (package: one module per check family plus `runner.py`), `analyze.py`, `report.py`, `report_schema.py`, `gather.py`
   - `plotting/` — all plot modules and plot utilities
 - `workflow/rules/simace/*.smk` — Snakemake rules; `workflow/scripts/simace/` — thin script wrappers
 - `config/_default.yaml` — default parameters; `config/{folder}.yaml` — per-folder scenario files (auto-discovered; files starting with `_` are skipped)
