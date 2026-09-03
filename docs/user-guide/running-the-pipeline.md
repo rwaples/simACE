@@ -12,7 +12,7 @@ Every target is a file. Snakemake builds whatever that file depends on.
 | no target | Every scenario in every `config/*.yaml` file, all stages |
 | `results/{folder}/{scenario}/simulate.done` | The pedigree |
 | `results/{folder}/{scenario}/phenotype.done` | The pedigree, phenotypes, censoring, and ascertainment. Writes `trait.parquet` |
-| `results/{folder}/{scenario}/stats.done` | Everything above, plus `report.yaml` and the scenario plots |
+| `results/{folder}/{scenario}/stats.done` | Everything above, plus the analyze stage's `report.yaml` and the scenario plots |
 | `results/{folder}/{scenario}/validate.done` | Everything above, plus the folder's `report_summary.tsv` and validation atlas |
 | `results/{folder}/{scenario}/scenario.done` | All stages for one scenario. Also builds the folder-level summary, which needs the sibling scenarios |
 | `results/{folder}/folder.done` | Every scenario in one folder |
@@ -31,7 +31,7 @@ To see which jobs Snakemake would run without running them, add `-n`:
 pixi run snakemake -n --cores 4 results/base/baseline10K/scenario.done
 ```
 
-Dry-run before any run that takes more than a few minutes.
+Before a run that takes more than a few minutes, preview it with `-n`.
 
 ## Run one scenario
 
@@ -39,7 +39,8 @@ Dry-run before any run that takes more than a few minutes.
 pixi run snakemake --cores 4 results/base/baseline10K/scenario.done
 ```
 
-Use `--cores 8` for several scenarios and `--cores 1` to debug a failing rule.
+To run several scenarios, use `--cores 8`. To debug a failing rule, use
+`--cores 1`.
 
 ## Rebuild one output
 
@@ -59,6 +60,24 @@ interruption, rerun the same command. If Snakemake reports
 
 ```bash
 pixi run snakemake --cores 4 --rerun-incomplete results/base/baseline10K/scenario.done
+```
+
+## Convert parquet to TSV
+
+To read a parquet file in R or a spreadsheet, convert it with
+`simace-parquet-to-tsv`. It writes a `.tsv.gz` file next to each parquet file.
+
+```bash
+simace-parquet-to-tsv results/base/baseline10K/rep1/pedigree.parquet
+simace-parquet-to-tsv results/base/baseline10K/rep1/*.parquet
+```
+
+For an uncompressed `.tsv`, pass `--no-gzip`. To write eight decimal places
+instead of the default four, pass `-p 8`. Snakemake can also produce the
+file:
+
+```bash
+pixi run snakemake --cores 1 results/base/baseline10K/rep1/pedigree.tsv.gz
 ```
 
 ## Troubleshooting

@@ -1,14 +1,15 @@
 # Configuration
 
 Simulation parameters live in YAML files under `config/`.
-`config/_default.yaml` holds the defaults. Each `config/{folder}.yaml` file
-defines the scenarios for one output folder, and the folder name is the
-filename. Files whose name starts with `_` are not scenario files.
+`config/_default.yaml` holds the defaults. Each `config/{folder}.yaml` file is a
+scenario file. It defines the scenarios for one output folder, and the folder
+takes its name from the file. Files whose name starts with `_` are not
+scenario files.
 
 A scenario inherits every default and overrides only the values it lists.
-Write new scenarios in the sectioned form shown on this page. The loader also
-accepts the older flat keys such as `A1` and `censor_age`, but mixing the flat
-and sectioned form for one parameter is an error.
+This page shows the sectioned form. The loader also accepts the older flat
+keys such as `A1` and `censor_age`. Mixing the flat and
+sectioned form for one parameter is an error.
 
 ## Top-level parameters
 
@@ -137,15 +138,18 @@ analysis:
 | `ascertainment.dropout_rate` | Fraction of individuals removed at random from the pedigree before the draw |
 | `analysis.max_degree` | Highest relationship degree to extract. `3` includes first cousins. `2` stops at half-siblings, grandparents, and avuncular pairs |
 | `analysis.estimate_inbreeding` | Compute exact inbreeding coefficients and exact pairwise kinship |
-| `analysis.skip_ne_coancestry` | Skip the coancestry-rate estimator of effective population size and report `ne_coancestry` as null. The other seven estimators still run. The default is `true` because this estimator dominates the memory of the `effective_size` rule. Set it to `false` for scenarios with a small pedigree |
+| `analysis.skip_ne_coancestry` | Skip the coancestry-rate estimator of effective population size and report `ne_coancestry` as null. The other seven estimators still run. The default is `true` because this estimator dominates the memory of the `effective_size` rule. For scenarios with a small pedigree, set it to `false` |
 
-[Ascertainment](ascertainment.md) explains the dropout and draw steps.
+[Ascertainment](ascertainment.md) explains the dropout and draw steps. The
+`analysis` section configures the analyze stage, which builds the `stats.done`
+target described in [Running the pipeline](running-the-pipeline.md).
 
 ## Gene drop with tstrait
 
-When `use_gene_drop` is true, the [gene-drop branch](../concepts/gene-drop.md)
-replaces the parametric trait-1 additive component with a genetic value that
-tstrait computes from founder haplotypes dropped through the pedigree.
+When `use_gene_drop` is true, [gene drop](../concepts/gene-drop.md)
+replaces the parametric trait-1 additive component with a genetic value from
+tstrait. tstrait computes that value from founder haplotypes dropped through
+the pedigree.
 
 ```yaml
 tstrait:
@@ -169,11 +173,13 @@ tstrait:
 | `tstrait.trait_id` | Which trait gets the genetic value. Trait 2 stays parametric |
 | `tstrait.share_architecture` | Reuse the same causal sites and effects in every replicate |
 
-Heritability on this branch is `A1 / (A1 + C1 + E1)` from the pedigree
+Heritability under gene drop is `A1 / (A1 + C1 + E1)` from the pedigree
 section. There is no `tstrait.h2` parameter.
 
 `tskit_preprocess` is a separate top-level block for the one-time step that
-canonicalizes the source tree sequences. It is not part of any scenario.
+canonicalizes the source tree sequences. It is not part of any scenario. The
+two directory defaults point at the maintainer's local copy of the SimHumanity
+data, so set both for your machine.
 
 | Parameter | Default | Description |
 |---|---|---|
@@ -182,42 +188,5 @@ canonicalizes the source tree sequences. It is not part of any scenario.
 | `tskit_preprocess.pop` | `p2` | Founder population to keep |
 | `tskit_preprocess.chroms` | `1` to `22` | Autosomes to include |
 
-## Write a scenario
-
-A folder file holds only scenario dictionaries. This is the start of
-`config/base.yaml`:
-
-```yaml
-baseline10K:
-  seed: 1042
-  N: 10000
-baseline100K:
-  seed: 2042
-  N: 100000
-baseline100K_sample5K:
-  seed: 2042
-  N: 100000
-  ascertainment:
-    N_sample: 5000
-```
-
-Sections merge over the defaults field by field, so a scenario can change one
-value inside a section and inherit the rest. `high_heritability` in
-`config/heritability.yaml` changes only the variance components:
-
-```yaml
-high_heritability:
-  seed: 4042
-  pedigree:
-    trait1:
-      A: 0.8
-      C: 0.0
-      E: 0.2
-    trait2:
-      A: 0.8
-      C: 0.0
-      E: 0.2
-```
-
-To run a scenario, target its folder and name as described in
-[Running the pipeline](running-the-pipeline.md).
+[Writing a scenario](writing-a-scenario.md) shows how to add a scenario to a
+scenario file.

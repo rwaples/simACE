@@ -73,8 +73,9 @@ Scenario parameters live in `config/base.yaml`. Defaults live in
 
 ## Next steps
 
-- [Configuration](../user-guide/configuration.md) explains how to change
-  scenarios and parameters.
+- [Writing a scenario](../user-guide/writing-a-scenario.md) shows how to add
+  a scenario. [Configuration](../user-guide/configuration.md) lists every
+  parameter.
 - [Running the pipeline](../user-guide/running-the-pipeline.md) lists every
   target.
 - [Output structure](../user-guide/output-structure.md) lists every file.

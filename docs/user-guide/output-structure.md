@@ -38,8 +38,8 @@ fitACE writes, such as `epimight/`. This page lists the simACE outputs only.
 | `params.yaml` | `simace/simulation/simulate.py` | The resolved simulation parameters for this replicate |
 | `pedigree.full.parquet` | `simace/simulation/simulate.py` | The recorded pedigree after burn-in and before ascertainment |
 | `trait.raw.parquet` | `simace/phenotype/runner.py` | Uncensored onset ages. Deleted after censoring |
-| `trait.full.parquet` | `simace/censoring/censor.py` | Censored outcomes for the whole phenotyped population. Kept so that the analyze stage can measure ascertainment distortion |
-| `pedigree.parquet` | `simace/ascertainment/runner.py` | The analysis pedigree: the ancestor closure of the sampled individuals, with dangling links set to -1 |
+| `trait.full.parquet` | `simace/censoring/censor.py` | Censored outcomes for the whole phenotyped population. Kept so that the analyze stage can measure ascertainment bias |
+| `pedigree.parquet` | `simace/ascertainment/runner.py` | The analysis pedigree: the sampled individuals plus every ancestor reachable through intact parent links, with dangling links set to -1 |
 | `trait.parquet` | `simace/ascertainment/runner.py` | Censored outcomes for the sampled individuals. This and `pedigree.parquet` are what fitACE reads |
 | `report.yaml` | `simace/analysis/analyze.py` | The per-replicate report. See [report.yaml](#reportyaml) |
 | `plot_payload.yaml` | `simace/analysis/analyze.py` | Dense arrays for the incidence and censoring plots |
@@ -70,7 +70,12 @@ Image files use the extension set by `plot_format`, `png` by default.
 ### pedigree.full.parquet and pedigree.parquet
 
 Both files have the same columns. Column types below are what
-`results/test/small_test/rep1/pedigree.parquet` holds at this commit.
+`results/test/small_test/rep1/pedigree.parquet` holds at this commit. This
+command prints the schema of any parquet file in the tree:
+
+```bash
+pixi run python -c "import pyarrow.parquet as pq, sys; print(pq.read_schema(sys.argv[1]))" results/test/small_test/rep1/pedigree.parquet
+```
 
 | Column | Type | Description |
 |---|---|---|
@@ -112,7 +117,12 @@ phenotyped individual. `trait.parquet` covers the sampled individuals.
 A flat mapping of the parameters this replicate ran with. Keys at this commit:
 `seed`, `rep`, `N`, `G_ped`, `G_sim`, `A1`, `C1`, `E1`, `A2`, `C2`, `E2`,
 `rA`, `rC`, `rE`, `mating_model`, `mating_lambda`, `p_mztwin`, `assort1`,
-`assort2`, and `simace_version`. `seed` is the base seed plus `rep - 1`.
+`assort2`, and `simace_version`. `seed` is the base seed plus `rep - 1`. To
+list the keys, run:
+
+```bash
+grep -o '^[a-zA-Z_0-9]*' results/test/small_test/rep1/params.yaml
+```
 
 ### report.yaml
 
@@ -143,7 +153,7 @@ Every value is tagged with one of four population scopes.
 
 ### plot_payload.yaml
 
-`schema.version` is 1. Holds the incidence and censoring arrays such as
+`schema.version` is 1. The file holds the incidence and censoring arrays such as
 `ages`, `observed_values`, and `aj_values`, grouped by scope in the same
 layout as `observed`. Where a scalar appears in both files, `report.yaml` is
 canonical.
@@ -154,7 +164,7 @@ canonical.
 the folder. The columns come from `REPORT_SUMMARY_REGISTRY` in
 `simace/analysis/report_schema.py`. Each entry names a column and the path
 inside `report.yaml` that fills it. `folder`, `scenario`, and `rep` come from
-the file path, and `simulate_seconds` and `simulate_max_rss_mb` come from the
+the file path. `simulate_seconds` and `simulate_max_rss_mb` come from the
 simulate benchmark. Read the registry for the full list.
 
 ## Benchmarks
@@ -167,30 +177,20 @@ Per-replicate benchmarks live in `benchmarks/{folder}/{scenario}/rep{rep}/`
 and are named after the rule, for example `simulate.tsv`, `phenotype.tsv`,
 `censor_weibull.tsv`, `ascertainment.tsv`, `analyze.tsv`, and
 `effective_size.tsv`. Per-scenario plotting and atlas benchmarks live one
-level up, and per-folder benchmarks such as `gather_report_summary.tsv` and
-`plot_validation.tsv` live in `benchmarks/{folder}/`. This command lists
+level up, in `benchmarks/{folder}/{scenario}/`. Per-folder benchmarks such as
+`gather_report_summary.tsv` and `plot_validation.tsv` live in
+`benchmarks/{folder}/`. This command lists
 every benchmark path the rules declare:
 
 ```bash
 grep -rho 'benchmarks/[^"]*' workflow/rules/simace/*.smk | sort -u
 ```
 
-## Convert parquet to TSV
+## TSV exports
 
-`simace-parquet-to-tsv` writes a `.tsv.gz` file next to each parquet file.
-
-```bash
-simace-parquet-to-tsv results/base/baseline10K/rep1/pedigree.parquet
-simace-parquet-to-tsv results/base/baseline10K/rep1/*.parquet
-```
-
-Pass `--no-gzip` for an uncompressed `.tsv`. Pass `-p 8` to write eight
-decimal places instead of the default four. Snakemake can also produce the
-file:
-
-```bash
-pixi run snakemake --cores 1 results/base/baseline10K/rep1/pedigree.tsv.gz
-```
+`simace-parquet-to-tsv` writes a `.tsv.gz` file next to a parquet file, with
+four decimal places by default. [Running the pipeline, Convert parquet to
+TSV](running-the-pipeline.md#convert-parquet-to-tsv) has the commands.
 
 ## EPIMIGHT outputs
 

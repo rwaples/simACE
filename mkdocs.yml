@@ -79,6 +79,7 @@ nav:
       - Quick start: getting-started/quickstart.md
   - User guide:
       - Configuration: user-guide/configuration.md
+      - Writing a scenario: user-guide/writing-a-scenario.md
       - Phenotype models: user-guide/phenotype-models.md
       - Adding a phenotype model: user-guide/adding-a-phenotype-model.md
       - Running the pipeline: user-guide/running-the-pipeline.md
