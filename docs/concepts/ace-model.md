@@ -1,4 +1,4 @@
-# ACE Model
+# ACE model
 
 ## Liability decomposition
 
@@ -8,9 +8,9 @@ $$L_i^{(k)} = A_i^{(k)} + C_i^{(k)} + E_i^{(k)}$$
 
 The three components sum to unit variance ($A + C + E = 1$):
 
-- **A** (Additive genetic) -- heritable component following the infinitesimal model
-- **C** (Common/shared environment) -- shared by offspring of the same mother
-- **E** (Unique/personal environment) -- independent per individual
+- **A** (additive genetic): heritable component following the infinitesimal model
+- **C** (common/shared environment): shared by offspring of the same mother
+- **E** (unique/personal environment): independent per individual
 
 ## Inheritance of A
 
@@ -25,7 +25,7 @@ bivariate normal with cross-trait genetic correlation $r_A$.
 ## Common environment (C)
 
 $C$ is shared by all offspring of the same mother (household effect). It is **not**
-inherited -- there is no parent-to-child $C$ transmission. Each mother's household
+inherited. There is no parent-to-child $C$ transmission. Each mother's household
 draws $C$ independently.
 
 ## Unique environment (E)
@@ -102,7 +102,7 @@ keeping the hazard slope constant across generations.
 
 Note that toggling `params.method` between `"ltm"` and `"cox"` on the
 `adult` family silently changes which knob controls L scaling for that
-trait — LTM honors the global `standardize`, Cox honors
+trait. LTM honors the global `standardize`, Cox honors
 `standardize_hazard`. This asymmetry reflects the underlying math (LTM
 is a threshold-on-L, Cox is a hazard-on-L). Setting
 `standardize_hazard` on an `adult.ltm` model raises a validation error

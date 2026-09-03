@@ -1,4 +1,4 @@
-# Simulation Design
+# Simulation design
 
 ## Multi-generational pedigree
 
@@ -32,7 +32,7 @@ a natural mix of full sibs, maternal half-sibs, and paternal half-sibs.
 
 `PedigreeGraph` (from the [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) package) extracts 23 relationship
 categories from simulated pedigrees using sparse matrix algebra. Each type is
-parameterised by `(up, down, n_ancestors)` -- meioses up from individual A to
+parameterised by `(up, down, n_ancestors)`: meioses up from individual A to
 common ancestor(s), meioses down to individual B, and whether the link is
 through 1 (half/lineal) or 2 (full, mated-pair) ancestors. Kinship is
 $n_{\text{ancestors}} \times (1/2)^{(\text{up} + \text{down} + 1)}$.
@@ -87,16 +87,16 @@ values instead:
    never materializing the `n × n` matrix (it samples a cached
    `kinship_matrix(0.0)` only when one already exists). Exact kinship can exceed
    the nominal value because of inbreeding, MZ co-coalescence, **or multiple
-   relationship paths** — e.g. double first cousins have kinship `0.125`, twice
-   the nominal first-cousin `0.0625`. Its derived `F` is
+   relationship paths**. Double first cousins, for example, have kinship `0.125`,
+   twice the nominal first-cousin `0.0625`. Its derived `F` is
    `phi(mother, father)` computed exactly as the kinship-matrix DP does, so it
    is MZ-aware (unlike the ML `compute_inbreeding`). There is no nominal fast
    path; see pedigree-graph ADR 0005.
 
 The recurrence costs roughly `O(requested pairs + distinct ancestor-pairs
-reached)` — far below the full-matrix build it replaced, which materialized a
+reached)`, far below the full-matrix build it replaced, which materialized a
 near-dense `K` (≈53M nonzeros at 16K individuals) and OOM'd on large pedigrees.
-The honest worst case is `O(P · A²)` in the max distinct-ancestor count `A`;
+The worst case is `O(P · A²)` in the max distinct-ancestor count `A`;
 deeply inbred / high-overlap pedigrees are out of scope for the scaling
 guarantee.
 
@@ -106,7 +106,7 @@ The coancestry-rate Ne estimator (`ne_coancestry`, `Ne_C`) needs only the
 per-generation mean kinship `θ̄_g`, not the full sparse `K`.
 `PedigreeGraph.per_gen_mean_kinship(min_kinship=0.0)` streams `θ̄_g`
 directly from the kinship DP without materializing `K`'s CSC arrays.
-This is the path `compute_all_ne` uses whenever Ne_C runs at all — that
+This is the path `compute_all_ne` uses whenever Ne_C runs at all, that
 is, when a scenario sets `analysis.skip_ne_coancestry: false`.
 
 The streaming traversal walks each row of the DP's ascending-col-sorted
@@ -123,10 +123,10 @@ entirely so only the seven non-coancestry Ne estimators run; set it to
 
 The simulation is conceptually split into four stages, plus downstream analysis:
 
-1. **Simulate** -- generate multi-generational pedigree with ACE liability components
-2. **Phenotype** -- map liability to age-of-onset via time-to-event models
-3. **Censor** -- apply age-window and competing-risk mortality censoring
-4. **Ascertainment** -- unified random dropout + case-weighted `N_sample` selection (per [ADR 0001](../adr/0001-unified-ascertainment-stage.md))
+1. **Simulate**: generate multi-generational pedigree with ACE liability components
+2. **Phenotype**: map liability to age-of-onset via time-to-event models
+3. **Censor**: apply age-window and competing-risk mortality censoring
+4. **Ascertainment**: unified random dropout + case-weighted `N_sample` selection (per [ADR 0001](../adr/0001-unified-ascertainment-stage.md))
 
 Followed by: validation (on the full pre-ascertainment pedigree), summary statistics, model fitting, and plotting.
 

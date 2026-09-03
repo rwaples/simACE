@@ -1,4 +1,4 @@
-# Project Structure
+# Project structure
 
 ## Repository layout
 
@@ -128,7 +128,7 @@ simACE/
 
 Five repos, all under `rwaples/` on GitHub. simACE is the umbrella working
 directory; fitACE and its nested fitACE_epimight are checkouts inside it
-(gitignored from simACE — no submodules). Since ADR 0017, fitACE is a
+(gitignored from simACE, no submodules). Since ADR 0017, fitACE is a
 monorepo: the method packages, the `ace_iter_reml` C++ source, and the
 `tetraher_simace` LDAK fork live in subdirectories of `./fitACE/` rather than
 in separate repos.
@@ -143,4 +143,4 @@ in separate repos.
 
 Each nested repo has its own `origin` wired to the matching GitHub repo.
 Build artifacts (`build-fp*/`, `ldak6.2.simace`, Stan binaries) are
-gitignored — rebuild from source.
+gitignored. Rebuild from source.

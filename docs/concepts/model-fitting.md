@@ -1,4 +1,4 @@
-# Model Fitting
+# Model fitting
 
 The [`fitACE`](https://github.com/rwaples/fitACE) package handles
 statistical model fitting on simulated data. This page provides
@@ -20,9 +20,9 @@ Continuous liabilities are mapped to observable affected status and age-of-onset
 
 Two censoring layers mimic real-world data limitations:
 
-1. **Age-window censoring** -- per-generation observation intervals `[left, right]`.
+1. **Age-window censoring**: per-generation observation intervals `[left, right]`.
    Events before `left` are left-truncated; events after `right` are right-censored.
-2. **Competing-risk mortality** -- death age drawn from a Weibull distribution,
+2. **Competing-risk mortality**: death age drawn from a Weibull distribution,
    independent of disease liability. Individuals who die before onset are death-censored.
 
 The combined effect: only a fraction of true cases are observed as affected.
@@ -33,19 +33,19 @@ The pipeline can restrict the observed analysis dataset via a unified
 **ascertainment** stage (see [ADR 0001](../adr/0001-unified-ascertainment-stage.md))
 that combines three knobs in two explicit steps (dropout → case-weighted draw):
 
-- **Dropout** (`dropout_rate`) -- uniform random removal of individuals from
+- **Dropout** (`dropout_rate`): uniform random removal of individuals from
   the pedigree; severs parent/twin references to removed IDs
-- **Case ascertainment** (`case_ascertainment_ratio`) -- weights cases (vs
+- **Case ascertainment** (`case_ascertainment_ratio`): weights cases (vs
   controls) during the `N_sample` draw
-- **Subsample size** (`N_sample`) -- target size of the post-ascertainment
+- **Subsample size** (`N_sample`): target size of the post-ascertainment
   analysis dataset; pass-through when `0` or `>= post-dropout pool`
 
 ## Heritability estimation
 
 The simulation validates several heritability estimation approaches:
 
-- **Falconer's $h^2$** -- from tetrachoric correlations between MZ and DZ twins
-- **Tetrachoric correlations** -- by relationship type and generation
-- **Weibull frailty MLE** -- pairwise survival-time correlation via Gauss-Hermite quadrature
-- **EPIMIGHT** -- external R package for heritability from family data
-- **PA-FGRS** -- polygenic risk scores from family history
+- **Falconer's $h^2$**: from tetrachoric correlations between MZ and DZ twins
+- **Tetrachoric correlations**: by relationship type and generation
+- **Weibull frailty MLE**: pairwise survival-time correlation via Gauss-Hermite quadrature
+- **EPIMIGHT**: external R package for heritability from family data
+- **PA-FGRS**: polygenic risk scores from family history

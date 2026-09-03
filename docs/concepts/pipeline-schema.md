@@ -1,6 +1,6 @@
-# Pipeline Schema
+# Pipeline schema
 
-The pipeline is a chain of stages — `simulate → phenotype → censor → ascertainment → analyze` — each handing off a `polars.DataFrame` or parquet file to the next (Polars-only at stage boundaries, ADR 0015). The columns expected at each handoff are a contract: every stage relies on its predecessor's column names by convention, and a downstream stage will fail far from the rename that broke it unless the contract is explicit.
+The pipeline is a chain of stages, `simulate → phenotype → censor → ascertainment → analyze`, each handing off a `polars.DataFrame` or parquet file to the next (Polars-only at stage boundaries, ADR 0015). The columns expected at each handoff are a contract: every stage relies on its predecessor's column names by convention, and a downstream stage will fail far from the rename that broke it unless the contract is explicit.
 
 simACE now has two related schema layers:
 
@@ -11,7 +11,7 @@ Extra columns are permitted by the low-level schema checker unless a hydration c
 
 ## Pedigree schema
 
-### `PEDIGREE` — output of `run_simulation`
+### `PEDIGREE`: output of `run_simulation`
 
 | Column | Kind |
 |---|---|
@@ -29,14 +29,14 @@ Trait-family parquet files store only trait outcomes. Pedigree links,
 demography, ACE components, household IDs, and liabilities live in the
 corresponding pedigree parquet and are joined explicitly when needed.
 
-### `RAW_TRAIT` — `trait.raw.parquet`
+### `RAW_TRAIT`: `trait.raw.parquet`
 
 | Column | Kind |
 |---|---|
 | `id` | `iu` |
 | `t1`, `t2` | `f` |
 
-### `CENSORED_TRAIT` — `trait.full.parquet` and `trait.parquet`
+### `CENSORED_TRAIT`: `trait.full.parquet` and `trait.parquet`
 
 | Column | Kind |
 |---|---|
