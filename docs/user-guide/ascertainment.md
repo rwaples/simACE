@@ -1,88 +1,93 @@
 # Ascertainment
 
-The pipeline can shrink and bias the simulated population to mimic
-real-world data limitations through a single **ascertainment** stage that runs
-after censoring (per [ADR 0001](../adr/0001-unified-ascertainment-stage.md)).
-The stage has two knobs, a uniform `dropout_rate` and a trait-weighted
-`case_ascertainment_ratio`, plus a target sample size `N_sample`. It writes
-the canonical `pedigree.parquet` / `trait.parquet` that downstream stats
-and fitACE consume.
+Real registries do not hold the whole population, and case-control studies
+oversample cases. The ascertainment stage reproduces both effects. It runs
+after censoring and writes the `pedigree.parquet` and `trait.parquet` that the
+analyze stage and fitACE read. [ADR 0001](../adr/0001-unified-ascertainment-stage.md)
+records why the two effects share one stage.
 
-For a worked example showing how dropout and case-weighted sampling change the
-analysis dataset, see [When the study sample is not the population](../examples/ascertainment-bias.md).
+The stage takes three parameters, all under `ascertainment:` in the scenario
+config. [Configuration](configuration.md#ascertainment-and-analysis) lists them
+with their defaults. The worked example
+[When the study sample is not the population](../examples/ascertainment-bias.md)
+shows what they do to the estimates.
 
-## Algorithm
+## Why two steps on IDs
 
-Two explicit steps applied to IDs (not weights, which would silently cancel
-under a fixed-size weighted draw):
+The stage removes individuals in two steps, and both steps act on individual
+IDs rather than on sampling weights. A single weighted draw of fixed size
+cannot express uniform dropout: the dropout weight would cancel out of the
+normalised probabilities.
 
-1. **Uniform pedigree dropout.** The stage removes `round(N_total * dropout_rate)`
-   individuals uniformly at random from the full pedigree and sets any
-   `mother` / `father` / `twin` reference pointing to a dropped ID to −1.
-2. **Case-weighted N_sample draw** from the post-dropout *trait* pool. Weights
-   are `case_ascertainment_ratio` for cases and `1` for controls; when
-   `N_sample <= 0` or `>= len(post-dropout trait)`, everything passes through.
+1. **Dropout.** The stage removes `round(N_total * dropout_rate)` individuals
+   uniformly at random from the full pedigree. Any `mother`, `father`, or
+   `twin` reference to a removed individual becomes -1.
+2. **Case-weighted draw.** From the post-dropout phenotyped rows, the stage
+   draws `N_sample` individuals without replacement. A case, meaning
+   `affected1` is true, has weight `case_ascertainment_ratio`. A control has
+   weight 1. If `N_sample` is 0 or at least the pool size, every individual
+   passes through.
 
-The sampled IDs select the rows of `trait.parquet`. The pedigree output is the
-**ancestor closure** of the sampled IDs within the post-dropout pedigree, with
-dangling parent / twin references rewritten to −1. Validation (`validate_*`) is unaffected. It continues to consume
-`pedigree.full.parquet`, the pre-ascertainment full pedigree.
+The drawn IDs become the rows of `trait.parquet`. The pedigree output is the
+ancestor closure of those IDs within the post-dropout pedigree, again with
+dangling references set to -1.
 
-## Config
+Validation is not affected. It reads `pedigree.full.parquet`, the pedigree
+before ascertainment.
 
-```yaml
-ascertainment:
-  N_sample: 0                      # 0 = pass everything through
-  case_ascertainment_ratio: 1      # 1 = uniform; >1 enriches cases
-  dropout_rate: 0                  # 0 = no uniform dropout
-```
+## What dropout breaks
 
-## Dropout (`dropout_rate`)
+Dropout ignores trait status, sex, generation, and pedigree position. It
+models an incomplete registry.
 
-Removes individuals uniformly at random. Independent of trait status, sex,
-generation, or pedigree position. Models registry incompleteness or random
-ascertainment failure.
+Because dropout severs parent and twin pointers, any relationship that passes
+through a removed individual disappears. A grandparent and grandchild whose
+connecting parent was dropped are unrelated in the output. Full siblings whose
+mother was dropped become paternal half-siblings, because only the father link
+survives.
 
-Pre-configured dropout scenarios are in `config/ascertainment.yaml`:
-`baseline100K_dropout10` (10 %), `baseline100K_dropout30` (30 %),
-`baseline100K_dropout50` (50 %).
+`config/ascertainment.yaml` defines three ready-made scenarios,
+`baseline100K_dropout10`, `baseline100K_dropout30`, and
+`baseline100K_dropout50`, at 10, 30, and 50 percent dropout.
 
-Dropout severs parent and twin pointers. Multi-hop relationships through a
-removed individual, such as grandparent-grandchild via a dropped parent, become
-undetectable. Former full-sib pairs whose shared parent was dropped are
-reclassified as half-sibs.
+## What case weighting does
 
-## Case ascertainment (`case_ascertainment_ratio`)
+With 10 percent prevalence and a ratio of 5, a case is five times as likely
+to be drawn as a control, and about 36 percent of the sample are cases.
 
-When `case_ascertainment_ratio != 1` and `N_sample > 0`, the sample draw
-uses weights `case_ascertainment_ratio` for cases (`affected1 == True`) vs `1`
-for controls. With 10 % population prevalence and
-`case_ascertainment_ratio: 5`, a case is 5× more likely to be drawn than a
-control, yielding ~36 % cases in the sample.
+The stage handles the edge cases as follows.
 
-Edge cases:
+- A ratio of 1, the default, is a uniform draw.
+- A ratio of 0 draws controls only. If fewer controls exist than `N_sample`,
+  the stage lowers `N_sample` to the number of controls and logs a warning. If
+  the pool holds no controls at all, the stage raises an error instead of
+  drawing nobody.
+- If the pool holds no cases, or only cases, the ratio has no effect. The stage
+  logs a warning and draws uniformly.
+- If `N_sample` is 0, no draw happens, so the ratio has no effect. The stage
+  logs a warning when the ratio is not 1.
 
-- **ratio = 0**: only controls are sampled; `N_sample` is clamped to the number
-  of available controls
-- **ratio = 1** (default): uniform sampling (fast path)
-- **0 cases or all cases**: falls back to uniform with a warning
-- **N_sample = 0 with ratio != 1**: warning logged; ratio has no effect because
-  no draw happens
-- **Extreme ratios**: warns if >90 % of total cases would be expected in the sample
+The analyze stage copies the ratio into `report.yaml` under
+`inputs.ascertainment`. It applies no correction to any estimate. The point of
+the stage is to measure the bias, not to remove it.
 
-Analyze records the ratio in the per-rep `report.yaml` when it is not 1. No
-correction is applied to downstream estimates, because the purpose is to study
-the bias.
+## Which relationships survive
 
-## Relationship recovery after ascertainment
+The output pedigree is the ancestor closure of the sample, so most
+relationships between two sampled individuals remain visible through intact
+parent links. `PedigreeGraph`, in the external pedigree-graph package, finds
+them as follows.
 
-The output `pedigree.parquet` is the ancestor closure of sampled IDs, so most
-within-sample relationships are recoverable through intact parent edges. The
-relationship extraction code in `PedigreeGraph` uses two strategies:
-
-| Relationship type | How it works with ascertained data |
-|---|---|
-| **Siblings** (full, maternal HS, paternal HS) | Classified using the *original* `mother` / `father` parent IDs stored in the row, not via row-index walks. Two sampled individuals are detected as siblings if their parent IDs match, even if the parent itself isn't in the closure. |
-| **Parent-offspring** | Detected when a parent is in the closure (its ID maps to a valid row). Each parent link is independent, so a child with only its mother in the closure still yields a mother-offspring pair. |
-| **Grandparent-grandchild, avuncular, cousins, 2nd cousins** | Detected via sparse matrix products on parent→child edges. Ancestor closure ensures that grandparents (and great-grandparents for 2nd cousins) of sampled individuals are in the pedigree when reachable through intact edges. |
-| **MZ twin** | Detected when both twins are in the sample; the closure-only fixup pass severs twin pointers whose partner is not in the closure. |
+- **Siblings.** Grouped by the `mother` and `father` IDs stored on each row,
+  not by walking to a parent row. Two sampled individuals with matching parent
+  IDs are siblings even when the parent is outside the closure. Full-sibling
+  detection needs both parent IDs. Half-sibling detection needs one.
+- **Parent and offspring.** Found when the parent is in the closure. Each
+  parent link counts on its own, so a child whose mother alone is in the
+  closure still yields a mother-offspring pair.
+- **Grandparents, avuncular pairs, cousins, and second cousins.** Found by
+  sparse matrix products over parent-to-child edges. The ancestor closure
+  keeps grandparents and great-grandparents of sampled individuals whenever
+  an intact edge reaches them.
+- **MZ twins.** Found when both twins are in the sample. The closure step
+  severs a twin pointer whose partner is outside the closure.

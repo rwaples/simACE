@@ -1,322 +1,73 @@
 # Interpreting results
 
-The pipeline produces diagnostic and summary plots organised into five categories.
-All per-scenario plots are generated from pre-computed per-replicate statistics and
-downsampled data (capped at 100,000 points) to avoid loading full phenotype files at
-plot time. Per-scenario plots are compiled into a self-contained HTML atlas (with a
-PDF atlas available on demand).
-
-!!! tip "Regenerating plots"
-    Force-rebuild a scenario's atlas (HTML is the default; pass `.pdf` for the export):
-    ```bash
-    pixi run snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.html
-    ```
-
-## Reading the atlas
-
-Start with these checks before diving into individual plot details:
-
-| Check | What to look at | Why it matters |
-|---|---|---|
-| Pedigree structure | `pedigree_counts.*`, `family_structure.*` | Confirms the simulated relationship mix, family sizes, and sampling/dropout shape |
-| Liability structure | `cross_trait.*`, `heritability.by_generation.*` | Confirms the realized A/C/E components and cross-trait liability correlations |
-| Phenotype separation | `liability_violin.phenotype.*`, `liability_components.by_generation.*` | Shows whether affected individuals are enriched for higher liability as expected |
-| Incidence and censoring | `cumulative_incidence.*`, `censoring.*`, `censoring_cascade.*` | Separates true event-time behavior from age-window and death censoring effects |
-| Familial signal | `tetrachoric.phenotype.*`, `parent_offspring_liability.by_generation.*` | Shows whether observed familial correlations track the latent liability structure |
-| Validation summaries | Folder-level validation plots | Compares observed simulation metrics to configured or theoretical expectations across scenarios |
-
-The sections below describe each plot in detail. Use the table above for
-routine checks.
-
----
-
-## Distribution plots
-
-Source: [`simace.plotting.plot_distributions`](../api/plotting.md#plot_distributions).
-Generated for Weibull frailty phenotypes.
-
-### Mortality (`mortality.png`)
-
-Four-panel figure (14 $\times$ 9 in). The left column summarises the mortality process; the right column shows the death-age distributions moved out of the age-at-onset figure.
-
-**Left column, mortality by decade.**
-
-- **Top panel**: Per-decade mortality rate (deaths in decade / alive at start of decade), averaged across replicates.
-- **Bottom panel**: Cumulative mortality $F(t) = 1 - \prod_{d \leq t}(1 - r_d)$.
-- **Text annotations**: Above each cumulative-mortality bar, survival probability $S = 1 - F(t)$ formatted as "S=0.XX".
-
-**Right column, death-censored unaffected individuals.**
-
-- **Histograms**: Density histograms of observed death age for individuals with $\delta = 0$ and death-censored = True, shown separately for traits 1 and 2.
-
-### Age-at-onset histograms (`age_at_onset_death.png`)
-
-Two-panel figure (14 $\times$ 5 in), one panel per trait.
-
-- **Histogram**: Density histogram (50 bins) of observed time-to-event (`t_observed`) for individuals with $\delta = 1$. Orange fill, black edges.
-- **Title**: "Trait $k$: age at onset (affected)".
-
-### Liability vs. age-at-onset (`trait_regression.png`)
-
-Side-by-side joint plots (16 $\times$ 7 in), one per trait. Each joint plot has:
-
-- **Central scatter**: Liability ($x$) vs. observed age-at-onset ($y$) for affected individuals. Translucent blue points ($\alpha = 0.05$, size 3, rasterised).
-- **Regression line**: Orange (`C3`) line from pre-computed slope and intercept, averaged across replicates.
-- **$R^2$ annotation**: Upper-left corner, "R$^2$ = X.XXXX".
-- **Marginal histograms**: Top (liability) and right (age-at-onset), 50 bins, no edges.
-- **Panel title**: "Trait $k$".
-
-### Cumulative incidence curves (`cumulative_incidence.png`)
-
-Two-panel figure (14 $\times$ 5 in), shared $y$-axis, one panel per trait.
-
-- **Blue solid line** ("Observed"): Mean cumulative incidence from censored data across replicates, with shaded min-max band when $>1$ replicate.
-- **Grey solid line** ("True"): Mean cumulative incidence from uncensored event times, with shaded band.
-- **Grey dashed crosshairs**: Horizontal line at half the observed lifetime prevalence; vertical line at the age when 50% of lifetime cases have occurred. An orange dot (`C3`) marks the intersection.
-- **Arrow annotation**: "50% of cases by age $X$" pointing to the crosshair intersection.
-- **Text box** (upper-left, white background): "Affected: $X.X$%", "True prev: $X.X$%", "Censored: $X.X$%".
-- **Legend**: Lower-right, showing "True" (grey) and "Observed" (blue) line styles.
-
-### Censoring windows by generation (`censoring_windows.png`)
-
-Grid of panels: rows = traits ($\times 2$), columns = generations ($\times N$). Panel size $5N \times 8$ in.
-
-- **Grey solid line** ("True"): True cumulative incidence within this generation, with grey fill to baseline.
-- **Blue solid line** ("Observed"): Observed cumulative incidence, with blue fill. Min-max bands across replicates when $>1$ rep.
-- **Text box** (upper-left, white background): "Affected: $X.X$%", "Left-cens: $X.X$%", "Right-cens: $X.X$%", "Death-cens: $X.X$%".
-- **Column titles**: "Gen $g$" with observation window annotation "[lo, hi]" when available.
-- **Row labels**: "Trait $k$ / Cumulative Incidence".
-- **Legend** (top-right panel): Grey = True, Blue = Observed.
-
----
-
-## Liability plots
-
-Source: [`simace.plotting.plot_liability`](../api/plotting.md#plot_liability).
-Generated for Weibull frailty phenotypes.
-
-### Cross-trait liability joint plots (`liability_joint.png`)
-
-$2 \times 2$ grid of joint plots (14 $\times$ 12 in). Panels: Liability, $A$ (Additive genetic), $C$ (Common environment), $E$ (Unique environment).
-
-- **Central scatter**: Trait 1 ($x$) vs. Trait 2 ($y$) for the given component. Blue points ($\alpha = 0.05$, size 3, rasterised).
-- **Marginal histograms**: Top and right, 50 bins, semi-transparent.
-- **Pearson $r$ annotation**: Upper-left of scatter, "r = X.XXXX".
-- **Axis labels**: "$\text{Component}$ (Trait 1)" and "$\text{Component}$ (Trait 2)".
-
-### Liability joint plots coloured by affection (`liability_joint_affected.png`)
-
-Same $2 \times 2$ layout as above, but with affection-status colouring based on trait 1:
-
-- **Blue points** ($\alpha = 0.03$): Unaffected individuals.
-- **Orange points** ($\alpha = 0.15$, `C3`): Affected individuals (trait 1).
-- **Marginal histograms**: Stacked blue (unaffected) and orange (affected).
-- **Figure legend** (upper-right): Circle markers labelled "Unaffected" (blue) and "Affected (T1)" (orange).
-- **Pearson $r$ annotation**: Same as above.
-
-### Liability violin plots by affection status (`liability_violin.png`)
-
-Single figure (8 $\times$ 6 in) with split violins.
-
-- **Split violins**: One per trait ($x$-axis). Left half = unaffected, right half = affected (coloured by seaborn hue).
-- **Diamond markers** ($\blacklozenge$, black): Mean liability for each group, positioned slightly left (unaffected) or right (affected) of centre.
-- **Text annotations**: "$\mu = X.XX$" next to each diamond.
-- **Prevalence annotations**: Below each trait, "Prevalence: $X.X$%" in italic.
-- **Legend**: Seaborn-generated hue legend for Affected True/False.
-
-### Liability violin plots by generation (`liability_violin_by_generation.png`)
-
-Grid: rows = traits ($\times 2$), columns = recorded generations. Size $4N \times 8$ in.
-
-- **Split violins**: Affected vs. unaffected within each generation, trimmed at data range (`cut=0`).
-- **Diamond markers and $\mu$ annotations**: Same as above, per panel.
-- **x-axis label per panel**: "prev: $X.X$%" showing observed generation-specific prevalence.
-- **Column titles**: "Gen $g$ (oldest)" for the first column, "Gen $g$ (youngest)" for the last.
-- **Legend**: Upper-right panel only.
-
-### Joint affection heatmap (`joint_affection.png`)
-
-Single figure (7 $\times$ 6 in).
-
-- **$2 \times 2$ heatmap** (Blues colourmap): Rows = Trait 2 (Affected/Unaffected), Columns = Trait 1 (Affected/Unaffected).
-- **Cell annotations**: Two-line labels showing proportion ("0.XX") and count ("(n=XXXXX)").
-- **Colour bar**: Right side, labelled "Proportion".
-- **Title**: "Joint Affected Status (Weibull) [$\text{scenario}$]" with subtitle showing:
-    - `r_tet = X.XXX`: tetrachoric correlation on censored binary affected status.
-    - `r_weibull = X.XXX`: cross-trait liability correlation estimated from uncensored Weibull survival data (oracle reference).
-    - `(stratified: X.XXX)`: generation-stratified Weibull estimate. Computes per-generation cross-trait correlations and combines via inverse-variance weighting ($\hat{r} = \sum w_g r_g / \sum w_g$ where $w_g = 1/\text{SE}_g^2$). This reduces bias from heterogeneous censoring across generations.
-    - `(naive: X.XXX)`: unweighted pooled censored Weibull estimate for comparison (biased when censoring varies by generation). All values averaged across replicates.
-
----
-
-## Correlation plots
-
-Source: [`simace.plotting.plot_correlations`](../api/plotting.md#plot_correlations).
-Generated for Weibull frailty phenotypes.
-
-### Tetrachoric correlations by relationship type (`tetrachoric_sibling.png`)
-
-Two-panel figure (16 $\times$ 6 in), one per trait. $y$-axis range: $[-0.1, 1.1]$.
-
-- **Coloured violins**: Distribution of tetrachoric correlations (computed from censored binary affected status) across replicates, one per relationship type (as labelled on the x-axis). These represent the correlations estimable from observed data after censoring.
-- **Black dots**: Individual per-replicate tetrachoric correlation estimates, jittered horizontally ($\pm 0.08$).
-- **Black dashed horizontal segments**: Mean Pearson liability correlation for each pair type (averaged across replicates). This is the ground-truth correlation computed directly on the continuous latent liability values, serving as the theoretical reference.
-- **Green dash-dot horizontal segments** (when available): Mean uncensored Weibull pairwise survival-time correlation. This shows what the correlation would be without censoring distortion.
-- **Pair count annotations**: "N=$X$" above each violin (mean pairs per replicate).
-- **Legend** (upper-right): "Liability r" (black dashed), "Weibull r (uncensored)" (green dash-dot, when present).
-- **x-axis labels**: Relationship type names, rotated 15$^\circ$.
-
-The gap between the violins and the black dashed lines reflects attenuation due to censoring and the dichotomization inherent in the tetrachoric estimate. The green dash-dot lines show the intermediate effect of censoring alone (before dichotomization).
-
-### Tetrachoric correlations by generation (`tetrachoric_by_generation.png`)
-
-Grid: rows = traits ($\times 2$), columns = generations. Size $5N \times 10$ in.
-
-- **Violins, dots, dashed segments, pair counts**: Same encoding as above (violins = observed tetrachoric correlations, black dashed = true liability correlations, dots = per-replicate estimates), but computed within each generation separately.
-- **x-axis labels**: Relationship type names, rotated 30$^\circ$, smaller font.
-- **Column titles**: "Gen $g$".
-- **Legend** (upper-right of top-right panel): "Liability r" (black dashed).
-
-### Parent-offspring liability regressions (`parent_offspring_liability.png`)
-
-Grid: rows = traits ($\times 2$), columns = last 3 non-founder generations. Size $5N \times 8$ in.
-
-- **Scatter**: Midparent liability ($x$) vs. offspring liability ($y$). Blue points ($\alpha = 0.15$, size 3, rasterised).
-- **Orange regression line** (`C3`): Least-squares fit through the scatter, linewidth 2.
-- **Text box** (upper-left, white background): "r = X.XXX" (Pearson correlation, averaged across replicates) and "n = XXXXX" (mean pair count).
-- **Column titles**: "Gen $g$".
-- **Row labels**: "Trait $k$ / Offspring Liability" ($y$-axis), "Midparent Liability" ($x$-axis, bottom row only).
-
-### Additive genetic and common environment by generation (`heritability.by_generation.png`)
-
-$1 \times 2$ figure (10 $\times$ 5 in), one panel per trait.
-
-- **Blue points/line**: Per-replicate and mean $\text{Var}(A) / \text{Var}(L)$ for each generation. This is the narrow-sense liability-scale heritability $h^2$.
-- **Orange points/line**: Per-replicate and mean $\text{Var}(C) / \text{Var}(L)$ for each generation.
-- **Dashed lines**: Configured $A_k$ and $C_k$ parameters, shown in the matching series colour.
-- **$y$-axis**: $[0, 1]$, labelled variance proportion over total liability variance.
-- **$x$-axis**: Generation number.
-
-Stable A and C proportions across generations confirm that the simulation maintains the ACE variance decomposition. Showing A and C separately avoids hiding shifts in C behind an $A + C$ broad-sense summary.
-
-Source: [`simace.plotting.plot_heritability`](../api/plotting.md#plot_heritability).
-Data from `report.yaml` -> `truth` -> `recorded_pedigree` -> `traits` -> `trait{N}` -> `realized_by_generation`.
-
----
-
-## Observed binary trait
-
-Binary case/control status lives in `trait.parquet` as the `affected1` /
-`affected2` columns, derived by the configured phenotype model and censoring.
-For a pure liability-threshold trait, select the `simple_ltm` phenotype model
-(see [Phenotype models](phenotype-models.md)). The fit-side descriptive binary
-statistics (prevalence-by-generation, tetrachoric correlations, Falconer h²)
-are computed from `trait.parquet` by fitACE's observed-binary outputs.
-
----
-
-## Validation summary plots
-
-Source: [`simace.plotting.plot_validation`](../api/plotting.md#plot_validation).
-Generated from `report_summary.tsv` across all scenarios in a folder. Seaborn "whitegrid" theme with "Set2" palette.
-
-All strip plots share a common encoding:
-
-- **Blue dots** (`C0`, $\alpha = 0.7$, jitter 0.15): Per-replicate observed values, one column per scenario on the $x$-axis.
-- **Orange dash markers** (`C1`, `_` marker, size 200, linewidth 3): Expected value from configuration or theory, one per scenario.
-- **$x$-axis labels**: Rotated 45$^\circ$ when $>4$ scenarios.
-
-### Variance components (`variance_components.png`)
-
-$2 \times 3$ grid (width scales with scenario count, height 10 in). Rows = traits 1 and 2. Columns = $A$, $C$, $E$.
-
-- **Blue dots**: Observed founder-generation variance for each component.
-- **Orange dashes**: Configured variance parameter.
-- **$y$-axis**: "Variance Proportion".
-
-### Twin rate (`twin_rate.png`)
-
-Single panel (width scales, height 5 in).
-
-- **Blue dots**: Observed MZ twin individual rate per replicate.
-- **Orange dashes**: Configured `p_mztwin`.
-- **$y$-axis**: "Twin Rate".
-- **Title**: "MZ Twin Rate: Observed vs Expected".
-
-### A-component correlations (`correlations_A.png`)
-
-$2 \times 2$ grid.
-
-- **Panel 1**: MZ twin $A_1$ correlation. Expected = 1.0.
-- **Panel 2**: DZ (full-sibling) $A_1$ correlation. Expected = 0.5.
-- **Panel 3**: Half-sibling $A_1$ correlation. Expected = 0.25.
-- **Panel 4**: Midparent-offspring $A_1$ $R^2$. Expected = 0.5.
-
-Each panel: blue dots + orange dashes + orange dashed horizontal reference line at the expected value.
-
-### Phenotype (liability) correlations (`correlations_phenotype.png`)
-
-$2 \times 2$ grid. Expected values are computed per-scenario from configured variance components:
-
-- **Panel 1**: MZ twin liability$_1$ correlation. Expected = $A_1 + C_1$.
-- **Panel 2**: DZ sibling liability$_1$ correlation. Expected = $0.5 A_1 + C_1$.
-- **Panel 3**: Half-sibling liability$_1$ correlation. Expected = $0.25 A_1$.
-- **Panel 4**: Midparent-offspring liability$_1$ slope. Expected = $A_1$.
-
-Blue dots + orange dashes (scenario-specific expected, computed from config).
-
-### Heritability estimates (`heritability_estimates.png`)
-
-$2 \times 2$ grid. Rows = traits 1 and 2. Columns = estimation method.
-
-- **Left**: Falconer's $\hat{h}^2$ vs. configured $A_k$.
-- **Right**: Midparent-offspring liability slope vs. configured $A_k$.
-
-Blue dots + orange dashes.
-
-### Half-sibling proportions (`half_sib_proportions.png`)
-
-$1 \times 2$ figure.
-
-- **Left panel**: Observed maternal half-sibling pair proportion. Orange dashes at expected $1 - (1 - p_{\text{nonsocial}})^2$.
-- **Right panel**: Proportion of offspring with at least one half-sibling (no expected reference).
-
-### Cross-trait correlations (`cross_trait_correlations.png`)
-
-$1 \times 3$ figure.
-
-- **Panel 1**: Observed $r_A$ vs. configured `rA`. Blue dots + orange dashes.
-- **Panel 2**: Observed $r_C$ vs. configured `rC`. Blue dots + orange dashes.
-- **Panel 3**: Observed $r_E$. No configured expected; orange dashed horizontal line at 0 (theoretical independence).
-
-### Family size (`family_size.png`)
-
-Single panel (width scales, height 5 in).
-
-- **Blue dots** (left-offset): Mean offspring per mother (among mothers with $\geq 1$ child).
-- **Orange dots** (`C3`, right-offset): Mean offspring per father (among fathers with $\geq 1$ child).
-- **Orange dashes** (centred): Expected ~2.0 (N / n_mothers for balanced sex ratio).
-- **Legend**: "Mother" (blue circle), "Father" (orange circle), "Expected mean offspring" (orange dash).
-
-### Summary bias (`summary_bias.png`)
-
-$2 \times 3$ grid.
-
-- **Strip plots**: Observed $-$ expected for six metrics: $A_1$ bias, $C_1$ bias, $E_1$ bias, twin rate bias, DZ $A_1$ correlation bias (vs. 0.5), half-sibling $A_1$ correlation bias (vs. 0.25).
-- **Red dashed horizontal line**: Reference at 0 (no bias).
-- **$y$-axis**: Bias (observed $-$ expected).
-
-### Runtime (`runtime.png`)
-
-Single log-log scatter (8 $\times$ 6 in).
-
-- **Coloured dots**: One per replicate, coloured by scenario (Set2 palette). $x$ = population size $N$, $y$ = simulation wall-clock seconds.
-- **Axes**: Log-scale with scalar (non-scientific) tick formatting.
-- **Legend**: Scenario names.
-
-### Memory usage (`memory.png`)
-
-Single log-log scatter (8 $\times$ 6 in).
-
-- **Coloured dots**: Same encoding as Runtime. $y$ = peak resident set size (MB).
-- **Legend**: Scenario names.
+Each scenario produces one atlas, `results/{folder}/{scenario}/plots/atlas.html`,
+and each folder produces a validation atlas, `results/{folder}/plots/atlas.html`.
+This page tells you which figures to check first and what a healthy scenario
+looks like. The [Plot catalog](plot-catalog.md) lists every figure with its
+caption.
+
+The analyze stage computes the statistics behind the plots once per replicate
+and stores them in `report.yaml` and `plot_payload.yaml`. The plotting rules
+read those files and a downsampled `plotting_sample.parquet`, never the full
+trait files.
+
+To rebuild an atlas after a plotting change, run:
+
+```bash
+pixi run snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.html
+```
+
+## Check a scenario atlas
+
+Open the six figures below in this order. Each name is the file basename in
+the scenario `plots/` directory.
+
+1. **`pedigree_counts.ped` and `family_structure`.** Confirm that the
+   relationship pair counts and family sizes match what you configured. A
+   scenario with dropout or `N_sample` shows the reduced counts in
+   `pedigree_counts`, the phenotyped-population version.
+2. **`heritability.by_generation`.** The blue and orange points sit on their
+   dashed lines in every generation. A drift across generations means the
+   simulation is not holding the configured A and C.
+3. **`cross_trait`.** The Pearson r in each panel matches the configured
+   `rA`, `rC`, and `rE`. The liability panel matches their variance-weighted
+   sum.
+4. **`liability_violin.phenotype`.** The affected half of each violin sits
+   above the unaffected half. If the two halves overlap fully, the phenotype
+   model is not using liability.
+5. **`cumulative_incidence.phenotype` and `censoring`.** The observed curve
+   lies below the true curve, and the gap is explained by the censoring
+   percentages in the text box. A gap that grows in the oldest generations
+   comes from death censoring. A gap only in the youngest generation comes
+   from the right end of its observation window.
+6. **`tetrachoric.phenotype`.** The violins sit below the black dashed
+   liability correlation and above zero, in the same rank order across
+   relationship types. The gap between a violin and its dashed line is the
+   cost of censoring plus dichotomization. The green dash-dot line, when
+   present, shows how much of that gap is censoring alone.
+
+## Check a validation atlas
+
+The validation atlas compares every scenario in a folder to its configured or
+theoretical expectation. In each strip plot, blue dots are per-replicate
+observed values and orange dashes are the expected value.
+
+1. **`variance_components`.** Every dot sits on its dash. This is the first
+   thing to look at after changing the simulator.
+2. **`correlations_A` and `correlations_phenotype`.** MZ, full-sibling,
+   half-sibling, and parent-offspring correlations match `2 * kinship * A`
+   plus C where the pair shares a household. Under assortative mating, read
+   the purple marker instead of the orange dash.
+3. **`summary_bias`.** Every strip is centred on the red zero line. A strip
+   that sits to one side is the scenario to investigate.
+4. **`runtime` and `memory`.** Both scale roughly linearly with N on the
+   log-log axes. A point off the line is a scenario worth profiling.
+
+## Read the binary trait
+
+Case status lives in `trait.parquet` as `affected1` and `affected2`. The
+phenotype model and the censoring stage together decide it. For a trait that
+is a pure liability threshold, choose the `simple_ltm` model, described in
+[Phenotype models](phenotype-models.md). fitACE computes the descriptive
+statistics on case status, meaning prevalence by generation, tetrachoric
+correlations, and Falconer heritability, from `trait.parquet`.

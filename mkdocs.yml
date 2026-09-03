@@ -80,10 +80,12 @@ nav:
   - User guide:
       - Configuration: user-guide/configuration.md
       - Phenotype models: user-guide/phenotype-models.md
+      - Adding a phenotype model: user-guide/adding-a-phenotype-model.md
       - Running the pipeline: user-guide/running-the-pipeline.md
       - Ascertainment: user-guide/ascertainment.md
       - Output structure: user-guide/output-structure.md
       - Interpreting results: user-guide/interpreting-results.md
+      - Plot catalog: user-guide/plot-catalog.md
   - Concepts:
       - ACE model: concepts/ace-model.md
       - Simulation design: concepts/simulation-design.md

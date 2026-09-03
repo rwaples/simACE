@@ -1,46 +1,80 @@
 # Quick start
 
+In this tutorial we run the smallest scenario end to end, look at the files it
+writes, and open its plot atlas. It assumes you have finished the
+[Installation](installation.md).
+
 ## Run the smoke test
 
-Run the smallest scenario to confirm the pipeline is functional (this
-takes a minute or two):
+From the repository root, run:
 
 ```bash
 pixi run snakemake --cores 4 results/test/small_test/scenario.done
 ```
 
+Snakemake prints one block per rule as it runs. The run takes under a
+minute on a laptop. When it finishes, the log ends with the `scenario` rule
+and a step count at 100%:
+
+```
+Finished jobid: 0 (Rule: scenario)
+29 of 29 steps (100%) done
+```
+
 ## Check the output
 
+Now list the first replicate:
+
 ```bash
-ls results/test/small_test/rep1/    # pedigree.parquet, trait files, reports, params
+ls results/test/small_test/rep1/
+```
+
+You see `pedigree.parquet`, `trait.parquet`, `report.yaml`, and `params.yaml`,
+alongside other files and subdirectories. The
+[Output structure](../user-guide/output-structure.md) page describes each one.
+
+To read the simulation log, run:
+
+```bash
 cat logs/test/small_test/rep1/simulate.log
 ```
 
-A successful run produces these key files per replicate:
+## Open the atlas
 
-| File | What it contains |
-|---|---|
-| `pedigree.parquet` | Analysis pedigree: parent links, generation, sex, household IDs, ACE components, liabilities |
-| `trait.parquet` | Outcomes-only censored time-to-event traits (`id`, onset/censoring/affected columns) |
-| `report.yaml` | Curated v2 scientific report: `scopes`, `quality_checks`, `truth`, `observed`, `estimators` (dense plot arrays go to `plot_payload.yaml`) |
-| `params.yaml` | The resolved parameters for this replicate |
-
-## Explore the atlas
-
-Per-scenario plots are compiled into a self-contained HTML atlas (open it in any
-browser):
+Snakemake compiles the scenario's plots into one HTML file. Open it in a
+browser:
 
 ```
 results/test/small_test/plots/atlas.html
 ```
 
-A multi-page PDF atlas is available on demand. Build it with
-`pixi run snakemake --cores 4 results/test/small_test/plots/atlas.pdf`.
+To get a PDF instead, run:
 
-See [Interpreting results](../user-guide/interpreting-results.md) for descriptions of each plot.
+```bash
+pixi run snakemake --cores 4 results/test/small_test/plots/atlas.pdf
+```
+
+[Interpreting results](../user-guide/interpreting-results.md) describes each
+plot.
+
+## Run a full scenario
+
+The `scenario.done` target also builds the folder-wide `report_summary.tsv`,
+which needs every scenario in that folder. To build one scenario on its own,
+target its `stats.done` and its atlas. Dry-run first with `-n`:
+
+```bash
+pixi run snakemake -n --cores 4 results/base/baseline100K/stats.done results/base/baseline100K/plots/atlas.html
+pixi run snakemake --cores 4 results/base/baseline100K/stats.done results/base/baseline100K/plots/atlas.html
+```
+
+Scenario parameters live in `config/base.yaml`. Defaults live in
+`config/_default.yaml`. The scenario runs as shipped, with no edits.
 
 ## Next steps
 
-- [Configuration](../user-guide/configuration.md): customise scenarios and parameters
-- [Running the pipeline](../user-guide/running-the-pipeline.md): full pipeline usage
-- [Output structure](../user-guide/output-structure.md): complete file layout
+- [Configuration](../user-guide/configuration.md) explains how to change
+  scenarios and parameters.
+- [Running the pipeline](../user-guide/running-the-pipeline.md) lists every
+  target.
+- [Output structure](../user-guide/output-structure.md) lists every file.

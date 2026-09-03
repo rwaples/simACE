@@ -1,79 +1,71 @@
 # Running the pipeline
 
-## Snakemake basics
+Run every command from the repository root. The root `Snakefile` is the
+entry point, so do not pass `-s`.
 
-All commands are issued from the repository root directory. The root
-`Snakefile` is the entry point; the `-s` flag should not be used.
+## Choose a target
 
-```bash
-pixi run snakemake --cores 4    # 4 parallel jobs (use --cores 1 for debugging)
-```
+Every target is a file. Snakemake builds whatever that file depends on.
 
-## Dry run
-
-To preview what will be executed without running anything:
-
-```bash
-pixi run snakemake -n --cores 4
-```
-
-## Pipeline targets
-
-| Target | What it runs |
+| Target | What it builds |
 |---|---|
-| `pixi run snakemake --cores 4` | Everything (default: all scenarios, all stages) |
-| `results/{folder}/{scenario}/epimight.done` | EPIMIGHT heritability estimation |
-| `results/{folder}/{scenario}/scenario.done` | All stages for one scenario |
-| `results/{folder}/{scenario}/simulate.done` | Pedigree simulation only |
-| `results/{folder}/{scenario}/phenotype.done` | Simulation + phenotyping + ascertainment (produces `trait.parquet`) |
-| `results/{folder}/{scenario}/validate.done` | Simulation + validation + folder summaries |
-| `results/{folder}/{scenario}/stats.done` | Phenotyping + stats + plots |
+| no target | Every scenario in every `config/*.yaml` file, all stages |
+| `results/{folder}/{scenario}/simulate.done` | The pedigree |
+| `results/{folder}/{scenario}/phenotype.done` | The pedigree, phenotypes, censoring, and ascertainment. Writes `trait.parquet` |
+| `results/{folder}/{scenario}/stats.done` | Everything above, plus `report.yaml` and the scenario plots |
+| `results/{folder}/{scenario}/validate.done` | Everything above, plus the folder's `report_summary.tsv` and validation atlas |
+| `results/{folder}/{scenario}/scenario.done` | All stages for one scenario. Also builds the folder-level summary, which needs the sibling scenarios |
+| `results/{folder}/folder.done` | Every scenario in one folder |
 
-## Running a single scenario
+The stages run in this order: simulate, phenotype, censor, ascertainment,
+analyze, plots. Each stage reads the files the previous one wrote.
+
+The `epimight.done` target exists only when the fitACE_epimight repository
+is checked out inside `fitACE/`. See the fitACE documentation.
+
+## Preview the run
+
+To see which jobs Snakemake would run without running them, add `-n`:
+
+```bash
+pixi run snakemake -n --cores 4 results/base/baseline10K/scenario.done
+```
+
+Dry-run before any run that takes more than a few minutes.
+
+## Run one scenario
 
 ```bash
 pixi run snakemake --cores 4 results/base/baseline10K/scenario.done
 ```
 
-The `scenario.done` sentinel file signals that all stages are complete for that scenario.
+Use `--cores 8` for several scenarios and `--cores 1` to debug a failing rule.
 
-## Force rebuilding
+## Rebuild one output
 
-Use `-f` to force-rebuild a specific output:
+To rebuild a file that already exists, pass `-f` with the file:
 
 ```bash
-# Regenerate a scenario's atlas (HTML is the default artifact)
 pixi run snakemake --cores 4 -f results/base/baseline10K/plots/atlas.html
-
-# The PDF atlas is an on-demand export
-pixi run snakemake --cores 4 -f results/base/baseline10K/plots/atlas.pdf
 ```
 
-## Pipeline stages
+The same command with `atlas.pdf` builds the PDF export.
 
-The pipeline runs stages in order, with each stage depending on the previous:
+## Resume an interrupted run
 
-```
-simulate -> phenotype -> censor -> ascertainment -> stats/validate -> plots
-```
-
-Snakemake tracks file dependencies automatically; re-running the same
-command after an interrupted run resumes from where it stopped.
-
-## Resuming interrupted runs
-
-When Snakemake detects incomplete files from a previously interrupted
-run:
+Snakemake tracks which outputs are complete. To continue after an
+interruption, rerun the same command. If Snakemake reports
+`IncompleteFilesException`, add `--rerun-incomplete`:
 
 ```bash
-pixi run snakemake --cores 4 --rerun-incomplete
+pixi run snakemake --cores 4 --rerun-incomplete results/base/baseline10K/scenario.done
 ```
 
 ## Troubleshooting
 
-| Problem | Solution |
+| Error | Fix |
 |---|---|
-| `ModuleNotFoundError: No module named 'simace'` | Run commands through `pixi run …` from the repo root |
-| `FileNotFoundError: config/_default.yaml` | Run snakemake from the simACE repo root directory |
-| Simulation killed or frozen (large N) | Reduce `--cores` to lower parallel memory usage |
-| `IncompleteFilesException` on re-run | Run with `--rerun-incomplete` |
+| `ModuleNotFoundError: No module named 'simace'` | Run the command through `pixi run` from the repository root |
+| `FileNotFoundError: config/_default.yaml` | Run the command from the repository root |
+| `IncompleteFilesException` | Add `--rerun-incomplete` |
+| A large-N simulation is killed or hangs | Lower `--cores` so fewer jobs share memory |

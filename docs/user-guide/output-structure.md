@@ -1,395 +1,199 @@
 # Output structure
 
-## Directory layout
+Every scenario writes under `results/{folder}/{scenario}/`. The placeholders
+`{folder}`, `{scenario}`, and `{rep}` take the folder name, the scenario
+name, and the replicate number, starting at 1.
 
 ```
 results/{folder}/{scenario}/
 ├── rep1/
-│   ├── params.yaml                        # Resolved parameters for this replicate
-│   ├── pedigree.full.parquet              # Recorded pedigree (full pre-ascertainment)
-│   ├── pedigree.parquet                   # Analysis pedigree (ancestor closure of sampled IDs)
-│   ├── trait.full.parquet                 # Phenotyped population (full pre-ascertainment, durable)
-│   ├── trait.parquet                      # Analysis sample (post-ascertainment censored phenotypes)
-│   ├── report.yaml                        # Curated v2 scientific report (scopes/quality_checks/truth/observed/estimators)
-│   └── plot_payload.yaml                  # Dense incidence/censoring arrays for plotting
+│   ├── params.yaml
+│   ├── pedigree.full.parquet
+│   ├── pedigree.parquet
+│   ├── trait.full.parquet
+│   ├── trait.parquet
+│   ├── report.yaml
+│   └── plot_payload.yaml
 ├── rep2/
 ├── rep3/
 └── plots/
-    ├── *.png                              # Per-scenario diagnostic plots
-    ├── atlas.html                         # Self-contained HTML atlas (default)
-    └── atlas.pdf                          # Multi-page PDF atlas (on-demand export)
+    ├── *.png
+    ├── atlas.html
+    └── atlas.pdf
+results/{folder}/
+├── report_summary.tsv
+└── plots/
+    ├── *.png
+    ├── atlas.html
+    └── atlas.pdf
 ```
 
-## Simulation data files
+A replicate directory also holds per-method subdirectories and files that
+fitACE writes, such as `epimight/`. This page lists the simACE outputs only.
 
-| File | Description | Temp? |
+## Per-replicate files
+
+| File | Written by | Description |
 |---|---|---|
-| `pedigree.full.parquet` | Full simulated pedigree (post-burn-in, pre-ascertainment), consumed by validation, phenotype, censor, and ascertainment | No |
-| `pedigree.parquet` | Analysis pedigree: ancestor closure of final trait IDs, with dangling refs severed | No |
-| `trait.raw.parquet` | Outcomes-only raw time-to-event traits before censoring (`id`, `t1`, `t2`) | Yes |
-| `trait.full.parquet` | Outcomes-only post-censor traits for the full pre-ascertainment population. Durable so Analyze can quantify ascertainment distortion (ADR 0008/0011) | No |
-| `trait.parquet` | Outcomes-only post-ascertainment censored time-to-event traits (canonical output) | No |
-| `params.yaml` | Simulation parameters for this replicate | No |
-| `report.yaml` | Curated v2 per-replicate scientific report (`scopes`, `quality_checks`, `truth`, `observed`, `estimators`) | No |
-| `plot_payload.yaml` | Dense incidence/censoring arrays for reproducible plotting (companion to `report.yaml`) | No |
+| `params.yaml` | `simace/simulation/simulate.py` | The resolved simulation parameters for this replicate |
+| `pedigree.full.parquet` | `simace/simulation/simulate.py` | The recorded pedigree after burn-in and before ascertainment |
+| `trait.raw.parquet` | `simace/phenotype/runner.py` | Uncensored onset ages. Deleted after censoring |
+| `trait.full.parquet` | `simace/censoring/censor.py` | Censored outcomes for the whole phenotyped population. Kept so that the analyze stage can measure ascertainment distortion |
+| `pedigree.parquet` | `simace/ascertainment/runner.py` | The analysis pedigree: the ancestor closure of the sampled individuals, with dangling links set to -1 |
+| `trait.parquet` | `simace/ascertainment/runner.py` | Censored outcomes for the sampled individuals. This and `pedigree.parquet` are what fitACE reads |
+| `report.yaml` | `simace/analysis/analyze.py` | The per-replicate report. See [report.yaml](#reportyaml) |
+| `plot_payload.yaml` | `simace/analysis/analyze.py` | Dense arrays for the incidence and censoring plots |
+| `plotting_sample.parquet` | `simace/analysis/analyze.py` | A downsampled join of traits and pedigree for scatter plots. Deleted after plotting |
 
-Snakemake deletes temp files after downstream rules complete.
+The trait files hold outcomes only ([ADR 0011](../adr/0011-outcomes-only-trait-files.md)).
+Join them to the matching pedigree file on `id` to get generation, sex,
+family links, variance components, or liabilities.
 
-## Validation and logs
-
-| File | Description |
-|---|---|
-| `results/{folder}/{scenario}/rep{N}/report.yaml` | Curated v2 per-replicate scientific report |
-| `results/{folder}/report_summary.tsv` | Aggregated metrics across scenarios (gathered from each report's `truth`/`estimators`/`scopes`) |
-| `results/{folder}/plots/` | Cross-scenario validation and phenotype plots |
-| `logs/{folder}/{scenario}/` | Log files |
-| `benchmarks/{folder}/{scenario}/` | Runtime and memory benchmarks |
-
-## Plot atlases
+## Per-scenario and per-folder files
 
 | File | Description |
 |---|---|
-| `results/{folder}/{scenario}/plots/atlas.html` | Per-scenario atlas (default, self-contained HTML) |
-| `results/{folder}/{scenario}/plots/atlas.pdf` | Per-scenario atlas (on-demand PDF export) |
-| `results/{folder}/plots/atlas.html` | Per-folder cross-scenario validation atlas (default) |
-| `results/{folder}/plots/atlas.pdf` | Per-folder validation atlas (on-demand PDF export) |
-| `results/{folder}/{scenario}/rep{N}/epimight/plots/atlas.html` | EPIMIGHT atlas (default; `.pdf` on demand) |
+| `results/{folder}/{scenario}/plots/*.png` | Scenario plots. [Interpreting results](interpreting-results.md) lists them |
+| `results/{folder}/{scenario}/plots/atlas.html` | All scenario plots in one HTML file, with captions, a parameter page, and Table 1 |
+| `results/{folder}/{scenario}/plots/atlas.pdf` | The same atlas as a PDF. Built on demand ([ADR 0010](../adr/0010-html-primary-atlas-rendering.md)) |
+| `results/{folder}/{scenario}/*.done` | Empty files that mark a completed target. [Running the pipeline](running-the-pipeline.md) lists the targets |
+| `results/{folder}/report_summary.tsv` | One row per replicate across every scenario in the folder. See [report_summary.tsv](#report_summarytsv) |
+| `results/{folder}/plots/*.png` | Validation plots comparing scenarios |
+| `results/{folder}/plots/atlas.html`, `atlas.pdf` | The validation plots as an atlas |
+| `logs/{folder}/{scenario}/rep{rep}/*.log` | One log per rule |
+| `benchmarks/{folder}/{scenario}/rep{rep}/*.tsv` | One Snakemake benchmark per rule. See [Benchmarks](#benchmarks) |
 
-## Exporting to R
+Image files use the extension set by `plot_format`, `png` by default.
 
-All outputs are parquet files. Convert to TSV for R:
+## Parquet columns
+
+### pedigree.full.parquet and pedigree.parquet
+
+Both files have the same columns. Column types below are what
+`results/test/small_test/rep1/pedigree.parquet` holds at this commit.
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | int32 | Individual identifier |
+| `sex` | int8 | 0 is female, 1 is male |
+| `mother`, `father` | int32 | Parent identifiers. -1 when the parent is unknown or removed |
+| `twin` | int32 | Identifier of the monozygotic twin. -1 when there is none |
+| `generation` | int32 | 0 is the oldest recorded generation |
+| `household_id` | int32 | Group that shares the common environment. Assigned by mother |
+| `A1`, `C1`, `E1`, `A2`, `C2`, `E2` | float32 | Variance components for trait 1 and trait 2 |
+| `liability1`, `liability2` | float64 | `A + C + E` for each trait |
+
+### trait.raw.parquet
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | int32 | Individual identifier |
+| `t1`, `t2` | float32 | Onset age from the phenotype model, before censoring |
+
+### trait.full.parquet and trait.parquet
+
+Both files have the same columns. `trait.full.parquet` covers every
+phenotyped individual. `trait.parquet` covers the sampled individuals.
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | int32 | Individual identifier |
+| `t1`, `t2` | float32 | Onset age before censoring |
+| `death_age` | float32 | Age at death from the competing-risk mortality |
+| `t_observed1`, `t_observed2` | float32 | Onset age after age-window and death censoring |
+| `age_censored1`, `age_censored2` | bool | True when onset falls outside the generation's observation window |
+| `death_censored1`, `death_censored2` | bool | True when death precedes onset |
+| `affected1`, `affected2` | bool | True when the individual is neither age-censored nor death-censored |
+
+## YAML files
+
+### params.yaml
+
+A flat mapping of the parameters this replicate ran with. Keys at this commit:
+`seed`, `rep`, `N`, `G_ped`, `G_sim`, `A1`, `C1`, `E1`, `A2`, `C2`, `E2`,
+`rA`, `rC`, `rE`, `mating_model`, `mating_lambda`, `p_mztwin`, `assort1`,
+`assort2`, and `simace_version`. `seed` is the base seed plus `rep - 1`.
+
+### report.yaml
+
+`simace/analysis/analyze.py` writes the report through `run_analysis`
+([ADR 0008](../adr/0008-curated-analyze-report.md)). `schema.version` is 2.
+The report holds scalars, small tables, and per-generation summaries. Dense
+arrays go to `plot_payload.yaml`.
+
+Every value is tagged with one of four population scopes.
+
+| Scope | Population |
+|---|---|
+| `recorded_pedigree` | Every individual in `pedigree.full.parquet` |
+| `phenotyped_population` | Every row in `trait.full.parquet` |
+| `analysis_sample` | Every row in `trait.parquet` |
+| `analysis_pedigree` | Every individual in `pedigree.parquet` |
+
+| Top-level key | Contents |
+|---|---|
+| `schema` | `name: simace_report` and `version: 2` |
+| `replicate` | `folder`, `scenario`, `rep`, `seed` |
+| `inputs` | The resolved `parameters`, plus `trait_model` and `ascertainment` summaries |
+| `scopes` | For each scope, the source file, `n_individuals`, and `n_generations`. The analysis pedigree adds `ancestor_closure_ratio` |
+| `quality_checks` | One row per check with `id`, `scope`, `severity`, `status`, `observed`, `expected`, `tolerance`, `message`, plus a `summary` |
+| `truth` | Realized values on `recorded_pedigree`: variance components and liability heritability per trait, with `realized_by_generation`, plus `cross_trait`, `family_structure`, and `assortative_mating` |
+| `observed` | Descriptive statistics per scope. `ascertainment` holds affected fractions before and after sampling, enrichment, and the retained fraction |
+| `estimators` | Heritability estimates, split into `observed_scale` from affected status and `liability_scale` from twin, sibling, and parent-offspring pairs |
+
+### plot_payload.yaml
+
+`schema.version` is 1. Holds the incidence and censoring arrays such as
+`ages`, `observed_values`, and `aj_values`, grouped by scope in the same
+layout as `observed`. Where a scalar appears in both files, `report.yaml` is
+canonical.
+
+## report_summary.tsv
+
+`simace/analysis/gather.py` writes one row per replicate for every scenario in
+the folder. The columns come from `REPORT_SUMMARY_REGISTRY` in
+`simace/analysis/report_schema.py`. Each entry names a column and the path
+inside `report.yaml` that fills it. `folder`, `scenario`, and `rep` come from
+the file path, and `simulate_seconds` and `simulate_max_rss_mb` come from the
+simulate benchmark. Read the registry for the full list.
+
+## Benchmarks
+
+Snakemake writes one TSV per rule run with its standard columns: `s`,
+`h:m:s`, `max_rss`, `max_vms`, `max_uss`, `max_pss`, `io_in`, `io_out`,
+`mean_load`, and `cpu_time`. Memory is in MB, time in seconds.
+
+Per-replicate benchmarks live in `benchmarks/{folder}/{scenario}/rep{rep}/`
+and are named after the rule, for example `simulate.tsv`, `phenotype.tsv`,
+`censor_weibull.tsv`, `ascertainment.tsv`, `analyze.tsv`, and
+`effective_size.tsv`. Per-scenario plotting and atlas benchmarks live one
+level up, and per-folder benchmarks such as `gather_report_summary.tsv` and
+`plot_validation.tsv` live in `benchmarks/{folder}/`. This command lists
+every benchmark path the rules declare:
 
 ```bash
-# Single file (writes .tsv.gz alongside the .parquet)
-simace-parquet-to-tsv results/base/baseline10K/rep1/pedigree.parquet
-
-# Multiple files
-simace-parquet-to-tsv results/base/baseline10K/rep1/*.parquet
-
-# Uncompressed .tsv
-simace-parquet-to-tsv --no-gzip results/base/baseline10K/rep1/pedigree.parquet
-
-# Custom float precision (default: 4 decimal places)
-simace-parquet-to-tsv -p 8 results/base/baseline10K/rep1/pedigree.parquet
+grep -rho 'benchmarks/[^"]*' workflow/rules/simace/*.smk | sort -u
 ```
 
-Or via Snakemake (auto-converts matching `.parquet`):
+## Convert parquet to TSV
+
+`simace-parquet-to-tsv` writes a `.tsv.gz` file next to each parquet file.
+
+```bash
+simace-parquet-to-tsv results/base/baseline10K/rep1/pedigree.parquet
+simace-parquet-to-tsv results/base/baseline10K/rep1/*.parquet
+```
+
+Pass `--no-gzip` for an uncompressed `.tsv`. Pass `-p 8` to write eight
+decimal places instead of the default four. Snakemake can also produce the
+file:
 
 ```bash
 pixi run snakemake --cores 1 results/base/baseline10K/rep1/pedigree.tsv.gz
 ```
 
----
-
-## Detailed schemas
-
-The remainder of this page documents column-level parquet schemas, YAML file
-structures, validation summary columns, benchmark fields, plot inventories,
-and EPIMIGHT outputs. Path patterns use `{folder}`, `{scenario}`, and `{rep}`
-as placeholders matching values from `config/_default.yaml`.
-
-### Per-replicate file writers
-
-| File | Format | Description | Writer |
-|------|--------|-------------|--------|
-| `pedigree.full.parquet` | Parquet | Full simulated pedigree (post-burn-in, pre-ascertainment); persistent for validation | `simace/simulation/simulate.py` |
-| `pedigree.parquet` | Parquet | Post-ascertainment pedigree (ancestor closure of sampled IDs, dangling refs severed) | `simace/ascertainment/__init__.py` |
-| `trait.parquet` | Parquet | Post-ascertainment per-individual trait outcomes (censored time-to-event + affected status) | `simace/ascertainment/__init__.py` |
-| `params.yaml` | YAML | Simulation parameters for this replicate | `simace/simulation/simulate.py` |
-| `report.yaml` | YAML | Curated v2 per-replicate scientific report (`scopes`, `quality_checks`, `truth`, `observed`, `estimators`) | `workflow/scripts/simace/analyze.py` → `simace/analysis/analyze.py` |
-| `plot_payload.yaml` | YAML | Dense incidence/censoring arrays for plotting (companion to `report.yaml`) | `workflow/scripts/simace/analyze.py` → `simace/analysis/analyze.py` |
-| `plotting_sample.parquet` | Parquet | Further downsampled trait rows for stats scatter plots | `workflow/scripts/simace/analyze.py` → `simace/analysis/analyze.py` |
-
-### Per-scenario, per-folder, and sentinel files
-
-| File | Format | Description |
-|------|--------|-------------|
-| `results/{folder}/{scenario}/plots/*.png` | PNG (or PDF) | Phenotype and observed-binary figures (see [Plots](#plots)) |
-| `results/{folder}/{scenario}/plots/atlas.html` | HTML | Self-contained scenario atlas (default build) |
-| `results/{folder}/{scenario}/plots/atlas.pdf` | PDF | Multi-page scenario atlas (on-demand export) |
-| `results/{folder}/{scenario}/scenario.done` | Sentinel | Empty file indicating scenario completion |
-| `results/{folder}/report_summary.tsv` | TSV | Aggregated validation metrics across scenarios and replicates |
-| `results/{folder}/plots/*.png` | PNG | Cross-scenario validation plots |
-| `results/{folder}/plots/atlas.html` | HTML | Self-contained cross-scenario validation atlas (default build) |
-| `results/{folder}/plots/atlas.pdf` | PDF | Cross-scenario validation atlas (on-demand export) |
-| `results/{folder}/folder.done` | Sentinel | Empty file indicating folder completion |
-| `results/{folder}/epimight.done` | Sentinel | Empty file indicating EPIMIGHT completion |
-
-### Logs and benchmarks
-
-| File | Format | Description |
-|------|--------|-------------|
-| `logs/{folder}/{scenario}/rep{rep}/*.log` | Text | Per-rule log files |
-| `benchmarks/{folder}/{scenario}/rep{rep}/*.tsv` | TSV | Per-rule Snakemake benchmark files |
-| `benchmarks/{folder}/{scenario}/*.tsv` | TSV | Per-scenario benchmark files (plotting, atlas assembly) |
-| `benchmarks/{folder}/*.tsv` | TSV | Per-folder benchmark files (gather, validation plots) |
-
----
-
-## Parquet column reference
-
-### pedigree.parquet
-
-Core pedigree structure with latent variance components for two correlated traits.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | int64 | Unique individual identifier |
-| `sex` | int8 | 0 = female, 1 = male |
-| `mother` | int64 | Mother's id (-1 for founders) |
-| `father` | int64 | Father's id (-1 for founders) |
-| `twin` | int64 | MZ twin partner's id (-1 if not a twin) |
-| `generation` | int8 | Generation number (0 = oldest recorded) |
-| `household_id` | int64 | Shared-environment household group |
-| `A1`, `A2` | float32 | Additive genetic component (traits 1 and 2) |
-| `C1`, `C2` | float32 | Common/shared environment component |
-| `E1`, `E2` | float32 | Unique environment component |
-| `liability1`, `liability2` | float32 | Total liability (A + C + E) |
-
-### trait.raw.parquet
-
-Outcomes-only raw time-to-event traits before age-window and competing-risk censoring. The row set is the subset of generations defined by `G_pheno`; generation, sex, liabilities, and pedigree links remain in the corresponding pedigree file.
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | int64 | Individual identifier |
-| `t1`, `t2` | float32 | Raw (uncensored) age-at-onset from the phenotype model |
-
-### trait.full.parquet and trait.parquet
-
-Outcomes-only censored time-to-event traits. `trait.full.parquet` covers the full pre-ascertainment phenotyped population; `trait.parquet` covers the final post-ascertainment analysis sample. Hydrate with the appropriate pedigree file when generation, sex, family links, ACE components, household IDs, or liabilities are needed (ADR 0011).
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | int64 | Individual identifier |
-| `t1`, `t2` | float32 | Raw (uncensored) age-at-onset from the phenotype model |
-| `death_age` | float32 | Age at death from competing-risk mortality |
-| `t_observed1`, `t_observed2` | float32 | Observed age-at-onset after age and death censoring |
-| `age_censored1`, `age_censored2` | bool | True if onset falls outside the generation's observation window |
-| `death_censored1`, `death_censored2` | bool | True if onset occurs after death |
-| `affected1`, `affected2` | bool | True if the individual is observed as affected (not age- or death-censored) |
-
-### Ascertained outputs
-
-`pedigree.parquet` and `trait.parquet` are the canonical post-ascertainment outputs that both simACE-stats and fitACE consume. Under non-trivial ascertainment (`dropout_rate > 0` or `N_sample > 0`), these files contain a subset of the full simulated population:
-
-- `pedigree.parquet` is the **ancestor closure** of the sampled IDs within the post-dropout pedigree, with dangling `mother` / `father` / `twin` references rewritten to −1.
-- `trait.parquet` is restricted to the sampled IDs, within the trailing `G_pheno` generations.
-
-The pre-ascertainment intermediate `trait.raw.parquet` is a Snakemake `temp()` file. `trait.full.parquet` is durable because Analyze uses it to quantify ascertainment distortion (ADR 0008).
-
-`plotting_sample.parquet` is a *further* downsampled, hydrated parquet produced inside the Analyze stage for scatter/histogram plots. It is a plot cache, not an analysis input.
-
----
-
-## YAML file schemas
-
-### params.yaml
-
-Flat key-value file recording the simulation parameters used for a replicate. Written by `simace/simulation/simulate.py`.
-
-| Key | Type | Description |
-|-----|------|-------------|
-| `seed` | int | Random seed for this replicate |
-| `rep` | int | Replicate number |
-| `A1`, `C1`, `E1` | float | Trait 1 variance components (E1 = 1 - A1 - C1) |
-| `A2`, `C2`, `E2` | float | Trait 2 variance components |
-| `rA` | float | Cross-trait additive genetic correlation |
-| `rC` | float | Cross-trait common environment correlation |
-| `rE` | float | Cross-trait unique environment correlation |
-| `N` | int | Population size per generation |
-| `G_ped` | int | Number of generations in output pedigree |
-| `G_sim` | int | Total generations simulated (including burn-in) |
-| `mating_lambda` | float | ZTP mating count lambda |
-| `p_mztwin` | float | Probability of MZ twin birth |
-| `assort1` | float | Mate correlation on trait 1 liability (0 = random) |
-| `assort2` | float | Mate correlation on trait 2 liability (0 = random) |
-
-### report.yaml
-
-Curated per-replicate **scientific report** written by
-`workflow/scripts/simace/analyze.py`, which calls
-`simace.analysis.analyze.run_analysis` (ADR 0008, `schema.version: 2`). It holds
-scalars, small categorical tables, and by-generation summaries only. Dense plot
-arrays live in the companion `plot_payload.yaml`. Values are organized by what
-they *mean*, and tagged with one of four population **scopes**: `recorded_pedigree`
-(full pre-ascertainment pedigree), `phenotyped_population` (full pre-ascertainment
-phenotyped rows), `analysis_sample` (ascertained `trait.parquet`), and
-`analysis_pedigree` (ancestor closure supporting the sample).
-
-| Group | Description |
-|---------|-------------|
-| `schema` | `{name: simace_report, version: 2}` |
-| `replicate` | `folder`, `scenario`, `rep`, `seed` |
-| `inputs` | Full resolved `parameters`, plus curated `trait_model` and `ascertainment` summaries |
-| `scopes` | Per-scope source file, `n_individuals`, `n_generations` (+ `ancestor_closure_ratio` for the analysis pedigree) |
-| `quality_checks` | Normalized pass/fail rows `{id, scope, severity, status, observed, expected, tolerance, message}` plus a `summary` |
-| `truth` | Generated/realized ground truth on `recorded_pedigree`: realized A/C/E variances + liability h² (per trait, with `realized_by_generation`), `cross_trait` correlations, `family_structure` (twin rate, half-sibs, consanguinity, offspring distribution), `assortative_mating` |
-| `observed` | Descriptive summaries bucketed by scope. The `ascertainment` block holds per-trait before/after affected fractions, enrichment, and retained fraction (raw scope sizes and closure live once in `scopes`). `phenotyped_population` holds prevalence. `analysis_sample` and `analysis_pedigree` hold the re-bucketed sample stats |
-| `estimators` | Heritability split into `observed_scale` (binary-affected) and `liability_scale` (twin/sibling/parent-offspring) |
-
-### plot_payload.yaml
-
-Durable companion (`schema.version: 1`) holding the dense incidence and
-censoring-window arrays (`ages`, `observed_values`, `aj_values`, …) needed to
-render plots reproducibly. Organized by scope to mirror `observed`. It is part of
-plot regeneration, not the scientific report; where a scalar is duplicated,
-`report.yaml` is canonical.
-
----
-
-## report_summary.tsv
-
-Aggregated metrics across all scenarios and replicates within a folder. Written by `simace/analysis/gather.py`. One row per replicate.
-
-Columns are emitted from `REPORT_SUMMARY_REGISTRY` (`simace/analysis/report_schema.py`); paths below are relative to the `report.yaml` root.
-
-| Column | Source |
-|--------|--------|
-| `folder`, `scenario`, `rep` | Parsed from file path |
-| `N`, `G_ped`, `G_sim`, `A1`..`E2`, `rA`, `rC`, `p_mztwin`, `mating_lambda`, `seed` | `inputs.parameters` |
-| `quality_passed`, `checks_failed`, `quality_n_warn` | `quality_checks.summary` (`passed` / `n_failed` / `n_warn`) |
-| `recorded_pedigree_n`, `phenotyped_population_n`, `analysis_sample_n`, `analysis_pedigree_n`, `ancestor_closure_ratio` | `scopes.*` |
-| `retained_fraction`, `trait{1,2}_affected_before`, `trait{1,2}_affected_after` | `observed.ascertainment.*` |
-| `observed_twin_rate`, `expected_twin_rate` | `truth.recorded_pedigree.family_structure.twin_rate.*` |
-| `variance_A1`..`E2` | `truth.recorded_pedigree.traits.trait{1,2}.realized.var_*` |
-| `observed_rA`, `observed_rC`, `observed_rE` | `truth.recorded_pedigree.cross_trait.*` |
-| `mz_twin_*_corr`, `dz_sibling_*_corr`, `falconer_h2_trait{1,2}`, `parent_offspring_*` | `estimators.heritability.liability_scale.trait{1,2}.*` |
-| `half_sib_prop_observed`, `offspring_with_half_sib_observed`, `half_sib_*_corr`, `half_sib_shared_C{1,2}` | `truth.recorded_pedigree.family_structure.half_sibs.*` |
-| `mate_corr_liability{1,2}` | `truth.recorded_pedigree.assortative_mating.*` |
-| `mother_mean_offspring`, `father_mean_offspring` | `truth.recorded_pedigree.family_structure.offspring_distribution.*.mean` |
-| `n_half_sib_matings`, `n_full_sib_matings`, `missing_gp_links`, `gp_reconciled` | `truth.recorded_pedigree.family_structure.consanguineous_matings.*` |
-| `simulate_seconds`, `simulate_max_rss_mb` | Parsed from benchmark TSV |
-
----
-
-## Benchmark TSVs
-
-Snakemake automatically writes benchmark files in TSV format with a standard header.
-
-| Column | Description |
-|--------|-------------|
-| `s` | Wall-clock seconds |
-| `h:m:s` | Wall-clock time in h:m:s format |
-| `max_rss` | Maximum resident set size in MB (Linux/macOS; 1 on Windows) |
-| `max_vms` | Maximum virtual memory size in MB |
-| `max_uss` | Maximum unique set size in MB |
-| `max_pss` | Maximum proportional set size in MB |
-| `io_in` | I/O read in MB |
-| `io_out` | I/O write in MB |
-| `mean_load` | Mean CPU load |
-| `cpu_time` | CPU time in seconds |
-
-Benchmark files are written for each pipeline rule. Per-replicate benchmarks:
-
-- `benchmarks/{folder}/{scenario}/rep{rep}/simulate.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/dropout.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/phenotype.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/censor_weibull.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/sample_phenotype.tsv`
-- `benchmarks/{folder}/{scenario}/rep{rep}/analyze.tsv`
-
-Per-scenario benchmarks:
-
-- `benchmarks/{folder}/{scenario}/plot_phenotype.tsv`
-- `benchmarks/{folder}/{scenario}/assemble_atlas.tsv`
-
-Per-folder benchmarks:
-
-- `benchmarks/{folder}/gather_report_summary.tsv`
-- `benchmarks/{folder}/plot_validation.tsv`
-
----
-
-## Plots
-
-Plot files are written as PNG by default (configurable via `plot_format` in `_default.yaml`). All scenario plots live under `results/{folder}/{scenario}/plots/`.
-
-### Phenotype plots
-
-Listed in atlas page order: pedigree structure, liability, phenotype, censoring, correlations.
-
-| File | Description |
-|------|-------------|
-| `pedigree_counts.ped.{ext}` | Relationship pair counts from full pedigree |
-| `pedigree_counts.{ext}` | Relationship pair counts from phenotyped subset |
-| `family_structure.{ext}` | Family structure breakdown (sibship sizes, half-sibling fractions) |
-| `mate_correlation.{ext}` | Mate liability correlations (assortative mating) |
-| `cross_trait.{ext}` | Cross-trait liability scatter |
-| `parent_offspring_liability.by_generation.{ext}` | Parent-offspring liability correlations by generation |
-| `heritability.by_generation.{ext}` | Additive genetic and common environment variance proportions by generation |
-| `heritability.by_sex.by_generation.{ext}` | Liability-scale heritability by sex and generation |
-| `liability_violin.phenotype.{ext}` | Liability violin plots by affection status |
-| `liability_violin.phenotype.by_generation.{ext}` | Liability violins by generation and affection status |
-| `liability_violin.phenotype.by_sex.by_generation.{ext}` | Liability violins by sex, generation, and affection status |
-| `mortality.{ext}` | Mortality rates and death-age distributions |
-| `age_at_onset_death.{ext}` | Age-at-onset distributions |
-| `cumulative_incidence.phenotype.{ext}` | Cumulative incidence curves by trait |
-| `censoring.{ext}` | Censoring window visualization |
-| `cumulative_incidence.by_sex.{ext}` | Cumulative incidence by sex |
-| `cumulative_incidence.by_sex.by_generation.{ext}` | Cumulative incidence by sex and generation |
-| `censoring_confusion.{ext}` | Censoring confusion matrix |
-| `censoring_cascade.{ext}` | Censoring cascade by generation |
-| `liability_vs_aoo.{ext}` | Liability vs age-at-onset scatter |
-| `joint_affected.phenotype.{ext}` | Cross-trait joint affection proportions |
-| `tetrachoric.phenotype.{ext}` | Tetrachoric correlation heatmap |
-| `tetrachoric.phenotype.by_sex.{ext}` | Tetrachoric correlations stratified by sex |
-| `tetrachoric.phenotype.by_generation.{ext}` | Tetrachoric correlations by generation |
-| `cross_trait.phenotype.{ext}` | Cross-trait phenotype correlations |
-| `cross_trait.phenotype.t2.{ext}` | Cross-trait phenotype correlations (trait 2 focus) |
-| `cross_trait_tetrachoric.{ext}` | Cross-trait tetrachoric correlations |
-
-### Validation plots (`results/{folder}/plots/`)
-
-| File | Description |
-|------|-------------|
-| `family_size.{ext}` | Family size distributions |
-| `twin_rate.{ext}` | Observed vs expected twin rates |
-| `half_sib_proportions.{ext}` | Half-sibling proportion comparisons |
-| `variance_components.{ext}` | Actual vs expected variance components |
-| `correlations_A.{ext}` | Additive genetic correlations |
-| `correlations_phenotype.{ext}` | Phenotypic correlations |
-| `heritability_estimates.{ext}` | Heritability estimates vs true values |
-| `cross_trait_correlations.{ext}` | Cross-trait correlation comparisons |
-| `summary_bias.{ext}` | Summary bias across checks |
-| `runtime.{ext}` | Execution time by scenario |
-| `memory.{ext}` | Memory usage by scenario |
-
-### Atlases
-
-An atlas combines all plots for a scope into a single document with figure
-captions. The default is a self-contained HTML atlas (embedded plots, native
-overview + Table 1, inline-SVG equations); a multi-page PDF atlas is an
-on-demand export (ADR 0010; build with `pixi run snakemake .../atlas.pdf`):
-
-| File | Contents |
-|------|----------|
-| `results/{folder}/{scenario}/plots/atlas.html` | All phenotype figures for one scenario (default) |
-| `results/{folder}/{scenario}/plots/atlas.pdf` | Same scenario figures, on-demand PDF export |
-| `results/{folder}/plots/atlas.html` | All cross-scenario validation figures for one folder (default) |
-| `results/{folder}/plots/atlas.pdf` | Same validation figures, on-demand PDF export |
-| `results/{folder}/{scenario}/rep{rep}/epimight/plots/atlas.html` | EPIMIGHT CIF, heritability, and genetic correlation figures (default; `.pdf` on demand) |
-
----
-
 ## EPIMIGHT outputs
 
-EPIMIGHT heritability analysis outputs are written under `results/{folder}/{scenario}/rep{rep}/epimight/`. See [epimight/README.md](https://github.com/rwaples/fitACE/blob/master/epimight/README.md) for full pipeline documentation.
-
-Key output files:
-
-| File | Format | Description |
-|------|--------|-------------|
-| `trait1.epimight_in.parquet` | Parquet | Time-to-event data for trait 1 |
-| `trait2.epimight_in.parquet` | Parquet | Time-to-event data for trait 2 |
-| `true_parameters.json` | JSON | True heritability and genetic correlation from variance components |
-| `results_{kind}.md` | Markdown | Summary report per relationship kind (FS, PO, HS, mHS, pHS, etc.) |
-| `tsv/cif_d1_c1_{kind}.tsv` | TSV | CIF: trait 1 in base cohort |
-| `tsv/cif_d1_c2_{kind}.tsv` | TSV | CIF: trait 1 in relatives of trait-1-affected |
-| `tsv/cif_d1_c3_{kind}.tsv` | TSV | CIF: trait 1 in relatives of trait-2-affected |
-| `tsv/cif_d2_c1_{kind}.tsv` | TSV | CIF: trait 2 in base cohort |
-| `tsv/cif_d2_c3_{kind}.tsv` | TSV | CIF: trait 2 in relatives of trait-2-affected |
-| `tsv/h2_d1_{kind}.tsv` | TSV | Heritability estimates for trait 1 |
-| `tsv/h2_d2_{kind}.tsv` | TSV | Heritability estimates for trait 2 |
-| `tsv/gc_full_{kind}.tsv` | TSV | Genetic correlation full grid |
-| `plots/atlas.html` | HTML | Self-contained atlas of all EPIMIGHT figures (default; `.pdf` on demand) |
+fitACE_epimight writes under `results/{folder}/{scenario}/rep{rep}/epimight/`.
+Its [README](https://github.com/rwaples/fitACE_epimight/blob/master/README.md)
+documents the files.
