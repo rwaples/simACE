@@ -15,7 +15,7 @@ def filter_pedigree_to_observed(
     """Restrict ``df_ped`` to ``observed_ids`` plus all ancestors needed for kinship.
 
     Iteratively walks parent pointers in ``df_ped`` from the observed set until
-    fixed point.  Ancestors absent from ``df_ped`` (e.g. removed by pedigree
+    fixed point, one vectorised generation per step.  Ancestors absent from ``df_ped`` (e.g. removed by pedigree
     dropout) are not added.  Returns a copy of ``df_ped`` filtered to the
     closure, preserving original row order.
 
@@ -40,26 +40,25 @@ def filter_pedigree_to_observed(
             f"df_ped (first {min(len(missing), 10)}: {preview})"
         )
 
-    parents = dict(
-        zip(
-            all_ids,
-            zip(df_ped["mother"].to_numpy(), df_ped["father"].to_numpy(), strict=True),
-            strict=True,
-        )
-    )
+    order = np.argsort(all_ids, kind="stable")
+    sorted_ids = all_ids[order]
 
-    closure: set = set(observed.tolist())
-    frontier = set(observed.tolist())
-    while frontier:
-        next_frontier: set = set()
-        for ind_id in frontier:
-            for parent_id in parents[ind_id]:
-                if parent_id < 0 or parent_id in closure:
-                    continue
-                if parent_id in parents:
-                    next_frontier.add(parent_id)
-        closure.update(next_frontier)
-        frontier = next_frontier
+    def rows_of(ids: np.ndarray) -> np.ndarray:
+        """Row indices of ``ids`` present in ``df_ped``; absent ids are dropped."""
+        if sorted_ids.size == 0:
+            return np.empty(0, dtype=np.intp)
+        pos = np.minimum(np.searchsorted(sorted_ids, ids), sorted_ids.size - 1)
+        return order[pos[sorted_ids[pos] == ids]]
 
-    keep_mask = np.isin(all_ids, list(closure))
-    return df_ped.filter(pl.Series(keep_mask))
+    mother = df_ped["mother"].to_numpy()
+    father = df_ped["father"].to_numpy()
+    keep = np.zeros(all_ids.size, dtype=bool)
+    frontier = rows_of(observed)
+    keep[frontier] = True
+    while frontier.size:
+        parent_ids = np.concatenate([mother[frontier], father[frontier]])
+        parent_rows = rows_of(parent_ids[parent_ids >= 0])
+        frontier = np.unique(parent_rows[~keep[parent_rows]])
+        keep[frontier] = True
+
+    return df_ped.filter(pl.Series(keep))
