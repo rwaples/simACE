@@ -8,7 +8,7 @@ The supported pixi release is pinned in `pixi.toml` (`requires-pixi`).
 
 - Linux (Windows users can use
   [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install); for macOS see
-  the conda fallback below)
+  the library install below)
 - `git` and `curl`
 
 ## Quick start
@@ -25,7 +25,7 @@ cd simACE
 # 3. Materialize the exact locked environment (first run downloads for a few minutes)
 pixi install --locked
 
-# 4. Smoke-test the whole pipeline (~30 s)
+# 4. Smoke-test the whole pipeline (a minute or two)
 pixi run snakemake --cores 4 results/test/small_test/scenario.done
 ```
 
@@ -59,8 +59,8 @@ pixi run mkdocs serve          # docs live-reload at http://127.0.0.1:8000
 ```
 
 Normal commands never rewrite `pixi.lock` — dependency upgrades are deliberate
-lock-update work (edit `pixi.toml`, run `pixi lock`, review the diff, update
-`envs/environment.yml` in the same commit, then re-run the checks above).
+lock-update work (edit `pixi.toml`, run `pixi lock`, review the diff, then
+re-run the checks above).
 
 ## Using simace as a library
 
