@@ -15,13 +15,13 @@ estimate heritability and familial correlations from population health registrie
 
 - Multi-generational pedigree simulation with realistic mating patterns, half-siblings, and MZ twins
 - ACE trait liability model for two heritable traits at a time
-- Multiple phenotype models: Weibull frailty, cure-frailty, ADuLT LTM, ADuLT Cox, and simple liability threshold
+- Five phenotype model families: proportional-hazards frailty (six baseline hazards), cure-frailty, ADuLT (LTM and Cox), first-passage time, and simple liability threshold
 - Age-window and competing-risk mortality censoring
 - Unified ascertainment stage: random dropout + case-weighted sampling (per ADR 0001)
 - Statistical validation of simulated data
 - Built-in diagnostic plots
 - Snakemake pipeline for reproducible, parallelised execution
-- It is fast - less than 3 minutes for 1M individuals x 3 generations x 3 reps using 4 cores and <16 GB RAM
+- Scales to N = 1,000,000 per generation: the stock `baseline1M` scenario peaks at about 8 GB RSS per replicate (`benchmarks/base/baseline1M/`)
 
 ## Quick links
 
