@@ -50,7 +50,6 @@ from typing import TYPE_CHECKING, Literal, cast
 
 import numpy as np
 from numba import njit
-from scipy.stats import gamma as gamma_dist
 
 from simace.core._numba_utils import _ndtri_approx
 
@@ -167,6 +166,10 @@ def _invert_loglogistic(neg_log_u, liability, mean, scaled_beta, params):
 
 def _invert_gamma(neg_log_u, liability, mean, scaled_beta, params):
     """Gamma inverse — scipy iterative solver, not numba-fusible."""
+    # Imported here, not at module level: scipy.stats costs ~0.5 s to import and
+    # this is the only caller, so keep it off the per-job startup path.
+    from scipy.stats import gamma as gamma_dist
+
     frailty = np.exp(scaled_beta * (liability - mean))
     target = neg_log_u / frailty
     t = gamma_dist.isf(np.exp(-target), params["shape"], scale=params["scale"])
