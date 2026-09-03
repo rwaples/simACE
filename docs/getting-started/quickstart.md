@@ -1,4 +1,4 @@
-# Quick Start
+# Quick start
 
 ## Run the smoke test
 
@@ -34,13 +34,13 @@ browser):
 results/test/small_test/plots/atlas.html
 ```
 
-A multi-page PDF atlas is available on demand — build it with
+A multi-page PDF atlas is available on demand. Build it with
 `pixi run snakemake --cores 4 results/test/small_test/plots/atlas.pdf`.
 
-See [Interpreting Results](../user-guide/interpreting-results.md) for descriptions of each plot.
+See [Interpreting results](../user-guide/interpreting-results.md) for descriptions of each plot.
 
 ## Next steps
 
-- [Configuration](../user-guide/configuration.md) -- customise scenarios and parameters
-- [Running the Pipeline](../user-guide/running-the-pipeline.md) -- full pipeline usage
-- [Output Structure](../user-guide/output-structure.md) -- complete file layout
+- [Configuration](../user-guide/configuration.md): customise scenarios and parameters
+- [Running the pipeline](../user-guide/running-the-pipeline.md): full pipeline usage
+- [Output structure](../user-guide/output-structure.md): complete file layout
