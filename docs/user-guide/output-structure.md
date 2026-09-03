@@ -1,4 +1,4 @@
-# Output Structure
+# Output structure
 
 ## Directory layout
 
@@ -24,16 +24,16 @@ results/{folder}/{scenario}/
 
 | File | Description | Temp? |
 |---|---|---|
-| `pedigree.full.parquet` | Full simulated pedigree (post-burn-in, pre-ascertainment) — consumed by validation, phenotype, censor, and ascertainment | No |
+| `pedigree.full.parquet` | Full simulated pedigree (post-burn-in, pre-ascertainment), consumed by validation, phenotype, censor, and ascertainment | No |
 | `pedigree.parquet` | Analysis pedigree: ancestor closure of final trait IDs, with dangling refs severed | No |
 | `trait.raw.parquet` | Outcomes-only raw time-to-event traits before censoring (`id`, `t1`, `t2`) | Yes |
-| `trait.full.parquet` | Outcomes-only phenotyped population — post-censor traits for the full pre-ascertainment population; durable so Analyze can quantify ascertainment distortion (ADR 0008/0011) | No |
+| `trait.full.parquet` | Outcomes-only post-censor traits for the full pre-ascertainment population. Durable so Analyze can quantify ascertainment distortion (ADR 0008/0011) | No |
 | `trait.parquet` | Outcomes-only post-ascertainment censored time-to-event traits (canonical output) | No |
 | `params.yaml` | Simulation parameters for this replicate | No |
 | `report.yaml` | Curated v2 per-replicate scientific report (`scopes`, `quality_checks`, `truth`, `observed`, `estimators`) | No |
 | `plot_payload.yaml` | Dense incidence/censoring arrays for reproducible plotting (companion to `report.yaml`) | No |
 
-Temp files are auto-deleted by Snakemake after downstream rules complete.
+Snakemake deletes temp files after downstream rules complete.
 
 ## Validation and logs
 
@@ -210,7 +210,7 @@ Flat key-value file recording the simulation parameters used for a replicate. Wr
 Curated per-replicate **scientific report** written by
 `workflow/scripts/simace/analyze.py`, which calls
 `simace.analysis.analyze.run_analysis` (ADR 0008, `schema.version: 2`). It holds
-scalars, small categorical tables, and by-generation summaries only — dense plot
+scalars, small categorical tables, and by-generation summaries only. Dense plot
 arrays live in the companion `plot_payload.yaml`. Values are organized by what
 they *mean*, and tagged with one of four population **scopes**: `recorded_pedigree`
 (full pre-ascertainment pedigree), `phenotyped_population` (full pre-ascertainment
@@ -225,7 +225,7 @@ phenotyped rows), `analysis_sample` (ascertained `trait.parquet`), and
 | `scopes` | Per-scope source file, `n_individuals`, `n_generations` (+ `ancestor_closure_ratio` for the analysis pedigree) |
 | `quality_checks` | Normalized pass/fail rows `{id, scope, severity, status, observed, expected, tolerance, message}` plus a `summary` |
 | `truth` | Generated/realized ground truth on `recorded_pedigree`: realized A/C/E variances + liability h² (per trait, with `realized_by_generation`), `cross_trait` correlations, `family_structure` (twin rate, half-sibs, consanguinity, offspring distribution), `assortative_mating` |
-| `observed` | Descriptive summaries bucketed by scope: a first-class `ascertainment` block (per-trait before/after affected fractions + enrichment, retained fraction; raw scope sizes and closure live once in `scopes`), `phenotyped_population` prevalence, and the re-bucketed `analysis_sample` / `analysis_pedigree` stats |
+| `observed` | Descriptive summaries bucketed by scope. The `ascertainment` block holds per-trait before/after affected fractions, enrichment, and retained fraction (raw scope sizes and closure live once in `scopes`). `phenotyped_population` holds prevalence. `analysis_sample` and `analysis_pedigree` hold the re-bucketed sample stats |
 | `estimators` | Heritability split into `observed_scale` (binary-affected) and `liability_scale` (twin/sibling/parent-offspring) |
 
 ### plot_payload.yaml
@@ -307,7 +307,7 @@ Plot files are written as PNG by default (configurable via `plot_format` in `_de
 
 ### Phenotype plots
 
-Ordered by narrative flow: pedigree structure, liability, phenotype, censoring, correlations.
+Listed in atlas page order: pedigree structure, liability, phenotype, censoring, correlations.
 
 | File | Description |
 |------|-------------|
@@ -360,7 +360,7 @@ Ordered by narrative flow: pedigree structure, liability, phenotype, censoring, 
 An atlas combines all plots for a scope into a single document with figure
 captions. The default is a self-contained HTML atlas (embedded plots, native
 overview + Table 1, inline-SVG equations); a multi-page PDF atlas is an
-on-demand export (ADR 0010 — build with `pixi run snakemake .../atlas.pdf`):
+on-demand export (ADR 0010; build with `pixi run snakemake .../atlas.pdf`):
 
 | File | Contents |
 |------|----------|

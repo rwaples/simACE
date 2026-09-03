@@ -1,4 +1,4 @@
-# Interpreting Results
+# Interpreting results
 
 The pipeline produces diagnostic and summary plots organised into five categories.
 All per-scenario plots are generated from pre-computed per-replicate statistics and
@@ -25,13 +25,12 @@ Start with these checks before diving into individual plot details:
 | Familial signal | `tetrachoric.phenotype.*`, `parent_offspring_liability.by_generation.*` | Shows whether observed familial correlations track the latent liability structure |
 | Validation summaries | Folder-level validation plots | Compares observed simulation metrics to configured or theoretical expectations across scenarios |
 
-The sections below describe each plot in detail. They are intentionally
-specific enough to support debugging and methods writeups; for routine quality
-control, the table above is usually the fastest path through the atlas.
+The sections below describe each plot in detail. Use the table above for
+routine checks.
 
 ---
 
-## Distribution Plots
+## Distribution plots
 
 Source: [`simace.plotting.plot_distributions`](../api/plotting.md#plot_distributions).
 Generated for Weibull frailty phenotypes.
@@ -40,13 +39,13 @@ Generated for Weibull frailty phenotypes.
 
 Four-panel figure (14 $\times$ 9 in). The left column summarises the mortality process; the right column shows the death-age distributions moved out of the age-at-onset figure.
 
-**Left column -- mortality by decade.**
+**Left column, mortality by decade.**
 
 - **Top panel**: Per-decade mortality rate (deaths in decade / alive at start of decade), averaged across replicates.
 - **Bottom panel**: Cumulative mortality $F(t) = 1 - \prod_{d \leq t}(1 - r_d)$.
 - **Text annotations**: Above each cumulative-mortality bar, survival probability $S = 1 - F(t)$ formatted as "S=0.XX".
 
-**Right column -- death-censored unaffected individuals.**
+**Right column, death-censored unaffected individuals.**
 
 - **Histograms**: Density histograms of observed death age for individuals with $\delta = 0$ and death-censored = True, shown separately for traits 1 and 2.
 
@@ -91,7 +90,7 @@ Grid of panels: rows = traits ($\times 2$), columns = generations ($\times N$). 
 
 ---
 
-## Liability Plots
+## Liability plots
 
 Source: [`simace.plotting.plot_liability`](../api/plotting.md#plot_liability).
 Generated for Weibull frailty phenotypes.
@@ -145,12 +144,12 @@ Single figure (7 $\times$ 6 in).
 - **Title**: "Joint Affected Status (Weibull) [$\text{scenario}$]" with subtitle showing:
     - `r_tet = X.XXX`: tetrachoric correlation on censored binary affected status.
     - `r_weibull = X.XXX`: cross-trait liability correlation estimated from uncensored Weibull survival data (oracle reference).
-    - `(stratified: X.XXX)`: generation-stratified Weibull estimate -- computes per-generation cross-trait correlations and combines via inverse-variance weighting ($\hat{r} = \sum w_g r_g / \sum w_g$ where $w_g = 1/\text{SE}_g^2$). This reduces bias from heterogeneous censoring across generations.
+    - `(stratified: X.XXX)`: generation-stratified Weibull estimate. Computes per-generation cross-trait correlations and combines via inverse-variance weighting ($\hat{r} = \sum w_g r_g / \sum w_g$ where $w_g = 1/\text{SE}_g^2$). This reduces bias from heterogeneous censoring across generations.
     - `(naive: X.XXX)`: unweighted pooled censored Weibull estimate for comparison (biased when censoring varies by generation). All values averaged across replicates.
 
 ---
 
-## Correlation Plots
+## Correlation plots
 
 Source: [`simace.plotting.plot_correlations`](../api/plotting.md#plot_correlations).
 Generated for Weibull frailty phenotypes.
@@ -166,7 +165,8 @@ Two-panel figure (16 $\times$ 6 in), one per trait. $y$-axis range: $[-0.1, 1.1]
 - **Pair count annotations**: "N=$X$" above each violin (mean pairs per replicate).
 - **Legend** (upper-right): "Liability r" (black dashed), "Weibull r (uncensored)" (green dash-dot, when present).
 - **x-axis labels**: Relationship type names, rotated 15$^\circ$.
-- **Interpretation**: The gap between the violins and the black dashed lines reflects attenuation due to censoring and the dichotomization inherent in the tetrachoric estimate. The green dash-dot lines show the intermediate effect of censoring alone (before dichotomization).
+
+The gap between the violins and the black dashed lines reflects attenuation due to censoring and the dichotomization inherent in the tetrachoric estimate. The green dash-dot lines show the intermediate effect of censoring alone (before dichotomization).
 
 ### Tetrachoric correlations by generation (`tetrachoric_by_generation.png`)
 
@@ -196,7 +196,8 @@ $1 \times 2$ figure (10 $\times$ 5 in), one panel per trait.
 - **Dashed lines**: Configured $A_k$ and $C_k$ parameters, shown in the matching series colour.
 - **$y$-axis**: $[0, 1]$, labelled variance proportion over total liability variance.
 - **$x$-axis**: Generation number.
-- **Interpretation**: Stable A and C proportions across generations confirm that the ACE variance decomposition is maintained through the simulation. Showing A and C separately avoids hiding shifts in C behind an $A + C$ broad-sense summary.
+
+Stable A and C proportions across generations confirm that the simulation maintains the ACE variance decomposition. Showing A and C separately avoids hiding shifts in C behind an $A + C$ broad-sense summary.
 
 Source: [`simace.plotting.plot_heritability`](../api/plotting.md#plot_heritability).
 Data from `report.yaml` -> `truth` -> `recorded_pedigree` -> `traits` -> `trait{N}` -> `realized_by_generation`.
@@ -206,7 +207,7 @@ Data from `report.yaml` -> `truth` -> `recorded_pedigree` -> `traits` -> `trait{
 ## Observed binary trait
 
 Binary case/control status lives in `trait.parquet` as the `affected1` /
-`affected2` columns — derived by the configured phenotype model and censoring.
+`affected2` columns, derived by the configured phenotype model and censoring.
 For a pure liability-threshold trait, select the `simple_ltm` phenotype model
 (see [Phenotype models](phenotype-models.md)). The fit-side descriptive binary
 statistics (prevalence-by-generation, tetrachoric correlations, Falconer h²)
@@ -214,7 +215,7 @@ are computed from `trait.parquet` by fitACE's observed-binary outputs.
 
 ---
 
-## Validation Summary Plots
+## Validation summary plots
 
 Source: [`simace.plotting.plot_validation`](../api/plotting.md#plot_validation).
 Generated from `report_summary.tsv` across all scenarios in a folder. Seaborn "whitegrid" theme with "Set2" palette.

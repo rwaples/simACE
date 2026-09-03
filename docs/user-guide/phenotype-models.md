@@ -1,4 +1,4 @@
-# Phenotype Models
+# Phenotype models
 
 simACE maps each individual's continuous liability $L = A + C + E$ to an
 observable affection status (and, for the time-to-event families, an
@@ -39,9 +39,9 @@ phenotype:
     beta: 1.0
 ```
 
-`frailty` and `first_passage` reject `prevalence` outright — case
-fraction emerges from their event-time processes, so a target prevalence
-is not part of those model definitions.
+`frailty` and `first_passage` reject `prevalence` outright. Their case
+fraction emerges from the event-time process, so a target prevalence is
+not part of those model definitions.
 
 | Key | Type | Description |
 |---|---|---|
@@ -52,23 +52,23 @@ is not part of those model definitions.
 
 ## Model families
 
-- `frailty` — proportional-hazards frailty. Liability scales the baseline
+- `frailty`: proportional-hazards frailty. Liability scales the baseline
   hazard via $z = \exp(\beta\,L)$. Given sufficient time every individual
   eventually onsets. Requires `params.distribution` and the hazard
   parameters of that distribution. Does **not** accept `params.prevalence`.
-- `cure_frailty` — mixture of a susceptible fraction (frailty) and an
+- `cure_frailty`: mixture of a susceptible fraction (frailty) and an
   immune fraction (never onsets). The susceptible fraction is sized from
   `params.prevalence`. Same `params.distribution` schema as `frailty`,
   with `prevalence` added.
-- `adult` — ADuLT age-dependent phenotyping family. Requires
+- `adult`: ADuLT age-dependent phenotyping family. Requires
   `params.method` $\in$ {`ltm`, `cox`}, the cumulative-incidence
   parameters `cip_x0`, `cip_k`, and `params.prevalence`. The two methods
   share the same logistic CIF age scale, but differ in how they choose
   cases and order onset ages.
-- `first_passage` — first-passage-time of a Brownian motion with drift.
+- `first_passage`: first-passage-time of a Brownian motion with drift.
   Requires `params.drift` and `params.shape`. Does **not** accept
   `params.prevalence`.
-- `simple_ltm` — probit liability threshold for case status at prevalence
+- `simple_ltm`: probit liability threshold for case status at prevalence
   `K`, followed by a fixed or normally distributed onset age independent
   of liability.
 
@@ -126,8 +126,8 @@ like every other model, so the *observed* affected rate after censoring is below
 
 | Param | Description |
 |---|---|
-| `prevalence` | Case fraction `K` — scalar, per-generation dict, or `{female:, male:}` dict. |
-| `onset` | Onset sub-model. `{kind: fixed, age: A}` — every case onsets at age `A`; or `{kind: normal, mean: M, sd: S}` — case onset ~ `Normal(M, S)`. |
+| `prevalence` | Case fraction `K`. A scalar, a per-generation dict, or a `{female:, male:}` dict. |
+| `onset` | Onset sub-model. With `{kind: fixed, age: A}` every case onsets at age `A`. With `{kind: normal, mean: M, sd: S}` case onset is drawn from `Normal(M, S)`. |
 
 ```yaml
 phenotype:
@@ -138,7 +138,7 @@ phenotype:
 There is no longer a separate censoring-free `trait.simple_ltm.parquet` output.
 The fit-side descriptive binary statistics (prevalence-by-generation,
 tetrachoric correlations, Falconer h²) are computed from the censored
-`trait.parquet` for every scenario — see fitACE's **observed-binary** outputs.
+`trait.parquet` for every scenario. See fitACE's observed-binary outputs.
 
 ## Standardization
 
@@ -164,7 +164,7 @@ phenotype:
 
 When omitted, `standardize_hazard` inherits the global `standardize`
 value. Threshold-only models (`simple_ltm` and `adult` with
-`method: ltm`) reject the field — they have no separate hazard step. See
+`method: ltm`) reject the field because they have no separate hazard step. See
 [ACE Model § Standardisation](../concepts/ace-model.md#standardisation)
 for the per-model routing table and `cure_frailty`'s two-knob behaviour.
 
@@ -173,11 +173,11 @@ for the per-model routing table and `cure_frailty`'s two-knob behaviour.
 For `adult` / `cure_frailty` / `simple_ltm`, three forms of
 `params.prevalence` are accepted:
 
-- **Scalar** (e.g. `0.10`) — same prevalence for every individual.
-- **Per-generation dict** (e.g. `{2: 0.03, 3: 0.05, 4: 0.08, 5: 0.12}`)
-  — prevalence varies across generations; every phenotyped generation
+- **Scalar** (e.g. `0.10`). Same prevalence for every individual.
+- **Per-generation dict** (e.g. `{2: 0.03, 3: 0.05, 4: 0.08, 5: 0.12}`).
+  Prevalence varies across generations. Every phenotyped generation
   must have an entry.
-- **Sex-specific dict** (e.g. `{female: 0.08, male: 0.12}`) — prevalence
+- **Sex-specific dict** (e.g. `{female: 0.08, male: 0.12}`). Prevalence
   differs by sex; each sex value may itself be a scalar or a
   per-generation dict.
 
@@ -196,7 +196,7 @@ that subclasses `PhenotypeModel`. To add another family:
 3. Import the class in `simace/phenotype/models/__init__.py` and add
    `"my_model": MyModel` to the `MODELS` dict.
 
-That's the entire registration surface — no decorator, no auto-discovery.
+There is no decorator and no auto-discovery.
 The dispatcher in `simace.phenotype._simulate_one_trait`,
 the validator in `simace.config._validate_phenotype_config`, and the
 CLI in `simace.phenotype.cli` all read from `MODELS` and

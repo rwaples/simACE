@@ -1,4 +1,4 @@
-# Running the Pipeline
+# Running the pipeline
 
 ## Snakemake basics
 
@@ -21,7 +21,7 @@ pixi run snakemake -n --cores 4
 
 | Target | What it runs |
 |---|---|
-| `pixi run snakemake --cores 4` | Everything (default -- all scenarios, all stages) |
+| `pixi run snakemake --cores 4` | Everything (default: all scenarios, all stages) |
 | `results/{folder}/{scenario}/epimight.done` | EPIMIGHT heritability estimation |
 | `results/{folder}/{scenario}/scenario.done` | All stages for one scenario |
 | `results/{folder}/{scenario}/simulate.done` | Pedigree simulation only |
