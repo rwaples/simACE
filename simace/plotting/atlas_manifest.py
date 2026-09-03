@@ -73,8 +73,8 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         basename="pedigree_counts.ped",
         title="Pedigree relationship pair counts (G_ped).",
         body=(
-            "Schematic multi-generational pedigree diagram showing the 10 relationship "
-            "categories extracted from the full simulated pedigree spanning all G_ped "
+            "Schematic multi-generational pedigree diagram of the 10 relationship "
+            "categories in the recorded pedigree, across all G_ped "
             "generations. Mean pair counts (averaged across replicates) are superimposed. "
             "Node shapes follow standard pedigree conventions: squares = male, circles = "
             "female."
@@ -93,7 +93,7 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         title="Family structure.",
         body=(
             "Three-panel figure showing offspring and mate count distributions, averaged "
-            "across replicates. Left: number of offspring per mating. Centre: number of "
+            "across replicates. Left: number of offspring per mating. Center: number of "
             "offspring per person (including childless individuals at 0). Right: fraction of "
             "parents with 1 vs. 2+ mates, grouped by sex."
         ),
@@ -107,7 +107,7 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "counted once, pooled across all non-founder generations. Bold white text shows "
             "observed r; smaller gray text shows the configured expected correlation on diagonal "
             "cells (off-diagonal not predicted for both-trait assortment). Diverging RdBu "
-            "colormap centred at 0, range [−1, 1]."
+            "colormap centered at 0, range [−1, 1]."
         ),
     ),
     PlotEntry(
@@ -138,13 +138,13 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "generation additive genetic variance Var(A) across replicates. Under phenotypic "
             "assortative mating Var(A) inflates across generations (the Bulmer effect) toward "
             "an equilibrium. The orange dashed line is the infinitesimal-model AM recursion "
-            "V_{t+1} = ½·V_t·(1 + r·h²_t) + ½·A, anchored at the founder variance A; the grey "
+            "V_{t+1} = ½·V_t·(1 + r·h²_t) + ½·A, anchored at the founder variance A. The grey "
             "dotted line marks its closed-form equilibrium a². This a² equals the assortative-"
             "mating-only equilibrium additive variance of Herzig et al. (2026, Theoretical "
             "Population Biology 170:26–35, doi:10.1016/j.tpb.2026.06.003): the simACE midparent "
             "model and their explicit gametic-disequilibrium model share the same AM "
-            "equilibrium. Traits without assortative mating show the flat configured A "
-            "reference; per-generation A/C/E suppresses the theory overlay."
+            "equilibrium. Traits without assortative mating show the flat configured A as "
+            "the expected line. Per-generation A, C, or E suppresses the expected lines."
         ),
     ),
     PlotEntry(
@@ -155,8 +155,8 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "2 Cov(A, C+E) / Var(L) by generation; the line shows the replicate mean. "
             "The shaded band is an approximate null guide from finite-N sampling variation. "
             "In current simACE, C and E are drawn independently of A each generation, so the "
-            "recorded-pedigree expectation is approximately zero. A nonzero signal before "
-            "VCT/autoregressive-C is enabled is a regression-warning signal."
+            "recorded-pedigree expectation is approximately zero. Without VCT or "
+            "autoregressive C, a nonzero value contradicts that independence."
         ),
     ),
     PlotEntry(
@@ -174,18 +174,18 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         basename="observed_h2",
         title="Observed-scale heritability from binary affected status.",
         body=(
-            "UNDER CONSTRUCTION: this diagnostic is provisional and should not be used as "
-            "a final heritability estimate. 2×2 grid: rows = traits, columns = scale. Left column: observed-scale h² "
+            "This diagnostic is provisional and is not a final heritability estimate. "
+            "2×2 grid: rows = traits, columns = scale. Left column: observed-scale h² "
             "estimators computed directly from Pearson correlations on binary affected "
-            "indicators — Falconer 2(r_MZ − r_FS), Sibs 2·r_FS, PO (midparent-offspring "
-            "regression on binary affected status), Half-sibs 4·mean(r_MHS, r_PHS), Cousins "
+            "indicators: Falconer 2(r_MZ − r_FS), Sibs 2·r_FS, PO (midparent-offspring "
+            "regression on binary affected status), Half-sibs 4·mean(r_MHS, r_PHS), and Cousins "
             "8·r_1C. Blue per-rep dots at each estimator; grey dotted line marks the "
             "Dempster–Lerner expected value A·z(K)²/(K·(1−K)) at the mean observed prevalence"
             " K. Right column: same per-rep estimates back-transformed to the liability scale"
             " via h²_liab = h²_obs · K(1−K)/z(K)². The D–L correction assumes a threshold-"
             "normal (LTM) mapping from liability to affected status; it is biased under non-"
-            "threshold phenotype models such as pure frailty (see docs/examples/observed-vs-"
-            "liability-h2.md)."
+            "threshold phenotype models such as pure frailty. The worked example in "
+            "docs/examples/observed-vs-liability-h2.md shows the bias."
         ),
     ),
     MODEL_SECTION,
@@ -206,9 +206,9 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "shows the mean component value among affected (red), unaffected (grey), and "
             "overall (black) individuals per generation. Selection on A is visible as "
             "separation between affected and unaffected lines: affected individuals have "
-            "higher mean A (positive selection). C and E show no systematic selection since "
-            "they are independent of liability threshold crossing conditional on total "
-            "liability. Generation-specific prevalence annotated on x-axis."
+            "higher mean A (positive selection). C and E show no systematic selection. "
+            "Conditional on total liability, they are independent of whether the "
+            "liability crosses the threshold. Generation-specific prevalence annotated on x-axis."
         ),
     ),
     SectionBreak(
@@ -260,14 +260,14 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         basename="cumulative_incidence_aj.phenotype",
         title="Aalen-Johansen cumulative incidence (competing risks).",
         body=(
-            "Two-panel figure, one per trait. Solid coloured line = Aalen-Johansen trait-event "
+            "Two-panel figure, one per trait. Solid colored line = Aalen-Johansen trait-event "
             "cumulative incidence treating death as a competing event. Dotted grey line = "
-            "true disease CIF from uncensored event times. Light overlay = empirical "
-            "observed CIF (#affected/n) for comparison. Min-max band across replicates is "
-            "shown for the AJ trait curve. The "
-            "annotation reports terminal AJ trait F(∞), AJ death F(∞), and overall survival "
-            "S(∞), which sum to 1 by construction. Per-generation observation windows "
-            "(``gen_censoring``) are honoured via delayed entry."
+            "true cumulative incidence from uncensored event times. Light overlay = empirical "
+            "observed cumulative incidence (#affected/n). The Aalen-Johansen trait curve "
+            "carries a min-max band across replicates. The annotation reports the terminal "
+            "Aalen-Johansen trait F(∞), Aalen-Johansen death F(∞), and overall survival "
+            "S(∞). The three sum to 1. Delayed entry applies each generation's "
+            "observation window from gen_censoring."
         ),
     ),
     PlotEntry(
@@ -277,7 +277,7 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "Two-panel figure, one per trait. Green line = female (sex=0), blue line = male "
             "(sex=1) observed cumulative incidence. Legend shows sample size and observed "
             "prevalence per sex. Statistics computed over the full phenotyped population "
-            "(pre-ascertainment)."
+            "(before ascertainment)."
         ),
     ),
     PlotEntry(
@@ -290,7 +290,7 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "status. Unshaded cells use annotations to show proportion and count. Title shows sensitivity "
             "(true positive rate) and specificity (true negative rate). Only phenotyped "
             "generations (those with non-degenerate observation windows) are included. "
-            "Statistics computed over the full phenotyped population (pre-ascertainment)."
+            "Statistics computed over the full phenotyped population (before ascertainment)."
         ),
     ),
     PlotEntry(
@@ -303,7 +303,7 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "equals true case count per generation. Sensitivity (observed / true) is "
             "annotated per generation; subplot titles show overall sensitivity. Only "
             "generations with non-degenerate observation windows are shown. Statistics "
-            "computed over the full phenotyped population (pre-ascertainment)."
+            "computed over the full phenotyped population (before ascertainment)."
         ),
     ),
     SectionBreak(
@@ -315,7 +315,7 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         title="Parent-offspring liability regressions.",
         body=(
             "Grid: rows = traits, columns = last 3 non-founder generations. Scatter of "
-            "midparent liability (x) vs. offspring liability (y) coloured by offspring sex "
+            "midparent liability (x) vs. offspring liability (y) colored by offspring sex "
             "(green = daughters, blue = sons). Observed pooled regression line (solid orange,"
             " with 95% CI band), sex-specific regression lines, and expected slope from "
             "configured A (dashed). Text box shows pooled h² and sex-specific h²♀/h²♂ (slope "
@@ -350,7 +350,7 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "tetrachoric correlations (computed from censored binary affected status) across "
             "replicates for each relationship type. Black dots = individual per-replicate "
             "tetrachoric estimates. Black dashed lines = mean Pearson liability correlation "
-            "(ground-truth correlation on the continuous latent liability). Green dash-dot "
+            "(the true correlation of the continuous latent liability). Green dash-dot "
             "lines = mean uncensored frailty pairwise survival-time correlation (present when"
             " available). Red dotted lines = parametric expected correlation from the "
             "configured ACE variance components (e.g. E[r] = 0.5·A + C for full sibs, 0.5·A "
@@ -362,7 +362,7 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         title="Tetrachoric correlations by sex.",
         body=(
             "2×2 grid: rows = traits, columns = sex (female, male). Same encoding as the "
-            "relationship-type tetrachoric correlation plot: coloured violins show observed tetrachoric correlations for same-sex pairs "
+            "relationship-type tetrachoric correlation plot: colored violins show observed tetrachoric correlations for same-sex pairs "
             "only (FF or MM). Black dashed = liability correlation, red dotted = parametric "
             "E[r]. Opposite-sex pairs are excluded."
         ),
@@ -373,19 +373,19 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
     ),
     PlotEntry(
         basename="cross_trait.phenotype",
-        title="Cross-trait liability joint plots coloured by affected status (trait 1).",
+        title="Cross-trait liability joint plots colored by affected status (trait 1).",
         body=(
             "Same 2×2 layout as the cross-trait liability joint plots, but with affected-status "
-            "colouring based on trait 1. Blue points = unaffected, orange points = affected (trait 1). Marginal "
+            "coloring based on trait 1. Blue points = unaffected, orange points = affected (trait 1). Marginal "
             "histograms stacked by affected status."
         ),
     ),
     PlotEntry(
         basename="cross_trait.phenotype.t2",
-        title="Cross-trait liability joint plots coloured by affected status (trait 2).",
+        title="Cross-trait liability joint plots colored by affected status (trait 2).",
         body=(
             "Same 2×2 layout as the cross-trait liability joint plots, but with affected-status "
-            "colouring based on trait 2. Blue points = unaffected, orange points = affected (trait 2). Marginal "
+            "coloring based on trait 2. Blue points = unaffected, orange points = affected (trait 2). Marginal "
             "histograms stacked by affected status."
         ),
     ),
@@ -396,10 +396,10 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "2×2 heatmap of joint affected status across both traits. Cell annotations show "
             "proportion and count. Title shows cross-trait correlation estimates: 'r_tet' = "
             "tetrachoric correlation on censored binary affected status; 'r_frailty' = "
-            "frailty-estimated liability correlation from uncensored survival data (oracle); "
+            "frailty-estimated liability correlation from uncensored survival data; "
             "'stratified' = generation-stratified estimate that computes per-generation "
             "correlations and combines via inverse-variance weighting; 'naive' = unweighted "
-            "pooled censored estimate. Statistics computed over the full phenotyped population (pre-ascertainment)."
+            "pooled censored estimate. Statistics computed over the full phenotyped population (before ascertainment)."
         ),
     ),
     PlotEntry(
@@ -409,8 +409,8 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "Two-panel figure measuring cross-trait association via tetrachoric correlation "
             "between affected1 and affected2. Left panel: same-person cross-trait r by "
             "generation (blue dots per rep, line = mean), with overall r (black dashed) and "
-            "frailty oracle (green dash-dot) reference lines when available. Right panel: "
-            "cross-person cross-trait r by relationship type (coloured violins + black dots)."
+            "uncensored frailty estimate (green dash-dot) reference lines when available. Right panel: "
+            "cross-person cross-trait r by relationship type (colored violins + black dots)."
         ),
     ),
     SectionBreak(
@@ -442,7 +442,7 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "Grid: rows = traits, columns = generations. Each panel shows cumulative "
             "incidence curves for female (green) and male (blue) separately. Legend shows "
             "per-sex sample size and observed prevalence within each generation. Statistics "
-            "computed over the full phenotyped population (pre-ascertainment)."
+            "computed over the full phenotyped population (before ascertainment)."
         ),
     ),
     PlotEntry(
@@ -460,19 +460,19 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         title="Aalen-Johansen cumulative incidence by sex.",
         body=(
             "Two-panel figure, one per trait. Green line = female (sex=0), blue line = male "
-            "(sex=1) Aalen-Johansen trait CIF. Legend shows sample size and observed "
+            "(sex=1) Aalen-Johansen trait cumulative incidence. Legend shows sample size and observed "
             "prevalence per sex. Statistics computed over the full phenotyped population "
-            "(pre-ascertainment)."
+            "(before ascertainment)."
         ),
     ),
     PlotEntry(
         basename="cumulative_incidence_aj.by_sex.by_generation",
         title="Aalen-Johansen cumulative incidence by sex and generation.",
         body=(
-            "Grid: rows = traits, columns = generations. Each panel shows AJ trait CIF for "
+            "Grid: rows = traits, columns = generations. Each panel shows the Aalen-Johansen trait cumulative incidence for "
             "female (green) and male (blue) separately. Legend shows per-sex sample size and "
-            "prevalence within each generation. Per-generation observation windows are "
-            "honoured via delayed entry."
+            "prevalence within each generation. Delayed entry applies each "
+            "generation's observation window."
         ),
     ),
 )
@@ -511,8 +511,8 @@ VALIDATION_ATLAS: tuple[AtlasItem, ...] = (
         body=(
             "Left panel: Number of half-sibling matings per replicate (random mating produces"
             " a small number by chance). Right panel: Missing grandparent-grandchild links "
-            "caused by shared grandparents. Reconciliation verifies that all missing links "
-            "are explained by consanguineous matings."
+            "caused by shared grandparents. The reconciliation check confirms that "
+            "consanguineous matings account for every missing link."
         ),
     ),
     PlotEntry(
@@ -532,10 +532,10 @@ VALIDATION_ATLAS: tuple[AtlasItem, ...] = (
             "sibling (FS) A₁ correlation (expected = 0.5). Panel 3: Half-sibling A₁ correlation "
             "(expected = 0.25). Panel 4: Midparent-offspring A₁ R² (expected = 0.5). Each "
             "panel shows blue dots with the orange random-mating reference line. For scenarios "
-            "with assortative mating, a purple marker adds the AM-corrected expectation computed "
-            "from the observed genetic and liability mate correlations — FS/PO = (1+μ_A)/2, "
-            "half-sib = (1+2μ_A+μ_A·r_ho)/4 — which the additive genetic correlations inflate "
-            "toward under AM. MZ is AM-invariant (no purple marker)."
+            "with assortative mating, a purple marker adds the AM-corrected expectation. It is "
+            "computed from the observed genetic and liability mate correlations: FS and PO = "
+            "(1+μ_A)/2, half-sib = (1+2μ_A+μ_A·r_ho)/4. Under AM the additive genetic "
+            "correlations inflate toward these values. MZ is AM-invariant (no purple marker)."
         ),
     ),
     PlotEntry(
@@ -578,12 +578,12 @@ VALIDATION_ATLAS: tuple[AtlasItem, ...] = (
     PlotEntry(
         basename="runtime",
         title="Simulation runtime.",
-        body=("Log-log scatter of population size N (x) vs. simulation wall-clock seconds (y), coloured by scenario."),
+        body=("Log-log scatter of population size N (x) vs. simulation wall-clock seconds (y), colored by scenario."),
     ),
     PlotEntry(
         basename="memory",
         title="Memory usage.",
-        body=("Log-log scatter of population size N (x) vs. peak resident set size in MB (y), coloured by scenario."),
+        body=("Log-log scatter of population size N (x) vs. peak resident set size in MB (y), colored by scenario."),
     ),
 )
 
@@ -594,15 +594,15 @@ VALIDATION_ATLAS: tuple[AtlasItem, ...] = (
 EFFECTIVE_SIZE_ATLAS: tuple[AtlasItem, ...] = (
     PlotEntry(
         basename="effective_size.estimators",
-        title="Ne estimator headline.",
+        title="Ne estimator summary.",
         body=(
             "Per-rep aggregate Ne for all eight estimators on a log y-axis. Blue dots show "
-            "per-replicate values; orange dashed lines show closed-form expectations from "
-            "theoretical_expectations() where applicable (Ne_V for variance/iΔF/Hill, N for "
-            "Ne_sr, Ne_V/2 for Ne_LTC, and the regression estimators when N·G² satisfies the "
-            "Jensen-bias gate). Per-estimator mean ± SD across reps annotated above each "
-            "column. Reps that returned None (commonly Ne_LTC at G_ped=6) are shown as open "
-            "markers below the axis. Subtitle reports the scenario header (N, λ, G_ped, "
+            "per-replicate values. Orange dashed lines show closed-form expectations from "
+            "theoretical_expectations() where defined: Ne_V for Ne_V, Ne_iΔF, and Ne_H; N for "
+            "Ne_sr; Ne_V/2 for Ne_LTC. The regression estimators Ne_I, Ne_C, and Ne_CT get an "
+            "expected line only when N·G² is large enough for the Jensen bias to be small. Per-estimator mean "
+            "± SD across reps is annotated above each column. Open markers below the axis "
+            "mark reps that returned None (commonly Ne_LTC at G_ped=6). Subtitle reports the scenario header (N, λ, G_ped, "
             "expected Ne_V)."
         ),
     ),
@@ -612,11 +612,11 @@ EFFECTIVE_SIZE_ATLAS: tuple[AtlasItem, ...] = (
         body=(
             "2×3 grid: per-generation Ne_g for the six estimators that expose a vector. Five "
             "panels (Ne_I, Ne_C, Ne_sr, Ne_iΔF, Ne_CT) index generation 0..G_ped-1 from "
-            "ne_per_gen. The Ne_V panel uses ne_per_transition and is x-axis-labelled "
-            "'transition (g→g+1)' with half-integer tick positions to make the offset from "
-            "generation indexing visually obvious. One coloured line per replicate; orange "
-            "dashed horizontal lines show the closed-form expectation when defined. NaN "
-            "entries (e.g. early-generation Ne_I before drift accumulates) are skipped."
+            "ne_per_gen. The Ne_V panel uses ne_per_transition. Its x-axis is labelled "
+            "'transition (g→g+1)' with half-integer ticks, so the offset from generation "
+            "indexing is visible. One colored line per replicate. Orange "
+            "dashed horizontal lines show the closed-form expectation when defined. The plot "
+            "skips NaN entries, such as early-generation Ne_I before drift accumulates."
         ),
     ),
     PlotEntry(
@@ -624,25 +624,24 @@ EFFECTIVE_SIZE_ATLAS: tuple[AtlasItem, ...] = (
         title="Underlying drift signals (mean F, θ, self-kinship).",
         body=(
             "1×3 grid showing the per-generation drift quantities that the slope-based Ne "
-            "estimators invert. Left: mean inbreeding F per generation (drives Ne_inbreeding). "
-            "Centre: mean kinship θ per generation (drives the Ne_coancestry estimator). Right: mean "
-            "founder self-kinship per generation (drives the Ne_caballero_toro estimator). One line per "
-            "replicate. Linear growth in these quantities is the signal; non-monotone or "
-            "near-flat traces flag estimators that are fitting noise."
+            "estimators invert. Left: mean inbreeding F per generation (input to Ne_I). "
+            "Center: mean kinship θ per generation (input to Ne_C). Right: mean "
+            "founder self-kinship per generation (input to Ne_CT). One line per "
+            "replicate. The estimators assume linear growth in these quantities. A "
+            "non-monotone or near-flat trace means the estimator has no slope to fit."
         ),
     ),
     PlotEntry(
         basename="effective_size.family_size_variance",
         title="Family-size variance and covariance (ZTP diagnostic).",
         body=(
-            "1×2 diagnostic for Ne_variance_family_size. Left: per-transition offspring-count "
+            "1×2 diagnostic for Ne_V. Left: per-transition offspring-count "
             "variance for the four parent-sex × offspring-sex quadrants (v_mm, v_mf, v_fm, "
             "v_ff), with the ZTP(λ) closed-form 1 + Var[m]/E[m]² overlaid as an orange dashed "
             "reference. Right: per-transition between-mate covariance (cov_m, cov_f) with the "
             "ZTP closed-form Var[m]/E[m]² overlaid. At λ=0.5 the references sit at ≈1.180 and "
-            "≈0.180 respectively. Convergence of the four v lines to the reference is the "
-            "primary check that the simACE mating model is producing the intended ZTP "
-            "family-size distribution."
+            "≈0.180 respectively. The four v lines converge to the reference when the "
+            "mating model produces the ZTP family-size distribution."
         ),
     ),
 )
