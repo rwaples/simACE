@@ -7,7 +7,7 @@ heritability and familial correlations from population health registries.
 
 📖 **Full documentation**: see the [`docs/`](docs/) directory (built with mkdocs)
 or the [rendered site](https://rwaples.github.io/simACE/). Model fitting
-(EPIMIGHT, PCGC, iterative/sparse REML, LDAK TetraHer, PA-FGRS, Stan) lives in
+(EPIMIGHT, PCGC, iterative/sparse REML, LDAK TetraHer, PA-FGRS, Stan, frailty) lives in
 the private companion repo [`fitACE`](https://github.com/rwaples/fitACE),
 which depends on simACE.
 
@@ -51,7 +51,7 @@ pixi run snakemake --cores 4 results/test/small_test/scenario.done
 Check the output:
 
 ```bash
-ls results/test/small_test/rep1/    # pedigree.parquet, trait files, validation, stats
+ls results/test/small_test/rep1/    # pedigree.parquet, trait files, report.yaml, params.yaml
 cat logs/test/small_test/rep1/simulate.log
 ```
 
@@ -89,20 +89,21 @@ and the results folder name comes from the filename:
 ```yaml
 # config/heritability.yaml → outputs under results/heritability/{scenario}/
 high_heritability:
-  A1: 0.8                                   # Trait 1: A + C <= 1.0; E = 1 - A - C
-  C1: 0.0
-  A2: 0.8                                   # Trait 2
-  C2: 0.0
+  seed: 4042
+  pedigree:
+    trait1: {A: 0.8, C: 0.0, E: 0.2}        # A + C + E = 1 per trait
+    trait2: {A: 0.8, C: 0.0, E: 0.2}
 
 baseline_small:
   seed: 1042
   N: 10000                                  # Population size per generation
 ```
 
-Key defaults you will most often override: `A1`/`C1`/`A2`/`C2` (variance
-components), `rA`/`rC` (cross-trait correlations), `N`, `G_ped`/`G_pheno`/
-`G_sim` (generations recorded / phenotyped / simulated), `seed`,
-`replicates`.
+Key defaults you will most often override: `pedigree.trait{1,2}.{A,C,E}`
+(variance components), `pedigree.rA`/`pedigree.rC` (cross-trait
+correlations), `N`, `G_ped`/`G_pheno`/`G_sim` (generations recorded /
+phenotyped / simulated), `seed`, `replicates`. The loader still accepts the
+older flat keys (`A1`, `C1`, …) for compatibility.
 
 To add new simulations, add a scenario to an existing folder file or create
 a new `config/{folder}.yaml` — files are auto-discovered (names starting
@@ -112,9 +113,10 @@ full parameter reference (phenotype models, censoring, ascertainment, etc.), see
 
 ## Outputs
 
-Each scenario replicate produces a pedigree parquet, censored time-to-event
-phenotypes, a liability-threshold binary phenotype, per-replicate stats and
-validation YAMLs, and a browsable HTML plot atlas (PDF export on demand). See
+Each scenario replicate produces the full and post-ascertainment pedigree
+parquets, outcomes-only censored time-to-event trait parquets, a curated
+`report.yaml` with its `plot_payload.yaml` companion, and a browsable HTML
+plot atlas (PDF export on demand). See
 [Output Structure](docs/user-guide/output-structure.md) for the complete file
 inventory, parquet column schemas, YAML structures, and plot listings.
 
