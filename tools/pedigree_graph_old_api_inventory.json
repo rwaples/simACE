@@ -1,0 +1,2485 @@
+{
+  "counts": {
+    "production": {
+      "fitACE": 69,
+      "fitACE_epimight": 10,
+      "pedsum": 44,
+      "simACE": 43
+    },
+    "tests": {
+      "fitACE": 52,
+      "fitACE_epimight": 0,
+      "pedsum": 18,
+      "simACE": 22
+    }
+  },
+  "production": [
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 12,
+      "path": "fitACE_iter_reml/fitace_iter_reml/fit.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 14,
+      "path": "fitACE_iter_reml/fitace_iter_reml/fit.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(ped_df)"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 17,
+      "path": "fitACE_iter_reml/fitace_iter_reml/fit.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": "kinship=pg.kinship_matrix(),"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 11,
+      "path": "fitACE_iter_reml/fitace_sreml/fit.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 13,
+      "path": "fitACE_iter_reml/fitace_sreml/fit.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(ped_df)"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 16,
+      "path": "fitACE_iter_reml/fitace_sreml/fit.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": "kinship=pg.kinship_matrix(),"
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 1163,
+      "low_confidence": true,
+      "path": "fitACE_pafgrs/fitace_pafgrs/pafgrs.py",
+      "repo": "fitACE",
+      "symbol": "generation",
+      "text": "\"generation\": prep.generation,"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 1225,
+      "path": "fitACE_pafgrs/fitace_pafgrs/pafgrs.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "fathers",
+        "mothers",
+        "twins"
+      ],
+      "kind": "classmethod",
+      "line": 1227,
+      "path": "fitACE_pafgrs/fitace_pafgrs/pafgrs.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph.from_arrays",
+      "text": "pg = PedigreeGraph.from_arrays("
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 1234,
+      "path": "fitACE_pafgrs/fitace_pafgrs/pafgrs.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": "kmat = pg.kinship_matrix()"
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 898,
+      "low_confidence": true,
+      "path": "fitACE_pafgrs/fitace_pafgrs/pafgrs_bivariate.py",
+      "repo": "fitACE",
+      "symbol": "generation",
+      "text": "\"generation\": prep.generation,"
+    },
+    {
+      "context": "doc",
+      "kind": "classmethod",
+      "line": 1090,
+      "path": "fitACE_pafgrs/fitace_pafgrs/pafgrs_bivariate.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph.from_subsample",
+      "text": "phenotype_df rows (e.g. ``PedigreeGraph.from_subsample(pedigree_df,"
+    },
+    {
+      "context": "doc",
+      "kind": "method",
+      "line": 1091,
+      "path": "fitACE_pafgrs/fitace_pafgrs/pafgrs_bivariate.py",
+      "repo": "fitACE",
+      "symbol": "extract_pairs",
+      "text": "phenotype_df).extract_pairs()[\"FS\"]``).  When given, the internal"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 1118,
+      "path": "fitACE_pafgrs/fitace_pafgrs/pafgrs_bivariate.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 1120,
+      "path": "fitACE_pafgrs/fitace_pafgrs/pafgrs_bivariate.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "graph = PedigreeGraph(pedigree_df)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 1121,
+      "path": "fitACE_pafgrs/fitace_pafgrs/pafgrs_bivariate.py",
+      "repo": "fitACE",
+      "symbol": "extract_pairs",
+      "text": "pairs = graph.extract_pairs(max_degree=2)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 37,
+      "path": "fitACE_pafgrs/workflow/scripts/pafgrs_bivariate_score.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "classmethod",
+      "line": 113,
+      "path": "fitACE_pafgrs/workflow/scripts/pafgrs_bivariate_score.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph.from_subsample",
+      "text": "falconer_pairs = PedigreeGraph.from_subsample(pedigree_df, phenotype_df).extract_pairs(max_degree=1)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 113,
+      "path": "fitACE_pafgrs/workflow/scripts/pafgrs_bivariate_score.py",
+      "repo": "fitACE",
+      "symbol": "extract_pairs",
+      "text": "falconer_pairs = PedigreeGraph.from_subsample(pedigree_df, phenotype_df).extract_pairs(max_degree=1)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 36,
+      "path": "fitACE_pafgrs/workflow/scripts/pafgrs_score.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "classmethod",
+      "line": 79,
+      "path": "fitACE_pafgrs/workflow/scripts/pafgrs_score.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph.from_subsample",
+      "text": "falconer_pairs = PedigreeGraph.from_subsample(pedigree_df, phenotype_df).extract_pairs(max_degree=1)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 79,
+      "path": "fitACE_pafgrs/workflow/scripts/pafgrs_score.py",
+      "repo": "fitACE",
+      "symbol": "extract_pairs",
+      "text": "falconer_pairs = PedigreeGraph.from_subsample(pedigree_df, phenotype_df).extract_pairs(max_degree=1)"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 71,
+      "path": "fitACE_tetraher/fitace_tetraher/adapter.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "\u2014 *not* the nominal ``PAIR_KINSHIP[code]`` lookup, which is an"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 83,
+      "path": "fitACE_tetraher/fitace_tetraher/adapter.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 89,
+      "path": "fitACE_tetraher/fitace_tetraher/adapter.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "graph = PedigreeGraph(pedigree)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree",
+        "min_kinship"
+      ],
+      "kind": "method",
+      "line": 91,
+      "path": "fitACE_tetraher/fitace_tetraher/adapter.py",
+      "repo": "fitACE",
+      "symbol": "extract_pairs",
+      "text": "pairs = graph.extract_pairs(max_degree=ndegree, min_kinship=min_kinship)"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 108,
+      "path": "fitACE_tetraher/fitace_tetraher/adapter.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "# PAIR_KINSHIP[code] lookup this replaced kept only the *closest* path, so"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 116,
+      "path": "fitACE_tetraher/fitace_tetraher/adapter.py",
+      "repo": "fitACE",
+      "symbol": "compute_pair_kinship",
+      "text": "kinship = graph.compute_pair_kinship(pairs)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 29,
+      "path": "fitace/bench/reml.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 64,
+      "path": "fitace/bench/reml.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(full_ped)"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 66,
+      "path": "fitace/bench/reml.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": "K_full = pg.kinship_matrix()"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 19,
+      "path": "fitace/exports/tables.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": ":data:`~pedigree_graph.PAIR_KINSHIP`,"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 32,
+      "path": "fitace/exports/tables.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import REL_REGISTRY, PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 32,
+      "path": "fitace/exports/tables.py",
+      "repo": "fitACE",
+      "symbol": "REL_REGISTRY",
+      "text": "from pedigree_graph import REL_REGISTRY, PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 149,
+      "path": "fitace/exports/tables.py",
+      "repo": "fitACE",
+      "symbol": "REL_REGISTRY",
+      "text": "degrees = [rt.degree for rt in REL_REGISTRY.values() if rt.kinship >= min_kinship]"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 173,
+      "path": "fitace/exports/tables.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(pedigree_df)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 174,
+      "path": "fitace/exports/tables.py",
+      "repo": "fitACE",
+      "symbol": "extract_pairs",
+      "text": "pairs = pg.extract_pairs(max_degree=max_degree)"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 175,
+      "path": "fitace/exports/tables.py",
+      "repo": "fitACE",
+      "symbol": "compute_pair_kinship",
+      "text": "kinship_by_code = pg.compute_pair_kinship(pairs)"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 309,
+      "path": "fitace/exports/tables.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = graph if graph is not None else PedigreeGraph(pedigree_df)"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 478,
+      "path": "fitace/exports/tables.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(pedigree_df)"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 479,
+      "path": "fitace/exports/tables.py",
+      "repo": "fitACE",
+      "symbol": "compute_inbreeding",
+      "text": "F = pg.compute_inbreeding()"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 59,
+      "path": "fitace/kinship/grm_io.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "fathers",
+        "mothers",
+        "twins"
+      ],
+      "kind": "classmethod",
+      "line": 284,
+      "path": "fitace/kinship/grm_io.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph.from_arrays",
+      "text": "pg = PedigreeGraph.from_arrays("
+    },
+    {
+      "context": "code",
+      "flags": [
+        "min_kinship"
+      ],
+      "kind": "method",
+      "line": 291,
+      "path": "fitace/kinship/grm_io.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": "K = pg.kinship_matrix(min_kinship=min_kinship)"
+    },
+    {
+      "context": "code",
+      "kind": "private",
+      "line": 363,
+      "path": "fitace/kinship/grm_io.py",
+      "repo": "fitACE",
+      "symbol": "_ensure_parent_csr",
+      "text": "pg._ensure_parent_csr()"
+    },
+    {
+      "context": "code",
+      "kind": "private",
+      "line": 364,
+      "path": "fitace/kinship/grm_io.py",
+      "repo": "fitACE",
+      "symbol": "_Af",
+      "text": "_, labels = connected_components(pg._Am + pg._Af, directed=False)"
+    },
+    {
+      "context": "code",
+      "kind": "private",
+      "line": 364,
+      "path": "fitace/kinship/grm_io.py",
+      "repo": "fitACE",
+      "symbol": "_Am",
+      "text": "_, labels = connected_components(pg._Am + pg._Af, directed=False)"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 11,
+      "path": "fitace/kinship/kinship.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "* **Not** ``PAIR_KINSHIP[code]`` stamped onto enumerated pairs.  ``extract_pairs``"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 62,
+      "path": "fitace/kinship/kinship.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 66,
+      "path": "fitace/kinship/kinship.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "graph = PedigreeGraph(pedigree_df)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 83,
+      "path": "fitace/kinship/kinship.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": "coo = graph.kinship_matrix(max_degree=max_degree).tocoo()"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 97,
+      "path": "fitace/kinship/kinship.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "value_graph = PedigreeGraph(pedigree_df)"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 105,
+      "path": "fitace/kinship/kinship.py",
+      "repo": "fitACE",
+      "symbol": "compute_pair_kinship",
+      "text": "exact = value_graph.compute_pair_kinship({\"_off\": (rows, cols), \"_diag\": (diag_idx, diag_idx)})"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 23,
+      "path": "fitace/ltm/falconer.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "doc",
+      "kind": "method",
+      "line": 61,
+      "path": "fitace/ltm/falconer.py",
+      "repo": "fitACE",
+      "symbol": "extract_pairs",
+      "text": "``PedigreeGraph.extract_pairs()``, indexed into ``df`` rows)."
+    },
+    {
+      "context": "code",
+      "kind": "classmethod",
+      "line": 79,
+      "path": "fitace/ltm/falconer.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph.from_subsample",
+      "text": "pairs = PedigreeGraph.from_subsample(pedigree, df).extract_pairs()"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 79,
+      "path": "fitace/ltm/falconer.py",
+      "repo": "fitACE",
+      "symbol": "extract_pairs",
+      "text": "pairs = PedigreeGraph.from_subsample(pedigree, df).extract_pairs()"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 81,
+      "path": "fitace/ltm/falconer.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pairs = PedigreeGraph(df).extract_pairs()"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 81,
+      "path": "fitace/ltm/falconer.py",
+      "repo": "fitACE",
+      "symbol": "extract_pairs",
+      "text": "pairs = PedigreeGraph(df).extract_pairs()"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 22,
+      "path": "fitace/ltm/stats.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "classmethod",
+      "line": 100,
+      "path": "fitace/ltm/stats.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph.from_subsample",
+      "text": "pairs = PedigreeGraph.from_subsample(full_ped, df).extract_pairs(max_degree=max_degree)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 100,
+      "path": "fitace/ltm/stats.py",
+      "repo": "fitACE",
+      "symbol": "extract_pairs",
+      "text": "pairs = PedigreeGraph.from_subsample(full_ped, df).extract_pairs(max_degree=max_degree)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 21,
+      "path": "fitace/relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "from pedigree_graph import PAIR_KINSHIP"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 96,
+      "path": "fitace/relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "_missing_pair_codes = sorted({code for rt in _RELATIONSHIP_TYPES for code in rt.pair_codes} - set(PAIR_KINSHIP))"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 103,
+      "path": "fitace/relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "# PAIR_KINSHIP[pair_code], so guard against silent drift if pedigree_graph ever"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 108,
+      "path": "fitace/relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "(rt.code, rt.pair_codes[0], rt.kinship, PAIR_KINSHIP[rt.pair_codes[0]])"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 110,
+      "path": "fitace/relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "if len(rt.pair_codes) == 1 and rt.kinship != PAIR_KINSHIP[rt.pair_codes[0]]"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 114,
+      "path": "fitace/relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "f\"{code}: registry {kin} != PAIR_KINSHIP[{pair!r}] = {pg_kin}\" for code, pair, kin, pg_kin in _kinship_drift"
+    },
+    {
+      "context": "doc",
+      "kind": "method",
+      "line": 189,
+      "path": "fitace/relationships.py",
+      "repo": "fitACE",
+      "symbol": "extract_pairs",
+      "text": "``all_pairs`` is the dict returned by ``PedigreeGraph.extract_pairs()``,"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 31,
+      "path": "fitace_epimight/create_input.py",
+      "repo": "fitACE_epimight",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 83,
+      "path": "fitace_epimight/create_input.py",
+      "repo": "fitACE_epimight",
+      "symbol": "PedigreeGraph_call",
+      "text": "all_pairs = PedigreeGraph(df).extract_pairs()"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 83,
+      "path": "fitace_epimight/create_input.py",
+      "repo": "fitACE_epimight",
+      "symbol": "extract_pairs",
+      "text": "all_pairs = PedigreeGraph(df).extract_pairs()"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 22,
+      "path": "scripts/ci_options/sandwich.py",
+      "repo": "fitACE_epimight",
+      "symbol": "PAIR_KINSHIP",
+      "text": "from pedigree_graph import PAIR_KINSHIP, PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 22,
+      "path": "scripts/ci_options/sandwich.py",
+      "repo": "fitACE_epimight",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PAIR_KINSHIP, PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 179,
+      "path": "scripts/ci_options/sandwich.py",
+      "repo": "fitACE_epimight",
+      "symbol": "PedigreeGraph_call",
+      "text": "pairs = PedigreeGraph(ped).extract_pairs(max_degree=max_degree)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 179,
+      "path": "scripts/ci_options/sandwich.py",
+      "repo": "fitACE_epimight",
+      "symbol": "extract_pairs",
+      "text": "pairs = PedigreeGraph(ped).extract_pairs(max_degree=max_degree)"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 212,
+      "path": "scripts/ci_options/sandwich.py",
+      "repo": "fitACE_epimight",
+      "symbol": "PAIR_KINSHIP",
+      "text": "return round(-1.0 - np.log2(PAIR_KINSHIP[code]))"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 235,
+      "path": "scripts/ci_options/sandwich.py",
+      "repo": "fitACE_epimight",
+      "symbol": "PAIR_KINSHIP",
+      "text": "return {c: PAIR_KINSHIP[c] / FIRST_DEGREE_KINSHIP for c in codes}"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 237,
+      "path": "scripts/ci_options/sandwich.py",
+      "repo": "fitACE_epimight",
+      "symbol": "PAIR_KINSHIP",
+      "text": "return {c: 2.0 * PAIR_KINSHIP[c] for c in codes}"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 278,
+      "path": "pedsum/cli.py",
+      "repo": "pedsum",
+      "symbol": "compute_all_ne",
+      "text": "\"pedigree-graph.compute_all_ne (default: on; pass \""
+    },
+    {
+      "context": "doc",
+      "kind": "attribute",
+      "line": 723,
+      "low_confidence": true,
+      "path": "pedsum/cli.py",
+      "repo": "pedsum",
+      "symbol": "generation",
+      "text": "# ``ped_depth`` MUST be populated from ``pg.generation`` before any"
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 727,
+      "low_confidence": true,
+      "path": "pedsum/cli.py",
+      "repo": "pedsum",
+      "symbol": "generation",
+      "text": "df = df.with_columns(pl.Series(\"ped_depth\", np.asarray(pg.generation, dtype=np.int32)))"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree",
+        "scope"
+      ],
+      "kind": "method",
+      "line": 767,
+      "path": "pedsum/cli.py",
+      "repo": "pedsum",
+      "symbol": "count_pairs_streaming",
+      "text": "streamed_counts = pg.count_pairs_streaming(max_degree=5, scope=\"full\")"
+    },
+    {
+      "context": "doc",
+      "kind": "private",
+      "line": 772,
+      "path": "pedsum/cli.py",
+      "repo": "pedsum",
+      "symbol": "_release_pair_matrices",
+      "text": "# to reach into the private pg._release_pair_matrices() here; the upstream"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 793,
+      "path": "pedsum/cli.py",
+      "repo": "pedsum",
+      "symbol": "compute_inbreeding",
+      "text": "F_vec = pg.compute_inbreeding()"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 794,
+      "path": "pedsum/cli.py",
+      "repo": "pedsum",
+      "symbol": "compute_n_ancestors",
+      "text": "n_anc = pg.compute_n_ancestors()"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 803,
+      "path": "pedsum/cli.py",
+      "repo": "pedsum",
+      "symbol": "compute_n_descendants",
+      "text": "n_desc = pg.compute_n_descendants()"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 1126,
+      "path": "pedsum/cli.py",
+      "repo": "pedsum",
+      "symbol": "extract_pairs",
+      "text": "all_pairs = pg.extract_pairs()"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 43,
+      "path": "pedsum/epimight.py",
+      "repo": "pedsum",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "doc",
+      "kind": "method",
+      "line": 235,
+      "path": "pedsum/epimight.py",
+      "repo": "pedsum",
+      "symbol": "extract_pairs",
+      "text": "all_pairs: the dict from ``pg.extract_pairs()``; extracted here when None."
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 253,
+      "low_confidence": true,
+      "path": "pedsum/epimight.py",
+      "repo": "pedsum",
+      "symbol": "generation",
+      "text": "generations = np.asarray(pg.generation)"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 258,
+      "path": "pedsum/epimight.py",
+      "repo": "pedsum",
+      "symbol": "extract_pairs",
+      "text": "all_pairs = pg.extract_pairs()"
+    },
+    {
+      "context": "doc",
+      "kind": "method",
+      "line": 323,
+      "path": "pedsum/epimight.py",
+      "repo": "pedsum",
+      "symbol": "extract_pairs",
+      "text": "all_pairs: the dict from ``pg.extract_pairs()``; extracted here when None."
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 335,
+      "low_confidence": true,
+      "path": "pedsum/epimight.py",
+      "repo": "pedsum",
+      "symbol": "generation",
+      "text": "generations = np.asarray(pg.generation)"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 337,
+      "path": "pedsum/epimight.py",
+      "repo": "pedsum",
+      "symbol": "extract_pairs",
+      "text": "all_pairs = pg.extract_pairs()"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 349,
+      "path": "pedsum/epimight.py",
+      "repo": "pedsum",
+      "symbol": "compute_pair_kinship",
+      "text": "exact = pg.compute_pair_kinship(code_idx) if (exact_kinship and code_idx) else {}"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 8,
+      "path": "pedsum/pairs.py",
+      "repo": "pedsum",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import REL_REGISTRY, PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 8,
+      "path": "pedsum/pairs.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "from pedigree_graph import REL_REGISTRY, PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 26,
+      "path": "pedsum/pairs.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "by_degree[REL_REGISTRY[code].degree] += int(count)"
+    },
+    {
+      "context": "doc",
+      "kind": "attribute",
+      "line": 35,
+      "low_confidence": true,
+      "path": "pedsum/pairs.py",
+      "repo": "pedsum",
+      "symbol": "n",
+      "text": "when ``pg`` is None this wrapper compacts IDs to ``0..n-1`` first"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 50,
+      "path": "pedsum/pairs.py",
+      "repo": "pedsum",
+      "symbol": "extract_pairs",
+      "text": "pair_lists = pg.extract_pairs(max_degree=5)"
+    },
+    {
+      "context": "doc",
+      "kind": "attribute",
+      "line": 58,
+      "low_confidence": true,
+      "path": "pedsum/pairs.py",
+      "repo": "pedsum",
+      "symbol": "n",
+      "text": "\"\"\"Compact arbitrary IDs to ``0..n-1`` and build a full ``PedigreeGraph``."
+    },
+    {
+      "context": "code",
+      "flags": [
+        "fathers",
+        "mothers"
+      ],
+      "kind": "classmethod",
+      "line": 91,
+      "path": "pedsum/pairs.py",
+      "repo": "pedsum",
+      "symbol": "PedigreeGraph.from_arrays",
+      "text": "return PedigreeGraph.from_arrays("
+    },
+    {
+      "context": "doc",
+      "kind": "attribute",
+      "line": 412,
+      "low_confidence": true,
+      "path": "pedsum/parse.py",
+      "repo": "pedsum",
+      "symbol": "birth_year",
+      "text": "``pedigree_graph.PedigreeGraph.birth_year``."
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 25,
+      "path": "pedsum/schema.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "# 23 named relationship codes from REL_REGISTRY plus PO and engine."
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 11,
+      "path": "pedsum/sections.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "from pedigree_graph import REL_REGISTRY"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 15,
+      "path": "pedsum/sections.py",
+      "repo": "pedsum",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 515,
+      "path": "pedsum/sections.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "if code not in REL_REGISTRY:"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 528,
+      "path": "pedsum/sections.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "np.full(int(keep.sum()), REL_REGISTRY[code].degree, dtype=np.int8),"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 626,
+      "path": "pedsum/sections.py",
+      "repo": "pedsum",
+      "symbol": "compute_all_ne",
+      "text": "Thin wrapper around ``pedigree_graph.compute_all_ne``: builds the"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 636,
+      "path": "pedsum/sections.py",
+      "repo": "pedsum",
+      "symbol": "compute_all_ne",
+      "text": "from pedigree_graph import compute_all_ne"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 638,
+      "path": "pedsum/sections.py",
+      "repo": "pedsum",
+      "symbol": "compute_all_ne",
+      "text": "raw = compute_all_ne("
+    },
+    {
+      "context": "doc",
+      "kind": "method",
+      "line": 664,
+      "path": "pedsum/sections.py",
+      "repo": "pedsum",
+      "symbol": "compute_inbreeding",
+      "text": "F itself is computed by ``pedigree_graph.PedigreeGraph.compute_inbreeding()``"
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 243,
+      "low_confidence": true,
+      "path": "pedsum/validate.py",
+      "repo": "pedsum",
+      "symbol": "sex",
+      "text": "assert self.sex is not None"
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 248,
+      "low_confidence": true,
+      "path": "pedsum/validate.py",
+      "repo": "pedsum",
+      "symbol": "sex",
+      "text": "self.sex,"
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 340,
+      "low_confidence": true,
+      "path": "pedsum/validate.py",
+      "repo": "pedsum",
+      "symbol": "sex",
+      "text": "ctx.sex, fail = _try_parse("
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 452,
+      "low_confidence": true,
+      "path": "pedsum/validate.py",
+      "repo": "pedsum",
+      "symbol": "birth_year",
+      "text": "ctx.birth_year, fail = _try_parse("
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 461,
+      "low_confidence": true,
+      "path": "pedsum/validate.py",
+      "repo": "pedsum",
+      "symbol": "birth_year",
+      "text": "assert ctx.birth_year is not None"
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 462,
+      "low_confidence": true,
+      "path": "pedsum/validate.py",
+      "repo": "pedsum",
+      "symbol": "birth_year",
+      "text": "return _from_findings(_check_birth_year_range(ctx.ids, ctx.birth_year, ctx.birth_year_min, ctx.by_max))"
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 467,
+      "low_confidence": true,
+      "path": "pedsum/validate.py",
+      "repo": "pedsum",
+      "symbol": "birth_year",
+      "text": "assert ctx.birth_year is not None"
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 473,
+      "low_confidence": true,
+      "path": "pedsum/validate.py",
+      "repo": "pedsum",
+      "symbol": "birth_year",
+      "text": "ctx.birth_year,"
+    },
+    {
+      "context": "doc",
+      "kind": "attribute",
+      "line": 832,
+      "low_confidence": true,
+      "path": "pedsum/validate.py",
+      "repo": "pedsum",
+      "symbol": "generation",
+      "text": "``ped_depth`` is populated by the caller from ``pg.generation`` before any"
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 880,
+      "low_confidence": true,
+      "path": "pedsum/validate.py",
+      "repo": "pedsum",
+      "symbol": "birth_year",
+      "text": "birth_year = ctx.birth_year"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 117,
+      "path": "scripts/verify/verify_simace_epimight.sh",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "# Sanity imports \u2014 exercise the runtime guard + the PAIR_KINSHIP sync check."
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 119,
+      "path": "scripts/verify/verify_simace_epimight.sh",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "#   import fitace.relationships-> PAIR_KINSHIP sync check"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 122,
+      "path": "scripts/verify/verify_simace_epimight.sh",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "step \"Sanity imports (runtime version guard + PAIR_KINSHIP sync)\""
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 124,
+      "path": "scripts/verify/verify_simace_epimight.sh",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "'import fitace.config; import fitace.relationships; import fitace_epimight, simace; from pedigree_graph import PAIR_KINSHIP' ); then"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 127,
+      "path": "scripts/verify/verify_simace_epimight.sh",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "fail \"sanity imports failed (runtime version guard, PAIR_KINSHIP sync, or a missing install)\""
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 3,
+      "path": "simace/analysis/stats/effective_size.py",
+      "repo": "simACE",
+      "symbol": "compute_all_ne",
+      "text": "Thin wrapper that invokes :func:`pedigree_graph.compute_all_ne` and"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 29,
+      "path": "simace/analysis/stats/effective_size.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph, compute_all_ne"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 29,
+      "path": "simace/analysis/stats/effective_size.py",
+      "repo": "simACE",
+      "symbol": "compute_all_ne",
+      "text": "from pedigree_graph import PedigreeGraph, compute_all_ne"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 237,
+      "path": "simace/analysis/stats/effective_size.py",
+      "repo": "simACE",
+      "symbol": "compute_all_ne",
+      "text": "skip_ne_coancestry: forwarded to :func:`compute_all_ne`."
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 247,
+      "path": "simace/analysis/stats/effective_size.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = pedigree if isinstance(pedigree, PedigreeGraph) else PedigreeGraph(pedigree)"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 248,
+      "path": "simace/analysis/stats/effective_size.py",
+      "repo": "simACE",
+      "symbol": "compute_all_ne",
+      "text": "raw = compute_all_ne(pg, skip_ne_coancestry=skip_ne_coancestry)"
+    },
+    {
+      "context": "doc",
+      "kind": "attribute",
+      "line": 251,
+      "low_confidence": true,
+      "path": "simace/analysis/stats/effective_size.py",
+      "repo": "simACE",
+      "symbol": "birth_year",
+      "text": "# strictly-discrete simACE simulator (L = 1).  When pg.birth_year is"
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 255,
+      "low_confidence": true,
+      "path": "simace/analysis/stats/effective_size.py",
+      "repo": "simACE",
+      "symbol": "birth_year",
+      "text": "if pg.birth_year is not None:"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 286,
+      "path": "simace/analysis/stats/effective_size.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(df_observed)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 21,
+      "path": "simace/analysis/stats/runner.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 123,
+      "path": "simace/analysis/stats/runner.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(df)"
+    },
+    {
+      "context": "code",
+      "kind": "classmethod",
+      "line": 125,
+      "path": "simace/analysis/stats/runner.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph.from_subsample",
+      "text": "pg = PedigreeGraph.from_subsample(df_ped, df)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 126,
+      "path": "simace/analysis/stats/runner.py",
+      "repo": "simACE",
+      "symbol": "extract_pairs",
+      "text": "pairs = pg.extract_pairs(max_degree=max_degree)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree",
+        "scope"
+      ],
+      "kind": "method",
+      "line": 127,
+      "path": "simace/analysis/stats/runner.py",
+      "repo": "simACE",
+      "symbol": "count_pairs",
+      "text": "full_counts = pg.count_pairs(max_degree=max_degree, scope=\"full\")"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 129,
+      "path": "simace/analysis/stats/runner.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(df)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 130,
+      "path": "simace/analysis/stats/runner.py",
+      "repo": "simACE",
+      "symbol": "extract_pairs",
+      "text": "pairs = pg.extract_pairs(max_degree=max_degree)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 8,
+      "path": "simace/analysis/validate/half_sibs.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "from pedigree_graph import PAIR_KINSHIP"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 117,
+      "path": "simace/analysis/validate/half_sibs.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "expected_a, skip, info = resolve_expected_a_corr(df, ped, params, t, \"HS\", 2.0 * PAIR_KINSHIP[\"MHS\"])"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 8,
+      "path": "simace/analysis/validate/heritability.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "from pedigree_graph import PAIR_KINSHIP"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 75,
+      "path": "simace/analysis/validate/heritability.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "expected_mz = 2.0 * PAIR_KINSHIP[\"MZ\"]"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 131,
+      "path": "simace/analysis/validate/heritability.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "expected_dz, skip, info = resolve_expected_a_corr(df, ped, params, t, \"FS\", 2.0 * PAIR_KINSHIP[\"FS\"])"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 9,
+      "path": "simace/analysis/validate/runner.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 59,
+      "path": "simace/analysis/validate/runner.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "full_sib, mat_hs, pat_hs = PedigreeGraph(df).sibling_pairs()"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 59,
+      "path": "simace/analysis/validate/runner.py",
+      "repo": "simACE",
+      "symbol": "sibling_pairs",
+      "text": "full_sib, mat_hs, pat_hs = PedigreeGraph(df).sibling_pairs()"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 5,
+      "path": "simace/core/relationships.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "``pedigree_graph.PAIR_KINSHIP`` (never re-declared here). Pooling and"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 10,
+      "path": "simace/core/relationships.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "from pedigree_graph import PAIR_KINSHIP"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 20,
+      "path": "simace/core/relationships.py",
+      "repo": "simACE",
+      "symbol": "REL_REGISTRY",
+      "text": "# Canonical 7-element subset of REL_REGISTRY (defined in"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 80,
+      "path": "simace/core/relationships.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "Kinship is read from ``pedigree_graph.PAIR_KINSHIP`` (never a literal);"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 89,
+      "path": "simace/core/relationships.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "return 2.0 * PAIR_KINSHIP[relationship_type] * A + c_coef * C"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 41,
+      "path": "simace/plotting/compare_scenarios.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "from pedigree_graph import PAIR_KINSHIP, PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 41,
+      "path": "simace/plotting/compare_scenarios.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PAIR_KINSHIP, PedigreeGraph"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 334,
+      "path": "simace/plotting/compare_scenarios.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "# ``PAIR_KINSHIP`` (members of a pooled class share one kinship value, so the"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 339,
+      "path": "simace/plotting/compare_scenarios.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "(name, 2.0 * PAIR_KINSHIP[members[0]], members)"
+    },
+    {
+      "context": "code",
+      "kind": "classmethod",
+      "line": 399,
+      "path": "simace/plotting/compare_scenarios.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph.from_subsample",
+      "text": "pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=DEFAULT_MAX_DEGREE)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 399,
+      "path": "simace/plotting/compare_scenarios.py",
+      "repo": "simACE",
+      "symbol": "extract_pairs",
+      "text": "pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=DEFAULT_MAX_DEGREE)"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 1161,
+      "path": "simace/plotting/compare_scenarios.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pairs_full = PedigreeGraph(df_full).extract_pairs(max_degree=1)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 1161,
+      "path": "simace/plotting/compare_scenarios.py",
+      "repo": "simACE",
+      "symbol": "extract_pairs",
+      "text": "pairs_full = PedigreeGraph(df_full).extract_pairs(max_degree=1)"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 29,
+      "path": "workflow/rules/simace/effective_size.smk",
+      "repo": "simACE",
+      "symbol": "compute_all_ne",
+      "text": "threads: 1  # compute_all_ne is sequential numba DP; no internal parallelism."
+    }
+  ],
+  "purpose": "Every pedigree-graph 0.7.1 API use in the family, so slice 8 of the 0.8.0 migration can update them all.",
+  "repos_scanned": [
+    "fitACE",
+    "fitACE_epimight",
+    "pedsum",
+    "simACE"
+  ],
+  "repos_unavailable": [],
+  "schema": 1,
+  "tests": [
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 71,
+      "path": "fitACE_iter_reml/tests/iter_reml/conftest.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 93,
+      "path": "fitACE_iter_reml/tests/iter_reml/conftest.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(ped)"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 94,
+      "path": "fitACE_iter_reml/tests/iter_reml/conftest.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": "K = pg.kinship_matrix()"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 219,
+      "path": "fitACE_iter_reml/tests/sparse_reml/test_fit.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 240,
+      "path": "fitACE_iter_reml/tests/sparse_reml/test_fit.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(ped)"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 241,
+      "path": "fitACE_iter_reml/tests/sparse_reml/test_fit.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": "K = pg.kinship_matrix()"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 7,
+      "path": "fitACE_pafgrs/tests/test_pafgrs.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "private",
+      "line": 8,
+      "path": "fitACE_pafgrs/tests/test_pafgrs.py",
+      "repo": "fitACE",
+      "symbol": "_compute_depth",
+      "text": "from pedigree_graph._kinship_kernel import _compute_depth"
+    },
+    {
+      "context": "code",
+      "kind": "private_import",
+      "line": 8,
+      "path": "fitACE_pafgrs/tests/test_pafgrs.py",
+      "repo": "fitACE",
+      "symbol": "pedigree_graph._kinship_kernel",
+      "text": "from pedigree_graph._kinship_kernel import _compute_depth"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "fathers",
+        "mothers",
+        "twins"
+      ],
+      "kind": "classmethod",
+      "line": 30,
+      "path": "fitACE_pafgrs/tests/test_pafgrs.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph.from_arrays",
+      "text": "return PedigreeGraph.from_arrays("
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 35,
+      "path": "fitACE_pafgrs/tests/test_pafgrs.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": ").kinship_matrix()"
+    },
+    {
+      "context": "code",
+      "kind": "private",
+      "line": 208,
+      "path": "fitACE_pafgrs/tests/test_pafgrs.py",
+      "repo": "fitACE",
+      "symbol": "_compute_depth",
+      "text": "depth = _compute_depth(m, f, 5)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 8,
+      "path": "fitACE_pafgrs/tests/test_pafgrs_scoring.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "fathers",
+        "mothers",
+        "twins"
+      ],
+      "kind": "classmethod",
+      "line": 69,
+      "path": "fitACE_pafgrs/tests/test_pafgrs_scoring.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph.from_arrays",
+      "text": "return PedigreeGraph.from_arrays("
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 75,
+      "path": "fitACE_pafgrs/tests/test_pafgrs_scoring.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": ").kinship_matrix()"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 157,
+      "path": "fitACE_tetraher/tests/test_adapter.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "Regression: the adapter used to stamp ``r_A = 2\u00b7PAIR_KINSHIP[code]``"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 169,
+      "path": "tests/bench/test_reml.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 173,
+      "path": "tests/bench/test_reml.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(ped)"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 174,
+      "path": "tests/bench/test_reml.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": "K_full = pg.kinship_matrix().toarray()"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 11,
+      "path": "tests/exports/test_tables.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "from pedigree_graph import PAIR_KINSHIP, PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 11,
+      "path": "tests/exports/test_tables.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PAIR_KINSHIP, PedigreeGraph"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 127,
+      "path": "tests/exports/test_tables.py",
+      "repo": "fitACE",
+      "symbol": "REL_REGISTRY",
+      "text": "# degree covered in REL_REGISTRY (degree 5)."
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 132,
+      "path": "tests/exports/test_tables.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "expected = PedigreeGraph(small_pedigree).count_pairs(max_degree=5)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 132,
+      "path": "tests/exports/test_tables.py",
+      "repo": "fitACE",
+      "symbol": "count_pairs",
+      "text": "expected = PedigreeGraph(small_pedigree).count_pairs(max_degree=5)"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 160,
+      "path": "tests/exports/test_tables.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "expected = np.array([PAIR_KINSHIP[code] for code in df[\"rel_code\"].to_list()])"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 34,
+      "path": "tests/kinship/test_founder_family_properties.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "fathers",
+        "mothers"
+      ],
+      "kind": "classmethod",
+      "line": 79,
+      "path": "tests/kinship/test_founder_family_properties.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph.from_arrays",
+      "text": "return PedigreeGraph.from_arrays(ids=self.ids, mothers=self.mothers, fathers=self.fathers)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 13,
+      "path": "tests/kinship/test_kinship.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "fathers",
+        "mothers",
+        "twins"
+      ],
+      "kind": "classmethod",
+      "line": 46,
+      "path": "tests/kinship/test_kinship.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph.from_arrays",
+      "text": "return PedigreeGraph.from_arrays("
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 51,
+      "path": "tests/kinship/test_kinship.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": ").kinship_matrix()"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 128,
+      "path": "tests/kinship/test_kinship.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "np.testing.assert_allclose(kmat, PedigreeGraph(ped).kinship_matrix(max_degree=3).toarray())"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 128,
+      "path": "tests/kinship/test_kinship.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": "np.testing.assert_allclose(kmat, PedigreeGraph(ped).kinship_matrix(max_degree=3).toarray())"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 24,
+      "path": "tests/kinship/test_kinship_inbred.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 41,
+      "path": "tests/kinship/test_kinship_inbred.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(_inbred_mz_pedigree())"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 42,
+      "path": "tests/kinship/test_kinship_inbred.py",
+      "repo": "fitACE",
+      "symbol": "compute_inbreeding",
+      "text": "F = pg.compute_inbreeding()"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 48,
+      "path": "tests/kinship/test_kinship_inbred.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(_inbred_mz_pedigree())"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 49,
+      "path": "tests/kinship/test_kinship_inbred.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": "K = pg.kinship_matrix().toarray()"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 59,
+      "path": "tests/kinship/test_kinship_inbred.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(_inbred_mz_pedigree())"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 65,
+      "path": "tests/kinship/test_kinship_inbred.py",
+      "repo": "fitACE",
+      "symbol": "compute_pair_kinship",
+      "text": "kin = pg.compute_pair_kinship(pairs)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 8,
+      "path": "tests/kinship/test_kinship_pcs.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "fathers",
+        "mothers",
+        "twins"
+      ],
+      "kind": "classmethod",
+      "line": 33,
+      "path": "tests/kinship/test_kinship_pcs.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph.from_arrays",
+      "text": "K = PedigreeGraph.from_arrays("
+    },
+    {
+      "context": "code",
+      "flags": [
+        "min_kinship"
+      ],
+      "kind": "method",
+      "line": 39,
+      "path": "tests/kinship/test_kinship_pcs.py",
+      "repo": "fitACE",
+      "symbol": "kinship_matrix",
+      "text": ").kinship_matrix(min_kinship=min_kinship)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 132,
+      "path": "tests/ltm/test_falconer.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 135,
+      "path": "tests/ltm/test_falconer.py",
+      "repo": "fitACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pairs = PedigreeGraph(ltm_df).extract_pairs(max_degree=1)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 135,
+      "path": "tests/ltm/test_falconer.py",
+      "repo": "fitACE",
+      "symbol": "extract_pairs",
+      "text": "pairs = PedigreeGraph(ltm_df).extract_pairs(max_degree=1)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 7,
+      "path": "tests/test_relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "from pedigree_graph import PAIR_KINSHIP"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 41,
+      "path": "tests/test_relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "assert set(rel_type.pair_codes) <= set(PAIR_KINSHIP)"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 45,
+      "path": "tests/test_relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "# Single-pair-code types must equal PAIR_KINSHIP[code]; this is the import-time"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 51,
+      "path": "tests/test_relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "assert kinship_for(rt.code) == pytest.approx(PAIR_KINSHIP[pair_codes_for(rt.code)[0]])"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 59,
+      "path": "tests/test_relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "# so it is declared rather than skipped \u2014 a new divergence, or a PAIR_KINSHIP"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 65,
+      "path": "tests/test_relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "if rt.kinship != pytest.approx(PAIR_KINSHIP[pair_code])"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 68,
+      "path": "tests/test_relationships.py",
+      "repo": "fitACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "assert PAIR_KINSHIP[\"MZ\"] == pytest.approx(0.5)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 13,
+      "path": "tests/test_pairs_properties.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "from pedigree_graph import REL_REGISTRY"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 18,
+      "path": "tests/test_pairs_properties.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "# which _augment_pair_counts adds itself (and which are absent from REL_REGISTRY,"
+    },
+    {
+      "context": "doc",
+      "kind": "public_name",
+      "line": 19,
+      "path": "tests/test_pairs_properties.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "# so feeding them in would KeyError on REL_REGISTRY[code].degree)."
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 20,
+      "path": "tests/test_pairs_properties.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "_CODES = sorted(REL_REGISTRY.keys())"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 37,
+      "path": "tests/test_pairs_properties.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "expected = sum(int(named[c]) for c in named if REL_REGISTRY[c].degree == degree)"
+    },
+    {
+      "context": "doc",
+      "kind": "attribute",
+      "line": 6,
+      "low_confidence": true,
+      "path": "tests/test_pg_integration.py",
+      "repo": "pedsum",
+      "symbol": "generation",
+      "text": "- ``df[\"ped_depth\"]`` after PG construction matches ``pg.generation``."
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 40,
+      "low_confidence": true,
+      "path": "tests/test_pg_integration.py",
+      "repo": "pedsum",
+      "symbol": "generation",
+      "text": "df = df.with_columns(pl.Series(\"ped_depth\", np.asarray(pg.generation, dtype=np.int32)))"
+    },
+    {
+      "context": "doc",
+      "kind": "attribute",
+      "line": 45,
+      "low_confidence": true,
+      "path": "tests/test_pg_integration.py",
+      "repo": "pedsum",
+      "symbol": "generation",
+      "text": "\"\"\"``df['ped_depth']`` after construction equals ``pg.generation``.\"\"\""
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 47,
+      "low_confidence": true,
+      "path": "tests/test_pg_integration.py",
+      "repo": "pedsum",
+      "symbol": "generation",
+      "text": "np.testing.assert_array_equal(df[\"ped_depth\"].to_numpy(), pg.generation)"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 54,
+      "path": "tests/test_pg_integration.py",
+      "repo": "pedsum",
+      "symbol": "compute_n_descendants",
+      "text": "n_desc = pg.compute_n_descendants()"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 63,
+      "path": "tests/test_pg_integration.py",
+      "repo": "pedsum",
+      "symbol": "compute_n_ancestors",
+      "text": "n_anc = pg.compute_n_ancestors()"
+    },
+    {
+      "context": "doc",
+      "kind": "attribute",
+      "line": 73,
+      "low_confidence": true,
+      "path": "tests/test_pg_integration.py",
+      "repo": "pedsum",
+      "symbol": "n",
+      "text": "# row order, only IDs are remapped to 0..n-1)."
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 75,
+      "low_confidence": true,
+      "path": "tests/test_pg_integration.py",
+      "repo": "pedsum",
+      "symbol": "sex",
+      "text": "pg.sex.astype(np.int64),"
+    },
+    {
+      "context": "doc",
+      "kind": "attribute",
+      "line": 79,
+      "low_confidence": true,
+      "path": "tests/test_pg_integration.py",
+      "repo": "pedsum",
+      "symbol": "sex",
+      "text": "# would make pg.sex.sum() == 0)."
+    },
+    {
+      "context": "code",
+      "kind": "attribute",
+      "line": 80,
+      "low_confidence": true,
+      "path": "tests/test_pg_integration.py",
+      "repo": "pedsum",
+      "symbol": "sex",
+      "text": "assert int(pg.sex.sum()) == int((df[\"sex\"].to_numpy() == ps.SEX_MALE).sum())"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 10,
+      "path": "tests/test_relationship_summary_properties.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "from pedigree_graph import REL_REGISTRY"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 18,
+      "path": "tests/test_relationship_summary_properties.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "degree: next(code for code, rel in REL_REGISTRY.items() if rel.degree == degree) for degree in range(1, 6)"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 58,
+      "path": "tests/test_relationship_summary_properties.py",
+      "repo": "pedsum",
+      "symbol": "REL_REGISTRY",
+      "text": "degree = REL_REGISTRY[code].degree"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 8,
+      "path": "tests/analysis/test_effective_size.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 353,
+      "path": "tests/analysis/test_effective_size.py",
+      "repo": "simACE",
+      "symbol": "ne_variance_family_size",
+      "text": "from pedigree_graph import ne_variance_family_size"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 384,
+      "path": "tests/analysis/test_effective_size.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(ped.to_pandas())"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 422,
+      "path": "tests/analysis/test_effective_size.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(df)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 698,
+      "path": "tests/analysis/test_stats_computations.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 700,
+      "path": "tests/analysis/test_stats_computations.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "return PedigreeGraph(phenotyped_df).extract_pairs()"
+    },
+    {
+      "context": "code",
+      "kind": "method",
+      "line": 700,
+      "path": "tests/analysis/test_stats_computations.py",
+      "repo": "simACE",
+      "symbol": "extract_pairs",
+      "text": "return PedigreeGraph(phenotyped_df).extract_pairs()"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 9,
+      "path": "tests/analysis/test_validate.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 74,
+      "path": "tests/analysis/test_validate.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "all_pairs = PedigreeGraph(val_pedigree).extract_pairs(max_degree=2)"
+    },
+    {
+      "context": "code",
+      "flags": [
+        "max_degree"
+      ],
+      "kind": "method",
+      "line": 74,
+      "path": "tests/analysis/test_validate.py",
+      "repo": "simACE",
+      "symbol": "extract_pairs",
+      "text": "all_pairs = PedigreeGraph(val_pedigree).extract_pairs(max_degree=2)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 4,
+      "path": "tests/core/test_relationships.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "from pedigree_graph import PAIR_KINSHIP"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 53,
+      "path": "tests/core/test_relationships.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "\"\"\"expected_liability_corr(rt, A=1, C=0) must equal 2*PAIR_KINSHIP[rt] \u2014 i.e."
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 56,
+      "path": "tests/core/test_relationships.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "assert expected_liability_corr(rt, A=1.0, C=0.0) == pytest.approx(2.0 * PAIR_KINSHIP[rt])"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 69,
+      "path": "tests/core/test_relationships.py",
+      "repo": "simACE",
+      "symbol": "PAIR_KINSHIP",
+      "text": "fn(\"GP\")  # in PAIR_KINSHIP but outside the canonical 7-type subset"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 31,
+      "path": "tests/integration/test_ne_r_reference.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph",
+      "text": "PedigreeGraph,"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 32,
+      "path": "tests/integration/test_ne_r_reference.py",
+      "repo": "simACE",
+      "symbol": "ne_inbreeding",
+      "text": "ne_inbreeding,"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 33,
+      "path": "tests/integration/test_ne_r_reference.py",
+      "repo": "simACE",
+      "symbol": "ne_individual_delta_f",
+      "text": "ne_individual_delta_f,"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 84,
+      "path": "tests/integration/test_ne_r_reference.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "return df, PedigreeGraph(df)"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 26,
+      "path": "tests/integration/test_ne_wf_monte_carlo.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph",
+      "text": "from pedigree_graph import PedigreeGraph, compute_all_ne"
+    },
+    {
+      "context": "code",
+      "kind": "import",
+      "line": 26,
+      "path": "tests/integration/test_ne_wf_monte_carlo.py",
+      "repo": "simACE",
+      "symbol": "compute_all_ne",
+      "text": "from pedigree_graph import PedigreeGraph, compute_all_ne"
+    },
+    {
+      "context": "code",
+      "kind": "constructor",
+      "line": 85,
+      "path": "tests/integration/test_ne_wf_monte_carlo.py",
+      "repo": "simACE",
+      "symbol": "PedigreeGraph_call",
+      "text": "pg = PedigreeGraph(df)"
+    },
+    {
+      "context": "code",
+      "kind": "public_name",
+      "line": 86,
+      "path": "tests/integration/test_ne_wf_monte_carlo.py",
+      "repo": "simACE",
+      "symbol": "compute_all_ne",
+      "text": "results = compute_all_ne(pg)"
+    }
+  ],
+  "tool": "tools/pedigree_graph_old_api.py"
+}
