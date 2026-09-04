@@ -1,6 +1,11 @@
 # pedigree-graph Rust core and public API redesign
 
-Status: APPROVED DESIGN DIRECTION — implementation awaits the prerequisite issues and ADRs listed below. Supersedes `plans/pedigree-graph-rust-core.md`.
+Status: APPROVED — recorded as pedigree-graph ADR 0006 (public API and coordinate
+semantics, `external/pedigree-graph/docs/adr/0006-public-api-and-coordinate-semantics.md`)
+and ADR 0007 (Rust core, host boundary, and release,
+`external/pedigree-graph/docs/adr/0007-rust-core-host-boundary-and-release.md`).
+Implementation awaits the prerequisite issues listed below. Supersedes
+`plans/pedigree-graph-rust-core.md`.
 
 The existing Rust pair-engine spike remains useful evidence, not the implementation
 plan. It is committed on branch `rust-spike` in
@@ -671,11 +676,15 @@ Intermediate commits may run scoped tests; release gates may not.
 
 ## Documentation before implementation
 
-Create two ADRs because both decisions are hard to reverse, surprising without context,
-and genuine tradeoffs:
+Two ADRs record the decisions because both are hard to reverse, surprising without
+context, and genuine tradeoffs:
 
-1. Public API and coordinate/relationship semantics for 0.8.0.
-2. Rust core, host ownership/memoization, threading, build, and release architecture.
+1. ADR 0006 — public API and coordinate/relationship semantics for 0.8.0.
+2. ADR 0007 — Rust core, host ownership/memoization, threading, build, and release
+   architecture.
+
+Both live in `external/pedigree-graph/docs/adr/` (pedigree-graph commit `4fd07ba`,
+which also updates `CONTEXT.md`).
 
 Update README, architecture documentation, limitations, changelog, typing docs, and all
 consumer examples in the same 0.8.0 migration. Do not present the old plan as active
