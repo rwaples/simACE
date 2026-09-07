@@ -32,6 +32,7 @@ plot = [
 test = [
     "pytest>=9,<10",
     "pytest-cov>=7,<8",
+    "pytest-xdist>=3.8,<4",
     "ruff>=0.16,<0.17",
     "hypothesis>=6,<7",
     "pandas>=2.2,<4",

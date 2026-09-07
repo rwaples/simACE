@@ -129,10 +129,26 @@ Five repos, all under `rwaples/` on GitHub (ADR 0017 collapsed the former 13: fi
 
 ## Testing
 
-- Full suite: `pixi run pytest tests/ -v`
+- Full suite: `pixi run test` — 6 xdist workers, `--dist worksteal`, each worker
+  pinned to one numba/BLAS/polars thread. Total budget is 6 of the 12 cores.
+  Extra args pass through: `pixi run test tests/simulation -x`.
+  `worksteal` is load-bearing: `loadscope` commits each scope to a worker and
+  never rebalances, which stranded the 63s Monte Carlo test on one worker
+  (157.7s wall, 1.83x per-worker spread, versus 115.3s and 1.08x for
+  worksteal). Roughly 12.7s of any run is fixed interpreter startup and
+  collection, which no scheduling change touches.
+- Serial/debug: `pixi run pytest tests/ -v` — no workers, threads unpinned.
+  Use this for `-v` output, `-s`, `--pdb`, and single-module runs; xdist
+  captures output and breaks the debugger.
 - Single module: `pixi run pytest tests/simulation/test_simulate.py -v`
 - Run relevant tests before commit
 - Smoke test: `pixi run snakemake --cores 4 results/test/small_test/scenario.done`
+
+The thread pins live on the `test` task in `pixi.toml`, deliberately not in
+`[activation.env]`: the pipeline's numba `parallel=True` kernels
+(`simace/phenotype/hazards.py:73`) and threaded BLAS want every core, so a
+global pin would slow `pixi run snakemake`. Re-measure the worker/thread split
+with `tools/bench_pytest_workers.sh` before changing `-n`.
 
 ## Linting
 
