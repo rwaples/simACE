@@ -23,14 +23,17 @@ Rust pair engine with a pair sink in place of the counter, not a second
 implementation, and that its saturating multiplicity replaces the spike's unchecked
 `i32` arithmetic.
 
-Two gaps remain between that crate and the migration this plan describes:
-
-- **No Python binding.** Neither `Cargo.toml` declares `pyo3`, `maturin`, or a
-  `crate-type`, and nothing under `pedigree_graph/` references the crate. The engine
-  is reachable only through the `pgr_count` CLI, so every production kernel is still
-  Python, SciPy, and Numba.
-- **No native CI.** `.github/workflows/` holds only `publish.yml`; the Cargo tests,
-  rustfmt, and Clippy named in the release gate below run locally or not at all.
+Slice 10a (2026-09-09, `plans/pedigree-graph-slice-10-native-scaffold.md`) closed the
+scaffold gap in the pedigree-graph working tree: `crates/python` is the PyO3
+`pedigree_graph._native` module (`abi3-py313`), `pyproject.toml` builds with maturin
+and takes its version from `[workspace.package]`, and the first migrated kernels are
+the topology set (structural depth, topological check, cycle witness, depth-major
+order) with the numba and NumPy originals deleted and oracles kept under
+`tests/oracle/`. `.github/workflows/ci.yml` and the rewritten `publish.yml` exist but
+are UNVERIFIED until a push. The relationship engine is still reached only through
+the `pgr_count` CLI; wiring `relationship_counts` to it is the estimator/pair slice.
+Native construction proper (id index, references, MZ and sex validation, the
+remaining error codes) is slice 10b.
 
 The older matrix pair-engine spike remains evidence only. It is committed on branch
 `rust-spike` in `external/pedigree-graph-rust-spike` at `659aa0c`, one commit off
