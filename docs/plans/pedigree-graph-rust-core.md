@@ -43,8 +43,18 @@ birth-year order) with the `Error` enum grown to every construction code, and
 longer has `PedigreeInput`, `parse_pedigree_input`, or a Python `IdIndex`. Host
 coercion (frames, nullable dtypes, host nulls) stays in `_input.py`. The 0.8.1 rules
 survive as `tests/oracle/construction.py` behind a Hypothesis differential. 10b
-publishes 0.8.2. The relationship engine is still reached only through the
-`pgr_count` CLI; wiring `relationship_counts` to it is the estimator/pair slice.
+published 0.8.2.
+
+Slice 11 (`plans/pedigree-graph-slice-11-relationship-counts.md`) wired
+`PedigreeGraph.relationship_counts` and `PedigreeView.relationship_counts` to the
+engine. The engine's category definitions stayed the 0.7.1 ones; the ADR 0006
+closest-category rule is a per-row precedence fold over the final sets (ADR 0010,
+amended 2026-09-09), always on, so `count_pairs`, `pgr-count`, and the parity fixtures
+now carry the published counts. The boundary is one free function over the facade's
+five borrowed columns plus a boolean row mask for views; nothing native persists. The
+matrix engine remains the live oracle (`tests/test_native_relationship_counts.py`)
+until the pair slice deletes it. 11 publishes 0.8.3; the estimator is untouched
+(its removal is a later decision with the 2M/20M numbers in the slice plan).
 
 The older matrix pair-engine spike remains evidence only. It is committed on branch
 `rust-spike` in `external/pedigree-graph-rust-spike` at `659aa0c`, one commit off
