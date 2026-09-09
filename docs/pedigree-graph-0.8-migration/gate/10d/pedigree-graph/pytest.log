@@ -1,0 +1,120 @@
+..............ssssss.................................................... [  3%]
+........................................................................ [  6%]
+........................................................................ [ 10%]
+........................................................................ [ 13%]
+........................................................................ [ 17%]
+........................................................................ [ 20%]
+........................................................................ [ 24%]
+........................................................................ [ 27%]
+........................................................................ [ 30%]
+........................................................................ [ 34%]
+........................................................................ [ 37%]
+........................................................................ [ 41%]
+........................................................................ [ 44%]
+........................................................................ [ 48%]
+.................................................................cross-order pair_kinship deep_inbred_60g: 54100 of 530712 differ, max 2 ulp
+....... [ 51%]
+........................................................................ [ 55%]
+.......................................s................................ [ 58%]
+........................................................................ [ 61%]
+........................................................................ [ 65%]
+........................................................................ [ 68%]
+........................................................................ [ 72%]
+........................................................................ [ 75%]
+........................................................................ [ 79%]
+........................................................................ [ 82%]
+.....................cross-order drift avuncular_and_cousins/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift avuncular_and_cousins/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift backcross_and_selfing_like/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift backcross_and_selfing_like/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift deep_inbred_60g/dict: {'ulp_matrix_0.0': 2, 'ulp_pair_kinship': 2, 'maxdev_matrix_0.001': 1.1920928955078125e-07}
+.cross-order drift deep_inbred_60g/from_arrays: {'ulp_matrix_0.0': 2, 'ulp_pair_kinship': 2, 'maxdev_matrix_0.001': 1.1920928955078125e-07}
+.cross-order drift disconnected_components/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift disconnected_components/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift double_first_cousins/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift double_first_cousins/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift external_parents/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift external_parents/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift founder_mz_twins/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift founder_mz_twins/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift half_cousins/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift half_cousins/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift half_sibs_both_kinds/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift half_sibs_both_kinds/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift lineal_five_generations/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift lineal_five_generations/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift mz_twins_with_children/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift mz_twins_with_children/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift nuclear_full_sibs/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift nuclear_full_sibs/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift one_parent_known/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift one_parent_known/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift random_1k/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift random_1k/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift single_individual/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift single_individual/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift twins_mating_loop/dict: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.cross-order drift twins_mating_loop/from_arrays: {'ulp_matrix_0.0': 0, 'ulp_pair_kinship': 0, 'maxdev_matrix_0.001': 0.0}
+.................... [ 86%]
+........................................................................ [ 89%]
+........................................................................ [ 92%]
+........................................................................ [ 96%]
+........................................................................ [ 99%]
+.....                                                                    [100%]
+=============================== warnings summary ===============================
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[avuncular_and_cousins-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[avuncular_and_cousins-from_arrays]
+  /data/Documents/simACE/external/pedigree-graph/tests/test_row_order.py:349: RuntimeWarning: estimate_relationship_counts(max_degree=5): the scalar residual for H1C, 1C2R underflowed and was clamped to 0, so those counts are unreliable rather than a true absence (typically inbreeding or complex mating); use relationship_counts for exact values
+    self.estimated_counts = dict(graph.estimate_relationship_counts(max_degree=MAX_DEGREE))
+
+tests/test_row_order.py: 32 warnings
+  /data/Documents/simACE/external/pedigree-graph/tests/test_row_order.py:350: FutureWarning: count_pairs_bfs is experimental — API and semantics may change or be removed in any minor release
+    self.count_pairs_bfs = count_pairs_bfs(graph, max_degree=MAX_DEGREE)
+
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[backcross_and_selfing_like-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[backcross_and_selfing_like-from_arrays]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[deep_inbred_60g-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[deep_inbred_60g-from_arrays]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[twins_mating_loop-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[twins_mating_loop-from_arrays]
+  /data/Documents/simACE/external/pedigree-graph/tests/test_row_order.py:349: RuntimeWarning: estimate_relationship_counts(max_degree=5): the scalar residual for H1C1R underflowed and was clamped to 0, so those counts are unreliable rather than a true absence (typically inbreeding or complex mating); use relationship_counts for exact values
+    self.estimated_counts = dict(graph.estimate_relationship_counts(max_degree=MAX_DEGREE))
+
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[disconnected_components-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[disconnected_components-from_arrays]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[half_sibs_both_kinds-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[half_sibs_both_kinds-from_arrays]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[nuclear_full_sibs-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[nuclear_full_sibs-from_arrays]
+  /data/Documents/simACE/external/pedigree-graph/tests/test_row_order.py:349: RuntimeWarning: estimate_relationship_counts(max_degree=5): the scalar residual for H1C underflowed and was clamped to 0, so those counts are unreliable rather than a true absence (typically inbreeding or complex mating); use relationship_counts for exact values
+    self.estimated_counts = dict(graph.estimate_relationship_counts(max_degree=MAX_DEGREE))
+
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[double_first_cousins-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[double_first_cousins-from_arrays]
+  /data/Documents/simACE/external/pedigree-graph/tests/test_row_order.py:349: RuntimeWarning: estimate_relationship_counts(max_degree=5): the scalar residual for H1C, 1C1R underflowed and was clamped to 0, so those counts are unreliable rather than a true absence (typically inbreeding or complex mating); use relationship_counts for exact values
+    self.estimated_counts = dict(graph.estimate_relationship_counts(max_degree=MAX_DEGREE))
+
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[external_parents-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[external_parents-from_arrays]
+  /data/Documents/simACE/external/pedigree-graph/tests/test_row_order.py:349: RuntimeWarning: estimate_relationship_counts(max_degree=5): the scalar residual for H1C, H1C1R, 1C2R underflowed and was clamped to 0, so those counts are unreliable rather than a true absence (typically inbreeding or complex mating); use relationship_counts for exact values
+    self.estimated_counts = dict(graph.estimate_relationship_counts(max_degree=MAX_DEGREE))
+
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[half_cousins-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[half_cousins-from_arrays]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[one_parent_known-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[one_parent_known-from_arrays]
+  /data/Documents/simACE/external/pedigree-graph/tests/test_row_order.py:349: RuntimeWarning: estimate_relationship_counts(max_degree=5): the scalar residual for H1C, H1C1R underflowed and was clamped to 0, so those counts are unreliable rather than a true absence (typically inbreeding or complex mating); use relationship_counts for exact values
+    self.estimated_counts = dict(graph.estimate_relationship_counts(max_degree=MAX_DEGREE))
+
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[single_individual-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[single_individual-from_arrays]
+  /data/Documents/simACE/external/pedigree-graph/pedigree_graph/_ne_estimate.py:274: RuntimeWarning: ne_variance_family_size: pg.sex is uniform (all 0); estimator is degenerate and will return ne=None
+    return self._once(name, lambda: self._compute(name))
+
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[single_individual-dict]
+tests/test_row_order.py::test_every_operation_is_invariant_under_row_order[single_individual-from_arrays]
+  /data/Documents/simACE/external/pedigree-graph/pedigree_graph/_ne_estimate.py:274: RuntimeWarning: ne_sex_ratio: pg.sex is uniform (all 0); estimator is degenerate and will return ne=None
+    return self._once(name, lambda: self._compute(name))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2086 passed, 7 skipped, 9 deselected, 58 warnings in 512.58s (0:08:32)
