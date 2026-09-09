@@ -282,6 +282,8 @@ def summary(stage: str) -> int:
     worst = 0
     for path in rows:
         rec = json.loads(path.read_text())
+        if "steps" not in rec:
+            continue
         bad = [s["step"] for s in rec["steps"] if s["exit"] != 0]
         wall = sum(s["wall_s"] for s in rec["steps"])
         rss = max((s["max_rss_mib"] or 0) for s in rec["steps"])

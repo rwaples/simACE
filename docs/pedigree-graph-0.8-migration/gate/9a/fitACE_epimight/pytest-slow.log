@@ -1,0 +1,558 @@
+FF.............FFF                                                       [100%]
+=================================== FAILURES ===================================
+________________________ test_atlas_e2e_emitter_to_html ________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-ryanw/pytest-1216/test_atlas_e2e_emitter_to_html0')
+medium_pedigree = PosixPath('/tmp/pytest-of-ryanw/pytest-1216/test_atlas_e2e_emitter_to_html0/trait.parquet')
+epimight_env_available = None
+
+    @pytest.mark.slow
+    def test_atlas_e2e_emitter_to_html(tmp_path, medium_pedigree, epimight_env_available):
+        """End-to-end: emit_pipeline_input → R driver → assemble_epimight_atlas → HTML.
+    
+        Mirrors ``test_run_pipeline.py::test_emitter_to_driver_roundtrip`` but
+        chains the atlas assembler on top, verifying the v2.0 TSVs the driver
+        actually writes are consumable by ``assemble_epimight_atlas`` and that
+        the resulting HTML atlas is non-trivial (> 10 KB) with embedded plots.
+        """
+        epi_dir = tmp_path / "epimight"
+        emit_pipeline_input(medium_pedigree, epi_dir, rels=["PO"])
+        pipeline_input = epi_dir / "pipeline_input.parquet"
+        assert pipeline_input.exists()
+    
+        out_dir = epi_dir / "tsv"
+        out_dir.mkdir(parents=True, exist_ok=True)
+>       subprocess.run(
+            [
+                "conda",
+                "run",
+                "-n",
+                "epimight",
+                "Rscript",
+                str(R_DRIVER),
+                str(pipeline_input),
+                "PO",
+                "3",
+                "42",
+                str(out_dir),
+                DEFAULT_STRATIFY_JSON,
+                DEFAULT_ONSET_JSON,
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+tests/test_atlas.py:405: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+input = None, capture_output = True, timeout = None, check = True
+popenargs = (['conda', 'run', '-n', 'epimight', 'Rscript', '/data/Documents/simACE/fitACE/fitACE_epimight/R/run_pipeline.R', ...],)
+kwargs = {'text': True, 'stdout': -1, 'stderr': -1}
+
+    def run(*popenargs,
+            input=None, capture_output=False, timeout=None, check=False, **kwargs):
+        """Run command with arguments and return a CompletedProcess instance.
+    
+        The returned instance will have attributes args, returncode, stdout and
+        stderr. By default, stdout and stderr are not captured, and those attributes
+        will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them,
+        or pass capture_output=True to capture both.
+    
+        If check is True and the exit code was non-zero, it raises a
+        CalledProcessError. The CalledProcessError object will have the return code
+        in the returncode attribute, and output & stderr attributes if those streams
+        were captured.
+    
+        If timeout (seconds) is given and the process takes too long,
+         a TimeoutExpired exception will be raised.
+    
+        There is an optional argument "input", allowing you to
+        pass bytes or a string to the subprocess's stdin.  If you use this argument
+        you may not also use the Popen constructor's "stdin" argument, as
+        it will be used internally.
+    
+        By default, all communication is in bytes, and therefore any "input" should
+        be bytes, and the stdout and stderr will be bytes. If in text mode, any
+        "input" should be a string, and stdout and stderr will be strings decoded
+        according to locale encoding, or by "encoding" if set. Text mode is
+        triggered by setting any of text, encoding, errors or universal_newlines.
+    
+        The other arguments are the same as for the Popen constructor.
+        """
+        if input is not None:
+            if kwargs.get('stdin') is not None:
+                raise ValueError('stdin and input arguments may not both be used.')
+            kwargs['stdin'] = PIPE
+    
+        if capture_output:
+            if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:
+                raise ValueError('stdout and stderr arguments may not be used '
+                                 'with capture_output.')
+            kwargs['stdout'] = PIPE
+            kwargs['stderr'] = PIPE
+    
+        with Popen(*popenargs, **kwargs) as process:
+            try:
+                stdout, stderr = process.communicate(input, timeout=timeout)
+            except TimeoutExpired as exc:
+                process.kill()
+                if _mswindows:
+                    # Windows accumulates the output in a single blocking
+                    # read() call run on child threads, with the timeout
+                    # being done in a join() on those threads.  communicate()
+                    # _after_ kill() is required to collect that and add it
+                    # to the exception.
+                    exc.stdout, exc.stderr = process.communicate()
+                else:
+                    # POSIX _communicate already populated the output so
+                    # far into the TimeoutExpired exception.
+                    process.wait()
+                raise
+            except:  # Including KeyboardInterrupt, communicate handled that.
+                process.kill()
+                # We don't call process.wait() as .__exit__ does that for us.
+                raise
+            retcode = process.poll()
+            if check and retcode:
+>               raise CalledProcessError(retcode, process.args,
+                                         output=stdout, stderr=stderr)
+E               subprocess.CalledProcessError: Command '['conda', 'run', '-n', 'epimight', 'Rscript', '/data/Documents/simACE/fitACE/fitACE_epimight/R/run_pipeline.R', '/tmp/pytest-of-ryanw/pytest-1216/test_atlas_e2e_emitter_to_html0/epimight/pipeline_input.parquet', 'PO', '3', '42', '/tmp/pytest-of-ryanw/pytest-1216/test_atlas_e2e_emitter_to_html0/epimight/tsv', '["born_at_year"]', '{"trait1": {"earliest": 1, "latest": 100}, "trait2": {"earliest": 1, "latest": 100}}']' returned non-zero exit status 1.
+
+../.pixi/envs/default/lib/python3.13/subprocess.py:577: CalledProcessError
+----------------------------- Captured stdout call -----------------------------
+Extracting relationship pairs...
+Wrote /tmp/pytest-of-ryanw/pytest-1216/test_atlas_e2e_emitter_to_html0/epimight/pipeline_input.parquet (80 rows = 60 × 2 traits × 1 rels)
+Wrote /tmp/pytest-of-ryanw/pytest-1216/test_atlas_e2e_emitter_to_html0/epimight/true_parameters.json: h2_trait1_true=0.2728, h2_trait2_true=0.4190, genetic_correlation_true=0.0724
+
+=== Long-form pool diagnostics ===
+  Total rows: 80
+  Schema: ['person_id', 'disorder', 'failure_status', 'failure_time', 'relationship_kind', 'relatives', 'relatives_diagnosed', 'born_at_year', 'dead_at_year']
+  trait1  PO:       40 with relatives,       24 with diagnosed relatives, mean diagnosed (among those with rel): 0.750
+  trait2  PO:       40 with relatives,       34 with diagnosed relatives, mean diagnosed (among those with rel): 1.200
+_____________________________ test_cli_end_to_end ______________________________
+
+tmp_path = PosixPath('/tmp/pytest-of-ryanw/pytest-1216/test_cli_end_to_end0')
+medium_pedigree = PosixPath('/tmp/pytest-of-ryanw/pytest-1216/test_cli_end_to_end0/trait.parquet')
+epimight_env_available = None
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x796d9458ed70>
+
+    @pytest.mark.slow
+    def test_cli_end_to_end(tmp_path, medium_pedigree, epimight_env_available, monkeypatch):
+        """Full CLI run produces pipeline_input, truth, 12 TSVs, and summary.tsv.
+    
+        Runs from a temp cwd (not the repo root) to verify R_DRIVER's
+        package-relative resolution works.
+        """
+        out_dir = tmp_path / "out"
+        monkeypatch.chdir(tmp_path)  # exercise cwd-independence
+    
+        cli.main(
+            [
+                "--phenotype",
+                str(medium_pedigree),
+                "--output-dir",
+                str(out_dir),
+                "--rels",
+                "PO",
+                "--draws",
+                "3",
+                "--seed",
+                "42",
+            ]
+        )
+    
+        # Emitter outputs
+        assert (out_dir / "pipeline_input.parquet").exists()
+        assert (out_dir / "true_parameters.json").exists()
+    
+        # All 12 TSVs from one rel
+        for flav in ("combined", "combined_meta", "meta", "meta_combined"):
+            for sub in ("cif", "h2", "rg"):
+                assert (out_dir / "tsv" / f"{flav}_{sub}_PO.tsv").exists()
+    
+        # Aggregated summary
+        summary_path = out_dir / "summary.tsv"
+        assert summary_path.exists()
+        summary = read_tsv(summary_path)
+        assert set(summary.columns) >= {"rel", "trait", "h2", "se", "l95", "u95"}
+        # Truth attached via h2_true column.
+        assert "h2_true" in summary.columns
+>       assert set(summary["rel"].to_list()) == {"PO"}
+E       AssertionError: assert set() == {'PO'}
+E         
+E         Extra items in the right set:
+E         'PO'
+E         Use -v to get more diff
+
+/data/Documents/simACE/fitACE/fitACE_epimight/tests/test_cli.py:164: AssertionError
+----------------------------- Captured stdout call -----------------------------
+Extracting relationship pairs...
+Wrote /tmp/pytest-of-ryanw/pytest-1216/test_cli_end_to_end0/out/pipeline_input.parquet (80 rows = 60 × 2 traits × 1 rels)
+Wrote /tmp/pytest-of-ryanw/pytest-1216/test_cli_end_to_end0/out/true_parameters.json: h2_trait1_true=0.2728, h2_trait2_true=0.4190, genetic_correlation_true=0.0724
+
+=== Long-form pool diagnostics ===
+  Total rows: 80
+  Schema: ['person_id', 'disorder', 'failure_status', 'failure_time', 'relationship_kind', 'relatives', 'relatives_diagnosed', 'born_at_year', 'dead_at_year']
+  trait1  PO:       40 with relatives,       24 with diagnosed relatives, mean diagnosed (among those with rel): 0.750
+  trait2  PO:       40 with relatives,       34 with diagnosed relatives, mean diagnosed (among those with rel): 1.200
+[run_pipeline] PO: wrote 12 EMPTY TSVs (cell not estimable)
+----------------------------- Captured stderr call -----------------------------
+
+=== EPIMIGHT: rel=PO draws=3 seed=42 ===
+Warning messages:
+1: replacing previous import ‘data.table::first’ by ‘dplyr::first’ when loading ‘epimight’ 
+2: replacing previous import ‘data.table::between’ by ‘dplyr::between’ when loading ‘epimight’ 
+3: replacing previous import ‘data.table::last’ by ‘dplyr::last’ when loading ‘epimight’ 
+[run_pipeline] PO: pipe$run failed (After joining h2 results for both disorders no data was left)
+
+Wrote aggregated summary → /tmp/pytest-of-ryanw/pytest-1216/test_cli_end_to_end0/out/summary.tsv
+shape: (0, 7)
+┌─────┬───────┬─────┬─────┬─────┬─────┬─────────┐
+│ rel ┆ trait ┆ h2  ┆ se  ┆ l95 ┆ u95 ┆ h2_true │
+│ --- ┆ ---   ┆ --- ┆ --- ┆ --- ┆ --- ┆ ---     │
+│ str ┆ str   ┆ str ┆ str ┆ str ┆ str ┆ f64     │
+╞═════╪═══════╪═════╪═════╪═════╪═════╪═════════╡
+└─────┴───────┴─────┴─────┴─────┴─────┴─────────┘
+___________________ test_r_driver_schema_renames_fixed_cols ____________________
+
+tmp_path = PosixPath('/tmp/pytest-of-ryanw/pytest-1216/test_r_driver_schema_renames_f0')
+epimight_env_available = None
+
+    @pytest.mark.slow
+    def test_r_driver_schema_renames_fixed_cols(tmp_path, epimight_env_available):
+        """200-row PO-only fixture; assert column inventory across 12 TSVs."""
+        input_path = _build_minimal_fixture(tmp_path, n_persons=100, rels=["PO"], seed=42)
+        out_dir = tmp_path / "tsv"
+>       _run_driver(input_path, "PO", draws=3, seed=42, out_dir=out_dir)
+
+tests/test_run_pipeline.py:150: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_run_pipeline.py:100: in _run_driver
+    subprocess.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+input = None, capture_output = True, timeout = None, check = True
+popenargs = (['conda', 'run', '-n', 'epimight', 'Rscript', '/data/Documents/simACE/fitACE/fitACE_epimight/R/run_pipeline.R', ...],)
+kwargs = {'text': True, 'stdout': -1, 'stderr': -1}
+
+    def run(*popenargs,
+            input=None, capture_output=False, timeout=None, check=False, **kwargs):
+        """Run command with arguments and return a CompletedProcess instance.
+    
+        The returned instance will have attributes args, returncode, stdout and
+        stderr. By default, stdout and stderr are not captured, and those attributes
+        will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them,
+        or pass capture_output=True to capture both.
+    
+        If check is True and the exit code was non-zero, it raises a
+        CalledProcessError. The CalledProcessError object will have the return code
+        in the returncode attribute, and output & stderr attributes if those streams
+        were captured.
+    
+        If timeout (seconds) is given and the process takes too long,
+         a TimeoutExpired exception will be raised.
+    
+        There is an optional argument "input", allowing you to
+        pass bytes or a string to the subprocess's stdin.  If you use this argument
+        you may not also use the Popen constructor's "stdin" argument, as
+        it will be used internally.
+    
+        By default, all communication is in bytes, and therefore any "input" should
+        be bytes, and the stdout and stderr will be bytes. If in text mode, any
+        "input" should be a string, and stdout and stderr will be strings decoded
+        according to locale encoding, or by "encoding" if set. Text mode is
+        triggered by setting any of text, encoding, errors or universal_newlines.
+    
+        The other arguments are the same as for the Popen constructor.
+        """
+        if input is not None:
+            if kwargs.get('stdin') is not None:
+                raise ValueError('stdin and input arguments may not both be used.')
+            kwargs['stdin'] = PIPE
+    
+        if capture_output:
+            if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:
+                raise ValueError('stdout and stderr arguments may not be used '
+                                 'with capture_output.')
+            kwargs['stdout'] = PIPE
+            kwargs['stderr'] = PIPE
+    
+        with Popen(*popenargs, **kwargs) as process:
+            try:
+                stdout, stderr = process.communicate(input, timeout=timeout)
+            except TimeoutExpired as exc:
+                process.kill()
+                if _mswindows:
+                    # Windows accumulates the output in a single blocking
+                    # read() call run on child threads, with the timeout
+                    # being done in a join() on those threads.  communicate()
+                    # _after_ kill() is required to collect that and add it
+                    # to the exception.
+                    exc.stdout, exc.stderr = process.communicate()
+                else:
+                    # POSIX _communicate already populated the output so
+                    # far into the TimeoutExpired exception.
+                    process.wait()
+                raise
+            except:  # Including KeyboardInterrupt, communicate handled that.
+                process.kill()
+                # We don't call process.wait() as .__exit__ does that for us.
+                raise
+            retcode = process.poll()
+            if check and retcode:
+>               raise CalledProcessError(retcode, process.args,
+                                         output=stdout, stderr=stderr)
+E               subprocess.CalledProcessError: Command '['conda', 'run', '-n', 'epimight', 'Rscript', '/data/Documents/simACE/fitACE/fitACE_epimight/R/run_pipeline.R', '/tmp/pytest-of-ryanw/pytest-1216/test_r_driver_schema_renames_f0/pipeline_input.parquet', 'PO', '3', '42', '/tmp/pytest-of-ryanw/pytest-1216/test_r_driver_schema_renames_f0/tsv', '["born_at_year"]', '{"trait1": {"earliest": 1, "latest": 100}, "trait2": {"earliest": 1, "latest": 100}}']' returned non-zero exit status 1.
+
+../.pixi/envs/default/lib/python3.13/subprocess.py:577: CalledProcessError
+_______________________ test_emitter_to_driver_roundtrip _______________________
+
+tmp_path = PosixPath('/tmp/pytest-of-ryanw/pytest-1216/test_emitter_to_driver_roundtr0')
+medium_pedigree = PosixPath('/tmp/pytest-of-ryanw/pytest-1216/test_emitter_to_driver_roundtr0/trait.parquet')
+epimight_env_available = None
+
+    @pytest.mark.slow
+    def test_emitter_to_driver_roundtrip(tmp_path, medium_pedigree, epimight_env_available):
+        """End-to-end: emit_pipeline_input on medium_pedigree → R driver runs cleanly.
+    
+        Catches dtype/schema drift between the Python emitter and the v2.0
+        Pipeline validator. The slow test_r_driver_schema_renames_fixed_cols
+        test uses a hand-crafted parquet; this test exercises the real emitter.
+        Uses medium_pedigree (60 ppl) — tiny_pedigree (12 ppl) is too small
+        for Pipeline's MI draws to converge.
+        """
+        emit_dir = tmp_path / "emit"
+        emit_pipeline_input(medium_pedigree, emit_dir, rels=["PO"])
+        input_path = emit_dir / "pipeline_input.parquet"
+        assert input_path.exists()
+    
+        out_dir = tmp_path / "tsv"
+>       _run_driver(input_path, "PO", draws=3, seed=42, out_dir=out_dir)
+
+tests/test_run_pipeline.py:170: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_run_pipeline.py:100: in _run_driver
+    subprocess.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+input = None, capture_output = True, timeout = None, check = True
+popenargs = (['conda', 'run', '-n', 'epimight', 'Rscript', '/data/Documents/simACE/fitACE/fitACE_epimight/R/run_pipeline.R', ...],)
+kwargs = {'text': True, 'stdout': -1, 'stderr': -1}
+
+    def run(*popenargs,
+            input=None, capture_output=False, timeout=None, check=False, **kwargs):
+        """Run command with arguments and return a CompletedProcess instance.
+    
+        The returned instance will have attributes args, returncode, stdout and
+        stderr. By default, stdout and stderr are not captured, and those attributes
+        will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them,
+        or pass capture_output=True to capture both.
+    
+        If check is True and the exit code was non-zero, it raises a
+        CalledProcessError. The CalledProcessError object will have the return code
+        in the returncode attribute, and output & stderr attributes if those streams
+        were captured.
+    
+        If timeout (seconds) is given and the process takes too long,
+         a TimeoutExpired exception will be raised.
+    
+        There is an optional argument "input", allowing you to
+        pass bytes or a string to the subprocess's stdin.  If you use this argument
+        you may not also use the Popen constructor's "stdin" argument, as
+        it will be used internally.
+    
+        By default, all communication is in bytes, and therefore any "input" should
+        be bytes, and the stdout and stderr will be bytes. If in text mode, any
+        "input" should be a string, and stdout and stderr will be strings decoded
+        according to locale encoding, or by "encoding" if set. Text mode is
+        triggered by setting any of text, encoding, errors or universal_newlines.
+    
+        The other arguments are the same as for the Popen constructor.
+        """
+        if input is not None:
+            if kwargs.get('stdin') is not None:
+                raise ValueError('stdin and input arguments may not both be used.')
+            kwargs['stdin'] = PIPE
+    
+        if capture_output:
+            if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:
+                raise ValueError('stdout and stderr arguments may not be used '
+                                 'with capture_output.')
+            kwargs['stdout'] = PIPE
+            kwargs['stderr'] = PIPE
+    
+        with Popen(*popenargs, **kwargs) as process:
+            try:
+                stdout, stderr = process.communicate(input, timeout=timeout)
+            except TimeoutExpired as exc:
+                process.kill()
+                if _mswindows:
+                    # Windows accumulates the output in a single blocking
+                    # read() call run on child threads, with the timeout
+                    # being done in a join() on those threads.  communicate()
+                    # _after_ kill() is required to collect that and add it
+                    # to the exception.
+                    exc.stdout, exc.stderr = process.communicate()
+                else:
+                    # POSIX _communicate already populated the output so
+                    # far into the TimeoutExpired exception.
+                    process.wait()
+                raise
+            except:  # Including KeyboardInterrupt, communicate handled that.
+                process.kill()
+                # We don't call process.wait() as .__exit__ does that for us.
+                raise
+            retcode = process.poll()
+            if check and retcode:
+>               raise CalledProcessError(retcode, process.args,
+                                         output=stdout, stderr=stderr)
+E               subprocess.CalledProcessError: Command '['conda', 'run', '-n', 'epimight', 'Rscript', '/data/Documents/simACE/fitACE/fitACE_epimight/R/run_pipeline.R', '/tmp/pytest-of-ryanw/pytest-1216/test_emitter_to_driver_roundtr0/emit/pipeline_input.parquet', 'PO', '3', '42', '/tmp/pytest-of-ryanw/pytest-1216/test_emitter_to_driver_roundtr0/tsv', '["born_at_year"]', '{"trait1": {"earliest": 1, "latest": 100}, "trait2": {"earliest": 1, "latest": 100}}']' returned non-zero exit status 1.
+
+../.pixi/envs/default/lib/python3.13/subprocess.py:577: CalledProcessError
+----------------------------- Captured stdout call -----------------------------
+Extracting relationship pairs...
+Wrote /tmp/pytest-of-ryanw/pytest-1216/test_emitter_to_driver_roundtr0/emit/pipeline_input.parquet (80 rows = 60 × 2 traits × 1 rels)
+Wrote /tmp/pytest-of-ryanw/pytest-1216/test_emitter_to_driver_roundtr0/emit/true_parameters.json: h2_trait1_true=0.2728, h2_trait2_true=0.4190, genetic_correlation_true=0.0724
+
+=== Long-form pool diagnostics ===
+  Total rows: 80
+  Schema: ['person_id', 'disorder', 'failure_status', 'failure_time', 'relationship_kind', 'relatives', 'relatives_diagnosed', 'born_at_year', 'dead_at_year']
+  trait1  PO:       40 with relatives,       24 with diagnosed relatives, mean diagnosed (among those with rel): 0.750
+  trait2  PO:       40 with relatives,       34 with diagnosed relatives, mean diagnosed (among those with rel): 1.200
+__________________ test_onset_bounds_constrain_cif_time_axis ___________________
+
+tmp_path = PosixPath('/tmp/pytest-of-ryanw/pytest-1216/test_onset_bounds_constrain_ci0')
+medium_pedigree = PosixPath('/tmp/pytest-of-ryanw/pytest-1216/test_onset_bounds_constrain_ci0/trait.parquet')
+epimight_env_available = None
+
+    @pytest.mark.slow
+    def test_onset_bounds_constrain_cif_time_axis(tmp_path, medium_pedigree, epimight_env_available):
+        """Non-default onset bounds reach pipeline$run() and clip CIF time axis.
+    
+        Acceptance criterion for item 4: setting earliest_onset=10, latest_onset=70
+        in the onset_bounds JSON must make the resulting combined_cif_PO.tsv time
+        column lie within [10, 70]. Verifies the bounds plumb through Snakemake
+        → R driver → Pipeline.
+    
+        Bounds chosen to be both non-default (different from [1, 100]) and wide
+        enough that Pipeline's MI draws don't starve — the shared test-fixture
+        onset grid lies within [10, 70].
+        """
+        emit_dir = tmp_path / "emit"
+        emit_pipeline_input(medium_pedigree, emit_dir, rels=["PO"])
+    
+        bounded_onset_json = json.dumps(
+            {
+                "trait1": {"earliest": 10, "latest": 70},
+                "trait2": {"earliest": 10, "latest": 70},
+            }
+        )
+    
+        out_dir = tmp_path / "tsv"
+>       _run_driver(
+            emit_dir / "pipeline_input.parquet",
+            "PO",
+            draws=3,
+            seed=42,
+            out_dir=out_dir,
+            onset_json=bounded_onset_json,
+        )
+
+tests/test_run_pipeline.py:198: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_run_pipeline.py:100: in _run_driver
+    subprocess.run(
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+input = None, capture_output = True, timeout = None, check = True
+popenargs = (['conda', 'run', '-n', 'epimight', 'Rscript', '/data/Documents/simACE/fitACE/fitACE_epimight/R/run_pipeline.R', ...],)
+kwargs = {'text': True, 'stdout': -1, 'stderr': -1}
+
+    def run(*popenargs,
+            input=None, capture_output=False, timeout=None, check=False, **kwargs):
+        """Run command with arguments and return a CompletedProcess instance.
+    
+        The returned instance will have attributes args, returncode, stdout and
+        stderr. By default, stdout and stderr are not captured, and those attributes
+        will be None. Pass stdout=PIPE and/or stderr=PIPE in order to capture them,
+        or pass capture_output=True to capture both.
+    
+        If check is True and the exit code was non-zero, it raises a
+        CalledProcessError. The CalledProcessError object will have the return code
+        in the returncode attribute, and output & stderr attributes if those streams
+        were captured.
+    
+        If timeout (seconds) is given and the process takes too long,
+         a TimeoutExpired exception will be raised.
+    
+        There is an optional argument "input", allowing you to
+        pass bytes or a string to the subprocess's stdin.  If you use this argument
+        you may not also use the Popen constructor's "stdin" argument, as
+        it will be used internally.
+    
+        By default, all communication is in bytes, and therefore any "input" should
+        be bytes, and the stdout and stderr will be bytes. If in text mode, any
+        "input" should be a string, and stdout and stderr will be strings decoded
+        according to locale encoding, or by "encoding" if set. Text mode is
+        triggered by setting any of text, encoding, errors or universal_newlines.
+    
+        The other arguments are the same as for the Popen constructor.
+        """
+        if input is not None:
+            if kwargs.get('stdin') is not None:
+                raise ValueError('stdin and input arguments may not both be used.')
+            kwargs['stdin'] = PIPE
+    
+        if capture_output:
+            if kwargs.get('stdout') is not None or kwargs.get('stderr') is not None:
+                raise ValueError('stdout and stderr arguments may not be used '
+                                 'with capture_output.')
+            kwargs['stdout'] = PIPE
+            kwargs['stderr'] = PIPE
+    
+        with Popen(*popenargs, **kwargs) as process:
+            try:
+                stdout, stderr = process.communicate(input, timeout=timeout)
+            except TimeoutExpired as exc:
+                process.kill()
+                if _mswindows:
+                    # Windows accumulates the output in a single blocking
+                    # read() call run on child threads, with the timeout
+                    # being done in a join() on those threads.  communicate()
+                    # _after_ kill() is required to collect that and add it
+                    # to the exception.
+                    exc.stdout, exc.stderr = process.communicate()
+                else:
+                    # POSIX _communicate already populated the output so
+                    # far into the TimeoutExpired exception.
+                    process.wait()
+                raise
+            except:  # Including KeyboardInterrupt, communicate handled that.
+                process.kill()
+                # We don't call process.wait() as .__exit__ does that for us.
+                raise
+            retcode = process.poll()
+            if check and retcode:
+>               raise CalledProcessError(retcode, process.args,
+                                         output=stdout, stderr=stderr)
+E               subprocess.CalledProcessError: Command '['conda', 'run', '-n', 'epimight', 'Rscript', '/data/Documents/simACE/fitACE/fitACE_epimight/R/run_pipeline.R', '/tmp/pytest-of-ryanw/pytest-1216/test_onset_bounds_constrain_ci0/emit/pipeline_input.parquet', 'PO', '3', '42', '/tmp/pytest-of-ryanw/pytest-1216/test_onset_bounds_constrain_ci0/tsv', '["born_at_year"]', '{"trait1": {"earliest": 10, "latest": 70}, "trait2": {"earliest": 10, "latest": 70}}']' returned non-zero exit status 1.
+
+../.pixi/envs/default/lib/python3.13/subprocess.py:577: CalledProcessError
+----------------------------- Captured stdout call -----------------------------
+Extracting relationship pairs...
+Wrote /tmp/pytest-of-ryanw/pytest-1216/test_onset_bounds_constrain_ci0/emit/pipeline_input.parquet (80 rows = 60 × 2 traits × 1 rels)
+Wrote /tmp/pytest-of-ryanw/pytest-1216/test_onset_bounds_constrain_ci0/emit/true_parameters.json: h2_trait1_true=0.2728, h2_trait2_true=0.4190, genetic_correlation_true=0.0724
+
+=== Long-form pool diagnostics ===
+  Total rows: 80
+  Schema: ['person_id', 'disorder', 'failure_status', 'failure_time', 'relationship_kind', 'relatives', 'relatives_diagnosed', 'born_at_year', 'dead_at_year']
+  trait1  PO:       40 with relatives,       24 with diagnosed relatives, mean diagnosed (among those with rel): 0.750
+  trait2  PO:       40 with relatives,       34 with diagnosed relatives, mean diagnosed (among those with rel): 1.200
+=========================== short test summary info ============================
+FAILED tests/test_atlas.py::test_atlas_e2e_emitter_to_html - subprocess.Calle...
+FAILED tests/test_cli.py::test_cli_end_to_end - AssertionError: assert set() ...
+FAILED tests/test_run_pipeline.py::test_r_driver_schema_renames_fixed_cols - ...
+FAILED tests/test_run_pipeline.py::test_emitter_to_driver_roundtrip - subproc...
+FAILED tests/test_run_pipeline.py::test_onset_bounds_constrain_cif_time_axis
+5 failed, 13 passed, 257 deselected in 25.68s

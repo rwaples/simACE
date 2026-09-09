@@ -1,0 +1,58 @@
+{
+  "unit": "fitACE_epimight",
+  "stage": "9a",
+  "routing": "source",
+  "cwd": "fitACE/fitACE_epimight",
+  "started": "2026-09-09T08:34:05",
+  "steps": [
+    {
+      "step": "routing",
+      "cmd": "pixi run --manifest-path /data/Documents/simACE/fitACE/pixi.toml --frozen python -c 'import pedigree_graph as p, sys;ok = '\"'\"'/data/Documents/simACE/external/pedigree-graph/'\"'\"' in p.__file__;print(('\"'\"'routed'\"'\"' if ok else '\"'\"'MISROUTED'\"'\"'), p.__file__);sys.exit(0 if ok else 3)'",
+      "exit": 0,
+      "wall_s": 0.9,
+      "max_rss_mib": 105.9,
+      "log": "docs/pedigree-graph-0.8-migration/gate/9a/fitACE_epimight/routing.log",
+      "tail": [
+        "routed /data/Documents/simACE/external/pedigree-graph/pedigree_graph/__init__.py"
+      ]
+    },
+    {
+      "step": "pytest",
+      "cmd": "pixi run --manifest-path /data/Documents/simACE/fitACE/pixi.toml --frozen pytest -q -p no:cacheprovider tests",
+      "exit": 0,
+      "wall_s": 52.7,
+      "max_rss_mib": 789.0,
+      "log": "docs/pedigree-graph-0.8-migration/gate/9a/fitACE_epimight/pytest.log",
+      "tail": [
+        "........................................................................ [ 28%]",
+        "........................................................................ [ 56%]",
+        "........................................................................ [ 84%]",
+        "........................................                                 [100%]",
+        "256 passed, 19 deselected in 50.88s"
+      ]
+    },
+    {
+      "step": "pytest-slow",
+      "cmd": "pixi run --manifest-path /data/Documents/simACE/fitACE/pixi.toml --frozen pytest -q -p no:cacheprovider -m slow tests",
+      "exit": 1,
+      "wall_s": 27.3,
+      "max_rss_mib": 357.9,
+      "log": "docs/pedigree-graph-0.8-migration/gate/9a/fitACE_epimight/pytest-slow.log",
+      "tail": [
+        "=== Long-form pool diagnostics ===",
+        "  Total rows: 80",
+        "  Schema: ['person_id', 'disorder', 'failure_status', 'failure_time', 'relationship_kind', 'relatives', 'relatives_diagnosed', 'born_at_year', 'dead_at_year']",
+        "  trait1  PO:       40 with relatives,       24 with diagnosed relatives, mean diagnosed (among those with rel): 0.750",
+        "  trait2  PO:       40 with relatives,       34 with diagnosed relatives, mean diagnosed (among those with rel): 1.200",
+        "=========================== short test summary info ============================",
+        "FAILED tests/test_atlas.py::test_atlas_e2e_emitter_to_html - subprocess.Calle...",
+        "FAILED tests/test_cli.py::test_cli_end_to_end - AssertionError: assert set() ...",
+        "FAILED tests/test_run_pipeline.py::test_r_driver_schema_renames_fixed_cols - ...",
+        "FAILED tests/test_run_pipeline.py::test_emitter_to_driver_roundtrip - subproc...",
+        "FAILED tests/test_run_pipeline.py::test_onset_bounds_constrain_cif_time_axis",
+        "5 failed, 13 passed, 257 deselected in 25.68s"
+      ]
+    }
+  ],
+  "ok": false
+}

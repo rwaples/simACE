@@ -1,0 +1,16 @@
+........................................................................ [ 22%]
+........................................................................ [ 44%]
+........................................................................ [ 66%]
+........................................................................ [ 88%]
+.....................................                                    [100%]
+=============================== warnings summary ===============================
+tests/test_pair_counting_modes.py::test_estimate_exact_code_set_is_the_six_pedsum_relies_on
+  /data/Documents/simACE/external/pedsum/tests/test_pair_counting_modes.py:170: RuntimeWarning: estimate_relationship_counts(max_degree=5): the scalar residual for H1C underflowed and was clamped to 0, so those counts are unreliable rather than a true absence (typically inbreeding or complex mating); use relationship_counts for exact values
+    assert set(pg.estimate_relationship_counts(max_degree=5).exact) == set(_EXACT_CODES)
+
+tests/test_pair_counting_modes.py::test_incest_fold_matches_per_individual_pair_lists
+  /data/Documents/simACE/external/pedsum/tests/test_pair_counting_modes.py:199: RuntimeWarning: estimate_relationship_counts(max_degree=5): the scalar residual for H1C, H1C1R underflowed and was clamped to 0, so those counts are unreliable rather than a true absence (typically inbreeding or complex mating); use relationship_counts for exact values
+    estimated = pg.estimate_relationship_counts(max_degree=5)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+325 passed, 2 warnings in 122.15s (0:02:02)

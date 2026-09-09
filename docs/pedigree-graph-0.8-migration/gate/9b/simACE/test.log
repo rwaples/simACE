@@ -1,0 +1,97 @@
+✨ Pixi task (test): pytest -n 6 --dist worksteal: (Full pytest suite on 6 xdist workers, one numba/BLAS thread each)
+============================= test session starts ==============================
+platform linux -- Python 3.13.15, pytest-9.1.1, pluggy-1.6.0
+rootdir: /data/Documents/simACE
+configfile: pyproject.toml
+testpaths: tests
+plugins: hypothesis-6.165.10, xdist-3.8.0, cov-7.1.0
+created: 6/6 workers
+6 workers [1470 items]
+
+........................................................................ [  4%]
+........................................................................ [  9%]
+........................................................................ [ 14%]
+........................................................................ [ 19%]
+........................................................................ [ 24%]
+........................................................................ [ 29%]
+........................................................................ [ 34%]
+........................................................................ [ 39%]
+........................................................................ [ 44%]
+........................................................................ [ 48%]
+........................................................................ [ 53%]
+........................................................................ [ 58%]
+........................................................................ [ 63%]
+........................................................................ [ 68%]
+........................................................................ [ 73%]
+........................................................................ [ 78%]
+........................................................................ [ 83%]
+........................................................................ [ 88%]
+........................................................................ [ 93%]
+........................................................................ [ 97%]
+..............................                                           [100%]
+=============================== warnings summary ===============================
+tests/simulation/test_per_gen_coord_contract.py:29
+tests/simulation/test_per_gen_coord_contract.py:29
+tests/simulation/test_per_gen_coord_contract.py:29
+tests/simulation/test_per_gen_coord_contract.py:29
+tests/simulation/test_per_gen_coord_contract.py:29
+tests/simulation/test_per_gen_coord_contract.py:29
+  /data/Documents/simACE/tests/simulation/test_per_gen_coord_contract.py:29: PytestUnknownMarkWarning: Unknown pytest.mark.regression - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.regression
+
+tests/simulation/test_per_gen_coord_contract.py:76
+tests/simulation/test_per_gen_coord_contract.py:76
+tests/simulation/test_per_gen_coord_contract.py:76
+tests/simulation/test_per_gen_coord_contract.py:76
+tests/simulation/test_per_gen_coord_contract.py:76
+tests/simulation/test_per_gen_coord_contract.py:76
+  /data/Documents/simACE/tests/simulation/test_per_gen_coord_contract.py:76: PytestUnknownMarkWarning: Unknown pytest.mark.regression - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.regression
+
+tests/simulation/test_per_gen_coord_contract.py:108
+tests/simulation/test_per_gen_coord_contract.py:108
+tests/simulation/test_per_gen_coord_contract.py:108
+tests/simulation/test_per_gen_coord_contract.py:108
+tests/simulation/test_per_gen_coord_contract.py:108
+tests/simulation/test_per_gen_coord_contract.py:108
+  /data/Documents/simACE/tests/simulation/test_per_gen_coord_contract.py:108: PytestUnknownMarkWarning: Unknown pytest.mark.regression - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.regression
+
+tests/simulation/test_per_gen_coord_contract.py:134
+tests/simulation/test_per_gen_coord_contract.py:134
+tests/simulation/test_per_gen_coord_contract.py:134
+tests/simulation/test_per_gen_coord_contract.py:134
+tests/simulation/test_per_gen_coord_contract.py:134
+tests/simulation/test_per_gen_coord_contract.py:134
+  /data/Documents/simACE/tests/simulation/test_per_gen_coord_contract.py:134: PytestUnknownMarkWarning: Unknown pytest.mark.regression - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.regression
+
+tests/core/test_numba_utils_properties.py::test_linregress_core_python_jit_parity
+  /data/Documents/simACE/simace/core/_numba_utils.py:174: RuntimeWarning: divide by zero encountered in scalar divide
+    t_stat = slope / stderr
+
+tests/core/test_parquet_properties.py::test_parquet_roundtrip_modulo_narrowing
+  /data/Documents/simACE/tests/core/test_parquet_properties.py:73: RuntimeWarning: overflow encountered in cast
+    df[c].to_numpy().astype(np.float32),
+
+tests/core/test_compute_hazard_properties.py::test_cumulative_hazard_nonneg_nondecreasing
+  /data/Documents/simACE/simace/core/compute_hazard_terms.py:56: RuntimeWarning: overflow encountered in expm1
+    H_base = b * t if abs(g) < 1e-12 else (b / g) * np.expm1(g * t)
+
+tests/core/test_compute_hazard_properties.py::test_cumulative_hazard_nonneg_nondecreasing
+  /data/Documents/simACE/simace/core/compute_hazard_terms.py:73: RuntimeWarning: overflow encountered in exp
+    H_base = np.where(u > 30.0, u, np.log1p(np.exp(u)))
+
+tests/core/test_compute_hazard_properties.py::test_cumulative_hazard_nonneg_nondecreasing
+  /data/Documents/simACE/simace/core/compute_hazard_terms.py:40: RuntimeWarning: overflow encountered in exp
+    H_base = np.exp(rho * (log_t - np.log(s)))
+
+tests/analysis/test_mate_correlation.py::TestPlotMateCorrelation::test_runs_without_error
+tests/analysis/test_mate_correlation.py::TestPlotMateCorrelation::test_runs_without_error
+tests/analysis/test_mate_correlation.py::TestPlotMateCorrelation::test_both_nonzero_no_crash
+tests/analysis/test_mate_correlation.py::TestPlotMateCorrelation::test_both_nonzero_no_crash
+  /data/Documents/simACE/.pixi/envs/default/lib/python3.13/site-packages/seaborn/matrix.py:243: PendingDeprecationWarning: The set_bad function will be deprecated in a future version. Use cmap.with_extremes(bad=...) or Colormap(bad=...) instead.
+    self.cmap.set_bad(bad)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================ 1470 passed, 3 skipped, 33 warnings in 36.51s =================

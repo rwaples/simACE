@@ -59,12 +59,13 @@ check_install "$WORK/wheel-venv" "$WHEEL"
 check_install "$WORK/sdist-venv" "$SDIST"
 
 # The package's own suite against the installed wheel.  cwd is the clean tree so
-# the parity fixtures and data resolve; pytest's rootdir insertion adds tests/,
-# not the repo root, so pedigree_graph still comes from site-packages (asserted).
+# the parity fixtures and data resolve; -P keeps cwd off sys.path and pytest's
+# rootdir insertion adds tests/, not the repo root, so pedigree_graph still
+# comes from site-packages (asserted).
 "$WORK/wheel-venv/bin/pip" install --quiet "pedigree-graph[test]@file://$WHEEL"
-( cd "$CLEAN" && "$WORK/wheel-venv/bin/python" -c "import pedigree_graph as p; assert '$WORK/wheel-venv/' in p.__file__, p.__file__" )
+( cd "$CLEAN" && "$WORK/wheel-venv/bin/python" -P -c "import pedigree_graph as p; assert '$WORK/wheel-venv/' in p.__file__, p.__file__" )
 set +e
-( cd "$CLEAN" && "$WORK/wheel-venv/bin/python" -m pytest -q -p no:cacheprovider -m "not slow" tests > "$WORK/wheel-pytest.log" 2>&1 )
+( cd "$CLEAN" && "$WORK/wheel-venv/bin/python" -P -m pytest -q -p no:cacheprovider -m "not slow" tests > "$WORK/wheel-pytest.log" 2>&1 )
 PYTEST_RC=$?
 set -e
 tail -n 3 "$WORK/wheel-pytest.log"
