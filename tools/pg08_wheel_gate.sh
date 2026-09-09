@@ -1,24 +1,28 @@
 #!/usr/bin/env bash
-# pedigree-graph 0.8.0 slice 9b: build from a clean checkout, install the
-# artifacts into isolated environments, prove the import resolves there, run the
-# package's own suite against the installed wheel, and stage a --target site the
-# consumer gate (tools/pg08_release_gate.py run --routing <site>) imports from.
+# pedigree-graph release gate (slice 9b, kept for 0.8.1+): build from a clean
+# checkout, install the artifacts into isolated environments, prove the import
+# resolves there, run the package's own suite against the installed wheel, and
+# stage a --target site the consumer gate (tools/pg08_release_gate.py run
+# --routing <site>) imports from.
 #
 #   tools/pg08_wheel_gate.sh <work-dir> [ref]      # ref defaults to v0.8
 #
 # Writes <work-dir>/{clean,dist,build-venv,wheel-venv,sdist-venv,wheel-site} and
 # <work-dir>/wheel-gate.json (sha256s, versions, import paths, pytest exit code).
-# Never touches a pixi manifest or lock: the build venv is throwaway and the
-# version is SETUPTOOLS_SCM_PRETEND_VERSION so an untagged branch yields 0.8.0.
+# Never touches a pixi manifest or lock: the build venv is throwaway.  Since
+# 0.8.1 the package is maturin-built (ADR 0007): the version is
+# [workspace.package].version in Cargo.toml, the build needs the pixi env's
+# cargo on PATH, and the wheel must carry the cp313-abi3 tag.
 set -euo pipefail
 
 WORK="$(realpath -m "${1:?work dir}")"
 REF="${2:-v0.8}"
-VERSION="${PG_VERSION:-0.8.0}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PG="$ROOT/external/pedigree-graph"
 PY="$PG/.pixi/envs/default/bin/python"
 [ -x "$PY" ] || { echo "no interpreter at $PY (pixi install in $PG first)" >&2; exit 2; }
+export PATH="$(dirname "$PY"):$PATH"
+command -v cargo >/dev/null || { echo "no cargo on PATH after prepending $(dirname "$PY")" >&2; exit 2; }
 
 mkdir -p "$WORK"
 CLEAN="$WORK/clean"
@@ -26,14 +30,25 @@ if [ -e "$CLEAN" ]; then git -C "$PG" worktree remove --force "$CLEAN"; fi
 git -C "$PG" worktree add --detach "$CLEAN" "$REF"
 HEAD_SHA="$(git -C "$CLEAN" rev-parse HEAD)"
 [ -z "$(git -C "$CLEAN" status --porcelain)" ] || { echo "clean worktree is dirty" >&2; exit 2; }
+VERSION="$(sed -n '/^\[workspace\.package\]/,/^\[/{s/^version = "\(.*\)"$/\1/p}' "$CLEAN/Cargo.toml")"
+[ -n "$VERSION" ] || { echo "no [workspace.package].version in $CLEAN/Cargo.toml" >&2; exit 2; }
+echo "building version $VERSION from $HEAD_SHA"
 
 rm -rf "$WORK/dist" "$WORK/build-venv"
 "$PY" -m venv "$WORK/build-venv"
 "$WORK/build-venv/bin/pip" install --quiet build
-( cd "$CLEAN" && SETUPTOOLS_SCM_PRETEND_VERSION="$VERSION" "$WORK/build-venv/bin/python" -m build --outdir "$WORK/dist" )
+( cd "$CLEAN" && "$WORK/build-venv/bin/python" -m build --outdir "$WORK/dist" )
 WHEEL="$(ls "$WORK"/dist/*.whl)"
 SDIST="$(ls "$WORK"/dist/*.tar.gz)"
 sha256sum "$WHEEL" "$SDIST"
+case "$(basename "$WHEEL")" in
+  pedigree_graph-"$VERSION"-cp313-abi3-*) ;;
+  *) echo "wheel $(basename "$WHEEL") is not pedigree_graph-$VERSION-cp313-abi3-*" >&2; exit 2 ;;
+esac
+case "$(basename "$SDIST")" in
+  pedigree_graph-"$VERSION".tar.gz) ;;
+  *) echo "sdist $(basename "$SDIST") does not carry version $VERSION" >&2; exit 2 ;;
+esac
 
 check_install() {  # <venv> <artifact>
   local venv="$1" artifact="$2"
@@ -48,24 +63,28 @@ file = pathlib.Path(p.__file__).resolve()
 assert str(file).startswith(str(pathlib.Path(venv).resolve()) + "/"), file
 assert "site-packages" in file.parts, file
 assert (file.parent / "py.typed").is_file(), "py.typed missing"
+assert (file.parent / "_native.pyi").is_file(), "_native.pyi missing"
+import pedigree_graph._native as native
+assert str(pathlib.Path(native.__file__).resolve()).startswith(str(file.parent) + "/"), native.__file__
 version = m.version("pedigree-graph")
+assert native.core_version() == version, (native.core_version(), version)
 names = [getattr(p, n) for n in p.__all__]
 import pedigree_graph.relationships, pedigree_graph.summaries, pedigree_graph.effective_size, pedigree_graph.typing
-print("installed", version, file, len(names), "root names")
+print("installed", version, file, native.__file__, len(names), "root names")
 EOF
 }
 
 check_install "$WORK/wheel-venv" "$WHEEL"
 check_install "$WORK/sdist-venv" "$SDIST"
 
-# The package's own suite against the installed wheel.  cwd is the clean tree so
-# the parity fixtures and data resolve; -P keeps cwd off sys.path and pytest's
-# rootdir insertion adds tests/, not the repo root, so pedigree_graph still
-# comes from site-packages (asserted).
+# The package's own suite against the installed wheel.  cwd is the work dir,
+# outside the clean tree, so neither pytest nor the fresh child processes the
+# thread tests spawn (plain sys.executable, no -P) can pick up the source
+# package over site-packages; the fixtures resolve relative to the test files.
 "$WORK/wheel-venv/bin/pip" install --quiet "pedigree-graph[test]@file://$WHEEL"
-( cd "$CLEAN" && "$WORK/wheel-venv/bin/python" -P -c "import pedigree_graph as p; assert '$WORK/wheel-venv/' in p.__file__, p.__file__" )
+( cd "$WORK" && "$WORK/wheel-venv/bin/python" -c "import pedigree_graph as p; assert '$WORK/wheel-venv/' in p.__file__, p.__file__" )
 set +e
-( cd "$CLEAN" && "$WORK/wheel-venv/bin/python" -P -m pytest -q -p no:cacheprovider -m "not slow" tests > "$WORK/wheel-pytest.log" 2>&1 )
+( cd "$WORK" && "$WORK/wheel-venv/bin/python" -m pytest -q -p no:cacheprovider -m "not slow" --rootdir "$CLEAN" -c "$CLEAN/pyproject.toml" "$CLEAN/tests" > "$WORK/wheel-pytest.log" 2>&1 )
 PYTEST_RC=$?
 set -e
 tail -n 3 "$WORK/wheel-pytest.log"
