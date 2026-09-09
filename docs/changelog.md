@@ -8,6 +8,35 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
+### pedigree-graph 0.8
+
+- **Migrated to pedigree-graph 0.8** (`pedigree-graph>=0.8,<0.9`). Relationship
+  pairs come from `PedigreeGraph.relationship_pairs`, ascertained samples are
+  `PedigreeGraph.view(ids=...)` rows, nominal kinship reads
+  `RELATIONSHIPS[code].nominal_kinship`, and effective size runs through
+  `pedigree_graph.effective_size.estimate_effective_sizes`. Behaviour that
+  moves with it, measured by `tools/pg08_migration_diff.py` against the 0.7.1
+  baseline in `docs/pedigree-graph-0.8-migration/`:
+  - `relationship_pair_counts` reports each pair under its one closest
+    category, so a pair that 0.7.1 listed under two codes counts once; a code
+    outside the requested depth is `null` ("not computed"), never `0`.
+  - `effective_size.yaml` always carries all eight estimator keys. An
+    estimator that was not requested (`ne_coancestry` under the default
+    `skip_ne_coancestry`) or that the library refused holds
+    `{reason, code, fields}` with no `ne`; the validator passes
+    `not_requested` and fails `missing_metadata`, naming the code.
+  - Effective-size arrays are indexed by observed generation label
+    (`generations`, `parent_generations`, `transition_from`/`transition_to`)
+    rather than a dense `0..max(label)` range, and the by-generation figure
+    plots those labels.
+  - Pair blocks are canonically sorted, so validation correlations that
+    subsample pairs draw a different subset within their tolerance bands.
+  - Ne_C's mean-kinship prerequisite is the pinned float32 recurrence of
+    pedigree-graph ADR 0009, so its last digits may differ.
+- The 0.7.1 old-API scanner (`tools/pedigree_graph_old_api.py`), its snapshot,
+  and the guard test are deleted; the 0.8 root namespace makes any removed name
+  an `ImportError`.
+
 ### Effective population size
 
 - **`analysis.skip_ne_coancestry` now defaults to `true`.** The coancestry DP

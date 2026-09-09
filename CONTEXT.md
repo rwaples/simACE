@@ -195,7 +195,7 @@ The probability that an allele drawn at random from individual $i$ is IBD to an 
 _Avoid_: coancestry (suppressed in canonical vocabulary — see Flagged ambiguities), relatedness (different concept — see above; relatedness = $2\phi$), kinship coefficient (acceptable, but "kinship" alone is preferred).
 
 **Relationship type**:
-The categorical label for a related pair — one of the 23 codes in the `REL_REGISTRY` from `pedigree-graph` (e.g., `MZ`, `FS`, `MHS`, `PHS`, `MO`, `GP`, `1C`, ...). Used in plotting, stats, validation, and analysis. The full table — codes, kinship values, and (up, down, n_ancestors) tuples — lives in `docs/concepts/simulation-design.md`; do not duplicate here.
+The categorical label for a related pair — one of the 23 codes in the `RELATIONSHIPS` registry from `pedigree-graph` (e.g., `MZ`, `FS`, `MHS`, `PHS`, `MO`, `GP`, `1C`, ...). Used in plotting, stats, validation, and analysis. The full table — codes, kinship values, and (up, down, n_ancestors) tuples — lives in `docs/concepts/simulation-design.md`; do not duplicate here.
 _Avoid_: pair type (the legacy code name was `pair_type`; renamed to `relationship_type` — do not reintroduce), pair category, rel_type, kinship class.
 
 **Relationship pair** (or **relative pair**):

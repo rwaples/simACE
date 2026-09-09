@@ -23,6 +23,7 @@ from .tetrachoric import _tetrachoric_for_pairs, tetrachoric_corr_se
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
+    from pedigree_graph import RelationshipPairs
 
     type _Frame = pd.DataFrame | pl.DataFrame
 
@@ -31,7 +32,7 @@ def compute_liability_correlations(
     df: _Frame,
     seed: int = 42,
     *,
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+    pairs: RelationshipPairs,
 ) -> dict[str, Any]:
     """Compute Pearson liability correlations per pair type and trait.
 
@@ -62,7 +63,7 @@ def compute_affected_correlations(
     df: _Frame,
     seed: int = 42,
     *,
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+    pairs: RelationshipPairs,
 ) -> dict[str, Any]:
     """Compute Pearson correlations on binary affected status per pair type and trait.
 
@@ -97,7 +98,7 @@ def compute_tetrachoric(
     df: _Frame,
     seed: int = 42,
     *,
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+    pairs: RelationshipPairs,
 ) -> dict[str, Any]:
     """Compute tetrachoric correlations per pair type and trait.
 
@@ -125,9 +126,14 @@ def compute_tetrachoric_by_generation(
     df: _Frame,
     seed: int = 42,
     *,
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+    pairs: RelationshipPairs,
 ) -> dict[str, Any]:
     """Compute tetrachoric correlations stratified by generation.
+
+    A pair belongs to the generation of its ``first_rows`` member. Blocks are
+    role-oriented, so for the parent-offspring types (``MO``, ``FO``) that is
+    the offspring, and for the symmetric types both members share a generation
+    except across a skipped-generation pedigree.
 
     Args:
         df: Phenotype DataFrame with generation and affection columns.
@@ -165,7 +171,7 @@ def compute_cross_trait_tetrachoric(
     df: _Frame,
     seed: int = 42,
     *,
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+    pairs: RelationshipPairs,
 ) -> dict[str, Any]:
     """Compute cross-trait tetrachoric correlations (trait 1 vs trait 2).
 
@@ -230,7 +236,7 @@ def compute_tetrachoric_by_sex(
     df: _Frame,
     seed: int = 42,
     *,
-    pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+    pairs: RelationshipPairs,
 ) -> dict[str, Any]:
     """Compute tetrachoric correlations for same-sex pairs only (FF and MM).
 

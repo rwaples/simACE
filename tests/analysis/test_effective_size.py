@@ -6,6 +6,7 @@ import polars as pl
 import pytest
 import yaml
 from pedigree_graph import PedigreeGraph
+from pedigree_graph.effective_size import ALL_EFFECTIVE_SIZE_ESTIMATORS
 
 from simace.analysis.stats.effective_size import (
     compute_effective_size,
@@ -19,16 +20,12 @@ from simace.analysis.stats.effective_size import (
 from simace.analysis.validate import validate_effective_size
 from simace.core.parquet import save_parquet
 
-EXPECTED_KEYS = {
-    "ne_inbreeding",
-    "ne_coancestry",
-    "ne_variance_family_size",
-    "ne_sex_ratio",
-    "ne_individual_delta_f",
-    "ne_long_term_contributions",
-    "ne_hill_overlapping",
-    "ne_caballero_toro",
-}
+EXPECTED_KEYS = set(ALL_EFFECTIVE_SIZE_ESTIMATORS)
+
+
+def _is_unavailable(entry: dict) -> bool:
+    """Whether an estimator key carries an UnavailableEffectiveSize payload."""
+    return "reason" in entry
 
 
 @pytest.fixture(scope="module")
@@ -215,9 +212,25 @@ class TestComputeEffectiveSize:
         assert set(result.keys()) == EXPECTED_KEYS
         for k, entry in result.items():
             assert isinstance(entry, dict), k
+            if _is_unavailable(entry):
+                assert set(entry) == {"reason", "code", "fields"}, k
+                continue
             assert "ne" in entry
             assert "expected" in entry
             assert entry["expected"] is None  # no config provided
+
+    def test_skip_ne_coancestry_reports_the_refusal_not_a_null_ne(self, tiny_pedigree):
+        result = compute_effective_size(tiny_pedigree, skip_ne_coancestry=True)
+        assert set(result.keys()) == EXPECTED_KEYS
+        assert result["ne_coancestry"] == {"reason": "not_requested", "code": None, "fields": {}}
+        assert not _is_unavailable(result["ne_inbreeding"])
+
+    def test_missing_sex_marks_only_the_sex_dependent_estimators_unavailable(self, tiny_pedigree):
+        result = compute_effective_size(tiny_pedigree.drop("sex"))
+        for name in ("ne_variance_family_size", "ne_sex_ratio", "ne_hill_overlapping"):
+            assert result[name]["reason"] == "missing_metadata", name
+            assert result[name]["code"] == "missing_sex", name
+        assert not _is_unavailable(result["ne_inbreeding"])
 
     def test_expected_attached_when_config_standard(self, tiny_pedigree):
         # G_ped=20 puts the regime check well into "ok" for N=200, so all
@@ -230,13 +243,38 @@ class TestComputeEffectiveSize:
         assert result["ne_sex_ratio"]["expected"] == pytest.approx(200.0)
         assert result["ne_long_term_contributions"]["expected"] == pytest.approx(ne_v / 2.0)
 
-    def test_per_gen_series_length_matches_n_generations(self, tiny_pedigree):
+    def test_cohort_arrays_are_sized_by_the_observed_labels_they_carry(self, tiny_pedigree):
         result = compute_effective_size(tiny_pedigree)
-        n_gens = int(tiny_pedigree["generation"].max()) + 1
-        # ne_inbreeding and ne_coancestry expose ne_per_gen aligned to cohort 0..G.
-        assert len(result["ne_inbreeding"]["ne_per_gen"]) == n_gens
-        assert len(result["ne_coancestry"]["mean_theta_per_gen"]) == n_gens
-        assert len(result["ne_sex_ratio"]["n_male_per_gen"]) == n_gens
+        observed = sorted(set(tiny_pedigree["generation"].to_list()))
+        for name, cohort_field in (
+            ("ne_inbreeding", "mean_f_per_gen"),
+            ("ne_coancestry", "mean_theta_per_gen"),
+            ("ne_sex_ratio", "n_male_per_gen"),
+            ("ne_individual_delta_f", "mean_eqg_per_gen"),
+            ("ne_caballero_toro", "mean_self_coancestry_per_gen"),
+        ):
+            entry = result[name]
+            assert entry["generations"] == observed, name
+            assert len(entry[cohort_field]) == len(observed), name
+
+    def test_rate_estimators_report_ne_per_transition_not_per_cohort(self, tiny_pedigree):
+        # Ne_I, Ne_C and Ne_CT measure a rate between adjacent observed
+        # cohorts, so their Ne array is one shorter than their labels.
+        result = compute_effective_size(tiny_pedigree)
+        for name in ("ne_inbreeding", "ne_coancestry", "ne_caballero_toro"):
+            entry = result[name]
+            generations = entry["generations"]
+            assert len(entry["ne_per_gen"]) == len(generations) - 1, name
+            assert entry["transition_from"] == generations[:-1], name
+            assert entry["transition_to"] == generations[1:], name
+
+    def test_family_size_variance_is_indexed_by_parent_generation(self, tiny_pedigree):
+        result = compute_effective_size(tiny_pedigree)
+        entry = result["ne_variance_family_size"]
+        parents = entry["parent_generations"]
+        assert parents == sorted(set(tiny_pedigree["generation"].to_list()))
+        for col in ("ne_per_transition", "v_mm", "v_mf", "v_fm", "v_ff", "cov_m", "cov_f"):
+            assert len(entry[col]) == len(parents), col
 
     def test_ne_hill_birth_year_branch_round_trips(self, tiny_pedigree):
         # Add a synthetic birth_year column so the wrapper engages the
@@ -296,6 +334,21 @@ class TestValidateEffectiveSize:
         assert out["ne_inbreeding"]["passed"] is True
         assert out["ne_inbreeding"]["expected"] is None
 
+    def test_not_requested_passes_vacuously(self):
+        ne_stats = {"ne_coancestry": {"reason": "not_requested", "code": None, "fields": {}}}
+        out = validate_effective_size(ne_stats, params={})
+        assert out["ne_coancestry"]["passed"] is True
+        assert out["ne_coancestry"]["observed"] is None
+
+    def test_missing_metadata_fails_and_names_the_refusal_code(self):
+        ne_stats = {
+            "ne_sex_ratio": {"reason": "missing_metadata", "code": "missing_sex", "fields": {"status": "absent"}}
+        }
+        out = validate_effective_size(ne_stats, params={})
+        assert out["ne_sex_ratio"]["passed"] is False
+        assert out["ne_sex_ratio"]["code"] == "missing_sex"
+        assert "missing_sex" in out["ne_sex_ratio"]["details"]
+
     def test_returns_empty_when_ne_stats_empty(self):
         assert validate_effective_size({}, params={}) == {}
         assert validate_effective_size(None, params={}) == {}
@@ -309,9 +362,8 @@ class TestValidateEffectiveSize:
 def _build_wf_pedigree(rng: np.random.Generator, n: int = 50, n_gens: int = 8) -> pd.DataFrame:
     """Symmetric Wright–Fisher pedigree (alternating M/F sex, multinomial parents).
 
-    Stays pandas: it is fed directly to the external ``pedigree_graph``
-    package, whose constructor is pandas/array-dict-facing (not a simace
-    boundary).
+    Stays pandas to keep a pandas frame in the ``from_frame`` coverage; the
+    structural ``FrameLike`` protocol accepts either library.
     """
     rows: list[dict] = [
         {"id": i, "sex": 1 if i % 2 == 0 else 0, "generation": 0, "mother": -1, "father": -1, "twin": -1}
@@ -350,7 +402,7 @@ def test_ne_v_formula_matches_simulator_mc():
     averaging over ~3·12 = 36 transitions which suppresses the
     multinomial-allocation noise.
     """
-    from pedigree_graph import ne_variance_family_size
+    from pedigree_graph.effective_size import ne_variance_family_size
 
     from simace.simulation.simulate import run_simulation
 
@@ -379,9 +431,7 @@ def test_ne_v_formula_matches_simulator_mc():
             assort1=0.0,
             assort2=0.0,
         )
-        # The external pedigree_graph package is pandas/array-dict-facing, so
-        # the polars pedigree crosses that boundary via to_pandas().
-        pg = PedigreeGraph(ped.to_pandas())
+        pg = PedigreeGraph.from_frame(ped)
         result = ne_variance_family_size(pg)
         finite = result.ne_per_transition[np.isfinite(result.ne_per_transition)]
         per_transition.extend(finite.tolist())
@@ -419,7 +469,7 @@ def test_cross_estimator_consistency_under_wf():
     samples: dict[str, list[float]] = {k: [] for k in keys}
     for _ in range(n_reps):
         df = _build_wf_pedigree(rng)
-        pg = PedigreeGraph(df)
+        pg = PedigreeGraph.from_frame(df)
         results = compute_effective_size(pg)
         for k in keys:
             ne = results[k]["ne"]
@@ -476,7 +526,11 @@ def test_effective_size_main_writes_yaml(tmp_path, tiny_pedigree):
     with open(out_path, encoding="utf-8") as fh:
         loaded = yaml.safe_load(fh)
     assert set(loaded.keys()) == EXPECTED_KEYS
-    for entry in loaded.values():
+    for name, entry in loaded.items():
+        if _is_unavailable(entry):
+            assert entry["reason"] in ("not_requested", "missing_metadata"), name
+            assert "ne" not in entry, name
+            continue
         assert "ne" in entry
         assert "expected" in entry
 

@@ -75,12 +75,14 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 
 def _relationship_counts(stats: dict[str, Any]) -> dict[str, int]:
     # v2 report (ADR 0008): within-sample relationship pair counts live under
-    # observed.analysis_sample.
+    # observed.analysis_sample.  A code the run did not compute is None there,
+    # and is left out rather than read as a zero.
     counts = stats.get("observed", {}).get("analysis_sample", {}).get("relationship_pair_counts", {})
     if not isinstance(counts, dict):
         return {}
-    out = {str(k): int(v) for k, v in counts.items()}
-    out["PO"] = out.get("MO", 0) + out.get("FO", 0)
+    out = {str(k): int(v) for k, v in counts.items() if v is not None}
+    if "MO" in out and "FO" in out:
+        out["PO"] = out["MO"] + out["FO"]
     return out
 
 

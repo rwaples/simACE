@@ -26,7 +26,7 @@ rule effective_size_phenotype:
         "logs/{folder}/{scenario}/rep{rep}/effective_size.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/effective_size.tsv"
-    threads: 1  # compute_all_ne is sequential numba DP; no internal parallelism.
+    threads: 1  # estimate_effective_sizes runs the estimators serially; simace sets no pedigree-graph thread budget.
     resources:
         # Streaming-θ DP (and the optional kinship matrix path) dominates RAM
         # at large N; _scale_mem_effective_size is the calibrated estimate

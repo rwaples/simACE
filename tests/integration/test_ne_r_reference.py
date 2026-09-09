@@ -27,8 +27,8 @@ import pytest
 _robjects = pytest.importorskip("rpy2.robjects", reason="rpy2 not installed")
 _pkg_module = pytest.importorskip("rpy2.robjects.packages", reason="rpy2.robjects.packages unavailable")
 
-from pedigree_graph import (  # noqa: E402  — after importorskip
-    PedigreeGraph,
+from pedigree_graph import PedigreeGraph  # noqa: E402  — after importorskip
+from pedigree_graph.effective_size import (  # noqa: E402  — after importorskip
     ne_inbreeding,
     ne_individual_delta_f,
 )
@@ -81,7 +81,7 @@ def fixture_pedigree() -> tuple[pl.DataFrame, PedigreeGraph]:
             )
             next_id += 1
     df = pl.DataFrame(rows)
-    return df, PedigreeGraph(df)
+    return df, PedigreeGraph.from_frame(df)
 
 
 def test_ne_inbreeding_matches_optiSel(r_packages, fixture_pedigree):

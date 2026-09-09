@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import numpy as np
 import polars as pl
+from pedigree_graph.effective_size import ALL_EFFECTIVE_SIZE_ESTIMATORS
 
 from simace.analysis.stats.effective_size import (
     family_size_variance_expected_ztp,
@@ -42,26 +43,37 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-_NE_KEYS_ORDERED = (
-    "ne_inbreeding",
-    "ne_coancestry",
-    "ne_variance_family_size",
-    "ne_sex_ratio",
-    "ne_individual_delta_f",
-    "ne_long_term_contributions",
-    "ne_hill_overlapping",
-    "ne_caballero_toro",
-)
+_NE_KEYS_ORDERED = ALL_EFFECTIVE_SIZE_ESTIMATORS
 
-# Estimators with a per-generation/per-transition vector that Figure 2 plots.
-_PER_GEN_ESTIMATORS = (
-    "ne_inbreeding",
-    "ne_coancestry",
-    "ne_variance_family_size",
-    "ne_sex_ratio",
-    "ne_individual_delta_f",
-    "ne_caballero_toro",
-)
+# Where each estimator's per-cohort Ne series lives, and how its x axis reads.
+# Records are indexed by *observed* generation label, so a series row carries
+# the label its record gave it rather than a 0..n-1 slot.  Ne_I, Ne_C and
+# Ne_CT report Ne per adjacent-cohort transition, so their Ne is one row
+# shorter than their drift means; Ne_V reports it per parent generation.
+_NE_SERIES_AXIS: dict[str, tuple[str, str]] = {
+    "ne_inbreeding": ("transition", "transition"),
+    "ne_coancestry": ("transition", "transition"),
+    "ne_variance_family_size": ("transition", "parent generation"),
+    "ne_sex_ratio": ("cohort", "generation"),
+    "ne_individual_delta_f": ("cohort", "generation"),
+    "ne_caballero_toro": ("transition", "transition"),
+}
+
+# Drift means, all indexed by the record's ``generations`` cohort labels:
+# the payload key each estimator writes, and the series column it lands in.
+_DRIFT_COLUMNS: dict[str, str] = {
+    "ne_inbreeding": "mean_f_per_gen",
+    "ne_coancestry": "mean_theta_per_gen",
+    "ne_caballero_toro": "mean_self_coancestry_per_gen",
+}
+_DRIFT_FIELD: dict[str, str] = {
+    "ne_inbreeding": "mean_f",
+    "ne_coancestry": "mean_theta",
+    "ne_caballero_toro": "mean_self_coancestry",
+}
+
+_VARIANCE_COLUMNS = ("v_mm", "v_mf", "v_fm", "v_ff", "cov_m", "cov_f")
+_SERIES_VALUE_FIELDS = ("ne", "mean_f", "mean_theta", "mean_self_coancestry", *_VARIANCE_COLUMNS)
 
 # Short labels for axis titles.
 _SHORT_LABEL = {
@@ -96,13 +108,16 @@ def gather_effective_size(
         * ``scalar_df`` — one row per ``(rep, estimator)`` with columns
           ``rep``, ``estimator``, ``ne``, ``expected``. Missing/null Ne
           becomes ``NaN`` (no row dropped).
-        * ``series_df`` — one row per ``(rep, estimator, index)`` for the
-          six estimators that expose a per-gen/per-transition vector.
-          Columns: ``rep``, ``estimator``, ``index``, ``kind``
-          (``"generation"`` or ``"transition"``), ``ne``, ``mean_f``,
-          ``mean_theta``, ``mean_self_coancestry``, ``v_mm``, ``v_mf``,
-          ``v_fm``, ``v_ff``, ``cov_m``, ``cov_f``. Fields not applicable
-          to a given estimator are ``NaN``.
+        * ``series_df`` — one row per ``(rep, estimator, kind, label)`` for
+          the six estimators that expose a per-cohort or per-transition
+          vector. Columns: ``rep``, ``estimator``, ``kind`` (``"cohort"``
+          or ``"transition"``), ``x`` (numeric plotting position taken from
+          the label), ``label`` (the record's own observed label), ``ne``,
+          ``mean_f``, ``mean_theta``, ``mean_self_coancestry``, ``v_mm``,
+          ``v_mf``, ``v_fm``, ``v_ff``, ``cov_m``, ``cov_f``. Fields not
+          applicable to a given row are ``NaN``. An estimator the library
+          reported as unavailable contributes a scalar row with ``ne`` NaN
+          and no series rows.
     """
     scalar_rows: list[dict] = []
     series_rows: list[dict] = []
@@ -118,7 +133,7 @@ def gather_effective_size(
                     "expected": _coerce_float(entry.get("expected")),
                 }
             )
-            if est not in _PER_GEN_ESTIMATORS:
+            if est not in _NE_SERIES_AXIS:
                 continue
             series_rows.extend(_extract_series_rows(rep_idx, est, entry))
 
@@ -127,8 +142,9 @@ def gather_effective_size(
     series_columns = [
         "rep",
         "estimator",
-        "index",
         "kind",
+        "x",
+        "label",
         "ne",
         "mean_f",
         "mean_theta",
@@ -141,47 +157,89 @@ def gather_effective_size(
         "cov_f",
     ]
     series_schema: dict[str, type[pl.DataType]] = dict.fromkeys(series_columns, pl.Float64)
-    series_schema.update({"rep": pl.Int64, "estimator": pl.String, "index": pl.Int64, "kind": pl.String})
+    series_schema.update({"rep": pl.Int64, "estimator": pl.String, "kind": pl.String, "label": pl.String})
     series_df = pl.DataFrame(series_rows, schema=series_schema)
     return scalar_df, series_df
 
 
 def _extract_series_rows(rep: int, estimator: str, entry: dict) -> list[dict]:
-    """Flatten one estimator's per-gen/per-transition payload into rows."""
+    """Flatten one estimator's per-cohort and per-transition payload into rows.
+
+    Every array is read against the label array the record carries, so a
+    payload whose labels are missing or mismatched (an unavailable estimator,
+    or a record from before the labelled contract) contributes no rows for
+    that axis rather than a fabricated 0..n-1 axis.
+    """
+    rows: list[dict] = []
+    kind, _ = _NE_SERIES_AXIS[estimator]
+    generations = _label_array(entry.get("generations"))
+
+    drift_key = _DRIFT_COLUMNS.get(estimator)
+    if drift_key is not None:
+        drift = entry.get(drift_key)
+        if generations is not None and _seq_len(drift) == len(generations):
+            rows.extend(
+                _series_row(rep, estimator, "cohort", float(g), str(g), **{_DRIFT_FIELD[estimator]: _seq_at(drift, i)})
+                for i, g in enumerate(generations)
+            )
+
+    if kind == "cohort":
+        ne_vec = entry.get("ne_per_gen")
+        if generations is not None and _seq_len(ne_vec) == len(generations):
+            rows.extend(
+                _series_row(rep, estimator, "cohort", float(g), str(g), ne=_seq_at(ne_vec, i))
+                for i, g in enumerate(generations)
+            )
+        return rows
+
     if estimator == "ne_variance_family_size":
-        kind = "transition"
-        ne_vec = entry.get("ne_per_transition") or []
-    else:
-        kind = "generation"
-        ne_vec = entry.get("ne_per_gen") or []
+        parents = _label_array(entry.get("parent_generations"))
+        ne_vec = entry.get("ne_per_transition")
+        if parents is None or _seq_len(ne_vec) != len(parents):
+            return rows
+        rows.extend(
+            _series_row(
+                rep,
+                estimator,
+                "transition",
+                float(pgen),
+                str(pgen),
+                ne=_seq_at(ne_vec, i),
+                **{col: _seq_at(entry.get(col), i) for col in _VARIANCE_COLUMNS},
+            )
+            for i, pgen in enumerate(parents)
+        )
+        return rows
 
-    n = len(ne_vec)
-    if n == 0:
-        return []
+    src = _label_array(entry.get("transition_from"))
+    dst = _label_array(entry.get("transition_to"))
+    ne_vec = entry.get("ne_per_gen")
+    if src is None or dst is None or len(src) != len(dst) or _seq_len(ne_vec) != len(src):
+        return rows
+    rows.extend(
+        _series_row(rep, estimator, "transition", (a + b) / 2.0, f"{a}→{b}", ne=_seq_at(ne_vec, i))
+        for i, (a, b) in enumerate(zip(src, dst, strict=True))
+    )
+    return rows
 
-    mean_f = entry.get("mean_f_per_gen") if estimator == "ne_inbreeding" else None
-    mean_theta = entry.get("mean_theta_per_gen") if estimator == "ne_coancestry" else None
-    mean_self_co = entry.get("mean_self_coancestry_per_gen") if estimator == "ne_caballero_toro" else None
 
-    return [
-        {
-            "rep": rep,
-            "estimator": estimator,
-            "index": i,
-            "kind": kind,
-            "ne": _coerce_float(ne_vec[i]),
-            "mean_f": _seq_at(mean_f, i),
-            "mean_theta": _seq_at(mean_theta, i),
-            "mean_self_coancestry": _seq_at(mean_self_co, i),
-            "v_mm": _seq_at(entry.get("v_mm"), i),
-            "v_mf": _seq_at(entry.get("v_mf"), i),
-            "v_fm": _seq_at(entry.get("v_fm"), i),
-            "v_ff": _seq_at(entry.get("v_ff"), i),
-            "cov_m": _seq_at(entry.get("cov_m"), i),
-            "cov_f": _seq_at(entry.get("cov_f"), i),
-        }
-        for i in range(n)
-    ]
+def _series_row(rep: int, estimator: str, kind: str, x: float, label: str, **values: float) -> dict:
+    """One series row: the axis it belongs to, its label, and the fields it carries."""
+    row = dict.fromkeys(_SERIES_VALUE_FIELDS, float("nan"))
+    row.update(values)
+    row.update({"rep": rep, "estimator": estimator, "kind": kind, "x": x, "label": label})
+    return row
+
+
+def _label_array(labels: object) -> list[int] | None:
+    """A record's observed-label array as ints, or ``None`` when it carries none."""
+    if not isinstance(labels, list) or not labels or any(v is None for v in labels):
+        return None
+    return [int(v) for v in labels]
+
+
+def _seq_len(seq: object) -> int:
+    return len(seq) if isinstance(seq, list) else -1
 
 
 def _seq_at(seq: list | None, i: int) -> float:
@@ -296,6 +354,19 @@ def plot_estimators_overview(
     _save(fig, out / f"effective_size.estimators.{ext}")
 
 
+def _apply_label_xticks(ax, sub: pl.DataFrame) -> None:
+    """Tick the x axis at the observed labels the records carry, in x order.
+
+    Labels come from the data, not from a ``range(n)``: a pedigree whose
+    generations skip a value gets ticks only where a cohort exists.
+    """
+    ticks = sub.select("x", "label").unique(maintain_order=True).sort("x")
+    if ticks.is_empty():
+        return
+    ax.set_xticks(ticks["x"].to_numpy())
+    ax.set_xticklabels(ticks["label"].to_list(), fontsize=8)
+
+
 def _apply_log_ne_yticks(ax) -> None:
     """Log-y axis with dense, comma-formatted Ne ticks (Ne values ≥ 1)."""
     _apply_log_yticks(ax, formatter=lambda v: f"{int(v):,}")
@@ -333,30 +404,19 @@ def plot_ne_by_generation(
 
     ``scalar_df`` supplies the per-estimator ``expected`` reference line.
     """
-    panels = [
-        ("ne_inbreeding", "generation"),
-        ("ne_coancestry", "generation"),
-        ("ne_variance_family_size", "transition"),
-        ("ne_sex_ratio", "generation"),
-        ("ne_individual_delta_f", "generation"),
-        ("ne_caballero_toro", "generation"),
-    ]
     fig, axes = plt.subplots(2, 3, figsize=(11.0, 6.5), sharey=False)
-    for ax, (est, kind) in zip(axes.flat, panels, strict=True):
-        sub = series_df.filter(pl.col("estimator") == est)
+    for ax, (est, (kind, xlabel)) in zip(axes.flat, _NE_SERIES_AXIS.items(), strict=True):
+        sub = series_df.filter((pl.col("estimator") == est) & (pl.col("kind") == kind))
         if sub.is_empty():
             ax.text(0.5, 0.5, "no data", ha="center", va="center", transform=ax.transAxes, color="0.5")
             ax.set_title(_SHORT_LABEL[est])
             continue
 
         for (_rep,), rep_df in sub.group_by("rep", maintain_order=True):
-            xs = rep_df["index"].to_numpy()
-            if kind == "transition":
-                xs = xs + 0.5  # transition g→g+1 sits between gens g and g+1
             ne_vals = rep_df["ne"].to_numpy().astype(float)
             ys = np.where(ne_vals > 0, ne_vals, np.nan)
             ax.plot(
-                xs,
+                rep_df["x"].to_numpy(),
                 ys,
                 marker="o",
                 markersize=3,
@@ -387,15 +447,8 @@ def plot_ne_by_generation(
         ax.autoscale_view()
         _apply_log_ne_yticks(ax)
 
-        n = int(sub["index"].to_numpy().max()) + 1
-        if kind == "transition":
-            ax.set_xticks(np.arange(n) + 0.5)
-            ax.set_xticklabels([f"{g}→{g + 1}" for g in range(n)], fontsize=8)
-            ax.set_xlabel("transition (g→g+1)")
-        else:
-            ax.set_xticks(np.arange(n))
-            ax.set_xlabel("generation")
-
+        _apply_label_xticks(ax, sub)
+        ax.set_xlabel(xlabel)
         ax.set_ylabel("Ne (log)")
         ax.set_title(_SHORT_LABEL[est], fontsize=10)
         ax.grid(which="both", alpha=0.3)
@@ -413,7 +466,7 @@ def plot_drift_signals(series_df: pl.DataFrame, out: Path, ext: str = "png") -> 
     ]
     fig, axes = plt.subplots(1, 3, figsize=(12.0, 4.0))
     for ax, (est, col, label) in zip(axes, panels, strict=True):
-        sub = series_df.filter(pl.col("estimator") == est)
+        sub = series_df.filter((pl.col("estimator") == est) & (pl.col("kind") == "cohort"))
         if sub.is_empty() or sub[col].drop_nans().drop_nulls().is_empty():
             ax.text(0.5, 0.5, "no data", ha="center", va="center", transform=ax.transAxes, color="0.5")
             ax.set_title(label)
@@ -424,7 +477,7 @@ def plot_drift_signals(series_df: pl.DataFrame, out: Path, ext: str = "png") -> 
             col_vals = rep_df[col].to_numpy().astype(float)
             ys = np.where(col_vals > 0, col_vals, np.nan)
             ax.plot(
-                rep_df["index"].to_numpy(),
+                rep_df["x"].to_numpy(),
                 ys,
                 marker="o",
                 markersize=3,
@@ -434,6 +487,7 @@ def plot_drift_signals(series_df: pl.DataFrame, out: Path, ext: str = "png") -> 
         ax.set_yscale("log")
         ax.autoscale_view()
         _apply_log_yticks(ax, formatter=_format_small_float)
+        _apply_label_xticks(ax, sub)
         ax.set_xlabel("generation")
         ax.set_ylabel(f"{label} (log)")
         ax.set_title(label, fontsize=10)
@@ -450,7 +504,7 @@ def plot_family_size_variance(
     ext: str = "png",
 ) -> None:
     """Figure 4: per-transition v_** and cov_* with ZTP closed-form references."""
-    sub = series_df.filter(pl.col("estimator") == "ne_variance_family_size")
+    sub = series_df.filter(pl.col("estimator") == "ne_variance_family_size")  # one axis only: parent generation
     fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.5))
     ax_v, ax_c = axes
 
@@ -463,17 +517,13 @@ def plot_family_size_variance(
     v_cols = ["v_mm", "v_mf", "v_fm", "v_ff"]
     cov_cols = ["cov_m", "cov_f"]
 
-    n = int(sub["index"].to_numpy().max()) + 1
-    xs_base = np.arange(n) + 0.5
-
     palette_v = ["#4477AA", "#EE7733", "#228833", "#CC3311"]
     palette_c = ["#4477AA", "#EE7733"]
 
     for col, color in zip(v_cols, palette_v, strict=True):
         for (_rep,), rep_df in sub.group_by("rep", maintain_order=True):
-            xs = rep_df["index"].to_numpy() + 0.5
             ax_v.plot(
-                xs,
+                rep_df["x"].to_numpy(),
                 rep_df[col].to_numpy(),
                 marker="o",
                 markersize=3,
@@ -486,9 +536,8 @@ def plot_family_size_variance(
 
     for col, color in zip(cov_cols, palette_c, strict=True):
         for (_rep,), rep_df in sub.group_by("rep", maintain_order=True):
-            xs = rep_df["index"].to_numpy() + 0.5
             ax_c.plot(
-                xs,
+                rep_df["x"].to_numpy(),
                 rep_df[col].to_numpy(),
                 marker="o",
                 markersize=3,
@@ -508,12 +557,11 @@ def plot_family_size_variance(
         )
 
     for ax, title in [
-        (ax_v, "Offspring-count variance v_** (per transition)"),
-        (ax_c, "Between-mate covariance cov_* (per transition)"),
+        (ax_v, "Offspring-count variance v_** (per parent generation)"),
+        (ax_c, "Between-mate covariance cov_* (per parent generation)"),
     ]:
-        ax.set_xticks(xs_base)
-        ax.set_xticklabels([f"{g}→{g + 1}" for g in range(n)], fontsize=8)
-        ax.set_xlabel("transition (g→g+1)")
+        _apply_label_xticks(ax, sub)
+        ax.set_xlabel("parent generation")
         ax.set_title(title, fontsize=10)
         ax.set_yscale("log")
         ax.autoscale_view()

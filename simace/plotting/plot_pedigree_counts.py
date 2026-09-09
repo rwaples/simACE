@@ -272,7 +272,9 @@ def plot_pedigree_relationship_counts(
         scenario: Scenario name for the title.
         stats_key: Key in stats dict to read pair counts from.
         generations_label: Label appended to title (e.g. "G_ped = 6").
-        max_degree: Maximum kinship degree shown in the diagram.
+        max_degree: Extraction depth the run requested, named in the legend
+            title.  Which codes count as computed comes from the data: the
+            report maps an uncomputed code to ``None``.
     """
     output_path = Path(output_path)
 
@@ -285,8 +287,11 @@ def plot_pedigree_relationship_counts(
         )
         return
 
-    # Average pair counts across replicates
+    # Average pair counts across replicates.  A code the run did not compute
+    # is ``None`` in the report and simply never enters ``counts``, so it is
+    # labelled "not computed" below rather than drawn as a zero.
     counts: dict[str, float] = {}
+    reps_per_code: dict[str, int] = {}
     n_reps = 0
     for s in all_stats:
         pc = s.get(stats_key)
@@ -294,9 +299,11 @@ def plot_pedigree_relationship_counts(
             continue
         n_reps += 1
         for name, cnt in pc.items():
+            if cnt is None:
+                continue
             counts[name] = counts.get(name, 0) + cnt
-    if n_reps > 0:
-        counts = {k: v / n_reps for k, v in counts.items()}
+            reps_per_code[name] = reps_per_code.get(name, 0) + 1
+    counts = {k: v / reps_per_code[k] for k, v in counts.items()}
 
     # Colour palette (Nature Genetics muted style)
     rel_colors = {name: PEDIGREE_COLORS[name] for name in RELATIONSHIP_ORDER}
@@ -381,11 +388,10 @@ def plot_pedigree_relationship_counts(
         color = rel_colors[rel_name]
 
         display = _SHORT_LABELS.get(rel_name, rel_name)
-        if max_degree < 5 and rel_name == "2C":
-            label = f"{display}\nnot computed"
+        if rel_name in counts:
+            label = f"{display}\n({counts[rel_name]:,.0f})"
         else:
-            mean_count = counts.get(rel_name, 0)
-            label = f"{display}\n({mean_count:,.0f})"
+            label = f"{display}\nnot computed"
 
         ax.text(
             nx + dx,
@@ -402,15 +408,15 @@ def plot_pedigree_relationship_counts(
     # Legend
     handles = []
     for n in RELATIONSHIP_ORDER:
-        if max_degree < 5 and n == "2C":
-            handles.append(mpatches.Patch(color=rel_colors[n], label=f"{n} (not computed)"))
+        if n in counts:
+            handles.append(mpatches.Patch(color=rel_colors[n], label=f"{n} ({counts[n]:,.0f})"))
         else:
-            handles.append(mpatches.Patch(color=rel_colors[n], label=f"{n} ({counts.get(n, 0):,.0f})"))
+            handles.append(mpatches.Patch(color=rel_colors[n], label=f"{n} (not computed)"))
     ax.legend(
         handles=handles,
         loc="upper right",
         fontsize=10,
-        title="Relationship (mean pairs)",
+        title=f"Relationship (mean pairs, degree ≤ {max_degree})",
         title_fontsize=11,
     )
 

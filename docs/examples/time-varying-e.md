@@ -147,8 +147,8 @@ non-stationary $v_E$, the FS correlation varies cohort by cohort.
 The build script computes the correlation on `liability1` between full-sib
 pairs in which *both* members reside in the same generation $g$. Founders are
 excluded (they have no parents, hence no FS pairs); MZ twins are
-excluded by construction (`simace/core/pedigree_graph.py:_sibling_pairs`
-filters on `twin == -1`). The per-replicate $r_{FS}(g)$ is averaged
+excluded by construction (`MZ` and `FS` are separate registry categories in
+`pedigree-graph`, and a pair belongs to exactly one). The per-replicate $r_{FS}(g)$ is averaged
 across the three replicates, with min/max shaded as the envelope.
 
 ![Per-cohort FS liability correlation across E trajectories](../images/examples/increasing_e/fs_corr_by_gen.png)

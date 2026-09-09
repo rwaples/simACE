@@ -6,12 +6,17 @@ Accepted. **Update (2026-06-05):** the helpers below are current and used by the
 plotting modules (`plot_correlations.py`, `plot_validation.py`,
 `compare_scenarios.py`), but the `validate` package (since refactored from
 `validate.py` into `simace/analysis/validate/`) does **not** call them — it
-derives expectations inline directly from `pedigree_graph.PAIR_KINSHIP` (e.g.
-`expected_a = 2.0 * PAIR_KINSHIP["MHS"]` in `validate/half_sibs.py`,
-`expected_dz = 2.0 * PAIR_KINSHIP["FS"]` in `validate/heritability.py`). The
-decision's intent — no kinship literals, everything traces to `PAIR_KINSHIP` —
-holds in both places; only validate's *mechanism* differs from the Consequences
-as written below.
+derives expectations inline directly from the `pedigree_graph` registry (e.g.
+`expected_a = 2.0 * RELATIONSHIPS["MHS"].nominal_kinship` in
+`validate/half_sibs.py`, `expected_dz = 2.0 * RELATIONSHIPS["FS"].nominal_kinship`
+in `validate/heritability.py`). The decision's intent — no kinship literals,
+everything traces to the registry — holds in both places; only validate's
+*mechanism* differs from the Consequences as written below.
+
+**Update (2026-09-08):** pedigree-graph 0.8 replaced `PAIR_KINSHIP` and
+`REL_REGISTRY` with one registry, `RELATIONSHIPS[code]`, whose
+`nominal_kinship` field carries the same 23 values. This ADR is unchanged in
+substance; every name below is the 0.8 spelling.
 
 ## Context
 
@@ -27,19 +32,19 @@ and `SEX_LEVELS` already live in `simace/core/relationships.py`, but the
   restated as prose in plotting docstrings.
 
 Kinship coefficients are *not* simACE's to own: the source of truth is the
-external `pedigree_graph` package (`PAIR_KINSHIP`, `REL_REGISTRY`), which
+external `pedigree_graph` package (`RELATIONSHIPS`), which
 `validate`, `stats`, and `fit_ace` all import. CLAUDE.md gotcha #4 records
-that `fit_ace` couples to `PAIR_KINSHIP` and that `ltm_falconer.py` keeps a
+that `fit_ace` couples to `RELATIONSHIPS` and that `ltm_falconer.py` keeps a
 parallel `KINSHIP` dict that must stay in sync. Any place simACE re-declares a
 kinship literal is a latent drift bug that can silently bias downstream fitACE
 estimates.
 
 > **Update:** the `ltm_falconer.py` half of that coupling is gone. Falconer now
 > reads `kinship_for` from `fitace.relationships`, which asserts its registry
-> against `PAIR_KINSHIP` at import time rather than keeping a hand-maintained
+> against `RELATIONSHIPS` at import time rather than keeping a hand-maintained
 > parallel dict — so the drift is caught mechanically. CLAUDE.md gotcha #4
 > tracks the current shape. The decision below is unaffected; if anything the
-> "everything traces to `PAIR_KINSHIP`" intent now holds on both sides of the
+> "everything traces to the registry" intent now holds on both sides of the
 > repo boundary.
 
 Separately, some "relationship" logic is not a property of the relationship
@@ -58,9 +63,9 @@ how to estimate, not a fact about the pair.
   `PHS`, `MO`, `FO`, `1C` → `0.0`.
 - `expected_liability_corr(relationship_type: str, A: float, C: float) ->
   float` — derived, never stored:
-  `2 * PAIR_KINSHIP[relationship_type] * A + shared_environment_coefficient(relationship_type) * C`.
+  `2 * RELATIONSHIPS[relationship_type].nominal_kinship * A + shared_environment_coefficient(relationship_type) * C`.
 
-Kinship is **always** read from `pedigree_graph.PAIR_KINSHIP`. simACE never
+Kinship is **always** read from `pedigree_graph.RELATIONSHIPS`. simACE never
 writes a kinship literal. Both helpers operate over the canonical 7-type
 `RELATIONSHIP_TYPES` subset and **raise `ValueError` on an unknown type** (an
 unknown key is a caller bug, not a "no expectation" signal).
@@ -72,12 +77,12 @@ plotting). No `pooled_relationship_classes()` is added to `core`.
 
 - Plotting stops hard-coding `0.25` / `0.5` / `1.0` and the
   PHS-shared-C-is-zero rule; it calls the helpers instead. (The `validate`
-  package reaches the same values inline from `PAIR_KINSHIP` rather than via the
+  package reaches the same values inline from `RELATIONSHIPS` rather than via the
   helpers — see the Update note under Status.)
 - The maternal- vs paternal-half-sib C behavior gets one tested home, with an
   explicit test that MHS and PHS differ in shared C.
 - Coefficients cannot drift from the registry, because they trace back to
-  `PAIR_KINSHIP` rather than to copied numbers.
+  `RELATIONSHIPS` rather than to copied numbers.
 - Helper *names and signatures* become a cross-repo concern: fitACE may choose
   to consume them, so renames require the simACE↔fitACE coordination noted in
   CLAUDE.md. The numeric values do not, since they are derived.
@@ -85,7 +90,7 @@ plotting). No `pooled_relationship_classes()` is added to `core`.
 ## Non-goals
 
 - Not centralizing pooling/presentation logic — that stays at call sites.
-- Not re-declaring or renaming `PAIR_KINSHIP` or `RELATIONSHIP_TYPES`.
+- Not re-declaring or renaming `RELATIONSHIPS` or `RELATIONSHIP_TYPES`.
 - Not changing any kinship coefficient or any fitACE behavior.
 - Not typing the validation result dicts (separately killed during triage —
   the report output contract already exists via `assert_report_contract`).

@@ -92,10 +92,10 @@ full = PedigreeGraph.from_arrays(
     ids=ids,
     mother_ids=mother_ids,
     father_ids=father_ids,
-    twin_ids=twin_ids,          # optional
-    sex=sex,                    # optional
-    generation=generation,      # optional, may be partial
-    birth_year=birth_year,      # optional, may be partial
+    twin_ids=twin_ids,  # optional
+    sex=sex,  # optional
+    generation=generation,  # optional, may be partial
+    birth_year=birth_year,  # optional, may be partial
 )
 ```
 

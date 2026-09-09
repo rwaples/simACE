@@ -2,12 +2,12 @@
 
 Canonical home for relationship-type *properties*: the C-sharing rule and
 expected liability correlations. Kinship is sourced from
-``pedigree_graph.PAIR_KINSHIP`` (never re-declared here). Pooling and
-presentation groupings deliberately live at the call sites, not here.
-See ``docs/adr/0009-relationship-semantics-home.md``.
+``pedigree_graph.RELATIONSHIPS[code].nominal_kinship`` (never re-declared
+here). Pooling and presentation groupings deliberately live at the call
+sites, not here. See ``docs/adr/0009-relationship-semantics-home.md``.
 """
 
-from pedigree_graph import PAIR_KINSHIP
+from pedigree_graph import RELATIONSHIPS
 
 __all__ = [
     "DEFAULT_MAX_DEGREE",
@@ -17,9 +17,8 @@ __all__ = [
     "shared_environment_coefficient",
 ]
 
-# Canonical 7-element subset of REL_REGISTRY (defined in
-# ``pedigree_graph``) used for tetrachoric / liability correlation
-# analyses.
+# Canonical 7-element subset of ``pedigree_graph.RELATIONSHIPS`` used for
+# tetrachoric / liability correlation analyses.
 RELATIONSHIP_TYPES: list[str] = [
     "MZ",
     "FS",
@@ -34,7 +33,7 @@ RELATIONSHIP_TYPES: list[str] = [
 # Follows ``pedigree_graph``'s registry cutoff exactly: degree 3 is the depth
 # that first includes 1st cousins (``1C`` above); degree 2 stops at half-sibs,
 # grandparents, and avuncular pairs. Single source of truth for the many
-# ``extract_pairs(max_degree=...)`` call sites — keep ``config/_default.yaml``
+# ``relationship_pairs(max_degree=...)`` call sites — keep ``config/_default.yaml``
 # (``analysis.max_degree``) in sync with this value.
 DEFAULT_MAX_DEGREE: int = 3
 
@@ -77,7 +76,7 @@ def shared_environment_coefficient(relationship_type: str) -> float:
 def expected_liability_corr(relationship_type: str, A: float, C: float) -> float:
     """Expected liability correlation ``2 * kinship * A + C_shared * C``.
 
-    Kinship is read from ``pedigree_graph.PAIR_KINSHIP`` (never a literal);
+    Kinship is read from ``pedigree_graph.RELATIONSHIPS`` (never a literal);
     ``C_shared`` comes from :func:`shared_environment_coefficient`. ``A`` and
     ``C`` are the additive-genetic and common-environment variances.
 
@@ -86,4 +85,4 @@ def expected_liability_corr(relationship_type: str, A: float, C: float) -> float
             :data:`RELATIONSHIP_TYPES`.
     """
     c_coef = shared_environment_coefficient(relationship_type)  # validates the type
-    return 2.0 * PAIR_KINSHIP[relationship_type] * A + c_coef * C
+    return 2.0 * RELATIONSHIPS[relationship_type].nominal_kinship * A + c_coef * C

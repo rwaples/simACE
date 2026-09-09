@@ -71,8 +71,7 @@ def val_ped(val_pedigree):
 
 @pytest.fixture(scope="module")
 def val_sibling_pairs(val_pedigree):
-    all_pairs = PedigreeGraph(val_pedigree).extract_pairs(max_degree=2)
-    return {k: all_pairs[k] for k in ("FS", "MHS", "PHS")}
+    return PedigreeGraph.from_frame(val_pedigree).relationship_pairs(categories=("FS", "MHS", "PHS"))
 
 
 @pytest.fixture(scope="module")

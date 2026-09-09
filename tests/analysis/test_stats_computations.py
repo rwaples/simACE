@@ -697,7 +697,9 @@ def extracted_pairs(phenotyped_df):
     """Pre-extracted relationship pairs."""
     from pedigree_graph import PedigreeGraph
 
-    return PedigreeGraph(phenotyped_df).extract_pairs()
+    from simace.core.relationships import DEFAULT_MAX_DEGREE
+
+    return PedigreeGraph.from_frame(phenotyped_df).relationship_pairs(max_degree=DEFAULT_MAX_DEGREE)
 
 
 # ===================================================================
@@ -1018,6 +1020,14 @@ class TestComputeTetrachoric:
 
 
 class TestComputeTetrachoricByGeneration:
+    def test_parent_offspring_blocks_are_offspring_first(self, extracted_pairs):
+        # The generation filter masks on first_rows, so the junior member has
+        # to be first for "pairs in generation g" to mean the offspring cohort.
+        for code in ("MO", "FO"):
+            assert extracted_pairs[code].first_role == "offspring"
+        assert extracted_pairs["MO"].second_role == "mother"
+        assert extracted_pairs["FO"].second_role == "father"
+
     def test_structure(self, phenotyped_df, extracted_pairs):
         result = compute_tetrachoric_by_generation(phenotyped_df, pairs=extracted_pairs)
         assert len(result) > 0

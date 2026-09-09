@@ -114,17 +114,17 @@ pv="$( cd "$WORK/simACE" && run_in_env "$PY" -- python -c 'import pandas; print(
 log "pandas in env: ${pv:-<unknown>} (expect 2.x post-A1; informational)"
 
 # ---------------------------------------------------------------------------
-# Sanity imports — exercise the runtime guard + the PAIR_KINSHIP sync check.
+# Sanity imports — exercise the runtime guard + the kinship drift guard.
 #   import fitace.config       -> runtime simace>= guard (Version(MIN_SIMACE))
-#   import fitace.relationships-> PAIR_KINSHIP sync check
+#   import fitace.relationships-> checks its kinship table against RELATIONSHIPS
 # (Bare `import fitace` is a no-op: empty __init__.py.)
 # ---------------------------------------------------------------------------
-step "Sanity imports (runtime version guard + PAIR_KINSHIP sync)"
+step "Sanity imports (runtime version guard + kinship drift guard)"
 if ( cd "$WORK/simACE" && run_in_env "$PY" -- python -c \
-      'import fitace.config; import fitace.relationships; import fitace_epimight, simace; from pedigree_graph import PAIR_KINSHIP' ); then
+      'import fitace.config; import fitace.relationships; import fitace_epimight, simace; from pedigree_graph import RELATIONSHIPS' ); then
   ok "sanity imports OK"
 else
-  fail "sanity imports failed (runtime version guard, PAIR_KINSHIP sync, or a missing install)"
+  fail "sanity imports failed (runtime version guard, kinship drift guard, or a missing install)"
 fi
 
 # ---------------------------------------------------------------------------

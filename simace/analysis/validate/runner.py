@@ -54,10 +54,9 @@ def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
     """
     ped = PedigreeArrays.from_frame(df)
 
-    # Validation only needs sibling categories (FS/MHS/PHS); avoid full
-    # degree-2 extraction, which also materializes GP/Av pairs.
-    full_sib, mat_hs, pat_hs = PedigreeGraph(df).sibling_pairs()
-    sibling_pairs = {"FS": full_sib, "MHS": mat_hs, "PHS": pat_hs}
+    # Validation only needs sibling categories (FS/MHS/PHS); selecting them by
+    # name avoids materializing the GP/Av pairs a degree-2 request would add.
+    sibling_pairs = PedigreeGraph.from_frame(df).relationship_pairs(categories=("FS", "MHS", "PHS"))
 
     results = {
         "structural": validate_structural(df, params, ped),

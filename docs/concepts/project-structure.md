@@ -22,7 +22,7 @@ simACE/
 │   │   ├── parquet_to_tsv.py             # `simace-parquet-to-tsv` CLI entry point
 │   │   ├── pedigree_arrays.py            # Pedigree columns as numpy arrays, addressable by id
 │   │   ├── pedigree_filter.py            # Filter a pedigree to observed IDs plus their ancestors
-│   │   ├── relationships.py              # Relationship-pair and sex vocabulary (re-exports PAIR_KINSHIP from pedigree_graph)
+│   │   ├── relationships.py              # Relationship-pair and sex vocabulary (kinship read from pedigree_graph RELATIONSHIPS)
 │   │   ├── schema.py                     # PEDIGREE schema and hydrated in-memory trait schemas
 │   │   ├── snakemake_adapter.py          # Signature bridge between Snakemake script wrappers and domain functions
 │   │   ├── stage.py                      # @stage decorator: input/output schema assertions on stage functions

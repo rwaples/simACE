@@ -1,7 +1,7 @@
 # Streaming-θ Ne_C bench scenarios.
 #
 # Targets the K-free path in pedigree-graph v0.4.0
-# (``pg.per_gen_mean_kinship()``).  These scenarios run all 8 Ne
+# (``pg.mean_kinship_by_generation()``).  These scenarios run all 8 Ne
 # estimators including Ne_C without materializing the full sparse
 # kinship matrix.
 #

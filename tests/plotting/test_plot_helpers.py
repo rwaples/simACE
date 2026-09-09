@@ -291,6 +291,18 @@ class TestPlaceholderPaths:
         plot_pedigree_relationship_counts([{}], out, scenario="test")
         assert out.exists()
 
+    def test_pedigree_counts_uncomputed_codes_are_not_zeroes(self, tmp_path):
+        # A code the run did not compute arrives as None; averaging must skip
+        # it (rather than raise on None + int) and label it "not computed".
+        from pedigree_graph import RELATIONSHIPS
+
+        from simace.plotting.plot_pedigree_counts import plot_pedigree_relationship_counts
+
+        counts = {code: (10 if cat.degree <= 2 else None) for code, cat in RELATIONSHIPS.items()}
+        out = tmp_path / "ped_partial.png"
+        plot_pedigree_relationship_counts([{"pair_counts": counts}], out, scenario="test", max_degree=2)
+        assert out.exists()
+
 
 # ---------------------------------------------------------------------------
 # Finalize paths in full plot functions (non-placeholder)

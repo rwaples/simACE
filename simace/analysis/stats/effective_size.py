@@ -1,13 +1,18 @@
 """Per-rep effective population size (Ne) summary for the stats runner.
 
-Thin wrapper that invokes :func:`pedigree_graph.compute_all_ne` and
-attaches scenario-level theoretical expectations from the rep's
-``params.yaml`` when the configuration matches the canonical
-random-mating, balanced-sex, ZTP-family regime.
+Thin wrapper that invokes
+:func:`pedigree_graph.effective_size.estimate_effective_sizes` and attaches
+scenario-level theoretical expectations from the rep's ``params.yaml`` when
+the configuration matches the canonical random-mating, balanced-sex,
+ZTP-family regime.
 
-The result is YAML-ready: each estimator key holds the dataclass
-``to_dict()`` payload plus an ``expected`` field (``None`` when the
-config has non-standard knobs such as assortative mating).
+The result is YAML-ready and always carries all eight estimator keys. A key
+that produced a result holds the record's ``to_dict()`` payload plus an
+``expected`` field (``None`` when the config has non-standard knobs such as
+assortative mating). A key the library refused holds that refusal verbatim
+— :class:`~pedigree_graph.effective_size.UnavailableEffectiveSize`'s
+``{reason, code, fields}`` — with no ``ne`` and no ``expected``, so the
+reason survives into the validator instead of being flattened to a null Ne.
 """
 
 from __future__ import annotations
@@ -26,7 +31,12 @@ import argparse
 import math
 from typing import TYPE_CHECKING, Any
 
-from pedigree_graph import PedigreeGraph, compute_all_ne
+from pedigree_graph import PedigreeGraph
+from pedigree_graph.effective_size import (
+    ALL_EFFECTIVE_SIZE_ESTIMATORS,
+    UnavailableEffectiveSize,
+    estimate_effective_sizes,
+)
 
 from simace.core.cli_base import add_logging_args, init_logging
 from simace.core.parquet import load_parquet
@@ -42,18 +52,6 @@ if TYPE_CHECKING:
 # the regime as "ok" only when this implied bias is below the validator's
 # ±20 % tolerance.  Constant chosen to match `bias_ratio < 0.20`.
 _REGRESSION_REGIME_THRESHOLD = 120.0
-
-
-_NE_KEYS = (
-    "ne_inbreeding",
-    "ne_coancestry",
-    "ne_variance_family_size",
-    "ne_sex_ratio",
-    "ne_individual_delta_f",
-    "ne_long_term_contributions",
-    "ne_hill_overlapping",
-    "ne_caballero_toro",
-)
 
 
 def ne_v_expected_ztp(n: float, mating_lambda: float) -> float:
@@ -177,11 +175,11 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
     passes vacuously.
     """
     if config is None:
-        return dict.fromkeys(_NE_KEYS)
+        return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
 
     N = config.get("N")
     if N is None:
-        return dict.fromkeys(_NE_KEYS)
+        return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
 
     mating_model = config.get("mating_model", "standard")
     n = float(N)
@@ -198,10 +196,10 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
         assort1 = float(config.get("assort1") or 0.0)
         assort2 = float(config.get("assort2") or 0.0)
         if assort1 != 0.0 or assort2 != 0.0:
-            return dict.fromkeys(_NE_KEYS)
+            return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
         mating_lambda = config.get("mating_lambda")
         if mating_lambda is None:
-            return dict.fromkeys(_NE_KEYS)
+            return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
         ne_v = ne_v_expected_ztp(n, float(mating_lambda))
 
     g_ped = config.get("G_ped")
@@ -225,27 +223,32 @@ def compute_effective_size(
     config: dict[str, Any] | None = None,
     skip_ne_coancestry: bool = False,
 ) -> dict[str, dict[str, Any]]:
-    """Run all eight Ne estimators on ``pedigree`` and serialize to dicts.
+    """Run the Ne estimators on ``pedigree`` and serialize to dicts.
 
     Args:
-        pedigree: Either a pandas DataFrame with the standard pedigree
-            columns or an already-built :class:`PedigreeGraph`.  Passing
-            a graph avoids rebuilding it when the runner has already
-            constructed one for relationship extraction.
+        pedigree: Either a frame with the standard pedigree columns or an
+            already-built :class:`PedigreeGraph`.  Passing a graph avoids
+            rebuilding it when the runner has already constructed one for
+            relationship extraction.
         config: Per-rep params (e.g. loaded from ``params.yaml``).
             Used solely to derive theoretical expectations.
-        skip_ne_coancestry: forwarded to :func:`compute_all_ne`.
-            When True, ``ne_coancestry`` is reported as None (skipped)
-            and the full sparse kinship matrix is never built — required
-            on very large pedigrees where K would OOM.
+        skip_ne_coancestry: When True, ``ne_coancestry`` is dropped from the
+            estimator selection and the full sparse kinship matrix is never
+            built — required on very large pedigrees where K would OOM.  Its
+            key is still present, carrying ``reason: not_requested``.
 
     Returns:
-        Dict keyed on estimator name; each value is the matching
-        dataclass's ``to_dict()`` payload merged with an ``expected``
-        field (``float`` or ``None``).
+        Dict keyed on all eight estimator names.  A computed estimator's
+        value is its record's ``to_dict()`` payload plus an ``expected``
+        field (``float`` or ``None``); an unavailable one is its
+        ``{reason, code, fields}`` payload with no ``ne`` and no
+        ``expected``.
     """
-    pg = pedigree if isinstance(pedigree, PedigreeGraph) else PedigreeGraph(pedigree)
-    raw = compute_all_ne(pg, skip_ne_coancestry=skip_ne_coancestry)
+    pg = pedigree if isinstance(pedigree, PedigreeGraph) else PedigreeGraph.from_frame(pedigree)
+    estimators = ALL_EFFECTIVE_SIZE_ESTIMATORS
+    if skip_ne_coancestry:
+        estimators = tuple(name for name in estimators if name != "ne_coancestry")
+    raw = estimate_effective_sizes(pg, estimators)
     expected = theoretical_expectations(config)
     # Hill 1979's closed-form Ne_V passthrough only applies under the
     # strictly-discrete simACE simulator (L = 1).  When pg.birth_year is
@@ -256,9 +259,10 @@ def compute_effective_size(
         expected["ne_hill_overlapping"] = None
     out: dict[str, dict[str, Any]] = {}
     for name, result in raw.items():
-        d = result.to_dict()
-        d["expected"] = expected.get(name)
-        out[name] = d
+        payload = result.to_dict()
+        if not isinstance(result, UnavailableEffectiveSize):
+            payload["expected"] = expected.get(name)
+        out[name] = payload
     return out
 
 
@@ -283,7 +287,7 @@ def main(
     params = load_yaml(params_path)
 
     df_observed = filter_pedigree_to_observed(df_ped, df_phe["id"].to_numpy())
-    pg = PedigreeGraph(df_observed)
+    pg = PedigreeGraph.from_frame(df_observed)
     result = compute_effective_size(pg, config=params, skip_ne_coancestry=skip_ne_coancestry)
 
     dump_yaml(result, output_path)
@@ -302,7 +306,8 @@ def cli() -> None:
         action="store_true",
         help="Include the coancestry-rate Ne_C estimator alongside the other seven. Off by "
         "default because its kinship DP dominates memory on large pedigrees, matching the "
-        "analysis.skip_ne_coancestry pipeline default. Without it ne_coancestry is null.",
+        "analysis.skip_ne_coancestry pipeline default. Without it ne_coancestry carries "
+        "reason: not_requested instead of a result.",
     )
     args = parser.parse_args()
     init_logging(args)

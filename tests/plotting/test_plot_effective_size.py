@@ -33,37 +33,47 @@ def _make_payload(
     n_ne: float | None = 7300.0,
 ) -> dict:
     """Synthetic effective_size.yaml mirroring the real schema."""
+    gens = list(range(g_ped))
     n_trans = g_ped - 1
+    src, dst = gens[:-1], gens[1:]
     return {
         "ne_inbreeding": {
             "ne": n_ne,
-            "ne_per_gen": [None, None, 8000.0, 7400.0, None, 7100.0],
+            "generations": gens,
             "mean_f_per_gen": [0.0, 0.0, 5e-6, 1e-5, 1.5e-5, 2e-5],
+            "transition_from": src,
+            "transition_to": dst,
+            "ne_per_gen": [None, 8000.0, 7400.0, None, 7100.0],
             "slope": -1e-5,
             "n_generations_used": 5,
             "expected": None,
         },
         "ne_coancestry": {
             "ne": 7350.0,
-            "ne_per_gen": [None, 7300.0, 7400.0, 7350.0, 7320.0, 7400.0],
+            "generations": gens,
             "mean_theta_per_gen": [0.0, 6e-6, 1.2e-5, 1.8e-5, 2.4e-5, 3.0e-5],
+            "transition_from": src,
+            "transition_to": dst,
+            "ne_per_gen": [7300.0, 7400.0, 7350.0, 7320.0, 7400.0],
             "slope": -6e-6,
             "n_generations_used": 5,
             "expected": None,
         },
         "ne_variance_family_size": {
             "ne": 7350.0,
-            "ne_per_transition": [7100.0, 7200.0, 7300.0, 7400.0, 7500.0],
-            "v_mm": [1.18] * n_trans,
-            "v_mf": [1.18] * n_trans,
-            "v_fm": [1.18] * n_trans,
-            "v_ff": [1.18] * n_trans,
-            "cov_m": [0.18] * n_trans,
-            "cov_f": [0.18] * n_trans,
+            "parent_generations": gens,
+            "ne_per_transition": [7100.0, 7200.0, 7300.0, 7400.0, 7500.0, None],
+            "v_mm": [1.18] * n_trans + [None],
+            "v_mf": [1.18] * n_trans + [None],
+            "v_fm": [1.18] * n_trans + [None],
+            "v_ff": [1.18] * n_trans + [None],
+            "cov_m": [0.18] * n_trans + [None],
+            "cov_f": [0.18] * n_trans + [None],
             "expected": 7349.0,
         },
         "ne_sex_ratio": {
             "ne": 9999.5,
+            "generations": gens,
             "ne_per_gen": [9999.0] * g_ped,
             "n_male_per_gen": [5000] * g_ped,
             "n_female_per_gen": [5000] * g_ped,
@@ -71,6 +81,7 @@ def _make_payload(
         },
         "ne_individual_delta_f": {
             "ne": 7400.0,
+            "generations": gens,
             "ne_per_gen": [None, None, 7300.0, 7350.0, 7400.0, 7450.0],
             "mean_eqg_per_gen": [None, None, 2.0, 3.0, 4.0, 5.0],
             "n_used_per_gen": [0, 0, 100, 100, 100, 100],
@@ -82,6 +93,7 @@ def _make_payload(
             "n_iterations": 5,
             "max_delta_final": 1e-4,
             "sum_c_squared": 2e-4,
+            "final_generation": g_ped - 1,
             "expected": 3675.0,
         },
         "ne_hill_overlapping": {
@@ -92,9 +104,12 @@ def _make_payload(
         },
         "ne_caballero_toro": {
             "ne": 7400.0,
-            "ne_per_gen": [None, 7100.0, 7200.0, 7300.0, 7400.0, 7500.0],
+            "generations": gens,
             "mean_self_coancestry_per_gen": [None, 0.5, 0.50001, 0.50002, 0.50003, 0.50004],
             "n_founders_with_descendants_per_gen": [0, 100, 100, 100, 100, 100],
+            "transition_from": src,
+            "transition_to": dst,
+            "ne_per_gen": [7100.0, 7200.0, 7300.0, 7400.0, 7500.0],
             "slope": -5e-5,
             "expected": None,
         },
@@ -129,18 +144,49 @@ def test_gather_returns_two_frames_with_distinct_granularity(two_rep_yamls):
     assert set(scalar_df["estimator"]) == set(_NE_KEYS_ORDERED)
     assert set(scalar_df["rep"]) == {1, 2}
 
-    # Series: 2 reps × (5 estimators × G_ped=6 + 1 estimator × G_ped−1=5) = 2 × 35 = 70.
-    g_ped = 6
-    expected_rows = 2 * (5 * g_ped + 1 * (g_ped - 1))
-    assert len(series_df) == expected_rows
+    # Series, per rep, at G_ped=6: Ne_sr and Ne_iΔF give 6 cohort rows each;
+    # Ne_V gives 6 parent rows; Ne_I, Ne_C and Ne_CT give 6 cohort rows (their
+    # drift mean) plus 5 transition rows (their Ne) each.
+    per_rep = 2 * 6 + 6 + 3 * (6 + 5)
+    assert len(series_df) == 2 * per_rep
 
 
-def test_gather_kind_column_distinguishes_gen_vs_transition(two_rep_yamls):
+def test_gather_kind_column_separates_cohort_and_transition_axes(two_rep_yamls):
     _, series_df = gather_effective_size(two_rep_yamls)
-    var_kinds = series_df.filter(pl.col("estimator") == "ne_variance_family_size")["kind"].unique()
-    other_kinds = series_df.filter(pl.col("estimator") != "ne_variance_family_size")["kind"].unique()
-    assert var_kinds.to_list() == ["transition"]
-    assert other_kinds.to_list() == ["generation"]
+    kinds = {
+        est: set(series_df.filter(pl.col("estimator") == est)["kind"].to_list())
+        for est in series_df["estimator"].unique()
+    }
+    assert kinds["ne_sex_ratio"] == {"cohort"}
+    assert kinds["ne_individual_delta_f"] == {"cohort"}
+    assert kinds["ne_variance_family_size"] == {"transition"}
+    for est in ("ne_inbreeding", "ne_coancestry", "ne_caballero_toro"):
+        assert kinds[est] == {"cohort", "transition"}
+
+
+def test_gather_carries_the_records_own_labels(two_rep_yamls):
+    _, series_df = gather_effective_size(two_rep_yamls)
+    cohort = series_df.filter((pl.col("estimator") == "ne_sex_ratio") & (pl.col("rep") == 1))
+    assert cohort["label"].to_list() == [str(g) for g in range(6)]
+    assert cohort["x"].to_list() == [float(g) for g in range(6)]
+
+    transition = series_df.filter(
+        (pl.col("estimator") == "ne_inbreeding") & (pl.col("kind") == "transition") & (pl.col("rep") == 1)
+    )
+    assert transition["label"].to_list() == [f"{g}→{g + 1}" for g in range(5)]
+    assert transition["x"].to_list() == [g + 0.5 for g in range(5)]
+
+
+def test_gather_skips_an_unavailable_record(tmp_path):
+    payload = _make_payload()
+    payload["ne_coancestry"] = {"reason": "missing_metadata", "code": "missing_sex", "fields": {"status": "absent"}}
+    path = tmp_path / "unavailable.yaml"
+    _write_yaml(path, payload)
+
+    scalar_df, series_df = gather_effective_size([path])
+    assert scalar_df.filter(pl.col("estimator") == "ne_coancestry")["ne"].is_nan().all()
+    assert series_df.filter(pl.col("estimator") == "ne_coancestry").is_empty()
+    assert not series_df.filter(pl.col("estimator") == "ne_inbreeding").is_empty()
 
 
 def test_gather_handles_null_ne(two_rep_yamls):
@@ -151,18 +197,24 @@ def test_gather_handles_null_ne(two_rep_yamls):
 
 
 def test_gather_handles_missing_per_gen_entries(two_rep_yamls):
-    # ne_inbreeding.ne_per_gen has explicit nulls at indices 0, 1, 4 — must be NaN.
+    # ne_inbreeding.ne_per_gen has explicit nulls at transitions 0→1 and 3→4.
     _, series_df = gather_effective_size(two_rep_yamls)
-    inb = series_df.filter((pl.col("estimator") == "ne_inbreeding") & (pl.col("rep") == 1))
-    assert inb.filter(pl.col("index").is_in([0, 1, 4]))["ne"].is_nan().all()
-    assert not inb.filter(pl.col("index") == 2)["ne"].is_nan().any()
+    inb = series_df.filter(
+        (pl.col("estimator") == "ne_inbreeding") & (pl.col("kind") == "transition") & (pl.col("rep") == 1)
+    )
+    assert inb.filter(pl.col("label").is_in(["0→1", "3→4"]))["ne"].is_nan().all()
+    assert not inb.filter(pl.col("label") == "1→2")["ne"].is_nan().any()
 
 
 def test_gather_drift_columns_filled_only_for_relevant_estimators(two_rep_yamls):
     _, series_df = gather_effective_size(two_rep_yamls)
-    # mean_f only on ne_inbreeding rows
+    # mean_f only on ne_inbreeding's cohort rows
     assert series_df.filter(pl.col("estimator") != "ne_inbreeding")["mean_f"].is_nan().all()
-    assert not series_df.filter(pl.col("estimator") == "ne_inbreeding")["mean_f"].is_nan().all()
+    assert (
+        not series_df.filter((pl.col("estimator") == "ne_inbreeding") & (pl.col("kind") == "cohort"))["mean_f"]
+        .is_nan()
+        .all()
+    )
     # mean_theta only on ne_coancestry
     assert series_df.filter(pl.col("estimator") != "ne_coancestry")["mean_theta"].is_nan().all()
     # v_** only on ne_variance_family_size
@@ -256,9 +308,23 @@ def test_overview_draws_no_reference_when_expected_is_all_null(recorded_referenc
 
 
 def _series_df(estimator: str = "ne_sex_ratio", n_gen: int = 3) -> pl.DataFrame:
-    """Minimal per-generation series for a single estimator, two reps."""
-    rows = [{"rep": rep, "estimator": estimator, "index": g, "ne": 7000.0 + g} for rep in (1, 2) for g in range(n_gen)]
-    return pl.DataFrame(rows, schema={"rep": pl.Int64, "estimator": pl.Utf8, "index": pl.Int64, "ne": pl.Float64})
+    """Minimal per-cohort series for a single estimator, two reps."""
+    rows = [
+        {"rep": rep, "estimator": estimator, "kind": "cohort", "x": float(g), "label": str(g), "ne": 7000.0 + g}
+        for rep in (1, 2)
+        for g in range(n_gen)
+    ]
+    return pl.DataFrame(
+        rows,
+        schema={
+            "rep": pl.Int64,
+            "estimator": pl.Utf8,
+            "kind": pl.Utf8,
+            "x": pl.Float64,
+            "label": pl.Utf8,
+            "ne": pl.Float64,
+        },
+    )
 
 
 def test_by_generation_reference_line_takes_the_first_expected(recorded_reference_lines, tmp_path: Path):

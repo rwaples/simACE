@@ -4,6 +4,7 @@ import sys
 
 import pytest
 import yaml
+from pedigree_graph import RELATIONSHIPS
 
 from simace.analysis.stats.runner import build_stats_report
 from simace.analysis.stats.runner import cli as run_stats_cli
@@ -124,6 +125,21 @@ class TestRunnerMain:
         assert "affected_correlations" in stats["correlations"]
         assert "tetrachoric" in stats["correlations"]
         assert "observed_h2_estimators" in stats["heritability"]
+
+    def test_pair_counts_carry_every_code_and_none_for_uncomputed(self, runner_outputs):
+        # The fixture ran at max_degree=2, so every deeper code is reported as
+        # "not computed" (None) rather than as a zero count.
+        stats_yaml, _ = runner_outputs
+        with open(stats_yaml, encoding="utf-8") as fh:
+            stats = yaml.safe_load(fh)
+        for counts in (
+            stats["pedigree"]["relationship_pair_counts"],
+            stats["pedigree"]["full"]["relationship_pair_counts"],
+        ):
+            assert set(counts) == set(RELATIONSHIPS)
+            computed = {code for code, value in counts.items() if value is not None}
+            assert computed == {code for code, cat in RELATIONSHIPS.items() if cat.degree <= 2}
+            assert all(isinstance(counts[code], int) for code in computed)
 
     def test_pedigree_keys_when_pedigree_provided(self, runner_outputs):
         stats_yaml, _ = runner_outputs

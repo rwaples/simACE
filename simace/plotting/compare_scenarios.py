@@ -38,7 +38,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
-from pedigree_graph import PAIR_KINSHIP, PedigreeGraph
+from pedigree_graph import RELATIONSHIPS, PedigreeGraph
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
 from simace.core.parquet import load_parquet
@@ -331,12 +331,12 @@ def compare_component_distributions(
 # report.yaml. Expected liability correlation under random mating is
 # ``k * A + c * C`` where k is the relatedness 2*kinship; the middle column
 # below is k so callers can draw reference bars.  k is sourced from
-# ``PAIR_KINSHIP`` (members of a pooled class share one kinship value, so the
-# first member is representative) — see ADR 0009.  MZ twins are deliberately
+# ``RELATIONSHIPS[code].nominal_kinship`` (members of a pooled class share one
+# kinship value, so the first member is representative) — see ADR 0009.  MZ twins are deliberately
 # omitted — their liability correlation is pinned at ``A + C`` regardless of
 # AM, so including them washes out the visual story that this plot tells.
 POOLED_RELATIONSHIP_CLASSES: tuple[tuple[str, float, tuple[str, ...]], ...] = tuple(
-    (name, 2.0 * PAIR_KINSHIP[members[0]], members)
+    (name, 2.0 * RELATIONSHIPS[members[0]].nominal_kinship, members)
     for name, members in (
         ("FS", ("FS",)),
         ("PO", ("MO", "FO")),
@@ -396,12 +396,16 @@ def load_pedigree_estimates(
     # Examples-page pedigree estimates extract at the analysis default depth.
     # NB: this is not plumbed from analysis.max_degree config — a scenario that
     # raises max_degree above the default still extracts at DEFAULT_MAX_DEGREE here.
-    pairs = PedigreeGraph.from_subsample(df_full, df).extract_pairs(max_degree=DEFAULT_MAX_DEGREE)
+    pairs = (
+        PedigreeGraph.from_frame(df_full)
+        .view(ids=df["id"].to_numpy())
+        .relationship_pairs(max_degree=DEFAULT_MAX_DEGREE)
+    )
     liab = df[f"liability{trait}"].to_numpy()
 
     corrs: dict[str, float] = {}
     for ptype in RELATIONSHIP_TYPES:
-        idx1, idx2 = pairs.get(ptype, (np.array([]), np.array([])))
+        idx1, idx2 = pairs[ptype]
         if len(idx1) < 10:
             corrs[ptype] = float("nan")
         else:
@@ -1125,12 +1129,10 @@ def load_pedigree_estimates_per_generation(
 ) -> dict[int, dict[str, float]]:
     """Per-generation cohort liability correlations and realized h².
 
-    For each generation ``g``, the dataframe is filtered to ``generation == g``
-    (a single cohort) and MZ/FS pair correlations are computed on that cohort
-    only.  ``PedigreeGraph.from_subsample`` is built on the filtered cohort
-    so the returned FS pairs already exclude twins
-    (``simace/core/pedigree_graph.py:sibling_pairs`` filters ``twin != -1``).
-    MZ pairs are read from the cohort directly.
+    Pairs are extracted once over the whole pedigree and then masked to each
+    generation ``g``, so MZ and FS pairs are the cohort's own.  ``FS`` and
+    ``MZ`` are separate registry categories and a pair belongs to exactly one
+    of them, so the FS block already excludes twins.
 
     Args:
         pedigree_path: one ``pedigree.parquet`` path (one replicate).
@@ -1158,7 +1160,7 @@ def load_pedigree_estimates_per_generation(
     if gens is None:
         gens = sorted(int(g) for g in np.unique(df_full["generation"].to_numpy()))
 
-    pairs_full = PedigreeGraph(df_full).extract_pairs(max_degree=1)
+    pairs_full = PedigreeGraph.from_frame(df_full).relationship_pairs(max_degree=1)
     gen_arr = df_full["generation"].to_numpy()
     liab_full = df_full[f"liability{trait}"].to_numpy()
     # float64 to match pandas Series.var(ddof=1) precision used previously.
@@ -1185,7 +1187,7 @@ def load_pedigree_estimates_per_generation(
         cohort_corrs: dict[str, tuple[float, int]] = {}
         # MZ + FS are within-generation by construction; gen_mask[idx1] alone is sufficient.
         for code in ("MZ", "FS"):
-            idx1, idx2 = pairs_full.get(code, (np.array([]), np.array([])))
+            idx1, idx2 = pairs_full[code]
             pair_mask = gen_mask[idx1]
             idx1_g, idx2_g = idx1[pair_mask], idx2[pair_mask]
             n_pairs = len(idx1_g)

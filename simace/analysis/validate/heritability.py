@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from pedigree_graph import PAIR_KINSHIP
+from pedigree_graph import RELATIONSHIPS
 
 from simace.core.numerics import safe_corrcoef, safe_linregress
 
@@ -24,6 +24,7 @@ from .am_relatedness import am_relatedness_mode, observed_mate_correlations, res
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
+    from pedigree_graph import RelationshipPairBlock, RelationshipPairs
 
     from simace.core.pedigree_arrays import PedigreeArrays
 
@@ -72,7 +73,7 @@ def _validate_mz_correlations(
             mz_corr = safe_corrcoef(mz_v1, mz_v2)
             # MZ twins share identical A, so the A-component correlation equals
             # the relatedness 2*kinship == 1.0; 0.01 is the near-equality band.
-            expected_mz = 2.0 * PAIR_KINSHIP["MZ"]
+            expected_mz = 2.0 * RELATIONSHIPS["MZ"].nominal_kinship
             mz_ok = mz_corr > expected_mz - 0.01 if not np.isnan(mz_corr) else A_params[t] == 0
             results[f"mz_twin_{col}_correlation"] = _result(
                 mz_ok,
@@ -108,7 +109,7 @@ def _validate_dz_correlations(
     params: dict[str, Any],
     A_params: dict[int, float],
     comp_vals: dict[str, np.ndarray],
-    full_sib_pairs: tuple[np.ndarray, np.ndarray],
+    full_sib_pairs: RelationshipPairBlock,
     results: dict[str, Any],
 ) -> tuple[dict[int, float | None], int]:
     """Validate DZ sibling correlations. Returns (dz_pheno_corr, n_dz_pairs).
@@ -118,7 +119,7 @@ def _validate_dz_correlations(
     (see :mod:`.am_relatedness`). Both-trait AM skips the scored check.
     """
     rng = np.random.default_rng(params.get("seed", _DEFAULT_RNG_SEED))
-    idx1, idx2, n_dz_pairs = _subsample_pairs(full_sib_pairs[0], full_sib_pairs[1], rng)
+    idx1, idx2, n_dz_pairs = _subsample_pairs(full_sib_pairs.first_rows, full_sib_pairs.second_rows, rng)
     dz_pheno_corr: dict[int, float | None] = {}
 
     if n_dz_pairs >= _MIN_PAIRS_FOR_CORR:
@@ -128,7 +129,9 @@ def _validate_dz_correlations(
             dz_corr = safe_corrcoef(dz_v1, dz_v2)
             # Full-sib (DZ) A correlation: 2*kinship under random mating,
             # AM-inflated to (1+mu_A)/2 under single-trait assortment.
-            expected_dz, skip, info = resolve_expected_a_corr(df, ped, params, t, "FS", 2.0 * PAIR_KINSHIP["FS"])
+            expected_dz, skip, info = resolve_expected_a_corr(
+                df, ped, params, t, "FS", 2.0 * RELATIONSHIPS["FS"].nominal_kinship
+            )
             if expected_dz is None:
                 # Reported, not asserted: no single-trait formula under {skip}.
                 results[f"dz_sibling_{col}_correlation"] = _info(
@@ -302,7 +305,7 @@ def validate_heritability(
     df: pd.DataFrame | pl.DataFrame,
     params: dict[str, Any],
     ped: PedigreeArrays,
-    sibling_pairs: dict[str, tuple[np.ndarray, np.ndarray]],
+    sibling_pairs: RelationshipPairs,
 ) -> dict[str, Any]:
     """Validate heritability estimates for two-trait simulation.
 
@@ -315,8 +318,8 @@ def validate_heritability(
         df: Pedigree DataFrame.
         params: Scenario parameters; requires keys ``A1``, ``A2``, ``seed``.
         ped: The same pedigree as id-addressable arrays.
-        sibling_pairs: Dict with keys ``FS``, ``MHS``, ``PHS`` mapping to
-            ``(idx1, idx2)`` row-index arrays.
+        sibling_pairs: Relationship pairs whose ``FS``, ``MHS``, and ``PHS``
+            blocks were requested; each block holds row indices into ``df``.
 
     Returns:
         Dict of check-name to result dicts, including MZ/DZ correlations,

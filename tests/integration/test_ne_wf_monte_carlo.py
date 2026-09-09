@@ -23,7 +23,8 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 import pytest
-from pedigree_graph import PedigreeGraph, compute_all_ne
+from pedigree_graph import PedigreeGraph
+from pedigree_graph.effective_size import UnavailableEffectiveSize, estimate_effective_sizes
 
 N = 200
 N_GENS = 10
@@ -82,8 +83,10 @@ def test_wf_monte_carlo_recovers_N():
 
     for _ in range(N_REPS):
         df = _build_wf_pedigree(rng)
-        pg = PedigreeGraph(df)
-        results = compute_all_ne(pg)
+        pg = PedigreeGraph.from_frame(df)
+        results = estimate_effective_sizes(pg)
+        unavailable = [name for name, r in results.items() if isinstance(r, UnavailableEffectiveSize)]
+        assert not unavailable, f"WF pedigree carries every prerequisite, but {unavailable} refused it"
         for name, r in results.items():
             ne = r.ne
             if ne is None or not np.isfinite(ne):

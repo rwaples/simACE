@@ -1,7 +1,7 @@
 """Tests for simace.core.relationships canonical relationship semantics (ADR 0009)."""
 
 import pytest
-from pedigree_graph import PAIR_KINSHIP
+from pedigree_graph import RELATIONSHIPS
 
 from simace.core.relationships import (
     RELATIONSHIP_TYPES,
@@ -50,10 +50,15 @@ def test_expected_liability_corr(rt, want):
 
 
 def test_kinship_sourced_from_registry():
-    """expected_liability_corr(rt, A=1, C=0) must equal 2*PAIR_KINSHIP[rt] — i.e.
-    the coefficient is derived from the registry, never a re-declared literal."""
+    """expected_liability_corr(rt, A=1, C=0) must equal 2*RELATIONSHIPS[rt].nominal_kinship
+    — i.e. the coefficient is derived from the registry, never a re-declared literal."""
     for rt in RELATIONSHIP_TYPES:
-        assert expected_liability_corr(rt, A=1.0, C=0.0) == pytest.approx(2.0 * PAIR_KINSHIP[rt])
+        assert expected_liability_corr(rt, A=1.0, C=0.0) == pytest.approx(2.0 * RELATIONSHIPS[rt].nominal_kinship)
+
+
+def test_canonical_subset_is_a_subset_of_the_registry():
+    """Every canonical type is a registry code, so the registry can be indexed by it."""
+    assert set(RELATIONSHIP_TYPES) <= set(RELATIONSHIPS)
 
 
 def test_every_relationship_type_is_covered():
@@ -66,6 +71,6 @@ def test_every_relationship_type_is_covered():
 @pytest.mark.parametrize("fn", [shared_environment_coefficient, lambda rt: expected_liability_corr(rt, 1.0, 1.0)])
 def test_unknown_relationship_type_raises(fn):
     with pytest.raises(ValueError, match="unknown relationship type"):
-        fn("GP")  # in PAIR_KINSHIP but outside the canonical 7-type subset
+        fn("GP")  # a registry code, but outside the canonical 7-type subset
     with pytest.raises(ValueError, match="unknown relationship type"):
         fn("NONSENSE")
