@@ -29,11 +29,22 @@ scaffold gap in the pedigree-graph working tree: `crates/python` is the PyO3
 and takes its version from `[workspace.package]`, and the first migrated kernels are
 the topology set (structural depth, topological check, cycle witness, depth-major
 order) with the numba and NumPy originals deleted and oracles kept under
-`tests/oracle/`. `.github/workflows/ci.yml` and the rewritten `publish.yml` exist but
-are UNVERIFIED until a push. The relationship engine is still reached only through
-the `pgr_count` CLI; wiring `relationship_counts` to it is the estimator/pair slice.
-Native construction proper (id index, references, MZ and sex validation, the
-remaining error codes) is slice 10b.
+`tests/oracle/`. 0.8.1 was tagged and published the same day; `ci.yml` and
+`publish.yml` ran green on GitHub, and simACE, fitACE, and pedsum are locked to the
+0.8.1 wheel (gate records under `docs/pedigree-graph-0.8-migration/gate/10a/` and
+`10c/`).
+
+Slice 10b (`plans/pedigree-graph-slice-10b-native-construction.md`) moved
+construction proper into the core: `crates/core/src/graph.rs` builds the pedigree
+from host-coerced int64 columns (range, sex encoding, duplicate and shared-parent
+ids, id→row resolution, topology, the MZ contract, optional-column collapse, the
+birth-year order) with the `Error` enum grown to every construction code, and
+`_native.build_pedigree` hands owned numpy columns back to a Python facade that no
+longer has `PedigreeInput`, `parse_pedigree_input`, or a Python `IdIndex`. Host
+coercion (frames, nullable dtypes, host nulls) stays in `_input.py`. The 0.8.1 rules
+survive as `tests/oracle/construction.py` behind a Hypothesis differential. 10b
+publishes 0.8.2. The relationship engine is still reached only through the
+`pgr_count` CLI; wiring `relationship_counts` to it is the estimator/pair slice.
 
 The older matrix pair-engine spike remains evidence only. It is committed on branch
 `rust-spike` in `external/pedigree-graph-rust-spike` at `659aa0c`, one commit off
