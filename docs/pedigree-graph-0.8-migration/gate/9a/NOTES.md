@@ -3,29 +3,31 @@
 Run: `EPIMIGHT_CONDA_ENV=epimight-master pixi run --frozen python tools/pg08_release_gate.py run --stage 9a --routing source --slow`.
 Every consumer unit's `routing` step resolved `pedigree_graph` under `external/pedigree-graph/`.
 
-## fitACE_epimight `pytest-slow`: 5 failures, pre-existing, not 0.8
+## fitACE_epimight: default and slow suites pass
 
-`test_atlas_e2e_emitter_to_html`, `test_cli_end_to_end`,
-`test_r_driver_schema_renames_fixed_cols`, `test_emitter_to_driver_roundtrip`,
-`test_onset_bounds_constrain_cif_time_axis` fail inside R
-(`pipe$run failed (After joining h2 results for both disorders no data was left)`)
-on the 60-person `medium_pedigree` fixture with `draws=3` against epimight R
-1.0.1 in the `epimight-master` conda env.
+The first 9a run found five pre-existing slow-suite failures against epimight R
+1.0.1. Four tests still invoked the absent `epimight` conda env directly. The
+CLI test reached R, but its 60-person fixture had independent per-person A/C/E
+values and therefore no expected familial enrichment. Epimight 1.0.1 discarded
+its non-positive h2 rows, then failed when its exact-time join had no rows for
+both disorders.
 
-Evidence that this is independent of pedigree-graph 0.8: the emitter's only
+The repair routes every test subprocess through `EPIMIGHT_CONDA_ENV`, gives the
+pedigree fixture inherited additive effects and shared maternal-household
+effects, and uses deterministic enrichment in the hand-built schema fixture.
+The master-schema R branch also writes unavailable random-effect and Rubin
+diagnostic columns as `NA`, preserving the 12-file schema used by the v2.0
+branch.
+
+The rerun passed both gate steps: 256 default tests and 18 slow tests. The
+routing check resolved `pedigree_graph` under `external/pedigree-graph/`.
+
+This remains independent of pedigree-graph 0.8. The emitter's only
 pedigree-graph call is `relationship_pairs(max_degree=3)`
-(`fitace_epimight/create_input.py:84`), and on the same fixture every one of the
-23 category pair sets is identical between the locked 0.7.1 wheel and the 0.8
-source checkout (`MO` 40, `FO` 40, `FS` 20, `GP` 80, `Av` 40, `1C` 20, all
-others 0; script `pairs_cmp.py` in the session scratchpad). The R driver
-therefore sees the same input it saw before the migration. Slice 8 ran the
-epimight suite with `slow` deselected, so this suite had not been exercised on
-this box since the R package moved to 1.0.1. The two live-R tests in
-`test_fractional.py` pass.
-
-The slow suite could not run at all before this gate because the conda env
-name `epimight` was hard-coded while the box has `epimight-master`; the
-`EPIMIGHT_CONDA_ENV` override (uncommitted in fitACE_epimight) is what let it run.
+(`fitace_epimight/create_input.py:84`), and the original failing fixture had
+identical category pair sets under the locked 0.7.1 wheel and the 0.8 source
+checkout: `MO` 40, `FO` 40, `FS` 20, `GP` 80, `Av` 40, `1C` 20, with all
+others empty.
 
 ## ace_iter_reml
 
