@@ -3,16 +3,41 @@
 Status: APPROVED — recorded as pedigree-graph ADR 0006 (public API and coordinate
 semantics, `external/pedigree-graph/docs/adr/0006-public-api-and-coordinate-semantics.md`)
 and ADR 0007 (Rust core, host boundary, and release,
-`external/pedigree-graph/docs/adr/0007-rust-core-host-boundary-and-release.md`).
-Implementation awaits the prerequisite issues listed below. Supersedes
-`plans/pedigree-graph-rust-core.md`.
+`external/pedigree-graph/docs/adr/0007-rust-core-host-boundary-and-release.md`),
+as amended by ADR 0010 (the relationship engine streams rows and saturates
+multiplicity at two) and ADR 0011 (the scalar estimate's exact set). Implementation
+has begun; see "Current state" below. Supersedes `plans/pedigree-graph-rust-core.md`.
 
-The existing Rust pair-engine spike remains useful evidence, not the implementation
-plan. It is committed on branch `rust-spike` in
-`external/pedigree-graph-rust-spike` at `659aa0c`. It matches the current Python
-pair sets on fixtures, inbred random pedigrees, and simulated pedigrees through
-300,000 rows, but does not cover the redesigned API, graph views, semantic pair
-orientation, arbitrary input order, bindings, kinship, or R.
+## Current state (2026-09-09)
+
+0.8.0 is tagged and published, so the pure-Python API redesign of ADR 0006 is done
+and every consumer resolves the released wheel rather than a routed checkout.
+
+Rust is past the spike stage. `crates/core` holds the row-streaming exact
+relationship engine of ADR 0010 — `relationships/{engine,category,csr,multiplicity,
+sets,sibling_index}.rs`, the `pgr_count` binary, and a fixture-driven
+`tests/parity.rs` — landed in `9d9e56e` and `94e5cf1` on `v0.8`, so it ships inside
+the v0.8.0 tag. The Cargo workspace pins `version = "0.8.0"` and `pixi.toml` carries
+`rust = ">=1.85"` (`95c9072`). ADR 0010 records that this engine *is* the slice-5
+Rust pair engine with a pair sink in place of the counter, not a second
+implementation, and that its saturating multiplicity replaces the spike's unchecked
+`i32` arithmetic.
+
+Two gaps remain between that crate and the migration this plan describes:
+
+- **No Python binding.** Neither `Cargo.toml` declares `pyo3`, `maturin`, or a
+  `crate-type`, and nothing under `pedigree_graph/` references the crate. The engine
+  is reachable only through the `pgr_count` CLI, so every production kernel is still
+  Python, SciPy, and Numba.
+- **No native CI.** `.github/workflows/` holds only `publish.yml`; the Cargo tests,
+  rustfmt, and Clippy named in the release gate below run locally or not at all.
+
+The older matrix pair-engine spike remains evidence only. It is committed on branch
+`rust-spike` in `external/pedigree-graph-rust-spike` at `659aa0c`, one commit off
+`v0.8`. It matches the current Python pair sets on fixtures, inbred random pedigrees,
+and simulated pedigrees through 300,000 rows, but does not cover the redesigned API,
+graph views, semantic pair orientation, arbitrary input order, bindings, kinship,
+or R.
 
 ## Goal
 
@@ -661,18 +686,27 @@ Intermediate commits may run scoped tests; release gates may not.
 
 ## Deferred issues and blockers
 
-- [#6](https://github.com/rwaples/pedigree-graph/issues/6): recurrence-only versus
-  reuse of a cached complete matrix in `pair_kinship`.
-- [#7](https://github.com/rwaples/pedigree-graph/issues/7): remove BFS after 0.8.0 and
-  before Rust relationship migration.
-- [#8](https://github.com/rwaples/pedigree-graph/issues/8): compare MZ-aware and
-  Meuwissen–Luo inbreeding and decide whether the old algorithm remains explicitly.
-- [#9](https://github.com/rwaples/pedigree-graph/issues/9): audit and fix Rust CSR
-  multiplicity overflow before promoting the spike.
+Open:
+
+- [#7](https://github.com/rwaples/pedigree-graph/issues/7): remove the experimental
+  Python BFS engine. Open deliberately — the issue's own timing puts it after the
+  Rust-backed canonical relationship engine is established and its parity and
+  performance gates pass, which has not happened, so it does not gate the binding
+  work.
 - DP row storage: choose only after benchmark.
-- Maturin: preferred, conditional on the scaffold gates.
+- Maturin: preferred, conditional on the scaffold gates; nothing is scaffolded yet.
 - Cross-thread floating determinism: recommended above but not explicitly confirmed in
   the review; confirm before implementation.
+
+Settled since this plan was written, each by an ADR rather than by code alone:
+
+- [#6](https://github.com/rwaples/pedigree-graph/issues/6): recurrence-only versus
+  reuse of a cached complete matrix in `pair_kinship` — ADR 0009.
+- [#8](https://github.com/rwaples/pedigree-graph/issues/8): MZ-aware versus
+  Meuwissen–Luo inbreeding — ADR 0008.
+- [#9](https://github.com/rwaples/pedigree-graph/issues/9) (CSR multiplicity overflow)
+  and [#11](https://github.com/rwaples/pedigree-graph/issues/11) (memory-bounded exact
+  counts) — both ADR 0010.
 
 ## Documentation before implementation
 
