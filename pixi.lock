@@ -347,10 +347,10 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/b0/04/d1cff1c2ead4708a6a79c01d3736b6a25bd38a36678398f72a8dd33dfad9/coverage-7.15.4-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/b2/6d/77546d8c26f038fce314a507106954f76270f6c182488bcf9ac9721175df/mkdocstrings_python-2.0.7-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b5/e8/dbf020b4d98251a9860752a094d09a65e1b436ad181faf929983f697048f/watchdog-6.0.0-py3-none-manylinux2014_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/b6/6d/66b2dc67e5f97ba71b5b50d48372edf18c21803d8b030c02100d1227aead/pedigree_graph-0.8.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/d6/54/da572c98c0b77626a91b5d3b89f0231d8bff5125c225420908632f8b342d/pymdown_extensions-11.0.1-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/f6/b6/f65ac785d4ac90dcf7c831ac6256f5dd4a19780f4e1575b2c0d6eeebe319/griffelib-2.2.0-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/f7/ec/67fbef5d497f86283db54c22eec6f6140243aae73265799baaaa19cd17fb/ghp_import-2.1.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/fb/8c/fbc94e3cb91baf604cbe1218f44e6be8d9c7fa6c4b72e70711096c7eeaff/pedigree_graph-0.7.1-py3-none-any.whl
 packages:
 - conda: https://conda.anaconda.org/bioconda/noarch/snakefmt-2.0.3-pyhdfd78af_1.conda
   sha256: bc5d29e4fa22bf6f17f69c968ffba24967ec360fbb42f5fde5df5e5e2bbab6a9
@@ -5549,7 +5549,7 @@ packages:
 - pypi: ./
   name: simace
   requires_dist:
-  - pedigree-graph>=0.7.1,<0.8
+  - pedigree-graph>=0.8,<0.9
   - numpy>=2.2,<3
   - scipy>=1.14,<2
   - polars>=1.43.2,<2
@@ -5819,6 +5819,23 @@ packages:
   requires_dist:
   - pyyaml>=3.10 ; extra == 'watchmedo'
   requires_python: '>=3.9'
+- pypi: https://files.pythonhosted.org/packages/b6/6d/66b2dc67e5f97ba71b5b50d48372edf18c21803d8b030c02100d1227aead/pedigree_graph-0.8.0-py3-none-any.whl
+  name: pedigree-graph
+  version: 0.8.0
+  sha256: fe8ba7931ccf7f4e6402f436ab105fa44d23f9dd665533f88ed1c55eaf664e53
+  requires_dist:
+  - numpy>=2.2,<3
+  - scipy>=1.14,<2
+  - numba>=0.60,<1
+  - pytest>=9,<10 ; extra == 'test'
+  - pytest-cov>=7,<8 ; extra == 'test'
+  - ruff>=0.16,<0.17 ; extra == 'test'
+  - hypothesis>=6,<7 ; extra == 'test'
+  - pandas>=3.0,<4 ; extra == 'test'
+  - polars>=1.43.2,<2 ; extra == 'test'
+  - pyarrow>=17,<26 ; extra == 'test'
+  - ty==0.0.70 ; extra == 'typecheck'
+  requires_python: '>=3.13'
 - pypi: https://files.pythonhosted.org/packages/d6/54/da572c98c0b77626a91b5d3b89f0231d8bff5125c225420908632f8b342d/pymdown_extensions-11.0.1-py3-none-any.whl
   name: pymdown-extensions
   version: 11.0.1
@@ -5847,20 +5864,3 @@ packages:
   - markdown ; extra == 'dev'
   - flake8 ; extra == 'dev'
   - wheel ; extra == 'dev'
-- pypi: https://files.pythonhosted.org/packages/fb/8c/fbc94e3cb91baf604cbe1218f44e6be8d9c7fa6c4b72e70711096c7eeaff/pedigree_graph-0.7.1-py3-none-any.whl
-  name: pedigree-graph
-  version: 0.7.1
-  sha256: 445ffc5b1ea67f6082f88e8645cd58720c793c93812b7c0d0b2c6a079f9176dd
-  requires_dist:
-  - numpy>=2.2,<3
-  - scipy>=1.14,<2
-  - numba>=0.60,<1
-  - pytest>=9,<10 ; extra == 'test'
-  - pytest-cov>=7,<8 ; extra == 'test'
-  - ruff>=0.16,<0.17 ; extra == 'test'
-  - hypothesis>=6,<7 ; extra == 'test'
-  - pandas>=3.0,<4 ; extra == 'test'
-  - polars>=1.43.2,<2 ; extra == 'test'
-  - pyarrow>=17,<26 ; extra == 'test'
-  - ty==0.0.70 ; extra == 'typecheck'
-  requires_python: '>=3.13'
