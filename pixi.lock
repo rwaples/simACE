@@ -343,8 +343,8 @@ environments:
       - pypi: https://files.pythonhosted.org/packages/8a/69/47a3dc20abc4fa5486655fde681bd55e63211b46c886d8c02223d6468431/backrefs-8.0-py313-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/90/96/04b8e52da071d28f5e21a805b19cb9390aa17a47462ac87f5e2696b9566d/paginate-0.5.7-py2.py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/9d/7a/d968e294073affff457b041c2be9868a40c1c71f4a35fcc1e45e5493067b/pytest_cov-7.1.0-py3-none-any.whl
-      - pypi: https://files.pythonhosted.org/packages/a6/a5/606504f39281746f65f2a91146a71ed20acc6fd84b565b92b48e241e31e6/pedigree_graph-0.8.2-cp313-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/ad/21/17c1bc9e6f47c972ad66fb2ac2568f99f90f1207eeb6fc3b34d094dba7b5/mkdocs_material-9.7.7-py3-none-any.whl
+      - pypi: https://files.pythonhosted.org/packages/ae/c8/ef3a04aaefa5c196ee55b63554d41fa25f897de4ffb14db8898d3ea8444b/pedigree_graph-0.8.3-cp313-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/b0/04/d1cff1c2ead4708a6a79c01d3736b6a25bd38a36678398f72a8dd33dfad9/coverage-7.15.4-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/b2/6d/77546d8c26f038fce314a507106954f76270f6c182488bcf9ac9721175df/mkdocstrings_python-2.0.7-py3-none-any.whl
       - pypi: https://files.pythonhosted.org/packages/b5/e8/dbf020b4d98251a9860752a094d09a65e1b436ad181faf929983f697048f/watchdog-6.0.0-py3-none-manylinux2014_x86_64.whl
@@ -5771,23 +5771,6 @@ packages:
   - pytest-xdist ; extra == 'testing'
   - virtualenv ; extra == 'testing'
   requires_python: '>=3.9'
-- pypi: https://files.pythonhosted.org/packages/a6/a5/606504f39281746f65f2a91146a71ed20acc6fd84b565b92b48e241e31e6/pedigree_graph-0.8.2-cp313-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
-  name: pedigree-graph
-  version: 0.8.2
-  sha256: f3b915d3ec337d7f06d83ae637d0eaf51ee4870c41485781363516238def8679
-  requires_dist:
-  - numpy>=2.2,<3
-  - scipy>=1.14,<2
-  - numba>=0.60,<1
-  - pytest>=9,<10 ; extra == 'test'
-  - pytest-cov>=7,<8 ; extra == 'test'
-  - ruff>=0.16,<0.17 ; extra == 'test'
-  - hypothesis>=6,<7 ; extra == 'test'
-  - pandas>=3.0,<4 ; extra == 'test'
-  - polars>=1.43.2,<2 ; extra == 'test'
-  - pyarrow>=17,<26 ; extra == 'test'
-  - ty==0.0.70 ; extra == 'typecheck'
-  requires_python: '>=3.13'
 - pypi: https://files.pythonhosted.org/packages/ad/21/17c1bc9e6f47c972ad66fb2ac2568f99f90f1207eeb6fc3b34d094dba7b5/mkdocs_material-9.7.7-py3-none-any.whl
   name: mkdocs-material
   version: 9.7.7
@@ -5812,6 +5795,23 @@ packages:
   - mkdocs-redirects>=1.2 ; extra == 'recommended'
   - mkdocs-rss-plugin>=1.6 ; extra == 'recommended'
   requires_python: '>=3.8'
+- pypi: https://files.pythonhosted.org/packages/ae/c8/ef3a04aaefa5c196ee55b63554d41fa25f897de4ffb14db8898d3ea8444b/pedigree_graph-0.8.3-cp313-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+  name: pedigree-graph
+  version: 0.8.3
+  sha256: 24768ce183a65d73a5fff6710af508d2d7969369372aafa81213641419c170e6
+  requires_dist:
+  - numpy>=2.2,<3
+  - scipy>=1.14,<2
+  - numba>=0.60,<1
+  - pytest>=9,<10 ; extra == 'test'
+  - pytest-cov>=7,<8 ; extra == 'test'
+  - ruff>=0.16,<0.17 ; extra == 'test'
+  - hypothesis>=6,<7 ; extra == 'test'
+  - pandas>=3.0,<4 ; extra == 'test'
+  - polars>=1.43.2,<2 ; extra == 'test'
+  - pyarrow>=17,<26 ; extra == 'test'
+  - ty==0.0.70 ; extra == 'typecheck'
+  requires_python: '>=3.13'
 - pypi: https://files.pythonhosted.org/packages/b0/04/d1cff1c2ead4708a6a79c01d3736b6a25bd38a36678398f72a8dd33dfad9/coverage-7.15.4-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl
   name: coverage
   version: 7.15.4
