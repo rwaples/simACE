@@ -6,6 +6,8 @@
 #   cell      label for the run (e.g. default, nofne)
 # Writes benchmarks/pedsum/<scenario>.<cell>.{time,log} and a one-line TSV row
 # to benchmarks/pedsum/results.tsv (scenario, cell, rows, export_s, wall_s, user_s, sys_s, max_rss_mib).
+# The TSV is exported once per scenario and reused by later cells; export_s is that
+# one export's time, or NA when the TSV predates its .export_s sidecar.
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 scenario=$1; cell=$2; shift 2
@@ -23,7 +25,7 @@ pl.scan_parquet('$parquet').select('id','sex','mother','father','generation').si
   echo "$(echo "$(date +%s.%N) - $t0" | bc)" > "$tsv.export_s"
 fi
 rows=$(( $(wc -l < "$tsv") - 1 ))
-export_s=$(cat "$tsv.export_s")
+export_s=$(cat "$tsv.export_s" 2>/dev/null || echo NA)  # sidecar only exists if we did the export
 
 rm -rf "$out"
 /usr/bin/time -v -o "$bench/$scenario.$cell.time" \
