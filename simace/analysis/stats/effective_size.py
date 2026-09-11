@@ -155,9 +155,16 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
     Under random mating with 50/50 sex and ZTP(``mating_lambda``) family
     allocation, the family-size variance correction reduces
     ``Ne_V``-family estimators below ``N`` per :func:`ne_v_expected_ztp`.
-    Three estimators (Ne_V, Ne_iΔF, Ne_H) inherit that expectation
-    directly — their finite-sample bias is ``O(1/N)`` and negligible at
-    realistic simACE scales.
+    Two estimators (Ne_V, Ne_H) inherit that expectation directly — their
+    finite-sample bias is ``O(1/N)`` and negligible at realistic simACE
+    scales.
+
+    Ne_iΔF carries a known upward bias of ``t/(t−1)`` on top of it, where
+    ``t = G_ped − 1`` is the last recorded cohort's equivalent complete
+    generations, because the recorded founders are unrelated by
+    construction and so the cohort has drifted for one generation fewer
+    than its pedigree is deep.  Its expectation is ``Ne_V · t/(t−1)``, and
+    ``None`` below ``t = 3`` where that factor is untested.
 
     Three regression-based estimators (Ne_I, Ne_C, Ne_CT) carry a Jensen
     bias on the inverted slope of order ``Ne_V² / (N · G²)`` that
@@ -166,13 +173,26 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
     :func:`regression_estimator_regime_ok` is satisfied, otherwise
     ``None`` (validator passes vacuously).
 
-    Ne_sr stays at ``N`` (deterministic balanced sex ratio).  Ne_LTC
-    under the ``Ne = 1/(2·Σc²)`` form is approximated as
-    ``Ne_V_expected / 2`` — consistent with the WF limit where
-    ``Ne_V → N`` and ``Ne_LTC → N/2``.  In practice the observed
-    Ne_LTC is typically ``None`` (asymptote not reached within
-    ``G_ped`` generations under realized WF noise), so the validator
-    passes vacuously.
+    Ne_sr stays at ``N`` (deterministic balanced sex ratio).
+
+    Ne_LTC is the harmonic mean of ``N`` and ``Ne_V``.  Wray & Thompson
+    1990 eq. 31 is ``Ne = 2N/(μ_r² + σ_r²)`` with ``μ_r = 1``, and their
+    p. 51 relation ``σ_r² = V(k)/2`` makes that ``4N/(2 + V(k))``;
+    :func:`ne_v_expected_ztp` is ``2N/V(k)``, so ``V(k)`` cancels out of
+
+        ``2/Ne_LTC = 1/N + 1/Ne_V``.
+
+    Under Wright-Fisher ``V(k) = 2``, ``Ne_V = N``, and the two coincide.
+    ``test_ne_ltc_expectation_matches_simulator_mc`` is the committed method
+    behind that claim.  Driven through simACE's own simulator at ``N = 1000``
+    over 12 reps, ``2/Σc²`` lands +0.75 % from this expectation under
+    ZTP(0.5) at ``G_ped = 8``, +0.73 % at ``G_ped = 12``, and +0.58 % under
+    Wright-Fisher, each inside 0.8 standard errors of the replicate mean.
+
+    The estimator this describes is the post-ADR-0012 ``Ne = 2/Σc²``.
+    pedigree-graph 0.8 reports ``1/(2·Σc²)``, four times lower, so
+    :func:`compute_effective_size` withholds this expectation from a 0.8
+    record.
     """
     if config is None:
         return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
@@ -206,13 +226,27 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
     regression_ok = g_ped is not None and regression_estimator_regime_ok(n, int(g_ped), ne_v)
     regression_expected = ne_v if regression_ok else None
 
+    # Ne_iΔF reads the last recorded cohort, whose equivalent complete
+    # generations are G_ped - 1: simulate.py records exactly G_ped cohorts
+    # labelled 0..G_ped-1 with cohort 0 marked founder.  Those founders are
+    # unrelated as recorded, so the cohort carries t - 1 generations of drift
+    # while Gutiérrez eq. 2 divides by t, inflating Ne by t/(t-1) in the
+    # large-N limit (pedigree-graph ADR 0012).  Measured on Wright-Fisher
+    # pedigrees at N=2000: +32.9% at t=4 against 33.3% predicted, +28.7% at
+    # t=5 against 25.0%, +19.2% at t=7 against 16.7%.  Untested below t=3.
+    delta_f_expected = None
+    if g_ped is not None:
+        t_ref = int(g_ped) - 1
+        if t_ref >= 3:
+            delta_f_expected = ne_v * t_ref / (t_ref - 1.0)
+
     return {
         "ne_inbreeding": regression_expected,
         "ne_coancestry": regression_expected,
         "ne_variance_family_size": ne_v,
         "ne_sex_ratio": n,
-        "ne_individual_delta_f": ne_v,
-        "ne_long_term_contributions": ne_v / 2.0,
+        "ne_individual_delta_f": delta_f_expected,
+        "ne_long_term_contributions": 2.0 * n * ne_v / (n + ne_v),
         "ne_hill_overlapping": ne_v,
         "ne_caballero_toro": regression_expected,
     }
@@ -263,6 +297,20 @@ def compute_effective_size(
         if not isinstance(result, UnavailableEffectiveSize):
             payload["expected"] = expected.get(name)
         out[name] = payload
+    # pedigree-graph < 0.9 ships two pre-ADR-0012 estimators the expectations
+    # above no longer describe, and attaching one would fail the ±20 %
+    # validator: Ne_iΔF's 1/(t−1) exponent already absorbs the founder-boundary
+    # lag theoretical_expectations now corrects for, and Ne_LTC reports
+    # 1/(2·Σc²), four times below Wray & Thompson eq. 31.  Each record is its
+    # own version signal — only the corrected estimator carries the field named
+    # beside it.  Delete this loop when the pedigree-graph floor moves to 0.9.
+    for name, field_added_in_0_9 in (
+        ("ne_individual_delta_f", "ne_unrelated_founders"),
+        ("ne_long_term_contributions", "n_effective_founders"),
+    ):
+        payload = out[name]
+        if "expected" in payload and field_added_in_0_9 not in payload:
+            payload["expected"] = None
     return out
 
 

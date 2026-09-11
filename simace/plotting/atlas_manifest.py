@@ -598,8 +598,11 @@ EFFECTIVE_SIZE_ATLAS: tuple[AtlasItem, ...] = (
         body=(
             "Per-rep aggregate Ne for all eight estimators on a log y-axis. Blue dots show "
             "per-replicate values. Orange dashed lines show closed-form expectations from "
-            "theoretical_expectations() where defined: Ne_V for Ne_V, Ne_iΔF, and Ne_H; N for "
-            "Ne_sr; Ne_V/2 for Ne_LTC. The regression estimators Ne_I, Ne_C, and Ne_CT get an "
+            "theoretical_expectations() where defined: Ne_V for Ne_V and Ne_H; Ne_V·t/(t−1) for "
+            "Ne_iΔF, whose last-cohort reference has drifted one generation fewer than its "
+            "pedigree is deep; N for "
+            "Ne_sr; the harmonic mean of N and Ne_V for Ne_LTC, which Wray & Thompson eq. 31 "
+            "puts at 4N/(2+V(k)) against Ne_V's 2N/V(k). The regression estimators Ne_I, Ne_C, and Ne_CT get an "
             "expected line only when N·G² is large enough for the Jensen bias to be small. Per-estimator mean "
             "± SD across reps is annotated above each column. Open markers below the axis "
             "mark reps that returned None (commonly Ne_LTC at G_ped=6). Subtitle reports the scenario header (N, λ, G_ped, "
