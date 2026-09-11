@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import yaml
-from pedigree_graph import PedigreeGraph, RelationshipCountResult
+from pedigree_graph import PedigreeGraph
 
 from simace.core.parquet import load_parquet, save_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE
@@ -200,7 +200,7 @@ def build_stats_report(
     t0 = time.perf_counter()
     pedigree: dict[str, Any] = {
         "family_size": compute_mean_family_size(df),
-        "relationship_pair_counts": dict(RelationshipCountResult.from_pairs(pairs)),
+        "relationship_pair_counts": {code: len(block) if block.requested else None for code, block in pairs.items()},
         "parent_status": compute_parent_status(df, df_ped),
     }
     if df_ped is not None and relationship_context.full_counts is not None:
