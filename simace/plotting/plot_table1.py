@@ -218,8 +218,10 @@ def build_table1_summary(
     n_reps = len(all_stats)
     s0 = all_stats[0]
     n_ind = s0.get("n_individuals")
-    n_ped = s0.get("n_individuals_ped")
+    n_ped_val, n_ped_rng = _fmt_split([s.get("n_individuals_ped") for s in all_stats])
     n_gen = s0.get("n_generations")
+    n_gen_ped = s0.get("n_generations_ped")
+    gens = " / ".join(str(g) if g else "\u2014" for g in (n_gen_ped, n_gen))
 
     f_n = _sex_n(s0, "trait1")[0]
     m_n = _sex_n(s0, "trait1")[1]
@@ -271,8 +273,8 @@ def build_table1_summary(
 
     population_rows = [
         _value_range("Total phenotyped individuals, n", _fmt_int(n_ind)),
-        _value_range("Full pedigree individuals, n", _fmt_int(n_ped)),
-        _value_range("Generations observed", str(n_gen) if n_gen else "\u2014"),
+        _value_range("Full pedigree individuals, n", n_ped_val, n_ped_rng),
+        _value_range("Generations (pedigree / phenotyped)", gens),
         _value_range("Female, n (%)", _fmt_int(f_n), f_pct_str, subrow=True),
         _value_range("Male, n (%)", _fmt_int(m_n), m_pct_str, subrow=True),
         _value_range("Sampled individuals, n", sample_val, sample_rng, muted=not sample_active),

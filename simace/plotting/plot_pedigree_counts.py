@@ -23,6 +23,7 @@ from typing import Any
 
 import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
+import matplotlib.patheffects as mpatheffects
 import matplotlib.pyplot as plt
 
 from simace.core.relationships import DEFAULT_MAX_DEGREE
@@ -263,6 +264,8 @@ def plot_pedigree_relationship_counts(
     stats_key: str = "pair_counts",
     generations_label: str = "",
     max_degree: int = DEFAULT_MAX_DEGREE,
+    legend_below: bool = False,
+    legend_title: str | None = None,
 ) -> None:
     """Draw a proband-centric pedigree diagram with relationship pair counts.
 
@@ -275,6 +278,13 @@ def plot_pedigree_relationship_counts(
         max_degree: Extraction depth the run requested, named in the legend
             title.  Which codes count as computed comes from the data: the
             report maps an uncomputed code to ``None``.
+        legend_below: Put the colour key in one horizontal row under the
+            diagram instead of a block inside the top right, and tighten the x
+            range to match.  Default False keeps the atlas layout.
+        legend_title: Heading over the colour key.  Default None keeps
+            ``"Relationship (degree <= max_degree)"``, which tells a reader of
+            the atlas what the run extracted.  A presentation that has said so
+            elsewhere passes the bare word instead.
     """
     output_path = Path(output_path)
 
@@ -315,8 +325,35 @@ def plot_pedigree_relationship_counts(
         node_rel_color[node] = rel_colors[rel_name]
 
     # Create figure
+    # Poster panel 4 places this in a 246.87 mm cell. At 14 inches wide that
+    # is a 0.69 scale and the 10 pt node labels printed at 6.9 pt, the smallest
+    # type on the sheet. Sizes below are chosen so the printed result lands near
+    # the 12-13 pt the rest of the deck uses; the atlas copy gains the same.
+    # The x range runs past the pedigree so the inside legend clears it, and
+    # ``legend_below`` reclaims that column. 12.9 is a floor, not a preference:
+    # the second-cousin node sits at x = 12.0 and its symbol is a patch, so the
+    # axes clip it away if the range ends short, while its text label is not
+    # clipped and stays behind as a number with no node. 11.4 did exactly that.
+    #
+    # Widening past 12.9 is free but pointless. With the key in a row the saved
+    # width is set by the legend, not the drawing, so ``bbox_inches`` returns
+    # the same pixels for anything from 11.4 to 13.2; a wider range only packs
+    # the pedigree into them more tightly.
+    #
+    # Printed size has one lever here and it is not figsize. ``set_aspect
+    # ("equal")`` fixes the drawing's shape, so a larger figure adds margin that
+    # ``bbox_inches`` trims straight back off. A consumer pinning the image to a
+    # fixed width gets a bigger drawing only from a narrower aspect.
+    # Type scale. A narrower drawing is scaled up harder by a consumer that
+    # pins the image to a fixed width: 0.78 becomes 0.92 for the poster's
+    # 246.87 mm cell. Point sizes are absolute, so every label would print 18%
+    # larger while node spacing grew only 10%, and the 1C and 2C count labels
+    # ran together. Scaling type by the inverse holds printed sizes where the
+    # numbers below put them and gives the extra width to the gaps instead.
+    pt = 0.85 if legend_below else 1.0
+
     _fig, ax = plt.subplots(figsize=(14, 8))
-    ax.set_xlim(-3.0, 14.5)
+    ax.set_xlim(-3.0, 12.9 if legend_below else 14.5)
     ax.set_ylim(-0.5, 11.5)
     ax.set_aspect("equal")
     ax.set_axis_off()
@@ -324,7 +361,7 @@ def plot_pedigree_relationship_counts(
     title = "Pedigree Relationship Pair Counts"
     if generations_label:
         title += f"  ({generations_label})"
-    ax.set_title(title, fontsize=14, fontweight="bold", pad=16)
+    ax.set_title(title, fontsize=round(23 * pt), fontweight="bold", pad=16)
 
     # Generation labels
     for g, y in {0: 10.0, 1: 7.5, 2: 5.0, 3: 2.0}.items():
@@ -332,7 +369,7 @@ def plot_pedigree_relationship_counts(
             -2.7,
             y,
             f"Gen {g}",
-            fontsize=10,
+            fontsize=round(15 * pt),
             ha="center",
             va="center",
             fontstyle="italic",
@@ -374,7 +411,7 @@ def plot_pedigree_relationship_counts(
         px,
         py - NODE_RADIUS - 0.25,
         "Proband",
-        fontsize=12,
+        fontsize=round(19 * pt),
         ha="center",
         va="top",
         fontweight="bold",
@@ -397,28 +434,50 @@ def plot_pedigree_relationship_counts(
             nx + dx,
             ny + dy,
             label,
-            fontsize=10,
+            fontsize=round(18 * pt),
             ha=ha,
             va=va,
             color=color,
             fontweight="bold",
             zorder=5,
+            # A white halo, not a bbox. The dotted descent lines pass straight
+            # through the Father and Mother counts, and at this size that reads
+            # as a strikethrough; a box round every label would be worse.
+            path_effects=[mpatheffects.withStroke(linewidth=4, foreground="white")],
         )
 
     # Legend
-    handles = []
-    for n in RELATIONSHIP_ORDER:
-        if n in counts:
-            handles.append(mpatches.Patch(color=rel_colors[n], label=f"{n} ({counts[n]:,.0f})"))
-        else:
-            handles.append(mpatches.Patch(color=rel_colors[n], label=f"{n} (not computed)"))
-    ax.legend(
-        handles=handles,
-        loc="upper right",
-        fontsize=10,
-        title=f"Relationship (mean pairs, degree ≤ {max_degree})",
-        title_fontsize=11,
-    )
+    # A colour key, nothing more. Every count is printed beside its own node, so
+    # repeating them here bought nothing and made the legend wide enough to grow
+    # into the pedigree. The "not computed" suffix stays: it is the one thing the
+    # legend can say that a missing number cannot, and it appears only when a
+    # code falls outside the requested degree.
+    handles = [
+        mpatches.Patch(color=rel_colors[n], label=n if n in counts else f"{n} (not computed)")
+        for n in RELATIONSHIP_ORDER
+    ]
+    key_title = f"Relationship (degree ≤ {max_degree})" if legend_title is None else legend_title
+    if legend_below:
+        ax.legend(
+            handles=handles,
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.02),
+            ncol=10,
+            fontsize=round(15 * pt),
+            title=key_title,
+            title_fontsize=round(16 * pt),
+            frameon=False,
+            columnspacing=1.1,
+            handletextpad=0.4,
+        )
+    else:
+        ax.legend(
+            handles=handles,
+            loc="upper right",
+            fontsize=round(15 * pt),
+            title=key_title,
+            title_fontsize=round(16 * pt),
+        )
 
     # Population metadata annotation
     if stats_key == "pair_counts_ped":
@@ -430,15 +489,15 @@ def plot_pedigree_relationship_counts(
 
     footer_parts = [f"Mean across {n_reps} replicate{'s' if n_reps != 1 else ''}"]
     if mean_n_gen is not None:
-        footer_parts.append(f"{int(mean_n_gen)} generations")
+        footer_parts.append(f"{round(mean_n_gen)} generations")
     if mean_n_ind is not None:
-        footer_parts.append(f"{int(mean_n_ind):,} individuals")
+        footer_parts.append(f"{round(mean_n_ind):,} individuals")
     ax.text(
         0.99,
         0.01,
         "  |  ".join(footer_parts),
         transform=ax.transAxes,
-        fontsize=9,
+        fontsize=round(13 * pt),
         ha="right",
         va="bottom",
         color="grey",
