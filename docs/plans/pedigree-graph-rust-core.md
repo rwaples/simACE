@@ -8,7 +8,7 @@ as amended by ADR 0010 (the relationship engine streams rows and saturates
 multiplicity at two) and ADR 0011 (the scalar estimate's exact set). Implementation
 has begun; see "Current state" below. Supersedes `plans/pedigree-graph-rust-core.md`.
 
-## Current state (2026-09-09)
+## Current state (2026-09-16)
 
 0.8.0 is tagged and published, so the pure-Python API redesign of ADR 0006 is done
 and every consumer resolves the released wheel rather than a routed checkout.
@@ -53,8 +53,19 @@ amended 2026-09-09), always on, so `count_pairs`, `pgr-count`, and the parity fi
 now carry the published counts. The boundary is one free function over the facade's
 five borrowed columns plus a boolean row mask for views; nothing native persists. The
 matrix engine remains the live oracle (`tests/test_native_relationship_counts.py`)
-until the pair slice deletes it. 11 publishes 0.8.3; the estimator is untouched
-(its removal is a later decision with the 2M/20M numbers in the slice plan).
+until the pair slice deletes it. 11 publishes 0.8.3.
+
+Two prerequisite steps closed after 0.8.3 without a slice plan (recorded 2026-09-16).
+The BFS engine is gone: `f743e62` (2026-09-10, in the v0.8.4 tag) removed the
+experimental Python BFS relationship engine, its kernel, tests, docs, and metadata,
+and issue #7 is closed. The streaming estimator was retired rather than ported:
+`9d20811` (2026-09-12, after v0.8.4, refs #17) replaced
+`estimate_relationship_counts` with `close_relative_counts()`, which computes only
+the six exact close-relative categories (MZ, MO, FO, FS, MHS, PHS) and drops the
+degree selector, approximate formulas, clamping warnings, and adjacency-power
+lifecycle; `RelationshipCountResult` lost `approximate` and `clamped`. Callers that
+need every category use the native `relationship_counts`. So there is no estimator
+left to port, and the next open step is the relationship-pair engine.
 
 The older matrix pair-engine spike remains evidence only. It is committed on branch
 `rust-spike` in `external/pedigree-graph-rust-spike` at `659aa0c`, one commit off
@@ -594,17 +605,18 @@ release time rather than baked into this plan.
 3. Switch to Maturin and Cargo-authoritative versioning after all scaffold gates pass.
 4. Delete replaced Python validation, ID remapping, and depth-construction code.
 
-### 0.8.x — remove BFS before relationship migration
+### 0.8.x — remove BFS before relationship migration (done, 0.8.4)
 
-Resolve issue #7. Delete the experimental BFS engine, kernel, tests, documentation, and
-BFS-only relationship metadata. Do not adapt it to Rust-owned adjacency state. Numba
-remains until the other production kernels migrate.
+Resolved issue #7 in `f743e62`: the experimental BFS engine, kernel, tests,
+documentation, and BFS-only relationship metadata are deleted. Numba remains until the
+other production kernels migrate.
 
-### 0.8.x — streaming relationship-count estimator
+### 0.8.x — streaming relationship-count estimator (done, superseded)
 
-Port the estimator and its structured precision/clamping result before deleting shared
-Python/SciPy adjacency powers. Preserve exact/approximate category behavior and add one
-host warning per clamped call.
+Not ported. `9d20811` replaced the estimator with the exact `close_relative_counts()`
+(six close-relative categories, no approximation, no clamping), so the shared
+Python/SciPy adjacency powers are now held only by the Python pair extractor and go
+with it in the relationship-pair slice.
 
 ### 0.8.x — relationship-pair engine
 
