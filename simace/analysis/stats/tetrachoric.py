@@ -10,7 +10,12 @@ from typing import Any
 
 import numpy as np
 
-from simace.core._numba_utils import _ndtri_approx, _norm_cdf, _pearsonr_core, _tetrachoric_core
+from simace.core._numba_utils import (
+    _ndtri_approx,
+    _norm_cdf,
+    _pearsonr_core,
+    _tetrachoric_core,
+)
 from simace.core.numerics import as_kernel_input
 
 logger = logging.getLogger(__name__)

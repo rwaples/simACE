@@ -20,7 +20,6 @@ from simace.analysis.stats.correlations import (
     compute_observed_h2_estimators,
     compute_tetrachoric,
 )
-from simace.core._numba_utils import _ndtri_approx, _norm_cdf, _tetrachoric_nll
 from simace.core.relationships import RELATIONSHIP_TYPES
 from tests.conftest import pedigree_frame
 
@@ -40,26 +39,6 @@ def _well_conditioned(values: np.ndarray) -> bool:
     """
     scale = max(1.0, float(np.max(np.abs(values))))
     return float(values.max() - values.min()) > 1e-8 * scale
-
-
-def _tetrachoric_nll_at(left: np.ndarray, right: np.ndarray, r: float) -> float:
-    """Negative log-likelihood of ``r`` for the 2x2 table formed by two binary arrays."""
-    t_a = float(_ndtri_approx(1.0 - left.mean()))
-    t_b = float(_ndtri_approx(1.0 - right.mean()))
-    return float(
-        _tetrachoric_nll(
-            r,
-            t_a,
-            t_b,
-            _norm_cdf(t_a),
-            _norm_cdf(t_b),
-            t_a > 1e-15 and t_b > 1e-15,
-            float((left & right).sum()),
-            float((left & ~right).sum()),
-            float((~left & right).sum()),
-            float((~left & ~right).sum()),
-        )
-    )
 
 
 def _empty_pairs() -> dict[str, tuple[np.ndarray, np.ndarray]]:
@@ -158,37 +137,14 @@ class TestPairCorrelations:
             assert fn(frame, pairs=pairs) == fn(frame, pairs=swapped)
 
     @given(case=_frame_and_pairs(min_pairs=_MIN_PAIRS))
-    def test_tetrachoric_pair_swap_reaches_the_same_likelihood(self, case):
-        """Swapping the pair sides finds an equally optimal ``r``, not the same ``r``.
-
-        The tetrachoric likelihood *is* symmetric under transposing the 2x2
-        table (measured agreement 2.0e-09 over a 20_001-point ``r`` grid), but
-        near ``|r| = 1`` it is flat out to the ``+-0.999`` bracket edge, and
-        Brent stops at different points on that plateau — measured worst
-        ``|dr| = 1.48e-02``.  Asserting equal ``r`` would be asserting which
-        arbitrary point an optimizer lands on.  What is actually invariant, and
-        what this asserts, is that both answers attain the same likelihood:
-        measured worst 1.24e-13 absolute over this domain (seed 20260825,
-        28_757 swapped pairs).  Structure — the pair count and the
-        None-vs-value pattern — is exact.
-        """
+    def test_tetrachoric_pair_swap_symmetry(self, case):
+        """Swapping unordered pair sides leaves tetrachoric results unchanged."""
         frame, pairs, active = case
         idx1, idx2 = pairs[active]
         forward = compute_tetrachoric(frame, pairs=pairs)
         reverse = compute_tetrachoric(frame, pairs={**pairs, active: (idx2, idx1)})
 
-        for trait in (1, 2):
-            values = frame[f"affected{trait}"].to_numpy().astype(bool)
-            got, swapped_got = forward[f"trait{trait}"][active], reverse[f"trait{trait}"][active]
-            assert got["n_pairs"] == swapped_got["n_pairs"]
-            assert (got["r"] is None) == (swapped_got["r"] is None)
-            if got["r"] is None:
-                continue
-            left, right = values[idx1], values[idx2]
-            assert (
-                abs(_tetrachoric_nll_at(left, right, got["r"]) - _tetrachoric_nll_at(left, right, swapped_got["r"]))
-                < 1e-10
-            )
+        assert forward == reverse
 
     @given(case=_frame_and_pairs(min_pairs=_MIN_PAIRS), data=st.data())
     def test_row_permutation_invariance(self, case, data):

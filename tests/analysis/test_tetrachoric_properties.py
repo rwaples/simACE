@@ -2,24 +2,17 @@
 
 Tetrachoric correlation is symmetric and equivariant under affection relabeling:
 ``r(a,b)==r(b,a)``, ``r(~a,~b)==r(a,b)``, ``r(~a,b)==-r(a,b)``, with
-``-1<=r<=1``. The relabeling identities flip the sign of the probit thresholds,
-forcing the *other* of the two internal branches (Owen's-T p00 vs BVN-CDF), so
-they cross-check that the two code paths agree — something no symmetric
-hand-picked table (equal prevalences hit only one branch) can demonstrate.
+``-1<=r<=1``. The estimator canonicalizes equivalent contingency tables before
+optimization, so these identities must remain exact even when the likelihood is
+flat near the correlation bracket.
 """
 
 import numpy as np
-import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 from scipy.special import ndtri
 
 from simace.analysis.stats.tetrachoric import tetrachoric_corr
-
-# Brent's bounded minimizer resolves the tetrachoric MLE to ~1e-4 where the
-# likelihood has curvature; this catches sign errors (~2r off) and cross-branch
-# divergence while tolerating that residual optimizer noise.
-_ABS = 1e-3
 
 
 @st.composite
@@ -53,9 +46,6 @@ def test_tetrachoric_symmetry_relabel_bounds(ab):
     assume(not np.isnan(r))
 
     assert -1.0 - 1e-9 <= r <= 1.0 + 1e-9
-    # the algebraic identities are exact, but the MLE only resolves them tightly
-    # away from the flat-likelihood region near the +/-0.999 clamp
-    assume(abs(r) <= 0.9)
-    assert tetrachoric_corr(b, a) == pytest.approx(r, abs=_ABS)
-    assert tetrachoric_corr(~a, ~b) == pytest.approx(r, abs=_ABS)
-    assert tetrachoric_corr(~a, b) == pytest.approx(-r, abs=_ABS)
+    assert tetrachoric_corr(b, a) == r
+    assert tetrachoric_corr(~a, ~b) == r
+    assert tetrachoric_corr(~a, b) == -r

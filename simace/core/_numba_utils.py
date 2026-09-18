@@ -273,8 +273,72 @@ def _tetrachoric_nll_python(r, t_a, t_b, phi_ta, phi_tb, both_positive, n11, n10
     return -(n11 * lp11 + n10 * lp10 + n01 * lp01 + n00 * lp00)
 
 
+def _canonicalize_tetrachoric_table_python(n11, n10, n01, n00):
+    """Choose one 2x2-table orientation across swaps and binary relabelings.
+
+    Swapping the variables or complementing both leaves tetrachoric correlation
+    unchanged; complementing exactly one variable reverses its sign. A flat
+    likelihood near the correlation bracket can make numerically equivalent
+    table orientations stop at different points, so optimize only the
+    lexicographically greatest orientation and restore the sign afterwards.
+    """
+    tables = np.empty((8, 4), dtype=np.float64)
+    tables[0] = (n00, n01, n10, n11)
+    tables[1] = (n00, n10, n01, n11)
+    tables[2] = (n11, n10, n01, n00)
+    tables[3] = (n11, n01, n10, n00)
+    tables[4] = (n10, n11, n00, n01)
+    tables[5] = (n10, n00, n11, n01)
+    tables[6] = (n01, n00, n11, n10)
+    tables[7] = (n01, n11, n00, n10)
+
+    best = 0
+    ambiguous_sign = False
+    for candidate in range(1, 8):
+        greater = False
+        equal = True
+        for cell in range(4):
+            if tables[candidate, cell] > tables[best, cell]:
+                greater = True
+                equal = False
+                break
+            if tables[candidate, cell] < tables[best, cell]:
+                equal = False
+                break
+        if greater:
+            best = candidate
+            ambiguous_sign = False
+        elif equal and (candidate < 4) != (best < 4):
+            ambiguous_sign = True
+
+    if ambiguous_sign:
+        sign = 0.0
+    elif best < 4:
+        sign = 1.0
+    else:
+        sign = -1.0
+    return (
+        tables[best, 3],
+        tables[best, 2],
+        tables[best, 1],
+        tables[best, 0],
+        sign,
+    )
+
+
 def _tetrachoric_core_python(n11, n10, n01, n00, t_a, t_b, phi_ta, phi_tb):
     """Full tetrachoric correlation + SE via MLE. Returns (r, se)."""
+    n11, n10, n01, n00, result_sign = _canonicalize_tetrachoric_table(n11, n10, n01, n00)
+    n_pairs = n11 + n10 + n01 + n00
+    # Derive thresholds again after canonicalization. Reusing transformed
+    # approximations would reintroduce small relabeling differences because
+    # ``ndtri(1 - p)`` is not bit-exactly ``-ndtri(p)``.
+    p_a = (n11 + n10) / n_pairs
+    p_b = (n11 + n01) / n_pairs
+    t_a = _ndtri_approx(1.0 - p_a)
+    t_b = _ndtri_approx(1.0 - p_b)
+    phi_ta = _norm_cdf(t_a)
+    phi_tb = _norm_cdf(t_b)
     both_pos = t_a > 1e-15 and t_b > 1e-15
 
     # Brent's bounded minimization inlined for tetrachoric NLL
@@ -338,11 +402,14 @@ def _tetrachoric_core_python(n11, n10, n01, n00, t_a, t_b, phi_ta, phi_tb):
     r = x
     if r != r:  # NaN check
         return np.nan, np.nan
+    if result_sign == 0.0:
+        r = 0.0
+    reported_r = result_sign * r if result_sign != 0.0 else r
 
     # SE from Fisher information
     one_minus_r2 = 1.0 - r * r
     if one_minus_r2 <= 0:
-        return r, np.nan
+        return reported_r, np.nan
 
     bvn_pdf = (
         _INV_2PI
@@ -364,19 +431,17 @@ def _tetrachoric_core_python(n11, n10, n01, n00, t_a, t_b, phi_ta, phi_tb):
     p10 = phi_tb - p00
     p11 = 1.0 - p00 - p01 - p10
     denom = p00 * p01 * p10 * p11
-    n_pairs = n11 + n10 + n01 + n00
     if denom <= 0:
-        return r, np.nan
+        return reported_r, np.nan
     # A table with an empty off-diagonal cell drives r to the +-0.999 bracket
     # edge, where the bivariate-normal density underflows to exactly 0 and the
-    # Fisher information vanishes. The point estimate is still meaningful; only
-    # its SE is unidentifiable, so report it the same way as the two guards
-    # above rather than dividing by zero.
+    # Fisher information vanishes. The canonical table orientation keeps the
+    # point estimate invariant, but its SE remains unidentifiable.
     fisher = n_pairs * bvn_pdf * bvn_pdf / denom
     if fisher <= 0.0:
-        return r, np.nan
+        return reported_r, np.nan
     se = 1.0 / math.sqrt(fisher)
-    return r, se
+    return reported_r, se
 
 
 # ---------------------------------------------------------------------------
@@ -396,6 +461,7 @@ _owens_t = _owens_t_python
 _bvn_pos = _bvn_pos_python
 _bvn_cdf = _bvn_cdf_python
 _tetrachoric_nll = _tetrachoric_nll_python
+_canonicalize_tetrachoric_table = _canonicalize_tetrachoric_table_python
 _tetrachoric_core = _tetrachoric_core_python
 
 if njit is not None:
@@ -424,4 +490,5 @@ if njit is not None:
     _tetrachoric_nll = njit(cache=True)(_tetrachoric_nll_python)
 
     # Tier 6: depends on _tetrachoric_nll, _owens_t, _bvn_cdf
+    _canonicalize_tetrachoric_table = njit(cache=True)(_canonicalize_tetrachoric_table_python)
     _tetrachoric_core = njit(cache=True)(_tetrachoric_core_python)

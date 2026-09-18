@@ -94,3 +94,17 @@ class TestTetrachoricCorrSE:
         b = z[:, 1] > norm.ppf(0.6)
         r, _se = tetrachoric_corr_se(a, b)
         assert abs(r - r_true) < 0.1
+
+    def test_saturated_table_is_invariant_to_orientation_and_relabeling(self):
+        """Equivalent forms of a boundary table return the same estimate."""
+        a = np.r_[np.ones(1, dtype=bool), np.zeros(71, dtype=bool)]
+        b = np.r_[np.ones(37, dtype=bool), np.zeros(35, dtype=bool)]
+
+        r, se = tetrachoric_corr_se(a, b)
+
+        assert tetrachoric_corr(b, a) == r
+        assert tetrachoric_corr(~a, ~b) == r
+        assert tetrachoric_corr(~b, ~a) == r
+        assert tetrachoric_corr(~a, b) == -r
+        assert tetrachoric_corr(a, ~b) == -r
+        assert np.isnan(se)
