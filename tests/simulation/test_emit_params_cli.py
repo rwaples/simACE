@@ -25,6 +25,8 @@ MINIMAL_CFG = {
     "p_mztwin": 0.02,
     "assort1": 0.1,
     "assort2": 0.0,
+    "max_degree": 5,
+    "skip_ne_coancestry": False,
 }
 
 
@@ -69,6 +71,8 @@ def test_cli_round_trip(tmp_path, monkeypatch):
         "p_mztwin",
         "assort1",
         "assort2",
+        "max_degree",
+        "skip_ne_coancestry",
     }
     assert required.issubset(params.keys())
     assert isinstance(params["simace_version"], str)
@@ -78,6 +82,8 @@ def test_cli_round_trip(tmp_path, monkeypatch):
     assert params["N"] == MINIMAL_CFG["N"]
     assert params["mating_model"] == "standard"
     assert params["assort1"] == pytest.approx(0.1)
+    assert params["max_degree"] == 5
+    assert params["skip_ne_coancestry"] is False
     # assort_matrix omitted when absent from config
     assert "assort_matrix" not in params
 

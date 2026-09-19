@@ -29,6 +29,8 @@ def baseline_kwargs() -> dict:
         "p_mztwin": 0.02,
         "assort1": 0.0,
         "assort2": 0.0,
+        "max_degree": 5,
+        "skip_ne_coancestry": False,
     }
 
 
@@ -55,6 +57,8 @@ class TestEmitParamsShape:
             "p_mztwin",
             "assort1",
             "assort2",
+            "max_degree",
+            "skip_ne_coancestry",
             "simace_version",
         }
         assert set(out.keys()) == expected

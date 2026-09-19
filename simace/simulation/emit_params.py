@@ -1,9 +1,10 @@
-"""Echo simulation scenario parameters to a YAML sidecar.
+"""Echo scenario parameters to a YAML sidecar.
 
 Snakemake's ``simulate`` rule writes ``pedigree.full.parquet``;
-downstream rules (``validate``, ``stats``, ``assemble_atlas``) consume
-``params.yaml`` for scenario provenance.  ``params.yaml`` is purely an
-echo of the scenario config — no computation; ``run_simulation`` does
+downstream rules (``validate``, ``stats``, ``effective_size``, and
+``assemble_atlas``) consume
+``params.yaml`` for scenario provenance. ``params.yaml`` is an echo of the
+scenario config, with no computation. ``run_simulation`` does
 not need to produce it — so it lives in its own rule and uses the same
 ``run_wrapper`` seam as every other stage.
 
@@ -22,6 +23,7 @@ import argparse
 from typing import Any
 
 import simace
+from simace.core.relationships import DEFAULT_MAX_DEGREE
 
 
 def emit_params(
@@ -45,6 +47,8 @@ def emit_params(
     p_mztwin: float,
     assort1: float,
     assort2: float,
+    max_degree: int = DEFAULT_MAX_DEGREE,
+    skip_ne_coancestry: bool = True,
     assort_matrix: list[list[float]] | None = None,
 ) -> dict[str, Any]:
     """Build the params.yaml dict for a single replicate.
@@ -74,6 +78,9 @@ def emit_params(
         p_mztwin: MZ twin probability.
         assort1: trait-1 assortative-mating correlation.
         assort2: trait-2 assortative-mating correlation.
+        max_degree: Maximum relationship degree extracted by Analyze.
+        skip_ne_coancestry: Whether the effective-size stage skips the
+            coancestry-rate estimator.
         assort_matrix: optional 2x2 correlation matrix; included in the
             dict only when not ``None``.
 
@@ -104,6 +111,8 @@ def emit_params(
         "p_mztwin": p_mztwin,
         "assort1": assort1,
         "assort2": assort2,
+        "max_degree": max_degree,
+        "skip_ne_coancestry": skip_ne_coancestry,
         "simace_version": simace.__version__,
     }
     if assort_matrix is not None:
@@ -146,6 +155,8 @@ def cli() -> None:
         p_mztwin=cfg["p_mztwin"],
         assort1=cfg.get("assort1", 0.0),
         assort2=cfg.get("assort2", 0.0),
+        max_degree=cfg.get("max_degree", DEFAULT_MAX_DEGREE),
+        skip_ne_coancestry=cfg.get("skip_ne_coancestry", True),
         assort_matrix=cfg.get("assort_matrix"),
     )
     dump_yaml(params, args.output, sort_keys=True)

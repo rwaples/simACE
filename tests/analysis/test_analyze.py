@@ -72,7 +72,7 @@ def analyze_data():
         death_scale=164,
         death_rho=2.73,
     )
-    params = {**_SIM_PARAMS, "rE": 0.0}
+    params = {**_SIM_PARAMS, "rE": 0.0, "skip_ne_coancestry": False}
     return pedigree, censored, params
 
 
@@ -215,3 +215,5 @@ class TestRunAnalysis:
         assert gen1["A1_cov_C"] is not None
         assert gen1["A1_cov_E"] is not None
         assert view["parameters"].get("A1") is not None
+        assert view["parameters"]["max_degree"] == 2
+        assert view["parameters"]["skip_ne_coancestry"] is False

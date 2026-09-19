@@ -64,6 +64,8 @@ rule emit_params:
         p_mztwin=lambda w: get_param(config, w.scenario, "p_mztwin"),
         assort1=lambda w: get_param(config, w.scenario, "assort1"),
         assort2=lambda w: get_param(config, w.scenario, "assort2"),
+        max_degree=lambda w: get_param(config, w.scenario, "max_degree"),
+        skip_ne_coancestry=lambda w: get_param(config, w.scenario, "skip_ne_coancestry"),
         assort_matrix=lambda w: get_param(config, w.scenario, "assort_matrix"),
     script:
         "../../scripts/simace/emit_params.py"

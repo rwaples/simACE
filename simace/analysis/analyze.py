@@ -100,6 +100,9 @@ def run_analysis(
         The assembled v2 report dict, for in-process callers and tests.
     """
     params = load_yaml(params_path)
+    # Record the value this Analyze invocation used. Reports regenerated from
+    # older params.yaml files then remain self-describing.
+    params["max_degree"] = max_degree
     scope_counts: dict[str, Any] = {}
 
     # --- Phase 1: Validate (full, pre-ascertainment recorded pedigree) ---

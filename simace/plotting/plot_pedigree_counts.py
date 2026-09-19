@@ -263,7 +263,7 @@ def plot_pedigree_relationship_counts(
     scenario: str = "",
     stats_key: str = "pair_counts",
     generations_label: str = "",
-    max_degree: int = DEFAULT_MAX_DEGREE,
+    max_degree: int | None = DEFAULT_MAX_DEGREE,
     legend_below: bool = False,
     legend_title: str | None = None,
 ) -> None:
@@ -275,9 +275,10 @@ def plot_pedigree_relationship_counts(
         scenario: Scenario name for the title.
         stats_key: Key in stats dict to read pair counts from.
         generations_label: Label appended to title (e.g. "G_ped = 6").
-        max_degree: Extraction depth the run requested, named in the legend
-            title.  Which codes count as computed comes from the data: the
-            report maps an uncomputed code to ``None``.
+        max_degree: Extraction depth recorded by the run, named in the legend
+            title. If None, omit the depth claim for a legacy artifact. Which
+            codes count as computed comes from the data: the report maps an
+            uncomputed code to ``None``.
         legend_below: Put the colour key in one horizontal row under the
             diagram instead of a block inside the top right, and tighten the x
             range to match.  Default False keeps the atlas layout.
@@ -456,7 +457,10 @@ def plot_pedigree_relationship_counts(
         mpatches.Patch(color=rel_colors[n], label=n if n in counts else f"{n} (not computed)")
         for n in RELATIONSHIP_ORDER
     ]
-    key_title = f"Relationship (degree ≤ {max_degree})" if legend_title is None else legend_title
+    if legend_title is None:
+        key_title = "Relationship" if max_degree is None else f"Relationship (degree ≤ {max_degree})"
+    else:
+        key_title = legend_title
     if legend_below:
         ax.legend(
             handles=handles,

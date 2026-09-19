@@ -211,6 +211,8 @@ def test_emit_params_wrapper(tmp_path):
             "p_mztwin": 0.02,
             "assort1": 0.0,
             "assort2": 0.0,
+            "max_degree": 5,
+            "skip_ne_coancestry": False,
             "assort_matrix": None,
         },
         log_path=tmp_path / "emit_params.log",
@@ -224,6 +226,8 @@ def test_emit_params_wrapper(tmp_path):
     assert loaded["seed"] == 42
     assert loaded["rep"] == 1
     assert loaded["E1"] == 0.3
+    assert loaded["max_degree"] == 5
+    assert loaded["skip_ne_coancestry"] is False
     assert "assort_matrix" not in loaded
 
 

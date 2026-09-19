@@ -42,7 +42,6 @@ rule plot_phenotype:
     params:
         censor_age=lambda w: get_param(config, w.scenario, "censor_age"),
         gen_censoring=lambda w: get_param(config, w.scenario, "gen_censoring"),
-        max_degree=lambda w: get_param(config, w.scenario, "max_degree"),
         plot_format=lambda w: config["defaults"].get("plot_format", "png"),
     script:
         "../../scripts/simace/plot_phenotype.py"
@@ -80,7 +79,8 @@ def _scenario_atlas_inputs(w):
 # Config keys passed via the `meta` param and merged onto rep1/params.yaml in
 # the script. `scenario` (a wildcard) and `plot_format` (a config default) are
 # added separately below.  PR3: prevalence lives inside phenotype_params{N},
-# which the atlas's plot_pipeline reads directly.
+# which the atlas's plot_pipeline reads directly. max_degree is deliberately
+# absent: rep1/params.yaml owns the extraction depth recorded in the atlas.
 _SCENARIO_ATLAS_PARAM_KEYS = (
     "replicates",
     "folder",
@@ -101,7 +101,6 @@ _SCENARIO_ATLAS_PARAM_KEYS = (
     "N_sample",
     "dropout_rate",
     "case_ascertainment_ratio",
-    "max_degree",
 )
 
 

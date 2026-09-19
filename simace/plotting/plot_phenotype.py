@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from simace.core.parquet import load_parquet
-from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_am_equilibrium import plot_am_equilibrium
 from simace.plotting.plot_correlations import (
@@ -86,7 +85,7 @@ class RenderContext:
     subsample_note: str
     params: dict  # resolved scenario parameters; drives reference lines
     gen_censoring: dict[int, list[float]] | None
-    max_degree: int
+    max_degree: int | None
 
 
 @dataclass(frozen=True)
@@ -110,6 +109,24 @@ def _render_censoring(ctx: RenderContext, path: Path) -> None:
         plot_censoring_windows(ctx.all_stats, path, ctx.scenario, gen_censoring=ctx.gen_censoring)
     else:
         save_placeholder_plot(path, "No censoring windows configured")
+
+
+def _resolve_artifact_max_degree(all_stats: list[dict]) -> int | None:
+    """Return the relationship depth recorded by every replicate report.
+
+    Legacy reports omit ``max_degree``. They remain plottable, but the legend
+    must not claim a depth that the artifact cannot prove.
+    """
+    values = [(stats.get("parameters") or {}).get("max_degree") for stats in all_stats]
+    recorded = [int(value) for value in values if value is not None]
+    if not recorded:
+        return None
+    if len(recorded) != len(values):
+        raise ValueError("Replicate reports mix recorded and missing max_degree values")
+    unique = set(recorded)
+    if len(unique) != 1:
+        raise ValueError(f"Replicate reports disagree on max_degree: {sorted(unique)}")
+    return unique.pop()
 
 
 # Ordered registry binding each phenotype basename to its renderer. Adding a
@@ -318,7 +335,6 @@ def main(
     censor_age: float,
     gen_censoring: dict[int, list[float]] | None = None,
     plot_ext: str = "png",
-    max_degree: int = DEFAULT_MAX_DEGREE,
 ) -> None:
     """Generate all phenotype plots from pre-computed combined reports."""
     out_dir = Path(output_dir)
@@ -332,6 +348,7 @@ def main(
     reports = [load_yaml(p) for p in report_paths]
     payloads = [load_yaml(p) for p in plot_payload_paths]
     all_stats = plotting_report_views(reports, payloads)
+    max_degree = _resolve_artifact_max_degree(all_stats)
 
     df_samples = pl.concat([load_parquet(p) for p in sample_paths], how="vertical")
     subsample_note = ""

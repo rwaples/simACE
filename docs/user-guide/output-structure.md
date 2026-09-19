@@ -117,8 +117,10 @@ phenotyped individual. `trait.parquet` covers the sampled individuals.
 A flat mapping of the parameters this replicate ran with. Keys at this commit:
 `seed`, `rep`, `N`, `G_ped`, `G_sim`, `A1`, `C1`, `E1`, `A2`, `C2`, `E2`,
 `rA`, `rC`, `rE`, `mating_model`, `mating_lambda`, `p_mztwin`, `assort1`,
-`assort2`, and `simace_version`. `seed` is the base seed plus `rep - 1`. To
-list the keys, run:
+`assort2`, `max_degree`, `skip_ne_coancestry`, and `simace_version`.
+`max_degree` and `skip_ne_coancestry` record the analysis controls that apply
+to the replicate. `seed` is the base seed plus `rep - 1`. To list the keys,
+run:
 
 ```bash
 grep -o '^[a-zA-Z_0-9]*' results/test/small_test/rep1/params.yaml
