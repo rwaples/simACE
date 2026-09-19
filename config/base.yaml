@@ -4,6 +4,22 @@ baseline10K:
 baseline100K:
   seed: 2042
   N: 100000
+  # Degree 5 rather than the default 3, so the 2C slot in the pedigree_counts
+  # figures carries a count instead of "not computed" (2C is degree 5, see
+  # pedigree_graph RELATIONSHIPS). Everything from degree 4 up reports 0 under
+  # the default gate, and the plot correctly renders that as uncomputed rather
+  # than as an absence of second cousins. Poster panel 4 draws this scenario.
+  #
+  # The analyze rule's mem_mb and runtime do NOT follow max_degree: they are
+  # N x G only (workflow/common.py _scale_mem / _scale_runtime), so this rule
+  # keeps the 4000 MB floor while asking for about 5.4x the pairs. That fits
+  # from pedigree-graph 0.9 on, whose engine costs less at degree 5 than 0.8
+  # did at degree 3 (benchmarks/bench_pair_emitters.md: random_300k degree 5,
+  # six threads, 539 MiB against 0.8.4's 2815 MiB). Scaled to this scenario's
+  # ~531k rows that is roughly 1 GB, against roughly 5 GB under 0.8 — over
+  # budget on a cluster. Raising max_degree elsewhere wants the same check.
+  analysis:
+    max_degree: 5
 baseline100K_sample5K:
   seed: 2042
   N: 100000
