@@ -83,6 +83,7 @@ nav:
       - Phenotype models: user-guide/phenotype-models.md
       - Adding a phenotype model: user-guide/adding-a-phenotype-model.md
       - Running the pipeline: user-guide/running-the-pipeline.md
+      - Benchmarking: user-guide/benchmarking.md
       - Ascertainment: user-guide/ascertainment.md
       - Output structure: user-guide/output-structure.md
       - Interpreting results: user-guide/interpreting-results.md

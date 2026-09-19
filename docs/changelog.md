@@ -8,6 +8,17 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
+### Performance benchmarks
+
+- Replaced the mutable shell benchmark scripts with
+  `pixi run python -m tools.benchmark`. Each invocation now writes an immutable,
+  schema-versioned run directory with git, environment, input, cache, ordering,
+  and thread provenance. The runner isolates memory sampling to its process
+  group and distinguishes GNU time, largest-process, and summed concurrent RSS.
+- Added compatible-run comparison with configurable wall-time and memory gates,
+  explicit warm and cold Numba-cache policies, seeded rotating scenario order,
+  a small and a release profile, and a manually dispatched smoke workflow.
+
 ### pedigree-graph 0.8
 
 - **Migrated to pedigree-graph 0.8** (`pedigree-graph>=0.8,<0.9`). Relationship

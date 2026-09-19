@@ -1,0 +1,146 @@
+# Performance benchmark: how simACE scales with pedigree size.
+#
+# One knob varies, N. Everything else is pinned so the points are comparable
+# rather than merely large. N is per generation, so each scenario is named for
+# the total across its 5 pedigree generations:
+#
+#     bench100K     20,000 x 5 =    100,000 individuals
+#     bench500K    100,000 x 5 =    500,000
+#     bench1M      200,000 x 5 =  1,000,000
+#     bench2M      400,000 x 5 =  2,000,000
+#     bench5M    1,000,000 x 5 =  5,000,000
+#     bench10M   2,000,000 x 5 = 10,000,000
+#     bench20M   4,000,000 x 5 = 20,000,000
+#
+# Seven points over a 200-fold range, roughly evenly spaced on a log axis, so
+# the sweep measures a scaling exponent rather than two endpoints and a line
+# drawn between them. The earlier bench200K is retired: it sat between the
+# first two points here and was not worth an eighth bar.
+#
+# G_sim equals G_ped, so there is no burn-in. Burn-in exists to settle
+# assortative mating, and there is none here; excluding it keeps the measured
+# work proportional to the retained pedigree.
+#
+# skip_ne_coancestry is true in all seven, not only the large ones. The
+# coancestry path measured max_rss 4722 MB at N=100K per generation with
+# G_ped=5 (workflow/common.py:113) and scales linearly in N, which puts
+# bench20M near 190 GB. Leaving it on for the small points and off for the
+# large ones would compare two different pipelines.
+#
+# Sizing. `analyze` holds the peak and fits 0.81 GB + 1.01 GB per million
+# individuals over the clean 2M-10M range, which puts bench20M near 21 GB.
+#
+# bench20M does NOT fit on a 30 GiB workstation and is excluded from the
+# figure. Measured 2026-09-11 with ~21 GB available: it completes, but pages
+# 9.4 GB out and 6.2 GB back in, MemAvailable floors at 2.5 GB, and analyze
+# takes 482 s against a ~292 s no-swap projection. Peak RSS reads 19.55 GB,
+# which is a floor rather than a peak, since swapped-out pages leave the RSS
+# the sampler sees. Run it only where ~25 GB is genuinely free; otherwise the
+# sweep tops out at bench10M, which needs 10.9 GB and 157 s.
+#
+# Run with `pixi run python -m tools.benchmark`, which measures isolated
+# process-group RSS. Snakemake's own benchmark TSVs sample on an interval and
+# can miss short peaks. See docs/user-guide/benchmarking.md.
+
+bench100K:
+  seed: 60001
+  N: 20000
+  G_ped: 5
+  G_sim: 5
+  G_pheno: 5
+  replicates: 1
+  analysis:
+    skip_ne_coancestry: true
+
+bench500K:
+  seed: 60002
+  N: 100000
+  G_ped: 5
+  G_sim: 5
+  G_pheno: 5
+  replicates: 1
+  analysis:
+    skip_ne_coancestry: true
+
+bench1M:
+  seed: 60003
+  N: 200000
+  G_ped: 5
+  G_sim: 5
+  G_pheno: 5
+  replicates: 1
+  analysis:
+    skip_ne_coancestry: true
+
+bench2M:
+  seed: 60004
+  N: 400000
+  G_ped: 5
+  G_sim: 5
+  G_pheno: 5
+  replicates: 1
+  analysis:
+    skip_ne_coancestry: true
+
+bench5M:
+  seed: 60005
+  N: 1000000
+  G_ped: 5
+  G_sim: 5
+  G_pheno: 5
+  replicates: 1
+  analysis:
+    skip_ne_coancestry: true
+
+bench10M:
+  seed: 60006
+  N: 2000000
+  G_ped: 5
+  G_sim: 5
+  G_pheno: 5
+  replicates: 1
+  analysis:
+    skip_ne_coancestry: true
+
+bench20M:
+  seed: 60007
+  N: 4000000
+  G_ped: 5
+  G_sim: 5
+  G_pheno: 5
+  replicates: 1
+  analysis:
+    skip_ne_coancestry: true
+
+# ── One-knob assortative-mating variant ─────────────────────────────────────
+# bench1M with the panel 7 mating parameters and nothing else changed, to price
+# the AM machinery. The values are `am_asym`'s (config/epimight_h2_bias.yaml:124):
+# within-trait spousal r of 0.25 and 0.40, cross-trait 0.21. The matrix diagonal
+# overrides the scalars (params.py:157), so all three are given and must agree.
+#
+# Nested blocks flatten to individual keys (simace/config.py:148), so this
+# overrides three keys and inherits every other pedigree default from bench1M.
+# That is the point: the delta against bench1M is the cost of AM alone.
+#
+# G_sim stays at 5, so there is no burn-in and the spousal correlation does not
+# reach its target. That is deliberate for a timing comparison -- burn-in would
+# price 12 extra generations of simulation, not the AM machinery. It also means
+# this scenario's *statistics* are not equilibrated and should not be read.
+#
+# Deliberately kept out of the scaling figure: it sits at 1M alongside bench1M
+# and both would draw as "1M". Run it into its own log directory:
+#   pixi run python -m tools.benchmark run --folder bench_scale \
+#     --scenarios bench1M bench1M_am
+bench1M_am:
+  seed: 60008
+  N: 200000
+  G_ped: 5
+  G_sim: 5
+  G_pheno: 5
+  replicates: 1
+  pedigree:
+    assort1: 0.25
+    assort2: 0.40
+    assort_matrix: [[0.25, 0.21], [0.21, 0.40]]
+  analysis:
+    skip_ne_coancestry: true

@@ -164,8 +164,9 @@ canonical.
 the folder. The columns come from `REPORT_SUMMARY_REGISTRY` in
 `simace/analysis/report_schema.py`. Each entry names a column and the path
 inside `report.yaml` that fills it. `folder`, `scenario`, and `rep` come from
-the file path. `simulate_seconds` and `simulate_max_rss_mb` come from the
-simulate benchmark. Read the registry for the full list.
+the file path. `simulate_seconds` and `simulate_max_rss_mb` come only from
+`simulate.tsv`; they do not describe the whole pipeline. Read the registry for
+the full list.
 
 ## Benchmarks
 
@@ -185,6 +186,10 @@ every benchmark path the rules declare:
 ```bash
 grep -rho 'benchmarks/[^"]*' workflow/rules/simace/*.smk | sort -u
 ```
+
+The reproducible benchmark driver copies these per-rule files into an immutable
+run directory and adds process-tree memory measurements. See
+[Benchmark pipeline performance](benchmarking.md).
 
 ## TSV exports
 

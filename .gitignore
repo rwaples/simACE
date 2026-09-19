@@ -84,8 +84,8 @@ skills-lock.json
 # Hypothesis property-based testing example database
 .hypothesis/
 
-# Benchmark run output (tools/bench_pipeline.sh). The scripts are tracked;
-# the measurements they produce are machine-local.
+# Immutable benchmark run directories (python -m tools.benchmark). The harness
+# is tracked; measurements remain machine-local or GitHub Actions artifacts.
 bench-logs/
 
 # Working plan drafts (design-interview output). Finalized plans are promoted

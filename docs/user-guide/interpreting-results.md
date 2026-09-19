@@ -54,5 +54,7 @@ observed values and orange dashes are the expected value.
 3. **`summary_bias`.** Confirm that every strip is centered on the red zero
    line. A strip
    that sits to one side is the scenario to investigate.
-4. **`runtime` and `memory`.** Confirm that both scale roughly linearly with
-   N on the log-log axes. A point off the line is a scenario worth profiling.
+4. **`runtime` and `memory`.** These pages measure only the `simulate` rule from
+   each replicate's `simulate.tsv`, not the whole pipeline. Confirm that both
+   scale roughly linearly with N on the log-log axes. A point off the line is a
+   scenario worth profiling.

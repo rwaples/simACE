@@ -92,8 +92,8 @@ scenario plots directory when the `effective_size` rule runs.
 | `heritability_estimates` | **Heritability estimates.** 2×2 grid, rows = traits 1 and 2. Left: Falconer's h² vs. configured A. Right: Midparent-offspring liability slope vs. configured A. |
 | `cross_trait_correlations` | **Cross-trait correlations.** 1×3 figure. Panel 1: Observed r_A vs. configured rA. Panel 2: Observed r_C vs. configured rC. Panel 3: Observed r_E with reference at 0 (theoretical independence). |
 | `summary_bias` | **Summary bias.** 2×3 grid of strip plots showing observed − expected for six metrics: A₁ bias, C₁ bias, E₁ bias, twin rate bias, Full-sibling A₁ correlation bias (vs. 0.5), half-sibling A₁ correlation bias (vs. 0.25). Red dashed reference line at 0 (no bias). |
-| `runtime` | **Simulation runtime.** Log-log scatter of population size N (x) vs. simulation wall-clock seconds (y), colored by scenario. |
-| `memory` | **Memory usage.** Log-log scatter of population size N (x) vs. peak resident set size in MB (y), colored by scenario. |
+| `runtime` | **Simulation runtime.** Log-log scatter of population size N (x) vs. the `simulate` rule's wall-clock seconds (y), colored by scenario. This is not whole-pipeline time. |
+| `memory` | **Simulation memory usage.** Log-log scatter of population size N (x) vs. the `simulate` rule's Snakemake-sampled peak resident memory in MB (y), colored by scenario. This is not whole-pipeline memory. |
 
 ## Effective-size atlas
 
