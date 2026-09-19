@@ -43,9 +43,18 @@ _COMPATIBILITY_PATHS: tuple[tuple[str, ...], ...] = (
 )
 
 
-def _get(data: dict[str, Any], path: tuple[str, ...]) -> Any:
+def _get(data: dict[str, Any], path: tuple[str, ...], source: str) -> Any:
+    """Read a provenance path, naming the manifest when the field is absent.
+
+    A manifest written by a different writer at the same SCHEMA_VERSION can be
+    missing a field, and a bare KeyError out of here reaches ``__main__`` as a
+    traceback, since only BenchmarkError is caught there.
+    """
     value: Any = data
-    for key in path:
+    for depth, key in enumerate(path):
+        if not isinstance(value, dict) or key not in value:
+            missing = ".".join(path[: depth + 1])
+            raise BenchmarkError(f"{source} manifest is missing the provenance field {missing!r}")
         value = value[key]
     return value
 
@@ -54,8 +63,8 @@ def compatibility_mismatches(baseline: BenchmarkRun, candidate: BenchmarkRun) ->
     """Describe critical provenance fields that differ."""
     mismatches: list[str] = []
     for path in _COMPATIBILITY_PATHS:
-        left = _get(baseline.manifest, path)
-        right = _get(candidate.manifest, path)
+        left = _get(baseline.manifest, path, "baseline")
+        right = _get(candidate.manifest, path, "candidate")
         if left != right:
             mismatches.append(f"{'.'.join(path)}: baseline={left!r}, candidate={right!r}")
     return mismatches

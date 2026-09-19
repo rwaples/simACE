@@ -454,7 +454,11 @@ def _run_execution(
     for rule, peak in memory["rule_peaks_kb"].items():
         rules.setdefault(rule, {"snakemake": [], "peak_rss_kb": None})["peak_rss_kb"] = peak
     time_result = _parse_time_file(time_path)
-    wall_seconds = time_result["elapsed_seconds"] or monotonic_seconds
+    # `is None`, not `or`: _parse_time_file reports an absent or unparseable
+    # field as None, and GNU time prints 0:00.00 for a fast command, which
+    # parses to a legitimate 0.0 the fallback must not overwrite.
+    elapsed = time_result["elapsed_seconds"]
+    wall_seconds = monotonic_seconds if elapsed is None else elapsed
     return {
         "phase": phase,
         "repetition": repetition,
