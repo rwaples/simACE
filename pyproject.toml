@@ -74,7 +74,11 @@ testpaths = ["tests"]
 norecursedirs = ["fitACE", ".git", ".snakemake", "external", "site", ".hypothesis"]
 markers = [
     "slow: heavyweight tests (Monte Carlo, large pedigrees); deselect with -m 'not slow'",
+    "regression: locks in current behaviour as a contract; the assertions flip if the contract is redesigned",
 ]
+# An unregistered mark is only a warning, and a typo'd one then selects nothing
+# and reports success. --strict-markers makes that an error at collection.
+addopts = "--strict-markers"
 
 [tool.ruff]
 target-version = "py313"
