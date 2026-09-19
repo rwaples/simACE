@@ -78,8 +78,9 @@ both arms are faster, and engine memory is 0.03 to 0.25x the wheel's.
 
 The degree-3 run is the plan's capability gate (memory mode within the 30 GiB
 box): passed. The degree-5 run is the attempt the plan left optional: it
-completed at 1.11x the 15.8 GiB payload. `buffered` would need about 36 GiB
-at degree 5 and was not attempted.
+completed at 1.11x the 15.8 GiB payload. `buffered` was not attempted at this
+size; extrapolating its 2M ratio of 2.29 puts it near 36 GiB, which is an
+estimate rather than a measurement.
 
 ## Selection
 
