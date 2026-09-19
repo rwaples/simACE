@@ -264,8 +264,8 @@ def test_tetrachoric_core_matches_jit():
     n10 = round(p10 * n_total)
     n11 = n_total - n00 - n01 - n10
 
-    r_py, se_py = nu._tetrachoric_core_python(n11, n10, n01, n00, t_a, t_b, phi_ta, phi_tb)
-    r_jit, se_jit = nu._tetrachoric_core(n11, n10, n01, n00, t_a, t_b, phi_ta, phi_tb)
+    r_py, se_py = nu._tetrachoric_core_python(n11, n10, n01, n00)
+    r_jit, se_jit = nu._tetrachoric_core(n11, n10, n01, n00)
 
     assert r_py == pytest.approx(r_jit, abs=1e-8)
     assert se_py == pytest.approx(se_jit, abs=1e-8)
@@ -276,7 +276,7 @@ def test_tetrachoric_core_matches_jit():
 
 def test_tetrachoric_core_empty_table_returns_nan():
     for core in (nu._tetrachoric_core_python, nu._tetrachoric_core):
-        r, se = core(0.0, 0.0, 0.0, 0.0, np.nan, np.nan, np.nan, np.nan)
+        r, se = core(0.0, 0.0, 0.0, 0.0)
         assert np.isnan(r)
         assert np.isnan(se)
 

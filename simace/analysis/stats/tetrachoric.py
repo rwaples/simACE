@@ -11,8 +11,6 @@ from typing import Any
 import numpy as np
 
 from simace.core._numba_utils import (
-    _ndtri_approx,
-    _norm_cdf,
     _pearsonr_core,
     _tetrachoric_core,
 )
@@ -55,16 +53,13 @@ def tetrachoric_corr_se(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
     n01 = float(np.sum(~a & b))
     n00 = float(np.sum(~a & ~b))
 
+    # A degenerate marginal leaves the core's thresholds undefined, so it is
+    # guarded here rather than inside the kernel.
     p_a, p_b = a.mean(), b.mean()
     if p_a in (0, 1) or p_b in (0, 1):
         return np.nan, np.nan
 
-    t_a = float(_ndtri_approx(1.0 - p_a))
-    t_b = float(_ndtri_approx(1.0 - p_b))
-    phi_ta = float(_norm_cdf(t_a))
-    phi_tb = float(_norm_cdf(t_b))
-
-    return _tetrachoric_core(n11, n10, n01, n00, t_a, t_b, phi_ta, phi_tb)
+    return _tetrachoric_core(n11, n10, n01, n00)
 
 
 def _tetrachoric_for_pairs(

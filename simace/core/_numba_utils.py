@@ -326,16 +326,19 @@ def _canonicalize_tetrachoric_table_python(n11, n10, n01, n00):
     )
 
 
-def _tetrachoric_core_python(n11, n10, n01, n00, t_a, t_b, phi_ta, phi_tb):
-    """Full tetrachoric correlation + SE via MLE. Returns (r, se)."""
+def _tetrachoric_core_python(n11, n10, n01, n00):
+    """Full tetrachoric correlation + SE via MLE. Returns (r, se).
+
+    Thresholds are derived here rather than taken from the caller: they must
+    come from the canonicalized table, and transforming the caller's would
+    reintroduce the small relabeling differences canonicalization exists to
+    remove, since ``ndtri(1 - p)`` is not bit-exactly ``-ndtri(p)``.
+    """
     n_pairs = n11 + n10 + n01 + n00
     if n_pairs == 0.0:
         return math.nan, math.nan
 
     n11, n10, n01, n00, result_sign = _canonicalize_tetrachoric_table(n11, n10, n01, n00)
-    # Derive thresholds again after canonicalization. Reusing transformed
-    # approximations would reintroduce small relabeling differences because
-    # ``ndtri(1 - p)`` is not bit-exactly ``-ndtri(p)``.
     p_a = (n11 + n10) / n_pairs
     p_b = (n11 + n01) / n_pairs
     t_a = _ndtri_approx(1.0 - p_a)
