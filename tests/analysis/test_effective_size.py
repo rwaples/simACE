@@ -93,7 +93,7 @@ class TestTheoreticalExpectations:
         ne_v = ne_v_expected_ztp(100000.0, 0.5)
         assert exp["ne_inbreeding"] is None
         assert exp["ne_coancestry"] is None
-        assert exp["ne_caballero_toro"] is None
+        assert exp["ne_group_coancestry"] is None
         # Variance/cohort-mean estimators stay populated.
         assert exp["ne_variance_family_size"] == pytest.approx(ne_v)
         # G_ped=6 ⇒ the last cohort has t=5 equivalent complete generations but
@@ -108,7 +108,7 @@ class TestTheoreticalExpectations:
         exp = theoretical_expectations(cfg)
         assert exp["ne_inbreeding"] is None
         assert exp["ne_coancestry"] is None
-        assert exp["ne_caballero_toro"] is None
+        assert exp["ne_group_coancestry"] is None
         # Ne_iΔF needs G_ped too: without it the last cohort's pedigree depth,
         # and so the size of its founder-boundary bias, is unknown.
         assert exp["ne_individual_delta_f"] is None
@@ -130,7 +130,7 @@ class TestTheoreticalExpectations:
         exp = theoretical_expectations(cfg)
         assert exp["ne_inbreeding"] is None
         assert exp["ne_coancestry"] is None
-        assert exp["ne_caballero_toro"] is None
+        assert exp["ne_group_coancestry"] is None
         assert exp["ne_variance_family_size"] == pytest.approx(2000.0)
         assert exp["ne_sex_ratio"] == pytest.approx(2000.0)
         # G_ped=4 ⇒ t=3, so Ne_iΔF is expected 3/2 high.
@@ -145,7 +145,7 @@ class TestTheoreticalExpectations:
         exp = theoretical_expectations(cfg)
         assert exp["ne_inbreeding"] == pytest.approx(2000.0)
         assert exp["ne_coancestry"] == pytest.approx(2000.0)
-        assert exp["ne_caballero_toro"] == pytest.approx(2000.0)
+        assert exp["ne_group_coancestry"] == pytest.approx(2000.0)
 
     def test_wf_ignores_inherited_assort_and_lambda(self):
         # Inherited standard-only knobs must not gate WF expectations.
@@ -250,22 +250,11 @@ class TestComputeEffectiveSize:
         ne_v = ne_v_expected_ztp(200, 0.5)
         for k in EXPECTED_KEYS - {"ne_sex_ratio", "ne_long_term_contributions", "ne_individual_delta_f"}:
             assert result[k]["expected"] == pytest.approx(ne_v)
-        # Ne_iΔF's founder-boundary expectation describes the post-ADR-0012
-        # estimator only, so compute_effective_size withholds it from the
-        # pedigree-graph 0.8 record that does not report ne_unrelated_founders.
         delta_f = result["ne_individual_delta_f"]
-        if "ne_unrelated_founders" in delta_f:
-            assert delta_f["expected"] == pytest.approx(ne_v * 19.0 / 18.0)
-        else:
-            assert delta_f["expected"] is None
+        assert delta_f["expected"] == pytest.approx(ne_v * 19.0 / 18.0)
         assert result["ne_sex_ratio"]["expected"] == pytest.approx(200.0)
-        # Ne_LTC is withheld from a 0.8 record on the same grounds: 0.8 reports
-        # 1/(2·Σc²) and only the corrected estimator adds n_effective_founders.
         ltc = result["ne_long_term_contributions"]
-        if "n_effective_founders" in ltc:
-            assert 2.0 / ltc["expected"] == pytest.approx(1.0 / 200.0 + 1.0 / ne_v)
-        else:
-            assert ltc["expected"] is None
+        assert 2.0 / ltc["expected"] == pytest.approx(1.0 / 200.0 + 1.0 / ne_v)
 
     def test_cohort_arrays_are_sized_by_the_observed_labels_they_carry(self, tiny_pedigree):
         result = compute_effective_size(tiny_pedigree)
@@ -275,17 +264,17 @@ class TestComputeEffectiveSize:
             ("ne_coancestry", "mean_theta_per_gen"),
             ("ne_sex_ratio", "n_male_per_gen"),
             ("ne_individual_delta_f", "mean_eqg_per_gen"),
-            ("ne_caballero_toro", "mean_self_coancestry_per_gen"),
+            ("ne_group_coancestry", "mean_group_coancestry_per_gen"),
         ):
             entry = result[name]
             assert entry["generations"] == observed, name
             assert len(entry[cohort_field]) == len(observed), name
 
     def test_rate_estimators_report_ne_per_transition_not_per_cohort(self, tiny_pedigree):
-        # Ne_I, Ne_C and Ne_CT measure a rate between adjacent observed
+        # Ne_I, Ne_C and Ne_GC measure a rate between adjacent observed
         # cohorts, so their Ne array is one shorter than their labels.
         result = compute_effective_size(tiny_pedigree)
-        for name in ("ne_inbreeding", "ne_coancestry", "ne_caballero_toro"):
+        for name in ("ne_inbreeding", "ne_coancestry", "ne_group_coancestry"):
             entry = result[name]
             generations = entry["generations"]
             assert len(entry["ne_per_gen"]) == len(generations) - 1, name
@@ -555,7 +544,7 @@ def test_cross_estimator_consistency_under_wf():
         "ne_sex_ratio",
         "ne_individual_delta_f",
         "ne_hill_overlapping",
-        "ne_caballero_toro",
+        "ne_group_coancestry",
     )
     samples: dict[str, list[float]] = {k: [] for k in keys}
     for _ in range(n_reps):

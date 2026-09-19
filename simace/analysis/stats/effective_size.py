@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
 
-# Bias on regression-based Ne estimators (Ne_I, Ne_C, Ne_CT) scales as
+# Bias on regression-based Ne estimators (Ne_I, Ne_C, Ne_GC) scales as
 # ``Ne_V / (N · G²)`` due to Jensen inversion of a noisy slope; we mark
 # the regime as "ok" only when this implied bias is below the validator's
 # ±20 % tolerance.  Constant chosen to match `bias_ratio < 0.20`.
@@ -131,7 +131,7 @@ def family_size_variance_expected_ztp(mating_lambda: float) -> dict[str, float]:
 def regression_estimator_regime_ok(n: float, g_ped: int, ne_v: float) -> bool:
     """Whether the regression-based Ne estimators are reliable at this scale.
 
-    The slope estimate in Ne_I, Ne_C, and Ne_CT has variance
+    The slope estimate in Ne_I, Ne_C, and Ne_GC has variance
     ``∝ 1/(N·G³)``; inverting the slope to get Ne incurs a Jensen bias
     that scales as ``Ne_V² / (N · G²)``.  We declare the regime
     acceptable when the implied bias on Ne is below ~20 % of Ne_V,
@@ -166,7 +166,7 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
     than its pedigree is deep.  Its expectation is ``Ne_V · t/(t−1)``, and
     ``None`` below ``t = 3`` where that factor is untested.
 
-    Three regression-based estimators (Ne_I, Ne_C, Ne_CT) carry a Jensen
+    Three regression-based estimators (Ne_I, Ne_C, Ne_GC) carry a Jensen
     bias on the inverted slope of order ``Ne_V² / (N · G²)`` that
     typically dominates at simACE's default ``G_ped = 6``.  We return
     their expectation only when
@@ -248,7 +248,7 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
         "ne_individual_delta_f": delta_f_expected,
         "ne_long_term_contributions": 2.0 * n * ne_v / (n + ne_v),
         "ne_hill_overlapping": ne_v,
-        "ne_caballero_toro": regression_expected,
+        "ne_group_coancestry": regression_expected,
     }
 
 
@@ -297,20 +297,6 @@ def compute_effective_size(
         if not isinstance(result, UnavailableEffectiveSize):
             payload["expected"] = expected.get(name)
         out[name] = payload
-    # pedigree-graph < 0.9 ships two pre-ADR-0012 estimators the expectations
-    # above no longer describe, and attaching one would fail the ±20 %
-    # validator: Ne_iΔF's 1/(t−1) exponent already absorbs the founder-boundary
-    # lag theoretical_expectations now corrects for, and Ne_LTC reports
-    # 1/(2·Σc²), four times below Wray & Thompson eq. 31.  Each record is its
-    # own version signal — only the corrected estimator carries the field named
-    # beside it.  Delete this loop when the pedigree-graph floor moves to 0.9.
-    for name, field_added_in_0_9 in (
-        ("ne_individual_delta_f", "ne_unrelated_founders"),
-        ("ne_long_term_contributions", "n_effective_founders"),
-    ):
-        payload = out[name]
-        if "expected" in payload and field_added_in_0_9 not in payload:
-            payload["expected"] = None
     return out
 
 

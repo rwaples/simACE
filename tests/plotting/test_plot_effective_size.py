@@ -88,11 +88,12 @@ def _make_payload(
             "expected": 7349.0,
         },
         "ne_long_term_contributions": {
-            "ne": None,
-            "asymptote_reached": False,
-            "n_iterations": 5,
-            "max_delta_final": 1e-4,
+            "ne": 3700.0,
+            "n_effective_founders": 1850.0,
             "sum_c_squared": 2e-4,
+            "max_delta_final": 1e-4,
+            "asymptote_reached": False,
+            "n_cohorts": 5,
             "final_generation": g_ped - 1,
             "expected": 3675.0,
         },
@@ -102,15 +103,17 @@ def _make_payload(
             "collapses_to_ne_v": True,
             "expected": 7349.0,
         },
-        "ne_caballero_toro": {
+        "ne_group_coancestry": {
             "ne": 7400.0,
             "generations": gens,
-            "mean_self_coancestry_per_gen": [None, 0.5, 0.50001, 0.50002, 0.50003, 0.50004],
-            "n_founders_with_descendants_per_gen": [0, 100, 100, 100, 100, 100],
+            "mean_group_coancestry_per_gen": [None, 0.5, 0.50001, 0.50002, 0.50003, 0.50004],
+            "n_genomes_per_gen": [0, 100, 100, 100, 100, 100],
             "transition_from": src,
             "transition_to": dst,
             "ne_per_gen": [7100.0, 7200.0, 7300.0, 7400.0, 7500.0],
             "slope": -5e-5,
+            "n_generations_used": 6,
+            "census_ratio": 1.0,
             "expected": None,
         },
     }
@@ -160,7 +163,7 @@ def test_gather_kind_column_separates_cohort_and_transition_axes(two_rep_yamls):
     assert kinds["ne_sex_ratio"] == {"cohort"}
     assert kinds["ne_individual_delta_f"] == {"cohort"}
     assert kinds["ne_variance_family_size"] == {"transition"}
-    for est in ("ne_inbreeding", "ne_coancestry", "ne_caballero_toro"):
+    for est in ("ne_inbreeding", "ne_coancestry", "ne_group_coancestry"):
         assert kinds[est] == {"cohort", "transition"}
 
 
@@ -189,11 +192,25 @@ def test_gather_skips_an_unavailable_record(tmp_path):
     assert not series_df.filter(pl.col("estimator") == "ne_inbreeding").is_empty()
 
 
-def test_gather_handles_null_ne(two_rep_yamls):
-    # ne_long_term_contributions has ne: None — must surface as NaN, no crash.
-    scalar_df, _ = gather_effective_size(two_rep_yamls)
-    ltc = scalar_df.filter(pl.col("estimator") == "ne_long_term_contributions")
-    assert ltc["ne"].is_nan().all()
+def test_gather_handles_an_unavailable_estimator(tmp_path):
+    """An estimator that reported no value still gets a scalar row, with NaN.
+
+    ``skip_ne_coancestry`` makes ``compute_effective_size`` write the
+    ``{reason, code, fields}`` payload for ``ne_coancestry``, which carries no
+    ``ne`` key at all. Under pedigree-graph 0.9 that is the case to cover:
+    ``ne_long_term_contributions`` used to be the example here, and it now
+    always reports an ``ne`` (its 0.9 changelog, the Ne_LTC asymptote entry).
+    """
+    payload = _make_payload()
+    payload["ne_coancestry"] = {"reason": "not_requested", "code": "not_requested", "fields": []}
+    path = tmp_path / "rep1.yaml"
+    _write_yaml(path, payload)
+
+    scalar_df, series_df = gather_effective_size([path])
+    coancestry = scalar_df.filter(pl.col("estimator") == "ne_coancestry")
+    assert len(coancestry) == 1
+    assert coancestry["ne"].is_nan().all()
+    assert series_df.filter(pl.col("estimator") == "ne_coancestry").is_empty()
 
 
 def test_gather_handles_missing_per_gen_entries(two_rep_yamls):

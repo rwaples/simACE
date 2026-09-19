@@ -602,7 +602,7 @@ EFFECTIVE_SIZE_ATLAS: tuple[AtlasItem, ...] = (
             "Ne_iΔF, whose last-cohort reference has drifted one generation fewer than its "
             "pedigree is deep; N for "
             "Ne_sr; the harmonic mean of N and Ne_V for Ne_LTC, which Wray & Thompson eq. 31 "
-            "puts at 4N/(2+V(k)) against Ne_V's 2N/V(k). The regression estimators Ne_I, Ne_C, and Ne_CT get an "
+            "puts at 4N/(2+V(k)) against Ne_V's 2N/V(k). The regression estimators Ne_I, Ne_C, and Ne_GC get an "
             "expected line only when N·G² is large enough for the Jensen bias to be small. Per-estimator mean "
             "± SD across reps is annotated above each column. Open markers below the axis "
             "mark reps that returned None (commonly Ne_LTC at G_ped=6). Subtitle reports the scenario header (N, λ, G_ped, "
@@ -614,7 +614,7 @@ EFFECTIVE_SIZE_ATLAS: tuple[AtlasItem, ...] = (
         title="Ne by generation / transition.",
         body=(
             "2×3 grid: per-generation Ne_g for the six estimators that expose a vector. Five "
-            "panels (Ne_I, Ne_C, Ne_sr, Ne_iΔF, Ne_CT) index generation 0..G_ped-1 from "
+            "panels (Ne_I, Ne_C, Ne_sr, Ne_iΔF, Ne_GC) index generation 0..G_ped-1 from "
             "ne_per_gen. The Ne_V panel uses ne_per_transition. Its x-axis is labelled "
             "'transition (g→g+1)' with half-integer ticks, so the offset from generation "
             "indexing is visible. One colored line per replicate. Orange "
@@ -624,12 +624,12 @@ EFFECTIVE_SIZE_ATLAS: tuple[AtlasItem, ...] = (
     ),
     PlotEntry(
         basename="effective_size.drift",
-        title="Underlying drift signals (mean F, θ, self-kinship).",
+        title="Underlying drift signals (mean F, θ, group coancestry).",
         body=(
             "1×3 grid showing the per-generation drift quantities that the slope-based Ne "
             "estimators invert. Left: mean inbreeding F per generation (input to Ne_I). "
             "Center: mean kinship θ per generation (input to Ne_C). Right: mean "
-            "founder self-kinship per generation (input to Ne_CT). One line per "
+            "group coancestry per generation (input to Ne_GC). One line per "
             "replicate. The estimators assume linear growth in these quantities. A "
             "non-monotone or near-flat trace means the estimator has no slope to fit."
         ),

@@ -101,9 +101,12 @@ def _scale_mem_effective_size(config: dict, scenario: str) -> int:
         All seven non-coancestry estimators run; no DP, no CSC.  Phase 1b
         profile at G_ped=6 (scripts/profile_no_k_path.py) measured peak
         RSS of 0.36 GB at N=100K per-gen and 1.62 GB at N=1M per-gen,
-        yielding ``peak_mb ≈ 0.0016 · N + 320``.  The dominant
-        contributor is ``_caballero_toro_accumulators``.  Scales linearly
-        with ``(G_ped + 1) / 7`` for depths other than 6.
+        yielding ``peak_mb ≈ 0.0016 · N + 320``.  Scales linearly
+        with ``(G_ped + 1) / 7`` for depths other than 6.  Measured
+        against pedigree-graph 0.8, whose dominant contributor here was
+        ``_caballero_toro_accumulators``; 0.9 replaced that estimator
+        with ``ne_group_coancestry``, which streams off the kinship DP,
+        so the constant is unverified above and wants a re-profile.
 
     ``skip_ne_coancestry: false`` (β path)
         Ne_C runs via streaming θ̄ (plan 3); no K materialized but DP

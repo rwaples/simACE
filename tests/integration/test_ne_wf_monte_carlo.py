@@ -101,7 +101,7 @@ def test_wf_monte_carlo_recovers_N():
             "ne_sex_ratio",
             "ne_individual_delta_f",
             "ne_hill_overlapping",
-            "ne_caballero_toro",
+            "ne_group_coancestry",
         ),
         float(N),
     )

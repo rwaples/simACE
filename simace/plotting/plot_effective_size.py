@@ -48,7 +48,7 @@ _NE_KEYS_ORDERED = ALL_EFFECTIVE_SIZE_ESTIMATORS
 # Where each estimator's per-cohort Ne series lives, and how its x axis reads.
 # Records are indexed by *observed* generation label, so a series row carries
 # the label its record gave it rather than a 0..n-1 slot.  Ne_I, Ne_C and
-# Ne_CT report Ne per adjacent-cohort transition, so their Ne is one row
+# Ne_GC report Ne per adjacent-cohort transition, so their Ne is one row
 # shorter than their drift means; Ne_V reports it per parent generation.
 _NE_SERIES_AXIS: dict[str, tuple[str, str]] = {
     "ne_inbreeding": ("transition", "transition"),
@@ -56,7 +56,7 @@ _NE_SERIES_AXIS: dict[str, tuple[str, str]] = {
     "ne_variance_family_size": ("transition", "parent generation"),
     "ne_sex_ratio": ("cohort", "generation"),
     "ne_individual_delta_f": ("cohort", "generation"),
-    "ne_caballero_toro": ("transition", "transition"),
+    "ne_group_coancestry": ("transition", "transition"),
 }
 
 # Drift means, all indexed by the record's ``generations`` cohort labels:
@@ -64,16 +64,16 @@ _NE_SERIES_AXIS: dict[str, tuple[str, str]] = {
 _DRIFT_COLUMNS: dict[str, str] = {
     "ne_inbreeding": "mean_f_per_gen",
     "ne_coancestry": "mean_theta_per_gen",
-    "ne_caballero_toro": "mean_self_coancestry_per_gen",
+    "ne_group_coancestry": "mean_group_coancestry_per_gen",
 }
 _DRIFT_FIELD: dict[str, str] = {
     "ne_inbreeding": "mean_f",
     "ne_coancestry": "mean_theta",
-    "ne_caballero_toro": "mean_self_coancestry",
+    "ne_group_coancestry": "mean_group_coancestry",
 }
 
 _VARIANCE_COLUMNS = ("v_mm", "v_mf", "v_fm", "v_ff", "cov_m", "cov_f")
-_SERIES_VALUE_FIELDS = ("ne", "mean_f", "mean_theta", "mean_self_coancestry", *_VARIANCE_COLUMNS)
+_SERIES_VALUE_FIELDS = ("ne", "mean_f", "mean_theta", "mean_group_coancestry", *_VARIANCE_COLUMNS)
 
 # Short labels for axis titles.
 _SHORT_LABEL = {
@@ -84,7 +84,7 @@ _SHORT_LABEL = {
     "ne_individual_delta_f": "Ne_iΔF",
     "ne_long_term_contributions": "Ne_LTC",
     "ne_hill_overlapping": "Ne_H (Hill)",
-    "ne_caballero_toro": "Ne_CT (Caballero-Toro)",
+    "ne_group_coancestry": "Ne_GC (group coancestry)",
 }
 
 
@@ -113,7 +113,7 @@ def gather_effective_size(
           vector. Columns: ``rep``, ``estimator``, ``kind`` (``"cohort"``
           or ``"transition"``), ``x`` (numeric plotting position taken from
           the label), ``label`` (the record's own observed label), ``ne``,
-          ``mean_f``, ``mean_theta``, ``mean_self_coancestry``, ``v_mm``,
+          ``mean_f``, ``mean_theta``, ``mean_group_coancestry``, ``v_mm``,
           ``v_mf``, ``v_fm``, ``v_ff``, ``cov_m``, ``cov_f``. Fields not
           applicable to a given row are ``NaN``. An estimator the library
           reported as unavailable contributes a scalar row with ``ne`` NaN
@@ -148,7 +148,7 @@ def gather_effective_size(
         "ne",
         "mean_f",
         "mean_theta",
-        "mean_self_coancestry",
+        "mean_group_coancestry",
         "v_mm",
         "v_mf",
         "v_fm",
@@ -442,7 +442,7 @@ def plot_ne_by_generation(
         # Log scale with dense ticks; per-panel autoscale (the expected
         # axhline ensures the reference is included). Explicitly NOT shared
         # with siblings so narrow-range panels (Ne_V, Ne_sr) don't get
-        # squashed by wide-range siblings (Ne_CT).
+        # squashed by wide-range siblings (Ne_GC).
         ax.set_yscale("log")
         ax.autoscale_view()
         _apply_log_ne_yticks(ax)
@@ -458,11 +458,11 @@ def plot_ne_by_generation(
 
 
 def plot_drift_signals(series_df: pl.DataFrame, out: Path, ext: str = "png") -> None:
-    """Figure 3: mean F, θ, self-kinship per generation (1×3)."""
+    """Figure 3: mean F, θ, group coancestry per generation (1×3)."""
     panels = [
         ("ne_inbreeding", "mean_f", "mean F"),
         ("ne_coancestry", "mean_theta", "mean θ"),
-        ("ne_caballero_toro", "mean_self_coancestry", "mean self-kinship (founders)"),
+        ("ne_group_coancestry", "mean_group_coancestry", "mean group coancestry"),
     ]
     fig, axes = plt.subplots(1, 3, figsize=(12.0, 4.0))
     for ax, (est, col, label) in zip(axes, panels, strict=True):
