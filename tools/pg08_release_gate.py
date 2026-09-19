@@ -1,9 +1,14 @@
 #!/usr/bin/env python
-"""Run the pedigree-graph 0.8.0 release gate across the family and record evidence.
+"""Run a pedigree-graph release gate across the family and record evidence.
 
-Each family check unit (``tools/family_repos.py``) runs from its own pixi
-manifest with ``--frozen`` (the locks still pin pedigree-graph 0.7.1 until the
-0.8.0 wheel is on PyPI).  Consumers are routed to a pedigree-graph build via
+Written for the 0.8.0 release and reused for every one since; 0.9.0 is the
+current subject.  All thirteen family check units of ``tools/family_repos.py``
+are covered, which ``tests/test_release_gate_covers_family.py`` enforces.
+
+Each unit runs from its own pixi manifest with ``--frozen`` (the consumer locks
+still pin the previous pedigree-graph until the new wheel is on PyPI, so the
+``--routing`` argument, not the lock, decides which build is under test).
+Consumers are routed to a pedigree-graph build via
 ``PYTHONPATH`` and every unit starts with an assertion that the routed
 ``pedigree_graph.__file__`` lives where the run says it does::
 
@@ -65,7 +70,9 @@ class Unit:
     manifest: Path
     steps: tuple[Step, ...]
     routed: bool = True
-    """``False`` for pedigree-graph itself, which always runs its own editable manifest."""
+    """``False`` where no step imports ``pedigree_graph``, so the routing assertion has
+    nothing to assert: pedigree-graph itself (own editable manifest), the
+    ``ace_iter_reml`` C++ binaries, and the ``tetraher_simace`` LDAK fork."""
 
 
 def _pytest(*paths: str, extra: tuple[str, ...] = ()) -> tuple[str, ...]:
@@ -145,7 +152,28 @@ def units() -> tuple[Unit, ...]:
             routed=False,
         ),
         _fitace("fitACE_tetraher", "fitACE_tetraher"),
+        Unit(
+            "tetraher_simace",
+            fitace / "tetraher_simace",
+            fitace / "pixi.toml",
+            (
+                Step("ruff", ("ruff", "check")),
+                Step("format", ("ruff", "format", "--check")),
+                Step("ldak", ("./ldak6.2.simace",)),
+            ),
+            routed=False,
+        ),
         _fitace("fitACE_pafgrs", "fitACE_pafgrs"),
+        Unit(
+            "fitACE_stan",
+            fitace / "fitACE_stan",
+            fitace / "pixi.toml",
+            (
+                Step("ruff", ("ruff", "check")),
+                Step("format", ("ruff", "format", "--check")),
+                Step("import", ("python", "-c", "import fitace_stan, fitace, simace; print(fitace_stan.__version__)")),
+            ),
+        ),
         _fitace("fitACE_frailty", "fitACE_frailty"),
         Unit(
             "fitACE_epimight",
