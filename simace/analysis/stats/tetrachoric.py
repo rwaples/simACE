@@ -44,6 +44,9 @@ def tetrachoric_corr_se(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
     a = np.asarray(a, dtype=bool)
     b = np.asarray(b, dtype=bool)
     n_pairs = len(a)
+    if n_pairs == 0:
+        return np.nan, np.nan
+
     if n_pairs < 50:
         logger.warning("tetrachoric_corr_se: n_pairs=%d < 50, SE may be unreliable", n_pairs)
 

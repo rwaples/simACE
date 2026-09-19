@@ -57,6 +57,13 @@ class TestTetrachoricCorrSE:
         assert np.isnan(r)
         assert np.isnan(se)
 
+    def test_empty_returns_nan(self):
+        """Empty inputs have no defined estimate."""
+        empty = np.array([], dtype=bool)
+        r, se = tetrachoric_corr_se(empty, empty)
+        assert np.isnan(r)
+        assert np.isnan(se)
+
     def test_known_value(self):
         """Test against a known tetrachoric correlation scenario.
 

@@ -274,6 +274,13 @@ def test_tetrachoric_core_matches_jit():
     assert se_py > 0
 
 
+def test_tetrachoric_core_empty_table_returns_nan():
+    for core in (nu._tetrachoric_core_python, nu._tetrachoric_core):
+        r, se = core(0.0, 0.0, 0.0, 0.0, np.nan, np.nan, np.nan, np.nan)
+        assert np.isnan(r)
+        assert np.isnan(se)
+
+
 # ---------------------------------------------------------------------------
 # Cross-check: the runtime symbols are the JIT versions when numba present
 # ---------------------------------------------------------------------------
