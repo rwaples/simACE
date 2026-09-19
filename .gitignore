@@ -92,3 +92,7 @@ bench-logs/
 # to docs/plans/ (tracked). Keep the README so the location stays predictable.
 plans/*
 !plans/README.md
+
+# Throwaway probe scripts. Ruff respects .gitignore when it walks the tree, so
+# ignoring these also keeps a one-off probe out of the lint and release gates.
+scratchpad/

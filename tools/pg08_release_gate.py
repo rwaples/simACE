@@ -159,7 +159,15 @@ def units() -> tuple[Unit, ...]:
             (
                 Step("ruff", ("ruff", "check")),
                 Step("format", ("ruff", "format", "--check")),
-                Step("ldak", ("./ldak6.2.simace",)),
+                # LDAK's usage path exits 1, so the binary is probed for what it
+                # prints and for the fork's own flag rather than for a zero exit.
+                # Numerical equivalence with upstream is the fitACE unit's job
+                # (fitACE/tests/tetraher/test_fork_equivalence.py).
+                Step("ldak-runs", ("sh", "-c", './ldak6.2.simace 2>&1 | grep -q "LDAK - Software"')),
+                # grep -a, not strings: binutils is not guaranteed in the env, and a
+                # missing tool would exit 127 and read as "not the fork". Plain
+                # grep -q returns 1 on binary input, so -a is load-bearing.
+                Step("ldak-is-fork", ("sh", "-c", 'grep -qa -- "--simace-grouping" ldak6.2.simace')),
             ),
             routed=False,
         ),

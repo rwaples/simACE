@@ -39,3 +39,9 @@ cp "$ROOT/fitACE/$FITACE_TSV" "$OUT/pairwise_relatedness.tsv"
       "import importlib.metadata as m; print('fitACE env pedigree-graph', m.version('pedigree-graph'))" )
   ( cd "$OUT" && sha256sum report.yaml pairwise_relatedness.tsv )
 } | tee "$OUT/manifest.txt"
+
+# The hashes are the gate; the copies are kept so a mismatch can be diffed
+# after the fact, when the other side's environment no longer exists. The pair
+# table is 2 MiB of repeated relationship codes and compresses about 7x, so it
+# is stored gzipped -- gunzip it to diff.
+gzip -9 -f "$OUT/pairwise_relatedness.tsv"
