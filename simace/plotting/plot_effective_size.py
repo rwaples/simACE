@@ -106,18 +106,18 @@ def gather_effective_size(
         Tuple ``(scalar_df, series_df)``:
 
         * ``scalar_df`` — one row per ``(rep, estimator)`` with columns
-          ``rep``, ``estimator``, ``ne``, ``expected``. Missing/null Ne
-          becomes ``NaN`` (no row dropped).
+            ``rep``, ``estimator``, ``ne``, ``expected``. Missing/null Ne
+            becomes ``NaN`` (no row dropped).
         * ``series_df`` — one row per ``(rep, estimator, kind, label)`` for
-          the six estimators that expose a per-cohort or per-transition
-          vector. Columns: ``rep``, ``estimator``, ``kind`` (``"cohort"``
-          or ``"transition"``), ``x`` (numeric plotting position taken from
-          the label), ``label`` (the record's own observed label), ``ne``,
-          ``mean_f``, ``mean_theta``, ``mean_group_coancestry``, ``v_mm``,
-          ``v_mf``, ``v_fm``, ``v_ff``, ``cov_m``, ``cov_f``. Fields not
-          applicable to a given row are ``NaN``. An estimator the library
-          reported as unavailable contributes a scalar row with ``ne`` NaN
-          and no series rows.
+            the six estimators that expose a per-cohort or per-transition
+            vector. Columns: ``rep``, ``estimator``, ``kind`` (``"cohort"``
+            or ``"transition"``), ``x`` (numeric plotting position taken from
+            the label), ``label`` (the record's own observed label), ``ne``,
+            ``mean_f``, ``mean_theta``, ``mean_group_coancestry``, ``v_mm``,
+            ``v_mf``, ``v_fm``, ``v_ff``, ``cov_m``, ``cov_f``. Fields not
+            applicable to a given row are ``NaN``. An estimator the library
+            reported as unavailable contributes a scalar row with ``ne`` NaN
+            and no series rows.
     """
     scalar_rows: list[dict] = []
     series_rows: list[dict] = []

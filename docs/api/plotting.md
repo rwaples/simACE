@@ -21,6 +21,18 @@
 
 ::: simace.plotting.plot_distributions
 
+## plot_am_equilibrium
+
+::: simace.plotting.plot_am_equilibrium
+
+## plot_effective_size
+
+::: simace.plotting.plot_effective_size
+
+## plot_heritability
+
+::: simace.plotting.plot_heritability
+
 ## plot_liability
 
 ::: simace.plotting.plot_liability
@@ -44,6 +56,10 @@
 ## plot_atlas
 
 ::: simace.plotting.plot_atlas
+
+## plot_atlas_html
+
+::: simace.plotting.plot_atlas_html
 
 ## plot_table1
 
