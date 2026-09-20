@@ -11,7 +11,7 @@ Coverage by config:
   * ``wf``                 — Wright-Fisher path (``_mating_wf``).
   * ``standard_no_am``     — standard mating, no assortment.
   * ``standard_single_am`` — single-trait Gaussian-copula assortment.
-  * ``standard_both_am``   — both-trait 4-variate copula + Metropolis + per-gen
+  * ``standard_both_am``   — both-trait 4-variate moment matching + Metropolis + per-gen
                              ``R_mf`` (the most complex standard-only path).
   * ``standard_pergen``    — per-generation assort1 and E1 dicts, locking the
                              per-generation indexing (``assort*_per_gen[i]`` and

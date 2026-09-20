@@ -482,9 +482,12 @@ def _assortative_pair_partners(
     Single-trait case (one of assort1/assort2 zero): bivariate Gaussian copula
     on the active trait.
 
-    Both-nonzero case: 4-variate Gaussian copula targeting Pearson mate
-    correlations, following Border et al. (2022, Science) Eq. 2.
-    Uses conditional-expectation initialization + Metropolis greedy swaps.
+    Both-nonzero case: direct moment matching against the 4-variate mate
+    correlation structure of Border et al. (2022, Science). This is not a
+    copula and draws no multivariate normal. Conditional-expectation
+    initialization on quantile-normal scores, then Metropolis greedy swaps
+    that pull the Pearson correlations of the standardized liabilities onto
+    their targets.
 
     Args:
         rng: numpy random generator
@@ -518,7 +521,7 @@ def _assortative_pair_partners(
     liab2_m = pheno[male_slots, 3] + pheno[male_slots, 4] + pheno[male_slots, 5]
 
     if assort1 != 0 and assort2 != 0:
-        # --- Both traits nonzero: 4-variate copula ---
+        # --- Both traits nonzero: direct moment matching on R_mf ---
         r1, r2 = assort1, assort2
 
         # Build full R_mf with cross-trait off-diagonals

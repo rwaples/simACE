@@ -123,7 +123,7 @@ When $\text{assort}_1 \neq 0$ or $\text{assort}_2 \neq 0$, the simulation pairs 
 
 **Single-trait case.** When only one assortment parameter is nonzero, the simulation uses a bivariate Gaussian copula. It converts each parent's liability to a rank score. The effective target correlation is $r_{\text{eff}} = \min(\sqrt{r_1^2 + r_2^2},\; 1)$. For each mating slot it draws $(z_f, z_m) \sim \mathcal{N}(\mathbf{0}, \boldsymbol{\Sigma})$ with $\Sigma_{12} = r_{\text{eff}}$. It sorts females and males by the weighted rank score $|r_1| \cdot \text{rank}_{1} + |r_2| \cdot \text{rank}_{2}$, then pairs them in the rank order of the bivariate normal draws. The mate correlation of the resulting pairs approximates the target. For negative assortment the simulation reverses the relevant rank order before scoring.
 
-**Both-traits case.** When both $r_1$ and $r_2$ are nonzero, the simulation targets the 4-variate Gaussian copula of Border et al. (2022, Science, equation 2). Let $\mathbf{R}_{mf}$ be the $2 \times 2$ target mate-correlation matrix:
+**Both-traits case.** When both $r_1$ and $r_2$ are nonzero, the simulation targets the 4-variate mate-correlation structure of Border et al. (2022, Science). Unlike the single-trait path above, this one is *not* a copula. No multivariate normal is drawn anywhere in this branch. The simulation constructs a pairing and then refines it until the realised Pearson correlations match the target matrix directly. Border et al. hit the same target by a different route, drawing synthetic 4-variate Gaussian variates and matching real individuals to them by Mahalanobis distance (`MatchIt`), so the target structure is shared but the mechanism is not. Let $\mathbf{R}_{mf}$ be the $2 \times 2$ target mate-correlation matrix:
 
 $$
 \mathbf{R}_{mf} = \begin{bmatrix} r_1 & c \\ c & r_2 \end{bmatrix}
@@ -141,7 +141,7 @@ The full 4-variate matrix $\boldsymbol{\Sigma}_4 = \bigl[\begin{smallmatrix} \ma
 
 *Phase 1: conditional-expectation initialisation.* The simulation converts each parent's liability to a quantile-normal score. The matrix $\mathbf{B} = \mathbf{R}_{mf} \mathbf{R}_{ff}^{-1}$ maps female scores to expected male scores. It projects the female score vectors through $\mathbf{B}$ to get target male vectors. It then projects both the targets and the actual male scores onto the dominant right singular vector of $\mathbf{R}_{mf}$ and rank-matches males to females along that line. That gives the starting permutation.
 
-*Phase 2: greedy Metropolis refinement.* The simulation proposes random pairs of male positions $(i, j)$ for swapping. It accepts a swap if the swap reduces the total squared error over the four elements of $\mathbf{R}_{mf}$:
+*Phase 2: greedy Metropolis refinement.* Phase 1 works on quantile-normal scores; phase 2 discards those and works on $z$-scored raw liabilities, so the correlations it converges to are Pearson correlations of liability, not of normal scores. For $A + C + E$ liabilities the two nearly coincide, but they are not the same quantity. The simulation proposes random pairs of male positions $(i, j)$ for swapping. It accepts a swap if the swap reduces the total squared error over the four elements of $\mathbf{R}_{mf}$:
 
 $$
 \sum_{k \in \{1,\, 2,\, 12,\, 21\}} (S_k + \Delta_k - T_k)^2 < \sum_{k \in \{1,\, 2,\, 12,\, 21\}} (S_k - T_k)^2

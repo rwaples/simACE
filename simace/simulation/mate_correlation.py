@@ -32,7 +32,7 @@ def expected_mate_corr_matrix(
     Returns E[corr(F_i, M_j)] for i,j in {1,2} given assortative mating
     parameters and ACE variance components.
 
-    With the 4-variate copula algorithm, assort1 and assort2 are target
+    With the 4-variate both-traits algorithm, assort1 and assort2 are target
     Pearson mate correlations. The cross-mate cross-trait correlation follows
     from the mechanistic path: c = rho_w * sqrt(|r1*r2|) * sign(r1*r2),
     where rho_w is the within-person cross-trait liability correlation.
