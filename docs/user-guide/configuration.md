@@ -8,21 +8,23 @@ scenario files.
 
 A scenario inherits every default and overrides only the values it lists.
 This page shows the sectioned form. The loader also accepts the older flat
-keys such as `A1` and `censor_age`. Mixing the flat and
+keys listed under [Legacy flat keys](#legacy-flat-keys). Mixing the flat and
 sectioned form for one parameter is an error.
+
+<!-- scenario-defaults:start -->
 
 ## Top-level parameters
 
 | Parameter | Type | Default | Description |
 |---|---|---:|---|
-| `seed` | int | 42 | Base random seed. Replicate `r` uses `seed + r - 1` |
-| `replicates` | int | 3 | Number of independent replicates per scenario |
+| `seed` | int | `42` | Base random seed. Replicate `r` uses `seed + r - 1` |
+| `replicates` | int | `3` | Number of independent replicates per scenario |
 | `folder` | str | `base` | Output folder under `results/` |
-| `N` | int | 100000 | Population size per generation |
-| `G_ped` | int | 6 | Recorded pedigree generations |
-| `G_pheno` | int | 3 | Number of most recent generations to phenotype |
-| `G_sim` | int | 8 | Total simulated generations. `G_sim - G_ped` are burn-in |
-| `standardize` | str | `global` | Liability standardization: `none`, `global`, or `per_generation`. The legacy values `true` and `false` map to `global` and `none` |
+| `N` | int | `100000` | Population size per generation |
+| `G_ped` | int | `6` | Recorded pedigree generations |
+| `G_pheno` | int | `3` | Number of most recent generations to phenotype |
+| `G_sim` | int | `8` | Total simulated generations. `G_sim - G_ped` are burn-in |
+| `standardize` | str | `global` | Liability standardization mode: `none`, `global`, or `per_generation`. The legacy values `true` and `false` map to `global` and `none` |
 | `plot_format` | str | `png` | Image extension for plots. Use `png` or `svg`, because the HTML atlas embeds the images. `pdf` works only for the `atlas.pdf` export |
 | `drop_from` | str or null | `null` | Name of another scenario whose pedigree and gene-drop outputs this scenario reuses |
 | `use_gene_drop` | bool | `false` | Read the tstrait-derived `A1` instead of the parametric one in every downstream stage |
@@ -30,6 +32,9 @@ sectioned form for one parameter is an error.
 
 [ACE model, Standardisation](../concepts/ace-model.md#standardisation)
 explains how `standardize` interacts with the threshold and hazard models.
+Hazard-bearing models can override it per trait with
+`phenotype.trait{N}.params.standardize_hazard`; see
+[Phenotype models, Standardization](phenotype-models.md#standardization).
 
 ## Pedigree
 
@@ -54,17 +59,27 @@ pedigree:
   rE: 0.0
 ```
 
-| Parameter | Description |
-|---|---|
-| `mating_model` | `standard` or `wright_fisher` ([ADR 0002](../adr/0002-wright-fisher-mating-model.md)). Under `wright_fisher`, the loader rejects any override of `mating_lambda`, `p_mztwin`, `assort1`, `assort2`, or `assort_matrix` |
-| `mating_lambda` | Parameter of the zero-truncated Poisson number of mates. The default gives about 23 percent of individuals more than one mate |
-| `p_mztwin` | Probability that a birth is a monozygotic twin pair |
-| `assort1`, `assort2` | Mate correlation on trait 1 and on trait 2 liability |
-| `assort_matrix` | Optional 2 by 2 female-by-male mate-correlation matrix. When set, `assort1` and `assort2` are its diagonal |
-| `trait1.A`, `trait2.A` | Additive genetic variance |
-| `trait1.C`, `trait2.C` | Common environment variance |
-| `trait1.E`, `trait2.E` | Unique environment variance |
-| `rA`, `rC`, `rE` | Cross-trait correlation of A, of C, and of E |
+| Parameter | Type | Default | Description |
+|---|---|---:|---|
+| `pedigree.mating_model` | str | `standard` | `standard` or `wright_fisher`. See [ADR 0002](../adr/0002-wright-fisher-mating-model.md) |
+| `pedigree.mating_lambda` | float | `0.5` | Parameter of the zero-truncated Poisson number of mates. The default gives about 23 percent of individuals more than one mate |
+| `pedigree.p_mztwin` | float | `0.02` | Probability that a birth is a monozygotic twin pair |
+| `pedigree.assort1` | float or dict | `0` | Mate correlation on trait 1 liability. A dict sets it by generation |
+| `pedigree.assort2` | float or dict | `0` | Mate correlation on trait 2 liability. A dict sets it by generation |
+| `pedigree.assort_matrix` | matrix or null | `null` | Optional 2 by 2 female-by-male mate-correlation matrix. Its diagonal replaces `assort1` and `assort2` |
+| `pedigree.trait1.A` | float or dict | `0.5` | Trait 1 additive genetic variance |
+| `pedigree.trait1.C` | float or dict | `0.0` | Trait 1 common environment variance |
+| `pedigree.trait1.E` | float or dict | `0.5` | Trait 1 unique environment variance |
+| `pedigree.trait2.A` | float or dict | `0.4` | Trait 2 additive genetic variance |
+| `pedigree.trait2.C` | float or dict | `0.2` | Trait 2 common environment variance |
+| `pedigree.trait2.E` | float or dict | `0.4` | Trait 2 unique environment variance |
+| `pedigree.rA` | float | `0.0` | Cross-trait correlation of the additive genetic components |
+| `pedigree.rC` | float | `0.0` | Cross-trait correlation of the common environment components |
+| `pedigree.rE` | float | `0.0` | Cross-trait correlation of the unique environment components |
+
+Under `wright_fisher`, the loader rejects any `mating_lambda` override. It
+also rejects nonzero `p_mztwin`, `assort1`, or `assort2` overrides and any
+non-null `assort_matrix` override.
 
 ## Phenotype
 
@@ -90,10 +105,33 @@ phenotype:
     beta_sex: 0.0
 ```
 
+| Parameter | Type | Default | Description |
+|---|---|---:|---|
+| `phenotype.trait1.model` | str | `frailty` | Trait 1 phenotype model |
+| `phenotype.trait1.params.distribution` | str | `weibull` | Trait 1 baseline event-time distribution |
+| `phenotype.trait1.params.scale` | float | `2160` | Trait 1 Weibull scale in age units |
+| `phenotype.trait1.params.rho` | float | `0.8` | Trait 1 Weibull shape |
+| `phenotype.trait1.beta` | float | `1.0` | Trait 1 liability coefficient. Its meaning depends on the model |
+| `phenotype.trait1.beta_sex` | float | `0.0` | Trait 1 additive male effect in the same coefficient units as `beta` |
+| `phenotype.trait2.model` | str | `frailty` | Trait 2 phenotype model |
+| `phenotype.trait2.params.distribution` | str | `weibull` | Trait 2 baseline event-time distribution |
+| `phenotype.trait2.params.scale` | float | `333` | Trait 2 Weibull scale in age units |
+| `phenotype.trait2.params.rho` | float | `1.2` | Trait 2 Weibull shape |
+| `phenotype.trait2.beta` | float | `1.5` | Trait 2 liability coefficient. Its meaning depends on the model |
+| `phenotype.trait2.beta_sex` | float | `0.0` | Trait 2 additive male effect in the same coefficient units as `beta` |
+
 `model` is one of `frailty`, `cure_frailty`, `adult`, `first_passage`, or
 `simple_ltm`. The contents of `params` depend on the model. The threshold
 models `adult`, `cure_frailty`, and `simple_ltm` require `params.prevalence`.
-[Phenotype models](phenotype-models.md) lists every model with its parameters.
+It accepts a scalar, a per-generation dict, or a sex-specific dict whose
+`female` and `male` values are scalars or per-generation dicts. See
+[Phenotype models, Prevalence forms](phenotype-models.md#prevalence-forms) for
+the three forms and [Phenotype models](phenotype-models.md) for every model's
+parameters.
+
+simACE does not convert time units. The shipped configurations treat one age
+unit as one year. Event-time `scale` parameters, cumulative-incidence age
+parameters, onset ages, and censoring ages must use the same unit.
 
 ## Censoring
 
@@ -111,11 +149,16 @@ censoring:
   death_rho: 2.73
 ```
 
-| Parameter | Description |
-|---|---|
-| `max_age` | Maximum follow-up age |
-| `gen_censoring` | Observation window `[left, right]` for each generation |
-| `death_scale`, `death_rho` | Weibull scale and shape of the competing-risk mortality |
+| Parameter | Type | Default | Description |
+|---|---|---:|---|
+| `censoring.max_age` | float | `80` | Maximum follow-up age, in age units |
+| `censoring.gen_censoring` | dict | `{0: [80, 80], 1: [80, 80], 2: [80, 80], 3: [40, 80], 4: [0, 80], 5: [0, 45]}` | Observation window `[left, right]` for each generation, in age units |
+| `censoring.death_scale` | float | `164` | Weibull scale of the competing-risk death age, in age units |
+| `censoring.death_rho` | float | `2.73` | Weibull shape of the competing-risk death age |
+
+For a Weibull death age, the median is
+`death_scale * (log(2)) ** (1 / death_rho)`. The defaults give about 143.4 age
+units. With the shipped convention, that is 143.4 years.
 
 ## Ascertainment and analysis
 
@@ -131,14 +174,18 @@ analysis:
   skip_ne_coancestry: true
 ```
 
-| Parameter | Description |
-|---|---|
-| `ascertainment.N_sample` | Sample size after ascertainment. `0` keeps the whole post-dropout population |
-| `ascertainment.case_ascertainment_ratio` | Sampling weight of a case relative to a control in the `N_sample` draw |
-| `ascertainment.dropout_rate` | Fraction of individuals removed at random from the pedigree before the draw |
-| `analysis.max_degree` | Highest relationship degree to extract. `3` includes first cousins. `2` stops at half-siblings, grandparents, and avuncular pairs |
-| `analysis.estimate_inbreeding` | Compute exact inbreeding coefficients and exact pairwise kinship |
-| `analysis.skip_ne_coancestry` | Skip the coancestry-rate estimator of effective population size and report `ne_coancestry` as null. The other seven estimators still run. The default is `true` because this estimator dominates the memory of the `effective_size` rule. For scenarios with a small pedigree, set it to `false` |
+| Parameter | Type | Default | Description |
+|---|---|---:|---|
+| `ascertainment.N_sample` | int | `0` | Sample size after ascertainment. `0` keeps the whole post-dropout population |
+| `ascertainment.case_ascertainment_ratio` | float | `1` | Sampling weight of a case relative to a control in the `N_sample` draw |
+| `ascertainment.dropout_rate` | float | `0` | Fraction of individuals removed at random from the pedigree before the draw |
+| `analysis.max_degree` | int | `3` | Highest relationship degree to extract. `3` includes first cousins. `2` stops at half-siblings, grandparents, and avuncular pairs |
+| `analysis.estimate_inbreeding` | bool | `false` | Compute exact inbreeding coefficients and exact pairwise kinship |
+| `analysis.skip_ne_coancestry` | bool | `true` | Skip the coancestry-rate estimator of effective population size and report `ne_coancestry` as null. The other seven estimators still run |
+
+The default `analysis.skip_ne_coancestry: true` avoids the high memory cost of
+the coancestry-rate estimator. Set it to `false` for a pedigree small enough
+to compute the estimator.
 
 [Ascertainment](ascertainment.md) explains the dropout and draw steps. The
 `analysis` section configures the analyze stage, which builds the `stats.done`
@@ -163,30 +210,119 @@ tstrait:
   share_architecture: false
 ```
 
-| Parameter | Description |
-|---|---|
-| `tstrait.num_causal` | Number of causal sites. Set either this or `frac_causal`, not both |
-| `tstrait.frac_causal` | Fraction of sites that pass the MAF filter to use as causal. Set either this or `num_causal`, not both |
-| `tstrait.maf_threshold` | Minimum minor-allele frequency. `0` disables the filter |
-| `tstrait.alpha` | Exponent of the effect-size dependence on allele frequency |
-| `tstrait.effect_mean`, `tstrait.effect_var` | Mean and variance of the raw effect sizes before frequency scaling |
-| `tstrait.trait_id` | Which trait gets the genetic value. Trait 2 stays parametric |
-| `tstrait.share_architecture` | Reuse the same causal sites and effects in every replicate |
+| Parameter | Type | Default | Description |
+|---|---|---:|---|
+| `tstrait.num_causal` | int or null | `1000` | Number of causal sites. Set exactly one of this parameter and `frac_causal` |
+| `tstrait.frac_causal` | float or null | `null` | Fraction of sites that pass the MAF filter to use as causal. Set exactly one of this parameter and `num_causal` |
+| `tstrait.maf_threshold` | float | `0.01` | Minimum minor-allele frequency. `0` disables the filter |
+| `tstrait.alpha` | float | `-0.5` | Exponent of the effect-size dependence on allele frequency |
+| `tstrait.effect_mean` | float | `0.0` | Mean of the raw effect sizes before frequency scaling |
+| `tstrait.effect_var` | float | `1.0` | Variance of the raw effect sizes before frequency scaling |
+| `tstrait.trait_id` | int | `0` | Trait that gets the genetic value. Only trait 1, ID `0`, is supported |
+| `tstrait.share_architecture` | bool | `false` | Reuse the same causal sites and effects in every replicate |
 
 Heritability under gene drop is `A1 / (A1 + C1 + E1)` from the pedigree
 section. There is no `tstrait.h2` parameter.
+
+<!-- scenario-defaults:end -->
 
 `tskit_preprocess` is a separate top-level block for the one-time step that
 canonicalizes the source tree sequences. It is not part of any scenario. The
 two directory defaults point at the maintainer's local copy of the SimHumanity
 data, so set both for your machine.
 
-| Parameter | Default | Description |
-|---|---|---|
-| `tskit_preprocess.source_dir` | `/data/Documents/humanity_sim/simhumanity_trees_RO` | Directory of per-chromosome SimHumanity `.trees` files |
-| `tskit_preprocess.output_dir` | `/data/Documents/humanity_sim/preprocessed_p2` | Directory for the canonicalized chromosomes, the concatenated tree sequence, and the site catalog |
-| `tskit_preprocess.pop` | `p2` | Founder population to keep |
-| `tskit_preprocess.chroms` | `1` to `22` | Autosomes to include |
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `tskit_preprocess.source_dir` | path | `/data/Documents/humanity_sim/simhumanity_trees_RO` | Directory of per-chromosome SimHumanity `.trees` files |
+| `tskit_preprocess.output_dir` | path | `/data/Documents/humanity_sim/preprocessed_p2` | Directory for the canonicalized chromosomes, the concatenated tree sequence, and the site catalog |
+| `tskit_preprocess.pop` | str | `p2` | Founder population to keep |
+| `tskit_preprocess.chroms` | list[int] | `1` through `22` | Autosomes to include |
+
+## Legacy flat keys
+
+Older scenario files can use flat keys. New files should use the sectioned
+keys because their ownership is visible in the YAML structure. The loader
+accepts either form, but it rejects a parameter supplied in both forms.
+
+<details markdown="1">
+<summary>Show the legacy flat-key mapping</summary>
+
+<!-- legacy-aliases:start -->
+
+| Sectioned key | Legacy flat key |
+|---|---|
+| `pedigree.mating_model` | `mating_model` |
+| `pedigree.mating_lambda` | `mating_lambda` |
+| `pedigree.p_mztwin` | `p_mztwin` |
+| `pedigree.assort1` | `assort1` |
+| `pedigree.assort2` | `assort2` |
+| `pedigree.assort_matrix` | `assort_matrix` |
+| `pedigree.trait1.A` | `A1` |
+| `pedigree.trait1.C` | `C1` |
+| `pedigree.trait1.E` | `E1` |
+| `pedigree.trait2.A` | `A2` |
+| `pedigree.trait2.C` | `C2` |
+| `pedigree.trait2.E` | `E2` |
+| `pedigree.rA` | `rA` |
+| `pedigree.rC` | `rC` |
+| `pedigree.rE` | `rE` |
+| `phenotype.trait1.model` | `phenotype_model1` |
+| `phenotype.trait1.params` | `phenotype_params1` |
+| `phenotype.trait1.beta` | `beta1` |
+| `phenotype.trait1.beta_sex` | `beta_sex1` |
+| `phenotype.trait2.model` | `phenotype_model2` |
+| `phenotype.trait2.params` | `phenotype_params2` |
+| `phenotype.trait2.beta` | `beta2` |
+| `phenotype.trait2.beta_sex` | `beta_sex2` |
+| `censoring.max_age` | `censor_age` |
+| `censoring.gen_censoring` | `gen_censoring` |
+| `censoring.death_scale` | `death_scale` |
+| `censoring.death_rho` | `death_rho` |
+| `ascertainment.N_sample` | `N_sample` |
+| `ascertainment.case_ascertainment_ratio` | `case_ascertainment_ratio` |
+| `ascertainment.dropout_rate` | `dropout_rate` |
+| `analysis.max_degree` | `max_degree` |
+| `analysis.estimate_inbreeding` | `estimate_inbreeding` |
+| `analysis.skip_ne_coancestry` | `skip_ne_coancestry` |
+| `tstrait.num_causal` | `tstrait_num_causal` |
+| `tstrait.frac_causal` | `tstrait_frac_causal` |
+| `tstrait.maf_threshold` | `tstrait_maf_threshold` |
+| `tstrait.alpha` | `tstrait_alpha` |
+| `tstrait.effect_mean` | `tstrait_effect_mean` |
+| `tstrait.effect_var` | `tstrait_effect_var` |
+| `tstrait.trait_id` | `tstrait_trait_id` |
+| `tstrait.share_architecture` | `tstrait_share_architecture` |
+
+<!-- legacy-aliases:end -->
+
+</details>
+
+## What the loader rejects
+
+The scenario loader rejects these configuration errors before Snakemake starts
+simulation jobs:
+
+- An unknown flat key or sectioned key.
+- The same parameter in both flat and sectioned form.
+- A scenario name that appears in more than one file.
+- A configuration filename whose stem contains characters other than letters,
+  digits, and underscores.
+- `pedigree.trait1.E: null` or `pedigree.trait2.E: null` after defaults and
+  scenario overrides are resolved.
+- A `phenotype.trait{N}.model` outside the five supported model families.
+- A missing or unknown `distribution` for `frailty` and `cure_frailty`.
+- A missing or unknown `method` for `adult`.
+- A missing `onset` dict or an unknown `onset.kind` for `simple_ltm`.
+- Missing `params.prevalence` for `adult`, `cure_frailty`, or `simple_ltm`.
+- `params.prevalence` for `frailty` or `first_passage`, or `prevalence` placed
+  directly under a trait instead of inside `params`.
+- An unknown `pedigree.mating_model` or an incompatible explicit override for
+  `wright_fisher`, as described under [Pedigree](#pedigree).
+
+Individual stages also validate their numeric ranges when they run. For
+example, ascertainment requires `0 <= dropout_rate < 1` and a nonnegative
+`case_ascertainment_ratio`. The tstrait effect-assignment stage requires
+exactly one of `num_causal` and `frac_causal`.
 
 [Writing a scenario](writing-a-scenario.md) shows how to add a scenario to a
 scenario file.
