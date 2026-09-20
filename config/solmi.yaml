@@ -172,26 +172,44 @@ solmi_substance_use:
       E: 0.5
     rA: 0.0
     rC: 0.0
+# Refitted 2026-09-10 from adult/ltm to cure_frailty. The adult sub-methods put
+# a symmetric logistic on age, which cannot hold Solmi's right-skewed 20/25/34
+# (Q1 is 5 years below the median, Q3 is 9 above); the parameters previously
+# here reached only 18.7/22.3/26.0, missing Q3 by 8 years. cure_frailty on a
+# lognormal baseline gives 19.6/25.7/33.7, RMSE 0.49, and independently
+# reproduces the lognormal/beta~0 fit already recorded in
+# notes/solmi/solmi_scenarios.md.
+#
+# beta is not identified by three marginal quantiles: pinning it anywhere in
+# 0 to 1.5 refits mu and sigma to an RMSE between 0.49 and 0.66. Zero is the
+# best of them and matches the recorded fit. Onset timing among cases is then
+# liability-independent; case status stays fully heritable through the cure
+# threshold, which is what the liability model is carrying here.
+#
+# prevalence does not affect the onset curve at all at beta = 0 (the case-onset
+# CDF reduces to 1 - exp(-H0(t))); it sets how many are cases, not when. It is
+# not a Solmi number either -- see notes/solmi/solmi_references.md, which
+# attributes 0.01 to McGrath 2008, not to the meta-analysis.
 solmi_schizophrenia:
   seed: 36042
   N: 1000000
   phenotype:
     trait1:
-      model: adult
+      model: cure_frailty
       params:
-        method: ltm
-        cip_x0: 22.3464
-        cip_k: 0.304667
+        distribution: lognormal
+        mu: 3.2454
+        sigma: 0.4039
         prevalence: 0.01
-      beta: 0.96043
+      beta: 0.0
     trait2:
-      model: adult
+      model: cure_frailty
       params:
-        method: ltm
-        cip_x0: 22.3464
-        cip_k: 0.304667
+        distribution: lognormal
+        mu: 3.2454
+        sigma: 0.4039
         prevalence: 0.01
-      beta: 0.96043
+      beta: 0.0
   pedigree:
     trait1:
       C: 0.0
