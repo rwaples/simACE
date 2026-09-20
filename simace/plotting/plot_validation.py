@@ -65,6 +65,13 @@ def stripplot(
         expected: Column name for per-scenario expected values, or a fixed number.
         expected_func: Callable(scenario_df) returning expected value.
     """
+    # ``plot_validation`` reads the folder's report_summary.tsv off disk, so a
+    # folder gathered before a column existed hands us a frame without it. Drop
+    # the expected value here, once, rather than at each of the two reads below
+    # (marker and y-padding): no marker, but the atlas still renders.
+    if isinstance(expected, str) and expected not in df.columns:
+        expected = None
+
     scenarios = df["scenario"].unique()
     positions = {s: i for i, s in enumerate(scenarios)}
 
@@ -333,15 +340,11 @@ def plot_cross_trait_correlations(df: pd.DataFrame, out: Path, ext: str = "png")
     panels = [
         ("observed_rA", "rA", "Cross-Trait rA"),
         ("observed_rC", "rC", "Cross-Trait rC"),
-        ("observed_rE", None, "Cross-Trait rE"),
+        ("observed_rE", "rE", "Cross-Trait rE"),
     ]
     fig, axes = plt.subplots(1, 3, figsize=_figsize(ncols=3))
     for ax, (obs, exp, title) in zip(axes, panels, strict=True):
-        if exp:
-            stripplot(df, ax, obs, expected=exp)
-        else:
-            stripplot(df, ax, obs)
-            ax.axhline(y=0, color=COLOR_EXPECTED, linestyle="--", alpha=0.7)
+        stripplot(df, ax, obs, expected=exp)
         ax.set_title(title)
         ax.set_ylabel("Correlation")
         enable_value_gridlines(ax)

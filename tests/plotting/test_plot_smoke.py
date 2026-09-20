@@ -170,6 +170,7 @@ def validation_df():
             "E2": [0.3] * n,
             "rA": [0.3] * n,
             "rC": [0.5] * n,
+            "rE": [0.2] * n,
             "mating_model": ["standard"] * n,
             "p_mztwin": [0.02] * n,
             "expected_twin_rate": [0.02] * n,
@@ -443,6 +444,21 @@ class TestPlotValidation:
 
         before = plt.get_fignums()
         plot_cross_trait_correlations(validation_df, tmp_path, ext="png")
+        assert (tmp_path / "cross_trait_correlations.png").exists()
+        assert plt.get_fignums() == before
+
+    def test_plot_cross_trait_correlations_without_rE(self, validation_df, tmp_path):
+        """A report_summary.tsv gathered before ``rE`` existed still plots.
+
+        ``plot_validation`` reads the folder summary off disk, so a folder that
+        has not been re-gathered hands it a frame with no ``rE`` column. The
+        expected-value marker is skipped; the atlas is not lost.
+        """
+        from simace.plotting.plot_validation import plot_cross_trait_correlations
+
+        stale = validation_df.drop(columns=["rE"])
+        before = plt.get_fignums()
+        plot_cross_trait_correlations(stale, tmp_path, ext="png")
         assert (tmp_path / "cross_trait_correlations.png").exists()
         assert plt.get_fignums() == before
 

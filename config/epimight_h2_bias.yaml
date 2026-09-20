@@ -100,11 +100,67 @@ am:
   analysis:
     skip_ne_coancestry: true
 
+am_asym:
+  # Asymmetric assortative mating, for poster panel 7: within-trait spousal
+  # r=0.25 on trait1 and r=0.40 on trait2, cross-trait spousal r=0.21.
+  #
+  # A sibling of `am` rather than an edit to it. `am` is one cell of this
+  # folder's mechanism-isolation design, the symmetry of its two within-trait
+  # values is the thing it isolates, and it already carries an epimight.done
+  # from 2026-05-08. Everything below is `am` verbatim apart from the seed and
+  # the AM parameters; the cross-trait 0.21 is carried over unchanged.
+  #
+  # The matrix diagonal overrides scalar assort1/assort2 (params.py:157), so
+  # the two must agree. 0.21 stays under sqrt(0.25 * 0.40) = 0.316.
+  seed: 80009
+  N: 1000000
+  G_sim: 20
+  G_ped: 8
+  G_pheno: 3
+  replicates: 1
+  pedigree:
+    p_mztwin: 0
+    assort1: 0.25
+    assort2: 0.40
+    assort_matrix: [[0.25, 0.21], [0.21, 0.40]]
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    rA: 0.5
+    rC: 0.0
+    rE: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.05
+  censoring:
+    gen_censoring: {}
+    death_scale: 1000000
+    death_rho: 1.0
+  analysis:
+    skip_ne_coancestry: true
+
 am_proxy:
   # Stratification-via-AM: trait2 acts as a high-h2, high-prevalence,
   # high-AM proxy that drags trait1 through cross-trait AM and rA, mimicking
   # the kinship-independent same-stratum covariance produced by population
-  # stratification. Cross-AM auto-computed via copula path (~0.25).
+  # stratification. Cross-AM auto-computed via the both-traits path (~0.25).
   seed: 80003
   N: 1000000
   G_sim: 20

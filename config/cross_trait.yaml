@@ -1,10 +1,42 @@
+# A matched pair for the cross-trait liability contrast: identical in every
+# respect except the three cross-trait correlations. Used by poster panel 6,
+# where the two are shown one above the other.
+#
+# The variance components are pinned rather than inherited. The default is
+# trait1 C = 0.0 (config/_default.yaml), which makes the C panel of the
+# cross_trait figure a degenerate vertical line at zero and rC meaningless --
+# the figure reads as broken rather than as uncorrelated. They are also pinned
+# symmetric across the two traits, so the only asymmetry left in the figure is
+# the correlation structure, which is the thing being shown.
+#
+# rE is set explicitly in both, including the zero. Leaving it at its default
+# in the correlated scenario left the E panel round while A and C were
+# elongated, which again reads as a bug rather than as a parameter choice.
+#
+# The three correlations differ from each other in the correlated scenario
+# rather than sharing one value. Three equal numbers cannot show whether the
+# figure is reading each component separately or echoing a single knob three
+# times; three distinct ones can, and the panels should recover 0.5, 0.7 and
+# 0.2 independently.
+#
+# The seeds differ, so the two are independent draws rather than the same
+# pedigree re-phenotyped. That is deliberate: the contrast should survive
+# resampling, not depend on a shared realisation.
+
 no_correlation:
   seed: 7042
   pedigree:
+    trait1: {A: 0.5, C: 0.2, E: 0.3}
+    trait2: {A: 0.5, C: 0.2, E: 0.3}
     rA: 0
     rC: 0
+    rE: 0
+
 high_correlation:
   seed: 8042
   pedigree:
-    rA: 0.7
+    trait1: {A: 0.5, C: 0.2, E: 0.3}
+    trait2: {A: 0.5, C: 0.2, E: 0.3}
+    rA: 0.5
     rC: 0.7
+    rE: 0.2

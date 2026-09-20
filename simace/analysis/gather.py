@@ -80,9 +80,11 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
         "A2": params.get("A2"),
         "C2": params.get("C2"),
         "E2": params.get("E2"),
-        # Cross-trait correlations
+        # Cross-trait correlations.  ``rE`` resolves to None for reports
+        # predating the key, which the expected-value marker skips.
         "rA": params.get("rA"),
         "rC": params.get("rC"),
+        "rE": params.get("rE"),
         # Population parameters.  ``mating_model`` defaults to "standard" so
         # reports predating this column still gather cleanly.
         # ``expected_twin_rate`` is sourced from the report via
