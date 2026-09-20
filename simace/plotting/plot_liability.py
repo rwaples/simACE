@@ -816,10 +816,19 @@ def plot_mate_correlation(
             E2=param_as_float(params.get("E2", 0)),
         )
 
-    xlabels = ["Male trait 1", "Male trait 2"]
-    ylabels = ["Female trait 1", "Female trait 2"]
+    # The sex lives on the axis label, not repeated in every tick. At 14 pt
+    # "Female trait 1" and "Female trait 2" are each about as tall as the
+    # heatmap row they label, so the two ran into one another.
+    xlabels = ["Trait 1", "Trait 2"]
+    ylabels = ["Trait 1", "Trait 2"]
 
-    _fig, (ax_exp, ax_obs) = plt.subplots(1, 2, figsize=(12, 5))
+    # 9 inches, not 12. Poster panel 7 stacks two of these in one 246.87 mm
+    # cell, so each is height-capped near 99.5 mm and the figure is scaled to
+    # fit. At 12 inches that scale was 0.74 and the 10 pt tick labels printed at
+    # 7.4 pt, against 11-13 pt elsewhere on the sheet. Authoring nearer the
+    # printed size puts the scale at ~1.05 instead. The aspect is widened to 2.4
+    # to sit closer to the slot's 2.48 and waste less of the cell's width.
+    _fig, (ax_exp, ax_obs) = plt.subplots(1, 2, figsize=(9.0, 3.75))
 
     # Left panel: expected (parametric)
     sns.heatmap(
@@ -831,7 +840,7 @@ def plot_mate_correlation(
         center=0,
         annot=True,
         fmt=".2f",
-        annot_kws={"fontsize": 16, "fontweight": "bold"},
+        annot_kws={"fontsize": 19, "fontweight": "bold"},
         square=True,
         linewidths=0.5,
         linecolor="black",
@@ -842,7 +851,7 @@ def plot_mate_correlation(
     exp_title = "Expected"
     if a1 != 0 or a2 != 0:
         exp_title += f"\nassort1={a1}, assort2={a2}"
-    ax_exp.set_title(exp_title, fontsize=13)
+    ax_exp.set_title(exp_title, fontsize=15)
 
     # Right panel: observed (realized)
     sns.heatmap(
@@ -854,7 +863,7 @@ def plot_mate_correlation(
         center=0,
         annot=True,
         fmt=".2f",
-        annot_kws={"fontsize": 16, "fontweight": "bold"},
+        annot_kws={"fontsize": 19, "fontweight": "bold"},
         square=True,
         linewidths=0.5,
         linecolor="black",
@@ -862,6 +871,18 @@ def plot_mate_correlation(
         xticklabels=xlabels,
         yticklabels=[],
     )
-    ax_obs.set_title("Observed", fontsize=13)
+    ax_obs.set_title("Observed", fontsize=15)
+
+    for ax in (ax_exp, ax_obs):
+        ax.tick_params(labelsize=14)
+        ax.set_xlabel("Male", fontsize=15)
+    ax_exp.set_ylabel("Female", fontsize=15)
+    # Indexed defensively: a caller that stubs out seaborn's heatmap (the
+    # border-kwargs test does) leaves the axes with no collections at all.
+    collections = ax_obs.collections
+    colorbar = collections[0].colorbar if len(collections) else None
+    if colorbar is not None:
+        colorbar.ax.tick_params(labelsize=12)
+        colorbar.set_label("Pearson r", fontsize=14)
 
     finalize_plot(output_path, scenario=scenario)

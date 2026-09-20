@@ -154,15 +154,27 @@ def annotate_heatmap(
 
 def finalize_plot(
     output_path: Any,
-    dpi: int = 150,
+    dpi: int | None = None,
     tight_rect: list[float] | None = None,
     subsample_note: str = "",
     scenario: str = "",
 ) -> None:
-    """tight_layout + savefig(bbox_inches='tight') + close current figure."""
+    """tight_layout + savefig(bbox_inches='tight') + close current figure.
+
+    ``dpi=None`` reads ``savefig.dpi`` from the active rcParams, which
+    :func:`~simace.plotting.plot_style.apply_nature_style` pins to 150. That is
+    the single knob for output resolution: a consumer that needs print-grade
+    rasters raises the rcParam once rather than threading a dpi through every
+    plot function. Falls back to 150 when the rcParam is the matplotlib default
+    sentinel ``"figure"``.
+    """
     import warnings
 
     import matplotlib.pyplot as plt
+
+    if dpi is None:
+        configured = plt.rcParams["savefig.dpi"]
+        dpi = 150 if configured == "figure" else int(configured)
 
     from simace.plotting.plot_style import add_scenario_label
 

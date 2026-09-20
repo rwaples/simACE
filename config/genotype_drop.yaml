@@ -90,3 +90,109 @@ p2_full_c1m:
   drop_from: p2_full
   tstrait:
     num_causal: 1000000
+
+# ── Sparse end of the num_causal sweep ──────────────────────────────────────
+# Added for poster panel 10, which shows the parametric (infinitesimal) A
+# converging on the gene-drop A as polygenicity rises. The sweep above cannot
+# show that: it starts at 100 causal loci, which is already effectively
+# infinitesimal for every statistic that discriminates the two models.
+#
+# The discriminating statistic is the Mendelian sampling deviation
+# d = A_offspring - midparent A, which simACE's parametric path draws as
+# Normal(0, A/2) independent of the parents. Its excess kurtosis falls as ~1/L.
+# Over the 71,902 trios with a gene-drop A on both parent and offspring the
+# measurement noise floor is sqrt(24/n) = 0.018, and the analytic departure is
+# 0.050 at L=100, 0.016 at L=1000 and 0.0013 at L=10,000. Only L=100 clears the
+# floor. Sampling the eligible pool predicts 0.74 at L=10, 0.43 at L=20, 0.21 at
+# L=50 and 0.039 at L=300, so 10/30/300 plus the existing 100 give four points
+# above the floor before the curve lands on it.
+#
+# L < 10 is deliberately excluded: across draws the interquartile range of the
+# predicted kurtosis spans a factor of ~30, because one rare large-effect locus
+# carries the whole trait. A single replicate there shows an accident, not a trend.
+#
+# All three reuse p2_full's dropped chromosomes via `drop_from`
+# (workflow/rules/simace/tstrait_phenotype.smk:79), so only the tstrait steps run.
+p2_full_c10:
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
+  drop_from: p2_full
+  tstrait:
+    num_causal: 10
+p2_full_c30:
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
+  drop_from: p2_full
+  tstrait:
+    num_causal: 30
+p2_full_c300:
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
+  drop_from: p2_full
+  tstrait:
+    num_causal: 300
+
+# ── Below ten causal loci ───────────────────────────────────────────────────
+# Added 2026-09-11 for the poster panel that plots the distribution of A against
+# polygenicity. The sweep above bottoms out at 10, where the excess kurtosis of
+# A is 0.55 against 0.02 for the drawn arm. That is a real departure but a small
+# one to read off a printed density, and the panel is trying to show a reader
+# where the infinitesimal shortcut starts to be wrong rather than to measure it.
+#
+# This walks back the "L < 10 is deliberately excluded" note above, which was
+# written for a different figure. That note is still right about the statistics:
+# with three causal loci one locus can carry most of the trait, so the realized
+# kurtosis of a single draw is not an estimate of anything, and across draws it
+# scatters by more than an order of magnitude. It is wrong as a reason to leave
+# these out of a figure whose claim is about a single architecture and says so.
+# Read these two arms as one architecture each, not as the sparse limit.
+#
+# Both reuse p2_full's dropped chromosomes via `drop_from`, so only the tstrait
+# steps run: about 270 wall seconds each, from benchmarks/genotype_drop/p2_full_c10.
+p2_full_c3:
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
+  drop_from: p2_full
+  tstrait:
+    num_causal: 3
+p2_full_c5:
+  seed: 4242
+  N: 35951
+  G_ped: 10
+  G_sim: 10
+  G_pheno: 3
+  replicates: 1
+  use_gene_drop: true
+  pedigree: *id003
+  phenotype: *id004
+  drop_from: p2_full
+  tstrait:
+    num_causal: 5

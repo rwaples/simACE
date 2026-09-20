@@ -17,6 +17,9 @@ pandas = "3.0.*"
 polars = "1.43.*"
 pyarrow = "25.0.*"
 pyyaml = "6.0.*"
+# templating for notes/poster/tools/build_poster.py; already in the lock as a
+# snakemake-minimal dependency, pinned here because we import it directly
+jinja2 = "3.1.*"
 numba = "0.66.*"
 # plotting
 matplotlib = "3.11.*"

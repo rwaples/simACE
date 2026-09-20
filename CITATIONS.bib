@@ -48,6 +48,22 @@
   doi     = {10.1111/j.1469-1809.1965.tb00500.x},
 }
 
+% Verified against Crossref (api.crossref.org/works/10.1017/s0016672310000480)
+% on 2026-09-11; author initials are as Crossref records them. Table 2 is the
+% source of the predicted SDs of actual relationship that poster panel 10's left
+% axes is drawn against.
+@article{HillWeir2011,
+  author  = {W. G. Hill and B. S. Weir},
+  title   = {Variation in Actual Relationship as a Consequence of
+             {Mendelian} Sampling and Linkage},
+  journal = {Genetics Research},
+  volume  = {93},
+  number  = {1},
+  pages   = {47--64},
+  year    = {2011},
+  doi     = {10.1017/S0016672310000480},
+}
+
 @article{Yang2011,
   author  = {Jian Yang and S. Hong Lee and Michael E. Goddard
              and Peter M. Visscher},
@@ -466,4 +482,115 @@
   pages   = {33},
   year    = {2021},
   doi     = {10.12688/f1000research.29032.2},
+}
+
+% Verified against Crossref (api.crossref.org) on 2026-09-10: 32 authors, and
+% the article number iyab229 stands in for a page range. Crossref gives the
+% online date as 2021-12-13 and the print issue as 2022; the year below is the
+% print issue, matching how the paper is cited.
+@article{Baumdicker2022msprime,
+  author  = {Franz Baumdicker and Gertjan Bisschop and Daniel Goldstein
+             and Graham Gower and Aaron P. Ragsdale and Georgia Tsambos
+             and Sha Zhu and Bjarki Eldon and E. Castedo Ellerman
+             and Jared G. Galloway and Ariella L. Gladstein
+             and Gregor Gorjanc and Bing Guo and Ben Jeffery
+             and Warren W. Kretzschumar and Konrad Lohse
+             and Michael Matschiner and Dominic Nelson
+             and Nathaniel S. Pope and Consuelo D. Quinto-Cort{\'e}s
+             and Murillo F. Rodrigues and Kumar Saunack
+             and Thibaut Sellinger and Kevin Thornton
+             and Hugo {van Kemenade} and Anthony W. Wohns and Yan Wong
+             and Simon Gravel and Andrew D. Kern and Jere Koskela
+             and Peter L. Ralph and Jerome Kelleher},
+  title   = {Efficient Ancestry and Mutation Simulation with {msprime} 1.0},
+  journal = {Genetics},
+  volume  = {220},
+  number  = {3},
+  pages   = {iyab229},
+  year    = {2022},
+  doi     = {10.1093/genetics/iyab229},
+}
+% Verified against DataCite (api.datacite.org) on 2026-09-10. This is Zenodo's
+% concept DOI: it always resolves to the newest release, so the author list and
+% year below are the record as it stood on that date and will drift with each
+% release. polars publishes no paper; the README points here. Several creators
+% are GitHub handles rather than personal names, braced so they keep their
+% capitalisation and parse as a single family name.
+%
+% The title deviates from the record on purpose. DataCite returns
+% "pola-rs/polars: Python Polars 1.44.2", which is the release tag rather than a
+% name, and reads as a version string next to the journal entries. Shortened to
+% the software's name; every other field is verbatim.
+@misc{Vink2026polars,
+  author    = {Ritchie Vink and Alexander Beedie and {nameexhaustion} and
+               Orson Peters and Gijs Burghoorn and Stijn {de Gooijer} and
+               Marco Edward Gorelli and {reswqa} and Amber Sprenkels and
+               Koen Denecker and {Marshall} and Jeroen {van Zundert} and
+               Gert Hulselmans and Cory Grinstead and Kevin Patyk and
+               Luke Manley and {chielP} and Kuba Valtar and
+               Itamar Turner-Trauring and Lawrence Mitchell and
+               Azim Afroozeh and Karl Genockey and Henry Harbeck and
+               {eitsupi} and Daniel Szilagyi and Oliver Borchert and
+               {Robin} and Lukas Bergdoll and Thijs Nieuwdorp},
+  title     = {Polars},
+  publisher = {Zenodo},
+  year      = {2026},
+  doi       = {10.5281/zenodo.7697217},
+}
+
+% Verified against Crossref (api.crossref.org) on 2026-09-10: 4 authors,
+% PLOS Computational Biology 14(11), e1006581, issued 2018-11-01. This is the
+% tskit citation -- the tree-sequence data model and the succinct tree sequence
+% toolkit are introduced here.
+@article{Kelleher2018tskit,
+  author  = {Jerome Kelleher and Kevin R. Thornton and Jaime Ashander
+             and Peter L. Ralph},
+  title   = {Efficient Pedigree Recording for Fast Population Genetics
+             Simulation},
+  journal = {PLOS Computational Biology},
+  volume  = {14},
+  number  = {11},
+  pages   = {e1006581},
+  year    = {2018},
+  doi     = {10.1371/journal.pcbi.1006581},
+}
+
+% Verified against Crossref (api.crossref.org) on 2026-09-10: 3 authors,
+% Bioinformatics 40(6), article number btae334; online 2024-05-25, print issue
+% 2024-06-03. Crossref returns the title wrapped in <tt> markup, stripped here.
+@article{Tagami2024tstrait,
+  author  = {Daiki Tagami and Gertjan Bisschop and Jerome Kelleher},
+  title   = {{tstrait}: A Quantitative Trait Simulator for Ancestral
+             Recombination Graphs},
+  journal = {Bioinformatics},
+  volume  = {40},
+  number  = {6},
+  pages   = {btae334},
+  year    = {2024},
+  doi     = {10.1093/bioinformatics/btae334},
+}
+
+% Verified against Crossref (api.crossref.org/works/10.47248/hpgg2505040006) on
+% 2026-09-11: 4 authors, Human Population Genetics and Genomics 5(4), article
+% number 0006, issued 2025-10-15. This is the journal version of record; the
+% same work is on bioRxiv as 10.1101/2025.09.01.673541, and the repository
+% README cites the preprint title, which reads "full-genome" where the published
+% title reads "whole-genome". The published title is used here.
+%
+% This is where the gene-drop founder haplotypes come from. The per-chromosome
+% ancestral tree sequences are the simhumanity_trees_RO archive
+% (config/_default.yaml: tskit_preprocess.source_dir) and the HapMapII GRCh38
+% recombination maps are this repository's stdpopsim extraction
+% (workflow/scripts/simace/tskit/genotype_drop_chrom.py:134).
+@article{Haller2025simhumanity,
+  author  = {Benjamin C. Haller and Chase W. Nelson and Murillo F. Rodrigues
+             and Philipp W. Messer},
+  title   = {{SimHumanity}: Using {SLiM} 5.0 to Run Whole-Genome Simulations
+             of Human Evolution},
+  journal = {Human Population Genetics and Genomics},
+  volume  = {5},
+  number  = {4},
+  pages   = {0006},
+  year    = {2025},
+  doi     = {10.47248/hpgg2505040006},
 }

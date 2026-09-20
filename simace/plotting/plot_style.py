@@ -37,7 +37,7 @@ PEDIGREE_COLORS: dict[str, str] = {
     **PAIR_COLORS,
     "GP": "#CC6633",  # muted brown
     "Av": "#999933",  # muted dark olive
-    "2C": "#DDDDDD",  # light grey
+    "2C": "#777777",  # medium grey; darker than 1C's #BBBBBB so the label reads
 }
 
 # Affected / unaffected status
@@ -76,7 +76,13 @@ def apply_nature_style() -> None:
         {
             # Fonts
             "font.family": "sans-serif",
-            "font.sans-serif": ["Helvetica", "Arial", "DejaVu Sans"],
+            "font.sans-serif": ["Helvetica", "Arial", "Nimbus Sans", "Liberation Sans", "DejaVu Sans"],
+            # Math runs must match the body font or a bolded number inside a
+            # label switches typeface against its neighbours.
+            "mathtext.fontset": "custom",
+            "mathtext.rm": "sans",
+            "mathtext.it": "sans:italic",
+            "mathtext.bf": "sans:bold",
             # Axes
             "axes.spines.top": False,
             "axes.spines.right": False,
