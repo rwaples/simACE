@@ -86,7 +86,7 @@ skills-lock.json
 
 # Immutable benchmark run directories (python -m tools.benchmark). The harness
 # is tracked; measurements remain machine-local or GitHub Actions artifacts.
-bench-logs/
+bench-logs*/
 
 # Working plan drafts (design-interview output). Finalized plans are promoted
 # to docs/plans/ (tracked). Keep the README so the location stays predictable.
