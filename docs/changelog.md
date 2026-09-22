@@ -26,8 +26,8 @@ Git tags via `setuptools-scm`.
   `PedigreeGraph.view(ids=...)` rows, nominal kinship reads
   `RELATIONSHIPS[code].nominal_kinship`, and effective size runs through
   `pedigree_graph.effective_size.estimate_effective_sizes`. Behaviour that
-  moves with it, measured by `tools/pg08_migration_diff.py` against the 0.7.1
-  baseline in `docs/pedigree-graph-0.8-migration/`:
+  moves with it, measured by `external/pedigree-graph/tools/pg08_migration_diff.py` against the 0.7.1
+  baseline in `external/pedigree-graph/docs/pedigree-graph-0.8-migration/`:
   - `relationship_pair_counts` reports each pair under its one closest
     category, so a pair that 0.7.1 listed under two codes counts once; a code
     outside the requested depth is `null` ("not computed"), never `0`.
