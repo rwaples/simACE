@@ -11,7 +11,6 @@ beside them.** Copy this `verify/` directory to a clean machine (only `git` +
 
 | Script | Repos exercised | Auth | Rough cost |
 |---|---|---|---|
-| `verify_pedsum.sh` | pedsum | none (HTTPS) | one env solve + fast CLI smoke |
 | `verify_simace.sh` | simACE | none (HTTPS) | one env solve + pytest + Snakemake smoke |
 | `verify_simace_epimight.sh` | simACE + fitACE + fitACE_epimight + EPIMIGHT R pkg | SSH for the two private repos | two env solves + R pkg build + a fit |
 
@@ -27,7 +26,6 @@ beside them.** Copy this `verify/` directory to a clean machine (only `git` +
 ## Running
 
 ```bash
-bash scripts/verify/verify_pedsum.sh
 bash scripts/verify/verify_simace.sh
 bash scripts/verify/verify_simace_epimight.sh
 ```
@@ -58,8 +56,8 @@ branches):
 | pedigree-graph | — (pip `git+…@v0.5.1` at env-create) | — | `v0.5.1` | HTTPS |
 
 Clone URLs are overridable via the matching `*_URL` env vars (e.g.
-`SIMACE_URL`, `FITACE_URL`). `verify_pedsum.sh` also takes `--full` (run
-pedsum's ~80 s test suite; default skips).
+`SIMACE_URL`, `FITACE_URL`). pedsum's own fresh-install check lives in its repo
+(`scripts/verify/verify_pedsum.sh` there, with its own copy of `lib.sh`).
 
 > **Full clones, on purpose.** The scripts never use `--depth`: `setuptools-scm`
 > derives the CalVer version from git tags, and a shallow clone yields a bogus

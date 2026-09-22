@@ -137,9 +137,7 @@ def _flatten_section(
             raise ValueError(
                 f"Top-level {'.'.join(path)} is no longer supported. "
                 f"Move it inside phenotype.{path[1]}.params (for adult / "
-                f"cure_frailty) or remove it (for frailty / first_passage). "
-                f"Run scripts/migrate_prevalence_keys.py to migrate every "
-                f"config/*.yaml automatically."
+                f"cure_frailty) or remove it (for frailty / first_passage)."
             )
         else:
             raise ValueError(f"Unknown hierarchical config key: {'.'.join(path)}")
@@ -302,14 +300,12 @@ def _validate_phenotype_config(config: dict) -> None:
                     raise ValueError(
                         f"Scenario '{name}': {params_key} for model {model!r} must include "
                         f"'prevalence' key. If your YAML still has top-level "
-                        f"phenotype.trait{trait_num}.prevalence, run "
-                        f"scripts/migrate_prevalence_keys.py to move it inside params:."
+                        f"phenotype.trait{trait_num}.prevalence, move it inside params:."
                     )
             elif model in ("frailty", "first_passage") and "prevalence" in pp:
                 raise ValueError(
                     f"Scenario '{name}': {params_key} for model {model!r} must NOT include "
-                    f"'prevalence' (only adult / cure_frailty accept it). "
-                    f"Drop the key or run scripts/migrate_prevalence_keys.py."
+                    f"'prevalence' (only adult / cure_frailty accept it). Drop the key."
                 )
 
 
