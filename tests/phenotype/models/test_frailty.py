@@ -1,9 +1,7 @@
 """Construction / validation tests for FrailtyModel.
 
-These complement ``tests/phenotyping/test_phenotype.py``, which exercises
-the simulate path through compatibility shims. Here we test the new
-class-level surface directly: validation, ``from_config``, ``from_cli``,
-and ``to_params_dict``.
+Construction, config and CLI surfaces are tested here; shared behavioural
+contracts (sex effects, liability ordering) live in ``test_behaviour.py``.
 """
 
 import argparse
