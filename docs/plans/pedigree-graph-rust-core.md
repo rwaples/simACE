@@ -31,8 +31,8 @@ the topology set (structural depth, topological check, cycle witness, depth-majo
 order) with the numba and NumPy originals deleted and oracles kept under
 `tests/oracle/`. 0.8.1 was tagged and published the same day; `ci.yml` and
 `publish.yml` ran green on GitHub, and simACE, fitACE, and pedsum are locked to the
-0.8.1 wheel (gate records under `external/pedigree-graph/docs/pedigree-graph-0.8-migration/gate/10a/` and
-`10c/`).
+0.8.1 wheel (gate records under `docs/pedigree-graph-0.8-migration/gate/10a/` and
+`10c/` in the pedigree-graph repo).
 
 Slice 10b (`plans/pedigree-graph-slice-10b-native-construction.md`) moved
 construction proper into the core: `crates/core/src/graph.rs` builds the pedigree
