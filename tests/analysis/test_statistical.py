@@ -50,47 +50,25 @@ def stat_pedigree():
 
 
 class TestFounderVariances:
-    def test_A1_variance(self, stat_pedigree):
+    @pytest.mark.parametrize(
+        ("column", "expected"),
+        [
+            ("A1", STAT_PARAMS["A1"]),
+            ("C1", STAT_PARAMS["C1"]),
+            ("E1", 1.0 - STAT_PARAMS["A1"] - STAT_PARAMS["C1"]),
+            ("A2", STAT_PARAMS["A2"]),
+            ("C2", STAT_PARAMS["C2"]),
+            ("E2", 1.0 - STAT_PARAMS["A2"] - STAT_PARAMS["C2"]),
+        ],
+    )
+    def test_component_variance(self, stat_pedigree, column, expected):
         founders = stat_pedigree.filter(pl.col("mother") == -1)
-        var = founders["A1"].var()
-        assert abs(var - STAT_PARAMS["A1"]) < 0.06
+        assert abs(founders[column].var() - expected) < 0.06
 
-    def test_C1_variance(self, stat_pedigree):
+    @pytest.mark.parametrize("column", ["liability1", "liability2"])
+    def test_total_variance_is_unit(self, stat_pedigree, column):
         founders = stat_pedigree.filter(pl.col("mother") == -1)
-        var = founders["C1"].var()
-        assert abs(var - STAT_PARAMS["C1"]) < 0.06
-
-    def test_E1_variance(self, stat_pedigree):
-        founders = stat_pedigree.filter(pl.col("mother") == -1)
-        E1 = 1.0 - STAT_PARAMS["A1"] - STAT_PARAMS["C1"]
-        var = founders["E1"].var()
-        assert abs(var - E1) < 0.06
-
-    def test_A2_variance(self, stat_pedigree):
-        founders = stat_pedigree.filter(pl.col("mother") == -1)
-        var = founders["A2"].var()
-        assert abs(var - STAT_PARAMS["A2"]) < 0.06
-
-    def test_C2_variance(self, stat_pedigree):
-        founders = stat_pedigree.filter(pl.col("mother") == -1)
-        var = founders["C2"].var()
-        assert abs(var - STAT_PARAMS["C2"]) < 0.06
-
-    def test_E2_variance(self, stat_pedigree):
-        founders = stat_pedigree.filter(pl.col("mother") == -1)
-        E2 = 1.0 - STAT_PARAMS["A2"] - STAT_PARAMS["C2"]
-        var = founders["E2"].var()
-        assert abs(var - E2) < 0.06
-
-    def test_total_variance_trait1(self, stat_pedigree):
-        founders = stat_pedigree.filter(pl.col("mother") == -1)
-        total = founders["liability1"].var()
-        assert abs(total - 1.0) < 0.1
-
-    def test_total_variance_trait2(self, stat_pedigree):
-        founders = stat_pedigree.filter(pl.col("mother") == -1)
-        total = founders["liability2"].var()
-        assert abs(total - 1.0) < 0.1
+        assert abs(founders[column].var() - 1.0) < 0.1
 
 
 # ---------------------------------------------------------------------------
