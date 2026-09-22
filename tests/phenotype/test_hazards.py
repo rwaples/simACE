@@ -1,6 +1,11 @@
-"""Unit tests for simace.phenotype.hazards."""
+"""Unit tests for simace.phenotype.hazards: error paths, exact contracts, CLI helpers.
 
-from itertools import pairwise
+Finiteness, clamping, unit moments after standardization, generation-group
+partitioning and prevalence monotonicity are property-tested in
+``test_hazards_properties.py`` and are not repeated here.
+"""
+
+import argparse
 
 import numpy as np
 import pytest
@@ -8,13 +13,16 @@ import pytest
 from simace.phenotype.hazards import (
     BASELINE_HAZARDS,
     BASELINE_PARAMS,
+    add_hazard_cli_args,
     coerce_standardize_mode,
     compute_event_times,
     iter_generation_groups,
+    parse_hazard_cli,
     resolve_hazard_mode,
     standardize_beta,
     standardize_liability,
     true_lifetime_prevalence_weibull,
+    validate_hazard_params,
 )
 
 ALL_DISTRIBUTIONS = sorted(BASELINE_HAZARDS)
@@ -33,15 +41,6 @@ def _draws(n: int = 500, seed: int = 42) -> tuple[np.ndarray, np.ndarray]:
     liability = rng.standard_normal(n)
     neg_log_u = rng.exponential(size=n)
     return liability, neg_log_u
-
-
-@pytest.mark.parametrize("distribution", ALL_DISTRIBUTIONS)
-def test_compute_event_times_finite(distribution):
-    liability, neg_log_u = _draws()
-    t = compute_event_times(neg_log_u, liability, 0.0, 1.0, distribution, DEFAULT_PARAMS[distribution])
-    assert t.shape == liability.shape
-    assert np.all(np.isfinite(t))
-    assert np.all(t > 0)
 
 
 @pytest.mark.parametrize("distribution", ALL_DISTRIBUTIONS)
@@ -128,32 +127,10 @@ def test_standardize_liability_none_returns_input():
     np.testing.assert_array_equal(out, L)
 
 
-def test_standardize_liability_global():
-    rng = np.random.default_rng(1)
-    L = rng.normal(2.0, 3.0, size=10_000)
-    out = standardize_liability(L, "global")
-    assert out.mean() == pytest.approx(0.0, abs=1e-10)
-    assert out.std() == pytest.approx(1.0, abs=1e-10)
-
-
 def test_standardize_liability_global_zero_std_returns_centered():
     L = np.full(50, 3.0)
     out = standardize_liability(L, "global")
     np.testing.assert_array_equal(out, np.zeros(50))
-
-
-def test_standardize_liability_per_generation_each_gen_unit_variance():
-    rng = np.random.default_rng(2)
-    n_per = 5000
-    gen0 = rng.normal(1.0, 1.0, n_per)
-    gen1 = rng.normal(-2.0, 3.0, n_per)
-    L = np.concatenate([gen0, gen1])
-    g = np.concatenate([np.zeros(n_per), np.ones(n_per)])
-    out = standardize_liability(L, "per_generation", g)
-    for gi in (0.0, 1.0):
-        sub = out[g == gi]
-        assert sub.mean() == pytest.approx(0.0, abs=1e-10)
-        assert sub.std() == pytest.approx(1.0, abs=1e-10)
 
 
 def test_standardize_liability_per_generation_requires_generation():
@@ -194,39 +171,11 @@ def test_standardize_beta_none_returns_zeros_and_beta():
     np.testing.assert_array_equal(sbeta, np.full(3, 2.5))
 
 
-def test_standardize_beta_global_arrays_constant():
-    rng = np.random.default_rng(7)
-    L = rng.standard_normal(10_000)
-    mean, sbeta = standardize_beta(L, beta=1.5, mode="global")
-    assert mean.shape == L.shape
-    assert sbeta.shape == L.shape
-    assert np.all(mean == mean[0])
-    assert np.all(sbeta == sbeta[0])
-    assert mean[0] == pytest.approx(L.mean())
-    assert sbeta[0] == pytest.approx(1.5 / L.std())
-
-
 def test_standardize_beta_global_zero_std_returns_zero_beta():
     L = np.full(50, 3.0)
     mean, sbeta = standardize_beta(L, beta=2.0, mode="global")
     np.testing.assert_array_equal(mean, np.full(50, 3.0))
     np.testing.assert_array_equal(sbeta, np.zeros(50))
-
-
-def test_standardize_beta_per_generation():
-    rng = np.random.default_rng(8)
-    n_per = 5000
-    L = np.concatenate([rng.normal(1.0, 1.0, n_per), rng.normal(-2.0, 3.0, n_per)])
-    g = np.concatenate([np.zeros(n_per), np.ones(n_per)])
-    mean, sbeta = standardize_beta(L, beta=1.0, mode="per_generation", generation=g)
-    # Each individual carries their own gen's stats
-    assert mean[g == 0][0] == pytest.approx(L[g == 0].mean())
-    assert mean[g == 1][0] == pytest.approx(L[g == 1].mean())
-    assert sbeta[g == 0][0] == pytest.approx(1.0 / L[g == 0].std())
-    assert sbeta[g == 1][0] == pytest.approx(1.0 / L[g == 1].std())
-    # Within each gen, mean and sbeta are constant
-    assert np.all(mean[g == 0] == mean[g == 0][0])
-    assert np.all(sbeta[g == 1] == sbeta[g == 1][0])
 
 
 def test_standardize_beta_per_generation_requires_generation():
@@ -261,24 +210,6 @@ def test_standardize_beta_legacy_bool_passthrough():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("mode", ["none", "global", False, True])
-def test_iter_generation_groups_non_per_gen_yields_single_full_mask(mode):
-    g = np.array([0, 0, 1, 1, 2])
-    masks = list(iter_generation_groups(mode, g))
-    assert len(masks) == 1
-    assert masks[0].shape == (5,)
-    assert masks[0].all()
-
-
-def test_iter_generation_groups_per_gen_yields_one_mask_per_unique_gen():
-    g = np.array([0, 0, 1, 1, 2])
-    masks = list(iter_generation_groups("per_generation", g))
-    assert len(masks) == 3
-    np.testing.assert_array_equal(masks[0], np.array([True, True, False, False, False]))
-    np.testing.assert_array_equal(masks[1], np.array([False, False, True, True, False]))
-    np.testing.assert_array_equal(masks[2], np.array([False, False, False, False, True]))
-
-
 def test_iter_generation_groups_per_gen_single_gen_yields_one_mask():
     g = np.zeros(10)
     masks = list(iter_generation_groups("per_generation", g))
@@ -305,12 +236,6 @@ def test_true_lifetime_prevalence_weibull_known_values(scale, rho, beta, max_age
     assert k == pytest.approx(expected, abs=5e-3)
 
 
-def test_true_lifetime_prevalence_weibull_monotone_in_max_age():
-    ks = [true_lifetime_prevalence_weibull(2160.0, 0.8, 1.0, a) for a in (10.0, 40.0, 80.0, 120.0)]
-    assert ks[0] > 0.0
-    assert all(hi > lo for lo, hi in pairwise(ks))
-
-
 def test_true_lifetime_prevalence_weibull_matches_generative_model():
     # The quadrature must reproduce the _nb_weibull inversion
     # T = scale * (E / z) ** (1/rho), E ~ Exp(1), z = exp(beta * L), L ~ N(0,1).
@@ -324,3 +249,60 @@ def test_true_lifetime_prevalence_weibull_matches_generative_model():
     k_mc = float((t <= max_age).mean())
     k = true_lifetime_prevalence_weibull(scale, rho, beta, max_age)
     assert k == pytest.approx(k_mc, abs=2e-3)
+
+
+# ---------------------------------------------------------------------------
+# validate_hazard_params
+# ---------------------------------------------------------------------------
+
+
+def test_validate_rejects_unknown_distribution():
+    with pytest.raises(ValueError, match="unknown frailty distribution"):
+        validate_hazard_params("not_a_real_dist", {}, "frailty")
+
+
+@pytest.mark.parametrize(
+    ("distribution", "missing"),
+    [
+        ("weibull", "rho"),
+        ("gompertz", "gamma"),
+        ("lognormal", "sigma"),
+    ],
+)
+def test_validate_rejects_missing_required_keys(distribution, missing):
+    bad_params = {k: v for k, v in DEFAULT_PARAMS[distribution].items() if k != missing}
+    with pytest.raises(ValueError, match="missing required hazard params"):
+        validate_hazard_params(distribution, bad_params, "frailty")
+
+
+# ---------------------------------------------------------------------------
+# add_hazard_cli_args + parse_hazard_cli error paths
+# ---------------------------------------------------------------------------
+
+
+def _parser_for(trait: int, name: str = "frailty") -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
+    add_hazard_cli_args(parser, trait, name=name)
+    return parser
+
+
+def test_missing_distribution_flag_raises():
+    args = _parser_for(trait=1).parse_args([])
+    with pytest.raises(ValueError, match="--frailty-distribution1 is required"):
+        parse_hazard_cli(args, trait=1, name="frailty")
+
+
+def test_missing_required_param_flag_raises():
+    args = _parser_for(trait=1).parse_args(["--frailty-distribution1", "weibull", "--frailty-scale1", "100.0"])
+    with pytest.raises(ValueError, match="--frailty-rho1 is required"):
+        parse_hazard_cli(args, trait=1, name="frailty")
+
+
+def test_kebab_name_maps_to_snake_attr():
+    """``name='cure-frailty'`` registers attrs like ``cure_frailty_distribution1``."""
+    args = _parser_for(trait=1, name="cure-frailty").parse_args(
+        ["--cure-frailty-distribution1", "weibull", "--cure-frailty-scale1", "50.0", "--cure-frailty-rho1", "1.5"]
+    )
+    dist, params = parse_hazard_cli(args, trait=1, name="cure-frailty")
+    assert dist == "weibull"
+    assert params == {"scale": 50.0, "rho": 1.5}
