@@ -141,7 +141,6 @@ Five repos, all under `rwaples/` on GitHub (ADR 0017 collapsed the former 13: fi
 - Serial/debug: `pixi run pytest tests/ -v` — no workers, threads unpinned.
   Use this for `-v` output, `-s`, `--pdb`, and single-module runs; xdist
   captures output and breaks the debugger.
-- Single module: `pixi run pytest tests/simulation/test_simulate.py -v`
 - Run relevant tests before commit
 - Smoke test: `pixi run snakemake --cores 4 results/test/small_test/scenario.done`
 
@@ -153,9 +152,6 @@ with `tools/bench_pytest_workers.sh` before changing `-n`.
 
 ## Linting
 
-- Check: `pixi run ruff check`
-- Auto-fix: `pixi run ruff check --fix`
-- Format Python: `pixi run ruff format`
 - Format Snakemake: `pixi run snakefmt workflow/rules/**/*.smk Snakefile`
 - Run `ruff check` with **no extra `--select`**. The configured rules (incl. `D`/pydocstyle) plus the `ignore` and `per-file-ignores` in `pyproject.toml` are authoritative. Passing any `--select` (e.g. `--select D`) discards those ignores and surfaces false positives.
 
