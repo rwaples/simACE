@@ -1,6 +1,11 @@
 # Retire the ty advisory-budget ratchet for hard-zero
 
-The ty rollout (`docs/plans/ty-typecheck-rollout.md`) built a per-repo
+The ty rollout (2026-06: `ty==0.0.51` pinned family-wide via a `typecheck`
+extra, `python-version = "3.13"`, sibling source roots resolved through
+`[tool.ty.environment] extra-paths` because ty cannot follow import-hook
+editables, and a drift-only `/commit` gate of
+`ty check --ignore all --error unresolved-import`, deliberately with no CI)
+built a per-repo
 advisory-budget ratchet (`tools/ty_budget.json`) so each family repo could carry
 a non-zero baseline of library-stub false positives while still blocking *new*
 ones. Once every repo was driven to zero advisory findings, every budget entry

@@ -4,8 +4,11 @@
 
 Accepted. Grill-with-docs session 2026-08-13. Supersedes
 [ADR 0014](0014-dataframe-library-boundaries.md) (its measurements remain valid
-evidence; its three-layer boundary and deferral are replaced). Implementation
-plan: `docs/plans/polars-migration.md`.
+evidence; its three-layer boundary and deferral are replaced). The
+implementation plan (three waves, Wave 0 contract and plumbing, Wave 1 simACE
+internals stage by stage, Wave 2 the coordinated boundary break across repos)
+was completed in v2026.08 and retired; the surviving artifact is the user-facing
+guide `docs/polars-migration-guide.md`.
 
 ## Context
 
@@ -24,8 +27,10 @@ the cost of a mixed pandas/polars idiom. Standardizing on one primary frame API
 is the point; ADR 0014's benchmarks become regression guardrails rather than
 the justification.
 
-An investigation on 2026-08-13 (census + null-contract measurements recorded in
-`docs/plans/polars-migration.md`) also found that `nan_to_null=False` — added to
+An investigation on 2026-08-13 (pandas 3.0.5, polars 1.43.2: `pd.to_parquet`
+writes a float NaN as parquet null, null_count=1, while
+`pl.from_pandas(..., nan_to_null=False).write_parquet` writes a literal NaN,
+null_count=0) also found that `nan_to_null=False` — added to
 `save_parquet` by ADR 0014 as "load-bearing" — had actually *changed* the
 historical on-disk contract rather than preserved it: pandas' own
 `to_parquet` writes float NaN as parquet **null**, so every pandas-era artifact

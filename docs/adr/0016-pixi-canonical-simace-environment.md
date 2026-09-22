@@ -20,7 +20,7 @@ method sisters (editable installs, R, native toolchains). A uv pilot
 scientific stack, leaving three environment systems (conda YAMLs, uv.lock,
 pip editables) with drift between them.
 
-A pixi 0.76 spike (plans/pixi-spike-findings.md) showed one pixi manifest can
+A pixi 0.76 spike (2026-08-20, working notes not retained) showed one pixi manifest can
 cover everything conda does for simACE — conda-forge + bioconda + PyPI in a
 single committed lock — with the full suite, golden digests, and a Snakemake
 scenario all green, and cold env materialization in ~31s. The enabling change
@@ -52,5 +52,19 @@ caused editable-override conflicts).
   scope rule instead of overlapping claims: simACE = pixi, family = conda.
 - The pin sync rule is manual until fitACE migrates; a future fitACE-layer
   pixi spike (features/environments, R, sisters' editables) decides whether
-  the conda env retires entirely.
+  the conda env retires entirely. *Resolved:* the 2026-08-21 spike found the
+  family layer is purely nine cross-dependent Python editables (no R, no
+  native builds; EPIMIGHT R and the C++ binaries already live in their own
+  envs), every family test suite passed under pixi, and the apparent ty
+  parity gap was a confounded pre/post-polars comparison (issue #12: conda
+  and pixi agree count-for-count on identical source). ADR 0018 retired the
+  conda env on that basis.
+- Migration gate outcome (2026-08-21, baseline100K, 3 runs per env,
+  alternating): every scientific stage within noise, `simulate` peak RSS 40%
+  lower under pixi. `plot_phenotype` breached the 5% wall rule (+15%) at
+  identical cpu_time; py-spy traced it to `pixi run` exporting
+  `MPLBACKEND=Agg` while the conda run inherited the desktop session and
+  rendered under QtAgg. With Agg forced in both, the stage is at parity, so
+  the breach was a measurement artifact and the headless pixi configuration is
+  the correct pipeline behavior. Issue #11 closed with the evidence chain.
 - macOS users rely on the conda path until someone verifies an osx lock.
