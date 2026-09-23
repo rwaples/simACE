@@ -8,7 +8,7 @@ as amended by ADR 0010 (the relationship engine streams rows and saturates
 multiplicity at two) and ADR 0011 (the scalar estimate's exact set). Implementation
 has begun; see "Current state" below. Supersedes `plans/pedigree-graph-rust-core.md`.
 
-## Current state (2026-09-16)
+## Current state (2026-09-23)
 
 0.8.0 is tagged and published, so the pure-Python API redesign of ADR 0006 is done
 and every consumer resolves the released wheel rather than a routed checkout.
@@ -66,6 +66,28 @@ degree selector, approximate formulas, clamping warnings, and adjacency-power
 lifecycle; `RelationshipCountResult` lost `approximate` and `clamped`. Callers that
 need every category use the native `relationship_counts`. So there is no estimator
 left to port, and the next open step is the relationship-pair engine.
+
+Slice 12 (`plans/pedigree-graph-slice-12-relationship-pairs-v2.md`) put
+`relationship_pairs` on the Rust row-streaming engine and published 0.9.0
+(2026-09-20): graph and view blocks element for element what the SciPy matrix
+engine returned, the matrix engine kept as `tests/oracle/relationship_pairs.py`,
+`execution="speed" | "memory"`, one package-wide Rayon pool, the allocation
+test seam, and `ResourceError("allocation_failed")`. Gate records
+`docs/pedigree-graph-0.8-migration/gate/12a..12c/` in the pedigree-graph repo,
+where the consumer gate scripts now live (`tools/pg08_*`, `pg09_*`).
+
+Slice 13 (`plans/pedigree-graph-slice-13-pair-kinship.md`, locked 2026-09-22)
+put `pair_kinship` and the relationship matrix's value fill on the core:
+`crates/core/src/kinship/` walks the ADR 0009 recurrence in graph space with
+structural depth as the peel input, one memo per call laid out as one small
+table per lower row (selected by measurement over a port of the 0.9.0 flat
+table), nothing retained on the graph, and `memo_capacity_exceeded` retired.
+Bits are identical to 0.9.0 on every parity fixture (permanent golden lock)
+and on the four simACE study pedigrees; `random_30k` degree 3 went from
+82.5 s to 5.3 s and the 536k-row batch from 5.4 to 3.0 GiB peak
+(`gate/13a/NOTES.md`). The Python recurrence is `tests/oracle/pair_kinship.py`.
+Remaining Python kernels: the kinship matrix DP, inbreeding, lineage,
+generation summaries, Ne prerequisites; the R package.
 
 The older matrix pair-engine spike remains evidence only. It is committed on branch
 `rust-spike` in `external/pedigree-graph-rust-spike` at `659aa0c`, one commit off
