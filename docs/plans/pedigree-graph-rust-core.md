@@ -117,7 +117,15 @@ inbreeding runs at 0.19x to 0.32x the 0.9.3 wall and distinct ancestors at
 0.31x to 0.62x, both at 0.40x to 0.75x its peak RSS, and descendant paths
 cost 0.4 to 0.8 ms more for the overflow check, accepted
 (`gate/15a/NOTES.md`). The release build now uses one codegen unit.
-Remaining Python kernels: none; the R package remains.
+Remaining Python kernels: none.
+Slice 16 (`plans/pedigree-graph-slice-16-r-package.md`, locked 2026-09-23)
+added the R package `pedigreegraph` under `r/` as 0.10.0: construction,
+relationship pairs as one long data frame, pairwise kinship, the complete
+kinship matrix as a `dsCMatrix` (from a new upper-triangle core product) and
+inbreeding, with sealed graphs and classed conditions. R matched Python on
+120/120 products up to 536k rows (`gate/16b/NOTES.md`), and the vendored
+source tarball passes `R CMD check --as-cran` offline. ADR 0007's slice-16
+amendment records the departures. What remains is the 1.0.0 stabilisation.
 
 The older matrix pair-engine spike remains evidence only. It is committed on branch
 `rust-spike` in `external/pedigree-graph-rust-spike` at `659aa0c`, one commit off
@@ -459,7 +467,7 @@ crates/
 pedigree_graph/
   ...         # typed Python facade and host representations
 r/
-  ...         # initial extendr package, added in 0.9.0
+  ...         # initial extendr package, added in 0.10.0
 ```
 
 The Rust type is also `PedigreeGraph`, imported as
@@ -590,9 +598,11 @@ CI asserts wheel, sdist, Cargo metadata, DESCRIPTION, and Git tag agree.
 pedigree-graph keeps independent SemVer and is not part of the simACE/fitACE CalVer
 family.
 
-### R 0.9.0 scope
+### R 0.10.0 scope
 
-The first R package remains intentionally small:
+The first R package remains intentionally small. (As shipped in slice 16 the
+pairs are one long data frame and the matrix a `dsCMatrix`; see ADR 0007's
+slice-16 amendment. The sketch below is the original plan.)
 
 ```r
 pg <- pedigree_graph(df)
@@ -708,7 +718,7 @@ production code uses it. (The Caballero–Toro accumulators this step once named
 deleted with their estimator by issue #15 and ADR 0012. Done: generation mean kinship in
 slice 14, the rest in slice 15.)
 
-### 0.9.0 — initial R package
+### 0.10.0 — initial R package (done, slice 16)
 
 Add the small extendr surface, role-aware R pair frames, Matrix CSC conversion, offline
 vendoring, testthat parity, and source-tarball `R CMD check`.
@@ -769,7 +779,7 @@ Before 0.8.0 and every published migration patch:
 - fitACE monorepo: core and every consuming method package;
 - fitACE_epimight: relevant integration tests;
 - pedsum: full tests plus representative CLI smoke tests; and
-- from 0.9.0 onward: testthat and offline source-tarball `R CMD check`.
+- from 0.10.0 onward: testthat and offline source-tarball `R CMD check`.
 
 Intermediate commits may run scoped tests; release gates may not.
 
