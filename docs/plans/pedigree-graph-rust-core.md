@@ -103,8 +103,20 @@ the deepest bucket). `random_30k` complete matrix 97 s to 19 s and 13.9 to
 reached: a parentless row above depth 0 now keeps its diagonal, and the
 topology sort returns its allocation error instead of panicking; consumer
 bytes unchanged across the relock (`gate/14e/NOTES.md`).
-Remaining Python kernels: inbreeding, lineage, Ne prerequisites; numba
-stays until they move; the R package.
+Slice 15 (`plans/pedigree-graph-slice-15-inbreeding-lineage-ne.md`, locked
+2026-09-23) moved the last Numba kernels: `inbreeding` (the ADR 0008 walk,
+`kinship/inbreeding.rs`), `distinct_ancestor_counts` and
+`descendant_path_counts` (`lineage.rs`, the latter now raising
+`arithmetic_overflow` instead of wrapping), and the equivalent generations
+and per-cohort founder means behind the Ne estimators
+(`kinship/generations.rs`). `numba` left the runtime dependencies; the three
+modules are test oracles. Counts, F, EqG, founder means and Ne records are
+byte-identical to 0.9.3 on the parity fixtures and study pedigrees;
+inbreeding runs at 0.19x to 0.32x the 0.9.3 wall and distinct ancestors at
+0.31x to 0.62x, both at 0.40x to 0.75x its peak RSS, and descendant paths
+cost 0.4 to 0.8 ms more for the overflow check, accepted
+(`gate/15a/NOTES.md`). The release build now uses one codegen unit.
+Remaining Python kernels: none; the R package remains.
 
 The older matrix pair-engine spike remains evidence only. It is committed on branch
 `rust-spike` in `external/pedigree-graph-rust-spike` at `659aa0c`, one commit off
@@ -689,10 +701,11 @@ independent test oracle.
 ### 0.8.x — inbreeding, generation summary, lineage, and effective-size prerequisites
 
 Port MZ-aware inbreeding, generation mean kinship, distinct ancestor counts, descendant
-path counts, equivalent generations, founder contribution sums, and Caballero–Toro
-accumulators. Move modest invariant caches into Rust where beneficial. Keep high-level
-estimator formulas in `pedigree_graph.effective_size`. Remove Numba when no production
-or retained experimental code uses it.
+path counts, equivalent generations and the per-cohort founder contribution means. Keep
+high-level estimator formulas in `pedigree_graph.effective_size`. Remove Numba when no
+production code uses it. (The Caballero–Toro accumulators this step once named were
+deleted with their estimator by issue #15 and ADR 0012. Done: generation mean kinship in
+slice 14, the rest in slice 15.)
 
 ### 0.9.0 — initial R package
 
