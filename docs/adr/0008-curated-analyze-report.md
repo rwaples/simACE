@@ -2,14 +2,33 @@
 
 ## Status
 
-Accepted. Supersedes the report *shape* established in ADR 0007 (the `validation`
-group + six stats groups). The single-artifact, hard-cut migration discipline of
-ADR 0003 / 0007 is retained.
+Accepted. This ADR is the surviving record of the Analyze stage's report
+lineage; the three earlier decisions it built on have been retired and their
+durable parts are restated here:
+
+- **Grouped stats report.** The Stats stage replaced a flat
+  `phenotype_stats.yaml` with a grouped report plus `plotting_sample.parquet`
+  (the plotting-only downsample, unchanged since). Report grouping follows
+  domain meaning rather than module location.
+- **One Analyze job.** Validate and Stats run sequentially in a single process
+  and one Snakemake rule (`analyze`, `analyze.smk`), with each phase's large
+  frame explicitly freed before the next so peak memory is the max of the
+  phases, not their sum. Validate (full recorded pedigree) and Stats
+  (post-ascertainment sample) build their own relationship graphs over their
+  own scopes; cross-stage graph sharing was deferred and remains so. The
+  `validate.done` / `stats.done` targets both resolve to this rule. The debug
+  CLIs `simace-validate` and `simace-phenotype-stats` are retained and write
+  their own-named files; they are not pipeline artifacts.
+- **One report artifact, migrated by hard cut.** `validation.yaml` and
+  `stats_report.yaml` were merged into a single `report.yaml`. fitACE never
+  reads fields from these files, only declares them as Snakemake target paths,
+  so each interface change is a hard cut: no dual emit, no old-schema reader,
+  simACE merges first, fitACE repoints its paths, and a brief CI gap between
+  the two merges is expected. Existing result directories are regenerated.
 
 ## Context
 
-ADR 0007 merged the Analyze outputs into one `report.yaml`, but its shape was
-dictated by the producer seams — a `validation` group beside the six stats
+The merged `report.yaml` had its shape dictated by the producer seams — a `validation` group beside the six stats
 groups (`metadata`, `incidence`, …). That shape mixed three concerns: pass/fail
 quality checks, generated ground-truth quantities, observed sample summaries —
 and carried dense plot-only arrays (200-point incidence curves, 300-point

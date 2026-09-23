@@ -1,4 +1,4 @@
-# Add a sex-structured Wright-Fisher mating model alongside the standard model
+# ADR 0002: Sex-structured Wright-Fisher mating model alongside the standard model
 
 - **Status:** accepted
 - **Implemented:** dev branch, 2026-05

@@ -90,7 +90,7 @@ Headline: **Analyze replaces separate Validate and Stats stages.** It writes
 `report.yaml` v2 plus `plot_payload.yaml`, adds applied scenario suites, and
 cleans up plotting/relationship semantics.
 
-### Analyze (ADR 0006–0008)
+### Analyze (ADR 0008)
 
 - **Merged stage.** `simace-analyze`, `simace.analysis.analyze`, and the
   `analyze` rule run validation, full-population summaries, and sample stats in
@@ -156,7 +156,7 @@ stats reports.**
 
 ### Changed
 
-- **Grouped stats reports (ADR 0003).** Replaced `phenotype_stats.yaml` and
+- **Grouped stats reports.** Replaced `phenotype_stats.yaml` and
   `phenotype_samples.parquet` with `stats_report.yaml` and
   `plotting_sample.parquet`; no compatibility reader. Superseded by the
   Unreleased Analyze merge.

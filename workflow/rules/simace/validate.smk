@@ -1,7 +1,7 @@
 import platform
 
 # NOTE: per-replicate scientific results are produced by the combined `analyze`
-# rule (analyze.smk, ADR 0006/0007/0008) as the curated report.yaml; the
+# rule (analyze.smk, ADR 0008) as the curated report.yaml; the
 # folder-level report_summary.tsv is gathered from those reports. The standalone
 # simace-validate CLI / script wrapper is retained for early,
 # ascertainment-independent debugging on the full pedigree, but no rule invokes it.

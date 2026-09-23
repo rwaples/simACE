@@ -1,8 +1,8 @@
 """Combined Analyze stage: produce the curated v2 ``report.yaml`` in one job.
 
-Runs three phases sequentially within a single process (ADR 0007/0008), each
+Runs three phases sequentially within a single process (ADR 0008), each
 freeing its large frame before the next so peak memory is the max of the three
-phases rather than their sum (ADR 0006):
+phases rather than their sum (ADR 0008):
 
 1. **Validate** — ground-truth checks on the full, pre-ascertainment recorded
    pedigree (``pedigree.full.parquet`` + ``params.yaml``).

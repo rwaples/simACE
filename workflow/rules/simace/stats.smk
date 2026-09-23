@@ -3,7 +3,7 @@
 # ---------------------------------------------------------------------------
 #
 # NOTE: report.yaml + plot_payload.yaml + plotting_sample.parquet are produced
-# by the combined `analyze` rule (analyze.smk, ADR 0006/0007/0008). report.yaml
+# by the combined `analyze` rule (analyze.smk, ADR 0008). report.yaml
 # is the curated v2 scientific report; plot_payload.yaml holds the dense plot
 # arrays. The standalone simace-phenotype-stats CLI / script wrapper is retained
 # for debugging.

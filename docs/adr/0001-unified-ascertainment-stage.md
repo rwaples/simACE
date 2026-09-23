@@ -1,4 +1,4 @@
-# Unify dropout and subsampling into a single ascertainment stage after phenotype
+# ADR 0001: Unify dropout and subsampling into a single ascertainment stage
 
 - **Status:** accepted
 - **Implemented:** [`af138c8`](../../../../commit/af138c8) (simACE), [`1c3065a`](https://github.com/rwaples/fitACE/commit/1c3065a) (fitACE)

@@ -1,4 +1,4 @@
-# Prevalence-target semantics and phenotype-model assignment for the calibrated scenario folders
+# ADR 0005: Prevalence-target semantics and phenotype-model assignment for the calibrated scenario folders
 
 - **Status:** accepted
 

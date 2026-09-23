@@ -1,7 +1,7 @@
 """Compute per-replicate stats reports for downstream plotting.
 
 Reads outcomes-only trait.parquet plus pedigree.parquet (hydrated internally) and produces:
-  - the six grouped stats sections (the stats portion of report.yaml; ADR 0007)
+  - the six grouped stats sections (the stats portion of report.yaml; ADR 0008)
   - plotting_sample.parquet: downsampled rows for scatter/histogram plots
 
 Public API is re-exported from focused sub-modules:

@@ -4,7 +4,7 @@ Missing values are parquet **null** on disk — never literal NaN — regardless
 how missingness reaches ``save_parquet`` (polars null or transient NaN from a
 NumPy compute boundary). These tests inspect the written file through pyarrow
 because a pandas round-trip re-conflates null and NaN on read and therefore
-cannot catch a contract regression (the exact gap ADR 0014 documented).
+cannot catch a contract regression (the gap ADR 0015's context documents).
 
 Cross-library compat is retained here: pandas-written files (pandas' own
 ``to_parquet``) must load as null-carrying polars frames.

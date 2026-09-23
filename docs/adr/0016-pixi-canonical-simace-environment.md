@@ -1,4 +1,4 @@
-# 0016 — pixi is simACE's canonical environment; conda is demoted to the family environment
+# ADR 0016: pixi is simACE's canonical environment; conda is demoted to the family environment
 
 Date: 2026-08-14
 

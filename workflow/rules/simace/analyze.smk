@@ -1,6 +1,6 @@
 # ---------------------------------------------------------------------------
 # Combined Analyze stage: one job produces the curated report.yaml +
-# plot_payload.yaml (ADR 0006, 0007, 0008). Three phases over disjoint scopes:
+# plot_payload.yaml (ADR 0008). Three phases over disjoint scopes:
 # recorded pedigree (validate), phenotyped population (trait.full), and the
 # post-ascertainment analysis sample.
 # ---------------------------------------------------------------------------

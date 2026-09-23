@@ -5,7 +5,7 @@ Missing values are **parquet null** on disk and null in polars frames (ADR
 the writer self-enforces the contract: float NaN is normalized to null before
 every write. This restores the historical pandas-era on-disk contract
 (``pd.to_parquet`` always wrote NaN as null); the ``nan_to_null=False`` escape
-hatch ADR 0014 added briefly inverted it and is gone.
+hatch an earlier write-path change added briefly inverted it and is gone.
 
 Writes narrow dtypes by column name (int32 ids, int8 sex, float32 components)
 for compact storage; integer narrowing is range-checked, so overflow raises
