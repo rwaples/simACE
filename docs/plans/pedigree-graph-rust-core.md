@@ -86,8 +86,21 @@ Bits are identical to 0.9.0 on every parity fixture (permanent golden lock)
 and on the four simACE study pedigrees; `random_30k` degree 3 went from
 82.5 s to 5.3 s and the 536k-row batch from 5.4 to 3.0 GiB peak
 (`gate/13a/NOTES.md`). The Python recurrence is `tests/oracle/pair_kinship.py`.
-Remaining Python kernels: the kinship matrix DP, inbreeding, lineage,
-generation summaries, Ne prerequisites; the R package.
+
+Slice 14 (`plans/pedigree-graph-slice-14-kinship-matrix-dp.md`, locked
+2026-09-23) put the kinship matrix DP on the core: `kinship_matrix`,
+`approximate_kinship_matrix` and `mean_kinship_by_generation` are one
+depth-major kernel with three sinks in `crates/core/src/kinship/matrix.rs`,
+assembling the CSC in graph rows without the SciPy permutation copy, over
+owned rows freed on retirement (selected by measurement over a port of the
+0.9.1 arena). Bytes are identical to 0.9.1 on every parity fixture and on
+the study pedigrees, except the 536k summary where the differential exposed
+a 0.9.1 defect (its retiring DP recycled a slot mid-walk; 1.4e-5 relative in
+the deepest bucket). `random_30k` complete matrix 97 s to 19 s and 13.9 to
+4.7 GiB, the 536k summary 89 s to 16 s and 14.8 to 3.6 GiB
+(`gate/14a/NOTES.md`). The numba DP is `tests/oracle/kinship_dp/`.
+Remaining Python kernels: inbreeding, lineage, Ne prerequisites; numba
+stays until they move; the R package.
 
 The older matrix pair-engine spike remains evidence only. It is committed on branch
 `rust-spike` in `external/pedigree-graph-rust-spike` at `659aa0c`, one commit off
@@ -660,7 +673,7 @@ multi-path tests. Resolve issue #6 before choosing recurrence-only versus cached
 matrix sampling. Delete the production Python/Numba implementation; retain an
 independent test oracle.
 
-### 0.8.x — complete and relationship kinship matrices
+### 0.8.x — complete and relationship kinship matrices (done, 0.9.1 and 0.9.2)
 
 1. Implement complete CSC construction and exact-coefficient relationship-limited CSC
    construction.
