@@ -110,8 +110,9 @@ Slice 15 (`plans/pedigree-graph-slice-15-inbreeding-lineage-ne.md`, locked
 `arithmetic_overflow` instead of wrapping), and the equivalent generations
 and per-cohort founder means behind the Ne estimators
 (`kinship/generations.rs`). `numba` left the runtime dependencies; the three
-modules are test oracles. Counts, F, EqG, founder means and Ne records are
-byte-identical to 0.9.3 on the parity fixtures and study pedigrees;
+modules are test oracles. Counts, F, EqG and founder means are
+byte-identical to 0.9.3 on the parity fixtures, and those plus the Ne
+records (`ne_coancestry` excluded at 536k) on the study pedigrees;
 inbreeding runs at 0.19x to 0.32x the 0.9.3 wall and distinct ancestors at
 0.31x to 0.62x, both at 0.40x to 0.75x its peak RSS, and descendant paths
 cost 0.4 to 0.8 ms more for the overflow check, accepted
@@ -698,7 +699,7 @@ independent test oracle.
 4. Add graceful capacity/NNZ failures.
 5. Delete replaced DP, allocator, and CSC production modules after parity.
 
-### 0.8.x — inbreeding, generation summary, lineage, and effective-size prerequisites
+### 0.8.x — inbreeding, generation summary, lineage, and effective-size prerequisites (done, 0.9.2 and 0.9.4)
 
 Port MZ-aware inbreeding, generation mean kinship, distinct ancestor counts, descendant
 path counts, equivalent generations and the per-cohort founder contribution means. Keep
