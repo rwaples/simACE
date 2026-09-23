@@ -99,6 +99,10 @@ a 0.9.1 defect (its retiring DP recycled a slot mid-walk; 1.4e-5 relative in
 the deepest bucket). `random_30k` complete matrix 97 s to 19 s and 13.9 to
 4.7 GiB, the 536k summary 89 s to 16 s and 14.8 to 3.6 GiB
 (`gate/14a/NOTES.md`). The numba DP is `tests/oracle/kinship_dp/`.
+0.9.3 (same day) patched two review findings the public path never
+reached: a parentless row above depth 0 now keeps its diagonal, and the
+topology sort returns its allocation error instead of panicking; consumer
+bytes unchanged across the relock (`gate/14e/NOTES.md`).
 Remaining Python kernels: inbreeding, lineage, Ne prerequisites; numba
 stays until they move; the R package.
 
