@@ -76,7 +76,7 @@ When work spans simACE, fitACE, and fitACE_epimight: check `git status` in each,
 
 ## Git
 
-- Never run `git push`.
+- Push only through the user-invoked `/push` skill. Never run `git push` directly; the permission rules deny it.
 - No `Co-Authored-By` lines in commit messages.
 - Commit only when asked; batch changed files into commits by purpose.
 
