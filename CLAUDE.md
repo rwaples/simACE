@@ -23,7 +23,7 @@ Everything runs through pixi; there is no ambient env (ADR 0016, 0018).
 - simACE: `pixi run <cmd>` at the repo root. `pixi install --locked` materializes `.pixi/`.
 - fitACE family work (incl. `tools/typecheck_family.py`): `pixi run --manifest-path fitACE/pixi.toml <cmd>`.
 - pedigree-graph: its own manifest in `external/pedigree-graph/`.
-- Dedicated conda envs (`epimight-master`, `ace_iter_reml*`, `ace_sreml`) are still invoked by name.
+- Dedicated conda envs (`epimight-2.1`, `ace_iter_reml*`, `ace_sreml`) are still invoked by name.
 - `pixi.toml` is the pin source. Never rewrite `pixi.lock` as a side effect; upgrades are deliberate (`pixi lock` after a manifest edit, then review the diff).
 
 ## Snakemake
