@@ -1,6 +1,6 @@
 # epimight_ci_testbed — reusable substrate for testing EPIMIGHT CI-estimation methods.
 #
-# Purpose differs from epimight_draws_coverage: that folder asks "is the shipped
+# Purpose differs from epimight_draws_coverage, which asks "is the shipped
 # CI calibrated?"; this one is a substrate against which *candidate* CI methods are
 # scored. The point estimator is fixed — only CI construction varies — which is what
 # lets the per-rep substrate be kept and re-scored instead of re-simulated.

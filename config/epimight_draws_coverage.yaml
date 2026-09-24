@@ -1,16 +1,18 @@
 # epimight_draws_coverage — frequentist CI-coverage experiment for EPIMIGHT h².
 #
-# Two near-unbiased onset_censoring cells re-simulated R=200 times each so we can
-# measure the *actual* coverage of EPIMIGHT's 95% CI for liability h² as a
-# function of draws (MI K). The draws-sensitivity study showed the headline CI is
-# conservative at K>=5 and calibrated at K=1, but only from one replicate per cell;
-# this measures coverage directly across independent replicates.
+# Near-unbiased onset_censoring cells re-simulated up to R=200 times each, so the
+# actual coverage of a 95% CI for liability h² can be measured across independent
+# replicates. Originally built to study EPIMIGHT's draws (MI K), which EPIMIGHT
+# 2.1.1 removed (fitACE_epimight ADR 0004); the cells now serve the
+# fractional-estimator CI work (fitACE_epimight scripts/fractional_proto.py and
+# scripts/fractional_coverage_fast.py). The folder keeps its name so existing
+# results/epimight_draws_coverage/ outputs stay attached.
 #
 # Scenario params are copied verbatim from config/epimight_onset_censoring.yaml
 # (the eoc_K01_x08_c80 and eoc_K25_x08_c80 blocks) so the DGP matches the sweep;
 # only `replicates` (1 -> 200) and the seed base (fresh, clear of the sweep's
-# 60000-60063) differ. EPIMIGHT draws and the FS/PO kind restriction are handled
-# fitACE-side (fitACE/config/epimight_draws_coverage.yaml + scripts/draws_coverage.py).
+# 60000-60063) differ. The EPIMIGHT kind restriction is fitACE-side
+# (fitACE/config/epimight_draws_coverage.yaml).
 
 cov_K01_x08_c80:
   seed: 200000
