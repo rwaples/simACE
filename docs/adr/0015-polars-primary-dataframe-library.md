@@ -72,7 +72,7 @@ unpushed test results.
 1. **Polars-primary, scope B.** Polars is the default DataFrame type wherever
    frame-owning family code is written and maintained: simACE, fitACE core, the
    seven `fitACE_*` method sisters, and pedsum. `pedigree-graph` stays
-   frame-library-neutral over NumPy kernels (structural frame protocol:
+   frame-library-neutral over its native (Rust) kernels (structural frame protocol:
    `.columns`, `__getitem__`, column `.to_numpy()`; accepts dict/polars/pandas;
    neither library is a runtime dependency).
 2. **Pandas survives only at forced third-party boundaries**: the seaborn plot

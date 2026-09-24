@@ -74,7 +74,8 @@ engine returned, the matrix engine kept as `tests/oracle/relationship_pairs.py`,
 `execution="speed" | "memory"`, one package-wide Rayon pool, the allocation
 test seam, and `ResourceError("allocation_failed")`. Gate records
 `docs/pedigree-graph-0.8-migration/gate/12a..12c/` in the pedigree-graph repo,
-where the consumer gate scripts now live (`tools/pg08_*`, `pg09_*`).
+where the consumer gate tools now live (`tools/consumer_gate.py`,
+`tools/byte_parity.sh`; renamed from `pg08_*` / `pg09_*` on 2026-09-24).
 
 Slice 13 (`plans/pedigree-graph-slice-13-pair-kinship.md`, locked 2026-09-22)
 put `pair_kinship` and the relationship matrix's value fill on the core:
@@ -125,11 +126,14 @@ kinship matrix as a `dsCMatrix` (from a new upper-triangle core product) and
 inbreeding, with sealed graphs and classed conditions. R matched Python on
 120/120 products up to 536k rows (`gate/16b/NOTES.md`), and the vendored
 source tarball passes `R CMD check --as-cran` offline. ADR 0007's slice-16
-amendment records the departures. What remains is the 1.0.0 stabilisation.
+amendment records the departures. The pre-1.0 stabilisation cleanup
+(`plans/pedigree-graph-1.0-stabilization.md`, 2026-09-24) closed the remaining
+guardrail, tooling and documentation items; what remains is the 1.0.0 release
+itself (see "1.0.0 — stabilization" below).
 
-The older matrix pair-engine spike remains evidence only. It is committed on branch
-`rust-spike` in `external/pedigree-graph-rust-spike` at `659aa0c`, one commit off
-`v0.8`. It matches the current Python pair sets on fixtures, inbred random pedigrees,
+The older matrix pair-engine spike remains evidence only. It is tagged
+`archive/rust-spike` at `659aa0c` in the pedigree-graph repo, one commit off `v0.8`
+(the `rust-spike` branch and its worktree were removed on 2026-09-24). It matches the current Python pair sets on fixtures, inbred random pedigrees,
 and simulated pedigrees through 300,000 rows, but does not cover the redesigned API,
 graph views, semantic pair orientation, arbitrary input order, bindings, kinship,
 or R.
@@ -546,16 +550,19 @@ There are no per-call thread counts. fitACE's thread-cap helper must set
 `PEDIGREE_GRAPH_THREADS`. `estimate_effective_sizes` prepares Rust prerequisites on
 this pool and applies Python formulas serially; it creates no Python worker pool.
 
-Recommended acceptance criterion, pending explicit final sign-off: integer outputs are
-bit-identical across thread counts; floating reductions use fixed partitions and
-ordered combination where practical. Any tolerance must be declared per kernel and
-justified by benchmarked cost.
+Signed off 2026-09-24 (ADR 0007, "Threads and determinism"): every output, integer and
+float, is bit-identical across thread budgets, with no per-kernel tolerance. Only the
+relationship kernels run on the pool (pairs, counts, burden); each is held to a
+budget-1 versus budget-4 bit-equality test, and
+`tests/test_architecture_guardrails.py` fails a parallel core module that has none.
 
 ### Safety and allocation
 
-`pedigree-graph-core` uses `#![forbid(unsafe_code)]`. CI asserts core types are
-`Send + Sync`, rejects PyO3/extendr dependencies in core, runs Clippy with warnings as
-errors, and forbids user-reachable panics.
+`pedigree-graph-core` uses `#![forbid(unsafe_code)]`. A compile-time assertion keeps
+the public core types `Send + Sync`; CI rejects PyO3/extendr dependencies in core and
+runs Clippy with warnings as errors, which in core denies `unwrap`, `expect`, `panic!`
+and `unreachable!` outside tests (each surviving site names its invariant). A
+test-build-only panic hook shows a panic reaches Python and R as an error.
 
 Potentially large buffers use fallible reservation and propagate structured
 `ResourceError`s through Rayon and host bindings. Subprocess tests verify adversarial
@@ -590,10 +597,11 @@ No initial PyPy, musllinux, Windows ARM, or 32-bit guarantee.
 
 ### Versioning
 
-The pure-Python 0.8.0 baseline may be the final setuptools-scm release. Once the Cargo
-workspace lands, `[workspace.package].version` becomes authoritative. Maturin reads the
-Python version from Cargo. The release tool updates Cargo and `r/DESCRIPTION` together;
-CI asserts wheel, sdist, Cargo metadata, DESCRIPTION, and Git tag agree.
+0.8.0 was the last setuptools-scm release. `[workspace.package].version` in Cargo is
+authoritative and Maturin reads the Python version from it. `r/DESCRIPTION` and the R
+binding crate repeat it: `tests/test_r_version_agreement.py` fails a bump that misses
+either, and the publish workflow's `check-version` job fails a tag that disagrees with
+Cargo, DESCRIPTION or the binding crate.
 
 pedigree-graph keeps independent SemVer and is not part of the simACE/fitACE CalVer
 family.
@@ -659,7 +667,7 @@ release time rather than baked into this plan.
    break requires.
 10. Publish 0.8.0 as the frozen differential baseline for Rust migration.
 
-### 0.8.x — native construction and build scaffold
+### 0.8.x — native construction and build scaffold (done, 0.8.1 and 0.8.2)
 
 1. Add the Cargo workspace, host-neutral input model, stable topological reorder,
    structured errors, and depth calculation.
@@ -680,7 +688,7 @@ Not ported. `9d20811` replaced the estimator with the exact `close_relative_coun
 Python/SciPy adjacency powers are now held only by the Python pair extractor and go
 with it in the relationship-pair slice.
 
-### 0.8.x — relationship-pair engine
+### 0.8.x — relationship-pair engine (done, 0.9.0)
 
 1. Resolve issue #9's multiplicity representation.
 2. Promote the spike into focused CSR, key, relationship, view-remap, and role-ordering
@@ -693,7 +701,7 @@ with it in the relationship-pair slice.
    matrices, release hooks, and old coordinate fields once no remaining engine uses
    them.
 
-### 0.8.x — pairwise kinship
+### 0.8.x — pairwise kinship (done, 0.9.1)
 
 Port the direct recurrence with arbitrary/self-pair, graph/view, MZ, inbreeding, and
 multi-path tests. Resolve issue #6 before choosing recurrence-only versus cached complete
@@ -728,6 +736,14 @@ vendoring, testthat parity, and source-tarball `R CMD check`.
 Close or explicitly disposition all deferred issues, remove temporary migration
 allowlists, complete architecture guardrails, decide whether to publish the Rust core,
 and verify supported Python/R artifacts from clean installations.
+
+The pre-1.0 cleanup (`plans/pedigree-graph-1.0-stabilization.md`, 2026-09-24, no
+release) did the first three: every tracker issue is closed, the migration allowlists
+and markers are gone, the determinism, panic and `Send + Sync` guardrails are in, the
+gate tools are renamed (`tools/consumer_gate.py`, `tools/byte_parity.sh`), and the
+ADRs were revised in place to match 0.10.0. Left for the 1.0.0 release: whether to
+publish the core crate to crates.io, clean-install verification of the supported
+wheels and R tarball, the stability contract, Python 3.14 (simACE #21), and CRAN.
 
 ## Correctness gates
 
@@ -785,19 +801,19 @@ Intermediate commits may run scoped tests; release gates may not.
 
 ## Deferred issues and blockers
 
-Open:
+Open: none. Every pedigree-graph tracker issue is closed.
 
-- [#7](https://github.com/rwaples/pedigree-graph/issues/7): remove the experimental
-  Python BFS engine. Open deliberately — the issue's own timing puts it after the
-  Rust-backed canonical relationship engine is established and its parity and
-  performance gates pass, which has not happened, so it does not gate the binding
-  work.
-- DP row storage: choose only after benchmark.
-- Maturin: preferred, conditional on the scaffold gates; nothing is scaffolded yet.
-- Cross-thread floating determinism: recommended above but not explicitly confirmed in
-  the review; confirm before implementation.
+Settled since this plan was written:
 
-Settled since this plan was written, each by an ADR rather than by code alone:
+- [#7](https://github.com/rwaples/pedigree-graph/issues/7): the experimental Python BFS
+  engine was removed in 0.8.4 (`f743e62`).
+- [#13](https://github.com/rwaples/pedigree-graph/issues/13): `pair_kinship` rebuilding
+  its memo per call — the memo was kept on the graph in `740b86a`; the Rust walk that
+  replaced it in 0.9.1 keeps one memo per call and retains nothing
+  (`crates/core/src/kinship/mod.rs`).
+- DP row storage: owned rows, chosen by benchmark in 0.9.2.
+- Maturin: the build backend since 0.8.1.
+- Cross-thread determinism: signed off in the strict form above (ADR 0007).
 
 - [#6](https://github.com/rwaples/pedigree-graph/issues/6): recurrence-only versus
   reuse of a cached complete matrix in `pair_kinship` — ADR 0009.

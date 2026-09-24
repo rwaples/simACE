@@ -44,37 +44,31 @@ Each nested repo has its own `origin` wired to the matching GitHub repo — `git
 Bugs that have occurred in pedigree/variance/phenotyping code. Check these
 patterns whenever changing the relevant module.
 
-1. **Booleanise sparse matrices only AFTER using multiplicity.** Sparse
-   matrix products counting shared ancestors must preserve edge weights
-   before thresholding. Booleanising too early collapses full vs half
-   distinctions. Has occurred ≥3 times: `_cousin_pairs` (1C/H1C),
-   `_second_cousin_matrix` (2C/H2C), and the up=1 avuncular variant.
-   Correct pattern: `data[data < 2] = 0; eliminate_zeros()` before
-   booleanising.
-2. **Full vs half classification needs ≥2 shared ancestors through a
-   mated pair.** Code that checks `> 0` instead of `>= 2` silently
-   misclassifies.
-3. **`_get_Ak(0)` must return identity**, not chain through the parent
-   adjacency matrix. Chaining adds a spurious parent hop to up=1
-   relationships.
-4. **Cross-package coupling**: both `fit_ace` and simace import
+1. **Relationship classification rules.** Full vs half needs two shared
+   ancestors through a mated pair (`>= 2`, not `> 0`), so ancestor
+   multiplicity must survive until after that test; zero generations up is
+   the individual itself, not a parent hop; and a lower-degree result that a
+   higher degree depends on must be computed even when the caller's cutoff
+   stops below it. The old SciPy extractor broke each of these at least once
+   (`_cousin_pairs`, `_second_cousin_matrix`, `_get_Ak(0)`, the degree-gated
+   caches). Production classification is now the Rust row-streaming engine in
+   `external/pedigree-graph/crates/core/src/relationships/`, whose invariants
+   (multiplicity saturated at two, the `EXCLUSIONS` table, the per-row
+   closest-category fold) are stated in pedigree-graph ADR 0010; the old
+   extractor survives as its differential oracle,
+   `external/pedigree-graph/tests/oracle/relationship_pairs.py`.
+2. **Cross-package coupling**: both `fit_ace` and simace import
    `RELATIONSHIPS` and pair extraction (`PedigreeGraph.relationship_pairs`) from
    the external top-level `pedigree_graph` package (not from simace). Changes to
    pair extraction or kinship values in `pedigree_graph` silently bias
    `fit_ace` heritability and PA-FGRS. Additionally, `fitace.relationships`
    maintains fitACE relationship-type kinship at EPIMIGHT-compatible granularity
    and must stay in sync with `RELATIONSHIPS[code].nominal_kinship`.
-5. **Generation-dependent C/E variance can bias `rho_w`** (assortative
+3. **Generation-dependent C/E variance can bias `rho_w`** (assortative
    mating correlation) calculations.
-6. **`affected = NOT (age_censored OR death_censored)`** — preserve this
+4. **`affected = NOT (age_censored OR death_censored)`** — preserve this
    identity through any censoring change.
-7. **Degree-gating side effects.** Pair extraction proceeds degree by
-   degree; lower-degree methods populate caches consumed at higher
-   degrees (e.g., `_cousin_pairs` → `_h1c_pairs_cache`). `max_degree >= N`
-   and `_needed()` guards can skip producing methods; downstream
-   `getattr(self, "_cache", fallback)` reads then silently return empty
-   results.
-8. **Pair key encoding `lo * max_id + hi`** (int64) requires canonical
+5. **Pair key encoding `lo * max_id + hi`** (int64) requires canonical
    `lo < hi` ordering and overflows beyond ~3B individuals.
 
 ### Liability correlation expected values
@@ -100,7 +94,7 @@ Five repos, all under `rwaples/` on GitHub (ADR 0017 collapsed the former 13: fi
 | [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate → phenotype → censor → ascertainment → validate → stats → plot |
 | [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model-fitting **monorepo**: core + Snakemake orchestrator + method packages in `fitACE_<x>/` subdirs (PCGC, iter/sparse REML + `ace_iter_reml` C++ source, TetraHer + the `tetraher_simace` LDAK fork, PA-FGRS, Stan, frailty). Seven distributions, one repo — see `fitACE/CLAUDE.md` for the in-repo layout. Consumes simACE outputs. |
 | [`fitACE_epimight`](https://github.com/rwaples/fitACE_epimight) | private | `./fitACE/fitACE_epimight/` | EPIMIGHT integration: long-form input emitter, R driver, Snakemake rules, atlas/bias plotting. The one method outside the monorepo — its own repo, tracking the BioPsyk/epimight R upstream; included by `fitACE/Snakefile` via a cross-repo `include:`. |
-| [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Sparse-matrix pedigree relationship extraction and kinship computation. |
+| [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Rust row-streaming pedigree relationship extraction and kinship (Python + R bindings). |
 | [`pedsum`](https://github.com/rwaples/pedsum) | public | `./external/pedsum/` | Pedigree summary CLI: structure, relatedness, inbreeding, Ne estimators. Built on `pedigree-graph`. |
 
 ## Cross-repo edits (simACE + fitACE + fitACE_epimight)

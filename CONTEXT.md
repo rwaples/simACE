@@ -217,7 +217,7 @@ The size of an idealized Wright-Fisher population that would produce the same ra
 _Avoid_: effective number, Ne (acceptable as a math symbol but the word form is "effective size"), drift size.
 
 **$N_e$ estimator**:
-One of several methods simACE computes for inferring effective size from the pedigree. Each is identified by its code name (e.g., `ne_coancestry`, `ne_caballero_toro`). The estimator names are fixed identifiers tied to published methods — do not rename. The full set lives in `simace.analysis.stats.effective_size`; not enumerated here.
+One of several methods simACE computes for inferring effective size from the pedigree. Each is identified by its code name (e.g., `ne_coancestry`, `ne_inbreeding`). The estimator names are fixed identifiers tied to published methods — do not rename. The full set lives in `simace.analysis.stats.effective_size`; not enumerated here.
 _Avoid_: Ne method (use "estimator"), drift estimator (subset only), inbreeding estimator (subset only).
 
 ### Pipeline stages
@@ -314,7 +314,7 @@ Conventions for the text rendered in the plot atlas — both the `PlotEntry` `ti
 - **Observed prevalence.** A post-censoring affected fraction shown on a plot is **observed prevalence** (see the entry); reserve bare "prevalence" / $K$ for the configured target.
 - **Trait, not disease.** The event of interest in a time-to-event / competing-risks caption is the **trait event** (as already used in the **Onset** entry); write "AJ trait CIF" vs "AJ death CIF", "terminal AJ trait F(∞)". Do not call it "disease" — simACE traits are abstract (see **Trait**, _Avoid_: disease).
 - **Blessed caption compounds.** Two survival-analysis terms are permitted in caption / annotation prose as a narrow carve-out from the bare-word _Avoid_ rules (which target running prose): **"true cases"** for ground-truth affecteds at the **censoring** stage (pre-ascertainment, where the study-role meaning of "case" is not in play), and bare **"event time"** for the raw pre-censoring simulated time (distinct from the clipped `onset` column). Both stay confined to censoring-stage captions.
-- **Retired / corrected labels.** "survival model" is no longer used as a plot qualifier — it is inaccurate for the threshold `adult` / `ltm` family, and the model-aware section break already names the configured family. In caption prose, age-window censoring before the window opens is **left-censored**, never "left-truncated" (which survives only as a stats key); "delayed entry" remains correct in the Aalen-Johansen captions, where it names how per-generation observation windows are honoured. "coancestry" stays out of caption prose (use **kinship** / **mean kinship**); only the fixed estimator identifiers `Ne_coancestry` / `mean_self_coancestry` / `Ne_caballero_toro` keep the word.
+- **Retired / corrected labels.** "survival model" is no longer used as a plot qualifier — it is inaccurate for the threshold `adult` / `ltm` family, and the model-aware section break already names the configured family. In caption prose, age-window censoring before the window opens is **left-censored**, never "left-truncated" (which survives only as a stats key); "delayed entry" remains correct in the Aalen-Johansen captions, where it names how per-generation observation windows are honoured. "coancestry" stays out of caption prose (use **kinship** / **mean kinship**); only the fixed estimator identifiers `ne_coancestry` / `ne_group_coancestry` / `mean_group_coancestry` keep the word.
 
 ## Flagged ambiguities
 
