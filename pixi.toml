@@ -10,8 +10,8 @@ requires-pixi = ">=0.76,<0.77"
 
 [dependencies]
 python = "3.13.*"
-# core (numba caps numpy <2.5; bump both together — same note as environment.yml)
-numpy = "2.4.*"
+# core (numba 0.67 caps numpy <2.6; bump both together)
+numpy = "2.5.*"
 scipy = "1.18.*"
 pandas = "3.0.*"
 polars = "1.43.*"
@@ -20,7 +20,7 @@ pyyaml = "6.0.*"
 # templating for notes/poster/tools/build_poster.py; already in the lock as a
 # snakemake-minimal dependency, pinned here because we import it directly
 jinja2 = "3.1.*"
-numba = "0.66.*"
+numba = "0.67.*"
 # plotting
 matplotlib = "3.11.*"
 seaborn = "0.13.*"
