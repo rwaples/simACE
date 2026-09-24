@@ -1,190 +1,108 @@
 # CLAUDE.md
 
-simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (common environment), **E** (unique environment) variance components. Provides simulate → phenotype → censor → ascertainment → validate → stats → plot. Model fitting (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan) lives in the sister repo [fitACE](../fitACE), which depends on simace.
-
+simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (common environment), **E** (unique environment) variance components: simulate → phenotype → censor → ascertainment → validate → stats → plot. Model fitting lives in the sister repo [fitACE](./fitACE), which depends on simace.
 
 ## Project Layout
 
-- `simace/` — simulation package (`pip install -e .`), organized into sub-packages:
-  - `core/` — shared infrastructure: `pedigree_graph`, `compute_hazard_terms`, `cli_base`, `numerics`, `parquet`, `pedigree_filter`, `relationships`, `schema`, `yaml_io`
-  - `simulation/` — pedigree simulation
-  - `phenotype/` — `runner.py` (run_phenotype dispatcher, re-exported from `__init__.py`), `hazards.py`, `blended_post.py`, plus a `models/` sub-package of model classes inheriting from a `PhenotypeModel` (the liability-threshold idiom lives in `models/_prevalence.py`)
+- `simace/` — the package, one sub-package per pipeline stage:
+  - `core/` — shared infrastructure (schemas, parquet/yaml I/O, CLI and Snakemake adapters, numerics, hazard terms, pedigree filtering)
+  - `simulation/` — pedigree simulation (household assignment in `simulate.py`)
+  - `phenotype/` — `runner.py` (`run_phenotype` dispatcher), `hazards.py`, `blended_post.py`, and `models/` (subclasses of `PhenotypeModel`; the liability-threshold idiom is in `models/_prevalence.py`)
   - `censoring/` — age-window and death censoring
-  - `ascertainment/` — unified dropout + case-weighted N_sample selection (per ADR 0001)
-  - `analysis/` — `stats/` (package: censoring, correlations, effective_size, incidence, pedigree, sampling, tetrachoric, runner), `validate/` (package: one module per check family plus `runner.py`), `analyze.py`, `report.py`, `report_schema.py`, `gather.py`
-  - `plotting/` — all plot modules and plot utilities
+  - `ascertainment/` — unified dropout + case-weighted N_sample selection (ADR 0001)
+  - `analysis/` — `stats/`, `validate/` (one module per check family), `analyze.py`, `report.py`, `gather.py`
+  - `plotting/` — plot modules; atlas page order is in `atlas_manifest.py`
 - `workflow/rules/simace/*.smk` — Snakemake rules; `workflow/scripts/simace/` — thin script wrappers
-- `config/_default.yaml` — default parameters; `config/{folder}.yaml` — per-folder scenario files (auto-discovered; files starting with `_` are skipped)
+- `config/_default.yaml` — defaults; `config/{folder}.yaml` — scenario files (auto-discovered; `_`-prefixed files skipped)
 - `results/{folder}/{scenario}/` — output per scenario
 
-Each nested repo has its own `origin` wired to the matching GitHub repo — `git push` from inside each directory goes to the right place. 
+## Environment
+
+Everything runs through pixi; there is no ambient env (ADR 0016, 0018).
+
+- simACE: `pixi run <cmd>` at the repo root. `pixi install --locked` materializes `.pixi/`.
+- fitACE family work (incl. `tools/typecheck_family.py`): `pixi run --manifest-path fitACE/pixi.toml <cmd>`.
+- pedigree-graph: its own manifest in `external/pedigree-graph/`.
+- Dedicated conda envs (`epimight-master`, `ace_iter_reml*`, `ace_sreml`) are still invoked by name.
+- `pixi.toml` is the pin source. Never rewrite `pixi.lock` as a side effect; upgrades are deliberate (`pixi lock` after a manifest edit, then review the diff).
 
 ## Snakemake
 
-- Runs in the pixi env: `pixi run snakemake …` (ADR 0016)
-- Root `Snakefile` is the entry point — not `-s workflow/Snakefile`
-- Use `--cores 4` running one scenario, `--cores 8` for multiple scenarios, `--cores 1` for debugging. 
-- Always dry-run (`-n`) before long runs.
-- Targets are per-scenario: `results/{folder}/{scenario}/{scenario,simulate,phenotype,validate,stats}.done`
-- Force-rebuild plot atlas (HTML is the default artifact; PDF is on-demand): `pixi run snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.html` (or `.../atlas.pdf` for the PDF export)
+- `pixi run snakemake …` from the root `Snakefile` (not `-s workflow/Snakefile`).
+- `--cores 4` for one scenario, `--cores 8` for several, `--cores 1` to debug. Dry-run (`-n`) before long runs.
+- Targets: `results/{folder}/{scenario}/{scenario,simulate,phenotype,validate,stats}.done`
+- After changing a `plot_*.py`, force-rebuild the atlas and check labels/titles fit: `pixi run snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.html` (`atlas.pdf` for the on-demand PDF).
 
-## Plotting
+## Testing and Linting
 
-- After modifying `plot_*.py`, force-regenerate the atlas to verify
-- Check that labels/titles fit within figure bounds
-- Page order is controlled in `simace/plotting/atlas_manifest.py`
+- Full suite: `pixi run test` (6 xdist workers, `--dist worksteal`, one thread per worker). Extra args pass through: `pixi run test tests/simulation -x`. The rationale for these settings is in the comment above `[tasks.test]` in `pixi.toml`; re-measure with `tools/bench_pytest_workers.sh` before changing them.
+- Serial/debug (`-v`, `-s`, `--pdb`, single modules): `pixi run pytest tests/ -v`.
+- Smoke test: `pixi run snakemake --cores 4 results/test/small_test/scenario.done`
+- Run relevant tests before committing.
+- `ruff check` with **no extra `--select`** — it discards the `ignore`/`per-file-ignores` in `pyproject.toml` and surfaces false positives.
+- Format Snakemake: `pixi run snakefmt workflow/rules/**/*.smk Snakefile`
 
-## Key Rules
+## Statistical-correctness gotchas
 
-- **Environment routing (ADR 0016 + 0018): everything is pixi; no ambient env.** simACE-scoped commands run `pixi run <cmd>` at the umbrella root against the committed `pixi.lock` (`pixi install --locked` to materialize `.pixi/`). Family-scoped work (fitACE + method packages + epimight, `tools/typecheck_family.py`) runs `pixi run --manifest-path fitACE/pixi.toml <cmd>`. Editable pedigree-graph work uses its own manifest in `external/pedigree-graph/`. The old always-active `simACE` conda env is retired (ADR 0018); the dedicated conda envs (`epimight-master`, `ace_iter_reml*`, `ace_sreml`) remain, invoked by name.
-- `pixi.toml` is the authoritative simACE pin source. Normal pixi commands must not rewrite `pixi.lock`; upgrades are deliberate (`pixi lock` after a manifest edit, review the diff).
+Bugs that have actually occurred. Check these whenever touching the relevant code.
 
-## Code review gotchas (statistical correctness)
+1. **Relationship classification.** Full vs half needs two shared ancestors through a mated pair (`>= 2`, not `> 0`), so ancestor multiplicity must survive until that test; zero generations up is the individual, not a parent hop; a lower degree that a higher one depends on must be computed even when the caller's cutoff stops below it. Production classification is the Rust engine in `external/pedigree-graph/crates/core/src/relationships/` (invariants in pedigree-graph ADR 0010); the old SciPy extractor is its differential oracle at `external/pedigree-graph/tests/oracle/relationship_pairs.py`.
+2. **Cross-package coupling.** simace and `fitace` both import `RELATIONSHIPS` and `PedigreeGraph.relationship_pairs` from the external `pedigree_graph` package. Changes there silently bias fitACE heritability and PA-FGRS. `fitace/relationships.py` must stay in sync with `RELATIONSHIPS[code].nominal_kinship`.
+3. **Generation-dependent C/E variance** can bias `rho_w` (assortative mating correlation).
+4. **`affected = NOT (age_censored OR death_censored)`** must hold through any censoring change.
+5. **Pair key `lo * max_id + hi`** (int64) needs canonical `lo < hi` and overflows beyond ~3B individuals.
 
-Bugs that have occurred in pedigree/variance/phenotyping code. Check these
-patterns whenever changing the relevant module.
+### Expected liability correlations
 
-1. **Relationship classification rules.** Full vs half needs two shared
-   ancestors through a mated pair (`>= 2`, not `> 0`), so ancestor
-   multiplicity must survive until after that test; zero generations up is
-   the individual itself, not a parent hop; and a lower-degree result that a
-   higher degree depends on must be computed even when the caller's cutoff
-   stops below it. The old SciPy extractor broke each of these at least once
-   (`_cousin_pairs`, `_second_cousin_matrix`, `_get_Ak(0)`, the degree-gated
-   caches). Production classification is now the Rust row-streaming engine in
-   `external/pedigree-graph/crates/core/src/relationships/`, whose invariants
-   (multiplicity saturated at two, the `EXCLUSIONS` table, the per-row
-   closest-category fold) are stated in pedigree-graph ADR 0010; the old
-   extractor survives as its differential oracle,
-   `external/pedigree-graph/tests/oracle/relationship_pairs.py`.
-2. **Cross-package coupling**: both `fit_ace` and simace import
-   `RELATIONSHIPS` and pair extraction (`PedigreeGraph.relationship_pairs`) from
-   the external top-level `pedigree_graph` package (not from simace). Changes to
-   pair extraction or kinship values in `pedigree_graph` silently bias
-   `fit_ace` heritability and PA-FGRS. Additionally, `fitace.relationships`
-   maintains fitACE relationship-type kinship at EPIMIGHT-compatible granularity
-   and must stay in sync with `RELATIONSHIPS[code].nominal_kinship`.
-3. **Generation-dependent C/E variance can bias `rho_w`** (assortative
-   mating correlation) calculations.
-4. **`affected = NOT (age_censored OR death_censored)`** — preserve this
-   identity through any censoring change.
-5. **Pair key encoding `lo * max_id + hi`** (int64) requires canonical
-   `lo < hi` ordering and overflows beyond ~3B individuals.
+`r = 2 * kinship * A + C_shared`, where `C_shared = C` only if the pair shares a household. **Household is assigned by mother** (`simulate.py`: `np.unique(parent_idxs[:, 0])`), so maternal half-sibs share C and paternal half-sibs do not.
 
-### Liability correlation expected values
+MZ = A+C, FS = 0.5A+C, MHS = 0.25A+C, PHS = 0.25A, PO = 0.5A.
 
-Formula: `r = 2 * kinship * A + C_shared` where C_shared = C if the pair
-shares a household, 0 otherwise. **Household is assigned by mother**
-(`simulate.py`: `np.unique(parent_idxs[:, 0])`) — so maternal half-sibs
-share C but paternal half-sibs do not.
-
-Reference: MZ = A+C, FS = 0.5A+C, MHS = 0.25A+C, PHS = 0.25A, PO = 0.5A.
-Source of truth for kinship: `RELATIONSHIPS[code].nominal_kinship` in the
-external `pedigree_graph` package (`pedigree_graph/_registry.py`). With
-inbreeding, `PedigreeGraph.pair_kinship()` returns per-pair values that may
-differ from the nominal ones; those are the pinned float32 recurrence, so a
-consumer comparing against a float64 recurrence must allow its envelope.
+Kinship source of truth: `RELATIONSHIPS[code].nominal_kinship` in `pedigree_graph/_registry.py`. Under inbreeding, `PedigreeGraph.pair_kinship()` returns per-pair float32 values; comparisons against a float64 recurrence need a tolerance.
 
 ## Repo Map
 
-Five repos, all under `rwaples/` on GitHub (ADR 0017 collapsed the former 13: fitACE became a private monorepo absorbing the six Python method sisters, the `ace_iter_reml` C++ source, and the `tetraher_simace` LDAK fork — the retired standalone repos are archived on GitHub with their pre-merge history). simACE is the umbrella working directory; fitACE and its nested fitACE_epimight are checkouts inside it (gitignored from simACE — no submodules). fitACE ADR 0001's package invariants are unchanged: method packages depend on `fitace`/`simace`, never on each other.
+Five repos under `rwaples/` on GitHub. simACE is the umbrella working directory; the others are checkouts inside it, gitignored from simACE (no submodules). Method packages depend on `fitace`/`simace`, never on each other (fitACE ADR 0001).
 
 | Repo | Visibility | Local path | Role |
 |---|---|---|---|
-| [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate → phenotype → censor → ascertainment → validate → stats → plot |
-| [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model-fitting **monorepo**: core + Snakemake orchestrator + method packages in `fitACE_<x>/` subdirs (PCGC, iter/sparse REML + `ace_iter_reml` C++ source, TetraHer + the `tetraher_simace` LDAK fork, PA-FGRS, Stan, frailty). Seven distributions, one repo — see `fitACE/CLAUDE.md` for the in-repo layout. Consumes simACE outputs. |
-| [`fitACE_epimight`](https://github.com/rwaples/fitACE_epimight) | private | `./fitACE/fitACE_epimight/` | EPIMIGHT integration: long-form input emitter, R driver, Snakemake rules, atlas/bias plotting. The one method outside the monorepo — its own repo, tracking the BioPsyk/epimight R upstream; included by `fitACE/Snakefile` via a cross-repo `include:`. |
-| [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Rust row-streaming pedigree relationship extraction and kinship (Python + R bindings). |
-| [`pedsum`](https://github.com/rwaples/pedsum) | public | `./external/pedsum/` | Pedigree summary CLI: structure, relatedness, inbreeding, Ne estimators. Built on `pedigree-graph`. |
+| `simACE` | public | `.` | Simulation pipeline |
+| `fitACE` | private | `./fitACE/` | Model-fitting monorepo: core, Snakemake orchestrator, and `fitACE_<x>/` method packages (PCGC, iter/sparse REML + `ace_iter_reml` C++, TetraHer + `tetraher_simace` LDAK fork, PA-FGRS, Stan, frailty). See `fitACE/CLAUDE.md`. |
+| `fitACE_epimight` | private | `./fitACE/fitACE_epimight/` | EPIMIGHT integration; own repo tracking the BioPsyk/epimight upstream, included by `fitACE/Snakefile`. |
+| `pedigree-graph` | public | `./external/pedigree-graph/` | Rust relationship extraction and kinship (Python + R bindings) |
+| `pedsum` | public | `./external/pedsum/` | Pedigree summary CLI built on pedigree-graph |
 
-## Cross-repo edits (simACE + fitACE + fitACE_epimight)
+When work spans simACE, fitACE, and fitACE_epimight: check `git status` in each, run tests in each, and make parallel commits. Changes do not propagate between checkouts.
 
-- Treat simACE, fitACE, and fitACE_epimight as a coordinated set when work spans them. Verify edits land in each repo's working tree (`git status` in each), run tests in each, and make parallel commits — do not assume changes propagate. Edits across fitACE's method packages are ordinary single-repo commits since the monorepo (ADR 0017).
+## Git
 
-## Git usage
-- Do NOT run `git push` under any circumstances
-- Do NOT include Co-Authored-By in commit messages
-- Commit only when explicitly asked
-- Prefer batching commits — changed files grouped by purpose
+- Never run `git push`.
+- No `Co-Authored-By` lines in commit messages.
+- Commit only when asked; batch changed files into commits by purpose.
 
 ## Versioning
-- **Lockstep family CalVer.** simACE, fitACE core, the seven `fitACE_*` method
-  distributions, the `ace_iter_reml` binary, and the `tetraher_simace` LDAK fork
-  share **one** CalVer (`vYYYY.MM[.patch]`), tagged together each release
-  (ADR 0012, membership amended by ADR 0017). Since the monorepo that is
-  **three tagged checkouts** — simACE, fitACE, fitACE_epimight — because
-  everything inside fitACE reads fitACE's one tag. External deps
-  (`pedigree-graph`, `pedsum`) keep their own versions.
-- **CalVer** (`YYYY.MM`) via `setuptools-scm`, derived from git tags; the
-  `ace_iter_reml` binary embeds `git describe` via CMake.
-- Compatibility is one `FAMILY_FLOOR` in `fitace._deps` (`>=` semantics),
-  enforced across every family `pyproject.toml` by `test_dependency_floors`.
-- Cutting a release — tag formats, `tools/release.py`, the push handoff — is the
-  `coordinated-release` skill's job. Invoke it rather than working from memory.
 
-## Testing
+simACE, fitACE, and fitACE_epimight share one lockstep CalVer (`vYYYY.MM[.patch]`, setuptools-scm from git tags; ADR 0012, 0017). Everything inside fitACE, including the `ace_iter_reml` binary, reads fitACE's tag. Compatibility is one `FAMILY_FLOOR` in `fitace._deps`, enforced by `test_dependency_floors`. pedigree-graph and pedsum version independently. To cut a release, invoke the `coordinated-release` skill; don't work from memory.
 
-- Full suite: `pixi run test` — 6 xdist workers, `--dist worksteal`, each worker
-  pinned to one numba/BLAS/polars thread. Total budget is 6 of the 12 cores.
-  Extra args pass through: `pixi run test tests/simulation -x`.
-  `worksteal` is load-bearing: `loadscope` commits each scope to a worker and
-  never rebalances, which stranded the 63s Monte Carlo test on one worker
-  (157.7s wall, 1.83x per-worker spread, versus 115.3s and 1.08x for
-  worksteal). Roughly 12.7s of any run is fixed interpreter startup and
-  collection, which no scheduling change touches.
-- Serial/debug: `pixi run pytest tests/ -v` — no workers, threads unpinned.
-  Use this for `-v` output, `-s`, `--pdb`, and single-module runs; xdist
-  captures output and breaks the debugger.
-- Run relevant tests before commit
-- Smoke test: `pixi run snakemake --cores 4 results/test/small_test/scenario.done`
+## Planning
 
-The thread pins live on the `test` task in `pixi.toml`, deliberately not in
-`[activation.env]`: the pipeline's numba `parallel=True` kernels
-(`simace/phenotype/hazards.py:73`) and threaded BLAS want every core, so a
-global pin would slow `pixi run snakemake`. Re-measure the worker/thread split
-with `tools/bench_pytest_workers.sh` before changing `-n`.
+- For non-trivial work (multi-file, cross-repo, or open design questions), explore the code first, then propose 2-3 approaches with tradeoffs and wait for approval. For plans and refactors, default to the `grill-with-docs` skill and lock each decision explicitly. Skip this for bugfixes, doc tweaks, and renames.
+- Never exit plan mode without an explicit go-ahead.
+- Drafts go in `plans/<slug>.md` (gitignored); state the absolute path in chat. Never overwrite an existing plan — add `-v2` or ask. Promote finished plans to `docs/plans/`, locked architectural decisions to `docs/adr/`. See `plans/README.md`.
+- Treat every coupling/structural claim as a hypothesis until backed by `file:line`; list what you couldn't confirm. Hold subagents to the same standard.
+- Enumerate and verify any formula, threshold, complexity, or memory-model assumption against the primary source and the code before relying on it.
 
-## Linting
+## Performance
 
-- Format Snakemake: `pixi run snakefmt workflow/rules/**/*.smk Snakefile`
-- Run `ruff check` with **no extra `--select`**. The configured rules (incl. `D`/pydocstyle) plus the `ignore` and `per-file-ignores` in `pyproject.toml` are authoritative. Passing any `--select` (e.g. `--select D`) discards those ignores and surfaces false positives.
+- Profile before optimizing.
+- Never narrow numeric dtypes below int32/float32.
 
-## Documentation & Citations
+## Citations
 
-- Never generate citations, DOIs, author lists, journal names, years, page numbers, or any bibliographic field from memory. Memory recall of bib metadata is treated as fabrication.
-- Verify every entry against a live source before writing it: resolve `https://doi.org/<doi>` via WebFetch, or pull from Crossref/PubMed/publisher page. Confirm the returned title/authors/year match the citation you are about to write.
-- One verification per field set — do not extrapolate. 
-- If verification fails (DOI 404s, source unreachable, ambiguous match), do NOT write the entry. Insert a `% TODO: verify <what>` placeholder and tell the user which entries could not be verified.
+- Never write any bibliographic field (DOI, authors, journal, year, pages) from memory.
+- Verify each entry against a live source (`https://doi.org/<doi>`, Crossref, PubMed, publisher) and confirm title/authors/year match.
+- If verification fails, write `% TODO: verify <what>` instead and tell the user.
 
-## Planning and Implementation
+## Agent docs
 
-- For non-trivial implementation tasks, propose 2-3 approaches with tradeoffs before writing code. Wait for approval.
-- For non-trivial plans/refactors (multi-file, cross-repo, or with unresolved design decisions), default to invoking the `grill-with-docs` skill before proposing implementation. Lock each design decision explicitly, then wait for an explicit go-ahead before calling `ExitPlanMode` — never auto-exit plan mode to present a plan as final. Skip grilling for bugfixes, doc tweaks, and renames.
-- Write working plan drafts to `plans/<slug>.md` (kebab-case, gitignored) and state the **absolute path** in chat when you do. Never overwrite an existing plan file — add a `-v2` suffix (etc.) or ask first. Promote a finalized plan to `docs/plans/` (tracked) when it should join the record; a locked architectural decision belongs in `docs/adr/`. See `plans/README.md`.
-- When starting a design interview or /grill-me session, if there is no existing plan, first explore the relevant codebase 
-and read key files and related modules before asking questions. Ground the interview in what the code actually does.
-- During code exploration, treat every dependency/coupling/structural claim as a hypothesis until cited: back it with the exact `file:line` that proves it, and list anything you couldn't confirm as unverified rather than asserting it. Hold `Task`/`Explore` subagents to the same standard in their instructions.
-- When a plan relies on formulas, thresholds, complexity claims, or memory/allocation models, enumerate each such assumption explicitly and verify it against the primary source and the actual codebase before locking the decision. Treat quantitative claims recalled from memory as unverified; flag any you cannot confirm rather than proceeding on them.
-
-## Performance Optimization
-
-- Always profile/benchmark first to identify the actual bottleneck before implementing changes
-- When narrowing numeric dtypes for memory optimization, never narrow below int32 or float32
-
-## Agent skills
-
-### Harnesses
-
-Claude Code, Codex, and Pi only. Skills are authored once in `.agents/skills/`. See `docs/agents/harnesses.md`.
-
-### Issue tracker
-
-GitHub Issues at github.com/rwaples/simACE/issues, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Canonical defaults (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Skills are authored in `.agents/skills/` (Claude Code, Codex, Pi). Issues: GitHub Issues via `gh`, with canonical triage labels. Domain docs: `CONTEXT.md` + `docs/adr/`. Details in `docs/agents/`.
