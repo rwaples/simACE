@@ -17,8 +17,11 @@ Every target is a file. Snakemake builds whatever that file depends on.
 | `results/{folder}/{scenario}/scenario.done` | All stages for one scenario. Also builds the folder-level summary, which needs the sibling scenarios |
 | `results/{folder}/folder.done` | Every scenario in one folder |
 
-The stages run in this order: simulate, phenotype, censor, ascertainment,
-analyze, plots. Each stage reads the files the previous one wrote.
+The scientific stages run in this order: simulate, phenotype, censor,
+ascertainment, analyze, plot. Analyze produces one report with validation
+checks and descriptive stats. The `.done` files above are Snakemake targets,
+not separate scientific stages; in particular, `validate.done` and
+`stats.done` select different outputs from the same Analyze stage.
 
 The `epimight.done` target exists only when the fitACE_epimight repository
 is checked out inside `fitACE/`. See the fitACE documentation.

@@ -263,12 +263,12 @@ _Avoid_: "the fitter", "the estimator suite" (subset), "the analysis package" (s
 The set of simACE modules that fitACE and its method sisters may import. Downstream imports only these *public* modules — never an underscore-private module such as `simace.core._numba_utils`. When a downstream package needs a private primitive, it is **promoted** into a public module rather than reached into (e.g. the bivariate-normal / tetrachoric numba kernels now exported from `simace.core.numerics`).
 _Avoid_: treating "underscore = private" as advisory across the repo boundary; importing `simace.core._*` from fitACE.
 
-**Method sister** (`fitACE_<x>` repo):
-A repo holding exactly one fitting method's implementation, private helpers, Snakemake rule, and tests — `fitACE_epimight`, `fitACE_pcgc`, `fitACE_iter_reml`, `fitACE_tetraher`, `fitACE_pafgrs`, `fitACE_stan`, `fitACE_frailty`. Each depends on `fitace` + `simace`, never on another method sister. (See fitACE ADR 0001 for the core-vs-sister placement rule.)
-_Avoid_: plugin, git submodule (they are gitignored sibling checkouts, not submodules), "fitACE module" (the methods are no longer inside `fitace/` core).
+**Method sister** (`fitACE_<x>` package):
+A distribution holding one fitting method's implementation, private helpers, Snakemake rules, and tests — `fitACE_epimight`, `fitACE_pcgc`, `fitACE_iter_reml`, `fitACE_tetraher`, `fitACE_pafgrs`, `fitACE_stan`, or `fitACE_frailty`. Six live inside the fitACE monorepo; `fitACE_epimight` remains a separate nested checkout. Each depends on `fitace` + `simace`, never on another method sister. (See fitACE ADR 0001 for the core-vs-sister placement rule.)
+_Avoid_: plugin, git submodule, "fitACE module" (the methods are outside `fitace/` core).
 
 **Dormant** (method sister):
-A method sister whose Snakemake rule file is **not** `include:`d in the core fitACE `Snakefile` — installed, importable, embedded for cross-repo search, and tested, but not wired into the pipeline DAG. *Active* = its rule file is included; activation is a one-line include. (`fitACE_stan` and `fitACE_frailty` are dormant; dormancy is about the DAG, not code coupling.)
+A method sister whose Snakemake rule file is **not** included by the core fitACE `Snakefile` — installed, importable, and tested, but not wired into the pipeline DAG. *Active* = its rule file is included through the method registry. (`fitACE_stan` and `fitACE_frailty` are dormant; dormancy is about the DAG, not code coupling.)
 _Avoid_: disabled, deprecated, inactive, retired (dormant code is live and tested — it is simply not orchestrated).
 
 **ACE** (the model):
@@ -282,8 +282,8 @@ _Avoid_: true values (acceptable in prose but less specific), simulated values, 
 ### Versioning
 
 **Lockstep family**:
-The set of repos released under one shared version, tagged together each release — simACE, fitACE core, the seven method sisters, and the `ace_iter_reml` binary. External dependencies (`pedigree-graph`, `pedsum`, `tetraher_simace`) are **not** members and keep independent versions.
-_Avoid_: "fitACE family" (excludes simACE by name), monorepo (separate repos, separate origins), submodule set.
+The three checkouts tagged together at one shared version: simACE, the fitACE monorepo, and `fitACE_epimight`. The six method sisters inside fitACE and the `ace_iter_reml` binary read fitACE's tag. The `tetraher_simace` fork also lives inside fitACE but has no separate version stamp. External dependencies `pedigree-graph` and `pedsum` version independently.
+_Avoid_: "fitACE family" (excludes simACE by name), submodule set.
 
 **Family version**:
 The single CalVer (`vYYYY.MM[.patch]`) every Lockstep family repo carries. Identical across repos at a tagged release; between releases each repo's dev build diverges only by its setuptools-scm commit-distance suffix.
@@ -294,7 +294,7 @@ The single minimum compatible Family version — the source of truth in `fitace.
 _Avoid_: separate simACE / fitACE floors (collapsed into one under lockstep), version pin, minimum requirement.
 
 - Each **Lockstep family** repo carries the same **Family version** at a tagged release.
-- A **Method sister** is a **Lockstep family** member; an external dependency is not.
+- A **Method sister** carries the **Family version**, through its own tag for `fitACE_epimight` or the fitACE monorepo tag for the other six.
 - fitACE core and the **Method sisters** pin and guard the single **Family floor**; simACE does not.
 
 ### Descriptive vs inferential analysis
@@ -318,7 +318,7 @@ Conventions for the text rendered in the plot atlas — both the `PlotEntry` `ti
 
 ## Flagged ambiguities
 
-- **"fitACE family"** reads as fitACE-only, but the **Lockstep family** (the versioned set) also contains simACE and the `ace_iter_reml` binary. Use **Lockstep family** when you mean the repos that share a **Family version**; reserve "fitACE core + method sisters" for the fit-only subset.
+- **"fitACE family"** reads as fitACE-only, but the **Lockstep family** also contains simACE. Use **Lockstep family** for the three checkouts tagged at one **Family version**; reserve "fitACE core + method sisters" for the fit-only subset. The `ace_iter_reml` binary reads fitACE's tag.
 
 - **"liability"** is intentionally polysemous: it can refer to the raw $L = A + C + E$ or to its standardized form $\tilde L$. Both readings are legitimate; the right one is inferable from context (raw inside `pedigree.parquet` columns; standardized inside phenotype-model code that consumes it). **Do not** "fix" this by renaming — the dual usage is load-bearing.
 

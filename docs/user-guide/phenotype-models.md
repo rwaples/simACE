@@ -6,32 +6,6 @@ selects its model under `phenotype.trait1` or `phenotype.trait2` in the
 scenario. [Configuration](configuration.md#phenotype) shows where the
 block sits.
 
-## Schema
-
-```yaml
-phenotype:
-  trait1:
-    model: frailty
-    params:
-      distribution: weibull
-      scale: 2160
-      rho: 0.8
-    beta: 1.0
-    beta_sex: 0.0
-```
-
-| Key | Type | Description |
-|---|---|---|
-| `model` | str | One of `frailty`, `cure_frailty`, `adult`, `first_passage`, `simple_ltm` |
-| `params` | dict | Model-specific parameters, listed per model below |
-| `beta` | float | Liability coefficient. Its meaning depends on the model. See the table below |
-| `beta_sex` | float | Additive sex effect in the same units as `beta`. `sex == 1` is male |
-
-`params.prevalence` is required for `adult`, `cure_frailty`, and `simple_ltm`.
-Setting it for `frailty` or `first_passage` is an error, because their case
-fraction follows from the event-time process. The loader rejects `prevalence` placed outside
-`params`.
-
 ## Model families
 
 | Model | Case status | Age of onset | Proportional hazards | `beta` scales |
@@ -115,6 +89,11 @@ human lifespan scale.
 
 ## Prevalence forms
 
+`params.prevalence` is required for `adult`, `cure_frailty`, and `simple_ltm`.
+It is rejected for `frailty` and `first_passage`, whose case fraction follows
+from the event-time process. The loader also rejects `prevalence` outside
+`params`.
+
 `params.prevalence` takes one of three forms.
 
 - A scalar such as `0.10`. Every individual has the same prevalence.
@@ -132,22 +111,24 @@ Models with a separate hazard step, meaning `frailty`, `cure_frailty`,
 `params.standardize_hazard`. It overrides `standardize` for the hazard step
 only. When omitted, it inherits `standardize`.
 
-```yaml
-phenotype:
-  trait1:
-    model: cure_frailty
-    params:
-      distribution: weibull
-      scale: 2160
-      rho: 0.8
-      prevalence: 0.10
-      standardize_hazard: per_generation
-    beta: 1.0
-```
-
 `simple_ltm` and `adult` with `method: ltm` have no hazard step and reject
 `standardize_hazard`.
-[ACE model, Standardisation](../concepts/ace-model.md#standardisation) has
-the table of which setting each model reads.
+
+| Model | Threshold step reads | Hazard step reads |
+|---|---|---|
+| `simple_ltm` | `standardize` | none |
+| `adult.ltm` | `standardize` | none |
+| `adult.cox` | none | `standardize_hazard`, default `standardize` |
+| `frailty` | none | `standardize_hazard`, default `standardize` |
+| `first_passage` | none | `standardize_hazard`, default `standardize` |
+| `cure_frailty` | `standardize` | `standardize_hazard`, default `standardize` |
+
+For `cure_frailty`, `standardize` scales liability for case selection and
+`standardize_hazard` scales it for age at onset among cases. Switching
+`adult.params.method` between `ltm` and `cox` changes which step uses the
+liability.
+
+[ACE model, Standardisation](../concepts/ace-model.md#standardisation)
+explains the effect of each mode on liability and prevalence.
 
 To add a model family, see [Adding a phenotype model](adding-a-phenotype-model.md).

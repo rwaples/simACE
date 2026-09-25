@@ -40,45 +40,16 @@ Two traits can be correlated through each component:
 
 ## Standardisation
 
-The `standardize` config key sets how the phenotype stage normalises liability before it applies a threshold. It accepts three values:
+The `standardize` config key sets how the phenotype stage normalises liability
+before a threshold or hazard step. It accepts three values:
 
 | Mode | Behaviour |
 |---|---|
-| `none` | The raw liability is compared to the N(0,1)-scale threshold. Realised prevalence drifts whenever the cohort variance differs from 1. |
+| `none` | Raw liability is used. For threshold models, realised prevalence can drift when the cohort distribution differs from the N(0,1) reference. |
 | `global` (default) | The liability is z-scored once across the whole phenotyped cohort: $L_z = (L - \bar L) / \mathrm{sd}(L)$. Per-generation prevalence still drifts when variance changes between generations. |
-| `per_generation` | The liability is z-scored within each generation. Each generation hits its target prevalence exactly, however $\mathrm{Var}(C)$ or $\mathrm{Var}(E)$ drifts across cohorts. |
+| `per_generation` | The liability is z-scored within each generation, removing shifts in the generation mean and variance. The observed case fraction can still differ from the target in a finite sample. |
 
-Config loading still accepts the legacy booleans. `true` becomes `global` and `false` becomes `none`, so older scenario files keep working.
-
-### Per-trait hazard override
-
-Models with a hazard step accept a per-trait key, `standardize_hazard`, inside `phenotype.trait{N}.params`. Those models are `frailty`, `cure_frailty`, `first_passage`, and `adult` with `method: cox`.
-
-```yaml
-phenotype:
-  trait1:
-    model: cure_frailty
-    params:
-      distribution: weibull
-      scale: 2160
-      rho: 0.8
-      prevalence: 0.10
-      standardize_hazard: per_generation   # overrides the global key for the hazard step
-```
-
-`standardize_hazard` accepts the same three modes and defaults to the value of the global `standardize`. Models with no hazard step reject the key with a trait-prefixed error. Those models are `simple_ltm` and `adult` with `method: ltm`.
-
-`cure_frailty` is the only model that reads both keys. `standardize` sets the threshold step, which decides case status. `standardize_hazard` sets the hazard step, which decides age at onset among cases. Setting `standardize: per_generation` with `standardize_hazard: global` holds per-generation prevalence exact while keeping one hazard slope across generations.
-
-### Per-model routing
-
-| Model | Threshold step reads | Hazard step reads |
-|---|---|---|
-| `simple_ltm` | `standardize` | none |
-| `adult.ltm` | `standardize` | none |
-| `adult.cox` | none | `standardize_hazard`, default `standardize` |
-| `frailty` | none | `standardize_hazard`, default `standardize` |
-| `first_passage` | none | `standardize_hazard`, default `standardize` |
-| `cure_frailty` | `standardize` | `standardize_hazard`, default `standardize` |
-
-Switching `params.method` on the `adult` model between `ltm` and `cox` changes which key scales the liability for that trait. `adult.ltm` applies a threshold to the liability, so it reads `standardize`. `adult.cox` applies a hazard to the liability, so it reads `standardize_hazard`. If you set `standardize_hazard` on an `adult.ltm` trait, config validation raises an error that names this rule.
+Threshold models use the scaled liability to select cases. Hazard models use
+it to determine event-time behavior. Some models use both steps; see
+[Phenotype models, Standardization](../user-guide/phenotype-models.md#standardization)
+for the setting each model reads.

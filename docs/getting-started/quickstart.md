@@ -12,14 +12,9 @@ From the repository root, run:
 pixi run snakemake --cores 4 results/test/small_test/scenario.done
 ```
 
-Snakemake prints one block per rule as it runs. The run takes under a
-minute on a laptop. When it finishes, the log ends with the `scenario` rule
-and a step count at 100%:
-
-```
-Finished jobid: 0 (Rule: scenario)
-29 of 29 steps (100%) done
-```
+Snakemake prints progress as rules finish. The number of jobs and runtime
+depend on which outputs already exist. A successful run ends with all requested
+jobs complete and creates `results/test/small_test/scenario.done`.
 
 ## Check the output
 

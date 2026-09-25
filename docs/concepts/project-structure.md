@@ -131,13 +131,15 @@ directory. fitACE and its nested fitACE_epimight are checkouts inside it,
 gitignored from simACE, with no submodules. Since ADR 0017 fitACE is a
 monorepo. The method packages, the `ace_iter_reml` C++ source, and the
 `tetraher_simace` LDAK fork live in subdirectories of `./fitACE/`.
+`tools/family_repos.py::checkout_repos()` is the source of truth for checkout
+paths used by maintenance tools.
 
 | Repo | Visibility | Local path | Role |
 |---|---|---|---|
-| [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate, phenotype, censor, ascertainment, validate, stats, plot |
+| [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate, phenotype, censor, ascertainment, analyze, plot |
 | [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model-fitting monorepo: core + Snakemake orchestrator + method packages in `fitACE_<x>/` subdirs (PCGC, iter/sparse REML + the `ace_iter_reml` C++ source under `fitACE_iter_reml/`, TetraHer + the `tetraher_simace` LDAK fork, PA-FGRS, Stan, frailty). Consumes simACE outputs. |
 | [`fitACE_epimight`](https://github.com/rwaples/fitACE_epimight) | private | `./fitACE/fitACE_epimight/` | EPIMIGHT integration: long-form input emitter, R driver, Snakemake rules, atlas/bias plotting. Its own repo, tracking the BioPsyk/epimight R upstream; included by `fitACE/Snakefile`. |
-| [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Sparse-matrix pedigree relationship extraction and kinship computation. |
+| [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Rust pedigree relationship extraction and kinship computation. |
 | [`pedsum`](https://github.com/rwaples/pedsum) | public | `./external/pedsum/` | Pedigree summary CLI: structure, relatedness, inbreeding, Ne estimators. Built on `pedigree-graph`. |
 
 Each nested repo has its own `origin` wired to the matching GitHub repo.
