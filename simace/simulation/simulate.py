@@ -1431,15 +1431,14 @@ def run_simulation(
     return pedigree
 
 
-def cli() -> None:
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line interface for running ACE simulations."""
     import json
 
-    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
-    from simace.core.yaml_io import dump_yaml
-    from simace.simulation.emit_params import emit_params
+    from simace.core.cli_base import add_logging_args, add_version_arg, float_or_generation_map, init_logging
+    from simace.core.publish import publish
 
-    parser = argparse.ArgumentParser(description="Run ACE pedigree simulation")
+    parser = argparse.ArgumentParser(prog=prog, description="Run ACE pedigree simulation")
     add_logging_args(parser)
     add_version_arg(parser, "simace")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
@@ -1459,29 +1458,45 @@ def cli() -> None:
     parser.add_argument("--p-mztwin", type=float, default=0.02, help="Probability of MZ twinning (standard model only)")
     parser.add_argument("--A1", type=float, default=0.5, help="Additive genetic variance for trait 1")
     parser.add_argument("--C1", type=float, default=0.2, help="Shared environment variance for trait 1")
-    parser.add_argument("--E1", type=float, required=True, help="Unique environment variance for trait 1")
+    parser.add_argument(
+        "--E1",
+        type=float_or_generation_map,
+        required=True,
+        help="Unique environment variance for trait 1: a scalar or a JSON per-generation map",
+    )
     parser.add_argument("--A2", type=float, default=0.5, help="Additive genetic variance for trait 2")
     parser.add_argument("--C2", type=float, default=0.2, help="Shared environment variance for trait 2")
-    parser.add_argument("--E2", type=float, required=True, help="Unique environment variance for trait 2")
+    parser.add_argument(
+        "--E2",
+        type=float_or_generation_map,
+        required=True,
+        help="Unique environment variance for trait 2: a scalar or a JSON per-generation map",
+    )
     parser.add_argument("--rA", type=float, default=0.5, help="Cross-trait genetic correlation")
     parser.add_argument("--rC", type=float, default=0.3, help="Cross-trait shared environment correlation")
     parser.add_argument("--rE", type=float, default=0.0, help="Cross-trait unique environment correlation")
-    parser.add_argument("--assort1", type=float, default=0.0, help="Mate correlation on trait 1 liability")
-    parser.add_argument("--assort2", type=float, default=0.0, help="Mate correlation on trait 2 liability")
+    parser.add_argument(
+        "--assort1",
+        type=float_or_generation_map,
+        default=0.0,
+        help="Mate correlation on trait 1 liability: a scalar or a JSON per-generation map",
+    )
+    parser.add_argument(
+        "--assort2",
+        type=float_or_generation_map,
+        default=0.0,
+        help="Mate correlation on trait 2 liability: a scalar or a JSON per-generation map",
+    )
     parser.add_argument(
         "--assort-matrix",
-        type=str,
+        type=json.loads,
         default=None,
         help="Optional 2x2 mate correlation matrix as JSON, e.g. '[[0.3, 0.05], [0.05, 0.15]]'",
     )
     parser.add_argument("--output-pedigree", required=True, help="Output pedigree parquet path")
-    parser.add_argument("--output-params", required=True, help="Output params YAML path")
-    parser.add_argument("--rep", type=int, default=1, help="Replicate number")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     init_logging(args)
-
-    assort_matrix = json.loads(args.assort_matrix) if args.assort_matrix else None
 
     pedigree = run_simulation(
         seed=args.seed,
@@ -1501,32 +1516,9 @@ def cli() -> None:
         G_sim=args.G_sim,
         assort1=args.assort1,
         assort2=args.assort2,
-        assort_matrix=assort_matrix,
+        assort_matrix=args.assort_matrix,
         mating_model=args.mating_model,
     )
 
-    save_parquet(pedigree, args.output_pedigree)
-
-    params_dict = emit_params(
-        seed=args.seed,
-        rep=args.rep,
-        A1=args.A1,
-        C1=args.C1,
-        E1=args.E1,
-        A2=args.A2,
-        C2=args.C2,
-        E2=args.E2,
-        rA=args.rA,
-        rC=args.rC,
-        rE=args.rE,
-        N=args.N,
-        G_ped=args.G_ped,
-        G_sim=args.G_sim,
-        mating_model=args.mating_model,
-        mating_lambda=args.mating_lambda,
-        p_mztwin=args.p_mztwin,
-        assort1=args.assort1,
-        assort2=args.assort2,
-        assort_matrix=assort_matrix,
-    )
-    dump_yaml(params_dict, args.output_params, sort_keys=True)
+    with publish(args.output_pedigree) as (tmp,):
+        save_parquet(pedigree, tmp)

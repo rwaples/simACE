@@ -22,27 +22,28 @@ class BenchmarkError(RuntimeError):
 
 @dataclass(frozen=True)
 class StageSpec:
-    """Canonical names for one pipeline stage's artifacts."""
+    """One pipeline stage: its stable summary key, its ``simace`` subcommand, and a short label.
+
+    ``key`` predates ``simace run`` and is kept so summaries stay comparable
+    with benchmarks recorded before it.
+    """
 
     key: str
-    tsv: str
-    wrapper: str
+    command: str
     label: str
 
 
 STAGES: tuple[StageSpec, ...] = (
-    StageSpec("emit_params", "emit_params", "emit_params", "params"),
-    StageSpec("simulate", "simulate", "simulate", "simulate"),
-    StageSpec("phenotype", "phenotype", "phenotype", "phenotype"),
-    StageSpec("censor", "censor_weibull", "censor", "censor"),
-    StageSpec("ascertainment", "ascertainment", "ascertainment", "ascertain"),
-    StageSpec("analyze", "analyze", "analyze", "analyze"),
-    StageSpec("plot_phenotype", "plot_phenotype", "plot_phenotype", "plots"),
-    StageSpec("assemble_atlas", "assemble_atlas", "assemble_atlas", "atlas"),
+    StageSpec("simulate", "simulate", "simulate"),
+    StageSpec("phenotype", "phenotype", "phenotype"),
+    StageSpec("censor", "censor", "censor"),
+    StageSpec("ascertainment", "ascertain", "ascertain"),
+    StageSpec("analyze", "analyze", "analyze"),
+    StageSpec("plot_phenotype", "plot", "plots"),
+    StageSpec("assemble_atlas", "atlas", "atlas"),
 )
 
-TSV_TO_STAGE = {stage.tsv: stage.key for stage in STAGES}
-WRAPPER_TO_STAGE = {stage.wrapper: stage.key for stage in STAGES}
+COMMAND_TO_STAGE = {stage.command: stage.key for stage in STAGES}
 
 
 @dataclass(frozen=True)
@@ -132,7 +133,7 @@ def build_summaries(executions: list[dict[str, Any]]) -> list[dict[str, Any]]:
             wall = [
                 float(sample["wall_seconds"])
                 for item in selected
-                for sample in item.get("rules", {}).get(rule, {}).get("snakemake", [])
+                for sample in item.get("rules", {}).get(rule, {}).get("stage", [])
             ]
             rss = [
                 float(item["rules"][rule]["peak_rss_kb"])

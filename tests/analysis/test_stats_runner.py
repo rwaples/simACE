@@ -1,7 +1,5 @@
 """Smoke test for simace.analysis.stats.runner.main end-to-end."""
 
-import sys
-
 import pytest
 import yaml
 from pedigree_graph import RELATIONSHIPS
@@ -216,7 +214,7 @@ class TestRunnerMain:
 
 
 class TestRunnerCli:
-    def test_cli_invokes_main(self, tmp_path, tiny_phenotype, monkeypatch):
+    def test_cli_invokes_main(self, tmp_path, tiny_phenotype):
         pedigree, phenotype = tiny_phenotype
         ped_path = tmp_path / "pedigree.parquet"
         phe_path = tmp_path / "trait.parquet"
@@ -225,11 +223,8 @@ class TestRunnerCli:
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
 
-        monkeypatch.setattr(
-            sys,
-            "argv",
+        run_stats_cli(
             [
-                "stats",
                 str(phe_path),
                 "80",
                 str(stats_yaml),
@@ -238,13 +233,12 @@ class TestRunnerCli:
                 str(ped_path),
                 "--max-degree",
                 "2",
-            ],
+            ]
         )
-        run_stats_cli()
         assert stats_yaml.exists()
         assert samples_pq.exists()
 
-    def test_cli_with_gen_censoring(self, tmp_path, tiny_phenotype, monkeypatch):
+    def test_cli_with_gen_censoring(self, tmp_path, tiny_phenotype):
         pedigree, phenotype = tiny_phenotype
         ped_path = tmp_path / "pedigree.parquet"
         phe_path = tmp_path / "trait.parquet"
@@ -253,11 +247,8 @@ class TestRunnerCli:
         stats_yaml = tmp_path / "stats.yaml"
         samples_pq = tmp_path / "samples.parquet"
 
-        monkeypatch.setattr(
-            sys,
-            "argv",
+        run_stats_cli(
             [
-                "stats",
                 str(phe_path),
                 "80",
                 str(stats_yaml),
@@ -266,9 +257,8 @@ class TestRunnerCli:
                 str(ped_path),
                 "--gen-censoring",
                 '{"0": [80, 80], "1": [0, 80]}',
-            ],
+            ]
         )
-        run_stats_cli()
         with open(stats_yaml, encoding="utf-8") as fh:
             stats = yaml.safe_load(fh)
         assert "censoring" in stats

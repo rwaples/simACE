@@ -327,9 +327,11 @@ def main(
     dump_yaml(result, output_path)
 
 
-def cli() -> None:
-    """Argparse entry point for running outside Snakemake."""
-    parser = argparse.ArgumentParser(description="Compute Ne estimators")
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
+    """Command-line entry point: compute Ne for one rep."""
+    from simace.core.publish import publish
+
+    parser = argparse.ArgumentParser(prog=prog, description="Compute Ne estimators")
     add_logging_args(parser)
     parser.add_argument("--pedigree", required=True, help="Pedigree parquet (post-dropout)")
     parser.add_argument("--phenotype", required=True, help="Sampled phenotype parquet (defines observed set)")
@@ -343,12 +345,13 @@ def cli() -> None:
         "analysis.skip_ne_coancestry pipeline default. Without it ne_coancestry carries "
         "reason: not_requested instead of a result.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     init_logging(args)
-    main(
-        args.pedigree,
-        args.phenotype,
-        args.params,
-        args.output,
-        skip_ne_coancestry=not args.ne_coancestry,
-    )
+    with publish(args.output) as (tmp,):
+        main(
+            args.pedigree,
+            args.phenotype,
+            args.params,
+            str(tmp),
+            skip_ne_coancestry=not args.ne_coancestry,
+        )

@@ -1,6 +1,6 @@
 """Pipeline DAG diagram for the atlas title page.
 
-Renders a single-page figure showing the Snakemake pipeline structure with
+Renders a single-page figure showing the pipeline stage structure with
 each step's relevant parameters displayed inside its box.
 """
 

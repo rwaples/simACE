@@ -1,7 +1,7 @@
 """Ascertainment implementation: dropout, case-weighted draw, pedigree closure, CLI.
 
 See the package docstring in :mod:`simace.ascertainment` for the stage's role
-and ADR 0001 context. ``cli`` is the ``simace-ascertain`` entry point.
+and ADR 0001 context. ``cli`` is the ``simace ascertain`` command.
 """
 
 from __future__ import annotations
@@ -99,7 +99,7 @@ def copy_passthrough_if_possible(
 
     The DataFrame API deliberately preserves the semantic ancestor-closure
     step even when ``dropout_rate=0`` and ``N_sample`` passes all trait rows.
-    The file-level Snakemake/CLI path can skip the expensive pandas
+    The file-level CLI path can skip the expensive pandas
     decode/filter/re-encode cycle only when the phenotype and pedigree files
     already contain the exact same ordered ID set, making the closure equal to
     the input pedigree.
@@ -296,11 +296,14 @@ def run_ascertainment(
     return ped_out, trait_out
 
 
-def cli() -> None:
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line entry point for the ascertainment stage."""
     from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
+    from simace.core.publish import publish
 
-    parser = argparse.ArgumentParser(description="Unified ascertainment: dropout + case-weighted N_sample draw")
+    parser = argparse.ArgumentParser(
+        prog=prog, description="Unified ascertainment: dropout + case-weighted N_sample draw"
+    )
     add_logging_args(parser)
     add_version_arg(parser, "simace")
     parser.add_argument("--pedigree", required=True, help="Input pre-ascertainment pedigree parquet")
@@ -312,28 +315,29 @@ def cli() -> None:
     parser.add_argument("--N-sample", type=int, default=0, help="Target sample size (0 = pass-through)")
     parser.add_argument("--seed", type=int, default=42, help="RNG seed")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     init_logging(args)
 
-    if copy_passthrough_if_possible(
-        args.pedigree,
-        args.trait,
-        args.out_pedigree,
-        args.out_trait,
-        dropout_rate=args.dropout_rate,
-        N_sample=args.N_sample,
-    ):
-        return
+    with publish(args.out_pedigree, args.out_trait) as (tmp_pedigree, tmp_trait):
+        if copy_passthrough_if_possible(
+            args.pedigree,
+            args.trait,
+            tmp_pedigree,
+            tmp_trait,
+            dropout_rate=args.dropout_rate,
+            N_sample=args.N_sample,
+        ):
+            return
 
-    ped = load_parquet(args.pedigree)
-    trait = load_parquet(args.trait)
-    ped_out, trait_out = run_ascertainment(
-        ped,
-        trait,
-        dropout_rate=args.dropout_rate,
-        case_ascertainment_ratio=args.case_ascertainment_ratio,
-        N_sample=args.N_sample,
-        seed=args.seed,
-    )
-    save_parquet(ped_out, args.out_pedigree)
-    save_parquet(trait_out, args.out_trait)
+        ped = load_parquet(args.pedigree)
+        trait = load_parquet(args.trait)
+        ped_out, trait_out = run_ascertainment(
+            ped,
+            trait,
+            dropout_rate=args.dropout_rate,
+            case_ascertainment_ratio=args.case_ascertainment_ratio,
+            N_sample=args.N_sample,
+            seed=args.seed,
+        )
+        save_parquet(ped_out, tmp_pedigree)
+        save_parquet(trait_out, tmp_trait)

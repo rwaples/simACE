@@ -1779,7 +1779,7 @@ def main(
     expected_C: float | None = None,
     expected_E: float | None = None,
 ) -> None:
-    """Library entry point used by Snakemake script wrappers."""
+    """Library entry point for the example-comparison scripts."""
     compare_realized_variance_trajectory(
         scenario_paths=scenario_paths,
         labels=labels,
@@ -1792,7 +1792,7 @@ def main(
 
 
 def cli() -> None:
-    """Standalone CLI for ad-hoc rendering outside Snakemake."""
+    """Standalone CLI for ad-hoc rendering."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--scenario",

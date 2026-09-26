@@ -1,7 +1,8 @@
 """Discipline test: per-job packages do not import the heavy scipy subpackages at module level.
 
-Every Snakemake job in the per-replicate chain (simulate, phenotype, censor,
-ascertainment) and the EPIMIGHT emitter starts a fresh interpreter, so module
+Every stage in the per-replicate chain (simulate, phenotype, censor,
+ascertain) runs as its own ``python -m simace <stage>`` process, and the
+EPIMIGHT emitter starts a fresh interpreter too, so module
 import time is paid once per replicate per stage. ``scipy.stats`` alone costs
 about 0.5 s to import; moving its two single-caller imports inside their
 functions took the phenotype job from 1.10 s to 0.68 s; ``scipy.special``
@@ -18,15 +19,17 @@ import sys
 
 import pytest
 
-# What the workflow/scripts/simace job wrappers import at module level, plus
-# the analysis entry points the downstream stats jobs start from.
+# What a `python -m simace <stage>` process imports: the dispatcher, then the
+# stage's own module.
 _JOB_MODULES = [
+    "simace.__main__",
+    "simace.cli",
     "simace.simulation.simulate",
-    "simace.phenotype",
+    "simace.phenotype.runner",
     "simace.censoring.censor",
-    "simace.ascertainment",
+    "simace.ascertainment.runner",
     "simace.core.parquet",
-    "simace.core.snakemake_adapter",
+    "simace.core.publish",
 ]
 
 

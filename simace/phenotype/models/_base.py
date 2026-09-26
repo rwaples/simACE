@@ -10,7 +10,7 @@ Each phenotype model family is a frozen dataclass that owns:
     flags and rejects flags belonging to other model families);
   * an ``add_cli_args(parser, trait)`` classmethod (declares its flags);
   * a ``simulate(...)`` method (the actual phenotype draw);
-  * a ``to_params_dict()`` method (back to the dict shape Snakemake stores).
+  * a ``to_params_dict()`` method (back to the ``phenotype_params{N}`` config dict shape).
 
 CLI flag naming convention:
 

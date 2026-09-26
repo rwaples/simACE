@@ -1,7 +1,6 @@
 """Round-trip tests for simace.core.parquet_to_tsv."""
 
 import gzip
-import sys
 
 import numpy as np
 import pandas as pd
@@ -77,23 +76,23 @@ def test_precision_setting(tmp_path, sample_df):
     assert back["x"].iloc[0] == pytest.approx(0.1234568, abs=1e-9)
 
 
-def test_cli_writes_default_output(tmp_path, sample_df, monkeypatch):
+def test_cli_writes_default_output(tmp_path, sample_df):
     pq = tmp_path / "in.parquet"
     sample_df.to_parquet(pq)
-    monkeypatch.setattr(sys, "argv", ["parquet-to-tsv", str(pq)])
-    cli()
+    argv = [str(pq)]
+    cli(argv)
     assert (tmp_path / "in.tsv.gz").exists()
 
 
-def test_cli_rejects_output_with_multiple_inputs(tmp_path, sample_df, monkeypatch):
+def test_cli_rejects_output_with_multiple_inputs(tmp_path, sample_df):
     pq1 = tmp_path / "a.parquet"
     pq2 = tmp_path / "b.parquet"
     sample_df.to_parquet(pq1)
     sample_df.to_parquet(pq2)
-    monkeypatch.setattr(sys, "argv", ["parquet-to-tsv", str(pq1), str(pq2), "-o", str(tmp_path / "out.tsv")])
+    argv = [str(pq1), str(pq2), "-o", str(tmp_path / "out.tsv")]
     # argparse calls parser.error → SystemExit
     with pytest.raises(SystemExit):
-        cli()
+        cli(argv)
 
 
 def test_text_contract_matches_historical_pandas_rendering(tmp_path):
@@ -117,10 +116,10 @@ def test_text_contract_matches_historical_pandas_rendering(tmp_path):
     assert out.read_text() == expected
 
 
-def test_cli_no_gzip_flag(tmp_path, sample_df, monkeypatch):
+def test_cli_no_gzip_flag(tmp_path, sample_df):
     pq = tmp_path / "in.parquet"
     sample_df.to_parquet(pq)
-    monkeypatch.setattr(sys, "argv", ["parquet-to-tsv", str(pq), "--no-gzip"])
-    cli()
+    argv = [str(pq), "--no-gzip"]
+    cli(argv)
     assert (tmp_path / "in.tsv").exists()
     assert not (tmp_path / "in.tsv.gz").exists()

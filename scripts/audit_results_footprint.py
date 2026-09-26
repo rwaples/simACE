@@ -37,19 +37,17 @@ CURRENT_SIMACE_BASENAMES = frozenset(
         "report.yaml",
         "plot_payload.yaml",
         "report_summary.tsv",
+        "trait.raw.parquet",
+        "plotting_sample.parquet",
+        "run.yaml",
+        "timing.tsv",
+        # Empty completion markers left by runs from before ADR 0020.
         "scenario.done",
         "simulate.done",
         "phenotype.done",
         "validate.done",
         "stats.done",
         "folder.done",
-    }
-)
-
-SIMACE_TEMP_BASENAMES = frozenset(
-    {
-        "trait.raw.parquet",
-        "plotting_sample.parquet",
     }
 )
 
@@ -176,16 +174,6 @@ def _classify(path: Path, root: Path) -> FileRecord:
             path=path,
             category="genotype-tstrait-manual-review",
             reason="genotype-drop or tstrait output; manual review only",
-            size_bytes=size_bytes,
-            disk_bytes=disk_bytes,
-            auto_delete_safe=False,
-        )
-
-    if name in SIMACE_TEMP_BASENAMES:
-        return FileRecord(
-            path=path,
-            category="simace-temp-leftover-manual-review",
-            reason="Snakemake temp/intermediate simACE output; use Snakemake cleanup or review manually",
             size_bytes=size_bytes,
             disk_bytes=disk_bytes,
             auto_delete_safe=False,

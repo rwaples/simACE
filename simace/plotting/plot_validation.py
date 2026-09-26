@@ -680,11 +680,11 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png", *, atlas_
     assemble_validation_atlas(out, atlas_name, plot_ext=plot_ext)
 
 
-def cli() -> None:
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line interface for generating validation plots."""
     from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
-    parser = argparse.ArgumentParser(description="Plot validation results")
+    parser = argparse.ArgumentParser(prog=prog, description="Plot validation results")
     add_logging_args(parser)
     add_version_arg(parser, "simace")
     parser.add_argument("tsv", help="Validation summary TSV path")
@@ -692,8 +692,11 @@ def cli() -> None:
     parser.add_argument(
         "--plot-format", choices=["png", "pdf"], default="png", help="Output plot format (default: png)"
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--atlas-format", choices=["html", "pdf"], default="html", help="Atlas format (default: html, ADR 0010)"
+    )
+    args = parser.parse_args(argv)
 
     init_logging(args)
 
-    main(args.tsv, args.output_dir, plot_ext=args.plot_format)
+    main(args.tsv, args.output_dir, plot_ext=args.plot_format, atlas_name=f"atlas.{args.atlas_format}")

@@ -26,7 +26,7 @@ from pathlib import Path
 # import pandas; everything else may not.
 ALLOWLIST: tuple[tuple[str, str], ...] = (
     ("simace/plotting/plot_validation.py", "seaborn boundary: stripplot renderers take frames"),
-    ("workflow/scripts/simace/tskit/*.py", "pandas-native tstrait/tskit scripts (out of scope)"),
+    ("scripts/gene_drop/*.py", "pandas-native tstrait/tskit scripts (out of scope)"),
     ("tests/core/test_null_contract.py", "pandas round-trip compatibility coverage"),
     ("tests/core/test_pedigree_arrays.py", "PedigreeArrays.from_frame is structurally dual-frame"),
     ("tests/core/test_schema.py", "asserts the pandas-rejection TypeError"),

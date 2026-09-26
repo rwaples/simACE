@@ -23,7 +23,7 @@
 #
 # skip_ne_coancestry is true in all seven, not only the large ones. The
 # coancestry path measured max_rss 4722 MB at N=100K per generation with
-# G_ped=5 (workflow/common.py:113) and scales linearly in N, which puts
+# G_ped=5 and scales linearly in N, which puts
 # bench20M near 190 GB. Leaving it on for the small points and off for the
 # large ones would compare two different pipelines.
 #
@@ -39,8 +39,8 @@
 # sweep tops out at bench10M, which needs 10.9 GB and 157 s.
 #
 # Run with `pixi run python -m tools.benchmark`, which measures isolated
-# process-group RSS. Snakemake's own benchmark TSVs sample on an interval and
-# can miss short peaks. See docs/user-guide/benchmarking.md.
+# process-group RSS alongside each stage's own peak from timing.tsv.
+# See docs/user-guide/benchmarking.md.
 
 bench100K:
   seed: 60001

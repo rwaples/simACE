@@ -1,5 +1,7 @@
 """Per-rep Ne wrapper: compute_effective_size + validator + main() integration."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -622,7 +624,7 @@ def test_effective_size_main_writes_yaml(tmp_path, tiny_pedigree):
         pytest.param(["--ne-coancestry"], False, id="opt-in-runs-ne-c"),
     ],
 )
-def test_cli_ne_coancestry_flag_routes_to_main(monkeypatch, argv_extra, expected_skip):
+def test_cli_ne_coancestry_flag_routes_to_main(monkeypatch, tmp_path, argv_extra, expected_skip):
     """``--ne-coancestry`` is a positive opt-in, negated on the way to main().
 
     Off by default, matching the ``analysis.skip_ne_coancestry`` pipeline
@@ -634,12 +636,12 @@ def test_cli_ne_coancestry_flag_routes_to_main(monkeypatch, argv_extra, expected
 
     def fake_main(pedigree_path, phenotype_path, params_path, output_path, *, skip_ne_coancestry=False):
         captured["skip_ne_coancestry"] = skip_ne_coancestry
+        Path(output_path).write_text("{}\n")
 
     monkeypatch.setattr(mod, "main", fake_main)
-    monkeypatch.setattr(
-        "sys.argv",
+    out = tmp_path / "effective_size.yaml"
+    mod.cli(
         [
-            "compute_effective_size",
             "--pedigree",
             "/dev/null/ped",
             "--phenotype",
@@ -647,9 +649,9 @@ def test_cli_ne_coancestry_flag_routes_to_main(monkeypatch, argv_extra, expected
             "--params",
             "/dev/null/params",
             "--output",
-            "/dev/null/out",
+            str(out),
             *argv_extra,
-        ],
+        ]
     )
-    mod.cli()
     assert captured == {"skip_ne_coancestry": expected_skip}
+    assert out.exists()

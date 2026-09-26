@@ -52,8 +52,8 @@ def stage(
 
     The wrapper exposes ``fn.reads``, ``fn.writes``, and ``fn.stage_name``
     as queryable metadata.  ``functools.wraps`` preserves the wrapped
-    function's signature so :func:`simace.core.snakemake_adapter.run_wrapper`
-    can still introspect keyword-only parameters.
+    function's signature for callers that introspect keyword-only
+    parameters.
     """
 
     def decorate(fn: Callable[..., _Frame]) -> Callable[..., _Frame]:

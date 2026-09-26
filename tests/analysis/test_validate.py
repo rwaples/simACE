@@ -1,7 +1,5 @@
 """Tests for simace.analysis.validate — pedigree validation functions."""
 
-import sys
-
 import numpy as np
 import polars as pl
 import pytest
@@ -473,20 +471,10 @@ class TestValidateNegativePaths:
 
 
 class TestValidateCli:
-    def test_writes_output_yaml(self, written_scenario, monkeypatch):
+    def test_writes_output_yaml(self, written_scenario):
         ped_path, params_path, tmp = written_scenario
         out_path = tmp / "validation.yaml"
-        argv = [
-            "validate",
-            "--pedigree",
-            str(ped_path),
-            "--params",
-            str(params_path),
-            "--output",
-            str(out_path),
-        ]
-        monkeypatch.setattr(sys, "argv", argv)
-        validate_cli()
+        validate_cli(["--pedigree", str(ped_path), "--params", str(params_path), "--output", str(out_path)])
         assert out_path.exists()
         with open(out_path, encoding="utf-8") as fh:
             loaded = yaml.safe_load(fh)

@@ -16,7 +16,7 @@ Adding a new model is a single new file under
 
 The dispatcher (:func:`run_phenotype`) and CLI live in
 :mod:`simace.phenotype.runner`; the names below are re-exported for the
-public API and the ``simace-phenotype`` entry point.
+public API and the ``simace phenotype`` command.
 """
 
 from .runner import cli, run_phenotype

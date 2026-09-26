@@ -156,11 +156,12 @@ def run_censor(
     return result
 
 
-def cli() -> None:
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line interface for censoring phenotype data."""
-    from simace.core.cli_base import add_logging_args, init_logging
+    from simace.core.cli_base import add_logging_args, generation_map, init_logging
+    from simace.core.publish import publish
 
-    parser = argparse.ArgumentParser(description="Apply observation censoring to phenotype data")
+    parser = argparse.ArgumentParser(prog=prog, description="Apply observation censoring to phenotype data")
     add_logging_args(parser)
     parser.add_argument("--phenotype", required=True, help="Input raw trait parquet")
     parser.add_argument(
@@ -173,28 +174,25 @@ def cli() -> None:
     parser.add_argument("--death-rho", type=float, default=10, help="Competing death hazard shape")
     parser.add_argument(
         "--gen-censoring",
-        type=str,
-        default=None,
+        type=generation_map,
+        default={},
         help='Per-generation censoring windows as JSON dict, e.g. \'{"0": [40, 80], "3": [0, 45]}\'',
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     init_logging(args)
 
-    import json
-
     phenotype = load_parquet(args.phenotype)
     pedigree = load_parquet(args.pedigree)
-    gen_censoring = json.loads(args.gen_censoring) if args.gen_censoring else {}
-    gen_censoring = {int(k): v for k, v in gen_censoring.items()}
     result = run_censor(
         phenotype,
         pedigree,
         censor_age=args.censor_age,
         seed=args.seed,
-        gen_censoring=gen_censoring,
+        gen_censoring=args.gen_censoring,
         death_scale=args.death_scale,
         death_rho=args.death_rho,
     )
-    save_parquet(result, args.output)
+    with publish(args.output) as (tmp,):
+        save_parquet(result, tmp)

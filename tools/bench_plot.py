@@ -17,13 +17,12 @@ stage times **add**. Peak memory does not: only one stage is resident at a time,
 so the total is the **maximum** over stages. Summing it would overstate the
 requirement by roughly the number of stages.
 
-Time is read from Snakemake's own benchmark TSVs, which are stopwatches: the
-``s`` column, elapsed wall seconds, not the ``cpu_time`` column beside it. Runs
-are on 4 cores, so the two differ wherever a stage threads, and wall time is the
-one a reader can plan against.
-Memory is read from the result document's 4 Hz process-group samples because
-Snakemake's sampled RSS misses transient spikes; ``--show-gap`` draws both so
-the difference is visible.
+Time is read from each rep's ``timing.tsv``, the elapsed wall seconds of each
+stage subprocess, which is the figure a reader can plan against.
+Memory is read from the result document's 4 Hz process-group samples, the
+figure the benchmark comparison gates on. ``--show-gap`` also draws each stage
+process's own peak (``ru_maxrss``) from ``timing.tsv`` so the two can be
+compared.
 """
 
 from __future__ import annotations
@@ -84,7 +83,7 @@ class Point:
         individuals: Total pedigree individuals, ``N * G_ped``.
         wall_s: Median wall seconds per stage key across measured repetitions.
         peak_gb: Median sampled peak RSS in GB per measured repetition.
-        snake_gb: What Snakemake itself reported, per stage key, for ``--show-gap``.
+        reported_gb: Each stage process's own peak RSS from ``timing.tsv``, for ``--show-gap``.
         tree_peak_gb: Median whole-run summed-tree peak, the machine footprint.
     """
 
@@ -92,7 +91,7 @@ class Point:
     individuals: int
     wall_s: dict[str, float]
     peak_gb: dict[str, float]
-    snake_gb: dict[str, float]
+    reported_gb: dict[str, float]
     tree_peak_gb: float
 
 
@@ -135,14 +134,14 @@ def build_points(bench_dir: Path) -> list[Point]:
                 wall[stage.key] = float(row["wall_seconds"]["median"])
             if row["peak_rss_kb"] is not None:
                 peak[stage.key] = float(row["peak_rss_kb"]["median"]) / KB_PER_GB
-        snake_samples: dict[str, list[float]] = {}
+        reported_samples: dict[str, list[float]] = {}
         for execution in executions:
             if execution["scenario"] != scenario:
                 continue
             for key, rule in execution["rules"].items():
-                for sample in rule["snakemake"]:
+                for sample in rule["stage"]:
                     if sample["max_rss_mb"] is not None:
-                        snake_samples.setdefault(key, []).append(float(sample["max_rss_mb"]) / 1024.0)
+                        reported_samples.setdefault(key, []).append(float(sample["max_rss_mb"]) / 1024.0)
         pipeline = summaries.get((scenario, None))
         if pipeline is None or pipeline["peak_rss_kb"] is None:
             raise BenchmarkError(f"scenario {scenario!r} has no pipeline memory summary")
@@ -152,7 +151,7 @@ def build_points(bench_dir: Path) -> list[Point]:
                 individuals=individuals,
                 wall_s=wall,
                 peak_gb=peak,
-                snake_gb={key: statistics.median(values) for key, values in snake_samples.items()},
+                reported_gb={key: statistics.median(values) for key, values in reported_samples.items()},
                 tree_peak_gb=float(pipeline["peak_rss_kb"]["median"]) / KB_PER_GB,
             )
         )
@@ -212,12 +211,12 @@ def group_peak(point: Point, group: Group, included: list[StageSpec], reported: 
         point: Benchmark point.
         group: The group.
         included: Stages left after ``--exclude``.
-        reported: Read Snakemake's own figure instead of the sampled one.
+        reported: Read the timing.tsv figure instead of the sampled one.
 
     Returns:
         Gigabytes.
     """
-    source = point.snake_gb if reported else point.peak_gb
+    source = point.reported_gb if reported else point.peak_gb
     return max((source.get(stage.key, 0.0) for stage in group_stages(group, included)), default=0.0)
 
 
@@ -266,7 +265,7 @@ def render(
         out_path: PNG destination; parent directories are created.
         figsize: Figure size in inches.
         dpi: Output resolution.
-        show_gap: Also draw what Snakemake reported, to expose its undercount.
+        show_gap: Also draw each stage's own peak from timing.tsv.
         exclude: Stage keys to leave out. Passing ``plots`` and ``atlas`` gives
             the simulation pipeline alone; atlas rendering is a fixed cost that
             does not scale with N and otherwise dominates the small points.
@@ -326,7 +325,7 @@ def render(
 
     handles = [Patch(facecolor=group.color, label=group.label) for group in GROUPS]
     if show_gap:
-        handles.append(plt.Line2D([], [], marker="_", color="#CC4444", linestyle="none", label="Snakemake reported"))
+        handles.append(plt.Line2D([], [], marker="_", color="#CC4444", linestyle="none", label="stage-reported"))
     ax_time.legend(handles=handles, loc="upper left", fontsize=9, frameon=False)
 
     fig.tight_layout()
@@ -336,7 +335,7 @@ def render(
 
 
 def report(points: list[Point], exclude: frozenset[str] = frozenset()) -> None:
-    """Print the numbers behind the figure, including Snakemake's undercount.
+    """Print the numbers behind the figure, including the stage-reported peaks.
 
     Every stage is listed even when the figure groups them, since the per-stage
     table is what you diagnose a regression from.
@@ -348,12 +347,12 @@ def report(points: list[Point], exclude: frozenset[str] = frozenset()) -> None:
     for point in points:
         included = [s for s in STAGES if not ({s.key, s.label} & exclude) and s.key in point.wall_s]
         print(f"\n=== {point.scenario}: {point.individuals:,} individuals ===")
-        print(f"{'stage':<16}{'wall_s':>9}{'peak_GB':>10}{'snake_GB':>10}{'ratio':>8}")
+        print(f"{'stage':<16}{'wall_s':>9}{'peak_GB':>10}{'stage_GB':>10}{'ratio':>8}")
         for stage in STAGES:
             if stage.key not in point.wall_s and stage.key not in point.peak_gb:
                 continue
             measured = point.peak_gb.get(stage.key, 0.0)
-            reported = point.snake_gb.get(stage.key, 0.0)
+            reported = point.reported_gb.get(stage.key, 0.0)
             ratio = f"{measured / reported:.2f}x" if reported > 0 else "-"
             marker = " " if stage in included else "-"
             print(
@@ -364,9 +363,9 @@ def report(points: list[Point], exclude: frozenset[str] = frozenset()) -> None:
         for group in GROUPS:
             seconds = group_wall(point, group, included)
             gigabytes = group_peak(point, group, included)
-            snake = group_peak(point, group, included, reported=True)
-            ratio = f"{gigabytes / snake:.2f}x" if snake > 0 else "-"
-            print(f"{group.label:<16}{seconds:>9.1f}{gigabytes:>10.2f}{snake:>10.2f}{ratio:>8}")
+            stage_peak = group_peak(point, group, included, reported=True)
+            ratio = f"{gigabytes / stage_peak:.2f}x" if stage_peak > 0 else "-"
+            print(f"{group.label:<16}{seconds:>9.1f}{gigabytes:>10.2f}{stage_peak:>10.2f}{ratio:>8}")
         print(f"{'whole run':<16}{'':>9}{point.tree_peak_gb:>10.2f}{'':>10}{'':>8}")
 
 
@@ -382,7 +381,7 @@ def main() -> int:
     parser.add_argument("--figsize", type=float, nargs=2, default=(9.0, 3.6), metavar=("W", "H"))
     parser.add_argument("--dpi", type=int, default=200)
     parser.add_argument(
-        "--show-gap", action="store_true", help="mark what Snakemake reported next to the measured peak"
+        "--show-gap", action="store_true", help="mark each stage's timing.tsv peak next to the sampled peak"
     )
     parser.add_argument(
         "--exclude", nargs="*", default=[], metavar="STAGE", help="stages to omit by key or label, e.g. plots atlas"

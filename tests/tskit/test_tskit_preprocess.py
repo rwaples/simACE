@@ -1,7 +1,7 @@
 """Synthetic msprime fixture exercising the inlined canonicalize + concat
-logic from `workflow/scripts/simace/tskit/`. Skipped if tskit/msprime are
-not available (the simACE env doesn't ship them; the workflow uses a
-dedicated conda env)."""
+logic from `scripts/gene_drop/`. Skipped if tskit/msprime are
+not available (the simACE env doesn't ship them; the scripts use
+scripts/gene_drop/envs/tskit.yaml)."""
 
 import importlib.util
 import sys
@@ -15,7 +15,7 @@ msprime = pytest.importorskip("msprime")
 import numpy as np  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT_DIR = REPO_ROOT / "workflow" / "scripts" / "simace" / "tskit"
+SCRIPT_DIR = REPO_ROOT / "scripts" / "gene_drop"
 
 
 def _load_module(name: str, path: Path):

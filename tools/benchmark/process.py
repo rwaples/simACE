@@ -4,16 +4,14 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import statistics
 import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from tools.benchmark.model import WRAPPER_TO_STAGE
+from tools.benchmark.model import COMMAND_TO_STAGE
 
-_WRAPPER_RE = re.compile(r"(?:^|/)tmp[^/]*\.([^.\/]+)\.py$")
 _PAGE_KB = os.sysconf("SC_PAGE_SIZE") // 1024
 
 
@@ -55,18 +53,18 @@ def scan_process_group(pgrp: int) -> list[ProcessInfo]:
     return processes
 
 
-def _wrapper_name(info: ProcessInfo) -> str | None:
-    for argument in reversed(info.command):
-        match = _WRAPPER_RE.search(argument)
-        if match:
-            raw = match.group(1)
-            return WRAPPER_TO_STAGE.get(raw, raw)
+def _stage_name(info: ProcessInfo) -> str | None:
+    """Return the stage a ``python -m simace <stage> ...`` process runs, or None."""
+    command = info.command
+    for i in range(len(command) - 2):
+        if command[i] == "-m" and command[i + 1] == "simace" and command[i + 2] in COMMAND_TO_STAGE:
+            return COMMAND_TO_STAGE[command[i + 2]]
     return None
 
 
 def _owners(processes: list[ProcessInfo]) -> dict[int, str | None]:
     by_pid = {info.pid: info for info in processes}
-    direct = {info.pid: _wrapper_name(info) for info in processes}
+    direct = {info.pid: _stage_name(info) for info in processes}
     owners: dict[int, str | None] = {}
     for info in processes:
         current = info

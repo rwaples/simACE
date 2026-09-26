@@ -16,7 +16,7 @@
 # Vocabulary:
 #   - Hard infra (require_cmd / clone / `conda env create`) is run bare: a
 #     failure aborts via `set -e` and surfaces as "ABORTED (rc=N)".
-#   - Functional checks (versions, pytest, snakemake, output asserts) are
+#   - Functional checks (versions, pytest, pipeline smoke, output asserts) are
 #     wrapped in if/else and routed through ok()/fail(): they are *counted*,
 #     not fatal, so the summary reports how many checks passed/failed.
 

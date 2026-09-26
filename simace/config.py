@@ -485,7 +485,7 @@ def _validate_pedigree_config(config: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Snakemake-friendly accessors
+# Accessors over a {"defaults", "scenarios"} config dict (fitACE's workflow uses them)
 # ---------------------------------------------------------------------------
 
 

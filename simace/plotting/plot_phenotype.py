@@ -11,7 +11,6 @@ from __future__ import annotations
 __all__: list[str] = []
 
 import argparse
-import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -380,11 +379,11 @@ def main(
     logger.info("Phenotype plots saved to %s", out_dir)
 
 
-def cli() -> None:
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line interface for generating phenotype plots."""
-    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, generation_map, init_logging
 
-    parser = argparse.ArgumentParser(description="Plot phenotype distributions")
+    parser = argparse.ArgumentParser(prog=prog, description="Plot phenotype distributions")
     add_logging_args(parser)
     add_version_arg(parser, "simace")
     parser.add_argument("--report", nargs="+", required=True, help="report.yaml paths")
@@ -392,17 +391,15 @@ def cli() -> None:
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")
     parser.add_argument("--output-dir", required=True, help="Output directory")
     parser.add_argument("--censor-age", type=float, required=True, help="Maximum follow-up age")
-    parser.add_argument("--gen-censoring", type=str, default=None, help="Per-generation censoring windows as JSON dict")
+    parser.add_argument(
+        "--gen-censoring", type=generation_map, default=None, help="Per-generation censoring windows as JSON dict"
+    )
     parser.add_argument(
         "--plot-format", choices=["png", "pdf"], default="png", help="Output plot format (default: png)"
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     init_logging(args)
-
-    gen_censoring = None
-    if args.gen_censoring:
-        gen_censoring = {int(k): v for k, v in json.loads(args.gen_censoring).items()}
 
     main(
         args.report,
@@ -410,6 +407,6 @@ def cli() -> None:
         args.samples,
         args.output_dir,
         args.censor_age,
-        gen_censoring=gen_censoring,
+        gen_censoring=args.gen_censoring or None,
         plot_ext=args.plot_format,
     )

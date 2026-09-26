@@ -1,7 +1,5 @@
 """Edge-case + CLI tests for ``simace.ascertainment``."""
 
-import sys
-
 import numpy as np
 import polars as pl
 import polars.testing
@@ -246,7 +244,7 @@ class TestPassThroughCopyFastPath:
 class TestAscertainmentCLI:
     """End-to-end CLI: pedigree + trait parquet in, 2 parquets out."""
 
-    def test_cli_writes_outputs(self, tmp_path, monkeypatch, small_pedigree):
+    def test_cli_writes_outputs(self, tmp_path, small_pedigree):
         ped_path = tmp_path / "pedigree.parquet"
         trait_path = tmp_path / "trait.parquet"
         out_ped = tmp_path / "out_ped.parquet"
@@ -256,11 +254,8 @@ class TestAscertainmentCLI:
         trait = _build_trait(small_pedigree, g_pheno=2, n_cases=30, seed=1)
         trait.write_parquet(trait_path)
 
-        monkeypatch.setattr(
-            sys,
-            "argv",
+        ascertain_cli(
             [
-                "ascertain",
                 "--pedigree",
                 str(ped_path),
                 "--trait",
@@ -277,7 +272,6 @@ class TestAscertainmentCLI:
                 "9",
             ],
         )
-        ascertain_cli()
 
         assert out_ped.exists()
         assert out_trait.exists()

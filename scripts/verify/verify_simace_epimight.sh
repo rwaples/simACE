@@ -11,7 +11,7 @@
 # Mimics a brand-new user on a clean machine: clones the four repos from GitHub
 # into a throwaway workdir, reconstructs the nested umbrella layout, builds a
 # Python env and an R env, installs the editable packages + the EPIMIGHT R
-# package, produces simACE data via Snakemake, runs EPIMIGHT through the
+# package, produces simACE data with `simace run`, runs EPIMIGHT through the
 # documented standalone CLI, and asserts a real (non-empty, correctly-shaped)
 # summary.tsv. Then tears everything down. Reads no sibling repo or project
 # files — only lib.sh beside it.
@@ -148,11 +148,11 @@ fi
 # ---------------------------------------------------------------------------
 # Produce simACE data, then run EPIMIGHT end-to-end through the standalone CLI.
 # ---------------------------------------------------------------------------
-step "Snakemake smoke (produce simACE data)"
-if ( cd "$WORK/simACE" && run_in_env "$PY" -- snakemake --cores 4 results/test/small_test/scenario.done ); then
+step "Pipeline smoke (produce simACE data)"
+if ( cd "$WORK/simACE" && run_in_env "$PY" -- python -m simace run small_test ); then
   ok "simACE data produced"
 else
-  fail "snakemake smoke target failed"
+  fail "simace run small_test failed"
 fi
 
 step "Run EPIMIGHT end-to-end (thread-pinned, throwaway R env)"

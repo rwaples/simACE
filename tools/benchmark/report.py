@@ -32,14 +32,13 @@ _COMPATIBILITY_PATHS: tuple[tuple[str, ...], ...] = (
     ("host", "logical_cores"),
     ("tools", "pixi"),
     ("tools", "python"),
-    ("tools", "snakemake"),
+    ("execution", "command"),
     ("execution", "folder"),
     ("execution", "scenarios"),
-    ("execution", "cores"),
+    ("execution", "jobs"),
     ("execution", "cache_mode"),
     ("execution", "sample_interval_seconds"),
     ("execution", "thread_environment"),
-    ("execution", "targets"),
 )
 
 

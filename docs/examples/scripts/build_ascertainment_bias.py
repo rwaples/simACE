@@ -4,7 +4,7 @@
 Run from the repository root after generating the four ascertainment example
 scenarios, for example:
 
-    snakemake --cores 4 results/examples/ascertainment_uniform50k/rep1/report.yaml
+    pixi run simace run ascertainment_uniform50k --rep 1
     python docs/examples/scripts/build_ascertainment_bias.py
 """
 
@@ -59,9 +59,10 @@ COLORS = {
 def _require(path: Path) -> Path:
     if path.exists():
         return path
-    targets = " ".join(f"results/examples/{scenario.name}/rep1/report.yaml" for scenario in SCENARIOS)
+    names = " ".join(scenario.name for scenario in SCENARIOS)
     raise FileNotFoundError(
-        f"Required file is missing: {path}\nGenerate the example outputs first, e.g.:\n  snakemake --cores 4 {targets}"
+        f"Required file is missing: {path}\nGenerate the example outputs first, e.g.:\n"
+        f'  for s in {names}; do pixi run simace run "$s" --rep 1; done'
     )
 
 

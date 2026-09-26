@@ -1,25 +1,20 @@
 """Echo scenario parameters to a YAML sidecar.
 
-Snakemake's ``simulate`` rule writes ``pedigree.full.parquet``;
-downstream rules (``validate``, ``stats``, ``effective_size``, and
-``assemble_atlas``) consume
-``params.yaml`` for scenario provenance. ``params.yaml`` is an echo of the
-scenario config, with no computation. ``run_simulation`` does
-not need to produce it — so it lives in its own rule and uses the same
-``run_wrapper`` seam as every other stage.
+``params.yaml`` records a replicate's scenario provenance: an echo of the
+resolved scenario config with no computation. Analyze, effective-size, and
+the scenario atlas read it, and so does fitACE, so every key written here is
+part of the fitACE compatibility contract: keys may be added, never renamed
+or removed.
 
-After PR3, ``E1`` / ``E2`` are guaranteed numeric by the config-load
-validator (:func:`simace.config._validate_pedigree_config`); both the
-CLI and the Snakemake path go through this single helper so
-``params.yaml`` looks identical regardless of how the pipeline was
-launched.  ``assort_matrix`` is included only when not ``None``.
+``E1`` / ``E2`` are guaranteed non-null by the config-load validator
+(:func:`simace.config._validate_pedigree_config`). ``assort_matrix`` is
+included only when not ``None``.
 """
 
 from __future__ import annotations
 
-__all__ = ["cli", "emit_params"]
+__all__ = ["emit_params"]
 
-import argparse
 from typing import Any
 
 import simace
@@ -42,6 +37,7 @@ def emit_params(
     N: int,
     G_ped: int,
     G_sim: int | None,
+    G_pheno: int,
     mating_model: str,
     mating_lambda: float,
     p_mztwin: float,
@@ -52,10 +48,6 @@ def emit_params(
     assort_matrix: list[list[float]] | None = None,
 ) -> dict[str, Any]:
     """Build the params.yaml dict for a single replicate.
-
-    All keyword-only so :func:`simace.core.snakemake_adapter.run_wrapper`
-    can introspect the signature and pull each value from
-    ``snakemake.params`` by name.
 
     Args:
         seed: per-replicate seed (already offset by rep upstream).
@@ -72,6 +64,7 @@ def emit_params(
         N: founder population size.
         G_ped: pedigree generations.
         G_sim: simulation generations including burn-in.
+        G_pheno: phenotyped generations.
         mating_model: ``"standard"`` or ``"wright_fisher"``.  Recorded as
             scenario provenance; downstream consumers branch on this.
         mating_lambda: ZTP mating count parameter.
@@ -87,9 +80,7 @@ def emit_params(
     Returns:
         Dict to be serialized to ``params.yaml`` via :func:`dump_yaml`.
         Always carries ``simace_version`` (the installed ``simace``
-        distribution version) for lockstep-family provenance; this is
-        stamped here rather than passed in, so it is not a ``run_wrapper``
-        parameter.
+        distribution version) for lockstep-family provenance.
     """
     out: dict[str, Any] = {
         "seed": seed,
@@ -106,6 +97,7 @@ def emit_params(
         "N": N,
         "G_ped": G_ped,
         "G_sim": G_sim,
+        "G_pheno": G_pheno,
         "mating_model": mating_model,
         "mating_lambda": mating_lambda,
         "p_mztwin": p_mztwin,
@@ -118,45 +110,3 @@ def emit_params(
     if assort_matrix is not None:
         out["assort_matrix"] = assort_matrix
     return out
-
-
-def cli() -> None:
-    """Command-line interface for emitting params.yaml from a scenario config."""
-    from simace.core.cli_base import add_logging_args, init_logging
-    from simace.core.yaml_io import dump_yaml, load_yaml
-
-    parser = argparse.ArgumentParser(description="Emit params.yaml from a scenario config")
-    add_logging_args(parser)
-    parser.add_argument("--config", required=True, help="Scenario config YAML (single scenario, flat keys)")
-    parser.add_argument("--rep", type=int, required=True, help="Replicate number (1-based)")
-    parser.add_argument("--output", required=True, help="Output params.yaml path")
-    args = parser.parse_args()
-    init_logging(args)
-
-    cfg = load_yaml(args.config)
-    seed = int(cfg["seed"]) + args.rep - 1
-    params = emit_params(
-        seed=seed,
-        rep=args.rep,
-        A1=cfg["A1"],
-        C1=cfg["C1"],
-        E1=cfg["E1"],
-        A2=cfg["A2"],
-        C2=cfg["C2"],
-        E2=cfg["E2"],
-        rA=cfg["rA"],
-        rC=cfg["rC"],
-        rE=cfg.get("rE", 0.0),
-        N=cfg["N"],
-        G_ped=cfg["G_ped"],
-        G_sim=cfg.get("G_sim"),
-        mating_model=cfg.get("mating_model", "standard"),
-        mating_lambda=cfg["mating_lambda"],
-        p_mztwin=cfg["p_mztwin"],
-        assort1=cfg.get("assort1", 0.0),
-        assort2=cfg.get("assort2", 0.0),
-        max_degree=cfg.get("max_degree", DEFAULT_MAX_DEGREE),
-        skip_ne_coancestry=cfg.get("skip_ne_coancestry", True),
-        assort_matrix=cfg.get("assort_matrix"),
-    )
-    dump_yaml(params, args.output, sort_keys=True)

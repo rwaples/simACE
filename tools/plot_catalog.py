@@ -30,7 +30,7 @@ pixi run python tools/plot_catalog.py
 Each basename gets the extension set by `plot_format`, `png` by default.
 Scenario plots live in `results/{folder}/{scenario}/plots/`. Validation
 plots live in `results/{folder}/plots/`. Effective-size plots live in the
-scenario plots directory when the `effective_size` rule runs.
+scenario plots directory when you run `simace plot-effective-size`.
 """
 
 

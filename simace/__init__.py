@@ -12,8 +12,8 @@ import logging
 def setup_logging(level=logging.INFO, log_file=None, tag=None):
     """Configure the ``simace`` package logger.
 
-    Call this once from CLI entry points or Snakemake wrappers.
-    Subsequent calls are no-ops (handlers already attached).
+    Call this once from CLI entry points. Subsequent calls are no-ops
+    (handlers already attached).
 
     Args:
         level: logging level (e.g. logging.DEBUG, logging.INFO).
@@ -40,7 +40,11 @@ def setup_logging(level=logging.INFO, log_file=None, tag=None):
 
 
 def _snakemake_tag(wildcards) -> str:
-    """Build a console log tag from Snakemake wildcards."""
+    """Build a console log tag from Snakemake wildcards.
+
+    simACE itself no longer uses it (ADR 0020). fitACE's workflow scripts
+    import it; delete it once fitACE carries its own copy.
+    """
     parts = []
     scenario = getattr(wildcards, "scenario", None)
     if scenario:

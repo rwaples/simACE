@@ -6,8 +6,8 @@ post-stage ``pedigree.parquet`` and ``trait.parquet`` outputs that both
 simACE-stats and fitACE consume.
 
 The implementation and CLI live in :mod:`simace.ascertainment.runner`; the
-names below are re-exported for the public API and the ``simace-ascertain``
-entry point.
+names below are re-exported for the public API and the ``simace ascertain``
+command.
 """
 
 from .runner import (

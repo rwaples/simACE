@@ -127,19 +127,21 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
     return build_validation_report(df, params)
 
 
-def cli() -> None:
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line interface for running validation."""
     from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
+    from simace.core.publish import publish
 
-    parser = argparse.ArgumentParser(description="Validate ACE simulation output")
+    parser = argparse.ArgumentParser(prog=prog, description="Validate ACE simulation output")
     add_logging_args(parser)
     add_version_arg(parser, "simace")
     parser.add_argument("--pedigree", required=True, help="Pedigree parquet path")
     parser.add_argument("--params", required=True, help="Params YAML path")
     parser.add_argument("--output", required=True, help="Output validation YAML path")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     init_logging(args)
 
     results = run_validation(args.pedigree, args.params)
-    dump_yaml(results, args.output)
+    with publish(args.output) as (tmp,):
+        dump_yaml(results, tmp)

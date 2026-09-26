@@ -86,7 +86,7 @@ class TestValidation:
         assert fn(_make_pedigree_df()) == "not a dataframe"
 
     def test_input_via_kwarg_resolves_to_first_param(self):
-        """run_wrapper passes the DataFrame as a kwarg keyed by parameter name."""
+        """A caller can pass the DataFrame as a kwarg keyed by parameter name."""
 
         @stage(reads=PEDIGREE, writes=PHENOTYPE)
         def run_phenotype(pedigree, *, k):

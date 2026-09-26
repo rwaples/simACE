@@ -4,7 +4,7 @@
 # Mimics a brand-new user on a clean machine: clones simACE from GitHub into a
 # throwaway workdir, materializes the documented pixi environment from the
 # committed lock (ADR 0016/0018), runs the documented import + pytest +
-# Snakemake smoke, asserts concrete outputs, then tears everything down. The
+# pipeline smoke (simace run + simace gather), asserts concrete outputs, then tears everything down. The
 # environment lives inside the workdir (.pixi/), so cleanup is the workdir
 # removal. Reads no sibling repo or project files — only lib.sh beside it.
 # Run from any directory; needs only `git` + `pixi`.
@@ -64,11 +64,11 @@ else
   fail "pytest failed"
 fi
 
-step "Snakemake smoke (results/test/small_test/scenario.done)"
-if ( cd "$WORK/simACE" && pixi run snakemake --cores 4 results/test/small_test/scenario.done ); then
-  ok "snakemake smoke target built"
+step "Pipeline smoke (simace run small_test; simace gather test)"
+if ( cd "$WORK/simACE" && pixi run simace run small_test && pixi run simace gather test ); then
+  ok "smoke scenario and folder summary built"
 else
-  fail "snakemake smoke target failed"
+  fail "pipeline smoke failed"
 fi
 
 step "Assert smoke outputs (rep1)"

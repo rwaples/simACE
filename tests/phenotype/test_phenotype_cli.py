@@ -4,7 +4,6 @@ Exercises argparse → ``from_cli`` → ``to_params_dict`` → ``from_config``
 round-trip plus the eager-registration foreign-flag rejection.
 """
 
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -49,16 +48,10 @@ def _write_pedigree(tmp_path: Path, n: int = 100, seed: int = 0) -> Path:
     return path
 
 
-def _run_cli(monkeypatch, argv):
-    monkeypatch.setattr(sys, "argv", ["phenotype", *argv])
-    phenotype_cli()
-
-
-def test_cli_frailty_round_trip(tmp_path, monkeypatch):
+def test_cli_frailty_round_trip(tmp_path):
     pedigree = _write_pedigree(tmp_path)
     output = tmp_path / "trait.parquet"
-    _run_cli(
-        monkeypatch,
+    phenotype_cli(
         [
             "--pedigree",
             str(pedigree),
@@ -93,11 +86,10 @@ def test_cli_frailty_round_trip(tmp_path, monkeypatch):
     assert np.all(out["t1"].to_numpy() > 0)
 
 
-def test_cli_adult_round_trip(tmp_path, monkeypatch):
+def test_cli_adult_round_trip(tmp_path):
     pedigree = _write_pedigree(tmp_path)
     output = tmp_path / "trait.parquet"
-    _run_cli(
-        monkeypatch,
+    phenotype_cli(
         [
             "--pedigree",
             str(pedigree),
@@ -124,12 +116,11 @@ def test_cli_adult_round_trip(tmp_path, monkeypatch):
     assert 0.05 < case_rate1 < 0.20  # n=100 noisy; expect ~10%
 
 
-def test_cli_foreign_flag_rejected(tmp_path, monkeypatch):
+def test_cli_foreign_flag_rejected(tmp_path):
     pedigree = _write_pedigree(tmp_path)
     output = tmp_path / "trait.parquet"
     with pytest.raises(ValueError, match=r"--frailty-rho1"):
-        _run_cli(
-            monkeypatch,
+        phenotype_cli(
             [
                 "--pedigree",
                 str(pedigree),

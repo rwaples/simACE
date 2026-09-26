@@ -25,7 +25,6 @@ __all__ = ["cli", "run_analysis"]
 
 import argparse
 import gc
-import json
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -189,11 +188,12 @@ def run_analysis(
     return report
 
 
-def cli() -> None:
-    """Command-line interface for the combined Analyze stage (debug parity)."""
-    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
+    """Command-line interface for the combined Analyze stage."""
+    from simace.core.cli_base import add_logging_args, add_version_arg, generation_map, init_logging
+    from simace.core.publish import publish
 
-    parser = argparse.ArgumentParser(description="Run combined Validate + Stats analysis")
+    parser = argparse.ArgumentParser(prog=prog, description="Run combined Validate + Stats analysis")
     add_logging_args(parser)
     add_version_arg(parser, "simace")
     parser.add_argument("--pedigree-full", required=True, help="Full pre-ascertainment pedigree parquet")
@@ -209,32 +209,31 @@ def cli() -> None:
     parser.add_argument("--samples-output", required=True, help="Output plotting sample parquet")
     parser.add_argument("--censor-age", type=float, required=True)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--gen-censoring", default=None, help="Per-generation censoring windows as JSON dict")
+    parser.add_argument(
+        "--gen-censoring", type=generation_map, default=None, help="Per-generation censoring windows as JSON dict"
+    )
     parser.add_argument("--max-degree", dest="max_degree", type=int, default=DEFAULT_MAX_DEGREE)
     parser.add_argument("--case-ascertainment-ratio", dest="case_ascertainment_ratio", type=float, default=1.0)
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     init_logging(args)
 
-    gen_censoring = None
-    if args.gen_censoring:
-        gen_censoring = {int(k): v for k, v in json.loads(args.gen_censoring).items()}
-
-    run_analysis(
-        pedigree_full_path=args.pedigree_full,
-        params_path=args.params,
-        trait_full_path=args.trait_full,
-        trait_path=args.trait,
-        pedigree_path=args.pedigree,
-        report_output=args.report_output,
-        plot_payload_output=args.plot_payload_output,
-        samples_output=args.samples_output,
-        folder=args.folder,
-        scenario=args.scenario,
-        rep=args.rep,
-        seed=args.seed,
-        censor_age=args.censor_age,
-        gen_censoring=gen_censoring,
-        max_degree=args.max_degree,
-        case_ascertainment_ratio=args.case_ascertainment_ratio,
-    )
+    with publish(args.report_output, args.plot_payload_output, args.samples_output) as (report, payload, samples):
+        run_analysis(
+            pedigree_full_path=args.pedigree_full,
+            params_path=args.params,
+            trait_full_path=args.trait_full,
+            trait_path=args.trait,
+            pedigree_path=args.pedigree,
+            report_output=str(report),
+            plot_payload_output=str(payload),
+            samples_output=str(samples),
+            folder=args.folder,
+            scenario=args.scenario,
+            rep=args.rep,
+            seed=args.seed,
+            censor_age=args.censor_age,
+            gen_censoring=args.gen_censoring or None,
+            max_degree=args.max_degree,
+            case_ascertainment_ratio=args.case_ascertainment_ratio,
+        )

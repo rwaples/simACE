@@ -1,7 +1,7 @@
 """Smoke tests for the quarantined prototype phenotype models.
 
 These models are not part of the supported simulation surface (they are not
-registered in ``simace.phenotype.models`` and not reachable from Snakemake).
+registered in ``simace.phenotype.models`` and not reachable from ``simace run``).
 This module exists to catch silent rot when shared dependencies (notably
 ``simace.phenotype.hazards``) evolve.
 """

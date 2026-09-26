@@ -11,7 +11,7 @@ beside them.** Copy this `verify/` directory to a clean machine (only `git` +
 
 | Script | Repos exercised | Auth | Rough cost |
 |---|---|---|---|
-| `verify_simace.sh` | simACE | none (HTTPS) | one env solve + pytest + Snakemake smoke |
+| `verify_simace.sh` | simACE | none (HTTPS) | one env solve + pytest + `simace run` smoke |
 | `verify_simace_epimight.sh` | simACE + fitACE + fitACE_epimight + EPIMIGHT R pkg | SSH for the two private repos | two env solves + R pkg build + a fit |
 
 ## Prerequisites
@@ -76,7 +76,7 @@ the fix is not a from-a-fresh-machine pass.
 
 Part A realigns `fitACE_epimight`'s pandas pin from `>=3.0,<4` down to
 `>=2.2,<3` so a fresh env resolves to pandas 2.3.* (the whole rest of the stack
-already targets pandas <3 for Snakemake/eido/SLURM compatibility). A fresh grep
+already targets pandas <3). A fresh grep
 found no pandas-3-only APIs, but pandas 3's copy-on-write default and
 pyarrow-backed dtype changes can bite at the *data* level even with an unchanged
 API. The **functional smoke in test 3 (run EPIMIGHT, parse a real `summary.tsv`)

@@ -11,6 +11,7 @@ import random
 import shutil
 import signal
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -21,10 +22,10 @@ from simace import __version__ as simace_version
 from simace.config import resolve_defaults, resolve_scenarios
 from simace.core.yaml_io import load_yaml
 from tools.benchmark.model import (
+    COMMAND_TO_STAGE,
     MANIFEST_SCHEMA,
     RESULTS_SCHEMA,
     SCHEMA_VERSION,
-    TSV_TO_STAGE,
     BenchmarkError,
     build_summaries,
     write_json,
@@ -44,7 +45,7 @@ THREAD_ENVIRONMENT = (
 
 
 class CommandFailed(BenchmarkError):
-    """Raised when one measured Snakemake command fails."""
+    """Raised when one measured ``simace run`` command fails."""
 
     def __init__(self, message: str, returncode: int) -> None:
         super().__init__(message)
@@ -59,7 +60,7 @@ class RunConfig:
     scenarios: tuple[str, ...]
     profile: str | None
     repeats: int
-    cores: int
+    jobs: int
     cache_mode: str
     order_seed: int
     sample_interval_seconds: float
@@ -257,7 +258,6 @@ def _build_manifest(
         "tools": {
             "pixi": _run_text(["pixi", "--version"]),
             "python": platform.python_version(),
-            "snakemake": _run_text(["snakemake", "--version"]),
             "simace": simace_version,
         },
         "execution": {
@@ -265,25 +265,13 @@ def _build_manifest(
             "folder": config.folder,
             "scenarios": list(config.scenarios),
             "repeats": config.repeats,
-            "cores": config.cores,
+            "jobs": config.jobs,
             "cache_mode": config.cache_mode,
             "cache_root": str(output / "cache"),
             "order_seed": config.order_seed,
             "sample_interval_seconds": config.sample_interval_seconds,
             "thread_environment": {name: os.environ.get(name) for name in THREAD_ENVIRONMENT},
-            "targets": [
-                "results/{folder}/{scenario}/stats.done",
-                "results/{folder}/{scenario}/plots/atlas.html",
-            ],
-            "snakemake_argv": [
-                "snakemake",
-                "--runtime-source-cache-path",
-                "<run-directory>/source-cache",
-                "--cores",
-                str(config.cores),
-                "-F",
-                "<targets>",
-            ],
+            "command": _simace_run("python", "<scenario>", config.jobs),
             "planned": planned,
         },
     }
@@ -293,55 +281,30 @@ def _cache_count(path: Path) -> int:
     return sum(1 for item in path.rglob("*") if item.is_file()) if path.exists() else 0
 
 
-def _benchmark_snapshot(folder: str, scenario: str) -> dict[Path, tuple[int, int]]:
-    root = ROOT / "benchmarks" / folder / scenario
-    return (
-        {path: (path.stat().st_mtime_ns, path.stat().st_size) for path in root.rglob("*.tsv")} if root.exists() else {}
-    )
+def _simace_run(python: str, scenario: str, jobs: int) -> list[str]:
+    return [python, "-m", "simace", "run", scenario, "--force", "--jobs", str(jobs)]
 
 
-def _copy_changed_tsvs(
-    before: dict[Path, tuple[int, int]], folder: str, scenario: str, destination: Path
-) -> list[Path]:
-    source_root = ROOT / "benchmarks" / folder / scenario
-    copied: list[Path] = []
-    if not source_root.exists():
-        return copied
-    for source in sorted(source_root.rglob("*.tsv")):
-        state = (source.stat().st_mtime_ns, source.stat().st_size)
-        if before.get(source) == state:
+def _collect_timing(folder: str, scenario: str, destination: Path, run_dir: Path) -> dict[str, dict[str, Any]]:
+    """Copy the scenario's ``timing.tsv`` files into *destination* and parse their stage rows."""
+    scenario_dir = ROOT / "results" / folder / scenario
+    rules: dict[str, dict[str, Any]] = {}
+    for source in sorted([*scenario_dir.glob("rep*/timing.tsv"), scenario_dir / "plots" / "timing.tsv"]):
+        if not source.exists():
             continue
-        target = destination / source.relative_to(source_root)
+        target = destination / source.relative_to(scenario_dir)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
-        copied.append(target)
-    return copied
-
-
-def _parse_rule_tsvs(paths: list[Path], run_dir: Path) -> dict[str, dict[str, Any]]:
-    rules: dict[str, dict[str, Any]] = {}
-    for path in paths:
-        with path.open(encoding="utf-8", newline="") as stream:
-            row = next(csv.DictReader(stream, delimiter="\t"), None)
-        if row is None:
-            continue
-        try:
-            seconds = float(row["s"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        key = TSV_TO_STAGE.get(path.stem, path.stem)
-        max_rss = row.get("max_rss")
-        try:
-            snakemake_rss = float(max_rss) if max_rss not in {None, "-"} else None
-        except ValueError:
-            snakemake_rss = None
-        rules.setdefault(key, {"snakemake": [], "peak_rss_kb": None})["snakemake"].append(
-            {
-                "wall_seconds": seconds,
-                "max_rss_mb": snakemake_rss,
-                "artifact": str(path.relative_to(run_dir)),
-            }
-        )
+        with target.open(encoding="utf-8", newline="") as stream:
+            for row in csv.DictReader(stream, delimiter="\t"):
+                key = COMMAND_TO_STAGE.get(row["stage"], row["stage"])
+                rules.setdefault(key, {"stage": [], "peak_rss_kb": None})["stage"].append(
+                    {
+                        "wall_seconds": float(row["wall_s"]),
+                        "max_rss_mb": float(row["max_rss_mb"]),
+                        "artifact": str(target.relative_to(run_dir)),
+                    }
+                )
     return rules
 
 
@@ -395,10 +358,9 @@ def _run_execution(
     tag = f"{phase}-r{repetition or 0:02d}-o{order:02d}-{scenario}"
     artifacts = run_dir / "runs" / tag
     artifacts.mkdir(parents=True)
-    log_path = artifacts / "snakemake.log"
+    log_path = artifacts / "simace-run.log"
     time_path = artifacts / "time.txt"
     samples_path = artifacts / "processes.jsonl"
-    tsv_path = artifacts / "snakemake-tsv"
 
     if config.cache_mode == "warm":
         cache = run_dir / "cache" / "warm"
@@ -406,26 +368,10 @@ def _run_execution(
         cache = run_dir / "cache" / tag
     cache.mkdir(parents=True, exist_ok=True)
     cache_before = _cache_count(cache)
-    source_cache = run_dir / "source-cache"
-    source_cache.mkdir(exist_ok=True)
 
-    targets = [
-        f"results/{config.folder}/{scenario}/stats.done",
-        f"results/{config.folder}/{scenario}/plots/atlas.html",
-    ]
-    snakemake = [
-        "snakemake",
-        "--runtime-source-cache-path",
-        str(source_cache),
-        "--cores",
-        str(config.cores),
-        "-F",
-        *targets,
-    ]
-    command = ["/usr/bin/time", "-v", "-o", str(time_path), *snakemake]
+    command = ["/usr/bin/time", "-v", "-o", str(time_path), *_simace_run(sys.executable, scenario, config.jobs)]
     env = os.environ.copy()
     env["NUMBA_CACHE_DIR"] = str(cache)
-    before_tsvs = _benchmark_snapshot(config.folder, scenario)
 
     started_utc = utc_now()
     started = time.monotonic()
@@ -449,10 +395,9 @@ def _run_execution(
             sampler.stop()
     monotonic_seconds = time.monotonic() - started
     memory = sampler.summary()
-    copied = _copy_changed_tsvs(before_tsvs, config.folder, scenario, tsv_path)
-    rules = _parse_rule_tsvs(copied, run_dir)
+    rules = _collect_timing(config.folder, scenario, artifacts / "timing", run_dir)
     for rule, peak in memory["rule_peaks_kb"].items():
-        rules.setdefault(rule, {"snakemake": [], "peak_rss_kb": None})["peak_rss_kb"] = peak
+        rules.setdefault(rule, {"stage": [], "peak_rss_kb": None})["peak_rss_kb"] = peak
     time_result = _parse_time_file(time_path)
     # `is None`, not `or`: _parse_time_file reports an absent or unparseable
     # field as None, and GNU time prints 0:00.00 for a fast command, which
@@ -494,16 +439,14 @@ def _run_execution(
 def _preflight(config: RunConfig) -> None:
     if config.repeats < 3:
         raise BenchmarkError("repeats must be at least 3")
-    if config.cores < 1:
-        raise BenchmarkError("cores must be positive")
+    if config.jobs < 1:
+        raise BenchmarkError("jobs must be positive")
     if config.sample_interval_seconds <= 0:
         raise BenchmarkError("sample interval must be positive")
     if platform.system() != "Linux" or not Path("/proc").is_dir():
         raise BenchmarkError("pipeline benchmarking requires Linux procfs")
     if not Path("/usr/bin/time").is_file():
         raise BenchmarkError("pipeline benchmarking requires /usr/bin/time")
-    if shutil.which("snakemake") is None:
-        raise BenchmarkError("snakemake is not on PATH; run this command through pixi")
 
 
 def run_benchmark(config: RunConfig) -> Path:
