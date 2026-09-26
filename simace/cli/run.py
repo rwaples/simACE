@@ -10,7 +10,15 @@ rebuilt on every run.
 
 from __future__ import annotations
 
-__all__ = ["ScenarioError", "check_runnable", "cli", "expected_manifest", "load_scenario", "resolve_all"]
+__all__ = [
+    "ScenarioError",
+    "check_runnable",
+    "cli",
+    "expected_manifest",
+    "load_scenario",
+    "resolve_all",
+    "status_on_disk",
+]
 
 import argparse
 import fcntl
@@ -43,6 +51,8 @@ if TYPE_CHECKING:
     import resource
     from collections.abc import Iterator
     from typing import TextIO
+
+    from simace.cli.manifest import RepStatus
 
 # OpenMP/BLAS pools are pinned to one thread in every stage, as Snakemake's
 # `threads: 1` rules (and `--cores 1`) did. Measured at baseline100K, one thread
@@ -136,6 +146,15 @@ def expected_manifest(rep: ResolvedRep) -> Manifest:
         resolved=manifest_params(rep.params, REP_PARAM_KEYS),
         stages=_stage_names(),
     )
+
+
+def status_on_disk(rep: ResolvedRep, layout: Layout) -> RepStatus:
+    """Return one rep's state from its ``run.yaml`` and the outputs it declares, under the current parameters."""
+    outputs = [
+        layout.rep(rep.folder, rep.scenario, rep.rep, a) for a in REP_OUTPUTS if a is not RepArtifact.RUN_MANIFEST
+    ]
+    manifest = layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST)
+    return rep_status(manifest, expected_manifest(rep), outputs)
 
 
 def _command(stage: str, argv: list[str]) -> list[str]:
@@ -379,20 +398,21 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
 def _run_reps(
     args: argparse.Namespace, layout: Layout, all_reps: list[ResolvedRep], requested: list[ResolvedRep]
 ) -> None:
-    folder = all_reps[0].folder
     console = _Console()
     to_compute: list[ResolvedRep] = []
     refused: list[int] = []
     for rep in requested:
-        manifest_path = layout.rep(folder, args.scenario, rep.rep, RepArtifact.RUN_MANIFEST)
-        status = rep_status(manifest_path, expected_manifest(rep))
+        status = status_on_disk(rep, layout)
         tag = f"{args.scenario}/rep{rep.rep}"
         if args.force or status.state is RepState.ABSENT:
+            to_compute.append(rep)
+        elif status.state is RepState.INCOMPLETE:
+            console.say(tag, f"recompute: {', '.join(status.reasons)} missing")
             to_compute.append(rep)
         elif status.state is RepState.COMPLETE:
             console.say(tag, "skip (run.yaml matches)")
         else:
-            console.say(tag, f"refused: run.yaml differs in {', '.join(status.differing)}; --force recomputes it")
+            console.say(tag, f"refused: run.yaml differs in {', '.join(status.reasons)}; --force recomputes it")
             refused.append(rep.rep)
 
     if args.dry_run:
@@ -410,14 +430,7 @@ def _run_reps(
     if refused or failed:
         raise SystemExit(1)
 
-    incomplete = [
-        rep.rep
-        for rep in all_reps
-        if rep_status(
-            layout.rep(folder, args.scenario, rep.rep, RepArtifact.RUN_MANIFEST), expected_manifest(rep)
-        ).state
-        is not RepState.COMPLETE
-    ]
+    incomplete = [rep.rep for rep in all_reps if status_on_disk(rep, layout).state is not RepState.COMPLETE]
     if incomplete:
         console.say(args.scenario, f"plots skipped: reps {incomplete} are not complete")
         return

@@ -11,9 +11,8 @@ from pathlib import Path
 import yaml
 
 import simace
-from simace.cli.layout import Layout, RepArtifact
-from simace.cli.manifest import rep_status
-from simace.cli.run import ScenarioError, check_runnable, expected_manifest, load_scenario, resolve_all
+from simace.cli.layout import Layout
+from simace.cli.run import ScenarioError, check_runnable, load_scenario, resolve_all, status_on_disk
 from simace.cli.stages import ResolvedRep
 from simace.core.yaml_io import to_native
 
@@ -28,9 +27,8 @@ def _reps(params: dict, scenario: str) -> list[ResolvedRep]:
 
 
 def _state(layout: Layout, rep: ResolvedRep) -> str:
-    path = layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST)
-    status = rep_status(path, expected_manifest(rep))
-    notes = list(status.differing)
+    status = status_on_disk(rep, layout)
+    notes = list(status.reasons)
     if status.simace_version not in (None, simace.__version__):
         notes.append(f"built by simace {status.simace_version}")
     return f"{status.state} ({', '.join(notes)})" if notes else str(status.state)

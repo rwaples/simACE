@@ -1,12 +1,12 @@
 """The per-rep ``run.yaml`` manifest: proof that a rep finished, and with what.
 
-A rep is complete only when ``run.yaml`` exists. ``simace run`` writes it
-after every stage of the rep exits 0, and deletes it before recomputing.
-Its ``resolved`` dict holds the values of the config keys the rep's stages
-and ``params.yaml`` read, which is how a later run tells a finished rep from
-a stale one. Only keys the current code reads are compared. The simace
-version that built the rep is recorded but never makes it stale; ``simace ls``
-shows it when it differs from the running version.
+``simace run`` writes ``run.yaml`` after every stage of the rep exits 0, and
+deletes it before recomputing. A rep is complete only when its ``run.yaml``
+names this scenario, rep, and seed, records the current values of the config
+keys the rep's stages and ``params.yaml`` read, lists the current stages, and
+every output the rep declares exists. Only keys the current code reads are
+compared. The simace version that built the rep is recorded but never makes
+it stale; ``simace ls`` shows it when it differs from the running version.
 """
 
 from __future__ import annotations
@@ -56,15 +56,16 @@ class RepState(StrEnum):
 
     COMPLETE = "complete"
     STALE = "stale"
+    INCOMPLETE = "incomplete"
     ABSENT = "absent"
 
 
 @dataclass(frozen=True)
 class RepStatus:
-    """A rep's state, the keys that differ when it is stale, and the simace version that built it."""
+    """A rep's state, why (the differing keys, or the missing outputs), and the simace version that built it."""
 
     state: RepState
-    differing: tuple[str, ...] = ()
+    reasons: tuple[str, ...] = ()
     simace_version: str | None = None
 
 
@@ -83,20 +84,30 @@ def write_manifest(path: Path, manifest: Manifest) -> None:
         dump_yaml(body, tmp)
 
 
-def rep_status(path: Path, expected: Manifest) -> RepStatus:
-    """Compare the ``run.yaml`` at ``path`` with what the rep would be built from now."""
+def rep_status(path: Path, expected: Manifest, outputs: Iterable[Path]) -> RepStatus:
+    """Compare the ``run.yaml`` at ``path`` and the rep's ``outputs`` with what the rep would be built from now.
+
+    A manifest that disagrees with ``expected`` makes the rep stale, which
+    ``simace run`` refuses without ``--force``. A matching manifest with an
+    output missing makes it incomplete, which ``simace run`` recomputes.
+    """
     if not path.exists():
         return RepStatus(RepState.ABSENT)
     recorded = load_yaml(path)
     if not isinstance(recorded, dict) or not isinstance(recorded.get("resolved"), dict):
         return RepStatus(RepState.STALE, ("run.yaml is not a manifest",))
+    identity = {"scenario": expected.scenario, "rep": expected.rep, "seed": expected.seed}
+    differing = [key for key, value in identity.items() if recorded.get(key) != value]
     old, new = recorded["resolved"], expected.resolved
-    differing = sorted(key for key in new if old.get(key, _MISSING) != new[key])
+    differing += sorted(key for key in new if old.get(key, _MISSING) != new[key])
     if recorded.get("stages") != expected.stages:
         differing.append("stages")
     built_by = recorded.get("simace_version")
     if differing:
         return RepStatus(RepState.STALE, tuple(differing), built_by)
+    missing = tuple(output.name for output in outputs if not output.exists())
+    if missing:
+        return RepStatus(RepState.INCOMPLETE, missing, built_by)
     return RepStatus(RepState.COMPLETE, simace_version=built_by)
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 __all__ = ["TMP_SUFFIX", "publish"]
 
 import os
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -17,7 +18,10 @@ TMP_SUFFIX = ".tmp"
 
 @contextmanager
 def publish(*paths: str | Path) -> Iterator[tuple[Path, ...]]:
-    """Yield a ``<path>.tmp`` for each path, renamed onto the path on success.
+    """Yield a temporary beside each path, renamed onto the path on success.
+
+    Each temporary is ``<path>.<random>.tmp`` in the destination directory, so
+    two writers of the same output never share one; the later rename wins.
 
     A stage writes its outputs to the yielded temporary paths. When the block
     exits normally every temporary is ``os.replace``d onto its final path, so
@@ -38,7 +42,7 @@ def publish(*paths: str | Path) -> Iterator[tuple[Path, ...]]:
         The temporary paths, in the order given.
     """
     finals = [Path(p) for p in paths]
-    temps = tuple(p.with_name(p.name + TMP_SUFFIX) for p in finals)
+    temps = tuple(p.with_name(f"{p.name}.{uuid.uuid4().hex[:12]}{TMP_SUFFIX}") for p in finals)
     for final in finals:
         final.parent.mkdir(parents=True, exist_ok=True)
     try:

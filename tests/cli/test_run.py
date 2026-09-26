@@ -15,9 +15,9 @@ import simace
 import simace.cli.run as run_mod
 from simace.cli.inspect import ls_cli, show_cli
 from simace.cli.layout import Layout, RepArtifact
-from simace.cli.manifest import RepState, rep_status, write_manifest
-from simace.cli.run import cli, expected_manifest, load_scenario
-from simace.cli.stages import STAGES, ResolvedRep
+from simace.cli.manifest import RepState, write_manifest
+from simace.cli.run import cli, expected_manifest, load_scenario, status_on_disk
+from simace.cli.stages import REP_OUTPUTS, STAGES, ResolvedRep
 
 REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
 TINY = {"N": 300, "G_ped": 3, "G_sim": 3, "G_pheno": 2, "replicates": 2, "seed": 100}
@@ -75,7 +75,7 @@ def recorded(monkeypatch) -> list[int]:
 
     def fake_recompute(rep, layout, env, console):
         calls.append(rep.rep)
-        write_manifest(layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST), expected_manifest(rep))
+        _finish(layout, rep)
         return True
 
     monkeypatch.setattr(run_mod, "_recompute", fake_recompute)
@@ -84,6 +84,15 @@ def recorded(monkeypatch) -> list[int]:
 
 def _manifest(layout: Layout, rep: ResolvedRep) -> Path:
     return layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST)
+
+
+def _finish(layout: Layout, rep: ResolvedRep) -> None:
+    """Leave ``rep`` on disk as a finished run does: every output, then ``run.yaml``."""
+    for artifact in REP_OUTPUTS:
+        path = layout.rep(rep.folder, rep.scenario, rep.rep, artifact)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("")
+    write_manifest(_manifest(layout, rep), expected_manifest(rep))
 
 
 def test_unknown_scenario_exits_2_listing_known_names(config_dir, roots, capsys) -> None:
@@ -107,7 +116,7 @@ def test_dry_run_prints_every_stage_and_writes_nothing(config_dir, roots, tmp_pa
 
 def test_complete_reps_are_skipped_and_plots_rebuilt(config_dir, roots, layout, recorded, no_plots) -> None:
     for r in (1, 2):
-        write_manifest(_manifest(layout, _rep(config_dir, r)), expected_manifest(_rep(config_dir, r)))
+        _finish(layout, _rep(config_dir, r))
     assert _run(config_dir, roots, "tiny") == 0
     assert recorded == []
     assert [rep.rep for rep in no_plots[0]] == [1, 2]
@@ -143,20 +152,43 @@ def test_rep_values_must_be_distinct_and_in_range(config_dir, roots, recorded, r
 
 def test_keys_no_stage_reads_do_not_make_a_rep_stale(config_dir, layout) -> None:
     rep = _rep(config_dir, 1)
-    write_manifest(_manifest(layout, rep), expected_manifest(rep))
+    _finish(layout, rep)
     changed = ResolvedRep(
         rep.folder,
         rep.scenario,
         1,
         {**rep.params, "blended_diagnosis": {"x": 1}, "replicates": 9, "plot_format": "pdf"},
     )
-    assert rep_status(_manifest(layout, rep), expected_manifest(changed)).state is RepState.COMPLETE
+    assert status_on_disk(changed, layout).state is RepState.COMPLETE
     touched = ResolvedRep(rep.folder, rep.scenario, 1, {**rep.params, "death_rho": 3.0})
-    assert rep_status(_manifest(layout, rep), expected_manifest(touched)).differing == ("death_rho",)
+    assert status_on_disk(touched, layout).reasons == ("death_rho",)
+
+
+def test_a_manifest_copied_from_another_rep_is_stale(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
+    rep1, rep2 = _rep(config_dir, 1), _rep(config_dir, 2)
+    _finish(layout, rep1)
+    shutil.copytree(layout.rep_dir("t", "tiny", 1), layout.rep_dir("t", "tiny", 2))
+    assert status_on_disk(rep2, layout).state is RepState.STALE
+    assert status_on_disk(rep2, layout).reasons == ("rep", "seed")
+    assert _run(config_dir, roots, "tiny") == 1
+    assert "rep2] refused: run.yaml differs in rep, seed" in capsys.readouterr().out
+    assert recorded == []
+
+
+def test_a_rep_with_a_missing_output_is_recomputed(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
+    for r in (1, 2):
+        _finish(layout, _rep(config_dir, r))
+    layout.rep("t", "tiny", 2, RepArtifact.TRAIT).unlink()
+    assert status_on_disk(_rep(config_dir, 2), layout).state is RepState.INCOMPLETE
+    assert status_on_disk(_rep(config_dir, 2), layout).reasons == ("trait.parquet",)
+    assert _run(config_dir, roots, "tiny") == 0
+    assert "rep2] recompute: trait.parquet missing" in capsys.readouterr().out
+    assert recorded == [2]
+    assert [rep.rep for rep in no_plots[0]] == [1, 2]
 
 
 def test_force_recomputes_complete_and_stale_reps(config_dir, roots, layout, recorded, no_plots) -> None:
-    write_manifest(_manifest(layout, _rep(config_dir, 1)), expected_manifest(_rep(config_dir, 1)))
+    _finish(layout, _rep(config_dir, 1))
     assert _run(config_dir, roots, "tiny", "--force") == 0
     assert recorded == [1, 2]
 
@@ -299,7 +331,7 @@ def test_show_prints_resolved_params_and_rep_seeds(config_dir, capsys) -> None:
 
 
 def test_ls_reports_each_rep_state(config_dir, layout, tmp_path, capsys) -> None:
-    write_manifest(_manifest(layout, _rep(config_dir, 1)), expected_manifest(_rep(config_dir, 1)))
+    _finish(layout, _rep(config_dir, 1))
     ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
     lines = dict(line.split("  ", 1) for line in capsys.readouterr().out.splitlines())
     assert lines["t/tiny"] == "rep1 complete  rep2 absent"
@@ -308,7 +340,7 @@ def test_ls_reports_each_rep_state(config_dir, layout, tmp_path, capsys) -> None
 
 def test_ls_flags_reps_built_by_another_version(config_dir, layout, tmp_path, capsys) -> None:
     for r in (1, 2):
-        write_manifest(_manifest(layout, _rep(config_dir, r)), expected_manifest(_rep(config_dir, r)))
+        _finish(layout, _rep(config_dir, r))
     old = _manifest(layout, _rep(config_dir, 2))
     old.write_text(old.read_text().replace(f"simace_version: {simace.__version__}", "simace_version: 2020.1.0"))
     ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])

@@ -33,13 +33,17 @@ through its own Snakemake and did not depend on simACE's rules.
   `results/{folder}/{scenario}/rep{rep}/` through one `Layout` object
   (`simace/cli/layout.py`). `simace gather <folder>` builds the folder
   summary and validation atlas.
-- **Resume granularity is the replicate.** A rep is complete only when its
-  `run.yaml` manifest exists; `run` writes it after every stage of the rep
-  exits 0, and it records the values of the config keys the rep's stages and `params.yaml` read (`REP_PARAM_KEYS`). A
-  rerun skips a rep whose manifest matches, recomputes a rep with no
-  manifest from scratch, and refuses a rep whose manifest differs unless
-  `--force`. There is no per-stage resume, no stage windows, and no
-  intermediate deletion. Plots and the atlas are rebuilt on every run.
+- **Resume granularity is the replicate.** `run` writes a rep's `run.yaml`
+  manifest after every stage of the rep exits 0. It records the scenario,
+  rep, and seed, the values of the config keys the rep's stages and
+  `params.yaml` read (`REP_PARAM_KEYS`), and the stage list. A rep is
+  complete only when that manifest matches all of these and every output
+  the rep declares (`REP_OUTPUTS`) exists, so a manifest copied from another
+  rep or a deleted artifact never passes for finished work. A rerun skips a
+  complete rep, recomputes a rep with no manifest or a missing output from
+  scratch, and refuses a rep whose manifest differs unless `--force`. There
+  is no per-stage resume, no stage windows, and no intermediate deletion.
+  Plots and the atlas are rebuilt on every run.
   The manifest records the simace version, but a version change never makes
   a rep stale: comparing versions would invalidate every rep on any commit.
   `simace ls` flags reps built by another version instead.
@@ -48,7 +52,8 @@ through its own Snakemake and did not depend on simACE's rules.
   the process exits, so a killed run never leaves the scenario locked.
   Parallelism within a scenario is `--jobs`, not concurrent invocations.
 - Every stage runs as its own `python -m simace <stage>` subprocess, and
-  its outputs are published atomically (`<path>.tmp` then `os.replace`).
+  its outputs are published atomically (a unique `<path>.<random>.tmp`
+  per writer, then `os.replace`).
   `run` records each child's wall time and `wait4` peak RSS in the rep's
   `timing.tsv`, which replaces Snakemake's benchmark TSVs for `gather` and
   `tools/benchmark`.

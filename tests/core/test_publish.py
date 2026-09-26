@@ -13,7 +13,9 @@ if TYPE_CHECKING:
 def test_publish_renames_every_temporary_on_success(tmp_path: Path) -> None:
     a, b = tmp_path / "sub" / "a.parquet", tmp_path / "b.yaml"
     with publish(a, b) as (ta, tb):
-        assert ta.name == "a.parquet.tmp"
+        assert ta.parent == a.parent
+        assert ta.name.startswith("a.parquet.")
+        assert ta.name.endswith(".tmp")
         ta.write_text("A")
         tb.write_text("B")
         assert not a.exists()
@@ -40,7 +42,17 @@ def test_publish_leaves_no_output_when_the_block_raises(tmp_path: Path) -> None:
 def test_publish_renames_nothing_when_a_temporary_was_not_written(tmp_path: Path) -> None:
     a, b = tmp_path / "a.yaml", tmp_path / "b.yaml"
     a.write_text("old a")
-    with pytest.raises(FileNotFoundError, match=r"b\.yaml\.tmp"), publish(a, b) as (ta, _tb):
+    with pytest.raises(FileNotFoundError, match=r"b\.yaml\.\w+\.tmp"), publish(a, b) as (ta, _tb):
         ta.write_text("new a")
     assert a.read_text() == "old a"
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["a.yaml"]
+
+
+def test_concurrent_writers_of_one_output_do_not_share_a_temporary(tmp_path: Path) -> None:
+    out = tmp_path / "a.yaml"
+    with publish(out) as (first,), publish(out) as (second,):
+        assert first != second
+        first.write_text("first")
+        second.write_text("second")
+    assert out.read_text() == "first"
     assert sorted(p.name for p in tmp_path.iterdir()) == ["a.yaml"]

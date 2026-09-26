@@ -53,17 +53,20 @@ pixi run simace gather base
 
 ## Rerun and resume
 
-A replicate is complete when its `run.yaml` exists. `simace run` writes
-that file only after every stage of the replicate succeeds. It records the
-scenario parameters the replicate was computed from.
+`simace run` writes a replicate's `run.yaml` only after every stage of the
+replicate succeeds. It records the scenario, replicate number, seed, and
+parameters the replicate was computed from. A replicate is complete when its
+`run.yaml` matches the current config and every output file of the
+replicate exists.
 
 When you rerun a scenario, each requested replicate is handled as a whole:
 
 | State | What `simace run` does |
 |---|---|
-| `run.yaml` matches the current config | Skips the replicate |
+| Complete | Skips the replicate |
 | No `run.yaml`, for example after an interruption | Recomputes the replicate from the first stage |
-| `run.yaml` differs from the current config | Refuses and names the changed keys. `--force` recomputes |
+| `run.yaml` matches, but an output file is missing (`incomplete`) | Recomputes the replicate from the first stage and names the missing files |
+| `run.yaml` differs from the current config, or belongs to another replicate (`stale`) | Refuses and names the differing keys. `--force` recomputes |
 
 Plots and the atlas are rebuilt on every run. After changing a plotting
 module, rerun the scenario: complete replicates are skipped and only the

@@ -30,7 +30,7 @@ simACE/
 │   │   ├── parquet_to_tsv.py             # `simace parquet-to-tsv`
 │   │   ├── pedigree_arrays.py            # Pedigree columns as numpy arrays, addressable by id
 │   │   ├── pedigree_filter.py            # Filter a pedigree to observed IDs plus their ancestors
-│   │   ├── publish.py                    # Atomic output publication (<path>.tmp, then rename)
+│   │   ├── publish.py                    # Atomic output publication (<path>.<random>.tmp, then rename)
 │   │   ├── relationships.py              # Relationship-pair and sex vocabulary (kinship read from pedigree_graph RELATIONSHIPS)
 │   │   ├── schema.py                     # PEDIGREE schema and hydrated in-memory trait schemas
 │   │   ├── stage.py                      # @stage decorator: input/output schema assertions on stage functions

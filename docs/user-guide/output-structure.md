@@ -50,10 +50,11 @@ fitACE writes, such as `epimight/`. This page lists the simACE outputs only.
 | `plot_payload.yaml` | `simace/analysis/analyze.py` | Dense arrays for the incidence and censoring plots |
 | `plotting_sample.parquet` | `simace/analysis/analyze.py` | A downsampled join of traits and pedigree for scatter plots |
 | `timing.tsv` | `simace run` | One row per stage: `stage`, `wall_s`, `max_rss_mb` (the stage process's peak resident memory), `exit_code` |
-| `run.yaml` | `simace run` | Written after every stage succeeds. Records the parameters the replicate was computed from, so a rerun can skip it. See [Running the pipeline](running-the-pipeline.md#rerun-and-resume) |
+| `run.yaml` | `simace run` | Written after every stage succeeds. Records the scenario, replicate, seed, and parameters the replicate was computed from. A rerun skips the replicate only when this matches and every other file above exists. See [Running the pipeline](running-the-pipeline.md#rerun-and-resume) |
 
-Every stage writes each output to `<name>.tmp` and renames it into place when
-it finishes, so a file under its final name is always complete.
+Every stage writes each output to a temporary `<name>.<random>.tmp` beside it
+and renames it into place when it finishes, so a file under its final name is
+always complete, even when two commands write the same output at once.
 
 `results/{folder}/{scenario}/.run.lock` holds the pid of the last
 `simace run` of the scenario. A running `simace run` keeps it locked so a
