@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -355,3 +356,12 @@ def test_end_to_end_run_builds_plots_and_atlas(config_dir, roots, layout) -> Non
     assert (plots / "atlas.html").exists()
     assert [row.split("\t")[0] for row in (plots / "timing.tsv").read_text().splitlines()[1:]] == ["plot", "atlas"]
     assert _run(config_dir, roots, "tiny_wf") == 0
+
+
+def test_resolving_config_does_not_import_the_stage_stack():
+    probe = (
+        "import sys; from pathlib import Path; import simace.cli.run as r; r.resolve_all(Path(sys.argv[1])); "
+        "print(' '.join(m for m in ('numba', 'polars', 'scipy', 'pedigree_graph', 'simace.phenotype') if m in sys.modules))"
+    )
+    out = subprocess.run([sys.executable, "-c", probe, str(REPO_CONFIG)], capture_output=True, text=True, check=True)
+    assert out.stdout.split() == []

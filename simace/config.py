@@ -21,6 +21,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from simace.core.standardize import coerce_standardize_mode
 from simace.core.yaml_io import load_yaml
 
 # ---------------------------------------------------------------------------
@@ -210,8 +211,6 @@ def _coerce_sim_types(flat: dict) -> dict:
         if isinstance(value, dict):
             flat[key] = {int(gen): v for gen, v in value.items()}
     if "standardize" in flat:
-        from simace.phenotype.hazards import coerce_standardize_mode
-
         flat["standardize"] = coerce_standardize_mode(flat["standardize"])
     return flat
 
