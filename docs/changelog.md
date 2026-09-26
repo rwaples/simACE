@@ -8,6 +8,30 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
+### `simace` CLI replaces Snakemake ([ADR 0020](adr/0020-standalone-simace-cli.md))
+
+- **`simace run <scenario>`** runs every replicate through simulate,
+  phenotype, censor, ascertain, and analyze, then the scenario plots and
+  atlas. **`simace gather <folder>`** writes `report_summary.tsv` and the
+  validation atlas. `simace show` and `simace ls` inspect config and
+  replicate state. `Snakefile`, `workflow/`, the Snakemake adapter, and the
+  Snakemake, SLURM-plugin, and snakefmt dependencies are removed.
+- **Replicate-level resume.** Each replicate's `run.yaml` records the config
+  it was computed from. Reruns skip matching replicates, recompute
+  interrupted ones, and refuse changed ones unless `--force`.
+- **One `simace` console script** with a subcommand per stage replaces the
+  ten `simace-*` scripts. Stage subcommands take explicit paths and never
+  read config. `simace simulate` no longer writes `params.yaml`;
+  `simace run` does.
+- **`params.yaml` gains `G_pheno`.** No key is removed or renamed.
+- **`timing.tsv`** per replicate records each stage's wall time and peak RSS;
+  `report_summary.tsv`'s `simulate_seconds` / `simulate_max_rss_mb` and
+  `tools.benchmark` read it. `trait.raw.parquet` and
+  `plotting_sample.parquet` are no longer deleted.
+- **Scripts moved.** Example comparison scripts are in `scripts/examples/`
+  and gene-drop scripts in `scripts/gene_drop/`, each with its own argparse
+  CLI. `simace run` refuses `use_gene_drop` / `drop_from` scenarios.
+
 ### Performance benchmarks
 
 - Replaced the mutable shell benchmark scripts with

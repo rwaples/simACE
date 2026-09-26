@@ -222,8 +222,8 @@ pixi run pytest tests/ -q                                        # simACE
 #   pixi run --manifest-path fitACE/pixi.toml pytest fitACE/fitACE_<x>/tests/ -q )
 
 # Provenance smoke (grep the sidecars):
-pixi run snakemake --cores 4 results/test/small_test/scenario.done
-grep simace_version results/test/small_test/*/params.yaml
+pixi run simace run small_test
+grep simace_version results/test/small_test/*/params.yaml results/test/small_test/*/run.yaml
 # then run a pcgc + tetraher + iter_reml fit and grep *.vc.tsv.meta for
 # simace_version / fitace_version / fitace_<method>_version / ace_iter_reml_version
 # (small_test leaves tetraher_prevalence null, which disables the TetraHer

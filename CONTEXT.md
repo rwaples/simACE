@@ -35,7 +35,7 @@ The model family that maps a trait's liability → its observable outcome. One o
 _Avoid_: phenotype family, liability-to-onset map, hazard model (only a subset of families have a hazard step).
 
 **Phenotype stage**:
-The pipeline stage that runs each trait's phenotype model against the simulated pedigree to produce observable per-trait outcomes. Always the **noun form** — never "phenotyping". Lives under `simace/phenotype/` (package) and `workflow/rules/simace/phenotype.smk` (rule).
+The pipeline stage that runs each trait's phenotype model against the simulated pedigree to produce observable per-trait outcomes. Always the **noun form** — never "phenotyping". Lives under `simace/phenotype/`; the `simace phenotype` subcommand runs it.
 _Avoid_: phenotyping (gerund form is suppressed across the codebase — see Flagged ambiguities).
 
 ### Trait outcomes
@@ -167,8 +167,12 @@ A grouping of related scenarios under one config YAML file. Folder name = YAML b
 _Avoid_: group, suite, family, batch, scenario file (means the file, not this concept).
 
 **Replicate**:
-A single seeded run of a scenario, identified by `rep{N}` (e.g. `rep1`, `rep2`). Multiple replicates per scenario sample independent random draws; the seed for replicate $N$ is `seed + N`. Outputs at `results/{folder}/{scenario}/rep{N}/`. Replicates always exist (default 3, override per-scenario); a replicate-less scenario is not a valid configuration.
+A single seeded run of a scenario, identified by `rep{N}` (e.g. `rep1`, `rep2`). Multiple replicates per scenario sample independent random draws; the seed for replicate $N$ is `seed + N - 1`. Outputs at `results/{folder}/{scenario}/rep{N}/`. Replicates always exist (default 3, override per-scenario); a replicate-less scenario is not a valid configuration.
 _Avoid_: trial, run, iteration, draw, sample (already taken — see **Ascertainment**).
+
+**Run manifest** (`run.yaml`):
+The per-replicate record `simace run` writes after every stage of that replicate exits 0. It holds the values of the config keys the replicate's stages read, so a later run can tell a **complete** replicate (manifest matches the current config) from a **stale** one (manifest differs) and an absent one (no manifest). Resume works at replicate granularity: a replicate is either skipped whole or recomputed whole (ADR 0020).
+_Avoid_: done file, sentinel, checkpoint.
 
 **Config**:
 The *merged runtime parameter set* for a specific scenario — i.e., what comes out of `simace.config.load_config` after defaults are overridden by scenario keys. Distinct from a *config YAML file*, which is the on-disk source. In prose "the config" usually means the merged dict; when the file is meant, say "the config YAML" or "the scenario file".
@@ -222,7 +226,7 @@ _Avoid_: Ne method (use "estimator"), drift estimator (subset only), inbreeding 
 
 ### Pipeline stages
 
-The pipeline runs the following stages in order. Stage names match the Snakemake rule files (`workflow/rules/simace/{stage}.smk`). Form is verb where natural, noun where natural — don't try to retroactively uniformize.
+The pipeline runs the following stages in order; `simace run` executes each as its own `simace <stage>` subprocess (ADR 0020). The subcommand is `ascertain` for the **Ascertainment** stage and `plot` + `atlas` for **Plot**. Form is verb where natural, noun where natural — don't try to retroactively uniformize.
 
 1. **Simulate** — generate the multi-generational pedigree with ACE variance components. Package: `simace/simulation/`.
 2. **Phenotype** — apply the phenotype model per trait to produce binary affection + onset. Package: `simace/phenotype/` (noun form, **not** "phenotyping"). The only stage where noun-form is enforced because "phenotype" the noun is also a domain word.

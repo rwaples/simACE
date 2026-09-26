@@ -67,10 +67,11 @@ simulate_pedigree_liability ──► pedigree.full.parquet
 
 The `tskit_preprocess` rules canonicalise the per-chromosome `.trees` files from SimHumanity and concatenate them. Canonicalising keeps one mutation per site and sorts samples into a fixed order. The `tstrait_site_catalog` rules then build the site catalog, `site_catalog.parquet`, which records the founder allele frequency of every site. Every gene-drop scenario reads that one catalog.
 
-The preprocessing rules need the dedicated tskit conda environment. Run them once:
+`simace run` does not run gene drop ([ADR 0020](../adr/0020-standalone-simace-cli.md)). Each step is a script in `scripts/gene_drop/`, run by hand in the tskit conda environment defined by `scripts/gene_drop/envs/tskit.yaml`. Each script's docstring shows the command its step needs. Preprocessing runs `canonicalize_chrom.py` once per chromosome, then `concat_chroms.py` and `verify.py`, once:
 
 ```bash
-pixi run snakemake --use-conda --cores 4 tskit_preprocess
+conda env create -f scripts/gene_drop/envs/tskit.yaml
+conda run -n tskit python scripts/gene_drop/canonicalize_chrom.py --help
 ```
 
 ### Step 2: drop founders through the simACE pedigree
@@ -103,7 +104,7 @@ Older ancestors keep their parametric `A1`. That asymmetry is deliberate. Only s
 
 ### Step 5: feed the standard pipeline
 
-When a scenario sets `use_gene_drop: true`, the `pedigree_dropout` rule reads `pedigree.full.tstrait.parquet` instead of `pedigree.full.parquet`. The phenotype model, censoring, ascertainment, stats, plots, and atlas all run as they would for a Gaussian $A$ scenario, on the gene-drop $A$ column.
+A gene-drop replicate then runs the standard stages on `pedigree.full.tstrait.parquet` instead of `pedigree.full.parquet`. `simace run` refuses scenarios with `use_gene_drop: true`, so run the stage subcommands by hand: `simace phenotype`, `simace censor`, and `simace ascertain` take the tstrait pedigree as their `--pedigree`, followed by `simace analyze`, `simace plot`, and `simace atlas`. `simace run <any scenario> --dry-run` prints the full flag set each stage expects. The phenotype model, censoring, ascertainment, stats, plots, and atlas then behave as they would for a Gaussian $A$ scenario, on the gene-drop $A$ column.
 
 ## Sharing drops across variants
 

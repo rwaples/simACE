@@ -188,8 +188,8 @@ the coancestry-rate estimator. Set it to `false` for a pedigree small enough
 to compute the estimator.
 
 [Ascertainment](ascertainment.md) explains the dropout and draw steps. The
-`analysis` section configures the analyze stage, which builds the `stats.done`
-target described in [Running the pipeline](running-the-pipeline.md).
+`analysis` section configures the analyze stage, which writes each replicate's
+`report.yaml` (see [Running the pipeline](running-the-pipeline.md)).
 
 ## Gene drop with tstrait
 
@@ -299,7 +299,7 @@ accepts either form, but it rejects a parameter supplied in both forms.
 
 ## What the loader rejects
 
-The scenario loader rejects these configuration errors before Snakemake starts
+The scenario loader rejects these configuration errors before `simace run` starts
 simulation jobs:
 
 - An unknown flat key or sectioned key.

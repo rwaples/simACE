@@ -14,7 +14,7 @@ A phenotype model turns liability into a binary phenotype. The choices are a pro
 
 The censoring stage applies competing-risk death censoring and per-generation age-window censoring.
 
-The code is Python. Snakemake runs the pipeline and supports named scenarios, replicate runs, validation checks, and plots.
+The code is Python. The `simace run` command runs the pipeline and supports named scenarios, replicate runs, validation checks, and plots.
 
 **Key terms**
 
@@ -456,7 +456,7 @@ Correlation checks use a tolerance of four standard errors with a floor of 0.05.
 
 ## Implementation
 
-`simace` is an installable Python package. NumPy does the vectorised array work, SciPy the optimisation and special functions, Polars the DataFrames at every stage boundary (ADR 0015), and Numba the compiled kernels for phenotype inversion, Metropolis sweeps, and the tetrachoric likelihood. Relationship extraction uses SciPy sparse CSR matrices in the `pedigree-graph` package. Snakemake runs the workflow with per-scenario configuration and per-replicate seed offsets, the seed plus the replicate number. SLURM execution goes through `snakemake-executor-plugin-slurm`, pinned in `pixi.toml`. All random draws use NumPy's PCG64 generator through `numpy.random.default_rng` with explicit seeds.
+`simace` is an installable Python package. NumPy does the vectorised array work, SciPy the optimisation and special functions, Polars the DataFrames at every stage boundary (ADR 0015), and Numba the compiled kernels for phenotype inversion, Metropolis sweeps, and the tetrachoric likelihood. Relationship extraction uses SciPy sparse CSR matrices in the `pedigree-graph` package. The `simace run` command runs each stage in its own process, with per-scenario configuration and a per-replicate seed of the scenario seed plus the replicate number minus one. All random draws use NumPy's PCG64 generator through `numpy.random.default_rng` with explicit seeds.
 
 ## Assumptions and limitations
 

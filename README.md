@@ -47,36 +47,43 @@ pixi run pytest tests/
 Run the smallest scenario to confirm everything works (takes a minute or two):
 
 ```bash
-pixi run snakemake --cores 4 results/test/small_test/scenario.done
+pixi run simace run small_test
 ```
 
 Check the output:
 
 ```bash
-ls results/test/small_test/rep1/    # pedigree.parquet, trait files, report.yaml, params.yaml
+ls results/test/small_test/rep1/    # pedigree.parquet, trait files, report.yaml, params.yaml, run.yaml, timing.tsv
 cat logs/test/small_test/rep1/simulate.log
 ```
 
-## Snakemake usage
+## Running scenarios
 
-Use `--cores N` where N is the number of parallel jobs. Always run from the
-repo root. The root `Snakefile` is the entry point, so no `-s` flag is needed.
+`simace run <scenario>` runs every replicate of one scenario through
+simulate, phenotype, censor, ascertain, and analyze, then draws the
+scenario's plots and HTML atlas. Always run from the repo root.
 
 ```bash
-# Run everything (default target: all scenarios, all stages)
-pixi run snakemake --cores 4
+# See the exact commands without running anything
+pixi run simace run baseline10K --dry-run
 
-# Run a single scenario
-pixi run snakemake --cores 4 results/base/baseline10K/scenario.done
+# Run one scenario, three replicates at a time
+pixi run simace run baseline10K --jobs 3
 
-# Dry run to see what will be executed
-pixi run snakemake -n --cores 4
+# Summarize every scenario in a folder and draw the validation atlas
+pixi run simace gather base
+
+# List scenarios and which replicates are complete
+pixi run simace ls base
 ```
 
-If a run is interrupted or fails, re-running the same command resumes from
-where it left off. Snakemake skips completed steps.
+A replicate is complete once its `run.yaml` exists. Rerunning a scenario
+skips complete replicates, recomputes interrupted ones from scratch, and
+refuses replicates whose config has changed since they ran (`--force`
+recomputes them). Plots and the atlas are rebuilt on every run.
 
-For per-stage targets, force-rebuilding, and resuming interrupted runs, see
+Each stage is also a subcommand that takes explicit file paths
+(`pixi run simace simulate --help`). See
 [Running the pipeline](docs/user-guide/running-the-pipeline.md).
 
 ## Configuration
@@ -127,9 +134,9 @@ inventory, parquet column schemas, YAML structures, and plot listings.
 | Problem | Solution |
 |---------|----------|
 | `ModuleNotFoundError: No module named 'simace'` | Run commands through `pixi run …` from the repo root |
-| `FileNotFoundError: config/_default.yaml` | Run snakemake from the simACE repo root directory |
-| Simulation killed or frozen (large N) | Reduce `--cores` to lower parallel memory usage, or skip large-N scenarios |
-| `IncompleteFilesException` on re-run | Snakemake detected a previously interrupted output; run `pixi run snakemake --cores 4 --rerun-incomplete` |
+| `FileNotFoundError: config/_default.yaml` | Run `simace run` from the simACE repo root directory, or pass `--config-dir` |
+| Simulation killed or frozen (large N) | Lower `--jobs` to reduce parallel memory use, or skip large-N scenarios |
+| `refused: run.yaml differs in ...` | The scenario's config changed after that replicate ran; rerun with `--force` to recompute it |
 
 ## License
 

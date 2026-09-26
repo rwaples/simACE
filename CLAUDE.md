@@ -1,18 +1,19 @@
 # CLAUDE.md
 
-simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (common environment), **E** (unique environment) variance components: simulate → phenotype → censor → ascertainment → validate → stats → plot. Model fitting lives in the sister repo [fitACE](./fitACE), which depends on simace.
+simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (common environment), **E** (unique environment) variance components: simulate → phenotype → censor → ascertain → analyze (validate + stats) → plot. Model fitting lives in the sister repo [fitACE](./fitACE), which depends on simace.
 
 ## Project Layout
 
 - `simace/` — the package, one sub-package per pipeline stage:
-  - `core/` — shared infrastructure (schemas, parquet/yaml I/O, CLI and Snakemake adapters, numerics, hazard terms, pedigree filtering)
+  - `cli/` — the `simace` command: `run.py` (`simace run`), `layout.py` (the `results/` path convention), `stages.py` (stage argv), `manifest.py` (per-rep `run.yaml`)
+  - `core/` — shared infrastructure (schemas, parquet/yaml I/O, CLI helpers, atomic `publish`, numerics, hazard terms, pedigree filtering)
   - `simulation/` — pedigree simulation (household assignment in `simulate.py`)
   - `phenotype/` — `runner.py` (`run_phenotype` dispatcher), `hazards.py`, `blended_post.py`, and `models/` (subclasses of `PhenotypeModel`; the liability-threshold idiom is in `models/_prevalence.py`)
   - `censoring/` — age-window and death censoring
   - `ascertainment/` — unified dropout + case-weighted N_sample selection (ADR 0001)
   - `analysis/` — `stats/`, `validate/` (one module per check family), `analyze.py`, `report.py`, `gather.py`
   - `plotting/` — plot modules; atlas page order is in `atlas_manifest.py`
-- `workflow/rules/simace/*.smk` — Snakemake rules; `workflow/scripts/simace/` — thin script wrappers
+- `scripts/examples/`, `scripts/gene_drop/` — standalone example-comparison and gene-drop scripts (not run by `simace run`)
 - `config/_default.yaml` — defaults; `config/{folder}.yaml` — scenario files (auto-discovered; `_`-prefixed files skipped)
 - `results/{folder}/{scenario}/` — output per scenario
 
@@ -26,21 +27,23 @@ Everything runs through pixi; there is no ambient env (ADR 0016, 0018).
 - Dedicated conda envs (`epimight-2.1`, `ace_iter_reml*`, `ace_sreml`) are still invoked by name.
 - `pixi.toml` is the pin source. Never rewrite `pixi.lock` as a side effect; upgrades are deliberate (`pixi lock` after a manifest edit, then review the diff).
 
-## Snakemake
+## Running the pipeline
 
-- `pixi run snakemake …` from the root `Snakefile` (not `-s workflow/Snakefile`).
-- `--cores 4` for one scenario, `--cores 8` for several, `--cores 1` to debug. Dry-run (`-n`) before long runs.
-- Targets: `results/{folder}/{scenario}/{scenario,simulate,phenotype,validate,stats}.done`
-- After changing a `plot_*.py`, force-rebuild the atlas and check labels/titles fit: `pixi run snakemake --cores 4 -f results/{folder}/{scenario}/plots/atlas.html` (`atlas.pdf` for the on-demand PDF).
+- `pixi run simace run <scenario>` computes every rep, then the scenario plots and atlas (ADR 0020). `--dry-run` prints the exact stage commands. `--jobs N` runs N reps at once (each child pinned to one thread); `--rep 2 3` limits the reps. `--max-memory 8G` kills any stage process whose RSS goes over 8 GiB (polled from `/proc`, per stage, not per run).
+- A rep is all or nothing. Its `run.yaml` is written only after every stage exits 0. A rerun skips reps whose `run.yaml` matches the current config, refuses reps whose config changed (`--force` recomputes), and always rebuilds plots and the atlas. Code changes never make a rep stale; `simace ls` flags reps built by another simace version. One run per scenario at a time (`flock` on `results/{folder}/{scenario}/.run.lock`).
+- `pixi run simace gather <folder>` writes `report_summary.tsv` and the validation atlas for a folder. `--format pdf` gives the PDF atlas on either command.
+- Stage subcommands (`simace simulate|phenotype|censor|ascertain|analyze|plot|atlas|...`) take explicit paths and flags and never read config. `simace show <scenario>` and `simace ls [folder]` inspect config and rep state.
+- Per-rep stage wall time and peak RSS land in `results/{folder}/{scenario}/rep{rep}/timing.tsv`; stage logs in `logs/{folder}/{scenario}/rep{rep}/{stage}.log`.
+- After changing a `plot_*.py`, rerun `pixi run simace run <scenario>` (complete reps are skipped; plots and atlas always rebuild) and check labels/titles fit.
+- `use_gene_drop` / `drop_from` scenarios are not run by `simace run`; see `scripts/gene_drop/`.
 
 ## Testing and Linting
 
 - Full suite: `pixi run test` (6 xdist workers, `--dist worksteal`, one thread per worker). Extra args pass through: `pixi run test tests/simulation -x`. The rationale for these settings is in the comment above `[tasks.test]` in `pixi.toml`; re-measure with `tools/bench_pytest_workers.sh` before changing them.
 - Serial/debug (`-v`, `-s`, `--pdb`, single modules): `pixi run pytest tests/ -v`.
-- Smoke test: `pixi run snakemake --cores 4 results/test/small_test/scenario.done`
+- Smoke test: `pixi run simace run small_test && pixi run simace gather test`
 - Run relevant tests before committing.
 - `ruff check` with **no extra `--select`** — it discards the `ignore`/`per-file-ignores` in `pyproject.toml` and surfaces false positives.
-- Format Snakemake: `pixi run snakefmt workflow/rules/**/*.smk Snakefile`
 
 ## Statistical-correctness gotchas
 
@@ -67,7 +70,7 @@ Five repos under `rwaples/` on GitHub. simACE is the umbrella working directory;
 | Repo | Visibility | Local path | Role |
 |---|---|---|---|
 | `simACE` | public | `.` | Simulation pipeline |
-| `fitACE` | private | `./fitACE/` | Model-fitting monorepo: core, Snakemake orchestrator, and `fitACE_<x>/` method packages (PCGC, iter/sparse REML + `ace_iter_reml` C++, TetraHer + `tetraher_simace` LDAK fork, PA-FGRS, Stan, frailty). See `fitACE/CLAUDE.md`. |
+| `fitACE` | private | `./fitACE/` | Model-fitting monorepo: core, its own workflow orchestrator (reads simACE `results/`), and `fitACE_<x>/` method packages (PCGC, iter/sparse REML + `ace_iter_reml` C++, TetraHer + `tetraher_simace` LDAK fork, PA-FGRS, Stan, frailty). See `fitACE/CLAUDE.md`. |
 | `fitACE_epimight` | private | `./fitACE/fitACE_epimight/` | EPIMIGHT integration; own repo tracking the BioPsyk/epimight upstream, included by `fitACE/Snakefile`. |
 | `pedigree-graph` | public | `./external/pedigree-graph/` | Rust relationship extraction and kinship (Python + R bindings) |
 | `pedsum` | public | `./external/pedsum/` | Pedigree summary CLI built on pedigree-graph |

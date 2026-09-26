@@ -55,11 +55,10 @@ is not a censoring example.
 Generate the four scenario reports from the repository root:
 
 ```bash
-pixi run snakemake --cores 4 \
-  results/examples/ascertainment_uniform50k/rep1/report.yaml \
-  results/examples/ascertainment_dropout30_50k/rep1/report.yaml \
-  results/examples/ascertainment_case5x_50k/rep1/report.yaml \
-  results/examples/ascertainment_dropout30_case5x_50k/rep1/report.yaml
+for s in ascertainment_uniform50k ascertainment_dropout30_50k \
+         ascertainment_case5x_50k ascertainment_dropout30_case5x_50k; do
+  pixi run simace run "$s" --rep 1
+done
 ```
 
 Then regenerate the documentation figures:

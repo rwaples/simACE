@@ -9,17 +9,22 @@ results/{folder}/{scenario}/
 ├── rep1/
 │   ├── params.yaml
 │   ├── pedigree.full.parquet
-│   ├── pedigree.parquet
+│   ├── trait.raw.parquet
 │   ├── trait.full.parquet
+│   ├── pedigree.parquet
 │   ├── trait.parquet
 │   ├── report.yaml
-│   └── plot_payload.yaml
+│   ├── plot_payload.yaml
+│   ├── plotting_sample.parquet
+│   ├── timing.tsv
+│   └── run.yaml
 ├── rep2/
 ├── rep3/
 └── plots/
     ├── *.png
     ├── atlas.html
-    └── atlas.pdf
+    ├── atlas.pdf
+    └── timing.tsv
 results/{folder}/
 ├── report_summary.tsv
 └── plots/
@@ -35,15 +40,24 @@ fitACE writes, such as `epimight/`. This page lists the simACE outputs only.
 
 | File | Written by | Description |
 |---|---|---|
-| `params.yaml` | `simace/simulation/simulate.py` | The resolved simulation parameters for this replicate |
+| `params.yaml` | `simace run` (`simace/simulation/emit_params.py`) | The resolved simulation parameters for this replicate |
 | `pedigree.full.parquet` | `simace/simulation/simulate.py` | The recorded pedigree after burn-in and before ascertainment |
-| `trait.raw.parquet` | `simace/phenotype/runner.py` | Uncensored onset ages. Deleted after censoring |
+| `trait.raw.parquet` | `simace/phenotype/runner.py` | Uncensored onset ages, before censoring |
 | `trait.full.parquet` | `simace/censoring/censor.py` | Censored outcomes for the whole phenotyped population. Kept so that the analyze stage can measure ascertainment bias |
 | `pedigree.parquet` | `simace/ascertainment/runner.py` | The analysis pedigree: the sampled individuals plus every ancestor reachable through intact parent links, with dangling links set to -1 |
 | `trait.parquet` | `simace/ascertainment/runner.py` | Censored outcomes for the sampled individuals. This and `pedigree.parquet` are what fitACE reads |
 | `report.yaml` | `simace/analysis/analyze.py` | The per-replicate report. See [report.yaml](#reportyaml) |
 | `plot_payload.yaml` | `simace/analysis/analyze.py` | Dense arrays for the incidence and censoring plots |
-| `plotting_sample.parquet` | `simace/analysis/analyze.py` | A downsampled join of traits and pedigree for scatter plots. Deleted after plotting |
+| `plotting_sample.parquet` | `simace/analysis/analyze.py` | A downsampled join of traits and pedigree for scatter plots |
+| `timing.tsv` | `simace run` | One row per stage: `stage`, `wall_s`, `max_rss_mb` (the stage process's peak resident memory), `exit_code` |
+| `run.yaml` | `simace run` | Written after every stage succeeds. Records the parameters the replicate was computed from, so a rerun can skip it. See [Running the pipeline](running-the-pipeline.md#rerun-and-resume) |
+
+Every stage writes each output to `<name>.tmp` and renames it into place when
+it finishes, so a file under its final name is always complete.
+
+`results/{folder}/{scenario}/.run.lock` holds the pid of the last
+`simace run` of the scenario. A running `simace run` keeps it locked so a
+second run of the same scenario refuses to start.
 
 The trait files hold outcomes only ([ADR 0011](../adr/0011-outcomes-only-trait-files.md)).
 Join them to the matching pedigree file on `id` to get generation, sex,
@@ -56,12 +70,12 @@ family links, variance components, or liabilities.
 | `results/{folder}/{scenario}/plots/*.png` | Scenario plots. [Interpreting results](interpreting-results.md) lists them |
 | `results/{folder}/{scenario}/plots/atlas.html` | All scenario plots in one HTML file, with captions, a parameter page, and Table 1 |
 | `results/{folder}/{scenario}/plots/atlas.pdf` | The same atlas as a PDF. Built on demand ([ADR 0010](../adr/0010-html-primary-atlas-rendering.md)) |
-| `results/{folder}/{scenario}/*.done` | Empty files that mark a completed target. [Running the pipeline](running-the-pipeline.md) lists the targets |
-| `results/{folder}/report_summary.tsv` | One row per replicate across every scenario in the folder. See [report_summary.tsv](#report_summarytsv) |
+| `results/{folder}/{scenario}/plots/timing.tsv` | Wall time and peak memory of the `plot` and `atlas` stages |
+| `results/{folder}/report_summary.tsv` | One row per replicate across every scenario in the folder, written by `simace gather`. See [report_summary.tsv](#report_summarytsv) |
 | `results/{folder}/plots/*.png` | Validation plots comparing scenarios |
 | `results/{folder}/plots/atlas.html`, `atlas.pdf` | The validation plots as an atlas |
-| `logs/{folder}/{scenario}/rep{rep}/*.log` | One log per rule |
-| `benchmarks/{folder}/{scenario}/rep{rep}/*.tsv` | One Snakemake benchmark per rule. See [Benchmarks](#benchmarks) |
+| `logs/{folder}/{scenario}/rep{rep}/{stage}.log` | One log per stage: `simulate`, `phenotype`, `censor`, `ascertain`, `analyze` |
+| `logs/{folder}/{scenario}/{plot,atlas}.log` | The scenario plot and atlas logs |
 
 Image files use the extension set by `plot_format`, `png` by default.
 
@@ -166,36 +180,26 @@ canonical.
 the folder. The columns come from `REPORT_SUMMARY_REGISTRY` in
 `simace/analysis/report_schema.py`. Each entry names a column and the path
 inside `report.yaml` that fills it. `folder`, `scenario`, and `rep` come from
-the file path. `simulate_seconds` and `simulate_max_rss_mb` come only from
-`simulate.tsv`; they do not describe the whole pipeline. Read the registry for
-the full list.
+the file path. `simulate_seconds` and `simulate_max_rss_mb` come only from the
+`simulate` row of the replicate's `timing.tsv`; they do not describe the whole
+pipeline. Read the registry for the full list.
 
-## Benchmarks
+## Stage timing
 
-Snakemake writes one TSV per rule run with its standard columns: `s`,
-`h:m:s`, `max_rss`, `max_vms`, `max_uss`, `max_pss`, `io_in`, `io_out`,
-`mean_load`, and `cpu_time`. Memory is in MB, time in seconds.
+`simace run` runs each stage as its own process and appends one row to the
+replicate's `timing.tsv` when the stage exits: `stage`, `wall_s` (elapsed
+seconds), `max_rss_mb` (the process's peak resident memory in MiB, from
+`wait4`), and `exit_code`. The scenario's `plots/timing.tsv` holds the same
+columns for the `plot` and `atlas` stages. A recomputed replicate starts a
+fresh `timing.tsv`.
 
-Per-replicate benchmarks live in `benchmarks/{folder}/{scenario}/rep{rep}/`
-and are named after the rule, for example `simulate.tsv`, `phenotype.tsv`,
-`censor_weibull.tsv`, `ascertainment.tsv`, `analyze.tsv`, and
-`effective_size.tsv`. Per-scenario plotting and atlas benchmarks live one
-level up, in `benchmarks/{folder}/{scenario}/`. Per-folder benchmarks such as
-`gather_report_summary.tsv` and `plot_validation.tsv` live in
-`benchmarks/{folder}/`. This command lists
-every benchmark path the rules declare:
-
-```bash
-grep -rho 'benchmarks/[^"]*' workflow/rules/simace/*.smk | sort -u
-```
-
-The reproducible benchmark driver copies these per-rule files into an immutable
-run directory and adds process-tree memory measurements. See
+The reproducible benchmark driver copies these files into an immutable run
+directory and adds process-tree memory measurements. See
 [Benchmark pipeline performance](benchmarking.md).
 
 ## TSV exports
 
-`simace-parquet-to-tsv` writes a `.tsv.gz` file next to a parquet file, with
+`simace parquet-to-tsv` writes a `.tsv.gz` file next to a parquet file, with
 four decimal places by default. [Running the pipeline, Convert parquet to
 TSV](running-the-pipeline.md#convert-parquet-to-tsv) has the commands.
 

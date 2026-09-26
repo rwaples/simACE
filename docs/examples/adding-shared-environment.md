@@ -32,7 +32,7 @@ default to zero, so the two traits are statistically independent.
 ## Run
 
 ```bash
-pixi run snakemake --cores 4 results/examples/with_c/scenario.done
+pixi run simace run with_c
 ```
 
 ## Comparison between trait 1 and trait 2
