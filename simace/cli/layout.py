@@ -11,11 +11,63 @@ frozen contract.
 
 from __future__ import annotations
 
-__all__ = ["Layout", "RepArtifact"]
+__all__ = ["Layout", "RepArtifact", "add_root_args", "project_root", "resolve_roots"]
 
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import argparse
+
+_ROOT_MARKER = Path("config") / "_default.yaml"
+
+
+def _is_simace_root(candidate: Path) -> bool:
+    """A simACE checkout: its ``config/_default.yaml`` beside a ``pyproject.toml`` naming ``simace``.
+
+    ``config/_default.yaml`` alone also matches the fitACE checkout nested
+    inside simACE, whose scenarios simace cannot resolve.
+    """
+    if not (candidate / _ROOT_MARKER).is_file():
+        return False
+    try:
+        return 'name = "simace"' in (candidate / "pyproject.toml").read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
+def project_root(start: Path | None = None) -> Path | None:
+    """Return the nearest ancestor of ``start`` (default: cwd) that is a simACE checkout, or None."""
+    here = (start or Path.cwd()).resolve()
+    return next((c for c in (here, *here.parents) if _is_simace_root(c)), None)
+
+
+def add_root_args(parser: argparse.ArgumentParser, *, logs: bool = False) -> None:
+    """Add ``--config-dir``, ``--results`` and (optionally) ``--logs``, defaulting to the project root's."""
+    tail = " (default: found from the current directory)"
+    parser.add_argument("--config-dir", type=Path, default=None, help="Config directory" + tail)
+    parser.add_argument("--results", type=Path, default=None, help="Results root" + tail)
+    if logs:
+        parser.add_argument("--logs", type=Path, default=None, help="Log root" + tail)
+
+
+def resolve_roots(args: argparse.Namespace) -> tuple[Path, Layout]:
+    """Return the config directory and :class:`Layout` from the root flags.
+
+    A flag left unset resolves under the project root found by walking up
+    from the current directory, or under the current directory when no
+    ``config/_default.yaml`` is found above it. Paths stay relative when the
+    current directory is the root, so commands run from it print the same
+    paths as before.
+    """
+    root = project_root()
+    base = Path() if root in (None, Path.cwd().resolve()) else root
+    config_dir = args.config_dir if args.config_dir is not None else base / "config"
+    results = args.results if args.results is not None else base / "results"
+    logs = getattr(args, "logs", None)
+    return config_dir, Layout(root=results, logs=logs if logs is not None else base / "logs")
 
 
 class RepArtifact(StrEnum):

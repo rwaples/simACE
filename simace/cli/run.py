@@ -12,10 +12,14 @@ from __future__ import annotations
 
 __all__ = [
     "ScenarioError",
+    "ScenarioRun",
     "check_runnable",
     "cli",
+    "expand_targets",
     "expected_manifest",
     "load_scenario",
+    "rep_ranges",
+    "rep_spec",
     "resolve_all",
     "status_on_disk",
 ]
@@ -29,12 +33,11 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager, nullcontext
-from dataclasses import dataclass
-from pathlib import Path
+from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from simace.cli.layout import Layout, RepArtifact
+from simace.cli.layout import RepArtifact, add_root_args, resolve_roots
 from simace.cli.manifest import Manifest, RepState, manifest_params, rep_status, write_manifest
 from simace.cli.stages import (
     PARAMS_YAML_KEYS,
@@ -49,9 +52,11 @@ from simace.core.publish import TMP_SUFFIX, publish
 
 if TYPE_CHECKING:
     import resource
-    from collections.abc import Iterator
+    from collections.abc import Iterable, Iterator
+    from pathlib import Path
     from typing import TextIO
 
+    from simace.cli.layout import Layout
     from simace.cli.manifest import RepStatus
 
 # OpenMP/BLAS pools are pinned to one thread in every stage, as Snakemake's
@@ -76,7 +81,7 @@ class ScenarioError(Exception):
 
 
 class ScenarioBusy(Exception):
-    """Another ``simace run`` holds the scenario's lock."""
+    """Another ``simace run`` holds the scenario's lock; the message is its pid."""
 
 
 @contextmanager
@@ -220,15 +225,14 @@ class _Launcher:
 
     env: dict[str, str]
     max_rss: int | None = None
-    lock_fd: int | None = None
+    lock_fds: tuple[int, ...] = ()
 
     def run(self, cmd: list[str], log_path: Path) -> StageResult:
         """Run one stage with output to ``log_path``; measure it with ``wait4``."""
         log_path.parent.mkdir(parents=True, exist_ok=True)
         start = time.perf_counter()
         with open(log_path, "w", encoding="utf-8") as log:
-            pass_fds = (self.lock_fd,) if self.lock_fd is not None else ()
-            proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=self.env, pass_fds=pass_fds)
+            proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=self.env, pass_fds=self.lock_fds)
             status, rusage, over = self._wait(proc, log)
         proc.returncode = os.waitstatus_to_exitcode(status)
         rss_bytes = rusage.ru_maxrss if sys.platform == "darwin" else rusage.ru_maxrss * 1024
@@ -283,8 +287,8 @@ class _Console:
             print(f"[{tag}] {message}", flush=True)
 
 
-def _recompute(rep: ResolvedRep, layout: Layout, launcher: _Launcher, console: _Console) -> bool:
-    """Compute every stage of one rep from scratch. Return True when all stages exit 0.
+def _recompute(rep: ResolvedRep, layout: Layout, launcher: _Launcher, console: _Console) -> str | None:
+    """Compute every stage of one rep from scratch. Return None when all stages exit 0, else why not.
 
     Every file a previous run of this rep wrote is removed first, manifest
     first, so a failure partway leaves no output from the old parameters
@@ -307,15 +311,16 @@ def _recompute(rep: ResolvedRep, layout: Layout, launcher: _Launcher, console: _
         result = launcher.run(_command(stage.name, stage.argv(rep, layout)), log_path)
         _append_timing(timing, stage.name, result)
         if result.exit_code != 0:
-            console.say(tag, f"{stage.name} FAILED ({result.failure}); log: {log_path}")
-            return False
+            failure = f"{stage.name} FAILED ({result.failure}); log: {log_path}"
+            console.say(tag, failure)
+            return failure
         console.say(tag, f"{stage.name} finished in {result.wall_s:.1f}s, peak {result.max_rss_mb:.0f} MB")
 
     write_manifest(
         layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST),
         expected_manifest(rep),
     )
-    return True
+    return None
 
 
 def _scenario_stages(reps: list[ResolvedRep], layout: Layout, atlas_format: str) -> list[tuple[str, list[str], Path]]:
@@ -336,19 +341,45 @@ def _child_env(jobs: int) -> dict[str, str]:
     return env
 
 
+def rep_spec(text: str) -> list[int]:
+    """Parse one ``--rep`` value: ``7`` or an inclusive range ``3-10``."""
+    lo, sep, hi = text.partition("-")
+    try:
+        first = int(lo)
+        last = int(hi) if sep else first
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a rep or range: {text!r} (use e.g. 7 or 3-10)") from None
+    if last < first:
+        raise argparse.ArgumentTypeError(f"empty range: {text!r}")
+    return list(range(first, last + 1))
+
+
 def _parse(argv: list[str] | None, prog: str | None) -> argparse.Namespace:
     from simace.core.cli_base import add_version_arg
 
-    parser = argparse.ArgumentParser(prog=prog, description="Run every replicate of a scenario, then its plots")
+    parser = argparse.ArgumentParser(
+        prog=prog, description="Run every replicate of each scenario or folder, then their plots"
+    )
     add_version_arg(parser, "simace")
-    parser.add_argument("scenario", help="Scenario name from config/{folder}.yaml")
     parser.add_argument(
-        "--rep", type=int, nargs="+", default=None, help="Replicates to compute (default: 1..replicates)"
+        "targets",
+        nargs="+",
+        metavar="TARGET",
+        help="A scenario name, or a folder name for every scenario in config/{folder}.yaml",
+    )
+    parser.add_argument(
+        "--rep",
+        type=rep_spec,
+        nargs="+",
+        default=None,
+        metavar="REP",
+        help="Replicates to compute, as numbers or ranges like 3-10 (default: all; one scenario only)",
     )
     parser.add_argument("--jobs", "-j", type=int, default=1, help="Reps computed concurrently (default: 1)")
     parser.add_argument("--force", action="store_true", help="Recompute requested reps even when complete or stale")
     parser.add_argument("--dry-run", "-n", action="store_true", help="Print what would run; write nothing")
     parser.add_argument("--fail-fast", action="store_true", help="Cancel pending reps after the first failure")
+    parser.add_argument("--no-plots", action="store_true", help="Skip the scenario plots and atlas")
     parser.add_argument(
         "--max-memory",
         type=parse_size,
@@ -359,95 +390,178 @@ def _parse(argv: list[str] | None, prog: str | None) -> argparse.Namespace:
     parser.add_argument(
         "--format", choices=("html", "pdf"), default="html", help="Scenario atlas format (default: html)"
     )
-    parser.add_argument("--config-dir", type=Path, default=Path("config"), help="Config directory (default: config)")
-    parser.add_argument("--results", type=Path, default=Path("results"), help="Results root (default: results)")
-    parser.add_argument("--logs", type=Path, default=Path("logs"), help="Log root (default: logs)")
+    add_root_args(parser, logs=True)
     args = parser.parse_args(argv)
     if args.jobs < 1:
         parser.error("--jobs must be at least 1")
+    if args.rep is not None:
+        args.rep = [r for spec in args.rep for r in spec]
     return args
+
+
+@dataclass(frozen=True)
+class ScenarioRun:
+    """One scenario of a run: every rep it has, and the reps this invocation asked for."""
+
+    scenario: str
+    folder: str
+    all_reps: list[ResolvedRep]
+    requested: list[ResolvedRep]
+
+
+def expand_targets(targets: list[str], scenarios: dict[str, dict[str, Any]]) -> list[str]:
+    """Return the scenario names ``targets`` name, in order, once each.
+
+    A target is a scenario name first, else a folder name (every runnable
+    scenario whose ``folder`` it is; gene-drop scenarios are left out).
+
+    Raises:
+        ScenarioError: a target is neither a scenario nor a folder, or names
+            a gene-drop scenario directly.
+    """
+    names: list[str] = []
+    for target in targets:
+        if target in scenarios:
+            check_runnable(target, scenarios[target])
+            names.append(target)
+            continue
+        in_folder = [name for name, params in scenarios.items() if params["folder"] == target]
+        if not in_folder:
+            known = "\n  ".join(sorted(scenarios))
+            folders = ", ".join(sorted({params["folder"] for params in scenarios.values()}))
+            raise ScenarioError(f"unknown target {target!r}; folders: {folders}\nscenarios:\n  {known}")
+        names += [name for name in in_folder if _runnable(name, scenarios[name])]
+    return list(dict.fromkeys(names))
+
+
+def _runnable(name: str, params: dict[str, Any]) -> bool:
+    try:
+        check_runnable(name, params)
+    except ScenarioError:
+        return False
+    return True
+
+
+def _plan(name: str, params: dict[str, Any], reps: list[int] | None) -> ScenarioRun:
+    n_reps = int(params["replicates"])
+    if reps is not None:
+        bad = sorted({r for r in reps if not 1 <= r <= n_reps} | {r for r in reps if reps.count(r) > 1})
+        if bad:
+            raise ScenarioError(f"--rep values must be distinct and in 1..{n_reps}; got {bad}")
+    all_reps = [ResolvedRep(params["folder"], name, r, params) for r in range(1, n_reps + 1)]
+    return ScenarioRun(name, params["folder"], all_reps, all_reps if reps is None else [all_reps[r - 1] for r in reps])
 
 
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line entry point for ``simace run``."""
     args = _parse(argv, prog)
+    config_dir, layout = resolve_roots(args)
     try:
-        params = load_scenario(args.config_dir, args.scenario)
+        scenarios = resolve_all(config_dir)
+        names = expand_targets(args.targets, scenarios)
+        if args.rep is not None and len(names) != 1:
+            raise ScenarioError(f"--rep needs exactly one scenario; the targets name {len(names)}")
+        runs = [_plan(name, scenarios[name], args.rep) for name in names]
     except ScenarioError as exc:
         print(f"simace run: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
+    if not runs:
+        print(f"simace run: nothing to run; every scenario in {args.targets} uses gene drop", file=sys.stderr)
+        raise SystemExit(2)
 
-    layout = Layout(root=args.results, logs=args.logs)
-    folder, n_reps = params["folder"], int(params["replicates"])
-    if args.rep is not None:
-        bad = sorted({r for r in args.rep if not 1 <= r <= n_reps} | {r for r in args.rep if args.rep.count(r) > 1})
-        if bad:
-            print(f"simace run: --rep values must be distinct and in 1..{n_reps}; got {bad}", file=sys.stderr)
-            raise SystemExit(2)
-    all_reps = [ResolvedRep(folder, args.scenario, r, params) for r in range(1, n_reps + 1)]
-    requested = all_reps if args.rep is None else [all_reps[r - 1] for r in args.rep]
-
-    lock_path = layout.scenario_lock(folder, args.scenario)
-    lock_context = nullcontext(None) if args.dry_run else _scenario_lock(lock_path)
     try:
-        with lock_context as lock_fd:
-            _run_reps(args, layout, all_reps, requested, lock_fd)
+        with ExitStack() as locks:
+            lock_fds: tuple[int, ...] = ()
+            if not args.dry_run:
+                lock_fds = tuple(_lock_scenario(locks, run, layout) for run in runs)
+            _run_reps(args, layout, runs, lock_fds)
     except ScenarioBusy as exc:
-        print(
-            f"simace run: another simace run (pid {exc}) is running {args.scenario}; lock: {lock_path}",
-            file=sys.stderr,
-        )
+        print(f"simace run: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
 
-def _run_reps(
-    args: argparse.Namespace,
-    layout: Layout,
-    all_reps: list[ResolvedRep],
-    requested: list[ResolvedRep],
-    lock_fd: int | None,
-) -> None:
-    console = _Console()
-    to_compute: list[ResolvedRep] = []
-    refused: list[int] = []
-    for rep in requested:
+def _lock_scenario(locks: ExitStack, run: ScenarioRun, layout: Layout) -> int:
+    lock_path = layout.scenario_lock(run.folder, run.scenario)
+    try:
+        return locks.enter_context(_scenario_lock(lock_path))
+    except ScenarioBusy as exc:
+        raise ScenarioBusy(
+            f"{run.scenario} is locked ({lock_path}) by simace run pid {exc}, or by a stage it started"
+        ) from None
+
+
+@dataclass
+class _Outcome:
+    """What happened to one scenario's requested reps."""
+
+    to_compute: list[ResolvedRep] = field(default_factory=list)
+    skipped: int = 0
+    refused: dict[int, str] = field(default_factory=dict)
+    failed: dict[int, str] = field(default_factory=dict)
+
+
+def _classify(run: ScenarioRun, layout: Layout, console: _Console, *, force: bool) -> _Outcome:
+    outcome = _Outcome()
+    for rep in run.requested:
         status = status_on_disk(rep, layout)
-        tag = f"{args.scenario}/rep{rep.rep}"
-        if args.force or status.state is RepState.ABSENT:
-            to_compute.append(rep)
+        tag = f"{run.scenario}/rep{rep.rep}"
+        if force or status.state is RepState.ABSENT:
+            outcome.to_compute.append(rep)
         elif status.state is RepState.INCOMPLETE:
             console.say(tag, f"recompute: {', '.join(status.reasons)} missing")
-            to_compute.append(rep)
+            outcome.to_compute.append(rep)
         elif status.state is RepState.COMPLETE:
             console.say(tag, "skip (run.yaml matches)")
+            outcome.skipped += 1
         else:
-            console.say(tag, f"refused: run.yaml differs in {', '.join(status.reasons)}; --force recomputes it")
-            refused.append(rep.rep)
+            outcome.refused[rep.rep] = f"run.yaml differs in {status.describe()}"
+            console.say(tag, f"refused: {outcome.refused[rep.rep]}; --force recomputes it")
+    return outcome
+
+
+def _run_reps(args: argparse.Namespace, layout: Layout, runs: list[ScenarioRun], lock_fds: tuple[int, ...]) -> None:
+    console = _Console()
+    outcomes = {run.scenario: _classify(run, layout, console, force=args.force) for run in runs}
+    refused = any(outcome.refused for outcome in outcomes.values())
 
     if args.dry_run:
-        selected = {rep.rep for rep in requested}
-        other_reps_complete = all(
-            status_on_disk(rep, layout).state is RepState.COMPLETE for rep in all_reps if rep.rep not in selected
-        )
-        _print_plan(to_compute, all_reps, layout, args.format, include_plots=not refused and other_reps_complete)
+        for run in runs:
+            outcome = outcomes[run.scenario]
+            selected = {rep.rep for rep in run.requested}
+            others_complete = all(
+                status_on_disk(rep, layout).state is RepState.COMPLETE
+                for rep in run.all_reps
+                if rep.rep not in selected
+            )
+            plots = not args.no_plots and not outcome.refused and others_complete
+            _print_plan(outcome.to_compute, run.all_reps, layout, args.format, include_plots=plots)
         raise SystemExit(1 if refused else 0)
 
     failed = _compute(
-        to_compute,
+        [rep for run in runs for rep in outcomes[run.scenario].to_compute],
         layout,
-        _Launcher(_child_env(args.jobs), args.max_memory, lock_fd),
+        _Launcher(_child_env(args.jobs), args.max_memory, lock_fds),
         console,
         jobs=args.jobs,
         fail_fast=args.fail_fast,
     )
-    if refused or failed:
-        raise SystemExit(1)
+    for (scenario, rep), why in failed.items():
+        outcomes[scenario].failed[rep] = why
+    for run in runs:
+        _summarize(run.scenario, console, outcomes[run.scenario])
+    if len(runs) > 1:
+        console.say("total", f"{len(runs)} scenarios: {_counts(outcomes.values())}")
 
-    incomplete = [rep.rep for rep in all_reps if status_on_disk(rep, layout).state is not RepState.COMPLETE]
-    if incomplete:
-        console.say(args.scenario, f"plots skipped: reps {incomplete} are not complete")
-        return
-    if not _build_plots(all_reps, layout, args.format, _Launcher(_child_env(1), args.max_memory, lock_fd), console):
+    plotted = True
+    if not args.no_plots:
+        launcher = _Launcher(_child_env(1), args.max_memory, lock_fds)
+        for run in runs:
+            incomplete = [rep.rep for rep in run.all_reps if status_on_disk(rep, layout).state is not RepState.COMPLETE]
+            if incomplete:
+                console.say(run.scenario, f"plots skipped: {rep_ranges(incomplete)} not complete")
+            elif not _build_plots(run.all_reps, layout, args.format, launcher, console):
+                plotted = False
+    if refused or failed or not plotted:
         raise SystemExit(1)
 
 
@@ -459,22 +573,54 @@ def _compute(
     *,
     jobs: int,
     fail_fast: bool,
-) -> list[int]:
-    """Recompute ``reps``; return the rep numbers that failed or were cancelled."""
+) -> dict[tuple[str, int], str]:
+    """Recompute ``reps``; return why each rep that failed or was cancelled did not finish, by (scenario, rep)."""
     cancelled = threading.Event()
 
-    def one(rep: ResolvedRep) -> bool:
+    def one(rep: ResolvedRep) -> str | None:
         if cancelled.is_set():
             console.say(f"{rep.scenario}/rep{rep.rep}", "cancelled")
-            return False
-        ok = _recompute(rep, layout, launcher, console)
-        if not ok and fail_fast:
+            return "cancelled by --fail-fast"
+        failure = _recompute(rep, layout, launcher, console)
+        if failure and fail_fast:
             cancelled.set()
-        return ok
+        return failure
 
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         outcomes = list(pool.map(one, reps))
-    return [rep.rep for rep, ok in zip(reps, outcomes, strict=True) if not ok]
+    return {(rep.scenario, rep.rep): failure for rep, failure in zip(reps, outcomes, strict=True) if failure}
+
+
+def _counts(outcomes: Iterable[_Outcome]) -> str:
+    skipped = computed = failed = refused = 0
+    for outcome in outcomes:
+        skipped += outcome.skipped
+        computed += len(outcome.to_compute) - len(outcome.failed)
+        failed += len(outcome.failed)
+        refused += len(outcome.refused)
+    counts = [(skipped, "skipped"), (computed, "computed"), (failed, "failed"), (refused, "refused")]
+    return ", ".join(f"{n} {what}" for n, what in counts if n)
+
+
+def _summarize(scenario: str, console: _Console, outcome: _Outcome) -> None:
+    """Print one line of counts, then one line per rep that failed or was refused."""
+    console.say(scenario, f"summary: {_counts([outcome])}")
+    for rep, why in sorted(outcome.failed.items()):
+        console.say(scenario, f"  rep{rep} failed: {why}")
+    for rep, why in sorted(outcome.refused.items()):
+        console.say(scenario, f"  rep{rep} refused: {why}")
+
+
+def rep_ranges(reps: list[int]) -> str:
+    """Render sorted rep numbers as ``rep2`` or ``reps 1-3, 7``."""
+    runs: list[list[int]] = []
+    for rep in reps:
+        if runs and rep == runs[-1][-1] + 1:
+            runs[-1].append(rep)
+        else:
+            runs.append([rep])
+    text = ", ".join(f"{r[0]}-{r[-1]}" if len(r) > 1 else str(r[0]) for r in runs)
+    return f"rep{text}" if len(reps) == 1 else f"reps {text}"
 
 
 def _build_plots(

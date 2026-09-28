@@ -30,6 +30,7 @@ def config_dir(tmp_path: Path) -> Path:
     cfg = tmp_path / "config"
     cfg.mkdir()
     shutil.copy(REPO_CONFIG / "_default.yaml", cfg / "_default.yaml")
+    (tmp_path / "pyproject.toml").write_text('[project]\nname = "simace"\n')
     scenarios = {
         "tiny": TINY,
         "tiny_wf": {**TINY, "replicates": 1, "pedigree": {"mating_model": "wright_fisher"}},
@@ -78,7 +79,6 @@ def recorded(monkeypatch) -> list[int]:
     def fake_recompute(rep, layout, env, console):
         calls.append(rep.rep)
         _finish(layout, rep)
-        return True
 
     monkeypatch.setattr(run_mod, "_recompute", fake_recompute)
     return calls
@@ -95,11 +95,6 @@ def _finish(layout: Layout, rep: ResolvedRep) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("")
     write_manifest(_manifest(layout, rep), expected_manifest(rep))
-
-
-def test_unknown_scenario_exits_2_listing_known_names(config_dir, roots, capsys) -> None:
-    assert _run(config_dir, roots, "nope") == 2
-    assert "tiny_wf" in capsys.readouterr().err
 
 
 def test_gene_drop_scenario_exits_2(config_dir, roots, capsys) -> None:
@@ -149,7 +144,13 @@ def test_stale_rep_is_refused_naming_the_changed_keys(config_dir, roots, layout,
     old = expected_manifest(stale)
     write_manifest(_manifest(layout, stale), type(old)(**{**old.__dict__, "resolved": {**old.resolved, "N": 999}}))
     assert _run(config_dir, roots, "tiny") == 1
-    assert "differs in N" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "[tiny/rep1] refused: run.yaml differs in N: 999 -> 300; --force recomputes it" in out
+    assert out.endswith(
+        "[tiny] summary: 1 computed, 1 refused\n"
+        "[tiny]   rep1 refused: run.yaml differs in N: 999 -> 300\n"
+        "[tiny] plots skipped: rep1 not complete\n"
+    )
     assert recorded == [2]
     assert no_plots == []
 
@@ -157,9 +158,12 @@ def test_stale_rep_is_refused_naming_the_changed_keys(config_dir, roots, layout,
 def test_second_run_of_a_locked_scenario_refuses(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
     with run_mod._scenario_lock(layout.scenario_lock("t", "tiny")):
         assert _run(config_dir, roots, "tiny") == 1
-        assert f"(pid {os.getpid()}) is running tiny" in capsys.readouterr().err
+        err = capsys.readouterr().err
+        assert f"tiny is locked ({layout.scenario_lock('t', 'tiny')}) by simace run pid {os.getpid()}, or by" in err
         assert _run(config_dir, roots, "tiny", "--dry-run") == 0
         assert _run(config_dir, roots, "tiny_wf") == 0
+        # A folder run takes every lock before starting anything.
+        assert _run(config_dir, roots, "t") == 1
     assert recorded == [1]
     assert _run(config_dir, roots, "tiny") == 0
     assert recorded == [1, 1, 2]
@@ -180,7 +184,7 @@ def test_stage_keeps_scenario_locked_if_orchestrator_is_killed(tmp_path) -> None
         "from pathlib import Path\n"
         "from simace.cli.run import _Launcher, _scenario_lock\n"
         "with _scenario_lock(Path(sys.argv[1])) as fd:\n"
-        "    _Launcher(dict(os.environ), lock_fd=fd).run("
+        "    _Launcher(dict(os.environ), lock_fds=(fd,)).run("
         "[sys.executable, '-c', sys.argv[4], sys.argv[2], sys.argv[3]], Path(sys.argv[5]))\n"
     )
     parent = subprocess.Popen(
@@ -220,11 +224,108 @@ def test_stage_keeps_scenario_locked_if_orchestrator_is_killed(tmp_path) -> None
     pytest.fail("scenario lock was not released after the stage exited")
 
 
-@pytest.mark.parametrize("reps", [["1", "1"], ["0"], ["3"], ["-1"]])
+@pytest.mark.parametrize("reps", [["1", "1"], ["0"], ["3"], ["1-2", "2"]])
 def test_rep_values_must_be_distinct_and_in_range(config_dir, roots, recorded, reps, capsys) -> None:
     assert _run(config_dir, roots, "tiny", "--rep", *reps) == 2
     assert "--rep values must be distinct and in 1..2" in capsys.readouterr().err
     assert recorded == []
+
+
+@pytest.mark.parametrize(("text", "reps"), [("7", [7]), ("3-5", [3, 4, 5]), ("2-2", [2])])
+def test_rep_spec_parses_numbers_and_ranges(text, reps) -> None:
+    assert run_mod.rep_spec(text) == reps
+
+
+@pytest.mark.parametrize("text", ["", "x", "5-3", "-1", "1-"])
+def test_rep_spec_rejects(text) -> None:
+    with pytest.raises(argparse.ArgumentTypeError):
+        run_mod.rep_spec(text)
+
+
+def test_rep_range_selects_those_reps(config_dir, roots, recorded, no_plots) -> None:
+    (config_dir / "t.yaml").write_text(yaml.safe_dump({"many": {**TINY, "replicates": 6}}))
+    assert _run(config_dir, roots, "many", "--rep", "2-3", "6") == 0
+    assert recorded == [2, 3, 6]
+
+
+def test_rep_needs_exactly_one_scenario(config_dir, roots, recorded, capsys) -> None:
+    assert _run(config_dir, roots, "tiny", "tiny_wf", "--rep", "1") == 2
+    assert "--rep needs exactly one scenario; the targets name 2" in capsys.readouterr().err
+    assert recorded == []
+
+
+def test_folder_target_runs_every_runnable_scenario_once(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
+    _finish(layout, _rep(config_dir, 1, "tiny_wf"))
+    assert _run(config_dir, roots, "t", "tiny") == 0  # tiny, named twice, runs once
+    out = capsys.readouterr().out
+    assert recorded == [1, 1, 2, 1]  # broken, tiny x2, tiny_am; tiny_wf skipped; dropped left out
+    assert "[tiny_wf/rep1] skip (run.yaml matches)" in out
+    assert "[total] 4 scenarios: 1 skipped, 4 computed\n" in out
+    assert [rep.scenario for reps in no_plots for rep in reps[:1]] == ["broken", "tiny", "tiny_am", "tiny_wf"]
+
+
+def test_folder_target_with_a_failure_still_plots_the_complete_scenarios(
+    config_dir, roots, monkeypatch, no_plots, capsys
+) -> None:
+    def recompute(rep, layout, env, console):
+        if rep.scenario == "broken":
+            return "simulate FAILED (exit 1)"
+        _finish(layout, rep)
+        return None
+
+    monkeypatch.setattr(run_mod, "_recompute", recompute)
+    assert _run(config_dir, roots, "t") == 1
+    out = capsys.readouterr().out
+    assert "[broken] summary: 1 failed\n[broken]   rep1 failed: simulate FAILED (exit 1)\n" in out
+    assert "[broken] plots skipped: rep1 not complete" in out
+    assert "[total] 4 scenarios: 4 computed, 1 failed\n" in out
+    assert sorted(reps[0].scenario for reps in no_plots) == ["tiny", "tiny_am", "tiny_wf"]
+
+
+def test_unknown_target_lists_folders_and_scenarios(config_dir, roots, capsys) -> None:
+    assert _run(config_dir, roots, "nope") == 2
+    err = capsys.readouterr().err
+    assert "unknown target 'nope'; folders: t" in err
+    assert "tiny_wf" in err
+
+
+def test_no_plots_skips_the_plot_pass(config_dir, roots, recorded, no_plots, capsys) -> None:
+    assert _run(config_dir, roots, "tiny", "--no-plots") == 0
+    assert recorded == [1, 2]
+    assert no_plots == []
+    assert _run(config_dir, roots, "tiny", "--no-plots", "--dry-run") == 0
+    assert " -m simace plot " not in capsys.readouterr().out
+
+
+def test_roots_are_found_by_walking_up_from_cwd(config_dir, tmp_path, monkeypatch, recorded, no_plots) -> None:
+    nested = tmp_path / "results" / "deep" / "er"
+    nested.mkdir(parents=True)
+    monkeypatch.chdir(nested)
+    cli(["tiny", "--rep", "1"])
+    assert recorded == [1]
+    assert (tmp_path / "results" / "t" / "tiny" / "rep1" / "run.yaml").exists()
+
+
+def test_root_search_skips_a_nested_checkout_with_its_own_default_config(config_dir, tmp_path, monkeypatch) -> None:
+    from simace.cli.layout import project_root
+
+    nested = tmp_path / "fitACE" / "config"
+    nested.mkdir(parents=True)
+    (nested / "_default.yaml").write_text("fit: {}\n")
+    (tmp_path / "fitACE" / "pyproject.toml").write_text('[project]\nname = "fitace"\n')
+    monkeypatch.chdir(nested)
+    assert project_root() == tmp_path.resolve()
+
+
+def test_roots_stay_relative_when_cwd_is_the_root(config_dir, tmp_path, monkeypatch) -> None:
+    from simace.cli.layout import resolve_roots
+
+    monkeypatch.chdir(tmp_path)
+    found_config, layout = resolve_roots(argparse.Namespace(config_dir=None, results=None, logs=None))
+    assert (found_config, layout.root, layout.logs) == (Path("config"), Path("results"), Path("logs"))
+    monkeypatch.chdir(tmp_path / "config")
+    found_config, layout = resolve_roots(argparse.Namespace(config_dir=None, results=None, logs=None))
+    assert (found_config, layout.root, layout.logs) == (tmp_path / "config", tmp_path / "results", tmp_path / "logs")
 
 
 def test_keys_no_stage_reads_do_not_make_a_rep_stale(config_dir, layout) -> None:
@@ -248,7 +349,7 @@ def test_a_manifest_copied_from_another_rep_is_stale(config_dir, roots, layout, 
     assert status_on_disk(rep2, layout).state is RepState.STALE
     assert status_on_disk(rep2, layout).reasons == ("rep", "seed")
     assert _run(config_dir, roots, "tiny") == 1
-    assert "rep2] refused: run.yaml differs in rep, seed" in capsys.readouterr().out
+    assert "rep2] refused: run.yaml differs in rep: 1 -> 2, seed: 100 -> 101" in capsys.readouterr().out
     assert recorded == []
 
 
@@ -276,11 +377,23 @@ def test_plots_wait_for_every_rep(config_dir, roots, recorded, no_plots) -> None
     assert no_plots == []
 
 
-def test_fail_fast_cancels_pending_reps(config_dir, roots, monkeypatch, no_plots) -> None:
+def test_fail_fast_cancels_pending_reps(config_dir, roots, monkeypatch, no_plots, capsys) -> None:
     attempted: list[int] = []
-    monkeypatch.setattr(run_mod, "_recompute", lambda rep, *a: attempted.append(rep.rep) and False)
+    monkeypatch.setattr(run_mod, "_recompute", lambda rep, *a: attempted.append(rep.rep) or "analyze FAILED (exit 1)")
     assert _run(config_dir, roots, "tiny", "--fail-fast") == 1
     assert attempted == [1]
+    assert capsys.readouterr().out.endswith(
+        "[tiny] summary: 2 failed\n"
+        "[tiny]   rep1 failed: analyze FAILED (exit 1)\n"
+        "[tiny]   rep2 failed: cancelled by --fail-fast\n"
+        "[tiny] plots skipped: reps 1-2 not complete\n"
+    )
+
+
+def test_summary_counts_skipped_and_computed_reps(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
+    _finish(layout, _rep(config_dir, 1))
+    assert _run(config_dir, roots, "tiny") == 0
+    assert "[tiny] summary: 1 skipped, 1 computed\n" in capsys.readouterr().out
 
 
 def test_blas_is_always_pinned_and_kernels_only_for_concurrent_reps(monkeypatch) -> None:
@@ -405,6 +518,24 @@ def test_show_prints_resolved_params_and_rep_seeds(config_dir, capsys) -> None:
     shown = yaml.safe_load(capsys.readouterr().out)
     assert shown["params"]["N"] == 300
     assert {name: rep["seed"] for name, rep in shown["reps"].items()} == {"rep1": 100, "rep2": 101}
+    assert shown["timing"] == {"from_complete_reps": 0}
+
+
+def test_show_reports_timing_over_complete_reps(config_dir, layout, tmp_path, capsys) -> None:
+    for r, (wall, rss) in enumerate([(10.0, 500), (30.0, 900)], start=1):
+        rep = _rep(config_dir, r)
+        _finish(layout, rep)
+        timing = layout.rep("t", "tiny", r, RepArtifact.TIMING)
+        timing.write_text(
+            f"stage\twall_s\tmax_rss_mb\texit_code\nsimulate\t{wall}\t{rss}\t0\nanalyze\t1.0\t{rss / 2}\t0\n"
+        )
+    show_cli(["tiny", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
+    timing = yaml.safe_load(capsys.readouterr().out)["timing"]
+    assert timing == {
+        "from_complete_reps": 2,
+        "simulate": {"wall_s_median": 20.0, "max_rss_mb": 900, "max_rss_rep": 2},
+        "analyze": {"wall_s_median": 1.0, "max_rss_mb": 450, "max_rss_rep": 2},
+    }
 
 
 def test_show_can_inspect_gene_drop_scenario(config_dir, capsys) -> None:
@@ -418,8 +549,32 @@ def test_ls_reports_each_rep_state(config_dir, layout, tmp_path, capsys) -> None
     _finish(layout, _rep(config_dir, 1))
     ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
     lines = dict(line.split("  ", 1) for line in capsys.readouterr().out.splitlines())
-    assert lines["t/tiny"] == "rep1 complete  rep2 absent"
+    assert lines["t/tiny"] == "2 reps: 1 complete, 1 absent (rep2)"
     assert lines["t/dropped"] == "gene drop (not run by simace run)"
+
+
+def test_ls_groups_reps_by_state_and_reason(config_dir, layout, tmp_path, capsys) -> None:
+    (config_dir / "t.yaml").write_text(yaml.safe_dump({"many": {**TINY, "replicates": 7}}))
+    reps = [_rep(config_dir, r, "many") for r in range(1, 8)]
+    for rep in reps[:5]:
+        _finish(layout, rep)
+    for rep in reps[1:3]:
+        old = expected_manifest(rep)
+        write_manifest(_manifest(layout, rep), type(old)(**{**old.__dict__, "resolved": {**old.resolved, "N": 999}}))
+    layout.rep("t", "many", 5, RepArtifact.TRAIT).unlink()
+    ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
+    line = capsys.readouterr().out.strip()
+    assert line == (
+        "t/many  7 reps: 2 complete, 2 stale (reps 2-3: N: 999 -> 300), "
+        "1 incomplete (rep5: trait.parquet), 2 absent (reps 6-7)"
+    )
+
+
+@pytest.mark.parametrize(
+    ("reps", "text"), [([2], "rep2"), ([1, 2, 3], "reps 1-3"), ([1, 2, 3, 5, 8, 9], "reps 1-3, 5, 8-9")]
+)
+def test_ls_rep_ranges(reps, text) -> None:
+    assert run_mod.rep_ranges(reps) == text
 
 
 def test_ls_flags_reps_built_by_another_version(config_dir, layout, tmp_path, capsys) -> None:
@@ -429,7 +584,35 @@ def test_ls_flags_reps_built_by_another_version(config_dir, layout, tmp_path, ca
     old.write_text(old.read_text().replace(f"simace_version: {simace.__version__}", "simace_version: 2020.1.0"))
     ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
     lines = dict(line.split("  ", 1) for line in capsys.readouterr().out.splitlines())
-    assert lines["t/tiny"] == "rep1 complete  rep2 complete (built by simace 2020.1.0)"
+    assert lines["t/tiny"] == "2 reps: 2 complete (rep2: built by simace 2020.1.0)"
+
+
+def test_ls_flags_reps_built_at_another_commit(config_dir, layout, tmp_path, monkeypatch, capsys) -> None:
+    import simace.cli.inspect as inspect_mod
+    import simace.cli.manifest as manifest_mod
+
+    monkeypatch.setattr(manifest_mod, "source_ref", lambda: "v2026.9-3-gabc123")
+    monkeypatch.setattr(inspect_mod, "source_ref", lambda: "v2026.9-3-gabc123")
+    for r in (1, 2):
+        _finish(layout, _rep(config_dir, r))
+    assert yaml.safe_load(_manifest(layout, _rep(config_dir, 1)).read_text())["source"] == "v2026.9-3-gabc123"
+    monkeypatch.setattr(inspect_mod, "source_ref", lambda: "v2026.9-5-gdef456-dirty")
+    ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
+    lines = dict(line.split("  ", 1) for line in capsys.readouterr().out.splitlines())
+    assert lines["t/tiny"] == "2 reps: 2 complete (reps 1-2: built at v2026.9-3-gabc123)"
+
+
+def test_source_ref_describes_this_checkout() -> None:
+    from simace.cli.manifest import source_ref
+
+    ref = source_ref()
+    assert ref is not None
+    assert (
+        subprocess.run(
+            ["git", "describe", "--tags", "--always", "--dirty"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+        == ref
+    )
 
 
 @pytest.mark.slow

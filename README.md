@@ -59,9 +59,10 @@ cat logs/test/small_test/rep1/simulate.log
 
 ## Running scenarios
 
-`simace run <scenario>` runs every replicate of one scenario through
-simulate, phenotype, censor, ascertain, and analyze, then draws the
-scenario's plots and HTML atlas. Always run from the repo root.
+`simace run <scenario|folder>...` runs every replicate of each named
+scenario, or of every scenario in a folder, through simulate, phenotype,
+censor, ascertain, and analyze, then draws each scenario's plots and HTML
+atlas. Run it from anywhere inside the repo.
 
 ```bash
 # See the exact commands without running anything
@@ -69,6 +70,9 @@ pixi run simace run baseline10K --dry-run
 
 # Run one scenario, three replicates at a time
 pixi run simace run baseline10K --jobs 3
+
+# Run every scenario in config/base.yaml through one pool of six workers
+pixi run simace run base --jobs 6
 
 # Summarize every scenario in a folder and draw the validation atlas
 pixi run simace gather base
@@ -80,7 +84,8 @@ pixi run simace ls base
 A replicate is complete once its `run.yaml` exists. Rerunning a scenario
 skips complete replicates, recomputes interrupted ones from scratch, and
 refuses replicates whose config has changed since they ran (`--force`
-recomputes them). Plots and the atlas are rebuilt on every run.
+recomputes them). Plots and the atlas are rebuilt on every run. A summary
+per scenario names every failed or refused replicate.
 
 Each stage is also a subcommand that takes explicit file paths
 (`pixi run simace simulate --help`). See
@@ -134,7 +139,7 @@ inventory, parquet column schemas, YAML structures, and plot listings.
 | Problem | Solution |
 |---------|----------|
 | `ModuleNotFoundError: No module named 'simace'` | Run commands through `pixi run …` from the repo root |
-| `FileNotFoundError: config/_default.yaml` | Run `simace run` from the simACE repo root directory, or pass `--config-dir` |
+| `FileNotFoundError: config/_default.yaml` | Run `simace run` from inside the simACE repo, or pass `--config-dir` |
 | Simulation killed or frozen (large N) | Lower `--jobs` to reduce parallel memory use, or skip large-N scenarios |
 | `refused: run.yaml differs in ...` | The scenario's config changed after that replicate ran; rerun with `--force` to recompute it |
 

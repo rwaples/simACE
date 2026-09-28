@@ -85,9 +85,10 @@ through its own Snakemake and did not depend on simACE's rules.
   caller already set it. Measured at
   `baseline100K`, a single OpenMP/BLAS thread is as fast as four or five for
   simulate and analyze and about 6% faster for plot.
-- Lost relative to Snakemake: DAG scheduling across scenarios, cluster
-  submission, per-job memory estimates, and per-stage selective rebuilds.
-  Running several scenarios is a shell loop over `simace run`.
+- Lost relative to Snakemake: cluster submission, per-job memory estimates,
+  and per-stage selective rebuilds. `simace show` prints each stage's peak
+  RSS and median wall time from the complete reps so `--jobs` and
+  `--max-memory` can be sized by hand.
 - `--max-memory SIZE` caps each stage process's resident memory. `run`
   polls the child's `VmRSS` in `/proc` every 0.1 s and kills it once it is
   over. Kernel limits were measured and rejected: at `small_test`, a stage's
@@ -95,6 +96,31 @@ through its own Snakemake and did not depend on simACE's rules.
   data segment (`RLIMIT_DATA`) 2 to 4 times, so either limit would kill
   stages that fit. The cap is per stage, not per run, and a spike shorter
   than the poll interval can pass it.
+
+## Amendment (2026-09-28): folder targets, config-aware gather, source ref
+
+Decided after reviewing how the CLI would be used day to day.
+
+- `simace run` takes any number of targets. A target is a scenario name,
+  or else a folder name standing for every runnable scenario whose
+  `folder` it is. All reps of all targets share one `--jobs` pool; every
+  scenario's lock is taken before anything starts; plots are drawn after
+  the pool drains, for each scenario whose reps are all complete. This
+  takes back the cross-scenario scheduling the original decision gave up.
+  `--rep` accepts ranges and needs exactly one scenario. `--no-plots`
+  skips the plot pass.
+- `simace gather` reads the config when the directory exists and skips
+  reps that are stale or incomplete under it, as it already skipped reps
+  without a manifest. "Only `run` reads config" holds for stage
+  subcommands, not for the folder-level tools.
+- `run.yaml` records `source`, the `git describe --tags --always --dirty`
+  of the checkout that built the rep (null for a wheel install). It never
+  makes a rep stale; `simace ls` shows it when it differs from the running
+  checkout, since in an editable install the version alone does not move
+  between `pixi install`s.
+- Every command finds the repository root by walking up from the current
+  directory to `config/_default.yaml`; paths stay relative when the current
+  directory is the root.
 
 ## Verification
 
