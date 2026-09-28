@@ -68,6 +68,14 @@ through its own Snakemake and did not depend on simACE's rules.
   `simace run`; their scripts moved to `scripts/gene_drop/`. The example
   comparison scripts moved to `scripts/examples/`.
 
+### Amendment 2026-09-28: what "complete" covers
+
+- The run manifest also records each output's size and nanosecond mtime.
+  Every output is published by renaming a fresh temporary, so a stage rerun
+  by hand (the documented debugging path) rewrites the file and the replicate
+  becomes incomplete: `run` recomputes it, `gather` skips it, `ls` names the
+  file. A manifest without the block is stale and refused until `--force`.
+
 ## Consequences
 
 - The fitACE compatibility contract is unchanged: `pedigree.parquet`,

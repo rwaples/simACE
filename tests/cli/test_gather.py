@@ -13,7 +13,7 @@ import simace.plotting.plot_validation as plot_validation_mod
 from simace.cli.gather import cli
 from simace.cli.layout import Layout
 from simace.cli.manifest import write_manifest
-from simace.cli.run import expected_manifest, load_scenario
+from simace.cli.run import expected_manifest, load_scenario, rep_outputs
 from simace.cli.stages import REP_OUTPUTS, ResolvedRep
 from tests.analysis.test_gather_cli import _MINIMAL_REPORT
 
@@ -85,7 +85,7 @@ def test_skips_reps_stale_under_the_current_config(tmp_path, plotted, capsys) ->
         manifest = expected_manifest(rep)
         if r == 2:
             manifest = type(manifest)(**{**manifest.__dict__, "resolved": {**manifest.resolved, "N": 999}})
-        write_manifest(layout.rep("fold", "tiny", r, "run.yaml"), manifest)
+        write_manifest(layout.rep("fold", "tiny", r, "run.yaml"), manifest, rep_outputs(rep, layout))
     # A scenario the config no longer lists is kept as long as it finished.
     gone = tmp_path / "results" / "fold" / "gone" / "rep1"
     gone.mkdir(parents=True)

@@ -18,6 +18,7 @@ __all__ = [
     "expand_targets",
     "expected_manifest",
     "load_scenario",
+    "rep_outputs",
     "rep_ranges",
     "rep_spec",
     "resolve_all",
@@ -157,11 +158,13 @@ def expected_manifest(rep: ResolvedRep) -> Manifest:
 
 def status_on_disk(rep: ResolvedRep, layout: Layout) -> RepStatus:
     """Return one rep's state from its ``run.yaml`` and the outputs it declares, under the current parameters."""
-    outputs = [
-        layout.rep(rep.folder, rep.scenario, rep.rep, a) for a in REP_OUTPUTS if a is not RepArtifact.RUN_MANIFEST
-    ]
     manifest = layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST)
-    return rep_status(manifest, expected_manifest(rep), outputs)
+    return rep_status(manifest, expected_manifest(rep), rep_outputs(rep, layout))
+
+
+def rep_outputs(rep: ResolvedRep, layout: Layout) -> list[Path]:
+    """Return every output a complete rep must have, fingerprinted in its ``run.yaml``."""
+    return [layout.rep(rep.folder, rep.scenario, rep.rep, a) for a in REP_OUTPUTS if a is not RepArtifact.RUN_MANIFEST]
 
 
 def _command(stage: str, argv: list[str]) -> list[str]:
@@ -319,6 +322,7 @@ def _recompute(rep: ResolvedRep, layout: Layout, launcher: _Launcher, console: _
     write_manifest(
         layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST),
         expected_manifest(rep),
+        rep_outputs(rep, layout),
     )
     return None
 
@@ -508,7 +512,7 @@ def _classify(run: ScenarioRun, layout: Layout, console: _Console, *, force: boo
         if force or status.state is RepState.ABSENT:
             outcome.to_compute.append(rep)
         elif status.state is RepState.INCOMPLETE:
-            console.say(tag, f"recompute: {', '.join(status.reasons)} missing")
+            console.say(tag, f"recompute: {', '.join(status.reasons)}")
             outcome.to_compute.append(rep)
         elif status.state is RepState.COMPLETE:
             console.say(tag, "skip (run.yaml matches)")

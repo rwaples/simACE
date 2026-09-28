@@ -18,7 +18,7 @@ import simace.cli.run as run_mod
 from simace.cli.inspect import ls_cli, show_cli
 from simace.cli.layout import Layout, RepArtifact
 from simace.cli.manifest import RepState, write_manifest
-from simace.cli.run import cli, expected_manifest, load_scenario, status_on_disk
+from simace.cli.run import cli, expected_manifest, load_scenario, rep_outputs, status_on_disk
 from simace.cli.stages import REP_OUTPUTS, STAGES, ResolvedRep
 
 REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
@@ -93,8 +93,19 @@ def _finish(layout: Layout, rep: ResolvedRep) -> None:
     for artifact in REP_OUTPUTS:
         path = layout.rep(rep.folder, rep.scenario, rep.rep, artifact)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("")
-    write_manifest(_manifest(layout, rep), expected_manifest(rep))
+        if not path.exists():
+            path.write_text("")
+    _write_manifest(layout, rep, expected_manifest(rep))
+
+
+def _write_manifest(layout: Layout, rep: ResolvedRep, manifest) -> None:
+    write_manifest(_manifest(layout, rep), manifest, rep_outputs(rep, layout))
+
+
+def _stale(layout: Layout, rep: ResolvedRep) -> None:
+    """Rewrite ``rep``'s manifest as if it had been computed with ``N: 999``."""
+    old = expected_manifest(rep)
+    _write_manifest(layout, rep, type(old)(**{**old.__dict__, "resolved": {**old.resolved, "N": 999}}))
 
 
 def test_gene_drop_scenario_exits_2(config_dir, roots, capsys) -> None:
@@ -125,8 +136,7 @@ def test_dry_run_subset_skips_plots_until_other_reps_are_complete(config_dir, ro
 def test_dry_run_refusal_skips_plots(config_dir, roots, layout, capsys) -> None:
     rep = _rep(config_dir, 1)
     _finish(layout, rep)
-    old = expected_manifest(rep)
-    write_manifest(_manifest(layout, rep), type(old)(**{**old.__dict__, "resolved": {**old.resolved, "N": 999}}))
+    _stale(layout, rep)
     assert _run(config_dir, roots, "tiny", "--dry-run") == 1
     assert " -m simace plot " not in capsys.readouterr().out
 
@@ -141,8 +151,8 @@ def test_complete_reps_are_skipped_and_plots_rebuilt(config_dir, roots, layout, 
 
 def test_stale_rep_is_refused_naming_the_changed_keys(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
     stale = _rep(config_dir, 1)
-    old = expected_manifest(stale)
-    write_manifest(_manifest(layout, stale), type(old)(**{**old.__dict__, "resolved": {**old.resolved, "N": 999}}))
+    _finish(layout, stale)
+    _stale(layout, stale)
     assert _run(config_dir, roots, "tiny") == 1
     out = capsys.readouterr().out
     assert "[tiny/rep1] refused: run.yaml differs in N: 999 -> 300; --force recomputes it" in out
@@ -358,11 +368,39 @@ def test_a_rep_with_a_missing_output_is_recomputed(config_dir, roots, layout, re
         _finish(layout, _rep(config_dir, r))
     layout.rep("t", "tiny", 2, RepArtifact.TRAIT).unlink()
     assert status_on_disk(_rep(config_dir, 2), layout).state is RepState.INCOMPLETE
-    assert status_on_disk(_rep(config_dir, 2), layout).reasons == ("trait.parquet",)
+    assert status_on_disk(_rep(config_dir, 2), layout).reasons == ("trait.parquet missing",)
     assert _run(config_dir, roots, "tiny") == 0
     assert "rep2] recompute: trait.parquet missing" in capsys.readouterr().out
     assert recorded == [2]
     assert [rep.rep for rep in no_plots[0]] == [1, 2]
+
+
+def test_an_output_rewritten_after_the_manifest_is_recomputed(
+    config_dir, roots, layout, recorded, no_plots, capsys
+) -> None:
+    for r in (1, 2):
+        _finish(layout, _rep(config_dir, r))
+    trait = layout.rep("t", "tiny", 2, RepArtifact.TRAIT)
+    os.utime(trait, ns=(trait.stat().st_atime_ns, trait.stat().st_mtime_ns + 1))
+    layout.rep("t", "tiny", 2, RepArtifact.REPORT).write_text("rewritten by hand\n")
+    assert status_on_disk(_rep(config_dir, 2), layout).reasons == ("trait.parquet changed", "report.yaml changed")
+    assert _run(config_dir, roots, "tiny") == 0
+    assert "rep2] recompute: trait.parquet changed, report.yaml changed" in capsys.readouterr().out
+    assert recorded == [2]
+
+
+def test_a_manifest_without_output_fingerprints_is_refused(
+    config_dir, roots, layout, recorded, no_plots, capsys
+) -> None:
+    rep = _rep(config_dir, 1)
+    _finish(layout, rep)
+    manifest = _manifest(layout, rep)
+    body = yaml.safe_load(manifest.read_text())
+    del body["outputs"]
+    manifest.write_text(yaml.safe_dump(body))
+    assert _run(config_dir, roots, "tiny") == 1
+    assert "rep1] refused: run.yaml differs in outputs: (absent) -> recorded" in capsys.readouterr().out
+    assert recorded == [2]
 
 
 def test_force_recomputes_complete_and_stale_reps(config_dir, roots, layout, recorded, no_plots) -> None:
@@ -524,11 +562,12 @@ def test_show_prints_resolved_params_and_rep_seeds(config_dir, capsys) -> None:
 def test_show_reports_timing_over_complete_reps(config_dir, layout, tmp_path, capsys) -> None:
     for r, (wall, rss) in enumerate([(10.0, 500), (30.0, 900)], start=1):
         rep = _rep(config_dir, r)
-        _finish(layout, rep)
         timing = layout.rep("t", "tiny", r, RepArtifact.TIMING)
+        timing.parent.mkdir(parents=True)
         timing.write_text(
             f"stage\twall_s\tmax_rss_mb\texit_code\nsimulate\t{wall}\t{rss}\t0\nanalyze\t1.0\t{rss / 2}\t0\n"
         )
+        _finish(layout, rep)
     show_cli(["tiny", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
     timing = yaml.safe_load(capsys.readouterr().out)["timing"]
     assert timing == {
@@ -559,14 +598,13 @@ def test_ls_groups_reps_by_state_and_reason(config_dir, layout, tmp_path, capsys
     for rep in reps[:5]:
         _finish(layout, rep)
     for rep in reps[1:3]:
-        old = expected_manifest(rep)
-        write_manifest(_manifest(layout, rep), type(old)(**{**old.__dict__, "resolved": {**old.resolved, "N": 999}}))
+        _stale(layout, rep)
     layout.rep("t", "many", 5, RepArtifact.TRAIT).unlink()
     ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
     line = capsys.readouterr().out.strip()
     assert line == (
         "t/many  7 reps: 2 complete, 2 stale (reps 2-3: N: 999 -> 300), "
-        "1 incomplete (rep5: trait.parquet), 2 absent (reps 6-7)"
+        "1 incomplete (rep5: trait.parquet missing), 2 absent (reps 6-7)"
     )
 
 

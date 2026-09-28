@@ -4,14 +4,26 @@
 deletes it before recomputing. A rep is complete only when its ``run.yaml``
 names this scenario, rep, and seed, records the current values of the config
 keys the rep's stages and ``params.yaml`` read, lists the current stages, and
-every output the rep declares exists. Only keys the current code reads are
-compared. The simace version that built the rep is recorded but never makes
+every output the rep declares exists with the size and mtime the manifest
+recorded (a stage rerun by hand rewrites its output and so makes the rep
+incomplete). Only keys the current code reads are compared. The simace version that built the rep is recorded but never makes
 it stale; ``simace ls`` shows it when it differs from the running version.
 """
 
 from __future__ import annotations
 
-__all__ = ["Manifest", "RepState", "RepStatus", "manifest_params", "rep_status", "source_ref", "write_manifest"]
+__all__ = [
+    "Fingerprint",
+    "Manifest",
+    "RepState",
+    "RepStatus",
+    "changed_outputs",
+    "fingerprints",
+    "manifest_params",
+    "rep_status",
+    "source_ref",
+    "write_manifest",
+]
 
 import subprocess
 from dataclasses import dataclass, field
@@ -40,6 +52,33 @@ def manifest_params(resolved: Mapping[str, Any], keys: Iterable[str]) -> dict[st
     """
     kept = {key: resolved[key] for key in sorted(keys)}
     return yaml.safe_load(yaml.safe_dump(to_native(kept)))
+
+
+#: A file's size and nanosecond mtime, enough to tell an atomically replaced output from the one recorded.
+Fingerprint = dict[str, int]
+
+
+def fingerprints(paths: Iterable[Path]) -> dict[str, Fingerprint]:
+    """Return ``{basename: {"size", "mtime_ns"}}`` for every path; each must exist."""
+    out = {}
+    for path in paths:
+        st = path.stat()
+        out[path.name] = {"size": st.st_size, "mtime_ns": st.st_mtime_ns}
+    return out
+
+
+def changed_outputs(recorded: Mapping[str, Any], paths: Iterable[Path]) -> tuple[str, ...]:
+    """Return the basenames of ``paths`` whose current fingerprint differs from ``recorded`` (absent counts)."""
+    changed = []
+    for path in paths:
+        try:
+            st = path.stat()
+        except FileNotFoundError:
+            changed.append(path.name)
+            continue
+        if recorded.get(path.name) != {"size": st.st_size, "mtime_ns": st.st_mtime_ns}:
+            changed.append(path.name)
+    return tuple(changed)
 
 
 @dataclass(frozen=True)
@@ -118,8 +157,8 @@ def source_ref() -> str | None:
     return done.stdout.strip() or None
 
 
-def write_manifest(path: Path, manifest: Manifest) -> None:
-    """Publish ``run.yaml`` atomically."""
+def write_manifest(path: Path, manifest: Manifest, outputs: Iterable[Path]) -> None:
+    """Publish ``run.yaml`` atomically, recording the fingerprint of every output the rep declares."""
     body = {
         "simace_version": simace.__version__,
         "source": source_ref(),
@@ -128,6 +167,7 @@ def write_manifest(path: Path, manifest: Manifest) -> None:
         "seed": manifest.seed,
         "resolved": manifest.resolved,
         "stages": manifest.stages,
+        "outputs": fingerprints(outputs),
         "finished": datetime.now().isoformat(timespec="seconds"),
     }
     with publish(path) as (tmp,):
@@ -137,9 +177,10 @@ def write_manifest(path: Path, manifest: Manifest) -> None:
 def rep_status(path: Path, expected: Manifest, outputs: Iterable[Path]) -> RepStatus:
     """Compare the ``run.yaml`` at ``path`` and the rep's ``outputs`` with what the rep would be built from now.
 
-    A manifest that disagrees with ``expected`` makes the rep stale, which
-    ``simace run`` refuses without ``--force``. A matching manifest with an
-    output missing makes it incomplete, which ``simace run`` recomputes.
+    A manifest that disagrees with ``expected``, or that records no output
+    fingerprints, makes the rep stale, which ``simace run`` refuses without
+    ``--force``. A matching manifest with an output missing or rewritten
+    since the manifest makes it incomplete, which ``simace run`` recomputes.
     """
     if not path.exists():
         return RepStatus(RepState.ABSENT)
@@ -156,12 +197,18 @@ def rep_status(path: Path, expected: Manifest, outputs: Iterable[Path]) -> RepSt
     )
     if recorded.get("stages") != expected.stages:
         changes["stages"] = (recorded.get("stages", _MISSING), expected.stages)
+    if not isinstance(recorded.get("outputs"), dict):
+        changes["outputs"] = (_MISSING, "recorded")
     built_by, source = recorded.get("simace_version"), recorded.get("source")
     if changes:
         return RepStatus(RepState.STALE, tuple(changes), built_by, changes, source)
+    outputs = list(outputs)
     missing = tuple(output.name for output in outputs if not output.exists())
     if missing:
-        return RepStatus(RepState.INCOMPLETE, missing, built_by, source=source)
+        return RepStatus(RepState.INCOMPLETE, tuple(f"{name} missing" for name in missing), built_by, source=source)
+    changed = changed_outputs(recorded["outputs"], outputs)
+    if changed:
+        return RepStatus(RepState.INCOMPLETE, tuple(f"{name} changed" for name in changed), built_by, source=source)
     return RepStatus(RepState.COMPLETE, simace_version=built_by, source=source)
 
 

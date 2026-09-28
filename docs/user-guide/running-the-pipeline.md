@@ -74,9 +74,10 @@ config. Replicates of scenarios the config has since dropped are kept.
 
 `simace run` writes a replicate's `run.yaml` only after every stage of the
 replicate succeeds. It records the scenario, replicate number, seed, and
-parameters the replicate was computed from. A replicate is complete when its
-`run.yaml` matches the current config and every output file of the
-replicate exists.
+parameters the replicate was computed from, and the size and modification
+time of every output file. A replicate is complete when its `run.yaml`
+matches the current config and every output file of the replicate exists
+as recorded.
 
 When you rerun a scenario, each requested replicate is handled as a whole:
 
@@ -84,7 +85,7 @@ When you rerun a scenario, each requested replicate is handled as a whole:
 |---|---|
 | Complete | Skips the replicate |
 | No `run.yaml`, for example after an interruption | Recomputes the replicate from the first stage |
-| `run.yaml` matches, but an output file is missing (`incomplete`) | Recomputes the replicate from the first stage and names the missing files |
+| `run.yaml` matches, but an output file is missing or was rewritten after `run.yaml` (`incomplete`) | Recomputes the replicate from the first stage and names the files |
 | `run.yaml` differs from the current config, or belongs to another replicate (`stale`) | Refuses and names each differing key with its recorded and current value (`N: 999 -> 300`). `--force` recomputes |
 
 After the replicates, `simace run` prints one summary line per scenario with
@@ -146,6 +147,13 @@ The commands `simace run --dry-run` prints are valid stage invocations, so
 you can copy one and rerun a single stage while debugging. Each stage's log is
 in `logs/{folder}/{scenario}/rep{N}/{stage}.log`, and its wall time and peak
 memory are in `results/{folder}/{scenario}/rep{N}/timing.tsv`.
+
+A stage rerun this way rewrites its output, which no longer matches the size
+and time recorded in the replicate's `run.yaml`. `simace ls` then shows the
+replicate as incomplete (`rep2: trait.parquet changed`), `simace gather`
+leaves it out, and the next `simace run` recomputes it from the first stage.
+To keep a debugging output out of the results, point the stage's output
+flags at another directory.
 
 `simace validate`, `simace stats`, and `simace effective-size` are not part of
 `simace run`. Run `effective-size` by hand on a replicate's

@@ -171,7 +171,7 @@ A single seeded run of a scenario, identified by `rep{N}` (e.g. `rep1`, `rep2`).
 _Avoid_: trial, run, iteration, draw, sample (already taken — see **Ascertainment**).
 
 **Run manifest** (`run.yaml`):
-The per-replicate record `simace run` writes after every stage of that replicate exits 0. It holds the values of the config keys the replicate's stages read, so a later run can tell a **complete** replicate (manifest matches the current config) from a **stale** one (manifest differs) and an absent one (no manifest). Resume works at replicate granularity: a replicate is either skipped whole or recomputed whole (ADR 0020).
+The per-replicate record `simace run` writes after every stage of that replicate exits 0. It holds the values of the config keys the replicate's stages read and the size and mtime of every output, so a later run can tell a **complete** replicate (manifest matches the current config, outputs as recorded) from a **stale** one (manifest differs), an **incomplete** one (an output missing or rewritten since the manifest, for example by a stage rerun by hand), and an absent one (no manifest). Resume works at replicate granularity: a replicate is either skipped whole or recomputed whole (ADR 0020).
 _Avoid_: done file, sentinel, checkpoint.
 
 **Config**:
