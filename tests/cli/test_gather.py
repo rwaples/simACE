@@ -1,4 +1,4 @@
-"""``simace gather <folder>`` summarizes every complete rep report on disk, then plots."""
+"""``simace gather <folder>`` summarizes the configured folder's complete reps (or, with ``--all``, the disk), then plots."""
 
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ def _no_config(tmp_path: Path) -> list[str]:
 
 def test_refuses_a_folder_without_reports(tmp_path, plotted, capsys) -> None:
     with pytest.raises(SystemExit) as exc:
-        cli(["empty", *_no_config(tmp_path)])
+        cli(["empty", "--all", *_no_config(tmp_path)])
     assert exc.value.code == 1
     assert "no complete reps" in capsys.readouterr().err
     assert plotted == []
@@ -51,7 +51,7 @@ def test_gathers_every_finished_rep_with_its_timing_then_plots(tmp_path, plotted
         if (scenario, rep) != ("scB", 2):
             (rep_dir / "run.yaml").write_text("finished: now\n")
 
-    cli(["fold", *_no_config(tmp_path), "--format", "pdf"])
+    cli(["fold", "--all", *_no_config(tmp_path), "--format", "pdf"])
 
     assert "skipping" in capsys.readouterr().err
 
@@ -66,7 +66,8 @@ def test_gathers_every_finished_rep_with_its_timing_then_plots(tmp_path, plotted
     assert kwargs["atlas_names"] == ("atlas.html", "atlas.pdf")
 
 
-def test_skips_reps_stale_under_the_current_config(tmp_path, plotted, capsys) -> None:
+def _tiny_folder(tmp_path: Path) -> tuple[Path, Layout]:
+    """A configured ``fold/tiny`` with rep1 complete and rep2 stale, plus reps and scenarios the config does not list."""
     config = tmp_path / "config"
     config.mkdir()
     shutil.copy(REPO_CONFIG / "_default.yaml", config / "_default.yaml")
@@ -97,15 +98,49 @@ def test_skips_reps_stale_under_the_current_config(tmp_path, plotted, capsys) ->
     backup = tmp_path / "results" / "fold" / "tiny" / "rep_old"
     backup.mkdir()
     (backup / "report.yaml").write_text(yaml.dump(_MINIMAL_REPORT))
+    return config, layout
+
+
+def test_gathers_the_configured_folder_naming_every_other_rep(tmp_path, plotted, capsys) -> None:
+    config, layout = _tiny_folder(tmp_path)
+    (config / "fold.yaml").write_text(
+        yaml.safe_dump({"tiny": yaml.safe_load((config / "fold.yaml").read_text())["tiny"], "never": {"replicates": 1}})
+    )
 
     cli(["fold", "--results", str(tmp_path / "results"), "--config-dir", str(config)])
 
     err = capsys.readouterr().err
     assert f"skipping {layout.rep_dir('fold', 'tiny', 2)} (stale: N: 999 -> 300)" in err
+    assert "fold/tiny: 1 of 2 reps" in err
+    assert f"skipping {layout.rep_dir('fold', 'never', 1)} (absent)" in err
+    assert "fold/never: 0 of 1 reps" in err
+    assert f"skipping {layout.rep_dir('fold', 'tiny', 3)} (beyond replicates: 2; --all includes it)" in err
+    assert f"skipping {tmp_path / 'results' / 'fold' / 'gone'} (not in config/fold.yaml; --all includes it)" in err
+    assert "rep_old" not in err
+    summary = pl.read_csv(tmp_path / "results" / "fold" / "report_summary.tsv", separator="\t")
+    assert summary.select("scenario", "rep").rows() == [("tiny", 1)]
+
+
+def test_all_gathers_every_finished_rep_on_disk(tmp_path, plotted, capsys) -> None:
+    config, layout = _tiny_folder(tmp_path)
+
+    cli(["fold", "--all", "--results", str(tmp_path / "results"), "--config-dir", str(config)])
+
+    err = capsys.readouterr().err
+    assert f"skipping {layout.rep_dir('fold', 'tiny', 2)} (stale: N: 999 -> 300)" in err
     assert f"skipping {layout.rep_dir('fold', 'tiny', 3)} (stale: rep: 2 -> 3, seed: 101 -> 102, N: 999 -> 300)" in err
-    assert f"skipping {backup} (not a rep directory)" in err
+    assert f"skipping {tmp_path / 'results' / 'fold' / 'tiny' / 'rep_old'} (not a rep directory)" in err
     summary = pl.read_csv(tmp_path / "results" / "fold" / "report_summary.tsv", separator="\t")
     assert summary.select("scenario", "rep").rows() == [("gone", 1), ("tiny", 1)]
+
+
+def test_a_folder_the_config_does_not_list_needs_all(tmp_path, plotted, capsys) -> None:
+    config, _ = _tiny_folder(tmp_path)
+    with pytest.raises(SystemExit) as exc:
+        cli(["archive", "--results", str(tmp_path / "results"), "--config-dir", str(config)])
+    assert exc.value.code == 2
+    assert "no configured scenario has folder 'archive'; --all" in capsys.readouterr().err
+    assert plotted == []
 
 
 def test_explicit_missing_config_dir_is_an_error(tmp_path, plotted, capsys) -> None:

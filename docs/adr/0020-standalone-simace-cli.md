@@ -78,6 +78,10 @@ through its own Snakemake and did not depend on simACE's rules.
 - `run --format pdf` and `gather --format pdf` build the PDF atlas as a
   further stage (`atlas-pdf`, its own log and timing row) beside the HTML
   atlas, which is always built (ADR 0010).
+- `gather` summarizes the configured folder: every rep of every runnable
+  scenario in `config/{folder}.yaml`, naming each rep it leaves out and its
+  state, with a per-scenario `n of m reps` line. `--all` gathers by disk
+  instead, for archived folders the config no longer lists.
 
 ## Consequences
 

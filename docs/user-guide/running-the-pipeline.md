@@ -60,15 +60,22 @@ replicate peaked. Size `--jobs` and `--max-memory` from it.
 pixi run simace gather base
 ```
 
-`simace gather` reads every `report.yaml` of a complete replicate under
-`results/base/`, writes `results/base/report_summary.tsv`, and draws the
-validation plots and atlas in `results/base/plots/`. Pass `--format pdf` to
-write the PDF atlas beside the HTML one.
+`simace gather` reads the `report.yaml` of every complete replicate of every
+scenario that `config/base.yaml` lists, writes `results/base/report_summary.tsv`,
+and draws the validation plots and atlas in `results/base/plots/`. Pass
+`--format pdf` to write the PDF atlas beside the HTML one.
 
-A replicate is left out, with a line on stderr saying why, when it has no
-`run.yaml` (it failed or was interrupted) or when the config directory still
-lists its scenario and the replicate is stale or incomplete under the current
-config. Replicates of scenarios the config has since dropped are kept.
+It prints one line per scenario with how many replicates it included
+(`base/baseline10K: 2 of 3 reps`) and one line per replicate it left out,
+with the state: `absent`, `incomplete` with the missing or rewritten files,
+or `stale` with the changed keys. Replicate directories beyond the configured
+`replicates`, and scenario directories the config no longer lists, are named
+and left out.
+
+For a folder the config no longer describes, pass `--all`. It then gathers
+every replicate directory on disk that has a `run.yaml` and a `report.yaml`,
+still checking a replicate against the config when the config lists its
+scenario.
 
 ## Rerun and resume
 

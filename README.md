@@ -74,7 +74,7 @@ pixi run simace run baseline10K --jobs 3
 # Run every scenario in config/base.yaml through one pool of six workers
 pixi run simace run base --jobs 6
 
-# Summarize every scenario in a folder and draw the validation atlas
+# Summarize the folder's configured scenarios and draw the validation atlas
 pixi run simace gather base
 
 # List scenarios and which replicates are complete
