@@ -208,7 +208,7 @@ def rep_status(path: Path, expected: Manifest, outputs: Iterable[Path]) -> RepSt
     if recorded.get("stages") != expected.stages:
         changes["stages"] = (recorded.get("stages", _MISSING), expected.stages)
     if not isinstance(recorded.get("outputs"), dict):
-        changes["outputs"] = (_MISSING, "recorded")
+        changes["outputs"] = (_MISSING, "fingerprints (run.yaml predates them)")
     built_by, source = recorded.get("simace_version"), recorded.get("source")
     if changes:
         return RepStatus(RepState.STALE, tuple(changes), built_by, changes, source)

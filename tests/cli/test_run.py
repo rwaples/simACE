@@ -406,7 +406,9 @@ def test_a_manifest_without_output_fingerprints_is_refused(
     del body["outputs"]
     manifest.write_text(yaml.safe_dump(body))
     assert _run(config_dir, roots, "tiny") == 1
-    assert "rep1] refused: run.yaml differs in outputs: (absent) -> recorded" in capsys.readouterr().out
+    assert "rep1] refused: run.yaml differs in outputs: (absent) -> fingerprints (run.yaml predates them)" in (
+        capsys.readouterr().out
+    )
     assert recorded == [2]
 
 
@@ -695,6 +697,26 @@ def _plotted(layout: Layout, reps: list[ResolvedRep], *outputs: str) -> None:
         {f"rep{rep.rep}": _manifest(layout, rep) for rep in reps},
         [plots / name for name in outputs],
     )
+
+
+def test_a_failed_plot_pass_leaves_no_plots_manifest(config_dir, roots, layout, recorded, monkeypatch, capsys) -> None:
+    reps = [_rep(config_dir, r) for r in (1, 2)]
+    for rep in reps:
+        _finish(layout, rep)
+    _plotted(layout, reps, "atlas.html")
+    failing = run_mod.StageResult(wall_s=0.1, max_rss_mb=1.0, exit_code=1)
+    monkeypatch.setattr(run_mod._Launcher, "run", lambda self, command, log_path: failing)
+    assert _run(config_dir, roots, "tiny") == 1
+    assert capsys.readouterr().out.endswith("[tiny] plots: absent\n")
+    assert not layout.scenario_plots_manifest("t", "tiny").exists()
+
+
+def test_ls_and_show_survive_a_scenario_with_no_replicates(config_dir, tmp_path, capsys) -> None:
+    (config_dir / "t.yaml").write_text(yaml.safe_dump({"parked": {**TINY, "replicates": 0}}))
+    ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
+    assert capsys.readouterr().out.strip() == "t/parked  0 reps: ; plots absent"
+    show_cli(["parked", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
+    assert yaml.safe_load(capsys.readouterr().out)["plots"]["state"] == "absent"
 
 
 def test_plots_are_current_until_a_rep_or_atlas_changes(config_dir, layout) -> None:

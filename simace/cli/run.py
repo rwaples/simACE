@@ -42,6 +42,8 @@ from typing import TYPE_CHECKING, Any
 from simace.cli.layout import RepArtifact, add_root_args, resolve_roots
 from simace.cli.manifest import (
     Manifest,
+    PlotsState,
+    PlotsStatus,
     RepState,
     manifest_params,
     plots_status,
@@ -67,7 +69,7 @@ if TYPE_CHECKING:
     from typing import TextIO
 
     from simace.cli.layout import Layout
-    from simace.cli.manifest import PlotsStatus, RepStatus
+    from simace.cli.manifest import RepStatus
 
 # OpenMP/BLAS pools are pinned to one thread in every stage, as Snakemake's
 # `threads: 1` rules (and `--cores 1`) did. Measured at baseline100K, one thread
@@ -173,6 +175,8 @@ def status_on_disk(rep: ResolvedRep, layout: Layout) -> RepStatus:
 
 def scenario_plots_status(reps: list[ResolvedRep], layout: Layout) -> PlotsStatus:
     """Return whether a scenario's plots and atlas were built from its reps as they stand now."""
+    if not reps:
+        return PlotsStatus(PlotsState.ABSENT)
     folder, scenario = reps[0].folder, reps[0].scenario
     manifests = {f"rep{rep.rep}": layout.rep(folder, scenario, rep.rep, RepArtifact.RUN_MANIFEST) for rep in reps}
     not_complete = [f"rep{rep.rep}" for rep in reps if status_on_disk(rep, layout).state is not RepState.COMPLETE]
@@ -680,6 +684,7 @@ def _build_plots(
     reps: list[ResolvedRep], layout: Layout, atlas_format: str, launcher: _Launcher, console: _Console
 ) -> bool:
     folder, scenario = reps[0].folder, reps[0].scenario
+    layout.scenario_plots_manifest(folder, scenario).unlink(missing_ok=True)
     timing = layout.scenario_plots(folder, scenario) / RepArtifact.TIMING
     _start_timing(timing)
     for stage in _scenario_stages(reps, layout, atlas_format):

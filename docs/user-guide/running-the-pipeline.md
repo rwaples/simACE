@@ -172,6 +172,10 @@ leaves it out, and the next `simace run` recomputes it from the first stage.
 To keep a debugging output out of the results, point the stage's output
 flags at another directory.
 
+The recorded size and modification time also mean a copy of a results tree
+must preserve modification times (`cp -a`, `rsync -a`), or every replicate in
+the copy reads as incomplete and the next `simace run` recomputes it.
+
 `simace validate`, `simace stats`, and `simace effective-size` are not part of
 `simace run`. Run `effective-size` by hand on a replicate's
 `pedigree.parquet`, `trait.parquet`, and `params.yaml`.
