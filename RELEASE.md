@@ -157,8 +157,8 @@ pixi reinstall --manifest-path fitACE/pixi.toml \
   fitace-tetraher fitace-pafgrs fitace-stan fitace-frailty
 ```
 
-(Reinstalling also regenerates the console-script wrappers, e.g. a stale
-`simace-analyze` entry point. pedigree-graph is consumed as its PyPI wheel in
+(Reinstalling also regenerates the console-script wrappers, such as the
+`simace` entry point. pedigree-graph is consumed as its PyPI wheel in
 these envs and keeps its own SemVer — nothing to refresh at a family release;
 its dev env lives in `external/pedigree-graph/pixi.toml`.)
 
@@ -206,7 +206,7 @@ pixi run --manifest-path fitACE/pixi.toml python -c "import simace, fitace, \
   fitace_pafgrs, fitace_stan, fitace_frailty; print(simace.__version__, fitace.__version__)"
 
 # Console-script --version spot checks:
-pixi run simace-simulate --version
+pixi run simace simulate --version
 pixi run --manifest-path fitACE/pixi.toml fitace-observed-binary-stats --version
 pixi run --manifest-path fitACE/pixi.toml fitace-epimight-run --version
 ./fitACE/fitACE_iter_reml/ace_iter_reml/build-fp64/ace_iter_reml --version
