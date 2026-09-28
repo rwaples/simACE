@@ -48,9 +48,10 @@ through its own Snakemake and did not depend on simACE's rules.
   a rep stale: comparing versions would invalidate every rep on any commit.
   `simace ls` flags reps built by another version instead.
 - One `simace run` per scenario at a time. `run` holds an exclusive `flock`
-  on `results/{folder}/{scenario}/.run.lock`, which the kernel releases when
-  the process exits, so a killed run never leaves the scenario locked.
-  Parallelism within a scenario is `--jobs`, not concurrent invocations.
+  on `results/{folder}/{scenario}/.run.lock`. Stage children inherit the lock
+  descriptor, so a killed orchestrator cannot start a second run while its
+  child is still writing. The kernel releases the lock when the last child
+  exits. Parallelism within a scenario is `--jobs`, not concurrent invocations.
 - Every stage runs as its own `python -m simace <stage>` subprocess, and
   its outputs are published atomically (a unique `<path>.<random>.tmp`
   per writer, then `os.replace`).

@@ -91,7 +91,8 @@ Only one `simace run` of a scenario can run at a time. The run holds a lock on
 `results/{folder}/{scenario}/.run.lock`, and a second run of the same scenario
 exits with the first run's pid. To compute several replicates at once, pass
 `--jobs` to one run instead of starting several. Runs of different scenarios
-do not block each other, and `--dry-run` does not take the lock.
+do not block each other, and `--dry-run` does not take the lock. If the run
+process is killed, the lock stays held until its active stage processes exit.
 
 To see a scenario's resolved parameters, per-replicate seeds, and paths, run
 `simace show baseline10K`.

@@ -41,7 +41,7 @@ def show_cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     _roots(parser)
     args = parser.parse_args(argv)
     try:
-        params = load_scenario(args.config_dir, args.scenario)
+        params = load_scenario(args.config_dir, args.scenario, require_runnable=False)
     except ScenarioError as exc:
         print(f"simace show: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc

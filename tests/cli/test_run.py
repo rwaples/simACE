@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -115,6 +116,26 @@ def test_dry_run_prints_every_stage_and_writes_nothing(config_dir, roots, tmp_pa
     assert not (tmp_path / "logs").exists()
 
 
+def test_dry_run_subset_skips_plots_until_other_reps_are_complete(config_dir, roots, layout, capsys) -> None:
+    assert _run(config_dir, roots, "tiny", "--rep", "1", "--dry-run") == 0
+    assert " -m simace plot " not in capsys.readouterr().out
+
+    _finish(layout, _rep(config_dir, 2))
+    assert _run(config_dir, roots, "tiny", "--rep", "1", "--dry-run") == 0
+    out = capsys.readouterr().out
+    assert " -m simace plot " in out
+    assert " -m simace atlas " in out
+
+
+def test_dry_run_refusal_skips_plots(config_dir, roots, layout, capsys) -> None:
+    rep = _rep(config_dir, 1)
+    _finish(layout, rep)
+    old = expected_manifest(rep)
+    write_manifest(_manifest(layout, rep), type(old)(**{**old.__dict__, "resolved": {**old.resolved, "N": 999}}))
+    assert _run(config_dir, roots, "tiny", "--dry-run") == 1
+    assert " -m simace plot " not in capsys.readouterr().out
+
+
 def test_complete_reps_are_skipped_and_plots_rebuilt(config_dir, roots, layout, recorded, no_plots) -> None:
     for r in (1, 2):
         _finish(layout, _rep(config_dir, r))
@@ -142,6 +163,61 @@ def test_second_run_of_a_locked_scenario_refuses(config_dir, roots, layout, reco
     assert recorded == [1]
     assert _run(config_dir, roots, "tiny") == 0
     assert recorded == [1, 1, 2]
+
+
+def test_stage_keeps_scenario_locked_if_orchestrator_is_killed(tmp_path) -> None:
+    lock = tmp_path / "scenario" / ".run.lock"
+    ready, release = tmp_path / "ready", tmp_path / "release"
+    child_code = (
+        "import pathlib, sys, time\n"
+        "pathlib.Path(sys.argv[1]).write_text('ready')\n"
+        "deadline = time.monotonic() + 10\n"
+        "while not pathlib.Path(sys.argv[2]).exists() and time.monotonic() < deadline:\n"
+        "    time.sleep(0.01)\n"
+    )
+    parent_code = (
+        "import os, sys\n"
+        "from pathlib import Path\n"
+        "from simace.cli.run import _Launcher, _scenario_lock\n"
+        "with _scenario_lock(Path(sys.argv[1])) as fd:\n"
+        "    _Launcher(dict(os.environ), lock_fd=fd).run("
+        "[sys.executable, '-c', sys.argv[4], sys.argv[2], sys.argv[3]], Path(sys.argv[5]))\n"
+    )
+    parent = subprocess.Popen(
+        [
+            sys.executable,
+            "-c",
+            parent_code,
+            str(lock),
+            str(ready),
+            str(release),
+            child_code,
+            str(tmp_path / "stage.log"),
+        ]
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while not ready.exists() and parent.poll() is None and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert ready.exists(), f"stage did not start; parent exited {parent.poll()}"
+        parent.kill()
+        parent.wait(timeout=5)
+        with pytest.raises(run_mod.ScenarioBusy), run_mod._scenario_lock(lock):
+            pass
+    finally:
+        release.write_text("release")
+        if parent.poll() is None:
+            parent.kill()
+        parent.wait(timeout=5)
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        try:
+            with run_mod._scenario_lock(lock):
+                return
+        except run_mod.ScenarioBusy:
+            time.sleep(0.01)
+    pytest.fail("scenario lock was not released after the stage exited")
 
 
 @pytest.mark.parametrize("reps", [["1", "1"], ["0"], ["3"], ["-1"]])
@@ -329,6 +405,13 @@ def test_show_prints_resolved_params_and_rep_seeds(config_dir, capsys) -> None:
     shown = yaml.safe_load(capsys.readouterr().out)
     assert shown["params"]["N"] == 300
     assert {name: rep["seed"] for name, rep in shown["reps"].items()} == {"rep1": 100, "rep2": 101}
+
+
+def test_show_can_inspect_gene_drop_scenario(config_dir, capsys) -> None:
+    show_cli(["dropped", "--config-dir", str(config_dir)])
+    shown = yaml.safe_load(capsys.readouterr().out)
+    assert shown["params"]["use_gene_drop"] is True
+    assert shown["reps"]["rep1"]["seed"] == 100
 
 
 def test_ls_reports_each_rep_state(config_dir, layout, tmp_path, capsys) -> None:

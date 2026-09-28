@@ -80,11 +80,11 @@ class ScenarioBusy(Exception):
 
 
 @contextmanager
-def _scenario_lock(path: Path) -> Iterator[None]:
+def _scenario_lock(path: Path) -> Iterator[int]:
     """Hold an exclusive ``flock`` on ``path`` for the block, recording our pid in it.
 
-    The kernel drops the lock when the process exits, however it exits, so a
-    killed run never leaves the scenario locked.
+    Stage children inherit the descriptor, so the lock stays held if the
+    orchestrator is killed while a stage is still writing outputs.
 
     Raises:
         ScenarioBusy: another process holds the lock; the message is its pid.
@@ -99,7 +99,7 @@ def _scenario_lock(path: Path) -> Iterator[None]:
         fh.truncate(0)
         fh.write(f"{os.getpid()}\n")
         fh.flush()
-        yield
+        yield fh.fileno()
 
 
 def resolve_all(config_dir: Path) -> dict[str, dict[str, Any]]:
@@ -119,17 +119,19 @@ def check_runnable(name: str, params: dict[str, Any]) -> None:
         )
 
 
-def load_scenario(config_dir: Path, name: str) -> dict[str, Any]:
-    """Return the resolved flat parameters of one runnable scenario.
+def load_scenario(config_dir: Path, name: str, *, require_runnable: bool = True) -> dict[str, Any]:
+    """Return the resolved flat parameters of one scenario.
 
     Raises:
-        ScenarioError: the scenario is unknown, or uses gene drop.
+        ScenarioError: the scenario is unknown, or uses gene drop when
+            ``require_runnable`` is true.
     """
     scenarios = resolve_all(config_dir)
     if name not in scenarios:
         known = "\n  ".join(sorted(scenarios))
         raise ScenarioError(f"unknown scenario {name!r}; known scenarios:\n  {known}")
-    check_runnable(name, scenarios[name])
+    if require_runnable:
+        check_runnable(name, scenarios[name])
     return scenarios[name]
 
 
@@ -218,13 +220,15 @@ class _Launcher:
 
     env: dict[str, str]
     max_rss: int | None = None
+    lock_fd: int | None = None
 
     def run(self, cmd: list[str], log_path: Path) -> StageResult:
         """Run one stage with output to ``log_path``; measure it with ``wait4``."""
         log_path.parent.mkdir(parents=True, exist_ok=True)
         start = time.perf_counter()
         with open(log_path, "w", encoding="utf-8") as log:
-            proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=self.env)
+            pass_fds = (self.lock_fd,) if self.lock_fd is not None else ()
+            proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=self.env, pass_fds=pass_fds)
             status, rusage, over = self._wait(proc, log)
         proc.returncode = os.waitstatus_to_exitcode(status)
         rss_bytes = rusage.ru_maxrss if sys.platform == "darwin" else rusage.ru_maxrss * 1024
@@ -384,9 +388,10 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     requested = all_reps if args.rep is None else [all_reps[r - 1] for r in args.rep]
 
     lock_path = layout.scenario_lock(folder, args.scenario)
+    lock_context = nullcontext(None) if args.dry_run else _scenario_lock(lock_path)
     try:
-        with nullcontext() if args.dry_run else _scenario_lock(lock_path):
-            _run_reps(args, layout, all_reps, requested)
+        with lock_context as lock_fd:
+            _run_reps(args, layout, all_reps, requested, lock_fd)
     except ScenarioBusy as exc:
         print(
             f"simace run: another simace run (pid {exc}) is running {args.scenario}; lock: {lock_path}",
@@ -396,7 +401,11 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
 
 
 def _run_reps(
-    args: argparse.Namespace, layout: Layout, all_reps: list[ResolvedRep], requested: list[ResolvedRep]
+    args: argparse.Namespace,
+    layout: Layout,
+    all_reps: list[ResolvedRep],
+    requested: list[ResolvedRep],
+    lock_fd: int | None,
 ) -> None:
     console = _Console()
     to_compute: list[ResolvedRep] = []
@@ -416,13 +425,17 @@ def _run_reps(
             refused.append(rep.rep)
 
     if args.dry_run:
-        _print_plan(to_compute, all_reps, layout, args.format)
+        selected = {rep.rep for rep in requested}
+        other_reps_complete = all(
+            status_on_disk(rep, layout).state is RepState.COMPLETE for rep in all_reps if rep.rep not in selected
+        )
+        _print_plan(to_compute, all_reps, layout, args.format, include_plots=not refused and other_reps_complete)
         raise SystemExit(1 if refused else 0)
 
     failed = _compute(
         to_compute,
         layout,
-        _Launcher(_child_env(args.jobs), args.max_memory),
+        _Launcher(_child_env(args.jobs), args.max_memory, lock_fd),
         console,
         jobs=args.jobs,
         fail_fast=args.fail_fast,
@@ -434,7 +447,7 @@ def _run_reps(
     if incomplete:
         console.say(args.scenario, f"plots skipped: reps {incomplete} are not complete")
         return
-    if not _build_plots(all_reps, layout, args.format, _Launcher(_child_env(1), args.max_memory), console):
+    if not _build_plots(all_reps, layout, args.format, _Launcher(_child_env(1), args.max_memory, lock_fd), console):
         raise SystemExit(1)
 
 
@@ -481,10 +494,18 @@ def _build_plots(
     return True
 
 
-def _print_plan(to_compute: list[ResolvedRep], all_reps: list[ResolvedRep], layout: Layout, atlas_format: str) -> None:
+def _print_plan(
+    to_compute: list[ResolvedRep],
+    all_reps: list[ResolvedRep],
+    layout: Layout,
+    atlas_format: str,
+    *,
+    include_plots: bool,
+) -> None:
     for rep in to_compute:
         print(f"# rep {rep.rep}: write {layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.PARAMS)}")
         for stage in STAGES:
             print(shlex.join(_command(stage.name, stage.argv(rep, layout))))
-    for name, argv, _ in _scenario_stages(all_reps, layout, atlas_format):
-        print(shlex.join(_command(name, argv)), flush=True)
+    if include_plots:
+        for name, argv, _ in _scenario_stages(all_reps, layout, atlas_format):
+            print(shlex.join(_command(name, argv)), flush=True)
