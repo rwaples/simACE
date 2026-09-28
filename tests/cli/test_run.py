@@ -122,6 +122,12 @@ def test_dry_run_prints_every_stage_and_writes_nothing(config_dir, roots, tmp_pa
     assert not (tmp_path / "logs").exists()
 
 
+def test_dry_run_pdf_builds_the_pdf_atlas_beside_the_html(config_dir, roots, capsys) -> None:
+    assert _run(config_dir, roots, "tiny", "--dry-run", "--format", "pdf") == 0
+    atlases = [line for line in capsys.readouterr().out.splitlines() if " -m simace atlas " in line]
+    assert [line.rsplit("/", 1)[1] for line in atlases] == ["atlas.html", "atlas.pdf"]
+
+
 def test_dry_run_subset_skips_plots_until_other_reps_are_complete(config_dir, roots, layout, capsys) -> None:
     assert _run(config_dir, roots, "tiny", "--rep", "1", "--dry-run") == 0
     assert " -m simace plot " not in capsys.readouterr().out
@@ -658,8 +664,13 @@ def test_end_to_end_run_builds_plots_and_atlas(config_dir, roots, layout) -> Non
     assert _run(config_dir, roots, "tiny_wf") == 0
     plots = layout.scenario_plots("t", "tiny_wf")
     assert (plots / "atlas.html").exists()
+    assert not (plots / "atlas.pdf").exists()
     assert [row.split("\t")[0] for row in (plots / "timing.tsv").read_text().splitlines()[1:]] == ["plot", "atlas"]
-    assert _run(config_dir, roots, "tiny_wf") == 0
+    assert _run(config_dir, roots, "tiny_wf", "--format", "pdf") == 0
+    assert (plots / "atlas.pdf").exists()
+    rows = [row.split("\t")[0] for row in (plots / "timing.tsv").read_text().splitlines()[1:]]
+    assert rows == ["plot", "atlas", "atlas-pdf"]
+    assert layout.scenario_log("t", "tiny_wf", "atlas-pdf").exists()
 
 
 def test_resolving_config_does_not_import_the_stage_stack():

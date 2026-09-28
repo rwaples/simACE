@@ -32,7 +32,12 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     )
     add_logging_args(parser)
     parser.add_argument("folder", help="Folder under the results root")
-    parser.add_argument("--format", choices=("html", "pdf"), default="html", help="Atlas format (default: html)")
+    parser.add_argument(
+        "--format",
+        choices=("html", "pdf"),
+        default="html",
+        help="pdf also writes plots/atlas.pdf beside the always-built atlas.html (default: html)",
+    )
     parser.add_argument(
         "--plot-format", choices=("png", "pdf"), default="png", help="Validation plot format (default: png)"
     )
@@ -65,12 +70,13 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         raise SystemExit(1)
 
     from simace.analysis.gather import main as gather_reports
+    from simace.plotting.plot_validation import atlas_names
     from simace.plotting.plot_validation import main as plot_validation
 
     summary = layout.folder_summary(args.folder)
     gather_reports(reports, str(summary))
     plot_validation(
-        str(summary), layout.folder_plots(args.folder), plot_ext=args.plot_format, atlas_name=f"atlas.{args.format}"
+        str(summary), layout.folder_plots(args.folder), plot_ext=args.plot_format, atlas_names=atlas_names(args.format)
     )
 
 

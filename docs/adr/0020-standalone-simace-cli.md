@@ -75,6 +75,9 @@ through its own Snakemake and did not depend on simACE's rules.
   by hand (the documented debugging path) rewrites the file and the replicate
   becomes incomplete: `run` recomputes it, `gather` skips it, `ls` names the
   file. A manifest without the block is stale and refused until `--force`.
+- `run --format pdf` and `gather --format pdf` build the PDF atlas as a
+  further stage (`atlas-pdf`, its own log and timing row) beside the HTML
+  atlas, which is always built (ADR 0010).
 
 ## Consequences
 

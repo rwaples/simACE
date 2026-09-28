@@ -31,7 +31,7 @@ reads the files the previous one wrote.
 | `--fail-fast` | Stop starting new replicates after the first failure |
 | `--no-plots` | Skip the plots and atlas |
 | `--max-memory 8G` | Kill any stage process whose resident memory goes over 8 GiB, which fails its replicate. The cap is per stage, so `--jobs 3` can use up to three times it |
-| `--format pdf` | Write `plots/atlas.pdf` instead of `plots/atlas.html` |
+| `--format pdf` | Also write `plots/atlas.pdf`; `plots/atlas.html` is always built |
 | `--results DIR`, `--logs DIR`, `--config-dir DIR` | Use other roots than `results/`, `logs/`, `config/` |
 
 ## Preview the run
@@ -62,8 +62,8 @@ pixi run simace gather base
 
 `simace gather` reads every `report.yaml` of a complete replicate under
 `results/base/`, writes `results/base/report_summary.tsv`, and draws the
-validation plots and atlas in `results/base/plots/`. Pass `--format pdf` for
-the PDF atlas.
+validation plots and atlas in `results/base/plots/`. Pass `--format pdf` to
+write the PDF atlas beside the HTML one.
 
 A replicate is left out, with a line on stderr saying why, when it has no
 `run.yaml` (it failed or was interrupted) or when the config directory still

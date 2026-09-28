@@ -63,7 +63,7 @@ def test_gathers_every_finished_rep_with_its_timing_then_plots(tmp_path, plotted
     ]
     (args, kwargs) = plotted[0]
     assert args[1] == tmp_path / "fold" / "plots"
-    assert kwargs["atlas_name"] == "atlas.pdf"
+    assert kwargs["atlas_names"] == ("atlas.html", "atlas.pdf")
 
 
 def test_skips_reps_stale_under_the_current_config(tmp_path, plotted, capsys) -> None:

@@ -327,12 +327,39 @@ def _recompute(rep: ResolvedRep, layout: Layout, launcher: _Launcher, console: _
     return None
 
 
-def _scenario_stages(reps: list[ResolvedRep], layout: Layout, atlas_format: str) -> list[tuple[str, list[str], Path]]:
+@dataclass(frozen=True)
+class _ScenarioStage:
+    """One scenario-level stage: its label in ``timing.tsv`` and the log name, the subcommand, and its argv."""
+
+    label: str
+    subcommand: str
+    argv: list[str]
+    log_path: Path
+
+    @property
+    def command(self) -> list[str]:
+        return _command(self.subcommand, self.argv)
+
+
+def _scenario_stages(reps: list[ResolvedRep], layout: Layout, atlas_format: str) -> list[_ScenarioStage]:
+    """The plot and HTML atlas stages, plus the PDF atlas when asked for (ADR 0010: HTML is always built)."""
     folder, scenario = reps[0].folder, reps[0].scenario
-    return [
-        ("plot", plot_argv(reps, layout), layout.scenario_log(folder, scenario, "plot")),
-        ("atlas", atlas_argv(reps, layout, atlas_format), layout.scenario_log(folder, scenario, "atlas")),
+    stages = [
+        _ScenarioStage("plot", "plot", plot_argv(reps, layout), layout.scenario_log(folder, scenario, "plot")),
+        _ScenarioStage(
+            "atlas", "atlas", atlas_argv(reps, layout, "html"), layout.scenario_log(folder, scenario, "atlas")
+        ),
     ]
+    if atlas_format == "pdf":
+        stages.append(
+            _ScenarioStage(
+                "atlas-pdf",
+                "atlas",
+                atlas_argv(reps, layout, "pdf"),
+                layout.scenario_log(folder, scenario, "atlas-pdf"),
+            )
+        )
+    return stages
 
 
 def _child_env(jobs: int) -> dict[str, str]:
@@ -392,7 +419,10 @@ def _parse(argv: list[str] | None, prog: str | None) -> argparse.Namespace:
         help="Kill any stage whose resident memory goes over SIZE (e.g. 8G); applies to each stage, not the whole run",
     )
     parser.add_argument(
-        "--format", choices=("html", "pdf"), default="html", help="Scenario atlas format (default: html)"
+        "--format",
+        choices=("html", "pdf"),
+        default="html",
+        help="pdf also writes plots/atlas.pdf beside the always-built atlas.html (default: html)",
     )
     add_root_args(parser, logs=True)
     args = parser.parse_args(argv)
@@ -633,14 +663,14 @@ def _build_plots(
     folder, scenario = reps[0].folder, reps[0].scenario
     timing = layout.scenario_plots(folder, scenario) / RepArtifact.TIMING
     _start_timing(timing)
-    for name, argv, log_path in _scenario_stages(reps, layout, atlas_format):
-        console.say(scenario, f"{name} started")
-        result = launcher.run(_command(name, argv), log_path)
-        _append_timing(timing, name, result)
+    for stage in _scenario_stages(reps, layout, atlas_format):
+        console.say(scenario, f"{stage.label} started")
+        result = launcher.run(stage.command, stage.log_path)
+        _append_timing(timing, stage.label, result)
         if result.exit_code != 0:
-            console.say(scenario, f"{name} FAILED ({result.failure}); log: {log_path}")
+            console.say(scenario, f"{stage.label} FAILED ({result.failure}); log: {stage.log_path}")
             return False
-        console.say(scenario, f"{name} finished in {result.wall_s:.1f}s")
+        console.say(scenario, f"{stage.label} finished in {result.wall_s:.1f}s")
     return True
 
 
@@ -657,5 +687,5 @@ def _print_plan(
         for stage in STAGES:
             print(shlex.join(_command(stage.name, stage.argv(rep, layout))))
     if include_plots:
-        for name, argv, _ in _scenario_stages(all_reps, layout, atlas_format):
-            print(shlex.join(_command(name, argv)), flush=True)
+        for stage in _scenario_stages(all_reps, layout, atlas_format):
+            print(shlex.join(stage.command), flush=True)
