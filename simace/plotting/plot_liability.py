@@ -90,6 +90,8 @@ def _plot_joint_grid(
 
         x, y = df_samples[xcol].to_numpy(), df_samples[ycol].to_numpy()
 
+        # A filled step has the same bins and pixels as adjacent bars here,
+        # with one artist instead of a rectangle for every bin.
         if color_by_affected:
             bins_x = np.linspace(x.min(), x.max(), 51)
             bins_y = np.linspace(y.min(), y.max(), 51)
@@ -108,11 +110,16 @@ def _plot_joint_grid(
                     rasterized=True,
                     label=label,
                 )
-            ax_marg_x.hist(x[~affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.5, color=COLOR_UNAFFECTED)
-            ax_marg_x.hist(x[affected], bins=bins_x.tolist(), edgecolor="none", alpha=0.7, color=COLOR_AFFECTED)
+            ax_marg_x.hist(
+                x[~affected], bins=bins_x, histtype="stepfilled", edgecolor="none", alpha=0.5, color=COLOR_UNAFFECTED
+            )
+            ax_marg_x.hist(
+                x[affected], bins=bins_x, histtype="stepfilled", edgecolor="none", alpha=0.7, color=COLOR_AFFECTED
+            )
             ax_marg_y.hist(
                 y[~affected],
-                bins=bins_y.tolist(),
+                bins=bins_y,
+                histtype="stepfilled",
                 orientation="horizontal",
                 edgecolor="none",
                 alpha=0.5,
@@ -120,7 +127,8 @@ def _plot_joint_grid(
             )
             ax_marg_y.hist(
                 y[affected],
-                bins=bins_y.tolist(),
+                bins=bins_y,
+                histtype="stepfilled",
                 orientation="horizontal",
                 edgecolor="none",
                 alpha=0.7,
@@ -128,8 +136,8 @@ def _plot_joint_grid(
             )
         else:
             ax_joint.plot(x, y, "o", ms=2, mew=0, alpha=0.3, rasterized=True)
-            ax_marg_x.hist(x, bins=50, edgecolor="none", alpha=0.7)
-            ax_marg_y.hist(y, bins=50, orientation="horizontal", edgecolor="none", alpha=0.7)
+            ax_marg_x.hist(x, bins=50, histtype="stepfilled", edgecolor="none", alpha=0.7)
+            ax_marg_y.hist(y, bins=50, histtype="stepfilled", orientation="horizontal", edgecolor="none", alpha=0.7)
 
         from simace.core.numerics import fast_pearsonr
 
