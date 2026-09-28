@@ -63,7 +63,10 @@ def generation_map(value: str) -> dict[int, Any]:
     JSON object keys are always strings; the domain functions expect the
     integer generation keys that config loading produces.
     """
-    return {int(k): v for k, v in json.loads(value).items()}
+    parsed = json.loads(value)
+    if not isinstance(parsed, dict):
+        raise ValueError(f"expected a JSON object keyed by generation, got {value!r}")
+    return {int(k): v for k, v in parsed.items()}
 
 
 def float_or_generation_map(value: str) -> float | dict[int, Any]:
