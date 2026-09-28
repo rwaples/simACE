@@ -2,7 +2,8 @@
 
 Date: 2026-09-25
 
-Status: accepted
+Status: accepted. ADR 0021 records a pending replacement for the replicate
+Parquet output contract described here.
 
 ## Context
 

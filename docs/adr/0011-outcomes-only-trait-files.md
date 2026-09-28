@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted. Amended 2026-06-10 (see Amendment below).
+Accepted for the current output format. Amended 2026-06-10 (see Amendment
+below). ADR 0021 records the accepted replacement for canonical finished
+outputs; its implementation is pending.
 
 ## Context
 
