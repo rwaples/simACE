@@ -174,6 +174,10 @@ _Avoid_: trial, run, iteration, draw, sample (already taken — see **Ascertainm
 The per-replicate record `simace run` writes after every stage of that replicate exits 0. It holds the values of the config keys the replicate's stages read and the size and mtime of every output, so a later run can tell a **complete** replicate (manifest matches the current config, outputs as recorded) from a **stale** one (manifest differs), an **incomplete** one (an output missing or rewritten since the manifest, for example by a stage rerun by hand), and an absent one (no manifest). Resume works at replicate granularity: a replicate is either skipped whole or recomputed whole (ADR 0020).
 _Avoid_: done file, sentinel, checkpoint.
 
+**Plot manifest** (`plots/plots.yaml`):
+The per-scenario record `simace run` writes after the scenario's plot and atlas stages exit 0. It fingerprints the `run.yaml` of every replicate the plots were built from and the atlas files written, so `simace ls` and the run summary can report the plots as **current**, **stale** (a replicate recomputed since, not plotted, or no longer complete; an atlas file changed or gone), or **absent**. Replicate completeness and plot currency are separate states: `--no-plots` or a partial `--rep` run leaves complete replicates with stale or absent plots.
+_Avoid_: plot sentinel, atlas manifest.
+
 **Config**:
 The *merged runtime parameter set* for a specific scenario — i.e., what comes out of `simace.config.load_config` after defaults are overridden by scenario keys. Distinct from a *config YAML file*, which is the on-disk source. In prose "the config" usually means the merged dict; when the file is meant, say "the config YAML" or "the scenario file".
 _Avoid_: settings, spec, parameter dict (acceptable internally but not the canonical name).

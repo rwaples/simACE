@@ -85,8 +85,9 @@ A replicate is complete once its `run.yaml` exists and every output still
 matches the size and time it recorded. Rerunning a scenario skips complete
 replicates, recomputes interrupted ones (or ones with an output rewritten by
 hand) from scratch, and refuses replicates whose config has changed since
-they ran (`--force` recomputes them). Plots and the atlas are rebuilt on every run. A summary
-per scenario names every failed or refused replicate.
+they ran (`--force` recomputes them). Plots and the atlas are rebuilt on every run, and
+`simace ls` says whether they are current. A summary per scenario names every failed or
+refused replicate.
 
 Each stage is also a subcommand that takes explicit file paths
 (`pixi run simace simulate --help`). See

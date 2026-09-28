@@ -105,6 +105,15 @@ replicates are all complete. After changing a plotting module, rerun the
 scenario: complete replicates are skipped and only the plots are redrawn.
 `--no-plots` skips them.
 
+A successful plot pass writes `plots/plots.yaml`, recording which
+replicates' `run.yaml` files the plots were built from and the atlas files
+it wrote. The run ends with one `plots:` line per scenario, and `simace ls`
+shows the same: `current`, `absent`, or `stale` with the reason (a replicate
+recomputed since or not plotted, a replicate no longer complete, or an atlas
+file missing). A run with `--no-plots`, or of a subset of replicates while
+others are incomplete, exits 0 with the replicates it computed and leaves
+the plots stale or absent; the line says so.
+
 A code change does not make a replicate stale. `run.yaml` records the simace
 version and, in a git checkout, the commit (`git describe --tags --always
 --dirty`) that built the replicate, and `simace ls` shows either when it
@@ -117,13 +126,14 @@ To see the state of every replicate, run `simace ls`:
 pixi run simace ls base
 ```
 
-Each scenario prints one line with the count of replicates in each state.
-Complete replicates are counted only; every other replicate is listed with
-the reason, grouped by state:
+Each scenario prints one line with the count of replicates in each state,
+then the state of its plots. Complete replicates are counted only; every
+other replicate is listed with the reason, grouped by state:
 
 ```
-base/baseline10K  5 reps: 3 complete, 1 stale (rep2: N: 999 -> 10000), 1 absent (rep5)
-base/baseline100K  3 reps: 3 complete (reps 1-3: built at v2026.9-3-gabc123)
+base/baseline10K  5 reps: 3 complete, 1 stale (rep2: N: 999 -> 10000), 1 absent (rep5); plots absent
+base/baseline100K  3 reps: 3 complete (reps 1-3: built at v2026.9-3-gabc123); plots stale (rep3 recomputed since)
+base/baseline1M  3 reps: 3 complete; plots current
 ```
 
 In an editable checkout the version is the one from the last

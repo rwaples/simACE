@@ -24,6 +24,7 @@ results/{folder}/{scenario}/
     ├── *.png
     ├── atlas.html
     ├── atlas.pdf
+    ├── plots.yaml
     └── timing.tsv
 results/{folder}/
 ├── report_summary.tsv
@@ -71,12 +72,13 @@ family links, variance components, or liabilities.
 | `results/{folder}/{scenario}/plots/*.png` | Scenario plots. [Interpreting results](interpreting-results.md) lists them |
 | `results/{folder}/{scenario}/plots/atlas.html` | All scenario plots in one HTML file, with captions, a parameter page, and Table 1 |
 | `results/{folder}/{scenario}/plots/atlas.pdf` | The same atlas as a PDF. Built on demand ([ADR 0010](../adr/0010-html-primary-atlas-rendering.md)) |
-| `results/{folder}/{scenario}/plots/timing.tsv` | Wall time and peak memory of the `plot` and `atlas` stages |
+| `results/{folder}/{scenario}/plots/plots.yaml` | Which replicates' `run.yaml` files the plots and atlas were built from, and the atlas files written. `simace ls` reads it to report the plots as current, stale, or absent |
+| `results/{folder}/{scenario}/plots/timing.tsv` | Wall time and peak memory of the `plot`, `atlas`, and (with `--format pdf`) `atlas-pdf` stages |
 | `results/{folder}/report_summary.tsv` | One row per replicate across every scenario in the folder, written by `simace gather`. See [report_summary.tsv](#report_summarytsv) |
 | `results/{folder}/plots/*.png` | Validation plots comparing scenarios |
 | `results/{folder}/plots/atlas.html`, `atlas.pdf` | The validation plots as an atlas |
 | `logs/{folder}/{scenario}/rep{rep}/{stage}.log` | One log per stage: `simulate`, `phenotype`, `censor`, `ascertain`, `analyze` |
-| `logs/{folder}/{scenario}/{plot,atlas}.log` | The scenario plot and atlas logs |
+| `logs/{folder}/{scenario}/{plot,atlas,atlas-pdf}.log` | The scenario plot and atlas logs |
 
 Image files use the extension set by `plot_format`, `png` by default.
 

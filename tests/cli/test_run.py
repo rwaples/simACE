@@ -17,8 +17,8 @@ import simace
 import simace.cli.run as run_mod
 from simace.cli.inspect import ls_cli, show_cli
 from simace.cli.layout import Layout, RepArtifact
-from simace.cli.manifest import RepState, write_manifest
-from simace.cli.run import cli, expected_manifest, load_scenario, rep_outputs, status_on_disk
+from simace.cli.manifest import PlotsState, RepState, write_manifest, write_plots_manifest
+from simace.cli.run import cli, expected_manifest, load_scenario, rep_outputs, scenario_plots_status, status_on_disk
 from simace.cli.stages import REP_OUTPUTS, STAGES, ResolvedRep
 
 REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
@@ -166,6 +166,7 @@ def test_stale_rep_is_refused_naming_the_changed_keys(config_dir, roots, layout,
         "[tiny] summary: 1 computed, 1 refused\n"
         "[tiny]   rep1 refused: run.yaml differs in N: 999 -> 300\n"
         "[tiny] plots skipped: rep1 not complete\n"
+        "[tiny] plots: absent\n"
     )
     assert recorded == [2]
     assert no_plots == []
@@ -431,6 +432,7 @@ def test_fail_fast_cancels_pending_reps(config_dir, roots, monkeypatch, no_plots
         "[tiny]   rep1 failed: analyze FAILED (exit 1)\n"
         "[tiny]   rep2 failed: cancelled by --fail-fast\n"
         "[tiny] plots skipped: reps 1-2 not complete\n"
+        "[tiny] plots: absent\n"
     )
 
 
@@ -594,7 +596,7 @@ def test_ls_reports_each_rep_state(config_dir, layout, tmp_path, capsys) -> None
     _finish(layout, _rep(config_dir, 1))
     ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
     lines = dict(line.split("  ", 1) for line in capsys.readouterr().out.splitlines())
-    assert lines["t/tiny"] == "2 reps: 1 complete, 1 absent (rep2)"
+    assert lines["t/tiny"] == "2 reps: 1 complete, 1 absent (rep2); plots absent"
     assert lines["t/dropped"] == "gene drop (not run by simace run)"
 
 
@@ -610,7 +612,7 @@ def test_ls_groups_reps_by_state_and_reason(config_dir, layout, tmp_path, capsys
     line = capsys.readouterr().out.strip()
     assert line == (
         "t/many  7 reps: 2 complete, 2 stale (reps 2-3: N: 999 -> 300), "
-        "1 incomplete (rep5: trait.parquet missing), 2 absent (reps 6-7)"
+        "1 incomplete (rep5: trait.parquet missing), 2 absent (reps 6-7); plots absent"
     )
 
 
@@ -628,7 +630,7 @@ def test_ls_flags_reps_built_by_another_version(config_dir, layout, tmp_path, ca
     old.write_text(old.read_text().replace(f"simace_version: {simace.__version__}", "simace_version: 2020.1.0"))
     ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
     lines = dict(line.split("  ", 1) for line in capsys.readouterr().out.splitlines())
-    assert lines["t/tiny"] == "2 reps: 2 complete (rep2: built by simace 2020.1.0)"
+    assert lines["t/tiny"] == "2 reps: 2 complete (rep2: built by simace 2020.1.0); plots absent"
 
 
 def test_ls_flags_reps_built_at_another_commit(config_dir, layout, tmp_path, monkeypatch, capsys) -> None:
@@ -643,7 +645,7 @@ def test_ls_flags_reps_built_at_another_commit(config_dir, layout, tmp_path, mon
     monkeypatch.setattr(inspect_mod, "source_ref", lambda: "v2026.9-5-gdef456-dirty")
     ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
     lines = dict(line.split("  ", 1) for line in capsys.readouterr().out.splitlines())
-    assert lines["t/tiny"] == "2 reps: 2 complete (reps 1-2: built at v2026.9-3-gabc123)"
+    assert lines["t/tiny"] == "2 reps: 2 complete (reps 1-2: built at v2026.9-3-gabc123); plots absent"
 
 
 def test_source_ref_describes_this_checkout() -> None:
@@ -671,6 +673,70 @@ def test_end_to_end_run_builds_plots_and_atlas(config_dir, roots, layout) -> Non
     rows = [row.split("\t")[0] for row in (plots / "timing.tsv").read_text().splitlines()[1:]]
     assert rows == ["plot", "atlas", "atlas-pdf"]
     assert layout.scenario_log("t", "tiny_wf", "atlas-pdf").exists()
+    reps = [_rep(config_dir, 1, "tiny_wf")]
+    assert scenario_plots_status(reps, layout).state is PlotsState.CURRENT
+    assert set(yaml.safe_load(layout.scenario_plots_manifest("t", "tiny_wf").read_text())["outputs"]) == {
+        "atlas.html",
+        "atlas.pdf",
+    }
+    (plots / "atlas.pdf").unlink()
+    assert scenario_plots_status(reps, layout).reasons == ("atlas.pdf missing",)
+
+
+def _plotted(layout: Layout, reps: list[ResolvedRep], *outputs: str) -> None:
+    """Leave the scenario's plots on disk as a finished plot pass does."""
+    folder, scenario = reps[0].folder, reps[0].scenario
+    plots = layout.scenario_plots(folder, scenario)
+    plots.mkdir(parents=True, exist_ok=True)
+    for name in outputs:
+        (plots / name).write_text("")
+    write_plots_manifest(
+        layout.scenario_plots_manifest(folder, scenario),
+        {f"rep{rep.rep}": _manifest(layout, rep) for rep in reps},
+        [plots / name for name in outputs],
+    )
+
+
+def test_plots_are_current_until_a_rep_or_atlas_changes(config_dir, layout) -> None:
+    reps = [_rep(config_dir, r) for r in (1, 2)]
+    for rep in reps:
+        _finish(layout, rep)
+    _plotted(layout, reps, "atlas.html")
+    assert scenario_plots_status(reps, layout).state is PlotsState.CURRENT
+
+    time.sleep(0.01)
+    _finish(layout, reps[1])
+    assert scenario_plots_status(reps, layout).describe() == "stale (rep2 recomputed since)"
+
+    _plotted(layout, reps, "atlas.html")
+    layout.rep("t", "tiny", 1, RepArtifact.TRAIT).write_text("by hand")
+    assert scenario_plots_status(reps, layout).describe() == "stale (rep1 not complete)"
+
+    _finish(layout, reps[0])
+    _plotted(layout, reps[:1], "atlas.html")
+    assert scenario_plots_status(reps, layout).describe() == "stale (rep2 not plotted)"
+
+    _plotted(layout, reps, "atlas.html")
+    layout.scenario_plots("t", "tiny").joinpath("atlas.html").unlink()
+    assert scenario_plots_status(reps, layout).describe() == "stale (atlas.html missing)"
+
+
+def test_run_summary_and_ls_report_the_plot_state(
+    config_dir, roots, layout, recorded, no_plots, tmp_path, capsys
+) -> None:
+    reps = [_rep(config_dir, r) for r in (1, 2)]
+    for rep in reps:
+        _finish(layout, rep)
+    _plotted(layout, reps, "atlas.html")
+    assert _run(config_dir, roots, "tiny", "--no-plots") == 0
+    assert capsys.readouterr().out.endswith("[tiny] summary: 2 skipped\n[tiny] plots: current\n")
+
+    time.sleep(0.01)
+    assert _run(config_dir, roots, "tiny", "--rep", "2", "--force") == 0
+    assert capsys.readouterr().out.endswith("[tiny] plots: stale (rep2 recomputed since)\n")
+    ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
+    lines = dict(line.split("  ", 1) for line in capsys.readouterr().out.splitlines())
+    assert lines["t/tiny"] == "2 reps: 2 complete; plots stale (rep2 recomputed since)"
 
 
 def test_resolving_config_does_not_import_the_stage_stack():

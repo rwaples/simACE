@@ -82,6 +82,12 @@ through its own Snakemake and did not depend on simACE's rules.
   scenario in `config/{folder}.yaml`, naming each rep it leaves out and its
   state, with a per-scenario `n of m reps` line. `--all` gathers by disk
   instead, for archived folders the config no longer lists.
+- A scenario's plots have their own state. `plots/plots.yaml` fingerprints
+  the `run.yaml` of every rep the plot pass was built from and the atlas
+  files it wrote. `ls`, `show`, and the run summary report the plots as
+  current, stale with the reason, or absent. `--no-plots` and a partial
+  `--rep` run still exit 0 when their reps succeed; the reported plot state
+  is what tells a reader the atlas is not of the current reps.
 
 ## Consequences
 

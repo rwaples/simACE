@@ -22,6 +22,7 @@ __all__ = [
     "rep_ranges",
     "rep_spec",
     "resolve_all",
+    "scenario_plots_status",
     "status_on_disk",
 ]
 
@@ -39,7 +40,15 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from simace.cli.layout import RepArtifact, add_root_args, resolve_roots
-from simace.cli.manifest import Manifest, RepState, manifest_params, rep_status, write_manifest
+from simace.cli.manifest import (
+    Manifest,
+    RepState,
+    manifest_params,
+    plots_status,
+    rep_status,
+    write_manifest,
+    write_plots_manifest,
+)
 from simace.cli.stages import (
     PARAMS_YAML_KEYS,
     REP_OUTPUTS,
@@ -58,7 +67,7 @@ if TYPE_CHECKING:
     from typing import TextIO
 
     from simace.cli.layout import Layout
-    from simace.cli.manifest import RepStatus
+    from simace.cli.manifest import PlotsStatus, RepStatus
 
 # OpenMP/BLAS pools are pinned to one thread in every stage, as Snakemake's
 # `threads: 1` rules (and `--cores 1`) did. Measured at baseline100K, one thread
@@ -160,6 +169,14 @@ def status_on_disk(rep: ResolvedRep, layout: Layout) -> RepStatus:
     """Return one rep's state from its ``run.yaml`` and the outputs it declares, under the current parameters."""
     manifest = layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST)
     return rep_status(manifest, expected_manifest(rep), rep_outputs(rep, layout))
+
+
+def scenario_plots_status(reps: list[ResolvedRep], layout: Layout) -> PlotsStatus:
+    """Return whether a scenario's plots and atlas were built from its reps as they stand now."""
+    folder, scenario = reps[0].folder, reps[0].scenario
+    manifests = {f"rep{rep.rep}": layout.rep(folder, scenario, rep.rep, RepArtifact.RUN_MANIFEST) for rep in reps}
+    not_complete = [f"rep{rep.rep}" for rep in reps if status_on_disk(rep, layout).state is not RepState.COMPLETE]
+    return plots_status(layout.scenario_plots_manifest(folder, scenario), manifests, not_complete)
 
 
 def rep_outputs(rep: ResolvedRep, layout: Layout) -> list[Path]:
@@ -595,6 +612,8 @@ def _run_reps(args: argparse.Namespace, layout: Layout, runs: list[ScenarioRun],
                 console.say(run.scenario, f"plots skipped: {rep_ranges(incomplete)} not complete")
             elif not _build_plots(run.all_reps, layout, args.format, launcher, console):
                 plotted = False
+    for run in runs:
+        console.say(run.scenario, f"plots: {scenario_plots_status(run.all_reps, layout).describe()}")
     if refused or failed or not plotted:
         raise SystemExit(1)
 
@@ -671,6 +690,12 @@ def _build_plots(
             console.say(scenario, f"{stage.label} FAILED ({result.failure}); log: {stage.log_path}")
             return False
         console.say(scenario, f"{stage.label} finished in {result.wall_s:.1f}s")
+    plots = layout.scenario_plots(folder, scenario)
+    write_plots_manifest(
+        layout.scenario_plots_manifest(folder, scenario),
+        {f"rep{rep.rep}": layout.rep(folder, scenario, rep.rep, RepArtifact.RUN_MANIFEST) for rep in reps},
+        [plots / "atlas.html", *([plots / "atlas.pdf"] if atlas_format == "pdf" else [])],
+    )
     return True
 
 

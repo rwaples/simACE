@@ -21,6 +21,7 @@ from simace.cli.run import (
     load_scenario,
     rep_ranges,
     resolve_all,
+    scenario_plots_status,
     status_on_disk,
 )
 from simace.cli.stages import ResolvedRep
@@ -117,7 +118,10 @@ def show_cli(argv: list[str] | None = None, prog: str | None = None) -> None:
             f"rep{rep.rep}": {"seed": rep.seed, "dir": str(layout.rep_dir(rep.folder, rep.scenario, rep.rep))}
             for rep in reps
         },
-        "plots": str(layout.scenario_plots(params["folder"], args.scenario)),
+        "plots": {
+            "dir": str(layout.scenario_plots(params["folder"], args.scenario)),
+            "state": scenario_plots_status(reps, layout).describe(),
+        },
         "timing": _timing(layout, reps),
     }
     print(yaml.safe_dump(body, sort_keys=False), end="")
@@ -145,4 +149,7 @@ def ls_cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         except ScenarioError:
             print(f"{params['folder']}/{name}  gene drop (not run by simace run)")
             continue
-        print(f"{params['folder']}/{name}  {_states(layout, _reps(params, name))}")
+        reps = _reps(params, name)
+        print(
+            f"{params['folder']}/{name}  {_states(layout, reps)}; plots {scenario_plots_status(reps, layout).describe()}"
+        )

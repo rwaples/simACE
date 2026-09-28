@@ -115,6 +115,10 @@ class Layout:
         """Return the directory holding a scenario's phenotype plots, atlas, and plot timing."""
         return self.scenario_dir(folder, scenario) / "plots"
 
+    def scenario_plots_manifest(self, folder: str, scenario: str) -> Path:
+        """Return ``plots/plots.yaml``: which reps the scenario's plots and atlas were built from."""
+        return self.scenario_plots(folder, scenario) / "plots.yaml"
+
     def folder_summary(self, folder: str) -> Path:
         """Return the folder-level ``report_summary.tsv`` path."""
         return self.root / folder / "report_summary.tsv"

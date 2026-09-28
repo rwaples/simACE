@@ -1,4 +1,4 @@
-"""The per-rep ``run.yaml`` manifest: proof that a rep finished, and with what.
+"""The per-rep ``run.yaml`` manifest, proof that a rep finished and with what, and the scenario ``plots/plots.yaml``.
 
 ``simace run`` writes ``run.yaml`` after every stage of the rep exits 0, and
 deletes it before recomputing. A rep is complete only when its ``run.yaml``
@@ -8,6 +8,12 @@ every output the rep declares exists with the size and mtime the manifest
 recorded (a stage rerun by hand rewrites its output and so makes the rep
 incomplete). Only keys the current code reads are compared. The simace version that built the rep is recorded but never makes
 it stale; ``simace ls`` shows it when it differs from the running version.
+
+``plots/plots.yaml`` is written after a scenario's plot and atlas stages
+exit 0. It fingerprints the ``run.yaml`` of every rep the plots were built
+from and the atlas files it produced, so ``simace ls`` and the run summary
+can say whether the plots are current, stale (a rep recomputed or not
+plotted, an atlas gone), or absent.
 """
 
 from __future__ import annotations
@@ -15,14 +21,18 @@ from __future__ import annotations
 __all__ = [
     "Fingerprint",
     "Manifest",
+    "PlotsState",
+    "PlotsStatus",
     "RepState",
     "RepStatus",
     "changed_outputs",
     "fingerprints",
     "manifest_params",
+    "plots_status",
     "rep_status",
     "source_ref",
     "write_manifest",
+    "write_plots_manifest",
 ]
 
 import subprocess
@@ -213,3 +223,69 @@ def rep_status(path: Path, expected: Manifest, outputs: Iterable[Path]) -> RepSt
 
 
 _MISSING = object()
+
+
+class PlotsState(StrEnum):
+    """Whether a scenario's plots and atlas were built from its complete reps as they stand."""
+
+    CURRENT = "current"
+    STALE = "stale"
+    ABSENT = "absent"
+
+
+@dataclass(frozen=True)
+class PlotsStatus:
+    """A scenario's plot state and why it is not current."""
+
+    state: PlotsState
+    reasons: tuple[str, ...] = ()
+
+    def describe(self) -> str:
+        """Return ``current``, ``absent``, or ``stale (why, why)``."""
+        return f"{self.state} ({', '.join(self.reasons)})" if self.reasons else str(self.state)
+
+
+def write_plots_manifest(path: Path, rep_manifests: Mapping[str, Path], outputs: Iterable[Path]) -> None:
+    """Publish ``plots.yaml``: the fingerprint of each rep's ``run.yaml`` and of each atlas the pass wrote."""
+    body = {
+        "simace_version": simace.__version__,
+        "source": source_ref(),
+        "reps": {label: fingerprints([manifest])[manifest.name] for label, manifest in rep_manifests.items()},
+        "outputs": fingerprints(outputs),
+        "finished": datetime.now().isoformat(timespec="seconds"),
+    }
+    with publish(path) as (tmp,):
+        dump_yaml(body, tmp)
+
+
+def plots_status(path: Path, rep_manifests: Mapping[str, Path], not_complete: Iterable[str] = ()) -> PlotsStatus:
+    """Compare ``plots.yaml`` at ``path`` with the reps' ``run.yaml`` files now.
+
+    ``rep_manifests`` maps every configured rep's label to its ``run.yaml``;
+    ``not_complete`` names the reps that are not complete now, which make the
+    plots stale even when their manifest is unchanged (an output rewritten by
+    hand). A rep recomputed since, not plotted, or dropped from the
+    configuration, or an atlas file changed or gone, also makes them stale.
+    """
+    if not path.exists():
+        return PlotsStatus(PlotsState.ABSENT)
+    recorded = load_yaml(path)
+    if not isinstance(recorded, dict) or not isinstance(recorded.get("reps"), dict):
+        return PlotsStatus(PlotsState.STALE, ("plots.yaml is not a manifest",))
+    reasons = [f"{label} not complete" for label in not_complete]
+    for label, manifest in rep_manifests.items():
+        if label in not_complete:
+            continue
+        if label not in recorded["reps"]:
+            reasons.append(f"{label} not plotted")
+        elif changed_outputs({manifest.name: recorded["reps"][label]}, [manifest]):
+            reasons.append(f"{label} recomputed since")
+    reasons.extend(f"{label} no longer configured" for label in recorded["reps"] if label not in rep_manifests)
+    outputs = recorded.get("outputs") if isinstance(recorded.get("outputs"), dict) else {}
+    for name in outputs:
+        output = path.with_name(name)
+        if not output.exists():
+            reasons.append(f"{name} missing")
+        elif changed_outputs(outputs, [output]):
+            reasons.append(f"{name} changed")
+    return PlotsStatus(PlotsState.STALE, tuple(reasons)) if reasons else PlotsStatus(PlotsState.CURRENT)
