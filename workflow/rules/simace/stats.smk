@@ -35,9 +35,9 @@ rule plot_phenotype:
         "logs/{folder}/{scenario}/plot_phenotype.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/plot_phenotype.tsv"
-    threads: 1
+    threads: 4
     resources:
-        mem_mb=2000,
+        mem_mb=3000,
         runtime=5,
     params:
         censor_age=lambda w: get_param(config, w.scenario, "censor_age"),

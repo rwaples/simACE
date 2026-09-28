@@ -25,6 +25,7 @@ def _run_snakemake():
         censor_age,
         gen_censoring=gen_censoring,
         plot_ext=plot_format,
+        plot_workers=snakemake.threads,
     )
 
 
