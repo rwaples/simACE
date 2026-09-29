@@ -13,14 +13,31 @@ simACE runs in a locked [pixi](https://pixi.sh) environment (ADR 0016).
 
 ## Install pixi
 
-pixi installs one binary under `~/.pixi/bin`. It does not need root.
+pixi installs one binary under `~/.pixi/bin`. It does not need root. The
+installer fetches the latest release by default, which `pixi.toml` refuses
+once it moves past the `requires-pixi` range, so pin the version:
 
 ```bash
-curl -fsSL https://pixi.sh/install.sh | bash
-exec $SHELL
+curl -fsSL https://pixi.sh/install.sh | PIXI_VERSION=v0.76.2 bash
+export PATH="$HOME/.pixi/bin:$PATH"
+pixi --version
 ```
 
-The second command restarts your shell so that `~/.pixi/bin` is on `PATH`.
+The `export` puts pixi on `PATH` for the current shell. The installer also
+appends the same line to `~/.bashrc` (or your shell's rc file) unless
+`PIXI_NO_PATH_UPDATE` is set or the shell is one it does not recognise. If
+`pixi --version` fails in a new terminal, add the `export` line to your rc
+file yourself.
+
+An existing install on the wrong version moves with:
+
+```bash
+pixi self-update --version v0.76.2
+```
+
+The pinned version and `requires-pixi` move together. Edit both, and the
+`requires-pixi` line in the fitACE, pedigree-graph, and pedsum manifests;
+`tests/test_pixi_pin_consistency.py` fails when they disagree.
 
 ## Install simACE
 

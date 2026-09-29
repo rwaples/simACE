@@ -15,7 +15,9 @@ which depends on simACE.
 
 ## Setup
 
-Install [pixi](https://pixi.sh), then install the locked simACE environment:
+Install [pixi](https://pixi.sh) at the version `requires-pixi` in `pixi.toml`
+allows (the [Installation](docs/getting-started/installation.md) page has the
+pinned command), then install the locked simACE environment:
 
 ```bash
 git clone https://github.com/rwaples/simACE.git
