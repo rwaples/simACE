@@ -49,12 +49,14 @@ def test_pearsonr_core_python_jit_parity(xy):
 @given(_xy())
 def test_linregress_core_python_jit_parity(xy):
     x, y = xy
-    py = np.array(_linregress_core_python(x, y), dtype=float)
     # Skip perfectly-collinear data (residual variance 0): the numpy reference
-    # returns inf for t_stat=slope/0, whereas the numba jit (error_model
-    # 'python') raises ZeroDivisionError. That degenerate input is outside the
+    # returns inf for t_stat=slope/0 (warning silenced; the assume below drops
+    # that case), whereas the numba jit (error_model 'python') raises
+    # ZeroDivisionError. That degenerate input is outside the
     # regression domain the callers guard against; parity is asserted where the
     # estimate is finite.
+    with np.errstate(divide="ignore"):
+        py = np.array(_linregress_core_python(x, y), dtype=float)
     assume(np.all(np.isfinite(py)))
     jit = np.array(_linregress_core(x, y), dtype=float)
     assert np.allclose(py, jit, rtol=1e-7, atol=1e-10, equal_nan=True)

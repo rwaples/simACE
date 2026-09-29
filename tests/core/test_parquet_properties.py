@@ -66,13 +66,12 @@ def test_parquet_roundtrip_modulo_narrowing(df):
         np.testing.assert_array_equal(back[c].to_numpy(), df[c].to_numpy())
 
     # float32-narrowed columns equal a float32 cast of the original
-    # (NaN is normalized to null on disk; to_numpy materializes null as NaN)
+    # (NaN is normalized to null on disk; to_numpy materializes null as NaN;
+    # values beyond float32 range deliberately overflow to inf on both sides)
     for c in _F32_COLS:
-        assert np.array_equal(
-            back[c].to_numpy(),
-            df[c].to_numpy().astype(np.float32),
-            equal_nan=True,
-        )
+        with np.errstate(over="ignore"):
+            expected = df[c].to_numpy().astype(np.float32)
+        assert np.array_equal(back[c].to_numpy(), expected, equal_nan=True)
 
     # float64 liabilities round-trip value-exact, including inf; NaN comes
     # back as null (ADR 0015), which to_numpy materializes as NaN again
