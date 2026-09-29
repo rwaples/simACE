@@ -30,23 +30,15 @@ The code is Python. The `simace run` command runs the pipeline and supports name
 
 ## Pipeline stages
 
-```
-+----------+  +-----------+  +--------+  +-----------+  +-----------+  +---------+
-|1. Simu-  |->|2. Pheno-  |->|3. Cen- |->|4. Ascer-  |->|5. Statis- |->|6. Valid-|
-|   late   |  |   type    |  |  sor   |  |  tainment |  |   tics    |  |  ation  |
-|          |  |           |  |        |  |           |  |           |  |         |
-|Build fam-|  |Convert to |  |Apply   |  |Drop, then |  |Estimate   |  |Compare  |
-|ilies with|  |observable |  |age &   |  |draw study |  |corr. &    |  |to ground|
-|known ACE |  |outcomes   |  |death   |  |sample     |  |heritab.   |  |truth    |
-+----------+  +-----------+  +--------+  +-----------+  +-----------+  +---------+
-```
-
 1. **Simulate** builds a multi-generational population. Each individual has known $A$, $C$, and $E$ values and links to parents and siblings. Mating is random or assortative.
 2. **Phenotype** turns liability into observable outcomes: an age at onset from a survival model, an affected status from a threshold model, or both from the mixture cure model. Sex-specific effects can enter the hazard or the threshold.
 3. **Censor** applies the observation window and competing-risk death to the raw event times. Its output is the observed phenotype.
 4. **Ascertainment** removes a random fraction of individuals from the pedigree, severing parent and twin links to them, then draws a study sample, optionally weighted toward cases.
-5. **Statistics** estimates correlations between relatives and heritability from the observed phenotype alone.
-6. **Validation** compares every estimate to the known parameters. It checks both the code and the estimators. Validation reads the full pedigree from before ascertainment.
+5. **Analyze** checks the recorded pedigree against known parameters and computes descriptive stats and estimators on the analysis sample. It writes one per-replicate report.
+6. **Plot** renders scenario and validation atlases from the reports.
+
+`simace run` executes these stages in order for each replicate; see
+[Running the pipeline](../user-guide/running-the-pipeline.md).
 
 ## Pedigree simulation
 
@@ -367,17 +359,24 @@ Validation is unaffected. It reads `pedigree.full.parquet`, the pedigree from be
 
 ### Relationship pair extraction
 
-Before computing correlations, the stats stage groups individuals into pairs by relationship type. The correlation within each group is what identifies genetic and environmental effects.
+Before computing correlations, Analyze groups individuals into pairs by relationship type. The correlation within each group is what identifies genetic and environmental effects.
 
 Pair extraction lives in the external [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) package. `PedigreeGraph` reads the mother and father columns and classifies sibling pairs directly from them. Full siblings share both a known mother and a known father. Maternal half-siblings share a known mother and are not full siblings. Paternal half-siblings share a known father and are not full siblings. Twin pairs come from the twin column and are excluded from the sibling counts. Parent-offspring pairs are the mother and father links themselves.
 
-For every other category, `PedigreeGraph` builds a sparse parent adjacency matrix $\mathbf{A}$, with $A_{ij} = 1$ when $j$ is a parent of $i$, and takes products of it. Powers of $\mathbf{A}$ reach grandparents and great-grandparents. Products of the form $\mathbf{A}^k (\mathbf{A}^k)^\top$ find pairs that share an ancestor $k$ meioses up, and the multiplicity of each entry separates pairs that share two ancestors, a mated pair, from pairs that share one. Products with the full-sibling matrix give the avuncular categories. Each category is defined by the `(up, down, ancestor_count)` triple in the registry `RELATIONSHIPS`, which holds 23 categories, all stored with `up >= down`. The full table is in [Simulation design](simulation-design.md#pedigree-relationship-types). When the caller extracts from a view, such as the post-ascertainment subset, extraction returns only pairs with both members in the view, in view rows.
+For the remaining categories, the Rust row-streaming engine walks represented
+parent links and classifies each pair under its closest category. Shared
+ancestor multiplicity distinguishes links through a mated pair from half or
+lineal links. The registry `RELATIONSHIPS` defines 23 categories by their
+`(up, down, ancestor_count)` paths, with `up >= down`. The full table is in
+[Simulation design](simulation-design.md#pedigree-relationship-types). A view,
+such as the post-ascertainment subset, returns only pairs whose two members are
+in the view, using view row numbers.
 
 ### Tetrachoric correlation estimation
 
 Binary phenotypes underestimate the association between relatives because they discard how far each person sits above or below the threshold. The tetrachoric correlation corrects for that by assuming a bivariate normal liability underneath.
 
-For each relationship type the stats stage assumes that the observed dichotomy arises from $(L_1, L_2) \sim \text{BVN}(0, 0, 1, 1, r)$. With thresholds $t_k = \Phi^{-1}(1 - \hat{\pi}_k)$ from the observed prevalences, the four cell probabilities of the $2 \times 2$ table are:
+For each relationship type the stats computation assumes that the observed dichotomy arises from $(L_1, L_2) \sim \text{BVN}(0, 0, 1, 1, r)$. With thresholds $t_k = \Phi^{-1}(1 - \hat{\pi}_k)$ from the observed prevalences, the four cell probabilities of the $2 \times 2$ table are:
 
 $$
 P_{11}(r) = P(L_1 > t_1,\; L_2 > t_2 \mid r)
@@ -439,7 +438,7 @@ The expected MZ correlation is $A + C$ and the expected full-sibling correlation
 
 Every simulated individual has known parameters, so every output can be checked against expectation. Validation confirms both that the code works and that the estimators do.
 
-The validate stage in `simace.analysis.validate` runs ten check families on each replicate:
+The Analyze stage calls `simace.analysis.validate` to run ten check families on each replicate:
 
 - **Structural** (`validate_structural`). Identifiers are contiguous. Parent references are valid IDs or $-1$ for founders. Mothers are female and fathers are male. The sex ratio lies in $[0.45, 0.55]$.
 - **Statistical** (`validate_statistical`). Founder variances of $A$, $C$, and $E$ match the configured values. Total variance is near 1. The cross-trait correlations $r_A$, $r_C$, and $r_E$ match. $C$ is identical within households. $E$ is uncorrelated between siblings.
@@ -456,7 +455,7 @@ Correlation checks use a tolerance of four standard errors with a floor of 0.05.
 
 ## Implementation
 
-`simace` is an installable Python package. NumPy does the vectorised array work, SciPy the optimisation and special functions, Polars the DataFrames at every stage boundary (ADR 0015), and Numba the compiled kernels for phenotype inversion, Metropolis sweeps, and the tetrachoric likelihood. Relationship extraction uses SciPy sparse CSR matrices in the `pedigree-graph` package. The `simace run` command runs each stage in its own process, with per-scenario configuration and a per-replicate seed of the scenario seed plus the replicate number minus one. All random draws use NumPy's PCG64 generator through `numpy.random.default_rng` with explicit seeds.
+`simace` is an installable Python package. NumPy does the vectorised array work, SciPy the optimisation and special functions, Polars the DataFrames at every stage boundary (ADR 0015), and Numba the compiled kernels for phenotype inversion, Metropolis sweeps, and the tetrachoric likelihood. Relationship extraction uses the Rust row-streaming engine in `pedigree-graph`. The `simace run` command runs each stage in its own process, with per-scenario configuration and a per-replicate seed of the scenario seed plus the replicate number minus one. All random draws use NumPy's PCG64 generator through `numpy.random.default_rng` with explicit seeds.
 
 ## Assumptions and limitations
 

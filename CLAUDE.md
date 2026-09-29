@@ -2,7 +2,7 @@
 
 simACE simulates multi-generational pedigrees with **A** (additive genetic), **C** (common environment), **E** (unique environment) variance components: simulate → phenotype → censor → ascertain → analyze (validate + stats) → plot. Model fitting lives in the sister repo [fitACE](./fitACE), which depends on simace.
 
-## Project Layout
+## Project layout
 
 - `simace/` — the package, one sub-package per pipeline stage:
   - `cli/` — the `simace` command: `run.py` (`simace run`), `layout.py` (the `results/` path convention), `stages.py` (stage argv), `manifest.py` (per-rep `run.yaml`)
@@ -16,6 +16,8 @@ simACE simulates multi-generational pedigrees with **A** (additive genetic), **C
 - `scripts/examples/`, `scripts/gene_drop/` — standalone example-comparison and gene-drop scripts (not run by `simace run`)
 - `config/_default.yaml` — defaults; `config/{folder}.yaml` — scenario files (auto-discovered; `_`-prefixed files skipped)
 - `results/{folder}/{scenario}/` — output per scenario
+
+See [Project structure](docs/concepts/project-structure.md) for the module tree and the five-checkout map.
 
 ## Environment
 
@@ -63,19 +65,11 @@ MZ = A+C, FS = 0.5A+C, MHS = 0.25A+C, PHS = 0.25A, PO = 0.5A.
 
 Kinship source of truth: `RELATIONSHIPS[code].nominal_kinship` in `pedigree_graph/_registry.py`. Under inbreeding, `PedigreeGraph.pair_kinship()` returns per-pair float32 values; comparisons against a float64 recurrence need a tolerance.
 
-## Repo Map
+## Cross-repo work
 
-Five repos under `rwaples/` on GitHub. simACE is the umbrella working directory; the others are checkouts inside it, gitignored from simACE (no submodules). Method packages depend on `fitace`/`simace`, never on each other (fitACE ADR 0001).
+The five checkout paths are in [Project structure](docs/concepts/project-structure.md#repo-map); `tools/family_repos.py::checkout_repos()` supplies the list to tooling. The nested checkouts are gitignored, not submodules. Method packages depend on `fitace` and `simace`, never on each other (fitACE ADR 0001).
 
-| Repo | Visibility | Local path | Role |
-|---|---|---|---|
-| `simACE` | public | `.` | Simulation pipeline |
-| `fitACE` | private | `./fitACE/` | Model-fitting monorepo: core, its own workflow orchestrator (reads simACE `results/`), and `fitACE_<x>/` method packages (PCGC, iter/sparse REML + `ace_iter_reml` C++, TetraHer + `tetraher_simace` LDAK fork, PA-FGRS, Stan, frailty). See `fitACE/CLAUDE.md`. |
-| `fitACE_epimight` | private | `./fitACE/fitACE_epimight/` | EPIMIGHT integration; own repo tracking the BioPsyk/epimight upstream, included by `fitACE/Snakefile`. |
-| `pedigree-graph` | public | `./external/pedigree-graph/` | Rust relationship extraction and kinship (Python + R bindings) |
-| `pedsum` | public | `./external/pedsum/` | Pedigree summary CLI built on pedigree-graph |
-
-When work spans simACE, fitACE, and fitACE_epimight: check `git status` in each, run tests in each, and make parallel commits. Changes do not propagate between checkouts.
+When work spans simACE, fitACE, and fitACE_epimight, check `git status` and run relevant tests in each checkout. Changes do not propagate between checkouts; make parallel commits when asked.
 
 ## Git
 
@@ -91,7 +85,7 @@ simACE, fitACE, and fitACE_epimight share one lockstep CalVer (`vYYYY.MM[.patch]
 
 - For non-trivial work (multi-file, cross-repo, or open design questions), explore the code first, then propose 2-3 approaches with tradeoffs and wait for approval. For plans and refactors, default to the `grill-with-docs` skill and lock each decision explicitly. Skip this for bugfixes, doc tweaks, and renames.
 - Never exit plan mode without an explicit go-ahead.
-- Drafts go in `plans/<slug>.md` (gitignored); state the absolute path in chat. Never overwrite an existing plan — add `-v2` or ask. Promote finished plans to `docs/plans/`, locked architectural decisions to `docs/adr/`. See `plans/README.md`.
+- Follow [plans/README.md](plans/README.md) for draft naming, overwrite protection, path reporting, and promotion.
 - Treat every coupling/structural claim as a hypothesis until backed by `file:line`; list what you couldn't confirm. Hold subagents to the same standard.
 - Enumerate and verify any formula, threshold, complexity, or memory-model assumption against the primary source and the code before relying on it.
 

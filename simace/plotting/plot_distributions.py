@@ -249,8 +249,9 @@ def plot_trait_regression(
         ax_joint.set_xlabel("Liability")
         ax_joint.set_ylabel("Age at Onset")
 
-        ax_marg_x.hist(x, bins=50, edgecolor="none", alpha=0.7)
-        ax_marg_y.hist(y, bins=50, orientation="horizontal", edgecolor="none", alpha=0.7)
+        # Filled steps preserve the marginal bins with one artist per histogram.
+        ax_marg_x.hist(x, bins=50, histtype="stepfilled", edgecolor="none", alpha=0.7)
+        ax_marg_y.hist(y, bins=50, histtype="stepfilled", orientation="horizontal", edgecolor="none", alpha=0.7)
         ax_marg_x.set_title(f"Trait {trait_num}", fontsize=12)
         ax_marg_x.tick_params(labelbottom=False, labelleft=False)
         ax_marg_x.set_ylabel("")

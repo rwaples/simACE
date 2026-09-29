@@ -1,27 +1,14 @@
 # Writing a scenario
 
-To add a scenario, add one dictionary to the scenario file for its folder,
-`config/{folder}.yaml`. A new folder needs a new file. This is the start of
-`config/base.yaml`:
-
-```yaml
-baseline10K:
-  seed: 1042
-  N: 10000
-baseline100K:
-  seed: 2042
-  N: 100000
-baseline100K_sample5K:
-  seed: 2042
-  N: 100000
-  ascertainment:
-    N_sample: 5000
-```
+Add a top-level entry to `config/{folder}.yaml`. `simace run` discovers these
+files automatically, except files whose names start with `_`. The file name
+sets the output folder unless a scenario sets `folder` explicitly. A new file
+creates a new folder by default.
 
 Set only the values that differ from `config/_default.yaml`. Sections merge
-over the defaults field by field, so a scenario can change one value inside a
-section and inherit the rest. `high_heritability` in
-`config/heritability.yaml` changes only the variance components:
+with the defaults field by field. For example, `high_heritability` in
+`config/heritability.yaml` overrides the seed and both traits' variance
+components:
 
 ```yaml
 high_heritability:
@@ -37,6 +24,7 @@ high_heritability:
       E: 0.2
 ```
 
-[Configuration](configuration.md) lists every parameter with its default. To
-run the scenario, target its folder and name as described in
-[Running the pipeline](running-the-pipeline.md).
+This scenario writes under `results/heritability/high_heritability/`. It
+inherits every default that the YAML entry omits. [Configuration](configuration.md)
+lists all parameters and defaults. [Running the pipeline](running-the-pipeline.md)
+shows how to target a scenario.

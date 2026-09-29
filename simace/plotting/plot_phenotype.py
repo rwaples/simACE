@@ -12,7 +12,9 @@ __all__: list[str] = []
 
 import argparse
 import logging
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+from multiprocessing import get_context
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -326,6 +328,26 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
 )
 
 
+_worker_context: list[RenderContext] = []
+
+
+def _init_plot_worker(ctx: RenderContext) -> None:
+    """Install shared inputs and plotting style once in each worker process."""
+    import matplotlib
+
+    from simace.plotting.plot_style import apply_nature_style
+
+    matplotlib.use("Agg")
+    apply_nature_style()
+    _worker_context.append(ctx)
+
+
+def _render_plot(task: tuple[int, Path]) -> None:
+    """Render one registry entry in an isolated process."""
+    index, path = task
+    PHENOTYPE_RENDERERS[index].render(_worker_context[0], path)
+
+
 def main(
     report_paths: list[str],
     plot_payload_paths: list[str],
@@ -334,6 +356,7 @@ def main(
     censor_age: float,
     gen_censoring: dict[int, list[float]] | None = None,
     plot_ext: str = "png",
+    plot_workers: int = 4,
 ) -> None:
     """Generate all phenotype plots from pre-computed combined reports."""
     out_dir = Path(output_dir)
@@ -373,8 +396,20 @@ def main(
         gen_censoring=gen_censoring,
         max_degree=max_degree,
     )
-    for spec in PHENOTYPE_RENDERERS:
-        spec.render(ctx, out_dir / f"{spec.basename}.{plot_ext}")
+    tasks = [(i, out_dir / f"{spec.basename}.{plot_ext}") for i, spec in enumerate(PHENOTYPE_RENDERERS)]
+    if plot_workers < 1:
+        raise ValueError("plot_workers must be at least 1")
+    if plot_workers == 1:
+        for index, path in tasks:
+            PHENOTYPE_RENDERERS[index].render(ctx, path)
+    else:
+        with ProcessPoolExecutor(
+            max_workers=plot_workers,
+            mp_context=get_context("spawn"),
+            initializer=_init_plot_worker,
+            initargs=(ctx,),
+        ) as pool:
+            list(pool.map(_render_plot, tasks))
 
     logger.info("Phenotype plots saved to %s", out_dir)
 
@@ -397,6 +432,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     parser.add_argument(
         "--plot-format", choices=["png", "pdf"], default="png", help="Output plot format (default: png)"
     )
+    parser.add_argument("--plot-workers", type=int, default=4, help="Parallel plot processes (default: 4)")
     args = parser.parse_args(argv)
 
     init_logging(args)
@@ -409,4 +445,5 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         args.censor_age,
         gen_censoring=args.gen_censoring or None,
         plot_ext=args.plot_format,
+        plot_workers=args.plot_workers,
     )

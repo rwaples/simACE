@@ -39,7 +39,7 @@ def _marker_obs_per_rep() -> dict:
     return dict(s=42, color="0.45", zorder=5)
 
 
-def _marker_obs_mean(color: str = "black") -> dict:
+def _marker_obs_mean(color: str | list[str] = "black") -> dict:
     return dict(marker=_WIDE_PLUS, s=200, color=color, linewidths=2.8, zorder=8)
 
 
@@ -52,7 +52,7 @@ def _marker_liab() -> dict:
     return dict(marker="D", s=95, facecolor="white", edgecolor="black", linewidths=1.5, zorder=6)
 
 
-def _marker_param(color: str | None = None) -> dict:
+def _marker_param(color: str | list[str] | None = None) -> dict:
     if color is None:
         from simace.plotting.plot_style import COLOR_AFFECTED
 
@@ -336,6 +336,10 @@ def setup_relationship_type_panel(
         ax.axvline(i + 0.5, color="0.88", linewidth=0.6, zorder=0)
 
     rng = np.random.default_rng(rng_seed)
+    # Draw one collection per marker style across relationship types.
+    mean_x: list[int] = []
+    mean_y: list[float] = []
+    mean_colors: list[str] = []
     for i, ptype in enumerate(relationship_types):
         rep_vals = list(observed_per_rep.get(ptype, []))
         if not rep_vals:
@@ -347,30 +351,51 @@ def setup_relationship_type_panel(
         for x, v in zip(i + jitter, rep_vals, strict=False):
             obs_records.append((ax, float(x), float(v)))
         mean_v = float(np.mean(rep_vals))
-        ax.scatter(i, mean_v, **_marker_obs_mean_halo())
-        ax.scatter(i, mean_v, **_marker_obs_mean(color=pair_colors[ptype]))
+        mean_x.append(i)
+        mean_y.append(mean_v)
+        mean_colors.append(pair_colors[ptype])
         ref_values.append(mean_v)
+    if mean_x:
+        ax.scatter(mean_x, mean_y, **_marker_obs_mean_halo())
+        ax.scatter(mean_x, mean_y, **_marker_obs_mean(color=mean_colors))
 
     if liability_r:
+        x_values: list[int] = []
+        y_values: list[float] = []
         for i, ptype in enumerate(relationship_types):
             v = liability_r.get(ptype)
             if v is not None:
-                ax.scatter(i, float(v), **_marker_liab())
-                ref_values.append(float(v))
+                x_values.append(i)
+                y_values.append(float(v))
+        if x_values:
+            ax.scatter(x_values, y_values, **_marker_liab())
+            ref_values.extend(y_values)
 
     if frailty_r:
+        x_values = []
+        y_values = []
         for i, ptype in enumerate(relationship_types):
             v = frailty_r.get(ptype)
             if v is not None:
-                ax.scatter(i, float(v), **_marker_frailty())
-                ref_values.append(float(v))
+                x_values.append(i)
+                y_values.append(float(v))
+        if x_values:
+            ax.scatter(x_values, y_values, **_marker_frailty())
+            ref_values.extend(y_values)
 
     if parametric_r:
+        x_values = []
+        y_values = []
+        colors: list[str] = []
         for i, ptype in enumerate(relationship_types):
             v = parametric_r.get(ptype)
             if v is not None:
-                ax.scatter(i, float(v), **_marker_param(color=pair_colors[ptype]))
-                ref_values.append(float(v))
+                x_values.append(i)
+                y_values.append(float(v))
+                colors.append(pair_colors[ptype])
+        if x_values:
+            ax.scatter(x_values, y_values, **_marker_param(color=colors))
+            ref_values.extend(y_values)
 
     ax.set_xticks(range(len(relationship_types)))
     ax.set_xticklabels(relationship_types, fontsize=15, fontweight="bold")
@@ -431,13 +456,26 @@ def finalize_relationship_type_panels(
         state["ax"].set_ylim(ylim_lo, ylim_hi)
 
     for state in panel_states:
-        for ax_, x, v in state.get("obs_records", []):
+        ax = state["ax"]
+        # Keep clipped carets separate from in-range circles, but batch each shape.
+        normal_x: list[float] = []
+        normal_y: list[float] = []
+        high_x: list[float] = []
+        low_x: list[float] = []
+        for _ax, x, v in state.get("obs_records", []):
             if v > ylim_hi:
-                ax_.scatter(x, ylim_hi, marker="^", s=42, color="0.45", zorder=5)
+                high_x.append(x)
             elif v < ylim_lo:
-                ax_.scatter(x, ylim_lo, marker="v", s=42, color="0.45", zorder=5)
+                low_x.append(x)
             else:
-                ax_.scatter(x, v, **_marker_obs_per_rep())
+                normal_x.append(x)
+                normal_y.append(v)
+        if normal_x:
+            ax.scatter(normal_x, normal_y, **_marker_obs_per_rep())
+        if high_x:
+            ax.scatter(high_x, [ylim_hi] * len(high_x), marker="^", s=42, color="0.45", zorder=5)
+        if low_x:
+            ax.scatter(low_x, [ylim_lo] * len(low_x), marker="v", s=42, color="0.45", zorder=5)
 
     return ylim_lo, ylim_hi
 

@@ -13,38 +13,22 @@ and on the [rendered site](https://rwaples.github.io/simACE/). Model fitting
 the private companion repo [`fitACE`](https://github.com/rwaples/fitACE),
 which depends on simACE.
 
-## Prerequisites
-
-- Linux. Windows users may use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install). The pipeline is not supported on macOS, but the library install below works anywhere.
-- `git` and `curl`
-
 ## Setup
 
-simACE runs in a locked [pixi](https://pixi.sh) environment. One committed
-lockfile means every install materializes the same environment:
+Install [pixi](https://pixi.sh), then install the locked simACE environment:
 
 ```bash
-curl -fsSL https://pixi.sh/install.sh | bash   # single user-space binary
-exec $SHELL                                     # pick up ~/.pixi/bin on PATH
-
 git clone https://github.com/rwaples/simACE.git
 cd simACE
 pixi install --locked
 ```
 
-To use simace as a library from your own environment instead, a plain
-`pip install` works without pixi and on any OS. See
-[installation](docs/getting-started/installation.md).
-
-### Verify installation
-
-```bash
-pixi run pytest tests/
-```
+See [Installation](docs/getting-started/installation.md) for pixi setup,
+supported platforms, development checks, and library installation.
 
 ## Quick start
 
-Run the smallest scenario to confirm everything works (takes a minute or two):
+Run the smallest scenario to confirm everything works:
 
 ```bash
 pixi run simace run small_test
@@ -95,37 +79,10 @@ Each stage is also a subcommand that takes explicit file paths
 
 ## Configuration
 
-Global defaults live in `config/_default.yaml` under a `defaults:` key
-(seed, replicates, variance components, population structure, phenotype
-models, censoring, ascertainment, …). Scenarios live in per-folder files
-`config/{folder}.yaml`. Each file holds bare scenario dicts, one top-level
-key per scenario, each overriding only the defaults it changes. The results
-folder name comes from the filename:
-
-```yaml
-# config/heritability.yaml → outputs under results/heritability/{scenario}/
-high_heritability:
-  seed: 4042
-  pedigree:
-    trait1: {A: 0.8, C: 0.0, E: 0.2}        # A + C + E = 1 per trait
-    trait2: {A: 0.8, C: 0.0, E: 0.2}
-
-baseline_small:
-  seed: 1042
-  N: 10000                                  # Population size per generation
-```
-
-Key defaults you will most often override: `pedigree.trait{1,2}.{A,C,E}`
-(variance components), `pedigree.rA`/`pedigree.rC` (cross-trait
-correlations), `N`, `G_ped`/`G_pheno`/`G_sim` (generations recorded /
-phenotyped / simulated), `seed`, `replicates`. The loader still accepts the
-older flat keys (`A1`, `C1`, …) for compatibility.
-
-To add new simulations, add a scenario to an existing folder file or create
-a new `config/{folder}.yaml`. Files are auto-discovered, and names starting
-with `_` are skipped. For the
-full parameter reference (phenotype models, censoring, ascertainment, etc.), see
-[Configuration](docs/user-guide/configuration.md).
+Scenarios inherit defaults from `config/_default.yaml`. Follow
+[Writing a scenario](docs/user-guide/writing-a-scenario.md) to add one, and use
+[Configuration](docs/user-guide/configuration.md) to look up parameters and
+their defaults.
 
 ## Outputs
 
@@ -138,12 +95,8 @@ inventory, parquet column schemas, YAML structures, and plot listings.
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| `ModuleNotFoundError: No module named 'simace'` | Run commands through `pixi run …` from the repo root |
-| `FileNotFoundError: config/_default.yaml` | Run `simace run` from inside the simACE repo, or pass `--config-dir` |
-| Simulation killed or frozen (large N) | Lower `--jobs` to reduce parallel memory use, or skip large-N scenarios |
-| `refused: run.yaml differs in ...` | The scenario's config changed after that replicate ran; rerun with `--force` to recompute it |
+See [Running the pipeline: troubleshooting](docs/user-guide/running-the-pipeline.md#troubleshooting)
+for fixes to common errors.
 
 ## License
 

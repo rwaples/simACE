@@ -24,7 +24,7 @@ At the default `mating_lambda = 0.5`, about 77% of individuals have one partner 
 
 ## Pedigree relationship types
 
-`PedigreeGraph`, from the [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) package, uses sparse matrix algebra to extract 23 relationship categories from a pedigree. Each category is defined by three numbers: `up`, the meioses from the *first* pair member up to the shared ancestors, `down`, the meioses from those ancestors down to the *second* member, and `ancestor_count`, which is 1 for a half or lineal link and 2 for a link through a mated pair. Kinship is $\text{ancestor\_count} \times (1/2)^{(\text{up} + \text{down} + 1)}$.
+`PedigreeGraph`, from the [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) package, uses a Rust row-streaming engine to extract 23 relationship categories from a pedigree. Except for MZ twins, each category is defined by three numbers: `up`, the meioses from the *first* pair member up to the shared ancestors, `down`, the meioses from those ancestors down to the *second* member, and `ancestor_count`, which is 1 for a half or lineal link and 2 for a link through a mated pair. Nominal kinship is $\text{ancestor\_count} \times (1/2)^{(\text{up} + \text{down} + 1)}$ for these categories. MZ twins have nominal kinship $1/2$.
 
 The registry stores every category with `up >= down`, so the first member is the one at least as far from the shared ancestors. That is what makes the two role columns below meaningful: an asymmetric block's `first_rows` always carries the junior role (the offspring, descendant, niece/nephew, or junior cousin) and `second_rows` its counterpart. Equality of `up` and `down` marks the seven symmetric categories, whose blocks instead store `first < second`.
 

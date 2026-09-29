@@ -1,15 +1,13 @@
 # Configuration
 
-Simulation parameters live in YAML files under `config/`.
-`config/_default.yaml` holds the defaults. Each `config/{folder}.yaml` file is a
-scenario file. It defines the scenarios for one output folder, and the folder
-takes its name from the file. Files whose name starts with `_` are not
-scenario files.
+`config/_default.yaml` defines the simulation defaults. This page lists the
+supported parameters and their default values. A scenario inherits the defaults
+and overrides only the values it lists. To add a scenario, follow
+[Writing a scenario](writing-a-scenario.md).
 
-A scenario inherits every default and overrides only the values it lists.
-This page shows the sectioned form. The loader also accepts the older flat
-keys listed under [Legacy flat keys](#legacy-flat-keys). Mixing the flat and
-sectioned form for one parameter is an error.
+The examples use sectioned keys. The loader also accepts the older flat keys
+listed under [Legacy flat keys](#legacy-flat-keys). Mixing flat and sectioned
+forms for one parameter is an error.
 
 <!-- scenario-defaults:start -->
 
@@ -19,7 +17,7 @@ sectioned form for one parameter is an error.
 |---|---|---:|---|
 | `seed` | int | `42` | Base random seed. Replicate `r` uses `seed + r - 1` |
 | `replicates` | int | `3` | Number of independent replicates per scenario |
-| `folder` | str | `base` | Output folder under `results/` |
+| `folder` | str | `base` | Output folder under `results/`. A scenario file sets this to its filename stem unless the scenario overrides it |
 | `N` | int | `100000` | Population size per generation |
 | `G_ped` | int | `6` | Recorded pedigree generations |
 | `G_pheno` | int | `3` | Number of most recent generations to phenotype |
@@ -120,14 +118,8 @@ phenotype:
 | `phenotype.trait2.beta` | float | `1.5` | Trait 2 liability coefficient. Its meaning depends on the model |
 | `phenotype.trait2.beta_sex` | float | `0.0` | Trait 2 additive male effect in the same coefficient units as `beta` |
 
-`model` is one of `frailty`, `cure_frailty`, `adult`, `first_passage`, or
-`simple_ltm`. The contents of `params` depend on the model. The threshold
-models `adult`, `cure_frailty`, and `simple_ltm` require `params.prevalence`.
-It accepts a scalar, a per-generation dict, or a sex-specific dict whose
-`female` and `male` values are scalars or per-generation dicts. See
-[Phenotype models, Prevalence forms](phenotype-models.md#prevalence-forms) for
-the three forms and [Phenotype models](phenotype-models.md) for every model's
-parameters.
+See [Phenotype models](phenotype-models.md) for model-specific parameters,
+prevalence forms, and standardization routing.
 
 simACE does not convert time units. The shipped configurations treat one age
 unit as one year. Event-time `scale` parameters, cumulative-incidence age
