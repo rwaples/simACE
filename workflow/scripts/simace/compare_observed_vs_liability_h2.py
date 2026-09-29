@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from simace import setup_logging
+from simace.core.snakemake_adapter import configure_engine_threads
 from simace.plotting.compare_scenarios import compare_observed_vs_liability_h2
 
 
@@ -17,6 +18,7 @@ def _regroup(flat_inputs: list[str], reps_per_scenario: list[int]) -> list[list[
 
 def _run_snakemake():
     setup_logging(log_file=snakemake.log[0], tag="examples/observed_vs_liability_h2")
+    configure_engine_threads(snakemake)
 
     labels = snakemake.params.labels
     reps_per_scenario = snakemake.params.reps_per_scenario

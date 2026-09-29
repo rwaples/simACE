@@ -3,11 +3,13 @@
 from pathlib import Path
 
 from simace import setup_logging
+from simace.core.snakemake_adapter import configure_engine_threads
 from simace.plotting.compare_scenarios import compare_cohort_falconer
 
 
 def _run_snakemake():
     setup_logging(log_file=snakemake.log[0], tag="examples/increasing_e_cohort_falconer")
+    configure_engine_threads(snakemake)
 
     labels = snakemake.params.labels
     reps_per_scenario = snakemake.params.reps_per_scenario

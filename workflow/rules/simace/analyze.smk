@@ -21,7 +21,11 @@ rule analyze:
         "logs/{folder}/{scenario}/rep{rep}/analyze.log",
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/analyze.tsv"
-    threads: 5
+    # Peak-wall job of the pipeline.  The wrapper hands this budget to
+    # pedigree-graph for relationship-pair extraction; the later
+    # tetrachoric ThreadPoolExecutor (4 tasks) runs after extraction, not
+    # alongside it.
+    threads: 8
     resources:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),
         runtime=lambda w: _scale_runtime(config, w.scenario, "G_ped"),

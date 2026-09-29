@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
     import polars as pl
 
-__all__ = ["cli_or_snakemake", "run_wrapper", "write_parquet_plain"]
+__all__ = ["cli_or_snakemake", "configure_engine_threads", "run_wrapper", "write_parquet_plain"]
 
 
 def write_parquet_plain(df: pl.DataFrame, path: str) -> None:
@@ -43,6 +43,27 @@ def write_parquet_plain(df: pl.DataFrame, path: str) -> None:
     import polars as pl
 
     df.with_columns(pl.col(pl.Float32, pl.Float64).fill_nan(None)).write_parquet(path, compression="snappy")
+
+
+def configure_engine_threads(snakemake: Any) -> None:
+    """Hand the rule's ``threads:`` to pedigree-graph as its thread budget.
+
+    pedigree-graph resolves its budget as ``configure_threads(n)`` >
+    ``PEDIGREE_GRAPH_THREADS`` > 1, so without this call a rule's ``threads:``
+    never reaches the engine, and with it the rule is the one knob.  Call it
+    before the first ``PedigreeGraph`` operation: the engine commits its budget
+    on first use and rejects a later change.
+
+    pedigree_graph is imported here rather than at module scope for the same
+    reason as polars in :func:`write_parquet_plain`: most wrappers never touch
+    the engine.
+
+    Args:
+        snakemake: the Snakemake-injected magic object from the wrapper script.
+    """
+    from pedigree_graph import configure_threads
+
+    configure_threads(snakemake.threads)
 
 
 def run_wrapper(

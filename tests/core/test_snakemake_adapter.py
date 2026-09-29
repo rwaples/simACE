@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import polars as pl
@@ -189,3 +192,27 @@ class TestCliOrSnakemake:
 
         cli_or_snakemake(cli_fn, wrapper_fn, {"__name__": "some.module"})
         assert called == []
+
+
+# ---------------------------------------------------------------------------
+# configure_engine_threads
+# ---------------------------------------------------------------------------
+
+
+class TestConfigureEngineThreads:
+    def test_rule_threads_become_the_engine_budget(self):
+        """snakemake.threads wins over PEDIGREE_GRAPH_THREADS and commits as the budget.
+
+        The budget is process-global and commits once, so the check runs in a
+        child interpreter rather than disturbing this worker's budget.
+        """
+        code = (
+            "from types import SimpleNamespace\n"
+            "from pedigree_graph._threads import thread_budget\n"
+            "from simace.core.snakemake_adapter import configure_engine_threads\n"
+            "configure_engine_threads(SimpleNamespace(threads=3))\n"
+            "print(thread_budget())\n"
+        )
+        env = {**os.environ, "PEDIGREE_GRAPH_THREADS": "2"}
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, env=env)
+        assert result.stdout.strip() == "3"

@@ -3,11 +3,12 @@
 from simace import _snakemake_tag, setup_logging
 from simace.analysis.stats.effective_size import cli as _cli
 from simace.analysis.stats.effective_size import main
-from simace.core.snakemake_adapter import cli_or_snakemake
+from simace.core.snakemake_adapter import cli_or_snakemake, configure_engine_threads
 
 
 def _run() -> None:
     setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
+    configure_engine_threads(snakemake)
     main(
         pedigree_path=snakemake.input.pedigree,
         phenotype_path=snakemake.input.phenotype,

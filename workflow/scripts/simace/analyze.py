@@ -4,10 +4,12 @@ from simace import _snakemake_tag, setup_logging
 from simace.analysis.analyze import cli as _cli
 from simace.analysis.analyze import run_analysis
 from simace.core.relationships import DEFAULT_MAX_DEGREE
+from simace.core.snakemake_adapter import configure_engine_threads
 
 
 def _run_snakemake():
     setup_logging(log_file=snakemake.log[0], tag=_snakemake_tag(snakemake.wildcards))
+    configure_engine_threads(snakemake)
     p = snakemake.params
 
     gen_censoring = p.get("gen_censoring") or None
