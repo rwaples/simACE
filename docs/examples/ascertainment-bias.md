@@ -76,10 +76,11 @@ The dotted blue line marks the realized affected fraction in the uniform 50K
 sample. Dropout alone is not trait-targeted, so it should stay close to the
 uniform-sampling baseline. In contrast, `case_ascertainment_ratio: 5` gives
 affected individuals five times the sampling weight of unaffected individuals,
-so the final `trait.parquet` is case-enriched.
+so the final analysis sample is case-enriched.
 
-The affected fraction is measured in the sampled `trait.parquet` after
-phenotype, censoring, and ascertainment. Small differences between the uniform
+The affected fraction is measured in the analysis sample, the rows of
+`cohort.parquet` with `affected1` set, after phenotype, censoring, and
+ascertainment. Small differences between the uniform
 and dropout-only bars should not be overinterpreted because this example uses a
 single seeded replicate for fast reproduction.
 
@@ -88,14 +89,18 @@ single seeded replicate for fast reproduction.
 ![Trait rows, pedigree rows, and closure expansion under ascertainment](../images/examples/ascertainment/sample_sizes.png)
 
 Every scenario targets the same 50K analysis sample, so the sampled trait table
-has the same intended size. The post-ascertainment `pedigree.parquet` is larger
-because it contains the sampled IDs plus their ancestor closure within the
-post-dropout pedigree. Dropout changes which ancestors remain recoverable, so
-the closure expansion can differ even when the trait sample size is fixed.
+has the same intended size. The analysis pedigree, every row of
+`cohort.parquet`, is larger because it contains the sampled IDs plus their
+ancestor closure within the post-dropout pedigree. Dropout changes which
+ancestors remain recoverable, so the closure expansion can differ even when
+the trait sample size is fixed.
 
-Downstream methods depend on this distinction. `trait.parquet` is the
-analysis trait table. `pedigree.parquet` is the pedigree context available
-for relationship recovery.
+Downstream methods depend on this distinction. The analysis sample is the
+analysis trait table. The analysis pedigree is the pedigree context available
+for relationship recovery. `selected_views` rebuilds both from
+`pedigree.parquet` and `cohort.parquet`; [Ascertainment, Who is in
+`cohort.parquet`](../user-guide/ascertainment.md#who-is-in-cohortparquet)
+lists who each one holds.
 
 ## Observation 3: Ascertainment changes which relationship evidence remains
 

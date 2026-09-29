@@ -35,7 +35,7 @@ Now list the first replicate:
 ls results/test/small_test/rep1/
 ```
 
-You see `pedigree.parquet`, `trait.parquet`, `report.yaml`, and `params.yaml`,
+You see `pedigree.parquet`, `cohort.parquet`, `report.yaml`, and `params.yaml`,
 alongside the other stage outputs, `run.yaml`, and `timing.tsv`. The
 [Output structure](../user-guide/output-structure.md) page describes each one.
 

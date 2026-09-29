@@ -43,7 +43,7 @@ SimHumanity p2 .trees ──► tskit_preprocess_canonicalize_chrom (×22)
 
 Per replicate
 ─────────────
-simulate_pedigree_liability ──► pedigree.full.parquet
+simulate_pedigree_liability ──► pedigree.parquet
               │
               └──► simulate_genotypes_chrom (×22)  ──► genotypes_chrom_{n}.trees
                             │
@@ -57,10 +57,7 @@ simulate_pedigree_liability ──► pedigree.full.parquet
                   tstrait_augment_pedigree  ──► pedigree.full.tstrait.parquet
                             │
                             ▼
-                  pedigree_dropout (reads .tstrait. when use_gene_drop=true)
-                            │
-                            ▼
-                  phenotype → censor → ascertainment → stats → plot → atlas
+                  simace phenotype → censor → ascertain (Step 5)
 ```
 
 ### Step 1: preprocess the SimHumanity ancestry
@@ -90,7 +87,7 @@ Only sample-tagged individuals, the generations covered by `G_pheno`, get a gene
 
 ### Step 4: rescale and overwrite A in the pedigree
 
-`tstrait_augment_pedigree` reads `pedigree.full.parquet` and sums the per-chromosome genetic values into one genome-wide value per sample individual. It then:
+`tstrait_augment_pedigree` reads `pedigree.parquet` and sums the per-chromosome genetic values into one genome-wide value per sample individual. It then:
 
 1. Centres the values at zero.
 2. Rescales them so that $\mathrm{Var}(A_\text{new})$ equals the configured `A1`. The variance is the sample variance with `ddof=0`.
@@ -104,11 +101,13 @@ Older ancestors keep their parametric `A1`. That asymmetry is deliberate. Only s
 
 ### Step 5: feed the standard pipeline
 
-A gene-drop replicate then runs the standard stages on `pedigree.full.tstrait.parquet` instead of `pedigree.full.parquet`. `simace run` refuses scenarios with `use_gene_drop: true`, so run the stage subcommands by hand: `simace phenotype`, `simace censor`, and `simace ascertain` take the tstrait pedigree as their `--pedigree`, followed by `simace analyze`, `simace plot`, and `simace atlas`. `simace run <any scenario> --dry-run` prints the full flag set each stage expects. The phenotype model, censoring, ascertainment, stats, plots, and atlas then behave as they would for a Gaussian $A$ scenario, on the gene-drop $A$ column.
+A gene-drop replicate then runs the standard stages on `pedigree.full.tstrait.parquet` instead of `pedigree.parquet`. `simace run` refuses scenarios with `use_gene_drop: true`, so run the stage subcommands by hand: `simace cohort --pedigree pedigree.full.tstrait.parquet` writes `cohort.parquet` and `phenotyped_population.yaml`, and `simace analyze` takes the same pedigree with those two files. The phenotype model, censoring, and ascertainment then behave as they would for a Gaussian $A$ scenario, on the gene-drop $A$ column.
+
+`simace cohort` and `simace analyze` read only pedigrees that carry the results-layout marker `simace_layout=2` ([ADR 0021](../adr/0021-two-canonical-replicate-parquets.md)). `tstrait_augment_pedigree.py` copies the marker from its input `pedigree.parquet`, so the tstrait pedigree of a layout-2 replicate is accepted and one from an older replicate is refused.
 
 ## Sharing drops across variants
 
-The drop and graft step is expensive. To vary the architecture while holding the genotypes fixed, set `drop_from: <base_scenario>` on the variant scenario. The architecture keys are `tstrait.alpha`, `tstrait.num_causal`, and the other keys under `tstrait`. The `tstrait_gv_chrom` and `tstrait_augment_pedigree` rules then read the base scenario's `.trees` and `pedigree.full.parquet`. Only the tstrait steps run per variant.
+The drop and graft step is expensive. To vary the architecture while holding the genotypes fixed, set `drop_from: <base_scenario>` on the variant scenario. The architecture keys are `tstrait.alpha`, `tstrait.num_causal`, and the other keys under `tstrait`. The `tstrait_gv_chrom` and `tstrait_augment_pedigree` rules then read the base scenario's `.trees` and `pedigree.parquet`. Only the tstrait steps run per variant.
 
 A six-scenario sweep over `num_causal` in {100, 1k, 10k, 100k, 1m} and `alpha` in {0, -0.5} therefore runs the drop once instead of six times.
 

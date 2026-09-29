@@ -18,9 +18,12 @@ Each target is a scenario name, or else a folder name, which stands for
 every scenario whose `folder` it is (gene-drop scenarios are left out). A
 scenario named more than once runs once. `simace run` computes every
 replicate of every target through one pool of `--jobs` workers, then draws
-each scenario's plots and HTML atlas. Each replicate goes through the stages
-in this order: simulate, phenotype, censor, ascertain, analyze. Each stage
-reads the files the previous one wrote.
+each scenario's plots and HTML atlas. Each replicate goes through three
+stages in this order: simulate, cohort, analyze. Each stage reads the files
+the previous one wrote. The `cohort` stage runs phenotype, censoring, and
+ascertainment in one process and writes only `cohort.parquet` and
+`phenotyped_population.yaml`, so no intermediate trait file is written
+([ADR 0021](../adr/0021-two-canonical-replicate-parquets.md)).
 
 | Flag | Effect |
 |---|---|
@@ -114,6 +117,13 @@ file missing). A run with `--no-plots`, or of a subset of replicates while
 others are incomplete, exits 0 with the replicates it computed and leaves
 the plots stale or absent; the line says so.
 
+A replicate computed before the two-file results layout
+([ADR 0021](../adr/0021-two-canonical-replicate-parquets.md)) is stale: its
+`run.yaml` lists the old stages and has no `layout`, so the reason reads
+`layout: (absent) -> 2`. `--force` recomputes it and deletes the files only
+the old layout wrote: `pedigree.full.parquet`, `trait.parquet`,
+`trait.raw.parquet`, and `trait.full.parquet`.
+
 A code change does not make a replicate stale. `run.yaml` records the simace
 version and, in a git checkout, the commit (`git describe --tags --always
 --dirty`) that built the replicate, and `simace ls` shows either when it
@@ -167,7 +177,7 @@ memory are in `results/{folder}/{scenario}/rep{N}/timing.tsv`.
 
 A stage rerun this way rewrites its output, which no longer matches the size
 and time recorded in the replicate's `run.yaml`. `simace ls` then shows the
-replicate as incomplete (`rep2: trait.parquet changed`), `simace gather`
+replicate as incomplete (`rep2: cohort.parquet changed`), `simace gather`
 leaves it out, and the next `simace run` recomputes it from the first stage.
 To keep a debugging output out of the results, point the stage's output
 flags at another directory.
@@ -176,9 +186,15 @@ The recorded size and modification time also mean a copy of a results tree
 must preserve modification times (`cp -a`, `rsync -a`), or every replicate in
 the copy reads as incomplete and the next `simace run` recomputes it.
 
+`simace phenotype`, `simace censor`, and `simace ascertain` run the three
+phases of the `cohort` stage one at a time, reading and writing trait files
+at the paths you give. `simace run` does not call them.
+
 `simace validate`, `simace stats`, and `simace effective-size` are not part of
-`simace run`. Run `effective-size` by hand on a replicate's
-`pedigree.parquet`, `trait.parquet`, and `params.yaml`.
+`simace run`. `effective-size` takes the replicate's `pedigree.parquet` as
+`--pedigree` and its `cohort.parquet` as `--cohort`, beside its
+`params.yaml`, and estimates Ne on the analysis pedigree it rebuilds from
+them.
 
 ## Convert parquet to TSV
 

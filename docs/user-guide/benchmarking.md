@@ -93,8 +93,8 @@ does not enter the measurement. It attributes each process to the `python -m sim
 process it descends from. Short spikes can fall between samples. Each stage's `timing.tsv` peak comes from `wait4` and cannot miss one.
 
 The runtime and memory pages in the validation atlas are separate. They read
-only the `simulate` row of each replicate's `timing.tsv`; they do not measure the phenotype,
-censoring, ascertainment, analysis, or plotting stages. Statistical validation
+only the `simulate` row of each replicate's `timing.tsv`; they do not measure the `cohort`,
+`analyze`, or plotting stages. Statistical validation
 and fitACE estimator bias or RMSE studies do not measure computational
 performance.
 

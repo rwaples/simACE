@@ -19,6 +19,7 @@ The dispatcher, the config validator, and the CLI all read from it.
 
 After step 7, `_simulate_one_trait` in `simace/phenotype/runner.py`,
 `_validate_phenotype_config` in `simace/config.py`, and the `simace phenotype`
-command accept the new `model` value without further changes.
+and `simace cohort` commands accept the new `model` value without further
+changes.
 
 Add the model to the tables in [Phenotype models](phenotype-models.md).

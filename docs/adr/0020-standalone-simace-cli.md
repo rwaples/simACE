@@ -2,8 +2,10 @@
 
 Date: 2026-09-25
 
-Status: accepted. ADR 0021 records a pending replacement for the replicate
-Parquet output contract described here.
+Status: accepted. [ADR 0021](0021-two-canonical-replicate-parquets.md)
+replaced the replicate Parquet output contract and the per-rep stage list
+described here, implemented 2026-09-29: a rep is `simulate`, `cohort`,
+`analyze`.
 
 ## Context
 

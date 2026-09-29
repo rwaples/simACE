@@ -5,8 +5,8 @@ simACE simulates multi-generational pedigrees with **A** (additive genetic), **C
 ## Project layout
 
 - `simace/` — the package, one sub-package per pipeline stage:
-  - `cli/` — the `simace` command: `run.py` (`simace run`), `layout.py` (the `results/` path convention), `stages.py` (stage argv), `manifest.py` (per-rep `run.yaml`)
-  - `core/` — shared infrastructure (schemas, parquet/yaml I/O, CLI helpers, atomic `publish`, numerics, hazard terms, pedigree filtering)
+  - `cli/` — the `simace` command: `run.py` (`simace run`), `layout.py` (the `results/` path convention), `stages.py` (stage argv), `manifest.py` (per-rep `run.yaml`), `cohort_stage.py` (`simace cohort`: phenotype, censor, ascertain in one process)
+  - `core/` — shared infrastructure (schemas, parquet/yaml I/O, CLI helpers, atomic `publish`, numerics, hazard terms, pedigree filtering, and `cohort.py`: the `cohort.parquet` contract, `selected_views`, the layout-2 marker; ADR 0021)
   - `simulation/` — pedigree simulation (household assignment in `simulate.py`)
   - `phenotype/` — `runner.py` (`run_phenotype` dispatcher), `hazards.py`, `blended_post.py`, and `models/` (subclasses of `PhenotypeModel`; the liability-threshold idiom is in `models/_prevalence.py`)
   - `censoring/` — age-window and death censoring

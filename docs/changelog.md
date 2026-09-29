@@ -8,6 +8,31 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
+### Two Parquet files per replicate ([ADR 0021](adr/0021-two-canonical-replicate-parquets.md))
+
+- **A replicate holds `pedigree.parquet` and `cohort.parquet`.**
+  `pedigree.parquet` is now the recorded pedigree, formerly
+  `pedigree.full.parquet`. `cohort.parquet` has one row per member of the
+  analysis pedigree, with censored outcomes for the analysis sample.
+  `simace.core.cohort.selected_views` rebuilds the analysis pedigree and
+  analysis sample. `pedigree.full.parquet`, `trait.raw.parquet`,
+  `trait.full.parquet`, and `trait.parquet` are no longer written.
+- **`simace run` has three per-replicate stages: simulate, cohort,
+  analyze.** The new `simace cohort` runs phenotype, censoring, and
+  ascertainment in one process and also writes
+  `phenotyped_population.yaml`, which `simace analyze` reads for the
+  phenotyped-population scope. `simace analyze` takes `--pedigree`,
+  `--params`, `--cohort`, and `--phenotyped-population`. The standalone
+  `simace phenotype`, `censor`, and `ascertain` commands are unchanged.
+- **Results layout marker.** `run.yaml` records `layout: 2`, and both
+  Parquet files carry the metadata `simace_layout=2`. Existing replicates
+  read as stale; `simace run --force` recomputes them and deletes the old
+  files.
+- **`scopes.phenotyped_population.n_generations`** in `report.yaml` now
+  counts phenotyped generations; it was 1 before.
+- **Hard cut for fitACE.** fitACE and fitACE_epimight move to the new pair
+  in lockstep; no command writes the old one.
+
 ### `simace` CLI replaces Snakemake ([ADR 0020](adr/0020-standalone-simace-cli.md))
 
 - **`simace run <scenario>`** runs every replicate through simulate,

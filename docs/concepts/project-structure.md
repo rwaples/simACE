@@ -16,6 +16,7 @@ simACE/
 │   ├── cli/                              # The `simace` command (ADR 0020)
 │   │   ├── __init__.py                   # Subcommand table; dispatches to each stage's cli(argv, prog)
 │   │   ├── run.py                        # `simace run`: every rep of a scenario, then plots and atlas
+│   │   ├── cohort_stage.py               # `simace cohort`: phenotype, censor, and ascertain in one process (ADR 0021)
 │   │   ├── stages.py                     # Per-rep stage sequence as argv builders
 │   │   ├── layout.py                     # Layout and RepArtifact: the results/ and logs/ path convention
 │   │   ├── manifest.py                   # Per-rep run.yaml: complete, stale, or absent
@@ -24,6 +25,7 @@ simACE/
 │   ├── core/                             # Shared infrastructure
 │   │   ├── _numba_utils.py               # Shared Numba-compiled utilities
 │   │   ├── cli_base.py                   # Shared CLI boilerplate and flag parsers for structured values
+│   │   ├── cohort.py                     # cohort.parquet: builder, invariants, selected_views, layout-marked readers and writers
 │   │   ├── compute_hazard_terms.py       # Baseline hazard computation for parametric survival models
 │   │   ├── numerics.py                   # safe_corrcoef, safe_linregress, numba-accelerated helpers
 │   │   ├── parquet.py                    # Parquet reader/writer with dtype narrowing and the null contract

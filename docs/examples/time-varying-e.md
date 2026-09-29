@@ -36,7 +36,7 @@ The four E trajectories differ in how $E_1$ moves across generations 0–9:
 
 Each trajectory has a `_std` and `_nostd` variant with **matched
 seeds**: the simulated liability columns are byte-identical within a
-pair; only the binary affected status (in `trait.parquet`) differs.
+pair; only the binary affected status (in `cohort.parquet`) differs.
 The `_std` scenarios use the legacy bool form `standardize: true`,
 which the config-load shim resolves to `standardize: "global"`; the
 `_nostd` scenarios use `standardize: false` (resolved to

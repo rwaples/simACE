@@ -13,6 +13,10 @@
 
 ::: simace.core.trait_schema
 
+## cohort
+
+::: simace.core.cohort
+
 ## parquet
 
 ::: simace.core.parquet

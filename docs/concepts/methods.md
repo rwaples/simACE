@@ -353,7 +353,7 @@ With $\alpha > 1$ the sample overrepresents cases, like a case-control design. W
 
 The output pedigree is the ancestor closure of the sampled IDs within the post-dropout pedigree. Every parent reachable through an unbroken chain of links is kept. The stage then rewrites any remaining dangling twin reference to $-1$, so kinship and relationship-pair extraction work on the analysis dataset.
 
-Validation is unaffected. It reads `pedigree.full.parquet`, the pedigree from before ascertainment.
+Validation is unaffected. It reads `pedigree.parquet`, the recorded pedigree, which ascertainment does not rewrite.
 
 ## Validation via statistical analysis
 

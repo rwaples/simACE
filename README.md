@@ -37,7 +37,7 @@ pixi run simace run small_test
 Check the output:
 
 ```bash
-ls results/test/small_test/rep1/    # pedigree.parquet, trait files, report.yaml, params.yaml, run.yaml, timing.tsv
+ls results/test/small_test/rep1/    # pedigree.parquet, cohort.parquet, report.yaml, params.yaml, run.yaml, timing.tsv
 cat logs/test/small_test/rep1/simulate.log
 ```
 
@@ -86,8 +86,9 @@ their defaults.
 
 ## Outputs
 
-Each scenario replicate produces the full and post-ascertainment pedigree
-parquets, outcomes-only censored time-to-event trait parquets, a curated
+Each scenario replicate produces two parquets, the recorded pedigree and the
+cohort (the analysis pedigree's members with censored time-to-event outcomes
+for the analysis sample), a curated
 `report.yaml` with its `plot_payload.yaml` companion, and a browsable HTML
 plot atlas (PDF export on demand). See
 [Output structure](docs/user-guide/output-structure.md) for the complete file
