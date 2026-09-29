@@ -9,8 +9,10 @@ from __future__ import annotations
 
 __all__ = [
     "PARAMS_YAML_KEYS",
+    "REP_LAYOUT",
     "REP_OUTPUTS",
     "REP_PARAM_KEYS",
+    "RETIRED_OUTPUTS",
     "STAGES",
     "ResolvedRep",
     "Stage",
@@ -96,6 +98,7 @@ _PHENOTYPE_KEYS = (
 )
 _CENSOR_KEYS = ("censor_age", "death_scale", "death_rho", "gen_censoring")
 _ASCERTAIN_KEYS = ("dropout_rate", "case_ascertainment_ratio", "N_sample")
+_COHORT_KEYS = (*_PHENOTYPE_KEYS, *_CENSOR_KEYS, *_ASCERTAIN_KEYS)
 _ANALYZE_KEYS = ("censor_age", "gen_censoring", "max_degree", "case_ascertainment_ratio")
 
 
@@ -150,46 +153,20 @@ def _simulate(rep: ResolvedRep, layout: Layout) -> list[str]:
         "assort2": _generation_map_or_scalar,
         "assort_matrix": _json,
     }
-    return [*_flags(values, encode), "--output-pedigree", rep.path(layout, RepArtifact.PEDIGREE_FULL)]
+    return [*_flags(values, encode), "--output-pedigree", rep.path(layout, RepArtifact.PEDIGREE)]
 
 
-def _phenotype(rep: ResolvedRep, layout: Layout) -> list[str]:
-    values = {"seed": rep.seed, **_pick(rep, *_PHENOTYPE_KEYS)}
-    encode = {"phenotype_params1": _yaml, "phenotype_params2": _yaml}
+def _cohort(rep: ResolvedRep, layout: Layout) -> list[str]:
+    values = {"seed": rep.seed, **_pick(rep, *_COHORT_KEYS)}
+    encode = {"phenotype_params1": _yaml, "phenotype_params2": _yaml, "gen_censoring": _json}
     return [
         "--pedigree",
-        rep.path(layout, RepArtifact.PEDIGREE_FULL),
-        "--output",
-        rep.path(layout, RepArtifact.TRAIT_RAW),
-        *_flags(values, encode),
-    ]
-
-
-def _censor(rep: ResolvedRep, layout: Layout) -> list[str]:
-    values = {"seed": rep.seed, **_pick(rep, *_CENSOR_KEYS)}
-    return [
-        "--phenotype",
-        rep.path(layout, RepArtifact.TRAIT_RAW),
-        "--pedigree",
-        rep.path(layout, RepArtifact.PEDIGREE_FULL),
-        "--output",
-        rep.path(layout, RepArtifact.TRAIT_FULL),
-        *_flags(values, {"gen_censoring": _json}),
-    ]
-
-
-def _ascertain(rep: ResolvedRep, layout: Layout) -> list[str]:
-    values = {"seed": rep.seed, **_pick(rep, *_ASCERTAIN_KEYS)}
-    return [
-        "--pedigree",
-        rep.path(layout, RepArtifact.PEDIGREE_FULL),
-        "--trait",
-        rep.path(layout, RepArtifact.TRAIT_FULL),
-        "--out-pedigree",
         rep.path(layout, RepArtifact.PEDIGREE),
-        "--out-trait",
-        rep.path(layout, RepArtifact.TRAIT),
-        *_flags(values),
+        "--output-cohort",
+        rep.path(layout, RepArtifact.COHORT),
+        "--output-phenotyped-population",
+        rep.path(layout, RepArtifact.PHENOTYPED_POPULATION),
+        *_flags(values, encode),
     ]
 
 
@@ -202,16 +179,14 @@ def _analyze(rep: ResolvedRep, layout: Layout) -> list[str]:
         "rep": rep.rep,
     }
     return [
-        "--pedigree-full",
-        rep.path(layout, RepArtifact.PEDIGREE_FULL),
-        "--params",
-        rep.path(layout, RepArtifact.PARAMS),
-        "--trait-full",
-        rep.path(layout, RepArtifact.TRAIT_FULL),
-        "--trait",
-        rep.path(layout, RepArtifact.TRAIT),
         "--pedigree",
         rep.path(layout, RepArtifact.PEDIGREE),
+        "--params",
+        rep.path(layout, RepArtifact.PARAMS),
+        "--cohort",
+        rep.path(layout, RepArtifact.COHORT),
+        "--phenotyped-population",
+        rep.path(layout, RepArtifact.PHENOTYPED_POPULATION),
         "--report-output",
         rep.path(layout, RepArtifact.REPORT),
         "--plot-payload-output",
@@ -223,10 +198,8 @@ def _analyze(rep: ResolvedRep, layout: Layout) -> list[str]:
 
 
 STAGES: tuple[Stage, ...] = (
-    Stage("simulate", _SIMULATE_KEYS, (RepArtifact.PEDIGREE_FULL,), _simulate),
-    Stage("phenotype", _PHENOTYPE_KEYS, (RepArtifact.TRAIT_RAW,), _phenotype),
-    Stage("censor", _CENSOR_KEYS, (RepArtifact.TRAIT_FULL,), _censor),
-    Stage("ascertain", _ASCERTAIN_KEYS, (RepArtifact.PEDIGREE, RepArtifact.TRAIT), _ascertain),
+    Stage("simulate", _SIMULATE_KEYS, (RepArtifact.PEDIGREE,), _simulate),
+    Stage("cohort", _COHORT_KEYS, (RepArtifact.COHORT, RepArtifact.PHENOTYPED_POPULATION), _cohort),
     Stage(
         "analyze",
         _ANALYZE_KEYS,
@@ -245,6 +218,18 @@ REP_OUTPUTS: tuple[RepArtifact, ...] = (
     RepArtifact.TIMING,
     *(out for s in STAGES for out in s.outputs),
 )
+
+#: Files an earlier results layout wrote into a rep directory; a recompute removes them too.
+RETIRED_OUTPUTS: tuple[str, ...] = (
+    "pedigree.full.parquet",
+    "trait.parquet",
+    "trait.raw.parquet",
+    "trait.full.parquet",
+)
+
+#: The results layout a rep's ``run.yaml`` records; mirrors :data:`simace.core.cohort.LAYOUT`,
+#: kept separate so ``simace run``, ``ls``, and ``show`` do not import polars.
+REP_LAYOUT = 2
 
 # Scenario keys the atlas title page needs that params.yaml does not carry.
 # max_degree is deliberately absent: rep1/params.yaml owns the extraction depth.

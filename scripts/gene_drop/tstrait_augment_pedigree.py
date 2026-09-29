@@ -21,7 +21,7 @@ augmented pedigree and use the simACE-style A+C+E variance composition.
 ``scripts/gene_drop/envs/tskit.yaml``. Example::
 
     python scripts/gene_drop/tstrait_augment_pedigree.py \
-        --pedigree results/{folder}/{scenario}/rep{rep}/pedigree.full.parquet \
+        --pedigree results/{folder}/{scenario}/rep{rep}/pedigree.parquet \
         --gv results/{folder}/{scenario}/rep{rep}/gv_chrom_{1..22}.parquet \
         --out-pedigree results/{folder}/{scenario}/rep{rep}/pedigree.full.tstrait.parquet \
         --meta results/{folder}/{scenario}/rep{rep}/pedigree.full.tstrait_meta.json \
@@ -37,6 +37,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s | %(message)s")
 log = logging.getLogger("tstrait_augment_pedigree")
@@ -82,6 +84,19 @@ def rescale_gv(gv: np.ndarray, target_var: float) -> tuple[np.ndarray, dict]:
         "rescaled_mean": float(out.mean()),
     }
     return out, info
+
+
+def write_like(df: pd.DataFrame, path: Path, source: Path) -> None:
+    """Write ``df`` as zstd parquet carrying ``source``'s ``simace_layout`` marker.
+
+    The augmented pedigree is a recorded pedigree of the same results layout
+    as its input, and ``simace cohort`` / ``simace analyze`` refuse a
+    pedigree without the marker (ADR 0021). This env has no simace, so the
+    key is copied with pyarrow rather than written by ``write_pedigree``.
+    """
+    marker = {k: v for k, v in (pq.read_metadata(source).metadata or {}).items() if k == b"simace_layout"}
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    pq.write_table(table.replace_schema_metadata({**(table.schema.metadata or {}), **marker}), path, compression="zstd")
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -142,7 +157,7 @@ def main(argv: list[str] | None = None) -> None:
         )
 
     log.info("writing %s", out_pedigree)
-    ped_out.to_parquet(out_pedigree, index=False, compression="zstd")
+    write_like(ped_out, out_pedigree, pedigree_path)
 
     sample_mask = mask.to_numpy()
     meta = {

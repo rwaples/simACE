@@ -72,12 +72,13 @@ else
 fi
 
 step "Assert smoke outputs (rep1)"
-# Canonical per-rep artifacts produced by the pipeline on the default branch:
-# pedigree/trait parquet (ascertainment) + report.yaml (the curated v2
-# scientific report carrying validation + stats) + plot_payload.yaml (analyze).
+# Canonical per-rep artifacts produced by the pipeline on the default branch
+# (results layout 2, ADR 0021): the recorded pedigree (simulate) + cohort
+# parquet (cohort) + report.yaml (the curated v2 scientific report carrying
+# validation + stats) + plot_payload.yaml (analyze).
 REP="$WORK/simACE/results/test/small_test/rep1"
-assert_file "$REP/pedigree.parquet"  "pedigree parquet"
-assert_file "$REP/trait.parquet"     "trait parquet"
+assert_file "$REP/pedigree.parquet"  "recorded pedigree parquet"
+assert_file "$REP/cohort.parquet"    "cohort parquet"
 assert_file "$REP/report.yaml"       "scientific report (validation + stats)"
 assert_file "$REP/plot_payload.yaml" "plot payload"
 

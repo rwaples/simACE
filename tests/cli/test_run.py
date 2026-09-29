@@ -19,7 +19,7 @@ from simace.cli.inspect import ls_cli, show_cli
 from simace.cli.layout import Layout, RepArtifact
 from simace.cli.manifest import PlotsState, RepState, write_manifest, write_plots_manifest
 from simace.cli.run import cli, expected_manifest, load_scenario, rep_outputs, scenario_plots_status, status_on_disk
-from simace.cli.stages import REP_OUTPUTS, STAGES, ResolvedRep
+from simace.cli.stages import REP_OUTPUTS, RETIRED_OUTPUTS, STAGES, ResolvedRep
 
 REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
 TINY = {"N": 300, "G_ped": 3, "G_sim": 3, "G_pheno": 2, "replicates": 2, "seed": 100}
@@ -373,11 +373,11 @@ def test_a_manifest_copied_from_another_rep_is_stale(config_dir, roots, layout, 
 def test_a_rep_with_a_missing_output_is_recomputed(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
     for r in (1, 2):
         _finish(layout, _rep(config_dir, r))
-    layout.rep("t", "tiny", 2, RepArtifact.TRAIT).unlink()
+    layout.rep("t", "tiny", 2, RepArtifact.COHORT).unlink()
     assert status_on_disk(_rep(config_dir, 2), layout).state is RepState.INCOMPLETE
-    assert status_on_disk(_rep(config_dir, 2), layout).reasons == ("trait.parquet missing",)
+    assert status_on_disk(_rep(config_dir, 2), layout).reasons == ("cohort.parquet missing",)
     assert _run(config_dir, roots, "tiny") == 0
-    assert "rep2] recompute: trait.parquet missing" in capsys.readouterr().out
+    assert "rep2] recompute: cohort.parquet missing" in capsys.readouterr().out
     assert recorded == [2]
     assert [rep.rep for rep in no_plots[0]] == [1, 2]
 
@@ -387,12 +387,12 @@ def test_an_output_rewritten_after_the_manifest_is_recomputed(
 ) -> None:
     for r in (1, 2):
         _finish(layout, _rep(config_dir, r))
-    trait = layout.rep("t", "tiny", 2, RepArtifact.TRAIT)
-    os.utime(trait, ns=(trait.stat().st_atime_ns, trait.stat().st_mtime_ns + 1))
+    cohort = layout.rep("t", "tiny", 2, RepArtifact.COHORT)
+    os.utime(cohort, ns=(cohort.stat().st_atime_ns, cohort.stat().st_mtime_ns + 1))
     layout.rep("t", "tiny", 2, RepArtifact.REPORT).write_text("rewritten by hand\n")
-    assert status_on_disk(_rep(config_dir, 2), layout).reasons == ("trait.parquet changed", "report.yaml changed")
+    assert status_on_disk(_rep(config_dir, 2), layout).reasons == ("cohort.parquet changed", "report.yaml changed")
     assert _run(config_dir, roots, "tiny") == 0
-    assert "rep2] recompute: trait.parquet changed, report.yaml changed" in capsys.readouterr().out
+    assert "rep2] recompute: cohort.parquet changed, report.yaml changed" in capsys.readouterr().out
     assert recorded == [2]
 
 
@@ -409,6 +409,20 @@ def test_a_manifest_without_output_fingerprints_is_refused(
     assert "rep1] refused: run.yaml differs in outputs: (absent) -> fingerprints (run.yaml predates them)" in (
         capsys.readouterr().out
     )
+    assert recorded == [2]
+
+
+def test_a_rep_from_before_layout_2_is_stale(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
+    rep = _rep(config_dir, 1)
+    _finish(layout, rep)
+    manifest = _manifest(layout, rep)
+    body = yaml.safe_load(manifest.read_text())
+    del body["layout"]
+    manifest.write_text(yaml.safe_dump(body))
+    status = status_on_disk(rep, layout)
+    assert (status.state, status.describe()) == (RepState.STALE, "layout: (absent) -> 2")
+    assert _run(config_dir, roots, "tiny") == 1
+    assert "rep1] refused: run.yaml differs in layout: (absent) -> 2; --force recomputes it" in capsys.readouterr().out
     assert recorded == [2]
 
 
@@ -502,9 +516,13 @@ def test_recompute_runs_every_stage_and_records_it(config_dir, roots, layout, no
     rep = _rep(config_dir, 1)
     rep_dir = layout.rep_dir(rep.folder, rep.scenario, 1)
     rep_dir.mkdir(parents=True)
-    (rep_dir / "trait.raw.parquet.tmp").write_text("left by a killed stage")
+    (rep_dir / "cohort.parquet.tmp").write_text("left by a killed stage")
+    for retired in RETIRED_OUTPUTS:
+        (rep_dir / retired).write_text("written by an earlier results layout")
 
     assert _run(config_dir, roots, "tiny", "--rep", "1") == 0
+
+    assert [name for name in RETIRED_OUTPUTS if (rep_dir / name).exists()] == []
 
     timing = (rep_dir / "timing.tsv").read_text().splitlines()
     assert [row.split("\t")[0] for row in timing[1:]] == [s.name for s in STAGES]
@@ -515,6 +533,7 @@ def test_recompute_runs_every_stage_and_records_it(config_dir, roots, layout, no
         assert layout.log(rep.folder, rep.scenario, 1, stage.name).exists()
     manifest = yaml.safe_load((rep_dir / "run.yaml").read_text())
     assert manifest["stages"] == [s.name for s in STAGES]
+    assert manifest["layout"] == 2
     assert manifest["seed"] == 100
     params = yaml.safe_load((rep_dir / "params.yaml").read_text())
     assert (params["seed"], params["rep"], params["G_pheno"]) == (100, 1, 2)
@@ -524,19 +543,19 @@ def test_failing_stage_leaves_no_manifest(config_dir, roots, layout, no_plots, c
     rep = _rep(config_dir, 1, "broken")
     rep_dir = layout.rep_dir(rep.folder, "broken", 1)
     rep_dir.mkdir(parents=True)
-    old_outputs = ["pedigree.parquet", "trait.parquet", "report.yaml", "trait.full.parquet", "run.yaml"]
+    old_outputs = ["pedigree.parquet", "cohort.parquet", "report.yaml", "run.yaml"]
     for name in old_outputs:
         (rep_dir / name).write_text("from the previous parameters")
 
     assert _run(config_dir, roots, "broken", "--force") == 1
 
-    assert [name for name in old_outputs if (rep_dir / name).exists()] == []
-    assert (rep_dir / "pedigree.full.parquet").exists()
+    assert [name for name in old_outputs[1:] if (rep_dir / name).exists()] == []
+    assert (rep_dir / "pedigree.parquet").read_bytes() != b"from the previous parameters"
     last = (rep_dir / "timing.tsv").read_text().splitlines()[-1].split("\t")
-    assert (last[0], last[-1]) == ("phenotype", "1")
+    assert (last[0], last[-1]) == ("cohort", "1")
     assert not (rep_dir / "run.yaml").exists()
-    assert "phenotype FAILED" in capsys.readouterr().out
-    assert "G_pheno" in layout.log(rep.folder, "broken", 1, "phenotype").read_text()
+    assert "cohort FAILED" in capsys.readouterr().out
+    assert "G_pheno" in layout.log(rep.folder, "broken", 1, "cohort").read_text()
 
 
 def test_params_yaml_seed_offsets_by_rep(config_dir, layout) -> None:
@@ -609,12 +628,12 @@ def test_ls_groups_reps_by_state_and_reason(config_dir, layout, tmp_path, capsys
         _finish(layout, rep)
     for rep in reps[1:3]:
         _stale(layout, rep)
-    layout.rep("t", "many", 5, RepArtifact.TRAIT).unlink()
+    layout.rep("t", "many", 5, RepArtifact.COHORT).unlink()
     ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
     line = capsys.readouterr().out.strip()
     assert line == (
         "t/many  7 reps: 2 complete, 2 stale (reps 2-3: N: 999 -> 300), "
-        "1 incomplete (rep5: trait.parquet missing), 2 absent (reps 6-7); plots absent"
+        "1 incomplete (rep5: cohort.parquet missing), 2 absent (reps 6-7); plots absent"
     )
 
 
@@ -731,7 +750,7 @@ def test_plots_are_current_until_a_rep_or_atlas_changes(config_dir, layout) -> N
     assert scenario_plots_status(reps, layout).describe() == "stale (rep2 recomputed since)"
 
     _plotted(layout, reps, "atlas.html")
-    layout.rep("t", "tiny", 1, RepArtifact.TRAIT).write_text("by hand")
+    layout.rep("t", "tiny", 1, RepArtifact.COHORT).write_text("by hand")
     assert scenario_plots_status(reps, layout).describe() == "stale (rep1 not complete)"
 
     _finish(layout, reps[0])

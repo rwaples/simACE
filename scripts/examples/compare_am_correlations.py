@@ -19,7 +19,7 @@ from simace.plotting.compare_scenarios import compare_correlations_by_relclass
 def main(argv: list[str] | None = None) -> None:
     """Parse flags, regroup the flat input list per scenario, and render."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--inputs", nargs="+", required=True, help="pedigree.parquet files, scenario-major")
+    parser.add_argument("--inputs", nargs="+", required=True, help="recorded pedigree.parquet files, scenario-major")
     parser.add_argument("--output", default="docs/images/examples/am/corr_by_relclass.png")
     parser.add_argument("--labels", nargs="+", default=["no AM", "weak AM (0.2)", "strong AM (0.4)"])
     parser.add_argument("--reps-per-scenario", nargs="+", type=int, required=True)

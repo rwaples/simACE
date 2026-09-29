@@ -441,34 +441,6 @@ def compute_regression(df: _Frame) -> dict[str, Any]:
     return result
 
 
-def compute_prevalence(df: _Frame) -> dict[str, Any]:
-    """Compute observed prevalence for each trait.
-
-    Args:
-        df: Phenotype DataFrame with ``affected1`` and ``affected2`` columns.
-            If a ``generation`` column is present, per-generation prevalence
-            is also reported under ``by_generation``.
-
-    Returns:
-        Dict with ``trait1`` and ``trait2`` marginal prevalence fractions, and
-        (when ``generation`` is present) a ``by_generation`` subkey mapping
-        ``int(generation) -> {"trait1": float, "trait2": float}``.
-    """
-    result: dict[str, Any] = {
-        "trait1": float(df["affected1"].to_numpy().mean()),
-        "trait2": float(df["affected2"].to_numpy().mean()),
-    }
-    if "generation" in df.columns:
-        gens = df["generation"].to_numpy()
-        a1 = df["affected1"].to_numpy().astype(bool)
-        a2 = df["affected2"].to_numpy().astype(bool)
-        result["by_generation"] = {
-            int(g): {"trait1": float(a1[gens == g].mean()), "trait2": float(a2[gens == g].mean())}
-            for g in np.unique(gens)
-        }
-    return result
-
-
 def compute_joint_affection(df: _Frame) -> dict[str, Any]:
     """Compute 2x2 contingency table for trait1 x trait2 affection status."""
     a1 = df["affected1"].to_numpy().astype(bool)

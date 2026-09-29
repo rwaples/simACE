@@ -15,26 +15,11 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
+from simace.core.cohort import sever_dangling_links
 from simace.core.parquet import load_parquet, save_parquet
 from simace.core.pedigree_filter import filter_pedigree_to_observed
 
 logger = logging.getLogger(__name__)
-
-
-def _sever_dangling_links(df: pl.DataFrame, valid_ids: np.ndarray) -> pl.DataFrame:
-    """Rewrite mother/father/twin references pointing outside ``valid_ids`` to -1."""
-    result = df
-    for col in ("mother", "father", "twin"):
-        if col not in result.columns:
-            continue
-        vals = result[col].to_numpy()
-        in_valid = np.isin(vals, valid_ids)
-        dangling = ~in_valid & (vals >= 0)
-        if dangling.any():
-            fixed = vals.copy()
-            fixed[dangling] = -1
-            result = result.with_columns(pl.Series(col, fixed))
-    return result
 
 
 def _apply_dropout(pedigree: pl.DataFrame, rate: float, rng: np.random.Generator) -> pl.DataFrame:
@@ -200,7 +185,7 @@ def _sample_trait_ids(
 def _pedigree_closure_for_ids(pedigree: pl.DataFrame, sampled_ids: np.ndarray) -> pl.DataFrame:
     """Filter pedigree to sampled IDs plus ancestors, then sever dangling links."""
     ped_closure = pedigree.head(0) if len(sampled_ids) == 0 else filter_pedigree_to_observed(pedigree, sampled_ids)
-    return _sever_dangling_links(ped_closure, ped_closure["id"].to_numpy())
+    return sever_dangling_links(ped_closure, ped_closure["id"].to_numpy())
 
 
 def run_ascertainment(

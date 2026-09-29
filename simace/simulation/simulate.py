@@ -34,7 +34,7 @@ import numpy as np
 import polars as pl
 
 from simace.core._numba_utils import _ndtri_approx
-from simace.core.parquet import save_parquet
+from simace.core.cohort import write_pedigree
 from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
 from simace.simulation.assortment import AssortmentPlan
@@ -1521,4 +1521,4 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     )
 
     with publish(args.output_pedigree) as (tmp,):
-        save_parquet(pedigree, tmp)
+        write_pedigree(pedigree, tmp)

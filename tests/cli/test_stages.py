@@ -12,9 +12,7 @@ from pathlib import Path
 import pytest
 
 import simace.analysis.analyze as analyze_mod
-import simace.ascertainment.runner as ascertain_mod
-import simace.censoring.censor as censor_mod
-import simace.phenotype.runner as phenotype_mod
+import simace.cli.cohort_stage as cohort_mod
 import simace.simulation.simulate as simulate_mod
 from simace.cli.layout import Layout
 from simace.cli.run import ScenarioError, check_runnable, resolve_all
@@ -71,7 +69,7 @@ def test_simulate_argv_round_trips(monkeypatch, rep_and_layout) -> None:
     rep, layout = rep_and_layout
     recorder = _Recorder()
     monkeypatch.setattr(simulate_mod, "run_simulation", recorder)
-    monkeypatch.setattr(simulate_mod, "save_parquet", _touch)
+    monkeypatch.setattr(simulate_mod, "write_pedigree", _touch)
     simulate_mod.cli(_argv("simulate", rep, layout))
 
     keys = ["N", "G_ped", "G_sim", "mating_model", "mating_lambda", "p_mztwin"]
@@ -81,55 +79,29 @@ def test_simulate_argv_round_trips(monkeypatch, rep_and_layout) -> None:
 
 
 @pytest.mark.parametrize("rep_and_layout", SCENARIOS, ids=[n for n, _ in SCENARIOS], indirect=True)
-def test_phenotype_argv_round_trips(monkeypatch, rep_and_layout) -> None:
+def test_cohort_argv_round_trips(monkeypatch, rep_and_layout) -> None:
     rep, layout = rep_and_layout
-    recorder = _Recorder()
-    monkeypatch.setattr(phenotype_mod, "load_parquet", lambda _path: None)
-    monkeypatch.setattr(phenotype_mod, "run_phenotype", recorder)
-    monkeypatch.setattr(phenotype_mod, "save_parquet", _touch)
-    phenotype_mod.cli(_argv("phenotype", rep, layout))
-
-    keys = ["G_pheno", "standardize"]
-    keys += [f"{k}{t}" for t in (1, 2) for k in ("phenotype_model", "phenotype_params", "beta", "beta_sex")]
-    assert recorder.kwargs["seed"] == rep.seed
-    assert _subset(recorder.kwargs, keys) == {key: rep.params[key] for key in keys}
-
-
-@pytest.mark.parametrize("rep_and_layout", SCENARIOS, ids=[n for n, _ in SCENARIOS], indirect=True)
-def test_censor_argv_round_trips(monkeypatch, rep_and_layout) -> None:
-    rep, layout = rep_and_layout
-    recorder = _Recorder()
-    monkeypatch.setattr(censor_mod, "load_parquet", lambda _path: None)
-    monkeypatch.setattr(censor_mod, "run_censor", recorder)
-    monkeypatch.setattr(censor_mod, "save_parquet", _touch)
-    censor_mod.cli(_argv("censor", rep, layout))
+    recorder = _Recorder(result=(None, {}))
+    monkeypatch.setattr(cohort_mod, "read_pedigree", lambda _path: None)
+    monkeypatch.setattr(cohort_mod, "run_cohort", recorder)
+    monkeypatch.setattr(cohort_mod, "write_cohort", _touch)
+    cohort_mod.cli(_argv("cohort", rep, layout))
 
     p = rep.params
-    assert recorder.kwargs == {
+    phenotype_keys = ["G_pheno", "standardize"]
+    phenotype_keys += [f"{k}{t}" for t in (1, 2) for k in ("phenotype_model", "phenotype_params", "beta", "beta_sex")]
+    assert recorder.kwargs["seed"] == rep.seed
+    assert recorder.kwargs["phenotype"] == {key: p[key] for key in phenotype_keys}
+    assert recorder.kwargs["censor"] == {
         "censor_age": p["censor_age"],
-        "seed": rep.seed,
         "gen_censoring": p["gen_censoring"] or {},
         "death_scale": p["death_scale"],
         "death_rho": p["death_rho"],
     }
-
-
-@pytest.mark.parametrize("rep_and_layout", SCENARIOS, ids=[n for n, _ in SCENARIOS], indirect=True)
-def test_ascertain_argv_round_trips(monkeypatch, rep_and_layout) -> None:
-    rep, layout = rep_and_layout
-    recorder = _Recorder(result=(None, None))
-    monkeypatch.setattr(ascertain_mod, "copy_passthrough_if_possible", lambda *a, **k: False)
-    monkeypatch.setattr(ascertain_mod, "load_parquet", lambda _path: None)
-    monkeypatch.setattr(ascertain_mod, "run_ascertainment", recorder)
-    monkeypatch.setattr(ascertain_mod, "save_parquet", _touch)
-    ascertain_mod.cli(_argv("ascertain", rep, layout))
-
-    p = rep.params
-    assert recorder.kwargs == {
+    assert recorder.kwargs["ascertain"] == {
         "dropout_rate": p["dropout_rate"],
         "case_ascertainment_ratio": p["case_ascertainment_ratio"],
         "N_sample": p["N_sample"],
-        "seed": rep.seed,
     }
 
 

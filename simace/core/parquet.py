@@ -20,7 +20,7 @@ rejected with an actionable ``TypeError`` — convert with
 
 from __future__ import annotations
 
-__all__ = ["load_parquet", "save_parquet"]
+__all__ = ["load_parquet", "normalize_for_parquet", "save_parquet"]
 
 from typing import TYPE_CHECKING, Any
 
@@ -76,6 +76,27 @@ def _optimized_dtypes(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
+def normalize_for_parquet(df: pl.DataFrame) -> pl.DataFrame:
+    """Return ``df`` in exactly the form a :func:`save_parquet` + :func:`load_parquet` round trip gives.
+
+    Narrows dtypes by column name (range-checked) and normalizes float NaN to
+    null. In-process pipelines call this between phases so each phase sees
+    the values it would have read from the previous phase's file: the
+    float32 narrowing of onset and death times changes censoring outcomes.
+
+    Raises:
+        TypeError: If ``df`` is not a polars DataFrame (ADR 0015).
+        ValueError: If a narrowed integer column holds values outside the
+            target dtype's range.
+    """
+    if not isinstance(df, pl.DataFrame):
+        raise TypeError(
+            "parquet writes require a polars DataFrame since the polars migration "
+            f"(ADR 0015); got {type(df).__name__}. Convert with pl.from_pandas(...) at the call site."
+        )
+    return _optimized_dtypes(df).with_columns(pl.col(pl.Float32, pl.Float64).fill_nan(None))
+
+
 def save_parquet(df: pl.DataFrame, path: Any, **kwargs: Any) -> None:
     """Save a DataFrame as parquet with optimized dtypes and zstd compression.
 
@@ -94,14 +115,7 @@ def save_parquet(df: pl.DataFrame, path: Any, **kwargs: Any) -> None:
         TypeError: If ``df`` is not a polars DataFrame (ADR 0015) —
             convert with ``pl.from_pandas(df)`` at the call site.
     """
-    if not isinstance(df, pl.DataFrame):
-        raise TypeError(
-            "save_parquet requires a polars DataFrame since the polars migration "
-            f"(ADR 0015); got {type(df).__name__}. Convert with pl.from_pandas(...) at the call site."
-        )
-    df = _optimized_dtypes(df)
-    df = df.with_columns(pl.col(pl.Float32, pl.Float64).fill_nan(None))
-    df.write_parquet(path, compression="zstd", **kwargs)
+    normalize_for_parquet(df).write_parquet(path, compression="zstd", **kwargs)
 
 
 def load_parquet(path: Any, columns: Sequence[str] | None = None, **kwargs: Any) -> pl.DataFrame:

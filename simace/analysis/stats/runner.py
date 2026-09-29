@@ -1,7 +1,8 @@
 """Orchestration entry point for per-replicate stats reports.
 
-Reads outcomes-only ``trait.parquet`` plus ``pedigree.parquet``, hydrates the
-trait rows for computations, and writes ``stats_report.yaml`` plus
+Reads an outcomes-only analysis-sample trait frame plus its analysis pedigree
+(Analyze rebuilds both from ``pedigree.parquet`` and ``cohort.parquet``),
+hydrates the trait rows for computations, and writes ``stats_report.yaml`` plus
 ``plotting_sample.parquet``.
 """
 
@@ -19,6 +20,7 @@ import numpy as np
 import yaml
 from pedigree_graph import PedigreeGraph
 
+from simace.analysis.prevalence import compute_prevalence
 from simace.core.parquet import load_parquet, save_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.trait_schema import hydrate_trait
@@ -52,7 +54,6 @@ from .incidence import (
     compute_cumulative_incidence_by_sex_generation,
     compute_joint_affection,
     compute_mortality,
-    compute_prevalence,
     compute_regression,
 )
 from .pedigree import compute_mean_family_size, compute_parent_status

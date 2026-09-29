@@ -1,6 +1,6 @@
 """Compute per-replicate stats reports for downstream plotting.
 
-Reads outcomes-only trait.parquet plus pedigree.parquet (hydrated internally) and produces:
+Reads an outcomes-only analysis-sample trait frame plus its analysis pedigree (hydrated internally) and produces:
   - the six grouped stats sections (the stats portion of report.yaml; ADR 0008)
   - plotting_sample.parquet: downsampled rows for scatter/histogram plots
 
@@ -16,6 +16,8 @@ Public API is re-exported from focused sub-modules:
 - :mod:`.sampling` — per-rep downsampling for plots
 - :mod:`.runner` — ``main`` and ``cli`` entry point
 """
+
+from simace.analysis.prevalence import compute_prevalence
 
 from .censoring import (
     compute_censoring_cascade,
@@ -51,7 +53,6 @@ from .incidence import (
     compute_cumulative_incidence_by_sex_generation,
     compute_joint_affection,
     compute_mortality,
-    compute_prevalence,
     compute_regression,
 )
 from .pedigree import compute_mean_family_size, compute_parent_status

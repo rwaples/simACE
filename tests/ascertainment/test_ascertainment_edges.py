@@ -5,8 +5,9 @@ import polars as pl
 import polars.testing
 import pytest
 
-from simace.ascertainment import _sever_dangling_links, copy_passthrough_if_possible, run_ascertainment
 from simace.ascertainment import cli as ascertain_cli
+from simace.ascertainment import copy_passthrough_if_possible, run_ascertainment
+from simace.core.cohort import sever_dangling_links
 from simace.core.schema import CENSORED
 from simace.simulation.simulate import run_simulation
 from tests.conftest import schema_pad
@@ -174,7 +175,7 @@ class TestNsamplePassThroughLogging:
 
 
 class TestSeverDanglingTwinLinks:
-    """``_sever_dangling_links`` rewrites twin pointers outside the valid set to -1."""
+    """``sever_dangling_links`` rewrites twin pointers outside the valid set to -1."""
 
     def test_twin_link_to_outside_id_severed(self):
         df = pl.DataFrame(
@@ -186,7 +187,7 @@ class TestSeverDanglingTwinLinks:
                 "twin": [999, 2, 1],
             }
         )
-        out = _sever_dangling_links(df, valid_ids=df["id"].to_numpy())
+        out = sever_dangling_links(df, valid_ids=df["id"].to_numpy())
         assert out["twin"][0] == -1  # dangling severed
         assert out["twin"][1] == 2  # in-set survives
         assert out["twin"][2] == 1

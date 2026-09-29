@@ -16,7 +16,7 @@ Self-contained: inlines pedigree_to_msprime so the script runs as a plain
 file. Needs the conda env in ``scripts/gene_drop/envs/tskit.yaml``. Example::
 
     python scripts/gene_drop/build_pedigree_tables.py \
-        --pedigree results/{folder}/{scenario}/rep{rep}/pedigree.full.parquet \
+        --pedigree results/{folder}/{scenario}/rep{rep}/pedigree.parquet \
         --tables results/{folder}/{scenario}/rep{rep}/pedigree_tables.trees \
         --g-ped {G_ped} --g-pheno {G_pheno} \
         --log logs/{folder}/{scenario}/rep{rep}/build_pedigree_tables.log

@@ -24,7 +24,7 @@ INCREASING_E_LABELS = [
 def main(argv: list[str] | None = None) -> None:
     """Parse flags, regroup the flat input list per scenario, and render."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--inputs", nargs="+", required=True, help="pedigree.parquet files, scenario-major")
+    parser.add_argument("--inputs", nargs="+", required=True, help="recorded pedigree.parquet files, scenario-major")
     parser.add_argument("--output", default="docs/images/examples/increasing_e/components_by_gen.png")
     parser.add_argument("--labels", nargs="+", default=INCREASING_E_LABELS)
     parser.add_argument("--reps-per-scenario", nargs="+", type=int, required=True)

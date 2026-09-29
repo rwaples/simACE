@@ -53,8 +53,10 @@ from simace.cli.manifest import (
 )
 from simace.cli.stages import (
     PARAMS_YAML_KEYS,
+    REP_LAYOUT,
     REP_OUTPUTS,
     REP_PARAM_KEYS,
+    RETIRED_OUTPUTS,
     STAGES,
     ResolvedRep,
     atlas_argv,
@@ -164,6 +166,7 @@ def expected_manifest(rep: ResolvedRep) -> Manifest:
         seed=rep.seed,
         resolved=manifest_params(rep.params, REP_PARAM_KEYS),
         stages=_stage_names(),
+        layout=REP_LAYOUT,
     )
 
 
@@ -316,12 +319,15 @@ def _recompute(rep: ResolvedRep, layout: Layout, launcher: _Launcher, console: _
 
     Every file a previous run of this rep wrote is removed first, manifest
     first, so a failure partway leaves no output from the old parameters
-    beside outputs from the new ones.
+    beside outputs from the new ones. Files only an earlier results layout
+    wrote go too.
     """
     tag = f"{rep.scenario}/rep{rep.rep}"
     for artifact in REP_OUTPUTS:
         layout.rep(rep.folder, rep.scenario, rep.rep, artifact).unlink(missing_ok=True)
     rep_dir = layout.rep_dir(rep.folder, rep.scenario, rep.rep)
+    for retired in RETIRED_OUTPUTS:
+        (rep_dir / retired).unlink(missing_ok=True)
     if rep_dir.exists():
         for stale in rep_dir.glob(f"*{TMP_SUFFIX}"):
             stale.unlink()

@@ -27,7 +27,7 @@ def _regroup(flat_inputs: list[str], reps_per_scenario: list[int]) -> list[list[
 def main(argv: list[str] | None = None) -> None:
     """Parse flags, regroup the flat input lists per scenario, and render."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--pedigree", nargs="+", required=True, help="pedigree.parquet files, scenario-major")
+    parser.add_argument("--pedigree", nargs="+", required=True, help="recorded pedigree.parquet files, scenario-major")
     parser.add_argument("--report", nargs="+", required=True, help="report.yaml files, scenario-major")
     parser.add_argument("--output", default="docs/images/examples/models/observed_vs_liability.png")
     parser.add_argument("--labels", nargs="+", default=["LTM", "Cure-frailty (lognormal)", "Frailty (Weibull)"])

@@ -20,7 +20,8 @@ from simace.analysis.stats.effective_size import (
     main as run_effective_size,
 )
 from simace.analysis.validate import validate_effective_size
-from simace.core.parquet import save_parquet
+from simace.core.cohort import COHORT_COLUMNS, build_cohort, write_cohort, write_pedigree
+from simace.core.pedigree_filter import filter_pedigree_to_observed
 
 EXPECTED_KEYS = set(ALL_EFFECTIVE_SIZE_ESTIMATORS)
 
@@ -579,27 +580,35 @@ def test_cross_estimator_consistency_under_wf():
 def test_effective_size_main_writes_yaml(tmp_path, tiny_pedigree):
     """`effective_size.main` should write a yaml with all 8 estimator keys.
 
-    Phenotype input is restricted to the late generation so the closure logic
-    is exercised (founders/intermediate ancestors are pulled back through
-    parent-pointer walking).  Per-rep ``params.yaml`` is supplied inline so
-    the validator-facing ``expected`` field is populated.
+    The cohort's analysis sample is the last generation only, so the
+    analysis pedigree rebuilt from it carries the ancestor closure
+    (founders/intermediate ancestors pulled back through parent pointers).
+    Per-rep ``params.yaml`` is supplied inline so the validator-facing
+    ``expected`` field is populated.
     """
     ped_path = tmp_path / "pedigree.parquet"
-    phe_path = tmp_path / "trait.parquet"
+    cohort_path = tmp_path / "cohort.parquet"
     params_path = tmp_path / "params.yaml"
     out_path = tmp_path / "effective_size.yaml"
 
-    save_parquet(tiny_pedigree, ped_path)
-    # Observed = last generation only — closure must recover all ancestors.
+    write_pedigree(tiny_pedigree, ped_path)
     last_gen = int(tiny_pedigree["generation"].max())
-    df_phe = tiny_pedigree.filter(pl.col("generation") == last_gen).select("id")
-    save_parquet(df_phe, phe_path)
+    sample_ids = tiny_pedigree.filter(pl.col("generation") == last_gen)["id"]
+    sample = pl.DataFrame({"id": sample_ids}).with_columns(
+        pl.lit(None, dtype=pl.Float64).alias("t1"),
+        pl.lit(None, dtype=pl.Float64).alias("t2"),
+        pl.lit(80.0).alias("death_age"),
+        *(pl.lit(1.0 if c.startswith("t_") else False).alias(c) for c in COHORT_COLUMNS[4:]),
+    )
+    analysis_pedigree = filter_pedigree_to_observed(tiny_pedigree, sample_ids.to_numpy())
+    write_cohort(build_cohort(analysis_pedigree, sample), cohort_path)
+    assert len(analysis_pedigree) > len(sample_ids)
     with open(params_path, "w") as f:
         yaml.safe_dump({"N": 200, "mating_lambda": 0.5}, f)
 
     run_effective_size(
         pedigree_path=str(ped_path),
-        phenotype_path=str(phe_path),
+        cohort_path=str(cohort_path),
         params_path=str(params_path),
         output_path=str(out_path),
     )
@@ -634,7 +643,7 @@ def test_cli_ne_coancestry_flag_routes_to_main(monkeypatch, tmp_path, argv_extra
 
     captured: dict[str, object] = {}
 
-    def fake_main(pedigree_path, phenotype_path, params_path, output_path, *, skip_ne_coancestry=False):
+    def fake_main(pedigree_path, cohort_path, params_path, output_path, *, skip_ne_coancestry=False):
         captured["skip_ne_coancestry"] = skip_ne_coancestry
         Path(output_path).write_text("{}\n")
 
@@ -644,8 +653,8 @@ def test_cli_ne_coancestry_flag_routes_to_main(monkeypatch, tmp_path, argv_extra
         [
             "--pedigree",
             "/dev/null/ped",
-            "--phenotype",
-            "/dev/null/phe",
+            "--cohort",
+            "/dev/null/cohort",
             "--params",
             "/dev/null/params",
             "--output",

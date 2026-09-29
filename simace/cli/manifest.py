@@ -3,7 +3,8 @@
 ``simace run`` writes ``run.yaml`` after every stage of the rep exits 0, and
 deletes it before recomputing. A rep is complete only when its ``run.yaml``
 names this scenario, rep, and seed, records the current values of the config
-keys the rep's stages and ``params.yaml`` read, lists the current stages, and
+keys the rep's stages and ``params.yaml`` read, lists the current stages and
+results layout (a rep from before ADR 0021 has none, so it reads stale), and
 every output the rep declares exists with the size and mtime the manifest
 recorded (a stage rerun by hand rewrites its output and so makes the rep
 incomplete). Only keys the current code reads are compared. The simace version that built the rep is recorded but never makes
@@ -100,6 +101,7 @@ class Manifest:
     seed: int
     resolved: dict[str, Any]
     stages: list[str]
+    layout: int
 
 
 class RepState(StrEnum):
@@ -177,6 +179,7 @@ def write_manifest(path: Path, manifest: Manifest, outputs: Iterable[Path]) -> N
         "seed": manifest.seed,
         "resolved": manifest.resolved,
         "stages": manifest.stages,
+        "layout": manifest.layout,
         "outputs": fingerprints(outputs),
         "finished": datetime.now().isoformat(timespec="seconds"),
     }
@@ -205,8 +208,9 @@ def rep_status(path: Path, expected: Manifest, outputs: Iterable[Path]) -> RepSt
     changes.update(
         {key: (old.get(key, _MISSING), new[key]) for key in sorted(new) if old.get(key, _MISSING) != new[key]}
     )
-    if recorded.get("stages") != expected.stages:
-        changes["stages"] = (recorded.get("stages", _MISSING), expected.stages)
+    for key, value in (("stages", expected.stages), ("layout", expected.layout)):
+        if recorded.get(key) != value:
+            changes[key] = (recorded.get(key, _MISSING), value)
     if not isinstance(recorded.get("outputs"), dict):
         changes["outputs"] = (_MISSING, "fingerprints (run.yaml predates them)")
     built_by, source = recorded.get("simace_version"), recorded.get("source")

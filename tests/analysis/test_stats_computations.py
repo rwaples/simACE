@@ -8,6 +8,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from simace.analysis.prevalence import compute_prevalence
 from simace.analysis.stats import (
     compute_affected_correlations,
     compute_censoring_cascade,
@@ -31,7 +32,6 @@ from simace.analysis.stats import (
     compute_parent_offspring_corr_by_sex,
     compute_parent_status,
     compute_person_years,
-    compute_prevalence,
     compute_regression,
     compute_tetrachoric,
     compute_tetrachoric_by_generation,

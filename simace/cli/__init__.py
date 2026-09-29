@@ -33,6 +33,7 @@ COMMANDS: dict[str, Command] = {
     "phenotype": Command("simace.phenotype.runner", "Draw event times for two traits from a pedigree"),
     "censor": Command("simace.censoring.censor", "Apply age-window and competing-death censoring"),
     "ascertain": Command("simace.ascertainment.runner", "Dropout plus case-weighted N_sample selection"),
+    "cohort": Command("simace.cli.cohort_stage", "Phenotype, censor, and ascertain a pedigree; write its cohort"),
     "analyze": Command("simace.analysis.analyze", "Write a replicate's report, plot payload, and plot sample"),
     "plot": Command("simace.plotting.plot_phenotype", "Render a scenario's phenotype plots"),
     "atlas": Command("simace.plotting.scenario_atlas", "Assemble a scenario's phenotype atlas"),

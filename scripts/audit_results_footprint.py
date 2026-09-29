@@ -29,15 +29,13 @@ AUTO_DELETE_SAFE = frozenset({"legacy-renamed-simace-shadowed"})
 
 CURRENT_SIMACE_BASENAMES = frozenset(
     {
-        "pedigree.full.parquet",
         "pedigree.parquet",
-        "trait.full.parquet",
-        "trait.parquet",
+        "cohort.parquet",
+        "phenotyped_population.yaml",
         "params.yaml",
         "report.yaml",
         "plot_payload.yaml",
         "report_summary.tsv",
-        "trait.raw.parquet",
         "plotting_sample.parquet",
         "run.yaml",
         "timing.tsv",
@@ -48,6 +46,16 @@ CURRENT_SIMACE_BASENAMES = frozenset(
         "validate.done",
         "stats.done",
         "folder.done",
+    }
+)
+
+# Rep files only results layout 1 wrote (before ADR 0021); `simace run` removes them on recompute.
+RETIRED_SIMACE_BASENAMES = frozenset(
+    {
+        "pedigree.full.parquet",
+        "trait.full.parquet",
+        "trait.parquet",
+        "trait.raw.parquet",
     }
 )
 
@@ -184,6 +192,16 @@ def _classify(path: Path, root: Path) -> FileRecord:
             path=path,
             category="current-simace-output",
             reason="current simACE output contract",
+            size_bytes=size_bytes,
+            disk_bytes=disk_bytes,
+            auto_delete_safe=False,
+        )
+
+    if name in RETIRED_SIMACE_BASENAMES:
+        return FileRecord(
+            path=path,
+            category="retired-layout-simace-output",
+            reason="written only by results layout 1 (ADR 0021); manual review only",
             size_bytes=size_bytes,
             disk_bytes=disk_bytes,
             auto_delete_safe=False,

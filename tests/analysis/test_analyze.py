@@ -10,16 +10,18 @@ from simace.analysis.report_schema import (
     assert_report_contract,
     find_dense_keys,
 )
-from simace.core.parquet import save_parquet
+from simace.core.cohort import write_cohort, write_pedigree
+from simace.core.parquet import normalize_for_parquet, save_parquet
+from simace.core.yaml_io import dump_yaml
 from simace.plotting.stats_report import plotting_report_view
 
 # ---------------------------------------------------------------------------
-# Module-scoped fixture: simulate -> phenotype -> censor, once per file.
+# Module-scoped fixture: simulate -> cohort stage, once per file.
 #
-# Validate runs on the full simulated pedigree; the phenotyped-population and
-# analysis-sample phases run on the censored trait (no ascertainment in this
-# fixture, so trait.full == trait). Sizing matches test_validate (N=1000,
-# G_ped=3, seed=42) so the validation checks pass deterministically.
+# Validate runs on the recorded pedigree; the cohort stage phenotypes every
+# generation and applies no ascertainment, so the analysis sample is the whole
+# phenotyped population. Sizing matches test_validate (N=1000, G_ped=3,
+# seed=42) so the validation checks pass deterministically.
 # ---------------------------------------------------------------------------
 
 _SIM_PARAMS = dict(
@@ -44,50 +46,42 @@ _SIM_PARAMS = dict(
 
 @pytest.fixture(scope="module")
 def analyze_data():
-    from simace.censoring.censor import run_censor
-    from simace.phenotype import run_phenotype
+    from simace.cli.cohort_stage import run_cohort
     from simace.simulation.simulate import run_simulation
 
-    pedigree = run_simulation(**_SIM_PARAMS)
-    phenotype = run_phenotype(
+    pedigree = normalize_for_parquet(run_simulation(**_SIM_PARAMS))
+    cohort, phenotyped_population = run_cohort(
         pedigree,
-        G_pheno=3,
         seed=42,
-        standardize=True,
-        phenotype_model1="frailty",
-        phenotype_params1={"distribution": "weibull", "scale": 2160, "rho": 0.8},
-        beta1=1.0,
-        beta_sex1=0.0,
-        phenotype_model2="frailty",
-        phenotype_params2={"distribution": "weibull", "scale": 333, "rho": 1.2},
-        beta2=1.0,
-        beta_sex2=0.0,
-    )
-    censored = run_censor(
-        phenotype,
-        pedigree,
-        censor_age=80,
-        seed=42,
-        gen_censoring={},
-        death_scale=164,
-        death_rho=2.73,
+        phenotype={
+            "G_pheno": 3,
+            "standardize": True,
+            "phenotype_model1": "frailty",
+            "phenotype_params1": {"distribution": "weibull", "scale": 2160, "rho": 0.8},
+            "beta1": 1.0,
+            "beta_sex1": 0.0,
+            "phenotype_model2": "frailty",
+            "phenotype_params2": {"distribution": "weibull", "scale": 333, "rho": 1.2},
+            "beta2": 1.0,
+            "beta_sex2": 0.0,
+        },
+        censor={"censor_age": 80, "gen_censoring": {}, "death_scale": 164, "death_rho": 2.73},
+        ascertain={},
     )
     params = {**_SIM_PARAMS, "rE": 0.0, "skip_ne_coancestry": False}
-    return pedigree, censored, params
+    return pedigree, cohort, phenotyped_population, params
 
 
 @pytest.fixture
 def analyze_outputs(tmp_path, analyze_data):
-    pedigree, censored, params = analyze_data
-    ped_full = tmp_path / "pedigree.full.parquet"
+    pedigree, cohort, phenotyped_population, params = analyze_data
     ped = tmp_path / "pedigree.parquet"
-    trait_full = tmp_path / "trait.full.parquet"
-    trait = tmp_path / "trait.parquet"
+    cohort_path = tmp_path / "cohort.parquet"
+    population_path = tmp_path / "phenotyped_population.yaml"
     params_path = tmp_path / "params.yaml"
-    save_parquet(pedigree, ped_full)
-    save_parquet(pedigree, ped)
-    save_parquet(censored, trait_full)
-    save_parquet(censored, trait)
+    write_pedigree(pedigree, ped)
+    write_cohort(cohort, cohort_path)
+    dump_yaml(phenotyped_population, population_path)
     with open(params_path, "w", encoding="utf-8") as fh:
         yaml.safe_dump(params, fh)
 
@@ -96,11 +90,10 @@ def analyze_outputs(tmp_path, analyze_data):
     samples_pq = tmp_path / "plotting_sample.parquet"
 
     report = run_analysis(
-        pedigree_full_path=str(ped_full),
-        params_path=str(params_path),
-        trait_full_path=str(trait_full),
-        trait_path=str(trait),
         pedigree_path=str(ped),
+        params_path=str(params_path),
+        cohort_path=str(cohort_path),
+        phenotyped_population_path=str(population_path),
         report_output=str(report_yaml),
         plot_payload_output=str(plot_payload_yaml),
         samples_output=str(samples_pq),
@@ -180,6 +173,32 @@ class TestRunAnalysis:
             "analysis_pedigree",
         }
         assert scopes["analysis_pedigree"]["ancestor_closure_ratio"] is not None
+        assert scopes["phenotyped_population"] == {
+            "source": "phenotyped_population.yaml",
+            "n_individuals": 3000,
+            "n_generations": 3,
+        }
+        assert [scopes[s]["source"] for s in ("recorded_pedigree", "analysis_sample", "analysis_pedigree")] == [
+            "pedigree.parquet",
+            "cohort.parquet (affected1 not null)",
+            "pedigree.parquet filtered to cohort.parquet",
+        ]
+
+    def test_an_unmarked_pedigree_is_refused(self, tmp_path, analyze_data):
+        pedigree, _cohort, _population, params = analyze_data
+        save_parquet(pedigree, tmp_path / "pedigree.parquet")
+        dump_yaml(params, tmp_path / "params.yaml")
+        with pytest.raises(ValueError, match=r"predates results layout 2 \(ADR 0021\)"):
+            run_analysis(
+                pedigree_path=str(tmp_path / "pedigree.parquet"),
+                params_path=str(tmp_path / "params.yaml"),
+                cohort_path=str(tmp_path / "cohort.parquet"),
+                phenotyped_population_path=str(tmp_path / "phenotyped_population.yaml"),
+                report_output=str(tmp_path / "report.yaml"),
+                plot_payload_output=str(tmp_path / "plot_payload.yaml"),
+                samples_output=str(tmp_path / "plotting_sample.parquet"),
+                censor_age=80.0,
+            )
 
     def test_written_yaml_matches_returned_report(self, analyze_outputs):
         with open(analyze_outputs["report_yaml"], encoding="utf-8") as fh:

@@ -17,7 +17,7 @@ defaults:
   standardize: global
   plot_format: png
   # When set to another scenario's name, this scenario reads
-  # pedigree.full.parquet and genotypes_chrom_*.trees from that scenario
+  # pedigree.parquet and genotypes_chrom_*.trees from that scenario
   # instead of running its own drop. Used to share genotypes across
   # tstrait-architecture variants without re-running the expensive drop+graft.
   drop_from: null

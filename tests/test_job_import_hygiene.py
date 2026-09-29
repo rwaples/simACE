@@ -1,7 +1,7 @@
 """Discipline test: per-job packages do not import the heavy scipy subpackages at module level.
 
-Every stage in the per-replicate chain (simulate, phenotype, censor,
-ascertain) runs as its own ``python -m simace <stage>`` process, and the
+Every per-replicate stage (simulate, cohort, and the standalone phenotype,
+censor, ascertain commands) runs as its own ``python -m simace <stage>`` process, and the
 EPIMIGHT emitter starts a fresh interpreter too, so module
 import time is paid once per replicate per stage. ``scipy.stats`` alone costs
 about 0.5 s to import; moving its two single-caller imports inside their
@@ -28,6 +28,7 @@ _JOB_MODULES = [
     "simace.phenotype.runner",
     "simace.censoring.censor",
     "simace.ascertainment.runner",
+    "simace.cli.cohort_stage",
     "simace.core.parquet",
     "simace.core.publish",
 ]

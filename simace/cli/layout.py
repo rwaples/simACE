@@ -4,9 +4,10 @@ Every path under ``results/`` and ``logs/`` that the pipeline reads or writes
 is built here. Stage subcommands never see this module: they take explicit
 paths, and ``simace run`` fills those paths from a :class:`Layout`.
 
-``pedigree.parquet``, ``trait.parquet``, ``report.yaml`` and ``params.yaml``
-under ``results/{folder}/{scenario}/rep{rep}/`` are read by fitACE and are a
-frozen contract.
+``pedigree.parquet`` (the recorded pedigree), ``cohort.parquet``,
+``report.yaml`` and ``params.yaml`` under
+``results/{folder}/{scenario}/rep{rep}/`` are read by fitACE and are a frozen
+contract (results layout 2, ADR 0021).
 """
 
 from __future__ import annotations
@@ -73,13 +74,11 @@ def resolve_roots(args: argparse.Namespace) -> tuple[Path, Layout]:
 class RepArtifact(StrEnum):
     """Basenames of the files in one replicate directory."""
 
-    PEDIGREE_FULL = "pedigree.full.parquet"
+    PEDIGREE = "pedigree.parquet"
     PEDIGREE_FULL_TSTRAIT = "pedigree.full.tstrait.parquet"
     PARAMS = "params.yaml"
-    TRAIT_RAW = "trait.raw.parquet"
-    TRAIT_FULL = "trait.full.parquet"
-    PEDIGREE = "pedigree.parquet"
-    TRAIT = "trait.parquet"
+    COHORT = "cohort.parquet"
+    PHENOTYPED_POPULATION = "phenotyped_population.yaml"
     REPORT = "report.yaml"
     PLOT_PAYLOAD = "plot_payload.yaml"
     PLOTTING_SAMPLE = "plotting_sample.parquet"

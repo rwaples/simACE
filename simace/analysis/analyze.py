@@ -4,13 +4,14 @@ Runs three phases sequentially within a single process (ADR 0008), each
 freeing its large frame before the next so peak memory is the max of the three
 phases rather than their sum (ADR 0008):
 
-1. **Validate** — ground-truth checks on the full, pre-ascertainment recorded
-   pedigree (``pedigree.full.parquet`` + ``params.yaml``).
-2. **Phenotyped population** — lightweight prevalence summaries on the full
-   pre-ascertainment phenotyped rows (``trait.full.parquet``), used to quantify
+1. **Validate** — ground-truth checks on the recorded pedigree
+   (``pedigree.parquet`` + ``params.yaml``).
+2. **Phenotyped population** — the pre-ascertainment prevalence summaries the
+   ``cohort`` stage wrote to ``phenotyped_population.yaml``, used to quantify
    ascertainment distortion.
-3. **Analysis sample** — descriptive statistics on the post-ascertainment
-   subsample (``trait.parquet`` + ``pedigree.parquet``), plus
+3. **Analysis sample** — descriptive statistics on the analysis sample and
+   analysis pedigree, rebuilt from ``pedigree.parquet`` + ``cohort.parquet``
+   by :func:`~simace.core.cohort.selected_views` (ADR 0021), plus
    ``plotting_sample.parquet``.
 
 These are re-homed into the v2 scientific report (``schema``, ``replicate``,
@@ -30,13 +31,13 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from simace.core.parquet import load_parquet, save_parquet
+from simace.core.cohort import read_cohort, read_pedigree, selected_views
+from simace.core.parquet import save_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import dump_yaml, load_yaml
 
 from .report import assemble_report
-from .stats.incidence import compute_prevalence
 from .stats.runner import (
     LIABILITY_COMPONENT_COLUMNS,
     PEDIGREE_REPORT_COLUMNS,
@@ -58,11 +59,10 @@ def _n_generations(df: pd.DataFrame | pl.DataFrame) -> int:
 
 def run_analysis(
     *,
-    pedigree_full_path: str,
-    params_path: str,
-    trait_full_path: str,
-    trait_path: str,
     pedigree_path: str,
+    params_path: str,
+    cohort_path: str,
+    phenotyped_population_path: str,
     report_output: str,
     plot_payload_output: str,
     samples_output: str,
@@ -78,11 +78,11 @@ def run_analysis(
     """Run the three Analyze phases in one process and write the v2 report.
 
     Args:
-        pedigree_full_path: Full, pre-ascertainment recorded pedigree parquet.
+        pedigree_path: Recorded pedigree parquet (``pedigree.parquet``).
         params_path: Scenario parameters YAML.
-        trait_full_path: Full pre-ascertainment phenotyped rows parquet.
-        trait_path: Post-ascertainment (analysis-sample) trait parquet.
-        pedigree_path: Post-ascertainment (analysis) pedigree parquet.
+        cohort_path: The rep's ``cohort.parquet``.
+        phenotyped_population_path: The ``cohort`` stage's
+            ``phenotyped_population.yaml``.
         report_output: Output path for the curated ``report.yaml``.
         plot_payload_output: Output path for the dense ``plot_payload.yaml``.
         samples_output: Output path for ``plotting_sample.parquet``.
@@ -104,36 +104,33 @@ def run_analysis(
     params["max_degree"] = max_degree
     scope_counts: dict[str, Any] = {}
 
-    # --- Phase 1: Validate (full, pre-ascertainment recorded pedigree) ---
-    logger.info("Analyze phase 1/3: validating %s", pedigree_full_path)
-    df_full = load_parquet(pedigree_full_path)
+    # --- Phase 1: Validate (recorded pedigree) ---
+    logger.info("Analyze phase 1/3: validating %s", pedigree_path)
+    df_full = read_pedigree(pedigree_path)
     validation_report = build_validation_report(df_full, params)
     scope_counts["recorded_pedigree"] = {
-        "source": "pedigree.full.parquet",
+        "source": "pedigree.parquet",
         "n_individuals": len(df_full),
         "n_generations": _n_generations(df_full),
     }
     del df_full
     gc.collect()
 
-    # --- Phase 2: Phenotyped population (full pre-ascertainment trait rows) ---
-    logger.info("Analyze phase 2/3: phenotyped-population summaries on %s", trait_full_path)
-    df_trait_full = load_parquet(trait_full_path)
-    df_trait_full_ped = load_parquet(pedigree_full_path, columns=["id", "generation"])
-    df_trait_full_hydrated = hydrate_trait(df_trait_full, df_trait_full_ped, kind="censored", columns=["generation"])
-    prevalence_phenotyped = compute_prevalence(df_trait_full_hydrated)
+    # --- Phase 2: Phenotyped population (summary written by the cohort stage) ---
+    logger.info("Analyze phase 2/3: phenotyped-population summaries from %s", phenotyped_population_path)
+    phenotyped_population = load_yaml(phenotyped_population_path)
+    prevalence_phenotyped = phenotyped_population["prevalence"]
     scope_counts["phenotyped_population"] = {
-        "source": "trait.full.parquet",
-        "n_individuals": len(df_trait_full),
-        "n_generations": _n_generations(df_trait_full),
+        "source": "phenotyped_population.yaml",
+        "n_individuals": phenotyped_population["n_individuals"],
+        "n_generations": phenotyped_population["n_generations"],
     }
-    del df_trait_full, df_trait_full_ped, df_trait_full_hydrated
-    gc.collect()
 
     # --- Phase 3: Analysis sample (post-ascertainment subsample) ---
-    logger.info("Analyze phase 3/3: stats on %s", trait_path)
-    df_trait = load_parquet(trait_path)
-    df_ped = load_parquet(pedigree_path, columns=PEDIGREE_REPORT_COLUMNS)
+    logger.info("Analyze phase 3/3: stats on %s", cohort_path)
+    views = selected_views(read_pedigree(pedigree_path, columns=PEDIGREE_REPORT_COLUMNS), read_cohort(cohort_path))
+    df_trait, df_ped = views.trait, views.pedigree
+    del views
     df = hydrate_trait(df_trait, df_ped, kind="censored", columns=PEDIGREE_REPORT_COLUMNS)
     stats_report = build_stats_report(
         df,
@@ -147,14 +144,14 @@ def run_analysis(
     metadata = stats_report.get("metadata", {})
     sample_n = metadata.get("n_individuals", len(df))
     scope_counts["analysis_sample"] = {
-        "source": "trait.parquet",
+        "source": "cohort.parquet (affected1 not null)",
         "n_individuals": sample_n,
         "n_generations": metadata.get("n_generations", _n_generations(df)),
     }
     pedigree_full = (stats_report.get("pedigree") or {}).get("full") or {}
     pedigree_n = pedigree_full.get("n_individuals", len(df_ped))
     scope_counts["analysis_pedigree"] = {
-        "source": "pedigree.parquet",
+        "source": "pedigree.parquet filtered to cohort.parquet",
         "n_individuals": pedigree_n,
         "n_generations": pedigree_full.get("n_generations", _n_generations(df_ped)),
         "ancestor_closure_ratio": (pedigree_n / sample_n) if sample_n else None,
@@ -178,9 +175,9 @@ def run_analysis(
     sample_df = create_sample(df, seed=seed)
     # The A/C/E component figures (joint component grid + components-by-generation)
     # need the per-trait liability components, which live in the pedigree rather
-    # than the outcomes-only trait file. Hydrate them onto the plotting sample
+    # than the outcomes-only cohort. Hydrate them onto the plotting sample
     # only; the stats `df` above is deliberately left lean.
-    components = load_parquet(pedigree_path, columns=["id", *LIABILITY_COMPONENT_COLUMNS])
+    components = read_pedigree(pedigree_path, columns=["id", *LIABILITY_COMPONENT_COLUMNS])
     sample_df = sample_df.join(components, on="id", how="left", maintain_order="left")
     save_parquet(sample_df, samples_output)
     logger.info("Plotting sample (%d rows) written to %s", len(sample_df), samples_output)
@@ -196,11 +193,10 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     parser = argparse.ArgumentParser(prog=prog, description="Run combined Validate + Stats analysis")
     add_logging_args(parser)
     add_version_arg(parser, "simace")
-    parser.add_argument("--pedigree-full", required=True, help="Full pre-ascertainment pedigree parquet")
+    parser.add_argument("--pedigree", required=True, help="Recorded pedigree parquet (pedigree.parquet)")
     parser.add_argument("--params", required=True, help="Scenario params YAML")
-    parser.add_argument("--trait-full", required=True, help="Full pre-ascertainment trait parquet")
-    parser.add_argument("--trait", required=True, help="Post-ascertainment trait parquet")
-    parser.add_argument("--pedigree", required=True, help="Post-ascertainment pedigree parquet")
+    parser.add_argument("--cohort", required=True, help="The rep's cohort.parquet")
+    parser.add_argument("--phenotyped-population", required=True, help="The cohort stage's phenotyped_population.yaml")
     parser.add_argument("--folder", default="", help="Folder name (replicate identity)")
     parser.add_argument("--scenario", default="", help="Scenario name (replicate identity)")
     parser.add_argument("--rep", type=int, default=1, help="Replicate number")
@@ -220,11 +216,10 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
 
     with publish(args.report_output, args.plot_payload_output, args.samples_output) as (report, payload, samples):
         run_analysis(
-            pedigree_full_path=args.pedigree_full,
-            params_path=args.params,
-            trait_full_path=args.trait_full,
-            trait_path=args.trait,
             pedigree_path=args.pedigree,
+            params_path=args.params,
+            cohort_path=args.cohort,
+            phenotyped_population_path=args.phenotyped_population,
             report_output=str(report),
             plot_payload_output=str(payload),
             samples_output=str(samples),
