@@ -18,6 +18,8 @@ class Comparison:
     rows: tuple[dict[str, Any], ...]
     incompatibilities: tuple[str, ...]
     regressions: int
+    #: Memory rows left out because the two runs read them with different meters.
+    not_compared: tuple[str, ...] = ()
 
 
 _COMPATIBILITY_PATHS: tuple[tuple[str, ...], ...] = (
@@ -102,8 +104,10 @@ def compare_runs(
         )
 
     rows: list[dict[str, Any]] = []
+    not_compared: list[str] = []
     regressions = 0
     for key in sorted(baseline_rows, key=str):
+        meters = (_meter(baseline_rows[key]), _meter(candidate_rows[key]))
         for metric, threshold in (
             ("wall_seconds", time_threshold_percent),
             ("peak_rss_kb", memory_threshold_percent),
@@ -111,6 +115,11 @@ def compare_runs(
             left = baseline_rows[key].get(metric)
             right = candidate_rows[key].get(metric)
             if left is None or right is None:
+                continue
+            if metric == "peak_rss_kb" and meters[0] != meters[1]:
+                not_compared.append(
+                    f"{key[1]}/{key[2] or 'all'} peak_rss_kb: baseline meter {meters[0]}, candidate meter {meters[1]}"
+                )
                 continue
             baseline_median = float(left["median"])
             candidate_median = float(right["median"])
@@ -132,13 +141,18 @@ def compare_runs(
                     "regression": regressed,
                 }
             )
-    return Comparison(tuple(rows), tuple(mismatches), regressions)
+    return Comparison(tuple(rows), tuple(mismatches), regressions, tuple(not_compared))
+
+
+def _meter(summary: dict[str, Any]) -> str:
+    """The meter a summary's ``peak_rss_kb`` was read with; summaries from before cgroups were sampled."""
+    return summary.get("memory_meter", "sampled")
 
 
 def print_summary(run: BenchmarkRun) -> None:
     """Print the stored medians and observed ranges."""
     print(f"run: {run.results['run_id']} ({run.results['status']})")
-    print(f"{'scope':<10}{'scenario':<22}{'rule':<18}{'metric':<18}{'n':>4}{'median':>12}{'range':>24}")
+    print(f"{'scope':<10}{'scenario':<22}{'rule':<18}{'metric':<22}{'n':>4}{'median':>12}{'range':>24}")
     for row in run.results["summaries"]:
         for metric in ("wall_seconds", "peak_rss_kb"):
             value = row.get(metric)
@@ -146,8 +160,9 @@ def print_summary(run: BenchmarkRun) -> None:
                 continue
             label = row.get("rule") or "all"
             observed = f"{value['min']:.2f}..{value['max']:.2f}"
+            name = f"{metric} ({_meter(row)})" if metric == "peak_rss_kb" else metric
             print(
-                f"{row['kind']:<10}{row['scenario']:<22}{label:<18}{metric:<18}"
+                f"{row['kind']:<10}{row['scenario']:<22}{label:<18}{name:<22}"
                 f"{value['n']:>4}{value['median']:>12.2f}{observed:>24}"
             )
 
@@ -156,6 +171,8 @@ def print_comparison(comparison: Comparison) -> None:
     """Print a baseline comparison table."""
     for mismatch in comparison.incompatibilities:
         print(f"WARNING incompatible: {mismatch}")
+    for skipped in comparison.not_compared:
+        print(f"NOT COMPARED {skipped}")
     print(f"{'scenario':<22}{'rule':<18}{'metric':<18}{'baseline':>12}{'candidate':>12}{'change':>11}{'gate':>9}")
     for row in comparison.rows:
         rule = row["rule"] or "all"

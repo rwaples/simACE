@@ -25,6 +25,11 @@ Git tags via `setuptools-scm`.
   [ADR 0020](adr/0020-standalone-simace-cli.md).
 - **Old four-column `timing.tsv` files still read.** `simace show`,
   `simace gather`, and `tools.benchmark` read columns by header name.
+- **`tools.benchmark` records `cgroup_peak_kb`,** the whole run's
+  `memory.peak`. Each summary names its `memory_meter` (`cgroup` or
+  `sampled`), and `compare` does not compare memory across meters.
+- **`tools/bench_pytest_workers.sh` adds `tree_peak_mib`,** the peak of all
+  xdist workers together. It refuses a `results.tsv` with other columns.
 
 ### `simace run --until`
 

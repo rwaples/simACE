@@ -109,20 +109,48 @@ def stats(values: list[float]) -> dict[str, float | int] | None:
     }
 
 
+def _gated_peaks(cgroup: list[float | None], sampled: list[float]) -> tuple[str, list[float]]:
+    """Return the meter the memory gate reads and its values: cgroup peaks when every execution has one.
+
+    The two meters measure different things (the cgroup's ``memory.peak``
+    includes page cache and counts shared pages once), so one summary never
+    mixes them.
+    """
+    if cgroup and all(value is not None for value in cgroup):
+        return "cgroup", [float(value) for value in cgroup if value is not None]
+    return "sampled", sampled
+
+
+def _rule_cgroup_peak_kb(rule: dict[str, Any]) -> float | None:
+    """Return a rule's largest stage ``tree_peak_mb`` in one execution, in KB, or None if any stage lacks one."""
+    peaks = [sample.get("tree_peak_mb") for sample in rule.get("stage", [])]
+    if not peaks or any(peak is None for peak in peaks):
+        return None
+    return max(float(peak) for peak in peaks if peak is not None) * 1024
+
+
 def build_summaries(executions: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Summarize measured executions by scenario and canonical rule."""
+    """Summarize measured executions by scenario and canonical rule.
+
+    Each row's ``peak_rss_kb`` is read with the meter its ``memory_meter`` names.
+    """
     measured = [item for item in executions if item.get("phase") == "measured" and item.get("status") == "complete"]
     scenarios = sorted({str(item["scenario"]) for item in measured})
     summaries: list[dict[str, Any]] = []
     for scenario in scenarios:
         selected = [item for item in measured if item["scenario"] == scenario]
+        meter, peaks = _gated_peaks(
+            [item.get("cgroup_peak_kb") for item in selected],
+            [float(item["peak_summed_rss_kb"]) for item in selected],
+        )
         summaries.append(
             {
                 "kind": "pipeline",
                 "scenario": scenario,
                 "rule": None,
+                "memory_meter": meter,
                 "wall_seconds": stats([float(item["wall_seconds"]) for item in selected]),
-                "peak_rss_kb": stats([float(item["peak_summed_rss_kb"]) for item in selected]),
+                "peak_rss_kb": stats(peaks),
                 "max_individual_rss_kb": stats([float(item["max_individual_rss_kb"]) for item in selected]),
                 "gnu_time_max_rss_kb": stats([float(item["gnu_time_max_rss_kb"]) for item in selected]),
             }
@@ -135,18 +163,19 @@ def build_summaries(executions: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 for item in selected
                 for sample in item.get("rules", {}).get(rule, {}).get("stage", [])
             ]
-            rss = [
-                float(item["rules"][rule]["peak_rss_kb"])
-                for item in selected
-                if item.get("rules", {}).get(rule, {}).get("peak_rss_kb") is not None
-            ]
+            with_rule = [item["rules"][rule] for item in selected if rule in item.get("rules", {})]
+            meter, peaks = _gated_peaks(
+                [_rule_cgroup_peak_kb(entry) for entry in with_rule],
+                [float(entry["peak_rss_kb"]) for entry in with_rule if entry.get("peak_rss_kb") is not None],
+            )
             summaries.append(
                 {
                     "kind": "rule",
                     "scenario": scenario,
                     "rule": rule,
+                    "memory_meter": meter,
                     "wall_seconds": stats(wall),
-                    "peak_rss_kb": stats(rss),
+                    "peak_rss_kb": stats(peaks),
                 }
             )
     return summaries

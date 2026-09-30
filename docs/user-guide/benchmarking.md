@@ -69,7 +69,7 @@ pixi run python -m tools.benchmark compare \
 ```
 
 The command compares matching scenario and stage medians. It returns exit status
-1 when wall time or sampled peak RSS regresses by more than 5%. Change the gates
+1 when wall time or peak memory regresses by more than 5%. Change the gates
 with `--time-threshold-percent` and `--memory-threshold-percent`.
 
 The command returns exit status 2 when critical provenance differs. This
@@ -79,18 +79,42 @@ you intend to compare unlike environments. The command prints every mismatch.
 
 ## Interpret memory metrics
 
-The benchmark reports three different memory measurements:
+The benchmark records these memory measurements for each execution:
 
-- GNU time maximum RSS is a process high-water value. It does not sum processes
-  that are resident at the same time.
-- Maximum individual RSS is the largest process observed by the 250 ms sampler.
-- Peak summed RSS is the largest concurrent sum across the benchmark process
-  group. Use this value to size the machine for the whole pipeline run.
+- `cgroup_peak_kb` is `memory.peak` of a fresh delegated cgroup that holds
+  the whole `simace run` process and every stage cgroup it creates, which
+  adopt it through `SIMACE_CGROUP_ROOT`. It is the exact high-water mark of
+  the whole run, with a shared page counted once. It includes page cache and
+  kernel memory, and a page is charged to the cgroup that first touched it.
+  It is null when no delegated cgroup is available; see
+  [Stage timing](output-structure.md#stage-timing).
+- `gnu_time_max_rss_kb` is GNU time's maximum RSS, the largest single
+  process's high-water mark. It does not sum processes that are resident at
+  the same time.
+- `max_individual_rss_kb` is the largest process observed by the 250 ms
+  sampler.
+- `peak_summed_rss_kb` is the largest concurrent sum of resident memory
+  across the benchmark process group, sampled every 250 ms. It counts a
+  shared page once per process, and short spikes can fall between samples.
+
+Each stage row also carries `max_rss_mb` and `tree_peak_mb` from its
+`timing.tsv`.
+
+Each summary's `peak_rss_kb`, which the memory gate reads, names its source
+in `memory_meter`. It is `cgroup` when every measured execution in the
+summary has a cgroup figure: `cgroup_peak_kb` for the whole run, and each
+stage's largest `tree_peak_mb` for a stage row. Otherwise it is `sampled`:
+`peak_summed_rss_kb` for the whole run, and the stage's summed sampled
+resident memory for a stage row. The two meters measure different things, so
+`compare` does not compare memory across them. It prints a `NOT COMPARED`
+line for each such row and gates only wall time there. `tools/bench_plot.py`
+refuses a run whose summaries mix meters.
 
 The sampler identifies the launched process group through Linux `/proc`. It
 does not select processes by name, so unrelated host work
 does not enter the measurement. It attributes each process to the `python -m simace <stage>`
-process it descends from. Short spikes can fall between samples. Each stage's `timing.tsv` peak comes from `wait4` and cannot miss one.
+process it descends from. It still records the `processes.jsonl` time series
+and CPU frequency when a cgroup is available.
 
 The runtime and memory pages in the validation atlas are separate. They read
 only the `simulate` row of each replicate's `timing.tsv`; they do not measure the `cohort`,

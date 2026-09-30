@@ -42,7 +42,7 @@ def _manifest(run_id: str) -> dict:
     }
 
 
-def _results(run_id: str, wall: float, rss: float, *, status: str = "complete") -> dict:
+def _results(run_id: str, wall: float, rss: float, *, status: str = "complete", meter: str = "sampled") -> dict:
     return {
         "schema": {"name": RESULTS_SCHEMA, "version": SCHEMA_VERSION},
         "run_id": run_id,
@@ -53,6 +53,7 @@ def _results(run_id: str, wall: float, rss: float, *, status: str = "complete") 
                 "kind": "pipeline",
                 "scenario": "small_test",
                 "rule": None,
+                "memory_meter": meter,
                 "wall_seconds": {"n": 3, "median": wall, "min": wall - 1, "max": wall + 1},
                 "peak_rss_kb": {"n": 3, "median": rss, "min": rss - 10, "max": rss + 10},
             }
@@ -81,6 +82,26 @@ def test_compare_fails_when_candidate_exceeds_default_gate(tmp_path: Path):
 
     assert comparison.regressions == 1
     assert [row["metric"] for row in comparison.rows if row["regression"]] == ["wall_seconds"]
+
+
+def test_compare_leaves_out_memory_read_with_different_meters(tmp_path: Path):
+    baseline = _write_run(tmp_path / "baseline", 100.0, 1000.0)
+    candidate_dir = tmp_path / "candidate"
+    candidate_dir.mkdir()
+    write_json(candidate_dir / "manifest.json", _manifest("candidate"))
+    write_json(candidate_dir / "results.json", _results("candidate", 100.0, 5000.0, meter="cgroup"))
+
+    comparison = compare_runs(
+        baseline,
+        read_run(candidate_dir),
+        time_threshold_percent=5.0,
+        memory_threshold_percent=5.0,
+        allow_incompatible=False,
+    )
+
+    assert [row["metric"] for row in comparison.rows] == ["wall_seconds"]
+    assert comparison.regressions == 0
+    assert comparison.not_compared == ("small_test/all peak_rss_kb: baseline meter sampled, candidate meter cgroup",)
 
 
 def test_compare_rejects_incompatible_provenance(tmp_path: Path):

@@ -93,18 +93,24 @@ def test_failed_command_leaves_schema_valid_result(tmp_path: Path, monkeypatch: 
 
 
 def test_collect_timing_reads_every_rep_and_the_plot_stages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Rep 1 predates tree_peak_mb; rep 2 and the plots record it."""
     monkeypatch.setattr(runner, "ROOT", tmp_path)
     scenario_dir = tmp_path / "results" / "test" / "one"
-    header = "stage\twall_s\tmax_rss_mb\texit_code\n"
-    for rep, wall in ((1, "1.5"), (2, "2.5")):
+    old = "stage\twall_s\tmax_rss_mb\texit_code\n"
+    new = "stage\twall_s\tmax_rss_mb\ttree_peak_mb\texit_code\n"
+    rows = {1: f"{old}ascertain\t1.5\t100.0\t0\n", 2: f"{new}ascertain\t2.5\t100.0\t140.0\t0\n"}
+    for rep, table in rows.items():
         (scenario_dir / f"rep{rep}").mkdir(parents=True)
-        (scenario_dir / f"rep{rep}" / "timing.tsv").write_text(f"{header}ascertain\t{wall}\t100.0\t0\n")
+        (scenario_dir / f"rep{rep}" / "timing.tsv").write_text(table)
     (scenario_dir / "plots").mkdir()
-    (scenario_dir / "plots" / "timing.tsv").write_text(f"{header}plot\t9.0\t300.0\t0\natlas\t1.0\t50.0\t0\n")
+    (scenario_dir / "plots" / "timing.tsv").write_text(f"{new}plot\t9.0\t300.0\t900.0\t0\natlas\t1.0\t50.0\t\t0\n")
     run_dir = tmp_path / "bench"
 
     rules = runner._collect_timing("test", "one", run_dir / "runs" / "x" / "timing", run_dir)
 
     assert sorted(rules) == ["ascertainment", "assemble_atlas", "plot_phenotype"]
     assert [s["wall_seconds"] for s in rules["ascertainment"]["stage"]] == [1.5, 2.5]
+    assert [s["tree_peak_mb"] for s in rules["ascertainment"]["stage"]] == [None, 140.0]
+    assert rules["plot_phenotype"]["stage"][0]["tree_peak_mb"] == 900.0
+    assert rules["assemble_atlas"]["stage"][0]["tree_peak_mb"] is None
     assert rules["plot_phenotype"]["stage"][0]["artifact"] == "runs/x/timing/plots/timing.tsv"

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # pytest xdist sweep: which --dist mode and thread split should the suite use?
 #
-# Runs the suite once per cell per sweep under /usr/bin/time -v, then reports a
-# median wall time, peak RSS and per-worker load spread per cell, with a speedup
-# against serial. A cell is an xdist worker count x per-worker numba/BLAS/polars
+# Runs the suite once per cell per sweep under /usr/bin/time -v, each run in its
+# own systemd scope, then reports a median wall time, peak memory and per-worker
+# load spread per cell, with a speedup against serial. A cell is an xdist worker count x per-worker numba/BLAS/polars
 # thread count x --dist mode: serial, n6_loadscope, n6_worksteal, n6_load,
 # n6_loadfile, n3t2_worksteal, n6_unpinned.
 #
@@ -18,9 +18,11 @@
 # to about half an hour.
 #
 # Results land in $OUT (default benchmarks/pytest/): results.tsv holds one row
-# per run, <cell>.<sweep>.time and <cell>.<sweep>.log hold the /usr/bin/time -v
-# and pytest output per run, warmup.log holds the discarded warm-up. results.tsv
-# accumulates across invocations; the printed summary covers only this one.
+# per run, <cell>.<sweep>.time, <cell>.<sweep>.peak and <cell>.<sweep>.log hold
+# the /usr/bin/time -v output, the scope's memory.peak in bytes, and the pytest
+# output per run, warmup.log holds the discarded warm-up. results.tsv accumulates
+# across invocations; the printed summary covers only this one. A results.tsv
+# with a different header is refused; point OUT at a fresh directory.
 #
 # The cells sweep --dist modes first because a profile of the original default
 # (-n 6 --dist loadscope, pins on) put the bottleneck in scheduling rather than
@@ -67,9 +69,13 @@
 #     has no effect;
 #   * the command is `pixi run pytest`, never `pixi run test`, because that task
 #     hardcodes one cell (-n 6 --dist worksteal, all six threads pinned to 1);
-#   * /usr/bin/time -v reports the peak RSS of the largest single child, not the
-#     sum across xdist workers, so the RSS column understates whole-box memory
-#     by roughly the worker count;
+#   * max_rss_mib is /usr/bin/time -v's peak RSS of the largest single process,
+#     one xdist worker, not their sum. tree_peak_mib is the cgroup memory.peak
+#     of the run's systemd scope: every worker together, the exact high-water
+#     mark, shared pages counted once, page cache and kernel memory included.
+#     tests/cli/test_cgroups.py and the cgroup launcher tests start their own
+#     scopes on purpose, so their allocations fall outside it. It is `-` when
+#     `systemd-run --user --scope` does not work here;
 #   * medians with a min-max range, never a single run.
 set -uo pipefail
 
@@ -93,7 +99,7 @@ n6_unpinned     6  -  worksteal
 
 THREAD_VARS="OMP_NUM_THREADS MKL_NUM_THREADS OPENBLAS_NUM_THREADS NUMEXPR_NUM_THREADS NUMBA_NUM_THREADS POLARS_MAX_THREADS"
 BALANCE_ARGS="-v --durations=0 --durations-min=0"
-FMT='%-16s %3s %7s  %-30s %11s %8s  %8s\n'
+FMT='%-16s %3s %7s  %-30s %11s %11s %8s  %8s\n'
 
 cell_row() {
   printf '%s\n' "$CELLS_TABLE" | awk -v c="$1" '$1==c {print $2, $3, $4}'
@@ -154,7 +160,27 @@ read -r -a BALANCE_ARGV <<< "$BALANCE_ARGS"
 
 mkdir -p "$OUT"
 SUMMARY=$OUT/results.tsv
-[ -f "$SUMMARY" ] || printf 'cell\tsweep\tworkers\tthreads\tdist\twall_s\tuser_s\tsys_s\tcpu_pct\tmax_rss_mib\ttests\tspread\tstatus\n' > "$SUMMARY"
+HEADER=$'cell\tsweep\tworkers\tthreads\tdist\twall_s\tuser_s\tsys_s\tcpu_pct\tmax_rss_mib\ttree_peak_mib\ttests\tspread\tstatus'
+if [ ! -f "$SUMMARY" ]; then
+  printf '%s\n' "$HEADER" > "$SUMMARY"
+elif [ "$(head -1 "$SUMMARY")" != "$HEADER" ]; then
+  echo "$SUMMARY has different columns; set OUT to a fresh directory" >&2
+  exit 2
+fi
+
+# The scope is a delegated cgroup root: pytest runs in a child of it, and the
+# stage cgroups `simace run` tests create adopt it through SIMACE_CGROUP_ROOT
+# instead of starting scopes outside it. Its memory.peak is written from inside
+# after pytest exits, and pytest's exit status passes through.
+SCOPE=()
+if systemd-run --user --scope --quiet true 2>/dev/null; then
+  SCOPE=(systemd-run --user --scope --quiet -p Delegate=yes -- sh -c '
+    cg=/sys/fs/cgroup$(cut -d: -f3 /proc/self/cgroup)
+    mkdir "$cg/pytest" && echo 0 > "$cg/pytest/cgroup.procs" && echo +memory > "$cg/cgroup.subtree_control" || exit 125
+    SIMACE_CGROUP_ROOT=$cg "$@"; s=$?; cat "$cg/memory.peak" > "$0"; exit $s')
+else
+  echo "systemd-run --user --scope is unavailable; tree_peak_mib will be -" >&2
+fi
 
 RUN_ROWS=$(mktemp) || exit 1
 trap 'rm -f "$RUN_ROWS"' EXIT
@@ -174,6 +200,10 @@ for sweep in $(seq 1 "$SWEEPS"); do
     read -r workers threads dist <<< "$(cell_row "$cell")"
     run_log=$OUT/$cell.$sweep.log
     time_log=$OUT/$cell.$sweep.time
+    peak_log=$OUT/$cell.$sweep.peak
+    rm -f "$peak_log"
+    scope=()
+    [ ${#SCOPE[@]} -eq 0 ] || scope=("${SCOPE[@]}" "$peak_log")
 
     xdist_args=()
     [ "$workers" = "-" ] || xdist_args=(-n "$workers" --dist "$dist")
@@ -181,7 +211,7 @@ for sweep in $(seq 1 "$SWEEPS"); do
 
     echo "[$(date +%T)] START $cell sweep $sweep"
     /usr/bin/time -v -o "$time_log" \
-      env "${env_args[@]}" pixi run pytest \
+      "${scope[@]}" env "${env_args[@]}" pixi run pytest \
         "${xdist_args[@]}" "${BALANCE_ARGV[@]}" "${PYTEST_ARGV[@]}" \
       > "$run_log" 2>&1
     status=$?
@@ -199,23 +229,25 @@ for sweep in $(seq 1 "$SWEEPS"); do
     cpu=$(awk -F': ' '/Percent of CPU/{print $NF}' "$time_log")
     rss=$(awk -F': ' '/Maximum resident set size/{print $NF}' "$time_log" |
       awk '{printf "%.1f\n", $1/1024}')
+    tree=-
+    [ -s "$peak_log" ] && tree=$(awk '{printf "%.1f\n", $1/1048576}' "$peak_log")
 
     summary=$(grep -E '^=+ .*(passed|failed|error|no tests ran)' "$run_log" | tail -1)
     tests=$(printf '%s\n' "$summary" |
       grep -Eo '[0-9]+ (passed|failed|skipped|xfailed|xpassed|errors?)' | awk '{s+=$1} END{print s+0}')
     spread=$(worker_spread "$run_log")
 
-    row=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
+    row=$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' \
       "$cell" "$sweep" "$workers" "$threads" "$dist" \
-      "$wall" "$user" "$sys" "$cpu" "$rss" "$tests" "$spread" "$state")
+      "$wall" "$user" "$sys" "$cpu" "$rss" "$tree" "$tests" "$spread" "$state")
     printf '%s\n' "$row" >> "$SUMMARY"
     printf '%s\n' "$row" >> "$RUN_ROWS"
-    echo "[$(date +%T)] DONE  $cell sweep $sweep  wall=${wall}s rss=${rss}MiB cpu=$cpu tests=$tests spread=$spread $state"
+    echo "[$(date +%T)] DONE  $cell sweep $sweep  wall=${wall}s rss=${rss}MiB tree=${tree}MiB cpu=$cpu tests=$tests spread=$spread $state"
   done
 done
 
 usable_rows() {  # no argument: every cell
-  awk -F'\t' -v c="${1:-}" '($13=="ok" || $13=="tests_failed") && (c=="" || $1==c)' "$RUN_ROWS"
+  awk -F'\t' -v c="${1:-}" '($14=="ok" || $14=="tests_failed") && (c=="" || $1==c)' "$RUN_ROWS"
 }
 
 serial_med=$(usable_rows serial | cut -f6 | median)
@@ -224,7 +256,7 @@ table=()
 for cell in $CELLS; do
   n=$(usable_rows "$cell" | awk 'END{print NR+0}')
   if [ "$n" -eq 0 ]; then
-    table+=("999999999"$'\t'"$(printf "$FMT" "$cell" "0" "-" "-" "-" "-" "-")")
+    table+=("999999999"$'\t'"$(printf "$FMT" "$cell" "0" "-" "-" "-" "-" "-" "-")")
     continue
   fi
   walls=$(usable_rows "$cell" | cut -f6)
@@ -232,8 +264,9 @@ for cell in $CELLS; do
   min_wall=$(printf '%s\n' "$walls" | sort -n | head -1)
   max_wall=$(printf '%s\n' "$walls" | sort -n | tail -1)
   med_rss=$(usable_rows "$cell" | cut -f10 | median)
-  cell_tests=$(usable_rows "$cell" | cut -f11 | sort -un | paste -sd/ -)
-  med_spread=$(usable_rows "$cell" | cut -f12 | grep -v '^-$' | median)
+  med_tree=$(usable_rows "$cell" | cut -f11 | grep -v '^-$' | median)
+  cell_tests=$(usable_rows "$cell" | cut -f12 | sort -un | paste -sd/ -)
+  med_spread=$(usable_rows "$cell" | cut -f13 | grep -v '^-$' | median)
   if [ -n "$serial_med" ]; then
     speedup=$(awk -v s="$serial_med" -v m="$med_wall" 'BEGIN{if (m>0) printf "%.2fx\n", s/m; else print "-"}')
   else
@@ -241,29 +274,29 @@ for cell in $CELLS; do
   fi
   line=$(printf "$FMT" "$cell" "$n" "$cell_tests" \
     "$(printf '%s (%s-%s)' "$med_wall" "$min_wall" "$max_wall")" \
-    "$med_rss" "${med_spread:--}" "$speedup")
+    "$med_rss" "${med_tree:--}" "${med_spread:--}" "$speedup")
   table+=("$med_wall"$'\t'"$line")
 done
 
 echo
 echo "=== $SWEEPS sweep(s) x $(printf '%s\n' "$CELLS" | wc -w) cell(s), this invocation ==="
-printf "$FMT" cell n tests "wall_s median (min-max)" "rss_mib" "spread" "speedup"
+printf "$FMT" cell n tests "wall_s median (min-max)" "rss_mib" "tree_mib" "spread" "speedup"
 printf '%s\n' "${table[@]}" | sort -t$'\t' -k1,1n | cut -f2-
 
-bad=$(awk -F'\t' '$13!="ok"{printf "  %s sweep %s  %s\n", $1, $2, $13}' "$RUN_ROWS")
+bad=$(awk -F'\t' '$14!="ok"{printf "  %s sweep %s  %s\n", $1, $2, $14}' "$RUN_ROWS")
 if [ -n "$bad" ]; then
   echo
   echo "RUNS THAT DID NOT EXIT CLEAN:"
   printf '%s\n' "$bad"
 fi
 
-if [ "$(usable_rows | cut -f11 | sort -u | wc -l)" -gt 1 ]; then
+if [ "$(usable_rows | cut -f12 | sort -u | wc -l)" -gt 1 ]; then
   echo
   echo "######################################################################"
   echo "# INVALID COMPARISON: the cells did not run the same tests.          #"
   echo "# Wall times across different test counts mean nothing. Test counts: #"
   echo "######################################################################"
-  usable_rows | awk -F'\t' '{c[$1]=c[$1] " " $11} END{for (k in c) printf "  %-16s%s\n", k, c[k]}' | sort
+  usable_rows | awk -F'\t' '{c[$1]=c[$1] " " $12} END{for (k in c) printf "  %-16s%s\n", k, c[k]}' | sort
 fi
 
 echo

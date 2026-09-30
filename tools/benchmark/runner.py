@@ -13,12 +13,14 @@ import signal
 import subprocess
 import sys
 import time
+from contextlib import ExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from simace import __version__ as simace_version
+from simace.cli.cgroups import ROOT_ENV, CgroupRoot, CgroupUnavailable
 from simace.config import resolve_defaults, resolve_scenarios
 from simace.core.yaml_io import load_yaml
 from tools.benchmark.model import (
@@ -302,10 +304,21 @@ def _collect_timing(folder: str, scenario: str, destination: Path, run_dir: Path
                     {
                         "wall_seconds": float(row["wall_s"]),
                         "max_rss_mb": float(row["max_rss_mb"]),
+                        # Absent from timing.tsv files written before cgroups, empty without one.
+                        "tree_peak_mb": float(row["tree_peak_mb"]) if row.get("tree_peak_mb") else None,
                         "artifact": str(target.relative_to(run_dir)),
                     }
                 )
     return rules
+
+
+def _open_cgroups(stack: ExitStack) -> CgroupRoot | None:
+    """Open a fresh cgroup root for one execution, or None (and say why) when there is none."""
+    try:
+        return stack.enter_context(CgroupRoot.open())
+    except CgroupUnavailable as exc:
+        print(f"benchmark: no delegated cgroup ({exc}); cgroup_peak_kb not recorded", file=sys.stderr)
+        return None
 
 
 def _parse_time_file(path: Path) -> dict[str, Any]:
@@ -375,9 +388,16 @@ def _run_execution(
 
     started_utc = utc_now()
     started = time.monotonic()
-    with log_path.open("wb") as log:
+    with ExitStack() as stack, log_path.open("wb") as log:
+        cgroups = _open_cgroups(stack)
+        launched = command
+        if cgroups is not None:
+            # simace run adopts this root, so its stage cgroups sit beside the
+            # run's own leaf and the root's peak covers the whole pipeline.
+            launched = stack.enter_context(cgroups.leaf()).wrap(command)
+            env[ROOT_ENV] = str(cgroups.path)
         process = subprocess.Popen(
-            command,
+            launched,
             cwd=ROOT,
             env=env,
             stdout=log,
@@ -393,6 +413,7 @@ def _run_execution(
             raise
         finally:
             sampler.stop()
+        cgroup_peak_kb = None if cgroups is None else cgroups.peak_bytes() // 1024
     monotonic_seconds = time.monotonic() - started
     memory = sampler.summary()
     rules = _collect_timing(config.folder, scenario, artifacts / "timing", run_dir)
@@ -418,6 +439,7 @@ def _run_execution(
         "monotonic_seconds": monotonic_seconds,
         "gnu_time_max_rss_kb": time_result["max_rss_kb"],
         "gnu_time_cpu_percent": time_result["cpu_percent"],
+        "cgroup_peak_kb": cgroup_peak_kb,
         "peak_summed_rss_kb": memory["peak_summed_rss_kb"],
         "max_individual_rss_kb": memory["max_individual_rss_kb"],
         "frequency_max_khz": memory["frequency_max_khz"],

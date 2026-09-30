@@ -19,10 +19,12 @@ requirement by roughly the number of stages.
 
 Time is read from each rep's ``timing.tsv``, the elapsed wall seconds of each
 stage subprocess, which is the figure a reader can plan against.
-Memory is read from the result document's 4 Hz process-group samples, the
-figure the benchmark comparison gates on. ``--show-gap`` also draws each stage
-process's own peak (``ru_maxrss``) from ``timing.tsv`` so the two can be
-compared.
+Memory is the figure the benchmark comparison gates on: the cgroup
+``memory.peak`` when every measured execution recorded one, else the 4 Hz
+process-group samples. The axis label names which, and a run whose points
+were read with different meters is refused. ``--show-gap`` also draws each
+stage process's own peak (``ru_maxrss``) from ``timing.tsv`` so the two can
+be compared.
 """
 
 from __future__ import annotations
@@ -82,9 +84,10 @@ class Point:
         scenario: Scenario name.
         individuals: Total pedigree individuals, ``N * G_ped``.
         wall_s: Median wall seconds per stage key across measured repetitions.
-        peak_gb: Median sampled peak RSS in GB per measured repetition.
+        peak_gb: Median gated peak in GB per stage key across measured repetitions.
         reported_gb: Each stage process's own peak RSS from ``timing.tsv``, for ``--show-gap``.
-        tree_peak_gb: Median whole-run summed-tree peak, the machine footprint.
+        tree_peak_gb: Median whole-run peak, the machine footprint.
+        memory_meter: ``cgroup`` or ``sampled``, the meter ``peak_gb`` and ``tree_peak_gb`` were read with.
     """
 
     scenario: str
@@ -93,6 +96,7 @@ class Point:
     peak_gb: dict[str, float]
     reported_gb: dict[str, float]
     tree_peak_gb: float
+    memory_meter: str
 
 
 def build_points(bench_dir: Path) -> list[Point]:
@@ -105,7 +109,7 @@ def build_points(bench_dir: Path) -> list[Point]:
         Points sorted by population size.
 
     Raises:
-        BenchmarkError: If the run is incomplete or has no usable summaries.
+        BenchmarkError: If the run is incomplete, has no usable summaries, or mixes memory meters.
     """
     run = read_run(bench_dir)
     if run.results["status"] != "complete":
@@ -120,6 +124,7 @@ def build_points(bench_dir: Path) -> list[Point]:
     ]
 
     points: list[Point] = []
+    meters: set[str] = set()
     scenario_inputs = run.manifest["inputs"]["scenarios"]
     for scenario in run.manifest["execution"]["scenarios"]:
         params = scenario_inputs[scenario]
@@ -134,6 +139,7 @@ def build_points(bench_dir: Path) -> list[Point]:
                 wall[stage.key] = float(row["wall_seconds"]["median"])
             if row["peak_rss_kb"] is not None:
                 peak[stage.key] = float(row["peak_rss_kb"]["median"]) / KB_PER_GB
+                meters.add(row.get("memory_meter", "sampled"))
         reported_samples: dict[str, list[float]] = {}
         for execution in executions:
             if execution["scenario"] != scenario:
@@ -145,6 +151,8 @@ def build_points(bench_dir: Path) -> list[Point]:
         pipeline = summaries.get((scenario, None))
         if pipeline is None or pipeline["peak_rss_kb"] is None:
             raise BenchmarkError(f"scenario {scenario!r} has no pipeline memory summary")
+        meter = pipeline.get("memory_meter", "sampled")
+        meters.add(meter)
         points.append(
             Point(
                 scenario=scenario,
@@ -153,8 +161,11 @@ def build_points(bench_dir: Path) -> list[Point]:
                 peak_gb=peak,
                 reported_gb={key: statistics.median(values) for key, values in reported_samples.items()},
                 tree_peak_gb=float(pipeline["peak_rss_kb"]["median"]) / KB_PER_GB,
+                memory_meter=meter,
             )
         )
+    if len(meters) > 1:
+        raise BenchmarkError(f"memory summaries were read with different meters ({', '.join(sorted(meters))})")
     return sorted(points, key=lambda p: p.individuals)
 
 
@@ -319,7 +330,8 @@ def render(
     ax_mem.set_xticks(x)
     ax_mem.set_xticklabels(labels)
     ax_mem.set_xlabel("Pedigree individuals")
-    ax_mem.set_ylabel("Peak resident memory (GB)")
+    meter = "cgroup" if points[0].memory_meter == "cgroup" else "sampled RSS"
+    ax_mem.set_ylabel(f"Peak memory, {meter} (GB)")
     ax_mem.set_title("Peak RAM")
     apply_log_axis(ax_mem, every_peak)
 
@@ -381,7 +393,7 @@ def main() -> int:
     parser.add_argument("--figsize", type=float, nargs=2, default=(9.0, 3.6), metavar=("W", "H"))
     parser.add_argument("--dpi", type=int, default=200)
     parser.add_argument(
-        "--show-gap", action="store_true", help="mark each stage's timing.tsv peak next to the sampled peak"
+        "--show-gap", action="store_true", help="mark each stage's timing.tsv peak next to the gated peak"
     )
     parser.add_argument(
         "--exclude", nargs="*", default=[], metavar="STAGE", help="stages to omit by key or label, e.g. plots atlas"
