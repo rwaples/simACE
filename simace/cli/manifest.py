@@ -30,6 +30,7 @@ __all__ = [
     "fingerprints",
     "manifest_params",
     "plots_status",
+    "read_manifest",
     "recorded_stages",
     "rep_status",
     "source_ref",
@@ -49,7 +50,7 @@ import yaml
 
 import simace
 from simace.core.publish import publish
-from simace.core.yaml_io import dump_yaml, load_yaml, to_native
+from simace.core.yaml_io import dump_yaml, load_yaml, to_native, yaml_loader
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -63,7 +64,11 @@ def manifest_params(resolved: Mapping[str, Any], keys: Iterable[str]) -> dict[st
     complete.
     """
     kept = {key: resolved[key] for key in sorted(keys)}
-    return yaml.safe_load(yaml.safe_dump(to_native(kept)))
+    return yaml.load(yaml.dump(to_native(kept), Dumper=_SAFE_DUMPER), Loader=yaml_loader())
+
+
+# libyaml's dumper when present: this round trip runs once per rep status check.
+_SAFE_DUMPER: type = getattr(yaml, "CSafeDumper", yaml.SafeDumper)
 
 
 #: A file's size and nanosecond mtime, enough to tell an atomically replaced output from the one recorded.
@@ -193,26 +198,27 @@ def write_manifest(path: Path, manifest: Manifest, outputs: Iterable[Path]) -> N
         dump_yaml(body, tmp)
 
 
-def recorded_stages(path: Path) -> list[str] | None:
-    """Return the stage names the ``run.yaml`` at ``path`` records, or None when there is no such list."""
-    if not path.exists():
-        return None
-    recorded = load_yaml(path)
+def read_manifest(path: Path) -> Any:
+    """Return the loaded ``run.yaml`` at ``path``, or None when it does not exist."""
+    return load_yaml(path) if path.exists() else None
+
+
+def recorded_stages(recorded: Any) -> list[str] | None:
+    """Return the stage names a loaded ``run.yaml`` records, or None when there is no such list."""
     stages = recorded.get("stages") if isinstance(recorded, dict) else None
     return stages if isinstance(stages, list) else None
 
 
-def rep_status(path: Path, expected: Manifest, outputs: Iterable[Path]) -> RepStatus:
-    """Compare the ``run.yaml`` at ``path`` and the rep's ``outputs`` with what the rep would be built from now.
+def rep_status(recorded: Any, expected: Manifest, outputs: Iterable[Path]) -> RepStatus:
+    """Compare a loaded ``run.yaml`` and the rep's ``outputs`` with what the rep would be built from now.
 
     A manifest that disagrees with ``expected``, or that records no output
     fingerprints, makes the rep stale, which ``simace run`` refuses without
     ``--force``. A matching manifest with an output missing or rewritten
     since the manifest makes it incomplete, which ``simace run`` recomputes.
     """
-    if not path.exists():
+    if recorded is None:
         return RepStatus(RepState.ABSENT)
-    recorded = load_yaml(path)
     if not isinstance(recorded, dict) or not isinstance(recorded.get("resolved"), dict):
         return RepStatus(RepState.STALE, ("run.yaml is not a manifest",))
     identity = {"scenario": expected.scenario, "rep": expected.rep, "seed": expected.seed}

@@ -49,8 +49,10 @@ from simace.cli.manifest import (
     PlotsState,
     PlotsStatus,
     RepState,
+    RepStatus,
     manifest_params,
     plots_status,
+    read_manifest,
     recorded_stages,
     rep_status,
     write_manifest,
@@ -75,7 +77,6 @@ if TYPE_CHECKING:
     from typing import TextIO
 
     from simace.cli.layout import Layout
-    from simace.cli.manifest import RepStatus
     from simace.cli.stages import Stage
 
 # OpenMP/BLAS pools are pinned to one thread in every stage, as Snakemake's
@@ -177,12 +178,17 @@ def expected_manifest(rep: ResolvedRep, stages: Sequence[Stage] = STAGES) -> Man
 
 
 def built_stages(rep: ResolvedRep, layout: Layout) -> tuple[Stage, ...]:
-    """Return the stages ``rep``'s ``run.yaml`` records when they begin the chain, else the whole chain.
+    """Return the stages ``rep``'s ``run.yaml`` records when they begin the chain, else the whole chain."""
+    return _built(read_manifest(layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST)))
+
+
+def _built(recorded: Any) -> tuple[Stage, ...]:
+    """Return the stages a loaded ``run.yaml`` records when they begin the chain, else the whole chain.
 
     Returning the whole chain for any other list lets :func:`rep_status`
     report the difference in ``stages``, which makes the rep stale.
     """
-    names = recorded_stages(layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST))
+    names = recorded_stages(recorded)
     if names and names == _stage_names()[: len(names)]:
         return STAGES[: len(names)]
     return STAGES
@@ -194,9 +200,11 @@ def status_on_disk(rep: ResolvedRep, layout: Layout, until: int = len(STAGES)) -
     The rep is checked against the stages its ``run.yaml`` records. One
     complete through fewer than the first ``until`` stages is partial.
     """
-    manifest = layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST)
-    built = built_stages(rep, layout)
-    status = rep_status(manifest, expected_manifest(rep, built), rep_outputs(rep, layout, built))
+    recorded = read_manifest(layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST))
+    if recorded is None:
+        return RepStatus(RepState.ABSENT)
+    built = _built(recorded)
+    status = rep_status(recorded, expected_manifest(rep, built), rep_outputs(rep, layout, built))
     if status.state is RepState.COMPLETE and len(built) < until:
         return replace(status, state=RepState.PARTIAL, reasons=(f"built through {built[-1].name}",))
     return status
