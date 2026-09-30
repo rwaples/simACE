@@ -46,7 +46,7 @@ fitACE writes, such as `epimight/`. This page lists the simACE outputs only.
 | `report.yaml` | `simace/analysis/analyze.py` | The per-replicate report. See [report.yaml](#reportyaml) |
 | `plot_payload.yaml` | `simace/analysis/analyze.py` | Dense arrays for the incidence and censoring plots |
 | `plotting_sample.parquet` | `simace/analysis/analyze.py` | A downsampled join of traits and pedigree for scatter plots |
-| `timing.tsv` | `simace run` | One row per stage: `stage`, `wall_s`, `max_rss_mb` (the stage process's peak resident memory), `exit_code` |
+| `timing.tsv` | `simace run` | One row per stage: `stage`, `wall_s`, `max_rss_mb` (the peak resident memory of the stage and any worker processes it starts), `exit_code` |
 | `run.yaml` | `simace run` | Written after every stage succeeds. Records the scenario, replicate, seed, parameters, stages, and results `layout` (2) the replicate was computed with, plus the simace version and git ref (`source`) that built it. A rerun skips the replicate only when this matches and every other file above exists. See [Running the pipeline](running-the-pipeline.md#rerun-and-resume) |
 
 Every stage writes each output to a temporary `<name>.<random>.tmp` beside it
@@ -216,8 +216,12 @@ pipeline. Read the registry for the full list.
 
 `simace run` runs each stage as its own process and appends one row to the
 replicate's `timing.tsv` when the stage exits: `stage`, `wall_s` (elapsed
-seconds), `max_rss_mb` (the process's peak resident memory in MiB, from
-`wait4`), and `exit_code`. The scenario's `plots/timing.tsv` holds the same
+seconds), `max_rss_mb` (peak resident memory in MiB), and `exit_code`.
+`max_rss_mb` is the larger of the stage process's exact peak from `wait4`
+and the summed resident memory of the stage and its descendants, sampled
+every 0.1 s. The sum is what counts for a stage with worker processes,
+such as `plot`; it counts shared pages once per process and can miss a
+spike shorter than the sampling interval. The scenario's `plots/timing.tsv` holds the same
 columns for the `plot` and `atlas` stages. A recomputed replicate starts a
 fresh `timing.tsv`.
 

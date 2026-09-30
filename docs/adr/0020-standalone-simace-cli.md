@@ -113,13 +113,18 @@ through its own Snakemake and did not depend on simACE's rules.
   and per-stage selective rebuilds. `simace show` prints each stage's peak
   RSS and median wall time from the complete reps so `--jobs` and
   `--max-memory` can be sized by hand.
-- `--max-memory SIZE` caps each stage process's resident memory. `run`
-  polls the child's `VmRSS` in `/proc` every 0.1 s and kills it once it is
-  over. Kernel limits were measured and rejected: at `small_test`, a stage's
-  peak virtual size (`RLIMIT_AS`) was 15 to 25 times its peak RSS and its
-  data segment (`RLIMIT_DATA`) 2 to 4 times, so either limit would kill
-  stages that fit. The cap is per stage, not per run, and a spike shorter
-  than the poll interval can pass it.
+- `--max-memory SIZE` caps each stage's resident memory. `run` polls the
+  `VmRSS` of the child and every descendant in `/proc` every 0.1 s, sums
+  them, and kills the whole process tree once the sum is over. The sum
+  covers `simace plot`'s worker processes; it counts shared pages once
+  per process, so it overstates a tree's footprint by its shared
+  libraries. The same samples set `max_rss_mb` in `timing.tsv` when they
+  exceed the stage process's own `wait4` peak. Kernel limits were measured
+  and rejected: at `small_test`, a stage's peak virtual size (`RLIMIT_AS`)
+  was 15 to 25 times its peak RSS and its data segment (`RLIMIT_DATA`) 2
+  to 4 times, so either limit would kill stages that fit. The cap is per
+  stage, not per run, and a spike shorter than the poll interval can pass
+  it.
 
 ## Amendment (2026-09-28): folder targets, config-aware gather, source ref
 

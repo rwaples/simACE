@@ -33,7 +33,7 @@ ascertainment in one process and writes only `cohort.parquet` and
 | `--force` | Recompute the requested replicates even when they are complete |
 | `--fail-fast` | Stop starting new replicates after the first failure |
 | `--no-plots` | Skip the plots and atlas |
-| `--max-memory 8G` | Kill any stage process whose resident memory goes over 8 GiB, which fails its replicate. The cap is per stage, so `--jobs 3` can use up to three times it |
+| `--max-memory 8G` | Kill any stage whose resident memory, summed over the stage process and its worker processes, goes over 8 GiB, which fails its replicate. The cap is per stage, so `--jobs 3` can use up to three times it |
 | `--format pdf` | Also write `plots/atlas.pdf`; `plots/atlas.html` is always built |
 | `--results DIR`, `--logs DIR`, `--config-dir DIR` | Use other roots than `results/`, `logs/`, `config/` |
 

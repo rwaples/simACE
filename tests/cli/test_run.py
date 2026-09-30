@@ -499,6 +499,38 @@ def test_launcher_kills_a_stage_over_the_memory_cap(tmp_path) -> None:
     assert "went over --max-memory (200 MB)" in log.read_text()
 
 
+def test_launcher_counts_and_kills_a_stage_s_worker_processes(tmp_path) -> None:
+    pids = tmp_path / "workers.txt"
+    worker = "import time; time.sleep(0.5); b = b'x' * (120 * 2**20); time.sleep(60)"
+    stage = [
+        sys.executable,
+        "-c",
+        "import subprocess, sys, time; "
+        f"ws = [subprocess.Popen([sys.executable, '-c', {worker!r}]) for _ in range(3)]; "
+        f"open({str(pids)!r}, 'w').write(' '.join(str(w.pid) for w in ws)); time.sleep(60)",
+    ]
+    result = run_mod._Launcher(dict(os.environ), max_rss=250 * 2**20).run(stage, tmp_path / "pool.log")
+    assert (result.exit_code, result.over_memory) == (-9, True)
+    assert result.wall_s < 30
+    for pid in map(int, pids.read_text().split()):
+        deadline = time.monotonic() + 10
+        while run_mod._rss_bytes(pid) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert run_mod._rss_bytes(pid) == 0
+
+
+def test_launcher_records_the_peak_of_a_stage_s_process_tree(tmp_path) -> None:
+    worker = "import time; b = b'x' * (120 * 2**20); time.sleep(1)"
+    stage = [
+        sys.executable,
+        "-c",
+        f"import subprocess, sys; [w.wait() for w in [subprocess.Popen([sys.executable, '-c', {worker!r}]) for _ in range(3)]]",
+    ]
+    result = run_mod._Launcher(dict(os.environ)).run(stage, tmp_path / "pool.log")
+    assert result.exit_code == 0
+    assert result.max_rss_mb > 3 * 120
+
+
 def test_launcher_leaves_a_stage_under_the_cap_alone(tmp_path) -> None:
     result = run_mod._Launcher(dict(os.environ), max_rss=2**30).run([sys.executable, "-c", "pass"], tmp_path / "ok.log")
     assert (result.exit_code, result.over_memory) == (0, False)

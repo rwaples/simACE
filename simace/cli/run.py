@@ -30,12 +30,13 @@ import argparse
 import fcntl
 import os
 import shlex
+import signal
 import subprocess
 import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -65,7 +66,6 @@ from simace.cli.stages import (
 from simace.core.publish import TMP_SUFFIX, publish
 
 if TYPE_CHECKING:
-    import resource
     from collections.abc import Iterable, Iterator
     from pathlib import Path
     from typing import TextIO
@@ -230,7 +230,7 @@ def parse_size(text: str) -> int:
 
 
 def _rss_bytes(pid: int) -> int:
-    """Return the resident memory of a live child from ``/proc``; 0 once it has exited."""
+    """Return the resident memory of a live process from ``/proc``; 0 once it has exited."""
     try:
         with open(f"/proc/{pid}/status", encoding="ascii") as fh:
             for line in fh:
@@ -241,13 +241,71 @@ def _rss_bytes(pid: int) -> int:
     return 0
 
 
+def _descendants(pid: int) -> list[int]:
+    """Return the pids of every live descendant of ``pid``, from each thread's ``/proc`` children list."""
+    found: list[int] = []
+    pending = [pid]
+    while pending:
+        parent = pending.pop()
+        try:
+            tids = os.listdir(f"/proc/{parent}/task")
+        except FileNotFoundError:
+            continue
+        for tid in tids:
+            try:
+                with open(f"/proc/{parent}/task/{tid}/children", encoding="ascii") as fh:
+                    children = [int(child) for child in fh.read().split()]
+            except FileNotFoundError:
+                continue
+            found.extend(children)
+            pending.extend(children)
+    return found
+
+
+class _TreeWatch(threading.Thread):
+    """Samples the summed RSS of a stage and its descendants; kills the tree once it goes over a cap.
+
+    ``simace plot`` renders in worker processes, so the stage process alone
+    understates the stage. Shared pages count once per process. The watcher
+    is stopped before the stage is reaped, so the stage's pid cannot have
+    been reused when it is killed.
+    """
+
+    def __init__(self, pid: int, max_rss: int | None, log: TextIO) -> None:
+        super().__init__(daemon=True)
+        self.pid = pid
+        self.max_rss = max_rss
+        self.log = log
+        self.peak = 0
+        self.over = False
+        self._stop = threading.Event()
+
+    def run(self) -> None:
+        while not self._stop.wait(_MEMORY_POLL_S):
+            tree = [self.pid, *_descendants(self.pid)]
+            rss = sum(map(_rss_bytes, tree))
+            self.peak = max(self.peak, rss)
+            if self.max_rss is not None and not self.over and rss > self.max_rss:
+                self.over = True
+                for pid in tree:
+                    with suppress(ProcessLookupError):
+                        os.kill(pid, signal.SIGKILL)
+                self.log.write(
+                    f"\nsimace run: killed; resident memory went over --max-memory ({self.max_rss / 2**20:.0f} MB)\n"
+                )
+
+    def finish(self) -> None:
+        self._stop.set()
+        self.join()
+
+
 @dataclass(frozen=True)
 class _Launcher:
     """How stage subprocesses start: their environment and an optional resident-memory cap.
 
-    With a cap, the child's RSS is polled every ``_MEMORY_POLL_S`` and the
-    child is killed once it goes over. Polling runs before the child is
-    reaped, so its pid cannot have been reused when it is killed.
+    A :class:`_TreeWatch` samples each stage's process tree every
+    ``_MEMORY_POLL_S`` for the recorded peak and, with a cap, kills the tree
+    once it goes over.
     """
 
     env: dict[str, str]
@@ -255,33 +313,19 @@ class _Launcher:
     lock_fds: tuple[int, ...] = ()
 
     def run(self, cmd: list[str], log_path: Path) -> StageResult:
-        """Run one stage with output to ``log_path``; measure it with ``wait4``."""
+        """Run one stage with output to ``log_path``; record the larger of its tree's sampled peak and ``wait4``'s."""
         log_path.parent.mkdir(parents=True, exist_ok=True)
         start = time.perf_counter()
         with open(log_path, "w", encoding="utf-8") as log:
             proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=self.env, pass_fds=self.lock_fds)
-            status, rusage, over = self._wait(proc, log)
+            watch = _TreeWatch(proc.pid, self.max_rss, log)
+            watch.start()
+            os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOWAIT)
+            watch.finish()
+            _, status, rusage = os.wait4(proc.pid, 0)
         proc.returncode = os.waitstatus_to_exitcode(status)
         rss_bytes = rusage.ru_maxrss if sys.platform == "darwin" else rusage.ru_maxrss * 1024
-        return StageResult(time.perf_counter() - start, rss_bytes / 2**20, proc.returncode, over)
-
-    def _wait(self, proc: subprocess.Popen[bytes], log: TextIO) -> tuple[int, resource.struct_rusage, bool]:
-        """Reap ``proc``; return its wait status, rusage, and whether it was killed for its memory."""
-        if self.max_rss is None:
-            _, status, rusage = os.wait4(proc.pid, 0)
-            return status, rusage, False
-        over = False
-        while True:
-            pid, status, rusage = os.wait4(proc.pid, os.WNOHANG)
-            if pid:
-                return status, rusage, over
-            if not over and _rss_bytes(proc.pid) > self.max_rss:
-                over = True
-                proc.kill()
-                log.write(
-                    f"\nsimace run: killed; resident memory went over --max-memory ({self.max_rss / 2**20:.0f} MB)\n"
-                )
-            time.sleep(_MEMORY_POLL_S)
+        return StageResult(time.perf_counter() - start, max(rss_bytes, watch.peak) / 2**20, proc.returncode, watch.over)
 
 
 def _append_timing(path: Path, stage: str, result: StageResult) -> None:
