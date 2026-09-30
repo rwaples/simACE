@@ -90,7 +90,7 @@ def run_analysis(
         folder: Folder name recorded in the report's replicate block.
         scenario: Scenario name recorded in the report's replicate block.
         rep: Replicate number recorded in the report's replicate block.
-        seed: Random seed for stats sampling / correlations.
+        seed: Random seed for the plotting sample.
         censor_age: Administrative censoring age.
         gen_censoring: Optional per-generation censoring windows.
         max_degree: Deepest relationship degree in the pair-count tables.
@@ -135,12 +135,15 @@ def run_analysis(
     # --- Phase 3: Analysis sample (post-ascertainment subsample) ---
     logger.info("Analyze phase 3/3: stats on %s", trait_path)
     df_trait = load_parquet(trait_path)
-    df_ped = load_parquet(pedigree_path, columns=PEDIGREE_REPORT_COLUMNS)
+    # One read serves the stats (report columns) and, projected below, the
+    # plotting sample's A/C/E components (ADR 0020).
+    df_ped = load_parquet(pedigree_path, columns=[*PEDIGREE_REPORT_COLUMNS, *LIABILITY_COMPONENT_COLUMNS])
+    components = df_ped.select(["id", *LIABILITY_COMPONENT_COLUMNS])
+    df_ped = df_ped.select(PEDIGREE_REPORT_COLUMNS)
     df = hydrate_trait(df_trait, df_ped, kind="censored", columns=PEDIGREE_REPORT_COLUMNS)
     stats_report = build_stats_report(
         df,
         censor_age,
-        seed=seed,
         gen_censoring=gen_censoring,
         df_ped=df_ped,
         max_degree=max_degree,
@@ -182,7 +185,6 @@ def run_analysis(
     # need the per-trait liability components, which live in the pedigree rather
     # than the outcomes-only trait file. Hydrate them onto the plotting sample
     # only; the stats `df` above is deliberately left lean.
-    components = load_parquet(pedigree_path, columns=["id", *LIABILITY_COMPONENT_COLUMNS])
     sample_df = sample_df.join(components, on="id", how="left", maintain_order="left")
     save_parquet(sample_df, samples_output)
     logger.info("Plotting sample (%d rows) written to %s", len(sample_df), samples_output)

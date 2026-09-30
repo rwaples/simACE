@@ -1,20 +1,13 @@
 """Tetrachoric correlation primitives.
 
-Low-level helpers for tetrachoric MLE on binary arrays plus the
-``_tetrachoric_for_pairs`` pair-subset helper used across pairwise-correlation
-computations.
+Low-level helpers for tetrachoric MLE from a 2×2 table or two binary arrays.
 """
 
 import logging
-from typing import Any
 
 import numpy as np
 
-from simace.core._numba_utils import (
-    _pearsonr_core,
-    _tetrachoric_core,
-)
-from simace.core.numerics import as_kernel_input
+from simace.core._numba_utils import _tetrachoric_core
 
 logger = logging.getLogger(__name__)
 
@@ -34,54 +27,31 @@ def tetrachoric_corr(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def tetrachoric_corr_se(a: np.ndarray, b: np.ndarray) -> tuple[float, float]:
-    """Estimate tetrachoric correlation and SE from two binary arrays via MLE.
-
-    Delegates the numerical work (Brent optimization + bivariate normal CDF)
-    to the numba-jitted ``_tetrachoric_core`` for speed.
-    """
+    """Estimate tetrachoric correlation and SE from two binary arrays via MLE."""
     a = np.asarray(a, dtype=bool)
     b = np.asarray(b, dtype=bool)
-    n_pairs = len(a)
+    return tetrachoric_from_table(int(np.sum(a & b)), int(np.sum(a & ~b)), int(np.sum(~a & b)), int(np.sum(~a & ~b)))
+
+
+def tetrachoric_from_table(n11: int, n10: int, n01: int, n00: int) -> tuple[float, float]:
+    """Estimate tetrachoric correlation and SE from a 2×2 table via MLE.
+
+    ``n11`` counts pairs with both members affected, ``n10`` first affected
+    only, ``n01`` second affected only, ``n00`` neither. Delegates the
+    numerical work (Brent optimization + bivariate normal CDF) to the
+    numba-jitted ``_tetrachoric_core``. NaN for an empty table or a
+    degenerate marginal, which leaves the core's thresholds undefined.
+    """
+    n_pairs = n11 + n10 + n01 + n00
     if n_pairs == 0:
         return np.nan, np.nan
 
     if n_pairs < 50:
         logger.warning("tetrachoric_corr_se: n_pairs=%d < 50, SE may be unreliable", n_pairs)
 
-    n11 = float(np.sum(a & b))
-    n10 = float(np.sum(a & ~b))
-    n01 = float(np.sum(~a & b))
-    n00 = float(np.sum(~a & ~b))
-
-    # A degenerate marginal leaves the core's thresholds undefined, so it is
-    # guarded here rather than inside the kernel.
-    p_a, p_b = a.mean(), b.mean()
+    p_a = (n11 + n10) / n_pairs
+    p_b = (n11 + n01) / n_pairs
     if p_a in (0, 1) or p_b in (0, 1):
         return np.nan, np.nan
 
-    return _tetrachoric_core(n11, n10, n01, n00)
-
-
-def _tetrachoric_for_pairs(
-    idx1: np.ndarray,
-    idx2: np.ndarray,
-    affected: np.ndarray,
-    liability: np.ndarray | None = None,
-) -> dict[str, Any]:
-    """Compute tetrachoric r, SE, and optionally liability r for one pair subset."""
-    n_p = len(idx1)
-    if n_p < 10:
-        entry: dict[str, Any] = {"r": None, "se": None, "n_pairs": int(n_p)}
-        if liability is not None:
-            entry["liability_r"] = None
-        return entry
-    r, se = tetrachoric_corr_se(affected[idx1], affected[idx2])
-    entry = {
-        "r": float(r) if not np.isnan(r) else None,
-        "se": float(se) if not np.isnan(se) else None,
-        "n_pairs": int(n_p),
-    }
-    if liability is not None:
-        liab_r = float(_pearsonr_core(as_kernel_input(liability[idx1]), as_kernel_input(liability[idx2])))
-        entry["liability_r"] = liab_r if not np.isnan(liab_r) else None
-    return entry
+    return _tetrachoric_core(float(n11), float(n10), float(n01), float(n00))

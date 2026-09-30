@@ -6,8 +6,6 @@ import argparse
 import logging
 from typing import TYPE_CHECKING, Any
 
-from pedigree_graph import PedigreeGraph
-
 from simace.core.parquet import load_parquet
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.core.yaml_io import dump_yaml, load_yaml
@@ -16,6 +14,7 @@ if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
 
+from ._common import sibling_moments
 from .am_equilibrium import validate_am_equilibrium
 from .assortative_mating import validate_assortative_mating
 from .consanguinity import validate_consanguineous_matings
@@ -37,8 +36,8 @@ def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
     """Run all validation checks on an in-memory pedigree and return results.
 
     Runs structural, twin, half-sibling, statistical, heritability, and
-    population checks. The id-addressable arrays and the sibling-pair arrays
-    are derived from ``df`` here.
+    population checks. The id-addressable arrays and the sibling relationship
+    moments are derived from ``df`` here.
 
     Args:
         df: Pedigree DataFrame (full, pre-ascertainment).
@@ -53,17 +52,14 @@ def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
         ``checks_total`` counts.
     """
     ped = PedigreeArrays.from_frame(df)
-
-    # Validation only needs sibling categories (FS/MHS/PHS); selecting them by
-    # name avoids materializing the GP/Av pairs a degree-2 request would add.
-    sibling_pairs = PedigreeGraph.from_frame(df).relationship_pairs(categories=("FS", "MHS", "PHS"))
+    siblings = sibling_moments(df, ped)
 
     results = {
         "structural": validate_structural(df, params, ped),
         "twins": validate_twins(df, params, ped),
-        "half_sibs": validate_half_sibs(df, params, ped, sibling_pairs),
+        "half_sibs": validate_half_sibs(df, params, ped, siblings),
         "statistical": validate_statistical(df, params),
-        "heritability": validate_heritability(df, params, ped, sibling_pairs),
+        "heritability": validate_heritability(df, params, ped, siblings),
         "population": validate_population(df, params),
         "per_generation": compute_per_generation_stats(df, params),
         "assortative_mating": validate_assortative_mating(df, params, ped),

@@ -19,6 +19,7 @@ earlier one's Status section says so and points forward.
 | [0017](0017-family-monorepo-epimight-cut.md) | Family monorepo with the epimight cut (13 repos → 5) | accepted, implemented 2026-08-21 |
 | [0018](0018-retire-conda-family-environment.md) | Retire the conda family environment (Linux-only pipeline) | accepted |
 | [0019](0019-null-raw-onset-censoring-semantics.md) | Null raw onsets mean never-onset at the censor boundary | accepted |
+| [0020](0020-relationship-moments.md) | Analyze computes relationship statistics from relationship moments | accepted |
 
 Retired numbers: 0003, 0006, 0007 (report lineage folded into 0008); 0004
 (Claude Code subagent housekeeping, not an architecture decision); 0013 (ty
