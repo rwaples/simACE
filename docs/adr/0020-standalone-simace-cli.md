@@ -102,11 +102,14 @@ through its own Snakemake and did not depend on simACE's rules.
 - `trait.raw.parquet` and `plotting_sample.parquet` are now durable, so a
   standalone `simace plot` works on any finished scenario.
 - Every stage runs with OpenMP/BLAS pinned to one thread, as Snakemake's
-  `threads: 1` rules and `--cores 1` runs had it. Numba, polars, and
-  pedigree-graph's Rust pool get every core with `--jobs 1` and one thread
-  each with `--jobs N > 1`. pedigree-graph defaults to one thread, so `run`
-  sets `PEDIGREE_GRAPH_THREADS` to the CPUs the process may use unless the
-  caller already set it. Measured at
+  `threads: 1` rules and `--cores 1` runs had it. Numba and polars get
+  every core with `--jobs 1` and one thread each with `--jobs N > 1`.
+  pedigree-graph defaults to one thread, so `run` sets
+  `PEDIGREE_GRAPH_THREADS` to the CPUs the process may use divided by
+  `--jobs` (at least 1) unless the caller already set it. Measured on 12
+  cores, splitting the cores this way made analyze 29% to 56% faster than
+  one thread per rep at `--jobs 2` and `--jobs 3` (baseline100K, bench1M),
+  with byte-identical outputs and analyze peak RSS up 1% to 7%. Measured at
   `baseline100K`, a single OpenMP/BLAS thread is as fast as four or five for
   simulate and analyze and about 6% faster for plot.
 - Lost relative to Snakemake: cluster submission, per-job memory estimates,

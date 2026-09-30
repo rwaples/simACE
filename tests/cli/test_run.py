@@ -467,13 +467,15 @@ def test_blas_is_always_pinned_and_kernels_only_for_concurrent_reps(monkeypatch)
     assert many["NUMBA_NUM_THREADS"] == many["POLARS_MAX_THREADS"] == "1"
 
 
-def test_pedigree_graph_gets_every_core_only_for_one_rep_at_a_time(monkeypatch) -> None:
+def test_pedigree_graph_splits_the_cores_across_concurrent_reps(monkeypatch) -> None:
+    cores = len(os.sched_getaffinity(0))
     monkeypatch.delenv("PEDIGREE_GRAPH_THREADS", raising=False)
-    assert run_mod._child_env(1)["PEDIGREE_GRAPH_THREADS"] == str(len(os.sched_getaffinity(0)))
-    assert run_mod._child_env(2)["PEDIGREE_GRAPH_THREADS"] == "1"
+    assert run_mod._child_env(1)["PEDIGREE_GRAPH_THREADS"] == str(cores)
+    assert run_mod._child_env(2)["PEDIGREE_GRAPH_THREADS"] == str(max(1, cores // 2))
+    assert run_mod._child_env(cores + 1)["PEDIGREE_GRAPH_THREADS"] == "1"
     monkeypatch.setenv("PEDIGREE_GRAPH_THREADS", "3")
     assert run_mod._child_env(1)["PEDIGREE_GRAPH_THREADS"] == "3"
-    assert run_mod._child_env(2)["PEDIGREE_GRAPH_THREADS"] == "1"
+    assert run_mod._child_env(2)["PEDIGREE_GRAPH_THREADS"] == "3"
 
 
 @pytest.mark.parametrize(

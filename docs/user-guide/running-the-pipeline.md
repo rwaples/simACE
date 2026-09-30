@@ -28,7 +28,7 @@ ascertainment in one process and writes only `cohort.parquet` and
 | Flag | Effect |
 |---|---|
 | `--rep 2 5-8` | Compute only these replicates, given as numbers or inclusive ranges. Needs exactly one scenario |
-| `--jobs 3` | Compute three replicates at once, across every target. Each stage process is limited to one thread |
+| `--jobs 3` | Compute three replicates at once, across every target. Each stage process is limited to one thread, except that pedigree-graph's relationship-pair extraction gets a third of the cores |
 | `--dry-run` | Print the exact stage commands and write nothing |
 | `--force` | Recompute the requested replicates even when they are complete |
 | `--fail-fast` | Stop starting new replicates after the first failure |

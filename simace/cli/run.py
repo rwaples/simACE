@@ -85,8 +85,9 @@ _BLAS_THREADS = (
     "NUMEXPR_NUM_THREADS",
 )
 # Pinned only when reps run concurrently; with one rep at a time the numba
-# parallel kernels, polars, and pedigree-graph's Rust pool get every core.
-_KERNEL_THREADS = ("NUMBA_NUM_THREADS", "POLARS_MAX_THREADS", "PEDIGREE_GRAPH_THREADS")
+# parallel kernels and polars get every core. pedigree-graph's Rust pool gets an
+# equal share of the cores per concurrent rep (see _child_env).
+_KERNEL_THREADS = ("NUMBA_NUM_THREADS", "POLARS_MAX_THREADS")
 _TIMING_HEADER = "stage\twall_s\tmax_rss_mb\texit_code\n"
 
 
@@ -437,9 +438,9 @@ def _child_env(jobs: int) -> dict[str, str]:
     env = {**os.environ, **dict.fromkeys(_BLAS_THREADS, "1")}
     if jobs > 1:
         env.update(dict.fromkeys(_KERNEL_THREADS, "1"))
-    else:
-        # numba and polars default to every core; pedigree-graph defaults to one.
-        env.setdefault("PEDIGREE_GRAPH_THREADS", str(len(os.sched_getaffinity(0))))
+    # pedigree-graph defaults to one thread, so without this its relationship-pair
+    # extraction in analyze runs serially.
+    env.setdefault("PEDIGREE_GRAPH_THREADS", str(max(1, len(os.sched_getaffinity(0)) // jobs)))
     return env
 
 
