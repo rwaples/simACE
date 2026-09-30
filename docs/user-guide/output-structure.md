@@ -47,7 +47,7 @@ fitACE writes, such as `epimight/`. This page lists the simACE outputs only.
 | `plot_payload.yaml` | `simace/analysis/analyze.py` | Dense arrays for the incidence and censoring plots |
 | `plotting_sample.parquet` | `simace/analysis/analyze.py` | A downsampled join of traits and pedigree for scatter plots |
 | `timing.tsv` | `simace run` | One row per stage: `stage`, `wall_s`, `max_rss_mb` (the peak resident memory of the stage and any worker processes it starts), `exit_code` |
-| `run.yaml` | `simace run` | Written after every stage succeeds. Records the scenario, replicate, seed, parameters, stages, and results `layout` (2) the replicate was computed with, plus the simace version and git ref (`source`) that built it. A rerun skips the replicate only when this matches and every other file above exists. See [Running the pipeline](running-the-pipeline.md#rerun-and-resume) |
+| `run.yaml` | `simace run` | Written after every stage succeeds, or every stage up to `--until`. Records the scenario, replicate, seed, parameters, the stages run, and results `layout` (2) the replicate was computed with, plus the simace version and git ref (`source`) that built it. A rerun skips the replicate only when this matches and every other file above exists. See [Running the pipeline](running-the-pipeline.md#rerun-and-resume) |
 
 Every stage writes each output to a temporary `<name>.<random>.tmp` beside it
 and renames it into place when it finishes, so a file under its final name is

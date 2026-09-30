@@ -76,7 +76,7 @@ def no_plots(monkeypatch) -> list:
 def recorded(monkeypatch) -> list[int]:
     calls: list[int] = []
 
-    def fake_recompute(rep, layout, env, console):
+    def fake_recompute(rep, layout, env, console, *_):
         calls.append(rep.rep)
         _finish(layout, rep)
 
@@ -100,6 +100,12 @@ def _finish(layout: Layout, rep: ResolvedRep) -> None:
 
 def _write_manifest(layout: Layout, rep: ResolvedRep, manifest) -> None:
     write_manifest(_manifest(layout, rep), manifest, rep_outputs(rep, layout))
+
+
+def _write_manifest_through(layout: Layout, rep: ResolvedRep, n_stages: int) -> None:
+    """Rewrite ``rep``'s manifest as ``simace run --until`` leaves it after the first ``n_stages`` stages."""
+    stages = STAGES[:n_stages]
+    write_manifest(_manifest(layout, rep), expected_manifest(rep, stages), rep_outputs(rep, layout, stages))
 
 
 def _stale(layout: Layout, rep: ResolvedRep) -> None:
@@ -284,7 +290,7 @@ def test_folder_target_runs_every_runnable_scenario_once(config_dir, roots, layo
 def test_folder_target_with_a_failure_still_plots_the_complete_scenarios(
     config_dir, roots, monkeypatch, no_plots, capsys
 ) -> None:
-    def recompute(rep, layout, env, console):
+    def recompute(rep, layout, env, console, *_):
         if rep.scenario == "broken":
             return "simulate FAILED (exit 1)"
         _finish(layout, rep)
@@ -590,6 +596,108 @@ def test_failing_stage_leaves_no_manifest(config_dir, roots, layout, no_plots, c
     assert not (rep_dir / "run.yaml").exists()
     assert "cohort FAILED" in capsys.readouterr().out
     assert "G_pheno" in layout.log(rep.folder, "broken", 1, "cohort").read_text()
+
+
+def _mtimes(layout: Layout, rep: ResolvedRep, *artifacts: RepArtifact) -> list[int]:
+    return [layout.rep(rep.folder, rep.scenario, rep.rep, a).stat().st_mtime_ns for a in artifacts]
+
+
+def test_until_cohort_leaves_a_partial_rep_and_skips_plots(config_dir, roots, layout, no_plots, capsys) -> None:
+    rep = _rep(config_dir, 1)
+    assert _run(config_dir, roots, "tiny", "--rep", "1", "--until", "cohort") == 0
+
+    rep_dir = layout.rep_dir(rep.folder, rep.scenario, 1)
+    assert (rep_dir / "pedigree.parquet").exists()
+    assert (rep_dir / "cohort.parquet").exists()
+    assert not (rep_dir / "report.yaml").exists()
+    assert yaml.safe_load((rep_dir / "run.yaml").read_text())["stages"] == ["simulate", "cohort"]
+    timing = (rep_dir / "timing.tsv").read_text().splitlines()[1:]
+    assert [row.split("\t")[0] for row in timing] == ["simulate", "cohort"]
+    status = status_on_disk(rep, layout)
+    assert (status.state, status.reasons) == (RepState.PARTIAL, ("built through cohort",))
+    assert status_on_disk(rep, layout, until=2).state is RepState.COMPLETE
+    assert no_plots == []
+    assert "[tiny] plots skipped: --until cohort" in capsys.readouterr().out
+
+
+def test_a_full_run_resumes_a_partial_rep_at_its_first_missing_stage(
+    config_dir, roots, layout, no_plots, capsys
+) -> None:
+    rep = _rep(config_dir, 1)
+    assert _run(config_dir, roots, "tiny", "--rep", "1", "--until", "cohort") == 0
+    kept = _mtimes(layout, rep, RepArtifact.PEDIGREE, RepArtifact.COHORT)
+    capsys.readouterr()
+
+    assert _run(config_dir, roots, "tiny", "--rep", "1") == 0
+
+    assert "[tiny/rep1] resume: built through cohort" in capsys.readouterr().out
+    assert _mtimes(layout, rep, RepArtifact.PEDIGREE, RepArtifact.COHORT) == kept
+    rep_dir = layout.rep_dir(rep.folder, rep.scenario, 1)
+    timing = (rep_dir / "timing.tsv").read_text().splitlines()[1:]
+    assert [row.split("\t")[0] for row in timing] == [s.name for s in STAGES]
+    assert yaml.safe_load((rep_dir / "run.yaml").read_text())["stages"] == [s.name for s in STAGES]
+    assert status_on_disk(rep, layout).state is RepState.COMPLETE
+
+
+def test_until_skips_a_rep_built_further(config_dir, roots, layout, no_plots, capsys) -> None:
+    rep = _rep(config_dir, 1)
+    _finish(layout, rep)
+    before = _manifest(layout, rep).read_text()
+    assert _run(config_dir, roots, "tiny", "--rep", "1", "--until", "cohort") == 0
+    assert "[tiny/rep1] skip (run.yaml matches)" in capsys.readouterr().out
+    assert _manifest(layout, rep).read_text() == before
+
+
+def test_an_analyze_only_key_leaves_a_partial_rep_resumable(config_dir, roots, layout, no_plots, capsys) -> None:
+    rep = _rep(config_dir, 1)
+    assert _run(config_dir, roots, "tiny", "--rep", "1", "--until", "cohort") == 0
+    scenarios = yaml.safe_load((config_dir / "t.yaml").read_text())
+    scenarios["tiny"]["analysis"] = {"max_degree": 1}
+    (config_dir / "t.yaml").write_text(yaml.safe_dump(scenarios))
+    capsys.readouterr()
+
+    assert _run(config_dir, roots, "tiny", "--rep", "1") == 0
+
+    assert "resume: built through cohort" in capsys.readouterr().out
+    params = yaml.safe_load(layout.rep(rep.folder, rep.scenario, 1, RepArtifact.PARAMS).read_text())
+    assert params["max_degree"] == 1
+    assert status_on_disk(_rep(config_dir, 1), layout).state is RepState.COMPLETE
+
+
+def test_a_partial_rep_is_stale_when_its_own_stage_keys_change(config_dir, layout) -> None:
+    rep = _rep(config_dir, 1)
+    _finish(layout, rep)
+    _write_manifest_through(layout, rep, 2)
+    changed = ResolvedRep(rep.folder, rep.scenario, 1, {**rep.params, "death_rho": 3.0})
+    assert status_on_disk(changed, layout).reasons == ("death_rho",)
+    assert status_on_disk(changed, layout).state is RepState.STALE
+
+
+def test_a_partial_rep_with_a_missing_output_is_recomputed(config_dir, layout) -> None:
+    rep = _rep(config_dir, 1)
+    _finish(layout, rep)
+    _write_manifest_through(layout, rep, 2)
+    layout.rep(rep.folder, rep.scenario, 1, RepArtifact.COHORT).unlink()
+    assert status_on_disk(rep, layout).state is RepState.INCOMPLETE
+
+
+def test_dry_run_until_prints_only_the_stages_asked_for(config_dir, roots, layout, capsys) -> None:
+    rep = _rep(config_dir, 1)
+    _finish(layout, rep)
+    _write_manifest_through(layout, rep, 1)
+    assert _run(config_dir, roots, "tiny", "--until", "cohort", "--dry-run") == 0
+    lines = capsys.readouterr().out.splitlines()
+    commands = [line.split(" -m simace ")[1].split()[0] for line in lines if " -m simace " in line]
+    assert commands == ["cohort", "simulate", "cohort"]
+
+
+def test_ls_reports_partial_reps(config_dir, layout, tmp_path, capsys) -> None:
+    rep = _rep(config_dir, 1)
+    _finish(layout, rep)
+    _write_manifest_through(layout, rep, 2)
+    ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
+    lines = dict(line.split("  ", 1) for line in capsys.readouterr().out.splitlines())
+    assert lines["t/tiny"] == "2 reps: 1 partial (rep1: built through cohort), 1 absent (rep2); plots absent"
 
 
 def test_params_yaml_seed_offsets_by_rep(config_dir, layout) -> None:

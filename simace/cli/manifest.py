@@ -30,6 +30,7 @@ __all__ = [
     "fingerprints",
     "manifest_params",
     "plots_status",
+    "recorded_stages",
     "rep_status",
     "source_ref",
     "write_manifest",
@@ -105,9 +106,14 @@ class Manifest:
 
 
 class RepState(StrEnum):
-    """Whether a rep's outputs are usable as they stand."""
+    """Whether a rep's outputs are usable as they stand.
+
+    ``PARTIAL`` is a rep complete through fewer stages than were asked for
+    (``simace run --until``); the missing stages can resume from it.
+    """
 
     COMPLETE = "complete"
+    PARTIAL = "partial"
     STALE = "stale"
     INCOMPLETE = "incomplete"
     ABSENT = "absent"
@@ -185,6 +191,15 @@ def write_manifest(path: Path, manifest: Manifest, outputs: Iterable[Path]) -> N
     }
     with publish(path) as (tmp,):
         dump_yaml(body, tmp)
+
+
+def recorded_stages(path: Path) -> list[str] | None:
+    """Return the stage names the ``run.yaml`` at ``path`` records, or None when there is no such list."""
+    if not path.exists():
+        return None
+    recorded = load_yaml(path)
+    stages = recorded.get("stages") if isinstance(recorded, dict) else None
+    return stages if isinstance(stages, list) else None
 
 
 def rep_status(path: Path, expected: Manifest, outputs: Iterable[Path]) -> RepStatus:

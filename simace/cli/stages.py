@@ -18,6 +18,7 @@ __all__ = [
     "Stage",
     "atlas_argv",
     "plot_argv",
+    "rep_param_keys",
 ]
 
 import inspect
@@ -30,7 +31,7 @@ import yaml
 from simace.cli.layout import RepArtifact
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable, Iterable, Mapping
 
     from simace.cli.layout import Layout
 
@@ -56,12 +57,17 @@ class ResolvedRep:
 
 @dataclass(frozen=True)
 class Stage:
-    """A per-rep stage: its subcommand, the config keys it reads, the files it publishes, and its argv."""
+    """A per-rep stage: its subcommand, the config keys it reads, the files it publishes, and its argv.
+
+    ``reads_params`` marks a stage that reads ``params.yaml``, whose outputs
+    then depend on every :data:`PARAMS_YAML_KEYS` key too.
+    """
 
     name: str
     keys: tuple[str, ...]
     outputs: tuple[RepArtifact, ...]
     argv: Callable[[ResolvedRep, Layout], list[str]]
+    reads_params: bool = False
 
 
 _SIMULATE_KEYS = (
@@ -205,11 +211,20 @@ STAGES: tuple[Stage, ...] = (
         _ANALYZE_KEYS,
         (RepArtifact.REPORT, RepArtifact.PLOT_PAYLOAD, RepArtifact.PLOTTING_SAMPLE),
         _analyze,
+        reads_params=True,
     ),
 )
 
-#: Every config key a rep's outputs depend on. A rep is stale only when one of these changes.
-REP_PARAM_KEYS: frozenset[str] = frozenset({"seed", *PARAMS_YAML_KEYS, *(k for s in STAGES for k in s.keys)})
+
+def rep_param_keys(stages: Iterable[Stage]) -> frozenset[str]:
+    """Return the config keys the outputs of a rep built through ``stages`` depend on."""
+    stages = tuple(stages)
+    params = PARAMS_YAML_KEYS if any(stage.reads_params for stage in stages) else ()
+    return frozenset({"seed", *params, *(k for stage in stages for k in stage.keys)})
+
+
+#: Every config key a complete rep's outputs depend on. A rep is stale only when one of these changes.
+REP_PARAM_KEYS: frozenset[str] = rep_param_keys(STAGES)
 
 #: Every file a rep's recompute writes, and so every file it clears first.
 REP_OUTPUTS: tuple[RepArtifact, ...] = (
