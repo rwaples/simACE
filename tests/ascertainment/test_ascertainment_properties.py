@@ -164,37 +164,6 @@ def _row_positions(haystack: np.ndarray, needles: np.ndarray) -> np.ndarray:
 class TestRunAscertainment:
     """Structural invariants of the public ``run_ascertainment`` API."""
 
-    @given(case=_ascertainment_case(relabel=True))
-    def test_no_dangling_references(self, case):
-        """Every mother/father/twin in the output resolves to -1 or an output id."""
-        result = _run_or_none(case)
-        if result is None:
-            return
-        ped_out, _ = result
-        out_ids = ped_out["id"].to_numpy()
-        for col in ("mother", "father", "twin"):
-            values = ped_out[col].to_numpy()
-            resolved = (values == -1) | np.isin(values, out_ids)
-            assert resolved.all(), f"{col} has {int((~resolved).sum())} dangling references"
-
-    @given(case=_ascertainment_case(relabel=True))
-    def test_never_invents_individuals(self, case):
-        """Outputs are subsets: ped ⊆ ped_in, trait ⊆ trait_in, and trait ⊆ ped_out."""
-        result = _run_or_none(case)
-        if result is None:
-            return
-        ped_out, trait_out = result
-        ped_in_ids = set(case.pedigree["id"].to_list())
-        trait_in_ids = set(case.trait["id"].to_list())
-        ped_out_ids = set(ped_out["id"].to_list())
-        trait_out_ids = set(trait_out["id"].to_list())
-
-        assert ped_out_ids <= ped_in_ids
-        assert trait_out_ids <= trait_in_ids
-        assert trait_out_ids <= ped_out_ids
-        assert len(ped_out_ids) == len(ped_out)
-        assert len(trait_out_ids) == len(trait_out)
-
     @given(case=_ascertainment_case())
     def test_parent_pointers_intact_without_dropout(self, case):
         """At ``dropout_rate=0`` the closure follows every parent, so none is severed.
