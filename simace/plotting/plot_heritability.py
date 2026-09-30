@@ -60,7 +60,7 @@ def _finite_float(value: Any) -> float:
         return float("nan")
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return float("nan")
 
 

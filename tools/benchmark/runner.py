@@ -78,7 +78,7 @@ def utc_now() -> str:
 def _run_text(command: list[str], *, default: str = "unavailable") -> str:
     try:
         completed = subprocess.run(command, cwd=ROOT, check=False, capture_output=True, text=True, timeout=15)
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+    except FileNotFoundError, subprocess.TimeoutExpired:
         return default
     output = completed.stdout.strip() or completed.stderr.strip()
     return output if completed.returncode == 0 and output else default
@@ -124,7 +124,7 @@ def _ram_bytes() -> int | None:
         for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
             if line.startswith("MemTotal:"):
                 return int(line.split()[1]) * 1024
-    except (OSError, ValueError, IndexError):
+    except OSError, ValueError, IndexError:
         return None
     return None
 
@@ -330,7 +330,7 @@ def _parse_time_file(path: Path) -> dict[str, Any]:
                 values[key] = value
     try:
         rss = int(values["Maximum resident set size (kbytes)"])
-    except (KeyError, ValueError):
+    except KeyError, ValueError:
         rss = 0
     elapsed_text = values.get("Elapsed (wall clock) time (h:mm:ss or m:ss)")
     elapsed_seconds = None

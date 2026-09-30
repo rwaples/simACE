@@ -12,9 +12,14 @@ Prevalence may be:
     may itself be a scalar or a per-generation dict.
 """
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
-from simace.phenotype.hazards import StandardizeMode, standardize_liability
+from simace.phenotype.hazards import standardize_liability
+
+if TYPE_CHECKING:
+    from simace.phenotype.hazards import StandardizeMode
 
 __all__ = [
     "case_status_from_liability",

@@ -1,8 +1,7 @@
 """Shared fixtures and Hypothesis strategies for the simace test suite."""
 
 import os
-from collections.abc import Mapping, Sequence
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -18,6 +17,10 @@ from simace.simulation.simulate import (
     reproduce,
     run_simulation,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from pathlib import Path
 
 # Hypothesis profiles, selected by ``HYPOTHESIS_PROFILE`` (default ``fast``).
 # Property files carry no ``@settings`` of their own so that

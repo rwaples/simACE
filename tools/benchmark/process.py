@@ -35,7 +35,7 @@ def _read_process(pid: int) -> ProcessInfo | None:
         statm = Path(f"/proc/{pid}/statm").read_text(encoding="utf-8").split()
         rss_kb = int(statm[1]) * _PAGE_KB
         raw_command = Path(f"/proc/{pid}/cmdline").read_bytes()
-    except (FileNotFoundError, PermissionError, ProcessLookupError, ValueError, IndexError):
+    except FileNotFoundError, PermissionError, ProcessLookupError, ValueError, IndexError:
         return None
     command = tuple(part.decode(errors="replace") for part in raw_command.split(b"\0") if part)
     return ProcessInfo(pid, ppid, pgrp, rss_kb, command)
@@ -85,7 +85,7 @@ def _max_cpu_frequency_khz() -> int | None:
     for path in Path("/sys/devices/system/cpu").glob("cpu*/cpufreq/scaling_cur_freq"):
         try:
             values.append(int(path.read_text(encoding="utf-8")))
-        except (FileNotFoundError, PermissionError, ValueError):
+        except FileNotFoundError, PermissionError, ValueError:
             continue
     return max(values) if values else None
 

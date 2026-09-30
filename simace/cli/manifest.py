@@ -173,7 +173,7 @@ def source_ref() -> str | None:
             timeout=10,
             check=False,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except OSError, subprocess.TimeoutExpired:
         return None
     if done.returncode != 0:
         return None

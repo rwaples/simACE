@@ -15,10 +15,13 @@ Kept in its own module to avoid a circular import between :mod:`plot_atlas`
 __all__ = ["render_atlas"]
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from simace.plotting.atlas_manifest import AtlasItem
 from simace.plotting.plot_atlas import assemble_atlas
 from simace.plotting.plot_atlas_html import assemble_html_atlas
+
+if TYPE_CHECKING:
+    from simace.plotting.atlas_manifest import AtlasItem
 
 _RENDERERS = {
     ".html": assemble_html_atlas,

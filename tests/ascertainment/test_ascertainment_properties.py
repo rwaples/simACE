@@ -138,7 +138,7 @@ def _refuses(trait: pl.DataFrame, *, ratio: float, n_sample: int) -> bool:
     return ratio == 0 and bool(trait["affected1"].to_numpy().all())
 
 
-def _run_or_none(case: "_Case", **kwargs) -> tuple[pl.DataFrame, pl.DataFrame] | None:
+def _run_or_none(case: _Case, **kwargs) -> tuple[pl.DataFrame, pl.DataFrame] | None:
     """Run the case, returning ``None`` when the zero-case-weight refusal fires.
 
     ``run`` applies dropout first, so whether the surviving pool is all-case is

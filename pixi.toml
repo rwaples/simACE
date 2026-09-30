@@ -9,7 +9,7 @@ platforms = ["linux-64"]
 requires-pixi = ">=0.76,<0.77"
 
 [dependencies]
-python = "3.13.*"
+python = "3.14.*"
 # core (numba 0.67 caps numpy <2.6; bump both together)
 numpy = "2.5.*"
 scipy = "1.18.*"

@@ -40,6 +40,23 @@ Git tags via `setuptools-scm`.
   for replicates complete through `analyze`; `simace ls` lists partial
   replicates. See [ADR 0020](adr/0020-standalone-simace-cli.md).
 
+### Python 3.14 ([#21](https://github.com/rwaples/simACE/issues/21))
+
+- **The family runs on Python 3.14.** simACE, fitACE, fitACE_epimight and
+  pedsum lock Python 3.14 in pixi and require `>=3.14`; ruff targets `py314`
+  and ty checks against 3.14. pedigree-graph locks 3.14 for development but
+  keeps its published `>=3.13` floor and its one `cp313-abi3` wheel, which
+  CI now installs on both 3.13 and 3.14. Every product of simACE's smoke
+  scenario and the fitACE exports is byte-identical to the 3.13 build.
+- **ruff's py314 style is applied.** The formatter drops the parentheses
+  from multi-exception `except` clauses (PEP 758), and imports used only in
+  annotations moved under `TYPE_CHECKING` (annotations are lazy under
+  PEP 649).
+- **`TY_PYTHON_VERSION` is gone from `tools/family_repos.py`.**
+  `tests/test_python_floor_consistency.py` now checks that each check
+  unit's ty `python-version` and ruff `target-version` match its own
+  `requires-python` floor, so units can hold different floors.
+
 ### Two Parquet files per replicate ([ADR 0021](adr/0021-two-canonical-replicate-parquets.md))
 
 - **A replicate holds `pedigree.parquet` and `cohort.parquet`.**

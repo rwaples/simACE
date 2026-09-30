@@ -11,10 +11,14 @@ both, but numba's persistent cache (``cache=True``) breaks when a kernel
 takes a jitclass argument, so we keep arrays-only signatures here.
 """
 
+from typing import TYPE_CHECKING
+
 import numba
 import numpy as np
-import tskit
 import tskit.jit.numba as tjn
+
+if TYPE_CHECKING:
+    import tskit
 
 
 @numba.njit(cache=True)

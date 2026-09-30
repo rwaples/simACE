@@ -8,12 +8,16 @@ import re
 from html import escape
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 
-from simace.plotting.atlas_manifest import AtlasItem, PlotEntry, SectionBreak
-from simace.plotting.plot_table1 import Table1Row, Table1Section, Table1Summary, build_table1_summary
+from simace.plotting.atlas_manifest import SectionBreak
+from simace.plotting.plot_table1 import build_table1_summary
+
+if TYPE_CHECKING:
+    from simace.plotting.atlas_manifest import AtlasItem, PlotEntry
+    from simace.plotting.plot_table1 import Table1Row, Table1Section, Table1Summary
 
 logger = logging.getLogger(__name__)
 
@@ -360,7 +364,7 @@ def _dict_sort_key(item: tuple[Any, Any]) -> tuple[int, int | str]:
     key = item[0]
     try:
         return (0, int(key))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return (1, str(key))
 
 
@@ -465,7 +469,7 @@ def _a_plus_c(params: dict, trait_num: int) -> tuple[str, bool]:
         return ("generation-specific", False)
     try:
         return (_format_value(float(a_val) + float(c_val)), False)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return ("not available", True)
 
 

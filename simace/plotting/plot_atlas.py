@@ -8,12 +8,16 @@ __all__ = [
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 from PIL import Image
 
-from simace.plotting.atlas_manifest import AtlasItem, PlotEntry, SectionBreak
+from simace.plotting.atlas_manifest import PlotEntry, SectionBreak
+
+if TYPE_CHECKING:
+    from simace.plotting.atlas_manifest import AtlasItem
 
 logger = logging.getLogger(__name__)
 

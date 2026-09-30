@@ -1,6 +1,6 @@
 """Unit tests for the hierarchical config flattening logic in simace.config."""
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 import yaml
@@ -12,6 +12,9 @@ from simace.config import (
     resolve_defaults,
     resolve_scenarios,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class TestFlattenPassthrough:
