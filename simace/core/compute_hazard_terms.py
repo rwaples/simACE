@@ -53,7 +53,12 @@ def compute_hazard_terms(
         # h0(t)=b·exp(g·t),  H0(t)=(b/g)·(exp(g·t)−1)  [expm1 stable near 0]
         b, g = params["rate"], params["gamma"]
         const = np.log(b) + g * t
-        H_base = b * t if abs(g) < 1e-12 else (b / g) * np.expm1(g * t)
+        if abs(g) < 1e-12:
+            H_base = b * t
+        else:
+            # g*t beyond ~709 overflows to inf, which is the correct limit (S0 -> 0)
+            with np.errstate(over="ignore"):
+                H_base = (b / g) * np.expm1(g * t)
 
     elif model == "lognormal":
         # H0(t)=−log S0(t)=−norm.logsf(z),  z=(log t−mu)/sigma
@@ -66,11 +71,11 @@ def compute_hazard_terms(
         H_base = -log_S0
 
     elif model == "loglogistic":
-        # H0(t)=log(1+(t/α)^k)=log1p(exp(u)), u=k·log(t/α)
-        # LSE trick: for large u, log1p(exp(u))≈u
+        # H0(t)=log(1+(t/α)^k)=log(exp(0)+exp(u)), u=k·log(t/α)
+        # logaddexp is the stable log-sum-exp: no overflow for large u
         alpha, k = params["scale"], params["shape"]
         u = k * (np.log(t) - np.log(alpha))
-        H_base = np.where(u > 30.0, u, np.log1p(np.exp(u)))
+        H_base = np.logaddexp(0.0, u)
         const = np.log(k) - np.log(alpha) + (k - 1) * (np.log(t) - np.log(alpha)) - H_base
 
     elif model == "gamma":
