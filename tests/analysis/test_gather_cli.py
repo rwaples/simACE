@@ -297,7 +297,15 @@ class TestExtractMetricsBranches:
         assert row["simulate_seconds"] is None
         assert row["simulate_max_rss_mb"] is None
 
-    def test_timing_tsv_populates_timing_fields(self, tmp_path):
+    @pytest.mark.parametrize(
+        "timing",
+        [
+            "stage\twall_s\tmax_rss_mb\texit_code\nsimulate\t1.23\t456.7\t0\nphenotype\t9.9\t999.0\t0\n",
+            "stage\twall_s\tmax_rss_mb\ttree_peak_mb\texit_code\nsimulate\t1.23\t456.7\t500.1\t0\n",
+        ],
+        ids=["before-tree-peak", "with-tree-peak"],
+    )
+    def test_timing_tsv_populates_timing_fields(self, tmp_path, timing):
         """The rep's ``timing.tsv`` simulate row fills ``simulate_seconds`` and ``simulate_max_rss_mb``."""
         from simace.analysis.gather import extract_metrics
 
@@ -305,9 +313,7 @@ class TestExtractMetricsBranches:
         val_dir.mkdir(parents=True)
         val_path = val_dir / "report.yaml"
         val_path.write_text(yaml.dump(_MINIMAL_REPORT))
-        (val_dir / "timing.tsv").write_text(
-            "stage\twall_s\tmax_rss_mb\texit_code\nsimulate\t1.23\t456.7\t0\nphenotype\t9.9\t999.0\t0\n"
-        )
+        (val_dir / "timing.tsv").write_text(timing)
 
         row = extract_metrics(str(val_path))
         assert (row["folder"], row["scenario"], row["rep"]) == ("base", "myscenario", 2)

@@ -8,6 +8,24 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
+### Exact memory meters
+
+- **`timing.tsv` gains `tree_peak_mb`.** Each stage runs in its own child
+  cgroup of a delegated cgroup v2 root, and `tree_peak_mb` is its
+  `memory.peak`: the exact peak of the stage and every process it starts,
+  shared pages once, page cache included. It is empty without a delegated
+  cgroup, and `simace run` says why once. `simace show` reports it per
+  stage. See [Stage timing](user-guide/output-structure.md#stage-timing).
+- **`max_rss_mb` is `wait4`'s `ru_maxrss` alone,** the largest single
+  process's peak. It no longer takes the larger of that and a 0.1 s sample
+  of the tree's summed resident memory.
+- **`--max-memory` is the kernel limit `memory.max`** on each stage's
+  cgroup, with swap off, so no spike slips between polls. Without a
+  delegated cgroup it still polls `/proc`. See
+  [ADR 0020](adr/0020-standalone-simace-cli.md).
+- **Old four-column `timing.tsv` files still read.** `simace show`,
+  `simace gather`, and `tools.benchmark` read columns by header name.
+
 ### `simace run --until`
 
 - **`simace run --until cohort` skips `analyze`.** Each replicate stops

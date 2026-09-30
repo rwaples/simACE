@@ -46,7 +46,7 @@ fitACE writes, such as `epimight/`. This page lists the simACE outputs only.
 | `report.yaml` | `simace/analysis/analyze.py` | The per-replicate report. See [report.yaml](#reportyaml) |
 | `plot_payload.yaml` | `simace/analysis/analyze.py` | Dense arrays for the incidence and censoring plots |
 | `plotting_sample.parquet` | `simace/analysis/analyze.py` | A downsampled join of traits and pedigree for scatter plots |
-| `timing.tsv` | `simace run` | One row per stage: `stage`, `wall_s`, `max_rss_mb` (the peak resident memory of the stage and any worker processes it starts), `exit_code` |
+| `timing.tsv` | `simace run` | One row per stage: `stage`, `wall_s`, `max_rss_mb` (the largest single process's peak resident memory), `tree_peak_mb` (the peak memory of the stage and every process it starts together, empty without a delegated cgroup), `exit_code`. See [Stage timing](#stage-timing) |
 | `run.yaml` | `simace run` | Written after every stage succeeds, or every stage up to `--until`. Records the scenario, replicate, seed, parameters, the stages run, and results `layout` (2) the replicate was computed with, plus the simace version and git ref (`source`) that built it. A rerun skips the replicate only when this matches and every other file above exists. See [Running the pipeline](running-the-pipeline.md#rerun-and-resume) |
 
 Every stage writes each output to a temporary `<name>.<random>.tmp` beside it
@@ -216,17 +216,47 @@ pipeline. Read the registry for the full list.
 
 `simace run` runs each stage as its own process and appends one row to the
 replicate's `timing.tsv` when the stage exits: `stage`, `wall_s` (elapsed
-seconds), `max_rss_mb` (peak resident memory in MiB), and `exit_code`.
-`max_rss_mb` is the larger of the stage process's exact peak from `wait4`
-and the summed resident memory of the stage and its descendants, sampled
-every 0.1 s. The sum is what counts for a stage with worker processes,
-such as `plot`; it counts shared pages once per process and can miss a
-spike shorter than the sampling interval. The scenario's `plots/timing.tsv` holds the same
-columns for the `plot` and `atlas` stages. A recomputed replicate starts a
-fresh `timing.tsv`.
+seconds), `max_rss_mb`, `tree_peak_mb`, and `exit_code`. Both memory columns
+are in MiB. The kernel keeps both figures, so no spike is missed and no
+column mixes two meters.
+
+- `max_rss_mb` is `ru_maxrss` from `wait4`: the largest lifetime peak of the
+  stage process or of any descendant it waited for. It is one process's
+  peak, never a sum. It counts mapped shared-library and other file pages.
+  It is never below the resident size of `simace run` when it started the
+  stage, because the kernel carries the launcher's high-water mark across
+  the `exec`.
+- `tree_peak_mb` is `memory.peak` of a cgroup v2 cgroup that holds the stage
+  and every process it starts: their exact high-water mark together, with
+  a shared page counted once. It includes page cache and kernel memory
+  charged to the cgroup, so a stage that writes a large file shows it:
+  writing a 500 MiB file with `dd` gave a peak of 514 MiB with no anonymous
+  memory. A page is charged to the cgroup that first touched it, so shared
+  libraries already loaded by another process are not counted. For a
+  single-process stage `tree_peak_mb` can be lower than `max_rss_mb`; at
+  `small_test`, `simulate` recorded 201 MiB and 96 MiB. For a stage with
+  worker processes it is the figure to size a machine from; `plot` recorded
+  399 MiB and 1064 MiB.
+
+`tree_peak_mb` needs a delegated cgroup. `simace run` starts one transient
+systemd scope per invocation (`systemd-run --user --scope -p Delegate=yes`)
+and runs each stage in a child cgroup of it. That needs Linux with cgroup
+v2, a systemd user manager that delegates the memory controller, and Linux
+5.19 or later for `memory.peak`. When the environment variable
+`SIMACE_CGROUP_ROOT` names a cgroup directory whose `cgroup.subtree_control`
+enables `memory`, `simace run` puts its stage cgroups there instead;
+`tools.benchmark` uses this. Without a delegated cgroup, `simace run` prints
+`simace run: no delegated cgroup (<reason>)` once and leaves `tree_peak_mb`
+empty.
+
+The scenario's `plots/timing.tsv` holds the same columns for the `plot` and
+`atlas` stages. A recomputed replicate starts a fresh `timing.tsv`. Files
+written before `tree_peak_mb` existed have four columns; `simace show`,
+`simace gather`, and `tools.benchmark` read columns by header name and
+accept either.
 
 The reproducible benchmark driver copies these files into an immutable run
-directory and adds process-tree memory measurements. See
+directory and adds whole-run memory measurements. See
 [Benchmark pipeline performance](benchmarking.md).
 
 ## TSV exports

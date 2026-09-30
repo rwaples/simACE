@@ -16,6 +16,7 @@ simACE/
 │   ├── cli/                              # The `simace` command (ADR 0020)
 │   │   ├── __init__.py                   # Subcommand table; dispatches to each stage's cli(argv, prog)
 │   │   ├── run.py                        # `simace run`: every rep of a scenario, then plots and atlas
+│   │   ├── cgroups.py                    # Per-stage cgroups: exact memory peaks and the --max-memory limit
 │   │   ├── cohort_stage.py               # `simace cohort`: phenotype, censor, and ascertain in one process (ADR 0021)
 │   │   ├── stages.py                     # Per-rep stage sequence as argv builders
 │   │   ├── layout.py                     # Layout and RepArtifact: the results/ and logs/ path convention

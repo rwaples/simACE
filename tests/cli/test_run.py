@@ -9,17 +9,22 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 import yaml
 
 import simace
 import simace.cli.run as run_mod
+from simace.cli.cgroups import CgroupRoot, CgroupUnavailable
 from simace.cli.inspect import ls_cli, show_cli
 from simace.cli.layout import Layout, RepArtifact
 from simace.cli.manifest import PlotsState, RepState, write_manifest, write_plots_manifest
 from simace.cli.run import cli, expected_manifest, load_scenario, rep_outputs, scenario_plots_status, status_on_disk
 from simace.cli.stages import REP_OUTPUTS, RETIRED_OUTPUTS, STAGES, ResolvedRep
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
 TINY = {"N": 300, "G_ped": 3, "G_sim": 3, "G_pheno": 2, "replicates": 2, "seed": 100}
@@ -498,16 +503,31 @@ def test_parse_size_rejects(text) -> None:
         run_mod.parse_size(text)
 
 
-def test_launcher_kills_a_stage_over_the_memory_cap(tmp_path) -> None:
+@pytest.fixture(params=["cgroup", "polled"])
+def cgroups(request, monkeypatch) -> Iterator[CgroupRoot | None]:
+    """A delegated cgroup root, or None for the ``/proc`` polling fallback."""
+    if request.param == "polled":
+        yield None
+        return
+    monkeypatch.delenv("SIMACE_CGROUP_ROOT", raising=False)
+    try:
+        root = CgroupRoot.open()
+    except CgroupUnavailable as exc:
+        pytest.skip(f"no delegated cgroup: {exc}")
+    with root:
+        yield root
+
+
+def test_launcher_kills_a_stage_over_the_memory_cap(tmp_path, cgroups) -> None:
     hog = [sys.executable, "-c", "import time; b = b'x' * (400 * 2**20); time.sleep(60)"]
     log = tmp_path / "hog.log"
-    result = run_mod._Launcher(dict(os.environ), max_rss=200 * 2**20).run(hog, log)
+    result = run_mod._Launcher(dict(os.environ), max_rss=200 * 2**20, cgroups=cgroups).run(hog, log)
     assert (result.exit_code, result.over_memory) == (-9, True)
     assert result.wall_s < 30
     assert "went over --max-memory (200 MB)" in log.read_text()
 
 
-def test_launcher_counts_and_kills_a_stage_s_worker_processes(tmp_path) -> None:
+def test_launcher_counts_and_kills_a_stage_s_worker_processes(tmp_path, cgroups) -> None:
     pids = tmp_path / "workers.txt"
     worker = "import time; time.sleep(0.5); b = b'x' * (120 * 2**20); time.sleep(60)"
     stage = [
@@ -517,7 +537,7 @@ def test_launcher_counts_and_kills_a_stage_s_worker_processes(tmp_path) -> None:
         f"ws = [subprocess.Popen([sys.executable, '-c', {worker!r}]) for _ in range(3)]; "
         f"open({str(pids)!r}, 'w').write(' '.join(str(w.pid) for w in ws)); time.sleep(60)",
     ]
-    result = run_mod._Launcher(dict(os.environ), max_rss=250 * 2**20).run(stage, tmp_path / "pool.log")
+    result = run_mod._Launcher(dict(os.environ), max_rss=250 * 2**20, cgroups=cgroups).run(stage, tmp_path / "pool.log")
     assert (result.exit_code, result.over_memory) == (-9, True)
     assert result.wall_s < 30
     for pid in map(int, pids.read_text().split()):
@@ -527,20 +547,24 @@ def test_launcher_counts_and_kills_a_stage_s_worker_processes(tmp_path) -> None:
         assert run_mod._rss_bytes(pid) == 0
 
 
-def test_launcher_records_the_peak_of_a_stage_s_process_tree(tmp_path) -> None:
+def test_launcher_records_the_peak_of_a_stage_s_process_tree_in_a_cgroup(tmp_path, cgroups) -> None:
     worker = "import time; b = b'x' * (120 * 2**20); time.sleep(1)"
     stage = [
         sys.executable,
         "-c",
         f"import subprocess, sys; [w.wait() for w in [subprocess.Popen([sys.executable, '-c', {worker!r}]) for _ in range(3)]]",
     ]
-    result = run_mod._Launcher(dict(os.environ)).run(stage, tmp_path / "pool.log")
+    result = run_mod._Launcher(dict(os.environ), cgroups=cgroups).run(stage, tmp_path / "pool.log")
     assert result.exit_code == 0
-    assert result.max_rss_mb > 3 * 120
+    if cgroups is None:
+        assert result.tree_peak_mb is None
+    else:
+        assert result.tree_peak_mb > 3 * 120
 
 
-def test_launcher_leaves_a_stage_under_the_cap_alone(tmp_path) -> None:
-    result = run_mod._Launcher(dict(os.environ), max_rss=2**30).run([sys.executable, "-c", "pass"], tmp_path / "ok.log")
+def test_launcher_leaves_a_stage_under_the_cap_alone(tmp_path, cgroups) -> None:
+    ok = [sys.executable, "-c", "pass"]
+    result = run_mod._Launcher(dict(os.environ), max_rss=2**30, cgroups=cgroups).run(ok, tmp_path / "ok.log")
     assert (result.exit_code, result.over_memory) == (0, False)
 
 
@@ -612,8 +636,10 @@ def test_until_cohort_leaves_a_partial_rep_and_skips_plots(config_dir, roots, la
     assert (rep_dir / "cohort.parquet").exists()
     assert not (rep_dir / "report.yaml").exists()
     assert yaml.safe_load((rep_dir / "run.yaml").read_text())["stages"] == ["simulate", "cohort"]
-    timing = (rep_dir / "timing.tsv").read_text().splitlines()[1:]
+    header, *timing = (rep_dir / "timing.tsv").read_text().splitlines()
+    assert header.split("\t") == ["stage", "wall_s", "max_rss_mb", "tree_peak_mb", "exit_code"]
     assert [row.split("\t")[0] for row in timing] == ["simulate", "cohort"]
+    assert all(len(row.split("\t")) == 5 for row in timing)
     status = status_on_disk(rep, layout)
     assert (status.state, status.reasons) == (RepState.PARTIAL, ("built through cohort",))
     assert status_on_disk(rep, layout, until=2).state is RepState.COMPLETE
@@ -734,19 +760,28 @@ def test_show_prints_resolved_params_and_rep_seeds(config_dir, capsys) -> None:
 
 
 def test_show_reports_timing_over_complete_reps(config_dir, layout, tmp_path, capsys) -> None:
-    for r, (wall, rss) in enumerate([(10.0, 500), (30.0, 900)], start=1):
+    """Rep 1 predates tree_peak_mb; rep 2 records it for simulate only."""
+    tables = [
+        "stage\twall_s\tmax_rss_mb\texit_code\nsimulate\t10.0\t500\t0\nanalyze\t1.0\t250\t0\n",
+        "stage\twall_s\tmax_rss_mb\ttree_peak_mb\texit_code\nsimulate\t30.0\t900\t1200.4\t0\nanalyze\t1.0\t450\t\t0\n",
+    ]
+    for r, table in enumerate(tables, start=1):
         rep = _rep(config_dir, r)
         timing = layout.rep("t", "tiny", r, RepArtifact.TIMING)
         timing.parent.mkdir(parents=True)
-        timing.write_text(
-            f"stage\twall_s\tmax_rss_mb\texit_code\nsimulate\t{wall}\t{rss}\t0\nanalyze\t1.0\t{rss / 2}\t0\n"
-        )
+        timing.write_text(table)
         _finish(layout, rep)
     show_cli(["tiny", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
     timing = yaml.safe_load(capsys.readouterr().out)["timing"]
     assert timing == {
         "from_complete_reps": 2,
-        "simulate": {"wall_s_median": 20.0, "max_rss_mb": 900, "max_rss_rep": 2},
+        "simulate": {
+            "wall_s_median": 20.0,
+            "max_rss_mb": 900,
+            "max_rss_rep": 2,
+            "tree_peak_mb": 1200,
+            "tree_peak_rep": 2,
+        },
         "analyze": {"wall_s_median": 1.0, "max_rss_mb": 450, "max_rss_rep": 2},
     }
 
@@ -868,7 +903,7 @@ def test_a_failed_plot_pass_leaves_no_plots_manifest(config_dir, roots, layout, 
     for rep in reps:
         _finish(layout, rep)
     _plotted(layout, reps, "atlas.html")
-    failing = run_mod.StageResult(wall_s=0.1, max_rss_mb=1.0, exit_code=1)
+    failing = run_mod.StageResult(wall_s=0.1, max_rss_mb=1.0, tree_peak_mb=None, exit_code=1)
     monkeypatch.setattr(run_mod._Launcher, "run", lambda self, command, log_path: failing)
     assert _run(config_dir, roots, "tiny") == 1
     assert capsys.readouterr().out.endswith("[tiny] plots: absent\n")

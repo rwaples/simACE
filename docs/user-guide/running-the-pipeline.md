@@ -34,7 +34,7 @@ ascertainment in one process and writes only `cohort.parquet` and
 | `--fail-fast` | Stop starting new replicates after the first failure |
 | `--no-plots` | Skip the plots and atlas |
 | `--until cohort` | Stop each replicate after this stage (`simulate`, `cohort`, or the default `analyze`). The replicate is `partial`, and a later run without `--until` resumes it at the next stage. Skips the plots |
-| `--max-memory 8G` | Kill any stage whose resident memory, summed over the stage process and its worker processes, goes over 8 GiB, which fails its replicate. The cap is per stage, so `--jobs 3` can use up to three times it |
+| `--max-memory 8G` | Kill any stage whose memory, over the stage process and its worker processes, goes over 8 GiB, which fails its replicate. In a delegated cgroup (see [Stage timing](output-structure.md#stage-timing)) this is the kernel limit `memory.max` with swap off. Page cache counts toward it and is reclaimed before the kernel kills the stage, so a stage near the cap slows down before it dies. Without one, `simace run` polls the summed resident memory every 0.1 s. The cap is per stage, so `--jobs 3` can use up to three times it |
 | `--format pdf` | Also write `plots/atlas.pdf`; `plots/atlas.html` is always built |
 | `--results DIR`, `--logs DIR`, `--config-dir DIR` | Use other roots than `results/`, `logs/`, `config/` |
 
@@ -55,8 +55,9 @@ pixi run simace show baseline10K
 
 `simace show` prints the scenario's resolved parameters, per-replicate seeds
 and paths, and a `timing` block with, per stage over the complete
-replicates, the median wall time, the peak resident memory, and which
-replicate peaked. Size `--jobs` and `--max-memory` from it.
+replicates, the median wall time, and the largest `max_rss_mb` and
+`tree_peak_mb` with the replicate that set each. Size `--jobs` and
+`--max-memory` from `tree_peak_mb`, which covers worker processes.
 
 ## Summarize a folder
 

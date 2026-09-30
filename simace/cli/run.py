@@ -5,9 +5,9 @@ Resume granularity is the rep, or with ``--until`` the stage. A rep whose
 ``run.yaml`` is recomputed from scratch; a rep whose ``run.yaml`` differs is
 refused unless ``--force``. A rep built through fewer stages than asked for
 resumes at its first missing stage.
-Every stage runs as its own ``simace <stage>`` subprocess so its wall time
-and peak RSS land in the rep's ``timing.tsv``. Plots and the atlas are
-rebuilt on every run.
+Every stage runs as its own ``simace <stage>`` subprocess, in its own cgroup
+when one is delegated, so its wall time and memory peaks land in the rep's
+``timing.tsv``. Plots and the atlas are rebuilt on every run.
 """
 
 from __future__ import annotations
@@ -43,6 +43,7 @@ from contextlib import ExitStack, contextmanager, suppress
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
+from simace.cli.cgroups import CgroupRoot, CgroupUnavailable
 from simace.cli.layout import RepArtifact, add_root_args, resolve_roots
 from simace.cli.manifest import (
     Manifest,
@@ -94,7 +95,7 @@ _BLAS_THREADS = (
 # parallel kernels and polars get every core. pedigree-graph's Rust pool gets an
 # equal share of the cores per concurrent rep (see _child_env).
 _KERNEL_THREADS = ("NUMBA_NUM_THREADS", "POLARS_MAX_THREADS")
-_TIMING_HEADER = "stage\twall_s\tmax_rss_mb\texit_code\n"
+_TIMING_HEADER = "stage\twall_s\tmax_rss_mb\ttree_peak_mb\texit_code\n"
 
 
 class ScenarioError(Exception):
@@ -232,12 +233,25 @@ def _command(stage: str, argv: list[str]) -> list[str]:
 
 @dataclass(frozen=True)
 class StageResult:
-    """One finished stage subprocess."""
+    """One finished stage subprocess.
+
+    ``max_rss_mb`` is ``wait4``'s ``ru_maxrss``, the largest single-process
+    peak among the stage and the descendants it reaped; ``tree_peak_mb`` is
+    its cgroup's ``memory.peak`` (every descendant, shared pages once, page
+    cache included), or None without a delegated cgroup.
+    """
 
     wall_s: float
     max_rss_mb: float
+    tree_peak_mb: float | None
     exit_code: int
     over_memory: bool = False
+
+    @property
+    def memory(self) -> str:
+        """The memory peaks, for the progress line."""
+        tree = "" if self.tree_peak_mb is None else f", tree peak {self.tree_peak_mb:.0f} MB"
+        return f"max RSS {self.max_rss_mb:.0f} MB{tree}"
 
     @property
     def failure(self) -> str:
@@ -298,29 +312,28 @@ def _descendants(pid: int) -> list[int]:
 
 
 class _TreeWatch(threading.Thread):
-    """Samples the summed RSS of a stage and its descendants; kills the tree once it goes over a cap.
+    """Kills a stage and its descendants once their summed resident memory goes over a cap.
 
-    ``simace plot`` renders in worker processes, so the stage process alone
-    understates the stage. Shared pages count once per process. The watcher
-    is stopped before the stage is reaped, so the stage's pid cannot have
-    been reused when it is killed.
+    The fallback for ``--max-memory`` without a delegated cgroup. ``simace
+    plot`` renders in worker processes, so the stage process alone
+    understates the stage. Shared pages count once per process, and a spike
+    shorter than ``_MEMORY_POLL_S`` is missed. The watcher is stopped before
+    the stage is reaped, so the stage's pid cannot have been reused when it
+    is killed.
     """
 
-    def __init__(self, pid: int, max_rss: int | None, log: TextIO) -> None:
+    def __init__(self, pid: int, max_rss: int, log: TextIO) -> None:
         super().__init__(daemon=True)
         self.pid = pid
         self.max_rss = max_rss
         self.log = log
-        self.peak = 0
         self.over = False
         self._stop = threading.Event()
 
     def run(self) -> None:
         while not self._stop.wait(_MEMORY_POLL_S):
             tree = [self.pid, *_descendants(self.pid)]
-            rss = sum(map(_rss_bytes, tree))
-            self.peak = max(self.peak, rss)
-            if self.max_rss is not None and not self.over and rss > self.max_rss:
+            if sum(map(_rss_bytes, tree)) > self.max_rss:
                 self.over = True
                 for pid in tree:
                     with suppress(ProcessLookupError):
@@ -328,6 +341,7 @@ class _TreeWatch(threading.Thread):
                 self.log.write(
                     f"\nsimace run: killed; resident memory went over --max-memory ({self.max_rss / 2**20:.0f} MB)\n"
                 )
+                return
 
     def finish(self) -> None:
         self._stop.set()
@@ -336,36 +350,62 @@ class _TreeWatch(threading.Thread):
 
 @dataclass(frozen=True)
 class _Launcher:
-    """How stage subprocesses start: their environment and an optional resident-memory cap.
+    """How stage subprocesses start: their environment, an optional memory cap, and where they run.
 
-    A :class:`_TreeWatch` samples each stage's process tree every
-    ``_MEMORY_POLL_S`` for the recorded peak and, with a cap, kills the tree
-    once it goes over.
+    With a cgroup root each stage runs in its own leaf, which records the
+    exact peak of the stage's process tree and, with a cap, has the kernel
+    kill the tree once it goes over. Without one a :class:`_TreeWatch`
+    enforces the cap by polling ``/proc``, and no tree peak is recorded.
     """
 
     env: dict[str, str]
     max_rss: int | None = None
     lock_fds: tuple[int, ...] = ()
+    cgroups: CgroupRoot | None = None
 
     def run(self, cmd: list[str], log_path: Path) -> StageResult:
-        """Run one stage with output to ``log_path``; record the larger of its tree's sampled peak and ``wait4``'s."""
+        """Run one stage with output to ``log_path``; record its ``wait4`` peak and, in a cgroup, its tree's."""
         log_path.parent.mkdir(parents=True, exist_ok=True)
         start = time.perf_counter()
         with open(log_path, "w", encoding="utf-8") as log:
-            proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=self.env, pass_fds=self.lock_fds)
-            watch = _TreeWatch(proc.pid, self.max_rss, log)
-            watch.start()
-            os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOWAIT)
-            watch.finish()
-            _, status, rusage = os.wait4(proc.pid, 0)
-        proc.returncode = os.waitstatus_to_exitcode(status)
-        rss_bytes = rusage.ru_maxrss if sys.platform == "darwin" else rusage.ru_maxrss * 1024
-        return StageResult(time.perf_counter() - start, max(rss_bytes, watch.peak) / 2**20, proc.returncode, watch.over)
+            if self.cgroups is None:
+                exit_code, max_rss_mb, over = self._polled(cmd, log)
+                tree_peak_mb = None
+            else:
+                with self.cgroups.leaf(self.max_rss) as leaf:
+                    exit_code, max_rss_mb = _reap(self._start(leaf.wrap(cmd), log))
+                    tree_peak_mb = leaf.peak_bytes() / 2**20
+                    over = self.max_rss is not None and leaf.oom_killed()
+                if over:
+                    log.write(f"\nsimace run: killed; memory went over --max-memory ({self.max_rss / 2**20:.0f} MB)\n")
+        return StageResult(time.perf_counter() - start, max_rss_mb, tree_peak_mb, exit_code, over)
+
+    def _start(self, cmd: list[str], log: TextIO) -> subprocess.Popen[bytes]:
+        return subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=self.env, pass_fds=self.lock_fds)
+
+    def _polled(self, cmd: list[str], log: TextIO) -> tuple[int, float, bool]:
+        proc = self._start(cmd, log)
+        if self.max_rss is None:
+            return (*_reap(proc), False)
+        watch = _TreeWatch(proc.pid, self.max_rss, log)
+        watch.start()
+        os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOWAIT)
+        watch.finish()
+        return (*_reap(proc), watch.over)
+
+
+def _reap(proc: subprocess.Popen[bytes]) -> tuple[int, float]:
+    """Wait for ``proc``; return its exit code and ``wait4``'s ``ru_maxrss`` in MB."""
+    _, status, rusage = os.wait4(proc.pid, 0)
+    proc.returncode = os.waitstatus_to_exitcode(status)
+    rss_bytes = rusage.ru_maxrss if sys.platform == "darwin" else rusage.ru_maxrss * 1024
+    return proc.returncode, rss_bytes / 2**20
 
 
 def _append_timing(path: Path, stage: str, result: StageResult) -> None:
+    tree = "" if result.tree_peak_mb is None else f"{result.tree_peak_mb:.1f}"
     with open(path, "a", encoding="utf-8") as fh:
-        fh.write(f"{stage}\t{result.wall_s:.3f}\t{result.max_rss_mb:.1f}\t{result.exit_code}\n")
+        fh.write(f"{stage}\t{result.wall_s:.3f}\t{result.max_rss_mb:.1f}\t{tree}\t{result.exit_code}\n")
 
 
 def _start_timing(path: Path) -> None:
@@ -440,7 +480,7 @@ def _recompute(
             failure = f"{stage.name} FAILED ({result.failure}); log: {log_path}"
             console.say(tag, failure)
             return failure
-        console.say(tag, f"{stage.name} finished in {result.wall_s:.1f}s, peak {result.max_rss_mb:.0f} MB")
+        console.say(tag, f"{stage.name} finished in {result.wall_s:.1f}s, {result.memory}")
 
     write_manifest(
         layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST),
@@ -546,7 +586,9 @@ def _parse(argv: list[str] | None, prog: str | None) -> argparse.Namespace:
         type=parse_size,
         default=None,
         metavar="SIZE",
-        help="Kill any stage whose resident memory goes over SIZE (e.g. 8G); applies to each stage, not the whole run",
+        help="Kill any stage whose memory goes over SIZE (e.g. 8G); applies to each stage, not the whole run. "
+        "In a delegated cgroup this is the kernel limit memory.max on the stage's process tree, with no swap; "
+        "otherwise the tree's resident memory is polled from /proc",
     )
     parser.add_argument(
         "--format",
@@ -635,11 +677,13 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         raise SystemExit(2)
 
     try:
-        with ExitStack() as locks:
+        with ExitStack() as stack:
             lock_fds: tuple[int, ...] = ()
+            cgroups = None
             if not args.dry_run:
-                lock_fds = tuple(_lock_scenario(locks, run, layout) for run in runs)
-            _run_reps(args, layout, runs, lock_fds)
+                lock_fds = tuple(_lock_scenario(stack, run, layout) for run in runs)
+                cgroups = _open_cgroups(stack)
+            _run_reps(args, layout, runs, lock_fds, cgroups)
     except ScenarioBusy as exc:
         print(f"simace run: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
@@ -653,6 +697,17 @@ def _lock_scenario(locks: ExitStack, run: ScenarioRun, layout: Layout) -> int:
         raise ScenarioBusy(
             f"{run.scenario} is locked ({lock_path}) by simace run pid {exc}, or by a stage it started"
         ) from None
+
+
+def _open_cgroups(stack: ExitStack) -> CgroupRoot | None:
+    try:
+        return stack.enter_context(CgroupRoot.open())
+    except CgroupUnavailable as exc:
+        print(
+            f"simace run: no delegated cgroup ({exc}); tree_peak_mb not recorded, --max-memory polls /proc",
+            file=sys.stderr,
+        )
+        return None
 
 
 @dataclass
@@ -689,7 +744,13 @@ def _classify(run: ScenarioRun, layout: Layout, console: _Console, *, force: boo
     return outcome
 
 
-def _run_reps(args: argparse.Namespace, layout: Layout, runs: list[ScenarioRun], lock_fds: tuple[int, ...]) -> None:
+def _run_reps(
+    args: argparse.Namespace,
+    layout: Layout,
+    runs: list[ScenarioRun],
+    lock_fds: tuple[int, ...],
+    cgroups: CgroupRoot | None,
+) -> None:
     console = _Console()
     outcomes = {run.scenario: _classify(run, layout, console, force=args.force, until=args.until) for run in runs}
     full = args.until == len(STAGES)
@@ -711,7 +772,7 @@ def _run_reps(args: argparse.Namespace, layout: Layout, runs: list[ScenarioRun],
     failed = _compute(
         [item for run in runs for item in outcomes[run.scenario].to_compute],
         layout,
-        _Launcher(_child_env(args.jobs), args.max_memory, lock_fds),
+        _Launcher(_child_env(args.jobs), args.max_memory, lock_fds, cgroups),
         console,
         jobs=args.jobs,
         fail_fast=args.fail_fast,
@@ -729,7 +790,7 @@ def _run_reps(args: argparse.Namespace, layout: Layout, runs: list[ScenarioRun],
         for run in runs:
             console.say(run.scenario, f"plots skipped: --until {STAGES[args.until - 1].name}")
     elif not args.no_plots:
-        launcher = _Launcher(_child_env(1), args.max_memory, lock_fds)
+        launcher = _Launcher(_child_env(1), args.max_memory, lock_fds, cgroups)
         for run in runs:
             incomplete = [rep.rep for rep in run.all_reps if status_on_disk(rep, layout).state is not RepState.COMPLETE]
             if incomplete:

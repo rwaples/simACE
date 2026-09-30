@@ -5,6 +5,7 @@ from __future__ import annotations
 __all__ = ["ls_cli", "show_cli"]
 
 import argparse
+import csv
 import statistics
 import sys
 from collections import defaultdict
@@ -30,6 +31,9 @@ from simace.core.yaml_io import to_native
 if TYPE_CHECKING:
     from simace.cli.layout import Layout
     from simace.cli.manifest import RepStatus
+
+
+_PEAK_COLUMNS = ("max_rss_mb", "tree_peak_mb")
 
 
 def _reps(params: dict, scenario: str) -> list[ResolvedRep]:
@@ -72,28 +76,33 @@ def _states(layout: Layout, reps: list[ResolvedRep]) -> str:
 
 
 def _timing(layout: Layout, reps: list[ResolvedRep]) -> dict[str, Any]:
-    """Per stage over the complete reps: median wall time, peak RSS, and the rep that peaked."""
+    """Per stage over the complete reps: median wall time, and each recorded memory peak with the rep that set it.
+
+    ``tree_peak_mb`` is reported for a stage only when some rep recorded it;
+    reps built before it existed, or without a delegated cgroup, have none.
+    """
     walls: dict[str, list[float]] = defaultdict(list)
-    peaks: dict[str, tuple[float, int]] = {}
+    peaks: dict[str, dict[str, tuple[float, int]]] = defaultdict(dict)
     used = 0
     for rep in reps:
         if status_on_disk(rep, layout).state is not RepState.COMPLETE:
             continue
         used += 1
-        rows = layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.TIMING).read_text().splitlines()[1:]
-        for row in rows:
-            stage, wall_s, max_rss_mb, _ = row.split("\t")
-            walls[stage].append(float(wall_s))
-            if stage not in peaks or float(max_rss_mb) > peaks[stage][0]:
-                peaks[stage] = (float(max_rss_mb), rep.rep)
-    stages = {
-        stage: {
-            "wall_s_median": round(statistics.median(walls[stage]), 1),
-            "max_rss_mb": round(peaks[stage][0]),
-            "max_rss_rep": peaks[stage][1],
-        }
-        for stage in walls
-    }
+        with open(layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.TIMING), encoding="utf-8") as fh:
+            for row in csv.DictReader(fh, delimiter="\t"):
+                stage = row["stage"]
+                walls[stage].append(float(row["wall_s"]))
+                for column in _PEAK_COLUMNS:
+                    if row.get(column):
+                        value = float(row[column])
+                        if column not in peaks[stage] or value > peaks[stage][column][0]:
+                            peaks[stage][column] = (value, rep.rep)
+    stages: dict[str, dict[str, Any]] = {}
+    for stage, stage_walls in walls.items():
+        stages[stage] = {"wall_s_median": round(statistics.median(stage_walls), 1)}
+        for column, (peak, peak_rep) in peaks[stage].items():
+            stages[stage][column] = round(peak)
+            stages[stage][f"{column.removesuffix('_mb')}_rep"] = peak_rep
     return {"from_complete_reps": used, **stages}
 
 

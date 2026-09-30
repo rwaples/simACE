@@ -176,6 +176,37 @@ went unread (simACE #28).
   complete through every stage. `--until` before `analyze` skips the plot
   pass, and `simace ls` lists partial reps with the stage they reached.
 
+## Amendment (2026-09-30): exact memory meters through cgroup v2
+
+`timing.tsv`'s `max_rss_mb` was the larger of `wait4`'s `ru_maxrss` and the
+summed `VmRSS` of the stage's tree sampled every 0.1 s. Which of the two it
+held changed from run to run, the sum counted a shared page once per
+process, and a spike shorter than a poll went unrecorded.
+
+- Each stage runs in its own child cgroup of a delegated cgroup v2 root
+  (`simace/cli/cgroups.py`). The root is one transient systemd scope per
+  `simace run`, started with `Delegate=yes`, or the directory
+  `SIMACE_CGROUP_ROOT` names. A shell shim moves the stage into its cgroup
+  before `exec`, because memory is charged to the cgroup a process is in
+  when it allocates and does not move with the process later.
+- `timing.tsv` gains `tree_peak_mb`, the cgroup's `memory.peak`: the exact
+  high-water mark of the stage and every descendant, a shared page counted
+  once, page cache and kernel memory included. `max_rss_mb` is `ru_maxrss`
+  alone. Without a delegated cgroup `tree_peak_mb` is empty, so no column
+  holds two meters.
+- `--max-memory` becomes `memory.max` on the stage's cgroup, with
+  `memory.swap.max` at 0 and `memory.oom.group` at 1, so the kernel kills
+  the stage and its workers together. The Consequences above rejected
+  kernel limits after measuring `RLIMIT_AS` and `RLIMIT_DATA`, which bound
+  address space per process, most of it never resident. `memory.max` bounds
+  the pages actually charged to the whole tree. Page cache counts toward it
+  and is reclaimed before an OOM kill, so a stage near the cap slows under
+  reclaim instead of dying at once. Without a delegated cgroup the `/proc`
+  poll still enforces the cap.
+- Opening the scope took under 0.1 s here, and removing a stage's cgroup
+  (kill whatever is left, wait until it is empty, `rmdir`) takes
+  milliseconds.
+
 ## Verification
 
 Recorded in `plans/standalone-simace-cli-v2.md` §6 at implementation time.
