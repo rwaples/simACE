@@ -32,7 +32,7 @@ import numpy as np
 import polars as pl
 from hypothesis import strategies as st
 
-from simace.ascertainment.runner import run_ascertainment
+from simace.ascertainment.runner import _apply_dropout, run_ascertainment
 from simace.core.trait_schema import TRAIT_CENSORED_COLUMNS
 from tests.conftest import pedigree_frame, relabel_ids
 
@@ -80,24 +80,37 @@ def _informative_trait(draw, ids: pl.Series) -> pl.DataFrame:
 
 
 @st.composite
-def ascertainment_inputs(draw) -> AscertainmentInput:
+def ascertainment_inputs(draw, *, zero_weight: bool | None = None) -> AscertainmentInput:
     """Draw an input on which ``run_ascertainment`` succeeds, with a draw whenever ``0 < N_sample < pool``.
 
-    ``case_ascertainment_ratio`` is positive, so the zero-weight refusal
-    cannot fire; that refusal is covered by the existing ascertainment tests.
-    ``dropout_rate`` is an exact drop count in ``[0, n - 1]`` over ``n``, so
-    dropout never refuses either.
+    Zero-weight cases have positive dropout, at least two surviving trait
+    rows, a surviving control, and a genuine weighted draw. Other cases keep
+    the full range of phenotype windows, dropout counts, and sample sizes.
+    The zero-weight/all-case refusal is covered by the existing tests.
     """
-    pedigree = relabel_ids(draw(pedigree_frame(twins=True, liabilities=True)), draw(st.data()))
+    if zero_weight is None:
+        zero_weight = draw(st.booleans())
+    pedigrees = pedigree_frame(twins=True, liabilities=True)
+    if zero_weight:
+        # One dropout plus two survivors is the minimum for a weighted draw.
+        pedigrees = pedigrees.filter(lambda frame: len(frame) >= 3)
+    pedigree = relabel_ids(draw(pedigrees), draw(st.data()))
     generations = sorted(set(pedigree["generation"].to_list()))
-    g_pheno = draw(st.integers(min_value=1, max_value=len(generations)))
+    g_pheno = len(generations) if zero_weight else draw(st.integers(min_value=1, max_value=len(generations)))
     ids = pedigree.filter(pl.col("generation").is_in(generations[-g_pheno:]))["id"]
     trait = draw(_informative_trait(ids))
-    n_drop = draw(st.integers(min_value=0, max_value=len(pedigree) - 1))
+    n_drop = draw(st.integers(1, len(pedigree) - 2) if zero_weight else st.integers(0, len(pedigree) - 1))
     kwargs = {
         "dropout_rate": n_drop / len(pedigree),
-        "case_ascertainment_ratio": draw(st.sampled_from([0.25, 1.0, 4.0])),
-        "N_sample": draw(st.integers(min_value=-2, max_value=len(trait) + 2)),
+        "case_ascertainment_ratio": 0.0 if zero_weight else draw(st.sampled_from([0.25, 1.0, 4.0])),
+        "N_sample": draw(st.integers(1, len(trait) - n_drop - 1) if zero_weight else st.integers(-2, len(trait) + 2)),
         "seed": draw(st.integers(min_value=0, max_value=2**31 - 1)),
     }
+    if zero_weight:
+        survivors = _apply_dropout(pedigree, kwargs["dropout_rate"], np.random.default_rng(kwargs["seed"]))
+        control = pl.col("id") == draw(st.sampled_from(survivors["id"].to_list()))
+        trait = trait.with_columns(
+            pl.when(control).then(value).otherwise(pl.col(column)).alias(column)
+            for column, value in (("affected1", False), ("age_censored1", True), ("death_censored1", False))
+        )
     return AscertainmentInput(pedigree, trait, kwargs)

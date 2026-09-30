@@ -323,33 +323,40 @@ def _relabel(frame: pl.DataFrame, mapping: dict[int, int], columns) -> pl.DataFr
     )
 
 
+@pytest.mark.parametrize("zero_weight", [False, True], ids=["positive-weight", "zero-weight"])
 class TestPreservation:
     """Selection copies input rows; only links to people outside the output change, and only to -1.
 
     Inputs come from ``ascertainment_inputs``: gapped ids, twins, informative
-    trait columns with null raw onsets, and a positive case weight, so every
-    example is a successful ascertainment.
+    trait columns with null raw onsets, and both zero and positive case weights.
+    Zero-weight cases guarantee a control survives positive dropout.
     """
 
-    @given(inp=ascertainment_inputs())
-    def test_sample_rows_are_the_input_rows(self, inp):
+    @given(data=st.data())
+    def test_sample_rows_are_the_input_rows(self, zero_weight, data):
         """Each sample row equals its input trait row, in input order, with dtypes and nulls intact.
 
         Rejects outcome recomputation or overwriting during selection, null
         onsets filled with a value, and column or row misalignment.
         """
+        inp = data.draw(ascertainment_inputs(zero_weight=zero_weight))
         _, trait_out = inp.run()
+        if zero_weight:
+            assert inp.kwargs["dropout_rate"] > 0
+            assert not trait_out.is_empty()
+            assert not trait_out["affected1"].any()
         event(f"sample rows: {'none' if trait_out.is_empty() else 'some'}")
         event(f"null raw onset in sample: {trait_out['t1'].null_count() + trait_out['t2'].null_count() > 0}")
         _assert_same(trait_out, inp.trait.filter(pl.col("id").is_in(trait_out["id"].implode())))
 
-    @given(inp=ascertainment_inputs())
-    def test_pedigree_rows_change_only_by_severing_unavailable_links(self, inp):
+    @given(data=st.data())
+    def test_pedigree_rows_change_only_by_severing_unavailable_links(self, zero_weight, data):
         """Each output pedigree row equals its input row, except links to people outside the output, which are -1.
 
         Rejects modifying a retained parent or twin id, severing a link whose
         referent is present, and pointing a severed link anywhere but -1.
         """
+        inp = data.draw(ascertainment_inputs(zero_weight=zero_weight))
         ped_out, _ = inp.run()
         kept = ped_out["id"].implode()
         original = inp.pedigree.filter(pl.col("id").is_in(kept))
@@ -360,8 +367,8 @@ class TestPreservation:
         event(f"severed links: {not original.select(_LINKS).equals(expected.select(_LINKS))}")
         _assert_same(ped_out, expected)
 
-    @given(inp=ascertainment_inputs())
-    def test_pedigree_is_the_sample_ancestry_among_dropout_survivors(self, inp):
+    @given(data=st.data())
+    def test_pedigree_is_the_sample_ancestry_among_dropout_survivors(self, zero_weight, data):
         """The output pedigree is the sample plus its ancestors reachable through surviving people only.
 
         The survivors are recomputed from the seed with ``_apply_dropout``;
@@ -369,6 +376,7 @@ class TestPreservation:
         Rejects reconnecting ancestry across a dropped person and keeping a
         dropped person.
         """
+        inp = data.draw(ascertainment_inputs(zero_weight=zero_weight))
         ped_out, trait_out = inp.run()
         survivors = _apply_dropout(inp.pedigree, inp.kwargs["dropout_rate"], np.random.default_rng(inp.kwargs["seed"]))
         expected = _available_ancestry(survivors, trait_out["id"].to_list())
@@ -376,14 +384,15 @@ class TestPreservation:
         event(f"dropout cut a path to a surviving ancestor: {through_dropped != expected}")
         assert set(ped_out["id"].to_list()) == expected
 
-    @given(inp=ascertainment_inputs(), data=st.data())
-    def test_selection_commutes_with_an_id_bijection(self, inp, data):
+    @given(data=st.data())
+    def test_selection_commutes_with_an_id_bijection(self, zero_weight, data):
         """Relabelling every id through a gapped order-preserving bijection relabels the outputs the same way.
 
         Row order and seed are unchanged, so the row-position draws match.
         Rejects using ids as row positions or letting id values steer the draw
         or the closure.
         """
+        inp = data.draw(ascertainment_inputs(zero_weight=zero_weight))
         relabelled = relabel_ids(inp.pedigree, data)
         mapping = dict(zip(inp.pedigree["id"].to_list(), relabelled["id"].to_list(), strict=True))
         ped_out, trait_out = inp.run()

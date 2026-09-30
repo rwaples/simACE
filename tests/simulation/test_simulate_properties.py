@@ -18,6 +18,7 @@ Properties:
 """
 
 import warnings
+from unittest.mock import patch
 
 import numpy as np
 import polars as pl
@@ -26,6 +27,7 @@ from hypothesis import HealthCheck, event, given, settings
 from hypothesis import strategies as st
 from polars.testing import assert_frame_equal
 
+from simace.simulation import simulate
 from simace.simulation.simulate import generate_correlated_components, mating, run_simulation
 
 
@@ -69,6 +71,73 @@ _E_TRANSITIONS = ["none", "before_first_recorded", "at_first_recorded", "after_f
 _SEEDS = st.integers(min_value=0, max_value=2**31 - 1)
 _VARIANCES = st.one_of(st.just(0.0), st.floats(min_value=0.05, max_value=1.0))
 _CORRELATIONS = st.one_of(st.sampled_from([-1.0, 0.0, 1.0]), st.floats(min_value=-1.0, max_value=1.0))
+
+
+class _VerifiedExtinction(Exception):
+    """Observed (iteration, female count, male count) at a verified mating refusal."""
+
+
+def _run_with_extinction_check(**kwargs) -> pl.DataFrame | _VerifiedExtinction:
+    """Accept only a mating refusal independently witnessed on a single-sex generation.
+
+    Production still runs on the unchanged inputs. An error on a mixed-sex
+    generation, an unrelated ValueError, or accepting a single-sex generation
+    fails the test rather than becoming an excluded Hypothesis example.
+    """
+    name = "_mating_standard" if kwargs["mating_model"] == "standard" else "_mating_wf"
+    original = getattr(simulate, name)
+    iteration = 0
+
+    def checked(rng, parental_sex, *args, **kw):
+        nonlocal iteration
+        n_female = int(np.count_nonzero(parental_sex == 0))
+        n_male = int(np.count_nonzero(parental_sex == 1))
+        if n_female == 0 or n_male == 0:
+            missing = "female" if n_female == 0 else "male"
+            with pytest.raises(ValueError, match=rf"has 0 {missing} individuals; cannot sample"):
+                original(rng, parental_sex, *args, **kw)
+            raise _VerifiedExtinction(iteration, n_female, n_male)
+        iteration += 1
+        return original(rng, parental_sex, *args, **kw)
+
+    with patch.object(simulate, name, checked):
+        try:
+            return run_simulation(**kwargs)
+        except _VerifiedExtinction as extinction:
+            return extinction
+
+
+@pytest.mark.parametrize("mating_model", _MATING_MODELS)
+@pytest.mark.parametrize("sex", [0, 1])
+def test_mating_refuses_a_single_sex(mating_model, sex):
+    missing = "male" if sex == 0 else "female"
+    with pytest.raises(ValueError, match=rf"has 0 {missing} individuals; cannot sample"):
+        mating(np.random.default_rng(0), np.full(20, sex), 0.3, 0.9, mating_model=mating_model)
+
+
+def test_extinction_is_independent_of_the_recording_window():
+    """Seed 1706 loses every female at iteration 2, before either run finishes."""
+    kwargs = dict(
+        seed=1706,
+        N=20,
+        G_sim=6,
+        mating_model="standard",
+        mating_lambda=0.3,
+        p_mztwin=0.9,
+        A1=0.0,
+        A2=0.0,
+        C1=0.0,
+        C2=0.0,
+        E1=0.0,
+        E2=0.0,
+        rA=0.0,
+        rC=0.0,
+        rE=0.0,
+    )
+    for g_ped in (3, 6):
+        result = _run_with_extinction_check(**kwargs, G_ped=g_ped)
+        assert isinstance(result, _VerifiedExtinction)
+        assert result.args == (2, 0, 20)
 
 
 def _canonical_labels(labels: np.ndarray) -> np.ndarray:
@@ -231,7 +300,10 @@ def test_run_simulation_structural_integrity(mating_model, e_transition, data):
     raw coordinates, and noise in a zero-variance component.
     """
     kw = data.draw(simulation_kwargs(mating_model, e_transition))
-    ped = run_simulation(**kw)
+    ped = _run_with_extinction_check(**kw)
+    if isinstance(ped, _VerifiedExtinction):
+        event(f"single-sex extinction: {ped.args}")
+        return
     event("twins recorded" if (ped["twin"] >= 0).any() else "no twins recorded")
     _check_recorded_pedigree(ped, kw)
 
@@ -316,8 +388,14 @@ def test_recording_window_only_selects_rows(mating_model, data):
     window; a constant offset error is left to ``_check_recorded_pedigree``.
     """
     kw, G_short, G_long = data.draw(recording_windows(mating_model))
-    short = run_simulation(**kw, G_ped=G_short)
-    long = run_simulation(**kw, G_ped=G_long)
+    short = _run_with_extinction_check(**kw, G_ped=G_short)
+    long = _run_with_extinction_check(**kw, G_ped=G_long)
+    if isinstance(short, _VerifiedExtinction) or isinstance(long, _VerifiedExtinction):
+        assert isinstance(short, _VerifiedExtinction)
+        assert isinstance(long, _VerifiedExtinction)
+        assert short.args == long.args
+        event(f"single-sex extinction: {short.args}")
+        return
     assert_frame_equal(
         _window_view(short, 0, kw["N"]),
         _window_view(long, G_long - G_short, kw["N"]),

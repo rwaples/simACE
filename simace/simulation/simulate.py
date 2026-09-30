@@ -755,12 +755,17 @@ def _mating_standard(
 
     Raises:
         ValueError: if assort is nonzero but pheno is None
+        ValueError: if parental_sex contains zero males or zero females.
     """
     if (assort1 != 0 or assort2 != 0) and pheno is None:
         raise ValueError("pheno must be provided when assort1 or assort2 is nonzero")
     N = len(parental_sex)
     male_idxs = np.where(parental_sex == 1)[0]
     female_idxs = np.where(parental_sex == 0)[0]
+    if len(female_idxs) == 0:
+        raise ValueError("Standard mating: parent population has 0 female individuals; cannot sample mothers.")
+    if len(male_idxs) == 0:
+        raise ValueError("Standard mating: parent population has 0 male individuals; cannot sample fathers.")
 
     # 1. Draw mating counts per individual
     male_counts = draw_mating_counts(rng, len(male_idxs), mating_lambda)
