@@ -2773,3 +2773,185 @@ cib3_K03:
     gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
     death_scale: 164
     death_rho: 2.73
+
+# Tier 4 (cib4_*): §8h onset-asymmetry swaps of lhs03 and lhs20, R = 200.
+
+# {'K1': 0.0757, 'K2': 0.0233, 'A1': 0.66, 'A2': 0.54, 'rA': 0.9, 'x1': 25, 'x2': 57}
+cib4_lhs03_swapx:
+  seed: 350000
+  N: 50000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.66
+      C: 0.0
+      E: 0.34
+    trait2:
+      A: 0.54
+      C: 0.0
+      E: 0.46
+    rA: 0.9
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 25
+        cip_k: 0.15
+        prevalence: 0.0757
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 57
+        cip_k: 0.15
+        prevalence: 0.0233
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# {'K1': 0.0233, 'K2': 0.0757, 'A1': 0.54, 'A2': 0.66, 'rA': 0.9, 'x1': 25, 'x2': 57}
+cib4_lhs03_swapt:
+  seed: 350000
+  N: 50000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.54
+      C: 0.0
+      E: 0.46
+    trait2:
+      A: 0.66
+      C: 0.0
+      E: 0.34
+    rA: 0.9
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 25
+        cip_k: 0.15
+        prevalence: 0.0233
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 57
+        cip_k: 0.15
+        prevalence: 0.0757
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# {'K1': 0.122, 'K2': 0.218, 'A1': 0.81, 'A2': 0.83, 'rA': 0.63, 'x1': 59, 'x2': 25}
+cib4_lhs20_swapx:
+  seed: 350000
+  N: 50000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.81
+      C: 0.0
+      E: 0.19
+    trait2:
+      A: 0.83
+      C: 0.0
+      E: 0.17
+    rA: 0.63
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 59
+        cip_k: 0.15
+        prevalence: 0.122
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 25
+        cip_k: 0.15
+        prevalence: 0.218
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# {'K1': 0.218, 'K2': 0.122, 'A1': 0.83, 'A2': 0.81, 'rA': 0.63, 'x1': 59, 'x2': 25}
+cib4_lhs20_swapt:
+  seed: 350000
+  N: 50000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.83
+      C: 0.0
+      E: 0.17
+    trait2:
+      A: 0.81
+      C: 0.0
+      E: 0.19
+    rA: 0.63
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 59
+        cip_k: 0.15
+        prevalence: 0.218
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 25
+        cip_k: 0.15
+        prevalence: 0.122
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
