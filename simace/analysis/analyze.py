@@ -93,7 +93,8 @@ def run_analysis(
         seed: Random seed for stats sampling / correlations.
         censor_age: Administrative censoring age.
         gen_censoring: Optional per-generation censoring windows.
-        max_degree: Maximum kinship degree for stats pair extraction.
+        max_degree: Deepest relationship degree in the pair-count tables.
+            Correlations always use ``RELATIONSHIP_TYPES``.
         case_ascertainment_ratio: Configured case-ascertainment ratio.
 
     Returns:

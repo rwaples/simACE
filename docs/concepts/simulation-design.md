@@ -54,7 +54,7 @@ The registry stores every category with `up >= down`, so the first member is the
 | 1C2R | 1st cousin 2R | 4 | 2 | 2 | 1/64 | 5 | junior_cousin | senior_cousin |
 | 2C | 2nd cousin | 3 | 3 | 2 | 1/64 | 5 | — | — |
 
-The `max_degree` parameter sets how deep extraction goes. The default is 3, which reaches 1st cousins. The cutoff follows the Degree column exactly. Degree 2 stops at half-sibs, grandparents, and avuncular pairs. Degree 3 adds 1st cousins and the other degree-3 categories. Degree 5 reaches 2nd cousins. Selection is an output filter, not a search cut: a pair is always reported under its closest category, whichever categories were asked for. The registry is importable as `RELATIONSHIPS` from `pedigree_graph`, and this table is generated from it.
+The `max_degree` parameter sets how deep Analyze's pair-count tables go; correlations always use the seven `RELATIONSHIP_TYPES` codes. The default is 3, which reaches 1st cousins. The cutoff follows the Degree column exactly. Degree 2 stops at half-sibs, grandparents, and avuncular pairs. Degree 3 adds 1st cousins and the other degree-3 categories. Degree 5 reaches 2nd cousins. Selection is an output filter, not a search cut: a pair is always reported under its closest category, whichever categories were asked for. The registry is importable as `RELATIONSHIPS` from `pedigree_graph`, and this table is generated from it.
 
 ### Inbreeding and exact kinship
 

@@ -78,7 +78,8 @@ def emit_params(
         p_mztwin: MZ twin probability.
         assort1: trait-1 assortative-mating correlation.
         assort2: trait-2 assortative-mating correlation.
-        max_degree: Maximum relationship degree extracted by Analyze.
+        max_degree: Deepest relationship degree Analyze counts in its
+            pair-count tables.
         skip_ne_coancestry: Whether the effective-size stage skips the
             coancestry-rate estimator.
         assort_matrix: optional 2x2 correlation matrix; included in the

@@ -21,7 +21,7 @@ import yaml
 from pedigree_graph import PedigreeGraph
 
 from simace.core.parquet import load_parquet, save_parquet
-from simace.core.relationships import DEFAULT_MAX_DEGREE
+from simace.core.relationships import DEFAULT_MAX_DEGREE, RELATIONSHIP_TYPES
 from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import to_native
 
@@ -78,13 +78,16 @@ REPORT_GROUPS = ("metadata", "incidence", "censoring", "pedigree", "correlations
 
 @dataclass(frozen=True)
 class RelationshipContext:
-    """Extracted relationship pairs and per-relation full-pedigree pair counts.
+    """Correlation pairs and per-relation pair counts.
 
-    ``full_counts`` carries all 23 registry codes; a code outside the
-    requested depth is ``None`` (not computed), never ``0``.
+    ``pairs`` holds only the ``RELATIONSHIP_TYPES`` codes the correlations
+    consume. ``counts`` (analysis sample) and ``full_counts`` (full pedigree)
+    come from the count-only path and carry all 23 registry codes; a code
+    outside ``max_degree`` is ``None`` (not computed), never ``0``.
     """
 
     pairs: RelationshipPairs
+    counts: dict[str, int | None]
     full_counts: dict[str, int | None] | None
 
 
@@ -120,25 +123,25 @@ def _build_relationship_context(
     # correlations without materializing 100M+ pair arrays. Coordinate with
     # fitACE consumers before changing relationship-extraction semantics.
     t0 = time.perf_counter()
-    if df_ped is not None:
-        graph = PedigreeGraph.from_frame(df_ped)
-        if _same_ordered_ids(df_ped, df):
-            # Fast path for the common no-ascertainment case: the phenotype
-            # and pedigree tables are the same ordered individuals, so a view
-            # mask/remap would be pure overhead.
-            pairs = graph.relationship_pairs(max_degree=max_degree)
-        else:
-            pairs = graph.view(ids=df["id"].to_numpy()).relationship_pairs(max_degree=max_degree)
-        full_counts = dict(graph.relationship_counts(max_degree=max_degree))
-    else:
-        pairs = PedigreeGraph.from_frame(df).relationship_pairs(max_degree=max_degree)
+    graph = PedigreeGraph.from_frame(df if df_ped is None else df_ped)
+    # Fast path for the common no-ascertainment case: the phenotype and
+    # pedigree tables are the same ordered individuals, so a view mask/remap
+    # would be pure overhead.
+    source = graph if df_ped is None or _same_ordered_ids(df_ped, df) else graph.view(ids=df["id"].to_numpy())
+    pairs = source.relationship_pairs(categories=RELATIONSHIP_TYPES)
+    counts = dict(source.relationship_counts(max_degree=max_degree))
+    if df_ped is None:
         full_counts = None
+    elif source is graph:
+        full_counts = counts
+    else:
+        full_counts = dict(graph.relationship_counts(max_degree=max_degree))
     logger.info(
         "Relationship pairs extracted in %.1fs: %s",
         time.perf_counter() - t0,
         ", ".join(f"{code}: {len(block)}" for code, block in pairs.items() if block.requested),
     )
-    return RelationshipContext(pairs=pairs, full_counts=full_counts)
+    return RelationshipContext(pairs=pairs, counts=counts, full_counts=full_counts)
 
 
 def build_stats_report(
@@ -200,7 +203,7 @@ def build_stats_report(
     t0 = time.perf_counter()
     pedigree: dict[str, Any] = {
         "family_size": compute_mean_family_size(df),
-        "relationship_pair_counts": {code: len(block) if block.requested else None for code, block in pairs.items()},
+        "relationship_pair_counts": relationship_context.counts,
         "parent_status": compute_parent_status(df, df_ped),
     }
     if df_ped is not None and relationship_context.full_counts is not None:

@@ -171,7 +171,7 @@ analysis:
 | `ascertainment.N_sample` | int | `0` | Sample size after ascertainment. `0` keeps the whole post-dropout population |
 | `ascertainment.case_ascertainment_ratio` | float | `1` | Sampling weight of a case relative to a control in the `N_sample` draw |
 | `ascertainment.dropout_rate` | float | `0` | Fraction of individuals removed at random from the pedigree before the draw |
-| `analysis.max_degree` | int | `3` | Highest relationship degree to extract. `3` includes first cousins. `2` stops at half-siblings, grandparents, and avuncular pairs |
+| `analysis.max_degree` | int | `3` | Highest relationship degree in the pair-count tables. `3` includes first cousins. `2` stops at half-siblings, grandparents, and avuncular pairs. Correlations always use the seven codes in `RELATIONSHIP_TYPES` |
 | `analysis.estimate_inbreeding` | bool | `false` | Compute exact inbreeding coefficients and exact pairwise kinship |
 | `analysis.skip_ne_coancestry` | bool | `true` | Skip the coancestry-rate estimator of effective population size and report `ne_coancestry` as null. The other seven estimators still run |
 
