@@ -8,6 +8,18 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
+### pedigree-graph 0.11
+
+- **Moved to pedigree-graph 0.11** (`pedigree-graph>=0.11,<0.12`). MZ
+  co-twins now take part in sibling groups (pedigree-graph#29): a co-twin
+  has FS, MHS and PHS pairs with its non-twin siblings, and the collateral
+  codes built from sibling lists (Av, HAv, GAv and further) follow.
+  `relationship_pair_counts` grows on every scenario with twins, in both
+  `analysis_sample` and `analysis_pedigree`; on `small_test` rep1 the
+  sample's FS goes 2348 → 2378, MHS 1426 → 1456, PHS 1010 → 1034, Av
+  6197 → 6261, and on `bench1M` FS 619322 → 625802, MHS 307858 → 315498,
+  PHS 306709 → 314515. Statistics computed over those pairs move with them.
+
 ### Performance benchmarks
 
 - Replaced the mutable shell benchmark scripts with
