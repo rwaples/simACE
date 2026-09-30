@@ -61,5 +61,12 @@ description = "Full pytest suite on 6 xdist workers, one numba/BLAS thread each"
 cmd = "pytest -n 6 --dist worksteal"
 env = { OMP_NUM_THREADS = "1", MKL_NUM_THREADS = "1", OPENBLAS_NUM_THREADS = "1", NUMEXPR_NUM_THREADS = "1", NUMBA_NUM_THREADS = "1", POLARS_MAX_THREADS = "1" }
 
+# `pixi run test-fast` is the same suite without tests marked `slow` (median
+# call time of 5 s or more under `pixi run test`; see the marker in pyproject.toml).
+[tasks.test-fast]
+description = "pixi run test without tests marked slow"
+cmd = "pytest -n 6 --dist worksteal -m 'not slow'"
+env = { OMP_NUM_THREADS = "1", MKL_NUM_THREADS = "1", OPENBLAS_NUM_THREADS = "1", NUMEXPR_NUM_THREADS = "1", NUMBA_NUM_THREADS = "1", POLARS_MAX_THREADS = "1" }
+
 [activation.env]
 MPLBACKEND = "Agg"

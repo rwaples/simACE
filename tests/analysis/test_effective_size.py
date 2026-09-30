@@ -439,7 +439,6 @@ def _build_wf_pedigree(rng: np.random.Generator, n: int = 50, n_gens: int = 8) -
     return pd.DataFrame(rows)
 
 
-@pytest.mark.slow
 def test_ne_v_formula_matches_simulator_mc():
     """Closed-form ``ne_v_expected_ztp`` matches simACE simulator within ±5 %.
 
@@ -527,7 +526,6 @@ def test_ne_ltc_expectation_matches_simulator_mc(mating_model: str, g_ped: int):
     )
 
 
-@pytest.mark.slow
 def test_cross_estimator_consistency_under_wf():
     """Under Wright–Fisher, all 7 estimators (excl. Ne_LTC) agree within ±15 % over 30 reps.
 

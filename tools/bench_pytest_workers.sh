@@ -14,7 +14,8 @@
 # Cost, both figures approximate: the full suite is ~800 s serial and ~160 s at
 # six workers, so the default seven cells across three sweeps plus the warm-up
 # run is on the order of two hours. PYTEST_ARGS='-m "not slow"' is the fast pass
-# at ~139 s serial and brings the whole matrix under half an hour.
+# at ~230 s serial (2026-09-30, CPU capped at 2.6 GHz) and brings the whole matrix
+# to about half an hour.
 #
 # Results land in $OUT (default benchmarks/pytest/): results.tsv holds one row
 # per run, <cell>.<sweep>.time and <cell>.<sweep>.log hold the /usr/bin/time -v

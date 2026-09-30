@@ -216,7 +216,6 @@ def _check_recorded_pedigree(ped: pl.DataFrame, kw: dict) -> None:
         assert np.all(np.abs(col[f"liability{t}"] - total) <= bound), t
 
 
-@pytest.mark.slow
 @pytest.mark.parametrize("mating_model", _MATING_MODELS)
 @pytest.mark.parametrize("e_transition", _E_TRANSITIONS)
 # Explicit budget, not the conftest profile: run_simulation per example (see above).
@@ -237,7 +236,6 @@ def test_run_simulation_structural_integrity(mating_model, e_transition, data):
     _check_recorded_pedigree(ped, kw)
 
 
-@pytest.mark.slow
 def test_run_simulation_twin_links_example():
     """A twin-rich standard run, twins guaranteed present, passes the recorded-pedigree checks.
 
@@ -304,7 +302,6 @@ def _window_view(ped: pl.DataFrame, first_gen: int, N: int) -> pl.DataFrame:
     )
 
 
-@pytest.mark.slow
 @pytest.mark.parametrize("mating_model", _MATING_MODELS)
 # Two run_simulation calls per example; 50 examples measured at 1-3 s per mating model.
 @settings(deadline=None, max_examples=50, suppress_health_check=[HealthCheck.too_slow])

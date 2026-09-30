@@ -18,6 +18,7 @@ from pathlib import Path
 
 import polars as pl
 import polars.testing
+import pytest
 from hypothesis import event, given
 
 from simace.ascertainment.runner import run_ascertainment
@@ -97,6 +98,7 @@ def test_selected_views_rebuild_generated_ascertainments(inp):
     event(f"ancestor phenotyped, not drawn: {bool(phenotyped.any())}")
 
 
+@pytest.mark.slow
 @given(inp=ascertainment_inputs())
 def test_selected_views_survive_the_parquet_round_trip(inp):
     """After the marked write and read, the stored files equal their inputs and rebuild the same views.

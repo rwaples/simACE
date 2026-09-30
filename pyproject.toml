@@ -59,7 +59,7 @@ include = ["simace*"]
 testpaths = ["tests"]
 norecursedirs = ["fitACE", ".git", "external", "site", ".hypothesis"]
 markers = [
-    "slow: heavyweight tests (Monte Carlo, large pedigrees); deselect with -m 'not slow'",
+    "slow: median call time of 5 s or more under `pixi run test`; `pixi run test-fast` deselects them",
     "regression: locks in current behaviour as a contract; the assertions flip if the contract is redesigned",
 ]
 # An unregistered mark is only a warning, and a typo'd one then selects nothing

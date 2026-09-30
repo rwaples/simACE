@@ -14,15 +14,12 @@ Coverage:
   rarely passes within 10 generations.  The closed-line toy test in
   ``external/pedigree-graph/tests/test_effective_size.py`` exercises the
   formula on a deterministic pedigree.
-
-Marked ``slow`` — full run is ~30 s in the dev env.
 """
 
 from __future__ import annotations
 
 import numpy as np
 import polars as pl
-import pytest
 from pedigree_graph import PedigreeGraph
 from pedigree_graph.effective_size import UnavailableEffectiveSize, estimate_effective_sizes
 
@@ -75,7 +72,6 @@ def _build_wf_pedigree(rng: np.random.Generator, n: int = N, n_gens: int = N_GEN
     return pl.DataFrame(rows)
 
 
-@pytest.mark.slow
 def test_wf_monte_carlo_recovers_N():
     """Mean Ne across 30 WF reps lies within ±10 % of the analytic value."""
     rng = np.random.default_rng(2026)

@@ -552,6 +552,7 @@ def test_max_memory_fails_the_rep_and_names_the_cap(config_dir, roots, layout, n
     assert not (rep_dir / "run.yaml").exists()
 
 
+@pytest.mark.slow
 def test_recompute_runs_every_stage_and_records_it(config_dir, roots, layout, no_plots) -> None:
     rep = _rep(config_dir, 1)
     rep_dir = layout.rep_dir(rep.folder, rep.scenario, 1)
@@ -620,6 +621,7 @@ def test_until_cohort_leaves_a_partial_rep_and_skips_plots(config_dir, roots, la
     assert "[tiny] plots skipped: --until cohort" in capsys.readouterr().out
 
 
+@pytest.mark.slow
 def test_a_full_run_resumes_a_partial_rep_at_its_first_missing_stage(
     config_dir, roots, layout, no_plots, capsys
 ) -> None:
@@ -648,6 +650,7 @@ def test_until_skips_a_rep_built_further(config_dir, roots, layout, no_plots, ca
     assert _manifest(layout, rep).read_text() == before
 
 
+@pytest.mark.slow
 def test_an_analyze_only_key_leaves_a_partial_rep_resumable(config_dir, roots, layout, no_plots, capsys) -> None:
     rep = _rep(config_dir, 1)
     assert _run(config_dir, roots, "tiny", "--rep", "1", "--until", "cohort") == 0

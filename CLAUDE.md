@@ -42,6 +42,7 @@ Everything runs through pixi; there is no ambient env (ADR 0016, 0018).
 ## Testing and Linting
 
 - Full suite: `pixi run test` (6 xdist workers, `--dist worksteal`, one thread per worker). Extra args pass through: `pixi run test tests/simulation -x`. The rationale for these settings is in the comment above `[tasks.test]` in `pixi.toml`; re-measure with `tools/bench_pytest_workers.sh` before changing them.
+- `pixi run test-fast` skips tests marked `slow`. A test gets the marker when its median call time under `pixi run test` is 5 s or more; remove it when it falls below.
 - Serial/debug (`-v`, `-s`, `--pdb`, single modules): `pixi run pytest tests/ -v`.
 - Smoke test: `pixi run simace run small_test && pixi run simace gather test`
 - Run relevant tests before committing.

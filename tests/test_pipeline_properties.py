@@ -382,6 +382,7 @@ def _ascertain_kwargs(draw: Draw) -> dict[str, Any]:
 
 # Explicit budget, not the conftest profile: the gc.collect() passes inside run_cohort dominate,
 # so each example (two run_cohort calls) measured ~0.35 s even on these small pedigrees.
+@pytest.mark.slow
 @settings(max_examples=20)
 @given(case=_chain_case(), ascertain=_ascertain_kwargs(), other_ascertain=_ascertain_kwargs())
 def test_merged_cohort_stage_composes_the_normalized_stages(
