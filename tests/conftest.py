@@ -261,7 +261,10 @@ def pedigree_frame(draw, *, max_n=PEDIGREE_MAX_N, twins=False, liabilities=False
     With ``liabilities=True`` each row gets drawn ``liability1``/``liability2``
     values and an A/C/E split that sums to them; the split is a fixed
     proportion, not an independent draw, because no property here inspects the
-    variance decomposition.  Otherwise ``schema_pad`` supplies zeros.
+    variance decomposition.  Otherwise ``schema_pad`` supplies zeros.  The
+    frame is a structural contract, not a sample from the simulation model:
+    drawn liabilities are per row, so household members need not share C and
+    MZ twins need not share A.
 
     Args:
         max_n: soft cap on total rows across all generations.

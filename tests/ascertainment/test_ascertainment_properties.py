@@ -10,13 +10,16 @@ from typing import NamedTuple
 
 import numpy as np
 import polars as pl
+import polars.testing
 import pytest
-from hypothesis import given
+from hypothesis import event, given
 from hypothesis import strategies as st
 
 from simace.ascertainment.runner import _apply_dropout, _sample_trait_ids, run_ascertainment
+from simace.core.schema import PEDIGREE
 from simace.core.trait_schema import CENSORED_TRAIT
 from tests.conftest import pedigree_frame, relabel_ids, schema_pad
+from tests.downstream_strategies import ascertainment_inputs
 
 
 def _draw_affected(draw, n: int) -> np.ndarray:
@@ -311,3 +314,162 @@ class TestSampleTraitIds:
         selected = case.trait.filter(pl.Series(np.isin(case.trait["id"].to_numpy(), sampled)))
         assert not selected["affected1"].any()
         assert len(sampled) == min(case.n_sample, n_controls)
+
+
+_LINKS = ("mother", "father", "twin")
+
+
+def _assert_same(got: pl.DataFrame, want: pl.DataFrame) -> None:
+    polars.testing.assert_frame_equal(got, want, check_row_order=True, check_dtypes=True, check_exact=True)
+
+
+def _available_ancestry(available: pl.DataFrame, seeds) -> set[int]:
+    """Seeds plus every ancestor reached through parents present in ``available``.
+
+    A plain graph walk over a dict, independent of ``filter_pedigree_to_observed``.
+    """
+    parents = dict(
+        zip(
+            available["id"].to_list(),
+            zip(available["mother"].to_list(), available["father"].to_list(), strict=True),
+            strict=True,
+        )
+    )
+    reached: set[int] = set()
+    stack = [int(i) for i in seeds]
+    while stack:
+        person = stack.pop()
+        if person in reached:
+            continue
+        reached.add(person)
+        stack.extend(p for p in parents[person] if p in parents)
+    return reached
+
+
+def _relabel(frame: pl.DataFrame, mapping: dict[int, int], columns) -> pl.DataFrame:
+    """Rewrite id-valued ``columns`` through ``mapping``, keeping -1 and each column's dtype."""
+    return frame.with_columns(
+        pl.Series(col, [-1 if v < 0 else mapping[v] for v in frame[col].to_list()], dtype=frame.schema[col])
+        for col in columns
+    )
+
+
+class TestPreservation:
+    """Selection copies input rows; only links to people outside the output change, and only to -1.
+
+    Inputs come from ``ascertainment_inputs``: gapped ids, twins, informative
+    trait columns with null raw onsets, and a positive case weight, so every
+    example is a successful ascertainment.
+    """
+
+    @given(inp=ascertainment_inputs())
+    def test_sample_rows_are_the_input_rows(self, inp):
+        """Each sample row equals its input trait row, in input order, with dtypes and nulls intact.
+
+        Rejects outcome recomputation or overwriting during selection, null
+        onsets filled with a value, and column or row misalignment.
+        """
+        _, trait_out = inp.run()
+        event(f"sample rows: {'none' if trait_out.is_empty() else 'some'}")
+        event(f"null raw onset in sample: {trait_out['t1'].null_count() + trait_out['t2'].null_count() > 0}")
+        _assert_same(trait_out, inp.trait.filter(pl.col("id").is_in(trait_out["id"].implode())))
+
+    @given(inp=ascertainment_inputs())
+    def test_pedigree_rows_change_only_by_severing_unavailable_links(self, inp):
+        """Each output pedigree row equals its input row, except links to people outside the output, which are -1.
+
+        Rejects modifying a retained parent or twin id, severing a link whose
+        referent is present, and pointing a severed link anywhere but -1.
+        """
+        ped_out, _ = inp.run()
+        kept = ped_out["id"].implode()
+        original = inp.pedigree.filter(pl.col("id").is_in(kept))
+        expected = original.with_columns(
+            pl.when(pl.col(col).is_in(kept)).then(pl.col(col)).otherwise(-1).cast(original.schema[col]).alias(col)
+            for col in _LINKS
+        )
+        event(f"severed links: {not original.select(_LINKS).equals(expected.select(_LINKS))}")
+        _assert_same(ped_out, expected)
+
+    @given(inp=ascertainment_inputs())
+    def test_pedigree_is_the_sample_ancestry_among_dropout_survivors(self, inp):
+        """The output pedigree is the sample plus its ancestors reachable through surviving people only.
+
+        The survivors are recomputed from the seed with ``_apply_dropout``;
+        the expected closure is an independent walk over their parent links.
+        Rejects reconnecting ancestry across a dropped person and keeping a
+        dropped person.
+        """
+        ped_out, trait_out = inp.run()
+        survivors = _apply_dropout(inp.pedigree, inp.kwargs["dropout_rate"], np.random.default_rng(inp.kwargs["seed"]))
+        expected = _available_ancestry(survivors, trait_out["id"].to_list())
+        through_dropped = _available_ancestry(inp.pedigree, trait_out["id"].to_list()) & set(survivors["id"].to_list())
+        event(f"dropout cut a path to a surviving ancestor: {through_dropped != expected}")
+        assert set(ped_out["id"].to_list()) == expected
+
+    @given(inp=ascertainment_inputs(), data=st.data())
+    def test_selection_commutes_with_an_id_bijection(self, inp, data):
+        """Relabelling every id through a gapped order-preserving bijection relabels the outputs the same way.
+
+        Row order and seed are unchanged, so the row-position draws match.
+        Rejects using ids as row positions or letting id values steer the draw
+        or the closure.
+        """
+        relabelled = relabel_ids(inp.pedigree, data)
+        mapping = dict(zip(inp.pedigree["id"].to_list(), relabelled["id"].to_list(), strict=True))
+        ped_out, trait_out = inp.run()
+        ped_mapped, trait_mapped = inp._replace(pedigree=relabelled, trait=_relabel(inp.trait, mapping, ["id"])).run()
+        _assert_same(ped_mapped, _relabel(ped_out, mapping, ["id", *_LINKS]))
+        _assert_same(trait_mapped, _relabel(trait_out, mapping, ["id"]))
+
+
+def _interrupted_pedigree() -> pl.DataFrame:
+    """Three generations with gapped ids: ``10 x 13`` had 21 and 24, ``15 x 16`` had 22, ``21 x 22`` had 30."""
+    rows = [
+        # id, generation, sex, mother, father
+        (10, 0, 0, -1, -1),
+        (13, 0, 1, -1, -1),
+        (15, 0, 0, -1, -1),
+        (16, 0, 1, -1, -1),
+        (21, 1, 0, 10, 13),
+        (22, 1, 1, 15, 16),
+        (24, 1, 0, 10, 13),
+        (30, 2, 0, 21, 22),
+    ]
+    frame = pl.DataFrame(rows, schema=["id", "generation", "sex", "mother", "father"], orient="row")
+    frame = frame.with_columns(
+        pl.all().cast(pl.Int32), twin=pl.lit(-1, pl.Int32), household_id=pl.col("mother").rank("dense").cast(pl.Int32)
+    )
+    return schema_pad(frame, PEDIGREE)
+
+
+@pytest.mark.parametrize(
+    ("sampled", "expected"),
+    [
+        ((30,), {30, 22, 15, 16}),
+        ((24, 30), {30, 22, 15, 16, 24, 10, 13}),
+    ],
+    ids=["grandparents-unreached", "grandparents-reached-via-aunt"],
+)
+def test_closure_does_not_cross_a_dropped_parent(sampled, expected):
+    """Closure stops at a dropped intermediate parent and never links past it.
+
+    The seed is the first whose one-person dropout removes exactly 30's mother
+    21, found by scanning rather than pinned so a changed RNG stream cannot
+    silently remove someone else.  Her surviving parents 10 and 13 then join
+    the pedigree only through another sampled descendant (24), and 30's mother
+    becomes -1 rather than 10.  Rejects building the closure before dropout and
+    reconnecting ancestry across a removed person.
+    """
+    pedigree = _interrupted_pedigree()
+    rate = 1 / len(pedigree)
+    seed = next(s for s in range(1000) if 21 not in _apply_dropout(pedigree, rate, np.random.default_rng(s))["id"])
+    survivors = pedigree.filter(pl.col("id") != 21)
+    assert _apply_dropout(pedigree, rate, np.random.default_rng(seed)).equals(survivors)
+    assert _available_ancestry(survivors, sampled) == expected
+
+    trait = schema_pad(pl.DataFrame({"id": pl.Series(sampled, dtype=pl.Int32)}), CENSORED_TRAIT)
+    ped_out, _ = run_ascertainment(pedigree, trait, dropout_rate=rate, N_sample=0, seed=seed)
+
+    assert set(ped_out["id"].to_list()) == expected
+    assert ped_out.filter(pl.col("id") == 30).select("mother", "father").row(0) == (-1, 22)
