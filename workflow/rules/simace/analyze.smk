@@ -22,9 +22,8 @@ rule analyze:
     benchmark:
         "benchmarks/{folder}/{scenario}/rep{rep}/analyze.tsv"
     # Peak-wall job of the pipeline.  The wrapper hands this budget to
-    # pedigree-graph for relationship-pair extraction; the later
-    # tetrachoric ThreadPoolExecutor (4 tasks) runs after extraction, not
-    # alongside it.
+    # pedigree-graph for the relationship-moments passes and the pair
+    # counts; the statistics derived from them run single-threaded after.
     threads: 8
     resources:
         mem_mb=lambda w: _scale_mem(config, w.scenario, "G_ped"),

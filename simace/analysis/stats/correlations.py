@@ -5,140 +5,164 @@ types (overall, by generation, by sex, cross-trait), midparent-offspring
 regressions (overall, by sex, on affected status), the closed-form observed-scale
 h² estimators derived from those correlations, and the mate-pair correlation
 matrix.
+
+The pair statistics read a :class:`~pedigree_graph.RelationshipMoments` table
+from :func:`~simace.analysis.stats.moments.relationship_moments_for` (ADR
+0020): exact pair counts, 2×2 affection tables and liability moments over
+every pair, with no pair list. A generation stratum is the first member's
+generation, which is the offspring for ``MO``/``FO`` and the lower receiver
+row for the symmetric codes; same-sex strata read sex from both members.
 """
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from simace.core._numba_utils import _pearsonr_core
-from simace.core.numerics import as_kernel_input, fast_linregress, safe_corrcoef
+from simace.core.numerics import fast_linregress, safe_corrcoef
 from simace.core.pedigree_arrays import PedigreeArrays
-from simace.core.relationships import RELATIONSHIP_TYPES, SEX_LEVELS
+from simace.core.relationships import SEX_LEVELS
 
-from .tetrachoric import _tetrachoric_for_pairs, tetrachoric_corr_se
+from .moments import Stratum, select_levels
+from .tetrachoric import tetrachoric_corr_se, tetrachoric_from_table
 
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
-    from pedigree_graph import RelationshipPairs
+    from pedigree_graph import RelationshipMoments
 
     type _Frame = pd.DataFrame | pl.DataFrame
 
+_MIN_PAIRS = 10
 
-def compute_liability_correlations(
-    df: _Frame,
-    seed: int = 42,
-    *,
-    pairs: RelationshipPairs,
-) -> dict[str, Any]:
-    """Compute Pearson liability correlations per pair type and trait.
 
-    Args:
-        df: Phenotype DataFrame with liability columns.
-        seed: Random seed (unused, kept for API consistency).
-        pairs: Pre-extracted relationship pairs.
+def _report_generations(df: _Frame) -> list[int]:
+    """The last three generations of *df*, the ones the report stratifies by."""
+    max_gen = int(df["generation"].to_numpy().max())
+    return list(range(max(1, max_gen - 2), max_gen + 1))
 
-    Returns:
-        Dict keyed by ``trait1``/``trait2``, each mapping pair type to correlation.
-    """
-    result = {}
-    for trait_num in [1, 2]:
-        liability = df[f"liability{trait_num}"].to_numpy()
-        trait_result: dict[str, float | None] = {}
-        for ptype in RELATIONSHIP_TYPES:
-            idx1, idx2 = pairs[ptype]
-            trait_result[ptype] = (
-                float(_pearsonr_core(as_kernel_input(liability[idx1]), as_kernel_input(liability[idx2])))
-                if len(idx1) >= 10
-                else None
-            )
-        result[f"trait{trait_num}"] = trait_result
+
+def _finite_or_none(value: float) -> float | None:
+    return None if np.isnan(value) else float(value)
+
+
+def _tetrachoric_entry(table: np.ndarray, n_pairs: int, liability_r: float | None = None) -> dict[str, Any]:
+    """``{r, se, n_pairs[, liability_r]}`` for one category's 2×2 *table*; ``None`` values below ten pairs."""
+    entry: dict[str, Any] = {"r": None, "se": None, "n_pairs": int(n_pairs)}
+    if n_pairs >= _MIN_PAIRS:
+        r, se = tetrachoric_from_table(int(table[1, 1]), int(table[1, 0]), int(table[0, 1]), int(table[0, 0]))
+        entry["r"], entry["se"] = _finite_or_none(r), _finite_or_none(se)
+    if liability_r is not None:
+        entry["liability_r"] = float(liability_r) if n_pairs >= _MIN_PAIRS else None
+    return entry
+
+
+def _stratified_tetrachoric(moments: RelationshipMoments) -> dict[str, Any]:
+    """Per-trait, per-category ``{r, se, n_pairs, liability_r}`` of one selection."""
+    stratum = Stratum(moments)
+    n_pairs = stratum.n_pairs
+    result: dict[str, Any] = {}
+    for trait_num in (1, 2):
+        table = stratum.affection_table(trait_num)
+        liability_r = stratum.liability_r(trait_num)
+        result[f"trait{trait_num}"] = {
+            ptype: _tetrachoric_entry(table[i], n_pairs[i], liability_r[i]) for ptype, i in stratum.report_positions()
+        }
     return result
 
 
-def compute_affected_correlations(
-    df: _Frame,
-    seed: int = 42,
-    *,
-    pairs: RelationshipPairs,
-) -> dict[str, Any]:
+def compute_liability_correlations(*, moments: RelationshipMoments) -> dict[str, Any]:
+    """Compute Pearson liability correlations per pair type and trait.
+
+    Args:
+        moments: Relationship moments of the sample.
+
+    Returns:
+        Dict keyed by ``trait1``/``trait2``, each mapping pair type to correlation
+        or None below ten pairs.
+    """
+    stratum = Stratum(moments)
+    n_pairs = stratum.n_pairs
+    result = {}
+    for trait_num in (1, 2):
+        r = stratum.liability_r(trait_num)
+        result[f"trait{trait_num}"] = {
+            ptype: float(r[i]) if n_pairs[i] >= _MIN_PAIRS else None for ptype, i in stratum.report_positions()
+        }
+    return result
+
+
+def _phi(table: np.ndarray) -> float | None:
+    """Pearson r on the {0, 1} affection indicators from their 2×2 *table*; None when a side is constant."""
+    n11, n10, n01, n00 = (int(table[1, 1]), int(table[1, 0]), int(table[0, 1]), int(table[0, 0]))
+    first_affected, first_not = n11 + n10, n01 + n00
+    second_affected, second_not = n11 + n01, n10 + n00
+    denominator = first_affected * first_not * second_affected * second_not
+    if denominator == 0:
+        return None
+    return (n11 * n00 - n10 * n01) / math.sqrt(denominator)
+
+
+def compute_affected_correlations(*, moments: RelationshipMoments) -> dict[str, Any]:
     """Compute Pearson correlations on binary affected status per pair type and trait.
 
     This is the phi coefficient — Pearson r on {0, 1} data — and is the input
     to observed-scale Falconer-style h² estimators (e.g. ``2·(r_MZ − r_FS)``).
 
     Args:
-        df: Phenotype DataFrame with ``affected{1,2}`` columns.
-        seed: Random seed (unused, kept for API consistency).
-        pairs: Pre-extracted relationship pairs.
+        moments: Relationship moments of the sample.
 
     Returns:
         Dict keyed by ``trait1``/``trait2``, each mapping pair type to phi r or
         None (if fewer than 10 pairs, or either side is constant).
     """
+    stratum = Stratum(moments)
+    n_pairs = stratum.n_pairs
     result = {}
-    for trait_num in [1, 2]:
-        affected = df[f"affected{trait_num}"].to_numpy().astype(np.float64)
-        trait_result: dict[str, float | None] = {}
-        for ptype in RELATIONSHIP_TYPES:
-            idx1, idx2 = pairs[ptype]
-            if len(idx1) < 10:
-                trait_result[ptype] = None
-                continue
-            r = safe_corrcoef(affected[idx1], affected[idx2])
-            trait_result[ptype] = None if np.isnan(r) else r
-        result[f"trait{trait_num}"] = trait_result
+    for trait_num in (1, 2):
+        table = stratum.affection_table(trait_num)
+        result[f"trait{trait_num}"] = {
+            ptype: _phi(table[i]) if n_pairs[i] >= _MIN_PAIRS else None for ptype, i in stratum.report_positions()
+        }
     return result
 
 
-def compute_tetrachoric(
-    df: _Frame,
-    seed: int = 42,
-    *,
-    pairs: RelationshipPairs,
-) -> dict[str, Any]:
+def compute_tetrachoric(*, moments: RelationshipMoments) -> dict[str, Any]:
     """Compute tetrachoric correlations per pair type and trait.
 
     Args:
-        df: Phenotype DataFrame with binary affection columns.
-        seed: Random seed (unused, kept for API consistency).
-        pairs: Pre-extracted relationship pairs.
+        moments: Relationship moments of the sample.
 
     Returns:
         Dict keyed by ``trait1``/``trait2``, each mapping pair type to
         ``{r, se, n_pairs}``.
     """
+    stratum = Stratum(moments)
+    n_pairs = stratum.n_pairs
     result = {}
-    for trait_num in [1, 2]:
-        affected = df[f"affected{trait_num}"].to_numpy().astype(bool)
-        trait_result = {}
-        for ptype in RELATIONSHIP_TYPES:
-            idx1, idx2 = pairs[ptype]
-            trait_result[ptype] = _tetrachoric_for_pairs(idx1, idx2, affected)
-        result[f"trait{trait_num}"] = trait_result
+    for trait_num in (1, 2):
+        table = stratum.affection_table(trait_num)
+        result[f"trait{trait_num}"] = {
+            ptype: _tetrachoric_entry(table[i], n_pairs[i]) for ptype, i in stratum.report_positions()
+        }
     return result
 
 
-def compute_tetrachoric_by_generation(
-    df: _Frame,
-    seed: int = 42,
-    *,
-    pairs: RelationshipPairs,
-) -> dict[str, Any]:
+def compute_tetrachoric_by_generation(df: _Frame, *, moments: RelationshipMoments) -> dict[str, Any]:
     """Compute tetrachoric correlations stratified by generation.
 
-    A pair belongs to the generation of its ``first_rows`` member. Blocks are
+    A pair belongs to the generation of its first member. The moments are
     role-oriented, so for the parent-offspring types (``MO``, ``FO``) that is
     the offspring, and for the symmetric types both members share a generation
-    except across a skipped-generation pedigree.
+    except across a skipped-generation pedigree. Only the last three
+    generations are reported.
 
     Args:
-        df: Phenotype DataFrame with generation and affection columns.
-        seed: Random seed (unused, kept for API consistency).
-        pairs: Pre-extracted relationship pairs.
+        df: Phenotype DataFrame with a ``generation`` column; without one the
+            result is empty.
+        moments: Relationship moments of the sample.
 
     Returns:
         Dict keyed by ``gen{N}``, each containing per-trait per-pair-type
@@ -146,33 +170,13 @@ def compute_tetrachoric_by_generation(
     """
     if "generation" not in df.columns:
         return {}
-    gen_arr = df["generation"].to_numpy()
-    max_gen = int(gen_arr.max())
-    plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
-    affected_by_trait = {n: df[f"affected{n}"].to_numpy().astype(bool) for n in (1, 2)}
-    liability_by_trait = {n: df[f"liability{n}"].to_numpy() for n in (1, 2)}
-    result = {}
-    for gen in plot_gens:
-        gen_result = {}
-        for trait_num in (1, 2):
-            affected = affected_by_trait[trait_num]
-            liability = liability_by_trait[trait_num]
-            trait_result = {}
-            for ptype in RELATIONSHIP_TYPES:
-                idx1, idx2 = pairs[ptype]
-                mask = gen_arr[idx1] == gen
-                trait_result[ptype] = _tetrachoric_for_pairs(idx1[mask], idx2[mask], affected, liability)
-            gen_result[f"trait{trait_num}"] = trait_result
-        result[f"gen{gen}"] = gen_result
-    return result
+    return {
+        f"gen{gen}": _stratified_tetrachoric(select_levels(moments, first_generation=gen))
+        for gen in _report_generations(df)
+    }
 
 
-def compute_cross_trait_tetrachoric(
-    df: _Frame,
-    seed: int = 42,
-    *,
-    pairs: RelationshipPairs,
-) -> dict[str, Any]:
+def compute_cross_trait_tetrachoric(df: _Frame, *, moments: RelationshipMoments) -> dict[str, Any]:
     """Compute cross-trait tetrachoric correlations (trait 1 vs trait 2).
 
     Includes same-person, same-person-by-generation, and cross-person
@@ -180,8 +184,7 @@ def compute_cross_trait_tetrachoric(
 
     Args:
         df: Phenotype DataFrame with binary affection columns for both traits.
-        seed: Random seed (unused, kept for API consistency).
-        pairs: Pre-extracted relationship pairs.
+        moments: Relationship moments of the sample.
 
     Returns:
         Dict with keys ``same_person``, ``same_person_by_generation``,
@@ -190,76 +193,38 @@ def compute_cross_trait_tetrachoric(
     a1 = df["affected1"].to_numpy().astype(bool)
     a2 = df["affected2"].to_numpy().astype(bool)
     r_sp, se_sp = tetrachoric_corr_se(a1, a2)
-    result: dict[str, Any] = {
-        "same_person": {
-            "r": float(r_sp) if not np.isnan(r_sp) else None,
-            "se": float(se_sp) if not np.isnan(se_sp) else None,
-            "n": len(df),
-        }
-    }
+    result: dict[str, Any] = {"same_person": {"r": _finite_or_none(r_sp), "se": _finite_or_none(se_sp), "n": len(df)}}
     by_gen: dict[str, Any] = {}
     if "generation" in df.columns:
         gen_arr = df["generation"].to_numpy()
-        max_gen = int(gen_arr.max())
-        plot_gens = list(range(max(1, max_gen - 2), max_gen + 1))
-        for gen in plot_gens:
+        for gen in _report_generations(df):
             mask = gen_arr == gen
             n_g = int(mask.sum())
             if n_g < 50:
                 by_gen[f"gen{gen}"] = {"r": None, "se": None, "n": n_g}
                 continue
             r_g, se_g = tetrachoric_corr_se(a1[mask], a2[mask])
-            by_gen[f"gen{gen}"] = {
-                "r": float(r_g) if not np.isnan(r_g) else None,
-                "se": float(se_g) if not np.isnan(se_g) else None,
-                "n": n_g,
-            }
+            by_gen[f"gen{gen}"] = {"r": _finite_or_none(r_g), "se": _finite_or_none(se_g), "n": n_g}
     result["same_person_by_generation"] = by_gen
-    cross: dict[str, Any] = {}
-    for ptype in RELATIONSHIP_TYPES:
-        idx1, idx2 = pairs[ptype]
-        n_p = len(idx1)
-        if n_p < 10:
-            cross[ptype] = {"r": None, "se": None, "n_pairs": int(n_p)}
-            continue
-        r_cp, se_cp = tetrachoric_corr_se(a1[idx1], a2[idx2])
-        cross[ptype] = {
-            "r": float(r_cp) if not np.isnan(r_cp) else None,
-            "se": float(se_cp) if not np.isnan(se_cp) else None,
-            "n_pairs": int(n_p),
-        }
-    result["cross_person"] = cross
+    stratum = Stratum(moments)
+    n_pairs = stratum.n_pairs
+    table = stratum.affection_table(1, 2)
+    result["cross_person"] = {
+        ptype: _tetrachoric_entry(table[i], n_pairs[i]) for ptype, i in stratum.report_positions()
+    }
     return result
 
 
-def compute_tetrachoric_by_sex(
-    df: _Frame,
-    seed: int = 42,
-    *,
-    pairs: RelationshipPairs,
-) -> dict[str, Any]:
+def compute_tetrachoric_by_sex(*, moments: RelationshipMoments) -> dict[str, Any]:
     """Compute tetrachoric correlations for same-sex pairs only (FF and MM).
 
     Returns dict keyed by "female"/"male", each containing per-trait
     per-pair-type {r, se, n_pairs, liability_r}.
     """
-    sex_arr = df["sex"].to_numpy()
-    affected_by_trait = {n: df[f"affected{n}"].to_numpy().astype(bool) for n in (1, 2)}
-    liability_by_trait = {n: df[f"liability{n}"].to_numpy() for n in (1, 2)}
-    result: dict[str, Any] = {}
-    for sex_val, sex_label in SEX_LEVELS:
-        sex_result: dict[str, Any] = {}
-        for trait_num in (1, 2):
-            affected = affected_by_trait[trait_num]
-            liability = liability_by_trait[trait_num]
-            trait_result: dict[str, Any] = {}
-            for ptype in RELATIONSHIP_TYPES:
-                idx1, idx2 = pairs[ptype]
-                sex_mask = (sex_arr[idx1] == sex_val) & (sex_arr[idx2] == sex_val)
-                trait_result[ptype] = _tetrachoric_for_pairs(idx1[sex_mask], idx2[sex_mask], affected, liability)
-            sex_result[f"trait{trait_num}"] = trait_result
-        result[sex_label] = sex_result
-    return result
+    return {
+        sex_label: _stratified_tetrachoric(select_levels(moments, first_sex=sex_val, second_sex=sex_val))
+        for sex_val, sex_label in SEX_LEVELS
+    }
 
 
 def _po_regression(gen_idx: np.ndarray, liability: np.ndarray, id_to_row: np.ndarray, df: _Frame) -> dict:

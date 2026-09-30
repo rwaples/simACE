@@ -8,6 +8,43 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
+### Relationship moments (ADR 0020)
+
+- **Analyze computes every pair statistic from pedigree-graph 0.11
+  relationship moments**, one engine pass per graph, with no pair list.
+  `simace.analysis.stats.relationship_moments_for(df, source)` is the entry
+  point; the six pair-correlation functions in `simace.analysis.stats`
+  (`compute_liability_correlations`, `compute_affected_correlations`,
+  `compute_tetrachoric`, `compute_tetrachoric_by_generation`,
+  `compute_cross_trait_tetrachoric`, `compute_tetrachoric_by_sex`) take
+  `moments=` instead of `pairs=` and lose their unused `seed=`.
+  `tetrachoric_from_table(n11, n10, n01, n00)` joins the public
+  primitives. Descriptive statistics keep parity: counts and 2×2 tables
+  are identical, correlations agree within 1e-10.
+- **Validate is exact over all sibling pairs.** The 5,000-pair cap and its
+  seeded subsample are gone; `n_pairs` is the true count and the
+  tolerances are evaluated with it. Sibling correlations on large
+  scenarios move to their all-pairs values (up to 0.03 on `bench1M`).
+  `validate_half_sibs` and `validate_heritability` take the sibling
+  moments (`simace.analysis.validate._common.sibling_moments`) instead of
+  relationship pairs. The offspring-with-sibling and
+  offspring-with-maternal-half-sib counts come from household sizes.
+- The stats runner's tetrachoric `ThreadPoolExecutor` is removed; the
+  Analyze log times each graph build and the moments pass, and phase 3
+  reads `pedigree.parquet` once.
+
+### pedigree-graph 0.11
+
+- **Moved to pedigree-graph 0.11** (`pedigree-graph>=0.11,<0.12`). MZ
+  co-twins now take part in sibling groups (pedigree-graph#29): a co-twin
+  has FS, MHS and PHS pairs with its non-twin siblings, and the collateral
+  codes built from sibling lists (Av, HAv, GAv and further) follow.
+  `relationship_pair_counts` grows on every scenario with twins, in both
+  `analysis_sample` and `analysis_pedigree`; on `small_test` rep1 the
+  sample's FS goes 2348 → 2378, MHS 1426 → 1456, PHS 1010 → 1034, Av
+  6197 → 6261, and on `bench1M` FS 619322 → 625802, MHS 307858 → 315498,
+  PHS 306709 → 314515. Statistics computed over those pairs move with them.
+
 ### Performance benchmarks
 
 - Replaced the mutable shell benchmark scripts with

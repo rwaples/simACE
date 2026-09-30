@@ -6,6 +6,7 @@ Reads outcomes-only trait.parquet plus pedigree.parquet (hydrated internally) an
 
 Public API is re-exported from focused sub-modules:
 
+- :mod:`.moments` — relationship moments of the sample (one engine pass)
 - :mod:`.tetrachoric` — tetrachoric primitives
 - :mod:`.correlations` — pairwise relationship correlations, parent-offspring
   regressions, observed h² estimators, mate correlation
@@ -54,10 +55,11 @@ from .incidence import (
     compute_prevalence,
     compute_regression,
 )
+from .moments import relationship_moments_for
 from .pedigree import compute_mean_family_size, compute_parent_status
 from .runner import build_stats_report, cli, main
 from .sampling import create_sample
-from .tetrachoric import tetrachoric_corr, tetrachoric_corr_se
+from .tetrachoric import tetrachoric_corr, tetrachoric_corr_se, tetrachoric_from_table
 
 __all__ = [
     "build_stats_report",
@@ -94,7 +96,9 @@ __all__ = [
     "main",
     "ne_v_expected_ztp",
     "regression_estimator_regime_ok",
+    "relationship_moments_for",
     "tetrachoric_corr",
     "tetrachoric_corr_se",
+    "tetrachoric_from_table",
     "theoretical_expectations",
 ]

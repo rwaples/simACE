@@ -37,6 +37,7 @@ from simace.analysis.stats import (
     compute_tetrachoric_by_generation,
     compute_tetrachoric_by_sex,
 )
+from tests.analysis.moments_oracle import moments_from_pairs
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -693,13 +694,13 @@ def phenotyped_df():
 
 
 @pytest.fixture(scope="module")
-def extracted_pairs(phenotyped_df):
-    """Pre-extracted relationship pairs."""
+def extracted_moments(phenotyped_df):
+    """Relationship moments of the phenotyped pedigree over the correlation codes."""
     from pedigree_graph import PedigreeGraph
 
-    from simace.core.relationships import DEFAULT_MAX_DEGREE
+    from simace.analysis.stats import relationship_moments_for
 
-    return PedigreeGraph.from_frame(phenotyped_df).relationship_pairs(max_degree=DEFAULT_MAX_DEGREE)
+    return relationship_moments_for(phenotyped_df, PedigreeGraph.from_frame(phenotyped_df))
 
 
 # ===================================================================
@@ -977,17 +978,17 @@ class TestComputeCumulativeIncidenceBySexGeneration:
 
 
 class TestComputeLiabilityCorrelations:
-    def test_structure(self, phenotyped_df, extracted_pairs):
-        result = compute_liability_correlations(phenotyped_df, pairs=extracted_pairs)
+    def test_structure(self, phenotyped_df, extracted_moments):
+        result = compute_liability_correlations(moments=extracted_moments)
         assert "trait1" in result
         assert "trait2" in result
         for trait in ["trait1", "trait2"]:
             assert "MZ" in result[trait]
             assert "FS" in result[trait]
 
-    def test_fs_positive(self, phenotyped_df, extracted_pairs):
+    def test_fs_positive(self, phenotyped_df, extracted_moments):
         """Full siblings share ~0.5 of A — liability correlation should be positive."""
-        result = compute_liability_correlations(phenotyped_df, pairs=extracted_pairs)
+        result = compute_liability_correlations(moments=extracted_moments)
         fs = result["trait1"]["FS"]
         if fs is not None:
             assert fs > 0
@@ -999,8 +1000,8 @@ class TestComputeLiabilityCorrelations:
 
 
 class TestComputeTetrachoric:
-    def test_structure(self, phenotyped_df, extracted_pairs):
-        result = compute_tetrachoric(phenotyped_df, pairs=extracted_pairs)
+    def test_structure(self, phenotyped_df, extracted_moments):
+        result = compute_tetrachoric(moments=extracted_moments)
         assert "trait1" in result
         for ptype in ["MZ", "FS", "MO", "FO"]:
             entry = result["trait1"][ptype]
@@ -1008,8 +1009,8 @@ class TestComputeTetrachoric:
             assert "se" in entry
             assert "n_pairs" in entry
 
-    def test_n_pairs_positive_for_common_types(self, phenotyped_df, extracted_pairs):
-        result = compute_tetrachoric(phenotyped_df, pairs=extracted_pairs)
+    def test_n_pairs_positive_for_common_types(self, phenotyped_df, extracted_moments):
+        result = compute_tetrachoric(moments=extracted_moments)
         for ptype in ["FS", "MO", "FO"]:
             assert result["trait1"][ptype]["n_pairs"] > 0
 
@@ -1020,16 +1021,18 @@ class TestComputeTetrachoric:
 
 
 class TestComputeTetrachoricByGeneration:
-    def test_parent_offspring_blocks_are_offspring_first(self, extracted_pairs):
-        # The generation filter masks on first_rows, so the junior member has
-        # to be first for "pairs in generation g" to mean the offspring cohort.
+    def test_parent_offspring_cells_are_offspring_first(self, extracted_moments):
+        # The generation stratum selects on the first member, so the junior
+        # member has to be first for "pairs in generation g" to mean the
+        # offspring cohort: founders (the first generation) then head no MO/FO pair.
+        founder_generation = int(extracted_moments.axis("first_generation").levels.min())
         for code in ("MO", "FO"):
-            assert extracted_pairs[code].first_role == "offspring"
-        assert extracted_pairs["MO"].second_role == "mother"
-        assert extracted_pairs["FO"].second_role == "father"
+            founders_first = extracted_moments.select(category=code, first_generation=founder_generation)
+            assert int(founders_first.counts.sum()) == 0
+            assert int(extracted_moments.select(category=code).counts.sum()) > 0
 
-    def test_structure(self, phenotyped_df, extracted_pairs):
-        result = compute_tetrachoric_by_generation(phenotyped_df, pairs=extracted_pairs)
+    def test_structure(self, phenotyped_df, extracted_moments):
+        result = compute_tetrachoric_by_generation(phenotyped_df, moments=extracted_moments)
         assert len(result) > 0
         for gen_key, gen_data in result.items():
             assert gen_key.startswith("gen")
@@ -1038,7 +1041,7 @@ class TestComputeTetrachoricByGeneration:
 
     def test_missing_generation_returns_empty(self):
         df = pl.DataFrame({"affected1": [True], "affected2": [False], "liability1": [1.0], "liability2": [1.0]})
-        assert compute_tetrachoric_by_generation(df, pairs={}) == {}
+        assert compute_tetrachoric_by_generation(df, moments=moments_from_pairs(df, {})) == {}
 
 
 # ===================================================================
@@ -1047,8 +1050,8 @@ class TestComputeTetrachoricByGeneration:
 
 
 class TestComputeCrossTraitTetrachoric:
-    def test_structure(self, phenotyped_df, extracted_pairs):
-        result = compute_cross_trait_tetrachoric(phenotyped_df, pairs=extracted_pairs)
+    def test_structure(self, phenotyped_df, extracted_moments):
+        result = compute_cross_trait_tetrachoric(phenotyped_df, moments=extracted_moments)
         assert "same_person" in result
         assert "r" in result["same_person"]
         assert "n" in result["same_person"]
@@ -1092,8 +1095,8 @@ class TestComputeParentOffspringCorr:
 
 
 class TestComputeTetrachoricBySex:
-    def test_structure(self, phenotyped_df, extracted_pairs):
-        result = compute_tetrachoric_by_sex(phenotyped_df, pairs=extracted_pairs)
+    def test_structure(self, phenotyped_df, extracted_moments):
+        result = compute_tetrachoric_by_sex(moments=extracted_moments)
         assert "female" in result
         assert "male" in result
         for sex in ["female", "male"]:
@@ -1173,17 +1176,9 @@ class TestComputeAffectedCorrelations:
         )
         idx1 = np.arange(n_pairs, dtype=np.int64)
         idx2 = np.arange(n_pairs, 2 * n_pairs, dtype=np.int64)
-        pairs = {
-            "MZ": (idx1, idx2),
-            "FS": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
-            "MO": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
-            "FO": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
-            "MHS": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
-            "PHS": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
-            "1C": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
-        }
+        pairs = {"MZ": (idx1, idx2)}
 
-        result = compute_affected_correlations(df, pairs=pairs)
+        result = compute_affected_correlations(moments=moments_from_pairs(df, pairs))
         assert result["trait1"]["MZ"] == pytest.approx(0.11 / 0.21, abs=1e-6)
         # trait2 is constant (all unaffected): phi undefined -> None
         assert result["trait2"]["MZ"] is None
@@ -1202,24 +1197,16 @@ class TestComputeAffectedCorrelations:
         )
         idx1 = np.arange(15, dtype=np.int64)
         idx2 = np.arange(15, 30, dtype=np.int64)
-        pairs = {
-            "MZ": (idx1, idx2),
-            "FS": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
-            "MO": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
-            "FO": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
-            "MHS": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
-            "PHS": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
-            "1C": (np.array([], dtype=np.int64), np.array([], dtype=np.int64)),
-        }
-        result = compute_affected_correlations(df, pairs=pairs)
-        # Side A varies (15 True + 0 False in idx1 -> wait, idx1 is 0..14 which is all True)
-        # Both sides constant -> None
+        pairs = {"MZ": (idx1, idx2)}
+        result = compute_affected_correlations(moments=moments_from_pairs(df, pairs))
+        # idx1 is 0..14, all True, and idx2 is 15..29, all False: both sides
+        # constant -> None
         assert result["trait1"]["MZ"] is None
 
-    def test_structure_matches_liability(self, phenotyped_df, extracted_pairs):
+    def test_structure_matches_liability(self, phenotyped_df, extracted_moments):
         """Affected-side structure mirrors compute_liability_correlations."""
-        liab = compute_liability_correlations(phenotyped_df, pairs=extracted_pairs)
-        aff = compute_affected_correlations(phenotyped_df, pairs=extracted_pairs)
+        liab = compute_liability_correlations(moments=extracted_moments)
+        aff = compute_affected_correlations(moments=extracted_moments)
         assert set(aff.keys()) == set(liab.keys())
         for trait_key in ["trait1", "trait2"]:
             assert set(aff[trait_key].keys()) == set(liab[trait_key].keys())

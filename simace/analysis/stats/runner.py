@@ -11,7 +11,6 @@ import argparse
 import json
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -56,13 +55,14 @@ from .incidence import (
     compute_prevalence,
     compute_regression,
 )
+from .moments import Stratum, relationship_moments_for
 from .pedigree import compute_mean_family_size, compute_parent_status
 from .sampling import create_sample
 
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
-    from pedigree_graph import RelationshipPairs
+    from pedigree_graph import RelationshipMoments
 
     type _Frame = pd.DataFrame | pl.DataFrame
 
@@ -78,13 +78,16 @@ REPORT_GROUPS = ("metadata", "incidence", "censoring", "pedigree", "correlations
 
 @dataclass(frozen=True)
 class RelationshipContext:
-    """Extracted relationship pairs and per-relation full-pedigree pair counts.
+    """Relationship moments for the correlations and per-relation pair counts.
 
-    ``full_counts`` carries all 23 registry codes; a code outside the
-    requested depth is ``None`` (not computed), never ``0``.
+    ``moments`` covers only the ``RELATIONSHIP_TYPES`` codes the correlations
+    consume. ``counts`` (analysis sample) and ``full_counts`` (full pedigree)
+    come from the count-only path and carry all 23 registry codes; a code
+    outside ``max_degree`` is ``None`` (not computed), never ``0``.
     """
 
-    pairs: RelationshipPairs
+    moments: RelationshipMoments
+    counts: dict[str, int | None]
     full_counts: dict[str, int | None] | None
 
 
@@ -114,38 +117,37 @@ def _build_relationship_context(
     df_ped: _Frame | None,
     max_degree: int,
 ) -> RelationshipContext:
-    logger.info("Extracting relationship pairs...")
-    # TODO(performance): design streaming/sample-based relationship stats in
-    # pedigree-graph/simACE so large-N reports can compute counts and
-    # correlations without materializing 100M+ pair arrays. Coordinate with
-    # fitACE consumers before changing relationship-extraction semantics.
     t0 = time.perf_counter()
-    if df_ped is not None:
-        graph = PedigreeGraph.from_frame(df_ped)
-        if _same_ordered_ids(df_ped, df):
-            # Fast path for the common no-ascertainment case: the phenotype
-            # and pedigree tables are the same ordered individuals, so a view
-            # mask/remap would be pure overhead.
-            pairs = graph.relationship_pairs(max_degree=max_degree)
-        else:
-            pairs = graph.view(ids=df["id"].to_numpy()).relationship_pairs(max_degree=max_degree)
-        full_counts = dict(graph.relationship_counts(max_degree=max_degree))
-    else:
-        pairs = PedigreeGraph.from_frame(df).relationship_pairs(max_degree=max_degree)
-        full_counts = None
+    graph = PedigreeGraph.from_frame(df if df_ped is None else df_ped)
+    _log_elapsed("Analysis pedigree graph build", t0)
+    # Fast path for the common no-ascertainment case: the phenotype and
+    # pedigree tables are the same ordered individuals, so a view mask/remap
+    # would be pure overhead.
+    source = graph if df_ped is None or _same_ordered_ids(df_ped, df) else graph.view(ids=df["id"].to_numpy())
+    t0 = time.perf_counter()
+    moments = relationship_moments_for(df, source)
+    stratum = Stratum(moments)
     logger.info(
-        "Relationship pairs extracted in %.1fs: %s",
+        "Relationship moments computed in %.1fs: %s",
         time.perf_counter() - t0,
-        ", ".join(f"{code}: {len(block)}" for code, block in pairs.items() if block.requested),
+        ", ".join(f"{code}: {n}" for code, n in zip(stratum.categories, stratum.n_pairs, strict=True)),
     )
-    return RelationshipContext(pairs=pairs, full_counts=full_counts)
+    t0 = time.perf_counter()
+    counts = dict(source.relationship_counts(max_degree=max_degree))
+    if df_ped is None:
+        full_counts = None
+    elif source is graph:
+        full_counts = counts
+    else:
+        full_counts = dict(graph.relationship_counts(max_degree=max_degree))
+    _log_elapsed("Relationship pair counts", t0)
+    return RelationshipContext(moments=moments, counts=counts, full_counts=full_counts)
 
 
 def build_stats_report(
     df: _Frame,
     censor_age: float,
     *,
-    seed: int = 42,
     gen_censoring: dict[int, list[float]] | None = None,
     df_ped: _Frame | None = None,
     max_degree: int = DEFAULT_MAX_DEGREE,
@@ -196,11 +198,11 @@ def build_stats_report(
     relationship_context = _build_relationship_context(df, df_ped, max_degree)
     _log_elapsed("Relationship context", t0)
 
-    pairs = relationship_context.pairs
+    moments = relationship_context.moments
     t0 = time.perf_counter()
     pedigree: dict[str, Any] = {
         "family_size": compute_mean_family_size(df),
-        "relationship_pair_counts": {code: len(block) if block.requested else None for code, block in pairs.items()},
+        "relationship_pair_counts": relationship_context.counts,
         "parent_status": compute_parent_status(df, df_ped),
     }
     if df_ped is not None and relationship_context.full_counts is not None:
@@ -217,8 +219,8 @@ def build_stats_report(
 
     t0 = time.perf_counter()
     correlations = {
-        "liability_correlations": compute_liability_correlations(df, seed=seed, pairs=pairs),
-        "affected_correlations": compute_affected_correlations(df, seed=seed, pairs=pairs),
+        "liability_correlations": compute_liability_correlations(moments=moments),
+        "affected_correlations": compute_affected_correlations(moments=moments),
         "parent_offspring_corr": compute_parent_offspring_corr(df),
         "parent_offspring_corr_by_sex": compute_parent_offspring_corr_by_sex(df),
         "parent_offspring_affected_corr": compute_parent_offspring_affected_corr(df),
@@ -236,19 +238,12 @@ def build_stats_report(
         )
     }
 
-    logger.info("Computing tetrachoric correlations in parallel...")
     t_mle = time.perf_counter()
-    with ThreadPoolExecutor(max_workers=5) as pool:
-        fut_tetra = pool.submit(compute_tetrachoric, df, seed=seed, pairs=pairs)
-        fut_tetra_gen = pool.submit(compute_tetrachoric_by_generation, df, seed=seed, pairs=pairs)
-        fut_cross = pool.submit(compute_cross_trait_tetrachoric, df, seed=seed, pairs=pairs)
-        fut_tetra_sex = pool.submit(compute_tetrachoric_by_sex, df, seed=seed, pairs=pairs)
-
-        correlations["tetrachoric"] = fut_tetra.result()
-        correlations["tetrachoric_by_generation"] = fut_tetra_gen.result()
-        correlations["cross_trait_tetrachoric"] = fut_cross.result()
-        correlations["tetrachoric_by_sex"] = fut_tetra_sex.result()
-    logger.info("All MLE correlations computed in %.1fs", time.perf_counter() - t_mle)
+    correlations["tetrachoric"] = compute_tetrachoric(moments=moments)
+    correlations["tetrachoric_by_generation"] = compute_tetrachoric_by_generation(df, moments=moments)
+    correlations["cross_trait_tetrachoric"] = compute_cross_trait_tetrachoric(df, moments=moments)
+    correlations["tetrachoric_by_sex"] = compute_tetrachoric_by_sex(moments=moments)
+    _log_elapsed("Tetrachoric correlation stats", t_mle)
 
     report["incidence"] = incidence
     report["censoring"] = censoring
@@ -283,7 +278,6 @@ def main(
     stats = build_stats_report(
         df,
         censor_age,
-        seed=seed,
         gen_censoring=gen_censoring,
         df_ped=df_ped,
         max_degree=max_degree,
