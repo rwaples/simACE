@@ -1,11 +1,11 @@
 """Property-based tests for :mod:`simace.analysis.stats.correlations`.
 
-These functions take a *pre-extracted* ``pairs`` dict, so the properties hand
-them synthetic index arrays directly: no pedigree is simulated, no relationship
-extraction runs, and nothing recovers a planted parameter from a sample.  Each
-example activates a single relationship type and leaves the rest empty, which
-exercises the full result shape without paying for a dozen tetrachoric
-optimizations per example.
+These functions read a relationship-moments table, so the properties hand
+them one built from synthetic index arrays (:mod:`tests.analysis.moments_oracle`):
+no pedigree is simulated, no relationship extraction runs, and nothing
+recovers a planted parameter from a sample.  Each example activates a single
+relationship type and leaves the rest empty, which exercises the full result
+shape without paying for a dozen tetrachoric optimizations per example.
 """
 
 import numpy as np
@@ -21,6 +21,7 @@ from simace.analysis.stats.correlations import (
     compute_tetrachoric,
 )
 from simace.core.relationships import RELATIONSHIP_TYPES
+from tests.analysis.moments_oracle import moments_from_pairs
 from tests.conftest import pedigree_frame
 
 _MIN_PAIRS = 10  # the documented gate in correlations.py
@@ -29,13 +30,14 @@ _MIN_PAIRS = 10  # the documented gate in correlations.py
 def _well_conditioned(values: np.ndarray) -> bool:
     """True when a sample's spread is well above the floating-point rounding floor.
 
-    ``_pearsonr_core`` gates on an *exactly* zero sum of squares and returns
-    ``0.0``; ``np.corrcoef`` has no such gate and divides by whatever rounding
-    residue its own mean leaves behind, which can be a full-magnitude garbage
-    value (``np.corrcoef`` returns ``1.0`` for a repeated constant whose
-    computed std is 2.2e-16).  This condition excludes only the region where
-    the *oracle* is meaningless; the kernel's behaviour there is asserted
-    separately by ``test_pearson_paths_never_return_nan``.
+    The moments path centers exactly in integer arithmetic and reports
+    ``0.0`` for a constant side; ``np.corrcoef`` has no such gate and divides
+    by whatever rounding residue its own mean leaves behind, which can be a
+    full-magnitude garbage value (``np.corrcoef`` returns ``1.0`` for a
+    repeated constant whose computed std is 2.2e-16).  This condition
+    excludes only the region where the *oracle* is meaningless; the kernel's
+    behaviour there is asserted separately by
+    ``test_pearson_paths_never_return_nan``.
     """
     scale = max(1.0, float(np.max(np.abs(values))))
     return float(values.max() - values.min()) > 1e-8 * scale
@@ -82,15 +84,16 @@ class TestPairCorrelations:
     def test_liability_and_affected_match_numpy_corrcoef(self, case):
         """Both Pearson paths agree with ``np.corrcoef`` on the same index arrays.
 
-        Tolerance is floating point between two summation orders — the numba
-        ``_pearsonr_core`` kernel and NumPy's — measured worst 8.88e-16
-        absolute over this strategy domain (seed 20260825, 391_483
-        comparisons).  Tetrachoric correlation is deliberately excluded: it is
-        not a Pearson correlation and has no NumPy oracle.
+        The moments quantize liabilities to 43 bits and center exactly, so the
+        tolerance covers quantization plus NumPy's own rounding (ADR 0022
+        moves this comparison from bit-exact to 1e-12).  Tetrachoric
+        correlation is deliberately excluded: it is not a Pearson correlation
+        and has no NumPy oracle.
         """
         frame, pairs, active = case
-        liability = compute_liability_correlations(frame, pairs=pairs)
-        affected = compute_affected_correlations(frame, pairs=pairs)
+        moments = moments_from_pairs(frame, pairs)
+        liability = compute_liability_correlations(moments=moments)
+        affected = compute_affected_correlations(moments=moments)
         idx1, idx2 = pairs[active]
 
         for trait in (1, 2):
@@ -110,13 +113,14 @@ class TestPairCorrelations:
         """Both Pearson paths return ``None`` or a value in ``[-1, 1]`` — never NaN.
 
         Covers the near-degenerate region the oracle comparison above cannot
-        reach: ``_pearsonr_core`` returns ``0.0`` on an exactly-zero sum of
-        squares and ``compute_affected_correlations`` maps NaN to ``None``, so
-        no NaN escapes into the stats output either way.
+        reach: a constant liability side reports ``0.0`` and a constant
+        affection side reports ``None``, so no NaN escapes into the stats
+        output either way.
         """
         frame, pairs, active = case
-        liability = compute_liability_correlations(frame, pairs=pairs)
-        affected = compute_affected_correlations(frame, pairs=pairs)
+        moments = moments_from_pairs(frame, pairs)
+        liability = compute_liability_correlations(moments=moments)
+        affected = compute_affected_correlations(moments=moments)
         for trait in (1, 2):
             for got in (liability[f"trait{trait}"][active], affected[f"trait{trait}"][active]):
                 assert got is None or (not np.isnan(got) and -1.0 <= got <= 1.0)
@@ -126,23 +130,24 @@ class TestPairCorrelations:
         """Swapping ``(idx1, idx2)`` leaves both Pearson correlations unchanged.
 
         Relationship pairs are unordered, so the direction the extractor
-        happened to emit must not reach the result.  Bit-exact for the Pearson
-        paths, which are symmetric expressions.
+        happened to emit must not reach the result.  Bit-exact: the exact
+        integer numerators are symmetric under the swap (ADR 0013).
         """
         frame, pairs, active = case
         idx1, idx2 = pairs[active]
-        swapped = {**pairs, active: (idx2, idx1)}
+        forward = moments_from_pairs(frame, pairs)
+        swapped = moments_from_pairs(frame, {**pairs, active: (idx2, idx1)})
 
         for fn in (compute_liability_correlations, compute_affected_correlations):
-            assert fn(frame, pairs=pairs) == fn(frame, pairs=swapped)
+            assert fn(moments=forward) == fn(moments=swapped)
 
     @given(case=_frame_and_pairs(min_pairs=_MIN_PAIRS))
     def test_tetrachoric_pair_swap_symmetry(self, case):
         """Swapping unordered pair sides leaves tetrachoric results unchanged."""
         frame, pairs, active = case
         idx1, idx2 = pairs[active]
-        forward = compute_tetrachoric(frame, pairs=pairs)
-        reverse = compute_tetrachoric(frame, pairs={**pairs, active: (idx2, idx1)})
+        forward = compute_tetrachoric(moments=moments_from_pairs(frame, pairs))
+        reverse = compute_tetrachoric(moments=moments_from_pairs(frame, {**pairs, active: (idx2, idx1)}))
 
         assert forward == reverse
 
@@ -162,17 +167,20 @@ class TestPairCorrelations:
         permuted_frame = frame[permutation]
         idx1, idx2 = pairs[active]
         permuted_pairs = {**pairs, active: (inverse[idx1], inverse[idx2])}
+        original = moments_from_pairs(frame, pairs)
+        permuted = moments_from_pairs(permuted_frame, permuted_pairs)
 
         for fn in (compute_liability_correlations, compute_affected_correlations, compute_tetrachoric):
-            assert fn(frame, pairs=pairs) == fn(permuted_frame, pairs=permuted_pairs)
+            assert fn(moments=original) == fn(moments=permuted)
 
     @given(case=_frame_and_pairs(max_pairs=_MIN_PAIRS - 1))
     def test_below_ten_pairs_returns_none(self, case):
         """Fewer than ten pairs yields ``None`` rather than a noisy estimate."""
         frame, pairs, active = case
-        liability = compute_liability_correlations(frame, pairs=pairs)
-        affected = compute_affected_correlations(frame, pairs=pairs)
-        tetrachoric = compute_tetrachoric(frame, pairs=pairs)
+        moments = moments_from_pairs(frame, pairs)
+        liability = compute_liability_correlations(moments=moments)
+        affected = compute_affected_correlations(moments=moments)
+        tetrachoric = compute_tetrachoric(moments=moments)
 
         for trait in (1, 2):
             key = f"trait{trait}"
@@ -187,7 +195,7 @@ class TestPairCorrelations:
     def test_phi_is_bounded_and_gated_on_constant_sides(self, case):
         """Phi lies in ``[-1, 1]``, and is ``None`` exactly when a side is constant."""
         frame, pairs, active = case
-        result = compute_affected_correlations(frame, pairs=pairs)
+        result = compute_affected_correlations(moments=moments_from_pairs(frame, pairs))
         idx1, idx2 = pairs[active]
 
         for trait in (1, 2):

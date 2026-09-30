@@ -4,7 +4,6 @@ import numpy as np
 import polars as pl
 import pytest
 import yaml
-from pedigree_graph import PedigreeGraph
 
 from simace.analysis.validate import (
     build_validation_report,
@@ -23,6 +22,7 @@ from simace.analysis.validate import (
 from simace.analysis.validate import (
     cli as validate_cli,
 )
+from simace.analysis.validate._common import sibling_moments
 from simace.ascertainment import run_ascertainment
 from simace.core.parquet import save_parquet
 from simace.core.pedigree_arrays import PedigreeArrays
@@ -68,13 +68,13 @@ def val_ped(val_pedigree):
 
 
 @pytest.fixture(scope="module")
-def val_sibling_pairs(val_pedigree):
-    return PedigreeGraph.from_frame(val_pedigree).relationship_pairs(categories=("FS", "MHS", "PHS"))
+def val_sibling_moments(val_pedigree, val_ped):
+    return sibling_moments(val_pedigree, val_ped)
 
 
 @pytest.fixture(scope="module")
-def heritability_result(val_pedigree, val_params, val_ped, val_sibling_pairs):
-    return validate_heritability(val_pedigree, val_params, val_ped, val_sibling_pairs)
+def heritability_result(val_pedigree, val_params, val_ped, val_sibling_moments):
+    return validate_heritability(val_pedigree, val_params, val_ped, val_sibling_moments)
 
 
 # ---------------------------------------------------------------------------
@@ -184,12 +184,12 @@ class TestValidateTwins:
 
 
 class TestValidateHalfSibs:
-    def test_passes(self, val_pedigree, val_params, val_ped, val_sibling_pairs):
-        result = validate_half_sibs(val_pedigree, val_params, val_ped, val_sibling_pairs)
+    def test_passes(self, val_pedigree, val_params, val_ped, val_sibling_moments):
+        result = validate_half_sibs(val_pedigree, val_params, val_ped, val_sibling_moments)
         _all_passed(result)
 
-    def test_numeric_fields(self, val_pedigree, val_params, val_ped, val_sibling_pairs):
-        result = validate_half_sibs(val_pedigree, val_params, val_ped, val_sibling_pairs)
+    def test_numeric_fields(self, val_pedigree, val_params, val_ped, val_sibling_moments):
+        result = validate_half_sibs(val_pedigree, val_params, val_ped, val_sibling_moments)
         for value in result.values():
             if isinstance(value, dict) and "observed" in value:
                 assert isinstance(value["observed"], (int, float))

@@ -89,10 +89,11 @@ def run_analysis(
         folder: Folder name recorded in the report's replicate block.
         scenario: Scenario name recorded in the report's replicate block.
         rep: Replicate number recorded in the report's replicate block.
-        seed: Random seed for stats sampling / correlations.
+        seed: Random seed for the plotting sample.
         censor_age: Administrative censoring age.
         gen_censoring: Optional per-generation censoring windows.
-        max_degree: Maximum kinship degree for stats pair extraction.
+        max_degree: Deepest relationship degree in the pair-count tables.
+            Correlations always use ``RELATIONSHIP_TYPES``.
         case_ascertainment_ratio: Configured case-ascertainment ratio.
 
     Returns:
@@ -135,7 +136,6 @@ def run_analysis(
     stats_report = build_stats_report(
         df,
         censor_age,
-        seed=seed,
         gen_censoring=gen_censoring,
         df_ped=df_ped,
         max_degree=max_degree,

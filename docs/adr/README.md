@@ -21,6 +21,7 @@ earlier one's Status section says so and points forward.
 | [0019](0019-null-raw-onset-censoring-semantics.md) | Null raw onsets mean never-onset at the censor boundary | accepted |
 | [0020](0020-standalone-simace-cli.md) | A standalone `simace` CLI replaces Snakemake | accepted; output contract and rep stages replaced by 0021 |
 | [0021](0021-two-canonical-replicate-parquets.md) | Two canonical Parquet files per replicate | accepted, implemented 2026-09-29; amends 0008, 0011, 0020 |
+| [0022](0022-relationship-moments.md) | Analyze computes relationship statistics from relationship moments | accepted |
 
 Retired numbers: 0003, 0006, 0007 (report lineage folded into 0008); 0004
 (Claude Code subagent housekeeping, not an architecture decision); 0013 (ty

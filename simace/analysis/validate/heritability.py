@@ -10,21 +10,21 @@ from pedigree_graph import RELATIONSHIPS
 from simace.core.numerics import safe_corrcoef, safe_linregress
 
 from ._common import (
-    _DEFAULT_RNG_SEED,
     _MIN_PAIRS_FOR_CORR,
     _corr_se,
     _corr_tolerance,
     _extract_comp_vals,
     _info,
     _result,
-    _subsample_pairs,
+    category_cell,
+    pair_correlation,
 )
 from .am_relatedness import am_relatedness_mode, observed_mate_correlations, resolve_expected_a_corr
 
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
-    from pedigree_graph import RelationshipPairBlock, RelationshipPairs
+    from pedigree_graph import RelationshipMoments
 
     from simace.core.pedigree_arrays import PedigreeArrays
 
@@ -108,25 +108,24 @@ def _validate_dz_correlations(
     ped: PedigreeArrays,
     params: dict[str, Any],
     A_params: dict[int, float],
-    comp_vals: dict[str, np.ndarray],
-    full_sib_pairs: RelationshipPairBlock,
+    sibling_moments: RelationshipMoments,
     results: dict[str, Any],
 ) -> tuple[dict[int, float | None], int]:
     """Validate DZ sibling correlations. Returns (dz_pheno_corr, n_dz_pairs).
 
     The full-sib A-component correlation is ``2·kinship`` (0.5) under random
     mating; under single-trait assortative mating it inflates to ``(1+mu_A)/2``
-    (see :mod:`.am_relatedness`). Both-trait AM skips the scored check.
+    (see :mod:`.am_relatedness`). Both-trait AM skips the scored check. The
+    correlations are exact over every full-sib pair (ADR 0022).
     """
-    rng = np.random.default_rng(params.get("seed", _DEFAULT_RNG_SEED))
-    idx1, idx2, n_dz_pairs = _subsample_pairs(full_sib_pairs.first_rows, full_sib_pairs.second_rows, rng)
+    full_sibs = category_cell(sibling_moments, "FS")
+    n_dz_pairs = int(full_sibs.counts)
     dz_pheno_corr: dict[int, float | None] = {}
 
     if n_dz_pairs >= _MIN_PAIRS_FOR_CORR:
         for t in [1, 2]:
             col = f"A{t}"
-            dz_v1, dz_v2 = comp_vals[col][idx1], comp_vals[col][idx2]
-            dz_corr = safe_corrcoef(dz_v1, dz_v2)
+            dz_corr = pair_correlation(full_sibs, col)
             # Full-sib (DZ) A correlation: 2*kinship under random mating,
             # AM-inflated to (1+mu_A)/2 under single-trait assortment.
             expected_dz, skip, info = resolve_expected_a_corr(
@@ -154,9 +153,7 @@ def _validate_dz_correlations(
                     **info,
                 )
 
-            P1 = dz_v1 + comp_vals[f"C{t}"][idx1] + comp_vals[f"E{t}"][idx1]
-            P2 = dz_v2 + comp_vals[f"C{t}"][idx2] + comp_vals[f"E{t}"][idx2]
-            pheno_corr = safe_corrcoef(P1, P2)
+            pheno_corr = pair_correlation(full_sibs, f"P{t}")
             dz_pheno_corr[t] = pheno_corr
             results[f"dz_sibling_liability{t}_correlation"] = _info(
                 f"DZ sibling liability{t} correlation: {pheno_corr:.4f}",
@@ -305,7 +302,7 @@ def validate_heritability(
     df: pd.DataFrame | pl.DataFrame,
     params: dict[str, Any],
     ped: PedigreeArrays,
-    sibling_pairs: RelationshipPairs,
+    sibling_moments: RelationshipMoments,
 ) -> dict[str, Any]:
     """Validate heritability estimates for two-trait simulation.
 
@@ -316,10 +313,11 @@ def validate_heritability(
 
     Args:
         df: Pedigree DataFrame.
-        params: Scenario parameters; requires keys ``A1``, ``A2``, ``seed``.
+        params: Scenario parameters; requires keys ``A1``, ``A2``.
         ped: The same pedigree as id-addressable arrays.
-        sibling_pairs: Relationship pairs whose ``FS``, ``MHS``, and ``PHS``
-            blocks were requested; each block holds row indices into ``df``.
+        sibling_moments: Relationship moments of ``df`` over ``FS``, ``MHS``
+            and ``PHS`` with the ``A{t}``, ``C{t}`` and ``P{t}`` columns
+            (:func:`~simace.analysis.validate._common.sibling_moments`).
 
     Returns:
         Dict of check-name to result dicts, including MZ/DZ correlations,
@@ -341,8 +339,7 @@ def validate_heritability(
         ped,
         params,
         A_params,
-        comp_vals,
-        sibling_pairs["FS"],
+        sibling_moments,
         results,
     )
     _validate_falconer(

@@ -70,6 +70,7 @@ simACE/
 │   │   ├── gather.py                     # Gather per-replicate report summaries into report_summary.tsv
 │   │   ├── stats/                        # Per-concern stats package
 │   │   │   ├── runner.py                 # Stats orchestrator
+│   │   │   ├── moments.py                # Relationship moments of the analysis sample (one engine pass, ADR 0022)
 │   │   │   ├── correlations.py           # Pairwise correlations, parent-offspring regressions, h² estimators
 │   │   │   ├── tetrachoric.py            # Tetrachoric correlation primitives
 │   │   │   ├── pedigree.py               # Family size and parent-presence summaries

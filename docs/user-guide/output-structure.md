@@ -177,7 +177,7 @@ Every value is tagged with one of four population scopes.
 | `replicate` | `folder`, `scenario`, `rep`, `seed` |
 | `inputs` | The resolved `parameters`, plus `trait_model` and `ascertainment` summaries |
 | `scopes` | For each scope, the source file, `n_individuals`, and `n_generations`. The analysis pedigree adds `ancestor_closure_ratio` |
-| `quality_checks` | One row per check with `id`, `scope`, `severity`, `status`, `observed`, `expected`, `tolerance`, `message`, plus a `summary` |
+| `quality_checks` | One row per check with `id`, `scope`, `severity`, `status`, `observed`, `expected`, `tolerance`, `message`, plus a `summary`. The sibling correlations (`dz_sibling_*`, `half_sib_*`) are exact over every full-sib and half-sib pair of the recorded pedigree, and the `n_pairs` in their messages is the true pair count ([ADR 0022](../adr/0022-relationship-moments.md)) |
 | `truth` | Realized values on `recorded_pedigree`: variance components and liability heritability per trait, with `realized_by_generation`, plus `cross_trait`, `family_structure`, and `assortative_mating` |
 | `observed` | Descriptive statistics per scope. `ascertainment` holds affected fractions before and after sampling, enrichment, and the retained fraction |
 | `estimators` | Heritability estimates, split into `observed_scale` from affected status and `liability_scale` from twin, sibling, and parent-offspring pairs |

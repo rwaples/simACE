@@ -7,89 +7,75 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from pedigree_graph import RELATIONSHIPS
 
-from simace.core.numerics import safe_corrcoef
-
 from ._common import (
-    _DEFAULT_RNG_SEED,
     _MIN_PAIRS_FOR_CORR,
+    SIBLING_CATEGORIES,
     _corr_tolerance,
-    _extract_comp_vals,
     _info,
     _result,
-    _subsample_pairs,
+    category_cell,
+    pair_correlation,
 )
 from .am_relatedness import resolve_expected_a_corr
 
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
-    from pedigree_graph import RelationshipPairs
+    from pedigree_graph import RelationshipMoments
 
     from simace.core.pedigree_arrays import PedigreeArrays
 
 
-def _count_distinct_members(parts: list[np.ndarray], n: int) -> int:
-    """Count distinct row indices across *parts* via a boolean mask.
+def household_sibling_counts(df: pd.DataFrame | pl.DataFrame) -> dict[str, int]:
+    """Count offspring with a maternal sibling and with a maternal half-sib, from household sizes.
 
-    Requires every index in ``[0, n)`` — guaranteed by the receiver-row
-    contract of ``relationship_pairs``, and much faster than ``np.unique`` on
-    large concatenated pair arrays.
+    A household is one mother's offspring (CONTEXT.md), so the counts are
+    O(N) from the ``mother``, ``father`` and ``twin`` columns:
+
+    - ``n_offspring_with_sibs``: offspring with a known mother whose
+      household holds another offspring besides themselves and their own
+      co-twin. Only the individual's own co-twin is excluded.
+    - ``n_offspring_with_maternal_half_sib``: offspring with a known mother
+      whose household holds an offspring with a different father. An
+      unknown father differs from every other father, including another
+      unknown one, as the engine classifies such pairs as ``MHS``.
+
+    Offspring with an unknown mother take part in neither count.
     """
-    if not parts:
-        return 0
-    seen = np.zeros(n, dtype=bool)
-    for p in parts:
-        seen[p] = True
-    return int(seen.sum())
+    mothers = df["mother"].to_numpy().astype(np.int64)
+    fathers = df["father"].to_numpy().astype(np.int64)
+    twins = df["twin"].to_numpy().astype(np.int64)
+    known = mothers != -1
+    mothers, fathers, twins = mothers[known], fathers[known], twins[known]
+    if mothers.size == 0:
+        return {"n_offspring_with_sibs": 0, "n_offspring_with_maternal_half_sib": 0}
 
+    households, household_of = np.unique(mothers, return_inverse=True)
+    size = np.bincount(household_of, minlength=len(households))
+    others = size[household_of] - 1 - (twins != -1)
 
-def _sib_counts_from_pairs(
-    sibling_pairs: RelationshipPairs,
-    n: int,
-) -> dict[str, int]:
-    """Derive sibling counts from pre-extracted pair arrays.
-
-    ``n`` is the pedigree row count; pair indices must be row positions
-    in ``[0, n)``.
-    """
-    full = sibling_pairs["FS"]
-    mat = sibling_pairs["MHS"]
-    pat = sibling_pairs["PHS"]
-    n_full = len(full)
-    n_mat = len(mat)
-    n_pat = len(pat)
-    for arr in (*full, *mat, *pat):
-        if len(arr) and (int(arr.min()) < 0 or int(arr.max()) >= n):
-            raise ValueError(f"pair index outside [0, {n}): got [{arr.min()}, {arr.max()}]")
-
-    # Individuals with any maternal sibling (full or half)
-    maternal_parts: list[np.ndarray] = []
-    if n_full > 0:
-        maternal_parts.extend([full.first_rows, full.second_rows])
-    if n_mat > 0:
-        maternal_parts.extend([mat.first_rows, mat.second_rows])
-    n_with_sibs = _count_distinct_members(maternal_parts, n)
-
-    # Individuals with a maternal half-sib
-    n_with_mat_hs = _count_distinct_members([mat.first_rows, mat.second_rows], n) if n_mat > 0 else 0
-
+    father_known = fathers != -1
+    base = np.int64(max(int(fathers.max()), 0) + 1)
+    known_pairs = np.unique(household_of[father_known] * base + fathers[father_known])
+    n_fathers = np.bincount((known_pairs // base).astype(np.intp), minlength=len(households))
+    n_unknown = np.bincount(household_of[~father_known], minlength=len(households))
+    other_father = np.where(
+        father_known,
+        (n_fathers[household_of] >= 2) | (n_unknown[household_of] >= 1),
+        others >= 1,
+    )
     return {
-        "n_full_sib_pairs": n_full,
-        "n_maternal_half_sib_pairs": n_mat,
-        "n_paternal_half_sib_pairs": n_pat,
-        "n_offspring_with_sibs": n_with_sibs,
-        "n_offspring_with_maternal_half_sib": n_with_mat_hs,
+        "n_offspring_with_sibs": int((others >= 1).sum()),
+        "n_offspring_with_maternal_half_sib": int(other_father.sum()),
     }
 
 
 def _validate_half_sib_correlations(
     df: pd.DataFrame | pl.DataFrame,
     ped: PedigreeArrays,
-    sibling_pairs: RelationshipPairs,
-    comp_vals: dict[str, np.ndarray],
+    sibling_moments: RelationshipMoments,
     A_params: dict[int, float],
     params: dict[str, Any],
-    rng: np.random.Generator,
     results: dict[str, Any],
 ) -> None:
     """Compute half-sib correlations for A, liability, and shared C.
@@ -103,17 +89,19 @@ def _validate_half_sib_correlations(
     - **Liability and shared-C correlations** use PHS only. Maternal
       half-sibs share households, so MHS liability corr = 0.25·A + 1·C and
       MHS shared_C ≠ 0; PHS gives the clean expected formulas (0.25·A and 0).
+
+    Every correlation is exact over all pairs (ADR 0022); ``n_pairs`` is the
+    true pair count and the tolerance is evaluated with it.
     """
-    mhs, phs = sibling_pairs["MHS"], sibling_pairs["PHS"]
-    pooled_idx1 = np.concatenate([mhs.first_rows, phs.first_rows])
-    pooled_idx2 = np.concatenate([mhs.second_rows, phs.second_rows])
-    pooled_idx1, pooled_idx2, n_pooled = _subsample_pairs(pooled_idx1, pooled_idx2, rng)
-    phs_idx1, phs_idx2, n_phs = _subsample_pairs(phs.first_rows, phs.second_rows, rng)
+    pooled = category_cell(sibling_moments, "MHS", "PHS")
+    phs = category_cell(sibling_moments, "PHS")
+    n_pooled = int(pooled.counts)
+    n_phs = int(phs.counts)
 
     if n_pooled >= _MIN_PAIRS_FOR_CORR:
         for t in [1, 2]:
             col = f"A{t}"
-            obs = safe_corrcoef(comp_vals[col][pooled_idx1], comp_vals[col][pooled_idx2])
+            obs = pair_correlation(pooled, col)
             # Half-sib A correlation: 2*kinship under random mating, AM-inflated
             # to (1 + 2*mu_A + mu_A*r_ho)/4 under single-trait assortment.
             expected_a, skip, info = resolve_expected_a_corr(
@@ -145,17 +133,14 @@ def _validate_half_sib_correlations(
 
     if n_phs >= _MIN_PAIRS_FOR_CORR:
         for t in [1, 2]:
-            P1 = comp_vals[f"A{t}"][phs_idx1] + comp_vals[f"C{t}"][phs_idx1] + comp_vals[f"E{t}"][phs_idx1]
-            P2 = comp_vals[f"A{t}"][phs_idx2] + comp_vals[f"C{t}"][phs_idx2] + comp_vals[f"E{t}"][phs_idx2]
-            phs_pheno = safe_corrcoef(P1, P2)
+            phs_pheno = pair_correlation(phs, f"P{t}")
             results[f"half_sib_liability{t}_correlation"] = _info(
                 f"PHS liability{t} correlation: {phs_pheno:.4f} (expected ~0.25·A{t})",
                 observed=float(phs_pheno),
                 n_pairs=n_phs,
             )
 
-            c_col = f"C{t}"
-            obs_c = safe_corrcoef(comp_vals[c_col][phs_idx1], comp_vals[c_col][phs_idx2])
+            obs_c = pair_correlation(phs, f"C{t}")
             tol = _corr_tolerance(0.0, n_phs)
             ok_c = True if np.isnan(obs_c) else abs(obs_c) < tol
             results[f"half_sib_shared_C{t}"] = _result(
@@ -180,7 +165,7 @@ def validate_half_sibs(
     df: pd.DataFrame | pl.DataFrame,
     params: dict[str, Any],
     ped: PedigreeArrays,
-    sibling_pairs: RelationshipPairs,
+    sibling_moments: RelationshipMoments,
 ) -> dict[str, Any]:
     """Validate half-sibling structure under the mating-pair model.
 
@@ -195,40 +180,41 @@ def validate_half_sibs(
     Args:
         df: Pedigree DataFrame with columns id, mother, father, twin.
         params: Scenario parameters; requires keys ``mating_lambda``, ``A1``,
-            ``A2``, ``seed``.
+            ``A2``.
         ped: The same pedigree as id-addressable arrays; supplies the
             variance-component arrays for the correlation checks.
-        sibling_pairs: Relationship pairs whose ``FS``, ``MHS``, and ``PHS``
-            blocks were requested; each block holds row indices into ``df``.
+        sibling_moments: Relationship moments of ``df`` over ``FS``, ``MHS``
+            and ``PHS`` with the ``A{t}``, ``C{t}`` and ``P{t}`` columns
+            (:func:`~simace.analysis.validate._common.sibling_moments`).
 
     Returns:
         Dict of check-name to result dicts.
     """
     results: dict[str, Any] = {}
 
-    sib_info = _sib_counts_from_pairs(sibling_pairs, len(df))
+    n_full, n_mat, n_pat = (int(category_cell(sibling_moments, code).counts) for code in SIBLING_CATEGORIES)
 
     # Report sibling structure (informational — no closed-form expected value)
-    total_maternal_pairs = sib_info["n_full_sib_pairs"] + sib_info["n_maternal_half_sib_pairs"]
+    total_maternal_pairs = n_full + n_mat
     if total_maternal_pairs > 0:
-        observed_half_sib_prop = sib_info["n_maternal_half_sib_pairs"] / total_maternal_pairs
+        observed_half_sib_prop = n_mat / total_maternal_pairs
         # Range check: at lambda=0.5, most people have 1 partner, so half-sibs
         # should be present but not dominant. Wide tolerance for any lambda.
         results["half_sib_pair_proportion"] = _info(
             f"Maternal half-sib pair proportion: {observed_half_sib_prop:.4f} "
-            f"(full={sib_info['n_full_sib_pairs']}, mat_hs={sib_info['n_maternal_half_sib_pairs']}, "
-            f"pat_hs={sib_info['n_paternal_half_sib_pairs']})",
+            f"(full={n_full}, mat_hs={n_mat}, pat_hs={n_pat})",
             observed=float(observed_half_sib_prop),
-            n_full_sib_pairs=int(sib_info["n_full_sib_pairs"]),
-            n_maternal_half_sib_pairs=int(sib_info["n_maternal_half_sib_pairs"]),
-            n_paternal_half_sib_pairs=int(sib_info["n_paternal_half_sib_pairs"]),
+            n_full_sib_pairs=n_full,
+            n_maternal_half_sib_pairs=n_mat,
+            n_paternal_half_sib_pairs=n_pat,
         )
     else:
         results["half_sib_pair_proportion"] = _info("No maternal sibling pairs to check")
 
     # Offspring with maternal half-sib (informational)
-    n_offspring_with_sibs = sib_info["n_offspring_with_sibs"]
-    n_offspring_with_hs = sib_info["n_offspring_with_maternal_half_sib"]
+    household = household_sibling_counts(df)
+    n_offspring_with_sibs = household["n_offspring_with_sibs"]
+    n_offspring_with_hs = household["n_offspring_with_maternal_half_sib"]
     if n_offspring_with_sibs > 0:
         observed_frac = n_offspring_with_hs / n_offspring_with_sibs
         results["offspring_with_half_sib"] = _info(
@@ -238,11 +224,9 @@ def validate_half_sibs(
             n_offspring_with_sibs=int(n_offspring_with_sibs),
         )
     else:
-        results["offspring_with_half_sib"] = _info("No non-twin offspring with siblings to check")
+        results["offspring_with_half_sib"] = _info("No offspring with maternal siblings to check")
 
-    comp_vals = _extract_comp_vals(ped)
     A_params = {1: params["A1"], 2: params["A2"]}
-    rng = np.random.default_rng(params.get("seed", _DEFAULT_RNG_SEED))
-    _validate_half_sib_correlations(df, ped, sibling_pairs, comp_vals, A_params, params, rng, results)
+    _validate_half_sib_correlations(df, ped, sibling_moments, A_params, params, results)
 
     return results

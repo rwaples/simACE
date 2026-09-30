@@ -1,13 +1,16 @@
 """Smoke test for simace.analysis.stats.runner.main end-to-end."""
 
+import numpy as np
 import pytest
 import yaml
-from pedigree_graph import RELATIONSHIPS
+from pedigree_graph import RELATIONSHIPS, PedigreeGraph
 
-from simace.analysis.stats.runner import build_stats_report
+from simace.analysis.stats.moments import Stratum
+from simace.analysis.stats.runner import _build_relationship_context, build_stats_report
 from simace.analysis.stats.runner import cli as run_stats_cli
 from simace.analysis.stats.runner import main as run_stats
 from simace.core.parquet import load_parquet, save_parquet
+from simace.core.relationships import RELATIONSHIP_TYPES
 from simace.core.trait_schema import hydrate_trait
 
 
@@ -211,6 +214,35 @@ class TestRunnerMain:
         assert "windows" in stats["censoring"]
         assert "confusion" in stats["censoring"]
         assert "cascade" in stats["censoring"]
+
+
+class TestRelationshipContext:
+    """Counts come from the count-only path; moments only for the correlation codes."""
+
+    @pytest.mark.parametrize("subsample", [False, True], ids=["same_ids", "view"])
+    def test_counts_equal_the_pair_block_lengths(self, tiny_phenotype, subsample):
+        pedigree, phenotype = tiny_phenotype
+        df = hydrate_trait(phenotype, pedigree, kind="censored")
+        if subsample:
+            df = df[::3]
+        context = _build_relationship_context(df, pedigree, max_degree=3)
+        graph = PedigreeGraph.from_frame(pedigree)
+        source = graph.view(ids=df["id"].to_numpy()) if subsample else graph
+        reference = source.relationship_pairs(max_degree=3)
+        assert context.counts == {code: len(b) if b.requested else None for code, b in reference.items()}
+        assert context.full_counts == dict(graph.relationship_counts(max_degree=3))
+        stratum = Stratum(context.moments)
+        assert set(stratum.categories) == set(RELATIONSHIP_TYPES)
+        for code in RELATIONSHIP_TYPES:
+            assert int(stratum.n_pairs[stratum.index(code)]) == len(reference[code])
+        liability = df["liability1"].to_numpy()
+        for code in RELATIONSHIP_TYPES:
+            block = reference[code]
+            if len(block) < 2:
+                continue
+            want = np.corrcoef(liability[block.first_rows], liability[block.second_rows])[0, 1]
+            got = stratum.liability_r(1)[stratum.index(code)]
+            assert got == pytest.approx(want, abs=1e-12)
 
 
 class TestRunnerCli:

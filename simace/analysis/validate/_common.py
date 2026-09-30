@@ -1,25 +1,33 @@
 """Shared helpers for the validation subdomain modules.
 
-Cross-cutting result envelope, correlation-tolerance, and pair-subsampling
+Cross-cutting result envelope, correlation-tolerance, and sibling-moment
 helpers used by more than one validation module. Generic numerics live in
 :mod:`simace.core.numerics`.
 """
 
 from __future__ import annotations
 
+import logging
+import math
+import time
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from pedigree_graph import PedigreeGraph
+
+from simace.core.numerics import _ZERO_VAR_THRESHOLD
 
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
+    from pedigree_graph import RelationshipMoments
 
     from simace.core.pedigree_arrays import PedigreeArrays
 
-_MAX_CORR_PAIRS = 5000  # cap pair-correlation samples for cost
+logger = logging.getLogger(__name__)
+
 _MIN_PAIRS_FOR_CORR = 10  # below this, skip the correlation check
-_DEFAULT_RNG_SEED = 42
+SIBLING_CATEGORIES = ("FS", "MHS", "PHS")
 
 
 def _result(passed: bool, details: str, **extra: Any) -> dict[str, Any]:
@@ -55,20 +63,51 @@ def _corr_tolerance(expected_r: float, n_pairs: int, min_tol: float = 0.05, n_se
     return max(n_se * se, min_tol)
 
 
-def _subsample_pairs(
-    idx1: np.ndarray, idx2: np.ndarray, rng: np.random.Generator, max_pairs: int = _MAX_CORR_PAIRS
-) -> tuple[np.ndarray, np.ndarray, int]:
-    """Cap (idx1, idx2) pair arrays at ``max_pairs`` via without-replacement sampling."""
-    n = len(idx1)
-    if n <= max_pairs:
-        return idx1, idx2, n
-    sel = rng.choice(n, max_pairs, replace=False)
-    return idx1[sel], idx2[sel], max_pairs
-
-
 def _extract_comp_vals(ped: PedigreeArrays) -> dict[str, np.ndarray]:
     """Pull A/C/E component arrays for both traits as numpy views (no copy)."""
     return {f"{c}{t}": ped[f"{c}{t}"] for c in ("A", "C", "E") for t in (1, 2)}
+
+
+def sibling_moments(df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays) -> RelationshipMoments:
+    """Exact FS/MHS/PHS pair moments of ``A{t}``, ``C{t}`` and ``P{t} = A + C + E`` per trait.
+
+    One engine pass over the recorded pedigree, one cell per category (ADR
+    0020): the sibling counts and every sibling correlation the validation
+    checks report come from this table, over all pairs.
+    """
+    comp = _extract_comp_vals(ped)
+    values = {}
+    for t in (1, 2):
+        values[f"A{t}"] = comp[f"A{t}"]
+        values[f"C{t}"] = comp[f"C{t}"]
+        values[f"P{t}"] = comp[f"A{t}"] + comp[f"C{t}"] + comp[f"E{t}"]
+    t0 = time.perf_counter()
+    graph = PedigreeGraph.from_frame(df)
+    logger.info("Recorded pedigree graph build completed in %.1fs", time.perf_counter() - t0)
+    return graph.relationship_moments(categories=SIBLING_CATEGORIES, values=values)
+
+
+def category_cell(moments: RelationshipMoments, *categories: str) -> RelationshipMoments:
+    """The moments of *categories* pooled into one 0-d cell."""
+    return moments.select(category=list(categories)).sum("category")
+
+
+def pair_correlation(cell: RelationshipMoments, column: str) -> float:
+    """Pearson correlation of *column* between the two members of a one-cell result.
+
+    The rule of :func:`simace.core.numerics.safe_corrcoef`: NaN when either
+    side's standard deviation (``sqrt(m2 / n)``, the population value) is
+    below the zero-variance threshold.
+    """
+    n = int(cell.counts)
+    i = cell.columns.index(column)
+    if n == 0:
+        return math.nan
+    if math.sqrt(float(cell.m2_first[i]) / n) < _ZERO_VAR_THRESHOLD:
+        return math.nan
+    if math.sqrt(float(cell.m2_second[i]) / n) < _ZERO_VAR_THRESHOLD:
+        return math.nan
+    return float(cell.pearson(f"first.{column}", f"second.{column}"))
 
 
 def _unique_mating_pairs(df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays) -> tuple[np.ndarray, np.ndarray]:
