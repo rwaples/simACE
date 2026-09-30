@@ -21,9 +21,11 @@ from simace.simulation.simulate import (
 
 # Hypothesis profiles, selected by ``HYPOTHESIS_PROFILE`` (default ``fast``).
 # Property files carry no ``@settings`` of their own so that
-# ``HYPOTHESIS_PROFILE=thorough`` actually deepens every one of them; the two
-# documented carve-outs in tests/simulation/test_simulate_properties.py call
-# run_simulation per example and keep an explicit budget.
+# ``HYPOTHESIS_PROFILE=thorough`` actually deepens every one of them.  The
+# documented carve-outs keep an explicit budget because each example runs a
+# whole stage: tests/simulation/test_simulate_properties.py (run_simulation per
+# example) and the merged-stage test in tests/test_pipeline_properties.py
+# (run_cohort per example).
 settings.register_profile("fast", max_examples=100, deadline=None)
 settings.register_profile("thorough", max_examples=500, deadline=None)
 settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "fast"))

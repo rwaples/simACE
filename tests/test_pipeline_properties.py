@@ -1,4 +1,4 @@
-"""Cross-stage properties for the phenotype → censor pipeline."""
+"""Cross-stage properties for the phenotype → censor → ascertain pipeline and its merged cohort stage."""
 
 from __future__ import annotations
 
@@ -8,18 +8,25 @@ from typing import Any, TypedDict
 import numpy as np
 import polars as pl
 import pytest
-from hypothesis import given
+from hypothesis import event, given, settings
 from hypothesis import strategies as st
 from hypothesis.strategies import SearchStrategy
+from polars.testing import assert_frame_equal, assert_series_equal
 
+from simace.analysis.prevalence import compute_prevalence
+from simace.ascertainment.runner import run_ascertainment
 from simace.censoring.censor import run_censor
+from simace.cli.cohort_stage import run_cohort
+from simace.core.cohort import build_cohort
+from simace.core.parquet import normalize_for_parquet
 from simace.core.schema import PEDIGREE
 from simace.core.trait_schema import TRAIT_CENSORED_COLUMNS, TRAIT_RAW_COLUMNS
 from simace.phenotype import run_phenotype
 from simace.phenotype.hazards import STANDARDIZE_CHOICES
-from tests.conftest import HAZARD_PARAM_BOUNDS, hazard_params, pedigree_frame, schema_pad
+from simace.phenotype.models import MODELS
+from tests.conftest import HAZARD_PARAM_BOUNDS, PEDIGREE_MAX_N, hazard_params, pedigree_frame, schema_pad
 
-_MODELS = ("frailty", "cure_frailty", "adult", "first_passage", "simple_ltm")
+_MODELS = tuple(MODELS)
 _DEATH_ANCHOR_SEED = 0
 
 type Draw = Callable[[SearchStrategy[Any]], Any]
@@ -71,6 +78,15 @@ def _draw_model_params(draw: Draw, model: str) -> dict[str, Any]:
     return {"prevalence": draw(_finite_float(0.05, 0.95)), "onset": onset_params}
 
 
+def _draw_trait_kwargs(draw: Draw, trait: int, model: str) -> dict[str, Any]:
+    return {
+        f"phenotype_model{trait}": model,
+        f"phenotype_params{trait}": _draw_model_params(draw, model),
+        f"beta{trait}": draw(_finite_float(-2.0, 2.0)),
+        f"beta_sex{trait}": draw(_finite_float(-2.0, 2.0)),
+    }
+
+
 def _trailing_pedigree(pedigree: pl.DataFrame, g_pheno: int) -> pl.DataFrame:
     min_gen = int(pedigree["generation"].max()) - g_pheno + 1
     return pedigree.filter(pl.col("generation") >= min_gen)
@@ -83,20 +99,12 @@ def _chain_case(draw: Draw) -> ChainCase:
     n_generations = max_gen + 1
     g_pheno = draw(st.integers(min_value=1, max_value=n_generations))
 
-    model1 = draw(st.sampled_from(_MODELS))
-    model2 = draw(st.sampled_from(_MODELS))
     phenotype_kwargs = {
         "G_pheno": g_pheno,
         "seed": draw(st.integers(min_value=0, max_value=2**31 - 1)),
         "standardize": draw(st.sampled_from(STANDARDIZE_CHOICES)),
-        "phenotype_model1": model1,
-        "phenotype_params1": _draw_model_params(draw, model1),
-        "beta1": draw(_finite_float(-2.0, 2.0)),
-        "beta_sex1": draw(_finite_float(-2.0, 2.0)),
-        "phenotype_model2": model2,
-        "phenotype_params2": _draw_model_params(draw, model2),
-        "beta2": draw(_finite_float(-2.0, 2.0)),
-        "beta_sex2": draw(_finite_float(-2.0, 2.0)),
+        **_draw_trait_kwargs(draw, 1, draw(st.sampled_from(_MODELS))),
+        **_draw_trait_kwargs(draw, 2, draw(st.sampled_from(_MODELS))),
     }
 
     censor_age = draw(_finite_float(1.0, 150.0))
@@ -214,6 +222,32 @@ def test_both_stages_are_seed_deterministic_in_values_and_dtypes(case: ChainCase
     assert first_censored.equals(second_censored)
 
 
+@pytest.mark.parametrize("varied_trait", [1, 2])
+@pytest.mark.parametrize("fixed_model", _MODELS)
+@given(case=_chain_case(), data=st.data())
+def test_replacing_one_traits_model_leaves_the_other_raw_onset_unchanged(
+    case: ChainCase, data: st.DataObject, fixed_model: str, varied_trait: int
+) -> None:
+    """With pedigree, seed, G_pheno, and standardization held, one trait's inputs never reach the other's onsets.
+
+    Every registered family is guaranteed as the held trait's model. Rejects a
+    random stream shared across traits and model parameters or betas leaking
+    from one trait into the other.
+    """
+    fixed_trait = 3 - varied_trait
+    kwargs = {**case["phenotype_kwargs"], **_draw_trait_kwargs(data.draw, fixed_trait, fixed_model)}
+    replacement_model = data.draw(st.sampled_from(_MODELS))
+    replaced = {**kwargs, **_draw_trait_kwargs(data.draw, varied_trait, replacement_model)}
+
+    before = run_phenotype(case["pedigree"], **kwargs)
+    after = run_phenotype(case["pedigree"], **replaced)
+
+    event(f"replacement model {replacement_model}")
+    event(f"varied onsets changed: {not after[f't{varied_trait}'].equals(before[f't{varied_trait}'])}")
+    assert_series_equal(after["id"], before["id"], check_exact=True)
+    assert_series_equal(after[f"t{fixed_trait}"], before[f"t{fixed_trait}"], check_exact=True)
+
+
 _MATRIX_PARAMS = {
     "frailty": {"distribution": "weibull", "scale": 100.0, "rho": 2.0},
     "cure_frailty": {
@@ -286,10 +320,18 @@ def test_explicit_model_by_standardize_matrix_reaches_the_full_chain(model: str,
 
 @given(_chain_case())
 def test_widening_every_window_can_only_add_affected_rows(case: ChainCase) -> None:
+    """Widening every observation window keeps ids, raw onsets, and death ages, and loses no affected row.
+
+    Rejects redrawing deaths or rewriting raw onsets when only the windows change.
+    """
     phenotype = _run_phenotype(case)
     narrow = _run_censor(case, phenotype)
     wide = _run_censor(case, phenotype, gen_censoring=case["wide_censoring"])
 
+    assert_frame_equal(narrow.select(TRAIT_RAW_COLUMNS), phenotype, check_exact=True)
+    assert_frame_equal(
+        wide.select(*TRAIT_RAW_COLUMNS, "death_age"), narrow.select(*TRAIT_RAW_COLUMNS, "death_age"), check_exact=True
+    )
     for trait in ("1", "2"):
         narrow_affected = narrow[f"affected{trait}"].to_numpy()
         wide_affected = wide[f"affected{trait}"].to_numpy()
@@ -327,3 +369,48 @@ def test_scaled_death_anchor_eliminates_death_censoring_exactly(case: ChainCase)
     assert np.all(censored["death_age"].to_numpy() > 1e6)
     assert not censored["death_censored1"].any()
     assert not censored["death_censored2"].any()
+
+
+@st.composite
+def _ascertain_kwargs(draw: Draw) -> dict[str, Any]:
+    return {
+        "dropout_rate": draw(_finite_float(0.0, 0.5)),
+        "case_ascertainment_ratio": draw(_finite_float(0.1, 10.0)),
+        "N_sample": draw(st.integers(min_value=0, max_value=PEDIGREE_MAX_N)),
+    }
+
+
+# Explicit budget, not the conftest profile: the gc.collect() passes inside run_cohort dominate,
+# so each example (two run_cohort calls) measured ~0.35 s even on these small pedigrees.
+@settings(max_examples=20)
+@given(case=_chain_case(), ascertain=_ascertain_kwargs(), other_ascertain=_ascertain_kwargs())
+def test_merged_cohort_stage_composes_the_normalized_stages(
+    case: ChainCase, ascertain: dict[str, Any], other_ascertain: dict[str, Any]
+) -> None:
+    """``run_cohort`` equals phenotype, normalize, censor, normalize, ascertain, build_cohort under one seed.
+
+    The pedigree is normalized as ``pedigree.parquet`` would hold it. Rejects
+    per-phase seeds, misrouted intermediate frames, and a population summary
+    taken after or influenced by ascertainment.
+    """
+    pedigree = normalize_for_parquet(case["pedigree"])
+    seed = case["phenotype_kwargs"]["seed"]
+    phenotype = {key: value for key, value in case["phenotype_kwargs"].items() if key != "seed"}
+    censor = {key: value for key, value in case["censor_kwargs"].items() if key != "seed"}
+
+    cohort, population = run_cohort(pedigree, seed=seed, phenotype=phenotype, censor=censor, ascertain=ascertain)
+
+    raw = normalize_for_parquet(run_phenotype(pedigree, seed=seed, **phenotype))
+    censored = normalize_for_parquet(run_censor(raw, pedigree, seed=seed, **censor))
+    expected = build_cohort(*run_ascertainment(pedigree, censored, seed=seed, **ascertain))
+    assert_frame_equal(cohort, expected, check_exact=True)
+
+    generation = censored.select("id").join(pedigree.select("id", "generation"), on="id", maintain_order="left")
+    assert population == {
+        "n_individuals": len(censored),
+        "n_generations": phenotype["G_pheno"],
+        "prevalence": compute_prevalence(censored.with_columns(generation["generation"])),
+    }
+
+    _, other_population = run_cohort(pedigree, seed=seed, phenotype=phenotype, censor=censor, ascertain=other_ascertain)
+    assert other_population == population

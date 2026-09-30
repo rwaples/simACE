@@ -15,11 +15,14 @@ alone (De Morgan of one assignment line) would not.
 
 import numpy as np
 import polars as pl
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from hypothesis.extra import numpy as hnp
+from polars.testing import assert_frame_equal
 
 from simace.censoring.censor import run_censor
+from simace.core.trait_schema import TRAIT_CENSORED_COLUMNS
 
 _onset = st.floats(min_value=0.0, max_value=300.0, allow_nan=False, allow_infinity=False)
 _DERIVED_COLUMNS = (
@@ -158,3 +161,32 @@ def test_null_onset_matches_out_of_window_sentinel(case, data) -> None:
         assert null_result[f"t{trait}"].null_count() == selected.sum()
         assert not affected[selected].any()
         assert np.isfinite(null_result[f"t_observed{trait}"].to_numpy()).all()
+
+
+@pytest.mark.parametrize("changed_trait", ["1", "2"])
+@given(case=_censor_case(), data=st.data())
+def test_changing_one_raw_onset_leaves_the_other_trait_and_death_unchanged(case, data, changed_trait) -> None:
+    """Replacing one trait's raw onsets, nulls included, leaves every other censoring output identical.
+
+    Windows, seed, and row order are held. Rejects reading the wrong onset
+    array for a trait and death draws that depend on onsets.
+    """
+    n, gens, t1, t2, censor_age, seed, gen_censoring = case
+    phenotype, pedigree = _make_frames(n, gens, t1, t2)
+    replacement = data.draw(hnp.arrays(np.float64, n, elements=_onset))
+    nulls = data.draw(hnp.arrays(np.bool_, n, elements=st.booleans()))
+    changed = phenotype.with_columns(_with_selected_nulls(f"t{changed_trait}", replacement, nulls))
+    kwargs = {
+        "censor_age": censor_age,
+        "seed": seed,
+        "gen_censoring": gen_censoring,
+        "death_scale": 79.433,
+        "death_rho": 10.0,
+    }
+
+    held = [column for column in TRAIT_CENSORED_COLUMNS if not column.endswith(changed_trait)]
+    assert_frame_equal(
+        run_censor(changed, pedigree, **kwargs).select(held),
+        run_censor(phenotype, pedigree, **kwargs).select(held),
+        check_exact=True,
+    )
