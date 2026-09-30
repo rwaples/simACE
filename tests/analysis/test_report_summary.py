@@ -17,7 +17,8 @@ import pytest
 
 from simace.analysis.gather import _get_nested, extract_metrics
 from simace.analysis.report_schema import REPORT_SUMMARY_REGISTRY
-from simace.core.parquet import save_parquet
+from simace.core.cohort import write_cohort, write_pedigree
+from simace.core.parquet import normalize_for_parquet
 from simace.core.yaml_io import dump_yaml, load_yaml
 
 # Coverage parameters mirror config/test.yaml::coverage_scenario. Tuned so every
@@ -46,61 +47,53 @@ _COVERAGE_PARAMS = dict(
 
 @pytest.fixture(scope="session")
 def coverage_report(tmp_path_factory) -> dict:
-    """Run the full Analyze stage on a coverage scenario; return its report.yaml.
+    """Run the cohort stage and Analyze on a coverage scenario; return its report.yaml.
 
-    No ascertainment is applied (trait.full == trait, pedigree == pedigree.full),
-    so the ascertainment columns are identity but still populated. Round-trips
-    through `dump_yaml` / `load_yaml` so the test sees what `gather` reads.
+    No ascertainment is applied (the analysis sample is the phenotyped
+    population, the analysis pedigree the recorded one), so the ascertainment
+    columns are identity but still populated. Round-trips through `dump_yaml`
+    / `load_yaml` so the test sees what `gather` reads.
     """
     from simace.analysis.analyze import run_analysis
-    from simace.censoring.censor import run_censor
-    from simace.phenotype import run_phenotype
+    from simace.cli.cohort_stage import run_cohort
     from simace.simulation.simulate import run_simulation
 
     work = tmp_path_factory.mktemp("coverage_scenario")
-    pedigree = run_simulation(**_COVERAGE_PARAMS)
-    phenotype = run_phenotype(
+    pedigree = normalize_for_parquet(run_simulation(**_COVERAGE_PARAMS))
+    cohort, phenotyped_population = run_cohort(
         pedigree,
-        G_pheno=_COVERAGE_PARAMS["G_ped"],
         seed=_COVERAGE_PARAMS["seed"],
-        standardize=True,
-        phenotype_model1="frailty",
-        phenotype_params1={"distribution": "weibull", "scale": 2160, "rho": 0.8},
-        beta1=1.0,
-        beta_sex1=0.0,
-        phenotype_model2="frailty",
-        phenotype_params2={"distribution": "weibull", "scale": 333, "rho": 1.2},
-        beta2=1.0,
-        beta_sex2=0.0,
-    )
-    censored = run_censor(
-        phenotype,
-        pedigree,
-        censor_age=80,
-        seed=_COVERAGE_PARAMS["seed"],
-        gen_censoring={},
-        death_scale=164,
-        death_rho=2.73,
+        phenotype={
+            "G_pheno": _COVERAGE_PARAMS["G_ped"],
+            "standardize": True,
+            "phenotype_model1": "frailty",
+            "phenotype_params1": {"distribution": "weibull", "scale": 2160, "rho": 0.8},
+            "beta1": 1.0,
+            "beta_sex1": 0.0,
+            "phenotype_model2": "frailty",
+            "phenotype_params2": {"distribution": "weibull", "scale": 333, "rho": 1.2},
+            "beta2": 1.0,
+            "beta_sex2": 0.0,
+        },
+        censor={"censor_age": 80, "gen_censoring": {}, "death_scale": 164, "death_rho": 2.73},
+        ascertain={},
     )
 
-    ped_full = work / "pedigree.full.parquet"
     ped = work / "pedigree.parquet"
-    trait_full = work / "trait.full.parquet"
-    trait = work / "trait.parquet"
+    cohort_path = work / "cohort.parquet"
+    population_path = work / "phenotyped_population.yaml"
     params_path = work / "params.yaml"
-    save_parquet(pedigree, ped_full)
-    save_parquet(pedigree, ped)
-    save_parquet(censored, trait_full)
-    save_parquet(censored, trait)
+    write_pedigree(pedigree, ped)
+    write_cohort(cohort, cohort_path)
+    dump_yaml(phenotyped_population, population_path)
     dump_yaml(_COVERAGE_PARAMS, params_path)
 
     report_yaml = work / "report.yaml"
     run_analysis(
-        pedigree_full_path=str(ped_full),
-        params_path=str(params_path),
-        trait_full_path=str(trait_full),
-        trait_path=str(trait),
         pedigree_path=str(ped),
+        params_path=str(params_path),
+        cohort_path=str(cohort_path),
+        phenotyped_population_path=str(population_path),
         report_output=str(report_yaml),
         plot_payload_output=str(work / "plot_payload.yaml"),
         samples_output=str(work / "plotting_sample.parquet"),

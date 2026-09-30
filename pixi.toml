@@ -1,6 +1,6 @@
 # Canonical simACE environment (ADR 0016; sole environment since the conda
 # retirement, ADR 0018): pixi runs every simACE-scoped command (pytest / ruff
-# / ty / snakefmt / snakemake). Family work runs in fitACE/pixi.toml;
+# / ty / simace). Family work runs in fitACE/pixi.toml;
 # editable pedigree-graph work in external/pedigree-graph/pixi.toml.
 [workspace]
 name = "simace"
@@ -17,24 +17,17 @@ pandas = "3.0.*"
 polars = "1.44.*"
 pyarrow = "25.0.*"
 pyyaml = "6.0.*"
-# templating for notes/poster/tools/build_poster.py; already in the lock as a
-# snakemake-minimal dependency, pinned here because we import it directly
+# templating for notes/poster/tools/build_poster.py, which imports it directly
 jinja2 = "3.1.*"
 numba = "0.67.*"
 # plotting
 matplotlib = "3.11.*"
 seaborn = "0.13.*"
 pillow = "12.3.*"
-# workflow (snakemake-minimal, not the meta-package)
-snakemake-minimal = "9.25.*"
-snakemake-executor-plugin-slurm = "2.8.*"
-snakefmt = "2.0.*"
 # dev / test
 pytest = "9.1.*"
 pytest-xdist = "3.8.*"
 ruff = "0.16.*"
-# graphics
-graphviz = "*"
 # MKL / linear algebra
 libopenblas = "*"
 mkl = "*"
@@ -52,9 +45,9 @@ simace = { path = ".", editable = true, extras = ["dev"] }
 # `pixi run test` is the parallel suite: 6 worker processes, each pinned to a
 # single numba/BLAS/polars thread, for a total budget of 6 of the 12 cores.
 # The pins live here rather than in [activation.env] on purpose -- the pipeline
-# rules depend on numba's `parallel=True` kernels (simace/phenotype/hazards.py)
-# and on threaded BLAS, so pinning globally would slow every `pixi run
-# snakemake`.  Bare `pixi run pytest` stays serial and unpinned so that -v
+# stages depend on numba's `parallel=True` kernels (simace/phenotype/hazards.py),
+# so pinning globally would slow every `pixi run simace run`.  Bare
+# `pixi run pytest` stays serial and unpinned so that -v
 # output, --pdb, and single-module runs behave the way CLAUDE.md documents.
 # Worker count and dist mode chosen by tools/bench_pytest_workers.sh.
 # worksteal, not loadscope: loadscope commits each scope to a worker up front

@@ -1,14 +1,13 @@
 """Edge-case + CLI tests for ``simace.ascertainment``."""
 
-import sys
-
 import numpy as np
 import polars as pl
 import polars.testing
 import pytest
 
-from simace.ascertainment import _sever_dangling_links, copy_passthrough_if_possible, run_ascertainment
 from simace.ascertainment import cli as ascertain_cli
+from simace.ascertainment import copy_passthrough_if_possible, run_ascertainment
+from simace.core.cohort import sever_dangling_links
 from simace.core.schema import CENSORED
 from simace.simulation.simulate import run_simulation
 from tests.conftest import schema_pad
@@ -176,7 +175,7 @@ class TestNsamplePassThroughLogging:
 
 
 class TestSeverDanglingTwinLinks:
-    """``_sever_dangling_links`` rewrites twin pointers outside the valid set to -1."""
+    """``sever_dangling_links`` rewrites twin pointers outside the valid set to -1."""
 
     def test_twin_link_to_outside_id_severed(self):
         df = pl.DataFrame(
@@ -188,7 +187,7 @@ class TestSeverDanglingTwinLinks:
                 "twin": [999, 2, 1],
             }
         )
-        out = _sever_dangling_links(df, valid_ids=df["id"].to_numpy())
+        out = sever_dangling_links(df, valid_ids=df["id"].to_numpy())
         assert out["twin"][0] == -1  # dangling severed
         assert out["twin"][1] == 2  # in-set survives
         assert out["twin"][2] == 1
@@ -246,7 +245,7 @@ class TestPassThroughCopyFastPath:
 class TestAscertainmentCLI:
     """End-to-end CLI: pedigree + trait parquet in, 2 parquets out."""
 
-    def test_cli_writes_outputs(self, tmp_path, monkeypatch, small_pedigree):
+    def test_cli_writes_outputs(self, tmp_path, small_pedigree):
         ped_path = tmp_path / "pedigree.parquet"
         trait_path = tmp_path / "trait.parquet"
         out_ped = tmp_path / "out_ped.parquet"
@@ -256,11 +255,8 @@ class TestAscertainmentCLI:
         trait = _build_trait(small_pedigree, g_pheno=2, n_cases=30, seed=1)
         trait.write_parquet(trait_path)
 
-        monkeypatch.setattr(
-            sys,
-            "argv",
+        ascertain_cli(
             [
-                "ascertain",
                 "--pedigree",
                 str(ped_path),
                 "--trait",
@@ -277,7 +273,6 @@ class TestAscertainmentCLI:
                 "9",
             ],
         )
-        ascertain_cli()
 
         assert out_ped.exists()
         assert out_trait.exists()

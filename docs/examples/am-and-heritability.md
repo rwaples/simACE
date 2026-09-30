@@ -27,11 +27,15 @@ AM coefficient on trait 1.
 | `am_weak`   | 0.2       | 0.0       | 100,000 | 10    | 10      | 10    | 3    |
 | `am_strong` | 0.4       | 0.0       | 100,000 | 10    | 10      | 10    | 3    |
 
-Rebuild all three (and the comparison plots on this page) with:
+Rebuild all three with:
 
 ```bash
-pixi run snakemake --cores 4 examples_all
+for s in am_none am_weak am_strong; do pixi run simace run "$s"; done
 ```
+
+Each comparison plot on this page comes from a script in `scripts/examples/`
+(`compare_am_*.py`). Its docstring gives the exact command, for example
+`pixi run python scripts/examples/compare_am_heritability.py --help`.
 
 ## Observation 1: AM inflates realized $v_A$ at equilibrium
 

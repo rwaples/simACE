@@ -1,6 +1,6 @@
 # Writing a scenario
 
-Add a top-level entry to `config/{folder}.yaml`. Snakemake discovers these
+Add a top-level entry to `config/{folder}.yaml`. `simace run` discovers these
 files automatically, except files whose names start with `_`. The file name
 sets the output folder unless a scenario sets `folder` explicitly. A new file
 creates a new folder by default.

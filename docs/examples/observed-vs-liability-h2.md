@@ -42,11 +42,14 @@ their observation window depends on liability *and* on time. Cure-frailty
 adds a *susceptibility* fraction on top: only a subset of individuals is
 at risk at all, and the hazard governs onset within that subset.
 
-Rebuild all three (and every other docs-embedded comparison plot) with:
+Rebuild all three with:
 
 ```bash
-pixi run snakemake --cores 4 examples_all
+for s in model_ltm model_cure_frailty_ln model_frailty_wb; do pixi run simace run "$s"; done
 ```
+
+The comparison plot comes from `scripts/examples/compare_observed_vs_liability_h2.py`.
+Its docstring gives the exact command.
 
 ## Observation: Tetrachoric Falconer depends on the *shape* of the liability→observed map
 

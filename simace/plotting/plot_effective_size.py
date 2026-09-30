@@ -730,16 +730,16 @@ def main(
     )
 
 
-def cli() -> None:
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line entry: render Ne atlas from a list of yamls."""
     from simace.core.cli_base import add_logging_args, init_logging
 
-    parser = argparse.ArgumentParser(description="Plot Ne atlas from per-rep effective_size.yaml files")
+    parser = argparse.ArgumentParser(prog=prog, description="Plot Ne atlas from per-rep effective_size.yaml files")
     add_logging_args(parser)
     parser.add_argument("--yaml", required=True, nargs="+", help="Per-rep effective_size.yaml paths")
     parser.add_argument("--params", required=True, help="Per-rep params.yaml")
     parser.add_argument("--output-dir", required=True, help="Output plots directory")
     parser.add_argument("--plot-format", choices=["png", "pdf"], default="png")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     init_logging(args)
     main(args.yaml, args.params, args.output_dir, plot_ext=args.plot_format)

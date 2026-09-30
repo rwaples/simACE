@@ -4,7 +4,7 @@
 Run from the repository root after generating the four ascertainment example
 scenarios, for example:
 
-    snakemake --cores 4 results/examples/ascertainment_uniform50k/rep1/report.yaml
+    pixi run simace run ascertainment_uniform50k --rep 1
     python docs/examples/scripts/build_ascertainment_bias.py
 """
 
@@ -19,7 +19,7 @@ import numpy as np
 import polars as pl
 import yaml
 
-from simace.core.parquet import load_parquet
+from simace.core.cohort import read_cohort, read_pedigree, selected_views
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 RESULTS_ROOT = REPO_ROOT / "results" / "examples"
@@ -59,9 +59,10 @@ COLORS = {
 def _require(path: Path) -> Path:
     if path.exists():
         return path
-    targets = " ".join(f"results/examples/{scenario.name}/rep1/report.yaml" for scenario in SCENARIOS)
+    names = " ".join(scenario.name for scenario in SCENARIOS)
     raise FileNotFoundError(
-        f"Required file is missing: {path}\nGenerate the example outputs first, e.g.:\n  snakemake --cores 4 {targets}"
+        f"Required file is missing: {path}\nGenerate the example outputs first, e.g.:\n"
+        f'  for s in {names}; do pixi run simace run "$s" --rep 1; done'
     )
 
 
@@ -91,14 +92,10 @@ def load_metrics() -> pl.DataFrame:
     rows: list[dict[str, Any]] = []
     for idx, scenario in enumerate(SCENARIOS):
         rep_dir = RESULTS_ROOT / scenario.name / "rep1"
-        trait_path = _require(rep_dir / "trait.parquet")
-        pedigree_path = _require(rep_dir / "pedigree.parquet")
-        full_pedigree_path = _require(rep_dir / "pedigree.full.parquet")
+        full_pedigree = read_pedigree(_require(rep_dir / "pedigree.parquet"), columns=["id"])
+        views = selected_views(full_pedigree, read_cohort(_require(rep_dir / "cohort.parquet")))
+        trait, pedigree = views.trait, views.pedigree
         stats_path = _require(rep_dir / "report.yaml")
-
-        trait = load_parquet(trait_path, columns=["affected1"])
-        pedigree = load_parquet(pedigree_path, columns=["id"])
-        full_pedigree = load_parquet(full_pedigree_path, columns=["id"])
         stats = _read_yaml(stats_path)
         rel_counts = _relationship_counts(stats)
 
@@ -160,7 +157,7 @@ def plot_case_fraction(df: pl.DataFrame) -> None:
         )
 
     ax.set_title("Case weighting enriches the sampled trait table")
-    ax.set_ylabel("Trait 1 affected fraction in trait.parquet")
+    ax.set_ylabel("Trait 1 affected fraction in the analysis sample")
     ax.set_ylim(0, max(0.45, float(df["affected_fraction"].max()) + 0.06))
     ax.legend(frameon=False, loc="upper left")
     _style_axes(ax)

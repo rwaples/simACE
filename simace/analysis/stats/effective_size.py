@@ -39,8 +39,7 @@ from pedigree_graph.effective_size import (
 )
 
 from simace.core.cli_base import add_logging_args, init_logging
-from simace.core.parquet import load_parquet
-from simace.core.pedigree_filter import filter_pedigree_to_observed
+from simace.core.cohort import read_cohort, read_pedigree, selected_views
 from simace.core.yaml_io import dump_yaml, load_yaml
 
 if TYPE_CHECKING:
@@ -302,37 +301,37 @@ def compute_effective_size(
 
 def main(
     pedigree_path: str,
-    phenotype_path: str,
+    cohort_path: str,
     params_path: str,
     output_path: str,
     skip_ne_coancestry: bool = False,
 ) -> None:
     """Compute Ne for one rep and write ``effective_size.yaml``.
 
-    Reads ``pedigree_path`` and ``phenotype_path``, restricts the pedigree to
-    observed (phenotyped) IDs plus their ancestor closure within
-    ``pedigree_path`` (so kinship arithmetic still works through pre-phenotyping
-    ancestors), builds a :class:`PedigreeGraph`, runs
+    Rebuilds the analysis pedigree (the analysis sample plus its ancestor
+    closure, links outside it severed) from the recorded ``pedigree_path``
+    and ``cohort_path`` with :func:`~simace.core.cohort.selected_views`,
+    builds a :class:`PedigreeGraph` on it, runs
     :func:`compute_effective_size`, and dumps the YAML-ready dict to
     ``output_path``.
     """
-    df_ped = load_parquet(pedigree_path)
-    df_phe = load_parquet(phenotype_path)
+    df_observed = selected_views(read_pedigree(pedigree_path), read_cohort(cohort_path)).pedigree
     params = load_yaml(params_path)
 
-    df_observed = filter_pedigree_to_observed(df_ped, df_phe["id"].to_numpy())
     pg = PedigreeGraph.from_frame(df_observed)
     result = compute_effective_size(pg, config=params, skip_ne_coancestry=skip_ne_coancestry)
 
     dump_yaml(result, output_path)
 
 
-def cli() -> None:
-    """Argparse entry point for running outside Snakemake."""
-    parser = argparse.ArgumentParser(description="Compute Ne estimators")
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
+    """Command-line entry point: compute Ne for one rep."""
+    from simace.core.publish import publish
+
+    parser = argparse.ArgumentParser(prog=prog, description="Compute Ne estimators")
     add_logging_args(parser)
-    parser.add_argument("--pedigree", required=True, help="Pedigree parquet (post-dropout)")
-    parser.add_argument("--phenotype", required=True, help="Sampled phenotype parquet (defines observed set)")
+    parser.add_argument("--pedigree", required=True, help="Recorded pedigree parquet (pedigree.parquet)")
+    parser.add_argument("--cohort", required=True, help="The rep's cohort.parquet (defines the analysis pedigree)")
     parser.add_argument("--params", required=True, help="Per-rep params.yaml")
     parser.add_argument("--output", required=True, help="Output effective_size.yaml")
     parser.add_argument(
@@ -343,12 +342,13 @@ def cli() -> None:
         "analysis.skip_ne_coancestry pipeline default. Without it ne_coancestry carries "
         "reason: not_requested instead of a result.",
     )
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     init_logging(args)
-    main(
-        args.pedigree,
-        args.phenotype,
-        args.params,
-        args.output,
-        skip_ne_coancestry=not args.ne_coancestry,
-    )
+    with publish(args.output) as (tmp,):
+        main(
+            args.pedigree,
+            args.cohort,
+            args.params,
+            str(tmp),
+            skip_ne_coancestry=not args.ne_coancestry,
+        )

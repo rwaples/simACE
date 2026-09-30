@@ -85,7 +85,12 @@ Each scenario writes to `results/epimight_basics/<scenario>/rep1/`.
 (id of the MZ co-twin, -1 if none), `generation`, `household_id`, and the true
 liability components `A1`, `E1`, `liability1`, `A2`, `E2`, `liability2`.
 
-`trait.parquet` has one row per phenotyped individual, joined on `id`:
+`cohort.parquet` has one row per individual in the analysis pedigree,
+joined on `id`. Both scenarios keep every phenotyped individual who survived
+dropout. Those rows have `affected1` set; rows for older, unphenotyped
+ancestors have every column below null. `simace.core.cohort.selected_views`
+returns the phenotyped rows and the matching pedigree
+([Output structure](../user-guide/output-structure.md#per-replicate-files)).
 
 | Column | Meaning |
 |---|---|

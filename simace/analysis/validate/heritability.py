@@ -116,7 +116,7 @@ def _validate_dz_correlations(
     The full-sib A-component correlation is ``2·kinship`` (0.5) under random
     mating; under single-trait assortative mating it inflates to ``(1+mu_A)/2``
     (see :mod:`.am_relatedness`). Both-trait AM skips the scored check. The
-    correlations are exact over every full-sib pair (ADR 0020).
+    correlations are exact over every full-sib pair (ADR 0022).
     """
     full_sibs = category_cell(sibling_moments, "FS")
     n_dz_pairs = int(full_sibs.counts)

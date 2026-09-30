@@ -29,15 +29,15 @@ def _manifest(run_id: str) -> dict:
             "physical_cores": 4,
             "logical_cores": 8,
         },
-        "tools": {"pixi": "1", "python": "3.13", "snakemake": "9", "simace": "1"},
+        "tools": {"pixi": "1", "python": "3.13", "simace": "1"},
         "execution": {
             "folder": "test",
             "scenarios": ["small_test"],
-            "cores": 4,
+            "jobs": 1,
             "cache_mode": "warm",
             "sample_interval_seconds": 0.25,
             "thread_environment": {},
-            "targets": ["stats", "atlas"],
+            "command": ["python", "-m", "simace", "run", "<scenario>", "--force", "--jobs", "1"],
         },
     }
 
@@ -88,12 +88,12 @@ def test_compare_rejects_incompatible_provenance(tmp_path: Path):
     candidate_dir = tmp_path / "candidate"
     candidate_dir.mkdir()
     manifest = deepcopy(_manifest("candidate"))
-    manifest["execution"]["cores"] = 8
+    manifest["execution"]["jobs"] = 8
     write_json(candidate_dir / "manifest.json", manifest)
     write_json(candidate_dir / "results.json", _results("candidate", 100.0, 1000.0))
     candidate = read_run(candidate_dir)
 
-    with pytest.raises(BenchmarkError, match=r"execution\.cores"):
+    with pytest.raises(BenchmarkError, match=r"execution\.jobs"):
         compare_runs(
             baseline,
             candidate,

@@ -6,7 +6,6 @@ import argparse
 import csv
 import logging
 import math
-import platform
 import re
 from pathlib import Path
 from typing import Any
@@ -16,7 +15,18 @@ from simace.core.yaml_io import load_yaml
 
 logger = logging.getLogger(__name__)
 
-_REPORT_PATH_RE = re.compile(r"results/([^/]+)/([^/]+)/rep(\d+)/report\.yaml")
+_REPORT_PATH_RE = re.compile(r"([^/]+)/([^/]+)/rep(\d+)/report\.yaml$")
+
+
+def _simulate_timing(timing_path: Path) -> tuple[float | None, float | None]:
+    """Return the simulate stage's wall seconds and peak RSS (MB) from a rep's ``timing.tsv``."""
+    if not timing_path.exists():
+        return None, None
+    with open(timing_path, encoding="utf-8", newline="") as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            if row["stage"] == "simulate":
+                return float(row["wall_s"]), float(row["max_rss_mb"])
+    return None, None
 
 
 def _get_nested(d: Any, *keys: str, default: Any = None) -> Any:
@@ -39,28 +49,13 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
     """
     data = load_yaml(report_path)
 
-    report_path = str(report_path).replace("\\", "/")
-
-    match = _REPORT_PATH_RE.search(report_path)
+    match = _REPORT_PATH_RE.search(str(report_path).replace("\\", "/"))
     if match:
-        folder, scenario, rep_str = match.group(1), match.group(2), match.group(3)
-        rep = int(rep_str)
-        bench_path: Path | None = Path(f"benchmarks/{folder}/{scenario}/rep{rep_str}/simulate.tsv")
+        folder, scenario, rep = match.group(1), match.group(2), int(match.group(3))
     else:
-        folder = "unknown"
-        scenario = "unknown"
-        rep = 1
-        bench_path = None
+        folder, scenario, rep = "unknown", "unknown", 1
 
-    simulate_seconds = None
-    simulate_max_rss_mb = None
-    if bench_path is not None and bench_path.exists():
-        with open(bench_path, encoding="utf-8", newline="") as bf:
-            first_row = next(csv.DictReader(bf, delimiter="\t"), None)
-        if first_row is not None:
-            simulate_seconds = float(first_row["s"])
-            # Windows benchmarks have no max_rss column; fall back to a sentinel.
-            simulate_max_rss_mb = 1.0 if platform.system() == "Windows" else float(first_row["max_rss"])
+    simulate_seconds, simulate_max_rss_mb = _simulate_timing(Path(report_path).with_name("timing.tsv"))
 
     params = _get_nested(data, "inputs", "parameters", default={})
     summary = _get_nested(data, "quality_checks", "summary", default={})
@@ -102,7 +97,7 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
     }
     for spec in REPORT_SUMMARY_REGISTRY:
         row[spec.column] = _get_nested(data, *spec.path)
-    # Benchmark timing and memory live alongside parameters, not in the YAML
+    # Stage timing lives in the rep's timing.tsv, not in the report
     row["simulate_seconds"] = simulate_seconds
     row["simulate_max_rss_mb"] = simulate_max_rss_mb
     return row
@@ -142,16 +137,16 @@ def main(report_files: list[str], output_path: str) -> None:
                 f.write("\t".join(values) + "\n")
 
 
-def cli() -> None:
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line interface for gathering report summaries."""
     from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
-    parser = argparse.ArgumentParser(description="Gather report summaries into TSV")
+    parser = argparse.ArgumentParser(prog=prog, description="Gather report summaries into TSV")
     add_logging_args(parser)
     add_version_arg(parser, "simace")
     parser.add_argument("reports", nargs="+", help="report.yaml paths")
     parser.add_argument("--output", required=True, help="Output TSV path")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     init_logging(args)
 

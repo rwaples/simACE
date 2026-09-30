@@ -1,4 +1,4 @@
-"""Generation labelling of the relationship moments (ADR 0020, plan D9.4).
+"""Generation labelling of the relationship moments (ADR 0022, plan D9.4).
 
 A deterministic chain pedigree gives every generation four mated couples with
 two offspring each, so the pair counts per generation are known in closed

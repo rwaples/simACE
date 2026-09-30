@@ -83,23 +83,4 @@ The pipeline has four simulation stages:
 3. **Censor**: apply age-window censoring and competing-risk death censoring.
 4. **Ascertainment**: drop individuals at random, then draw a case-weighted sample of size `N_sample` ([ADR 0001](../adr/0001-unified-ascertainment-stage.md)).
 
-Analyze follows: it checks the full pre-ascertainment pedigree, computes
-descriptive stats on the analysis sample, and writes one per-replicate report.
-Plot renders the scenario and validation atlases from those reports. These are
-the six scientific stages; Snakemake's `validate.done` and `stats.done` are
-output targets, not separate validation and stats stages. Model fitting runs
-in fitACE.
-
-## Pipeline rule graph
-
-The Snakemake rule graph shows which rules feed which:
-
-![simACE rule graph](../images/rulegraph.png)
-
-After you change the Snakefile or a rule file, regenerate the image:
-
-```bash
-scripts/regen_rulegraph.sh
-```
-
-The script writes `docs/images/rulegraph.png`. To render a different sub-DAG, pass its target as the first argument. The default target is `results/test/small_test/scenario.done`.
+The analyze stage follows. In one process it runs the validation checks on the full pre-ascertainment pedigree and computes summary statistics on the ascertained sample ([ADR 0008](../adr/0008-curated-analyze-report.md)). The scenario's plots and atlas come last. `simace run` executes the stages in this order for each replicate; see [Running the pipeline](../user-guide/running-the-pipeline.md). Model fitting runs in fitACE.

@@ -14,9 +14,9 @@ The diagnostic liability is
 per-generation standardized, and the case-status threshold corresponds
 to per-generation prevalence K_g.
 
-The transform takes the standard simACE `trait.parquet` (which has
-A1/C1/E1 + L1/L2 columns plus the standard `affected1`/`t_observed1`
-fields) and returns a new DataFrame with:
+The transform takes a hydrated analysis sample (the censored outcome
+columns joined to the pedigree's `generation`, A1/C1/E1, A2/C2/E2, and
+L1/L2 columns) and returns a new DataFrame with:
 
   - `affected1`/`t_observed1`/`age_censored1`/`death_censored1`
     overwritten using the blended diagnosis;
@@ -29,9 +29,9 @@ to compute per-cohort and pooled true h² of the diagnosed phenotype:
 
     h²_diag(g) = Var(A_blend[gen == g]) / Var(liability_blend[gen == g])
 
-The original `trait.parquet` is preserved as an audit trail; this
-transform is invoked by `fitACE/workflow/rules/blended_phenotype.smk`
-and writes its output to `phenotype.blended.parquet` alongside.
+The input frame is not modified. fitACE's
+`workflow/rules/blended_phenotype.smk` invokes this transform and writes
+its result beside the replicate's simACE outputs.
 """
 
 from __future__ import annotations

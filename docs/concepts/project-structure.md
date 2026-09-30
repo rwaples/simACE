@@ -4,7 +4,6 @@
 
 ```
 simACE/
-├── Snakefile                            # Root entry point (no -s flag needed)
 ├── pixi.toml, pixi.lock                 # Authoritative environment pins (ADR 0016)
 ├── config/
 │   ├── _default.yaml                    # Default simulation parameters
@@ -12,19 +11,30 @@ simACE/
 │
 ├── simace/                              # Simulation package (pip install -e .)
 │   ├── __init__.py                       # Package init
+│   ├── __main__.py                       # `python -m simace` runs the `simace` command
 │   ├── config.py                         # Config resolution and parameter coercion
+│   ├── cli/                              # The `simace` command (ADR 0020)
+│   │   ├── __init__.py                   # Subcommand table; dispatches to each stage's cli(argv, prog)
+│   │   ├── run.py                        # `simace run`: every rep of a scenario, then plots and atlas
+│   │   ├── cohort_stage.py               # `simace cohort`: phenotype, censor, and ascertain in one process (ADR 0021)
+│   │   ├── stages.py                     # Per-rep stage sequence as argv builders
+│   │   ├── layout.py                     # Layout and RepArtifact: the results/ and logs/ path convention
+│   │   ├── manifest.py                   # Per-rep run.yaml: complete, stale, or absent
+│   │   ├── gather.py                     # `simace gather`: folder summary and validation atlas
+│   │   └── inspect.py                    # `simace show` and `simace ls`
 │   ├── core/                             # Shared infrastructure
 │   │   ├── _numba_utils.py               # Shared Numba-compiled utilities
-│   │   ├── cli_base.py                   # Shared CLI boilerplate (add_logging_args, init_logging)
+│   │   ├── cli_base.py                   # Shared CLI boilerplate and flag parsers for structured values
+│   │   ├── cohort.py                     # cohort.parquet: builder, invariants, selected_views, layout-marked readers and writers
 │   │   ├── compute_hazard_terms.py       # Baseline hazard computation for parametric survival models
 │   │   ├── numerics.py                   # safe_corrcoef, safe_linregress, numba-accelerated helpers
 │   │   ├── parquet.py                    # Parquet reader/writer with dtype narrowing and the null contract
-│   │   ├── parquet_to_tsv.py             # `simace-parquet-to-tsv` CLI entry point
+│   │   ├── parquet_to_tsv.py             # `simace parquet-to-tsv`
 │   │   ├── pedigree_arrays.py            # Pedigree columns as numpy arrays, addressable by id
 │   │   ├── pedigree_filter.py            # Filter a pedigree to observed IDs plus their ancestors
+│   │   ├── publish.py                    # Atomic output publication (<path>.<random>.tmp, then rename)
 │   │   ├── relationships.py              # Relationship-pair and sex vocabulary (kinship read from pedigree_graph RELATIONSHIPS)
 │   │   ├── schema.py                     # PEDIGREE schema and hydrated in-memory trait schemas
-│   │   ├── snakemake_adapter.py          # Signature bridge between Snakemake script wrappers and domain functions
 │   │   ├── stage.py                      # @stage decorator: input/output schema assertions on stage functions
 │   │   ├── trait_schema.py               # Outcomes-only trait file schemas (RAW_TRAIT, CENSORED_TRAIT) and hydrate_trait
 │   │   └── yaml_io.py                    # load_yaml, dump_yaml helpers
@@ -34,7 +44,7 @@ simACE/
 │   │   ├── assortment.py                 # Standard-mating assortative-mating plan
 │   │   ├── mate_correlation.py           # Expected mate liability correlation matrix
 │   │   ├── am_equilibrium.py             # Assortative-mating additive-variance equilibrium
-│   │   └── emit_params.py                # Echo scenario parameters to a YAML sidecar
+│   │   └── emit_params.py                # Build params.yaml (the fitACE-facing parameter echo)
 │   ├── phenotype/
 │   │   ├── runner.py                     # run_phenotype dispatcher and CLI (re-exported from __init__.py)
 │   │   ├── hazards.py                    # Baseline-hazard registry (Weibull, exponential, Gompertz, and three more)
@@ -60,7 +70,7 @@ simACE/
 │   │   ├── gather.py                     # Gather per-replicate report summaries into report_summary.tsv
 │   │   ├── stats/                        # Per-concern stats package
 │   │   │   ├── runner.py                 # Stats orchestrator
-│   │   │   ├── moments.py                # Relationship moments of the analysis sample (one engine pass, ADR 0020)
+│   │   │   ├── moments.py                # Relationship moments of the analysis sample (one engine pass, ADR 0022)
 │   │   │   ├── correlations.py           # Pairwise correlations, parent-offspring regressions, h² estimators
 │   │   │   ├── tetrachoric.py            # Tetrachoric correlation primitives
 │   │   │   ├── pedigree.py               # Family size and parent-presence summaries
@@ -93,36 +103,23 @@ simACE/
 │       ├── plot_atlas_html.py            # Single-page HTML atlas (the default artifact)
 │       ├── plot_atlas.py                 # Multi-page PDF atlas (on demand)
 │       ├── stats_report.py               # Adapter from the curated report to the flat plotting view
-│       ├── plot_pipeline.py              # Pipeline DAG diagram
+│       ├── scenario_atlas.py             # `simace atlas`: the scenario atlas
+│       ├── plot_pipeline.py              # Pipeline stage diagram
 │       └── plot_table1.py                # Epidemiological Table 1
 │
 ├── fitACE/                              # Model-fitting monorepo checkout (gitignored, see Repo Map)
 │
-├── workflow/
-│   ├── common.py                         # Shared helpers such as get_param and get_folder
-│   ├── envs/                             # Conda env specs for named external tools
-│   ├── scripts/simace/                   # Thin script wrappers called by the rules
-│   └── rules/simace/                     # Modular Snakemake rule files
-│       ├── targets.smk                   # Target rules: all, scenario, per-stage sentinels
-│       ├── simulate.smk                  # Pedigree simulation
-│       ├── phenotype.smk                 # Phenotype + censor rules
-│       ├── ascertainment.smk             # Unified dropout + case-weighted N_sample (per ADR 0001)
-│       ├── validate.smk, stats.smk       # Validation and statistics
-│       ├── analyze.smk                   # Curated report.yaml
-│       ├── effective_size.smk            # Effective population size
-│       ├── examples.smk                  # Example-page targets such as minimal-ace and with-c
-│       ├── tskit_preprocess.smk          # tskit founder preprocessing for gene-drop
-│       ├── tstrait_phenotype.smk         # tstrait-based phenotype models
-│       ├── genotype_drop.smk             # Gene-drop pipeline (tskit-based recombination)
-│       └── utils.smk                     # Shared Snakemake utilities
-├── scripts/                             # Standalone helper scripts: regen_rulegraph.sh, bench_*.py, sweep generators
-├── tools/                               # Maintenance tooling (release.py, family typecheck)
+├── scripts/
+│   ├── examples/                         # Cross-scenario comparison figures for the Examples pages
+│   ├── gene_drop/                        # tskit/tstrait gene-drop scripts and their conda env (not run by `simace run`)
+│   ├── verify/                           # Fresh-machine install verification
+│   └── *.py                              # Standalone helpers: sweep generators, results audit
+├── tools/                               # Maintenance tooling (release.py, benchmark driver, family typecheck)
 ├── tests/                               # Mirrors simace/ sub-package structure
 ├── docs/                                # MkDocs sources, ADRs, plans
 ├── external/                            # Reference implementations plus the pedigree-graph and pedsum checkouts (gitignored)
-├── results/{folder}/{scenario}/         # Per-scenario simulation outputs
-├── logs/{folder}/{scenario}/            # Log files
-└── benchmarks/{folder}/{scenario}/      # Runtime and memory benchmarks
+├── results/{folder}/{scenario}/         # Per-scenario outputs, including each rep's run.yaml and timing.tsv
+└── logs/{folder}/{scenario}/            # One log per stage
 ```
 
 ## Repo map
@@ -137,8 +134,8 @@ paths used by maintenance tools.
 
 | Repo | Visibility | Local path | Role |
 |---|---|---|---|
-| [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate, phenotype, censor, ascertainment, analyze, plot |
-| [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model-fitting monorepo: core + Snakemake orchestrator + method packages in `fitACE_<x>/` subdirs (PCGC, iter/sparse REML + the `ace_iter_reml` C++ source under `fitACE_iter_reml/`, TetraHer + the `tetraher_simace` LDAK fork, PA-FGRS, Stan, frailty). Consumes simACE outputs. |
+| [`simACE`](https://github.com/rwaples/simACE) | public | `.` (this repo) | Simulation pipeline: simulate, phenotype, censor, ascertain, analyze, plot |
+| [`fitACE`](https://github.com/rwaples/fitACE) | private | `./fitACE/` | Model-fitting monorepo: core + its own Snakemake orchestrator + method packages in `fitACE_<x>/` subdirs (PCGC, iter/sparse REML + the `ace_iter_reml` C++ source under `fitACE_iter_reml/`, TetraHer + the `tetraher_simace` LDAK fork, PA-FGRS, Stan, frailty). Consumes simACE outputs. |
 | [`fitACE_epimight`](https://github.com/rwaples/fitACE_epimight) | private | `./fitACE/fitACE_epimight/` | EPIMIGHT integration: long-form input emitter, R driver, Snakemake rules, atlas/bias plotting. Its own repo, tracking the BioPsyk/epimight R upstream; included by `fitACE/Snakefile`. |
 | [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Rust pedigree relationship extraction and kinship computation. |
 | [`pedsum`](https://github.com/rwaples/pedsum) | public | `./external/pedsum/` | Pedigree summary CLI: structure, relatedness, inbreeding, Ne estimators. Built on `pedigree-graph`. |

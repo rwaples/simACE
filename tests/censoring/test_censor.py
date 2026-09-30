@@ -301,21 +301,11 @@ class TestDeathCensorNoMutation:
 class TestRunCensorCLI:
     """End-to-end CLI for ``simace.censoring.censor:cli``."""
 
-    @staticmethod
-    def _run_cli(monkeypatch, argv):
-        import sys
-
+    def test_cli_gen_censoring_json_round_trip(self, tmp_path, tiny_phenotype_parquet, tiny_pedigree_parquet):
         from simace.censoring.censor import cli as censor_cli
 
-        monkeypatch.setattr(sys, "argv", ["censor", *argv])
-        censor_cli()
-
-    def test_cli_gen_censoring_json_round_trip(
-        self, tmp_path, monkeypatch, tiny_phenotype_parquet, tiny_pedigree_parquet
-    ):
         out_path = tmp_path / "censored.parquet"
-        self._run_cli(
-            monkeypatch,
+        censor_cli(
             [
                 "--phenotype",
                 str(tiny_phenotype_parquet),

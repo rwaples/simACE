@@ -157,7 +157,7 @@ def severed_pedigree():
 
     Dropout removes individuals before the ancestor closure is built, so a
     surviving child's parent may be absent from the closure and gets rewritten
-    to -1 by ``_sever_dangling_links``. That produces rows with exactly one
+    to -1 by ``sever_dangling_links``. That produces rows with exactly one
     real parent -- the case that makes ``contains(-1)`` load-bearing.
     """
     ped = run_simulation(

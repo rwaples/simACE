@@ -3,9 +3,10 @@
 import numpy as np
 import pandas as pd
 import polars as pl
+import polars.testing
 import pytest
 
-from simace.core.parquet import load_parquet, save_parquet
+from simace.core.parquet import load_parquet, normalize_for_parquet, save_parquet
 
 
 def _pedigree_frame() -> pl.DataFrame:
@@ -55,3 +56,14 @@ def test_save_parquet_rejects_pandas(tmp_path):
     df = pd.DataFrame({"id": np.arange(4, dtype="int64")})
     with pytest.raises(TypeError, match=r"polars DataFrame since the polars migration"):
         save_parquet(df, tmp_path / "out.parquet")
+
+
+def test_normalize_for_parquet_is_what_a_round_trip_reads(tmp_path):
+    df = _pedigree_frame().with_columns(
+        pl.Series("t1", [1.5, float("nan"), None, 1 / 3]),
+        pl.Series("death_age", [80.0, 70.123456789, 60.0, 1e6]),
+        pl.Series("affected1", [True, False, None, True]),
+    )
+    out = tmp_path / "out.parquet"
+    save_parquet(df, out)
+    polars.testing.assert_frame_equal(normalize_for_parquet(df), load_parquet(out), check_exact=True)

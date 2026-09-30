@@ -5,9 +5,9 @@ expected liability correlations. Kinship is sourced from
 ``pedigree_graph.RELATIONSHIPS[code].nominal_kinship`` (never re-declared
 here). Pooling and presentation groupings deliberately live at the call
 sites, not here. See ``docs/adr/0009-relationship-semantics-home.md``.
+``pedigree_graph`` is imported only where kinship is read, so importing the
+constants here (as ``simace run`` does) does not load it.
 """
-
-from pedigree_graph import RELATIONSHIPS
 
 __all__ = [
     "DEFAULT_MAX_DEGREE",
@@ -84,5 +84,7 @@ def expected_liability_corr(relationship_type: str, A: float, C: float) -> float
         ValueError: if ``relationship_type`` is not one of
             :data:`RELATIONSHIP_TYPES`.
     """
+    from pedigree_graph import RELATIONSHIPS
+
     c_coef = shared_environment_coefficient(relationship_type)  # validates the type
     return 2.0 * RELATIONSHIPS[relationship_type].nominal_kinship * A + c_coef * C

@@ -21,8 +21,8 @@ and familial correlations from population health registries.
 - Unified ascertainment stage: random dropout + case-weighted sampling (per ADR 0001)
 - Statistical validation of simulated data
 - Built-in diagnostic plots
-- Snakemake pipeline for reproducible, parallelised execution
-- Scales to N = 1,000,000 per generation: the stock `baseline1M` scenario peaks at about 8 GB RSS per replicate (`benchmarks/base/baseline1M/`)
+- `simace run`: one command per scenario, resumable by replicate, with parallel replicates
+- Scales to N = 1,000,000 per generation: the stock `baseline1M` scenario peaks at about 8 GB RSS per replicate (each replicate's `timing.tsv`)
 
 ## Quick links
 

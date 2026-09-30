@@ -1179,93 +1179,59 @@ class TestPSDFailure:
 class TestSimulateCLI:
     """End-to-end CLI for ``simace.simulation.simulate:cli``."""
 
-    @staticmethod
-    def _run_cli(monkeypatch, argv):
-        import sys
+    BASE_ARGS = ("--seed", "7", "--N", "100", "--G-ped", "2", "--G-sim", "2")
+    BASE_KWARGS = {
+        "seed": 7,
+        "N": 100,
+        "G_ped": 2,
+        "G_sim": 2,
+        "mating_lambda": 0.5,
+        "p_mztwin": 0.02,
+        "A1": 0.5,
+        "C1": 0.2,
+        "A2": 0.5,
+        "C2": 0.2,
+        "rA": 0.5,
+        "rC": 0.3,
+    }
 
+    def test_writes_pedigree_only(self, tmp_path):
         from simace.simulation.simulate import cli as simulate_cli
 
-        monkeypatch.setattr(sys, "argv", ["simulate", *argv])
-        simulate_cli()
-
-    def test_writes_both_outputs(self, tmp_path, monkeypatch):
-        import yaml
-
         out_pedigree = tmp_path / "pedigree.parquet"
-        out_params = tmp_path / "params.yaml"
-
-        self._run_cli(
-            monkeypatch,
-            [
-                "--seed",
-                "42",
-                "--N",
-                "100",
-                "--G-ped",
-                "2",
-                "--G-sim",
-                "2",
-                "--E1",
-                "0.3",
-                "--E2",
-                "0.3",
-                "--A1",
-                "0.5",
-                "--A2",
-                "0.5",
-                "--C1",
-                "0.2",
-                "--C2",
-                "0.2",
-                "--output-pedigree",
-                str(out_pedigree),
-                "--output-params",
-                str(out_params),
-            ],
-        )
-
-        assert out_pedigree.exists()
-        assert out_params.exists()
+        simulate_cli([*self.BASE_ARGS, "--E1", "0.3", "--E2", "0.3", "--output-pedigree", str(out_pedigree)])
 
         ped = pl.read_parquet(out_pedigree)
         assert len(ped) == 100 * 2
         assert {"id", "mother", "father", "twin", "A1", "C1", "E1"}.issubset(ped.columns)
+        assert sorted(p.name for p in tmp_path.iterdir()) == ["pedigree.parquet"]
 
-        params = yaml.safe_load(out_params.read_text())
-        assert params["N"] == 100
-        assert params["G_ped"] == 2
-        assert params["mating_model"] == "standard"
-
-    def test_assort_matrix_json_round_trip(self, tmp_path, monkeypatch):
-        """--assort-matrix takes a JSON string and recovers the same values in params.yaml."""
-        import yaml
+    def test_json_flags_match_the_in_process_call(self, tmp_path):
+        """--assort-matrix and a per-generation --E1 map reach run_simulation as the config values would."""
+        from simace.core.parquet import save_parquet
+        from simace.simulation.simulate import cli as simulate_cli
 
         out_pedigree = tmp_path / "pedigree.parquet"
-        out_params = tmp_path / "params.yaml"
-
-        self._run_cli(
-            monkeypatch,
+        simulate_cli(
             [
-                "--seed",
-                "7",
-                "--N",
-                "100",
-                "--G-ped",
-                "2",
-                "--G-sim",
-                "2",
+                *self.BASE_ARGS,
                 "--E1",
-                "0.3",
+                '{"0": 0.3, "1": 0.4}',
                 "--E2",
                 "0.3",
                 "--assort-matrix",
                 "[[0.2, 0.05], [0.05, 0.15]]",
                 "--output-pedigree",
                 str(out_pedigree),
-                "--output-params",
-                str(out_params),
-            ],
+            ]
         )
 
-        params = yaml.safe_load(out_params.read_text())
-        assert params["assort_matrix"] == [[0.2, 0.05], [0.05, 0.15]]
+        expected = run_simulation(
+            **self.BASE_KWARGS,
+            E1={0: 0.3, 1: 0.4},
+            E2=0.3,
+            assort_matrix=[[0.2, 0.05], [0.05, 0.15]],
+        )
+        expected_path = tmp_path / "expected.parquet"
+        save_parquet(expected, expected_path)
+        assert_frame_equal(pl.read_parquet(out_pedigree), pl.read_parquet(expected_path))

@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted. Amended 2026-06-10 (see Amendment below).
+Accepted. Amended 2026-06-10 (see Amendment below). Superseded for canonical
+finished outputs by [ADR 0021](0021-two-canonical-replicate-parquets.md),
+implemented 2026-09-29; see Amendment (2026-09-29) below.
 
 ## Context
 
@@ -87,3 +89,21 @@ path has been removed:
 
 The outcomes-only contract for `trait.raw.parquet`, `trait.full.parquet`, and
 `trait.parquet` is unchanged.
+
+## Amendment (2026-09-29): hydration under ADR 0021
+
+`simace run` no longer writes trait files. A finished rep holds
+`pedigree.parquet`, the recorded pedigree, and `cohort.parquet`, whose
+outcome columns are the `CENSORED_TRAIT` columns above.
+`simace.core.cohort.selected_views(pedigree, cohort)` rebuilds the two frames
+the post-ascertainment files held: the analysis pedigree (the pedigree rows
+in the cohort, with links outside it set to `-1`) and the analysis sample
+(the cohort rows with `affected1` not null, outcome columns only). The
+analysis sample is outcomes-only and hydrates against the analysis pedigree
+with `hydrate_trait`, under the strict rules above. The phenotyped
+population is not stored per individual; the `cohort` stage summarizes it in
+`phenotyped_population.yaml`.
+
+The standalone `simace phenotype`, `censor`, and `ascertain` commands still
+read and write outcomes-only trait files at explicit paths, and those files
+hydrate against the pedigree the command read, as described above.

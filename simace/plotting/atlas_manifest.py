@@ -9,9 +9,8 @@ edit here, with no figure-number cascade.
 To add a phenotype plot: write the rendering function in the appropriate
 ``simace/plotting/plot_*.py`` module so it produces ``<basename>.png``,
 then add a :class:`PlotEntry` to :data:`PHENOTYPE_ATLAS` at the
-right position. The Snakemake workflow imports
-:func:`phenotype_basenames` to declare expected output paths, so adding
-the entry automatically wires the new plot into the build.
+right position. The entry places the plot in the atlas; the renderer list
+in :mod:`simace.plotting.plot_phenotype` produces the file.
 
 The :data:`MODEL_SECTION` sentinel is resolved at render time by
 :func:`build_phenotype_atlas`: it is replaced with a model-aware
@@ -658,7 +657,7 @@ EFFECTIVE_SIZE_ATLAS: tuple[AtlasItem, ...] = (
 def phenotype_basenames() -> list[str]:
     """Ordered phenotype plot basenames (excluding section breaks).
 
-    Used by ``workflow.common`` to declare the Snakemake outputs.
+    Used to list the plots a scenario build produces.
     """
     return [e.basename for e in PHENOTYPE_ATLAS if isinstance(e, PlotEntry)]
 

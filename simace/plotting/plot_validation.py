@@ -43,7 +43,7 @@ from simace.plotting.plot_style import (
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
@@ -649,8 +649,10 @@ def assemble_validation_atlas(output_dir: str | Path, output_name: str = "atlas.
     render_atlas(list(VALIDATION_ATLAS), out, out / output_name, plot_ext=plot_ext)
 
 
-def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png", *, atlas_name: str = "atlas.html") -> None:
-    """Generate all validation plots from a gathered metrics TSV, plus the atlas."""
+def main(
+    tsv_path: str, output_dir: str | Path, plot_ext: str = "png", *, atlas_names: Sequence[str] = ("atlas.html",)
+) -> None:
+    """Generate all validation plots from a gathered metrics TSV, plus one atlas per name in ``atlas_names``."""
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     logger.info("Generating validation plots in %s", out)
@@ -677,14 +679,15 @@ def main(tsv_path: str, output_dir: str | Path, plot_ext: str = "png", *, atlas_
     for spec in VALIDATION_RENDERERS:
         spec.render(df, out, plot_ext)
 
-    assemble_validation_atlas(out, atlas_name, plot_ext=plot_ext)
+    for atlas_name in atlas_names:
+        assemble_validation_atlas(out, atlas_name, plot_ext=plot_ext)
 
 
-def cli() -> None:
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line interface for generating validation plots."""
     from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
 
-    parser = argparse.ArgumentParser(description="Plot validation results")
+    parser = argparse.ArgumentParser(prog=prog, description="Plot validation results")
     add_logging_args(parser)
     add_version_arg(parser, "simace")
     parser.add_argument("tsv", help="Validation summary TSV path")
@@ -692,8 +695,19 @@ def cli() -> None:
     parser.add_argument(
         "--plot-format", choices=["png", "pdf"], default="png", help="Output plot format (default: png)"
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--atlas-format",
+        choices=["html", "pdf"],
+        default="html",
+        help="pdf also writes atlas.pdf beside the always-built atlas.html (ADR 0010)",
+    )
+    args = parser.parse_args(argv)
 
     init_logging(args)
 
-    main(args.tsv, args.output_dir, plot_ext=args.plot_format)
+    main(args.tsv, args.output_dir, plot_ext=args.plot_format, atlas_names=atlas_names(args.atlas_format))
+
+
+def atlas_names(atlas_format: str) -> tuple[str, ...]:
+    """Return the atlas files to build: ``atlas.html`` always, plus ``atlas.pdf`` for ``pdf`` (ADR 0010)."""
+    return ("atlas.html", "atlas.pdf") if atlas_format == "pdf" else ("atlas.html",)

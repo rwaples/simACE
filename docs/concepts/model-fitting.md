@@ -14,7 +14,7 @@ The maths is in [Methods, validation via statistical analysis](methods.md#valida
 
 ## What fitACE estimates
 
-fitACE reads the outcomes-only trait files and the analysis pedigree that the ascertainment stage writes. See [Pipeline schema](pipeline-schema.md) for the file contract. Its method packages are:
+fitACE reads a replicate's `pedigree.parquet` and `cohort.parquet` and rebuilds the analysis sample and analysis pedigree from them with `selected_views`. See [Pipeline schema](pipeline-schema.md#cohort-file) for the file contract. Its method packages are:
 
 - **PCGC**.
 - **Iterative and sparse REML**, including the `ace_iter_reml` C++ binary.

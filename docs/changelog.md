@@ -8,7 +8,56 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
-### Relationship moments (ADR 0020)
+### Two Parquet files per replicate ([ADR 0021](adr/0021-two-canonical-replicate-parquets.md))
+
+- **A replicate holds `pedigree.parquet` and `cohort.parquet`.**
+  `pedigree.parquet` is now the recorded pedigree, formerly
+  `pedigree.full.parquet`. `cohort.parquet` has one row per member of the
+  analysis pedigree, with censored outcomes for the analysis sample.
+  `simace.core.cohort.selected_views` rebuilds the analysis pedigree and
+  analysis sample. `pedigree.full.parquet`, `trait.raw.parquet`,
+  `trait.full.parquet`, and `trait.parquet` are no longer written.
+- **`simace run` has three per-replicate stages: simulate, cohort,
+  analyze.** The new `simace cohort` runs phenotype, censoring, and
+  ascertainment in one process and also writes
+  `phenotyped_population.yaml`, which `simace analyze` reads for the
+  phenotyped-population scope. `simace analyze` takes `--pedigree`,
+  `--params`, `--cohort`, and `--phenotyped-population`. The standalone
+  `simace phenotype`, `censor`, and `ascertain` commands are unchanged.
+- **Results layout marker.** `run.yaml` records `layout: 2`, and both
+  Parquet files carry the metadata `simace_layout=2`. Existing replicates
+  read as stale; `simace run --force` recomputes them and deletes the old
+  files.
+- **`scopes.phenotyped_population.n_generations`** in `report.yaml` now
+  counts phenotyped generations; it was 1 before.
+- **Hard cut for fitACE.** fitACE and fitACE_epimight move to the new pair
+  in lockstep; no command writes the old one.
+
+### `simace` CLI replaces Snakemake ([ADR 0020](adr/0020-standalone-simace-cli.md))
+
+- **`simace run <scenario>`** runs every replicate through simulate,
+  phenotype, censor, ascertain, and analyze, then the scenario plots and
+  atlas. **`simace gather <folder>`** writes `report_summary.tsv` and the
+  validation atlas. `simace show` and `simace ls` inspect config and
+  replicate state. `Snakefile`, `workflow/`, the Snakemake adapter, and the
+  Snakemake, SLURM-plugin, and snakefmt dependencies are removed.
+- **Replicate-level resume.** Each replicate's `run.yaml` records the config
+  it was computed from. Reruns skip matching replicates, recompute
+  interrupted ones, and refuse changed ones unless `--force`.
+- **One `simace` console script** with a subcommand per stage replaces the
+  ten `simace-*` scripts. Stage subcommands take explicit paths and never
+  read config. `simace simulate` no longer writes `params.yaml`;
+  `simace run` does.
+- **`params.yaml` gains `G_pheno`.** No key is removed or renamed.
+- **`timing.tsv`** per replicate records each stage's wall time and peak RSS;
+  `report_summary.tsv`'s `simulate_seconds` / `simulate_max_rss_mb` and
+  `tools.benchmark` read it. `trait.raw.parquet` and
+  `plotting_sample.parquet` are no longer deleted.
+- **Scripts moved.** Example comparison scripts are in `scripts/examples/`
+  and gene-drop scripts in `scripts/gene_drop/`, each with its own argparse
+  CLI. `simace run` refuses `use_gene_drop` / `drop_from` scenarios.
+
+### Relationship moments ([ADR 0022](adr/0022-relationship-moments.md))
 
 - **Analyze computes every pair statistic from pedigree-graph 0.11
   relationship moments**, one engine pass per graph, with no pair list.
@@ -30,8 +79,7 @@ Git tags via `setuptools-scm`.
   relationship pairs. The offspring-with-sibling and
   offspring-with-maternal-half-sib counts come from household sizes.
 - The stats runner's tetrachoric `ThreadPoolExecutor` is removed; the
-  Analyze log times each graph build and the moments pass, and phase 3
-  reads `pedigree.parquet` once.
+  Analyze log times each graph build and the moments pass.
 
 ### pedigree-graph 0.11
 

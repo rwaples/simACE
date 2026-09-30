@@ -1,7 +1,7 @@
 """Synthetic msprime fixture exercising the tstrait phenotyping pipeline
 (catalog -> assign_effects -> per-chrom GV -> aggregate). Skipped if
 tskit/msprime/tstrait are not available — the simACE env doesn't ship them;
-the workflow uses the dedicated tskit conda env."""
+the scripts use scripts/gene_drop/envs/tskit.yaml."""
 
 import importlib.util
 import json
@@ -18,15 +18,33 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT_DIR = REPO_ROOT / "workflow" / "scripts" / "simace" / "tskit"
+SCRIPT_DIR = REPO_ROOT / "scripts" / "gene_drop"
 
 
 def _load_module(name: str, path: Path):
+    if str(SCRIPT_DIR) not in sys.path:
+        sys.path.insert(0, str(SCRIPT_DIR))
     spec = importlib.util.spec_from_file_location(name, path)
     mod = importlib.util.module_from_spec(spec)
     sys.modules[name] = mod
     spec.loader.exec_module(mod)
     return mod
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _isolated_numba_cache(tmp_path_factory):
+    """Keep numba caches written under test module names out of scripts/gene_drop/__pycache__.
+
+    A numba cache entry records its defining module's name, so a direct
+    ``python scripts/gene_drop/tstrait_gv_chrom.py`` run crashes loading one
+    written under ``simace_tstrait_gv_chrom``.
+    """
+    from numba.core import config
+
+    previous = config.CACHE_DIR
+    config.CACHE_DIR = str(tmp_path_factory.mktemp("numba_cache"))
+    yield
+    config.CACHE_DIR = previous
 
 
 @pytest.fixture(scope="module")

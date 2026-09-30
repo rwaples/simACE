@@ -90,7 +90,7 @@ def _validate_half_sib_correlations(
       half-sibs share households, so MHS liability corr = 0.25·A + 1·C and
       MHS shared_C ≠ 0; PHS gives the clean expected formulas (0.25·A and 0).
 
-    Every correlation is exact over all pairs (ADR 0020); ``n_pairs`` is the
+    Every correlation is exact over all pairs (ADR 0022); ``n_pairs`` is the
     true pair count and the tolerance is evaluated with it.
     """
     pooled = category_cell(sibling_moments, "MHS", "PHS")

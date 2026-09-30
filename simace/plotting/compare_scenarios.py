@@ -237,7 +237,7 @@ def compare_component_distributions(
 
     Args:
         scenario_paths: outer list = scenarios, inner list = per-replicate
-            ``pedigree.parquet`` paths.
+            recorded ``pedigree.parquet`` paths.
         labels: display label per scenario.
         output_path: image path to save.
         trait: 1 or 2.
@@ -353,7 +353,7 @@ def load_pedigree_estimates(
 ) -> dict[str, float]:
     """Per-rep liability correlations, midparent-PO slope, and realized h².
 
-    Everything is computed on a single replicate's ``pedigree.parquet`` —
+    Everything is computed on a single replicate's recorded ``pedigree.parquet`` —
     not on pre-aggregated YAML — so that a generation filter can be applied
     cleanly.  When ``min_generation`` is set, all liability correlations
     and the realized h² are computed on the subset of individuals in
@@ -365,7 +365,7 @@ def load_pedigree_estimates(
     earlier generations).
 
     Args:
-        pedigree_path: one ``pedigree.parquet`` path (one replicate).
+        pedigree_path: one recorded ``pedigree.parquet`` path (one replicate).
         trait: 1 or 2.
         min_generation: keep individuals with ``generation >= min_generation``
             (inclusive).  ``None`` keeps every generation.
@@ -461,7 +461,7 @@ def load_pooled_liability_correlations(
     categories instead of seven.
 
     Args:
-        pedigree_paths: one ``pedigree.parquet`` path per replicate of a
+        pedigree_paths: one recorded ``pedigree.parquet`` path per replicate of a
             single scenario.
         trait: 1 or 2.
         min_generation: passed through to :func:`load_pedigree_estimates`.
@@ -502,7 +502,7 @@ def compare_correlations_by_relclass(
 
     Args:
         scenario_paths: outer list = scenarios, inner list = replicate
-            ``pedigree.parquet`` paths for that scenario.
+            recorded ``pedigree.parquet`` paths for that scenario.
         labels: display label per scenario (same order as ``scenario_paths``).
         output_path: image path to save.
         trait: 1 or 2.
@@ -641,7 +641,7 @@ def load_sib_pair_liabilities(
     kinship of exactly 0.5 under random mating.
 
     Args:
-        pedigree_paths: one ``pedigree.parquet`` path per replicate.
+        pedigree_paths: one recorded ``pedigree.parquet`` path per replicate.
         trait: 1 or 2.
         min_generation: if set, restrict to individuals in generations
             ``>= min_generation``; useful for waiting out AM's burn-in period.
@@ -737,7 +737,7 @@ def compare_sib_liability_scatter(
 
     Args:
         scenario_paths: outer list = scenarios, inner list = per-replicate
-            ``pedigree.parquet`` paths.
+            recorded ``pedigree.parquet`` paths.
         labels: display label per scenario.
         output_path: image path to save.
         trait: 1 or 2.
@@ -826,12 +826,12 @@ def load_naive_estimator_h2(
 ) -> dict[str, np.ndarray]:
     """Per-rep h² from five naive estimators + per-rep realized h².
 
-    All quantities are computed directly from ``pedigree.parquet`` so the
+    All quantities are computed directly from the recorded ``pedigree.parquet`` so the
     generation filter applies consistently to every estimator *and* to the
     realized-h² reference.
 
     Args:
-        pedigree_paths: one ``pedigree.parquet`` path per replicate.
+        pedigree_paths: one recorded ``pedigree.parquet`` path per replicate.
         trait: 1 or 2.
         min_generation: passed through to :func:`load_pedigree_estimates`.
 
@@ -881,7 +881,7 @@ def compare_naive_estimators(
 
     Args:
         pedigree_paths_per_scenario: outer list = scenarios, inner list =
-            per-rep ``pedigree.parquet`` paths.
+            per-rep recorded ``pedigree.parquet`` paths.
         labels: display label per scenario.
         output_path: image path to save.
         trait: 1 or 2.
@@ -1031,7 +1031,7 @@ def compare_components_by_generation(
 
     Args:
         pedigree_paths_per_scenario: outer list = scenarios, inner list =
-            per-rep ``pedigree.parquet`` paths.
+            per-rep recorded ``pedigree.parquet`` paths.
         labels: display label per scenario.
         output_path: image path to save.
         trait: 1 or 2.
@@ -1135,7 +1135,7 @@ def load_pedigree_estimates_per_generation(
     of them, so the FS block already excludes twins.
 
     Args:
-        pedigree_path: one ``pedigree.parquet`` path (one replicate).
+        pedigree_path: one recorded ``pedigree.parquet`` path (one replicate).
         trait: 1 or 2.
         gens: which generations to compute for; defaults to every generation
             present in the pedigree with ``>= 1`` non-founder individual.
@@ -1235,7 +1235,7 @@ def compare_cohort_fs_correlations(
 
     Args:
         pedigree_paths_per_scenario: outer list = scenarios, inner list =
-            per-rep ``pedigree.parquet`` paths.
+            per-rep recorded ``pedigree.parquet`` paths.
         labels: display label per scenario.
         output_path: image path to save.
         trait: 1 or 2.
@@ -1347,7 +1347,7 @@ def compare_cohort_falconer(
 
     Args:
         pedigree_paths_per_scenario: outer list = scenarios, inner list =
-            per-rep ``pedigree.parquet`` paths.
+            per-rep recorded ``pedigree.parquet`` paths.
         labels: display label per scenario.
         output_path: image path to save.
         trait: 1 or 2.
@@ -1569,11 +1569,11 @@ def load_observed_vs_liability_h2(
 
     The two input lists must be in the same replicate order.  Liability
     correlations and realized h² come from :func:`load_pedigree_estimates`
-    (pedigree.parquet); tetrachoric correlations come from
+    (the recorded pedigree.parquet); tetrachoric correlations come from
     ``report.yaml``.
 
     Args:
-        pedigree_paths: one ``pedigree.parquet`` path per rep.
+        pedigree_paths: one recorded ``pedigree.parquet`` path per rep.
         report_paths: one ``report.yaml`` path per replicate.
         trait: 1 or 2.
         min_generation: forwarded to :func:`load_pedigree_estimates` for the
@@ -1624,7 +1624,7 @@ def compare_observed_vs_liability_h2(
 
     Args:
         pedigree_paths_per_scenario: outer list = scenarios, inner list =
-            per-rep ``pedigree.parquet`` paths.
+            per-rep recorded ``pedigree.parquet`` paths.
         report_paths_per_scenario: same shape, per-replicate
             ``report.yaml`` paths. Rep order must match.
         labels: display label per scenario.
@@ -1779,7 +1779,7 @@ def main(
     expected_C: float | None = None,
     expected_E: float | None = None,
 ) -> None:
-    """Library entry point used by Snakemake script wrappers."""
+    """Library entry point for the example-comparison scripts."""
     compare_realized_variance_trajectory(
         scenario_paths=scenario_paths,
         labels=labels,
@@ -1792,7 +1792,7 @@ def main(
 
 
 def cli() -> None:
-    """Standalone CLI for ad-hoc rendering outside Snakemake."""
+    """Standalone CLI for ad-hoc rendering."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--scenario",

@@ -26,6 +26,13 @@ durable parts are restated here:
   simACE merges first, fitACE repoints its paths, and a brief CI gap between
   the two merges is expected. Existing result directories are regenerated.
 
+**Status note (2026-09-29).** [ADR 0021](0021-two-canonical-replicate-parquets.md)
+removed `trait.full.parquet` from finished output. The Analyze stage's second
+input is now `phenotyped_population.yaml`, the phenotyped-population summary
+the `cohort` stage writes while it holds the censored phenotyped rows. The
+three memory phases and the report contract below are unchanged; phase 2
+reads that file instead of loading and hydrating the trait rows.
+
 ## Context
 
 The merged `report.yaml` had its shape dictated by the producer seams — a `validation` group beside the six stats

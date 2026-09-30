@@ -31,7 +31,7 @@ def _execution(scenario: str, wall: float, rss: int, rule_wall: float) -> dict:
         "rules": {
             "simulate": {
                 "peak_rss_kb": rss // 2,
-                "snakemake": [{"wall_seconds": rule_wall, "max_rss_mb": 10.0}],
+                "stage": [{"wall_seconds": rule_wall, "max_rss_mb": 10.0}],
             }
         },
     }

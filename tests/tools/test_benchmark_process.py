@@ -24,7 +24,7 @@ def _stop(process: subprocess.Popen[bytes]) -> None:
 def test_process_group_sampler_excludes_unrelated_process(tmp_path: Path):
     child_code = "import subprocess,sys,time; subprocess.Popen([sys.executable,'-c','import time; time.sleep(5)']); time.sleep(5)"
     benchmark = subprocess.Popen(
-        [sys.executable, "-c", child_code, ".snakemake/scripts/tmp123.simulate.py"],
+        [sys.executable, "-c", child_code, "-m", "simace", "simulate"],
         start_new_session=True,
     )
     unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)"], start_new_session=True)

@@ -1,14 +1,14 @@
 """Orchestration entry point for per-replicate stats reports.
 
-Reads outcomes-only ``trait.parquet`` plus ``pedigree.parquet``, hydrates the
-trait rows for computations, and writes ``stats_report.yaml`` plus
+Reads an outcomes-only analysis-sample trait frame plus its analysis pedigree
+(Analyze rebuilds both from ``pedigree.parquet`` and ``cohort.parquet``),
+hydrates the trait rows for computations, and writes ``stats_report.yaml`` plus
 ``plotting_sample.parquet``.
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import time
 from dataclasses import dataclass
@@ -19,6 +19,7 @@ import numpy as np
 import yaml
 from pedigree_graph import PedigreeGraph
 
+from simace.analysis.prevalence import compute_prevalence
 from simace.core.parquet import load_parquet, save_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.trait_schema import hydrate_trait
@@ -52,7 +53,6 @@ from .incidence import (
     compute_cumulative_incidence_by_sex_generation,
     compute_joint_affection,
     compute_mortality,
-    compute_prevalence,
     compute_regression,
 )
 from .moments import Stratum, relationship_moments_for
@@ -300,11 +300,12 @@ def main(
     _log_elapsed("Plotting sample write", t0)
 
 
-def cli() -> None:
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line interface for phenotype statistics computation."""
-    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, generation_map, init_logging
+    from simace.core.publish import publish
 
-    parser = argparse.ArgumentParser(description="Build per-replicate stats report")
+    parser = argparse.ArgumentParser(prog=prog, description="Build per-replicate stats report")
     add_logging_args(parser)
     add_version_arg(parser, "simace")
     parser.add_argument("phenotype", help="Input phenotype parquet")
@@ -312,7 +313,9 @@ def cli() -> None:
     parser.add_argument("stats_output", help="Output stats YAML")
     parser.add_argument("samples_output", help="Output samples parquet")
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--gen-censoring", type=str, default=None, help="Per-generation censoring windows as JSON dict")
+    parser.add_argument(
+        "--gen-censoring", type=generation_map, default=None, help="Per-generation censoring windows as JSON dict"
+    )
     parser.add_argument("--pedigree", default=None, help="Full pedigree parquet for G_ped pair counts")
     parser.add_argument(
         "--max-degree",
@@ -322,20 +325,17 @@ def cli() -> None:
         help="Maximum kinship degree for pair extraction (0-5, default 3; includes 1C)",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     init_logging(args)
 
-    gen_censoring = None
-    if args.gen_censoring:
-        gen_censoring = {int(k): v for k, v in json.loads(args.gen_censoring).items()}
-
-    main(
-        args.phenotype,
-        args.censor_age,
-        args.stats_output,
-        args.samples_output,
-        seed=args.seed,
-        gen_censoring=gen_censoring,
-        pedigree_path=args.pedigree,
-        max_degree=args.max_degree,
-    )
+    with publish(args.stats_output, args.samples_output) as (stats_tmp, samples_tmp):
+        main(
+            args.phenotype,
+            args.censor_age,
+            str(stats_tmp),
+            str(samples_tmp),
+            seed=args.seed,
+            gen_censoring=args.gen_censoring or None,
+            pedigree_path=args.pedigree,
+            max_degree=args.max_degree,
+        )

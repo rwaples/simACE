@@ -35,7 +35,7 @@ simulation.
 ## Run
 
 ```bash
-pixi run snakemake --cores 4 results/examples/minimal_ace/scenario.done
+pixi run simace run minimal_ace
 ```
 
 ## Observations

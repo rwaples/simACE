@@ -10,7 +10,10 @@ family environment: `envs/` was deleted outright (all three recipes, including
 `environment.yml`), the same-commit pin-sync rule retired with it, and the
 family environment moved to `fitACE/pixi.toml` (ADR 0017). The macOS-via-conda
 path in Decision and Consequences below is likewise dropped — the pipeline is
-Linux/WSL2 only. See ADR 0018 for what replaced each dependent.
+Linux/WSL2 only. See ADR 0018 for what replaced each dependent. Snakemake and
+snakefmt left simACE's environment with
+[ADR 0020](0020-standalone-simace-cli.md) (2026-09-25); pipeline runs are
+`pixi run simace run …`.
 
 ## Context
 

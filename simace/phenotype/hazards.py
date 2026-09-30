@@ -46,12 +46,13 @@ __all__ = [
     "validate_hazard_params",
 ]
 
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numba import njit
 
 from simace.core._numba_utils import _ndtri_approx
+from simace.core.standardize import STANDARDIZE_CHOICES, StandardizeMode, coerce_standardize_mode
 
 if TYPE_CHECKING:
     import argparse
@@ -60,10 +61,6 @@ if TYPE_CHECKING:
     prange = range
 else:
     from numba import prange
-
-STANDARDIZE_CHOICES: tuple[str, ...] = ("none", "global", "per_generation")
-StandardizeMode = Literal["none", "global", "per_generation"]
-_VALID_STD_MODES: frozenset[str] = frozenset(STANDARDIZE_CHOICES)
 
 # ---------------------------------------------------------------------------
 # Numba kernels — fuse frailty computation + inversion in a single pass
@@ -333,19 +330,6 @@ def standardize_hazard_cli_attr(trait: int, *, name: str) -> str:
     """Return the argparse attribute name for the standardize_hazard CLI flag."""
     attr_name = name.replace("-", "_")
     return f"{attr_name}_standardize_hazard{trait}"
-
-
-def coerce_standardize_mode(value: object) -> StandardizeMode:
-    """Resolve a user-supplied standardize value to one of the canonical modes.
-
-    Accepts the legacy bool form (``True`` → ``"global"``, ``False`` → ``"none"``)
-    or one of the three string modes. Raises ``ValueError`` otherwise.
-    """
-    if isinstance(value, bool):
-        return "global" if value else "none"
-    if isinstance(value, str) and value in _VALID_STD_MODES:
-        return cast("StandardizeMode", value)
-    raise ValueError(f"standardize must be one of {sorted(_VALID_STD_MODES)} or bool; got {value!r}")
 
 
 def true_lifetime_prevalence_weibull(

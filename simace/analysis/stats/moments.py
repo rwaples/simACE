@@ -1,4 +1,4 @@
-"""Relationship moments for the descriptive statistics (ADR 0020).
+"""Relationship moments for the descriptive statistics (ADR 0022).
 
 One engine pass over the analysis sample replaces the relationship pair list:
 :func:`relationship_moments_for` declares the factors and value columns the

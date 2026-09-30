@@ -26,7 +26,7 @@ def _parser() -> argparse.ArgumentParser:
     source.add_argument("--folder")
     run.add_argument("--scenarios", nargs="+", help="required with --folder")
     run.add_argument("--repeats", type=int, default=3)
-    run.add_argument("--cores", type=int, default=4)
+    run.add_argument("--jobs", type=int, default=1, help="reps computed concurrently by simace run")
     run.add_argument("--cache-mode", choices=("warm", "cold"), default="warm")
     run.add_argument("--order-seed", type=int, default=0)
     run.add_argument("--sample-interval", type=float, default=0.25, metavar="SECONDS")
@@ -58,7 +58,7 @@ def _run(args: argparse.Namespace) -> int:
         scenarios=tuple(scenarios),
         profile=args.profile,
         repeats=args.repeats,
-        cores=args.cores,
+        jobs=args.jobs,
         cache_mode=args.cache_mode,
         order_seed=args.order_seed,
         sample_interval_seconds=args.sample_interval,

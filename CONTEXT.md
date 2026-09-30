@@ -35,7 +35,7 @@ The model family that maps a trait's liability → its observable outcome. One o
 _Avoid_: phenotype family, liability-to-onset map, hazard model (only a subset of families have a hazard step).
 
 **Phenotype stage**:
-The pipeline stage that runs each trait's phenotype model against the simulated pedigree to produce observable per-trait outcomes. Always the **noun form** — never "phenotyping". Lives under `simace/phenotype/` (package) and `workflow/rules/simace/phenotype.smk` (rule).
+The pipeline stage that runs each trait's phenotype model against the simulated pedigree to produce observable per-trait outcomes. Always the **noun form** — never "phenotyping". Lives under `simace/phenotype/`; the `simace phenotype` subcommand runs it on explicit files, and under `simace run` it is the first phase of the **cohort stage**.
 _Avoid_: phenotyping (gerund form is suppressed across the codebase — see Flagged ambiguities).
 
 ### Trait outcomes
@@ -56,7 +56,7 @@ _Avoid_: event time, time-to-event (these are *method* names, not column names),
 
 **Generation** ($g$):
 A discrete cohort of $N$ individuals in the simulation, indexed sequentially. Population size $N$ is constant across generations (hard invariant). Within the recorded pedigree, generations are zero-indexed (`generation` column in `pedigree.parquet`).
-_Avoid_: cohort (ambiguous), age group (different concept).
+_Avoid_: cohort (names the **Cohort** file, not a generation), age group (different concept).
 
 **$G_{\text{sim}}$** (simulated generations):
 Total number of generations the simulation runs *internally*, including burn-in. Config key: `G_sim`.
@@ -156,6 +156,10 @@ _Avoid_: ascertainment bias (that's the *result* of $\alpha \neq 1$, not the par
 **$N_{\text{sample}}$**:
 Target size of the post-ascertainment analysis dataset. Config key: `N_sample`. The ascertainment step draws $N_{\text{sample}}$ individuals with weights determined by `dropout_rate` and `case_ascertainment_ratio`.
 
+**Cohort** (`cohort.parquet`):
+One replicate's ascertainment result as a file: one row per member of the **analysis pedigree**, in recorded-pedigree order, with the censored trait outcome columns set for the **analysis sample** (`affected1` not null) and null for every other member. Paired with `pedigree.parquet`, the recorded pedigree; `simace.core.cohort.selected_views` rebuilds the analysis pedigree and analysis sample from the two (ADR 0021). Who enters by which route, and what a `-1` link means in the rebuilt pedigree: [Ascertainment, Who is in `cohort.parquet`](docs/user-guide/ascertainment.md#who-is-in-cohortparquet). The **cohort stage** is the `simace run` stage that writes it (see **Pipeline stages**).
+_Avoid_: using "cohort" for a generation or for the analysis sample alone (the cohort also holds the sample's ancestors); "trait file" for this file (the trait files are the standalone commands' outputs).
+
 ### Configuration
 
 **Scenario**:
@@ -167,8 +171,16 @@ A grouping of related scenarios under one config YAML file. Folder name = YAML b
 _Avoid_: group, suite, family, batch, scenario file (means the file, not this concept).
 
 **Replicate**:
-A single seeded run of a scenario, identified by `rep{N}` (e.g. `rep1`, `rep2`). Multiple replicates per scenario sample independent random draws; the seed for replicate $N$ is `seed + N`. Outputs at `results/{folder}/{scenario}/rep{N}/`. Replicates always exist (default 3, override per-scenario); a replicate-less scenario is not a valid configuration.
+A single seeded run of a scenario, identified by `rep{N}` (e.g. `rep1`, `rep2`). Multiple replicates per scenario sample independent random draws; the seed for replicate $N$ is `seed + N - 1`. Outputs at `results/{folder}/{scenario}/rep{N}/`. Replicates always exist (default 3, override per-scenario); a replicate-less scenario is not a valid configuration.
 _Avoid_: trial, run, iteration, draw, sample (already taken — see **Ascertainment**).
+
+**Run manifest** (`run.yaml`):
+The per-replicate record `simace run` writes after every stage of that replicate exits 0. It holds the values of the config keys the replicate's stages read, the stage list, the results `layout` (2 since ADR 0021; a replicate without it is stale), and the size and mtime of every output, so a later run can tell a **complete** replicate (manifest matches the current config, outputs as recorded) from a **stale** one (manifest differs), an **incomplete** one (an output missing or rewritten since the manifest, for example by a stage rerun by hand), and an absent one (no manifest). Resume works at replicate granularity: a replicate is either skipped whole or recomputed whole (ADR 0020).
+_Avoid_: done file, sentinel, checkpoint.
+
+**Plot manifest** (`plots/plots.yaml`):
+The per-scenario record `simace run` writes after the scenario's plot and atlas stages exit 0. It fingerprints the `run.yaml` of every replicate the plots were built from and the atlas files written, so `simace ls` and the run summary can report the plots as **current**, **stale** (a replicate recomputed since, not plotted, or no longer complete; an atlas file changed or gone), or **absent**. Replicate completeness and plot currency are separate states: `--no-plots` or a partial `--rep` run leaves complete replicates with stale or absent plots.
+_Avoid_: plot sentinel, atlas manifest.
 
 **Config**:
 The *merged runtime parameter set* for a specific scenario — i.e., what comes out of `simace.config.load_config` after defaults are overridden by scenario keys. Distinct from a *config YAML file*, which is the on-disk source. In prose "the config" usually means the merged dict; when the file is meant, say "the config YAML" or "the scenario file".
@@ -222,7 +234,7 @@ _Avoid_: Ne method (use "estimator"), drift estimator (subset only), inbreeding 
 
 ### Pipeline stages
 
-The pipeline runs the following stages in order. Stage names match the Snakemake rule files (`workflow/rules/simace/{stage}.smk`). Form is verb where natural, noun where natural — don't try to retroactively uniformize.
+The pipeline runs the following stages in order. Each has its own `simace <stage>` subcommand on explicit files (ADR 0020); the subcommand is `ascertain` for the **Ascertainment** stage and `plot` + `atlas` for **Plot**. `simace run` executes a replicate as three subprocesses: `simulate`, **cohort** (Phenotype, Censor, and Ascertainment in one process, writing only `cohort.parquet` and `phenotyped_population.yaml`), and `analyze`; then each scenario's `plot` and `atlas` (ADR 0021). Form is verb where natural, noun where natural — don't try to retroactively uniformize.
 
 1. **Simulate** — generate the multi-generational pedigree with ACE variance components. Package: `simace/simulation/`.
 2. **Phenotype** — apply the phenotype model per trait to produce binary affection + onset. Package: `simace/phenotype/` (noun form, **not** "phenotyping"). The only stage where noun-form is enforced because "phenotype" the noun is also a domain word.
@@ -234,7 +246,7 @@ The pipeline runs the following stages in order. Stage names match the Snakemake
 _Avoid_: "phenotyping" (killed), "subsampling" / "dropout stage" (killed — see **Ascertainment**), "validation stage" / "stats stage" as separate pipeline stages (use **Analyze** for the combined stage; use **Per-replicate scientific report** / **Plot payload** when referring to artifacts), "statistics" (use "stats"), "simulation stage" (just say "the simulate stage").
 
 **Per-replicate scientific report**:
-The curated Analyze-stage report for one replicate. It summarizes quality checks, ground truth, observed post-ascertainment summaries, and estimator outputs, with every quantity labeled by the population scope it describes. Report scopes are **recorded pedigree** (full pre-ascertainment recorded pedigree), **phenotyped population** (full pre-ascertainment phenotyped/censored rows), **analysis sample** (final ascertained trait rows), and **analysis pedigree** (ancestor-closure pedigree supporting the analysis sample). It is not a plot cache and not a cross-replicate aggregate.
+The curated Analyze-stage report for one replicate. It summarizes quality checks, ground truth, observed post-ascertainment summaries, and estimator outputs, with every quantity labeled by the population scope it describes. Report scopes are **recorded pedigree** (`pedigree.parquet`, the full pre-ascertainment recorded pedigree), **phenotyped population** (the full pre-ascertainment phenotyped/censored rows, summarized in `phenotyped_population.yaml`), **analysis sample** (the **Cohort** rows with `affected1` not null), and **analysis pedigree** (every **Cohort** member: the ancestor-closure pedigree supporting the analysis sample). The analysis sample and analysis pedigree, route by route: [Ascertainment, Who is in `cohort.parquet`](docs/user-guide/ascertainment.md#who-is-in-cohortparquet). It is not a plot cache and not a cross-replicate aggregate.
 _Avoid_: phenotype statistics, stats dump, summary YAML, plot payload.
 
 **Plot payload**:
@@ -256,7 +268,7 @@ This package — the simulation pipeline. Generates pedigrees, applies phenotype
 _Avoid_: "the simulator", "the framework" (overloaded), "ACE" alone (ACE is the model, not this package).
 
 **fitACE**:
-The model-fitting sister repo — a **core + Snakemake orchestrator** (`fitace`) whose inferential methods (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC, frailty) live in `fitACE_<x>` **method sisters** (see below). Consumes simACE outputs (`trait.parquet`, `pedigree.parquet`, `report.yaml`) to estimate variance components and recover ground-truth parameters. The boundary is **one-way**: simACE → fitACE, with no feedback loop into simACE.
+The model-fitting sister repo — a **core + Snakemake orchestrator** (`fitace`) whose inferential methods (EPIMIGHT, PA-FGRS, sparseREML, iter_reml, Stan, PCGC, frailty) live in `fitACE_<x>` **method sisters** (see below). Consumes simACE outputs (`pedigree.parquet`, `cohort.parquet`, `report.yaml`) to estimate variance components and recover ground-truth parameters. The boundary is **one-way**: simACE → fitACE, with no feedback loop into simACE.
 _Avoid_: "the fitter", "the estimator suite" (subset), "the analysis package" (simACE also has `analysis/`).
 
 **Public surface** (simACE → downstream):
@@ -322,7 +334,7 @@ Conventions for the text rendered in the plot atlas — both the `PlotEntry` `ti
 
 - **"liability"** is intentionally polysemous: it can refer to the raw $L = A + C + E$ or to its standardized form $\tilde L$. Both readings are legitimate; the right one is inferable from context (raw inside `pedigree.parquet` columns; standardized inside phenotype-model code that consumes it). **Do not** "fix" this by renaming — the dual usage is load-bearing.
 
-- **"phenotype"** is never used bare for the *observable outcome* — that's called a **trait** (per-individual instance). "Phenotype" appears only in qualified form: **phenotype model** (the family) or **phenotype stage** (the pipeline step). The canonical post-ascertainment output file is `trait.parquet` (renamed from the legacy `phenotype.parquet`). `simple_ltm` is a phenotype **model** (liability threshold + fixed/normal onset), not a separate output; the former parallel `trait.simple_ltm.parquet` was retired (ADR 0011 amendment). The descriptive binary stats that consumed it are now fitACE's **observed-binary** outputs, computed from `trait.parquet` for every scenario.
+- **"phenotype"** is never used bare for the *observable outcome* — that's called a **trait** (per-individual instance). "Phenotype" appears only in qualified form: **phenotype model** (the family) or **phenotype stage** (the pipeline step). The post-ascertainment outcomes live in `cohort.parquet` (ADR 0021); before that they were `trait.parquet`, renamed from the legacy `phenotype.parquet`. `simple_ltm` is a phenotype **model** (liability threshold + fixed/normal onset), not a separate output; the former parallel `trait.simple_ltm.parquet` was retired (ADR 0011 amendment). The descriptive binary stats that consumed it are now fitACE's **observed-binary** outputs, computed from the analysis sample for every scenario.
 
 - **Noun, not gerund** for the phenotype stage: the canonical package is `simace/phenotype/` (noun). The legacy `simace/phenotyping/` gerund form was renamed in lockstep. Do not reintroduce "phenotyping" identifiers.
 

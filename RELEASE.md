@@ -157,8 +157,8 @@ pixi reinstall --manifest-path fitACE/pixi.toml \
   fitace-tetraher fitace-pafgrs fitace-stan fitace-frailty
 ```
 
-(Reinstalling also regenerates the console-script wrappers, e.g. a stale
-`simace-analyze` entry point. pedigree-graph is consumed as its PyPI wheel in
+(Reinstalling also regenerates the console-script wrappers, such as the
+`simace` entry point. pedigree-graph is consumed as its PyPI wheel in
 these envs and keeps its own SemVer — nothing to refresh at a family release;
 its dev env lives in `external/pedigree-graph/pixi.toml`.)
 
@@ -206,7 +206,7 @@ pixi run --manifest-path fitACE/pixi.toml python -c "import simace, fitace, \
   fitace_pafgrs, fitace_stan, fitace_frailty; print(simace.__version__, fitace.__version__)"
 
 # Console-script --version spot checks:
-pixi run simace-simulate --version
+pixi run simace simulate --version
 pixi run --manifest-path fitACE/pixi.toml fitace-observed-binary-stats --version
 pixi run --manifest-path fitACE/pixi.toml fitace-epimight-run --version
 ./fitACE/fitACE_iter_reml/ace_iter_reml/build-fp64/ace_iter_reml --version
@@ -222,8 +222,8 @@ pixi run pytest tests/ -q                                        # simACE
 #   pixi run --manifest-path fitACE/pixi.toml pytest fitACE/fitACE_<x>/tests/ -q )
 
 # Provenance smoke (grep the sidecars):
-pixi run snakemake --cores 4 results/test/small_test/scenario.done
-grep simace_version results/test/small_test/*/params.yaml
+pixi run simace run small_test
+grep simace_version results/test/small_test/*/params.yaml results/test/small_test/*/run.yaml
 # then run a pcgc + tetraher + iter_reml fit and grep *.vc.tsv.meta for
 # simace_version / fitace_version / fitace_<method>_version / ace_iter_reml_version
 # (small_test leaves tetraher_prevalence null, which disables the TetraHer

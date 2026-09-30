@@ -184,21 +184,13 @@ class TestExtractMetrics:
         assert row["observed_twin_rate"] == pytest.approx(0.019)
         assert row["variance_A1"] == pytest.approx(0.48)
 
-    def test_unknown_path_pattern_defaults(self, tmp_path):
+    def test_identity_comes_from_the_rep_path(self, tmp_path):
         from simace.analysis.gather import extract_metrics
 
-        # When the path doesn't match the expected pattern, regex sub
-        # returns the path unchanged, so bench_path == val_path. We need
-        # the file to NOT exist at the bench_path, so use a non-.yaml
-        # extension that won't be found.
         val_dir = tmp_path / "results" / "folder" / "scX" / "rep1"
         val_dir.mkdir(parents=True)
         val_path = val_dir / "report.yaml"
         val_path.write_text(yaml.dump(_MINIMAL_REPORT))
-        # This matches the pattern, so scenario/rep are extracted from path.
-        # To truly test "unknown", we'd need a path that doesn't match,
-        # but that triggers a bug in gather.py (bench_path == val_path).
-        # Instead, test that a matching but non-standard path works.
         row = extract_metrics(str(val_path))
         assert row["scenario"] == "scX"
         assert row["rep"] == 1
@@ -305,39 +297,28 @@ class TestExtractMetricsBranches:
         assert row["simulate_seconds"] is None
         assert row["simulate_max_rss_mb"] is None
 
-    def test_benchmark_tsv_populates_timing_fields(self, tmp_path, monkeypatch):
-        """When ``benchmarks/{folder}/{scenario}/rep{N}/simulate.tsv`` exists,
-        ``simulate_seconds`` and ``simulate_max_rss_mb`` are read from it."""
-        import platform
-
+    def test_timing_tsv_populates_timing_fields(self, tmp_path):
+        """The rep's ``timing.tsv`` simulate row fills ``simulate_seconds`` and ``simulate_max_rss_mb``."""
         from simace.analysis.gather import extract_metrics
 
-        monkeypatch.chdir(tmp_path)
-
-        val_dir = tmp_path / "results" / "base" / "myscenario" / "rep1"
+        val_dir = tmp_path / "any_root" / "base" / "myscenario" / "rep2"
         val_dir.mkdir(parents=True)
         val_path = val_dir / "report.yaml"
         val_path.write_text(yaml.dump(_MINIMAL_REPORT))
-
-        bench_dir = tmp_path / "benchmarks" / "base" / "myscenario" / "rep1"
-        bench_dir.mkdir(parents=True)
-        bench_path = bench_dir / "simulate.tsv"
-        bench_path.write_text("s\tmax_rss\tio_in\n1.23\t456.7\t0\n")
+        (val_dir / "timing.tsv").write_text(
+            "stage\twall_s\tmax_rss_mb\texit_code\nsimulate\t1.23\t456.7\t0\nphenotype\t9.9\t999.0\t0\n"
+        )
 
         row = extract_metrics(str(val_path))
+        assert (row["folder"], row["scenario"], row["rep"]) == ("base", "myscenario", 2)
         assert row["simulate_seconds"] == pytest.approx(1.23)
-        if platform.system() == "Windows":
-            assert row["simulate_max_rss_mb"] == pytest.approx(1.0)
-        else:
-            assert row["simulate_max_rss_mb"] == pytest.approx(456.7)
+        assert row["simulate_max_rss_mb"] == pytest.approx(456.7)
 
 
 class TestGatherCli:
     """End-to-end CLI smoke for ``simace.analysis.gather:cli``."""
 
-    def test_cli_writes_tsv(self, tmp_path, monkeypatch):
-        import sys
-
+    def test_cli_writes_tsv(self, tmp_path):
         from simace.analysis.gather import cli as gather_cli
 
         # Two scenario YAMLs.
@@ -350,8 +331,7 @@ class TestGatherCli:
             files.append(str(val_path))
 
         out_path = tmp_path / "summary.tsv"
-        monkeypatch.setattr(sys, "argv", ["gather", *files, "--output", str(out_path)])
-        gather_cli()
+        gather_cli([*files, "--output", str(out_path)])
 
         assert out_path.exists()
         lines = out_path.read_text().strip().split("\n")

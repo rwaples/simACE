@@ -34,22 +34,15 @@ inherit everything from `p2_full` and override only the tstrait knobs.
 
 ## Run
 
-The drop+graft step (`simulate_genotypes_chrom`) only runs once for
-`p2_full`; the variants reuse those trees:
+The drop+graft step (`genotype_drop_chrom.py`, once per chromosome) runs
+only for `p2_full`; the variants reuse those trees and run only the tstrait
+steps, the augment step, and the downstream stages.
 
-```bash
-# Drop the founders through the simACE pedigree (one-shot, ~5 min wall at -j 8)
-pixi run snakemake --use-conda --cores 8 \
-  results/genotype_drop/p2_full/rep1/.simulate_genotypes.done
-
-# Run all 5 variants (each only the tstrait sub-pipeline + augment + atlas)
-pixi run snakemake --use-conda --rerun-triggers mtime -j 8 \
-  results/genotype_drop/p2_full_a0/plots/atlas.html \
-  results/genotype_drop/p2_full_c100/plots/atlas.html \
-  results/genotype_drop/p2_full_c10k/plots/atlas.html \
-  results/genotype_drop/p2_full_c100k/plots/atlas.html \
-  results/genotype_drop/p2_full_c1m/plots/atlas.html
-```
+`simace run` does not run gene-drop scenarios. Run each step with its script
+in `scripts/gene_drop/` in the tskit conda environment, then the stage
+subcommands on `pedigree.full.tstrait.parquet`. The
+[gene-drop guide](../concepts/gene-drop.md) walks through the steps, and each
+script's docstring gives its command.
 
 ## Raw GV variance scales linearly with `num_causal`
 

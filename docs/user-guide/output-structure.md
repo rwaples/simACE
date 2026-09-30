@@ -8,18 +8,22 @@ name, and the replicate number, starting at 1.
 results/{folder}/{scenario}/
 ├── rep1/
 │   ├── params.yaml
-│   ├── pedigree.full.parquet
 │   ├── pedigree.parquet
-│   ├── trait.full.parquet
-│   ├── trait.parquet
+│   ├── cohort.parquet
+│   ├── phenotyped_population.yaml
 │   ├── report.yaml
-│   └── plot_payload.yaml
+│   ├── plot_payload.yaml
+│   ├── plotting_sample.parquet
+│   ├── timing.tsv
+│   └── run.yaml
 ├── rep2/
 ├── rep3/
 └── plots/
     ├── *.png
     ├── atlas.html
-    └── atlas.pdf
+    ├── atlas.pdf
+    ├── plots.yaml
+    └── timing.tsv
 results/{folder}/
 ├── report_summary.tsv
 └── plots/
@@ -35,19 +39,48 @@ fitACE writes, such as `epimight/`. This page lists the simACE outputs only.
 
 | File | Written by | Description |
 |---|---|---|
-| `params.yaml` | `simace/simulation/simulate.py` | The resolved simulation parameters for this replicate |
-| `pedigree.full.parquet` | `simace/simulation/simulate.py` | The recorded pedigree after burn-in and before ascertainment |
-| `trait.raw.parquet` | `simace/phenotype/runner.py` | Uncensored onset ages. Deleted after censoring |
-| `trait.full.parquet` | `simace/censoring/censor.py` | Censored outcomes for the whole phenotyped population. Kept so that the analyze stage can measure ascertainment bias |
-| `pedigree.parquet` | `simace/ascertainment/runner.py` | The analysis pedigree: the sampled individuals plus every ancestor reachable through intact parent links, with dangling links set to -1 |
-| `trait.parquet` | `simace/ascertainment/runner.py` | Censored outcomes for the sampled individuals. This and `pedigree.parquet` are what fitACE reads |
+| `params.yaml` | `simace run` (`simace/simulation/emit_params.py`) | The resolved simulation parameters for this replicate |
+| `pedigree.parquet` | `simace/simulation/simulate.py` | The recorded pedigree after burn-in, with every recorded link. Ascertainment never rewrites it |
+| `cohort.parquet` | `simace/cli/cohort_stage.py` | One row per member of the analysis pedigree, with censored outcomes set for the analysis sample and null for the other members. This and `pedigree.parquet` are what fitACE reads. See [Ascertainment, Who is in `cohort.parquet`](ascertainment.md#who-is-in-cohortparquet) |
+| `phenotyped_population.yaml` | `simace/cli/cohort_stage.py` | Size and prevalence of the whole phenotyped population before ascertainment. See [phenotyped_population.yaml](#phenotyped_populationyaml) |
 | `report.yaml` | `simace/analysis/analyze.py` | The per-replicate report. See [report.yaml](#reportyaml) |
 | `plot_payload.yaml` | `simace/analysis/analyze.py` | Dense arrays for the incidence and censoring plots |
-| `plotting_sample.parquet` | `simace/analysis/analyze.py` | A downsampled join of traits and pedigree for scatter plots. Deleted after plotting |
+| `plotting_sample.parquet` | `simace/analysis/analyze.py` | A downsampled join of traits and pedigree for scatter plots |
+| `timing.tsv` | `simace run` | One row per stage: `stage`, `wall_s`, `max_rss_mb` (the peak resident memory of the stage and any worker processes it starts), `exit_code` |
+| `run.yaml` | `simace run` | Written after every stage succeeds. Records the scenario, replicate, seed, parameters, stages, and results `layout` (2) the replicate was computed with, plus the simace version and git ref (`source`) that built it. A rerun skips the replicate only when this matches and every other file above exists. See [Running the pipeline](running-the-pipeline.md#rerun-and-resume) |
 
-The trait files hold outcomes only ([ADR 0011](../adr/0011-outcomes-only-trait-files.md)).
-Join them to the matching pedigree file on `id` to get generation, sex,
-family links, variance components, or liabilities.
+Every stage writes each output to a temporary `<name>.<random>.tmp` beside it
+and renames it into place when it finishes, so a file under its final name is
+always complete, even when two commands write the same output at once.
+
+`results/{folder}/{scenario}/.run.lock` holds the pid of the last
+`simace run` of the scenario. A running `simace run` keeps it locked so a
+second run of the same scenario refuses to start.
+
+This file set is results layout 2
+([ADR 0021](../adr/0021-two-canonical-replicate-parquets.md)). A replicate
+written before it holds `pedigree.full.parquet`, a selected `pedigree.parquet`,
+and `trait*.parquet` files instead, reads as stale, and is recomputed only
+with `--force` ([Running the pipeline](running-the-pipeline.md#rerun-and-resume)).
+
+`cohort.parquet` holds outcomes only. To get generation, sex, family links,
+variance components, or liabilities, rebuild the analysis frames from the two
+files and join on `id`:
+
+```python
+from simace.core.cohort import read_cohort, read_pedigree, selected_views
+from simace.core.trait_schema import hydrate_trait
+
+rep = "results/test/small_test/rep1"
+views = selected_views(read_pedigree(f"{rep}/pedigree.parquet"), read_cohort(f"{rep}/cohort.parquet"))
+sample = hydrate_trait(views.trait, views.pedigree, kind="censored")
+```
+
+`views.trait` is the analysis sample and `views.pedigree` the analysis
+pedigree. `read_pedigree` and `read_cohort` refuse a file without the
+Parquet key-value metadata `simace_layout=2`, so a selected
+`pedigree.parquet` from an older replicate is never read as the recorded
+pedigree.
 
 ## Per-scenario and per-folder files
 
@@ -56,22 +89,23 @@ family links, variance components, or liabilities.
 | `results/{folder}/{scenario}/plots/*.png` | Scenario plots. [Interpreting results](interpreting-results.md) lists them |
 | `results/{folder}/{scenario}/plots/atlas.html` | All scenario plots in one HTML file, with captions, a parameter page, and Table 1 |
 | `results/{folder}/{scenario}/plots/atlas.pdf` | The same atlas as a PDF. Built on demand ([ADR 0010](../adr/0010-html-primary-atlas-rendering.md)) |
-| `results/{folder}/{scenario}/*.done` | Empty files that mark a completed target. [Running the pipeline](running-the-pipeline.md) lists the targets |
-| `results/{folder}/report_summary.tsv` | One row per replicate across every scenario in the folder. See [report_summary.tsv](#report_summarytsv) |
+| `results/{folder}/{scenario}/plots/plots.yaml` | Which replicates' `run.yaml` files the plots and atlas were built from, and the atlas files written. `simace ls` reads it to report the plots as current, stale, or absent |
+| `results/{folder}/{scenario}/plots/timing.tsv` | Wall time and peak memory of the `plot`, `atlas`, and (with `--format pdf`) `atlas-pdf` stages |
+| `results/{folder}/report_summary.tsv` | One row per replicate across every scenario in the folder, written by `simace gather`. See [report_summary.tsv](#report_summarytsv) |
 | `results/{folder}/plots/*.png` | Validation plots comparing scenarios |
 | `results/{folder}/plots/atlas.html`, `atlas.pdf` | The validation plots as an atlas |
-| `logs/{folder}/{scenario}/rep{rep}/*.log` | One log per rule |
-| `benchmarks/{folder}/{scenario}/rep{rep}/*.tsv` | One Snakemake benchmark per rule. See [Benchmarks](#benchmarks) |
+| `logs/{folder}/{scenario}/rep{rep}/{stage}.log` | One log per stage: `simulate`, `cohort`, `analyze`. `cohort.log` gives the wall time and peak memory of each of its phases: phenotype, censor, ascertain |
+| `logs/{folder}/{scenario}/{plot,atlas,atlas-pdf}.log` | The scenario plot and atlas logs |
 
 Image files use the extension set by `plot_format`, `png` by default.
 
 ## Parquet columns
 
-### pedigree.full.parquet and pedigree.parquet
+### pedigree.parquet
 
-Both files have the same columns. Column types below are what
-`results/test/small_test/rep1/pedigree.parquet` holds at this commit. This
-command prints the schema of any parquet file in the tree:
+Column types below are what `results/test/small_test/rep1/pedigree.parquet`
+holds at this commit. This command prints the schema of any parquet file in
+the tree:
 
 ```bash
 pixi run python -c "import pyarrow.parquet as pq, sys; print(pq.read_schema(sys.argv[1]))" results/test/small_test/rep1/pedigree.parquet
@@ -81,29 +115,24 @@ pixi run python -c "import pyarrow.parquet as pq, sys; print(pq.read_schema(sys.
 |---|---|---|
 | `id` | int32 | Individual identifier |
 | `sex` | int8 | 0 is female, 1 is male |
-| `mother`, `father` | int32 | Parent identifiers. -1 when the parent is unknown or removed |
+| `mother`, `father` | int32 | Parent identifiers. -1 when the parent is outside the recorded pedigree |
 | `twin` | int32 | Identifier of the monozygotic twin. -1 when there is none |
 | `generation` | int32 | 0 is the oldest recorded generation |
 | `household_id` | int32 | Group that shares the common environment. Assigned by mother |
 | `A1`, `C1`, `E1`, `A2`, `C2`, `E2` | float32 | Variance components for trait 1 and trait 2 |
 | `liability1`, `liability2` | float64 | `A + C + E` for each trait |
 
-### trait.raw.parquet
+### cohort.parquet
+
+One row per member of the analysis pedigree, in `pedigree.parquet` row
+order. On rows of the analysis sample, `affected1` is not null and so is
+every column below except `t1` and `t2`. On the other rows, the ancestors the
+sample needs, every column except `id` is null.
 
 | Column | Type | Description |
 |---|---|---|
 | `id` | int32 | Individual identifier |
-| `t1`, `t2` | float32 | Onset age from the phenotype model, before censoring |
-
-### trait.full.parquet and trait.parquet
-
-Both files have the same columns. `trait.full.parquet` covers every
-phenotyped individual. `trait.parquet` covers the sampled individuals.
-
-| Column | Type | Description |
-|---|---|---|
-| `id` | int32 | Individual identifier |
-| `t1`, `t2` | float32 | Onset age before censoring |
+| `t1`, `t2` | float32 | Onset age before censoring. May be null on a sample row, meaning no onset ([ADR 0019](../adr/0019-null-raw-onset-censoring-semantics.md)) |
 | `death_age` | float32 | Age at death from the competing-risk mortality |
 | `t_observed1`, `t_observed2` | float32 | Onset age after age-window and death censoring |
 | `age_censored1`, `age_censored2` | bool | True when onset falls outside the generation's observation window |
@@ -137,10 +166,10 @@ Every value is tagged with one of four population scopes.
 
 | Scope | Population |
 |---|---|
-| `recorded_pedigree` | Every individual in `pedigree.full.parquet` |
-| `phenotyped_population` | Every row in `trait.full.parquet` |
-| `analysis_sample` | Every row in `trait.parquet` |
-| `analysis_pedigree` | Every individual in `pedigree.parquet` |
+| `recorded_pedigree` | Every individual in `pedigree.parquet` |
+| `phenotyped_population` | Every individual in the trailing `G_pheno` generations, after censoring and before ascertainment. Summarized in `phenotyped_population.yaml` |
+| `analysis_sample` | Every row of `cohort.parquet` with `affected1` not null |
+| `analysis_pedigree` | Every row of `cohort.parquet`, with its pedigree columns from `pedigree.parquet` |
 
 | Top-level key | Contents |
 |---|---|
@@ -148,10 +177,23 @@ Every value is tagged with one of four population scopes.
 | `replicate` | `folder`, `scenario`, `rep`, `seed` |
 | `inputs` | The resolved `parameters`, plus `trait_model` and `ascertainment` summaries |
 | `scopes` | For each scope, the source file, `n_individuals`, and `n_generations`. The analysis pedigree adds `ancestor_closure_ratio` |
-| `quality_checks` | One row per check with `id`, `scope`, `severity`, `status`, `observed`, `expected`, `tolerance`, `message`, plus a `summary`. The sibling correlations (`dz_sibling_*`, `half_sib_*`) are exact over every full-sib and half-sib pair of the recorded pedigree, and the `n_pairs` in their messages is the true pair count ([ADR 0020](../adr/0020-relationship-moments.md)) |
+| `quality_checks` | One row per check with `id`, `scope`, `severity`, `status`, `observed`, `expected`, `tolerance`, `message`, plus a `summary`. The sibling correlations (`dz_sibling_*`, `half_sib_*`) are exact over every full-sib and half-sib pair of the recorded pedigree, and the `n_pairs` in their messages is the true pair count ([ADR 0022](../adr/0022-relationship-moments.md)) |
 | `truth` | Realized values on `recorded_pedigree`: variance components and liability heritability per trait, with `realized_by_generation`, plus `cross_trait`, `family_structure`, and `assortative_mating` |
 | `observed` | Descriptive statistics per scope. `ascertainment` holds affected fractions before and after sampling, enrichment, and the retained fraction |
 | `estimators` | Heritability estimates, split into `observed_scale` from affected status and `liability_scale` from twin, sibling, and parent-offspring pairs |
+
+### phenotyped_population.yaml
+
+The `cohort` stage writes this summary while it holds the censored outcomes
+of the whole phenotyped population, which are not stored per individual. The
+analyze stage reads it for the `phenotyped_population` scope and the
+before-and-after comparison in `observed.ascertainment`.
+
+| Key | Contents |
+|---|---|
+| `n_individuals` | Number of phenotyped individuals |
+| `n_generations` | Number of phenotyped generations, `G_pheno` |
+| `prevalence` | Affected fraction per trait (`trait1`, `trait2`), and the same per generation under `by_generation`, keyed by `generation` |
 
 ### plot_payload.yaml
 
@@ -166,36 +208,30 @@ canonical.
 the folder. The columns come from `REPORT_SUMMARY_REGISTRY` in
 `simace/analysis/report_schema.py`. Each entry names a column and the path
 inside `report.yaml` that fills it. `folder`, `scenario`, and `rep` come from
-the file path. `simulate_seconds` and `simulate_max_rss_mb` come only from
-`simulate.tsv`; they do not describe the whole pipeline. Read the registry for
-the full list.
+the file path. `simulate_seconds` and `simulate_max_rss_mb` come only from the
+`simulate` row of the replicate's `timing.tsv`; they do not describe the whole
+pipeline. Read the registry for the full list.
 
-## Benchmarks
+## Stage timing
 
-Snakemake writes one TSV per rule run with its standard columns: `s`,
-`h:m:s`, `max_rss`, `max_vms`, `max_uss`, `max_pss`, `io_in`, `io_out`,
-`mean_load`, and `cpu_time`. Memory is in MB, time in seconds.
+`simace run` runs each stage as its own process and appends one row to the
+replicate's `timing.tsv` when the stage exits: `stage`, `wall_s` (elapsed
+seconds), `max_rss_mb` (peak resident memory in MiB), and `exit_code`.
+`max_rss_mb` is the larger of the stage process's exact peak from `wait4`
+and the summed resident memory of the stage and its descendants, sampled
+every 0.1 s. The sum is what counts for a stage with worker processes,
+such as `plot`; it counts shared pages once per process and can miss a
+spike shorter than the sampling interval. The scenario's `plots/timing.tsv` holds the same
+columns for the `plot` and `atlas` stages. A recomputed replicate starts a
+fresh `timing.tsv`.
 
-Per-replicate benchmarks live in `benchmarks/{folder}/{scenario}/rep{rep}/`
-and are named after the rule, for example `simulate.tsv`, `phenotype.tsv`,
-`censor_weibull.tsv`, `ascertainment.tsv`, `analyze.tsv`, and
-`effective_size.tsv`. Per-scenario plotting and atlas benchmarks live one
-level up, in `benchmarks/{folder}/{scenario}/`. Per-folder benchmarks such as
-`gather_report_summary.tsv` and `plot_validation.tsv` live in
-`benchmarks/{folder}/`. This command lists
-every benchmark path the rules declare:
-
-```bash
-grep -rho 'benchmarks/[^"]*' workflow/rules/simace/*.smk | sort -u
-```
-
-The reproducible benchmark driver copies these per-rule files into an immutable
-run directory and adds process-tree memory measurements. See
+The reproducible benchmark driver copies these files into an immutable run
+directory and adds process-tree memory measurements. See
 [Benchmark pipeline performance](benchmarking.md).
 
 ## TSV exports
 
-`simace-parquet-to-tsv` writes a `.tsv.gz` file next to a parquet file, with
+`simace parquet-to-tsv` writes a `.tsv.gz` file next to a parquet file, with
 four decimal places by default. [Running the pipeline, Convert parquet to
 TSV](running-the-pipeline.md#convert-parquet-to-tsv) has the commands.
 

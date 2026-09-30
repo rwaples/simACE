@@ -14,7 +14,7 @@ A phenotype model turns liability into a binary phenotype. The choices are a pro
 
 The censoring stage applies competing-risk death censoring and per-generation age-window censoring.
 
-The code is Python. Snakemake runs the pipeline and supports named scenarios, replicate runs, validation checks, and plots.
+The code is Python. The `simace run` command runs the pipeline and supports named scenarios, replicate runs, validation checks, and plots.
 
 **Key terms**
 
@@ -37,9 +37,8 @@ The code is Python. Snakemake runs the pipeline and supports named scenarios, re
 5. **Analyze** checks the recorded pedigree against known parameters and computes descriptive stats and estimators on the analysis sample. It writes one per-replicate report.
 6. **Plot** renders scenario and validation atlases from the reports.
 
-The `validate.done` and `stats.done` files are Snakemake output targets, not
-separate scientific stages. [Running the pipeline](../user-guide/running-the-pipeline.md#choose-a-target)
-lists their dependencies.
+`simace run` executes these stages in order for each replicate; see
+[Running the pipeline](../user-guide/running-the-pipeline.md).
 
 ## Pedigree simulation
 
@@ -354,7 +353,7 @@ With $\alpha > 1$ the sample overrepresents cases, like a case-control design. W
 
 The output pedigree is the ancestor closure of the sampled IDs within the post-dropout pedigree. Every parent reachable through an unbroken chain of links is kept. The stage then rewrites any remaining dangling twin reference to $-1$, so kinship and relationship-pair extraction work on the analysis dataset.
 
-Validation is unaffected. It reads `pedigree.full.parquet`, the pedigree from before ascertainment.
+Validation is unaffected. It reads `pedigree.parquet`, the recorded pedigree, which ascertainment does not rewrite.
 
 ## Validation via statistical analysis
 
@@ -456,7 +455,7 @@ Correlation checks use a tolerance of four standard errors with a floor of 0.05.
 
 ## Implementation
 
-`simace` is an installable Python package. NumPy does the vectorised array work, SciPy the optimisation and special functions, Polars the DataFrames at every stage boundary (ADR 0015), and Numba the compiled kernels for phenotype inversion, Metropolis sweeps, and the tetrachoric likelihood. Relationship extraction uses the Rust row-streaming engine in `pedigree-graph`. Snakemake runs the workflow with per-scenario configuration and per-replicate seed offsets, the seed plus the replicate number. SLURM execution goes through `snakemake-executor-plugin-slurm`, pinned in `pixi.toml`. All random draws use NumPy's PCG64 generator through `numpy.random.default_rng` with explicit seeds.
+`simace` is an installable Python package. NumPy does the vectorised array work, SciPy the optimisation and special functions, Polars the DataFrames at every stage boundary (ADR 0015), and Numba the compiled kernels for phenotype inversion, Metropolis sweeps, and the tetrachoric likelihood. Relationship extraction uses the Rust row-streaming engine in `pedigree-graph`. The `simace run` command runs each stage in its own process, with per-scenario configuration and a per-replicate seed of the scenario seed plus the replicate number minus one. All random draws use NumPy's PCG64 generator through `numpy.random.default_rng` with explicit seeds.
 
 ## Assumptions and limitations
 

@@ -85,7 +85,7 @@ class TestPairCorrelations:
         """Both Pearson paths agree with ``np.corrcoef`` on the same index arrays.
 
         The moments quantize liabilities to 43 bits and center exactly, so the
-        tolerance covers quantization plus NumPy's own rounding (ADR 0020
+        tolerance covers quantization plus NumPy's own rounding (ADR 0022
         moves this comparison from bit-exact to 1e-12).  Tetrachoric
         correlation is deliberately excluded: it is not a Pearson correlation
         and has no NumPy oracle.

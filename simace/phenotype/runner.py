@@ -3,7 +3,7 @@
 ``run_phenotype`` trims the pedigree to the trailing ``G_pheno`` generations
 and dispatches each of the two traits to its configured model family (see the
 package docstring in :mod:`simace.phenotype` for the family list). ``cli`` is
-the ``simace-phenotype`` entry point.
+the ``simace phenotype`` command.
 """
 
 from __future__ import annotations
@@ -169,17 +169,24 @@ def run_phenotype(
 # ---------------------------------------------------------------------------
 
 
-def cli() -> None:
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line entry point for phenotype simulation.
 
     Eager-registration scheme: every model's flag set is registered up
     front so ``--help`` shows them all in clearly-labeled per-family
     argument groups. Each model's ``from_cli`` rejects flags belonging to
     a different family when invoked alongside that model's selection.
+
+    ``--phenotype-params{N}`` instead passes the ``phenotype_params{N}``
+    dict whole, as a YAML flow mapping. It is the only form that carries
+    per-generation or sex-specific prevalence, and it is what
+    ``simace run`` uses; it cannot be combined with that trait's model flags.
     """
-    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging, yaml_mapping
+    from simace.core.publish import publish
 
     parser = argparse.ArgumentParser(
+        prog=prog,
         description="Simulate phenotype event times for two correlated traits",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
@@ -206,10 +213,16 @@ def cli() -> None:
         )
         shared.add_argument(f"--beta{trait}", type=float, default=1.0)
         shared.add_argument(f"--beta-sex{trait}", type=float, default=0.0)
+        shared.add_argument(
+            f"--phenotype-params{trait}",
+            type=yaml_mapping,
+            default=None,
+            help=f"Trait {trait} model parameters as a YAML flow mapping, in place of the model's own flags",
+        )
         for model_cls in MODELS.values():
             model_cls.add_cli_args(parser, trait)
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     init_logging(args)
 
     kwargs: dict[str, Any] = {
@@ -219,13 +232,24 @@ def cli() -> None:
     }
     for trait in (1, 2):
         model_name = getattr(args, f"phenotype_model{trait}")
-        model_cls = MODELS[model_name]
-        instance = model_cls.from_cli(args, trait)
+        params = getattr(args, f"phenotype_params{trait}")
+        if params is None:
+            params = MODELS[model_name].from_cli(args, trait).to_params_dict()
+        else:
+            model_flags = sorted(
+                f"--{attr.replace('_', '-')}"
+                for model_cls in MODELS.values()
+                for attr in model_cls.cli_flag_attrs(trait)
+                if getattr(args, attr, None) is not None
+            )
+            if model_flags:
+                parser.error(f"--phenotype-params{trait} cannot be combined with {', '.join(model_flags)}")
         kwargs[f"phenotype_model{trait}"] = model_name
-        kwargs[f"phenotype_params{trait}"] = instance.to_params_dict()
+        kwargs[f"phenotype_params{trait}"] = params
         kwargs[f"beta{trait}"] = getattr(args, f"beta{trait}")
         kwargs[f"beta_sex{trait}"] = getattr(args, f"beta_sex{trait}")
 
     pedigree = load_parquet(args.pedigree)
     phenotype = run_phenotype(pedigree, **kwargs)
-    save_parquet(phenotype, args.output)
+    with publish(args.output) as (tmp,):
+        save_parquet(phenotype, tmp)
