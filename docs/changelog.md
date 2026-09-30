@@ -8,6 +8,15 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
+### `simace run --until`
+
+- **`simace run --until cohort` skips `analyze`.** Each replicate stops
+  after the named stage, and its `run.yaml` records the stages run. Such a
+  replicate is `partial`: a later run without `--until` resumes it at the
+  next stage and keeps the earlier outputs. Plots and `simace gather` wait
+  for replicates complete through `analyze`; `simace ls` lists partial
+  replicates. See [ADR 0020](adr/0020-standalone-simace-cli.md).
+
 ### Two Parquet files per replicate ([ADR 0021](adr/0021-two-canonical-replicate-parquets.md))
 
 - **A replicate holds `pedigree.parquet` and `cohort.parquet`.**

@@ -33,6 +33,7 @@ ascertainment in one process and writes only `cohort.parquet` and
 | `--force` | Recompute the requested replicates even when they are complete |
 | `--fail-fast` | Stop starting new replicates after the first failure |
 | `--no-plots` | Skip the plots and atlas |
+| `--until cohort` | Stop each replicate after this stage (`simulate`, `cohort`, or the default `analyze`). The replicate is `partial`, and a later run without `--until` resumes it at the next stage. Skips the plots |
 | `--max-memory 8G` | Kill any stage whose resident memory, summed over the stage process and its worker processes, goes over 8 GiB, which fails its replicate. The cap is per stage, so `--jobs 3` can use up to three times it |
 | `--format pdf` | Also write `plots/atlas.pdf`; `plots/atlas.html` is always built |
 | `--results DIR`, `--logs DIR`, `--config-dir DIR` | Use other roots than `results/`, `logs/`, `config/` |
@@ -95,6 +96,7 @@ When you rerun a scenario, each requested replicate is handled as a whole:
 |---|---|
 | Complete | Skips the replicate |
 | No `run.yaml`, for example after an interruption | Recomputes the replicate from the first stage |
+| Built through an earlier stage with `--until` (`partial`) | Resumes at the first missing stage, keeping the earlier outputs, and rewrites `params.yaml` from the current config. Only the keys of the stages already run can make it stale |
 | `run.yaml` matches, but an output file is missing or was rewritten after `run.yaml` (`incomplete`) | Recomputes the replicate from the first stage and names the files |
 | `run.yaml` differs from the current config, or belongs to another replicate (`stale`) | Refuses and names each differing key with its recorded and current value (`N: 999 -> 300`). `--force` recomputes |
 

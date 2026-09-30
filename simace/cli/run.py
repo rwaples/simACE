@@ -1,8 +1,10 @@
 """``simace run <scenario>``: compute every rep of a scenario, then its plots.
 
-Resume granularity is the rep. A rep whose ``run.yaml`` matches the current
-parameters is skipped; a rep with no ``run.yaml`` is recomputed from
-scratch; a rep whose ``run.yaml`` differs is refused unless ``--force``.
+Resume granularity is the rep, or with ``--until`` the stage. A rep whose
+``run.yaml`` matches the current parameters is skipped; a rep with no
+``run.yaml`` is recomputed from scratch; a rep whose ``run.yaml`` differs is
+refused unless ``--force``. A rep built through fewer stages than asked for
+resumes at its first missing stage.
 Every stage runs as its own ``simace <stage>`` subprocess so its wall time
 and peak RSS land in the rep's ``timing.tsv``. Plots and the atlas are
 rebuilt on every run.
@@ -13,6 +15,7 @@ from __future__ import annotations
 __all__ = [
     "ScenarioError",
     "ScenarioRun",
+    "built_stages",
     "check_runnable",
     "cli",
     "expand_targets",
@@ -37,7 +40,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack, contextmanager, suppress
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from simace.cli.layout import RepArtifact, add_root_args, resolve_roots
@@ -46,8 +49,11 @@ from simace.cli.manifest import (
     PlotsState,
     PlotsStatus,
     RepState,
+    RepStatus,
     manifest_params,
     plots_status,
+    read_manifest,
+    recorded_stages,
     rep_status,
     write_manifest,
     write_plots_manifest,
@@ -56,22 +62,22 @@ from simace.cli.stages import (
     PARAMS_YAML_KEYS,
     REP_LAYOUT,
     REP_OUTPUTS,
-    REP_PARAM_KEYS,
     RETIRED_OUTPUTS,
     STAGES,
     ResolvedRep,
     atlas_argv,
     plot_argv,
+    rep_param_keys,
 )
 from simace.core.publish import TMP_SUFFIX, publish
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Iterable, Iterator, Sequence
     from pathlib import Path
     from typing import TextIO
 
     from simace.cli.layout import Layout
-    from simace.cli.manifest import RepStatus
+    from simace.cli.stages import Stage
 
 # OpenMP/BLAS pools are pinned to one thread in every stage, as Snakemake's
 # `threads: 1` rules (and `--cores 1`) did. Measured at baseline100K, one thread
@@ -155,26 +161,53 @@ def load_scenario(config_dir: Path, name: str, *, require_runnable: bool = True)
     return scenarios[name]
 
 
-def _stage_names() -> list[str]:
-    return [stage.name for stage in STAGES]
+def _stage_names(stages: Sequence[Stage] = STAGES) -> list[str]:
+    return [stage.name for stage in stages]
 
 
-def expected_manifest(rep: ResolvedRep) -> Manifest:
-    """Return the manifest a complete rep would carry under the current parameters."""
+def expected_manifest(rep: ResolvedRep, stages: Sequence[Stage] = STAGES) -> Manifest:
+    """Return the manifest a rep built through ``stages`` would carry under the current parameters."""
     return Manifest(
         scenario=rep.scenario,
         rep=rep.rep,
         seed=rep.seed,
-        resolved=manifest_params(rep.params, REP_PARAM_KEYS),
-        stages=_stage_names(),
+        resolved=manifest_params(rep.params, rep_param_keys(stages)),
+        stages=_stage_names(stages),
         layout=REP_LAYOUT,
     )
 
 
-def status_on_disk(rep: ResolvedRep, layout: Layout) -> RepStatus:
-    """Return one rep's state from its ``run.yaml`` and the outputs it declares, under the current parameters."""
-    manifest = layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST)
-    return rep_status(manifest, expected_manifest(rep), rep_outputs(rep, layout))
+def built_stages(rep: ResolvedRep, layout: Layout) -> tuple[Stage, ...]:
+    """Return the stages ``rep``'s ``run.yaml`` records when they begin the chain, else the whole chain."""
+    return _built(read_manifest(layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST)))
+
+
+def _built(recorded: Any) -> tuple[Stage, ...]:
+    """Return the stages a loaded ``run.yaml`` records when they begin the chain, else the whole chain.
+
+    Returning the whole chain for any other list lets :func:`rep_status`
+    report the difference in ``stages``, which makes the rep stale.
+    """
+    names = recorded_stages(recorded)
+    if names and names == _stage_names()[: len(names)]:
+        return STAGES[: len(names)]
+    return STAGES
+
+
+def status_on_disk(rep: ResolvedRep, layout: Layout, until: int = len(STAGES)) -> RepStatus:
+    """Return one rep's state from its ``run.yaml`` and the outputs it declares, under the current parameters.
+
+    The rep is checked against the stages its ``run.yaml`` records. One
+    complete through fewer than the first ``until`` stages is partial.
+    """
+    recorded = read_manifest(layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST))
+    if recorded is None:
+        return RepStatus(RepState.ABSENT)
+    built = _built(recorded)
+    status = rep_status(recorded, expected_manifest(rep, built), rep_outputs(rep, layout, built))
+    if status.state is RepState.COMPLETE and len(built) < until:
+        return replace(status, state=RepState.PARTIAL, reasons=(f"built through {built[-1].name}",))
+    return status
 
 
 def scenario_plots_status(reps: list[ResolvedRep], layout: Layout) -> PlotsStatus:
@@ -187,9 +220,10 @@ def scenario_plots_status(reps: list[ResolvedRep], layout: Layout) -> PlotsStatu
     return plots_status(layout.scenario_plots_manifest(folder, scenario), manifests, not_complete)
 
 
-def rep_outputs(rep: ResolvedRep, layout: Layout) -> list[Path]:
-    """Return every output a complete rep must have, fingerprinted in its ``run.yaml``."""
-    return [layout.rep(rep.folder, rep.scenario, rep.rep, a) for a in REP_OUTPUTS if a is not RepArtifact.RUN_MANIFEST]
+def rep_outputs(rep: ResolvedRep, layout: Layout, stages: Sequence[Stage] = STAGES) -> list[Path]:
+    """Return every output a rep built through ``stages`` must have, fingerprinted in its ``run.yaml``."""
+    artifacts = (RepArtifact.PARAMS, RepArtifact.TIMING, *(out for stage in stages for out in stage.outputs))
+    return [layout.rep(rep.folder, rep.scenario, rep.rep, a) for a in artifacts]
 
 
 def _command(stage: str, argv: list[str]) -> list[str]:
@@ -359,28 +393,45 @@ class _Console:
             print(f"[{tag}] {message}", flush=True)
 
 
-def _recompute(rep: ResolvedRep, layout: Layout, launcher: _Launcher, console: _Console) -> str | None:
-    """Compute every stage of one rep from scratch. Return None when all stages exit 0, else why not.
+def _recompute(
+    rep: ResolvedRep,
+    layout: Layout,
+    launcher: _Launcher,
+    console: _Console,
+    first: int = 0,
+    until: int = len(STAGES),
+) -> str | None:
+    """Compute stages ``first`` up to ``until`` of one rep. Return None when they all exit 0, else why not.
 
-    Every file a previous run of this rep wrote is removed first, manifest
-    first, so a failure partway leaves no output from the old parameters
-    beside outputs from the new ones. Files only an earlier results layout
-    wrote go too.
+    From the first stage, every file a previous run of this rep wrote is
+    removed first, manifest first, so a failure partway leaves no output
+    from the old parameters beside outputs from the new ones. Files only an
+    earlier results layout wrote go too. A resume (``first > 0``) keeps the
+    earlier stages' outputs, which the caller has checked against the rep's
+    ``run.yaml``, removes that manifest and the later stages' outputs, and
+    rewrites ``params.yaml`` from the current parameters.
     """
     tag = f"{rep.scenario}/rep{rep.rep}"
-    for artifact in REP_OUTPUTS:
-        layout.rep(rep.folder, rep.scenario, rep.rep, artifact).unlink(missing_ok=True)
     rep_dir = layout.rep_dir(rep.folder, rep.scenario, rep.rep)
-    for retired in RETIRED_OUTPUTS:
-        (rep_dir / retired).unlink(missing_ok=True)
+    if first == 0:
+        for artifact in REP_OUTPUTS:
+            layout.rep(rep.folder, rep.scenario, rep.rep, artifact).unlink(missing_ok=True)
+        for retired in RETIRED_OUTPUTS:
+            (rep_dir / retired).unlink(missing_ok=True)
+    else:
+        layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST).unlink()
+        for stage in STAGES[first:]:
+            for artifact in stage.outputs:
+                layout.rep(rep.folder, rep.scenario, rep.rep, artifact).unlink(missing_ok=True)
     if rep_dir.exists():
         for stale in rep_dir.glob(f"*{TMP_SUFFIX}"):
             stale.unlink()
 
     _write_params(rep, layout)
     timing = layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.TIMING)
-    _start_timing(timing)
-    for stage in STAGES:
+    if first == 0:
+        _start_timing(timing)
+    for stage in STAGES[first:until]:
         console.say(tag, f"{stage.name} started")
         log_path = layout.log(rep.folder, rep.scenario, rep.rep, stage.name)
         result = launcher.run(_command(stage.name, stage.argv(rep, layout)), log_path)
@@ -393,8 +444,8 @@ def _recompute(rep: ResolvedRep, layout: Layout, launcher: _Launcher, console: _
 
     write_manifest(
         layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST),
-        expected_manifest(rep),
-        rep_outputs(rep, layout),
+        expected_manifest(rep, STAGES[:until]),
+        rep_outputs(rep, layout, STAGES[:until]),
     )
     return None
 
@@ -484,6 +535,13 @@ def _parse(argv: list[str] | None, prog: str | None) -> argparse.Namespace:
     parser.add_argument("--fail-fast", action="store_true", help="Cancel pending reps after the first failure")
     parser.add_argument("--no-plots", action="store_true", help="Skip the scenario plots and atlas")
     parser.add_argument(
+        "--until",
+        choices=_stage_names(),
+        default=STAGES[-1].name,
+        help="Last stage to compute (default: %(default)s). A rep built through an earlier stage is partial, "
+        "a later run resumes it, and plots are skipped",
+    )
+    parser.add_argument(
         "--max-memory",
         type=parse_size,
         default=None,
@@ -502,6 +560,7 @@ def _parse(argv: list[str] | None, prog: str | None) -> argparse.Namespace:
         parser.error("--jobs must be at least 1")
     if args.rep is not None:
         args.rep = [r for spec in args.rep for r in spec]
+    args.until = _stage_names().index(args.until) + 1
     return args
 
 
@@ -600,22 +659,27 @@ def _lock_scenario(locks: ExitStack, run: ScenarioRun, layout: Layout) -> int:
 class _Outcome:
     """What happened to one scenario's requested reps."""
 
-    to_compute: list[ResolvedRep] = field(default_factory=list)
+    #: Each rep to compute, with the index of its first stage to run (0 unless resuming a partial rep).
+    to_compute: list[tuple[ResolvedRep, int]] = field(default_factory=list)
     skipped: int = 0
     refused: dict[int, str] = field(default_factory=dict)
     failed: dict[int, str] = field(default_factory=dict)
 
 
-def _classify(run: ScenarioRun, layout: Layout, console: _Console, *, force: bool) -> _Outcome:
+def _classify(run: ScenarioRun, layout: Layout, console: _Console, *, force: bool, until: int) -> _Outcome:
     outcome = _Outcome()
     for rep in run.requested:
-        status = status_on_disk(rep, layout)
+        status = status_on_disk(rep, layout, until)
         tag = f"{run.scenario}/rep{rep.rep}"
         if force or status.state is RepState.ABSENT:
-            outcome.to_compute.append(rep)
+            outcome.to_compute.append((rep, 0))
         elif status.state is RepState.INCOMPLETE:
             console.say(tag, f"recompute: {', '.join(status.reasons)}")
-            outcome.to_compute.append(rep)
+            outcome.to_compute.append((rep, 0))
+        elif status.state is RepState.PARTIAL:
+            built = built_stages(rep, layout)
+            console.say(tag, f"resume: {status.describe()}")
+            outcome.to_compute.append((rep, len(built)))
         elif status.state is RepState.COMPLETE:
             console.say(tag, "skip (run.yaml matches)")
             outcome.skipped += 1
@@ -627,7 +691,8 @@ def _classify(run: ScenarioRun, layout: Layout, console: _Console, *, force: boo
 
 def _run_reps(args: argparse.Namespace, layout: Layout, runs: list[ScenarioRun], lock_fds: tuple[int, ...]) -> None:
     console = _Console()
-    outcomes = {run.scenario: _classify(run, layout, console, force=args.force) for run in runs}
+    outcomes = {run.scenario: _classify(run, layout, console, force=args.force, until=args.until) for run in runs}
+    full = args.until == len(STAGES)
     refused = any(outcome.refused for outcome in outcomes.values())
 
     if args.dry_run:
@@ -639,17 +704,18 @@ def _run_reps(args: argparse.Namespace, layout: Layout, runs: list[ScenarioRun],
                 for rep in run.all_reps
                 if rep.rep not in selected
             )
-            plots = not args.no_plots and not outcome.refused and others_complete
-            _print_plan(outcome.to_compute, run.all_reps, layout, args.format, include_plots=plots)
+            plots = full and not args.no_plots and not outcome.refused and others_complete
+            _print_plan(outcome.to_compute, run.all_reps, layout, args.format, args.until, include_plots=plots)
         raise SystemExit(1 if refused else 0)
 
     failed = _compute(
-        [rep for run in runs for rep in outcomes[run.scenario].to_compute],
+        [item for run in runs for item in outcomes[run.scenario].to_compute],
         layout,
         _Launcher(_child_env(args.jobs), args.max_memory, lock_fds),
         console,
         jobs=args.jobs,
         fail_fast=args.fail_fast,
+        until=args.until,
     )
     for (scenario, rep), why in failed.items():
         outcomes[scenario].failed[rep] = why
@@ -659,7 +725,10 @@ def _run_reps(args: argparse.Namespace, layout: Layout, runs: list[ScenarioRun],
         console.say("total", f"{len(runs)} scenarios: {_counts(outcomes.values())}")
 
     plotted = True
-    if not args.no_plots:
+    if not full and not args.no_plots:
+        for run in runs:
+            console.say(run.scenario, f"plots skipped: --until {STAGES[args.until - 1].name}")
+    elif not args.no_plots:
         launcher = _Launcher(_child_env(1), args.max_memory, lock_fds)
         for run in runs:
             incomplete = [rep.rep for rep in run.all_reps if status_on_disk(rep, layout).state is not RepState.COMPLETE]
@@ -674,29 +743,31 @@ def _run_reps(args: argparse.Namespace, layout: Layout, runs: list[ScenarioRun],
 
 
 def _compute(
-    reps: list[ResolvedRep],
+    reps: list[tuple[ResolvedRep, int]],
     layout: Layout,
     launcher: _Launcher,
     console: _Console,
     *,
     jobs: int,
     fail_fast: bool,
+    until: int,
 ) -> dict[tuple[str, int], str]:
-    """Recompute ``reps``; return why each rep that failed or was cancelled did not finish, by (scenario, rep)."""
+    """Compute each ``(rep, first stage)`` up to ``until``; return why each rep that failed or was cancelled did not finish."""
     cancelled = threading.Event()
 
-    def one(rep: ResolvedRep) -> str | None:
+    def one(item: tuple[ResolvedRep, int]) -> str | None:
+        rep, first = item
         if cancelled.is_set():
             console.say(f"{rep.scenario}/rep{rep.rep}", "cancelled")
             return "cancelled by --fail-fast"
-        failure = _recompute(rep, layout, launcher, console)
+        failure = _recompute(rep, layout, launcher, console, first, until)
         if failure and fail_fast:
             cancelled.set()
         return failure
 
     with ThreadPoolExecutor(max_workers=jobs) as pool:
         outcomes = list(pool.map(one, reps))
-    return {(rep.scenario, rep.rep): failure for rep, failure in zip(reps, outcomes, strict=True) if failure}
+    return {(rep.scenario, rep.rep): failure for (rep, _), failure in zip(reps, outcomes, strict=True) if failure}
 
 
 def _counts(outcomes: Iterable[_Outcome]) -> str:
@@ -756,16 +827,17 @@ def _build_plots(
 
 
 def _print_plan(
-    to_compute: list[ResolvedRep],
+    to_compute: list[tuple[ResolvedRep, int]],
     all_reps: list[ResolvedRep],
     layout: Layout,
     atlas_format: str,
+    until: int,
     *,
     include_plots: bool,
 ) -> None:
-    for rep in to_compute:
+    for rep, first in to_compute:
         print(f"# rep {rep.rep}: write {layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.PARAMS)}")
-        for stage in STAGES:
+        for stage in STAGES[first:until]:
             print(shlex.join(_command(stage.name, stage.argv(rep, layout))))
     if include_plots:
         for stage in _scenario_stages(all_reps, layout, atlas_format):

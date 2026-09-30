@@ -154,6 +154,28 @@ Decided after reviewing how the CLI would be used day to day.
   directory to `config/_default.yaml`; paths stay relative when the current
   directory is the root.
 
+## Amendment (2026-09-30): `--until` and partial reps
+
+Consumers that read only `pedigree.parquet` and `cohort.parquet` (the
+fitACE_epimight CI testbed) paid for `analyze`, the costliest stage on small
+reps: on `citb_K05_x50_c80` it takes 16.9 s of a 25.9 s rep, and its outputs
+went unread (simACE #28).
+
+- `simace run --until STAGE` stops each rep after `STAGE`. Resume
+  granularity becomes the stage prefix: `run.yaml` is written once every
+  stage up to `STAGE` exits 0, and its `stages` list records exactly those
+  stages. Each prefix is still all or nothing.
+- A rep is checked against the stages its `run.yaml` records: their config
+  keys (`rep_param_keys`; the `params.yaml` keys count only once `analyze`,
+  which reads that file, has run) and their outputs. A rep complete through
+  fewer stages than a run asks for is `partial`. The run resumes it at the
+  first missing stage, keeping the earlier outputs, rewriting `params.yaml`
+  from the current config, and adding to `timing.tsv`. A change to a key
+  only a missing stage reads (`max_degree`) does not refuse a partial rep.
+- Plots, `simace gather`, and `simace show`'s timing count only reps
+  complete through every stage. `--until` before `analyze` skips the plot
+  pass, and `simace ls` lists partial reps with the stage they reached.
+
 ## Verification
 
 Recorded in `plans/standalone-simace-cli-v2.md` §6 at implementation time.
