@@ -60,12 +60,6 @@ def _marker_param(color: str | list[str] | None = None) -> dict:
     return dict(marker="*", s=240, color=color, zorder=7, edgecolor="none")
 
 
-def _marker_frailty() -> dict:
-    from simace.plotting.plot_style import COLOR_UNCENSORED
-
-    return dict(marker="P", s=110, color=COLOR_UNCENSORED, zorder=6, edgecolor="white", linewidths=0.5)
-
-
 # Tetrachoric values outside this band are treated as outliers for ylim purposes
 # and clipped to the axis edge with a small caret.
 PAIR_TYPE_SANE_BAND: tuple[float, float] = (-0.15, 1.05)
@@ -296,7 +290,6 @@ def setup_relationship_type_panel(
     observed_per_rep: dict[str, list[float]],
     liability_r: dict[str, float] | None = None,
     parametric_r: dict[str, float] | None = None,
-    frailty_r: dict[str, float] | None = None,
     show_violins_threshold: int = 4,
     pair_colors: dict[str, str] | None = None,
     rng_seed: int = 42,
@@ -308,7 +301,6 @@ def setup_relationship_type_panel(
       * mean-of-observed wide cross
       * open diamond at mean liability r (if provided)
       * filled red star at parametric E[r] (if provided)
-      * green filled plus at frailty r (if provided)
 
     The per-rep observed dots are deferred so :func:`finalize_relationship_type_panels`
     can decide a shared y-axis range across panels and clip outliers to the
@@ -371,18 +363,6 @@ def setup_relationship_type_panel(
             ax.scatter(x_values, y_values, **_marker_liab())
             ref_values.extend(y_values)
 
-    if frailty_r:
-        x_values = []
-        y_values = []
-        for i, ptype in enumerate(relationship_types):
-            v = frailty_r.get(ptype)
-            if v is not None:
-                x_values.append(i)
-                y_values.append(float(v))
-        if x_values:
-            ax.scatter(x_values, y_values, **_marker_frailty())
-            ref_values.extend(y_values)
-
     if parametric_r:
         x_values = []
         y_values = []
@@ -427,7 +407,7 @@ def finalize_relationship_type_panels(
     """Apply a shared y-limit across all panels and draw observed dots.
 
     The y-limit is anchored on reference markers (mean observed, liability,
-    parametric, frailty) plus observed values inside ``sane_band``. Observed
+    parametric) plus observed values inside ``sane_band``. Observed
     values outside the band are rendered as small carets at the axis edge so
     one or two low-n outliers don't blow out the panel.
     """
@@ -483,7 +463,6 @@ def finalize_relationship_type_panels(
 def relationship_type_legend_handles(
     has_observed_mean: bool = True,
     has_liability: bool = True,
-    has_frailty: bool = False,
     has_parametric: bool = False,
 ) -> list:
     """Return ``Line2D`` proxies for ``fig.legend``.
@@ -493,7 +472,7 @@ def relationship_type_legend_handles(
     """
     from matplotlib.lines import Line2D
 
-    from simace.plotting.plot_style import COLOR_AFFECTED, COLOR_UNCENSORED
+    from simace.plotting.plot_style import COLOR_AFFECTED
 
     handles = [
         Line2D([0], [0], marker="o", color="0.45", linestyle="None", markersize=7, label="Observed r (per rep)"),
@@ -523,18 +502,6 @@ def relationship_type_legend_handles(
                 markerfacecolor="white",
                 markeredgewidth=1.5,
                 label="Liability r (mean)",
-            )
-        )
-    if has_frailty:
-        handles.append(
-            Line2D(
-                [0],
-                [0],
-                marker="P",
-                color=COLOR_UNCENSORED,
-                linestyle="None",
-                markersize=11,
-                label="Frailty r (uncensored)",
             )
         )
     if has_parametric:

@@ -31,7 +31,6 @@ from simace.plotting.plot_style import (
     COLOR_AFFECTED,
     COLOR_OBSERVED,
     COLOR_UNAFFECTED,
-    COLOR_UNCENSORED,
 )
 from simace.plotting.plot_utils import (
     finalize_plot,
@@ -105,8 +104,7 @@ def plot_tetrachoric_sibling(
 
     For each pair type, draws shapes stacked at the same x position: gray dots
     per rep (observed r), a black wide cross (mean of observed), an open black
-    diamond (mean liability r), a red star (parametric E[r]), and a green plus
-    (frailty r on uncensored frailties, when available). Faint violins appear
+    diamond (mean liability r), and a red star (parametric E[r]). Faint violins appear
     only when reps >= 4 so the spread is visible without dominating the panel.
     """
     relationship_types = RELATIONSHIP_TYPES
@@ -114,7 +112,6 @@ def plot_tetrachoric_sibling(
 
     fig, axes = plt.subplots(1, 2, figsize=(13, 6.5), sharey=True)
 
-    has_uncens_any = any(s.get("frailty_corr_uncensored") for s in all_stats)
     has_parametric_any = bool(params) and any(params.get(f"A{t}") is not None for t in (1, 2))
 
     panel_states: list[dict] = []
@@ -129,15 +126,6 @@ def plot_tetrachoric_sibling(
             lambda s, pt, _tk=trait_key: s.get("liability_correlations", {}).get(_tk, {}).get(pt),
             relationship_types,
         )
-        frailty = (
-            _mean_per_relationship_type(
-                all_stats,
-                lambda s, pt, _tk=trait_key: s.get("frailty_corr_uncensored", {}).get(_tk, {}).get(pt, {}).get("r"),
-                relationship_types,
-            )
-            if has_uncens_any
-            else None
-        )
         parametric = _parametric_per_relationship_type(params, trait_num, relationship_types)
 
         state = setup_relationship_type_panel(
@@ -148,7 +136,6 @@ def plot_tetrachoric_sibling(
             observed_per_rep=observed,
             liability_r=liability or None,
             parametric_r=parametric or None,
-            frailty_r=frailty,
         )
         if col_idx == 0:
             ax.set_ylabel("Tetrachoric correlation", fontsize=12)
@@ -161,7 +148,6 @@ def plot_tetrachoric_sibling(
         handles=relationship_type_legend_handles(
             has_observed_mean=True,
             has_liability=True,
-            has_frailty=has_uncens_any,
             has_parametric=has_parametric_any,
         ),
         loc="upper center",
@@ -255,7 +241,6 @@ def plot_tetrachoric_by_generation(
         handles=relationship_type_legend_handles(
             has_observed_mean=True,
             has_liability=True,
-            has_frailty=False,
             has_parametric=has_parametric_any,
         ),
         loc="upper center",
@@ -275,8 +260,7 @@ def plot_cross_trait_tetrachoric(
 ) -> None:
     """Two-panel figure for cross-trait tetrachoric correlations.
 
-    Left: Same-person cross-trait r by generation (dots per rep + mean line),
-          with frailty cross-trait reference lines if available.
+    Left: Same-person cross-trait r by generation (dots per rep + mean line).
     Right: Cross-person cross-trait r by pair type (violin/dots), showing how
            relatedness induces cross-trait association.
     """
@@ -330,19 +314,6 @@ def plot_cross_trait_tetrachoric(
                 linewidth=1.5,
                 alpha=0.7,
                 label=f"Overall r = {mean_overall:.3f}",
-            )
-
-        # frailty cross-trait reference lines if available
-        oracle_rs = [s.get("frailty_cross_trait_uncensored", {}).get("r") for s in all_stats]
-        oracle_rs = [r for r in oracle_rs if r is not None]
-        if oracle_rs:
-            ax_left.axhline(
-                y=np.mean(oracle_rs),
-                color=COLOR_UNCENSORED,
-                linestyle="-.",
-                linewidth=1.0,
-                alpha=0.7,
-                label=f"Frailty oracle = {np.mean(oracle_rs):.3f}",
             )
 
         ax_left.set_xticks(generations)
@@ -706,7 +677,6 @@ def plot_tetrachoric_by_sex(
         handles=relationship_type_legend_handles(
             has_observed_mean=True,
             has_liability=True,
-            has_frailty=False,
             has_parametric=has_parametric_any,
         ),
         loc="upper center",

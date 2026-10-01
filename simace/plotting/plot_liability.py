@@ -735,49 +735,15 @@ def plot_joint_affection(
     )
     annotate_heatmap(ax, matrix, count_matrix)
 
-    # Build subtitle from whichever correlation stats are present
-    label_parts = []
-
     # Cross-trait tetrachoric correlation from pre-computed stats
     r_tet_vals = [s.get("cross_trait_tetrachoric", {}).get("same_person", {}).get("r") for s in all_stats]
     r_tet_vals = [v for v in r_tet_vals if v is not None]
-    if r_tet_vals:
-        label_parts.append(f"r_tet = {np.mean(r_tet_vals):.3f}")
-
-    # Cross-trait frailty correlations (averaged across reps)
-    uncens_vals = [
-        s.get("frailty_cross_trait_uncensored", {}).get("r")
-        for s in all_stats
-        if s.get("frailty_cross_trait_uncensored", {}).get("r") is not None
-    ]
-    strat_vals = [
-        s.get("frailty_cross_trait_stratified", {}).get("r")
-        for s in all_stats
-        if s.get("frailty_cross_trait_stratified", {}).get("r") is not None
-    ]
-    naive_vals = [
-        s.get("frailty_cross_trait", {}).get("r")
-        for s in all_stats
-        if s.get("frailty_cross_trait", {}).get("r") is not None
-    ]
-
-    if uncens_vals:
-        label_parts.append(f"r_frailty = {np.mean(uncens_vals):.3f}")
-    if strat_vals:
-        label_parts.append(f"stratified = {np.mean(strat_vals):.3f}")
-    if naive_vals:
-        label_parts.append(f"naive = {np.mean(naive_vals):.3f}")
-
-    if not uncens_vals and not strat_vals and not naive_vals:
-        label_parts.append("r_frailty: not computed")
-
-    r_label = "  |  ".join(label_parts) if label_parts else ""
 
     ax.set_xlabel("Trait 1")
     ax.set_ylabel("Trait 2")
     title = "Joint Affected Status"
-    if r_label:
-        title += f"\n{r_label}"
+    if r_tet_vals:
+        title += f"\nr_tet = {np.mean(r_tet_vals):.3f}"
     ax.set_title(title, fontsize=14)
     finalize_plot(output_path, scenario=scenario)
 

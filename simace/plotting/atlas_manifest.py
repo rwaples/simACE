@@ -393,12 +393,9 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         title="Joint affected status heatmap.",
         body=(
             "2×2 heatmap of joint affected status across both traits. Cell annotations show "
-            "proportion and count. Title shows cross-trait correlation estimates: 'r_tet' = "
-            "tetrachoric correlation on censored binary affected status; 'r_frailty' = "
-            "frailty-estimated liability correlation from uncensored survival data; "
-            "'stratified' = generation-stratified estimate that computes per-generation "
-            "correlations and combines via inverse-variance weighting; 'naive' = unweighted "
-            "pooled censored estimate. Statistics computed over the full phenotyped population (before ascertainment)."
+            "proportion and count. Title shows 'r_tet', the cross-trait tetrachoric correlation "
+            "on censored binary affected status. Statistics computed over the full phenotyped "
+            "population (before ascertainment)."
         ),
     ),
     PlotEntry(

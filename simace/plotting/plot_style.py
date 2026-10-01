@@ -9,7 +9,6 @@ __all__ = [
     "COLOR_OBSERVED",
     "COLOR_TRUE",
     "COLOR_UNAFFECTED",
-    "COLOR_UNCENSORED",
     "PAIR_COLORS",
     "add_scenario_label",
     "apply_nature_style",
@@ -62,7 +61,6 @@ CENSORING_COLORS: dict[str, str] = {
 }
 
 # Frailty / uncensored oracle reference lines
-COLOR_UNCENSORED = "#228833"  # muted green
 
 
 # ---------------------------------------------------------------------------
