@@ -253,7 +253,7 @@ def _coerce_float(value) -> float:
         return float("nan")
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return float("nan")
 
 

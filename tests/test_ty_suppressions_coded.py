@@ -41,7 +41,7 @@ def _tracked_py(repo: Path) -> list[Path]:
             text=True,
             check=True,
         )
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except subprocess.CalledProcessError, FileNotFoundError:
         return []
     return [repo / line for line in result.stdout.splitlines() if line]
 
@@ -55,7 +55,7 @@ def test_ty_ignores_are_rule_coded(label: str, repo: Path) -> None:
     for path in _tracked_py(repo):
         try:
             text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        except OSError, UnicodeDecodeError:
             continue
         for lineno, line in enumerate(text.splitlines(), start=1):
             if _BARE_IGNORE.search(line):

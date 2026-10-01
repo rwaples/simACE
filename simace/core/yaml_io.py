@@ -2,11 +2,13 @@
 
 __all__ = ["dump_yaml", "load_yaml", "to_native", "yaml_loader"]
 
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import yaml
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 _LOADER: type = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 

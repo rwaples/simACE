@@ -93,7 +93,7 @@ def _repo_label(root: Path) -> str:
             text=True,
             check=True,
         )
-    except (OSError, subprocess.CalledProcessError):
+    except OSError, subprocess.CalledProcessError:
         return root.name
     common = Path(out.stdout.strip())
     if not common.is_absolute():
@@ -127,7 +127,7 @@ def check(root: Path) -> tuple[list[str], list[str], list[str]]:
         rel = str(path.relative_to(root))
         try:
             text = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        except OSError, UnicodeDecodeError:
             continue
         if _allowed(rel) is None:
             imports = list(_PANDAS_IMPORT.finditer(text))

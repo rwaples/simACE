@@ -95,7 +95,7 @@ def stripplot(
                 val = expected
             try:
                 val = float(val)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 val = None
             if val is not None and np.isfinite(val):
                 ax.scatter(

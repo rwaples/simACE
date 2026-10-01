@@ -4,7 +4,7 @@ Exercises argparse → ``from_cli`` → ``to_params_dict`` → ``from_config``
 round-trip plus the eager-registration foreign-flag rejection.
 """
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
@@ -12,6 +12,9 @@ import polars.testing
 import pytest
 
 from simace.phenotype import cli as phenotype_cli
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_pedigree(tmp_path: Path, n: int = 100, seed: int = 0) -> Path:
