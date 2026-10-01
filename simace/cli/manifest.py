@@ -222,7 +222,7 @@ def rep_status(recorded: Any, expected: Manifest, outputs: Iterable[Path]) -> Re
     if not isinstance(recorded, dict) or not isinstance(recorded.get("resolved"), dict):
         return RepStatus(RepState.STALE, ("run.yaml is not a manifest",))
     identity = {"scenario": expected.scenario, "rep": expected.rep, "seed": expected.seed}
-    changes = {
+    changes: dict[str, tuple[Any, Any]] = {
         key: (recorded.get(key, _MISSING), value) for key, value in identity.items() if recorded.get(key) != value
     }
     old, new = recorded["resolved"], expected.resolved

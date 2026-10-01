@@ -225,10 +225,15 @@ def _extract_series_rows(rep: int, estimator: str, entry: dict) -> list[dict]:
 
 def _series_row(rep: int, estimator: str, kind: str, x: float, label: str, **values: float) -> dict:
     """One series row: the axis it belongs to, its label, and the fields it carries."""
-    row = dict.fromkeys(_SERIES_VALUE_FIELDS, float("nan"))
-    row.update(values)
-    row.update({"rep": rep, "estimator": estimator, "kind": kind, "x": x, "label": label})
-    return row
+    return {
+        **dict.fromkeys(_SERIES_VALUE_FIELDS, float("nan")),
+        **values,
+        "rep": rep,
+        "estimator": estimator,
+        "kind": kind,
+        "x": x,
+        "label": label,
+    }
 
 
 def _label_array(labels: object) -> list[int] | None:
