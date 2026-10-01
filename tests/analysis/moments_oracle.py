@@ -80,7 +80,7 @@ def moments_from_pairs(frame, pairs: dict[str, tuple[np.ndarray, np.ndarray]]) -
                 sumsq_first[(*cell, j)] += qa * qa
                 sumsq_second[(*cell, j)] += qb * qb
                 cross[(*cell, j)] += qa * qb
-    return RelationshipMoments(
+    return RelationshipMoments.from_exact(
         axes=axes,
         columns=columns,
         products=tuple((f"first.{c}", f"second.{c}") for c in columns),

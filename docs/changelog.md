@@ -8,6 +8,18 @@ Git tags via `setuptools-scm`.
 
 ## Unreleased
 
+### pedigree-graph 0.12
+
+- **Moved to pedigree-graph 0.12** (`pedigree-graph>=0.12,<0.13`). Its
+  kinship walk skips provable zeros and its moments arithmetic runs in the
+  Rust core; neither changes a value. Across the relock from 0.11.0,
+  `small_test`'s report, effective sizes, pair list, sparse GRM, inbreeding
+  export and generation kinship summary are byte-identical
+  (`external/pedigree-graph/tools/byte_parity.sh`).
+- The test oracle `tests/analysis/moments_oracle.py` builds its table with
+  `RelationshipMoments.from_exact`, since the constructor no longer takes
+  the exact integers.
+
 ### Exact memory meters
 
 - **`timing.tsv` gains `tree_peak_mb`.** Each stage runs in its own child
