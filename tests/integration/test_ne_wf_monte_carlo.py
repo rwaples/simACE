@@ -6,14 +6,12 @@ lands within ±10 % of the true population size N=200.
 
 Coverage:
 
-* Seven estimators (Ne_I, Ne_C, Ne_V, Ne_sr, Ne_iΔF, Ne_H, Ne_CT) are
+* Seven estimators (Ne_I, Ne_C, Ne_V, Ne_sr, Ne_iΔF, Ne_H, Ne_GC) are
   checked against ``N``.
-* :func:`ne_long_term_contributions` is excluded — under finite WF noise
-  the per-generation contribution vector fluctuates by ``O(1/√N)`` per
-  step, far above the default ``tol = 1e-6``, so the asymptote check
-  rarely passes within 10 generations.  The closed-line toy test in
-  ``external/pedigree-graph/tests/test_effective_size.py`` exercises the
-  formula on a deterministic pedigree.
+* :func:`ne_long_term_contributions` is excluded.  Its expectation is the
+  harmonic mean ``2/Ne_LTC = 1/N + 1/Ne_V`` (pedigree-graph ADR 0012), which
+  ``tests/analysis/test_effective_size.py::test_ne_ltc_expectation_matches_simulator_mc``
+  checks against simACE's own simulator.
 """
 
 from __future__ import annotations
