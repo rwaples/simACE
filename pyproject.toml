@@ -42,7 +42,7 @@ docs = [
     "mkdocs-material>=9.5",
     "mkdocstrings[python]>=0.27",
 ]
-typecheck = ["ty==0.0.70"]
+typecheck = ["ty==0.0.84"]
 dev = [
     "simace[plot,test,docs,typecheck]",
 ]

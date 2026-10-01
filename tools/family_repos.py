@@ -33,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 #: The ``ty`` version pinned in every family ``typecheck`` extra.
-TY_PIN = "0.0.70"
+TY_PIN = "0.0.84"
 
 #: The simACE umbrella root (this file lives in ``<root>/tools/``).
 ROOT = Path(__file__).resolve().parent.parent
