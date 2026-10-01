@@ -4,7 +4,7 @@
 # CI calibrated?"; this one is a substrate against which *candidate* CI methods are
 # scored. The point estimator is fixed — only CI construction varies — which is what
 # lets the per-rep substrate be kept and re-scored instead of re-simulated.
-# Design: plans/epimight-ci-method-testbed.md (locked 2026-08-26).
+# Design: fitACE/fitACE_epimight/docs/ci/epimight-ci-method-testbed.md (locked 2026-08-26).
 #
 # DGP choices that differ from the cov_*/covdev_* cells, and why:
 #
@@ -268,7 +268,7 @@ citb_K25_full:
 
 
 # citb_K25_full_g4 — the deep calibration cell locked in the 2026-09-02 grilling
-# session (plans/sandwich-kinds-and-depth.md §0b, decision 3). Same K25 design, all
+# session (fitACE/fitACE_epimight/docs/ci/sandwich-kinds-and-depth.md §0b, decision 3). Same K25 design, all
 # G_sim=10 generations recorded (G_ped: 10), but FOUR generations phenotyped
 # (G_pheno: 4 -> generations 6,7,8,9 = born_at_year 1966..1969).
 #
@@ -376,7 +376,7 @@ citbprobe_K25_g4_n50k:
     death_scale: 164
     death_rho: 2.73
 
-# citb_K25_cal_n50k — THE CALIBRATION CELL (plans/sandwich-kinds-and-depth.md §5f).
+# citb_K25_cal_n50k — THE CALIBRATION CELL (fitACE/fitACE_epimight/docs/ci/sandwich-kinds-and-depth.md §5f).
 # The G_pheno=4 deep design at N=50k, R=4000, scored at max_degree=3.
 #
 # Why N=50k and not 200k: the 24-replicate throughput check measured the sandwich at
