@@ -6,7 +6,7 @@ and ADR 0007 (Rust core, host boundary, and release,
 `external/pedigree-graph/docs/adr/0007-rust-core-host-boundary-and-release.md`),
 as amended by ADR 0010 (the relationship engine streams rows and saturates
 multiplicity at two) and ADR 0011 (the scalar estimate's exact set). Implementation
-has begun; see "Current state" below. Supersedes `plans/pedigree-graph-rust-core.md`.
+has begun; see "Current state" below. Supersedes `plans/pedigree-graph-rust-core.md` (session-local draft).
 
 ## Current state (2026-09-23)
 
@@ -23,7 +23,7 @@ Rust pair engine with a pair sink in place of the counter, not a second
 implementation, and that its saturating multiplicity replaces the spike's unchecked
 `i32` arithmetic.
 
-Slice 10a (2026-09-09, `plans/pedigree-graph-slice-10-native-scaffold.md`) closed the
+Slice 10a (2026-09-09, `plans/pedigree-graph-slice-10-native-scaffold.md`, session-local draft) closed the
 scaffold gap in the pedigree-graph working tree: `crates/python` is the PyO3
 `pedigree_graph._native` module (`abi3-py313`), `pyproject.toml` builds with maturin
 and takes its version from `[workspace.package]`, and the first migrated kernels are
@@ -34,7 +34,7 @@ order) with the numba and NumPy originals deleted and oracles kept under
 0.8.1 wheel (gate records under `docs/pedigree-graph-0.8-migration/gate/10a/` and
 `10c/` in the pedigree-graph repo).
 
-Slice 10b (`plans/pedigree-graph-slice-10b-native-construction.md`) moved
+Slice 10b (`plans/pedigree-graph-slice-10b-native-construction.md`, session-local draft) moved
 construction proper into the core: `crates/core/src/graph.rs` builds the pedigree
 from host-coerced int64 columns (range, sex encoding, duplicate and shared-parent
 ids, id→row resolution, topology, the MZ contract, optional-column collapse, the
@@ -45,7 +45,7 @@ coercion (frames, nullable dtypes, host nulls) stays in `_input.py`. The 0.8.1 r
 survive as `tests/oracle/construction.py` behind a Hypothesis differential. 10b
 published 0.8.2.
 
-Slice 11 (`plans/pedigree-graph-slice-11-relationship-counts.md`) wired
+Slice 11 (`plans/pedigree-graph-slice-11-relationship-counts.md`, session-local draft) wired
 `PedigreeGraph.relationship_counts` and `PedigreeView.relationship_counts` to the
 engine. The engine's category definitions stayed the 0.7.1 ones; the ADR 0006
 closest-category rule is a per-row precedence fold over the final sets (ADR 0010,
@@ -67,7 +67,7 @@ lifecycle; `RelationshipCountResult` lost `approximate` and `clamped`. Callers t
 need every category use the native `relationship_counts`. So there is no estimator
 left to port, and the next open step is the relationship-pair engine.
 
-Slice 12 (`plans/pedigree-graph-slice-12-relationship-pairs-v2.md`) put
+Slice 12 (`plans/pedigree-graph-slice-12-relationship-pairs-v2.md`, session-local draft) put
 `relationship_pairs` on the Rust row-streaming engine and published 0.9.0
 (2026-09-20): graph and view blocks element for element what the SciPy matrix
 engine returned, the matrix engine kept as `tests/oracle/relationship_pairs.py`,
@@ -77,7 +77,7 @@ test seam, and `ResourceError("allocation_failed")`. Gate records
 where the consumer gate tools now live (`tools/consumer_gate.py`,
 `tools/byte_parity.sh`; renamed from `pg08_*` / `pg09_*` on 2026-09-24).
 
-Slice 13 (`plans/pedigree-graph-slice-13-pair-kinship.md`, locked 2026-09-22)
+Slice 13 (`plans/pedigree-graph-slice-13-pair-kinship.md`, session-local draft, locked 2026-09-22)
 put `pair_kinship` and the relationship matrix's value fill on the core:
 `crates/core/src/kinship/` walks the ADR 0009 recurrence in graph space with
 structural depth as the peel input, one memo per call laid out as one small
@@ -88,7 +88,7 @@ and on the four simACE study pedigrees; `random_30k` degree 3 went from
 82.5 s to 5.3 s and the 536k-row batch from 5.4 to 3.0 GiB peak
 (`gate/13a/NOTES.md`). The Python recurrence is `tests/oracle/pair_kinship.py`.
 
-Slice 14 (`plans/pedigree-graph-slice-14-kinship-matrix-dp.md`, locked
+Slice 14 (`plans/pedigree-graph-slice-14-kinship-matrix-dp.md`, session-local draft, locked
 2026-09-23) put the kinship matrix DP on the core: `kinship_matrix`,
 `approximate_kinship_matrix` and `mean_kinship_by_generation` are one
 depth-major kernel with three sinks in `crates/core/src/kinship/matrix.rs`,
@@ -104,7 +104,7 @@ the deepest bucket). `random_30k` complete matrix 97 s to 19 s and 13.9 to
 reached: a parentless row above depth 0 now keeps its diagonal, and the
 topology sort returns its allocation error instead of panicking; consumer
 bytes unchanged across the relock (`gate/14e/NOTES.md`).
-Slice 15 (`plans/pedigree-graph-slice-15-inbreeding-lineage-ne.md`, locked
+Slice 15 (`plans/pedigree-graph-slice-15-inbreeding-lineage-ne.md`, session-local draft, locked
 2026-09-23) moved the last Numba kernels: `inbreeding` (the ADR 0008 walk,
 `kinship/inbreeding.rs`), `distinct_ancestor_counts` and
 `descendant_path_counts` (`lineage.rs`, the latter now raising
@@ -119,7 +119,7 @@ inbreeding runs at 0.19x to 0.32x the 0.9.3 wall and distinct ancestors at
 cost 0.4 to 0.8 ms more for the overflow check, accepted
 (`gate/15a/NOTES.md`). The release build now uses one codegen unit.
 Remaining Python kernels: none.
-Slice 16 (`plans/pedigree-graph-slice-16-r-package.md`, locked 2026-09-23)
+Slice 16 (`plans/pedigree-graph-slice-16-r-package.md`, session-local draft, locked 2026-09-23)
 added the R package `pedigreegraph` under `r/` as 0.10.0: construction,
 relationship pairs as one long data frame, pairwise kinship, the complete
 kinship matrix as a `dsCMatrix` (from a new upper-triangle core product) and
@@ -127,7 +127,7 @@ inbreeding, with sealed graphs and classed conditions. R matched Python on
 120/120 products up to 536k rows (`gate/16b/NOTES.md`), and the vendored
 source tarball passes `R CMD check --as-cran` offline. ADR 0007's slice-16
 amendment records the departures. The pre-1.0 stabilisation cleanup
-(`plans/pedigree-graph-1.0-stabilization.md`, 2026-09-24) closed the remaining
+(`plans/pedigree-graph-1.0-stabilization.md`, session-local draft, 2026-09-24) closed the remaining
 guardrail, tooling and documentation items; what remains is the 1.0.0 release
 itself (see "1.0.0 — stabilization" below).
 
@@ -737,7 +737,7 @@ Close or explicitly disposition all deferred issues, remove temporary migration
 allowlists, complete architecture guardrails, decide whether to publish the Rust core,
 and verify supported Python/R artifacts from clean installations.
 
-The pre-1.0 cleanup (`plans/pedigree-graph-1.0-stabilization.md`, 2026-09-24, no
+The pre-1.0 cleanup (`plans/pedigree-graph-1.0-stabilization.md`, session-local draft, 2026-09-24, no
 release) did the first three: every tracker issue is closed, the migration allowlists
 and markers are gone, the determinism, panic and `Send + Sync` guardrails are in, the
 gate tools are renamed (`tools/consumer_gate.py`, `tools/byte_parity.sh`), and the

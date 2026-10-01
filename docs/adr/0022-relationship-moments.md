@@ -3,7 +3,7 @@
 ## Status
 
 Accepted. Decision approved 2026-09-30 in `plans/relationship-moments-v10.md`
-(simACE #25, pedigree-graph #28); implemented against pedigree-graph 0.11.
+(session-local draft, simACE #25, pedigree-graph #28); implemented against pedigree-graph 0.11.
 
 Renumbered from 0020 on 2026-09-30, when it met the standalone-CLI branch,
 whose ADR 0020 and 0021 were already numbered. Under results layout 2

@@ -209,7 +209,7 @@ process, and a spike shorter than a poll went unrecorded.
 
 ## Verification
 
-Recorded in `plans/standalone-simace-cli-v2.md` §6 at implementation time.
+Recorded in `plans/standalone-simace-cli-v2.md` (session-local draft) §6 at implementation time.
 
 - Parity: `simace run small_test` against a fresh
   `snakemake --cores 1 results/test/small_test/scenario.done` gave equal

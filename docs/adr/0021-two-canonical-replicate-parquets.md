@@ -65,7 +65,7 @@ identity joins remains relevant to the views derived from `cohort.parquet`.
 ## Amendment (2026-09-29): implementation
 
 Decided while implementing the Decision above
-(`plans/adr-0021-implications-v2.md`).
+(`plans/adr-0021-implications-v2.md`, session-local draft).
 
 - **One `cohort` stage.** `simace run` computes a rep in three stages:
   `simulate`, `cohort`, `analyze`. The `cohort` stage
