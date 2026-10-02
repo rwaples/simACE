@@ -42,3 +42,8 @@ def test_missing_provenance_file_is_a_failed_check(tmp_path: Path, capsys: pytes
 def test_main_summarises_after_a_missing_provenance_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert verify_release.main(["0.0.0-not-this", "--provenance", str(tmp_path / "missing.meta")]) == 1
     assert "checks report 0.0.0-not-this" in capsys.readouterr().out
+
+
+def test_version_ignores_a_warning_on_stderr() -> None:
+    script = "import sys; print('simace 0.1.0'); print('FutureWarning: soon', file=sys.stderr)"
+    assert verify_release._last_token([sys.executable, "-c", script]) == "0.1.0"
