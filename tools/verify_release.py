@@ -50,7 +50,10 @@ def _report(label: str, observed: str, version: str) -> bool:
 
 
 def _last_token(cmd: list[str]) -> str:
-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    except OSError as exc:
+        return f"<{exc.strerror}>"
     tokens = (result.stdout + result.stderr).split()
     return tokens[-1] if result.returncode == 0 and tokens else f"<exit {result.returncode}>"
 
