@@ -5,7 +5,7 @@ Every tool that iterates the family imports its subset from here instead of
 hardcoding a list, so adding/removing an entry is a one-line edit in one place:
 
 - ``tools/typecheck_family.py`` -> ``python_repos()``  (the 12 ty/ruff/pytest check units)
-- ``tools/release.py``          -> ``lockstep_repos()`` (the 3 CalVer-tagged checkouts)
+- ``tools/release.py``          -> ``lockstep_repos()`` (the 3 lockstep-tagged checkouts)
 - ``.agents/skills/repo-status/scripts/repo-status.sh``
                                 -> ``--subset all --format lines``
 
@@ -50,14 +50,14 @@ class Repo:
     python: bool
     """``True`` if ruff / ty / pytest apply (``False`` only for the C++ source)."""
     lockstep: bool
-    """``True`` if tagged in the lockstep CalVer release (see ``tools/release.py``)."""
+    """``True`` if tagged in the lockstep family release (see ``tools/release.py``)."""
     checkout: bool
     """``True`` if this entry is its own git repo (``False``: fitACE subdir, ADR 0017)."""
 
 
 #: Every family entry, in repo-status display order.  ``python_repos()`` is the
 #: 12 ty/ruff/pytest check units (all but the C++ source); ``lockstep_repos()``
-#: is the 3 CalVer-tagged checkouts (simACE, fitACE, fitACE_epimight — within
+#: is the 3 lockstep-tagged checkouts (simACE, fitACE, fitACE_epimight — within
 #: the fitACE monorepo all seven distributions and the binary read fitACE's
 #: tag, so lockstep is structural there); ``checkout_repos()`` is the 5 git
 #: checkouts.
@@ -89,7 +89,7 @@ def python_repos() -> tuple[Repo, ...]:
 
 
 def lockstep_repos() -> tuple[Repo, ...]:
-    """The 3 checkouts tagged together in a lockstep CalVer release."""
+    """The 3 checkouts tagged together in a lockstep family release."""
     return tuple(r for r in FAMILY if r.lockstep)
 
 

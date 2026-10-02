@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""Cut a lockstep family release: tag the three simACE/fitACE checkouts at one CalVer.
+"""Cut a lockstep family release: tag the three simACE/fitACE checkouts at one SemVer.
 
 Run from anywhere (repo paths resolve relative to this file's location).  The
-helper creates an annotated git tag ``vYYYY.MM[.patch]`` in each of the three
+helper creates an annotated git tag ``vMAJOR.MINOR.PATCH`` in each of the three
 lockstep family repos **locally**, then PRINTS the per-repo ``git push``
 commands for the maintainer to run.  It never pushes — that is the maintainer's
 job, per the repo-wide no-``git push`` rule.
@@ -18,12 +18,13 @@ tags.
 setuptools-scm reads *local* tags, so the runtime version / ``FAMILY_FLOOR``
 guard clears as soon as the local tags exist + the family is reinstalled — the
 push is only needed to publish.  See simACE ADR 0012 (lockstep family
-versioning) and the Cutover section of the implementation plan.
+versioning) and ADR 0023 (the SemVer scheme).
 
 Examples:
-    python tools/release.py v2026.06            # tag the three checkouts locally
-    python tools/release.py v2026.06 --dry-run  # check + report, tag nothing
-    python tools/release.py v2026.06.1 -m "hotfix: ..."
+    python tools/release.py --next             # print the next patch and minor tags
+    python tools/release.py v0.1.0             # tag the three checkouts locally
+    python tools/release.py v0.1.0 --dry-run   # check + report, tag nothing
+    python tools/release.py v0.1.1 -m "fix: ..."
 """
 
 from __future__ import annotations
@@ -33,8 +34,12 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from family_repos import lockstep_repos
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 #: The three lockstep checkouts, relative to the simACE root (ADR 0017):
 #: simACE, the fitACE monorepo (whose seven distributions + C++ binary all
@@ -44,8 +49,43 @@ FAMILY_REPOS: tuple[str, ...] = tuple(repo.path for repo in lockstep_repos())
 
 _SIMACE_ROOT = Path(__file__).resolve().parent.parent
 
-#: ``vYYYY.MM`` with an optional ``.patch`` (e.g. ``v2026.06`` / ``v2026.06.1``).
-_TAG_RE = re.compile(r"^v\d{4}\.\d{2}(\.\d+)?$")
+_TAG_RE = re.compile(r"v([0-9]+)\.([0-9]+)\.([0-9]+)")
+
+#: Majors from here up are CalVer-era tags (``v2026.09.2``), never family SemVer.
+_CALVER_ERA_MAJOR = 2000
+
+
+def tag_error(tag: str) -> str | None:
+    """Why *tag* is not a family SemVer tag (ADR 0023), or ``None`` if it is one."""
+    match = _TAG_RE.fullmatch(tag)
+    if match is None:
+        return "must look like vMAJOR.MINOR.PATCH, e.g. v0.1.0"
+    if any(len(part) > 1 and part.startswith("0") for part in match.groups()):
+        return "has a leading zero"
+    if int(match[1]) >= _CALVER_ERA_MAJOR:
+        return "is a CalVer-era tag, not a SemVer family tag"
+    return None
+
+
+def parse_family_tag(tag: str) -> tuple[int, int, int] | None:
+    """``(major, minor, patch)`` for a family SemVer tag, ``None`` for anything else."""
+    if tag_error(tag) is not None:
+        return None
+    major, minor, patch = (int(part) for part in tag[1:].split("."))
+    return major, minor, patch
+
+
+def next_versions(tags: Iterable[str]) -> tuple[str, str]:
+    """The next ``(patch, minor)`` tags after the highest family tag in *tags*.
+
+    Before 1.0 the minor is the breaking digit (ADR 0023).  With no family tag
+    yet, both candidates are ``v0.1.0``.
+    """
+    versions = [v for v in map(parse_family_tag, tags) if v is not None]
+    if not versions:
+        return "v0.1.0", "v0.1.0"
+    major, minor, patch = max(versions)
+    return f"v{major}.{minor}.{patch + 1}", f"v{major}.{minor + 1}.0"
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -105,9 +145,14 @@ def main(argv: list[str] | None = None) -> int:
     """Parse args, verify the family, tag the three checkouts locally, print pushes."""
     parser = argparse.ArgumentParser(
         prog="release.py",
-        description="Tag the three lockstep simACE/fitACE checkouts at one CalVer (never pushes).",
+        description="Tag the three lockstep simACE/fitACE checkouts at one SemVer (never pushes).",
     )
-    parser.add_argument("version", help="Release tag, e.g. v2026.06 or v2026.06.1")
+    parser.add_argument("version", nargs="?", help="Release tag, e.g. v0.1.0")
+    parser.add_argument(
+        "--next",
+        action="store_true",
+        help="Print the next patch and minor tags after simACE's highest family tag; tag nothing.",
+    )
     parser.add_argument(
         "-m",
         "--message",
@@ -121,9 +166,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.next:
+        if args.version is not None:
+            parser.error("--next takes no version")
+        patch, minor = next_versions(_git(_SIMACE_ROOT, "tag", "--list").stdout.split())
+        print(f"next patch: {patch}")
+        print(f"next minor: {minor}  (breaks the CLI/config or result-file contract)")
+        return 0
+    if args.version is None:
+        parser.error("a version (e.g. v0.1.0) or --next is required")
+
     tag = args.version
-    if not _TAG_RE.match(tag):
-        parser.error(f"version {tag!r} must look like vYYYY.MM or vYYYY.MM.patch")
+    if (reason := tag_error(tag)) is not None:
+        parser.error(f"version {tag!r} {reason}")
     message = args.message or f"Lockstep family release {tag}"
 
     # 1. All-or-nothing readiness check across every family member.

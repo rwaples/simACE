@@ -60,8 +60,8 @@ Clone URLs are overridable via the matching `*_URL` env vars (e.g.
 (`scripts/verify/verify_pedsum.sh` there, with its own copy of `lib.sh`).
 
 > **Full clones, on purpose.** The scripts never use `--depth`: `setuptools-scm`
-> derives the CalVer version from git tags, and a shallow clone yields a bogus
-> version that trips fitACE's `simace>=2026.05` floor.
+> derives the family version from git tags, and a shallow clone yields a bogus
+> version that trips fitACE's `simace>=` floor.
 
 ## Part-A push requirement (test 3)
 

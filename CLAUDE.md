@@ -80,7 +80,7 @@ When work spans simACE, fitACE, and fitACE_epimight, check `git status` and run 
 
 ## Versioning
 
-simACE, fitACE, and fitACE_epimight share one lockstep CalVer (`vYYYY.MM[.patch]`, setuptools-scm from git tags; ADR 0012, 0017). Everything inside fitACE, including the `ace_iter_reml` binary, reads fitACE's tag. Compatibility is one `FAMILY_FLOOR` in `fitace._deps`, enforced by `test_dependency_floors`. pedigree-graph and pedsum version independently. To cut a release, invoke the `coordinated-release` skill; don't work from memory.
+simACE, fitACE, and fitACE_epimight share one lockstep SemVer (`vX.Y.Z`, setuptools-scm from git tags; ADR 0012, 0017, 0023). Before 1.0 the minor is the breaking digit. Everything inside fitACE, including the `ace_iter_reml` binary, reads fitACE's tag. Compatibility is one `FAMILY_FLOOR` in `fitace._deps`, enforced by `test_dependency_floors`. pedigree-graph and pedsum version independently. To cut a release, invoke the `coordinated-release` skill; don't work from memory.
 
 ## Planning
 

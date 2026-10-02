@@ -2,13 +2,13 @@
 
 This repository is the umbrella for a **lockstep family** developed and
 versioned together. Since ADR 0017 (family monorepo) a release tags **three
-checkouts** at one CalVer (`vYYYY.MM[.patch]`) in a single coordinated step;
+checkouts** at one SemVer (`vMAJOR.MINOR.PATCH`) in a single coordinated step;
 within the fitACE monorepo, all seven distributions and the C++ binary read
 that one tag, so intra-monorepo lockstep is structural.
 
 Authoritative design: [`docs/adr/0012-lockstep-family-versioning.md`](docs/adr/0012-lockstep-family-versioning.md)
-(simACE side) and [`fitACE/docs/adr/0002-lockstep-family-versioning.md`](fitACE/docs/adr/0002-lockstep-family-versioning.md)
-(fitACE-side mechanics). Canonical vocabulary ("Lockstep family", "Family
+(the lockstep mechanism) and [`docs/adr/0023-lockstep-semver.md`](docs/adr/0023-lockstep-semver.md)
+(the SemVer scheme and what counts as breaking). Canonical vocabulary ("Lockstep family", "Family
 version", "Family floor") lives in both `CONTEXT.md` files.
 
 ---
@@ -36,12 +36,17 @@ The `tetraher_simace` LDAK fork lives inside the fitACE monorepo since ADR
 
 ## Versioning scheme
 
-- **CalVer** `vYYYY.MM`, with an optional patch for a second release in the same
-  month: `v2026.06`, `v2026.06.1`. The first unified lockstep release is
-  `v2026.06`.
+- **SemVer** `vMAJOR.MINOR.PATCH`, all three numbers, no leading zeros. The
+  first SemVer release is `v0.1.0`; releases through `v2026.09.2` used CalVer,
+  and those tags stay in git.
+- **Before 1.0 the minor is the breaking digit.** Bump the minor when a release
+  removes or renames part of the CLI and config (subcommands, flags, scenario
+  or fit config keys) or of the result files and their schemas. Additions,
+  fixes, and changed output values for the same config and seed are a patch.
+  ADR 0023 §3 defines the contract.
 - Every Python distribution derives its version from git tags via
   **setuptools-scm**. Between tags a checkout reports a dev version
-  (`2026.6.dev4+g<hash>`); members are byte-identical only *at* a tagged
+  (`0.1.1.dev4+g<hash>`); members are byte-identical only *at* a tagged
   release, and between releases diverge only by their setuptools-scm
   commit-distance suffix (accepted as cosmetic).
 - The `ace_iter_reml` binary embeds the **raw `git describe --tags --always
@@ -52,22 +57,26 @@ The `tetraher_simace` LDAK fork lives inside the fitACE monorepo since ADR
 ### Compatibility floor
 
 One constant — `FAMILY_FLOOR` in [`fitACE/fitace/_deps.py`](fitACE/fitace/_deps.py) —
-is the single minimum-compatible Family version. It is referenced with `>=`
-semantics (a dev build of a *later* release still satisfies it) by:
+is the single minimum-compatible Family version. It pins one minor line: for a
+floor of `0.1.0`, every family member accepts `>=0.1.0,<0.2`, including dev
+builds of later 0.1.x patches. It is referenced by:
 
-- every family `pyproject.toml` pin (`simace>=` / `fitace>=`),
-- the consistency test `fitACE/tests/test_dependency_floors.py`,
-- the import-time runtime guard in `fitACE/fitace/config.py`.
+- every family `pyproject.toml` pin (`simace>=0.1.0,<0.2` / `fitace>=0.1.0,<0.2`),
+- the consistency test `fitACE/tests/test_dependency_floors.py`, which checks
+  both bounds,
+- the import-time runtime guard in `fitACE/fitace/config.py`, which rejects an
+  installed simACE below the floor or outside its minor line (and so every
+  CalVer-era install).
 
-simACE is upstream of the floor and does not import it. **Bumping the floor is a
-single edit** in `_deps.py` per release, enforced family-wide by the
-consistency test.
+simACE is upstream of the floor and does not import it. The floor moves at
+every minor release, and at a patch release only when fitACE needs a simACE
+fix from it. The consistency test fails on any pin left behind.
 
 ### Runtime version strings
 
 - Every family Python package exposes `__version__`
   (`importlib.metadata.version("<dist>")`).
-- All 14 installed console scripts accept `--version`
+- Every family console script accepts `--version`
   (via `simace.core.cli_base.add_version_arg`).
 - The binary accepts `--version` (`ace_iter_reml --version`).
 
@@ -95,9 +104,10 @@ per-checkout `git push` commands. **It never pushes** (repo-wide no-`git push`
 rule).
 
 ```bash
-pixi run python tools/release.py vYYYY.MM            # tag the three checkouts locally
-pixi run python tools/release.py vYYYY.MM --dry-run  # run checks + report; tag nothing
-pixi run python tools/release.py vYYYY.MM.1 -m "hotfix: <summary>"
+pixi run python tools/release.py --next            # print the next patch and minor tags
+pixi run python tools/release.py vX.Y.Z            # tag the three checkouts locally
+pixi run python tools/release.py vX.Y.Z --dry-run  # run checks + report; tag nothing
+pixi run python tools/release.py vX.Y.Z -m "fix: <summary>"
 ```
 
 It is **all-or-nothing**: it refuses (exit `1`) unless *every* member is
@@ -107,8 +117,8 @@ It is **all-or-nothing**: it refuses (exit `1`) unless *every* member is
 - not already tagged at the requested version.
 
 If a tag creation fails partway, the tags already created in that run are rolled
-back. The tag-format check rejects anything that isn't `vYYYY.MM[.patch]`
-(exit `2`).
+back. The tag-format check (exit `2`) names why it rejects a tag: not
+`vMAJOR.MINOR.PATCH`, a leading zero, or a CalVer-era major (2000 and up).
 
 Because setuptools-scm reads **local** tags, the runtime version and the
 `FAMILY_FLOOR` guard clear as soon as the local tags exist and the family is
@@ -130,7 +140,7 @@ Commit the final implementation/docs changes in each affected checkout. Confirm
 all three checkouts are clean (the helper refuses dirty repos):
 
 ```bash
-pixi run python tools/release.py vYYYY.MM --dry-run
+pixi run python tools/release.py vX.Y.Z --dry-run
 ```
 
 A green dry-run (`all 3 family repos are clean and untagged`) is the gate.
@@ -138,7 +148,7 @@ A green dry-run (`all 3 family repos are clean and untagged`) is the gate.
 ### 1. Tag locally
 
 ```bash
-pixi run python tools/release.py vYYYY.MM
+pixi run python tools/release.py vX.Y.Z
 ```
 
 This creates the annotated tags in all three checkouts. No push is needed for the
@@ -199,35 +209,50 @@ is the intended use after ADR 0018.
 
 ### 4. Verify (now that the guard can pass)
 
-```bash
-# Runtime version strings — all ten import packages (incl. fitace_sreml):
-pixi run --manifest-path fitACE/pixi.toml python -c "import simace, fitace, \
-  fitace_epimight, fitace_pcgc, fitace_iter_reml, fitace_sreml, fitace_tetraher, \
-  fitace_pafgrs, fitace_stan, fitace_frailty; print(simace.__version__, fitace.__version__)"
+Every check asserts the new version; none just prints it. `V` is the version
+without the `v`.
 
-# Console-script --version spot checks:
-pixi run simace simulate --version
-pixi run --manifest-path fitACE/pixi.toml fitace-observed-binary-stats --version
-pixi run --manifest-path fitACE/pixi.toml fitace-epimight-run --version
-./fitACE/fitACE_iter_reml/ace_iter_reml/build-fp64/ace_iter_reml --version
+```bash
+V=0.1.0
+
+# Versions: all ten import packages, every family console script, and both
+# ace_iter_reml builds (fp64 and fp32) report $V; exits 1 on any mismatch.
+pixi run --manifest-path fitACE/pixi.toml python tools/verify_release.py "$V"
 
 # Floor + guard:
-pixi run --manifest-path fitACE/pixi.toml python -m pytest fitACE/tests/test_dependency_floors.py -q
+pixi run --manifest-path fitACE/pixi.toml python -m pytest fitACE/tests/test_dependency_floors.py \
+  fitACE/tests/test_version_guard.py -q
 pixi run --manifest-path fitACE/pixi.toml python -c "import fitace.config; print('guard cleared')"
 
 # Full suites:
-pixi run pytest tests/ -q                                        # simACE
+pixi run test                                                    # simACE
 ( cd fitACE && pixi run pytest tests/ -q )                       # fitACE core
 # (method-package suites, when touched:
 #   pixi run --manifest-path fitACE/pixi.toml pytest fitACE/fitACE_<x>/tests/ -q )
+```
 
-# Provenance smoke (grep the sidecars):
-pixi run simace run small_test
-grep simace_version results/test/small_test/*/params.yaml results/test/small_test/*/run.yaml
-# then run a pcgc + tetraher + iter_reml fit and grep *.vc.tsv.meta for
-# simace_version / fitace_version / fitace_<method>_version / ace_iter_reml_version
-# (small_test leaves tetraher_prevalence null, which disables the TetraHer
-#  rule — use a pcgc_bias_small cell, e.g. pcgc_bias_small_A50_C00_K25, N=5000)
+**Fresh provenance smoke.** `simace run` skips complete reps and never compares
+the recorded `simace_version`, so a plain rerun would check last release's
+stamps. `--force` recomputes every rep (small_test's outputs are disposable):
+
+```bash
+pixi run simace run small_test --force
+pixi run --manifest-path fitACE/pixi.toml python tools/verify_release.py "$V" \
+  --provenance results/test/small_test/rep*/params.yaml results/test/small_test/rep*/run.yaml
+```
+
+Then refit pcgc, tetraher, and iter_reml on one `pcgc_bias_small` cell
+(small_test leaves `tetraher_prevalence` null, which disables TetraHer) and
+check the sidecars. They carry `simace_version`, `fitace_version`,
+`fitace_<method>_version`, and `ace_iter_reml_version` (the binary stamps
+`v$V`, which the script accepts):
+
+```bash
+CELL=results/pcgc_bias_small/pcgc_bias_small_A50_C00_K25/rep1
+( cd fitACE && pixi run snakemake --cores 4 --force \
+    $CELL/pcgc/fit.vc.tsv $CELL/tetraher/fit.vc.tsv $CELL/iter_reml_fp64/fit.vc.tsv )
+pixi run --manifest-path fitACE/pixi.toml python tools/verify_release.py "$V" \
+  --provenance fitACE/$CELL/{pcgc,tetraher,iter_reml_fp64}/fit.vc.tsv.meta
 ```
 
 ### 5. Push
@@ -236,7 +261,7 @@ The helper printed the per-repo push commands in step 1; run them (per the
 repo-wide rule, the helper never pushes):
 
 ```bash
-git -C <abspath> push origin vYYYY.MM     # one per checkout, three total
+git -C <abspath> push origin vX.Y.Z     # one per checkout, three total
 ```
 
 ---
@@ -248,7 +273,7 @@ local tags in the three checkouts:
 
 ```bash
 for rel in . fitACE fitACE/fitACE_epimight; do
-  git -C "$rel" tag -d vYYYY.MM
+  git -C "$rel" tag -d vX.Y.Z
 done
 ```
 
@@ -261,7 +286,12 @@ reinstall.
 
 ## Cutting the next release
 
-1. Bump `FAMILY_FLOOR` in `fitACE/fitace/_deps.py` and the `simace>=` / `fitace>=`
-   pins in every family `pyproject.toml` to the new `YYYY.MM` (the
-   `test_dependency_floors` test fails if any drift).
-2. Commit, then run the cutover above with the new `vYYYY.MM`.
+1. Run `.agents/skills/coordinated-release/scripts/release-preflight.sh`; it
+   prints the next patch and minor tags. Pick by ADR 0023 §3: does the release
+   break the CLI/config or result-file contract?
+2. For a minor release, bump `FAMILY_FLOOR` in `fitACE/fitace/_deps.py`, the
+   pins in every family `pyproject.toml` to `>=0.M.0,<0.(M+1)`, and the
+   matching `requires_dist` lines in `fitACE/pixi.lock` (it cannot re-solve
+   until the tag exists). `test_dependency_floors` fails on any pin left
+   behind.
+3. Commit, then run the cutover above with the new `vX.Y.Z`.
