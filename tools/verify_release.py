@@ -22,7 +22,7 @@ import re
 import subprocess
 import sys
 from importlib import import_module
-from importlib.metadata import distribution
+from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -58,15 +58,26 @@ def _last_token(cmd: list[str]) -> str:
     return tokens[-1] if result.returncode == 0 and tokens else f"<exit {result.returncode}>"
 
 
+def _package_version(pkg: str) -> str:
+    try:
+        return import_module(pkg).__version__
+    except (ImportError, AttributeError) as exc:
+        return f"<{type(exc).__name__}: {exc}>"
+
+
 def check_installed(version: str) -> list[bool]:
-    """Every family import package and console script in this environment."""
+    """Every family import package and console script in this environment; a missing distribution fails."""
     bindir = Path(sys.executable).parent
     results = []
     for name in DISTRIBUTIONS:
-        dist = distribution(name)
+        try:
+            dist = distribution(name)
+        except PackageNotFoundError:
+            results.append(_report(f"{name} distribution", "<not installed>", version))
+            continue
         packages = (dist.read_text("top_level.txt") or "").split()
         scripts = dist.entry_points.select(group="console_scripts")
-        results.extend(_report(f"{pkg}.__version__", import_module(pkg).__version__, version) for pkg in packages)
+        results.extend(_report(f"{pkg}.__version__", _package_version(pkg), version) for pkg in packages)
         results.extend(
             _report(f"{ep.name} --version", _last_token([str(bindir / ep.name), "--version"]), version)
             for ep in scripts
@@ -87,10 +98,15 @@ def check_binaries(version: str) -> list[bool]:
 
 
 def check_provenance(version: str, paths: list[Path]) -> list[bool]:
-    """Every ``*_version`` key in each file; a file with none fails."""
+    """Every ``*_version`` key in each file; a missing file, or one with no key, fails."""
     results = []
     for path in paths:
-        stamps = _VERSION_KEY.findall(path.read_text())
+        try:
+            text = path.read_text()
+        except OSError as exc:
+            results.append(_report(str(path), f"<{exc.strerror}>", version))
+            continue
+        stamps = _VERSION_KEY.findall(text)
         if not stamps:
             print(f"FAIL {path}: no *_version key")
             results.append(False)
