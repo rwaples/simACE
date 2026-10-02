@@ -16,7 +16,6 @@ harness reads: `CLAUDE.md` and its tracked symlink `AGENTS.md`.
 | `.claude/skills/<name>` | yes | – | – | Symlinks into `.agents/skills/`; `ln -s ../../.agents/skills/<name> .claude/skills/<name>` after adding a skill. |
 | `.claude/settings.json`, `settings.local.json` | yes | – | – | Permissions and the post-edit `ruff check` hook. |
 | `.pi/extensions/plan-mode/` | – | – | yes | Project-local read-only plan mode (`/plan`, `--plan`). |
-| `skills-lock.json` | – | – | – | Provenance for the `mattpocock/skills` entries in `.agents/skills/`; used by the `skills` CLI to update them. |
 
 Codex needs no project-local directory: its settings live in `~/.codex/config.toml`
 and it discovers `AGENTS.md` and `.agents/skills/` on its own.
@@ -24,6 +23,13 @@ and it discovers `AGENTS.md` and `.agents/skills/` on its own.
 ## Conventions
 
 - Skills are authored once in `.agents/skills/` and never duplicated per harness.
+- A project skill wanted in other projects too gets a user-level symlink
+  (`ln -s <simACE>/.agents/skills/<name> ~/.agents/skills/<name>`), never a copy.
+  On a name clash Claude Code runs the personal skill and Codex the project one, so
+  a copy silently diverges between harnesses.
+- `grill-me`, `grill-with-docs`, `handoff`, and `improve-codebase-architecture` began
+  as `mattpocock/skills` and are now maintained here as forks. Don't update them
+  with the `skills` CLI; upstream has been restructured and would overwrite them.
 - No MCP servers are configured at the project level. The former `code-review-graph`
   server and its hooks were removed in September 2026; do not reintroduce `.mcp.json`.
 - Repo-wide rules for agents (issue tracker, triage labels, domain docs) live alongside
