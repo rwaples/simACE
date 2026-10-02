@@ -3,10 +3,21 @@
 All notable changes to simACE are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/).
-simACE uses [CalVer](https://calver.org/) versioning (`YYYY.MM[.patch]`) from
-Git tags via `setuptools-scm`.
+simACE uses [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`)
+from Git tags via `setuptools-scm`. Before 1.0, the minor version goes up for a
+change that breaks the command line, configuration keys, or result files
+([ADR 0023](adr/0023-lockstep-semver.md)). Releases through 2026.09.2 used
+CalVer (`YYYY.MM[.patch]`). The 0.1.0 section also lists the changes those
+releases shipped after 2026.05.3.
 
-## Unreleased
+## 0.1.0 — 2026-10-02
+
+### Versioning
+
+- **The family version is SemVer from 0.1.0.** simACE, fitACE, and
+  fitACE_epimight still release together at one version. fitACE pins
+  `simace>=0.1.0,<0.2`, so it accepts any 0.1.x simACE and refuses 0.2.0 and
+  every CalVer-era install. The CalVer tags stay in git.
 
 ### pedigree-graph 0.12
 
