@@ -13,7 +13,7 @@ earlier one's Status section says so and points forward.
 | [0009](0009-relationship-semantics-home.md) | Home for relationship semantics | accepted |
 | [0010](0010-html-primary-atlas-rendering.md) | HTML as the primary atlas rendering | accepted |
 | [0011](0011-outcomes-only-trait-files.md) | Outcomes-only trait parquet files | accepted; superseded for finished outputs by 0021 |
-| [0012](0012-lockstep-family-versioning.md) | Lockstep CalVer versioning across the simACE/fitACE family | accepted, membership amended by 0017 |
+| [0012](0012-lockstep-family-versioning.md) | Lockstep CalVer versioning across the simACE/fitACE family | accepted, membership amended by 0017, scheme and floor amended by 0023 |
 | [0015](0015-polars-primary-dataframe-library.md) | Polars is the primary DataFrame library | accepted; carries the retired 0014 measurements |
 | [0016](0016-pixi-canonical-simace-environment.md) | pixi is simACE's canonical environment | accepted, conda half retired by 0018, Snakemake removed by 0020 |
 | [0017](0017-family-monorepo-epimight-cut.md) | Family monorepo with the epimight cut (13 repos → 5) | accepted, implemented 2026-08-21 |
@@ -22,6 +22,7 @@ earlier one's Status section says so and points forward.
 | [0020](0020-standalone-simace-cli.md) | A standalone `simace` CLI replaces Snakemake | accepted; output contract and rep stages replaced by 0021 |
 | [0021](0021-two-canonical-replicate-parquets.md) | Two canonical Parquet files per replicate | accepted, implemented 2026-09-29; amends 0008, 0011, 0020 |
 | [0022](0022-relationship-moments.md) | Analyze computes relationship statistics from relationship moments | accepted |
+| [0023](0023-lockstep-semver.md) | Lockstep SemVer for the family version | accepted; amends 0012 |
 
 Retired numbers: 0003, 0006, 0007 (report lineage folded into 0008); 0004
 (Claude Code subagent housekeeping, not an architecture decision); 0013 (ty

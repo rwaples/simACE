@@ -298,11 +298,11 @@ The three checkouts tagged together at one shared version: simACE, the fitACE mo
 _Avoid_: "fitACE family" (excludes simACE by name), submodule set.
 
 **Family version**:
-The single CalVer (`vYYYY.MM[.patch]`) every Lockstep family repo carries. Identical across repos at a tagged release; between releases each repo's dev build diverges only by its setuptools-scm commit-distance suffix.
+The single SemVer (`vMAJOR.MINOR.PATCH`) every Lockstep family repo carries. Identical across repos at a tagged release; between releases each repo's dev build diverges only by its setuptools-scm commit-distance suffix.
 _Avoid_: "the simACE version" / "the fitACE version" (under lockstep there is no per-repo version), build number.
 
 **Family floor**:
-The single minimum compatible Family version — the source of truth in `fitace._deps` that fitACE core and the method sisters pin (`>=`) and runtime-guard. simACE is upstream of the floor and does not import it.
+The single minimum compatible Family version — the source of truth in `fitace._deps` that fitACE core and the method sisters pin (`>=FLOOR,<0.(MINOR+1)`, one minor line) and runtime-guard. simACE is upstream of the floor and does not import it.
 _Avoid_: separate simACE / fitACE floors (collapsed into one under lockstep), version pin, minimum requirement.
 
 - Each **Lockstep family** repo carries the same **Family version** at a tagged release.

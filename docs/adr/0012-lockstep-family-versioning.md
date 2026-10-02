@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted. Design interview 2026-06-10. **Amended by
+Accepted. Design interview 2026-06-10. **§3 (the CalVer scheme) and §5's
+`>=`-only floor are amended by [ADR 0023](0023-lockstep-semver.md)**
+(2026-10-02): the family version is now SemVer from `v0.1.0`. **Amended by
 [ADR 0017](0017-family-monorepo-epimight-cut.md)** (2026-08-21) — the lockstep
 *mechanism* below is unchanged, but its *membership* is not:
 
