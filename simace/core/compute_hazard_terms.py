@@ -37,7 +37,9 @@ def compute_hazard_terms(
         s, rho = params["scale"], params["rho"]
         log_t = np.log(t)
         const = np.log(rho) - rho * np.log(s) + (rho - 1) * log_t
-        H_base = np.exp(rho * (log_t - np.log(s)))
+        # an exponent beyond ~709 overflows to inf, which is the correct limit (S0 -> 0)
+        with np.errstate(over="ignore"):
+            H_base = np.exp(rho * (log_t - np.log(s)))
 
     elif model == "exponential":
         if "rate" in params:
