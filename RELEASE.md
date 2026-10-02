@@ -241,18 +241,20 @@ pixi run --manifest-path fitACE/pixi.toml python tools/verify_release.py "$V" \
   --provenance results/test/small_test/rep*/params.yaml results/test/small_test/rep*/run.yaml
 ```
 
-Then refit pcgc, tetraher, and iter_reml on one `pcgc_bias_small` cell
-(small_test leaves `tetraher_prevalence` null, which disables TetraHer) and
-check the sidecars. They carry `simace_version`, `fitace_version`,
+Then simulate one `pcgc_bias_small` cell, refit pcgc, tetraher, and iter_reml
+on it (small_test leaves `tetraher_prevalence` null, which disables TetraHer),
+and check the sidecars. They carry `simace_version`, `fitace_version`,
 `fitace_<method>_version`, and `ace_iter_reml_version` (the binary stamps
-`v$V`, which the script accepts):
+`v$V`, which the script accepts). The `simace run` step also gives a cell built
+before an output-layout change the inputs the fit rules now read:
 
 ```bash
 CELL=results/pcgc_bias_small/pcgc_bias_small_A50_C00_K25/rep1
+pixi run simace run pcgc_bias_small_A50_C00_K25 --rep 1 --no-plots --force
 ( cd fitACE && pixi run snakemake --cores 4 --force \
     $CELL/pcgc/fit.vc.tsv $CELL/tetraher/fit.vc.tsv $CELL/iter_reml_fp64/fit.vc.tsv )
 pixi run --manifest-path fitACE/pixi.toml python tools/verify_release.py "$V" \
-  --provenance fitACE/$CELL/{pcgc,tetraher,iter_reml_fp64}/fit.vc.tsv.meta
+  --provenance $CELL/params.yaml $CELL/run.yaml $CELL/{pcgc,tetraher,iter_reml_fp64}/fit.vc.tsv.meta
 ```
 
 ### 5. Push
