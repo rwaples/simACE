@@ -562,7 +562,7 @@ _OBSERVED_ESTIMATOR_LABELS: tuple[tuple[str, str], ...] = (
     ("falconer", "Falconer\n2(r_MZ − r_FS)"),  # noqa: RUF001
     ("sibs", "Sibs\n2·r_FS"),
     ("po", "PO slope\n(binary)"),
-    ("hs", "Half-sibs\n4·r̄_HS"),
+    ("hs", "Half-sibs\n4·$\\bar{r}$_HS"),
     ("cousins", "Cousins\n8·r_1C"),
 )
 
@@ -692,7 +692,7 @@ def plot_observed_heritability(
                         linestyle=":",
                         linewidth=1.2,
                         alpha=0.9,
-                        label=f"LTM expected at K̄={K_bar:.3f}: {expected_obs:.3f}",
+                        label=rf"LTM expected at $\bar{{K}}$={K_bar:.3f}: {expected_obs:.3f}",
                     )
                     ax_obs.legend(loc="best", fontsize=8, frameon=False)
 
@@ -713,7 +713,7 @@ def plot_observed_heritability(
             ax_obs.text(
                 0.98,
                 0.97,
-                f"K̄ = {np.mean(K_vals):.3f}",
+                rf"$\bar{{K}}$ = {np.mean(K_vals):.3f}",
                 transform=ax_obs.transAxes,
                 ha="right",
                 va="top",
