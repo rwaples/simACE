@@ -17,12 +17,17 @@ the replicate. The run takes under a minute on a laptop. It ends with the
 scenario's plots and atlas:
 
 ```
-[small_test/rep3] analyze finished in 1.9s, peak 292 MB
+[small_test/rep3] analyze finished in 2.3s, max RSS 297 MB
+[small_test] summary: 3 computed
 [small_test] plot started
-[small_test] plot finished in 21.5s
+[small_test] plot finished in 17.6s
 [small_test] atlas started
-[small_test] atlas finished in 1.1s
+[small_test] atlas finished in 1.9s
+[small_test] plots: current
 ```
+
+On a machine with a delegated cgroup, each finished line also reports the
+stage's `tree peak`.
 
 Run the same command again. Every replicate is reported as
 `skip (run.yaml matches)`, and only the plots are redrawn.

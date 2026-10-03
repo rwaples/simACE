@@ -56,7 +56,7 @@ To confirm that the install works, follow the [Quick start](quickstart.md).
 
 Every check runs inside the pixi environment. The environment installs
 `simace` in editable mode with the `dev` extras from `pyproject.toml`, which
-include pytest, ruff, ty, snakefmt, and mkdocs among others.
+include pytest, ruff, ty, and mkdocs among others.
 
 ```bash
 pixi run pytest tests/
@@ -81,9 +81,22 @@ Normal pixi commands never rewrite `pixi.lock`. To upgrade a dependency:
 You do not need pixi to import simace from your own Python environment. pip
 resolves every dependency from PyPI. This is also the supported path on macOS.
 
+simace needs Python 3.14 or newer. Check with `python --version` first. On
+Python 3.13, pip says simace requires a different Python. On 3.12 and older, it
+fails on a dependency first and never names the Python version:
+`No matching distribution found for pedigree-graph<0.13,>=0.12`.
+
 ```bash
 pip install "simace @ git+https://github.com/rwaples/simACE"
 ```
+
+To install a release rather than the default branch, append its tag, for
+example `git+https://github.com/rwaples/simACE@v0.1.0`.
+
+A pip install gives you the stage subcommands (`simace simulate`, `simace
+cohort`, `simace analyze`, ...), which take explicit paths. `simace run`,
+`simace show`, and `simace ls` read the scenario files in `config/`, so they
+need a clone.
 
 From a clone, run `pip install -e .` instead. Add `".[dev]"` to include the
 development tools.
