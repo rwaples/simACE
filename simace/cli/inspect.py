@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 import simace
-from simace.cli.layout import RepArtifact, add_root_args, resolve_roots
+from simace.cli.layout import RepArtifact, add_root_args, require_config, resolve_roots
 from simace.cli.manifest import RepState, source_ref
 from simace.cli.run import (
     ScenarioError,
@@ -113,6 +113,7 @@ def show_cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     add_root_args(parser)
     args = parser.parse_args(argv)
     config_dir, layout = resolve_roots(args)
+    require_config(config_dir, "show")
     try:
         params = load_scenario(config_dir, args.scenario, require_runnable=False)
     except ScenarioError as exc:
@@ -147,6 +148,7 @@ def ls_cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     add_root_args(parser)
     args = parser.parse_args(argv)
     config_dir, layout = resolve_roots(args)
+    require_config(config_dir, "ls")
 
     scenarios = resolve_all(config_dir)
     for name in sorted(scenarios, key=lambda s: (scenarios[s]["folder"], s)):

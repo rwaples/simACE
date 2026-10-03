@@ -12,8 +12,9 @@ contract (results layout 2, ADR 0021).
 
 from __future__ import annotations
 
-__all__ = ["Layout", "RepArtifact", "add_root_args", "project_root", "resolve_roots"]
+__all__ = ["Layout", "RepArtifact", "add_root_args", "project_root", "require_config", "resolve_roots"]
 
+import sys
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -69,6 +70,19 @@ def resolve_roots(args: argparse.Namespace) -> tuple[Path, Layout]:
     results = args.results if args.results is not None else base / "results"
     logs = getattr(args, "logs", None)
     return config_dir, Layout(root=results, logs=logs if logs is not None else base / "logs")
+
+
+def require_config(config_dir: Path, command: str) -> None:
+    """Exit 2 with a hint when ``config_dir`` has no ``_default.yaml``, as outside a checkout."""
+    if (config_dir / _ROOT_MARKER.name).is_file():
+        return
+    print(
+        f"simace {command}: no scenario config at {config_dir / _ROOT_MARKER.name}. Run it inside a simACE "
+        "checkout (git clone https://github.com/rwaples/simACE) or pass --config-dir. The stage subcommands "
+        "(simace simulate, cohort, analyze, ...) take explicit paths and need no checkout.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
 
 
 class RepArtifact(StrEnum):

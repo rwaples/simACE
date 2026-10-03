@@ -44,7 +44,7 @@ from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
 
 from simace.cli.cgroups import CgroupRoot, CgroupUnavailable
-from simace.cli.layout import RepArtifact, add_root_args, resolve_roots
+from simace.cli.layout import RepArtifact, add_root_args, require_config, resolve_roots
 from simace.cli.manifest import (
     Manifest,
     PlotsState,
@@ -663,6 +663,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line entry point for ``simace run``."""
     args = _parse(argv, prog)
     config_dir, layout = resolve_roots(args)
+    require_config(config_dir, "run")
     try:
         scenarios = resolve_all(config_dir)
         names = expand_targets(args.targets, scenarios)
