@@ -11,8 +11,30 @@ beside them.** Copy this `verify/` directory to a clean machine (only `git` +
 
 | Script | Repos exercised | Auth | Rough cost |
 |---|---|---|---|
-| `verify_simace.sh` | simACE | none (HTTPS) | one env solve + pytest + `simace run` smoke |
+| `verify_simace.sh` | simACE | none (HTTPS) | pixi install from an empty cache, the whole Quick start, pytest, and a pip library install; about 15 minutes and 7 GB of temporary disk |
 | `verify_simace_epimight.sh` | simACE + fitACE + fitACE_epimight + EPIMIGHT R pkg | SSH for the two private repos | two env solves + R pkg build + a fit |
+
+## `verify_simace.sh`: a new user, nothing inherited
+
+`verify_simace.sh` re-runs itself under `env -i` with a throwaway `HOME` inside
+its workdir. Nothing from the machine's own install is visible: no `~/.pixi`,
+no package or pip cache, no gitconfig, and a `PATH` of system directories only.
+It needs `git` and `curl`; it installs pixi itself with the command the
+installation page of the checked-out ref pins. It then runs the whole Quick
+start, the documented development checks, and the pip library route on the
+minimum Python from `requires-python`, asserting each output. The clone must
+stay clean.
+
+Before a release, point it at the tag, which is what a new user gets once
+`master` moves:
+
+```bash
+bash scripts/verify/verify_simace.sh --simace-ref v0.1.0
+bash scripts/verify/verify_simace.sh --quick   # skip pytest and baseline100K
+```
+
+To test unpushed commits, clone from a local repo:
+`--simace-url file:///path/to/simACE --simace-ref <branch>`.
 
 ## Prerequisites
 
