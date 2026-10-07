@@ -72,6 +72,8 @@ The five checkout paths are in [Project structure](docs/concepts/project-structu
 
 When work spans simACE, fitACE, and fitACE_epimight, check `git status` and run relevant tests in each checkout. Changes do not propagate between checkouts; make parallel commits when asked.
 
+Other sessions work in the main checkouts at the same time. For branch work, use a family worktree: `python tools/family_worktree.py add <name> <repo>...` (named repos get a `<name>` branch, the rest are detached; `--install` runs `pixi install --frozen`), `list`, and `remove <name>`. It copies fitACE's gitignored binaries and links `external/epimight*`.
+
 ## Git
 
 - Push only through the user-invoked `/push` skill. Never run `git push` directly; the permission rules deny it.
