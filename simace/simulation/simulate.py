@@ -27,13 +27,11 @@ __all__ = [
 import argparse
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 import numpy as np
 import polars as pl
 
-from simace.core._numba_utils import _ndtri_approx
 from simace.core.cohort import write_pedigree
 from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
@@ -51,10 +49,9 @@ if TYPE_CHECKING:
 
         numba 0.66 became a PEP 561 typed package, so importing the real
         ``njit`` here makes every jitted function a ``Dispatcher`` with an
-        opaque return type — which then propagates through
-        ``ThreadPoolExecutor.submit(...).result()`` and breaks inference at
-        unrelated call sites.  Aliasing to identity lets a type checker see
-        the underlying Python function's signature instead.
+        opaque return type that breaks inference at the call sites.  Aliasing
+        to identity lets a type checker see the underlying Python function's
+        signature instead.
         """
 
 else:
@@ -271,23 +268,6 @@ def _fast_rank(arr: np.ndarray) -> np.ndarray:
     return rank / (M + 1)
 
 
-def _quantile_normal_nb_python(arr):
-    """Convert array to quantile-normal scores using Numba-compatible ndtri."""
-    M = len(arr)
-    order = np.argsort(arr)
-    out = np.empty(M, dtype=np.float64)
-    for i in range(M):
-        p = float(i + 1) / (M + 1)
-        out[order[i]] = _ndtri_approx(p)
-    return out
-
-
-if njit is not None:
-    _quantile_normal_nb = njit(cache=True)(_quantile_normal_nb_python)
-else:
-    _quantile_normal_nb = _quantile_normal_nb_python
-
-
 def _midparent_python(pheno_col, parents):
     """Compute midparent values without creating (N, 2) temporary."""
     n = len(parents)
@@ -339,52 +319,6 @@ def pair_partners(
             matings[d, 1], matings[swap_with, 1] = matings[swap_with, 1], matings[d, 1]
 
     return matings
-
-
-def _metropolis_sweep_python(
-    f1_z, f2_z, m1_z, m2_z, male_perm, idx_i, idx_j, S1, S2, S12, S21, T1, T2, T12, T21, batch
-):
-    """Greedy Metropolis sweep: accept swaps that reduce squared error on four targets."""
-    for k in range(batch):
-        df = f1_z[idx_i[k]] - f1_z[idx_j[k]]
-        df2 = f2_z[idx_i[k]] - f2_z[idx_j[k]]
-        dm1 = m1_z[idx_j[k]] - m1_z[idx_i[k]]
-        dm2 = m2_z[idx_j[k]] - m2_z[idx_i[k]]
-        dk1 = df * dm1
-        dk2 = df2 * dm2
-        dk12 = df * dm2
-        dk21 = df2 * dm1
-        ne1 = S1 + dk1 - T1
-        ne2 = S2 + dk2 - T2
-        ne12 = S12 + dk12 - T12
-        ne21 = S21 + dk21 - T21
-        oe1 = S1 - T1
-        oe2 = S2 - T2
-        oe12 = S12 - T12
-        oe21 = S21 - T21
-        if ne1 * ne1 + ne2 * ne2 + ne12 * ne12 + ne21 * ne21 < oe1 * oe1 + oe2 * oe2 + oe12 * oe12 + oe21 * oe21:
-            i = idx_i[k]
-            j = idx_j[k]
-            tmp = m1_z[i]
-            m1_z[i] = m1_z[j]
-            m1_z[j] = tmp
-            tmp = m2_z[i]
-            m2_z[i] = m2_z[j]
-            m2_z[j] = tmp
-            tmp_p = male_perm[i]
-            male_perm[i] = male_perm[j]
-            male_perm[j] = tmp_p
-            S1 += dk1
-            S2 += dk2
-            S12 += dk12
-            S21 += dk21
-    return S1, S2, S12, S21
-
-
-if njit is not None:
-    _metropolis_sweep = njit(cache=True, fastmath=True)(_metropolis_sweep_python)
-else:
-    _metropolis_sweep = _metropolis_sweep_python
 
 
 def _metropolis_full_python(
@@ -475,6 +409,87 @@ else:
     _metropolis_full = _metropolis_full_python
 
 
+def _select_python(pts, idx, axis, lo, hi, k):
+    """Quickselect rows ``lo:hi`` of ``pts`` (and ``idx`` with them) on ``pts[:, axis]``.
+
+    Afterwards row ``k`` holds the k-th smallest value, rows left of it are no
+    larger and rows right of it no smaller. Rows move in place, so the scans
+    read memory sequentially.
+    """
+    hi -= 1
+    while hi > lo:
+        a = pts[lo, axis]
+        b = pts[(lo + hi) // 2, axis]
+        c = pts[hi, axis]
+        pivot = max(min(a, b), min(max(a, b), c))
+        i = lo
+        j = hi
+        while i <= j:
+            while pts[i, axis] < pivot:
+                i += 1
+            while pts[j, axis] > pivot:
+                j -= 1
+            if i <= j:
+                for col in range(2):
+                    tmp = pts[i, col]
+                    pts[i, col] = pts[j, col]
+                    pts[j, col] = tmp
+                tmp_i = idx[i]
+                idx[i] = idx[j]
+                idx[j] = tmp_i
+                i += 1
+                j -= 1
+        if k <= j:
+            hi = j
+        elif k >= i:
+            lo = i
+        else:
+            return
+
+
+if njit is not None:
+    _select = njit(cache=True)(_select_python)
+else:
+    _select = _select_python
+
+
+def _kd_match_python(target, males):
+    """Pair each target point with a nearby male point, one to one.
+
+    Splits both ``(M, 2)`` point sets at the same rank on alternating axes
+    until every cell holds one point of each, so cell ``k`` of ``target`` and
+    of ``males`` cover the same quantile region. Both sets should share one
+    distribution with near-independent axes (whiten them first).
+
+    Returns:
+        ``perm`` with ``males[perm[i]]`` matched to ``target[i]``.
+    """
+    M = target.shape[0]
+    pt = target.copy()
+    pm = males.copy()
+    it = np.arange(M, dtype=np.int64)
+    im = np.arange(M, dtype=np.int64)
+    stack = [(np.int64(0), np.int64(M), np.int64(0))]
+    while len(stack) > 0:
+        lo, hi, axis = stack.pop()
+        if hi - lo < 2:
+            continue
+        mid = lo + (hi - lo) // 2
+        _select(pt, it, axis, lo, hi, mid)
+        _select(pm, im, axis, lo, hi, mid)
+        stack.append((lo, mid, 1 - axis))
+        stack.append((mid, hi, 1 - axis))
+    perm = np.empty(M, dtype=np.int64)
+    perm[it] = im
+    return perm
+
+
+if njit is not None:
+    _kd_match = njit(cache=True)(_kd_match_python)
+else:
+    _kd_match = _kd_match_python
+
+
 def _assortative_pair_partners(
     rng: np.random.Generator,
     male_idxs: np.ndarray,
@@ -492,12 +507,14 @@ def _assortative_pair_partners(
     Single-trait case (one of assort1/assort2 zero): bivariate Gaussian copula
     on the active trait.
 
-    Both-nonzero case: direct moment matching against the 4-variate mate
-    correlation structure of Border et al. (2022, Science). This is not a
-    copula and draws no multivariate normal. Conditional-expectation
-    initialization on quantile-normal scores, then Metropolis greedy swaps
-    that pull the Pearson correlations of the standardized liabilities onto
-    their targets.
+    Both-nonzero case: 4-variate Gaussian copula on the mate correlation
+    structure of Border et al. (2022, Science). Each female's ideal mate is
+    drawn from the Gaussian conditional given her two standardized
+    liabilities, males are matched to those draws with ``_kd_match``, and
+    Metropolis greedy swaps remove the remaining sampling error in the four
+    Pearson correlations. Mate liabilities are jointly normal, so thresholded
+    mate concordance matches ``R_mf`` (issue #34: the previous moment
+    matching hit the Pearson targets with heavy joint tails).
 
     Args:
         rng: numpy random generator
@@ -508,7 +525,9 @@ def _assortative_pair_partners(
         pheno: (n, 6) array of [A1, C1, E1, A2, C2, E2] for parents
         assort1: target mate correlation on trait 1 liability, in [-1, 1]
         assort2: target mate correlation on trait 2 liability, in [-1, 1]
-        rho_w: within-person cross-trait liability correlation
+        rho_w: configured within-person cross-trait liability correlation;
+            sets the default cross-trait mate correlation when
+            ``assort_matrix`` is None
         assort_matrix: optional full 2x2 mate correlation matrix R_mf.
             When provided, overrides the auto-computed off-diagonals.
 
@@ -523,6 +542,9 @@ def _assortative_pair_partners(
     female_slots = np.repeat(female_idxs, female_counts)
     male_slots = np.repeat(male_idxs, male_counts)
     M = len(female_slots)
+    if M < 2:
+        # Nothing to sort: zero or one possible pairing.
+        return np.column_stack([female_slots, male_slots])
 
     # 2. Compute liability per slot
     liab1_f = _liability(pheno, 1, female_slots)
@@ -531,7 +553,7 @@ def _assortative_pair_partners(
     liab2_m = _liability(pheno, 2, male_slots)
 
     if assort1 != 0 and assort2 != 0:
-        # --- Both traits nonzero: direct moment matching on R_mf ---
+        # --- Both traits nonzero: 4-variate Gaussian copula on R_mf ---
         r1, r2 = assort1, assort2
 
         # Build full R_mf with cross-trait off-diagonals
@@ -542,45 +564,48 @@ def _assortative_pair_partners(
             R_mf = np.array([[r1, c], [c, r2]])
         c_target = R_mf[0, 1]
 
-        # Phase 1: Conditional-expectation initialization
-        with ThreadPoolExecutor(max_workers=4) as pool:
-            futs = [pool.submit(_quantile_normal_nb, arr) for arr in [liab1_f, liab2_f, liab1_m, liab2_m]]
-            qn_f1, qn_f2, qn_m1, qn_m2 = [f.result() for f in futs]
-
-        R_ff = np.array([[1.0, rho_w], [rho_w, 1.0]])
-        B = R_mf @ np.linalg.inv(R_ff)
-
-        female_qn = np.column_stack([qn_f1, qn_f2])
-        target_m = female_qn @ B.T
-
-        _U, _s, Vt = np.linalg.svd(R_mf)
-        v = Vt[0]  # dominant right singular vector
-
-        male_qn = np.column_stack([qn_m1, qn_m2])
-        target_proj = target_m @ v
-        male_proj = male_qn @ v
-
-        order_target = np.argsort(target_proj)
-        order_male = np.argsort(male_proj)
-        male_perm = np.empty(M, dtype=np.int64)
-        male_perm[order_target] = order_male
-
-        # Phase 2: Metropolis refinement on standardized liabilities
         def _zscore(arr):
             s = arr.std()
             return (arr - arr.mean()) / s if s > 1e-12 else np.zeros_like(arr)
 
-        f1_z = _zscore(liab1_f)
-        f2_z = _zscore(liab2_f)
-        m1_all_z = _zscore(liab1_m)
-        m2_all_z = _zscore(liab2_m)
+        def _trait_corr(z):
+            # A few slots or a constant trait make the realised correlation
+            # +/-1 or NaN; the configured rho_w (validated |rho_w| < 1) stands in.
+            with np.errstate(invalid="ignore", divide="ignore"):
+                r = np.corrcoef(z, rowvar=False)[0, 1]
+            if not np.isfinite(r) or abs(r) > 1.0 - 1e-6:
+                r = rho_w
+            return np.array([[1.0, r], [r, 1.0]])
 
-        m1_z = m1_all_z[male_perm].copy()
-        m2_z = m2_all_z[male_perm].copy()
+        fz = np.column_stack([_zscore(liab1_f), _zscore(liab2_f)])
+        males_z = np.column_stack([_zscore(liab1_m), _zscore(liab2_m)])
 
-        # Interleave for cache-friendly access in Metropolis inner loop
-        fz = np.column_stack([f1_z, f2_z])
-        mz = np.column_stack([m1_z, m2_z])
+        # Draw each female's ideal mate from the Gaussian conditional
+        # m | f ~ N(f R_ff^-1 R_mf, R_mm - R_mf' R_ff^-1 R_mf), then match
+        # males to those draws. R_ff and R_mm are the realised within-sex
+        # correlations, not rho_w: cross-trait AM moves the population's
+        # trait correlation away from the configured value, and a mismatch
+        # leaves the targets and the males with different distributions,
+        # which bends the joint tails. Whitening gives the k-d split
+        # independent axes.
+        R_ff = _trait_corr(fz)
+        R_mm = _trait_corr(males_z)
+        B = np.linalg.solve(R_ff, R_mf)
+        eigval, eigvec = np.linalg.eigh(R_mm - R_mf.T @ B)
+        if eigval[0] < -1e-8:
+            logger.warning(
+                "R_mf is not attainable with the realised within-sex trait correlations "
+                "(conditional variance %.4f < 0); clipping it to 0",
+                eigval[0],
+            )
+        noise_factor = eigvec * np.sqrt(np.clip(eigval, 0.0, None))
+        target = fz @ B + rng.standard_normal((M, 2)) @ noise_factor.T
+        whiten = np.linalg.inv(np.linalg.cholesky(R_mm)).T
+        male_perm = _kd_match(target @ whiten, males_z @ whiten)
+
+        # Metropolis swaps remove the sampling error of the draw so the
+        # Pearson correlations land on R_mf.
+        mz = males_z[male_perm]
 
         T1 = r1 * M
         T2 = r2 * M

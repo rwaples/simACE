@@ -7,14 +7,15 @@ import numpy as np
 import polars as pl
 import pytest
 from polars.testing import assert_frame_equal
+from scipy import stats
 
 import simace.simulation.simulate as simulate_mod
 from simace.simulation.simulate import (
     _assortative_pair_partners,
     _find_duplicate_pairs,
+    _kd_match_python,
     _mating_wf,
     _metropolis_full_python,
-    _metropolis_sweep_python,
     add_to_pedigree,
     allocate_offspring,
     assign_twins,
@@ -47,9 +48,9 @@ class TestOptionalNumbaFallback:
                 m.setattr(builtins, "__import__", blocked_import)
                 reloaded = importlib.reload(simulate_mod)
                 assert reloaded.njit is None
-                assert reloaded._quantile_normal_nb is reloaded._quantile_normal_nb_python
                 assert reloaded._midparent is reloaded._midparent_python
-                assert reloaded._metropolis_sweep is reloaded._metropolis_sweep_python
+                assert reloaded._select is reloaded._select_python
+                assert reloaded._kd_match is reloaded._kd_match_python
                 assert reloaded._metropolis_full is reloaded._metropolis_full_python
         finally:
             importlib.reload(simulate_mod)
@@ -227,38 +228,6 @@ class TestMetropolisHelpers:
     """Directly exercise accept/reject branches in the Python fallback helpers."""
 
     @staticmethod
-    def _sweep_inputs():
-        return dict(
-            f1_z=np.array([1.0, 0.0]),
-            f2_z=np.zeros(2),
-            m1_z=np.array([0.0, 1.0]),
-            m2_z=np.zeros(2),
-            male_perm=np.array([0, 1]),
-            idx_i=np.array([0]),
-            idx_j=np.array([1]),
-            S1=0.0,
-            S2=0.0,
-            S12=0.0,
-            S21=0.0,
-            T2=0.0,
-            T12=0.0,
-            T21=0.0,
-            batch=1,
-        )
-
-    def test_metropolis_sweep_accepts_improving_swap(self):
-        values = self._sweep_inputs()
-        result = _metropolis_sweep_python(**values, T1=10.0)
-        assert result[0] == 1.0
-        np.testing.assert_array_equal(values["male_perm"], np.array([1, 0]))
-
-    def test_metropolis_sweep_rejects_worsening_swap(self):
-        values = self._sweep_inputs()
-        result = _metropolis_sweep_python(**values, T1=0.0)
-        assert result[0] == 0.0
-        np.testing.assert_array_equal(values["male_perm"], np.array([0, 1]))
-
-    @staticmethod
     def _full_inputs():
         return dict(
             fz=np.array([[1.0, 0.0], [0.0, 0.0]]),
@@ -291,6 +260,28 @@ class TestMetropolisHelpers:
         result = _metropolis_full_python(**values, T1=0.1, tol=0.0)
         assert result[0] == 0.0
         assert result[-1] == 1
+
+
+class TestKdMatch:
+    """``_kd_match_python``: a one-to-one pairing of same-rank cells."""
+
+    def test_identical_sets_match_each_point_to_itself(self, rng):
+        pts = rng.standard_normal((257, 2))
+        np.testing.assert_array_equal(_kd_match_python(pts, pts.copy()), np.arange(257))
+
+    def test_returns_permutation_of_shuffled_copy(self, rng):
+        pts = rng.standard_normal((300, 2))
+        shuffle = rng.permutation(300)
+        perm = _kd_match_python(pts, pts[shuffle])
+        np.testing.assert_array_equal(shuffle[perm], np.arange(300))
+
+    def test_matched_points_are_close(self, rng):
+        target = rng.standard_normal((4096, 2))
+        males = rng.standard_normal((4096, 2))
+        perm = _kd_match_python(target, males)
+        assert np.array_equal(np.sort(perm), np.arange(4096))
+        # Unmatched independent draws sit sqrt(2)*sqrt(2) = 2 apart on average.
+        assert np.median(np.linalg.norm(target - males[perm], axis=1)) < 0.15
 
 
 # ---------------------------------------------------------------------------
@@ -793,6 +784,46 @@ class TestAssortativePairPartners:
         corr12 = np.corrcoef(liab1_m, liab2_f)[0, 1]  # F1 x M2
         corr21 = np.corrcoef(liab2_m, liab1_f)[0, 1]  # F2 x M1
         assert abs(corr12 - corr21) < 0.05
+
+    @pytest.mark.parametrize("m", [0, 1, 2])
+    def test_both_traits_tiny_slot_counts(self, rng, m):
+        """M=0 used to divide by zero, M=1 to loop forever, M=2 to hit a singular R_ff."""
+        pheno = rng.standard_normal((2 * m, 6))
+        ones = np.ones(m, dtype=int)
+        pairs = _assortative_pair_partners(
+            rng, np.arange(m), ones, np.arange(m, 2 * m), ones, pheno, 0.3, 0.3, rho_w=0.5
+        )
+        assert pairs.shape == (m, 2)
+        assert sorted(pairs[:, 0]) == list(range(m, 2 * m))
+
+    @pytest.mark.parametrize("degenerate", ["identical_traits", "constant_trait2"])
+    def test_both_traits_degenerate_within_sex_correlation(self, rng, degenerate):
+        mi, mc, fi, fc, pheno = self._make_pop(rng, 1000)
+        if degenerate == "identical_traits":
+            pheno[:, 3:] = pheno[:, :3]
+        else:
+            pheno[:, 3:] = 0.0
+        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.3, rho_w=0.5)
+        np.testing.assert_array_equal(np.sort(pairs[:, 1]), np.sort(mi))
+        liab1_f = pheno[pairs[:, 0], :3].sum(axis=1)
+        liab1_m = pheno[pairs[:, 1], :3].sum(axis=1)
+        assert np.corrcoef(liab1_f, liab1_m)[0, 1] > 0.15
+
+    def test_both_traits_mate_liabilities_bivariate_normal_in_tail(self, rng):
+        """Joint upper-tail frequency matches a bivariate normal with the realised r (issue #34).
+
+        Moment matching hit the Pearson targets but put 1.58x the Gaussian mass
+        in the joint K=0.1 tail of trait 1; the copula draw sits at 1.00 (SD ~0.02).
+        """
+        mi, mc, fi, fc, pheno = self._make_pop(rng, 200_000)
+        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.4, 0.3, rho_w=0.0)
+        t = stats.norm.ppf(0.9)
+        for cols in (slice(0, 3), slice(3, 6)):
+            f = stats.zscore(pheno[pairs[:, 0], cols].sum(axis=1))
+            m = stats.zscore(pheno[pairs[:, 1], cols].sum(axis=1))
+            r = np.corrcoef(f, m)[0, 1]
+            gaussian = stats.multivariate_normal([0.0, 0.0], [[1.0, r], [r, 1.0]]).cdf([-t, -t])
+            assert np.mean((f > t) & (m > t)) / gaussian == pytest.approx(1.0, abs=0.08)
 
 
 # ---------------------------------------------------------------------------

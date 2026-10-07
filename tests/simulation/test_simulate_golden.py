@@ -11,7 +11,7 @@ Coverage by config:
   * ``wf``                 — Wright-Fisher path (``_mating_wf``).
   * ``standard_no_am``     — standard mating, no assortment.
   * ``standard_single_am`` — single-trait Gaussian-copula assortment.
-  * ``standard_both_am``   — both-trait 4-variate moment matching + Metropolis + per-gen
+  * ``standard_both_am``   — both-trait 4-variate Gaussian copula + Metropolis + per-gen
                              ``R_mf`` (the most complex standard-only path).
   * ``standard_pergen``    — per-generation assort1 and E1 dicts, locking the
                              per-generation indexing (``assort*_per_gen[i]`` and
@@ -69,7 +69,7 @@ _GOLDEN = {
     "wf": "c110f24df422ef867cda7a9316ba36df93119ac8a96bb19c06af84242e9fd0a0",
     "standard_no_am": "f7e5549bd343b1e50d5ac9fe44be2e0e2d596fef5b040aa5f5e23a909903f776",
     "standard_single_am": "b016e0f63a3b1d6aea2da1a1671c80a706598a8dddc305cfbe9fd109cb6a5e63",
-    "standard_both_am": "5b8e5eeb8498d14f58a803b7b217c9edefaa23a7a665a0e4210d44c756f10434",
+    "standard_both_am": "bebafd0b87d8bd55fb131367d90e060c13c2a0b86f12a49bc01d3309c7dac6a1",
     "standard_pergen": "61b9b8de335b360bcde6ff4fbf4894d15daf5f876c0c40ed1240594e362dd08e",
 }
 
