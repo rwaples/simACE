@@ -248,5 +248,5 @@ def child_env(jobs: int) -> dict[str, str]:
         env.update(dict.fromkeys(_KERNEL_THREADS, "1"))
     # pedigree-graph defaults to one thread, so without this its relationship-pair
     # extraction in analyze runs serially.
-    env.setdefault("PEDIGREE_GRAPH_THREADS", str(max(1, len(os.sched_getaffinity(0)) // jobs)))
+    env.setdefault("PEDIGREE_GRAPH_THREADS", str(max(1, (os.process_cpu_count() or 1) // jobs)))
     return env

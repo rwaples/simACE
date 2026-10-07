@@ -488,7 +488,7 @@ def test_blas_is_always_pinned_and_kernels_only_for_concurrent_reps(monkeypatch)
 
 
 def test_pedigree_graph_splits_the_cores_across_concurrent_reps(monkeypatch) -> None:
-    cores = len(os.sched_getaffinity(0))
+    cores = os.process_cpu_count()
     monkeypatch.delenv("PEDIGREE_GRAPH_THREADS", raising=False)
     assert launch_mod.child_env(1)["PEDIGREE_GRAPH_THREADS"] == str(cores)
     assert launch_mod.child_env(2)["PEDIGREE_GRAPH_THREADS"] == str(max(1, cores // 2))
@@ -496,6 +496,17 @@ def test_pedigree_graph_splits_the_cores_across_concurrent_reps(monkeypatch) -> 
     monkeypatch.setenv("PEDIGREE_GRAPH_THREADS", "3")
     assert launch_mod.child_env(1)["PEDIGREE_GRAPH_THREADS"] == "3"
     assert launch_mod.child_env(2)["PEDIGREE_GRAPH_THREADS"] == "3"
+
+
+def test_child_env_without_sched_getaffinity(monkeypatch) -> None:
+    """macOS has no ``os.sched_getaffinity``; ``simace run`` must still build its env (#38)."""
+    # Mirror os.py off Linux: no affinity call, process_cpu_count is cpu_count.
+    monkeypatch.delattr(os, "sched_getaffinity", raising=False)
+    monkeypatch.setattr(os, "process_cpu_count", lambda: 4)
+    monkeypatch.delenv("PEDIGREE_GRAPH_THREADS", raising=False)
+    assert launch_mod.child_env(2)["PEDIGREE_GRAPH_THREADS"] == "2"
+    monkeypatch.setattr(os, "process_cpu_count", lambda: None)  # indeterminable
+    assert launch_mod.child_env(1)["PEDIGREE_GRAPH_THREADS"] == "1"
 
 
 @pytest.mark.parametrize(

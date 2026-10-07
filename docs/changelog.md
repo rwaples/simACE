@@ -26,6 +26,11 @@ releases shipped after 2026.05.3.
   traits; `death_censor` drew a new age on every call.
 - **`frailty` and `first_passage` reject `prevalence` in `from_config`.**
   Config loading already refused it; a hand-run `simace cohort` now does too.
+- **`simace run` no longer fails off Linux.** It sized pedigree-graph's
+  thread budget with `os.sched_getaffinity`, which only Linux has, so on
+  macOS it raised `AttributeError` before any stage started. It now uses
+  `os.process_cpu_count()`, which honours the affinity mask where there is
+  one, so Linux behaviour is unchanged.
 
 - **`adult` with `method: cox` now clips the cumulative incidence before
   inverting it**, as `method: ltm` and the blended diagnosis already did. One
