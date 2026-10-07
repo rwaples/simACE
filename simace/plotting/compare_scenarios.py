@@ -48,6 +48,7 @@ from simace.plotting.plot_style import (
     apply_nature_style,
     enable_value_gridlines,
 )
+from simace.plotting.plot_utils import savefig_dpi
 from simace.plotting.stats_report import plotting_report_view, report_per_generation
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,19 @@ def _mean_envelope(arr: np.ndarray, column: int) -> tuple[np.ndarray, np.ndarray
     """
     vals = arr[:, column]
     return vals.mean(), vals.min(), vals.max()
+
+
+def _save(fig: plt.Figure, output_path: Path | str, rect: tuple[float, float, float, float] | None = None) -> None:
+    """Lay out ``fig``, write it to ``output_path`` (creating its directory), and close it."""
+    if rect is None:
+        fig.tight_layout()
+    else:
+        fig.tight_layout(rect=rect)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=savefig_dpi(), bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Wrote %s", output_path)
 
 
 def compare_realized_variance_trajectory(
@@ -209,12 +223,7 @@ def compare_realized_variance_trajectory(
         frameon=False,
     )
 
-    fig.tight_layout(rect=(0, 0, 1, 0.97))
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Wrote %s", output_path)
+    _save(fig, output_path, rect=(0, 0, 1, 0.97))
 
 
 def compare_component_distributions(
@@ -315,12 +324,7 @@ def compare_component_distributions(
     enable_value_gridlines(ax_a)
     enable_value_gridlines(ax_l)
 
-    fig.tight_layout()
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Wrote %s", output_path)
+    _save(fig, output_path)
 
 
 # ---------------------------------------------------------------------------
@@ -615,12 +619,7 @@ def compare_correlations_by_relclass(
     enable_value_gridlines(ax)
     ax.legend(loc="upper right", frameon=False)
 
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.tight_layout()
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Wrote %s", output_path)
+    _save(fig, output_path)
 
 
 # ---------------------------------------------------------------------------
@@ -794,12 +793,7 @@ def compare_sib_liability_scatter(
     enable_value_gridlines(ax)
     ax.legend(loc="upper left", fontsize=9, frameon=False)
 
-    fig.tight_layout()
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Wrote %s", output_path)
+    _save(fig, output_path)
 
 
 # ---------------------------------------------------------------------------
@@ -997,12 +991,7 @@ def compare_naive_estimators(
     enable_value_gridlines(ax_bias)
     ax_raw.legend(loc="upper left", fontsize=9, frameon=False, ncol=2)
 
-    fig.tight_layout()
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Wrote %s", output_path)
+    _save(fig, output_path)
 
 
 # ---------------------------------------------------------------------------
@@ -1114,12 +1103,7 @@ def compare_components_by_generation(
         ax.set_xlabel(f"Value (trait {trait})")
 
     fig.suptitle("Per-individual A and total liability by generation")
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Wrote %s", output_path)
+    _save(fig, output_path, rect=(0, 0, 1, 0.96))
 
 
 def load_pedigree_estimates_per_generation(
@@ -1258,20 +1242,7 @@ def compare_cohort_fs_correlations(
         per_rep = [load_pedigree_estimates_per_generation(Path(p), trait=trait) for p in paths]
         # Union of generations seen across reps, restricted to >= min_generation.
         gens = sorted({g for d in per_rep for g in d if g >= min_generation})
-        means, lows, highs = [], [], []
-        for g in gens:
-            vals = np.array(
-                [d[g]["FS"] for d in per_rep if g in d and np.isfinite(d[g]["FS"])],
-                dtype=float,
-            )
-            if vals.size == 0:
-                means.append(float("nan"))
-                lows.append(float("nan"))
-                highs.append(float("nan"))
-            else:
-                means.append(float(vals.mean()))
-                lows.append(float(vals.min()))
-                highs.append(float(vals.max()))
+        means, lows, highs = _per_gen_envelope(per_rep, gens, lambda cell: cell["FS"])
         color = SCENARIO_PALETTE[scen_idx % len(SCENARIO_PALETTE)]
         ax.plot(gens, means, color=color, marker="o", label=label)
         ax.fill_between(gens, lows, highs, color=color, alpha=0.15, linewidth=0)
@@ -1293,12 +1264,7 @@ def compare_cohort_fs_correlations(
     enable_value_gridlines(ax)
     ax.legend(loc="best", fontsize=9, frameon=False)
 
-    fig.tight_layout()
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Wrote %s", output_path)
+    _save(fig, output_path)
 
 
 def _per_gen_envelope(
@@ -1407,12 +1373,7 @@ def compare_cohort_falconer(
 
     axes[0].set_ylabel(f"h² (trait {trait})")
     fig.suptitle("Per-cohort vs pooled-across-gens naive Falconer")
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Wrote %s", output_path)
+    _save(fig, output_path, rect=(0, 0, 1, 0.96))
 
 
 def _load_per_gen_prevalence(
@@ -1521,12 +1482,7 @@ def compare_prevalence_drift(
     axes[0].set_ylabel(f"Observed prevalence (trait {trait})")
     title_labels = [s[1] for s in series]
     fig.suptitle("Per-generation prevalence: " + " vs ".join(title_labels))
-    fig.tight_layout(rect=(0, 0, 1, 0.96))
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Wrote %s", output_path)
+    _save(fig, output_path, rect=(0, 0, 1, 0.96))
 
 
 # ---------------------------------------------------------------------------
@@ -1757,12 +1713,7 @@ def compare_observed_vs_liability_h2(
     enable_value_gridlines(ax_bias)
     ax_bias.legend(loc="lower left", fontsize=9, frameon=False)
 
-    fig.tight_layout()
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path, dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Wrote %s", output_path)
+    _save(fig, output_path)
 
 
 # ---------------------------------------------------------------------------

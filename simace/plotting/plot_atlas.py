@@ -1,14 +1,18 @@
 """Assemble individual plots into a multi-page PDF atlas with figure captions."""
 
 __all__ = [
+    "MODEL_TEXT",
+    "TraitModel",
     "assemble_atlas",
     "get_model_equation",
     "get_model_family",
+    "model_display_name",
+    "trait_models",
 ]
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -17,6 +21,8 @@ from PIL import Image
 from simace.plotting.atlas_manifest import PlotEntry, SectionBreak
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from simace.plotting.atlas_manifest import AtlasItem
 
 logger = logging.getLogger(__name__)
@@ -58,41 +64,6 @@ _FAMILY_DESC: dict[str, str] = {
 }
 
 
-def _model_display_name(model: str, pp: dict) -> tuple[str, str]:
-    """Return (short_name, description) for a phenotype model + params."""
-    if model == "frailty":
-        dist = pp.get("distribution", "unknown")
-        dist_name = _DISTRIBUTION_DISPLAY.get(dist, dist.title())
-        return (
-            f"{dist_name} Frailty",
-            _FAMILY_DESC["frailty"].format(dist=dist_name),
-        )
-    if model == "cure_frailty":
-        dist = pp.get("distribution", "unknown")
-        dist_name = _DISTRIBUTION_DISPLAY.get(dist, dist.title())
-        return (
-            f"Cure Frailty ({dist_name})",
-            _FAMILY_DESC["cure_frailty"].format(dist=dist_name),
-        )
-    if model == "adult":
-        method = pp.get("method", "unknown")
-        method_name = _METHOD_DISPLAY.get(method, method.upper())
-        return (
-            f"ADuLT {method_name}",
-            _ADULT_DESC.get(method, f"ADuLT {method_name} model"),
-        )
-    if model == "first_passage":
-        return ("First-Passage Time", _FAMILY_DESC["first_passage"])
-    if model == "simple_ltm":
-        kind = pp.get("onset", {}).get("kind", "unknown")
-        kind_name = {"fixed": "fixed onset", "normal": "normal onset"}.get(kind, f"{kind} onset")
-        return (
-            f"Simple LTM ({kind_name})",
-            _FAMILY_DESC["simple_ltm"].format(onset=kind_name),
-        )
-    return (model.title(), model)
-
-
 # Common frailty model equation (line 1 for all 6 baseline hazard distributions)
 _FRAILTY_LINE = (
     r"$h(t \mid L) = h_0(t) \cdot e^{\beta L \,+\, \beta_{\mathrm{sex}} \cdot \mathrm{sex}},"
@@ -113,82 +84,151 @@ _BASELINE_LINE: dict[str, str] = {
 }
 
 
+def _labelled(prefix: str, line: str) -> str:
+    """Put a trait label inside a mathtext line's opening ``$``."""
+    return "$" + prefix + line.removeprefix("$")
+
+
+def _distribution_name(pp: dict) -> str:
+    dist = pp.get("distribution", "unknown")
+    return _DISTRIBUTION_DISPLAY.get(dist, dist.title())
+
+
+def _frailty_display(pp: dict) -> tuple[str, str]:
+    dist_name = _distribution_name(pp)
+    return f"{dist_name} Frailty", _FAMILY_DESC["frailty"].format(dist=dist_name)
+
+
+def _frailty_equations(pp: dict, prefix: str) -> list[str]:
+    dist = pp.get("distribution", "")
+    return [_labelled(prefix, _FRAILTY_LINE), _BASELINE_LINE[dist]] if dist in _BASELINE_LINE else []
+
+
+def _cure_frailty_display(pp: dict) -> tuple[str, str]:
+    dist_name = _distribution_name(pp)
+    return f"Cure Frailty ({dist_name})", _FAMILY_DESC["cure_frailty"].format(dist=dist_name)
+
+
+def _cure_frailty_equations(pp: dict, prefix: str) -> list[str]:
+    return [
+        r"$"
+        + prefix
+        + r"\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad"
+        + r" t_{\mathrm{case}} \sim h_0(t) \cdot"
+        + r" e^{\beta L \,+\, \beta_{\mathrm{sex}} \cdot \mathrm{sex}}$",
+    ]
+
+
+def _adult_display(pp: dict) -> tuple[str, str]:
+    method = pp.get("method", "unknown")
+    method_name = _METHOD_DISPLAY.get(method, method.upper())
+    return f"ADuLT {method_name}", _ADULT_DESC.get(method, f"ADuLT {method_name} model")
+
+
+def _adult_equations(pp: dict, prefix: str) -> list[str]:
+    method = pp.get("method", "")
+    if method == "ltm":
+        return [
+            r"$" + prefix + r"\mathrm{CIF}(t) = \frac{K}{1 + e^{-k(t - x_0)}}$",
+            r"$\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad"
+            + r" t = x_0 + \frac{1}{k}\ln\!\frac{\Phi(-L)}{K - \Phi(-L)}$",
+        ]
+    if method == "cox":
+        return [
+            r"$" + prefix + r"t_{\mathrm{raw}} = \sqrt{-\ln U \,/\, e^{L}}," + r" \quad U \sim \mathrm{Uniform}(0,1]$",
+            r"$\mathrm{case\!:}\ \mathrm{CIF}_{\mathrm{rank}} < K, \qquad"
+            + r" t = x_0 + \frac{1}{k}\ln\!\frac{\mathrm{CIF}}{K - \mathrm{CIF}}$",
+        ]
+    return []
+
+
+def _first_passage_display(pp: dict) -> tuple[str, str]:
+    return "First-Passage Time", _FAMILY_DESC["first_passage"]
+
+
+def _first_passage_equations(pp: dict, prefix: str) -> list[str]:
+    return [
+        r"$"
+        + prefix
+        + r"y_0^{(i)} = \sqrt{\lambda}\,"
+        + r"e^{-\beta L_i - \beta_{\mathrm{sex}} \cdot \mathrm{sex}_i},"
+        + r"\quad Y(t) = y_0^{(i)} + \mu\,t + W(t),"
+        + r"\quad T_i = \inf\{t : Y(t) \leq 0\}$",
+    ]
+
+
+def _simple_ltm_display(pp: dict) -> tuple[str, str]:
+    kind = pp.get("onset", {}).get("kind", "unknown")
+    kind_name = {"fixed": "fixed onset", "normal": "normal onset"}.get(kind, f"{kind} onset")
+    return f"Simple LTM ({kind_name})", _FAMILY_DESC["simple_ltm"].format(onset=kind_name)
+
+
+def _simple_ltm_equations(pp: dict, prefix: str) -> list[str]:
+    kind = pp.get("onset", {}).get("kind")
+    lines = [r"$" + prefix + r"\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad L = A + C + E$"]
+    if kind == "fixed":
+        lines.append(r"$t_{\mathrm{case}} = a$")
+    elif kind == "normal":
+        lines.append(r"$t_{\mathrm{case}} \sim \mathcal{N}(\mu,\ \sigma^2)$")
+    return lines
+
+
+#: Display text per phenotype model: ``(display(pp), equations(pp, prefix))``.
+#: Keys must match ``simace.phenotype.models.MODELS`` (checked by a test).
+MODEL_TEXT: dict[str, tuple[Callable[[dict], tuple[str, str]], Callable[[dict, str], list[str]]]] = {
+    "frailty": (_frailty_display, _frailty_equations),
+    "cure_frailty": (_cure_frailty_display, _cure_frailty_equations),
+    "adult": (_adult_display, _adult_equations),
+    "first_passage": (_first_passage_display, _first_passage_equations),
+    "simple_ltm": (_simple_ltm_display, _simple_ltm_equations),
+}
+
+
+class TraitModel(NamedTuple):
+    """One trait's phenotype model name and its ``phenotype_params``."""
+
+    model: str
+    params: dict
+
+
+def trait_models(params: dict) -> tuple[TraitModel, TraitModel, bool]:
+    """Return both traits' models and whether they are the same model variant."""
+    t1, t2 = (
+        TraitModel(str(params.get(f"phenotype_model{t}", "frailty")), params.get(f"phenotype_params{t}", {}))
+        for t in (1, 2)
+    )
+    same = (
+        t1.model == t2.model
+        and all(t1.params.get(key) == t2.params.get(key) for key in ("distribution", "method"))
+        and t1.params.get("onset", {}).get("kind") == t2.params.get("onset", {}).get("kind")
+    )
+    return t1, t2, same
+
+
+def model_display_name(model: str, pp: dict) -> tuple[str, str]:
+    """Return (short_name, description) for a phenotype model + params."""
+    if model not in MODEL_TEXT:
+        return model.title(), model
+    return MODEL_TEXT[model][0](pp)
+
+
 def _equation_lines_for_model(model: str, pp: dict, label: str = "") -> list[str]:
     """Return mathtext equation line(s) for a single phenotype model."""
     prefix = (r"\mathrm{" + label + r"\!:}\ ") if label else ""
-
-    if model in ("frailty", "cure_frailty"):
-        dist = pp.get("distribution", "")
-        if model == "frailty" and dist in _BASELINE_LINE:
-            line1 = r"$" + prefix + _FRAILTY_LINE.strip("$") + r"$" if prefix else _FRAILTY_LINE
-            return [line1, _BASELINE_LINE[dist]]
-        if model == "cure_frailty":
-            return [
-                r"$"
-                + prefix
-                + r"\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad"
-                + r" t_{\mathrm{case}} \sim h_0(t) \cdot"
-                + r" e^{\beta L \,+\, \beta_{\mathrm{sex}} \cdot \mathrm{sex}}$",
-            ]
-
-    if model == "adult":
-        method = pp.get("method", "")
-        if method == "ltm":
-            return [
-                r"$" + prefix + r"\mathrm{CIF}(t) = \frac{K}{1 + e^{-k(t - x_0)}}$",
-                r"$\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad"
-                + r" t = x_0 + \frac{1}{k}\ln\!\frac{\Phi(-L)}{K - \Phi(-L)}$",
-            ]
-        if method == "cox":
-            return [
-                r"$"
-                + prefix
-                + r"t_{\mathrm{raw}} = \sqrt{-\ln U \,/\, e^{L}},"
-                + r" \quad U \sim \mathrm{Uniform}(0,1]$",
-                r"$\mathrm{case\!:}\ \mathrm{CIF}_{\mathrm{rank}} < K, \qquad"
-                + r" t = x_0 + \frac{1}{k}\ln\!\frac{\mathrm{CIF}}{K - \mathrm{CIF}}$",
-            ]
-
-    if model == "first_passage":
-        return [
-            r"$"
-            + prefix
-            + r"y_0^{(i)} = \sqrt{\lambda}\,"
-            + r"e^{-\beta L_i - \beta_{\mathrm{sex}} \cdot \mathrm{sex}_i},"
-            + r"\quad Y(t) = y_0^{(i)} + \mu\,t + W(t),"
-            + r"\quad T_i = \inf\{t : Y(t) \leq 0\}$",
-        ]
-
-    if model == "simple_ltm":
-        onset = pp.get("onset", {})
-        lines = [r"$" + prefix + r"\mathrm{case\!:}\ L > \Phi^{-1}(1-K), \qquad L = A + C + E$"]
-        if onset.get("kind") == "fixed":
-            lines.append(r"$t_{\mathrm{case}} = a$")
-        elif onset.get("kind") == "normal":
-            lines.append(r"$t_{\mathrm{case}} \sim \mathcal{N}(\mu,\ \sigma^2)$")
-        return lines
-    return []
+    if model not in MODEL_TEXT:
+        return []
+    return MODEL_TEXT[model][1](pp, prefix)
 
 
 def get_model_equation(params: dict) -> list[str]:
     """Return mathtext equation lines for the scenario's phenotype model(s)."""
-    m1 = str(params.get("phenotype_model1", "frailty"))
-    m2 = str(params.get("phenotype_model2", "frailty"))
-    pp1 = params.get("phenotype_params1", {})
-    pp2 = params.get("phenotype_params2", {})
-
-    if (
-        m1 == m2
-        and pp1.get("distribution") == pp2.get("distribution")
-        and pp1.get("method") == pp2.get("method")
-        and pp1.get("onset") == pp2.get("onset")
-    ):
-        return _equation_lines_for_model(m1, pp1)
-
-    lines: list[str] = []
-    lines.extend(_equation_lines_for_model(m1, pp1, label="Trait 1"))
-    lines.extend(_equation_lines_for_model(m2, pp2, label="Trait 2"))
-    return lines
+    t1, t2, same = trait_models(params)
+    if same:
+        return _equation_lines_for_model(*t1)
+    return [
+        *_equation_lines_for_model(*t1, label="Trait 1"),
+        *_equation_lines_for_model(*t2, label="Trait 2"),
+    ]
 
 
 def get_model_family(params: dict) -> tuple[str, str]:
@@ -197,21 +237,12 @@ def get_model_family(params: dict) -> tuple[str, str]:
     When both traits use the same model family and sub-type, return that family.
     When they differ, return a combined description.
     """
-    m1 = str(params.get("phenotype_model1", "frailty"))
-    m2 = str(params.get("phenotype_model2", "frailty"))
-    pp1 = params.get("phenotype_params1", {})
-    pp2 = params.get("phenotype_params2", {})
-
-    name1, desc1 = _model_display_name(m1, pp1)
-    name2, desc2 = _model_display_name(m2, pp2)
-
-    if m1 == m2 and pp1.get("distribution") == pp2.get("distribution") and pp1.get("method") == pp2.get("method"):
+    t1, t2, same = trait_models(params)
+    name1, desc1 = model_display_name(*t1)
+    if same:
         return name1, desc1
-
-    return (
-        f"{name1} / {name2}",
-        f"Trait 1: {desc1}; Trait 2: {desc2}",
-    )
+    name2, desc2 = model_display_name(*t2)
+    return f"{name1} / {name2}", f"Trait 1: {desc1}; Trait 2: {desc2}"
 
 
 # ---------------------------------------------------------------------------

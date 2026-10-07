@@ -498,22 +498,24 @@ def _format_log_axes(ax: Axes) -> None:
     enable_value_gridlines(ax)
 
 
-def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
-    """Plot simulation runtime per scenario."""
-    sub = df.dropna(subset=["simulate_seconds"])
+def _plot_stage_resource(
+    df: pd.DataFrame, out: Path, ext: str, *, column: str, ylabel: str, title: str, name: str
+) -> None:
+    """Plot one simulate-stage resource per scenario: a strip plot at one N, else log-log against N."""
+    sub = df.dropna(subset=[column])
     if sub.empty:
-        logger.warning("No simulate_seconds data; skipping runtime plot")
+        logger.warning("No %s data; skipping %s plot", column, name)
         return
 
     unique_n = sub["N"].nunique()
     if unique_n <= 1:
         # Single N value — use stripplot instead of log-log scatter
         fig, ax = plt.subplots(figsize=_figsize())
-        stripplot(sub, ax, "simulate_seconds")
-        ax.set_ylabel("Simulate Time (seconds)")
-        ax.set_title("Simulation Runtime")
+        stripplot(sub, ax, column)
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
         enable_value_gridlines(ax)
-        save(fig, out / f"runtime.{ext}")
+        save(fig, out / f"{name}.{ext}")
         return
 
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -525,7 +527,7 @@ def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
         sdf = sub[sub["scenario"] == scenario]
         ax.scatter(
             sdf["N"],
-            sdf["simulate_seconds"],
+            sdf[column],
             color=color_map[scenario],
             label=scenario,
             alpha=0.9,
@@ -536,54 +538,36 @@ def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     ax.set_yscale("log")
     _format_log_axes(ax)
     ax.set_xlabel("Population Size (N)")
-    ax.set_ylabel("Simulate Time (seconds)")
-    ax.set_title("Simulation Runtime vs Population Size")
+    ax.set_ylabel(ylabel)
+    ax.set_title(f"{title} vs Population Size")
     ax.legend()
-    save(fig, out / f"runtime.{ext}")
+    save(fig, out / f"{name}.{ext}")
+
+
+def plot_runtime(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
+    """Plot simulation runtime per scenario."""
+    _plot_stage_resource(
+        df,
+        out,
+        ext,
+        column="simulate_seconds",
+        ylabel="Simulate Time (seconds)",
+        title="Simulation Runtime",
+        name="runtime",
+    )
 
 
 def plot_memory(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     """Plot simulation peak memory usage per scenario."""
-    sub = df.dropna(subset=["simulate_max_rss_mb"])
-    if sub.empty:
-        logger.warning("No simulate_max_rss_mb data; skipping memory plot")
-        return
-
-    unique_n = sub["N"].nunique()
-    if unique_n <= 1:
-        # Single N value — use stripplot instead of log-log scatter
-        fig, ax = plt.subplots(figsize=_figsize())
-        stripplot(sub, ax, "simulate_max_rss_mb")
-        ax.set_ylabel("Peak RSS (MB)")
-        ax.set_title("Simulation Memory Usage")
-        enable_value_gridlines(ax)
-        save(fig, out / f"memory.{ext}")
-        return
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    scenarios = sub["scenario"].unique()
-    palette = sns.color_palette("colorblind", len(scenarios))
-    color_map = dict(zip(scenarios, palette, strict=True))
-
-    for scenario in scenarios:
-        sdf = sub[sub["scenario"] == scenario]
-        ax.scatter(
-            sdf["N"],
-            sdf["simulate_max_rss_mb"],
-            color=color_map[scenario],
-            label=scenario,
-            alpha=0.9,
-            s=40,
-        )
-
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    _format_log_axes(ax)
-    ax.set_xlabel("Population Size (N)")
-    ax.set_ylabel("Peak RSS (MB)")
-    ax.set_title("Simulation Memory Usage vs Population Size")
-    ax.legend()
-    save(fig, out / f"memory.{ext}")
+    _plot_stage_resource(
+        df,
+        out,
+        ext,
+        column="simulate_max_rss_mb",
+        ylabel="Peak RSS (MB)",
+        title="Simulation Memory Usage",
+        name="memory",
+    )
 
 
 def plot_consanguineous_matings(df: pd.DataFrame, out: Path, ext: str = "png") -> None:

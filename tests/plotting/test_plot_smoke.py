@@ -364,7 +364,7 @@ class TestPlotAtlasHelpers:
         assert isinstance(name, str)
 
     def test_model_display_all_families(self):
-        from simace.plotting.plot_atlas import _model_display_name
+        from simace.plotting.plot_atlas import model_display_name
 
         # Verify all model families produce valid display names
         cases = [
@@ -380,7 +380,7 @@ class TestPlotAtlasHelpers:
             ("first_passage", {}),
         ]
         for model, pp in cases:
-            name, desc = _model_display_name(model, pp)
+            name, desc = model_display_name(model, pp)
             assert isinstance(name, str), f"model={model}, pp={pp}"
             assert len(name) > 0, f"model={model}, pp={pp}"
             assert isinstance(desc, str), f"model={model}, pp={pp}"

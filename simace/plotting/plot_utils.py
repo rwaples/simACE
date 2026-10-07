@@ -8,13 +8,17 @@ __all__ = [
     "PAIR_TYPE_SANE_BAND",
     "annotate_heatmap",
     "draw_colored_violins",
+    "draw_regression_band",
     "draw_split_violin",
     "finalize_plot",
     "finalize_relationship_type_panels",
+    "mean_regression",
     "param_as_float",
     "relationship_type_legend_handles",
     "save_placeholder_plot",
+    "savefig_dpi",
     "setup_relationship_type_panel",
+    "sort_generation_keys",
 ]
 
 # Re-export from plot_style for backward compatibility
@@ -27,6 +31,8 @@ from matplotlib.transforms import Affine2D
 from simace.plotting.plot_style import PAIR_COLORS as PAIR_COLORS
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     import matplotlib.pyplot as plt
 
 
@@ -78,6 +84,54 @@ def param_as_float(val: float | dict | None, default: float = 0.0) -> float:
 
 
 # PAIR_COLORS is now imported from plot_style (see re-export above)
+
+
+def mean_regression(
+    rep_stats: list[dict[str, Any]], x: np.ndarray, y: np.ndarray, n_key: str = "n"
+) -> tuple[float, float, float, float | None, int]:
+    """Return ``(slope, intercept, r, stderr, n)`` averaged over per-rep OLS stats.
+
+    When no rep has stats, fit ``y ~ x`` directly instead. ``stderr`` is the
+    slope's standard error, or None when no rep reports one.
+    """
+    if not rep_stats:
+        from simace.core.numerics import fast_linregress
+
+        slope, intercept, r, stderr, _pvalue = fast_linregress(x, y)
+        return slope, intercept, r, stderr, len(x)
+    stderrs = [s["stderr"] for s in rep_stats if s.get("stderr") is not None]
+    return (
+        np.mean([s["slope"] for s in rep_stats]),
+        np.mean([s["intercept"] for s in rep_stats]),
+        np.mean([s["r"] for s in rep_stats]),
+        float(np.mean(stderrs)) if stderrs else None,
+        int(np.mean([s[n_key] for s in rep_stats])),
+    )
+
+
+def draw_regression_band(
+    ax: plt.Axes, x: np.ndarray, slope: float, intercept: float, stderr: float | None, n: int, color: str
+) -> None:
+    """Shade the 95% confidence band of the OLS line ``slope * x + intercept`` fitted to ``x``."""
+    if stderr is None or n <= 2:
+        return
+    x_mean = np.mean(x)
+    ss_x = np.sum((x - x_mean) ** 2)
+    if ss_x <= 1e-12:
+        return
+    from scipy.stats import t as t_dist
+
+    x_smooth = np.linspace(x.min(), x.max(), 200)
+    y_hat = slope * x_smooth + intercept
+    s = stderr * np.sqrt(ss_x)  # residual SE, from stderr_slope = s / sqrt(SS_x)
+    t_crit = t_dist.ppf(0.975, df=n - 2)
+    se_fit = s * np.sqrt(1.0 / n + (x_smooth - x_mean) ** 2 / ss_x)
+    ax.fill_between(x_smooth, y_hat - t_crit * se_fit, y_hat + t_crit * se_fit, alpha=0.15, color=color, zorder=2)
+
+
+def sort_generation_keys(keys: Iterable[str]) -> list[str]:
+    """Sort generation keys (``gen3``, ``gen_12``) by their trailing number, not as strings."""
+    return sorted(keys, key=lambda k: int(k[len(k.rstrip("0123456789")) :]))
 
 
 def save_placeholder_plot(
@@ -146,6 +200,14 @@ def annotate_heatmap(
             ax.text(j + 0.5, i + 0.62, c_str, ha="center", va="center", fontsize=count_size, color=count_color)
 
 
+def savefig_dpi() -> int:
+    """Return the configured ``savefig.dpi``, or 150 when it is matplotlib's ``"figure"`` sentinel."""
+    import matplotlib.pyplot as plt
+
+    configured = plt.rcParams["savefig.dpi"]
+    return 150 if configured == "figure" else int(configured)
+
+
 def finalize_plot(
     output_path: Any,
     dpi: int | None = None,
@@ -167,8 +229,7 @@ def finalize_plot(
     import matplotlib.pyplot as plt
 
     if dpi is None:
-        configured = plt.rcParams["savefig.dpi"]
-        dpi = 150 if configured == "figure" else int(configured)
+        dpi = savefig_dpi()
 
     from simace.plotting.plot_style import add_scenario_label
 

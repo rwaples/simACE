@@ -42,7 +42,13 @@ from simace.plotting.plot_style import (
     COLOR_TRUE,
     COLOR_UNAFFECTED,
 )
-from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
+from simace.plotting.plot_utils import (
+    draw_regression_band,
+    finalize_plot,
+    mean_regression,
+    save_placeholder_plot,
+    sort_generation_keys,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -177,20 +183,9 @@ def plot_trait_regression(
             for s in all_stats
             if s["regression"].get(f"trait{trait_num}") is not None
         ]
-        if reg_stats:
-            mean_r = np.mean([r["r"] for r in reg_stats])
-            mean_slope = np.mean([r["slope"] for r in reg_stats])
-            mean_intercept = np.mean([r["intercept"] for r in reg_stats])
-            mean_n = int(np.mean([r["n"] for r in reg_stats]))
-            stderr_vals = [r["stderr"] for r in reg_stats if r.get("stderr") is not None]
-            mean_stderr = float(np.mean(stderr_vals)) if stderr_vals else None
-        elif len(x) >= 2:
-            from simace.core.numerics import fast_linregress
-
-            mean_slope, mean_intercept, mean_r, mean_stderr, _mean_pvalue = fast_linregress(x, y)
-            mean_n = len(x)
-        else:
+        if not reg_stats and len(x) < 2:
             continue
+        mean_slope, mean_intercept, mean_r, mean_stderr, mean_n = mean_regression(reg_stats, x, y)
 
         inner = GridSpecFromSubplotSpec(
             2,
@@ -214,26 +209,7 @@ def plot_trait_regression(
             linewidth=1.2,
         )
 
-        # 95% confidence band
-        if mean_stderr is not None and mean_n > 2:
-            from scipy.stats import t as t_dist
-
-            x_smooth = np.linspace(x.min(), x.max(), 200)
-            y_hat = mean_slope * x_smooth + mean_intercept
-            x_mean = np.mean(x)
-            ss_x = np.sum((x - x_mean) ** 2)
-            if ss_x > 1e-12:
-                s = mean_stderr * np.sqrt(ss_x)
-                t_crit = t_dist.ppf(0.975, df=mean_n - 2)
-                se_fit = s * np.sqrt(1.0 / mean_n + (x_smooth - x_mean) ** 2 / ss_x)
-                ax_joint.fill_between(
-                    x_smooth,
-                    y_hat - t_crit * se_fit,
-                    y_hat + t_crit * se_fit,
-                    alpha=0.15,
-                    color=COLOR_AFFECTED,
-                    zorder=2,
-                )
+        draw_regression_band(ax_joint, x, mean_slope, mean_intercept, mean_stderr, mean_n, COLOR_AFFECTED)
 
         # Annotation: slope, r
         ann_lines = [f"slope = {mean_slope:.4f}", f"r = {mean_r:.4f}"]
@@ -365,68 +341,81 @@ def plot_cumulative_incidence(
     finalize_plot(output_path, scenario=scenario)
 
 
-def plot_cumulative_incidence_by_sex(
+def _plot_sex_curves(ax: plt.Axes, cells: list[dict[str, Any]], value_field: str, linewidth: float) -> None:
+    """Draw each sex's curve, averaged over reps; ``cells`` holds each rep's ``{sex: entry}`` mapping."""
+    for sex_label, display, color in (("female", "Female", COLOR_FEMALE), ("male", "Male", COLOR_MALE)):
+        rep_data = [cell[sex_label] for cell in cells if sex_label in cell]
+        if not rep_data:
+            continue
+
+        ages = np.array(rep_data[0]["ages"])
+        all_values = np.array([d[value_field] for d in rep_data])
+        mean_values = all_values.mean(axis=0)
+        mean_n = np.mean([d["n"] for d in rep_data])
+        mean_prev = np.mean([d["prevalence"] for d in rep_data])
+
+        ax.plot(
+            ages, mean_values, color=color, linewidth=linewidth, label=f"{display} ({mean_prev:.1%}, n={int(mean_n)})"
+        )
+
+
+def _plot_incidence_by_sex(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
-    scenario: str = "",
+    scenario: str,
+    *,
+    stats_key: str,
+    value_field: str,
+    linewidth: float,
+    ylabel: str,
+    empty_message: str,
 ) -> None:
-    """Plot cumulative incidence curves split by sex, from pre-computed stats."""
-    stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_by_sex")]
+    """One panel per trait, one curve per sex, from ``stats[stats_key][trait][sex]``."""
+    stats_with_data = [s for s in all_stats if s.get(stats_key)]
     if not stats_with_data:
-        logger.warning("Skipping cumulative_incidence_by_sex: no data in stats")
-        save_placeholder_plot(output_path, "No sex-stratified incidence data")
+        logger.warning("Skipping %s: no data in stats", stats_key)
+        save_placeholder_plot(output_path, empty_message)
         return
 
     _fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
 
     for trait_num, ax in zip([1, 2], axes, strict=True):
         key = f"trait{trait_num}"
-
-        for sex_label, display, color in [
-            ("female", "Female", COLOR_FEMALE),
-            ("male", "Male", COLOR_MALE),
-        ]:
-            rep_data = [
-                s["cumulative_incidence_by_sex"][key][sex_label]
-                for s in stats_with_data
-                if sex_label in s["cumulative_incidence_by_sex"].get(key, {})
-            ]
-            if not rep_data:
-                continue
-
-            ages = np.array(rep_data[0]["ages"])
-            all_values = np.array([d["values"] for d in rep_data])
-            mean_values = all_values.mean(axis=0)
-            mean_n = np.mean([d["n"] for d in rep_data])
-            mean_prev = np.mean([d["prevalence"] for d in rep_data])
-
-            ax.plot(
-                ages, mean_values, color=color, linewidth=1.2, label=f"{display} ({mean_prev:.1%}, n={int(mean_n)})"
-            )
-
+        _plot_sex_curves(
+            ax,
+            [s[stats_key].get(key, {}) for s in stats_with_data],
+            value_field,
+            linewidth,
+        )
         ax.set_title(f"Trait {trait_num}")
         ax.set_xlabel("Age")
         ax.legend(loc="lower right", fontsize=9)
 
-    axes[0].set_ylabel("Cumulative Incidence")
+    axes[0].set_ylabel(ylabel)
     finalize_plot(output_path, scenario=scenario)
 
 
-def plot_cumulative_incidence_by_sex_generation(
+def _plot_incidence_by_sex_generation(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
-    scenario: str = "",
+    scenario: str,
+    *,
+    stats_key: str,
+    value_field: str,
+    linewidth: float,
+    ylabel: str,
+    empty_message: str,
 ) -> None:
-    """Plot cumulative incidence by sex and generation, from pre-computed stats."""
-    stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_by_sex_generation")]
+    """A trait-by-generation grid, one curve per sex, from ``stats[stats_key][trait][gen][sex]``."""
+    stats_with_data = [s for s in all_stats if s.get(stats_key)]
     if not stats_with_data:
-        logger.warning("Skipping cumulative_incidence_by_sex_generation: no data in stats")
-        save_placeholder_plot(output_path, "No sex/generation incidence data")
+        logger.warning("Skipping %s: no data in stats", stats_key)
+        save_placeholder_plot(output_path, empty_message)
         return
 
     # Discover generation keys from first rep's first trait
-    first_trait = stats_with_data[0]["cumulative_incidence_by_sex_generation"].get("trait1", {})
-    gen_keys = sorted(first_trait.keys())
+    first_trait = stats_with_data[0][stats_key].get("trait1", {})
+    gen_keys = sort_generation_keys(first_trait.keys())
     if not gen_keys:
         save_placeholder_plot(output_path, "No generations")
         return
@@ -448,39 +437,59 @@ def plot_cumulative_incidence_by_sex_generation(
         for row, trait_num in enumerate(traits):
             ax = axes[row, col]
             key = f"trait{trait_num}"
-
-            for sex_label, display, color in [
-                ("female", "Female", COLOR_FEMALE),
-                ("male", "Male", COLOR_MALE),
-            ]:
-                rep_data = [
-                    s["cumulative_incidence_by_sex_generation"][key][gk][sex_label]
-                    for s in stats_with_data
-                    if sex_label in s["cumulative_incidence_by_sex_generation"].get(key, {}).get(gk, {})
-                ]
-                if not rep_data:
-                    continue
-
-                ages = np.array(rep_data[0]["ages"])
-                all_values = np.array([d["values"] for d in rep_data])
-                mean_values = all_values.mean(axis=0)
-                mean_n = np.mean([d["n"] for d in rep_data])
-                mean_prev = np.mean([d["prevalence"] for d in rep_data])
-
-                ax.plot(
-                    ages, mean_values, color=color, linewidth=1.2, label=f"{display} ({mean_prev:.1%}, n={int(mean_n)})"
-                )
+            _plot_sex_curves(
+                ax,
+                [s[stats_key].get(key, {}).get(gk, {}) for s in stats_with_data],
+                value_field,
+                linewidth,
+            )
 
             if row == 0:
                 ax.set_title(f"Gen {gen_num}", fontsize=12)
             if col == 0:
-                ax.set_ylabel(f"Trait {trait_num}\nCumulative Incidence")
+                ax.set_ylabel(f"Trait {trait_num}\n{ylabel}")
             if row == len(traits) - 1:
                 ax.set_xlabel("Age")
             if col == len(gen_keys) - 1:
                 ax.legend(loc="lower right", fontsize=8)
 
     finalize_plot(output_path, scenario=scenario)
+
+
+def plot_cumulative_incidence_by_sex(
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+) -> None:
+    """Plot cumulative incidence curves split by sex, from pre-computed stats."""
+    _plot_incidence_by_sex(
+        all_stats,
+        output_path,
+        scenario,
+        stats_key="cumulative_incidence_by_sex",
+        value_field="values",
+        linewidth=1.2,
+        ylabel="Cumulative Incidence",
+        empty_message="No sex-stratified incidence data",
+    )
+
+
+def plot_cumulative_incidence_by_sex_generation(
+    all_stats: list[dict[str, Any]],
+    output_path: str | Path,
+    scenario: str = "",
+) -> None:
+    """Plot cumulative incidence by sex and generation, from pre-computed stats."""
+    _plot_incidence_by_sex_generation(
+        all_stats,
+        output_path,
+        scenario,
+        stats_key="cumulative_incidence_by_sex_generation",
+        value_field="values",
+        linewidth=1.2,
+        ylabel="Cumulative Incidence",
+        empty_message="No sex/generation incidence data",
+    )
 
 
 def plot_cumulative_incidence_aj(
@@ -565,49 +574,16 @@ def plot_cumulative_incidence_aj_by_sex(
     scenario: str = "",
 ) -> None:
     """Plot Aalen-Johansen trait CIF stratified by sex."""
-    stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_aj_by_sex")]
-    if not stats_with_data:
-        logger.warning("Skipping cumulative_incidence_aj_by_sex: no data in stats")
-        save_placeholder_plot(output_path, "No sex-stratified AJ data")
-        return
-
-    _fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=True)
-
-    for trait_num, ax in zip([1, 2], axes, strict=True):
-        key = f"trait{trait_num}"
-
-        for sex_label, display, color in [
-            ("female", "Female", COLOR_FEMALE),
-            ("male", "Male", COLOR_MALE),
-        ]:
-            rep_data = [
-                s["cumulative_incidence_aj_by_sex"][key][sex_label]
-                for s in stats_with_data
-                if sex_label in s["cumulative_incidence_aj_by_sex"].get(key, {})
-            ]
-            if not rep_data:
-                continue
-
-            ages = np.array(rep_data[0]["ages"])
-            all_values = np.array([d["aj_values"] for d in rep_data])
-            mean_values = all_values.mean(axis=0)
-            mean_n = np.mean([d["n"] for d in rep_data])
-            mean_prev = np.mean([d["prevalence"] for d in rep_data])
-
-            ax.plot(
-                ages,
-                mean_values,
-                color=color,
-                linewidth=1.4,
-                label=f"{display} ({mean_prev:.1%}, n={int(mean_n)})",
-            )
-
-        ax.set_title(f"Trait {trait_num}")
-        ax.set_xlabel("Age")
-        ax.legend(loc="lower right", fontsize=9)
-
-    axes[0].set_ylabel("Cumulative Incidence (Aalen-Johansen)")
-    finalize_plot(output_path, scenario=scenario)
+    _plot_incidence_by_sex(
+        all_stats,
+        output_path,
+        scenario,
+        stats_key="cumulative_incidence_aj_by_sex",
+        value_field="aj_values",
+        linewidth=1.4,
+        ylabel="Cumulative Incidence (Aalen-Johansen)",
+        empty_message="No sex-stratified AJ data",
+    )
 
 
 def plot_cumulative_incidence_aj_by_sex_generation(
@@ -616,71 +592,16 @@ def plot_cumulative_incidence_aj_by_sex_generation(
     scenario: str = "",
 ) -> None:
     """Plot Aalen-Johansen trait CIF stratified by sex and generation."""
-    stats_with_data = [s for s in all_stats if s.get("cumulative_incidence_aj_by_sex_generation")]
-    if not stats_with_data:
-        logger.warning("Skipping cumulative_incidence_aj_by_sex_generation: no data in stats")
-        save_placeholder_plot(output_path, "No sex/generation AJ data")
-        return
-
-    first_trait = stats_with_data[0]["cumulative_incidence_aj_by_sex_generation"].get("trait1", {})
-    gen_keys = sorted(first_trait.keys())
-    if not gen_keys:
-        save_placeholder_plot(output_path, "No generations")
-        return
-
-    traits = [1, 2]
-    _fig, axes = plt.subplots(
-        len(traits),
-        len(gen_keys),
-        figsize=(5 * len(gen_keys), 4 * len(traits)),
-        sharex=True,
-        sharey=True,
-        squeeze=False,
+    _plot_incidence_by_sex_generation(
+        all_stats,
+        output_path,
+        scenario,
+        stats_key="cumulative_incidence_aj_by_sex_generation",
+        value_field="aj_values",
+        linewidth=1.4,
+        ylabel="AJ Cumulative Incidence",
+        empty_message="No sex/generation AJ data",
     )
-
-    for col, gk in enumerate(gen_keys):
-        gen_num = gk.replace("gen", "")
-
-        for row, trait_num in enumerate(traits):
-            ax = axes[row, col]
-            key = f"trait{trait_num}"
-
-            for sex_label, display, color in [
-                ("female", "Female", COLOR_FEMALE),
-                ("male", "Male", COLOR_MALE),
-            ]:
-                rep_data = [
-                    s["cumulative_incidence_aj_by_sex_generation"][key][gk][sex_label]
-                    for s in stats_with_data
-                    if sex_label in s["cumulative_incidence_aj_by_sex_generation"].get(key, {}).get(gk, {})
-                ]
-                if not rep_data:
-                    continue
-
-                ages = np.array(rep_data[0]["ages"])
-                all_values = np.array([d["aj_values"] for d in rep_data])
-                mean_values = all_values.mean(axis=0)
-                mean_n = np.mean([d["n"] for d in rep_data])
-                mean_prev = np.mean([d["prevalence"] for d in rep_data])
-
-                ax.plot(
-                    ages,
-                    mean_values,
-                    color=color,
-                    linewidth=1.4,
-                    label=f"{display} ({mean_prev:.1%}, n={int(mean_n)})",
-                )
-
-            if row == 0:
-                ax.set_title(f"Gen {gen_num}", fontsize=12)
-            if col == 0:
-                ax.set_ylabel(f"Trait {trait_num}\nAJ Cumulative Incidence")
-            if row == len(traits) - 1:
-                ax.set_xlabel("Age")
-            if col == len(gen_keys) - 1:
-                ax.legend(loc="lower right", fontsize=8)
-
-    finalize_plot(output_path, scenario=scenario)
 
 
 def plot_censoring_windows(
@@ -701,7 +622,7 @@ def plot_censoring_windows(
 
     # Discover generation keys from the stats YAML (e.g. "gen0", "gen1", ...)
     # Only include generations that have phenotyped individuals in any replicate
-    all_gen_keys = sorted(stats_with_censoring[0]["censoring"]["generations"].keys())
+    all_gen_keys = sort_generation_keys(stats_with_censoring[0]["censoring"]["generations"].keys())
     gen_keys = [
         gk
         for gk in all_gen_keys

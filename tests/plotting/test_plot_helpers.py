@@ -14,7 +14,46 @@ import numpy as np
 import polars as pl
 import pytest
 
-from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
+from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot, sort_generation_keys
+
+# ---------------------------------------------------------------------------
+# sort_generation_keys
+# ---------------------------------------------------------------------------
+
+
+class TestSortGenerationKeys:
+    def test_numeric_order_past_ten(self):
+        keys = [f"gen{g}" for g in range(12)]
+        assert sorted(keys)[2] == "gen10"  # the string sort this guards against
+        assert sort_generation_keys(reversed(keys)) == keys
+
+    def test_underscore_keys(self):
+        assert sort_generation_keys(["gen_10", "gen_2", "gen_1"]) == ["gen_1", "gen_2", "gen_10"]
+
+
+# ---------------------------------------------------------------------------
+# Phenotype model display text
+# ---------------------------------------------------------------------------
+
+
+class TestModelText:
+    def test_every_registered_model_has_display_text(self):
+        from simace.phenotype.models import MODELS
+        from simace.plotting.plot_atlas import MODEL_TEXT
+
+        assert set(MODEL_TEXT) == set(MODELS)
+
+    def test_different_onsets_are_not_the_same_model(self):
+        from simace.plotting.plot_atlas import get_model_family
+
+        params = {
+            "phenotype_model1": "simple_ltm",
+            "phenotype_params1": {"onset": {"kind": "fixed"}},
+            "phenotype_model2": "simple_ltm",
+            "phenotype_params2": {"onset": {"kind": "normal"}},
+        }
+        assert get_model_family(params)[0] == "Simple LTM (fixed onset) / Simple LTM (normal onset)"
+
 
 # ---------------------------------------------------------------------------
 # save_placeholder_plot

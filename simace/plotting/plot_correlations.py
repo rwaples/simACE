@@ -33,33 +33,50 @@ from simace.plotting.plot_style import (
     COLOR_UNAFFECTED,
 )
 from simace.plotting.plot_utils import (
+    draw_regression_band,
     finalize_plot,
     finalize_relationship_type_panels,
+    mean_regression,
     relationship_type_legend_handles,
     save_placeholder_plot,
     setup_relationship_type_panel,
+    sort_generation_keys,
 )
 
 logger = logging.getLogger(__name__)
 
 
-def _extract_relationship_type_observed(
-    all_stats: list[dict[str, Any]],
-    container_key: str,
-    trait_key: str,
+def _observed_per_relationship_type(
+    cells: list[dict[str, Any]],
     relationship_types: list[str],
 ) -> tuple[dict[str, list[float]], dict[str, int]]:
-    """Pull per-rep ``r`` values and total pair counts for one trait."""
+    """Pull per-rep ``r`` values and total pair counts from each rep's ``{pair type: {r, n_pairs}}`` cell."""
     observed: dict[str, list[float]] = {pt: [] for pt in relationship_types}
     n_pairs: dict[str, int] = dict.fromkeys(relationship_types, 0)
-    for s in all_stats:
+    for cell in cells:
         for ptype in relationship_types:
-            entry = s.get(container_key, {}).get(trait_key, {}).get(ptype, {})
+            entry = cell.get(ptype, {})
             r = entry.get("r")
             if r is not None:
                 observed[ptype].append(float(r))
             n_pairs[ptype] += int(entry.get("n_pairs", 0) or 0)
     return observed, n_pairs
+
+
+def _add_relationship_type_legend(fig: plt.Figure, params: dict[str, Any] | None) -> None:
+    """Put the shared marker legend across the top of a relationship-type figure."""
+    fig.legend(
+        handles=relationship_type_legend_handles(
+            has_observed_mean=True,
+            has_liability=True,
+            has_parametric=bool(params) and any(params.get(f"A{t}") is not None for t in (1, 2)),
+        ),
+        loc="upper center",
+        bbox_to_anchor=(0.5, 1.0),
+        ncol=4,
+        fontsize=10,
+        frameon=False,
+    )
 
 
 def _mean_per_relationship_type(
@@ -112,15 +129,15 @@ def plot_tetrachoric_sibling(
 
     fig, axes = plt.subplots(1, 2, figsize=(13, 6.5), sharey=True)
 
-    has_parametric_any = bool(params) and any(params.get(f"A{t}") is not None for t in (1, 2))
-
     panel_states: list[dict] = []
 
     for col_idx, trait_num in enumerate([1, 2]):
         ax = axes[col_idx]
         trait_key = f"trait{trait_num}"
 
-        observed, n_pairs = _extract_relationship_type_observed(all_stats, "tetrachoric", trait_key, relationship_types)
+        observed, n_pairs = _observed_per_relationship_type(
+            [s.get("tetrachoric", {}).get(trait_key, {}) for s in all_stats], relationship_types
+        )
         liability = _mean_per_relationship_type(
             all_stats,
             lambda s, pt, _tk=trait_key: s.get("liability_correlations", {}).get(_tk, {}).get(pt),
@@ -144,18 +161,7 @@ def plot_tetrachoric_sibling(
 
     finalize_relationship_type_panels(panel_states)
 
-    fig.legend(
-        handles=relationship_type_legend_handles(
-            has_observed_mean=True,
-            has_liability=True,
-            has_parametric=has_parametric_any,
-        ),
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.0),
-        ncol=4,
-        fontsize=10,
-        frameon=False,
-    )
+    _add_relationship_type_legend(fig, params)
 
     finalize_plot(output_path, scenario=scenario, tight_rect=[0, 0, 1, 0.94])
 
@@ -178,7 +184,7 @@ def plot_tetrachoric_by_generation(
         save_placeholder_plot(output_path, "No per-generation tetrachoric data")
         return
 
-    gen_keys = sorted(set.intersection(*gen_keys_sets))
+    gen_keys = sort_generation_keys(set.intersection(*gen_keys_sets))
     if not gen_keys:
         save_placeholder_plot(output_path, "No per-generation tetrachoric data")
         return
@@ -189,8 +195,6 @@ def plot_tetrachoric_by_generation(
 
     fig, axes = plt.subplots(2, n_cols, figsize=(6.0 * n_cols, 10), squeeze=False)
 
-    has_parametric_any = bool(params) and any(params.get(f"A{t}") is not None for t in (1, 2))
-
     for row, trait_num in enumerate([1, 2]):
         trait_key = f"trait{trait_num}"
         row_states: list[dict] = []
@@ -198,16 +202,10 @@ def plot_tetrachoric_by_generation(
         for col, gen_key in enumerate(gen_keys):
             ax = axes[row, col]
 
-            observed: dict[str, list[float]] = {pt: [] for pt in relationship_types}
-            n_pairs: dict[str, int] = dict.fromkeys(relationship_types, 0)
-            for s in all_stats:
-                cell = s.get("tetrachoric_by_generation", {}).get(gen_key, {}).get(trait_key, {})
-                for ptype in relationship_types:
-                    entry = cell.get(ptype, {})
-                    r = entry.get("r")
-                    if r is not None:
-                        observed[ptype].append(float(r))
-                    n_pairs[ptype] += int(entry.get("n_pairs", 0) or 0)
+            observed, n_pairs = _observed_per_relationship_type(
+                [s.get("tetrachoric_by_generation", {}).get(gen_key, {}).get(trait_key, {}) for s in all_stats],
+                relationship_types,
+            )
 
             liability = _mean_per_relationship_type(
                 all_stats,
@@ -237,18 +235,7 @@ def plot_tetrachoric_by_generation(
 
         finalize_relationship_type_panels(row_states)
 
-    fig.legend(
-        handles=relationship_type_legend_handles(
-            has_observed_mean=True,
-            has_liability=True,
-            has_parametric=has_parametric_any,
-        ),
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.0),
-        ncol=4,
-        fontsize=10,
-        frameon=False,
-    )
+    _add_relationship_type_legend(fig, params)
 
     finalize_plot(output_path, scenario=scenario, tight_rect=[0, 0, 1, 0.96])
 
@@ -329,16 +316,9 @@ def plot_cross_trait_tetrachoric(
     ax_right = axes[1]
     n_reps = max(len(all_stats), 1)
 
-    observed: dict[str, list[float]] = {pt: [] for pt in relationship_types}
-    n_pairs: dict[str, int] = dict.fromkeys(relationship_types, 0)
-    for s in all_stats:
-        cell = s.get("cross_trait_tetrachoric", {}).get("cross_person", {})
-        for ptype in relationship_types:
-            entry = cell.get(ptype, {})
-            r = entry.get("r")
-            if r is not None:
-                observed[ptype].append(float(r))
-            n_pairs[ptype] += int(entry.get("n_pairs", 0) or 0)
+    observed, n_pairs = _observed_per_relationship_type(
+        [s.get("cross_trait_tetrachoric", {}).get("cross_person", {}) for s in all_stats], relationship_types
+    )
 
     if any(observed.values()):
         right_state = setup_relationship_type_panel(
@@ -367,8 +347,6 @@ def plot_parent_offspring_liability(
     params: dict[str, Any] | None = None,
 ) -> None:
     """2 x 3 scatter grid: midparent vs offspring liability by generation."""
-    from scipy.stats import t as t_dist
-
     from simace.plotting.plot_style import COLOR_FEMALE, COLOR_MALE
 
     if "generation" not in df_samples.columns:
@@ -462,56 +440,22 @@ def plot_parent_offspring_liability(
                     rasterized=True,
                 )
 
-            # Collect pre-computed stats (averaged across reps)
-            r_vals, slope_vals, intercept_vals, n_vals = [], [], [], []
-            stderr_vals: list[float] = []
-            for s in all_stats:
-                po = s.get("parent_offspring_corr", {}).get(f"trait{trait_num}", {}).get(f"gen{gen}", {})
-                if po and po.get("r") is not None:
-                    r_vals.append(po["r"])
-                    slope_vals.append(po["slope"])
-                    intercept_vals.append(po["intercept"])
-                    n_vals.append(po["n_pairs"])
-                    if po.get("stderr") is not None:
-                        stderr_vals.append(po["stderr"])
-
-            if r_vals:
-                mean_r = np.mean(r_vals)
-                mean_slope = np.mean(slope_vals)
-                mean_intercept = np.mean(intercept_vals)
-                mean_n = int(np.mean(n_vals))
-                mean_stderr = float(np.mean(stderr_vals)) if stderr_vals else None
-            else:
-                from simace.core.numerics import fast_linregress
-
-                mean_slope, mean_intercept, mean_r, mean_stderr, _mean_pvalue = fast_linregress(
-                    midparent_liab, offspring_liab
-                )
-                mean_n = int(valid.sum())
+            # Pre-computed stats averaged across reps
+            rep_stats = [
+                po
+                for s in all_stats
+                if (po := s.get("parent_offspring_corr", {}).get(f"trait{trait_num}", {}).get(f"gen{gen}", {}))
+                and po.get("r") is not None
+            ]
+            mean_slope, mean_intercept, mean_r, mean_stderr, mean_n = mean_regression(
+                rep_stats, midparent_liab, offspring_liab, n_key="n_pairs"
+            )
 
             # Observed regression line
             x_line = np.array([midparent_liab.min(), midparent_liab.max()])
             ax.plot(x_line, mean_slope * x_line + mean_intercept, color=COLOR_AFFECTED, linewidth=1.2)
 
-            # 95% confidence band around regression line
-            if mean_stderr is not None and mean_n > 2:
-                x_smooth = np.linspace(midparent_liab.min(), midparent_liab.max(), 200)
-                y_hat = mean_slope * x_smooth + mean_intercept
-                x_mean = np.mean(midparent_liab)
-                ss_x = np.sum((midparent_liab - x_mean) ** 2)
-                if ss_x > 1e-12:
-                    # Reconstruct residual SE: stderr_slope = s / sqrt(SS_x)
-                    s = mean_stderr * np.sqrt(ss_x)
-                    t_crit = t_dist.ppf(0.975, df=mean_n - 2)
-                    se_fit = s * np.sqrt(1.0 / mean_n + (x_smooth - x_mean) ** 2 / ss_x)
-                    ax.fill_between(
-                        x_smooth,
-                        y_hat - t_crit * se_fit,
-                        y_hat + t_crit * se_fit,
-                        alpha=0.15,
-                        color=COLOR_AFFECTED,
-                        zorder=2,
-                    )
+            draw_regression_band(ax, midparent_liab, mean_slope, mean_intercept, mean_stderr, mean_n, COLOR_AFFECTED)
 
             # Expected slope from configured A (h² = A for midparent-offspring)
             if params is not None:
@@ -625,8 +569,6 @@ def plot_tetrachoric_by_sex(
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10), squeeze=False)
 
-    has_parametric_any = bool(params) and any(params.get(f"A{t}") is not None for t in (1, 2))
-
     for row_idx, trait_num in enumerate([1, 2]):
         trait_key = f"trait{trait_num}"
         row_states: list[dict] = []
@@ -634,16 +576,10 @@ def plot_tetrachoric_by_sex(
         for col_idx, (sex_key, sex_display) in enumerate(sex_labels):
             ax = axes[row_idx, col_idx]
 
-            observed: dict[str, list[float]] = {pt: [] for pt in relationship_types}
-            n_pairs: dict[str, int] = dict.fromkeys(relationship_types, 0)
-            for s in all_stats:
-                cell = s.get("tetrachoric_by_sex", {}).get(sex_key, {}).get(trait_key, {})
-                for ptype in relationship_types:
-                    entry = cell.get(ptype, {})
-                    r = entry.get("r")
-                    if r is not None:
-                        observed[ptype].append(float(r))
-                    n_pairs[ptype] += int(entry.get("n_pairs", 0) or 0)
+            observed, n_pairs = _observed_per_relationship_type(
+                [s.get("tetrachoric_by_sex", {}).get(sex_key, {}).get(trait_key, {}) for s in all_stats],
+                relationship_types,
+            )
 
             liability = _mean_per_relationship_type(
                 all_stats,
@@ -673,17 +609,6 @@ def plot_tetrachoric_by_sex(
         # Shared y-axis within a trait row only — cross-trait magnitudes differ.
         finalize_relationship_type_panels(row_states)
 
-    fig.legend(
-        handles=relationship_type_legend_handles(
-            has_observed_mean=True,
-            has_liability=True,
-            has_parametric=has_parametric_any,
-        ),
-        loc="upper center",
-        bbox_to_anchor=(0.5, 1.0),
-        ncol=4,
-        fontsize=10,
-        frameon=False,
-    )
+    _add_relationship_type_legend(fig, params)
 
     finalize_plot(output_path, scenario=scenario, tight_rect=[0, 0, 1, 0.96])

@@ -36,6 +36,7 @@ from simace.analysis.stats.effective_size import (
 )
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import COLOR_EXPECTED, COLOR_OBSERVED
+from simace.plotting.plot_utils import savefig_dpi
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -585,7 +586,7 @@ def plot_family_size_variance(
 
 def _save(fig, path: Path) -> None:
     fig.tight_layout()
-    fig.savefig(path, dpi=150, bbox_inches="tight", pad_inches=0.3)
+    fig.savefig(path, dpi=savefig_dpi(), bbox_inches="tight", pad_inches=0.3)
     plt.close(fig)
 
 

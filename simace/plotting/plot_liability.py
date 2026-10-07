@@ -42,6 +42,7 @@ from simace.plotting.plot_utils import (
     finalize_plot,
     param_as_float,
     save_placeholder_plot,
+    sort_generation_keys,
 )
 
 logger = logging.getLogger(__name__)
@@ -600,7 +601,7 @@ def plot_censoring_cascade(
             continue
 
         # Discover generation keys from first rep
-        gen_keys = sorted(rep_data[0].keys())
+        gen_keys = sort_generation_keys(rep_data[0].keys())
         if not gen_keys:
             ax.text(0.5, 0.5, "No generations", ha="center", va="center", transform=ax.transAxes)
             ax.set_title(f"Trait {trait}")
