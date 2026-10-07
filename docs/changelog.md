@@ -12,6 +12,30 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### Two-trait assortative mating ([#34](https://github.com/rwaples/simACE/issues/34))
+
+- **Mates are now drawn from a 4-variate Gaussian copula when both traits
+  assort.** The old pairing hit the configured Pearson mate correlations but
+  put too many pairs in the joint tails, so thresholded mate concordance
+  matched a latent correlation 0.05 to 0.10 above `R_mf` at prevalence 0.1.
+  Each female's ideal mate is now drawn from the Gaussian conditional given
+  her two liabilities, and real males are matched one to one to those draws.
+  The draw uses the realised within-person trait correlation, not the
+  configured one, which cross-trait AM moves. On a regenerated
+  `epimight_h2_bias/am` pedigree, the tetrachoric and Pearson mate
+  correlations agree within sampling error. See
+  [Methods](concepts/methods.md#assortative-mating).
+- **Results change** for every scenario with both `assort1` and `assort2`
+  nonzero or with `assort_matrix` set: `epimight_h2_bias/{am, am_asym,
+  am_plus_c}`, `epimight_adhd_composite/{adhd_composite_v1, v2}`,
+  `epimight_h2_temporal/growing_AM`, `epimight_basics/eb_realistic`,
+  `family/assortative_mating_both`, `bench_scale/bench1M_am`, and
+  `test/coverage_scenario`. A code change does not make a rep stale, so
+  existing reps keep the old pairing until rerun with `--force`; `simace ls`
+  flags reps built by another version.
+- **Fewer than two mating slots no longer crash or hang** on the two-trait
+  path: zero slots raised `ZeroDivisionError` and one slot looped forever.
+
 ### Stage defaults and censoring
 
 - **`simace censor` and `simace cohort` flag defaults now match

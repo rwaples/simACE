@@ -461,7 +461,7 @@ Correlation checks use a tolerance of four standard errors with a floor of 0.05.
 
 ## Implementation
 
-`simace` is an installable Python package. NumPy does the vectorised array work, SciPy the optimisation and special functions, Polars the DataFrames at every stage boundary (ADR 0015), and Numba the compiled kernels for phenotype inversion, Metropolis sweeps, and the tetrachoric likelihood. Relationship extraction uses the Rust row-streaming engine in `pedigree-graph`. The `simace run` command runs each stage in its own process, with per-scenario configuration and a per-replicate seed of the scenario seed plus the replicate number minus one. All random draws use NumPy's PCG64 generator through `numpy.random.default_rng` with explicit seeds.
+`simace` is an installable Python package. NumPy does the vectorised array work, SciPy the optimisation and special functions, Polars the DataFrames at every stage boundary (ADR 0015), and Numba the compiled kernels for phenotype inversion, assortative mate matching and Metropolis sweeps, and the tetrachoric likelihood. Relationship extraction uses the Rust row-streaming engine in `pedigree-graph`. The `simace run` command runs each stage in its own process, with per-scenario configuration and a per-replicate seed of the scenario seed plus the replicate number minus one. All random draws use NumPy's PCG64 generator through `numpy.random.default_rng` with explicit seeds.
 
 ## Assumptions and limitations
 
