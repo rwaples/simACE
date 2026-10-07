@@ -2,12 +2,20 @@
 
 Generates Wright–Fisher pedigrees (random-mating, 50/50 sex, multinomial
 parent picks) and asserts that the mean of each estimator across reps
-lands within ±10 % of the true population size N=200.
+lands within ±10 % of its expectation under N=200.
 
 Coverage:
 
-* Seven estimators (Ne_I, Ne_C, Ne_V, Ne_sr, Ne_iΔF, Ne_H, Ne_GC) are
-  checked against ``N``.
+* Six estimators (Ne_I, Ne_C, Ne_V, Ne_sr, Ne_H, Ne_GC) are checked
+  against ``N``.
+* Ne_iΔF is checked against ``N·t/(t−1)`` with ``t = N_GENS``.  Gutiérrez
+  Eq. 2 recovers ``N`` only after ``t`` generations of drift, and a pedigree
+  whose founders are unrelated by construction runs one generation behind,
+  so the estimator is biased high by ``t/(t−1)`` (pedigree-graph ADR 0012,
+  "Consequences").  Every last-cohort row here has ``t = N_GENS``.
+* ``ne_unrelated_founders``, the package's founder-lag-corrected companion
+  on the Ne_iΔF record, is checked against ``N``: the founders of a
+  simulated pedigree are unrelated, which is the assumption it needs.
 * :func:`ne_long_term_contributions` is excluded.  Its expectation is the
   harmonic mean ``2/Ne_LTC = 1/N + 1/Ne_V`` (pedigree-graph ADR 0012), which
   ``tests/analysis/test_effective_size.py::test_ne_ltc_expectation_matches_simulator_mc``
@@ -71,7 +79,7 @@ def _build_wf_pedigree(rng: np.random.Generator, n: int = N, n_gens: int = N_GEN
 
 
 def test_wf_monte_carlo_recovers_N():
-    """Mean Ne across 30 WF reps lies within ±10 % of the analytic value."""
+    """Mean Ne across 30 WF reps lies within ±10 % of each estimator's expectation."""
     rng = np.random.default_rng(2026)
     means: dict[str, list[float]] = {}
 
@@ -86,6 +94,9 @@ def test_wf_monte_carlo_recovers_N():
             if ne is None or not np.isfinite(ne):
                 continue
             means.setdefault(name, []).append(float(ne))
+        companion = results["ne_individual_delta_f"].ne_unrelated_founders
+        if companion is not None and np.isfinite(companion):
+            means.setdefault("ne_unrelated_founders", []).append(float(companion))
 
     expected: dict[str, float] = dict.fromkeys(
         (
@@ -93,12 +104,13 @@ def test_wf_monte_carlo_recovers_N():
             "ne_coancestry",
             "ne_variance_family_size",
             "ne_sex_ratio",
-            "ne_individual_delta_f",
             "ne_hill_overlapping",
             "ne_group_coancestry",
+            "ne_unrelated_founders",
         ),
         float(N),
     )
+    expected["ne_individual_delta_f"] = N * N_GENS / (N_GENS - 1)
 
     failures: list[str] = []
     for name, target in expected.items():
