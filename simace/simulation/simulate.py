@@ -65,6 +65,16 @@ else:
 
 logger = logging.getLogger(__name__)
 
+# Columns of the (n, 6) per-individual component matrix ``pheno``.
+_A1, _C1, _E1, _A2, _C2, _E2 = range(6)
+_TRAIT_COLUMNS = {1: (_A1, _C1, _E1), 2: (_A2, _C2, _E2)}
+
+
+def _liability(pheno: np.ndarray, trait: int, rows: np.ndarray | slice = slice(None)) -> np.ndarray:
+    """Return ``A + C + E`` for ``trait`` over ``rows`` of ``pheno``."""
+    a, c, e = _TRAIT_COLUMNS[trait]
+    return pheno[rows, a] + pheno[rows, c] + pheno[rows, e]
+
 
 def resolve_per_gen_param(
     value: float | dict[int, float],
@@ -515,10 +525,10 @@ def _assortative_pair_partners(
     M = len(female_slots)
 
     # 2. Compute liability per slot
-    liab1_f = pheno[female_slots, 0] + pheno[female_slots, 1] + pheno[female_slots, 2]
-    liab2_f = pheno[female_slots, 3] + pheno[female_slots, 4] + pheno[female_slots, 5]
-    liab1_m = pheno[male_slots, 0] + pheno[male_slots, 1] + pheno[male_slots, 2]
-    liab2_m = pheno[male_slots, 3] + pheno[male_slots, 4] + pheno[male_slots, 5]
+    liab1_f = _liability(pheno, 1, female_slots)
+    liab2_f = _liability(pheno, 2, female_slots)
+    liab1_m = _liability(pheno, 1, male_slots)
+    liab2_m = _liability(pheno, 2, male_slots)
 
     if assort1 != 0 and assort2 != 0:
         # --- Both traits nonzero: direct moment matching on R_mf ---
@@ -980,8 +990,8 @@ def reproduce(
     sex_offspring = rng.binomial(size=n, n=1, p=0.5)
 
     # Additive genetic: midparent + correlated Mendelian noise
-    mp1 = _midparent(pheno[:, 0], parents)  # A1 midparent
-    mp2 = _midparent(pheno[:, 3], parents)  # A2 midparent
+    mp1 = _midparent(pheno[:, _A1], parents)
+    mp2 = _midparent(pheno[:, _A2], parents)
 
     noise1, noise2 = generate_mendelian_noise(rng, n, sd_A1, sd_A2, rA)
     a1_offspring = mp1 + noise1
@@ -1010,7 +1020,7 @@ def reproduce(
         a2_offspring[twins[:, 1]] = a2_offspring[twins[:, 0]]
         sex_offspring[twins[:, 1]] = sex_offspring[twins[:, 0]]
 
-    offspring = np.stack(
+    offspring = np.stack(  # column order: _A1 .. _E2
         [
             a1_offspring,
             c1_offspring,
@@ -1115,14 +1125,11 @@ def _fill_pedigree_slice(
         arrays["twin"][offset + twins[:, 1]] = twin_ids[:, 0]
 
     # ACE components and liabilities
-    arrays["A1"][s] = pheno[:, 0]
-    arrays["C1"][s] = pheno[:, 1]
-    arrays["E1"][s] = pheno[:, 2]
-    arrays["liability1"][s] = pheno[:, 0] + pheno[:, 1] + pheno[:, 2]
-    arrays["A2"][s] = pheno[:, 3]
-    arrays["C2"][s] = pheno[:, 4]
-    arrays["E2"][s] = pheno[:, 5]
-    arrays["liability2"][s] = pheno[:, 3] + pheno[:, 4] + pheno[:, 5]
+    for trait, (a, c, e) in _TRAIT_COLUMNS.items():
+        arrays[f"A{trait}"][s] = pheno[:, a]
+        arrays[f"C{trait}"][s] = pheno[:, c]
+        arrays[f"E{trait}"][s] = pheno[:, e]
+        arrays[f"liability{trait}"][s] = _liability(pheno, trait)
 
 
 def _arrays_to_dataframe(arrays: dict[str, np.ndarray], total_rows: int) -> pl.DataFrame:
@@ -1335,7 +1342,7 @@ def run_simulation(
         e1 = rng.normal(size=N, loc=0, scale=sd_E1_per_gen[0])
         e2 = rng.normal(size=N, loc=0, scale=sd_E2_per_gen[0])
 
-    pheno = np.stack([a1, c1, e1, a2, c2, e2], axis=-1)
+    pheno = np.stack([a1, c1, e1, a2, c2, e2], axis=-1)  # column order: _A1 .. _E2
 
     # Simulate generations
     burnin = G_sim - G_ped
