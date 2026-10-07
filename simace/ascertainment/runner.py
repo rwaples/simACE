@@ -281,6 +281,13 @@ def run_ascertainment(
     return ped_out, trait_out
 
 
+def add_ascertain_args(parser: argparse.ArgumentParser | argparse._ArgumentGroup) -> None:
+    """Add the ascertainment flags; defaults match ``ascertainment`` in ``config/_default.yaml``."""
+    parser.add_argument("--dropout-rate", type=float, default=0.0, help="Fraction of pedigree to drop uniformly")
+    parser.add_argument("--case-ascertainment-ratio", type=float, default=1.0, help="Case weight vs controls")
+    parser.add_argument("--N-sample", type=int, default=0, help="Target sample size (0 = pass-through)")
+
+
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line entry point for the ascertainment stage."""
     from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
@@ -295,9 +302,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     parser.add_argument("--trait", required=True, help="Input post-censor trait parquet")
     parser.add_argument("--out-pedigree", required=True, help="Output ascertained pedigree parquet")
     parser.add_argument("--out-trait", required=True, help="Output ascertained trait parquet")
-    parser.add_argument("--dropout-rate", type=float, default=0.0, help="Fraction of pedigree to drop uniformly")
-    parser.add_argument("--case-ascertainment-ratio", type=float, default=1.0, help="Case weight vs controls")
-    parser.add_argument("--N-sample", type=int, default=0, help="Target sample size (0 = pass-through)")
+    add_ascertain_args(parser)
     parser.add_argument("--seed", type=int, default=42, help="RNG seed")
 
     args = parser.parse_args(argv)

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 __all__ = [
+    "ASCERTAIN_KEYS",
+    "CENSOR_KEYS",
     "add_logging_args",
     "add_version_arg",
     "float_or_generation_map",
@@ -18,6 +20,11 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import argparse
+
+#: Keyword arguments of ``run_censor`` (besides ``seed``), named as their CLI flags' dests.
+CENSOR_KEYS = ("censor_age", "death_scale", "death_rho", "gen_censoring")
+#: Keyword arguments of ``run_ascertainment`` (besides ``seed``), named as their CLI flags' dests.
+ASCERTAIN_KEYS = ("dropout_rate", "case_ascertainment_ratio", "N_sample")
 
 
 def add_version_arg(parser: argparse.ArgumentParser, dist: str) -> None:

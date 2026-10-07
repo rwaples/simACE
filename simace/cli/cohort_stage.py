@@ -30,8 +30,9 @@ from typing import TYPE_CHECKING, Any
 import polars as pl
 
 from simace.analysis.prevalence import compute_prevalence
-from simace.ascertainment.runner import run_ascertainment
-from simace.censoring.censor import run_censor
+from simace.ascertainment.runner import add_ascertain_args, run_ascertainment
+from simace.censoring.censor import add_censor_args, run_censor
+from simace.core.cli_base import ASCERTAIN_KEYS, CENSOR_KEYS
 from simace.core.cohort import build_cohort, read_pedigree, write_cohort
 from simace.core.parquet import normalize_for_parquet
 from simace.core.pedigree_arrays import PedigreeArrays
@@ -103,7 +104,7 @@ def run_cohort(
 
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line entry point for the ``cohort`` stage."""
-    from simace.core.cli_base import add_logging_args, add_version_arg, generation_map, init_logging, yaml_mapping
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging, yaml_mapping
     from simace.core.publish import publish
     from simace.core.yaml_io import dump_yaml
     from simace.phenotype.hazards import STANDARDIZE_CHOICES
@@ -137,18 +138,8 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
             help=f"Trait {trait} model parameters as a YAML flow mapping",
         )
 
-    censor = parser.add_argument_group("censor")
-    censor.add_argument("--censor-age", type=float, default=100, help="Maximum follow-up age")
-    censor.add_argument("--death-scale", type=float, default=79.433, help="Competing death hazard scale")
-    censor.add_argument("--death-rho", type=float, default=10, help="Competing death hazard shape")
-    censor.add_argument(
-        "--gen-censoring", type=generation_map, default={}, help="Per-generation censoring windows as JSON dict"
-    )
-
-    ascertain = parser.add_argument_group("ascertain")
-    ascertain.add_argument("--dropout-rate", type=float, default=0.0, help="Fraction of pedigree to drop uniformly")
-    ascertain.add_argument("--case-ascertainment-ratio", type=float, default=1.0, help="Case weight vs controls")
-    ascertain.add_argument("--N-sample", type=int, default=0, help="Target sample size (0 = pass-through)")
+    add_censor_args(parser.add_argument_group("censor"))
+    add_ascertain_args(parser.add_argument_group("ascertain"))
 
     args = parser.parse_args(argv)
     init_logging(args)
@@ -165,17 +156,8 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
                 for key in ("phenotype_model", "beta", "beta_sex", "phenotype_params")
             },
         },
-        censor={
-            "censor_age": args.censor_age,
-            "gen_censoring": args.gen_censoring,
-            "death_scale": args.death_scale,
-            "death_rho": args.death_rho,
-        },
-        ascertain={
-            "dropout_rate": args.dropout_rate,
-            "case_ascertainment_ratio": args.case_ascertainment_ratio,
-            "N_sample": args.N_sample,
-        },
+        censor={k: getattr(args, k) for k in CENSOR_KEYS},
+        ascertain={k: getattr(args, k) for k in ASCERTAIN_KEYS},
     )
     with publish(args.output_cohort, args.output_phenotyped_population) as (tmp_cohort, tmp_population):
         write_cohort(cohort, tmp_cohort)

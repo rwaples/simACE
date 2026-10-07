@@ -1,10 +1,17 @@
 """Unit tests for simace.censor functions."""
 
+import argparse
+import inspect
+from pathlib import Path
+
 import numpy as np
 import polars as pl
 import pytest
 
-from simace.censoring.censor import age_censor, death_censor, run_censor
+from simace.ascertainment.runner import add_ascertain_args, run_ascertainment
+from simace.censoring.censor import add_censor_args, age_censor, run_censor
+from simace.core.cli_base import ASCERTAIN_KEYS, CENSOR_KEYS
+from simace.core.yaml_io import load_yaml
 
 # ---------------------------------------------------------------------------
 # age_censor
@@ -68,41 +75,36 @@ class TestAgeCensor:
 
 
 # ---------------------------------------------------------------------------
-# death_censor
+# CLI defaults
 # ---------------------------------------------------------------------------
 
 
-class TestDeathCensor:
-    def test_output_shapes(self):
-        t = np.random.default_rng(0).uniform(10, 100, 200)
-        t_out, censored = death_censor(t.copy(), seed=42)
-        assert t_out.shape == (200,)
-        assert censored.shape == (200,)
-        assert censored.dtype == bool
+def test_stage_flag_defaults_match_default_yaml():
+    """A hand-run ``simace censor`` / ``ascertain`` uses the pipeline's scalar defaults (not its ``gen_censoring`` map)."""
+    defaults = load_yaml(Path(__file__).resolve().parents[2] / "config" / "_default.yaml")["defaults"]
+    parser = argparse.ArgumentParser()
+    add_censor_args(parser)
+    add_ascertain_args(parser)
+    args = parser.parse_args([])
+    censoring, ascertainment = defaults["censoring"], defaults["ascertainment"]
+    assert args.censor_age == censoring["max_age"]
+    assert args.death_scale == censoring["death_scale"]
+    assert args.death_rho == censoring["death_rho"]
+    for key in ASCERTAIN_KEYS:
+        assert getattr(args, key) == ascertainment[key]
 
-    def test_deterministic_with_same_seed(self):
-        t = np.array([50.0, 60.0, 70.0, 80.0])
-        t1, c1 = death_censor(t.copy(), seed=42)
-        t2, c2 = death_censor(t.copy(), seed=42)
-        np.testing.assert_array_equal(t1, t2)
-        np.testing.assert_array_equal(c1, c2)
 
-    def test_censored_times_are_death_ages(self):
-        """For censored individuals, observed time should be <= original time."""
-        rng = np.random.default_rng(0)
-        t_original = rng.uniform(10, 100, 1000)
-        t_copy = t_original.copy()
-        t_out, censored = death_censor(t_copy, seed=42, scale=100.0, rho=5)
-        # Censored individuals: observed time should be less than original
-        assert np.all(t_out[censored] <= t_original[censored])
-
-    def test_uncensored_times_unchanged(self):
-        """For uncensored individuals, time should remain the same."""
-        rng = np.random.default_rng(0)
-        t_original = rng.uniform(10, 100, 1000)
-        t_copy = t_original.copy()
-        t_out, censored = death_censor(t_copy, seed=42)
-        np.testing.assert_array_equal(t_out[~censored], t_original[~censored])
+@pytest.mark.parametrize(
+    ("run", "add_args", "keys"),
+    [(run_censor, add_censor_args, CENSOR_KEYS), (run_ascertainment, add_ascertain_args, ASCERTAIN_KEYS)],
+)
+def test_stage_keys_match_signature_and_flags(run, add_args, keys):
+    """``CENSOR_KEYS`` / ``ASCERTAIN_KEYS`` must name every stage kwarg (besides ``seed``) and every flag."""
+    params = inspect.signature(inspect.unwrap(run)).parameters
+    kwargs = {name for name, p in params.items() if p.kind is p.KEYWORD_ONLY or p.default is not p.empty} - {"seed"}
+    parser = argparse.ArgumentParser()
+    add_args(parser)
+    assert set(keys) == kwargs == set(vars(parser.parse_args([])))
 
 
 # ---------------------------------------------------------------------------
@@ -283,19 +285,6 @@ class TestRunCensorGenDefaults:
         gen0 = result.filter(pedigree_3gen["generation"] == 0)
         assert gen0["age_censored1"].all()
         assert gen0["age_censored2"].all()
-
-
-class TestDeathCensorNoMutation:
-    """``death_censor`` must not mutate the caller's input array."""
-
-    def test_input_unchanged(self):
-        t_in = np.array([50.0, 60.0, 70.0, 80.0, 200.0, 250.0])
-        snapshot = t_in.copy()
-        t_out, censored = death_censor(t_in, seed=42, scale=50.0, rho=10)
-        np.testing.assert_array_equal(t_in, snapshot)
-        assert t_out is not t_in
-        # Vacuous otherwise: confirm the test setup actually exercises the mutation site.
-        assert censored.any()
 
 
 class TestRunCensorCLI:
