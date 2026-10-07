@@ -4,7 +4,7 @@
 Every tool that iterates the family imports its subset from here instead of
 hardcoding a list, so adding/removing an entry is a one-line edit in one place:
 
-- ``tools/typecheck_family.py`` -> ``python_repos()``  (the 12 ty/ruff/pytest check units)
+- ``tools/typecheck_family.py`` -> ``python_repos()``  (the 13 ty/ruff/pytest check units)
 - ``tools/release.py``          -> ``lockstep_repos()`` (the 3 lockstep-tagged checkouts)
 - ``.agents/skills/repo-status/scripts/repo-status.sh``
                                 -> ``--subset all --format lines``
@@ -13,8 +13,8 @@ Since ADR 0017 (family monorepo) an entry is not necessarily its own git
 checkout: the method packages, the ``ace_iter_reml`` C++ source, and the
 ``tetraher_simace`` LDAK fork are subdirectories of the fitACE monorepo
 (``checkout=False``) but remain independent *check units* (own pyproject with
-ty/ruff/pytest config). Only five entries are checkouts: simACE, fitACE,
-fitACE_epimight, pedigree-graph, pedsum.
+ty/ruff/pytest config). Only six entries are checkouts: simACE, fitACE,
+fitACE_epimight, pedigree-graph, pedsum, pg-phenotype.
 
 Paths are relative to the simACE umbrella root (this file's grandparent), with
 ``"."`` for simACE itself.  ``TY_PIN`` is the one ``ty`` version every family
@@ -56,10 +56,10 @@ class Repo:
 
 
 #: Every family entry, in repo-status display order.  ``python_repos()`` is the
-#: 12 ty/ruff/pytest check units (all but the C++ source); ``lockstep_repos()``
+#: 13 ty/ruff/pytest check units (all but the C++ source); ``lockstep_repos()``
 #: is the 3 lockstep-tagged checkouts (simACE, fitACE, fitACE_epimight — within
 #: the fitACE monorepo all seven distributions and the binary read fitACE's
-#: tag, so lockstep is structural there); ``checkout_repos()`` is the 5 git
+#: tag, so lockstep is structural there); ``checkout_repos()`` is the 6 git
 #: checkouts.
 FAMILY: tuple[Repo, ...] = (
     Repo("simACE", ".", python=True, lockstep=True, checkout=True),
@@ -75,16 +75,17 @@ FAMILY: tuple[Repo, ...] = (
     Repo("tetraher_simace", "fitACE/tetraher_simace", python=True, lockstep=False, checkout=False),
     Repo("pedigree-graph", "external/pedigree-graph", python=True, lockstep=False, checkout=True),
     Repo("pedsum", "external/pedsum", python=True, lockstep=False, checkout=True),
+    Repo("pg-phenotype", "external/pg-phenotype", python=True, lockstep=False, checkout=True),
 )
 
 
 def all_repos() -> tuple[Repo, ...]:
-    """Every family entry (13), in display order."""
+    """Every family entry (14), in display order."""
     return FAMILY
 
 
 def python_repos() -> tuple[Repo, ...]:
-    """The 12 check units ty / ruff / pytest apply to (excludes the C++ source)."""
+    """The 13 check units ty / ruff / pytest apply to (excludes the C++ source)."""
     return tuple(r for r in FAMILY if r.python)
 
 
@@ -94,7 +95,7 @@ def lockstep_repos() -> tuple[Repo, ...]:
 
 
 def checkout_repos() -> tuple[Repo, ...]:
-    """The 5 entries that are their own git repos (ADR 0017 world)."""
+    """The 6 entries that are their own git repos (ADR 0017 world)."""
     return tuple(r for r in FAMILY if r.checkout)
 
 

@@ -118,7 +118,7 @@ simACE/
 ├── tools/                               # Maintenance tooling (release.py, benchmark driver, family typecheck)
 ├── tests/                               # Mirrors simace/ sub-package structure
 ├── docs/                                # MkDocs sources, ADRs, plans
-├── external/                            # Reference implementations plus the pedigree-graph and pedsum checkouts (gitignored)
+├── external/                            # Reference implementations plus the pedigree-graph, pedsum, and pg-phenotype checkouts (gitignored)
 ├── results/{folder}/{scenario}/         # Per-scenario outputs, including each rep's run.yaml and timing.tsv
 └── logs/{folder}/{scenario}/            # One log per stage
 ```
@@ -140,6 +140,7 @@ paths used by maintenance tools.
 | [`fitACE_epimight`](https://github.com/rwaples/fitACE_epimight) | private | `./fitACE/fitACE_epimight/` | EPIMIGHT integration: long-form input emitter, R driver, Snakemake rules, atlas/bias plotting. Its own repo, tracking the BioPsyk/epimight R upstream; included by `fitACE/Snakefile`. |
 | [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Rust pedigree relationship extraction and kinship computation. |
 | [`pedsum`](https://github.com/rwaples/pedsum) | public | `./external/pedsum/` | Pedigree summary CLI: structure, relatedness, inbreeding, Ne estimators. Built on `pedigree-graph`. |
+| [`pg-phenotype`](https://github.com/rwaples/pg-phenotype) | private | `./external/pg-phenotype/` | Phenotypes in a pedigree on pedigree-graph's core (Rust, Python, R): PA-FGRS now, assortative mating next. |
 
 Each nested repo has its own `origin` wired to the matching GitHub repo.
 The build artifacts `build-fp*/`, `ldak6.2.simace`, and the Stan binaries are

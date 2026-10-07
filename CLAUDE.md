@@ -17,7 +17,7 @@ simACE simulates multi-generational pedigrees with **A** (additive genetic), **C
 - `config/_default.yaml` — defaults; `config/{folder}.yaml` — scenario files (auto-discovered; `_`-prefixed files skipped)
 - `results/{folder}/{scenario}/` — output per scenario
 
-See [Project structure](docs/concepts/project-structure.md) for the module tree and the five-checkout map.
+See [Project structure](docs/concepts/project-structure.md) for the module tree and the six-checkout map.
 
 ## Environment
 
