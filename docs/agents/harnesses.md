@@ -30,6 +30,12 @@ and it discovers `AGENTS.md` and `.agents/skills/` on its own.
 - `grill-me`, `grill-with-docs`, `handoff`, and `improve-codebase-architecture` began
   as `mattpocock/skills` and are now maintained here as forks. Don't update them
   with the `skills` CLI; upstream has been restructured and would overwrite them.
+  `codebase-design` and `domain-modeling` were split out of those forks, `smelly`
+  was reworked from upstream `code-review`, and `research`,
+  `to-questionnaire`, `wait-what`, and `claude-handoff` (Claude Code only) adapt their
+  upstream namesakes; `writing-for-agents` is an unmodified copy.
+  Last compared against upstream `dd400c3` on 2026-10-07; diff a fork against that
+  commit to separate local edits from upstream drift.
 - No MCP servers are configured at the project level. The former `code-review-graph`
   server and its hooks were removed in September 2026; do not reintroduce `.mcp.json`.
 - Repo-wide rules for agents (issue tracker, triage labels, domain docs) live alongside
