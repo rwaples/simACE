@@ -171,16 +171,12 @@ def _get_param_rows(
             if a1 != 0 or a2 != 0:
                 rows.append(("[assort1, assort2]", f"[{a1:g}, {a2:g}]"))
             continue
-            # Compact frailty params per trait: [beta, beta_sex, model, params]
+        # Compact frailty params per trait: [beta, beta_sex, model, params]
         if name == "_frailty1" and "beta1" in params:
             b = _format_param_value("beta1", params["beta1"])
             m = str(params.get("phenotype_model1", "?"))
             hp = params.get("phenotype_params1", {})
-            baseline = hp.get("baseline", "")
-            if baseline:
-                m = f"{m} ({baseline})"
-            non_bl = {k: v for k, v in hp.items() if k != "baseline"}
-            hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in non_bl.items())
+            hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in hp.items())
             rows.append(("trait 1 \u03b2", b))
             bs = params.get("beta_sex1", 0)
             if bs:
@@ -193,11 +189,7 @@ def _get_param_rows(
             b = _format_param_value("beta2", params["beta2"])
             m = str(params.get("phenotype_model2", "?"))
             hp = params.get("phenotype_params2", {})
-            baseline = hp.get("baseline", "")
-            if baseline:
-                m = f"{m} ({baseline})"
-            non_bl = {k: v for k, v in hp.items() if k != "baseline"}
-            hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in non_bl.items())
+            hp_str = ", ".join(f"{k}={_format_param_value(k, v)}" for k, v in hp.items())
             rows.append(("trait 2 \u03b2", b))
             bs = params.get("beta_sex2", 0)
             if bs:
@@ -211,18 +203,6 @@ def _get_param_rows(
             s = _format_param_value("death_scale", params["death_scale"])
             r = _format_param_value("death_rho", params["death_rho"])
             rows.append(("mortality [scale, \u03c1]", f"[{s}, {r}]"))
-            continue
-        # Compact prevalence: one row per trait. Read from inside the per-trait
-        # phenotype_params{N}.prevalence (PR3 moved this out of the top level).
-        # Models that don't carry a prevalence (frailty / first_passage) render
-        # "n/a" so the table reflects the type-encoded asymmetry.
-        if name == "_prev12":
-            for t in (1, 2):
-                pp = params.get(f"phenotype_params{t}", {})
-                if isinstance(pp, dict) and "prevalence" in pp:
-                    rows.append((f"prevalence {t}", _format_param_value(f"prevalence{t}", pp["prevalence"])))
-                else:
-                    rows.append((f"prevalence {t}", "n/a"))
             continue
         if name not in params:
             continue

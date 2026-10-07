@@ -250,19 +250,14 @@ def plot_cumulative_incidence(
         key = f"trait{trait_num}"
         ages = np.array(all_stats[0]["cumulative_incidence"][key]["ages"])
 
-        # Support both old ("values") and new ("observed_values"/"true_values") format
-        mean_true = None
-        if "observed_values" in all_stats[0]["cumulative_incidence"][key]:
-            all_obs = np.array([s["cumulative_incidence"][key]["observed_values"] for s in all_stats])
-            all_true = np.array([s["cumulative_incidence"][key]["true_values"] for s in all_stats])
-            mean_true = all_true.mean(axis=0)
+        all_obs = np.array([s["cumulative_incidence"][key]["observed_values"] for s in all_stats])
+        all_true = np.array([s["cumulative_incidence"][key]["true_values"] for s in all_stats])
+        mean_true = all_true.mean(axis=0)
 
-            # True incidence (gray)
-            ax.plot(ages, mean_true, color=COLOR_TRUE, alpha=0.7, linewidth=1.2, label="True")
-            if len(all_stats) > 1:
-                ax.fill_between(ages, all_true.min(axis=0), all_true.max(axis=0), alpha=0.1, color=COLOR_TRUE)
-        else:
-            all_obs = np.array([s["cumulative_incidence"][key]["values"] for s in all_stats])
+        # True incidence (gray)
+        ax.plot(ages, mean_true, color=COLOR_TRUE, alpha=0.7, linewidth=1.2, label="True")
+        if len(all_stats) > 1:
+            ax.fill_between(ages, all_true.min(axis=0), all_true.max(axis=0), alpha=0.1, color=COLOR_TRUE)
 
         mean_obs = all_obs.mean(axis=0)
 
@@ -277,8 +272,6 @@ def plot_cumulative_incidence(
             (mean_obs, COLOR_OBSERVED, -16, "obs"),
             (mean_true, COLOR_TRUE, 16, "true"),
         ]:
-            if curve is None:
-                continue
             lifetime = curve[-1]
             if lifetime <= 0:
                 continue
@@ -320,7 +313,7 @@ def plot_cumulative_incidence(
                 )
         # Annotation box: prevalence and censoring rates
         prev = np.mean([s["prevalence"][key] for s in all_stats])
-        true_prev = mean_true[-1] if mean_true is not None else mean_obs[-1]
+        true_prev = mean_true[-1]
         censored_pct = (true_prev - prev) * 100
         ax.text(
             0.03,
@@ -519,9 +512,8 @@ def plot_cumulative_incidence_aj(
 
         emp_stats = [s for s in stats_with_data if s.get("cumulative_incidence")]
         if emp_stats:
-            emp_key = "observed_values" if "observed_values" in emp_stats[0]["cumulative_incidence"][key] else "values"
             emp_ages = np.array(emp_stats[0]["cumulative_incidence"][key]["ages"])
-            emp = np.array([s["cumulative_incidence"][key][emp_key] for s in emp_stats])
+            emp = np.array([s["cumulative_incidence"][key]["observed_values"] for s in emp_stats])
             ax.plot(
                 emp_ages, emp.mean(axis=0), color=COLOR_OBSERVED, linewidth=3.0, alpha=0.85, label="Empirical", zorder=3
             )

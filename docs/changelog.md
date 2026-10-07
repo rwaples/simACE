@@ -57,6 +57,20 @@ releases shipped after 2026.05.3.
   title on the atlas title page and the pipeline diagram, matching the
   equations.
 
+### Removed
+
+Code that only tests reached:
+
+- `simace.plotting.plot_heritability.plot_broad_heritability_by_generation`.
+  The combined A/C plot replaced it in the atlas.
+- The `greenwood=` argument of `compute_cumulative_incidence_aj` and its two
+  by-sex variants. No stage passed it. The private `_aalen_johansen` keeps the
+  Greenwood standard errors.
+- The pipeline diagram's handling of a phenotype `baseline` key, which no
+  model accepts, and of a `_prev12` step that was never in the diagram.
+- `plot_cumulative_incidence`'s fallback for the pre-`observed_values`
+  cumulative-incidence format.
+
 ## 0.1.0 — 2026-10-02
 
 ### Versioning

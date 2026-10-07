@@ -191,8 +191,12 @@ def minimal_stats():
             "regression": {"trait1": {"r2": 0.3, "slope": -5, "intercept": 80}, "trait2": None},
             "mortality": {"rates": [0.01] * 10, "decade_labels": [f"{i}0s" for i in range(10)]},
             "cumulative_incidence": {
-                "trait1": {"ages": list(range(100)), "values": [i / 1000 for i in range(100)]},
-                "trait2": {"ages": list(range(100)), "values": [i / 1000 for i in range(100)]},
+                f"trait{t}": {
+                    "ages": list(range(100)),
+                    "observed_values": [i / 1000 for i in range(100)],
+                    "true_values": [i / 900 for i in range(100)],
+                }
+                for t in (1, 2)
             },
         }
     ]
@@ -259,13 +263,6 @@ class TestPlaceholderPaths:
 
         out = tmp_path / "h2.png"
         plot_heritability_by_generation([{}], out, scenario="test")
-        assert out.exists()
-
-    def test_broad_heritability_no_data(self, tmp_path):
-        from simace.plotting.plot_heritability import plot_broad_heritability_by_generation
-
-        out = tmp_path / "H2.png"
-        plot_broad_heritability_by_generation([{}], out, scenario="test")
         assert out.exists()
 
     def test_parent_offspring_no_generation(self, tmp_path, sample_df):

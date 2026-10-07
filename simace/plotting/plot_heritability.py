@@ -1,14 +1,12 @@
 """Heritability plots for the per-scenario atlas.
 
-Groups realized A/C variance proportions, broad-sense
-(``(Var(A)+Var(C))/Var(L)``), sex-stratified midparent-offspring, and
-observed-scale (phi-Falconer with Dempster-Lerner lift) heritability plots.
+Groups realized A/C variance proportions, sex-stratified
+midparent-offspring, and observed-scale (phi-Falconer with Dempster-Lerner lift) heritability plots.
 """
 
 from __future__ import annotations
 
 __all__ = [
-    "plot_broad_heritability_by_generation",
     "plot_ge_covariance_by_generation",
     "plot_heritability_by_generation",
     "plot_heritability_by_sex_generation",
@@ -384,84 +382,6 @@ def plot_snp_like_heritability_by_generation(
         else:
             ax.set_ylim(0.0, 1.0)
         _add_legend_if_labeled(ax)
-        enable_value_gridlines(ax)
-
-    finalize_plot(output_path, scenario=scenario)
-
-
-def plot_broad_heritability_by_generation(
-    all_views: list[dict[str, Any]],
-    output_path: str | Path,
-    scenario: str = "",
-) -> None:
-    """Plot broad-sense heritability H² = (Var(A)+Var(C))/(Var(A)+Var(C)+Var(E)) per generation."""
-    per_gen_all = [v.get("per_generation", {}) for v in all_views]
-    if not per_gen_all or not per_gen_all[0]:
-        save_placeholder_plot(output_path, "No per-generation data")
-        return
-
-    gen_keys = sorted(per_gen_all[0].keys(), key=lambda k: int(k.split("_")[1]))
-    generations = [int(k.split("_")[1]) for k in gen_keys]
-
-    params = all_views[0].get("parameters", {})
-    expected_H2 = {}
-    for t in [1, 2]:
-        a = params.get(f"A{t}")
-        c = params.get(f"C{t}")
-        if a is not None and c is not None:
-            expected_H2[t] = a + c
-
-    _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-
-    for col, trait_num in enumerate([1, 2]):
-        ax = axes[col]
-        a_key = f"A{trait_num}_var"
-        c_key = f"C{trait_num}_var"
-        e_key = f"E{trait_num}_var"
-
-        H2_per_rep = []
-        for pg in per_gen_all:
-            rep_H2 = []
-            for gk in gen_keys:
-                gs = pg.get(gk, {})
-                a_var = gs.get(a_key, 0)
-                c_var = gs.get(c_key, 0)
-                e_var = gs.get(e_key, 0)
-                total = a_var + c_var + e_var
-                rep_H2.append((a_var + c_var) / total if total > 0 else np.nan)
-            H2_per_rep.append(rep_H2)
-
-        H2_arr = np.array(H2_per_rep)
-
-        for rep_idx in range(H2_arr.shape[0]):
-            jitter = np.random.default_rng(42 + rep_idx).uniform(-0.08, 0.08, len(generations))
-            ax.scatter(
-                np.array(generations) + jitter,
-                H2_arr[rep_idx],
-                color=COLOR_OBSERVED,
-                alpha=0.9,
-                s=25,
-                zorder=5,
-            )
-
-        exp = expected_H2.get(trait_num)
-        if exp is not None:
-            ax.axhline(
-                y=exp,
-                color=COLOR_UNAFFECTED,
-                linestyle="--",
-                linewidth=1.0,
-                alpha=0.7,
-                label=f"Parametric A{trait_num}+C{trait_num} = {exp}",
-            )
-            ax.legend(loc="lower left", fontsize=9)
-
-        ax.set_xlabel("Generation")
-        ax.set_ylabel("(Var(A)+Var(C)) / Var(L)")
-        ax.set_title(f"Trait {trait_num}")
-        ax.set_xticks(generations)
-        ax.set_ylim(0, 1)
-
         enable_value_gridlines(ax)
 
     finalize_plot(output_path, scenario=scenario)

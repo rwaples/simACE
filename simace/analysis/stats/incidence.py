@@ -274,7 +274,6 @@ def compute_cumulative_incidence_aj(
     n_points: int = 200,
     *,
     gen_censoring: dict[int, list[float]] | None = None,
-    greenwood: bool = False,
 ) -> dict[str, Any]:
     """Aalen-Johansen cumulative incidence with death as competing event.
 
@@ -282,16 +281,13 @@ def compute_cumulative_incidence_aj(
     ``[left, right]`` windows); each individual enters the risk set at
     their generation's left bound. With ``gen_censoring=None`` or all-zero
     left bounds, the result equals the no-delayed-entry case.
-
-    Greenwood standard errors for the disease CIF are emitted as
-    ``aj_se`` only when ``greenwood=True``.
     """
     ages = np.linspace(0, censor_age, n_points)
     entry = _build_entry_times(df, gen_censoring)
     result: dict[str, Any] = {}
     for trait_num in [1, 2]:
         exit_time, event_type = _exit_event_arrays(df, trait_num)
-        aj = _aalen_johansen(entry, exit_time, event_type, ages, greenwood=greenwood)
+        aj = _aalen_johansen(entry, exit_time, event_type, ages)
         terminal = float(aj["aj_disease"][-1])
         if terminal > 0:
             half_idx = int(np.searchsorted(aj["aj_disease"], terminal / 2))
@@ -308,8 +304,6 @@ def compute_cumulative_incidence_aj(
             "n_events_death": int(aj["n_events_death"]),
             "half_target_age": half_age,
         }
-        if greenwood:
-            entry_dict["aj_se"] = aj["aj_se"].tolist()
         result[f"trait{trait_num}"] = entry_dict
     return result
 
@@ -320,7 +314,6 @@ def compute_cumulative_incidence_aj_by_sex(
     n_points: int = 200,
     *,
     gen_censoring: dict[int, list[float]] | None = None,
-    greenwood: bool = False,
 ) -> dict[str, Any]:
     """Aalen-Johansen cumulative incidence stratified by sex."""
     if "sex" not in df.columns:
@@ -337,7 +330,7 @@ def compute_cumulative_incidence_aj_by_sex(
             n_sex = int(mask.sum())
             if n_sex == 0:
                 continue
-            aj = _aalen_johansen(entry[mask], exit_time[mask], event_type[mask], ages, greenwood=greenwood)
+            aj = _aalen_johansen(entry[mask], exit_time[mask], event_type[mask], ages)
             stratum: dict[str, Any] = {
                 "ages": ages.tolist(),
                 "aj_values": aj["aj_disease"].tolist(),
@@ -348,8 +341,6 @@ def compute_cumulative_incidence_aj_by_sex(
                 "n_events_death": int(aj["n_events_death"]),
                 "prevalence": float(aj["n_events_disease"] / n_sex) if n_sex else 0.0,
             }
-            if greenwood:
-                stratum["aj_se"] = aj["aj_se"].tolist()
             trait_result[sex_label] = stratum
         result[f"trait{trait_num}"] = trait_result
     return result
@@ -361,7 +352,6 @@ def compute_cumulative_incidence_aj_by_sex_generation(
     n_points: int = 200,
     *,
     gen_censoring: dict[int, list[float]] | None = None,
-    greenwood: bool = False,
 ) -> dict[str, Any]:
     """Aalen-Johansen cumulative incidence stratified by sex and generation."""
     if "sex" not in df.columns or "generation" not in df.columns:
@@ -383,7 +373,7 @@ def compute_cumulative_incidence_aj_by_sex_generation(
                 n_stratum = int(mask.sum())
                 if n_stratum == 0:
                     continue
-                aj = _aalen_johansen(entry[mask], exit_time[mask], event_type[mask], ages, greenwood=greenwood)
+                aj = _aalen_johansen(entry[mask], exit_time[mask], event_type[mask], ages)
                 stratum: dict[str, Any] = {
                     "ages": ages.tolist(),
                     "aj_values": aj["aj_disease"].tolist(),
@@ -394,8 +384,6 @@ def compute_cumulative_incidence_aj_by_sex_generation(
                     "n_events_death": int(aj["n_events_death"]),
                     "prevalence": float(aj["n_events_disease"] / n_stratum) if n_stratum else 0.0,
                 }
-                if greenwood:
-                    stratum["aj_se"] = aj["aj_se"].tolist()
                 gen_result[sex_label] = stratum
             trait_result[f"gen{int(gen)}"] = gen_result
         result[f"trait{trait_num}"] = trait_result

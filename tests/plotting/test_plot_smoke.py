@@ -652,7 +652,7 @@ def observed_binary_samples():
 
 @pytest.fixture
 def broad_h2_validations():
-    """Minimal all_validations list for plot_broad_heritability_by_generation."""
+    """Minimal all_validations list for the per-generation heritability plots."""
     return [
         {
             "per_generation": {
@@ -768,27 +768,6 @@ class TestPlotCorrelationsExpanded:
         plot_heritability_by_generation(broad_h2_validations, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
-        plt.close("all")
-        assert plt.get_fignums() == before
-
-    def test_plot_broad_heritability_by_generation(self, broad_h2_validations, tmp_path):
-        from simace.plotting.plot_heritability import plot_broad_heritability_by_generation
-
-        before = plt.get_fignums()
-        out = tmp_path / "broad_h2_gen.png"
-        plot_broad_heritability_by_generation(broad_h2_validations, out, scenario="test")
-        assert out.exists()
-        assert out.stat().st_size > 0
-        plt.close("all")
-        assert plt.get_fignums() == before
-
-    def test_plot_broad_heritability_by_generation_no_data(self, tmp_path):
-        from simace.plotting.plot_heritability import plot_broad_heritability_by_generation
-
-        before = plt.get_fignums()
-        out = tmp_path / "broad_h2_gen_empty.png"
-        plot_broad_heritability_by_generation([{}], out, scenario="test")
-        assert out.exists()
         plt.close("all")
         assert plt.get_fignums() == before
 

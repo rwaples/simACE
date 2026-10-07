@@ -37,6 +37,7 @@ from simace.analysis.stats import (
     compute_tetrachoric_by_generation,
     compute_tetrachoric_by_sex,
 )
+from simace.analysis.stats.incidence import _aalen_johansen, _build_entry_times, _exit_event_arrays
 from tests.analysis.moments_oracle import moments_from_pairs
 
 # ---------------------------------------------------------------------------
@@ -1510,10 +1511,10 @@ class TestAalenJohansen:
                 (False, False, 40.0),  # censored
             ]
         )
-        result = compute_cumulative_incidence_aj(df, censor_age=80, n_points=81, greenwood=True)
-        t1 = result["trait1"]
-        ages = np.array(t1["ages"])
-        se = np.array(t1["aj_se"])
+        ages = np.linspace(0, 80, 81)
+        exit_time, event_type = _exit_event_arrays(df, 1)
+        aj = _aalen_johansen(_build_entry_times(df, None), exit_time, event_type, ages, greenwood=True)
+        se = aj["aj_se"]
         idx_10 = int(np.searchsorted(ages, 10.0, side="left"))
         idx_20 = int(np.searchsorted(ages, 20.0, side="left"))
         expected_se = np.sqrt(3.0 / 64.0)
@@ -1522,7 +1523,7 @@ class TestAalenJohansen:
         assert (se >= 0).all()
         assert not np.any(np.isnan(se))
 
-    def test_greenwood_off_by_default(self):
+    def test_public_output_has_no_greenwood_se(self):
         df = _make_aj_df([(True, False, 30.0), (False, False, 60.0)])
         result = compute_cumulative_incidence_aj(df, censor_age=80, n_points=50)
         assert "aj_se" not in result["trait1"]
