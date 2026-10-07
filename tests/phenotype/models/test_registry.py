@@ -2,6 +2,8 @@
 
 import pytest
 
+from simace.core import phenotype_keys
+from simace.core.phenotype_keys import MODEL_FAMILIES
 from simace.phenotype.models import (
     MODELS,
     AdultModel,
@@ -25,17 +27,40 @@ def test_registry_keys_match_expected():
     assert set(MODELS) == set(EXPECTED)
 
 
-def test_config_validator_lists_match_the_models():
-    """``simace.config`` keeps its own copies so config loading never imports numba; they must not drift."""
-    from simace import config
-    from simace.phenotype.hazards import BASELINE_HAZARDS
-    from simace.phenotype.models.adult import _ADULT_METHODS
-    from simace.phenotype.models.simple_ltm import _ONSET_KINDS
+def test_key_lists_cover_the_registry():
+    """``simace.core.phenotype_keys`` names the models without importing them; it must not drift."""
+    assert set(MODELS) == MODEL_FAMILIES == set(phenotype_keys._MODEL_KEYS)
 
-    assert set(MODELS) == config._VALID_MODEL_FAMILIES
-    assert set(BASELINE_HAZARDS) == config._VALID_DISTRIBUTIONS
-    assert config._VALID_METHODS == _ADULT_METHODS
-    assert config._VALID_ONSET_KINDS == _ONSET_KINDS
+
+# A minimal valid phenotype_params per model, with each from_config's other inputs.
+VALID_PARAMS = {
+    "frailty": {"distribution": "weibull", "scale": 316.228, "rho": 2.0},
+    "cure_frailty": {"distribution": "exponential", "scale": 50.0, "prevalence": 0.1},
+    "adult": {"method": "ltm", "prevalence": 0.1},
+    "first_passage": {"drift": -0.5, "shape": 1.0},
+    "simple_ltm": {"prevalence": 0.1, "onset": {"kind": "fixed", "age": 30}},
+}
+
+
+@pytest.mark.parametrize("name", sorted(EXPECTED))
+def test_from_config_accepts_valid_params(name):
+    EXPECTED[name].from_config({"phenotype_params1": VALID_PARAMS[name], "beta1": 1.0}, trait_num=1)
+
+
+@pytest.mark.parametrize("name", sorted(EXPECTED))
+@pytest.mark.parametrize("stray", ["standardise_hazard", "cip_k_typo"])
+def test_from_config_rejects_unknown_keys(name, stray):
+    """A misspelled or foreign key must fail, not leave its setting at the default (#37)."""
+    params = {"phenotype_params1": {**VALID_PARAMS[name], stray: 1}, "beta1": 1.0}
+    with pytest.raises(ValueError, match=rf"phenotype\.trait1.*unknown key\(s\) \['{stray}'\]"):
+        EXPECTED[name].from_config(params, trait_num=1)
+
+
+@pytest.mark.parametrize("name", ["frailty", "cure_frailty", "first_passage", "simple_ltm"])
+def test_from_config_rejects_another_models_key(name):
+    params = {"phenotype_params1": {**VALID_PARAMS[name], "cip_k": 0.2}, "beta1": 1.0}
+    with pytest.raises(ValueError, match=r"unknown key\(s\) \['cip_k'\]"):
+        EXPECTED[name].from_config(params, trait_num=1)
 
 
 @pytest.mark.parametrize(("name", "cls"), list(EXPECTED.items()))

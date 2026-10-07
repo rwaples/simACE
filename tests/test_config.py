@@ -235,10 +235,15 @@ class TestPhenotypeConfigValidation:
             )
 
     def test_hazard_model_with_prevalence_rejected(self):
-        with pytest.raises(ValueError, match="must NOT include 'prevalence'"):
+        with pytest.raises(ValueError, match=r"unknown key\(s\) \['prevalence'\]"):
             _validate_phenotype_config(
                 self._wrap({"phenotype_model1": "first_passage", "phenotype_params1": {"prevalence": 0.1}})
             )
+
+    def test_misspelled_key_rejected(self):
+        pp = {"distribution": "weibull", "scale": 316.228, "rho": 2.0, "standardise_hazard": "none"}
+        with pytest.raises(ValueError, match=r"Scenario 'sc'.*unknown key\(s\) \['standardise_hazard'\]"):
+            _validate_phenotype_config(self._wrap({"phenotype_model1": "frailty", "phenotype_params1": pp}))
 
 
 class TestAccessors:

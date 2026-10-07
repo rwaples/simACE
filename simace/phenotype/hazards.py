@@ -52,6 +52,7 @@ import numpy as np
 from numba import njit
 
 from simace.core._numba_utils import _ndtri_approx
+from simace.core.phenotype_keys import BASELINE_PARAMS
 from simace.core.standardize import STANDARDIZE_CHOICES, StandardizeMode, coerce_standardize_mode
 
 if TYPE_CHECKING:
@@ -187,19 +188,6 @@ BASELINE_HAZARDS = {
     "loglogistic": _invert_loglogistic,
     "gamma": _invert_gamma,
 }
-
-# Required parameter keys per distribution. Exponential accepts either
-# "rate" or "scale" — only "rate" is listed as canonical; callers may
-# substitute "scale" and the wrapper converts.
-BASELINE_PARAMS: dict[str, list[str]] = {
-    "weibull": ["scale", "rho"],
-    "exponential": ["rate"],
-    "gompertz": ["rate", "gamma"],
-    "lognormal": ["mu", "sigma"],
-    "loglogistic": ["scale", "shape"],
-    "gamma": ["shape", "scale"],
-}
-
 
 # Union of every key any baseline distribution requires, plus exponential's
 # alternate ``scale``.

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
 
+from simace.core.phenotype_keys import check_phenotype_params
 from simace.phenotype.hazards import (
     BASELINE_HAZARDS,
     add_hazard_cli_args,
@@ -86,6 +87,7 @@ class CureFrailtyModel(PhenotypeModel):
     def from_config(cls, params: dict[str, Any], trait_num: int) -> Self:
         with wrap_trait_error(trait_num):
             phenotype_params = dict(params.get(f"phenotype_params{trait_num}", {}))
+            check_phenotype_params(cls.name, phenotype_params, f"phenotype_params{trait_num}")
             distribution = phenotype_params.pop("distribution", None)
             if distribution is None:
                 raise ValueError(

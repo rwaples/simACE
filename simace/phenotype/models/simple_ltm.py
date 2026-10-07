@@ -30,6 +30,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
 
+from simace.core.phenotype_keys import ONSET_KINDS, check_phenotype_params
 from simace.phenotype.hazards import coerce_standardize_mode
 from simace.phenotype.models._base import (
     PhenotypeModel,
@@ -47,14 +48,11 @@ if TYPE_CHECKING:
 __all__ = ["SimpleLtmModel"]
 
 
-_ONSET_KINDS: frozenset[str] = frozenset({"fixed", "normal"})
-
-
 def _validate_onset(onset: dict[str, Any]) -> None:
     """Validate the ``onset`` sub-model dict (discriminated on ``kind``)."""
     kind = onset.get("kind")
-    if kind not in _ONSET_KINDS:
-        raise ValueError(f"simple_ltm onset.kind must be one of {sorted(_ONSET_KINDS)}; got {kind!r}")
+    if kind not in ONSET_KINDS:
+        raise ValueError(f"simple_ltm onset.kind must be one of {sorted(ONSET_KINDS)}; got {kind!r}")
     if kind == "fixed":
         if "age" not in onset:
             raise ValueError("simple_ltm onset.kind='fixed' requires 'age'")
@@ -105,6 +103,7 @@ class SimpleLtmModel(PhenotypeModel):
     def from_config(cls, params: dict[str, Any], trait_num: int) -> Self:
         with wrap_trait_error(trait_num):
             phenotype_params = dict(params.get(f"phenotype_params{trait_num}", {}))
+            check_phenotype_params(cls.name, phenotype_params, f"phenotype_params{trait_num}")
             if "prevalence" not in phenotype_params:
                 raise ValueError(f"phenotype_params{trait_num} for model 'simple_ltm' must include 'prevalence' key")
             if "onset" not in phenotype_params:
@@ -126,7 +125,7 @@ class SimpleLtmModel(PhenotypeModel):
         group.add_argument(
             f"--simple-ltm-onset-kind-{trait}",
             default=None,
-            choices=sorted(_ONSET_KINDS),
+            choices=sorted(ONSET_KINDS),
             help=f"Onset sub-model for trait {trait}",
         )
         group.add_argument(f"--simple-ltm-onset-age-{trait}", type=float, default=None, help="fixed onset age")

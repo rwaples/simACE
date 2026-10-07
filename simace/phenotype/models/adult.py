@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
 
+from simace.core.phenotype_keys import ADULT_METHODS, check_phenotype_params
 from simace.phenotype.hazards import (
     add_standardize_hazard_cli_arg,
     coerce_standardize_mode,
@@ -55,9 +56,6 @@ if TYPE_CHECKING:
     from simace.phenotype.hazards import StandardizeMode
 
 __all__ = ["AdultModel"]
-
-
-_ADULT_METHODS: frozenset[str] = frozenset({"ltm", "cox"})
 
 
 @dataclass(frozen=True)
@@ -90,8 +88,8 @@ class AdultModel(PhenotypeModel):
     name: ClassVar[str] = "adult"
 
     def __post_init__(self) -> None:
-        if self.method not in _ADULT_METHODS:
-            raise ValueError(f"unknown adult method {self.method!r}; valid: {sorted(_ADULT_METHODS)}")
+        if self.method not in ADULT_METHODS:
+            raise ValueError(f"unknown adult method {self.method!r}; valid: {sorted(ADULT_METHODS)}")
         check_finite_beta(self.beta)
         validate_standardize_hazard(self.standardize_hazard)
         if self.standardize_hazard is not None and self.method == "ltm":
@@ -108,11 +106,12 @@ class AdultModel(PhenotypeModel):
     def from_config(cls, params: dict[str, Any], trait_num: int) -> Self:
         with wrap_trait_error(trait_num):
             phenotype_params = dict(params.get(f"phenotype_params{trait_num}", {}))
+            check_phenotype_params(cls.name, phenotype_params, f"phenotype_params{trait_num}")
             method = phenotype_params.get("method")
             if method is None:
                 raise ValueError(
                     f"phenotype_params{trait_num} for model 'adult' must include "
-                    f"'method' key (one of {sorted(_ADULT_METHODS)})"
+                    f"'method' key (one of {sorted(ADULT_METHODS)})"
                 )
             if "prevalence" not in phenotype_params:
                 raise ValueError(f"phenotype_params{trait_num} for model 'adult' must include 'prevalence' key")
@@ -132,7 +131,7 @@ class AdultModel(PhenotypeModel):
         group.add_argument(
             f"--adult-method{trait}",
             default=None,
-            choices=sorted(_ADULT_METHODS),
+            choices=sorted(ADULT_METHODS),
             help=f"Adult sub-method for trait {trait}",
         )
         group.add_argument(f"--adult-cip-x0-{trait}", type=float, default=None)

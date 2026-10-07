@@ -63,7 +63,7 @@ def test_from_config_missing_distribution_traitful_message():
 
 def test_from_config_rejects_prevalence():
     params = {"phenotype_params1": {"distribution": "weibull", "scale": 316.228, "rho": 2.0, "prevalence": 0.1}}
-    with pytest.raises(ValueError, match=r"phenotype\.trait1.*must NOT include 'prevalence'"):
+    with pytest.raises(ValueError, match=r"phenotype\.trait1.*unknown key\(s\) \['prevalence'\]"):
         FrailtyModel.from_config({**params, "beta1": 1.0}, trait_num=1)
 
 

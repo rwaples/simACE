@@ -21,6 +21,13 @@ import re
 from pathlib import Path
 from typing import Any
 
+from simace.core.phenotype_keys import (
+    ADULT_METHODS,
+    BASELINE_PARAMS,
+    MODEL_FAMILIES,
+    ONSET_KINDS,
+    check_phenotype_params,
+)
 from simace.core.standardize import coerce_standardize_mode
 from simace.core.yaml_io import load_yaml
 
@@ -219,17 +226,6 @@ def _coerce_sim_types(flat: dict) -> dict:
 # Phenotype model validation
 # ---------------------------------------------------------------------------
 
-# Copies of the phenotype models' own lists, kept here because importing
-# ``simace.phenotype.models`` loads numba (~0.3 s on every ``simace ls``).
-# ``tests/phenotype/models/test_registry.py`` fails if they drift.
-
-_VALID_MODEL_FAMILIES: frozenset[str] = frozenset({"frailty", "cure_frailty", "adult", "first_passage", "simple_ltm"})
-_VALID_DISTRIBUTIONS: frozenset[str] = frozenset(
-    {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
-)
-_VALID_METHODS: frozenset[str] = frozenset({"ltm", "cox"})
-_VALID_ONSET_KINDS: frozenset[str] = frozenset({"fixed", "normal"})
-
 
 def _validate_phenotype_config(config: dict) -> None:
     """Validate phenotype model configuration for all scenarios.
@@ -241,8 +237,8 @@ def _validate_phenotype_config(config: dict) -> None:
         config: the merged ``{"defaults": ..., "scenarios": ...}`` dict.
 
     Raises:
-        ValueError: if a model family, distribution, or method is invalid for
-            any scenario.
+        ValueError: if a model family, distribution, or method is invalid, or
+            a ``phenotype_params{N}`` key is unknown to its model, for any scenario.
     """
     for name, params in config.get("scenarios", {}).items():
         for trait_num in (1, 2):
@@ -251,10 +247,9 @@ def _validate_phenotype_config(config: dict) -> None:
             model = params.get(model_key, config["defaults"].get(model_key))
             pp = params.get(params_key, config["defaults"].get(params_key, {}))
 
-            if model not in _VALID_MODEL_FAMILIES:
+            if model not in MODEL_FAMILIES:
                 raise ValueError(
-                    f"Scenario '{name}': {model_key}={model!r} is not valid. "
-                    f"Choose from: {sorted(_VALID_MODEL_FAMILIES)}"
+                    f"Scenario '{name}': {model_key}={model!r} is not valid. Choose from: {sorted(MODEL_FAMILIES)}"
                 )
 
             if model in ("frailty", "cure_frailty"):
@@ -262,24 +257,24 @@ def _validate_phenotype_config(config: dict) -> None:
                     raise ValueError(
                         f"Scenario '{name}': {params_key} for model '{model}' must include 'distribution' key"
                     )
-                if pp["distribution"] not in _VALID_DISTRIBUTIONS:
+                if pp["distribution"] not in BASELINE_PARAMS:
                     raise ValueError(
                         f"Scenario '{name}': {params_key} distribution="
                         f"{pp['distribution']!r} invalid; "
-                        f"valid: {sorted(_VALID_DISTRIBUTIONS)}"
+                        f"valid: {sorted(BASELINE_PARAMS)}"
                     )
 
             if model == "adult":
                 if "method" not in pp:
                     raise ValueError(
                         f"Scenario '{name}': {params_key} for model 'adult' "
-                        f"must include 'method' key (valid: {sorted(_VALID_METHODS)})"
+                        f"must include 'method' key (valid: {sorted(ADULT_METHODS)})"
                     )
-                if pp["method"] not in _VALID_METHODS:
+                if pp["method"] not in ADULT_METHODS:
                     raise ValueError(
                         f"Scenario '{name}': {params_key} method="
                         f"{pp['method']!r} invalid; "
-                        f"valid: {sorted(_VALID_METHODS)}"
+                        f"valid: {sorted(ADULT_METHODS)}"
                     )
 
             if model == "simple_ltm":
@@ -289,27 +284,22 @@ def _validate_phenotype_config(config: dict) -> None:
                         f"Scenario '{name}': {params_key} for model 'simple_ltm' must include an 'onset' dict "
                         f"(e.g. {{'kind': 'fixed', 'age': 30}} or {{'kind': 'normal', 'mean': 30, 'sd': 8}})"
                     )
-                if onset.get("kind") not in _VALID_ONSET_KINDS:
+                if onset.get("kind") not in ONSET_KINDS:
                     raise ValueError(
                         f"Scenario '{name}': {params_key} onset.kind="
-                        f"{onset.get('kind')!r} invalid; valid: {sorted(_VALID_ONSET_KINDS)}"
+                        f"{onset.get('kind')!r} invalid; valid: {sorted(ONSET_KINDS)}"
                     )
 
-            # Prevalence is required for threshold-based models, forbidden
-            # for hazard-only models. Top-level placement was deprecated
-            # in PR3 and is rejected outright.
-            if model in ("adult", "cure_frailty", "simple_ltm"):
-                if "prevalence" not in pp:
-                    raise ValueError(
-                        f"Scenario '{name}': {params_key} for model {model!r} must include "
-                        f"'prevalence' key. If your YAML still has top-level "
-                        f"phenotype.trait{trait_num}.prevalence, move it inside params:."
-                    )
-            elif model in ("frailty", "first_passage") and "prevalence" in pp:
+            # Prevalence is required for threshold-based models. Top-level
+            # placement was deprecated in PR3 and is rejected outright.
+            if model in ("adult", "cure_frailty", "simple_ltm") and "prevalence" not in pp:
                 raise ValueError(
-                    f"Scenario '{name}': {params_key} for model {model!r} must NOT include "
-                    f"'prevalence' (only adult / cure_frailty / simple_ltm accept it). Drop the key."
+                    f"Scenario '{name}': {params_key} for model {model!r} must include "
+                    f"'prevalence' key. If your YAML still has top-level "
+                    f"phenotype.trait{trait_num}.prevalence, move it inside params:."
                 )
+
+            check_phenotype_params(model, pp, f"Scenario '{name}': {params_key}")
 
 
 # ---------------------------------------------------------------------------

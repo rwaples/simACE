@@ -24,8 +24,16 @@ releases shipped after 2026.05.3.
 - **Removed `simace.censoring.censor.death_censor`.** Only tests called it.
   `run_censor` draws one death age per individual and applies it to both
   traits; `death_censor` drew a new age on every call.
-- **`frailty` and `first_passage` reject `prevalence` in `from_config`.**
-  Config loading already refused it; a hand-run `simace cohort` now does too.
+- **Phenotype models reject `params` keys they do not use.** A misspelled
+  key such as `standardise_hazard`, or another model's key such as `cip_k` on
+  `frailty`, used to be ignored, so the run went ahead with that setting at
+  its default. Config loading and each model's `from_config` (a hand-run
+  `simace cohort`) now raise an error naming the key and listing the valid
+  ones. This subsumes the old `prevalence` check for `frailty` and
+  `first_passage`. Every scenario in `config/` passes. A scenario file
+  outside the repo that carries a stray key now fails to load, so this takes
+  a minor version (ADR 0023). The accepted keys live in
+  `simace.core.phenotype_keys`, which config loading imports without numba.
 - **`simace run` no longer fails off Linux.** It sized pedigree-graph's
   thread budget with `os.sched_getaffinity`, which only Linux has, so on
   macOS it raised `AttributeError` before any stage started. It now uses

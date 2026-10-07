@@ -306,8 +306,10 @@ simulation jobs:
 - A missing or unknown `method` for `adult`.
 - A missing `onset` dict or an unknown `onset.kind` for `simple_ltm`.
 - Missing `params.prevalence` for `adult`, `cure_frailty`, or `simple_ltm`.
-- `params.prevalence` for `frailty` or `first_passage`, or `prevalence` placed
-  directly under a trait instead of inside `params`.
+- A `params` key the trait's model does not accept, such as a misspelled
+  `standardise_hazard`, `params.prevalence` for `frailty` or `first_passage`,
+  or `cip_k` for any model but `adult`. The error lists the valid keys.
+- `prevalence` placed directly under a trait instead of inside `params`.
 - An unknown `pedigree.mating_model` or an incompatible explicit override for
   `wright_fisher`, as described under [Pedigree](#pedigree).
 
