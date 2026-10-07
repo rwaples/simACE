@@ -130,8 +130,16 @@ def draw_regression_band(
 
 
 def sort_generation_keys(keys: Iterable[str]) -> list[str]:
-    """Sort generation keys (``gen3``, ``gen_12``) by their trailing number, not as strings."""
-    return sorted(keys, key=lambda k: int(k[len(k.rstrip("0123456789")) :]))
+    """Sort generation keys (``gen3``, ``gen_12``) by their trailing number, not as strings.
+
+    Keys without a trailing number (``all``, ``pooled``) sort after the numbered ones.
+    """
+
+    def key(k: str) -> tuple[bool, int, str]:
+        digits = k[len(k.rstrip("0123456789")) :]
+        return (not digits, int(digits or 0), k)
+
+    return sorted(keys, key=key)
 
 
 def save_placeholder_plot(

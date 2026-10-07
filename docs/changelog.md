@@ -38,7 +38,8 @@ releases shipped after 2026.05.3.
 
 - **Generation panels sort numerically.** With 11 or more phenotyped
   generations, `gen10` used to sort before `gen2` in the per-generation
-  incidence, censoring, tetrachoric, and liability plots.
+  incidence, censoring, tetrachoric, and liability plots. Keys without a
+  number, such as `all`, come after the numbered ones.
 - **Two `simple_ltm` traits with different onset kinds** now get a two-model
   title on the atlas title page and the pipeline diagram, matching the
   equations.

@@ -30,6 +30,10 @@ class TestSortGenerationKeys:
     def test_underscore_keys(self):
         assert sort_generation_keys(["gen_10", "gen_2", "gen_1"]) == ["gen_1", "gen_2", "gen_10"]
 
+    def test_unnumbered_keys_follow_numbered(self):
+        keys = ["pooled", "gen10", "all", "gen2", "gen_3"]
+        assert sort_generation_keys(keys) == ["gen2", "gen_3", "gen10", "all", "pooled"]
+
 
 # ---------------------------------------------------------------------------
 # Phenotype model display text
