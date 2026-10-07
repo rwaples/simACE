@@ -10,6 +10,39 @@ change that breaks the command line, configuration keys, or result files
 CalVer (`YYYY.MM[.patch]`). The 0.1.0 section also lists the changes those
 releases shipped after 2026.05.3.
 
+## Unreleased
+
+### Stage defaults and censoring
+
+- **`simace censor` and `simace cohort` flag defaults now match
+  `config/_default.yaml`.** `--censor-age` goes from 100 to 80,
+  `--death-scale` from 79.433 to 164, and `--death-rho` from 10 to 2.73. A
+  hand-run stage with default flags now uses the pipeline's death model.
+  `simace run` always passed these values, so its results do not change.
+  `--gen-censoring` still defaults to no per-generation windows. This changes
+  the command line's behaviour, so it takes a minor version (ADR 0023).
+- **Removed `simace.censoring.censor.death_censor`.** Only tests called it.
+  `run_censor` draws one death age per individual and applies it to both
+  traits; `death_censor` drew a new age on every call.
+- **`frailty` and `first_passage` reject `prevalence` in `from_config`.**
+  Config loading already refused it; a hand-run `simace cohort` now does too.
+
+- **`adult` with `method: cox` now clips the cumulative incidence before
+  inverting it**, as `method: ltm` and the blended diagnosis already did. One
+  shared helper, `logistic_cif_onset`, does the inversion. Output changes only
+  when a group's latest-onset case has a rank fraction within 1e-10 of the
+  prevalence (about 0.1% of prevalence values at 10 million individuals per
+  group, none in tests). That one onset then comes out slightly earlier.
+
+### Plots
+
+- **Generation panels sort numerically.** With 11 or more phenotyped
+  generations, `gen10` used to sort before `gen2` in the per-generation
+  incidence, censoring, tetrachoric, and liability plots.
+- **Two `simple_ltm` traits with different onset kinds** now get a two-model
+  title on the atlas title page and the pipeline diagram, matching the
+  equations.
+
 ## 0.1.0 — 2026-10-02
 
 ### Versioning
