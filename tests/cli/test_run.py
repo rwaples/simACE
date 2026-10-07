@@ -598,6 +598,19 @@ def test_max_memory_fails_the_rep_and_names_the_cap(config_dir, roots, layout, n
     assert not (rep_dir / "run.yaml").exists()
 
 
+def test_max_memory_without_a_cgroup_off_linux_refuses(config_dir, roots, layout, monkeypatch, capsys) -> None:
+    """The fallback polls /proc, so off Linux the cap would never fire."""
+
+    def unavailable() -> CgroupRoot:
+        raise CgroupUnavailable("not Linux")
+
+    monkeypatch.setattr(run_mod.CgroupRoot, "open", unavailable)
+    monkeypatch.setattr(run_mod.sys, "platform", "darwin")
+    assert _run(config_dir, roots, "tiny", "--rep", "1", "--max-memory", "8G") == 2
+    assert "--max-memory needs Linux; no delegated cgroup (not Linux)" in capsys.readouterr().err
+    assert not layout.rep_dir("t", "tiny", 1).exists()
+
+
 @pytest.mark.slow
 def test_recompute_runs_every_stage_and_records_it(config_dir, roots, layout, no_plots) -> None:
     rep = _rep(config_dir, 1)

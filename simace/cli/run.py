@@ -257,7 +257,7 @@ def _parse(argv: list[str] | None, prog: str | None) -> argparse.Namespace:
         metavar="SIZE",
         help="Kill any stage whose memory goes over SIZE (e.g. 8G); applies to each stage, not the whole run. "
         "In a delegated cgroup this is the kernel limit memory.max on the stage's process tree, with no swap; "
-        "otherwise the tree's resident memory is polled from /proc",
+        "otherwise the tree's resident memory is polled from /proc. Linux only",
     )
     parser.add_argument(
         "--format",
@@ -352,7 +352,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
             cgroups = None
             if not args.dry_run:
                 lock_fds = tuple(_lock_scenario(stack, run, layout) for run in runs)
-                cgroups = _open_cgroups(stack)
+                cgroups = _open_cgroups(stack, args.max_memory)
             _run_reps(args, layout, runs, lock_fds, cgroups)
     except ScenarioBusy as exc:
         print(f"simace run: {exc}", file=sys.stderr)
@@ -369,10 +369,14 @@ def _lock_scenario(locks: ExitStack, run: ScenarioRun, layout: Layout) -> int:
         ) from None
 
 
-def _open_cgroups(stack: ExitStack) -> CgroupRoot | None:
+def _open_cgroups(stack: ExitStack, max_memory: int | None) -> CgroupRoot | None:
     try:
         return stack.enter_context(CgroupRoot.open())
     except CgroupUnavailable as exc:
+        if max_memory is not None and sys.platform != "linux":
+            # The fallback polls /proc, which only Linux has; without it the cap would never fire.
+            print(f"simace run: --max-memory needs Linux; no delegated cgroup ({exc})", file=sys.stderr)
+            raise SystemExit(2) from exc
         print(
             f"simace run: no delegated cgroup ({exc}); tree_peak_mb not recorded, --max-memory polls /proc",
             file=sys.stderr,
