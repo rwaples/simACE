@@ -29,9 +29,11 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 from simace.cli.layout import RepArtifact
+from simace.core.cli_base import ASCERTAIN_KEYS, CENSOR_KEYS
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
+    from pathlib import Path
 
     from simace.cli.layout import Layout
 
@@ -50,9 +52,17 @@ class ResolvedRep:
         """The replicate seed, ``seed + rep - 1``."""
         return int(self.params["seed"]) + self.rep - 1
 
-    def path(self, layout: Layout, artifact: RepArtifact) -> str:
-        """Return one of this rep's artifact paths as a string."""
-        return str(layout.rep(self.folder, self.scenario, self.rep, artifact))
+    def dir(self, layout: Layout) -> Path:
+        """Return this rep's results directory."""
+        return layout.rep_dir(self.folder, self.scenario, self.rep)
+
+    def path(self, layout: Layout, artifact: RepArtifact) -> Path:
+        """Return the path of one of this rep's artifacts."""
+        return layout.rep(self.folder, self.scenario, self.rep, artifact)
+
+    def log(self, layout: Layout, stage: str) -> Path:
+        """Return the log path of one of this rep's stages."""
+        return layout.log(self.folder, self.scenario, self.rep, stage)
 
 
 @dataclass(frozen=True)
@@ -102,9 +112,7 @@ _PHENOTYPE_KEYS = (
     "beta_sex2",
     "phenotype_params2",
 )
-_CENSOR_KEYS = ("censor_age", "death_scale", "death_rho", "gen_censoring")
-_ASCERTAIN_KEYS = ("dropout_rate", "case_ascertainment_ratio", "N_sample")
-_COHORT_KEYS = (*_PHENOTYPE_KEYS, *_CENSOR_KEYS, *_ASCERTAIN_KEYS)
+_COHORT_KEYS = (*_PHENOTYPE_KEYS, *CENSOR_KEYS, *ASCERTAIN_KEYS)
 _ANALYZE_KEYS = ("censor_age", "gen_censoring", "max_degree", "case_ascertainment_ratio")
 
 
@@ -159,7 +167,7 @@ def _simulate(rep: ResolvedRep, layout: Layout) -> list[str]:
         "assort2": _generation_map_or_scalar,
         "assort_matrix": _json,
     }
-    return [*_flags(values, encode), "--output-pedigree", rep.path(layout, RepArtifact.PEDIGREE)]
+    return [*_flags(values, encode), "--output-pedigree", str(rep.path(layout, RepArtifact.PEDIGREE))]
 
 
 def _cohort(rep: ResolvedRep, layout: Layout) -> list[str]:
@@ -167,11 +175,11 @@ def _cohort(rep: ResolvedRep, layout: Layout) -> list[str]:
     encode = {"phenotype_params1": _yaml, "phenotype_params2": _yaml, "gen_censoring": _json}
     return [
         "--pedigree",
-        rep.path(layout, RepArtifact.PEDIGREE),
+        str(rep.path(layout, RepArtifact.PEDIGREE)),
         "--output-cohort",
-        rep.path(layout, RepArtifact.COHORT),
+        str(rep.path(layout, RepArtifact.COHORT)),
         "--output-phenotyped-population",
-        rep.path(layout, RepArtifact.PHENOTYPED_POPULATION),
+        str(rep.path(layout, RepArtifact.PHENOTYPED_POPULATION)),
         *_flags(values, encode),
     ]
 
@@ -186,19 +194,19 @@ def _analyze(rep: ResolvedRep, layout: Layout) -> list[str]:
     }
     return [
         "--pedigree",
-        rep.path(layout, RepArtifact.PEDIGREE),
+        str(rep.path(layout, RepArtifact.PEDIGREE)),
         "--params",
-        rep.path(layout, RepArtifact.PARAMS),
+        str(rep.path(layout, RepArtifact.PARAMS)),
         "--cohort",
-        rep.path(layout, RepArtifact.COHORT),
+        str(rep.path(layout, RepArtifact.COHORT)),
         "--phenotyped-population",
-        rep.path(layout, RepArtifact.PHENOTYPED_POPULATION),
+        str(rep.path(layout, RepArtifact.PHENOTYPED_POPULATION)),
         "--report-output",
-        rep.path(layout, RepArtifact.REPORT),
+        str(rep.path(layout, RepArtifact.REPORT)),
         "--plot-payload-output",
-        rep.path(layout, RepArtifact.PLOT_PAYLOAD),
+        str(rep.path(layout, RepArtifact.PLOT_PAYLOAD)),
         "--samples-output",
-        rep.path(layout, RepArtifact.PLOTTING_SAMPLE),
+        str(rep.path(layout, RepArtifact.PLOTTING_SAMPLE)),
         *_flags(values, {"gen_censoring": _json}),
     ]
 
@@ -272,7 +280,7 @@ _ATLAS_META_KEYS = (
 
 
 def _each_rep(reps: list[ResolvedRep], layout: Layout, artifact: RepArtifact) -> list[str]:
-    return [rep.path(layout, artifact) for rep in reps]
+    return [str(rep.path(layout, artifact)) for rep in reps]
 
 
 def plot_argv(reps: list[ResolvedRep], layout: Layout) -> list[str]:
@@ -305,7 +313,7 @@ def atlas_argv(reps: list[ResolvedRep], layout: Layout, atlas_format: str) -> li
         "--plot-dir",
         str(plots),
         "--params",
-        first.path(layout, RepArtifact.PARAMS),
+        str(first.path(layout, RepArtifact.PARAMS)),
         "--meta",
         _yaml(meta),
         "--report",

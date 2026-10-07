@@ -5,101 +5,64 @@ Resume granularity is the rep, or with ``--until`` the stage. A rep whose
 ``run.yaml`` is recomputed from scratch; a rep whose ``run.yaml`` differs is
 refused unless ``--force``. A rep built through fewer stages than asked for
 resumes at its first missing stage.
-Every stage runs as its own ``simace <stage>`` subprocess, in its own cgroup
-when one is delegated, so its wall time and memory peaks land in the rep's
-``timing.tsv``. Plots and the atlas are rebuilt on every run.
+Every stage runs as its own ``simace <stage>`` subprocess
+(:mod:`simace.cli.launch`), so its wall time and memory peaks land in the
+rep's ``timing.tsv``; what is already on disk comes from
+:mod:`simace.cli.status`. Plots and the atlas are rebuilt on every run.
 """
 
 from __future__ import annotations
 
 __all__ = [
-    "ScenarioError",
     "ScenarioRun",
-    "built_stages",
-    "check_runnable",
     "cli",
     "expand_targets",
-    "expected_manifest",
-    "load_scenario",
-    "rep_outputs",
-    "rep_ranges",
     "rep_spec",
-    "resolve_all",
-    "scenario_plots_status",
-    "status_on_disk",
 ]
 
 import argparse
 import fcntl
 import os
 import shlex
-import signal
-import subprocess
 import sys
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack, contextmanager, suppress
-from dataclasses import dataclass, field, replace
+from contextlib import ExitStack, contextmanager
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from simace.cli.cgroups import CgroupRoot, CgroupUnavailable
+from simace.cli.launch import Launcher, append_timing, child_env, command, parse_size, start_timing
 from simace.cli.layout import RepArtifact, add_root_args, require_config, resolve_roots
-from simace.cli.manifest import (
-    Manifest,
-    PlotsState,
-    PlotsStatus,
-    RepState,
-    RepStatus,
-    manifest_params,
-    plots_status,
-    read_manifest,
-    recorded_stages,
-    rep_status,
-    write_manifest,
-    write_plots_manifest,
-)
+from simace.cli.manifest import RepState, write_manifest, write_plots_manifest
 from simace.cli.stages import (
     PARAMS_YAML_KEYS,
-    REP_LAYOUT,
     REP_OUTPUTS,
     RETIRED_OUTPUTS,
     STAGES,
     ResolvedRep,
     atlas_argv,
     plot_argv,
-    rep_param_keys,
+)
+from simace.cli.status import (
+    ScenarioError,
+    built_stages,
+    check_runnable,
+    expected_manifest,
+    rep_outputs,
+    rep_ranges,
+    resolve_all,
+    scenario_plots_status,
+    stage_names,
+    status_on_disk,
 )
 from simace.core.publish import TMP_SUFFIX, publish
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator, Sequence
+    from collections.abc import Iterable, Iterator
     from pathlib import Path
-    from typing import TextIO
 
     from simace.cli.layout import Layout
-    from simace.cli.stages import Stage
-
-# OpenMP/BLAS pools are pinned to one thread in every stage, as Snakemake's
-# `threads: 1` rules (and `--cores 1`) did. Measured at baseline100K, one thread
-# is as fast as four or five for simulate and analyze, and ~6% faster for plot.
-_BLAS_THREADS = (
-    "OMP_NUM_THREADS",
-    "GOTO_NUM_THREADS",
-    "OPENBLAS_NUM_THREADS",
-    "MKL_NUM_THREADS",
-    "VECLIB_MAXIMUM_THREADS",
-    "NUMEXPR_NUM_THREADS",
-)
-# Pinned only when reps run concurrently; with one rep at a time the numba
-# parallel kernels and polars get every core. pedigree-graph's Rust pool gets an
-# equal share of the cores per concurrent rep (see _child_env).
-_KERNEL_THREADS = ("NUMBA_NUM_THREADS", "POLARS_MAX_THREADS")
-_TIMING_HEADER = "stage\twall_s\tmax_rss_mb\ttree_peak_mb\texit_code\n"
-
-
-class ScenarioError(Exception):
-    """A scenario that cannot be run: unknown, or outside what ``run`` supports."""
 
 
 class ScenarioBusy(Exception):
@@ -129,296 +92,12 @@ def _scenario_lock(path: Path) -> Iterator[int]:
         yield fh.fileno()
 
 
-def resolve_all(config_dir: Path) -> dict[str, dict[str, Any]]:
-    """Return every scenario's resolved flat parameters (defaults merged in)."""
-    from simace.config import resolve_defaults, resolve_scenarios
-
-    defaults = resolve_defaults(config_dir)
-    return {name: {**defaults, **params} for name, params in resolve_scenarios(config_dir, defaults).items()}
-
-
-def check_runnable(name: str, params: dict[str, Any]) -> None:
-    """Raise :class:`ScenarioError` if ``simace run`` cannot run this scenario."""
-    if params.get("use_gene_drop") or params.get("drop_from") is not None:
-        raise ScenarioError(
-            f"scenario {name!r} uses gene drop (use_gene_drop / drop_from); "
-            "`simace run` does not run it. Use the scripts in scripts/gene_drop/."
-        )
-
-
-def load_scenario(config_dir: Path, name: str, *, require_runnable: bool = True) -> dict[str, Any]:
-    """Return the resolved flat parameters of one scenario.
-
-    Raises:
-        ScenarioError: the scenario is unknown, or uses gene drop when
-            ``require_runnable`` is true.
-    """
-    scenarios = resolve_all(config_dir)
-    if name not in scenarios:
-        known = "\n  ".join(sorted(scenarios))
-        raise ScenarioError(f"unknown scenario {name!r}; known scenarios:\n  {known}")
-    if require_runnable:
-        check_runnable(name, scenarios[name])
-    return scenarios[name]
-
-
-def _stage_names(stages: Sequence[Stage] = STAGES) -> list[str]:
-    return [stage.name for stage in stages]
-
-
-def expected_manifest(rep: ResolvedRep, stages: Sequence[Stage] = STAGES) -> Manifest:
-    """Return the manifest a rep built through ``stages`` would carry under the current parameters."""
-    return Manifest(
-        scenario=rep.scenario,
-        rep=rep.rep,
-        seed=rep.seed,
-        resolved=manifest_params(rep.params, rep_param_keys(stages)),
-        stages=_stage_names(stages),
-        layout=REP_LAYOUT,
-    )
-
-
-def built_stages(rep: ResolvedRep, layout: Layout) -> tuple[Stage, ...]:
-    """Return the stages ``rep``'s ``run.yaml`` records when they begin the chain, else the whole chain."""
-    return _built(read_manifest(layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST)))
-
-
-def _built(recorded: Any) -> tuple[Stage, ...]:
-    """Return the stages a loaded ``run.yaml`` records when they begin the chain, else the whole chain.
-
-    Returning the whole chain for any other list lets :func:`rep_status`
-    report the difference in ``stages``, which makes the rep stale.
-    """
-    names = recorded_stages(recorded)
-    if names and names == _stage_names()[: len(names)]:
-        return STAGES[: len(names)]
-    return STAGES
-
-
-def status_on_disk(rep: ResolvedRep, layout: Layout, until: int = len(STAGES)) -> RepStatus:
-    """Return one rep's state from its ``run.yaml`` and the outputs it declares, under the current parameters.
-
-    The rep is checked against the stages its ``run.yaml`` records. One
-    complete through fewer than the first ``until`` stages is partial.
-    """
-    recorded = read_manifest(layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST))
-    if recorded is None:
-        return RepStatus(RepState.ABSENT)
-    built = _built(recorded)
-    status = rep_status(recorded, expected_manifest(rep, built), rep_outputs(rep, layout, built))
-    if status.state is RepState.COMPLETE and len(built) < until:
-        return replace(status, state=RepState.PARTIAL, reasons=(f"built through {built[-1].name}",))
-    return status
-
-
-def scenario_plots_status(reps: list[ResolvedRep], layout: Layout) -> PlotsStatus:
-    """Return whether a scenario's plots and atlas were built from its reps as they stand now."""
-    if not reps:
-        return PlotsStatus(PlotsState.ABSENT)
-    folder, scenario = reps[0].folder, reps[0].scenario
-    manifests = {f"rep{rep.rep}": layout.rep(folder, scenario, rep.rep, RepArtifact.RUN_MANIFEST) for rep in reps}
-    not_complete = [f"rep{rep.rep}" for rep in reps if status_on_disk(rep, layout).state is not RepState.COMPLETE]
-    return plots_status(layout.scenario_plots_manifest(folder, scenario), manifests, not_complete)
-
-
-def rep_outputs(rep: ResolvedRep, layout: Layout, stages: Sequence[Stage] = STAGES) -> list[Path]:
-    """Return every output a rep built through ``stages`` must have, fingerprinted in its ``run.yaml``."""
-    artifacts = (RepArtifact.PARAMS, RepArtifact.TIMING, *(out for stage in stages for out in stage.outputs))
-    return [layout.rep(rep.folder, rep.scenario, rep.rep, a) for a in artifacts]
-
-
-def _command(stage: str, argv: list[str]) -> list[str]:
-    return [sys.executable, "-m", "simace", stage, *argv]
-
-
-@dataclass(frozen=True)
-class StageResult:
-    """One finished stage subprocess.
-
-    ``max_rss_mb`` is ``wait4``'s ``ru_maxrss``, the largest single-process
-    peak among the stage and the descendants it reaped; ``tree_peak_mb`` is
-    its cgroup's ``memory.peak`` (every descendant, shared pages once, page
-    cache included), or None without a delegated cgroup.
-    """
-
-    wall_s: float
-    max_rss_mb: float
-    tree_peak_mb: float | None
-    exit_code: int
-    over_memory: bool = False
-
-    @property
-    def memory(self) -> str:
-        """The memory peaks, for the progress line."""
-        tree = "" if self.tree_peak_mb is None else f", tree peak {self.tree_peak_mb:.0f} MB"
-        return f"max RSS {self.max_rss_mb:.0f} MB{tree}"
-
-    @property
-    def failure(self) -> str:
-        """Why the stage failed, for the progress line."""
-        if self.over_memory:
-            return f"exit {self.exit_code}, killed for going over --max-memory"
-        return f"exit {self.exit_code}"
-
-
-_MEMORY_POLL_S = 0.1
-_SIZE_UNITS = {"": 1, "K": 2**10, "M": 2**20, "G": 2**30, "T": 2**40}
-
-
-def parse_size(text: str) -> int:
-    """Parse ``512M``, ``8G``, or a plain byte count into bytes (binary units)."""
-    number = text.strip().upper().rstrip("B")
-    unit = number[-1:] if number[-1:] in _SIZE_UNITS else ""
-    try:
-        size = float(number.removesuffix(unit)) * _SIZE_UNITS[unit]
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"not a size: {text!r} (use e.g. 512M or 8G)") from None
-    if size <= 0:
-        raise argparse.ArgumentTypeError(f"size must be positive: {text!r}")
-    return int(size)
-
-
-def _rss_bytes(pid: int) -> int:
-    """Return the resident memory of a live process from ``/proc``; 0 once it has exited."""
-    try:
-        with open(f"/proc/{pid}/status", encoding="ascii") as fh:
-            for line in fh:
-                if line.startswith("VmRSS:"):
-                    return int(line.split()[1]) * 1024
-    except FileNotFoundError:
-        pass
-    return 0
-
-
-def _descendants(pid: int) -> list[int]:
-    """Return the pids of every live descendant of ``pid``, from each thread's ``/proc`` children list."""
-    found: list[int] = []
-    pending = [pid]
-    while pending:
-        parent = pending.pop()
-        try:
-            tids = os.listdir(f"/proc/{parent}/task")
-        except FileNotFoundError:
-            continue
-        for tid in tids:
-            try:
-                with open(f"/proc/{parent}/task/{tid}/children", encoding="ascii") as fh:
-                    children = [int(child) for child in fh.read().split()]
-            except FileNotFoundError:
-                continue
-            found.extend(children)
-            pending.extend(children)
-    return found
-
-
-class _TreeWatch(threading.Thread):
-    """Kills a stage and its descendants once their summed resident memory goes over a cap.
-
-    The fallback for ``--max-memory`` without a delegated cgroup. ``simace
-    plot`` renders in worker processes, so the stage process alone
-    understates the stage. Shared pages count once per process, and a spike
-    shorter than ``_MEMORY_POLL_S`` is missed. The watcher is stopped before
-    the stage is reaped, so the stage's pid cannot have been reused when it
-    is killed.
-    """
-
-    def __init__(self, pid: int, max_rss: int, log: TextIO) -> None:
-        super().__init__(daemon=True)
-        self.pid = pid
-        self.max_rss = max_rss
-        self.log = log
-        self.over = False
-        self._stop = threading.Event()
-
-    def run(self) -> None:
-        while not self._stop.wait(_MEMORY_POLL_S):
-            tree = [self.pid, *_descendants(self.pid)]
-            if sum(map(_rss_bytes, tree)) > self.max_rss:
-                self.over = True
-                for pid in tree:
-                    with suppress(ProcessLookupError):
-                        os.kill(pid, signal.SIGKILL)
-                self.log.write(
-                    f"\nsimace run: killed; resident memory went over --max-memory ({self.max_rss / 2**20:.0f} MB)\n"
-                )
-                return
-
-    def finish(self) -> None:
-        self._stop.set()
-        self.join()
-
-
-@dataclass(frozen=True)
-class _Launcher:
-    """How stage subprocesses start: their environment, an optional memory cap, and where they run.
-
-    With a cgroup root each stage runs in its own leaf, which records the
-    exact peak of the stage's process tree and, with a cap, has the kernel
-    kill the tree once it goes over. Without one a :class:`_TreeWatch`
-    enforces the cap by polling ``/proc``, and no tree peak is recorded.
-    """
-
-    env: dict[str, str]
-    max_rss: int | None = None
-    lock_fds: tuple[int, ...] = ()
-    cgroups: CgroupRoot | None = None
-
-    def run(self, cmd: list[str], log_path: Path) -> StageResult:
-        """Run one stage with output to ``log_path``; record its ``wait4`` peak and, in a cgroup, its tree's."""
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        start = time.perf_counter()
-        with open(log_path, "w", encoding="utf-8") as log:
-            if self.cgroups is None:
-                exit_code, max_rss_mb, over = self._polled(cmd, log)
-                tree_peak_mb = None
-            else:
-                with self.cgroups.leaf(self.max_rss) as leaf:
-                    exit_code, max_rss_mb = _reap(self._start(leaf.wrap(cmd), log))
-                    tree_peak_mb = leaf.peak_bytes() / 2**20
-                    over = self.max_rss is not None and leaf.oom_killed()
-                if over:
-                    log.write(f"\nsimace run: killed; memory went over --max-memory ({self.max_rss / 2**20:.0f} MB)\n")
-        return StageResult(time.perf_counter() - start, max_rss_mb, tree_peak_mb, exit_code, over)
-
-    def _start(self, cmd: list[str], log: TextIO) -> subprocess.Popen[bytes]:
-        return subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=self.env, pass_fds=self.lock_fds)
-
-    def _polled(self, cmd: list[str], log: TextIO) -> tuple[int, float, bool]:
-        proc = self._start(cmd, log)
-        if self.max_rss is None:
-            return (*_reap(proc), False)
-        watch = _TreeWatch(proc.pid, self.max_rss, log)
-        watch.start()
-        os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOWAIT)
-        watch.finish()
-        return (*_reap(proc), watch.over)
-
-
-def _reap(proc: subprocess.Popen[bytes]) -> tuple[int, float]:
-    """Wait for ``proc``; return its exit code and ``wait4``'s ``ru_maxrss`` in MB."""
-    _, status, rusage = os.wait4(proc.pid, 0)
-    proc.returncode = os.waitstatus_to_exitcode(status)
-    rss_bytes = rusage.ru_maxrss if sys.platform == "darwin" else rusage.ru_maxrss * 1024
-    return proc.returncode, rss_bytes / 2**20
-
-
-def _append_timing(path: Path, stage: str, result: StageResult) -> None:
-    tree = "" if result.tree_peak_mb is None else f"{result.tree_peak_mb:.1f}"
-    with open(path, "a", encoding="utf-8") as fh:
-        fh.write(f"{stage}\t{result.wall_s:.3f}\t{result.max_rss_mb:.1f}\t{tree}\t{result.exit_code}\n")
-
-
-def _start_timing(path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(_TIMING_HEADER, encoding="utf-8")
-
-
 def _write_params(rep: ResolvedRep, layout: Layout) -> None:
     from simace.core.yaml_io import dump_yaml
     from simace.simulation.emit_params import emit_params
 
     params = emit_params(seed=rep.seed, rep=rep.rep, **{key: rep.params[key] for key in PARAMS_YAML_KEYS})
-    with publish(layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.PARAMS)) as (tmp,):
+    with publish(rep.path(layout, RepArtifact.PARAMS)) as (tmp,):
         dump_yaml(params, tmp, sort_keys=True)
 
 
@@ -436,7 +115,7 @@ class _Console:
 def _recompute(
     rep: ResolvedRep,
     layout: Layout,
-    launcher: _Launcher,
+    launcher: Launcher,
     console: _Console,
     first: int = 0,
     until: int = len(STAGES),
@@ -452,30 +131,30 @@ def _recompute(
     rewrites ``params.yaml`` from the current parameters.
     """
     tag = f"{rep.scenario}/rep{rep.rep}"
-    rep_dir = layout.rep_dir(rep.folder, rep.scenario, rep.rep)
+    rep_dir = rep.dir(layout)
     if first == 0:
         for artifact in REP_OUTPUTS:
-            layout.rep(rep.folder, rep.scenario, rep.rep, artifact).unlink(missing_ok=True)
+            rep.path(layout, artifact).unlink(missing_ok=True)
         for retired in RETIRED_OUTPUTS:
             (rep_dir / retired).unlink(missing_ok=True)
     else:
-        layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST).unlink()
+        rep.path(layout, RepArtifact.RUN_MANIFEST).unlink()
         for stage in STAGES[first:]:
             for artifact in stage.outputs:
-                layout.rep(rep.folder, rep.scenario, rep.rep, artifact).unlink(missing_ok=True)
+                rep.path(layout, artifact).unlink(missing_ok=True)
     if rep_dir.exists():
         for stale in rep_dir.glob(f"*{TMP_SUFFIX}"):
             stale.unlink()
 
     _write_params(rep, layout)
-    timing = layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.TIMING)
+    timing = rep.path(layout, RepArtifact.TIMING)
     if first == 0:
-        _start_timing(timing)
+        start_timing(timing)
     for stage in STAGES[first:until]:
         console.say(tag, f"{stage.name} started")
-        log_path = layout.log(rep.folder, rep.scenario, rep.rep, stage.name)
-        result = launcher.run(_command(stage.name, stage.argv(rep, layout)), log_path)
-        _append_timing(timing, stage.name, result)
+        log_path = rep.log(layout, stage.name)
+        result = launcher.run(command(stage.name, stage.argv(rep, layout)), log_path)
+        append_timing(timing, stage.name, result)
         if result.exit_code != 0:
             failure = f"{stage.name} FAILED ({result.failure}); log: {log_path}"
             console.say(tag, failure)
@@ -483,7 +162,7 @@ def _recompute(
         console.say(tag, f"{stage.name} finished in {result.wall_s:.1f}s, {result.memory}")
 
     write_manifest(
-        layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.RUN_MANIFEST),
+        rep.path(layout, RepArtifact.RUN_MANIFEST),
         expected_manifest(rep, STAGES[:until]),
         rep_outputs(rep, layout, STAGES[:until]),
     )
@@ -501,7 +180,7 @@ class _ScenarioStage:
 
     @property
     def command(self) -> list[str]:
-        return _command(self.subcommand, self.argv)
+        return command(self.subcommand, self.argv)
 
 
 def _scenario_stages(reps: list[ResolvedRep], layout: Layout, atlas_format: str) -> list[_ScenarioStage]:
@@ -523,16 +202,6 @@ def _scenario_stages(reps: list[ResolvedRep], layout: Layout, atlas_format: str)
             )
         )
     return stages
-
-
-def _child_env(jobs: int) -> dict[str, str]:
-    env = {**os.environ, **dict.fromkeys(_BLAS_THREADS, "1")}
-    if jobs > 1:
-        env.update(dict.fromkeys(_KERNEL_THREADS, "1"))
-    # pedigree-graph defaults to one thread, so without this its relationship-pair
-    # extraction in analyze runs serially.
-    env.setdefault("PEDIGREE_GRAPH_THREADS", str(max(1, len(os.sched_getaffinity(0)) // jobs)))
-    return env
 
 
 def rep_spec(text: str) -> list[int]:
@@ -576,7 +245,7 @@ def _parse(argv: list[str] | None, prog: str | None) -> argparse.Namespace:
     parser.add_argument("--no-plots", action="store_true", help="Skip the scenario plots and atlas")
     parser.add_argument(
         "--until",
-        choices=_stage_names(),
+        choices=stage_names(),
         default=STAGES[-1].name,
         help="Last stage to compute (default: %(default)s). A rep built through an earlier stage is partial, "
         "a later run resumes it, and plots are skipped",
@@ -602,7 +271,7 @@ def _parse(argv: list[str] | None, prog: str | None) -> argparse.Namespace:
         parser.error("--jobs must be at least 1")
     if args.rep is not None:
         args.rep = [r for spec in args.rep for r in spec]
-    args.until = _stage_names().index(args.until) + 1
+    args.until = stage_names().index(args.until) + 1
     return args
 
 
@@ -773,7 +442,7 @@ def _run_reps(
     failed = _compute(
         [item for run in runs for item in outcomes[run.scenario].to_compute],
         layout,
-        _Launcher(_child_env(args.jobs), args.max_memory, lock_fds, cgroups),
+        Launcher(child_env(args.jobs), args.max_memory, lock_fds, cgroups),
         console,
         jobs=args.jobs,
         fail_fast=args.fail_fast,
@@ -791,7 +460,7 @@ def _run_reps(
         for run in runs:
             console.say(run.scenario, f"plots skipped: --until {STAGES[args.until - 1].name}")
     elif not args.no_plots:
-        launcher = _Launcher(_child_env(1), args.max_memory, lock_fds, cgroups)
+        launcher = Launcher(child_env(1), args.max_memory, lock_fds, cgroups)
         for run in runs:
             incomplete = [rep.rep for rep in run.all_reps if status_on_disk(rep, layout).state is not RepState.COMPLETE]
             if incomplete:
@@ -807,7 +476,7 @@ def _run_reps(
 def _compute(
     reps: list[tuple[ResolvedRep, int]],
     layout: Layout,
-    launcher: _Launcher,
+    launcher: Launcher,
     console: _Console,
     *,
     jobs: int,
@@ -852,29 +521,17 @@ def _summarize(scenario: str, console: _Console, outcome: _Outcome) -> None:
         console.say(scenario, f"  rep{rep} refused: {why}")
 
 
-def rep_ranges(reps: list[int]) -> str:
-    """Render sorted rep numbers as ``rep2`` or ``reps 1-3, 7``."""
-    runs: list[list[int]] = []
-    for rep in reps:
-        if runs and rep == runs[-1][-1] + 1:
-            runs[-1].append(rep)
-        else:
-            runs.append([rep])
-    text = ", ".join(f"{r[0]}-{r[-1]}" if len(r) > 1 else str(r[0]) for r in runs)
-    return f"rep{text}" if len(reps) == 1 else f"reps {text}"
-
-
 def _build_plots(
-    reps: list[ResolvedRep], layout: Layout, atlas_format: str, launcher: _Launcher, console: _Console
+    reps: list[ResolvedRep], layout: Layout, atlas_format: str, launcher: Launcher, console: _Console
 ) -> bool:
     folder, scenario = reps[0].folder, reps[0].scenario
     layout.scenario_plots_manifest(folder, scenario).unlink(missing_ok=True)
     timing = layout.scenario_plots(folder, scenario) / RepArtifact.TIMING
-    _start_timing(timing)
+    start_timing(timing)
     for stage in _scenario_stages(reps, layout, atlas_format):
         console.say(scenario, f"{stage.label} started")
         result = launcher.run(stage.command, stage.log_path)
-        _append_timing(timing, stage.label, result)
+        append_timing(timing, stage.label, result)
         if result.exit_code != 0:
             console.say(scenario, f"{stage.label} FAILED ({result.failure}); log: {stage.log_path}")
             return False
@@ -882,7 +539,7 @@ def _build_plots(
     plots = layout.scenario_plots(folder, scenario)
     write_plots_manifest(
         layout.scenario_plots_manifest(folder, scenario),
-        {f"rep{rep.rep}": layout.rep(folder, scenario, rep.rep, RepArtifact.RUN_MANIFEST) for rep in reps},
+        {f"rep{rep.rep}": rep.path(layout, RepArtifact.RUN_MANIFEST) for rep in reps},
         [plots / "atlas.html", *([plots / "atlas.pdf"] if atlas_format == "pdf" else [])],
     )
     return True
@@ -898,9 +555,9 @@ def _print_plan(
     include_plots: bool,
 ) -> None:
     for rep, first in to_compute:
-        print(f"# rep {rep.rep}: write {layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.PARAMS)}")
+        print(f"# rep {rep.rep}: write {rep.path(layout, RepArtifact.PARAMS)}")
         for stage in STAGES[first:until]:
-            print(shlex.join(_command(stage.name, stage.argv(rep, layout))))
+            print(shlex.join(command(stage.name, stage.argv(rep, layout))))
     if include_plots:
         for stage in _scenario_stages(all_reps, layout, atlas_format):
             print(shlex.join(stage.command), flush=True)

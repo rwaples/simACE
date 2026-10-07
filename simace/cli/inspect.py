@@ -16,7 +16,8 @@ import yaml
 import simace
 from simace.cli.layout import RepArtifact, add_root_args, require_config, resolve_roots
 from simace.cli.manifest import RepState, source_ref
-from simace.cli.run import (
+from simace.cli.stages import ResolvedRep
+from simace.cli.status import (
     ScenarioError,
     check_runnable,
     load_scenario,
@@ -25,7 +26,6 @@ from simace.cli.run import (
     scenario_plots_status,
     status_on_disk,
 )
-from simace.cli.stages import ResolvedRep
 from simace.core.yaml_io import to_native
 
 if TYPE_CHECKING:
@@ -88,7 +88,7 @@ def _timing(layout: Layout, reps: list[ResolvedRep]) -> dict[str, Any]:
         if status_on_disk(rep, layout).state is not RepState.COMPLETE:
             continue
         used += 1
-        with open(layout.rep(rep.folder, rep.scenario, rep.rep, RepArtifact.TIMING), encoding="utf-8") as fh:
+        with open(rep.path(layout, RepArtifact.TIMING), encoding="utf-8") as fh:
             for row in csv.DictReader(fh, delimiter="\t"):
                 stage = row["stage"]
                 walls[stage].append(float(row["wall_s"]))
@@ -124,10 +124,7 @@ def show_cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     body = {
         "scenario": args.scenario,
         "params": to_native(params),
-        "reps": {
-            f"rep{rep.rep}": {"seed": rep.seed, "dir": str(layout.rep_dir(rep.folder, rep.scenario, rep.rep))}
-            for rep in reps
-        },
+        "reps": {f"rep{rep.rep}": {"seed": rep.seed, "dir": str(rep.dir(layout))} for rep in reps},
         "plots": {
             "dir": str(layout.scenario_plots(params["folder"], args.scenario)),
             "state": scenario_plots_status(reps, layout).describe(),

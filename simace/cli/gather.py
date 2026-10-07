@@ -55,7 +55,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
 
     scenarios: dict[str, dict[str, Any]] = {}
     if (config_dir / "_default.yaml").is_file():
-        from simace.cli.run import resolve_all
+        from simace.cli.status import resolve_all
 
         scenarios = resolve_all(config_dir)
     elif args.config_dir is not None or not args.all:
@@ -88,8 +88,8 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
 def _configured_reports(folder: str, scenarios: dict[str, dict[str, Any]], layout: Layout) -> list[str]:
     """Return the report paths of the complete reps of ``folder``'s configured scenarios, naming every other rep."""
     from simace.cli.manifest import RepState
-    from simace.cli.run import ScenarioError, check_runnable, status_on_disk
     from simace.cli.stages import ResolvedRep
+    from simace.cli.status import ScenarioError, check_runnable, status_on_disk
 
     configured = {name: params for name, params in scenarios.items() if params["folder"] == folder}
     if not configured:
@@ -111,11 +111,11 @@ def _configured_reports(folder: str, scenarios: dict[str, dict[str, Any]], layou
         for rep in reps:
             status = status_on_disk(rep, layout)
             if status.state is RepState.COMPLETE:
-                reports.append(rep.path(layout, RepArtifact.REPORT))
+                reports.append(str(rep.path(layout, RepArtifact.REPORT)))
                 included += 1
             else:
                 why = f"{status.state}: {status.describe()}" if status.reasons else str(status.state)
-                print(f"simace gather: skipping {layout.rep_dir(folder, name, rep.rep)} ({why})", file=sys.stderr)
+                print(f"simace gather: skipping {rep.dir(layout)} ({why})", file=sys.stderr)
         print(f"simace gather: {folder}/{name}: {included} of {len(reps)} reps", file=sys.stderr)
         for extra in sorted(layout.scenario_dir(folder, name).glob("rep*")):
             if extra.is_dir() and extra.name.removeprefix("rep").isdigit() and int(extra.name[3:]) > len(reps):
@@ -158,8 +158,8 @@ def _not_complete(rep_dir: Path, scenarios: dict[str, dict[str, Any]], layout: L
         return None
 
     from simace.cli.manifest import RepState
-    from simace.cli.run import status_on_disk
     from simace.cli.stages import ResolvedRep
+    from simace.cli.status import status_on_disk
 
     status = status_on_disk(ResolvedRep(params["folder"], scenario, rep, params), layout)
     return None if status.state is RepState.COMPLETE else f"{status.state}: {status.describe()}"

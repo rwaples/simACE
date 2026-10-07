@@ -15,8 +15,8 @@ import simace.analysis.analyze as analyze_mod
 import simace.cli.cohort_stage as cohort_mod
 import simace.simulation.simulate as simulate_mod
 from simace.cli.layout import Layout
-from simace.cli.run import ScenarioError, check_runnable, resolve_all
 from simace.cli.stages import REP_PARAM_KEYS, STAGES, ResolvedRep
+from simace.cli.status import ScenarioError, check_runnable, resolve_all
 
 REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
 

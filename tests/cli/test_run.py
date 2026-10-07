@@ -15,13 +15,22 @@ import pytest
 import yaml
 
 import simace
+import simace.cli.launch as launch_mod
 import simace.cli.run as run_mod
 from simace.cli.cgroups import CgroupRoot, CgroupUnavailable
 from simace.cli.inspect import ls_cli, show_cli
 from simace.cli.layout import Layout, RepArtifact
 from simace.cli.manifest import PlotsState, RepState, write_manifest, write_plots_manifest
-from simace.cli.run import cli, expected_manifest, load_scenario, rep_outputs, scenario_plots_status, status_on_disk
+from simace.cli.run import cli
 from simace.cli.stages import REP_OUTPUTS, RETIRED_OUTPUTS, STAGES, ResolvedRep
+from simace.cli.status import (
+    expected_manifest,
+    load_scenario,
+    rep_outputs,
+    rep_ranges,
+    scenario_plots_status,
+    status_on_disk,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -210,9 +219,9 @@ def test_stage_keeps_scenario_locked_if_orchestrator_is_killed(tmp_path) -> None
     parent_code = (
         "import os, sys\n"
         "from pathlib import Path\n"
-        "from simace.cli.run import _Launcher, _scenario_lock\n"
+        "from simace.cli.launch import Launcher\nfrom simace.cli.run import _scenario_lock\n"
         "with _scenario_lock(Path(sys.argv[1])) as fd:\n"
-        "    _Launcher(dict(os.environ), lock_fds=(fd,)).run("
+        "    Launcher(dict(os.environ), lock_fds=(fd,)).run("
         "[sys.executable, '-c', sys.argv[4], sys.argv[2], sys.argv[3]], Path(sys.argv[5]))\n"
     )
     parent = subprocess.Popen(
@@ -472,7 +481,7 @@ def test_summary_counts_skipped_and_computed_reps(config_dir, roots, layout, rec
 def test_blas_is_always_pinned_and_kernels_only_for_concurrent_reps(monkeypatch) -> None:
     monkeypatch.delenv("NUMBA_NUM_THREADS", raising=False)
     monkeypatch.setenv("OMP_NUM_THREADS", "8")
-    one, many = run_mod._child_env(1), run_mod._child_env(2)
+    one, many = launch_mod.child_env(1), launch_mod.child_env(2)
     assert one["OMP_NUM_THREADS"] == many["OMP_NUM_THREADS"] == "1"
     assert "NUMBA_NUM_THREADS" not in one
     assert many["NUMBA_NUM_THREADS"] == many["POLARS_MAX_THREADS"] == "1"
@@ -481,12 +490,12 @@ def test_blas_is_always_pinned_and_kernels_only_for_concurrent_reps(monkeypatch)
 def test_pedigree_graph_splits_the_cores_across_concurrent_reps(monkeypatch) -> None:
     cores = len(os.sched_getaffinity(0))
     monkeypatch.delenv("PEDIGREE_GRAPH_THREADS", raising=False)
-    assert run_mod._child_env(1)["PEDIGREE_GRAPH_THREADS"] == str(cores)
-    assert run_mod._child_env(2)["PEDIGREE_GRAPH_THREADS"] == str(max(1, cores // 2))
-    assert run_mod._child_env(cores + 1)["PEDIGREE_GRAPH_THREADS"] == "1"
+    assert launch_mod.child_env(1)["PEDIGREE_GRAPH_THREADS"] == str(cores)
+    assert launch_mod.child_env(2)["PEDIGREE_GRAPH_THREADS"] == str(max(1, cores // 2))
+    assert launch_mod.child_env(cores + 1)["PEDIGREE_GRAPH_THREADS"] == "1"
     monkeypatch.setenv("PEDIGREE_GRAPH_THREADS", "3")
-    assert run_mod._child_env(1)["PEDIGREE_GRAPH_THREADS"] == "3"
-    assert run_mod._child_env(2)["PEDIGREE_GRAPH_THREADS"] == "3"
+    assert launch_mod.child_env(1)["PEDIGREE_GRAPH_THREADS"] == "3"
+    assert launch_mod.child_env(2)["PEDIGREE_GRAPH_THREADS"] == "3"
 
 
 @pytest.mark.parametrize(
@@ -494,13 +503,13 @@ def test_pedigree_graph_splits_the_cores_across_concurrent_reps(monkeypatch) -> 
     [("512M", 512 * 2**20), ("8G", 8 * 2**30), ("8gb", 8 * 2**30), ("1.5G", 3 * 2**29), ("4096", 4096)],
 )
 def test_parse_size(text, size) -> None:
-    assert run_mod.parse_size(text) == size
+    assert launch_mod.parse_size(text) == size
 
 
 @pytest.mark.parametrize("text", ["", "lots", "0", "-1G", "8X"])
 def test_parse_size_rejects(text) -> None:
     with pytest.raises(argparse.ArgumentTypeError):
-        run_mod.parse_size(text)
+        launch_mod.parse_size(text)
 
 
 @pytest.fixture(params=["cgroup", "polled"])
@@ -521,7 +530,7 @@ def cgroups(request, monkeypatch) -> Iterator[CgroupRoot | None]:
 def test_launcher_kills_a_stage_over_the_memory_cap(tmp_path, cgroups) -> None:
     hog = [sys.executable, "-c", "import time; b = b'x' * (400 * 2**20); time.sleep(60)"]
     log = tmp_path / "hog.log"
-    result = run_mod._Launcher(dict(os.environ), max_rss=200 * 2**20, cgroups=cgroups).run(hog, log)
+    result = launch_mod.Launcher(dict(os.environ), max_rss=200 * 2**20, cgroups=cgroups).run(hog, log)
     assert (result.exit_code, result.over_memory) == (-9, True)
     assert result.wall_s < 30
     assert "went over --max-memory (200 MB)" in log.read_text()
@@ -537,14 +546,16 @@ def test_launcher_counts_and_kills_a_stage_s_worker_processes(tmp_path, cgroups)
         f"ws = [subprocess.Popen([sys.executable, '-c', {worker!r}]) for _ in range(3)]; "
         f"open({str(pids)!r}, 'w').write(' '.join(str(w.pid) for w in ws)); time.sleep(60)",
     ]
-    result = run_mod._Launcher(dict(os.environ), max_rss=250 * 2**20, cgroups=cgroups).run(stage, tmp_path / "pool.log")
+    result = launch_mod.Launcher(dict(os.environ), max_rss=250 * 2**20, cgroups=cgroups).run(
+        stage, tmp_path / "pool.log"
+    )
     assert (result.exit_code, result.over_memory) == (-9, True)
     assert result.wall_s < 30
     for pid in map(int, pids.read_text().split()):
         deadline = time.monotonic() + 10
-        while run_mod._rss_bytes(pid) and time.monotonic() < deadline:
+        while launch_mod._rss_bytes(pid) and time.monotonic() < deadline:
             time.sleep(0.05)
-        assert run_mod._rss_bytes(pid) == 0
+        assert launch_mod._rss_bytes(pid) == 0
 
 
 def test_launcher_records_the_peak_of_a_stage_s_process_tree_in_a_cgroup(tmp_path, cgroups) -> None:
@@ -554,7 +565,7 @@ def test_launcher_records_the_peak_of_a_stage_s_process_tree_in_a_cgroup(tmp_pat
         "-c",
         f"import subprocess, sys; [w.wait() for w in [subprocess.Popen([sys.executable, '-c', {worker!r}]) for _ in range(3)]]",
     ]
-    result = run_mod._Launcher(dict(os.environ), cgroups=cgroups).run(stage, tmp_path / "pool.log")
+    result = launch_mod.Launcher(dict(os.environ), cgroups=cgroups).run(stage, tmp_path / "pool.log")
     assert result.exit_code == 0
     if cgroups is None:
         assert result.tree_peak_mb is None
@@ -564,7 +575,7 @@ def test_launcher_records_the_peak_of_a_stage_s_process_tree_in_a_cgroup(tmp_pat
 
 def test_launcher_leaves_a_stage_under_the_cap_alone(tmp_path, cgroups) -> None:
     ok = [sys.executable, "-c", "pass"]
-    result = run_mod._Launcher(dict(os.environ), max_rss=2**30, cgroups=cgroups).run(ok, tmp_path / "ok.log")
+    result = launch_mod.Launcher(dict(os.environ), max_rss=2**30, cgroups=cgroups).run(ok, tmp_path / "ok.log")
     assert (result.exit_code, result.over_memory) == (0, False)
 
 
@@ -821,7 +832,7 @@ def test_ls_groups_reps_by_state_and_reason(config_dir, layout, tmp_path, capsys
     ("reps", "text"), [([2], "rep2"), ([1, 2, 3], "reps 1-3"), ([1, 2, 3, 5, 8, 9], "reps 1-3, 5, 8-9")]
 )
 def test_ls_rep_ranges(reps, text) -> None:
-    assert run_mod.rep_ranges(reps) == text
+    assert rep_ranges(reps) == text
 
 
 def test_ls_flags_reps_built_by_another_version(config_dir, layout, tmp_path, capsys) -> None:
@@ -903,8 +914,8 @@ def test_a_failed_plot_pass_leaves_no_plots_manifest(config_dir, roots, layout, 
     for rep in reps:
         _finish(layout, rep)
     _plotted(layout, reps, "atlas.html")
-    failing = run_mod.StageResult(wall_s=0.1, max_rss_mb=1.0, tree_peak_mb=None, exit_code=1)
-    monkeypatch.setattr(run_mod._Launcher, "run", lambda self, command, log_path: failing)
+    failing = launch_mod.StageResult(wall_s=0.1, max_rss_mb=1.0, tree_peak_mb=None, exit_code=1)
+    monkeypatch.setattr(launch_mod.Launcher, "run", lambda self, command, log_path: failing)
     assert _run(config_dir, roots, "tiny") == 1
     assert capsys.readouterr().out.endswith("[tiny] plots: absent\n")
     assert not layout.scenario_plots_manifest("t", "tiny").exists()

@@ -13,8 +13,8 @@ import simace.plotting.plot_validation as plot_validation_mod
 from simace.cli.gather import cli
 from simace.cli.layout import Layout
 from simace.cli.manifest import write_manifest
-from simace.cli.run import expected_manifest, load_scenario, rep_outputs
 from simace.cli.stages import REP_OUTPUTS, ResolvedRep
+from simace.cli.status import expected_manifest, load_scenario, rep_outputs
 from tests.analysis.test_gather_cli import _MINIMAL_REPORT
 
 REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
