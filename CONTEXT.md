@@ -225,7 +225,7 @@ The actual number of individuals per generation. Constant across generations by 
 _Avoid_: census size (quant-gen literature uses this to disambiguate from $N_e$; simACE does not — just say "population size" or "$N$").
 
 **Effective size** ($N_e$, effective population size):
-The size of an idealized Wright-Fisher population that would produce the same rate of drift / inbreeding / mean-kinship accumulation as the simulated pedigree. Distinct from the population size $N$. Canonical compound form: `effective_size` (matches code: `effective_size.yaml`, `validate_effective_size`, `simace.analysis.stats.effective_size`). "Effective population size" is acceptable in prose.
+The size of an idealized Wright-Fisher population that would produce the same rate of drift / inbreeding / mean-kinship accumulation as the simulated pedigree. Distinct from the population size $N$. Canonical compound form: `effective_size` (matches code: `effective_size.yaml`, `simace.analysis.stats.effective_size`). "Effective population size" is acceptable in prose.
 _Avoid_: effective number, Ne (acceptable as a math symbol but the word form is "effective size"), drift size.
 
 **$N_e$ estimator**:

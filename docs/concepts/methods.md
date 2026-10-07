@@ -444,7 +444,7 @@ The expected MZ correlation is $A + C$ and the expected full-sibling correlation
 
 Every simulated individual has known parameters, so every output can be checked against expectation. Validation confirms both that the code works and that the estimators do.
 
-The Analyze stage calls `simace.analysis.validate` to run ten check families on each replicate:
+The Analyze stage calls `simace.analysis.validate` to run nine check families on each replicate:
 
 - **Structural** (`validate_structural`). Identifiers are contiguous. Parent references are valid IDs or $-1$ for founders. Mothers are female and fathers are male. The sex ratio lies in $[0.45, 0.55]$.
 - **Statistical** (`validate_statistical`). Founder variances of $A$, $C$, and $E$ match the configured values. Total variance is near 1. The cross-trait correlations $r_A$, $r_C$, and $r_E$ match. $C$ is identical within households. $E$ is uncorrelated between siblings.
@@ -455,7 +455,6 @@ The Analyze stage calls `simace.analysis.validate` to run ten check families on 
 - **Assortative mating** (`validate_assortative_mating`). The Pearson correlation of mother and father liability for each trait matches the `assort` target.
 - **AM equilibrium** (`validate_am_equilibrium`). Under assortative mating, the final-generation $\mathrm{Var}(A)$ matches the infinitesimal-recursion prediction.
 - **Consanguinity** (`validate_consanguineous_matings`). Consanguineous matings are detected, and the resulting shortfall in distinct grandparents is reconciled.
-- **Effective size** (`validate_effective_size`). Each of the eight Ne estimators matches its expected value when the configuration has one.
 
 Correlation checks use a tolerance of four standard errors with a floor of 0.05. See `_corr_tolerance` in `simace.analysis.validate._common`.
 

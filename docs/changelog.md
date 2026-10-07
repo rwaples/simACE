@@ -94,6 +94,10 @@ Code that only tests reached:
   model accepts, and of a `_prev12` step that was never in the diagram.
 - `plot_cumulative_incidence`'s fallback for the pre-`observed_values`
   cumulative-incidence format.
+- `simace.analysis.validate.validate_effective_size`
+  ([#40](https://github.com/rwaples/simACE/issues/40)). The validation runner
+  never called it. Ne stays a reported statistic in `effective_size.yaml` and
+  its plots, with no pass/fail check.
 
 ## 0.1.0 — 2026-10-02
 

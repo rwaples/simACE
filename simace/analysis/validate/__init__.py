@@ -15,14 +15,12 @@ Public API is re-exported from focused sub-modules (mirrors
 - :mod:`.population` — generation sizes, per-gen stats, family-size dist
 - :mod:`.assortative_mating` — mate correlation
 - :mod:`.am_equilibrium` — AM additive-variance (Bulmer) equilibrium
-- :mod:`.effective_size` — Ne observed-vs-expected
 - :mod:`.runner` — ``build_validation_report``, ``run_validation``, ``cli``
 """
 
 from .am_equilibrium import validate_am_equilibrium
 from .assortative_mating import validate_assortative_mating
 from .consanguinity import validate_consanguineous_matings
-from .effective_size import validate_effective_size
 from .half_sibs import validate_half_sibs
 from .heritability import validate_heritability
 from .population import (
@@ -44,7 +42,6 @@ __all__ = [
     "validate_am_equilibrium",
     "validate_assortative_mating",
     "validate_consanguineous_matings",
-    "validate_effective_size",
     "validate_half_sibs",
     "validate_heritability",
     "validate_population",

@@ -1,4 +1,4 @@
-"""Per-rep Ne wrapper: compute_effective_size + validator + main() integration."""
+"""Per-rep Ne wrapper: compute_effective_size + main() integration."""
 
 from pathlib import Path
 
@@ -19,7 +19,6 @@ from simace.analysis.stats.effective_size import (
 from simace.analysis.stats.effective_size import (
     main as run_effective_size,
 )
-from simace.analysis.validate import validate_effective_size
 from simace.core.cohort import COHORT_COLUMNS, build_cohort, write_cohort, write_pedigree
 from simace.core.pedigree_filter import filter_pedigree_to_observed
 
@@ -317,57 +316,6 @@ class TestComputeEffectiveSize:
         assert result["ne_hill_overlapping"]["expected"] is None
         # Other estimators still receive their expected values.
         assert result["ne_variance_family_size"]["expected"] is not None
-
-
-# ---------------------------------------------------------------------------
-# validate_effective_size
-# ---------------------------------------------------------------------------
-
-
-class TestValidateEffectiveSize:
-    def test_passes_when_observed_within_tolerance(self):
-        ne_stats = {
-            "ne_inbreeding": {"ne": 195.0, "expected": 200.0},
-            "ne_sex_ratio": {"ne": 200.0, "expected": 200.0},
-        }
-        out = validate_effective_size(ne_stats, params={})
-        assert out["ne_inbreeding"]["passed"] is True
-        assert out["ne_sex_ratio"]["passed"] is True
-
-    def test_fails_when_observed_off_by_more_than_20pct(self):
-        ne_stats = {
-            "ne_inbreeding": {"ne": 100.0, "expected": 200.0},  # 50% off
-        }
-        out = validate_effective_size(ne_stats, params={})
-        assert out["ne_inbreeding"]["passed"] is False
-        assert out["ne_inbreeding"]["relative_error"] == pytest.approx(0.5)
-
-    def test_passes_vacuously_when_expected_none(self):
-        ne_stats = {
-            "ne_inbreeding": {"ne": 200.0, "expected": None},
-        }
-        out = validate_effective_size(ne_stats, params={})
-        assert out["ne_inbreeding"]["passed"] is True
-        assert out["ne_inbreeding"]["expected"] is None
-
-    def test_not_requested_passes_vacuously(self):
-        ne_stats = {"ne_coancestry": {"reason": "not_requested", "code": None, "fields": {}}}
-        out = validate_effective_size(ne_stats, params={})
-        assert out["ne_coancestry"]["passed"] is True
-        assert out["ne_coancestry"]["observed"] is None
-
-    def test_missing_metadata_fails_and_names_the_refusal_code(self):
-        ne_stats = {
-            "ne_sex_ratio": {"reason": "missing_metadata", "code": "missing_sex", "fields": {"status": "absent"}}
-        }
-        out = validate_effective_size(ne_stats, params={})
-        assert out["ne_sex_ratio"]["passed"] is False
-        assert out["ne_sex_ratio"]["code"] == "missing_sex"
-        assert "missing_sex" in out["ne_sex_ratio"]["details"]
-
-    def test_returns_empty_when_ne_stats_empty(self):
-        assert validate_effective_size({}, params={}) == {}
-        assert validate_effective_size(None, params={}) == {}
 
 
 # ---------------------------------------------------------------------------
