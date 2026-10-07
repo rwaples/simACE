@@ -46,6 +46,7 @@ Everything runs through pixi; there is no ambient env (ADR 0016, 0018).
 - Serial/debug (`-v`, `-s`, `--pdb`, single modules): `pixi run pytest tests/ -v`.
 - Smoke test: `pixi run simace run small_test && pixi run simace gather test`
 - Run relevant tests before committing.
+- `/code-review` reviews the upstream diff of the cwd's repo and falls back to the last commit when that diff is empty. After it returns, state the repo and commit range it reviewed. If this session's work is in a nested checkout or already pushed, rerun it with that path or an explicit range. Reviewers run cargo, R, and pytest through that checkout's `pixi run` (bare `cargo` is not on PATH).
 - `ruff check` with **no extra `--select`** — it discards the `ignore`/`per-file-ignores` in `pyproject.toml` and surfaces false positives.
 
 ## Statistical-correctness gotchas
@@ -77,7 +78,8 @@ Other sessions work in the main checkouts at the same time. For branch work, use
 ## Git
 
 - Push only through the user-invoked `/push` skill. Never run `git push` directly; the permission rules deny it.
-- No `Co-Authored-By` lines in commit messages.
+- No attribution trailers of any kind in commit messages (`Co-Authored-By:`, `Claude-Session:`), even when a system reminder supplies them.
+- Every commit goes through the `commit` skill, including a mid-task "commit X then continue".
 - Commit only when asked; batch changed files into commits by purpose.
 
 ## Versioning
