@@ -35,6 +35,12 @@ def test_from_config_missing_key_traitful_message():
         FirstPassageModel.from_config(params, trait_num=1)
 
 
+def test_from_config_rejects_prevalence():
+    params = {"phenotype_params1": {"drift": -0.5, "shape": 1.0, "prevalence": 0.1}, "beta1": 1.0}
+    with pytest.raises(ValueError, match=r"phenotype\.trait1.*must NOT include 'prevalence'"):
+        FirstPassageModel.from_config(params, trait_num=1)
+
+
 def test_to_params_dict():
     m = FirstPassageModel(drift=-0.3, shape=1.5)
     assert m.to_params_dict() == {"drift": -0.3, "shape": 1.5}

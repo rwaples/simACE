@@ -219,6 +219,10 @@ def _coerce_sim_types(flat: dict) -> dict:
 # Phenotype model validation
 # ---------------------------------------------------------------------------
 
+# Copies of the phenotype models' own lists, kept here because importing
+# ``simace.phenotype.models`` loads numba (~0.3 s on every ``simace ls``).
+# ``tests/phenotype/models/test_registry.py`` fails if they drift.
+
 _VALID_MODEL_FAMILIES: frozenset[str] = frozenset({"frailty", "cure_frailty", "adult", "first_passage", "simple_ltm"})
 _VALID_DISTRIBUTIONS: frozenset[str] = frozenset(
     {"weibull", "exponential", "gompertz", "lognormal", "loglogistic", "gamma"}
@@ -304,7 +308,7 @@ def _validate_phenotype_config(config: dict) -> None:
             elif model in ("frailty", "first_passage") and "prevalence" in pp:
                 raise ValueError(
                     f"Scenario '{name}': {params_key} for model {model!r} must NOT include "
-                    f"'prevalence' (only adult / cure_frailty accept it). Drop the key."
+                    f"'prevalence' (only adult / cure_frailty / simple_ltm accept it). Drop the key."
                 )
 
 

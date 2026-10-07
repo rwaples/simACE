@@ -138,6 +138,11 @@ class FirstPassageModel(PhenotypeModel):
     def from_config(cls, params: dict[str, Any], trait_num: int) -> Self:
         with wrap_trait_error(trait_num):
             phenotype_params = dict(params.get(f"phenotype_params{trait_num}", {}))
+            if "prevalence" in phenotype_params:
+                raise ValueError(
+                    f"phenotype_params{trait_num} for model 'first_passage' must NOT include 'prevalence' "
+                    f"(only adult / cure_frailty / simple_ltm accept it). Drop the key."
+                )
             try:
                 drift = phenotype_params["drift"]
                 shape = phenotype_params["shape"]

@@ -42,15 +42,15 @@ import numpy as np
 import polars as pl
 
 from simace.phenotype.hazards import standardize_liability
-from simace.phenotype.models._prevalence import prevalence_to_array
+from simace.phenotype.models._prevalence import logistic_cif_onset, prevalence_to_array
 
 #: Right-censoring age for late-onset cases. Matches the simACE default
 #: `censoring.max_age`.
 MAX_AGE = 80.0
-#: ADuLT/LTM cumulative-incidence shape parameters. The default values
-#: track those of the source `adult/ltm` phenotype model — the temporal
-#: scenarios all use these defaults, so we hardcode them here. If a
-#: scenario uses non-default values they should be passed in.
+#: ADuLT/LTM cumulative-incidence shape parameters. These match the values
+#: the temporal scenarios set explicitly (e.g. ``cip_k: 0.15`` in
+#: ``config/epimight_bias_2M.yaml``), not ``AdultModel``'s own defaults
+#: (``cip_k = 0.2``). If a scenario uses other values they should be passed in.
 DEFAULT_CIF_X0 = 50.0
 DEFAULT_CIF_K = 0.15
 
@@ -61,8 +61,7 @@ def _compute_onset(L_eff: np.ndarray, K: np.ndarray, cip_x0: float, cip_k: float
     from scipy.special import erfc
 
     cir = 0.5 * erfc(L_eff / np.sqrt(2.0))
-    cir = np.clip(cir, 1e-10, K - 1e-10)
-    onset = cip_x0 + (1.0 / cip_k) * np.log(cir / (K - cir))
+    onset = logistic_cif_onset(cir, K, cip_x0, cip_k)
     np.clip(onset, 0.01, 1e6, out=onset)
     return onset
 

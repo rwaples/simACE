@@ -25,6 +25,19 @@ def test_registry_keys_match_expected():
     assert set(MODELS) == set(EXPECTED)
 
 
+def test_config_validator_lists_match_the_models():
+    """``simace.config`` keeps its own copies so config loading never imports numba; they must not drift."""
+    from simace import config
+    from simace.phenotype.hazards import BASELINE_HAZARDS
+    from simace.phenotype.models.adult import _ADULT_METHODS
+    from simace.phenotype.models.simple_ltm import _ONSET_KINDS
+
+    assert set(MODELS) == config._VALID_MODEL_FAMILIES
+    assert set(BASELINE_HAZARDS) == config._VALID_DISTRIBUTIONS
+    assert config._VALID_METHODS == _ADULT_METHODS
+    assert config._VALID_ONSET_KINDS == _ONSET_KINDS
+
+
 @pytest.mark.parametrize(("name", "cls"), list(EXPECTED.items()))
 def test_registry_class_subclasses_phenotype_model(name, cls):
     assert MODELS[name] is cls

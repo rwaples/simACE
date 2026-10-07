@@ -24,6 +24,7 @@ if TYPE_CHECKING:
 __all__ = [
     "case_status_from_liability",
     "liability_threshold_mask",
+    "logistic_cif_onset",
     "prevalence_to_array",
     "resolve_prevalence",
 ]
@@ -92,6 +93,15 @@ def resolve_prevalence(
         resolved = prevalence_to_array(prev, generation)
     _validate_prevalence(resolved)
     return resolved
+
+
+def logistic_cif_onset(cir: np.ndarray, K, cip_x0: float, cip_k: float) -> np.ndarray:
+    """Return the age at which the logistic CIF ``K / (1 + exp(-k (t - x0)))`` reaches ``cir``.
+
+    ``cir`` is clipped to ``[1e-10, K - 1e-10]`` so the log stays finite.
+    """
+    cir = np.clip(cir, 1e-10, np.asarray(K) - 1e-10)
+    return cip_x0 + (1.0 / cip_k) * np.log(cir / (K - cir))
 
 
 def liability_threshold_mask(L: np.ndarray, prevalence) -> np.ndarray:

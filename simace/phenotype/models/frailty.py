@@ -83,6 +83,11 @@ class FrailtyModel(PhenotypeModel):
                     f"phenotype_params{trait_num} for model 'frailty' must include "
                     f"'distribution' key (one of {sorted(BASELINE_HAZARDS)})"
                 )
+            if "prevalence" in phenotype_params:
+                raise ValueError(
+                    f"phenotype_params{trait_num} for model 'frailty' must NOT include 'prevalence' "
+                    f"(only adult / cure_frailty / simple_ltm accept it). Drop the key."
+                )
             standardize_hazard = phenotype_params.pop("standardize_hazard", None)
             return cls(
                 distribution=distribution,

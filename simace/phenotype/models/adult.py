@@ -47,7 +47,7 @@ from simace.phenotype.models._base import (
     validate_standardize_hazard,
     wrap_trait_error,
 )
-from simace.phenotype.models._prevalence import liability_threshold_mask, resolve_prevalence
+from simace.phenotype.models._prevalence import liability_threshold_mask, logistic_cif_onset, resolve_prevalence
 
 if TYPE_CHECKING:
     import argparse
@@ -226,8 +226,7 @@ class AdultModel(PhenotypeModel):
                 L_eff = L_eff + self.beta_sex * sex[is_case]
             cir = 0.5 * erfc(L_eff / np.sqrt(2.0))
             valid = cir < prev_case
-            cir = np.clip(cir, 1e-10, np.asarray(prev_case) - 1e-10)
-            onset = self.cip_x0 + (1.0 / self.cip_k) * np.log(cir / (prev_case - cir))
+            onset = logistic_cif_onset(cir, prev_case, self.cip_x0, self.cip_k)
             onset[~valid] = 1e6
             t[is_case] = onset
 
@@ -265,14 +264,14 @@ class AdultModel(PhenotypeModel):
                 cip = (np.arange(1, n_grp + 1)) / (n_grp + 1)
                 is_case = cip < grp_prev
                 case_cip = cip[is_case]
-                case_age = self.cip_x0 + (1.0 / self.cip_k) * np.log(case_cip / (grp_prev - case_cip))
+                case_age = logistic_cif_onset(case_cip, grp_prev, self.cip_x0, self.cip_k)
                 t[idx[grp_order[is_case]]] = case_age
         else:
             order = np.argsort(t_raw)
             cip = (np.arange(1, n + 1)) / (n + 1)
             is_case = cip < prevalence
             case_cip = cip[is_case]
-            case_age = self.cip_x0 + (1.0 / self.cip_k) * np.log(case_cip / (prevalence - case_cip))
+            case_age = logistic_cif_onset(case_cip, prevalence, self.cip_x0, self.cip_k)
             t[order[is_case]] = case_age
 
         np.clip(t, 0.01, 1e6, out=t)
