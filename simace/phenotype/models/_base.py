@@ -3,9 +3,11 @@
 Each phenotype model family is a frozen dataclass that owns:
 
   * its typed parameter fields (validated in ``__post_init__``);
-  * a ``from_config(params, trait_num)`` constructor (reads the per-trait
-    config dict ``phenotype_params{trait_num}`` plus shared ``beta{N}`` /
-    ``beta_sex{N}``);
+  * a ``_from_config(phenotype_params, trait_num, beta=, beta_sex=)`` hook
+    that converts an already-checked copy of ``phenotype_params{trait_num}``
+    into an instance. Callers use the inherited, final ``from_config(params,
+    trait_num)``, which rejects keys the model does not accept (per
+    :mod:`simace.core.phenotype_keys`) before the hook runs;
   * a ``from_cli(args, trait)`` constructor (reads namespaced argparse
     flags and rejects flags belonging to other model families);
   * an ``add_cli_args(parser, trait)`` classmethod (declares its flags);
@@ -26,15 +28,17 @@ CLI flag naming convention:
     (``--adult-prevalence{N}``, ``--cure-frailty-prevalence{N}``).
 
 Validation error messages are prefixed with the trait number by ``from_config``
-and ``from_cli``; the dataclass itself is trait-agnostic so it can be unit-tested
-in isolation.
+and ``from_cli``, so ``_from_config`` raises unprefixed errors; the dataclass
+itself is trait-agnostic so it can be unit-tested in isolation.
 """
 
 from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, ClassVar, Self
+from typing import TYPE_CHECKING, Any, ClassVar, Self, final
+
+from simace.core.phenotype_keys import check_phenotype_params
 
 if TYPE_CHECKING:
     import argparse
@@ -83,10 +87,33 @@ class PhenotypeModel(ABC):
 
     name: ClassVar[str]
 
+    @final
+    @classmethod
+    def from_config(cls, params: dict[str, Any], trait_num: int) -> Self:
+        """Build an instance from the simulation parameter dict for trait ``trait_num``.
+
+        Reads ``phenotype_params{trait_num}``, ``beta{trait_num}``, and
+        ``beta_sex{trait_num}`` (default 0.0) from ``params``.
+        """
+        with wrap_trait_error(trait_num):
+            phenotype_params = dict(params.get(f"phenotype_params{trait_num}", {}))
+            check_phenotype_params(cls.name, phenotype_params, f"phenotype_params{trait_num}")
+            return cls._from_config(
+                phenotype_params,
+                trait_num,
+                beta=params[f"beta{trait_num}"],
+                beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
+            )
+
     @classmethod
     @abstractmethod
-    def from_config(cls, params: dict[str, Any], trait_num: int) -> Self:
-        """Build an instance from the simulation parameter dict for trait ``trait_num``."""
+    def _from_config(cls, phenotype_params: dict[str, Any], trait_num: int, *, beta: float, beta_sex: float) -> Self:
+        """Convert a key-checked copy of ``phenotype_params{trait_num}`` into an instance.
+
+        ``phenotype_params`` holds only keys this model accepts and may be
+        mutated. Raise ``ValueError`` or ``TypeError`` without trait context;
+        ``from_config`` adds it.
+        """
 
     @classmethod
     @abstractmethod

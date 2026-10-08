@@ -149,6 +149,35 @@ def test_cli_foreign_flag_rejected(tmp_path):
         )
 
 
+def test_cli_phenotype_params_mapping_rejects_unknown_key(tmp_path):
+    """The YAML-mapping route skips config loading; the model constructor must still reject a typo."""
+    pedigree = _write_pedigree(tmp_path)
+    output = tmp_path / "trait.parquet"
+    with pytest.raises(ValueError, match=r"unknown key\(s\) \['standardise_hazard'\]") as excinfo:
+        phenotype_cli(
+            [
+                "--pedigree",
+                str(pedigree),
+                "--output",
+                str(output),
+                "--G-pheno",
+                "1",
+                "--phenotype-model1",
+                "adult",
+                "--phenotype-params1",
+                "{method: ltm, prevalence: 0.1}",
+                "--phenotype-model2",
+                "frailty",
+                "--phenotype-params2",
+                "{distribution: weibull, scale: 316.228, rho: 2.0, standardise_hazard: global}",
+            ],
+        )
+    message = str(excinfo.value)
+    assert message.startswith("phenotype.trait2: ")
+    assert message.count("phenotype.trait") == 1
+    assert not output.exists()
+
+
 def test_run_phenotype_polars_stage_contract(tmp_path):
     """Polars-only stage (ADR 0015): eager polars out, deterministic, no in-frame NaN."""
     from simace.core.parquet import load_parquet

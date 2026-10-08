@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
 
-from simace.core.phenotype_keys import ONSET_KINDS, check_phenotype_params
+from simace.core.phenotype_keys import ONSET_KINDS
 from simace.phenotype.hazards import coerce_standardize_mode
 from simace.phenotype.models._base import (
     PhenotypeModel,
@@ -100,23 +100,20 @@ class SimpleLtmModel(PhenotypeModel):
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_config(cls, params: dict[str, Any], trait_num: int) -> Self:
-        with wrap_trait_error(trait_num):
-            phenotype_params = dict(params.get(f"phenotype_params{trait_num}", {}))
-            check_phenotype_params(cls.name, phenotype_params, f"phenotype_params{trait_num}")
-            if "prevalence" not in phenotype_params:
-                raise ValueError(f"phenotype_params{trait_num} for model 'simple_ltm' must include 'prevalence' key")
-            if "onset" not in phenotype_params:
-                raise ValueError(
-                    f"phenotype_params{trait_num} for model 'simple_ltm' must include 'onset' key "
-                    f"(e.g. {{'kind': 'fixed', 'age': 30}} or {{'kind': 'normal', 'mean': 30, 'sd': 8}})"
-                )
-            return cls(
-                prevalence=phenotype_params["prevalence"],
-                onset=dict(phenotype_params["onset"]),
-                beta=params[f"beta{trait_num}"],
-                beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
+    def _from_config(cls, phenotype_params: dict[str, Any], trait_num: int, *, beta: float, beta_sex: float) -> Self:
+        if "prevalence" not in phenotype_params:
+            raise ValueError(f"phenotype_params{trait_num} for model 'simple_ltm' must include 'prevalence' key")
+        if "onset" not in phenotype_params:
+            raise ValueError(
+                f"phenotype_params{trait_num} for model 'simple_ltm' must include 'onset' key "
+                f"(e.g. {{'kind': 'fixed', 'age': 30}} or {{'kind': 'normal', 'mean': 30, 'sd': 8}})"
             )
+        return cls(
+            prevalence=phenotype_params["prevalence"],
+            onset=dict(phenotype_params["onset"]),
+            beta=beta,
+            beta_sex=beta_sex,
+        )
 
     @classmethod
     def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:

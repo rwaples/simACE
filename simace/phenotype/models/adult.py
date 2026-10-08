@@ -32,7 +32,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
 
-from simace.core.phenotype_keys import ADULT_METHODS, check_phenotype_params
+from simace.core.phenotype_keys import ADULT_METHODS
 from simace.phenotype.hazards import (
     add_standardize_hazard_cli_arg,
     coerce_standardize_mode,
@@ -103,27 +103,24 @@ class AdultModel(PhenotypeModel):
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_config(cls, params: dict[str, Any], trait_num: int) -> Self:
-        with wrap_trait_error(trait_num):
-            phenotype_params = dict(params.get(f"phenotype_params{trait_num}", {}))
-            check_phenotype_params(cls.name, phenotype_params, f"phenotype_params{trait_num}")
-            method = phenotype_params.get("method")
-            if method is None:
-                raise ValueError(
-                    f"phenotype_params{trait_num} for model 'adult' must include "
-                    f"'method' key (one of {sorted(ADULT_METHODS)})"
-                )
-            if "prevalence" not in phenotype_params:
-                raise ValueError(f"phenotype_params{trait_num} for model 'adult' must include 'prevalence' key")
-            return cls(
-                method=method,
-                prevalence=phenotype_params["prevalence"],
-                cip_x0=phenotype_params.get("cip_x0", 50.0),
-                cip_k=phenotype_params.get("cip_k", 0.2),
-                beta=params[f"beta{trait_num}"],
-                beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
-                standardize_hazard=phenotype_params.get("standardize_hazard"),
+    def _from_config(cls, phenotype_params: dict[str, Any], trait_num: int, *, beta: float, beta_sex: float) -> Self:
+        method = phenotype_params.get("method")
+        if method is None:
+            raise ValueError(
+                f"phenotype_params{trait_num} for model 'adult' must include "
+                f"'method' key (one of {sorted(ADULT_METHODS)})"
             )
+        if "prevalence" not in phenotype_params:
+            raise ValueError(f"phenotype_params{trait_num} for model 'adult' must include 'prevalence' key")
+        return cls(
+            method=method,
+            prevalence=phenotype_params["prevalence"],
+            cip_x0=phenotype_params.get("cip_x0", 50.0),
+            cip_k=phenotype_params.get("cip_k", 0.2),
+            beta=beta,
+            beta_sex=beta_sex,
+            standardize_hazard=phenotype_params.get("standardize_hazard"),
+        )
 
     @classmethod
     def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:

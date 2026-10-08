@@ -19,7 +19,6 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 import numpy as np
 from numba import njit
 
-from simace.core.phenotype_keys import check_phenotype_params
 from simace.phenotype.hazards import (
     add_standardize_hazard_cli_arg,
     iter_generation_groups,
@@ -136,25 +135,22 @@ class FirstPassageModel(PhenotypeModel):
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_config(cls, params: dict[str, Any], trait_num: int) -> Self:
-        with wrap_trait_error(trait_num):
-            phenotype_params = dict(params.get(f"phenotype_params{trait_num}", {}))
-            check_phenotype_params(cls.name, phenotype_params, f"phenotype_params{trait_num}")
-            try:
-                drift = phenotype_params["drift"]
-                shape = phenotype_params["shape"]
-            except KeyError as e:
-                raise ValueError(
-                    f"phenotype_params{trait_num} for model 'first_passage' missing "
-                    f"required key {e.args[0]!r}; needs 'drift' and 'shape'"
-                ) from e
-            return cls(
-                drift=drift,
-                shape=shape,
-                beta=params[f"beta{trait_num}"],
-                beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
-                standardize_hazard=phenotype_params.get("standardize_hazard"),
-            )
+    def _from_config(cls, phenotype_params: dict[str, Any], trait_num: int, *, beta: float, beta_sex: float) -> Self:
+        try:
+            drift = phenotype_params["drift"]
+            shape = phenotype_params["shape"]
+        except KeyError as e:
+            raise ValueError(
+                f"phenotype_params{trait_num} for model 'first_passage' missing "
+                f"required key {e.args[0]!r}; needs 'drift' and 'shape'"
+            ) from e
+        return cls(
+            drift=drift,
+            shape=shape,
+            beta=beta,
+            beta_sex=beta_sex,
+            standardize_hazard=phenotype_params.get("standardize_hazard"),
+        )
 
     @classmethod
     def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:

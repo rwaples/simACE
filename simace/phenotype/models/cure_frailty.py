@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
 
-from simace.core.phenotype_keys import check_phenotype_params
 from simace.phenotype.hazards import (
     BASELINE_HAZARDS,
     add_hazard_cli_args,
@@ -84,28 +83,25 @@ class CureFrailtyModel(PhenotypeModel):
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_config(cls, params: dict[str, Any], trait_num: int) -> Self:
-        with wrap_trait_error(trait_num):
-            phenotype_params = dict(params.get(f"phenotype_params{trait_num}", {}))
-            check_phenotype_params(cls.name, phenotype_params, f"phenotype_params{trait_num}")
-            distribution = phenotype_params.pop("distribution", None)
-            if distribution is None:
-                raise ValueError(
-                    f"phenotype_params{trait_num} for model 'cure_frailty' must include "
-                    f"'distribution' key (one of {sorted(BASELINE_HAZARDS)})"
-                )
-            if "prevalence" not in phenotype_params:
-                raise ValueError(f"phenotype_params{trait_num} for model 'cure_frailty' must include 'prevalence' key")
-            prevalence = phenotype_params.pop("prevalence")
-            standardize_hazard = phenotype_params.pop("standardize_hazard", None)
-            return cls(
-                distribution=distribution,
-                hazard_params=phenotype_params,
-                prevalence=prevalence,
-                beta=params[f"beta{trait_num}"],
-                beta_sex=params.get(f"beta_sex{trait_num}", 0.0),
-                standardize_hazard=standardize_hazard,
+    def _from_config(cls, phenotype_params: dict[str, Any], trait_num: int, *, beta: float, beta_sex: float) -> Self:
+        distribution = phenotype_params.pop("distribution", None)
+        if distribution is None:
+            raise ValueError(
+                f"phenotype_params{trait_num} for model 'cure_frailty' must include "
+                f"'distribution' key (one of {sorted(BASELINE_HAZARDS)})"
             )
+        if "prevalence" not in phenotype_params:
+            raise ValueError(f"phenotype_params{trait_num} for model 'cure_frailty' must include 'prevalence' key")
+        prevalence = phenotype_params.pop("prevalence")
+        standardize_hazard = phenotype_params.pop("standardize_hazard", None)
+        return cls(
+            distribution=distribution,
+            hazard_params=phenotype_params,
+            prevalence=prevalence,
+            beta=beta,
+            beta_sex=beta_sex,
+            standardize_hazard=standardize_hazard,
+        )
 
     @classmethod
     def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:

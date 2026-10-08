@@ -63,6 +63,31 @@ def test_from_config_rejects_another_models_key(name):
         EXPECTED[name].from_config(params, trait_num=1)
 
 
+def test_from_config_rejects_unknown_keys_before_subclass_hook():
+    """A subclass with no key checks of its own still gets them from the inherited ``from_config``."""
+    hook_calls = []
+
+    class _Probe(PhenotypeModel):
+        name = "simple_ltm"
+
+        @classmethod
+        def _from_config(cls, phenotype_params, trait_num, *, beta, beta_sex):
+            hook_calls.append(phenotype_params)
+            return cls()
+
+        add_cli_args = from_cli = cli_flag_attrs = to_params_dict = simulate = None
+
+    params = {"phenotype_params2": {**VALID_PARAMS["simple_ltm"], "onset_typo": 1}, "beta2": 1.0}
+    with pytest.raises(ValueError, match=r"unknown key\(s\) \['onset_typo'\]") as excinfo:
+        _Probe.from_config(params, trait_num=2)
+    assert str(excinfo.value).count("phenotype.trait") == 1
+    assert str(excinfo.value).startswith("phenotype.trait2: ")
+    assert hook_calls == []
+
+    _Probe.from_config({"phenotype_params2": VALID_PARAMS["simple_ltm"], "beta2": 1.0}, trait_num=2)
+    assert hook_calls == [VALID_PARAMS["simple_ltm"]]
+
+
 @pytest.mark.parametrize(("name", "cls"), list(EXPECTED.items()))
 def test_registry_class_subclasses_phenotype_model(name, cls):
     assert MODELS[name] is cls
