@@ -514,20 +514,12 @@ def plot_cumulative_incidence_aj(
         if emp_stats:
             emp_ages = np.array(emp_stats[0]["cumulative_incidence"][key]["ages"])
             emp = np.array([s["cumulative_incidence"][key]["observed_values"] for s in emp_stats])
+            true_cif = np.array([s["cumulative_incidence"][key]["true_values"] for s in emp_stats])
             ax.plot(
                 emp_ages, emp.mean(axis=0), color=COLOR_OBSERVED, linewidth=3.0, alpha=0.85, label="Empirical", zorder=3
             )
-
-        true_stats = [
-            s
-            for s in stats_with_data
-            if s.get("cumulative_incidence") and "true_values" in s["cumulative_incidence"].get(key, {})
-        ]
-        if true_stats:
-            true_ages = np.array(true_stats[0]["cumulative_incidence"][key]["ages"])
-            true_cif = np.array([s["cumulative_incidence"][key]["true_values"] for s in true_stats])
             ax.plot(
-                true_ages,
+                emp_ages,
                 true_cif.mean(axis=0),
                 color=COLOR_TRUE,
                 linewidth=3.0,

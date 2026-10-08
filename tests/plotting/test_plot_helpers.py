@@ -778,3 +778,90 @@ class TestFinalizePaths:
         out3 = tmp_path / "aj_sex_gen_missing.png"
         plot_cumulative_incidence_aj_by_sex_generation([{}], out3, scenario="test")
         assert out3.exists()
+
+
+# ---------------------------------------------------------------------------
+# True cumulative-incidence curve in the empirical and AJ renderers
+# ---------------------------------------------------------------------------
+
+_AGES = [0.0, 1.0, 2.0]
+
+
+def _aj_payload() -> dict:
+    trait = {"ages": _AGES, "aj_values": [0.0, 0.1, 0.2], "aj_death_values": [0.0, 0.0, 0.1]}
+    return {"cumulative_incidence_aj": {"trait1": trait, "trait2": trait}}
+
+
+def _empirical_payload(true_values: list[float] | None) -> dict:
+    trait = {"ages": _AGES, "observed_values": [0.0, 0.1, 0.2]}
+    if true_values is not None:
+        trait["true_values"] = true_values
+    return {"cumulative_incidence": {"trait1": trait, "trait2": trait}, "prevalence": {"trait1": 0.2, "trait2": 0.2}}
+
+
+class TestTrueIncidenceCurve:
+    @pytest.fixture
+    def drawn(self, monkeypatch) -> dict[str, list]:
+        """Record each line drawn per label, in place of saving the figure."""
+        import simace.plotting.plot_distributions as plot_distributions
+
+        lines: dict[str, list] = {}
+
+        def record(_output_path, **_kwargs):
+            for ax in plt.gcf().axes:
+                for line in ax.lines:
+                    lines.setdefault(line.get_label(), []).append(line.get_ydata())
+            plt.close("all")
+
+        monkeypatch.setattr(plot_distributions, "finalize_plot", record)
+        return lines
+
+    def test_aj_true_curve_averages_every_replicate(self, tmp_path, drawn):
+        from simace.plotting.plot_distributions import plot_cumulative_incidence_aj
+
+        stats = [
+            {**_aj_payload(), **_empirical_payload([0.0, 0.2, 0.4])},
+            {**_aj_payload(), **_empirical_payload([0.0, 0.4, 0.6])},
+        ]
+        plot_cumulative_incidence_aj(stats, 2.0, tmp_path / "aj.png")
+        assert len(drawn["True CIF"]) == 2
+        for curve in drawn["True CIF"]:
+            np.testing.assert_allclose(curve, [0.0, 0.3, 0.5])
+
+    @pytest.mark.parametrize("renderer", ["plot_cumulative_incidence", "plot_cumulative_incidence_aj"])
+    def test_empirical_payload_without_true_values_fails(self, tmp_path, renderer):
+        import simace.plotting.plot_distributions as plot_distributions
+
+        stats = [{**_aj_payload(), **_empirical_payload(None)}]
+        with pytest.raises(KeyError, match="true_values"):
+            getattr(plot_distributions, renderer)(stats, 2.0, tmp_path / "out.png")
+        plt.close("all")
+
+    def test_aj_replicate_without_true_values_fails_instead_of_dropping_out(self, tmp_path):
+        from simace.plotting.plot_distributions import plot_cumulative_incidence_aj
+
+        stats = [
+            {**_aj_payload(), **_empirical_payload([0.0, 0.2, 0.4])},
+            {**_aj_payload(), **_empirical_payload(None)},
+        ]
+        with pytest.raises(KeyError, match="true_values"):
+            plot_cumulative_incidence_aj(stats, 2.0, tmp_path / "aj.png")
+        plt.close("all")
+
+    def test_aj_only_input_renders_without_empirical_curves(self, tmp_path, drawn):
+        from simace.plotting.plot_distributions import plot_cumulative_incidence_aj
+
+        plot_cumulative_incidence_aj([_aj_payload()], 2.0, tmp_path / "aj.png")
+        assert len(drawn["AJ trait"]) == 2
+        assert "Empirical" not in drawn
+        assert "True CIF" not in drawn
+
+    def test_absent_aj_data_saves_the_placeholder(self, tmp_path, monkeypatch):
+        import simace.plotting.plot_distributions as plot_distributions
+
+        messages: list[str] = []
+        monkeypatch.setattr(
+            plot_distributions, "save_placeholder_plot", lambda _path, message: messages.append(message)
+        )
+        plot_distributions.plot_cumulative_incidence_aj([_empirical_payload(None)], 2.0, tmp_path / "aj.png")
+        assert messages == ["No Aalen-Johansen data (re-run stats)"]

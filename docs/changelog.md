@@ -96,6 +96,11 @@ releases shipped after 2026.05.3.
 - **Two `simple_ltm` traits with different onset kinds** now get a two-model
   title on the atlas title page and the pipeline diagram, matching the
   equations.
+- **The Aalen-Johansen incidence plot requires `true_values`** in every
+  empirical cumulative-incidence payload it is given, as the empirical plot
+  already did. A replicate missing them used to drop silently out of the
+  true-curve average; it now fails the plot. AJ data without any empirical
+  payload still renders, without the Empirical and True CIF lines.
 
 ### Removed
 
