@@ -124,6 +124,25 @@ Because setuptools-scm reads **local** tags, the runtime version and the
 `FAMILY_FLOOR` guard clear as soon as the local tags exist and the family is
 reinstalled — the push only *publishes*.
 
+### Independently versioned checkouts
+
+`--repo pg-phenotype` tags pg-phenotype alone, at its own version, outside the
+lockstep family:
+
+```bash
+pixi run python tools/release.py --repo pg-phenotype --next
+pixi run python tools/release.py --repo pg-phenotype vX.Y.Z --dry-run
+pixi run python tools/release.py --repo pg-phenotype vX.Y.Z
+```
+
+It refuses (exit `1`) unless the checkout is clean and untagged, every file
+that states its version (`Cargo.toml`, `r/src/rust/Cargo.toml`,
+`r/DESCRIPTION`) equals the tag, and `CHANGELOG.md` has a `## vX.Y.Z` section.
+Push the tag with `/push pg-phenotype`.  The tag push runs its publish
+workflow, which releases to PyPI and GitHub; the procedure is in
+`external/pg-phenotype/docs/releasing.md`.  To add another checkout, list
+its version files in `INDEPENDENT_VERSIONS` in `tools/release.py`.
+
 ---
 
 ## Cutover — step by step

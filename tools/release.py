@@ -20,11 +20,18 @@ guard clears as soon as the local tags exist + the family is reinstalled — the
 push is only needed to publish.  See simACE ADR 0012 (lockstep family
 versioning) and ADR 0023 (the SemVer scheme).
 
+``--repo`` tags one independently versioned checkout instead (pg-phenotype),
+at its own version.  It refuses unless that checkout is clean and untagged,
+every file that states its version agrees with the tag, and ``CHANGELOG.md``
+has the tag's ``## vX.Y.Z`` section, which its publish workflow turns into
+the release notes.  The tag push publishes it.
+
 Examples:
     python tools/release.py --next             # print the next patch and minor tags
     python tools/release.py v0.1.0             # tag the three checkouts locally
     python tools/release.py v0.1.0 --dry-run   # check + report, tag nothing
     python tools/release.py v0.1.1 -m "fix: ..."
+    python tools/release.py --repo pg-phenotype v0.2.0 --dry-run
 """
 
 from __future__ import annotations
@@ -33,10 +40,11 @@ import argparse
 import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from family_repos import lockstep_repos
+from family_repos import all_repos, lockstep_repos
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -46,6 +54,17 @@ if TYPE_CHECKING:
 #: read its tag), and fitACE_epimight.  Sourced from the shared
 #: ``family_repos`` manifest so the repo list lives in exactly one place.
 FAMILY_REPOS: tuple[str, ...] = tuple(repo.path for repo in lockstep_repos())
+
+#: The independently versioned checkouts ``--repo`` can tag, by family label,
+#: each with the files that state its version: a TOML key path, or a DCF field
+#: for an R ``DESCRIPTION``.  Every one must equal the tag.
+INDEPENDENT_VERSIONS: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
+    "pg-phenotype": (
+        ("Cargo.toml", ("workspace", "package", "version")),
+        ("r/src/rust/Cargo.toml", ("package", "version")),
+        ("r/DESCRIPTION", ("Version",)),
+    ),
+}
 
 _SIMACE_ROOT = Path(__file__).resolve().parent.parent
 
@@ -116,15 +135,15 @@ def _has_tag(repo: Path, tag: str) -> bool:
     return bool(_git(repo, "tag", "--list", tag).stdout.strip())
 
 
-def check_repos(tag: str) -> list[tuple[str, str]]:
-    """Return ``(repo, reason)`` pairs for every family repo that can't be tagged.
+def check_repos(tag: str, repos: Iterable[str] = FAMILY_REPOS) -> list[tuple[str, str]]:
+    """Return ``(repo, reason)`` pairs for every repo in *repos* that can't be tagged.
 
     A repo is not ready if it is missing / not a git work tree, has a dirty
     working tree, or is already tagged at *tag*.  An empty list means the family
     is ready for an all-or-nothing tag.
     """
     problems: list[tuple[str, str]] = []
-    for rel in FAMILY_REPOS:
+    for rel in repos:
         repo = (_SIMACE_ROOT / rel).resolve()
         if not _is_git_repo(repo):
             problems.append((rel, "not a git repo (missing checkout?)"))
@@ -136,22 +155,62 @@ def check_repos(tag: str) -> list[tuple[str, str]]:
     return problems
 
 
-def _push_commands(tag: str) -> list[str]:
+def stated_version(path: Path, key: tuple[str, ...]) -> str | None:
+    """The version *path* states at *key* (TOML key path or DCF field), or ``None``."""
+    if not path.is_file():
+        return None
+    if path.suffix == ".toml":
+        node = tomllib.loads(path.read_text())
+        for part in key:
+            if not isinstance(node, dict) or part not in node:
+                return None
+            node = node[part]
+        return node if isinstance(node, str) else None
+    match = re.search(rf"^{re.escape(key[0])}:[ \t]*(\S+)", path.read_text(), re.MULTILINE)
+    return match[1] if match else None
+
+
+def check_independent(label: str, tag: str) -> list[tuple[str, str]]:
+    """``(file, reason)`` pairs for every way *label*'s checkout disagrees with *tag*."""
+    rel = next(r.path for r in all_repos() if r.label == label)
+    repo = _SIMACE_ROOT / rel
+    problems = check_repos(tag, [rel])
+    for file, key in INDEPENDENT_VERSIONS[label]:
+        version = stated_version(repo / file, key)
+        if version != tag[1:]:
+            problems.append((f"{rel}/{file}", f"states version {version!r}, not {tag[1:]!r}"))
+    changelog = repo / "CHANGELOG.md"
+    lines = changelog.read_text().splitlines() if changelog.is_file() else []
+    if not any(line == f"## {tag}" or line.startswith(f"## {tag} ") for line in lines):
+        problems.append((f"{rel}/CHANGELOG.md", f"has no '## {tag}' section"))
+    return problems
+
+
+def _push_commands(tag: str, repos: Iterable[str] = FAMILY_REPOS) -> list[str]:
     """The per-repo ``git push`` commands the maintainer runs to publish *tag*."""
-    return [f"git -C {(_SIMACE_ROOT / rel).resolve()} push origin {tag}" for rel in FAMILY_REPOS]
+    return [f"git -C {(_SIMACE_ROOT / rel).resolve()} push origin {tag}" for rel in repos]
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Parse args, verify the family, tag the three checkouts locally, print pushes."""
+    """Parse args, verify the repos, tag them locally, print pushes."""
     parser = argparse.ArgumentParser(
         prog="release.py",
-        description="Tag the three lockstep simACE/fitACE checkouts at one SemVer (never pushes).",
+        description=(
+            "Tag the three lockstep simACE/fitACE checkouts at one SemVer, or with --repo one "
+            "independently versioned checkout (never pushes)."
+        ),
     )
     parser.add_argument("version", nargs="?", help="Release tag, e.g. v0.1.0")
     parser.add_argument(
+        "--repo",
+        choices=tuple(INDEPENDENT_VERSIONS),
+        default=None,
+        help="Tag this independently versioned checkout alone, at its own version.",
+    )
+    parser.add_argument(
         "--next",
         action="store_true",
-        help="Print the next patch and minor tags after simACE's highest family tag; tag nothing.",
+        help="Print the next patch and minor tags after the highest tag (simACE's, or --repo's); tag nothing.",
     )
     parser.add_argument(
         "-m",
@@ -166,10 +225,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    repos = FAMILY_REPOS
+    if args.repo is not None:
+        repos = (next(r.path for r in all_repos() if r.label == args.repo),)
+
     if args.next:
         if args.version is not None:
             parser.error("--next takes no version")
-        patch, minor = next_versions(_git(_SIMACE_ROOT, "tag", "--list").stdout.split())
+        patch, minor = next_versions(_git(_SIMACE_ROOT / repos[0], "tag", "--list").stdout.split())
         print(f"next patch: {patch}")
         print(f"next minor: {minor}  (breaks the CLI/config or result-file contract)")
         return 0
@@ -179,21 +242,27 @@ def main(argv: list[str] | None = None) -> int:
     tag = args.version
     if (reason := tag_error(tag)) is not None:
         parser.error(f"version {tag!r} {reason}")
-    message = args.message or f"Lockstep family release {tag}"
+    if args.repo is None:
+        message = args.message or f"Lockstep family release {tag}"
+        problems = check_repos(tag)
+        ready = f"all {len(repos)} family repos are clean and untagged."
+    else:
+        message = args.message or f"{args.repo} {tag[1:]}"
+        problems = check_independent(args.repo, tag)
+        ready = f"{args.repo} is clean, untagged, and at version {tag[1:]} with a CHANGELOG section."
 
-    # 1. All-or-nothing readiness check across every family member.
-    problems = check_repos(tag)
+    # 1. All-or-nothing readiness check across every repo to tag.
     if problems:
-        print(f"Refusing to tag {tag}: {len(problems)} repo(s) not ready:", file=sys.stderr)
+        print(f"Refusing to tag {tag}: {len(problems)} problem(s):", file=sys.stderr)
         for rel, reason in problems:
             print(f"  - {rel}: {reason}", file=sys.stderr)
         return 1
 
-    abspaths = [(rel, (_SIMACE_ROOT / rel).resolve()) for rel in FAMILY_REPOS]
+    abspaths = [(rel, (_SIMACE_ROOT / rel).resolve()) for rel in repos]
 
     # 2. Tag (or, in dry-run, just report).
     if args.dry_run:
-        print(f"[dry-run] all {len(abspaths)} family repos are clean and untagged.")
+        print(f"[dry-run] {ready}")
         print(f"[dry-run] would create annotated tag {tag} (message: {message!r}) in:")
         for _rel, repo in abspaths:
             print(f"  would tag:  git -C {repo} tag -a {tag} -m {message!r}")
@@ -209,14 +278,14 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             created.append((rel, repo))
             print(f"tagged {rel} -> {tag}")
-        print(f"\nCreated {tag} in all {len(abspaths)} repos (local tags only).")
+        print(f"\nCreated {tag} in {len(abspaths)} repo(s) (local tags only).")
 
     # 3. Print the push commands.  This helper NEVER pushes.
     if args.dry_run:
         print("\n[dry-run] after a real tag, push with:")
     else:
         print("\nPush the tags yourself (this helper never pushes):")
-    for cmd in _push_commands(tag):
+    for cmd in _push_commands(tag, repos):
         print(f"  {cmd}")
     return 0
 
