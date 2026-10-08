@@ -76,9 +76,12 @@ releases shipped after 2026.05.3.
   macOS it raised `AttributeError` before any stage started. It now uses
   `os.process_cpu_count()`, which honours the affinity mask where there is
   one, so Linux behaviour is unchanged.
-- **`simace run --max-memory` refuses off Linux when no cgroup is
-  delegated.** Its fallback polls `/proc`, which macOS does not have, so the
-  cap was accepted and never fired. It now exits 2 with a message.
+- **`simace run --max-memory` refuses off Linux.** The cap is enforced by
+  a cgroup or by polling `/proc`, and macOS has neither, so the cap was
+  accepted and never fired. It now exits 2 while checking arguments, before
+  it resolves scenarios or takes a lock, and `--dry-run` refuses it too.
+  Without a delegated cgroup the warning names `/proc` polling only when a
+  cap was given.
 
 - **`adult` with `method: cox` now clips the cumulative incidence before
   inverting it**, as `method: ltm` and the blended diagnosis already did. One

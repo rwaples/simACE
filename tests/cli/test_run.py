@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+from contextlib import ExitStack
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -598,17 +599,41 @@ def test_max_memory_fails_the_rep_and_names_the_cap(config_dir, roots, layout, n
     assert not (rep_dir / "run.yaml").exists()
 
 
-def test_max_memory_without_a_cgroup_off_linux_refuses(config_dir, roots, layout, monkeypatch, capsys) -> None:
-    """The fallback polls /proc, so off Linux the cap would never fire."""
+@pytest.mark.parametrize("dry_run", [(), ("--dry-run",)], ids=["run", "dry_run"])
+def test_max_memory_off_linux_refuses_before_any_side_effect(
+    config_dir, roots, tmp_path, monkeypatch, capsys, dry_run
+) -> None:
+    def no_cgroup() -> CgroupRoot:
+        raise AssertionError("opened a cgroup")
 
+    monkeypatch.setattr(run_mod.CgroupRoot, "open", no_cgroup)
+    monkeypatch.setattr(run_mod.sys, "platform", "darwin")
+    assert _run(config_dir, roots, "t", "--max-memory", "8G", *dry_run) == 2
+    assert "--max-memory needs Linux" in capsys.readouterr().err
+    assert not (tmp_path / "results").exists()
+    assert not (tmp_path / "logs").exists()
+
+
+@pytest.mark.parametrize(
+    ("max_memory", "message"),
+    [
+        (None, "simace run: no delegated cgroup (none here); tree_peak_mb not recorded\n"),
+        (
+            8 << 30,
+            "simace run: no delegated cgroup (none here); tree_peak_mb not recorded; "
+            "--max-memory is enforced by polling /proc\n",
+        ),
+    ],
+    ids=["no_cap", "cap"],
+)
+def test_no_cgroup_message_names_the_actual_fallback(monkeypatch, capsys, max_memory, message) -> None:
     def unavailable() -> CgroupRoot:
-        raise CgroupUnavailable("not Linux")
+        raise CgroupUnavailable("none here")
 
     monkeypatch.setattr(run_mod.CgroupRoot, "open", unavailable)
-    monkeypatch.setattr(run_mod.sys, "platform", "darwin")
-    assert _run(config_dir, roots, "tiny", "--rep", "1", "--max-memory", "8G") == 2
-    assert "--max-memory needs Linux; no delegated cgroup (not Linux)" in capsys.readouterr().err
-    assert not layout.rep_dir("t", "tiny", 1).exists()
+    with ExitStack() as stack:
+        assert run_mod._open_cgroups(stack, max_memory) is None
+    assert capsys.readouterr().err == message
 
 
 @pytest.mark.slow

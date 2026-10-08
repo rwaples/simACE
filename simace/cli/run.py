@@ -269,6 +269,8 @@ def _parse(argv: list[str] | None, prog: str | None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.jobs < 1:
         parser.error("--jobs must be at least 1")
+    if args.max_memory is not None and sys.platform != "linux":
+        parser.error("--max-memory needs Linux: it is enforced by a cgroup or by polling /proc")
     if args.rep is not None:
         args.rep = [r for spec in args.rep for r in spec]
     args.until = stage_names().index(args.until) + 1
@@ -373,14 +375,8 @@ def _open_cgroups(stack: ExitStack, max_memory: int | None) -> CgroupRoot | None
     try:
         return stack.enter_context(CgroupRoot.open())
     except CgroupUnavailable as exc:
-        if max_memory is not None and sys.platform != "linux":
-            # The fallback polls /proc, which only Linux has; without it the cap would never fire.
-            print(f"simace run: --max-memory needs Linux; no delegated cgroup ({exc})", file=sys.stderr)
-            raise SystemExit(2) from exc
-        print(
-            f"simace run: no delegated cgroup ({exc}); tree_peak_mb not recorded, --max-memory polls /proc",
-            file=sys.stderr,
-        )
+        fallback = "; --max-memory is enforced by polling /proc" if max_memory is not None else ""
+        print(f"simace run: no delegated cgroup ({exc}); tree_peak_mb not recorded{fallback}", file=sys.stderr)
         return None
 
 
