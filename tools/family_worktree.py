@@ -38,7 +38,8 @@ base, whatever branch it is on, unless ``--force``. A git error during a check
 is a failure, not a pass. It deletes a merged ``<name>`` branch only; an
 unmerged or differently named branch is kept, and an unmerged detached HEAD is
 saved under ``worktree-rescue-<name>-<sha12>`` in the main checkout before
-anything is removed (``--force`` discards uncommitted files, never commits).
+anything is removed (``--force`` discards uncommitted files, never commits). A
+checkout whose directory was deleted by hand is checked by its commits alone.
 
 Examples:
     pixi run python tools/family_worktree.py add issue-40 pedigree-graph pedsum
@@ -315,8 +316,9 @@ def remove(umbrella: Path, name: str, force: bool) -> int:
 
     problems, merged, rescue = [], set(), []
     for e in entries:
-        dirty = git(e.path, "status", "--porcelain")
-        if dirty:
+        if not e.path.is_dir():
+            print(f"{e.repo.label}: {e.path} is missing; checking its commits only")
+        elif dirty := git(e.path, "status", "--porcelain"):
             problems.append(f"{e.repo.label}: {len(dirty.splitlines())} uncommitted or untracked file(s)")
         if is_ancestor(umbrella / e.repo.path, e.head, base(e.repo)):
             if e.branch == name:
@@ -374,9 +376,12 @@ def list_worktrees(umbrella: Path) -> int:
             print(f"  {exc}")
             continue
         for e in entries:
-            ahead = git(e.path, "rev-list", "--count", f"{base(e.repo)}..HEAD")
-            dirty = len(git(e.path, "status", "--porcelain").splitlines())
-            print(f"  {e.repo.label:16} {e.branch or 'detached':24} {ahead} ahead of {base(e.repo)}, {dirty} changed")
+            ahead = git(umbrella / e.repo.path, "rev-list", "--count", f"{base(e.repo)}..{e.head}")
+            if e.path.is_dir():
+                changes = f"{len(git(e.path, 'status', '--porcelain').splitlines())} changed"
+            else:
+                changes = "directory missing"
+            print(f"  {e.repo.label:16} {e.branch or 'detached':24} {ahead} ahead of {base(e.repo)}, {changes}")
     return 0
 
 

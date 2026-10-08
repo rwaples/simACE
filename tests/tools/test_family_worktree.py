@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -339,3 +340,19 @@ def test_add_restores_tracked_symlinks_with_unquotable_names(family: Path) -> No
     wt_external = family / ".claude/worktrees/wt1/fitACE/fitACE_epimight/external"
     for n in names:
         assert (wt_external / n / "VERSION").read_text() == "2.1\n", repr(n)
+
+
+def test_list_and_remove_handle_a_hand_deleted_checkout(family: Path, capsys) -> None:
+    main(["add", "wt1", "fitACE"], root=family)
+    wt_fitace = family / ".claude/worktrees/wt1/fitACE"
+    (wt_fitace / "work.py").write_text("")
+    git(wt_fitace, "add", "work.py")
+    git(wt_fitace, "commit", "-q", "-m", "work")
+    shutil.rmtree(wt_fitace)
+    capsys.readouterr()
+    assert main(["list"], root=family) == 0
+    assert "fitACE           wt1                      1 ahead of main, directory missing" in capsys.readouterr().out
+    assert main(["remove", "wt1"], root=family) == 1, "its commits are still unmerged"
+    assert main(["remove", "wt1", "--force"], root=family) == 0
+    assert "wt1" not in registered(family / "fitACE")
+    assert git(family / "fitACE", "branch", "--list", "wt1")
