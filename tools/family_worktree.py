@@ -41,11 +41,11 @@ saved under ``worktree-rescue-<name>-<sha12>`` in the main checkout before
 anything is removed (``--force`` discards uncommitted files, never commits).
 
 Examples:
-    python tools/family_worktree.py add issue-40 pedigree-graph pedsum
-    python tools/family_worktree.py add bench-base               # all detached
-    python tools/family_worktree.py add py315 --all --install
-    python tools/family_worktree.py list
-    python tools/family_worktree.py remove issue-40
+    pixi run python tools/family_worktree.py add issue-40 pedigree-graph pedsum
+    pixi run python tools/family_worktree.py add bench-base               # all detached
+    pixi run python tools/family_worktree.py add py315 --all --install
+    pixi run python tools/family_worktree.py list
+    pixi run python tools/family_worktree.py remove issue-40
 """
 
 from __future__ import annotations
