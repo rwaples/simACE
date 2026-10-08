@@ -23,6 +23,7 @@ earlier one's Status section says so and points forward.
 | [0021](0021-two-canonical-replicate-parquets.md) | Two canonical Parquet files per replicate | accepted, implemented 2026-09-29; amends 0008, 0011, 0020 |
 | [0022](0022-relationship-moments.md) | Analyze computes relationship statistics from relationship moments | accepted |
 | [0023](0023-lockstep-semver.md) | Lockstep SemVer for the family version | accepted; amends 0012 |
+| [0024](0024-realised-assortment-feasibility.md) | Reject infeasible realised two-trait assortment | accepted, implemented 2026-10-08 |
 
 Retired numbers: 0003, 0006, 0007 (report lineage folded into 0008); 0004
 (Claude Code subagent housekeeping, not an architecture decision); 0013 (ty

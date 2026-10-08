@@ -35,6 +35,19 @@ releases shipped after 2026.05.3.
   flags reps built by another version.
 - **Fewer than two mating slots no longer crash or hang** on the two-trait
   path: zero slots raised `ZeroDivisionError` and one slot looped forever.
+- **Infeasible or degenerate two-trait assortment now stops the replicate**
+  ([ADR 0024](adr/0024-realised-assortment-feasibility.md)). Each mating
+  iteration checks the target `R_mf` against the realised within-female and
+  within-male trait correlations. A conditional covariance eigenvalue below
+  -1e-8 used to be clipped to 0 with a warning; it now raises an error that
+  names `R_mf`, both realised correlations, the eigenvalue, and the mating
+  iteration. A constant trait or collinear traits (|r| > 1 - 1e-6) within
+  either sex used to fall back to the configured `rho_w`; they now raise and
+  point to single-trait assortment. So does a sex whose mating slots come
+  from at most two distinct parents, such as any two-slot population, where
+  the realised correlation is undefined or +/-1. A configuration
+  that used to finish with a warning now fails its replicate and writes no
+  `run.yaml`.
 
 ### Stage defaults and censoring
 

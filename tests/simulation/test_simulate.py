@@ -2,6 +2,7 @@
 
 import builtins
 import importlib
+from functools import partial
 
 import numpy as np
 import polars as pl
@@ -654,6 +655,16 @@ class TestRunSimulation:
                 }
             )
 
+    def test_realised_infeasibility_stops_a_later_mating_iteration(self):
+        """Iteration 0 passes the configured check; cross-trait AM raises rho_w to ~0.73 by iteration 2."""
+        params = dict(
+            seed=42, N=4000, G_ped=3, G_sim=5, mating_lambda=0.5, p_mztwin=0.02,
+            A1=0.9, C1=0.0, E1={0: 0.1, 2: 0.1}, A2=0.9, C2=0.0, E2=0.1, rA=0.6, rC=0.0, rE=0.0,
+            assort_matrix=[[0.3, 0.6], [0.6, 0.3]],
+        )  # fmt: skip
+        with pytest.raises(ValueError, match=r"^Mating iteration 2: .*not attainable.*female 0\.7\d+, male 0\.7"):
+            run_simulation(**params)
+
     def test_assort_zero_preserves_rng(self, default_params):
         """assort=0 should produce identical output to no assort params."""
         ped1 = run_simulation(**{**default_params, "assort1": 0.0, "assort2": 0.0})
@@ -664,6 +675,21 @@ class TestRunSimulation:
 # ---------------------------------------------------------------------------
 # _assortative_pair_partners
 # ---------------------------------------------------------------------------
+
+
+def _exact_two_trait_pop(rng, n, R_female, R_male):
+    """``n`` males then ``n`` females whose two liabilities have exactly the given correlation."""
+
+    def exact(R):
+        z = rng.standard_normal((n, 2))
+        z -= z.mean(axis=0)
+        z = z @ np.linalg.inv(np.linalg.cholesky(z.T @ z / n)).T
+        return z @ np.linalg.cholesky(np.asarray(R)).T
+
+    pheno = np.zeros((2 * n, 6))
+    pheno[:n, 0], pheno[:n, 3] = exact(R_male).T
+    pheno[n:, 0], pheno[n:, 3] = exact(R_female).T
+    return np.arange(n), np.ones(n, dtype=int), np.arange(n, 2 * n), pheno
 
 
 class TestAssortativePairPartners:
@@ -785,9 +811,9 @@ class TestAssortativePairPartners:
         corr21 = np.corrcoef(liab2_m, liab1_f)[0, 1]  # F2 x M1
         assert abs(corr12 - corr21) < 0.05
 
-    @pytest.mark.parametrize("m", [0, 1, 2])
+    @pytest.mark.parametrize("m", [0, 1])
     def test_both_traits_tiny_slot_counts(self, rng, m):
-        """M=0 used to divide by zero, M=1 to loop forever, M=2 to hit a singular R_ff."""
+        """M=0 used to divide by zero and M=1 to loop forever; neither has anything to sort."""
         pheno = rng.standard_normal((2 * m, 6))
         ones = np.ones(m, dtype=int)
         pairs = _assortative_pair_partners(
@@ -796,18 +822,106 @@ class TestAssortativePairPartners:
         assert pairs.shape == (m, 2)
         assert sorted(pairs[:, 0]) == list(range(m, 2 * m))
 
-    @pytest.mark.parametrize("degenerate", ["identical_traits", "constant_trait2"])
-    def test_both_traits_degenerate_within_sex_correlation(self, rng, degenerate):
+    def test_both_traits_two_slots_raise(self, rng):
+        """Two slots make every realised trait correlation +/-1 (ADR 0024)."""
+        pheno = rng.standard_normal((4, 6))
+        ones = np.ones(2, dtype=int)
+        with pytest.raises(ValueError, match=r"female within-person trait correlation is -?1\.000000"):
+            _assortative_pair_partners(rng, np.arange(2), ones, np.arange(2, 4), ones, pheno, 0.3, 0.3, rho_w=0.5)
+
+    @pytest.mark.parametrize("sex", ["female", "male"])
+    @pytest.mark.parametrize("trait", [1, 2])
+    def test_both_traits_constant_trait_raises(self, rng, sex, trait):
         mi, mc, fi, fc, pheno = self._make_pop(rng, 1000)
-        if degenerate == "identical_traits":
-            pheno[:, 3:] = pheno[:, :3]
+        idxs = fi if sex == "female" else mi
+        pheno[np.ix_(idxs, [3 * (trait - 1)])] = 0.7
+        pheno[np.ix_(idxs, [3 * (trait - 1) + 1, 3 * (trait - 1) + 2])] = 0.0
+        with pytest.raises(ValueError, match=f"{sex} trait-{trait} liability is constant.*single-trait"):
+            _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.3, rho_w=0.5)
+
+    @pytest.mark.parametrize("sex", ["female", "male"])
+    @pytest.mark.parametrize("relation", ["identical", "opposite", "nearly_collinear"])
+    def test_both_traits_collinear_traits_raise(self, rng, sex, relation):
+        mi, mc, fi, fc, pheno = self._make_pop(rng, 1000)
+        idxs = fi if sex == "female" else mi
+        trait1 = pheno[idxs, :3]
+        trait2 = {
+            "identical": trait1,
+            "opposite": -trait1,
+            "nearly_collinear": trait1 + 1e-5 * rng.standard_normal(trait1.shape),
+        }[relation]
+        pheno[np.ix_(idxs, [3, 4, 5])] = trait2
+        with pytest.raises(ValueError, match=f"realised {sex} within-person trait correlation.*single-trait"):
+            _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.3, rho_w=0.5)
+
+    @pytest.mark.parametrize(("rho", "raises"), [(1.0 - 5e-7, True), (1.0 - 2e-6, False)])
+    def test_both_traits_collinearity_cutoff(self, rho, raises):
+        """|r| > 1 - 1e-6 is collinear; just inside the cutoff the conditional draw still runs."""
+        rng = np.random.default_rng(3)
+        R = [[1.0, rho], [rho, 1.0]]
+        mi, ones, fi, pheno = _exact_two_trait_pop(rng, 2000, R, R)
+        call = partial(
+            _assortative_pair_partners, rng, mi, ones, fi, ones, pheno, 0.3, 0.3, assort_matrix=0.3 * np.array(R)
+        )
+        if raises:
+            with pytest.raises(ValueError, match="collinear"):
+                call()
         else:
-            pheno[:, 3:] = 0.0
-        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.3, rho_w=0.5)
-        np.testing.assert_array_equal(np.sort(pairs[:, 1]), np.sort(mi))
-        liab1_f = pheno[pairs[:, 0], :3].sum(axis=1)
-        liab1_m = pheno[pairs[:, 1], :3].sum(axis=1)
-        assert np.corrcoef(liab1_f, liab1_m)[0, 1] > 0.15
+            assert call().shape == (2000, 2)
+
+    def test_both_traits_infeasible_realised_correlation_raises(self):
+        """Configured rho_w 0.25 admits R_mf below; realised within-sex rho 0.33 does not."""
+        rng = np.random.default_rng(734)
+        R = [[1.0, 0.33], [0.33, 1.0]]
+        mi, ones, fi, pheno = _exact_two_trait_pop(rng, 20_000, R, R)
+        with pytest.raises(
+            ValueError, match=r"R_mf=\[\[0.9, 0.225\], \[0.225, 0.9\]\].*female 0.3300, male 0.3300.*eigenvalue -0.0"
+        ):
+            _assortative_pair_partners(rng, mi, ones, fi, ones, pheno, 0.9, 0.9, rho_w=0.25)
+
+    @pytest.mark.parametrize(("female_rho", "male_rho"), [(0.0, 0.0), (-0.5, 0.0), (0.0, -0.5)])
+    def test_both_traits_feasibility_checks_each_sex_correlation(self, female_rho, male_rho):
+        """Either sex's realised correlation alone can make R_mf infeasible."""
+        rng = np.random.default_rng(5)
+        R_mf = [[0.6, 0.3], [0.3, 0.2]]
+        R_ff = [[1.0, female_rho], [female_rho, 1.0]]
+        R_mm = [[1.0, male_rho], [male_rho, 1.0]]
+        mi, ones, fi, pheno = _exact_two_trait_pop(rng, 2000, R_ff, R_mm)
+        call = partial(_assortative_pair_partners, rng, mi, ones, fi, ones, pheno, 0.6, 0.2, assort_matrix=R_mf)
+        if female_rho == male_rho == 0.0:
+            assert call().shape == (2000, 2)
+        else:
+            with pytest.raises(
+                ValueError, match=rf"female -?{female_rho:.4f}, male -?{male_rho:.4f}\): .* eigenvalue -0\.0"
+            ):
+                call()
+
+    @pytest.mark.parametrize(("eps", "raises"), [(0.0, False), (1e-10, False), (1e-7, True)])
+    def test_both_traits_conditional_eigenvalue_tolerance(self, eps, raises):
+        """A singular conditional covariance is feasible; negatives within 1e-8 are roundoff."""
+        rng = np.random.default_rng(9)
+        identity = [[1.0, 0.0], [0.0, 1.0]]
+        mi, ones, fi, pheno = _exact_two_trait_pop(rng, 2000, identity, identity)
+        d = np.sqrt(1.0 + eps)
+        call = partial(
+            _assortative_pair_partners, rng, mi, ones, fi, ones, pheno, d, 0.3, assort_matrix=[[d, 0.0], [0.0, 0.3]]
+        )
+        if raises:
+            with pytest.raises(ValueError, match=r"eigenvalue -1e-07 < 0"):
+                call()
+        else:
+            assert call().shape == (2000, 2)
+
+    def test_both_traits_correlated_population_hits_all_four_targets(self):
+        """Seeded feasible case with correlated traits: every R_mf entry is realised."""
+        rng = np.random.default_rng(11)
+        R = [[1.0, 0.5], [0.5, 1.0]]
+        R_mf = np.array([[0.4, 0.2], [0.2, 0.3]])
+        mi, ones, fi, pheno = _exact_two_trait_pop(rng, 20_000, R, R)
+        pairs = _assortative_pair_partners(rng, mi, ones, fi, ones, pheno, 0.4, 0.3, assort_matrix=R_mf)
+        f = stats.zscore(pheno[pairs[:, 0]][:, [0, 3]])
+        m = stats.zscore(pheno[pairs[:, 1]][:, [0, 3]])
+        np.testing.assert_allclose(f.T @ m / len(pairs), R_mf, atol=0.01)
 
     def test_both_traits_mate_liabilities_bivariate_normal_in_tail(self, rng):
         """Joint upper-tail frequency matches a bivariate normal with the realised r (issue #34).

@@ -89,6 +89,12 @@ _Avoid_: family tree, genealogy.
 An event linking one male and one female parent, producing zero or more offspring. Under the **standard mating model** each individual may participate in multiple matings (mating count drawn from a zero-truncated Poisson). Under the **Wright-Fisher mating model** there is no persistent mating-pair structure: each offspring's two parents are drawn independently, so each offspring is conceptually its own degenerate one-offspring mating event. "Mating pair" is the same thing in prose.
 _Avoid_: couple, partnership, union, pair (ambiguous — see **Relationship pair**).
 
+**Within-person liability correlation**:
+The correlation between Trait 1 and Trait 2 liabilities in the same individual. Distinguish the configured correlation implied by the variance components from the realised correlation in a population. Neither is a correlation between mating parents.
+
+**Mate correlation**:
+The correlation between liabilities of the two parents in a mating, either on the same trait or across traits. A **target mate-correlation matrix** specifies the requested correlations; realised mate correlations describe the population after mating. The target matrix and the within-person liability correlations describe different relationships.
+
 **Household**:
 The unit within which the common-environment component ($C$) is shared. **One household per mother**, not per mating pair: all offspring of the same mother — including maternal half-siblings (same mother, different father) — share a single household and a single $C$ draw. Paternal half-siblings (same father, different mother) do **not** share a household. Stored as `household_id`.
 _Avoid_: family (overloaded), sibship (wrong cardinality — paternal half-sibs are siblings but not householdmates), home, nest.

@@ -490,6 +490,46 @@ else:
     _kd_match = _kd_match_python
 
 
+#: Smallest standard deviation a trait may have among one sex's mating slots in
+#: two-trait assortment; below it the trait is treated as constant.
+_MIN_TRAIT_SD = 1e-12
+
+#: Largest |within-sex trait correlation| two-trait assortment accepts; above it
+#: the two traits are treated as collinear and ``R_ff`` / ``R_mm`` as singular.
+_MAX_TRAIT_CORR = 1.0 - 1e-6
+
+#: Roundoff tolerance on the conditional covariance's smallest eigenvalue: within
+#: it the eigenvalue is clipped to 0, beyond it the requested ``R_mf`` is infeasible.
+_CONDITIONAL_EIG_TOL = 1e-8
+
+
+def _standardized_traits(liab1: np.ndarray, liab2: np.ndarray, sex: str) -> np.ndarray:
+    """Z-score both liabilities of one sex's slots; raise if either is constant."""
+    columns = []
+    for trait, liab in ((1, liab1), (2, liab2)):
+        sd = liab.std()
+        if not sd > _MIN_TRAIT_SD:
+            raise ValueError(
+                f"Two-trait assortative mating: {sex} trait-{trait} liability is constant across "
+                f"mating slots (SD {sd:.3g}); the within-sex trait correlation is undefined. "
+                f"Use single-trait assortment instead."
+            )
+        columns.append((liab - liab.mean()) / sd)
+    return np.column_stack(columns)
+
+
+def _realised_trait_corr(z: np.ndarray, sex: str) -> np.ndarray:
+    """The realised 2x2 trait correlation of one sex's slots; raise if singular."""
+    r = np.corrcoef(z, rowvar=False)[0, 1]
+    if not abs(r) <= _MAX_TRAIT_CORR:
+        raise ValueError(
+            f"Two-trait assortative mating: the realised {sex} within-person trait correlation "
+            f"is {r:.6f}; the traits are collinear across mating slots, so the conditional mate "
+            f"draw is undefined. Use single-trait assortment instead."
+        )
+    return np.array([[1.0, r], [r, 1.0]])
+
+
 def _assortative_pair_partners(
     rng: np.random.Generator,
     male_idxs: np.ndarray,
@@ -533,6 +573,12 @@ def _assortative_pair_partners(
 
     Returns:
         ``(M, 2)`` array of ``[mother_idx, father_idx]``.
+
+    Raises:
+        ValueError: in the both-nonzero case with two or more slots, if a
+            trait is constant or the two traits are collinear within either
+            sex (ADR 0024: use single-trait assortment), or if ``R_mf`` is
+            infeasible for the realised within-sex trait correlations.
     """
     # Imported here, not at module level: scipy.spatial costs ~160 ms to import
     # and only assortative mating needs the tree.
@@ -564,21 +610,8 @@ def _assortative_pair_partners(
             R_mf = np.array([[r1, c], [c, r2]])
         c_target = R_mf[0, 1]
 
-        def _zscore(arr):
-            s = arr.std()
-            return (arr - arr.mean()) / s if s > 1e-12 else np.zeros_like(arr)
-
-        def _trait_corr(z):
-            # A few slots or a constant trait make the realised correlation
-            # +/-1 or NaN; the configured rho_w (validated |rho_w| < 1) stands in.
-            with np.errstate(invalid="ignore", divide="ignore"):
-                r = np.corrcoef(z, rowvar=False)[0, 1]
-            if not np.isfinite(r) or abs(r) > 1.0 - 1e-6:
-                r = rho_w
-            return np.array([[1.0, r], [r, 1.0]])
-
-        fz = np.column_stack([_zscore(liab1_f), _zscore(liab2_f)])
-        males_z = np.column_stack([_zscore(liab1_m), _zscore(liab2_m)])
+        fz = _standardized_traits(liab1_f, liab2_f, "female")
+        males_z = _standardized_traits(liab1_m, liab2_m, "male")
 
         # Draw each female's ideal mate from the Gaussian conditional
         # m | f ~ N(f R_ff^-1 R_mf, R_mm - R_mf' R_ff^-1 R_mf), then match
@@ -588,15 +621,16 @@ def _assortative_pair_partners(
         # leaves the targets and the males with different distributions,
         # which bends the joint tails. Whitening gives the k-d split
         # independent axes.
-        R_ff = _trait_corr(fz)
-        R_mm = _trait_corr(males_z)
+        R_ff = _realised_trait_corr(fz, "female")
+        R_mm = _realised_trait_corr(males_z, "male")
         B = np.linalg.solve(R_ff, R_mf)
         eigval, eigvec = np.linalg.eigh(R_mm - R_mf.T @ B)
-        if eigval[0] < -1e-8:
-            logger.warning(
-                "R_mf is not attainable with the realised within-sex trait correlations "
-                "(conditional variance %.4f < 0); clipping it to 0",
-                eigval[0],
+        if eigval[0] < -_CONDITIONAL_EIG_TOL:
+            raise ValueError(
+                f"Requested mate correlation matrix R_mf={np.round(R_mf, 4).tolist()} is not attainable with the "
+                f"realised within-sex trait correlations (female {R_ff[0, 1]:.4f}, male {R_mm[0, 1]:.4f}): "
+                f"the conditional covariance R_mm - R_mf' R_ff^-1 R_mf has eigenvalue {eigval[0]:.3g} < 0. "
+                f"Reduce the assortment or cross-trait mate correlations."
             )
         noise_factor = eigvec * np.sqrt(np.clip(eigval, 0.0, None))
         target = fz @ B + rng.standard_normal((M, 2)) @ noise_factor.T
@@ -1390,17 +1424,20 @@ def run_simulation(
         if mating_model == "standard":
             assert plan is not None  # built above under the same guard
             a1_i, a2_i, rho_w_i, R_mf_i = plan.for_generation(i)
-            parents, twins, household_ids = _mating_standard(
-                rng,
-                sex,
-                mating_lambda,
-                p_mztwin,
-                pheno=pheno,
-                assort1=a1_i,
-                assort2=a2_i,
-                rho_w=rho_w_i,
-                assort_matrix=R_mf_i,
-            )
+            try:
+                parents, twins, household_ids = _mating_standard(
+                    rng,
+                    sex,
+                    mating_lambda,
+                    p_mztwin,
+                    pheno=pheno,
+                    assort1=a1_i,
+                    assort2=a2_i,
+                    rho_w=rho_w_i,
+                    assort_matrix=R_mf_i,
+                )
+            except ValueError as exc:
+                raise ValueError(f"Mating iteration {i}: {exc}") from exc
         else:  # wright_fisher
             parents, twins, household_ids = _mating_wf(rng, sex, N, generation=i)
         t_mate = time.perf_counter()

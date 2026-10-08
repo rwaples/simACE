@@ -79,6 +79,14 @@ Under `wright_fisher`, the loader rejects any `mating_lambda` override. It
 also rejects nonzero `p_mztwin`, `assort1`, or `assort2` overrides and any
 non-null `assort_matrix` override.
 
+When both traits assort, each mating iteration checks the requested mate
+correlations against the realised within-female and within-male trait
+correlations. A replicate stops with an error if they are infeasible, if a
+trait is constant, or if the two traits are collinear within a sex
+([ADR 0024](../adr/0024-realised-assortment-feasibility.md)). For two traits
+that are effectively one, set only `assort1` or `assort2`
+(single-trait assortment).
+
 ## Phenotype
 
 Each trait has its own block under `phenotype.trait1` and `phenotype.trait2`.
