@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, NotRequired, TypedDict
+from typing import TYPE_CHECKING, Any, TypedDict
 
 import numpy as np
 
@@ -112,7 +112,7 @@ def _build_entry_times(df: _Frame, gen_censoring: dict[int, list[float]] | None)
 
 
 class _AJResult(TypedDict):
-    """Aalen-Johansen CIF grids + event counts (``aj_se`` present only when ``greenwood``)."""
+    """Aalen-Johansen CIF grids + event counts."""
 
     aj_disease: np.ndarray
     aj_death: np.ndarray
@@ -120,7 +120,6 @@ class _AJResult(TypedDict):
     n: int
     n_events_disease: int
     n_events_death: int
-    aj_se: NotRequired[np.ndarray]
 
 
 def _aalen_johansen(
@@ -128,8 +127,6 @@ def _aalen_johansen(
     exit_time: np.ndarray,
     event_type: np.ndarray,
     ages: np.ndarray,
-    *,
-    greenwood: bool = False,
 ) -> _AJResult:
     """Aalen-Johansen CIF for disease (cause 1) with death (cause 2) as competing event.
 
@@ -138,11 +135,9 @@ def _aalen_johansen(
         exit_time: per-individual exit times.
         event_type: 0=censored, 1=disease, 2=death.
         ages: monotone-increasing grid for step-evaluation.
-        greenwood: include Greenwood SE for the disease CIF.
 
     Returns dict with keys ``aj_disease``, ``aj_death``, ``aj_survival`` (all
-    arrays on the ``ages`` grid), ``n``, ``n_events_disease``, ``n_events_death``,
-    and (when ``greenwood``) ``aj_se``.
+    arrays on the ``ages`` grid), ``n``, ``n_events_disease``, and ``n_events_death``.
     """
     valid = entry <= exit_time
     entry = entry[valid]
@@ -161,7 +156,6 @@ def _aalen_johansen(
             "n": 0,
             "n_events_disease": 0,
             "n_events_death": 0,
-            **({"aj_se": np.zeros(n_ages)} if greenwood else {}),
         }
 
     is_event = event_type != 0
@@ -173,7 +167,6 @@ def _aalen_johansen(
             "n": n,
             "n_events_disease": 0,
             "n_events_death": 0,
-            **({"aj_se": np.zeros(n_ages)} if greenwood else {}),
         }
 
     sorted_entry = np.sort(entry)
@@ -212,7 +205,7 @@ def _aalen_johansen(
     F_death_grid = np.where(valid_idx, F_death[np.clip(idx, 0, n_unique - 1)], 0.0)
     S_grid = np.where(valid_idx, s_after[np.clip(idx, 0, n_unique - 1)], 1.0)
 
-    out: _AJResult = {
+    return {
         "aj_disease": F_disease_grid,
         "aj_death": F_death_grid,
         "aj_survival": S_grid,
@@ -220,40 +213,6 @@ def _aalen_johansen(
         "n_events_disease": n_disease,
         "n_events_death": n_death,
     }
-
-    if greenwood:
-        # Marubini & Valsecchi variance for cause-specific CIF; see also
-        # Andersen, Borgan, Gill, Keiding (1993) eq. 4.4.1. Three terms:
-        #   var1[m] = sum_{j<=m} (F[m]-F[j])^2 * d_total/(Y(Y-d_total))
-        #   var2[m] = sum_{j<=m} S(t_j-)^2 (Y-d_disease) d_disease / Y^3
-        #   var3[m] = -2 sum_{j<=m} (F[m]-F[j]) S(t_j-) d_disease / Y^2
-        mask_t12 = Y > 0
-        mask_t1 = mask_t12 & ((Y - d_total) > 0)
-        term1_inc = np.zeros(n_unique)
-        term1_inc[mask_t1] = d_total[mask_t1] / (Y[mask_t1] * (Y[mask_t1] - d_total[mask_t1]))
-        term2_inc = np.zeros(n_unique)
-        term2_inc[mask_t12] = (
-            (s_before[mask_t12] ** 2) * (Y[mask_t12] - d_disease[mask_t12]) * d_disease[mask_t12] / (Y[mask_t12] ** 3)
-        )
-        term3_inc = np.zeros(n_unique)
-        term3_inc[mask_t12] = s_before[mask_t12] * d_disease[mask_t12] / (Y[mask_t12] ** 2)
-
-        # Decompose so we don't need O(E^2): expand (F[m]-F[j]) and use cumsums.
-        cum_a = np.cumsum(term1_inc)
-        cum_fa = np.cumsum(F_disease * term1_inc)
-        cum_f2a = np.cumsum((F_disease**2) * term1_inc)
-        cum_c = np.cumsum(term3_inc)
-        cum_fc = np.cumsum(F_disease * term3_inc)
-        cum_b = np.cumsum(term2_inc)
-
-        var1 = (F_disease**2) * cum_a - 2.0 * F_disease * cum_fa + cum_f2a
-        var3 = -2.0 * (F_disease * cum_c - cum_fc)
-        var = np.maximum(var1 + cum_b + var3, 0.0)
-        se = np.sqrt(var)
-        se_grid = np.where(valid_idx, se[np.clip(idx, 0, n_unique - 1)], 0.0)
-        out["aj_se"] = se_grid
-
-    return out
 
 
 def _exit_event_arrays(df: _Frame, trait_num: int) -> tuple[np.ndarray, np.ndarray]:

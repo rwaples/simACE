@@ -30,10 +30,10 @@ def _aj_inputs(draw):
     return entry, exit_time, event_type
 
 
-@given(inp=_aj_inputs(), greenwood=st.booleans())
-def test_aj_partition_bounds_monotonicity(inp, greenwood):
+@given(inp=_aj_inputs())
+def test_aj_partition_bounds_monotonicity(inp):
     entry, exit_time, event_type = inp
-    out = _aalen_johansen(entry, exit_time, event_type, _AGES, greenwood=greenwood)
+    out = _aalen_johansen(entry, exit_time, event_type, _AGES)
     f_disease = out["aj_disease"]
     f_death = out["aj_death"]
     survival = out["aj_survival"]
@@ -50,8 +50,3 @@ def test_aj_partition_bounds_monotonicity(inp, greenwood):
     assert np.all(np.diff(f_disease) >= -1e-12)
     assert np.all(np.diff(f_death) >= -1e-12)
     assert np.all(np.diff(survival) <= 1e-12)
-
-    if greenwood:
-        se = out["aj_se"]
-        assert np.all(np.isfinite(se))
-        assert np.all(se >= -1e-12)

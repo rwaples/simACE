@@ -37,7 +37,6 @@ from simace.analysis.stats import (
     compute_tetrachoric_by_generation,
     compute_tetrachoric_by_sex,
 )
-from simace.analysis.stats.incidence import _aalen_johansen, _build_entry_times, _exit_event_arrays
 from tests.analysis.moments_oracle import moments_from_pairs
 
 # ---------------------------------------------------------------------------
@@ -1495,38 +1494,6 @@ class TestAalenJohansen:
         t1 = result["trait1"]
         s = np.array(t1["aj_values"]) + np.array(t1["aj_death_values"]) + np.array(t1["aj_survival"])
         assert np.allclose(s, 1.0, atol=1e-9)
-
-    def test_greenwood_hand_calculated(self):
-        """4-row case with one disease, one death, two censored.
-
-        Marubini-Valsecchi variance for F_disease at both event times
-        works out to 3/64 (term1 and term3 cancel; only the second-term
-        cumulative-sum contributes).
-        """
-        df = _make_aj_df(
-            [
-                (True, False, 10.0),  # disease
-                (False, True, 20.0),  # death
-                (False, False, 30.0),  # censored
-                (False, False, 40.0),  # censored
-            ]
-        )
-        ages = np.linspace(0, 80, 81)
-        exit_time, event_type = _exit_event_arrays(df, 1)
-        aj = _aalen_johansen(_build_entry_times(df, None), exit_time, event_type, ages, greenwood=True)
-        se = aj["aj_se"]
-        idx_10 = int(np.searchsorted(ages, 10.0, side="left"))
-        idx_20 = int(np.searchsorted(ages, 20.0, side="left"))
-        expected_se = np.sqrt(3.0 / 64.0)
-        assert se[idx_10] == pytest.approx(expected_se, rel=1e-10)
-        assert se[idx_20] == pytest.approx(expected_se, rel=1e-10)
-        assert (se >= 0).all()
-        assert not np.any(np.isnan(se))
-
-    def test_public_output_has_no_greenwood_se(self):
-        df = _make_aj_df([(True, False, 30.0), (False, False, 60.0)])
-        result = compute_cumulative_incidence_aj(df, censor_age=80, n_points=50)
-        assert "aj_se" not in result["trait1"]
 
     def test_by_sex_smoke(self):
         n = 20

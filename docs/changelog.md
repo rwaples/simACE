@@ -112,8 +112,9 @@ Code that only tests reached:
 - `simace.plotting.plot_heritability.plot_broad_heritability_by_generation`.
   The combined A/C plot replaced it in the atlas.
 - The `greenwood=` argument of `compute_cumulative_incidence_aj` and its two
-  by-sex variants. No stage passed it. The private `_aalen_johansen` keeps the
-  Greenwood standard errors.
+  by-sex variants, and the Greenwood standard errors in `_aalen_johansen`
+  behind it ([#42](https://github.com/rwaples/simACE/issues/42)). No stage
+  passed it.
 - The pipeline diagram's handling of a phenotype `baseline` key, which no
   model accepts, and of a `_prev12` step that was never in the diagram.
 - `plot_cumulative_incidence`'s fallback for the pre-`observed_values`

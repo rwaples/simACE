@@ -74,7 +74,6 @@ DENSE_ARRAY_KEYS = frozenset(
         "aj_values",
         "aj_death_values",
         "aj_survival",
-        "aj_se",
         "censoring_ages",
         "true_incidence",
         "observed_incidence",
