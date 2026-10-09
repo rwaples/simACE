@@ -52,7 +52,7 @@ import numpy as np
 from numba import njit
 
 from simace.core._numba_utils import _ndtri_approx
-from simace.core.phenotype_keys import BASELINE_PARAMS
+from simace.core.phenotype_keys import BASELINE_PARAMS, HAZARD_ALIASES, exponential_rate
 from simace.core.standardize import STANDARDIZE_CHOICES, StandardizeMode, coerce_standardize_mode
 
 if TYPE_CHECKING:
@@ -145,8 +145,7 @@ def _invert_weibull(neg_log_u, liability, mean, scaled_beta, params):
 
 
 def _invert_exponential(neg_log_u, liability, mean, scaled_beta, params):
-    rate = params["rate"] if "rate" in params else 1.0 / params["scale"]
-    return _nb_exponential(neg_log_u, liability, mean, scaled_beta, 1.0 / rate)
+    return _nb_exponential(neg_log_u, liability, mean, scaled_beta, 1.0 / exponential_rate(params))
 
 
 def _invert_gompertz(neg_log_u, liability, mean, scaled_beta, params):
@@ -189,10 +188,12 @@ BASELINE_HAZARDS = {
     "gamma": _invert_gamma,
 }
 
-# Union of every key any baseline distribution requires, plus exponential's
-# alternate ``scale``.
+# Union of every key any baseline distribution requires or accepts as an alternate.
 HAZARD_FLAG_ROOTS: tuple[str, ...] = tuple(
-    sorted({k for params in BASELINE_PARAMS.values() for k in params} | {"scale"})
+    sorted(
+        {k for params in BASELINE_PARAMS.values() for k in params}
+        | {alt for aliases in HAZARD_ALIASES.values() for alt in aliases.values()}
+    )
 )
 
 
@@ -208,15 +209,15 @@ def validate_hazard_params(
 ) -> None:
     """Validate distribution name and required ``hazard_params`` keys.
 
-    Exponential accepts either ``rate`` or ``scale`` as the canonical key;
-    others must contain every key listed in ``BASELINE_PARAMS[distribution]``.
+    Every key in ``BASELINE_PARAMS[distribution]`` must be present, or its
+    alternate in ``HAZARD_ALIASES``.
     """
     if distribution not in BASELINE_HAZARDS:
         raise ValueError(f"unknown {model_name} distribution {distribution!r}; valid: {sorted(BASELINE_HAZARDS)}")
-    required = set(BASELINE_PARAMS[distribution])
-    if distribution == "exponential" and "scale" in hazard_params:
-        required = (required - {"rate"}) | {"scale"}
-    missing = required - set(hazard_params)
+    aliases = HAZARD_ALIASES.get(distribution, {})
+    missing = {
+        k for k in BASELINE_PARAMS[distribution] if k not in hazard_params and aliases.get(k) not in hazard_params
+    }
     if missing:
         raise ValueError(
             f"{model_name} distribution {distribution!r} missing required hazard params: {sorted(missing)}"
@@ -264,19 +265,17 @@ def parse_hazard_cli(
     distribution = getattr(args, f"{attr_name}_distribution{trait}")
     if distribution is None:
         raise ValueError(f"--{name}-distribution{trait} is required when --phenotype-model{trait}={attr_name}")
-    required = list(BASELINE_PARAMS[distribution])
-    # The exponential inverter and validate_hazard_params both accept `scale`
-    # in place of the canonical `rate`; without this the CLI was the only layer
-    # that rejected it.  Canonical `rate` still wins when both flags are given.
-    if (
-        distribution == "exponential"
-        and getattr(args, f"{attr_name}_rate{trait}", None) is None
-        and getattr(args, f"{attr_name}_scale{trait}", None) is not None
-    ):
-        required = ["scale"]
+
+    def flag(key: str) -> float | None:
+        return getattr(args, f"{attr_name}_{key}{trait}", None)
+
+    aliases = HAZARD_ALIASES.get(distribution, {})
     hazard_params: dict[str, float] = {}
-    for key in required:
-        val = getattr(args, f"{attr_name}_{key}{trait}", None)
+    for required in BASELINE_PARAMS[distribution]:
+        # The required flag wins; its alternate stands in only when it alone is set.
+        alt = aliases.get(required)
+        key = alt if alt is not None and flag(required) is None and flag(alt) is not None else required
+        val = flag(key)
         if val is None:
             raise ValueError(f"--{name}-{key}{trait} is required for --{name}-distribution{trait}={distribution}")
         hazard_params[key] = val

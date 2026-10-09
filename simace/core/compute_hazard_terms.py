@@ -7,6 +7,8 @@ from scipy.special import gammaln
 from scipy.stats import gamma as gamma_dist
 from scipy.stats import invgauss, norm
 
+from simace.core.phenotype_keys import exponential_rate
+
 
 def compute_hazard_terms(
     model: str,
@@ -42,12 +44,7 @@ def compute_hazard_terms(
             H_base = np.exp(rho * (log_t - np.log(s)))
 
     elif model == "exponential":
-        if "rate" in params:
-            lam = params["rate"]
-        elif "scale" in params:
-            lam = 1.0 / params["scale"]
-        else:
-            raise ValueError("exponential: need 'rate' or 'scale'")
+        lam = exponential_rate(params)
         const = np.full_like(t, np.log(lam))
         H_base = lam * t
 

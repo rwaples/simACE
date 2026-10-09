@@ -10,6 +10,7 @@ import argparse
 import numpy as np
 import pytest
 
+from simace.core.phenotype_keys import HAZARD_ALIASES, check_phenotype_params
 from simace.phenotype.hazards import (
     BASELINE_HAZARDS,
     BASELINE_PARAMS,
@@ -73,6 +74,24 @@ def test_compute_event_times_missing_param():
 
 def test_baseline_params_keys_match_registry():
     assert set(BASELINE_PARAMS) == set(BASELINE_HAZARDS)
+
+
+@pytest.mark.parametrize(
+    ("distribution", "required", "alternate"),
+    [(d, r, a) for d, aliases in HAZARD_ALIASES.items() for r, a in aliases.items()],
+)
+def test_hazard_alias_accepted_at_every_layer(distribution, required, alternate):
+    """Config keys, CLI flags, validation, and inversion all take an alternate from ``HAZARD_ALIASES``."""
+    params = dict(DEFAULT_PARAMS[distribution])
+    params[alternate] = params.pop(required)
+    check_phenotype_params("frailty", {"distribution": distribution, **params}, "test")
+    validate_hazard_params(distribution, params, "frailty")
+    parser = argparse.ArgumentParser()
+    add_hazard_cli_args(parser, 1, name="frailty")
+    argv = [f"--frailty-distribution1={distribution}", *(f"--frailty-{k}1={v!r}" for k, v in params.items())]
+    assert parse_hazard_cli(parser.parse_args(argv), 1, name="frailty") == (distribution, params)
+    neg_log_u, liability = _draws()
+    assert np.isfinite(compute_event_times(neg_log_u, liability, 0.0, 1.0, distribution, params)).all()
 
 
 # ---------------------------------------------------------------------------

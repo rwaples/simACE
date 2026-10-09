@@ -10,17 +10,18 @@ from __future__ import annotations
 __all__ = [
     "ADULT_METHODS",
     "BASELINE_PARAMS",
+    "HAZARD_ALIASES",
     "MODEL_FAMILIES",
     "ONSET_KINDS",
     "check_phenotype_params",
+    "exponential_rate",
 ]
 
 from typing import Any
 
 MODEL_FAMILIES: frozenset[str] = frozenset({"frailty", "cure_frailty", "adult", "first_passage", "simple_ltm"})
 
-# Required hazard parameter keys per baseline distribution. Exponential also
-# accepts ``scale`` in place of ``rate``.
+# Required hazard parameter keys per baseline distribution.
 BASELINE_PARAMS: dict[str, list[str]] = {
     "weibull": ["scale", "rho"],
     "exponential": ["rate"],
@@ -29,6 +30,11 @@ BASELINE_PARAMS: dict[str, list[str]] = {
     "loglogistic": ["scale", "shape"],
     "gamma": ["shape", "scale"],
 }
+
+# Alternate keys a distribution accepts in place of a required one, as
+# {distribution: {required key: alternate}}. Where both are given, the required
+# key wins. Converting an alternate is the consumer's job (``exponential_rate``).
+HAZARD_ALIASES: dict[str, dict[str, str]] = {"exponential": {"rate": "scale"}}
 
 ADULT_METHODS: frozenset[str] = frozenset({"ltm", "cox"})
 ONSET_KINDS: frozenset[str] = frozenset({"fixed", "normal"})
@@ -43,8 +49,16 @@ _MODEL_KEYS: dict[str, frozenset[str]] = {
 
 
 def _hazard_keys(distribution: str) -> frozenset[str]:
-    keys = frozenset(BASELINE_PARAMS[distribution])
-    return keys | {"scale"} if distribution == "exponential" else keys
+    return frozenset(BASELINE_PARAMS[distribution]) | frozenset(HAZARD_ALIASES.get(distribution, {}).values())
+
+
+def exponential_rate(params: dict[str, float]) -> float:
+    """The exponential rate from ``params``: ``rate``, else ``1 / scale``."""
+    if "rate" in params:
+        return params["rate"]
+    if "scale" in params:
+        return 1.0 / params["scale"]
+    raise ValueError("exponential: need 'rate' or 'scale'")
 
 
 def check_phenotype_params(model: str, phenotype_params: dict[str, Any], where: str) -> None:
