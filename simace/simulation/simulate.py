@@ -35,7 +35,7 @@ import polars as pl
 from simace.core.cohort import write_pedigree
 from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
-from simace.simulation.assortment import AssortmentPlan
+from simace.simulation.assortment import AssortmentPlan, _cross_am_matrix
 from simace.simulation.params import SimulationParams
 
 if TYPE_CHECKING:
@@ -606,8 +606,7 @@ def _assortative_pair_partners(
         if assort_matrix is not None:
             R_mf = np.asarray(assort_matrix, dtype=np.float64)
         else:
-            c = rho_w * np.sqrt(abs(r1 * r2)) * np.sign(r1 * r2)
-            R_mf = np.array([[r1, c], [c, r2]])
+            R_mf = _cross_am_matrix(r1, r2, rho_w)
         c_target = R_mf[0, 1]
 
         fz = _standardized_traits(liab1_f, liab2_f, "female")

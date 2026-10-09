@@ -12,6 +12,8 @@ __all__ = ["expected_mate_corr_matrix"]
 
 import numpy as np
 
+from simace.simulation.assortment import _cross_am_matrix
+
 
 def expected_mate_corr_matrix(
     assort1: float,
@@ -67,9 +69,7 @@ def expected_mate_corr_matrix(
     rho_w = rA * np.sqrt(A1 * A2) + rC * np.sqrt(C1 * C2) + rE * np.sqrt(E1 * E2)
 
     if assort1 != 0 and assort2 != 0:
-        # Both traits: diagonal = targets, off-diagonal from rho_w mediation
-        c = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
-        return np.array([[assort1, c], [c, assort2]])
+        return _cross_am_matrix(assort1, assort2, rho_w)
     if assort1 != 0:
         # Single-trait on trait 1: propagate via rho_w
         a = assort1
