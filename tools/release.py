@@ -20,8 +20,8 @@ guard clears as soon as the local tags exist + the family is reinstalled — the
 push is only needed to publish.  See simACE ADR 0012 (lockstep family
 versioning) and ADR 0023 (the SemVer scheme).
 
-``--repo`` tags one independently versioned checkout instead (pg-phenotype),
-at its own version.  It refuses unless that checkout is clean and untagged,
+``--repo`` tags one independently versioned checkout instead (pedigree-graph
+or pg-phenotype), at its own version.  It refuses unless that checkout is clean and untagged,
 every file that states its version agrees with the tag, and ``CHANGELOG.md``
 has the tag's ``## vX.Y.Z`` section, which its publish workflow turns into
 the release notes.  The tag push publishes it.
@@ -32,6 +32,7 @@ Examples:
     python tools/release.py v0.1.0 --dry-run   # check + report, tag nothing
     python tools/release.py v0.1.1 -m "fix: ..."
     python tools/release.py --repo pg-phenotype v0.2.0 --dry-run
+    python tools/release.py --repo pedigree-graph v0.12.3 -m "pedigree-graph 0.12.3: ..."
 """
 
 from __future__ import annotations
@@ -57,13 +58,16 @@ FAMILY_REPOS: tuple[str, ...] = tuple(repo.path for repo in lockstep_repos())
 
 #: The independently versioned checkouts ``--repo`` can tag, by family label,
 #: each with the files that state its version: a TOML key path, or a DCF field
-#: for an R ``DESCRIPTION``.  Every one must equal the tag.
+#: for an R ``DESCRIPTION``.  Every one must equal the tag.  Both state it in
+#: the Rust workspace, the R binding crate and the R package.
+_RUST_AND_R_VERSIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Cargo.toml", ("workspace", "package", "version")),
+    ("r/src/rust/Cargo.toml", ("package", "version")),
+    ("r/DESCRIPTION", ("Version",)),
+)
 INDEPENDENT_VERSIONS: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
-    "pg-phenotype": (
-        ("Cargo.toml", ("workspace", "package", "version")),
-        ("r/src/rust/Cargo.toml", ("package", "version")),
-        ("r/DESCRIPTION", ("Version",)),
-    ),
+    "pedigree-graph": _RUST_AND_R_VERSIONS,
+    "pg-phenotype": _RUST_AND_R_VERSIONS,
 }
 
 _SIMACE_ROOT = Path(__file__).resolve().parent.parent

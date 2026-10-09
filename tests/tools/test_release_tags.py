@@ -49,8 +49,11 @@ def test_cli_refuses_with_reason(tag: str, reason: str, capsys: pytest.CaptureFi
     assert reason in capsys.readouterr().err
 
 
-def _independent_checkout(root: Path, version: str, heading: str) -> None:
-    repo = root / "external" / "pg-phenotype"
+INDEPENDENT = sorted(release.INDEPENDENT_VERSIONS)
+
+
+def _independent_checkout(root: Path, label: str, version: str, heading: str) -> None:
+    repo = root / "external" / label
     (repo / "r" / "src" / "rust").mkdir(parents=True)
     (repo / "Cargo.toml").write_text(f'[workspace]\n\n[workspace.package]\nversion = "{version}"\n')
     (repo / "r" / "src" / "rust" / "Cargo.toml").write_text(f'[package]\nname = "x"\nversion = "{version}"\n')
@@ -71,21 +74,25 @@ def test_stated_version_reads_toml_and_dcf(tmp_path: Path) -> None:
     assert stated_version(tmp_path / "missing.toml", ("version",)) is None
 
 
+@pytest.mark.parametrize("label", INDEPENDENT)
 def test_independent_repo_ready_when_versions_and_changelog_agree(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    label: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    _independent_checkout(tmp_path, "0.2.0", "## v0.2.0")
+    _independent_checkout(tmp_path, label, "0.2.0", "## v0.2.0")
     monkeypatch.setattr(release, "_SIMACE_ROOT", tmp_path)
-    assert release.check_independent("pg-phenotype", "v0.2.0") == []
+    assert release.check_independent(label, "v0.2.0") == []
 
 
-def test_independent_repo_refuses_each_disagreement(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _independent_checkout(tmp_path, "0.1.0", "## Unreleased (0.2.0)")
+@pytest.mark.parametrize("label", INDEPENDENT)
+def test_independent_repo_refuses_each_disagreement(
+    label: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _independent_checkout(tmp_path, label, "0.1.0", "## Unreleased (0.2.0)")
     monkeypatch.setattr(release, "_SIMACE_ROOT", tmp_path)
-    problems = dict(release.check_independent("pg-phenotype", "v0.2.0"))
+    problems = dict(release.check_independent(label, "v0.2.0"))
     assert set(problems) == {
-        "external/pg-phenotype/Cargo.toml",
-        "external/pg-phenotype/r/src/rust/Cargo.toml",
-        "external/pg-phenotype/r/DESCRIPTION",
-        "external/pg-phenotype/CHANGELOG.md",
+        f"external/{label}/Cargo.toml",
+        f"external/{label}/r/src/rust/Cargo.toml",
+        f"external/{label}/r/DESCRIPTION",
+        f"external/{label}/CHANGELOG.md",
     }

@@ -126,8 +126,8 @@ reinstalled — the push only *publishes*.
 
 ### Independently versioned checkouts
 
-`--repo pg-phenotype` tags pg-phenotype alone, at its own version, outside the
-lockstep family:
+`--repo pedigree-graph` or `--repo pg-phenotype` tags that checkout alone, at
+its own version, outside the lockstep family:
 
 ```bash
 pixi run python tools/release.py --repo pg-phenotype --next
@@ -138,10 +138,12 @@ pixi run python tools/release.py --repo pg-phenotype vX.Y.Z
 It refuses (exit `1`) unless the checkout is clean and untagged, every file
 that states its version (`Cargo.toml`, `r/src/rust/Cargo.toml`,
 `r/DESCRIPTION`) equals the tag, and `CHANGELOG.md` has a `## vX.Y.Z` section.
-Push the tag with `/push pg-phenotype`.  The tag push runs its publish
-workflow, which releases to PyPI and GitHub; the procedure is in
-`external/pg-phenotype/docs/releasing.md`.  To add another checkout, list
-its version files in `INDEPENDENT_VERSIONS` in `tools/release.py`.
+The default tag message is `<repo> X.Y.Z`; pedigree-graph's tags carry a
+one-line summary, so pass it with `-m "pedigree-graph X.Y.Z: ..."`.  Push the
+tag with `/push <repo>`.  The tag push runs that repo's publish workflow,
+which releases to PyPI and GitHub; pg-phenotype's procedure is in
+`external/pg-phenotype/docs/releasing.md`.  To add another checkout, list its
+version files in `INDEPENDENT_VERSIONS` in `tools/release.py`.
 
 ---
 
