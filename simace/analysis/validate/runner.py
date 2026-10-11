@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
 
-from ._common import sibling_moments
+from ._common import mate_correlations, sibling_moments
 from .am_equilibrium import validate_am_equilibrium
 from .assortative_mating import validate_assortative_mating
 from .consanguinity import validate_consanguineous_matings
@@ -36,8 +36,8 @@ def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
     """Run all validation checks on an in-memory pedigree and return results.
 
     Runs structural, twin, half-sibling, statistical, heritability, and
-    population checks. The id-addressable arrays and the sibling relationship
-    moments are derived from ``df`` here.
+    population checks. The id-addressable arrays, the sibling relationship
+    moments and the mate correlations are derived from ``df`` here.
 
     Args:
         df: Pedigree DataFrame (full, pre-ascertainment).
@@ -53,16 +53,17 @@ def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
     """
     ped = PedigreeArrays.from_frame(df)
     siblings = sibling_moments(df, ped)
+    mates = mate_correlations(df)
 
     results = {
         "structural": validate_structural(df, params, ped),
         "twins": validate_twins(df, params, ped),
-        "half_sibs": validate_half_sibs(df, params, ped, siblings),
+        "half_sibs": validate_half_sibs(df, params, siblings, mates),
         "statistical": validate_statistical(df, params),
-        "heritability": validate_heritability(df, params, ped, siblings),
+        "heritability": validate_heritability(df, params, ped, siblings, mates),
         "population": validate_population(df, params),
         "per_generation": compute_per_generation_stats(df, params),
-        "assortative_mating": validate_assortative_mating(df, params, ped),
+        "assortative_mating": validate_assortative_mating(params, mates),
         "am_equilibrium": validate_am_equilibrium(df, params),
         "consanguineous_matings": validate_consanguineous_matings(df, params, ped),
     }

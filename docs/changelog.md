@@ -49,6 +49,23 @@ releases shipped after 2026.05.3.
   that used to finish with a warning now fails its replicate and writes no
   `run.yaml`.
 
+### Mate correlation through pg-phenotype ([#47](https://github.com/rwaples/simACE/issues/47))
+
+- **simACE now depends on pg-phenotype** (`>=0.3,<0.4`). The report's
+  `mate_correlation` matrix, the `assortative_mating` checks, and the genetic
+  mate correlation `mu_A` behind the AM-aware expected relative correlations
+  come from `pg_phenotype.assortative.mate_correlation` with `inference=False`
+  (point estimates only). simACE's own pair finder is gone. The pairs are the
+  same: a distinct mother and father, both pedigree rows, of at least one
+  child. The estimates match the old ones to within 1e-12.
+- Validation computes the mate correlations once per run. Before, every
+  AM-aware check recomputed them.
+- `r_ho` (the liability mate correlation behind the half-sib expectation) now
+  reads the `liability{t}` column instead of summing the float32 `A`, `C` and
+  `E` columns. The two differ by about 1e-9.
+- An infinite liability or A value is now missing, like NaN: its pairs leave
+  the cells that read it. Before, the whole cell was NaN.
+
 ### Stage defaults and censoring
 
 - **`simace censor` and `simace cohort` flag defaults now match

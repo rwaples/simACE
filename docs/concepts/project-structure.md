@@ -142,7 +142,7 @@ paths used by maintenance tools.
 | [`fitACE_epimight`](https://github.com/rwaples/fitACE_epimight) | private | `./fitACE/fitACE_epimight/` | EPIMIGHT integration: long-form input emitter, R driver, Snakemake rules, atlas/bias plotting. Its own repo, tracking the BioPsyk/epimight R upstream; included by `fitACE/Snakefile`. |
 | [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Rust pedigree relationship extraction and kinship computation. |
 | [`pedsum`](https://github.com/rwaples/pedsum) | public | `./external/pedsum/` | Pedigree summary CLI: structure, relatedness, inbreeding, Ne estimators. Built on `pedigree-graph`. |
-| [`pg-phenotype`](https://github.com/rwaples/pg-phenotype) | private | `./external/pg-phenotype/` | Phenotypes in a pedigree on pedigree-graph's core (Rust, Python, R): PA-FGRS now, assortative mating next. |
+| [`pg-phenotype`](https://github.com/rwaples/pg-phenotype) | public | `./external/pg-phenotype/` | Phenotypes in a pedigree on pedigree-graph's core (Rust, Python, R): PA-FGRS and the mate correlation. simACE computes its mate correlations with it. |
 
 Each nested repo has its own `origin` wired to the matching GitHub repo.
 The build artifacts `build-fp*/`, `ldak6.2.simace`, and the Stan binaries are

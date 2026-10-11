@@ -6,30 +6,23 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from simace.core.numerics import safe_corrcoef
-
-from ._common import _corr_se, _info, _result, _unique_mating_pairs
+from ._common import _corr_se, _info, _result
 
 if TYPE_CHECKING:
-    import pandas as pd
-    import polars as pl
-
-    from simace.core.pedigree_arrays import PedigreeArrays
+    from ._common import MateCorrelations
 
 
-def validate_assortative_mating(
-    df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped: PedigreeArrays
-) -> dict[str, Any]:
+def validate_assortative_mating(params: dict[str, Any], mates: MateCorrelations) -> dict[str, Any]:
     """Validate mate correlation on liability when assortative mating is configured.
 
-    Extracts unique mating pairs from non-founders, computes Pearson
-    correlation of mother and father liability for each trait, and checks
-    against the configured ``assort1`` / ``assort2`` parameters.
+    Checks the Pearson correlation of mother and father liability over the
+    unique mating pairs, per trait, against the configured ``assort1`` /
+    ``assort2`` parameters.
 
     Args:
-        df: Pedigree DataFrame.
         params: Scenario parameters; uses keys ``assort1``, ``assort2``.
-        ped: The same pedigree as id-addressable arrays.
+        mates: The pedigree's mate correlations
+            (:func:`~simace.analysis.validate._common.mate_correlations`).
 
     Returns:
         Dict of check-name to result dicts.
@@ -52,25 +45,14 @@ def validate_assortative_mating(
         results["mate_corr_liability2"] = _result(True, msg)
         return results
 
-    if not bool((df["mother"].to_numpy() != -1).any()):
-        results["mate_corr_liability1"] = _result(True, "No non-founders to check")
-        results["mate_corr_liability2"] = _result(True, "No non-founders to check")
-        return results
-
-    # Unique mating pairs whose parents are both in the pedigree -- the same
-    # guard observed_mate_correlations applies.
-    mother_ids, father_ids = _unique_mating_pairs(df, ped)
-    n_pairs = len(mother_ids)
-
+    n_pairs = mates.n_pairs
     if n_pairs == 0:
         results["mate_corr_liability1"] = _result(True, "No mating pairs with both parents present")
         results["mate_corr_liability2"] = _result(True, "No mating pairs with both parents present")
         return results
 
     for t, expected in [(1, assort1), (2, assort2)]:
-        m_liab = ped.gather(f"liability{t}", mother_ids)
-        f_liab = ped.gather(f"liability{t}", father_ids)
-        obs = safe_corrcoef(m_liab, f_liab)
+        obs = float(mates.liability[t - 1, t - 1])
 
         if np.isnan(obs):
             results[f"mate_corr_liability{t}"] = _result(
@@ -96,9 +78,7 @@ def validate_assortative_mating(
     # the AM-corrected relative-correlation reference lines (see am_relatedness
     # and plot_A_correlations). Reduces to ~0 with no assortment.
     for t in [1, 2]:
-        m_a = ped.gather(f"A{t}", mother_ids)
-        f_a = ped.gather(f"A{t}", father_ids)
-        obs_a = safe_corrcoef(m_a, f_a)
+        obs_a = mates.genetic[t - 1]
         results[f"mate_corr_A{t}"] = _info(
             f"Genetic mate correlation A{t} (mu_A): {obs_a:.4f}",
             observed=None if np.isnan(obs_a) else float(obs_a),
@@ -116,10 +96,8 @@ def validate_assortative_mating(
             ) * np.sqrt(params.get("C1", 0) * params.get("C2", 0))
             c_expected = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
 
-        for label, fi, mi in [("cross_12", 1, 2), ("cross_21", 2, 1)]:
-            m_liab = ped.gather(f"liability{fi}", mother_ids)
-            f_liab = ped.gather(f"liability{mi}", father_ids)
-            obs = safe_corrcoef(m_liab, f_liab)
+        for label, mi, fi in [("cross_12", 1, 2), ("cross_21", 2, 1)]:
+            obs = float(mates.liability[mi - 1, fi - 1])
 
             if np.isnan(obs):
                 results[f"mate_corr_{label}"] = _result(

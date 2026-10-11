@@ -21,8 +21,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from simace.core.numerics import fast_linregress, safe_corrcoef
-from simace.core.pedigree_arrays import PedigreeArrays
+from simace.analysis.mate_correlation import mate_correlation_matrix, mate_pedigree
+from simace.core.numerics import fast_linregress
 from simace.core.relationships import SEX_LEVELS
 
 from .moments import Stratum, select_levels
@@ -444,35 +444,11 @@ def compute_observed_h2_estimators(
 
 
 def compute_mate_correlation(df: _Frame) -> dict:
-    """Compute 2x2 Pearson correlation matrix between mated pairs' liabilities.
+    """Compute the 2x2 Pearson correlation matrix of mated pairs' liabilities.
 
-    Each unique (mother, father) pair is counted once (not weighted by offspring).
-    Only non-founders are considered.
+    ``matrix[i][j]`` correlates the mothers' ``liability{i+1}`` with the
+    fathers' ``liability{j+1}``. Each unique (mother, father) pair with both
+    parents in ``df`` is counted once (not weighted by offspring).
     """
-    ped = PedigreeArrays.from_frame(df)
-    mothers_all = df["mother"].to_numpy()
-    fathers_all = df["father"].to_numpy()
-    child_mask = (mothers_all != -1) & (fathers_all != -1)
-    m_child = mothers_all[child_mask].astype(np.int64)
-    f_child = fathers_all[child_mask].astype(np.int64)
-    if m_child.size == 0:
-        return {"matrix": [[float("nan")] * 2] * 2, "n_pairs": 0}
-
-    # Unique (mother, father) matings via an int64 pair key (ids are int32).
-    base = np.int64(max(int(m_child.max()), int(f_child.max())) + 1)
-    uniq_pairs = np.unique(m_child * base + f_child)
-    mothers = uniq_pairs // base
-    fathers = uniq_pairs % base
-    parents_present = ped.contains(mothers) & ped.contains(fathers)
-    mothers, fathers = mothers[parents_present], fathers[parents_present]
-    if len(mothers) < 2:
-        # A correlation needs two points, so the matrix is NaN -- but n_pairs
-        # denotes the distinct valid-mating count everywhere else, so report
-        # the real count rather than hard-coding zero for the singleton case.
-        return {"matrix": [[float("nan")] * 2] * 2, "n_pairs": len(mothers)}
-
-    f_liab = np.column_stack([ped.gather(f"liability{t}", mothers) for t in (1, 2)])  # (N, 2)
-    m_liab = np.column_stack([ped.gather(f"liability{t}", fathers) for t in (1, 2)])  # (N, 2)
-
-    matrix = [[float(safe_corrcoef(f_liab[:, i], m_liab[:, j])) for j in range(2)] for i in range(2)]
-    return {"matrix": matrix, "n_pairs": len(mothers)}
+    matrix, n_pairs = mate_correlation_matrix(mate_pedigree(df), df, ["liability1", "liability2"])
+    return {"matrix": matrix.tolist(), "n_pairs": n_pairs}

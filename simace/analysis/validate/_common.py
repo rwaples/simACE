@@ -1,8 +1,8 @@
 """Shared helpers for the validation subdomain modules.
 
-Cross-cutting result envelope, correlation-tolerance, and sibling-moment
-helpers used by more than one validation module. Generic numerics live in
-:mod:`simace.core.numerics`.
+Cross-cutting result envelope, correlation-tolerance, sibling-moment and
+mate-correlation helpers used by more than one validation module. Generic
+numerics live in :mod:`simace.core.numerics`.
 """
 
 from __future__ import annotations
@@ -10,11 +10,13 @@ from __future__ import annotations
 import logging
 import math
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from pedigree_graph import PedigreeGraph
 
+from simace.analysis.mate_correlation import mate_correlation_matrix, mate_pedigree
 from simace.core.numerics import _ZERO_VAR_THRESHOLD
 
 if TYPE_CHECKING:
@@ -110,28 +112,29 @@ def pair_correlation(cell: RelationshipMoments, column: str) -> float:
     return float(cell.pearson(f"first.{column}", f"second.{column}"))
 
 
-def _unique_mating_pairs(df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays) -> tuple[np.ndarray, np.ndarray]:
-    """Return unique (mother, father) id arrays with both parents present.
+@dataclass(frozen=True)
+class MateCorrelations:
+    """The recorded pedigree's mate correlations, computed once per validation run.
 
-    Library-agnostic (ADR 0015): non-founder rows are selected with a NumPy
-    mask and matings deduplicated via an int64 pair key (ids are int32, so
-    ``base**2`` fits int64). Pairs come back in sorted-key order; every
-    consumer computes order-invariant statistics over them. Ascertainment
-    severs mother and father independently, so a row can pass the
-    ``mother != -1`` filter while carrying a severed father — pairs whose
-    parents are not both present in ``ped`` are dropped.
+    Attributes:
+        n_pairs: Mating Pairs (distinct mother and father, both rows).
+        liability: ``liability[i, j]`` correlates the mothers'
+            ``liability{i+1}`` with the fathers' ``liability{j+1}``; NaN where
+            undefined.
+        genetic: The genetic mate correlation ``mu_A = Corr(A_mother,
+            A_father)`` per trait, ``genetic[t - 1]``; NaN where undefined.
     """
-    mothers_all = df["mother"].to_numpy()
-    fathers_all = df["father"].to_numpy()
-    mask = mothers_all != -1
-    m = mothers_all[mask].astype(np.int64)
-    f = fathers_all[mask].astype(np.int64)
-    if m.size == 0:
-        return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.int64)
-    # Shift fathers by +1 so a severed father (-1) keys injectively.
-    base = np.int64(max(int(m.max()), int(f.max())) + 2)
-    uniq = np.unique(m * base + (f + 1))
-    mothers = uniq // base
-    fathers = uniq % base - 1
-    both = ped.contains(mothers) & ped.contains(fathers)
-    return mothers[both], fathers[both]
+
+    n_pairs: int
+    liability: np.ndarray
+    genetic: tuple[float, float]
+
+
+def mate_correlations(df: pd.DataFrame | pl.DataFrame) -> MateCorrelations:
+    """Liability and genetic mate correlations of ``df`` (:mod:`simace.analysis.mate_correlation`)."""
+    t0 = time.perf_counter()
+    pedigree = mate_pedigree(df)
+    liability, n_pairs = mate_correlation_matrix(pedigree, df, ["liability1", "liability2"])
+    mu_a = [float(mate_correlation_matrix(pedigree, df, [f"A{t}"])[0][0, 0]) for t in (1, 2)]
+    logger.info("Mate correlations over %d pairs completed in %.1fs", n_pairs, time.perf_counter() - t0)
+    return MateCorrelations(n_pairs, liability, (mu_a[0], mu_a[1]))

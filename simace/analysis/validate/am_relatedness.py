@@ -35,15 +35,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from simace.core.numerics import safe_corrcoef
-
-from ._common import _MIN_PAIRS_FOR_CORR, _unique_mating_pairs
+from ._common import _MIN_PAIRS_FOR_CORR
 
 if TYPE_CHECKING:
-    import pandas as pd
-    import polars as pl
-
-    from simace.core.pedigree_arrays import PedigreeArrays
+    from ._common import MateCorrelations
 
 __all__ = [
     "am_expected_a_correlation",
@@ -77,32 +72,20 @@ def am_relatedness_mode(params: dict[str, Any], t: int) -> str:
     return "bivariate" if _active(other) else "single"
 
 
-def observed_mate_correlations(
-    df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays, t: int
-) -> tuple[float, float, int]:
-    """Measure ``(mu_A, r_ho, n_pairs)`` for trait ``t`` over unique mating pairs.
+def observed_mate_correlations(mates: MateCorrelations, t: int) -> tuple[float, float, int]:
+    """Read ``(mu_A, r_ho, n_pairs)`` for trait ``t`` from the unique mating pairs.
 
     ``mu_A`` is the genetic (A-component) mate correlation; ``r_ho`` the
     liability (phenotypic) mate correlation. Both are pooled across the recorded
     non-founder generations. Returns ``(0.0, 0.0, n)`` when there are too few
-    pairs or a correlation is undefined.
+    pairs, and 0.0 for a correlation that is undefined.
     """
-    # Unique matings restricted to pairs whose parents are both present in the
-    # recorded pedigree.
-    m, f = _unique_mating_pairs(df, ped)
-    n_pairs = len(m)
+    n_pairs = mates.n_pairs
     if n_pairs < _MIN_PAIRS_FOR_CORR:
         return 0.0, 0.0, n_pairs
-    a_m = ped.gather(f"A{t}", m)
-    a_f = ped.gather(f"A{t}", f)
-    l_m = a_m + ped.gather(f"C{t}", m) + ped.gather(f"E{t}", m)
-    l_f = a_f + ped.gather(f"C{t}", f) + ped.gather(f"E{t}", f)
-
-    mu_a = safe_corrcoef(a_m, a_f)
-    r_ho = safe_corrcoef(l_m, l_f)
-    mu_a = 0.0 if np.isnan(mu_a) else float(mu_a)
-    r_ho = 0.0 if np.isnan(r_ho) else float(r_ho)
-    return mu_a, r_ho, n_pairs
+    mu_a = mates.genetic[t - 1]
+    r_ho = float(mates.liability[t - 1, t - 1])
+    return (0.0 if np.isnan(mu_a) else mu_a), (0.0 if np.isnan(r_ho) else r_ho), n_pairs
 
 
 def am_expected_a_correlation(kind: str, mu_a: float, r_ho: float) -> float:
@@ -126,8 +109,7 @@ def am_expected_a_correlation(kind: str, mu_a: float, r_ho: float) -> float:
 
 
 def resolve_expected_a_corr(
-    df: pd.DataFrame | pl.DataFrame,
-    ped: PedigreeArrays,
+    mates: MateCorrelations,
     params: dict[str, Any],
     t: int,
     kind: str,
@@ -147,6 +129,6 @@ def resolve_expected_a_corr(
         return default, None, {}
     if mode == "bivariate":
         return None, "both-trait AM active (cross-trait paths not in single-trait formula)", {}
-    mu_a, r_ho, n = observed_mate_correlations(df, ped, t)
+    mu_a, r_ho, n = observed_mate_correlations(mates, t)
     expected = am_expected_a_correlation(kind, mu_a, r_ho)
     return expected, None, {"mu_A": mu_a, "r_ho": r_ho, "mate_pairs": n}

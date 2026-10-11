@@ -22,7 +22,7 @@ from simace.analysis.validate import (
 from simace.analysis.validate import (
     cli as validate_cli,
 )
-from simace.analysis.validate._common import sibling_moments
+from simace.analysis.validate._common import mate_correlations, sibling_moments
 from simace.ascertainment import run_ascertainment
 from simace.core.parquet import save_parquet
 from simace.core.pedigree_arrays import PedigreeArrays
@@ -73,8 +73,13 @@ def val_sibling_moments(val_pedigree, val_ped):
 
 
 @pytest.fixture(scope="module")
-def heritability_result(val_pedigree, val_params, val_ped, val_sibling_moments):
-    return validate_heritability(val_pedigree, val_params, val_ped, val_sibling_moments)
+def val_mates(val_pedigree):
+    return mate_correlations(val_pedigree)
+
+
+@pytest.fixture(scope="module")
+def heritability_result(val_pedigree, val_params, val_ped, val_sibling_moments, val_mates):
+    return validate_heritability(val_pedigree, val_params, val_ped, val_sibling_moments, val_mates)
 
 
 # ---------------------------------------------------------------------------
@@ -184,12 +189,12 @@ class TestValidateTwins:
 
 
 class TestValidateHalfSibs:
-    def test_passes(self, val_pedigree, val_params, val_ped, val_sibling_moments):
-        result = validate_half_sibs(val_pedigree, val_params, val_ped, val_sibling_moments)
+    def test_passes(self, val_pedigree, val_params, val_sibling_moments, val_mates):
+        result = validate_half_sibs(val_pedigree, val_params, val_sibling_moments, val_mates)
         _all_passed(result)
 
-    def test_numeric_fields(self, val_pedigree, val_params, val_ped, val_sibling_moments):
-        result = validate_half_sibs(val_pedigree, val_params, val_ped, val_sibling_moments)
+    def test_numeric_fields(self, val_pedigree, val_params, val_sibling_moments, val_mates):
+        result = validate_half_sibs(val_pedigree, val_params, val_sibling_moments, val_mates)
         for value in result.values():
             if isinstance(value, dict) and "observed" in value:
                 assert isinstance(value["observed"], (int, float))
@@ -331,33 +336,33 @@ class TestComputeFamilySizeDistribution:
 
 
 class TestValidateAssortativeMating:
-    def test_zero_assort_near_zero_corr(self, val_pedigree, val_params, val_ped):
-        result = validate_assortative_mating(val_pedigree, val_params, val_ped)
+    def test_zero_assort_near_zero_corr(self, val_params, val_mates):
+        result = validate_assortative_mating(val_params, val_mates)
         _all_passed(result)
 
-    def test_result_has_mate_correlation(self, val_pedigree, val_params, val_ped):
-        result = validate_assortative_mating(val_pedigree, val_params, val_ped)
+    def test_result_has_mate_correlation(self, val_params, val_mates):
+        result = validate_assortative_mating(val_params, val_mates)
         corr_keys = [k for k in result if "mate" in k.lower() or "corr" in k.lower()]
         assert len(corr_keys) > 0
 
-    def test_cross_trait_branch_when_both_assort(self, val_pedigree, val_ped, val_params):
+    def test_cross_trait_branch_when_both_assort(self, val_mates, val_params):
         # Force the cross-trait branch by claiming both traits assort.
         params = {**val_params, "assort1": 0.2, "assort2": 0.3}
-        result = validate_assortative_mating(val_pedigree, params, val_ped)
+        result = validate_assortative_mating(params, val_mates)
         assert "mate_corr_cross_12" in result
         assert "mate_corr_cross_21" in result
         for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
             assert "expected" in result[key]
             assert "observed" in result[key]
 
-    def test_cross_trait_uses_assort_matrix_when_provided(self, val_pedigree, val_ped, val_params):
+    def test_cross_trait_uses_assort_matrix_when_provided(self, val_mates, val_params):
         params = {
             **val_params,
             "assort1": 0.2,
             "assort2": 0.3,
             "assort_matrix": [[0.2, 0.05], [0.05, 0.3]],
         }
-        result = validate_assortative_mating(val_pedigree, params, val_ped)
+        result = validate_assortative_mating(params, val_mates)
         assert result["mate_corr_cross_12"]["expected"] == pytest.approx(0.05)
 
 
@@ -549,7 +554,11 @@ class TestValidateOnAscertainedPedigrees:
         assert "consanguineous_count" in result
 
     def test_mate_correlation_drops_pairs_with_an_absent_parent(self, severed_pedigree, val_params):
-        """assortative_mating must apply the same guard observed_mate_correlations does."""
+        """A row with a severed parent makes no mating pair."""
+        mother = severed_pedigree["mother"].to_numpy()
+        father = severed_pedigree["father"].to_numpy()
+        both = (mother != -1) & (father != -1)
+        n_pairs = len(set(zip(mother[both].tolist(), father[both].tolist(), strict=True)))
         params = {**val_params, "assort1": 0.3, "assort2": 0.0}
-        result = validate_assortative_mating(severed_pedigree, params, PedigreeArrays.from_frame(severed_pedigree))
-        assert "mate_corr_liability1" in result
+        result = validate_assortative_mating(params, mate_correlations(severed_pedigree))
+        assert result["mate_corr_liability1"]["n_pairs"] == n_pairs

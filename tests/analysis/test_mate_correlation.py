@@ -2,7 +2,9 @@
 
 import numpy as np
 import polars as pl
+import pytest
 
+from simace.analysis.mate_correlation import mate_correlation_matrix, mate_pedigree
 from simace.analysis.stats import compute_mate_correlation
 from simace.simulation.mate_correlation import expected_mate_corr_matrix
 
@@ -247,3 +249,100 @@ class TestPlotMateCorrelation:
         out = tmp_path / "mate_correlation.png"
         plot_mate_correlation([{}], str(out), scenario="test")
         assert out.exists()
+
+
+def _oracle(df: pl.DataFrame, columns: list[str]) -> tuple[np.ndarray, int]:
+    """Pearson over distinct (mother, father) pairs whose parents are both rows.
+
+    Each cell uses the pairs whose two values are finite.
+    """
+    ids = df["id"].to_numpy()
+    row = {int(i): r for r, i in enumerate(ids)}
+    parents = zip(df["mother"].to_numpy(), df["father"].to_numpy(), strict=True)
+    pairs = sorted({(int(m), int(f)) for m, f in parents if int(m) in row and int(f) in row})
+    m_rows = np.array([row[m] for m, _ in pairs])
+    f_rows = np.array([row[f] for _, f in pairs])
+    values = [df[c].to_numpy() for c in columns]
+
+    def cell(vi: np.ndarray, vj: np.ndarray) -> float:
+        m, f = vi[m_rows], vj[f_rows]
+        keep = np.isfinite(m) & np.isfinite(f)
+        return np.corrcoef(m[keep], f[keep])[0, 1]
+
+    return np.array([[cell(vi, vj) for vj in values] for vi in values]), len(pairs)
+
+
+class TestMateCorrelationMatrix:
+    """pg-phenotype's mate correlation against a NumPy oracle."""
+
+    @staticmethod
+    def _pedigree(seed: int = 5, n: int = 400) -> pl.DataFrame:
+        rng = np.random.default_rng(seed)
+        founders = 2 * n
+        mothers = rng.choice(np.arange(0, founders, 2), size=n)
+        fathers = rng.choice(np.arange(1, founders, 2), size=n)
+        return pl.DataFrame(
+            {
+                "id": np.arange(founders + n),
+                "mother": np.concatenate([np.full(founders, -1), mothers]),
+                "father": np.concatenate([np.full(founders, -1), fathers]),
+                "liability1": rng.normal(size=founders + n),
+                "liability2": rng.normal(size=founders + n),
+            }
+        )
+
+    def _check(self, df: pl.DataFrame) -> None:
+        matrix, n_pairs = mate_correlation_matrix(mate_pedigree(df), df, ["liability1", "liability2"])
+        expected, n_expected = _oracle(df, ["liability1", "liability2"])
+        assert n_pairs == n_expected
+        np.testing.assert_allclose(matrix, expected, rtol=0, atol=1e-12)
+
+    def test_matches_oracle(self):
+        self._check(self._pedigree())
+
+    def test_matches_oracle_with_dangling_parent_ids(self):
+        """Dropped rows leave parent ids that name no row; their children make no pair."""
+        df = self._pedigree()
+        keep = np.random.default_rng(1).random(len(df)) > 0.3
+        self._check(df.filter(pl.Series(keep)))
+
+    def test_matches_oracle_with_severed_parents(self):
+        df = self._pedigree()
+        sever = np.random.default_rng(2).random(len(df)) < 0.2
+        self._check(df.with_columns(pl.when(pl.Series(sever)).then(-1).otherwise(pl.col("father")).alias("father")))
+
+    def test_constant_column_is_nan_and_spares_the_other(self):
+        df = self._pedigree().with_columns(pl.lit(0.0).alias("liability2"))
+        matrix, n_pairs = mate_correlation_matrix(mate_pedigree(df), df, ["liability1", "liability2"])
+        expected, n_expected = _oracle(df, ["liability1"])
+        assert n_pairs == n_expected
+        assert matrix[0, 0] == pytest.approx(expected[0, 0], abs=1e-12)
+        assert np.isnan(matrix[[0, 1, 1], [1, 0, 1]]).all()
+
+    def test_every_column_constant_still_counts_pairs(self):
+        df = self._pedigree().with_columns(pl.lit(0.0).alias("liability1"))
+        matrix, n_pairs = mate_correlation_matrix(mate_pedigree(df), df, ["liability1"])
+        assert n_pairs == _oracle(df, ["liability2"])[1]
+        assert np.isnan(matrix).all()
+
+    def test_infinite_values_are_missing(self):
+        """A pair with an infinite value leaves the cells that read it, as NaN would."""
+        df = self._pedigree()
+        mother = int(df["mother"].to_numpy()[-1])
+        father = int(df["father"].to_numpy()[-2])
+        df = df.with_columns(
+            pl.when(pl.col("id") == mother)
+            .then(float("inf"))
+            .when(pl.col("id") == father)
+            .then(float("-inf"))
+            .otherwise(pl.col("liability1"))
+            .alias("liability1")
+        )
+        self._check(df)
+
+    def test_all_infinite_column_is_nan(self):
+        df = self._pedigree().with_columns(pl.lit(float("inf")).alias("liability1"))
+        matrix, n_pairs = mate_correlation_matrix(mate_pedigree(df), df, ["liability1", "liability2"])
+        assert n_pairs == _oracle(df, ["liability2"])[1]
+        assert np.isnan(matrix[[0, 0, 1], [0, 1, 0]]).all()
+        assert not np.isnan(matrix[1, 1])

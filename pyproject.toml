@@ -11,6 +11,9 @@ dependencies = [
     # Minor-capped: pair extraction / RELATIONSHIPS kinship changes upstream can
     # silently bias fit_ace heritability (CLAUDE.md gotcha #4) — bump deliberately.
     "pedigree-graph>=0.12,<0.13",
+    # Mate correlations (simACE#47). Minor-capped like pedigree-graph: before
+    # 1.0 a minor release may change estimates or the result fields.
+    "pg-phenotype>=0.3,<0.4",
     "numpy>=2.2,<3",
     "scipy>=1.14,<2",
     "polars>=1.43.2,<2",

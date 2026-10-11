@@ -28,6 +28,8 @@ if TYPE_CHECKING:
 
     from simace.core.pedigree_arrays import PedigreeArrays
 
+    from ._common import MateCorrelations
+
 
 def _midparent_regression(
     vals: np.ndarray, mother_idx: np.ndarray, father_idx: np.ndarray, offspring_idx: np.ndarray, label: str
@@ -104,8 +106,7 @@ def _validate_mz_correlations(
 
 
 def _validate_dz_correlations(
-    df: pd.DataFrame | pl.DataFrame,
-    ped: PedigreeArrays,
+    mates: MateCorrelations,
     params: dict[str, Any],
     A_params: dict[int, float],
     sibling_moments: RelationshipMoments,
@@ -129,7 +130,7 @@ def _validate_dz_correlations(
             # Full-sib (DZ) A correlation: 2*kinship under random mating,
             # AM-inflated to (1+mu_A)/2 under single-trait assortment.
             expected_dz, skip, info = resolve_expected_a_corr(
-                df, ped, params, t, "FS", 2.0 * RELATIONSHIPS["FS"].nominal_kinship
+                mates, params, t, "FS", 2.0 * RELATIONSHIPS["FS"].nominal_kinship
             )
             if expected_dz is None:
                 # Reported, not asserted: no single-trait formula under {skip}.
@@ -173,8 +174,7 @@ def _validate_dz_correlations(
 
 
 def _falconer_expected(
-    df: pd.DataFrame | pl.DataFrame,
-    ped: PedigreeArrays,
+    mates: MateCorrelations,
     params: dict[str, Any],
     comp_vals: dict[str, np.ndarray],
     A_params: dict[int, float],
@@ -194,7 +194,7 @@ def _falconer_expected(
         return A_params[t], None, f"expected ~{A_params[t]}", {}
     if mode == "bivariate":
         return None, "both-trait AM active (cross-trait Falconer bias not modelled)", "", {}
-    mu_a, _r_ho, _n = observed_mate_correlations(df, ped, t)
+    mu_a, _r_ho, _n = observed_mate_correlations(mates, t)
     v_a = float(np.var(comp_vals[f"A{t}"]))
     v_p = float(np.var(comp_vals[f"A{t}"] + comp_vals[f"C{t}"] + comp_vals[f"E{t}"]))
     if v_p <= 0:
@@ -205,8 +205,7 @@ def _falconer_expected(
 
 
 def _validate_falconer(
-    df: pd.DataFrame | pl.DataFrame,
-    ped: PedigreeArrays,
+    mates: MateCorrelations,
     params: dict[str, Any],
     comp_vals: dict[str, np.ndarray],
     A_params: dict[int, float],
@@ -228,7 +227,7 @@ def _validate_falconer(
             continue
 
         falconer = 2 * (mz_c - dz_c)
-        expected, skip, label, info = _falconer_expected(df, ped, params, comp_vals, A_params, t)
+        expected, skip, label, info = _falconer_expected(mates, params, comp_vals, A_params, t)
         if expected is None:
             # Reported, not asserted: cross-trait Falconer bias not modelled.
             results[f"falconer_estimate_trait{t}"] = _info(
@@ -303,6 +302,7 @@ def validate_heritability(
     params: dict[str, Any],
     ped: PedigreeArrays,
     sibling_moments: RelationshipMoments,
+    mates: MateCorrelations,
 ) -> dict[str, Any]:
     """Validate heritability estimates for two-trait simulation.
 
@@ -318,6 +318,8 @@ def validate_heritability(
         sibling_moments: Relationship moments of ``df`` over ``FS``, ``MHS``
             and ``PHS`` with the ``A{t}``, ``C{t}`` and ``P{t}`` columns
             (:func:`~simace.analysis.validate._common.sibling_moments`).
+        mates: The pedigree's mate correlations, for the AM-aware expected
+            values (:func:`~simace.analysis.validate._common.mate_correlations`).
 
     Returns:
         Dict of check-name to result dicts, including MZ/DZ correlations,
@@ -335,16 +337,14 @@ def validate_heritability(
         results,
     )
     dz_pheno_corr, n_dz_pairs = _validate_dz_correlations(
-        df,
-        ped,
+        mates,
         params,
         A_params,
         sibling_moments,
         results,
     )
     _validate_falconer(
-        df,
-        ped,
+        mates,
         params,
         comp_vals,
         A_params,

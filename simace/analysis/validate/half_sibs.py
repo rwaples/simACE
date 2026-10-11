@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     import polars as pl
     from pedigree_graph import RelationshipMoments
 
-    from simace.core.pedigree_arrays import PedigreeArrays
+    from ._common import MateCorrelations
 
 
 def household_sibling_counts(df: pd.DataFrame | pl.DataFrame) -> dict[str, int]:
@@ -71,8 +71,7 @@ def household_sibling_counts(df: pd.DataFrame | pl.DataFrame) -> dict[str, int]:
 
 
 def _validate_half_sib_correlations(
-    df: pd.DataFrame | pl.DataFrame,
-    ped: PedigreeArrays,
+    mates: MateCorrelations,
     sibling_moments: RelationshipMoments,
     A_params: dict[int, float],
     params: dict[str, Any],
@@ -105,7 +104,7 @@ def _validate_half_sib_correlations(
             # Half-sib A correlation: 2*kinship under random mating, AM-inflated
             # to (1 + 2*mu_A + mu_A*r_ho)/4 under single-trait assortment.
             expected_a, skip, info = resolve_expected_a_corr(
-                df, ped, params, t, "HS", 2.0 * RELATIONSHIPS["MHS"].nominal_kinship
+                mates, params, t, "HS", 2.0 * RELATIONSHIPS["MHS"].nominal_kinship
             )
             if expected_a is None:
                 # Reported, not asserted: no single-trait formula under {skip}.
@@ -164,8 +163,8 @@ def _validate_half_sib_correlations(
 def validate_half_sibs(
     df: pd.DataFrame | pl.DataFrame,
     params: dict[str, Any],
-    ped: PedigreeArrays,
     sibling_moments: RelationshipMoments,
+    mates: MateCorrelations,
 ) -> dict[str, Any]:
     """Validate half-sibling structure under the mating-pair model.
 
@@ -181,11 +180,11 @@ def validate_half_sibs(
         df: Pedigree DataFrame with columns id, mother, father, twin.
         params: Scenario parameters; requires keys ``mating_lambda``, ``A1``,
             ``A2``.
-        ped: The same pedigree as id-addressable arrays; supplies the
-            variance-component arrays for the correlation checks.
         sibling_moments: Relationship moments of ``df`` over ``FS``, ``MHS``
             and ``PHS`` with the ``A{t}``, ``C{t}`` and ``P{t}`` columns
             (:func:`~simace.analysis.validate._common.sibling_moments`).
+        mates: The pedigree's mate correlations, for the AM-aware expected
+            values (:func:`~simace.analysis.validate._common.mate_correlations`).
 
     Returns:
         Dict of check-name to result dicts.
@@ -227,6 +226,6 @@ def validate_half_sibs(
         results["offspring_with_half_sib"] = _info("No offspring with maternal siblings to check")
 
     A_params = {1: params["A1"], 2: params["A2"]}
-    _validate_half_sib_correlations(df, ped, sibling_moments, A_params, params, results)
+    _validate_half_sib_correlations(mates, sibling_moments, A_params, params, results)
 
     return results
