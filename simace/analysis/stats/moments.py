@@ -27,6 +27,8 @@ import numpy as np
 from simace.core.relationships import RELATIONSHIP_TYPES
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     import pandas as pd
     import polars as pl
     from pedigree_graph import PedigreeGraph, PedigreeView, RelationshipMoments
@@ -36,13 +38,20 @@ if TYPE_CHECKING:
 TRAITS: tuple[int, ...] = (1, 2)
 
 
-def relationship_moments_for(df: _Frame, source: PedigreeGraph | PedigreeView) -> RelationshipMoments:
-    """Reduce every ``RELATIONSHIP_TYPES`` pair in *source* over the rows of *df*.
+def relationship_moments_for(
+    df: _Frame, source: PedigreeGraph | PedigreeView, categories: Sequence[str] = RELATIONSHIP_TYPES
+) -> RelationshipMoments:
+    """Reduce every pair of *categories* in *source* over the rows of *df*.
 
     *df* holds one row per receiver row of *source*, in the same order (the
     analysis sample hydrated with its pedigree columns, or the view of those
     ids). Rows need ``sex``, ``affected{t}`` and ``liability{t}`` for each
     trait in ``TRAITS``; ``generation`` is optional.
+
+    Args:
+        df: The rows of *source*, as above.
+        source: The pedigree graph or view whose pairs are reduced.
+        categories: Registry codes to reduce; the correlation codes by default.
 
     Returns:
         A table over ``category``, ``first_generation``, ``first_sex``,
@@ -55,7 +64,7 @@ def relationship_moments_for(df: _Frame, source: PedigreeGraph | PedigreeView) -
     sex = df["sex"].to_numpy()
     affected = {f"affected{t}": df[f"affected{t}"].to_numpy().astype(bool) for t in TRAITS}
     return source.relationship_moments(
-        categories=list(RELATIONSHIP_TYPES),
+        categories=list(categories),
         first={"generation": generation, "sex": sex, **affected},
         second={"sex": sex, **affected},
         values={f"liability{t}": df[f"liability{t}"].to_numpy() for t in TRAITS},

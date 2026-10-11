@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import operator
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,11 +18,11 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import yaml
-from pedigree_graph import PedigreeGraph
+from pedigree_graph import MAX_DEGREE, RELATIONSHIPS, PedigreeGraph
 
 from simace.analysis.prevalence import compute_prevalence
 from simace.core.parquet import load_parquet, save_parquet
-from simace.core.relationships import DEFAULT_MAX_DEGREE
+from simace.core.relationships import DEFAULT_MAX_DEGREE, RELATIONSHIP_TYPES
 from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import to_native
 
@@ -81,9 +82,10 @@ class RelationshipContext:
     """Relationship moments for the correlations and per-relation pair counts.
 
     ``moments`` covers only the ``RELATIONSHIP_TYPES`` codes the correlations
-    consume. ``counts`` (analysis sample) and ``full_counts`` (full pedigree)
-    come from the count-only path and carry all 23 registry codes; a code
-    outside ``max_degree`` is ``None`` (not computed), never ``0``.
+    consume. ``counts`` (analysis sample) come from the same moments pass, and
+    ``full_counts`` (full pedigree) from that pass too when the sample is the
+    whole pedigree, else from the count-only path. Both carry all 23 registry
+    codes; a code outside ``max_degree`` is ``None`` (not computed), never ``0``.
     """
 
     moments: RelationshipMoments
@@ -117,30 +119,39 @@ def _build_relationship_context(
     df_ped: _Frame | None,
     max_degree: int,
 ) -> RelationshipContext:
+    if isinstance(max_degree, bool):
+        raise TypeError("max_degree must be an integer, not bool")
+    if not 0 <= operator.index(max_degree) <= MAX_DEGREE:
+        raise ValueError(f"max_degree must be in [0, {MAX_DEGREE}], got {max_degree!r}")
     t0 = time.perf_counter()
     graph = PedigreeGraph.from_frame(df if df_ped is None else df_ped)
     _log_elapsed("Analysis pedigree graph build", t0)
-    # Fast path for the common no-ascertainment case: the phenotype and
-    # pedigree tables are the same ordered individuals, so a view mask/remap
-    # would be pure overhead.
+    # Fast path when the sample is the whole analysis pedigree (no
+    # ascertainment and no unphenotyped ancestors, G_ped == G_pheno): the two
+    # tables are the same ordered individuals, so a view mask/remap would be
+    # pure overhead.
     source = graph if df_ped is None or _same_ordered_ids(df_ped, df) else graph.view(ids=df["id"].to_numpy())
+    counted = [code for code, category in RELATIONSHIPS.items() if category.degree <= max_degree]
     t0 = time.perf_counter()
-    moments = relationship_moments_for(df, source)
-    stratum = Stratum(moments)
+    # One engine pass serves both the correlation moments and the pair counts.
+    every = relationship_moments_for(df, source, categories=[*RELATIONSHIP_TYPES, *counted])
+    stratum = Stratum(every)
+    n_pairs = dict(zip(stratum.categories, stratum.n_pairs.tolist(), strict=True))
+    moments = every.select(category=[code for code in every.categories if code in RELATIONSHIP_TYPES])
+    counts = {code: n_pairs[code] if code in counted else None for code in RELATIONSHIPS}
     logger.info(
         "Relationship moments computed in %.1fs: %s",
         time.perf_counter() - t0,
-        ", ".join(f"{code}: {n}" for code, n in zip(stratum.categories, stratum.n_pairs, strict=True)),
+        ", ".join(f"{code}: {n_pairs[code]}" for code in RELATIONSHIP_TYPES),
     )
-    t0 = time.perf_counter()
-    counts = dict(source.relationship_counts(max_degree=max_degree))
     if df_ped is None:
         full_counts = None
     elif source is graph:
         full_counts = counts
     else:
+        t0 = time.perf_counter()
         full_counts = dict(graph.relationship_counts(max_degree=max_degree))
-    _log_elapsed("Relationship pair counts", t0)
+        _log_elapsed("Full-pedigree pair counts", t0)
     return RelationshipContext(moments=moments, counts=counts, full_counts=full_counts)
 
 

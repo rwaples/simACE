@@ -217,22 +217,24 @@ class TestRunnerMain:
 
 
 class TestRelationshipContext:
-    """Counts come from the count-only path; moments only for the correlation codes."""
+    """Counts and the correlation moments come from one moments pass."""
 
+    @pytest.mark.parametrize("max_degree", [1, 3, 5])
     @pytest.mark.parametrize("subsample", [False, True], ids=["same_ids", "view"])
-    def test_counts_equal_the_pair_block_lengths(self, tiny_phenotype, subsample):
+    def test_counts_equal_the_pair_block_lengths(self, tiny_phenotype, subsample, max_degree):
         pedigree, phenotype = tiny_phenotype
         df = hydrate_trait(phenotype, pedigree, kind="censored")
         if subsample:
             df = df[::3]
-        context = _build_relationship_context(df, pedigree, max_degree=3)
+        context = _build_relationship_context(df, pedigree, max_degree=max_degree)
         graph = PedigreeGraph.from_frame(pedigree)
         source = graph.view(ids=df["id"].to_numpy()) if subsample else graph
-        reference = source.relationship_pairs(max_degree=3)
-        assert context.counts == {code: len(b) if b.requested else None for code, b in reference.items()}
-        assert context.full_counts == dict(graph.relationship_counts(max_degree=3))
+        counted = source.relationship_pairs(max_degree=max_degree)
+        assert context.counts == {code: len(b) if b.requested else None for code, b in counted.items()}
+        assert context.full_counts == dict(graph.relationship_counts(max_degree=max_degree))
+        reference = counted if max_degree >= 3 else source.relationship_pairs(max_degree=3)
         stratum = Stratum(context.moments)
-        assert set(stratum.categories) == set(RELATIONSHIP_TYPES)
+        assert stratum.categories == tuple(code for code in RELATIONSHIPS if code in RELATIONSHIP_TYPES)
         for code in RELATIONSHIP_TYPES:
             assert int(stratum.n_pairs[stratum.index(code)]) == len(reference[code])
         liability = df["liability1"].to_numpy()
@@ -243,6 +245,15 @@ class TestRelationshipContext:
             want = np.corrcoef(liability[block.first_rows], liability[block.second_rows])[0, 1]
             got = stratum.liability_r(1)[stratum.index(code)]
             assert got == pytest.approx(want, abs=1e-12)
+
+    @pytest.mark.parametrize(
+        ("max_degree", "error"), [(-1, ValueError), (6, ValueError), (True, TypeError), (3.0, TypeError)]
+    )
+    def test_rejects_max_degree_outside_the_registry(self, tiny_phenotype, max_degree, error):
+        pedigree, phenotype = tiny_phenotype
+        df = hydrate_trait(phenotype, pedigree, kind="censored")
+        with pytest.raises(error):
+            _build_relationship_context(df, pedigree, max_degree=max_degree)
 
 
 class TestRunnerCli:

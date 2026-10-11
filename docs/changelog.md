@@ -90,6 +90,25 @@ releases shipped after 2026.05.3.
   prevalence (about 0.1% of prevalence values at 10 million individuals per
   group, none in tests). That one onset then comes out slightly earlier.
 
+### Analyze stage
+
+- **Relationship pair counts come from the moments pass.** The analysis
+  sample's pairs used to be walked twice: once for the correlation moments,
+  once more by `relationship_counts` for the per-category counts. One
+  `relationship_moments` call over the correlation codes and every code up to
+  `max_degree` now gives both. Every value in `report.yaml` and
+  `plot_payload.yaml` is unchanged.
+- **The gain depends on the scenario.** When the sample is the whole analysis
+  pedigree (no ascertainment and `G_ped` equal to `G_pheno`), a 5M-row
+  analyze stage takes about 23% less wall time with the same peak RSS.
+  Otherwise, as under the default `G_ped: 6` / `G_pheno: 3`, the full
+  pedigree is still counted in a second pass. There, at 1M rows, the
+  relationship step is 25% faster at `max_degree: 3` and 2% faster at
+  `max_degree: 5`, and its peak RSS is about 3% higher.
+- **`max_degree` errors come from simACE.** A value outside 0 to 5 raises
+  `ValueError`, and a bool or non-integer raises `TypeError`. These used to
+  come from pedigree-graph (`max_degree_out_of_range`).
+
 ### Plots
 
 - **Generation panels sort numerically.** With 11 or more phenotyped
