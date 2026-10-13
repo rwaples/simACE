@@ -1088,6 +1088,42 @@ class TestComputeParentOffspringCorr:
         df = pl.DataFrame({"id": [0], "liability1": [1.0], "liability2": [1.0]})
         assert compute_parent_offspring_corr(df) == {}
 
+    @pytest.mark.parametrize("keep", [1.0, 0.7])
+    def test_matches_linregress_oracle(self, phenotyped_df, keep):
+        """Each generation's and sex's fit is OLS over the children with both parents in *df*, rows dropped or not."""
+        from scipy.stats import linregress
+
+        rng = np.random.default_rng(3)
+        df = phenotyped_df.filter(pl.Series(rng.random(len(phenotyped_df)) < keep))
+        row = {int(i): k for k, i in enumerate(df["id"].to_numpy())}
+        mother, father = df["mother"].to_numpy(), df["father"].to_numpy()
+        both = np.array([m in row and f in row for m, f in zip(mother, father, strict=True)])
+        by_gen = compute_parent_offspring_corr(df)
+        by_sex = compute_parent_offspring_corr_by_sex(df)
+        compared = 0
+        for t in (1, 2):
+            y = df[f"liability{t}"].to_numpy()
+            midparent = np.full(len(df), np.nan)
+            midparent[both] = [(y[row[m]] + y[row[f]]) / 2 for m, f in zip(mother[both], father[both], strict=True)]
+            for gen in range(1, int(df["generation"].max()) + 1):
+                cases = [(by_gen[f"trait{t}"][f"gen{gen}"], df["generation"].to_numpy() == gen)]
+                for sex_val, sex_label in ((0, "female"), (1, "male")):
+                    in_sex = (df["generation"].to_numpy() == gen) & (df["sex"].to_numpy() == sex_val)
+                    cases.append((by_sex[sex_label][f"trait{t}"][f"gen{gen}"], in_sex))
+                for entry, in_stratum in cases:
+                    sel = in_stratum & both
+                    assert entry["n_pairs"] == int(sel.sum())
+                    if sel.sum() < 10:
+                        assert entry["slope"] is None
+                        continue
+                    ref = linregress(midparent[sel], y[sel])
+                    assert entry["slope"] == pytest.approx(ref.slope, rel=1e-10)
+                    assert entry["intercept"] == pytest.approx(ref.intercept, rel=1e-10, abs=1e-12)
+                    assert entry["r"] == pytest.approx(ref.rvalue, rel=1e-10)
+                    assert entry["stderr"] == pytest.approx(ref.stderr, rel=1e-10)
+                    compared += 1
+        assert compared >= 8
+
 
 # ===================================================================
 # Tests for compute_tetrachoric_by_sex
