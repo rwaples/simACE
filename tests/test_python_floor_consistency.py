@@ -33,12 +33,12 @@ def _toml(path: Path) -> dict:
 
 
 def _floor(unit: Path) -> str | None:
-    """``"X.Y"`` from the nearest ``requires-python = ">=X.Y"`` at or above *unit*, within the umbrella."""
+    """``"X.Y"`` from the nearest ``requires-python = ">=X.Y"`` (optionally ``">=X.Y,<A.B"``) at or above *unit*."""
     for directory in (unit, *unit.parents):
         spec = _toml(directory / "pyproject.toml").get("project", {}).get("requires-python")
         if spec is not None:
-            match = re.fullmatch(r">=\s*(\d+\.\d+)", spec.strip())
-            assert match, f"{directory}: requires-python '{spec}' is not a plain '>=X.Y' floor"
+            match = re.fullmatch(r">=\s*(\d+\.\d+)(?:\s*,\s*<\s*\d+\.\d+)?", spec.strip())
+            assert match, f"{directory}: requires-python '{spec}' is not a '>=X.Y' floor, optionally capped '<A.B'"
             return match[1]
         if directory == _ROOT:
             return None
