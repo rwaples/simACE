@@ -66,6 +66,34 @@ releases shipped after 2026.05.3.
 - An infinite liability or A value is now missing, like NaN: its pairs leave
   the cells that read it. Before, the whole cell was NaN.
 
+### Tetrachoric SE fixed ([#48](https://github.com/rwaples/simACE/issues/48))
+
+- **Tetrachoric SEs were too small, by 4x at r = 0 and more elsewhere.** The
+  numba estimator used `n φ2² / (p00 p01 p10 p11)` as the Fisher information
+  where it should have used `n φ2² Σ 1/p`. `tetrachoric_from_table` and
+  `tetrachoric_corr_se` now call `pg_phenotype.correlation.tetrachoric`:
+  two-step maximum likelihood with its sandwich SE, which also covers the
+  estimated thresholds. On pg-phenotype's 2457-table gate the new SEs are 4 to
+  2832 times the old (median 9.3), and r moves by at most 1.1e-7 on interior
+  fits.
+- **The SE is now `None` at a boundary fit** (an empty cell, or |r| within
+  1e-3 of 1), where r is not identified. r is still reported. Before, many of
+  these tables had a finite SE.
+- **r moves on boundary fits.** There r is wherever the fit stops on a flat
+  likelihood, and the new search runs to ±0.9999 instead of ±0.999: for
+  example, (n11, n10, n01, n00) = (0, 7, 3, 100) goes from -0.938 to -0.901,
+  and (10, 0, 0, 10) from 0.999 to 0.9999. Categories with an empty cell, and
+  fitACE's Falconer h² from them, change accordingly.
+- The SE still treats every pair as independent. Pairs that share a person,
+  such as full sibs in a sibship of three or more, make it too small.
+- `se` in the report's `tetrachoric`, `tetrachoric_by_generation`,
+  `tetrachoric_by_sex` and `cross_trait_tetrachoric` sections changes, and so
+  do fitACE's Falconer `se_r` and `se_h2`. Existing reps keep the old SEs until
+  rerun with `--force`.
+- The numba tetrachoric core and `simace.core.numerics.tetrachoric_core` are
+  gone. The table is still put in one orientation before fitting, so swapping
+  the arrays or relabeling both cannot move a boundary r (#14).
+
 ### Stage defaults and censoring
 
 - **`simace censor` and `simace cohort` flag defaults now match

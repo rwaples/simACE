@@ -388,13 +388,13 @@ $$
 P_{11}(r) = P(L_1 > t_1,\; L_2 > t_2 \mid r)
 $$
 
-and likewise for $P_{10}, P_{01}, P_{00}$. The bivariate normal CDF is evaluated through Owen's $T$ function, in `_owens_t` in `simace.core._numba_utils`. The estimate $\hat{r}$ minimises the negative log-likelihood:
+and likewise for $P_{10}, P_{01}, P_{00}$. The fit is `pg_phenotype.correlation.tetrachoric`, called through `simace.analysis.stats.tetrachoric_from_table`. With the thresholds fixed at their estimates, $\hat{r}$ minimises the negative log-likelihood:
 
 $$
 -\ell(r) = -\sum_{(a,b) \in \{0,1\}^2} n_{ab} \log P_{ab}(r)
 $$
 
-over $r \in (-0.999, 0.999)$ by bounded scalar optimisation. The standard error comes from the observed Fisher information $I(\hat{r}) = n \cdot \phi_2(t_1, t_2; \hat{r})^2 / \prod_{(a,b)} P_{ab}(\hat{r})$, where $\phi_2$ is the bivariate normal density. The estimate answers one question. Given the concordance pattern among relatives, what liability correlation is most likely?
+over $r \in (-0.9999, 0.9999)$, by Newton's method with a bounded Brent fallback. The standard error is the sandwich of the two-step estimating equations (thresholds, then $r$), so it includes the uncertainty in the thresholds. Each pair is its own cluster, so pairs that share a person, as in a sibship of three or more, are treated as independent. Were the thresholds known, the Fisher information would be $I(r) = n \cdot \phi_2(t_1, t_2; r)^2 \sum_{(a,b)} 1 / P_{ab}(r)$, where $\phi_2$ is the bivariate normal density; on pg-phenotype's gate tables the sandwich SE is 1.00 to 1.15 times the SE that implies. A table with an empty cell has its maximum at $|r| = 1$, where $r$ is not identified. The fit stops somewhere on the flat likelihood, sometimes well short of the bound ($-0.90$ for $n_{11}, n_{10}, n_{01}, n_{00} = 0, 7, 3, 100$), and is flagged as a boundary fit, as is any fit within $10^{-3}$ of the bound; $r$ is reported and the SE is withheld. simACE fits every table in one orientation across swaps and relabelings, so the order of the two relatives cannot move that stopping point. The estimate answers one question. Given the concordance pattern among relatives, what liability correlation is most likely?
 
 ### Pairwise Weibull survival correlation estimation
 
@@ -460,7 +460,7 @@ Correlation checks use a tolerance of four standard errors with a floor of 0.05.
 
 ## Implementation
 
-`simace` is an installable Python package. NumPy does the vectorised array work, SciPy the optimisation and special functions, Polars the DataFrames at every stage boundary (ADR 0015), and Numba the compiled kernels for phenotype inversion, assortative mate matching and Metropolis sweeps, and the tetrachoric likelihood. Relationship extraction uses the Rust row-streaming engine in `pedigree-graph`. The `simace run` command runs each stage in its own process, with per-scenario configuration and a per-replicate seed of the scenario seed plus the replicate number minus one. All random draws use NumPy's PCG64 generator through `numpy.random.default_rng` with explicit seeds.
+`simace` is an installable Python package. NumPy does the vectorised array work, SciPy the optimisation and special functions, Polars the DataFrames at every stage boundary (ADR 0015), and Numba the compiled kernels for phenotype inversion, assortative mate matching and Metropolis sweeps. Relationship extraction uses the Rust row-streaming engine in `pedigree-graph`. The `simace run` command runs each stage in its own process, with per-scenario configuration and a per-replicate seed of the scenario seed plus the replicate number minus one. All random draws use NumPy's PCG64 generator through `numpy.random.default_rng` with explicit seeds.
 
 ## Assumptions and limitations
 

@@ -1,9 +1,10 @@
 """Unit tests for simace.stats.tetrachoric_corr_se."""
 
 import numpy as np
+import pytest
 from scipy.stats import norm
 
-from simace.analysis.stats import tetrachoric_corr, tetrachoric_corr_se
+from simace.analysis.stats import tetrachoric_corr, tetrachoric_corr_se, tetrachoric_from_table
 
 
 class TestTetrachoricCorrSE:
@@ -114,4 +115,17 @@ class TestTetrachoricCorrSE:
         assert tetrachoric_corr(~b, ~a) == r
         assert tetrachoric_corr(~a, b) == -r
         assert tetrachoric_corr(a, ~b) == -r
+        assert np.isnan(se)
+
+    def test_se_matches_closed_form_at_zero(self):
+        """At r = 0 with balanced margins the SE is pi / (2 sqrt(n)), times sqrt(n / (n - 1)) (simACE #48)."""
+        n = 1000
+        r, se = tetrachoric_from_table(250, 250, 250, 250)
+        assert r == 0.0
+        assert se == pytest.approx(np.pi / (2 * np.sqrt(n)) * np.sqrt(n / (n - 1)), rel=1e-9)
+
+    def test_boundary_withholds_se(self):
+        """An empty off-diagonal cell puts rho at its bound: r is reported, the SE is not."""
+        r, se = tetrachoric_from_table(10, 0, 0, 10)
+        assert r > 0.99
         assert np.isnan(se)

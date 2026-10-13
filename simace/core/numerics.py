@@ -11,7 +11,6 @@ __all__ = [
     "norm_sf",
     "safe_corrcoef",
     "safe_linregress",
-    "tetrachoric_core",
 ]
 
 from typing import Any
@@ -38,9 +37,6 @@ from simace.core._numba_utils import (
 )
 from simace.core._numba_utils import (
     _norm_sf as norm_sf,
-)
-from simace.core._numba_utils import (
-    _tetrachoric_core as tetrachoric_core,
 )
 
 _ZERO_VAR_THRESHOLD = 1e-10

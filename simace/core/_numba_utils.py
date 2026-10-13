@@ -24,7 +24,6 @@ else:
 _SQRT2 = math.sqrt(2.0)
 _INV_SQRT2PI = 1.0 / math.sqrt(2.0 * math.pi)
 _INV_2PI = 1.0 / (2.0 * math.pi)
-_GOLDEN = 0.3819660112501051  # (3 - sqrt(5)) / 2
 
 # 20-point Gauss-Legendre: positive half of symmetric nodes on [-1, 1]
 _GL20_NODES_SYM = np.array(
@@ -250,206 +249,6 @@ def _bvn_cdf_python(h, k, r):
     return _bvn_pos(h, k, r, sq)
 
 
-def _tetrachoric_nll_python(r, t_a, t_b, phi_ta, phi_tb, both_positive, n11, n10, n01, n00):
-    """Negative log-likelihood for tetrachoric correlation at a given r."""
-    if both_positive:
-        sq = math.sqrt(1.0 - r * r)
-        p00 = (
-            0.5 * phi_ta
-            + 0.5 * phi_tb
-            - _owens_t(t_a, (t_b - r * t_a) / (t_a * sq))
-            - _owens_t(t_b, (t_a - r * t_b) / (t_b * sq))
-        )
-    else:
-        p00 = _bvn_cdf(t_a, t_b, r)
-    p01 = phi_ta - p00
-    p10 = phi_tb - p00
-    p11 = 1.0 - p00 - p01 - p10
-    eps = 1e-15
-    lp11 = math.log(p11) if p11 > eps else math.log(eps)
-    lp10 = math.log(p10) if p10 > eps else math.log(eps)
-    lp01 = math.log(p01) if p01 > eps else math.log(eps)
-    lp00 = math.log(p00) if p00 > eps else math.log(eps)
-    return -(n11 * lp11 + n10 * lp10 + n01 * lp01 + n00 * lp00)
-
-
-def _canonicalize_tetrachoric_table_python(n11, n10, n01, n00):
-    """Choose one 2x2-table orientation across swaps and binary relabelings.
-
-    Swapping the variables or complementing both leaves tetrachoric correlation
-    unchanged; complementing exactly one variable reverses its sign. A flat
-    likelihood near the correlation bracket can make numerically equivalent
-    table orientations stop at different points, so optimize only the
-    lexicographically greatest orientation and restore the sign afterwards.
-    """
-    tables = np.empty((8, 4), dtype=np.float64)
-    tables[0] = (n00, n01, n10, n11)
-    tables[1] = (n00, n10, n01, n11)
-    tables[2] = (n11, n10, n01, n00)
-    tables[3] = (n11, n01, n10, n00)
-    tables[4] = (n10, n11, n00, n01)
-    tables[5] = (n10, n00, n11, n01)
-    tables[6] = (n01, n00, n11, n10)
-    tables[7] = (n01, n11, n00, n10)
-
-    best = 0
-    ambiguous_sign = False
-    for candidate in range(1, 8):
-        greater = False
-        equal = True
-        for cell in range(4):
-            if tables[candidate, cell] > tables[best, cell]:
-                greater = True
-                equal = False
-                break
-            if tables[candidate, cell] < tables[best, cell]:
-                equal = False
-                break
-        if greater:
-            best = candidate
-            ambiguous_sign = False
-        elif equal and (candidate < 4) != (best < 4):
-            ambiguous_sign = True
-
-    if ambiguous_sign:
-        sign = 0.0
-    elif best < 4:
-        sign = 1.0
-    else:
-        sign = -1.0
-    return (
-        tables[best, 3],
-        tables[best, 2],
-        tables[best, 1],
-        tables[best, 0],
-        sign,
-    )
-
-
-def _tetrachoric_core_python(n11, n10, n01, n00):
-    """Full tetrachoric correlation + SE via MLE. Returns (r, se).
-
-    Thresholds are derived here rather than taken from the caller: they must
-    come from the canonicalized table, and transforming the caller's would
-    reintroduce the small relabeling differences canonicalization exists to
-    remove, since ``ndtri(1 - p)`` is not bit-exactly ``-ndtri(p)``.
-    """
-    n_pairs = n11 + n10 + n01 + n00
-    if n_pairs == 0.0:
-        return math.nan, math.nan
-
-    n11, n10, n01, n00, result_sign = _canonicalize_tetrachoric_table(n11, n10, n01, n00)
-    p_a = (n11 + n10) / n_pairs
-    p_b = (n11 + n01) / n_pairs
-    t_a = _ndtri_approx(1.0 - p_a)
-    t_b = _ndtri_approx(1.0 - p_b)
-    phi_ta = _norm_cdf(t_a)
-    phi_tb = _norm_cdf(t_b)
-    both_pos = t_a > 1e-15 and t_b > 1e-15
-
-    # Brent's bounded minimization inlined for tetrachoric NLL
-    xa = -0.999
-    xb = 0.999
-    x = w = v = xa + _GOLDEN * (xb - xa)
-    fw = fv = fx = _tetrachoric_nll(x, t_a, t_b, phi_ta, phi_tb, both_pos, n11, n10, n01, n00)
-    d = 0.0
-    e = 0.0
-
-    for _ in range(500):
-        midpoint = 0.5 * (xa + xb)
-        tol1 = 1e-10 * abs(x) + 1e-10
-        tol2 = 2.0 * tol1
-
-        if abs(x - midpoint) <= (tol2 - 0.5 * (xb - xa)):
-            break
-
-        if abs(e) > tol1:
-            r_b = (x - w) * (fx - fv)
-            q_b = (x - v) * (fx - fw)
-            p_b = (x - v) * q_b - (x - w) * r_b
-            q_b = 2.0 * (q_b - r_b)
-            if q_b > 0.0:
-                p_b = -p_b
-            else:
-                q_b = -q_b
-            if abs(p_b) < abs(0.5 * q_b * e) and p_b > q_b * (xa - x) and p_b < q_b * (xb - x):
-                e = d
-                d = p_b / q_b
-            else:
-                e = (xb - x) if x < midpoint else (xa - x)
-                d = _GOLDEN * e
-        else:
-            e = (xb - x) if x < midpoint else (xa - x)
-            d = _GOLDEN * e
-
-        u = (x + d) if abs(d) >= tol1 else (x + tol1 if d > 0 else x - tol1)
-
-        fu = _tetrachoric_nll(u, t_a, t_b, phi_ta, phi_tb, both_pos, n11, n10, n01, n00)
-
-        if fu <= fx:
-            if u < x:
-                xb = x
-            else:
-                xa = x
-            v, w, x = w, x, u
-            fv, fw, fx = fw, fx, fu
-        else:
-            if u < x:
-                xa = u
-            else:
-                xb = u
-            if fu <= fw or w == x:
-                v, w = w, u
-                fv, fw = fw, fu
-            elif fu <= fv or v in (x, w):
-                v = u
-                fv = fu
-
-    r = x
-    if r != r:  # NaN check
-        return np.nan, np.nan
-    if result_sign == 0.0:
-        r = 0.0
-    reported_r = result_sign * r if result_sign != 0.0 else r
-
-    # SE from Fisher information
-    one_minus_r2 = 1.0 - r * r
-    if one_minus_r2 <= 0:
-        return reported_r, np.nan
-
-    bvn_pdf = (
-        _INV_2PI
-        / math.sqrt(one_minus_r2)
-        * math.exp(-(t_a * t_a - 2.0 * r * t_a * t_b + t_b * t_b) / (2.0 * one_minus_r2))
-    )
-
-    if both_pos:
-        sq = math.sqrt(one_minus_r2)
-        p00 = (
-            0.5 * phi_ta
-            + 0.5 * phi_tb
-            - _owens_t(t_a, (t_b - r * t_a) / (t_a * sq))
-            - _owens_t(t_b, (t_a - r * t_b) / (t_b * sq))
-        )
-    else:
-        p00 = _bvn_cdf(t_a, t_b, r)
-    p01 = phi_ta - p00
-    p10 = phi_tb - p00
-    p11 = 1.0 - p00 - p01 - p10
-    denom = p00 * p01 * p10 * p11
-    if denom <= 0:
-        return reported_r, np.nan
-    # A table with an empty off-diagonal cell drives r to the +-0.999 bracket
-    # edge, where the bivariate-normal density underflows to exactly 0 and the
-    # Fisher information vanishes. The canonical table orientation keeps the
-    # point estimate invariant, but its SE remains unidentifiable.
-    fisher = n_pairs * bvn_pdf * bvn_pdf / denom
-    if fisher <= 0.0:
-        return reported_r, np.nan
-    se = 1.0 / math.sqrt(fisher)
-    return reported_r, se
-
-
 # ---------------------------------------------------------------------------
 # JIT compilation — dependency order matters!
 # ---------------------------------------------------------------------------
@@ -466,9 +265,6 @@ _owens_t_quad = _owens_t_quad_python
 _owens_t = _owens_t_python
 _bvn_pos = _bvn_pos_python
 _bvn_cdf = _bvn_cdf_python
-_tetrachoric_nll = _tetrachoric_nll_python
-_canonicalize_tetrachoric_table = _canonicalize_tetrachoric_table_python
-_tetrachoric_core = _tetrachoric_core_python
 
 if njit is not None:
     # Tier 0: no dependencies
@@ -491,10 +287,3 @@ if njit is not None:
 
     # Tier 4: depends on _norm_cdf, _bvn_pos
     _bvn_cdf = njit(cache=True)(_bvn_cdf_python)
-
-    # Tier 5: depends on _owens_t, _bvn_cdf
-    _tetrachoric_nll = njit(cache=True)(_tetrachoric_nll_python)
-
-    # Tier 6: depends on _tetrachoric_nll, _owens_t, _bvn_cdf
-    _canonicalize_tetrachoric_table = njit(cache=True)(_canonicalize_tetrachoric_table_python)
-    _tetrachoric_core = njit(cache=True)(_tetrachoric_core_python)

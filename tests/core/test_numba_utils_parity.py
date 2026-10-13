@@ -204,84 +204,6 @@ def test_bvn_cdf_matches_scipy(h, k, r):
 
 
 # ---------------------------------------------------------------------------
-# Tier 5-6 — tetrachoric NLL and full estimator
-# ---------------------------------------------------------------------------
-
-
-def test_tetrachoric_nll_matches_jit_both_positive_branch():
-    # All four cells positive → both_positive=True path
-    n11, n10, n01, n00 = 50, 30, 25, 100
-    n_total = n11 + n10 + n01 + n00
-    p_a = (n11 + n10) / n_total
-    p_b = (n11 + n01) / n_total
-    t_a = nu._ndtri_approx_python(p_a)
-    t_b = nu._ndtri_approx_python(p_b)
-    phi_ta = nu._norm_cdf_python(t_a)
-    phi_tb = nu._norm_cdf_python(t_b)
-
-    for r in [-0.2, 0.0, 0.3, 0.5, 0.8]:
-        py = nu._tetrachoric_nll_python(r, t_a, t_b, phi_ta, phi_tb, True, n11, n10, n01, n00)
-        jit = nu._tetrachoric_nll(r, t_a, t_b, phi_ta, phi_tb, True, n11, n10, n01, n00)
-        assert py == pytest.approx(jit, abs=1e-10)
-
-
-def test_tetrachoric_nll_negative_threshold_branch():
-    # Force at least one threshold ≤ 0 to take the BVN path
-    n11, n10, n01, n00 = 200, 30, 25, 50  # majority class affected → t_a < 0
-    n_total = n11 + n10 + n01 + n00
-    t_a = nu._ndtri_approx_python((n11 + n10) / n_total)
-    t_b = nu._ndtri_approx_python((n11 + n01) / n_total)
-    phi_ta = nu._norm_cdf_python(t_a)
-    phi_tb = nu._norm_cdf_python(t_b)
-    py = nu._tetrachoric_nll_python(0.4, t_a, t_b, phi_ta, phi_tb, False, n11, n10, n01, n00)
-    jit = nu._tetrachoric_nll(0.4, t_a, t_b, phi_ta, phi_tb, False, n11, n10, n01, n00)
-    assert py == pytest.approx(jit, abs=1e-10)
-
-
-def test_tetrachoric_core_matches_jit():
-    # Synthesize a 2×2 from a known r via the same cell-probability decomposition
-    # the NLL uses internally, then estimate r back from those counts.
-    r_true = 0.45
-    p_a = 0.3  # P(a affected) = P(X > t_a)
-    p_b = 0.4  # P(b affected) = P(Y > t_b)
-    t_a = nu._ndtri_approx_python(1 - p_a)
-    t_b = nu._ndtri_approx_python(1 - p_b)
-    phi_ta = nu._norm_cdf_python(t_a)  # = 1 - p_a
-    phi_tb = nu._norm_cdf_python(t_b)  # = 1 - p_b
-
-    # Match the NLL convention exactly:
-    #   p00 = bvn_cdf(t_a, t_b, r) = P(neither affected)
-    #   p01 = phi_ta - p00  = P(a not, b affected)
-    #   p10 = phi_tb - p00  = P(b not, a affected)
-    #   p11 = 1 - p00 - p01 - p10
-    n_total = 5000
-    p00 = nu._bvn_cdf_python(t_a, t_b, r_true)
-    p01 = phi_ta - p00
-    p10 = phi_tb - p00
-
-    n00 = round(p00 * n_total)
-    n01 = round(p01 * n_total)
-    n10 = round(p10 * n_total)
-    n11 = n_total - n00 - n01 - n10
-
-    r_py, se_py = nu._tetrachoric_core_python(n11, n10, n01, n00)
-    r_jit, se_jit = nu._tetrachoric_core(n11, n10, n01, n00)
-
-    assert r_py == pytest.approx(r_jit, abs=1e-8)
-    assert se_py == pytest.approx(se_jit, abs=1e-8)
-    # Recovered r close to truth (rounding to integer counts adds some bias)
-    assert r_py == pytest.approx(r_true, abs=0.05)
-    assert se_py > 0
-
-
-def test_tetrachoric_core_empty_table_returns_nan():
-    for core in (nu._tetrachoric_core_python, nu._tetrachoric_core):
-        r, se = core(0.0, 0.0, 0.0, 0.0)
-        assert np.isnan(r)
-        assert np.isnan(se)
-
-
-# ---------------------------------------------------------------------------
 # Cross-check: the runtime symbols are the JIT versions when numba present
 # ---------------------------------------------------------------------------
 
@@ -306,8 +228,6 @@ def test_runtime_symbols_are_jit_compiled():
         (nu._owens_t, nu._owens_t_python),
         (nu._bvn_pos, nu._bvn_pos_python),
         (nu._bvn_cdf, nu._bvn_cdf_python),
-        (nu._tetrachoric_nll, nu._tetrachoric_nll_python),
-        (nu._tetrachoric_core, nu._tetrachoric_core_python),
     ]
     for jit, py in pairs:
         assert jit is not py, f"{py.__name__}: runtime symbol still bound to Python fallback"
