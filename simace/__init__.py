@@ -37,19 +37,3 @@ def setup_logging(level=logging.INFO, log_file=None, tag=None):
         fh = logging.FileHandler(log_file, encoding="utf-8")
         fh.setFormatter(fmt_file)
         pkg.addHandler(fh)
-
-
-def _snakemake_tag(wildcards) -> str:
-    """Build a console log tag from Snakemake wildcards.
-
-    simACE itself no longer uses it (ADR 0020). fitACE's workflow scripts
-    import it; delete it once fitACE carries its own copy.
-    """
-    parts = []
-    scenario = getattr(wildcards, "scenario", None)
-    if scenario:
-        parts.append(scenario)
-    rep = getattr(wildcards, "rep", None)
-    if rep:
-        parts.append(f"rep{rep}")
-    return "/".join(parts) if parts else ""
