@@ -59,9 +59,9 @@ def as_kernel_input(a: np.ndarray) -> np.ndarray:
     is the signature every existing ``__pycache__/*.nbi`` entry across the
     family was warmed with, so no call site is pushed into a fresh compile.
     That matters beyond speed — a late compile inside a process that has
-    already pinned numba's threading layer (as
-    ``fitACE_pafgrs/workflow/scripts/pafgrs_score.py`` does via
-    ``NUMBA_NUM_THREADS``) raises ``RuntimeError`` outright. Normalising on the
+    already pinned numba's threading layer (as fitACE's workflow scripts do
+    via ``NUMBA_NUM_THREADS``, through ``fitace.threads.cap_threads``) raises
+    ``RuntimeError`` outright. Normalising on the
     read-only variant instead is zero-copy but invalidates every warm cache
     entry, which trips exactly that failure.
 
