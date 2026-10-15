@@ -46,10 +46,10 @@ biased by $C$ the way it is in real data.
    uncorrected so that the zero-coefficient path means the same thing.
    Feasibility is checked twice. **Structurally**, at config-load: the
    random-mating population residual
-   $U_g = \Sigma_g - B_m \Sigma_{g-1} B_m - B_f \Sigma_{g-1} B_f$
-   ($\Sigma_g$ the configured $C$ covariance matrix, $B$ the diagonal
-   coefficient matrices) must be positive semidefinite for every generation;
-   for example $r_C = 1$ with unequal trait coefficients is rejected.
+   $U = \Sigma - B_m \Sigma B_m - B_f \Sigma B_f$
+   ($\Sigma$ the configured $C$ covariance matrix, $B$ the diagonal
+   coefficient matrices) must be positive semidefinite; for example
+   $r_C = 1$ with unequal trait coefficients is rejected.
    **By sampling**, at run time: $S$ splits exactly into the parents' own
    terms $B_m V_m B_m + B_f V_f B_f$ and the mates' cross term
    $B_m V_{mf} B_f + B_f V_{fm} B_m$. Along an eigenvector of $U$ with a
@@ -212,11 +212,11 @@ biased by $C$ the way it is in real data.
   standard errors, which raised in none of 300 random-mating replicates at
   $b_m = b_f = \sqrt{0.5}$. Below that the excess is indistinguishable from
   sampling; it is clipped and recorded in the report.
-- `run_simulation` accepts scalar $C$ only, so the per-generation structural
-  check runs over a constant $C$ today. It is written over per-generation
-  covariances so that per-generation $C$ needs no new check.
+- `run_simulation` accepts scalar $C$ only, so the structural check is on
+  one constant $\Sigma$. Per-generation $C$ would need it per generation,
+  with each generation's parents at the previous generation's $\Sigma$.
 - The truth pass runs once per replicate in Analyze phase 1, and only when a
-  coefficient is nonzero.
+  coefficient is nonzero. It reuses the pedigree graph validation builds.
 
 ## References
 

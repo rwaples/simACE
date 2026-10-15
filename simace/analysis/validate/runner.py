@@ -13,6 +13,7 @@ from simace.core.yaml_io import dump_yaml, load_yaml
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
+    from pedigree_graph import PedigreeGraph
 
 from ._common import mate_correlations, sibling_moments
 from .am_equilibrium import validate_am_equilibrium
@@ -33,7 +34,9 @@ from .twins import validate_twins
 logger = logging.getLogger(__name__)
 
 
-def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+def build_validation_report(
+    df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], graph: PedigreeGraph | None = None
+) -> dict[str, Any]:
     """Run all validation checks on an in-memory pedigree and return results.
 
     Runs structural, twin, half-sibling, statistical, heritability, and
@@ -43,6 +46,8 @@ def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
     Args:
         df: Pedigree DataFrame (full, pre-ascertainment).
         params: Scenario parameters.
+        graph: ``df``'s pedigree graph, when the caller already built one;
+            built here otherwise.
 
     Returns:
         Nested dict with keys ``"structural"``, ``"twins"``, ``"half_sibs"``,
@@ -53,7 +58,7 @@ def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
         ``checks_total`` counts.
     """
     ped = PedigreeArrays.from_frame(df)
-    siblings = sibling_moments(df, ped)
+    siblings = sibling_moments(df, ped, graph)
     mates = mate_correlations(df)
 
     results = {

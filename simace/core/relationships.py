@@ -11,6 +11,7 @@ constants here (as ``simace run`` does) does not load it.
 """
 
 __all__ = [
+    "C_TRANSMISSION_KEYS",
     "DEFAULT_MAX_DEGREE",
     "RELATIONSHIP_TYPES",
     "SEX_LEVELS",
@@ -19,7 +20,9 @@ __all__ = [
     "reference_corr",
     "reference_midparent_slope",
     "shared_environment_coefficient",
+    "transmission_active",
     "transmission_coefficients",
+    "transmission_key",
 ]
 
 from numbers import Real
@@ -115,9 +118,28 @@ def expected_liability_corr(
     return (2.0 * RELATIONSHIPS[relationship_type].nominal_kinship * A + c_coef * C) / V_P
 
 
+def transmission_key(side: str, trait: int) -> str:
+    """The flat config key of a C transmission coefficient: ``Ctm_maternal1`` and so on (ADR 0025)."""
+    return f"Ctm_{side}{trait}"
+
+
+#: Every C transmission coefficient key, in stage-flag order.
+C_TRANSMISSION_KEYS: tuple[str, ...] = tuple(
+    transmission_key(side, trait) for trait in (1, 2) for side in ("maternal", "paternal")
+)
+
+
 def transmission_coefficients(params: Mapping[str, Any], trait: int) -> tuple[float, float]:
     """Return trait ``trait``'s ``(b_m, b_f)``; absent keys (pre-ADR-0025 params) are 0."""
-    return float(params.get(f"Ctm_maternal{trait}", 0.0)), float(params.get(f"Ctm_paternal{trait}", 0.0))
+    return (
+        float(params.get(transmission_key("maternal", trait), 0.0)),
+        float(params.get(transmission_key("paternal", trait), 0.0)),
+    )
+
+
+def transmission_active(params: Mapping[str, Any]) -> bool:
+    """Whether any trait has a nonzero C transmission coefficient."""
+    return any(transmission_coefficients(params, t) != (0.0, 0.0) for t in (1, 2))
 
 
 def _is_zero(value: Any) -> bool:

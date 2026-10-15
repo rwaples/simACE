@@ -51,6 +51,7 @@ import yaml
 
 import simace
 from simace.core.publish import publish
+from simace.core.relationships import C_TRANSMISSION_KEYS
 from simace.core.yaml_io import dump_yaml, load_yaml, to_native, yaml_loader
 
 if TYPE_CHECKING:
@@ -254,7 +255,7 @@ _MISSING = object()
 #: every earlier rep was computed under. A ``run.yaml`` without the key compares
 #: as this value, so adding a key with a behavior-preserving default leaves
 #: finished reps complete. The C transmission coefficients are ADR 0025's.
-LEGACY_VALUES: dict[str, Any] = {f"Ctm_{side}{t}": 0.0 for side in ("maternal", "paternal") for t in (1, 2)}
+LEGACY_VALUES: dict[str, Any] = dict.fromkeys(C_TRANSMISSION_KEYS, 0.0)
 
 
 def _recorded_value(resolved: Mapping[str, Any], key: str) -> Any:

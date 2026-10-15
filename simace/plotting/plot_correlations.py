@@ -31,7 +31,7 @@ from simace.core.relationships import (
     RELATIONSHIP_TYPES,
     reference_corr,
     reference_midparent_slope,
-    transmission_coefficients,
+    transmission_active,
 )
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
@@ -580,8 +580,7 @@ def plot_parent_offspring_liability(
         Line2D([0], [0], color=COLOR_MALE, linewidth=1.2, label="Sons"),
     ]
     if has_any_expected:
-        transmitted = any(transmission_coefficients(params, t) != (0.0, 0.0) for t in (1, 2))
-        label = "Expected (A, b_m, b_f)" if transmitted else "Expected (A)"
+        label = "Expected (A, b_m, b_f)" if transmission_active(params) else "Expected (A)"
         legend_handles.append(Line2D([0], [0], color=COLOR_UNAFFECTED, linestyle="--", linewidth=1.0, label=label))
     axes[0, -1].legend(handles=legend_handles, loc="lower right", fontsize=8)
 

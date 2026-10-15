@@ -31,6 +31,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from pedigree_graph import PedigreeGraph
 
 from simace.core.cohort import read_c_transmission_clips, read_cohort, read_pedigree, selected_views
 from simace.core.parquet import save_parquet
@@ -110,10 +111,12 @@ def run_analysis(
     # --- Phase 1: Validate (recorded pedigree) ---
     logger.info("Analyze phase 1/3: validating %s", pedigree_path)
     df_full = read_pedigree(pedigree_path)
-    validation_report = build_validation_report(df_full, params)
+    graph = PedigreeGraph.from_frame(df_full)
+    validation_report = build_validation_report(df_full, params, graph)
     recorded_truth = recorded_pedigree_truth(
-        df_full, params, max_degree, clips=read_c_transmission_clips(pedigree_path)
+        df_full, params, max_degree, clips=read_c_transmission_clips(pedigree_path), graph=graph
     )
+    del graph
     scope_counts["recorded_pedigree"] = {
         "source": "pedigree.parquet",
         "n_individuals": len(df_full),

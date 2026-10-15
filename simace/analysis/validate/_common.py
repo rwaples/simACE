@@ -70,7 +70,9 @@ def _extract_comp_vals(ped: PedigreeArrays) -> dict[str, np.ndarray]:
     return {f"{c}{t}": ped[f"{c}{t}"] for c in ("A", "C", "E") for t in (1, 2)}
 
 
-def sibling_moments(df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays) -> RelationshipMoments:
+def sibling_moments(
+    df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays, graph: PedigreeGraph | None = None
+) -> RelationshipMoments:
     """Exact FS/MHS/PHS pair moments of ``A{t}``, ``C{t}`` and ``P{t} = A + C + E`` per trait.
 
     One engine pass over the recorded pedigree, one cell per category (ADR
@@ -83,9 +85,10 @@ def sibling_moments(df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays) -> Rel
         values[f"A{t}"] = comp[f"A{t}"]
         values[f"C{t}"] = comp[f"C{t}"]
         values[f"P{t}"] = comp[f"A{t}"] + comp[f"C{t}"] + comp[f"E{t}"]
-    t0 = time.perf_counter()
-    graph = PedigreeGraph.from_frame(df)
-    logger.info("Recorded pedigree graph build completed in %.1fs", time.perf_counter() - t0)
+    if graph is None:
+        t0 = time.perf_counter()
+        graph = PedigreeGraph.from_frame(df)
+        logger.info("Recorded pedigree graph build completed in %.1fs", time.perf_counter() - t0)
     return graph.relationship_moments(categories=SIBLING_CATEGORIES, values=values)
 
 

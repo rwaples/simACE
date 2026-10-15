@@ -25,9 +25,10 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from pedigree_graph import RELATIONSHIPS, PedigreeGraph
 
+from simace.analysis.stats.correlations import report_generations
 from simace.analysis.validate.am_relatedness import am_relatedness_mode
 from simace.core.pedigree_arrays import PedigreeArrays
-from simace.core.relationships import RELATIONSHIP_TYPES, transmission_coefficients
+from simace.core.relationships import RELATIONSHIP_TYPES, transmission_active
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -43,12 +44,6 @@ AM_LIMITATION = (
 )
 
 _COMPONENTS = ("liability", "A", "C")
-
-
-def _window(generation: np.ndarray) -> list[int]:
-    """The last three generations, as in ``stats.correlations._report_generations``."""
-    max_gen = int(generation.max())
-    return list(range(max(1, max_gen - 2), max_gen + 1))
 
 
 def _products() -> list[tuple[str, str]]:
@@ -119,6 +114,7 @@ def recorded_pedigree_truth(
     params: dict[str, Any],
     max_degree: int,
     clips: list[dict[str, Any]] | None = None,
+    graph: PedigreeGraph | None = None,
 ) -> dict[str, Any] | None:
     """Per-trait realized relationship moments and midparent slope, or None without C transmission.
 
@@ -126,7 +122,8 @@ def recorded_pedigree_truth(
     seven correlation types and every type of degree at most ``max_degree``.
     ``clips`` are the simulation's clip records (the pedigree's
     :func:`~simace.core.cohort.read_c_transmission_clips`); None when the
-    pedigree carries none.
+    pedigree carries none. ``graph`` is the recorded pedigree's graph when the
+    caller already built one (Analyze phase 1 shares validation's).
 
     Returns:
         ``{"traits": {"trait{t}": {"relationships": {code: entry},
@@ -135,20 +132,20 @@ def recorded_pedigree_truth(
         r, cov_L, cov_A, cov_C, cov_AC, cov_CA, by_generation}``; the clip
         list only when ``clips`` is not None.
     """
-    if all(transmission_coefficients(params, t) == (0.0, 0.0) for t in (1, 2)):
+    if not transmission_active(params):
         return None
     t0 = time.perf_counter()
     codes = sorted(set(RELATIONSHIP_TYPES) | {c for c, rel in RELATIONSHIPS.items() if rel.degree <= max_degree})
     values = {f"{c}{t}": df[f"{c}{t}"].to_numpy().astype(np.float64) for t in (1, 2) for c in _COMPONENTS}
     generation = df["generation"].to_numpy()
-    moments = PedigreeGraph.from_frame(df).relationship_moments(
+    moments = (graph or PedigreeGraph.from_frame(df)).relationship_moments(
         categories=codes,
         first={"generation": generation.astype(np.int64)},
         second={},
         values=values,
         products=_products(),
     )
-    window = _window(generation)
+    window = report_generations(df)
     traits = {
         f"trait{t}": {
             "relationships": _relationship_truth(moments, window, t),

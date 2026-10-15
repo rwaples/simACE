@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from simace.analysis.report_schema import REPORT_SUMMARY_REGISTRY
-from simace.core.relationships import RELATIONSHIP_TYPES
+from simace.core.relationships import C_TRANSMISSION_KEYS, RELATIONSHIP_TYPES
 from simace.core.yaml_io import load_yaml
 
 logger = logging.getLogger(__name__)
@@ -114,10 +114,7 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
         # which plot_validation parses back like the per-generation dict cells.
         "assort_matrix": None if params.get("assort_matrix") is None else json.dumps(params["assort_matrix"]),
         # C transmission coefficients (ADR 0025); reports predating them were built with 0.
-        "Ctm_maternal1": params.get("Ctm_maternal1", 0.0),
-        "Ctm_paternal1": params.get("Ctm_paternal1", 0.0),
-        "Ctm_maternal2": params.get("Ctm_maternal2", 0.0),
-        "Ctm_paternal2": params.get("Ctm_paternal2", 0.0),
+        **{key: params.get(key, 0.0) for key in C_TRANSMISSION_KEYS},
         "seed": params.get("seed"),
         "quality_passed": summary.get("passed"),
         "checks_failed": summary.get("n_failed"),

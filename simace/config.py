@@ -29,6 +29,7 @@ from simace.core.phenotype_keys import (
     ONSET_KINDS,
     check_phenotype_params,
 )
+from simace.core.relationships import C_TRANSMISSION_KEYS, transmission_key
 from simace.core.standardize import coerce_standardize_mode
 from simace.core.yaml_io import load_yaml
 from simace.simulation.params import CTransmission, am_transmitted_share
@@ -53,10 +54,11 @@ _HIERARCHICAL_TO_FLAT: dict[tuple[str, ...], str] = {
     ("pedigree", "trait2", "A"): "A2",
     ("pedigree", "trait2", "C"): "C2",
     ("pedigree", "trait2", "E"): "E2",
-    ("pedigree", "trait1", "C_transmission", "maternal"): "Ctm_maternal1",
-    ("pedigree", "trait1", "C_transmission", "paternal"): "Ctm_paternal1",
-    ("pedigree", "trait2", "C_transmission", "maternal"): "Ctm_maternal2",
-    ("pedigree", "trait2", "C_transmission", "paternal"): "Ctm_paternal2",
+    **{
+        ("pedigree", f"trait{t}", "C_transmission", side): transmission_key(side, t)
+        for t in (1, 2)
+        for side in ("maternal", "paternal")
+    },
     ("pedigree", "rA"): "rA",
     ("pedigree", "rC"): "rC",
     ("pedigree", "rE"): "rE",
@@ -225,15 +227,12 @@ def _coerce_sim_types(flat: dict) -> dict:
         value = flat.get(key)
         if isinstance(value, dict):
             flat[key] = {int(gen): v for gen, v in value.items()}
-    for key in _C_TRANSMISSION_KEYS:
+    for key in C_TRANSMISSION_KEYS:
         if flat.get(key) is not None:
             flat[key] = float(flat[key])
     if "standardize" in flat:
         flat["standardize"] = coerce_standardize_mode(flat["standardize"])
     return flat
-
-
-_C_TRANSMISSION_KEYS = ("Ctm_maternal1", "Ctm_paternal1", "Ctm_maternal2", "Ctm_paternal2")
 
 
 # ---------------------------------------------------------------------------
@@ -501,7 +500,7 @@ def _validate_pedigree_config(config: dict) -> None:
         C1, C2 = effective.get("C1", 0.0), effective.get("C2", 0.0)
         if not isinstance(C1, dict) and not isinstance(C2, dict):
             try:
-                CTransmission.from_params(effective).validate([C1], [C2], effective.get("rC", 0.0))
+                CTransmission.from_params(effective).validate(C1, C2, effective.get("rC", 0.0))
             except ValueError as exc:
                 raise ValueError(f"Scenario '{name}': {exc}") from exc
             _warn_am_transmission(name, effective)

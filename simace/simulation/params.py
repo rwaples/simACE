@@ -25,8 +25,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from simace.core.relationships import transmission_coefficients
+
 if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
+    from collections.abc import Mapping
 
 
 @dataclass(frozen=True)
@@ -44,28 +46,25 @@ class CTransmission:
     @classmethod
     def from_params(cls, params: Mapping[str, Any]) -> CTransmission:
         """Read the flat ``Ctm_maternal{t}`` / ``Ctm_paternal{t}`` keys, each absent one as 0 (pre-ADR-0025 params)."""
-        return cls(
-            maternal=(float(params.get("Ctm_maternal1", 0.0)), float(params.get("Ctm_maternal2", 0.0))),
-            paternal=(float(params.get("Ctm_paternal1", 0.0)), float(params.get("Ctm_paternal2", 0.0))),
-        )
+        (bm1, bf1), (bm2, bf2) = (transmission_coefficients(params, t) for t in (1, 2))
+        return cls(maternal=(bm1, bm2), paternal=(bf1, bf2))
 
     @property
     def active(self) -> bool:
         """Whether any coefficient is nonzero."""
         return any(self.maternal) or any(self.paternal)
 
-    def validate(self, C1_per_gen: Sequence[float], C2_per_gen: Sequence[float], rC: float) -> None:
+    def validate(self, C1: float, C2: float, rC: float) -> None:
         """Reject coefficients outside the supported scope or infeasible for the configured C.
 
         Each coefficient must lie in [0, 1] and ``b_m**2 + b_f**2 <= 1`` per
         trait (a scope restriction, ADR 0025). Then the random-mating
-        population residual ``U_g = S_g - B_m S_{g-1} B_m - B_f S_{g-1} B_f``
-        must be positive semidefinite for every generation, where ``S_g`` is
-        the configured C covariance matrix (generation 0's parents are the
-        founders, drawn with ``S_0``).
+        population residual ``U = S - B_m S B_m - B_f S B_f`` must be positive
+        semidefinite, where ``S`` is the configured C covariance matrix
+        (``run_simulation`` accepts scalar C only, so ``S`` is constant).
 
         Raises:
-            ValueError: naming the offending trait or generation.
+            ValueError: naming the offending trait or residual.
         """
         for side, coefs in (("maternal", self.maternal), ("paternal", self.paternal)):
             for t, b in enumerate(coefs, start=1):
@@ -80,14 +79,15 @@ class CTransmission:
         if not self.active:
             return
         B_m, B_f = np.diag(self.maternal), np.diag(self.paternal)
-        for g, residual in enumerate(_population_residuals(B_m, B_f, C1_per_gen, C2_per_gen, rC)):
-            lowest = float(np.linalg.eigvalsh(residual)[0])
-            if lowest < -1e-12:
-                raise ValueError(
-                    f"C transmission is infeasible at generation {g}: the fresh C draw would need a "
-                    f"covariance with eigenvalue {lowest:.4g} < 0 (residual {residual.round(6).tolist()}); "
-                    "lower the coefficients or raise C (ADR 0025)"
-                )
+        S = c_covariance(C1, C2, rC)
+        residual = S - B_m @ S @ B_m - B_f @ S @ B_f
+        lowest = float(np.linalg.eigvalsh(residual)[0])
+        if lowest < -1e-12:
+            raise ValueError(
+                f"C transmission is infeasible: the fresh C draw would need a covariance with eigenvalue "
+                f"{lowest:.4g} < 0 (residual {residual.round(6).tolist()}); lower the coefficients or raise C "
+                "(ADR 0025)"
+            )
 
 
 def am_transmitted_share(b_m: float, b_f: float, assort: float, C: float, V_P: float) -> float:
@@ -109,13 +109,6 @@ def c_covariance(C1: float, C2: float, rC: float) -> np.ndarray:
     """The 2x2 covariance matrix of (C1, C2) for variances ``C1``, ``C2`` and correlation ``rC``."""
     off = rC * np.sqrt(C1 * C2)
     return np.array([[C1, off], [off, C2]])
-
-
-def _population_residuals(
-    B_m: np.ndarray, B_f: np.ndarray, C1_per_gen: Sequence[float], C2_per_gen: Sequence[float], rC: float
-) -> list[np.ndarray]:
-    sigmas = [c_covariance(c1, c2, rC) for c1, c2 in zip(C1_per_gen, C2_per_gen, strict=True)]
-    return [s - B_m @ sigmas[max(g - 1, 0)] @ B_m - B_f @ sigmas[max(g - 1, 0)] @ B_f for g, s in enumerate(sigmas)]
 
 
 @dataclass(frozen=True)
@@ -262,7 +255,7 @@ class SimulationParams:
             raise ValueError(f"G_sim ({G_sim}) must be >= G_ped ({G_ped})")
 
         c_transmission = c_transmission or CTransmission()
-        c_transmission.validate([C1], [C2], rC)
+        c_transmission.validate(C1, C2, rC)
 
         return cls(
             seed=seed,

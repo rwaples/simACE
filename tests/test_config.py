@@ -415,7 +415,7 @@ class TestCTransmissionConfig:
             ({"Ctm_maternal1": 1.2}, r"Ctm_maternal1 must be in \[0, 1\]"),
             ({"Ctm_paternal2": -0.1}, r"Ctm_paternal2 must be in \[0, 1\]"),
             ({"Ctm_maternal1": 0.8, "Ctm_paternal1": 0.8}, "exceeds 1, outside the supported scope"),
-            ({"C1": 1.0, "C2": 1.0, "rC": 1.0, "Ctm_maternal1": 0.1}, "infeasible at generation 0"),
+            ({"C1": 1.0, "C2": 1.0, "rC": 1.0, "Ctm_maternal1": 0.1}, "C transmission is infeasible"),
         ],
     )
     def test_out_of_scope_coefficients_are_rejected(self, overrides, match):
