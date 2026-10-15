@@ -1,0 +1,49 @@
+# Vertical C transmission scenarios (ADR 0025).
+#
+# Each trait's C is b_m * C_mother + b_f * C_father plus a household draw, and
+# the configured C stays the total. Parent-offspring pairs and paternal
+# half-sibs then share part of C; maternal half-sibs with different fathers
+# share less than all of it.
+#
+#   - maternal:     b_m = 0.5, random mating. Analytic reference lines apply.
+#   - both_parents: b_m = 0.5, b_f = 0.3, random mating.
+#   - maternal_am:  b_m = 0.5 with assortative mating on trait 1. Simulated,
+#                   not validated: the AM equilibrium check and the rho_w
+#                   cross-trait term omit the A-C covariance AM induces, so the
+#                   equilibrium check is informational and the reference lines
+#                   are the recorded-pedigree truth.
+#   - maternal_b1:  b_m = 1 with constant C. The household draw only absorbs
+#                   sampling error, so offspring C is close to an exact copy.
+#
+# fitACE is misspecified by design here: it builds its C matrix from
+# household_id alone, so its ACE estimates on these scenarios are expected to
+# be biased and are not a validation target.
+
+maternal:
+  seed: 380042
+  N: 20000
+  pedigree:
+    trait1: { A: 0.5, C: 0.2, E: 0.3, C_transmission: { maternal: 0.5 } }
+    trait2: { A: 0.4, C: 0.2, E: 0.4, C_transmission: { maternal: 0.5 } }
+
+both_parents:
+  seed: 381042
+  N: 20000
+  pedigree:
+    trait1: { A: 0.5, C: 0.2, E: 0.3, C_transmission: { maternal: 0.5, paternal: 0.3 } }
+    trait2: { A: 0.4, C: 0.2, E: 0.4, C_transmission: { maternal: 0.5, paternal: 0.3 } }
+
+maternal_am:
+  seed: 382042
+  N: 20000
+  pedigree:
+    assort1: 0.3
+    trait1: { A: 0.5, C: 0.2, E: 0.3, C_transmission: { maternal: 0.5 } }
+    trait2: { A: 0.4, C: 0.2, E: 0.4, C_transmission: { maternal: 0.5 } }
+
+maternal_b1:
+  seed: 383042
+  N: 20000
+  pedigree:
+    trait1: { A: 0.5, C: 0.2, E: 0.3, C_transmission: { maternal: 1.0 } }
+    trait2: { A: 0.4, C: 0.2, E: 0.4, C_transmission: { maternal: 1.0 } }
