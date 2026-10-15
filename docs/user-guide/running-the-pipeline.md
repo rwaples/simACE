@@ -212,6 +212,38 @@ pixi run simace parquet-to-tsv results/base/baseline10K/rep1/*.parquet
 For an uncompressed `.tsv`, pass `--no-gzip`. To write eight decimal places
 instead of the default four, pass `-p 8`.
 
+## Export to PLINK
+
+To read a replicate's pedigree in PLINK, GCTA or another tool that takes a
+`.fam` file, export it with `simace export-plink`:
+
+```bash
+pixi run simace export-plink \
+    --pedigree results/base/baseline10K/rep1/pedigree.parquet \
+    --cohort results/base/baseline10K/rep1/cohort.parquet \
+    -o results/base/baseline10K/rep1/plink/rep1
+```
+
+This writes three files:
+
+- `rep1.fam`: `FID IID PAT MAT SEX PHENO`, tab-separated, no header. PHENO is
+  trait 1.
+- `rep1.pheno`: `FID IID affected1 affected2`, with a header, for PLINK's
+  `--pheno`.
+- `rep1.twins`: one line per MZ pair, `IID1 IID2`, with a header. PLINK has
+  no twin field.
+
+With `--cohort`, the files hold the analysis pedigree: the people `simace run`
+analyzed, plus their ancestors. Without it, they hold the whole recorded
+pedigree and every phenotype is `-9`. `-o` is a stem: the command appends the
+extensions and refuses a stem that already ends in one.
+
+Every person has FID `1`, because PLINK links a child only to parents with the
+same FID. The IID is `id_<id>`, where `<id>` is the simACE id, and a missing
+parent is `0`. Sex is `1` for male and `2` for female. Case status is `2` for
+a case, `1` for a control, and `-9` for anyone outside the analysis sample:
+the sample's ancestors, including those phenotyped but not drawn.
+
 ## Troubleshooting
 
 | Error | Fix |

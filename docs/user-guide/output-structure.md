@@ -265,6 +265,13 @@ directory and adds whole-run memory measurements. See
 four decimal places by default. [Running the pipeline, Convert parquet to
 TSV](running-the-pipeline.md#convert-parquet-to-tsv) has the commands.
 
+## PLINK exports
+
+`simace export-plink` writes a replicate's pedigree as a PLINK `.fam` file,
+with `.pheno` and `.twins` sidecars. [Running the pipeline, Export to
+PLINK](running-the-pipeline.md#export-to-plink) has the command and the
+coding.
+
 ## EPIMIGHT outputs
 
 fitACE_epimight writes under `results/{folder}/{scenario}/rep{rep}/epimight/`.

@@ -35,6 +35,7 @@ simACE/
 │   │   ├── parquet_to_tsv.py             # `simace parquet-to-tsv`
 │   │   ├── pedigree_arrays.py            # Pedigree columns as numpy arrays, addressable by id
 │   │   ├── pedigree_filter.py            # Filter a pedigree to observed IDs plus their ancestors
+│   │   ├── plink_export.py               # `simace export-plink`: .fam, .pheno and .twins
 │   │   ├── publish.py                    # Atomic output publication (<path>.<random>.tmp, then rename)
 │   │   ├── relationships.py              # Relationship-pair and sex vocabulary (kinship read from pedigree_graph RELATIONSHIPS)
 │   │   ├── schema.py                     # PEDIGREE schema and hydrated in-memory trait schemas

@@ -184,6 +184,23 @@ releases shipped after 2026.05.3.
   true-curve average; it now fails the plot. AJ data without any empirical
   payload still renders, without the Empirical and True CIF lines.
 
+### PLINK export ([#53](https://github.com/rwaples/simACE/issues/53))
+
+- **`simace export-plink` writes a rep's pedigree for PLINK, GCTA and other
+  pedigree tools.** It takes `--pedigree` (the rep's `pedigree.parquet`), an
+  optional `--cohort`, and `-o <stem>`. It writes `<stem>.fam`,
+  `<stem>.pheno` holding both traits, and `<stem>.twins` (MZ pairs, which
+  PLINK has no field for). With the cohort, the files hold the analysis
+  pedigree and the `.fam` PHENO is trait 1; without it, they hold the
+  recorded pedigree and every phenotype is `-9`.
+- An IID is `id_<id>` with the simACE id unchanged, so a missing parent is
+  PLINK's `0`. Everyone shares FID `1`, because PLINK links a child only to
+  parents with the same FID. Sex becomes `1` male, `2` female; case status
+  `2` case, `1` control, `-9` for cohort members outside the analysis sample
+  (ancestors, phenotyped or not). On a 107,105-person rep, with a one-variant
+  dummy `.bed`/`.bim`, PLINK 1.9 and 2.0 loaded the `.fam` and `.pheno`
+  without warnings; no test runs PLINK.
+
 ### Removed
 
 Code that only tests reached:

@@ -44,6 +44,7 @@ COMMANDS: dict[str, Command] = {
     "effective-size": Command("simace.analysis.stats.effective_size", "Estimate Ne for one replicate"),
     "plot-effective-size": Command("simace.plotting.plot_effective_size", "Render the Ne atlas"),
     "parquet-to-tsv": Command("simace.core.parquet_to_tsv", "Convert parquet files to TSV"),
+    "export-plink": Command("simace.core.plink_export", "Write a rep's pedigree as PLINK .fam, .pheno and .twins"),
 }
 
 

@@ -44,3 +44,7 @@
 ## parquet_to_tsv
 
 ::: simace.core.parquet_to_tsv
+
+## plink_export
+
+::: simace.core.plink_export
