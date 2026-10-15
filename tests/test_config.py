@@ -24,6 +24,7 @@ from simace.config import (
     resolve_defaults,
     resolve_scenarios,
 )
+from simace.simulation.params import am_transmitted_share
 
 REPO_ROOT = Path(__file__).parent.parent
 CONFIG_DIR = REPO_ROOT / "config"
@@ -386,3 +387,58 @@ class TestMatingModelValidation:
 
     def test_wf_with_assort_matrix_explicit_none_passes(self):
         _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "assort_matrix": None}))
+
+
+class TestCTransmissionConfig:
+    """``pedigree.trait{t}.C_transmission`` flattening and config-load checks (ADR 0025)."""
+
+    @staticmethod
+    def _wrap(scenario_overrides: dict) -> dict:
+        return {
+            "defaults": {"E1": 0.5, "E2": 0.5, "C1": 0.2, "C2": 0.2, "rC": 0.0, "mating_model": "standard"},
+            "scenarios": {"sc": {**scenario_overrides, "E1": 0.5, "E2": 0.5}},
+        }
+
+    def test_hierarchical_keys_flatten(self):
+        flat = flatten_hierarchical(
+            {"pedigree": {"trait1": {"C_transmission": {"maternal": 0.5, "paternal": 0.3}}, "trait2": {"C": 0.1}}}
+        )
+        assert flat == {"Ctm_maternal1": 0.5, "Ctm_paternal1": 0.3, "C2": 0.1}
+
+    def test_defaults_are_zero(self):
+        defaults = resolve_defaults(CONFIG_DIR)
+        assert [defaults[f"Ctm_{s}{t}"] for s in ("maternal", "paternal") for t in (1, 2)] == [0.0] * 4
+
+    @pytest.mark.parametrize(
+        ("overrides", "match"),
+        [
+            ({"Ctm_maternal1": 1.2}, r"Ctm_maternal1 must be in \[0, 1\]"),
+            ({"Ctm_paternal2": -0.1}, r"Ctm_paternal2 must be in \[0, 1\]"),
+            ({"Ctm_maternal1": 0.8, "Ctm_paternal1": 0.8}, "exceeds 1, outside the supported scope"),
+            ({"C1": 1.0, "C2": 1.0, "rC": 1.0, "Ctm_maternal1": 0.1}, "infeasible at generation 0"),
+        ],
+    )
+    def test_out_of_scope_coefficients_are_rejected(self, overrides, match):
+        with pytest.raises(ValueError, match=match):
+            _validate_pedigree_config(self._wrap(overrides))
+
+    def test_full_c_correlation_with_equal_coefficients_passes(self):
+        _validate_pedigree_config(self._wrap({"rC": 1.0, "Ctm_maternal1": 0.5, "Ctm_maternal2": 0.5}))
+
+    def test_assortment_that_overfills_c_warns(self, caplog):
+        # _wrap pins E1 = 0.5, so V_P = 1.3 and 0.98 + 2 * 0.49 * (0.5 * 0.5 / 1.3) = 1.168 > 1
+        over = {"A1": 0.3, "C1": 0.5, "E1": 0.2, "assort1": 0.5, "Ctm_maternal1": 0.7, "Ctm_paternal1": 0.7}
+        with caplog.at_level("WARNING", logger="simace.config"):
+            _validate_pedigree_config(self._wrap(over))
+        assert "trait 1 transmits 1.17 of C under assortative mating" in caplog.text
+        caplog.clear()
+        with caplog.at_level("WARNING", logger="simace.config"):
+            _validate_pedigree_config(self._wrap({**over, "assort1": 0.0}))
+        assert caplog.text == ""
+
+    def test_am_transmitted_share_is_the_first_generation_form(self):
+        assert am_transmitted_share(0.7, 0.7, 0.5, C=0.5, V_P=1.0) == pytest.approx(0.98 + 0.98 * 0.25)
+        assert am_transmitted_share(0.5, 0.0, 0.9, C=0.5, V_P=1.0) == pytest.approx(0.25)
+
+    def test_wright_fisher_accepts_transmission(self):
+        _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "Ctm_maternal1": 0.5}))

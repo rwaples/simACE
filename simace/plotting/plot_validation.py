@@ -32,7 +32,7 @@ import pandas as pd
 import polars as pl
 import seaborn as sns
 
-from simace.core.relationships import expected_liability_corr
+from simace.core.relationships import reference_corr, reference_midparent_slope
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
     COLOR_EXPECTED,
@@ -54,7 +54,7 @@ def stripplot(
     ax: Axes,
     y: str,
     expected: str | float | None = None,
-    expected_func: Callable[[pd.DataFrame], float] | None = None,
+    expected_func: Callable[[pd.DataFrame], float | None] | None = None,
 ) -> None:
     """Stripplot of observed values with optional expected markers.
 
@@ -93,6 +93,8 @@ def stripplot(
             else:
                 assert expected is not None
                 val = expected
+            if val is None:
+                continue
             try:
                 val = float(val)
             except TypeError, ValueError:
@@ -274,25 +276,39 @@ def plot_A_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     save(fig, out / f"correlations_A.{ext}")
 
 
+def _rep_mean(d: pd.DataFrame, column: str) -> float | None:
+    """Mean of a gathered truth column over a scenario's reps; None when absent (no C transmission)."""
+    if column not in d.columns or d[column].isna().all():
+        return None
+    return float(d[column].mean())
+
+
+def _reference_corr(code: str, trait: int) -> Callable[[pd.DataFrame], float | None]:
+    """A scenario's reference correlation: analytic where exact, else the rep-mean recorded-pedigree truth."""
+
+    def expected(d: pd.DataFrame) -> float | None:
+        truth = _rep_mean(d, f"truth_r_{code}_trait{trait}")
+        return reference_corr(code, d.iloc[0].to_dict(), trait, {code: {"r": truth}})
+
+    return expected
+
+
+def _reference_slope(trait: int) -> Callable[[pd.DataFrame], float | None]:
+    def expected(d: pd.DataFrame) -> float | None:
+        return reference_midparent_slope(
+            d.iloc[0].to_dict(), trait, _rep_mean(d, f"truth_midparent_slope_trait{trait}")
+        )
+
+    return expected
+
+
 def plot_phenotype_correlations(df: pd.DataFrame, out: Path, ext: str = "png") -> None:
     """Plot MZ twin and full-sib liability correlations vs expected."""
     panels = [
-        (
-            "mz_twin_liability1_corr",
-            lambda d: expected_liability_corr("MZ", d["A1"].iloc[0], d["C1"].iloc[0]),
-            "MZ Twin Liability1 Corr",
-        ),
-        (
-            "dz_sibling_liability1_corr",
-            lambda d: expected_liability_corr("FS", d["A1"].iloc[0], d["C1"].iloc[0]),
-            "Full-Sibling Liability1 Corr",
-        ),
-        (
-            "half_sib_liability1_corr",
-            lambda d: expected_liability_corr("PHS", d["A1"].iloc[0], d["C1"].iloc[0]),
-            "Half-Sib Liability1 Corr",
-        ),
-        ("parent_offspring_liability1_slope", lambda d: d["A1"].iloc[0], "Midparent-Offspring Liability1 Slope"),
+        ("mz_twin_liability1_corr", _reference_corr("MZ", 1), "MZ Twin Liability1 Corr"),
+        ("dz_sibling_liability1_corr", _reference_corr("FS", 1), "Full-Sibling Liability1 Corr"),
+        ("half_sib_liability1_corr", _reference_corr("PHS", 1), "Half-Sib Liability1 Corr"),
+        ("parent_offspring_liability1_slope", _reference_slope(1), "Midparent-Offspring Liability1 Slope"),
     ]
     fig, axes = plt.subplots(2, 2, figsize=_figsize(nrows=2, ncols=2))
     for ax, (col, efn, title) in zip(axes.flat, panels, strict=True):

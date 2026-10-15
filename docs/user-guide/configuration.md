@@ -71,6 +71,10 @@ pedigree:
 | `pedigree.trait2.A` | float or dict | `0.4` | Trait 2 additive genetic variance |
 | `pedigree.trait2.C` | float or dict | `0.2` | Trait 2 common environment variance |
 | `pedigree.trait2.E` | float or dict | `0.4` | Trait 2 unique environment variance |
+| `pedigree.trait1.C_transmission.maternal` | float | `0.0` | Share of the mother's C1 an offspring inherits, in [0, 1]; maternal² + paternal² ≤ 1 (ADR 0025) |
+| `pedigree.trait1.C_transmission.paternal` | float | `0.0` | Share of the father's C1 an offspring inherits, in [0, 1]; maternal² + paternal² ≤ 1 (ADR 0025) |
+| `pedigree.trait2.C_transmission.maternal` | float | `0.0` | Share of the mother's C2 an offspring inherits, in [0, 1]; maternal² + paternal² ≤ 1 (ADR 0025) |
+| `pedigree.trait2.C_transmission.paternal` | float | `0.0` | Share of the father's C2 an offspring inherits, in [0, 1]; maternal² + paternal² ≤ 1 (ADR 0025) |
 | `pedigree.rA` | float | `0.0` | Cross-trait correlation of the additive genetic components |
 | `pedigree.rC` | float | `0.0` | Cross-trait correlation of the common environment components |
 | `pedigree.rE` | float | `0.0` | Cross-trait correlation of the unique environment components |
@@ -263,6 +267,10 @@ accepts either form, but it rejects a parameter supplied in both forms.
 | `pedigree.trait2.A` | `A2` |
 | `pedigree.trait2.C` | `C2` |
 | `pedigree.trait2.E` | `E2` |
+| `pedigree.trait1.C_transmission.maternal` | `Ctm_maternal1` |
+| `pedigree.trait1.C_transmission.paternal` | `Ctm_paternal1` |
+| `pedigree.trait2.C_transmission.maternal` | `Ctm_maternal2` |
+| `pedigree.trait2.C_transmission.paternal` | `Ctm_paternal2` |
 | `pedigree.rA` | `rA` |
 | `pedigree.rC` | `rC` |
 | `pedigree.rE` | `rE` |

@@ -206,7 +206,7 @@ def test_generator_contract(topology, data):
 @pytest.mark.parametrize("topology", list(Topology))
 @given(data=st.data(), params=repro_params(), seed=_SEEDS)
 def test_household_members_share_c(topology, data, params, seed):
-    """Offspring in one household carry identical C for each trait, for any SDs and correlations.
+    """Without C transmission, offspring in one household carry identical C for each trait, for any SDs and correlations.
 
     Rejects drawing C per child or per mating; the maternal half-sib case
     separates per-mating from per-household draws.
@@ -251,10 +251,11 @@ def test_twin_pairing_touches_only_twin_a_and_sex(data, params, seed):
 
 @given(data=st.data(), topology=_ANY_TOPOLOGY, params=repro_params(), seed=_SEEDS)
 def test_parental_c_and_e_do_not_reach_offspring(data, topology, params, seed):
-    """Replacing the parents' C and E columns leaves every offspring value and sex unchanged.
+    """Without C transmission, replacing the parents' C and E columns leaves every offspring value and sex unchanged.
 
     Holds parents, topology, parameters, and seed fixed. Rejects reading
     parental C as inherited C, or letting parental E enter offspring values.
+    ``test_c_transmission.py`` covers parental C reaching offspring.
     """
     inputs = data.draw(repro_inputs(topology))
     replacement = data.draw(arrays(np.float64, (len(inputs.pheno), len(_CE_COLUMNS)), elements=_VALUES))

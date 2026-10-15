@@ -89,8 +89,16 @@ def normalize_quality_checks(validation_report: dict[str, Any]) -> dict[str, Any
     }
 
 
-def extract_truth(validation_report: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
-    """Re-home generated/realized ground-truth quantities under ``recorded_pedigree``."""
+def extract_truth(
+    validation_report: dict[str, Any], params: dict[str, Any], recorded_truth: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Re-home generated/realized ground-truth quantities under ``recorded_pedigree``.
+
+    ``recorded_truth`` is :func:`simace.analysis.truth.recorded_pedigree_truth`'s
+    result, present only under C transmission: its per-trait
+    ``relationships`` and ``midparent_slope`` join each trait, and its
+    ``limitations`` list sits beside the traits (ADR 0025).
+    """
     stat = validation_report.get("statistical", {})
     per_gen = validation_report.get("per_generation", {})
     pop = validation_report.get("population", {})
@@ -168,8 +176,17 @@ def extract_truth(validation_report: dict[str, Any], params: dict[str, Any]) -> 
         "sex_ratio_male": (structural.get("sex_distribution") or {}).get("observed_ratio"),
     }
 
+    recorded: dict[str, Any] = {}
+    if recorded_truth is not None:
+        for name, trait in recorded_truth["traits"].items():
+            traits[name].update(trait)
+        recorded["limitations"] = recorded_truth["limitations"]
+        if "c_transmission_clips" in recorded_truth:
+            recorded["c_transmission_clips"] = recorded_truth["c_transmission_clips"]
+
     return {
         "recorded_pedigree": {
+            **recorded,
             "population": population,
             "traits": traits,
             "family_structure": family_structure,
@@ -302,8 +319,12 @@ def assemble_report(
     stats_report: dict[str, Any],
     prevalence_phenotyped: dict[str, Any],
     scope_counts: dict[str, Any],
+    recorded_truth: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Build the v2 ``report.yaml`` dict and its scope-organized ``plot_payload``.
+
+    ``recorded_truth`` is the recorded-pedigree relationship truth, present
+    only under C transmission (see :func:`extract_truth`).
 
     Returns ``(report, plot_payload)``.
     """
@@ -328,7 +349,7 @@ def assemble_report(
         "inputs": _build_inputs(params, case_ascertainment_ratio),
         "scopes": scope_counts,
         "quality_checks": normalize_quality_checks(validation_report),
-        "truth": extract_truth(validation_report, params),
+        "truth": extract_truth(validation_report, params, recorded_truth),
         "observed": observed,
         "estimators": extract_estimators(validation_report, stats_report),
     }

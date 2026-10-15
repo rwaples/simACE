@@ -50,14 +50,23 @@ defaults:
     assort1: 0
     assort2: 0
     assort_matrix: null # optional full 2x2 R_mf matrix, e.g. [[0.3, 0.05], [0.05, 0.15]]
+    # C_transmission: share of each parent's C an offspring inherits, per
+    # trait, in [0, 1] with maternal**2 + paternal**2 <= 1. The configured C
+    # stays the total; a household draw tops up the rest. See ADR 0025.
     trait1:
       A: 0.5
       C: 0.0
       E: 0.5
+      C_transmission:
+        maternal: 0.0
+        paternal: 0.0
     trait2:
       A: 0.4
       C: 0.2
       E: 0.4
+      C_transmission:
+        maternal: 0.0
+        paternal: 0.0
     rA: 0.0
     rC: 0.0
     rE: 0.0

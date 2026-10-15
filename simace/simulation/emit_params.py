@@ -46,6 +46,10 @@ def emit_params(
     max_degree: int = DEFAULT_MAX_DEGREE,
     skip_ne_coancestry: bool = True,
     assort_matrix: list[list[float]] | None = None,
+    Ctm_maternal1: float = 0.0,
+    Ctm_paternal1: float = 0.0,
+    Ctm_maternal2: float = 0.0,
+    Ctm_paternal2: float = 0.0,
 ) -> dict[str, Any]:
     """Build the params.yaml dict for a single replicate.
 
@@ -77,6 +81,10 @@ def emit_params(
             coancestry-rate estimator.
         assort_matrix: optional 2x2 correlation matrix; included in the
             dict only when not ``None``.
+        Ctm_maternal1: trait-1 maternal C transmission coefficient (ADR 0025).
+        Ctm_paternal1: trait-1 paternal C transmission coefficient.
+        Ctm_maternal2: trait-2 maternal C transmission coefficient.
+        Ctm_paternal2: trait-2 paternal C transmission coefficient.
 
     Returns:
         Dict to be serialized to ``params.yaml`` via :func:`dump_yaml`.
@@ -106,6 +114,10 @@ def emit_params(
         "assort2": assort2,
         "max_degree": max_degree,
         "skip_ne_coancestry": skip_ne_coancestry,
+        "Ctm_maternal1": Ctm_maternal1,
+        "Ctm_paternal1": Ctm_paternal1,
+        "Ctm_maternal2": Ctm_maternal2,
+        "Ctm_paternal2": Ctm_paternal2,
         "simace_version": simace.__version__,
     }
     if assort_matrix is not None:

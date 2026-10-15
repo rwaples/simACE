@@ -253,7 +253,7 @@ def _check_recorded_pedigree(ped: pl.DataFrame, kw: dict) -> None:
     assert np.all(sex[dad] == 1)
     # Founders' mothers are unrecorded (-1), so maternal grouping is checked only below them.
     assert _is_bijection(mom, household[nf])
-    for c in ("C1", "C2"):
+    for c in ("C1", "C2"):  # without C transmission; see test_c_transmission.py
         assert _constant_within(col[c], household), c
 
     paired = np.flatnonzero(twin >= 0)

@@ -16,6 +16,7 @@ load its own fit-domain overlays on top of sim-side scenarios.
 """
 
 import glob
+import logging
 import os
 import re
 from pathlib import Path
@@ -30,6 +31,9 @@ from simace.core.phenotype_keys import (
 )
 from simace.core.standardize import coerce_standardize_mode
 from simace.core.yaml_io import load_yaml
+from simace.simulation.params import CTransmission, am_transmitted_share
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Hierarchical config → flat internal key mapping (sim domain only)
@@ -49,6 +53,10 @@ _HIERARCHICAL_TO_FLAT: dict[tuple[str, ...], str] = {
     ("pedigree", "trait2", "A"): "A2",
     ("pedigree", "trait2", "C"): "C2",
     ("pedigree", "trait2", "E"): "E2",
+    ("pedigree", "trait1", "C_transmission", "maternal"): "Ctm_maternal1",
+    ("pedigree", "trait1", "C_transmission", "paternal"): "Ctm_paternal1",
+    ("pedigree", "trait2", "C_transmission", "maternal"): "Ctm_maternal2",
+    ("pedigree", "trait2", "C_transmission", "paternal"): "Ctm_paternal2",
     ("pedigree", "rA"): "rA",
     ("pedigree", "rC"): "rC",
     ("pedigree", "rE"): "rE",
@@ -217,9 +225,15 @@ def _coerce_sim_types(flat: dict) -> dict:
         value = flat.get(key)
         if isinstance(value, dict):
             flat[key] = {int(gen): v for gen, v in value.items()}
+    for key in _C_TRANSMISSION_KEYS:
+        if flat.get(key) is not None:
+            flat[key] = float(flat[key])
     if "standardize" in flat:
         flat["standardize"] = coerce_standardize_mode(flat["standardize"])
     return flat
+
+
+_C_TRANSMISSION_KEYS = ("Ctm_maternal1", "Ctm_paternal1", "Ctm_maternal2", "Ctm_paternal2")
 
 
 # ---------------------------------------------------------------------------
@@ -400,10 +414,47 @@ def _is_zero_assort(value: Any) -> bool:
     return float(value) == 0
 
 
+def _warn_am_transmission(name: str, effective: dict) -> None:
+    """Warn when assortative mating likely pushes a trait's transmitted C past its configured total (ADR 0025).
+
+    Uses the first-generation mate C correlation (:func:`am_transmitted_share`),
+    so it is a heads-up, not a guarantee: the run itself stops once the excess
+    is measurable.
+    """
+    if effective.get("mating_model", "standard") != "standard":
+        return
+    matrix = effective.get("assort_matrix")
+    ct = CTransmission.from_params(effective)
+    for t in (1, 2):
+        b_m, b_f = ct.maternal[t - 1], ct.paternal[t - 1]
+        assort = matrix[t - 1][t - 1] if matrix is not None else effective.get(f"assort{t}", 0.0)
+        if isinstance(assort, dict):
+            assort = max(assort.values(), default=0.0)
+        A, C, E = (effective.get(f"{k}{t}") for k in ("A", "C", "E"))
+        if not (isinstance(A, int | float) and isinstance(C, int | float) and isinstance(E, int | float)):
+            continue
+        if b_m * b_f == 0.0 or float(assort) <= 0.0:
+            continue
+        share = am_transmitted_share(b_m, b_f, float(assort), C, A + C + E)
+        if share > 1.0:
+            logger.warning(
+                "Scenario '%s': trait %d transmits %.3g of C under assortative mating (b_m² + b_f² + 2 b_m b_f "
+                "r_CC with first-generation r_CC = %.3g); above 1 the simulation will stop once the excess is "
+                "measurable. Lower Ctm_maternal%d/Ctm_paternal%d or assort%d (ADR 0025)",
+                name,
+                t,
+                share,
+                float(assort) * C / (A + C + E),
+                t,
+                t,
+                t,
+            )
+
+
 def _validate_pedigree_config(config: dict) -> None:
     """Validate pedigree-section config, including mating-model compatibility.
 
-    Two checks:
+    Three checks:
 
     1. Reject scenarios whose effective E1 / E2 resolve to ``None``.  Closes
        the pre-PR3 fallback where ``E: null`` was filled from ``1 - A - C``
@@ -414,6 +465,9 @@ def _validate_pedigree_config(config: dict) -> None:
        values (``mating_lambda``, ``p_mztwin``, ``assort1``, ``assort2``,
        ``assort_matrix``).  Inherited defaults are silently ignored at
        runtime — only *explicit* scenario overrides are flagged here.
+    3. Validate the C transmission coefficients against the scope bound and
+       the configured C (:meth:`CTransmission.validate`, ADR 0025), for
+       scalar C; ``run_simulation`` rejects per-generation C.
 
     Args:
         config: the merged ``{"defaults": ..., "scenarios": ...}`` dict.
@@ -442,6 +496,15 @@ def _validate_pedigree_config(config: dict) -> None:
                 f"Scenario '{name}': mating_model={effective_mm!r} is not valid. "
                 f"Choose from: {sorted(VALID_MATING_MODELS)}"
             )
+
+        effective = {**defaults, **params}
+        C1, C2 = effective.get("C1", 0.0), effective.get("C2", 0.0)
+        if not isinstance(C1, dict) and not isinstance(C2, dict):
+            try:
+                CTransmission.from_params(effective).validate([C1], [C2], effective.get("rC", 0.0))
+            except ValueError as exc:
+                raise ValueError(f"Scenario '{name}': {exc}") from exc
+            _warn_am_transmission(name, effective)
 
         # Strict WF-override check.  ``params`` is the scenario-only flat dict
         # (see resolve_scenarios) so ``key in params`` reliably means

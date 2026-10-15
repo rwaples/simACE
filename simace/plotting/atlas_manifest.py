@@ -317,8 +317,11 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "midparent liability (x) vs. offspring liability (y) colored by offspring sex "
             "(green = daughters, blue = sons). Observed pooled regression line (solid orange,"
             " with 95% CI band), sex-specific regression lines, and expected slope from "
-            "configured A (dashed). Text box shows pooled h² and sex-specific h²♀/h²♂ (slope "
-            "± SE), Pearson r, pair count n, and p-value, averaged across replicates."
+            "configured A (dashed). Under C transmission the dashed slope is "
+            "(A + (b_m + b_f)·C)/V_P where exact, else the replicate-mean slope realized in the "
+            "recorded pedigree for that generation (ADR 0025). Text box shows pooled h² and "
+            "sex-specific h²♀/h²♂ (slope ± SE), Pearson r, pair count n, and p-value, averaged "
+            "across replicates."
         ),
     ),
     PlotEntry(
@@ -353,7 +356,11 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "lines = mean uncensored frailty pairwise survival-time correlation (present when"
             " available). Red dotted lines = parametric expected correlation from the "
             "configured ACE variance components (e.g. E[r] = 0.5·A + C for full sibs, 0.5·A "
-            "for parent–offspring). N = mean pairs per replicate."
+            "for parent–offspring). Under C transmission the red line is the analytic value "
+            "where it is exact (random mating, scalar C and E, single-path types) and "
+            "otherwise the replicate-mean correlation realized in the recorded pedigree; "
+            "with transmission and assortative mating together it is the realized value "
+            "throughout (ADR 0025). N = mean pairs per replicate."
         ),
     ),
     PlotEntry(
@@ -448,7 +455,9 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "Grid: rows = traits, columns = generations. Same encoding as the relationship-type "
             "tetrachoric correlation plot (violins = observed tetrachoric correlations, black dashed = true liability correlations,"
             " red dotted = parametric E[r], dots = per-replicate estimates), computed within "
-            "each generation separately."
+            "each generation separately. Under C transmission, E[r] falls back to the "
+            "recorded-pedigree truth of that generation where the analytic value is not exact "
+            "(ADR 0025)."
         ),
     ),
     PlotEntry(
@@ -542,7 +551,9 @@ VALIDATION_ATLAS: tuple[AtlasItem, ...] = (
             "components. Panel 1: MZ twin liability₁ correlation (expected = A₁ + C₁). Panel "
             "2: Full-sibling liability₁ correlation (expected = 0.5A₁ + C₁). Panel 3: Half-"
             "sibling liability₁ correlation (expected = 0.25A₁). Panel 4: Midparent-offspring"
-            " liability₁ slope (expected = A₁)."
+            " liability₁ slope (expected = A₁). Under C transmission the expectations become "
+            "the paternal half-sib (0.25A₁ + b_f²C₁)/V_P and midparent (A₁ + (b_m + b_f)C₁)/V_P "
+            "values where exact, else the replicate-mean recorded-pedigree truth (ADR 0025)."
         ),
     ),
     PlotEntry(

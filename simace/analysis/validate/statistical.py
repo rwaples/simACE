@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from simace.core.numerics import safe_corrcoef
+from simace.core.relationships import transmission_coefficients
 
 from ._common import _info, _result
 from .am_relatedness import am_relatedness_mode
@@ -36,6 +37,13 @@ def _check_variance(founders: Mapping[str, np.ndarray], col: str, expected: floa
         expected=expected,
         observed=float(var),
     )
+
+
+def _groups(keys: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return the stable sort order of ``keys`` and the start of each run of equal keys in that order."""
+    order = np.argsort(keys, kind="stable")
+    ordered = keys[order]
+    return order, np.flatnonzero(np.r_[True, ordered[1:] != ordered[:-1]])
 
 
 def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
@@ -99,8 +107,10 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
                 results[f"variance_{col}"] = _check_variance(founders, col, _resolve_founder_val(params[col]))
 
     # Total variances (reported, not asserted, under AM — total inflates with V_A).
+    # Var(A + C + E) directly, not the sum of component variances, because AM
+    # with C transmission gives A and C a covariance (ADR 0025).
     for t in [1, 2]:
-        total = sum(results[f"variance_{c}{t}"]["observed"] for c in ["A", "C", "E"])
+        total = float(np.var(founders[f"A{t}"] + founders[f"C{t}"] + founders[f"E{t}"], ddof=1, dtype=np.float64))
         if am_active[t]:
             results[f"total_variance_trait{t}"] = _info(
                 f"Total variance trait {t}: {total:.4f} (AM-inflated; not asserted under AM)",
@@ -138,21 +148,27 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
     # C inheritance: siblings should share C. Group children by mother via a
     # stable sort + reduceat (groups in ascending-mother order, rows in
     # original order within each group — matching pandas groupby semantics).
+    # Under paternal C transmission only full sibs share C, so the trait's
+    # families are mating pairs instead (ADR 0025).
     nf_mask = mother_all != -1
     if nf_mask.any():
         mothers_nf = mother_all[nf_mask]
-        order = np.argsort(mothers_nf, kind="stable")
-        sorted_mothers = mothers_nf[order]
-        starts = np.flatnonzero(np.r_[True, sorted_mothers[1:] != sorted_mothers[:-1]])
-        sizes = np.diff(np.r_[starts, len(sorted_mothers)])
+        order, starts = _groups(mothers_nf)
+        sizes = np.diff(np.r_[starts, len(mothers_nf)])
         for t in [1, 2]:
             col = f"C{t}"
-            vals = df[col].to_numpy()[nf_mask][order]
+            by_pair = transmission_coefficients(params, t)[1] != 0.0
+            t_order, t_starts = order, starts
+            if by_pair:
+                father_nf = df["father"].to_numpy()[nf_mask].astype(np.int64)
+                t_order, t_starts = _groups(mothers_nf.astype(np.int64) * (int(father_nf.max()) + 1) + father_nf)
+            vals = df[col].to_numpy()[nf_mask][t_order]
             # nunique == 1 per family ⇔ group max equals group min (C is never NaN).
-            c_shared = (np.maximum.reduceat(vals, starts) == np.minimum.reduceat(vals, starts)).mean()
+            c_shared = (np.maximum.reduceat(vals, t_starts) == np.minimum.reduceat(vals, t_starts)).mean()
+            unit = "mating pairs" if by_pair else "families"
             results[f"c{t}_inheritance"] = _result(
                 c_shared > 0.99,
-                f"Proportion of families with shared {col}: {c_shared:.4f}",
+                f"Proportion of {unit} with shared {col}: {c_shared:.4f}",
                 proportion_shared=float(c_shared),
             )
     else:

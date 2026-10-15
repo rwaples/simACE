@@ -99,6 +99,10 @@ _SIMULATE_KEYS = (
     "assort1",
     "assort2",
     "assort_matrix",
+    "Ctm_maternal1",
+    "Ctm_paternal1",
+    "Ctm_maternal2",
+    "Ctm_paternal2",
 )
 _PHENOTYPE_KEYS = (
     "G_pheno",

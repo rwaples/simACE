@@ -61,6 +61,10 @@ class TestEmitParamsShape:
             "assort2",
             "max_degree",
             "skip_ne_coancestry",
+            "Ctm_maternal1",
+            "Ctm_paternal1",
+            "Ctm_maternal2",
+            "Ctm_paternal2",
             "simace_version",
         }
         assert set(out.keys()) == expected

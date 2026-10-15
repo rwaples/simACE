@@ -45,7 +45,7 @@ class _Recorder:
         return self.result
 
 
-def _touch(_obj, path) -> None:
+def _touch(_obj, path, **_kwargs) -> None:
     Path(path).write_text("")
 
 

@@ -112,6 +112,12 @@ def plotting_report_view(report: dict[str, Any] | None, plot_payload: dict[str, 
     view["observed_h2_estimators"] = ((report.get("estimators") or {}).get("heritability") or {}).get("observed_scale")
     view["per_generation"] = report_per_generation(report)
     view["parameters"] = (report.get("inputs") or {}).get("parameters", {})
+    # Recorded-pedigree truth, present only under C transmission (ADR 0025).
+    traits = ((report.get("truth") or {}).get("recorded_pedigree") or {}).get("traits", {})
+    view["truth_relationships"] = {name: tr["relationships"] for name, tr in traits.items() if "relationships" in tr}
+    view["truth_midparent_slope"] = {
+        name: tr["midparent_slope"] for name, tr in traits.items() if "midparent_slope" in tr
+    }
     return view
 
 

@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from pedigree_graph import RELATIONSHIPS
 
+from simace.core.relationships import analytic_applies, shared_environment_coefficient, transmission_coefficients
+
 from ._common import (
     _MIN_PAIRS_FOR_CORR,
     SIBLING_CATEGORIES,
@@ -88,6 +90,9 @@ def _validate_half_sib_correlations(
     - **Liability and shared-C correlations** use PHS only. Maternal
       half-sibs share households, so MHS liability corr = 0.25·A + 1·C and
       MHS shared_C ≠ 0; PHS gives the clean expected formulas (0.25·A and 0).
+      Under paternal C transmission PHS share ``b_f²`` of C, so the
+      expectations become ``(0.25·A + b_f²·C)/V_P`` and ``b_f²`` where the
+      closed form holds (ADR 0025).
 
     Every correlation is exact over all pairs (ADR 0022); ``n_pairs`` is the
     true pair count and the tolerance is evaluated with it.
@@ -133,19 +138,42 @@ def _validate_half_sib_correlations(
     if n_phs >= _MIN_PAIRS_FOR_CORR:
         for t in [1, 2]:
             phs_pheno = pair_correlation(phs, f"P{t}")
+            b_f = transmission_coefficients(params, t)[1]
+            if b_f == 0.0:
+                expectation = f"~0.25·A{t}"
+            elif analytic_applies("PHS", params, t):
+                expectation = f"~(0.25·A{t} + {b_f**2:.4g}·C{t})/V_P"
+            else:
+                expectation = "no closed form under C transmission with this mating"
             results[f"half_sib_liability{t}_correlation"] = _info(
-                f"PHS liability{t} correlation: {phs_pheno:.4f} (expected ~0.25·A{t})",
+                f"PHS liability{t} correlation: {phs_pheno:.4f} (expected {expectation})",
                 observed=float(phs_pheno),
                 n_pairs=n_phs,
             )
 
             obs_c = pair_correlation(phs, f"C{t}")
-            tol = _corr_tolerance(0.0, n_phs)
-            ok_c = True if np.isnan(obs_c) else abs(obs_c) < tol
+            # Without C transmission paternal half-sibs share no C. With it they
+            # share b_f**2 under the analytic gate; otherwise there is no formula.
+            expected_c = (
+                shared_environment_coefficient("PHS", *transmission_coefficients(params, t))
+                if analytic_applies("PHS", params, t)
+                else None
+            )
+            if expected_c is None:
+                results[f"half_sib_shared_C{t}"] = _info(
+                    f"PHS shared C{t} correlation: {obs_c:.4f} (not asserted: C transmission outside "
+                    "random mating with scalar C and E; ADR 0025)",
+                    observed=float(obs_c),
+                    n_pairs=n_phs,
+                )
+                continue
+            tol = _corr_tolerance(expected_c, n_phs)
+            ok_c = True if np.isnan(obs_c) else abs(obs_c - expected_c) < tol
             results[f"half_sib_shared_C{t}"] = _result(
                 ok_c,
-                f"PHS shared C{t} correlation: {obs_c:.4f} (expected: ~0, tol: {tol:.4f})",
-                expected=0.0,
+                f"PHS shared C{t} correlation: {obs_c:.4f} "
+                f"(expected: {'~0' if expected_c == 0 else f'{expected_c:.4f}'}, tol: {tol:.4f})",
+                expected=float(expected_c),
                 observed=float(obs_c),
                 n_pairs=n_phs,
             )

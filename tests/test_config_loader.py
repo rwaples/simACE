@@ -249,6 +249,10 @@ class TestRoundTrip:
             "tstrait_effect_var",
             "tstrait_trait_id",
             "tstrait_share_architecture",
+            "Ctm_maternal1",
+            "Ctm_paternal1",
+            "Ctm_maternal2",
+            "Ctm_paternal2",
         }
         assert set(flat.keys()) == expected_keys
 

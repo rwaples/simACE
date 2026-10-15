@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 from ._common import mate_correlations, sibling_moments
 from .am_equilibrium import validate_am_equilibrium
 from .assortative_mating import validate_assortative_mating
+from .c_transmission import validate_c_transmission
 from .consanguinity import validate_consanguineous_matings
 from .half_sibs import validate_half_sibs
 from .heritability import validate_heritability
@@ -60,6 +61,7 @@ def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
         "twins": validate_twins(df, params, ped),
         "half_sibs": validate_half_sibs(df, params, siblings, mates),
         "statistical": validate_statistical(df, params),
+        "c_transmission": validate_c_transmission(df, params, ped),
         "heritability": validate_heritability(df, params, ped, siblings, mates),
         "population": validate_population(df, params),
         "per_generation": compute_per_generation_stats(df, params),
