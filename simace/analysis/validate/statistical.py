@@ -15,7 +15,7 @@ import numpy as np
 from simace.core.numerics import safe_corrcoef
 from simace.core.relationships import transmission_coefficients
 
-from ._common import _info, _result
+from ._common import _corr_tolerance, _info, _result
 from .am_relatedness import am_relatedness_mode
 
 if TYPE_CHECKING:
@@ -190,10 +190,15 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
             if len(e1_pairs_arr) > 10:
                 e1, e2 = e1_pairs_arr[:, 0], e1_pairs_arr[:, 1]
                 e_corr = safe_corrcoef(e1, e2)
+                # SE-based like the other correlation checks: a fixed 0.1 is
+                # only ~2.2 SE at 500 pairs and failed ~2.5% of correct reps.
+                tol = _corr_tolerance(0.0, len(e1_pairs_arr))
                 results["e1_independence"] = _result(
-                    abs(e_corr) < 0.1,
-                    f"E1 correlation between siblings: {e_corr:.4f} (expected: ~0)",
+                    abs(e_corr) < tol,
+                    f"E1 correlation between siblings: {e_corr:.4f} (expected: ~0, tol: {tol:.4f})",
                     observed_correlation=float(e_corr),
+                    tolerance=tol,
+                    n_pairs=len(e1_pairs_arr),
                 )
             else:
                 results["e1_independence"] = _result(True, "Not enough sibling pairs to check E independence")

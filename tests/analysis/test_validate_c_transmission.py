@@ -1,6 +1,7 @@
 """Validators under C transmission (ADR 0025): the regression check, C sharing, PHS C, AM equilibrium, total variance."""
 
 import numpy as np
+import polars as pl
 import pytest
 
 from simace.analysis.validate import build_validation_report, validate_half_sibs, validate_statistical
@@ -141,6 +142,27 @@ def test_am_equilibrium_is_informational_under_transmission(am_pedigree):
     result = validate_am_equilibrium(am_pedigree, _params(assort1=0.3, **_CT))
     assert result["am_equilibrium_A1"].get("informational")
     assert "observed" in result["am_equilibrium_A1"]
+
+
+def test_sibling_e_independence_uses_an_se_based_tolerance():
+    """Independent sib E passes at 4 SE (a fixed 0.1 failed ~2.5% of reps); genuinely shared sib E still fails."""
+    rng = np.random.default_rng(0)
+    n = 500
+    shared = rng.normal(size=n)
+    frame = pl.DataFrame(
+        {
+            "id": np.arange(3 * n),
+            "mother": np.r_[np.full(n, -1), np.repeat(np.arange(n), 2)],
+            "father": np.r_[np.full(n, -1), np.repeat(np.arange(n), 2)],
+            **{c: rng.normal(size=3 * n) for c in ("A1", "C1", "A2", "C2", "E2")},
+        }
+    )
+    independent = frame.with_columns(E1=rng.normal(size=3 * n))
+    result = validate_statistical(independent, _params())["e1_independence"]
+    assert result["passed"], result["details"]
+    assert result["tolerance"] == pytest.approx(4 / np.sqrt(n - 1))
+    correlated = frame.with_columns(E1=np.r_[rng.normal(size=n), np.repeat(shared, 2) + 0.5 * rng.normal(size=2 * n)])
+    assert not validate_statistical(correlated, _params())["e1_independence"]["passed"]
 
 
 def test_full_report_passes_on_a_random_mating_transmission_pedigree(rm_pedigree):
