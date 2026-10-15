@@ -201,6 +201,10 @@ Code that only tests reached:
   ([#40](https://github.com/rwaples/simACE/issues/40)). The validation runner
   never called it. Ne stays a reported statistic in `effective_size.yaml` and
   its plots, with no pass/fail check.
+- The `@stage` decorator's `reads`, `writes` and `stage_name` attributes and
+  its `name=` parameter ([#41](https://github.com/rwaples/simACE/issues/41)).
+  No stage passed `name=`, and nothing read the attributes. Schema errors
+  still name the stage after its function, without the `run_` prefix.
 
 ## 0.1.0 — 2026-10-02
 

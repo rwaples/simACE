@@ -88,7 +88,7 @@ The checker compares dtypes at the kind level, `i` or `u` for integer, `f` for f
 
 ## Where the checker runs
 
-The `@stage(reads=..., writes=...)` decorator in `simace.core.stage` wraps each DataFrame stage. It asserts the input schema on the first argument and the output schema on the return value. It also exposes both schemas as `fn.reads` and `fn.writes`. Every phenotype model, including `simple_ltm`, is a `PhenotypeModel` that runs through `run_phenotype` and `run_censor`. There is no separate threshold stage.
+The `@stage(reads=..., writes=...)` decorator in `simace.core.stage` wraps each DataFrame stage. It asserts the input schema on the first argument and the output schema on the return value. Every phenotype model, including `simple_ltm`, is a `PhenotypeModel` that runs through `run_phenotype` and `run_censor`. There is no separate threshold stage.
 
 ```mermaid
 flowchart LR

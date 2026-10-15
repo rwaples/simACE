@@ -1,12 +1,8 @@
 """Decorator that lifts the schema-pair contract onto a stage function.
 
 Pipeline stage functions share a contract: ``(DataFrame, **kwargs) ->
-DataFrame`` with a known input schema and output schema.  Today every
-stage opens with ``assert_schema(input, ...)`` and closes with
-``assert_schema(output, ...)`` by hand.  This decorator bracketed the
-two asserts and attaches the schema-pair as queryable metadata on the
-wrapper, so downstream tooling (DAG diagrams, doc generation, future
-stage registry) can read the contract without re-reading the body.
+DataFrame`` with a known input schema and output schema.  This decorator
+brackets the stage body with ``assert_schema`` on its input and its output.
 
 Scope: DataFrame stages only.  Non-DataFrame helpers (e.g. ``emit_params``)
 are not decorated.
@@ -36,9 +32,8 @@ def stage(
     *,
     reads: Mapping[str, str] | None,
     writes: Mapping[str, str] | None,
-    name: str | None = None,
 ) -> Callable[[Callable[..., _Frame]], Callable[..., _Frame]]:
-    """Wrap a stage function with input/output schema assertions and metadata.
+    """Wrap a stage function with input/output schema assertions.
 
     Args:
         reads: schema the first positional argument must satisfy.  ``None``
@@ -46,18 +41,15 @@ def stage(
             DataFrame).
         writes: schema the return value must satisfy.  ``None`` skips
             output validation.
-        name: stage label used in ``where=`` strings.  Defaults to the
-            wrapped function's ``__name__`` with a leading ``run_``
-            stripped (e.g. ``run_phenotype`` → ``"phenotype"``).
 
-    The wrapper exposes ``fn.reads``, ``fn.writes``, and ``fn.stage_name``
-    as queryable metadata.  ``functools.wraps`` preserves the wrapped
-    function's signature for callers that introspect keyword-only
-    parameters.
+    Errors name the stage by the wrapped function's ``__name__`` with a
+    leading ``run_`` stripped (``run_phenotype`` → ``"phenotype"``).
+    ``functools.wraps`` preserves the wrapped function's signature for
+    callers that introspect keyword-only parameters.
     """
 
     def decorate(fn: Callable[..., _Frame]) -> Callable[..., _Frame]:
-        stage_name = name if name is not None else fn.__name__.removeprefix("run_")  # ty: ignore[unresolved-attribute]
+        stage_name = fn.__name__.removeprefix("run_")  # ty: ignore[unresolved-attribute]
         first_param = next(iter(inspect.signature(fn).parameters), None) if reads is not None else None
 
         @functools.wraps(fn)
@@ -75,9 +67,6 @@ def stage(
                 assert_schema(result, writes, where=f"{stage_name} output")
             return result
 
-        wrapper.reads = reads  # ty: ignore[unresolved-attribute]
-        wrapper.writes = writes  # ty: ignore[unresolved-attribute]
-        wrapper.stage_name = stage_name  # ty: ignore[unresolved-attribute]
         return wrapper
 
     return decorate

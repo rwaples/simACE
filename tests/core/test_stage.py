@@ -135,40 +135,6 @@ class TestSignaturePreservation:
         assert run_phenotype.__name__ == "run_phenotype"
 
 
-class TestMetadata:
-    def test_attributes_present_and_correct(self):
-        @stage(reads=PHENOTYPE, writes=CENSORED)
-        def run_censor(phenotype, *, seed):
-            return phenotype
-
-        assert run_censor.reads is PHENOTYPE
-        assert run_censor.writes is CENSORED
-        assert run_censor.stage_name == "censor"
-
-    def test_default_stage_name_strips_run_prefix(self):
-        @stage(reads=PEDIGREE, writes=PEDIGREE)
-        def run_dropout(pedigree):
-            return pedigree
-
-        assert run_dropout.stage_name == "dropout"
-
-    def test_name_override_honored(self):
-        @stage(reads=PEDIGREE, writes=PEDIGREE, name="custom")
-        def run_dropout(pedigree):
-            return pedigree
-
-        assert run_dropout.stage_name == "custom"
-
-    def test_name_used_in_error_messages(self):
-        @stage(reads=PEDIGREE, writes=PEDIGREE, name="custom")
-        def run_dropout(pedigree):
-            return pedigree
-
-        bad = _make_pedigree_df().drop("liability1")
-        with pytest.raises(ValueError, match=r"custom input"):
-            run_dropout(bad)
-
-
 class TestPassthrough:
     def test_early_return_passthrough_satisfies_output_check(self):
         """run_sample-style early return: no transform, output equals input."""
