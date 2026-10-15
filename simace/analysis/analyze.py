@@ -5,7 +5,8 @@ freeing its large frame before the next so peak memory is the max of the three
 phases rather than their sum (ADR 0008):
 
 1. **Validate** — ground-truth checks on the recorded pedigree
-   (``pedigree.parquet`` + ``params.yaml``).
+   (``pedigree.parquet`` + ``params.yaml``), and under C transmission its
+   realized per-relationship truth (:mod:`simace.analysis.truth`, ADR 0025).
 2. **Phenotyped population** — the pre-ascertainment prevalence summaries the
    ``cohort`` stage wrote to ``phenotyped_population.yaml``, used to quantify
    ascertainment distortion.
@@ -30,8 +31,9 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from pedigree_graph import PedigreeGraph
 
-from simace.core.cohort import read_cohort, read_pedigree, selected_views
+from simace.core.cohort import read_c_transmission_clips, read_cohort, read_pedigree, selected_views
 from simace.core.parquet import save_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.trait_schema import hydrate_trait
@@ -44,6 +46,7 @@ from .stats.runner import (
     build_stats_report,
     create_sample,
 )
+from .truth import recorded_pedigree_truth
 from .validate import build_validation_report
 
 if TYPE_CHECKING:
@@ -108,7 +111,12 @@ def run_analysis(
     # --- Phase 1: Validate (recorded pedigree) ---
     logger.info("Analyze phase 1/3: validating %s", pedigree_path)
     df_full = read_pedigree(pedigree_path)
-    validation_report = build_validation_report(df_full, params)
+    graph = PedigreeGraph.from_frame(df_full)
+    validation_report = build_validation_report(df_full, params, graph)
+    recorded_truth = recorded_pedigree_truth(
+        df_full, params, max_degree, clips=read_c_transmission_clips(pedigree_path), graph=graph
+    )
+    del graph
     scope_counts["recorded_pedigree"] = {
         "source": "pedigree.parquet",
         "n_individuals": len(df_full),
@@ -166,6 +174,7 @@ def run_analysis(
         stats_report=stats_report,
         prevalence_phenotyped=prevalence_phenotyped,
         scope_counts=scope_counts,
+        recorded_truth=recorded_truth,
     )
     dump_yaml(report, report_output)
     logger.info("Curated report written to %s", report_output)

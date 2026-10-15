@@ -30,6 +30,7 @@ import yaml
 
 from simace.cli.layout import RepArtifact
 from simace.core.cli_base import ASCERTAIN_KEYS, CENSOR_KEYS
+from simace.core.relationships import C_TRANSMISSION_KEYS
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
@@ -99,6 +100,7 @@ _SIMULATE_KEYS = (
     "assort1",
     "assort2",
     "assort_matrix",
+    *C_TRANSMISSION_KEYS,
 )
 _PHENOTYPE_KEYS = (
     "G_pheno",

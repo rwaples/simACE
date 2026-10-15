@@ -107,7 +107,7 @@ $$
 
 Each couple gets a random number of children, and the counts sum to $N$.
 
-**Household assignment.** All offspring of the same mother get the same household identifier and the same $C$ draw. Maternal half-siblings therefore share $C$. Paternal half-siblings do not.
+**Household assignment.** All offspring of the same mother get the same household identifier and the same $C$ draw. Without C transmission, maternal half-siblings therefore share $C$ and paternal half-siblings do not. With it, the shares change as described under [Offspring inheritance](#offspring-inheritance).
 
 ### Assortative mating
 
@@ -153,7 +153,7 @@ After offspring are allocated, every couple with at least two offspring is eligi
 
 ### Offspring inheritance
 
-Each offspring inherits from both parents but grows up in a new household. Full siblings share half their additive genetic variance and all of their household environment.
+Each offspring inherits from both parents but grows up in a new household. Full siblings share half their additive genetic variance and all of their common environment.
 
 **Additive genetic ($A$).** Under the infinitesimal model (Bulmer, 1971), each offspring's breeding value is the midparent value plus Mendelian sampling noise. The segregation variance is half the additive genetic variance:
 
@@ -174,7 +174,17 @@ $$
 
 The Mendelian sampling term is the random half of each parent's genome that this child received. For MZ twins the simulation copies the first twin's breeding values and sex to the second.
 
-**Common environment ($C$).** Each household draws one bivariate $\mathcal{N}(\mathbf{0}, \boldsymbol{\Sigma}_C)$ value and gives it to every child in the household. Parents do not pass $C$ to children. $C$ is the environment the offspring are reared in. Siblings share it because they grow up together. Their parents' own childhood environment does not carry over.
+**Common environment ($C$).** Each household draws one bivariate $\mathcal{N}(\mathbf{0}, \boldsymbol{\Sigma}_C)$ value and gives it to every child in the household. $C$ is the environment the offspring are reared in. Siblings share it because they grow up together. By default parents do not pass $C$ to children, and their own childhood environment does not carry over.
+
+With C transmission ([ADR 0025](../adr/0025-vertical-c-transmission.md)), each child also inherits a share of each parent's $C$, within each trait:
+
+$$
+C_{\text{offspring},k} = b_{m,k}\, C_{\text{mother},k} + b_{f,k}\, C_{\text{father},k} + u_{\text{household},k}
+$$
+
+The coefficients come from `pedigree.trait{k}.C_transmission.{maternal,paternal}`, default 0, each in $[0, 1]$ with $b_m^2 + b_f^2 \le 1$. Under transmission the household draw $u$ is no longer $\mathcal{N}(\mathbf{0}, \boldsymbol{\Sigma}_C)$. Its covariance is $\boldsymbol{\Sigma}_C$ minus the realised covariance of the transmitted parts in that generation, so the configured $C$ stays the total variance in expectation. Configuration loading rejects coefficient and $\boldsymbol{\Sigma}_C$ combinations that leave no feasible household covariance, such as $r_C = 1$ with unequal trait coefficients. With every coefficient 0 the draw is unchanged and a seed reproduces the same pedigree.
+
+Under random mating with constant $C$, a relative pair shares a fraction $\gamma$ of $C$: 1 for MZ twins and full siblings, $b_m$ for mother-offspring, $b_f$ for father-offspring, $1 - b_f^2$ for maternal half-siblings, and $b_f^2$ for paternal half-siblings. Cousins and other types that mix maternal and paternal lineages have no single $\gamma$.
 
 **Unique environment ($E$).** Each child draws $E_{i,k} \sim \mathcal{N}(0, \sigma^2_{E_k})$ independently of siblings, twins, and the other trait. Even MZ twins differ in $E$. It stands for every residual source of liability.
 
@@ -440,20 +450,25 @@ $$
 
 The expected MZ correlation is $A + C$ and the expected full-sibling correlation is $\tfrac{1}{2}A + C$, so $\hat{h}^2 \approx A$. The extra resemblance of MZ pairs over full siblings comes from their extra genetic sharing, and twice that gap is the heritability. Parent-offspring regression gives a second estimate. The slope of offspring liability on midparent liability equals $A$ under the infinitesimal model.
 
+With C transmission, the expected liability correlation of a relative pair is $(2\phi A + \gamma C) / V_P$, where $\phi$ is the kinship coefficient, $\gamma$ the shared fraction of $C$ from [Offspring inheritance](#offspring-inheritance), and $V_P = A + C + E$. MZ twins and full siblings still share all of $C$, so Falconer's formula is unaffected. The midparent-offspring slope becomes $(A + (b_m + b_f) C) / V_P$, so parent-offspring regression overstates $h^2$. These closed forms hold under random mating with scalar $C$ and $E$. Elsewhere, and for lineage-mixed types, Analyze records the realised per-relationship covariances of $A$ and $C$ in the recorded pedigree before ascertainment, under `truth.recorded_pedigree.traits.trait{t}` in `report.yaml`.
+
+The true liability-scale heritability in `report.yaml` is $\mathrm{Var}(A) / \mathrm{Var}(A + C + E)$ in the first recorded generation. The denominator is the variance of the summed liability, not the sum of component variances, because assortative mating combined with C transmission gives $A$ and $C$ a covariance.
+
 ## Validation checks
 
 Every simulated individual has known parameters, so every output can be checked against expectation. Validation confirms both that the code works and that the estimators do.
 
-The Analyze stage calls `simace.analysis.validate` to run nine check families on each replicate:
+The Analyze stage calls `simace.analysis.validate` to run ten check families on each replicate:
 
 - **Structural** (`validate_structural`). Identifiers are contiguous. Parent references are valid IDs or $-1$ for founders. Mothers are female and fathers are male. The sex ratio lies in $[0.45, 0.55]$.
-- **Statistical** (`validate_statistical`). Founder variances of $A$, $C$, and $E$ match the configured values. Total variance is near 1. The cross-trait correlations $r_A$, $r_C$, and $r_E$ match. $C$ is identical within households. $E$ is uncorrelated between siblings.
+- **Statistical** (`validate_statistical`). Founder variances of $A$, $C$, and $E$ match the configured values. Total variance is near 1. The cross-trait correlations $r_A$, $r_C$, and $r_E$ match. $C$ is identical within households, or within mating pairs when the paternal transmission coefficient is nonzero. $E$ is uncorrelated between siblings.
+- **C transmission** (`validate_c_transmission`). The OLS regression of child $C$ on mother and father $C$ recovers $b_m$ and $b_f$ within four cluster-robust standard errors, clustered by maternal household, with a floor of $10^{-6}$. It is informational when the trait has no transmission.
 - **Twins** (`validate_twins`). Twin pointers are symmetric. MZ pairs share parents, $A$ values within floating-point tolerance, and sex. Under the standard mating model the observed twin rate matches $p_{\text{MZ}}$.
-- **Half-sibs** (`validate_half_sibs`). The half-sibling structure matches the mating-pair model.
+- **Half-sibs** (`validate_half_sibs`). The half-sibling structure matches the mating-pair model. Paternal half-siblings share no $C$, or $b_f^2$ of it under C transmission. Where that closed form does not hold, the shared-$C$ check is informational.
 - **Heritability** (`validate_heritability`). The heritability estimates for both traits recover the configured $A$.
 - **Population** (`validate_population`). Each generation has $N$ individuals. The number of recorded generations is $G_{\text{ped}}$. Mean offspring per mother is near $N / n_{\text{females}}$.
 - **Assortative mating** (`validate_assortative_mating`). The Pearson correlation of mother and father liability for each trait matches the `assort` target.
-- **AM equilibrium** (`validate_am_equilibrium`). Under assortative mating, the final-generation $\mathrm{Var}(A)$ matches the infinitesimal-recursion prediction.
+- **AM equilibrium** (`validate_am_equilibrium`). Under assortative mating, the final-generation $\mathrm{Var}(A)$ matches the infinitesimal-recursion prediction. Combined with C transmission the check is informational, because the recursion omits the $A$-$C$ covariance that assortment then induces.
 - **Consanguinity** (`validate_consanguineous_matings`). Consanguineous matings are detected, and the resulting shortfall in distinct grandparents is reconciled.
 
 Correlation checks use a tolerance of four standard errors with a floor of 0.05. See `_corr_tolerance` in `simace.analysis.validate._common`.
@@ -470,7 +485,7 @@ Each assumption below shapes what the results can say.
 
 **Cross-trait unique environment correlation defaults to zero.** $E_1$ and $E_2$ are independent across traits unless `rE` is set. The default scenarios therefore do not model trait pairs whose individual-specific exposures, such as shared lifestyle factors, correlate beyond what $A$ and $C$ capture.
 
-**No environmental transmission across generations.** Each household draws $C$ afresh. Nothing carries over from the parents' $C$. That is the standard ACE assumption. It leaves out the persistence of socioeconomic status, neighbourhood, and culture that can inflate parent-offspring resemblance in real populations.
+**No environmental transmission across generations by default.** Each household draws $C$ afresh, and nothing carries over from the parents' $C$. That is the standard ACE assumption. It leaves out the persistence of socioeconomic status, neighbourhood, and culture that can inflate parent-offspring resemblance in real populations. C transmission adds that persistence as a share of the parents' $C$. It does not model transmission from the parents' phenotype, a co-residence environment shared with the parents, or coefficients that change across generations. Estimators that build their $C$ structure from the household alone, including fitACE, are misspecified on transmission scenarios by design.
 
 **Fixed population size.** Every generation has exactly $N$ individuals. There is no growth, decline, bottleneck, or migration, so nothing changes the effective population size or introduces stratification.
 

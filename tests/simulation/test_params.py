@@ -2,7 +2,7 @@
 
 import pytest
 
-from simace.simulation.params import SimulationParams
+from simace.simulation.params import CTransmission, SimulationParams
 
 
 class TestSimulationParamsValidationEdgeCases:
@@ -45,3 +45,24 @@ class TestSimulationParamsValidationEdgeCases:
     def test_assort_matrix_second_diagonal_out_of_range_rejected(self):
         with pytest.raises(ValueError, match=r"assort_matrix\[1,1\]"):
             SimulationParams.create(**self._base(assort_matrix=[[0.2, 0.0], [0.0, -1.5]]))
+
+    def test_c_transmission_is_validated(self):
+        with pytest.raises(ValueError, match="exceeds 1"):
+            SimulationParams.create(
+                **self._base(C1=0.2, c_transmission=CTransmission(maternal=(0.8, 0), paternal=(0.8, 0)))
+            )
+
+
+class TestCTransmissionValidate:
+    """The structural check on the configured C covariance (ADR 0025)."""
+
+    def test_constant_c_under_full_copying_passes(self):
+        CTransmission(maternal=(1.0, 1.0)).validate(0.2, 0.3, 0.5)
+
+    def test_unequal_coefficients_under_full_c_correlation_are_rejected(self):
+        with pytest.raises(ValueError, match=r"infeasible: .*eigenvalue -0\.005"):
+            CTransmission(maternal=(0.1, 0.0)).validate(1.0, 1.0, 1.0)
+
+    def test_from_params_defaults_missing_keys_to_zero(self):
+        assert CTransmission.from_params({"Ctm_paternal2": 0.25}) == CTransmission(paternal=(0.0, 0.25))
+        assert not CTransmission.from_params({}).active

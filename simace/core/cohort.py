@@ -41,11 +41,13 @@ from __future__ import annotations
 
 __all__ = [
     "COHORT_COLUMNS",
+    "C_TRANSMISSION_CLIPS_KEY",
     "LAYOUT",
     "SAMPLE_REQUIRED",
     "SelectedViews",
     "build_cohort",
     "check_cohort",
+    "read_c_transmission_clips",
     "read_cohort",
     "read_pedigree",
     "selected_views",
@@ -54,6 +56,7 @@ __all__ = [
     "write_pedigree",
 ]
 
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -65,7 +68,7 @@ from simace.core.pedigree_arrays import PedigreeArrays
 from simace.core.trait_schema import TRAIT_CENSORED_COLUMNS
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
 #: The results layout this module reads and writes; ``simace.cli.stages.REP_LAYOUT`` mirrors it.
 LAYOUT = 2
@@ -208,8 +211,8 @@ def selected_views(pedigree: pl.DataFrame, cohort: pl.DataFrame) -> SelectedView
     return SelectedViews(analysis_pedigree, cohort.filter(pl.col("affected1").is_not_null()))
 
 
-def _write(df: pl.DataFrame, path: Any) -> None:
-    save_parquet(df, path, metadata={_LAYOUT_KEY: str(LAYOUT)})
+def _write(df: pl.DataFrame, path: Any, metadata: Mapping[str, str] | None = None) -> None:
+    save_parquet(df, path, metadata={**(metadata or {}), _LAYOUT_KEY: str(LAYOUT)})
 
 
 def _require_layout(path: Any) -> None:
@@ -221,9 +224,24 @@ def _require_layout(path: Any) -> None:
         )
 
 
-def write_pedigree(df: pl.DataFrame, path: Any) -> None:
-    """Write the recorded pedigree through :func:`save_parquet`, marked with the layout."""
-    _write(df, path)
+#: Parquet metadata key of the pedigree's C transmission clip records, JSON (ADR 0025).
+C_TRANSMISSION_CLIPS_KEY = "simace_c_transmission_clips"
+
+
+def write_pedigree(df: pl.DataFrame, path: Any, c_transmission_clips: list[dict[str, Any]] | None = None) -> None:
+    """Write the recorded pedigree through :func:`save_parquet`, marked with the layout.
+
+    ``c_transmission_clips`` (the simulation's ``clip_log``) is stored as JSON
+    under :data:`C_TRANSMISSION_CLIPS_KEY` when given.
+    """
+    metadata = None if c_transmission_clips is None else {C_TRANSMISSION_CLIPS_KEY: json.dumps(c_transmission_clips)}
+    _write(df, path, metadata)
+
+
+def read_c_transmission_clips(path: Any) -> list[dict[str, Any]] | None:
+    """The clip records a pedigree was written with, or None for one written without them."""
+    found = pl.read_parquet_metadata(path).get(C_TRANSMISSION_CLIPS_KEY)
+    return None if found is None else json.loads(found)
 
 
 def write_cohort(df: pl.DataFrame, path: Any) -> None:

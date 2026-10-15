@@ -17,8 +17,12 @@ The heritable component of liability, following the infinitesimal model. Transmi
 _Avoid_: genetic value, breeding value, polygenic score, heritability (heritability is the *variance proportion* $\sigma_A^2$, not the component itself).
 
 **Common environment component** ($C$):
-The per-household environmental effect shared by all offspring of the same mother. Drawn fresh per household per generation; **not** transmitted from parental $C$. Stored in `C1` / `C2` columns.
-_Avoid_: shared environment, household effect, family effect, sibship effect, maternal effect. ("Household" is the implementation primitive that holds $C$ — see the **Household** entry — but $C$ the component is named "common environment".)
+The environmental effect an offspring receives from its rearing. It is the sum of a transmitted part (see **C transmission**) and a fresh draw shared by all offspring of the same household. With no C transmission (the default), $C$ is exactly the household draw and is shared by all offspring of the same mother and by no one else. The configured $C$ is the **total** variance of the component in each generation; transmission redistributes that variance and does not add to it. Stored in `C1` / `C2` columns.
+_Avoid_: shared environment, household effect, family effect, sibship effect, maternal effect. ("Household" is the implementation primitive that holds the fresh draw; see the **Household** entry. The component is named "common environment".)
+
+**C transmission** (vertical transmission of $C$):
+The passing of a parent's $C$ to its offspring: $C_{child} = b_m C_{mother} + b_f C_{father} + u_{household}$, separately for each trait. $b_m$ is the **maternal transmission coefficient** and $b_f$ the **paternal transmission coefficient**; both default to 0. Transmission is within a trait only: a parent's $C_1$ never feeds an offspring's $C_2$. Under C transmission, relatives in different households (parent–offspring, paternal half-sibs, grandparents, avuncular pairs, cousins) share part of their $C$, and maternal half-sibs with different fathers share less than all of it when $b_f > 0$.
+_Avoid_: maternal effect, cultural transmission (here reserved for a different model, in which the parent's phenotype rather than its $C$ is passed on; the literature also uses "cultural transmission" for environment-to-environment transmission like this one, so the split is a local convention), C inheritance, autoregressive C.
 
 **Unique environment component** ($E$):
 The per-individual residual component, independent across siblings, twins, and traits. Stored in `E1` / `E2` columns.
@@ -96,7 +100,7 @@ The correlation between Trait 1 and Trait 2 liabilities in the same individual. 
 The correlation between liabilities of the two parents in a mating, either on the same trait or across traits. A **target mate-correlation matrix** specifies the requested correlations; realised mate correlations describe the population after mating. The target matrix and the within-person liability correlations describe different relationships.
 
 **Household**:
-The unit within which the common-environment component ($C$) is shared. **One household per mother**, not per mating pair: all offspring of the same mother — including maternal half-siblings (same mother, different father) — share a single household and a single $C$ draw. Paternal half-siblings (same father, different mother) do **not** share a household. Stored as `household_id`.
+The unit within which the fresh draw of the common-environment component ($C$) is shared. **One household per mother**, not per mating pair: all offspring of the same mother, including maternal half-siblings (same mother, different father), share a single household and a single draw. Paternal half-siblings (same father, different mother) do **not** share a household. Without **C transmission** householdmates have identical $C$; with paternal transmission, householdmates with different fathers do not. Stored as `household_id`.
 _Avoid_: family (overloaded), sibship (wrong cardinality — paternal half-sibs are siblings but not householdmates), home, nest.
 
 **MZ twin** (monozygotic twin):

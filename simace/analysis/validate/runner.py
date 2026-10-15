@@ -13,10 +13,12 @@ from simace.core.yaml_io import dump_yaml, load_yaml
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
+    from pedigree_graph import PedigreeGraph
 
 from ._common import mate_correlations, sibling_moments
 from .am_equilibrium import validate_am_equilibrium
 from .assortative_mating import validate_assortative_mating
+from .c_transmission import validate_c_transmission
 from .consanguinity import validate_consanguineous_matings
 from .half_sibs import validate_half_sibs
 from .heritability import validate_heritability
@@ -32,7 +34,9 @@ from .twins import validate_twins
 logger = logging.getLogger(__name__)
 
 
-def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
+def build_validation_report(
+    df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], graph: PedigreeGraph | None = None
+) -> dict[str, Any]:
     """Run all validation checks on an in-memory pedigree and return results.
 
     Runs structural, twin, half-sibling, statistical, heritability, and
@@ -42,6 +46,8 @@ def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
     Args:
         df: Pedigree DataFrame (full, pre-ascertainment).
         params: Scenario parameters.
+        graph: ``df``'s pedigree graph, when the caller already built one;
+            built here otherwise.
 
     Returns:
         Nested dict with keys ``"structural"``, ``"twins"``, ``"half_sibs"``,
@@ -52,7 +58,7 @@ def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
         ``checks_total`` counts.
     """
     ped = PedigreeArrays.from_frame(df)
-    siblings = sibling_moments(df, ped)
+    siblings = sibling_moments(df, ped, graph)
     mates = mate_correlations(df)
 
     results = {
@@ -60,6 +66,7 @@ def build_validation_report(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
         "twins": validate_twins(df, params, ped),
         "half_sibs": validate_half_sibs(df, params, siblings, mates),
         "statistical": validate_statistical(df, params),
+        "c_transmission": validate_c_transmission(df, params, ped),
         "heritability": validate_heritability(df, params, ped, siblings, mates),
         "population": validate_population(df, params),
         "per_generation": compute_per_generation_stats(df, params),

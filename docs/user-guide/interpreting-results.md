@@ -50,7 +50,15 @@ observed values and orange dashes are the expected value.
 2. **`correlations_A` and `correlations_phenotype`.** Confirm that the MZ,
    full-sibling, half-sibling, and parent-offspring correlations match
    `2 * kinship * A`, plus C where the pair shares a household. Under assortative mating, read
-   the purple marker instead of the orange dash.
+   the purple marker instead of the orange dash. Under C transmission the
+   expected liability values change. Where the closed form is exact (random
+   mating, scalar C and E, a single-path relationship type), the dash is the
+   analytic `(2 * kinship * A + gamma * C) / V_P`, with gamma the pair's shared
+   fraction of C, and the midparent slope is `(A + (b_m + b_f) * C) / V_P`.
+   Elsewhere the dash is the replicate mean of the realized value in the
+   recorded pedigree, from `truth.recorded_pedigree` in each `report.yaml`.
+   [Methods](../concepts/methods.md#offspring-inheritance) lists gamma for each
+   relationship type.
 3. **`summary_bias`.** Confirm that every strip is centered on the red zero
    line. A strip
    that sits to one side is the scenario to investigate.

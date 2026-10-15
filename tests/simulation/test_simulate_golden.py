@@ -83,6 +83,15 @@ def _digest(df) -> str:
     return h.hexdigest()
 
 
+_ZERO_C_TRANSMISSION = {f"Ctm_{side}{t}": 0.0 for side in ("maternal", "paternal") for t in (1, 2)}
+
+
+@pytest.mark.parametrize("config_name", ["wf", "standard_no_am", "standard_single_am"])
+def test_zero_c_transmission_reproduces_the_golden_output(config_name):
+    df = run_simulation(**_CONFIGS[config_name], **_ZERO_C_TRANSMISSION)
+    assert _digest(df) == _GOLDEN[config_name]
+
+
 @pytest.mark.parametrize("config_name", list(_CONFIGS))
 def test_run_simulation_golden(config_name):
     df = run_simulation(**_CONFIGS[config_name])

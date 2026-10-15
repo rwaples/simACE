@@ -18,6 +18,12 @@ everything traces to the registry — holds in both places; only validate's
 `nominal_kinship` field carries the same 23 values. This ADR is unchanged in
 substance; every name below is the 0.8 spelling.
 
+**Update (2026-10-14):** amended by [0025](0025-vertical-c-transmission.md).
+The shared-environment coefficient now depends on the C transmission
+coefficients and has no value for lineage-mixed types, and plots draw their
+reference line through `reference_corr`, which falls back to the
+recorded-pedigree truth where the analytic value is not exact.
+
 ## Context
 
 simACE's relationship-type vocabulary is split awkwardly. `RELATIONSHIP_TYPES`

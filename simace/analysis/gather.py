@@ -4,6 +4,7 @@ __all__ = ["extract_metrics"]
 
 import argparse
 import csv
+import json
 import logging
 import math
 import re
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from simace.analysis.report_schema import REPORT_SUMMARY_REGISTRY
+from simace.core.relationships import C_TRANSMISSION_KEYS, RELATIONSHIP_TYPES
 from simace.core.yaml_io import load_yaml
 
 logger = logging.getLogger(__name__)
@@ -37,6 +39,22 @@ def _get_nested(d: Any, *keys: str, default: Any = None) -> Any:
         else:
             return default
     return d
+
+
+def _truth_columns(data: dict[str, Any]) -> dict[str, Any]:
+    """Pooled recorded-pedigree truth per trait (ADR 0025): ``truth_r_{code}_trait{t}`` and the midparent slope.
+
+    None (an empty TSV cell) for reports without C transmission, which carry no truth block.
+    """
+    traits = _get_nested(data, "truth", "recorded_pedigree", "traits", default={}) or {}
+    row: dict[str, Any] = {}
+    for t in (1, 2):
+        trait = traits.get(f"trait{t}") or {}
+        relationships = trait.get("relationships") or {}
+        for code in RELATIONSHIP_TYPES:
+            row[f"truth_r_{code}_trait{t}"] = (relationships.get(code) or {}).get("r")
+        row[f"truth_midparent_slope_trait{t}"] = (trait.get("midparent_slope") or {}).get("slope")
+    return row
 
 
 def extract_metrics(report_path: str) -> dict[str, Any]:
@@ -90,6 +108,13 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
         "mating_lambda": params.get("mating_lambda"),
         "assort1": params.get("assort1"),
         "assort2": params.get("assort2"),
+        # The 2x2 mate-correlation matrix (empty when unset): with only
+        # cross-trait terms, assort1/assort2 stay 0 although mating assorts, and
+        # the reference-line gate needs to see it. JSON is also a Python literal,
+        # which plot_validation parses back like the per-generation dict cells.
+        "assort_matrix": None if params.get("assort_matrix") is None else json.dumps(params["assort_matrix"]),
+        # C transmission coefficients (ADR 0025); reports predating them were built with 0.
+        **{key: params.get(key, 0.0) for key in C_TRANSMISSION_KEYS},
         "seed": params.get("seed"),
         "quality_passed": summary.get("passed"),
         "checks_failed": summary.get("n_failed"),
@@ -97,6 +122,7 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
     }
     for spec in REPORT_SUMMARY_REGISTRY:
         row[spec.column] = _get_nested(data, *spec.path)
+    row.update(_truth_columns(data))
     # Stage timing lives in the rep's timing.tsv, not in the report
     row["simulate_seconds"] = simulate_seconds
     row["simulate_max_rss_mb"] = simulate_max_rss_mb

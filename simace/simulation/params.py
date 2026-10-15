@@ -21,8 +21,94 @@ validates and normalizes the raw inputs.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+from simace.core.relationships import transmission_coefficients
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+
+@dataclass(frozen=True)
+class CTransmission:
+    """Vertical transmission coefficients of the common-environment component (ADR 0025).
+
+    ``maternal[t]`` and ``paternal[t]`` are trait ``t+1``'s ``b_m`` and
+    ``b_f``: an offspring's ``C`` is ``b_m * C_mother + b_f * C_father``
+    plus a household draw. All zero (the default) is today's fresh draw.
+    """
+
+    maternal: tuple[float, float] = (0.0, 0.0)
+    paternal: tuple[float, float] = (0.0, 0.0)
+
+    @classmethod
+    def from_params(cls, params: Mapping[str, Any]) -> CTransmission:
+        """Read the flat ``Ctm_maternal{t}`` / ``Ctm_paternal{t}`` keys, each absent one as 0 (pre-ADR-0025 params)."""
+        (bm1, bf1), (bm2, bf2) = (transmission_coefficients(params, t) for t in (1, 2))
+        return cls(maternal=(bm1, bm2), paternal=(bf1, bf2))
+
+    @property
+    def active(self) -> bool:
+        """Whether any coefficient is nonzero."""
+        return any(self.maternal) or any(self.paternal)
+
+    def validate(self, C1: float, C2: float, rC: float) -> None:
+        """Reject coefficients outside the supported scope or infeasible for the configured C.
+
+        Each coefficient must lie in [0, 1] and ``b_m**2 + b_f**2 <= 1`` per
+        trait (a scope restriction, ADR 0025). Then the random-mating
+        population residual ``U = S - B_m S B_m - B_f S B_f`` must be positive
+        semidefinite, where ``S`` is the configured C covariance matrix
+        (``run_simulation`` accepts scalar C only, so ``S`` is constant).
+
+        Raises:
+            ValueError: naming the offending trait or residual.
+        """
+        for side, coefs in (("maternal", self.maternal), ("paternal", self.paternal)):
+            for t, b in enumerate(coefs, start=1):
+                if not 0.0 <= b <= 1.0:
+                    raise ValueError(f"Ctm_{side}{t} must be in [0, 1], got {b} (ADR 0025)")
+        for t, (bm, bf) in enumerate(zip(self.maternal, self.paternal, strict=True), start=1):
+            if bm**2 + bf**2 > 1.0 + 1e-12:
+                raise ValueError(
+                    f"Ctm_maternal{t}**2 + Ctm_paternal{t}**2 = {bm**2 + bf**2:.4g} exceeds 1, "
+                    "outside the supported scope (ADR 0025)"
+                )
+        if not self.active:
+            return
+        B_m, B_f = np.diag(self.maternal), np.diag(self.paternal)
+        S = c_covariance(C1, C2, rC)
+        residual = S - B_m @ S @ B_m - B_f @ S @ B_f
+        lowest = float(np.linalg.eigvalsh(residual)[0])
+        if lowest < -1e-12:
+            raise ValueError(
+                f"C transmission is infeasible: the fresh C draw would need a covariance with eigenvalue "
+                f"{lowest:.4g} < 0 (residual {residual.round(6).tolist()}); lower the coefficients or raise C "
+                "(ADR 0025)"
+            )
+
+
+def am_transmitted_share(b_m: float, b_f: float, assort: float, C: float, V_P: float) -> float:
+    """First-generation transmitted share of C under assortative mating: ``b_m² + b_f² + 2 b_m b_f r_CC``.
+
+    Mates paired at liability correlation ``assort`` have C correlated at
+    ``r_CC = assort * C / V_P`` in the first generation (C is the regression
+    of liability's C part on liability, slope ``C / V_P``). Above 1 the
+    configured C cannot be the total (Rao, Morton & Cloninger 1979, eq. 2):
+    ``_transmitted_c`` stops the run once the mates' C covariance is past
+    sampling. Transmission builds up A-C covariance over generations, so the
+    equilibrium share is larger still.
+    """
+    r_cc = assort * C / V_P if V_P > 0 else 0.0
+    return b_m**2 + b_f**2 + 2.0 * b_m * b_f * r_cc
+
+
+def c_covariance(C1: float, C2: float, rC: float) -> np.ndarray:
+    """The 2x2 covariance matrix of (C1, C2) for variances ``C1``, ``C2`` and correlation ``rC``."""
+    off = rC * np.sqrt(C1 * C2)
+    return np.array([[C1, off], [off, C2]])
 
 
 @dataclass(frozen=True)
@@ -53,6 +139,7 @@ class SimulationParams:
     assort1: float | dict[int, float]
     assort2: float | dict[int, float]
     R_mf: np.ndarray | None
+    c_transmission: CTransmission
 
     @classmethod
     def create(
@@ -77,6 +164,7 @@ class SimulationParams:
         assort2: float | dict[int, float] = 0.0,
         assort_matrix: list[list[float]] | np.ndarray | None = None,
         mating_model: str = "standard",
+        c_transmission: CTransmission | None = None,
     ) -> SimulationParams:
         """Validate and normalize raw run_simulation inputs.
 
@@ -166,6 +254,9 @@ class SimulationParams:
         if G_sim < G_ped:
             raise ValueError(f"G_sim ({G_sim}) must be >= G_ped ({G_ped})")
 
+        c_transmission = c_transmission or CTransmission()
+        c_transmission.validate(C1, C2, rC)
+
         return cls(
             seed=seed,
             N=N,
@@ -186,4 +277,5 @@ class SimulationParams:
             assort1=assort1,
             assort2=assort2,
             R_mf=R_mf,
+            c_transmission=c_transmission,
         )

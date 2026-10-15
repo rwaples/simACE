@@ -20,6 +20,7 @@ plotted, an atlas gone), or absent.
 from __future__ import annotations
 
 __all__ = [
+    "LEGACY_VALUES",
     "Fingerprint",
     "Manifest",
     "PlotsState",
@@ -50,6 +51,7 @@ import yaml
 
 import simace
 from simace.core.publish import publish
+from simace.core.relationships import C_TRANSMISSION_KEYS
 from simace.core.yaml_io import dump_yaml, load_yaml, to_native, yaml_loader
 
 if TYPE_CHECKING:
@@ -227,7 +229,7 @@ def rep_status(recorded: Any, expected: Manifest, outputs: Iterable[Path]) -> Re
     }
     old, new = recorded["resolved"], expected.resolved
     changes.update(
-        {key: (old.get(key, _MISSING), new[key]) for key in sorted(new) if old.get(key, _MISSING) != new[key]}
+        {key: (_recorded_value(old, key), new[key]) for key in sorted(new) if _recorded_value(old, key) != new[key]}
     )
     for key, value in (("stages", expected.stages), ("layout", expected.layout)):
         if recorded.get(key) != value:
@@ -248,6 +250,17 @@ def rep_status(recorded: Any, expected: Manifest, outputs: Iterable[Path]) -> Re
 
 
 _MISSING = object()
+
+#: Config keys added after reps were already being recorded, each with the value
+#: every earlier rep was computed under. A ``run.yaml`` without the key compares
+#: as this value, so adding a key with a behavior-preserving default leaves
+#: finished reps complete. The C transmission coefficients are ADR 0025's.
+LEGACY_VALUES: dict[str, Any] = dict.fromkeys(C_TRANSMISSION_KEYS, 0.0)
+
+
+def _recorded_value(resolved: Mapping[str, Any], key: str) -> Any:
+    """Return ``key`` from a recorded ``resolved`` block, its legacy value when absent, else ``_MISSING``."""
+    return resolved.get(key, LEGACY_VALUES.get(key, _MISSING))
 
 
 class PlotsState(StrEnum):

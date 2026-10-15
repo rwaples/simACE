@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 _MIN_PAIRS = 10
 
 
-def _report_generations(df: _Frame) -> list[int]:
+def report_generations(df: _Frame) -> list[int]:
     """The last three generations of *df*, the ones the report stratifies by."""
     max_gen = int(df["generation"].to_numpy().max())
     return list(range(max(1, max_gen - 2), max_gen + 1))
@@ -172,7 +172,7 @@ def compute_tetrachoric_by_generation(df: _Frame, *, moments: RelationshipMoment
         return {}
     return {
         f"gen{gen}": _stratified_tetrachoric(select_levels(moments, first_generation=gen))
-        for gen in _report_generations(df)
+        for gen in report_generations(df)
     }
 
 
@@ -197,7 +197,7 @@ def compute_cross_trait_tetrachoric(df: _Frame, *, moments: RelationshipMoments)
     by_gen: dict[str, Any] = {}
     if "generation" in df.columns:
         gen_arr = df["generation"].to_numpy()
-        for gen in _report_generations(df):
+        for gen in report_generations(df):
             mask = gen_arr == gen
             n_g = int(mask.sum())
             if n_g < 50:

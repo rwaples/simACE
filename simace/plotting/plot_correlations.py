@@ -19,6 +19,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from pathlib import Path
 
     import polars as pl
@@ -26,7 +27,12 @@ if TYPE_CHECKING:
 import matplotlib.pyplot as plt
 import numpy as np
 
-from simace.core.relationships import RELATIONSHIP_TYPES, expected_liability_corr
+from simace.core.relationships import (
+    RELATIONSHIP_TYPES,
+    reference_corr,
+    reference_midparent_slope,
+    transmission_active,
+)
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
     COLOR_OBSERVED,
@@ -97,18 +103,43 @@ def _mean_per_relationship_type(
     return out
 
 
+def _truth_mean(entries: list[Any], key: str) -> float | None:
+    """Mean of ``entry[key]`` over the reps' truth entries that carry one, else None."""
+    vals = [float(e[key]) for e in entries if e and e.get(key) is not None]
+    return float(np.mean(vals)) if vals else None
+
+
+def _truth_entry(entry: dict[str, Any] | None, generation: int | None) -> dict[str, Any] | None:
+    if entry is None or generation is None:
+        return entry
+    return (entry.get("by_generation") or {}).get(generation)
+
+
 def _parametric_per_relationship_type(
     params: dict[str, Any] | None,
     trait_num: int,
     relationship_types: list[str],
+    all_stats: Sequence[dict[str, Any]] = (),
+    generation: int | None = None,
 ) -> dict[str, float]:
-    if params is None:
+    """The reference correlation per type: analytic where exact, else the rep-mean recorded-pedigree truth.
+
+    ``generation`` picks the truth of pairs whose first member is in that
+    generation; None pools the report window (ADR 0025).
+    """
+    if params is None or params.get(f"A{trait_num}") is None or params.get(f"C{trait_num}") is None:
         return {}
-    A = params.get(f"A{trait_num}")
-    C = params.get(f"C{trait_num}")
-    if A is None or C is None:
-        return {}
-    return {ptype: expected_liability_corr(ptype, float(A), float(C)) for ptype in relationship_types}
+    trait_key = f"trait{trait_num}"
+    out: dict[str, float] = {}
+    for ptype in relationship_types:
+        entries = [
+            _truth_entry((s.get("truth_relationships") or {}).get(trait_key, {}).get(ptype), generation)
+            for s in all_stats
+        ]
+        ref = reference_corr(ptype, params, trait_num, {ptype: {"r": _truth_mean(entries, "r")}})
+        if ref is not None:
+            out[ptype] = ref
+    return out
 
 
 def plot_tetrachoric_sibling(
@@ -143,7 +174,7 @@ def plot_tetrachoric_sibling(
             lambda s, pt, _tk=trait_key: s.get("liability_correlations", {}).get(_tk, {}).get(pt),
             relationship_types,
         )
-        parametric = _parametric_per_relationship_type(params, trait_num, relationship_types)
+        parametric = _parametric_per_relationship_type(params, trait_num, relationship_types, all_stats)
 
         state = setup_relationship_type_panel(
             ax,
@@ -214,7 +245,9 @@ def plot_tetrachoric_by_generation(
                 ),
                 relationship_types,
             )
-            parametric = _parametric_per_relationship_type(params, trait_num, relationship_types)
+            parametric = _parametric_per_relationship_type(
+                params, trait_num, relationship_types, all_stats, generation=int(gen_key.replace("gen", ""))
+            )
 
             state = setup_relationship_type_panel(
                 ax,
@@ -457,9 +490,17 @@ def plot_parent_offspring_liability(
 
             draw_regression_band(ax, midparent_liab, mean_slope, mean_intercept, mean_stderr, mean_n, COLOR_AFFECTED)
 
-            # Expected slope from configured A (h² = A for midparent-offspring)
+            # Expected slope: configured A without C transmission, else analytic
+            # where exact or the rep-mean recorded-pedigree truth (ADR 0025).
             if params is not None:
-                expected_slope = params.get(f"A{trait_num}")
+                truth_slope = _truth_mean(
+                    [
+                        _truth_entry((s.get("truth_midparent_slope") or {}).get(f"trait{trait_num}"), gen)
+                        for s in all_stats
+                    ],
+                    "slope",
+                )
+                expected_slope = reference_midparent_slope(params, trait_num, truth_slope)
                 if expected_slope is not None:
                     x_mean = np.mean(midparent_liab)
                     y_mean = np.mean(offspring_liab)
@@ -539,9 +580,8 @@ def plot_parent_offspring_liability(
         Line2D([0], [0], color=COLOR_MALE, linewidth=1.2, label="Sons"),
     ]
     if has_any_expected:
-        legend_handles.append(
-            Line2D([0], [0], color=COLOR_UNAFFECTED, linestyle="--", linewidth=1.0, label="Expected (A)")
-        )
+        label = "Expected (A, b_m, b_f)" if transmission_active(params) else "Expected (A)"
+        legend_handles.append(Line2D([0], [0], color=COLOR_UNAFFECTED, linestyle="--", linewidth=1.0, label=label))
     axes[0, -1].legend(handles=legend_handles, loc="lower right", fontsize=8)
 
     finalize_plot(output_path, subsample_note=subsample_note, scenario=scenario)
@@ -588,7 +628,7 @@ def plot_tetrachoric_by_sex(
                 ),
                 relationship_types,
             )
-            parametric = _parametric_per_relationship_type(params, trait_num, relationship_types)
+            parametric = _parametric_per_relationship_type(params, trait_num, relationship_types, all_stats)
 
             state = setup_relationship_type_panel(
                 ax,

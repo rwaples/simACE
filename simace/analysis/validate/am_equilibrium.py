@@ -21,9 +21,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from simace.core.relationships import transmission_coefficients
 from simace.simulation.am_equilibrium import am_equilibrium_variance, am_variance_trajectory
 
-from ._common import _result
+from ._common import _info, _result
 from .am_relatedness import am_relatedness_mode
 
 if TYPE_CHECKING:
@@ -42,6 +43,8 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
     Skips (passing, with a reason) the per-trait check when the equilibrium is
     ill-defined or not modelled by the univariate recursion: per-generation
     (dict-valued) AM / C / E, or both-trait assortment (cross-trait paths).
+    Reports without asserting under C transmission, whose A-C covariance the
+    recursion omits (ADR 0025).
 
     Args:
         df: Pedigree DataFrame with ``id`` and ``A1``/``A2`` columns.
@@ -105,6 +108,15 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
         V_pred = float(am_variance_trajectory(A_base, V_env, r_ho, int(G_sim))[-1])
         a2 = float(am_equilibrium_variance(A_base, V_env, r_ho))
         obs = float(np.var(df[f"A{t}"].to_numpy()[last_mask]))
+
+        if transmission_coefficients(params, t) != (0.0, 0.0):
+            results[f"am_equilibrium_A{t}"] = _info(
+                f"AM Var(A{t}) final generation: {obs:.4f} (recursion predicts {V_pred:.4f}, not asserted: "
+                f"C transmission gives mates and offspring an A-C covariance the recursion omits; ADR 0025)",
+                observed=obs,
+                n_individuals=n_last,
+            )
+            continue
 
         # SE of a sample variance for ~Gaussian A: V·sqrt(2/(n-1)). The 5x
         # multiplier (floored at 0.03) absorbs the slight non-normality of A

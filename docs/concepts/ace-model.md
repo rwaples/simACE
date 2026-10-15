@@ -9,7 +9,7 @@ $$L_i^{(k)} = A_i^{(k)} + C_i^{(k)} + E_i^{(k)}$$
 The three variances sum to one ($A + C + E = 1$), so each is a share of the total.
 
 - **A**, additive genetic. Inherited under the infinitesimal model.
-- **C**, common environment. Shared by all offspring of the same mother.
+- **C**, common environment. Shared by all offspring of the same mother, and optionally passed in part from parents to offspring.
 - **E**, unique environment. Drawn independently for each individual.
 
 ## Inheritance of A
@@ -22,7 +22,13 @@ Founders draw the two traits' additive values jointly from a bivariate normal wi
 
 ## Common environment (C)
 
-Every offspring of the same mother shares one $C$ draw. The simulation calls that group a household. Parents do not pass $C$ to their children. Each household draws its own $C$.
+Every offspring of the same mother shares one $C$ draw. The simulation calls that group a household. Each household draws its own $C$.
+
+By default parents do not pass $C$ to their children. With C transmission, each offspring also inherits a share of each parent's $C$:
+
+$$C_{\text{offspring}} = b_m C_{\text{mother}} + b_f C_{\text{father}} + u_{\text{household}}$$
+
+$b_m$ and $b_f$ are the maternal and paternal transmission coefficients, set per trait under `pedigree.trait{t}.C_transmission.{maternal,paternal}`. Both default to 0, each lies in $[0, 1]$, and $b_m^2 + b_f^2 \le 1$. The configured $C$ stays the total variance in expectation. The household draw $u$ supplies whatever transmission does not. Under transmission, parent-offspring pairs and paternal half-siblings share part of $C$, and maternal half-siblings with different fathers share less than all of it when $b_f > 0$. See [ADR 0025](../adr/0025-vertical-c-transmission.md).
 
 ## Unique environment (E)
 

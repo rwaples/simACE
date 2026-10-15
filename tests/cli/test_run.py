@@ -380,6 +380,25 @@ def test_keys_no_stage_reads_do_not_make_a_rep_stale(config_dir, layout) -> None
     assert status_on_disk(touched, layout).reasons == ("death_rho",)
 
 
+def _without_key(layout: Layout, rep: ResolvedRep, key: str) -> None:
+    """Rewrite ``rep``'s manifest as one recorded before config key ``key`` existed."""
+    old = expected_manifest(rep)
+    resolved = {k: v for k, v in old.resolved.items() if k != key}
+    _write_manifest(layout, rep, type(old)(**{**old.__dict__, "resolved": resolved}))
+
+
+def test_a_key_newer_than_the_manifest_compares_as_its_legacy_value(config_dir, layout) -> None:
+    rep = _rep(config_dir, 1)
+    _finish(layout, rep)
+    assert expected_manifest(rep).resolved["Ctm_maternal1"] == 0.0
+    _without_key(layout, rep, "Ctm_maternal1")
+    assert status_on_disk(rep, layout).state is RepState.COMPLETE
+    moved = ResolvedRep(rep.folder, rep.scenario, 1, {**rep.params, "Ctm_maternal1": 0.5})
+    status = status_on_disk(moved, layout)
+    assert status.state is RepState.STALE
+    assert status.describe() == "Ctm_maternal1: 0.0 -> 0.5"
+
+
 def test_a_manifest_copied_from_another_rep_is_stale(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
     rep1, rep2 = _rep(config_dir, 1), _rep(config_dir, 2)
     _finish(layout, rep1)
