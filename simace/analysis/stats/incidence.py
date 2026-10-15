@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any, TypedDict
 
 import numpy as np
@@ -14,6 +15,8 @@ if TYPE_CHECKING:
     import polars as pl
 
     type _Frame = pd.DataFrame | pl.DataFrame
+
+logger = logging.getLogger(__name__)
 
 
 def _cumulative_curve(
@@ -127,6 +130,8 @@ def _aalen_johansen(
     exit_time: np.ndarray,
     event_type: np.ndarray,
     ages: np.ndarray,
+    *,
+    label: str = "",
 ) -> _AJResult:
     """Aalen-Johansen CIF for disease (cause 1) with death (cause 2) as competing event.
 
@@ -135,9 +140,14 @@ def _aalen_johansen(
         exit_time: per-individual exit times.
         event_type: 0=censored, 1=disease, 2=death.
         ages: monotone-increasing grid for step-evaluation.
+        label: names the trait and stratum in the risk-set-gap warning.
 
-    Returns dict with keys ``aj_disease``, ``aj_death``, ``aj_survival`` (all
-    arrays on the ``ages`` grid), ``n``, ``n_events_disease``, and ``n_events_death``.
+    Returns:
+        An :class:`_AJResult` whose curves are evaluated on ``ages``. The
+        curves are conditional on being event-free at the earliest entry. If
+        the risk set empties before a later entrant arrives, the hazard over
+        that gap is unobserved, so the curves are NaN past the last exit
+        before it (simACE #51).
     """
     valid = entry <= exit_time
     entry = entry[valid]
@@ -147,63 +157,58 @@ def _aalen_johansen(
     n_disease = int((event_type == 1).sum())
     n_death = int((event_type == 2).sum())
 
-    n_ages = len(ages)
-    if n == 0:
-        return {
-            "aj_disease": np.zeros(n_ages),
-            "aj_death": np.zeros(n_ages),
-            "aj_survival": np.ones(n_ages),
-            "n": 0,
-            "n_events_disease": 0,
-            "n_events_death": 0,
-        }
-
-    is_event = event_type != 0
-    if not is_event.any():
-        return {
-            "aj_disease": np.zeros(n_ages),
-            "aj_death": np.zeros(n_ages),
-            "aj_survival": np.ones(n_ages),
-            "n": n,
-            "n_events_disease": 0,
-            "n_events_death": 0,
-        }
-
     sorted_entry = np.sort(entry)
     sorted_exit = np.sort(exit_time)
 
-    event_times = exit_time[is_event]
-    event_kinds = event_type[is_event]
-    unique_t, inv = np.unique(event_times, return_inverse=True)
-    n_unique = len(unique_t)
-    d_disease = np.bincount(inv, weights=(event_kinds == 1).astype(float), minlength=n_unique)
-    d_death = np.bincount(inv, weights=(event_kinds == 2).astype(float), minlength=n_unique)
-    d_total = d_disease + d_death
+    is_event = event_type != 0
+    if not is_event.any():
+        F_disease_grid = np.zeros(len(ages))
+        F_death_grid = np.zeros(len(ages))
+        S_grid = np.ones(len(ages))
+    else:
+        event_times = exit_time[is_event]
+        event_kinds = event_type[is_event]
+        unique_t, inv = np.unique(event_times, return_inverse=True)
+        n_unique = len(unique_t)
+        d_disease = np.bincount(inv, weights=(event_kinds == 1).astype(float), minlength=n_unique)
+        d_death = np.bincount(inv, weights=(event_kinds == 2).astype(float), minlength=n_unique)
 
-    entered = np.searchsorted(sorted_entry, unique_t, side="right")
-    exited_before = np.searchsorted(sorted_exit, unique_t, side="left")
-    Y = (entered - exited_before).astype(float)
+        # Each event time is the exit of someone at risk then, so Y >= 1.
+        entered = np.searchsorted(sorted_entry, unique_t, side="right")
+        exited_before = np.searchsorted(sorted_exit, unique_t, side="left")
+        Y = (entered - exited_before).astype(float)
 
-    safe = Y > 0
-    hazard_total = np.zeros(n_unique)
-    hazard_total[safe] = d_total[safe] / Y[safe]
-    s_after = np.cumprod(1.0 - hazard_total)
-    s_before = np.empty(n_unique)
-    s_before[0] = 1.0
-    s_before[1:] = s_after[:-1]
+        s_after = np.cumprod(1.0 - (d_disease + d_death) / Y)
+        s_before = np.concatenate(([1.0], s_after[:-1]))
+        F_disease = np.cumsum(s_before * d_disease / Y)
+        F_death = np.cumsum(s_before * d_death / Y)
 
-    inc_disease = np.zeros(n_unique)
-    inc_death = np.zeros(n_unique)
-    inc_disease[safe] = s_before[safe] * d_disease[safe] / Y[safe]
-    inc_death[safe] = s_before[safe] * d_death[safe] / Y[safe]
-    F_disease = np.cumsum(inc_disease)
-    F_death = np.cumsum(inc_death)
+        idx = np.searchsorted(unique_t, ages, side="right") - 1
+        valid_idx = idx >= 0
+        F_disease_grid = np.where(valid_idx, F_disease[np.clip(idx, 0, n_unique - 1)], 0.0)
+        F_death_grid = np.where(valid_idx, F_death[np.clip(idx, 0, n_unique - 1)], 0.0)
+        S_grid = np.where(valid_idx, s_after[np.clip(idx, 0, n_unique - 1)], 1.0)
 
-    idx = np.searchsorted(unique_t, ages, side="right") - 1
-    valid_idx = idx >= 0
-    F_disease_grid = np.where(valid_idx, F_disease[np.clip(idx, 0, n_unique - 1)], 0.0)
-    F_death_grid = np.where(valid_idx, F_death[np.clip(idx, 0, n_unique - 1)], 0.0)
-    S_grid = np.where(valid_idx, s_after[np.clip(idx, 0, n_unique - 1)], 1.0)
+    # An entry time at which everyone who entered earlier has already exited
+    # opens a gap with no one at risk. Survival reaching 0 is the same case:
+    # every remaining person exits at that event time.
+    # The index where each later entry age first appears counts who entered before it.
+    entered_before = np.flatnonzero(np.diff(sorted_entry)) + 1
+    exited = np.searchsorted(sorted_exit, sorted_entry[entered_before], side="left")
+    gap = exited == entered_before
+    if gap.any():
+        first = int(np.argmax(gap))
+        last_exit = sorted_exit[exited[first] - 1]
+        logger.warning(
+            "Aalen-Johansen %s: no one is at risk between ages %g and %g; the curves are NaN after age %g",
+            label,
+            last_exit,
+            sorted_entry[entered_before[first]],
+            last_exit,
+        )
+        unidentified = ages > last_exit
+        for grid in (F_disease_grid, F_death_grid, S_grid):
+            grid[unidentified] = np.nan
 
     return {
         "aj_disease": F_disease_grid,
@@ -246,8 +251,8 @@ def compute_cumulative_incidence_aj(
     result: dict[str, Any] = {}
     for trait_num in [1, 2]:
         exit_time, event_type = _exit_event_arrays(df, trait_num)
-        aj = _aalen_johansen(entry, exit_time, event_type, ages)
-        terminal = float(aj["aj_disease"][-1])
+        aj = _aalen_johansen(entry, exit_time, event_type, ages, label=f"trait{trait_num}")
+        terminal = float(np.nanmax(aj["aj_disease"]))
         if terminal > 0:
             half_idx = int(np.searchsorted(aj["aj_disease"], terminal / 2))
             half_age = float(ages[min(half_idx, len(ages) - 1)])
@@ -289,7 +294,9 @@ def compute_cumulative_incidence_aj_by_sex(
             n_sex = int(mask.sum())
             if n_sex == 0:
                 continue
-            aj = _aalen_johansen(entry[mask], exit_time[mask], event_type[mask], ages)
+            aj = _aalen_johansen(
+                entry[mask], exit_time[mask], event_type[mask], ages, label=f"trait{trait_num} {sex_label}"
+            )
             stratum: dict[str, Any] = {
                 "ages": ages.tolist(),
                 "aj_values": aj["aj_disease"].tolist(),
@@ -332,7 +339,13 @@ def compute_cumulative_incidence_aj_by_sex_generation(
                 n_stratum = int(mask.sum())
                 if n_stratum == 0:
                     continue
-                aj = _aalen_johansen(entry[mask], exit_time[mask], event_type[mask], ages)
+                aj = _aalen_johansen(
+                    entry[mask],
+                    exit_time[mask],
+                    event_type[mask],
+                    ages,
+                    label=f"trait{trait_num} gen{gen} {sex_label}",
+                )
                 stratum: dict[str, Any] = {
                     "ages": ages.tolist(),
                     "aj_values": aj["aj_disease"].tolist(),

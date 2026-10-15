@@ -5,7 +5,8 @@ incidences and the survival function partition probability:
 ``F_disease + F_death + S == 1``; the CIFs are non-decreasing, S is
 non-increasing, and all three stay in [0, 1]. These must hold across tied event
 times, all-censored / all-death cohorts, and delayed entry — the edge-case
-cross-product a single hand-built table cannot cover.
+cross-product a single hand-built table cannot cover. Delayed entry can leave a
+gap with no one at risk, after which all three curves are NaN together.
 """
 
 import numpy as np
@@ -34,9 +35,15 @@ def _aj_inputs(draw):
 def test_aj_partition_bounds_monotonicity(inp):
     entry, exit_time, event_type = inp
     out = _aalen_johansen(entry, exit_time, event_type, _AGES)
-    f_disease = out["aj_disease"]
-    f_death = out["aj_death"]
-    survival = out["aj_survival"]
+    missing = np.isnan(out["aj_disease"])
+    assert np.array_equal(np.isnan(out["aj_death"]), missing)
+    assert np.array_equal(np.isnan(out["aj_survival"]), missing)
+    # NaN is a suffix: once the estimate stops it never resumes
+    assert not np.any(missing[:-1] & ~missing[1:])
+    assert not missing[0]
+    f_disease = out["aj_disease"][~missing]
+    f_death = out["aj_death"][~missing]
+    survival = out["aj_survival"][~missing]
 
     # competing-risks partition holds at every grid age
     assert np.allclose(f_disease + f_death + survival, 1.0, atol=1e-9)

@@ -37,6 +37,7 @@ from simace.analysis.stats import (
     compute_tetrachoric_by_generation,
     compute_tetrachoric_by_sex,
 )
+from simace.analysis.stats.incidence import _aalen_johansen
 from tests.analysis.moments_oracle import moments_from_pairs
 
 # ---------------------------------------------------------------------------
@@ -1635,6 +1636,66 @@ class TestAalenJohansen:
         aj_b = np.array(b["trait1"]["aj_values"])
         assert aj_b[idx_5] == pytest.approx(0.5)
         assert aj_b[idx_20] == pytest.approx(2.0 / 3.0)
+
+    def test_risk_set_gap_is_nan_after_last_exit(self, caplog):
+        """Gen 0 is censored at 30 and gen 1 enters at 40: nobody is at risk in
+        between, so the curves stop at 30 instead of assuming zero hazard (#51)."""
+        entry = np.array([0.0] * 4 + [40.0] * 4)
+        exit_time = np.array([30.0] * 4 + [50.0, 60.0, 80.0, 80.0])
+        event_type = np.array([0] * 4 + [1, 1, 0, 0])
+        ages = np.array([20.0, 30.0, 35.0, 60.0])
+        with caplog.at_level("WARNING"):
+            out = _aalen_johansen(entry, exit_time, event_type, ages)
+        for key in ("aj_disease", "aj_death", "aj_survival"):
+            assert np.all(np.isfinite(out[key][:2]))
+            assert np.all(np.isnan(out[key][2:]))
+        assert "no one is at risk between ages 30 and 40" in caplog.text
+
+    def test_survival_reaching_zero_before_later_entry_is_nan(self):
+        """The last gen-0 person at risk has an event at 25 and gen 1 enters at 40.
+        Survival hits 0 at 25 and would freeze the CIF over gen 1's events (#51)."""
+        entry = np.array([0.0, 0.0, 0.0, 40.0, 40.0, 40.0, 40.0])
+        exit_time = np.array([10.0, 20.0, 25.0, 50.0, 60.0, 70.0, 80.0])
+        event_type = np.array([0, 0, 1, 1, 1, 1, 0])
+        out = _aalen_johansen(entry, exit_time, event_type, np.array([25.0, 30.0, 75.0]))
+        assert out["aj_disease"][0] == pytest.approx(1.0)
+        assert np.all(np.isnan(out["aj_disease"][1:]))
+
+    def test_entry_at_last_exit_is_not_a_gap(self):
+        """An entrant arriving exactly when the risk set would empty keeps it nonempty."""
+        entry = np.array([0.0, 30.0])
+        exit_time = np.array([30.0, 60.0])
+        event_type = np.array([1, 1])
+        out = _aalen_johansen(entry, exit_time, event_type, np.array([30.0, 60.0]))
+        assert out["aj_disease"].tolist() == pytest.approx([0.5, 1.0])
+
+    def test_terminal_and_half_age_skip_nan_tail(self, caplog):
+        df = pl.DataFrame(
+            {
+                "id": list(range(6)),
+                "generation": [0, 0, 0, 1, 1, 1],
+                "affected1": [True, False, False, True, True, False],
+                "death_censored1": [False] * 6,
+                "t_observed1": [10.0, 30.0, 30.0, 50.0, 60.0, 80.0],
+                "affected2": [False] * 6,
+                "death_censored2": [False] * 6,
+                "t_observed2": [30.0, 30.0, 30.0, 80.0, 80.0, 80.0],
+            }
+        )
+        with caplog.at_level("WARNING"):
+            result = compute_cumulative_incidence_aj(
+                df, censor_age=80, n_points=81, gen_censoring={0: [0, 30], 1: [40, 80]}
+            )
+        t1 = result["trait1"]
+        assert np.isnan(t1["aj_values"][-1])
+        assert t1["half_target_age"] <= 30.0
+        # trait2 has no events but the same gap, so its curves stop there too
+        t2 = result["trait2"]
+        assert t2["aj_values"][30] == 0.0
+        assert np.isnan(t2["aj_values"][31])
+        assert np.isnan(t2["aj_survival"][31])
+        assert "Aalen-Johansen trait1:" in caplog.text
+        assert "Aalen-Johansen trait2:" in caplog.text
 
     def test_degenerate_window_filtered(self):
         """Zero-width window [80, 80]: individuals who die before 80 have

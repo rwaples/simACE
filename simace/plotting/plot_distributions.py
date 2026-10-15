@@ -529,13 +529,16 @@ def plot_cumulative_incidence_aj(
                 zorder=4,  # draw the true CIF on top of the AJ-trait and empirical curves
             )
 
-        F_d = mean_disease[-1]
-        F_x = mean_death[-1]
+        # A risk-set gap leaves a NaN tail (simACE #51); report the last estimated age.
+        last = np.flatnonzero(~np.isnan(mean_disease))[-1]
+        F_d = mean_disease[last]
+        F_x = mean_death[last]
         S_terminal = 1.0 - F_d - F_x
+        stop = f"\nat age {ages[last]:g}" if last < len(ages) - 1 else ""
         ax.text(
             0.03,
             0.97,
-            f"AJ trait: {F_d:.1%}\nAJ death: {F_x:.1%}\nSurvival: {S_terminal:.1%}",
+            f"AJ trait: {F_d:.1%}\nAJ death: {F_x:.1%}\nSurvival: {S_terminal:.1%}{stop}",
             transform=ax.transAxes,
             ha="left",
             va="top",

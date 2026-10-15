@@ -689,6 +689,30 @@ class TestFinalizePaths:
         assert "AJ death" not in seen_labels
         assert len(plt.get_fignums()) == 0
 
+    def test_cumulative_incidence_aj_nan_tail_reports_last_estimate(self, tmp_path, monkeypatch):
+        import simace.plotting.plot_distributions as plot_distributions
+
+        nan = float("nan")
+        trait = {
+            "ages": [0, 1, 2, 3],
+            "aj_values": [0.0, 0.1, nan, nan],
+            "aj_death_values": [0.0, 0.05, nan, nan],
+            "aj_survival": [1.0, 0.85, nan, nan],
+        }
+        texts = []
+
+        def fake_finalize(output_path, **_kwargs):
+            fig = plt.gcf()
+            texts.extend(t.get_text() for ax in fig.axes for t in ax.texts)
+            output_path.write_bytes(b"placeholder")
+            plt.close(fig)
+
+        monkeypatch.setattr(plot_distributions, "finalize_plot", fake_finalize)
+        stats = [{"cumulative_incidence_aj": {"trait1": trait, "trait2": trait}}]
+        plot_distributions.plot_cumulative_incidence_aj(stats, 3.0, tmp_path / "ci_aj_nan.png", scenario="test")
+
+        assert texts == ["AJ trait: 10.0%\nAJ death: 5.0%\nSurvival: 85.0%\nat age 1"] * 2
+
     def test_cumulative_incidence_aj_by_sex(self, tmp_path):
         from simace.plotting.plot_distributions import plot_cumulative_incidence_aj_by_sex
 

@@ -153,6 +153,15 @@ releases shipped after 2026.05.3.
 - **`max_degree` errors come from simACE.** A value outside 0 to 5 raises
   `ValueError`, and a bool or non-integer raises `TypeError`. These used to
   come from pedigree-graph (`max_degree_out_of_range`).
+- **Aalen-Johansen curves stop at a risk-set gap**
+  ([#51](https://github.com/rwaples/simACE/issues/51)). With disjoint
+  `gen_censoring` windows, such as `0: [0, 30]` and `1: [40, 80]`, nobody is
+  at risk between 30 and 40. The estimator used to treat the hazard there as
+  zero, and if the last person at risk before the gap had an event, survival
+  fell to 0 and the CIF ignored every later entrant. The disease, death, and
+  survival curves are now NaN past the last exit before the gap, and the
+  analyze log names the gap. No scenario in `config/` has such a gap, so their
+  results are unchanged.
 
 ### Plots
 
@@ -176,9 +185,8 @@ Code that only tests reached:
 - `simace.plotting.plot_heritability.plot_broad_heritability_by_generation`.
   The combined A/C plot replaced it in the atlas.
 - The `greenwood=` argument of `compute_cumulative_incidence_aj` and its two
-  by-sex variants, and the Greenwood standard errors in `_aalen_johansen`
-  behind it ([#42](https://github.com/rwaples/simACE/issues/42)). No stage
-  passed it.
+  by-sex variants ([#42](https://github.com/rwaples/simACE/issues/42)). No
+  stage passed it.
 - The pipeline diagram's handling of a phenotype `baseline` key, which no
   model accepts, and of a `_prev12` step that was never in the diagram.
 - `plot_cumulative_incidence`'s fallback for the pre-`observed_values`
