@@ -95,3 +95,49 @@ on the maternal household structure used by simACE.
 The clean C decomposition breaks under assortative mating, which moves
 variance into a covariance between mates. That case is treated in
 [Assortative mating and heritability](am-and-heritability.md).
+
+## Passing C from parents to offspring
+
+The observations above assume C is drawn fresh in every household. C
+transmission lets each offspring inherit a share of its parents' C
+([ADR 0025](../adr/0025-vertical-c-transmission.md)). Add a
+`C_transmission` block to a trait:
+
+```yaml
+with_c_transmitted:
+  seed: 90003
+  replicates: 1
+  pedigree:
+    trait1:
+      A: 0.5
+      C: 0.0
+      E: 0.5
+    trait2:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.0
+```
+
+The offspring's C is then $b_m C_{\text{mother}} + b_f C_{\text{father}}$
+plus the household draw, with $b_m = 0.5$ and $b_f = 0$. The configured
+$C = 0.2$ is still the total, so the variance components do not change.
+The shares of C do. Under random mating each class shares a fraction
+$\gamma$ of $v_C$: 1 for MZ and FS, $b_m$ for MO, $b_f$ for FO,
+$1 - b_f^2$ for MHS, and $b_f^2$ for PHS. For trait 2 the expected MO
+correlation rises from $0.25$ to $0.5\,v_A + 0.5\,v_C = 0.35$, and the
+expected midparent-offspring slope rises from $0.5$ to
+$v_A + (b_m + b_f)\,v_C = 0.6$. FS, MHS, and PHS keep the values in the
+table above. With $b_f > 0$, the MHS–PHS contrast of Observation 3
+shrinks to $(1 - 2 b_f^2)\,v_C$.
+
+The expected-correlation lines in the scenario and validation atlases
+follow the transmission formulas where they are exact (random mating, scalar C and
+E, and a relationship type with a single $\gamma$). Elsewhere they show
+the correlation realised in the recorded pedigree. The validation report
+gains a `c_transmission.c2_transmission` check, which regresses each
+child's C on its mother's and father's C and compares the slopes with
+$b_m$ and $b_f$. `config/c_transmission.yaml` has scenarios with
+maternal, both-parent, and assortative-mating transmission.

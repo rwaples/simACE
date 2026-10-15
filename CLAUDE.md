@@ -65,6 +65,8 @@ Bugs that have actually occurred. Check these whenever touching the relevant cod
 
 MZ = A+C, FS = 0.5A+C, MHS = 0.25A+C, PHS = 0.25A, PO = 0.5A.
 
+**C transmission** (ADR 0025; `Ctm_maternal{t}` = b_m, `Ctm_paternal{t}` = b_f, default 0) replaces `C_shared` with `gamma * C`: MZ, FS 1; MO b_m; FO b_f; MHS 1 - b_f²; PHS b_f². Then `r = (2 * kinship * A + gamma * C) / V_P` and the midparent slope is `(A + (b_m + b_f) * C) / V_P`, valid only under random mating with scalar C and E. 1C and other lineage-mixed types have no gamma; their truth is the recorded-pedigree moments in `report.yaml`. Source: `_SHARED_C` in `simace/core/relationships.py`.
+
 Kinship source of truth: `RELATIONSHIPS[code].nominal_kinship` in `pedigree_graph/_registry.py`. Under inbreeding, `PedigreeGraph.pair_kinship()` returns per-pair float32 values; comparisons against a float64 recurrence need a tolerance.
 
 ## Cross-repo work
