@@ -85,7 +85,13 @@ releases shipped after 2026.05.3.
   and (10, 0, 0, 10) from 0.999 to 0.9999. Categories with an empty cell, and
   fitACE's Falconer h² from them, change accordingly.
 - The SE still treats every pair as independent. Pairs that share a person,
-  such as full sibs in a sibship of three or more, make it too small.
+  such as full sibs in a sibship of three or more, make it too small
+  ([#55](https://github.com/rwaples/simACE/issues/55)). Treat it as a lower
+  bound. Over 100 replicates of each `config/se_calibration.yaml` scenario,
+  the SD of r across replicates was 0.96 to 1.39 times the mean reported SE
+  (median 1.12 without shared C, 1.16 with C = 0.2), so a nominal 95%
+  interval covers as little as 84%. `scripts/se_calibration.py` reruns the
+  comparison.
 - `se` in the report's `tetrachoric`, `tetrachoric_by_generation`,
   `tetrachoric_by_sex` and `cross_trait_tetrachoric` sections changes, and so
   do fitACE's Falconer `se_r` and `se_h2`. Existing reps keep the old SEs until

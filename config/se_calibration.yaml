@@ -1,0 +1,65 @@
+# Tetrachoric SE calibration (simACE #55).
+#
+# The report's tetrachoric SE treats every relative pair as its own
+# cluster, but pairs share people. These scenarios measure how far the
+# mean reported `se` falls below the SD of `r` across replicates, per
+# relationship category: scripts/se_calibration.py reads the reps.
+#
+# Axes: sibship structure (mating_lambda 0.5 vs 3.0; more partners means
+# more half-sibs and smaller full sibships) x prevalence (K 0.10 vs 0.02).
+# Within each scenario, trait1 has no C and trait2 has C = 0.2.
+# Case status is liability-threshold (adult/ltm), but the default age-window
+# and death censoring make the observed threshold vary by person, so the
+# tetrachoric model is only approximately right. The SE is a sandwich, which
+# stays valid under that misspecification when pairs are independent, so a
+# gap between SD(r) and the SE measures the dependence between pairs.
+
+se_cal_lam05_K10:
+  seed: 55010
+  replicates: 100
+  N: 20000
+  pedigree: &pedigree_lam05
+    mating_lambda: 0.5
+    trait1: {A: 0.5, C: 0.0, E: 0.5}
+    trait2: {A: 0.4, C: 0.2, E: 0.4}
+  phenotype: &pheno_K10
+    trait1:
+      model: adult
+      params: {method: ltm, cip_x0: 50, cip_k: 0.2, prevalence: 0.10}
+      beta: 1.0
+    trait2:
+      model: adult
+      params: {method: ltm, cip_x0: 50, cip_k: 0.2, prevalence: 0.10}
+      beta: 1.0
+
+se_cal_lam05_K02:
+  seed: 55020
+  replicates: 100
+  N: 20000
+  pedigree: *pedigree_lam05
+  phenotype: &pheno_K02
+    trait1:
+      model: adult
+      params: {method: ltm, cip_x0: 50, cip_k: 0.2, prevalence: 0.02}
+      beta: 1.0
+    trait2:
+      model: adult
+      params: {method: ltm, cip_x0: 50, cip_k: 0.2, prevalence: 0.02}
+      beta: 1.0
+
+se_cal_lam3_K10:
+  seed: 55030
+  replicates: 100
+  N: 20000
+  pedigree: &pedigree_lam3
+    mating_lambda: 3.0
+    trait1: {A: 0.5, C: 0.0, E: 0.5}
+    trait2: {A: 0.4, C: 0.2, E: 0.4}
+  phenotype: *pheno_K10
+
+se_cal_lam3_K02:
+  seed: 55040
+  replicates: 100
+  N: 20000
+  pedigree: *pedigree_lam3
+  phenotype: *pheno_K02

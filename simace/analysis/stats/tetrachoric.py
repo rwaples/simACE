@@ -42,6 +42,9 @@ def tetrachoric_from_table(n11: int, n10: int, n01: int, n00: int) -> tuple[floa
     its sandwich. r is NaN for an empty table or a degenerate marginal. The SE
     is also NaN when rho sits at its bound (an empty cell, or |rho| near 1),
     where rho is not identified and r is only a point on a flat likelihood.
+
+    Each counted pair is treated as independent. For relative pairs,
+    which share people, the SE is a lower bound (simACE #55).
     """
     n_pairs = n11 + n10 + n01 + n00
     if 0 < n_pairs < 50:
