@@ -500,9 +500,10 @@ def compare_correlations_by_relclass(
     the x-axis in decreasing expected kinship.  Each scenario gets one bar
     per class, drawn with min/max error bars across replicates.  If
     ``expected_A`` is supplied, a dashed reference line per class shows the
-    random-mating expectation ``k * A + c * C`` (where ``k`` is the kinship
-    coefficient for that class); this is what any AM scenario should deviate
-    from as AM strength grows.
+    random-mating expectation ``k * A + c * C`` (``k`` the class's kinship,
+    ``c`` the share of C its pairs have in common); this is what any AM
+    scenario should deviate from as AM strength grows. A class whose pooled
+    members expect different values (HS when ``C > 0``) gets no line.
 
     Args:
         scenario_paths: outer list = scenarios, inner list = replicate
@@ -523,7 +524,6 @@ def compare_correlations_by_relclass(
 
     apply_nature_style()
     class_names = [c[0] for c in POOLED_RELATIONSHIP_CLASSES]
-    kinship = {c[0]: c[1] for c in POOLED_RELATIONSHIP_CLASSES}
     n_classes = len(class_names)
     n_scen = len(labels)
 
@@ -599,8 +599,12 @@ def compare_correlations_by_relclass(
 
     if expected_A is not None:
         c = 0.0 if expected_C is None else expected_C
-        for i, cls in enumerate(class_names):
-            expected = kinship[cls] * expected_A + c
+        for i, (_, _, members) in enumerate(POOLED_RELATIONSHIP_CLASSES):
+            # A pooled class has one expectation only when its members agree:
+            # HS pools MHS (shares C) with PHS (does not), so it has none when C > 0.
+            expected, *others = (expected_liability_corr(member, expected_A, c) for member in members)
+            if expected is None or any(other != expected for other in others):
+                continue
             ax.hlines(
                 expected,
                 x[i] - total_group_width / 2,
@@ -1247,8 +1251,8 @@ def compare_cohort_fs_correlations(
         ax.plot(gens, means, color=color, marker="o", label=label)
         ax.fill_between(gens, lows, highs, color=color, alpha=0.15, linewidth=0)
 
-    if expected_A is not None:
-        ref = expected_liability_corr("FS", expected_A, expected_C or 0.0)
+    ref = None if expected_A is None else expected_liability_corr("FS", expected_A, expected_C or 0.0)
+    if ref is not None:
         ax.axhline(
             y=ref,
             linestyle="--",
