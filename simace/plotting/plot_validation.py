@@ -20,11 +20,12 @@ __all__ = [
 ]
 
 import argparse
+import ast
 import contextlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -283,12 +284,31 @@ def _rep_mean(d: pd.DataFrame, column: str) -> float | None:
     return float(d[column].mean())
 
 
+def _literal(value: Any) -> Any:
+    """A gathered cell holding a per-generation dict or a matrix, back as that dict or list; anything else as is."""
+    if isinstance(value, str) and value[:1] in "{[":
+        with contextlib.suppress(ValueError, SyntaxError):
+            return ast.literal_eval(value)
+    return value
+
+
+def _scenario_params(d: pd.DataFrame) -> dict[str, Any]:
+    """A gathered scenario's parameters as ``reference_corr`` reads them.
+
+    Empty cells are dropped (absent, not active), and dict- or matrix-valued
+    cells (per-generation A/C/E/assortment, ``assort_matrix``) are parsed back,
+    so the reference-line gate sees the same values as on per-rep plots.
+    """
+    row = d.iloc[0].to_dict()
+    return {k: _literal(v) for k, v in row.items() if not (v is None or (isinstance(v, float) and np.isnan(v)))}
+
+
 def _reference_corr(code: str, trait: int) -> Callable[[pd.DataFrame], float | None]:
     """A scenario's reference correlation: analytic where exact, else the rep-mean recorded-pedigree truth."""
 
     def expected(d: pd.DataFrame) -> float | None:
         truth = _rep_mean(d, f"truth_r_{code}_trait{trait}")
-        return reference_corr(code, d.iloc[0].to_dict(), trait, {code: {"r": truth}})
+        return reference_corr(code, _scenario_params(d), trait, {code: {"r": truth}})
 
     return expected
 
@@ -296,7 +316,7 @@ def _reference_corr(code: str, trait: int) -> Callable[[pd.DataFrame], float | N
 def _reference_slope(trait: int) -> Callable[[pd.DataFrame], float | None]:
     def expected(d: pd.DataFrame) -> float | None:
         return reference_midparent_slope(
-            d.iloc[0].to_dict(), trait, _rep_mean(d, f"truth_midparent_slope_trait{trait}")
+            _scenario_params(d), trait, _rep_mean(d, f"truth_midparent_slope_trait{trait}")
         )
 
     return expected

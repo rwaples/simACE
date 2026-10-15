@@ -98,8 +98,10 @@ def expected_liability_corr(
 
     Kinship is read from ``pedigree_graph.RELATIONSHIPS`` (never a literal);
     ``C_shared`` comes from :func:`shared_environment_coefficient`, and the
-    result is None where that is. ``A`` and ``C`` are the additive-genetic
-    and common-environment variances and ``V_P`` the liability variance.
+    result is None where that is, and where ``V_P`` is not positive (a
+    zero-variance trait has no correlation). ``A`` and ``C`` are the
+    additive-genetic and common-environment variances and ``V_P`` the
+    liability variance.
 
     Raises:
         ValueError: if ``relationship_type`` is not one of
@@ -108,7 +110,7 @@ def expected_liability_corr(
     from pedigree_graph import RELATIONSHIPS
 
     c_coef = shared_environment_coefficient(relationship_type, b_m, b_f)  # validates the type
-    if c_coef is None:
+    if c_coef is None or V_P <= 0.0:
         return None
     return (2.0 * RELATIONSHIPS[relationship_type].nominal_kinship * A + c_coef * C) / V_P
 
@@ -177,12 +179,18 @@ def reference_corr(
 
     The analytic ``(2 * kinship * A + C_shared * C) / V_P`` when
     :func:`analytic_applies`, else the recorded-pedigree truth
-    ``truth[relationship_type]["r"]``, else None.
+    ``truth[relationship_type]["r"]``, else None. None also where ``A`` or
+    ``C`` is absent or per-generation (no single value) or the trait has no
+    liability variance.
     """
     if analytic_applies(relationship_type, params, trait):
-        A, C = float(params[f"A{trait}"]), float(params[f"C{trait}"])
+        A, C = params.get(f"A{trait}"), params.get(f"C{trait}")
+        if not (isinstance(A, Real) and isinstance(C, Real)):
+            return None
         b_m, b_f = transmission_coefficients(params, trait)
-        return expected_liability_corr(relationship_type, A, C, b_m, b_f, _liability_variance(params, trait))
+        return expected_liability_corr(
+            relationship_type, float(A), float(C), b_m, b_f, _liability_variance(params, trait)
+        )
     entry = (truth or {}).get(relationship_type)
     return None if entry is None or entry.get("r") is None else float(entry["r"])
 
@@ -190,16 +198,19 @@ def reference_corr(
 def reference_midparent_slope(params: Mapping[str, Any], trait: int, truth: float | None = None) -> float | None:
     """The midparent-offspring liability slope reference line for ``trait``.
 
-    ``(A + (b_m + b_f) * C) / V_P`` without C transmission (``A / V_P``) or
+    ``A / V_P`` without C transmission and ``(A + (b_m + b_f) * C) / V_P``
     under the closed-form gate; otherwise the recorded-pedigree truth slope,
-    else None.
+    else None. None where ``A`` is absent and, on the formula paths, for a
+    trait with no liability variance (whose recorded slope is None too).
     """
-    if params.get(f"A{trait}") is None:
+    A = params.get(f"A{trait}")
+    if not isinstance(A, Real):
         return None
     b_m, b_f = transmission_coefficients(params, trait)
     if b_m == b_f == 0.0:
-        return float(params[f"A{trait}"]) / _liability_variance(params, trait)
+        V_P = _liability_variance(params, trait)
+        return float(A) / V_P if V_P > 0.0 else None
     if _closed_form_holds(params, trait):
-        A, C = float(params[f"A{trait}"]), float(params[f"C{trait}"])
-        return (A + (b_m + b_f) * C) / _liability_variance(params, trait)
+        V_P = _liability_variance(params, trait)
+        return (float(A) + (b_m + b_f) * float(params[f"C{trait}"])) / V_P if V_P > 0.0 else None
     return truth

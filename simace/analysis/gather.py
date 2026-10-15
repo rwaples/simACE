@@ -4,6 +4,7 @@ __all__ = ["extract_metrics"]
 
 import argparse
 import csv
+import json
 import logging
 import math
 import re
@@ -107,6 +108,11 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
         "mating_lambda": params.get("mating_lambda"),
         "assort1": params.get("assort1"),
         "assort2": params.get("assort2"),
+        # The 2x2 mate-correlation matrix (empty when unset): with only
+        # cross-trait terms, assort1/assort2 stay 0 although mating assorts, and
+        # the reference-line gate needs to see it. JSON is also a Python literal,
+        # which plot_validation parses back like the per-generation dict cells.
+        "assort_matrix": None if params.get("assort_matrix") is None else json.dumps(params["assort_matrix"]),
         # C transmission coefficients (ADR 0025); reports predating them were built with 0.
         "Ctm_maternal1": params.get("Ctm_maternal1", 0.0),
         "Ctm_paternal1": params.get("Ctm_paternal1", 0.0),
