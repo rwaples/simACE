@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from pedigree_graph import RELATIONSHIPS
 from pg_phenotype import Trait
-from pg_phenotype.regression import parent_offspring
 
+from simace.analysis.midparent import midparent_offspring
 from simace.core.numerics import safe_corrcoef
 
 from ._common import (
@@ -39,7 +39,7 @@ _MIN_PO_OFFSPRING = 100
 
 def _midparent_regression(pedigree: Pedigree, vals: np.ndarray, label: str) -> dict[str, Any]:
     """Run midparent-offspring regression of *vals* over *pedigree* and return result dict."""
-    fit = parent_offspring(pedigree, Trait(vals, "continuous"), lines="midparent", inference=False).pooled.midparent
+    fit = midparent_offspring(pedigree, Trait(vals, "continuous")).pooled.midparent
     assert fit is not None, "the midparent line was requested"
     if fit.n <= _MIN_PO_OFFSPRING:
         return _info("Not enough offspring with both parents in data")

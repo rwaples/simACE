@@ -6,9 +6,9 @@ import pytest
 
 from simace.analysis.mate_correlation import mate_pedigree
 from simace.analysis.validate import build_validation_report, validate_half_sibs, validate_statistical
-from simace.analysis.validate._common import mate_correlations, sibling_moments
+from simace.analysis.validate._common import cluster_codes, mate_correlations, sibling_moments
 from simace.analysis.validate.am_equilibrium import validate_am_equilibrium
-from simace.analysis.validate.c_transmission import cluster_codes, cluster_robust_ols, validate_c_transmission
+from simace.analysis.validate.c_transmission import cluster_robust_ols, validate_c_transmission
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.simulation.simulate import run_simulation
 

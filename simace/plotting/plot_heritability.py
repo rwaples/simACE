@@ -24,6 +24,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import norm
 
+from simace.core.relationships import reference_midparent_slope
 from simace.plotting.plot_style import (
     COLOR_EXPECTED,
     COLOR_FEMALE,
@@ -34,6 +35,7 @@ from simace.plotting.plot_style import (
     enable_value_gridlines,
 )
 from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
+from simace.plotting.stats_report import truth_entry, truth_mean
 
 logger = logging.getLogger(__name__)
 
@@ -448,17 +450,44 @@ def plot_heritability_by_sex_generation(
                         label=sex_display if rep_idx == 0 else None,
                     )
 
-        # Parametric expected h²
+        # Expected slope: A / V_P without C transmission, else analytic where exact or
+        # the rep-mean recorded-pedigree truth for each generation (ADR 0025).
         if params is not None:
-            exp = params.get(f"A{trait_num}")
-            if exp is not None:
+            expected = {
+                gen: reference_midparent_slope(
+                    params,
+                    trait_num,
+                    truth_mean(
+                        [
+                            truth_entry((s.get("truth_midparent_slope") or {}).get(f"trait{trait_num}"), gen)
+                            for s in all_stats
+                        ],
+                        "slope",
+                    ),
+                )
+                for gen in generations
+            }
+            known = {gen: v for gen, v in expected.items() if v is not None}
+            if len(set(known.values())) == 1:
+                exp = next(iter(known.values()))
                 ax.axhline(
                     y=exp,
                     color=COLOR_UNAFFECTED,
                     linestyle="--",
                     linewidth=1.0,
                     alpha=0.7,
-                    label=f"Parametric A{trait_num} = {exp}",
+                    label=f"Expected slope = {exp:.3g}",
+                )
+            elif known:
+                ax.plot(
+                    list(known),
+                    list(known.values()),
+                    color=COLOR_UNAFFECTED,
+                    linestyle="--",
+                    marker="_",
+                    linewidth=1.0,
+                    alpha=0.7,
+                    label="Expected slope",
                 )
 
         ax.set_xlabel("Generation")

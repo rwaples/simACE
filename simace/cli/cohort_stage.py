@@ -39,14 +39,14 @@ from simace.core.pedigree_arrays import PedigreeArrays
 from simace.phenotype.runner import run_phenotype
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Mapping
+    from collections.abc import Generator, Mapping
 
 
 logger = logging.getLogger(__name__)
 
 
 @contextmanager
-def _phase(name: str) -> Iterator[None]:
+def _phase(name: str) -> Generator[None]:
     start = time.perf_counter()
     yield
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss

@@ -30,7 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +142,7 @@ class CgroupRoot:
         raise CgroupUnavailable(lines[-1] if lines else f"systemd-run exited {anchor.returncode}")
 
     @contextmanager
-    def leaf(self, max_bytes: int | None = None) -> Iterator[Leaf]:
+    def leaf(self, max_bytes: int | None = None) -> Generator[Leaf]:
         """Yield a new child cgroup; on exit kill whatever is left in it and remove it.
 
         With ``max_bytes`` the child is capped there with no swap, and the OOM

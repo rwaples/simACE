@@ -9,6 +9,8 @@ plot code does not need to know about the v2 scientific grouping.
 
 from typing import Any
 
+import numpy as np
+
 from simace.analysis.report_schema import (
     ANALYSIS_SAMPLE_CORRELATION_KEYS,
     ANALYSIS_SAMPLE_INCIDENCE_KEYS,
@@ -19,6 +21,8 @@ __all__ = [
     "plotting_report_view",
     "plotting_report_views",
     "report_per_generation",
+    "truth_entry",
+    "truth_mean",
 ]
 
 # analysis_sample keys that map straight through to the flat view by name.
@@ -129,3 +133,16 @@ def plotting_report_views(
     if plot_payloads is None:
         plot_payloads = [None] * len(reports)
     return [plotting_report_view(r, pl) for r, pl in zip(reports, plot_payloads, strict=True)]
+
+
+def truth_entry(entry: dict[str, Any] | None, generation: int | None) -> dict[str, Any] | None:
+    """A view's recorded-pedigree truth *entry*, or its ``by_generation`` entry for *generation*."""
+    if entry is None or generation is None:
+        return entry
+    return (entry.get("by_generation") or {}).get(generation)
+
+
+def truth_mean(entries: list[Any], key: str) -> float | None:
+    """Mean of ``entry[key]`` over the reps' truth entries that carry one, else None."""
+    vals = [float(e[key]) for e in entries if e and e.get(key) is not None]
+    return float(np.mean(vals)) if vals else None

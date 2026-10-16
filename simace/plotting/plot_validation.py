@@ -285,11 +285,23 @@ def _rep_mean(d: pd.DataFrame, column: str) -> float | None:
 
 
 def _literal(value: Any) -> Any:
-    """A gathered cell holding a per-generation dict or a matrix, back as that dict or list; anything else as is."""
-    if isinstance(value, str) and value[:1] in "{[":
+    """A gathered cell back as the value it was written from.
+
+    A per-generation dict or a matrix comes back as that dict or list, and a
+    number as a float: one scenario's dict-valued cell makes the whole column
+    text, which would leave every other scenario's scalar in it a string.
+    Anything else is returned as is.
+    """
+    if not isinstance(value, str):
+        return value
+    if value[:1] in "{[":
         with contextlib.suppress(ValueError, SyntaxError):
             return ast.literal_eval(value)
-    return value
+        return value
+    try:
+        return float(value)
+    except ValueError:
+        return value
 
 
 def _scenario_params(d: pd.DataFrame) -> dict[str, Any]:

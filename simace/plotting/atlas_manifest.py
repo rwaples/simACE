@@ -319,9 +319,9 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             " with 95% CI band), sex-specific regression lines, and expected slope from "
             "configured A (dashed). Under C transmission the dashed slope is "
             "(A + (b_m + b_f)·C)/V_P where exact, else the replicate-mean slope realized in the "
-            "recorded pedigree for that generation (ADR 0025). Text box shows pooled h² and "
-            "sex-specific h²♀/h²♂ (slope ± SE), Pearson r, pair count n, and p-value, averaged "
-            "across replicates."
+            "recorded pedigree for that generation (ADR 0025). Text box shows the pooled h² "
+            "(slope ± SE), the sex-specific slopes h²♀/h²♂, and Pearson r, averaged across "
+            "replicates."
         ),
     ),
     PlotEntry(
@@ -330,8 +330,10 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         body=(
             "1×2 figure, one panel per trait. Heritability h² estimated from midparent-"
             "offspring regression slope, stratified by offspring sex. Green dots = per-"
-            "replicate daughter h², blue dots = per-replicate son h². Orange dashed line "
-            "marks the parametric heritability (A parameter)."
+            "replicate daughter h², blue dots = per-replicate son h². The dashed line marks "
+            "the expected slope: A/V_P without C transmission, (A + (b_m + b_f)·C)/V_P where "
+            "exact under it, else the replicate-mean slope realized in the recorded pedigree "
+            "for each generation (ADR 0025)."
         ),
     ),
     PlotEntry(
@@ -340,8 +342,8 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         body=(
             "Side-by-side joint plots, one per trait. Central scatter of liability (x) vs. "
             "observed age-at-onset (y) for affected individuals, with regression line and 95%"
-            " CI band. Annotations show slope ± SE, Pearson r, n, and p-value, averaged "
-            "across replicates. Marginal histograms on top and right."
+            " CI band. Annotations show the slope and Pearson r, averaged across replicates. "
+            "Marginal histograms on top and right."
         ),
     ),
     PlotEntry(

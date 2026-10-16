@@ -7,6 +7,8 @@ more scenarios on the same axes.  This module hosts those comparison plots;
 each new Examples topic adds one function here.
 """
 
+from __future__ import annotations
+
 __all__ = [
     "NAIVE_ESTIMATOR_DEFS",
     "OBSERVED_LIABILITY_ESTIMATOR_DEFS",
@@ -29,27 +31,35 @@ __all__ = [
     "load_per_generation",
     "load_pooled_liability_correlations",
     "load_sib_pair_liabilities",
+    "scenario_parameters",
 ]
 
 import argparse
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 from pedigree_graph import RELATIONSHIPS, PedigreeGraph
+from pg_phenotype import Trait
 
-from simace.core.numerics import safe_corrcoef, safe_linregress
+from simace.analysis.mate_correlation import mate_pedigree
+from simace.analysis.midparent import midparent_offspring, stratum_line
+from simace.core.numerics import safe_corrcoef
 from simace.core.parquet import load_parquet
-from simace.core.relationships import DEFAULT_MAX_DEGREE, RELATIONSHIP_TYPES, expected_liability_corr
+from simace.core.relationships import DEFAULT_MAX_DEGREE, RELATIONSHIP_TYPES, reference_corr
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import (
     apply_nature_style,
     enable_value_gridlines,
 )
-from simace.plotting.plot_utils import savefig_dpi
+from simace.plotting.plot_utils import finalize_plot
 from simace.plotting.stats_report import plotting_report_view, report_per_generation
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 logger = logging.getLogger(__name__)
 
@@ -114,15 +124,11 @@ def _mean_envelope(arr: np.ndarray, column: int) -> tuple[np.ndarray, np.ndarray
 
 
 def _save(fig: plt.Figure, output_path: Path | str, rect: tuple[float, float, float, float] | None = None) -> None:
-    """Lay out ``fig``, write it to ``output_path`` (creating its directory), and close it."""
-    if rect is None:
-        fig.tight_layout()
-    else:
-        fig.tight_layout(rect=rect)
+    """Write ``fig`` to ``output_path`` through :func:`finalize_plot`, creating its directory first."""
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(output_path, dpi=savefig_dpi(), bbox_inches="tight")
-    plt.close(fig)
+    plt.figure(fig.number)  # finalize_plot lays out and saves the current figure
+    finalize_plot(output_path, tight_rect=None if rect is None else list(rect))
     logger.info("Wrote %s", output_path)
 
 
@@ -415,34 +421,14 @@ def load_pedigree_estimates(
         else:
             corrs[ptype] = safe_corrcoef(liab[idx1], liab[idx2])
 
-    # Midparent-offspring regression: offspring from filtered subset, parent
-    # liabilities looked up in the full pedigree (may be pre-filter).
-    full_ids = df_full["id"].to_numpy()
-    max_id = int(full_ids.max()) if len(full_ids) else -1
-    id_to_liab = np.full(max_id + 1, np.nan)
-    id_to_liab[full_ids] = df_full[f"liability{trait}"].to_numpy()
-
-    def _liab_lookup(ids: np.ndarray) -> np.ndarray:
-        # Mirrors the pandas reindex this replaced: absent/out-of-range -> NaN.
-        in_range = (ids >= 0) & (ids <= max_id)
-        return np.where(in_range, id_to_liab[np.clip(ids, 0, max(max_id, 0))], np.nan)
-
-    mothers_arr = df["mother"].to_numpy()
-    fathers_arr = df["father"].to_numpy()
-    parent_mask = (mothers_arr >= 0) & (fathers_arr >= 0)
-    if int(parent_mask.sum()) >= 10:
-        mother_liab = _liab_lookup(mothers_arr[parent_mask])
-        father_liab = _liab_lookup(fathers_arr[parent_mask])
-        offspring = df[f"liability{trait}"].to_numpy()[parent_mask]
-        midparent = (mother_liab + father_liab) / 2.0
-        mask = np.isfinite(midparent) & np.isfinite(offspring)
-        if mask.sum() >= 10:
-            reg = safe_linregress(midparent[mask], offspring[mask])
-            po_slope = float(reg.slope) if reg is not None else float("nan")
-        else:
-            po_slope = float("nan")
-    else:
-        po_slope = float("nan")
+    # Midparent-offspring regression: offspring from the filtered subset (stratum 1),
+    # parent liabilities from the full pedigree (parents may be pre-filter).
+    in_subset = np.where(np.isin(df_full["id"].to_numpy(), df["id"].to_numpy()), 1.0, np.nan)
+    fits = midparent_offspring(
+        mate_pedigree(df_full), Trait(df_full[f"liability{trait}"].to_numpy(), "continuous"), in_subset
+    )
+    fit = stratum_line(fits, 1)
+    po_slope = fit.slope if fit is not None and fit.n >= 10 and fit.slope is not None else float("nan")
 
     vA = float(np.var(df[f"A{trait}"].to_numpy(), ddof=1, dtype=np.float64))
     vC = float(np.var(df[f"C{trait}"].to_numpy(), ddof=1, dtype=np.float64))
@@ -485,13 +471,18 @@ def load_pooled_liability_correlations(
     return out
 
 
+def scenario_parameters(pedigree_path: Path) -> dict[str, Any]:
+    """The resolved parameters of the rep that wrote *pedigree_path*, from the ``report.yaml`` beside it."""
+    report = load_yaml(Path(pedigree_path).with_name("report.yaml"))
+    return dict((report.get("inputs") or {}).get("parameters") or {})
+
+
 def compare_correlations_by_relclass(
     scenario_paths: list[list[Path]],
     labels: list[str],
     output_path: Path,
     trait: int = 1,
-    expected_A: float | None = None,
-    expected_C: float | None = None,
+    reference_params: Mapping[str, Any] | None = None,
     min_generation: int | None = None,
 ) -> None:
     """Grouped bar chart: liability correlation by relationship class, per scenario.
@@ -499,11 +490,14 @@ def compare_correlations_by_relclass(
     Relationship classes are pooled to {FS, PO, HS, 1C} and displayed on
     the x-axis in decreasing expected kinship.  Each scenario gets one bar
     per class, drawn with min/max error bars across replicates.  If
-    ``expected_A`` is supplied, a dashed reference line per class shows the
-    random-mating expectation ``k * A + c * C`` (``k`` the class's kinship,
-    ``c`` the share of C its pairs have in common); this is what any AM
-    scenario should deviate from as AM strength grows. A class whose pooled
-    members expect different values (HS when ``C > 0``) gets no line.
+    ``reference_params`` is supplied, a dashed line per class shows that
+    scenario's reference correlation
+    (:func:`~simace.core.relationships.reference_corr`): under random mating
+    the analytic ``(2 * kinship * A + C_shared * C) / V_P``, with C
+    transmission where it applies; this is what any AM scenario should
+    deviate from as AM strength grows. A class whose pooled members expect
+    different values (HS when ``C > 0``), or that has no analytic value,
+    gets no line.
 
     Args:
         scenario_paths: outer list = scenarios, inner list = replicate
@@ -511,10 +505,9 @@ def compare_correlations_by_relclass(
         labels: display label per scenario (same order as ``scenario_paths``).
         output_path: image path to save.
         trait: 1 or 2.
-        expected_A: input ``A`` for the trait; used for random-mating reference
-            markers.  If ``None``, no reference markers are drawn.
-        expected_C: input ``C`` for the trait.  Defaults to 0 if ``None`` and
-            ``expected_A`` is set.
+        reference_params: resolved parameters of the reference scenario,
+            usually the first (:func:`scenario_parameters`).  If ``None``, no
+            reference lines are drawn.
         min_generation: restrict correlation computations to individuals in
             generations ``>= min_generation``.  Useful for letting AM reach
             its equilibrium.  ``None`` uses all generations.
@@ -597,12 +590,11 @@ def compare_correlations_by_relclass(
                 color=color,
             )
 
-    if expected_A is not None:
-        c = 0.0 if expected_C is None else expected_C
+    if reference_params is not None:
         for i, (_, _, members) in enumerate(POOLED_RELATIONSHIP_CLASSES):
             # A pooled class has one expectation only when its members agree:
             # HS pools MHS (shares C) with PHS (does not), so it has none when C > 0.
-            expected, *others = (expected_liability_corr(member, expected_A, c) for member in members)
+            expected, *others = (reference_corr(member, reference_params, trait) for member in members)
             if expected is None or any(other != expected for other in others):
                 continue
             ax.hlines(
@@ -1210,8 +1202,7 @@ def compare_cohort_fs_correlations(
     labels: list[str],
     output_path: Path,
     trait: int = 1,
-    expected_A: float | None = None,
-    expected_C: float | None = None,
+    reference_params: Mapping[str, Any] | None = None,
     min_generation: int = 1,
 ) -> None:
     """Per-generation FS liability correlation, one line per scenario.
@@ -1227,11 +1218,10 @@ def compare_cohort_fs_correlations(
         labels: display label per scenario.
         output_path: image path to save.
         trait: 1 or 2.
-        expected_A: input ``A`` for the random-mating reference line at
-            ``0.5 * A`` (set ``C`` to non-None to include the C contribution
-            ``0.5*A + C``).  Omitted if ``None``.
-        expected_C: input ``C``; combined with ``expected_A`` for the
-            reference line.
+        reference_params: resolved parameters of the reference scenario,
+            usually the first (:func:`scenario_parameters`), for the FS
+            reference line (:func:`~simace.core.relationships.reference_corr`).
+            Omitted if ``None`` or when that scenario has no analytic FS value.
         min_generation: smallest generation to include (founders have no FS
             pairs by construction; default 1).
     """
@@ -1251,7 +1241,7 @@ def compare_cohort_fs_correlations(
         ax.plot(gens, means, color=color, marker="o", label=label)
         ax.fill_between(gens, lows, highs, color=color, alpha=0.15, linewidth=0)
 
-    ref = None if expected_A is None else expected_liability_corr("FS", expected_A, expected_C or 0.0)
+    ref = None if reference_params is None else reference_corr("FS", reference_params, trait)
     if ref is not None:
         ax.axhline(
             y=ref,
@@ -1259,7 +1249,7 @@ def compare_cohort_fs_correlations(
             color="#888888",
             linewidth=1,
             alpha=0.8,
-            label=f"random-mating expectation = 0.5·A{(' + C' if expected_C else '')} = {ref:.3f}",
+            label=f"expected FS r ({labels[0]}) = {ref:.3f}",
         )
 
     ax.set_xlabel("Generation")

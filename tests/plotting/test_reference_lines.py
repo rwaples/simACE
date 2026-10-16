@@ -75,6 +75,23 @@ def test_per_generation_cells_parse_back_without_crashing(tmp_path):
     assert _reference_corr("FS", 1)(per_gen_c) is None
 
 
+def test_scalar_cells_in_a_text_column_parse_as_numbers(tmp_path):
+    """One scenario's per-generation E1 makes the gathered E1 column text; the other's scalar must stay a number."""
+    paths = []
+    for scenario, e1 in (("scalar", 0.3), ("per_gen", {0: 0.3, 3: 0.5})):
+        path = tmp_path / "results" / "f" / scenario / "rep1" / "report.yaml"
+        path.parent.mkdir(parents=True)
+        path.write_text(yaml.safe_dump({"inputs": {"parameters": {**_PARAMS, "E1": e1}}}))
+        paths.append(str(path))
+    tsv = tmp_path / "report_summary.tsv"
+    gather(paths, str(tsv))
+    df = pl.read_csv(tsv, separator="\t", null_values=["NA", ""], infer_schema_length=None).to_pandas()
+    assert pd.api.types.is_string_dtype(df["E1"])
+    scalar = df[df["scenario"] == "scalar"]
+    assert _reference_corr("FS", 1)(scalar) == pytest.approx(reference_corr("FS", _PARAMS, 1))
+    assert _reference_slope(1)(scalar) == pytest.approx(reference_midparent_slope(_PARAMS, 1))
+
+
 def test_all_zero_per_generation_assortment_is_random_mating_after_gather(tmp_path):
     params = {**_PARAMS, "assort1": {0: 0.0, 4: 0.0}}
     df, _ = _gathered(tmp_path, params)

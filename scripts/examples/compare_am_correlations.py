@@ -1,19 +1,19 @@
 r"""Pooled liability-correlation comparison across AM levels.
 
-Example (``--expected-*`` are the first scenario's ``A1``/``C1``;
-``--min-generation`` is ``max(1, G_pheno // 2)``)::
+Example (``--min-generation`` is ``max(1, G_pheno // 2)``; the reference lines
+use the first scenario's parameters, from the ``report.yaml`` beside its first pedigree)::
 
     python scripts/examples/compare_am_correlations.py \
         --inputs results/examples/{am_none,am_weak,am_strong}/rep{1,2,3}/pedigree.parquet \
         --reps-per-scenario 3 3 3 \
-        --expected-A 0.5 --expected-C 0.0 --min-generation 5
+        --min-generation 5
 """
 
 import argparse
 from pathlib import Path
 
 from simace import setup_logging
-from simace.plotting.compare_scenarios import compare_correlations_by_relclass
+from simace.plotting.compare_scenarios import compare_correlations_by_relclass, scenario_parameters
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -23,8 +23,6 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--output", default="docs/images/examples/am/corr_by_relclass.png")
     parser.add_argument("--labels", nargs="+", default=["no AM", "weak AM (0.2)", "strong AM (0.4)"])
     parser.add_argument("--reps-per-scenario", nargs="+", type=int, required=True)
-    parser.add_argument("--expected-A", type=float, required=True)
-    parser.add_argument("--expected-C", type=float, required=True)
     parser.add_argument("--min-generation", type=int, required=True)
     parser.add_argument("--log", default=None)
     args = parser.parse_args(argv)
@@ -46,8 +44,7 @@ def main(argv: list[str] | None = None) -> None:
         labels=labels,
         output_path=Path(args.output),
         trait=1,
-        expected_A=args.expected_A,
-        expected_C=args.expected_C,
+        reference_params=scenario_parameters(scenario_paths[0][0]),
         min_generation=args.min_generation,
     )
 

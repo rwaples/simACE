@@ -10,10 +10,8 @@ __all__ = [
     "norm_pdf",
     "norm_sf",
     "safe_corrcoef",
-    "safe_linregress",
 ]
 
-from typing import Any
 
 import numpy as np
 
@@ -94,25 +92,6 @@ def safe_corrcoef(x: np.ndarray, y: np.ndarray) -> float:
     if np.std(x) < _ZERO_VAR_THRESHOLD or np.std(y) < _ZERO_VAR_THRESHOLD:
         return float("nan")
     return float(_pearsonr_core(as_kernel_input(x), as_kernel_input(y)))
-
-
-def safe_linregress(x: np.ndarray, y: np.ndarray) -> Any:
-    """Run linear regression, returning None if x has zero variance.
-
-    Args:
-        x: Independent variable array.
-        y: Dependent variable array, same length as *x*.
-
-    Returns:
-        ``scipy.stats.LinregressResult`` or None if *x* has near-zero variance.
-    """
-    if np.std(x) < _ZERO_VAR_THRESHOLD:
-        return None
-    # Imported here, not at module level: scipy.stats costs ~0.5 s to import and
-    # this is the only caller, so keep it off the per-job startup path.
-    from scipy import stats
-
-    return stats.linregress(x, y)
 
 
 def fast_linregress(x: np.ndarray, y: np.ndarray) -> tuple[float, float, float, float, float]:

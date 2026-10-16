@@ -398,8 +398,10 @@ class TestValidateAssortativeMating:
         "over",
         [
             pytest.param({"rE": 0.0, "E1": {0: 0.3, 1: 0.2}}, id="rE-zero"),
-            # G_sim=3 mates parental C/E generations 0, 0, 1; generation 2 is never mated.
+            # G_sim=3 records iterations 1 and 2, which mate parental C/E generations 0 and 1.
             pytest.param({"rE": 0.5, "E1": {0: 0.3, 2: 0.2}}, id="unmated-generation"),
+            # G_sim=6, G_ped=3 records iterations 4 and 5 (generations 3, 4); the change at 2 is burn-in.
+            pytest.param({"rE": 0.5, "G_sim": 6, "E1": {0: 0.2, 2: 0.3}}, id="burn-in-only"),
         ],
     )
     def test_cross_trait_checks_per_generation_params_that_leave_the_target_constant(self, val_mates, val_params, over):

@@ -15,7 +15,7 @@ import numpy as np
 from simace.core.numerics import safe_corrcoef
 from simace.core.relationships import transmission_coefficients
 
-from ._common import _corr_tolerance, _info, _result
+from ._common import _corr_tolerance, _info, _result, sorted_runs
 from .am_relatedness import am_relatedness_mode
 
 if TYPE_CHECKING:
@@ -37,13 +37,6 @@ def _check_variance(founders: Mapping[str, np.ndarray], col: str, expected: floa
         expected=expected,
         observed=float(var),
     )
-
-
-def _groups(keys: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Return the stable sort order of ``keys`` and the start of each run of equal keys in that order."""
-    order = np.argsort(keys, kind="stable")
-    ordered = keys[order]
-    return order, np.flatnonzero(np.r_[True, ordered[1:] != ordered[:-1]])
 
 
 def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
@@ -153,7 +146,7 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
     nf_mask = mother_all != -1
     if nf_mask.any():
         mothers_nf = mother_all[nf_mask]
-        order, starts = _groups(mothers_nf)
+        order, starts = sorted_runs(mothers_nf)
         sizes = np.diff(np.r_[starts, len(mothers_nf)])
         for t in [1, 2]:
             col = f"C{t}"
@@ -161,7 +154,7 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
             t_order, t_starts = order, starts
             if by_pair:
                 father_nf = df["father"].to_numpy()[nf_mask].astype(np.int64)
-                t_order, t_starts = _groups(mothers_nf.astype(np.int64) * (int(father_nf.max()) + 1) + father_nf)
+                t_order, t_starts = sorted_runs(mothers_nf.astype(np.int64) * (int(father_nf.max()) + 1) + father_nf)
             vals = df[col].to_numpy()[nf_mask][t_order]
             # nunique == 1 per family ⇔ group max equals group min (C is never NaN).
             c_shared = (np.maximum.reduceat(vals, t_starts) == np.minimum.reduceat(vals, t_starts)).mean()

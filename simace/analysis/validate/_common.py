@@ -71,6 +71,24 @@ def _extract_comp_vals(ped: PedigreeArrays) -> dict[str, np.ndarray]:
     return {f"{c}{t}": ped[f"{c}{t}"] for c in ("A", "C", "E") for t in (1, 2)}
 
 
+def sorted_runs(keys: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """The stable sort order of ``keys`` and the start of each run of equal keys in that order.
+
+    A sort, not ``np.unique``, whose hash path is slow on big int64 keys.
+    """
+    order = np.argsort(keys, kind="stable")
+    ordered = keys[order]
+    return order, np.flatnonzero(np.r_[True, ordered[1:] != ordered[:-1]])
+
+
+def cluster_codes(keys: np.ndarray) -> np.ndarray:
+    """Dense codes ``0..G-1`` for the distinct ``keys``, in sorted key order."""
+    order, starts = sorted_runs(keys)
+    codes = np.empty(len(keys), dtype=np.int64)
+    codes[order] = np.repeat(np.arange(len(starts)), np.diff(np.r_[starts, len(keys)]))
+    return codes
+
+
 def sibling_moments(
     df: pd.DataFrame | pl.DataFrame, ped: PedigreeArrays, graph: PedigreeGraph | None = None
 ) -> RelationshipMoments:
