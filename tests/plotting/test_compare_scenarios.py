@@ -9,7 +9,7 @@ import polars as pl
 import pytest
 
 from simace.core.parquet import save_parquet
-from simace.plotting.compare_scenarios import load_sib_pair_liabilities
+from simace.plotting.compare_scenarios import load_pedigree_estimates, load_sib_pair_liabilities
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -110,3 +110,67 @@ def test_returns_empty_arrays_for_no_paths():
 
     assert liab_a.size == 0
     assert liab_b.size == 0
+
+
+def _three_generations(path: Path, seed: int = 3, n: int = 120) -> pl.DataFrame:
+    """Write *n* founders per sex, then two generations of *n* children each; return the frame."""
+    rng = np.random.default_rng(seed)
+    ids = list(range(2 * n))
+    mothers, fathers, gens = [-1] * (2 * n), [-1] * (2 * n), [1] * (2 * n)
+    sexes = [i % 2 for i in ids]
+    females, males = np.arange(0, 2 * n, 2), np.arange(1, 2 * n, 2)
+    for gen in (2, 3):
+        start = len(ids)
+        for k in range(2 * n):
+            ids.append(start + k)
+            mothers.append(int(rng.choice(females)))
+            fathers.append(int(rng.choice(males)))
+            gens.append(gen)
+            sexes.append(k % 2)
+        females, males = np.arange(start, start + 2 * n, 2), np.arange(start + 1, start + 2 * n, 2)
+    size = len(ids)
+    a, c, e = rng.normal(size=size), rng.normal(size=size), rng.normal(size=size)
+    df = pl.DataFrame(
+        {
+            "id": ids,
+            "sex": sexes,
+            "mother": mothers,
+            "father": fathers,
+            "twin": [-1] * size,
+            "generation": gens,
+            "A1": a,
+            "C1": c,
+            "E1": e,
+            "liability1": a + c + e + 0.4 * np.arange(size) / size,
+        }
+    )
+    save_parquet(df, path)
+    return df
+
+
+def _oracle_po_slope(df_full: pl.DataFrame, min_generation: int | None) -> float:
+    """OLS slope of the filtered rows' liability on their parents' mean liability, parents read from every row."""
+    df = df_full if min_generation is None else df_full.filter(pl.col("generation") >= min_generation)
+    liab = dict(zip(df_full["id"].to_list(), df_full["liability1"].to_list(), strict=True))
+    rows = [
+        (liab[m], liab[f], y)
+        for m, f, y in df.select("mother", "father", "liability1").iter_rows()
+        if m in liab and f in liab
+    ]
+    mid = np.array([(m + f) / 2 for m, f, _ in rows])
+    y = np.array([y for _, _, y in rows])
+    return float(np.polyfit(mid, y, 1)[0])
+
+
+@pytest.mark.parametrize("min_generation", [None, 3])
+def test_po_slope_reads_parents_from_the_full_pedigree(tmp_path: Path, min_generation: int | None):
+    """With generation 3 kept, every parent is a filtered-out generation-2 row."""
+    df_full = _three_generations(tmp_path / "ped.parquet")
+    estimates = load_pedigree_estimates(tmp_path / "ped.parquet", trait=1, min_generation=min_generation)
+    assert estimates["po_slope"] == pytest.approx(_oracle_po_slope(df_full, min_generation), rel=1e-10)
+
+
+def test_po_slope_is_nan_below_ten_children(tmp_path: Path):
+    df = _three_generations(tmp_path / "ped.parquet", n=4)
+    save_parquet(df.filter(pl.col("generation") < 3), tmp_path / "small.parquet")
+    assert np.isnan(load_pedigree_estimates(tmp_path / "small.parquet", trait=1, min_generation=2)["po_slope"])

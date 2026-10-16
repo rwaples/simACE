@@ -30,7 +30,7 @@ simACE/
 │   │   ├── cli_base.py                   # Shared CLI boilerplate and flag parsers for structured values
 │   │   ├── cohort.py                     # cohort.parquet: builder, invariants, selected_views, layout-marked readers and writers
 │   │   ├── compute_hazard_terms.py       # Baseline hazard computation for parametric survival models
-│   │   ├── numerics.py                   # safe_corrcoef, safe_linregress, numba-accelerated helpers
+│   │   ├── numerics.py                   # safe_corrcoef, numba-accelerated helpers
 │   │   ├── parquet.py                    # Parquet reader/writer with dtype narrowing and the null contract
 │   │   ├── parquet_to_tsv.py             # `simace parquet-to-tsv`
 │   │   ├── pedigree_arrays.py            # Pedigree columns as numpy arrays, addressable by id
@@ -72,6 +72,8 @@ simACE/
 │   │   ├── report.py                     # Assemble the curated report from validation + stats outputs
 │   │   ├── report_schema.py              # Schema constants and contract checks for the report
 │   │   ├── gather.py                     # Gather per-replicate report summaries into report_summary.tsv
+│   │   ├── mate_correlation.py           # Mate correlations of pedigree columns (pg-phenotype)
+│   │   ├── midparent.py                  # Midparent-offspring regressions shared by stats, validation, and plots
 │   │   ├── stats/                        # Per-concern stats package
 │   │   │   ├── runner.py                 # Stats orchestrator
 │   │   │   ├── moments.py                # Relationship moments of the analysis sample (one engine pass, ADR 0022)

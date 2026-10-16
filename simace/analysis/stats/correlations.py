@@ -21,9 +21,9 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from pg_phenotype import Trait
-from pg_phenotype.regression import parent_offspring
 
 from simace.analysis.mate_correlation import mate_correlation_matrix, mate_pedigree
+from simace.analysis.midparent import midparent_offspring, stratum_line
 from simace.core.relationships import SEX_LEVELS
 
 from .moments import Stratum, select_levels
@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     import polars as pl
     from pedigree_graph import RelationshipMoments
     from pg_phenotype import Pedigree
-    from pg_phenotype.regression import Fit, ParentOffspring
+    from pg_phenotype.regression import Fit
 
     type _Frame = pd.DataFrame | pl.DataFrame
 
@@ -251,18 +251,6 @@ def _po_entry(fit: Fit | None) -> dict[str, Any]:
     }
 
 
-def _midparent_offspring(pedigree: Pedigree, trait: Trait, stratum: np.ndarray | None = None) -> ParentOffspring:
-    """The midparent-offspring line of *trait*, point estimates and OLS SE only."""
-    return parent_offspring(pedigree, trait, stratum=stratum, lines="midparent", inference=False)
-
-
-def _stratum_line(fits: ParentOffspring, label: int) -> Fit | None:
-    """The midparent line of stratum *label* of stratified *fits*, ``None`` when no row has that label."""
-    assert fits.strata is not None, "fits were not stratified"
-    subset = fits.strata.get(label)
-    return None if subset is None else subset.midparent
-
-
 def compute_parent_offspring_corr(df: _Frame, pedigree: Pedigree) -> dict[str, Any]:
     """Compute midparent-offspring liability regression per generation and trait.
 
@@ -280,10 +268,8 @@ def compute_parent_offspring_corr(df: _Frame, pedigree: Pedigree) -> dict[str, A
     max_gen = int(gen_arr.max())
     result = {}
     for trait_num in [1, 2]:
-        fits = _midparent_offspring(pedigree, Trait(df[f"liability{trait_num}"].to_numpy(), "continuous"), gen_arr)
-        result[f"trait{trait_num}"] = {
-            f"gen{gen}": _po_entry(_stratum_line(fits, gen)) for gen in range(1, max_gen + 1)
-        }
+        fits = midparent_offspring(pedigree, Trait(df[f"liability{trait_num}"].to_numpy(), "continuous"), gen_arr)
+        result[f"trait{trait_num}"] = {f"gen{gen}": _po_entry(stratum_line(fits, gen)) for gen in range(1, max_gen + 1)}
     return result
 
 
@@ -313,7 +299,7 @@ def compute_parent_offspring_affected_corr(df: _Frame, pedigree: Pedigree) -> di
         if aff_col not in df.columns:
             result[f"trait{trait_num}"] = dict(_PO_NULL)
             continue
-        fits = _midparent_offspring(pedigree, Trait(df[aff_col].to_numpy(), "binary"))
+        fits = midparent_offspring(pedigree, Trait(df[aff_col].to_numpy(), "binary"))
         result[f"trait{trait_num}"] = _po_entry(fits.pooled.midparent)
     return result
 
@@ -337,13 +323,13 @@ def compute_parent_offspring_corr_by_sex(df: _Frame, pedigree: Pedigree) -> dict
     # Any other sex would alias a neighbouring generation's code, so its rows get no stratum.
     stratum = np.where(np.isin(sex_arr, [0, 1]), 2.0 * gen_arr + sex_arr, np.nan)
     fits = {
-        trait_num: _midparent_offspring(pedigree, Trait(df[f"liability{trait_num}"].to_numpy(), "continuous"), stratum)
+        trait_num: midparent_offspring(pedigree, Trait(df[f"liability{trait_num}"].to_numpy(), "continuous"), stratum)
         for trait_num in [1, 2]
     }
     return {
         sex_label: {
             f"trait{trait_num}": {
-                f"gen{gen}": _po_entry(_stratum_line(fits[trait_num], 2 * gen + sex_val))
+                f"gen{gen}": _po_entry(stratum_line(fits[trait_num], 2 * gen + sex_val))
                 for gen in range(1, max_gen + 1)
             }
             for trait_num in [1, 2]

@@ -39,8 +39,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 from pedigree_graph import RELATIONSHIPS, PedigreeGraph
+from pg_phenotype import Trait
 
-from simace.core.numerics import safe_corrcoef, safe_linregress
+from simace.analysis.mate_correlation import mate_pedigree
+from simace.analysis.midparent import midparent_offspring, stratum_line
+from simace.core.numerics import safe_corrcoef
 from simace.core.parquet import load_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE, RELATIONSHIP_TYPES, expected_liability_corr
 from simace.core.yaml_io import load_yaml
@@ -415,34 +418,14 @@ def load_pedigree_estimates(
         else:
             corrs[ptype] = safe_corrcoef(liab[idx1], liab[idx2])
 
-    # Midparent-offspring regression: offspring from filtered subset, parent
-    # liabilities looked up in the full pedigree (may be pre-filter).
-    full_ids = df_full["id"].to_numpy()
-    max_id = int(full_ids.max()) if len(full_ids) else -1
-    id_to_liab = np.full(max_id + 1, np.nan)
-    id_to_liab[full_ids] = df_full[f"liability{trait}"].to_numpy()
-
-    def _liab_lookup(ids: np.ndarray) -> np.ndarray:
-        # Mirrors the pandas reindex this replaced: absent/out-of-range -> NaN.
-        in_range = (ids >= 0) & (ids <= max_id)
-        return np.where(in_range, id_to_liab[np.clip(ids, 0, max(max_id, 0))], np.nan)
-
-    mothers_arr = df["mother"].to_numpy()
-    fathers_arr = df["father"].to_numpy()
-    parent_mask = (mothers_arr >= 0) & (fathers_arr >= 0)
-    if int(parent_mask.sum()) >= 10:
-        mother_liab = _liab_lookup(mothers_arr[parent_mask])
-        father_liab = _liab_lookup(fathers_arr[parent_mask])
-        offspring = df[f"liability{trait}"].to_numpy()[parent_mask]
-        midparent = (mother_liab + father_liab) / 2.0
-        mask = np.isfinite(midparent) & np.isfinite(offspring)
-        if mask.sum() >= 10:
-            reg = safe_linregress(midparent[mask], offspring[mask])
-            po_slope = float(reg.slope) if reg is not None else float("nan")
-        else:
-            po_slope = float("nan")
-    else:
-        po_slope = float("nan")
+    # Midparent-offspring regression: offspring from the filtered subset (stratum 1),
+    # parent liabilities from the full pedigree (parents may be pre-filter).
+    in_subset = np.where(np.isin(df_full["id"].to_numpy(), df["id"].to_numpy()), 1.0, np.nan)
+    fits = midparent_offspring(
+        mate_pedigree(df_full), Trait(df_full[f"liability{trait}"].to_numpy(), "continuous"), in_subset
+    )
+    fit = stratum_line(fits, 1)
+    po_slope = fit.slope if fit is not None and fit.n >= 10 and fit.slope is not None else float("nan")
 
     vA = float(np.var(df[f"A{trait}"].to_numpy(), ddof=1, dtype=np.float64))
     vC = float(np.var(df[f"C{trait}"].to_numpy(), ddof=1, dtype=np.float64))
