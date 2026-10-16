@@ -6,8 +6,10 @@
 # relationship category: scripts/se_calibration.py reads the reps.
 #
 # Axes: sibship structure (mating_lambda 0.5 vs 3.0; more partners means
-# more half-sibs and smaller full sibships) x prevalence (K 0.10 vs 0.02).
-# Within each scenario, trait1 has no C and trait2 has C = 0.2.
+# more half-sibs and smaller full sibships) x prevalence (K 0.10 vs 0.02),
+# with trait1 A 0.5, C 0 and trait2 A 0.4, C 0.2. The two _hiA scenarios
+# (pg-phenotype #18) raise A at K 0.10 only: trait1 A 0.8, C 0 and
+# trait2 A 0.5, C 0.3.
 # Case status is liability-threshold (adult/ltm), but the default age-window
 # and death censoring make the observed threshold vary by person, so the
 # tetrachoric model is only approximately right. The SE is a sandwich, which
@@ -63,3 +65,25 @@ se_cal_lam3_K02:
   N: 20000
   pedigree: *pedigree_lam3
   phenotype: *pheno_K02
+
+# Higher h2 (issue rwaples/pg-phenotype#18): the research note expects the
+# parent-offspring and collateral gaps to grow with h2. trait1 A = 0.8, C = 0;
+# trait2 A = 0.5, C = 0.3.
+se_cal_lam05_K10_hiA:
+  seed: 55050
+  replicates: 100
+  N: 20000
+  pedigree: &pedigree_lam05_hiA
+    mating_lambda: 0.5
+    trait1: {A: 0.8, C: 0.0, E: 0.2}
+    trait2: {A: 0.5, C: 0.3, E: 0.2}
+  phenotype: *pheno_K10
+
+se_cal_lam3_K10_hiA:
+  seed: 55060
+  replicates: 100
+  N: 20000
+  pedigree:
+    <<: *pedigree_lam05_hiA
+    mating_lambda: 3.0
+  phenotype: *pheno_K10
