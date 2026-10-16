@@ -1,17 +1,18 @@
 r"""Per-cohort full-sib liability correlation across E schedules.
 
-Example (``--expected-*`` are the first scenario's ``A1``/``C1``)::
+Example (the reference line uses the first scenario's parameters, from the
+``report.yaml`` beside its first pedigree)::
 
     python scripts/examples/compare_increasing_e_cohort_fs.py \
         --inputs results/examples/e_{flat,rise_mild,rise_steep,fall_steep}_std/rep{1,2,3}/pedigree.parquet \
-        --reps-per-scenario 3 3 3 3 --expected-A 0.5 --expected-C 0.0
+        --reps-per-scenario 3 3 3 3
 """
 
 import argparse
 from pathlib import Path
 
 from simace import setup_logging
-from simace.plotting.compare_scenarios import compare_cohort_fs_correlations
+from simace.plotting.compare_scenarios import compare_cohort_fs_correlations, scenario_parameters
 
 INCREASING_E_LABELS = [
     "E flat at 0.5",
@@ -28,8 +29,6 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--output", default="docs/images/examples/increasing_e/fs_corr_by_gen.png")
     parser.add_argument("--labels", nargs="+", default=INCREASING_E_LABELS)
     parser.add_argument("--reps-per-scenario", nargs="+", type=int, required=True)
-    parser.add_argument("--expected-A", type=float, required=True)
-    parser.add_argument("--expected-C", type=float, required=True)
     parser.add_argument("--min-generation", type=int, default=1)
     parser.add_argument("--log", default=None)
     args = parser.parse_args(argv)
@@ -51,8 +50,7 @@ def main(argv: list[str] | None = None) -> None:
         labels=labels,
         output_path=Path(args.output),
         trait=1,
-        expected_A=args.expected_A,
-        expected_C=args.expected_C,
+        reference_params=scenario_parameters(pedigree_paths[0][0]),
         min_generation=args.min_generation,
     )
 

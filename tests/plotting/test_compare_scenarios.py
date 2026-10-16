@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 import pytest
 
 from simace.core.parquet import save_parquet
+from simace.plotting import compare_scenarios
 from simace.plotting.compare_scenarios import load_pedigree_estimates, load_sib_pair_liabilities
 
 if TYPE_CHECKING:
@@ -174,3 +176,42 @@ def test_po_slope_is_nan_below_ten_children(tmp_path: Path):
     df = _three_generations(tmp_path / "ped.parquet", n=4)
     save_parquet(df.filter(pl.col("generation") < 3), tmp_path / "small.parquet")
     assert np.isnan(load_pedigree_estimates(tmp_path / "small.parquet", trait=1, min_generation=2)["po_slope"])
+
+
+def _reference_lines(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, params: dict) -> dict[str, float]:
+    """The dashed reference value per pooled class that compare_correlations_by_relclass draws."""
+    figures = []
+    monkeypatch.setattr(compare_scenarios, "_save", lambda fig, *a, **k: figures.append(fig))
+    names = [name for name, _, _ in compare_scenarios.POOLED_RELATIONSHIP_CLASSES]
+    monkeypatch.setattr(
+        compare_scenarios, "load_pooled_liability_correlations", lambda *a, **k: {name: [0.3] for name in names}
+    )
+    compare_scenarios.compare_correlations_by_relclass([[tmp_path]], ["s"], tmp_path / "p.png", reference_params=params)
+    lines = {}
+    dashed = [c for c in figures[0].axes[0].collections if c.get_linestyle()[0][1] is not None]
+    for collection in dashed:
+        for (x0, y), (x1, _) in collection.get_segments():
+            lines[names[round((x0 + x1) / 2)]] = float(y)
+    plt.close(figures[0])
+    return lines
+
+
+_REF = {"A1": 0.5, "C1": 0.2, "E1": 0.5, "assort1": 0.0, "assort2": 0.0}
+
+
+def test_relclass_reference_lines_divide_by_vp(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """Without C transmission the HS members disagree (MHS shares C, PHS does not), so HS has no line."""
+    lines = _reference_lines(monkeypatch, tmp_path, _REF)
+    assert lines == pytest.approx({"FS": (0.25 + 0.2) / 1.2, "PO": 0.25 / 1.2, "1C": 0.0625 / 1.2})
+
+
+def test_relclass_reference_lines_follow_c_transmission(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """b_m = b_f = 0.5: MO and FO agree on (0.5A + 0.5C)/V_P; 1C has no closed form and no truth here."""
+    params = {**_REF, "Ctm_maternal1": 0.5, "Ctm_paternal1": 0.5}
+    lines = _reference_lines(monkeypatch, tmp_path, params)
+    assert lines == pytest.approx({"FS": (0.25 + 0.2) / 1.2, "PO": (0.25 + 0.1) / 1.2})
+
+
+def test_scenario_parameters_reads_the_report_beside_the_pedigree(tmp_path: Path):
+    (tmp_path / "report.yaml").write_text("inputs:\n  parameters:\n    A1: 0.5\n")
+    assert compare_scenarios.scenario_parameters(tmp_path / "pedigree.parquet") == {"A1": 0.5}
