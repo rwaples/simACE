@@ -2,8 +2,8 @@
 
 Tetrachoric correlation is symmetric and equivariant under affection relabeling:
 ``r(a,b)==r(b,a)``, ``r(~a,~b)==r(a,b)``, ``r(~a,b)==-r(a,b)``, with
-``-1<=r<=1``. The estimator canonicalizes equivalent contingency tables before
-optimization, so these identities must remain exact even when the likelihood is
+``-1<=r<=1``. pg-phenotype fits every equivalent contingency table in one
+layout, so these identities must hold exactly even where the likelihood is
 flat near the correlation bracket.
 """
 

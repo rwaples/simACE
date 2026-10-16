@@ -50,25 +50,8 @@ def tetrachoric_from_table(n11: int, n10: int, n01: int, n00: int) -> tuple[floa
     if 0 < n_pairs < 50:
         logger.warning("tetrachoric_from_table: n_pairs=%d < 50, SE may be unreliable", n_pairs)
 
-    (c00, c01, c10, c11), sign = _canonical_table(n11, n10, n01, n00)
-    fit = tetrachoric(table=[[c00, c01], [c10, c11]])
+    fit = tetrachoric(table=[[n00, n01], [n10, n11]])
     if fit.value is None:
         return np.nan, np.nan
-    r = sign * fit.value if sign else 0.0
     se = np.nan if fit.se is None else fit.se
-    return r, se
-
-
-def _canonical_table(n11: int, n10: int, n01: int, n00: int) -> tuple[tuple[int, int, int, int], int]:
-    """One orientation ``(n00, n01, n10, n11)`` of a 2×2 table across swaps and relabelings, and r's sign.
-
-    Swapping the variables or complementing both leaves the tetrachoric
-    correlation unchanged; complementing one reverses its sign. At a boundary
-    fit the likelihood is flat and each orientation stops at a different point
-    (simACE #14), so every orientation is fitted as the greatest one. The sign
-    is 0 when the table equals a sign-reversing relabeling of itself, so r = 0.
-    """
-    same = [(n00, n01, n10, n11), (n00, n10, n01, n11), (n11, n10, n01, n00), (n11, n01, n10, n00)]
-    reversed_ = [(n10, n11, n00, n01), (n10, n00, n11, n01), (n01, n00, n11, n10), (n01, n11, n00, n10)]
-    best = max(same + reversed_)
-    return best, (best in same) - (best in reversed_)
+    return fit.value, se
