@@ -20,6 +20,7 @@ import numpy as np
 import yaml
 from pedigree_graph import MAX_DEGREE, RELATIONSHIPS, PedigreeGraph
 
+from simace.analysis.mate_correlation import mate_pedigree
 from simace.analysis.prevalence import compute_prevalence
 from simace.core.parquet import load_parquet, save_parquet
 from simace.core.relationships import DEFAULT_MAX_DEGREE, RELATIONSHIP_TYPES
@@ -229,12 +230,13 @@ def build_stats_report(
     _log_elapsed("Pedigree stats", t0)
 
     t0 = time.perf_counter()
+    po_pedigree = mate_pedigree(df)
     correlations = {
         "liability_correlations": compute_liability_correlations(moments=moments),
         "affected_correlations": compute_affected_correlations(moments=moments),
-        "parent_offspring_corr": compute_parent_offspring_corr(df),
-        "parent_offspring_corr_by_sex": compute_parent_offspring_corr_by_sex(df),
-        "parent_offspring_affected_corr": compute_parent_offspring_affected_corr(df),
+        "parent_offspring_corr": compute_parent_offspring_corr(df, po_pedigree),
+        "parent_offspring_corr_by_sex": compute_parent_offspring_corr_by_sex(df, po_pedigree),
+        "parent_offspring_affected_corr": compute_parent_offspring_affected_corr(df, po_pedigree),
         "joint_affection": compute_joint_affection(df),
     }
     if df_ped is not None:

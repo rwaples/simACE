@@ -8,6 +8,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from simace.analysis.mate_correlation import mate_pedigree
 from simace.analysis.prevalence import compute_prevalence
 from simace.analysis.stats import (
     compute_affected_correlations,
@@ -1069,7 +1070,7 @@ class TestComputeCrossTraitTetrachoric:
 
 class TestComputeParentOffspringCorr:
     def test_structure(self, phenotyped_df):
-        result = compute_parent_offspring_corr(phenotyped_df)
+        result = compute_parent_offspring_corr(phenotyped_df, mate_pedigree(phenotyped_df))
         assert "trait1" in result
         assert "trait2" in result
         # Should have gen keys (gen1, gen2 for G_ped=3)
@@ -1077,7 +1078,7 @@ class TestComputeParentOffspringCorr:
 
     def test_positive_slope(self, phenotyped_df):
         """With A1=0.5, midparent-offspring slope should be positive."""
-        result = compute_parent_offspring_corr(phenotyped_df)
+        result = compute_parent_offspring_corr(phenotyped_df, mate_pedigree(phenotyped_df))
         # Check the last generation where we expect enough pairs
         for gen_key in sorted(result["trait1"].keys()):
             entry = result["trait1"][gen_key]
@@ -1086,8 +1087,8 @@ class TestComputeParentOffspringCorr:
                 break
 
     def test_missing_generation_returns_empty(self):
-        df = pl.DataFrame({"id": [0], "liability1": [1.0], "liability2": [1.0]})
-        assert compute_parent_offspring_corr(df) == {}
+        df = pl.DataFrame({"id": [0], "mother": [-1], "father": [-1], "liability1": [1.0], "liability2": [1.0]})
+        assert compute_parent_offspring_corr(df, mate_pedigree(df)) == {}
 
     @pytest.mark.parametrize("keep", [1.0, 0.7])
     def test_matches_linregress_oracle(self, phenotyped_df, keep):
@@ -1099,8 +1100,8 @@ class TestComputeParentOffspringCorr:
         row = {int(i): k for k, i in enumerate(df["id"].to_numpy())}
         mother, father = df["mother"].to_numpy(), df["father"].to_numpy()
         both = np.array([m in row and f in row for m, f in zip(mother, father, strict=True)])
-        by_gen = compute_parent_offspring_corr(df)
-        by_sex = compute_parent_offspring_corr_by_sex(df)
+        by_gen = compute_parent_offspring_corr(df, mate_pedigree(df))
+        by_sex = compute_parent_offspring_corr_by_sex(df, mate_pedigree(df))
         compared = 0
         for t in (1, 2):
             y = df[f"liability{t}"].to_numpy()
@@ -1148,15 +1149,37 @@ class TestComputeTetrachoricBySex:
 
 class TestComputeParentOffspringCorrBySex:
     def test_structure(self, phenotyped_df):
-        result = compute_parent_offspring_corr_by_sex(phenotyped_df)
+        result = compute_parent_offspring_corr_by_sex(phenotyped_df, mate_pedigree(phenotyped_df))
         assert "female" in result
         assert "male" in result
         for sex in ["female", "male"]:
             assert "trait1" in result[sex]
 
     def test_missing_generation_returns_empty(self):
-        df = pl.DataFrame({"id": [0], "sex": [0], "liability1": [1.0], "liability2": [1.0]})
-        assert compute_parent_offspring_corr_by_sex(df) == {}
+        df = pl.DataFrame(
+            {"id": [0], "mother": [-1], "father": [-1], "sex": [0], "liability1": [1.0], "liability2": [1.0]}
+        )
+        assert compute_parent_offspring_corr_by_sex(df, mate_pedigree(df)) == {}
+
+    def test_other_sex_values_join_no_stratum(self, phenotyped_df):
+        """A child whose sex is neither 0 nor 1 is left out, not counted in a neighbouring generation."""
+        df = phenotyped_df.with_columns(
+            pl.when(pl.int_range(pl.len()) % 7 == 0).then(-1).otherwise(pl.col("sex")).alias("sex")
+        )
+        by_sex = compute_parent_offspring_corr_by_sex(df, mate_pedigree(df))
+        n_pairs = {
+            (s, g): by_sex[s]["trait1"][g]["n_pairs"] for s in ("female", "male") for g in by_sex["female"]["trait1"]
+        }
+        children = df.filter(pl.col("sex") >= 0)
+        parents_present = children.join(df.select(pl.col("id").alias("mother")), on="mother").join(
+            df.select(pl.col("id").alias("father")), on="father"
+        )
+        for (sex, gen), n in n_pairs.items():
+            sel = parents_present.filter(
+                (pl.col("sex") == (0 if sex == "female" else 1)) & (pl.col("generation") == int(gen[3:]))
+            )
+            assert n == len(sel)
+        assert any(n > 0 for n in n_pairs.values())
 
 
 # ===================================================================
@@ -1301,15 +1324,11 @@ class TestComputeParentOffspringAffectedCorr:
                 "affected2": [False] * len(ids),
             }
         )
-        result = compute_parent_offspring_affected_corr(df)
+        result = compute_parent_offspring_affected_corr(df, mate_pedigree(df))
         assert result["trait1"]["slope"] == pytest.approx(0.6, abs=1e-6)
         assert result["trait1"]["n_pairs"] == 20
         # trait2: all-unaffected midparents -> slope None
         assert result["trait2"]["slope"] is None
-
-    def test_missing_columns_returns_empty(self):
-        df = pl.DataFrame({"affected1": [True, False]})
-        assert compute_parent_offspring_affected_corr(df) == {}
 
     def test_too_few_trios_returns_null(self):
         df = pl.DataFrame(
@@ -1321,13 +1340,13 @@ class TestComputeParentOffspringAffectedCorr:
                 "affected2": [False, False, False, False],
             }
         )
-        result = compute_parent_offspring_affected_corr(df)
+        result = compute_parent_offspring_affected_corr(df, mate_pedigree(df))
         assert result["trait1"]["slope"] is None
         assert result["trait1"]["n_pairs"] == 2
 
     def test_smoke_on_pedigree(self, phenotyped_df):
         """On a simulated pedigree the PO slope should be finite and in [-0.5, 1.5]."""
-        result = compute_parent_offspring_affected_corr(phenotyped_df)
+        result = compute_parent_offspring_affected_corr(phenotyped_df, mate_pedigree(phenotyped_df))
         for trait_key in ["trait1", "trait2"]:
             entry = result[trait_key]
             slope = entry["slope"]

@@ -20,9 +20,10 @@ import math
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from pg_phenotype import Trait
+from pg_phenotype.regression import parent_offspring
 
 from simace.analysis.mate_correlation import mate_correlation_matrix, mate_pedigree
-from simace.core.numerics import fast_linregress
 from simace.core.relationships import SEX_LEVELS
 
 from .moments import Stratum, select_levels
@@ -32,10 +33,13 @@ if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
     from pedigree_graph import RelationshipMoments
+    from pg_phenotype import Pedigree
+    from pg_phenotype.regression import Fit, ParentOffspring
 
     type _Frame = pd.DataFrame | pl.DataFrame
 
 _MIN_PAIRS = 10
+_PO_NULL = {"r": None, "r2": None, "slope": None, "intercept": None, "stderr": None, "n_pairs": 0}
 
 
 def report_generations(df: _Frame) -> list[int]:
@@ -227,69 +231,68 @@ def compute_tetrachoric_by_sex(*, moments: RelationshipMoments) -> dict[str, Any
     }
 
 
-def _po_regression(gen_idx: np.ndarray, liability: np.ndarray, id_to_row: np.ndarray, df: _Frame) -> dict:
-    """Midparent-offspring regression for a given set of offspring indices."""
-    mother_ids = df["mother"].to_numpy()[gen_idx]
-    father_ids = df["father"].to_numpy()[gen_idx]
-    has_m = (mother_ids >= 0) & (mother_ids < len(id_to_row))
-    has_f = (father_ids >= 0) & (father_ids < len(id_to_row))
-    m_rows = np.full(len(gen_idx), -1, dtype=np.int32)
-    f_rows = np.full(len(gen_idx), -1, dtype=np.int32)
-    m_rows[has_m] = id_to_row[mother_ids[has_m]]
-    f_rows[has_f] = id_to_row[father_ids[has_f]]
-    valid = (m_rows >= 0) & (f_rows >= 0)
-    n_pairs = int(valid.sum())
-    null = {"r": None, "r2": None, "slope": None, "intercept": None, "stderr": None, "pvalue": None, "n_pairs": n_pairs}
-    if n_pairs < 10:
-        return null
-    offspring = liability[gen_idx[valid]]
-    midparent = (liability[m_rows[valid]] + liability[f_rows[valid]]) / 2.0
-    slope, intercept, r, stderr, pvalue = fast_linregress(midparent, offspring)
+def _po_entry(fit: Fit | None) -> dict[str, Any]:
+    """``{r, r2, slope, intercept, stderr, n_pairs}`` for one midparent line; ``None`` values below ten children.
+
+    ``fit`` is ``None`` for a stratum with no rows. ``n_pairs`` counts the
+    children with both parents in the frame and every value present. ``stderr`` is the slope's OLS SE.
+    """
+    if fit is None:
+        return dict(_PO_NULL)
+    if fit.n < _MIN_PAIRS or fit.slope is None:
+        return {**_PO_NULL, "n_pairs": fit.n}
     return {
-        "r": r,
-        "r2": r**2,
-        "slope": slope,
-        "intercept": intercept,
-        "stderr": stderr,
-        "pvalue": pvalue,
-        "n_pairs": n_pairs,
+        "r": fit.r,
+        "r2": fit.r2,
+        "slope": fit.slope,
+        "intercept": fit.intercept,
+        "stderr": fit.se_ols,
+        "n_pairs": fit.n,
     }
 
 
-def compute_parent_offspring_corr(df: _Frame) -> dict[str, Any]:
+def _midparent_offspring(pedigree: Pedigree, trait: Trait, stratum: np.ndarray | None = None) -> ParentOffspring:
+    """The midparent-offspring line of *trait*, point estimates and OLS SE only."""
+    return parent_offspring(pedigree, trait, stratum=stratum, lines="midparent", inference=False)
+
+
+def _stratum_line(fits: ParentOffspring, label: int) -> Fit | None:
+    """The midparent line of stratum *label* of stratified *fits*, ``None`` when no row has that label."""
+    assert fits.strata is not None, "fits were not stratified"
+    subset = fits.strata.get(label)
+    return None if subset is None else subset.midparent
+
+
+def compute_parent_offspring_corr(df: _Frame, pedigree: Pedigree) -> dict[str, Any]:
     """Compute midparent-offspring liability regression per generation and trait.
 
     Args:
         df: Phenotype DataFrame with liability, generation, and parent columns.
+        pedigree: :func:`~simace.analysis.mate_correlation.mate_pedigree` of *df*.
 
     Returns:
         Dict keyed by ``trait1``/``trait2``, each containing per-generation
-        regression stats (slope, r, r2, intercept, stderr, pvalue, n_pairs).
+        regression stats (slope, r, r2, intercept, stderr, n_pairs).
     """
     if "generation" not in df.columns:
         return {}
-    max_gen = int(df["generation"].to_numpy().max())
-    ids_arr = df["id"].to_numpy()
-    id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
-    id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
     gen_arr = df["generation"].to_numpy()
+    max_gen = int(gen_arr.max())
     result = {}
     for trait_num in [1, 2]:
-        liability = df[f"liability{trait_num}"].to_numpy()
-        trait_result = {}
-        for gen in range(1, max_gen + 1):
-            gen_idx = np.where(gen_arr == gen)[0]
-            trait_result[f"gen{gen}"] = _po_regression(gen_idx, liability, id_to_row, df)
-        result[f"trait{trait_num}"] = trait_result
+        fits = _midparent_offspring(pedigree, Trait(df[f"liability{trait_num}"].to_numpy(), "continuous"), gen_arr)
+        result[f"trait{trait_num}"] = {
+            f"gen{gen}": _po_entry(_stratum_line(fits, gen)) for gen in range(1, max_gen + 1)
+        }
     return result
 
 
-def compute_parent_offspring_affected_corr(df: _Frame) -> dict[str, Any]:
+def compute_parent_offspring_affected_corr(df: _Frame, pedigree: Pedigree) -> dict[str, Any]:
     """Compute pooled midparent-offspring regression on binary affected status.
 
     Regresses ``offspring.affected`` (0/1) on midparent affected status
     ``(mother.affected + father.affected) / 2`` (values in {0, 0.5, 1}),
-    pooled across every non-founder individual whose parents are both in the
+    pooled across every individual whose parents are both in the
     DataFrame.  The regression slope is the observed-scale PO heritability
     estimator; under LTM it can be back-transformed to liability via
     Dempster-Lerner.
@@ -297,93 +300,56 @@ def compute_parent_offspring_affected_corr(df: _Frame) -> dict[str, Any]:
     Args:
         df: Phenotype DataFrame with ``id``, ``mother``, ``father``, and
             ``affected{1,2}`` columns.
+        pedigree: :func:`~simace.analysis.mate_correlation.mate_pedigree` of *df*.
 
     Returns:
         Dict keyed ``trait1``/``trait2``, each with
-        ``{slope, r, r2, intercept, stderr, pvalue, n_pairs}``.  Values are
-        None when fewer than 10 valid trios or midparent has zero variance.
+        ``{slope, r, r2, intercept, stderr, n_pairs}``.  Values are None when
+        fewer than 10 valid trios or midparent has zero variance.
     """
-    if "id" not in df.columns or "mother" not in df.columns or "father" not in df.columns:
-        return {}
-
-    ids_arr = df["id"].to_numpy()
-    id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
-    id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
-
-    non_founder_idx = np.where(df["mother"].to_numpy() >= 0)[0]
-
-    null = {
-        "r": None,
-        "r2": None,
-        "slope": None,
-        "intercept": None,
-        "stderr": None,
-        "pvalue": None,
-        "n_pairs": 0,
-    }
-
-    # Precompute valid trios once (parents present, looked up via id_to_row).
-    mother_ids_arr = df["mother"].to_numpy()[non_founder_idx]
-    father_ids_arr = df["father"].to_numpy()[non_founder_idx]
-    has_m = (mother_ids_arr >= 0) & (mother_ids_arr < len(id_to_row))
-    has_f = (father_ids_arr >= 0) & (father_ids_arr < len(id_to_row))
-    m_rows = np.full(len(non_founder_idx), -1, dtype=np.int32)
-    f_rows = np.full(len(non_founder_idx), -1, dtype=np.int32)
-    m_rows[has_m] = id_to_row[mother_ids_arr[has_m]]
-    f_rows[has_f] = id_to_row[father_ids_arr[has_f]]
-    valid = (m_rows >= 0) & (f_rows >= 0)
-    n_pairs = int(valid.sum())
-
     result: dict[str, Any] = {}
     for trait_num in [1, 2]:
         aff_col = f"affected{trait_num}"
         if aff_col not in df.columns:
-            result[f"trait{trait_num}"] = {**null}
+            result[f"trait{trait_num}"] = dict(_PO_NULL)
             continue
-        affected = df[aff_col].to_numpy().astype(np.float64)
-        if n_pairs < 10:
-            result[f"trait{trait_num}"] = {**null, "n_pairs": n_pairs}
-            continue
-        midparent = (affected[m_rows[valid]] + affected[f_rows[valid]]) / 2.0
-        # Zero-variance midparent (all parents concordant) gives an undefined
-        # regression; surface as None rather than 0/0.
-        if float(np.var(midparent)) < 1e-12:
-            result[f"trait{trait_num}"] = {**null, "n_pairs": n_pairs}
-            continue
-        entry = _po_regression(non_founder_idx, affected, id_to_row, df)
-        slope = entry.get("slope")
-        if slope is not None and not np.isfinite(slope):
-            entry = {**null, "n_pairs": entry.get("n_pairs", 0)}
-        result[f"trait{trait_num}"] = entry
+        fits = _midparent_offspring(pedigree, Trait(df[aff_col].to_numpy(), "binary"))
+        result[f"trait{trait_num}"] = _po_entry(fits.pooled.midparent)
     return result
 
 
-def compute_parent_offspring_corr_by_sex(df: _Frame) -> dict[str, Any]:
+def compute_parent_offspring_corr_by_sex(df: _Frame, pedigree: Pedigree) -> dict[str, Any]:
     """Compute midparent-offspring regression partitioned by offspring sex.
 
-    Returns dict keyed by "female"/"male", each containing per-trait
-    per-generation {slope, r, r2, intercept, stderr, pvalue, n_pairs}.
+    Args:
+        df: Phenotype DataFrame with liability, generation, sex, and parent columns.
+        pedigree: :func:`~simace.analysis.mate_correlation.mate_pedigree` of *df*.
+
+    Returns:
+        Dict keyed by "female"/"male", each containing per-trait
+        per-generation {slope, r, r2, intercept, stderr, n_pairs}.
     """
     if "generation" not in df.columns:
         return {}
-    max_gen = int(df["generation"].to_numpy().max())
-    ids_arr = df["id"].to_numpy()
-    id_to_row = np.full(int(ids_arr.max()) + 1, -1, dtype=np.int32)
-    id_to_row[ids_arr] = np.arange(len(df), dtype=np.int32)
     gen_arr = df["generation"].to_numpy()
+    max_gen = int(gen_arr.max())
     sex_arr = df["sex"].to_numpy()
-    result: dict[str, Any] = {}
-    for sex_val, sex_label in SEX_LEVELS:
-        sex_result: dict[str, Any] = {}
-        for trait_num in [1, 2]:
-            liability = df[f"liability{trait_num}"].to_numpy()
-            trait_result: dict[str, Any] = {}
-            for gen in range(1, max_gen + 1):
-                gen_idx = np.where((gen_arr == gen) & (sex_arr == sex_val))[0]
-                trait_result[f"gen{gen}"] = _po_regression(gen_idx, liability, id_to_row, df)
-            sex_result[f"trait{trait_num}"] = trait_result
-        result[sex_label] = sex_result
-    return result
+    # Any other sex would alias a neighbouring generation's code, so its rows get no stratum.
+    stratum = np.where(np.isin(sex_arr, [0, 1]), 2.0 * gen_arr + sex_arr, np.nan)
+    fits = {
+        trait_num: _midparent_offspring(pedigree, Trait(df[f"liability{trait_num}"].to_numpy(), "continuous"), stratum)
+        for trait_num in [1, 2]
+    }
+    return {
+        sex_label: {
+            f"trait{trait_num}": {
+                f"gen{gen}": _po_entry(_stratum_line(fits[trait_num], 2 * gen + sex_val))
+                for gen in range(1, max_gen + 1)
+            }
+            for trait_num in [1, 2]
+        }
+        for sex_val, sex_label in SEX_LEVELS
+    }
 
 
 def compute_observed_h2_estimators(

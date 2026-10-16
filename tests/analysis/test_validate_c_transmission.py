@@ -4,6 +4,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from simace.analysis.mate_correlation import mate_pedigree
 from simace.analysis.validate import build_validation_report, validate_half_sibs, validate_statistical
 from simace.analysis.validate._common import mate_correlations, sibling_moments
 from simace.analysis.validate.am_equilibrium import validate_am_equilibrium
@@ -125,7 +126,7 @@ def test_phs_shared_c_expects_bf_squared_under_the_gate(rm_pedigree, am_pedigree
         rm_pedigree,
         params,
         sibling_moments(rm_pedigree, PedigreeArrays.from_frame(rm_pedigree)),
-        mate_correlations(rm_pedigree),
+        mate_correlations(rm_pedigree, mate_pedigree(rm_pedigree)),
     )
     assert result["half_sib_shared_C1"]["expected"] == pytest.approx(0.09)
     assert result["half_sib_shared_C1"]["passed"], result["half_sib_shared_C1"]["details"]
@@ -133,7 +134,7 @@ def test_phs_shared_c_expects_bf_squared_under_the_gate(rm_pedigree, am_pedigree
         am_pedigree,
         _params(assort1=0.3, **_CT),
         sibling_moments(am_pedigree, PedigreeArrays.from_frame(am_pedigree)),
-        mate_correlations(am_pedigree),
+        mate_correlations(am_pedigree, mate_pedigree(am_pedigree)),
     )
     assert am["half_sib_shared_C1"].get("informational")
 

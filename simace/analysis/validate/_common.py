@@ -16,13 +16,14 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from pedigree_graph import PedigreeGraph
 
-from simace.analysis.mate_correlation import mate_correlation_matrix, mate_pedigree
+from simace.analysis.mate_correlation import mate_correlation_matrix
 from simace.core.numerics import _ZERO_VAR_THRESHOLD
 
 if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
     from pedigree_graph import RelationshipMoments
+    from pg_phenotype import Pedigree
 
     from simace.core.pedigree_arrays import PedigreeArrays
 
@@ -133,10 +134,9 @@ class MateCorrelations:
     genetic: tuple[float, float]
 
 
-def mate_correlations(df: pd.DataFrame | pl.DataFrame) -> MateCorrelations:
-    """Liability and genetic mate correlations of ``df`` (:mod:`simace.analysis.mate_correlation`)."""
+def mate_correlations(df: pd.DataFrame | pl.DataFrame, pedigree: Pedigree) -> MateCorrelations:
+    """Liability and genetic mate correlations of ``df`` over its :func:`~simace.analysis.mate_correlation.mate_pedigree`."""
     t0 = time.perf_counter()
-    pedigree = mate_pedigree(df)
     liability, n_pairs = mate_correlation_matrix(pedigree, df, ["liability1", "liability2"])
     mu_a = [float(mate_correlation_matrix(pedigree, df, [f"A{t}"])[0][0, 0]) for t in (1, 2)]
     logger.info("Mate correlations over %d pairs completed in %.1fs", n_pairs, time.perf_counter() - t0)

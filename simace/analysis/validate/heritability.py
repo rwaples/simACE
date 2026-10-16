@@ -6,8 +6,10 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from pedigree_graph import RELATIONSHIPS
+from pg_phenotype import Trait
+from pg_phenotype.regression import parent_offspring
 
-from simace.core.numerics import safe_corrcoef, safe_linregress
+from simace.core.numerics import safe_corrcoef
 
 from ._common import (
     _MIN_PAIRS_FOR_CORR,
@@ -25,25 +27,30 @@ if TYPE_CHECKING:
     import pandas as pd
     import polars as pl
     from pedigree_graph import RelationshipMoments
+    from pg_phenotype import Pedigree
 
     from simace.core.pedigree_arrays import PedigreeArrays
 
     from ._common import MateCorrelations
 
+# The midparent-offspring regressions need more than this many offspring.
+_MIN_PO_OFFSPRING = 100
 
-def _midparent_regression(
-    vals: np.ndarray, mother_idx: np.ndarray, father_idx: np.ndarray, offspring_idx: np.ndarray, label: str
-) -> dict[str, Any]:
-    """Run midparent-offspring regression and return result dict."""
-    midparent = (vals[mother_idx] + vals[father_idx]) / 2
-    offspring = vals[offspring_idx]
-    reg = safe_linregress(midparent, offspring)
-    if reg is not None:
+
+def _midparent_regression(pedigree: Pedigree, vals: np.ndarray, label: str) -> dict[str, Any]:
+    """Run midparent-offspring regression of *vals* over *pedigree* and return result dict."""
+    fit = parent_offspring(pedigree, Trait(vals, "continuous"), lines="midparent", inference=False).pooled.midparent
+    assert fit is not None, "the midparent line was requested"
+    if fit.n <= _MIN_PO_OFFSPRING:
+        return _info("Not enough offspring with both parents in data")
+    if fit.slope is not None:
+        # r2 is None, with the slope set, when every offspring value is equal.
+        r2 = "n/a" if fit.r2 is None else f"{fit.r2:.4f}"
         return _info(
-            f"Midparent-offspring {label} regression: slope={reg.slope:.4f}, R²={reg.rvalue**2:.4f}",
-            slope=float(reg.slope),
-            intercept=float(reg.intercept),
-            r_squared=float(reg.rvalue**2),
+            f"Midparent-offspring {label} regression: slope={fit.slope:.4f}, R²={r2}",
+            slope=fit.slope,
+            intercept=fit.intercept,
+            r_squared=fit.r2,
         )
     return _info(f"Zero variance in midparent {label} values")
 
@@ -250,57 +257,22 @@ def _validate_falconer(
 
 
 def _validate_parent_offspring(
-    df: pd.DataFrame | pl.DataFrame,
     comp_vals: dict[str, np.ndarray],
-    ped: PedigreeArrays,
+    pedigree: Pedigree,
     results: dict[str, Any],
 ) -> None:
     """Validate parent-offspring regression."""
-    mothers_all = df["mother"].to_numpy()
-    fathers_all = df["father"].to_numpy()
-    nf_mask = mothers_all != -1
-    if int(nf_mask.sum()) > 100:
-        nf_mothers = mothers_all[nf_mask]
-        nf_fathers = fathers_all[nf_mask]
-        valid = ped.contains(nf_mothers) & ped.contains(nf_fathers)
-
-        if int(valid.sum()) > 100:
-            mother_idx = ped.positions(nf_mothers[valid])
-            father_idx = ped.positions(nf_fathers[valid])
-            offspring_idx = ped.positions(df["id"].to_numpy()[nf_mask][valid])
-
-            for t in [1, 2]:
-                results[f"parent_offspring_A{t}_regression"] = _midparent_regression(
-                    comp_vals[f"A{t}"],
-                    mother_idx,
-                    father_idx,
-                    offspring_idx,
-                    f"A{t}",
-                )
-                P_vals = comp_vals[f"A{t}"] + comp_vals[f"C{t}"] + comp_vals[f"E{t}"]
-                results[f"parent_offspring_liability{t}_regression"] = _midparent_regression(
-                    P_vals,
-                    mother_idx,
-                    father_idx,
-                    offspring_idx,
-                    f"liability{t}",
-                )
-        else:
-            for t in [1, 2]:
-                results[f"parent_offspring_A{t}_regression"] = _info("Not enough offspring with both parents in data")
-                results[f"parent_offspring_liability{t}_regression"] = _info(
-                    "Not enough offspring with both parents in data"
-                )
-    else:
-        for t in [1, 2]:
-            results[f"parent_offspring_A{t}_regression"] = _info("Not enough non-founders for regression")
-            results[f"parent_offspring_liability{t}_regression"] = _info("Not enough non-founders for regression")
+    for t in [1, 2]:
+        results[f"parent_offspring_A{t}_regression"] = _midparent_regression(pedigree, comp_vals[f"A{t}"], f"A{t}")
+        P_vals = comp_vals[f"A{t}"] + comp_vals[f"C{t}"] + comp_vals[f"E{t}"]
+        results[f"parent_offspring_liability{t}_regression"] = _midparent_regression(pedigree, P_vals, f"liability{t}")
 
 
 def validate_heritability(
     df: pd.DataFrame | pl.DataFrame,
     params: dict[str, Any],
     ped: PedigreeArrays,
+    pedigree: Pedigree,
     sibling_moments: RelationshipMoments,
     mates: MateCorrelations,
 ) -> dict[str, Any]:
@@ -315,6 +287,8 @@ def validate_heritability(
         df: Pedigree DataFrame.
         params: Scenario parameters; requires keys ``A1``, ``A2``.
         ped: The same pedigree as id-addressable arrays.
+        pedigree: :func:`~simace.analysis.mate_correlation.mate_pedigree` of
+            ``df``, for the midparent-offspring regressions.
         sibling_moments: Relationship moments of ``df`` over ``FS``, ``MHS``
             and ``PHS`` with the ``A{t}``, ``C{t}`` and ``P{t}`` columns
             (:func:`~simace.analysis.validate._common.sibling_moments`).
@@ -354,6 +328,6 @@ def validate_heritability(
         n_dz_pairs,
         results,
     )
-    _validate_parent_offspring(df, comp_vals, ped, results)
+    _validate_parent_offspring(comp_vals, pedigree, results)
 
     return results

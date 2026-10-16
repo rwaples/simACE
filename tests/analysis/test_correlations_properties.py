@@ -10,6 +10,7 @@ shape without paying for a dozen tetrachoric optimizations per example.
 
 import numpy as np
 import polars as pl
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -75,6 +76,23 @@ def _frame_and_pairs(draw, *, min_pairs=0, max_pairs=24):
     pairs = _empty_pairs()
     pairs[active] = (idx1, idx2)
     return frame, pairs, active
+
+
+def _assert_equal_but_se(a, b):
+    """``a == b``, except that each ``se`` need only agree to 1e-12.
+
+    pg-phenotype fits a swapped table in one layout, so r is exact, but the
+    SE of each layout differs in its last bits.
+    """
+    if isinstance(a, dict):
+        assert a.keys() == b.keys()
+        for key in a:
+            if key == "se" and a[key] is not None:
+                assert b[key] == pytest.approx(a[key], rel=1e-12)
+            else:
+                _assert_equal_but_se(a[key], b[key])
+    else:
+        assert a == b
 
 
 class TestPairCorrelations:
@@ -149,7 +167,7 @@ class TestPairCorrelations:
         forward = compute_tetrachoric(moments=moments_from_pairs(frame, pairs))
         reverse = compute_tetrachoric(moments=moments_from_pairs(frame, {**pairs, active: (idx2, idx1)}))
 
-        assert forward == reverse
+        _assert_equal_but_se(forward, reverse)
 
     @given(case=_frame_and_pairs(min_pairs=_MIN_PAIRS), data=st.data())
     def test_row_permutation_invariance(self, case, data):
