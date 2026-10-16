@@ -1,0 +1,63 @@
+# Truth-recovery grid for pg-phenotype's stratified, cross-trait Relative-Pair
+# Correlation and its ACE Fit (pg-phenotype #17, plan D10).
+#
+# The ltm_* cells give a binary outcome that is an exact threshold of the ACE
+# liability (simple_ltm case status before censoring, t < 1e6), so the
+# tetrachoric targets A, C, rA, rC, rE without attenuation; liability1/2 give
+# the continuous check with Pearson.  frailty_gen_censoring is the stress
+# case: production frailty phenotypes with the default gen_censoring, where
+# fitACE's pooled estimate_rg gave rA 0.308 (fitACE#5).  True rA is 0.5
+# throughout.
+
+ltm_c0_re0:
+  seed: 17000
+  replicates: 36
+  N: 50000
+  pedigree:
+    trait1: {A: 0.5, C: 0.0, E: 0.5}
+    trait2: {A: 0.5, C: 0.0, E: 0.5}
+    rA: 0.5
+    rC: 0.0
+    rE: 0.0
+  phenotype: &ltm
+    trait1:
+      model: simple_ltm
+      params: {prevalence: 0.1, onset: {kind: fixed, age: 30}}
+    trait2:
+      model: simple_ltm
+      params: {prevalence: 0.1, onset: {kind: fixed, age: 30}}
+
+ltm_c0_re02:
+  seed: 17100
+  replicates: 36
+  N: 50000
+  pedigree:
+    trait1: {A: 0.5, C: 0.0, E: 0.5}
+    trait2: {A: 0.5, C: 0.0, E: 0.5}
+    rA: 0.5
+    rC: 0.0
+    rE: 0.2
+  phenotype: *ltm
+
+ltm_c02_rc07:
+  seed: 17200
+  replicates: 36
+  N: 50000
+  pedigree:
+    trait1: {A: 0.5, C: 0.2, E: 0.3}
+    trait2: {A: 0.5, C: 0.2, E: 0.3}
+    rA: 0.5
+    rC: 0.7
+    rE: 0.0
+  phenotype: *ltm
+
+frailty_gen_censoring:
+  seed: 17300
+  replicates: 12
+  N: 50000
+  pedigree:
+    trait1: {A: 0.5, C: 0.0, E: 0.5}
+    trait2: {A: 0.5, C: 0.0, E: 0.5}
+    rA: 0.5
+    rC: 0.0
+    rE: 0.0
