@@ -9,7 +9,7 @@ that one tag, so intra-monorepo lockstep is structural.
 Authoritative design: [`docs/adr/0012-lockstep-family-versioning.md`](docs/adr/0012-lockstep-family-versioning.md)
 (the lockstep mechanism) and [`docs/adr/0023-lockstep-semver.md`](docs/adr/0023-lockstep-semver.md)
 (the SemVer scheme and what counts as breaking). Canonical vocabulary ("Lockstep family", "Family
-version", "Family floor") lives in both `CONTEXT.md` files.
+version", "Family floor") lives in both `GLOSSARY.md` files.
 
 ---
 

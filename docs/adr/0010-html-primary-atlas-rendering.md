@@ -11,7 +11,7 @@ self-contained; nothing in it depends on them.)
 
 ## Context
 
-The plot **atlas** (see CONTEXT.md) was historically a multi-page PDF: every
+The plot **atlas** (see GLOSSARY.md) was historically a multi-page PDF: every
 atlas consumer in simACE and fitACE calls one shared seam,
 `simace.plotting.plot_atlas.assemble_atlas(items, plot_dir, output_path, ...)`,
 which walks an ordered manifest of `PlotEntry` / `SectionBreak` items into a

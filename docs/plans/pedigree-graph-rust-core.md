@@ -190,7 +190,7 @@ The migration optimizes for:
 
 ## Canonical vocabulary
 
-The updated glossary is `external/pedigree-graph/CONTEXT.md`.
+The updated glossary is `external/pedigree-graph/GLOSSARY.md`.
 
 - **Graph-space**: input-row coordinates of the full pedigree.
 - **View-space**: row coordinates of an explicitly ordered `PedigreeView`.
@@ -833,7 +833,7 @@ context, and genuine tradeoffs:
    architecture.
 
 Both live in `external/pedigree-graph/docs/adr/` (pedigree-graph commit `4fd07ba`,
-which also updates `CONTEXT.md`).
+which also updates `GLOSSARY.md`).
 
 Update README, architecture documentation, limitations, changelog, typing docs, and all
 consumer examples in the same 0.8.0 migration. Do not present the old plan as active

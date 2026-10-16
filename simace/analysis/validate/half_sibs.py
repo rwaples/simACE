@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 def household_sibling_counts(df: pd.DataFrame | pl.DataFrame) -> dict[str, int]:
     """Count offspring with a maternal sibling and with a maternal half-sib, from household sizes.
 
-    A household is one mother's offspring (CONTEXT.md), so the counts are
+    A household is one mother's offspring (GLOSSARY.md), so the counts are
     O(N) from the ``mother``, ``father`` and ``twin`` columns:
 
     - ``n_offspring_with_sibs``: offspring with a known mother whose

@@ -54,7 +54,7 @@ REPORT_TOP_LEVEL_GROUPS = (
     "estimators",
 )
 
-# The four canonical population scopes (CONTEXT.md vocabulary).
+# The four canonical population scopes (GLOSSARY.md vocabulary).
 SCOPES = (
     "recorded_pedigree",
     "phenotyped_population",
