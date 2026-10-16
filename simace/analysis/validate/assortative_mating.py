@@ -6,6 +6,9 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from simace.simulation.assortment import _parent_ce_gen
+from simace.simulation.mate_correlation import expected_mate_corr_matrix
+
 from ._common import _corr_se, _info, _result
 
 if TYPE_CHECKING:
@@ -17,10 +20,14 @@ def validate_assortative_mating(params: dict[str, Any], mates: MateCorrelations)
 
     Checks the Pearson correlation of mother and father liability over the
     unique mating pairs, per trait, against the configured ``assort1`` /
-    ``assort2`` parameters.
+    ``assort2`` parameters. When both traits assort, also checks the
+    cross-trait mate correlations against
+    :func:`~simace.simulation.mate_correlation.expected_mate_corr_matrix`.
 
     Args:
-        params: Scenario parameters; uses keys ``assort1``, ``assort2``.
+        params: Scenario parameters; uses keys ``assort1``, ``assort2``, and
+            for the cross-trait check ``assort_matrix``, ``rA``, ``rC``,
+            ``rE``, ``A1``, ``C1``, ``E1``, ``A2``, ``C2``, ``E2``.
         mates: The pedigree's mate correlations
             (:func:`~simace.analysis.validate._common.mate_correlations`).
 
@@ -87,36 +94,77 @@ def validate_assortative_mating(params: dict[str, Any], mates: MateCorrelations)
 
     # Cross-trait validation (only when both traits assort)
     if assort1 != 0 and assort2 != 0:
-        am = params.get("assort_matrix")
-        if am is not None:
-            c_expected = float(np.asarray(am)[0, 1])
+        targets = _cross_trait_targets(params, assort1, assort2)
+        if max(targets) - min(targets) > 1e-12:
+            msg = (
+                f"Cross-trait mate-correlation target varies by generation "
+                f"({min(targets):.4f} to {max(targets):.4f}, from per-generation C/E); "
+                f"skipping the pooled check."
+            )
+            results["mate_corr_cross_12"] = _result(True, msg)
+            results["mate_corr_cross_21"] = _result(True, msg)
         else:
-            rho_w = params.get("rA", 0) * np.sqrt(params.get("A1", 0) * params.get("A2", 0)) + params.get(
-                "rC", 0
-            ) * np.sqrt(params.get("C1", 0) * params.get("C2", 0))
-            c_expected = rho_w * np.sqrt(abs(assort1 * assort2)) * np.sign(assort1 * assort2)
+            results.update(_check_cross_trait(targets[0], mates))
 
-        for label, mi, fi in [("cross_12", 1, 2), ("cross_21", 2, 1)]:
-            obs = float(mates.liability[mi - 1, fi - 1])
+    return results
 
-            if np.isnan(obs):
-                results[f"mate_corr_{label}"] = _result(
-                    True,
-                    f"Cannot compute mate correlation {label} (zero variance)",
-                    expected=float(c_expected),
-                    observed=float(obs),
-                )
-                continue
 
-            se = _corr_se(c_expected, n_pairs)
-            tol = max(0.1, 3 * se)
-            ok = abs(obs - c_expected) < tol
+def _cross_trait_targets(params: dict[str, Any], assort1: float, assort2: float) -> list[float]:
+    """The simulator's cross-trait mate-correlation target for each parental C/E generation it mates.
+
+    Mating iteration ``i`` mates parental C/E generation ``_parent_ce_gen(i)``
+    (:class:`~simace.simulation.assortment.AssortmentPlan`), whose ``rho_w``
+    sets the target unless ``assort_matrix`` fixes it.
+    """
+    from simace.simulation.simulate import resolve_per_gen_param
+
+    G_sim = int(params.get("G_sim") or params.get("G_ped") or 1)
+    per_gen = {k: resolve_per_gen_param(params.get(k, 0), G_sim, name=k) for k in ("C1", "C2", "E1", "E2")}
+    return [
+        float(
+            expected_mate_corr_matrix(
+                assort1,
+                assort2,
+                rA=params.get("rA", 0),
+                rC=params.get("rC", 0),
+                A1=params.get("A1", 0),
+                C1=per_gen["C1"][g],
+                A2=params.get("A2", 0),
+                C2=per_gen["C2"][g],
+                assort_matrix=params.get("assort_matrix"),
+                rE=params.get("rE", 0),
+                E1=per_gen["E1"][g],
+                E2=per_gen["E2"][g],
+            )[0, 1]
+        )
+        for g in sorted({_parent_ce_gen(i) for i in range(G_sim)})
+    ]
+
+
+def _check_cross_trait(c_expected: float, mates: MateCorrelations) -> dict[str, Any]:
+    """Check both cross-trait mate correlations against *c_expected*."""
+    results: dict[str, Any] = {}
+    n_pairs = mates.n_pairs
+    for label, mi, fi in [("cross_12", 1, 2), ("cross_21", 2, 1)]:
+        obs = float(mates.liability[mi - 1, fi - 1])
+
+        if np.isnan(obs):
             results[f"mate_corr_{label}"] = _result(
-                ok,
-                f"Mate correlation {label}: {obs:.4f} (expected: {c_expected:.4f}, tol: {tol:.4f})",
+                True,
+                f"Cannot compute mate correlation {label} (zero variance)",
                 expected=float(c_expected),
                 observed=float(obs),
-                n_pairs=n_pairs,
             )
+            continue
 
+        se = _corr_se(c_expected, n_pairs)
+        tol = max(0.1, 3 * se)
+        ok = abs(obs - c_expected) < tol
+        results[f"mate_corr_{label}"] = _result(
+            ok,
+            f"Mate correlation {label}: {obs:.4f} (expected: {c_expected:.4f}, tol: {tol:.4f})",
+            expected=float(c_expected),
+            observed=float(obs),
+            n_pairs=n_pairs,
+        )
     return results

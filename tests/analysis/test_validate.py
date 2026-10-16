@@ -371,6 +371,83 @@ class TestValidateAssortativeMating:
         result = validate_assortative_mating(params, val_mates)
         assert result["mate_corr_cross_12"]["expected"] == pytest.approx(0.05)
 
+    def test_cross_trait_expected_includes_unique_environment(self, val_mates, val_params):
+        """rho_w carries rE * sqrt(E1 * E2), as the simulator's does (#61)."""
+        params = {**val_params, "assort1": 0.2, "assort2": 0.3, "rA": 0.0, "rC": 0.0, "rE": 0.8}
+        result = validate_assortative_mating(params, val_mates)
+        rho_w = 0.8 * np.sqrt(params["E1"] * params["E2"])
+        for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
+            assert result[key]["expected"] == pytest.approx(rho_w * np.sqrt(0.2 * 0.3))
+
+    @pytest.mark.parametrize(
+        "over",
+        [
+            pytest.param({"rE": 0.5, "E1": {0: 0.3, 1: 0.2}}, id="E"),
+            pytest.param({"rC": 0.5, "C1": {0: 0.2, 1: 0.1}}, id="C"),
+        ],
+    )
+    def test_cross_trait_skips_when_the_target_varies_by_generation(self, val_mates, val_params, over):
+        """Matings with different rho_w have no single pooled cross-trait target (#61)."""
+        params = {**val_params, "assort1": 0.2, "assort2": 0.3, **over}
+        result = validate_assortative_mating(params, val_mates)
+        for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
+            assert result[key]["passed"]
+            assert "varies by generation" in result[key]["details"]
+
+    @pytest.mark.parametrize(
+        "over",
+        [
+            pytest.param({"rE": 0.0, "E1": {0: 0.3, 1: 0.2}}, id="rE-zero"),
+            # G_sim=3 mates parental C/E generations 0, 0, 1; generation 2 is never mated.
+            pytest.param({"rE": 0.5, "E1": {0: 0.3, 2: 0.2}}, id="unmated-generation"),
+        ],
+    )
+    def test_cross_trait_checks_per_generation_params_that_leave_the_target_constant(self, val_mates, val_params, over):
+        params = {**val_params, "assort1": 0.2, "assort2": 0.3, **over}
+        result = validate_assortative_mating(params, val_mates)
+        rho_w = (
+            params["rA"] * np.sqrt(params["A1"] * params["A2"])
+            + params["rC"] * np.sqrt(params["C1"] * params["C2"])
+            + params["rE"] * np.sqrt(0.3 * params["E2"])
+        )
+        for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
+            assert result[key]["expected"] == pytest.approx(rho_w * np.sqrt(0.2 * 0.3))
+
+    def test_cross_trait_assort_matrix_is_checked_under_per_generation_unique_environment(self, val_mates, val_params):
+        """The simulator mates every generation on assort_matrix, whatever E does."""
+        params = {
+            **val_params,
+            "assort1": 0.2,
+            "assort2": 0.3,
+            "assort_matrix": [[0.2, 0.05], [0.05, 0.3]],
+            "E1": {0: 0.3, 2: 0.2},
+        }
+        result = validate_assortative_mating(params, val_mates)
+        assert result["mate_corr_cross_12"]["expected"] == pytest.approx(0.05)
+
+    def test_cross_trait_passes_on_a_simulation_with_correlated_unique_environment(self):
+        """A correct simulation with rE != 0 and both traits assorting passes (#61)."""
+        params = {
+            **_DEFAULT_PARAMS,
+            "N": 5000,
+            "p_mztwin": 0.0,
+            "A1": 0.2,
+            "C1": 0.2,
+            "E1": 0.6,
+            "A2": 0.2,
+            "C2": 0.2,
+            "E2": 0.6,
+            "rA": 0.0,
+            "rC": 0.0,
+            "rE": 0.8,
+            "assort1": 0.8,
+            "assort2": 0.8,
+        }
+        result = build_validation_report(run_simulation(**params), params)["assortative_mating"]
+        for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
+            assert result[key]["expected"] == pytest.approx(0.8 * 0.6 * 0.8)
+            assert result[key]["passed"], result[key]["details"]
+
 
 # ---------------------------------------------------------------------------
 # run_validation orchestrator + CLI
