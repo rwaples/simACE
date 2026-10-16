@@ -333,7 +333,9 @@ def compute_parent_offspring_corr_by_sex(df: _Frame, pedigree: Pedigree) -> dict
         return {}
     gen_arr = df["generation"].to_numpy()
     max_gen = int(gen_arr.max())
-    stratum = 2 * gen_arr.astype(np.int64) + df["sex"].to_numpy()
+    sex_arr = df["sex"].to_numpy()
+    # Any other sex would alias a neighbouring generation's code, so its rows get no stratum.
+    stratum = np.where(np.isin(sex_arr, [0, 1]), 2.0 * gen_arr + sex_arr, np.nan)
     fits = {
         trait_num: _midparent_offspring(pedigree, Trait(df[f"liability{trait_num}"].to_numpy(), "continuous"), stratum)
         for trait_num in [1, 2]

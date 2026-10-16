@@ -1161,6 +1161,26 @@ class TestComputeParentOffspringCorrBySex:
         )
         assert compute_parent_offspring_corr_by_sex(df, mate_pedigree(df)) == {}
 
+    def test_other_sex_values_join_no_stratum(self, phenotyped_df):
+        """A child whose sex is neither 0 nor 1 is left out, not counted in a neighbouring generation."""
+        df = phenotyped_df.with_columns(
+            pl.when(pl.int_range(pl.len()) % 7 == 0).then(-1).otherwise(pl.col("sex")).alias("sex")
+        )
+        by_sex = compute_parent_offspring_corr_by_sex(df, mate_pedigree(df))
+        n_pairs = {
+            (s, g): by_sex[s]["trait1"][g]["n_pairs"] for s in ("female", "male") for g in by_sex["female"]["trait1"]
+        }
+        children = df.filter(pl.col("sex") >= 0)
+        parents_present = children.join(df.select(pl.col("id").alias("mother")), on="mother").join(
+            df.select(pl.col("id").alias("father")), on="father"
+        )
+        for (sex, gen), n in n_pairs.items():
+            sel = parents_present.filter(
+                (pl.col("sex") == (0 if sex == "female" else 1)) & (pl.col("generation") == int(gen[3:]))
+            )
+            assert n == len(sel)
+        assert any(n > 0 for n in n_pairs.values())
+
 
 # ===================================================================
 # Tests for compute_mate_correlation

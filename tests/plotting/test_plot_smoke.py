@@ -612,7 +612,6 @@ def observed_binary_stats():
                             "r2": 0.16,
                             "intercept": 0.0,
                             "stderr": 0.05,
-                            "pvalue": 0.01,
                             "n_pairs": 100,
                         }
                         for g in [1, 2]
