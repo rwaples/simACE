@@ -48,6 +48,7 @@ from simace.plotting.plot_utils import (
     setup_relationship_type_panel,
     sort_generation_keys,
 )
+from simace.plotting.stats_report import truth_entry, truth_mean
 
 logger = logging.getLogger(__name__)
 
@@ -103,18 +104,6 @@ def _mean_per_relationship_type(
     return out
 
 
-def _truth_mean(entries: list[Any], key: str) -> float | None:
-    """Mean of ``entry[key]`` over the reps' truth entries that carry one, else None."""
-    vals = [float(e[key]) for e in entries if e and e.get(key) is not None]
-    return float(np.mean(vals)) if vals else None
-
-
-def _truth_entry(entry: dict[str, Any] | None, generation: int | None) -> dict[str, Any] | None:
-    if entry is None or generation is None:
-        return entry
-    return (entry.get("by_generation") or {}).get(generation)
-
-
 def _parametric_per_relationship_type(
     params: dict[str, Any] | None,
     trait_num: int,
@@ -133,10 +122,10 @@ def _parametric_per_relationship_type(
     out: dict[str, float] = {}
     for ptype in relationship_types:
         entries = [
-            _truth_entry((s.get("truth_relationships") or {}).get(trait_key, {}).get(ptype), generation)
+            truth_entry((s.get("truth_relationships") or {}).get(trait_key, {}).get(ptype), generation)
             for s in all_stats
         ]
-        ref = reference_corr(ptype, params, trait_num, {ptype: {"r": _truth_mean(entries, "r")}})
+        ref = reference_corr(ptype, params, trait_num, {ptype: {"r": truth_mean(entries, "r")}})
         if ref is not None:
             out[ptype] = ref
     return out
@@ -493,9 +482,9 @@ def plot_parent_offspring_liability(
             # Expected slope: configured A without C transmission, else analytic
             # where exact or the rep-mean recorded-pedigree truth (ADR 0025).
             if params is not None:
-                truth_slope = _truth_mean(
+                truth_slope = truth_mean(
                     [
-                        _truth_entry((s.get("truth_midparent_slope") or {}).get(f"trait{trait_num}"), gen)
+                        truth_entry((s.get("truth_midparent_slope") or {}).get(f"trait{trait_num}"), gen)
                         for s in all_stats
                     ],
                     "slope",
