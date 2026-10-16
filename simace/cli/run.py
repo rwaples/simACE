@@ -59,7 +59,7 @@ from simace.cli.status import (
 from simace.core.publish import TMP_SUFFIX, publish
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Iterator
+    from collections.abc import Generator, Iterable
     from pathlib import Path
 
     from simace.cli.layout import Layout
@@ -70,7 +70,7 @@ class ScenarioBusy(Exception):
 
 
 @contextmanager
-def _scenario_lock(path: Path) -> Iterator[int]:
+def _scenario_lock(path: Path) -> Generator[int]:
     """Hold an exclusive ``flock`` on ``path`` for the block, recording our pid in it.
 
     Stage children inherit the descriptor, so the lock stays held if the

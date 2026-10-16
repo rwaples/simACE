@@ -11,13 +11,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator
 
 TMP_SUFFIX = ".tmp"
 
 
 @contextmanager
-def publish(*paths: str | Path) -> Iterator[tuple[Path, ...]]:
+def publish(*paths: str | Path) -> Generator[tuple[Path, ...]]:
     """Yield a temporary beside each path, renamed onto the path on success.
 
     Each temporary is ``<path>.<random>.tmp`` in the destination directory, so

@@ -17,7 +17,7 @@ jobs:
       - name: Install the locked pixi environment
         uses: prefix-dev/setup-pixi@v0.10.0
         with:
-          pixi-version: v0.76.0
+          pixi-version: v0.82.0
           locked: true
 
       - name: Run the smoke benchmark

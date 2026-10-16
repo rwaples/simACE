@@ -781,7 +781,7 @@ def _draw_model_row(fig, ax, y: float, section: Table1Section, row: Table1Row, s
     label = f"  {row.label}" if row.subrow else row.label
     color = "0.55" if row.muted else "black"
     if section.layout == "four_sex_trait":
-        return _draw_row4(fig, ax, y, label, *row.values, shade)  # ty: ignore[too-many-positional-arguments, invalid-argument-type]
+        return _draw_row4(fig, ax, y, label, *row.values, shade)
     if len(row.values) == 1:
         # A single composite value spans the section's value columns.
         return _draw_row(fig, ax, y, label, row.values[0], shade, color=color)

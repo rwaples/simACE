@@ -94,8 +94,8 @@ def _plot_joint_grid(
         # A filled step has the same bins and pixels as adjacent bars here,
         # with one artist instead of a rectangle for every bin.
         if color_by_affected:
-            bins_x = np.linspace(x.min(), x.max(), 51)
-            bins_y = np.linspace(y.min(), y.max(), 51)
+            bins_x = np.linspace(x.min(), x.max(), 51).tolist()
+            bins_y = np.linspace(y.min(), y.max(), 51).tolist()
             for mask, color, alpha, label in [
                 (~affected, COLOR_UNAFFECTED, 0.2, "Unaffected"),
                 (affected, COLOR_AFFECTED, 0.5, aff_label),

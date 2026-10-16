@@ -6,7 +6,7 @@
 name = "simace"
 channels = ["conda-forge", "bioconda"]
 platforms = ["linux-64"]
-requires-pixi = ">=0.76,<0.77"
+requires-pixi = ">=0.82,<0.83"
 
 [dependencies]
 python = "3.14.*"
@@ -27,7 +27,7 @@ pillow = "12.3.*"
 # dev / test
 pytest = "9.1.*"
 pytest-xdist = "3.8.*"
-ruff = "0.16.*"
+ruff = "0.17.*"
 # MKL / linear algebra
 libopenblas = "*"
 mkl = "*"

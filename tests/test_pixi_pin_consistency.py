@@ -68,3 +68,28 @@ def test_requires_pixi_is_shared(label: str, pixi_toml: Path) -> None:
     assert _requires_pixi(pixi_toml) == _SIMACE_RANGE, (
         f"{label}: requires-pixi '{_requires_pixi(pixi_toml)}' differs from simACE's '{_SIMACE_RANGE}'"
     )
+
+
+_PIXI_VERSION_PIN = re.compile(r"^\s*pixi-version:\s*v(\d+\.\d+\.\d+)\s*$", re.M)
+
+
+def _workflow_pins() -> list[tuple[str, str]]:
+    """``(workflow path, pixi version)`` for every ``pixi-version:`` pin in a family checkout's CI."""
+    return [
+        (str(workflow.relative_to(_ROOT)), version)
+        for repo in checkout_repos()
+        for workflow in sorted((_ROOT / repo.path / ".github" / "workflows").glob("*.yml"))
+        for version in _PIXI_VERSION_PIN.findall(workflow.read_text())
+    ]
+
+
+_WORKFLOW_PINS = _workflow_pins()
+
+
+@pytest.mark.parametrize(("workflow", "version"), _WORKFLOW_PINS, ids=[f"{w}@{v}" for w, v in _WORKFLOW_PINS])
+def test_ci_pixi_version_matches_install_doc(workflow: str, version: str) -> None:
+    """A CI ``setup-pixi`` pin outside requires-pixi fails the job, so it moves with the doc version."""
+    documented = set(_DOC_VERSION.findall(_INSTALL_DOC.read_text()))
+    assert {version} == documented, (
+        f"{workflow}: pixi-version v{version}, the installation page pins {sorted(documented)}"
+    )
