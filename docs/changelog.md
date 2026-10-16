@@ -12,6 +12,34 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### Mate-correlation checks by generation ([#64](https://github.com/rwaples/simACE/issues/64))
+
+- **Per-generation assortment and C/E are now validated.** Each check
+  compares against the simulator's target for every mating whose parents
+  are both recorded. A check whose pooled correlation over all Mating Pairs
+  has no single target becomes one check per parents' generation,
+  `mate_corr_liability{t}_gen{g}` or `mate_corr_cross_{12,21}_gen{g}`. Its
+  pooled name stays as information with no pass/fail, so `report.yaml` and
+  `gather` keep the realised value
+  ([ADR 0026](adr/0026-mate-correlation-checks-by-generation.md)).
+  The same-trait checks split when their target varies by generation. The
+  cross-trait checks split when their target or C/E varies, because a
+  pooled cross-trait Pearson mixes the generations' trait scales: in a
+  probe with the target fixed at 0.2, the generations measured 0.20 and the
+  pooled value 0.135. Per-generation `assort1`/`assort2` and per-generation
+  C/E used to pass these checks unexamined. Scenarios whose targets are the
+  same in every generation keep their check names.
+- **Single-trait assortment no longer fails the other trait's check.** The
+  same-trait target is now the expected mate correlation, including the
+  part that assortment on the other trait induces (`rho_w² · assort`), not
+  the configured `assort_t`. With `assort1: 0`, `assort2: 0.8` and a
+  within-person correlation of 0.5, `mate_corr_liability1` failed a correct
+  simulation: observed 0.259, expected 0.0, target 0.2. The targets also
+  follow the `assort_matrix` diagonal, which the simulator mates on;
+  `params.yaml` echoes the raw `assort1`/`assort2`.
+- **The `mate_correlation` plot's expected panel** shows the same targets. A
+  cell whose target varies by generation shows its range.
+
 ### Two-trait assortative mating ([#34](https://github.com/rwaples/simACE/issues/34))
 
 - **Mates are now drawn from a 4-variate Gaussian copula when both traits

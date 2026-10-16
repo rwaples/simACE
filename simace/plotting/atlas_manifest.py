@@ -101,12 +101,14 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         basename="mate_correlation",
         title="Assortative mating",
         body=(
-            "2×2 heatmap of Pearson correlations between mated pairs’ liabilities (female "
-            "traits on rows, male traits on columns). Each unique (mother, father) pair "
-            "counted once, pooled across all non-founder generations. Bold white text shows "
-            "observed r; smaller gray text shows the configured expected correlation on diagonal "
-            "cells (off-diagonal not predicted for both-trait assortment). Diverging RdBu "
-            "colormap centered at 0, range [−1, 1]."
+            "2×2 heatmaps of Pearson correlations between mated pairs’ liabilities (female "
+            "traits on rows, male traits on columns). Left: the simulator’s target for the "
+            "matings whose parents are both recorded, including the correlations that "
+            "single-trait assortment induces in the other cells; a cell whose target varies "
+            "by generation shows its range and is colored at the midpoint. Right: observed "
+            "r, averaged across replicates, with each unique (mother, father) pair counted "
+            "once and pooled across generations. Diverging RdBu colormap centered at 0, "
+            "range [−1, 1]."
         ),
     ),
     PlotEntry(
