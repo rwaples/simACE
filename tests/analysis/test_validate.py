@@ -5,6 +5,7 @@ import polars as pl
 import pytest
 import yaml
 
+from simace.analysis.mate_correlation import mate_pedigree
 from simace.analysis.validate import (
     build_validation_report,
     compute_family_size_distribution,
@@ -73,13 +74,18 @@ def val_sibling_moments(val_pedigree, val_ped):
 
 
 @pytest.fixture(scope="module")
-def val_mates(val_pedigree):
-    return mate_correlations(val_pedigree)
+def val_mate_pedigree(val_pedigree):
+    return mate_pedigree(val_pedigree)
 
 
 @pytest.fixture(scope="module")
-def heritability_result(val_pedigree, val_params, val_ped, val_sibling_moments, val_mates):
-    return validate_heritability(val_pedigree, val_params, val_ped, val_sibling_moments, val_mates)
+def val_mates(val_pedigree, val_mate_pedigree):
+    return mate_correlations(val_pedigree, val_mate_pedigree)
+
+
+@pytest.fixture(scope="module")
+def heritability_result(val_pedigree, val_params, val_ped, val_mate_pedigree, val_sibling_moments, val_mates):
+    return validate_heritability(val_pedigree, val_params, val_ped, val_mate_pedigree, val_sibling_moments, val_mates)
 
 
 # ---------------------------------------------------------------------------
@@ -560,5 +566,7 @@ class TestValidateOnAscertainedPedigrees:
         both = (mother != -1) & (father != -1)
         n_pairs = len(set(zip(mother[both].tolist(), father[both].tolist(), strict=True)))
         params = {**val_params, "assort1": 0.3, "assort2": 0.0}
-        result = validate_assortative_mating(params, mate_correlations(severed_pedigree))
+        result = validate_assortative_mating(
+            params, mate_correlations(severed_pedigree, mate_pedigree(severed_pedigree))
+        )
         assert result["mate_corr_liability1"]["n_pairs"] == n_pairs

@@ -6,6 +6,7 @@ import argparse
 import logging
 from typing import TYPE_CHECKING, Any
 
+from simace.analysis.mate_correlation import mate_pedigree
 from simace.core.parquet import load_parquet
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.core.yaml_io import dump_yaml, load_yaml
@@ -59,7 +60,8 @@ def build_validation_report(
     """
     ped = PedigreeArrays.from_frame(df)
     siblings = sibling_moments(df, ped, graph)
-    mates = mate_correlations(df)
+    pedigree = mate_pedigree(df)
+    mates = mate_correlations(df, pedigree)
 
     results = {
         "structural": validate_structural(df, params, ped),
@@ -67,7 +69,7 @@ def build_validation_report(
         "half_sibs": validate_half_sibs(df, params, siblings, mates),
         "statistical": validate_statistical(df, params),
         "c_transmission": validate_c_transmission(df, params, ped),
-        "heritability": validate_heritability(df, params, ped, siblings, mates),
+        "heritability": validate_heritability(df, params, ped, pedigree, siblings, mates),
         "population": validate_population(df, params),
         "per_generation": compute_per_generation_stats(df, params),
         "assortative_mating": validate_assortative_mating(params, mates),
