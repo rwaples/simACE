@@ -4,7 +4,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from simace.analysis.mate_correlation import mate_correlation_matrix, mate_pedigree
+from simace.analysis.mate_correlation import mate_correlation_by_generation, mate_correlation_matrix, mate_pedigree
 from simace.analysis.stats import compute_mate_correlation
 from simace.simulation.mate_correlation import expected_mate_corr_matrix
 
@@ -225,7 +225,8 @@ class TestPlotMateCorrelation:
             {"mate_correlation": {"matrix": [[0.3, 0.1], [0.1, 0.2]], "n_pairs": 100}},
             {"mate_correlation": {"matrix": [[0.25, 0.08], [0.12, 0.18]], "n_pairs": 100}},
         ]
-        params = {"assort1": 0.3, "assort2": 0.0, "rA": 0.5, "rC": 0.0, "A1": 0.5, "C1": 0.0, "A2": 0.5, "C2": 0.0}
+        params = {"G_ped": 3, "assort1": 0.3, "assort2": 0.0, "rA": 0.5, "rC": 0.0, "A1": 0.5, "C1": 0.0, "A2": 0.5}
+        params |= {"C2": 0.0}
         out = tmp_path / "mate_correlation.png"
         plot_mate_correlation(stats, str(out), scenario="test", params=params)
         assert out.exists()
@@ -237,10 +238,45 @@ class TestPlotMateCorrelation:
         stats = [
             {"mate_correlation": {"matrix": [[0.3, 0.2], [0.15, 0.4]], "n_pairs": 100}},
         ]
-        params = {"assort1": 0.3, "assort2": 0.5, "rA": 0.5, "rC": 0.3, "A1": 0.5, "C1": 0.2, "A2": 0.5, "C2": 0.2}
+        params = {"G_ped": 3, "assort1": 0.3, "assort2": 0.5, "rA": 0.5, "rC": 0.3, "A1": 0.5, "C1": 0.2, "A2": 0.5}
+        params |= {"C2": 0.2}
         out = tmp_path / "mate_correlation_both.png"
         plot_mate_correlation(stats, str(out), scenario="test", params=params)
         assert out.exists()
+
+    def test_expected_panel_spans_a_target_that_varies_by_generation(self, tmp_path, monkeypatch):
+        from simace.plotting import plot_liability
+
+        heatmaps = []
+        real = plot_liability.sns.heatmap
+        monkeypatch.setattr(
+            plot_liability.sns, "heatmap", lambda data, **kw: heatmaps.append((data, kw)) or real(data, **kw)
+        )
+        stats = [{"mate_correlation": {"matrix": [[0.3, 0.0], [0.0, 0.0]], "n_pairs": 100}}]
+        params = {"G_sim": 4, "G_ped": 4, "assort1": {0: 0.2, 2: 0.4}, "assort2": 0.0, "rA": 0.0, "A1": 0.5, "A2": 0.5}
+        params |= {"C1": 0.0, "C2": 0.0, "E1": 0.5, "E2": 0.5}
+        out = tmp_path / "mate_correlation_varying.png"
+        plot_liability.plot_mate_correlation(stats, str(out), scenario="test", params=params)
+        expected, kw = heatmaps[0]
+        assert expected[0, 0] == pytest.approx(0.3)
+        assert kw["annot"][0, 0] == "0.20\u20130.40"
+        assert kw["annot"][1, 1] == "0.00"
+        assert "per-generation" in heatmaps[1][1]["ax"].get_title()
+        assert out.exists()
+
+    def test_observed_panel_flags_cross_cells_under_a_scale_change(self, tmp_path, monkeypatch):
+        """A constant cross target does not make the pooled cross Pearson comparable when E changes scale."""
+        from simace.plotting import plot_liability
+
+        axes = []
+        real = plot_liability.sns.heatmap
+        monkeypatch.setattr(plot_liability.sns, "heatmap", lambda data, **kw: axes.append(kw["ax"]) or real(data, **kw))
+        stats = [{"mate_correlation": {"matrix": [[0.5, 0.13], [0.13, 0.5]], "n_pairs": 100}}]
+        params = {"G_ped": 4, "assort1": 0.5, "assort2": 0.5, "rA": 0.8, "A1": 0.5, "A2": 0.5, "C1": 0.0, "C2": 0.0}
+        params |= {"rE": 0.0, "E1": {0: 0.1, 2: 5.0}, "E2": {0: 5.0, 2: 0.1}}
+        plot_liability.plot_mate_correlation(stats, str(tmp_path / "mc.png"), scenario="test", params=params)
+        assert "varies" not in axes[0].get_title()
+        assert "per-generation" in axes[1].get_title()
 
     def test_placeholder_without_data(self, tmp_path):
         """Should produce placeholder when no mate_correlation in stats."""
@@ -346,3 +382,39 @@ class TestMateCorrelationMatrix:
         assert n_pairs == _oracle(df, ["liability2"])[1]
         assert np.isnan(matrix[[0, 0, 1], [0, 1, 0]]).all()
         assert not np.isnan(matrix[1, 1])
+
+
+class TestMateCorrelationByGeneration:
+    """Each generation's pairs against the NumPy oracle on that generation's rows."""
+
+    @staticmethod
+    def _three_generations(seed: int = 9, n: int = 300) -> pl.DataFrame:
+        rng = np.random.default_rng(seed)
+        ids = np.arange(3 * n)
+        mother = np.full(3 * n, -1)
+        father = np.full(3 * n, -1)
+        for g in (1, 2):
+            parents = ids[(g - 1) * n : g * n]
+            mother[g * n : (g + 1) * n] = rng.choice(parents[0::2], size=n)
+            father[g * n : (g + 1) * n] = rng.choice(parents[1::2], size=n)
+        return pl.DataFrame(
+            {
+                "id": ids,
+                "mother": mother,
+                "father": father,
+                "generation": np.repeat([0, 1, 2], n),
+                "liability1": rng.normal(size=3 * n),
+                "liability2": rng.normal(size=3 * n),
+            }
+        )
+
+    def test_matches_oracle_per_parents_generation(self):
+        df = self._three_generations()
+        cols = ["liability1", "liability2"]
+        by_gen = mate_correlation_by_generation(df, cols, [0, 1])
+        for g in (0, 1):
+            expected, n_expected = _oracle(df.filter(pl.col("generation").is_in([g, g + 1])), cols)
+            matrix, n_pairs = by_gen[g]
+            assert n_pairs == n_expected
+            np.testing.assert_allclose(matrix, expected, rtol=0, atol=1e-12)
+        assert by_gen[0][1] + by_gen[1][1] == mate_correlation_matrix(mate_pedigree(df), df, cols)[1]

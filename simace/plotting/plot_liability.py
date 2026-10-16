@@ -40,7 +40,6 @@ from simace.plotting.plot_utils import (
     annotate_heatmap,
     draw_split_violin,
     finalize_plot,
-    param_as_float,
     save_placeholder_plot,
     sort_generation_keys,
 )
@@ -755,8 +754,14 @@ def plot_mate_correlation(
     scenario: str = "",
     params: dict | None = None,
 ) -> None:
-    """Plot 2x2 heatmap of empirical mate liability correlations with expected values."""
-    from simace.simulation.mate_correlation import expected_mate_corr_matrix
+    """Plot 2x2 heatmap of empirical mate liability correlations with expected values.
+
+    The expected panel is the validator's per-mating target
+    (:func:`~simace.analysis.validate.assortative_mating.recorded_matings`).
+    A cell whose target varies by generation shows its range, colored at the
+    midpoint.
+    """
+    from simace.analysis.validate.assortative_mating import recorded_matings
 
     # Average observed matrices across replicates
     matrices = []
@@ -770,26 +775,14 @@ def plot_mate_correlation(
 
     obs = np.nanmean(np.stack(matrices), axis=0)
 
-    # Compute expected matrix from params
-    exp = np.zeros((2, 2))
-    a1 = param_as_float(params.get("assort1", 0)) if params else 0
-    a2 = param_as_float(params.get("assort2", 0)) if params else 0
-    if params is not None:
-        am = params.get("assort_matrix", None)
-        exp = expected_mate_corr_matrix(
-            assort1=a1,
-            assort2=a2,
-            rA=float(params.get("rA", 0)),
-            rC=float(params.get("rC", 0)),
-            A1=float(params.get("A1", 0)),
-            C1=param_as_float(params.get("C1", 0)),
-            A2=float(params.get("A2", 0)),
-            C2=param_as_float(params.get("C2", 0)),
-            assort_matrix=am,
-            rE=float(params.get("rE", 0)),
-            E1=param_as_float(params.get("E1", 0)),
-            E2=param_as_float(params.get("E2", 0)),
-        )
+    matings = recorded_matings(params) if params else []
+    targets = np.stack([m.expected for m in matings]) if matings else np.zeros((1, 2, 2))
+    exp_lo, exp_hi = targets.min(axis=0), targets.max(axis=0)
+    exp = (exp_lo + exp_hi) / 2
+    varies = exp_hi - exp_lo > 1e-12
+    exp_annot = np.empty((2, 2), dtype=object)
+    for cell in np.ndindex(2, 2):
+        exp_annot[cell] = f"{exp_lo[cell]:.2f}\u2013{exp_hi[cell]:.2f}" if varies[cell] else f"{exp[cell]:.2f}"
 
     # The sex lives on the axis label, not repeated in every tick. At 14 pt
     # "Female trait 1" and "Female trait 2" are each about as tall as the
@@ -813,9 +806,9 @@ def plot_mate_correlation(
         vmin=-1,
         vmax=1,
         center=0,
-        annot=True,
-        fmt=".2f",
-        annot_kws={"fontsize": 19, "fontweight": "bold"},
+        annot=exp_annot,
+        fmt="",
+        annot_kws={"fontsize": 13 if varies.any() else 19, "fontweight": "bold"},
         square=True,
         linewidths=0.5,
         linecolor="black",
@@ -824,8 +817,11 @@ def plot_mate_correlation(
         yticklabels=ylabels,
     )
     exp_title = "Expected"
-    if a1 != 0 or a2 != 0:
-        exp_title += f"\nassort1={a1}, assort2={a2}"
+    if varies.any():
+        exp_title += "\nvaries by generation"
+    elif matings and any(matings[0].assort):
+        a1, a2 = matings[0].assort
+        exp_title += f"\nassort1={a1:g}, assort2={a2:g}"
     ax_exp.set_title(exp_title, fontsize=15)
 
     # Right panel: observed (realized)
@@ -846,7 +842,10 @@ def plot_mate_correlation(
         xticklabels=xlabels,
         yticklabels=[],
     )
-    ax_obs.set_title("Observed", fontsize=15)
+    # A pooled Pearson has no single target where the target varies, nor on a
+    # cross-trait cell once the trait scales change with C/E (ADR 0026).
+    comparable = ~varies & (np.eye(2, dtype=bool) | (len({m.ce for m in matings}) <= 1))
+    ax_obs.set_title("Observed" if comparable.all() else "Observed (pooled)\nsee per-generation checks", fontsize=15)
 
     for ax in (ax_exp, ax_obs):
         ax.tick_params(labelsize=14)

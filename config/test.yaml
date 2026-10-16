@@ -22,3 +22,26 @@ coverage_scenario:
     # Non-zero C1 so half_sib_shared_C1 has positive variance (else NaN).
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
     trait2: { A: 0.4, C: 0.2, E: 0.4 }
+
+# Per-generation assortment and unique environment with both traits
+# assorting (#64, ADR 0026). Recorded matings are iterations 3-5 (parents
+# in generations 0-2): assort1 steps from 0.1 to 0.4 at iteration 4, and
+# E1 from 0.3 to 0.2 for the C/E generation that iteration 5 mates, so
+# mate_corr_liability1 and the cross checks split by generation while
+# mate_corr_liability2 stays pooled.
+am_per_generation:
+  seed: 6464
+  N: 2000
+  G_sim: 6
+  G_ped: 4
+  replicates: 1
+  pedigree:
+    mating_lambda: 0.5
+    p_mztwin: 0.0
+    assort1: {0: 0.1, 4: 0.4}
+    assort2: 0.3
+    trait1: { A: 0.5, C: 0.2, E: {0: 0.3, 4: 0.2} }
+    trait2: { A: 0.4, C: 0.2, E: 0.4 }
+    rA: 0.3
+    rC: 0.5
+    rE: 0.5
