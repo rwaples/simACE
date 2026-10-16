@@ -16,7 +16,7 @@ import numpy as np
 from simace.core.numerics import _ZERO_VAR_THRESHOLD
 from simace.core.relationships import transmission_coefficients
 
-from ._common import _info, _result
+from ._common import _info, _result, cluster_codes
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -34,20 +34,11 @@ SE_MULTIPLIER = 4.0
 TOLERANCE_FLOOR = 1e-6
 
 
-def cluster_codes(keys: np.ndarray) -> np.ndarray:
-    """Dense codes ``0..G-1`` for the distinct ``keys``, by a stable sort (bare ``np.unique`` is slow on big int64)."""
-    order = np.argsort(keys, kind="stable")
-    ordered = keys[order]
-    codes = np.empty(len(keys), dtype=np.int64)
-    codes[order] = np.cumsum(np.r_[False, ordered[1:] != ordered[:-1]])
-    return codes
-
-
 def cluster_robust_ols(y: np.ndarray, X: np.ndarray, cluster: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Return OLS coefficients of ``y`` on ``X`` and their CR1 cluster-robust standard errors.
 
     ``X`` carries its own intercept column and ``cluster`` holds dense codes
-    ``0..G-1`` (:func:`cluster_codes`). CR1 scales the sandwich by
+    ``0..G-1`` (:func:`~._common.cluster_codes`). CR1 scales the sandwich by
     ``G / (G - 1) * (n - 1) / (n - k)`` for ``G`` clusters, ``n`` rows and
     ``k`` columns.
     """
