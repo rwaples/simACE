@@ -93,6 +93,10 @@ _Avoid_: family tree, genealogy.
 An event linking one male and one female parent, producing zero or more offspring. Under the **standard mating model** each individual may participate in multiple matings (mating count drawn from a zero-truncated Poisson). Under the **Wright-Fisher mating model** there is no persistent mating-pair structure: each offspring's two parents are drawn independently, so each offspring is conceptually its own degenerate one-offspring mating event. "Mating pair" is the same thing in prose.
 _Avoid_: couple, partnership, union, pair (ambiguous — see **Relationship pair**).
 
+**Mating iteration** ($i$):
+One step of the simulation, $0 \le i < G_{\text{sim}}$: the current population mates and its offspring become the next generation. Iteration $i$ draws its assortment from that iteration's configured mate correlations. Its parents carry the C/E of generation $\max(0, i - 1)$. Only iterations after the one that produces recorded generation 0 give matings whose parents are both in the pedigree. Their parents are recorded generation $i - b - 1$, where $b = G_{\text{sim}} - G_{\text{ped}}$ is the length of the **burn-in**. A per-generation mate correlation is labelled by that parents' generation.
+_Avoid_: generation (when the loop step is meant: iteration $i$ produces generation $i - b$, it does not mate it).
+
 **Within-person liability correlation**:
 The correlation between Trait 1 and Trait 2 liabilities in the same individual. Distinguish the configured correlation implied by the variance components from the realised correlation in a population. Neither is a correlation between mating parents.
 
