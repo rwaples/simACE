@@ -110,15 +110,22 @@ def validate_assortative_mating(params: dict[str, Any], mates: MateCorrelations)
 
 
 def _cross_trait_targets(params: dict[str, Any], assort1: float, assort2: float) -> list[float]:
-    """The simulator's cross-trait mate-correlation target for each parental C/E generation it mates.
+    """The simulator's cross-trait mate-correlation target for each parental C/E generation of a recorded mating.
 
     Mating iteration ``i`` mates parental C/E generation ``_parent_ce_gen(i)``
     (:class:`~simace.simulation.assortment.AssortmentPlan`), whose ``rho_w``
-    sets the target unless ``assort_matrix`` fixes it.
+    sets the target unless ``assort_matrix`` fixes it. Only iterations from
+    ``burnin + 1`` on give Mating Pairs: iteration ``burnin`` makes the
+    recorded founders, whose parents are not rows, and burn-in matings are
+    not recorded.
+    With one recorded generation there are no pairs, and the founders'
+    iteration stands in.
     """
     from simace.simulation.simulate import resolve_per_gen_param
 
     G_sim = int(params.get("G_sim") or params.get("G_ped") or 1)
+    G_ped = int(params.get("G_ped") or G_sim)
+    first_recorded_mating = min(G_sim - G_ped + 1, G_sim - 1)
     per_gen = {k: resolve_per_gen_param(params.get(k, 0), G_sim, name=k) for k in ("C1", "C2", "E1", "E2")}
     return [
         float(
@@ -137,7 +144,7 @@ def _cross_trait_targets(params: dict[str, Any], assort1: float, assort2: float)
                 E2=per_gen["E2"][g],
             )[0, 1]
         )
-        for g in sorted({_parent_ce_gen(i) for i in range(G_sim)})
+        for g in sorted({_parent_ce_gen(i) for i in range(first_recorded_mating, G_sim)})
     ]
 
 
