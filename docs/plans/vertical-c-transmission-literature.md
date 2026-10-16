@@ -3,7 +3,7 @@
 Written 2026-10-14 for plan v3 of vertical C transmission
 (`plans/vertical-c-transmission-v3.md`, session-local draft; ADR
 `docs/adr/0025-vertical-c-transmission.md`, Proposed, on the `worktree-vertical-c-transmission` branch and not yet on `dev`; glossary entries
-"Common environment component", "C transmission", "Household" in `CONTEXT.md`).
+"Common environment component", "C transmission", "Household" in `GLOSSARY.md`).
 The model under check is $C_{child} = b_m C_{mother} + b_f C_{father} + u_{household}$
 with the configured $C$ as the total variance each generation.
 

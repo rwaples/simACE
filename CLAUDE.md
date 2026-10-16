@@ -109,4 +109,4 @@ simACE, fitACE, and fitACE_epimight share one lockstep SemVer (`vX.Y.Z`, setupto
 
 ## Agent docs
 
-Skills are authored in `.agents/skills/` (Claude Code, Codex, Pi). Issues: GitHub Issues via `gh`, with canonical triage labels. Domain docs: `CONTEXT.md` + `docs/adr/`. Details in `docs/agents/`.
+Skills are authored in `.agents/skills/` (Claude Code, Codex, Pi). Issues: GitHub Issues via `gh`, with canonical triage labels. Domain docs: `GLOSSARY.md` + `docs/adr/`. Details in `docs/agents/`.

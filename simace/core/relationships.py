@@ -56,7 +56,7 @@ SEX_LEVELS: list[tuple[int, str]] = [(0, "female"), (1, "male")]
 
 # The fraction of the common environment C a relationship type shares under
 # random mating with constant C, as a function of the C transmission
-# coefficients (ADR 0025). Households are assigned by mother (CONTEXT.md), so
+# coefficients (ADR 0025). Households are assigned by mother (GLOSSARY.md), so
 # without transmission same-mother types (MZ, FS, MHS) share all of C and every
 # other type none. With transmission, parent-offspring pairs share b_m or b_f,
 # maternal half-sibs with different fathers lose b_f**2, and paternal half-sibs

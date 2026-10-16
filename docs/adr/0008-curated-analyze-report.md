@@ -42,7 +42,7 @@ and carried dense plot-only arrays (200-point incidence curves, 300-point
 censoring-window curves) that dwarf the scientific content and are never read by
 a human. It also could not express *which population* a number describes.
 
-`CONTEXT.md` locks the vocabulary: a **per-replicate scientific report** (not a
+`GLOSSARY.md` locks the vocabulary: a **per-replicate scientific report** (not a
 plot cache, not a cross-replicate aggregate), a durable **plot payload** for
 dense arrays, and four explicit **scopes** — `recorded_pedigree`,
 `phenotyped_population`, `analysis_sample`, `analysis_pedigree`.
