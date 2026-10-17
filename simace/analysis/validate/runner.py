@@ -134,7 +134,49 @@ def run_validation(pedigree_path: str, params_path: str) -> dict[str, Any]:
 
 
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
-    """Command-line interface for running validation."""
+    """Validate one rep from explicit files.
+
+    With ``--checks``, run on-demand checks (:mod:`.on_demand`) on the
+    recorded pedigree, regenerating what they need from ``--seed`` and the
+    phenotype flags, and write ``validation.yaml``; ``simace validate
+    <scenario>`` runs this per rep. Without it, run the recorded-pedigree
+    checks Analyze runs (a debug aid).
+    """
+    probe = argparse.ArgumentParser(add_help=False)
+    probe.add_argument("--checks", nargs="+")
+    if probe.parse_known_args(argv)[0].checks:
+        _on_demand_cli(argv, prog)
+        return
+    _recorded_pedigree_cli(argv, prog)
+
+
+def _on_demand_cli(argv: list[str] | None, prog: str | None) -> None:
+    from simace.cli.cohort_stage import add_phenotype_args, phenotype_kwargs
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
+    from simace.core.cohort import read_pedigree
+    from simace.core.publish import publish
+
+    from .on_demand import ON_DEMAND_CHECKS, run_on_demand
+
+    parser = argparse.ArgumentParser(prog=prog, description="Run on-demand validation checks on one rep")
+    add_logging_args(parser)
+    add_version_arg(parser, "simace")
+    parser.add_argument("--pedigree", required=True, help="The rep's recorded pedigree parquet (layout 2)")
+    parser.add_argument("--checks", nargs="+", choices=sorted(ON_DEMAND_CHECKS), required=True)
+    parser.add_argument("--seed", type=int, required=True, help="The rep seed")
+    parser.add_argument("--output", required=True, help="Output validation.yaml")
+    add_phenotype_args(parser.add_argument_group("phenotype"))
+    args = parser.parse_args(argv)
+    init_logging(args)
+
+    result = run_on_demand(
+        read_pedigree(args.pedigree), seed=args.seed, phenotype=phenotype_kwargs(args), checks=args.checks
+    )
+    with publish(args.output) as (tmp,):
+        dump_yaml(result, tmp)
+
+
+def _recorded_pedigree_cli(argv: list[str] | None, prog: str | None) -> None:
     from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
     from simace.core.publish import publish
 

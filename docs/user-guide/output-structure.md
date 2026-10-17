@@ -15,7 +15,8 @@ results/{folder}/{scenario}/
 │   ├── plot_payload.yaml
 │   ├── plotting_sample.parquet
 │   ├── timing.tsv
-│   └── run.yaml
+│   ├── run.yaml
+│   └── validation.yaml   (only after simace validate)
 ├── rep2/
 ├── rep3/
 └── plots/
@@ -47,6 +48,7 @@ fitACE writes, such as `epimight/`. This page lists the simACE outputs only.
 | `plot_payload.yaml` | `simace/analysis/analyze.py` | Dense arrays for the incidence and censoring plots |
 | `plotting_sample.parquet` | `simace/analysis/analyze.py` | A downsampled join of traits and pedigree for scatter plots |
 | `timing.tsv` | `simace run` | One row per stage: `stage`, `wall_s`, `max_rss_mb` (the largest single process's peak resident memory), `tree_peak_mb` (the peak memory of the stage and every process it starts together, empty without a delegated cgroup), `exit_code`. See [Stage timing](#stage-timing) |
+| `validation.yaml` | `simace validate` | On-demand checks, written only when `simace validate` has run on the replicate; a recompute removes it. See [validation.yaml](#validationyaml) |
 | `run.yaml` | `simace run` | Written after every stage succeeds, or every stage up to `--until`. Records the scenario, replicate, seed, parameters, the stages run, and results `layout` (2) the replicate was computed with, plus the simace version and git ref (`source`) that built it. A rerun skips the replicate only when this matches and every other file above exists. See [Running the pipeline](running-the-pipeline.md#rerun-and-resume) |
 
 Every stage writes each output to a temporary `<name>.<random>.tmp` beside it
@@ -194,6 +196,18 @@ before-and-after comparison in `observed.ascertainment`.
 | `n_individuals` | Number of phenotyped individuals |
 | `n_generations` | Number of phenotyped generations, `G_pheno` |
 | `prevalence` | Affected fraction per trait (`trait1`, `trait2`), and the same per generation under `by_generation`, keyed by `generation` |
+
+### validation.yaml
+
+`simace validate <scenario|folder>` writes this file for each complete
+replicate (`simace/analysis/validate/on_demand.py`). `simace run` never writes
+it, and recomputing the replicate deletes it.
+
+| Key | Contents |
+|---|---|
+| `simace_version`, `seed` | The simace that ran the checks, and the replicate seed it regenerated from |
+| `summary` | `passed` and `n_failed` over every check family below |
+| `checks.onset_tau` | Onset τ ([Methods, Onset τ](../concepts/methods.md#onset-τ)). `cells` holds, for each frailty trait, `cells.trait{t}.{MZ,FS,MHS,PHS,MO,FO}`, and `cells.within_person` when both traits are frailty: `observed`, `expected` (the realized onset-τ expectation), `se`, `numerical_bound`, `tie_share`, `n_pairs`, `n_eff`, `sampled_fraction`, and the `r_eta`, `s1`, `s2`, `tau_oracle` information. `checks` holds one result per cell, `trait{t}_{code}` or `within_person`, with its `status` (`scored` or `information`), and its `passed`, `tolerance` and `z_crit` when scored or its `reason` when not. `summary` holds `passed`, `n_scored`, `n_failed` |
 
 ### plot_payload.yaml
 

@@ -63,6 +63,7 @@ from simace.plotting.plot_liability import (
     plot_liability_violin_by_sex_generation,
     plot_mate_correlation,
 )
+from simace.plotting.plot_onset_tau import plot_onset_tau
 from simace.plotting.plot_pedigree_counts import plot_pedigree_relationship_counts
 from simace.plotting.plot_utils import save_placeholder_plot
 from simace.plotting.stats_report import plotting_report_views
@@ -211,6 +212,10 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
         ),
     ),
     PlotRenderSpec(
+        "onset_tau",
+        lambda ctx, p: plot_onset_tau(ctx.all_stats, p, ctx.scenario),
+    ),
+    PlotRenderSpec(
         "liability_violin.phenotype.by_generation",
         lambda ctx, p: plot_liability_violin_by_generation(
             ctx.df_samples, ctx.all_stats, p, ctx.scenario, subsample_note=ctx.subsample_note
@@ -357,8 +362,13 @@ def main(
     gen_censoring: dict[int, list[float]] | None = None,
     plot_ext: str = "png",
     plot_workers: int = 4,
+    validation_paths: list[str] | None = None,
 ) -> None:
-    """Generate all phenotype plots from pre-computed combined reports."""
+    """Generate all phenotype plots from pre-computed combined reports.
+
+    *validation_paths* are the reps' ``validation.yaml`` files, aligned with
+    *report_paths*; a rep whose file does not exist has not been validated.
+    """
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -370,6 +380,11 @@ def main(
     reports = [load_yaml(p) for p in report_paths]
     payloads = [load_yaml(p) for p in plot_payload_paths]
     all_stats = plotting_report_views(reports, payloads)
+    # `simace validate`'s on-demand checks, for the reps it has validated.
+    for stats, path in zip(all_stats, validation_paths or [], strict=False):
+        validation = Path(path)
+        if validation.exists():
+            stats["onset_tau"] = ((load_yaml(validation).get("checks") or {}).get("onset_tau") or {}).get("checks", {})
     max_degree = _resolve_artifact_max_degree(all_stats)
 
     df_samples = pl.concat([load_parquet(p) for p in sample_paths], how="vertical")
@@ -424,6 +439,12 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     parser.add_argument("--report", nargs="+", required=True, help="report.yaml paths")
     parser.add_argument("--plot-payload", nargs="+", required=True, help="plot_payload.yaml paths")
     parser.add_argument("--samples", nargs="+", required=True, help="Sample parquet paths")
+    parser.add_argument(
+        "--validation",
+        nargs="+",
+        default=None,
+        help="Each rep's validation.yaml from `simace validate`, in --report order; a missing file is skipped",
+    )
     parser.add_argument("--output-dir", required=True, help="Output directory")
     parser.add_argument("--censor-age", type=float, required=True, help="Maximum follow-up age")
     parser.add_argument(
@@ -446,4 +467,5 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         gen_censoring=args.gen_censoring or None,
         plot_ext=args.plot_format,
         plot_workers=args.plot_workers,
+        validation_paths=args.validation,
     )

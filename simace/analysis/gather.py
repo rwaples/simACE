@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from simace.analysis.report_schema import REPORT_SUMMARY_REGISTRY
+from simace.analysis.stats.onset_tau import CELL_CATEGORIES
 from simace.core.relationships import C_TRANSMISSION_KEYS, RELATIONSHIP_TYPES
 from simace.core.yaml_io import load_yaml
 
@@ -126,6 +127,34 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
     # Stage timing lives in the rep's timing.tsv, not in the report
     row["simulate_seconds"] = simulate_seconds
     row["simulate_max_rss_mb"] = simulate_max_rss_mb
+    # Like timing.tsv, `simace validate`'s output is read from beside the report (a rep not validated has none).
+    row.update(_on_demand_columns(Path(report_path).with_name("validation.yaml")))
+    return row
+
+
+#: Onset-τ cells with a z column, in report order (ADR 0027).
+_ONSET_TAU_CELLS = (*(f"trait{t}_{code}" for t in (1, 2) for code in CELL_CATEGORIES), "within_person")
+
+
+def _on_demand_columns(path: Path) -> dict[str, Any]:
+    """Columns from ``simace validate``'s ``validation.yaml``: empty for a rep it has not validated.
+
+    Every row carries every column, since the TSV's columns are the first
+    row's keys. A cell's z is ``(observed − expected) / SE``, for scored cells only.
+    """
+    data = load_yaml(path) if path.exists() else {}
+    onset_tau = (data.get("checks") or {}).get("onset_tau") or {}
+    summary = onset_tau.get("summary") or {}
+    checks = onset_tau.get("checks") or {}
+    row: dict[str, Any] = {
+        "validation_passed": (data.get("summary") or {}).get("passed"),
+        "onset_tau_n_scored": summary.get("n_scored"),
+        "onset_tau_n_failed": summary.get("n_failed"),
+    }
+    for name in _ONSET_TAU_CELLS:
+        check = checks.get(name) or {}
+        scored = check.get("status") == "scored"
+        row[f"onset_tau_z_{name}"] = (check["observed"] - check["expected"]) / check["se"] if scored else None
     return row
 
 

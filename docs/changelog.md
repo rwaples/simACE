@@ -12,6 +12,34 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### Onset τ check for the frailty model ([#29](https://github.com/rwaples/simACE/issues/29))
+
+- **`simace validate <scenario|folder>` runs on-demand checks** on complete
+  replicates and writes each replicate's `validation.yaml`. These are checks
+  that cost too much for every replicate or need outcomes a replicate does
+  not store, so `simace run` never runs them and its cost is unchanged. It
+  takes `--rep`, `--jobs`, `--checks` and `--dry-run`, and a later recompute
+  of a replicate removes its `validation.yaml`. The per-replicate form takes
+  explicit files (`--pedigree … --seed … --checks …` plus the phenotype
+  flags); without `--checks`, `simace validate --pedigree --params --output`
+  still runs the recorded-pedigree checks as before.
+- **The frailty model's onset times are validated** by its first on-demand
+  check. For each frailty trait it compares Kendall's τ between relatives'
+  raw onsets, per relationship type (MZ, FS, MHS, PHS, MO, FO), and
+  within-person across the two traits, with its expectation given everyone's
+  realized linear predictor. That expectation does not depend on the
+  baseline hazard. The raw onsets are regenerated from the replicate's seed,
+  over the whole phenotyped population before ascertainment. The cells share
+  one Bonferroni family at a familywise 5% and have no tolerance floor. A
+  cell over 100,000 entries is scored on a seeded subset of whole families
+  ([ADR 0027](adr/0027-onset-tau-check.md)).
+- `simace gather` adds `validation_passed`, `onset_tau_n_scored`,
+  `onset_tau_n_failed` and one `onset_tau_z_{cell}` column per cell, empty
+  for replicates not validated. The atlas gains an onset-τ page after the
+  liability violins, a placeholder until the scenario's replicates are
+  validated. `config/onset_tau.yaml` and `scripts/onset_tau_calibration.py`
+  calibrate the check.
+
 ### Mate-correlation checks by generation ([#64](https://github.com/rwaples/simACE/issues/64))
 
 - **Per-generation assortment and C/E are now validated.** Each check

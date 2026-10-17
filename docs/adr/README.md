@@ -26,6 +26,7 @@ earlier one's Status section says so and points forward.
 | [0024](0024-realised-assortment-feasibility.md) | Reject infeasible realised two-trait assortment | accepted, implemented 2026-10-08 |
 | [0025](0025-vertical-c-transmission.md) | Vertical transmission of the common-environment component | accepted, implemented 2026-10-14; amends 0009 |
 | [0026](0026-mate-correlation-checks-by-generation.md) | Split mate-correlation checks by generation when pooling is invalid | accepted, implemented 2026-10-16 |
+| [0027](0027-onset-tau-check.md) | Score onset τ against its realized expectation | accepted, implemented 2026-10-17 |
 
 Retired numbers: 0003, 0006, 0007 (report lineage folded into 0008); 0004
 (Claude Code subagent housekeeping, not an architecture decision); 0013 (ty

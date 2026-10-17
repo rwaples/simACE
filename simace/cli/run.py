@@ -17,6 +17,8 @@ __all__ = [
     "ScenarioRun",
     "cli",
     "expand_targets",
+    "lock_scenario",
+    "plan_runs",
     "rep_spec",
 ]
 
@@ -132,6 +134,8 @@ def _recompute(
     """
     tag = f"{rep.scenario}/rep{rep.rep}"
     rep_dir = rep.dir(layout)
+    # `simace validate`'s results describe the outputs being replaced.
+    rep.path(layout, RepArtifact.VALIDATION).unlink(missing_ok=True)
     if first == 0:
         for artifact in REP_OUTPUTS:
             rep.path(layout, artifact).unlink(missing_ok=True)
@@ -330,30 +334,39 @@ def _plan(name: str, params: dict[str, Any], reps: list[int] | None) -> Scenario
     return ScenarioRun(name, params["folder"], all_reps, all_reps if reps is None else [all_reps[r - 1] for r in reps])
 
 
+def plan_runs(command_name: str, config_dir: Path, targets: list[str], reps: list[int] | None) -> list[ScenarioRun]:
+    """Resolve ``targets`` and ``--rep`` into the scenarios to process, exiting 2 on a bad target.
+
+    Shared by ``simace run`` and ``simace validate``; *command_name* prefixes the messages.
+    """
+    try:
+        scenarios = resolve_all(config_dir)
+        names = expand_targets(targets, scenarios)
+        if reps is not None and len(names) != 1:
+            raise ScenarioError(f"--rep needs exactly one scenario; the targets name {len(names)}")
+        runs = [_plan(name, scenarios[name], reps) for name in names]
+    except ScenarioError as exc:
+        print(f"simace {command_name}: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
+    if not runs:
+        print(f"simace {command_name}: nothing to run; every scenario in {targets} uses gene drop", file=sys.stderr)
+        raise SystemExit(2)
+    return runs
+
+
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line entry point for ``simace run``."""
     args = _parse(argv, prog)
     config_dir, layout = resolve_roots(args)
     require_config(config_dir, "run")
-    try:
-        scenarios = resolve_all(config_dir)
-        names = expand_targets(args.targets, scenarios)
-        if args.rep is not None and len(names) != 1:
-            raise ScenarioError(f"--rep needs exactly one scenario; the targets name {len(names)}")
-        runs = [_plan(name, scenarios[name], args.rep) for name in names]
-    except ScenarioError as exc:
-        print(f"simace run: {exc}", file=sys.stderr)
-        raise SystemExit(2) from exc
-    if not runs:
-        print(f"simace run: nothing to run; every scenario in {args.targets} uses gene drop", file=sys.stderr)
-        raise SystemExit(2)
+    runs = plan_runs("run", config_dir, args.targets, args.rep)
 
     try:
         with ExitStack() as stack:
             lock_fds: tuple[int, ...] = ()
             cgroups = None
             if not args.dry_run:
-                lock_fds = tuple(_lock_scenario(stack, run, layout) for run in runs)
+                lock_fds = tuple(lock_scenario(stack, run, layout) for run in runs)
                 cgroups = _open_cgroups(stack, args.max_memory)
             _run_reps(args, layout, runs, lock_fds, cgroups)
     except ScenarioBusy as exc:
@@ -361,7 +374,8 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         raise SystemExit(1) from exc
 
 
-def _lock_scenario(locks: ExitStack, run: ScenarioRun, layout: Layout) -> int:
+def lock_scenario(locks: ExitStack, run: ScenarioRun, layout: Layout) -> int:
+    """Take *run*'s scenario lock inside *locks* and return its fd, or raise :class:`ScenarioBusy`."""
     lock_path = layout.scenario_lock(run.folder, run.scenario)
     try:
         return locks.enter_context(_scenario_lock(lock_path))
