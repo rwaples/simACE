@@ -20,6 +20,16 @@ releases shipped after 2026.05.3.
   only `simace validate`'s on-demand checks. `build_validation_report` is
   now `build_quality_report`, and the `validate_*` functions import from
   `simace.analysis.quality`. `run_validation` is removed.
+- **`validation.yaml` records cells, not a pass.** It carries a required
+  `schema` block (`kind: on_demand_checks`, `version: 1`); every reader
+  ignores a file without it, with a warning that names the file. Onset τ's
+  `checks.onset_tau.cells` hold each cell's `z`, and its `summary` holds
+  `n_scored`, `max_abs_z` and the per-replicate Bonferroni bound `z_bound`;
+  the per-replicate `passed` and `n_failed` are removed, since a correct
+  simulation exceeds the bound in about 5% of replicates. `simace validate`
+  prints each replicate's largest |z| and bound. Every `validation.yaml`
+  written before this change is ignored, including those from the onset-τ
+  check below; rerun `simace validate` on those replicates.
 - **`simace validate --pedigree` requires `--checks`.** The recorded-pedigree
   debug run (`--pedigree … --params … --output …` without `--checks`) is
   removed; `simace analyze` runs those checks.
@@ -44,8 +54,8 @@ releases shipped after 2026.05.3.
   one Bonferroni family at a familywise 5% and have no tolerance floor. A
   cell over 100,000 entries is scored on a seeded subset of whole families
   ([ADR 0027](adr/0027-onset-tau-check.md)).
-- `simace gather` adds `validation_passed`, `onset_tau_n_scored`,
-  `onset_tau_n_failed` and one `onset_tau_z_{cell}` column per cell, empty
+- `simace gather` adds `onset_tau_n_scored`, `onset_tau_max_abs_z`,
+  `onset_tau_rep_bound` and one `onset_tau_z_{cell}` column per cell, empty
   for replicates not validated. The atlas gains an onset-τ page after the
   liability violins, a placeholder until the scenario's replicates are
   validated. `config/onset_tau.yaml` and `scripts/onset_tau_calibration.py`

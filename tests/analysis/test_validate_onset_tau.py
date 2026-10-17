@@ -1,4 +1,4 @@
-"""Scoring of the onset-τ cells (ADR 0027)."""
+"""Scoring of the onset-τ cells (ADR 0027) and their ``validation.yaml`` shape (ADR 0028)."""
 
 from __future__ import annotations
 
@@ -8,7 +8,8 @@ import pytest
 import yaml
 
 from simace.analysis.gather import _on_demand_columns
-from simace.analysis.validate.onset_tau import validate_onset_tau
+from simace.analysis.validate.on_demand import SCHEMA, load_validation, one_warning_for_refused
+from simace.analysis.validate.onset_tau import score_onset_tau
 
 
 def _cell(observed=0.07, expected=0.068, se=0.002, **overrides):
@@ -42,27 +43,41 @@ def _summary(**cells):
     return {"cells": {"trait1": cells}, "skipped_traits": {}, "entry_cap": 100_000}
 
 
-def test_bonferroni_threshold_uses_the_scored_count():
-    results = validate_onset_tau(_summary(FS=_cell(), MO=_cell(), MZ=_cell(n_eff=40.0)))
-    z = NormalDist().inv_cdf(1 - 0.05 / 4)
-    for name in ("trait1_FS", "trait1_MO"):
-        assert results[name]["status"] == "scored"
-        assert results[name]["z_crit"] == pytest.approx(z)
-        assert results[name]["n_scored"] == 2
-        assert results[name]["passed"]
-    assert results["trait1_MZ"]["status"] == "information"
-    assert "effective components" in results["trait1_MZ"]["reason"]
+def test_scored_cells_carry_z_and_the_rep_records_its_largest():
+    scored = score_onset_tau(_summary(FS=_cell(observed=0.074), MO=_cell(observed=0.066), MZ=_cell(n_eff=40.0)))
+    cells, summary = scored["cells"], scored["summary"]
+    assert cells["trait1_FS"]["status"] == "scored"
+    assert cells["trait1_FS"]["z"] == pytest.approx(3.0)
+    assert cells["trait1_MO"]["z"] == pytest.approx(-1.0)
+    assert cells["trait1_MZ"]["status"] == "information"
+    assert "effective components" in cells["trait1_MZ"]["reason"]
+    assert summary["n_scored"] == 2
+    assert summary["max_abs_z"] == pytest.approx(3.0)
+    assert summary["z_bound"] == pytest.approx(NormalDist().inv_cdf(1 - 0.05 / 4))
 
 
-def test_thirteen_cells_give_z_of_two_point_eight_nine():
-    cells = {f"C{i}": _cell() for i in range(13)}
-    results = validate_onset_tau(_summary(**cells))
-    assert results["trait1_C0"]["z_crit"] == pytest.approx(2.8905, abs=1e-4)
+def test_no_cell_or_summary_carries_a_per_rep_pass():
+    """A calibrated test's result is one draw; the verdict is across reps (ADR 0028)."""
+    scored = score_onset_tau(_summary(FS=_cell(observed=0.068 + 0.002 * 5.0), MZ=_cell(n_eff=40.0)))
+    assert scored["summary"]["max_abs_z"] > scored["summary"]["z_bound"]
+    for cell in (*scored["cells"].values(), scored["summary"]):
+        assert not {"passed", "n_failed", "tolerance"} & set(cell)
 
 
-def test_a_shifted_cell_fails():
-    results = validate_onset_tau(_summary(FS=_cell(observed=0.068 + 0.002 * 3.0)))
-    assert results["trait1_FS"]["passed"] is False
+def test_thirteen_cells_give_a_bound_of_two_point_eight_nine():
+    scored = score_onset_tau(_summary(**{f"C{i}": _cell() for i in range(13)}))
+    assert scored["summary"]["z_bound"] == pytest.approx(2.8905, abs=1e-4)
+
+
+def test_nothing_scored_leaves_the_largest_z_and_bound_empty():
+    scored = score_onset_tau(_summary(MZ=_cell(n_eff=40.0)))
+    assert scored["summary"] == {
+        "n_scored": 0,
+        "max_abs_z": None,
+        "z_bound": None,
+        "skipped_traits": {},
+        "entry_cap": 100_000,
+    }
 
 
 @pytest.mark.parametrize(
@@ -75,35 +90,78 @@ def test_a_shifted_cell_fails():
     ],
 )
 def test_unscorable_cells_are_information_with_a_reason(override, reason):
-    results = validate_onset_tau(_summary(FS=_cell(**override)))
-    assert results["trait1_FS"]["status"] == "information"
-    assert reason in results["trait1_FS"]["reason"]
-    assert "passed" not in results["trait1_FS"]
+    cell = score_onset_tau(_summary(FS=_cell(**override)))["cells"]["trait1_FS"]
+    assert cell["status"] == "information"
+    assert reason in cell["reason"]
+    assert "z" not in cell
 
 
 def test_skipped_traits_are_reported():
     summary = _summary(FS=_cell())
     summary["skipped_traits"] = {"trait2": "model adult is not frailty"}
-    results = validate_onset_tau(summary)
-    assert results["trait2_skipped"]["reason"] == "model adult is not frailty"
+    assert score_onset_tau(summary)["summary"]["skipped_traits"] == {"trait2": "model adult is not frailty"}
+
+
+def _write(path, content):
+    path.write_text(yaml.safe_dump(content))
+    return path
 
 
 def test_gather_columns_are_present_and_empty_without_a_validation_file(tmp_path):
     empty = _on_demand_columns(tmp_path / "validation.yaml")
-    assert empty["validation_passed"] is None
+    assert "validation_passed" not in empty
+    assert "onset_tau_n_failed" not in empty
+    assert empty["onset_tau_max_abs_z"] is None
     assert empty["onset_tau_z_trait1_FS"] is None
     assert len([k for k in empty if k.startswith("onset_tau_z_")]) == 13
 
 
 def test_gather_columns_take_z_from_scored_cells_only(tmp_path):
-    checks = validate_onset_tau(_summary(FS=_cell(observed=0.074, expected=0.068, se=0.002), MZ=_cell(n_eff=10.0)))
-    content = {
-        "summary": {"passed": True, "n_failed": 0},
-        "checks": {"onset_tau": {"checks": checks, "summary": {"passed": True, "n_scored": 1, "n_failed": 0}}},
-    }
-    path = tmp_path / "validation.yaml"
-    path.write_text(yaml.safe_dump(content))
+    scored = score_onset_tau(_summary(FS=_cell(observed=0.074, expected=0.068, se=0.002), MZ=_cell(n_eff=10.0)))
+    path = _write(tmp_path / "validation.yaml", {"schema": dict(SCHEMA), "checks": {"onset_tau": scored}})
     row = _on_demand_columns(path)
     assert row["onset_tau_z_trait1_FS"] == pytest.approx(3.0)
     assert row["onset_tau_z_trait1_MZ"] is None
     assert row["onset_tau_n_scored"] == 1
+    assert row["onset_tau_max_abs_z"] == pytest.approx(3.0)
+    assert row["onset_tau_rep_bound"] == pytest.approx(NormalDist().inv_cdf(1 - 0.025))
+
+
+def test_a_pre_schema_validation_yaml_is_refused_by_name(tmp_path, caplog):
+    """A file from before ADR 0028 has a top-level ``summary.passed`` and no schema: no reader takes it."""
+    old = {
+        "summary": {"passed": False, "n_failed": 3},
+        "checks": {"onset_tau": {"summary": {"passed": False, "n_scored": 13, "n_failed": 3}}},
+    }
+    path = _write(tmp_path / "validation.yaml", old)
+    with caplog.at_level("WARNING"):
+        row = _on_demand_columns(path)
+    assert all(value is None for value in row.values())
+    assert str(path) in caplog.text
+    assert "schema" in caplog.text
+
+
+@pytest.mark.parametrize("schema", [None, {"kind": "on_demand_checks", "version": 2}, {"kind": "other", "version": 1}])
+def test_only_the_current_schema_is_read(tmp_path, schema):
+    path = _write(tmp_path / "validation.yaml", {"schema": schema, "checks": {}})
+    assert load_validation(path) is None
+    _write(path, {"schema": dict(SCHEMA), "checks": {}})
+    assert load_validation(path) == {"schema": SCHEMA, "checks": {}}
+
+
+def test_the_onset_tau_page_draws_the_new_section(tmp_path):
+    from simace.plotting.plot_onset_tau import plot_onset_tau
+
+    section = score_onset_tau(_summary(FS=_cell(observed=0.068 + 0.002 * 5.0), MO=_cell(), MZ=_cell(n_eff=40.0)))
+    out = tmp_path / "onset_tau.png"
+    plot_onset_tau([{"onset_tau": section}, {}], out)
+    assert out.stat().st_size > 0
+
+
+def test_a_reader_run_logs_one_warning_for_every_refused_file(tmp_path, caplog):
+    paths = [_write(tmp_path / f"rep{i}.yaml", {"summary": {"passed": True}}) for i in range(3)]
+    with caplog.at_level("WARNING"), one_warning_for_refused():
+        assert [load_validation(path) for path in paths] == [None, None, None]
+    assert len(caplog.records) == 1
+    assert "Ignoring 3 validation.yaml file(s)" in caplog.text
+    assert str(paths[0]) in caplog.text

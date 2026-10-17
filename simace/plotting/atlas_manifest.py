@@ -204,9 +204,11 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         title="Onset τ against its realized expectation (frailty traits).",
         body=(
             "Kendall's τ between relatives' raw onsets in the phenotyped population, per relationship type,"
-            " at the cell's linear-predictor correlation (r-hat). Filled: observed onset τ with its ±z·SE"
-            " Bonferroni interval; hollow: the realized onset-τ expectation it is scored against; grey: not"
-            " scored; red edge: failed. Curve: τ for normal linear predictors with the cells' spread, which"
+            " at the cell's linear-predictor correlation (r-hat). Filled: observed onset τ with ±z_bound·SE,"
+            " the replicate's Bonferroni bound over its scored cells; hollow: the realized onset-τ expectation"
+            " it is scored against; grey: not scored; red edge: |z| above that bound, which about 5% of"
+            " replicates of a correct simulation show, so it is not a failure (the verdict is across"
+            " replicates). Curve: τ for normal linear predictors with the cells' spread, which"
             " does not depend on the baseline hazard. One point per replicate. A cell over 100k entries is"
             " scored on a seeded subset of whole families. Drawn from `simace validate`, so the page is a"
             " placeholder until the scenario's replicates have been validated."

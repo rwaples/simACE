@@ -13,6 +13,7 @@ from typing import Any
 
 from simace.analysis.report_schema import REPORT_SUMMARY_REGISTRY
 from simace.analysis.stats.onset_tau import CELL_CATEGORIES
+from simace.analysis.validate.on_demand import load_validation, one_warning_for_refused
 from simace.core.relationships import C_TRANSMISSION_KEYS, RELATIONSHIP_TYPES
 from simace.core.yaml_io import load_yaml
 
@@ -139,31 +140,29 @@ _ONSET_TAU_CELLS = (*(f"trait{t}_{code}" for t in (1, 2) for code in CELL_CATEGO
 def _on_demand_columns(path: Path) -> dict[str, Any]:
     """Columns from ``simace validate``'s ``validation.yaml``: empty for a rep it has not validated.
 
+    A file without the current schema counts as not validated (ADR 0028).
     Every row carries every column, since the TSV's columns are the first
-    row's keys. A cell's z is ``(observed − expected) / SE``, for scored cells only.
+    row's keys. Gather copies per-rep values and decides no verdict; a cell's
+    z is present for scored cells only.
     """
-    data = load_yaml(path) if path.exists() else {}
+    data = load_validation(path) or {}
     onset_tau = (data.get("checks") or {}).get("onset_tau") or {}
     summary = onset_tau.get("summary") or {}
-    checks = onset_tau.get("checks") or {}
+    cells = onset_tau.get("cells") or {}
     row: dict[str, Any] = {
-        "validation_passed": (data.get("summary") or {}).get("passed"),
         "onset_tau_n_scored": summary.get("n_scored"),
-        "onset_tau_n_failed": summary.get("n_failed"),
+        "onset_tau_max_abs_z": summary.get("max_abs_z"),
+        "onset_tau_rep_bound": summary.get("z_bound"),
     }
     for name in _ONSET_TAU_CELLS:
-        check = checks.get(name) or {}
-        scored = check.get("status") == "scored"
-        row[f"onset_tau_z_{name}"] = (check["observed"] - check["expected"]) / check["se"] if scored else None
+        row[f"onset_tau_z_{name}"] = (cells.get(name) or {}).get("z")
     return row
 
 
 def main(report_files: list[str], output_path: str) -> None:
     """Gather report summaries from many replicates into a wide TSV file."""
-    rows = []
-    for report_path in report_files:
-        row = extract_metrics(report_path)
-        rows.append(row)
+    with one_warning_for_refused():
+        rows = [extract_metrics(report_path) for report_path in report_files]
 
     # Sort by scenario name, then by rep
     rows.sort(key=lambda x: (x["scenario"], x["rep"]))

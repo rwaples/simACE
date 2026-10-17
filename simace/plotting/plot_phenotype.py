@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
+from simace.analysis.validate.on_demand import load_validation, one_warning_for_refused
 from simace.core.parquet import load_parquet
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_am_equilibrium import plot_am_equilibrium
@@ -381,10 +382,11 @@ def main(
     payloads = [load_yaml(p) for p in plot_payload_paths]
     all_stats = plotting_report_views(reports, payloads)
     # `simace validate`'s on-demand checks, for the reps it has validated.
-    for stats, path in zip(all_stats, validation_paths or [], strict=False):
-        validation = Path(path)
-        if validation.exists():
-            stats["onset_tau"] = ((load_yaml(validation).get("checks") or {}).get("onset_tau") or {}).get("checks", {})
+    with one_warning_for_refused():
+        for stats, path in zip(all_stats, validation_paths or [], strict=False):
+            validation = load_validation(Path(path))
+            if validation is not None:
+                stats["onset_tau"] = (validation.get("checks") or {}).get("onset_tau") or {}
     max_degree = _resolve_artifact_max_degree(all_stats)
 
     df_samples = pl.concat([load_parquet(p) for p in sample_paths], how="vertical")

@@ -2,8 +2,10 @@
 
 One panel per frailty trait and one within-person panel. Each relationship
 type is a point at its cell's linear-predictor correlation ``r̂``: the observed
-onset τ, filled, with its ``±z·SE`` interval, and the realized onset-τ
-expectation it is scored against, hollow. The curve is ``tau_oracle(s, s, r)``,
+onset τ, filled, with its ``±z_bound·SE`` interval (the rep's per-rep
+Bonferroni bound), and the realized onset-τ expectation it is scored against,
+hollow. A red edge marks a cell whose ``|z|`` exceeds that bound; a correct
+simulation has one in about 5% of reps, and the verdict is across reps. The curve is ``tau_oracle(s, s, r)``,
 the onset τ of bivariate normal linear predictors with the cell's spread, which
 needs no baseline hazard.
 """
@@ -24,27 +26,28 @@ from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
 if TYPE_CHECKING:
     from pathlib import Path
 
-COLOR_FAILED = "#CC3311"
+COLOR_BEYOND = "#CC3311"
 COLOR_UNSCORED = "#BBBBBB"
 _PANELS = (("trait1", "Trait 1"), ("trait2", "Trait 2"), ("within_person", "Within-person (t1 vs t2)"))
 
 
-def _rows(table: dict[str, Any], panel: str) -> list[tuple[str, dict[str, Any]]]:
+def _rows(section: dict[str, Any], panel: str) -> list[tuple[str, dict[str, Any]]]:
+    cells = section.get("cells") or {}
     if panel == "within_person":
-        row = table.get("within_person")
+        row = cells.get("within_person")
         return [("within", row)] if row else []
-    return [(code, table[f"{panel}_{code}"]) for code in CELL_CATEGORIES if f"{panel}_{code}" in table]
+    return [(code, cells[f"{panel}_{code}"]) for code in CELL_CATEGORIES if f"{panel}_{code}" in cells]
 
 
-def _draw_point(ax, row: dict[str, Any], color: str) -> None:
+def _draw_point(ax, row: dict[str, Any], color: str, z_bound: float | None) -> None:
     x, observed, expected = row.get("r_eta"), row.get("observed"), row.get("expected")
     if x is None or observed is None:
         return
     scored = row.get("status") == "scored"
     face = color if scored else COLOR_UNSCORED
-    edge = COLOR_FAILED if scored and not row.get("passed", True) else face
+    edge = COLOR_BEYOND if scored and abs(row["z"]) > z_bound else face
     if scored:
-        ax.errorbar(x, observed, yerr=row["z_crit"] * row["se"], fmt="none", ecolor=face, elinewidth=1, zorder=3)
+        ax.errorbar(x, observed, yerr=z_bound * row["se"], fmt="none", ecolor=face, elinewidth=1, zorder=3)
     ax.scatter(x, observed, s=36, color=face, edgecolors=edge, linewidths=1.5, zorder=5)
     if expected is not None:
         ax.scatter(x, expected, s=60, facecolors="none", edgecolors=face, linewidths=1.2, zorder=4)
@@ -52,8 +55,8 @@ def _draw_point(ax, row: dict[str, Any], color: str) -> None:
 
 def plot_onset_tau(all_stats: list[dict[str, Any]], output_path: str | Path, scenario: str = "") -> None:
     """Observed onset τ and its realized expectation per relationship type, over the τ–r curve."""
-    tables = [stats.get("onset_tau") or {} for stats in all_stats]
-    panels = [(key, title) for key, title in _PANELS if any(_rows(table, key) for table in tables)]
+    sections = [stats.get("onset_tau") or {} for stats in all_stats]
+    panels = [(key, title) for key, title in _PANELS if any(_rows(section, key) for section in sections)]
     if not panels:
         save_placeholder_plot(output_path, "Onset τ not computed: no frailty trait, or reps predate the check")
         return
@@ -61,9 +64,10 @@ def plot_onset_tau(all_stats: list[dict[str, Any]], output_path: str | Path, sce
     fig, axes = plt.subplots(1, len(panels), figsize=(5.2 * len(panels), 4.6), squeeze=False)
     for ax, (key, title) in zip(axes[0], panels, strict=True):
         spreads, xs = [], []
-        for table in tables:
-            for code, row in _rows(table, key):
-                _draw_point(ax, row, PAIR_COLORS.get(code, "black"))
+        for section in sections:
+            z_bound = (section.get("summary") or {}).get("z_bound")
+            for code, row in _rows(section, key):
+                _draw_point(ax, row, PAIR_COLORS.get(code, "black"), z_bound)
                 if row.get("r_eta") is not None:
                     xs.append(row["r_eta"])
                     spreads.append((row["s1"], row["s2"]))
@@ -82,12 +86,14 @@ def plot_onset_tau(all_stats: list[dict[str, Any]], output_path: str | Path, sce
         for code in CELL_CATEGORIES
     ]
     handles += [
-        plt.Line2D([], [], marker="o", linestyle="none", color="0.3", label="observed (±z·SE)"),
+        plt.Line2D([], [], marker="o", linestyle="none", color="0.3", label="observed (±z_bound·SE)"),
         plt.Line2D(
             [], [], marker="o", linestyle="none", markerfacecolor="none", color="0.3", label="realized expectation"
         ),
         plt.Line2D([], [], marker="o", linestyle="none", color=COLOR_UNSCORED, label="not scored"),
-        plt.Line2D([], [], marker="o", linestyle="none", color="white", markeredgecolor=COLOR_FAILED, label="failed"),
+        plt.Line2D(
+            [], [], marker="o", linestyle="none", color="white", markeredgecolor=COLOR_BEYOND, label="|z| > z_bound"
+        ),
         plt.Line2D([], [], color="black", linewidth=1, label="tau_oracle(s, s, r)"),
     ]
     fig.legend(handles=handles, loc="lower center", ncol=6, fontsize=8, frameon=False)

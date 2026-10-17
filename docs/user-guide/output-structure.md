@@ -201,13 +201,17 @@ before-and-after comparison in `observed.ascertainment`.
 
 `simace validate <scenario|folder>` writes this file for each complete
 replicate (`simace/analysis/validate/on_demand.py`). `simace run` never writes
-it, and recomputing the replicate deletes it.
+it, and recomputing the replicate deletes it. A calibrated test records one
+replicate's cells and no pass: its verdict is across replicates
+([ADR 0028](../adr/0028-analyze-validate-boundary.md)). Every reader ignores a
+file without the `schema` block below, with a warning; no file written before
+ADR 0028 has one, so rerun `simace validate` on those replicates.
 
 | Key | Contents |
 |---|---|
+| `schema` | `kind: on_demand_checks`, `version: 1` |
 | `simace_version`, `seed` | The simace that ran the checks, and the replicate seed it regenerated from |
-| `summary` | `passed` and `n_failed` over every check family below |
-| `checks.onset_tau` | Onset τ ([Methods, Onset τ](../concepts/methods.md#onset-τ)). `cells` holds, for each frailty trait, `cells.trait{t}.{MZ,FS,MHS,PHS,MO,FO}`, and `cells.within_person` when both traits are frailty: `observed`, `expected` (the realized onset-τ expectation), `se`, `numerical_bound`, `tie_share`, `n_pairs`, `n_eff`, `sampled_fraction`, and the `r_eta`, `s1`, `s2`, `tau_oracle` information. `checks` holds one result per cell, `trait{t}_{code}` or `within_person`, with its `status` (`scored` or `information`), and its `passed`, `tolerance` and `z_crit` when scored or its `reason` when not. `summary` holds `passed`, `n_scored`, `n_failed` |
+| `checks.onset_tau` | Onset τ ([Methods, Onset τ](../concepts/methods.md#onset-τ)), scoped to the phenotyped population (`scope`). `cells` holds one cell per frailty trait and relationship type, `trait{t}_{MZ,FS,MHS,PHS,MO,FO}`, and `within_person` when both traits are frailty. Each has its `status`: `scored`, with `z = (observed − expected) / se`, or `information`, with its `reason`. Each also has `observed`, `expected` (the realized onset-τ expectation), `se`, `numerical_bound`, `tie_share`, `n_pairs`, `n_eff`, `sampled_fraction`, and the `r_eta`, `s1`, `s2`, `tau_oracle` information. `summary` holds `n_scored`, `max_abs_z`, the per-replicate Bonferroni bound `z_bound` = Φ⁻¹(1 − 0.025/`n_scored`) (both empty with nothing scored; a correct simulation exceeds the bound in about 5% of replicates), `skipped_traits` and `entry_cap` |
 
 ### plot_payload.yaml
 
@@ -224,7 +228,11 @@ the folder. The columns come from `REPORT_SUMMARY_REGISTRY` in
 inside `report.yaml` that fills it. `folder`, `scenario`, and `rep` come from
 the file path. `simulate_seconds` and `simulate_max_rss_mb` come only from the
 `simulate` row of the replicate's `timing.tsv`; they do not describe the whole
-pipeline. Read the registry for the full list.
+pipeline. Read the registry for the full list. The `onset_tau_*` columns come
+from the replicate's [validation.yaml](#validationyaml) and are empty when it
+has none: `onset_tau_n_scored`, `onset_tau_max_abs_z`, `onset_tau_rep_bound`
+(its `summary.z_bound`), and one `onset_tau_z_{cell}` per cell, empty when the
+cell is not scored.
 
 ## Stage timing
 

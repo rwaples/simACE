@@ -14,8 +14,8 @@ a familywise 5%:
   scored z = (observed − expected) / SE is within ``Φ⁻¹(1 − α/2)/√n``, and
   ``SD² · (n − 1)`` lies within the ``χ²_{n−1}`` quantiles at ``α/2`` and
   ``1 − α/2``;
-- per scenario: the number of reps with a failing cell is at most the
-  binomial(reps, 0.05) quantile at ``1 − α``;
+- per scenario: the number of reps whose largest |z| exceeds the per-rep
+  Bonferroni bound is at most the binomial(reps, 0.05) quantile at ``1 − α``;
 - coverage: every scenario × cell is scored in at least 95% of its reps.
 
 Prints the table and exits 1 on any miss.
@@ -106,7 +106,7 @@ def main() -> None:
     print(f"\n{'scenario':26s} {'reps':>5s} {'failing':>8s} {'allowed':>8s}")
     for scenario in scenarios:
         rows = frame.filter((pl.col("scenario") == scenario) & pl.col("onset_tau_n_scored").is_not_null())
-        failing = int((rows["onset_tau_n_failed"] > 0).sum())
+        failing = int((rows["onset_tau_max_abs_z"] > rows["onset_tau_rep_bound"]).sum())
         allowed = int(stats.binom.isf(alpha, len(rows), REP_FAILURE_RATE))
         flags = "" if rows.height and failing <= allowed else "  <-- MISS"
         print(f"{scenario:26s} {len(rows):5d} {failing:8d} {allowed:8d}{flags}")

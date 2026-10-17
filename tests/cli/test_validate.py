@@ -1,4 +1,4 @@
-"""``simace validate``: on-demand checks over a scenario's complete reps (ADR 0027)."""
+"""``simace validate``: on-demand checks over a scenario's complete reps (ADR 0027, 0028)."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ import polars as pl
 import pytest
 import yaml
 
+from simace.analysis.validate.on_demand import SCHEMA
 from simace.cli.layout import Layout, RepArtifact
 from simace.cli.run import cli as run_cli
 from simace.cli.stages import ResolvedRep
@@ -45,12 +46,19 @@ def test_writes_validation_yaml_for_each_complete_rep(project, capsys) -> None:
     cfg, roots, layout = project
     validate_cli(["tiny", *roots])
     out = capsys.readouterr().out
-    assert "[tiny] validated 2 rep(s)" in out
+    assert "[tiny] validated 2 rep(s), 0 errors" in out
+    assert "onset_tau " in out
+    assert "cell(s) scored" in out
+    assert "passed" not in out
+    assert "FAILED" not in out
     for rep in (1, 2):
         data = yaml.safe_load(_rep(cfg, rep).path(layout, RepArtifact.VALIDATION).read_text())
+        assert data["schema"] == SCHEMA
+        assert "summary" not in data
         section = data["checks"]["onset_tau"]
-        assert set(section) == {"cells", "checks", "summary"}
-        assert set(section["cells"]["cells"]) == {"trait1", "trait2", "within_person"}
+        assert set(section) == {"scope", "cells", "summary"}
+        assert {"trait1_FS", "trait2_FS", "within_person"} <= set(section["cells"])
+        assert {"n_scored", "max_abs_z", "z_bound"} <= set(section["summary"])
         assert data["seed"] == _rep(cfg, rep).seed
 
 

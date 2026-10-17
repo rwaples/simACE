@@ -25,14 +25,13 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from typing import TYPE_CHECKING
 
-from simace.analysis.validate.on_demand import ON_DEMAND_CHECKS
+from simace.analysis.validate.on_demand import ON_DEMAND_CHECKS, SCHEMA, load_validation
 from simace.cli.launch import Launcher, child_env, command
 from simace.cli.layout import RepArtifact, add_root_args, require_config, resolve_roots
 from simace.cli.manifest import RepState
 from simace.cli.run import ScenarioBusy, lock_scenario, plan_runs, rep_spec
 from simace.cli.stages import validate_argv
 from simace.cli.status import status_on_disk
-from simace.core.yaml_io import load_yaml
 
 if TYPE_CHECKING:
     from simace.cli.layout import Layout
@@ -77,9 +76,19 @@ def _validate_rep(rep: ResolvedRep, layout: Layout, launcher: Launcher, checks: 
     result = launcher.run(command("validate", validate_argv(rep, layout, checks)), log_path)
     if result.exit_code != 0:
         return f"ERROR ({result.failure}); log: {log_path}"
-    summary = load_yaml(rep.path(layout, RepArtifact.VALIDATION))["summary"]
-    verdict = "passed" if summary["passed"] else f"FAILED {summary['n_failed']} check(s)"
-    return f"{verdict} in {result.wall_s:.1f}s"
+    data = load_validation(rep.path(layout, RepArtifact.VALIDATION))
+    if data is None:
+        return f"ERROR (no validation.yaml with schema {SCHEMA}); log: {log_path}"
+    sections = "; ".join(_describe(name, section["summary"]) for name, section in data["checks"].items())
+    return f"validated in {result.wall_s:.1f}s: {sections}"
+
+
+def _describe(name: str, summary: dict) -> str:
+    """One check's per-rep line: what it scored, never a pass (the verdict is across reps; ADR 0028)."""
+    line = f"{name} {summary['n_scored']} cell(s) scored"
+    if summary.get("max_abs_z") is not None:
+        line += f", max |z| {summary['max_abs_z']:.2f} (per-rep bound {summary['z_bound']:.2f})"
+    return line
 
 
 def _complete_reps(runs: list[ScenarioRun], layout: Layout) -> list[ResolvedRep]:
@@ -135,9 +144,8 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
 
     errors = 0
     for scenario, lines in outcomes.items():
-        failed = sum(line.startswith("FAILED") for line in lines)
         errored = sum(line.startswith("ERROR") for line in lines)
         errors += errored
-        print(f"[{scenario}] validated {len(lines)} rep(s): {failed} with failing checks, {errored} errors")
+        print(f"[{scenario}] validated {len(lines) - errored} rep(s), {errored} errors")
     if errors:
         raise SystemExit(1)

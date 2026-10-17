@@ -477,7 +477,7 @@ Correlation checks use a tolerance of four standard errors with a floor of 0.05.
 
 Checks that cost too much for every rep, or that need outcomes a rep does not store, are not run by `simace run`. `simace validate <scenario|folder>` runs them on complete reps and writes each rep's `validation.yaml` (`simace.analysis.validate.on_demand`). `simace gather` adds their columns and the atlas shows their pages when the file is present. There is one so far:
 
-- **Onset τ** (`run_onset_tau`). For each `frailty` trait, Kendall's τ between relatives' raw onsets in the phenotyped population matches its realized expectation, per relationship type (MZ, FS, MHS, PHS, MO, FO), and within-person between $t_1$ and $t_2$ when both traits are frailty. It has no tolerance floor and controls the familywise error instead.
+- **Onset τ** (`run_onset_tau`). For each `frailty` trait, Kendall's τ between relatives' raw onsets in the phenotyped population matches its realized expectation, per relationship type (MZ, FS, MHS, PHS, MO, FO), and within-person between $t_1$ and $t_2$ when both traits are frailty. It is a calibrated test: it has no tolerance floor, each rep records its cells' z, and the verdict is across reps ([ADR 0028](../adr/0028-analyze-validate-boundary.md)).
 
 ### Onset τ
 
@@ -497,7 +497,7 @@ because $\log E_a - \log E_b$ is standard logistic. A comparison in which the tw
 - **SE.** Given $\eta$, only the onset draws are random, and they are independent across people. Per-entry influences, observed minus expected concordance, are summed over the connected components of the cell's pair graph and the sums squared. The estimate is never negative and is 0 for a single component.
 - **Cap.** A cell over 100,000 entries is scored on a seeded subset of whole components; the report gives the sampled fraction. When a category is expected to exceed the cap, its pairs are extracted only within sampled families (one mother's children, one father's, or one lineage).
 - **Gates.** A cell is scored when its entry-weighted effective number of components is at least 100 and its tie share plus numerical bound is at most $0.05\,\mathrm{SE}$. Otherwise it is reported as information with the reason.
-- **Tolerance.** A scored cell passes when $|\hat\tau - \tau^*| \le z\,\mathrm{SE}$ with $z = \Phi^{-1}(1 - 0.025/K)$ over the $K$ cells scored in the rep: 2.89 at $K = 13$. A correct simulation fails about 5% of reps.
+- **Per-rep bound.** A scored cell records $z = (\hat\tau - \tau^*)/\mathrm{SE}$. The rep records its largest $|z|$ and the Bonferroni bound $\Phi^{-1}(1 - 0.025/K)$ over its $K$ scored cells: 2.89 at $K = 13$. A correct simulation exceeds the bound in about 5% of reps, so a rep records no pass; `scripts/onset_tau_calibration.py` tests the reps together.
 
 See [ADR 0027](../adr/0027-onset-tau-check.md) for the rejected alternatives and the measurements behind them.
 

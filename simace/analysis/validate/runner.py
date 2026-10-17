@@ -4,21 +4,22 @@ from __future__ import annotations
 
 import argparse
 import sys
+from pathlib import Path
 
 
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Run on-demand checks (:mod:`.on_demand`) on one rep and write its ``validation.yaml``.
 
     The checks read the recorded pedigree and regenerate what else they need
-    from ``--seed`` and the phenotype flags. ``simace validate <scenario>``
+    from ``--seed`` and the phenotype flags (:class:`.calibrated.RepInputs`). ``simace validate <scenario>``
     runs this once per rep.
     """
     from simace.cli.cohort_stage import add_phenotype_args, phenotype_kwargs
     from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
-    from simace.core.cohort import read_pedigree
     from simace.core.publish import publish
     from simace.core.yaml_io import dump_yaml
 
+    from .calibrated import RepInputs
     from .on_demand import ON_DEMAND_CHECKS, run_on_demand
 
     parser = argparse.ArgumentParser(prog=prog, description="Run on-demand validation checks on one rep")
@@ -38,8 +39,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     args = parser.parse_args(argv)
     init_logging(args)
 
-    result = run_on_demand(
-        read_pedigree(args.pedigree), seed=args.seed, phenotype=phenotype_kwargs(args), checks=args.checks
-    )
+    inputs = RepInputs(Path(args.pedigree), args.seed, phenotype_kwargs(args))
+    result = run_on_demand(inputs, args.checks)
     with publish(args.output) as (tmp,):
         dump_yaml(result, tmp)
