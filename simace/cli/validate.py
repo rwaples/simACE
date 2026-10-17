@@ -31,6 +31,13 @@ Like ``simace run`` it takes each scenario's lock, so it never reads a rep a
 run is rewriting; a later recompute of a rep removes its ``validation.yaml``
 and both verdicts.
 
+It exits 3 when a target's own verdict is ``fail``: the folder verdict for a
+folder target, the scenario verdict for a scenario target. A scenario's
+``fail`` inside a folder target is printed only, since each scenario family
+is at a familywise 5%. ``insufficient`` and no verdict exit 0. A rep error, a
+failed plot rebuild or a busy lock exits 1 instead, and a bad target 2
+(ADR 0028 §6).
+
 ``simace validate --pedigree ... --checks ...`` is the per-rep primitive: see
 :func:`simace.analysis.validate.runner.cli`.
 """
@@ -53,6 +60,7 @@ from simace.analysis.validate.on_demand import ON_DEMAND_CHECKS, SCHEMA, load_va
 from simace.analysis.validate.schema_file import one_warning_for_refused
 from simace.analysis.validate.verdict import (
     VERDICT_ALPHA,
+    Verdict,
     decide,
     folder_family,
     load_verdict,
@@ -239,8 +247,10 @@ def _verdict_line(decided: dict[str, Any], n_reps: int, path: Path) -> str:
     return f"verdict {decided['verdict']}: {tests} over {n_reps} rep(s); {path}"
 
 
-def _scenario_verdict(run: ScenarioRun, layout: Layout, failed: list[int]) -> tuple[_Validated | None, str]:
-    """Write the scenario's ``validation_summary.yaml``, or remove it when there is no verdict; return the line.
+def _scenario_verdict(run: ScenarioRun, layout: Layout, failed: list[int]) -> tuple[_Validated | None, str | None, str]:
+    """Write the scenario's ``validation_summary.yaml``, or remove it when there is no verdict.
+
+    Return what it read, the verdict (None for none) and the line.
 
     ``failed`` are the reps whose validation failed in this invocation: their
     ``validation.yaml``, if any, is from an earlier one.
@@ -249,7 +259,7 @@ def _scenario_verdict(run: ScenarioRun, layout: Layout, failed: list[int]) -> tu
     validated = f"{rep_ranges(failed)} failed validation" if failed else _validated(run, layout)
     if isinstance(validated, str):
         path.unlink(missing_ok=True)
-        return None, f"no verdict: {validated}"
+        return None, None, f"no verdict: {validated}"
     decided = decide(scenario_family(validated.sections, ON_DEMAND_CHECKS))
     header = {
         **validated.built_by,
@@ -259,13 +269,17 @@ def _scenario_verdict(run: ScenarioRun, layout: Layout, failed: list[int]) -> tu
         "reps": rep_spans(validated.reps),
     }
     write_verdict(path, header, decided)
-    return validated, _verdict_line(decided, len(validated.reps), path)
+    return validated, decided["verdict"], _verdict_line(decided, len(validated.reps), path)
 
 
 def _folder_verdict(
     folder: str, runs: list[ScenarioRun], validated: dict[str, _Validated | None], layout: Layout
-) -> str:
-    """Write the folder's ``validation_summary.yaml``, or remove it when there is no verdict; return the line."""
+) -> tuple[str | None, str]:
+    """Write the folder's ``validation_summary.yaml``, or remove it when there is no verdict.
+
+    Return the verdict (None for none) and the line. Refused pooling leaves the pooled tests insufficient, so the
+    verdict is ``insufficient`` unless a scenario test fails.
+    """
     path = layout.folder_verdict(folder)
     members = [run for run in runs if run.folder == folder]
     ready = {run.scenario: v for run in members if (v := validated[run.scenario]) is not None}
@@ -280,7 +294,7 @@ def _folder_verdict(
         reason = None
     if reason is not None:
         path.unlink(missing_ok=True)
-        return f"no verdict: {reason}"
+        return None, f"no verdict: {reason}"
     overlaps = overlapping_seed_ranges({run.scenario: _seed_range(run) for run in members})
     refused = "rep seed ranges overlap: " + ", ".join(f"{a} and {b}" for a, b in overlaps) if overlaps else None
     decided = decide(folder_family({s: v.sections for s, v in ready.items()}, ON_DEMAND_CHECKS, refused))
@@ -292,7 +306,7 @@ def _folder_verdict(
     }
     write_verdict(path, header, decided)
     line = _verdict_line(decided, sum(len(v.reps) for v in ready.values()), path)
-    return line + (f"; pooling refused, {refused}" if refused else "")
+    return decided["verdict"], line + (f"; pooling refused, {refused}" if refused else "")
 
 
 def _verdict_stamps(runs: list[ScenarioRun], layout: Layout) -> dict[str, list[tuple[int, int] | None]]:
@@ -386,6 +400,8 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
                 list(pool.map(one, todo))
 
             errors = 0
+            # Targets whose own verdict is fail: a scenario's fail inside a folder target sets no exit code (ADR 0028 §6).
+            failing = []
             validated: dict[str, _Validated | None] = {}
             for run in runs:
                 lines = outcomes[run.scenario]
@@ -396,10 +412,15 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
                     f"[{run.scenario}] validated {len(lines) - len(failed)} rep(s), {current} already current, "
                     f"{len(failed)} errors"
                 )
-                validated[run.scenario], line = _scenario_verdict(run, layout, failed)
+                validated[run.scenario], verdict, line = _scenario_verdict(run, layout, failed)
                 print(f"[{run.scenario}] {line}")
+                if verdict == Verdict.FAIL and run.scenario in args.targets:
+                    failing.append(run.scenario)
             for folder in folders:
-                print(f"[{folder}] folder {_folder_verdict(folder, runs, validated, layout)}")
+                verdict, line = _folder_verdict(folder, runs, validated, layout)
+                print(f"[{folder}] folder {line}")
+                if verdict == Verdict.FAIL:
+                    failing.append(folder)
             for folder in dict.fromkeys(run.folder for run in runs if run.folder not in folders):
                 if line := _drop_stale_folder_verdict(folder, runs, validated, layout):
                     print(f"[{folder}] {line}")
@@ -418,5 +439,9 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     except ScenarioBusy as exc:
         print(f"simace validate: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
+    if failing:
+        print(f"simace validate: verdict fail for {', '.join(failing)}", file=sys.stderr)
     if errors or not plotted:
         raise SystemExit(1)
+    if failing:
+        raise SystemExit(3)
