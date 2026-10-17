@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from ._common import _result
+from ._common import _info, _result
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -71,7 +71,7 @@ def validate_structural(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any],
             f"Mothers female: {mothers_female}, Fathers male: {fathers_male}",
         )
     else:
-        results["sex_parent_consistency"] = _result(True, "No non-founders to check")
+        results["sex_parent_consistency"] = _info("No non-founders to check")
 
     # Sex distribution
     sex_ratio = float(df["sex"].to_numpy().mean())

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from ._common import _result
+from ._common import _info, _result
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -133,7 +133,7 @@ def validate_population(df: _Frame, params: dict[str, Any]) -> dict[str, Any]:
             observed=float(mean_fam),
         )
     else:
-        results["family_size"] = _result(True, "No non-founders to check family size")
+        results["family_size"] = _info("No non-founders to check family size")
 
     return results
 

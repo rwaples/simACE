@@ -166,7 +166,7 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
             )
     else:
         for t in [1, 2]:
-            results[f"c{t}_inheritance"] = _result(True, "No non-founders to check C inheritance")
+            results[f"c{t}_inheritance"] = _info("No non-founders to check C inheritance")
 
     # E independence between siblings
     if nf_mask.any():
@@ -194,10 +194,10 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
                     n_pairs=len(e1_pairs_arr),
                 )
             else:
-                results["e1_independence"] = _result(True, "Not enough sibling pairs to check E independence")
+                results["e1_independence"] = _info("Not enough sibling pairs to check E independence")
         else:
-            results["e1_independence"] = _result(True, "Not enough sibling groups to check E independence")
+            results["e1_independence"] = _info("Not enough sibling groups to check E independence")
     else:
-        results["e1_independence"] = _result(True, "No non-founders to check E independence")
+        results["e1_independence"] = _info("No non-founders to check E independence")
 
     return results

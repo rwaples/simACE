@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from ._common import _result
+from ._common import _info, _result
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -50,13 +50,15 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped:
 
     if n_twins == 0:
         no_twins_msg = "No twins expected under mating_model=wright_fisher" if is_wf else "No twins found"
-        results["twin_bidirectional"] = _result(True, no_twins_msg)
-        results["twin_same_parents"] = _result(True, no_twins_msg)
+        # No twin records, so the structural twin checks have nothing to test.
+        results["twin_bidirectional"] = _info(no_twins_msg)
+        results["twin_same_parents"] = _info(no_twins_msg)
         for t in [1, 2]:
-            results[f"twin_same_A{t}"] = _result(True, no_twins_msg)
-        results["twin_same_sex"] = _result(True, no_twins_msg)
-        # WF passes always (expected=observed=0); standard passes if
-        # p_mztwin is small enough that zero observed twins is plausible.
+            results[f"twin_same_A{t}"] = _info(no_twins_msg)
+        results["twin_same_sex"] = _info(no_twins_msg)
+        # The rate is still tested: zero twins is the WF invariant, and under
+        # standard mating it fails unless p_mztwin is small enough that zero
+        # observed twins is plausible.
         rate_pass = True if is_wf else p_mztwin < 0.01
         rate_msg = (
             "No twins expected under mating_model=wright_fisher"
@@ -151,6 +153,6 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped:
             twin_pairs=nf_pairs,
         )
     else:
-        results["twin_rate"] = _result(True, "No non-founders to check twin rate")
+        results["twin_rate"] = _info("No non-founders to check twin rate")
 
     return results

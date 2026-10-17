@@ -131,8 +131,8 @@ def _validate_half_sib_correlations(
             )
     else:
         for t in [1, 2]:
-            results[f"half_sib_A{t}_correlation"] = _result(
-                True, f"Not enough pooled half-sib pairs ({n_pooled}) for A{t} correlation"
+            results[f"half_sib_A{t}_correlation"] = _info(
+                f"Not enough pooled half-sib pairs ({n_pooled}) for A{t} correlation"
             )
 
     if n_phs >= _MIN_PAIRS_FOR_CORR:
@@ -179,13 +179,10 @@ def _validate_half_sib_correlations(
             )
     else:
         for t in [1, 2]:
-            # Liability correlation is informational in the enough-data branch
-            # above, so its insufficient-data fallback is informational too —
-            # not a trivially-passing scored check.
             results[f"half_sib_liability{t}_correlation"] = _info(
                 f"Not enough PHS pairs ({n_phs}) for liability{t} correlation"
             )
-            results[f"half_sib_shared_C{t}"] = _result(True, f"Not enough PHS pairs ({n_phs}) for C{t} correlation")
+            results[f"half_sib_shared_C{t}"] = _info(f"Not enough PHS pairs ({n_phs}) for C{t} correlation")
 
 
 def validate_half_sibs(

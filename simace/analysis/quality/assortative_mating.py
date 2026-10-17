@@ -134,8 +134,8 @@ def validate_assortative_mating(
     matings = recorded_matings(params)
     n_pairs = mates.n_pairs
     if n_pairs == 0 or not matings:
-        results["mate_corr_liability1"] = _result(True, "No mating pairs with both parents present")
-        results["mate_corr_liability2"] = _result(True, "No mating pairs with both parents present")
+        results["mate_corr_liability1"] = _info("No mating pairs with both parents present")
+        results["mate_corr_liability2"] = _info("No mating pairs with both parents present")
         return results
 
     # (name, cell, the matings it covers, whether it pools)
