@@ -56,6 +56,22 @@ _Avoid_: using "case" / "control" for un-sampled individuals or for the raw `aff
 The age at which an affected individual experiences the trait event, as produced by time-to-event phenotype models (`frailty`, `cure_frailty`, `adult` with `method: cox`, `first_passage`) and clipped by censoring. Stored as `onset1` / `onset2`. "Onset" is canonical for column names and short-form references; "age-at-onset" is acceptable in prose.
 _Avoid_: event time, time-to-event (these are *method* names, not column names), age of diagnosis, age of disease. (Caption exception: bare "event time" is permitted for the raw pre-censoring simulated time, distinct from the clipped `onset` column — see **Plot captions & annotations**.)
 
+**Raw onset**:
+The pre-censoring time a time-to-event phenotype model draws for a person and trait, before censoring decides whether it is observed. Stored as `t1` / `t2`. A missing raw onset means the trait never occurs (ADR 0019).
+_Avoid_: uncensored onset, event time (caption-only, see **Plot captions & annotations**).
+
+**Linear predictor** ($\eta$):
+A person's shift of the log hazard in the `frailty` phenotype model: the trait's liability coefficient times the standardized liability, plus the sex coefficient times sex. A larger $\eta$ means an earlier raw onset; the baseline hazard does not enter it.
+_Avoid_: frailty (that is $e^{\eta}$, the hazard multiplier), risk score.
+
+**Onset τ**:
+Kendall's τ between the raw onsets of the two members of each relationship pair of one relationship type, or between a person's two raw onsets (within-person). It does not depend on the baseline hazard, because τ is unchanged by an increasing transform of either onset.
+_Avoid_: frailty correlation, onset correlation (Pearson on onsets depends on the baseline), onset concordance (concordance means affected-status agreement in twin studies).
+
+**Realized onset-τ expectation**:
+The onset τ expected given every person's realized linear predictor, averaging only over the raw-onset draw. The onset-τ check scores the observed onset τ against it.
+_Avoid_: oracle (alone), truth, expected τ (which hides that it is conditional on the realized liabilities).
+
 ### Generations
 
 **Generation** ($g$):
@@ -262,6 +278,10 @@ _Avoid_: "phenotyping" (killed), "subsampling" / "dropout stage" (killed — see
 **Per-replicate scientific report**:
 The curated Analyze-stage report for one replicate. It summarizes quality checks, ground truth, observed post-ascertainment summaries, and estimator outputs, with every quantity labeled by the population scope it describes. Report scopes are **recorded pedigree** (`pedigree.parquet`, the full pre-ascertainment recorded pedigree), **phenotyped population** (the full pre-ascertainment phenotyped/censored rows, summarized in `phenotyped_population.yaml`), **analysis sample** (the **Cohort** rows with `affected1` not null), and **analysis pedigree** (every **Cohort** member: the ancestor-closure pedigree supporting the analysis sample). The analysis sample and analysis pedigree, route by route: [Ascertainment, Who is in `cohort.parquet`](docs/user-guide/ascertainment.md#who-is-in-cohortparquet). It is not a plot cache and not a cross-replicate aggregate.
 _Avoid_: phenotype statistics, stats dump, summary YAML, plot payload.
+
+**On-demand check**:
+A validation check that `simace run` never runs, because it costs too much to run on every replicate or needs outcomes a replicate does not store. `simace validate` runs it on complete replicates and writes each replicate's `validation.yaml`, separate from the per-replicate scientific report's quality checks, which Analyze runs on every replicate. The **onset τ** check is one.
+_Avoid_: deep check, optional check, slow check, extended validation.
 
 **Plot payload**:
 A durable companion artifact for dense arrays needed only to render plots, such as age grids and full curve values. It is derived from the same replicate outputs as the scientific report but is not itself the scientific report.
