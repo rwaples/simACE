@@ -62,30 +62,35 @@ def main() -> None:
     groups: list[tuple[str, str, np.ndarray, int]] = []
     for scenario in scenarios:
         rows = frame.filter(pl.col("scenario") == scenario)
-        for cell in cells:
-            z = rows[cell].drop_nulls().to_numpy()
-            if len(z):
-                groups.append((scenario, cell.removeprefix("onset_tau_z_"), z, len(rows)))
+        # Every cell enters, scored or not, so a cell never scored fails coverage.
+        groups.extend(
+            (scenario, cell.removeprefix("onset_tau_z_"), rows[cell].drop_nulls().to_numpy(), len(rows))
+            for cell in cells
+        )
     pooled = {}
     for _, cell, z, _ in groups:
-        pooled.setdefault(cell, []).append(z)
+        if len(z):
+            pooled.setdefault(cell, []).append(z)
 
     n_tests = 2 * len(groups) + 2 * len(pooled) + len(scenarios)
     alpha = 0.05 / n_tests
-    misses: list[str] = []
+    misses: list[str] = [] if cells else [f"{args.folder}: report_summary.tsv has no onset_tau_z_* columns"]
     print(f"{n_tests} tests at alpha = {alpha:.2e} each (familywise 5%)\n")
     print(f"{'scenario':26s} {'cell':16s} {'n':>4s} {'cover':>6s} {'mean z':>7s} {'SD z':>6s}")
     for scenario, cell, z, n_reps in groups:
-        mean_ok, sd_ok, mean, sd = _mean_sd_tests(z, alpha)
         cover = len(z) / n_reps
+        if cover < MIN_COVERAGE:
+            misses.append(f"{scenario} {cell}: scored in {cover:.0%} of reps")
+        if len(z) < 2:
+            print(f"{scenario:26s} {cell:16s} {len(z):4d} {cover:6.2f} {'-':>7s} {'-':>6s}  <-- MISS")
+            continue
+        mean_ok, sd_ok, mean, sd = _mean_sd_tests(z, alpha)
         flags = "" if mean_ok and sd_ok and cover >= MIN_COVERAGE else "  <-- MISS"
         print(f"{scenario:26s} {cell:16s} {len(z):4d} {cover:6.2f} {mean:+7.3f} {sd:6.3f}{flags}")
         if not mean_ok:
             misses.append(f"{scenario} {cell}: mean z {mean:+.3f}")
         if not sd_ok:
             misses.append(f"{scenario} {cell}: SD z {sd:.3f}")
-        if cover < MIN_COVERAGE:
-            misses.append(f"{scenario} {cell}: scored in {cover:.0%} of reps")
 
     print(f"\n{'pooled over scenarios':43s} {'n':>4s} {'mean z':>7s} {'SD z':>6s}")
     for cell, parts in pooled.items():
@@ -103,9 +108,11 @@ def main() -> None:
         rows = frame.filter((pl.col("scenario") == scenario) & pl.col("onset_tau_n_scored").is_not_null())
         failing = int((rows["onset_tau_n_failed"] > 0).sum())
         allowed = int(stats.binom.isf(alpha, len(rows), REP_FAILURE_RATE))
-        flags = "" if failing <= allowed else "  <-- MISS"
+        flags = "" if rows.height and failing <= allowed else "  <-- MISS"
         print(f"{scenario:26s} {len(rows):5d} {failing:8d} {allowed:8d}{flags}")
-        if failing > allowed:
+        if not rows.height:
+            misses.append(f"{scenario}: no validated reps")
+        elif failing > allowed:
             misses.append(f"{scenario}: {failing} failing reps > {allowed}")
 
     print("\nACCEPTED" if not misses else "\nNOT ACCEPTED:\n  " + "\n  ".join(misses))
