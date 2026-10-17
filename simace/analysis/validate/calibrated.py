@@ -23,6 +23,8 @@ if TYPE_CHECKING:
 
     import polars as pl
 
+    from .verdict import ZCalibration
+
 
 @dataclass(frozen=True)
 class RepInputs:
@@ -43,15 +45,19 @@ class RepInputs:
 
 @dataclass(frozen=True)
 class CalibratedTest:
-    """One calibrated test: its name in ``validation.yaml``, a one-line description, and its per-rep step.
+    """One calibrated test: its name in ``validation.yaml``, a one-line description, its per-rep step, and its rule.
 
     ``per_rep`` returns the rep's section of ``validation.yaml``:
-    ``{"scope", "cells": {name: cell}, "summary": {...}}``.
+    ``{"scope", "cells": {name: cell}, "summary": {...}}``. ``rule`` decides
+    the verdict across reps from those sections; with fewer than
+    ``min_reps`` reps the verdict is ``insufficient``.
     """
 
     name: str
     description: str
     per_rep: Callable[[RepInputs], dict[str, Any]]
+    rule: ZCalibration
+    min_reps: int
 
 
 def scored_cell(observed: float, expected: float, se: float, **stats: Any) -> dict[str, Any]:

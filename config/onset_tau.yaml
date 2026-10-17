@@ -1,10 +1,10 @@
 # Onset-τ check calibration (simACE #29, ADR 0027).
 #
-# Each scenario's reps are validated with `simace validate onset_tau` after
-# `simace run onset_tau --no-plots`; scripts/onset_tau_calibration.py then
-# reads results/onset_tau/report_summary.tsv (from `simace gather onset_tau`)
-# and tests that the scored cells' z = (observed − expected) / SE behave like
-# standard normals per scenario and cell, and that about 5% of reps fail.
+# `simace run onset_tau --no-plots`, then `simace validate onset_tau`, which
+# writes results/onset_tau/validation_summary.yaml (ADR 0028): one family that
+# tests that the scored cells' z = (observed − expected) / SE behave like
+# standard normals per scenario and cell and pooled over scenarios, and that
+# about 5% of each scenario's reps exceed their per-rep bound.
 #
 # The scenarios cover four baselines (Weibull, gamma, Gompertz, lognormal),
 # all three standardization modes, assortative mating, and a sex effect.

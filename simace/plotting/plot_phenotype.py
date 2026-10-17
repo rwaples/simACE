@@ -20,7 +20,8 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from simace.analysis.validate.on_demand import load_validation, one_warning_for_refused
+from simace.analysis.validate.on_demand import load_validation
+from simace.analysis.validate.schema_file import one_warning_for_refused
 from simace.core.parquet import load_parquet
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_am_equilibrium import plot_am_equilibrium

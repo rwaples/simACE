@@ -8,8 +8,9 @@ import pytest
 import yaml
 
 from simace.analysis.gather import _on_demand_columns
-from simace.analysis.validate.on_demand import SCHEMA, load_validation, one_warning_for_refused
+from simace.analysis.validate.on_demand import SCHEMA, load_validation
 from simace.analysis.validate.onset_tau import score_onset_tau
+from simace.analysis.validate.schema_file import one_warning_for_refused
 
 
 def _cell(observed=0.07, expected=0.068, se=0.002, **overrides):

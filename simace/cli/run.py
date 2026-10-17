@@ -134,8 +134,10 @@ def _recompute(
     """
     tag = f"{rep.scenario}/rep{rep.rep}"
     rep_dir = rep.dir(layout)
-    # `simace validate`'s results describe the outputs being replaced.
+    # `simace validate`'s results, and the verdicts over them, describe the outputs being replaced.
     rep.path(layout, RepArtifact.VALIDATION).unlink(missing_ok=True)
+    layout.scenario_verdict(rep.folder, rep.scenario).unlink(missing_ok=True)
+    layout.folder_verdict(rep.folder).unlink(missing_ok=True)
     if first == 0:
         for artifact in REP_OUTPUTS:
             rep.path(layout, artifact).unlink(missing_ok=True)

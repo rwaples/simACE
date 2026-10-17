@@ -14,6 +14,7 @@ __all__ = [
     "load_scenario",
     "rep_outputs",
     "rep_ranges",
+    "rep_spans",
     "resolve_all",
     "scenario_plots_status",
     "stage_names",
@@ -149,13 +150,18 @@ def rep_outputs(rep: ResolvedRep, layout: Layout, stages: Sequence[Stage] = STAG
     return [rep.path(layout, a) for a in artifacts]
 
 
-def rep_ranges(reps: list[int]) -> str:
-    """Render sorted rep numbers as ``rep2`` or ``reps 1-3, 7``."""
+def rep_spans(reps: list[int]) -> str:
+    """Render sorted rep numbers as ``2`` or ``1-3, 7``."""
     runs: list[list[int]] = []
     for rep in reps:
         if runs and rep == runs[-1][-1] + 1:
             runs[-1].append(rep)
         else:
             runs.append([rep])
-    text = ", ".join(f"{r[0]}-{r[-1]}" if len(r) > 1 else str(r[0]) for r in runs)
+    return ", ".join(f"{r[0]}-{r[-1]}" if len(r) > 1 else str(r[0]) for r in runs)
+
+
+def rep_ranges(reps: list[int]) -> str:
+    """Render sorted rep numbers as ``rep2`` or ``reps 1-3, 7``."""
+    text = rep_spans(reps)
     return f"rep{text}" if len(reps) == 1 else f"reps {text}"
