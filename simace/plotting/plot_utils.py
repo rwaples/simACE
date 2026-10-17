@@ -149,6 +149,7 @@ def save_placeholder_plot(
     import matplotlib.pyplot as plt
 
     _fig, ax = plt.subplots(figsize=figsize)
+    ax.axis("off")
     ax.text(0.5, 0.5, message, ha="center", va="center", transform=ax.transAxes)
     plt.savefig(output_path, dpi=dpi)
     plt.close()
