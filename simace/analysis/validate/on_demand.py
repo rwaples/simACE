@@ -43,16 +43,17 @@ ON_DEMAND_CHECKS: dict[str, CalibratedTest] = {
 }
 
 
-def run_on_demand(inputs: RepInputs, checks: Sequence[str]) -> dict[str, Any]:
-    """Run the named on-demand checks on one rep and return its ``validation.yaml`` content."""
-    from importlib.metadata import version
+def run_on_demand(inputs: RepInputs, checks: Sequence[str], source: str | None) -> dict[str, Any]:
+    """Run the named on-demand checks on one rep and return its ``validation.yaml`` content.
 
-    from simace.cli.manifest import source_ref
+    ``source`` is the ``git describe`` of the checkout the build runs from (None for a wheel install).
+    """
+    from importlib.metadata import version
 
     return {
         "schema": dict(SCHEMA),
         "simace_version": version("simace"),
-        "source": source_ref(),
+        "source": source,
         "seed": inputs.seed,
         "checks": {name: ON_DEMAND_CHECKS[name].per_rep(inputs) for name in checks},
     }

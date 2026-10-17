@@ -36,19 +36,23 @@ releases shipped after 2026.05.3.
   at a familywise 5% over the scenario's calibrated tests, with verdict
   `pass`, `fail` or `insufficient`. A folder target also writes
   `results/{folder}/validation_summary.yaml`, one family over every
-  scenario's tests plus the tests pooled per cell across scenarios; it is
-  refused when two scenarios' rep seed ranges overlap. Onset τ's rule is the
+  scenario's tests plus the tests pooled per cell across scenarios; the
+  pooled tests are `insufficient` when two scenarios' rep seed ranges
+  overlap. Onset τ's rule is the
   former `scripts/onset_tau_calibration.py` (mean z, SD z, the count of
   replicates over their per-replicate bound, and 95% coverage per cell),
-  with at least 20 replicates; below that the verdict is `insufficient`. A
+  with at least 20 replicates; below that, or with no cell reported, the
+  verdict is `insufficient`. A
   verdict covers every registered calibrated test and needs every complete
   replicate validated with them by one build (`validation.yaml` now records
-  `source`, the checkout's `git describe`, beside `simace_version`);
-  otherwise none is written and the command names the builds. A replicate
+  `source`, the checkout's `git describe`, beside `simace_version`, and
+  builds compare without its `-dirty` mark); otherwise, or when a replicate
+  fails validation, none is written and the command says why. A replicate
   whose `validation.yaml` is from the running build and holds the requested
   checks is skipped; `--force` validates it again, as is needed after
   uncommitted code changes. Validating a scenario without its folder removes
-  the folder's verdict when the scenario changed, and a recompute of a
+  the folder's verdict unless it still records that scenario's replicates
+  and build, and a recompute of a
   replicate removes both verdicts. `scripts/onset_tau_calibration.py` is
   removed.
 - **`simace validate --pedigree` requires `--checks`.** The recorded-pedigree

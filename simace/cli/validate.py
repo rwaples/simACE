@@ -7,18 +7,19 @@ rep's ``validation.yaml``. Only complete reps are validated; the rest are
 skipped with their state. A rep whose ``validation.yaml`` holds the requested
 checks and was written by this build (the simace version and the ``git
 describe`` of its checkout, as in ``run.yaml``) is current and is not
-validated again; ``--force`` validates it anyway. A dirty checkout's builds
-all share one ``-dirty`` name, so after changing code without committing,
-pass ``--force``.
+validated again; ``--force`` validates it anyway. Builds compare without
+``git describe``'s ``-dirty`` mark, so editing a config or a doc keeps reps
+current, and after changing code without committing, pass ``--force``. The
+build is read once per invocation and passed to every rep.
 
 Then each scenario gets its verdict, ``validation_summary.yaml``, over every
 complete rep and every registered calibrated test, and a folder target gets
 the folder's verdict over its scenarios
 (:mod:`simace.analysis.validate.verdict`). A verdict needs every complete rep
 validated with every test by one build; otherwise none is written, an old one
-is removed, and the command says why. Validating a scenario without its
-folder removes the folder's verdict when the scenario's reps or verdict
-changed.
+is removed, and the command says why; so does a rep that fails validation.
+Validating a scenario without its folder removes the folder's verdict unless
+it still records that scenario's reps and build.
 
 Like ``simace run`` it takes each scenario's lock, so it never reads a rep a
 run is rewriting; a later recompute of a rep removes its ``validation.yaml``
@@ -47,6 +48,7 @@ from simace.analysis.validate.schema_file import one_warning_for_refused
 from simace.analysis.validate.verdict import (
     decide,
     folder_family,
+    load_verdict,
     overlapping_seed_ranges,
     scenario_family,
     write_verdict,
@@ -101,10 +103,10 @@ def _parse(argv: list[str] | None, prog: str | None) -> argparse.Namespace:
     return args
 
 
-def _validate_rep(rep: ResolvedRep, layout: Layout, launcher: Launcher, checks: list[str]) -> str:
+def _validate_rep(rep: ResolvedRep, layout: Layout, launcher: Launcher, checks: list[str], source: str | None) -> str:
     """Validate one rep; return its one-line outcome."""
     log_path = rep.log(layout, "validate")
-    result = launcher.run(command("validate", validate_argv(rep, layout, checks)), log_path)
+    result = launcher.run(command("validate", validate_argv(rep, layout, checks, source)), log_path)
     if result.exit_code != 0:
         return f"ERROR ({result.failure}); log: {log_path}"
     data = load_validation(rep.path(layout, RepArtifact.VALIDATION))
@@ -136,11 +138,13 @@ def _complete_reps(runs: list[ScenarioRun], layout: Layout) -> list[ResolvedRep]
     return complete
 
 
-def _stale(reps: list[ResolvedRep], layout: Layout, checks: list[str], force: bool) -> list[ResolvedRep]:
+def _stale(
+    reps: list[ResolvedRep], layout: Layout, checks: list[str], source: str | None, force: bool
+) -> list[ResolvedRep]:
     """The reps to validate: all of them with ``force``, else those whose ``validation.yaml`` is not current."""
     if force:
         return reps
-    running = _built_by({"simace_version": simace.__version__, "source": source_ref()})
+    running = _built_by({"simace_version": simace.__version__, "source": source})
 
     def current(rep: ResolvedRep) -> bool:
         data = load_validation(rep.path(layout, RepArtifact.VALIDATION))
@@ -156,8 +160,9 @@ def _holds(data: dict[str, Any] | None, checks: list[str]) -> TypeGuard[dict[str
 
 
 def _built_by(data: dict[str, Any]) -> str:
-    """The build that wrote a ``validation.yaml``: its simace version and ``git describe``."""
-    return f"{data['simace_version']} at {data.get('source')}"
+    """The build that wrote a file: its simace version and ``git describe`` without the ``-dirty`` mark."""
+    source = data.get("source")
+    return f"{data['simace_version']} at {source.removesuffix('-dirty') if source else None}"
 
 
 @dataclass(frozen=True)
@@ -207,10 +212,14 @@ def _verdict_line(decided: dict[str, Any], n_reps: int, path: Path) -> str:
     return f"verdict {decided['verdict']}: {tests} over {n_reps} rep(s); {path}"
 
 
-def _scenario_verdict(run: ScenarioRun, layout: Layout) -> tuple[_Validated | None, str]:
-    """Write the scenario's ``validation_summary.yaml``, or remove it when there is no verdict; return the line."""
+def _scenario_verdict(run: ScenarioRun, layout: Layout, failed: list[int]) -> tuple[_Validated | None, str]:
+    """Write the scenario's ``validation_summary.yaml``, or remove it when there is no verdict; return the line.
+
+    ``failed`` are the reps whose validation failed in this invocation: their
+    ``validation.yaml``, if any, is from an earlier one.
+    """
     path = layout.scenario_verdict(run.folder, run.scenario)
-    validated = _validated(run, layout)
+    validated = f"{rep_ranges(failed)} failed validation" if failed else _validated(run, layout)
     if isinstance(validated, str):
         path.unlink(missing_ok=True)
         return None, f"no verdict: {validated}"
@@ -232,11 +241,10 @@ def _folder_verdict(
     """Write the folder's ``validation_summary.yaml``, or remove it when there is no verdict; return the line."""
     path = layout.folder_verdict(folder)
     members = [run for run in runs if run.folder == folder]
-    overlaps = overlapping_seed_ranges({run.scenario: _seed_range(run) for run in members})
     ready = {run.scenario: v for run in members if (v := validated[run.scenario]) is not None}
     builds = sorted({_built_by(v.built_by) for v in ready.values()})
-    if overlaps:
-        reason = "pooling refused; rep seed ranges overlap: " + ", ".join(f"{a} and {b}" for a, b in overlaps)
+    if not members:
+        reason = "no scenario to validate"
     elif missing := [run.scenario for run in members if run.scenario not in ready]:
         reason = f"no verdict for {', '.join(missing)}"
     elif len(builds) > 1:
@@ -246,17 +254,43 @@ def _folder_verdict(
     if reason is not None:
         path.unlink(missing_ok=True)
         return f"no verdict: {reason}"
-    decided = decide(folder_family({s: v.sections for s, v in ready.items()}, ON_DEMAND_CHECKS))
+    overlaps = overlapping_seed_ranges({run.scenario: _seed_range(run) for run in members})
+    refused = "rep seed ranges overlap: " + ", ".join(f"{a} and {b}" for a, b in overlaps) if overlaps else None
+    decided = decide(folder_family({s: v.sections for s, v in ready.items()}, ON_DEMAND_CHECKS, refused))
     header = {
         **next(iter(ready.values())).built_by,
         "family": "folder",
         "folder": folder,
-        "reps_by_scenario": {
-            run.scenario: {"seed": _seed_range(run)[0], "reps": rep_spans(ready[run.scenario].reps)} for run in members
-        },
+        "reps_by_scenario": {run.scenario: _covers(run, ready[run.scenario]) for run in members},
     }
     write_verdict(path, header, decided)
-    return _verdict_line(decided, sum(len(v.reps) for v in ready.values()), path)
+    line = _verdict_line(decided, sum(len(v.reps) for v in ready.values()), path)
+    return line + (f"; pooling refused, {refused}" if refused else "")
+
+
+def _covers(run: ScenarioRun, validated: _Validated) -> dict[str, Any]:
+    """What a folder verdict records of one scenario: its seed and the reps it read."""
+    return {"seed": _seed_range(run)[0], "reps": rep_spans(validated.reps)}
+
+
+def _drop_stale_folder_verdict(
+    folder: str, runs: list[ScenarioRun], validated: dict[str, _Validated | None], layout: Layout
+) -> str | None:
+    """Remove a folder verdict that no longer records its validated scenarios' reps and build; return the line."""
+    path = layout.folder_verdict(folder)
+    data = load_verdict(path)
+    if data is not None and all(
+        (v := validated[run.scenario]) is not None
+        and data["reps_by_scenario"].get(run.scenario) == _covers(run, v)
+        and _built_by(data) == _built_by(v.built_by)
+        for run in runs
+        if run.folder == folder
+    ):
+        return None
+    if not path.exists():
+        return None
+    path.unlink(missing_ok=True)
+    return f"folder verdict removed; rerun `simace validate {folder}`"
 
 
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
@@ -271,26 +305,27 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     require_config(config_dir, "validate")
     runs = plan_runs("validate", config_dir, args.targets, args.rep)
     folders = list(dict.fromkeys(t for t in args.targets if t not in {run.scenario for run in runs}))
+    source = source_ref()
     if args.dry_run:
-        for rep in _stale(_complete_reps(runs, layout), layout, args.checks, args.force):
-            print(shlex.join(command("validate", validate_argv(rep, layout, args.checks))))
+        for rep in _stale(_complete_reps(runs, layout), layout, args.checks, source, args.force):
+            print(shlex.join(command("validate", validate_argv(rep, layout, args.checks, source))))
         return
 
     lock = threading.Lock()
-    outcomes: dict[str, list[str]] = {run.scenario: [] for run in runs}
+    outcomes: dict[str, dict[int, str]] = {run.scenario: {} for run in runs}
 
     def one(rep: ResolvedRep) -> None:
-        line = _validate_rep(rep, layout, launcher, args.checks)
+        line = _validate_rep(rep, layout, launcher, args.checks, source)
         with lock:
             print(f"[{rep.scenario}/rep{rep.rep}] {line}", flush=True)
-            outcomes[rep.scenario].append(line)
+            outcomes[rep.scenario][rep.rep] = line
 
     try:
         with ExitStack() as stack:
             # Lock first, then classify, as `simace run` does: a run cannot rewrite a rep in between.
             lock_fds = tuple(lock_scenario(stack, run, layout) for run in runs)
             complete = _complete_reps(runs, layout)
-            todo = _stale(complete, layout, args.checks, args.force)
+            todo = _stale(complete, layout, args.checks, source, args.force)
             launcher = Launcher(child_env(args.jobs), None, lock_fds)
             with ThreadPoolExecutor(max_workers=args.jobs) as pool:
                 list(pool.map(one, todo))
@@ -299,22 +334,20 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
             validated: dict[str, _Validated | None] = {}
             for run in runs:
                 lines = outcomes[run.scenario]
-                errored = sum(line.startswith("ERROR") for line in lines)
-                errors += errored
+                failed = sorted(r for r, line in lines.items() if line.startswith("ERROR"))
+                errors += len(failed)
                 current = sum(rep.scenario == run.scenario for rep in complete) - len(lines)
                 print(
-                    f"[{run.scenario}] validated {len(lines) - errored} rep(s), {current} already current, {errored} errors"
+                    f"[{run.scenario}] validated {len(lines) - len(failed)} rep(s), {current} already current, "
+                    f"{len(failed)} errors"
                 )
-                validated[run.scenario], line = _scenario_verdict(run, layout)
+                validated[run.scenario], line = _scenario_verdict(run, layout, failed)
                 print(f"[{run.scenario}] {line}")
             for folder in folders:
                 print(f"[{folder}] folder {_folder_verdict(folder, runs, validated, layout)}")
-            # A scenario validated without its folder: the folder's verdict no longer describes it.
-            changed = {run.folder for run in runs if outcomes[run.scenario] or validated[run.scenario] is None}
-            for folder in sorted(changed - set(folders)):
-                if layout.folder_verdict(folder).exists():
-                    layout.folder_verdict(folder).unlink()
-                    print(f"[{folder}] folder verdict removed; rerun `simace validate {folder}`")
+            for folder in dict.fromkeys(run.folder for run in runs if run.folder not in folders):
+                if line := _drop_stale_folder_verdict(folder, runs, validated, layout):
+                    print(f"[{folder}] {line}")
     except ScenarioBusy as exc:
         print(f"simace validate: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc

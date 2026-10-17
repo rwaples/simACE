@@ -204,7 +204,10 @@ class ZCalibration:
     min_coverage: float = 0.95
 
     def scenario(self, sections: Sequence[Section]) -> Iterator[Entry]:
-        """The statistics over one scenario's reps."""
+        """The statistics over one scenario's reps; insufficient when no rep reports a cell."""
+        if not _cell_names(sections):
+            yield Entry((), Insufficient("no rep reports a cell"))
+            return
         for cell in _cell_names(sections):
             z = _scored_z(sections, cell)
             yield Entry(("cells", cell, "coverage"), Coverage(len(z), len(sections), self.min_coverage))
@@ -246,11 +249,15 @@ def scenario_family(
 
 
 def folder_family(
-    by_scenario: Mapping[str, Mapping[str, Sequence[Section]]], tests: Mapping[str, CalibratedTest]
+    by_scenario: Mapping[str, Mapping[str, Sequence[Section]]],
+    tests: Mapping[str, CalibratedTest],
+    pooling_refused: str | None = None,
 ) -> list[Entry]:
     """A folder's family: every scenario's family, plus each test pooled over the scenarios.
 
-    A test is pooled only when every scenario has its ``min_reps``.
+    A test is pooled only when every scenario has its ``min_reps``, and no
+    test is when ``pooling_refused`` gives a reason; such pooled tests are
+    insufficient.
     """
     entries = [
         e
@@ -259,7 +266,9 @@ def folder_family(
     ]
     for name, test in tests.items():
         short = [scenario for scenario, sections in by_scenario.items() if len(sections[name]) < test.min_reps]
-        if short:
+        if pooling_refused is not None:
+            entries.append(Entry(("pooled", name), Insufficient(pooling_refused)))
+        elif short:
             reason = f"{', '.join(short)} below {test.min_reps} rep(s)"
             entries.append(Entry(("pooled", name), Insufficient(reason)))
         else:

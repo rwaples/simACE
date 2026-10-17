@@ -185,3 +185,20 @@ def test_onset_tau_tail_rate_is_its_per_rep_familywise_level() -> None:
 
     assert ON_DEMAND_CHECKS["onset_tau"].rule.rep_rate == FAMILYWISE_ALPHA
     assert ON_DEMAND_CHECKS["onset_tau"].min_reps == 20
+
+
+def test_a_scenario_with_no_cell_is_insufficient_not_pass() -> None:
+    """Non-frailty traits report no cell (ADR 0027); an untested calibration must not pass (#66)."""
+    reps = [_section({}) for _ in range(20)]
+    decided = decide(scenario_family({"onset_tau": reps}, TESTS))
+    assert decided["verdict"] == "insufficient"
+    assert decided["n_tests"] == 0
+    assert decided["tests"]["onset_tau"] == {"insufficient": "no rep reports a cell"}
+
+
+def test_refused_pooling_leaves_the_scenario_tests_and_marks_pooled_insufficient() -> None:
+    by_scenario = {f"s{i}": {"onset_tau": _reps(20, seed=i)} for i in range(2)}
+    decided = decide(folder_family(by_scenario, TESTS, pooling_refused="rep seed ranges overlap: s0 and s1"))
+    assert decided["n_tests"] == 54
+    assert decided["pooled"]["onset_tau"] == {"insufficient": "rep seed ranges overlap: s0 and s1"}
+    assert decided["verdict"] == "insufficient"

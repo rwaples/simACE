@@ -29,6 +29,11 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     parser.add_argument("--checks", nargs="+", choices=sorted(ON_DEMAND_CHECKS), required=True)
     parser.add_argument("--seed", type=int, required=True, help="The rep seed")
     parser.add_argument("--output", required=True, help="Output validation.yaml")
+    parser.add_argument(
+        "--source",
+        default=None,
+        help="The build's git describe, as `simace validate <scenario>` saw it (default: this checkout's)",
+    )
     add_phenotype_args(parser.add_argument_group("phenotype"))
     given = sys.argv[1:] if argv is None else argv
     asks_help = "-h" in given or "--help" in given
@@ -40,6 +45,8 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     init_logging(args)
 
     inputs = RepInputs(Path(args.pedigree), args.seed, phenotype_kwargs(args))
-    result = run_on_demand(inputs, args.checks)
+    from simace.cli.manifest import source_ref
+
+    result = run_on_demand(inputs, args.checks, args.source or source_ref())
     with publish(args.output) as (tmp,):
         dump_yaml(result, tmp)

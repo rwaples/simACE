@@ -193,22 +193,44 @@ def test_reps_from_two_builds_get_no_verdict_until_revalidated(project, capsys) 
     assert "[tiny] verdict insufficient" in out
 
 
-def test_overlapping_seed_ranges_refuse_the_folder_verdict(tmp_path, capsys) -> None:
-    cfg = tmp_path / "config"
-    cfg.mkdir()
-    shutil.copy(REPO_CONFIG / "_default.yaml", cfg / "_default.yaml")
-    (tmp_path / "pyproject.toml").write_text('[project]\nname = "simace"\n')
-    scenarios = {"a": {**TINY, "seed": 100}, "b": {**TINY, "seed": 101}, "c": {**TINY, "seed": 102}}
-    (cfg / "f.yaml").write_text(yaml.safe_dump(scenarios))
-    roots = ["--config-dir", str(cfg), "--results", str(tmp_path / "results"), "--logs", str(tmp_path / "logs")]
-    validate_cli(["f", *roots])
+def test_overlapping_seed_ranges_refuse_only_the_pooled_tests(project, capsys, monkeypatch) -> None:
+    import simace.cli.validate as validate_module
+
+    _, roots, layout = project
+    monkeypatch.setattr(validate_module, "overlapping_seed_ranges", lambda ranges: [("tiny", "other")])
+    validate_cli(["t", *roots])
     out = capsys.readouterr().out
-    assert "[a] no verdict: no complete reps" in out
-    assert "[f] folder no verdict: pooling refused; rep seed ranges overlap: a and b, b and c" in out
+    assert "[t] folder verdict insufficient" in out
+    assert "; pooling refused, rep seed ranges overlap: tiny and other" in out
+    folder = yaml.safe_load(layout.folder_verdict("t").read_text())
+    assert folder["pooled"]["onset_tau"] == {"insufficient": "rep seed ranges overlap: tiny and other"}
+    assert "onset_tau" in folder["scenarios"]["tiny"]
+
+
+def test_a_folder_target_with_no_scenario_to_validate_has_no_verdict(project) -> None:
+    import simace.cli.validate as validate_module
+
+    _, _, layout = project
+    assert validate_module._folder_verdict("gene_drop_only", [], {}, layout) == "no verdict: no scenario to validate"
+
+
+def test_a_failed_rep_leaves_no_verdict_beside_its_old_file(project, capsys, monkeypatch) -> None:
+    import simace.cli.validate as validate_module
+
+    _, roots, layout = project
+    validate_cli(["tiny", *roots])
+    assert layout.scenario_verdict("t", "tiny").exists()
+    monkeypatch.setattr(validate_module, "_validate_rep", lambda *args: "ERROR (exit 1); log: x")
+    capsys.readouterr()
+    with pytest.raises(SystemExit) as exc:
+        validate_cli(["tiny", "--rep", "1", "--force", *roots])
+    assert exc.value.code == 1
+    assert "[tiny] no verdict: rep1 failed validation" in capsys.readouterr().out
+    assert not layout.scenario_verdict("t", "tiny").exists()
 
 
 def test_a_rep_from_another_checkout_state_is_validated_again(project, capsys) -> None:
-    """The build is the version and the ``git describe`` source, as in run.yaml: a commit without a reinstall counts."""
+    """The build is the version and the ``git describe`` source without ``-dirty``: a commit without a reinstall counts."""
     from simace.cli.manifest import source_ref
 
     cfg, roots, layout = project
@@ -216,9 +238,14 @@ def test_a_rep_from_another_checkout_state_is_validated_again(project, capsys) -
     path = _rep(cfg, 1).path(layout, RepArtifact.VALIDATION)
     data = yaml.safe_load(path.read_text())
     assert data["source"] == source_ref()
-    data["source"] = "v0.0.0-1-gdeadbee"
+    source = data["source"]
+    data["source"] = source.removesuffix("-dirty") if source.endswith("-dirty") else source + "-dirty"
     path.write_text(yaml.safe_dump(data))
     capsys.readouterr()
+    validate_cli(["tiny", *roots])
+    assert "[tiny] validated 0 rep(s), 2 already current, 0 errors" in capsys.readouterr().out, "-dirty is ignored"
+    data["source"] = "v0.0.0-1-gdeadbee"
+    path.write_text(yaml.safe_dump(data))
     validate_cli(["tiny", *roots])
     assert "[tiny] validated 1 rep(s), 1 already current, 0 errors" in capsys.readouterr().out
 
@@ -238,13 +265,21 @@ def test_a_verdict_needs_every_registered_test_whatever_checks_ran(project, caps
     assert not layout.scenario_verdict("t", "tiny").exists()
 
 
-def test_validating_a_scenario_alone_removes_a_changed_folders_verdict(project, capsys) -> None:
-    _, roots, layout = project
+def test_validating_a_scenario_alone_keeps_the_folder_verdict_only_while_it_matches(project, capsys) -> None:
+    cfg, roots, layout = project
     validate_cli(["t", *roots])
     assert layout.folder_verdict("t").exists()
-    validate_cli(["tiny", *roots])
-    assert layout.folder_verdict("t").exists(), "nothing changed, so the folder verdict stands"
-    capsys.readouterr()
     validate_cli(["tiny", "--rep", "2", "--force", *roots])
-    assert "[t] folder verdict removed; rerun `simace validate t`" in capsys.readouterr().out
+    assert layout.folder_verdict("t").exists(), "same build and reps: the folder verdict still describes them"
+    manifest = _rep(cfg, 2).path(layout, RepArtifact.RUN_MANIFEST)
+    saved = manifest.read_bytes()
+    manifest.unlink()
+    capsys.readouterr()
+    try:
+        validate_cli(["tiny", *roots])
+    finally:
+        manifest.write_bytes(saved)
+    out = capsys.readouterr().out
+    assert "[tiny] verdict insufficient: no test decided over 1 rep(s)" in out
+    assert "[t] folder verdict removed; rerun `simace validate t`" in out
     assert not layout.folder_verdict("t").exists()
