@@ -59,6 +59,26 @@ releases shipped after 2026.05.3.
   debug run (`--pedigree … --params … --output …` without `--checks`) is
   removed; `simace analyze` runs those checks.
 
+### Quality-check fixes ([#66](https://github.com/rwaples/simACE/issues/66))
+
+- **Checks with nothing to test are informational.** A quality check that
+  found too few pairs, no twins, no non-founders or no mating pairs, or an
+  assortative-mating regime the equilibrium recursion does not model, used
+  to report a pass, so `report.yaml`'s `quality_checks.summary` counted it
+  in `checks_passed`. It is now informational, and the summary skips it.
+  `twin_rate` with zero twins keeps its verdict, since it tests the
+  no-twins invariant.
+- **`generation_count` checks the pedigree's generation labels.** It now
+  compares the distinct values of the generation column with
+  `0..G_ped-1`, so a missing, extra, shifted or stray label fails; before,
+  it compared a count that matched by construction. `population.n_generations`
+  is unchanged for a correct pedigree.
+- **`cross_trait_rA` is informational under assortative mating**, when
+  either trait assorts, as `variance_A{t}` already was: assortment shifts
+  the founders' A1–A2 correlation away from the configured `rA` (0.591
+  against 0.5 at N = 1M in `epimight_h2_bias/am`). Its observed value, and
+  `report.yaml`'s `cross_trait.rA`, are unchanged.
+
 ### Onset τ check for the frailty model ([#29](https://github.com/rwaples/simACE/issues/29))
 
 - **`simace validate <scenario|folder>` runs on-demand checks** on complete
