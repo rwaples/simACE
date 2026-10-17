@@ -19,6 +19,7 @@ results/{folder}/{scenario}/
 │   └── validation.yaml   (only after simace validate)
 ├── rep2/
 ├── rep3/
+├── validation_summary.yaml   (only after simace validate)
 └── plots/
     ├── *.png
     ├── atlas.html
@@ -27,6 +28,8 @@ results/{folder}/{scenario}/
     └── timing.tsv
 results/{folder}/
 ├── report_summary.tsv
+├── validation_summary.yaml   (only after simace validate on the folder)
+├── verdicts.tsv              (simace gather)
 └── plots/
     ├── *.png
     ├── atlas.html
@@ -93,9 +96,12 @@ pedigree.
 | `results/{folder}/{scenario}/plots/atlas.pdf` | The same atlas as a PDF. Built on demand ([ADR 0010](../adr/0010-html-primary-atlas-rendering.md)) |
 | `results/{folder}/{scenario}/plots/plots.yaml` | Which replicates' `run.yaml` files the plots and atlas were built from, and the atlas files written. `simace ls` reads it to report the plots as current, stale, or absent |
 | `results/{folder}/{scenario}/plots/timing.tsv` | Wall time and peak memory of the `plot`, `atlas`, and (with `--format pdf`) `atlas-pdf` stages |
+| `results/{folder}/{scenario}/validation_summary.yaml` | The scenario's calibrated-test verdict, written by `simace validate`. See [validation_summary.yaml](#validation_summaryyaml) |
+| `results/{folder}/validation_summary.yaml` | The folder's calibrated-test verdict, written by `simace validate` with the folder as its target. See [validation_summary.yaml](#validation_summaryyaml) |
 | `results/{folder}/report_summary.tsv` | One row per replicate across every scenario in the folder, written by `simace gather`. See [report_summary.tsv](#report_summarytsv) |
-| `results/{folder}/plots/*.png` | Validation plots comparing scenarios |
-| `results/{folder}/plots/atlas.html`, `atlas.pdf` | The validation plots as an atlas |
+| `results/{folder}/verdicts.tsv` | `simace gather`'s copy of the folder's and each scenario's verdict. See [verdicts.tsv](#verdictstsv) |
+| `results/{folder}/plots/*.png` | Validation plots comparing scenarios, including `verdict.png`, drawn from the folder's verdict |
+| `results/{folder}/plots/atlas.html`, `atlas.pdf` | The validation plots as an atlas. Its first page is the folder's verdict, a placeholder until `simace validate` has decided one |
 | `logs/{folder}/{scenario}/rep{rep}/{stage}.log` | One log per stage: `simulate`, `cohort`, `analyze`. `cohort.log` gives the wall time and peak memory of each of its phases: phenotype, censor, ascertain |
 | `logs/{folder}/{scenario}/{plot,atlas,atlas-pdf}.log` | The scenario plot and atlas logs |
 
@@ -213,6 +219,35 @@ ADR 0028 has one, so rerun `simace validate` on those replicates.
 | `simace_version`, `seed` | The simace that ran the checks, and the replicate seed it regenerated from |
 | `checks.onset_tau` | Onset τ ([Methods, Onset τ](../concepts/methods.md#onset-τ)), scoped to the phenotyped population (`scope`). `cells` holds one cell per frailty trait and relationship type, `trait{t}_{MZ,FS,MHS,PHS,MO,FO}`, and `within_person` when both traits are frailty. Each has its `status`: `scored`, with `z = (observed − expected) / se`, or `information`, with its `reason`. Each also has `observed`, `expected` (the realized onset-τ expectation), `se`, `numerical_bound`, `tie_share`, `n_pairs`, `n_eff`, `sampled_fraction`, and the `r_eta`, `s1`, `s2`, `tau_oracle` information. `summary` holds `n_scored`, `max_abs_z`, the per-replicate Bonferroni bound `z_bound` = Φ⁻¹(1 − 0.025/`n_scored`) (both empty with nothing scored; a correct simulation exceeds the bound in about 5% of replicates), `skipped_traits` and `entry_cap` |
 
+### validation_summary.yaml
+
+`simace validate` decides each calibrated test across replicates and writes
+the verdict here (`simace/analysis/validate/verdict.py`). It writes a
+scenario's file only when every complete replicate of the scenario was
+validated with every registered test by one build; otherwise it removes the
+old file and prints why. It writes the folder's file only when the folder is
+a target and every scenario in it has a verdict from one build. Recomputing a
+replicate deletes its scenario's verdict and the folder's. Every reader
+ignores a file without the `schema` block below, with a warning.
+
+| Key | Contents |
+|---|---|
+| `schema` | `kind: calibration_verdict`, `version: 1` |
+| `simace_version`, `source` | The build that validated the replicates, as in `run.yaml` |
+| `family` | `scenario` or `folder` |
+| `scenario`, `seed`, `reps` | Scenario file: the scenario, its first replicate seed, and the replicates read, as spans such as `1-100` |
+| `folder`, `reps_by_scenario` | Folder file: the folder, and each scenario's first `seed` and `reps` |
+| `verdict` | `pass`, `fail`, or `insufficient`. A failed test outranks an insufficient one |
+| `n_tests`, `alpha_each` | The Bonferroni family: the number of tests, and each test's level, 0.05 / `n_tests` (empty with no test) |
+| `tests` | Scenario file: one entry per calibrated test. For onset τ, `cells.{cell}` holds `coverage` (`scored`, `reps`, `share`), `mean_z` (`n`, `mean`, `bound`) and `sd_z` (`n`, `sd`, and the interval `lo`, `hi`), and `reps_over_bound` holds `reps`, `over_bound` and `allowed`. Each record has `passed`. A test that cannot be decided is `{insufficient: <reason>}` instead, such as fewer than its 20 replicates |
+| `scenarios.{scenario}` | Folder file: each scenario's `tests`, decided at the folder's `alpha_each` |
+| `pooled` | Folder file: each test over every scenario's replicates pooled per cell, `mean_z` and `sd_z` per cell. It is `{insufficient: <reason>}` when a scenario is below the test's replicate minimum or two scenarios' seed ranges overlap |
+
+Coverage is a requirement, not a test, so it does not count in `n_tests`. Cite
+the folder's verdict: it is one family over every scenario's tests and the
+pooled ones. [Methods, Onset τ](../concepts/methods.md#onset-τ) gives the
+rules.
+
 ### plot_payload.yaml
 
 `schema.version` is 1. The file holds the incidence and censoring arrays such as
@@ -233,6 +268,19 @@ from the replicate's [validation.yaml](#validationyaml) and are empty when it
 has none: `onset_tau_n_scored`, `onset_tau_max_abs_z`, `onset_tau_rep_bound`
 (its `summary.z_bound`), and one `onset_tau_z_{cell}` per cell, empty when the
 cell is not scored.
+
+## verdicts.tsv
+
+`simace gather` copies the folder's
+[validation_summary.yaml](#validation_summaryyaml) and each gathered
+scenario's into `results/{folder}/verdicts.tsv`. It decides nothing. The
+first row is the folder (`family` `folder`), then one row per scenario,
+empty but for its name when the scenario has no verdict. The columns are
+`family`, `name`, `verdict`, `n_tests`, `alpha_each`, `reps` (each scenario's
+replicates on the folder row), `failed` (the failed tests, by path),
+`insufficient` (each undecided test and its reason), `simace_version` and
+`source`. When `simace validate` changes a verdict after a gather, it says to
+rerun `simace gather`.
 
 ## Stage timing
 

@@ -55,6 +55,26 @@ releases shipped after 2026.05.3.
   and build, and a recompute of a
   replicate removes both verdicts. `scripts/onset_tau_calibration.py` is
   removed.
+- **The verdicts reach the plots, the atlases and `simace gather`.**
+  `simace validate` prints each scenario's verdict and the folder's, then
+  rebuilds the plots and atlas of each scenario whose replicates are all
+  complete and whose plots no longer show the current verdict, under the
+  scenario's lock; `--no-plots` skips this and `--format pdf` works as in
+  `simace run`. The onset-τ page states the scenario verdict above the
+  per-replicate z, or why there is none, and no longer marks a replicate
+  failed. `simace gather` copies the folder's and each scenario's verdict
+  into `results/{folder}/verdicts.tsv` and decides none; the validation
+  atlas opens with a verdict page. When a verdict changes after a gather,
+  `simace validate` says to rerun `simace gather`.
+- **Breaking: `simace validate` exits 3 on a failed verdict.** It used to
+  exit 0 whatever the checks found. It now exits 3 when a target's own
+  verdict is `fail`: the folder verdict for a folder target, the scenario
+  verdict for a scenario target. A scenario's `fail` inside a folder target
+  is printed but sets no exit code, since five scenario families at a
+  familywise 5% each would fail a correct folder about 23% of the time.
+  `insufficient` and no verdict exit 0. A replicate error, a failed plot
+  rebuild or a busy lock exits 1 and takes precedence over 3; a bad target
+  exits 2. Scripts that treat any nonzero exit as a crash need updating.
 - **`simace validate --pedigree` requires `--checks`.** The recorded-pedigree
   debug run (`--pedigree … --params … --output …` without `--checks`) is
   removed; `simace analyze` runs those checks.

@@ -99,7 +99,16 @@ Cost turned out to be the wrong axis.
    scenario atlas shows the verdict beside the per-rep z. `simace gather`
    copies per-rep z columns and the verdicts and never decides; its
    validation atlas gets a verdict page. The `validation_passed` column is
-   removed.
+   removed. `simace validate` exits 3 when a target's own verdict is
+   `fail`: the folder verdict for a folder target, the scenario verdict for
+   a scenario target. A scenario `fail` inside a folder target is printed
+   but sets no exit code, since each scenario family is at a familywise 5%
+   and five of them would fail a correct folder about 23% of the time.
+   `insufficient` exits 0 and is printed as such. A rep error, a failed plot
+   rebuild or a busy lock exits 1 and takes precedence over 3, and usage
+   errors keep 2.
+   Reps are seeded, so a `fail` repeats until the code or the seeds
+   change.
 7. **The registry contract.** A calibrated test is an optional per-rep step,
    which reads the rep's inputs (pedigree, params, seed, phenotype arguments,
    `report.yaml`) as it needs them and returns cells, plus the rule across

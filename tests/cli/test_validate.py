@@ -12,6 +12,7 @@ import yaml
 
 from simace.analysis.validate.on_demand import SCHEMA
 from simace.analysis.validate.verdict import SCHEMA as VERDICT_SCHEMA
+from simace.analysis.validate.verdict import Entry, Insufficient, MeanZ
 from simace.cli.layout import Layout, RepArtifact
 from simace.cli.run import cli as run_cli
 from simace.cli.stages import ResolvedRep
@@ -211,7 +212,10 @@ def test_a_folder_target_with_no_scenario_to_validate_has_no_verdict(project) ->
     import simace.cli.validate as validate_module
 
     _, _, layout = project
-    assert validate_module._folder_verdict("gene_drop_only", [], {}, layout) == "no verdict: no scenario to validate"
+    assert validate_module._folder_verdict("gene_drop_only", [], {}, layout) == (
+        None,
+        "no verdict: no scenario to validate",
+    )
 
 
 def test_a_failed_rep_leaves_no_verdict_beside_its_old_file(project, capsys, monkeypatch) -> None:
@@ -362,3 +366,81 @@ def test_a_verdict_change_after_a_gather_says_to_gather_again(project, capsys) -
         assert "[t] verdicts changed since verdicts.tsv was gathered; rerun `simace gather t`" in out
     finally:
         layout.folder_verdicts("t").unlink()
+
+
+def _family(verdict: str):
+    """A family builder, in place of the real rules, whose one test decides ``verdict``."""
+    statistic = {"pass": MeanZ(np.zeros(30)), "fail": MeanZ(np.full(30, 5.0)), "insufficient": Insufficient("few")}
+    return lambda *args: [Entry(("onset_tau", "mean_z"), statistic[verdict])]
+
+
+@pytest.fixture
+def force_verdicts(project, monkeypatch):
+    """Make the scenario and folder families decide given verdicts; remove the verdict files they write after."""
+    import simace.cli.validate as validate_module
+
+    _, _, layout = project
+
+    def force(scenario: str, folder: str = "pass") -> None:
+        monkeypatch.setattr(validate_module, "scenario_family", _family(scenario))
+        monkeypatch.setattr(validate_module, "folder_family", _family(folder))
+
+    yield force
+    layout.scenario_verdict("t", "tiny").unlink(missing_ok=True)
+    layout.folder_verdict("t").unlink(missing_ok=True)
+
+
+def _exit_code(argv: list[str]) -> int | str | None:
+    try:
+        validate_cli(argv)
+    except SystemExit as exc:
+        return exc.code
+    return 0
+
+
+@pytest.mark.parametrize(
+    ("target", "scenario", "folder", "code"),
+    [
+        pytest.param("t", "fail", "pass", 0, id="scenario-fail-inside-a-passing-folder"),
+        pytest.param("t", "pass", "fail", 3, id="folder-fail"),
+        pytest.param("tiny", "fail", "pass", 3, id="scenario-target-fail"),
+        pytest.param("t", "insufficient", "insufficient", 0, id="folder-insufficient"),
+        pytest.param("tiny", "insufficient", "insufficient", 0, id="scenario-insufficient"),
+    ],
+)
+def test_a_targets_own_fail_verdict_exits_3(project, capsys, force_verdicts, target, scenario, folder, code) -> None:
+    """Only the target's own verdict sets the exit code (ADR 0028 §6): a scenario in a folder is printed only."""
+    _, roots, _ = project
+    force_verdicts(scenario, folder)
+    assert _exit_code([target, *roots, "--no-plots"]) == code
+    captured = capsys.readouterr()
+    out = captured.out
+    assert ("verdict fail for" in captured.err) == (code == 3)
+    assert f"[tiny] verdict {scenario}: " in out
+    if target == "t":
+        assert f"[t] folder verdict {folder}: " in out
+
+
+@pytest.mark.slow
+def test_a_rep_error_exits_1_over_another_targets_fail(project, capsys, monkeypatch, force_verdicts) -> None:
+    import simace.cli.validate as validate_module
+
+    cfg, roots, _ = project
+    (cfg / "u.yaml").write_text(yaml.safe_dump({"tiny_u": {**TINY, "replicates": 1, "seed": 200}}))
+    try:
+        run_cli(["tiny_u", "--no-plots", *roots])
+        validate_rep = validate_module._validate_rep
+        monkeypatch.setattr(
+            validate_module,
+            "_validate_rep",
+            lambda rep, *args: "ERROR (exit 1); log: x" if rep.scenario == "tiny_u" else validate_rep(rep, *args),
+        )
+        force_verdicts("fail")
+        assert _exit_code(["tiny", "tiny_u", *roots, "--no-plots"]) == 1
+    finally:
+        (cfg / "u.yaml").unlink()
+    captured = capsys.readouterr()
+    out = captured.out
+    assert "simace validate: verdict fail for tiny" in captured.err
+    assert "[tiny] verdict fail: " in out
+    assert "[tiny_u] no verdict: rep1 failed validation" in out

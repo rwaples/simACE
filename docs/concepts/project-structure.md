@@ -91,10 +91,13 @@ simACE/
 │   │   │   ├── assortative_mating.py, am_equilibrium.py, am_relatedness.py
 │   │   │   ├── population.py
 │   │   │   └── _common.py                # Shared check helpers
-│   │   └── validate/                     # simace validate's on-demand checks (ADR 0027, 0028)
-│   │       ├── on_demand.py              # Check registry and run_on_demand
+│   │   └── validate/                     # simace validate's on-demand checks and verdicts (ADR 0027, 0028)
+│   │       ├── calibrated.py             # RepInputs, CalibratedTest, per-cell results
+│   │       ├── on_demand.py              # Check registry, run_on_demand, validation.yaml schema
 │   │       ├── onset_tau.py              # Onset τ for frailty traits
-│   │       └── runner.py                 # Per-rep `simace validate --checks` primitive
+│   │       ├── runner.py                 # Per-rep `simace validate --checks` primitive
+│   │       ├── schema_file.py            # Reads schema'd validation.yaml / validation_summary.yaml
+│   │       └── verdict.py                # Rules across reps, Bonferroni families, validation_summary.yaml
 │   └── plotting/
 │       ├── plot_utils.py                 # Shared plotting helpers (finalize_plot, violin, heatmap)
 │       ├── plot_style.py                 # Color palette and shared style tokens
