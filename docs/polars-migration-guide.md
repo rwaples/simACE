@@ -38,7 +38,7 @@ hydrate_trait(pl.from_pandas(trait_pd), pl.from_pandas(ped_pd), kind="censored")
 | `simace.ascertainment.run_ascertainment` | `pd.DataFrame` in/out | `pl.DataFrame` in/out; `TypeError` otherwise |
 | `simace.analysis.stats.runner.create_sample` | `pd.DataFrame` in/out | `pl.DataFrame` in/out; `TypeError` otherwise |
 | `simace.analysis.stats.build_stats_report` and the `compute_*` family | `pd.DataFrame` | any frame whose columns expose `.to_numpy()` (library-agnostic; polars is canonical) |
-| `simace.analysis.validate.build_validation_report` | `pd.DataFrame` | same library-agnostic contract |
+| `simace.analysis.quality.build_quality_report` | `pd.DataFrame` | same library-agnostic contract |
 | `simace.core.pedigree_arrays.PedigreeArrays.from_frame` | `pd.DataFrame` | structural: any frame with `.columns` / `__getitem__` / column `.to_numpy()` |
 
 `PedigreeGraph` (external `pedigree_graph` package) accepts polars, pandas,

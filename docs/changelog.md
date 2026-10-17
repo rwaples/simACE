@@ -12,6 +12,18 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### Quality checks and calibrated tests ([#65](https://github.com/rwaples/simACE/issues/65))
+
+- **Analyze's check families moved to `simace.analysis.quality`**
+  ([ADR 0028](adr/0028-analyze-validate-boundary.md)). Analyze runs these
+  quality checks on every replicate; `simace.analysis.validate` now holds
+  only `simace validate`'s on-demand checks. `build_validation_report` is
+  now `build_quality_report`, and the `validate_*` functions import from
+  `simace.analysis.quality`. `run_validation` is removed.
+- **`simace validate --pedigree` requires `--checks`.** The recorded-pedigree
+  debug run (`--pedigree … --params … --output …` without `--checks`) is
+  removed; `simace analyze` runs those checks.
+
 ### Onset τ check for the frailty model ([#29](https://github.com/rwaples/simACE/issues/29))
 
 - **`simace validate <scenario|folder>` runs on-demand checks** on complete
@@ -21,8 +33,7 @@ releases shipped after 2026.05.3.
   takes `--rep`, `--jobs`, `--checks` and `--dry-run`, and a later recompute
   of a replicate removes its `validation.yaml`. The per-replicate form takes
   explicit files (`--pedigree … --seed … --checks …` plus the phenotype
-  flags); without `--checks`, `simace validate --pedigree --params --output`
-  still runs the recorded-pedigree checks as before.
+  flags).
 - **The frailty model's onset times are validated** by its first on-demand
   check. For each frailty trait it compares Kendall's τ between relatives'
   raw onsets, per relationship type (MZ, FS, MHS, PHS, MO, FO), and

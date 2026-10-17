@@ -106,11 +106,11 @@ def test_a_recompute_removes_the_reps_validation_yaml(project) -> None:
     assert not target.exists()
 
 
-def test_a_per_rep_run_without_checks_is_rejected(project, tmp_path) -> None:
+def test_a_per_rep_run_without_checks_is_rejected(project, tmp_path, capsys) -> None:
     """The recorded-pedigree debug run is gone (ADR 0028); ``simace analyze`` runs those checks."""
     cfg, _, layout = project
     rep = _rep(cfg, 1)
-    with pytest.raises(SystemExit):
+    with pytest.raises(SystemExit) as exc:
         validate_cli(
             [
                 "--pedigree",
@@ -121,3 +121,5 @@ def test_a_per_rep_run_without_checks_is_rejected(project, tmp_path) -> None:
                 str(tmp_path / "validation.yaml"),
             ]
         )
+    assert exc.value.code == 2
+    assert "`simace analyze` runs those checks" in capsys.readouterr().err

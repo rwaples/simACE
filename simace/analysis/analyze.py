@@ -109,7 +109,7 @@ def run_analysis(
     scope_counts: dict[str, Any] = {}
 
     # --- Phase 1: Validate (recorded pedigree) ---
-    logger.info("Analyze phase 1/3: validating %s", pedigree_path)
+    logger.info("Analyze phase 1/3: quality checks and truth on %s", pedigree_path)
     df_full = read_pedigree(pedigree_path)
     graph = PedigreeGraph.from_frame(df_full)
     quality_report = build_quality_report(df_full, params, graph)
@@ -170,7 +170,7 @@ def run_analysis(
         replicate={"folder": folder, "scenario": scenario, "rep": rep, "seed": seed},
         params=params,
         case_ascertainment_ratio=case_ascertainment_ratio,
-        validation_report=quality_report,
+        quality_report=quality_report,
         stats_report=stats_report,
         prevalence_phenotyped=prevalence_phenotyped,
         scope_counts=scope_counts,

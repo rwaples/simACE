@@ -98,7 +98,7 @@ def _complete_reps(runs: list[ScenarioRun], layout: Layout) -> list[ResolvedRep]
 
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line entry point for ``simace validate``."""
-    if argv and "--pedigree" in argv:
+    if argv and any(a == "--pedigree" or a.startswith("--pedigree=") for a in argv):
         from simace.analysis.validate.runner import cli as rep_cli
 
         rep_cli(argv, prog)

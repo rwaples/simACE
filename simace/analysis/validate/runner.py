@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 
 
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
@@ -28,6 +29,12 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     parser.add_argument("--seed", type=int, required=True, help="The rep seed")
     parser.add_argument("--output", required=True, help="Output validation.yaml")
     add_phenotype_args(parser.add_argument_group("phenotype"))
+    given = sys.argv[1:] if argv is None else argv
+    asks_help = "-h" in given or "--help" in given
+    if not asks_help and not any(a == "--checks" or a.startswith("--checks=") for a in given):
+        parser.error(
+            "--checks is required; the run without it was removed (ADR 0028), and `simace analyze` runs those checks"
+        )
     args = parser.parse_args(argv)
     init_logging(args)
 

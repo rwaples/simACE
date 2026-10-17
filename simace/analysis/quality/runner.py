@@ -37,8 +37,8 @@ def build_quality_report(
 ) -> dict[str, Any]:
     """Run every quality-check family on an in-memory pedigree and return results.
 
-    Runs structural, twin, half-sibling, statistical, heritability, and
-    population checks. The id-addressable arrays, the sibling relationship
+    Runs every quality-check family, then the per-generation and family-size
+    summaries. The id-addressable arrays, the sibling relationship
     moments and the mate correlations are derived from ``df`` here.
 
     Args:
@@ -48,12 +48,14 @@ def build_quality_report(
             built here otherwise.
 
     Returns:
-        Nested dict with keys ``"structural"``, ``"twins"``, ``"half_sibs"``,
-        ``"statistical"``, ``"heritability"``, ``"population"``,
-        ``"per_generation"``, ``"summary"``, ``"family_size_distribution"``,
-        and ``"parameters"``. The ``"summary"`` sub-dict contains
-        ``passed`` (bool), ``checks_passed``, ``checks_failed``, and
-        ``checks_total`` counts.
+        Nested dict with one key per check family (``"structural"``,
+        ``"twins"``, ``"half_sibs"``, ``"statistical"``, ``"c_transmission"``,
+        ``"heritability"``, ``"population"``, ``"assortative_mating"``,
+        ``"am_equilibrium"``, ``"consanguineous_matings"``), plus
+        ``"per_generation"``, ``"summary"``, ``"family_size_distribution"``
+        and ``"parameters"``. ``"summary"`` holds ``passed`` (bool),
+        ``checks_passed``, ``checks_failed`` and ``checks_total`` over every
+        family.
     """
     ped = PedigreeArrays.from_frame(df)
     siblings = sibling_moments(df, ped, graph)

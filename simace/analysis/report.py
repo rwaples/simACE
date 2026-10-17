@@ -1,6 +1,6 @@
-"""Assemble the curated v2 Analyze report from validation + stats outputs.
+"""Assemble the curated v2 Analyze report from quality-check + stats outputs.
 
-Pure functions that re-home the raw validation report and the six stats groups
+Pure functions that re-home the raw quality report and the six stats groups
 into the v2 scientific shape (``inputs``, ``scopes``, ``quality_checks``,
 ``truth``, ``observed``, ``estimators``) plus the scope-organized
 ``plot_payload``. See ``docs/adr/0008-curated-analyze-report.md`` and
@@ -26,7 +26,7 @@ from .report_schema import (
     partition_dense,
 )
 
-# Skip these when normalizing validation checks — they carry no pass/fail rows.
+# Skip these when normalizing quality checks — they carry no pass/fail rows.
 _NON_CHECK_CATEGORIES = frozenset({"per_generation", "summary", "family_size_distribution", "parameters"})
 
 
@@ -45,17 +45,17 @@ def _single(result: dict[str, Any], prefix: str) -> Any:
     return hits[0] if hits else None
 
 
-def normalize_quality_checks(validation_report: dict[str, Any]) -> dict[str, Any]:
-    """Flatten heterogeneous validation results into uniform check rows.
+def normalize_quality_checks(quality_report: dict[str, Any]) -> dict[str, Any]:
+    """Flatten heterogeneous quality-check results into uniform check rows.
 
-    All validation checks run on the full pre-ascertainment pedigree, so every
+    All quality checks run on the full pre-ascertainment pedigree, so every
     row carries ``scope="recorded_pedigree"``. The current validator has no
     warn level, so ``n_warn`` is always 0.
     """
     checks: list[dict[str, Any]] = []
     n_passed = 0
     n_failed = 0
-    for category, items in validation_report.items():
+    for category, items in quality_report.items():
         if category in _NON_CHECK_CATEGORIES or not isinstance(items, dict):
             continue
         for name, result in items.items():
@@ -90,7 +90,7 @@ def normalize_quality_checks(validation_report: dict[str, Any]) -> dict[str, Any
 
 
 def extract_truth(
-    validation_report: dict[str, Any], params: dict[str, Any], recorded_truth: dict[str, Any] | None = None
+    quality_report: dict[str, Any], params: dict[str, Any], recorded_truth: dict[str, Any] | None = None
 ) -> dict[str, Any]:
     """Re-home generated/realized ground-truth quantities under ``recorded_pedigree``.
 
@@ -99,14 +99,14 @@ def extract_truth(
     ``relationships`` and ``midparent_slope`` join each trait, and its
     ``limitations`` list sits beside the traits (ADR 0025).
     """
-    stat = validation_report.get("statistical", {})
-    per_gen = validation_report.get("per_generation", {})
-    pop = validation_report.get("population", {})
-    twins = validation_report.get("twins", {})
-    half = validation_report.get("half_sibs", {})
-    am = validation_report.get("assortative_mating", {})
-    cons = validation_report.get("consanguineous_matings", {})
-    structural = validation_report.get("structural", {})
+    stat = quality_report.get("statistical", {})
+    per_gen = quality_report.get("per_generation", {})
+    pop = quality_report.get("population", {})
+    twins = quality_report.get("twins", {})
+    half = quality_report.get("half_sibs", {})
+    am = quality_report.get("assortative_mating", {})
+    cons = quality_report.get("consanguineous_matings", {})
+    structural = quality_report.get("structural", {})
 
     def obs(group: dict[str, Any], key: str) -> Any:
         return (group.get(key) or {}).get("observed")
@@ -167,7 +167,7 @@ def extract_truth(
             "total_missing_gp_links": cons_count.get("total_missing_gp_links"),
             "grandparent_reconciliation_passed": (cons.get("grandparent_reconciliation") or {}).get("passed"),
         },
-        "offspring_distribution": validation_report.get("family_size_distribution", {}),
+        "offspring_distribution": quality_report.get("family_size_distribution", {}),
     }
 
     population = {
@@ -205,9 +205,9 @@ def extract_truth(
     }
 
 
-def extract_estimators(validation_report: dict[str, Any], stats_report: dict[str, Any]) -> dict[str, Any]:
+def extract_estimators(quality_report: dict[str, Any], stats_report: dict[str, Any]) -> dict[str, Any]:
     """Heritability estimators: relationship/outcome-derived, by scale."""
-    her = validation_report.get("heritability", {})
+    her = quality_report.get("heritability", {})
 
     def obs(key: str) -> Any:
         return (her.get(key) or {}).get("observed")
@@ -315,7 +315,7 @@ def assemble_report(
     replicate: dict[str, Any],
     params: dict[str, Any],
     case_ascertainment_ratio: float,
-    validation_report: dict[str, Any],
+    quality_report: dict[str, Any],
     stats_report: dict[str, Any],
     prevalence_phenotyped: dict[str, Any],
     scope_counts: dict[str, Any],
@@ -348,10 +348,10 @@ def assemble_report(
         "replicate": replicate,
         "inputs": _build_inputs(params, case_ascertainment_ratio),
         "scopes": scope_counts,
-        "quality_checks": normalize_quality_checks(validation_report),
-        "truth": extract_truth(validation_report, params, recorded_truth),
+        "quality_checks": normalize_quality_checks(quality_report),
+        "truth": extract_truth(quality_report, params, recorded_truth),
         "observed": observed,
-        "estimators": extract_estimators(validation_report, stats_report),
+        "estimators": extract_estimators(quality_report, stats_report),
     }
     assert_report_contract(report)
 

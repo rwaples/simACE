@@ -108,9 +108,9 @@ when a replicate's command errors (its log is under `logs/`).
 
 The per-replicate command takes explicit files and flags, like the stage
 subcommands: `simace validate --pedigree … --seed … --checks onset_tau
---output …` plus the phenotype flags of `simace cohort`. Without `--checks`,
-`simace validate --pedigree … --params … --output …` still runs the
-recorded-pedigree checks Analyze runs, as a debug aid.
+--output …` plus the phenotype flags of `simace cohort`. Analyze's quality
+checks are not part of `simace validate`; `simace analyze` runs them
+(ADR 0028).
 
 ## Rerun and resume
 
