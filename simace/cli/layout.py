@@ -12,7 +12,15 @@ contract (results layout 2, ADR 0021).
 
 from __future__ import annotations
 
-__all__ = ["Layout", "RepArtifact", "add_root_args", "project_root", "require_config", "resolve_roots"]
+__all__ = [
+    "VALIDATION_SUMMARY",
+    "Layout",
+    "RepArtifact",
+    "add_root_args",
+    "project_root",
+    "require_config",
+    "resolve_roots",
+]
 
 import sys
 from dataclasses import dataclass
@@ -102,6 +110,10 @@ class RepArtifact(StrEnum):
     VALIDATION = "validation.yaml"  # on-demand checks: written by `simace validate`, not by `simace run`
 
 
+#: A scenario's and a folder's calibrated-test verdict, written by `simace validate` (ADR 0028).
+VALIDATION_SUMMARY = "validation_summary.yaml"
+
+
 @dataclass(frozen=True)
 class Layout:
     """Paths for scenarios, replicates, and folders under a results root."""
@@ -136,6 +148,14 @@ class Layout:
     def folder_summary(self, folder: str) -> Path:
         """Return the folder-level ``report_summary.tsv`` path."""
         return self.root / folder / "report_summary.tsv"
+
+    def scenario_verdict(self, folder: str, scenario: str) -> Path:
+        """Return ``{root}/{folder}/{scenario}/validation_summary.yaml``: the scenario's calibrated-test verdict."""
+        return self.scenario_dir(folder, scenario) / VALIDATION_SUMMARY
+
+    def folder_verdict(self, folder: str) -> Path:
+        """Return ``{root}/{folder}/validation_summary.yaml``: the folder's calibrated-test verdict."""
+        return self.root / folder / VALIDATION_SUMMARY
 
     def folder_plots(self, folder: str) -> Path:
         """Return the directory holding a folder's validation plots and atlas."""

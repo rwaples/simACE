@@ -13,7 +13,8 @@ from typing import Any
 
 from simace.analysis.report_schema import REPORT_SUMMARY_REGISTRY
 from simace.analysis.stats.onset_tau import CELL_CATEGORIES
-from simace.analysis.validate.on_demand import load_validation, one_warning_for_refused
+from simace.analysis.validate.on_demand import load_validation
+from simace.analysis.validate.schema_file import one_warning_for_refused
 from simace.core.relationships import C_TRANSMISSION_KEYS, RELATIONSHIP_TYPES
 from simace.core.yaml_io import load_yaml
 
