@@ -39,7 +39,9 @@ COMMANDS: dict[str, Command] = {
     "atlas": Command("simace.plotting.scenario_atlas", "Assemble a scenario's phenotype atlas"),
     "gather-reports": Command("simace.analysis.gather", "Collect report.yaml files into one summary TSV"),
     "plot-validation": Command("simace.plotting.plot_validation", "Render validation plots from a summary TSV"),
-    "validate": Command("simace.analysis.validate.runner", "Debug: run validation checks on a pedigree"),
+    "validate": Command(
+        "simace.cli.validate", "Run on-demand validation checks (onset τ, ...) on a scenario's complete reps"
+    ),
     "stats": Command("simace.analysis.stats.runner", "Debug: build a stats report for one replicate"),
     "effective-size": Command("simace.analysis.stats.effective_size", "Estimate Ne for one replicate"),
     "plot-effective-size": Command("simace.plotting.plot_effective_size", "Render the Ne atlas"),

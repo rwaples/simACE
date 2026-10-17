@@ -16,7 +16,7 @@ next and logs its wall time and the process's peak RSS so far.
 
 from __future__ import annotations
 
-__all__ = ["cli", "run_cohort"]
+__all__ = ["add_phenotype_args", "cli", "phenotype_kwargs", "run_cohort"]
 
 import argparse
 import gc
@@ -102,13 +102,44 @@ def run_cohort(
     return cohort, phenotyped_population
 
 
-def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
-    """Command-line entry point for the ``cohort`` stage."""
-    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging, yaml_mapping
-    from simace.core.publish import publish
-    from simace.core.yaml_io import dump_yaml
+def add_phenotype_args(group: argparse._ArgumentGroup) -> None:
+    """The phenotype-stage flags of a command that phenotypes a recorded pedigree (``cohort``, ``validate``)."""
+    from simace.core.cli_base import yaml_mapping
     from simace.phenotype.hazards import STANDARDIZE_CHOICES
     from simace.phenotype.models import MODELS
+
+    group.add_argument("--G-pheno", type=int, default=3, help="Trailing generations to phenotype")
+    group.add_argument("--standardize", choices=list(STANDARDIZE_CHOICES), default="global")
+    for trait in (1, 2):
+        group.add_argument(f"--phenotype-model{trait}", choices=sorted(MODELS), required=True)
+        group.add_argument(f"--beta{trait}", type=float, default=1.0)
+        group.add_argument(f"--beta-sex{trait}", type=float, default=0.0)
+        group.add_argument(
+            f"--phenotype-params{trait}",
+            type=yaml_mapping,
+            required=True,
+            help=f"Trait {trait} model parameters as a YAML flow mapping",
+        )
+
+
+def phenotype_kwargs(args: argparse.Namespace) -> dict[str, Any]:
+    """``run_phenotype``'s keyword arguments other than ``seed``, from :func:`add_phenotype_args`' flags."""
+    return {
+        "G_pheno": args.G_pheno,
+        "standardize": args.standardize,
+        **{
+            f"{key}{trait}": getattr(args, f"{key}{trait}")
+            for trait in (1, 2)
+            for key in ("phenotype_model", "beta", "beta_sex", "phenotype_params")
+        },
+    }
+
+
+def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
+    """Command-line entry point for the ``cohort`` stage."""
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
+    from simace.core.publish import publish
+    from simace.core.yaml_io import dump_yaml
 
     parser = argparse.ArgumentParser(
         prog=prog,
@@ -124,20 +155,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     )
     parser.add_argument("--seed", type=int, default=42, help="Rep seed for all three phases")
 
-    pheno = parser.add_argument_group("phenotype")
-    pheno.add_argument("--G-pheno", type=int, default=3, help="Trailing generations to phenotype")
-    pheno.add_argument("--standardize", choices=list(STANDARDIZE_CHOICES), default="global")
-    for trait in (1, 2):
-        pheno.add_argument(f"--phenotype-model{trait}", choices=sorted(MODELS), required=True)
-        pheno.add_argument(f"--beta{trait}", type=float, default=1.0)
-        pheno.add_argument(f"--beta-sex{trait}", type=float, default=0.0)
-        pheno.add_argument(
-            f"--phenotype-params{trait}",
-            type=yaml_mapping,
-            required=True,
-            help=f"Trait {trait} model parameters as a YAML flow mapping",
-        )
-
+    add_phenotype_args(parser.add_argument_group("phenotype"))
     add_censor_args(parser.add_argument_group("censor"))
     add_ascertain_args(parser.add_argument_group("ascertain"))
 
@@ -147,15 +165,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     cohort, phenotyped_population = run_cohort(
         read_pedigree(args.pedigree),
         seed=args.seed,
-        phenotype={
-            "G_pheno": args.G_pheno,
-            "standardize": args.standardize,
-            **{
-                f"{key}{trait}": getattr(args, f"{key}{trait}")
-                for trait in (1, 2)
-                for key in ("phenotype_model", "beta", "beta_sex", "phenotype_params")
-            },
-        },
+        phenotype=phenotype_kwargs(args),
         censor={k: getattr(args, k) for k in CENSOR_KEYS},
         ascertain={k: getattr(args, k) for k in ASCERTAIN_KEYS},
     )

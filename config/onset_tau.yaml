@@ -1,0 +1,63 @@
+# Onset-τ check calibration (simACE #29, ADR 0027).
+#
+# Each scenario's reps are validated with `simace validate onset_tau` after
+# `simace run onset_tau --no-plots`; scripts/onset_tau_calibration.py then
+# reads results/onset_tau/report_summary.tsv (from `simace gather onset_tau`)
+# and tests that the scored cells' z = (observed − expected) / SE behave like
+# standard normals per scenario and cell, and that about 5% of reps fail.
+#
+# The scenarios cover four baselines (Weibull, gamma, Gompertz, lognormal),
+# all three standardization modes, assortative mating, and a sex effect.
+# Trait 2 keeps the default Weibull (β = 1.5) throughout, so every scenario
+# has a within-person cell. N is per generation; G_pheno is the default 3.
+#
+# Scenario seeds are 1000 apart. A rep's seed is `seed + rep - 1`, so seeds
+# closer than `replicates` would give two scenarios the same pedigrees and the
+# same draws, and the pooled tests would count them twice.
+
+onset_tau_weibull:
+  seed: 290000
+  replicates: 100
+  N: 20000
+
+onset_tau_gamma_b2:
+  seed: 291000
+  replicates: 100
+  N: 20000
+  phenotype:
+    trait1:
+      model: frailty
+      beta: 2.0
+      params: {distribution: gamma, shape: 2.0, scale: 30.0}
+
+onset_tau_gompertz_none:
+  seed: 292000
+  replicates: 100
+  N: 20000
+  standardize: none
+  phenotype:
+    trait1:
+      model: frailty
+      beta: 1.5
+      params: {distribution: gompertz, rate: 0.0001, gamma: 0.08}
+
+onset_tau_pergen_am:
+  seed: 293000
+  replicates: 100
+  N: 20000
+  standardize: per_generation
+  pedigree:
+    assort1: 0.4
+
+onset_tau_sex_lognormal:
+  seed: 294000
+  replicates: 100
+  N: 20000
+  phenotype:
+    trait1:
+      model: frailty
+      beta: 1.0
+      beta_sex: 0.5
+      params: {distribution: lognormal, mu: 4.0, sigma: 0.8}
+    trait2:
+      beta_sex: 0.5

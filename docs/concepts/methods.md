@@ -473,6 +473,34 @@ The Analyze stage calls `simace.analysis.validate` to run ten check families on 
 
 Correlation checks use a tolerance of four standard errors with a floor of 0.05. See `_corr_tolerance` in `simace.analysis.validate._common`.
 
+### On-demand checks
+
+Checks that cost too much for every rep, or that need outcomes a rep does not store, are not run by `simace run`. `simace validate <scenario|folder>` runs them on complete reps and writes each rep's `validation.yaml` (`simace.analysis.validate.on_demand`). `simace gather` adds their columns and the atlas shows their pages when the file is present. There is one so far:
+
+- **Onset τ** (`run_onset_tau`). For each `frailty` trait, Kendall's τ between relatives' raw onsets in the phenotyped population matches its realized expectation, per relationship type (MZ, FS, MHS, PHS, MO, FO), and within-person between $t_1$ and $t_2$ when both traits are frailty. It has no tolerance floor and controls the familywise error instead.
+
+### Onset τ
+
+The frailty model sets a raw onset $T = H_0^{-1}(E\,e^{-\eta})$ with $E \sim \text{Exp}(1)$ and linear predictor $\eta = b(L - m) + \beta_{\text{sex}} \cdot \text{sex}$. Kendall's τ is unchanged by an increasing transform of either onset, so onset τ does not depend on the baseline hazard $H_0$. Given $\eta$, onsets order as independent exponentials $V_i = E_i / \lambda_i$ with $\lambda_i = e^{\eta_i}$. Two relationship pairs $(x, y)$ and $(x', y')$ with four distinct members are then concordant in expectation
+
+$$
+\mathrm{E}\big[\operatorname{sign}(T_x - T_{x'})\,\operatorname{sign}(T_y - T_{y'}) \mid \eta\big]
+= \tanh\!\tfrac{\eta_x - \eta_{x'}}{2}\,\tanh\!\tfrac{\eta_y - \eta_{y'}}{2},
+$$
+
+because $\log E_a - \log E_b$ is standard logistic. A comparison in which the two pairs share a person has a closed Plackett–Luce form instead: the shared person must fall between the other two. With equal $\eta$ that expectation is $-1/3$. The average over every comparison the statistic counts is the **realized onset-τ expectation**, the check's target. Averaging the four-person form over bivariate normal $\eta$ with standard deviations $s_1, s_2$ and correlation $r$ gives `tau_oracle(s1, s2, r)` $= \mathrm{E}[\tanh(s_1 X/2)\tanh(s_2 Y/2)]$, with $(X, Y)$ normal, variances 2 and correlation $r$. Its limits are 0 at $s = 0$ and $(2/\pi)\arcsin r$ as $s \to \infty$. The atlas plots it as the τ–$r$ curve, but it is not scored: it is exact only for normal $\eta$ with one $r$ across a cell.
+
+`simace validate` regenerates the phenotyped population's raw onsets from the rep's recorded pedigree, its seed and its phenotype settings: the phenotype stage is deterministic in the seed, so these are the onsets the cohort stage drew, in float64 and before ascertainment. It then computes every cell (`simace.analysis.stats.onset_tau`) and scores it.
+
+- **Statistic.** τ-a over all pairs of entries, ties counting 0. A symmetric type enters both orientations of each pair, and an entry's comparison with its own mirror is excluded.
+- **Target.** For four-person comparisons the target is summed directly up to 2,000 entries. Above that it uses a second-order Taylor expansion over a binned grid of $(\eta_x, \eta_y)$, whose error is at most $0.1796\,h^3$ per term for grid width $h$; the grid is refined until that bound is 1% of the SE. Comparisons that share a person are enumerated exactly.
+- **SE.** Given $\eta$, only the onset draws are random, and they are independent across people. Per-entry influences, observed minus expected concordance, are summed over the connected components of the cell's pair graph and the sums squared. The estimate is never negative and is 0 for a single component.
+- **Cap.** A cell over 100,000 entries is scored on a seeded subset of whole components; the report gives the sampled fraction. When a category is expected to exceed the cap, its pairs are extracted only within sampled families (one mother's children, one father's, or one lineage).
+- **Gates.** A cell is scored when its entry-weighted effective number of components is at least 100 and its tie share plus numerical bound is at most $0.05\,\mathrm{SE}$. Otherwise it is reported as information with the reason.
+- **Tolerance.** A scored cell passes when $|\hat\tau - \tau^*| \le z\,\mathrm{SE}$ with $z = \Phi^{-1}(1 - 0.025/K)$ over the $K$ cells scored in the rep: 2.89 at $K = 13$. A correct simulation fails about 5% of reps.
+
+See [ADR 0027](../adr/0027-onset-tau-check.md) for the rejected alternatives and the measurements behind them.
+
 ## Implementation
 
 `simace` is an installable Python package. NumPy does the vectorised array work, SciPy the optimisation and special functions, Polars the DataFrames at every stage boundary (ADR 0015), and Numba the compiled kernels for phenotype inversion, assortative mate matching and Metropolis sweeps. Relationship extraction uses the Rust row-streaming engine in `pedigree-graph`. The `simace run` command runs each stage in its own process, with per-scenario configuration and a per-replicate seed of the scenario seed plus the replicate number minus one. All random draws use NumPy's PCG64 generator through `numpy.random.default_rng` with explicit seeds.

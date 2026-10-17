@@ -82,6 +82,36 @@ every replicate directory on disk that has a `run.yaml` and a `report.yaml`,
 still checking a replicate against the config when the config lists its
 scenario.
 
+## Run on-demand checks
+
+```bash
+pixi run simace validate base --jobs 8
+pixi run simace run base     # rebuilds the atlas with the new pages
+pixi run simace gather base  # adds the check columns to report_summary.tsv
+```
+
+`simace run` computes only the checks Analyze runs on every replicate.
+`simace validate` runs the on-demand ones: checks that cost too much for every
+replicate or need outcomes the replicate does not store. Today that is onset τ
+for frailty traits ([Methods, Onset τ](../concepts/methods.md#onset-τ)), which
+regenerates the phenotyped population's raw onsets from the replicate's seed.
+It works on complete replicates only, skipping the others with their state,
+and writes each replicate's `validation.yaml`. `--rep` limits the replicates
+of one scenario, `--checks` the check families, and `--dry-run` prints the
+per-replicate commands. Like `simace run` it takes each scenario's lock, and a
+later recompute of a replicate removes its `validation.yaml`.
+
+It prints one line per replicate (`passed`, or `FAILED n check(s)`) and a
+summary per scenario. Failing checks do not change the exit code: at a
+familywise 5%, about one replicate in twenty fails by chance. It exits 1 only
+when a replicate's command errors (its log is under `logs/`).
+
+The per-replicate command takes explicit files and flags, like the stage
+subcommands: `simace validate --pedigree … --seed … --checks onset_tau
+--output …` plus the phenotype flags of `simace cohort`. Without `--checks`,
+`simace validate --pedigree … --params … --output …` still runs the
+recorded-pedigree checks Analyze runs, as a debug aid.
+
 ## Rerun and resume
 
 `simace run` writes a replicate's `run.yaml` only after every stage of the

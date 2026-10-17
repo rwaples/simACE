@@ -281,6 +281,20 @@ _ATLAS_META_KEYS = (
 )
 
 
+def validate_argv(rep: ResolvedRep, layout: Layout, checks: Iterable[str]) -> list[str]:
+    """Return the per-rep ``simace validate --checks ...`` argv: the cohort stage's phenotype flags and seed."""
+    values = {"seed": rep.seed, **_pick(rep, *_PHENOTYPE_KEYS)}
+    return [
+        "--pedigree",
+        str(rep.path(layout, RepArtifact.PEDIGREE)),
+        "--checks",
+        *checks,
+        "--output",
+        str(rep.path(layout, RepArtifact.VALIDATION)),
+        *_flags(values, {"phenotype_params1": _yaml, "phenotype_params2": _yaml}),
+    ]
+
+
 def _each_rep(reps: list[ResolvedRep], layout: Layout, artifact: RepArtifact) -> list[str]:
     return [str(rep.path(layout, artifact)) for rep in reps]
 
@@ -296,6 +310,8 @@ def plot_argv(reps: list[ResolvedRep], layout: Layout) -> list[str]:
         *_each_rep(reps, layout, RepArtifact.PLOT_PAYLOAD),
         "--samples",
         *_each_rep(reps, layout, RepArtifact.PLOTTING_SAMPLE),
+        "--validation",
+        *_each_rep(reps, layout, RepArtifact.VALIDATION),
         "--output-dir",
         str(layout.scenario_plots(first.folder, first.scenario)),
         *_flags(values, {"gen_censoring": _json}),
