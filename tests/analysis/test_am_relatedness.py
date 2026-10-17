@@ -3,9 +3,9 @@
 import pytest
 
 from simace.analysis.mate_correlation import mate_pedigree
-from simace.analysis.validate import build_validation_report
-from simace.analysis.validate._common import mate_correlations
-from simace.analysis.validate.am_relatedness import (
+from simace.analysis.quality import build_quality_report
+from simace.analysis.quality._common import mate_correlations
+from simace.analysis.quality.am_relatedness import (
     am_expected_a_correlation,
     am_relatedness_mode,
     observed_mate_correlations,
@@ -75,7 +75,7 @@ class TestIntegration:
     def test_single_trait_am_fs_hs_pass_and_inflated(self):
         p = _params()
         df = run_simulation(**p)
-        rep = build_validation_report(df, p)
+        rep = build_quality_report(df, p)
         fs = rep["heritability"]["dz_sibling_A1_correlation"]
         hs = rep["half_sibs"]["half_sib_A1_correlation"]
         assert fs["passed"], fs["details"]
@@ -90,7 +90,7 @@ class TestIntegration:
     def test_no_am_keeps_random_mating_expectation(self):
         p = _params(assort1=0.0)
         df = run_simulation(**p)
-        rep = build_validation_report(df, p)
+        rep = build_quality_report(df, p)
         assert rep["heritability"]["dz_sibling_A1_correlation"]["expected"] == pytest.approx(0.5)
         assert rep["half_sibs"]["half_sib_A1_correlation"]["expected"] == pytest.approx(0.25)
 
@@ -99,7 +99,7 @@ class TestIntegration:
         are reported informationally (no pass/fail) rather than scored."""
         p = _params(assort2=0.5)
         df = run_simulation(**p)
-        rep = build_validation_report(df, p)
+        rep = build_quality_report(df, p)
         fs = rep["heritability"]["dz_sibling_A1_correlation"]
         hs = rep["half_sibs"]["half_sib_A1_correlation"]
         # informational: no "passed" key, observed value still reported
@@ -115,7 +115,7 @@ class TestIntegration:
         """variance_A is reported (not asserted) under AM; C/E stay scored."""
         p = _params()
         df = run_simulation(**p)
-        rep = build_validation_report(df, p)
+        rep = build_quality_report(df, p)
         v_a = rep["statistical"]["variance_A1"]
         assert "passed" not in v_a
         assert v_a.get("informational") is True
@@ -129,7 +129,7 @@ class TestIntegration:
         Var(A)(1-mu_A)/V_P, which is below the configured A."""
         p = _params(p_mztwin=0.05, G_ped=12, G_sim=12, assort1=0.6)
         df = run_simulation(**p)
-        rep = build_validation_report(df, p)
+        rep = build_quality_report(df, p)
         fal = rep["heritability"]["falconer_estimate_trait1"]
         assert fal["passed"], fal["details"]
         assert "AM-biased" in fal["details"]
@@ -138,12 +138,12 @@ class TestIntegration:
     def test_genetic_mate_correlation_reported(self):
         """validate_assortative_mating emits the genetic mate correlation mu_A."""
         p = _params(assort1=0.6)
-        am = build_validation_report(run_simulation(**p), p)["assortative_mating"]
+        am = build_quality_report(run_simulation(**p), p)["assortative_mating"]
         assert "mate_corr_A1" in am
         assert am["mate_corr_A1"]["observed"] > 0.1  # AM induces genetic mate corr
 
         p0 = _params(assort1=0.0)
-        am0 = build_validation_report(run_simulation(**p0), p0)["assortative_mating"]
+        am0 = build_quality_report(run_simulation(**p0), p0)["assortative_mating"]
         assert abs(am0["mate_corr_A1"]["observed"]) < 0.1  # no AM -> ~0
 
     def test_observed_mate_correlations_positive_under_am(self):

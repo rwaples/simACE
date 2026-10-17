@@ -5,6 +5,10 @@
       show_root_heading: false
       show_if_no_docstring: false
 
+## quality
+
+::: simace.analysis.quality
+
 ## validate
 
 ::: simace.analysis.validate

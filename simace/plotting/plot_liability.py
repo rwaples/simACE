@@ -757,11 +757,11 @@ def plot_mate_correlation(
     """Plot 2x2 heatmap of empirical mate liability correlations with expected values.
 
     The expected panel is the validator's per-mating target
-    (:func:`~simace.analysis.validate.assortative_mating.recorded_matings`).
+    (:func:`~simace.analysis.quality.assortative_mating.recorded_matings`).
     A cell whose target varies by generation shows its range, colored at the
     midpoint.
     """
-    from simace.analysis.validate.assortative_mating import recorded_matings
+    from simace.analysis.quality.assortative_mating import recorded_matings
 
     # Average observed matrices across replicates
     matrices = []

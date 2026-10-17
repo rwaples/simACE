@@ -8,7 +8,7 @@ across generations — the Bulmer (1971) effect — to an equilibrium ``a²``.
 
 This module is the single source of truth for that equilibrium and for the
 generation-by-generation trajectory. The validation check
-(:mod:`simace.analysis.validate.am_equilibrium`) and the diagnostic plot
+(:mod:`simace.analysis.quality.am_equilibrium`) and the diagnostic plot
 (:mod:`simace.plotting.plot_am_equilibrium`) both consume it — change one, change
 the consumers.
 

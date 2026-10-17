@@ -106,18 +106,18 @@ def test_a_recompute_removes_the_reps_validation_yaml(project) -> None:
     assert not target.exists()
 
 
-def test_the_recorded_pedigree_debug_run_still_works(project, tmp_path) -> None:
+def test_a_per_rep_run_without_checks_is_rejected(project, tmp_path) -> None:
+    """The recorded-pedigree debug run is gone (ADR 0028); ``simace analyze`` runs those checks."""
     cfg, _, layout = project
     rep = _rep(cfg, 1)
-    out = tmp_path / "validation.yaml"
-    validate_cli(
-        [
-            "--pedigree",
-            str(rep.path(layout, RepArtifact.PEDIGREE)),
-            "--params",
-            str(rep.path(layout, RepArtifact.PARAMS)),
-            "--output",
-            str(out),
-        ]
-    )
-    assert "summary" in yaml.safe_load(out.read_text())
+    with pytest.raises(SystemExit):
+        validate_cli(
+            [
+                "--pedigree",
+                str(rep.path(layout, RepArtifact.PEDIGREE)),
+                "--params",
+                str(rep.path(layout, RepArtifact.PARAMS)),
+                "--output",
+                str(tmp_path / "validation.yaml"),
+            ]
+        )

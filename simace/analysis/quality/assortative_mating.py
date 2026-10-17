@@ -124,7 +124,7 @@ def validate_assortative_mating(
     Args:
         params: Scenario parameters (``params.yaml``).
         mates: The pedigree's mate correlations
-            (:func:`~simace.analysis.validate._common.mate_correlations`).
+            (:func:`~simace.analysis.quality._common.mate_correlations`).
         df: The pedigree, for per-generation mate correlations.
 
     Returns:

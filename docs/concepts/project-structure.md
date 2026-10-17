@@ -84,13 +84,17 @@ simACE/
 │   │   │   ├── censoring.py              # Censoring window, confusion matrix, cascade, person-years
 │   │   │   ├── effective_size.py         # Per-rep effective population size summary
 │   │   │   └── sampling.py               # Downsampling for scatter/histogram plot inputs
-│   │   └── validate/                     # Validation package (one module per check family)
-│   │       ├── runner.py                 # Validation orchestrator and CLI
-│   │       ├── structural.py, statistical.py
-│   │       ├── heritability.py, twins.py, half_sibs.py, consanguinity.py
-│   │       ├── assortative_mating.py, am_equilibrium.py, am_relatedness.py
-│   │       ├── population.py, effective_size.py
-│   │       └── _common.py                # Shared validation helpers
+│   │   ├── quality/                      # Analyze's quality checks (one module per check family; ADR 0028)
+│   │   │   ├── runner.py                 # build_quality_report: every family on the recorded pedigree
+│   │   │   ├── structural.py, statistical.py, c_transmission.py
+│   │   │   ├── heritability.py, twins.py, half_sibs.py, consanguinity.py
+│   │   │   ├── assortative_mating.py, am_equilibrium.py, am_relatedness.py
+│   │   │   ├── population.py
+│   │   │   └── _common.py                # Shared check helpers
+│   │   └── validate/                     # simace validate's on-demand checks (ADR 0027, 0028)
+│   │       ├── on_demand.py              # Check registry and run_on_demand
+│   │       ├── onset_tau.py              # Onset τ for frailty traits
+│   │       └── runner.py                 # Per-rep `simace validate --checks` primitive
 │   └── plotting/
 │       ├── plot_utils.py                 # Shared plotting helpers (finalize_plot, violin, heatmap)
 │       ├── plot_style.py                 # Color palette and shared style tokens

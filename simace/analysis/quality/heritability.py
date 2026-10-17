@@ -291,9 +291,9 @@ def validate_heritability(
             ``df``, for the midparent-offspring regressions.
         sibling_moments: Relationship moments of ``df`` over ``FS``, ``MHS``
             and ``PHS`` with the ``A{t}``, ``C{t}`` and ``P{t}`` columns
-            (:func:`~simace.analysis.validate._common.sibling_moments`).
+            (:func:`~simace.analysis.quality._common.sibling_moments`).
         mates: The pedigree's mate correlations, for the AM-aware expected
-            values (:func:`~simace.analysis.validate._common.mate_correlations`).
+            values (:func:`~simace.analysis.quality._common.mate_correlations`).
 
     Returns:
         Dict of check-name to result dicts, including MZ/DZ correlations,

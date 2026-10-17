@@ -11,7 +11,7 @@ simACE simulates multi-generational pedigrees with **A** (additive genetic), **C
   - `phenotype/` — `runner.py` (`run_phenotype` dispatcher), `hazards.py`, `blended_post.py`, and `models/` (subclasses of `PhenotypeModel`; the liability-threshold idiom is in `models/_prevalence.py`)
   - `censoring/` — age-window and death censoring
   - `ascertainment/` — unified dropout + case-weighted N_sample selection (ADR 0001)
-  - `analysis/` — `stats/`, `validate/` (one module per check family), `analyze.py`, `report.py`, `gather.py`
+  - `analysis/` — `stats/`, `quality/` (Analyze's quality checks, one module per check family), `validate/` (`simace validate`'s on-demand checks; ADR 0028), `analyze.py`, `report.py`, `gather.py`
   - `plotting/` — plot modules; atlas page order is in `atlas_manifest.py`
 - `scripts/examples/`, `scripts/gene_drop/` — standalone example-comparison and gene-drop scripts (not run by `simace run`)
 - `config/_default.yaml` — defaults; `config/{folder}.yaml` — scenario files (auto-discovered; `_`-prefixed files skipped)

@@ -6,7 +6,7 @@ import numpy as np
 import polars as pl
 from pedigree_graph import PedigreeGraph
 
-from simace.analysis.validate.half_sibs import household_sibling_counts
+from simace.analysis.quality.half_sibs import household_sibling_counts
 from simace.simulation.simulate import run_simulation
 
 

@@ -25,8 +25,8 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from pedigree_graph import RELATIONSHIPS, PedigreeGraph
 
+from simace.analysis.quality.am_relatedness import am_relatedness_mode
 from simace.analysis.stats.correlations import report_generations
-from simace.analysis.validate.am_relatedness import am_relatedness_mode
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.core.relationships import RELATIONSHIP_TYPES, transmission_active
 

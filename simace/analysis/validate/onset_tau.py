@@ -15,7 +15,7 @@ from __future__ import annotations
 from statistics import NormalDist
 from typing import TYPE_CHECKING, Any
 
-from ._common import _info, _result
+from simace.analysis.quality._common import _info, _result
 
 if TYPE_CHECKING:
     from collections.abc import Mapping

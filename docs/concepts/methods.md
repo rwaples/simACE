@@ -458,7 +458,7 @@ The true liability-scale heritability in `report.yaml` is $\mathrm{Var}(A) / \ma
 
 Every simulated individual has known parameters, so every output can be checked against expectation. Validation confirms both that the code works and that the estimators do.
 
-The Analyze stage calls `simace.analysis.validate` to run ten check families on each replicate:
+The Analyze stage calls `simace.analysis.quality` to run ten quality-check families on each replicate:
 
 - **Structural** (`validate_structural`). Identifiers are contiguous. Parent references are valid IDs or $-1$ for founders. Mothers are female and fathers are male. The sex ratio lies in $[0.45, 0.55]$.
 - **Statistical** (`validate_statistical`). Founder variances of $A$, $C$, and $E$ match the configured values. Total variance is near 1. The cross-trait correlations $r_A$, $r_C$, and $r_E$ match. $C$ is identical within households, or within mating pairs when the paternal transmission coefficient is nonzero. $E$ is uncorrelated between siblings.
@@ -471,7 +471,7 @@ The Analyze stage calls `simace.analysis.validate` to run ten check families on 
 - **AM equilibrium** (`validate_am_equilibrium`). Under assortative mating, the final-generation $\mathrm{Var}(A)$ matches the infinitesimal-recursion prediction. Combined with C transmission the check is informational, because the recursion omits the $A$-$C$ covariance that assortment then induces.
 - **Consanguinity** (`validate_consanguineous_matings`). Consanguineous matings are detected, and the resulting shortfall in distinct grandparents is reconciled.
 
-Correlation checks use a tolerance of four standard errors with a floor of 0.05. See `_corr_tolerance` in `simace.analysis.validate._common`.
+Correlation checks use a tolerance of four standard errors with a floor of 0.05. See `_corr_tolerance` in `simace.analysis.quality._common`.
 
 ### On-demand checks
 

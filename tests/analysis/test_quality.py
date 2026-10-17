@@ -1,16 +1,14 @@
-"""Tests for simace.analysis.validate — pedigree validation functions."""
+"""Tests for simace.analysis.quality — Analyze's quality-check families."""
 
 import numpy as np
 import polars as pl
 import pytest
-import yaml
 
 from simace.analysis.mate_correlation import mate_pedigree
-from simace.analysis.validate import (
-    build_validation_report,
+from simace.analysis.quality import (
+    build_quality_report,
     compute_family_size_distribution,
     compute_per_generation_stats,
-    run_validation,
     validate_assortative_mating,
     validate_consanguineous_matings,
     validate_half_sibs,
@@ -20,13 +18,9 @@ from simace.analysis.validate import (
     validate_structural,
     validate_twins,
 )
-from simace.analysis.validate import (
-    cli as validate_cli,
-)
-from simace.analysis.validate._common import mate_correlations, sibling_moments
-from simace.analysis.validate.assortative_mating import recorded_matings
+from simace.analysis.quality._common import mate_correlations, sibling_moments
+from simace.analysis.quality.assortative_mating import recorded_matings
 from simace.ascertainment import run_ascertainment
-from simace.core.parquet import save_parquet
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.simulation.assortment import AssortmentPlan
 from simace.simulation.simulate import resolve_per_gen_param, run_simulation
@@ -579,7 +573,7 @@ class TestValidateAssortativeMating:
             "assort1": 0.8,
             "assort2": 0.8,
         }
-        result = build_validation_report(run_simulation(**params), params)["assortative_mating"]
+        result = build_quality_report(run_simulation(**params), params)["assortative_mating"]
         for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
             assert result[key]["expected"] == pytest.approx(0.8 * 0.6 * 0.8)
             assert result[key]["passed"], result[key]["details"]
@@ -603,7 +597,7 @@ class TestValidateAssortativeMating:
             "assort1": 0.0,
             "assort2": 0.8,
         }
-        result = build_validation_report(run_simulation(**params), params)["assortative_mating"]
+        result = build_quality_report(run_simulation(**params), params)["assortative_mating"]
         assert result["mate_corr_liability1"]["expected"] == pytest.approx(0.2)
         _all_passed(result)
 
@@ -627,7 +621,7 @@ class TestValidateAssortativeMating:
             "assort1": 0.5,
             "assort2": 0.5,
         }
-        result = build_validation_report(run_simulation(**params), params)["assortative_mating"]
+        result = build_quality_report(run_simulation(**params), params)["assortative_mating"]
         assert _gen_keys(result, "mate_corr_cross_12") == [f"mate_corr_cross_12_gen{g}" for g in range(3)]
         _all_passed(result)
 
@@ -643,7 +637,7 @@ class TestValidateAssortativeMating:
             "assort1": {0: 0.1, 4: 0.4},
             "assort2": 0.3,
         }
-        result = build_validation_report(run_simulation(**params), params)["assortative_mating"]
+        result = build_quality_report(run_simulation(**params), params)["assortative_mating"]
         targets = {m.parents_generation: m.expected for m in recorded_matings(params)}
         for g in range(3):
             assert result[f"mate_corr_liability1_gen{g}"]["expected"] == pytest.approx(targets[g][0, 0])
@@ -653,33 +647,22 @@ class TestValidateAssortativeMating:
 
 
 # ---------------------------------------------------------------------------
-# run_validation orchestrator + CLI
+# build_quality_report orchestrator
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="module")
-def written_scenario(tmp_path_factory, val_pedigree, val_params):
-    tmp = tmp_path_factory.mktemp("validate_scenario")
-    ped_path = tmp / "pedigree.parquet"
-    params_path = tmp / "params.yaml"
-    save_parquet(val_pedigree, ped_path)
-    with open(params_path, "w", encoding="utf-8") as fh:
-        yaml.safe_dump(val_params, fh)
-    return ped_path, params_path, tmp
+def quality_report(val_pedigree, val_params):
+    return build_quality_report(val_pedigree, val_params)
 
 
-class TestRunValidation:
-    def test_returns_summary(self, written_scenario):
-        ped_path, params_path, _ = written_scenario
-        result = run_validation(str(ped_path), str(params_path))
-        assert "summary" in result
-        s = result["summary"]
+class TestBuildQualityReport:
+    def test_returns_summary(self, quality_report):
+        s = quality_report["summary"]
         assert s["checks_total"] == s["checks_passed"] + s["checks_failed"]
         assert s["passed"] is (s["checks_failed"] == 0)
 
-    def test_top_level_categories_present(self, written_scenario):
-        ped_path, params_path, _ = written_scenario
-        result = run_validation(str(ped_path), str(params_path))
+    def test_top_level_categories_present(self, quality_report):
         for cat in (
             "structural",
             "twins",
@@ -694,14 +677,11 @@ class TestRunValidation:
             "family_size_distribution",
             "parameters",
         ):
-            assert cat in result, f"missing category {cat!r}"
+            assert cat in quality_report, f"missing category {cat!r}"
 
-    def test_parameters_round_trip(self, written_scenario, val_params):
-        ped_path, params_path, _ = written_scenario
-        result = run_validation(str(ped_path), str(params_path))
-        # Loaded params should match what we wrote
-        assert result["parameters"]["A1"] == val_params["A1"]
-        assert result["parameters"]["seed"] == val_params["seed"]
+    def test_parameters_round_trip(self, quality_report, val_params):
+        assert quality_report["parameters"]["A1"] == val_params["A1"]
+        assert quality_report["parameters"]["seed"] == val_params["seed"]
 
 
 class TestValidateNegativePaths:
@@ -761,18 +741,6 @@ class TestValidateNegativePaths:
         assert result["twin_bidirectional"]["passed"] is False
 
 
-class TestValidateCli:
-    def test_writes_output_yaml(self, written_scenario):
-        ped_path, params_path, tmp = written_scenario
-        out_path = tmp / "validation.yaml"
-        validate_cli(["--pedigree", str(ped_path), "--params", str(params_path), "--output", str(out_path)])
-        assert out_path.exists()
-        with open(out_path, encoding="utf-8") as fh:
-            loaded = yaml.safe_load(fh)
-        assert "summary" in loaded
-        assert "structural" in loaded
-
-
 def _trait_for(pedigree, seed=0):
     """Minimal censored-trait frame for the trailing two generations."""
     max_gen = int(pedigree["generation"].max())
@@ -813,7 +781,7 @@ def severed_pedigree(val_pedigree):
 class TestValidateOnAscertainedPedigrees:
     """Regression tests: validation used to crash on anything but a full pedigree.
 
-    `run_validation` accepts an arbitrary --pedigree path, so both shapes are
+    `build_quality_report` accepts any pedigree frame, so both shapes are
     supported inputs. Gapped ids raised IndexError out of consanguinity's
     id-indexed lookup (sized by row count, not max id); a severed parent raised
     KeyError out of assortative_mating's unguarded .loc.
@@ -822,14 +790,14 @@ class TestValidateOnAscertainedPedigrees:
     def test_gapped_ids_do_not_raise(self, gapped_pedigree, val_params):
         ids = gapped_pedigree["id"].to_numpy()
         assert ids.max() >= len(ids), "fixture must have non-contiguous ids"
-        report = build_validation_report(gapped_pedigree, val_params)
+        report = build_quality_report(gapped_pedigree, val_params)
         assert report["summary"]["checks_total"] > 0
 
     def test_severed_parents_do_not_raise(self, severed_pedigree, val_params):
         mother = severed_pedigree["mother"].to_numpy()
         father = severed_pedigree["father"].to_numpy()
         assert ((mother == -1) ^ (father == -1)).any(), "fixture must have one-parent rows"
-        report = build_validation_report(severed_pedigree, val_params)
+        report = build_quality_report(severed_pedigree, val_params)
         assert report["summary"]["checks_total"] > 0
 
     def test_consanguinity_skips_rows_with_a_severed_parent(self, severed_pedigree, val_params):

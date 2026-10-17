@@ -9,8 +9,8 @@ skipped with their state. Like ``simace run`` it takes each scenario's lock,
 so it never reads a rep a run is rewriting, and a later recompute of a rep
 removes its ``validation.yaml``.
 
-``simace validate --pedigree ...`` is the per-rep primitive (and the older
-recorded-pedigree debug run): see :func:`simace.analysis.validate.runner.cli`.
+``simace validate --pedigree ... --checks ...`` is the per-rep primitive: see
+:func:`simace.analysis.validate.runner.cli`.
 """
 
 from __future__ import annotations

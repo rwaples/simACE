@@ -2,13 +2,13 @@
 
 Covers the theory module (:mod:`simace.simulation.am_equilibrium`) — including
 the algebraic identity with the Herzig et al. (2026) closed form — and the
-validation check (:mod:`simace.analysis.validate.am_equilibrium`).
+validation check (:mod:`simace.analysis.quality.am_equilibrium`).
 """
 
 import numpy as np
 import pytest
 
-from simace.analysis.validate import validate_am_equilibrium
+from simace.analysis.quality import validate_am_equilibrium
 from simace.simulation.am_equilibrium import am_equilibrium_variance, am_variance_trajectory
 from simace.simulation.simulate import run_simulation
 

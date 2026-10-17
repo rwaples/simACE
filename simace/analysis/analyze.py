@@ -39,6 +39,7 @@ from simace.core.relationships import DEFAULT_MAX_DEGREE
 from simace.core.trait_schema import hydrate_trait
 from simace.core.yaml_io import dump_yaml, load_yaml
 
+from .quality import build_quality_report
 from .report import assemble_report
 from .stats.runner import (
     LIABILITY_COMPONENT_COLUMNS,
@@ -47,7 +48,6 @@ from .stats.runner import (
     create_sample,
 )
 from .truth import recorded_pedigree_truth
-from .validate import build_validation_report
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -112,7 +112,7 @@ def run_analysis(
     logger.info("Analyze phase 1/3: validating %s", pedigree_path)
     df_full = read_pedigree(pedigree_path)
     graph = PedigreeGraph.from_frame(df_full)
-    validation_report = build_validation_report(df_full, params, graph)
+    quality_report = build_quality_report(df_full, params, graph)
     recorded_truth = recorded_pedigree_truth(
         df_full, params, max_degree, clips=read_c_transmission_clips(pedigree_path), graph=graph
     )
@@ -170,7 +170,7 @@ def run_analysis(
         replicate={"folder": folder, "scenario": scenario, "rep": rep, "seed": seed},
         params=params,
         case_ascertainment_ratio=case_ascertainment_ratio,
-        validation_report=validation_report,
+        validation_report=quality_report,
         stats_report=stats_report,
         prevalence_phenotyped=prevalence_phenotyped,
         scope_counts=scope_counts,

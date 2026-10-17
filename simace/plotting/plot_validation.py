@@ -201,10 +201,10 @@ def _draw_am_reference(df: pd.DataFrame, ax: Axes, kind: str) -> bool:
     Drawn only for scenarios with trait-1 assortative mating. The AM-corrected
     expectation uses the observed genetic mate correlation ``mu_A``
     (``mate_corr_A1``) and liability mate correlation ``r_ho``
-    (``mate_corr_liability1``); see :mod:`simace.analysis.validate.am_relatedness`.
+    (``mate_corr_liability1``); see :mod:`simace.analysis.quality.am_relatedness`.
     Returns True if any marker was drawn (so the caller can add a legend).
     """
-    from simace.analysis.validate.am_relatedness import am_expected_a_correlation
+    from simace.analysis.quality.am_relatedness import am_expected_a_correlation
 
     if "mate_corr_A1" not in df.columns or "assort1" not in df.columns:
         return False

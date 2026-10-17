@@ -5,10 +5,10 @@ import polars as pl
 import pytest
 
 from simace.analysis.mate_correlation import mate_pedigree
-from simace.analysis.validate import build_validation_report, validate_half_sibs, validate_statistical
-from simace.analysis.validate._common import cluster_codes, mate_correlations, sibling_moments
-from simace.analysis.validate.am_equilibrium import validate_am_equilibrium
-from simace.analysis.validate.c_transmission import cluster_robust_ols, validate_c_transmission
+from simace.analysis.quality import build_quality_report, validate_half_sibs, validate_statistical
+from simace.analysis.quality._common import cluster_codes, mate_correlations, sibling_moments
+from simace.analysis.quality.am_equilibrium import validate_am_equilibrium
+from simace.analysis.quality.c_transmission import cluster_robust_ols, validate_c_transmission
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.simulation.simulate import run_simulation
 
@@ -167,7 +167,7 @@ def test_sibling_e_independence_uses_an_se_based_tolerance():
 
 
 def test_full_report_passes_on_a_random_mating_transmission_pedigree(rm_pedigree):
-    report = build_validation_report(rm_pedigree, _params(**_CT))
+    report = build_quality_report(rm_pedigree, _params(**_CT))
     failed = [
         f"{cat}.{name}: {r.get('details')}"
         for cat, checks in report.items()
