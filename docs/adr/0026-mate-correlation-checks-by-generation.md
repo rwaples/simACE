@@ -7,6 +7,12 @@ Accepted and implemented 2026-10-16 for issue #64, in
 `validate_assortative_mating`) and
 `simace/analysis/mate_correlation.py` (`mate_correlation_by_generation`).
 
+**Status note (2026-10-17).** [ADR 0028](0028-analyze-validate-boundary.md)
+classes the per-generation `mate_corr_*_gen{g}` checks as calibrated tests: at
+about 3 SE near N = 1000 they fail correct reps. They move to `simace
+validate` with a valid SE, and the multiplicity rule this ADR deferred
+arrives with that move. Until then they stay in Analyze unchanged.
+
 ## Context
 
 `validate_assortative_mating` compares the Pearson mate correlation over every

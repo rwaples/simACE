@@ -33,6 +33,13 @@ the `cohort` stage writes while it holds the censored phenotyped rows. The
 three memory phases and the report contract below are unchanged; phase 2
 reads that file instead of loading and hydrating the trait rows.
 
+**Status note (2026-10-17).** [ADR 0028](0028-analyze-validate-boundary.md)
+reuses the name `validation.yaml`, retired here, for `simace validate`'s
+per-rep on-demand results, with a required `schema` block that tells it apart
+from the old files. `quality_checks` keeps only quality checks: checks whose
+failure means the rep is wrong. Analyze's check families move to
+`simace/analysis/quality/`.
+
 ## Context
 
 The merged `report.yaml` had its shape dictated by the producer seams — a `validation` group beside the six stats

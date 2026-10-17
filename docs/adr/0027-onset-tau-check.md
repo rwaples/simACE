@@ -11,6 +11,13 @@ recorded here. Accepted 2026-10-17: the calibration in `config/onset_tau.yaml`
 assortative mating, a sex effect) passed every one of the 161 prespecified
 tests of `scripts/onset_tau_calibration.py` at a familywise 5%.
 
+**Status note (2026-10-17).** [ADR 0028](0028-analyze-validate-boundary.md)
+amends §1 and §8. A check goes to `simace validate` because it is a
+calibrated test, not because of its cost. Onset τ keeps its cells, target, SE
+and per-rep Bonferroni bound, but the bound now feeds a verdict across reps
+(the acceptance tests below, run by `simace validate` itself) and no longer
+sets a per-rep pass.
+
 - Per scenario × cell: mean z from −0.287 to +0.187, SD from 0.876 to 1.167,
   every cell scored in every rep.
 - Pooled per cell type over 500 reps: mean z from −0.056 to +0.064, SD from

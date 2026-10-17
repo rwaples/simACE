@@ -270,7 +270,7 @@ The pipeline runs the following stages in order. Each has its own `simace <stage
 2. **Phenotype** — apply the phenotype model per trait to produce binary affection + onset. Package: `simace/phenotype/` (noun form, **not** "phenotyping"). The only stage where noun-form is enforced because "phenotype" the noun is also a domain word.
 3. **Censor** — apply age-window and death censoring to event times. Package: `simace/censoring/`.
 4. **Ascertainment** — unified dropout + case-ascertainment + $N_{\text{sample}}$ selection (per ADR 0001). Noun form. Replaces the older `dropout` + `sample` two-stage split.
-5. **Analyze** — combined production of ground-truth sanity checks and descriptive stats. Verb form. Folds the former validate and stats steps into one pipeline stage that emits a single curated per-replicate report plus a plot payload (ADR 0008).
+5. **Analyze** — combined production of quality checks, ground truth, and descriptive stats. Verb form. Folds the former validate and stats steps into one pipeline stage that emits a single curated per-replicate report plus a plot payload (ADR 0008).
 6. **Plot** — render each scope's plot **atlas**. Package: `simace/plotting/`. The default, always-built rendering is a self-contained **HTML atlas** (`atlas.html`); a multi-page **PDF atlas** (`atlas.pdf`) is an on-demand export (ADR 0010).
 
 _Avoid_: "phenotyping" (killed), "subsampling" / "dropout stage" (killed — see **Ascertainment**), "validation stage" / "stats stage" as separate pipeline stages (use **Analyze** for the combined stage; use **Per-replicate scientific report** / **Plot payload** when referring to artifacts), "statistics" (use "stats"), "simulation stage" (just say "the simulate stage").
@@ -279,8 +279,16 @@ _Avoid_: "phenotyping" (killed), "subsampling" / "dropout stage" (killed — see
 The curated Analyze-stage report for one replicate. It summarizes quality checks, ground truth, observed post-ascertainment summaries, and estimator outputs, with every quantity labeled by the population scope it describes. Report scopes are **recorded pedigree** (`pedigree.parquet`, the full pre-ascertainment recorded pedigree), **phenotyped population** (the full pre-ascertainment phenotyped/censored rows, summarized in `phenotyped_population.yaml`), **analysis sample** (the **Cohort** rows with `affected1` not null), and **analysis pedigree** (every **Cohort** member: the ancestor-closure pedigree supporting the analysis sample). The analysis sample and analysis pedigree, route by route: [Ascertainment, Who is in `cohort.parquet`](docs/user-guide/ascertainment.md#who-is-in-cohortparquet). It is not a plot cache and not a cross-replicate aggregate.
 _Avoid_: phenotype statistics, stats dump, summary YAML, plot payload.
 
+**Quality check**:
+A pass/fail check whose failure means the replicate is wrong: an invariant, or a comparison against a gross-error floor wide enough that a correct simulation essentially never fails it. Analyze runs quality checks on every replicate, and the per-replicate scientific report carries them. A quality check that needs outcomes a replicate does not store is an **on-demand check** instead.
+_Avoid_: sanity check, validation check (ambiguous between the two kinds), rep check.
+
+**Calibrated test**:
+A statistical test that the simulator's output, or a quantity simACE reports from it (such as a standard error), agrees with the model it comes from, with a designed false-positive rate: a correct simulation fails it in a known share of replicates. One replicate's result is one draw, so the verdict is the rate across replicates, not any single replicate's pass or fail. Every calibrated test is an **on-demand check**, whatever it costs. The **onset τ** check is one.
+_Avoid_: model test, statistical check, calibration check.
+
 **On-demand check**:
-A validation check that `simace run` never runs, because it costs too much to run on every replicate or needs outcomes a replicate does not store. `simace validate` runs it on complete replicates and writes each replicate's `validation.yaml`, separate from the per-replicate scientific report's quality checks, which Analyze runs on every replicate. The **onset τ** check is one.
+Any check `simace validate` runs and `simace run` never does: every **calibrated test**, plus any **quality check** that needs outcomes a replicate does not store or costs too much to run on every replicate. `simace validate` runs on-demand checks on complete replicates; their results sit beside the per-replicate scientific report, not in it.
 _Avoid_: deep check, optional check, slow check, extended validation.
 
 **Plot payload**:
