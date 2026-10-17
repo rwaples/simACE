@@ -80,12 +80,13 @@ def compute_per_generation_stats(df: _Frame, params: dict[str, Any]) -> dict[str
 def validate_population(df: _Frame, params: dict[str, Any]) -> dict[str, Any]:
     """Validate population-level properties.
 
-    Checks that each generation has exactly ``N`` individuals, the number of
-    generations equals ``G_ped``, and the mean offspring per mother is
-    approximately ``N / n_females`` (always ~2.0 for balanced sex ratios).
+    Checks that each generation's id range holds exactly ``N`` individuals,
+    that the ``generation`` column's distinct labels are ``0..G_ped-1``, and
+    that the mean offspring per mother is approximately ``N / n_females``
+    (always ~2.0 for balanced sex ratios).
 
     Args:
-        df: Pedigree DataFrame with columns id and mother.
+        df: Pedigree DataFrame with columns id, generation and mother.
         params: Scenario parameters; requires keys ``N``, ``G_ped``.
 
     Returns:
@@ -106,11 +107,15 @@ def validate_population(df: _Frame, params: dict[str, Any]) -> dict[str, Any]:
         observed=gen_sizes,
     )
 
+    # The ``generation`` column, not the id ranges above: a correct pedigree
+    # labels its G_ped recorded generations 0..G_ped-1 with none missing.
+    generations = np.sort(df["generation"].to_numpy())
+    labels = generations[np.r_[True, generations[1:] != generations[:-1]]].tolist() if generations.size else []
     results["generation_count"] = _result(
-        len(gen_sizes) == ngen,
-        f"Number of generations: {len(gen_sizes)} (expected: {ngen})",
+        labels == list(range(ngen)),
+        f"Generation labels: {_label_summary(labels)} (expected: 0..{ngen - 1})",
         expected=ngen,
-        observed=len(gen_sizes),
+        observed=len(labels),
     )
 
     mothers_all = df["mother"].to_numpy()
@@ -131,6 +136,13 @@ def validate_population(df: _Frame, params: dict[str, Any]) -> dict[str, Any]:
         results["family_size"] = _result(True, "No non-founders to check family size")
 
     return results
+
+
+def _label_summary(labels: list[int]) -> str:
+    """``labels`` in full when short, else its count and ends."""
+    if len(labels) <= 10:
+        return str(labels)
+    return f"{len(labels)} labels from {labels[0]} to {labels[-1]}"
 
 
 def compute_family_size_distribution(df: _Frame, params: dict[str, Any]) -> dict[str, Any]:

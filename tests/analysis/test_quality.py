@@ -320,6 +320,29 @@ class TestValidatePopulation:
         assert "generation_sizes" in result
         assert "generation_count" in result
 
+    def test_generation_count_reports_the_number_of_labels(self, val_pedigree, val_params):
+        count = validate_population(val_pedigree, val_params)["generation_count"]
+        assert count["passed"] is True
+        assert count["observed"] == count["expected"] == val_params["G_ped"]
+
+    @pytest.mark.parametrize(
+        "relabel",
+        [
+            pytest.param(lambda g: np.where(g == 2, 1, g), id="missing-last"),
+            pytest.param(lambda g: np.where(g == 1, 2, g), id="gap"),
+            pytest.param(lambda g: g + 1, id="shifted"),
+            pytest.param(lambda g: np.where(g == 2, 3, g), id="beyond-G_ped"),
+            pytest.param(lambda g: np.where(np.arange(len(g)) == 0, 7, g), id="one-stray-row"),
+        ],
+    )
+    def test_generation_count_fails_on_wrong_generation_labels(self, val_pedigree, val_params, relabel):
+        generation = relabel(val_pedigree["generation"].to_numpy())
+        ped = _with_column_values(val_pedigree, "generation", generation)
+        result = validate_population(ped, val_params)
+        assert result["generation_count"]["passed"] is False
+        # The id ranges are untouched, so only the label check sees the damage.
+        assert result["generation_sizes"]["passed"] is True
+
 
 class TestComputeFamilySizeDistribution:
     def test_structure(self, val_pedigree, val_params):
