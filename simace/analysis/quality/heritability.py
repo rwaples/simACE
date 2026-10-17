@@ -103,8 +103,7 @@ def _validate_mz_correlations(
             )
     else:
         for t in [1, 2]:
-            results[f"mz_twin_A{t}_correlation"] = _result(
-                True,
+            results[f"mz_twin_A{t}_correlation"] = _info(
                 f"Not enough MZ twin pairs ({len(t1_arr)}) to compute correlation",
             )
             mz_pheno_corr[t] = None
@@ -171,8 +170,7 @@ def _validate_dz_correlations(
 
     if n_dz_pairs < _MIN_PAIRS_FOR_CORR:
         for t in [1, 2]:
-            results[f"dz_sibling_A{t}_correlation"] = _result(
-                True,
+            results[f"dz_sibling_A{t}_correlation"] = _info(
                 f"Not enough DZ sibling pairs ({n_dz_pairs}) to compute correlation",
             )
             dz_pheno_corr[t] = None
@@ -227,8 +225,7 @@ def _validate_falconer(
         mz_c = mz_pheno_corr.get(t)
         dz_c = dz_pheno_corr.get(t)
         if mz_c is None or dz_c is None or np.isnan(mz_c) or np.isnan(dz_c):
-            results[f"falconer_estimate_trait{t}"] = _result(
-                True,
+            results[f"falconer_estimate_trait{t}"] = _info(
                 "Cannot compute Falconer estimate without both MZ and DZ correlations",
             )
             continue

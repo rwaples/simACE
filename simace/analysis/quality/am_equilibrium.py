@@ -40,11 +40,11 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
     observed final-generation ``Var(A)`` against the infinitesimal recursion
     prediction; reports the closed-form equilibrium ``a²`` alongside.
 
-    Skips (passing, with a reason) the per-trait check when the equilibrium is
-    ill-defined or not modelled by the univariate recursion: per-generation
-    (dict-valued) AM / C / E, or both-trait assortment (cross-trait paths).
-    Reports without asserting under C transmission, whose A-C covariance the
-    recursion omits (ADR 0025).
+    Reports the per-trait result as informational, without asserting it, when
+    the equilibrium is ill-defined or not modelled by the univariate
+    recursion: per-generation (dict-valued) AM / C / E, both-trait assortment
+    (cross-trait paths), or C transmission, whose A-C covariance the recursion
+    omits (ADR 0025).
 
     Args:
         df: Pedigree DataFrame with ``id`` and ``A1``/``A2`` columns.
@@ -79,8 +79,7 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
         if mode == "none":
             continue
         if mode == "bivariate":
-            results[f"am_equilibrium_A{t}"] = _result(
-                True,
+            results[f"am_equilibrium_A{t}"] = _info(
                 f"Both-trait AM active; AM Var(A{t}) equilibrium not validated "
                 f"(cross-trait paths not in the univariate recursion).",
             )
@@ -92,8 +91,7 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
         E = params.get(f"E{t}")
 
         if isinstance(assort_t, dict) or isinstance(C, dict) or isinstance(E, dict):
-            results[f"am_equilibrium_A{t}"] = _result(
-                True,
+            results[f"am_equilibrium_A{t}"] = _info(
                 f"Per-generation AM/C/E (dict-valued); AM equilibrium ill-defined, skipping trait {t}.",
             )
             continue

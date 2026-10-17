@@ -103,9 +103,10 @@ class TestValidation:
         df = run_simulation(**p)
         assert validate_am_equilibrium(df, p) == {}
 
-    def test_bivariate_am_skips_with_reason(self):
+    def test_bivariate_am_is_informational_with_reason(self):
         p = _params(assort2=0.5)
         df = run_simulation(**p)
         res = validate_am_equilibrium(df, p)
-        assert res["am_equilibrium_A1"]["passed"]
+        assert res["am_equilibrium_A1"].get("informational") is True
+        assert "passed" not in res["am_equilibrium_A1"]
         assert "cross-trait" in res["am_equilibrium_A1"]["details"]
