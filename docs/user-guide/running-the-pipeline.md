@@ -86,31 +86,71 @@ scenario.
 
 ```bash
 pixi run simace validate base --jobs 8
-pixi run simace run base     # rebuilds the atlas with the new pages
-pixi run simace gather base  # adds the check columns to report_summary.tsv
+pixi run simace gather base  # copies the verdicts into verdicts.tsv
 ```
 
-`simace run` computes only the checks Analyze runs on every replicate.
-`simace validate` runs the on-demand ones: checks that cost too much for every
-replicate or need outcomes the replicate does not store. Today that is onset τ
+`simace run` runs only Analyze's quality checks, whose failure means the
+replicate is wrong. `simace validate` runs the calibrated tests: checks with a
+designed false-positive rate, so one replicate's result is one draw and the
+verdict is decided across replicates
+([ADR 0028](../adr/0028-analyze-validate-boundary.md)). Today that is onset τ
 for frailty traits ([Methods, Onset τ](../concepts/methods.md#onset-τ)), which
 regenerates the phenotyped population's raw onsets from the replicate's seed.
-It works on complete replicates only, skipping the others with their state,
-and writes each replicate's `validation.yaml`. `--rep` limits the replicates
-of one scenario, `--checks` the check families, and `--dry-run` prints the
-per-replicate commands. Like `simace run` it takes each scenario's lock, and a
-later recompute of a replicate removes its `validation.yaml`.
 
-It prints one line per replicate (`passed`, or `FAILED n check(s)`) and a
-summary per scenario. Failing checks do not change the exit code: at a
-familywise 5%, about one replicate in twenty fails by chance. It exits 1 only
-when a replicate's command errors (its log is under `logs/`).
+It works on complete replicates only, skipping the others with their state,
+and writes each replicate's `validation.yaml`. A replicate whose
+`validation.yaml` already holds the requested checks from the same build (the
+simace version and `git describe`, ignoring `-dirty`) is not validated again;
+`--force` validates it anyway, which you need after changing code without
+committing. `--rep` limits the replicates of one scenario, `--checks` the
+check families, and `--dry-run` prints the per-replicate commands and the plot
+commands of each scenario whose replicates are all complete, current or not.
+Like `simace run` it takes each scenario's lock, and a later recompute of a
+replicate removes its `validation.yaml` and both verdicts.
+
+It prints one line per replicate (the cells scored and the largest |z|, never
+a pass), then each scenario's verdict, and the folder's for a folder target:
+
+```text
+[onset_tau_weibull] verdict pass: 27 test(s) at alpha 1.85e-03 each, familywise 0.05 over 100 rep(s); results/onset_tau/onset_tau_weibull/validation_summary.yaml
+[onset_tau] folder verdict pass: 161 test(s) at alpha 3.11e-04 each, familywise 0.05 over 500 rep(s); results/onset_tau/validation_summary.yaml
+```
+
+A verdict is `pass`, `fail`, or `insufficient`. Each family holds every test
+at a familywise 5%. A test with fewer replicates than it needs, 20 for onset
+τ, is `insufficient`, never pass. Each verdict is written to
+`validation_summary.yaml`
+([Output structure](output-structure.md#validation_summaryyaml)). A scenario
+gets one only when every complete replicate was validated with every test by
+one build, and a folder only when it is the target and every scenario has
+one; otherwise the command prints `no verdict` and why. Cite the folder's
+verdict: it also pools each test across scenarios, which needs their rep seed
+ranges not to overlap.
+
+Then it rebuilds the plots and atlas of each scenario whose replicates are all
+complete and whose plots no longer show the current verdict; the onset-τ page
+shows it. `--no-plots` skips this. `simace gather` copies the verdicts into
+`results/{folder}/verdicts.tsv` and draws the folder's verdict as the first
+page of the validation atlas; it decides nothing. When a verdict changes after
+a gather, `simace validate` says to rerun `simace gather`.
+
+| Exit code | When |
+|---|---|
+| 0 | No target's own verdict is `fail`, including `insufficient` and no verdict |
+| 1 | A replicate's command errored (its log is under `logs/`), a plot rebuild failed, or another run holds a scenario's lock. Takes precedence over 3 |
+| 2 | A bad target or option |
+| 3 | A target's own verdict is `fail`: the folder verdict for a folder target, the scenario verdict for a scenario target |
+
+A scenario's `fail` inside a folder target is printed but does not set the
+exit code. Each scenario family is at a familywise 5%, so five of them would
+fail a correct folder about 23% of the time. To fail on a scenario, name it
+as a target. Replicates are seeded, so a `fail` repeats until the code or the
+seeds change.
 
 The per-replicate command takes explicit files and flags, like the stage
 subcommands: `simace validate --pedigree … --seed … --checks onset_tau
 --output …` plus the phenotype flags of `simace cohort`. Analyze's quality
-checks are not part of `simace validate`; `simace analyze` runs them
-(ADR 0028).
+checks are not part of `simace validate`; `simace analyze` runs them.
 
 ## Rerun and resume
 

@@ -13,6 +13,18 @@
 
 ::: simace.analysis.validate
 
+### validate.verdict
+
+::: simace.analysis.validate.verdict
+
+### validate.calibrated
+
+::: simace.analysis.validate.calibrated
+
+### validate.on_demand
+
+::: simace.analysis.validate.on_demand
+
 ## stats
 
 ::: simace.analysis.stats
