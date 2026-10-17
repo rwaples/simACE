@@ -236,6 +236,36 @@ class TestValidateStatistical:
         assert "total_variance_trait1" in result
         assert "total_variance_trait2" in result
 
+    def test_cross_trait_rA_is_scored_under_random_mating(self, val_pedigree, val_params):
+        assert validate_statistical(val_pedigree, val_params)["cross_trait_rA"]["passed"] is True
+
+    @pytest.mark.parametrize(
+        "assort",
+        [
+            pytest.param({"assort1": 0.3}, id="trait1"),
+            pytest.param({"assort2": 0.3}, id="trait2"),
+            pytest.param({"assort1": 0.3, "assort2": 0.3}, id="both-traits"),
+            pytest.param({"assort1": {0: 0.0, 2: 0.3}}, id="per-generation"),
+        ],
+    )
+    def test_cross_trait_rA_is_informational_under_assortative_mating(self, val_pedigree, val_params, assort):
+        # AM shifts the founders' rA away from the configured value, as it
+        # inflates Var(A), so it is reported with its observed value only.
+        result = validate_statistical(val_pedigree, {**val_params, **assort})
+        random_mating = validate_statistical(val_pedigree, val_params)
+        cross = result["cross_trait_rA"]
+        assert cross.get("informational") is True
+        assert "passed" not in cross
+        assert cross["observed"] == random_mating["cross_trait_rA"]["observed"]
+        # rC and rE do not depend on assortment and stay scored.
+        assert "passed" in result["cross_trait_rC"]
+        assert "passed" in result["cross_trait_rE"]
+
+    def test_cross_trait_rA_stays_scored_under_wright_fisher(self, val_pedigree, val_params):
+        # Wright-Fisher pairs at random whatever assortment it inherits.
+        params = {**val_params, "assort1": 0.3, "assort2": 0.3, "mating_model": "wright_fisher"}
+        assert "passed" in validate_statistical(val_pedigree, params)["cross_trait_rA"]
+
 
 class TestValidateHeritability:
     def test_result_present(self, heritability_result):

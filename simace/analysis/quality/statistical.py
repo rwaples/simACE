@@ -44,7 +44,9 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
 
     Checks founder variances for A, C, E against configured values, total
     variance close to 1.0, cross-trait correlations (rA, rC, rE), C sharing
-    within households, and E independence between siblings.
+    within households, and E independence between siblings. Under
+    assortative mating on a trait, its ``Var(A)`` and total variance and the
+    cross-trait ``rA`` are reported without being asserted.
 
     Args:
         df: Pedigree DataFrame with variance-component columns A1, C1, E1,
@@ -117,9 +119,18 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
                 observed=float(total),
             )
 
-    # Cross-trait correlations
+    # Cross-trait correlations. Assortative mating on either trait builds
+    # disequilibrium into the additive covariance as it does into Var(A), so
+    # the recorded founders' rA drifts from the configured value whenever
+    # rA != 0; there is no closed-form expectation to assert it against.
     for comp, expected, label in [("A", rA_param, "A"), ("C", rC_param, "C")]:
         obs = safe_corrcoef(founders[f"{comp}1"], founders[f"{comp}2"])
+        if comp == "A" and (am_active[1] or am_active[2]):
+            results[f"cross_trait_r{label}"] = _info(
+                f"Cross-trait {label} correlation: {obs:.4f} (configured {expected}; AM-shifted, not asserted under AM)",
+                observed=float(obs),
+            )
+            continue
         ok = abs(obs - expected) < 0.15 if not np.isnan(obs) else expected == 0
         results[f"cross_trait_r{label}"] = _result(
             ok,
