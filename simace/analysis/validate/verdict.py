@@ -23,6 +23,7 @@ from __future__ import annotations
 
 __all__ = [
     "SCHEMA",
+    "VERDICT_ALPHA",
     "Entry",
     "Verdict",
     "ZCalibration",
@@ -30,6 +31,8 @@ __all__ = [
     "folder_family",
     "load_verdict",
     "overlapping_seed_ranges",
+    "record_name",
+    "records",
     "scenario_family",
     "write_verdict",
 ]
@@ -289,12 +292,56 @@ def overlapping_seed_ranges(ranges: Mapping[str, tuple[int, int]]) -> list[tuple
 
 
 def write_verdict(path: Path, header: Mapping[str, Any], decided: Mapping[str, Any]) -> None:
-    """Write a ``validation_summary.yaml``: the schema, then ``header`` (who and which reps), then the decided family."""
-    from simace.core.publish import publish
-    from simace.core.yaml_io import dump_yaml
+    """Write a ``validation_summary.yaml``: the schema, then ``header`` (who and which reps), then the decided family.
 
+    An unchanged verdict leaves the file untouched, so the plots that show it stay current.
+    """
+    import yaml
+
+    from simace.core.publish import publish
+    from simace.core.yaml_io import to_native
+
+    text = yaml.dump(
+        to_native({"schema": dict(SCHEMA), **header, **decided}), default_flow_style=False, sort_keys=False
+    )
+    if path.exists() and path.read_text(encoding="utf-8") == text:
+        return
     with publish(path) as (tmp,):
-        dump_yaml({"schema": dict(SCHEMA), **header, **decided}, tmp)
+        tmp.write_text(text, encoding="utf-8")
+
+
+#: The keys under which :func:`decide` puts a family's records: a scenario's tests, or a folder's scenarios and pooled tests.
+_RECORD_KEYS = ("tests", "scenarios", "pooled")
+
+
+def records(verdict: Mapping[str, Any]) -> Iterator[tuple[tuple[str, ...], dict[str, Any]]]:
+    """Each record of a decided family, with its path: a record holds ``passed``, or ``insufficient`` and the reason."""
+
+    def walk(path: tuple[str, ...], node: Mapping[str, Any]) -> Iterator[tuple[tuple[str, ...], dict[str, Any]]]:
+        if "passed" in node or "insufficient" in node:
+            yield path, dict(node)
+            return
+        for key, child in node.items():
+            yield from walk((*path, key), child)
+
+    for key in _RECORD_KEYS:
+        if key in verdict:
+            yield from walk((key,), verdict[key])
+
+
+def record_name(path: tuple[str, ...]) -> str:
+    """A record's path without its grouping keys, such as ``b/onset_tau/trait1_FS/mean_z``.
+
+    That is ``("scenarios", "b", "onset_tau", "cells", "trait1_FS", "mean_z")`` in a folder's verdict. The
+    keys go by position, so a scenario or cell that shares a grouping key's name keeps it.
+    """
+    # The family key, then the test's name: after the scenario under ``scenarios`` and ``pooled``.
+    family, *rest = path
+    kept = rest if family in {"tests", "scenarios"} else [family, *rest]
+    test_at = 0 if family == "tests" else 1
+    if len(kept) > test_at + 1 and kept[test_at + 1] == "cells":
+        del kept[test_at + 1]
+    return "/".join(kept)
 
 
 def load_verdict(path: Path) -> dict[str, Any] | None:

@@ -651,7 +651,7 @@ def test_no_cgroup_message_names_the_actual_fallback(monkeypatch, capsys, max_me
 
     monkeypatch.setattr(run_mod.CgroupRoot, "open", unavailable)
     with ExitStack() as stack:
-        assert run_mod._open_cgroups(stack, max_memory) is None
+        assert run_mod.open_cgroups(stack, max_memory) is None
     assert capsys.readouterr().err == message
 
 
@@ -974,6 +974,7 @@ def _plotted(layout: Layout, reps: list[ResolvedRep], *outputs: str) -> None:
         layout.scenario_plots_manifest(folder, scenario),
         {f"rep{rep.rep}": _manifest(layout, rep) for rep in reps},
         [plots / name for name in outputs],
+        layout.scenario_verdict(folder, scenario),
     )
 
 
@@ -1019,6 +1020,25 @@ def test_plots_are_current_until_a_rep_or_atlas_changes(config_dir, layout) -> N
     _plotted(layout, reps, "atlas.html")
     layout.scenario_plots("t", "tiny").joinpath("atlas.html").unlink()
     assert scenario_plots_status(reps, layout).describe() == "stale (atlas.html missing)"
+
+
+def test_plots_are_stale_once_the_verdict_they_show_changes(config_dir, layout) -> None:
+    """The onset-τ page shows the scenario verdict, so writing, changing or removing it makes the plots stale."""
+    reps = [_rep(config_dir, r) for r in (1, 2)]
+    for rep in reps:
+        _finish(layout, rep)
+    _plotted(layout, reps, "atlas.html")
+    verdict = layout.scenario_verdict("t", "tiny")
+    verdict.write_text("verdict: insufficient\n")
+    assert scenario_plots_status(reps, layout).describe() == "stale (validation_summary.yaml written since)"
+    _plotted(layout, reps, "atlas.html")
+    assert scenario_plots_status(reps, layout).state is PlotsState.CURRENT
+    time.sleep(0.01)
+    verdict.write_text("verdict: pass\n")
+    assert scenario_plots_status(reps, layout).describe() == "stale (validation_summary.yaml changed since)"
+    _plotted(layout, reps, "atlas.html")
+    verdict.unlink()
+    assert scenario_plots_status(reps, layout).describe() == "stale (validation_summary.yaml removed since)"
 
 
 def test_run_summary_and_ls_report_the_plot_state(

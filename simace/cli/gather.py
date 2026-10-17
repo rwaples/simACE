@@ -1,4 +1,4 @@
-"""``simace gather <folder>``: summarize every complete rep report in a folder and plot it."""
+"""``simace gather <folder>``: summarize every complete rep report in a folder, copy its verdicts, and plot it."""
 
 from __future__ import annotations
 
@@ -6,18 +6,21 @@ __all__ = ["cli"]
 
 import argparse
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from simace.cli.layout import RepArtifact, add_root_args, resolve_roots
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from simace.cli.layout import Layout
 
 
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
-    """Write ``report_summary.tsv`` for a folder, then its validation plots and atlas.
+    """Write ``report_summary.tsv`` and ``verdicts.tsv`` for a folder, then its validation plots and atlas.
+
+    ``verdicts.tsv`` copies the folder's ``validation_summary.yaml`` and that
+    of each gathered scenario, which ``simace validate`` decided; gather
+    decides none (ADR 0028 §6).
 
     By default the folder is what ``config/{folder}.yaml`` lists: every rep
     of every runnable scenario there, counting the complete ones and naming
@@ -74,14 +77,26 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         print(f"simace gather: no complete reps under {layout.root / args.folder}", file=sys.stderr)
         raise SystemExit(1)
 
+    from simace.analysis.gather import gather_verdicts
     from simace.analysis.gather import main as gather_reports
     from simace.plotting.plot_validation import atlas_names
     from simace.plotting.plot_validation import main as plot_validation
 
     summary = layout.folder_summary(args.folder)
     gather_reports(reports, str(summary))
+    gathered = sorted({Path(report).parent.parent.name for report in reports})
+    gather_verdicts(
+        args.folder,
+        layout.folder_verdict(args.folder),
+        {name: layout.scenario_verdict(args.folder, name) for name in gathered},
+        layout.folder_verdicts(args.folder),
+    )
     plot_validation(
-        str(summary), layout.folder_plots(args.folder), plot_ext=args.plot_format, atlas_names=atlas_names(args.format)
+        str(summary),
+        layout.folder_plots(args.folder),
+        plot_ext=args.plot_format,
+        atlas_names=atlas_names(args.format),
+        verdict_path=layout.folder_verdict(args.folder),
     )
 
 

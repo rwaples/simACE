@@ -283,12 +283,21 @@ class PlotsStatus:
         return f"{self.state} ({', '.join(self.reasons)})" if self.reasons else str(self.state)
 
 
-def write_plots_manifest(path: Path, rep_manifests: Mapping[str, Path], outputs: Iterable[Path]) -> None:
-    """Publish ``plots.yaml``: the fingerprint of each rep's ``run.yaml`` and of each atlas the pass wrote."""
+def _verdict_fingerprint(verdict: Path) -> Fingerprint | None:
+    return fingerprints([verdict])[verdict.name] if verdict.exists() else None
+
+
+def write_plots_manifest(path: Path, rep_manifests: Mapping[str, Path], outputs: Iterable[Path], verdict: Path) -> None:
+    """Publish ``plots.yaml``: the fingerprint of each rep's ``run.yaml``, of the verdict, and of each atlas written.
+
+    ``verdict`` is the scenario's ``validation_summary.yaml``, which the
+    onset-τ page shows; None is recorded when there is none.
+    """
     body = {
         "simace_version": simace.__version__,
         "source": source_ref(),
         "reps": {label: fingerprints([manifest])[manifest.name] for label, manifest in rep_manifests.items()},
+        "verdict": _verdict_fingerprint(verdict),
         "outputs": fingerprints(outputs),
         "finished": datetime.now().isoformat(timespec="seconds"),
     }
@@ -296,14 +305,17 @@ def write_plots_manifest(path: Path, rep_manifests: Mapping[str, Path], outputs:
         dump_yaml(body, tmp)
 
 
-def plots_status(path: Path, rep_manifests: Mapping[str, Path], not_complete: Iterable[str] = ()) -> PlotsStatus:
-    """Compare ``plots.yaml`` at ``path`` with the reps' ``run.yaml`` files now.
+def plots_status(
+    path: Path, rep_manifests: Mapping[str, Path], verdict: Path, not_complete: Iterable[str] = ()
+) -> PlotsStatus:
+    """Compare ``plots.yaml`` at ``path`` with the reps' ``run.yaml`` files and the scenario verdict now.
 
     ``rep_manifests`` maps every configured rep's label to its ``run.yaml``;
     ``not_complete`` names the reps that are not complete now, which make the
     plots stale even when their manifest is unchanged (an output rewritten by
     hand). A rep recomputed since, not plotted, or dropped from the
-    configuration, or an atlas file changed or gone, also makes them stale.
+    configuration, a ``verdict`` written, changed or removed since, or an
+    atlas file changed or gone, also makes them stale.
     """
     if not path.exists():
         return PlotsStatus(PlotsState.ABSENT)
@@ -319,6 +331,13 @@ def plots_status(path: Path, rep_manifests: Mapping[str, Path], not_complete: It
         elif changed_outputs({manifest.name: recorded["reps"][label]}, [manifest]):
             reasons.append(f"{label} recomputed since")
     reasons.extend(f"{label} no longer configured" for label in recorded["reps"] if label not in rep_manifests)
+    plotted, now = recorded.get("verdict"), _verdict_fingerprint(verdict)
+    if plotted is None and now is not None:
+        reasons.append(f"{verdict.name} written since")
+    elif plotted is not None and now is None:
+        reasons.append(f"{verdict.name} removed since")
+    elif plotted != now:
+        reasons.append(f"{verdict.name} changed since")
     outputs = recorded.get("outputs") if isinstance(recorded.get("outputs"), dict) else {}
     for name in outputs:
         output = path.with_name(name)

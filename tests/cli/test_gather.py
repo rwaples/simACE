@@ -64,6 +64,10 @@ def test_gathers_every_finished_rep_with_its_timing_then_plots(tmp_path, plotted
     (args, kwargs) = plotted[0]
     assert args[1] == tmp_path / "fold" / "plots"
     assert kwargs["atlas_names"] == ("atlas.html", "atlas.pdf")
+    assert kwargs["verdict_path"] == tmp_path / "fold" / "validation_summary.yaml"
+    verdicts = pl.read_csv(tmp_path / "fold" / "verdicts.tsv", separator="\t")
+    assert verdicts.select("family", "name").rows() == [("folder", "fold"), ("scenario", "scA"), ("scenario", "scB")]
+    assert verdicts["verdict"].null_count() == 3, "no verdict file: gather writes none"
 
 
 def _tiny_folder(tmp_path: Path) -> tuple[Path, Layout]:

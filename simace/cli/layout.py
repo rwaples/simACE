@@ -149,6 +149,10 @@ class Layout:
         """Return the folder-level ``report_summary.tsv`` path."""
         return self.root / folder / "report_summary.tsv"
 
+    def folder_verdicts(self, folder: str) -> Path:
+        """Return ``{root}/{folder}/verdicts.tsv``: ``simace gather``'s copy of the folder's and scenarios' verdicts."""
+        return self.root / folder / "verdicts.tsv"
+
     def scenario_verdict(self, folder: str, scenario: str) -> Path:
         """Return ``{root}/{folder}/{scenario}/validation_summary.yaml``: the scenario's calibrated-test verdict."""
         return self.scenario_dir(folder, scenario) / VALIDATION_SUMMARY

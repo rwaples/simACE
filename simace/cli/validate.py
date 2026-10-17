@@ -21,6 +21,12 @@ is removed, and the command says why; so does a rep that fails validation.
 Validating a scenario without its folder removes the folder's verdict unless
 it still records that scenario's reps and build.
 
+Last, each scenario whose reps are all complete and whose plots are not
+current gets its plots and atlas rebuilt: the onset-τ page shows the verdict
+(ADR 0028 §6), and ``plots.yaml`` records the verdict it showed, so a verdict
+written, changed or removed makes the plots stale. An unchanged verdict is not
+rewritten, so its plots stay current. ``--no-plots`` skips the rebuild.
+
 Like ``simace run`` it takes each scenario's lock, so it never reads a rep a
 run is rewriting; a later recompute of a rep removes its ``validation.yaml``
 and both verdicts.
@@ -46,6 +52,7 @@ import simace
 from simace.analysis.validate.on_demand import ON_DEMAND_CHECKS, SCHEMA, load_validation
 from simace.analysis.validate.schema_file import one_warning_for_refused
 from simace.analysis.validate.verdict import (
+    VERDICT_ALPHA,
     decide,
     folder_family,
     load_verdict,
@@ -56,7 +63,16 @@ from simace.analysis.validate.verdict import (
 from simace.cli.launch import Launcher, child_env, command
 from simace.cli.layout import RepArtifact, add_root_args, require_config, resolve_roots
 from simace.cli.manifest import RepState, source_ref
-from simace.cli.run import ScenarioBusy, lock_scenario, plan_runs, rep_spec
+from simace.cli.run import (
+    ScenarioBusy,
+    incomplete_reps,
+    lock_scenario,
+    open_cgroups,
+    plan_runs,
+    plot_commands,
+    rebuild_plots,
+    rep_spec,
+)
 from simace.cli.stages import validate_argv
 from simace.cli.status import rep_ranges, rep_spans, status_on_disk
 
@@ -93,7 +109,18 @@ def _parse(argv: list[str] | None, prog: str | None) -> argparse.Namespace:
     parser.add_argument(
         "--force", action="store_true", help="Validate reps whose validation.yaml is already current, too"
     )
-    parser.add_argument("--dry-run", "-n", action="store_true", help="Print the per-rep commands; write nothing")
+    parser.add_argument(
+        "--dry-run", "-n", action="store_true", help="Print the per-rep and plot commands; write nothing"
+    )
+    parser.add_argument(
+        "--no-plots", action="store_true", help="Skip rebuilding each scenario's plots and atlas after its verdict"
+    )
+    parser.add_argument(
+        "--format",
+        choices=("html", "pdf"),
+        default="html",
+        help="pdf also writes plots/atlas.pdf beside the always-built atlas.html (default: html)",
+    )
     add_root_args(parser, logs=True)
     args = parser.parse_args(argv)
     if args.jobs < 1:
@@ -206,7 +233,7 @@ def _seed_range(run: ScenarioRun) -> tuple[int, int]:
 
 def _verdict_line(decided: dict[str, Any], n_reps: int, path: Path) -> str:
     if decided["n_tests"]:
-        tests = f"{decided['n_tests']} test(s) at alpha {decided['alpha_each']:.2e} each"
+        tests = f"{decided['n_tests']} test(s) at alpha {decided['alpha_each']:.2e} each, familywise {VERDICT_ALPHA}"
     else:
         tests = "no test decided"
     return f"verdict {decided['verdict']}: {tests} over {n_reps} rep(s); {path}"
@@ -268,6 +295,28 @@ def _folder_verdict(
     return line + (f"; pooling refused, {refused}" if refused else "")
 
 
+def _verdict_stamps(runs: list[ScenarioRun], layout: Layout) -> dict[str, list[tuple[int, int] | None]]:
+    """Per folder, the size and mtime of its verdict and of each run scenario's verdict, None for one absent.
+
+    ``verdicts.tsv`` and the validation atlas are `simace gather`'s snapshot of these files (ADR 0028 §6), and
+    an unchanged verdict is never rewritten, so a changed stamp means that snapshot is out of date.
+    """
+    paths: dict[str, list[Path]] = {}
+    for run in runs:
+        paths.setdefault(run.folder, [layout.folder_verdict(run.folder)]).append(
+            layout.scenario_verdict(run.folder, run.scenario)
+        )
+    return {folder: [_stamp(path) for path in files] for folder, files in paths.items()}
+
+
+def _stamp(path: Path) -> tuple[int, int] | None:
+    try:
+        st = path.stat()
+    except FileNotFoundError:
+        return None
+    return st.st_size, st.st_mtime_ns
+
+
 def _covers(run: ScenarioRun, validated: _Validated) -> dict[str, Any]:
     """What a folder verdict records of one scenario: its seed and the reps it read."""
     return {"seed": _seed_range(run)[0], "reps": rep_spans(validated.reps)}
@@ -309,6 +358,11 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     if args.dry_run:
         for rep in _stale(_complete_reps(runs, layout), layout, args.checks, source, args.force):
             print(shlex.join(command("validate", validate_argv(rep, layout, args.checks, source))))
+        if not args.no_plots:
+            for run in runs:
+                if not incomplete_reps(run, layout):
+                    for plot_command in plot_commands(run.all_reps, layout, args.format):
+                        print(shlex.join(plot_command))
         return
 
     lock = threading.Lock()
@@ -324,6 +378,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         with ExitStack() as stack:
             # Lock first, then classify, as `simace run` does: a run cannot rewrite a rep in between.
             lock_fds = tuple(lock_scenario(stack, run, layout) for run in runs)
+            verdicts_before = _verdict_stamps(runs, layout)
             complete = _complete_reps(runs, layout)
             todo = _stale(complete, layout, args.checks, source, args.force)
             launcher = Launcher(child_env(args.jobs), None, lock_fds)
@@ -348,8 +403,20 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
             for folder in dict.fromkeys(run.folder for run in runs if run.folder not in folders):
                 if line := _drop_stale_folder_verdict(folder, runs, validated, layout):
                     print(f"[{folder}] {line}")
+            verdicts_after = _verdict_stamps(runs, layout)
+            for folder, stamps in verdicts_after.items():
+                if stamps != verdicts_before[folder] and layout.folder_verdicts(folder).exists():
+                    print(
+                        f"[{folder}] verdicts changed since verdicts.tsv was gathered; rerun `simace gather {folder}`"
+                    )
+            # The onset-τ page shows the verdict: rebuild plots that no longer show it, under the locks still held.
+            plotted = args.no_plots
+            if not args.no_plots:
+                cgroups = open_cgroups(stack, None, "simace validate")
+                launcher = Launcher(child_env(1), None, lock_fds, cgroups)
+                plotted = rebuild_plots(runs, layout, args.format, launcher, stale_only=True)
     except ScenarioBusy as exc:
         print(f"simace validate: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
-    if errors:
+    if errors or not plotted:
         raise SystemExit(1)

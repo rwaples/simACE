@@ -45,7 +45,7 @@ def _rep(cfg: Path, rep: int) -> ResolvedRep:
 
 def test_writes_validation_yaml_for_each_complete_rep(project, capsys) -> None:
     cfg, roots, layout = project
-    validate_cli(["tiny", *roots])
+    validate_cli(["tiny", *roots, "--no-plots"])
     out = capsys.readouterr().out
     assert "[tiny] validated 2 rep(s), 0 already current, 0 errors" in out
     assert "onset_tau " in out
@@ -86,7 +86,7 @@ def test_incomplete_reps_are_skipped_with_their_state(project, capsys) -> None:
     saved = manifest.read_bytes()
     manifest.unlink()
     try:
-        validate_cli(["tiny", "--rep", "2", *roots])
+        validate_cli(["tiny", "--rep", "2", *roots, "--no-plots"])
     finally:
         manifest.write_bytes(saved)
     out = capsys.readouterr().out
@@ -99,7 +99,7 @@ def test_dry_run_prints_the_per_rep_command_and_writes_nothing(project, capsys) 
     cfg, roots, layout = project
     target = _rep(cfg, 1).path(layout, RepArtifact.VALIDATION)
     target.unlink(missing_ok=True)
-    validate_cli(["tiny", "--rep", "1", "--dry-run", *roots])
+    validate_cli(["tiny", "--rep", "1", "--dry-run", *roots, "--no-plots"])
     out = capsys.readouterr().out
     assert "validate --pedigree" in out
     assert "--checks onset_tau" in out
@@ -109,7 +109,7 @@ def test_dry_run_prints_the_per_rep_command_and_writes_nothing(project, capsys) 
 
 def test_a_recompute_removes_the_reps_validation_yaml_and_both_verdicts(project) -> None:
     cfg, roots, layout = project
-    validate_cli(["t", *roots])
+    validate_cli(["t", *roots, "--no-plots"])
     targets = [
         _rep(cfg, 1).path(layout, RepArtifact.VALIDATION),
         layout.scenario_verdict("t", "tiny"),
@@ -141,21 +141,21 @@ def test_a_per_rep_run_without_checks_is_rejected(project, tmp_path, capsys) -> 
 
 def test_current_reps_are_skipped_unless_forced(project, capsys) -> None:
     cfg, roots, layout = project
-    validate_cli(["tiny", *roots])
+    validate_cli(["tiny", *roots, "--no-plots"])
     target = _rep(cfg, 1).path(layout, RepArtifact.VALIDATION)
     written = target.stat().st_mtime_ns
     capsys.readouterr()
-    validate_cli(["tiny", *roots])
+    validate_cli(["tiny", *roots, "--no-plots"])
     assert "[tiny] validated 0 rep(s), 2 already current, 0 errors" in capsys.readouterr().out
     assert target.stat().st_mtime_ns == written
-    validate_cli(["tiny", "--rep", "1", "--force", *roots])
+    validate_cli(["tiny", "--rep", "1", "--force", *roots, "--no-plots"])
     assert "[tiny] validated 1 rep(s), 0 already current, 0 errors" in capsys.readouterr().out
     assert target.stat().st_mtime_ns != written
 
 
 def test_two_reps_give_an_insufficient_verdict_for_the_scenario_and_folder(project, capsys) -> None:
     _, roots, layout = project
-    validate_cli(["t", *roots])
+    validate_cli(["t", *roots, "--no-plots"])
     out = capsys.readouterr().out
     assert "[tiny] verdict insufficient: no test decided over 2 rep(s)" in out
     assert "[t] folder verdict insufficient: no test decided over 2 rep(s)" in out
@@ -175,19 +175,19 @@ def test_two_reps_give_an_insufficient_verdict_for_the_scenario_and_folder(proje
 
 def test_reps_from_two_builds_get_no_verdict_until_revalidated(project, capsys) -> None:
     cfg, roots, layout = project
-    validate_cli(["tiny", *roots])
+    validate_cli(["tiny", *roots, "--no-plots"])
     assert layout.scenario_verdict("t", "tiny").exists()
     path = _rep(cfg, 2).path(layout, RepArtifact.VALIDATION)
     data = yaml.safe_load(path.read_text())
     data["simace_version"] = "0.0.1"
     path.write_text(yaml.safe_dump(data))
     capsys.readouterr()
-    validate_cli(["tiny", "--rep", "1", *roots])
+    validate_cli(["tiny", "--rep", "1", *roots, "--no-plots"])
     out = capsys.readouterr().out
     assert "[tiny] no verdict: reps validated by more than one build: 0.0.1 at " in out
     assert " (rep2); " in out
     assert not layout.scenario_verdict("t", "tiny").exists()
-    validate_cli(["tiny", *roots])
+    validate_cli(["tiny", *roots, "--no-plots"])
     out = capsys.readouterr().out
     assert "[tiny] validated 1 rep(s), 1 already current, 0 errors" in out
     assert "[tiny] verdict insufficient" in out
@@ -198,7 +198,7 @@ def test_overlapping_seed_ranges_refuse_only_the_pooled_tests(project, capsys, m
 
     _, roots, layout = project
     monkeypatch.setattr(validate_module, "overlapping_seed_ranges", lambda ranges: [("tiny", "other")])
-    validate_cli(["t", *roots])
+    validate_cli(["t", *roots, "--no-plots"])
     out = capsys.readouterr().out
     assert "[t] folder verdict insufficient" in out
     assert "; pooling refused, rep seed ranges overlap: tiny and other" in out
@@ -218,12 +218,12 @@ def test_a_failed_rep_leaves_no_verdict_beside_its_old_file(project, capsys, mon
     import simace.cli.validate as validate_module
 
     _, roots, layout = project
-    validate_cli(["tiny", *roots])
+    validate_cli(["tiny", *roots, "--no-plots"])
     assert layout.scenario_verdict("t", "tiny").exists()
     monkeypatch.setattr(validate_module, "_validate_rep", lambda *args: "ERROR (exit 1); log: x")
     capsys.readouterr()
     with pytest.raises(SystemExit) as exc:
-        validate_cli(["tiny", "--rep", "1", "--force", *roots])
+        validate_cli(["tiny", "--rep", "1", "--force", *roots, "--no-plots"])
     assert exc.value.code == 1
     assert "[tiny] no verdict: rep1 failed validation" in capsys.readouterr().out
     assert not layout.scenario_verdict("t", "tiny").exists()
@@ -234,7 +234,7 @@ def test_a_rep_from_another_checkout_state_is_validated_again(project, capsys) -
     from simace.cli.manifest import source_ref
 
     cfg, roots, layout = project
-    validate_cli(["tiny", *roots])
+    validate_cli(["tiny", *roots, "--no-plots"])
     path = _rep(cfg, 1).path(layout, RepArtifact.VALIDATION)
     data = yaml.safe_load(path.read_text())
     assert data["source"] == source_ref()
@@ -242,11 +242,11 @@ def test_a_rep_from_another_checkout_state_is_validated_again(project, capsys) -
     data["source"] = source.removesuffix("-dirty") if source.endswith("-dirty") else source + "-dirty"
     path.write_text(yaml.safe_dump(data))
     capsys.readouterr()
-    validate_cli(["tiny", *roots])
+    validate_cli(["tiny", *roots, "--no-plots"])
     assert "[tiny] validated 0 rep(s), 2 already current, 0 errors" in capsys.readouterr().out, "-dirty is ignored"
     data["source"] = "v0.0.0-1-gdeadbee"
     path.write_text(yaml.safe_dump(data))
-    validate_cli(["tiny", *roots])
+    validate_cli(["tiny", *roots, "--no-plots"])
     assert "[tiny] validated 1 rep(s), 1 already current, 0 errors" in capsys.readouterr().out
 
 
@@ -254,32 +254,111 @@ def test_a_verdict_needs_every_registered_test_whatever_checks_ran(project, caps
     import simace.cli.validate as validate_module
 
     _, roots, layout = project
-    validate_cli(["tiny", *roots])
+    validate_cli(["tiny", *roots, "--no-plots"])
     assert layout.scenario_verdict("t", "tiny").exists()
     registry = dict(validate_module.ON_DEMAND_CHECKS)
     registry["other"] = registry["onset_tau"]
     monkeypatch.setattr(validate_module, "ON_DEMAND_CHECKS", registry)
     capsys.readouterr()
-    validate_cli(["tiny", "--checks", "onset_tau", *roots])
+    validate_cli(["tiny", "--checks", "onset_tau", *roots, "--no-plots"])
     assert "[tiny] no verdict: reps 1-2 not validated with onset_tau, other" in capsys.readouterr().out
     assert not layout.scenario_verdict("t", "tiny").exists()
 
 
 def test_validating_a_scenario_alone_keeps_the_folder_verdict_only_while_it_matches(project, capsys) -> None:
     cfg, roots, layout = project
-    validate_cli(["t", *roots])
+    validate_cli(["t", *roots, "--no-plots"])
     assert layout.folder_verdict("t").exists()
-    validate_cli(["tiny", "--rep", "2", "--force", *roots])
+    validate_cli(["tiny", "--rep", "2", "--force", *roots, "--no-plots"])
     assert layout.folder_verdict("t").exists(), "same build and reps: the folder verdict still describes them"
     manifest = _rep(cfg, 2).path(layout, RepArtifact.RUN_MANIFEST)
     saved = manifest.read_bytes()
     manifest.unlink()
     capsys.readouterr()
     try:
-        validate_cli(["tiny", *roots])
+        validate_cli(["tiny", *roots, "--no-plots"])
     finally:
         manifest.write_bytes(saved)
     out = capsys.readouterr().out
     assert "[tiny] verdict insufficient: no test decided over 1 rep(s)" in out
     assert "[t] folder verdict removed; rerun `simace validate t`" in out
     assert not layout.folder_verdict("t").exists()
+
+
+def test_the_plots_and_atlas_are_rebuilt_after_the_verdict(project, capsys) -> None:
+    """The onset-τ page reads the verdict, so validate rebuilds the plots under the lock it holds (ADR 0028 §6)."""
+    _, roots, layout = project
+    plots = layout.scenario_plots("t", "tiny")
+    shutil.rmtree(plots, ignore_errors=True)
+    validate_cli(["tiny", *roots])
+    out = capsys.readouterr().out
+    assert out.index("[tiny] verdict insufficient") < out.index("[tiny] plot started")
+    assert "[tiny] atlas finished" in out
+    assert (plots / "onset_tau.png").exists()
+    assert (plots / "atlas.html").exists()
+    assert layout.scenario_plots_manifest("t", "tiny").exists()
+
+
+def test_no_plots_skips_the_rebuild(project, capsys) -> None:
+    _, roots, layout = project
+    plots = layout.scenario_plots("t", "tiny")
+    shutil.rmtree(plots, ignore_errors=True)
+    validate_cli(["tiny", "--no-plots", *roots])
+    assert "plot started" not in capsys.readouterr().out
+    assert not plots.exists()
+
+
+def test_plots_wait_for_every_rep_to_be_complete(project, capsys) -> None:
+    cfg, roots, layout = project
+    manifest = _rep(cfg, 2).path(layout, RepArtifact.RUN_MANIFEST)
+    saved = manifest.read_bytes()
+    manifest.unlink()
+    try:
+        validate_cli(["tiny", *roots])
+    finally:
+        manifest.write_bytes(saved)
+    out = capsys.readouterr().out
+    assert "[tiny] plots skipped: rep2 not complete" in out
+    assert "plot started" not in out
+
+
+def test_a_dry_run_prints_the_plot_commands_with_the_verdict(project, capsys) -> None:
+    _, roots, layout = project
+    validate_cli(["tiny", "--dry-run", *roots])
+    out = capsys.readouterr().out
+    assert f"--verdict {layout.scenario_verdict('t', 'tiny')}" in out
+    assert " atlas " in out
+    validate_cli(["tiny", "--dry-run", "--no-plots", *roots])
+    assert "--verdict" not in capsys.readouterr().out
+
+
+def test_plots_that_already_show_the_verdict_are_not_rebuilt(project, capsys) -> None:
+    _, roots, layout = project
+    validate_cli(["tiny", *roots])
+    atlas = layout.scenario_plots("t", "tiny") / "atlas.html"
+    built = atlas.stat().st_mtime_ns
+    capsys.readouterr()
+    validate_cli(["tiny", *roots])
+    out = capsys.readouterr().out
+    assert "[tiny] plots current" in out
+    assert "plot started" not in out
+    assert atlas.stat().st_mtime_ns == built
+
+
+def test_a_verdict_change_after_a_gather_says_to_gather_again(project, capsys) -> None:
+    """``verdicts.tsv`` and the validation atlas are gather's snapshot; validate says when it has made them old."""
+    _, roots, layout = project
+    validate_cli(["t", *roots, "--no-plots"])
+    layout.folder_verdicts("t").write_text("gathered\n")
+    capsys.readouterr()
+    try:
+        validate_cli(["t", *roots, "--no-plots"])
+        assert "rerun `simace gather t`" not in capsys.readouterr().out, "no verdict changed"
+        validate_cli(["t", "--rep", "1", "--force", *roots, "--no-plots"])
+        assert "rerun `simace gather t`" not in capsys.readouterr().out, "the same verdict again is no change"
+        layout.scenario_verdict("t", "tiny").write_text("by hand\n")
+        validate_cli(["t", *roots, "--no-plots"])
+        out = capsys.readouterr().out
+        assert "[t] verdicts changed since verdicts.tsv was gathered; rerun `simace gather t`" in out
+    finally:
+        layout.folder_verdicts("t").unlink()

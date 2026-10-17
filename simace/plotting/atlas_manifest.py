@@ -210,8 +210,11 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             " replicates of a correct simulation show, so it is not a failure (the verdict is across"
             " replicates). Curve: τ for normal linear predictors with the cells' spread, which"
             " does not depend on the baseline hazard. One point per replicate. A cell over 100k entries is"
-            " scored on a seeded subset of whole families. Drawn from `simace validate`, so the page is a"
-            " placeholder until the scenario's replicates have been validated."
+            " scored on a seeded subset of whole families. Above the panels: the scenario's verdict from"
+            " `simace validate` (validation_summary.yaml), decided across replicates, with the replicates over their"
+            " bound against the count allowed; it says so when there is no verdict yet or too few replicates."
+            " Drawn from `simace validate`, so the page is a placeholder until the scenario's replicates have"
+            " been validated."
         ),
     ),
     PlotEntry(
@@ -506,6 +509,21 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
 # ---------------------------------------------------------------------------
 
 VALIDATION_ATLAS: tuple[AtlasItem, ...] = (
+    PlotEntry(
+        basename="verdict",
+        title="Calibrated-test verdict.",
+        body=(
+            "The folder's verdict from `simace validate` (validation_summary.yaml): one familywise-5% Bonferroni"
+            " family over every scenario's calibrated tests plus the tests pooled per cell across scenarios, each"
+            " test at α = 0.05 / n tests. Gather copies it and decides nothing. Top and middle: each cell's mean z"
+            " and SD of z across replicates, per scenario (colour) and pooled (black diamond), each on its"
+            " acceptance interval (bar); a marker off its bar is a failed test and has a red ring. Bottom: the"
+            " replicates whose largest |z| exceeds their per-replicate bound, against the binomial count allowed;"
+            " about 5% of replicates of a correct simulation exceed it. A cell scored in under 95% of replicates"
+            " fails coverage, which the title lists. A placeholder until the folder has been validated;"
+            " verdicts.tsv beside report_summary.tsv holds every scenario's verdict."
+        ),
+    ),
     PlotEntry(
         basename="family_size",
         title="Family size.",

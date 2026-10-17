@@ -1,6 +1,8 @@
-"""Gather per-replicate report summaries into a single wide TSV file."""
+"""Gather per-replicate report summaries into a single wide TSV file, and the verdicts into ``verdicts.tsv``."""
 
-__all__ = ["extract_metrics"]
+from __future__ import annotations
+
+__all__ = ["VERDICT_COLUMNS", "extract_metrics", "gather_verdicts"]
 
 import argparse
 import csv
@@ -9,14 +11,18 @@ import logging
 import math
 import re
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from simace.analysis.report_schema import REPORT_SUMMARY_REGISTRY
 from simace.analysis.stats.onset_tau import CELL_CATEGORIES
 from simace.analysis.validate.on_demand import load_validation
 from simace.analysis.validate.schema_file import one_warning_for_refused
+from simace.analysis.validate.verdict import load_verdict, record_name, records
 from simace.core.relationships import C_TRANSMISSION_KEYS, RELATIONSHIP_TYPES
 from simace.core.yaml_io import load_yaml
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +166,69 @@ def _on_demand_columns(path: Path) -> dict[str, Any]:
     return row
 
 
+#: ``verdicts.tsv``'s columns: one row per verdict file, copied, never decided (ADR 0028 §6).
+VERDICT_COLUMNS = (
+    "family",
+    "name",
+    "verdict",
+    "n_tests",
+    "alpha_each",
+    "reps",
+    "failed",
+    "insufficient",
+    "simace_version",
+    "source",
+)
+
+
+def _verdict_row(family: str, name: str, path: Path) -> dict[str, Any]:
+    """One ``verdicts.tsv`` row: the file's verdict, failed tests and insufficient reasons, or empty with no file."""
+    row: dict[str, Any] = dict.fromkeys(VERDICT_COLUMNS)
+    row.update(family=family, name=name)
+    data = load_verdict(path)
+    if data is None:
+        return row
+    found = list(records(data))
+    row.update({key: data.get(key) for key in ("verdict", "n_tests", "alpha_each", "reps", "simace_version", "source")})
+    if covered := data.get("reps_by_scenario"):
+        row["reps"] = "; ".join(f"{scenario} {entry['reps']}" for scenario, entry in covered.items())
+    row["failed"] = "; ".join(record_name(p) for p, record in found if record.get("passed") is False) or None
+    reasons = [f"{record_name(p)}: {record['insufficient']}" for p, record in found if "insufficient" in record]
+    row["insufficient"] = "; ".join(reasons) or None
+    return row
+
+
+def gather_verdicts(
+    folder: str, folder_verdict: Path, scenario_verdicts: Mapping[str, Path], output_path: Path
+) -> None:
+    """Copy the folder's verdict, then each scenario's, into ``verdicts.tsv``; a scenario with none gets an empty row."""
+    with one_warning_for_refused():
+        rows = [_verdict_row("folder", folder, folder_verdict)]
+        rows += [_verdict_row("scenario", name, path) for name, path in sorted(scenario_verdicts.items())]
+    _write_tsv(rows, VERDICT_COLUMNS, output_path)
+    logger.info("Gathered %d verdict file(s) -> %s", sum(row["verdict"] is not None for row in rows), output_path)
+
+
+def _write_tsv(rows: list[dict[str, Any]], columns: Sequence[str], output_path: str | Path) -> None:
+    with open(output_path, "w", encoding="utf-8", newline="") as f:
+        f.write("\t".join(columns) + "\n")
+        for row in rows:
+            values = []
+            for col in columns:
+                val = row[col]
+                if val is None:
+                    values.append("")
+                elif isinstance(val, float):
+                    # NaN has no TSV spelling readers agree on: pandas took the
+                    # literal "nan" as missing, polars infers the whole column as
+                    # String (ADR 0015). Emit the same empty field used for None;
+                    # ±inf round-trips as a float either way.
+                    values.append("" if math.isnan(val) else f"{val:.4g}")
+                else:
+                    values.append(str(val))
+            f.write("\t".join(values) + "\n")
+
+
 def main(report_files: list[str], output_path: str) -> None:
     """Gather report summaries from many replicates into a wide TSV file."""
     with one_warning_for_refused():
@@ -170,26 +239,8 @@ def main(report_files: list[str], output_path: str) -> None:
 
     logger.info("Gathered %d report summaries -> %s", len(rows), output_path)
 
-    # Write TSV
     if rows:
-        columns = list(rows[0].keys())
-        with open(output_path, "w", encoding="utf-8", newline="") as f:
-            f.write("\t".join(columns) + "\n")
-            for row in rows:
-                values = []
-                for col in columns:
-                    val = row[col]
-                    if val is None:
-                        values.append("")
-                    elif isinstance(val, float):
-                        # NaN has no TSV spelling readers agree on: pandas took the
-                        # literal "nan" as missing, polars infers the whole column as
-                        # String (ADR 0015). Emit the same empty field used for None;
-                        # ±inf round-trips as a float either way.
-                        values.append("" if math.isnan(val) else f"{val:.4g}")
-                    else:
-                        values.append(str(val))
-                f.write("\t".join(values) + "\n")
+        _write_tsv(rows, list(rows[0].keys()), output_path)
 
 
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
