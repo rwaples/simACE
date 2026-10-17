@@ -135,3 +135,19 @@ def test_rep_param_keys_are_config_keys() -> None:
     assert resolve_defaults(REPO_CONFIG).keys() >= REP_PARAM_KEYS
     assert {"seed", "N", "phenotype_params1", "max_degree", "skip_ne_coancestry"} <= REP_PARAM_KEYS
     assert REP_PARAM_KEYS.isdisjoint({"replicates", "plot_format", "blended_diagnosis", "folder"})
+
+
+def test_plot_argv_hands_the_plot_stage_each_validation_file_and_the_scenario_verdict(monkeypatch, tmp_path) -> None:
+    import simace.plotting.plot_phenotype as plot_phenotype_mod
+    from simace.cli.layout import RepArtifact
+    from simace.cli.stages import plot_argv
+
+    params = dict(SCENARIOS)["onset_tau_weibull"]
+    reps = [ResolvedRep(params["folder"], "onset_tau_weibull", r, params) for r in (1, 2)]
+    layout = Layout(root=tmp_path / "r", logs=tmp_path / "l")
+    recorder = _Recorder()
+    monkeypatch.setattr(plot_phenotype_mod, "main", recorder)
+    plot_phenotype_mod.cli(plot_argv(reps, layout))
+
+    assert recorder.kwargs["validation_paths"] == [str(rep.path(layout, RepArtifact.VALIDATION)) for rep in reps]
+    assert recorder.kwargs["verdict_path"] == str(layout.scenario_verdict(params["folder"], "onset_tau_weibull"))

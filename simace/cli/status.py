@@ -141,7 +141,12 @@ def scenario_plots_status(reps: list[ResolvedRep], layout: Layout) -> PlotsStatu
     folder, scenario = reps[0].folder, reps[0].scenario
     manifests = {f"rep{rep.rep}": rep.path(layout, RepArtifact.RUN_MANIFEST) for rep in reps}
     not_complete = [f"rep{rep.rep}" for rep in reps if status_on_disk(rep, layout).state is not RepState.COMPLETE]
-    return plots_status(layout.scenario_plots_manifest(folder, scenario), manifests, not_complete)
+    return plots_status(
+        layout.scenario_plots_manifest(folder, scenario),
+        manifests,
+        layout.scenario_verdict(folder, scenario),
+        not_complete,
+    )
 
 
 def rep_outputs(rep: ResolvedRep, layout: Layout, stages: Sequence[Stage] = STAGES) -> list[Path]:

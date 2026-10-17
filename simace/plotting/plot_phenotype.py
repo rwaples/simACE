@@ -22,6 +22,7 @@ import polars as pl
 
 from simace.analysis.validate.on_demand import load_validation
 from simace.analysis.validate.schema_file import one_warning_for_refused
+from simace.analysis.validate.verdict import load_verdict
 from simace.core.parquet import load_parquet
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_am_equilibrium import plot_am_equilibrium
@@ -90,6 +91,8 @@ class RenderContext:
     params: dict  # resolved scenario parameters; drives reference lines
     gen_censoring: dict[int, list[float]] | None
     max_degree: int | None
+    #: The scenario's calibrated-test verdict (``validation_summary.yaml``), or None before `simace validate`.
+    verdict: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -215,7 +218,7 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
     ),
     PlotRenderSpec(
         "onset_tau",
-        lambda ctx, p: plot_onset_tau(ctx.all_stats, p, ctx.scenario),
+        lambda ctx, p: plot_onset_tau(ctx.all_stats, p, ctx.scenario, verdict=ctx.verdict),
     ),
     PlotRenderSpec(
         "liability_violin.phenotype.by_generation",
@@ -365,11 +368,14 @@ def main(
     plot_ext: str = "png",
     plot_workers: int = 4,
     validation_paths: list[str] | None = None,
+    verdict_path: str | None = None,
 ) -> None:
     """Generate all phenotype plots from pre-computed combined reports.
 
     *validation_paths* are the reps' ``validation.yaml`` files, aligned with
     *report_paths*; a rep whose file does not exist has not been validated.
+    *verdict_path* is the scenario's ``validation_summary.yaml``, absent until
+    `simace validate` has decided a verdict.
     """
     out_dir = Path(output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -388,6 +394,7 @@ def main(
             validation = load_validation(Path(path))
             if validation is not None:
                 stats["onset_tau"] = (validation.get("checks") or {}).get("onset_tau") or {}
+        verdict = load_verdict(Path(verdict_path)) if verdict_path else None
     max_degree = _resolve_artifact_max_degree(all_stats)
 
     df_samples = pl.concat([load_parquet(p) for p in sample_paths], how="vertical")
@@ -413,6 +420,7 @@ def main(
         params=validation_params,
         gen_censoring=gen_censoring,
         max_degree=max_degree,
+        verdict=verdict,
     )
     tasks = [(i, out_dir / f"{spec.basename}.{plot_ext}") for i, spec in enumerate(PHENOTYPE_RENDERERS)]
     if plot_workers < 1:
@@ -448,6 +456,11 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         default=None,
         help="Each rep's validation.yaml from `simace validate`, in --report order; a missing file is skipped",
     )
+    parser.add_argument(
+        "--verdict",
+        default=None,
+        help="The scenario's validation_summary.yaml from `simace validate`; a missing file means no verdict yet",
+    )
     parser.add_argument("--output-dir", required=True, help="Output directory")
     parser.add_argument("--censor-age", type=float, required=True, help="Maximum follow-up age")
     parser.add_argument(
@@ -471,4 +484,5 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         plot_ext=args.plot_format,
         plot_workers=args.plot_workers,
         validation_paths=args.validation,
+        verdict_path=args.verdict,
     )

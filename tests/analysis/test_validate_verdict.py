@@ -19,6 +19,7 @@ from simace.analysis.validate.verdict import (
     folder_family,
     load_verdict,
     overlapping_seed_ranges,
+    records,
     scenario_family,
     write_verdict,
 )
@@ -202,3 +203,41 @@ def test_refused_pooling_leaves_the_scenario_tests_and_marks_pooled_insufficient
     assert decided["n_tests"] == 54
     assert decided["pooled"]["onset_tau"] == {"insufficient": "rep seed ranges overlap: s0 and s1"}
     assert decided["verdict"] == "insufficient"
+
+
+def test_records_walk_every_statistic_of_a_written_family_with_its_path() -> None:
+    """What the atlas and gather read back: each record by path, the header left out."""
+    shifted = _reps(20, seed=1)
+    for section in shifted:
+        section["cells"]["trait1_FS"]["z"] += 2.0
+    decided = decide(folder_family({"a": {"onset_tau": _reps(5)}, "b": {"onset_tau": shifted}}, TESTS))
+    found = dict(records({"schema": dict(SCHEMA), "family": "folder", "reps_by_scenario": {}, **decided}))
+    assert found[("scenarios", "a", "onset_tau")] == {"insufficient": "5 rep(s); the verdict needs 20"}
+    assert found[("pooled", "onset_tau")] == {"insufficient": "a below 20 rep(s)"}
+    assert found[("scenarios", "b", "onset_tau", "cells", "trait1_FS", "mean_z")]["passed"] is False
+    assert ("scenarios", "b", "onset_tau", "reps_over_bound") in found
+    assert len(found) == 2 + 13 * 3 + 1
+    assert all(path[0] in {"scenarios", "pooled"} for path in found)
+
+
+def test_an_unchanged_verdict_is_not_rewritten(tmp_path) -> None:
+    path = tmp_path / "validation_summary.yaml"
+    decided = decide(scenario_family({"onset_tau": _reps(20)}, TESTS))
+    write_verdict(path, {"family": "scenario"}, decided)
+    written = path.stat().st_mtime_ns
+    write_verdict(path, {"family": "scenario"}, decided)
+    assert path.stat().st_mtime_ns == written
+    write_verdict(path, {"family": "scenario", "reps": "1-20"}, decided)
+    assert path.stat().st_mtime_ns != written
+
+
+def test_record_names_drop_grouping_keys_by_position_not_by_name() -> None:
+    from simace.analysis.validate.verdict import record_name
+
+    assert record_name(("tests", "onset_tau", "cells", "trait1_FS", "mean_z")) == "onset_tau/trait1_FS/mean_z"
+    assert record_name(("scenarios", "tests", "onset_tau", "cells", "cells", "sd_z")) == "tests/onset_tau/cells/sd_z"
+    assert record_name(("pooled", "onset_tau", "cells", "within_person", "mean_z")) == (
+        "pooled/onset_tau/within_person/mean_z"
+    )
+    assert record_name(("scenarios", "a", "onset_tau", "reps_over_bound")) == "a/onset_tau/reps_over_bound"
+    assert record_name(("tests", "onset_tau")) == "onset_tau"

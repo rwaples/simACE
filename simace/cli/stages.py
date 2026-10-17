@@ -316,6 +316,8 @@ def plot_argv(reps: list[ResolvedRep], layout: Layout) -> list[str]:
         *_each_rep(reps, layout, RepArtifact.PLOTTING_SAMPLE),
         "--validation",
         *_each_rep(reps, layout, RepArtifact.VALIDATION),
+        "--verdict",
+        str(layout.scenario_verdict(first.folder, first.scenario)),
         "--output-dir",
         str(layout.scenario_plots(first.folder, first.scenario)),
         *_flags(values, {"gen_censoring": _json}),

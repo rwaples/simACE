@@ -25,7 +25,7 @@ import contextlib
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,6 +33,7 @@ import pandas as pd
 import polars as pl
 import seaborn as sns
 
+from simace.analysis.validate.verdict import load_verdict
 from simace.core.relationships import reference_corr, reference_midparent_slope
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
@@ -40,6 +41,7 @@ from simace.plotting.plot_style import (
     COLOR_OBSERVED,
     enable_value_gridlines,
 )
+from simace.plotting.plot_verdict import plot_verdict
 
 logger = logging.getLogger(__name__)
 
@@ -644,13 +646,17 @@ class ValidationRenderSpec:
     """
 
     basename: str
-    render: Callable[[pd.DataFrame, Path, str], None]
+    render: Callable[[Any, Path, str], None]
+    #: What ``render`` draws: the gathered ``report_summary.tsv`` as a DataFrame, or the folder's
+    #: ``validation_summary.yaml`` (None when `simace validate` has decided no verdict).
+    reads: Literal["summary", "verdict"] = "summary"
 
 
 # Registry binding each validation basename to its renderer. Adding a plot means
 # adding a PlotEntry to VALIDATION_ATLAS *and* a spec here; the renderer-coverage
 # test fails if the two basename sets diverge.
 VALIDATION_RENDERERS: tuple[ValidationRenderSpec, ...] = (
+    ValidationRenderSpec("verdict", plot_verdict, reads="verdict"),
     ValidationRenderSpec("family_size", plot_family_size),
     ValidationRenderSpec("twin_rate", plot_twin_rate),
     ValidationRenderSpec("half_sib_proportions", plot_half_sib_proportions),
@@ -682,9 +688,19 @@ def assemble_validation_atlas(output_dir: str | Path, output_name: str = "atlas.
 
 
 def main(
-    tsv_path: str, output_dir: str | Path, plot_ext: str = "png", *, atlas_names: Sequence[str] = ("atlas.html",)
+    tsv_path: str,
+    output_dir: str | Path,
+    plot_ext: str = "png",
+    *,
+    atlas_names: Sequence[str] = ("atlas.html",),
+    verdict_path: str | Path | None = None,
 ) -> None:
-    """Generate all validation plots from a gathered metrics TSV, plus one atlas per name in ``atlas_names``."""
+    """Generate all validation plots from a gathered metrics TSV, plus one atlas per name in ``atlas_names``.
+
+    ``verdict_path`` is the folder's ``validation_summary.yaml``, which the
+    verdict page shows; without it, or without the file, the page says there
+    is no verdict yet.
+    """
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     logger.info("Generating validation plots in %s", out)
@@ -708,8 +724,9 @@ def main(
         df["scenario"] = pd.Categorical(df["scenario"], categories=scenario_order, ordered=True)
         df = df.sort_values("scenario").reset_index(drop=True)
 
+    inputs = {"summary": df, "verdict": load_verdict(Path(verdict_path)) if verdict_path is not None else None}
     for spec in VALIDATION_RENDERERS:
-        spec.render(df, out, plot_ext)
+        spec.render(inputs[spec.reads], out, plot_ext)
 
     for atlas_name in atlas_names:
         assemble_validation_atlas(out, atlas_name, plot_ext=plot_ext)
@@ -733,11 +750,22 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         default="html",
         help="pdf also writes atlas.pdf beside the always-built atlas.html (ADR 0010)",
     )
+    parser.add_argument(
+        "--verdict",
+        default=None,
+        help="The folder's validation_summary.yaml from `simace validate`, for the verdict page",
+    )
     args = parser.parse_args(argv)
 
     init_logging(args)
 
-    main(args.tsv, args.output_dir, plot_ext=args.plot_format, atlas_names=atlas_names(args.atlas_format))
+    main(
+        args.tsv,
+        args.output_dir,
+        plot_ext=args.plot_format,
+        atlas_names=atlas_names(args.atlas_format),
+        verdict_path=args.verdict,
+    )
 
 
 def atlas_names(atlas_format: str) -> tuple[str, ...]:

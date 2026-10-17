@@ -17,8 +17,12 @@ __all__ = [
     "ScenarioRun",
     "cli",
     "expand_targets",
+    "incomplete_reps",
     "lock_scenario",
+    "open_cgroups",
     "plan_runs",
+    "plot_commands",
+    "rebuild_plots",
     "rep_spec",
 ]
 
@@ -36,7 +40,7 @@ from typing import TYPE_CHECKING, Any
 from simace.cli.cgroups import CgroupRoot, CgroupUnavailable
 from simace.cli.launch import Launcher, append_timing, child_env, command, parse_size, start_timing
 from simace.cli.layout import RepArtifact, add_root_args, require_config, resolve_roots
-from simace.cli.manifest import RepState, write_manifest, write_plots_manifest
+from simace.cli.manifest import PlotsState, RepState, write_manifest, write_plots_manifest
 from simace.cli.stages import (
     PARAMS_YAML_KEYS,
     REP_OUTPUTS,
@@ -369,7 +373,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
             cgroups = None
             if not args.dry_run:
                 lock_fds = tuple(lock_scenario(stack, run, layout) for run in runs)
-                cgroups = _open_cgroups(stack, args.max_memory)
+                cgroups = open_cgroups(stack, args.max_memory)
             _run_reps(args, layout, runs, lock_fds, cgroups)
     except ScenarioBusy as exc:
         print(f"simace run: {exc}", file=sys.stderr)
@@ -387,12 +391,13 @@ def lock_scenario(locks: ExitStack, run: ScenarioRun, layout: Layout) -> int:
         ) from None
 
 
-def _open_cgroups(stack: ExitStack, max_memory: int | None) -> CgroupRoot | None:
+def open_cgroups(stack: ExitStack, max_memory: int | None, prog: str = "simace run") -> CgroupRoot | None:
+    """Open the delegated cgroup root inside ``stack`` for stages' ``tree_peak_mb``, or say why there is none."""
     try:
         return stack.enter_context(CgroupRoot.open())
     except CgroupUnavailable as exc:
         fallback = "; --max-memory is enforced by polling /proc" if max_memory is not None else ""
-        print(f"simace run: no delegated cgroup ({exc}); tree_peak_mb not recorded{fallback}", file=sys.stderr)
+        print(f"{prog}: no delegated cgroup ({exc}); tree_peak_mb not recorded{fallback}", file=sys.stderr)
         return None
 
 
@@ -476,13 +481,7 @@ def _run_reps(
         for run in runs:
             console.say(run.scenario, f"plots skipped: --until {STAGES[args.until - 1].name}")
     elif not args.no_plots:
-        launcher = Launcher(child_env(1), args.max_memory, lock_fds, cgroups)
-        for run in runs:
-            incomplete = [rep.rep for rep in run.all_reps if status_on_disk(rep, layout).state is not RepState.COMPLETE]
-            if incomplete:
-                console.say(run.scenario, f"plots skipped: {rep_ranges(incomplete)} not complete")
-            elif not _build_plots(run.all_reps, layout, args.format, launcher, console):
-                plotted = False
+        plotted = rebuild_plots(runs, layout, args.format, Launcher(child_env(1), args.max_memory, lock_fds, cgroups))
     for run in runs:
         console.say(run.scenario, f"plots: {scenario_plots_status(run.all_reps, layout).describe()}")
     if refused or failed or not plotted:
@@ -537,6 +536,36 @@ def _summarize(scenario: str, console: _Console, outcome: _Outcome) -> None:
         console.say(scenario, f"  rep{rep} refused: {why}")
 
 
+def incomplete_reps(run: ScenarioRun, layout: Layout) -> list[int]:
+    """The scenario's reps that are not complete under the current config: plots wait for none."""
+    return [rep.rep for rep in run.all_reps if status_on_disk(rep, layout).state is not RepState.COMPLETE]
+
+
+def rebuild_plots(
+    runs: list[ScenarioRun], layout: Layout, atlas_format: str, launcher: Launcher, *, stale_only: bool = False
+) -> bool:
+    """Rebuild the plots and atlas of each scenario whose reps are all complete; False when a plot stage fails.
+
+    With ``stale_only``, plots that are current (:func:`scenario_plots_status`) are left as they are. The
+    caller holds every scenario's lock.
+    """
+    console = _Console()
+    plotted = True
+    for run in runs:
+        if incomplete := incomplete_reps(run, layout):
+            console.say(run.scenario, f"plots skipped: {rep_ranges(incomplete)} not complete")
+        elif stale_only and scenario_plots_status(run.all_reps, layout).state is PlotsState.CURRENT:
+            console.say(run.scenario, "plots current")
+        elif not _build_plots(run.all_reps, layout, atlas_format, launcher, console):
+            plotted = False
+    return plotted
+
+
+def plot_commands(reps: list[ResolvedRep], layout: Layout, atlas_format: str) -> list[list[str]]:
+    """The commands that rebuild one scenario's plots and atlas, in order."""
+    return [stage.command for stage in _scenario_stages(reps, layout, atlas_format)]
+
+
 def _build_plots(
     reps: list[ResolvedRep], layout: Layout, atlas_format: str, launcher: Launcher, console: _Console
 ) -> bool:
@@ -557,6 +586,7 @@ def _build_plots(
         layout.scenario_plots_manifest(folder, scenario),
         {f"rep{rep.rep}": rep.path(layout, RepArtifact.RUN_MANIFEST) for rep in reps},
         [plots / "atlas.html", *([plots / "atlas.pdf"] if atlas_format == "pdf" else [])],
+        layout.scenario_verdict(folder, scenario),
     )
     return True
 
@@ -575,5 +605,5 @@ def _print_plan(
         for stage in STAGES[first:until]:
             print(shlex.join(command(stage.name, stage.argv(rep, layout))))
     if include_plots:
-        for stage in _scenario_stages(all_reps, layout, atlas_format):
-            print(shlex.join(stage.command), flush=True)
+        for argv in plot_commands(all_reps, layout, atlas_format):
+            print(shlex.join(argv), flush=True)
