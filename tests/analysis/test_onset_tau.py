@@ -148,6 +148,23 @@ def test_shared_person_comparison_with_equal_rates_is_minus_one_third():
     assert ot._middle(1.0, 1.0, 1.0) == pytest.approx(-1 / 3, abs=1e-15)
 
 
+def test_middle_survives_a_dominant_rate():
+    """``T − λ_a`` cancels to 0 when λ_a dominates; the middle person then comes second half the time."""
+    assert ot._middle(1.0, 1e17, 1.0) == pytest.approx(0.0, abs=1e-12)
+    assert ot._middle(0.0, 1.0, 1.0) == -1.0  # a zero rate never comes second
+
+
+def test_compute_onset_tau_survives_a_large_sex_effect():
+    ped = run_simulation(
+        seed=3, N=200, G_ped=3, mating_lambda=0.5, p_mztwin=0.02, A1=0.5, C1=0.2, E1=0.3,
+        A2=0.4, C2=0.2, E2=0.4, rA=0.3, rC=0.5,
+    )  # fmt: skip
+    phenotype = {**_PHENOTYPE, "beta_sex1": 40.0}
+    result = ot.compute_onset_tau(run_phenotype(ped, seed=5, **phenotype), ped, phenotype, seed=5)
+    for cell in result["cells"]["trait1"].values():
+        assert cell["expected"] is None or math.isfinite(cell["expected"])
+
+
 def test_taylor_bound_constants():
     t = np.linspace(-40, 40, 2_000_001)
     th = np.tanh(t / 2)
@@ -252,11 +269,15 @@ def test_within_person_target_matches_brute_force():
     assert cell["expected"] == pytest.approx(_brute_target(e1, e2, people, people, False, False), abs=1e-12)
 
 
-def test_target_is_the_mean_of_the_statistic_over_onset_redraws():
-    """A dense cell with many shared-person comparisons: target vs 20,000 redraws of the onsets."""
+@pytest.mark.parametrize("spread", [1.5, 40.0])
+def test_target_is_the_mean_of_the_statistic_over_onset_redraws(spread):
+    """A dense cell with many shared-person comparisons: target vs 20,000 redraws of the onsets.
+
+    A spread of 40 (``beta_sex = 40``-like) once made the Plackett–Luce terms divide by zero.
+    """
     rng = np.random.default_rng(6)
     first, second, _ = _sibships([3, 4, 5, 2, 6])
-    eta = rng.normal(size=20) * 1.5
+    eta = rng.normal(size=20) * spread
     X, Y, _, per = ot._cell_entries(first, second, True)
     target = _cell(eta, first, second, np.zeros(20))["expected"]
     draws = np.array(

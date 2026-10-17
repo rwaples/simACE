@@ -191,7 +191,7 @@ def _rates(eta: np.ndarray) -> np.ndarray:
     return np.exp(eta - 0.5 * (eta.max() + eta.min()))
 
 
-@njit(cache=True)
+@njit(cache=True, error_model="numpy")  # 0/0 is NaN (all rates underflowed): the cell guard reports it
 def _exact_rowsum(u: np.ndarray, v: np.ndarray) -> np.ndarray:
     """``Σ_f tanh((u[e] − u[f])/2) · tanh((v[e] − v[f])/2)`` for every e, directly.
 
@@ -214,15 +214,24 @@ def _exact_rowsum(u: np.ndarray, v: np.ndarray) -> np.ndarray:
 def _middle(lam_mid: float, lam_a: float, lam_b: float) -> float:
     """``E[sign(V_m − V_a) · sign(V_b − V_m)] = 2·P(V_m is the middle one) − 1`` for independent exponentials.
 
-    Plackett–Luce: ``P(a first, m second) = λ_a/T · λ_m/(T − λ_a)``, with
-    ``T = λ_m + λ_a + λ_b``; likewise with b first.
+    Plackett–Luce: ``P(a first, m second) = λ_a/T · λ_m/(λ_m + λ_b)``, with
+    ``T = λ_m + λ_a + λ_b``; likewise with b first. Each second-place
+    denominator is summed from the two remaining rates, never as ``T − λ_a``,
+    which cancels to 0 when one rate dominates (``beta_sex = 40``). A
+    remaining pair of zero rates means the middle person cannot come second.
     """
     total = lam_mid + lam_a + lam_b
-    middle = lam_a / total * lam_mid / (total - lam_a) + lam_b / total * lam_mid / (total - lam_b)
+    after_a = lam_mid + lam_b
+    after_b = lam_mid + lam_a
+    middle = 0.0
+    if after_a > 0.0:
+        middle += lam_a / total * lam_mid / after_a
+    if after_b > 0.0:
+        middle += lam_b / total * lam_mid / after_b
     return 2.0 * middle - 1.0
 
 
-@njit(cache=True)
+@njit(cache=True, error_model="numpy")  # 0/0 is NaN (all rates underflowed): the cell guard reports it
 def _shared_corrections(
     X: np.ndarray, Y: np.ndarray, lam: np.ndarray, ptr: np.ndarray, ent: np.ndarray, mirror: np.ndarray
 ) -> np.ndarray:
