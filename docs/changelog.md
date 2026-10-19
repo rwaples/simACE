@@ -154,6 +154,31 @@ releases shipped after 2026.05.3.
 - **The `mate_correlation` plot's expected panel** shows the same targets. A
   cell whose target varies by generation shows its range.
 
+### Vertical transmission of C ([ADR 0025](adr/0025-vertical-c-transmission.md), [#58](https://github.com/rwaples/simACE/pull/58))
+
+- **A child's C can take a share of each parent's C:**
+  `C_child = b_m C_mother + b_f C_father + u_household`, per trait. Set it
+  with `pedigree.trait{t}.C_transmission.{maternal,paternal}` in a scenario
+  (`Ctm_maternal{t}` / `Ctm_paternal{t}` in `params.yaml` and the `simace
+  simulate --Ctm-*` flags). Both default to 0, and with every coefficient 0
+  the pedigree is bit-identical to before. The household draw tops up to
+  the configured C, so C stays the total in expectation.
+- **Config loading rejects coefficients outside [0, 1], `b_m² + b_f² > 1`,
+  and a configured C that random-mating transmission cannot fit**, and warns
+  when assortative mating is likely to overfill C. At run time a mates' C
+  cross-covariance past sampling error stops the replicate; a smaller excess
+  is clipped, logged, and recorded in `report.yaml`
+  (`truth.recorded_pedigree.c_transmission_clips`).
+- **With transmission on, `report.yaml` records the recorded pedigree's
+  truth**: per-relationship realized Cov(A), Cov(C) and Cov(A, C) and the
+  midparent slope, plus a `c{t}_transmission` check that regresses a child's
+  C on both parents'. `params.yaml` and `run.yaml` gain the four `Ctm_*`
+  keys; a `run.yaml` without them compares as 0, so finished replicates stay
+  complete.
+- **Reference lines are divided by V_P**, and liability-scale h² uses
+  Var(A + C + E) directly, so both move for scenarios whose components do
+  not sum to 1. New scenarios are in `config/c_transmission.yaml`.
+
 ### Two-trait assortative mating ([#34](https://github.com/rwaples/simACE/issues/34))
 
 - **Mates are now drawn from a 4-variate Gaussian copula when both traits
@@ -193,7 +218,8 @@ releases shipped after 2026.05.3.
 
 ### Mate correlation through pg-phenotype ([#47](https://github.com/rwaples/simACE/issues/47))
 
-- **simACE now depends on pg-phenotype** (`>=0.3,<0.4`). The report's
+- **simACE now depends on pg-phenotype** (`>=0.4,<0.6`, locked at 0.5.0
+  for this release; the first pin was `>=0.3,<0.4`). The report's
   `mate_correlation` matrix, the `assortative_mating` checks, and the genetic
   mate correlation `mu_A` behind the AM-aware expected relative correlations
   come from `pg_phenotype.assortative.mate_correlation` with `inference=False`
@@ -207,6 +233,12 @@ releases shipped after 2026.05.3.
   `E` columns. The two differ by about 1e-9.
 - An infinite liability or A value is now missing, like NaN: its pairs leave
   the cells that read it. Before, the whole cell was NaN.
+
+### pedigree-graph 0.13
+
+- **Moved to pedigree-graph 0.13** (`pedigree-graph>=0.12,<0.14`, locked
+  at 0.13.0). Its pairwise kinship and relationship engine are faster; its
+  Python API is unchanged.
 
 ### Tetrachoric SE fixed ([#48](https://github.com/rwaples/simACE/issues/48))
 
