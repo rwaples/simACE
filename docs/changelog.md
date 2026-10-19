@@ -10,7 +10,7 @@ change that breaks the command line, configuration keys, or result files
 CalVer (`YYYY.MM[.patch]`). The 0.1.0 section also lists the changes those
 releases shipped after 2026.05.3.
 
-## Unreleased
+## 0.2.0 — 2026-10-19
 
 ### Quality checks and calibrated tests ([#65](https://github.com/rwaples/simACE/issues/65))
 
@@ -298,6 +298,11 @@ releases shipped after 2026.05.3.
   pedigree is still counted in a second pass. There, at 1M rows, the
   relationship step is 25% faster at `max_degree: 3` and 2% faster at
   `max_degree: 5`, and its peak RSS is about 3% higher.
+- **Breaking: the parent-offspring regressions in `report.yaml` drop
+  `pvalue`.** Every `parent_offspring_corr`, `parent_offspring_corr_by_sex`
+  and `parent_offspring_affected_corr` entry is now fitted by
+  pg-phenotype's point-estimate mode, which gives no p-value; `stderr` is
+  its `se_ols`. The other values and `n_pairs` are unchanged.
 - **`max_degree` errors come from simACE.** A value outside 0 to 5 raises
   `ValueError`, and a bool or non-integer raises `TypeError`. These used to
   come from pedigree-graph (`max_degree_out_of_range`).
