@@ -3,7 +3,9 @@
 ## Status
 
 Accepted 2026-10-17 for issue #65, decided in a design interview; plan in
-`plans/issue-65-analyze-validate-boundary.md` (session-local draft). Amends
+`plans/issue-65-analyze-validate-boundary.md` (session-local draft). §9 is
+amended by [ADR 0029](0029-inheritance-tests-score-residuals.md) for the
+sibling and half-sib checks, which test residuals instead. Amends
 [ADR 0027](0027-onset-tau-check.md) §1 and §8: onset τ keeps its cells, target
 and SE, but its per-rep pass/fail gives way to a verdict across reps. Amends
 [ADR 0008](0008-curated-analyze-report.md): the name `validation.yaml`, retired
