@@ -24,8 +24,9 @@ import sys
 #: starts with a letter or ``_``, so an arithmetic shift (``$((1<<2))``) does not match.
 HEREDOC_RE = re.compile(r"(?<!<)<<(?!<)-?\s*(['\"]?)([A-Za-z_]\w*)\1")
 
-#: A pkill/pgrep invocation up to the end of its simple command.
-CALL_RE = re.compile(r"(?:^|[\s;&|(`$])(pkill|pgrep)\s+([^;&|()`\n]*)")
+#: A pkill/pgrep invocation up to the end of its simple command. A leading quote opens a
+#: ``sh -c '...'`` script, whose text is also on the outer shell's command line.
+CALL_RE = re.compile(r"(?:^|[\s;&|(`$'\"])(pkill|pgrep)\s+([^;&|()`\n]*)")
 
 
 def full_match_flag(args: list[str]) -> bool:
@@ -33,21 +34,58 @@ def full_match_flag(args: list[str]) -> bool:
     return any(a == "--full" or (a.startswith("-") and not a.startswith("--") and "f" in a) for a in args)
 
 
+def code_positions(line: str, quote: str | None) -> tuple[list[bool], str | None]:
+    """Which characters of ``line`` are shell code, not quoted text or a comment.
+
+    ``quote`` is the quote left open by the previous line; the second value is the one this line leaves open.
+    """
+    code = [False] * len(line)
+    i = 0
+    while i < len(line):
+        c = line[i]
+        if quote == "'":
+            quote = None if c == "'" else quote
+        elif quote == '"':
+            if c == "\\":
+                i += 1
+            elif c == '"':
+                quote = None
+        elif c == "\\":
+            i += 1
+        elif c in "'\"":
+            quote = c
+        elif c == "#" and (i == 0 or line[i - 1] in " \t;&|("):
+            break
+        else:
+            code[i] = True
+        i += 1
+    return code, quote
+
+
 def strip_heredocs(command: str) -> str:
-    """``command`` without its heredoc bodies (the lines after a ``<<WORD`` line, through ``WORD``)."""
+    """``command`` without its heredoc bodies (the lines after a ``<<WORD`` line, through ``WORD``).
+
+    Only an unquoted, uncommented ``<<WORD`` whose ``WORD`` line follows counts, so the guard
+    fails closed on lookalikes such as ``echo "x <<EOF"`` or an unterminated heredoc.
+    """
+    lines = command.split("\n")
     kept: list[str] = []
     terminators: list[str] = []
-    for line in command.split("\n"):
+    quote: str | None = None
+    for n, line in enumerate(lines):
         if terminators:
             if line.strip() == terminators[0]:
                 terminators.pop(0)
             continue
         kept.append(line)
+        code, quote = code_positions(line, quote)
         # A shift by a variable (``$((x<<n))``) sits inside an open ``((``.
         terminators = [
             m.group(2)
             for m in HEREDOC_RE.finditer(line)
-            if line[: m.start()].count("((") <= line[: m.start()].count("))")
+            if code[m.start()]
+            and line[: m.start()].count("((") <= line[: m.start()].count("))")
+            and any(rest.strip() == m.group(2) for rest in lines[n + 1 :])
         ]
     return "\n".join(kept)
 

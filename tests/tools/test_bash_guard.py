@@ -25,6 +25,8 @@ SCRIPT = Path(__file__).resolve().parents[2] / "tools/claude_hooks/bash_guard.py
         "until ! pgrep -af pg08_wheel_gate.sh; do sleep 5; done",
         "kill $(pgrep -f scratchpad/depthscale.sh)",
         "pkill --full gate",
+        'bash -c "pkill -f run_big.sh"',
+        "timeout 5 sh -c 'pkill -f x'",
     ],
 )
 def test_blocks_self_matching_patterns(command: str) -> None:
@@ -50,7 +52,16 @@ def test_passes_other_commands(command: str) -> None:
 
 @pytest.mark.parametrize(
     "prefix",
-    ["cat > a.md <<'EOF'\ntext\nEOF", "x=$((1<<2))", "x=$((x<<n))", "grep x <<< foo"],
+    [
+        "cat > a.md <<'EOF'\ntext\nEOF",
+        "x=$((1<<2))",
+        "x=$((x<<n))",
+        "grep x <<< foo",
+        'echo "x <<EOF"',
+        "echo 'x <<EOF'",
+        "echo x  # cat <<EOF",
+        "cat <<EOF",
+    ],
 )
 def test_checks_commands_after_a_heredoc_or_lookalike(prefix: str) -> None:
     assert self_matching(f"{prefix}\npkill -f run_big.sh") is not None
