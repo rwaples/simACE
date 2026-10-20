@@ -20,7 +20,8 @@ trap 'rm -rf "$out"' EXIT
 echo "pre-push: mkdocs build --strict" >&2
 # No -q: it drops the warnings that --strict counts. Show the log only on failure.
 # $PIXI overrides the pixi binary, as in pre-commit (a requires-pixi bump in flight).
-if ! (cd "$top" && NO_MKDOCS_2_WARNING=1 "${PIXI:-$HOME/.pixi/bin/pixi}" run mkdocs build --strict -d "$out/site") >"$out/log" 2>&1; then
+# --frozen, as in pre-commit: a stale pixi.lock is used as is, never re-solved and rewritten.
+if ! (cd "$top" && NO_MKDOCS_2_WARNING=1 "${PIXI:-$HOME/.pixi/bin/pixi}" run --frozen mkdocs build --strict -d "$out/site") >"$out/log" 2>&1; then
   grep -E 'WARNING|ERROR|Aborted' "$out/log" >&2 || cat "$out/log" >&2
   exit 1
 fi
