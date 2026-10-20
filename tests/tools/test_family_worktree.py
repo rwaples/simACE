@@ -373,15 +373,42 @@ def test_add_links_plans_and_notes_and_remove_moves_new_ones_home(family: Path) 
     assert (family / "plans/old.md").read_text() == "edited\n", "a linked plan is the main checkout's plan"
     assert (wt / "notes/n.md").read_text() == "n\n"
     (wt / "plans/new.md").write_text("new\n")
-    (wt / "notes/n.md").unlink()
-    (wt / "notes/n.md").write_text("worktree n\n")
     assert git(wt, "status", "--porcelain") == ""
     assert main(["remove", "wt1"], root=family) == 0
     assert (family / "plans/new.md").read_text() == "new\n"
     assert (family / "plans/old.md").read_text() == "edited\n"
-    assert (family / "notes/n.md").read_text() == "n\n"
-    assert (family / "notes/n-wt1.md").read_text() == "worktree n\n"
     assert (family / "plans/README.md").read_text() == "plans\n"
+
+
+def atomic_save(path: Path, text: str) -> None:
+    """Save as an editor does: write a temporary, rename it over ``path`` (replacing a symlink)."""
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(text)
+    tmp.rename(path)
+
+
+def test_remove_writes_back_a_plan_whose_link_an_atomic_save_replaced(family: Path, capsys) -> None:
+    (family / "notes").mkdir()
+    (family / "notes/n.md").write_text("n\n")
+    assert main(["add", "wt1"], root=family) == 0
+    wt = family / ".claude/worktrees/wt1"
+    atomic_save(wt / "notes/n.md", "worktree n\n")
+    assert not (wt / "notes/n.md").is_symlink()
+    assert main(["remove", "wt1"], root=family) == 0
+    assert (family / "notes/n.md").read_text() == "worktree n\n"
+    assert not (family / "notes/n-wt1.md").exists()
+
+
+def test_remove_keeps_both_sides_when_main_also_changed_a_replaced_plan(family: Path, capsys) -> None:
+    (family / "plans/p.md").write_text("p\n")
+    assert main(["add", "wt1"], root=family) == 0
+    wt = family / ".claude/worktrees/wt1"
+    atomic_save(wt / "plans/p.md", "worktree p\n")
+    (family / "plans/p.md").write_text("main p\n")
+    assert main(["remove", "wt1"], root=family) == 0
+    assert (family / "plans/p.md").read_text() == "main p\n"
+    assert (family / "plans/p-wt1.md").read_text() == "worktree p\n"
+    assert "changed in both" in capsys.readouterr().out
 
 
 def test_remove_refuses_when_a_new_plan_cannot_be_moved(family: Path, capsys) -> None:
@@ -461,3 +488,20 @@ def test_finish_merges_nothing_when_any_checkout_is_blocked(family: Path, capsys
     assert BLOCKER_REASONS[blocker] in err
     assert git(family, "rev-parse", "dev") == simace_head, "simACE must not merge while another check fails"
     assert (wt / "fitACE").is_dir()
+
+
+def test_finish_reports_a_merge_tree_error_that_is_not_a_conflict(family: Path, monkeypatch, capsys) -> None:
+    assert main(["add", "wt1", "fitACE"], root=family) == 0
+    commit_in(family / ".claude/worktrees/wt1/fitACE", "work.py", "")
+    real_run = subprocess.run
+
+    def old_git(cmd, *args, **kwargs):
+        if "merge-tree" in cmd:
+            return subprocess.CompletedProcess(cmd, 129, b"", b"error: unknown option `write-tree'\n")
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(fw.subprocess, "run", old_git)
+    assert main(["finish", "wt1"], root=family) == 1
+    err = capsys.readouterr().err
+    assert "unknown option `write-tree'" in err
+    assert "conflicts with" not in err

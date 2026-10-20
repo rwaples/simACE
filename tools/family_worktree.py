@@ -45,7 +45,9 @@ checkout whose directory was deleted by hand is checked by its commits alone.
 Entries the worktree created under ``plans/`` and ``notes/`` (anything but the
 links ``add`` made) are moved into the main checkout before removal; one whose
 name is taken there lands as ``<stem>-<name><suffix>``, and a second collision
-refuses the removal, even with ``--force``.
+refuses the removal, even with ``--force``. A file that replaced one of the
+links (an editor's atomic save) goes back over the main checkout's file, unless
+that file changed too: then it lands under the fallback name with a note.
 
 ``finish`` merges every ``<name>`` branch into its base in the main checkout,
 then runs ``remove``. It checks every checkout first and merges nothing when a
@@ -68,6 +70,7 @@ Examples:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import re
 import shutil
@@ -98,6 +101,9 @@ BUILD_OUTPUTS = (
 
 #: Gitignored working directories of the simACE checkout whose entries a family worktree shares.
 SHARED_DIRS = ("plans", "notes")
+
+#: File in the simACE worktree's git dir recording the shared files ``add`` linked: ``<sha256>\t<dir>/<name>``.
+SHARED_LINKS = "family-shared-links"
 
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
@@ -296,8 +302,18 @@ def link_external_targets(umbrella: Path, wt: Path, checkout: Path) -> None:
             target.symlink_to(source)
 
 
+def digest(path: Path) -> str:
+    """The sha256 of ``path``'s contents."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def link_shared(umbrella: Path, wt: Path) -> None:
-    """Link each entry of ``umbrella``'s ``plans/`` and ``notes/`` into the worktree's simACE checkout ``wt``."""
+    """Link each entry of ``umbrella``'s ``plans/`` and ``notes/`` into the worktree's simACE checkout ``wt``.
+
+    Records each linked file and its contents' digest in ``SHARED_LINKS``, so ``shared_moves`` can tell a
+    link an editor's atomic save replaced with a regular file from a new entry.
+    """
+    linked = []
     for d in SHARED_DIRS:
         if not (umbrella / d).is_dir():
             continue
@@ -306,29 +322,45 @@ def link_shared(umbrella: Path, wt: Path) -> None:
             link = wt / d / entry.name
             if not link.exists() and not link.is_symlink():
                 link.symlink_to(entry)
+                if entry.is_file():
+                    linked.append(f"{digest(entry)}\t{d}/{entry.name}\n")
+    Path(git(wt, "rev-parse", "--absolute-git-dir"), SHARED_LINKS).write_text("".join(linked))
 
 
-def shared_moves(umbrella: Path, wt: Path, name: str) -> tuple[list[tuple[Path, Path]], list[str]]:
+def shared_moves(umbrella: Path, wt: Path, name: str) -> tuple[list[tuple[Path, Path, str | None]], list[str]]:
     """The ``plans/`` and ``notes/`` entries worktree ``wt`` created, paired with their main-checkout destinations.
 
-    Skips the links ``add`` made and tracked paths. Returns ``(moves, problems)``; a problem is an entry whose
-    name and fallback ``<stem>-<name><suffix>`` are both taken in the main checkout.
+    Skips the links ``add`` made and tracked paths. A regular file that replaced one of those links (an atomic
+    save) goes back over the main checkout's file while that file is as ``add`` linked it; once both sides
+    changed it is a new entry, with a note. A new entry whose name is taken in the main checkout lands as
+    ``<stem>-<name><suffix>``. Returns ``(moves, problems)``: moves are ``(source, destination, note)``; a
+    problem is an entry whose name and fallback are both taken.
     """
+    record = Path(git(wt, "rev-parse", "--absolute-git-dir"), SHARED_LINKS)
+    lines = record.read_text().splitlines() if record.exists() else []
+    linked = {rel: sha for sha, rel in (line.split("\t", 1) for line in lines)}
     moves, problems = [], []
     for d in SHARED_DIRS:
         if not (wt / d).is_dir():
             continue
         tracked = set(git(wt, "ls-files", "--", d).splitlines())
         for entry in sorted((wt / d).iterdir()):
-            if entry.is_symlink() or f"{d}/{entry.name}" in tracked:
+            rel = f"{d}/{entry.name}"
+            if entry.is_symlink() or rel in tracked:
                 continue
-            dest = umbrella / d / entry.name
+            dest = umbrella / rel
+            note = None
+            if rel in linked and entry.is_file():
+                if dest.is_file() and not dest.is_symlink() and digest(dest) == linked[rel]:
+                    moves.append((entry, dest, None))
+                    continue
+                note = f"{rel} changed in both the worktree and the main checkout; reconcile them by hand"
             if dest.exists() or dest.is_symlink():
                 dest = dest.with_name(f"{entry.stem}-{name}{entry.suffix}")
             if dest.exists() or dest.is_symlink():
-                problems.append(f"{d}/{entry.name}: {umbrella / d / entry.name} and {dest} both exist")
+                problems.append(f"{rel}: {umbrella / rel} and {dest} both exist")
             else:
-                moves.append((entry, dest))
+                moves.append((entry, dest, note))
     return moves, problems
 
 
@@ -412,10 +444,12 @@ def remove(umbrella: Path, name: str, force: bool) -> int:
             git(main, "branch", ref, e.head)
         print(f"{e.repo.label}: saved detached HEAD as branch {ref!r}")
 
-    for src, dest in moves:
+    for src, dest, note in moves:
         dest.parent.mkdir(exist_ok=True)
         src.rename(dest)
         print(f"moved {src.relative_to(wt)} to {dest}")
+        if note:
+            print(f"  {note}")
 
     for e in reversed(entries):
         git(umbrella / e.repo.path, "worktree", "remove", "--force", str(e.path))
@@ -463,12 +497,15 @@ def finish(umbrella: Path, name: str, message: str | None) -> int:
         status = git_z(main, "status", "--porcelain", "--no-renames", "--untracked-files=all")
         pending = {os.fsdecode(rec[3:]) for rec in status}
         staged = any(rec[:1] not in b" ?" for rec in status)
-        conflicts = subprocess.run(
+        # Exit 1 is a conflict; anything else (git < 2.38 lacks --write-tree, a bad ref) is an error.
+        merge_tree = subprocess.run(
             ["git", "-C", str(main), "merge-tree", "--write-tree", b, e.head], check=False, capture_output=True
-        ).returncode
+        )
         if current != b:
             problems.append(f"{label}: main checkout {main} is on {current or 'a detached HEAD'}, not {b}")
-        elif conflicts:
+        elif merge_tree.returncode not in (0, 1):
+            problems.append(f"{label}: git merge-tree failed: {merge_tree.stderr.decode().strip()}")
+        elif merge_tree.returncode == 1:
             problems.append(f"{label}: {name!r} conflicts with {b}")
         elif overlap := sorted(touched & pending):
             problems.append(f"{label}: main checkout has modified or untracked {', '.join(overlap)}")
