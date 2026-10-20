@@ -14,7 +14,9 @@ parameters from the rep's ``report.yaml``:
 
 A residual is defined where both parents are pedigree rows. The
 correlations take pg-phenotype's MRCA-or-shared-member sandwich SE; the
-variance takes the asymptotic iid SE √((m₄ − s⁴)/n). A cell whose residual
+variance takes the asymptotic iid SE √((m₄ − s⁴)/n). A test whose
+component is configured 0 for both traits records ``not_applicable`` for the
+whole section and drops out of the verdict. A cell whose residual
 has zero variance to within float32 rounding is not applicable; one with
 fewer than :data:`MIN_PAIRS` pairs (residuals for the variance), or no SE,
 is information.
@@ -148,8 +150,12 @@ def _variance_cell(residual: np.ndarray, keep: np.ndarray, expected: float) -> d
     return scored_cell(s2, expected, se, n_residuals=n)
 
 
-def _section(cells: Mapping[str, dict[str, Any]]) -> dict[str, Any]:
-    return {"scope": SCOPE, "cells": dict(cells), "summary": summarize(cells)}
+def _section(cells: Mapping[str, dict[str, Any]], component: str) -> dict[str, Any]:
+    """The rep's section; with no trait carrying ``component``, the test does not apply to the scenario."""
+    section: dict[str, Any] = {"scope": SCOPE, "cells": dict(cells), "summary": summarize(cells)}
+    if not cells:
+        section["not_applicable"] = f"{component} is configured 0 for both traits"
+    return section
 
 
 def run_mendelian_residual(inputs: RepInputs) -> dict[str, Any]:
@@ -177,7 +183,7 @@ def run_mendelian_residual(inputs: RepInputs) -> dict[str, Any]:
             if not_applicable is not None
             else _variance_cell(residual, one_per_mz, a / 2)
         )
-    return _section(cells)
+    return _section(cells, "A")
 
 
 def run_household_draw(inputs: RepInputs) -> dict[str, Any]:
@@ -202,4 +208,4 @@ def run_household_draw(inputs: RepInputs) -> dict[str, Any]:
             linked = linked_household_share(pedigree)
         cell = _correlation_cells(pedigree, draw, ("PHS",), not_applicable)["PHS"]
         cells[f"trait{t}_PHS"] = {**cell, "linked_household_share": linked}
-    return _section(cells)
+    return _section(cells, "C")

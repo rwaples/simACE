@@ -88,6 +88,14 @@ def test_a_trait_configured_without_the_component_has_no_cell(tmp_path, pedigree
         f"trait1_{c}" for c in ("FS", "MHS", "PHS", "variance")
     }
     assert set(run_household_draw(_inputs(tmp_path, pedigree, C1=0.0))["cells"]) == {"trait2_PHS"}
+    assert "not_applicable" not in run_household_draw(_inputs(tmp_path, pedigree, C1=0.0))
+
+
+def test_a_scenario_without_the_component_marks_the_whole_test_not_applicable(tmp_path, pedigree) -> None:
+    section = run_household_draw(_inputs(tmp_path, pedigree, C1=0.0, C2=0.0))
+    assert section["cells"] == {}
+    assert section["not_applicable"] == "C is configured 0 for both traits"
+    assert run_mendelian_residual(_inputs(tmp_path, pedigree, A1=0.0, A2=0.0))["not_applicable"].startswith("A ")
 
 
 def test_a_child_equal_to_its_midparent_is_not_applicable(tmp_path, pedigree) -> None:

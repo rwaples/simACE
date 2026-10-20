@@ -27,6 +27,12 @@ def test_params_come_from_the_reports_inputs(tmp_path) -> None:
     assert inputs.params == {"A1": 0.5, "C1": 0.2}
 
 
+def test_params_without_a_report_name_the_flag(tmp_path) -> None:
+    inputs = RepInputs(tmp_path / "pedigree.parquet", None, seed=1, phenotype={})
+    with pytest.raises(ValueError, match="--report"):
+        _ = inputs.params
+
+
 def test_summary_bounds_only_the_scored_cells() -> None:
     cells = {
         "a": scored_cell(0.3, 0.0, 0.1),

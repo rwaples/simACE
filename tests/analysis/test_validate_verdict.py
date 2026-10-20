@@ -145,6 +145,16 @@ def test_a_cell_not_applicable_in_every_rep_has_no_statistics() -> None:
     assert decided["verdict"] == "pass"
 
 
+def test_a_test_not_applicable_to_the_scenario_drops_out_of_its_family() -> None:
+    """ADR 0029 §4: C configured 0 on both traits gives household_draw no cell, which must not block a pass."""
+    tests = {**TESTS, "household_draw": ON_DEMAND_CHECKS["household_draw"]}
+    absent = [{"cells": {}, "summary": {"max_abs_z": None, "z_bound": None}, "not_applicable": "C"}] * 30
+    decided = decide(scenario_family({"onset_tau": _reps(30), "household_draw": absent}, tests))
+    assert decided["verdict"] == "pass"
+    assert "household_draw" not in decided["tests"]
+    assert decided["n_tests"] == 27
+
+
 def test_reps_over_their_bound_are_counted_from_max_abs_z() -> None:
     reps = _reps(20, cells=("trait1_FS",))
     for section in reps[:10]:

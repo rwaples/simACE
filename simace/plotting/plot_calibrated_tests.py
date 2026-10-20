@@ -20,14 +20,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from simace.analysis.validate.on_demand import ON_DEMAND_CHECKS
+from simace.analysis.validate.verdict import applicable_reps
 from simace.plotting.plot_onset_tau import COLOR_BEYOND, verdict_note
 from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-#: The tests this page draws: every registered test but onset τ, which has its own.
-PAGE_TESTS = tuple(name for name in ON_DEMAND_CHECKS if name != "onset_tau")
+#: The tests this page draws: every registered test without a page of its own.
+PAGE_TESTS = tuple(name for name, test in ON_DEMAND_CHECKS.items() if not test.own_page)
 
 _COLOR_POINT = "#4477AA"
 #: Height of one line of the 9 pt verdict note, in inches.
@@ -48,11 +49,8 @@ def _draw_test(ax, sections: list[dict[str, Any]], name: str, cells: list[str], 
     labels = []
     for i, cell in enumerate(cells):
         z, beyond = [], []
-        applicable = 0
         for section in sections:
             row = (section.get("cells") or {}).get(cell)
-            if row is None or row.get("status") != "not_applicable":
-                applicable += 1
             if row is None or row.get("status") != "scored":
                 continue
             z.append(row["z"])
@@ -64,7 +62,7 @@ def _draw_test(ax, sections: list[dict[str, Any]], name: str, cells: list[str], 
             ax.scatter(x, z, s=14, color=_COLOR_POINT, edgecolors=edges, linewidths=1.0, alpha=0.8, zorder=3)
             ax.hlines(float(np.mean(z)), i - 0.3, i + 0.3, color="black", linewidth=2, zorder=4)
         trait, _, code = cell.partition("_")
-        labels.append(f"{trait}\n{code}\n{len(z)}/{applicable}")
+        labels.append(f"{trait}\n{code}\n{len(z)}/{applicable_reps(sections, cell)}")
     ax.set_xticks(range(len(cells)), labels, fontsize=8)
     # At least _MIN_COLUMNS columns wide, centred, so one cell keeps its width.
     half = max(len(cells), _MIN_COLUMNS) / 2
@@ -103,7 +101,7 @@ def plot_calibrated_tests(
             [],
             marker="o",
             linestyle="none",
-            color="white",
+            color=_COLOR_POINT,
             markeredgecolor=COLOR_BEYOND,
             label="|z| > per-rep bound",
         ),

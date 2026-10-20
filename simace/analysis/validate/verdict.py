@@ -27,6 +27,7 @@ __all__ = [
     "Entry",
     "Verdict",
     "ZCalibration",
+    "applicable_reps",
     "decide",
     "folder_family",
     "load_verdict",
@@ -190,9 +191,9 @@ def _cell_names(sections: Sequence[Section]) -> list[str]:
     return list(dict.fromkeys(name for section in sections for name in section["cells"]))
 
 
-def _applicable_reps(sections: Sequence[Section], cell: str) -> int:
+def applicable_reps(sections: Sequence[Section], cell: str) -> int:
     """The reps whose cell is not ``not_applicable``: one missing the cell counts, as not scored."""
-    return sum((section["cells"].get(cell) or {}).get("status") != "not_applicable" for section in sections)
+    return sum(((section.get("cells") or {}).get(cell) or {}).get("status") != "not_applicable" for section in sections)
 
 
 def _scored_z(sections: Sequence[Section], cell: str) -> np.ndarray:
@@ -216,12 +217,19 @@ class ZCalibration:
     min_coverage: float = 0.95
 
     def scenario(self, sections: Sequence[Section]) -> Iterator[Entry]:
-        """The statistics over one scenario's reps; insufficient when no rep reports a cell."""
+        """The statistics over one scenario's reps.
+
+        None when every rep marks the test ``not_applicable`` (its configuration
+        gives it no cell, ADR 0029 §4); insufficient when no rep reports a cell
+        otherwise.
+        """
+        if all("not_applicable" in s for s in sections):
+            return
         if not _cell_names(sections):
             yield Entry((), Insufficient("no rep reports a cell"))
             return
         for cell in _cell_names(sections):
-            if not (applicable := _applicable_reps(sections, cell)):
+            if not (applicable := applicable_reps(sections, cell)):
                 continue
             z = _scored_z(sections, cell)
             yield Entry(("cells", cell, "coverage"), Coverage(len(z), applicable, self.min_coverage))

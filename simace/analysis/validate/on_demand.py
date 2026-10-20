@@ -41,6 +41,7 @@ ON_DEMAND_CHECKS: dict[str, CalibratedTest] = {
             ZCalibration(rep_rate=FAMILYWISE_ALPHA),
             min_reps=20,
             cell_names=ONSET_TAU_CELLS,
+            own_page=True,
         ),
         CalibratedTest(
             "mendelian_residual",

@@ -46,7 +46,8 @@ class RepInputs:
     """What a calibrated test may read of one rep; each file is read only when a test asks for it."""
 
     pedigree_path: Path
-    report_path: Path
+    #: The rep's ``report.yaml``; None when no requested check reads :attr:`params`.
+    report_path: Path | None
     seed: int
     #: ``run_phenotype``'s keyword arguments other than ``seed``.
     phenotype: Mapping[str, Any]
@@ -63,6 +64,8 @@ class RepInputs:
         """The scenario parameters the rep was built with (``report.yaml``'s ``inputs.parameters``)."""
         from simace.core.yaml_io import load_yaml
 
+        if self.report_path is None:
+            raise ValueError("this check reads the scenario parameters: pass the rep's report.yaml (--report)")
         return load_yaml(self.report_path)["inputs"]["parameters"]
 
 
@@ -75,7 +78,8 @@ class CalibratedTest:
     the verdict across reps from those sections; with fewer than
     ``min_reps`` reps the verdict is ``insufficient``. ``cell_names`` lists
     every cell the test can report, in order: ``simace gather`` gives each a
-    z column, so every row carries every column.
+    z column, so every row carries every column. A test with ``own_page``
+    has its own atlas page; the others share the calibrated-tests page.
     """
 
     name: str
@@ -84,6 +88,7 @@ class CalibratedTest:
     rule: ZCalibration
     min_reps: int
     cell_names: Sequence[str]
+    own_page: bool = False
 
 
 def scored_cell(observed: float, expected: float, se: float, **stats: Any) -> dict[str, Any]:
