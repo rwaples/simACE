@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Create, list, and remove a family worktree: one git worktree per family checkout.
+"""Create, list, finish, and remove a family worktree: one git worktree per family checkout.
 
 A family worktree lives at ``<main>/.claude/worktrees/<name>/`` and mirrors the
 umbrella layout, so cross-repo paths (``fitACE/pixi.toml``'s ``simace = {path =
@@ -23,7 +23,9 @@ carry:
   ``external/epimight*``), linked back to the main checkout's copies, which are
   read-only references. Other dangling targets stay dangling: fitACE's
   ``results -> ../results`` must reach the worktree's own simACE results, not
-  the main checkout's.
+  the main checkout's;
+- each entry of the main checkout's gitignored ``plans/`` and ``notes/``,
+  linked in, so a plan edited in the worktree is the main checkout's plan.
 
 If any of that fails or is interrupted, ``add`` removes what it created, in
 reverse order, and deletes the family directory only once nothing registered
@@ -40,12 +42,26 @@ unmerged or differently named branch is kept, and an unmerged detached HEAD is
 saved under ``worktree-rescue-<name>-<sha12>`` in the main checkout before
 anything is removed (``--force`` discards uncommitted files, never commits). A
 checkout whose directory was deleted by hand is checked by its commits alone.
+Entries the worktree created under ``plans/`` and ``notes/`` (anything but the
+links ``add`` made) are moved into the main checkout before removal; one whose
+name is taken there lands as ``<stem>-<name><suffix>``, and a second collision
+refuses the removal, even with ``--force``.
+
+``finish`` merges every ``<name>`` branch into its base in the main checkout,
+then runs ``remove``. It checks every checkout first and merges nothing when a
+worktree is dirty, a detached checkout holds unmerged commits, a main checkout
+is not on its base, the merge would conflict, it would touch a file the main
+checkout has modified or untracked, a merge commit is needed while the main
+checkout has staged changes, or a new plan or note could not be moved home. A
+merge that still fails stops ``finish`` and keeps the worktree. A branch the base has not moved past fast-forwards;
+otherwise it gets a ``--no-ff`` merge commit (``-m`` sets the message).
 
 Examples:
     pixi run python tools/family_worktree.py add issue-40 pedigree-graph pedsum
     pixi run python tools/family_worktree.py add bench-base               # all detached
     pixi run python tools/family_worktree.py add py315 --all --install
     pixi run python tools/family_worktree.py list
+    pixi run python tools/family_worktree.py finish issue-40 -m "Merge issue 40: ..."
     pixi run python tools/family_worktree.py remove issue-40
 """
 
@@ -79,6 +95,9 @@ BUILD_OUTPUTS = (
     "fitACE_stan/fitace_stan/fit_pedigree_ace_reml",
     "tetraher_simace/ldak6.2.simace",
 )
+
+#: Gitignored working directories of the simACE checkout whose entries a family worktree shares.
+SHARED_DIRS = ("plans", "notes")
 
 NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 
@@ -219,6 +238,7 @@ def create(umbrella: Path, wt: Path, name: str, repos: list[Repo], branched: set
 
     for r in repos:
         link_external_targets(umbrella, wt, wt / r.path)
+    link_shared(umbrella, wt)
 
 
 def rollback(umbrella: Path, wt: Path, name: str, created: list[Repo], branched: set[str]) -> list[str]:
@@ -276,6 +296,42 @@ def link_external_targets(umbrella: Path, wt: Path, checkout: Path) -> None:
             target.symlink_to(source)
 
 
+def link_shared(umbrella: Path, wt: Path) -> None:
+    """Link each entry of ``umbrella``'s ``plans/`` and ``notes/`` into the worktree's simACE checkout ``wt``."""
+    for d in SHARED_DIRS:
+        if not (umbrella / d).is_dir():
+            continue
+        (wt / d).mkdir(exist_ok=True)
+        for entry in (umbrella / d).iterdir():
+            link = wt / d / entry.name
+            if not link.exists() and not link.is_symlink():
+                link.symlink_to(entry)
+
+
+def shared_moves(umbrella: Path, wt: Path, name: str) -> tuple[list[tuple[Path, Path]], list[str]]:
+    """The ``plans/`` and ``notes/`` entries worktree ``wt`` created, paired with their main-checkout destinations.
+
+    Skips the links ``add`` made and tracked paths. Returns ``(moves, problems)``; a problem is an entry whose
+    name and fallback ``<stem>-<name><suffix>`` are both taken in the main checkout.
+    """
+    moves, problems = [], []
+    for d in SHARED_DIRS:
+        if not (wt / d).is_dir():
+            continue
+        tracked = set(git(wt, "ls-files", "--", d).splitlines())
+        for entry in sorted((wt / d).iterdir()):
+            if entry.is_symlink() or f"{d}/{entry.name}" in tracked:
+                continue
+            dest = umbrella / d / entry.name
+            if dest.exists() or dest.is_symlink():
+                dest = dest.with_name(f"{entry.stem}-{name}{entry.suffix}")
+            if dest.exists() or dest.is_symlink():
+                problems.append(f"{d}/{entry.name}: {umbrella / d / entry.name} and {dest} both exist")
+            else:
+                moves.append((entry, dest))
+    return moves, problems
+
+
 def family_entries(umbrella: Path, name: str) -> list[Entry]:
     """The registered checkouts of family worktree ``name``, outermost first."""
     wt = worktree_dir(umbrella, name)
@@ -331,6 +387,14 @@ def remove(umbrella: Path, name: str, force: bool) -> int:
                 f"save it with `git -C {e.path} switch -c <branch>`"
             )
             rescue.append(e)
+    wt = worktree_dir(umbrella, name)
+    moves, collisions = shared_moves(umbrella, wt, name) if wt.is_dir() else ([], [])
+    if collisions:
+        # Even --force: these gitignored drafts exist nowhere else.
+        print("refusing to remove; move these plans/notes into the main checkout by hand:", file=sys.stderr)
+        for c in collisions:
+            print(f"  {c}", file=sys.stderr)
+        return 1
     if problems and not force:
         print("refusing to remove (pass --force to remove the worktrees anyway):", file=sys.stderr)
         for p in problems:
@@ -348,6 +412,11 @@ def remove(umbrella: Path, name: str, force: bool) -> int:
             git(main, "branch", ref, e.head)
         print(f"{e.repo.label}: saved detached HEAD as branch {ref!r}")
 
+    for src, dest in moves:
+        dest.parent.mkdir(exist_ok=True)
+        src.rename(dest)
+        print(f"moved {src.relative_to(wt)} to {dest}")
+
     for e in reversed(entries):
         git(umbrella / e.repo.path, "worktree", "remove", "--force", str(e.path))
         if e.repo.label in merged:
@@ -358,10 +427,79 @@ def remove(umbrella: Path, name: str, force: bool) -> int:
             print(f"{e.repo.label}: removed worktree, kept branch {e.branch!r}")
         else:
             print(f"{e.repo.label}: removed worktree")
-    shutil.rmtree(worktree_dir(umbrella, name), ignore_errors=True)
+    shutil.rmtree(wt, ignore_errors=True)
     if "pedigree-graph" in merged:
         print("pedigree-graph: run `pixi run build-dev` in the main checkout to rebuild the editable extension")
     return 0
+
+
+def finish(umbrella: Path, name: str, message: str | None) -> int:
+    """Merge family worktree ``name``'s branches into their bases in the main checkouts, then remove it."""
+    try:
+        entries = family_entries(umbrella, name)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
+    if not entries:
+        print(f"no family worktree named {name!r}", file=sys.stderr)
+        return 2
+
+    problems, to_merge = [], []
+    for e in entries:
+        main, label, b = umbrella / e.repo.path, e.repo.label, base(e.repo)
+        if not e.path.is_dir():
+            problems.append(f"{label}: {e.path} is missing")
+            continue
+        if dirty := git(e.path, "status", "--porcelain"):
+            problems.append(f"{label}: {len(dirty.splitlines())} uncommitted or untracked file(s)")
+        if is_ancestor(main, e.head, b):
+            continue
+        if e.branch != name:
+            problems.append(f"{label}: {e.branch or 'detached HEAD'} holds commits not in {b}; only {name!r} merges")
+            continue
+        current = git(main, "branch", "--show-current")
+        touched = {os.fsdecode(r) for r in git_z(main, "diff", "--name-only", "--no-renames", f"{b}...{e.head}")}
+        # Tracked edits and untracked files both stop a merge that would overwrite them.
+        status = git_z(main, "status", "--porcelain", "--no-renames", "--untracked-files=all")
+        pending = {os.fsdecode(rec[3:]) for rec in status}
+        staged = any(rec[:1] not in b" ?" for rec in status)
+        conflicts = subprocess.run(
+            ["git", "-C", str(main), "merge-tree", "--write-tree", b, e.head], check=False, capture_output=True
+        ).returncode
+        if current != b:
+            problems.append(f"{label}: main checkout {main} is on {current or 'a detached HEAD'}, not {b}")
+        elif conflicts:
+            problems.append(f"{label}: {name!r} conflicts with {b}")
+        elif overlap := sorted(touched & pending):
+            problems.append(f"{label}: main checkout has modified or untracked {', '.join(overlap)}")
+        elif staged and not is_ancestor(main, b, e.head):
+            problems.append(f"{label}: main checkout has staged changes, which block a merge commit")
+        else:
+            to_merge.append(e)
+    wt = worktree_dir(umbrella, name)
+    problems += shared_moves(umbrella, wt, name)[1] if wt.is_dir() else []
+    if problems:
+        print("refusing to finish; nothing merged:", file=sys.stderr)
+        for p in problems:
+            print(f"  {p}", file=sys.stderr)
+        return 1
+
+    for e in to_merge:
+        main, b = umbrella / e.repo.path, base(e.repo)
+        ff = is_ancestor(main, b, e.head)
+        args = ["--ff-only"] if ff else ["--no-ff", "-m", message or f"Merge {name}"]
+        try:
+            git(main, "merge", "-q", *args, e.head)
+        except subprocess.CalledProcessError as exc:
+            print(f"{e.repo.label}: merge failed: {exc.stderr.strip()}", file=sys.stderr)
+            print(
+                f"stopped; checkouts above are merged, the worktree is kept. Fix, then rerun finish {name}",
+                file=sys.stderr,
+            )
+            return 1
+        how = "fast-forwarded" if ff else "merged"
+        print(f"{e.repo.label}: {how} {b} to {name!r}: {git(main, 'log', '--oneline', '-1')}")
+    return remove(umbrella, name, force=False)
 
 
 def list_worktrees(umbrella: Path) -> int:
@@ -397,6 +535,9 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     p_rm = sub.add_parser("remove", help="remove a family worktree")
     p_rm.add_argument("name")
     p_rm.add_argument("--force", action="store_true", help="remove despite uncommitted or unmerged work")
+    p_fin = sub.add_parser("finish", help="merge the <name> branches into their bases, then remove")
+    p_fin.add_argument("name")
+    p_fin.add_argument("-m", "--message", help="merge commit message when a fast-forward is not possible")
     sub.add_parser("list", help="list family worktrees")
     args = parser.parse_args(argv)
 
@@ -406,6 +547,8 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
         return add(main_dir, args.name, branched, args.install)
     if args.cmd == "remove":
         return remove(main_dir, args.name, args.force)
+    if args.cmd == "finish":
+        return finish(main_dir, args.name, args.message)
     return list_worktrees(main_dir)
 
 

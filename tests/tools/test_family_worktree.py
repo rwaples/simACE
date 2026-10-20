@@ -35,7 +35,12 @@ def make_repo(path: Path, branch: str, files: dict[str, str], ignore: str = "") 
 @pytest.fixture
 def family(tmp_path: Path) -> Path:
     root = tmp_path / "simACE"
-    make_repo(root, "dev", {"README.md": "simACE\n"}, ignore="/fitACE/\nexternal/\n.claude/\n")
+    make_repo(
+        root,
+        "dev",
+        {"README.md": "simACE\n", "plans/README.md": "plans\n"},
+        ignore="/fitACE/\nexternal/\n.claude/\nplans/*\n!plans/README.md\nnotes/\n",
+    )
     fitace = root / "fitACE"
     make_repo(fitace, "main", {"pixi.toml": ""}, ignore="fitACE_epimight/\nbuild-fp*/\nldak6.2.simace\n")
     (fitace / "results").symlink_to("../results")
@@ -134,8 +139,8 @@ def test_add_rolls_back_when_a_checkout_fails(family: Path) -> None:
     assert git(family, "worktree", "list").count("\n") == 0
 
 
-def commit_in(path: Path, rel: str) -> str:
-    (path / rel).write_text("")
+def commit_in(path: Path, rel: str, text: str = "") -> str:
+    (path / rel).write_text(text)
     git(path, "add", rel)
     git(path, "commit", "-q", "-m", rel)
     return git(path, "rev-parse", "HEAD")
@@ -356,3 +361,103 @@ def test_list_and_remove_handle_a_hand_deleted_checkout(family: Path, capsys) ->
     assert main(["remove", "wt1", "--force"], root=family) == 0
     assert "wt1" not in registered(family / "fitACE")
     assert git(family / "fitACE", "branch", "--list", "wt1")
+
+
+def test_add_links_plans_and_notes_and_remove_moves_new_ones_home(family: Path) -> None:
+    (family / "plans/old.md").write_text("old\n")
+    (family / "notes").mkdir()
+    (family / "notes/n.md").write_text("n\n")
+    assert main(["add", "wt1"], root=family) == 0
+    wt = family / ".claude/worktrees/wt1"
+    (wt / "plans/old.md").write_text("edited\n")
+    assert (family / "plans/old.md").read_text() == "edited\n", "a linked plan is the main checkout's plan"
+    assert (wt / "notes/n.md").read_text() == "n\n"
+    (wt / "plans/new.md").write_text("new\n")
+    (wt / "notes/n.md").unlink()
+    (wt / "notes/n.md").write_text("worktree n\n")
+    assert git(wt, "status", "--porcelain") == ""
+    assert main(["remove", "wt1"], root=family) == 0
+    assert (family / "plans/new.md").read_text() == "new\n"
+    assert (family / "plans/old.md").read_text() == "edited\n"
+    assert (family / "notes/n.md").read_text() == "n\n"
+    assert (family / "notes/n-wt1.md").read_text() == "worktree n\n"
+    assert (family / "plans/README.md").read_text() == "plans\n"
+
+
+def test_remove_refuses_when_a_new_plan_cannot_be_moved(family: Path, capsys) -> None:
+    assert main(["add", "wt1"], root=family) == 0
+    (family / "plans/p.md").write_text("main\n")
+    (family / "plans/p-wt1.md").write_text("main side\n")
+    (family / ".claude/worktrees/wt1/plans/p.md").write_text("worktree\n")
+    for force in ([], ["--force"]):
+        assert main(["remove", "wt1", *force], root=family) == 1
+        assert "both exist" in capsys.readouterr().err
+        assert (family / ".claude/worktrees/wt1/plans/p.md").read_text() == "worktree\n"
+
+
+def test_finish_fast_forwards_then_removes(family: Path) -> None:
+    assert main(["add", "wt1", "fitACE"], root=family) == 0
+    commit_in(family / ".claude/worktrees/wt1/fitACE", "work.py", "")
+    assert main(["finish", "wt1"], root=family) == 0
+    fitace = family / "fitACE"
+    assert git(fitace, "log", "-1", "--format=%s") == "work.py"
+    assert git(fitace, "branch", "--list", "wt1") == ""
+    assert not (family / ".claude/worktrees/wt1").exists()
+
+
+def test_finish_merges_with_a_commit_when_the_base_moved(family: Path) -> None:
+    assert main(["add", "wt1", "fitACE"], root=family) == 0
+    commit_in(family / ".claude/worktrees/wt1/fitACE", "work.py", "")
+    commit_in(family / "fitACE", "other.py", "")
+    assert main(["finish", "wt1", "-m", "Merge wt1 work"], root=family) == 0
+    fitace = family / "fitACE"
+    assert git(fitace, "log", "-1", "--format=%s %p").startswith("Merge wt1 work ")
+    assert (fitace / "work.py").exists()
+
+
+BLOCKER_REASONS = {
+    "conflict": "conflicts with main",
+    "pending": "modified or untracked shared.py",
+    "untracked": "modified or untracked added.py",
+    "staged": "staged changes",
+    "off-base": "not main",
+    "dirty": "uncommitted or untracked file",
+    "plan": "both exist",
+}
+
+
+@pytest.mark.parametrize("blocker", list(BLOCKER_REASONS))
+def test_finish_merges_nothing_when_any_checkout_is_blocked(family: Path, capsys, blocker: str) -> None:
+    fitace = family / "fitACE"
+    commit_in(fitace, "shared.py", "base\n")
+    assert main(["add", "wt1", "simACE", "fitACE"], root=family) == 0
+    wt = family / ".claude/worktrees/wt1"
+    commit_in(wt, "a.txt", "worktree\n")
+    commit_in(wt / "fitACE", "shared.py", "worktree\n")
+    if blocker == "conflict":
+        commit_in(fitace, "shared.py", "main\n")
+    elif blocker == "pending":
+        (fitace / "shared.py").write_text("uncommitted\n")
+    elif blocker == "untracked":
+        commit_in(wt / "fitACE", "added.py", "worktree\n")
+        (fitace / "added.py").write_text("untracked\n")
+    elif blocker == "staged":
+        commit_in(fitace, "other.py", "")
+        (fitace / "unrelated.py").write_text("")
+        git(fitace, "add", "unrelated.py")
+    elif blocker == "off-base":
+        git(fitace, "switch", "-q", "-c", "elsewhere")
+    elif blocker == "plan":
+        (family / "plans/p.md").write_text("main\n")
+        (family / "plans/p-wt1.md").write_text("main side\n")
+        (wt / "plans/p.md").unlink(missing_ok=True)
+        (wt / "plans/p.md").write_text("worktree\n")
+    else:
+        (wt / "fitACE/stray.py").write_text("")
+    simace_head = git(family, "rev-parse", "dev")
+    assert main(["finish", "wt1"], root=family) == 1
+    err = capsys.readouterr().err
+    assert "nothing merged" in err
+    assert BLOCKER_REASONS[blocker] in err
+    assert git(family, "rev-parse", "dev") == simace_head, "simACE must not merge while another check fails"
+    assert (wt / "fitACE").is_dir()
