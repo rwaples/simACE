@@ -27,6 +27,8 @@ SCRIPT = Path(__file__).resolve().parents[2] / "tools/claude_hooks/bash_guard.py
         "pkill --full gate",
         'bash -c "pkill -f run_big.sh"',
         "timeout 5 sh -c 'pkill -f x'",
+        "bash -lc 'pkill -f x'",
+        "echo $'a\\'b <<EOF'\npkill -f run_big.sh\nEOF",
     ],
 )
 def test_blocks_self_matching_patterns(command: str) -> None:
@@ -44,6 +46,8 @@ def test_blocks_self_matching_patterns(command: str) -> None:
         "grep -f patterns.txt file",
         "python3 - <<'EOF'\nnote = 'kill $(pgrep -f <pattern>)'\nEOF\necho ok",
         "cat > a.md <<EOF\npkill -f x\nEOF",
+        "grep -rn 'pkill -f' tools/",
+        'rg "pgrep -f" docs',
     ],
 )
 def test_passes_other_commands(command: str) -> None:

@@ -327,6 +327,13 @@ def link_shared(umbrella: Path, wt: Path) -> None:
     Path(git(wt, "rev-parse", "--absolute-git-dir"), SHARED_LINKS).write_text("".join(linked))
 
 
+def shared_links(wt: Path) -> dict[str, str]:
+    """The shared files ``link_shared`` linked into ``wt``, mapped to their digests; malformed records are skipped."""
+    record = Path(git(wt, "rev-parse", "--absolute-git-dir"), SHARED_LINKS)
+    lines = record.read_text().splitlines() if record.exists() else []
+    return {rel: sha for sha, tab, rel in (line.partition("\t") for line in lines) if tab}
+
+
 def shared_moves(umbrella: Path, wt: Path, name: str) -> tuple[list[tuple[Path, Path, str | None]], list[str]]:
     """The ``plans/`` and ``notes/`` entries worktree ``wt`` created, paired with their main-checkout destinations.
 
@@ -336,13 +343,13 @@ def shared_moves(umbrella: Path, wt: Path, name: str) -> tuple[list[tuple[Path, 
     ``<stem>-<name><suffix>``. Returns ``(moves, problems)``: moves are ``(source, destination, note)``; a
     problem is an entry whose name and fallback are both taken.
     """
-    record = Path(git(wt, "rev-parse", "--absolute-git-dir"), SHARED_LINKS)
-    lines = record.read_text().splitlines() if record.exists() else []
-    linked = {rel: sha for sha, rel in (line.split("\t", 1) for line in lines)}
     moves, problems = [], []
+    linked: dict[str, str] | None = None
     for d in SHARED_DIRS:
         if not (wt / d).is_dir():
             continue
+        if linked is None:
+            linked = shared_links(wt)
         tracked = set(git(wt, "ls-files", "--", d).splitlines())
         for entry in sorted((wt / d).iterdir()):
             rel = f"{d}/{entry.name}"
@@ -350,12 +357,12 @@ def shared_moves(umbrella: Path, wt: Path, name: str) -> tuple[list[tuple[Path, 
                 continue
             dest = umbrella / rel
             note = None
-            if rel in linked and entry.is_file():
-                if dest.is_file() and not dest.is_symlink() and digest(dest) == linked[rel]:
-                    moves.append((entry, dest, None))
-                    continue
-                note = f"{rel} changed in both the worktree and the main checkout; reconcile them by hand"
             if dest.exists() or dest.is_symlink():
+                if rel in linked and entry.is_file():
+                    if dest.is_file() and not dest.is_symlink() and digest(dest) == linked[rel]:
+                        moves.append((entry, dest, None))
+                        continue
+                    note = f"{rel} changed in both the worktree and the main checkout; reconcile them by hand"
                 dest = dest.with_name(f"{entry.stem}-{name}{entry.suffix}")
             if dest.exists() or dest.is_symlink():
                 problems.append(f"{rel}: {umbrella / rel} and {dest} both exist")
@@ -492,6 +499,9 @@ def finish(umbrella: Path, name: str, message: str | None) -> int:
             problems.append(f"{label}: {e.branch or 'detached HEAD'} holds commits not in {b}; only {name!r} merges")
             continue
         current = git(main, "branch", "--show-current")
+        if current != b:
+            problems.append(f"{label}: main checkout {main} is on {current or 'a detached HEAD'}, not {b}")
+            continue
         touched = {os.fsdecode(r) for r in git_z(main, "diff", "--name-only", "--no-renames", f"{b}...{e.head}")}
         # Tracked edits and untracked files both stop a merge that would overwrite them.
         status = git_z(main, "status", "--porcelain", "--no-renames", "--untracked-files=all")
@@ -501,9 +511,7 @@ def finish(umbrella: Path, name: str, message: str | None) -> int:
         merge_tree = subprocess.run(
             ["git", "-C", str(main), "merge-tree", "--write-tree", b, e.head], check=False, capture_output=True
         )
-        if current != b:
-            problems.append(f"{label}: main checkout {main} is on {current or 'a detached HEAD'}, not {b}")
-        elif merge_tree.returncode not in (0, 1):
+        if merge_tree.returncode not in (0, 1):
             problems.append(f"{label}: git merge-tree failed: {merge_tree.stderr.decode().strip()}")
         elif merge_tree.returncode == 1:
             problems.append(f"{label}: {name!r} conflicts with {b}")

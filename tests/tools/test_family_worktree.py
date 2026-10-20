@@ -411,6 +411,33 @@ def test_remove_keeps_both_sides_when_main_also_changed_a_replaced_plan(family: 
     assert "changed in both" in capsys.readouterr().out
 
 
+def test_remove_restores_a_replaced_plan_the_main_checkout_deleted(family: Path, capsys) -> None:
+    (family / "plans/p.md").write_text("p\n")
+    assert main(["add", "wt1"], root=family) == 0
+    atomic_save(family / ".claude/worktrees/wt1/plans/p.md", "worktree p\n")
+    (family / "plans/p.md").unlink()
+    assert main(["remove", "wt1"], root=family) == 0
+    assert (family / "plans/p.md").read_text() == "worktree p\n"
+    assert "changed in both" not in capsys.readouterr().out
+
+
+def test_remove_skips_malformed_shared_link_records(family: Path) -> None:
+    (family / "plans/p.md").write_text("p\n")
+    assert main(["add", "wt1"], root=family) == 0
+    wt = family / ".claude/worktrees/wt1"
+    record = Path(git(wt, "rev-parse", "--absolute-git-dir"), fw.SHARED_LINKS)
+    record.write_text("garbage\n" + record.read_text())
+    atomic_save(wt / "plans/p.md", "worktree p\n")
+    assert main(["remove", "wt1"], root=family) == 0
+    assert (family / "plans/p.md").read_text() == "worktree p\n"
+
+
+def test_shared_moves_reads_no_git_without_shared_dirs(family: Path, tmp_path: Path) -> None:
+    not_a_checkout = tmp_path / "gone"
+    not_a_checkout.mkdir()
+    assert fw.shared_moves(family, not_a_checkout, "wt1") == ([], [])
+
+
 def test_remove_refuses_when_a_new_plan_cannot_be_moved(family: Path, capsys) -> None:
     assert main(["add", "wt1"], root=family) == 0
     (family / "plans/p.md").write_text("main\n")
@@ -488,6 +515,23 @@ def test_finish_merges_nothing_when_any_checkout_is_blocked(family: Path, capsys
     assert BLOCKER_REASONS[blocker] in err
     assert git(family, "rev-parse", "dev") == simace_head, "simACE must not merge while another check fails"
     assert (wt / "fitACE").is_dir()
+
+
+def test_finish_skips_merge_tree_when_the_main_checkout_is_off_base(family: Path, monkeypatch, capsys) -> None:
+    assert main(["add", "wt1", "fitACE"], root=family) == 0
+    commit_in(family / ".claude/worktrees/wt1/fitACE", "work.py", "")
+    git(family / "fitACE", "switch", "-q", "-c", "elsewhere")
+    real_run = subprocess.run
+    calls = []
+
+    def recording_run(cmd, *args, **kwargs):
+        calls.append(cmd)
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(fw.subprocess, "run", recording_run)
+    assert main(["finish", "wt1"], root=family) == 1
+    assert "not main" in capsys.readouterr().err
+    assert not [c for c in calls if "merge-tree" in c]
 
 
 def test_finish_reports_a_merge_tree_error_that_is_not_a_conflict(family: Path, monkeypatch, capsys) -> None:

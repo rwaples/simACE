@@ -24,9 +24,10 @@ import sys
 #: starts with a letter or ``_``, so an arithmetic shift (``$((1<<2))``) does not match.
 HEREDOC_RE = re.compile(r"(?<!<)<<(?!<)-?\s*(['\"]?)([A-Za-z_]\w*)\1")
 
-#: A pkill/pgrep invocation up to the end of its simple command. A leading quote opens a
-#: ``sh -c '...'`` script, whose text is also on the outer shell's command line.
-CALL_RE = re.compile(r"(?:^|[\s;&|(`$'\"])(pkill|pgrep)\s+([^;&|()`\n]*)")
+#: A pkill/pgrep invocation up to the end of its simple command. A quote counts only after ``-c``
+#: (``sh -c '...'``, ``bash -lc``): that script's text is also on the outer shell's command line,
+#: while a quoted ``'pkill -f'`` elsewhere is an argument, such as a grep pattern.
+CALL_RE = re.compile(r"(?:^|[\s;&|(`$]|-[A-Za-z]*c\s+['\"])(pkill|pgrep)\s+([^;&|()`\n]*)")
 
 
 def full_match_flag(args: list[str]) -> bool:
@@ -45,12 +46,20 @@ def code_positions(line: str, quote: str | None) -> tuple[list[bool], str | None
         c = line[i]
         if quote == "'":
             quote = None if c == "'" else quote
+        elif quote == "$'":
+            if c == "\\":
+                i += 1
+            elif c == "'":
+                quote = None
         elif quote == '"':
             if c == "\\":
                 i += 1
             elif c == '"':
                 quote = None
         elif c == "\\":
+            i += 1
+        elif c == "$" and line[i + 1 : i + 2] == "'":
+            quote = "$'"
             i += 1
         elif c in "'\"":
             quote = c
