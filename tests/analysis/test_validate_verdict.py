@@ -124,6 +124,27 @@ def test_a_rarely_scored_cell_fails_coverage() -> None:
     assert decided["n_tests"] == 27
 
 
+def test_not_applicable_reps_leave_the_coverage_count() -> None:
+    """ADR 0029 §4: a degenerate cell is neither scored nor counted against coverage."""
+    reps = _reps(20)
+    for section in reps[:2]:
+        section["cells"]["within_person"] = {"status": "not_applicable", "reason": "zero variance"}
+    decided = decide(scenario_family({"onset_tau": reps}, TESTS))
+    cell = decided["tests"]["onset_tau"]["cells"]["within_person"]
+    assert cell["coverage"] == {"scored": 18, "reps": 18, "share": 1.0, "passed": True}
+    assert cell["mean_z"]["n"] == 18
+
+
+def test_a_cell_not_applicable_in_every_rep_has_no_statistics() -> None:
+    reps = _reps(20)
+    for section in reps:
+        section["cells"]["within_person"] = {"status": "not_applicable", "reason": "zero variance"}
+    decided = decide(scenario_family({"onset_tau": reps}, TESTS))
+    assert "within_person" not in decided["tests"]["onset_tau"]["cells"]
+    assert decided["n_tests"] == 25
+    assert decided["verdict"] == "pass"
+
+
 def test_reps_over_their_bound_are_counted_from_max_abs_z() -> None:
     reps = _reps(20, cells=("trait1_FS",))
     for section in reps[:10]:
@@ -182,7 +203,7 @@ def test_the_verdict_file_carries_its_schema_and_is_read_back(tmp_path) -> None:
 
 def test_onset_tau_tail_rate_is_its_per_rep_familywise_level() -> None:
     """The rule's expected rate of reps over their bound is the level that sets each rep's ``z_bound``."""
-    from simace.analysis.validate.onset_tau import FAMILYWISE_ALPHA
+    from simace.analysis.validate.calibrated import FAMILYWISE_ALPHA
 
     assert ON_DEMAND_CHECKS["onset_tau"].rule.rep_rate == FAMILYWISE_ALPHA
     assert ON_DEMAND_CHECKS["onset_tau"].min_reps == 20

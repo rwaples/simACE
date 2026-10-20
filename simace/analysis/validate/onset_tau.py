@@ -13,10 +13,11 @@ exceeds in about 5% of reps. It records no pass: the verdict is across reps.
 
 from __future__ import annotations
 
-from statistics import NormalDist
 from typing import TYPE_CHECKING, Any
 
-from .calibrated import information_cell, scored_cell
+from simace.analysis.stats.onset_tau import CELL_CATEGORIES
+
+from .calibrated import information_cell, scored_cell, summarize
 
 if TYPE_CHECKING:
     from .calibrated import RepInputs
@@ -27,10 +28,10 @@ MIN_EFFECTIVE_COMPONENTS = 100
 #: Ties plus the target's numerical bound may shift the comparison by at most this many SEs.
 APPROXIMATION_SE_SHARE = 0.05
 
-#: Share of correct reps whose largest |z| exceeds the per-rep bound.
-FAMILYWISE_ALPHA = 0.05
-
 SCOPE = "phenotyped_population"
+
+#: Every cell onset τ can report, in report order (ADR 0027).
+CELL_NAMES = (*(f"trait{t}_{code}" for t in (1, 2) for code in CELL_CATEGORIES), "within_person")
 
 _FIELDS = (
     "n_pairs",
@@ -101,14 +102,11 @@ def score_onset_tau(summary: dict[str, Any]) -> dict[str, Any]:
             results[name] = information_cell(
                 reason, observed=cell.get("observed"), expected=cell.get("expected"), se=cell.get("se"), **stats
             )
-    abs_z = [abs(cell["z"]) for cell in results.values() if cell["status"] == "scored"]
     return {
         "scope": SCOPE,
         "cells": results,
         "summary": {
-            "n_scored": len(abs_z),
-            "max_abs_z": max(abs_z) if abs_z else None,
-            "z_bound": NormalDist().inv_cdf(1 - FAMILYWISE_ALPHA / (2 * len(abs_z))) if abs_z else None,
+            **summarize(results),
             "skipped_traits": summary.get("skipped_traits") or {},
             "entry_cap": summary.get("entry_cap"),
         },

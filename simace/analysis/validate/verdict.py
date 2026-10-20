@@ -126,7 +126,10 @@ class RepsOverBound:
 
 @dataclass(frozen=True)
 class Coverage:
-    """A requirement, not a test: a cell is scored in at least ``minimum`` of the reps."""
+    """A requirement, not a test: a cell is scored in at least ``minimum`` of the reps where it applies.
+
+    ``reps`` excludes the reps whose cell is ``not_applicable`` (ADR 0029 §4).
+    """
 
     scored: int
     reps: int
@@ -187,6 +190,11 @@ def _cell_names(sections: Sequence[Section]) -> list[str]:
     return list(dict.fromkeys(name for section in sections for name in section["cells"]))
 
 
+def _applicable_reps(sections: Sequence[Section], cell: str) -> int:
+    """The reps whose cell is not ``not_applicable``: one missing the cell counts, as not scored."""
+    return sum((section["cells"].get(cell) or {}).get("status") != "not_applicable" for section in sections)
+
+
 def _scored_z(sections: Sequence[Section], cell: str) -> np.ndarray:
     found = (section["cells"].get(cell) for section in sections)
     return np.array([c["z"] for c in found if c is not None and c["status"] == "scored"], dtype=np.float64)
@@ -196,8 +204,9 @@ def _scored_z(sections: Sequence[Section], cell: str) -> np.ndarray:
 class ZCalibration:
     """Scored z behave as standard normals, and reps exceed their per-rep Bonferroni bound at about ``rep_rate``.
 
-    Per scenario, for every cell any rep reports: coverage, then the mean-z
-    and SD-z tests over the reps that scored it; and one count of the reps
+    Per scenario, for every cell any rep reports and some rep has
+    applicable: coverage over the applicable reps, then the mean-z and SD-z
+    tests over the reps that scored it; and one count of the reps
     whose ``summary.max_abs_z`` exceeds ``summary.z_bound``, the per-rep
     bound that a correct rep exceeds with probability ``rep_rate``. Pooled
     over scenarios: the mean-z and SD-z tests of every cell scored anywhere.
@@ -212,8 +221,10 @@ class ZCalibration:
             yield Entry((), Insufficient("no rep reports a cell"))
             return
         for cell in _cell_names(sections):
+            if not (applicable := _applicable_reps(sections, cell)):
+                continue
             z = _scored_z(sections, cell)
-            yield Entry(("cells", cell, "coverage"), Coverage(len(z), len(sections), self.min_coverage))
+            yield Entry(("cells", cell, "coverage"), Coverage(len(z), applicable, self.min_coverage))
             yield Entry(("cells", cell, "mean_z"), MeanZ(z))
             yield Entry(("cells", cell, "sd_z"), SdZ(z))
         over = sum(

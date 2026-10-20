@@ -15,8 +15,9 @@ __all__ = ["ON_DEMAND_CHECKS", "SCHEMA", "load_validation", "run_on_demand"]
 
 from typing import TYPE_CHECKING, Any
 
-from .calibrated import CalibratedTest
-from .onset_tau import FAMILYWISE_ALPHA, run_onset_tau
+from .calibrated import FAMILYWISE_ALPHA, CalibratedTest
+from .onset_tau import CELL_NAMES as ONSET_TAU_CELLS
+from .onset_tau import run_onset_tau
 from .schema_file import load_schemad
 from .verdict import ZCalibration
 
@@ -38,6 +39,7 @@ ON_DEMAND_CHECKS: dict[str, CalibratedTest] = {
             run_onset_tau,
             ZCalibration(rep_rate=FAMILYWISE_ALPHA),
             min_reps=20,
+            cell_names=ONSET_TAU_CELLS,
         ),
     )
 }

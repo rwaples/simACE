@@ -14,8 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from simace.analysis.report_schema import REPORT_SUMMARY_REGISTRY
-from simace.analysis.stats.onset_tau import CELL_CATEGORIES
-from simace.analysis.validate.on_demand import load_validation
+from simace.analysis.validate.on_demand import ON_DEMAND_CHECKS, load_validation
 from simace.analysis.validate.schema_file import one_warning_for_refused
 from simace.analysis.validate.verdict import load_verdict, record_name, records
 from simace.core.relationships import C_TRANSMISSION_KEYS, RELATIONSHIP_TYPES
@@ -140,29 +139,27 @@ def extract_metrics(report_path: str) -> dict[str, Any]:
     return row
 
 
-#: Onset-τ cells with a z column, in report order (ADR 0027).
-_ONSET_TAU_CELLS = (*(f"trait{t}_{code}" for t in (1, 2) for code in CELL_CATEGORIES), "within_person")
-
-
 def _on_demand_columns(path: Path) -> dict[str, Any]:
     """Columns from ``simace validate``'s ``validation.yaml``: empty for a rep it has not validated.
 
     A file without the current schema counts as not validated (ADR 0028).
-    Every row carries every column, since the TSV's columns are the first
-    row's keys. Gather copies per-rep values and decides no verdict; a cell's
-    z is present for scored cells only.
+    Every row carries every registered test's columns, ``{test}_n_scored``,
+    ``{test}_max_abs_z``, ``{test}_rep_bound`` and ``{test}_z_{cell}`` per
+    cell the test can report, since the TSV's columns are the first row's
+    keys. Gather copies per-rep values and decides no verdict; a cell's z is
+    present for scored cells only.
     """
-    data = load_validation(path) or {}
-    onset_tau = (data.get("checks") or {}).get("onset_tau") or {}
-    summary = onset_tau.get("summary") or {}
-    cells = onset_tau.get("cells") or {}
-    row: dict[str, Any] = {
-        "onset_tau_n_scored": summary.get("n_scored"),
-        "onset_tau_max_abs_z": summary.get("max_abs_z"),
-        "onset_tau_rep_bound": summary.get("z_bound"),
-    }
-    for name in _ONSET_TAU_CELLS:
-        row[f"onset_tau_z_{name}"] = (cells.get(name) or {}).get("z")
+    checks = (load_validation(path) or {}).get("checks") or {}
+    row: dict[str, Any] = {}
+    for name, test in ON_DEMAND_CHECKS.items():
+        section = checks.get(name) or {}
+        summary = section.get("summary") or {}
+        cells = section.get("cells") or {}
+        row[f"{name}_n_scored"] = summary.get("n_scored")
+        row[f"{name}_max_abs_z"] = summary.get("max_abs_z")
+        row[f"{name}_rep_bound"] = summary.get("z_bound")
+        for cell in test.cell_names:
+            row[f"{name}_z_{cell}"] = (cells.get(cell) or {}).get("z")
     return row
 
 

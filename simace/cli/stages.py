@@ -282,7 +282,7 @@ _ATLAS_META_KEYS = (
 
 
 def validate_argv(rep: ResolvedRep, layout: Layout, checks: Iterable[str], source: str | None) -> list[str]:
-    """Return the per-rep ``simace validate --checks ...`` argv: the cohort stage's phenotype flags and seed.
+    """Return the per-rep ``simace validate --checks ...`` argv: the rep's pedigree and report, the cohort stage's phenotype flags and seed.
 
     ``source`` is the parent's ``git describe``, so every rep of one invocation records the same build.
     """
@@ -290,6 +290,8 @@ def validate_argv(rep: ResolvedRep, layout: Layout, checks: Iterable[str], sourc
     return [
         "--pedigree",
         str(rep.path(layout, RepArtifact.PEDIGREE)),
+        "--report",
+        str(rep.path(layout, RepArtifact.REPORT)),
         "--checks",
         *checks,
         "--output",
