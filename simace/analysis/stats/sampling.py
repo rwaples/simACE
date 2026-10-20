@@ -5,6 +5,8 @@ from __future__ import annotations
 import numpy as np
 import polars as pl
 
+from simace.core.numerics import unique_sorted
+
 
 def create_sample(
     df: pl.DataFrame,
@@ -44,5 +46,5 @@ def create_sample(
         valid = (pid_arr >= 0) & (pid_arr < max_id)
         rows = id_to_row[pid_arr[valid]]
         parent_rows.append(rows[rows >= 0])
-    final_rows = np.unique(np.concatenate([sampled_rows, *parent_rows]))
+    final_rows = unique_sorted(np.concatenate([sampled_rows, *parent_rows]))
     return df[final_rows]

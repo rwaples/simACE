@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 from pedigree_graph import RELATIONSHIPS
 
+from simace.core.numerics import unique_sorted
 from simace.core.relationships import analytic_applies, shared_environment_coefficient, transmission_coefficients
 
 from ._common import (
@@ -52,13 +53,13 @@ def household_sibling_counts(df: pd.DataFrame | pl.DataFrame) -> dict[str, int]:
     if mothers.size == 0:
         return {"n_offspring_with_sibs": 0, "n_offspring_with_maternal_half_sib": 0}
 
-    households, household_of = np.unique(mothers, return_inverse=True)
+    households, household_of = unique_sorted(mothers, return_inverse=True)
     size = np.bincount(household_of, minlength=len(households))
     others = size[household_of] - 1 - (twins != -1)
 
     father_known = fathers != -1
     base = np.int64(max(int(fathers.max()), 0) + 1)
-    known_pairs = np.unique(household_of[father_known] * base + fathers[father_known])
+    known_pairs = unique_sorted(household_of[father_known] * base + fathers[father_known])
     n_fathers = np.bincount((known_pairs // base).astype(np.intp), minlength=len(households))
     n_unknown = np.bincount(household_of[~father_known], minlength=len(households))
     other_father = np.where(
