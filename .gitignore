@@ -9,6 +9,7 @@ external/
 !/scripts/audit_results_footprint.py
 !/scripts/calibrate_frailty_scale.py
 !/scripts/se_calibration.py
+!/scripts/inheritance_residual_study.py
 !/scripts/onset_tau_calibration.py
 # Fresh-computer install-verification suite (shareable; see scripts/verify/README.md)
 !/scripts/verify/
