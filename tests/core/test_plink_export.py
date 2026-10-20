@@ -20,6 +20,7 @@ def _read_fam(path) -> pl.DataFrame:
     return pl.read_csv(
         path,
         separator="\t",
+        null_values=["NA", ""],
         has_header=False,
         new_columns=["FID", "IID", "PAT", "MAT", "SEX", "PHENO"],
         schema_overrides={"FID": pl.String, "IID": pl.String, "PAT": pl.String, "MAT": pl.String},
@@ -121,7 +122,7 @@ def test_cohort_export_round_trips_the_analysis_pedigree(tmp_path, rep) -> None:
     recorded = analysis.select("id", "mother").join(pedigree.select("id", "mother"), on="id", suffix="_recorded")
     assert recorded.filter((pl.col("mother") == -1) & (pl.col("mother_recorded") >= 0)).height > 0, "no severed link"
 
-    pheno = pl.read_csv(tmp_path / "rep.pheno", separator="\t")
+    pheno = pl.read_csv(tmp_path / "rep.pheno", separator="\t", null_values=["NA", ""])
     assert pheno.columns == ["FID", "IID", "affected1", "affected2"]
     outcomes = analysis.select("id").join(cohort.select("id", "affected1", "affected2"), on="id", how="left")
     for trait in ("affected1", "affected2"):
@@ -130,7 +131,7 @@ def test_cohort_export_round_trips_the_analysis_pedigree(tmp_path, rep) -> None:
     assert fam["PHENO"].to_list() == pheno["affected1"].to_list()
     assert set(fam["PHENO"]) == {-9, 1, 2}
 
-    twins = pl.read_csv(tmp_path / "rep.twins", separator="\t")
+    twins = pl.read_csv(tmp_path / "rep.twins", separator="\t", null_values=["NA", ""])
     got = set(zip(twins["IID1"], twins["IID2"], strict=True))
     want_pairs = analysis.filter(pl.col("twin") > pl.col("id"))
     assert got == {(f"id_{a}", f"id_{b}") for a, b in zip(want_pairs["id"], want_pairs["twin"], strict=True)}

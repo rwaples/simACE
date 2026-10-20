@@ -55,7 +55,7 @@ def test_gathers_every_finished_rep_with_its_timing_then_plots(tmp_path, plotted
 
     assert "skipping" in capsys.readouterr().err
 
-    summary = pl.read_csv(tmp_path / "fold" / "report_summary.tsv", separator="\t")
+    summary = pl.read_csv(tmp_path / "fold" / "report_summary.tsv", separator="\t", null_values=["NA", ""])
     assert summary.select("scenario", "rep", "simulate_seconds").rows() == [
         ("scA", 1, 1.5),
         ("scA", 2, 2.5),
@@ -65,7 +65,7 @@ def test_gathers_every_finished_rep_with_its_timing_then_plots(tmp_path, plotted
     assert args[1] == tmp_path / "fold" / "plots"
     assert kwargs["atlas_names"] == ("atlas.html", "atlas.pdf")
     assert kwargs["verdict_path"] == tmp_path / "fold" / "validation_summary.yaml"
-    verdicts = pl.read_csv(tmp_path / "fold" / "verdicts.tsv", separator="\t")
+    verdicts = pl.read_csv(tmp_path / "fold" / "verdicts.tsv", separator="\t", null_values=["NA", ""])
     assert verdicts.select("family", "name").rows() == [("folder", "fold"), ("scenario", "scA"), ("scenario", "scB")]
     assert verdicts["verdict"].null_count() == 3, "no verdict file: gather writes none"
 
@@ -121,7 +121,7 @@ def test_gathers_the_configured_folder_naming_every_other_rep(tmp_path, plotted,
     assert f"skipping {layout.rep_dir('fold', 'tiny', 3)} (beyond replicates: 2; --all includes it)" in err
     assert f"skipping {tmp_path / 'results' / 'fold' / 'gone'} (not in config/fold.yaml; --all includes it)" in err
     assert "rep_old" not in err
-    summary = pl.read_csv(tmp_path / "results" / "fold" / "report_summary.tsv", separator="\t")
+    summary = pl.read_csv(tmp_path / "results" / "fold" / "report_summary.tsv", separator="\t", null_values=["NA", ""])
     assert summary.select("scenario", "rep").rows() == [("tiny", 1)]
 
 
@@ -134,7 +134,7 @@ def test_all_gathers_every_finished_rep_on_disk(tmp_path, plotted, capsys) -> No
     assert f"skipping {layout.rep_dir('fold', 'tiny', 2)} (stale: N: 999 -> 300)" in err
     assert f"skipping {layout.rep_dir('fold', 'tiny', 3)} (stale: rep: 2 -> 3, seed: 101 -> 102, N: 999 -> 300)" in err
     assert f"skipping {tmp_path / 'results' / 'fold' / 'tiny' / 'rep_old'} (not a rep directory)" in err
-    summary = pl.read_csv(tmp_path / "results" / "fold" / "report_summary.tsv", separator="\t")
+    summary = pl.read_csv(tmp_path / "results" / "fold" / "report_summary.tsv", separator="\t", null_values=["NA", ""])
     assert summary.select("scenario", "rep").rows() == [("gone", 1), ("tiny", 1)]
 
 

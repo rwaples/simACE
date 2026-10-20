@@ -80,7 +80,7 @@ line-length = 120
 extend-exclude = ["notes", "fitACE", "evaluate"]
 
 [tool.ruff.lint]
-select = ["F", "E", "W", "I", "UP", "B", "SIM", "RUF", "A", "C4", "PT", "PIE", "PERF", "TC", "PLW", "RSE", "RET", "D"]
+select = ["F", "E", "W", "I", "UP", "B", "SIM", "RUF", "A", "C4", "PT", "PIE", "PERF", "TC", "PLW", "RSE", "RET", "D", "TID251", "TID253"]
 ignore = [
     "E501",   # line too long — formatter handles wrapping
     "SIM108", # use ternary — often less readable
@@ -98,9 +98,23 @@ ignore = [
 "simace/core/_numba_utils.py" = ["D"]               # private module, all functions private
 "simace/phenotype/models/*.py" = ["D102"]         # method docstrings inherited from PhenotypeModel ABC
 "simace/plotting/atlas_manifest.py" = ["RUF001"]    # caption strings use scientific × − – etc.
+"simace/core/parquet.py" = ["TID251"]              # load_parquet is the one sanctioned pl.read_parquet
+"simace/plotting/**" = ["TID253"]                  # plotting modules own matplotlib/seaborn
+"scripts/**" = ["TID251", "TID253"]                # standalone scripts, not the package
+"docs/**" = ["TID251", "TID253"]                   # worked examples
+"tests/**" = ["TID251", "TID253"]                  # fixtures read raw parquet; plot tests import matplotlib
 
 [tool.ruff.lint.flake8-type-checking]
 strict = true
+
+[tool.ruff.lint.flake8-tidy-imports]
+# Import-time matplotlib/seaborn only in plotting code: every stage process
+# would otherwise pay for them (see tests/test_job_import_hygiene.py for scipy).
+banned-module-level-imports = ["matplotlib", "seaborn"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"polars.read_parquet".msg = "use simace.core.parquet.load_parquet (ADR 0015 single read entry point)"
+"polars.scan_parquet".msg = "use simace.core.parquet.load_parquet (ADR 0015: no LazyFrame in stage code)"
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

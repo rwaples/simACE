@@ -9,6 +9,8 @@ import time
 
 import polars as pl
 
+from simace.core.parquet import load_parquet
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,7 +35,7 @@ def convert(parquet_path: str, output_path: str | None = None, float_precision: 
         output_path = parquet_path.removesuffix(".parquet") + suffix
 
     t0 = time.perf_counter()
-    df = pl.read_parquet(parquet_path)
+    df = load_parquet(parquet_path)
     logger.info("Read %s (%d rows, %d cols)", parquet_path, df.height, df.width)
 
     bool_cols = [c for c, dtype in df.schema.items() if dtype == pl.Boolean()]

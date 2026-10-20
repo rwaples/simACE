@@ -13,7 +13,7 @@ BUILD = {"simace_version": "0.1.0", "source": "v0.1.0-1-gabc1234"}
 
 
 def _read(path) -> list[dict]:
-    return pl.read_csv(path, separator="\t", infer_schema_length=None).to_dicts()
+    return pl.read_csv(path, separator="\t", null_values=["NA", ""], infer_schema_length=None).to_dicts()
 
 
 def test_one_row_for_the_folder_then_one_per_scenario_copied_from_their_files(tmp_path) -> None:
