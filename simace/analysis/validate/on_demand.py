@@ -16,6 +16,7 @@ __all__ = ["ON_DEMAND_CHECKS", "SCHEMA", "load_validation", "run_on_demand"]
 from typing import TYPE_CHECKING, Any
 
 from .calibrated import FAMILYWISE_ALPHA, CalibratedTest
+from .inheritance import HOUSEHOLD_DRAW_CELLS, MENDELIAN_RESIDUAL_CELLS, run_household_draw, run_mendelian_residual
 from .onset_tau import CELL_NAMES as ONSET_TAU_CELLS
 from .onset_tau import run_onset_tau
 from .schema_file import load_schemad
@@ -40,6 +41,22 @@ ON_DEMAND_CHECKS: dict[str, CalibratedTest] = {
             ZCalibration(rep_rate=FAMILYWISE_ALPHA),
             min_reps=20,
             cell_names=ONSET_TAU_CELLS,
+        ),
+        CalibratedTest(
+            "mendelian_residual",
+            "A minus midparent: uncorrelated between FS, MHS and PHS, variance A/2 (ADR 0029)",
+            run_mendelian_residual,
+            ZCalibration(rep_rate=FAMILYWISE_ALPHA),
+            min_reps=20,
+            cell_names=MENDELIAN_RESIDUAL_CELLS,
+        ),
+        CalibratedTest(
+            "household_draw",
+            "C minus its transmitted part: uncorrelated between PHS (ADR 0029)",
+            run_household_draw,
+            ZCalibration(rep_rate=FAMILYWISE_ALPHA),
+            min_reps=20,
+            cell_names=HOUSEHOLD_DRAW_CELLS,
         ),
     )
 }

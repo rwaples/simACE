@@ -103,7 +103,8 @@ def test_dry_run_prints_the_per_rep_command_and_writes_nothing(project, capsys) 
     validate_cli(["tiny", "--rep", "1", "--dry-run", *roots, "--no-plots"])
     out = capsys.readouterr().out
     assert "validate --pedigree" in out
-    assert "--checks onset_tau" in out
+    assert "--checks household_draw mendelian_residual onset_tau" in out
+    assert "--report" in out
     assert "--phenotype-params1" in out
     assert not target.exists()
 
@@ -265,7 +266,7 @@ def test_a_verdict_needs_every_registered_test_whatever_checks_ran(project, caps
     monkeypatch.setattr(validate_module, "ON_DEMAND_CHECKS", registry)
     capsys.readouterr()
     validate_cli(["tiny", "--checks", "onset_tau", *roots, "--no-plots"])
-    assert "[tiny] no verdict: reps 1-2 not validated with onset_tau, other" in capsys.readouterr().out
+    assert f"[tiny] no verdict: reps 1-2 not validated with {', '.join(registry)}" in capsys.readouterr().out
     assert not layout.scenario_verdict("t", "tiny").exists()
 
 
