@@ -7,7 +7,7 @@ import inspect
 import subprocess
 import sys
 
-import pandas as pd
+import polars as pl
 import pytest
 
 from simace.cli import COMMANDS, main
@@ -36,7 +36,7 @@ def test_unknown_command_is_a_usage_error() -> None:
 
 def test_dispatch_passes_the_remaining_arguments(tmp_path) -> None:
     pq = tmp_path / "in.parquet"
-    pd.DataFrame({"id": [1, 2], "x": [0.5, 1.5]}).to_parquet(pq)
+    pl.DataFrame({"id": [1, 2], "x": [0.5, 1.5]}).write_parquet(pq)
     main(["parquet-to-tsv", str(pq), "--no-gzip"])
     assert (tmp_path / "in.tsv").read_text().splitlines()[0] == "id\tx"
 

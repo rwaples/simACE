@@ -36,6 +36,8 @@ ALLOWLIST: tuple[tuple[str, str], ...] = (
     ("tests/ascertainment/test_run_ascertainment.py", "asserts the pandas-rejection TypeError"),
     ("tests/analysis/test_stats_sampling.py", "asserts the pandas-rejection TypeError"),
     ("tests/analysis/test_effective_size.py", "feeds a pandas fixture to external pedigree_graph"),
+    ("tests/plotting/test_reference_lines.py", "drives plot_validation's pandas renderers (seaborn boundary)"),
+    ("tests/test_gene_drop_augment_layout.py", "covers the pandas-native scripts/gene_drop"),
     ("tests/tskit/*.py", "covers the pandas-native tskit scripts"),
     (
         "tests/core/test_parquet_to_tsv.py",
