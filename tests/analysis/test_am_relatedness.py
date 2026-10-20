@@ -72,14 +72,19 @@ def _params(**over):
 
 
 class TestIntegration:
-    def test_single_trait_am_fs_hs_pass_and_inflated(self):
+    def test_single_trait_am_fs_hs_are_reported_with_inflated_expectations(self):
+        """Reported, not asserted: `simace validate`'s mendelian_residual tests the inheritance (ADR 0029)."""
         p = _params()
         df = run_simulation(**p)
         rep = build_quality_report(df, p)
         fs = rep["heritability"]["dz_sibling_A1_correlation"]
         hs = rep["half_sibs"]["half_sib_A1_correlation"]
-        assert fs["passed"], fs["details"]
-        assert hs["passed"], hs["details"]
+        assert fs.get("informational") is True
+        assert "passed" not in fs
+        assert hs.get("informational") is True
+        assert "passed" not in hs
+        assert fs["observed"] == pytest.approx(fs["expected"], abs=0.05)
+        assert hs["observed"] == pytest.approx(hs["expected"], abs=0.05)
         # AM-aware expected values exceed the random-mating relatedness
         assert fs["expected"] > 0.5
         assert hs["expected"] > 0.25

@@ -120,7 +120,7 @@ def test_total_variance_is_the_variance_of_the_sum(am_pedigree):
     assert result["total_variance_trait1"]["observed"] == pytest.approx(direct)
 
 
-def test_phs_shared_c_expects_bf_squared_under_the_gate(rm_pedigree, am_pedigree):
+def test_phs_shared_c_reports_bf_squared_under_the_gate(rm_pedigree, am_pedigree):
     params = _params(**_CT)
     result = validate_half_sibs(
         rm_pedigree,
@@ -129,7 +129,8 @@ def test_phs_shared_c_expects_bf_squared_under_the_gate(rm_pedigree, am_pedigree
         mate_correlations(rm_pedigree, mate_pedigree(rm_pedigree)),
     )
     assert result["half_sib_shared_C1"]["expected"] == pytest.approx(0.09)
-    assert result["half_sib_shared_C1"]["passed"], result["half_sib_shared_C1"]["details"]
+    assert result["half_sib_shared_C1"].get("informational")
+    assert result["half_sib_shared_C1"]["observed"] == pytest.approx(0.09, abs=0.05)
     am = validate_half_sibs(
         am_pedigree,
         _params(assort1=0.3, **_CT),

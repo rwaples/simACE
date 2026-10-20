@@ -12,9 +12,7 @@ from simace.core.relationships import analytic_applies, shared_environment_coeff
 from ._common import (
     _MIN_PAIRS_FOR_CORR,
     SIBLING_CATEGORIES,
-    _corr_tolerance,
     _info,
-    _result,
     category_cell,
     pair_correlation,
 )
@@ -75,18 +73,20 @@ def household_sibling_counts(df: pd.DataFrame | pl.DataFrame) -> dict[str, int]:
 def _validate_half_sib_correlations(
     mates: MateCorrelations,
     sibling_moments: RelationshipMoments,
-    A_params: dict[int, float],
     params: dict[str, Any],
     results: dict[str, Any],
 ) -> None:
-    """Compute half-sib correlations for A, liability, and shared C.
+    """Report half-sib correlations for A, liability, and shared C, with their expectations.
+
+    None is asserted: `simace validate`'s ``mendelian_residual`` and
+    ``household_draw`` test the inheritance (ADR 0029).
 
     Pooling rule:
     - **A correlation** uses MHS ∪ PHS — both share kinship 0.25 for the
       additive component, so pooling is a sample-size win. Expected: 0.25
       (kinship) under random mating; under single-trait assortative mating it
       inflates to ``(1 + 2·mu_A + mu_A·r_ho)/4`` (see :mod:`.am_relatedness`).
-      Both-trait AM skips the scored check.
+      Both-trait AM has no expectation.
     - **Liability and shared-C correlations** use PHS only. Maternal
       half-sibs share households, so MHS liability corr = 0.25·A + 1·C and
       MHS shared_C ≠ 0; PHS gives the clean expected formulas (0.25·A and 0).
@@ -95,7 +95,7 @@ def _validate_half_sib_correlations(
       closed form holds (ADR 0025).
 
     Every correlation is exact over all pairs (ADR 0022); ``n_pairs`` is the
-    true pair count and the tolerance is evaluated with it.
+    true pair count.
     """
     pooled = category_cell(sibling_moments, "MHS", "PHS")
     phs = category_cell(sibling_moments, "PHS")
@@ -119,11 +119,9 @@ def _validate_half_sib_correlations(
                     n_pairs=n_pooled,
                 )
                 continue
-            tol = _corr_tolerance(expected_a, n_pooled)
-            ok = (A_params[t] == 0) if np.isnan(obs) else (abs(obs - expected_a) < tol)
-            results[f"half_sib_{col}_correlation"] = _result(
-                ok,
-                f"Half-sib (pooled MHS+PHS) {col} correlation: {obs:.4f} (expected: {expected_a:.4f}, tol: {tol:.4f})",
+            # Reported, not asserted: `simace validate`'s mendelian_residual tests the inheritance (ADR 0029).
+            results[f"half_sib_{col}_correlation"] = _info(
+                f"Half-sib (pooled MHS+PHS) {col} correlation: {obs:.4f} (expected: {expected_a:.4f})",
                 expected=float(expected_a),
                 observed=float(obs),
                 n_pairs=n_pooled,
@@ -167,12 +165,9 @@ def _validate_half_sib_correlations(
                     n_pairs=n_phs,
                 )
                 continue
-            tol = _corr_tolerance(expected_c, n_phs)
-            ok_c = True if np.isnan(obs_c) else abs(obs_c - expected_c) < tol
-            results[f"half_sib_shared_C{t}"] = _result(
-                ok_c,
-                f"PHS shared C{t} correlation: {obs_c:.4f} "
-                f"(expected: {'~0' if expected_c == 0 else f'{expected_c:.4f}'}, tol: {tol:.4f})",
+            # Reported, not asserted: `simace validate`'s household_draw tests the inheritance (ADR 0029).
+            results[f"half_sib_shared_C{t}"] = _info(
+                f"PHS shared C{t} correlation: {obs_c:.4f} (expected: {'~0' if expected_c == 0 else f'{expected_c:.4f}'})",
                 expected=float(expected_c),
                 observed=float(obs_c),
                 n_pairs=n_phs,
@@ -250,7 +245,6 @@ def validate_half_sibs(
     else:
         results["offspring_with_half_sib"] = _info("No offspring with maternal siblings to check")
 
-    A_params = {1: params["A1"], 2: params["A2"]}
-    _validate_half_sib_correlations(mates, sibling_moments, A_params, params, results)
+    _validate_half_sib_correlations(mates, sibling_moments, params, results)
 
     return results
