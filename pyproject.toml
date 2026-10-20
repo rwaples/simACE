@@ -80,7 +80,7 @@ line-length = 120
 extend-exclude = ["notes", "fitACE", "evaluate"]
 
 [tool.ruff.lint]
-select = ["F", "E", "W", "I", "UP", "B", "SIM", "RUF", "A", "C4", "PT", "PIE", "PERF", "TC", "PLW", "RSE", "RET", "D", "TID251", "TID253"]
+select = ["F", "E", "W", "I", "UP", "B", "SIM", "RUF", "A", "C4", "PT", "PIE", "PERF", "TC", "PLW", "RSE", "RET", "D", "TID251", "TID253", "DTZ", "NPY002", "T20"]
 ignore = [
     "E501",   # line too long — formatter handles wrapping
     "SIM108", # use ternary — often less readable
@@ -100,9 +100,12 @@ ignore = [
 "simace/plotting/atlas_manifest.py" = ["RUF001"]    # caption strings use scientific × − – etc.
 "simace/core/parquet.py" = ["TID251"]              # load_parquet is the one sanctioned pl.read_parquet
 "simace/plotting/**" = ["TID253"]                  # plotting modules own matplotlib/seaborn
-"scripts/**" = ["TID251", "TID253"]                # standalone scripts, not the package
-"docs/**" = ["TID251", "TID253"]                   # worked examples
-"tests/**" = ["TID251", "TID253"]                  # fixtures read raw parquet; plot tests import matplotlib
+"scripts/**" = ["TID251", "TID253", "T20"]         # standalone scripts, not the package
+"docs/**" = ["TID251", "TID253", "T20"]                   # worked examples
+"tests/**" = ["TID251", "TID253", "T20"]                  # fixtures read raw parquet; plot tests import matplotlib
+"simace/cli/**" = ["T20"]                           # the CLI prints its output
+"tools/**" = ["T20"]                                # developer tools print reports
+"tools/benchmark/runner.py" = ["DTZ005"]           # naive datetime.now(); owned by another change, fix there
 
 [tool.ruff.lint.flake8-type-checking]
 strict = true

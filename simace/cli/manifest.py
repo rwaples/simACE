@@ -194,7 +194,7 @@ def write_manifest(path: Path, manifest: Manifest, outputs: Iterable[Path]) -> N
         "stages": manifest.stages,
         "layout": manifest.layout,
         "outputs": fingerprints(outputs),
-        "finished": datetime.now().isoformat(timespec="seconds"),
+        "finished": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
     with publish(path) as (tmp,):
         dump_yaml(body, tmp)
@@ -299,7 +299,7 @@ def write_plots_manifest(path: Path, rep_manifests: Mapping[str, Path], outputs:
         "reps": {label: fingerprints([manifest])[manifest.name] for label, manifest in rep_manifests.items()},
         "verdict": _verdict_fingerprint(verdict),
         "outputs": fingerprints(outputs),
-        "finished": datetime.now().isoformat(timespec="seconds"),
+        "finished": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
     with publish(path) as (tmp,):
         dump_yaml(body, tmp)

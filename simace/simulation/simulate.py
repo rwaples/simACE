@@ -343,7 +343,8 @@ def _metropolis_full_python(
     Uses interleaved (M, 2) arrays for cache-friendly access: fz[:, 0] = f1_z,
     fz[:, 1] = f2_z, mz[:, 0] = m1_z, mz[:, 1] = m2_z.
     """
-    np.random.seed(seed)
+    # numba's njit supports only the legacy global RNG, not np.random.Generator.
+    np.random.seed(seed)  # noqa: NPY002
     indices = np.arange(M, dtype=np.int64)
     proposals_done = 0
 
@@ -360,7 +361,7 @@ def _metropolis_full_python(
 
         # Partial Fisher-Yates: shuffle first n_shuffle elements
         for i in range(n_shuffle - 1, 0, -1):
-            j = np.random.randint(0, i + 1)
+            j = np.random.randint(0, i + 1)  # noqa: NPY002
             indices[i], indices[j] = indices[j], indices[i]
 
         # Process proposals from shuffled pairs
