@@ -35,7 +35,9 @@ and it discovers `AGENTS.md` and `.agents/skills/` on its own.
   `to-questionnaire`, `wait-what`, and `claude-handoff` (Claude Code only) adapt their
   upstream namesakes; `writing-for-agents` is an unmodified copy.
   Last compared against upstream `dd400c3` on 2026-10-07; diff a fork against that
-  commit to separate local edits from upstream drift.
+  commit to separate local edits from upstream drift. `retro` was added later from
+  upstream `5beb35b` (2026-10-20), adapted to this repo's steering files, session
+  logs, guardrails, and reviewers; its Codex `agents/openai.yaml` was dropped.
 - No MCP servers are configured at the project level. The former `code-review-graph`
   server and its hooks were removed in September 2026; do not reintroduce `.mcp.json`.
 - Repo-wide rules for agents (issue tracker, triage labels, domain docs) live alongside
