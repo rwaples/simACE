@@ -42,6 +42,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import polars as pl
 
+from simace.analysis.validate.inheritance import linked_household_share, parent_rows
 from simace.cli.layout import RepArtifact, add_root_args, resolve_roots
 from simace.cli.manifest import RepState
 from simace.cli.stages import ResolvedRep
@@ -75,34 +76,6 @@ _COLUMNS = [
 ]
 
 
-def _parent_rows(pedigree: pl.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-    """Each row's mother and father row, -1 where the parent is unknown or not a row."""
-    ids = pedigree["id"].to_numpy().astype(np.int64)
-    order = np.argsort(ids, kind="stable")
-    sorted_ids = ids[order]
-
-    def lookup(parent: np.ndarray) -> np.ndarray:
-        parent = parent.astype(np.int64)
-        at = np.clip(np.searchsorted(sorted_ids, parent), 0, len(ids) - 1)
-        return np.where((parent >= 0) & (sorted_ids[at] == parent), order[at], -1)
-
-    return lookup(pedigree["mother"].to_numpy()), lookup(pedigree["father"].to_numpy())
-
-
-def _linked_household_share(pedigree: pl.DataFrame) -> float:
-    """Share of PHS pairs whose two households have children by more than one common father."""
-    per_father = pedigree.filter(pl.col("father") >= 0).group_by("father", "household_id").agg(k=pl.len())
-    pairs = (
-        per_father.join(per_father, on="father")
-        .filter(pl.col("household_id") < pl.col("household_id_right"))
-        .with_columns(pairs=pl.col("k") * pl.col("k_right"))
-        .group_by("household_id", "household_id_right")
-        .agg(fathers=pl.len(), pairs=pl.col("pairs").sum())
-    )
-    total = pairs["pairs"].sum()
-    return float(pairs.filter(pl.col("fathers") > 1)["pairs"].sum() / total) if total else 0.0
-
-
 def _row(key: tuple, trait: int, cell: str, n: int, observed: float, expected: float, se: float | None, **extra: Any):
     z = None if se is None or observed is None else (observed - expected) / se
     folder, scenario, rep = key
@@ -119,7 +92,7 @@ def rep_cells(key: tuple[str, str, int], pedigree_path: Path, report_path: Path)
 
     pedigree = read_pedigree(pedigree_path)
     params = load_yaml(report_path)["inputs"]["parameters"]
-    mother, father = _parent_rows(pedigree)
+    mother, father = parent_rows(pedigree)
     both = (mother >= 0) & (father >= 0)
     ids, twin = pedigree["id"].to_numpy(), pedigree["twin"].to_numpy()
     one_per_mz = both & ((twin < 0) | (ids < twin))
@@ -149,7 +122,7 @@ def rep_cells(key: tuple[str, str, int], pedigree_path: Path, report_path: Path)
             draw[both] = c[both] - b_m * c[mother[both]] - b_f * c[father[both]]
             cell = correlation(pedigree, Trait(draw, kind="continuous"), categories=["PHS"], se=True).cells[0]
             est = cell.crude[0]
-            rows.append(_row(key, t, "C_PHS", cell.n, est.value, 0.0, est.se, linked=_linked_household_share(pedigree)))
+            rows.append(_row(key, t, "C_PHS", cell.n, est.value, 0.0, est.se, linked=linked_household_share(pedigree)))
     for row in rows:
         row["pedigree_hash"] = digest.hexdigest()
     return rows

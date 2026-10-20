@@ -10,8 +10,9 @@ from pathlib import Path
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Run on-demand checks (:mod:`.on_demand`) on one rep and write its ``validation.yaml``.
 
-    The checks read the recorded pedigree and regenerate what else they need
-    from ``--seed`` and the phenotype flags (:class:`.calibrated.RepInputs`). ``simace validate <scenario>``
+    The checks read the recorded pedigree and the scenario parameters in
+    ``--report``, and regenerate what else they need from ``--seed`` and the
+    phenotype flags (:class:`.calibrated.RepInputs`). ``simace validate <scenario>``
     runs this once per rep.
     """
     from simace.cli.cohort_stage import add_phenotype_args, phenotype_kwargs
@@ -26,6 +27,9 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     add_logging_args(parser)
     add_version_arg(parser, "simace")
     parser.add_argument("--pedigree", required=True, help="The rep's recorded pedigree parquet (layout 2)")
+    parser.add_argument(
+        "--report", default=None, help="The rep's report.yaml, for checks that read its inputs.parameters"
+    )
     parser.add_argument("--checks", nargs="+", choices=sorted(ON_DEMAND_CHECKS), required=True)
     parser.add_argument("--seed", type=int, required=True, help="The rep seed")
     parser.add_argument("--output", required=True, help="Output validation.yaml")
@@ -44,7 +48,9 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     args = parser.parse_args(argv)
     init_logging(args)
 
-    inputs = RepInputs(Path(args.pedigree), args.seed, phenotype_kwargs(args))
+    inputs = RepInputs(
+        Path(args.pedigree), Path(args.report) if args.report else None, args.seed, phenotype_kwargs(args)
+    )
     from simace.cli.manifest import source_ref
 
     result = run_on_demand(inputs, args.checks, args.source or source_ref())

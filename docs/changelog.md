@@ -10,6 +10,35 @@ change that breaks the command line, configuration keys, or result files
 CalVer (`YYYY.MM[.patch]`). The 0.1.0 section also lists the changes those
 releases shipped after 2026.05.3.
 
+## Unreleased
+
+### Sibling inheritance calibrated tests ([#67](https://github.com/rwaples/simACE/issues/67))
+
+- **Two new calibrated tests in `simace validate`**
+  ([ADR 0029](adr/0029-inheritance-tests-score-residuals.md)).
+  `mendelian_residual` scores, per trait with A > 0, the correlation of
+  A − midparent between full sibs, maternal and paternal half-sibs (expected
+  0) and its variance (expected A/2). `household_draw` scores, per trait with
+  C > 0, the paternal half-sib correlation of C − b_m·C_mother − b_f·C_father
+  (expected 0). Both take pg-phenotype's cluster SE; their verdicts need 20
+  replicates.
+- **Analyze drops three pass/fail checks.** `quality_checks` no longer lists
+  `heritability.dz_sibling_A{t}_correlation`,
+  `half_sibs.half_sib_A{t}_correlation` or `half_sibs.half_sib_shared_C{t}`:
+  their tolerances ignored clustering. The correlations stay in `truth` and
+  `estimators`, unchanged.
+- **A calibrated-test cell can be `not_applicable`**, when its quantity is
+  degenerate in the replicate; it is left out of the verdict's coverage
+  requirement.
+- **The per-replicate `simace validate` command requires `--report`**, the
+  replicate's `report.yaml`, for the scenario parameters.
+- **`report_summary.tsv`** gains `{test}_n_scored`, `{test}_max_abs_z`,
+  `{test}_rep_bound` and `{test}_z_{cell}` columns for the two new tests;
+  the onset τ columns are unchanged.
+- **The scenario atlas** gains a calibrated-tests page: each replicate's z
+  per cell of every test other than onset τ, under the scenario verdict.
+- **pg-phenotype ≥ 0.5** is required, for the relative-pair correlation SE.
+
 ## 0.2.0 — 2026-10-19
 
 ### Quality checks and calibrated tests ([#65](https://github.com/rwaples/simACE/issues/65))

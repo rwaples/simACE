@@ -2,12 +2,12 @@
 
 ## Status
 
-Proposed 2026-10-20 for issue #67, decided in a design interview and revised
+Accepted 2026-10-20 for issue #67, decided in a design interview and revised
 the same day after a review. Amends [ADR 0028](0028-analyze-validate-boundary.md)
 §9 for the sibling and half-sib checks: they become calibrated tests, but of
 the quantities below, not of the relative correlations they reported, and
-adds a cell status to ADR 0028 §2's coverage requirement. Acceptance is
-pending (Consequences).
+adds a cell status to ADR 0028 §2's coverage requirement. Both acceptance
+folders pass (Consequences).
 
 ## Context
 
@@ -77,9 +77,14 @@ household draw, one per household and independent between households
    product u_H1·u_H2 but share no member and no MRCA. Each rep records, in
    the cell, the share of PHS pairs in such household pairs
    (`linked_household_share`). It was at most 0.06% over the 770 distinct
-   pedigrees below; the test does not correct for it.
+   pedigrees below, 0.04% over `onset_tau`'s 500 reps (N = 20,000) and
+   1.05% over `inheritance_calibration`'s 400 reps (N = 1,000); the test
+   does not correct for it.
 4. **Cell status.** A trait whose A (or C) is configured 0 has no cell in
-   that test. A cell is `not_applicable`, with the reason, when its residual
+   that test. When neither trait has one, the rep's whole section is
+   `not_applicable` and the test leaves the scenario's verdict family, so a
+   scenario without C can still pass; onset τ does the same when no trait
+   is frailty. A cell is `not_applicable`, with the reason, when its residual
    has zero variance to within rounding, as when the household draw is
    clipped away under full transmission; it is reported but left out of
    the coverage count. A cell with fewer than 100 pairs (residuals for the
@@ -154,7 +159,17 @@ from the stored float32 values equal the simulator's raw Mendelian draws to
   b_m = b_f = 0.3, assortative mating on both traits, `mating_lambda` 3)
   and on `onset_tau`. `se_calibration` cannot give a folder verdict (its
   scenarios' seed ranges overlap) and stays study evidence. Issues #68 and
-  #69 reuse the new folder.
+  #69 reuse the new folder. Both passed on 2026-10-20 with coverage 1.00 in
+  every cell:
+  - `inheritance_calibration`: 108 tests at α 4.63e-04 each over 400 reps.
+    Cell mean z −0.241 to +0.197 and SD z 0.817 to 1.126 for
+    `mendelian_residual` (32 cells), −0.089 to +0.138 and 0.987 to 1.084
+    for `household_draw` (8 cells); reps over the per-rep bound 21 and 18
+    of 400, at most 14 allowed per scenario.
+  - `onset_tau`: 279 tests at α 1.79e-04 each over 500 reps. Cell mean z
+    −0.263 to +0.240 and SD z 0.851 to 1.167 for `mendelian_residual`
+    (40 cells), −0.141 to +0.073 and 0.856 to 0.979 for `household_draw`
+    (5 cells); reps over the bound 4–9 and 3–5 per scenario of 14 allowed.
 - The relative correlations themselves are reported and never tested.
   Two bugs the old checks could catch are now caught by nothing: pairs
   misclassified as siblings (a classification error keeps the residuals'

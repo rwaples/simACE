@@ -28,6 +28,7 @@ from simace.plotting.plot_style import PAIR_COLORS
 from simace.plotting.plot_utils import finalize_plot, save_placeholder_plot
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
     from pathlib import Path
 
 COLOR_BEYOND = "#CC3311"
@@ -39,8 +40,12 @@ _NAMED_FAILURES = 6
 _NOTE_LINE_IN = 0.17
 
 
-def verdict_note(verdict: dict[str, Any] | None) -> str:
-    """The scenario verdict as one line for the page: its family and reps, or why there is none."""
+def verdict_note(verdict: dict[str, Any] | None, tests: Sequence[str] = ("onset_tau",)) -> str:
+    """The scenario verdict as one line for a page: its family and reps, or why there is none.
+
+    It counts the replicates over their per-rep bound for each of ``tests``,
+    named when there is more than one.
+    """
     if verdict is None:
         return "Scenario verdict: none yet; `simace validate` decides it across replicates"
     found = dict(records(verdict))
@@ -51,10 +56,13 @@ def verdict_note(verdict: dict[str, Any] | None) -> str:
         f"Scenario verdict: {verdict['verdict']}. {verdict['n_tests']} tests at α = {verdict['alpha_each']:.2e}"  # noqa: RUF001
         f" each (familywise {VERDICT_ALPHA:.0%}) over reps {verdict['reps']}"
     )
-    if tail := found.get(("tests", "onset_tau", "reps_over_bound")):
-        note += (
-            f"; {tail['over_bound']} of {tail['reps']} replicates over their per-rep bound ({tail['allowed']} allowed)"
-        )
+    for name in tests:
+        if tail := found.get(("tests", name, "reps_over_bound")):
+            label = f"{name}: " if len(tests) > 1 else ""
+            note += (
+                f"; {label}{tail['over_bound']} of {tail['reps']} replicates over their per-rep bound"
+                f" ({tail['allowed']} allowed)"
+            )
     failed = [record_name(path) for path, record in found.items() if record.get("passed") is False]
     if failed:
         more = len(failed) - _NAMED_FAILURES

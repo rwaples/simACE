@@ -14,7 +14,6 @@ from simace.core.numerics import safe_corrcoef
 from ._common import (
     _MIN_PAIRS_FOR_CORR,
     _corr_se,
-    _corr_tolerance,
     _extract_comp_vals,
     _info,
     _result,
@@ -114,16 +113,17 @@ def _validate_mz_correlations(
 def _validate_dz_correlations(
     mates: MateCorrelations,
     params: dict[str, Any],
-    A_params: dict[int, float],
     sibling_moments: RelationshipMoments,
     results: dict[str, Any],
 ) -> tuple[dict[int, float | None], int]:
-    """Validate DZ sibling correlations. Returns (dz_pheno_corr, n_dz_pairs).
+    """Report DZ sibling correlations. Returns (dz_pheno_corr, n_dz_pairs).
 
-    The full-sib A-component correlation is ``2·kinship`` (0.5) under random
-    mating; under single-trait assortative mating it inflates to ``(1+mu_A)/2``
-    (see :mod:`.am_relatedness`). Both-trait AM skips the scored check. The
-    correlations are exact over every full-sib pair (ADR 0022).
+    The full-sib A-component correlation is reported with its expectation,
+    ``2·kinship`` (0.5) under random mating and ``(1+mu_A)/2`` under
+    single-trait assortative mating (see :mod:`.am_relatedness`), none under
+    both-trait AM. It is not asserted: `simace validate`'s
+    ``mendelian_residual`` tests the inheritance (ADR 0029). The correlations
+    are exact over every full-sib pair (ADR 0022).
     """
     full_sibs = category_cell(sibling_moments, "FS")
     n_dz_pairs = int(full_sibs.counts)
@@ -146,14 +146,9 @@ def _validate_dz_correlations(
                     n_pairs=n_dz_pairs,
                 )
             else:
-                dz_tol = _corr_tolerance(expected_dz, n_dz_pairs)
-                if np.isnan(dz_corr):
-                    dz_ok = A_params[t] == 0
-                else:
-                    dz_ok = abs(dz_corr - expected_dz) < dz_tol
-                results[f"dz_sibling_{col}_correlation"] = _result(
-                    dz_ok,
-                    f"DZ sibling {col} correlation: {dz_corr:.4f} (expected: ~{expected_dz:.4f}, tol: {dz_tol:.4f})",
+                # Reported, not asserted: `simace validate`'s mendelian_residual tests the inheritance (ADR 0029).
+                results[f"dz_sibling_{col}_correlation"] = _info(
+                    f"DZ sibling {col} correlation: {dz_corr:.4f} (expected: ~{expected_dz:.4f})",
                     expected=float(expected_dz),
                     observed=float(dz_corr),
                     n_pairs=n_dz_pairs,
@@ -310,7 +305,6 @@ def validate_heritability(
     dz_pheno_corr, n_dz_pairs = _validate_dz_correlations(
         mates,
         params,
-        A_params,
         sibling_moments,
         results,
     )
