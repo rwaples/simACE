@@ -93,9 +93,12 @@ pixi run simace gather base  # copies the verdicts into verdicts.tsv
 replicate is wrong. `simace validate` runs the calibrated tests: checks with a
 designed false-positive rate, so one replicate's result is one draw and the
 verdict is decided across replicates
-([ADR 0028](../adr/0028-analyze-validate-boundary.md)). Today that is onset τ
+([ADR 0028](../adr/0028-analyze-validate-boundary.md)). Today they are onset τ
 for frailty traits ([Methods, Onset τ](../concepts/methods.md#onset-τ)), which
-regenerates the phenotyped population's raw onsets from the replicate's seed.
+regenerates the phenotyped population's raw onsets from the replicate's seed,
+and the sibling inheritance tests `mendelian_residual` and `household_draw`
+([Methods, Sibling inheritance](../concepts/methods.md#sibling-inheritance)),
+which read the recorded pedigree and the parameters in `report.yaml`.
 
 It works on complete replicates only, skipping the others with their state,
 and writes each replicate's `validation.yaml`. A replicate whose
@@ -117,8 +120,8 @@ a pass), then each scenario's verdict, and the folder's for a folder target:
 ```
 
 A verdict is `pass`, `fail`, or `insufficient`. Each family holds every test
-at a familywise 5%. A test with fewer replicates than it needs, 20 for onset
-τ, is `insufficient`, never pass. Each verdict is written to
+at a familywise 5%. A test with fewer replicates than it needs, 20 for each
+test today, is `insufficient`, never pass. Each verdict is written to
 `validation_summary.yaml`
 ([Output structure](output-structure.md#validation_summaryyaml)). A scenario
 gets one only when every complete replicate was validated with every test by
@@ -129,7 +132,7 @@ ranges not to overlap.
 
 Then it rebuilds the plots and atlas of each scenario whose replicates are all
 complete and whose plots no longer show the current verdict; the onset-τ page
-shows it. `--no-plots` skips this. `simace gather` copies the verdicts into
+and the calibrated-tests page show it. `--no-plots` skips this. `simace gather` copies the verdicts into
 `results/{folder}/verdicts.tsv` and draws the folder's verdict as the first
 page of the validation atlas; it decides nothing. When a verdict changes after
 a gather, `simace validate` says to rerun `simace gather`.
@@ -148,8 +151,8 @@ as a target. Replicates are seeded, so a `fail` repeats until the code or the
 seeds change.
 
 The per-replicate command takes explicit files and flags, like the stage
-subcommands: `simace validate --pedigree … --seed … --checks onset_tau
---output …` plus the phenotype flags of `simace cohort`. Analyze's quality
+subcommands: `simace validate --pedigree … --report … --seed … --checks
+onset_tau … --output …` plus the phenotype flags of `simace cohort`. Analyze's quality
 checks are not part of `simace validate`; `simace analyze` runs them.
 
 ## Rerun and resume
