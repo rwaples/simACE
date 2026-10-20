@@ -10,6 +10,7 @@ import time
 import polars as pl
 
 from simace.core.parquet import load_parquet
+from simace.core.publish import publish
 
 logger = logging.getLogger(__name__)
 
@@ -45,13 +46,14 @@ def convert(parquet_path: str, output_path: str | None = None, float_precision: 
             for c in bool_cols
         )
 
-    if gzip:
-        with gzip_module.open(output_path, "wb") as fh:
-            # GzipFile satisfies the IO[bytes] target at runtime; polars' overloads
-            # spell it more narrowly than ty can match.
-            df.write_csv(fh, separator="\t", float_precision=float_precision)  # ty: ignore[no-matching-overload]
-    else:
-        df.write_csv(output_path, separator="\t", float_precision=float_precision)
+    with publish(output_path) as (tmp,):
+        if gzip:
+            with gzip_module.open(tmp, "wb") as fh:
+                # GzipFile satisfies the IO[bytes] target at runtime; polars' overloads
+                # spell it more narrowly than ty can match.
+                df.write_csv(fh, separator="\t", float_precision=float_precision)  # ty: ignore[no-matching-overload]
+        else:
+            df.write_csv(tmp, separator="\t", float_precision=float_precision)
     elapsed = time.perf_counter() - t0
     logger.info("Wrote %s (%.1fs)", output_path, elapsed)
 

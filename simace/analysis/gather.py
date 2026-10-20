@@ -18,6 +18,7 @@ from simace.analysis.stats.onset_tau import CELL_CATEGORIES
 from simace.analysis.validate.on_demand import load_validation
 from simace.analysis.validate.schema_file import one_warning_for_refused
 from simace.analysis.validate.verdict import load_verdict, record_name, records
+from simace.core.publish import publish
 from simace.core.relationships import C_TRANSMISSION_KEYS, RELATIONSHIP_TYPES
 from simace.core.yaml_io import load_yaml
 
@@ -210,7 +211,7 @@ def gather_verdicts(
 
 
 def _write_tsv(rows: list[dict[str, Any]], columns: Sequence[str], output_path: str | Path) -> None:
-    with open(output_path, "w", encoding="utf-8", newline="") as f:
+    with publish(output_path) as (tmp,), open(tmp, "w", encoding="utf-8", newline="") as f:
         f.write("\t".join(columns) + "\n")
         for row in rows:
             values = []

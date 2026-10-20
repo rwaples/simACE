@@ -57,7 +57,12 @@ through its own Snakemake and did not depend on simACE's rules.
   exits. Parallelism within a scenario is `--jobs`, not concurrent invocations.
 - Every stage runs as its own `python -m simace <stage>` subprocess, and
   its outputs are published atomically (a unique `<path>.<random>.tmp`
-  per writer, then `os.replace`).
+  per writer, then `os.replace`). **Amended 2026-10-20:** this covers data
+  outputs, including `gather` and `parquet-to-tsv`; plots and the atlas
+  are exempt. `run` rebuilds them on every call and `validate` judges
+  their staleness from verdicts, not file state, so a torn image is
+  replaced on the next run. `tests/test_code_policy.py` fails on a module
+  that writes files without calling `publish`.
   `run` records each child's wall time and `wait4` peak RSS in the rep's
   `timing.tsv`, which replaces Snakemake's benchmark TSVs for `gather` and
   `tools/benchmark`.
