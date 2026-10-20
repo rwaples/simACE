@@ -33,6 +33,7 @@ from tools.benchmark.model import (
     write_json,
 )
 from tools.benchmark.process import ProcessSampler
+from tools.host_check import clock_problems, load_problems
 
 ROOT = Path(__file__).resolve().parents[2]
 THREAD_ENVIRONMENT = (
@@ -469,6 +470,10 @@ def _preflight(config: RunConfig) -> None:
         raise BenchmarkError("pipeline benchmarking requires Linux procfs")
     if not Path("/usr/bin/time").is_file():
         raise BenchmarkError("pipeline benchmarking requires /usr/bin/time")
+    # A busy or clamped host inflates wall times; warn rather than refuse, since the
+    # order-balanced repeats keep within-run ratios usable.
+    for line in clock_problems() + load_problems(max_load=1.5):
+        print(f"warning: {line}", file=sys.stderr)
 
 
 def run_benchmark(config: RunConfig) -> Path:
