@@ -39,6 +39,8 @@ manifest=$(manifest_for "$top")
 px() { local m=$1; shift; "$pixi" run --frozen --manifest-path "$m" "$@"; }
 run() { px "$manifest" "$@"; }
 staged() { git diff --cached --name-only -z "$@"; }
+# Newline-separated, for emptiness tests: $(...) drops NUL bytes with a warning.
+staged_lines() { git diff --cached --name-only "$@"; }
 
 # Check units of the repo at $1, deepest first, so each file goes to the unit that owns it.
 # Git exports GIT_INDEX_FILE (and may export GIT_DIR) to hooks; drop them so a
@@ -70,14 +72,14 @@ ty_repo() {
   done
 }
 
-if [ -f "$top/pixi.toml" ] && [ -n "$(staged -- pixi.toml pixi.lock)" ]; then
+if [ -f "$top/pixi.toml" ] && [ -n "$(staged_lines -- pixi.toml pixi.lock)" ]; then
   gate "$top" "pixi.lock check" "$pixi" run --locked --no-install --manifest-path "$top/pixi.toml" true
 fi
 
 # Python: lint config or the pixi env changing re-lints every file, not just the staged ones.
-config=$(staged -- pyproject.toml '*/pyproject.toml' ruff.toml '*/ruff.toml' ty.toml '*/ty.toml' pixi.toml pixi.lock)
+config=$(staged_lines -- pyproject.toml '*/pyproject.toml' ruff.toml '*/ruff.toml' ty.toml '*/ty.toml' pixi.toml pixi.lock)
 mapfile -d '' -t py < <(staged --diff-filter=ACMR -- '*.py' '*.pyi')
-deleted=$(staged --diff-filter=D -- '*.py' '*.pyi')
+deleted=$(staged_lines --diff-filter=D -- '*.py' '*.pyi')
 if [ ${#py[@]} -gt 0 ] || [ -n "$deleted" ] || [ -n "$config" ]; then
   mapfile -t units < <(units_of "$top")
   left=("${py[@]}")
