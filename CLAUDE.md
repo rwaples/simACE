@@ -104,7 +104,7 @@ simACE, fitACE, and fitACE_epimight share one lockstep SemVer (`vX.Y.Z`, setupto
 
 - Profile before optimizing.
 - Before timing anything, run `pixi run python tools/host_check.py` (clock clamps, load, busiest processes); `--wait 600` waits for the load to settle.
-- Never narrow numeric dtypes below int32/float32.
+- Never store or compute numeric quantities (counts, sums, ids, liabilities, ages) below int32/float32. Small categorical codes (sex, event type, status flags) may be int8 at the storage boundary (ADR 0015 §3); widen them before arithmetic.
 
 ## Citations
 

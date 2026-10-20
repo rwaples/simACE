@@ -9,6 +9,10 @@ Run over one repo::
 
     python tools/check_frame_policy.py [REPO_ROOT ...]
 
+It covers the ADR 0015 repos: simACE, fitACE, and fitACE_epimight.
+pedigree-graph and pg-phenotype are frame-library-neutral libraries whose
+tests cover pandas input on purpose, so the policy does not apply there.
+
 Exit status is non-zero if any unallowed pandas use is found. Residual
 pandas-index idioms are reported separately as warnings — every retained
 occurrence should be allowlisted deliberately rather than emulated by
@@ -46,13 +50,6 @@ ALLOWLIST: tuple[tuple[str, str], ...] = (
     # fitACE family boundaries
     ("fitace/kinship/export.py", "LDAK/sparseREML byte contract: polars cannot reproduce the bytes"),
     ("fitace/plotting/*.py", "seaborn boundary (only where a renderer takes a frame)"),
-    # pedigree-graph: the package is frame-library-neutral; pandas lives only
-    # in its test extra, for coverage that is *about* pandas compatibility.
-    ("tests/test_frame_inputs.py", "focused pandas compatibility surface (incl. nullable ints)"),
-    (
-        "tests/test_pedigree_graph.py",
-        "legacy golden reference derives pairs via pandas — a deliberately independent toolchain",
-    ),
 )
 
 _PANDAS_IMPORT = re.compile(r"^(?P<indent>[ \t]*)(?:import\s+pandas|from\s+pandas\s+import)", re.MULTILINE)
