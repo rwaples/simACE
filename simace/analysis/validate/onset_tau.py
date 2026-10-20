@@ -90,7 +90,8 @@ def score_onset_tau(summary: dict[str, Any]) -> dict[str, Any]:
         statistics and is scored (with ``z``) or information (with its
         ``reason``). ``summary`` holds ``n_scored``, ``max_abs_z`` and
         ``z_bound`` (both None with nothing scored), ``skipped_traits`` and
-        ``entry_cap``.
+        ``entry_cap``. With neither trait frailty the section also holds
+        ``not_applicable``.
     """
     results: dict[str, Any] = {}
     for name, cell in _cells(summary):
@@ -102,15 +103,16 @@ def score_onset_tau(summary: dict[str, Any]) -> dict[str, Any]:
             results[name] = information_cell(
                 reason, observed=cell.get("observed"), expected=cell.get("expected"), se=cell.get("se"), **stats
             )
-    return {
+    skipped = summary.get("skipped_traits") or {}
+    section: dict[str, Any] = {
         "scope": SCOPE,
         "cells": results,
-        "summary": {
-            **summarize(results),
-            "skipped_traits": summary.get("skipped_traits") or {},
-            "entry_cap": summary.get("entry_cap"),
-        },
+        "summary": {**summarize(results), "skipped_traits": skipped, "entry_cap": summary.get("entry_cap")},
     }
+    if not results and set(skipped) == {"trait1", "trait2"}:
+        # No frailty trait: the test does not apply to the scenario and leaves its verdict (ADR 0029 §4).
+        section["not_applicable"] = "no frailty trait"
+    return section
 
 
 def run_onset_tau(inputs: RepInputs) -> dict[str, Any]:

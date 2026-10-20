@@ -97,6 +97,13 @@ def test_unscorable_cells_are_information_with_a_reason(override, reason):
     assert "z" not in cell
 
 
+def test_a_scenario_without_a_frailty_trait_is_not_applicable():
+    skipped = {"trait1": "model adult is not frailty", "trait2": "model adult is not frailty"}
+    section = score_onset_tau({"cells": {}, "skipped_traits": skipped})
+    assert section["not_applicable"] == "no frailty trait"
+    assert "not_applicable" not in score_onset_tau(_summary(FS=_cell()))
+
+
 def test_skipped_traits_are_reported():
     summary = _summary(FS=_cell())
     summary["skipped_traits"] = {"trait2": "model adult is not frailty"}

@@ -79,7 +79,10 @@ household draw, one per household and independent between households
    (`linked_household_share`). It was at most 0.06% over the 770 distinct
    pedigrees below; the test does not correct for it.
 4. **Cell status.** A trait whose A (or C) is configured 0 has no cell in
-   that test. A cell is `not_applicable`, with the reason, when its residual
+   that test. When neither trait has one, the rep's whole section is
+   `not_applicable` and the test leaves the scenario's verdict family, so a
+   scenario without C can still pass; onset τ does the same when no trait
+   is frailty. A cell is `not_applicable`, with the reason, when its residual
    has zero variance to within rounding, as when the household draw is
    clipped away under full transmission; it is reported but left out of
    the coverage count. A cell with fewer than 100 pairs (residuals for the

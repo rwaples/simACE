@@ -1,0 +1,63 @@
+# Acceptance of the sibling inheritance calibrated tests (simACE #67, ADR 0029).
+#
+# `simace validate inheritance_calibration` scores mendelian_residual and
+# household_draw on every rep; the folder verdict is the acceptance. N is
+# small (1,000), where the old nominal-target checks were biased, and each
+# scenario's 100 rep seeds are disjoint from the others' (seed + 0..99), so
+# the folder verdict may pool them. Issues #68 and #69 reuse the folder.
+#
+#   - inh_base:     random mating, C on both traits.
+#   - inh_ctm:      C transmission b_m = b_f = 0.3 on both traits (ADR 0025).
+#   - inh_am_both:  assortative mating on both traits with rA 0.3.
+#   - inh_lambda3:  mating_lambda 3, so more half-sibs and smaller full sibships.
+#
+# Case status is liability-threshold (adult/ltm): no trait is frailty, so
+# onset τ does not apply and leaves the verdict.
+
+inh_base:
+  seed: 67000
+  replicates: 100
+  N: 1000
+  pedigree: &pedigree_base
+    trait1: {A: 0.5, C: 0.2, E: 0.3}
+    trait2: {A: 0.4, C: 0.2, E: 0.4}
+  phenotype: &pheno_ltm
+    trait1:
+      model: adult
+      params: {method: ltm, cip_x0: 50, cip_k: 0.2, prevalence: 0.10}
+      beta: 1.0
+    trait2:
+      model: adult
+      params: {method: ltm, cip_x0: 50, cip_k: 0.2, prevalence: 0.10}
+      beta: 1.0
+
+inh_ctm:
+  seed: 67200
+  replicates: 100
+  N: 1000
+  pedigree:
+    trait1: {A: 0.5, C: 0.3, E: 0.2, C_transmission: {maternal: 0.3, paternal: 0.3}}
+    trait2: {A: 0.4, C: 0.3, E: 0.3, C_transmission: {maternal: 0.3, paternal: 0.3}}
+  phenotype: *pheno_ltm
+
+inh_am_both:
+  seed: 67400
+  replicates: 100
+  N: 1000
+  pedigree:
+    assort1: 0.3
+    assort2: 0.3
+    rA: 0.3
+    trait1: {A: 0.5, C: 0.2, E: 0.3}
+    trait2: {A: 0.4, C: 0.2, E: 0.4}
+  phenotype: *pheno_ltm
+
+inh_lambda3:
+  seed: 67600
+  replicates: 100
+  N: 1000
+  pedigree:
+    mating_lambda: 3.0
+    trait1: {A: 0.5, C: 0.2, E: 0.3}
+    trait2: {A: 0.4, C: 0.2, E: 0.4}
+  phenotype: *pheno_ltm

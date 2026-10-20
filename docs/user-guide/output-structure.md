@@ -226,7 +226,10 @@ A cell's `status` is `scored`, with `observed`, `expected`, `se` and
 cannot be scored (it counts against the verdict's coverage); or
 `not_applicable`, with its `reason`, when its quantity is degenerate in the
 replicate, such as a residual with zero variance (it is left out of
-coverage).
+coverage). A whole check is `not_applicable`, with no cells, when the
+scenario gives it none: onset τ with no frailty trait, `mendelian_residual`
+with A configured 0 for both traits, `household_draw` with C. Such a check
+leaves the verdict instead of making it insufficient.
 
 ### validation_summary.yaml
 
