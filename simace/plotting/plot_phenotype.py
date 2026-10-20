@@ -20,12 +20,13 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from simace.analysis.validate.on_demand import load_validation
+from simace.analysis.validate.on_demand import ON_DEMAND_CHECKS, load_validation
 from simace.analysis.validate.schema_file import one_warning_for_refused
 from simace.analysis.validate.verdict import load_verdict
 from simace.core.parquet import load_parquet
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_am_equilibrium import plot_am_equilibrium
+from simace.plotting.plot_calibrated_tests import plot_calibrated_tests
 from simace.plotting.plot_correlations import (
     plot_cross_trait_tetrachoric,
     plot_parent_offspring_liability,
@@ -221,6 +222,10 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
         lambda ctx, p: plot_onset_tau(ctx.all_stats, p, ctx.scenario, verdict=ctx.verdict),
     ),
     PlotRenderSpec(
+        "calibrated_tests",
+        lambda ctx, p: plot_calibrated_tests(ctx.all_stats, p, ctx.scenario, verdict=ctx.verdict),
+    ),
+    PlotRenderSpec(
         "liability_violin.phenotype.by_generation",
         lambda ctx, p: plot_liability_violin_by_generation(
             ctx.df_samples, ctx.all_stats, p, ctx.scenario, subsample_note=ctx.subsample_note
@@ -388,12 +393,13 @@ def main(
     reports = [load_yaml(p) for p in report_paths]
     payloads = [load_yaml(p) for p in plot_payload_paths]
     all_stats = plotting_report_views(reports, payloads)
-    # `simace validate`'s on-demand checks, for the reps it has validated.
+    # `simace validate`'s on-demand checks, each under its name, for the reps it has validated.
     with one_warning_for_refused():
         for stats, path in zip(all_stats, validation_paths or [], strict=False):
             validation = load_validation(Path(path))
             if validation is not None:
-                stats["onset_tau"] = (validation.get("checks") or {}).get("onset_tau") or {}
+                checks = validation.get("checks") or {}
+                stats.update({name: checks.get(name) or {} for name in ON_DEMAND_CHECKS})
         verdict = load_verdict(Path(verdict_path)) if verdict_path else None
     max_degree = _resolve_artifact_max_degree(all_stats)
 

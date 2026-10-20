@@ -218,6 +218,21 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         ),
     ),
     PlotEntry(
+        basename="calibrated_tests",
+        title="Calibrated tests: per-replicate z.",
+        body=(
+            "One panel per calibrated test with no page of its own: mendelian_residual (A minus midparent:"
+            " its correlation between full sibs, maternal and paternal half-sibs, expected 0, and its variance,"
+            " expected A/2) and household_draw (C minus its transmitted part: its correlation between paternal"
+            " half-sibs, expected 0); ADR 0029. One point per replicate's scored cell at z = (observed −"
+            " expected)/SE; red edge: |z| above the replicate's Bonferroni bound over its scored cells, which"
+            " about 5% of replicates of a correct simulation show, so it is not a failure. Black bar: mean z;"
+            " grey band: ±1.96. Below each cell: replicates that scored it over those where it applies. Above"
+            " the panels: the scenario's verdict from `simace validate`, decided across replicates. A"
+            " placeholder until the scenario's replicates have been validated."
+        ),
+    ),
+    PlotEntry(
         basename="liability_components.by_generation",
         title="Liability components by generation.",
         body=(
