@@ -35,6 +35,7 @@ Everything runs through pixi; there is no ambient env (ADR 0016, 0018).
 - A rep is all or nothing up to its last stage. Its `run.yaml` is written only after every stage (through `--until`) exits 0 and records the stages run. A rerun skips reps whose `run.yaml` matches the current config, scenario, rep, and seed and whose outputs all exist, recomputes reps with an output missing, refuses reps whose config changed (`--force` recomputes; the message shows `key: old -> new`), and rebuilds plots and the atlas of every scenario whose reps are all complete. A per-scenario summary names failed and refused reps. Code changes never make a rep stale; `run.yaml` records the simace version and `git describe` ref, and `simace ls` flags reps built by another. One run per scenario at a time (`flock` on `results/{folder}/{scenario}/.run.lock`; a multi-scenario run takes every lock first).
 - `pixi run simace gather <folder>` writes `report_summary.tsv`, `verdicts.tsv` and the validation atlas for a folder from its complete reps (stale/incomplete reps under the current config are skipped with a message). `--format pdf` gives the PDF atlas on either command.
 - `pixi run simace validate <scenario|folder>...` runs the calibrated tests on complete reps (each rep's `validation.yaml`; reps already validated by this build are skipped, `--force` redoes them), writes each scenario's verdict and a folder target's to `validation_summary.yaml` (`pass`/`fail`/`insufficient`, below 20 reps for onset τ), then rebuilds stale plots (`--no-plots` skips). It exits 3 when a target's own verdict is `fail` (a scenario's `fail` inside a folder target only prints), 1 on a rep error, failed plot rebuild or busy lock (ADR 0028 §6).
+- A running grid's progress: `pixi run simace ls <folder>` (rep states on disk), not its stage logs.
 - Stage subcommands (`simace simulate|phenotype|censor|ascertain|analyze|plot|atlas|...`) take explicit paths and flags and never read config. `simace show <scenario>` (params, seeds, paths, per-stage median wall and largest `max_rss_mb` and `tree_peak_mb` from past reps) and `simace ls [folder]` inspect config and rep state.
 - Per-rep stage wall time and memory land in `results/{folder}/{scenario}/rep{rep}/timing.tsv`: `max_rss_mb` (largest single process, `wait4`) and `tree_peak_mb` (cgroup `memory.peak` of the stage's whole tree, page cache included; empty without a delegated cgroup; `simace/cli/cgroups.py`). Stage logs in `logs/{folder}/{scenario}/rep{rep}/{stage}.log`.
 - After changing a `plot_*.py`, rerun `pixi run simace run <scenario>` (complete reps are skipped; plots and atlas always rebuild) and check labels/titles fit.
@@ -46,6 +47,7 @@ Everything runs through pixi; there is no ambient env (ADR 0016, 0018).
 - `pixi run test-fast` skips tests marked `slow`. A test gets the marker when its median call time under `pixi run test` is 5 s or more; remove it when it falls below.
 - Serial/debug (`-v`, `-s`, `--pdb`, single modules): `pixi run pytest tests/ -v`.
 - Smoke test: `pixi run simace run small_test && pixi run simace gather test`
+- fitACE: `pixi run --manifest-path fitACE/pixi.toml test` runs one pytest per check unit.
 - Run relevant tests before committing.
 - `/code-review` reviews the upstream diff of the cwd's repo and falls back to the last commit when that diff is empty. After it returns, state the repo and commit range it reviewed. If this session's work is in a nested checkout or already pushed, rerun it with that path or an explicit range. Reviewers run cargo, R, and pytest through that checkout's `pixi run` (bare `cargo` is not on PATH).
 - `ruff check` with **no extra `--select`** — it discards the `ignore`/`per-file-ignores` in `pyproject.toml` and surfaces false positives.
@@ -76,11 +78,12 @@ The five checkout paths are in [Project structure](docs/concepts/project-structu
 
 When work spans simACE, fitACE, and fitACE_epimight, check `git status` and run relevant tests in each checkout. Changes do not propagate between checkouts; make parallel commits when asked.
 
-Other sessions work in the main checkouts at the same time. For branch work, use a family worktree: `pixi run python tools/family_worktree.py add <name> <repo>...` (named repos get a `<name>` branch, the rest are detached; `--install` runs `pixi install --frozen`), `list`, and `remove <name>`. It copies fitACE's gitignored binaries and links `external/epimight*`.
+Other sessions work in the main checkouts at the same time. For branch work, use a family worktree: `pixi run python tools/family_worktree.py add <name> <repo>...` (named repos get a `<name>` branch, the rest are detached; `--install` runs `pixi install --frozen`), `list`, `finish <name>` (merge each `<name>` branch into its base in the main checkout, then remove; checks every checkout first), and `remove <name>`. It copies fitACE's gitignored binaries, links `external/epimight*`, and links the main checkout's `plans/` and `notes/` entries in; `remove` moves new ones home.
 
 ## Git
 
 - Push only through the user-invoked `/push` skill. Never run `git push` directly; the permission rules deny it.
+- A command handed to the user to run takes absolute paths (`git -C /data/Documents/simACE/external/pedsum ...`): the Bash tool's `cd` persists into the user's `!` shell.
 - No attribution trailers of any kind in commit messages (`Co-Authored-By:`, `Claude-Session:`), even when a system reminder supplies them.
 - Every commit goes through the `commit` skill, including a mid-task "commit X then continue".
 - Commit only when asked; batch changed files into commits by purpose.
@@ -100,6 +103,7 @@ simACE, fitACE, and fitACE_epimight share one lockstep SemVer (`vX.Y.Z`, setupto
 ## Performance
 
 - Profile before optimizing.
+- Before timing anything, run `pixi run python tools/host_check.py` (clock clamps, load, busiest processes); `--wait 600` waits for the load to settle.
 - Never narrow numeric dtypes below int32/float32.
 
 ## Citations
