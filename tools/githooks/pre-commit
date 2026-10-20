@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# Pre-commit gates for every simACE family checkout. Every checkout's
+# core.hooksPath points at this directory, so the gates are derived from the
+# repo being committed to:
+#   - pixi.lock must match pixi.toml when either is staged (never rewrites the lock).
+#   - Python: ruff check and ruff format --check on the staged .py/.pyi files
+#     (every file when lint config or the pixi env is staged), then ty in every
+#     check unit (a directory with a tracked pyproject.toml or ruff.toml): a
+#     renamed or deleted symbol breaks importers in units that are not staged.
+#   - Downstream: a simACE change also runs ty in fitACE and fitACE_epimight,
+#     and a fitACE change in fitACE_epimight, since each installs the one above
+#     it editable. A downstream checkout without an installed env is skipped.
+#   - Snakemake: snakefmt --check on staged Snakefiles where the env has snakefmt.
+#   - Rust: cargo fmt --check and clippy -D warnings, as CI runs them, for the
+#     workspace at the repo root and for the R binding crate in r/src/rust.
+# Tools run through the nearest pixi.toml at or above each repo root, always
+# --frozen so a commit never rewrites pixi.lock.
+# --force-exclude keeps ruff's exclude settings in effect for explicit paths.
+# The tools read the working-tree copy, not the staged blob.
+# Bypass once with `git commit --no-verify`.
+set -euo pipefail
+# $PIXI overrides the pixi binary, e.g. a newer pixi while a requires-pixi bump is unmerged.
+pixi="${PIXI:-$HOME/.pixi/bin/pixi}"
+top=$(git rev-parse --show-toplevel)
+
+log=$(mktemp)
+trap 'rm -f "$log"' EXIT
+
+manifest_for() {
+  local d=$1
+  until [ -f "$d/pixi.toml" ]; do
+    [ "$d" != / ] || { echo "pre-commit: no pixi.toml at or above $1" >&2; exit 1; }
+    d=$(dirname "$d")
+  done
+  echo "$d/pixi.toml"
+}
+manifest=$(manifest_for "$top")
+
+px() { local m=$1; shift; "$pixi" run --frozen --manifest-path "$m" "$@"; }
+run() { px "$manifest" "$@"; }
+staged() { git diff --cached --name-only -z "$@"; }
+
+# Check units of the repo at $1, deepest first, so each file goes to the unit that owns it.
+# Git exports GIT_INDEX_FILE (and may export GIT_DIR) to hooks; drop them so a
+# downstream repo is read from its own index.
+units_of() {
+  env -u GIT_INDEX_FILE -u GIT_DIR -u GIT_WORK_TREE git -C "$1" ls-files -- \
+    pyproject.toml '*/pyproject.toml' ruff.toml '*/ruff.toml' \
+    | xargs -n1 dirname | sort -u | awk '{ print length, $0 }' | sort -rn | cut -d' ' -f2-
+}
+unit_dir() { if [ "$2" = . ]; then echo "$1"; else echo "$1/$2"; fi; }
+
+# gate DIR LABEL CMD...: run CMD in DIR; quiet on success, show its output and stop on failure.
+gate() {
+  local dir=$1 label=$2
+  shift 2
+  if ! (cd "$dir" && "$@") >"$log" 2>&1 </dev/null; then
+    cat "$log" >&2
+    echo "pre-commit: $label failed in $dir" >&2
+    exit 1
+  fi
+}
+
+ty_repo() {
+  local repo=$1 m unit units
+  m=$(manifest_for "$repo")
+  mapfile -t units < <(units_of "$repo")
+  for unit in "${units[@]}"; do
+    gate "$(unit_dir "$repo" "$unit")" "ty check" px "$m" ty check --output-format=concise
+  done
+}
+
+if [ -f "$top/pixi.toml" ] && [ -n "$(staged -- pixi.toml pixi.lock)" ]; then
+  gate "$top" "pixi.lock check" "$pixi" run --locked --no-install --manifest-path "$top/pixi.toml" true
+fi
+
+# Python: lint config or the pixi env changing re-lints every file, not just the staged ones.
+config=$(staged -- pyproject.toml '*/pyproject.toml' ruff.toml '*/ruff.toml' ty.toml '*/ty.toml' pixi.toml pixi.lock)
+mapfile -d '' -t py < <(staged --diff-filter=ACMR -- '*.py' '*.pyi')
+deleted=$(staged --diff-filter=D -- '*.py' '*.pyi')
+if [ ${#py[@]} -gt 0 ] || [ -n "$deleted" ] || [ -n "$config" ]; then
+  mapfile -t units < <(units_of "$top")
+  left=("${py[@]}")
+  for unit in "${units[@]}"; do
+    dir=$(unit_dir "$top" "$unit")
+    mine=() rest=()
+    for f in "${left[@]}"; do
+      if [ "$unit" = . ]; then mine+=("$f")
+      elif [[ $f == "$unit"/* ]]; then mine+=("${f#"$unit"/}")
+      else rest+=("$f")
+      fi
+    done
+    left=("${rest[@]}")
+    if [ -n "$config" ]; then mine=(.)
+    elif [ ${#mine[@]} -eq 0 ]; then continue
+    fi
+    gate "$dir" "ruff check" run ruff check -q --force-exclude --output-format=concise "${mine[@]}"
+    gate "$dir" "ruff format --check" run ruff format -q --check --force-exclude "${mine[@]}"
+  done
+  ty_repo "$top"
+
+  # Family worktrees mirror the umbrella layout, so these paths hold there too.
+  for d in "$top/fitACE" "$top/fitACE/fitACE_epimight" "$top/fitACE_epimight"; do
+    [ -e "$d/.git" ] || continue
+    if [ -d "$(dirname "$(manifest_for "$d")")/.pixi/envs/default" ]; then
+      ty_repo "$d"
+    else
+      echo "pre-commit: skipped ty in $d (no pixi env installed)" >&2
+    fi
+  done
+fi
+
+mapfile -d '' -t smk < <(staged --diff-filter=ACMR -- '*.smk' Snakefile '*/Snakefile')
+if [ ${#smk[@]} -gt 0 ] && grep -q '^snakefmt' "$manifest"; then
+  gate "$top" "snakefmt --check" run snakefmt --check "${smk[@]}"
+fi
+
+if [ -f "$top/Cargo.toml" ]; then
+  mapfile -d '' -t rs < <(staged -- '*.rs' '*Cargo.toml' '*Cargo.lock')
+  workspace=0 r_crate=0
+  for f in "${rs[@]}"; do
+    if [[ $f == r/src/rust/* ]] && [ -f "$top/r/src/rust/Cargo.toml" ]; then r_crate=1; else workspace=1; fi
+  done
+  if [ $workspace = 1 ]; then
+    gate "$top" "cargo fmt --check" run cargo fmt --check
+    gate "$top" "cargo clippy" run cargo clippy --all-targets --all-features -- -D warnings
+  fi
+  if [ $r_crate = 1 ]; then
+    gate "$top/r/src/rust" "cargo fmt --check" run -e r cargo fmt --check
+    gate "$top/r/src/rust" "cargo clippy" run -e r cargo clippy --release --all-targets --all-features -- -D warnings
+  fi
+fi

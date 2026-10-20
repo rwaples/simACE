@@ -14,7 +14,7 @@ harness reads: `CLAUDE.md` and its tracked symlink `AGENTS.md`.
 | `CLAUDE.md` / `AGENTS.md` | yes | yes (`AGENTS.md`) | yes (`AGENTS.md`) | Single source of truth; `AGENTS.md -> CLAUDE.md` symlink is tracked. |
 | `.agents/skills/<name>/SKILL.md` | via symlinks | yes | yes | Canonical skill tree. Author skills here. |
 | `.claude/skills/<name>` | yes | – | – | Symlinks into `.agents/skills/`; `ln -s ../../.agents/skills/<name> .claude/skills/<name>` after adding a skill. |
-| `.claude/settings.json`, `settings.local.json` | yes | – | – | Permissions and the post-edit `ruff check` hook. |
+| `.claude/settings.json`, `settings.local.json` | yes | – | – | Permissions, and the `PreToolUse` Bash guard `tools/claude_hooks/bash_guard.py` (refuses a self-matching `pkill -f`/`pgrep -f`). |
 | `.pi/extensions/plan-mode/` | – | – | yes | Project-local read-only plan mode (`/plan`, `--plan`). |
 
 Codex needs no project-local directory: its settings live in `~/.codex/config.toml`
@@ -22,6 +22,11 @@ and it discovers `AGENTS.md` and `.agents/skills/` on its own.
 
 ## Conventions
 
+- Git hooks are tracked in `tools/githooks/` (pre-commit lint, format, ty and lock
+  gates; commit-msg trailer ban; pre-push docs build). Every family checkout's
+  `core.hooksPath` points at the main checkout's copy:
+  `git -C <checkout> config core.hooksPath /data/Documents/simACE/tools/githooks`.
+  Lint runs at commit, not after each edit.
 - Skills are authored once in `.agents/skills/` and never duplicated per harness.
 - A project skill wanted in other projects too gets a user-level symlink
   (`ln -s <simACE>/.agents/skills/<name> ~/.agents/skills/<name>`), never a copy.

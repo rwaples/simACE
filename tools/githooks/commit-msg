@@ -1,0 +1,8 @@
+#!/bin/sh
+# Reject attribution trailers; CLAUDE.md bans them in every commit message.
+# Shared by every simACE family checkout (core.hooksPath points every checkout here).
+# Bypass once with `git commit --no-verify`.
+if grep -n -i -E '^(Co-Authored-By|Claude-Session):' "$1"; then
+  echo "commit-msg: remove the attribution trailer(s) above" >&2
+  exit 1
+fi

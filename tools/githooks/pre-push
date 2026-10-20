@@ -1,0 +1,26 @@
+#!/bin/sh
+# Shared by every simACE family checkout (core.hooksPath points every checkout here).
+# In a checkout with a mkdocs.yml (simACE), build the docs with
+# `mkdocs build --strict`, as .github/workflows/docs.yml does, before pushing a
+# branch. mkdocstrings reads simace/, so code-only pushes can break the docs too.
+# Tag-only pushes and branch deletions skip the build.
+# Bypass once with `git push --no-verify`.
+set -eu
+zero=0000000000000000000000000000000000000000
+build=
+while read -r local_ref local_sha _remote_ref _remote_sha; do
+  case "$local_ref" in refs/heads/*) [ "$local_sha" = "$zero" ] || build=1 ;; esac
+done
+[ -n "$build" ] || exit 0
+top=$(git rev-parse --show-toplevel)
+[ -f "$top/mkdocs.yml" ] || exit 0
+
+out=$(mktemp -d)
+trap 'rm -rf "$out"' EXIT
+echo "pre-push: mkdocs build --strict" >&2
+# No -q: it drops the warnings that --strict counts. Show the log only on failure.
+# $PIXI overrides the pixi binary, as in pre-commit (a requires-pixi bump in flight).
+if ! (cd "$top" && NO_MKDOCS_2_WARNING=1 "${PIXI:-$HOME/.pixi/bin/pixi}" run mkdocs build --strict -d "$out/site") >"$out/log" 2>&1; then
+  grep -E 'WARNING|ERROR|Aborted' "$out/log" >&2 || cat "$out/log" >&2
+  exit 1
+fi
