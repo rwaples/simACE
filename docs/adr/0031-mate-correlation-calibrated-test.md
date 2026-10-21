@@ -64,9 +64,11 @@ assortment moves (burn-in included).
    targets). A cell, when it is induced; when its trait's A, C and E are all
    configured 0; when it has 1 to 249 Mating Pairs (`MIN_PAIRS = 250`); or,
    on an iteration where both traits assort, when the Metropolis tolerance
-   exceeds a quarter of the SE (about N > 300,000), since the stopping error
-   does not shrink with N. The tolerance is one named constant that the
-   simulator and the test share.
+   exceeds a quarter of the SE at the target, (1 − ρ²)/√n·√(1 − p̂) (about
+   N > 300,000), since the stopping error does not shrink with N. The gate
+   reads the target, not the rep's own SE, so which reps are scored does not
+   depend on their r. The tolerance is one named constant, `METROPOLIS_TOL`,
+   that the simulator and the test share.
 4. **Information** (counts against coverage): zero Mating Pairs where the
    simulator recorded matings, a constant side the configuration does not
    explain, a non-finite r, or no positive SE.
@@ -76,7 +78,8 @@ assortment moves (burn-in included).
    generations are scored and judged but get no gather column. The test has
    its own atlas page, drawing every generation the reps report.
 7. **Analyze** reports every mate correlation as information, with no
-   per-generation entries. `report.yaml` keeps
+   per-generation entries, and gives one a target only where it is not
+   induced and one target applies to every recorded mating. `report.yaml` keeps
    `truth.recorded_pedigree.assortative_mating`'s four pooled values; the
    per-generation and cross-trait values are in each rep's
    `validation.yaml`. `mate_corr_A{t}` stays information.

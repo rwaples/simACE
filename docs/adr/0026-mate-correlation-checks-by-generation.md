@@ -17,7 +17,9 @@ arrives with that move. Until then they stay in Analyze unchanged.
 makes that move (proposed): the `mate_correlation` calibrated test scores one
 cell per parents' generation with an SE that follows the simulator's pairing
 mode. It amends §1, since induced cells are no longer scored, and §4, since
-Analyze keeps every mate correlation as information.
+Analyze keeps every mate correlation as information. The per-generation
+checks and `mate_correlation_by_generation` are deleted;
+`validate_assortative_mating` is in `simace/analysis/quality/`.
 
 ## Context
 
