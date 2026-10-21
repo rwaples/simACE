@@ -12,17 +12,17 @@ where both traits assort.
 
 The SE is the iid delta-method sandwich over the pairs' standardized
 liabilities. Where both traits assort, Metropolis swaps pin the correlation
-over all M couples to the target (``simace/simulation/simulate.py:608``, stop
+over all M couples to the target (``simace/simulation/simulate.py:603``, stop
 rule at ``:357``), and the recorded pairs are the n couples
-``allocate_offspring`` (``:765``) gave a child: every n-subset equally
+``allocate_offspring`` (``:760``) gave a child: every n-subset equally
 likely, so the SE takes the finite-population factor √(1 − n/M̂). Where one
-trait assorts, the copula's correlation is itself random (``:705``) and the
+trait assorts, the copula's correlation is itself random (``:700``) and the
 iid SE stands.
 
 Not applicable, each by design:
 
 - the section, when no recorded iteration assorts on either trait: the
-  simulator then shuffles (``:867``) and every target is 0;
+  simulator then shuffles (``:862``) and every target is 0;
 - a diagonal cell whose trait does not assort while the other does: its
   correlation is **induced** through ρ_w, and AM moves ρ_w away from the
   configured value its target is built from (ADR 0031 Evidence);
@@ -48,7 +48,7 @@ from scipy.optimize import brentq
 
 from simace.analysis.quality.assortative_mating import recorded_matings
 from simace.core.numerics import unique_sorted
-from simace.simulation.simulate import METROPOLIS_TOL
+from simace.simulation.assortment import METROPOLIS_TOL
 
 from .calibrated import information_cell, not_applicable_cell, scored_cell, summarize
 from .inheritance import parent_rows

@@ -36,7 +36,7 @@ import polars as pl
 from simace.core.cohort import write_pedigree
 from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
-from simace.simulation.assortment import AssortmentPlan, _cross_am_matrix
+from simace.simulation.assortment import METROPOLIS_TOL, AssortmentPlan, _cross_am_matrix
 from simace.simulation.params import CTransmission, SimulationParams, c_covariance
 
 if TYPE_CHECKING:
@@ -503,11 +503,6 @@ _MAX_TRAIT_CORR = 1.0 - 1e-6
 #: Roundoff tolerance on the conditional covariance's smallest eigenvalue: within
 #: it the eigenvalue is clipped to 0, beyond it the requested ``R_mf`` is infeasible.
 _CONDITIONAL_EIG_TOL = 1e-8
-
-#: Both-trait assortment's Metropolis swaps stop once every slot-level mate
-#: correlation is within this of its target. ``simace validate``'s
-#: ``mate_correlation`` test drops a cell whose SE this no longer dwarfs.
-METROPOLIS_TOL = 5e-4
 
 
 def _standardized_traits(liab1: np.ndarray, liab2: np.ndarray, sex: str) -> np.ndarray:

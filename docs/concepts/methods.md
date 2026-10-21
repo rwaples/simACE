@@ -145,7 +145,7 @@ $$
 \sum_{k \in \{1,\, 2,\, 12,\, 21\}} (S_k + \Delta_k - T_k)^2 < \sum_{k \in \{1,\, 2,\, 12,\, 21\}} (S_k - T_k)^2
 $$
 
-where $S_1, S_2$ are the same-trait running cross-product sums, $S_{12} = \sum_m z_{f,1}^{(m)} z_{m,2}^{(m)}$ and $S_{21} = \sum_m z_{f,2}^{(m)} z_{m,1}^{(m)}$ are the cross-trait sums, $T_k = r_k \cdot M$ for the same-trait targets, and $T_{12} = T_{21} = c \cdot M$ for the cross-trait targets. Refinement stops when every per-element correlation error is below $5 \times 10^{-4}$ (`METROPOLIS_TOL`) or after $8M$ proposals. Both constants are set in `simace/simulation/simulate.py`.
+where $S_1, S_2$ are the same-trait running cross-product sums, $S_{12} = \sum_m z_{f,1}^{(m)} z_{m,2}^{(m)}$ and $S_{21} = \sum_m z_{f,2}^{(m)} z_{m,1}^{(m)}$ are the cross-trait sums, $T_k = r_k \cdot M$ for the same-trait targets, and $T_{12} = T_{21} = c \cdot M$ for the cross-trait targets. Refinement stops when every per-element correlation error is below $5 \times 10^{-4}$ or after $8M$ proposals. The tolerance is `METROPOLIS_TOL` in `simace/simulation/assortment.py`, and the proposal cap is set in `simace/simulation/simulate.py`.
 
 ### Monozygotic twins
 

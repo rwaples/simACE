@@ -27,7 +27,7 @@ releases shipped after 2026.05.3.
   mate correlation is reported as information. `report.yaml`'s
   `truth.recorded_pedigree.assortative_mating` is unchanged.
 - **`METROPOLIS_TOL`** names the Metropolis refinement's stopping tolerance
-  in `simace/simulation/simulate.py`; the value is unchanged.
+  in `simace/simulation/assortment.py`; the value is unchanged.
 - **`report_summary.tsv`** gains the test's columns, through parents'
   generation 11.
 - **`config/inheritance_calibration.yaml`** gains `inh_am_mixed` and
