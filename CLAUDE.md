@@ -17,7 +17,7 @@ simACE simulates multi-generational pedigrees with **A** (additive genetic), **C
 - `config/_default.yaml` — defaults; `config/{folder}.yaml` — scenario files (auto-discovered; `_`-prefixed files skipped)
 - `results/{folder}/{scenario}/` — output per scenario
 
-See [Project structure](docs/concepts/project-structure.md) for the module tree and the six-checkout map.
+See [Project structure](docs/concepts/project-structure.md) for the module tree and the repo map (six family checkouts and three companion repos).
 
 ## Environment
 
@@ -74,7 +74,7 @@ Kinship source of truth: `RELATIONSHIPS[code].nominal_kinship` in `pedigree_grap
 
 ## Cross-repo work
 
-The five checkout paths are in [Project structure](docs/concepts/project-structure.md#repo-map); `tools/family_repos.py::checkout_repos()` supplies the list to tooling. The nested checkouts are gitignored, not submodules. Method packages depend on `fitace` and `simace`, never on each other (fitACE ADR 0001).
+The six family checkouts and the three companion repos (pedsum-validate, pg-phenotype-validate, nordic-geno-epimight) are in [Project structure](docs/concepts/project-structure.md#repo-map); `tools/family_repos.py::checkout_repos()` supplies the six checkouts to tooling, and only `/push` knows the companions. The nested checkouts are gitignored, not submodules. Method packages depend on `fitace` and `simace`, never on each other (fitACE ADR 0001).
 
 When work spans simACE, fitACE, and fitACE_epimight, check `git status` and run relevant tests in each checkout. Changes do not propagate between checkouts; make parallel commits when asked.
 
