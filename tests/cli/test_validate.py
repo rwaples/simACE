@@ -103,7 +103,7 @@ def test_dry_run_prints_the_per_rep_command_and_writes_nothing(project, capsys) 
     validate_cli(["tiny", "--rep", "1", "--dry-run", *roots, "--no-plots"])
     out = capsys.readouterr().out
     assert "validate --pedigree" in out
-    assert "--checks cross_trait_rC household_draw mendelian_residual onset_tau total_variance" in out
+    assert "--checks cross_trait_rC household_draw mate_correlation mendelian_residual onset_tau total_variance" in out
     assert "--report" in out
     assert "--phenotype-params1" in out
     assert not target.exists()

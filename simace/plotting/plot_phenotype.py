@@ -13,7 +13,7 @@ __all__: list[str] = []
 import argparse
 import logging
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from multiprocessing import get_context
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -67,6 +67,7 @@ from simace.plotting.plot_liability import (
     plot_liability_violin_by_sex_generation,
     plot_mate_correlation,
 )
+from simace.plotting.plot_mate_correlation_test import plot_mate_correlation_test
 from simace.plotting.plot_onset_tau import plot_onset_tau
 from simace.plotting.plot_pedigree_counts import plot_pedigree_relationship_counts
 from simace.plotting.plot_utils import save_placeholder_plot
@@ -94,6 +95,9 @@ class RenderContext:
     max_degree: int | None
     #: The scenario's calibrated-test verdict (``validation_summary.yaml``), or None before `simace validate`.
     verdict: dict | None = None
+    #: Per rep, `simace validate`'s on-demand checks by name (empty before validation); apart from
+    #: ``all_stats``, whose keys a test name could shadow (``mate_correlation``).
+    checks: list[dict] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -219,11 +223,15 @@ PHENOTYPE_RENDERERS: tuple[PlotRenderSpec, ...] = (
     ),
     PlotRenderSpec(
         "onset_tau",
-        lambda ctx, p: plot_onset_tau(ctx.all_stats, p, ctx.scenario, verdict=ctx.verdict),
+        lambda ctx, p: plot_onset_tau(ctx.checks, p, ctx.scenario, verdict=ctx.verdict),
+    ),
+    PlotRenderSpec(
+        "mate_correlation_test",
+        lambda ctx, p: plot_mate_correlation_test(ctx.checks, p, ctx.scenario, verdict=ctx.verdict),
     ),
     PlotRenderSpec(
         "calibrated_tests",
-        lambda ctx, p: plot_calibrated_tests(ctx.all_stats, p, ctx.scenario, verdict=ctx.verdict),
+        lambda ctx, p: plot_calibrated_tests(ctx.checks, p, ctx.scenario, verdict=ctx.verdict),
     ),
     PlotRenderSpec(
         "liability_violin.phenotype.by_generation",
@@ -394,12 +402,13 @@ def main(
     payloads = [load_yaml(p) for p in plot_payload_paths]
     all_stats = plotting_report_views(reports, payloads)
     # `simace validate`'s on-demand checks, each under its name, for the reps it has validated.
+    checks: list[dict] = [{} for _ in all_stats]
     with one_warning_for_refused():
-        for stats, path in zip(all_stats, validation_paths or [], strict=False):
+        for rep_checks, path in zip(checks, validation_paths or [], strict=False):
             validation = load_validation(Path(path))
             if validation is not None:
-                checks = validation.get("checks") or {}
-                stats.update({name: checks.get(name) or {} for name in ON_DEMAND_CHECKS})
+                found = validation.get("checks") or {}
+                rep_checks.update({name: found.get(name) or {} for name in ON_DEMAND_CHECKS})
         verdict = load_verdict(Path(verdict_path)) if verdict_path else None
     max_degree = _resolve_artifact_max_degree(all_stats)
 
@@ -427,6 +436,7 @@ def main(
         gen_censoring=gen_censoring,
         max_degree=max_degree,
         verdict=verdict,
+        checks=checks,
     )
     tasks = [(i, out_dir / f"{spec.basename}.{plot_ext}") for i, spec in enumerate(PHENOTYPE_RENDERERS)]
     if plot_workers < 1:

@@ -93,13 +93,13 @@ def _draw_point(ax, row: dict[str, Any], color: str, z_bound: float | None) -> N
 
 
 def plot_onset_tau(
-    all_stats: list[dict[str, Any]],
+    checks: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
     verdict: dict[str, Any] | None = None,
 ) -> None:
     """Observed onset τ and its realized expectation per relationship type, over the τ–r curve, under the verdict."""
-    sections = [stats.get("onset_tau") or {} for stats in all_stats]
+    sections = [stats.get("onset_tau") or {} for stats in checks]
     panels = [(key, title) for key, title in _PANELS if any(_rows(section, key) for section in sections)]
     if not panels:
         save_placeholder_plot(output_path, "Onset τ not computed: no frailty trait, or reps predate the check")

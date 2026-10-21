@@ -10,6 +10,7 @@ cross-trait correlations for genetic (rA) and common environment (rC) components
 """
 
 __all__ = [
+    "METROPOLIS_TOL",
     "add_to_pedigree",
     "allocate_offspring",
     "assign_twins",
@@ -503,6 +504,11 @@ _MAX_TRAIT_CORR = 1.0 - 1e-6
 #: it the eigenvalue is clipped to 0, beyond it the requested ``R_mf`` is infeasible.
 _CONDITIONAL_EIG_TOL = 1e-8
 
+#: Both-trait assortment's Metropolis swaps stop once every slot-level mate
+#: correlation is within this of its target. ``simace validate``'s
+#: ``mate_correlation`` test drops a cell whose SE this no longer dwarfs.
+METROPOLIS_TOL = 5e-4
+
 
 def _standardized_traits(liab1: np.ndarray, liab2: np.ndarray, sex: str) -> np.ndarray:
     """Z-score both liabilities of one sex's slots; raise if either is constant."""
@@ -650,7 +656,6 @@ def _assortative_pair_partners(
         S12 = float(fz[:, 0] @ mz[:, 1])
         S21 = float(fz[:, 1] @ mz[:, 0])
 
-        tol = 5e-4
         max_proposals = 8 * M
         metro_seed = int(rng.integers(2**63))
 
@@ -667,7 +672,7 @@ def _assortative_pair_partners(
             T12,
             T21,
             M,
-            tol,
+            METROPOLIS_TOL,
             max_proposals,
             metro_seed,
         )

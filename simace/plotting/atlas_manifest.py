@@ -218,6 +218,24 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
         ),
     ),
     PlotEntry(
+        basename="mate_correlation_test",
+        title="Mate correlations by parents' generation: per-replicate z.",
+        body=(
+            "The mate_correlation calibrated test (ADR 0031): per parents' generation, the Pearson correlation of"
+            " mothers' and fathers' liabilities over the Mating Pairs against the mating iteration's target."
+            " One panel per cell type (liability1, liability2, and cross_12, cross_21 where both traits"
+            " assort), one column per generation. The SE is the iid sandwich, times the finite-population"
+            " factor √(1 − n/M̂) where both traits assort, since Metropolis pins the correlation over all"
+            " couples. Not scored: a trait's correlation induced by assortment on the other, a trait"
+            " configured 0, fewer than 250 Mating Pairs. One point per replicate's scored cell at"
+            " z = (observed − expected)/SE; red edge: |z| above the replicate's Bonferroni bound over its"
+            " scored cells, which about 5% of replicates of a correct simulation show, so it is not a"
+            " failure. Black bar: mean z; grey band: ±1.96. Below each column: replicates that scored it"
+            " over those where it applies. Above the panels: the scenario's verdict from `simace validate`."
+            " A placeholder without assortative mating or until the replicates have been validated."
+        ),
+    ),
+    PlotEntry(
         basename="calibrated_tests",
         title="Calibrated tests: per-replicate z.",
         body=(
@@ -640,12 +658,18 @@ VALIDATION_ATLAS: tuple[AtlasItem, ...] = (
     PlotEntry(
         basename="runtime",
         title="Simulation runtime.",
-        body=("Log-log scatter of population size N (x) vs. simulation wall-clock seconds (y), colored by scenario."),
+        body=(
+            "Log-log scatter of population size N (x) vs. the `simulate` stage's wall-clock seconds from"
+            " `timing.tsv` (y), colored by scenario. This is not whole-pipeline time."
+        ),
     ),
     PlotEntry(
         basename="memory",
-        title="Memory usage.",
-        body=("Log-log scatter of population size N (x) vs. peak resident set size in MB (y), colored by scenario."),
+        title="Simulation memory usage.",
+        body=(
+            "Log-log scatter of population size N (x) vs. the `simulate` stage's peak resident memory in MB from"
+            " `timing.tsv` (y), colored by scenario. This is not whole-pipeline memory."
+        ),
     ),
 )
 
