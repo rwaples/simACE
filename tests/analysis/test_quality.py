@@ -231,10 +231,13 @@ class TestValidateStatistical:
         for comp in ["A1", "C1", "E1", "A2", "C2", "E2"]:
             assert f"variance_{comp}" in result
 
-    def test_total_variance_keys(self, val_pedigree, val_params):
+    def test_total_variance_and_rc_are_reported_only(self, val_pedigree, val_params):
+        """`simace validate` tests them (ADR 0030); Analyze keeps their values for `truth`."""
         result = validate_statistical(val_pedigree, val_params)
-        assert "total_variance_trait1" in result
-        assert "total_variance_trait2" in result
+        for key in ("total_variance_trait1", "total_variance_trait2", "cross_trait_rC"):
+            assert result[key]["informational"] is True
+            assert "passed" not in result[key]
+            assert np.isfinite(result[key]["observed"])
 
     def test_cross_trait_rA_is_scored_under_random_mating(self, val_pedigree, val_params):
         assert validate_statistical(val_pedigree, val_params)["cross_trait_rA"]["passed"] is True
@@ -257,8 +260,7 @@ class TestValidateStatistical:
         assert cross.get("informational") is True
         assert "passed" not in cross
         assert cross["observed"] == random_mating["cross_trait_rA"]["observed"]
-        # rC and rE do not depend on assortment and stay scored.
-        assert "passed" in result["cross_trait_rC"]
+        # rE does not depend on assortment and stays scored.
         assert "passed" in result["cross_trait_rE"]
 
     def test_cross_trait_rA_stays_scored_under_wright_fisher(self, val_pedigree, val_params):
@@ -760,8 +762,6 @@ _NOTHING_TO_TEST = [
     ("half_sibs", "half_sib_A2_correlation"),
     ("half_sibs", "half_sib_shared_C1"),
     ("half_sibs", "half_sib_shared_C2"),
-    ("statistical", "c1_inheritance"),
-    ("statistical", "c2_inheritance"),
     ("statistical", "e1_independence"),
     ("heritability", "mz_twin_A1_correlation"),
     ("heritability", "mz_twin_A2_correlation"),

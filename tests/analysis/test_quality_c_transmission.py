@@ -108,9 +108,31 @@ def test_c_sharing_groups_by_mating_pair_under_paternal_transmission(rm_pedigree
     assert result["c1_inheritance"]["passed"]
     assert "mating pairs" in result["c1_inheritance"]["details"]
     assert result["c2_inheritance"]["passed"]  # b_f2 = 0: householdmates still share C2
-    assert "families" in result["c2_inheritance"]["details"]
+    assert "households" in result["c2_inheritance"]["details"]
     by_mother = validate_statistical(rm_pedigree, _params(**{**_CT, "Ctm_paternal1": 0.0}))
     assert not by_mother["c1_inheritance"]["passed"]
+
+
+def _break_generation0_households(pedigree: pl.DataFrame, column: str) -> pl.DataFrame:
+    """Give every row of recorded generation 0 its own ``column`` value, so no household shares it."""
+    gen0 = pedigree["generation"].to_numpy() == 0
+    x = pedigree[column].to_numpy().copy()
+    x[gen0] = np.random.default_rng(0).normal(size=int(gen0.sum()))
+    return pedigree.with_columns(pl.Series(column, x, dtype=pedigree.schema[column]))
+
+
+def test_c_sharing_covers_generation0_households_without_paternal_transmission(rm_pedigree):
+    """b_f2 = 0: generation 0's householdmates share a mother, so a broken share there fails (ADR 0030 §5)."""
+    assert validate_statistical(rm_pedigree, _params(**_CT))["c2_inheritance"]["passed"]
+    broken = validate_statistical(_break_generation0_households(rm_pedigree, "C2"), _params(**_CT))
+    assert not broken["c2_inheritance"]["passed"]
+
+
+def test_c_sharing_leaves_out_generation0_under_paternal_transmission(rm_pedigree):
+    """b_f1 != 0: generation 0's fathers are unrecorded, so it has no mating pairs to group."""
+    broken = validate_statistical(_break_generation0_households(rm_pedigree, "C1"), _params(**_CT))
+    assert broken["c1_inheritance"]["passed"]
+    assert "mating pairs" in broken["c1_inheritance"]["details"]
 
 
 def test_total_variance_is_the_variance_of_the_sum(am_pedigree):
@@ -156,6 +178,7 @@ def test_sibling_e_independence_uses_an_se_based_tolerance():
             "id": np.arange(3 * n),
             "mother": np.r_[np.full(n, -1), np.repeat(np.arange(n), 2)],
             "father": np.r_[np.full(n, -1), np.repeat(np.arange(n), 2)],
+            "household_id": np.r_[np.arange(n), n + np.repeat(np.arange(n), 2)],
             **{c: rng.normal(size=3 * n) for c in ("A1", "C1", "A2", "C2", "E2")},
         }
     )

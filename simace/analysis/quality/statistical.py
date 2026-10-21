@@ -42,11 +42,13 @@ def _check_variance(founders: Mapping[str, np.ndarray], col: str, expected: floa
 def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Validate statistical properties of variance components for two traits.
 
-    Checks founder variances for A, C, E against configured values, total
-    variance close to 1.0, cross-trait correlations (rA, rC, rE), C sharing
-    within households, and E independence between siblings. Under
-    assortative mating on a trait, its ``Var(A)`` and total variance and the
-    cross-trait ``rA`` are reported without being asserted.
+    Checks founder variances for A, C, E against configured values,
+    cross-trait correlations rA and rE, C sharing within households, and E
+    independence between siblings. Under assortative mating on a trait, its
+    ``Var(A)`` and the cross-trait ``rA`` are reported without being
+    asserted. The total variance and the cross-trait ``rC`` are reported
+    only: `simace validate`'s ``total_variance`` and ``cross_trait_rC`` test
+    them (ADR 0030).
 
     Args:
         df: Pedigree DataFrame with variance-component columns A1, C1, E1,
@@ -101,43 +103,38 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
             else:
                 results[f"variance_{col}"] = _check_variance(founders, col, _resolve_founder_val(params[col]))
 
-    # Total variances (reported, not asserted, under AM — total inflates with V_A).
-    # Var(A + C + E) directly, not the sum of component variances, because AM
-    # with C transmission gives A and C a covariance (ADR 0025).
+    # Total variances, reported only: `simace validate`'s total_variance tests
+    # them (ADR 0030). Var(A + C + E) directly, not the sum of component
+    # variances, because AM with C transmission gives A and C a covariance (ADR 0025).
     for t in [1, 2]:
         total = float(np.var(founders[f"A{t}"] + founders[f"C{t}"] + founders[f"E{t}"], ddof=1, dtype=np.float64))
-        if am_active[t]:
-            results[f"total_variance_trait{t}"] = _info(
-                f"Total variance trait {t}: {total:.4f} (AM-inflated; not asserted under AM)",
-                observed=float(total),
-            )
-        else:
-            results[f"total_variance_trait{t}"] = _result(
-                abs(total - 1.0) < 0.15,
-                f"Total variance trait {t}: {total:.4f} (expected: 1.0)",
-                expected=1.0,
-                observed=float(total),
-            )
+        results[f"total_variance_trait{t}"] = _info(f"Total variance trait {t}: {total:.4f}", observed=total)
 
     # Cross-trait correlations. Assortative mating on either trait builds
     # disequilibrium into the additive covariance as it does into Var(A), so
     # the recorded founders' rA drifts from the configured value whenever
     # rA != 0; there is no closed-form expectation to assert it against.
-    for comp, expected, label in [("A", rA_param, "A"), ("C", rC_param, "C")]:
-        obs = safe_corrcoef(founders[f"{comp}1"], founders[f"{comp}2"])
-        if comp == "A" and (am_active[1] or am_active[2]):
-            results[f"cross_trait_r{label}"] = _info(
-                f"Cross-trait {label} correlation: {obs:.4f} (configured {expected}; AM-shifted, not asserted under AM)",
-                observed=float(obs),
-            )
-            continue
-        ok = abs(obs - expected) < 0.15 if not np.isnan(obs) else expected == 0
-        results[f"cross_trait_r{label}"] = _result(
-            ok,
-            f"Cross-trait {label} correlation: {obs:.4f} (expected: {expected})",
-            expected=expected,
-            observed=float(obs),
+    rA_obs = safe_corrcoef(founders["A1"], founders["A2"])
+    if am_active[1] or am_active[2]:
+        results["cross_trait_rA"] = _info(
+            f"Cross-trait A correlation: {rA_obs:.4f} (configured {rA_param}; AM-shifted, not asserted under AM)",
+            observed=float(rA_obs),
         )
+    else:
+        rA_ok = abs(rA_obs - rA_param) < 0.15 if not np.isnan(rA_obs) else rA_param == 0
+        results["cross_trait_rA"] = _result(
+            rA_ok,
+            f"Cross-trait A correlation: {rA_obs:.4f} (expected: {rA_param})",
+            expected=rA_param,
+            observed=float(rA_obs),
+        )
+    # Reported only: `simace validate`'s cross_trait_rC tests it (ADR 0030).
+    rC_obs = safe_corrcoef(founders["C1"], founders["C2"])
+    results["cross_trait_rC"] = _info(
+        f"Cross-trait C correlation: {rC_obs:.4f} (configured {rC_param})",
+        expected=rC_param,
+        observed=float(rC_obs),
+    )
 
     rE_param = params.get("rE", 0.0)
     rE_obs = safe_corrcoef(founders["E1"], founders["E2"])
@@ -149,35 +146,41 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
         observed=float(rE_obs),
     )
 
-    # C inheritance: siblings should share C. Group children by mother via a
-    # stable sort + reduceat (groups in ascending-mother order, rows in
-    # original order within each group — matching pandas groupby semantics).
-    # Under paternal C transmission only full sibs share C, so the trait's
-    # families are mating pairs instead (ADR 0025).
+    # C inheritance: householdmates should share C. Without paternal C
+    # transmission a household is one mother's children, so group every row,
+    # recorded generation 0 included, by household_id with a stable sort +
+    # reduceat. Under paternal transmission only full sibs share C, so the
+    # trait's families are mating pairs instead (ADR 0025), which leaves out
+    # generation 0: its fathers are unrecorded.
     nf_mask = mother_all != -1
     if nf_mask.any():
         mothers_nf = mother_all[nf_mask]
         order, starts = sorted_runs(mothers_nf)
         sizes = np.diff(np.r_[starts, len(mothers_nf)])
-        for t in [1, 2]:
-            col = f"C{t}"
-            by_pair = transmission_coefficients(params, t)[1] != 0.0
-            t_order, t_starts = order, starts
-            if by_pair:
-                father_nf = df["father"].to_numpy()[nf_mask].astype(np.int64)
-                t_order, t_starts = sorted_runs(mothers_nf.astype(np.int64) * (int(father_nf.max()) + 1) + father_nf)
-            vals = df[col].to_numpy()[nf_mask][t_order]
-            # nunique == 1 per family ⇔ group max equals group min (C is never NaN).
-            c_shared = (np.maximum.reduceat(vals, t_starts) == np.minimum.reduceat(vals, t_starts)).mean()
-            unit = "mating pairs" if by_pair else "families"
-            results[f"c{t}_inheritance"] = _result(
-                c_shared > 0.99,
-                f"Proportion of {unit} with shared {col}: {c_shared:.4f}",
-                proportion_shared=float(c_shared),
-            )
-    else:
-        for t in [1, 2]:
+    by_household: tuple[np.ndarray, np.ndarray] | None = None
+    for t in [1, 2]:
+        col = f"C{t}"
+        by_pair = transmission_coefficients(params, t)[1] != 0.0
+        if by_pair and not nf_mask.any():
             results[f"c{t}_inheritance"] = _info("No non-founders to check C inheritance")
+            continue
+        if by_pair:
+            father_nf = df["father"].to_numpy()[nf_mask].astype(np.int64)
+            t_order, t_starts = sorted_runs(mothers_nf.astype(np.int64) * (int(father_nf.max()) + 1) + father_nf)
+            vals = df[col].to_numpy()[nf_mask][t_order]
+        else:
+            if by_household is None:
+                by_household = sorted_runs(df["household_id"].to_numpy())
+            t_order, t_starts = by_household
+            vals = df[col].to_numpy()[t_order]
+        # nunique == 1 per family ⇔ group max equals group min (C is never NaN).
+        c_shared = (np.maximum.reduceat(vals, t_starts) == np.minimum.reduceat(vals, t_starts)).mean()
+        unit = "mating pairs" if by_pair else "households"
+        results[f"c{t}_inheritance"] = _result(
+            c_shared > 0.99,
+            f"Proportion of {unit} with shared {col}: {c_shared:.4f}",
+            proportion_shared=float(c_shared),
+        )
 
     # E independence between siblings
     if nf_mask.any():
