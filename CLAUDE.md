@@ -4,16 +4,6 @@ simACE simulates multi-generational pedigrees with **A** (additive genetic), **C
 
 ## Project layout
 
-- `simace/` — the package, one sub-package per pipeline stage:
-  - `cli/` — the `simace` command: `run.py` (`simace run`), `launch.py` (stage subprocesses, memory metering, `timing.tsv`), `status.py` (scenario lookup and rep/plot state on disk), `cgroups.py` (per-stage cgroup v2 leaves: `tree_peak_mb` and the `--max-memory` limit), `layout.py` (the `results/` path convention), `stages.py` (stage argv), `manifest.py` (per-rep `run.yaml`), `cohort_stage.py` (`simace cohort`: phenotype, censor, ascertain in one process)
-  - `core/` — shared infrastructure (schemas, parquet/yaml I/O, CLI helpers, atomic `publish`, numerics, hazard terms, pedigree filtering, and `cohort.py`: the `cohort.parquet` contract, `selected_views`, the layout-2 marker; ADR 0021)
-  - `simulation/` — pedigree simulation (household assignment in `simulate.py`)
-  - `phenotype/` — `runner.py` (`run_phenotype` dispatcher), `hazards.py`, `blended_post.py`, and `models/` (subclasses of `PhenotypeModel`; the liability-threshold idiom is in `models/_prevalence.py`)
-  - `censoring/` — age-window and death censoring
-  - `ascertainment/` — unified dropout + case-weighted N_sample selection (ADR 0001)
-  - `analysis/` — `stats/`, `quality/` (Analyze's quality checks, one module per check family), `validate/` (`simace validate`'s on-demand checks; ADR 0028), `analyze.py`, `report.py`, `gather.py`
-  - `plotting/` — plot modules; atlas page order is in `atlas_manifest.py`
-- `scripts/examples/`, `scripts/gene_drop/` — standalone example-comparison and gene-drop scripts (not run by `simace run`)
 - `config/_default.yaml` — defaults; `config/{folder}.yaml` — scenario files (auto-discovered; `_`-prefixed files skipped)
 - `results/{folder}/{scenario}/` — output per scenario
 
