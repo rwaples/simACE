@@ -8,7 +8,10 @@ amended by [ADR 0029](0029-inheritance-tests-score-residuals.md) for the
 sibling and half-sib checks, which test residuals instead, and by
 [ADR 0030](0030-generation0-total-variance-and-rc-tests.md) for
 `total_variance_trait{t}` and `cross_trait_rC`, which score recorded
-generation 0 with a household-cluster SE. Amends
+generation 0 with a household-cluster SE, and by
+[ADR 0031](0031-mate-correlation-calibrated-test.md) for the
+`assortative_mating.mate_corr_*` checks, which become the per-generation
+`mate_correlation` calibrated test. Amends
 [ADR 0027](0027-onset-tau-check.md) §1 and §8: onset τ keeps its cells, target
 and SE, but its per-rep pass/fail gives way to a verdict across reps. Amends
 [ADR 0008](0008-curated-analyze-report.md): the name `validation.yaml`, retired

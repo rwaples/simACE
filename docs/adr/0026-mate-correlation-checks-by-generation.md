@@ -13,6 +13,12 @@ about 3 SE near N = 1000 they fail correct reps. They move to `simace
 validate` with a valid SE, and the multiplicity rule this ADR deferred
 arrives with that move. Until then they stay in Analyze unchanged.
 
+**Status note (2026-10-21).** [ADR 0031](0031-mate-correlation-calibrated-test.md)
+makes that move (proposed): the `mate_correlation` calibrated test scores one
+cell per parents' generation with an SE that follows the simulator's pairing
+mode. It amends §1, since induced cells are no longer scored, and §4, since
+Analyze keeps every mate correlation as information.
+
 ## Context
 
 `validate_assortative_mating` compares the Pearson mate correlation over every

@@ -25,11 +25,12 @@ earlier one's Status section says so and points forward.
 | [0023](0023-lockstep-semver.md) | Lockstep SemVer for the family version | accepted; amends 0012 |
 | [0024](0024-realised-assortment-feasibility.md) | Reject infeasible realised two-trait assortment | accepted, implemented 2026-10-08 |
 | [0025](0025-vertical-c-transmission.md) | Vertical transmission of the common-environment component | accepted, implemented 2026-10-14; amends 0009 |
-| [0026](0026-mate-correlation-checks-by-generation.md) | Split mate-correlation checks by generation when pooling is invalid | accepted, implemented 2026-10-16 |
+| [0026](0026-mate-correlation-checks-by-generation.md) | Split mate-correlation checks by generation when pooling is invalid | accepted, implemented 2026-10-16; §1 and §4 amended by 0031 |
 | [0027](0027-onset-tau-check.md) | Score onset τ against its realized expectation | accepted, implemented 2026-10-17; placement and per-rep pass amended by 0028 |
-| [0028](0028-analyze-validate-boundary.md) | Quality checks in Analyze, calibrated tests in `simace validate` | accepted, implemented 2026-10-17; amends 0008, 0026, 0027; §9 amended by 0029, 0030 |
+| [0028](0028-analyze-validate-boundary.md) | Quality checks in Analyze, calibrated tests in `simace validate` | accepted, implemented 2026-10-17; amends 0008, 0026, 0027; §9 amended by 0029, 0030, 0031 |
 | [0029](0029-inheritance-tests-score-residuals.md) | The sibling inheritance tests score residuals, not relative correlations | accepted, implemented 2026-10-20; amends 0028 |
 | [0030](0030-generation0-total-variance-and-rc-tests.md) | Total variance and cross-trait rC score recorded generation 0 with a household-cluster SE | accepted, implemented 2026-10-20; amends 0028 |
+| [0031](0031-mate-correlation-calibrated-test.md) | Per-generation mate correlations as a calibrated test, with an SE that follows the pairing mode | proposed; amends 0026, 0028 |
 
 Retired numbers: 0003, 0006, 0007 (report lineage folded into 0008); 0004
 (Claude Code subagent housekeeping, not an architecture decision); 0013 (ty
