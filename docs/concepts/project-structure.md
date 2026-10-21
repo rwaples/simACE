@@ -153,6 +153,7 @@ paths used by maintenance tools.
 | [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Rust pedigree relationship extraction and kinship computation. |
 | [`pedsum`](https://github.com/rwaples/pedsum) | public | `./external/pedsum/` | Pedigree summary CLI: structure, relatedness, inbreeding, Ne estimators. Built on `pedigree-graph`. |
 | [`pg-phenotype`](https://github.com/rwaples/pg-phenotype) | public | `./external/pg-phenotype/` | Phenotypes in a pedigree on pedigree-graph's core (Rust, Python, R): PA-FGRS and the mate correlation. simACE computes its mate correlations with it. |
+| [`pg-phenotype-validate`](https://github.com/rwaples/pg-phenotype-validate) | public | `./external/pg-phenotype-validate/` | Checks both pg-phenotype bindings, pinned to a release pair, against outside R oracles (polycor, psych, sandwich, survival, cmprsk) and published PA-FGRS values. Not a family checkout: absent from `tools/family_repos.py`. |
 
 Each nested repo has its own `origin` wired to the matching GitHub repo.
 The build artifacts `build-fp*/`, `ldak6.2.simace`, and the Stan binaries are
