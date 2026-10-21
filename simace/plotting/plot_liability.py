@@ -845,7 +845,9 @@ def plot_mate_correlation(
     # A pooled Pearson has no single target where the target varies, nor on a
     # cross-trait cell once the trait scales change with C/E (ADR 0026).
     comparable = ~varies & (np.eye(2, dtype=bool) | (len({m.ce for m in matings}) <= 1))
-    ax_obs.set_title("Observed" if comparable.all() else "Observed (pooled)\nsee per-generation checks", fontsize=15)
+    ax_obs.set_title(
+        "Observed" if comparable.all() else "Observed (pooled)\nper generation: simace validate", fontsize=15
+    )
 
     for ax in (ax_exp, ax_obs):
         ax.tick_params(labelsize=14)
