@@ -19,10 +19,14 @@ def _stats(n: int, seed: int = 0) -> list[dict]:
         mendelian = {cell: scored_cell(float(rng.standard_normal()), 0.0, 1.0) for cell in ("trait1_FS", "trait1_PHS")}
         household = {"trait1_PHS": scored_cell(float(rng.standard_normal()), 0.0, 1.0)}
         household["trait2_PHS"] = not_applicable_cell("zero variance")
+        total = {cell: scored_cell(float(rng.standard_normal()), 0.0, 1.0) for cell in ("trait1_total", "trait2_total")}
         out.append(
             {
                 "mendelian_residual": {"cells": mendelian, "summary": summarize(mendelian)},
                 "household_draw": {"cells": household, "summary": summarize(household)},
+                "total_variance": {"cells": total, "summary": summarize(total)},
+                # A section the scenario gives no cell, as rC with C1 configured 0.
+                "cross_trait_rC": {"cells": {}, "summary": summarize({}), "not_applicable": "C1 or C2 configured 0"},
             }
         )
     return out
@@ -36,7 +40,7 @@ def _verdict(stats: list[dict]) -> dict:
 
 def test_the_page_covers_every_test_but_onset_tau() -> None:
     assert set(PAGE_TESTS) == set(ON_DEMAND_CHECKS) - {"onset_tau"}
-    assert {"mendelian_residual", "household_draw"} <= set(PAGE_TESTS)
+    assert {"mendelian_residual", "household_draw", "total_variance", "cross_trait_rC"} <= set(PAGE_TESTS)
 
 
 def test_cells_follow_the_tests_order_and_skip_unreported() -> None:
@@ -51,6 +55,7 @@ def test_the_note_counts_each_tests_reps_over_bound_by_name() -> None:
     assert note.startswith("Scenario verdict: pass")
     assert "mendelian_residual: " in note
     assert "household_draw: " in note
+    assert "total_variance: " in note
 
 
 @pytest.mark.parametrize("verdict", [None, "pass"])

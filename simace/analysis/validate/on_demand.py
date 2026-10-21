@@ -16,6 +16,7 @@ __all__ = ["ON_DEMAND_CHECKS", "SCHEMA", "load_validation", "run_on_demand"]
 from typing import TYPE_CHECKING, Any
 
 from .calibrated import FAMILYWISE_ALPHA, CalibratedTest
+from .generation0 import CROSS_TRAIT_RC_CELLS, TOTAL_VARIANCE_CELLS, run_cross_trait_rc, run_total_variance
 from .inheritance import HOUSEHOLD_DRAW_CELLS, MENDELIAN_RESIDUAL_CELLS, run_household_draw, run_mendelian_residual
 from .onset_tau import CELL_NAMES as ONSET_TAU_CELLS
 from .onset_tau import run_onset_tau
@@ -58,6 +59,22 @@ ON_DEMAND_CHECKS: dict[str, CalibratedTest] = {
             ZCalibration(rep_rate=FAMILYWISE_ALPHA),
             min_reps=20,
             cell_names=HOUSEHOLD_DRAW_CELLS,
+        ),
+        CalibratedTest(
+            "total_variance",
+            "Var(A + C + E) over recorded generation 0 against A + C + E, household-cluster SE (ADR 0030)",
+            run_total_variance,
+            ZCalibration(rep_rate=FAMILYWISE_ALPHA),
+            min_reps=20,
+            cell_names=TOTAL_VARIANCE_CELLS,
+        ),
+        CalibratedTest(
+            "cross_trait_rC",
+            "r(C1, C2) over recorded generation 0 against rC, household-cluster SE (ADR 0030)",
+            run_cross_trait_rc,
+            ZCalibration(rep_rate=FAMILYWISE_ALPHA),
+            min_reps=20,
+            cell_names=CROSS_TRAIT_RC_CELLS,
         ),
     )
 }
