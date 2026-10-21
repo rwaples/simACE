@@ -30,7 +30,7 @@ earlier one's Status section says so and points forward.
 | [0028](0028-analyze-validate-boundary.md) | Quality checks in Analyze, calibrated tests in `simace validate` | accepted, implemented 2026-10-17; amends 0008, 0026, 0027; §9 amended by 0029, 0030, 0031 |
 | [0029](0029-inheritance-tests-score-residuals.md) | The sibling inheritance tests score residuals, not relative correlations | accepted, implemented 2026-10-20; amends 0028 |
 | [0030](0030-generation0-total-variance-and-rc-tests.md) | Total variance and cross-trait rC score recorded generation 0 with a household-cluster SE | accepted, implemented 2026-10-20; amends 0028 |
-| [0031](0031-mate-correlation-calibrated-test.md) | Per-generation mate correlations as a calibrated test, with an SE that follows the pairing mode | proposed; amends 0026, 0028 |
+| [0031](0031-mate-correlation-calibrated-test.md) | Per-generation mate correlations as a calibrated test, with an SE that follows the pairing mode | accepted, implemented 2026-10-21; amends 0026, 0028 |
 
 Retired numbers: 0003, 0006, 0007 (report lineage folded into 0008); 0004
 (Claude Code subagent housekeeping, not an architecture decision); 0013 (ty

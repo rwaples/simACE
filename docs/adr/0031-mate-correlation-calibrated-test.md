@@ -2,9 +2,10 @@
 
 ## Status
 
-Proposed 2026-10-21 for issue #69, decided in a design interview and revised
+Accepted 2026-10-21 for issue #69, decided in a design interview and revised
 the same day after a review; plan in
-`plans/issue-69-mate-correlation-test.md`. Acceptance pending (Consequences).
+`plans/issue-69-mate-correlation-test.md`. Both acceptance folders pass
+(Consequences).
 Amends [ADR 0026](0026-mate-correlation-checks-by-generation.md) §1 and §4:
 induced cells are no longer scored, and the per-generation checks leave
 Analyze for `simace validate`. Amends
@@ -85,7 +86,7 @@ assortment moves (burn-in included).
    `validation.yaml`. `mate_corr_A{t}` stays information.
 8. **Target is nominal.** The single-trait copula's realized correlation
    sits below its target (Evidence). The test reports it and does not
-   correct it; a separate simulator issue tracks it.
+   correct it; issue #74 tracks it.
 
 ## Evidence
 
@@ -145,7 +146,7 @@ in every generation (mean z +5.4 over 2,000 cells).
 - **Scoring induced cells against the nominal target**: z near +5 in the
   stress design.
 - **Fixing the copula first**: changes every single-trait rep's output;
-  tracked separately.
+  tracked in #74.
 - **Adding tol²/3 to the variance on Metropolis iterations**: the stopping
   error's distribution is not uniform on ±tol, and the dedup error is not
   bounded.
@@ -176,5 +177,18 @@ in every generation (mean z +5.4 over 2,000 cells).
 - Acceptance: `inh_am_mixed` (seed 68000; assort1 0.3, assort2 {0: 0, 5: 0.3},
   rA 0.3: copula in parents' generations 0–1, Metropolis in 2–4) and
   `inh_am_matrix` (seed 68200; `assort_matrix` [[0.3, 0.05], [0.05, 0.15]])
-  join `config/inheritance_calibration.yaml` at 100 reps, N 1,000. Results
-  pending.
+  join `config/inheritance_calibration.yaml` at 100 reps, N 1,000. Both
+  folders passed on 2026-10-21 with coverage 1.00 in every scored cell:
+  - `inheritance_calibration`: 364 tests at α 1.37e-04 each over 700 reps.
+    The test applies in `inh_am_both`, `inh_am_mixed` and `inh_am_matrix`
+    and leaves the four random-mating scenarios. Per scenario and parents'
+    generation: `inh_am_both` 20 cells, mean z −0.227 to +0.113, SD z 0.888
+    to 1.142, 9 reps over the per-rep bound of 14 allowed; `inh_am_mixed`
+    14 cells (g0–g1 `liability2` induced, no cross cells there), mean z
+    −0.158 to +0.131, SD z 0.946 to 1.156, 10 over; `inh_am_matrix` 20
+    cells, mean z −0.166 to +0.264, SD z 0.908 to 1.135, 4 over. Pooled per
+    cell over 200–300 reps: mean z −0.124 to +0.119, SD z 0.942 to 1.069.
+  - `onset_tau`: 324 tests at α 1.54e-04 each over 500 reps. Only
+    `onset_tau_pergen_am` (assort1 0.4, N 20,000) assorts: 5 copula cells,
+    `liability2` induced in every generation; mean z −0.241 to +0.077, SD z
+    0.882 to 0.977, 3 reps over the bound of 14.
