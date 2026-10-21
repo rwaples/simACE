@@ -130,20 +130,23 @@ simACE/
 ├── tools/                               # Maintenance tooling (release.py, benchmark driver, family typecheck)
 ├── tests/                               # Mirrors simace/ sub-package structure
 ├── docs/                                # MkDocs sources, ADRs, plans
-├── external/                            # Reference implementations plus the pedigree-graph, pedsum, and pg-phenotype checkouts (gitignored)
+├── external/                            # Reference implementations plus the pedigree-graph, pedsum, pg-phenotype and companion repo checkouts (gitignored)
 ├── results/{folder}/{scenario}/         # Per-scenario outputs, including each rep's run.yaml and timing.tsv
 └── logs/{folder}/{scenario}/            # One log per stage
 ```
 
 ## Repo map
 
-Five repos, all under `rwaples/` on GitHub. simACE is the umbrella working
-directory. fitACE and its nested fitACE_epimight are checkouts inside it,
-gitignored from simACE, with no submodules. Since ADR 0017 fitACE is a
-monorepo. The method packages, the `ace_iter_reml` C++ source, and the
-`tetraher_simace` LDAK fork live in subdirectories of `./fitACE/`.
-`tools/family_repos.py::checkout_repos()` is the source of truth for checkout
-paths used by maintenance tools.
+Nine repos, all under `rwaples/` on GitHub. simACE is the umbrella working
+directory. The others are checkouts inside it, gitignored from simACE, with
+no submodules. Since ADR 0017 fitACE is a monorepo. The method packages, the
+`ace_iter_reml` C++ source, and the `tetraher_simace` LDAK fork live in
+subdirectories of `./fitACE/`.
+
+The first six are the family checkouts.
+`tools/family_repos.py::checkout_repos()` is the source of truth for their
+paths, used by maintenance tools. The last three are companion repos that
+those tools leave out; only the `/push` skill knows them.
 
 | Repo | Visibility | Local path | Role |
 |---|---|---|---|
@@ -153,7 +156,9 @@ paths used by maintenance tools.
 | [`pedigree-graph`](https://github.com/rwaples/pedigree-graph) | public | `./external/pedigree-graph/` | Rust pedigree relationship extraction and kinship computation. |
 | [`pedsum`](https://github.com/rwaples/pedsum) | public | `./external/pedsum/` | Pedigree summary CLI: structure, relatedness, inbreeding, Ne estimators. Built on `pedigree-graph`. |
 | [`pg-phenotype`](https://github.com/rwaples/pg-phenotype) | public | `./external/pg-phenotype/` | Phenotypes in a pedigree on pedigree-graph's core (Rust, Python, R): PA-FGRS and the mate correlation. simACE computes its mate correlations with it. |
-| [`pg-phenotype-validate`](https://github.com/rwaples/pg-phenotype-validate) | public | `./external/pg-phenotype-validate/` | Checks both pg-phenotype bindings, pinned to a release pair, against outside R oracles (polycor, psych, sandwich, survival, cmprsk) and published PA-FGRS values. Not a family checkout: absent from `tools/family_repos.py`. |
+| [`pedsum-validate`](https://github.com/rwaples/pedsum-validate) | public | `./external/pedsum-validate/` | Checks pedsum against statistics published for public pedigrees (purgeR, GENLIB, Dryad studbooks and wild populations). |
+| [`pg-phenotype-validate`](https://github.com/rwaples/pg-phenotype-validate) | public | `./external/pg-phenotype-validate/` | Checks both pg-phenotype bindings, pinned to a release pair, against outside R oracles (polycor, psych, sandwich, survival, cmprsk) and published PA-FGRS values. |
+| [`nordic-geno-epimight`](https://github.com/rwaples/nordic-geno-epimight) | public | `./external/nordic-geno-epimight/` | Runs EPIMIGHT heritability and genetic correlation on register data, with input checks and pedigree-pair sandwich standard errors. |
 
 Each nested repo has its own `origin` wired to the matching GitHub repo.
 The build artifacts `build-fp*/`, `ldak6.2.simace`, and the Stan binaries are
