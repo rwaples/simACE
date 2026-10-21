@@ -12,6 +12,12 @@
 #   - inh_am_both:  assortative mating on both traits with rA 0.3.
 #   - inh_lambda3:  mating_lambda 3, so more half-sibs and smaller full sibships.
 #   - inh_rc:       rC 0.5 with C 0.3 on both traits, for cross_trait_rC (#68, ADR 0030).
+#   - inh_am_mixed: for mate_correlation (#69, ADR 0031): assort1 0.3 throughout and
+#                   assort2 from iteration 5, rA 0.3, so parents' generations 0–1 pair
+#                   by the single-trait copula (liability2 induced, no cross cells) and
+#                   2–4 by Metropolis on both traits (all four cells).
+#   - inh_am_matrix: for mate_correlation: assort_matrix [[0.3, 0.05], [0.05, 0.15]],
+#                   so every cell is scored against the matrix.
 #
 # Case status is liability-threshold (adult/ltm): no trait is frailty, so
 # onset τ does not apply and leaves the verdict.
@@ -72,4 +78,26 @@ inh_rc:
     rC: 0.5
     trait1: {A: 0.5, C: 0.3, E: 0.2}
     trait2: {A: 0.4, C: 0.3, E: 0.3}
+  phenotype: *pheno_ltm
+
+inh_am_mixed:
+  seed: 68000
+  replicates: 100
+  N: 1000
+  pedigree:
+    assort1: 0.3
+    assort2: {0: 0.0, 5: 0.3}
+    rA: 0.3
+    trait1: {A: 0.5, C: 0.2, E: 0.3}
+    trait2: {A: 0.4, C: 0.2, E: 0.4}
+  phenotype: *pheno_ltm
+
+inh_am_matrix:
+  seed: 68200
+  replicates: 100
+  N: 1000
+  pedigree:
+    assort_matrix: [[0.3, 0.05], [0.05, 0.15]]
+    trait1: {A: 0.5, C: 0.2, E: 0.3}
+    trait2: {A: 0.4, C: 0.2, E: 0.4}
   phenotype: *pheno_ltm

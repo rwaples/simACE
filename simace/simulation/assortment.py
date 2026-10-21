@@ -17,6 +17,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
+#: Both-trait assortment's Metropolis swaps stop once every slot-level mate
+#: correlation is within this of its target. ``simace validate``'s
+#: ``mate_correlation`` test drops a cell whose SE this no longer dwarfs; it
+#: lives here so the test reads it without importing the simulator.
+METROPOLIS_TOL = 5e-4
+
 
 def _parent_ce_gen(i: int) -> int:
     """C/E generation of the population being mated at loop iteration ``i``.

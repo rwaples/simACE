@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any
 from .calibrated import FAMILYWISE_ALPHA, CalibratedTest
 from .generation0 import CROSS_TRAIT_RC_CELLS, TOTAL_VARIANCE_CELLS, run_cross_trait_rc, run_total_variance
 from .inheritance import HOUSEHOLD_DRAW_CELLS, MENDELIAN_RESIDUAL_CELLS, run_household_draw, run_mendelian_residual
+from .mate_correlation import CELL_NAMES as MATE_CORRELATION_CELLS
+from .mate_correlation import run_mate_correlation
 from .onset_tau import CELL_NAMES as ONSET_TAU_CELLS
 from .onset_tau import run_onset_tau
 from .schema_file import load_schemad
@@ -75,6 +77,15 @@ ON_DEMAND_CHECKS: dict[str, CalibratedTest] = {
             ZCalibration(rep_rate=FAMILYWISE_ALPHA),
             min_reps=20,
             cell_names=CROSS_TRAIT_RC_CELLS,
+        ),
+        CalibratedTest(
+            "mate_correlation",
+            "mate correlation per parents' generation against its target, SE by pairing mode (ADR 0031)",
+            run_mate_correlation,
+            ZCalibration(rep_rate=FAMILYWISE_ALPHA),
+            min_reps=20,
+            cell_names=MATE_CORRELATION_CELLS,
+            own_page=True,
         ),
     )
 }

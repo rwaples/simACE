@@ -98,8 +98,10 @@ for frailty traits ([Methods, Onset τ](../concepts/methods.md#onset-τ)), which
 regenerates the phenotyped population's raw onsets from the replicate's seed,
 the sibling inheritance tests `mendelian_residual` and `household_draw`
 ([Methods, Sibling inheritance](../concepts/methods.md#sibling-inheritance)),
-and the recorded generation 0 tests `total_variance` and `cross_trait_rC`
+the recorded generation 0 tests `total_variance` and `cross_trait_rC`
 ([Methods, Recorded generation 0](../concepts/methods.md#recorded-generation-0)),
+and `mate_correlation`, the mate correlations per parents' generation
+([Methods, Mate correlation](../concepts/methods.md#mate-correlation)),
 which read the recorded pedigree and the parameters in `report.yaml`.
 
 It works on complete replicates only, skipping the others with their state,

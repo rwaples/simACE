@@ -12,6 +12,27 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### Mate correlations per generation as a calibrated test ([#69](https://github.com/rwaples/simACE/issues/69))
+
+- **A new calibrated test in `simace validate`**, `mate_correlation`
+  ([ADR 0031](adr/0031-mate-correlation-calibrated-test.md)). Per parents'
+  generation it scores the mate correlations of liability, and the two
+  cross-trait ones where both traits assort, against the iteration's target.
+  The SE follows the pairing mode: iid where one trait assorts, times a
+  finite-population factor where Metropolis pins both. Induced cells, strata
+  under 250 Mating Pairs, and scenarios with no assortment are not
+  applicable; its verdict needs 20 replicates. It has its own atlas page.
+- **Analyze drops its mate-correlation checks.** `quality_checks` no longer
+  lists `assortative_mating.mate_corr_*` or any `mate_corr_*_gen{g}`; every
+  mate correlation is reported as information. `report.yaml`'s
+  `truth.recorded_pedigree.assortative_mating` is unchanged.
+- **`METROPOLIS_TOL`** names the Metropolis refinement's stopping tolerance
+  in `simace/simulation/assortment.py`; the value is unchanged.
+- **`report_summary.tsv`** gains the test's columns, through parents'
+  generation 11.
+- **`config/inheritance_calibration.yaml`** gains `inh_am_mixed` and
+  `inh_am_matrix`.
+
 ### Total variance and cross-trait rC as calibrated tests ([#68](https://github.com/rwaples/simACE/issues/68))
 
 - **Two new calibrated tests in `simace validate`**

@@ -10,6 +10,7 @@ cross-trait correlations for genetic (rA) and common environment (rC) components
 """
 
 __all__ = [
+    "METROPOLIS_TOL",
     "add_to_pedigree",
     "allocate_offspring",
     "assign_twins",
@@ -35,7 +36,7 @@ import polars as pl
 from simace.core.cohort import write_pedigree
 from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
-from simace.simulation.assortment import AssortmentPlan, _cross_am_matrix
+from simace.simulation.assortment import METROPOLIS_TOL, AssortmentPlan, _cross_am_matrix
 from simace.simulation.params import CTransmission, SimulationParams, c_covariance
 
 if TYPE_CHECKING:
@@ -650,7 +651,6 @@ def _assortative_pair_partners(
         S12 = float(fz[:, 0] @ mz[:, 1])
         S21 = float(fz[:, 1] @ mz[:, 0])
 
-        tol = 5e-4
         max_proposals = 8 * M
         metro_seed = int(rng.integers(2**63))
 
@@ -667,7 +667,7 @@ def _assortative_pair_partners(
             T12,
             T21,
             M,
-            tol,
+            METROPOLIS_TOL,
             max_proposals,
             metro_seed,
         )

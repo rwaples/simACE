@@ -152,6 +152,14 @@ class TestRunAnalysis:
         assert gen1["cov_A_C"] is not None
         assert gen1["cov_A_E"] is not None
 
+    def test_mate_correlations_reach_the_report_only_as_truth(self, analyze_outputs):
+        """Analyze's mate correlations are information: four pooled truth scalars, no check row (ADR 0031)."""
+        report = analyze_outputs["report"]
+        am = report["truth"]["recorded_pedigree"]["assortative_mating"]
+        assert set(am) == {"mate_corr_liability1", "mate_corr_liability2", "mate_corr_A1", "mate_corr_A2"}
+        assert all(isinstance(value, float) for value in am.values())
+        assert not [c for c in report["quality_checks"]["checks"] if c["id"].startswith("assortative_mating.")]
+
     def test_observed_ascertainment_before_after(self, analyze_outputs):
         asc = analyze_outputs["report"]["observed"]["ascertainment"]
         enr = asc["trait_enrichment"]["trait1"]

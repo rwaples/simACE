@@ -222,6 +222,7 @@ ADR 0028 has one, so rerun `simace validate` on those replicates.
 | `checks.household_draw` | The household draw C − b_m·C_mother − b_f·C_father, scoped to the recorded pedigree. For each trait with C > 0, `cells.trait{t}_PHS` holds its paternal half-sib correlation (expected 0), `n_pairs`, and `linked_household_share`, the share of the pairs whose two households share more than one father, a dependence the SE does not see. `summary` as above |
 | `checks.total_variance` | Var(A + C + E) over recorded generation 0 ([Methods, Recorded generation 0](../concepts/methods.md#recorded-generation-0)), scoped to `recorded_generation_0`. `cells.trait{t}_total` holds the ddof-0 variance (`observed`), A + C + E at burn-in (`expected`), the household-cluster SE on the relative scale (`se`, with `se_observed` before scaling), `n_rows` and `n_households`. `summary` as above |
 | `checks.cross_trait_rC` | r(C1, C2) over recorded generation 0, scoped to `recorded_generation_0`. `cells.rC` holds the correlation, `expected` rC, its household-cluster SE, `n_rows` and `n_households`. `summary` as above |
+| `checks.mate_correlation` | Mate correlations per parents' generation g ([Methods, Mate correlation](../concepts/methods.md#mate-correlation)), scoped to `mating_pairs_by_parents_generation`. `cells.g{g}_liability1` and `g{g}_liability2`, plus `g{g}_cross_12` and `g{g}_cross_21` where both traits assort, hold the Pearson correlation over the generation's Mating Pairs (`observed`), the iteration's target (`expected`), its iid sandwich SE and `n_pairs`; where both traits assort also `M_hat`, `p_hat` and `se_iid`, the SE before the finite-population factor √(1 − `p_hat`). `summary` as above |
 
 A cell's `status` is `scored`, with `observed`, `expected`, `se` and
 `z = (observed − expected) / se`; `information`, with its `reason`, when it
@@ -233,8 +234,9 @@ scenario gives it none: onset τ with no frailty trait, `mendelian_residual`
 with A configured 0 for both traits, `household_draw` with C, and
 `total_variance` and `cross_trait_rC` under any C transmission,
 `total_variance` also under assortative mating up to burn-in, and
-`cross_trait_rC` with C1 or C2 configured 0, or |rC| = 1. Such a check leaves
-the verdict instead of making it insufficient.
+`cross_trait_rC` with C1 or C2 configured 0, or |rC| = 1, and
+`mate_correlation` when no recorded mating assorts. Such a check leaves the
+verdict instead of making it insufficient.
 
 ### validation_summary.yaml
 
@@ -282,11 +284,12 @@ the file path. `simulate_seconds` and `simulate_max_rss_mb` come only from the
 `simulate` row of the replicate's `timing.tsv`; they do not describe the whole
 pipeline. Read the registry for the full list. Each calibrated test `{test}`
 (`onset_tau`, `mendelian_residual`, `household_draw`, `total_variance`,
-`cross_trait_rC`) has columns from the
+`cross_trait_rC`, `mate_correlation`) has columns from the
 replicate's [validation.yaml](#validationyaml), empty when it has none:
 `{test}_n_scored`, `{test}_max_abs_z`, `{test}_rep_bound` (its
 `summary.z_bound`), and one `{test}_z_{cell}` per cell the test can report,
-empty when the cell is not scored.
+empty when the cell is not scored. `mate_correlation`'s cells stop at
+parents' generation 11.
 
 ## verdicts.tsv
 

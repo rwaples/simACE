@@ -38,8 +38,8 @@ def _verdict(stats: list[dict]) -> dict:
     return {"family": "scenario", "reps": f"1-{len(stats)}", **decide(scenario_family(sections, tests))}
 
 
-def test_the_page_covers_every_test_but_onset_tau() -> None:
-    assert set(PAGE_TESTS) == set(ON_DEMAND_CHECKS) - {"onset_tau"}
+def test_the_page_covers_every_test_without_its_own_page() -> None:
+    assert set(PAGE_TESTS) == set(ON_DEMAND_CHECKS) - {"onset_tau", "mate_correlation"}
     assert {"mendelian_residual", "household_draw", "total_variance", "cross_trait_rC"} <= set(PAGE_TESTS)
 
 

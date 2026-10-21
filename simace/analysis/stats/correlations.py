@@ -24,6 +24,7 @@ from pg_phenotype import Trait
 
 from simace.analysis.mate_correlation import mate_correlation_matrix, mate_pedigree
 from simace.analysis.midparent import midparent_offspring, stratum_line
+from simace.core.numerics import finite_or_none
 from simace.core.relationships import SEX_LEVELS
 
 from .moments import Stratum, select_levels
@@ -48,16 +49,12 @@ def report_generations(df: _Frame) -> list[int]:
     return list(range(max(1, max_gen - 2), max_gen + 1))
 
 
-def _finite_or_none(value: float) -> float | None:
-    return None if np.isnan(value) else float(value)
-
-
 def _tetrachoric_entry(table: np.ndarray, n_pairs: int, liability_r: float | None = None) -> dict[str, Any]:
     """``{r, se, n_pairs[, liability_r]}`` for one category's 2×2 *table*; ``None`` values below ten pairs."""
     entry: dict[str, Any] = {"r": None, "se": None, "n_pairs": int(n_pairs)}
     if n_pairs >= _MIN_PAIRS:
         r, se = tetrachoric_from_table(int(table[1, 1]), int(table[1, 0]), int(table[0, 1]), int(table[0, 0]))
-        entry["r"], entry["se"] = _finite_or_none(r), _finite_or_none(se)
+        entry["r"], entry["se"] = finite_or_none(r), finite_or_none(se)
     if liability_r is not None:
         entry["liability_r"] = float(liability_r) if n_pairs >= _MIN_PAIRS else None
     return entry
@@ -197,7 +194,7 @@ def compute_cross_trait_tetrachoric(df: _Frame, *, moments: RelationshipMoments)
     a1 = df["affected1"].to_numpy().astype(bool)
     a2 = df["affected2"].to_numpy().astype(bool)
     r_sp, se_sp = tetrachoric_corr_se(a1, a2)
-    result: dict[str, Any] = {"same_person": {"r": _finite_or_none(r_sp), "se": _finite_or_none(se_sp), "n": len(df)}}
+    result: dict[str, Any] = {"same_person": {"r": finite_or_none(r_sp), "se": finite_or_none(se_sp), "n": len(df)}}
     by_gen: dict[str, Any] = {}
     if "generation" in df.columns:
         gen_arr = df["generation"].to_numpy()
@@ -208,7 +205,7 @@ def compute_cross_trait_tetrachoric(df: _Frame, *, moments: RelationshipMoments)
                 by_gen[f"gen{gen}"] = {"r": None, "se": None, "n": n_g}
                 continue
             r_g, se_g = tetrachoric_corr_se(a1[mask], a2[mask])
-            by_gen[f"gen{gen}"] = {"r": _finite_or_none(r_g), "se": _finite_or_none(se_g), "n": n_g}
+            by_gen[f"gen{gen}"] = {"r": finite_or_none(r_g), "se": finite_or_none(se_g), "n": n_g}
     result["same_person_by_generation"] = by_gen
     stratum = Stratum(moments)
     n_pairs = stratum.n_pairs

@@ -11,7 +11,7 @@ applies. Above the panels is the scenario's verdict from
 
 from __future__ import annotations
 
-__all__ = ["PAGE_TESTS", "plot_calibrated_tests"]
+__all__ = ["PAGE_TESTS", "plot_calibrated_tests", "plot_z_panels"]
 
 import textwrap
 from typing import TYPE_CHECKING, Any
@@ -43,11 +43,14 @@ def _cells_reported(sections: list[dict[str, Any]], name: str) -> list[str]:
     return [cell for cell in ON_DEMAND_CHECKS[name].cell_names if cell in seen]
 
 
-def _draw_test(ax, sections: list[dict[str, Any]], name: str, cells: list[str], rng: np.random.Generator) -> None:
+def _draw_test(
+    ax, sections: list[dict[str, Any]], cells: list[str], heads: list[str], rng: np.random.Generator
+) -> None:
+    """One panel: each cell's replicate z, its mean and the ±1.96 band, labelled by its head and rep counts."""
     ax.axhspan(-1.96, 1.96, color="0.92", zorder=0)
     ax.axhline(0, color="0.6", linewidth=0.8, zorder=1)
     labels = []
-    for i, cell in enumerate(cells):
+    for i, (cell, head) in enumerate(zip(cells, heads, strict=True)):
         z, beyond = [], []
         for section in sections:
             row = (section.get("cells") or {}).get(cell)
@@ -61,18 +64,16 @@ def _draw_test(ax, sections: list[dict[str, Any]], name: str, cells: list[str], 
             edges = [COLOR_BEYOND if b else _COLOR_POINT for b in beyond]
             ax.scatter(x, z, s=14, color=_COLOR_POINT, edgecolors=edges, linewidths=1.0, alpha=0.8, zorder=3)
             ax.hlines(float(np.mean(z)), i - 0.3, i + 0.3, color="black", linewidth=2, zorder=4)
-        trait, _, code = cell.partition("_")
-        labels.append(f"{trait}\n{code}\n{len(z)}/{applicable_reps(sections, cell)}")
+        labels.append(f"{head}\n{len(z)}/{applicable_reps(sections, cell)}")
     ax.set_xticks(range(len(cells)), labels, fontsize=8)
     # At least _MIN_COLUMNS columns wide, centred, so one cell keeps its width.
     half = max(len(cells), _MIN_COLUMNS) / 2
     ax.set_xlim((len(cells) - 1) / 2 - half, (len(cells) - 1) / 2 + half)
     ax.set_ylabel("z")
-    ax.set_title(f"{name}: {ON_DEMAND_CHECKS[name].description}", fontsize=9)
 
 
 def plot_calibrated_tests(
-    all_stats: list[dict[str, Any]],
+    checks: list[dict[str, Any]],
     output_path: str | Path,
     scenario: str = "",
     verdict: dict[str, Any] | None = None,
@@ -80,19 +81,39 @@ def plot_calibrated_tests(
     """Per-rep z of each test in :data:`PAGE_TESTS`, one panel per test, under the scenario verdict."""
     panels = []
     for name in PAGE_TESTS:
-        sections = [stats.get(name) or {} for stats in all_stats]
+        sections = [stats.get(name) or {} for stats in checks]
         if cells := _cells_reported(sections, name):
             panels.append((name, sections, cells))
     if not panels:
         save_placeholder_plot(output_path, "No calibrated test reported: replicates not yet validated")
         return
 
-    note = textwrap.wrap(verdict_note(verdict, [name for name, _, _ in panels]), width=110)
-    height = _PANEL_HEIGHT_IN * len(panels) + 0.5 + _NOTE_LINE_IN * len(note)
+    titled = [
+        (
+            sections,
+            cells,
+            [cell.replace("_", "\n", 1) for cell in cells],
+            f"{name}: {ON_DEMAND_CHECKS[name].description}",
+        )
+        for name, sections, cells in panels
+    ]
+    plot_z_panels(titled, output_path, verdict_note(verdict, [name for name, _, _ in panels]), scenario)
+
+
+def plot_z_panels(
+    panels: list[tuple[list[dict[str, Any]], list[str], list[str], str]],
+    output_path: str | Path,
+    note: str,
+    scenario: str,
+) -> None:
+    """A page of z panels, each ``(sections, cells, column heads, title)``, under ``note`` (the verdict line)."""
+    lines = textwrap.wrap(note, width=110)
+    height = _PANEL_HEIGHT_IN * len(panels) + 0.5 + _NOTE_LINE_IN * len(lines)
     fig, axes = plt.subplots(len(panels), 1, figsize=(7.5, height), squeeze=False)
     rng = np.random.default_rng(0)
-    for ax, (name, sections, cells) in zip(axes[:, 0], panels, strict=True):
-        _draw_test(ax, sections, name, cells, rng)
+    for ax, (sections, cells, heads, title) in zip(axes[:, 0], panels, strict=True):
+        _draw_test(ax, sections, cells, heads, rng)
+        ax.set_title(title, fontsize=9)
 
     handles = [
         plt.Line2D([], [], marker="o", linestyle="none", color=_COLOR_POINT, label="replicate z"),
@@ -109,6 +130,6 @@ def plot_calibrated_tests(
         plt.Rectangle((0, 0), 1, 1, color="0.92", label="±1.96"),
     ]
     fig.legend(handles=handles, loc="lower center", ncol=4, fontsize=8, frameon=False)
-    fig.text(0.5, 0.995, "\n".join(note), ha="center", va="top", fontsize=9)
-    top = 1 - (_NOTE_LINE_IN * len(note) + 0.1) / height
+    fig.text(0.5, 0.995, "\n".join(lines), ha="center", va="top", fontsize=9)
+    top = 1 - (_NOTE_LINE_IN * len(lines) + 0.1) / height
     finalize_plot(output_path, tight_rect=[0, 0.35 / height, 1, top], scenario=scenario)

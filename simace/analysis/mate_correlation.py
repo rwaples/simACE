@@ -10,16 +10,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-import polars as pl
 from pg_phenotype import Pedigree, Trait
 from pg_phenotype.assortative import mate_correlation
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Sequence
 
     import pandas as pd
+    import polars as pl
 
-__all__ = ["mate_correlation_by_generation", "mate_correlation_matrix", "mate_pedigree"]
+__all__ = ["mate_correlation_matrix", "mate_pedigree"]
 
 
 def mate_pedigree(df: pd.DataFrame | pl.DataFrame) -> Pedigree:
@@ -71,25 +71,3 @@ def mate_correlation_matrix(
         if cell.primary.value is not None:
             matrix[usable[cell.mother_trait], usable[cell.father_trait]] = cell.primary.value
     return matrix, res.sample.n_total
-
-
-def mate_correlation_by_generation(
-    df: pd.DataFrame | pl.DataFrame, columns: Sequence[str], generations: Iterable[int]
-) -> dict[int, tuple[np.ndarray, int]]:
-    """:func:`mate_correlation_matrix` over the Mating Pairs whose parents are in each of *generations*.
-
-    Both parents of a Mating Pair come from one generation and their children
-    from the next, so generation ``g``'s pairs are the pairs among the rows of
-    generations ``g`` and ``g + 1``.
-
-    Returns:
-        ``{g: (matrix, n_pairs)}`` for each of *generations*.
-    """
-    generation = df["generation"].to_numpy()
-    arrays = {c: df[c].to_numpy() for c in ("id", "mother", "father", *columns)}
-    out = {}
-    for g in generations:
-        keep = (generation == g) | (generation == g + 1)
-        sub = pl.DataFrame({c: v[keep] for c, v in arrays.items()})
-        out[g] = mate_correlation_matrix(mate_pedigree(sub), sub, columns)
-    return out

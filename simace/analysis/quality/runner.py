@@ -71,7 +71,7 @@ def build_quality_report(
         "heritability": validate_heritability(df, params, ped, pedigree, siblings, mates),
         "population": validate_population(df, params),
         "per_generation": compute_per_generation_stats(df, params),
-        "assortative_mating": validate_assortative_mating(params, mates, df),
+        "assortative_mating": validate_assortative_mating(params, mates),
         "am_equilibrium": validate_am_equilibrium(df, params),
         "consanguineous_matings": validate_consanguineous_matings(df, params, ped),
     }

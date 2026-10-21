@@ -5,6 +5,7 @@ __all__ = [
     "bvn_cdf",
     "fast_linregress",
     "fast_pearsonr",
+    "finite_or_none",
     "ndtri",
     "norm_cdf",
     "norm_pdf",
@@ -122,6 +123,11 @@ def unique_sorted(x: np.ndarray, *, return_inverse: bool = False) -> np.ndarray 
     inverse = np.empty(x.size, dtype=np.intp)
     inverse[order] = np.cumsum(first) - 1
     return uniques, inverse
+
+
+def finite_or_none(value: float) -> float | None:
+    """*value* as a float, or None when it is NaN (YAML has no NaN to report)."""
+    return None if np.isnan(value) else float(value)
 
 
 def safe_corrcoef(x: np.ndarray, y: np.ndarray) -> float:
