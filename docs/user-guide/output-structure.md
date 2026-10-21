@@ -220,6 +220,8 @@ ADR 0028 has one, so rerun `simace validate` on those replicates.
 | `checks.onset_tau` | Onset τ ([Methods, Onset τ](../concepts/methods.md#onset-τ)), scoped to the phenotyped population (`scope`). `cells` holds one cell per frailty trait and relationship type, `trait{t}_{MZ,FS,MHS,PHS,MO,FO}`, and `within_person` when both traits are frailty. Each has its `status`: `scored`, with `z = (observed − expected) / se`, or `information`, with its `reason`. Each also has `observed`, `expected` (the realized onset-τ expectation), `se`, `numerical_bound`, `tie_share`, `n_pairs`, `n_eff`, `sampled_fraction`, and the `r_eta`, `s1`, `s2`, `tau_oracle` information. `summary` holds `n_scored`, `max_abs_z`, the per-replicate Bonferroni bound `z_bound` = Φ⁻¹(1 − 0.025/`n_scored`) (both empty with nothing scored; a correct simulation exceeds the bound in about 5% of replicates), `skipped_traits` and `entry_cap` |
 | `checks.mendelian_residual` | The Mendelian residual A − midparent ([Methods, Sibling inheritance](../concepts/methods.md#sibling-inheritance)), scoped to the recorded pedigree. For each trait with A > 0, `cells` holds `trait{t}_FS`, `trait{t}_MHS` and `trait{t}_PHS` (its correlation, expected 0, with `n_pairs`) and `trait{t}_variance` (its variance, expected A/2, with `n_residuals`). `summary` holds `n_scored`, `max_abs_z` and `z_bound` as for onset τ |
 | `checks.household_draw` | The household draw C − b_m·C_mother − b_f·C_father, scoped to the recorded pedigree. For each trait with C > 0, `cells.trait{t}_PHS` holds its paternal half-sib correlation (expected 0), `n_pairs`, and `linked_household_share`, the share of the pairs whose two households share more than one father, a dependence the SE does not see. `summary` as above |
+| `checks.total_variance` | Var(A + C + E) over recorded generation 0 ([Methods, Recorded generation 0](../concepts/methods.md#recorded-generation-0)), scoped to `recorded_generation_0`. `cells.trait{t}_total` holds the ddof-0 variance (`observed`), A + C + E at burn-in (`expected`), the household-cluster SE on the relative scale (`se`, with `se_observed` before scaling), `n_rows` and `n_households`. `summary` as above |
+| `checks.cross_trait_rC` | r(C1, C2) over recorded generation 0, scoped to `recorded_generation_0`. `cells.rC` holds the correlation, `expected` rC, its household-cluster SE, `n_rows` and `n_households`. `summary` as above |
 
 A cell's `status` is `scored`, with `observed`, `expected`, `se` and
 `z = (observed − expected) / se`; `information`, with its `reason`, when it
@@ -228,8 +230,11 @@ cannot be scored (it counts against the verdict's coverage); or
 replicate, such as a residual with zero variance (it is left out of
 coverage). A whole check is `not_applicable`, with no cells, when the
 scenario gives it none: onset τ with no frailty trait, `mendelian_residual`
-with A configured 0 for both traits, `household_draw` with C. Such a check
-leaves the verdict instead of making it insufficient.
+with A configured 0 for both traits, `household_draw` with C, and
+`total_variance` and `cross_trait_rC` under any C transmission,
+`total_variance` also under assortative mating up to burn-in, and
+`cross_trait_rC` with C1 or C2 configured 0, or |rC| = 1. Such a check leaves
+the verdict instead of making it insufficient.
 
 ### validation_summary.yaml
 
@@ -276,7 +281,8 @@ inside `report.yaml` that fills it. `folder`, `scenario`, and `rep` come from
 the file path. `simulate_seconds` and `simulate_max_rss_mb` come only from the
 `simulate` row of the replicate's `timing.tsv`; they do not describe the whole
 pipeline. Read the registry for the full list. Each calibrated test `{test}`
-(`onset_tau`, `mendelian_residual`, `household_draw`) has columns from the
+(`onset_tau`, `mendelian_residual`, `household_draw`, `total_variance`,
+`cross_trait_rC`) has columns from the
 replicate's [validation.yaml](#validationyaml), empty when it has none:
 `{test}_n_scored`, `{test}_max_abs_z`, `{test}_rep_bound` (its
 `summary.z_bound`), and one `{test}_z_{cell}` per cell the test can report,

@@ -12,6 +12,24 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### Total variance and cross-trait rC as calibrated tests ([#68](https://github.com/rwaples/simACE/issues/68))
+
+- **Two new calibrated tests in `simace validate`**
+  ([ADR 0030](adr/0030-generation0-total-variance-and-rc-tests.md)), on
+  recorded generation 0 with household-cluster SEs. `total_variance` scores
+  Var(A + C + E) per trait against A + C + E at burn-in, on the relative
+  scale. `cross_trait_rC` scores r(C1, C2) against rC. Both leave the verdict
+  under any C transmission, and `total_variance` also under assortative
+  mating up to burn-in; their verdicts need 20 replicates.
+- **Analyze drops two pass/fail checks.** `quality_checks` no longer lists
+  `statistical.total_variance_trait{t}` or `statistical.cross_trait_rC`;
+  their values stay in `truth`, unchanged.
+- **`statistical.c{t}_inheritance` covers recorded generation 0**: without
+  paternal C transmission it groups every row by `household_id`, so a broken
+  household share of C in generation 0 fails it.
+- **`report_summary.tsv`** gains the two tests' columns.
+- **`config/inheritance_calibration.yaml`** gains `inh_rc` (rC 0.5).
+
 ### Sibling inheritance calibrated tests ([#67](https://github.com/rwaples/simACE/issues/67))
 
 - **Two new calibrated tests in `simace validate`**
