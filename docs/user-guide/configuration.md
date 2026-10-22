@@ -65,11 +65,11 @@ pedigree:
 | `pedigree.assort1` | float or dict | `0` | Mate correlation on trait 1 liability. A dict sets it by generation |
 | `pedigree.assort2` | float or dict | `0` | Mate correlation on trait 2 liability. A dict sets it by generation |
 | `pedigree.assort_matrix` | matrix or null | `null` | Optional 2 by 2 female-by-male mate-correlation matrix. Its diagonal replaces `assort1` and `assort2` |
-| `pedigree.trait1.A` | float or dict | `0.5` | Trait 1 additive genetic variance |
-| `pedigree.trait1.C` | float or dict | `0.0` | Trait 1 common environment variance |
+| `pedigree.trait1.A` | float | `0.5` | Trait 1 additive genetic variance. A per-generation map is rejected |
+| `pedigree.trait1.C` | float | `0.0` | Trait 1 common environment variance. A per-generation map is rejected |
 | `pedigree.trait1.E` | float or dict | `0.5` | Trait 1 unique environment variance |
-| `pedigree.trait2.A` | float or dict | `0.4` | Trait 2 additive genetic variance |
-| `pedigree.trait2.C` | float or dict | `0.2` | Trait 2 common environment variance |
+| `pedigree.trait2.A` | float | `0.4` | Trait 2 additive genetic variance. A per-generation map is rejected |
+| `pedigree.trait2.C` | float | `0.2` | Trait 2 common environment variance. A per-generation map is rejected |
 | `pedigree.trait2.E` | float or dict | `0.4` | Trait 2 unique environment variance |
 | `pedigree.trait1.C_transmission.maternal` | float | `0.0` | Share of the mother's C1 an offspring inherits, in [0, 1]; maternal² + paternal² ≤ 1 (ADR 0025) |
 | `pedigree.trait1.C_transmission.paternal` | float | `0.0` | Share of the father's C1 an offspring inherits, in [0, 1]; maternal² + paternal² ≤ 1 (ADR 0025) |
