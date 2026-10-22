@@ -98,6 +98,7 @@ class RepArtifact(StrEnum):
 
     PEDIGREE = "pedigree.parquet"
     PEDIGREE_FULL_TSTRAIT = "pedigree.full.tstrait.parquet"
+    MATING = "mating.yaml"
     PARAMS = "params.yaml"
     COHORT = "cohort.parquet"
     PHENOTYPED_POPULATION = "phenotyped_population.yaml"

@@ -14,14 +14,34 @@ Wright-Fisher has no assortative mating, so ``run_simulation`` only builds an
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-#: Both-trait assortment's Metropolis swaps stop once every slot-level mate
-#: correlation is within this of its target. ``simace validate``'s
+if TYPE_CHECKING:
+    from pathlib import Path
+
+#: Assortment's Metropolis swaps stop once every slot-level mate correlation
+#: they pin is within this of its target. ``simace validate``'s
 #: ``mate_correlation`` test drops a cell whose SE this no longer dwarfs; it
 #: lives here so the test reads it without importing the simulator.
 METROPOLIS_TOL = 5e-4
+
+
+def write_mating_log(mating_log: list[dict[str, Any]], path: str | Path) -> None:
+    """Publish ``run_simulation``'s ``mating_log`` as a rep's ``mating.yaml``."""
+    from simace.core.publish import publish
+    from simace.core.yaml_io import dump_yaml
+
+    with publish(path) as (tmp,):
+        dump_yaml({"metropolis_tol": METROPOLIS_TOL, "iterations": mating_log}, tmp)
+
+
+def read_mating_log(path: str | Path) -> list[dict[str, Any]]:
+    """The pairing records of a ``mating.yaml``, one per mating iteration (:func:`write_mating_log`)."""
+    from simace.core.yaml_io import load_yaml
+
+    return load_yaml(path)["iterations"]
 
 
 def _parent_ce_gen(i: int) -> int:

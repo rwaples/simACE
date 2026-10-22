@@ -169,7 +169,13 @@ def _simulate(rep: ResolvedRep, layout: Layout) -> list[str]:
         "assort2": _generation_map_or_scalar,
         "assort_matrix": _json,
     }
-    return [*_flags(values, encode), "--output-pedigree", str(rep.path(layout, RepArtifact.PEDIGREE))]
+    return [
+        *_flags(values, encode),
+        "--output-pedigree",
+        str(rep.path(layout, RepArtifact.PEDIGREE)),
+        "--output-mating",
+        str(rep.path(layout, RepArtifact.MATING)),
+    ]
 
 
 def _cohort(rep: ResolvedRep, layout: Layout) -> list[str]:
@@ -214,7 +220,7 @@ def _analyze(rep: ResolvedRep, layout: Layout) -> list[str]:
 
 
 STAGES: tuple[Stage, ...] = (
-    Stage("simulate", _SIMULATE_KEYS, (RepArtifact.PEDIGREE,), _simulate),
+    Stage("simulate", _SIMULATE_KEYS, (RepArtifact.PEDIGREE, RepArtifact.MATING), _simulate),
     Stage("cohort", _COHORT_KEYS, (RepArtifact.COHORT, RepArtifact.PHENOTYPED_POPULATION), _cohort),
     Stage(
         "analyze",
@@ -282,7 +288,7 @@ _ATLAS_META_KEYS = (
 
 
 def validate_argv(rep: ResolvedRep, layout: Layout, checks: Iterable[str], source: str | None) -> list[str]:
-    """Return the per-rep ``simace validate --checks ...`` argv: the rep's pedigree and report, the cohort stage's phenotype flags and seed.
+    """Return the per-rep ``simace validate --checks ...`` argv: the rep's pedigree, report and pairing records, the cohort stage's phenotype flags and seed.
 
     ``source`` is the parent's ``git describe``, so every rep of one invocation records the same build.
     """
@@ -292,6 +298,8 @@ def validate_argv(rep: ResolvedRep, layout: Layout, checks: Iterable[str], sourc
         str(rep.path(layout, RepArtifact.PEDIGREE)),
         "--report",
         str(rep.path(layout, RepArtifact.REPORT)),
+        "--mating",
+        str(rep.path(layout, RepArtifact.MATING)),
         "--checks",
         *checks,
         "--output",

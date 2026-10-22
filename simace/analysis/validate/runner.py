@@ -30,6 +30,9 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     parser.add_argument(
         "--report", default=None, help="The rep's report.yaml, for checks that read its inputs.parameters"
     )
+    parser.add_argument(
+        "--mating", default=None, help="The rep's mating.yaml, for checks that read the simulator's pairing records"
+    )
     parser.add_argument("--checks", nargs="+", choices=sorted(ON_DEMAND_CHECKS), required=True)
     parser.add_argument("--seed", type=int, required=True, help="The rep seed")
     parser.add_argument("--output", required=True, help="Output validation.yaml")
@@ -49,7 +52,11 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     init_logging(args)
 
     inputs = RepInputs(
-        Path(args.pedigree), Path(args.report) if args.report else None, args.seed, phenotype_kwargs(args)
+        Path(args.pedigree),
+        Path(args.report) if args.report else None,
+        args.seed,
+        phenotype_kwargs(args),
+        Path(args.mating) if args.mating else None,
     )
     from simace.cli.manifest import source_ref
 

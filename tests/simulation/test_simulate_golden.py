@@ -10,19 +10,20 @@ that is intended, then regenerate the constant below.
 Coverage by config:
   * ``wf``                 — Wright-Fisher path (``_mating_wf``).
   * ``standard_no_am``     — standard mating, no assortment.
-  * ``standard_single_am`` — single-trait Gaussian-copula assortment.
+  * ``standard_single_am`` — single-trait Gaussian-copula assortment, then
+                             the 1-D Metropolis refinement (ADR 0032).
   * ``standard_both_am``   — both-trait 4-variate Gaussian copula + Metropolis + per-gen
                              ``R_mf`` (the most complex standard-only path).
   * ``standard_pergen``    — per-generation assort1 and E1 dicts, locking the
                              per-generation indexing (``assort*_per_gen[i]`` and
                              the ``parent_ce_gen = max(0, i-1)`` rho_w lookup).
 
-Portability note: the four ``rng``-only configs (everything except
-``standard_both_am``) are fully portable — they draw exclusively from the seeded
-``numpy.random.Generator``. ``standard_both_am`` additionally routes through the
-numba ``_metropolis_full`` kernel (``fastmath=True``) and the legacy global
-``np.random`` stream, so its digest can differ across numba versions / CPUs;
-regenerate it if it drifts on a new platform.
+Portability note: ``wf`` and ``standard_no_am`` are fully portable — they
+draw exclusively from the seeded ``numpy.random.Generator``. The assortative
+configs additionally route through a numba Metropolis kernel
+(``_metropolis_full`` or ``_metropolis_single``, ``fastmath=True``) and the
+legacy global ``np.random`` stream, so their digests can differ across numba
+versions / CPUs; regenerate them if they drift on a new platform.
 """
 
 import hashlib
@@ -68,9 +69,9 @@ _CONFIGS = {
 _GOLDEN = {
     "wf": "c110f24df422ef867cda7a9316ba36df93119ac8a96bb19c06af84242e9fd0a0",
     "standard_no_am": "f7e5549bd343b1e50d5ac9fe44be2e0e2d596fef5b040aa5f5e23a909903f776",
-    "standard_single_am": "b016e0f63a3b1d6aea2da1a1671c80a706598a8dddc305cfbe9fd109cb6a5e63",
+    "standard_single_am": "153a4dc470ae75db676f60d35c0e636612a02479505287e6b20a2d143a0fb55f",
     "standard_both_am": "bebafd0b87d8bd55fb131367d90e060c13c2a0b86f12a49bc01d3309c7dac6a1",
-    "standard_pergen": "61b9b8de335b360bcde6ff4fbf4894d15daf5f876c0c40ed1240594e362dd08e",
+    "standard_pergen": "cc998fe12773556650340c25e8841cc21203c5044f23303fc2c7f94430b1e8a4",
 }
 
 

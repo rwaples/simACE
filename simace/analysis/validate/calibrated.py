@@ -51,6 +51,8 @@ class RepInputs:
     seed: int
     #: ``run_phenotype``'s keyword arguments other than ``seed``.
     phenotype: Mapping[str, Any]
+    #: The rep's ``mating.yaml``; None when no requested check reads :attr:`mating_log`.
+    mating_path: Path | None = None
 
     @cached_property
     def pedigree(self) -> pl.DataFrame:
@@ -67,6 +69,19 @@ class RepInputs:
         if self.report_path is None:
             raise ValueError("this check reads the scenario parameters: pass the rep's report.yaml (--report)")
         return load_yaml(self.report_path)["inputs"]["parameters"]
+
+    @cached_property
+    def mating_log(self) -> list[dict[str, Any]]:
+        """The simulator's pairing record per mating iteration (``mating.yaml``, ADR 0032)."""
+        from simace.simulation.assortment import read_mating_log
+
+        if self.mating_path is None:
+            raise ValueError("this check reads the pairing records: pass the rep's mating.yaml (--mating)")
+        if not self.mating_path.exists():
+            raise ValueError(
+                f"{self.mating_path} is missing: the rep predates pairing records (ADR 0032); recompute it"
+            )
+        return read_mating_log(self.mating_path)
 
 
 @dataclass(frozen=True)
