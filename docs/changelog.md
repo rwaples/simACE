@@ -27,8 +27,8 @@ releases shipped after 2026.05.3.
   it, and `simace validate --mating` reads it.
 - **`mate_correlation`** applies the finite-population factor on every
   assortative iteration, not only where both traits assort. It makes an
-  iteration's cells information when its record says the swaps missed
-  the target.
+  iteration's scorable cells information when its record says the pairing missed
+  its target after the swaps and dedup.
 
 ### Mate correlations per generation as a calibrated test ([#69](https://github.com/rwaples/simACE/issues/69))
 

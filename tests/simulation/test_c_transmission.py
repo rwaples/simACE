@@ -229,6 +229,9 @@ def test_clips_are_logged_with_their_recorded_generation():
 
 def test_weak_assortment_at_small_n_is_clipped_and_logged_not_silent():
     """Below its standard error the structural excess is indistinguishable from noise: it must at least be recorded."""
-    clips: list = []
-    run_simulation(seed=0, **{**_BASE, "N": 1000, "rC": 0.0, "C1": 0.2}, assort1=0.3, **_BOUND, clip_log=clips)
-    assert any(c["generation"] >= 0 for c in clips)
+    clipped = 0
+    for seed in range(5):
+        clips: list = []
+        run_simulation(seed=seed, **{**_BASE, "N": 1000, "rC": 0.0, "C1": 0.2}, assort1=0.3, **_BOUND, clip_log=clips)
+        clipped += any(c["generation"] >= 0 for c in clips)
+    assert clipped >= 4  # 39 of seeds 0-39 clip in a recorded generation

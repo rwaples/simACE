@@ -16,8 +16,9 @@ liabilities. On an assortative iteration Metropolis swaps pin each assorting
 correlation over all M couples to its target (``_assortative_pair_partners``
 in ``simace/simulation/simulate.py``), and the recorded pairs are the n
 couples ``allocate_offspring`` gave a child: every n-subset equally likely,
-so the SE takes the finite-population factor √(1 − n/M̂). An iteration whose
-pairing record says the swaps missed the target makes its cells information.
+so the SE takes the finite-population factor √(1 − n/M̂). On an iteration whose
+pairing record says the pairing missed its target, a cell the gates below
+would otherwise score is information.
 
 Not applicable, each by design:
 
@@ -128,7 +129,7 @@ def _configured_zero(params: Mapping[str, Any], mating: RecordedMating, t: int) 
     return float(params.get(f"A{t}", 0)) == 0 and c == 0 and e == 0
 
 
-def _pairing_record(records: Mapping[int, dict[str, Any]], mating: RecordedMating) -> dict[str, Any]:
+def _checked_record(records: Mapping[int, dict[str, Any]], mating: RecordedMating) -> dict[str, Any]:
     """The simulator's pairing record of ``mating``, checked against the mode its parameters imply.
 
     Raises:
@@ -161,10 +162,13 @@ def _cell(
     expected: float,
     couples: tuple[float, float] | None,
     duplicates_left: int | None = None,
+    missed: Mapping[str, float] | None = None,
 ) -> dict[str, Any]:
     """Score the Pearson r of mothers' ``x`` with fathers' ``y`` over one generation's Mating Pairs.
 
     ``couples`` is ``(M̂, p̂)`` on an iteration whose swaps pin the correlation, else None.
+    ``missed`` holds the recorded errors of a pinned iteration that missed its
+    target: after the not-applicable gates, such a cell is information.
     """
     n = len(x)
     stats: dict[str, Any] = {"n_pairs": n}
@@ -199,6 +203,14 @@ def _cell(
                 se=se,
                 **stats,
             )
+    if missed is not None:
+        return information_cell(
+            "the pairing missed its target after the swaps and dedup: " + _errors_text(missed),
+            observed=r,
+            expected=expected,
+            pairing_errors=dict(missed),
+            **stats,
+        )
     return scored_cell(r, expected, se, **stats)
 
 
@@ -228,7 +240,7 @@ def run_mate_correlation(inputs: RepInputs) -> dict[str, Any]:
     cells = {}
     for m in matings:
         g = m.parents_generation
-        record = _pairing_record(records, m)
+        record = _checked_record(records, m)
         mothers, fathers, n_children = _mating_pairs(mother, father, generation, g)
         couples = None
         if record["mode"] in _PINNED and len(mothers):
@@ -250,15 +262,9 @@ def run_mate_correlation(inputs: RepInputs) -> dict[str, Any]:
                 )
             elif _configured_zero(params, m, i + 1) or _configured_zero(params, m, j + 1):
                 cells[name] = not_applicable_cell("A, C and E configured 0", n_pairs=len(x))
-            elif record["mode"] in _PINNED and not record["converged"]:
-                cells[name] = information_cell(
-                    "the simulator's swaps missed the target: " + _errors_text(record["errors"]),
-                    expected=expected,
-                    n_pairs=len(x),
-                    pairing_errors=record["errors"],
-                )
             else:
-                cells[name] = _cell(x, y, expected, couples, record.get("duplicates_left"))
+                missed = record["errors"] if record["mode"] in _PINNED and not record["converged"] else None
+                cells[name] = _cell(x, y, expected, couples, record.get("duplicates_left"), missed)
     if late := [m.parents_generation for m in matings if m.parents_generation >= _COLUMN_GENERATIONS]:
         logger.info(
             "mate_correlation: parents' generations %d-%d are scored without a gather column", late[0], late[-1]

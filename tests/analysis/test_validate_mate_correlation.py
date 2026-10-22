@@ -205,7 +205,7 @@ def test_an_iteration_that_missed_its_target_is_information(tmp_path, mixed, mix
     cells = _run(tmp_path, mixed, missed, MIXED)["cells"]
     for name in ("g0_liability1", "g3_liability1", "g3_cross_21"):
         assert cells[name]["status"] == "information"
-        assert cells[name]["reason"].startswith("the simulator's swaps missed the target")
+        assert cells[name]["reason"].startswith("the pairing missed its target after the swaps and dedup")
     assert cells["g0_liability2"]["status"] == "not_applicable"  # induced stays induced
     assert cells["g1_liability1"]["status"] == "scored"
 
@@ -293,3 +293,12 @@ def test_a_non_finite_liability_is_information(tmp_path, mixed, mixed_log) -> No
     cell = _run(tmp_path, broken, mixed_log, MIXED)["cells"]["g3_liability1"]
     assert cell["status"] == "information"
     assert cell["reason"] == "a liability is not finite"
+
+
+def test_a_missed_target_does_not_override_the_small_stratum_gate(tmp_path) -> None:
+    params = {**BASE, "seed": 300, "N": 400, "G_ped": 3, "G_sim": 4, "assort1": 0.3}
+    pedigree, log = _simulate(params)
+    missed = [{**r, "converged": False} if r["mode"] == "single" else r for r in log]
+    cell = _run(tmp_path, pedigree, missed, params)["cells"]["g0_liability1"]
+    assert cell["status"] == "not_applicable"
+    assert cell["n_pairs"] < MIN_PAIRS

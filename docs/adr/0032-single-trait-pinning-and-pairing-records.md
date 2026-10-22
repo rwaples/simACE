@@ -53,8 +53,11 @@ acceptance folders) is pending.
    only where both traits assort. Induced cells stay not applicable: only the
    active trait is pinned.
 4. **A missed target is information.** On an iteration whose record says
-   `converged: false`, every cell that would be scored is information. Its
-   reason lists the recorded errors, and it counts against coverage.
+   `converged: false`, a cell that passes the not-applicable gates (induced,
+   configured 0, too few Mating Pairs, the tolerance gate) is information.
+   Its reason lists the recorded errors, which are measured after dedup, and
+   it counts against coverage. A record with nothing pinned (M < 2, or a
+   constant active trait) is not converged.
 5. **Consistency.** A record whose mode disagrees with the iteration's
    assortment raises. So does a missing `mating.yaml` in an assortative
    scenario, with a "recompute the rep" message.
@@ -73,28 +76,28 @@ generations per rep.
 
 | design | before mean z | before SD z | after mean z | after SD z | before r − target | after r − target |
 |---|---|---|---|---|---|---|
-| single 0.2, λ 0.5, N 1,000 | −0.024 | 1.015 | −0.031 | 1.015 | −0.0018 | −0.0007 |
-| single 0.2, λ 3, N 1,000 | −0.092 | 1.033 | −0.011 | 0.998 | −0.0038 | −0.0005 |
-| single 0.4, λ 0.5, N 1,000 | −0.081 | 0.995 | +0.022 | 0.989 | −0.0044 | +0.0001 |
-| single 0.4, λ 3, N 1,000 | −0.177 | 0.995 | +0.033 | 1.005 | −0.0064 | +0.0003 |
-| single 0.4, λ 3, N 2,000 | −0.144 | 1.006 | +0.027 | 1.013 | −0.0036 | +0.0002 |
-| single 0.8, λ 0.5, N 1,000 | −0.326 | 0.985 | +0.040 | 1.008 | −0.0068 | +0.0000 |
-| single 0.8, λ 0.5, N 2,000 | −0.222 | 1.036 | +0.089 | 1.000 | −0.0033 | +0.0003 |
-| single 0.8, λ 3, N 1,000 | −1.401 | 0.917 | +0.048 | 1.009 | −0.0253 | −0.0002 |
-| single 0.8, λ 3, N 2,000 | −1.226 | 0.964 | +0.056 | 1.009 | −0.0143 | +0.0000 |
+| single 0.2, λ 0.5, N 1,000 | −0.024 | 1.015 | −0.017 | 1.016 | −0.0018 | −0.0005 |
+| single 0.2, λ 3, N 1,000 | −0.092 | 1.033 | +0.017 | 1.005 | −0.0038 | +0.0002 |
+| single 0.4, λ 0.5, N 1,000 | −0.081 | 0.995 | +0.005 | 1.025 | −0.0044 | −0.0002 |
+| single 0.4, λ 3, N 1,000 | −0.177 | 0.995 | −0.004 | 1.019 | −0.0064 | −0.0006 |
+| single 0.4, λ 3, N 2,000 | −0.144 | 1.006 | +0.015 | 1.000 | −0.0036 | −0.0000 |
+| single 0.8, λ 0.5, N 1,000 | −0.326 | 0.985 | +0.024 | 1.033 | −0.0068 | −0.0001 |
+| single 0.8, λ 0.5, N 2,000 | −0.222 | 1.036 | −0.007 | 1.000 | −0.0033 | −0.0002 |
+| single 0.8, λ 3, N 1,000 | −1.401 | 0.917 | +0.045 | 1.040 | −0.0253 | −0.0003 |
+| single 0.8, λ 3, N 2,000 | −1.226 | 0.964 | +0.039 | 1.025 | −0.0143 | −0.0001 |
 | both 0.3/0.3, λ 0.5 / λ 3; `assort_matrix` | identical | | | | | |
 
 - **Single-trait, after:** across all 12 single-trait designs (the table
-  shows 9), mean z is −0.031 to +0.089 and SD z 0.989 to 1.019, with the
-  finite-population factor applied. Every one of the 4,000 iterations per
-  design converged.
+  shows 9), mean z is −0.017 to +0.045 and SD z 0.997 to 1.040, with the
+  finite-population factor applied. All 2,000 recorded iterations of each
+  design converged (400 reps × 5 parents' generations).
 - **Both-trait and `assort_matrix`:** identical row for row before and after.
   Their pairing is unchanged; only the record is new.
-- **Residual at assort 0.8:** the after mean z is +0.040 to +0.089. Over
-  2,000 cells that is about 2–4 SE of the grid mean, and r − target is
-  +0.0003 at most. It is unexplained (a finite-sample Pearson bias on a
-  non-normal pinned population is a candidate). It is also below what the
-  verdict's mean-z test resolves at 100 reps (SE 0.1).
+- **Residual at assort 0.8, λ 3:** the after mean z is +0.039 to +0.045,
+  about 2 SE over 2,000 cells, and r − target is −0.0003 to −0.0001. A
+  first version of the kernel never proposed the last row when M was odd,
+  and gave +0.040 to +0.089 there; fixing that roughly halved it. It is
+  below what the verdict's mean-z test resolves at 100 reps (SE 0.1).
 - **Duplicates left:** the both-trait λ 3 design has 3,974 cells from
   iterations with duplicates left, with SD z 1.02. The approximation of
   decision 6 holds there.

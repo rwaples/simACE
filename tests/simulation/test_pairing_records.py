@@ -148,3 +148,27 @@ def test_the_cli_writes_the_pairing_records(tmp_path):
         (2, 1, "single"),
     ]
     assert all(r["converged"] and set(r["errors"]) == {"r1"} for r in log)
+
+
+def test_with_an_odd_number_of_rows_the_last_row_is_proposed():
+    """Only swaps with row M - 1 can improve here; the kernel must propose it (review finding on #74)."""
+    M = 7
+    fz = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0])
+    mz = np.array([-1.0, -1.0, -1.0, -1.0, -1.0, -1.0, 1.0])  # any swap with row 6 moves S from 1 to -1
+    mothers = np.arange(M, dtype=np.int64)
+    fathers = np.arange(100, 100 + M, dtype=np.int64)
+    rows, rows_ptr = np.arange(M, dtype=np.int64), np.arange(M + 1, dtype=np.int64)
+    s_final, _ = _metropolis_single(fz, mz, fathers, mothers, rows_ptr, rows, float(fz @ mz), -1.0, M, 1e-9, 8 * M, 3)
+    assert s_final == pytest.approx(-1.0)
+    assert fathers[6] != 106
+
+
+def test_a_constant_active_trait_is_left_unrefined_and_not_converged():
+    rng = np.random.default_rng(4)
+    mi, mc, fi, fc, pheno = _population(rng, 400, 0.5)
+    pheno[:, 0] = 0.0  # trait 1 is constant
+    log: list = []
+    _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.0, pairing_log=log)
+    assert log[0]["errors"] == {}
+    assert log[0]["proposals"] == 0
+    assert not log[0]["converged"]

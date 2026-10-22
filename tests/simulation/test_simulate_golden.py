@@ -69,9 +69,9 @@ _CONFIGS = {
 _GOLDEN = {
     "wf": "c110f24df422ef867cda7a9316ba36df93119ac8a96bb19c06af84242e9fd0a0",
     "standard_no_am": "f7e5549bd343b1e50d5ac9fe44be2e0e2d596fef5b040aa5f5e23a909903f776",
-    "standard_single_am": "153a4dc470ae75db676f60d35c0e636612a02479505287e6b20a2d143a0fb55f",
+    "standard_single_am": "1f74fff94a108d59b8304193644b5f82219d6f707f41e12432b5b9ed65d9dfca",
     "standard_both_am": "bebafd0b87d8bd55fb131367d90e060c13c2a0b86f12a49bc01d3309c7dac6a1",
-    "standard_pergen": "cc998fe12773556650340c25e8841cc21203c5044f23303fc2c7f94430b1e8a4",
+    "standard_pergen": "80b3e7da9891e68b30209700ad0b5c860cbffb94b112ac2565efab035b44e478",
 }
 
 

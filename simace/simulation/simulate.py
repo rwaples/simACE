@@ -433,8 +433,8 @@ def _metropolis_single_python(fz, mz, fathers, female_group, rows_ptr, rows, S, 
     group in the CSR ``rows_ptr`` / ``rows`` of rows per mother. Swapping the
     fathers of rows ``ii`` and ``jj`` changes ``S`` by
     ``(fz[ii] − fz[jj]) · (mz[jj] − mz[ii])``; an improving swap is refused when
-    either new couple already exists. Proposals are drawn as in
-    :func:`_metropolis_full_python`.
+    either new couple already exists. Each batch proposes ``M // 2`` disjoint
+    pairs drawn from all ``M`` rows.
     """
     # numba's njit supports only the legacy global RNG, not np.random.Generator.
     np.random.seed(seed)  # noqa: NPY002
@@ -446,10 +446,10 @@ def _metropolis_single_python(fz, mz, fathers, female_group, rows_ptr, rows, S, 
             break
 
         batch = min(M // 2, max_proposals - proposals_done)
-        n_shuffle = min(2 * batch, M)
 
-        for i in range(n_shuffle - 1, 0, -1):
-            j = np.random.randint(0, i + 1)  # noqa: NPY002
+        # Partial Fisher-Yates over all M rows, so with M odd the last row is proposed too.
+        for i in range(2 * batch):
+            j = np.random.randint(i, M)  # noqa: NPY002
             indices[i], indices[j] = indices[j], indices[i]
 
         for _k in range(batch):
@@ -664,11 +664,11 @@ def _assortative_pair_partners(
     female_slots = np.repeat(female_idxs, female_counts)
     male_slots = np.repeat(male_idxs, male_counts)
     M = len(female_slots)
+    mode = "both" if assort1 != 0 and assort2 != 0 else "single"
     if M < 2:
         # Nothing to sort: zero or one possible pairing.
         matings = np.column_stack([female_slots, male_slots])
         if pairing_log is not None:
-            mode = "both" if assort1 != 0 and assort2 != 0 else "single"
             pairing_log.append(_pairing_record(mode, matings, 0, 0, {}))
         return matings
 
@@ -678,7 +678,7 @@ def _assortative_pair_partners(
     liab1_m = _liability(pheno, 1, male_slots)
     liab2_m = _liability(pheno, 2, male_slots)
 
-    if assort1 != 0 and assort2 != 0:
+    if mode == "both":
         # --- Both traits nonzero: 4-variate Gaussian copula on R_mf ---
         r1, r2 = assort1, assort2
 
@@ -795,9 +795,9 @@ def _assortative_pair_partners(
 
     matings = _dedup_matings(matings, liab1_f, liab2_f, cKDTree)
 
-    if assort1 != 0 and assort2 != 0:
+    if mode == "both":
         targets = {"r1": (0, 0, r1), "r2": (1, 1, r2), "r12": (0, 1, c_target), "r21": (1, 0, c_target)}
-        mode, proposals = "both", proposals_done
+        proposals = proposals_done
     else:
         # The copula's correlation is random around the target and dedup moves it
         # further (issue #74); swaps that never create a duplicate couple pin it.
@@ -805,11 +805,12 @@ def _assortative_pair_partners(
         target_r = assort1 if assort1 != 0 else assort2
         max_proposals = 8 * M
         proposals = _refine_single_trait(rng, pheno, matings, t, target_r, max_proposals)
-        targets = {f"r{t + 1}": (t, t, target_r)}
-        mode = "single"
+        # A constant active trait has no correlation to pin: no refinement and no errors.
+        targets = {} if proposals is None else {f"r{t + 1}": (t, t, target_r)}
+        proposals = proposals or 0
 
     record = _pairing_record(mode, matings, proposals, max_proposals, _slot_errors(pheno, matings, targets))
-    if not record["converged"]:
+    if targets and not record["converged"]:
         logger.warning(
             "Assortative mating (%s) missed its target after %d proposals: %s", mode, proposals, record["errors"]
         )
@@ -820,15 +821,19 @@ def _assortative_pair_partners(
 
 def _refine_single_trait(
     rng: np.random.Generator, pheno: np.ndarray, matings: np.ndarray, t: int, target_r: float, max_proposals: int
-) -> int:
+) -> int | None:
     """Swap fathers in ``matings`` (in place) until trait ``t``'s slot-level correlation is within tolerance.
 
     Returns:
-        The number of proposals made.
+        The number of proposals made, or None when trait ``t`` is constant
+        on either side, which leaves the correlation undefined and the
+        pairing as the copula and dedup left it.
     """
     M = len(matings)
-    fz = _zscore(_liability(pheno, t + 1, matings[:, 0]))
-    mz = _zscore(_liability(pheno, t + 1, matings[:, 1]))
+    f_liab, m_liab = _liability(pheno, t + 1, matings[:, 0]), _liability(pheno, t + 1, matings[:, 1])
+    if not (f_liab.std() > _MIN_TRAIT_SD and m_liab.std() > _MIN_TRAIT_SD):
+        return None
+    fz, mz = _zscore(f_liab), _zscore(m_liab)
     fathers = matings[:, 1].astype(np.int64)
     mothers = matings[:, 0].astype(np.int64)
     # Rows grouped by mother (CSR), for the duplicate-couple check.
@@ -846,7 +851,11 @@ def _refine_single_trait(
 def _pairing_record(
     mode: str, matings: np.ndarray, proposals: int, max_proposals: int, errors: dict[str, float]
 ) -> dict[str, Any]:
-    """One assortative iteration's pairing record (``run_simulation``'s ``mating_log``)."""
+    """One assortative iteration's pairing record (``run_simulation``'s ``mating_log``).
+
+    ``converged`` needs at least one error, so a record with nothing pinned
+    (M < 2, or a constant active trait) does not read as converged.
+    """
     return {
         "mode": mode,
         "M": len(matings),
@@ -854,7 +863,7 @@ def _pairing_record(
         "max_proposals": int(max_proposals),
         "errors": errors,
         "duplicates_left": int(_find_duplicate_pairs(matings).sum()),
-        "converged": all(abs(e) < METROPOLIS_TOL for e in errors.values()),
+        "converged": bool(errors) and all(abs(e) < METROPOLIS_TOL for e in errors.values()),
     }
 
 
@@ -867,11 +876,12 @@ def _slot_errors(
     pheno: np.ndarray, matings: np.ndarray, targets: dict[str, tuple[int, int, float]]
 ) -> dict[str, float]:
     """Slot-level Pearson correlation minus target, per ``name: (mother trait, father trait, target)`` (0-based)."""
-
-    def z(side: int, t: int) -> np.ndarray:
-        return _zscore(_liability(pheno, t + 1, matings[:, side]))
-
-    return {name: float(np.mean(z(0, i) * z(1, j)) - r) for name, (i, j, r) in targets.items()}
+    z: dict[tuple[int, int], np.ndarray] = {}
+    for i, j, _ in targets.values():
+        for key in ((0, i), (1, j)):
+            if key not in z:
+                z[key] = _zscore(_liability(pheno, key[1] + 1, matings[:, key[0]]))
+    return {name: float(np.mean(z[0, i] * z[1, j]) - r) for name, (i, j, r) in targets.items()}
 
 
 def _dedup_matings(matings: np.ndarray, liab1_f: np.ndarray, liab2_f: np.ndarray, cKDTree: Any) -> np.ndarray:
