@@ -1366,8 +1366,8 @@ def run_simulation(
     """Run the full ACE simulation for two correlated traits.
 
     Variance components A (additive genetic), C (shared environment), and
-    E (unique environment) are specified as absolute variances.  A is constant
-    across generations; C and E may be specified per-generation via a dict
+    E (unique environment) are specified as absolute variances.  A and C are
+    constant across generations; E may be specified per-generation via a dict
     mapping generation index to value (forward-filled for missing keys).
 
     Args:
