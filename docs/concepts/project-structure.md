@@ -145,7 +145,7 @@ subdirectories of `./fitACE/`.
 
 The first six are the family checkouts.
 `tools/family_repos.py::checkout_repos()` is the source of truth for their
-paths, used by maintenance tools. The last four are companion repos that
+paths, used by maintenance tools. The last five are companion repos that
 those tools leave out; only the `/push` skill knows them.
 
 | Repo | Visibility | Local path | Role |
@@ -158,6 +158,7 @@ those tools leave out; only the `/push` skill knows them.
 | [`pg-phenotype`](https://github.com/rwaples/pg-phenotype) | public | `./external/pg-phenotype/` | Phenotypes in a pedigree on pedigree-graph's core (Rust, Python, R): PA-FGRS and the mate correlation. simACE computes its mate correlations with it. |
 | [`pedsum-validate`](https://github.com/rwaples/pedsum-validate) | public | `./external/pedsum-validate/` | Checks pedsum against statistics published for public pedigrees (purgeR, GENLIB, Dryad studbooks and wild populations). |
 | [`pg-phenotype-validate`](https://github.com/rwaples/pg-phenotype-validate) | public | `./external/pg-phenotype-validate/` | Checks both pg-phenotype bindings, pinned to a release pair, against outside R oracles (polycor, psych, sandwich, survival, cmprsk) and published PA-FGRS values. |
+| [`pedigree-graph-validate`](https://github.com/rwaples/pedigree-graph-validate) | public | `./external/pedigree-graph-validate/` | Checks both pedigree-graph bindings, pinned to a release pair, against outside R software: kinship and F (kinship2, ribd, GENLIB, nadiv, pedigreeTools, AGHmatrix, purgeR), relationship classification (verbalisr) and Ne and lineage statistics (purgeR, with published values). |
 | [`simACE-validate`](https://github.com/rwaples/simACE-validate) | public | `./external/simACE-validate/` | Checks simACE's simulations, pinned to a family tag, against code it does not share: an R liability oracle (nadiv inbreeding), msprime gene-drop (kinship2 IBD, cross-checked with ped-sim) and SLiM pedigree structure. |
 | [`nordic-geno-epimight`](https://github.com/rwaples/nordic-geno-epimight) | public | `./external/nordic-geno-epimight/` | Runs EPIMIGHT heritability and genetic correlation on register data, with input checks and pedigree-pair sandwich standard errors. |
 
