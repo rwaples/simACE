@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from simace.cli.cgroups import ROOT_ENV, CgroupRoot, CgroupUnavailable
+from simace.cli.cgroups import ROOT_ENV, CgroupRoot, CgroupUnavailable, Leaf
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -123,6 +123,15 @@ def test_adopted_root_nests_leaves_and_its_owner_sees_their_peak(root, monkeypat
         assert _run(adopted, _hold(300, 0))[0] == 0
     assert root.path.is_dir()
     assert root.peak_bytes() >= 300 * MiB
+
+
+def test_a_root_no_stage_can_join_is_refused(root, monkeypatch) -> None:
+    # As under Slurm: the root opens, but moving a process into a leaf is denied.
+    denied = ["sh", "-c", "echo 'sh: echo: write error: Permission denied' >&2; exit 1"]
+    monkeypatch.setattr(Leaf, "wrap", lambda self, cmd: denied)
+    monkeypatch.setenv(ROOT_ENV, str(root.path))
+    with pytest.raises(CgroupUnavailable, match=r"cannot join.*Permission denied"):
+        CgroupRoot.open()
 
 
 def test_adopting_a_cgroup_without_memory_is_refused(tmp_path, monkeypatch) -> None:

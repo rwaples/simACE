@@ -113,7 +113,30 @@ class CgroupRoot:
         if missing:
             root.close()
             raise CgroupUnavailable(f"the kernel has no {' or '.join(missing)} (needs Linux 5.19 or later)")
+        try:
+            root._check_join()
+        except CgroupUnavailable:
+            root.close()
+            raise
         return root
+
+    def _check_join(self) -> None:
+        """Raise CgroupUnavailable unless a process started here can move into a leaf.
+
+        Moving a process needs write access to the common ancestor of its old
+        and new cgroup. Inside a Slurm job this process sits in the job's
+        cgroup, outside the user's systemd tree, so the scope starts but every
+        stage is refused as it joins its leaf.
+        """
+        try:
+            with self.leaf() as leaf:
+                probe = subprocess.run(leaf.wrap(["true"]), capture_output=True, text=True, check=False)
+        except OSError as exc:
+            raise CgroupUnavailable(f"cannot create a stage cgroup in {self.path}: {exc.strerror}") from None
+        if probe.returncode:
+            lines = probe.stderr.strip().splitlines()
+            reason = lines[-1] if lines else f"exit {probe.returncode}"
+            raise CgroupUnavailable(f"a stage cannot join a cgroup in {self.path}: {reason}")
 
     @classmethod
     def _start_scope(cls) -> CgroupRoot:

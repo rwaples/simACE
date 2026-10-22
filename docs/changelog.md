@@ -12,6 +12,15 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### `simace run` inside a Slurm job
+
+- **Fixed: every stage failed at once inside a Slurm job.** `simace run`
+  started its delegated systemd scope, but Slurm keeps the job's processes in
+  its own cgroup, so moving a stage into its leaf was refused (`echo: write
+  error: Permission denied`). It now tries one move when it opens the scope and,
+  if that is refused, falls back as without a delegated cgroup: no
+  `tree_peak_mb`, and `--max-memory` enforced by polling `/proc`.
+
 ### Mate correlations per generation as a calibrated test ([#69](https://github.com/rwaples/simACE/issues/69))
 
 - **A new calibrated test in `simace validate`**, `mate_correlation`
