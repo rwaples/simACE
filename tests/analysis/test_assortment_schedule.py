@@ -65,15 +65,30 @@ def _simulator_schedule(params: dict) -> tuple[list[float], list[float]]:
     return [s[0] for s in schedule], [s[1] for s in schedule]
 
 
-_ASSORTING = sorted(name for name, p in _SCENARIOS.items() if any(v != 0 for s in assortment_schedule(p) for v in s))
+def _names_assortment(params: dict) -> bool:
+    """Whether the raw parameters ask for assortment or a non-standard mating model, whatever either side resolves."""
+    raw = [params.get("assort1", 0.0), params.get("assort2", 0.0)]
+    values = [v for a in raw for v in (a.values() if isinstance(a, dict) else [a])]
+    return (
+        any(float(v) != 0 for v in values)
+        or params.get("assort_matrix") is not None
+        or params.get("mating_model", "standard") != "standard"
+    )
 
 
-def test_some_configured_scenarios_assort_and_one_is_wright_fisher():
-    assert len(_ASSORTING) >= 3
-    assert any(p.get("mating_model") == "wright_fisher" for p in _SCENARIOS.values())
+# Chosen from the raw parameters, not from the function under test, so a scenario
+# whose analysis schedule wrongly comes out all zero is still compared.
+_SELECTED = sorted(name for name, p in _SCENARIOS.items() if _names_assortment(p))
 
 
-@pytest.mark.parametrize("name", _ASSORTING)
+def test_the_selection_covers_assortment_matrices_schedules_and_wright_fisher():
+    picked = [_SCENARIOS[n] for n in _SELECTED]
+    assert sum(p.get("assort_matrix") is not None for p in picked) >= 1
+    assert sum(isinstance(p.get("assort1"), dict) or isinstance(p.get("assort2"), dict) for p in picked) >= 1
+    assert sum(p.get("mating_model") == "wright_fisher" for p in picked) >= 1
+
+
+@pytest.mark.parametrize("name", _SELECTED)
 def test_assortment_schedule_matches_the_simulator(name):
     params = _SCENARIOS[name]
     assert assortment_schedule(params) == _simulator_schedule(params)
@@ -81,6 +96,27 @@ def test_assortment_schedule_matches_the_simulator(name):
 
 
 def test_wright_fisher_ignores_the_assortment_it_inherits():
-    params = {**_DEFAULTS, "mating_model": "wright_fisher", "assort1": 0.3, "G_ped": 3, "G_sim": 5}
-    assert assortment_schedule(params) == ([0.0] * 5, [0.0] * 5)
-    assert assortment_schedule(params) == _simulator_schedule({**params, "assort1": 0.0})
+    """Through ``run_simulation`` itself: under Wright-Fisher, assortment leaves the pedigree unchanged."""
+    from polars.testing import assert_frame_equal
+
+    from simace.simulation.simulate import run_simulation
+
+    base = dict(
+        seed=5,
+        N=400,
+        G_ped=3,
+        G_sim=4,
+        mating_lambda=0.5,
+        p_mztwin=0.0,
+        A1=0.5,
+        C1=0.2,
+        A2=0.4,
+        C2=0.2,
+        rA=0.3,
+        rC=0.0,
+        E1=0.3,
+        E2=0.4,
+        mating_model="wright_fisher",
+    )
+    assert_frame_equal(run_simulation(**base, assort1=0.4, assort2=0.3), run_simulation(**base))
+    assert assortment_schedule({**base, "assort1": 0.4, "assort2": 0.3}) == ([0.0] * 4, [0.0] * 4)

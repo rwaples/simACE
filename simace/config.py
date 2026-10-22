@@ -453,7 +453,7 @@ def _warn_am_transmission(name: str, effective: dict) -> None:
 def _validate_pedigree_config(config: dict) -> None:
     """Validate pedigree-section config, including mating-model compatibility.
 
-    Three checks:
+    Four checks:
 
     1. Reject scenarios whose effective E1 / E2 resolve to ``None``.  Closes
        the pre-PR3 fallback where ``E: null`` was filled from ``1 - A - C``
@@ -464,15 +464,16 @@ def _validate_pedigree_config(config: dict) -> None:
        values (``mating_lambda``, ``p_mztwin``, ``assort1``, ``assort2``,
        ``assort_matrix``).  Inherited defaults are silently ignored at
        runtime — only *explicit* scenario overrides are flagged here.
-    3. Validate the C transmission coefficients against the scope bound and
-       the configured C (:meth:`CTransmission.validate`, ADR 0025), for
-       scalar C; ``run_simulation`` rejects per-generation C.
+    3. Reject a per-generation map for ``A1``, ``A2``, ``C1`` or ``C2``: the
+       simulator takes scalars only (``SimulationParams``).
+    4. Validate the C transmission coefficients against the scope bound and
+       the configured C (:meth:`CTransmission.validate`, ADR 0025).
 
     Args:
         config: the merged ``{"defaults": ..., "scenarios": ...}`` dict.
 
     Raises:
-        ValueError: if any scenario fails either check.
+        ValueError: if any scenario fails a check.
     """
     defaults = config["defaults"]
     for name, params in config.get("scenarios", {}).items():

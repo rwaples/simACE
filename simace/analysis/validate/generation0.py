@@ -56,7 +56,7 @@ CROSS_TRAIT_RC_CELLS = ("rC",)
 def _per_gen(params: Mapping[str, Any], name: str, G_sim: int) -> list[float]:
     from simace.simulation.simulate import resolve_per_gen_param
 
-    return resolve_per_gen_param(params.get(name, 0.0), G_sim, name=name, allow_negative=True)
+    return resolve_per_gen_param(params.get(name, 0.0), G_sim, name=name)
 
 
 def _assortment(params: Mapping[str, Any]) -> str | None:

@@ -59,6 +59,14 @@ def schedule_span(params: Mapping[str, Any]) -> tuple[int, int]:
     return G_sim, G_sim - G_ped
 
 
+def _mated_matrix(params: Mapping[str, Any]) -> np.ndarray | None:
+    """The ``assort_matrix`` the simulator mates on: None under Wright-Fisher, which pairs at random."""
+    matrix = params.get("assort_matrix")
+    if matrix is None or params.get("mating_model", "standard") != "standard":
+        return None
+    return np.asarray(matrix, dtype=np.float64)
+
+
 def assortment_schedule(params: Mapping[str, Any]) -> tuple[list[float], list[float]]:
     """The ``assort1`` and ``assort2`` the simulator mates on in each of the ``G_sim`` mating iterations.
 
@@ -71,9 +79,8 @@ def assortment_schedule(params: Mapping[str, Any]) -> tuple[list[float], list[fl
     G_sim, _ = schedule_span(params)
     if params.get("mating_model", "standard") != "standard":
         return [0.0] * G_sim, [0.0] * G_sim
-    matrix = params.get("assort_matrix")
+    matrix = _mated_matrix(params)
     if matrix is not None:
-        matrix = np.asarray(matrix, dtype=np.float64)
         return [float(matrix[0, 0])] * G_sim, [float(matrix[1, 1])] * G_sim
     return (
         resolve_per_gen_param(params.get("assort1", 0.0), G_sim, name="assort1", allow_negative=True),
@@ -94,9 +101,7 @@ def recorded_matings(params: dict[str, Any]) -> list[RecordedMating]:
 
     G_sim, burnin = schedule_span(params)
     assort1, assort2 = assortment_schedule(params)
-    matrix = params.get("assort_matrix") if params.get("mating_model", "standard") == "standard" else None
-    if matrix is not None:
-        matrix = np.asarray(matrix, dtype=np.float64)
+    matrix = _mated_matrix(params)
     per_gen = {k: resolve_per_gen_param(params.get(k, 0), G_sim, name=k) for k in ("C1", "C2", "E1", "E2")}
 
     matings = []
