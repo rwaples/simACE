@@ -1459,9 +1459,9 @@ def run_simulation(
 
     rng = np.random.default_rng(seed)
 
-    # Resolve per-generation C and E variance components.  C1/C2 may be
-    # scalar or per-gen dict; A is always scalar (constant).  These run
-    # for both mating models since reproduce() needs them.
+    # Resolve per-generation C and E variance components.  A and C are
+    # scalars (SimulationParams rejects maps) and E may be a per-gen dict.
+    # These run for both mating models since reproduce() needs them.
     C1_per_gen = resolve_per_gen_param(C1, G_sim, name="C1")
     C2_per_gen = resolve_per_gen_param(C2, G_sim, name="C2")
     E1_per_gen = resolve_per_gen_param(E1, G_sim, name="E1")
