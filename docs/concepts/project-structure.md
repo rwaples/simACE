@@ -137,7 +137,7 @@ simACE/
 
 ## Repo map
 
-Nine repos, all under `rwaples/` on GitHub. simACE is the umbrella working
+Eleven repos, all under `rwaples/` on GitHub. simACE is the umbrella working
 directory. The others are checkouts inside it, gitignored from simACE, with
 no submodules. Since ADR 0017 fitACE is a monorepo. The method packages, the
 `ace_iter_reml` C++ source, and the `tetraher_simace` LDAK fork live in
