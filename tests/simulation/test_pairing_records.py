@@ -9,6 +9,8 @@ from simace.simulation.simulate import (
     _assortative_pair_partners,
     _draw_pairs,
     _find_duplicate_pairs,
+    _metropolis_full,
+    _metropolis_full_python,
     _metropolis_single,
     balance_mating_slots,
     draw_mating_counts,
@@ -179,9 +181,54 @@ def test_the_shared_proposal_draw_reaches_the_last_row_when_m_is_odd():
     """Both kernels draw their pairs with ``_draw_pairs``; with M odd, row M - 1 must enter the proposed prefix."""
     M = 7
     indices = np.arange(M, dtype=np.int64)
+    np.random.seed(0)  # noqa: NPY002  # _draw_pairs called from Python uses NumPy's legacy RNG
     seen = set()
     for _ in range(50):
         _draw_pairs(indices, M - 1)
         seen.update(int(i) for i in indices[: M - 1])
     assert seen == set(range(M))
     assert sorted(indices) == list(range(M))  # still a permutation
+
+
+def test_the_both_trait_kernel_proposes_the_last_row_when_m_is_odd():
+    """Driving _metropolis_full itself: only swaps with row M - 1 move S1 to its target."""
+    M = 7
+    fz = np.zeros((M, 2))
+    mz = np.zeros((M, 2))
+    fz[6, 0], mz[:, 0] = 1.0, [-1.0] * 6 + [1.0]
+    male_perm = np.arange(M, dtype=np.int64)
+    s1 = float(fz[:, 0] @ mz[:, 0])
+    s1, *_ = _metropolis_full(fz, mz, male_perm, s1, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, M, 1e-9, 8 * M, 3)
+    assert s1 == pytest.approx(-1.0)
+    assert male_perm[6] != 6
+
+
+def test_the_python_reference_kernel_is_deterministic_under_its_seed():
+    rng = np.random.default_rng(2)
+    M = 301
+    fz = rng.standard_normal((M, 2))
+    mz = rng.standard_normal((M, 2))
+    runs = []
+    for _ in range(2):
+        perm = np.arange(M, dtype=np.int64)
+        out = _metropolis_full_python(
+            fz.copy(), mz.copy(), perm, 0.0, 0.0, 0.0, 0.0, 30.0, 30.0, 0.0, 0.0, M, 1e-9, 4 * M, 9
+        )
+        runs.append((perm.copy(), out))
+    assert np.array_equal(runs[0][0], runs[1][0])
+    assert runs[0][1] == runs[1][1]
+
+
+@pytest.mark.parametrize("lam", [0.5, 3.0])
+@pytest.mark.parametrize("seed", range(4))
+def test_both_trait_recorded_errors_match_the_final_pairing(lam, seed):
+    """Whether or not dedup swapped, the recorded errors are the slot-level correlations of the returned couples."""
+    rng = np.random.default_rng(100 + seed)
+    mi, mc, fi, fc, pheno = _population(rng, 400, lam)
+    log: list = []
+    matings = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.3, rho_w=0.0, pairing_log=log)
+    errors = log[0]["errors"]
+    for name, (i, j) in {"r1": (0, 0), "r2": (3, 3), "r12": (0, 3), "r21": (3, 0)}.items():
+        x, y = pheno[matings[:, 0], i], pheno[matings[:, 1], j]
+        realized = float(np.mean((x - x.mean()) / x.std() * (y - y.mean()) / y.std()))
+        assert errors[name] + (0.3 if name in ("r1", "r2") else 0.0) == pytest.approx(realized, abs=1e-9)

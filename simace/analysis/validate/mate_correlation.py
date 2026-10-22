@@ -154,7 +154,7 @@ def _checked_record(records: Mapping[int, dict[str, Any]], mating: RecordedMatin
 
 def _missed_reason(errors: Mapping[str, float]) -> str:
     if not errors:
-        return "the simulator pinned nothing on this iteration (fewer than 2 slots, or a constant active trait)"
+        return "the simulator recorded no correlation to check: its active trait was (near-)constant across slots"
     listed = ", ".join(f"{k} {v:+.2g}" for k, v in errors.items())
     return f"the pairing missed its target after the swaps and dedup: {listed} (tolerance {METROPOLIS_TOL:g})"
 

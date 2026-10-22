@@ -116,9 +116,10 @@ generations per rep.
 
 ## Rejected alternatives
 
-- **One kernel for both paths, with dedup before Metropolis**: it changes
-  every assortative rep's output, including both-trait reps that already
-  meet the tolerance.
+- **Dedup before Metropolis on both paths**: its gain, putting dedup's
+  drift inside the swaps' reach, is not needed. Both-trait errors after
+  dedup stay within tolerance (0 of 2,000 iterations per design missed),
+  and the record catches a miss when one happens.
 - **Rank-adjusting the copula without refinement**: the correlation stays
   random, the dedup shortfall remains, and the SE keeps no factor.
 - **Aligning dedup's female liabilities with the copula's rows**: a

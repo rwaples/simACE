@@ -328,7 +328,8 @@ def _draw_pairs_python(indices, n):
     Positions ``2k`` and ``2k + 1`` then hold one proposed pair, disjoint
     from the batch's other pairs. Drawing from the whole array, not only the
     first ``n`` positions, lets the last row be proposed when ``M`` is odd.
-    Uses numba's legacy global RNG, seeded by the calling kernel.
+    Draws from the legacy global RNG the calling kernel seeded: NumPy's when
+    a ``_python`` kernel calls it, numba's when a jitted kernel inlines it.
     """
     M = len(indices)
     for i in range(n):
@@ -337,7 +338,11 @@ def _draw_pairs_python(indices, n):
 
 
 if njit is not None:
-    _draw_pairs = njit(cache=True)(_draw_pairs_python)
+    from numba.extending import register_jitable
+
+    # Plain Python when called from Python, so a _python kernel stays deterministic
+    # under its own np.random.seed; compiled inline when a jitted kernel calls it.
+    _draw_pairs = register_jitable(_draw_pairs_python)
 else:
     _draw_pairs = _draw_pairs_python
 
@@ -804,15 +809,16 @@ def _assortative_pair_partners(
 
         matings = np.column_stack([female_sorted[rank_f], male_sorted[rank_m]])
 
-    n_swapped, duplicates_left = _dedup_matings(matings, liab1_f, liab2_f, cKDTree)
+    n_swaps, duplicates_left = _dedup_matings(matings, liab1_f, liab2_f, cKDTree)
 
     if mode == "both":
         proposals = proposals_done
-        if n_swapped == 0:
+        targets = {"r1": (0, 0, r1), "r2": (1, 1, r2), "r12": (0, 1, c_target), "r21": (1, 0, c_target)}
+        if n_swaps == 0:
             # No dedup swap: the Metropolis sums are the final slot-level correlations.
-            errors = {"r1": S1 / M - r1, "r2": S2 / M - r2, "r12": S12 / M - c_target, "r21": S21 / M - c_target}
+            sums = {"r1": S1, "r2": S2, "r12": S12, "r21": S21}
+            errors = {name: sums[name] / M - r for name, (_, _, r) in targets.items()}
         else:
-            targets = {"r1": (0, 0, r1), "r2": (1, 1, r2), "r12": (0, 1, c_target), "r21": (1, 0, c_target)}
             errors = _slot_errors(pheno, matings, targets)
     else:
         # The copula's correlation is random around the target and dedup moves it
@@ -830,7 +836,10 @@ def _assortative_pair_partners(
         mode, M, proposals, max_proposals, {k: float(v) for k, v in errors.items()}, duplicates_left
     )
     if not errors:
-        logger.warning("Assortative mating (single): the active trait is constant across slots; nothing was pinned")
+        logger.warning(
+            "Assortative mating (single): trait %d's liability is constant across mating slots; nothing was pinned",
+            t + 1,
+        )
     elif not record["converged"]:
         logger.warning(
             "Assortative mating (%s) missed its target after %d proposals: %s", mode, proposals, record["errors"]
@@ -908,7 +917,7 @@ def _dedup_matings(matings: np.ndarray, liab1_f: np.ndarray, liab2_f: np.ndarray
     """Swap the father of each duplicate couple with a nearby female's (in place), for at most 5 passes.
 
     Returns:
-        The number of swaps made and the number of duplicate couples left.
+        The number of father swaps made and the number of duplicate couples left.
 
     ``liab1_f`` / ``liab2_f`` are the female slots' liabilities in slot order.
     The single-trait copula reorders the rows, so there the partner is not a
@@ -917,7 +926,7 @@ def _dedup_matings(matings: np.ndarray, liab1_f: np.ndarray, liab2_f: np.ndarray
     """
     # Deduplicate: swap with female-proximity partner to preserve correlations
     t_dedup = time.perf_counter()
-    n_dups_total = 0
+    n_swaps = 0
     clean = False
     for _attempt in range(5):
         is_dup = _find_duplicate_pairs(matings)
@@ -925,10 +934,10 @@ def _dedup_matings(matings: np.ndarray, liab1_f: np.ndarray, liab2_f: np.ndarray
             clean = True
             break
         dup_idxs = np.where(is_dup)[0]
-        n_dups_total += len(dup_idxs)
         non_dup_idxs = np.where(~is_dup)[0]
         if len(non_dup_idxs) == 0:
             break
+        n_swaps += len(dup_idxs)
 
         # KD-tree nearest-neighbor lookup: O(M log M) build + O(dups × log M) query
         nondup_liabs = np.column_stack([liab1_f[non_dup_idxs], liab2_f[non_dup_idxs]])
@@ -940,11 +949,11 @@ def _dedup_matings(matings: np.ndarray, liab1_f: np.ndarray, liab2_f: np.ndarray
             swap_with = non_dup_idxs[nn_idx[i]]
             matings[d, 1], matings[swap_with, 1] = matings[swap_with, 1], matings[d, 1]
     logger.debug(
-        "Dedup: %d total dups resolved in %.1fs",
-        n_dups_total,
+        "Dedup: %d father swaps in %.1fs",
+        n_swaps,
         time.perf_counter() - t_dedup,
     )
-    return n_dups_total, 0 if clean else int(_find_duplicate_pairs(matings).sum())
+    return n_swaps, 0 if clean else int(_find_duplicate_pairs(matings).sum())
 
 
 def allocate_offspring(rng: np.random.Generator, n_matings: int, N: int) -> np.ndarray:
