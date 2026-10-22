@@ -796,7 +796,6 @@ def _assortative_pair_partners(
 
         order_f = np.argsort(score_f)
         order_m = np.argsort(score_m)
-        female_sorted = female_slots[order_f]
         male_sorted = male_slots[order_m]
 
         r_eff = min(np.sqrt(assort1**2 + assort2**2), 1.0)
@@ -807,7 +806,9 @@ def _assortative_pair_partners(
         rank_f = np.argsort(np.argsort(z[:, 0]))
         rank_m = np.argsort(np.argsort(z[:, 1]))
 
-        matings = np.column_stack([female_sorted[rank_f], male_sorted[rank_m]])
+        # Row k's mother is female slot slot_of_row[k]; dedup and the swaps move only fathers.
+        slot_of_row = order_f[rank_f]
+        matings = np.column_stack([female_slots[slot_of_row], male_sorted[rank_m]])
 
     n_swaps, duplicates_left = _dedup_matings(matings, liab1_f, liab2_f, cKDTree)
 
@@ -826,7 +827,8 @@ def _assortative_pair_partners(
         t = 0 if assort1 != 0 else 1
         target_r = assort1 if assort1 != 0 else assort2
         max_proposals = 8 * M
-        refined = _refine_single_trait(rng, pheno, matings, t, target_r, max_proposals)
+        female_liab = liab1_f if t == 0 else liab2_f
+        refined = _refine_single_trait(rng, pheno, matings, slot_of_row, female_liab, t, target_r, max_proposals)
         # A constant active trait has no correlation to pin: no refinement and no errors.
         proposals, errors = (0, {}) if refined is None else (refined[0], {f"r{t + 1}": refined[1] / M - target_r})
         if duplicates_left:  # the swaps never add a duplicate couple, but they can remove one
@@ -850,9 +852,21 @@ def _assortative_pair_partners(
 
 
 def _refine_single_trait(
-    rng: np.random.Generator, pheno: np.ndarray, matings: np.ndarray, t: int, target_r: float, max_proposals: int
+    rng: np.random.Generator,
+    pheno: np.ndarray,
+    matings: np.ndarray,
+    slot_of_row: np.ndarray,
+    female_liab: np.ndarray,
+    t: int,
+    target_r: float,
+    max_proposals: int,
 ) -> tuple[int, float] | None:
     """Swap fathers in ``matings`` (in place) until trait ``t``'s slot-level correlation is within tolerance.
+
+    ``slot_of_row[k]`` is the female slot of row ``k``'s mother, and
+    ``female_liab`` trait ``t``'s liability per female slot. Female slots are
+    in female order (``np.repeat`` over ascending ids), so inverting
+    ``slot_of_row`` groups the rows by mother without a sort.
 
     Returns:
         The number of proposals made and the final sum S = M · r of the
@@ -861,14 +875,15 @@ def _refine_single_trait(
         as the copula and dedup left it.
     """
     M = len(matings)
-    f_liab, m_liab = _liability(pheno, t + 1, matings[:, 0]), _liability(pheno, t + 1, matings[:, 1])
+    f_liab, m_liab = female_liab[slot_of_row], _liability(pheno, t + 1, matings[:, 1])
     if not (f_liab.std() > _MIN_TRAIT_SD and m_liab.std() > _MIN_TRAIT_SD):
         return None
     fz, mz = _zscore(f_liab), _zscore(m_liab)
     fathers = matings[:, 1].astype(np.int64)
     mothers = matings[:, 0].astype(np.int64)
     # Rows grouped by mother (CSR), for the duplicate-couple check.
-    rows = np.argsort(mothers, kind="stable")
+    rows = np.empty(M, dtype=np.int64)
+    rows[slot_of_row] = np.arange(M, dtype=np.int64)
     rows_ptr = np.zeros(int(mothers.max()) + 2, dtype=np.int64)
     np.cumsum(np.bincount(mothers, minlength=len(rows_ptr) - 1), out=rows_ptr[1:])
     seed = int(rng.integers(2**63))
