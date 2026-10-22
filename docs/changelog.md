@@ -12,6 +12,17 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### Generation-0 calibrated tests: follow-ups ([#75](https://github.com/rwaples/simACE/issues/75))
+
+- **Config rejects a per-generation map for `A1`, `A2`, `C1` or `C2`.** The
+  simulator never accepted one (`SimulationParams`); loading the config
+  now fails with the scenario and key, instead of the simulate stage.
+- **ADR 0030 records why total variance stays not applicable under C
+  transmission**: SD z 0.62 at b_m 0.9 with C dominant, even with no clip.
+- The generation-0 and mate-correlation tests share one assortment
+  schedule, section builder and Pearson influence; a test checks the
+  schedule against the simulator's for every configured scenario.
+
 ### Mate correlations per generation as a calibrated test ([#69](https://github.com/rwaples/simACE/issues/69))
 
 - **A new calibrated test in `simace validate`**, `mate_correlation`
