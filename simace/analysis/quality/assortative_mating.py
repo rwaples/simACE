@@ -14,11 +14,17 @@ from simace.simulation.mate_correlation import expected_mate_corr_matrix
 from ._common import _info
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
 
     from ._common import MateCorrelations
 
-__all__ = ["RecordedMating", "recorded_matings", "validate_assortative_mating"]
+__all__ = [
+    "RecordedMating",
+    "assortment_schedule",
+    "recorded_matings",
+    "schedule_span",
+    "validate_assortative_mating",
+]
 
 _CROSS_CELLS = (("cross_12", (0, 1)), ("cross_21", (1, 0)))
 
@@ -46,39 +52,56 @@ class RecordedMating:
         return self.assort[0] != 0 and self.assort[1] != 0
 
 
+def schedule_span(params: Mapping[str, Any]) -> tuple[int, int]:
+    """``(G_sim, burnin)``: iteration ``i`` records generation ``i - burnin``, so recorded generation 0 is iteration ``burnin``'s offspring."""
+    G_sim = int(params.get("G_sim") or params.get("G_ped") or 1)
+    G_ped = int(params.get("G_ped") or G_sim)
+    return G_sim, G_sim - G_ped
+
+
+def assortment_schedule(params: Mapping[str, Any]) -> tuple[list[float], list[float]]:
+    """The ``assort1`` and ``assort2`` the simulator mates on in each of the ``G_sim`` mating iterations.
+
+    A set ``assort_matrix`` replaces both by its diagonal, as
+    ``SimulationParams`` does. The Wright-Fisher mating model pairs parents
+    at random whatever assortment it inherits, so both are zero there.
+    """
+    from simace.simulation.simulate import resolve_per_gen_param
+
+    G_sim, _ = schedule_span(params)
+    if params.get("mating_model", "standard") != "standard":
+        return [0.0] * G_sim, [0.0] * G_sim
+    matrix = params.get("assort_matrix")
+    if matrix is not None:
+        matrix = np.asarray(matrix, dtype=np.float64)
+        return [float(matrix[0, 0])] * G_sim, [float(matrix[1, 1])] * G_sim
+    return (
+        resolve_per_gen_param(params.get("assort1", 0.0), G_sim, name="assort1", allow_negative=True),
+        resolve_per_gen_param(params.get("assort2", 0.0), G_sim, name="assort2", allow_negative=True),
+    )
+
+
 def recorded_matings(params: dict[str, Any]) -> list[RecordedMating]:
     """One :class:`RecordedMating` per mating iteration whose parents are both pedigree rows.
 
     Iteration ``i`` records generation ``i - burnin``, so its parents are
     recorded generation ``i - burnin - 1`` and carry the C/E of generation
-    ``_parent_ce_gen(i)``. A set ``assort_matrix`` replaces ``assort1`` /
-    ``assort2`` by its diagonal, as in the simulator's parameters, and is
-    mated on only when both traits assort. The Wright-Fisher mating model
-    pairs parents at random whatever assortment it inherits, so every
-    target is zero.
+    ``_parent_ce_gen(i)``. The targets follow :func:`assortment_schedule`;
+    a set ``assort_matrix`` is mated on only when both traits assort, and
+    under Wright-Fisher every target is zero.
     """
     from simace.simulation.simulate import resolve_per_gen_param
 
-    G_sim = int(params.get("G_sim") or params.get("G_ped") or 1)
-    G_ped = int(params.get("G_ped") or G_sim)
-    burnin = G_sim - G_ped
-    matrix = params.get("assort_matrix")
-    if params.get("mating_model", "standard") != "standard":
-        matrix = None
-        assort = {"assort1": [0.0] * G_sim, "assort2": [0.0] * G_sim}
-    elif matrix is not None:
+    G_sim, burnin = schedule_span(params)
+    assort1, assort2 = assortment_schedule(params)
+    matrix = params.get("assort_matrix") if params.get("mating_model", "standard") == "standard" else None
+    if matrix is not None:
         matrix = np.asarray(matrix, dtype=np.float64)
-        assort = {"assort1": [float(matrix[0, 0])] * G_sim, "assort2": [float(matrix[1, 1])] * G_sim}
-    else:
-        assort = {
-            k: resolve_per_gen_param(params.get(k, 0.0), G_sim, name=k, allow_negative=True)
-            for k in ("assort1", "assort2")
-        }
     per_gen = {k: resolve_per_gen_param(params.get(k, 0), G_sim, name=k) for k in ("C1", "C2", "E1", "E2")}
 
     matings = []
     for i in range(burnin + 1, G_sim):
-        a1, a2 = assort["assort1"][i], assort["assort2"][i]
+        a1, a2 = assort1[i], assort2[i]
         g = _parent_ce_gen(i)
         expected = expected_mate_corr_matrix(
             a1,

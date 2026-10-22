@@ -34,9 +34,10 @@ import numpy as np
 import polars as pl
 
 from simace.analysis.quality._common import cluster_codes
+from simace.analysis.quality.assortative_mating import assortment_schedule, schedule_span
 from simace.core.relationships import transmission_active
 
-from .calibrated import information_cell, not_applicable_cell, scored_cell, summarize
+from .calibrated import information_cell, not_applicable_cell, pearson_influence, scored_cell, section
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -50,12 +51,6 @@ MIN_HOUSEHOLDS = 100
 
 TOTAL_VARIANCE_CELLS = ("trait1_total", "trait2_total")
 CROSS_TRAIT_RC_CELLS = ("rC",)
-
-
-def _burnin(params: Mapping[str, Any]) -> tuple[int, int]:
-    """``(G_sim, burnin)``: recorded generation 0 is the offspring of iteration ``burnin``."""
-    G_sim = int(params.get("G_sim") or params["G_ped"])
-    return G_sim, G_sim - int(params["G_ped"])
 
 
 def _per_gen(params: Mapping[str, Any], name: str, G_sim: int) -> list[float]:
@@ -72,16 +67,10 @@ def _assortment(params: Mapping[str, Any]) -> str | None:
     the household C draw does not depend on the parents, so rC is unaffected
     (ADR 0030 §4).
     """
-    if params.get("mating_model", "standard") != "standard":
-        return None
-    G_sim, burnin = _burnin(params)
-    matrix = params.get("assort_matrix")
-    if matrix is not None:
-        assort = [[float(matrix[0][0])] * G_sim, [float(matrix[1][1])] * G_sim]
-    else:
-        assort = [_per_gen(params, f"assort{t}", G_sim) for t in (1, 2)]
+    _, burnin = schedule_span(params)
+    assort1, assort2 = assortment_schedule(params)
     for i in range(burnin + 1):
-        if assort[0][i] != 0 or assort[1][i] != 0:
+        if assort1[i] != 0 or assort2[i] != 0:
             return f"assortative mating in iteration {i}, up to burn-in ({burnin})"
     return None
 
@@ -135,17 +124,10 @@ def _rc_cell(
     r = float(np.mean(z1 * z2))
     if not math.isfinite(r):
         return information_cell("correlation is not finite", expected=expected, **stats)
-    se = _cluster_se(z1 * z2 - r / 2 * (z1**2 + z2**2), households)
+    se = _cluster_se(pearson_influence(z1, z2, r), households)
     if not se > 0 or not math.isfinite(se):
         return information_cell("SE is not positive", observed=r, expected=expected, **stats)
     return scored_cell(r, expected, se, **stats)
-
-
-def _section(cells: Mapping[str, dict[str, Any]], not_applicable: str | None) -> dict[str, Any]:
-    section: dict[str, Any] = {"scope": SCOPE, "cells": dict(cells), "summary": summarize(cells)}
-    if not_applicable is not None:
-        section["not_applicable"] = not_applicable
-    return section
 
 
 def run_total_variance(inputs: RepInputs) -> dict[str, Any]:
@@ -157,8 +139,8 @@ def run_total_variance(inputs: RepInputs) -> dict[str, Any]:
     """
     params = inputs.params
     if (reason := _transmission(params) or _assortment(params)) is not None:
-        return _section({}, reason)
-    G_sim, burnin = _burnin(params)
+        return section(SCOPE, {}, reason)
+    G_sim, burnin = schedule_span(params)
     rows, households, n_households = _generation0(inputs.pedigree)
     cells = {}
     for t in (1, 2):
@@ -166,7 +148,7 @@ def run_total_variance(inputs: RepInputs) -> dict[str, Any]:
         a, c, e = (rows[f"{k}{t}"].to_numpy().astype(np.float64) for k in "ACE")
         x = a + c + e
         cells[f"trait{t}_total"] = _total_cell(x, households, n_households, expected)
-    return _section(cells, None)
+    return section(SCOPE, cells)
 
 
 def run_cross_trait_rc(inputs: RepInputs) -> dict[str, Any]:
@@ -184,7 +166,7 @@ def run_cross_trait_rc(inputs: RepInputs) -> dict[str, Any]:
     if reason is None and abs(rc) == 1:
         reason = "|rC| = 1"
     if reason is not None:
-        return _section({}, reason)
+        return section(SCOPE, {}, reason)
     rows, households, n_households = _generation0(inputs.pedigree)
     c1, c2 = (rows[f"C{t}"].to_numpy().astype(np.float64) for t in (1, 2))
-    return _section({"rC": _rc_cell(c1, c2, households, n_households, rc)}, None)
+    return section(SCOPE, {"rC": _rc_cell(c1, c2, households, n_households, rc)})
