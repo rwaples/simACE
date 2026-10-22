@@ -12,6 +12,24 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### Single-trait assortment hits its target, and each mating iteration's pairing is recorded ([#73](https://github.com/rwaples/simACE/issues/73), [#74](https://github.com/rwaples/simACE/issues/74))
+
+- **Single-trait assortative mating now pins its mate correlation**
+  ([ADR 0032](adr/0032-single-trait-pinning-and-pairing-records.md)). After
+  the copula and dedup, Metropolis swaps bring the active trait's
+  correlation within `METROPOLIS_TOL` of `assort`, without creating a
+  duplicate couple. The copula alone fell short of the target. Single-trait
+  assortative reps change for a given seed; other reps' pedigrees do not.
+- **A new rep file, `mating.yaml`**, written by the simulate stage: one
+  pairing record per mating iteration (mode, final errors against the
+  targets, duplicates left, converged). Existing complete reps lack it,
+  so `simace run` recomputes them. `simace simulate --output-mating` writes
+  it, and `simace validate --mating` reads it.
+- **`mate_correlation`** applies the finite-population factor on every
+  assortative iteration, not only where both traits assort. It makes an
+  iteration's cells information when its record says the swaps missed
+  the target.
+
 ### Mate correlations per generation as a calibrated test ([#69](https://github.com/rwaples/simACE/issues/69))
 
 - **A new calibrated test in `simace validate`**, `mate_correlation`

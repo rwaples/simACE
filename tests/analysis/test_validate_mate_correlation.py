@@ -1,4 +1,4 @@
-"""Per-generation mate correlations as a calibrated test (ADR 0031)."""
+"""Per-generation mate correlations as a calibrated test (ADR 0031, amended by ADR 0032)."""
 
 from __future__ import annotations
 
@@ -18,6 +18,7 @@ from simace.analysis.validate.mate_correlation import CELL_NAMES, MIN_PAIRS, n_c
 from simace.analysis.validate.on_demand import ON_DEMAND_CHECKS
 from simace.analysis.validate.verdict import decide, scenario_family
 from simace.core.cohort import write_pedigree
+from simace.simulation.assortment import write_mating_log
 from simace.simulation.simulate import run_simulation
 
 if TYPE_CHECKING:
@@ -43,24 +44,43 @@ BASE = dict(
 MIXED = {**BASE, "assort1": 0.3, "assort2": {0: 0.0, 5: 0.3}}
 
 
+def _simulate(params: dict) -> tuple[pl.DataFrame, list[dict]]:
+    """The pedigree and the pairing records (``mating.yaml``'s iterations) of one simulation."""
+    log: list[dict] = []
+    return run_simulation(**params, mating_log=log), log
+
+
 @pytest.fixture(scope="module")
-def mixed() -> pl.DataFrame:
-    return run_simulation(**MIXED)
+def mixed_run() -> tuple[pl.DataFrame, list[dict]]:
+    return _simulate(MIXED)
+
+
+@pytest.fixture(scope="module")
+def mixed(mixed_run) -> pl.DataFrame:
+    return mixed_run[0]
+
+
+@pytest.fixture(scope="module")
+def mixed_log(mixed_run) -> list[dict]:
+    return mixed_run[1]
 
 
 _written = itertools.count()
 
 
-def _inputs(tmp_path: Path, pedigree: pl.DataFrame, params: dict) -> RepInputs:
+def _inputs(tmp_path: Path, pedigree: pl.DataFrame, log: list[dict] | None, params: dict) -> RepInputs:
     k = next(_written)
     pedigree_path, report_path = tmp_path / f"pedigree{k}.parquet", tmp_path / f"report{k}.yaml"
+    mating_path = tmp_path / f"mating{k}.yaml"
     write_pedigree(pedigree, pedigree_path)
     report_path.write_text(yaml.safe_dump({"inputs": {"parameters": params}}))
-    return RepInputs(pedigree_path, report_path, seed=params["seed"], phenotype={})
+    if log is not None:
+        write_mating_log(log, mating_path)
+    return RepInputs(pedigree_path, report_path, seed=params["seed"], phenotype={}, mating_path=mating_path)
 
 
-def _run(tmp_path: Path, pedigree: pl.DataFrame, params: dict) -> dict:
-    return run_mate_correlation(_inputs(tmp_path, pedigree, params))
+def _run(tmp_path: Path, pedigree: pl.DataFrame, log: list[dict] | None, params: dict) -> dict:
+    return run_mate_correlation(_inputs(tmp_path, pedigree, log, params))
 
 
 def test_registered_with_its_own_page_and_twelve_generations_of_cells() -> None:
@@ -73,8 +93,8 @@ def test_registered_with_its_own_page_and_twelve_generations_of_cells() -> None:
     assert test.min_reps == 20
 
 
-def test_cells_follow_the_pairing_mode(tmp_path, mixed) -> None:
-    section = _run(tmp_path, mixed, MIXED)
+def test_cells_follow_the_pairing_mode(tmp_path, mixed, mixed_log) -> None:
+    section = _run(tmp_path, mixed, mixed_log, MIXED)
     cells = section["cells"]
     assert "not_applicable" not in section
     for g in (0, 1):
@@ -92,20 +112,18 @@ def test_cells_follow_the_pairing_mode(tmp_path, mixed) -> None:
     assert section["summary"]["n_scored"] == 2 + 12
 
 
-def test_the_finite_population_factor_applies_only_where_both_traits_assort(tmp_path, mixed) -> None:
-    cells = _run(tmp_path, mixed, MIXED)["cells"]
-    copula = cells["g0_liability1"]
-    assert "p_hat" not in copula
-    for label in ("liability1", "cross_12"):
-        cell = cells[f"g3_{label}"]
+def test_the_finite_population_factor_applies_where_swaps_pin_the_correlation(tmp_path, mixed, mixed_log) -> None:
+    cells = _run(tmp_path, mixed, mixed_log, MIXED)["cells"]
+    for name in ("g0_liability1", "g3_liability1", "g3_cross_12"):
+        cell = cells[name]
         assert 0 < cell["p_hat"] < 1
         assert cell["p_hat"] == pytest.approx(cell["n_pairs"] / cell["M_hat"])
         assert cell["se"] == pytest.approx(cell["se_iid"] * math.sqrt(1 - cell["p_hat"]))
 
 
 @pytest.mark.parametrize("g", [0, 3])
-def test_r_matches_pg_phenotype(tmp_path, mixed, g) -> None:
-    cells = _run(tmp_path, mixed, MIXED)["cells"]
+def test_r_matches_pg_phenotype(tmp_path, mixed, mixed_log, g) -> None:
+    cells = _run(tmp_path, mixed, mixed_log, MIXED)["cells"]
     rows = mixed.filter(pl.col("generation").is_in([g, g + 1]))
     matrix, n_pairs = mate_correlation_matrix(mate_pedigree(rows), rows, ["liability1", "liability2"])
     assert cells[f"g{g}_liability1"]["n_pairs"] == n_pairs
@@ -118,7 +136,7 @@ def test_r_matches_pg_phenotype(tmp_path, mixed, g) -> None:
 
 def test_assort_matrix_scores_all_four_cells_against_it(tmp_path) -> None:
     params = {**BASE, "seed": 22, "assort_matrix": [[0.3, 0.05], [0.05, 0.15]]}
-    cells = _run(tmp_path, run_simulation(**params), params)["cells"]
+    cells = _run(tmp_path, *_simulate(params), params)["cells"]
     assert len(cells) == 4 * 5
     assert all(cell["status"] == "scored" for cell in cells.values())
     assert cells["g4_cross_21"]["expected"] == 0.05
@@ -128,14 +146,14 @@ def test_assort_matrix_scores_all_four_cells_against_it(tmp_path) -> None:
 @pytest.mark.parametrize("overrides", [{}, {"mating_model": "wright_fisher", "assort1": 0.3}])
 def test_no_assortment_leaves_the_section_not_applicable(tmp_path, overrides) -> None:
     params = {**BASE, "seed": 23, **overrides}
-    section = _run(tmp_path, run_simulation(**params), params)
+    section = _run(tmp_path, *_simulate(params), params)
     assert section["cells"] == {}
     assert section["not_applicable"] == "no assortative mating in a recorded mating iteration"
 
 
 def test_a_random_iteration_inside_an_assortative_scenario_is_scored_at_zero(tmp_path) -> None:
     params = {**BASE, "seed": 24, "assort1": {0: 0.0, 5: 0.3}}
-    cells = _run(tmp_path, run_simulation(**params), params)["cells"]
+    cells = _run(tmp_path, *_simulate(params), params)["cells"]
     for label in ("liability1", "liability2"):
         assert cells[f"g1_{label}"]["status"] == "scored"
         assert cells[f"g1_{label}"]["expected"] == 0
@@ -143,37 +161,82 @@ def test_a_random_iteration_inside_an_assortative_scenario_is_scored_at_zero(tmp
     assert "g1_cross_12" not in cells
 
 
-def test_a_wrong_target_is_caught(tmp_path, mixed) -> None:
-    cells = _run(tmp_path, mixed, {**MIXED, "assort1": 0.5, "assort2": {0: 0.0, 5: 0.5}})["cells"]
+def test_a_wrong_target_is_caught(tmp_path, mixed, mixed_log) -> None:
+    cells = _run(tmp_path, mixed, mixed_log, {**MIXED, "assort1": 0.5, "assort2": {0: 0.0, 5: 0.5}})["cells"]
     assert cells["g0_liability1"]["z"] < -3
     assert cells["g3_liability2"]["z"] < -3
 
 
-def test_the_metropolis_tolerance_drops_both_trait_cells_whose_se_it_rivals(tmp_path, mixed, monkeypatch) -> None:
-    se = _run(tmp_path, mixed, MIXED)["cells"]["g3_liability1"]["se"]
-    monkeypatch.setattr(mc, "METROPOLIS_TOL", se)
-    cells = _run(tmp_path, mixed, MIXED)["cells"]
-    assert cells["g3_liability1"]["status"] == "not_applicable"
-    assert "Metropolis tolerance" in cells["g3_liability1"]["reason"]
-    assert cells["g0_liability1"]["status"] == "scored"
+def test_the_metropolis_tolerance_drops_pinned_cells_whose_se_it_rivals(
+    tmp_path, mixed, mixed_log, monkeypatch
+) -> None:
+    cells = _run(tmp_path, mixed, mixed_log, MIXED)["cells"]
+    monkeypatch.setattr(mc, "METROPOLIS_TOL", max(cells[n]["se"] for n in ("g0_liability1", "g3_liability1")))
+    cells = _run(tmp_path, mixed, mixed_log, MIXED)["cells"]
+    for name in ("g0_liability1", "g3_liability1"):
+        assert cells[name]["status"] == "not_applicable"
+        assert "Metropolis tolerance" in cells[name]["reason"]
+
+
+def test_a_random_iteration_takes_no_finite_population_factor(tmp_path) -> None:
+    params = {**BASE, "seed": 24, "assort1": {0: 0.0, 5: 0.3}}
+    cells = _run(tmp_path, *_simulate(params), params)["cells"]
+    assert "p_hat" not in cells["g1_liability1"]
+    assert "p_hat" in cells["g4_liability1"]
+
+
+def test_every_assortative_iteration_converges_and_records_its_errors(mixed_log) -> None:
+    pinned = [r for r in mixed_log if r["mode"] in ("single", "both")]
+    assert {r["mode"] for r in pinned} == {"single", "both"}
+    for r in pinned:
+        assert r["converged"]
+        assert set(r["errors"]) == ({"r1"} if r["mode"] == "single" else {"r1", "r2", "r12", "r21"})
+        assert max(abs(e) for e in r["errors"].values()) < mc.METROPOLIS_TOL
+        assert 0 < r["proposals"] <= r["max_proposals"]
+    assert [r["iteration"] for r in mixed_log] == list(range(MIXED["G_sim"]))
+
+
+def test_an_iteration_that_missed_its_target_is_information(tmp_path, mixed, mixed_log) -> None:
+    missed = [dict(r) for r in mixed_log]
+    for r in missed:
+        if r["generation"] in (1, 4):  # parents' generations 0 (single) and 3 (both)
+            r["converged"] = False
+            r["errors"] = dict.fromkeys(r["errors"], 0.01)
+    cells = _run(tmp_path, mixed, missed, MIXED)["cells"]
+    for name in ("g0_liability1", "g3_liability1", "g3_cross_21"):
+        assert cells[name]["status"] == "information"
+        assert cells[name]["reason"].startswith("the simulator's swaps missed the target")
+    assert cells["g0_liability2"]["status"] == "not_applicable"  # induced stays induced
+    assert cells["g1_liability1"]["status"] == "scored"
+
+
+def test_a_pairing_mode_that_disagrees_with_the_parameters_raises(tmp_path, mixed, mixed_log) -> None:
+    wrong = [{**r, "mode": "random"} if r["generation"] == 1 else r for r in mixed_log]
+    with pytest.raises(ValueError, match="implies 'single'"):
+        _run(tmp_path, mixed, wrong, MIXED)
+
+
+def test_a_rep_without_pairing_records_asks_for_a_recompute(tmp_path, mixed) -> None:
+    with pytest.raises(ValueError, match="predates pairing records"):
+        _run(tmp_path, mixed, None, MIXED)
 
 
 def test_a_configured_zero_trait_is_not_applicable(tmp_path) -> None:
     params = {**BASE, "seed": 25, "A2": 0.0, "C2": 0.0, "E2": 0.0, "rA": 0.0, "assort1": {0: 0.0, 5: 0.3}}
-    cells = _run(tmp_path, run_simulation(**params), params)["cells"]
+    cells = _run(tmp_path, *_simulate(params), params)["cells"]
     assert cells["g1_liability2"]["status"] == "not_applicable"
     assert cells["g1_liability2"]["reason"] == "A, C and E configured 0"
     assert cells["g1_liability1"]["status"] == "scored"
 
 
-def test_a_constant_side_the_configuration_does_not_explain_is_information(tmp_path, mixed) -> None:
+def test_a_constant_side_the_configuration_does_not_explain_is_information(tmp_path, mixed, mixed_log) -> None:
     flat = mixed.with_columns(pl.lit(0.0, dtype=mixed.schema["liability2"]).alias("liability2"))
-    cell = _run(tmp_path, flat, MIXED)["cells"]["g3_liability2"]
+    cell = _run(tmp_path, flat, mixed_log, MIXED)["cells"]["g3_liability2"]
     assert cell["status"] == "information"
     assert cell["reason"] == "one side's liability is constant"
 
 
-def test_severed_parents_leave_information_not_a_crash(tmp_path, mixed) -> None:
+def test_severed_parents_leave_information_not_a_crash(tmp_path, mixed, mixed_log) -> None:
     severed = mixed.with_columns(
         pl.when(pl.col("generation") == 4)
         .then(-1)
@@ -181,7 +244,7 @@ def test_severed_parents_leave_information_not_a_crash(tmp_path, mixed) -> None:
         .cast(mixed.schema["father"])
         .alias("father")
     )
-    cell = _run(tmp_path, severed, MIXED)["cells"]["g3_liability1"]
+    cell = _run(tmp_path, severed, mixed_log, MIXED)["cells"]["g3_liability1"]
     assert cell["status"] == "information"
     assert cell["n_pairs"] == 0
 
@@ -190,7 +253,7 @@ def test_small_strata_are_not_applicable_and_the_verdict_still_passes(tmp_path) 
     sections = []
     for k in range(20):
         params = {**BASE, "seed": 300 + k, "N": 400, "G_ped": 3, "G_sim": 4, "assort1": 0.3}
-        sections.append(_run(tmp_path, run_simulation(**params), params))
+        sections.append(_run(tmp_path, *_simulate(params), params))
     cell = sections[0]["cells"]["g0_liability1"]
     assert cell["status"] == "not_applicable"
     assert cell["n_pairs"] < MIN_PAIRS
@@ -213,13 +276,13 @@ def test_n_couples_inverts_the_expected_occupancy() -> None:
 
 def test_later_generations_are_scored_without_a_column(tmp_path) -> None:
     params = {**BASE, "seed": 26, "N": 600, "G_ped": 14, "G_sim": 14, "assort1": 0.3}
-    cells = _run(tmp_path, run_simulation(**params), params)["cells"]
+    cells = _run(tmp_path, *_simulate(params), params)["cells"]
     assert "g12_liability1" in cells
     assert "g12_liability1" not in CELL_NAMES
     assert np.isfinite(cells["g12_liability1"]["observed"])
 
 
-def test_a_non_finite_liability_is_information(tmp_path, mixed) -> None:
+def test_a_non_finite_liability_is_information(tmp_path, mixed, mixed_log) -> None:
     broken = mixed.with_columns(
         pl.when(pl.col("generation") == 3)
         .then(float("nan"))
@@ -227,6 +290,6 @@ def test_a_non_finite_liability_is_information(tmp_path, mixed) -> None:
         .cast(mixed.schema["liability1"])
         .alias("liability1")
     )
-    cell = _run(tmp_path, broken, MIXED)["cells"]["g3_liability1"]
+    cell = _run(tmp_path, broken, mixed_log, MIXED)["cells"]["g3_liability1"]
     assert cell["status"] == "information"
     assert cell["reason"] == "a liability is not finite"

@@ -5,7 +5,10 @@
 Accepted 2026-10-21 for issue #69, decided in a design interview and revised
 the same day after a review; plan in
 `plans/issue-69-mate-correlation-test.md`. Both acceptance folders pass
-(Consequences).
+(Consequences). §2, §3 and §8 are amended by
+[ADR 0032](0032-single-trait-pinning-and-pairing-records.md): single-trait
+assortment is now pinned too, and the factor follows each iteration's
+recorded pairing.
 Amends [ADR 0026](0026-mate-correlation-checks-by-generation.md) §1 and §4:
 induced cells are no longer scored, and the per-generation checks leave
 Analyze for `simace validate`. Amends

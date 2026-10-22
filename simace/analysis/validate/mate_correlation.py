@@ -1,7 +1,8 @@
-"""Per-generation mate correlations as a calibrated test (ADR 0031).
+"""Per-generation mate correlations as a calibrated test (ADR 0031, amended by ADR 0032).
 
 Run by ``simace validate`` with the scenario parameters from the rep's
-``report.yaml``. For each recorded mating iteration
+``report.yaml`` and the simulator's pairing records from its ``mating.yaml``.
+For each recorded mating iteration
 (:func:`~simace.analysis.quality.assortative_mating.recorded_matings`) it
 takes the Mating Pairs of parents' generation g, the distinct (mother,
 father) of the generation g+1 rows whose parents are both pedigree rows, and
@@ -11,28 +12,28 @@ against the iteration's nominal target. Cells ``g{g}_liability1``,
 where both traits assort.
 
 The SE is the iid delta-method sandwich over the pairs' standardized
-liabilities. Where both traits assort, Metropolis swaps pin the correlation
-over all M couples to the target (``simace/simulation/simulate.py:603``, stop
-rule at ``:357``), and the recorded pairs are the n couples
-``allocate_offspring`` (``:760``) gave a child: every n-subset equally
-likely, so the SE takes the finite-population factor √(1 − n/M̂). Where one
-trait assorts, the copula's correlation is itself random (``:700``) and the
-iid SE stands.
+liabilities. On an assortative iteration Metropolis swaps pin each assorting
+correlation over all M couples to its target (``_assortative_pair_partners``
+in ``simace/simulation/simulate.py``), and the recorded pairs are the n
+couples ``allocate_offspring`` gave a child: every n-subset equally likely,
+so the SE takes the finite-population factor √(1 − n/M̂). An iteration whose
+pairing record says the swaps missed the target makes its cells information.
 
 Not applicable, each by design:
 
 - the section, when no recorded iteration assorts on either trait: the
-  simulator then shuffles (``:862``) and every target is 0;
+  simulator then shuffles (``pair_partners``) and every target is 0;
 - a diagonal cell whose trait does not assort while the other does: its
-  correlation is **induced** through ρ_w, and AM moves ρ_w away from the
-  configured value its target is built from (ADR 0031 Evidence);
+  correlation is **induced** through ρ_w, is not pinned, and AM moves ρ_w
+  away from the configured value its target is built from (ADR 0031
+  Evidence);
 - a cell reading a trait with A, C and E all configured 0, whose liability
   is then constant;
 - 1 to ``MIN_PAIRS − 1`` Mating Pairs, too few for a calibrated SE;
-- a both-trait cell whose SE at the target, (1 − ρ²)/√n · √(1 − p̂), is
-  under 4 × ``METROPOLIS_TOL``: the stopping error (``:357``) does not shrink
-  with N and is not in the SE. The gate reads the target, not the rep's own
-  SE, so which reps are scored does not depend on their r.
+- a pinned cell whose SE at the target, (1 − ρ²)/√n · √(1 − p̂), is under
+  4 × ``METROPOLIS_TOL``: the stopping error does not shrink with N and is
+  not in the SE. The gate reads the target, not the rep's own SE, so which
+  reps are scored does not depend on their r.
 """
 
 from __future__ import annotations
@@ -69,6 +70,9 @@ MIN_PAIRS = 250
 
 #: Generations with a gather column; later ones are scored and judged without one.
 _COLUMN_GENERATIONS = 12
+
+#: Pairing modes whose Metropolis swaps pin each assorting correlation over all M couples (ADR 0032).
+_PINNED = frozenset({"single", "both"})
 
 #: Each cell's label and its (mother trait, father trait) index.
 _CELLS = (("liability1", (0, 0)), ("liability2", (1, 1)), ("cross_12", (0, 1)), ("cross_21", (1, 0)))
@@ -124,13 +128,48 @@ def _configured_zero(params: Mapping[str, Any], mating: RecordedMating, t: int) 
     return float(params.get(f"A{t}", 0)) == 0 and c == 0 and e == 0
 
 
-def _cell(x: np.ndarray, y: np.ndarray, expected: float, couples: tuple[float, float] | None) -> dict[str, Any]:
+def _pairing_record(records: Mapping[int, dict[str, Any]], mating: RecordedMating) -> dict[str, Any]:
+    """The simulator's pairing record of ``mating``, checked against the mode its parameters imply.
+
+    Raises:
+        ValueError: if the record is missing or its mode disagrees with the
+            iteration's assortment.
+    """
+    record = records.get(mating.parents_generation + 1)
+    if mating.cross_scored:
+        mode = "both"
+    elif mating.assort != (0, 0):
+        mode = "single"
+    else:
+        mode = "random"
+    if record is None or record["mode"] != mode:
+        found = None if record is None else record["mode"]
+        raise ValueError(
+            f"mating.yaml: parents' generation {mating.parents_generation} has pairing mode {found!r}, "
+            f"but its assortment {mating.assort} implies {mode!r}"
+        )
+    return record
+
+
+def _errors_text(errors: Mapping[str, float]) -> str:
+    return ", ".join(f"{k} {v:+.2g}" for k, v in errors.items()) + f" (tolerance {METROPOLIS_TOL:g})"
+
+
+def _cell(
+    x: np.ndarray,
+    y: np.ndarray,
+    expected: float,
+    couples: tuple[float, float] | None,
+    duplicates_left: int | None = None,
+) -> dict[str, Any]:
     """Score the Pearson r of mothers' ``x`` with fathers' ``y`` over one generation's Mating Pairs.
 
-    ``couples`` is ``(M̂, p̂)`` on an iteration where both traits assort, else None.
+    ``couples`` is ``(M̂, p̂)`` on an iteration whose swaps pin the correlation, else None.
     """
     n = len(x)
     stats: dict[str, Any] = {"n_pairs": n}
+    if duplicates_left is not None:
+        stats["duplicates_left"] = duplicates_left
     if n == 0:
         return information_cell("no Mating Pairs where the simulator recorded matings", expected=expected, **stats)
     if n < MIN_PAIRS:
@@ -185,12 +224,14 @@ def run_mate_correlation(inputs: RepInputs) -> dict[str, Any]:
     mother, father = parent_rows(pedigree)
     generation = pedigree["generation"].to_numpy()
     liability = np.column_stack([pedigree[f"liability{t}"].to_numpy().astype(np.float64) for t in (1, 2)])
+    records = {r["generation"]: r for r in inputs.mating_log}
     cells = {}
     for m in matings:
         g = m.parents_generation
+        record = _pairing_record(records, m)
         mothers, fathers, n_children = _mating_pairs(mother, father, generation, g)
         couples = None
-        if m.cross_scored and len(mothers):
+        if record["mode"] in _PINNED and len(mothers):
             m_hat = n_couples(len(mothers), n_children)
             couples = (m_hat, len(mothers) / m_hat)
         for label, (i, j) in _CELLS:
@@ -209,8 +250,15 @@ def run_mate_correlation(inputs: RepInputs) -> dict[str, Any]:
                 )
             elif _configured_zero(params, m, i + 1) or _configured_zero(params, m, j + 1):
                 cells[name] = not_applicable_cell("A, C and E configured 0", n_pairs=len(x))
+            elif record["mode"] in _PINNED and not record["converged"]:
+                cells[name] = information_cell(
+                    "the simulator's swaps missed the target: " + _errors_text(record["errors"]),
+                    expected=expected,
+                    n_pairs=len(x),
+                    pairing_errors=record["errors"],
+                )
             else:
-                cells[name] = _cell(x, y, expected, couples)
+                cells[name] = _cell(x, y, expected, couples, record.get("duplicates_left"))
     if late := [m.parents_generation for m in matings if m.parents_generation >= _COLUMN_GENERATIONS]:
         logger.info(
             "mate_correlation: parents' generations %d-%d are scored without a gather column", late[0], late[-1]
