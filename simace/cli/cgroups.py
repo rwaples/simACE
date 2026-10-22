@@ -37,6 +37,8 @@ logger = logging.getLogger(__name__)
 ROOT_ENV = "SIMACE_CGROUP_ROOT"
 _ANCHOR_TIMEOUT_S = 10.0
 _DRAIN_TIMEOUT_S = 2.0
+# Any cap will do: the probe only checks that the cap's files can be written.
+_PROBE_CAP_BYTES = 2**30
 # A cgroup that holds processes cannot enable controllers for its children, so
 # the anchor moves into a child of the scope before enabling memory. It then
 # holds the scope open until its stdin closes, which also happens when the
@@ -53,6 +55,12 @@ _JOIN = 'echo 0 > "$0/cgroup.procs" && exec "$@"'
 
 class CgroupUnavailable(Exception):
     """No delegated cgroup with the memory controller is available; the message says why."""
+
+
+def _last_line(text: str, default: str) -> str:
+    """Return the last non-empty line of ``text``, else ``default``."""
+    lines = text.strip().splitlines()
+    return lines[-1] if lines else default
 
 
 def _events(path: Path) -> dict[str, int]:
@@ -95,8 +103,10 @@ class CgroupRoot:
         """Adopt the cgroup ``SIMACE_CGROUP_ROOT`` names, else start a delegated systemd scope.
 
         Raises:
-            CgroupUnavailable: neither is possible here, or the kernel lacks
-                ``memory.peak`` (Linux 5.19) or ``cgroup.kill`` (5.14).
+            CgroupUnavailable: neither is possible here; the kernel lacks
+                ``memory.peak`` (Linux 5.19) or ``cgroup.kill`` (5.14); or a
+                stage could not join a capped leaf of the root (see
+                :meth:`_check_join`).
         """
         adopted = os.environ.get(ROOT_ENV)
         if adopted:
@@ -115,27 +125,35 @@ class CgroupRoot:
             raise CgroupUnavailable(f"the kernel has no {' or '.join(missing)} (needs Linux 5.19 or later)")
         try:
             root._check_join()
-        except CgroupUnavailable:
+        except BaseException:
             root.close()
             raise
         return root
 
     def _check_join(self) -> None:
-        """Raise CgroupUnavailable unless a process started here can move into a leaf.
+        """Raise CgroupUnavailable unless a process started here can move into a capped leaf.
 
         Moving a process needs write access to the common ancestor of its old
         and new cgroup. Inside a Slurm job this process sits in the job's
         cgroup, outside the user's systemd tree, so the scope starts but every
-        stage is refused as it joins its leaf.
+        stage is refused as it joins its leaf. The probe leaf is capped, so
+        the writes a ``--max-memory`` stage makes are tried too.
         """
+        created = False
         try:
-            with self.leaf() as leaf:
-                probe = subprocess.run(leaf.wrap(["true"]), capture_output=True, text=True, check=False)
+            with self.leaf(_PROBE_CAP_BYTES) as leaf:
+                created = True
+                probe = subprocess.run(leaf.wrap(["true"]), capture_output=True, timeout=_ANCHOR_TIMEOUT_S, check=False)
         except OSError as exc:
-            raise CgroupUnavailable(f"cannot create a stage cgroup in {self.path}: {exc.strerror}") from None
+            if created:
+                raise
+            raise CgroupUnavailable(f"cannot create a capped stage cgroup in {self.path}: {exc.strerror}") from None
+        except subprocess.TimeoutExpired:
+            raise CgroupUnavailable(
+                f"a stage did not join a cgroup in {self.path} within {_ANCHOR_TIMEOUT_S:.0f} s"
+            ) from None
         if probe.returncode:
-            lines = probe.stderr.strip().splitlines()
-            reason = lines[-1] if lines else f"exit {probe.returncode}"
+            reason = _last_line(probe.stderr.decode(errors="replace"), f"exit {probe.returncode}")
             raise CgroupUnavailable(f"a stage cannot join a cgroup in {self.path}: {reason}")
 
     @classmethod
@@ -161,8 +179,7 @@ class CgroupRoot:
         _, stderr = anchor.communicate()
         if not ready:
             raise CgroupUnavailable(f"systemd-run started no scope within {_ANCHOR_TIMEOUT_S:.0f} s")
-        lines = stderr.strip().splitlines()
-        raise CgroupUnavailable(lines[-1] if lines else f"systemd-run exited {anchor.returncode}")
+        raise CgroupUnavailable(_last_line(stderr, f"systemd-run exited {anchor.returncode}"))
 
     @contextmanager
     def leaf(self, max_bytes: int | None = None) -> Generator[Leaf]:
