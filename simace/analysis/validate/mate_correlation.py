@@ -152,8 +152,11 @@ def _checked_record(records: Mapping[int, dict[str, Any]], mating: RecordedMatin
     return record
 
 
-def _errors_text(errors: Mapping[str, float]) -> str:
-    return ", ".join(f"{k} {v:+.2g}" for k, v in errors.items()) + f" (tolerance {METROPOLIS_TOL:g})"
+def _missed_reason(errors: Mapping[str, float]) -> str:
+    if not errors:
+        return "the simulator pinned nothing on this iteration (fewer than 2 slots, or a constant active trait)"
+    listed = ", ".join(f"{k} {v:+.2g}" for k, v in errors.items())
+    return f"the pairing missed its target after the swaps and dedup: {listed} (tolerance {METROPOLIS_TOL:g})"
 
 
 def _cell(
@@ -205,7 +208,7 @@ def _cell(
             )
     if missed is not None:
         return information_cell(
-            "the pairing missed its target after the swaps and dedup: " + _errors_text(missed),
+            _missed_reason(missed),
             observed=r,
             expected=expected,
             pairing_errors=dict(missed),

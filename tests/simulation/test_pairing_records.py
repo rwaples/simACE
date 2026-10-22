@@ -7,6 +7,7 @@ import simace.simulation.simulate as simulate_mod
 from simace.simulation.assortment import METROPOLIS_TOL, read_mating_log
 from simace.simulation.simulate import (
     _assortative_pair_partners,
+    _draw_pairs,
     _find_duplicate_pairs,
     _metropolis_single,
     balance_mating_slots,
@@ -172,3 +173,15 @@ def test_a_constant_active_trait_is_left_unrefined_and_not_converged():
     assert log[0]["errors"] == {}
     assert log[0]["proposals"] == 0
     assert not log[0]["converged"]
+
+
+def test_the_shared_proposal_draw_reaches_the_last_row_when_m_is_odd():
+    """Both kernels draw their pairs with ``_draw_pairs``; with M odd, row M - 1 must enter the proposed prefix."""
+    M = 7
+    indices = np.arange(M, dtype=np.int64)
+    seen = set()
+    for _ in range(50):
+        _draw_pairs(indices, M - 1)
+        seen.update(int(i) for i in indices[: M - 1])
+    assert seen == set(range(M))
+    assert sorted(indices) == list(range(M))  # still a permutation

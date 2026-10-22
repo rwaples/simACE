@@ -36,8 +36,8 @@ acceptance folders) is pending.
    `METROPOLIS_TOL` or after 8·M proposals, as the both-trait path does. It
    refuses a swap that would create a duplicate couple. Correlations are
    computed on the couples left after dedup, so the recorded error is the
-   final one. The both-trait, random-mating and Wright-Fisher paths are
-   unchanged: their pedigrees are byte-identical for a given seed.
+   final one. Random mating and Wright-Fisher are unchanged: their
+   pedigrees are byte-identical for a given seed.
 2. **Pairing records.** `run_simulation(mating_log=...)` records one entry
    per mating iteration, burn-in included: `iteration`, `generation`
    (recorded coordinates) and `mode` (`random`, `single`, `both` or
@@ -65,6 +65,12 @@ acceptance folders) is pending.
    the test collapses a duplicate couple to one Mating Pair, so the factor
    is approximate when duplicates remain (ADR 0031 Consequences).
    `converged` ignores them. Each scored cell reports `duplicates_left`.
+7. **One proposal draw for both kernels.** `_metropolis_full` and
+   `_metropolis_single` take their pairs from `_draw_pairs`, a partial
+   Fisher-Yates over all M rows. `_metropolis_full` used to shuffle only
+   the first `2·(M // 2)` positions among themselves, so with M odd one
+   couple never moved (a review finding). This changes both-trait output
+   for a given seed too.
 
 ## Evidence
 
@@ -85,19 +91,25 @@ generations per rep.
 | single 0.8, λ 0.5, N 2,000 | −0.222 | 1.036 | −0.007 | 1.000 | −0.0033 | −0.0002 |
 | single 0.8, λ 3, N 1,000 | −1.401 | 0.917 | +0.045 | 1.040 | −0.0253 | −0.0003 |
 | single 0.8, λ 3, N 2,000 | −1.226 | 0.964 | +0.039 | 1.025 | −0.0143 | −0.0001 |
-| both 0.3/0.3, λ 0.5 / λ 3; `assort_matrix` | identical | | | | | |
+| both 0.3/0.3, λ 0.5, N 1,000 | −0.005 | 0.998 | +0.028 | 1.005 | −0.0003 | +0.0003 |
+| both 0.3/0.3, λ 3, N 1,000 | −0.007 | 1.017 | −0.004 | 1.018 | −0.0006 | −0.0005 |
+| `assort_matrix`, N 1,000 | +0.018 | 1.024 | +0.020 | 1.014 | +0.0001 | +0.0002 |
 
 - **Single-trait, after:** across all 12 single-trait designs (the table
   shows 9), mean z is −0.017 to +0.045 and SD z 0.997 to 1.040, with the
   finite-population factor applied. All 2,000 recorded iterations of each
   design converged (400 reps × 5 parents' generations).
-- **Both-trait and `assort_matrix`:** identical row for row before and after.
-  Their pairing is unchanged; only the record is new.
+- **Both-trait and `assort_matrix`:** calibrated before and after the
+  shared proposal draw (decision 7). Mean z is −0.004 to +0.028 and SD z
+  1.005 to 1.018, and none of the 2,000 iterations per design missed. The
+  odd-M flaw was too small to see at this size.
 - **Residual at assort 0.8, λ 3:** the after mean z is +0.039 to +0.045,
   about 2 SE over 2,000 cells, and r − target is −0.0003 to −0.0001. A
-  first version of the kernel never proposed the last row when M was odd,
-  and gave +0.040 to +0.089 there; fixing that roughly halved it. It is
-  below what the verdict's mean-z test resolves at 100 reps (SE 0.1).
+  first version of the kernel never proposed the last row when M was odd.
+  At assort 0.8 it gave +0.040 and +0.089 at λ 0.5 (now +0.024 and
+  −0.007) and +0.048 and +0.056 at λ 3 (now +0.045 and +0.039). The
+  residual is below what the verdict's mean-z test resolves at 100 reps
+  (SE 0.1).
 - **Duplicates left:** the both-trait λ 3 design has 3,974 cells from
   iterations with duplicates left, with SD z 1.02. The approximation of
   decision 6 holds there.
@@ -123,9 +135,10 @@ generations per rep.
 
 ## Consequences
 
-- Single-trait assortative reps change for a given seed (golden digests
-  `standard_single_am` and `standard_pergen`). Other reps' pedigrees do
-  not.
+- Assortative reps change for a given seed: the single-trait refinement
+  and the shared proposal draw (golden digests `standard_single_am`,
+  `standard_pergen` and `standard_both_am`). Random-mating and
+  Wright-Fisher pedigrees do not change.
 - Every rep gains `mating.yaml`, so `simace run` recomputes existing
   complete reps, whose new output is missing (`simace/cli/manifest.py`).
 - Large-N single-trait scenarios lose their cells to the tolerance gate,

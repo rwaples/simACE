@@ -18,8 +18,11 @@ releases shipped after 2026.05.3.
   ([ADR 0032](adr/0032-single-trait-pinning-and-pairing-records.md)). After
   the copula and dedup, Metropolis swaps bring the active trait's
   correlation within `METROPOLIS_TOL` of `assort`, without creating a
-  duplicate couple. The copula alone fell short of the target. Single-trait
-  assortative reps change for a given seed; other reps' pedigrees do not.
+  duplicate couple. The copula alone fell short of the target.
+- **Both-trait Metropolis proposes every couple.** With an odd number of
+  slots it never proposed the last one; both kernels now share one
+  proposal draw over all slots. Assortative reps change for a given seed;
+  random-mating and Wright-Fisher pedigrees do not.
 - **A new rep file, `mating.yaml`**, written by the simulate stage: one
   pairing record per mating iteration (mode, final errors against the
   targets, duplicates left, converged). Existing complete reps lack it,
