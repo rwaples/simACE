@@ -5,9 +5,12 @@ deletes it before recomputing. A rep is complete only when its ``run.yaml``
 names this scenario, rep, and seed, records the current values of the config
 keys the rep's stages and ``params.yaml`` read, lists the current stages and
 results layout (a rep from before ADR 0021 has none, so it reads stale), and
-every output the rep declares exists with the size and mtime the manifest
+every output the rep declares exists with the size and content the manifest
 recorded (a stage rerun by hand rewrites its output and so makes the rep
-incomplete). Only keys the current code reads are compared. The simace version that built the rep is recorded but never makes
+incomplete). An output whose mtime is the recorded one is taken as
+unchanged without reading it; one whose mtime moved is compared by content
+digest, because an NFS server re-stamps mtimes when the writing client gives
+up its write delegation (issue #80). Only keys the current code reads are compared. The simace version that built the rep is recorded but never makes
 it stale; ``simace ls`` shows it when it differs from the running version.
 
 ``plots/plots.yaml`` is written after a scenario's plot and atlas stages
@@ -35,10 +38,12 @@ __all__ = [
     "recorded_stages",
     "rep_status",
     "source_ref",
+    "unchanged",
     "write_manifest",
     "write_plots_manifest",
 ]
 
+import hashlib
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -73,31 +78,50 @@ def manifest_params(resolved: Mapping[str, Any], keys: Iterable[str]) -> dict[st
 _SAFE_DUMPER: type = getattr(yaml, "CSafeDumper", yaml.SafeDumper)
 
 
-#: A file's size and nanosecond mtime, enough to tell an atomically replaced output from the one recorded.
-Fingerprint = dict[str, int]
+#: A file's size, nanosecond mtime and content digest. An unchanged mtime settles a check without reading
+#: the file; a moved one (an NFS server re-stamps mtimes, issue #80) falls back to the digest.
+Fingerprint = dict[str, int | str]
+
+#: Key of the content digest in a fingerprint; a fingerprint without it predates issue #80.
+_DIGEST = "blake2b"
+
+
+def _digest(path: Path) -> str:
+    """The 128-bit BLAKE2b of ``path``'s content, as hex."""
+    with open(path, "rb") as fh:
+        return hashlib.file_digest(fh, lambda: hashlib.blake2b(digest_size=16)).hexdigest()
 
 
 def fingerprints(paths: Iterable[Path]) -> dict[str, Fingerprint]:
-    """Return ``{basename: {"size", "mtime_ns"}}`` for every path; each must exist."""
+    """Return ``{basename: {"size", "mtime_ns", "blake2b"}}`` for every path; each must exist."""
     out = {}
     for path in paths:
         st = path.stat()
-        out[path.name] = {"size": st.st_size, "mtime_ns": st.st_mtime_ns}
+        out[path.name] = {"size": st.st_size, "mtime_ns": st.st_mtime_ns, _DIGEST: _digest(path)}
     return out
 
 
+def unchanged(recorded: Any, path: Path) -> bool:
+    """Whether ``path`` still has the content ``recorded`` fingerprinted; a missing file has not.
+
+    Equal size and mtime are taken as unchanged. With the size equal and the
+    mtime moved, the content digest decides; a fingerprint without one (from
+    before issue #80) counts as changed.
+    """
+    try:
+        st = path.stat()
+    except FileNotFoundError:
+        return False
+    if not isinstance(recorded, dict) or recorded.get("size") != st.st_size:
+        return False
+    if recorded.get("mtime_ns") == st.st_mtime_ns:
+        return True
+    return recorded.get(_DIGEST) is not None and recorded[_DIGEST] == _digest(path)
+
+
 def changed_outputs(recorded: Mapping[str, Any], paths: Iterable[Path]) -> tuple[str, ...]:
-    """Return the basenames of ``paths`` whose current fingerprint differs from ``recorded`` (absent counts)."""
-    changed = []
-    for path in paths:
-        try:
-            st = path.stat()
-        except FileNotFoundError:
-            changed.append(path.name)
-            continue
-        if recorded.get(path.name) != {"size": st.st_size, "mtime_ns": st.st_mtime_ns}:
-            changed.append(path.name)
-    return tuple(changed)
+    """Return the basenames of ``paths`` whose content differs from what ``recorded`` fingerprinted (absent counts)."""
+    return tuple(path.name for path in paths if not unchanged(recorded.get(path.name), path))
 
 
 @dataclass(frozen=True)
@@ -331,12 +355,12 @@ def plots_status(
         elif changed_outputs({manifest.name: recorded["reps"][label]}, [manifest]):
             reasons.append(f"{label} recomputed since")
     reasons.extend(f"{label} no longer configured" for label in recorded["reps"] if label not in rep_manifests)
-    plotted, now = recorded.get("verdict"), _verdict_fingerprint(verdict)
-    if plotted is None and now is not None:
+    plotted = recorded.get("verdict")
+    if plotted is None and verdict.exists():
         reasons.append(f"{verdict.name} written since")
-    elif plotted is not None and now is None:
+    elif plotted is not None and not verdict.exists():
         reasons.append(f"{verdict.name} removed since")
-    elif plotted != now:
+    elif plotted is not None and not unchanged(plotted, verdict):
         reasons.append(f"{verdict.name} changed since")
     outputs = recorded.get("outputs") if isinstance(recorded.get("outputs"), dict) else {}
     for name in outputs:

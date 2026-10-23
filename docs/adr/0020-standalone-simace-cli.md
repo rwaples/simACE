@@ -79,6 +79,9 @@ through its own Snakemake and did not depend on simACE's rules.
 ### Amendment 2026-09-28: what "complete" covers
 
 - The run manifest also records each output's size and nanosecond mtime.
+  (Amended for issue #80: also a content digest. A moved mtime with
+  unchanged content is not a rewrite, because an NFS server re-stamps
+  mtimes when the writing client returns its write delegation.)
   Every output is published by renaming a fresh temporary, so a stage rerun
   by hand (the documented debugging path) rewrites the file and the replicate
   becomes incomplete: `run` recomputes it, `gather` skips it, `ls` names the
