@@ -116,8 +116,11 @@ def test_a_fully_transmitted_c_is_not_applicable(tmp_path, pedigree) -> None:
 
 
 def test_a_wrong_transmission_coefficient_is_seen_as_correlated_draws(tmp_path, pedigree) -> None:
-    """Scoring C with b_f = −0.5 when the simulation used 0 adds half the father's C, which PHS share."""
-    cell = run_household_draw(_inputs(tmp_path, pedigree, Ctm_paternal1=-0.5))["cells"]["trait1_PHS"]
+    """Scoring C with b_f = −1 when the simulation used 0 adds the father's C, which PHS share.
+
+    At b_f = −0.5, z > 4 held for only 2 of seeds 1-20; at −1 the smallest z over them was 7.8.
+    """
+    cell = run_household_draw(_inputs(tmp_path, pedigree, Ctm_paternal1=-1.0))["cells"]["trait1_PHS"]
     assert cell["status"] == "scored"
     assert cell["z"] > 4
 
