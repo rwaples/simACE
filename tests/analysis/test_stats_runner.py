@@ -242,7 +242,9 @@ class TestRelationshipContext:
             block = reference[code]
             if len(block) < 2:
                 continue
-            want = np.corrcoef(liability[block.first_rows], liability[block.second_rows])[0, 1]
+            # liability_r reports 0.0 where a side is constant (one person in every pair).
+            with np.errstate(invalid="ignore", divide="ignore"):
+                want = np.nan_to_num(np.corrcoef(liability[block.first_rows], liability[block.second_rows])[0, 1])
             got = stratum.liability_r(1)[stratum.index(code)]
             assert got == pytest.approx(want, abs=1e-12)
 
