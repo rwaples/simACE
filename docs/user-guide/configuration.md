@@ -40,7 +40,7 @@ Hazard-bearing models can override it per trait with
 pedigree:
   mating_model: standard
   mating_lambda: 0.5
-  p_mztwin: 0.02
+  p_mztwin: 0.004
   assort1: 0
   assort2: 0
   assort_matrix: null
@@ -61,7 +61,7 @@ pedigree:
 |---|---|---:|---|
 | `pedigree.mating_model` | str | `standard` | `standard` or `wright_fisher`. See [ADR 0002](../adr/0002-wright-fisher-mating-model.md) |
 | `pedigree.mating_lambda` | float | `0.5` | Parameter of the zero-truncated Poisson number of mates. The default gives about 23 percent of individuals more than one mate |
-| `pedigree.p_mztwin` | float | `0.02` | Probability that a birth is a monozygotic twin pair |
+| `pedigree.p_mztwin` | float | `0.004` | Probability that a birth is a monozygotic twin pair |
 | `pedigree.assort1` | float or dict | `0` | Mate correlation on trait 1 liability. A dict sets it by generation |
 | `pedigree.assort2` | float or dict | `0` | Mate correlation on trait 2 liability. A dict sets it by generation |
 | `pedigree.assort_matrix` | matrix or null | `null` | Optional 2 by 2 female-by-male mate-correlation matrix. Its diagonal replaces `assort1` and `assort2` |

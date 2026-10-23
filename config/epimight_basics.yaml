@@ -56,7 +56,7 @@ eb_realistic:
   G_pheno: 10
   replicates: 1
   pedigree:
-    p_mztwin: 0.02
+    p_mztwin: 0.004
     assort1: 0.3
     assort2: 0.15
     trait1: {A: 0.7, C: 0.0, E: 0.3}

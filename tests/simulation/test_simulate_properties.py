@@ -116,9 +116,9 @@ def test_mating_refuses_a_single_sex(mating_model, sex):
 
 
 def test_extinction_is_independent_of_the_recording_window():
-    """Seed 1706 loses every female at iteration 2, before either run finishes."""
+    """Seed 401 loses every female at iteration 2, before either run finishes."""
     kwargs = dict(
-        seed=1706,
+        seed=401,
         N=20,
         G_sim=6,
         mating_model="standard",

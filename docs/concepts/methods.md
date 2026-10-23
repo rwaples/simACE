@@ -89,23 +89,25 @@ where $r_A$ and $r_C$ are the cross-trait genetic and common environment correla
 
 Population size stays at $N$ across generations. Each new generation has exactly $N$ offspring, produced by pairing males and females from the parent generation.
 
-**Mating counts.** Each parent draws a mating count from a zero-truncated Poisson distribution, so every individual mates at least once:
+**Mating counts.** Each parent draws a mating count from a zero-truncated Poisson distribution, so every individual starts with at least one mating slot:
 
 $$
 n_{\text{matings},i} \sim \text{ZTP}(\lambda), \quad \lambda = 0.5 \text{ (default)}
 $$
 
-The simulation draws the truncated Poisson by rejection. It redraws any zero until every count is at least 1. Males and females draw independently. The sex with more mating slots in total then loses slots at random until both sexes have $T = \min(\sum n_{\text{male}}, \sum n_{\text{female}})$.
+The simulation draws the truncated Poisson by rejection. It redraws any zero until every count is at least 1. Males and females draw independently. The sex with more mating slots in total then keeps a uniform random subset of its slots, of size $T = \min(\sum n_{\text{male}}, \sum n_{\text{female}})$. Slots, not persons, are removed, so some members of that sex can lose all their slots and have no mating: about 30 per generation at $N = 2{,}000$ and $\lambda = 0.5$.
 
-**Partner pairing.** Each parent's mating count becomes that many slots. Under random mating, the default, the simulation shuffles the male slots and pairs them positionally with the female slots, giving $M = T$ couples. Under assortative mating it pairs them as described in the next section. If the same mother and father appear together twice, the simulation swaps one of the conflicting entries with a nearby partner.
+**Partner pairing.** Each parent's mating count becomes that many slots. Under random mating, the default, the simulation shuffles the male slots and pairs them positionally with the female slots, giving $M = T$ couples. Under assortative mating it pairs them as described in the next section. If the same mother and father appear together twice, the simulation swaps the father of the repeat with another couple's, for at most 5 passes. Under random mating that couple is a uniformly random non-repeat. Some slot counts admit no pairing without a repeat (a female and a male with 3 of the 4 slots each), so a repeat can survive the passes. It stays as a second couple with the same parents, and the multinomial below gives it its own share of offspring. At $N = 2{,}000$ and $\lambda = 0.5$ none survived in 2,000 draws.
 
-**Offspring allocation.** A multinomial draw with equal probabilities spreads the $N$ offspring over the $M$ couples:
+**Offspring allocation.** The $N$ offspring come from $B = N - K$ births, of which $K$ are MZ twin births (see [Monozygotic twins](#monozygotic-twins)). A multinomial draw with equal probabilities spreads the births over the $M$ couples:
 
 $$
-(c_1, c_2, \ldots, c_M) \sim \text{Multinomial}(N,\; 1/M, \ldots, 1/M)
+(b_1, b_2, \ldots, b_M) \sim \text{Multinomial}(B,\; 1/M, \ldots, 1/M)
 $$
 
-Each couple gets a random number of children, and the counts sum to $N$.
+Each couple's children are its births plus one more for each of its twin births, and the counts sum to $N$. Each offspring's sex is a fresh $\text{Bernoulli}(0.5)$ draw, as for founders, except that the second MZ co-twin copies the first.
+
+**Offspring order.** Each couple's children get consecutive ids, in birth order. Couples are ordered by mother id, so a mother's children with different fathers are adjacent too.
 
 **Household assignment.** All offspring of the same mother get the same household identifier and the same $C$ draw. Without C transmission, maternal half-siblings therefore share $C$ and paternal half-siblings do not. With it, the shares change as described under [Offspring inheritance](#offspring-inheritance).
 
@@ -149,7 +151,7 @@ where $S_1, S_2$ are the same-trait running cross-product sums, $S_{12} = \sum_m
 
 ### Monozygotic twins
 
-After offspring are allocated, every couple with at least two offspring is eligible for a twin pair. A Bernoulli trial with probability $p_{\text{MZ}}$, default 0.02, decides whether the couple gets one. If so, the couple's first two offspring become MZ twins. They share the same parents, the same $A$ and $C$ values, and the same sex. A couple gets at most one MZ pair.
+$p_{\text{MZ}}$ is the MZ twin rate per birth, default 0.004. The human MZ rate is close to constant across populations, at 3.5 to 4 per 1,000 births (Smits and Monden, 2011, PLoS ONE 6(9): e25239, [doi:10.1371/journal.pone.0025239](https://doi.org/10.1371/journal.pone.0025239)). Each generation draws its number of MZ pairs as $K \sim \text{Binomial}(N,\; p_{\text{MZ}} / (1 + p_{\text{MZ}}))$, capped at $N/2$, so that $K / (N - K)$ has mean $p_{\text{MZ}}$. $K$ of the $B$ births, chosen uniformly at random, are twin births. Each couple's children have ids in birth order, so co-twins have consecutive ids, at any position in the family, and a couple can have several MZ pairs. Co-twins share the same parents, the same $A$ and $C$ values, and the same sex.
 
 ### Offspring inheritance
 

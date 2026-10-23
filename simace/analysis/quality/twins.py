@@ -19,8 +19,10 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped:
     """Validate MZ twin properties for two-trait simulation.
 
     Checks bidirectional twin pointers, shared parents, identical A values
-    and sex for MZ pairs, and that the observed twin rate matches the
-    expected rate ``2 * p_mztwin * eligible_fraction``.
+    and sex for MZ pairs, and that the observed twin-individual rate among
+    non-founders matches ``2q``, ``q = p_mztwin / (1 + p_mztwin)``: each
+    generation draws ``Binomial(N, q)`` MZ pairs (``place_twins``), so the
+    non-founders' pairs are ``Binomial(n, q)``, scored within 4 SE.
 
     Under ``mating_model="wright_fisher"`` no MZ twins are produced by
     design (see ADR 0002), so ``expected_rate`` is ``0.0`` and any
@@ -41,7 +43,8 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped:
     mating_model = params.get("mating_model", "standard")
     p_mztwin = params["p_mztwin"]
     is_wf = mating_model == "wright_fisher"
-    expected_rate = 0.0 if is_wf else float(p_mztwin)
+    pair_share = 0.0 if is_wf else float(p_mztwin) / (1 + float(p_mztwin))
+    expected_rate = 2 * pair_share
 
     twin_all = df["twin"].to_numpy()
     id_all = df["id"].to_numpy()
@@ -139,12 +142,13 @@ def validate_twins(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any], ped:
                 f"(expected 0.0); pedigree contains {nf_pairs} unexpected twin pair(s)."
             )
         else:
-            # Standard mating-pair model: twins are assigned per mating with
-            # >=2 offspring.  Generous range check because the expected rate
-            # depends on the offspring-allocation distribution.
-            rate_tol = max(0.01, 3 * p_mztwin)
-            rate_ok = observed_rate < rate_tol
-            rate_msg = f"Twin rate in non-founders: {observed_rate:.4f} (p_mztwin={p_mztwin:.4f}, tol: {rate_tol:.4f})"
+            # +1 pair keeps the bound from rejecting on a single pair at tiny n.
+            pair_tol = 4 * np.sqrt(n_nf * pair_share * (1 - pair_share)) + 1
+            rate_ok = abs(nf_pairs - n_nf * pair_share) <= pair_tol
+            rate_msg = (
+                f"Twin rate in non-founders: {observed_rate:.4f} (expected {expected_rate:.4f} "
+                f"from p_mztwin={p_mztwin:.4f}; {nf_pairs} pairs, tol ±{pair_tol:.1f})"
+            )
         results["twin_rate"] = _result(
             rate_ok,
             rate_msg,

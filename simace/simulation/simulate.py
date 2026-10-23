@@ -13,13 +13,13 @@ __all__ = [
     "METROPOLIS_TOL",
     "add_to_pedigree",
     "allocate_offspring",
-    "assign_twins",
     "balance_mating_slots",
     "draw_mating_counts",
     "generate_correlated_components",
     "generate_mendelian_noise",
     "mating",
     "pair_partners",
+    "place_twins",
     "reproduce",
     "resolve_per_gen_param",
     "run_simulation",
@@ -294,8 +294,9 @@ def pair_partners(
     """Create mating pairs via random bipartite matching.
 
     Expands each sex into slot arrays using ``np.repeat``, shuffles one side,
-    and pairs positionally. Duplicate ``(mother, father)`` pairs are resolved
-    by swapping conflicting entries.
+    and pairs positionally. Each duplicate ``(mother, father)`` pair swaps its
+    father with a uniformly random non-duplicate row's, for at most 5 passes;
+    a duplicate left after them is kept, next to its first row.
 
     Returns:
         ``(M, 2)`` array of ``[mother_idx, father_idx]``.
@@ -310,7 +311,7 @@ def pair_partners(
     for _attempt in range(5):
         is_dup = _find_duplicate_pairs(matings)
         if not is_dup.any():
-            break
+            return matings  # mothers in index order, each couple once
         dup_idxs = np.where(is_dup)[0]
         non_dup_idxs = np.where(~is_dup)[0]
         if len(non_dup_idxs) == 0:
@@ -319,7 +320,12 @@ def pair_partners(
             swap_with = rng.choice(non_dup_idxs)
             matings[d, 1], matings[swap_with, 1] = matings[swap_with, 1], matings[d, 1]
 
-    return matings
+    return _family_order(matings)
+
+
+def _family_order(matings: np.ndarray) -> np.ndarray:
+    """Sort ``[mother, father]`` rows by mother then father, so a repeated couple's rows are adjacent."""
+    return matings[np.lexsort((matings[:, 1], matings[:, 0]))]
 
 
 def _draw_pairs_python(indices, n):
@@ -664,7 +670,8 @@ def _assortative_pair_partners(
             ``duplicates_left`` and ``converged``.
 
     Returns:
-        ``(M, 2)`` array of ``[mother_idx, father_idx]``.
+        ``(M, 2)`` array of ``[mother_idx, father_idx]``, in mother order,
+        with any repeated couple's rows adjacent.
 
     Raises:
         ValueError: in the both-nonzero case with two or more slots, if a
@@ -848,7 +855,12 @@ def _assortative_pair_partners(
         )
     if pairing_log is not None:
         pairing_log.append(record)
-    return matings
+    if mode == "single":
+        # Back to female-slot order, i.e. mother order (row k holds slot slot_of_row[k])
+        in_slot_order = np.empty_like(matings)
+        in_slot_order[slot_of_row] = matings
+        matings = in_slot_order
+    return _family_order(matings) if record["duplicates_left"] else matings
 
 
 def _refine_single_trait(
@@ -981,21 +993,28 @@ def allocate_offspring(rng: np.random.Generator, n_matings: int, N: int) -> np.n
     return rng.multinomial(N, probs)
 
 
-def assign_twins(rng: np.random.Generator, offspring_counts: np.ndarray, p_mztwin: float) -> np.ndarray:
-    """Decide which matings produce an MZ twin pair.
+def place_twins(rng: np.random.Generator, n_matings: int, N: int, p_mztwin: float) -> tuple[np.ndarray, np.ndarray]:
+    """Allocate *N* offspring as births, a fraction *p_mztwin* of them MZ twin births, over *n_matings* couples.
 
-    Only matings with >= 2 offspring are eligible. At most one twin pair
-    per mating.
+    Draws ``K ~ Binomial(N, p / (1 + p))`` MZ pairs (at most ``N // 2``), so
+    ``B = N - K`` births with ``E[K / B] = p``. The births are spread over
+    the couples by :func:`allocate_offspring`, and ``K`` of them, uniformly
+    at random, are twin births. Each couple's children are laid out in birth
+    order, so co-twins are adjacent, at any position in the family, and a
+    couple can have several MZ pairs.
 
     Returns:
-        Boolean mask of shape ``(M,)`` — True where a twin pair occurs.
+        ``(offspring_counts, first_twins)``: children per couple, summing to
+        *N*, and the sorted offspring positions (into the couples'
+        contiguous blocks, in mating order) of each pair's first co-twin;
+        the second is the next position.
     """
-    mask = np.zeros(len(offspring_counts), dtype=bool)
-    eligible = offspring_counts >= 2
-    if eligible.any():
-        rolls = rng.uniform(size=eligible.sum()) < p_mztwin
-        mask[eligible] = rolls
-    return mask
+    K = min(int(rng.binomial(N, p_mztwin / (1 + p_mztwin))), N // 2) if p_mztwin > 0 else 0
+    births = allocate_offspring(rng, n_matings, N - K)
+    twin_births = np.sort(rng.choice(N - K, size=K, replace=False, shuffle=False))
+    couple = np.searchsorted(np.cumsum(births), twin_births, side="right")
+    # Each earlier twin birth shifts a birth's first child one position on.
+    return births + np.bincount(couple, minlength=n_matings), twin_births + np.arange(K)
 
 
 def _mating_standard(
@@ -1015,15 +1034,15 @@ def _mating_standard(
     1. Separate males/females and draw ZTP(mating_lambda) mating counts.
     2. Balance slots so both sexes have equal total.
     3. Pair partners randomly (or assortatively if assort1/assort2 != 0).
-    4. Allocate N offspring across matings via multinomial.
-    5. Assign MZ twins to eligible matings.
-    6. Build output arrays.
+    4. Allocate N offspring as births across matings, some of them MZ twin
+       births (:func:`place_twins`).
+    5. Build output arrays.
 
     Args:
         rng: numpy random generator
         parental_sex: array of sex values (0=female, 1=male) for parents
         mating_lambda: Poisson lambda for zero-truncated mating count distribution
-        p_mztwin: probability of a mating producing MZ twins (if >= 2 offspring)
+        p_mztwin: MZ twin rate per birth (see :func:`place_twins`)
         pheno: (n, 6) array of [A1, C1, E1, A2, C2, E2]; required when
             assort1 or assort2 is nonzero
         assort1: target mate correlation on trait 1 liability
@@ -1062,7 +1081,9 @@ def _mating_standard(
     # 2. Balance slots
     male_counts, female_counts = balance_mating_slots(rng, male_counts, female_counts)
 
-    # 3. Pair partners -> (M, 2) of [mother_idx, father_idx]
+    # 3. Pair partners -> (M, 2) of [mother_idx, father_idx], in mother order with
+    # repeated couples adjacent. Each pairing function keeps that order itself:
+    # a lexsort here cost 8-14% of an assortative mating call (issue #78).
     if assort1 != 0 or assort2 != 0:
         assert pheno is not None  # required whenever assortment is active (see docstring)
         matings = _assortative_pair_partners(
@@ -1084,28 +1105,15 @@ def _mating_standard(
             pairing_log.append({"mode": "random", "M": len(matings)})
     M = len(matings)
 
-    # 4. Allocate offspring
-    offspring_counts = allocate_offspring(rng, M, N)
+    # 4. Allocate offspring as births, some of them MZ twin births
+    offspring_counts, first_twins = place_twins(rng, M, N, p_mztwin)
+    twins = np.column_stack([first_twins, first_twins + 1])
 
-    # 5. Assign twins
-    twin_mask = assign_twins(rng, offspring_counts, p_mztwin)
-
-    # 6. Build output arrays
+    # 5. Build output arrays: each couple's children form one block, in birth order
     parent_idxs = np.repeat(matings, offspring_counts, axis=0)
 
     # Household: all offspring of the same mother share a household
     _, household_ids = np.unique(parent_idxs[:, 0], return_inverse=True)
-
-    # Twin pairs: first two offspring of each twin-flagged mating
-    starts = np.zeros(M + 1, dtype=int)
-    np.cumsum(offspring_counts, out=starts[1:])
-    twin_indices = np.where(twin_mask)[0]
-    if len(twin_indices) > 0:
-        t1 = starts[twin_indices]
-        t2 = t1 + 1
-        twins = np.column_stack([t1, t2])
-    else:
-        twins = np.array([], dtype=int).reshape(0, 2)
 
     return parent_idxs, twins, household_ids
 
@@ -1184,7 +1192,7 @@ def mating(
         parental_sex: array of sex values (0=female, 1=male) for parents.
         mating_lambda: Poisson lambda for the ZTP mating-count distribution.
             Standard-model only; ignored under WF.
-        p_mztwin: Probability of MZ twinning per eligible mating.
+        p_mztwin: MZ twin rate per birth.
             Standard-model only; ignored under WF.
         pheno: ``(n, 6)`` phenotype matrix used for assortative mating.
             Standard-model only; ignored under WF.
@@ -1598,7 +1606,7 @@ def run_simulation(
         N: Population size per generation (positive integer)
         G_ped: Number of generations to record in pedigree (integer >= 1)
         mating_lambda: Poisson lambda for zero-truncated mating count distribution (> 0)
-        p_mztwin: Probability of a mating producing MZ twins, in [0, 1)
+        p_mztwin: MZ twin rate per birth, in [0, 1)
         A1: Trait 1 additive genetic variance (>= 0).
         C1: Trait 1 shared-environment variance (>= 0).
         A2: Trait 2 additive genetic variance (>= 0).
@@ -1887,7 +1895,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     parser.add_argument(
         "--mating-lambda", type=float, default=0.5, help="ZTP mating count lambda (standard model only)"
     )
-    parser.add_argument("--p-mztwin", type=float, default=0.02, help="Probability of MZ twinning (standard model only)")
+    parser.add_argument("--p-mztwin", type=float, default=0.004, help="MZ twin rate per birth (standard model only)")
     parser.add_argument("--A1", type=float, default=0.5, help="Additive genetic variance for trait 1")
     parser.add_argument("--C1", type=float, default=0.2, help="Shared environment variance for trait 1")
     parser.add_argument(

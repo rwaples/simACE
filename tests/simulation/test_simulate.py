@@ -19,13 +19,13 @@ from simace.simulation.simulate import (
     _metropolis_full_python,
     add_to_pedigree,
     allocate_offspring,
-    assign_twins,
     balance_mating_slots,
     draw_mating_counts,
     generate_correlated_components,
     generate_mendelian_noise,
     mating,
     pair_partners,
+    place_twins,
     resolve_per_gen_param,
     run_simulation,
 )
@@ -305,37 +305,40 @@ class TestAllocateOffspring:
 
 
 # ---------------------------------------------------------------------------
-# assign_twins
+# place_twins
 # ---------------------------------------------------------------------------
 
 
-class TestAssignTwins:
-    def test_only_eligible(self, rng):
-        counts = np.array([0, 1, 2, 3, 0, 1])
-        mask = assign_twins(rng, counts, 1.0)
-        # Only indices 2, 3 are eligible (counts >= 2); with p=1.0 all should be True
-        assert mask[2]
-        assert mask[3]
-        assert not mask[0]
-        assert not mask[1]
-        assert not mask[4]
-        assert not mask[5]
+class TestPlaceTwins:
+    def test_counts_sum_to_n_and_twins_share_a_couple(self, rng):
+        counts, firsts = place_twins(rng, 300, 1000, 0.2)
+        assert counts.sum() == 1000
+        couple_of = np.repeat(np.arange(300), counts)
+        assert np.all(couple_of[firsts] == couple_of[firsts + 1])
+        assert np.all(np.diff(firsts) >= 2)
 
     def test_no_twins_p_zero(self, rng):
-        counts = np.array([3, 4, 5])
-        mask = assign_twins(rng, counts, 0.0)
-        assert not mask.any()
+        counts, firsts = place_twins(rng, 10, 100, 0.0)
+        assert counts.sum() == 100
+        assert firsts.size == 0
 
-    def test_no_eligible_matings(self, rng):
-        counts = np.array([0, 1, 1])
-        mask = assign_twins(rng, counts, 1.0)
-        assert not mask.any()
+    def test_dtype(self, rng):
+        assert place_twins(rng, 5, 20, 0.5)[1].dtype == np.int64
 
-    def test_shape(self, rng):
-        counts = np.array([2, 0, 3])
-        mask = assign_twins(rng, counts, 0.5)
-        assert mask.shape == (3,)
-        assert mask.dtype == bool
+    def test_mz_pairs_per_birth_is_p(self):
+        """K / (N - K) has mean p; at N = 10^6 its SE is about 6.3e-5."""
+        p, N = 0.004, 1_000_000
+        _, firsts = place_twins(np.random.default_rng(3), 600_000, N, p)
+        assert len(firsts) / (N - len(firsts)) == pytest.approx(p, abs=4e-4)
+
+    def test_pairs_are_births_drawn_uniformly(self):
+        """Twin births fall on any birth, not only a family's first."""
+        counts, firsts = place_twins(np.random.default_rng(4), 2000, 20_000, 0.3)
+        block_start = np.r_[0, np.cumsum(counts)[:-1]]
+        couple = np.repeat(np.arange(2000), counts)[firsts]
+        offset = firsts - block_start[couple]
+        assert np.any(offset >= 2)
+        assert np.bincount(couple, minlength=2000).max() >= 2
 
 
 # ---------------------------------------------------------------------------
@@ -383,6 +386,27 @@ class TestMating:
         sex = rng.binomial(n=1, p=0.5, size=1000)
         _, twins, _ = mating(rng, sex, 0.5, 0.0)
         assert len(twins) == 0
+
+    @pytest.mark.parametrize(("assort1", "assort2"), [(0.0, 0.0), (0.4, 0.0), (0.4, 0.3)])
+    def test_children_are_grouped_by_couple_in_mother_order(self, rng, assort1, assort2):
+        sex = rng.binomial(n=1, p=0.5, size=4000)
+        pheno = rng.standard_normal((4000, 6))
+        parents, _, _ = mating(rng, sex, 0.5, 0.02, pheno=pheno, assort1=assort1, assort2=assort2, rho_w=0.1)
+        assert np.all(np.diff(parents[:, 0]) >= 0)
+        new_couple = np.r_[True, np.any(parents[1:] != parents[:-1], axis=1)]
+        assert new_couple.sum() == len(np.unique(parents, axis=0))
+
+    def test_twins_are_consecutive_births_anywhere_in_the_family(self, rng):
+        """Issue #78: a couple's MZ pair need not be its first two children, and it can have several."""
+        sex = rng.binomial(n=1, p=0.5, size=4000)
+        parents, twins, _ = mating(rng, sex, 1.5, 0.5)
+        assert np.all(twins[:, 1] == twins[:, 0] + 1)
+        assert np.all(parents[twins[:, 0]] == parents[twins[:, 1]])
+        assert len(np.unique(twins)) == twins.size
+        block_start = np.r_[True, np.any(parents[1:] != parents[:-1], axis=1)]
+        assert not np.all(block_start[twins[:, 0]])
+        _, pairs_per_couple = np.unique(parents[twins[:, 0]], axis=0, return_counts=True)
+        assert pairs_per_couple.max() >= 2
 
     def test_household_ids_nonnegative(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
@@ -1331,7 +1355,7 @@ class TestSimulateCLI:
         "G_ped": 2,
         "G_sim": 2,
         "mating_lambda": 0.5,
-        "p_mztwin": 0.02,
+        "p_mztwin": 0.004,
         "A1": 0.5,
         "C1": 0.2,
         "A2": 0.5,
