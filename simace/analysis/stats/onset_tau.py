@@ -591,7 +591,8 @@ def _family_units(
     mother_unit = np.where(mother >= 0, mother, -1).astype(np.int64)
     father_unit = np.where(father >= 0, father, -1).astype(np.int64)
     units: dict[str, tuple[np.ndarray, int]] = {
-        "FS": (mother_unit, full_sib),
+        # Co-twins are MZ, not FS: drop their two ordered entries per pair.
+        "FS": (mother_unit, full_sib - int(((twin >= 0) & both).sum())),
         "MZ": (np.where(twin >= 0, mother_unit, -1), int((twin >= 0).sum())),
         # Ordered same-parent pairs, less those that share the other parent too (full sibs).
         "MHS": (mother_unit, ordered_pairs(mother_unit) - full_sib),
