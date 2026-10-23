@@ -215,7 +215,7 @@ def _coerce_sim_types(flat: dict) -> dict:
     YAML loads dict keys as their scalar type, so unquoted ``0:`` parses as
     ``int`` but a quoted ``'0':`` parses as ``str``.  Sim-domain code expects
     integer generation keys for ``gen_censoring`` and the per-generation
-    variance-component dicts (``A1``, ``A2``, ``C1``, ``C2``, ``E1``, ``E2``);
+    dicts (``E1``, ``E2``, ``assort1``, ``assort2``);
     coerce here so wrappers and rules don't need to know about the YAML quirk.
 
     Idempotent: safe to call on values that already have the expected types.
@@ -223,7 +223,7 @@ def _coerce_sim_types(flat: dict) -> dict:
     gen_censoring = flat.get("gen_censoring")
     if gen_censoring:
         flat["gen_censoring"] = {int(k): v for k, v in gen_censoring.items()}
-    for key in ("A1", "A2", "C1", "C2", "E1", "E2", "assort1", "assort2"):
+    for key in ("E1", "E2", "assort1", "assort2"):
         value = flat.get(key)
         if isinstance(value, dict):
             flat[key] = {int(gen): v for gen, v in value.items()}
@@ -453,7 +453,7 @@ def _warn_am_transmission(name: str, effective: dict) -> None:
 def _validate_pedigree_config(config: dict) -> None:
     """Validate pedigree-section config, including mating-model compatibility.
 
-    Three checks:
+    Four checks:
 
     1. Reject scenarios whose effective E1 / E2 resolve to ``None``.  Closes
        the pre-PR3 fallback where ``E: null`` was filled from ``1 - A - C``
@@ -464,15 +464,16 @@ def _validate_pedigree_config(config: dict) -> None:
        values (``mating_lambda``, ``p_mztwin``, ``assort1``, ``assort2``,
        ``assort_matrix``).  Inherited defaults are silently ignored at
        runtime — only *explicit* scenario overrides are flagged here.
-    3. Validate the C transmission coefficients against the scope bound and
-       the configured C (:meth:`CTransmission.validate`, ADR 0025), for
-       scalar C; ``run_simulation`` rejects per-generation C.
+    3. Reject a per-generation map for ``A1``, ``A2``, ``C1`` or ``C2``: the
+       simulator takes scalars only (``SimulationParams``).
+    4. Validate the C transmission coefficients against the scope bound and
+       the configured C (:meth:`CTransmission.validate`, ADR 0025).
 
     Args:
         config: the merged ``{"defaults": ..., "scenarios": ...}`` dict.
 
     Raises:
-        ValueError: if any scenario fails either check.
+        ValueError: if any scenario fails a check.
     """
     defaults = config["defaults"]
     for name, params in config.get("scenarios", {}).items():
@@ -497,13 +498,18 @@ def _validate_pedigree_config(config: dict) -> None:
             )
 
         effective = {**defaults, **params}
+        for key in ("A1", "A2", "C1", "C2"):
+            if isinstance(effective.get(key), dict):
+                raise ValueError(
+                    f"Scenario '{name}': {key} must be a scalar; the simulator does not support a "
+                    f"per-generation map for A or C (E1, E2, assort1 and assort2 take one)"
+                )
         C1, C2 = effective.get("C1", 0.0), effective.get("C2", 0.0)
-        if not isinstance(C1, dict) and not isinstance(C2, dict):
-            try:
-                CTransmission.from_params(effective).validate(C1, C2, effective.get("rC", 0.0))
-            except ValueError as exc:
-                raise ValueError(f"Scenario '{name}': {exc}") from exc
-            _warn_am_transmission(name, effective)
+        try:
+            CTransmission.from_params(effective).validate(C1, C2, effective.get("rC", 0.0))
+        except ValueError as exc:
+            raise ValueError(f"Scenario '{name}': {exc}") from exc
+        _warn_am_transmission(name, effective)
 
         # Strict WF-override check.  ``params`` is the scenario-only flat dict
         # (see resolve_scenarios) so ``key in params`` reliably means

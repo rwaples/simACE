@@ -12,6 +12,28 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### `simace run` inside a Slurm job
+
+- **Fixed: every stage failed at once inside a Slurm job.** `simace run`
+  started its delegated systemd scope, but Slurm keeps the job's processes in
+  its own cgroup, so moving a stage into its leaf was refused (`echo: write
+  error: Permission denied`). It now tries one move into a capped child cgroup
+  when it opens the scope and, if the move or the cap is refused or the move
+  takes more than 10 s, falls back as without a delegated cgroup: no
+  `tree_peak_mb`, and `--max-memory` enforced by polling `/proc`. Any other
+  error while trying still releases the scope.
+
+### Generation-0 calibrated tests: follow-ups ([#75](https://github.com/rwaples/simACE/issues/75))
+
+- **Config rejects a per-generation map for `A1`, `A2`, `C1` or `C2`.** The
+  simulator never accepted one (`SimulationParams`); loading the config
+  now fails with the scenario and key, instead of the simulate stage.
+- **ADR 0030 records why total variance stays not applicable under C
+  transmission**: SD z 0.62 at b_m 0.9 with C dominant, even with no clip.
+- The generation-0 and mate-correlation tests share one assortment
+  schedule, section builder and Pearson influence; a test checks the
+  schedule against the simulator's for every configured scenario.
+
 ### Single-trait assortment hits its target, and each mating iteration's pairing is recorded ([#73](https://github.com/rwaples/simACE/issues/73), [#74](https://github.com/rwaples/simACE/issues/74))
 
 - **Single-trait assortative mating now pins its mate correlation**

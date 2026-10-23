@@ -80,10 +80,10 @@ Under assortative mating the total variance's mean z was +1.10 and +0.89
    - C transmission is configured on either trait (any `Ctm_*` ≠ 0). The
      fresh draw is sized against the realized transmitted part, which
      under-disperses rC's z, and generation-0 clips are common at strong
-     transmission. Total variance is not under-dispersed there, but the
-     test leaves too: one rule for both, no rule reads
-     `c_transmission_clips`, and only `inh_ctm` among the studied scenarios
-     is lost.
+     transmission. Total variance leaves too. It looked calibrated on
+     `inh_ctm`, but strong transmission under-disperses it as well, even
+     with no clip (Consequences, issue #75). Only `inh_ctm` among the
+     studied scenarios is lost.
    - for `cross_trait_rC` only: C1 or C2 configured 0, or |rC| = 1.
    A cell is `not_applicable` when V₀ = 0. A cell is information, and counts
    against coverage, with fewer than 100 households, a non-finite estimate,
@@ -153,6 +153,25 @@ not established.
 - The target ignores the finite-sample bias of s² from within-household
   covariance, O(C·Σ_h w_h²), about 0.0006 at N = 1,000 against an SE near
   0.05; an exact correction needs generation 0's unrecorded parents.
+- **Total variance under C transmission is under-dispersed** (issue #75),
+  so it stays not applicable there. Settings: 200 seeds, N 1,000, G_sim 8,
+  G_ped 4, λ 0.5, keeping reps with no clip at generation ≤ 0, trait 1 with
+  this ADR's household-cluster SE:
+
+  | b_m, b_f | A, C, E | kept | mean z | SD z |
+  |---|---|---|---|---|
+  | 0.9, 0 | 0, 1, 0 | 176/200 | −0.064 | 0.622 |
+  | 0.5, 0.3 | 0.5, 0.2, 0.3 | 200/200 | −0.026 | 1.027 |
+  | 0, 0 | 0, 1, 0 | 200/200 | −0.116 | 1.066 |
+
+  The fresh C draw is sized to the target minus the transmitted covariance
+  realized in the parents (`_transmitted_c` in `simulate.py`). So Var(C)
+  barely varies between reps, and the SE overstates its noise. Under
+  strong transmission a correct scenario would fail the SD-z verdict. A
+  clip raises Var(C) above its target, since the negative fresh eigenvalue
+  is set to 0, and later generations size against what they inherit. A
+  calibrated test there needs an SE conditional on that sizing, which is
+  not derived.
 - Scenarios with any C transmission no longer test total variance or rC,
   and scenarios with assortative mating up to burn-in no longer test total
   variance; `truth` still reports both.

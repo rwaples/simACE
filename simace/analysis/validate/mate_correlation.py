@@ -52,7 +52,7 @@ from simace.analysis.quality.assortative_mating import recorded_matings
 from simace.core.numerics import unique_sorted
 from simace.simulation.assortment import METROPOLIS_TOL
 
-from .calibrated import information_cell, not_applicable_cell, scored_cell, summarize
+from .calibrated import information_cell, not_applicable_cell, pearson_influence, scored_cell, section
 from .inheritance import parent_rows
 
 if TYPE_CHECKING:
@@ -188,7 +188,7 @@ def _cell(
         return information_cell("one side's liability is constant", expected=expected, **stats)
     u, v = (x - x.mean()) / sx, (y - y.mean()) / sy
     r = float(np.mean(u * v))
-    se = math.sqrt(float(np.sum((u * v - r / 2 * (u**2 + v**2)) ** 2))) / n
+    se = math.sqrt(float(np.sum(pearson_influence(u, v, r) ** 2))) / n
     if couples is not None:
         m_hat, p_hat = couples
         stats.update(M_hat=m_hat, p_hat=p_hat, se_iid=se)
@@ -217,13 +217,6 @@ def _cell(
     return scored_cell(r, expected, se, **stats)
 
 
-def _section(cells: Mapping[str, dict[str, Any]], not_applicable: str | None) -> dict[str, Any]:
-    section: dict[str, Any] = {"scope": SCOPE, "cells": dict(cells), "summary": summarize(cells)}
-    if not_applicable is not None:
-        section["not_applicable"] = not_applicable
-    return section
-
-
 def run_mate_correlation(inputs: RepInputs) -> dict[str, Any]:
     """Score each recorded mating iteration's mate correlations against its nominal target.
 
@@ -234,7 +227,7 @@ def run_mate_correlation(inputs: RepInputs) -> dict[str, Any]:
     params = inputs.params
     matings = recorded_matings(dict(params))
     if not any(m.assort != (0, 0) for m in matings):
-        return _section({}, "no assortative mating in a recorded mating iteration")
+        return section(SCOPE, {}, "no assortative mating in a recorded mating iteration")
     pedigree = inputs.pedigree
     mother, father = parent_rows(pedigree)
     generation = pedigree["generation"].to_numpy()
@@ -272,4 +265,4 @@ def run_mate_correlation(inputs: RepInputs) -> dict[str, Any]:
         logger.info(
             "mate_correlation: parents' generations %d-%d are scored without a gather column", late[0], late[-1]
         )
-    return _section(cells, None)
+    return section(SCOPE, cells)

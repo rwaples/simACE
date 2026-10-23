@@ -145,7 +145,7 @@ PHENOTYPE_ATLAS: tuple[AtlasItem, ...] = (
             "Population Biology 170:26–35, doi:10.1016/j.tpb.2026.06.003): the simACE midparent "
             "model and their explicit gametic-disequilibrium model share the same AM "
             "equilibrium. Traits without assortative mating show the flat configured A as "
-            "the expected line. Per-generation A, C, or E suppresses the expected lines."
+            "the expected line. Per-generation E suppresses the expected lines."
         ),
     ),
     PlotEntry(

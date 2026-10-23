@@ -20,7 +20,9 @@ __all__ = [
     "RepInputs",
     "information_cell",
     "not_applicable_cell",
+    "pearson_influence",
     "scored_cell",
+    "section",
     "summarize",
 ]
 
@@ -33,6 +35,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from pathlib import Path
 
+    import numpy as np
     import polars as pl
 
     from .verdict import ZCalibration
@@ -141,3 +144,19 @@ def summarize(cells: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
         "max_abs_z": max(abs_z) if abs_z else None,
         "z_bound": NormalDist().inv_cdf(1 - FAMILYWISE_ALPHA / (2 * len(abs_z))) if abs_z else None,
     }
+
+
+def section(scope: str, cells: Mapping[str, dict[str, Any]], not_applicable: str | None = None) -> dict[str, Any]:
+    """One rep's section of ``validation.yaml``: its scope, cells and summary, and why it does not apply when it does not."""
+    out: dict[str, Any] = {"scope": scope, "cells": dict(cells), "summary": summarize(cells)}
+    if not_applicable is not None:
+        out["not_applicable"] = not_applicable
+    return out
+
+
+def pearson_influence(u: np.ndarray, v: np.ndarray, r: float) -> np.ndarray:
+    """The Pearson correlation's delta-method influence values on ddof-0 standardized ``u`` and ``v``.
+
+    ``ψ = u·v − r/2·(u² + v²)``; the caller sums them over its clusters (or rows) for the SE.
+    """
+    return u * v - r / 2 * (u**2 + v**2)

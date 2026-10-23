@@ -39,7 +39,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 import polars as pl
 
-from .calibrated import information_cell, not_applicable_cell, scored_cell, summarize
+from .calibrated import information_cell, not_applicable_cell, scored_cell, section
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -152,10 +152,7 @@ def _variance_cell(residual: np.ndarray, keep: np.ndarray, expected: float) -> d
 
 def _section(cells: Mapping[str, dict[str, Any]], component: str) -> dict[str, Any]:
     """The rep's section; with no trait carrying ``component``, the test does not apply to the scenario."""
-    section: dict[str, Any] = {"scope": SCOPE, "cells": dict(cells), "summary": summarize(cells)}
-    if not cells:
-        section["not_applicable"] = f"{component} is configured 0 for both traits"
-    return section
+    return section(SCOPE, cells, None if cells else f"{component} is configured 0 for both traits")
 
 
 def run_mendelian_residual(inputs: RepInputs) -> dict[str, Any]:

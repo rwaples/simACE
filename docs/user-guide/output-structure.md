@@ -334,7 +334,12 @@ column mixes two meters.
 systemd scope per invocation (`systemd-run --user --scope -p Delegate=yes`)
 and runs each stage in a child cgroup of it. That needs Linux with cgroup
 v2, a systemd user manager that delegates the memory controller, and Linux
-5.19 or later for `memory.peak`. When the environment variable
+5.19 or later for `memory.peak`. It also needs `simace run` itself to sit in
+the user manager's cgroup tree, because a stage moves from there into its
+child cgroup. Inside a Slurm job it does not: Slurm keeps the job's processes
+in its own cgroup, so the move is refused. `simace run` tries one move, with
+a memory cap, when it opens the scope, and falls back when that is refused.
+When the environment variable
 `SIMACE_CGROUP_ROOT` names a cgroup directory whose `cgroup.subtree_control`
 enables `memory`, `simace run` puts its stage cgroups there instead;
 `tools.benchmark` uses this. Without a delegated cgroup, `simace run` prints

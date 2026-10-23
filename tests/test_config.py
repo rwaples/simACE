@@ -388,6 +388,12 @@ class TestMatingModelValidation:
     def test_wf_with_assort_matrix_explicit_none_passes(self):
         _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "assort_matrix": None}))
 
+    @pytest.mark.parametrize("key", ["A1", "A2", "C1", "C2"])
+    def test_per_generation_a_or_c_is_rejected(self, key):
+        """The simulator takes scalar A and C only (``SimulationParams``); config must not accept a map (#75)."""
+        with pytest.raises(ValueError, match=f"Scenario 'sc': {key} must be a scalar"):
+            _validate_pedigree_config(self._wrap({key: {0: 0.1, 2: 0.2}}))
+
 
 class TestCTransmissionConfig:
     """``pedigree.trait{t}.C_transmission`` flattening and config-load checks (ADR 0025)."""

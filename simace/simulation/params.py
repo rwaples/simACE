@@ -128,9 +128,9 @@ class SimulationParams:
     mating_lambda: float
     p_mztwin: float
     A1: float
-    C1: float | dict[int, float]
+    C1: float
     A2: float
-    C2: float | dict[int, float]
+    C2: float
     E1: float | dict[int, float]
     E2: float | dict[int, float]
     rA: float
