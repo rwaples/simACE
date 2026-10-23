@@ -93,7 +93,7 @@ def recorded(monkeypatch) -> list[int]:
 
     def fake_recompute(rep, layout, env, console, *_):
         calls.append(rep.rep)
-        _finish(layout, rep)
+        _refinish(layout, rep)
 
     monkeypatch.setattr(run_mod, "_recompute", fake_recompute)
     return calls
@@ -111,6 +111,13 @@ def _finish(layout: Layout, rep: ResolvedRep) -> None:
         if not path.exists():
             path.write_text("")
     _write_manifest(layout, rep, expected_manifest(rep))
+
+
+def _refinish(layout: Layout, rep: ResolvedRep) -> None:
+    """Recompute ``rep`` as ``simace run`` does: clear its outputs, write them again, then ``run.yaml``."""
+    for artifact in REP_OUTPUTS:
+        layout.rep(rep.folder, rep.scenario, rep.rep, artifact).unlink(missing_ok=True)
+    _finish(layout, rep)
 
 
 def _write_manifest(layout: Layout, rep: ResolvedRep, manifest) -> None:
@@ -428,11 +435,12 @@ def test_an_output_rewritten_after_the_manifest_is_recomputed(
     for r in (1, 2):
         _finish(layout, _rep(config_dir, r))
     cohort = layout.rep("t", "tiny", 2, RepArtifact.COHORT)
+    # A moved mtime with the same content is no change (an NFS server re-stamps mtimes, issue #80).
     os.utime(cohort, ns=(cohort.stat().st_atime_ns, cohort.stat().st_mtime_ns + 1))
     layout.rep("t", "tiny", 2, RepArtifact.REPORT).write_text("rewritten by hand\n")
-    assert status_on_disk(_rep(config_dir, 2), layout).reasons == ("cohort.parquet changed", "report.yaml changed")
+    assert status_on_disk(_rep(config_dir, 2), layout).reasons == ("report.yaml changed",)
     assert _run(config_dir, roots, "tiny") == 0
-    assert "rep2] recompute: cohort.parquet changed, report.yaml changed" in capsys.readouterr().out
+    assert "rep2] recompute: report.yaml changed" in capsys.readouterr().out
     assert recorded == [2]
 
 
@@ -1006,7 +1014,7 @@ def test_plots_are_current_until_a_rep_or_atlas_changes(config_dir, layout) -> N
     assert scenario_plots_status(reps, layout).state is PlotsState.CURRENT
 
     time.sleep(0.01)
-    _finish(layout, reps[1])
+    _refinish(layout, reps[1])
     assert scenario_plots_status(reps, layout).describe() == "stale (rep2 recomputed since)"
 
     _plotted(layout, reps, "atlas.html")

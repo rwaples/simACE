@@ -12,6 +12,19 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### Reps stay complete on NFS ([#80](https://github.com/rwaples/simACE/issues/80))
+
+- **`run.yaml` fingerprints now carry a content digest** (`blake2b`, 128 bit)
+  next to each output's size and mtime. A file whose mtime moved but whose
+  content did not is no longer "changed". An NFS server re-stamps mtimes when
+  the writing client gives up its write delegation, so on GenomeDK's home
+  reps written in a Slurm job read as incomplete and `simace validate` skipped
+  them. An unchanged mtime is still trusted without reading the file. A
+  `run.yaml` from before this change has no digest, so a moved mtime still
+  makes its rep incomplete, and recomputing it once writes the new form.
+  `plots.yaml`'s checks of each rep's `run.yaml` and of the verdict use the
+  same rule.
+
 ### `simace run` inside a Slurm job
 
 - **Fixed: every stage failed at once inside a Slurm job.** `simace run`
