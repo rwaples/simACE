@@ -12,6 +12,17 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### `simace run` inside a Slurm job
+
+- **Fixed: every stage failed at once inside a Slurm job.** `simace run`
+  started its delegated systemd scope, but Slurm keeps the job's processes in
+  its own cgroup, so moving a stage into its leaf was refused (`echo: write
+  error: Permission denied`). It now tries one move into a capped child cgroup
+  when it opens the scope and, if the move or the cap is refused or the move
+  takes more than 10 s, falls back as without a delegated cgroup: no
+  `tree_peak_mb`, and `--max-memory` enforced by polling `/proc`. Any other
+  error while trying still releases the scope.
+
 ### Generation-0 calibrated tests: follow-ups ([#75](https://github.com/rwaples/simACE/issues/75))
 
 - **Config rejects a per-generation map for `A1`, `A2`, `C1` or `C2`.** The

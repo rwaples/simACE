@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 import time
@@ -10,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from simace.cli import cgroups
 from simace.cli.cgroups import ROOT_ENV, CgroupRoot, CgroupUnavailable
 
 if TYPE_CHECKING:
@@ -123,6 +125,85 @@ def test_adopted_root_nests_leaves_and_its_owner_sees_their_peak(root, monkeypat
         assert _run(adopted, _hold(300, 0))[0] == 0
     assert root.path.is_dir()
     assert root.peak_bytes() >= 300 * MiB
+
+
+class _Anchor:
+    """Stands in for the systemd-run anchor; records whether the scope was released."""
+
+    released = False
+
+    def communicate(self) -> None:
+        self.released = True
+
+
+@pytest.fixture
+def fake_scope(tmp_path, monkeypatch) -> tuple[Path, _Anchor]:
+    """A plain directory that ``CgroupRoot.open`` takes for a freshly started systemd scope.
+
+    Leaves are plain subdirectories, so the probe's join and cap writes succeed
+    unless a test makes them fail; a leaf is removed with ``rmtree`` instead of
+    ``cgroup.kill``.
+    """
+    for name in ("memory.peak", "cgroup.kill"):
+        (tmp_path / name).write_text("0\n")
+    anchor = _Anchor()
+    monkeypatch.delenv(ROOT_ENV, raising=False)
+    monkeypatch.setattr(CgroupRoot, "_start_scope", classmethod(lambda cls: cls(tmp_path, anchor)))
+    monkeypatch.setattr(cgroups, "_remove", shutil.rmtree)
+    return tmp_path, anchor
+
+
+def test_a_scope_no_stage_can_join_is_refused_and_released(fake_scope, monkeypatch) -> None:
+    # As under Slurm: the scope starts, but moving a process into a leaf is denied.
+    monkeypatch.setattr(cgroups, "_JOIN", "echo 'sh: echo: write error: Permission denied' >&2; exit 1")
+    with pytest.raises(CgroupUnavailable, match=r"cannot join.*Permission denied"):
+        CgroupRoot.open()
+    assert fake_scope[1].released
+
+
+def test_a_join_that_hangs_is_refused_and_released(fake_scope, monkeypatch) -> None:
+    monkeypatch.setattr(cgroups, "_JOIN", "sleep 30")
+    monkeypatch.setattr(cgroups, "_ANCHOR_TIMEOUT_S", 0.2)
+    with pytest.raises(CgroupUnavailable, match="did not join"):
+        CgroupRoot.open()
+    assert fake_scope[1].released
+
+
+def test_the_probe_writes_a_memory_cap(fake_scope, monkeypatch) -> None:
+    written: list[str] = []
+
+    def record(path: Path) -> None:
+        written.extend(p.name for p in path.iterdir())
+        shutil.rmtree(path)
+
+    monkeypatch.setattr(cgroups, "_remove", record)
+    with CgroupRoot.open() as root:
+        assert root.path == fake_scope[0]
+    assert {"memory.max", "memory.oom.group", "cgroup.procs"} <= set(written)
+
+
+def test_a_cap_that_cannot_be_written_is_refused_and_released(fake_scope, monkeypatch) -> None:
+    real_write = Path.write_text
+
+    def refuse_caps(self: Path, data: str, *args: object, **kwargs: object) -> int:
+        if self.name == "memory.max":
+            raise PermissionError(13, "Permission denied")
+        return real_write(self, data, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", refuse_caps)
+    with pytest.raises(CgroupUnavailable, match=r"cannot create a capped stage cgroup.*Permission denied"):
+        CgroupRoot.open()
+    assert fake_scope[1].released
+
+
+def test_an_unexpected_error_in_the_probe_still_releases_the_scope(fake_scope, monkeypatch) -> None:
+    def interrupt(*args: object, **kwargs: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cgroups.subprocess, "run", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        CgroupRoot.open()
+    assert fake_scope[1].released
 
 
 def test_adopting_a_cgroup_without_memory_is_refused(tmp_path, monkeypatch) -> None:
