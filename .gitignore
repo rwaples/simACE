@@ -11,6 +11,7 @@ external/
 !/scripts/se_calibration.py
 !/scripts/inheritance_residual_study.py
 !/scripts/onset_tau_calibration.py
+!/scripts/generate_ctm_grid.py
 # Fresh-computer install-verification suite (shareable; see scripts/verify/README.md)
 !/scripts/verify/
 # Standalone docs-example plots and gene-drop pipeline
