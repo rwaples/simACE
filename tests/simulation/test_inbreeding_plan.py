@@ -79,3 +79,9 @@ def test_record_is_the_run_yaml_shape() -> None:
         "depth": 6,
         "packed": True,
     }
+
+
+def test_deep_small_runs_resolve_without_overflow() -> None:
+    # 2.0**k overflows from k = 1024 (Codex review): the walkd2 visit model must saturate instead.
+    assert resolve("exact", 6, 100, 1100) == InbreedingPlan("exact", "densep")
+    assert resolve("approx", 6, 100, 1100).mode == "exact"

@@ -100,7 +100,8 @@ def _walkd2_visits(N: int, G: int) -> float:
     total = 0.0
     cum = 0.0
     for k in range(G):
-        cum += P * (1.0 - math.exp(-(2.0**k) / P))
+        # 2.0**k overflows a float from k = 1024; the term has long since saturated at P by then.
+        cum += P * (1.0 - math.exp(-(2.0**k) / P)) if k < 1024 else P
         total += cum
     return c["walkd2_gamma"] * N * total
 
