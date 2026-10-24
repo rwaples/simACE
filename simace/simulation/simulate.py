@@ -37,12 +37,14 @@ from simace.core.cohort import write_pedigree
 from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
 from simace.simulation.assortment import METROPOLIS_TOL, AssortmentPlan, _cross_am_matrix, write_mating_log
-from simace.simulation.inbreeding_plan import DEFAULT_DEPTH, INBREEDING_MODES
+from simace.simulation.inbreeding_plan import DEFAULT_DEPTH, INBREEDING_MODES, resolve
 from simace.simulation.params import CTransmission, SimulationParams, c_covariance
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Any, TypeVar
+
+    from simace.simulation.inbreeding import Inbreeding
 
     _F = TypeVar("_F", bound=Callable[..., Any])
 
@@ -170,13 +172,21 @@ def generate_correlated_components(
 
 
 def generate_mendelian_noise(
-    rng: np.random.Generator, n: int, sd_A1: float, sd_A2: float, rA: float
+    rng: np.random.Generator,
+    n: int,
+    sd_A1: float,
+    sd_A2: float,
+    rA: float,
+    scale: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Generate correlated Mendelian sampling noise for two traits.
 
     Under the infinitesimal model, the Mendelian sampling variance is
     0.5 * Var(A) for each trait, so sd_noise = sd_A / sqrt(2)
-    (Bulmer, 1971, Am. Nat., 105, 201-211).
+    (Bulmer, 1971, Am. Nat., 105, 201-211). With parental inbreeding it is
+    0.5 * Var(A) * (1 - F_bar): ``scale`` multiplies each offspring's noise
+    in both traits by ``sqrt(1 - F_bar)`` after the draw, so it consumes the
+    same random numbers (ADR 0033).
 
     Args:
         rng: numpy random generator
@@ -184,13 +194,17 @@ def generate_mendelian_noise(
         sd_A1: standard deviation of A1 (sqrt of A1 variance)
         sd_A2: standard deviation of A2 (sqrt of A2 variance)
         rA: genetic correlation between traits
+        scale: per-offspring factor, shape (n,), or None for none
 
     Returns:
         (noise1, noise2): tuple of arrays, each shape (n,)
     """
     sd_noise1 = sd_A1 / np.sqrt(2)
     sd_noise2 = sd_A2 / np.sqrt(2)
-    return generate_correlated_components(rng, n, sd_noise1, sd_noise2, rA)
+    noise1, noise2 = generate_correlated_components(rng, n, sd_noise1, sd_noise2, rA)
+    if scale is not None:
+        noise1, noise2 = noise1 * scale, noise2 * scale
+    return noise1, noise2
 
 
 def draw_mating_counts(rng: np.random.Generator, n: int, mating_lambda: float) -> np.ndarray:
@@ -1331,6 +1345,7 @@ def reproduce(
     rE: float = 0.0,
     c_transmission: CTransmission | None = None,
     clips: list[dict[str, Any]] | None = None,
+    mendelian_scale: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Simulate offspring phenotypes from parents for two correlated traits.
 
@@ -1361,6 +1376,8 @@ def reproduce(
             the fresh household draw, identical to the code before ADR 0025.
         clips: under C transmission, collects one record per fresh-draw
             eigenvalue clipped to 0 (see :func:`_transmitted_c`).
+        mendelian_scale: per-offspring ``sqrt(1 - F_bar)`` applied to the
+            Mendelian noise (ADR 0033), or None for the unscaled draw.
 
     Returns:
         offspring: (n, 6) array of [A1, C1, E1, A2, C2, E2]
@@ -1379,7 +1396,7 @@ def reproduce(
     mp1 = _midparent(pheno[:, _A1], parents)
     mp2 = _midparent(pheno[:, _A2], parents)
 
-    noise1, noise2 = generate_mendelian_noise(rng, n, sd_A1, sd_A2, rA)
+    noise1, noise2 = generate_mendelian_noise(rng, n, sd_A1, sd_A2, rA, mendelian_scale)
     a1_offspring = mp1 + noise1
     a2_offspring = mp2 + noise2
 
@@ -1442,7 +1459,15 @@ _PED_COLUMNS = [
 ]
 
 
-def _init_pedigree_arrays(total_rows: int) -> dict[str, np.ndarray]:
+def _ped_columns(arrays: dict[str, np.ndarray]) -> list[str]:
+    """The pedigree's columns: :data:`_PED_COLUMNS`, with ``F`` after ``household_id`` when tracked (ADR 0033)."""
+    if "F" not in arrays:
+        return _PED_COLUMNS
+    at = _PED_COLUMNS.index("household_id") + 1
+    return [*_PED_COLUMNS[:at], "F", *_PED_COLUMNS[at:]]
+
+
+def _init_pedigree_arrays(total_rows: int, inbreeding: bool = False) -> dict[str, np.ndarray]:
     """Pre-allocate numpy arrays for the pedigree.
 
     Dtype choices for memory efficiency at large N:
@@ -1450,6 +1475,8 @@ def _init_pedigree_arrays(total_rows: int) -> dict[str, np.ndarray]:
     - int8 for sex (0/1)
     - float32 for ACE variance components (~7 significant digits)
     - float64 for liabilities (full precision for phenotype models)
+    - float32 for the inbreeding coefficient ``F``, allocated only when
+      ``inbreeding`` is set
     """
     _dtypes = {
         "id": np.int32,
@@ -1469,6 +1496,8 @@ def _init_pedigree_arrays(total_rows: int) -> dict[str, np.ndarray]:
         "liability2": np.float64,
     }
     arrays: dict[str, np.ndarray] = {}
+    if inbreeding:
+        _dtypes["F"] = np.float32
     for col, dtype in _dtypes.items():
         arrays[col] = np.empty(total_rows, dtype=dtype)
     arrays["twin"][:] = -1
@@ -1488,8 +1517,9 @@ def _fill_pedigree_slice(
     id_offset: int,
     parent_offset: int,
     household_offset: int,
+    F: np.ndarray | None = None,
 ) -> None:
-    """Fill a slice of pre-allocated pedigree arrays for one generation."""
+    """Fill a slice of pre-allocated pedigree arrays for one generation (``F`` into the ``F`` array when given)."""
     n = len(pheno)
     s = slice(offset, offset + n)
 
@@ -1497,6 +1527,8 @@ def _fill_pedigree_slice(
     arrays["sex"][s] = sex
     arrays["generation"][s] = generation
     arrays["household_id"][s] = (household_ids + household_offset).astype(np.int32)
+    if F is not None:
+        arrays["F"][s] = F
 
     if is_founder:
         arrays["mother"][s] = -1
@@ -1522,7 +1554,7 @@ def _fill_pedigree_slice(
 
 def _arrays_to_dataframe(arrays: dict[str, np.ndarray], total_rows: int) -> pl.DataFrame:
     """Convert pre-allocated arrays to a pedigree DataFrame."""
-    return pl.DataFrame({col: arrays[col][:total_rows] for col in _PED_COLUMNS})
+    return pl.DataFrame({col: arrays[col][:total_rows] for col in _ped_columns(arrays)})
 
 
 def add_to_pedigree(
@@ -1698,8 +1730,6 @@ def run_simulation(
         inbreeding_mode=inbreeding_mode,
         inbreeding_depth=inbreeding_depth,
     )
-    if params.inbreeding.mode != "off":
-        raise NotImplementedError(f"inbreeding mode {params.inbreeding.mode!r} is not implemented yet")
     # Rebind the values normalization changed; everything else is unchanged.
     G_sim = params.G_sim
     assort1 = params.assort1
@@ -1778,10 +1808,20 @@ def run_simulation(
             f"Total pedigree size {total_individuals:,} exceeds int32 max "
             f"({np.iinfo(np.int32).max:,}). Reduce N or G_ped."
         )
-    ped_arrays = _init_pedigree_arrays(total_individuals)
+    ped_arrays = _init_pedigree_arrays(total_individuals, inbreeding=params.inbreeding.mode != "off")
     ped_offset = 0
     id_offset = 0
     household_offset = 0
+
+    # Inbreeding (ADR 0033): iteration i's parents are iteration i - 1's
+    # offspring, so the Mendelian scale reads the previous step's F.
+    inbreeding: Inbreeding | None = None
+    F_offspring: np.ndarray | None = None
+    if params.inbreeding.mode != "off":
+        from simace.simulation.inbreeding import Inbreeding
+
+        inbreeding = Inbreeding(params.inbreeding, N, G_sim, mother_sorted=mating_model == "standard")
+        F_offspring = np.zeros(N)
 
     for i in range(G_sim):
         t_gen = time.perf_counter()
@@ -1811,6 +1851,12 @@ def run_simulation(
         if mating_log is not None:
             mating_log.extend({"iteration": i, "generation": i - burnin, **record} for record in pairing)
         t_mate = time.perf_counter()
+        mendelian_scale = None
+        if inbreeding is not None:
+            assert F_offspring is not None
+            mendelian_scale = np.sqrt(1.0 - (F_offspring[parents[:, 0]] + F_offspring[parents[:, 1]]) / 2)
+            F_offspring = inbreeding.step(parents, twins)
+        t_inbreeding = time.perf_counter()
         generation_clips: list[dict[str, Any]] = []
         try:
             pheno, sex = reproduce(
@@ -1830,6 +1876,7 @@ def run_simulation(
                 rE,
                 params.c_transmission,
                 generation_clips,
+                mendelian_scale,
             )
         except ValueError as exc:
             raise ValueError(f"Generation {i}: {exc}") from exc
@@ -1853,6 +1900,7 @@ def run_simulation(
                 id_offset=id_offset,
                 parent_offset=parent_offset,
                 household_offset=household_offset,
+                F=F_offspring,
             )
             household_offset += int(household_ids.max()) + 1
             id_offset += n
@@ -1862,12 +1910,14 @@ def run_simulation(
         # Per-generation data shape checkpoints
         fam_sizes = np.bincount(household_ids)
         logger.info(
-            "Generation %d: %d twins, mean family size %.2f [mating=%.1fs, reproduce=%.1fs, fill=%.1fs, total=%.1fs]",
+            "Generation %d: %d twins, mean family size %.2f [mating=%.1fs, inbreeding=%.1fs, reproduce=%.1fs, "
+            "fill=%.1fs, total=%.1fs]",
             i,
             len(twins) * 2,
             fam_sizes.mean(),
             t_mate - t_gen,
-            t_repro - t_mate,
+            t_inbreeding - t_mate,
+            t_repro - t_inbreeding,
             t_fill - t_repro,
             t_fill - t_gen,
         )
@@ -2001,7 +2051,10 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         mating_log=mating_log,
     )
 
+    inbreeding = None
+    if args.inbreeding_mode != "off":
+        inbreeding = resolve(args.inbreeding_mode, args.inbreeding_depth, args.N, args.G_sim or args.G_ped)
     with publish(args.output_pedigree) as (tmp,):
-        write_pedigree(pedigree, tmp, c_transmission_clips=clip_log)
+        write_pedigree(pedigree, tmp, c_transmission_clips=clip_log, inbreeding=inbreeding)
     if args.output_mating is not None:
         write_mating_log(mating_log, args.output_mating)
