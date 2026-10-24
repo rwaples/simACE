@@ -13,8 +13,11 @@ import pytest
 
 import simace.simulation.simulate as sim
 from simace.core.cohort import INBREEDING_KEY, read_inbreeding
+from simace.simulation.inbreeding_plan import InbreedingPlan, resolve
 from simace.simulation.simulate import run_simulation
 from tests.simulation.inbreeding_support import BASE, DENSEP, dense64, force_plan, install_capture, run_engine
+
+WALKD2 = InbreedingPlan("exact", "walkd2")
 
 _CASES = {
     "standard_burnin": {},
@@ -65,6 +68,29 @@ def test_twins_share_F_and_A(exact_run) -> None:
     assert len(pairs) == len(twins)
     for col in ("F", "A1", "A2"):
         np.testing.assert_array_equal(pairs[col].to_numpy(), pairs[f"{col}_co"].to_numpy())
+
+
+@pytest.mark.parametrize(
+    ("model", "N", "G_sim"),
+    [("standard", 2000, 12), ("wright_fisher", 2000, 12), ("standard", 300, 30)],  # G_sim > 23: float64 scratch
+)
+def test_walkd2_matches_densep(monkeypatch, model, N, G_sim) -> None:
+    cap = install_capture(monkeypatch)
+    run_simulation(**{**BASE, "N": N, "G_ped": 2, "G_sim": G_sim, "mating_model": model})
+    walk = run_engine(WALKD2, cap.gens, mother_sorted=model == "standard")
+    dense = run_engine(DENSEP, cap.gens, mother_sorted=model == "standard")
+    assert walk[-1].mean() > 1e-3
+    np.testing.assert_allclose(walk, dense, rtol=0, atol=1e-6)
+
+
+def test_exact_through_the_resolver_matches_pedigree_graph(monkeypatch) -> None:
+    cap = install_capture(monkeypatch)
+    kw = {**BASE, "inbreeding_mode": "exact"}
+    assert resolve("exact", 6, kw["N"], kw["G_sim"]).engine == "walkd2"
+    ped = run_simulation(**kw)
+    N = kw["N"]
+    oracle = cap.ancestry(ped["sex"].to_numpy()[-N:]).inbreeding()[N:].reshape(kw["G_sim"], N)
+    np.testing.assert_allclose(ped["F"].to_numpy(), _recorded(kw, oracle), rtol=0, atol=1e-6)
 
 
 # ---------------------------------------------------------------- scale indexing (Fable finding 6)
@@ -165,28 +191,38 @@ _THREAD_SCRIPT = """
 import hashlib, json, sys
 import numba
 sys.path.insert(0, {root!r})
-from tests.simulation.inbreeding_support import BASE, DENSEP, install_capture, run_engine
+from simace.simulation.inbreeding_plan import InbreedingPlan, resolve
+from tests.simulation.inbreeding_support import BASE, install_capture, run_engine
 import pytest
 mp = pytest.MonkeyPatch()
 cap = install_capture(mp)
 from simace.simulation.simulate import run_simulation
-run_simulation(**BASE)
-F = run_engine(DENSEP, cap.gens, mother_sorted=True)
+run_simulation(**{{**BASE, **{kw!r}}})
+F = run_engine(InbreedingPlan(*{plan!r}), cap.gens, mother_sorted={sorted!r})
 print(json.dumps({{"threads": numba.get_num_threads(), "sha": hashlib.sha256(F.tobytes()).hexdigest()}}))
 """
 
 
-def _engine_digest(threads: int, script: str) -> dict:
+def _engine_digest(threads: int, plan: InbreedingPlan, **kw) -> dict:
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     env = {**os.environ, "NUMBA_NUM_THREADS": str(threads)}
-    out = subprocess.run(
-        [sys.executable, "-c", script.format(root=root)], capture_output=True, text=True, check=True, env=env
-    )
+    sorted_ = kw.get("mating_model", "standard") == "standard"
+    script = _THREAD_SCRIPT.format(root=root, kw=kw, plan=tuple(plan.record().values()), sorted=sorted_)
+    out = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, check=True, env=env)
     return json.loads(out.stdout.strip().splitlines()[-1])
 
 
-def test_densep_is_bitwise_thread_invariant() -> None:
-    one, four = _engine_digest(1, _THREAD_SCRIPT), _engine_digest(4, _THREAD_SCRIPT)
+_THREAD_CASES = {
+    "densep": (DENSEP, {}),
+    "walkd2": (WALKD2, {"N": 2000, "G_sim": 12}),
+    "walkd2_wf": (WALKD2, {"N": 2000, "G_sim": 12, "mating_model": "wright_fisher", "p_mztwin": 0.0}),
+}
+
+
+@pytest.mark.parametrize("case", list(_THREAD_CASES))
+def test_engine_is_bitwise_thread_invariant(case) -> None:
+    plan, kw = _THREAD_CASES[case]
+    one, four = _engine_digest(1, plan, **kw), _engine_digest(4, plan, **kw)
     assert (one["threads"], four["threads"]) == (1, 4)
     assert one["sha"] == four["sha"]
 
