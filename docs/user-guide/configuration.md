@@ -112,6 +112,9 @@ float32 column `F` (the inbreeding coefficient the simulation used) after
   closes the rest with the generation's mean kinship. It runs `exact` when
   `depth >= G_sim`, and at small N (8·N² ≤ 1 GiB and N²·`G_sim` ≤ 1e9).
 
+`run.yaml` records the plan that ran (`inbreeding: {mode, engine, depth,
+packed}`), and `simace run --dry-run` prints it, or the refusal, for each rep.
+
 ## Phenotype
 
 Each trait has its own block under `phenotype.trait1` and `phenotype.trait2`.

@@ -6,7 +6,10 @@ parameters from the rep's ``report.yaml``:
 - :func:`run_mendelian_residual`, per trait with A > 0: the Pearson
   correlation of the **Mendelian residual** A − midparent over FS, MHS and
   PHS pairs (expected 0), and its variance over the non-founders with one
-  member of each MZ pair (expected A/2, the configured founder variance);
+  member of each MZ pair (expected A/2, the configured founder variance).
+  When the pedigree carries the simulation's inbreeding coefficients ``F``
+  (ADR 0033), the variance is of the residual divided by √(1 − F̄), F̄ the
+  parents' mean F, which restores the expectation A/2;
 - :func:`run_household_draw`, per trait with C > 0: the Pearson correlation
   of the **household draw** C − b_m·C_mother − b_f·C_father over PHS pairs
   (expected 0), with the share of those pairs whose two households share
@@ -166,6 +169,7 @@ def run_mendelian_residual(inputs: RepInputs) -> dict[str, Any]:
     mother, father = parent_rows(pedigree)
     ids, twin = pedigree["id"].to_numpy(), pedigree["twin"].to_numpy()
     one_per_mz = (twin < 0) | (ids < twin)
+    scale = _mendelian_scale(pedigree, mother, father)
     cells: dict[str, dict[str, Any]] = {}
     for t in (1, 2):
         a = float(params[f"A{t}"])
@@ -178,9 +182,20 @@ def run_mendelian_residual(inputs: RepInputs) -> dict[str, Any]:
         cells[f"trait{t}_variance"] = (
             not_applicable_cell(not_applicable)
             if not_applicable is not None
-            else _variance_cell(residual, one_per_mz, a / 2)
+            else _variance_cell(residual / scale, one_per_mz, a / 2)
         )
     return _section(cells, "A")
+
+
+def _mendelian_scale(pedigree: pl.DataFrame, mother: np.ndarray, father: np.ndarray) -> np.ndarray | float:
+    """Each row's √(1 − F̄) from the parents' ``F`` (ADR 0033), or 1 for a pedigree without the column (mode off)."""
+    if "F" not in pedigree.columns:
+        return 1.0
+    F = pedigree["F"].to_numpy().astype(np.float64)
+    both = (mother >= 0) & (father >= 0)
+    scale = np.ones(len(F))
+    scale[both] = np.sqrt(1.0 - (F[mother[both]] + F[father[both]]) / 2)
+    return scale
 
 
 def run_household_draw(inputs: RepInputs) -> dict[str, Any]:

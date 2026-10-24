@@ -203,3 +203,14 @@ def test_an_observed_zero_variance_is_information_not_not_applicable(tmp_path, p
 def test_a_configured_zero_total_is_not_applicable(tmp_path, pedigree) -> None:
     cell = run_total_variance(_inputs(tmp_path, pedigree, A2=0.0, C2=0.0, E2=0.0))["cells"]["trait2_total"]
     assert cell["status"] == "not_applicable"
+
+
+@pytest.mark.parametrize(("mode", "G_sim", "applies"), [("exact", 5, False), ("approx", 5, False), ("exact", 4, True)])
+def test_inbreeding_with_two_burn_in_generations_leaves_total_variance(
+    tmp_path, pedigree, mode, G_sim, applies
+) -> None:
+    total, rc = _both(_inputs(tmp_path, pedigree, inbreeding_mode=mode, G_sim=G_sim))
+    assert ("not_applicable" not in total) is applies
+    if not applies:
+        assert "inbreeding mode" in total["not_applicable"]
+    assert "not_applicable" not in rc

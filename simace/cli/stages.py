@@ -71,7 +71,9 @@ class Stage:
     """A per-rep stage: its subcommand, the config keys it reads, the files it publishes, and its argv.
 
     ``reads_params`` marks a stage that reads ``params.yaml``, whose outputs
-    then depend on every :data:`PARAMS_YAML_KEYS` key too.
+    then depend on every :data:`PARAMS_YAML_KEYS` key too. ``kernel_threads``
+    marks a stage with parallel numba kernels, which gets its share of the
+    cores under ``--jobs`` instead of one thread (ADR 0033 §7).
     """
 
     name: str
@@ -79,6 +81,7 @@ class Stage:
     outputs: tuple[RepArtifact, ...]
     argv: Callable[[ResolvedRep, Layout], list[str]]
     reads_params: bool = False
+    kernel_threads: bool = False
 
 
 _SIMULATE_KEYS = (
@@ -222,7 +225,7 @@ def _analyze(rep: ResolvedRep, layout: Layout) -> list[str]:
 
 
 STAGES: tuple[Stage, ...] = (
-    Stage("simulate", _SIMULATE_KEYS, (RepArtifact.PEDIGREE, RepArtifact.MATING), _simulate),
+    Stage("simulate", _SIMULATE_KEYS, (RepArtifact.PEDIGREE, RepArtifact.MATING), _simulate, kernel_threads=True),
     Stage("cohort", _COHORT_KEYS, (RepArtifact.COHORT, RepArtifact.PHENOTYPED_POPULATION), _cohort),
     Stage(
         "analyze",

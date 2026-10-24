@@ -22,7 +22,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 __all__ = [
     "COST_MODEL",
@@ -31,6 +34,7 @@ __all__ = [
     "OFF",
     "InbreedingPlan",
     "InbreedingRefused",
+    "plan_for",
     "predicted_seconds",
     "resolve",
 ]
@@ -160,3 +164,11 @@ def resolve(mode: str, depth: int, N: int, G_sim: int) -> InbreedingPlan:
     if 8 * N * N <= _HANDOFF_DENSE_BYTES and N * N * G_sim <= _HANDOFF_N2G:
         return _exact(N, G_sim, "use mode: approx")  # unreachable: N^2 G_sim <= 1e9 predicts < 1 s
     return InbreedingPlan("approx", "xexact", depth, _packed(N, depth))
+
+
+def plan_for(params: Mapping[str, Any]) -> InbreedingPlan:
+    """Resolve the plan of a flat scenario or rep parameter dict; absent inbreeding keys mean off (pre-ADR-0033)."""
+    G_sim = params.get("G_sim") or params["G_ped"]
+    return resolve(
+        params.get("inbreeding_mode", "off"), params.get("inbreeding_depth", DEFAULT_DEPTH), params["N"], G_sim
+    )

@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from pathlib import Path
     from typing import TextIO
 
@@ -188,29 +189,39 @@ class Launcher:
     max_rss: int | None = None
     lock_fds: tuple[int, ...] = ()
     cgroups: CgroupRoot | None = None
+    kernel_threads: int | None = None
 
-    def run(self, cmd: list[str], log_path: Path) -> StageResult:
-        """Run one stage with output to ``log_path``; record its ``wait4`` peak and, in a cgroup, its tree's."""
+    def kernel_env(self) -> dict[str, str]:
+        """The environment override of a stage with parallel kernels: its share of the cores under ``--jobs``."""
+        return {} if self.kernel_threads is None else {"NUMBA_NUM_THREADS": str(self.kernel_threads)}
+
+    def run(self, cmd: list[str], log_path: Path, extra_env: Mapping[str, str] | None = None) -> StageResult:
+        """Run one stage with output to ``log_path``; record its ``wait4`` peak and, in a cgroup, its tree's.
+
+        ``extra_env`` overrides :attr:`env` for this stage, before its
+        interpreter starts (numba sizes its thread pool at import).
+        """
+        env = {**self.env, **(extra_env or {})}
         log_path.parent.mkdir(parents=True, exist_ok=True)
         start = time.perf_counter()
         with open(log_path, "w", encoding="utf-8") as log:
             if self.cgroups is None:
-                exit_code, max_rss_mb, over = self._polled(cmd, log)
+                exit_code, max_rss_mb, over = self._polled(cmd, log, env)
                 tree_peak_mb = None
             else:
                 with self.cgroups.leaf(self.max_rss) as leaf:
-                    exit_code, max_rss_mb = _reap(self._start(leaf.wrap(cmd), log))
+                    exit_code, max_rss_mb = _reap(self._start(leaf.wrap(cmd), log, env))
                     tree_peak_mb = leaf.peak_bytes() / 2**20
                     over = self.max_rss is not None and leaf.oom_killed()
                 if over:
                     log.write(f"\nsimace run: killed; memory went over --max-memory ({self.max_rss / 2**20:.0f} MB)\n")
         return StageResult(time.perf_counter() - start, max_rss_mb, tree_peak_mb, exit_code, over)
 
-    def _start(self, cmd: list[str], log: TextIO) -> subprocess.Popen[bytes]:
-        return subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=self.env, pass_fds=self.lock_fds)
+    def _start(self, cmd: list[str], log: TextIO, env: dict[str, str]) -> subprocess.Popen[bytes]:
+        return subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=env, pass_fds=self.lock_fds)
 
-    def _polled(self, cmd: list[str], log: TextIO) -> tuple[int, float, bool]:
-        proc = self._start(cmd, log)
+    def _polled(self, cmd: list[str], log: TextIO, env: dict[str, str]) -> tuple[int, float, bool]:
+        proc = self._start(cmd, log, env)
         if self.max_rss is None:
             return (*_reap(proc), False)
         watch = _TreeWatch(proc.pid, self.max_rss, log)
@@ -239,6 +250,11 @@ def start_timing(path: Path) -> None:
     """Create a ``timing.tsv`` holding only its header."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_TIMING_HEADER, encoding="utf-8")
+
+
+def kernel_threads(jobs: int) -> int | None:
+    """Numba threads of a stage with parallel kernels when ``jobs`` reps run at once (ADR 0033 §7), None for one."""
+    return max(1, (os.process_cpu_count() or 1) // jobs) if jobs > 1 else None
 
 
 def child_env(jobs: int) -> dict[str, str]:

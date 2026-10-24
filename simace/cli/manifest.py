@@ -58,7 +58,7 @@ import simace
 from simace.core.publish import publish
 from simace.core.relationships import C_TRANSMISSION_KEYS
 from simace.core.yaml_io import dump_yaml, load_yaml, to_native, yaml_loader
-from simace.simulation.inbreeding_plan import DEFAULT_DEPTH
+from simace.simulation.inbreeding_plan import DEFAULT_DEPTH, plan_for
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -217,12 +217,24 @@ def write_manifest(path: Path, manifest: Manifest, outputs: Iterable[Path]) -> N
         "seed": manifest.seed,
         "resolved": manifest.resolved,
         "stages": manifest.stages,
+        **_inbreeding(manifest.resolved),
         "layout": manifest.layout,
         "outputs": fingerprints(outputs),
         "finished": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
     with publish(path) as (tmp,):
         dump_yaml(body, tmp)
+
+
+def _inbreeding(resolved: Mapping[str, Any]) -> dict[str, Any]:
+    """The ``inbreeding`` record of a rep built through simulate: the plan the stage resolved (ADR 0033 §3-§4).
+
+    The parent recomputes it with the stage's pure function, so it is
+    informative only; staleness compares the ``resolved`` keys.
+    """
+    if "inbreeding_mode" not in resolved:
+        return {}
+    return {"inbreeding": plan_for(resolved).record()}
 
 
 def read_manifest(path: Path) -> Any:
