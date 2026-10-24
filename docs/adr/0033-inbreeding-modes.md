@@ -28,14 +28,15 @@ mating). Not implemented.
    ```yaml
    pedigree:
      inbreeding:
-       mode: off     # off | approx | exact
+       mode: "off"   # "off" | approx | exact (quoted: YAML reads a bare off as false)
        depth: 6      # approx only: generations traced exactly (integer >= 1)
    ```
 
    `off` is the default and is unchanged: same output bytes, same random stream.
 2. **Approx.** xexact: each parent's ancestry traced exactly for `depth` generations, the rest closed with the
    generation's mean kinship. The knob is the integer depth, default 6, not an error tolerance: the RMS law fails at
-   small N and under strong AM, and the max error has no law. `depth ≥ G_sim` is allowed and yields exact F. The
+   small N and under strong AM, and the max error has no law. `depth ≥ G_sim` is allowed and runs the exact mode (its engine and refusal rule), so its F is exact
+   by construction. The
    documentation states the RMS law with its range (N ≥ 2k, assortment ≤ 0.6) and that under assortment ≥ 0.75
    depth 6's Var(A) margin over off shrinks (107–170× at 0.9, G ≤ 50, N 1k); depth 8 or exact restores it. No
    config-load warning.
@@ -44,7 +45,8 @@ mating). Not implemented.
 4. **Exact engine and refusal.** A pure function of (N, G_sim), using the fitted cost models (the recommendation
    §8.5) at a fixed reference of 8 threads: densep when 8·N² ≤ 16 GiB and its predicted time does not exceed
    walkd2's, else walkd2. Refuse, naming the prediction and pointing to `approx`, when twice the chosen engine's
-   prediction exceeds 1 h. The thread count and `--max-memory` never change the choice. `run.yaml` records the
+   prediction exceeds 1 h. The thread count and `--max-memory` never change the choice. The refusal happens in the simulate stage, not at
+   config load, so it fails only that scenario's reps. `run.yaml` records the
    engine.
 5. **Tail layout.** xexact packs generation offset, local id and path multiplicity into one uint32 when
    bitlen(N − 1) + (depth − 1) + bitlen(depth − 1) ≤ 32, else it uses an int32 id with a float32 coefficient. F is
@@ -61,7 +63,8 @@ mating). Not implemented.
 10. **Validation.**
     - pytest in simACE:
       - exact F against pedigree-graph `inbreeding()` and dense float64 on small pedigrees (MZ twins, burn-in);
-      - approx with depth ≥ G_sim bitwise equal to exact, and an RMS band at random mating;
+      - approx with depth ≥ G_sim resolves to exact, and xexact (forced past the handoff) meets an RMS band at
+       random mating;
       - `off` byte-identical with an unchanged random stream;
       - F identical at 1 and 4 threads.
     - simACE-validate: the calibrated test of exact mode's per-generation Var(A1) against the pedigree-conditional
@@ -76,6 +79,9 @@ mating). Not implemented.
   2–3 generations of the first F difference. Comparisons across modes must be distributional.
 - Approx at depth 6 stays the default even under strong AM. The caveat lives in the documentation only.
 - 1M/G 20 and similar deep, large exact runs are refused; they need `approx`.
+- `simace validate` checks that assume a Mendelian variance of A/2 change with the mode: the inheritance
+  variance cell scores residuals normalised by √(1 − F̄), and the generation-0 total-variance check is not
+  applicable when the mode is not `off`.
 - The pedigree schema gains a conditional column; consumers that estimate F from the recorded pedigree
   (fitACE `export_inbreeding`, simACE-validate) should read `F` when present.
 
