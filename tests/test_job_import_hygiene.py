@@ -47,3 +47,15 @@ def test_job_module_does_not_import_heavy_scipy(module: str) -> None:
         f"{module} pulls {loaded} in at import time (0.1-0.5 s per job each); "
         f"import them inside the functions that need them instead."
     )
+
+
+# Config load and the `simace run` parent resolve the inbreeding plan (ADR 0033); numba costs about 0.3 s to
+# import, so the resolver stays out of the numba engines' module.
+_NUMBA_FREE = ["simace.config", "simace.cli.manifest", "simace.simulation.inbreeding_plan"]
+
+
+@pytest.mark.parametrize("module", _NUMBA_FREE)
+def test_config_side_module_does_not_import_numba(module: str) -> None:
+    code = f"import sys; import {module}; print('numba' in sys.modules)"
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert result.stdout.strip() == "False", f"{module} imports numba"

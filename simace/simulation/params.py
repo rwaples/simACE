@@ -26,9 +26,12 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from simace.core.relationships import transmission_coefficients
+from simace.simulation.inbreeding_plan import DEFAULT_DEPTH, OFF, resolve
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+    from simace.simulation.inbreeding_plan import InbreedingPlan
 
 
 @dataclass(frozen=True)
@@ -118,6 +121,7 @@ class SimulationParams:
     Field values are post-normalization: ``G_sim`` defaults to ``G_ped`` when
     unset, and when an ``assort_matrix`` was supplied, ``assort1`` / ``assort2``
     hold its diagonal and ``R_mf`` the matrix itself (else ``R_mf`` is ``None``).
+    ``inbreeding`` is the resolved plan of the inbreeding mode (ADR 0033).
     """
 
     seed: int
@@ -140,6 +144,7 @@ class SimulationParams:
     assort2: float | dict[int, float]
     R_mf: np.ndarray | None
     c_transmission: CTransmission
+    inbreeding: InbreedingPlan = OFF
 
     @classmethod
     def create(
@@ -165,6 +170,8 @@ class SimulationParams:
         assort_matrix: list[list[float]] | np.ndarray | None = None,
         mating_model: str = "standard",
         c_transmission: CTransmission | None = None,
+        inbreeding_mode: str = "off",
+        inbreeding_depth: int = DEFAULT_DEPTH,
     ) -> SimulationParams:
         """Validate and normalize raw run_simulation inputs.
 
@@ -172,6 +179,8 @@ class SimulationParams:
             ValueError: if any parameter is outside its valid range, or the
                 ``assort_matrix`` is malformed / incompatible with per-generation
                 assortment.
+            InbreedingRefused: when an exact inbreeding run is predicted to
+                take too long (ADR 0033 §4).
         """
         if G_sim is None:
             G_sim = G_ped
@@ -257,6 +266,13 @@ class SimulationParams:
         c_transmission = c_transmission or CTransmission()
         c_transmission.validate(C1, C2, rC)
 
+        inbreeding = resolve(inbreeding_mode, inbreeding_depth, N, G_sim)
+        if inbreeding.mode != "off" and N * (G_sim + 1) > np.iinfo(np.int32).max:
+            raise ValueError(
+                f"Inbreeding history N * (G_sim + 1) = {N * (G_sim + 1):,} exceeds int32 max "
+                f"({np.iinfo(np.int32).max:,}). Reduce N or G_sim."
+            )
+
         return cls(
             seed=seed,
             N=N,
@@ -278,4 +294,5 @@ class SimulationParams:
             assort2=assort2,
             R_mf=R_mf,
             c_transmission=c_transmission,
+            inbreeding=inbreeding,
         )

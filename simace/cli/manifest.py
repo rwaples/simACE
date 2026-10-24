@@ -58,6 +58,7 @@ import simace
 from simace.core.publish import publish
 from simace.core.relationships import C_TRANSMISSION_KEYS
 from simace.core.yaml_io import dump_yaml, load_yaml, to_native, yaml_loader
+from simace.simulation.inbreeding_plan import DEFAULT_DEPTH
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -278,8 +279,13 @@ _MISSING = object()
 #: Config keys added after reps were already being recorded, each with the value
 #: every earlier rep was computed under. A ``run.yaml`` without the key compares
 #: as this value, so adding a key with a behavior-preserving default leaves
-#: finished reps complete. The C transmission coefficients are ADR 0025's.
-LEGACY_VALUES: dict[str, Any] = dict.fromkeys(C_TRANSMISSION_KEYS, 0.0)
+#: finished reps complete. The C transmission coefficients are ADR 0025's, the
+#: inbreeding mode and depth ADR 0033's.
+LEGACY_VALUES: dict[str, Any] = {
+    **dict.fromkeys(C_TRANSMISSION_KEYS, 0.0),
+    "inbreeding_mode": "off",
+    "inbreeding_depth": DEFAULT_DEPTH,
+}
 
 
 def _recorded_value(resolved: Mapping[str, Any], key: str) -> Any:

@@ -101,6 +101,8 @@ _SIMULATE_KEYS = (
     "assort2",
     "assort_matrix",
     *C_TRANSMISSION_KEYS,
+    "inbreeding_mode",
+    "inbreeding_depth",
 )
 _PHENOTYPE_KEYS = (
     "G_pheno",

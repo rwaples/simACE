@@ -406,6 +406,16 @@ def test_a_key_newer_than_the_manifest_compares_as_its_legacy_value(config_dir, 
     assert status.describe() == "Ctm_maternal1: 0.0 -> 0.5"
 
 
+def test_a_manifest_without_the_inbreeding_keys_stays_complete(config_dir, layout) -> None:
+    rep = _rep(config_dir, 1)
+    _finish(layout, rep)
+    _without_key(layout, rep, "inbreeding_mode")
+    _without_key(layout, rep, "inbreeding_depth")
+    assert status_on_disk(rep, layout).state is RepState.COMPLETE
+    moved = ResolvedRep(rep.folder, rep.scenario, 1, {**rep.params, "inbreeding_mode": "approx"})
+    assert status_on_disk(moved, layout).describe() == "inbreeding_mode: off -> approx"
+
+
 def test_a_manifest_copied_from_another_rep_is_stale(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
     rep1, rep2 = _rep(config_dir, 1), _rep(config_dir, 2)
     _finish(layout, rep1)

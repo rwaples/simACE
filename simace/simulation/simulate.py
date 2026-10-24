@@ -37,6 +37,7 @@ from simace.core.cohort import write_pedigree
 from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
 from simace.simulation.assortment import METROPOLIS_TOL, AssortmentPlan, _cross_am_matrix, write_mating_log
+from simace.simulation.inbreeding_plan import DEFAULT_DEPTH, INBREEDING_MODES
 from simace.simulation.params import CTransmission, SimulationParams, c_covariance
 
 if TYPE_CHECKING:
@@ -1591,6 +1592,8 @@ def run_simulation(
     Ctm_paternal1: float = 0.0,
     Ctm_maternal2: float = 0.0,
     Ctm_paternal2: float = 0.0,
+    inbreeding_mode: str = "off",
+    inbreeding_depth: int = DEFAULT_DEPTH,
     clip_log: list[dict[str, Any]] | None = None,
     mating_log: list[dict[str, Any]] | None = None,
 ) -> pl.DataFrame:
@@ -1641,6 +1644,11 @@ def run_simulation(
         Ctm_paternal1: Trait 1 paternal C transmission coefficient ``b_f``.
         Ctm_maternal2: Trait 2 maternal C transmission coefficient.
         Ctm_paternal2: Trait 2 paternal C transmission coefficient.
+        inbreeding_mode: ``"off"`` (default), ``"approx"`` or ``"exact"``:
+            whether and how each offspring's Mendelian residual is scaled by
+            ``sqrt(1 - F_bar)``, ``F_bar`` its parents' mean inbreeding
+            coefficient (ADR 0033).
+        inbreeding_depth: Generations ``approx`` traces exactly (>= 1).
         clip_log: Under C transmission, receives a record per fresh-draw
             eigenvalue clipped to 0, each with its ``generation`` in
             recorded coordinates (negative during burn-in), ``excess``,
@@ -1687,7 +1695,11 @@ def run_simulation(
         assort_matrix=assort_matrix,
         mating_model=mating_model,
         c_transmission=CTransmission(maternal=(Ctm_maternal1, Ctm_maternal2), paternal=(Ctm_paternal1, Ctm_paternal2)),
+        inbreeding_mode=inbreeding_mode,
+        inbreeding_depth=inbreeding_depth,
     )
+    if params.inbreeding.mode != "off":
+        raise NotImplementedError(f"inbreeding mode {params.inbreeding.mode!r} is not implemented yet")
     # Rebind the values normalization changed; everything else is unchanged.
     G_sim = params.G_sim
     assort1 = params.assort1
@@ -1941,6 +1953,13 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
                 default=0.0,
                 help=f"Share of the {parent}'s C{t} an offspring inherits, in [0, 1] (ADR 0025)",
             )
+    parser.add_argument(
+        "--inbreeding-mode",
+        default="off",
+        choices=INBREEDING_MODES,
+        help="Scale the Mendelian residual by sqrt(1 - parental F): off, approx or exact (ADR 0033)",
+    )
+    parser.add_argument("--inbreeding-depth", type=int, default=DEFAULT_DEPTH, help="Generations approx traces exactly")
     parser.add_argument("--output-pedigree", required=True, help="Output pedigree parquet path")
     parser.add_argument("--output-mating", default=None, help="Output path of the pairing records (mating.yaml)")
     args = parser.parse_args(argv)
@@ -1976,6 +1995,8 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         Ctm_paternal1=args.Ctm_paternal1,
         Ctm_maternal2=args.Ctm_maternal2,
         Ctm_paternal2=args.Ctm_paternal2,
+        inbreeding_mode=args.inbreeding_mode,
+        inbreeding_depth=args.inbreeding_depth,
         clip_log=clip_log,
         mating_log=mating_log,
     )

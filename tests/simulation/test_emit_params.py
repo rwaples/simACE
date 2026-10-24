@@ -65,6 +65,8 @@ class TestEmitParamsShape:
             "Ctm_paternal1",
             "Ctm_maternal2",
             "Ctm_paternal2",
+            "inbreeding_mode",
+            "inbreeding_depth",
             "simace_version",
         }
         assert set(out.keys()) == expected
