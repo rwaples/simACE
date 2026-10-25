@@ -74,6 +74,7 @@ def test_simulate_argv_round_trips(monkeypatch, rep_and_layout) -> None:
 
     keys = ["N", "G_ped", "G_sim", "mating_model", "mating_lambda", "p_mztwin"]
     keys += ["A1", "C1", "E1", "A2", "C2", "E2", "rA", "rC", "rE", "assort1", "assort2", "assort_matrix"]
+    keys += ["inbreeding_mode", "inbreeding_depth"]
     assert recorder.kwargs["seed"] == rep.seed
     assert _subset(recorder.kwargs, keys) == {key: rep.params[key] for key in keys}
 

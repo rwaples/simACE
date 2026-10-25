@@ -32,6 +32,7 @@ from simace.core.phenotype_keys import (
 from simace.core.relationships import C_TRANSMISSION_KEYS, transmission_key
 from simace.core.standardize import coerce_standardize_mode
 from simace.core.yaml_io import load_yaml
+from simace.simulation.inbreeding_plan import DEFAULT_DEPTH, INBREEDING_MODES
 from simace.simulation.params import CTransmission, am_transmitted_share
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,8 @@ _HIERARCHICAL_TO_FLAT: dict[tuple[str, ...], str] = {
     ("pedigree", "rA"): "rA",
     ("pedigree", "rC"): "rC",
     ("pedigree", "rE"): "rE",
+    ("pedigree", "inbreeding", "mode"): "inbreeding_mode",
+    ("pedigree", "inbreeding", "depth"): "inbreeding_depth",
     # phenotype section. Note: phenotype.trait{N}.prevalence is no longer a
     # top-level mapping — PR3 moved prevalence inside per-model params for
     # adult / cure_frailty (it is forbidden for frailty / first_passage).
@@ -232,6 +235,14 @@ def _coerce_sim_types(flat: dict) -> dict:
             flat[key] = float(flat[key])
     if "standardize" in flat:
         flat["standardize"] = coerce_standardize_mode(flat["standardize"])
+    if isinstance(flat.get("inbreeding_mode"), bool):
+        raise ValueError(
+            f"pedigree.inbreeding.mode is the boolean {flat['inbreeding_mode']!r}: YAML reads a bare off as false. "
+            'Quote it: mode: "off" (ADR 0033)'
+        )
+    depth = flat.get("inbreeding_depth")
+    if depth is not None and (isinstance(depth, bool) or not isinstance(depth, int)):
+        raise ValueError(f"pedigree.inbreeding.depth must be an integer, got {depth!r} (ADR 0033)")
     return flat
 
 
@@ -468,6 +479,8 @@ def _validate_pedigree_config(config: dict) -> None:
        simulator takes scalars only (``SimulationParams``).
     4. Validate the C transmission coefficients against the scope bound and
        the configured C (:meth:`CTransmission.validate`, ADR 0025).
+    5. Validate the inbreeding mode and depth (ADR 0033). The cost refusal
+       is the simulate stage's, so a refused scenario fails only its reps.
 
     Args:
         config: the merged ``{"defaults": ..., "scenarios": ...}`` dict.
@@ -510,6 +523,14 @@ def _validate_pedigree_config(config: dict) -> None:
         except ValueError as exc:
             raise ValueError(f"Scenario '{name}': {exc}") from exc
         _warn_am_transmission(name, effective)
+        mode = effective.get("inbreeding_mode", "off")
+        if mode not in INBREEDING_MODES:
+            raise ValueError(
+                f"Scenario '{name}': inbreeding_mode={mode!r} is not valid. Choose from: {list(INBREEDING_MODES)}"
+            )
+        depth = effective.get("inbreeding_depth", DEFAULT_DEPTH)
+        if depth < 1:
+            raise ValueError(f"Scenario '{name}': inbreeding_depth must be >= 1, got {depth!r}")
 
         # Strict WF-override check.  ``params`` is the scenario-only flat dict
         # (see resolve_scenarios) so ``key in params`` reliably means

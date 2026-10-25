@@ -8,11 +8,13 @@ on, and the cross-domain rejection of unknown keys.
 from pathlib import Path
 
 import pytest
+import yaml
 
 from simace.config import (
     _HIERARCHICAL_TO_FLAT,
     _SIM_FLAT_GLOBALS,
     KNOWN_SIM_KEYS,
+    _coerce_sim_types,
     _is_zero_assort,
     _validate_pedigree_config,
     _validate_phenotype_config,
@@ -448,3 +450,36 @@ class TestCTransmissionConfig:
 
     def test_wright_fisher_accepts_transmission(self):
         _validate_pedigree_config(self._wrap({"mating_model": "wright_fisher", "Ctm_maternal1": 0.5}))
+
+
+class TestInbreedingConfig:
+    """``pedigree.inbreeding`` (ADR 0033): config load checks mode and depth; the cost refusal is the stage's."""
+
+    @staticmethod
+    def _wrap(scenario_overrides: dict) -> dict:
+        return {"defaults": {"E1": 0.5, "E2": 0.5}, "scenarios": {"sc": {**scenario_overrides, "E1": 0.5, "E2": 0.5}}}
+
+    def test_defaults(self):
+        defaults = resolve_defaults(CONFIG_DIR)
+        assert (defaults["inbreeding_mode"], defaults["inbreeding_depth"]) == ("off", 6)
+
+    def test_bare_off_is_rejected_with_a_quoting_hint(self):
+        flat = flatten_hierarchical(yaml.safe_load("pedigree: {inbreeding: {mode: off}}"))
+        with pytest.raises(ValueError, match='Quote it: mode: "off"'):
+            _coerce_sim_types(flat)
+
+    @pytest.mark.parametrize("depth", [6.5, 6.0, True, "6"])
+    def test_non_integer_depth_is_rejected(self, depth):
+        with pytest.raises(ValueError, match="depth must be an integer"):
+            _coerce_sim_types({"inbreeding_depth": depth})
+
+    @pytest.mark.parametrize(
+        ("overrides", "match"),
+        [({"inbreeding_mode": "full"}, "inbreeding_mode='full' is not valid"), ({"inbreeding_depth": 0}, ">= 1")],
+    )
+    def test_bad_values_are_rejected(self, overrides, match):
+        with pytest.raises(ValueError, match=match):
+            _validate_pedigree_config(self._wrap(overrides))
+
+    def test_a_refused_scenario_still_loads(self):
+        _validate_pedigree_config(self._wrap({"N": 1_000_000, "G_sim": 20, "inbreeding_mode": "exact"}))

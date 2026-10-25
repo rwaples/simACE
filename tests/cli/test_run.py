@@ -406,6 +406,16 @@ def test_a_key_newer_than_the_manifest_compares_as_its_legacy_value(config_dir, 
     assert status.describe() == "Ctm_maternal1: 0.0 -> 0.5"
 
 
+def test_a_manifest_without_the_inbreeding_keys_stays_complete(config_dir, layout) -> None:
+    rep = _rep(config_dir, 1)
+    _finish(layout, rep)
+    _without_key(layout, rep, "inbreeding_mode")
+    _without_key(layout, rep, "inbreeding_depth")
+    assert status_on_disk(rep, layout).state is RepState.COMPLETE
+    moved = ResolvedRep(rep.folder, rep.scenario, 1, {**rep.params, "inbreeding_mode": "approx"})
+    assert status_on_disk(moved, layout).describe() == "inbreeding_mode: off -> approx"
+
+
 def test_a_manifest_copied_from_another_rep_is_stale(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
     rep1, rep2 = _rep(config_dir, 1), _rep(config_dir, 2)
     _finish(layout, rep1)
@@ -524,6 +534,64 @@ def test_pedigree_graph_splits_the_cores_across_concurrent_reps(monkeypatch) -> 
     monkeypatch.setenv("PEDIGREE_GRAPH_THREADS", "3")
     assert launch_mod.child_env(1)["PEDIGREE_GRAPH_THREADS"] == "3"
     assert launch_mod.child_env(2)["PEDIGREE_GRAPH_THREADS"] == "3"
+
+
+_REPORT_NUMBA_THREADS = [sys.executable, "-c", "import numba; print(numba.get_num_threads())"]
+
+
+def test_a_kernel_stage_gets_its_share_of_the_cores_under_jobs(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("NUMBA_NUM_THREADS", raising=False)
+    cores = os.process_cpu_count() or 1
+    log = tmp_path / "threads.log"
+    many = launch_mod.Launcher(launch_mod.child_env(2), kernel_threads=launch_mod.kernel_threads(2))
+    assert many.run(_REPORT_NUMBA_THREADS, log, many.kernel_env()).exit_code == 0
+    assert log.read_text().strip() == str(max(1, cores // 2))
+    assert many.run(_REPORT_NUMBA_THREADS, log).exit_code == 0
+    assert log.read_text().strip() == "1"  # every other stage stays at one thread
+    one = launch_mod.Launcher(launch_mod.child_env(1), kernel_threads=launch_mod.kernel_threads(1))
+    assert one.kernel_env() == {}
+    assert one.run(_REPORT_NUMBA_THREADS, log, one.kernel_env()).exit_code == 0
+    assert log.read_text().strip() == str(cores)
+
+
+def test_only_simulate_runs_with_kernel_threads(config_dir, layout, monkeypatch) -> None:
+    calls = []
+
+    class Recording(launch_mod.Launcher):
+        def run(self, cmd, log_path, extra_env=None):
+            calls.append((cmd[cmd.index("simace") + 1], extra_env))
+            return launch_mod.StageResult(0.0, 1.0, None, 0 if len(calls) < 2 else 1, False)
+
+    assert [s.name for s in STAGES if s.kernel_threads] == ["simulate"]
+    launcher = Recording({}, kernel_threads=3)
+    assert run_mod._recompute(_rep(config_dir, 1), layout, launcher, run_mod._Console()) is not None
+    assert calls == [("simulate", {"NUMBA_NUM_THREADS": "3"}), ("cohort", None)]
+
+
+def test_run_yaml_records_the_inbreeding_plan(config_dir, layout) -> None:
+    rep = _rep(config_dir, 1)
+    _finish(layout, rep)
+    assert yaml.safe_load(_manifest(layout, rep).read_text())["inbreeding"] == {
+        "mode": "off",
+        "engine": "none",
+        "depth": None,
+        "packed": False,
+    }
+    approx = ResolvedRep(rep.folder, rep.scenario, 1, {**rep.params, "inbreeding_mode": "approx"})
+    _finish(layout, approx)
+    recorded = yaml.safe_load(_manifest(layout, approx).read_text())
+    assert recorded["inbreeding"] == {"mode": "exact", "engine": "walkd2", "depth": None, "packed": False}
+    assert status_on_disk(approx, layout).state is RepState.COMPLETE
+
+
+def test_dry_run_prints_the_inbreeding_plan_and_its_refusal(config_dir, roots, capsys) -> None:
+    deep = {**TINY, "replicates": 1, "pedigree": {"inbreeding": {"mode": "exact"}}}
+    scenarios = {"inb_ok": deep, "inb_refused": {**deep, "N": 1_000_000, "G_sim": 20}}
+    (config_dir / "u.yaml").write_text(yaml.safe_dump(scenarios))
+    assert _run(config_dir, roots, "u", "--dry-run") == 0
+    out = capsys.readouterr().out
+    assert '# rep 1: inbreeding {"mode": "exact", "engine": "walkd2", "depth": null, "packed": false}' in out
+    assert "# rep 1: inbreeding refused: exact inbreeding at N=1000000, G_sim=20 is refused" in out
 
 
 def test_child_env_without_sched_getaffinity(monkeypatch) -> None:

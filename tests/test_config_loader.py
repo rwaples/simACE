@@ -253,6 +253,8 @@ class TestRoundTrip:
             "Ctm_paternal1",
             "Ctm_maternal2",
             "Ctm_paternal2",
+            "inbreeding_mode",
+            "inbreeding_depth",
         }
         assert set(flat.keys()) == expected_keys
 

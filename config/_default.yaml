@@ -70,6 +70,13 @@ defaults:
     rA: 0.0
     rC: 0.0
     rE: 0.0
+    # Scale each offspring's Mendelian residual by sqrt(1 - mean parental F)
+    # (ADR 0033). mode: "off" | approx | exact; quote "off", which YAML
+    # otherwise reads as false. depth (approx only): generations traced
+    # exactly, an integer >= 1.
+    inbreeding:
+      mode: "off"
+      depth: 6
 
   # ── Phenotype ───────────────────────────────────────────────────────────
   # model: frailty | cure_frailty | adult | first_passage

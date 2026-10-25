@@ -28,6 +28,7 @@ __all__ = [
 
 import argparse
 import fcntl
+import json
 import os
 import shlex
 import sys
@@ -38,7 +39,15 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from simace.cli.cgroups import CgroupRoot, CgroupUnavailable
-from simace.cli.launch import Launcher, append_timing, child_env, command, parse_size, start_timing
+from simace.cli.launch import (
+    Launcher,
+    append_timing,
+    child_env,
+    command,
+    kernel_threads,
+    parse_size,
+    start_timing,
+)
 from simace.cli.layout import RepArtifact, add_root_args, require_config, resolve_roots
 from simace.cli.manifest import PlotsState, RepState, write_manifest, write_plots_manifest
 from simace.cli.stages import (
@@ -63,9 +72,10 @@ from simace.cli.status import (
     status_on_disk,
 )
 from simace.core.publish import TMP_SUFFIX, publish
+from simace.simulation.inbreeding_plan import InbreedingRefused, plan_for
 
 if TYPE_CHECKING:
-    from collections.abc import Generator, Iterable
+    from collections.abc import Generator, Iterable, Mapping
     from pathlib import Path
 
     from simace.cli.layout import Layout
@@ -163,7 +173,8 @@ def _recompute(
     for stage in STAGES[first:until]:
         console.say(tag, f"{stage.name} started")
         log_path = rep.log(layout, stage.name)
-        result = launcher.run(command(stage.name, stage.argv(rep, layout)), log_path)
+        extra_env = launcher.kernel_env() if stage.kernel_threads else None
+        result = launcher.run(command(stage.name, stage.argv(rep, layout)), log_path, extra_env)
         append_timing(timing, stage.name, result)
         if result.exit_code != 0:
             failure = f"{stage.name} FAILED ({result.failure}); log: {log_path}"
@@ -463,7 +474,7 @@ def _run_reps(
     failed = _compute(
         [item for run in runs for item in outcomes[run.scenario].to_compute],
         layout,
-        Launcher(child_env(args.jobs), args.max_memory, lock_fds, cgroups),
+        Launcher(child_env(args.jobs), args.max_memory, lock_fds, cgroups, kernel_threads(args.jobs)),
         console,
         jobs=args.jobs,
         fail_fast=args.fail_fast,
@@ -591,6 +602,13 @@ def _build_plots(
     return True
 
 
+def _inbreeding_plan_line(params: Mapping[str, Any]) -> str:
+    try:
+        return json.dumps(plan_for(params).record())
+    except InbreedingRefused as exc:
+        return f"refused: {exc}"
+
+
 def _print_plan(
     to_compute: list[tuple[ResolvedRep, int]],
     all_reps: list[ResolvedRep],
@@ -602,6 +620,8 @@ def _print_plan(
 ) -> None:
     for rep, first in to_compute:
         print(f"# rep {rep.rep}: write {rep.path(layout, RepArtifact.PARAMS)}")
+        if first == 0 and rep.params.get("inbreeding_mode", "off") != "off":
+            print(f"# rep {rep.rep}: inbreeding {_inbreeding_plan_line(rep.params)}")
         for stage in STAGES[first:until]:
             print(shlex.join(command(stage.name, stage.argv(rep, layout))))
     if include_plots:

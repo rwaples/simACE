@@ -42,6 +42,7 @@ from __future__ import annotations
 __all__ = [
     "COHORT_COLUMNS",
     "C_TRANSMISSION_CLIPS_KEY",
+    "INBREEDING_KEY",
     "LAYOUT",
     "SAMPLE_REQUIRED",
     "SelectedViews",
@@ -49,6 +50,7 @@ __all__ = [
     "check_cohort",
     "read_c_transmission_clips",
     "read_cohort",
+    "read_inbreeding",
     "read_pedigree",
     "selected_views",
     "sever_dangling_links",
@@ -69,6 +71,8 @@ from simace.core.trait_schema import TRAIT_CENSORED_COLUMNS
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+    from simace.simulation.inbreeding_plan import InbreedingPlan
 
 #: The results layout this module reads and writes; ``simace.cli.stages.REP_LAYOUT`` mirrors it.
 LAYOUT = 2
@@ -227,15 +231,34 @@ def _require_layout(path: Any) -> None:
 #: Parquet metadata key of the pedigree's C transmission clip records, JSON (ADR 0025).
 C_TRANSMISSION_CLIPS_KEY = "simace_c_transmission_clips"
 
+#: Parquet metadata key of the inbreeding plan the simulation ran, JSON ``{mode, engine, depth, packed}`` (ADR 0033).
+INBREEDING_KEY = "simace_inbreeding"
 
-def write_pedigree(df: pl.DataFrame, path: Any, c_transmission_clips: list[dict[str, Any]] | None = None) -> None:
+
+def write_pedigree(
+    df: pl.DataFrame,
+    path: Any,
+    c_transmission_clips: list[dict[str, Any]] | None = None,
+    inbreeding: InbreedingPlan | None = None,
+) -> None:
     """Write the recorded pedigree through :func:`save_parquet`, marked with the layout.
 
     ``c_transmission_clips`` (the simulation's ``clip_log``) is stored as JSON
-    under :data:`C_TRANSMISSION_CLIPS_KEY` when given.
+    under :data:`C_TRANSMISSION_CLIPS_KEY`, and the ``inbreeding`` plan's
+    record under :data:`INBREEDING_KEY`, each when given.
     """
-    metadata = None if c_transmission_clips is None else {C_TRANSMISSION_CLIPS_KEY: json.dumps(c_transmission_clips)}
-    _write(df, path, metadata)
+    metadata = {}
+    if c_transmission_clips is not None:
+        metadata[C_TRANSMISSION_CLIPS_KEY] = json.dumps(c_transmission_clips)
+    if inbreeding is not None:
+        metadata[INBREEDING_KEY] = json.dumps(inbreeding.record())
+    _write(df, path, metadata or None)
+
+
+def read_inbreeding(path: Any) -> dict[str, Any] | None:
+    """The inbreeding plan record a pedigree was written with, or None for one simulated with mode off."""
+    found = pl.read_parquet_metadata(path).get(INBREEDING_KEY)
+    return None if found is None else json.loads(found)
 
 
 def read_c_transmission_clips(path: Any) -> list[dict[str, Any]] | None:

@@ -55,6 +55,9 @@ pedigree:
   rA: 0.0
   rC: 0.0
   rE: 0.0
+  inbreeding:
+    mode: "off"
+    depth: 6
 ```
 
 | Parameter | Type | Default | Description |
@@ -78,6 +81,8 @@ pedigree:
 | `pedigree.rA` | float | `0.0` | Cross-trait correlation of the additive genetic components |
 | `pedigree.rC` | float | `0.0` | Cross-trait correlation of the common environment components |
 | `pedigree.rE` | float | `0.0` | Cross-trait correlation of the unique environment components |
+| `pedigree.inbreeding.mode` | str | `"off"` | `"off"`, `approx` or `exact`: scale each offspring's Mendelian residual by √(1 − F̄), F̄ its parents' mean inbreeding coefficient. Quote `"off"`, which YAML reads as false. See [Inbreeding](#inbreeding) and [ADR 0033](../adr/0033-inbreeding-modes.md) |
+| `pedigree.inbreeding.depth` | int | `6` | `approx` only: generations each parent's ancestry is traced exactly, an integer ≥ 1 |
 
 Under `wright_fisher`, the loader rejects any `mating_lambda` override. It
 also rejects nonzero `p_mztwin`, `assort1`, or `assort2` overrides and any
@@ -90,6 +95,61 @@ trait is constant, or if the two traits are collinear within a sex
 ([ADR 0024](../adr/0024-realised-assortment-feasibility.md)). For two traits
 that are effectively one, set only `assort1` or `assort2`
 (single-trait assortment).
+
+### Inbreeding
+
+With `mode: "off"` (the default) every offspring's Mendelian residual has
+variance A/2, and the output is unchanged. `approx` and `exact` give it
+variance (A/2)(1 − F̄), with F̄ the mean of the parents' inbreeding
+coefficients over the whole simulated ancestry, burn-in included, and add a
+float32 column `F` (the inbreeding coefficient the simulation used) after
+`household_id` in the pedigree.
+
+- `exact` computes F exactly. The engine, dense kinship (`densep`) or a path
+  walk (`walkd2`), is chosen from N and `G_sim` alone, and the simulate stage
+  refuses a run whose predicted time, doubled, exceeds one hour.
+- `approx` traces each parent's ancestry exactly for `depth` generations and
+  closes the rest with the generation's mean kinship. It runs `exact` when
+  `depth >= G_sim`, and at small N (8·N² ≤ 1 GiB and N²·`G_sim` ≤ 1e9).
+
+`run.yaml` records the plan that ran (`inbreeding: {mode, engine, depth,
+packed}`), and `simace run --dry-run` prints it, or the refusal, for each rep.
+
+**Choosing a depth.** Under random mating, the per-individual RMS error of
+`approx` F is about 0.8 · 2^−depth / (2√N). That law holds for N ≥ 2,000 at
+depth ≤ 6 and for N ≥ 10,000 up to depth 10, at assortment ≤ 0.6. Below
+those sizes the error stops halving with each extra generation, and the
+largest error has no law at all. Under strong assortment (≥ 0.75), depth 6's
+margin over `off` shrinks. Its effect on Var(A) stays at least 200× below
+`off`'s error up to assortment 0.8. At assortment 0.9, N 1,000 and `G_sim`
+≤ 50 it is 107–170× below, still 380–900× below one replicate's SD. Depth 8
+(238× at G 20) or `exact` restores the 200× margin. The simulation does not
+warn about this.
+
+**Cost of the engines.** The engine choice and the refusal use cost models
+fitted at a fixed reference of 8 threads, so every host makes the same
+choice; the thread count and `--max-memory` never change it.
+
+- At 1 thread, expect about 10× the prediction for walkd2 and about 4× for
+  densep. Under `--jobs` equal to the core count each simulate stage has one
+  thread, so an accepted exact run can take about an hour (1M/`G_sim` 16:
+  326 s predicted at 8 threads, about 3,500 s at 1). The fits are good to an
+  order of magnitude: their predicted/measured ratios span 0.52–1.82.
+- densep holds two float32 N × N arrays, 8·N² bytes; it is chosen only up to
+  16 GiB.
+- walkd2 holds about 24·N·(`G_sim` + 1) bytes of history plus 2·T·(`G_sim` +
+  1)·N·4 bytes of scratch for T threads, so its memory grows with the thread
+  count (1M/`G_sim` 16: about 4.5 GiB at 32 threads).
+- `approx` holds about 28·N·(`G_sim` + 1) bytes of history (2.6 GiB at
+  1M/`G_sim` 100) plus each family's tail of ancestors.
+- The resolver does not see `--max-memory`: a run whose engine needs more is
+  killed by the cap, not refused.
+- A future refit of the cost models can change the engine of some
+  configurations. `run.yaml` records the engine that ran.
+
+Under `--jobs N > 1` the simulate stage gets `max(1, cores // N)` numba
+threads instead of one, as pedigree-graph gets cores/N in Analyze. F does
+not depend on the thread count.
 
 ## Phenotype
 
@@ -274,6 +334,8 @@ accepts either form, but it rejects a parameter supplied in both forms.
 | `pedigree.rA` | `rA` |
 | `pedigree.rC` | `rC` |
 | `pedigree.rE` | `rE` |
+| `pedigree.inbreeding.mode` | `inbreeding_mode` |
+| `pedigree.inbreeding.depth` | `inbreeding_depth` |
 | `phenotype.trait1.model` | `phenotype_model1` |
 | `phenotype.trait1.params` | `phenotype_params1` |
 | `phenotype.trait1.beta` | `beta1` |
