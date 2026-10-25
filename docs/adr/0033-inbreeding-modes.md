@@ -92,5 +92,18 @@ mating). Not implemented.
   possibly an AM pedigree, could differ between a laptop and a cluster run of one seed.
 - **Auto-raising depth under strong AM, or a default of 8**: a hidden dependence on another key, or a cost paid by
   every run; the measured gain from 6 to 8 under AM is about 2×, not 4×.
-- **Engines in pedigree-graph**: needs an incremental API against an immutable graph (pg ADR 0007), a pg release
-  per change, and costs pedigree-graph its role as an independent oracle.
+- **Engines in pedigree-graph** (re-examined in `notes/issue-76-pedigree-graph.md`). The immutable graph is no
+  obstacle: a stateless step over host-owned history columns fits pg ADR 0007, whose core retains nothing between
+  calls, and the binding borrows numpy arrays without a copy. The engines stay in simACE for four reasons:
+  - **Generality:** walkd2's generation-ordered queue, xexact's depth-L closure and its RMS law assume simACE's
+    discrete, generation-sized cohorts, which a general-pedigree library cannot assume.
+  - **Release coupling:** every engine change would need a pg release and relocks of every consumer, while the
+    cost models here are fitted to these exact kernels.
+  - **Oracle independence:** pedigree-graph's per-individual walk is a different algorithm from walkd2. It agrees
+    with walkd2 and dense float64 to ≤ 1.25e-13, which is what makes it a useful check.
+  - **No speed gain:** a safe-Rust port of walkd2 gives F bitwise equal to numba's but is only 19–27% faster, and
+    only with huge pages, which pedigree-graph's `forbid(unsafe_code)` core cannot request. Without them it is up
+    to 3.3× slower at 1M.
+
+  A batch `inbreeding()` cannot replace the per-iteration step: under assortative mating each pairing depends on
+  A, so the parents' F must exist before the iteration that mates them.
