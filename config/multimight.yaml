@@ -155,7 +155,8 @@ mm_C02_bm:
     death_scale: 164
     death_rho: 2.73
 
-# M0 wrong (b_f > 0): the paternal_transmission contrast must reject. b_f .4, not .3: M1's Jacobian loses rank at b_f = 1 - 1/sqrt(2) ≈ .293
+# M0 wrong (b_f > 0): M0's h² is biased most here (+.158); M1 (Av split by lineage) should recover it.
+# The paternal_transmission contrast's truth b_f c² (1 - 2 b_f) is only .016 at b_f .4, so it rejects rarely.
 mm_C02_bf:
   seed: 364000
   N: 50000

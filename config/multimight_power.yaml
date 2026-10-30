@@ -1,6 +1,8 @@
 # multimight phase 1: power of the paternal_transmission contrast against b_f and N.
 # Each cell is multimight.yaml's mm_C02_bf (A .5, C .2, b_m .5) with b_f and N varied;
-# mm_C02_bf itself is the b_f .4, N 50k point. 200 replicates each.
+# the b_f .4, N 50k point is mm_C02_bf in multimight.yaml (400 replicates, scored under
+# results/multimight/), not a cell here. The cells here have 200 replicates each; the
+# runner reads that from each cell's ``replicates``.
 
 mmp_bf10_N50k:
   seed: 371000
