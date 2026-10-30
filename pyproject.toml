@@ -13,7 +13,7 @@ dependencies = [
     "pedigree-graph>=0.12,<0.15",
     # Mate correlations (simACE#47). Minor-capped like pedigree-graph: before
     # 1.0 a minor release may change estimates or the result fields.
-    "pg-phenotype>=0.5,<0.6",
+    "pg-phenotype>=0.6,<0.7",
     "numpy>=2.2,<3",
     "scipy>=1.14,<2",
     "polars>=1.43.2,<2",
