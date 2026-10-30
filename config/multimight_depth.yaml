@@ -1,0 +1,373 @@
+# multimight step 2: where M1 stops beating M0 (plans/multimight-depth.md, v3).
+# Every cell is mm_C02_bf (config/multimight.yaml: A .5, C .2, b_m .5, K .25, G_ped 10) with
+# N, G_pheno, b_f and replicates changed. gen_censoring keeps keys 6-9, all [0, 80], which is
+# also what an unlisted generation gets. Seeds 5000 apart from 460000, clear of 401000-455799.
+# The two crossover cells (C) are added once A and B give SE(h2) per model.
+
+# A: depth at 60k probands (probands = (G_pheno - 1) N)
+md_A_g2_n60k:
+  seed: 460000
+  N: 60000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 2
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.1
+    trait2:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.1
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 20
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# near-zero pHS/FO correlations: signed estimates
+
+md_A_g3_n30k:
+  seed: 465000
+  N: 30000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 3
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.1
+    trait2:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.1
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 20
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# near-zero pHS/FO correlations: signed estimates
+
+md_A_g4_n20k:
+  seed: 470000
+  N: 20000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 4
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.1
+    trait2:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.1
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 20
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# near-zero pHS/FO correlations: signed estimates
+
+# B: thinnest cell, calibration (pilot 30 reps first)
+md_B_g2_n20k:
+  seed: 475000
+  N: 20000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 2
+  replicates: 800
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.1
+    trait2:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.1
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 20
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# near-zero pHS/FO correlations: signed estimates
+
+# B0: thin control, M0 correct (b_f 0)
+md_B0_g2_n20k:
+  seed: 480000
+  N: 20000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 2
+  replicates: 200
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.0
+    trait2:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.0
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 20
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# near-zero pHS/FO correlations: signed estimates
+
+# C: crossover bracket at 20k probands; A/B predict b_f* ~ .12 (plans/multimight-depth.md)
+md_C_g2_n20k_bf08:
+  seed: 485000
+  N: 20000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 2
+  replicates: 400
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.08
+    trait2:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.08
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 20
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# near-zero pHS/FO correlations: signed estimates
+
+md_C_g2_n20k_bf16:
+  seed: 490000
+  N: 20000
+  G_sim: 10
+  G_ped: 10
+  G_pheno: 2
+  replicates: 400
+  standardize: none
+  pedigree:
+    p_mztwin: 0
+    trait1:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.16
+    trait2:
+      A: 0.5
+      C: 0.2
+      E: 0.3
+      C_transmission:
+        maternal: 0.5
+        paternal: 0.16
+    rA: 0.0
+    rC: 0.0
+  phenotype:
+    trait1:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 50
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+    trait2:
+      model: adult
+      params:
+        method: ltm
+        cip_x0: 20
+        cip_k: 0.15
+        prevalence: 0.25
+      beta: 1.0
+      beta_sex: 0.0
+  censoring:
+    gen_censoring: {6: [0, 80], 7: [0, 80], 8: [0, 80], 9: [0, 80]}
+    death_scale: 164
+    death_rho: 2.73
+
+# near-zero pHS/FO correlations: signed estimates
