@@ -1,10 +1,13 @@
 # multimight phase 1 validation (fitACE_epimight joint.py; plans/multimight-joint-ace-v2.md).
 # Each cell mirrors epimight_ci_broad.yaml cib3_C01: N 50k, G_pheno 4, K 0.25, no MZ twins, random mating.
 # rA/rC are 0: phase 1 fits trait1 only.
+# Cell seeds are 5000 apart: a rep uses seed + rep - 1 and its streams sit at +100
+# (trait 2) and +1000 (deaths), so 1000-apart seeds made one cell's deaths reuse the
+# next cell's simulation stream. The pre-2026-10-31 results used seeds 1000 apart.
 
 # C = 0: Falconer/follow-up leak into c2 (read first)
 mm_C0:
-  seed: 361000
+  seed: 401000
   N: 50000
   G_sim: 10
   G_ped: 10
@@ -55,7 +58,7 @@ mm_C0:
 
 # M0 correct, c_MO = 0
 mm_C02:
-  seed: 362000
+  seed: 406000
   N: 50000
   G_sim: 10
   G_ped: 10
@@ -106,7 +109,7 @@ mm_C02:
 
 # M0 correct, c_MO = b_m C = 0.1
 mm_C02_bm:
-  seed: 363000
+  seed: 411000
   N: 50000
   G_sim: 10
   G_ped: 10
@@ -158,12 +161,12 @@ mm_C02_bm:
 # M0 wrong (b_f > 0): M0's h² is biased most here (+.158); M1 (Av split by lineage) should recover it.
 # The paternal_transmission contrast's truth b_f c² (1 - 2 b_f) is only .016 at b_f .4, so it rejects rarely.
 mm_C02_bf:
-  seed: 364000
+  seed: 416000
   N: 50000
   G_sim: 10
   G_ped: 10
   G_pheno: 4
-  replicates: 400
+  replicates: 800
   standardize: none
   pedigree:
     p_mztwin: 0
@@ -209,7 +212,7 @@ mm_C02_bf:
 
 # near-zero pHS/FO correlations: signed estimates
 mm_A01_C02:
-  seed: 365000
+  seed: 421000
   N: 50000
   G_sim: 10
   G_ped: 10

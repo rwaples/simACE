@@ -1,11 +1,14 @@
 # multimight phase 1: power of the paternal_transmission contrast against b_f and N.
 # Each cell is multimight.yaml's mm_C02_bf (A .5, C .2, b_m .5) with b_f and N varied;
 # the b_f .4, N 50k point is mm_C02_bf in multimight.yaml (400 replicates, scored under
-# results/multimight/), not a cell here. The cells here have 200 replicates each; the
+# results/multimight/; 800 replicates since 2026-10-31), not a cell here. The cells here have 200 replicates each; the
 # runner reads that from each cell's ``replicates``.
+# Cell seeds are 5000 apart: a rep uses seed + rep - 1 and its streams sit at +100
+# (trait 2) and +1000 (deaths), so 1000-apart seeds made one cell's deaths reuse the
+# next cell's simulation stream. The pre-2026-10-31 results used seeds 1000 apart.
 
 mmp_bf10_N50k:
-  seed: 371000
+  seed: 431000
   N: 50000
   G_sim: 10
   G_ped: 10
@@ -56,7 +59,7 @@ mmp_bf10_N50k:
 
 
 mmp_bf25_N50k:
-  seed: 372000
+  seed: 436000
   N: 50000
   G_sim: 10
   G_ped: 10
@@ -107,7 +110,7 @@ mmp_bf25_N50k:
 
 
 mmp_bf10_N200k:
-  seed: 373000
+  seed: 441000
   N: 200000
   G_sim: 10
   G_ped: 10
@@ -158,7 +161,7 @@ mmp_bf10_N200k:
 
 
 mmp_bf25_N200k:
-  seed: 374000
+  seed: 446000
   N: 200000
   G_sim: 10
   G_ped: 10
@@ -209,7 +212,7 @@ mmp_bf25_N200k:
 
 
 mmp_bf40_N200k:
-  seed: 375000
+  seed: 451000
   N: 200000
   G_sim: 10
   G_ped: 10
