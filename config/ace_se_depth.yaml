@@ -1,0 +1,72 @@
+# ACE Fit SE against pedigree depth (rwaples/pg-phenotype#22).
+#
+# The ACE Fit's continuous A, E, sA and rA SEs are 7-21% short of the
+# across-rep spread on the se_calibration reps (G_ped 6, G_pheno 3). A probe
+# (pg-phenotype tools/relative_pairs_ace_se_probe.py) traced the gap to
+# pairs whose MRCAs are close relatives, which ADR 0013's clusters treat as
+# independent. These scenarios vary how much recorded ancestry lies above
+# and within the phenotyped generations, holding the rest at
+# se_cal_lam3_K10 (mating_lambda 3, trait1 A 0.5 C 0, trait2 A 0.4 C 0.2,
+# K 0.10; the probe reads the liabilities):
+#
+#   ped3:   G_ped 3, G_pheno 3: no recorded generation above the phenotyped.
+#   ped6:   G_ped 6, G_pheno 3: the se_calibration design (but G_sim 11).
+#   ped9:   G_ped 9, G_pheno 3: six recorded generations above.
+#   pheno6: G_ped 6, G_pheno 6: every recorded generation phenotyped.
+#
+# ped3, ped6 and ped9 share G_sim 11 and one seed range (22000-22099), so
+# rep k of each is the same simulated population with its recorded ancestry
+# truncated: the same phenotyped rows, paired across depth. pheno6 has its
+# own range (23000-23099). Seeds step by one per rep, so ranges must not
+# overlap.
+
+ace_se_depth_ped3:
+  seed: 22000
+  replicates: 100
+  N: 20000
+  G_ped: 3
+  G_pheno: 3
+  G_sim: 11
+  pedigree: &pedigree
+    mating_lambda: 3.0
+    trait1: {A: 0.5, C: 0.0, E: 0.5}
+    trait2: {A: 0.4, C: 0.2, E: 0.4}
+  phenotype: &phenotype
+    trait1:
+      model: adult
+      params: {method: ltm, cip_x0: 50, cip_k: 0.2, prevalence: 0.10}
+      beta: 1.0
+    trait2:
+      model: adult
+      params: {method: ltm, cip_x0: 50, cip_k: 0.2, prevalence: 0.10}
+      beta: 1.0
+
+ace_se_depth_ped6:
+  seed: 22000
+  replicates: 100
+  N: 20000
+  G_ped: 6
+  G_pheno: 3
+  G_sim: 11
+  pedigree: *pedigree
+  phenotype: *phenotype
+
+ace_se_depth_ped9:
+  seed: 22000
+  replicates: 100
+  N: 20000
+  G_ped: 9
+  G_pheno: 3
+  G_sim: 11
+  pedigree: *pedigree
+  phenotype: *phenotype
+
+ace_se_depth_pheno6:
+  seed: 23000
+  replicates: 100
+  N: 20000
+  G_ped: 6
+  G_pheno: 6
+  G_sim: 11
+  pedigree: *pedigree
+  phenotype: *phenotype
