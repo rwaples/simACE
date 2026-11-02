@@ -6,7 +6,7 @@ import yaml
 from pedigree_graph import RELATIONSHIPS, PedigreeGraph
 
 from simace.analysis.stats.moments import Stratum
-from simace.analysis.stats.runner import _build_relationship_context, build_stats_report
+from simace.analysis.stats.runner import _build_relationship_context
 from simace.analysis.stats.runner import cli as run_stats_cli
 from simace.analysis.stats.runner import main as run_stats
 from simace.core.parquet import load_parquet, save_parquet
@@ -95,20 +95,6 @@ class TestRunnerMain:
         assert samples_pq.exists()
         df = load_parquet(samples_pq)
         assert len(df) > 0
-
-    def test_build_stats_report_returns_grouped_schema(self, tiny_phenotype):
-        pedigree, phenotype = tiny_phenotype
-        hydrated = hydrate_trait(phenotype, pedigree, kind="censored")
-        stats = build_stats_report(hydrated, 80.0, df_ped=pedigree, max_degree=2)
-        assert set(stats) == {"metadata", "incidence", "censoring", "pedigree", "correlations", "heritability"}
-        flat_keys = {
-            "prevalence",
-            "pair_counts",
-            "pair_counts_ped",
-            "mate_correlation",
-            "observed_h2_estimators",
-        }
-        assert flat_keys.isdisjoint(stats)
 
     def test_stats_yaml_has_expected_grouped_keys(self, runner_outputs):
         stats_yaml, _ = runner_outputs

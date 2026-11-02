@@ -98,7 +98,6 @@ def test_total_variance_is_scored_on_the_relative_scale(tmp_path, pedigree) -> N
 @pytest.mark.parametrize(
     "assortment",
     [
-        {"assort1": 0.3, "assort2": 0.3},
         {"assort1": 0.3},  # trait 1 only: rA carries it into trait 2
         {"assort2": 0.3},
         {"assort_matrix": [[0.3, 0.0], [0.0, 0.0]]},

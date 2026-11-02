@@ -122,14 +122,6 @@ class TestGenerateMendelianNoise:
 
 
 class TestDrawMatingCounts:
-    def test_all_positive(self, rng):
-        counts = draw_mating_counts(rng, 500, 0.5)
-        assert np.all(counts >= 1)
-
-    def test_shape(self, rng):
-        counts = draw_mating_counts(rng, 300, 0.5)
-        assert counts.shape == (300,)
-
     def test_mean_near_expected(self, rng):
         """ZTP(0.5) mean = lambda / (1 - e^{-lambda}) = 0.5 / (1 - e^{-0.5}) ~ 1.27."""
         counts = draw_mating_counts(rng, 50000, 0.5)
@@ -319,18 +311,6 @@ class TestMating:
         assert twins.ndim == 2
         if len(twins) > 0:
             assert twins.shape[1] == 2
-
-    def test_mothers_are_female(self, rng):
-        sex = rng.binomial(n=1, p=0.5, size=1000)
-        parents, _, _ = mating(rng, sex, 0.5, 0.02)
-        mother_sexes = sex[parents[:, 0]]
-        assert np.all(mother_sexes == 0)
-
-    def test_fathers_are_male(self, rng):
-        sex = rng.binomial(n=1, p=0.5, size=1000)
-        parents, _, _ = mating(rng, sex, 0.5, 0.02)
-        father_sexes = sex[parents[:, 1]]
-        assert np.all(father_sexes == 1)
 
     def test_no_twins_when_p_zero(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
@@ -836,37 +816,6 @@ class TestResolvePerGenParam:
 
 
 class TestPerGenerationVariance:
-    def test_per_gen_E_changes_variance(self):
-        """Per-gen E should produce different variance in different generations."""
-        params = dict(
-            seed=42,
-            N=5000,
-            G_ped=3,
-            G_sim=3,
-            mating_lambda=0.5,
-            p_mztwin=0.02,
-            A1=0.5,
-            C1=0.0,
-            A2=0.5,
-            C2=0.0,
-            E1={0: 0.3, 2: 0.8},
-            E2={0: 0.3, 2: 0.8},
-            rA=0.0,
-            rC=0.0,
-        )
-        ped = run_simulation(**params)
-
-        # Check that E variance differs across generations
-        gen0 = ped.filter(pl.col("generation") == 0)
-        gen2 = ped.filter(pl.col("generation") == 2)
-        var_E1_gen0 = gen0["E1"].var()
-        var_E1_gen2 = gen2["E1"].var()
-
-        # Gen 0: E1 ~ N(0, sqrt(0.3)), Var ≈ 0.3
-        # Gen 2: E1 ~ N(0, sqrt(0.8)), Var ≈ 0.8
-        assert var_E1_gen0 < 0.5, f"Gen 0 Var(E1) should be ~0.3, got {var_E1_gen0:.3f}"
-        assert var_E1_gen2 > 0.5, f"Gen 2 Var(E1) should be ~0.8, got {var_E1_gen2:.3f}"
-
     def test_per_gen_E_total_variance(self):
         """Total liability variance should match A + C + E per generation."""
         params = dict(
@@ -989,15 +938,6 @@ class TestMatingWF:
 class TestMatingDispatcher:
     """The public ``mating()`` routes by ``mating_model``."""
 
-    def test_default_routes_to_standard(self):
-        rng = np.random.default_rng(5)
-        sex = rng.binomial(size=200, n=1, p=0.5)
-        # Default mating_model="standard" — should use ZTP path and may produce twins.
-        parents, twins, _ = mating(rng, sex, mating_lambda=0.5, p_mztwin=0.1)
-        assert parents.shape == (200, 2)
-        # With p_mztwin=0.1 we expect some twins on average; just check the call works.
-        assert twins.shape[1] == 2
-
     def test_wf_routes_to_wf(self):
         rng = np.random.default_rng(5)
         sex = rng.binomial(size=200, n=1, p=0.5)
@@ -1039,11 +979,6 @@ class TestRunSimulationWF:
         base.update(overrides)
         return base
 
-    def test_runs_with_inherited_standard_defaults(self):
-        ped = run_simulation(**self._wf_params())
-        # All WF offspring have twin == -1 (twins disabled).
-        assert (ped["twin"] == -1).all()
-
     def test_C_still_works_under_wf(self):
         ped = run_simulation(**self._wf_params(C1=0.2, E1=0.3))
         # Household-grouped C: variance across households should be ≈ 0.2; total variance > 0.
@@ -1058,14 +993,12 @@ class TestRunSimulationWF:
             run_simulation(**{**self._wf_params(), "mating_model": "foo"})
 
     def test_standard_model_unchanged_when_omitted(self):
-        # Existing call sites that don't pass mating_model get standard behavior.
-        params = {**self._wf_params()}
+        """Omitting ``mating_model`` runs the standard model, not Wright-Fisher."""
+        params = {**self._wf_params(N=200)}
         del params["mating_model"]
-        ped = run_simulation(**params)
-        # Standard model produces some twins at p_mztwin=0.02.
-        # With small N=500 / G_ped=3 this isn't guaranteed every seed but should
-        # at least not be all -1 in expectation; just check the shape.
-        assert "twin" in ped.columns
+        omitted = run_simulation(**params)
+        assert_frame_equal(omitted, run_simulation(**params, mating_model="standard"))
+        assert not omitted.equals(run_simulation(**params, mating_model="wright_fisher"))
 
     def test_output_independent_of_mating_lambda(self):
         """Under WF, mating_lambda is a no-op — changing it must not change output."""

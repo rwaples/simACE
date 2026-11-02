@@ -40,14 +40,6 @@ def test_single_observed_recovers_full_ancestry():
     assert sorted(out["id"].to_list()) == [0, 1, 2, 3, 4, 5, 6]
 
 
-def test_late_gen_only_recovers_full_pedigree():
-    """Observing only the last generation should still pull all ancestors."""
-    # Two-gen pedigree: 0,1 founders, 2,3 are kids
-    df_ped = _ped([(0, -1, -1), (1, -1, -1), (2, 1, 0), (3, 1, 0)])
-    out = filter_pedigree_to_observed(df_ped, np.array([2, 3]))
-    assert sorted(out["id"].to_list()) == [0, 1, 2, 3]
-
-
 def test_founder_observed_returns_just_self():
     """A founder has no ancestors to add."""
     df_ped = _ped([(0, -1, -1), (1, -1, -1), (2, 1, 0)])

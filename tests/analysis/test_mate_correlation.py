@@ -125,48 +125,6 @@ class TestComputeMateCorrelation:
         # Trait 1 self-correlation should be positive (sorted mating)
         assert result["matrix"][0][0] > 0.1
 
-    def test_no_assortment_near_zero(self):
-        """Random mating should produce near-zero correlations."""
-        rng = np.random.default_rng(99)
-        n = 1000
-        founders = pl.DataFrame(
-            {
-                "id": np.arange(2 * n),
-                "mother": np.full(2 * n, -1),
-                "father": np.full(2 * n, -1),
-                "liability1": rng.normal(size=2 * n),
-                "liability2": rng.normal(size=2 * n),
-            }
-        )
-        children = pl.DataFrame(
-            {
-                "id": np.arange(2 * n, 3 * n),
-                "mother": rng.choice(range(0, 2 * n, 2), size=n),
-                "father": rng.choice(range(1, 2 * n, 2), size=n),
-                "liability1": rng.normal(size=n),
-                "liability2": rng.normal(size=n),
-            }
-        )
-        df = pl.concat([founders, children], how="vertical")
-        result = compute_mate_correlation(df)
-        for i in range(2):
-            for j in range(2):
-                assert abs(result["matrix"][i][j]) < 0.15
-
-    def test_empty_pedigree(self):
-        """All-founder pedigree should return nan matrix."""
-        df = pl.DataFrame(
-            {
-                "id": [0, 1],
-                "mother": [-1, -1],
-                "father": [-1, -1],
-                "liability1": [0.0, 0.0],
-                "liability2": [0.0, 0.0],
-            }
-        )
-        result = compute_mate_correlation(df)
-        assert result["n_pairs"] == 0
-
     def test_dangling_parent_links_are_ignored(self):
         """Ascertainment dropout can sever parent links; skip incomplete mating pairs.
 

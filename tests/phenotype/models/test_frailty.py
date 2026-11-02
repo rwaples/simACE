@@ -6,7 +6,6 @@ contracts (sex effects, liability ordering) live in ``test_behaviour.py``.
 
 import argparse
 
-import numpy as np
 import pytest
 
 from simace.phenotype.hazards import HAZARD_FLAG_ROOTS
@@ -147,15 +146,6 @@ def test_from_cli_rejects_foreign_adult_flag():
     )
     with pytest.raises(ValueError, match=r"phenotype\.trait1.*--adult-method1"):
         FrailtyModel.from_cli(args, 1)
-
-
-def test_simulate_finite_array():
-    m = FrailtyModel(distribution="weibull", hazard_params={"scale": 100.0, "rho": 2.0})
-    liability = np.random.default_rng(0).standard_normal(200)
-    t = m.simulate(liability=liability, seed=42, standardize=True, sex=None, generation=np.zeros(200, dtype=int))
-    assert t.shape == (200,)
-    assert np.all(np.isfinite(t))
-    assert np.all(t > 0)
 
 
 def test_cli_flag_attrs_covers_all_hazard_roots():

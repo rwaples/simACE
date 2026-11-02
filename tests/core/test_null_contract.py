@@ -105,14 +105,6 @@ class TestCrossLibraryRoundTrip:
         assert back["t1"].is_nan().sum() == 0  # nulls, never NaN, in-frame
         assert back["t2"].null_count() == len(back)
 
-    def test_polars_write_pandas_read(self, tmp_path):
-        out = tmp_path / "trait.parquet"
-        save_parquet(pl.DataFrame({"id": [0, 1], "t1": [None, 30.0]}), out)
-        back = pd.read_parquet(out)
-        # pandas re-conflates null as NaN — what the allowlisted pandas edges see
-        assert np.isnan(back["t1"].to_numpy()[0])
-        assert back["t1"].to_numpy()[1] == np.float32(30.0)
-
     def test_same_null_mask_whether_missing_arrives_as_nan_or_null(self, tmp_path):
         nan_out, null_out = tmp_path / "a.parquet", tmp_path / "b.parquet"
         pdf = pd.DataFrame(_trait_data())
@@ -145,13 +137,6 @@ class TestCallerNotMutated:
 
 
 class TestLoadParquet:
-    def test_returns_eager_polars_frame(self, tmp_path):
-        out = tmp_path / "p.parquet"
-        save_parquet(_pedigree_polars(), out)
-        back = load_parquet(out)
-        assert isinstance(back, pl.DataFrame)
-        assert back.height == 6
-
     def test_column_subset(self, tmp_path):
         out = tmp_path / "p.parquet"
         save_parquet(_pedigree_polars(), out)

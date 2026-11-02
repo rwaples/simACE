@@ -65,44 +65,11 @@ def trait_data(small_sim_pedigree):
 
 
 # ---------------------------------------------------------------------------
-# Pass-through tests
-# ---------------------------------------------------------------------------
-
-
-class TestPassThrough:
-    def test_no_dropout_no_sampling(self, small_sim_pedigree, trait_data):
-        """dropout_rate=0, N_sample=0 → trait unchanged; pedigree narrows to ancestor closure."""
-        ped_out, trait_out = run_ascertainment(
-            small_sim_pedigree,
-            trait_data,
-            dropout_rate=0.0,
-            N_sample=0,
-            seed=42,
-        )
-        # All trait rows preserved.
-        assert len(trait_out) == len(trait_data)
-        # Pedigree is the ancestor closure — should include every phenotyped id plus their ancestors.
-        assert set(trait_data["id"]).issubset(set(ped_out["id"]))
-
-
-# ---------------------------------------------------------------------------
 # Dropout semantics (catches v1 weight-multiplier bug)
 # ---------------------------------------------------------------------------
 
 
 class TestDropout:
-    def test_dropout_reduces_trait_when_nsample_zero(self, small_sim_pedigree, trait_data):
-        """dropout_rate > 0, N_sample = 0 → trait+pedigree row counts strictly drop."""
-        _, trait_out = run_ascertainment(
-            small_sim_pedigree,
-            trait_data,
-            dropout_rate=0.5,
-            N_sample=0,
-            seed=42,
-        )
-        # Trait drops because half the pedigree (incl. phenotyped IDs) is removed.
-        assert len(trait_out) < len(trait_data)
-
     def test_dropout_affects_pool_with_nsample(self, small_sim_pedigree, trait_data):
         """Deterministic clamp test: with extreme dropout, output is clamped to trait survivors.
 

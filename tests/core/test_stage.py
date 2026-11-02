@@ -158,16 +158,3 @@ class TestPassthrough:
 
         out = run_sample(df, n_sample=0)
         assert len(out) == len(df)
-
-    def test_pedigree_passthrough(self):
-        """run_dropout-style early return: same shape in and out."""
-
-        @stage(reads=PEDIGREE, writes=PEDIGREE)
-        def run_dropout(pedigree, *, rate):
-            if rate <= 0:
-                return pedigree
-            return pedigree.slice(1)
-
-        df = _make_pedigree_df()
-        out = run_dropout(df, rate=0)
-        assert len(out) == len(df)

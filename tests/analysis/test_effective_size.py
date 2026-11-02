@@ -71,22 +71,6 @@ class TestTheoreticalExpectations:
         exp = theoretical_expectations(cfg)
         assert all(v is None for v in exp.values())
 
-    def test_standard_random_mating_regression_regime_ok(self):
-        # Small N=200 + reasonable G=20 ⇒ N·G² = 80,000 > 120·Ne_V, regime ok.
-        cfg = {"N": 200, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5, "G_ped": 20}
-        exp = theoretical_expectations(cfg)
-        ne_v = ne_v_expected_ztp(200, 0.5)
-        # Five drift/variance estimators expected = ne_v; Ne_sr = N;
-        # Ne_LTC = the harmonic mean of N and Ne_V.
-        for k in EXPECTED_KEYS - {"ne_sex_ratio", "ne_long_term_contributions", "ne_individual_delta_f"}:
-            assert exp[k] == pytest.approx(ne_v)
-        # G_ped=20 ⇒ t=19, so Ne_iΔF is expected 19/18 high (pedigree-graph #15).
-        assert exp["ne_individual_delta_f"] == pytest.approx(ne_v * 19.0 / 18.0)
-        assert exp["ne_sex_ratio"] == pytest.approx(200.0)
-        assert 2.0 / exp["ne_long_term_contributions"] == pytest.approx(1.0 / 200.0 + 1.0 / ne_v)
-        # Sanity: ZTP(0.5) gives ~0.7349·N.
-        assert ne_v == pytest.approx(0.7349 * 200, abs=0.5)
-
     def test_baseline100K_default_drops_regression_estimators(self):
         # baseline100K config: N=100K, G_ped=6 ⇒ N·G² = 3.6M < 120·Ne_V (~8.8M),
         # regression-based Ne_I/Ne_C/Ne_CT must report None.

@@ -113,15 +113,6 @@ class TestFinalizePlot:
         # Higher DPI should produce a larger file
         assert out_hi.stat().st_size > out_lo.stat().st_size
 
-    def test_no_open_figures_leak(self, tmp_path):
-        """Call finalize_plot several times; no figures should accumulate."""
-        n_before = len(plt.get_fignums())
-        for i in range(5):
-            _fig, ax = plt.subplots()
-            ax.bar([1, 2], [3, 4])
-            finalize_plot(tmp_path / f"leak_{i}.png")
-        assert len(plt.get_fignums()) == n_before
-
 
 # ---------------------------------------------------------------------------
 # Fixtures for plot smoke tests

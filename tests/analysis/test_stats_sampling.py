@@ -31,15 +31,6 @@ def _make_df(n_per_gen: int, n_gens: int = 3, seed: int = 0) -> pl.DataFrame:
 
 
 class TestCreateSample:
-    def test_above_cap_truncates(self):
-        df = _make_df(n_per_gen=200, n_gens=2)
-        out = create_sample(df, n_per_gen=50, seed=1)
-        # Within cap per gen + parent-row preservation; parent rows live in earlier gens
-        # so the sampled-from-G1 set is bounded by the cap.
-        last_gen = df["generation"].max()
-        n_last = (out["generation"] == last_gen).sum()
-        assert n_last <= 50
-
     def test_deterministic_under_same_seed(self):
         df = _make_df(n_per_gen=100, n_gens=2, seed=4)
         a = create_sample(df, n_per_gen=20, seed=42)

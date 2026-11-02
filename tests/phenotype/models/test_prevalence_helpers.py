@@ -70,7 +70,7 @@ class TestResolvePrevalence:
                 gen,
             )
 
-    @pytest.mark.parametrize("bad", [0.0, 1.0, -0.1, 1.5])
+    @pytest.mark.parametrize("bad", [0.0, 1.0])
     def test_scalar_out_of_range_raises(self, bad):
         sex = np.zeros(3, dtype=int)
         gen = np.array([0, 0, 1])

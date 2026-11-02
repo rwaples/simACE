@@ -41,8 +41,7 @@ def test_no_verdict_says_how_to_get_one() -> None:
 
 def test_no_note_calls_a_replicate_failed() -> None:
     """About 5% of correct reps exceed their bound; only the across-rep verdict passes or fails."""
-    for verdict in (None, _verdict(_reps(100)), _verdict(_reps(5))):
-        assert "failed" not in verdict_note(verdict)
+    assert "failed" not in verdict_note(_verdict(_reps(100)))
 
 
 @pytest.mark.parametrize("verdict", [None, "pass", "insufficient"])

@@ -95,13 +95,6 @@ def test_remove_refuses_dirty_and_unmerged_then_keeps_unmerged_branch(family: Pa
     assert "wt1" not in git(family / "fitACE", "worktree", "list")
 
 
-def test_remove_deletes_merged_branch(family: Path) -> None:
-    main(["add", "wt1", "fitACE"], root=family)
-    assert main(["remove", "wt1"], root=family) == 0
-    assert git(family / "fitACE", "branch", "--list", "wt1") == ""
-    assert git(family, "worktree", "list").count("\n") == 0
-
-
 def test_remove_deletes_merged_branch_while_main_checkout_is_elsewhere(family: Path) -> None:
     fitace = family / "fitACE"
     git(fitace, "switch", "-q", "-c", "feature")

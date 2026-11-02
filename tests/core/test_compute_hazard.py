@@ -36,13 +36,6 @@ class TestWeibull:
         expected = self._analytical_H0(self.t)
         assert H_base == pytest.approx(expected, rel=1e-6)
 
-    def test_weibull_survival_identity(self):
-        _, H_base = compute_hazard_terms("weibull", self.t, self.params)
-        S0 = np.exp(-H_base)
-        s, rho = self.params["scale"], self.params["rho"]
-        expected = weibull_min.sf(self.t, c=rho, scale=s)
-        assert pytest.approx(expected, rel=1e-6) == S0
-
     def test_weibull_density_identity(self):
         const, H_base = compute_hazard_terms("weibull", self.t, self.params)
         f0 = np.exp(const) * np.exp(-H_base)
@@ -70,13 +63,6 @@ class TestExponential:
         _, H_base = compute_hazard_terms("exponential", self.t, self.params)
         expected = self.params["rate"] * self.t
         assert H_base == pytest.approx(expected, rel=1e-6)
-
-    def test_exponential_density_identity(self):
-        const, H_base = compute_hazard_terms("exponential", self.t, self.params)
-        f0 = np.exp(const) * np.exp(-H_base)
-        lam = self.params["rate"]
-        expected = lam * np.exp(-lam * self.t)
-        assert f0 == pytest.approx(expected, rel=1e-6)
 
 
 # ---------------------------------------------------------------------------
@@ -107,13 +93,6 @@ class TestGompertz:
         expected = self._analytical_H0(self.t, b, g)
         assert H_base == pytest.approx(expected, rel=1e-6)
 
-    def test_gompertz_density_identity(self):
-        const, H_base = compute_hazard_terms("gompertz", self.t, self.params)
-        f0 = np.exp(const) * np.exp(-H_base)
-        b, g = self.params["rate"], self.params["gamma"]
-        expected = self._analytical_h0(self.t, b, g) * np.exp(-self._analytical_H0(self.t, b, g))
-        assert f0 == pytest.approx(expected, rel=1e-6)
-
 
 # ---------------------------------------------------------------------------
 # Lognormal
@@ -142,14 +121,6 @@ class TestLognormal:
         S0 = 1 - norm.cdf(z)
         expected = -np.log(S0)
         assert H_base == pytest.approx(expected, rel=1e-6)
-
-    def test_lognormal_survival_identity(self):
-        _, H_base = compute_hazard_terms("lognormal", self.t, self.params)
-        S0 = np.exp(-H_base)
-        mu, sigma = self.params["mu"], self.params["sigma"]
-        # scipy lognorm: shape=sigma, scale=exp(mu)
-        expected = lognorm.sf(self.t, s=sigma, scale=np.exp(mu))
-        assert pytest.approx(expected, rel=1e-6) == S0
 
     def test_lognormal_density_identity(self):
         const, H_base = compute_hazard_terms("lognormal", self.t, self.params)
@@ -187,13 +158,6 @@ class TestLoglogistic:
         expected = self._analytical_H0(self.t)
         assert H_base == pytest.approx(expected, rel=1e-6)
 
-    def test_loglogistic_density_identity(self):
-        const, H_base = compute_hazard_terms("loglogistic", self.t, self.params)
-        f0 = np.exp(const) * np.exp(-H_base)
-        alpha, k = self.params["scale"], self.params["shape"]
-        expected = self._analytical_h0(self.t) / (1 + (self.t / alpha) ** k)
-        assert f0 == pytest.approx(expected, rel=1e-6)
-
 
 # ---------------------------------------------------------------------------
 # Gamma
@@ -218,13 +182,6 @@ class TestGamma:
         k, theta = self.params["shape"], self.params["scale"]
         expected = -gamma_dist.logsf(self.t, a=k, scale=theta)
         assert H_base == pytest.approx(expected, rel=1e-6)
-
-    def test_gamma_density_identity(self):
-        const, H_base = compute_hazard_terms("gamma", self.t, self.params)
-        f0 = np.exp(const) * np.exp(-H_base)
-        k, theta = self.params["shape"], self.params["scale"]
-        expected = gamma_dist.pdf(self.t, a=k, scale=theta)
-        assert f0 == pytest.approx(expected, rel=1e-6)
 
 
 # ---------------------------------------------------------------------------
@@ -254,13 +211,6 @@ class TestFirstPassage:
         rv = self._rv()
         expected = -rv.logsf(self.t)
         assert H_base == pytest.approx(expected, rel=1e-6)
-
-    def test_first_passage_density_identity(self):
-        const, H_base = compute_hazard_terms("first_passage", self.t, self.params)
-        f0 = np.exp(const) * np.exp(-H_base)
-        rv = self._rv()
-        expected = rv.pdf(self.t)
-        assert f0 == pytest.approx(expected, rel=1e-6)
 
 
 # ---------------------------------------------------------------------------

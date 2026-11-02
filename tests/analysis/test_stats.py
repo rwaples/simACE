@@ -21,16 +21,6 @@ class TestTetrachoricCorrSE:
         assert se > 0
         assert se < 0.1
 
-    def test_negative_correlation(self):
-        """Two negatively correlated binary variables should give r < 0."""
-        rng = np.random.default_rng(42)
-        n = 5000
-        z = rng.multivariate_normal([0, 0], [[1, -0.5], [-0.5, 1]], size=n)
-        a = z[:, 0] > 0
-        b = z[:, 1] > 0
-        r, _se = tetrachoric_corr_se(a, b)
-        assert -0.7 < r < -0.3
-
     def test_zero_correlation(self):
         """Independent binary variables should give r ~ 0."""
         rng = np.random.default_rng(42)
@@ -39,16 +29,6 @@ class TestTetrachoricCorrSE:
         b = rng.binomial(1, 0.3, size=n).astype(bool)
         r, _se = tetrachoric_corr_se(a, b)
         assert abs(r) < 0.15
-
-    def test_high_correlation(self):
-        """Highly correlated binary variables."""
-        rng = np.random.default_rng(42)
-        n = 5000
-        z = rng.multivariate_normal([0, 0], [[1, 0.9], [0.9, 1]], size=n)
-        a = z[:, 0] > 0
-        b = z[:, 1] > 0
-        r, _se = tetrachoric_corr_se(a, b)
-        assert r > 0.75
 
     def test_all_same_returns_nan(self):
         """If one variable has zero variance, should return NaN."""

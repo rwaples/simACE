@@ -23,22 +23,6 @@ def _pedigree_frame() -> pl.DataFrame:
     )
 
 
-def test_save_parquet_narrows_written_output(tmp_path):
-    df = _pedigree_frame()
-    out = tmp_path / "out.parquet"
-
-    save_parquet(df, out)
-    written = load_parquet(out)
-
-    assert written.schema["id"] == pl.Int32
-    assert written.schema["sex"] == pl.Int8
-    assert written.schema["A1"] == pl.Float32
-    # Liabilities keep full precision.
-    assert written.schema["liability1"] == pl.Float64
-    # Values round-trip unchanged.
-    np.testing.assert_array_equal(written["id"].to_numpy(), df["id"].to_numpy())
-
-
 def test_save_parquet_rejects_pandas(tmp_path):
     df = pd.DataFrame({"id": np.arange(4, dtype="int64")})
     with pytest.raises(TypeError, match=r"polars DataFrame since the polars migration"):

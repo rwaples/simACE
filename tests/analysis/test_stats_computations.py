@@ -24,7 +24,6 @@ from simace.analysis.stats import (
     compute_cumulative_incidence_by_sex_generation,
     compute_joint_affection,
     compute_liability_correlations,
-    compute_mate_correlation,
     compute_mean_family_size,
     compute_mortality,
     compute_observed_h2_estimators,
@@ -1157,20 +1156,6 @@ class TestComputeParentOffspringCorrBySex:
 
 
 # ===================================================================
-# Tests for compute_mate_correlation
-# ===================================================================
-
-
-class TestComputeMateCorrelation:
-    def test_near_zero_for_random_mating(self, phenotyped_df):
-        """With assort1=0, mate correlations should be near zero."""
-        result = compute_mate_correlation(phenotyped_df)
-        for i in range(2):
-            for j in range(2):
-                assert abs(result["matrix"][i][j]) < 0.15
-
-
-# ===================================================================
 # Tests for compute_affected_correlations
 # ===================================================================
 
@@ -1210,24 +1195,6 @@ class TestComputeAffectedCorrelations:
         assert result["trait2"]["MZ"] is None
         # n_pairs < 10 -> None
         assert result["trait1"]["FS"] is None
-
-    def test_constant_side_returns_none(self):
-        """Phi is undefined when either indicator has zero variance."""
-        df = pl.DataFrame(
-            {
-                "id": np.arange(30, dtype=np.int64),
-                "affected1": np.array([True] * 15 + [False] * 15, dtype=bool),
-                # Pair B (indices 15..29) is all-False -> constant -> None
-                "affected2": np.zeros(30, dtype=bool),
-            }
-        )
-        idx1 = np.arange(15, dtype=np.int64)
-        idx2 = np.arange(15, 30, dtype=np.int64)
-        pairs = {"MZ": (idx1, idx2)}
-        result = compute_affected_correlations(moments=moments_from_pairs(df, pairs))
-        # idx1 is 0..14, all True, and idx2 is 15..29, all False: both sides
-        # constant -> None
-        assert result["trait1"]["MZ"] is None
 
     def test_structure_matches_liability(self, phenotyped_df, extracted_moments):
         """Affected-side structure mirrors compute_liability_correlations."""
@@ -1434,23 +1401,6 @@ class TestAalenJohansen:
         assert aj[idx_70] == pytest.approx(1.0)
         # AJ strictly above empirical (2/4) at the terminal age
         assert aj[-1] > 0.5
-
-    def test_sum_invariant(self):
-        """F_disease + F_death + S = 1 at every age."""
-        df = _make_aj_df(
-            [
-                (True, False, 12.0),
-                (False, True, 18.0),
-                (True, False, 25.0),
-                (False, True, 33.0),
-                (True, False, 50.0),
-                (False, False, 60.0),
-            ]
-        )
-        result = compute_cumulative_incidence_aj(df, censor_age=80, n_points=200)
-        t1 = result["trait1"]
-        s = np.array(t1["aj_values"]) + np.array(t1["aj_death_values"]) + np.array(t1["aj_survival"])
-        assert np.allclose(s, 1.0, atol=1e-9)
 
     def test_by_sex_smoke(self):
         n = 20

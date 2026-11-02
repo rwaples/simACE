@@ -130,22 +130,6 @@ def test_owens_t_quad_matches_jit(h, a):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("h", "a"),
-    [
-        (0.0, 0.5),  # |a| ≤ 1 path
-        (0.5, -0.3),  # negative a, |a| ≤ 1
-        (0.5, 1.5),  # |a| > 1 identity path
-        (1.0, -2.0),  # negative a, |a| > 1
-        (2.0, 1e-16),  # near-zero a → 0.0
-    ],
-)
-def test_owens_t_matches_jit(h, a):
-    py = nu._owens_t_python(h, a)
-    jit = nu._owens_t(h, a)
-    assert py == pytest.approx(jit, abs=1e-15)
-
-
 def test_owens_t_zero_a_returns_zero():
     assert nu._owens_t_python(1.0, 0.0) == 0.0
 

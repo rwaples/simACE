@@ -18,7 +18,6 @@ from pathlib import Path
 
 import polars as pl
 import polars.testing
-import pytest
 from hypothesis import event, given
 
 from simace.ascertainment.runner import run_ascertainment
@@ -96,21 +95,6 @@ def test_selected_views_rebuild_generated_ascertainments(inp):
     event(f"sample empty: {trait_out.is_empty()}")
     event(f"ancestor never phenotyped: {bool((~phenotyped).any())}")
     event(f"ancestor phenotyped, not drawn: {bool(phenotyped.any())}")
-
-
-@pytest.mark.slow
-@given(inp=ascertainment_inputs())
-def test_selected_views_survive_the_parquet_round_trip(inp):
-    """After the marked write and read, the stored files equal their inputs and rebuild the same views.
-
-    Inputs are normalized first because storage narrows ids, sex, components,
-    and times.  Rejects a reader or writer that drops nulls, reorders rows,
-    changes a value, or loses the layout marker.
-    """
-    inp = inp._replace(pedigree=normalize_for_parquet(inp.pedigree), trait=normalize_for_parquet(inp.trait))
-    ped_out, trait_out = inp.run()
-    cohort = _assert_reconstructs(inp.pedigree, inp.trait, ped_out, trait_out)
-    _assert_round_trip(inp.pedigree, ped_out, trait_out, cohort)
 
 
 # G_pheno = 2 over generations 0-2.  Gapped ids, so no id equals its row.

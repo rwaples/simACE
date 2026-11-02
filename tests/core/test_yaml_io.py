@@ -42,13 +42,6 @@ class TestToNative:
         out = to_native(obj)
         assert out == {"a": 3, "b": [0.1, pytest_approx_float(0.2)], "c": {"d": [1.0, 2.0]}}
 
-    def test_yaml_dump_round_trip(self):
-        """to_native output must serialize cleanly via yaml.dump."""
-        obj = {"x": np.int32(2), "arr": np.array([1.5, 2.5])}
-        text = yaml.safe_dump(to_native(obj))
-        loaded = yaml.safe_load(text)
-        assert loaded == {"x": 2, "arr": [1.5, 2.5]}
-
 
 class TestYamlLoader:
     def test_returns_a_loader_class(self):

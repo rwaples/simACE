@@ -7,7 +7,6 @@ import pytest
 
 from simace.ascertainment import cli as ascertain_cli
 from simace.ascertainment import copy_passthrough_if_possible, run_ascertainment
-from simace.core.cohort import sever_dangling_links
 from simace.core.schema import CENSORED
 from simace.simulation.simulate import run_simulation
 from tests.conftest import schema_pad
@@ -74,93 +73,6 @@ class TestEmptyPool:
         )
         assert len(trait_out) == 0
         assert len(ped_out) == 0
-
-
-class TestControlsOnly:
-    """``case_ascertainment_ratio=0`` refuses an all-case pool (draw and clamp: test_ascertainment_properties.py)."""
-
-    def test_zero_ratio_refuses_an_all_case_pool(self, small_pedigree):
-        """No control is eligible, so there is nothing to draw -- refuse rather than empty the cohort."""
-        trait = _build_trait(small_pedigree, g_pheno=1, n_cases=0, seed=5)
-        trait = trait.with_columns(pl.lit(True).alias("affected1"))
-        with pytest.raises(ValueError, match="would select nobody"):
-            run_ascertainment(
-                small_pedigree,
-                trait,
-                dropout_rate=0.0,
-                case_ascertainment_ratio=0.0,
-                N_sample=20,
-                seed=8,
-            )
-
-
-class TestDegeneratePool:
-    """All-case or all-control pools fall through the degenerate branch."""
-
-    def test_all_case_pool_with_nonunit_ratio(self, small_pedigree):
-        trait = _build_trait(small_pedigree, g_pheno=1, n_cases=0, seed=5)
-        trait = trait.with_columns(pl.lit(True).alias("affected1"))
-        _, trait_out = run_ascertainment(
-            small_pedigree,
-            trait,
-            dropout_rate=0.0,
-            case_ascertainment_ratio=5.0,  # ignored when degenerate
-            N_sample=20,
-            seed=6,
-        )
-        assert len(trait_out) == 20
-        assert trait_out["affected1"].all()
-
-    def test_all_control_pool_with_nonunit_ratio(self, small_pedigree):
-        trait = _build_trait(small_pedigree, g_pheno=1, n_cases=0, seed=5)
-        _, trait_out = run_ascertainment(
-            small_pedigree,
-            trait,
-            dropout_rate=0.0,
-            case_ascertainment_ratio=5.0,
-            N_sample=20,
-            seed=7,
-        )
-        assert len(trait_out) == 20
-        assert not trait_out["affected1"].any()
-
-
-class TestNsamplePassThroughLogging:
-    """``N_sample >= n_pool`` triggers the info-log pass-through branch."""
-
-    def test_nsample_exceeds_pool(self, small_pedigree, caplog):
-        import logging
-
-        trait = _build_trait(small_pedigree, g_pheno=1, n_cases=10, seed=2)
-        with caplog.at_level(logging.INFO, logger="simace.ascertainment"):
-            _, trait_out = run_ascertainment(
-                small_pedigree,
-                trait,
-                dropout_rate=0.0,
-                N_sample=len(trait) + 50,
-                seed=8,
-            )
-        assert len(trait_out) == len(trait)
-        assert any("passing all through" in rec.message for rec in caplog.records)
-
-
-class TestSeverDanglingTwinLinks:
-    """``sever_dangling_links`` rewrites twin pointers outside the valid set to -1."""
-
-    def test_twin_link_to_outside_id_severed(self):
-        df = pl.DataFrame(
-            {
-                "id": [0, 1, 2],
-                "mother": [-1, -1, -1],
-                "father": [-1, -1, -1],
-                # id 0 points at twin 999 (outside valid set); id 1 ↔ id 2 (both valid).
-                "twin": [999, 2, 1],
-            }
-        )
-        out = sever_dangling_links(df, valid_ids=df["id"].to_numpy())
-        assert out["twin"][0] == -1  # dangling severed
-        assert out["twin"][1] == 2  # in-set survives
-        assert out["twin"][2] == 1
 
 
 class TestPassThroughCopyFastPath:

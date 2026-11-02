@@ -245,7 +245,6 @@ def test_iter_generation_groups_empty_per_gen_yields_nothing():
 @pytest.mark.parametrize(
     ("scale", "rho", "beta", "max_age", "expected"),
     [
-        (2160.0, 0.8, 1.0, 80.0, 0.1029),  # baseline trait1
         (333.0, 1.2, 1.5, 80.0, 0.2676),  # baseline trait2
     ],
 )

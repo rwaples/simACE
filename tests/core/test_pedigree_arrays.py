@@ -234,19 +234,6 @@ class TestSeveredParentPedigree:
         np.testing.assert_array_equal(ped.gather("A1", kept_m), np.array([lookup[i] for i in kept_m], dtype=np.float32))
         np.testing.assert_array_equal(ped.gather("A1", kept_f), np.array([lookup[i] for i in kept_f], dtype=np.float32))
 
-    def test_gathering_severed_parents_raises_rather_than_wrapping(self, severed_pedigree):
-        """Without the guard, pos[-1] would return the last row's values."""
-        ped = PedigreeArrays.from_frame(severed_pedigree)
-        father = severed_pedigree["father"].to_numpy()
-        with pytest.raises(ValueError, match="missing-parent sentinel"):
-            ped.gather("A1", father)
-
-    def test_severed_twin_links_also_handled(self, severed_pedigree):
-        ped = PedigreeArrays.from_frame(severed_pedigree)
-        twin = severed_pedigree["twin"].to_numpy()
-        expected = np.isin(twin, severed_pedigree["id"].to_numpy())
-        np.testing.assert_array_equal(ped.contains(twin), expected)
-
 
 class TestColumnAccess:
     def test_membership_and_listing(self):

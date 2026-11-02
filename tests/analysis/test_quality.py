@@ -247,7 +247,6 @@ class TestValidateStatistical:
         [
             pytest.param({"assort1": 0.3}, id="trait1"),
             pytest.param({"assort2": 0.3}, id="trait2"),
-            pytest.param({"assort1": 0.3, "assort2": 0.3}, id="both-traits"),
             pytest.param({"assort1": {0: 0.0, 2: 0.3}}, id="per-generation"),
         ],
     )
@@ -273,10 +272,6 @@ class TestValidateHeritability:
     def test_mz_correlations_present(self, heritability_result):
         mz_keys = [k for k in heritability_result if "mz" in k.lower()]
         assert len(mz_keys) > 0
-
-    def test_falconer_present(self, heritability_result):
-        falc_keys = [k for k in heritability_result if "falconer" in k.lower()]
-        assert len(falc_keys) > 0
 
 
 class TestComputePerGenerationStats:

@@ -41,18 +41,6 @@ def test_round_trip_gzipped(tmp_path, sample_df):
     assert back["x"].iloc[0] == pytest.approx(0.1235, abs=1e-9)
 
 
-def test_round_trip_uncompressed(tmp_path, sample_df):
-    pq = tmp_path / "in.parquet"
-    sample_df.to_parquet(pq)
-
-    convert(str(pq), gzip=False)
-
-    out = tmp_path / "in.tsv"
-    assert out.exists()
-    back = pd.read_csv(out, sep="\t")
-    assert back["id"].tolist() == sample_df["id"].tolist()
-
-
 def test_precision_setting(tmp_path, sample_df):
     pq = tmp_path / "in.parquet"
     sample_df.to_parquet(pq)

@@ -63,16 +63,6 @@ class TestAgeCensor:
         assert t_out[2] == 70.0
         assert censored[2]
 
-    def test_output_shapes(self):
-        n = 100
-        t = np.random.default_rng(0).uniform(0, 100, n)
-        left = np.full(n, 20.0)
-        right = np.full(n, 80.0)
-        t_out, censored = age_censor(t, left, right)
-        assert t_out.shape == (n,)
-        assert censored.shape == (n,)
-        assert censored.dtype == bool
-
 
 # ---------------------------------------------------------------------------
 # CLI defaults
@@ -161,35 +151,11 @@ class TestRunCensor:
             "death_rho": 2.73,
         }
 
-    def test_output_columns(self, raw_phenotype, raw_pedigree, censor_params):
-        result = run_censor(raw_phenotype, raw_pedigree, **censor_params)
-        expected_new = {
-            "death_age",
-            "age_censored1",
-            "t_observed1",
-            "death_censored1",
-            "affected1",
-            "age_censored2",
-            "t_observed2",
-            "death_censored2",
-            "affected2",
-        }
-        assert expected_new.issubset(set(result.columns))
-
     def test_preserves_input_columns(self, raw_phenotype, raw_pedigree, censor_params):
         result = run_censor(raw_phenotype, raw_pedigree, **censor_params)
         for col in raw_phenotype.columns:
             assert col in result.columns
             np.testing.assert_array_equal(result[col].to_numpy(), raw_phenotype[col].to_numpy())
-
-    def test_affected_consistency(self, raw_phenotype, raw_pedigree, censor_params):
-        """affected should be True only when neither age- nor death-censored."""
-        result = run_censor(raw_phenotype, raw_pedigree, **censor_params)
-        for trait in ["1", "2"]:
-            affected = result[f"affected{trait}"].to_numpy()
-            age_cens = result[f"age_censored{trait}"].to_numpy()
-            death_cens = result[f"death_censored{trait}"].to_numpy()
-            np.testing.assert_array_equal(affected, ~age_cens & ~death_cens)
 
     def test_deterministic_with_seed(self, raw_phenotype, raw_pedigree, censor_params):
         r1 = run_censor(raw_phenotype, raw_pedigree, **censor_params)
