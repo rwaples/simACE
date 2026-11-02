@@ -7,7 +7,7 @@ hardcoding a list, so adding/removing an entry is a one-line edit in one place:
 - ``tools/typecheck_family.py`` -> ``python_repos()``  (the 13 ty/ruff/pytest check units)
 - ``tools/release.py``          -> ``lockstep_repos()`` (the 3 lockstep-tagged checkouts)
 - ``.agents/skills/repo-status/scripts/repo-status.sh``
-                                -> ``--subset all --format lines``
+                                -> ``--subset status`` (the family + the -validate harnesses)
 
 Since ADR 0017 (family monorepo) an entry is not necessarily its own git
 checkout: the method packages, the ``ace_iter_reml`` C++ source, and the
@@ -15,6 +15,10 @@ checkout: the method packages, the ``ace_iter_reml`` C++ source, and the
 (``checkout=False``) but remain independent *check units* (own pyproject with
 ty/ruff/pytest config). Only six entries are checkouts: simACE, fitACE,
 fitACE_epimight, pedigree-graph, pedsum, pg-phenotype.
+
+The four ``*-validate`` harness checkouts (:data:`VALIDATE`) sit outside
+:data:`FAMILY`: they are not packages, so the family subsets (python, lockstep,
+checkouts) and their consumers never see them. Only repo-status reports them.
 
 Paths are relative to the simACE umbrella root (this file's grandparent), with
 ``"."`` for simACE itself.  ``TY_PIN`` is the one ``ty`` version every family
@@ -24,6 +28,7 @@ CLI (for the bash consumer):
     python tools/family_repos.py --subset all       # label|path per line
     python tools/family_repos.py --subset python
     python tools/family_repos.py --subset lockstep
+    python tools/family_repos.py --subset status    # all, then the -validate harnesses
 """
 
 from __future__ import annotations
@@ -78,6 +83,15 @@ FAMILY: tuple[Repo, ...] = (
     Repo("pg-phenotype", "external/pg-phenotype", python=True, lockstep=False, checkout=True),
 )
 
+#: The validation-harness checkouts (own pixi env and ruff.toml; no package, no
+#: tests/, no ty config). Reported by repo-status only.
+VALIDATE: tuple[Repo, ...] = (
+    Repo("simACE-validate", "external/simACE-validate", python=True, lockstep=False, checkout=True),
+    Repo("pedigree-graph-validate", "external/pedigree-graph-validate", python=True, lockstep=False, checkout=True),
+    Repo("pedsum-validate", "external/pedsum-validate", python=True, lockstep=False, checkout=True),
+    Repo("pg-phenotype-validate", "external/pg-phenotype-validate", python=True, lockstep=False, checkout=True),
+)
+
 
 def all_repos() -> tuple[Repo, ...]:
     """Every family entry (14), in display order."""
@@ -99,7 +113,18 @@ def checkout_repos() -> tuple[Repo, ...]:
     return tuple(r for r in FAMILY if r.checkout)
 
 
-_SUBSETS = {"all": all_repos, "python": python_repos, "lockstep": lockstep_repos, "checkouts": checkout_repos}
+def status_repos() -> tuple[Repo, ...]:
+    """What repo-status reports: every family entry, then the harnesses."""
+    return FAMILY + VALIDATE
+
+
+_SUBSETS = {
+    "all": all_repos,
+    "python": python_repos,
+    "lockstep": lockstep_repos,
+    "checkouts": checkout_repos,
+    "status": status_repos,
+}
 
 
 def main(argv: list[str] | None = None) -> int:
