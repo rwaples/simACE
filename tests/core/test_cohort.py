@@ -10,7 +10,6 @@ import pytest
 from simace.ascertainment.runner import _apply_dropout, run_ascertainment
 from simace.censoring.censor import run_censor
 from simace.core.cohort import (
-    COHORT_COLUMNS,
     build_cohort,
     check_cohort,
     read_cohort,
@@ -122,12 +121,6 @@ def test_selected_views_take_any_pedigree_column_subset_with_id(chain, ascertain
     columns = ["id", "mother", "father", "twin", "sex", "generation", "liability1", "liability2"]
     _assert_same(selected_views(pedigree.select(columns), cohort).pedigree, ped_out.select(columns))
     _assert_same(selected_views(pedigree.select("id", "A1"), cohort).pedigree, ped_out.select("id", "A1"))
-
-
-def test_the_cohort_holds_the_analysis_pedigree_in_its_order(ascertained, cohort) -> None:
-    ped_out, _ = ascertained
-    assert tuple(cohort.columns) == COHORT_COLUMNS
-    assert cohort["id"].equals(ped_out["id"])
 
 
 def test_null_raw_onsets_on_sample_rows_are_accepted(chain, cohort) -> None:

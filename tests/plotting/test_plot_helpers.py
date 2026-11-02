@@ -71,16 +71,6 @@ class TestSavePlaceholderPlot:
         assert out.exists()
         assert out.stat().st_size > 0
 
-    def test_custom_figsize(self, tmp_path):
-        out = tmp_path / "placeholder_big.png"
-        save_placeholder_plot(out, "Big figure", figsize=(10, 8))
-        assert out.exists()
-
-    def test_multiline_message(self, tmp_path):
-        out = tmp_path / "placeholder_multi.png"
-        save_placeholder_plot(out, "Line one\nLine two\nLine three")
-        assert out.exists()
-
     def test_closes_figure(self, tmp_path):
         """Ensure no figure is left open after the call."""
         n_before = len(plt.get_fignums())
@@ -783,17 +773,12 @@ class TestFinalizePaths:
         plot_cumulative_incidence_aj_by_sex_generation(stats, out, scenario="test")
         assert out.exists()
 
-    def test_cumulative_incidence_aj_missing_keys_placeholder(self, tmp_path, minimal_stats):
+    def test_cumulative_incidence_aj_missing_keys_placeholder(self, tmp_path):
         """When stats lack the AJ keys, the plot must produce a placeholder, not crash."""
         from simace.plotting.plot_distributions import (
-            plot_cumulative_incidence_aj,
             plot_cumulative_incidence_aj_by_sex,
             plot_cumulative_incidence_aj_by_sex_generation,
         )
-
-        out1 = tmp_path / "aj_missing.png"
-        plot_cumulative_incidence_aj(minimal_stats, 100.0, out1, scenario="test")
-        assert out1.exists()
 
         out2 = tmp_path / "aj_sex_missing.png"
         plot_cumulative_incidence_aj_by_sex([{}], out2, scenario="test")

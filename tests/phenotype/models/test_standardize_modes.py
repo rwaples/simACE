@@ -186,20 +186,6 @@ def test_adult_ltm_rejects_standardize_hazard():
         )
 
 
-def test_adult_ltm_accepts_none_standardize_hazard():
-    """The default None is allowed for LTM — it just means 'no override'."""
-    m = AdultModel(
-        method="ltm",
-        prevalence=0.1,
-        cip_x0=50.0,
-        cip_k=0.2,
-        beta=1.0,
-        beta_sex=0.0,
-        standardize_hazard=None,
-    )
-    assert m.standardize_hazard is None
-
-
 # ---------------------------------------------------------------------------
 # Legacy bool passthrough end-to-end
 # ---------------------------------------------------------------------------

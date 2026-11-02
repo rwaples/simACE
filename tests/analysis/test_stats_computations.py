@@ -722,18 +722,6 @@ class TestComputePrevalence:
         assert result["trait1"] == pytest.approx(0.4)
         assert result["trait2"] == pytest.approx(0.6)
 
-    def test_all_affected(self):
-        df = pl.DataFrame({"affected1": [True, True], "affected2": [True, True]})
-        result = compute_prevalence(df)
-        assert result["trait1"] == pytest.approx(1.0)
-        assert result["trait2"] == pytest.approx(1.0)
-
-    def test_none_affected(self):
-        df = pl.DataFrame({"affected1": [False, False], "affected2": [False, False]})
-        result = compute_prevalence(df)
-        assert result["trait1"] == pytest.approx(0.0)
-        assert result["trait2"] == pytest.approx(0.0)
-
     def test_no_generation_column_omits_by_generation(self):
         df = pl.DataFrame({"affected1": [True, False], "affected2": [False, True]})
         result = compute_prevalence(df)
@@ -1069,13 +1057,6 @@ class TestComputeCrossTraitTetrachoric:
 
 
 class TestComputeParentOffspringCorr:
-    def test_structure(self, phenotyped_df):
-        result = compute_parent_offspring_corr(phenotyped_df, mate_pedigree(phenotyped_df))
-        assert "trait1" in result
-        assert "trait2" in result
-        # Should have gen keys (gen1, gen2 for G_ped=3)
-        assert "gen1" in result["trait1"] or "gen2" in result["trait1"]
-
     def test_positive_slope(self, phenotyped_df):
         """With A1=0.5, midparent-offspring slope should be positive."""
         result = compute_parent_offspring_corr(phenotyped_df, mate_pedigree(phenotyped_df))
@@ -1148,13 +1129,6 @@ class TestComputeTetrachoricBySex:
 
 
 class TestComputeParentOffspringCorrBySex:
-    def test_structure(self, phenotyped_df):
-        result = compute_parent_offspring_corr_by_sex(phenotyped_df, mate_pedigree(phenotyped_df))
-        assert "female" in result
-        assert "male" in result
-        for sex in ["female", "male"]:
-            assert "trait1" in result[sex]
-
     def test_missing_generation_returns_empty(self):
         df = pl.DataFrame(
             {"id": [0], "mother": [-1], "father": [-1], "sex": [0], "liability1": [1.0], "liability2": [1.0]}
@@ -1188,14 +1162,6 @@ class TestComputeParentOffspringCorrBySex:
 
 
 class TestComputeMateCorrelation:
-    def test_structure(self, phenotyped_df):
-        result = compute_mate_correlation(phenotyped_df)
-        assert "matrix" in result
-        assert "n_pairs" in result
-        assert len(result["matrix"]) == 2
-        assert len(result["matrix"][0]) == 2
-        assert result["n_pairs"] > 0
-
     def test_near_zero_for_random_mating(self, phenotyped_df):
         """With assort1=0, mate correlations should be near zero."""
         result = compute_mate_correlation(phenotyped_df)
@@ -1360,71 +1326,6 @@ class TestComputeParentOffspringAffectedCorr:
 
 
 class TestComputeObservedH2Estimators:
-    def test_closed_form(self):
-        """Algebraic check: each estimator combines its inputs correctly."""
-        stats = {
-            "affected_correlations": {
-                "trait1": {
-                    "MZ": 0.40,
-                    "FS": 0.15,
-                    "MO": 0.10,
-                    "FO": 0.10,
-                    "MHS": 0.05,
-                    "PHS": 0.05,
-                    "1C": 0.02,
-                },
-                "trait2": {
-                    "MZ": None,
-                    "FS": 0.20,
-                    "MO": None,
-                    "FO": None,
-                    "MHS": None,
-                    "PHS": None,
-                    "1C": None,
-                },
-            },
-            "parent_offspring_affected_corr": {
-                "trait1": {"slope": 0.12},
-                "trait2": {"slope": None},
-            },
-        }
-        result = compute_observed_h2_estimators(
-            stats["affected_correlations"],
-            stats["parent_offspring_affected_corr"],
-        )
-        t1 = result["trait1"]
-        assert t1["falconer"] == pytest.approx(2.0 * (0.40 - 0.15))
-        assert t1["sibs"] == pytest.approx(2.0 * 0.15)
-        assert t1["po"] == pytest.approx(0.12)
-        assert t1["hs"] == pytest.approx(4.0 * 0.05)
-        assert t1["cousins"] == pytest.approx(8.0 * 0.02)
-
-        t2 = result["trait2"]
-        assert t2["falconer"] is None  # r_MZ is None
-        assert t2["sibs"] == pytest.approx(2.0 * 0.20)
-        assert t2["po"] is None
-        assert t2["hs"] is None
-        assert t2["cousins"] is None
-
-    def test_hs_averages_available_sides(self):
-        """When only one of MHS/PHS is present, HS uses that one × 4."""
-        stats = {
-            "affected_correlations": {
-                "trait1": {"MZ": None, "FS": None, "MO": None, "FO": None, "MHS": 0.07, "PHS": None, "1C": None},
-                "trait2": {"MZ": None, "FS": None, "MO": None, "FO": None, "MHS": None, "PHS": None, "1C": None},
-            },
-            "parent_offspring_affected_corr": {
-                "trait1": {"slope": None},
-                "trait2": {"slope": None},
-            },
-        }
-        result = compute_observed_h2_estimators(
-            stats["affected_correlations"],
-            stats["parent_offspring_affected_corr"],
-        )
-        assert result["trait1"]["hs"] == pytest.approx(4.0 * 0.07)
-        assert result["trait2"]["hs"] is None
-
     def test_missing_inputs_returns_all_none(self):
         """Empty stats dict yields all-None estimators."""
         result = compute_observed_h2_estimators({}, {})

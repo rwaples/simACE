@@ -23,10 +23,6 @@ class TestFlattenPassthrough:
     def test_empty_dict(self):
         assert _flatten_hierarchical({}) == {}
 
-    def test_globals_only(self):
-        d = {"seed": 42, "N": 10000, "A1": 0.5}
-        assert _flatten_hierarchical(d) == d
-
     def test_all_flat_keys_passthrough(self):
         d = {
             "seed": 42,
@@ -491,12 +487,6 @@ class TestPedigreeConfigValidation:
                 },
             }
         }
-
-    def test_baseline_defaults_pass(self, tmp_path):
-        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
-        self._write(tmp_path, "x.yaml", {"ok_scenario": {}})
-        scenarios = resolve_scenarios(tmp_path)
-        assert "ok_scenario" in scenarios
 
     def test_scenario_E1_null_rejected(self, tmp_path):
         self._write(tmp_path, "_default.yaml", self._baseline_defaults())

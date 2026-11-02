@@ -187,30 +187,11 @@ def test_gather_skips_an_unavailable_record(tmp_path):
     _write_yaml(path, payload)
 
     scalar_df, series_df = gather_effective_size([path])
-    assert scalar_df.filter(pl.col("estimator") == "ne_coancestry")["ne"].is_nan().all()
-    assert series_df.filter(pl.col("estimator") == "ne_coancestry").is_empty()
-    assert not series_df.filter(pl.col("estimator") == "ne_inbreeding").is_empty()
-
-
-def test_gather_handles_an_unavailable_estimator(tmp_path):
-    """An estimator that reported no value still gets a scalar row, with NaN.
-
-    ``skip_ne_coancestry`` makes ``compute_effective_size`` write the
-    ``{reason, code, fields}`` payload for ``ne_coancestry``, which carries no
-    ``ne`` key at all. Under pedigree-graph 0.9 that is the case to cover:
-    ``ne_long_term_contributions`` used to be the example here, and it now
-    always reports an ``ne`` (its 0.9 changelog, the Ne_LTC asymptote entry).
-    """
-    payload = _make_payload()
-    payload["ne_coancestry"] = {"reason": "not_requested", "code": "not_requested", "fields": []}
-    path = tmp_path / "rep1.yaml"
-    _write_yaml(path, payload)
-
-    scalar_df, series_df = gather_effective_size([path])
     coancestry = scalar_df.filter(pl.col("estimator") == "ne_coancestry")
     assert len(coancestry) == 1
     assert coancestry["ne"].is_nan().all()
     assert series_df.filter(pl.col("estimator") == "ne_coancestry").is_empty()
+    assert not series_df.filter(pl.col("estimator") == "ne_inbreeding").is_empty()
 
 
 def test_gather_handles_missing_per_gen_entries(two_rep_yamls):

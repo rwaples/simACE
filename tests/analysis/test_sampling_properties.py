@@ -142,7 +142,9 @@ class TestCreateSample:
     def test_identity_below_the_cap(self, case, seed):
         """When no generation exceeds the cap the frame is returned unchanged."""
         frame, n_per_gen = case
-        assert create_sample(frame, seed=seed, n_per_gen=n_per_gen).equals(frame)
+        result = create_sample(frame, seed=seed, n_per_gen=n_per_gen)
+        assert result.equals(frame)
+        assert result is not frame
 
     @given(
         pedigree=pedigree_frame(twins=True),

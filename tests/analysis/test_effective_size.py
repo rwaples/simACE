@@ -208,10 +208,6 @@ class TestRegressionEstimatorRegimeOk:
         # N=100K, G=15 ⇒ N·G² = 22.5M > 8.82M
         assert regression_estimator_regime_ok(100000.0, 15, 73485.0)
 
-    def test_small_N_with_modest_G(self):
-        # N=200, G=20, Ne_V=147 ⇒ N·G² = 80K vs 120·147 = 17.6K, ok.
-        assert regression_estimator_regime_ok(200.0, 20, 147.0)
-
 
 # ---------------------------------------------------------------------------
 # compute_effective_size

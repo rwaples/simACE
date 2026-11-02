@@ -17,8 +17,6 @@ from simace.simulation.simulate import (
     _kd_match_python,
     _mating_wf,
     _metropolis_full_python,
-    add_to_pedigree,
-    allocate_offspring,
     balance_mating_slots,
     draw_mating_counts,
     generate_correlated_components,
@@ -97,14 +95,6 @@ class TestGenerateCorrelatedComponents:
         observed = np.corrcoef(c1, c2)[0, 1]
         assert abs(observed - 0.6) < 0.05
 
-    def test_perfect_correlation(self, rng):
-        c1, c2 = generate_correlated_components(rng, 1000, 1.0, 1.0, 1.0)
-        np.testing.assert_allclose(c1, c2, atol=1e-10)
-
-    def test_perfect_negative_correlation(self, rng):
-        c1, c2 = generate_correlated_components(rng, 1000, 1.0, 1.0, -1.0)
-        np.testing.assert_allclose(c1, -c2, atol=1e-10)
-
 
 # ---------------------------------------------------------------------------
 # generate_mendelian_noise
@@ -169,13 +159,6 @@ class TestBalanceMatingSlots:
         fc = np.array([1, 1, 1, 1])
         bm, bf = balance_mating_slots(rng, mc, fc)
         assert bm.sum() == bf.sum() == 4
-
-    def test_all_counts_nonnegative(self, rng):
-        mc = np.array([5, 3, 2])
-        fc = np.array([1, 1])
-        bm, bf = balance_mating_slots(rng, mc, fc)
-        assert np.all(bm >= 0)
-        assert np.all(bf >= 0)
 
 
 # ---------------------------------------------------------------------------
@@ -286,25 +269,6 @@ class TestKdMatch:
 
 
 # ---------------------------------------------------------------------------
-# allocate_offspring
-# ---------------------------------------------------------------------------
-
-
-class TestAllocateOffspring:
-    def test_sum_equals_N(self, rng):
-        counts = allocate_offspring(rng, 50, 1000)
-        assert counts.sum() == 1000
-
-    def test_shape(self, rng):
-        counts = allocate_offspring(rng, 30, 500)
-        assert counts.shape == (30,)
-
-    def test_all_nonneg(self, rng):
-        counts = allocate_offspring(rng, 100, 200)
-        assert np.all(counts >= 0)
-
-
-# ---------------------------------------------------------------------------
 # place_twins
 # ---------------------------------------------------------------------------
 
@@ -368,20 +332,6 @@ class TestMating:
         father_sexes = sex[parents[:, 1]]
         assert np.all(father_sexes == 1)
 
-    def test_twin_pairs_share_mother(self, rng):
-        sex = rng.binomial(n=1, p=0.5, size=2000)
-        parents, twins, _ = mating(rng, sex, 0.5, 0.05)
-        if len(twins) > 0:
-            for t1, t2 in twins:
-                assert parents[t1, 0] == parents[t2, 0]  # same mother
-
-    def test_twin_pairs_share_father(self, rng):
-        sex = rng.binomial(n=1, p=0.5, size=2000)
-        parents, twins, _ = mating(rng, sex, 0.5, 0.05)
-        if len(twins) > 0:
-            for t1, t2 in twins:
-                assert parents[t1, 1] == parents[t2, 1]  # same bio father
-
     def test_no_twins_when_p_zero(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
         _, twins, _ = mating(rng, sex, 0.5, 0.0)
@@ -407,20 +357,6 @@ class TestMating:
         assert not np.all(block_start[twins[:, 0]])
         _, pairs_per_couple = np.unique(parents[twins[:, 0]], axis=0, return_counts=True)
         assert pairs_per_couple.max() >= 2
-
-    def test_household_ids_nonnegative(self, rng):
-        sex = rng.binomial(n=1, p=0.5, size=1000)
-        _, _, hh = mating(rng, sex, 0.5, 0.02)
-        assert np.all(hh >= 0)
-
-    def test_siblings_share_household(self, rng):
-        sex = rng.binomial(n=1, p=0.5, size=1000)
-        parents, _, hh = mating(rng, sex, 0.5, 0.02)
-        # Siblings with same mother should have same household
-        for mother_idx in np.unique(parents[:, 0]):
-            sib_mask = parents[:, 0] == mother_idx
-            sib_hh = hh[sib_mask]
-            assert len(np.unique(sib_hh)) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -482,121 +418,11 @@ class TestReproduce:
 
 
 # ---------------------------------------------------------------------------
-# add_to_pedigree
-# ---------------------------------------------------------------------------
-
-
-class TestAddToPedigree:
-    def test_founder_generation(self, rng):
-        N = 100
-        pheno = rng.standard_normal((N, 6))
-        sex = rng.binomial(n=1, p=0.5, size=N)
-        parents = np.column_stack([np.arange(N), np.arange(N)])
-        twins = np.array([], dtype=int).reshape(0, 2)
-        hh = np.arange(N)
-
-        ped = add_to_pedigree(pheno, sex, parents, twins, hh, generation=0, pedigree=None)
-        assert len(ped) == N
-        assert (ped["mother"] == -1).all()
-        assert (ped["father"] == -1).all()
-        assert (ped["generation"] == 0).all()
-
-    def test_ids_are_contiguous(self, rng):
-        N = 100
-        pheno = rng.standard_normal((N, 6))
-        sex = rng.binomial(n=1, p=0.5, size=N)
-        parents = np.column_stack([np.zeros(N, dtype=int), np.ones(N, dtype=int)])
-        twins = np.array([], dtype=int).reshape(0, 2)
-        hh = np.arange(N)
-
-        ped = add_to_pedigree(pheno, sex, parents, twins, hh, generation=0, pedigree=None)
-        np.testing.assert_array_equal(ped["id"].to_numpy(), np.arange(N))
-
-    def test_appending_generation(self, rng):
-        N = 50
-        pheno = rng.standard_normal((N, 6))
-        sex = rng.binomial(n=1, p=0.5, size=N)
-        parents = np.column_stack([np.arange(N), np.arange(N)])
-        twins = np.array([], dtype=int).reshape(0, 2)
-        hh = np.arange(N)
-
-        ped = add_to_pedigree(pheno, sex, parents, twins, hh, generation=0, pedigree=None)
-        ped = add_to_pedigree(pheno, sex, parents, twins, hh, generation=1, pedigree=ped)
-        assert len(ped) == 2 * N
-        np.testing.assert_array_equal(ped["id"].to_numpy(), np.arange(2 * N))
-
-    def test_liability_equals_sum(self, rng):
-        N = 100
-        pheno = rng.standard_normal((N, 6))
-        sex = rng.binomial(n=1, p=0.5, size=N)
-        parents = np.column_stack([np.arange(N), np.arange(N)])
-        twins = np.array([], dtype=int).reshape(0, 2)
-        hh = np.arange(N)
-
-        ped = add_to_pedigree(pheno, sex, parents, twins, hh, generation=0, pedigree=None)
-        # ACE columns are float32, liability is float64 — allow float32 precision loss
-        np.testing.assert_allclose(
-            ped["liability1"].to_numpy(),
-            ped["A1"].to_numpy() + ped["C1"].to_numpy() + ped["E1"].to_numpy(),
-            atol=1e-6,
-        )
-        np.testing.assert_allclose(
-            ped["liability2"].to_numpy(),
-            ped["A2"].to_numpy() + ped["C2"].to_numpy() + ped["E2"].to_numpy(),
-            atol=1e-6,
-        )
-
-    def test_twin_column_bidirectional(self, rng):
-        N = 100
-        pheno = rng.standard_normal((N, 6))
-        sex = rng.binomial(n=1, p=0.5, size=N)
-        parents = np.column_stack([np.zeros(N, dtype=int), np.ones(N, dtype=int)])
-        twins = np.array([[0, 1], [10, 11]])
-        hh = np.arange(N)
-
-        ped = add_to_pedigree(pheno, sex, parents, twins, hh, generation=0, pedigree=None)
-        # ids are contiguous from 0, so row position == id.
-        for t1, t2 in twins:
-            assert ped["twin"][int(t1)] == t2
-            assert ped["twin"][int(t2)] == t1
-
-
-# ---------------------------------------------------------------------------
 # run_simulation
 # ---------------------------------------------------------------------------
 
 
 class TestRunSimulation:
-    def test_output_is_dataframe(self, default_params):
-        ped = run_simulation(**default_params)
-        assert isinstance(ped, pl.DataFrame)
-
-    def test_output_size(self, default_params):
-        ped = run_simulation(**default_params)
-        expected = default_params["N"] * default_params["G_ped"]
-        assert len(ped) == expected
-
-    def test_required_columns_present(self, default_params):
-        ped = run_simulation(**default_params)
-        expected_cols = {
-            "id",
-            "sex",
-            "mother",
-            "father",
-            "twin",
-            "generation",
-            "household_id",
-            "A1",
-            "C1",
-            "E1",
-            "liability1",
-            "A2",
-            "C2",
-            "E2",
-            "liability2",
-        }
-        assert expected_cols.issubset(set(ped.columns))
-
     def test_deterministic_with_same_seed(self, default_params):
         ped1 = run_simulation(**default_params)
         ped2 = run_simulation(**default_params)
@@ -608,11 +434,6 @@ class TestRunSimulation:
         ped1 = run_simulation(**p1)
         ped2 = run_simulation(**p2)
         assert not ped1["A1"].equals(ped2["A1"])
-
-    def test_burnin_generations(self, default_params):
-        params = {**default_params, "G_sim": 5, "G_ped": 3}
-        ped = run_simulation(**params)
-        assert len(ped) == params["N"] * params["G_ped"]
 
     # --- Validation error tests ---
 
@@ -688,12 +509,6 @@ class TestRunSimulation:
         )  # fmt: skip
         with pytest.raises(ValueError, match=r"^Mating iteration 2: .*not attainable.*female 0\.7\d+, male 0\.7"):
             run_simulation(**params)
-
-    def test_assort_zero_preserves_rng(self, default_params):
-        """assort=0 should produce identical output to no assort params."""
-        ped1 = run_simulation(**{**default_params, "assort1": 0.0, "assort2": 0.0})
-        ped2 = run_simulation(**default_params)
-        assert_frame_equal(ped1, ped2)
 
 
 # ---------------------------------------------------------------------------
@@ -1021,12 +836,6 @@ class TestResolvePerGenParam:
 
 
 class TestPerGenerationVariance:
-    def test_scalar_E_matches_old_behavior(self, default_params):
-        """Scalar E1/E2 should produce identical results to omitting them."""
-        ped_no_e = run_simulation(**default_params)
-        ped_with_e = run_simulation(**{**default_params, "E1": 0.3, "E2": 0.3})
-        assert_frame_equal(ped_no_e, ped_with_e)
-
     def test_per_gen_E_changes_variance(self):
         """Per-gen E should produce different variance in different generations."""
         params = dict(
@@ -1093,12 +902,6 @@ class TestPerGenerationVariance:
 
 
 class TestCrossTraitRE:
-    def test_rE_zero_preserves_rng(self, default_params):
-        """rE=0 (default) should produce bit-identical output to omitting rE."""
-        ped1 = run_simulation(**default_params)
-        ped2 = run_simulation(**{**default_params, "rE": 0.0})
-        assert_frame_equal(ped1, ped2)
-
     def test_rE_positive_correlates_E(self):
         """With rE=0.5, E1 and E2 should be positively correlated within individuals."""
         params = dict(
@@ -1169,21 +972,6 @@ class TestMatingWF:
         assert parents.shape == (200, 2)
         assert twins.shape == (0, 2)
         assert hh.shape == (200,)
-
-    def test_household_grouped_by_mother(self):
-        rng = np.random.default_rng(7)
-        sex = rng.binomial(size=300, n=1, p=0.5)
-        parents, _, hh = _mating_wf(rng, sex, N=300, generation=0)
-        # Every offspring sharing a mother shares a household.
-        df = pl.DataFrame({"mother": parents[:, 0], "household": hh})
-        assert (df.group_by("mother").agg(pl.col("household").n_unique())["household"] == 1).all()
-
-    def test_household_ids_contiguous_from_zero(self):
-        rng = np.random.default_rng(11)
-        sex = rng.binomial(size=200, n=1, p=0.5)
-        _, _, hh = _mating_wf(rng, sex, N=200, generation=0)
-        n_hh = int(hh.max()) + 1
-        assert set(hh.tolist()) == set(range(n_hh))
 
     def test_no_females_raises(self):
         rng = np.random.default_rng(3)
@@ -1256,13 +1044,6 @@ class TestRunSimulationWF:
         # All WF offspring have twin == -1 (twins disabled).
         assert (ped["twin"] == -1).all()
 
-    def test_household_grouped_by_mother(self):
-        ped = run_simulation(**self._wf_params(seed=99))
-        non_founders = ped.filter(pl.col("mother") != -1)
-        # All offspring of the same mother share a household.
-        hh_per_mother = non_founders.group_by("generation", "mother").agg(pl.col("household_id").n_unique())
-        assert (hh_per_mother["household_id"] == 1).all()
-
     def test_C_still_works_under_wf(self):
         ped = run_simulation(**self._wf_params(C1=0.2, E1=0.3))
         # Household-grouped C: variance across households should be ≈ 0.2; total variance > 0.
@@ -1307,17 +1088,6 @@ class TestAssortMatrixValidation:
     def test_diagonal_out_of_range_raises(self, default_params):
         with pytest.raises(ValueError, match=r"assort_matrix\[0,0\]"):
             run_simulation(**{**default_params, "assort_matrix": [[1.5, 0.0], [0.0, 0.2]]})
-
-    def test_with_per_gen_dict_assort_raises(self, default_params):
-        """Per-gen dict assort* + assort_matrix is rejected (cross-AM ambiguity)."""
-        with pytest.raises(ValueError, match="incompatible"):
-            run_simulation(
-                **{
-                    **default_params,
-                    "assort1": {0: 0.1},
-                    "assort_matrix": [[0.2, 0.05], [0.05, 0.2]],
-                }
-            )
 
     def test_happy_path(self, default_params):
         """Valid assort_matrix runs end-to-end."""

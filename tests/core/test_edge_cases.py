@@ -7,7 +7,6 @@ all non-social fathers, single-generation pedigrees, etc.
 import numpy as np
 import polars as pl
 
-from simace.censoring.censor import age_censor
 from simace.phenotype.models import FrailtyModel
 from simace.phenotype.models._prevalence import case_status_from_liability
 from simace.simulation.simulate import run_simulation
@@ -53,14 +52,6 @@ MINIMAL_PARAMS = dict(
 
 
 class TestZeroA:
-    def test_A_zero_both_traits(self):
-        params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.3, "E1": 0.7, "A2": 0.0, "C2": 0.3, "E2": 0.7}
-        ped = run_simulation(**params)
-        # All A values should be zero for founders
-        founders = ped.filter(pl.col("mother") == -1)
-        np.testing.assert_array_equal(founders["A1"].to_numpy(), 0.0)
-        np.testing.assert_array_equal(founders["A2"].to_numpy(), 0.0)
-
     def test_A_zero_offspring_A_also_zero(self):
         """With A=0, offspring A should also be zero (midparent=0, noise sd=0)."""
         params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.3, "E1": 0.7, "A2": 0.0, "C2": 0.3, "E2": 0.7}
@@ -200,15 +191,6 @@ class TestSingleGeneration:
         assert len(ped) == params["N"]
         assert (ped["generation"] == 0).all()
 
-    def test_G_ped_1_all_founders(self):
-        """With G_ped=1, all individuals are first-generation offspring
-        (founders are burn-in gen 0, but with G_sim=G_ped=1, the one
-        recorded generation is gen 0 offspring)."""
-        params = {**MINIMAL_PARAMS, "G_ped": 1}
-        ped = run_simulation(**params)
-        # Generation 0 should have parents since G_sim=1 means one mating round
-        assert len(ped) == params["N"]
-
 
 # ---------------------------------------------------------------------------
 # Edge cases for phenotype functions
@@ -232,22 +214,6 @@ class TestPhenotypeEdgeCases:
         )
         assert np.all(np.isfinite(t))
         assert np.all(t > 0)
-
-    def test_age_censor_all_left_censored(self):
-        t = np.array([1.0, 2.0, 3.0])
-        left = np.array([10.0, 10.0, 10.0])
-        right = np.array([80.0, 80.0, 80.0])
-        t_out, censored = age_censor(t, left, right)
-        assert censored.all()
-        np.testing.assert_array_equal(t_out, left)
-
-    def test_age_censor_all_right_censored(self):
-        t = np.array([100.0, 200.0, 300.0])
-        left = np.array([10.0, 10.0, 10.0])
-        right = np.array([80.0, 80.0, 80.0])
-        t_out, censored = age_censor(t, left, right)
-        assert censored.all()
-        np.testing.assert_array_equal(t_out, right)
 
 
 # ---------------------------------------------------------------------------

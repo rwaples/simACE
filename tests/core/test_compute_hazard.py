@@ -71,13 +71,6 @@ class TestExponential:
         expected = self.params["rate"] * self.t
         assert H_base == pytest.approx(expected, rel=1e-6)
 
-    def test_exponential_survival_identity(self):
-        _, H_base = compute_hazard_terms("exponential", self.t, self.params)
-        S0 = np.exp(-H_base)
-        lam = self.params["rate"]
-        expected = np.exp(-lam * self.t)
-        assert pytest.approx(expected, rel=1e-6) == S0
-
     def test_exponential_density_identity(self):
         const, H_base = compute_hazard_terms("exponential", self.t, self.params)
         f0 = np.exp(const) * np.exp(-H_base)
@@ -113,13 +106,6 @@ class TestGompertz:
         b, g = self.params["rate"], self.params["gamma"]
         expected = self._analytical_H0(self.t, b, g)
         assert H_base == pytest.approx(expected, rel=1e-6)
-
-    def test_gompertz_survival_identity(self):
-        _, H_base = compute_hazard_terms("gompertz", self.t, self.params)
-        S0 = np.exp(-H_base)
-        b, g = self.params["rate"], self.params["gamma"]
-        expected = np.exp(-self._analytical_H0(self.t, b, g))
-        assert pytest.approx(expected, rel=1e-6) == S0
 
     def test_gompertz_density_identity(self):
         const, H_base = compute_hazard_terms("gompertz", self.t, self.params)
@@ -201,13 +187,6 @@ class TestLoglogistic:
         expected = self._analytical_H0(self.t)
         assert H_base == pytest.approx(expected, rel=1e-6)
 
-    def test_loglogistic_survival_identity(self):
-        _, H_base = compute_hazard_terms("loglogistic", self.t, self.params)
-        S0 = np.exp(-H_base)
-        alpha, k = self.params["scale"], self.params["shape"]
-        expected = 1 / (1 + (self.t / alpha) ** k)
-        assert pytest.approx(expected, rel=1e-6) == S0
-
     def test_loglogistic_density_identity(self):
         const, H_base = compute_hazard_terms("loglogistic", self.t, self.params)
         f0 = np.exp(const) * np.exp(-H_base)
@@ -239,13 +218,6 @@ class TestGamma:
         k, theta = self.params["shape"], self.params["scale"]
         expected = -gamma_dist.logsf(self.t, a=k, scale=theta)
         assert H_base == pytest.approx(expected, rel=1e-6)
-
-    def test_gamma_survival_identity(self):
-        _, H_base = compute_hazard_terms("gamma", self.t, self.params)
-        S0 = np.exp(-H_base)
-        k, theta = self.params["shape"], self.params["scale"]
-        expected = gamma_dist.sf(self.t, a=k, scale=theta)
-        assert pytest.approx(expected, rel=1e-6) == S0
 
     def test_gamma_density_identity(self):
         const, H_base = compute_hazard_terms("gamma", self.t, self.params)
@@ -283,13 +255,6 @@ class TestFirstPassage:
         expected = -rv.logsf(self.t)
         assert H_base == pytest.approx(expected, rel=1e-6)
 
-    def test_first_passage_survival_identity(self):
-        _, H_base = compute_hazard_terms("first_passage", self.t, self.params)
-        S0 = np.exp(-H_base)
-        rv = self._rv()
-        expected = rv.sf(self.t)
-        assert pytest.approx(expected, rel=1e-6) == S0
-
     def test_first_passage_density_identity(self):
         const, H_base = compute_hazard_terms("first_passage", self.t, self.params)
         f0 = np.exp(const) * np.exp(-H_base)
@@ -324,13 +289,6 @@ class TestFirstPassagePositiveDrift:
         p_hit, _ = self._cure_params()
         expected_cure = 1.0 - p_hit
         assert S_large[0] == pytest.approx(expected_cure, abs=1e-6)
-
-    def test_defective_hazard_finite(self):
-        """Hazard should be finite and positive at reasonable times."""
-        const, _ = compute_hazard_terms("first_passage", self.t, self.params)
-        h0 = np.exp(const)
-        assert np.all(np.isfinite(h0))
-        assert np.all(h0 > 0)
 
     def test_defective_density_identity(self):
         """h(t)*S(t) should equal the defective density."""

@@ -198,10 +198,6 @@ class TestRunCensor:
         np.testing.assert_array_equal(r1["t_observed2"].to_numpy(), r2["t_observed2"].to_numpy())
         np.testing.assert_array_equal(r1["death_age"].to_numpy(), r2["death_age"].to_numpy())
 
-    def test_row_count_unchanged(self, raw_phenotype, raw_pedigree, censor_params):
-        result = run_censor(raw_phenotype, raw_pedigree, **censor_params)
-        assert len(result) == len(raw_phenotype)
-
 
 # ---------------------------------------------------------------------------
 # Stage edges

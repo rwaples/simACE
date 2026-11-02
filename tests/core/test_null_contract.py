@@ -79,11 +79,6 @@ class TestOnDiskNullMask:
             vals = tbl.column(name).to_numpy(zero_copy_only=False)
             assert int(np.isnan(vals).sum()) == tbl.column(name).null_count
 
-    def test_polars_nulls_preserved(self, tmp_path):
-        out = tmp_path / "t.parquet"
-        save_parquet(pl.DataFrame({"id": [0, 1], "t1": [None, 30.0]}), out)
-        assert pq.read_table(out).column("t1").null_count == 1
-
     def test_structural_columns_have_no_nulls_and_frozen_dtypes(self, tmp_path):
         out = tmp_path / "pedigree.parquet"
         save_parquet(_pedigree_polars(), out)
@@ -130,14 +125,6 @@ class TestCrossLibraryRoundTrip:
 
 
 class TestNarrowingAndOverflow:
-    def test_float32_rounding_is_expected(self, tmp_path):
-        out = tmp_path / "f.parquet"
-        precise = 0.1234567890123456789
-        save_parquet(pl.DataFrame({"id": [0], "A1": [precise], "liability1": [precise]}), out)
-        back = load_parquet(out)
-        assert back["A1"][0] == np.float32(precise)  # narrowed
-        assert back["liability1"][0] == precise  # full precision
-
     @pytest.mark.parametrize(
         ("col", "bad"),
         [("id", 2_147_483_648), ("mother", -2_147_483_649), ("sex", 128)],
@@ -147,11 +134,6 @@ class TestNarrowingAndOverflow:
         data[col][0] = bad
         with pytest.raises(ValueError, match=col):
             save_parquet(pl.DataFrame(data), tmp_path / "o.parquet")
-
-    def test_integer_overflow_raises_for_polars_input(self, tmp_path):
-        df = pl.DataFrame({"id": [0, 2_147_483_648], "t1": [1.0, 2.0]})
-        with pytest.raises(ValueError, match="id"):
-            save_parquet(df, tmp_path / "o.parquet")
 
 
 class TestCallerNotMutated:

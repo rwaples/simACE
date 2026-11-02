@@ -270,10 +270,6 @@ class TestValidateStatistical:
 
 
 class TestValidateHeritability:
-    def test_result_present(self, heritability_result):
-        assert isinstance(heritability_result, dict)
-        assert len(heritability_result) > 0
-
     def test_mz_correlations_present(self, heritability_result):
         mz_keys = [k for k in heritability_result if "mz" in k.lower()]
         assert len(mz_keys) > 0
@@ -284,12 +280,6 @@ class TestValidateHeritability:
 
 
 class TestComputePerGenerationStats:
-    def test_three_generations(self, val_pedigree, val_params):
-        result = compute_per_generation_stats(val_pedigree, val_params)
-        assert "generation_1" in result
-        assert "generation_2" in result
-        assert "generation_3" in result
-
     def test_gen_size(self, val_pedigree, val_params):
         result = compute_per_generation_stats(val_pedigree, val_params)
         for g in range(1, 4):
@@ -351,11 +341,6 @@ class TestValidatePopulation:
     def test_all_checks_pass(self, val_pedigree, val_params):
         result = validate_population(val_pedigree, val_params)
         _all_passed(result)
-
-    def test_expected_keys(self, val_pedigree, val_params):
-        result = validate_population(val_pedigree, val_params)
-        assert "generation_sizes" in result
-        assert "generation_count" in result
 
     def test_generation_count_reports_the_number_of_labels(self, val_pedigree, val_params):
         count = validate_population(val_pedigree, val_params)["generation_count"]

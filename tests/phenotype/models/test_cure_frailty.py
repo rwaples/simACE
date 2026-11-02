@@ -118,21 +118,6 @@ def test_from_cli_rejects_foreign_first_passage_flag():
         CureFrailtyModel.from_cli(args, 1)
 
 
-def test_simulate_runs():
-    m = CureFrailtyModel(distribution="gompertz", hazard_params=GOMPERTZ, prevalence=0.1, beta=1.0)
-    liability = np.random.default_rng(0).standard_normal(500)
-    t = m.simulate(
-        liability=liability,
-        seed=42,
-        standardize=True,
-        sex=np.zeros(500),
-        generation=np.zeros(500, dtype=int),
-    )
-    assert t.shape == (500,)
-    cases = t < 1e6
-    assert cases.sum() > 0
-
-
 def test_hazard_invariant_to_liability_shift_under_global():
     """Under standardize='global', shifting liability by a constant ``c`` should
     not change case-onset times: z-scores absorb the shift, the threshold step

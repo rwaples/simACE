@@ -53,18 +53,6 @@ def test_round_trip_uncompressed(tmp_path, sample_df):
     assert back["id"].tolist() == sample_df["id"].tolist()
 
 
-def test_explicit_output_path(tmp_path, sample_df):
-    pq = tmp_path / "in.parquet"
-    sample_df.to_parquet(pq)
-
-    out = tmp_path / "custom.tsv"
-    convert(str(pq), output_path=str(out), gzip=False)
-
-    assert out.exists()
-    back = pd.read_csv(out, sep="\t")
-    assert len(back) == len(sample_df)
-
-
 def test_precision_setting(tmp_path, sample_df):
     pq = tmp_path / "in.parquet"
     sample_df.to_parquet(pq)

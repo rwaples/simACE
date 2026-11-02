@@ -184,43 +184,8 @@ class TestExtractMetrics:
         assert row["observed_twin_rate"] == pytest.approx(0.019)
         assert row["variance_A1"] == pytest.approx(0.48)
 
-    def test_identity_comes_from_the_rep_path(self, tmp_path):
-        from simace.analysis.gather import extract_metrics
-
-        val_dir = tmp_path / "results" / "folder" / "scX" / "rep1"
-        val_dir.mkdir(parents=True)
-        val_path = val_dir / "report.yaml"
-        val_path.write_text(yaml.dump(_MINIMAL_REPORT))
-        row = extract_metrics(str(val_path))
-        assert row["scenario"] == "scX"
-        assert row["rep"] == 1
-
 
 class TestGatherMain:
-    def test_gathers_multiple_files_to_tsv(self, tmp_path):
-        from simace.analysis.gather import main
-
-        # Create two validation files
-        for sc, rep in [("scA", 1), ("scB", 1)]:
-            val_dir = tmp_path / "results" / "base" / sc / f"rep{rep}"
-            val_dir.mkdir(parents=True)
-            val_path = val_dir / "report.yaml"
-            val_path.write_text(yaml.dump(_MINIMAL_REPORT))
-
-        out_path = tmp_path / "summary.tsv"
-        files = [
-            str(tmp_path / "results" / "base" / "scA" / "rep1" / "report.yaml"),
-            str(tmp_path / "results" / "base" / "scB" / "rep1" / "report.yaml"),
-        ]
-        main(files, str(out_path))
-
-        assert out_path.exists()
-        lines = out_path.read_text().strip().split("\n")
-        assert len(lines) == 3  # header + 2 rows
-        header = lines[0].split("\t")
-        assert "scenario" in header
-        assert "N" in header
-
     def test_sorted_by_scenario_and_rep(self, tmp_path):
         from simace.analysis.gather import main
 

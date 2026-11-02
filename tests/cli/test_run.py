@@ -734,26 +734,6 @@ def test_until_cohort_leaves_a_partial_rep_and_skips_plots(config_dir, roots, la
     assert "[tiny] plots skipped: --until cohort" in capsys.readouterr().out
 
 
-@pytest.mark.slow
-def test_a_full_run_resumes_a_partial_rep_at_its_first_missing_stage(
-    config_dir, roots, layout, no_plots, capsys
-) -> None:
-    rep = _rep(config_dir, 1)
-    assert _run(config_dir, roots, "tiny", "--rep", "1", "--until", "cohort") == 0
-    kept = _mtimes(layout, rep, RepArtifact.PEDIGREE, RepArtifact.COHORT)
-    capsys.readouterr()
-
-    assert _run(config_dir, roots, "tiny", "--rep", "1") == 0
-
-    assert "[tiny/rep1] resume: built through cohort" in capsys.readouterr().out
-    assert _mtimes(layout, rep, RepArtifact.PEDIGREE, RepArtifact.COHORT) == kept
-    rep_dir = layout.rep_dir(rep.folder, rep.scenario, 1)
-    timing = (rep_dir / "timing.tsv").read_text().splitlines()[1:]
-    assert [row.split("\t")[0] for row in timing] == [s.name for s in STAGES]
-    assert yaml.safe_load((rep_dir / "run.yaml").read_text())["stages"] == [s.name for s in STAGES]
-    assert status_on_disk(rep, layout).state is RepState.COMPLETE
-
-
 def test_until_skips_a_rep_built_further(config_dir, roots, layout, no_plots, capsys) -> None:
     rep = _rep(config_dir, 1)
     _finish(layout, rep)
@@ -765,8 +745,10 @@ def test_until_skips_a_rep_built_further(config_dir, roots, layout, no_plots, ca
 
 @pytest.mark.slow
 def test_an_analyze_only_key_leaves_a_partial_rep_resumable(config_dir, roots, layout, no_plots, capsys) -> None:
+    """A full run resumes a partial rep at its first missing stage, even after an analyze-only key changes."""
     rep = _rep(config_dir, 1)
     assert _run(config_dir, roots, "tiny", "--rep", "1", "--until", "cohort") == 0
+    kept = _mtimes(layout, rep, RepArtifact.PEDIGREE, RepArtifact.COHORT)
     scenarios = yaml.safe_load((config_dir / "t.yaml").read_text())
     scenarios["tiny"]["analysis"] = {"max_degree": 1}
     (config_dir / "t.yaml").write_text(yaml.safe_dump(scenarios))
@@ -774,7 +756,12 @@ def test_an_analyze_only_key_leaves_a_partial_rep_resumable(config_dir, roots, l
 
     assert _run(config_dir, roots, "tiny", "--rep", "1") == 0
 
-    assert "resume: built through cohort" in capsys.readouterr().out
+    assert "[tiny/rep1] resume: built through cohort" in capsys.readouterr().out
+    assert _mtimes(layout, rep, RepArtifact.PEDIGREE, RepArtifact.COHORT) == kept
+    rep_dir = layout.rep_dir(rep.folder, rep.scenario, 1)
+    timing = (rep_dir / "timing.tsv").read_text().splitlines()[1:]
+    assert [row.split("\t")[0] for row in timing] == [s.name for s in STAGES]
+    assert yaml.safe_load((rep_dir / "run.yaml").read_text())["stages"] == [s.name for s in STAGES]
     params = yaml.safe_load(layout.rep(rep.folder, rep.scenario, 1, RepArtifact.PARAMS).read_text())
     assert params["max_degree"] == 1
     assert status_on_disk(_rep(config_dir, 1), layout).state is RepState.COMPLETE

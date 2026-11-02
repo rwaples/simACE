@@ -24,7 +24,6 @@ hydrate_trait(pl.from_pandas(trait_pd), pl.from_pandas(ped_pd), kind="censored")
 | Function | Old accepted / returned | New accepted / returned |
 |---|---|---|
 | `simace.simulation.simulate.run_simulation` | returned `pd.DataFrame` | returns `pl.DataFrame` |
-| `simace.simulation.simulate.add_to_pedigree` | `pd.DataFrame` in/out | `pl.DataFrame` in/out |
 | `simace.core.parquet.save_parquet` | `pd.DataFrame` (later either) | `pl.DataFrame` only; `TypeError` otherwise |
 | `simace.core.parquet.load_parquet` | — (new in this migration) | returns eager `pl.DataFrame` |
 | `simace.core.schema.assert_schema` | `pd.DataFrame` (later either) | `pl.DataFrame` only; rejects `LazyFrame` too |

@@ -23,19 +23,6 @@ def _pedigree_frame() -> pl.DataFrame:
     )
 
 
-def test_save_parquet_does_not_mutate_caller(tmp_path):
-    df = _pedigree_frame()
-    before = dict(df.schema)
-
-    save_parquet(df, tmp_path / "out.parquet")
-
-    # Caller's frame is untouched: dtypes are exactly as they were before
-    # the write.
-    assert dict(df.schema) == before
-    assert df.schema["id"] == pl.Int64
-    assert df.schema["A1"] == pl.Float64
-
-
 def test_save_parquet_narrows_written_output(tmp_path):
     df = _pedigree_frame()
     out = tmp_path / "out.parquet"

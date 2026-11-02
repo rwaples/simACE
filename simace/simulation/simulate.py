@@ -11,7 +11,6 @@ cross-trait correlations for genetic (rA) and common environment (rC) components
 
 __all__ = [
     "METROPOLIS_TOL",
-    "add_to_pedigree",
     "allocate_offspring",
     "balance_mating_slots",
     "draw_mating_counts",
@@ -1522,47 +1521,6 @@ def _fill_pedigree_slice(
 def _arrays_to_dataframe(arrays: dict[str, np.ndarray], total_rows: int) -> pl.DataFrame:
     """Convert pre-allocated arrays to a pedigree DataFrame."""
     return pl.DataFrame({col: arrays[col][:total_rows] for col in _PED_COLUMNS})
-
-
-def add_to_pedigree(
-    pheno: np.ndarray,
-    sex: np.ndarray,
-    parents: np.ndarray,
-    twins: np.ndarray,
-    household_ids: np.ndarray,
-    generation: int,
-    pedigree: pl.DataFrame | None = None,
-) -> pl.DataFrame:
-    """Add a generation to the pedigree DataFrame (backward-compatible wrapper).
-
-    The internal simulation loop uses pre-allocated arrays for performance.
-    This function is retained for external callers and tests.
-    """
-    n = len(pheno)
-    is_founder = pedigree is None
-    id_offset = 0 if is_founder else len(pedigree)
-    parent_offset = id_offset - n if not is_founder else 0
-    household_offset = 0 if is_founder else int(pedigree["household_id"][-1]) + 1
-
-    arrays = _init_pedigree_arrays(n)
-    _fill_pedigree_slice(
-        arrays,
-        0,
-        pheno,
-        sex,
-        parents,
-        twins,
-        household_ids,
-        generation=generation,
-        is_founder=is_founder,
-        id_offset=id_offset,
-        parent_offset=parent_offset,
-        household_offset=household_offset,
-    )
-    df = _arrays_to_dataframe(arrays, n)
-    if pedigree is not None:
-        return pl.concat([pedigree, df], how="vertical")
-    return df
 
 
 @stage(reads=None, writes=PEDIGREE)

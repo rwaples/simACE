@@ -88,10 +88,3 @@ class TestResolvePrevalence:
         gen = np.array([0, 0])
         with pytest.raises(ValueError, match=r"prevalence must be in the open interval \(0, 1\)"):
             resolve_prevalence({"female": 0.05, "male": 1.2}, sex, gen)
-
-    def test_only_one_sex_key_falls_through_to_scalar_path(self):
-        # A dict without both 'female' AND 'male' is treated as a per-gen dict.
-        sex = np.array([0, 1])
-        gen = np.array([0, 1])
-        out = resolve_prevalence({0: 0.05, 1: 0.10}, sex, gen)
-        np.testing.assert_array_equal(out, [0.05, 0.10])

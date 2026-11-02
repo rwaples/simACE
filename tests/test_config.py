@@ -86,12 +86,6 @@ class TestResolveScenarios:
         assert "base" in folders
         assert "test" in folders
 
-    def test_folder_inferred_from_filename(self):
-        scenarios = resolve_scenarios(CONFIG_DIR)
-        for name, params in scenarios.items():
-            # The folder key is always populated.
-            assert "folder" in params, f"{name} missing folder"
-
     def test_unknown_scenario_key_rejected(self, tmp_path):
         (tmp_path / "_default.yaml").write_text(
             "defaults:\n  seed: 1\n  replicates: 1\n  folder: base\n"

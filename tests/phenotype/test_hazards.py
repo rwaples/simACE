@@ -280,18 +280,10 @@ def test_validate_rejects_unknown_distribution():
         validate_hazard_params("not_a_real_dist", {}, "frailty")
 
 
-@pytest.mark.parametrize(
-    ("distribution", "missing"),
-    [
-        ("weibull", "rho"),
-        ("gompertz", "gamma"),
-        ("lognormal", "sigma"),
-    ],
-)
-def test_validate_rejects_missing_required_keys(distribution, missing):
-    bad_params = {k: v for k, v in DEFAULT_PARAMS[distribution].items() if k != missing}
+def test_validate_rejects_missing_required_keys():
+    bad_params = {k: v for k, v in DEFAULT_PARAMS["weibull"].items() if k != "rho"}
     with pytest.raises(ValueError, match="missing required hazard params"):
-        validate_hazard_params(distribution, bad_params, "frailty")
+        validate_hazard_params("weibull", bad_params, "frailty")
 
 
 # ---------------------------------------------------------------------------

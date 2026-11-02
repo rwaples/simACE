@@ -5,9 +5,7 @@ import yaml
 
 from simace.analysis.analyze import run_analysis
 from simace.analysis.report_schema import (
-    REPORT_SCHEMA_VERSION,
     REPORT_TOP_LEVEL_GROUPS,
-    assert_report_contract,
     find_dense_keys,
 )
 from simace.core.cohort import write_cohort, write_pedigree
@@ -118,18 +116,8 @@ class TestRunAnalysis:
         assert analyze_outputs["plot_payload_yaml"].exists()
         assert analyze_outputs["samples_pq"].exists()
 
-    def test_schema_is_v2(self, analyze_outputs):
-        assert analyze_outputs["report"]["schema"] == {
-            "name": "simace_report",
-            "version": REPORT_SCHEMA_VERSION,
-        }
-
     def test_top_level_groups_match_contract(self, analyze_outputs):
         assert set(analyze_outputs["report"]) == set(REPORT_TOP_LEVEL_GROUPS)
-
-    def test_report_passes_contract(self, analyze_outputs):
-        # Validates schema, required groups, and absence of dense plot arrays.
-        assert_report_contract(analyze_outputs["report"])
 
     def test_quality_checks_normalized(self, analyze_outputs):
         qc = analyze_outputs["report"]["quality_checks"]

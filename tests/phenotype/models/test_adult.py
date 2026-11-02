@@ -2,7 +2,6 @@
 
 import argparse
 
-import numpy as np
 import pytest
 
 from simace.phenotype.models import AdultModel
@@ -118,20 +117,6 @@ def test_from_cli_rejects_foreign_frailty_flag():
     )
     with pytest.raises(ValueError, match=r"phenotype\.trait1.*--frailty-rho1"):
         AdultModel.from_cli(args, 1)
-
-
-def test_simulate_runs():
-    m = AdultModel(method="ltm", prevalence=0.1, beta=1.0)
-    liability = np.random.default_rng(0).standard_normal(200)
-    t = m.simulate(
-        liability=liability,
-        seed=42,
-        standardize=True,
-        sex=np.zeros(200),
-        generation=np.zeros(200, dtype=int),
-    )
-    assert t.shape == (200,)
-    assert np.all(np.isfinite(t))
 
 
 def test_cli_flag_attrs_set():

@@ -8,6 +8,8 @@ relationship type and leaves the rest empty, which exercises the full result
 shape without paying for a dozen tetrachoric optimizations per example.
 """
 
+from collections import Counter
+
 import numpy as np
 import polars as pl
 import pytest
@@ -21,6 +23,7 @@ from simace.analysis.stats.correlations import (
     compute_observed_h2_estimators,
     compute_tetrachoric,
 )
+from simace.analysis.stats.pedigree import compute_mean_family_size
 from simace.core.relationships import RELATIONSHIP_TYPES
 from tests.analysis.moments_oracle import moments_from_pairs
 from tests.conftest import pedigree_frame
@@ -264,18 +267,6 @@ class TestObservedH2Estimators:
             assert got["po"] == (None if slope is None else float(slope))
             assert got["hs"] == (None if not hs_values else 4.0 * (sum(hs_values) / len(hs_values)))
 
-    @given(missing=st.sampled_from(["MZ", "FS", "1C"]), value=st.floats(min_value=-1.0, max_value=1.0))
-    def test_any_missing_input_nulls_its_estimator(self, missing, value):
-        """Every estimator except ``hs`` is None as soon as one input is missing."""
-        correlations = dict.fromkeys(("MZ", "FS", "MHS", "PHS", "1C"), value)
-        correlations[missing] = None
-        result = compute_observed_h2_estimators({"trait1": correlations}, {"trait1": {"slope": value}})["trait1"]
-
-        affected_by = {"MZ": ["falconer"], "FS": ["falconer", "sibs"], "1C": ["cousins"]}
-        for name in affected_by[missing]:
-            assert result[name] is None
-        assert result["hs"] is not None  # both half-sib inputs still present
-
 
 class TestMateCorrelation:
     """Distinct-mating counting and the directed mating-key encoding."""
@@ -314,18 +305,25 @@ class TestMateCorrelation:
         if len(expected) < 2:
             assert all(np.isnan(value) for row in result["matrix"] for value in row)
 
-    @given(pedigree=pedigree_frame(liabilities=True))
-    def test_mating_key_round_trips(self, pedigree):
-        """``mother * base + father`` decodes back to the original pair."""
-        mothers = pedigree["mother"].to_numpy().astype(np.int64)
-        fathers = pedigree["father"].to_numpy().astype(np.int64)
-        child = (mothers != -1) & (fathers != -1)
-        if not child.any():
-            return
-        m_child, f_child = mothers[child], fathers[child]
+    @given(pedigree=pedigree_frame())
+    def test_family_size_pair_key_groups_by_mating(self, pedigree):
+        """``compute_mean_family_size``'s ``mother * base + father`` key groups children by mating.
 
-        base = np.int64(max(int(m_child.max()), int(f_child.max())) + 1)
-        keys = m_child * base + f_child
-        assert np.array_equal(keys // base, m_child)
-        assert np.array_equal(keys % base, f_child)
-        assert len(np.unique(keys)) == len({(m, f) for m, f in zip(m_child.tolist(), f_child.tolist(), strict=True)})
+        Each distinct (mother, father) pair is one family, a child has a full sib
+        when its pair recurs, and decoding the key recovers the mates per parent.
+        """
+        mothers = pedigree["mother"].to_list()
+        fathers = pedigree["father"].to_list()
+        pairs = [(m, f) for m, f in zip(mothers, fathers, strict=True) if m != -1 and f != -1]
+        result = compute_mean_family_size(pedigree)
+        if not pairs:
+            assert result == {}
+            return
+
+        sizes = Counter(pairs)
+        assert result["n_families"] == len(sizes)
+        assert result["frac_with_full_sib"] == round(sum(sizes[p] >= 2 for p in pairs) / len(pairs), 4)
+        mates_per_mother = Counter(m for m, _ in sizes)
+        mates_per_father = Counter(f for _, f in sizes)
+        assert result["mates_by_sex"]["female_mean"] == round(float(np.mean(list(mates_per_mother.values()))), 2)
+        assert result["mates_by_sex"]["male_mean"] == round(float(np.mean(list(mates_per_father.values()))), 2)

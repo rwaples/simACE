@@ -77,22 +77,7 @@ class TestEmptyPool:
 
 
 class TestControlsOnly:
-    """``case_ascertainment_ratio=0`` draws only controls and clamps to n_controls."""
-
-    def test_zero_ratio_draws_only_controls(self, small_pedigree):
-        trait = _build_trait(small_pedigree, g_pheno=2, n_cases=50, seed=11)
-        n_controls = int((~trait["affected1"]).sum())
-        n_sample = min(20, n_controls)
-        _, trait_out = run_ascertainment(
-            small_pedigree,
-            trait,
-            dropout_rate=0.0,
-            case_ascertainment_ratio=0.0,
-            N_sample=n_sample,
-            seed=3,
-        )
-        assert len(trait_out) == n_sample
-        assert not trait_out["affected1"].any()
+    """``case_ascertainment_ratio=0`` refuses an all-case pool (draw and clamp: test_ascertainment_properties.py)."""
 
     def test_zero_ratio_refuses_an_all_case_pool(self, small_pedigree):
         """No control is eligible, so there is nothing to draw -- refuse rather than empty the cohort."""
@@ -107,21 +92,6 @@ class TestControlsOnly:
                 N_sample=20,
                 seed=8,
             )
-
-    def test_zero_ratio_clamps_when_nsample_exceeds_controls(self, small_pedigree):
-        trait = _build_trait(small_pedigree, g_pheno=2, n_cases=100, seed=11)
-        n_controls = int((~trait["affected1"]).sum())
-        oversized = n_controls + 50
-        _, trait_out = run_ascertainment(
-            small_pedigree,
-            trait,
-            dropout_rate=0.0,
-            case_ascertainment_ratio=0.0,
-            N_sample=oversized,
-            seed=4,
-        )
-        assert len(trait_out) == n_controls
-        assert not trait_out["affected1"].any()
 
 
 class TestDegeneratePool:

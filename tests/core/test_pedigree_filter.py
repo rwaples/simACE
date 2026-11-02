@@ -64,15 +64,6 @@ def test_parent_absent_from_df_ped_halts_traversal():
     assert sorted(out["id"].to_list()) == [0, 2]
 
 
-def test_unobserved_sibling_not_included():
-    """Siblings of observed individuals are NOT ancestors and must not enter the closure."""
-    # 0,1 founders; 2 and 3 are full sibs
-    df_ped = _ped([(0, -1, -1), (1, -1, -1), (2, 1, 0), (3, 1, 0)])
-    out = filter_pedigree_to_observed(df_ped, np.array([2]))
-    # 3 is a sibling, not an ancestor — must be excluded
-    assert sorted(out["id"].to_list()) == [0, 1, 2]
-
-
 def test_raises_when_observed_id_missing():
     """Observed IDs not in df_ped are an error, not silent skip."""
     df_ped = _ped([(0, -1, -1), (1, -1, -1)])

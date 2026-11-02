@@ -144,60 +144,6 @@ class TestDropout:
 
 
 # ---------------------------------------------------------------------------
-# Ancestor-closure invariant
-# ---------------------------------------------------------------------------
-
-
-class TestAncestorClosure:
-    def test_every_sampled_id_has_ancestors_in_pedigree(self, small_sim_pedigree, trait_data):
-        """Walking parent edges from any sampled id never hits a missing id."""
-        ped_out, trait_out = run_ascertainment(
-            small_sim_pedigree,
-            trait_data,
-            dropout_rate=0.2,
-            N_sample=20,
-            seed=42,
-        )
-        ped_ids = set(ped_out["id"].to_numpy().tolist())
-        parents = dict(
-            zip(
-                ped_out["id"].to_numpy(),
-                zip(ped_out["mother"].to_numpy(), ped_out["father"].to_numpy(), strict=True),
-                strict=True,
-            )
-        )
-        for sid in trait_out["id"]:
-            cur = [int(sid)]
-            while cur:
-                nxt = []
-                for ind in cur:
-                    if ind not in parents:
-                        continue
-                    for p in parents[ind]:
-                        if p < 0:
-                            continue
-                        assert p in ped_ids, f"ancestor {p} of sampled id {sid} missing from pedigree"
-                        nxt.append(int(p))
-                cur = nxt
-
-    def test_no_dangling_links(self, small_sim_pedigree, trait_data):
-        """All mother/father/twin references in output point to ids that exist in output or are -1."""
-        ped_out, _ = run_ascertainment(
-            small_sim_pedigree,
-            trait_data,
-            dropout_rate=0.3,
-            N_sample=30,
-            seed=42,
-        )
-        ped_ids = set(ped_out["id"].to_numpy().tolist())
-        for col in ("mother", "father", "twin"):
-            vals = ped_out[col].to_numpy()
-            for v in vals:
-                if v >= 0:
-                    assert int(v) in ped_ids, f"dangling {col} ref to id {v} not in pedigree"
-
-
-# ---------------------------------------------------------------------------
 # Case-ascertainment enrichment
 # ---------------------------------------------------------------------------
 

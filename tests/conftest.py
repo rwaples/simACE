@@ -159,27 +159,6 @@ def tiny_phenotype_parquet(tmp_path: Path, tiny_pedigree_parquet: Path) -> Path:
 
 
 @pytest.fixture
-def tiny_censored_parquet(tmp_path: Path, tiny_phenotype_parquet: Path, tiny_pedigree_parquet: Path) -> Path:
-    """Tiny schema-valid censored parquet built from the phenotype fixture."""
-    from simace.censoring.censor import run_censor
-
-    phenotype = load_parquet(tiny_phenotype_parquet)
-    pedigree = load_parquet(tiny_pedigree_parquet)
-    censored = run_censor(
-        phenotype,
-        pedigree,
-        censor_age=80.0,
-        seed=42,
-        gen_censoring={},
-        death_scale=79.433,
-        death_rho=10.0,
-    )
-    path = tmp_path / "censored.parquet"
-    save_parquet(censored, path)
-    return path
-
-
-@pytest.fixture
 def founders_and_offspring(rng):
     """Create a one-generation setup: founders + one generation of offspring.
 

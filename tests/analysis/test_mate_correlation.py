@@ -46,11 +46,6 @@ class TestExpectedMateCorr:
         result = expected_mate_corr_matrix(0.3, 0.5, rA=0.5, rC=0.3, A1=0.5, C1=0.2, A2=0.4, C2=0.1)
         assert result.shape == (2, 2)
 
-    def test_symmetric_assort_produces_symmetric(self):
-        """With equal traits and equal assort, diagonal cells should be equal."""
-        result = expected_mate_corr_matrix(0.3, 0.3, rA=1.0, rC=1.0, A1=0.5, C1=0.2, A2=0.5, C2=0.2)
-        assert abs(result[0, 0] - result[1, 1]) < 1e-10
-
     def test_both_nonzero_diagonal_equals_targets(self):
         """With both traits, diagonal should equal target correlations."""
         result = expected_mate_corr_matrix(0.4, 0.3, rA=0.5, rC=0.3, A1=0.5, C1=0.2, A2=0.4, C2=0.1)
@@ -66,18 +61,6 @@ class TestExpectedMateCorr:
         assert not np.isnan(result[0, 1])
         assert abs(result[0, 1] - c) < 1e-10
         assert abs(result[1, 0] - c) < 1e-10
-        # Symmetric
-        assert abs(result[0, 1] - result[1, 0]) < 1e-10
-
-    def test_high_targets_within_bounds(self):
-        """Diagonal of high assort values should still be valid."""
-        result = expected_mate_corr_matrix(0.9, 0.9, rA=0.5, rC=0.3, A1=0.5, C1=0.2, A2=0.4, C2=0.1)
-        # Diagonal should equal targets
-        assert abs(result[0, 0] - 0.9) < 1e-10
-        assert abs(result[1, 1] - 0.9) < 1e-10
-        # Off-diagonal should be computed, not NaN
-        assert not np.isnan(result[0, 1])
-        assert not np.isnan(result[1, 0])
         # Symmetric
         assert abs(result[0, 1] - result[1, 0]) < 1e-10
 
@@ -134,16 +117,6 @@ class TestComputeMateCorrelation:
             child_id += 1
 
         return pl.concat([founders, pl.DataFrame(children)], how="vertical")
-
-    def test_returns_matrix_and_count(self):
-        """Should return dict with 'matrix' and 'n_pairs' keys."""
-        df = self._make_pedigree()
-        result = compute_mate_correlation(df)
-        assert "matrix" in result
-        assert "n_pairs" in result
-        assert result["n_pairs"] > 0
-        assert len(result["matrix"]) == 2
-        assert len(result["matrix"][0]) == 2
 
     def test_positive_assortment_detected(self):
         """Sorted mating should produce positive trait-1 diagonal correlation."""

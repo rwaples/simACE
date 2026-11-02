@@ -264,14 +264,6 @@ class TestPlotPipeline:
 
 
 class TestPlotTable1:
-    def test_render_table1_figure_returns_figure(self, minimal_stats, minimal_params):
-        from simace.plotting.plot_table1 import render_table1_figure
-
-        before = plt.get_fignums()
-        fig = render_table1_figure([minimal_stats], minimal_params, scenario="test")
-        assert isinstance(fig, plt.Figure)
-        _assert_no_leaked_figures(before, fig)
-
     def test_render_table1_figure_multiple_reps(self, minimal_stats, minimal_params):
         from simace.plotting.plot_table1 import render_table1_figure
 
@@ -350,18 +342,6 @@ class TestPlotAtlasHelpers:
         assert isinstance(name, str)
         assert isinstance(desc, str)
         assert "Weibull" in name
-
-    def test_get_model_family_different_models(self):
-        from simace.plotting.plot_atlas import get_model_family
-
-        params = {
-            "phenotype_model1": "frailty",
-            "phenotype_model2": "frailty",
-            "phenotype_params1": {"distribution": "weibull"},
-            "phenotype_params2": {"distribution": "gompertz"},
-        }
-        name, _desc = get_model_family(params)
-        assert isinstance(name, str)
 
     def test_model_display_all_families(self):
         from simace.plotting.plot_atlas import model_display_name
@@ -696,7 +676,6 @@ class TestPlotCorrelationsExpanded:
         plot_tetrachoric_by_sex(observed_binary_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
-        plt.close("all")
         assert plt.get_fignums() == before
 
     def test_plot_tetrachoric_by_sex_no_data(self, tmp_path):
@@ -706,7 +685,6 @@ class TestPlotCorrelationsExpanded:
         out = tmp_path / "tet_sex_empty.png"
         plot_tetrachoric_by_sex([{}], out, scenario="test")
         assert out.exists()
-        plt.close("all")
         assert plt.get_fignums() == before
 
     def test_plot_heritability_by_sex_generation(self, observed_binary_stats, tmp_path):
@@ -717,7 +695,6 @@ class TestPlotCorrelationsExpanded:
         plot_heritability_by_sex_generation(observed_binary_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
-        plt.close("all")
         assert plt.get_fignums() == before
 
     def test_plot_heritability_by_sex_generation_no_data(self, tmp_path):
@@ -727,7 +704,6 @@ class TestPlotCorrelationsExpanded:
         out = tmp_path / "h2_sex_gen_empty.png"
         plot_heritability_by_sex_generation([{}], out, scenario="test")
         assert out.exists()
-        plt.close("all")
         assert plt.get_fignums() == before
 
     def test_plot_observed_heritability_has_under_construction_watermark(self, tmp_path, monkeypatch):
@@ -767,7 +743,6 @@ class TestPlotCorrelationsExpanded:
         plot_heritability_by_generation(broad_h2_validations, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
-        plt.close("all")
         assert plt.get_fignums() == before
 
     def test_ge_and_snp_like_helper_baseline_identity(self):
@@ -787,7 +762,6 @@ class TestPlotCorrelationsExpanded:
         plot_ge_covariance_by_generation(broad_h2_validations, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
-        plt.close("all")
         assert plt.get_fignums() == before
 
     def test_plot_ge_covariance_by_generation_no_data(self, tmp_path):
@@ -797,7 +771,6 @@ class TestPlotCorrelationsExpanded:
         out = tmp_path / "ge_cov_gen_empty.png"
         plot_ge_covariance_by_generation([{}], out, scenario="test")
         assert out.exists()
-        plt.close("all")
         assert plt.get_fignums() == before
 
     def test_plot_snp_like_heritability_by_generation(self, broad_h2_validations, tmp_path):
@@ -808,7 +781,6 @@ class TestPlotCorrelationsExpanded:
         plot_snp_like_heritability_by_generation(broad_h2_validations, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
-        plt.close("all")
         assert plt.get_fignums() == before
 
     def test_plot_snp_like_heritability_by_generation_no_data(self, tmp_path):
@@ -818,7 +790,6 @@ class TestPlotCorrelationsExpanded:
         out = tmp_path / "snp_like_h2_gen_empty.png"
         plot_snp_like_heritability_by_generation([{}], out, scenario="test")
         assert out.exists()
-        plt.close("all")
         assert plt.get_fignums() == before
 
 
@@ -836,7 +807,6 @@ class TestPlotDistributionsExpanded:
         plot_trait_regression(observed_binary_samples, observed_binary_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
-        plt.close("all")
         assert plt.get_fignums() == before
 
     def test_plot_family_structure(self, observed_binary_stats, tmp_path):
@@ -847,7 +817,6 @@ class TestPlotDistributionsExpanded:
         plot_family_structure(observed_binary_stats, out, scenario="test")
         assert out.exists()
         assert out.stat().st_size > 0
-        plt.close("all")
         assert plt.get_fignums() == before
 
     def test_plot_family_structure_no_data(self, tmp_path):
@@ -857,5 +826,4 @@ class TestPlotDistributionsExpanded:
         out = tmp_path / "family_struct_empty.png"
         plot_family_structure([{}], out, scenario="test")
         assert out.exists()
-        plt.close("all")
         assert plt.get_fignums() == before

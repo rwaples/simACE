@@ -90,10 +90,6 @@ def runner_outputs(tmp_path, tiny_phenotype):
 
 
 class TestRunnerMain:
-    def test_writes_stats_yaml(self, runner_outputs):
-        stats_yaml, _ = runner_outputs
-        assert stats_yaml.exists()
-
     def test_writes_samples_parquet(self, runner_outputs):
         _, samples_pq = runner_outputs
         assert samples_pq.exists()

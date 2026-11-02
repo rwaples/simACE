@@ -47,21 +47,6 @@ def test_every_effective_size_basename_has_exactly_one_renderer():
     assert len(reg) == len(set(reg))
 
 
-def test_phenotype_basenames_are_unique():
-    names = phenotype_basenames()
-    assert len(names) == len(set(names))
-
-
-def test_validation_basenames_are_unique():
-    names = validation_basenames()
-    assert len(names) == len(set(names))
-
-
-def test_effective_size_basenames_are_unique():
-    names = effective_size_basenames()
-    assert len(names) == len(set(names))
-
-
 def test_no_basename_collision_across_atlases():
     p = set(phenotype_basenames())
     v = set(validation_basenames())
