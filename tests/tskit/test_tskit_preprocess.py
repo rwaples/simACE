@@ -1,6 +1,6 @@
 """Synthetic msprime fixture exercising the inlined canonicalize + concat
 logic from `scripts/gene_drop/`. Skipped if tskit/msprime are
-not available (the simACE env doesn't ship them; the scripts use
+not available (the simACE pixi env ships them; the cluster scripts use
 scripts/gene_drop/envs/tskit.yaml)."""
 
 import importlib.util
@@ -140,11 +140,12 @@ def test_stream_concat_seqlen_and_samples(canonicalize_mod, concat_mod, chrom_di
         canon_paths.append(p)
 
     out = tmp_path / "all.trees"
-    summary = concat_mod.stream_concat(canon_paths, out)
+    ts_returned, summary = concat_mod.stream_concat(canon_paths, out)
 
     assert summary["num_samples"] == 24
     assert summary["total_seqlen"] == pytest.approx(sum(seqs.values()))
-    assert out.stat().st_size > 0
+    assert summary["out_size_bytes"] == out.stat().st_size > 0
+    assert ts_returned.num_samples == 24
 
     ts_all = tskit.load(str(out))
     assert ts_all.num_samples == 24

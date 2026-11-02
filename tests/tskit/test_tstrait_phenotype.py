@@ -1,7 +1,7 @@
 """Synthetic msprime fixture exercising the tstrait phenotyping pipeline
 (catalog -> assign_effects -> per-chrom GV -> aggregate). Skipped if
-tskit/msprime/tstrait are not available — the simACE env doesn't ship them;
-the scripts use scripts/gene_drop/envs/tskit.yaml."""
+tskit/msprime/tstrait are not available (the simACE pixi env ships them;
+the cluster scripts use scripts/gene_drop/envs/tskit.yaml)."""
 
 import importlib.util
 import json

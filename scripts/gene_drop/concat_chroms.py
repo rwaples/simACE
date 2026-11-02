@@ -46,11 +46,12 @@ def natural_sort_key(p: Path) -> tuple:
     return (0, order.get(tag, 99), p.name)
 
 
-def stream_concat(canonical_paths: list[Path], out_path: Path) -> dict:
+def stream_concat(canonical_paths: list[Path], out_path: Path) -> tuple[tskit.TreeSequence, dict]:
     """Concatenate canonicalized per-chrom .trees into a single multi-chrom .trees.
 
     Loads one chrom at a time. Memory stays at ~2 tree sequences (running
-    concat tables + the chrom currently being appended). Returns summary stats.
+    concat tables + the chrom currently being appended). Returns the
+    concatenated tree sequence and its summary stats.
     """
     if not canonical_paths:
         raise ValueError("canonical_paths is empty")
