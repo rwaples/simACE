@@ -15,8 +15,9 @@ releases shipped after 2026.05.3.
 ### The tskit gene-drop pipeline moved to simACE-validate
 
 - **Breaking: the `tstrait` and `tskit_preprocess` sections and the
-  `drop_from` and `use_gene_drop` keys are gone**, so a scenario that sets
-  one fails to load, with an error that names the keys and where they went. The scripts that read them (`scripts/gene_drop/`),
+  `drop_from` and `use_gene_drop` keys are gone**, so a scenario or a
+  `_default.yaml` that sets one fails to load, with an error that names the
+  keys and where they went. The scripts that read them (`scripts/gene_drop/`),
   their tests, `config/genotype_drop.yaml` and the two gene-drop docs pages
   moved to `tskit_pipeline/` in
   [simACE-validate](https://github.com/rwaples/simACE-validate), which takes

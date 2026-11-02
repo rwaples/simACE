@@ -112,8 +112,18 @@ _SIM_FLAT_GLOBALS: frozenset[str] = frozenset(
 _GENE_DROP_KEYS: frozenset[str] = frozenset({"use_gene_drop", "drop_from", "tstrait", "tskit_preprocess"})
 
 
-def _is_gene_drop_key(key: str) -> bool:
-    return key in _GENE_DROP_KEYS or key.startswith("tstrait_")
+def _reject_gene_drop_keys(params: dict, where: str) -> None:
+    """Raise if ``params`` sets a key of the gene-drop pipeline simACE no longer runs.
+
+    Checked on defaults and scenarios alike: an old ``_default.yaml`` would
+    otherwise make the keys valid, and a scenario asking for gene drop would
+    silently run the parametric pipeline.
+    """
+    if moved := sorted(key for key in params if key in _GENE_DROP_KEYS or key.startswith("tstrait_")):
+        raise ValueError(
+            f"{where} sets gene-drop keys {moved}. simACE no longer runs gene drop: "
+            "the tskit pipeline moved to simACE-validate's tskit_pipeline/, whose scripts take these as flags."
+        )
 
 
 #: Flat keys owned by the sim domain.  Used by fitACE to reject sim keys that
@@ -333,8 +343,11 @@ def resolve_defaults(config_dir: Path | str) -> dict:
         Flat defaults dict (flattened per the sim-domain mapping).
     """
     config_dir = Path(config_dir)
-    raw = load_yaml(config_dir / "_default.yaml")
-    return _coerce_sim_types(flatten_hierarchical(raw["defaults"]))
+    path = config_dir / "_default.yaml"
+    raw = load_yaml(path)
+    flat = _coerce_sim_types(flatten_hierarchical(raw["defaults"]))
+    _reject_gene_drop_keys({**raw, **flat}, str(path))  # tskit_preprocess sat beside defaults:
+    return flat
 
 
 def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> dict[str, dict]:
@@ -379,12 +392,8 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
             if name in scenarios:
                 raise ValueError(f"Duplicate scenario '{name}': already defined, also found in {path}")
             params = _coerce_sim_types(flatten_hierarchical(raw_params))
+            _reject_gene_drop_keys(params, f"Scenario '{name}' in {path}")
             unknown = set(params.keys()) - valid_defaults
-            if moved := sorted(key for key in unknown if _is_gene_drop_key(key)):
-                raise ValueError(
-                    f"Scenario '{name}' in {path} sets gene-drop keys {moved}. simACE no longer runs gene drop: "
-                    "the tskit pipeline moved to simACE-validate's tskit_pipeline/, whose scripts take these as flags."
-                )
             if unknown:
                 raise ValueError(
                     f"Scenario '{name}' in {path} has unknown keys: "

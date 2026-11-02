@@ -509,3 +509,12 @@ def test_gene_drop_keys_point_to_simace_validate(tmp_path, scenario):
     (tmp_path / "x.yaml").write_text(yaml.safe_dump({"old": scenario}))
     with pytest.raises(ValueError, match="simACE-validate's tskit_pipeline"):
         resolve_scenarios(tmp_path)
+
+
+def test_an_old_default_yaml_with_gene_drop_keys_is_refused(tmp_path):
+    shutil.copy(Path(__file__).resolve().parents[1] / "config" / "_default.yaml", tmp_path / "_default.yaml")
+    raw = yaml.safe_load((tmp_path / "_default.yaml").read_text())
+    raw["defaults"]["use_gene_drop"] = False
+    (tmp_path / "_default.yaml").write_text(yaml.safe_dump(raw))
+    with pytest.raises(ValueError, match="simACE-validate's tskit_pipeline"):
+        resolve_defaults(tmp_path)
