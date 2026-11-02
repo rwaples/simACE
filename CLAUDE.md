@@ -37,7 +37,7 @@ Everything runs through pixi; there is no ambient env (ADR 0016, 0018).
 - Smoke test: `pixi run simace run small_test && pixi run simace gather test`
 - fitACE: `pixi run --manifest-path fitACE/pixi.toml test` runs one pytest per check unit.
 - Run relevant tests before committing.
-- `/code-review` reviews the upstream diff of the cwd's repo and falls back to the last commit when that diff is empty. After it returns, state the repo and commit range it reviewed. If this session's work is in a nested checkout or already pushed, rerun it with that path or an explicit range. Reviewers run cargo, R, and pytest through that checkout's `pixi run` (bare `cargo` is not on PATH).
+- `/code-review` reviews the upstream diff of the cwd's repo and falls back to the last commit when that diff is empty; other sessions' commits share that diff. Choose the target before invoking: the nested checkout or worktree path, or an explicit range, when the session's work lives there or is already pushed, and name untracked or scratch files by path. When a nested crate changes a visibility or signature, grep its consumers (explicit paths) too. After it returns, state the repo and commit range it reviewed. Reviewers run cargo, R, and pytest through that checkout's `pixi run` (bare `cargo` is not on PATH).
 - `ruff check` with **no extra `--select`** — it discards the `ignore`/`per-file-ignores` in `pyproject.toml` and surfaces false positives.
 
 ## Statistical-correctness gotchas
