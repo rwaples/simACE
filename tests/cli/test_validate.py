@@ -209,16 +209,6 @@ def test_overlapping_seed_ranges_refuse_only_the_pooled_tests(project, capsys, m
     assert "onset_tau" in folder["scenarios"]["tiny"]
 
 
-def test_a_folder_target_with_no_scenario_to_validate_has_no_verdict(project) -> None:
-    import simace.cli.validate as validate_module
-
-    _, _, layout = project
-    assert validate_module._folder_verdict("gene_drop_only", [], {}, layout) == (
-        None,
-        "no verdict: no scenario to validate",
-    )
-
-
 def test_a_failed_rep_leaves_no_verdict_beside_its_old_file(project, capsys, monkeypatch) -> None:
     import simace.cli.validate as validate_module
 

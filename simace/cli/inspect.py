@@ -19,7 +19,6 @@ from simace.cli.manifest import RepState, source_ref
 from simace.cli.stages import ResolvedRep
 from simace.cli.status import (
     ScenarioError,
-    check_runnable,
     load_scenario,
     rep_ranges,
     resolve_all,
@@ -115,7 +114,7 @@ def show_cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     config_dir, layout = resolve_roots(args)
     require_config(config_dir, "show")
     try:
-        params = load_scenario(config_dir, args.scenario, require_runnable=False)
+        params = load_scenario(config_dir, args.scenario)
     except ScenarioError as exc:
         print(f"simace show: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
@@ -151,11 +150,6 @@ def ls_cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     for name in sorted(scenarios, key=lambda s: (scenarios[s]["folder"], s)):
         params = scenarios[name]
         if args.folder is not None and params["folder"] != args.folder:
-            continue
-        try:
-            check_runnable(name, params)
-        except ScenarioError:
-            print(f"{params['folder']}/{name}  gene drop (not run by simace run)")
             continue
         reps = _reps(params, name)
         print(

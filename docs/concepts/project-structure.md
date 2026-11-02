@@ -124,7 +124,6 @@ simACE/
 │
 ├── scripts/
 │   ├── examples/                         # Cross-scenario comparison figures for the Examples pages
-│   ├── gene_drop/                        # tskit/tstrait gene-drop scripts and their conda env (not run by `simace run`)
 │   ├── verify/                           # Fresh-machine install verification
 │   └── *.py                              # Standalone helpers: sweep generators, results audit
 ├── tools/                               # Maintenance tooling (release.py, benchmark driver, family typecheck)
@@ -159,7 +158,7 @@ those tools leave out; only the `/push` skill knows them.
 | [`pedsum-validate`](https://github.com/rwaples/pedsum-validate) | public | `./external/pedsum-validate/` | Checks pedsum against statistics published for public pedigrees (purgeR, GENLIB, Dryad studbooks and wild populations). |
 | [`pg-phenotype-validate`](https://github.com/rwaples/pg-phenotype-validate) | public | `./external/pg-phenotype-validate/` | Checks both pg-phenotype bindings, pinned to a release pair, against outside R oracles (polycor, psych, sandwich, survival, cmprsk) and published PA-FGRS values. |
 | [`pedigree-graph-validate`](https://github.com/rwaples/pedigree-graph-validate) | public | `./external/pedigree-graph-validate/` | Checks both pedigree-graph bindings, pinned to a release pair, against outside R software: kinship and F (kinship2, ribd, GENLIB, nadiv, pedigreeTools, AGHmatrix, purgeR), relationship classification (verbalisr) and Ne and lineage statistics (purgeR, with published values). |
-| [`simACE-validate`](https://github.com/rwaples/simACE-validate) | public | `./external/simACE-validate/` | Checks simACE's simulations, pinned to a family tag, against code it does not share: an R liability oracle (nadiv inbreeding), msprime gene-drop (kinship2 IBD, cross-checked with ped-sim) and SLiM pedigree structure. |
+| [`simACE-validate`](https://github.com/rwaples/simACE-validate) | public | `./external/simACE-validate/` | Checks simACE's simulations, pinned to a family tag, against code it does not share: an R liability oracle (nadiv inbreeding), msprime gene-drop (kinship2 IBD, cross-checked with ped-sim) and SLiM pedigree structure. Also hosts the tskit/tstrait gene-drop pipeline that was `scripts/gene_drop/`, in `tskit_pipeline/`. |
 | [`multimight`](https://github.com/rwaples/multimight) | public | `./external/multimight/` | Converts a simACE replicate into an EPIMIGHT input pool (R), with a per-proband check of its relative counts against pedigree-graph. |
 | [`nordic-geno-epimight`](https://github.com/rwaples/nordic-geno-epimight) | public | `./external/nordic-geno-epimight/` | Runs EPIMIGHT heritability and genetic correlation on register data, with input checks and pedigree-pair sandwich standard errors. |
 

@@ -86,15 +86,6 @@ _HIERARCHICAL_TO_FLAT: dict[tuple[str, ...], str] = {
     ("analysis", "max_degree"): "max_degree",
     ("analysis", "estimate_inbreeding"): "estimate_inbreeding",
     ("analysis", "skip_ne_coancestry"): "skip_ne_coancestry",
-    # tstrait section
-    ("tstrait", "num_causal"): "tstrait_num_causal",
-    ("tstrait", "frac_causal"): "tstrait_frac_causal",
-    ("tstrait", "maf_threshold"): "tstrait_maf_threshold",
-    ("tstrait", "alpha"): "tstrait_alpha",
-    ("tstrait", "effect_mean"): "tstrait_effect_mean",
-    ("tstrait", "effect_var"): "tstrait_effect_var",
-    ("tstrait", "trait_id"): "tstrait_trait_id",
-    ("tstrait", "share_architecture"): "tstrait_share_architecture",
 }
 
 # Top-level flat keys (globals) that live in _default.yaml without a section.
@@ -109,14 +100,21 @@ _SIM_FLAT_GLOBALS: frozenset[str] = frozenset(
         "G_sim",
         "standardize",
         "plot_format",
-        "drop_from",
-        "use_gene_drop",
         # Opaque dict consumed by fitACE's blended_phenotype rule. When non-null
         # the rule re-derives trait-1 case status from a per-generation blend of
         # L1 and L2 liabilities. See notes/heritability/epimight_h2_temporal.md.
         "blended_diagnosis",
     }
 )
+
+#: Keys of the tskit gene-drop pipeline, which moved to simACE-validate's
+#: tskit_pipeline/ (its scripts take them as flags).
+_GENE_DROP_KEYS: frozenset[str] = frozenset({"use_gene_drop", "drop_from", "tstrait", "tskit_preprocess"})
+
+
+def _is_gene_drop_key(key: str) -> bool:
+    return key in _GENE_DROP_KEYS or key.startswith("tstrait_")
+
 
 #: Flat keys owned by the sim domain.  Used by fitACE to reject sim keys that
 #: leak into fit-only overlay files.
@@ -382,6 +380,11 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
                 raise ValueError(f"Duplicate scenario '{name}': already defined, also found in {path}")
             params = _coerce_sim_types(flatten_hierarchical(raw_params))
             unknown = set(params.keys()) - valid_defaults
+            if moved := sorted(key for key in unknown if _is_gene_drop_key(key)):
+                raise ValueError(
+                    f"Scenario '{name}' in {path} sets gene-drop keys {moved}. simACE no longer runs gene drop: "
+                    "the tskit pipeline moved to simACE-validate's tskit_pipeline/, whose scripts take these as flags."
+                )
             if unknown:
                 raise ValueError(
                     f"Scenario '{name}' in {path} has unknown keys: "

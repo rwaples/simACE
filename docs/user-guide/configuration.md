@@ -24,8 +24,6 @@ forms for one parameter is an error.
 | `G_sim` | int | `8` | Total simulated generations. `G_sim - G_ped` are burn-in |
 | `standardize` | str | `global` | Liability standardization mode: `none`, `global`, or `per_generation`. The legacy values `true` and `false` map to `global` and `none` |
 | `plot_format` | str | `png` | Image extension for plots. Use `png` or `svg`, because the HTML atlas embeds the images. `pdf` works only for the `atlas.pdf` export |
-| `drop_from` | str or null | `null` | Name of another scenario whose pedigree and gene-drop outputs this scenario reuses |
-| `use_gene_drop` | bool | `false` | Read the tstrait-derived `A1` instead of the parametric one in every downstream stage |
 | `blended_diagnosis` | dict or null | `null` | Per-generation blend of the two liabilities that fitACE applies to trait-1 case status before EPIMIGHT. The simulator ignores it |
 
 [ACE model, Standardisation](../concepts/ace-model.md#standardisation)
@@ -195,52 +193,7 @@ to compute the estimator.
 `analysis` section configures the analyze stage, which writes each replicate's
 `report.yaml` (see [Running the pipeline](running-the-pipeline.md)).
 
-## Gene drop with tstrait
-
-When `use_gene_drop` is true, [gene drop](../concepts/gene-drop.md)
-replaces the parametric trait-1 additive component with a genetic value from
-tstrait. tstrait computes that value from founder haplotypes dropped through
-the pedigree.
-
-```yaml
-tstrait:
-  num_causal: 1000
-  frac_causal: null
-  maf_threshold: 0.01
-  alpha: -0.5
-  effect_mean: 0.0
-  effect_var: 1.0
-  trait_id: 0
-  share_architecture: false
-```
-
-| Parameter | Type | Default | Description |
-|---|---|---:|---|
-| `tstrait.num_causal` | int or null | `1000` | Number of causal sites. Set exactly one of this parameter and `frac_causal` |
-| `tstrait.frac_causal` | float or null | `null` | Fraction of sites that pass the MAF filter to use as causal. Set exactly one of this parameter and `num_causal` |
-| `tstrait.maf_threshold` | float | `0.01` | Minimum minor-allele frequency. `0` disables the filter |
-| `tstrait.alpha` | float | `-0.5` | Exponent of the effect-size dependence on allele frequency |
-| `tstrait.effect_mean` | float | `0.0` | Mean of the raw effect sizes before frequency scaling |
-| `tstrait.effect_var` | float | `1.0` | Variance of the raw effect sizes before frequency scaling |
-| `tstrait.trait_id` | int | `0` | Trait that gets the genetic value. Only trait 1, ID `0`, is supported |
-| `tstrait.share_architecture` | bool | `false` | Reuse the same causal sites and effects in every replicate |
-
-Heritability under gene drop is `A1 / (A1 + C1 + E1)` from the pedigree
-section. There is no `tstrait.h2` parameter.
-
 <!-- scenario-defaults:end -->
-
-`tskit_preprocess` is a separate top-level block for the one-time step that
-canonicalizes the source tree sequences. It is not part of any scenario. The
-two directory defaults point at the maintainer's local copy of the SimHumanity
-data, so set both for your machine.
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `tskit_preprocess.source_dir` | path | `/data/Documents/humanity_sim/simhumanity_trees_RO` | Directory of per-chromosome SimHumanity `.trees` files |
-| `tskit_preprocess.output_dir` | path | `/data/Documents/humanity_sim/preprocessed_p2` | Directory for the canonicalized chromosomes, the concatenated tree sequence, and the site catalog |
-| `tskit_preprocess.pop` | str | `p2` | Founder population to keep |
-| `tskit_preprocess.chroms` | list[int] | `1` through `22` | Autosomes to include |
 
 ## Legacy flat keys
 
@@ -292,14 +245,6 @@ accepts either form, but it rejects a parameter supplied in both forms.
 | `analysis.max_degree` | `max_degree` |
 | `analysis.estimate_inbreeding` | `estimate_inbreeding` |
 | `analysis.skip_ne_coancestry` | `skip_ne_coancestry` |
-| `tstrait.num_causal` | `tstrait_num_causal` |
-| `tstrait.frac_causal` | `tstrait_frac_causal` |
-| `tstrait.maf_threshold` | `tstrait_maf_threshold` |
-| `tstrait.alpha` | `tstrait_alpha` |
-| `tstrait.effect_mean` | `tstrait_effect_mean` |
-| `tstrait.effect_var` | `tstrait_effect_var` |
-| `tstrait.trait_id` | `tstrait_trait_id` |
-| `tstrait.share_architecture` | `tstrait_share_architecture` |
 
 <!-- legacy-aliases:end -->
 
@@ -331,8 +276,7 @@ simulation jobs:
 
 Individual stages also validate their numeric ranges when they run. For
 example, ascertainment requires `0 <= dropout_rate < 1` and a nonnegative
-`case_ascertainment_ratio`. The tstrait effect-assignment stage requires
-exactly one of `num_causal` and `frac_causal`.
+`case_ascertainment_ratio`.
 
 [Writing a scenario](writing-a-scenario.md) shows how to add a scenario to a
 scenario file.

@@ -14,9 +14,8 @@ external/
 !/scripts/generate_ctm_grid.py
 # Fresh-computer install-verification suite (shareable; see scripts/verify/README.md)
 !/scripts/verify/
-# Standalone docs-example plots and gene-drop pipeline
+# Standalone docs-example plots
 !/scripts/examples/
-!/scripts/gene_drop/
 
 # Notebooks
 notebooks/

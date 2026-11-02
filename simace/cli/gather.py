@@ -23,7 +23,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     decides none (ADR 0028 §6).
 
     By default the folder is what ``config/{folder}.yaml`` lists: every rep
-    of every runnable scenario there, counting the complete ones and naming
+    of every scenario there, counting the complete ones and naming
     each other rep and its state, so the summary is of today's configured
     folder. ``--all`` gathers what is on disk instead: every rep directory
     with a ``run.yaml`` and a ``report.yaml``, checked against the config
@@ -104,7 +104,7 @@ def _configured_reports(folder: str, scenarios: dict[str, dict[str, Any]], layou
     """Return the report paths of the complete reps of ``folder``'s configured scenarios, naming every other rep."""
     from simace.cli.manifest import RepState
     from simace.cli.stages import ResolvedRep
-    from simace.cli.status import ScenarioError, check_runnable, status_on_disk
+    from simace.cli.status import status_on_disk
 
     configured = {name: params for name, params in scenarios.items() if params["folder"] == folder}
     if not configured:
@@ -116,11 +116,6 @@ def _configured_reports(folder: str, scenarios: dict[str, dict[str, Any]], layou
     reports: list[str] = []
     for name in sorted(configured):
         params = configured[name]
-        try:
-            check_runnable(name, params)
-        except ScenarioError:
-            print(f"simace gather: skipping {folder}/{name} (gene drop; not run by simace run)", file=sys.stderr)
-            continue
         reps = [ResolvedRep(folder, name, r, params) for r in range(1, int(params["replicates"]) + 1)]
         included = 0
         for rep in reps:

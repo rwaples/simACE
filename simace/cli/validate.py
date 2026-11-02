@@ -284,9 +284,7 @@ def _folder_verdict(
     members = [run for run in runs if run.folder == folder]
     ready = {run.scenario: v for run in members if (v := validated[run.scenario]) is not None}
     builds = sorted({_built_by(v.built_by) for v in ready.values()})
-    if not members:
-        reason = "no scenario to validate"
-    elif missing := [run.scenario for run in members if run.scenario not in ready]:
+    if missing := [run.scenario for run in members if run.scenario not in ready]:
         reason = f"no verdict for {', '.join(missing)}"
     elif len(builds) > 1:
         reason = f"scenarios validated by more than one build: {'; '.join(builds)}"

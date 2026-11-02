@@ -51,7 +51,6 @@ def config_dir(tmp_path: Path) -> Path:
         "tiny_wf": {**TINY, "replicates": 1, "pedigree": {"mating_model": "wright_fisher"}},
         "tiny_am": {**TINY, "replicates": 1, "pedigree": {"assort_matrix": [[0.2, 0.05], [0.05, 0.1]]}},
         "broken": {**TINY, "replicates": 1, "G_pheno": 9},
-        "dropped": {**TINY, "use_gene_drop": True},
     }
     (cfg / "t.yaml").write_text(yaml.safe_dump(scenarios))
     return cfg
@@ -134,11 +133,6 @@ def _stale(layout: Layout, rep: ResolvedRep) -> None:
     """Rewrite ``rep``'s manifest as if it had been computed with ``N: 999``."""
     old = expected_manifest(rep)
     _write_manifest(layout, rep, type(old)(**{**old.__dict__, "resolved": {**old.resolved, "N": 999}}))
-
-
-def test_gene_drop_scenario_exits_2(config_dir, roots, capsys) -> None:
-    assert _run(config_dir, roots, "dropped") == 2
-    assert "scripts/gene_drop" in capsys.readouterr().err
 
 
 def test_dry_run_prints_every_stage_and_writes_nothing(config_dir, roots, tmp_path, capsys) -> None:
@@ -299,11 +293,11 @@ def test_rep_needs_exactly_one_scenario(config_dir, roots, recorded, capsys) -> 
     assert recorded == []
 
 
-def test_folder_target_runs_every_runnable_scenario_once(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
+def test_folder_target_runs_every_scenario_once(config_dir, roots, layout, recorded, no_plots, capsys) -> None:
     _finish(layout, _rep(config_dir, 1, "tiny_wf"))
     assert _run(config_dir, roots, "t", "tiny") == 0  # tiny, named twice, runs once
     out = capsys.readouterr().out
-    assert recorded == [1, 1, 2, 1]  # broken, tiny x2, tiny_am; tiny_wf skipped; dropped left out
+    assert recorded == [1, 1, 2, 1]  # broken, tiny x2, tiny_am; tiny_wf skipped
     assert "[tiny_wf/rep1] skip (run.yaml matches)" in out
     assert "[total] 4 scenarios: 1 skipped, 4 computed\n" in out
     assert [rep.scenario for reps in no_plots for rep in reps[:1]] == ["broken", "tiny", "tiny_am", "tiny_wf"]
@@ -860,19 +854,11 @@ def test_show_reports_timing_over_complete_reps(config_dir, layout, tmp_path, ca
     }
 
 
-def test_show_can_inspect_gene_drop_scenario(config_dir, capsys) -> None:
-    show_cli(["dropped", "--config-dir", str(config_dir)])
-    shown = yaml.safe_load(capsys.readouterr().out)
-    assert shown["params"]["use_gene_drop"] is True
-    assert shown["reps"]["rep1"]["seed"] == 100
-
-
 def test_ls_reports_each_rep_state(config_dir, layout, tmp_path, capsys) -> None:
     _finish(layout, _rep(config_dir, 1))
     ls_cli(["t", "--config-dir", str(config_dir), "--results", str(tmp_path / "results")])
     lines = dict(line.split("  ", 1) for line in capsys.readouterr().out.splitlines())
     assert lines["t/tiny"] == "2 reps: 1 complete, 1 absent (rep2); plots absent"
-    assert lines["t/dropped"] == "gene drop (not run by simace run)"
 
 
 def test_ls_groups_reps_by_state_and_reason(config_dir, layout, tmp_path, capsys) -> None:

@@ -107,3 +107,11 @@ population is not stored per individual; the `cohort` stage summarizes it in
 The standalone `simace phenotype`, `censor`, and `ascertain` commands still
 read and write outcomes-only trait files at explicit paths, and those files
 hydrate against the pedigree the command read, as described above.
+
+## Amendment (2026-11-02): no gene-drop pedigree
+
+The gene-drop pipeline moved to simACE-validate's `tskit_pipeline/`, so no
+simACE stage reads `pedigree.full.tstrait.parquet` on its own. That pipeline
+passes it to `simace cohort` and `simace analyze` at an explicit path, and
+trait files then hydrate against it as against any other pedigree a command
+read.

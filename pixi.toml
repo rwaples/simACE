@@ -24,10 +24,6 @@ numba = "0.67.*"
 matplotlib = "3.11.*"
 seaborn = "0.13.*"
 pillow = "12.3.*"
-# tree-sequence gene drop and tstrait phenotypes (scripts/gene_drop/, tests/tskit/)
-tskit = "1.0.*"
-msprime = "1.4.*"
-tstrait = "0.2.*"
 # dev / test
 pytest = "9.1.*"
 pytest-xdist = "3.8.*"

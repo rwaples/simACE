@@ -125,3 +125,10 @@ unpushed test results.
   pandas; every migrated TSV read must pass `null_values=["NA", ""]`
   explicitly — this is the one silent-data-loss trap the migration introduces
   and it is pinned by tests.
+
+## Amendment (2026-11-02): gene-drop scripts moved out
+
+The pandas-native tstrait/tskit gene-drop scripts moved to simACE-validate's
+`tskit_pipeline/`, so they and their tests left the pandas allowlist in
+`tools/check_frame_policy.py`. Decision 2's boundaries in simACE are now the
+seaborn plot modules and the third-party edge shims.

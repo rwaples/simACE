@@ -30,7 +30,6 @@ from pathlib import Path
 # import pandas; everything else may not.
 ALLOWLIST: tuple[tuple[str, str], ...] = (
     ("simace/plotting/plot_validation.py", "seaborn boundary: stripplot renderers take frames"),
-    ("scripts/gene_drop/*.py", "pandas-native tstrait/tskit scripts (out of scope)"),
     ("tests/core/test_null_contract.py", "pandas round-trip compatibility coverage"),
     ("tests/core/test_pedigree_arrays.py", "PedigreeArrays.from_frame is structurally dual-frame"),
     ("tests/core/test_schema.py", "asserts the pandas-rejection TypeError"),
@@ -41,8 +40,6 @@ ALLOWLIST: tuple[tuple[str, str], ...] = (
     ("tests/analysis/test_stats_sampling.py", "asserts the pandas-rejection TypeError"),
     ("tests/analysis/test_effective_size.py", "feeds a pandas fixture to external pedigree_graph"),
     ("tests/plotting/test_reference_lines.py", "drives plot_validation's pandas renderers (seaborn boundary)"),
-    ("tests/test_gene_drop_augment_layout.py", "covers the pandas-native scripts/gene_drop"),
-    ("tests/tskit/*.py", "covers the pandas-native tskit scripts"),
     (
         "tests/core/test_parquet_to_tsv.py",
         "pandas is the byte-for-byte reference oracle for the R-facing TSV rendering contract",

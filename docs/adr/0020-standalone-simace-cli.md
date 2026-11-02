@@ -73,7 +73,9 @@ through its own Snakemake and did not depend on simACE's rules.
   every configured scenario's parameters through each stage's argv and
   requires the domain function to receive exactly the config values.
 - Gene-drop scenarios (`use_gene_drop`, `drop_from`) are not run by
-  `simace run`; their scripts moved to `scripts/gene_drop/`. The example
+  `simace run`; their scripts moved to `scripts/gene_drop/` (and on
+  2026-11-02 to simACE-validate's `tskit_pipeline/`, taking the config keys
+  with them). The example
   comparison scripts moved to `scripts/examples/`.
 
 ### Amendment 2026-09-28: what "complete" covers
@@ -89,8 +91,8 @@ through its own Snakemake and did not depend on simACE's rules.
 - `run --format pdf` and `gather --format pdf` build the PDF atlas as a
   further stage (`atlas-pdf`, its own log and timing row) beside the HTML
   atlas, which is always built (ADR 0010).
-- `gather` summarizes the configured folder: every rep of every runnable
-  scenario in `config/{folder}.yaml`, naming each rep it leaves out and its
+- `gather` summarizes the configured folder: every rep of every scenario
+  in `config/{folder}.yaml`, naming each rep it leaves out and its
   state, with a per-scenario `n of m reps` line. `--all` gathers by disk
   instead, for archived folders the config no longer lists.
 - A scenario's plots have their own state. `plots/plots.yaml` fingerprints
@@ -142,8 +144,7 @@ through its own Snakemake and did not depend on simACE's rules.
 Decided after reviewing how the CLI would be used day to day.
 
 - `simace run` takes any number of targets. A target is a scenario name,
-  or else a folder name standing for every runnable scenario whose
-  `folder` it is. All reps of all targets share one `--jobs` pool; every
+  or else a folder name standing for every scenario whose `folder` it is. All reps of all targets share one `--jobs` pool; every
   scenario's lock is taken before anything starts; plots are drawn after
   the pool drains, for each scenario whose reps are all complete. This
   takes back the cross-scenario scheduling the original decision gave up.

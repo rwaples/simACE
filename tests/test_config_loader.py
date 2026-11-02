@@ -1,6 +1,7 @@
 """Unit tests for the hierarchical config flattening logic in simace.config."""
 
-from typing import TYPE_CHECKING
+import shutil
+from pathlib import Path
 
 import pytest
 import yaml
@@ -12,9 +13,6 @@ from simace.config import (
     resolve_defaults,
     resolve_scenarios,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 class TestFlattenPassthrough:
@@ -201,8 +199,6 @@ class TestRoundTrip:
             "G_sim",
             "standardize",
             "plot_format",
-            "drop_from",
-            "use_gene_drop",
             "blended_diagnosis",
             "mating_model",
             "mating_lambda",
@@ -237,14 +233,6 @@ class TestRoundTrip:
             "max_degree",
             "estimate_inbreeding",
             "skip_ne_coancestry",
-            "tstrait_num_causal",
-            "tstrait_frac_causal",
-            "tstrait_maf_threshold",
-            "tstrait_alpha",
-            "tstrait_effect_mean",
-            "tstrait_effect_var",
-            "tstrait_trait_id",
-            "tstrait_share_architecture",
             "Ctm_maternal1",
             "Ctm_paternal1",
             "Ctm_maternal2",
@@ -330,8 +318,6 @@ class TestGenCensoringCoercion:
                 "G_sim": 4,
                 "standardize": True,
                 "plot_format": "png",
-                "drop_from": 0,
-                "use_gene_drop": False,
                 "pedigree": {
                     "mating_lambda": 0.5,
                     "p_mztwin": 0.0,
@@ -366,16 +352,6 @@ class TestGenCensoringCoercion:
                 },
                 "ascertainment": {"N_sample": 100, "case_ascertainment_ratio": 1.0, "dropout_rate": 0.0},
                 "analysis": {"max_degree": 3, "estimate_inbreeding": False},
-                "tstrait": {
-                    "num_causal": 0,
-                    "frac_causal": 0.0,
-                    "maf_threshold": 0.0,
-                    "alpha": 0.0,
-                    "effect_mean": 0.0,
-                    "effect_var": 0.0,
-                    "trait_id": "t1",
-                    "share_architecture": False,
-                },
             }
         }
         self._write(tmp_path, "_default.yaml", defaults_body)
@@ -439,8 +415,6 @@ class TestPedigreeConfigValidation:
                 "G_sim": 2,
                 "standardize": True,
                 "plot_format": "png",
-                "drop_from": 0,
-                "use_gene_drop": False,
                 "pedigree": {
                     "mating_lambda": 0.5,
                     "p_mztwin": 0.0,
@@ -475,16 +449,6 @@ class TestPedigreeConfigValidation:
                 },
                 "ascertainment": {"N_sample": 0, "case_ascertainment_ratio": 1.0, "dropout_rate": 0.0},
                 "analysis": {"max_degree": 3, "estimate_inbreeding": False},
-                "tstrait": {
-                    "num_causal": 0,
-                    "frac_causal": 0.0,
-                    "maf_threshold": 0.0,
-                    "alpha": 0.0,
-                    "effect_mean": 0.0,
-                    "effect_var": 0.0,
-                    "trait_id": "t1",
-                    "share_architecture": False,
-                },
             }
         }
 
@@ -534,3 +498,14 @@ class TestPedigreeConfigValidation:
         self._write(tmp_path, "x.yaml", {"inheriting": {"seed": 99}})
         scenarios = resolve_scenarios(tmp_path)
         assert scenarios["inheriting"]["seed"] == 99
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [{"use_gene_drop": True}, {"drop_from": "base"}, {"tstrait": {"alpha": 0.0}}, {"tstrait_alpha": 0.0}],
+)
+def test_gene_drop_keys_point_to_simace_validate(tmp_path, scenario):
+    shutil.copy(Path(__file__).resolve().parents[1] / "config" / "_default.yaml", tmp_path / "_default.yaml")
+    (tmp_path / "x.yaml").write_text(yaml.safe_dump({"old": scenario}))
+    with pytest.raises(ValueError, match="simACE-validate's tskit_pipeline"):
+        resolve_scenarios(tmp_path)

@@ -97,7 +97,6 @@ class RepArtifact(StrEnum):
     """Basenames of the files in one replicate directory."""
 
     PEDIGREE = "pedigree.parquet"
-    PEDIGREE_FULL_TSTRAIT = "pedigree.full.tstrait.parquet"
     MATING = "mating.yaml"
     PARAMS = "params.yaml"
     COHORT = "cohort.parquet"

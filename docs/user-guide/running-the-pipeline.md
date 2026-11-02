@@ -15,7 +15,7 @@ pixi run simace run base dev --jobs 6      # two folders, six replicates at a ti
 ```
 
 Each target is a scenario name, or else a folder name, which stands for
-every scenario whose `folder` it is (gene-drop scenarios are left out). A
+every scenario whose `folder` it is. A
 scenario named more than once runs once. `simace run` computes every
 replicate of every target through one pool of `--jobs` workers, then draws
 each scenario's plots and HTML atlas. Each replicate goes through three
@@ -330,7 +330,6 @@ the sample's ancestors, including those phenotyped but not drawn.
 | `refused: run.yaml differs in ...` | The scenario changed after that replicate ran. Rerun with `--force` |
 | `simace run: ... is locked (...) by simace run pid ..., or by a stage it started` | Wait for that run to finish. The lock is released when its last process exits, even if the run was killed |
 | `simace run: unknown target ...` | Neither a scenario nor a folder in `config/`; the message lists both |
-| `simace run: scenario ... uses gene drop` | Gene-drop scenarios run through `scripts/gene_drop/`, not `simace run` |
 | A stage failed | Read the log the summary names, in `logs/{folder}/{scenario}/rep{N}/` |
 | A large-N simulation is killed or hangs | Check `simace show` for the peak memory of past replicates, lower `--jobs` so fewer replicates share memory, or pass `--max-memory` so an oversized stage fails with a clear error instead of pushing the machine into swap |
 | `FAILED (exit -9, killed for going over --max-memory)` | The stage needed more than the cap. Raise `--max-memory` or lower `N` |

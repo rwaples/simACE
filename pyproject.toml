@@ -23,8 +23,8 @@ dependencies = [
 ]
 
 # pandas is no longer a base dependency (ADR 0015): it survives only at the
-# seaborn plot boundary, in the pandas-native gene-drop scripts, and in
-# cross-library compatibility tests — each declared in the extra that uses it.
+# seaborn plot boundary and in cross-library compatibility tests, each declared
+# in the extra that uses it.
 [project.optional-dependencies]
 plot = [
     "matplotlib>=3.9,<4",

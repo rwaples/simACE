@@ -53,7 +53,6 @@ from simace.cli.stages import (
 from simace.cli.status import (
     ScenarioError,
     built_stages,
-    check_runnable,
     expected_manifest,
     rep_outputs,
     rep_ranges,
@@ -300,17 +299,15 @@ class ScenarioRun:
 def expand_targets(targets: list[str], scenarios: dict[str, dict[str, Any]]) -> list[str]:
     """Return the scenario names ``targets`` name, in order, once each.
 
-    A target is a scenario name first, else a folder name (every runnable
-    scenario whose ``folder`` it is; gene-drop scenarios are left out).
+    A target is a scenario name first, else a folder name (every scenario
+    whose ``folder`` it is).
 
     Raises:
-        ScenarioError: a target is neither a scenario nor a folder, or names
-            a gene-drop scenario directly.
+        ScenarioError: a target is neither a scenario nor a folder.
     """
     names: list[str] = []
     for target in targets:
         if target in scenarios:
-            check_runnable(target, scenarios[target])
             names.append(target)
             continue
         in_folder = [name for name, params in scenarios.items() if params["folder"] == target]
@@ -318,16 +315,8 @@ def expand_targets(targets: list[str], scenarios: dict[str, dict[str, Any]]) -> 
             known = "\n  ".join(sorted(scenarios))
             folders = ", ".join(sorted({params["folder"] for params in scenarios.values()}))
             raise ScenarioError(f"unknown target {target!r}; folders: {folders}\nscenarios:\n  {known}")
-        names += [name for name in in_folder if _runnable(name, scenarios[name])]
+        names += in_folder
     return list(dict.fromkeys(names))
-
-
-def _runnable(name: str, params: dict[str, Any]) -> bool:
-    try:
-        check_runnable(name, params)
-    except ScenarioError:
-        return False
-    return True
 
 
 def _plan(name: str, params: dict[str, Any], reps: list[int] | None) -> ScenarioRun:
@@ -354,9 +343,6 @@ def plan_runs(command_name: str, config_dir: Path, targets: list[str], reps: lis
     except ScenarioError as exc:
         print(f"simace {command_name}: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
-    if not runs:
-        print(f"simace {command_name}: nothing to run; every scenario in {targets} uses gene drop", file=sys.stderr)
-        raise SystemExit(2)
     return runs
 
 

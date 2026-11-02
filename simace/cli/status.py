@@ -9,7 +9,6 @@ from __future__ import annotations
 __all__ = [
     "ScenarioError",
     "built_stages",
-    "check_runnable",
     "expected_manifest",
     "load_scenario",
     "rep_outputs",
@@ -59,28 +58,16 @@ def resolve_all(config_dir: Path) -> dict[str, dict[str, Any]]:
     return {name: {**defaults, **params} for name, params in resolve_scenarios(config_dir, defaults).items()}
 
 
-def check_runnable(name: str, params: dict[str, Any]) -> None:
-    """Raise :class:`ScenarioError` if ``simace run`` cannot run this scenario."""
-    if params.get("use_gene_drop") or params.get("drop_from") is not None:
-        raise ScenarioError(
-            f"scenario {name!r} uses gene drop (use_gene_drop / drop_from); "
-            "`simace run` does not run it. Use the scripts in scripts/gene_drop/."
-        )
-
-
-def load_scenario(config_dir: Path, name: str, *, require_runnable: bool = True) -> dict[str, Any]:
+def load_scenario(config_dir: Path, name: str) -> dict[str, Any]:
     """Return the resolved flat parameters of one scenario.
 
     Raises:
-        ScenarioError: the scenario is unknown, or uses gene drop when
-            ``require_runnable`` is true.
+        ScenarioError: the scenario is unknown.
     """
     scenarios = resolve_all(config_dir)
     if name not in scenarios:
         known = "\n  ".join(sorted(scenarios))
         raise ScenarioError(f"unknown scenario {name!r}; known scenarios:\n  {known}")
-    if require_runnable:
-        check_runnable(name, scenarios[name])
     return scenarios[name]
 
 

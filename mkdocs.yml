@@ -92,7 +92,6 @@ nav:
       - ACE model: concepts/ace-model.md
       - Simulation design: concepts/simulation-design.md
       - Pipeline schema: concepts/pipeline-schema.md
-      - Gene drop and tstrait phenotyping: concepts/gene-drop.md
       - Methods: concepts/methods.md
       - Project structure: concepts/project-structure.md
       - Model fitting: concepts/model-fitting.md
@@ -103,7 +102,6 @@ nav:
       - Assortative mating and heritability: examples/am-and-heritability.md
       - Time-varying E and h² drift: examples/time-varying-e.md
       - Observed-scale vs liability-scale heritability: examples/observed-vs-liability-h2.md
-      - Gene-drop architecture sweep: examples/gene-drop-architecture-sweep.md
       - Ascertainment bias: examples/ascertainment-bias.md
   - API reference:
       - api/index.md

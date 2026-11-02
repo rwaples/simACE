@@ -16,20 +16,9 @@ import simace.cli.cohort_stage as cohort_mod
 import simace.simulation.simulate as simulate_mod
 from simace.cli.layout import Layout
 from simace.cli.stages import REP_PARAM_KEYS, STAGES, ResolvedRep
-from simace.cli.status import ScenarioError, check_runnable, resolve_all
+from simace.cli.status import resolve_all
 
 REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
-
-
-def _runnable() -> list[tuple[str, dict]]:
-    out = []
-    for name, params in sorted(resolve_all(REPO_CONFIG).items()):
-        try:
-            check_runnable(name, params)
-        except ScenarioError:
-            continue
-        out.append((name, params))
-    return out
 
 
 _SIMULATE_KEYS = ["N", "G_ped", "G_sim", "mating_model", "mating_lambda", "p_mztwin"]
@@ -73,8 +62,8 @@ def _representatives(scenarios: list[tuple[str, dict]]) -> list[tuple[str, dict]
     return out
 
 
-RUNNABLE = _runnable()
-SCENARIOS = _representatives(RUNNABLE)
+ALL = sorted(resolve_all(REPO_CONFIG).items())
+SCENARIOS = _representatives(ALL)
 
 
 class _Recorder:
@@ -180,7 +169,7 @@ def test_plot_argv_hands_the_plot_stage_each_validation_file_and_the_scenario_ve
     from simace.cli.layout import RepArtifact
     from simace.cli.stages import plot_argv
 
-    params = dict(RUNNABLE)["onset_tau_weibull"]
+    params = dict(ALL)["onset_tau_weibull"]
     reps = [ResolvedRep(params["folder"], "onset_tau_weibull", r, params) for r in (1, 2)]
     layout = Layout(root=tmp_path / "r", logs=tmp_path / "l")
     recorder = _Recorder()

@@ -80,7 +80,7 @@ Hydration keeps the trait row order and returns pedigree columns first, then tra
 - every trait ID exists in the pedigree
 - no requested pedigree column is already in the trait frame
 
-Pre-ascertainment trait frames hydrate against the pedigree the phenotype stage read. That is `pedigree.parquet`, or `pedigree.full.tstrait.parquet` for gene-drop scenarios. The analysis sample, `selected_views(...).trait`, hydrates against the analysis pedigree, `selected_views(...).pedigree`.
+Pre-ascertainment trait frames hydrate against the pedigree the phenotype stage read. That is `pedigree.parquet`. The analysis sample, `selected_views(...).trait`, hydrates against the analysis pedigree, `selected_views(...).pedigree`.
 
 ## Why the checker compares dtype kinds
 
