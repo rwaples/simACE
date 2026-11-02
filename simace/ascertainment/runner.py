@@ -233,10 +233,10 @@ def run_ascertainment(
     Returns:
         Tuple of (pedigree_ascertained, trait_ascertained).
     """
-    from simace.core.trait_schema import _require_polars
+    from simace.core.trait_schema import require_polars
 
-    _require_polars(pedigree, where="run_ascertainment: pedigree")
-    _require_polars(trait, where="run_ascertainment: trait")
+    require_polars(pedigree, where="run_ascertainment: pedigree")
+    require_polars(trait, where="run_ascertainment: trait")
 
     n_total = len(pedigree)
     rate = float(dropout_rate)

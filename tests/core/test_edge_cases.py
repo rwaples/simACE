@@ -7,8 +7,7 @@ all non-social fathers, single-generation pedigrees, etc.
 import numpy as np
 import polars as pl
 
-from simace.phenotype.models import FrailtyModel
-from simace.phenotype.models._prevalence import case_status_from_liability
+from simace.phenotype.models import FrailtyModel, case_status_from_liability
 from simace.simulation.simulate import run_simulation
 
 

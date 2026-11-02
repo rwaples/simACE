@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from simace.core.numerics import _ZERO_VAR_THRESHOLD
+from simace.core.numerics import ZERO_VAR_THRESHOLD
 from simace.core.relationships import transmission_coefficients
 
 from ._common import _info, _result, cluster_codes
@@ -81,7 +81,7 @@ def validate_c_transmission(
         child = df[f"C{t}"].to_numpy()[kids].astype(np.float64)
         mom = ped.gather(f"C{t}", mother[kids]).astype(np.float64)
         dad = ped.gather(f"C{t}", father[kids]).astype(np.float64)
-        if min(np.var(mom), np.var(dad)) < _ZERO_VAR_THRESHOLD:
+        if min(np.var(mom), np.var(dad)) < ZERO_VAR_THRESHOLD:
             results[name] = _info(f"C{t} transmission not checked: parental C{t} has no variance")
             continue
         X = np.column_stack([np.ones_like(child), mom, dad])

@@ -44,7 +44,7 @@ def read_mating_log(path: str | Path) -> list[dict[str, Any]]:
     return load_yaml(path)["iterations"]
 
 
-def _parent_ce_gen(i: int) -> int:
+def parent_ce_gen(i: int) -> int:
     """C/E generation of the population being mated at loop iteration ``i``.
 
     Founders (``i=0``) carry gen-0 C/E and offspring from iteration ``j`` carry
@@ -142,19 +142,19 @@ class AssortmentPlan:
         # generation-dependent C/E, and validated the final offspring C/E
         # generation even though that population is never mated.
         for i in range(G_sim):
-            rw = rho_w_per_ce[_parent_ce_gen(i)]
+            rw = rho_w_per_ce[parent_ce_gen(i)]
             if assort1_per_gen[i] != 0 and assort2_per_gen[i] != 0 and abs(rw) >= 1.0 - 1e-10:
                 raise ValueError(
                     f"Both-trait assortative mating requires |rho_w| < 1 "
                     f"(got rho_w={rw:.4f} at mating iteration {i}, "
-                    f"parental C/E generation {_parent_ce_gen(i)}). "
+                    f"parental C/E generation {parent_ce_gen(i)}). "
                     f"Traits are perfectly correlated; "
                     f"use single-trait assortment instead."
                 )
 
         # Validate PSD of the full 4x4 Sigma actually used at each iteration.
         for i in range(G_sim):
-            rw = rho_w_per_ce[_parent_ce_gen(i)]
+            rw = rho_w_per_ce[parent_ce_gen(i)]
             a1_i = assort1_per_gen[i]
             a2_i = assort2_per_gen[i]
             if R_mf_user is None and not (a1_i != 0 and a2_i != 0):
@@ -170,7 +170,7 @@ class AssortmentPlan:
                 raise ValueError(
                     f"Full 4x4 mate correlation matrix Sigma_4 is not PSD "
                     f"(min eigenvalue = {eigvals[0]:.6f} at mating iteration {i}, "
-                    f"parental C/E generation {_parent_ce_gen(i)}). "
+                    f"parental C/E generation {parent_ce_gen(i)}). "
                     f"Reduce the magnitude of assort_matrix off-diagonal entries "
                     f"or per-gen assort1/assort2."
                 )
@@ -191,7 +191,7 @@ class AssortmentPlan:
         from ``rho_w_i`` when both-trait AM is active and no explicit matrix was
         supplied, else it is the user matrix (possibly ``None``).
         """
-        rho_w_i = self.rho_w_per_ce[_parent_ce_gen(i)]
+        rho_w_i = self.rho_w_per_ce[parent_ce_gen(i)]
 
         # Per-iter AM values (constant across iters for scalar assort1/assort2).
         a1_i = self.assort1_per_gen[i]

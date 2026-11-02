@@ -51,7 +51,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numba import njit
 
-from simace.core._numba_utils import _ndtri_approx
+from simace.core.numerics import ndtri as ndtri_approx
 from simace.core.phenotype_keys import BASELINE_PARAMS, HAZARD_ALIASES, exponential_rate
 from simace.core.standardize import STANDARDIZE_CHOICES, StandardizeMode, coerce_standardize_mode
 
@@ -114,11 +114,11 @@ def _nb_lognormal(neg_log_u, liability, mean, scaled_beta, mu, sigma):
             t[i] = 1e6
         elif surv >= 1.0:
             # target == 0 means S(t) == 1, i.e. an event time of 0, and
-            # _ndtri_approx diverges to NaN at exactly 1.0.  Mirror the
+            # ndtri_approx diverges to NaN at exactly 1.0.  Mirror the
             # surv <= 0 guard above and return the documented floor.
             t[i] = 1e-10
         else:
-            val = np.exp(mu - sigma * _ndtri_approx(surv))
+            val = np.exp(mu - sigma * ndtri_approx(surv))
             t[i] = min(max(val, 1e-10), 1e6)
     return t
 

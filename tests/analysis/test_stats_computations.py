@@ -673,7 +673,7 @@ _DEFAULT_SIM_PARAMS = dict(
 @pytest.fixture(scope="module")
 def phenotyped_df():
     """Simulated + thresholded pedigree with all columns needed by stats functions."""
-    from simace.phenotype.models._prevalence import case_status_from_liability
+    from simace.phenotype.models import case_status_from_liability
     from simace.simulation.simulate import run_simulation
 
     ped = run_simulation(**_DEFAULT_SIM_PARAMS)

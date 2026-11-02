@@ -20,6 +20,7 @@ __all__ = [
     "TRAIT_RAW_COLUMNS",
     "TraitKind",
     "hydrate_trait",
+    "require_polars",
     "strip_trait_to_outcomes",
 ]
 
@@ -90,7 +91,7 @@ def _require_unique_id(df: pl.DataFrame, *, where: str) -> None:
         raise ValueError(f"{where}: duplicate id values are not allowed; examples: {example}")
 
 
-def _require_polars(df: object, *, where: str) -> pl.DataFrame:
+def require_polars(df: object, *, where: str) -> pl.DataFrame:
     """Reject non-polars frames with an actionable error (ADR 0015)."""
     if not isinstance(df, pl.DataFrame):
         raise TypeError(
@@ -132,7 +133,7 @@ def strip_trait_to_outcomes(df: pl.DataFrame, kind: TraitKind) -> pl.DataFrame:
         TypeError: If ``df`` is not a polars DataFrame.
         ValueError: If any required outcomes-only column is missing.
     """
-    df = _require_polars(df, where="strip_trait_to_outcomes: df")
+    df = require_polars(df, where="strip_trait_to_outcomes: df")
     columns = _columns_for_kind(kind)
     _require_columns(df, columns, where=f"{kind} trait")
     return df.select(columns)
@@ -172,8 +173,8 @@ def hydrate_trait(
         ValueError: If required columns are missing, IDs are duplicated or
             missing, or requested pedigree columns collide with trait columns.
     """
-    trait = _require_polars(trait, where="hydrate_trait: trait")
-    pedigree = _require_polars(pedigree, where="hydrate_trait: pedigree")
+    trait = require_polars(trait, where="hydrate_trait: trait")
+    pedigree = require_polars(pedigree, where="hydrate_trait: pedigree")
 
     if validate:
         _require_columns(trait, _columns_for_kind(kind), where=f"{kind} trait")

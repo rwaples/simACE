@@ -12,6 +12,25 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### No private imports across package boundaries ([#70](https://github.com/rwaples/simACE/issues/70))
+
+- **Private names other packages used are now public.** In simACE:
+  `phenotype.models.case_status_from_liability` (re-exported),
+  `core.numerics.ZERO_VAR_THRESHOLD`, `core.trait_schema.require_polars` and
+  `simulation.assortment.parent_ce_gen`. In fitACE: `result_io.BENCH_COLUMNS`
+  and `devgrid.read_cov_matrix`, `h2_ci_contains_truth` and
+  `truth_threshold_scale`; `devgrid._read_meta` is gone (call
+  `result_io.read_meta(path, allow_missing=True)`). The underscored names are
+  removed without aliases.
+- **Release requirement:** fitACE's method packages and tests now import
+  these names, so this release must raise `FAMILY_FLOOR` and the family pins
+  to its own tag. Method packages from `v0.2.0` import the old names and do
+  not work with this release's fitace.
+- **New guardrail:** `tests/test_private_imports.py` fails on any import of a
+  private name across a family package or simace sub-package boundary.
+  Deliberate exceptions (golden generators, a pedsum oracle test) are listed
+  with their names and reasons.
+
 ### The tskit gene-drop pipeline moved to simACE-validate
 
 - **Breaking: the `tstrait` and `tskit_preprocess` sections and the

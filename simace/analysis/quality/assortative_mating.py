@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from simace.core.numerics import finite_or_none
-from simace.simulation.assortment import _parent_ce_gen
+from simace.simulation.assortment import parent_ce_gen
 from simace.simulation.mate_correlation import expected_mate_corr_matrix
 
 from ._common import _info
@@ -93,7 +93,7 @@ def recorded_matings(params: dict[str, Any]) -> list[RecordedMating]:
 
     Iteration ``i`` records generation ``i - burnin``, so its parents are
     recorded generation ``i - burnin - 1`` and carry the C/E of generation
-    ``_parent_ce_gen(i)``. The targets follow :func:`assortment_schedule`;
+    ``parent_ce_gen(i)``. The targets follow :func:`assortment_schedule`;
     a set ``assort_matrix`` is mated on only when both traits assort, and
     under Wright-Fisher every target is zero.
     """
@@ -107,7 +107,7 @@ def recorded_matings(params: dict[str, Any]) -> list[RecordedMating]:
     matings = []
     for i in range(burnin + 1, G_sim):
         a1, a2 = assort1[i], assort2[i]
-        g = _parent_ce_gen(i)
+        g = parent_ce_gen(i)
         expected = expected_mate_corr_matrix(
             a1,
             a2,

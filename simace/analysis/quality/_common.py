@@ -17,7 +17,7 @@ import numpy as np
 from pedigree_graph import PedigreeGraph
 
 from simace.analysis.mate_correlation import mate_correlation_matrix
-from simace.core.numerics import _ZERO_VAR_THRESHOLD
+from simace.core.numerics import ZERO_VAR_THRESHOLD
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -127,9 +127,9 @@ def pair_correlation(cell: RelationshipMoments, column: str) -> float:
     i = cell.columns.index(column)
     if n == 0:
         return math.nan
-    if math.sqrt(float(cell.m2_first[i]) / n) < _ZERO_VAR_THRESHOLD:
+    if math.sqrt(float(cell.m2_first[i]) / n) < ZERO_VAR_THRESHOLD:
         return math.nan
-    if math.sqrt(float(cell.m2_second[i]) / n) < _ZERO_VAR_THRESHOLD:
+    if math.sqrt(float(cell.m2_second[i]) / n) < ZERO_VAR_THRESHOLD:
         return math.nan
     return float(cell.pearson(f"first.{column}", f"second.{column}"))
 

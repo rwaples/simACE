@@ -1,6 +1,7 @@
 """Numerical helpers: safe and numba-accelerated correlation/regression."""
 
 __all__ = [
+    "ZERO_VAR_THRESHOLD",
     "as_kernel_input",
     "bvn_cdf",
     "fast_linregress",
@@ -41,7 +42,7 @@ from simace.core._numba_utils import (
     _norm_sf as norm_sf,
 )
 
-_ZERO_VAR_THRESHOLD = 1e-10
+ZERO_VAR_THRESHOLD = 1e-10
 
 
 def as_kernel_input(a: np.ndarray) -> np.ndarray:
@@ -140,7 +141,7 @@ def safe_corrcoef(x: np.ndarray, y: np.ndarray) -> float:
     Returns:
         Pearson correlation coefficient, or nan if variance is near-zero.
     """
-    if np.std(x) < _ZERO_VAR_THRESHOLD or np.std(y) < _ZERO_VAR_THRESHOLD:
+    if np.std(x) < ZERO_VAR_THRESHOLD or np.std(y) < ZERO_VAR_THRESHOLD:
         return float("nan")
     return float(_pearsonr_core(as_kernel_input(x), as_kernel_input(y)))
 

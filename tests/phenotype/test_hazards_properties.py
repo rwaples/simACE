@@ -4,7 +4,7 @@ The centrepiece is a deterministic inverse-hazard oracle: every baseline
 inverter claims to solve ``H0(t) * z = -log(U)`` for ``t``, so an independently
 written ``H0`` recovers the input.  No parameter is recovered from a Monte
 Carlo sample and no tolerance here absorbs sampling uncertainty — each one
-covers floating-point error or the documented ``_ndtri_approx`` approximation,
+covers floating-point error or the documented ``simace.core.numerics.ndtri`` approximation,
 and is recorded beside its assertion with the domain it was measured over.
 
 Calibration (D4 gate), seed 20260825, 200_000 draws per distribution over
@@ -59,7 +59,7 @@ _ROUNDTRIP_RTOL = {
     "loglogistic": 1e-12,
     # scipy's iterative gamma inverse, worst 1.13e-11 near the clamp floor.
     "gamma": 1e-9,
-    # _ndtri_approx (hazards.py:118) is Acklam's rational approximation, not an
+    # simace.core.numerics.ndtri (called in hazards.py) is Acklam's rational approximation, not an
     # exact inverse normal CDF: measured 1.13e-9 relative in the quantile
     # itself, worst 2.86e-08 through the round-trip.
     "lognormal": 1e-6,
@@ -148,7 +148,7 @@ class TestEventTimes:
         enforced by only four of the six inversion paths: ``_nb_weibull``
         returned its raw inverse (0 at ``neg_log_u=0``, and above ``1e6`` under
         an extreme frailty), and ``_nb_lognormal`` returned NaN as
-        ``neg_log_u -> 0`` because ``_ndtri_approx(1.0)`` diverges.
+        ``neg_log_u -> 0`` because ``ndtri(1.0)`` diverges.
         """
         distribution, params, neg_log_u, liability, mean, scaled_beta = call
         t = compute_event_times(neg_log_u, liability, mean, scaled_beta, distribution, params)

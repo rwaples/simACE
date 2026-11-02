@@ -24,7 +24,7 @@ __all__ = [
 import numpy as np
 from scipy.special import erfc
 
-from simace.core._numba_utils import _ndtri_approx
+from simace.core.numerics import ndtri as ndtri_approx
 from simace.phenotype.hazards import (
     BASELINE_HAZARDS,
     coerce_standardize_mode,
@@ -93,7 +93,7 @@ def phenotype_mixture_cip(
     mode = _resolve_mode(standardize)
     L = standardize_liability(liability, mode)
 
-    _ndtri_vec = np.vectorize(_ndtri_approx)
+    _ndtri_vec = np.vectorize(ndtri_approx)
     threshold = _ndtri_vec(1.0 - prevalence)
     is_case = threshold < L
 
@@ -168,7 +168,7 @@ def phenotype_mixture_cure_frailty(
     mean = float(mean_arr[0])
     scaled_beta = float(beta_arr[0])
 
-    _ndtri_vec = np.vectorize(_ndtri_approx)
+    _ndtri_vec = np.vectorize(ndtri_approx)
     threshold = _ndtri_vec(1.0 - prevalence)
     is_case = threshold < L
 
@@ -240,7 +240,7 @@ def phenotype_two_threshold(
     mode = _resolve_mode(standardize)
     L = standardize_liability(liability, mode)
 
-    _ndtri_vec = np.vectorize(_ndtri_approx)
+    _ndtri_vec = np.vectorize(ndtri_approx)
     K_total = np.asarray(prevalence_early) + np.asarray(prevalence_late)
     tau1 = _ndtri_vec(1.0 - prevalence_early)  # early threshold (higher)
     tau2 = _ndtri_vec(1.0 - K_total)  # late threshold (lower)

@@ -16,7 +16,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from simace.simulation.assortment import AssortmentPlan, _cross_am_matrix, _parent_ce_gen
+from simace.simulation.assortment import AssortmentPlan, _cross_am_matrix, parent_ce_gen
 from simace.simulation.mate_correlation import expected_mate_corr_matrix
 
 _CORRELATIONS = st.sampled_from([-1.0, -0.7, -0.3, 0.0, 0.3, 0.7, 1.0])
@@ -154,9 +154,9 @@ class TestGenerationSchedule:
     @given(g_sim=st.integers(min_value=1, max_value=8))
     def test_parent_schedule_never_reads_the_final_offspring_generation(self, g_sim):
         """The mated populations span C/E generations ``0 .. G_sim - 2`` (and 0)."""
-        used = {_parent_ce_gen(i) for i in range(g_sim)}
+        used = {parent_ce_gen(i) for i in range(g_sim)}
         assert used == set(range(max(1, g_sim - 1)))
-        assert _parent_ce_gen(0) == 0
+        assert parent_ce_gen(0) == 0
 
 
 class TestCrossAmMatrix:

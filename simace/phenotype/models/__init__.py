@@ -18,6 +18,7 @@ the dispatcher accepts.
 """
 
 from simace.phenotype.models._base import PhenotypeModel
+from simace.phenotype.models._prevalence import case_status_from_liability
 from simace.phenotype.models.adult import AdultModel
 from simace.phenotype.models.cure_frailty import CureFrailtyModel
 from simace.phenotype.models.first_passage import FirstPassageModel
@@ -32,6 +33,7 @@ __all__ = [
     "FrailtyModel",
     "PhenotypeModel",
     "SimpleLtmModel",
+    "case_status_from_liability",
 ]
 
 
