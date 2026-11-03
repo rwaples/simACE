@@ -107,9 +107,19 @@ def _copy(pedigree: pl.DataFrame, d: Path) -> bool:
         pytest.param(_external_pedigree(), True, id="clean"),
         pytest.param(_external_pedigree(mother=[-1, -1, 16]), False, id="mother-absent-id"),
         pytest.param(_external_pedigree(twin=[-1, 13, -1]), False, id="twin-absent-id"),
-        pytest.param(_external_pedigree(mother=[None, None, 10]), False, id="null-mother"),
-        pytest.param(_external_pedigree().drop("father"), False, id="no-father-column"),
         pytest.param(_external_pedigree().drop("twin"), True, id="no-twin-column"),
+    ],
+)
+def test_fast_path_on_external_pedigrees(tmp_path, pedigree, copies):
+    """Declines on inputs the API would rewrite."""
+    assert _copy(pedigree, tmp_path) is copies
+
+
+@pytest.mark.parametrize(
+    ("pedigree", "error"),
+    [
+        pytest.param(_external_pedigree(mother=[None, None, 10]), IndexError, id="null-mother"),
+        pytest.param(_external_pedigree().drop("father"), KeyError, id="no-father-column"),
         pytest.param(
             pl.DataFrame(
                 {
@@ -118,11 +128,15 @@ def _copy(pedigree: pl.DataFrame, d: Path) -> bool:
                     "father": [-1, -1, 900_000_002],
                 }
             ),
-            True,
+            ValueError,
             id="sparse-registry-ids",
         ),
     ],
 )
-def test_fast_path_on_external_pedigrees(tmp_path, pedigree, copies):
-    """Declines, never raises, on inputs the API would rewrite or cannot read."""
-    assert _copy(pedigree, tmp_path) is copies
+def test_fast_path_raises_where_the_api_raises(tmp_path, pedigree, error):
+    """Copies nothing the API cannot read: both raise the same error."""
+    with pytest.raises(error):
+        run_ascertainment(pedigree, pedigree.select("id"))
+    with pytest.raises(error):
+        _copy(pedigree, tmp_path)
+    assert not (tmp_path / "o_ped.parquet").exists()

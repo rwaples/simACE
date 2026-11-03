@@ -46,6 +46,8 @@ def filter_pedigree_to_observed(
     father = ped["father"]
     keep = np.zeros(len(ped), dtype=bool)
     keep[ped.positions(observed)] = True
+    if keep.all():
+        return df_ped
     frontier = np.flatnonzero(keep)
     while frontier.size:
         parent_ids = np.concatenate([mother[frontier], father[frontier]])

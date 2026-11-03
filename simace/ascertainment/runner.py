@@ -51,28 +51,10 @@ def _read_id_column(path: str | Path) -> pl.Series:
     return load_parquet(path, columns=["id"])["id"]
 
 
-def _links_need_no_rewrite(path: str | Path, ids: pl.Series) -> bool:
-    """Return True when ``run_ascertainment`` would keep every link column as is.
-
-    That needs ``mother`` and ``father`` present (the closure reads them),
-    every link column integer with no nulls, and every non-negative value an
-    id in ``ids`` (else ``sever_dangling_links`` rewrites it to -1).  A
-    membership test, not a direct-address map, so sparse external ids work.
-    """
+def _read_links(path: str | Path) -> pl.DataFrame:
+    """Read the ``id`` column and whichever ``LINK_COLUMNS`` the parquet file has."""
     columns = parquet_columns(path)
-    if "mother" not in columns or "father" not in columns:
-        return False
-    present = [c for c in LINK_COLUMNS if c in columns]
-    links = load_parquet(path, columns=present)
-    id_values = ids.to_numpy()
-    for name in present:
-        col = links[name]
-        if not col.dtype.is_integer() or col.null_count() > 0:
-            return False
-        values = col.to_numpy()
-        if not np.isin(values[values >= 0], id_values).all():
-            return False
-    return True
+    return load_parquet(path, columns=[c for c in ("id", *LINK_COLUMNS) if c in columns])
 
 
 def _same_id_sequence(left: pl.Series, right: pl.Series) -> bool:
@@ -110,15 +92,22 @@ def copy_passthrough_if_possible(
     step even when ``dropout_rate=0`` and ``N_sample`` passes all trait rows.
     The file-level CLI path can skip the expensive decode/filter/re-encode
     cycle only when the API would return its inputs unchanged: the phenotype
-    and pedigree files hold the exact same ordered ID set, so the closure
-    keeps every row, and the link columns are ones severing leaves unchanged
-    (see :func:`_links_need_no_rewrite`).  A pedigree built outside simACE can
-    fail the second test (a link to an absent id, a null link, no ``father``
-    column); it then takes the regular path.
+    and pedigree files hold the exact same ordered ID set, and the API's own
+    closure step (:func:`_pedigree_closure_for_ids`, seeded with every id)
+    returns the pedigree's id and link columns unchanged.  Running that step,
+    rather than restating its conditions, keeps the two paths from drifting.
+    A pedigree built outside simACE with a link to an absent id takes the
+    regular path.
 
     Returns ``True`` when both outputs were copied and the caller can skip
     regular ascertainment. Returns ``False`` when regular ascertainment must
     run to preserve semantics.
+
+    Raises:
+        Whatever ``run_ascertainment`` raises on the same pedigree: the
+        closure step rejects a missing ``mother`` or ``father`` column, a
+        null or non-integer parent link, and ids too sparse for a
+        direct-address map.
     """
     rate = float(dropout_rate or 0.0)
     n_sample = int(N_sample or 0)
@@ -129,10 +118,10 @@ def copy_passthrough_if_possible(
     if n_sample > 0 and n_sample < len(trait_ids):
         return False
 
-    pedigree_ids = _read_id_column(pedigree_path)
-    if not _same_id_sequence(pedigree_ids, trait_ids):
+    links = _read_links(pedigree_path)
+    if not _same_id_sequence(links["id"], trait_ids):
         return False
-    if not _links_need_no_rewrite(pedigree_path, pedigree_ids):
+    if not _pedigree_closure_for_ids(links, links["id"].to_numpy()).equals(links):
         return False
 
     _copy_file(pedigree_path, out_pedigree_path)
