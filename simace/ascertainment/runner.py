@@ -16,7 +16,7 @@ import numpy as np
 import polars as pl
 
 from simace.core.cohort import LINK_COLUMNS, sever_dangling_links
-from simace.core.parquet import load_parquet, save_parquet
+from simace.core.parquet import load_parquet, parquet_columns, save_parquet
 from simace.core.pedigree_filter import filter_pedigree_to_observed
 
 logger = logging.getLogger(__name__)
@@ -51,13 +51,28 @@ def _read_id_column(path: str | Path) -> pl.Series:
     return load_parquet(path, columns=["id"])["id"]
 
 
-def _has_dangling_links(path: str | Path, ids: pl.Series) -> bool:
-    """Return True when a ``mother``/``father``/``twin`` value points at an id absent from ``ids``."""
-    present = [c for c in LINK_COLUMNS if c in pl.read_parquet_schema(path)]
-    if not present:
+def _links_need_no_rewrite(path: str | Path, ids: pl.Series) -> bool:
+    """Return True when ``run_ascertainment`` would keep every link column as is.
+
+    That needs ``mother`` and ``father`` present (the closure reads them),
+    every link column integer with no nulls, and every non-negative value an
+    id in ``ids`` (else ``sever_dangling_links`` rewrites it to -1).  A
+    membership test, not a direct-address map, so sparse external ids work.
+    """
+    columns = parquet_columns(path)
+    if "mother" not in columns or "father" not in columns:
         return False
-    links = load_parquet(path, columns=present).with_columns(ids)
-    return not sever_dangling_links(links, ids.to_numpy()).equals(links)
+    present = [c for c in LINK_COLUMNS if c in columns]
+    links = load_parquet(path, columns=present)
+    id_values = ids.to_numpy()
+    for name in present:
+        col = links[name]
+        if not col.dtype.is_integer() or col.null_count() > 0:
+            return False
+        values = col.to_numpy()
+        if not np.isin(values[values >= 0], id_values).all():
+            return False
+    return True
 
 
 def _same_id_sequence(left: pl.Series, right: pl.Series) -> bool:
@@ -96,9 +111,10 @@ def copy_passthrough_if_possible(
     The file-level CLI path can skip the expensive decode/filter/re-encode
     cycle only when the API would return its inputs unchanged: the phenotype
     and pedigree files hold the exact same ordered ID set, so the closure
-    keeps every row, and no ``mother``/``father``/``twin`` link points outside
-    the pedigree, so severing rewrites nothing.  A pedigree built outside
-    simACE can carry such links; it then takes the regular path.
+    keeps every row, and the link columns are ones severing leaves unchanged
+    (see :func:`_links_need_no_rewrite`).  A pedigree built outside simACE can
+    fail the second test (a link to an absent id, a null link, no ``father``
+    column); it then takes the regular path.
 
     Returns ``True`` when both outputs were copied and the caller can skip
     regular ascertainment. Returns ``False`` when regular ascertainment must
@@ -116,7 +132,7 @@ def copy_passthrough_if_possible(
     pedigree_ids = _read_id_column(pedigree_path)
     if not _same_id_sequence(pedigree_ids, trait_ids):
         return False
-    if _has_dangling_links(pedigree_path, pedigree_ids):
+    if not _links_need_no_rewrite(pedigree_path, pedigree_ids):
         return False
 
     _copy_file(pedigree_path, out_pedigree_path)

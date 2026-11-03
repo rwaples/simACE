@@ -20,7 +20,7 @@ rejected with an actionable ``TypeError`` — convert with
 
 from __future__ import annotations
 
-__all__ = ["load_parquet", "normalize_for_parquet", "save_parquet"]
+__all__ = ["load_parquet", "normalize_for_parquet", "parquet_columns", "save_parquet"]
 
 from typing import TYPE_CHECKING, Any
 
@@ -116,6 +116,11 @@ def save_parquet(df: pl.DataFrame, path: Any, **kwargs: Any) -> None:
             convert with ``pl.from_pandas(df)`` at the call site.
     """
     normalize_for_parquet(df).write_parquet(path, compression="zstd", **kwargs)
+
+
+def parquet_columns(path: Any) -> list[str]:
+    """Column names of a parquet file, read from its footer without loading data."""
+    return list(pl.read_parquet_schema(path))
 
 
 def load_parquet(path: Any, columns: Sequence[str] | None = None, **kwargs: Any) -> pl.DataFrame:
