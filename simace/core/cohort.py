@@ -43,6 +43,7 @@ __all__ = [
     "COHORT_COLUMNS",
     "C_TRANSMISSION_CLIPS_KEY",
     "LAYOUT",
+    "LINK_COLUMNS",
     "SAMPLE_REQUIRED",
     "SelectedViews",
     "build_cohort",
@@ -79,7 +80,8 @@ _OUTCOME_COLUMNS: tuple[str, ...] = tuple(c for c in COHORT_COLUMNS if c != "id"
 #: Columns non-null on every sample row; the raw onsets ``t1``, ``t2`` stay nullable (ADR 0019).
 SAMPLE_REQUIRED: tuple[str, ...] = tuple(c for c in _OUTCOME_COLUMNS if c not in ("t1", "t2"))
 
-_LINK_COLUMNS = ("mother", "father", "twin")
+#: Columns that reference another row's id; ``sever_dangling_links`` rewrites them.
+LINK_COLUMNS: tuple[str, ...] = ("mother", "father", "twin")
 
 
 @dataclass(frozen=True)
@@ -105,7 +107,7 @@ def sever_dangling_links(df: pl.DataFrame, valid_ids: np.ndarray) -> pl.DataFram
     """
     valid = PedigreeArrays({"id": np.asarray(valid_ids)})
     result = df
-    for col in _LINK_COLUMNS:
+    for col in LINK_COLUMNS:
         if col not in result.columns:
             continue
         vals = result[col].to_numpy()

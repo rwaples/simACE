@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import polars as pl
 
-from simace.core.cohort import sever_dangling_links
+from simace.core.cohort import LINK_COLUMNS, sever_dangling_links
 from simace.core.parquet import load_parquet, save_parquet
 from simace.core.pedigree_filter import filter_pedigree_to_observed
 
@@ -51,6 +51,15 @@ def _read_id_column(path: str | Path) -> pl.Series:
     return load_parquet(path, columns=["id"])["id"]
 
 
+def _has_dangling_links(path: str | Path, ids: pl.Series) -> bool:
+    """Return True when a ``mother``/``father``/``twin`` value points at an id absent from ``ids``."""
+    present = [c for c in LINK_COLUMNS if c in pl.read_parquet_schema(path)]
+    if not present:
+        return False
+    links = load_parquet(path, columns=present).with_columns(ids)
+    return not sever_dangling_links(links, ids.to_numpy()).equals(links)
+
+
 def _same_id_sequence(left: pl.Series, right: pl.Series) -> bool:
     """Return True when two id columns have identical length, order, and values."""
     if len(left) != len(right):
@@ -84,10 +93,12 @@ def copy_passthrough_if_possible(
 
     The DataFrame API deliberately preserves the semantic ancestor-closure
     step even when ``dropout_rate=0`` and ``N_sample`` passes all trait rows.
-    The file-level CLI path can skip the expensive pandas
-    decode/filter/re-encode cycle only when the phenotype and pedigree files
-    already contain the exact same ordered ID set, making the closure equal to
-    the input pedigree.
+    The file-level CLI path can skip the expensive decode/filter/re-encode
+    cycle only when the API would return its inputs unchanged: the phenotype
+    and pedigree files hold the exact same ordered ID set, so the closure
+    keeps every row, and no ``mother``/``father``/``twin`` link points outside
+    the pedigree, so severing rewrites nothing.  A pedigree built outside
+    simACE can carry such links; it then takes the regular path.
 
     Returns ``True`` when both outputs were copied and the caller can skip
     regular ascertainment. Returns ``False`` when regular ascertainment must
@@ -104,6 +115,8 @@ def copy_passthrough_if_possible(
 
     pedigree_ids = _read_id_column(pedigree_path)
     if not _same_id_sequence(pedigree_ids, trait_ids):
+        return False
+    if _has_dangling_links(pedigree_path, pedigree_ids):
         return False
 
     _copy_file(pedigree_path, out_pedigree_path)
