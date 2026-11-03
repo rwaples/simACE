@@ -34,8 +34,11 @@ _PROFILE_SCALE = {"fast": 1, "thorough": 10}
 _PROFILE = os.environ.get("HYPOTHESIS_PROFILE", "fast")
 if _PROFILE not in _PROFILE_SCALE:
     raise ValueError(f"HYPOTHESIS_PROFILE must be one of {sorted(_PROFILE_SCALE)}, got {_PROFILE!r}")
-settings.register_profile("fast", max_examples=100, deadline=None)
-settings.register_profile("thorough", max_examples=500, deadline=None)
+_FAST_EXAMPLES = 100
+# ``thorough`` is ``fast`` scaled like every carve-out, so the profile and
+# ``property_budget`` deepen by the same factor.
+settings.register_profile("fast", max_examples=_FAST_EXAMPLES, deadline=None)
+settings.register_profile("thorough", max_examples=_FAST_EXAMPLES * _PROFILE_SCALE["thorough"], deadline=None)
 settings.load_profile(_PROFILE)
 
 
