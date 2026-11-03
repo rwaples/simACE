@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Create, list, finish, and remove a family worktree: one git worktree per family checkout.
+"""Create, list, finish, and remove a family worktree (one git worktree per family checkout); show the main checkouts.
 
 A family worktree lives at ``<main>/.claude/worktrees/<name>/`` and mirrors the
 umbrella layout, so cross-repo paths (``fitACE/pixi.toml``'s ``simace = {path =
@@ -63,6 +63,7 @@ Examples:
     pixi run python tools/family_worktree.py add bench-base               # all detached
     pixi run python tools/family_worktree.py add py315 --all --install
     pixi run python tools/family_worktree.py list
+    pixi run python tools/family_worktree.py status                      # main checkouts, from anywhere
     pixi run python tools/family_worktree.py finish issue-40 -m "Merge issue 40: ..."
     pixi run python tools/family_worktree.py remove issue-40
 """
@@ -568,6 +569,20 @@ def list_worktrees(umbrella: Path) -> int:
     return 0
 
 
+def status(umbrella: Path) -> int:
+    """Print each main checkout's branch, changes, and HEAD.
+
+    Runs from inside a family worktree too, so an isolated session reads the main checkouts' state without
+    the ``git -C <main checkout>`` its harness refuses.
+    """
+    for r in present(umbrella):
+        main = umbrella / r.path
+        branch = git(main, "branch", "--show-current") or "detached"
+        changes = len(git(main, "status", "--porcelain").splitlines())
+        print(f"{r.label:16} {branch:24} {changes} changed  {git(main, 'log', '--oneline', '-1')}")
+    return 0
+
+
 def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     """CLI entry point; ``root`` is any path inside the umbrella checkout (tests pass a fake one)."""
     parser = argparse.ArgumentParser(description="Family worktrees under .claude/worktrees/<name>/.")
@@ -584,6 +599,7 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
     p_fin.add_argument("name")
     p_fin.add_argument("-m", "--message", help="merge commit message when a fast-forward is not possible")
     sub.add_parser("list", help="list family worktrees")
+    sub.add_parser("status", help="show the main checkouts' branch, changes, and HEAD")
     args = parser.parse_args(argv)
 
     main_dir = main_root(root)
@@ -594,6 +610,8 @@ def main(argv: list[str] | None = None, root: Path = ROOT) -> int:
         return remove(main_dir, args.name, args.force)
     if args.cmd == "finish":
         return finish(main_dir, args.name, args.message)
+    if args.cmd == "status":
+        return status(main_dir)
     return list_worktrees(main_dir)
 
 

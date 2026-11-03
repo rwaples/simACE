@@ -356,6 +356,17 @@ def test_list_and_remove_handle_a_hand_deleted_checkout(family: Path, capsys) ->
     assert git(family / "fitACE", "branch", "--list", "wt1")
 
 
+def test_status_from_a_worktree_reports_the_main_checkouts(family: Path, capsys) -> None:
+    main(["add", "wt1", "fitACE"], root=family)
+    (family / "fitACE/dirty.py").write_text("")
+    capsys.readouterr()
+    assert main(["status"], root=family / ".claude/worktrees/wt1") == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[0].startswith("simACE           dev                      0 changed  ")
+    assert out[1].startswith("fitACE           main                     1 changed  ")
+    assert "results link" in out[1]
+
+
 def test_add_links_plans_and_notes_and_remove_moves_new_ones_home(family: Path) -> None:
     (family / "plans/old.md").write_text("old\n")
     (family / "notes").mkdir()
