@@ -1,7 +1,7 @@
 """Shared fixtures and Hypothesis strategies for the simace test suite."""
 
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import polars as pl
@@ -25,13 +25,27 @@ if TYPE_CHECKING:
 # Hypothesis profiles, selected by ``HYPOTHESIS_PROFILE`` (default ``fast``).
 # Property files carry no ``@settings`` of their own so that
 # ``HYPOTHESIS_PROFILE=thorough`` actually deepens every one of them.  The
-# documented carve-outs keep an explicit budget because each example runs a
-# whole stage: tests/simulation/test_simulate_properties.py (run_simulation per
-# example) and the merged-stage test in tests/test_pipeline_properties.py
-# (run_cohort per example).
+# documented carve-outs, whose examples each run a whole stage, set a smaller
+# budget through ``property_budget``, which ``thorough`` scales ten times:
+# tests/simulation/test_simulate_properties.py (run_simulation per example)
+# and the merged-stage test in tests/test_pipeline_properties.py (run_cohort
+# per example).  pedsum, pg-phenotype and pedigree-graph use the same helper.
+_PROFILE_SCALE = {"fast": 1, "thorough": 10}
+_PROFILE = os.environ.get("HYPOTHESIS_PROFILE", "fast")
+if _PROFILE not in _PROFILE_SCALE:
+    raise ValueError(f"HYPOTHESIS_PROFILE must be one of {sorted(_PROFILE_SCALE)}, got {_PROFILE!r}")
 settings.register_profile("fast", max_examples=100, deadline=None)
 settings.register_profile("thorough", max_examples=500, deadline=None)
-settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "fast"))
+settings.load_profile(_PROFILE)
+
+
+def property_budget(max_examples: int, **kwargs: Any) -> settings:
+    """Hypothesis settings for a carve-out's *max_examples*, scaled by ``HYPOTHESIS_PROFILE``, with no deadline.
+
+    *kwargs* pass through to :class:`hypothesis.settings`.
+    """
+    return settings(deadline=None, max_examples=max_examples * _PROFILE_SCALE[_PROFILE], **kwargs)
+
 
 # Pedigree builders are capped small: the ascertainment/closure and sampling
 # paths under test are quadratic in places, and Hypothesis reruns them many

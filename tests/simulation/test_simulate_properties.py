@@ -23,17 +23,18 @@ from unittest.mock import patch
 import numpy as np
 import polars as pl
 import pytest
-from hypothesis import HealthCheck, event, given, settings
+from hypothesis import HealthCheck, event, given
 from hypothesis import strategies as st
 from polars.testing import assert_frame_equal
 
 from simace.simulation import simulate
 from simace.simulation.simulate import generate_correlated_components, mating, run_simulation
+from tests.conftest import property_budget
 
 
 # Explicit budget, not the conftest profile: every example calls run_simulation,
-# so HYPOTHESIS_PROFILE=thorough would dominate suite wall-clock here.
-@settings(deadline=None, max_examples=50)
+# so a 100-example budget would dominate suite wall-clock here.
+@property_budget(50)
 @given(
     seed=st.integers(min_value=0, max_value=2**31 - 1),
     sd1=st.floats(min_value=0.1, max_value=5.0),
@@ -289,7 +290,7 @@ def _check_recorded_pedigree(ped: pl.DataFrame, kw: dict) -> None:
 @pytest.mark.parametrize("e_transition", _E_TRANSITIONS)
 # Explicit budget, not the conftest profile: run_simulation per example (see above).
 # suppress_health_check is independent of the example budget and is preserved.
-@settings(deadline=None, max_examples=15, suppress_health_check=[HealthCheck.too_slow])
+@property_budget(15, suppress_health_check=[HealthCheck.too_slow])
 @given(data=st.data())
 def test_run_simulation_structural_integrity(mating_model, e_transition, data):
     """Every recorded pedigree satisfies the structural and ACE contracts in ``_check_recorded_pedigree``.
@@ -376,7 +377,7 @@ def _window_view(ped: pl.DataFrame, first_gen: int, N: int) -> pl.DataFrame:
 
 @pytest.mark.parametrize("mating_model", _MATING_MODELS)
 # Two run_simulation calls per example; 50 examples measured at 1-3 s per mating model.
-@settings(deadline=None, max_examples=50, suppress_health_check=[HealthCheck.too_slow])
+@property_budget(50, suppress_health_check=[HealthCheck.too_slow])
 @given(data=st.data())
 def test_recording_window_only_selects_rows(mating_model, data):
     """Two runs differing only in G_ped agree exactly on the generations both record.

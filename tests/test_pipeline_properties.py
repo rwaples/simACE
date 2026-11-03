@@ -8,7 +8,7 @@ from typing import Any, TypedDict
 import numpy as np
 import polars as pl
 import pytest
-from hypothesis import event, given, settings
+from hypothesis import event, given
 from hypothesis import strategies as st
 from hypothesis.strategies import SearchStrategy
 from polars.testing import assert_frame_equal, assert_series_equal
@@ -24,7 +24,14 @@ from simace.core.trait_schema import TRAIT_CENSORED_COLUMNS, TRAIT_RAW_COLUMNS
 from simace.phenotype import run_phenotype
 from simace.phenotype.hazards import STANDARDIZE_CHOICES
 from simace.phenotype.models import MODELS
-from tests.conftest import HAZARD_PARAM_BOUNDS, PEDIGREE_MAX_N, hazard_params, pedigree_frame, schema_pad
+from tests.conftest import (
+    HAZARD_PARAM_BOUNDS,
+    PEDIGREE_MAX_N,
+    hazard_params,
+    pedigree_frame,
+    property_budget,
+    schema_pad,
+)
 
 _MODELS = tuple(MODELS)
 _DEATH_ANCHOR_SEED = 0
@@ -383,7 +390,7 @@ def _ascertain_kwargs(draw: Draw) -> dict[str, Any]:
 # Explicit budget, not the conftest profile: the gc.collect() passes inside run_cohort dominate,
 # so each example (two run_cohort calls) measured ~0.35 s even on these small pedigrees.
 @pytest.mark.slow
-@settings(max_examples=20)
+@property_budget(20)
 @given(case=_chain_case(), ascertain=_ascertain_kwargs(), other_ascertain=_ascertain_kwargs())
 def test_merged_cohort_stage_composes_the_normalized_stages(
     case: ChainCase, ascertain: dict[str, Any], other_ascertain: dict[str, Any]

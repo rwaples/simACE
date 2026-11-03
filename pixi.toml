@@ -68,5 +68,13 @@ description = "pixi run test without tests marked slow"
 cmd = "pytest -n 6 --dist worksteal -m 'not slow'"
 env = { OMP_NUM_THREADS = "1", MKL_NUM_THREADS = "1", OPENBLAS_NUM_THREADS = "1", NUMEXPR_NUM_THREADS = "1", NUMBA_NUM_THREADS = "1", POLARS_MAX_THREADS = "1" }
 
+# `pixi run test-thorough` is release depth: the whole suite at the `thorough`
+# Hypothesis profile (500 examples per unbudgeted property test, and ten times
+# each carve-out's property_budget; tests/conftest.py).
+[tasks.test-thorough]
+description = "pixi run test at the thorough Hypothesis profile, for a release"
+cmd = "pytest -n 6 --dist worksteal"
+env = { HYPOTHESIS_PROFILE = "thorough", OMP_NUM_THREADS = "1", MKL_NUM_THREADS = "1", OPENBLAS_NUM_THREADS = "1", NUMEXPR_NUM_THREADS = "1", NUMBA_NUM_THREADS = "1", POLARS_MAX_THREADS = "1" }
+
 [activation.env]
 MPLBACKEND = "Agg"
