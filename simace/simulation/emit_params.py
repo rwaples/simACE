@@ -19,6 +19,7 @@ from typing import Any
 
 import simace
 from simace.core.relationships import DEFAULT_MAX_DEGREE
+from simace.simulation.inbreeding_plan import DEFAULT_DEPTH
 
 
 def emit_params(
@@ -50,6 +51,8 @@ def emit_params(
     Ctm_paternal1: float = 0.0,
     Ctm_maternal2: float = 0.0,
     Ctm_paternal2: float = 0.0,
+    inbreeding_mode: str = "off",
+    inbreeding_depth: int = DEFAULT_DEPTH,
 ) -> dict[str, Any]:
     """Build the params.yaml dict for a single replicate.
 
@@ -85,6 +88,8 @@ def emit_params(
         Ctm_paternal1: trait-1 paternal C transmission coefficient.
         Ctm_maternal2: trait-2 maternal C transmission coefficient.
         Ctm_paternal2: trait-2 paternal C transmission coefficient.
+        inbreeding_mode: ``"off"``, ``"approx"`` or ``"exact"`` (ADR 0033).
+        inbreeding_depth: approx mode's exactly traced generations.
 
     Returns:
         Dict to be serialized to ``params.yaml`` via :func:`dump_yaml`.
@@ -118,6 +123,8 @@ def emit_params(
         "Ctm_paternal1": Ctm_paternal1,
         "Ctm_maternal2": Ctm_maternal2,
         "Ctm_paternal2": Ctm_paternal2,
+        "inbreeding_mode": inbreeding_mode,
+        "inbreeding_depth": inbreeding_depth,
         "simace_version": simace.__version__,
     }
     if assort_matrix is not None:

@@ -2,6 +2,7 @@
 
 import pytest
 
+from simace.simulation.inbreeding_plan import InbreedingRefused
 from simace.simulation.params import CTransmission, SimulationParams
 
 
@@ -45,6 +46,20 @@ class TestSimulationParamsValidationEdgeCases:
     def test_assort_matrix_second_diagonal_out_of_range_rejected(self):
         with pytest.raises(ValueError, match=r"assort_matrix\[1,1\]"):
             SimulationParams.create(**self._base(assort_matrix=[[0.2, 0.0], [0.0, -1.5]]))
+
+    def test_inbreeding_plan_is_resolved(self):
+        plan = SimulationParams.create(**self._base(N=20_000, G_ped=2, G_sim=30, inbreeding_mode="approx")).inbreeding
+        assert (plan.mode, plan.engine, plan.depth) == ("approx", "xexact", 6)
+        assert SimulationParams.create(**self._base()).inbreeding.mode == "off"
+
+    def test_refused_inbreeding_fails_at_create(self):
+        with pytest.raises(InbreedingRefused, match="use mode: approx"):
+            SimulationParams.create(**self._base(N=1_000_000, G_sim=20, inbreeding_mode="exact"))
+
+    def test_inbreeding_history_must_fit_int32(self):
+        with pytest.raises(ValueError, match=r"N \* \(G_sim \+ 1\)"):
+            SimulationParams.create(**self._base(N=200_000_000, G_ped=2, G_sim=10, inbreeding_mode="approx"))
+        SimulationParams.create(**self._base(N=200_000_000, G_ped=2, G_sim=10))
 
     def test_c_transmission_is_validated(self):
         with pytest.raises(ValueError, match="exceeds 1"):

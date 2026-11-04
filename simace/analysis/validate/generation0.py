@@ -75,6 +75,19 @@ def _assortment(params: Mapping[str, Any]) -> str | None:
     return None
 
 
+def _inbreeding(params: Mapping[str, Any]) -> str | None:
+    """Why total variance does not apply: inbred parents scale generation 0's Mendelian residual (ADR 0033).
+
+    Iteration i's scale reads its parents' F, which is 0 for the founders'
+    children, so with a burn-in of at most 1 generation 0 is unaffected.
+    """
+    mode = params.get("inbreeding_mode", "off")
+    _, burnin = schedule_span(params)
+    if mode != "off" and burnin >= 2:
+        return f"inbreeding mode {mode} with burn-in {burnin} >= 2: generation 0's parents can be inbred"
+    return None
+
+
 def _transmission(params: Mapping[str, Any]) -> str | None:
     """Why neither test applies: C transmission sizes the fresh draw against the transmitted part (ADR 0030 §4)."""
     return "C transmission" if transmission_active(params) else None
@@ -138,7 +151,7 @@ def run_total_variance(inputs: RepInputs) -> dict[str, Any]:
         ``trait2_total``, or no cells and ``not_applicable``.
     """
     params = inputs.params
-    if (reason := _transmission(params) or _assortment(params)) is not None:
+    if (reason := _transmission(params) or _assortment(params) or _inbreeding(params)) is not None:
         return section(SCOPE, {}, reason)
     G_sim, burnin = schedule_span(params)
     rows, households, n_households = _generation0(inputs.pedigree)

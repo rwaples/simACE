@@ -23,6 +23,7 @@ REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
 
 _SIMULATE_KEYS = ["N", "G_ped", "G_sim", "mating_model", "mating_lambda", "p_mztwin"]
 _SIMULATE_KEYS += ["A1", "C1", "E1", "A2", "C2", "E2", "rA", "rC", "rE", "assort1", "assort2", "assort_matrix"]
+_SIMULATE_KEYS += ["inbreeding_mode", "inbreeding_depth"]
 _PHENOTYPE_KEYS = ["G_pheno", "standardize"]
 _PHENOTYPE_KEYS += [f"{k}{t}" for t in (1, 2) for k in ("phenotype_model", "phenotype_params", "beta", "beta_sex")]
 _CENSOR_KEYS = ["censor_age", "gen_censoring", "death_scale", "death_rho"]

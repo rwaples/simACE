@@ -171,3 +171,22 @@ def test_both_tests_are_registered_with_their_cells() -> None:
     )
     assert ON_DEMAND_CHECKS["household_draw"].cell_names == ("trait1_PHS", "trait2_PHS")
     assert ON_DEMAND_CHECKS["household_draw"].min_reps == 20
+
+
+def test_the_variance_cell_normalises_by_parental_inbreeding(tmp_path) -> None:
+    """ADR 0033: with F, the residual over sqrt(1 - F_bar) has variance A/2 again; the raw residual's is smaller.
+
+    Fable's estimate of the raw residual's z under random mating is G^1.5 / (5.1 sqrt(N)): 0.18 at 2k/G 12,
+    4.1 at N 500/G 60 (measured -3.6 to -6.3 over seeds 1-8; normalised within +-1.7).
+    """
+    inbred = {**PARAMS, "seed": 3, "N": 500, "G_ped": 60, "G_sim": 60}
+    pedigree = run_simulation(**inbred, inbreeding_mode="exact")
+    path, report = tmp_path / "pedigree.parquet", tmp_path / "report.yaml"
+    report.write_text(yaml.safe_dump({"inputs": {"parameters": {**inbred, "inbreeding_mode": "exact"}}}))
+    z = {}
+    for name, frame in (("normalised", pedigree), ("raw", pedigree.drop("F"))):
+        write_pedigree(frame, path)
+        cells = run_mendelian_residual(RepInputs(path, report, seed=3, phenotype={}))["cells"]
+        z[name] = [cells[f"trait{t}_variance"]["z"] for t in (1, 2)]
+    assert all(abs(v) < 3 for v in z["normalised"])
+    assert all(v < -3 for v in z["raw"])

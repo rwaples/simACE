@@ -17,8 +17,12 @@ The heritable component of liability, following the infinitesimal model. Transmi
 _Avoid_: genetic value, breeding value, polygenic score, heritability (heritability is the *variance proportion* $\sigma_A^2$, not the component itself).
 
 **Mendelian residual**:
-An individual's $A$ minus the average of its two parents' $A$: the Mendelian sampling draw it received. It is defined only when both parents are in the recorded pedigree. Its variance is half the configured founder $A$ variance in every generation, whatever the parents' realized variance, and it is independent between relatives, including siblings and under assortative mating, except that MZ co-twins share one draw.
+An individual's $A$ minus the average of its two parents' $A$: the Mendelian sampling draw it received. It is defined only when both parents are in the recorded pedigree. Its variance is half the configured founder $A$ variance, whatever the parents' realized variance, scaled by $1 - \bar F$ (see **Inbreeding mode**); with the inbreeding mode off it is exactly half the founder $A$ variance in every generation. It is independent between relatives, including siblings and under assortative mating, except that MZ co-twins share one draw.
 _Avoid_: Mendelian noise (the implementation's name for the draw), segregation residual, MS residual.
+
+**Inbreeding mode**:
+How the simulation sets the variance of each offspring's **Mendelian residual** from its parents' inbreeding. **Off**: the variance is half the founder $A$ variance, ignoring inbreeding. **Approx**: it is scaled by $1 - \bar F$, where $\bar F$ is the mean of the two parents' **inbreeding coefficients**, each traced exactly through the most recent **depth** generations of ancestry and closed beyond that with the generation's mean kinship. **Exact**: the same scaling with $\bar F$ from the whole simulated ancestry back to the founders. It is a property of the simulated pedigree (all of $G_{\text{sim}}$, burn-in included), unlike the analysis option that estimates inbreeding from the recorded pedigree only.
+_Avoid_: inbreeding correction, F scaling, estimate_inbreeding (the analysis option; a different, recorded-pedigree computation), truncation depth (use **depth**).
 
 **Common environment component** ($C$):
 The environmental effect an offspring receives from its rearing. It is the sum of a transmitted part (see **C transmission**) and a **household draw** shared by all offspring of the same household. With no C transmission (the default), $C$ is exactly the household draw and is shared by all offspring of the same mother and by no one else. The configured $C$ is the **total** variance of the component in each generation; transmission redistributes that variance and does not add to it. Stored in `C1` / `C2` columns.
@@ -243,6 +247,10 @@ _Avoid_: relationship coefficient (use "coefficient of relationship"), genetic d
 **Kinship** ($\phi$, kinship coefficient):
 The probability that an allele drawn at random from individual $i$ is IBD to an allele drawn at random from individual $j$. The specific per-pair coefficient stored and computed throughout simACE. For non-inbred pairs, $\phi = \tfrac{1}{2}r$, and follows the formula $\phi = n_{\text{ancestors}} \times (1/2)^{(\text{up} + \text{down} + 1)}$ from the `pedigree-graph` registry. With `estimate_inbreeding: true`, computed exactly via sparse propagation.
 _Avoid_: coancestry (suppressed in canonical vocabulary — see Flagged ambiguities), relatedness (different concept — see above; relatedness = $2\phi$), kinship coefficient (acceptable, but "kinship" alone is preferred).
+
+**Inbreeding coefficient** ($F$):
+An individual's $F$ is the **kinship** of its two parents. Founders have $F = 0$. Which ancestry it counts depends on who computes it: the **inbreeding mode** counts the whole simulated ancestry (or its most recent **depth** generations), while an estimate from the recorded pedigree sees only $G_{\text{ped}}$ generations and so understates it when burn-in is present.
+_Avoid_: inbreeding (alone, when the per-individual coefficient is meant), self-kinship (that is $\tfrac12(1 + F)$).
 
 **Relationship type**:
 The categorical label for a related pair — one of the 23 codes in the `RELATIONSHIPS` registry from `pedigree-graph` (e.g., `MZ`, `FS`, `MHS`, `PHS`, `MO`, `GP`, `1C`, ...). Used in plotting, stats, validation, and analysis. The full table — codes, kinship values, and (up, down, n_ancestors) tuples — lives in `docs/concepts/simulation-design.md`; do not duplicate here.

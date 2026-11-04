@@ -32,6 +32,7 @@ earlier one's Status section says so and points forward.
 | [0030](0030-generation0-total-variance-and-rc-tests.md) | Total variance and cross-trait rC score recorded generation 0 with a household-cluster SE | accepted, implemented 2026-10-20; amends 0028 |
 | [0031](0031-mate-correlation-calibrated-test.md) | Per-generation mate correlations as a calibrated test, with an SE that follows the pairing mode | accepted, implemented 2026-10-21; amends 0026, 0028; §2, §3, §8 amended by 0032 |
 | [0032](0032-single-trait-pinning-and-pairing-records.md) | Single-trait assortment is pinned by Metropolis, and each mating iteration's pairing is recorded | proposed 2026-10-22; amends 0031 |
+| [0033](0033-inbreeding-modes.md) | Three inbreeding modes scale the Mendelian residual by parental inbreeding | proposed 2026-10-24 |
 
 Retired numbers: 0003, 0006, 0007 (report lineage folded into 0008); 0004
 (Claude Code subagent housekeeping, not an architecture decision); 0013 (ty
