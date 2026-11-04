@@ -11,6 +11,8 @@ variance components themselves, see [ACE model](ace-model.md). For the
 estimators simACE is built to benchmark, see [Methods](methods.md).
 
 Every field in every citation comes from Crossref, checked on 2026-09-03.
+The xftsim, GPOPSIM, tstrait, GenoSim, ACEsimFit and COXMM rows were added
+and checked on 2026-11-04.
 See [Re-checking the citations](#re-checking-the-citations) for the command.
 
 ## Disease pedigrees with age-at-onset and ascertainment
@@ -26,7 +28,7 @@ one scales to a registry.
 
 ## Pedigree-structure and gene-drop simulators
 
-All four tools below produce pedigree structures, genotypes, segments shared
+All five tools below produce pedigree structures, genotypes, segments shared
 identical by descent (IBD), or some combination of those. None of them
 simulates a phenotype, so the gap relative to simACE is the same for every
 row: no liability model, no onset, no censoring, no ascertainment.
@@ -37,6 +39,7 @@ row: no liability model, no onset, no censoring, no ascertainment.
 | py_ped_sim | Guardado et al. (2025). *BMC Bioinformatics* 26:122. [doi:10.1186/s12859-025-06142-z](https://doi.org/10.1186/s12859-025-06142-z) | Simulates pedigree structures forward in time, then genomes through SLiM. |
 | SLINK | Schäffer, Lemire, Ott, Lathrop, Weeks (2011). *Hum Hered* 71(2):126–134. [doi:10.1159/000324177](https://doi.org/10.1159/000324177) | Simulates markers conditional on an observed trait, for linkage analysis. |
 | ibdsim2, part of the pedsuite | Vigeland (2021). *Pedigree Analysis in R*. ISBN 9780128244302. | Simulates IBD segments and provides pedigree utilities in R. |
+| GenoSim | Bakar, Gul, Afghani, Serfraz (2026). bioRxiv preprint. [doi:10.64898/2026.06.20.733503](https://doi.org/10.64898/2026.06.20.733503) | Simulates SNP genotypes forward in time, with population stratification. Can extend an observed pedigree with synthetic generations. |
 
 ## Forward-time and breeding simulators with quantitative phenotypes
 
@@ -53,6 +56,9 @@ censored, age-dependent outcome that a health registry actually records.
 | simuPOP applied to complex disease | Peng, Amos, Kimmel (2007). *PLoS Genet* 3(3):e47. [doi:10.1371/journal.pgen.0030047](https://doi.org/10.1371/journal.pgen.0030047) | Simulates a population, then draws pedigrees and onset ages from that population. | Locus-based disease model. |
 | SLiM 4 | Haller, Messer (2023). *Am Nat* 201(5):E127–E139. [doi:10.1086/723601](https://doi.org/10.1086/723601) | Simulates whole genomes forward in time. | Runs on a fixed pedigree, but has no liability-threshold onset model. |
 | msprime 1.0 | Baumdicker et al. (2022). *Genetics* 220(3):iyab229. [doi:10.1093/genetics/iyab229](https://doi.org/10.1093/genetics/iyab229) | Simulates ancestry under the coalescent and under Wright-Fisher, including on a fixed pedigree. | Genomes only. No phenotype. |
+| tstrait | Tagami, Bisschop, Kelleher (2024). *Bioinformatics* 40(6):btae334. [doi:10.1093/bioinformatics/btae334](https://doi.org/10.1093/bioinformatics/btae334) | Simulates quantitative traits on a tree sequence, with environmental noise and pleiotropy. | No family structure in the trait model. No C, no liability threshold, no onset. |
+| xftsim | Border et al. (2024). bioRxiv preprint. [doi:10.1101/2024.10.16.618755](https://doi.org/10.1101/2024.10.16.618755) | Simulates genotypes and phenotypes forward in time with a pedigree, non-random mating, vertical transmission, and binarized traits. | No age at onset, censoring, or hazard model. Ascertainment ranks a random sample of unrelated individuals or sib pairs on a phenotype score and keeps the top or bottom, with no proband-based family ascertainment. No household C draw. Checked in the source at commit `8a4cdf0` (2026-07-22). |
+| GPOPSIM | Zhang, Li, Ding, Li, Zhang (2015). *BMC Genet* 16:10. [doi:10.1186/s12863-015-0173-4](https://doi.org/10.1186/s12863-015-0173-4) | Simulates pedigrees, phenotypes, and whole-genome data for breeding populations. | Written for animal breeding. No onset, no censoring. |
 
 The 2007 simuPOP paper is the closest thing to a precedent for the simACE
 design. It simulates a whole population first, then samples pedigrees and
@@ -60,9 +66,15 @@ onset ages out of it. The disease model is locus-based rather than a
 variance partition, so the ground truth it can supply is not the parameter
 an ACE estimator reports.
 
+xftsim is the nearest recent tool. It shares simACE's purpose, testing
+estimators against a known generative model, and it models assortative mating
+and vertical transmission. It does not model what a registry adds on top:
+onset ages, censoring at the end of follow-up, and ascertainment of families
+through affected probands.
+
 ## Twin-data ACE simulators
 
-Twin packages model A, C, and E directly, and two of the three simulate
+Twin packages model A, C, and E directly, and three of the four simulate
 data. The limit is the study design. A twin pair or a nuclear family is not
 a genealogy that spans several generations.
 
@@ -70,6 +82,7 @@ a genealogy that spans several generations.
 |---|---|---|---|
 | umx | Bates, Maes, Neale (2019). *Twin Res Hum Genet* 22(1):27–41. [doi:10.1017/thg.2019.2](https://doi.org/10.1017/thg.2019.2) | Generates twin data with A, C, and E under your control. | Twin pairs only. No onset, no censoring. |
 | mets | Holst, Scheike, Hjelmborg (2016). *Comput Stat Data Anal* 93:324–335. [doi:10.1016/j.csda.2015.01.014](https://doi.org/10.1016/j.csda.2015.01.014) | Simulates twin data and fits the censored liability threshold model. | Twin pairs only. No extended pedigrees. |
+| ACEsimFit | Lyu, Garrison (2022). CRAN package. [doi:10.32614/CRAN.package.ACEsimFit](https://doi.org/10.32614/CRAN.package.ACEsimFit) | Simulates relative pairs of any kinship under ACE and fits ACE models to them. | Pairs only. No pedigree, no onset, no censoring. |
 | OpenMx 2.0 | Neale et al. (2016). *Psychometrika* 81(2):535–549. [doi:10.1007/s11336-014-9435-8](https://doi.org/10.1007/s11336-014-9435-8) | Fits structural equation models, including twin models. | Fits models. Does not simulate pedigrees. |
 
 ## Registry-scale methods that need a testbed
@@ -86,6 +99,7 @@ the application note argues for.
 | PA-FGRS | Krebs et al. (2024). *Am J Hum Genet* 111(11):2494–2509. [doi:10.1016/j.ajhg.2024.09.009](https://doi.org/10.1016/j.ajhg.2024.09.009) |
 | TetraHer | Speed, Evans (2024). *Am J Hum Genet* 111(4):680–690. [doi:10.1016/j.ajhg.2024.02.010](https://doi.org/10.1016/j.ajhg.2024.02.010) |
 | Danish genealogy relative-pair analysis | Athanasiadis et al. (2022). *Proc Natl Acad Sci* 119(6):e2118688119. [doi:10.1073/pnas.2118688119](https://doi.org/10.1073/pnas.2118688119) |
+| COXMM | Taraszka, Sankararaman, Gusev (2026). medRxiv preprint. [doi:10.64898/2026.02.16.26346285](https://doi.org/10.64898/2026.02.16.26346285) |
 | Nationwide heritability map | Auning et al. (2026). *Nat Commun* 17:4080. [doi:10.1038/s41467-026-69991-z](https://doi.org/10.1038/s41467-026-69991-z) |
 
 ## What still needs care before you cite it
@@ -99,6 +113,11 @@ Two entries carry a year that depends on which version you mean. Crossref
 dates AlphaSimR to 2020 online and to 2021 in print. It dates Campbell and
 colleagues to 2017 online and to 2018 in print. This page and the BibTeX
 file both use the print year.
+
+Four rows cite preprints or a package rather than a journal article: GenoSim,
+xftsim, and COXMM are preprints with no journal version in Crossref on
+2026-11-04, and ACEsimFit is cited by its CRAN DOI. Check for a published
+version before citing them.
 
 Author lists are partly checked. Where a row reads "et al." here, or an
 entry reads "and others" in the BibTeX file, the check covered the first
@@ -118,7 +137,7 @@ grep -o 'doi *= *{[^}]*}' docs/concepts/related-software.bib \
 	done
 ```
 
-Every line should start with `200`. The file holds 21 entries and 20 DOIs,
+Every line should start with `200`. The file holds 27 entries and 26 DOIs,
 because the Vigeland book carries an ISBN instead. Regenerate those two
 counts with `grep -c '^@' docs/concepts/related-software.bib` and
 `grep -c 'doi *= *{' docs/concepts/related-software.bib`.
