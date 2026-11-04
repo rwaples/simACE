@@ -120,8 +120,8 @@ class AssortmentPlan:
         rE: float,
         A1: float,
         A2: float,
-        C1_per_gen: list[float],
-        C2_per_gen: list[float],
+        C1: float,
+        C2: float,
         E1_per_gen: list[float],
         E2_per_gen: list[float],
         G_sim: int,
@@ -138,8 +138,8 @@ class AssortmentPlan:
             rE: Cross-trait unique-environment correlation.
             A1: Trait-1 additive-genetic variance (constant across gens).
             A2: Trait-2 additive-genetic variance (constant across gens).
-            C1_per_gen: Per-generation trait-1 shared-environment variance.
-            C2_per_gen: Per-generation trait-2 shared-environment variance.
+            C1: Trait-1 shared-environment variance (constant across gens).
+            C2: Trait-2 shared-environment variance (constant across gens).
             E1_per_gen: Per-generation trait-1 unique-environment variance.
             E2_per_gen: Per-generation trait-2 unique-environment variance.
             G_sim: Total simulated generations.
@@ -149,11 +149,8 @@ class AssortmentPlan:
                 any generation, or the full 4x4 ``Sigma_4`` is not PSD.
         """
         # Within-person cross-trait liability correlation per C/E generation
-        _rho_w_A = rA * np.sqrt(A1 * A2)
-        rho_w_per_ce = [
-            _rho_w_A + rC * np.sqrt(C1_per_gen[g] * C2_per_gen[g]) + rE * np.sqrt(E1_per_gen[g] * E2_per_gen[g])
-            for g in range(G_sim)
-        ]
+        _rho_w_AC = rA * np.sqrt(A1 * A2) + rC * np.sqrt(C1 * C2)
+        rho_w_per_ce = [_rho_w_AC + rE * np.sqrt(E1_per_gen[g] * E2_per_gen[g]) for g in range(G_sim)]
 
         # Both guards below iterate over *mating iterations* and pair each
         # iteration's assortment with the parental C/E generation the runtime

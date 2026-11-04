@@ -1701,17 +1701,13 @@ def run_simulation(
 
     rng = np.random.default_rng(seed)
 
-    # Resolve per-generation C and E variance components.  A and C are
-    # scalars (SimulationParams rejects maps) and E may be a per-gen dict.
-    # These run for both mating models since reproduce() needs them.
-    C1_per_gen = resolve_per_gen_param(C1, G_sim, name="C1")
-    C2_per_gen = resolve_per_gen_param(C2, G_sim, name="C2")
+    # A and C are scalars (SimulationParams rejects maps); E may be a per-gen
+    # dict. These run for both mating models since reproduce() needs them.
     E1_per_gen = resolve_per_gen_param(E1, G_sim, name="E1")
     E2_per_gen = resolve_per_gen_param(E2, G_sim, name="E2")
 
-    # Compute per-generation standard deviations
-    sd_C1_per_gen = [np.sqrt(v) for v in C1_per_gen]
-    sd_C2_per_gen = [np.sqrt(v) for v in C2_per_gen]
+    sd_C1 = np.sqrt(C1)
+    sd_C2 = np.sqrt(C2)
     sd_E1_per_gen = [np.sqrt(v) for v in E1_per_gen]
     sd_E2_per_gen = [np.sqrt(v) for v in E2_per_gen]
 
@@ -1734,8 +1730,8 @@ def run_simulation(
             rE=rE,
             A1=A1,
             A2=A2,
-            C1_per_gen=C1_per_gen,
-            C2_per_gen=C2_per_gen,
+            C1=C1,
+            C2=C2,
             E1_per_gen=E1_per_gen,
             E2_per_gen=E2_per_gen,
             G_sim=G_sim,
@@ -1748,7 +1744,7 @@ def run_simulation(
     a1, a2 = generate_correlated_components(rng, N, sd_A1, sd_A2, rA)
 
     # C components: correlated via rC (gen-0 variance)
-    c1, c2 = generate_correlated_components(rng, N, sd_C1_per_gen[0], sd_C2_per_gen[0], rC)
+    c1, c2 = generate_correlated_components(rng, N, sd_C1, sd_C2, rC)
 
     # E components: correlated via rE (gen-0 variance); independent when rE=0
     if rE != 0:
@@ -1828,10 +1824,10 @@ def run_simulation(
                 household_ids,
                 sd_A1,
                 sd_E1_per_gen[i],
-                sd_C1_per_gen[i],
+                sd_C1,
                 sd_A2,
                 sd_E2_per_gen[i],
-                sd_C2_per_gen[i],
+                sd_C2,
                 rA,
                 rC,
                 rE,

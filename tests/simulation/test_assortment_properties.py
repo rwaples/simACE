@@ -37,11 +37,11 @@ def _assort_schedule(draw, g_sim: int, *, nonzero: bool):
 
 
 @st.composite
-def _assortment_inputs(draw, *, constant_ce=False, both_trait=False, user_matrix=False):
+def _assortment_inputs(draw, *, constant_e=False, both_trait=False, user_matrix=False):
     """Draw a complete ``AssortmentPlan.build`` argument bundle.
 
-    Variance components follow the model's own budget (``A + C + E == 1`` per
-    trait per generation), and the correlations include exactly ``+-1`` so that
+    Variance components stay within the model's budget (``A + C + E <= 1`` per
+    trait per generation; C is constant, as the simulator requires), and the correlations include exactly ``+-1`` so that
     ``|rho_w| >= 1`` — the guarded corner — is genuinely reachable rather than
     vanishingly improbable.
     """
@@ -49,13 +49,13 @@ def _assortment_inputs(draw, *, constant_ce=False, both_trait=False, user_matrix
     a1 = _variance(draw, budget=1.0)
     a2 = _variance(draw, budget=1.0)
 
-    n_ce = 1 if constant_ce else g_sim
-    c1 = [_variance(draw, budget=1.0 - a1) for _ in range(n_ce)]
-    c2 = [_variance(draw, budget=1.0 - a2) for _ in range(n_ce)]
-    e1 = [1.0 - a1 - c for c in c1]
-    e2 = [1.0 - a2 - c for c in c2]
-    if constant_ce:
-        c1, c2, e1, e2 = (values * g_sim for values in (c1, c2, e1, e2))
+    c1 = _variance(draw, budget=1.0 - a1)
+    c2 = _variance(draw, budget=1.0 - a2)
+    n_e = 1 if constant_e else g_sim
+    e1 = [_variance(draw, budget=1.0 - a1 - c1) for _ in range(n_e)]
+    e2 = [_variance(draw, budget=1.0 - a2 - c2) for _ in range(n_e)]
+    if constant_e:
+        e1, e2 = e1 * g_sim, e2 * g_sim
 
     matrix = None
     if user_matrix:
@@ -71,8 +71,8 @@ def _assortment_inputs(draw, *, constant_ce=False, both_trait=False, user_matrix
         rE=draw(_CORRELATIONS),
         A1=a1,
         A2=a2,
-        C1_per_gen=c1,
-        C2_per_gen=c2,
+        C1=c1,
+        C2=c2,
         E1_per_gen=e1,
         E2_per_gen=e2,
         G_sim=g_sim,
@@ -83,7 +83,7 @@ def _rho_w_schedule(kwargs: dict) -> list[float]:
     """Independently recompute ``rho_w`` per C/E generation from the ACE inputs."""
     return [
         kwargs["rA"] * np.sqrt(kwargs["A1"] * kwargs["A2"])
-        + kwargs["rC"] * np.sqrt(kwargs["C1_per_gen"][g] * kwargs["C2_per_gen"][g])
+        + kwargs["rC"] * np.sqrt(kwargs["C1"] * kwargs["C2"])
         + kwargs["rE"] * np.sqrt(kwargs["E1_per_gen"][g] * kwargs["E2_per_gen"][g])
         for g in range(kwargs["G_sim"])
     ]
@@ -92,11 +92,11 @@ def _rho_w_schedule(kwargs: dict) -> list[float]:
 class TestPlanMatchesOracle:
     """The duplicated formulas in the two modules must not drift apart."""
 
-    @given(kwargs=_assortment_inputs(constant_ce=True, both_trait=True))
+    @given(kwargs=_assortment_inputs(constant_e=True, both_trait=True))
     def test_plan_matches_expected_mate_corr_matrix(self, kwargs):
-        """``for_generation(i)[3]`` equals the analytic oracle under constant C/E.
+        """``for_generation(i)[3]`` equals the analytic oracle under constant E.
 
-        Constant C/E removes the schedule from the comparison, isolating the
+        Constant E removes the schedule from the comparison, isolating the
         shared ``rho_w`` and cross-AM expressions.  Both modules build the same
         product in the same association order, so the agreement is exact.
         """
@@ -113,9 +113,9 @@ class TestPlanMatchesOracle:
                 kwargs["rA"],
                 kwargs["rC"],
                 kwargs["A1"],
-                kwargs["C1_per_gen"][0],
+                kwargs["C1"],
                 kwargs["A2"],
-                kwargs["C2_per_gen"][0],
+                kwargs["C2"],
                 None,
                 kwargs["rE"],
                 kwargs["E1_per_gen"][0],

@@ -71,8 +71,6 @@ def test_per_generation_cells_parse_back_without_crashing(tmp_path):
     no_ct = {**_PARAMS, "Ctm_maternal1": 0.0, "Ctm_paternal1": 0.0}
     per_gen_e, _ = _gathered(tmp_path / "e", {**no_ct, "E1": {0: 0.3, 3: 0.5}})
     assert _reference_corr("FS", 1)(per_gen_e) == pytest.approx(0.5 * 0.4 + 0.3)  # undivided: no single V_P
-    per_gen_c, _ = _gathered(tmp_path / "c", {**no_ct, "C1": {0: 0.2, 3: 0.3}})
-    assert _reference_corr("FS", 1)(per_gen_c) is None
 
 
 def test_scalar_cells_in_a_text_column_parse_as_numbers(tmp_path):

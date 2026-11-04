@@ -310,7 +310,7 @@ def _scenario_params(d: pd.DataFrame) -> dict[str, Any]:
     """A gathered scenario's parameters as ``reference_corr`` reads them.
 
     Empty cells are dropped (absent, not active), and dict- or matrix-valued
-    cells (per-generation A/C/E/assortment, ``assort_matrix``) are parsed back,
+    cells (per-generation E/assortment, ``assort_matrix``) are parsed back,
     so the reference-line gate sees the same values as on per-rep plots.
     """
     row = d.iloc[0].to_dict()

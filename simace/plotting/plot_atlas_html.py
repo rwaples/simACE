@@ -463,12 +463,8 @@ def _a_plus_c(params: dict, trait_num: int) -> tuple[str, bool]:
     c_key = f"C{trait_num}"
     if a_key not in params or c_key not in params:
         return ("not recorded", True)
-    a_val = params[a_key]
-    c_val = params[c_key]
-    if isinstance(a_val, dict) or isinstance(c_val, dict):
-        return ("generation-specific", False)
     try:
-        return (_format_value(float(a_val) + float(c_val)), False)
+        return (_format_value(float(params[a_key]) + float(params[c_key])), False)
     except TypeError, ValueError:
         return ("not available", True)
 

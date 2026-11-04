@@ -103,11 +103,10 @@ _RM = {"A1": 0.4, "C1": 0.3, "E1": 0.3, "assort1": 0.0, "assort2": 0.0, "assort_
         ({"assort1": 0.3}, "MO"),
         ({"assort2": {0: 0.0, 2: 0.2}}, "MO"),
         ({"assort_matrix": [[0.0, 0.1], [0.1, 0.0]]}, "MO"),
-        ({"C1": {0: 0.3, 2: 0.2}}, "MO"),
         ({"E1": {0: 0.3, 2: 0.5}}, "MO"),
         ({}, "1C"),
     ],
-    ids=["am", "per_gen_am", "cross_am", "dict_c", "dict_e", "lineage_mixed"],
+    ids=["am", "per_gen_am", "cross_am", "dict_e", "lineage_mixed"],
 )
 def test_analytic_gate_rejects_what_the_formula_cannot_describe(overrides, rt):
     params = {**_RM, **overrides, "Ctm_maternal1": 0.5}
