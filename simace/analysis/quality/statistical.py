@@ -17,6 +17,7 @@ from simace.core.relationships import transmission_coefficients
 
 from ._common import _corr_tolerance, _info, _result, sorted_runs
 from .am_relatedness import am_relatedness_mode
+from .assortative_mating import schedule_span
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -70,9 +71,7 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
     founders = {c: df[c].to_numpy()[founder_mask] for c in comp_cols}
 
     # For per-generation dict params, resolve to founder sim generation value
-    G_sim = params.get("G_sim", 8)
-    G_ped = params.get("G_ped", 6)
-    founder_sim_gen = G_sim - G_ped
+    G_sim, founder_sim_gen = schedule_span(params)
 
     def _resolve_founder_val(val):
         """Resolve a scalar or per-gen dict to the founder generation value."""

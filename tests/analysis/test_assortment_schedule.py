@@ -6,9 +6,8 @@ import pytest
 
 from simace.analysis.quality.assortative_mating import assortment_schedule, schedule_span
 from simace.config import resolve_defaults, resolve_scenarios
-from simace.simulation.assortment import AssortmentPlan
+from simace.simulation.assortment import assortment_schedule as simulated_schedule
 from simace.simulation.params import CTransmission, SimulationParams
-from simace.simulation.simulate import resolve_per_gen_param
 
 CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
 _DEFAULTS = resolve_defaults(CONFIG_DIR)
@@ -38,29 +37,14 @@ _CREATE_KEYS = (
 
 
 def _simulator_schedule(params: dict) -> tuple[list[float], list[float]]:
-    """The per-iteration assortment ``run_simulation`` mates on, built the way it builds it."""
+    """The schedule ``run_simulation`` mates on, from the inputs ``SimulationParams`` normalizes."""
     sim = SimulationParams.create(
         **{k: params.get(k) for k in _CREATE_KEYS if params.get(k) is not None},
         c_transmission=CTransmission.from_params(params),
     )
-    per_gen = {k: resolve_per_gen_param(params.get(k, 0.0), sim.G_sim, name=k) for k in ("C1", "C2", "E1", "E2")}
-    plan = AssortmentPlan.build(
-        assort1=sim.assort1,
-        assort2=sim.assort2,
-        R_mf_user=sim.R_mf,
-        rA=params["rA"],
-        rC=params["rC"],
-        rE=params.get("rE", 0.0),
-        A1=params["A1"],
-        A2=params["A2"],
-        C1_per_gen=per_gen["C1"],
-        C2_per_gen=per_gen["C2"],
-        E1_per_gen=per_gen["E1"],
-        E2_per_gen=per_gen["E2"],
-        G_sim=sim.G_sim,
+    return simulated_schedule(
+        sim.assort1, sim.assort2, G_sim=sim.G_sim, assort_matrix=sim.R_mf, mating_model=sim.mating_model
     )
-    schedule = [plan.for_generation(i) for i in range(sim.G_sim)]
-    return [s[0] for s in schedule], [s[1] for s in schedule]
 
 
 def _any_nonzero(value) -> bool:

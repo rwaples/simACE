@@ -1,6 +1,6 @@
 """Regression test for the per-generation E coordinate contract.
 
-simACE's `resolve_per_gen_param` indexes E1/E2/C1/C2 dicts by *raw
+simACE's `resolve_per_gen_param` indexes E1/E2 dicts by *raw
 simulation iteration* (0..G_sim-1), while the phenotyped slice of the
 output pedigree carries *output-generation* labels (rebased to
 0..G_ped-1 by subtracting burn-in). This means a schedule written as

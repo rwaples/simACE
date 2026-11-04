@@ -23,7 +23,7 @@ from simace.analysis.quality.am_equilibrium import validate_am_equilibrium
 from simace.analysis.quality.assortative_mating import recorded_matings
 from simace.ascertainment import run_ascertainment
 from simace.core.pedigree_arrays import PedigreeArrays
-from simace.simulation.assortment import AssortmentPlan
+from simace.simulation.assortment import AssortmentPlan, assortment_schedule
 from simace.simulation.simulate import resolve_per_gen_param, run_simulation
 
 # ---------------------------------------------------------------------------
@@ -226,6 +226,11 @@ class TestValidateStatistical:
         result = validate_statistical(val_pedigree, val_params)
         _all_passed(result)
 
+    def test_founder_e_without_g_sim_is_read_at_the_schedule_span_burn_in(self, val_pedigree, val_params):
+        """With ``G_sim`` absent, G_sim falls back to G_ped and burn-in is 0, as in ``generation0`` (#79)."""
+        params = {k: v for k, v in val_params.items() if k != "G_sim"} | {"E1": {0: 0.3, 1: 0.6}}
+        assert validate_statistical(val_pedigree, params)["variance_E1"]["expected"] == 0.3
+
     def test_variance_keys(self, val_pedigree, val_params):
         result = validate_statistical(val_pedigree, val_params)
         for comp in ["A1", "C1", "E1", "A2", "C2", "E2"]:
@@ -397,17 +402,18 @@ class TestRecordedMatings:
             "E1": {0: 0.3, 4: 0.2},
         }
         e1 = resolve_per_gen_param(params["E1"], 6)
+        assort1, assort2 = assortment_schedule(params["assort1"], params["assort2"], G_sim=6)
         plan = AssortmentPlan.build(
-            assort1=params["assort1"],
-            assort2=params["assort2"],
+            assort1_per_gen=assort1,
+            assort2_per_gen=assort2,
             R_mf_user=None,
             rA=params["rA"],
             rC=params["rC"],
             rE=params["rE"],
             A1=params["A1"],
             A2=params["A2"],
-            C1_per_gen=[params["C1"]] * 6,
-            C2_per_gen=[params["C2"]] * 6,
+            C1=params["C1"],
+            C2=params["C2"],
             E1_per_gen=e1,
             E2_per_gen=[params["E2"]] * 6,
             G_sim=6,

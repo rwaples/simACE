@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from simace.core.numerics import finite_or_none
+from simace.simulation import assortment
 from simace.simulation.assortment import parent_ce_gen
 from simace.simulation.mate_correlation import expected_mate_corr_matrix
 
@@ -68,23 +69,14 @@ def _mated_matrix(params: Mapping[str, Any]) -> np.ndarray | None:
 
 
 def assortment_schedule(params: Mapping[str, Any]) -> tuple[list[float], list[float]]:
-    """The ``assort1`` and ``assort2`` the simulator mates on in each of the ``G_sim`` mating iterations.
-
-    A set ``assort_matrix`` replaces both by its diagonal, as
-    ``SimulationParams`` does. The Wright-Fisher mating model pairs parents
-    at random whatever assortment it inherits, so both are zero there.
-    """
-    from simace.simulation.simulate import resolve_per_gen_param
-
+    """The ``assort1`` and ``assort2`` the simulator mates on in each of the ``G_sim`` mating iterations of ``params``."""
     G_sim, _ = schedule_span(params)
-    if params.get("mating_model", "standard") != "standard":
-        return [0.0] * G_sim, [0.0] * G_sim
-    matrix = _mated_matrix(params)
-    if matrix is not None:
-        return [float(matrix[0, 0])] * G_sim, [float(matrix[1, 1])] * G_sim
-    return (
-        resolve_per_gen_param(params.get("assort1", 0.0), G_sim, name="assort1", allow_negative=True),
-        resolve_per_gen_param(params.get("assort2", 0.0), G_sim, name="assort2", allow_negative=True),
+    return assortment.assortment_schedule(
+        params.get("assort1", 0.0),
+        params.get("assort2", 0.0),
+        G_sim=G_sim,
+        assort_matrix=params.get("assort_matrix"),
+        mating_model=params.get("mating_model", "standard"),
     )
 
 
@@ -102,7 +94,8 @@ def recorded_matings(params: dict[str, Any]) -> list[RecordedMating]:
     G_sim, burnin = schedule_span(params)
     assort1, assort2 = assortment_schedule(params)
     matrix = _mated_matrix(params)
-    per_gen = {k: resolve_per_gen_param(params.get(k, 0), G_sim, name=k) for k in ("C1", "C2", "E1", "E2")}
+    C1, C2 = float(params.get("C1", 0)), float(params.get("C2", 0))
+    E = {k: resolve_per_gen_param(params.get(k, 0), G_sim, name=k) for k in ("E1", "E2")}
 
     matings = []
     for i in range(burnin + 1, G_sim):
@@ -114,15 +107,15 @@ def recorded_matings(params: dict[str, Any]) -> list[RecordedMating]:
             rA=params.get("rA", 0),
             rC=params.get("rC", 0),
             A1=params.get("A1", 0),
-            C1=per_gen["C1"][g],
+            C1=C1,
             A2=params.get("A2", 0),
-            C2=per_gen["C2"][g],
+            C2=C2,
             assort_matrix=matrix if a1 != 0 and a2 != 0 else None,
             rE=params.get("rE", 0),
-            E1=per_gen["E1"][g],
-            E2=per_gen["E2"][g],
+            E1=E["E1"][g],
+            E2=E["E2"][g],
         )
-        ce = (per_gen["C1"][g], per_gen["C2"][g], per_gen["E1"][g], per_gen["E2"][g])
+        ce = (C1, C2, E["E1"][g], E["E2"][g])
         matings.append(RecordedMating(i - burnin - 1, (a1, a2), expected, ce))
     return matings
 

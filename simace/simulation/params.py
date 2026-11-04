@@ -9,8 +9,7 @@ of ``run_simulation``:
     population/generation counts;
   * standard-model-only checks (``mating_lambda``, ``p_mztwin``, assortment
     ranges) that are no-ops under Wright-Fisher;
-  * ``assort_matrix`` resolution — shape/symmetry validation plus extraction of
-    the diagonal into ``assort1`` / ``assort2`` and the matrix into ``R_mf``.
+  * ``assort_matrix`` validation (shape, symmetry, diagonal range), kept as ``R_mf``.
 
 Per-generation *resolution* (forward-filling dict-valued params) and all
 assortative-mating planning live elsewhere (``resolve_per_gen_param`` and
@@ -116,11 +115,12 @@ def c_covariance(C1: float, C2: float, rC: float) -> np.ndarray:
 
 @dataclass(frozen=True)
 class SimulationParams:
-    """Validated run_simulation parameters with assort_matrix already resolved.
+    """Validated run_simulation parameters.
 
     Field values are post-normalization: ``G_sim`` defaults to ``G_ped`` when
-    unset, and when an ``assort_matrix`` was supplied, ``assort1`` / ``assort2``
-    hold its diagonal and ``R_mf`` the matrix itself (else ``R_mf`` is ``None``).
+    unset, and ``R_mf`` is the ``assort_matrix`` (else ``None``). ``assort1`` /
+    ``assort2`` are as given; the schedule mated on is
+    :func:`simace.simulation.assortment.assortment_schedule`.
     ``inbreeding`` is the resolved plan of the inbreeding mode (ADR 0033).
     """
 
@@ -252,13 +252,9 @@ class SimulationParams:
                     raise ValueError(f"assort_matrix must be 2x2, got shape {R_mf.shape}")
                 if abs(R_mf[0, 1] - R_mf[1, 0]) > 1e-10:
                     raise ValueError(f"assort_matrix must be symmetric: got [{R_mf[0, 1]}, {R_mf[1, 0]}]")
-                # Scalar assort1/assort2 override from the matrix diagonal.
-                assort1 = float(R_mf[0, 0])
-                assort2 = float(R_mf[1, 1])
-                if not (-1 <= assort1 <= 1):
-                    raise ValueError(f"assort_matrix[0,0] must be in [-1, 1], got {assort1}")
-                if not (-1 <= assort2 <= 1):
-                    raise ValueError(f"assort_matrix[1,1] must be in [-1, 1], got {assort2}")
+                for t in (0, 1):
+                    if not (-1 <= R_mf[t, t] <= 1):
+                        raise ValueError(f"assort_matrix[{t},{t}] must be in [-1, 1], got {float(R_mf[t, t])}")
 
         if G_sim < G_ped:
             raise ValueError(f"G_sim ({G_sim}) must be >= G_ped ({G_ped})")

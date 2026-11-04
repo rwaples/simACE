@@ -159,8 +159,8 @@ def analytic_applies(relationship_type: str, params: Mapping[str, Any], trait: i
     """Whether the analytic expected correlation is exact for ``relationship_type`` on ``trait``.
 
     Always with no C transmission on the trait (the pre-ADR-0025 line).
-    Otherwise only under random mating with scalar ``C{trait}`` and
-    ``E{trait}`` (so parent and offspring share one ``V_P``) and for a
+    Otherwise only under random mating with a recorded ``C{trait}`` and a
+    scalar ``E{trait}`` (so parent and offspring share one ``V_P``) and for a
     single-path type, which has a shared-C fraction.
     """
     b_m, b_f = transmission_coefficients(params, trait)
@@ -170,7 +170,7 @@ def analytic_applies(relationship_type: str, params: Mapping[str, Any], trait: i
 
 
 def _closed_form_holds(params: Mapping[str, Any], trait: int) -> bool:
-    """Random mating with scalar ``C{trait}`` and ``E{trait}``, where the transmission formulas are exact.
+    """Random mating with a recorded ``C{trait}`` and a scalar ``E{trait}``, where the transmission formulas are exact.
 
     Wright-Fisher mating is random whatever assortment keys it inherits (they are ignored at runtime).
     """
@@ -181,9 +181,9 @@ def _closed_form_holds(params: Mapping[str, Any], trait: int) -> bool:
 
 
 def _liability_variance(params: Mapping[str, Any], trait: int) -> float:
-    """``V_P = A + C + E`` for the trait; 1 when C or E is per-generation, which has no single ``V_P``.
+    """``V_P = A + C + E`` for the trait; 1 when E is per-generation, which has no single ``V_P``, or C is absent.
 
-    The gate admits per-generation C or E only without C transmission, where the
+    The gate admits per-generation E only without C transmission, where the
     line stays the undivided ``2 * kinship * A + C_shared * C`` it always was.
     """
     if not all(isinstance(params.get(f"{k}{trait}"), Real) for k in ("C", "E")):
@@ -202,8 +202,7 @@ def reference_corr(
     The analytic ``(2 * kinship * A + C_shared * C) / V_P`` when
     :func:`analytic_applies`, else the recorded-pedigree truth
     ``truth[relationship_type]["r"]``, else None. None also where ``A`` or
-    ``C`` is absent or per-generation (no single value) or the trait has no
-    liability variance.
+    ``C`` is absent or the trait has no liability variance.
     """
     if analytic_applies(relationship_type, params, trait):
         A, C = params.get(f"A{trait}"), params.get(f"C{trait}")
