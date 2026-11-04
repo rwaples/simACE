@@ -226,6 +226,11 @@ class TestValidateStatistical:
         result = validate_statistical(val_pedigree, val_params)
         _all_passed(result)
 
+    def test_founder_e_without_g_sim_is_read_at_the_schedule_span_burn_in(self, val_pedigree, val_params):
+        """With ``G_sim`` absent, G_sim falls back to G_ped and burn-in is 0, as in ``generation0`` (#79)."""
+        params = {k: v for k, v in val_params.items() if k != "G_sim"} | {"E1": {0: 0.3, 1: 0.6}}
+        assert validate_statistical(val_pedigree, params)["variance_E1"]["expected"] == 0.3
+
     def test_variance_keys(self, val_pedigree, val_params):
         result = validate_statistical(val_pedigree, val_params)
         for comp in ["A1", "C1", "E1", "A2", "C2", "E2"]:

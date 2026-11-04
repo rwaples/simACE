@@ -21,6 +21,7 @@ if TYPE_CHECKING:
 import matplotlib.pyplot as plt
 import numpy as np
 
+from simace.analysis.quality.assortative_mating import schedule_span
 from simace.plotting.plot_style import (
     COLOR_EXPECTED,
     COLOR_OBSERVED,
@@ -76,11 +77,9 @@ def plot_am_equilibrium(
     x = np.array(generations, dtype=float)
 
     # Map each recorded generation label g (1..G_ped) to its reproduce-step
-    # count from founders: g + burnin, where burnin = G_sim - G_ped. The final
-    # recorded generation therefore sits at exactly G_sim steps.
-    g_ped = max(generations)
-    g_sim = int(params.get("G_sim") or g_ped)
-    burnin = max(0, g_sim - g_ped)
+    # count from founders: g + burnin. The final recorded generation therefore
+    # sits at exactly G_sim steps.
+    g_sim, burnin = schedule_span(params)
 
     _fig, axes = plt.subplots(1, 2, figsize=(10, 5))
 

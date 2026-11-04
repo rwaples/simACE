@@ -26,6 +26,7 @@ from simace.simulation.am_equilibrium import am_equilibrium_variance, am_varianc
 
 from ._common import _info, _result
 from .am_relatedness import am_relatedness_mode
+from .assortative_mating import schedule_span
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -68,7 +69,7 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
     G_ped = params.get("G_ped")
     if N is None or G_ped is None:
         return results
-    G_sim = params.get("G_sim") or G_ped
+    G_sim, _ = schedule_span(params)
 
     gen_labels = df["id"].to_numpy() // int(N)
     last_mask = gen_labels == (int(G_ped) - 1)
