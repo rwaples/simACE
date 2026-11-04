@@ -27,6 +27,13 @@ def compute_censoring_windows(
 ) -> dict[str, Any] | None:
     """Compute per-generation censoring breakdown and incidence curves.
 
+    The shares ``pct_affected``, ``left_censored``, ``right_censored`` and
+    ``death_censored`` partition the generation by the censor stage's flags:
+    age-censored rows split by which side of the window midpoint the onset
+    falls on, with a never-onset (null) row right-censored as ``run_censor``
+    treats it, and death-censored rows are those not already age-censored.
+    See :func:`compute_censoring_cascade` for why the flags, not the times.
+
     Args:
         df: Phenotype DataFrame with generation, event time, and censoring columns.
         censor_age: Maximum observation age.
@@ -53,16 +60,18 @@ def compute_censoring_windows(
             t_raw = df[f"t{trait_num}"].to_numpy()[gen_mask]
             t_obs = df[f"t_observed{trait_num}"].to_numpy()[gen_mask]
             affected = df[f"affected{trait_num}"].to_numpy()[gen_mask].astype(bool)
+            age_c = df[f"age_censored{trait_num}"].to_numpy()[gen_mask].astype(bool)
             death_c = df[f"death_censored{trait_num}"].to_numpy()[gen_mask].astype(bool)
+            left_c = age_c & (t_raw < np.float64((win_lo + win_hi) / 2))
             obs_inc = np.searchsorted(np.sort(t_obs[affected]), ages, side="right") / n_gen
             true_inc = np.searchsorted(np.sort(t_raw), ages, side="right") / n_gen
             gen_result[f"trait{trait_num}"] = {
                 "true_incidence": true_inc.tolist(),
                 "observed_incidence": obs_inc.tolist(),
                 "pct_affected": float(affected.mean()),
-                "left_censored": float((t_raw < win_lo).sum() / n_gen),
-                "right_censored": float((t_raw > win_hi).sum() / n_gen),
-                "death_censored": float((death_c & ~(t_raw < win_lo) & ~(t_raw > win_hi)).mean()),
+                "left_censored": float(left_c.mean()),
+                "right_censored": float((age_c & ~left_c).mean()),
+                "death_censored": float((death_c & ~age_c).mean()),
             }
         result[f"gen{gen}"] = gen_result
     return {"generations": result, "censoring_ages": ages.tolist(), "censor_age": int(censor_age)}
@@ -108,7 +117,18 @@ def compute_censoring_cascade(
     censor_age: float,
     gen_censoring: dict[int, list[float]],
 ) -> dict[str, Any]:
-    """Per-trait, per-generation decomposition of true cases by censoring fate."""
+    """Per-trait, per-generation decomposition of true cases by censoring fate.
+
+    A true case is an affected row or an onset before ``censor_age``. Its fate
+    comes from the censor stage's flags, not from comparing ``t`` with the
+    window and ``death_age`` again: the stats stage reads those columns
+    narrowed to float32, where an onset can tie or swap order with the death
+    age or a window edge that it did not tie on the float64 values the flags
+    came from. Age-censored cases split into left-truncated and
+    right-censored by which side of the window midpoint the onset falls on,
+    which is exact for any window wider than the onset's float32 resolution.
+    An unaffected onset that ties ``censor_age`` in float32 is not counted.
+    """
     if "generation" not in df.columns:
         return {}
 
@@ -120,22 +140,21 @@ def compute_censoring_cascade(
     if not windows:
         return {}
 
-    has_death = "death_age" in df.columns
     result: dict[str, Any] = {}
+    gens = df["generation"].to_numpy()
     for trait in [1, 2]:
-        t_col = f"t{trait}"
-        a_col = f"affected{trait}"
-        if t_col not in df.columns or a_col not in df.columns:
+        columns = [f"{name}{trait}" for name in ("t", "affected", "age_censored", "death_censored")]
+        if not all(c in df.columns for c in columns):
             continue
-        gens = df["generation"].to_numpy()
-        t_all = df[t_col].to_numpy()
-        death_all = df["death_age"].to_numpy() if has_death else None
+        t_all, affected_all, age_censored_all, death_censored_all = (df[c].to_numpy() for c in columns)
         trait_result: dict[str, Any] = {}
         for g in sorted(windows.keys()):
             lo, hi = windows[g]
             gen_mask = gens == g
             t = t_all[gen_mask]
-            true_affected = t < censor_age
+            affected = np.asarray(affected_all[gen_mask], dtype=bool)
+            # Compared in t's own dtype (NEP 50): monotone rounding keeps every float64 onset >= censor_age out.
+            true_affected = (t < censor_age) | affected
             n_true = int(true_affected.sum())
             n_gen = int(gen_mask.sum())
 
@@ -152,17 +171,11 @@ def compute_censoring_cascade(
                 }
                 continue
 
-            left_trunc = true_affected & (t < lo)
-            right_cens = true_affected & (t > hi)
-            in_window = true_affected & (t >= lo) & (t <= hi)
-
-            if death_all is not None:
-                death_age = death_all[gen_mask]
-                death_cens = in_window & (death_age < t)
-                observed = in_window & (death_age >= t)
-            else:
-                death_cens = np.zeros_like(in_window)
-                observed = in_window
+            age_censored = true_affected & np.asarray(age_censored_all[gen_mask], dtype=bool)
+            left_trunc = age_censored & (t < np.float64((lo + hi) / 2))
+            right_cens = age_censored & ~left_trunc
+            observed = affected
+            death_cens = true_affected & ~age_censored & np.asarray(death_censored_all[gen_mask], dtype=bool)
 
             n_obs = int(observed.sum())
             trait_result[f"gen{g}"] = {

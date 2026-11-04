@@ -155,6 +155,10 @@ def cascade_df():
             "t2": [200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0, 200.0],
             "affected1": [True, False, False, False, True, False, False, False],
             "affected2": [False, False, False, False, False, False, False, False],
+            "age_censored1": [False, False, True, True, False, False, True, True],
+            "age_censored2": [True] * 8,
+            "death_censored1": [False, True, False, False, False, True, False, False],
+            "death_censored2": [False] * 8,
         }
     )
 
@@ -520,32 +524,49 @@ class TestComputeCensoringCascade:
                 "t2": [200.0],
                 "affected1": [True],
                 "affected2": [False],
+                "age_censored1": [False],
+                "age_censored2": [True],
+                "death_censored1": [False],
+                "death_censored2": [False],
             }
         )
         gen_censoring = {1: [80.0, 20.0]}
         result = compute_censoring_cascade(df, censor_age=80.0, gen_censoring=gen_censoring)
         assert result == {}
 
-    def test_no_death_age_column(self):
-        """Without death_age, death_censored should be 0 and in-window cases are all observed."""
+    def test_fates_follow_flags_not_times(self):
+        """An onset tied with its death age, a window edge or censor_age takes the fate its flags record.
+
+        Row 4 is an onset just under censor_age that narrowed to it, with the
+        default window ending at censor_age: affected, so a true case.
+        """
         df = pl.DataFrame(
             {
-                "id": [0, 1],
-                "generation": [1, 1],
-                "t1": [30.0, 50.0],
-                "t2": [200.0, 200.0],
-                "affected1": [True, True],
-                "affected2": [False, False],
+                "id": [0, 1, 2, 3, 4],
+                "generation": [1, 1, 1, 1, 2],
+                "death_age": [50.0, 50.0, 90.0, 90.0, 90.0],
+                "t1": [50.0, 50.0, 20.0, 70.0, 80.0],
+                "t2": [200.0] * 5,
+                "affected1": [True, False, False, False, True],
+                "affected2": [False] * 5,
+                "age_censored1": [False, False, True, True, False],
+                "age_censored2": [True] * 5,
+                "death_censored1": [False, True, False, False, False],
+                "death_censored2": [False] * 5,
             }
         )
-        gen_censoring = {1: [0.0, 80.0]}
-        result = compute_censoring_cascade(df, censor_age=80.0, gen_censoring=gen_censoring)
+        result = compute_censoring_cascade(df, censor_age=80.0, gen_censoring={1: [20.0, 70.0], 2: [0.0, 80.0]})
         g1 = result["trait1"]["gen1"]
-        assert g1["death_censored"] == 0
-        # Both t1 values are in [0, 80], so both observed
-        assert g1["observed"] == 2
-        assert g1["true_affected"] == 2
-        assert g1["sensitivity"] == pytest.approx(1.0)
+        assert g1["observed"] == 1
+        assert g1["death_censored"] == 1
+        assert g1["left_truncated"] == 1
+        assert g1["right_censored"] == 1
+        assert g1["true_affected"] == 4
+        assert g1["sensitivity"] == pytest.approx(0.25)
+        g2 = result["trait1"]["gen2"]
+        assert g2["true_affected"] == 1
+        assert g2["observed"] == 1
+        assert g2["sensitivity"] == pytest.approx(1.0)
 
     def test_no_true_affected(self):
         """When no individuals are truly affected, sensitivity is NaN."""
@@ -558,6 +579,10 @@ class TestComputeCensoringCascade:
                 "t2": [200.0],
                 "affected1": [False],
                 "affected2": [False],
+                "age_censored1": [True],
+                "age_censored2": [True],
+                "death_censored1": [False],
+                "death_censored2": [False],
             }
         )
         gen_censoring = {1: [0.0, 80.0]}
@@ -589,10 +614,12 @@ class TestComputeCensoringWindows:
                 "t1": [30.0, 50.0],
                 "t_observed1": [30.0, 50.0],
                 "affected1": [True, True],
+                "age_censored1": [False, False],
                 "death_censored1": [False, False],
                 "t2": [200.0, 200.0],
                 "t_observed2": [200.0, 200.0],
                 "affected2": [False, False],
+                "age_censored2": [True, True],
                 "death_censored2": [False, False],
             }
         )
@@ -622,10 +649,12 @@ class TestComputeCensoringWindows:
                 "t1": [30.0, 50.0, 90.0, 100.0],
                 "t_observed1": [30.0, 50.0, 90.0, 100.0],
                 "affected1": [True, True, False, False],
+                "age_censored1": [False, False, True, True],
                 "death_censored1": [False, False, False, False],
                 "t2": [200.0, 200.0, 200.0, 200.0],
                 "t_observed2": [200.0, 200.0, 200.0, 200.0],
                 "affected2": [False, False, False, False],
+                "age_censored2": [True, True, True, True],
                 "death_censored2": [False, False, False, False],
             }
         )
@@ -645,10 +674,12 @@ class TestComputeCensoringWindows:
                 "t1": [30.0],
                 "t_observed1": [30.0],
                 "affected1": [True],
+                "age_censored1": [False],
                 "death_censored1": [False],
                 "t2": [200.0],
                 "t_observed2": [200.0],
                 "affected2": [False],
+                "age_censored2": [True],
                 "death_censored2": [False],
             }
         )
@@ -656,6 +687,37 @@ class TestComputeCensoringWindows:
         gen_censoring = {1: [0.0, 80.0], 2: [0.0, 60.0]}
         result = compute_censoring_windows(df, censor_age=80.0, gen_censoring=gen_censoring)
         assert result["generations"]["gen2"]["n"] == 0
+
+    def test_shares_follow_flags_not_times(self):
+        """Onsets tied with a window edge take the share their flags record, and the shares partition the generation.
+
+        Row 0 narrowed onto lo but is flagged age-censored (left); row 1 sits
+        on hi and is flagged affected; row 2 never onsets (null) and is
+        right-censored as run_censor treats it; row 3 is death-censored.
+        """
+        df = pl.DataFrame(
+            {
+                "id": [0, 1, 2, 3],
+                "generation": [1, 1, 1, 1],
+                "t1": [20.0, 70.0, None, 40.0],
+                "t_observed1": [20.0, 70.0, 70.0, 30.0],
+                "affected1": [False, True, False, False],
+                "age_censored1": [True, False, True, False],
+                "death_censored1": [True, False, False, True],
+                "t2": [200.0] * 4,
+                "t_observed2": [70.0] * 4,
+                "affected2": [False] * 4,
+                "age_censored2": [True] * 4,
+                "death_censored2": [False] * 4,
+            }
+        )
+        trait1 = compute_censoring_windows(df, censor_age=80.0, gen_censoring={1: [20.0, 70.0]})["generations"]["gen1"][
+            "trait1"
+        ]
+        assert trait1["pct_affected"] == pytest.approx(0.25)
+        assert trait1["left_censored"] == pytest.approx(0.25)
+        assert trait1["right_censored"] == pytest.approx(0.25)
+        assert trait1["death_censored"] == pytest.approx(0.25)
 
 
 # ===================================================================
