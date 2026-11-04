@@ -18,12 +18,16 @@ The correlations take pg-phenotype's MRCA-or-shared-member sandwich SE
 cell goes to a TSV, and the pooled summary (mean z, SD z, share of
 |z| > 1.96, per-scenario SD z range) is printed.
 
-Two scenarios whose rep seed ranges overlap reuse pedigrees: with random
-mating and no cross-trait correlation, the same seed gives the same pedigree
-and the same standardized draws whatever the variances (``se_calibration``
-spaces its 100-rep scenarios 10 seeds apart). Each row carries a
-``pedigree_hash`` of the mother and father columns, and the summary counts
-each hash once, keeping its first scenario in name order.
+Two scenarios whose rep seed ranges overlap can reuse pedigrees and draws:
+with random mating, the same seed gives the same pedigree, and often the same
+standardized draws whatever the variances, though not always under the same
+trait number (``se_calibration`` spaces its 100-rep scenarios 10 seeds apart).
+Each row carries a ``pedigree_hash`` of the mother and father columns and a
+``draw_hash`` of the pedigree with the signs of the residual or household
+draw it scores. The summary counts each ``draw_hash`` × cell once, preferring
+a scored row, then the first in folder order (as given) and scenario name
+order. Cells with no scenario × trait of 50 scored draws keep their summary
+row, with empty per-scenario SD z columns.
 
 Example::
 
@@ -56,8 +60,12 @@ if TYPE_CHECKING:
 #: One thread per worker, set before a spawned worker imports polars or pg-phenotype.
 _THREAD_VARS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "RAYON_NUM_THREADS", "POLARS_MAX_THREADS")
 
-#: The per-scenario SD z range covers scenario × trait cells with at least this many distinct reps.
+#: The per-scenario SD z range covers scenario × trait cells with at least this many scored distinct draws.
 _MIN_SCENARIO_REPS = 50
+
+#: A draw's signature is the signs of its first this many non-founder values: positive rescaling keeps them,
+#: float32 rounding flips one only within ~1e-7 SD of 0, and two different draws share them with odds 2^-256.
+_SIGNATURE_DRAWS = 256
 
 _COLUMNS = [
     "folder",
@@ -73,6 +81,7 @@ _COLUMNS = [
     "z_exact",
     "linked",
     "pedigree_hash",
+    "draw_hash",
 ]
 
 
@@ -100,6 +109,14 @@ def rep_cells(key: tuple[str, str, int], pedigree_path: Path, report_path: Path)
     for column in ("mother", "father"):
         digest.update(pedigree[column].to_numpy().astype(np.int64).tobytes())
     rows = []
+
+    def tag(new_rows: list[dict[str, Any]], draws: np.ndarray) -> None:
+        h = digest.copy()
+        h.update(np.sign(draws[both][:_SIGNATURE_DRAWS]).astype(np.int32).tobytes())
+        for row in new_rows:
+            row["draw_hash"] = h.hexdigest()
+        rows.extend(new_rows)
+
     for t in (1, 2):
         if params[f"A{t}"] > 0:
             a = pedigree[f"A{t}"].to_numpy().astype(np.float64)
@@ -108,13 +125,14 @@ def rep_cells(key: tuple[str, str, int], pedigree_path: Path, report_path: Path)
             cells = correlation(
                 pedigree, Trait(residual, kind="continuous"), categories=["FS", "MHS", "PHS"], se=True
             ).cells
-            for cell in cells:
-                est = cell.crude[0]
-                rows.append(_row(key, t, f"A_{cell.category}", cell.n, est.value, 0.0, est.se))
+            a_rows = [_row(key, t, f"A_{c.category}", c.n, c.crude[0].value, 0.0, c.crude[0].se) for c in cells]
             x = residual[one_per_mz]
             n, s2, target = len(x), float(x.var(ddof=1)), params[f"A{t}"] / 2
             se = float(np.sqrt((np.mean((x - x.mean()) ** 4) - s2**2) / n))
-            rows.append(_row(key, t, "A_variance", n, s2, target, se, z_exact=(s2 / target - 1) * np.sqrt((n - 1) / 2)))
+            a_rows.append(
+                _row(key, t, "A_variance", n, s2, target, se, z_exact=(s2 / target - 1) * np.sqrt((n - 1) / 2))
+            )
+            tag(a_rows, residual)
         if params[f"C{t}"] > 0:
             c = pedigree[f"C{t}"].to_numpy().astype(np.float64)
             b_m, b_f = params.get(f"Ctm_maternal{t}", 0.0), params.get(f"Ctm_paternal{t}", 0.0)
@@ -122,7 +140,7 @@ def rep_cells(key: tuple[str, str, int], pedigree_path: Path, report_path: Path)
             draw[both] = c[both] - b_m * c[mother[both]] - b_f * c[father[both]]
             cell = correlation(pedigree, Trait(draw, kind="continuous"), categories=["PHS"], se=True).cells[0]
             est = cell.crude[0]
-            rows.append(_row(key, t, "C_PHS", cell.n, est.value, 0.0, est.se, linked=linked_household_share(pedigree)))
+            tag([_row(key, t, "C_PHS", cell.n, est.value, 0.0, est.se, linked=linked_household_share(pedigree))], draw)
     for row in rows:
         row["pedigree_hash"] = digest.hexdigest()
     return rows
@@ -164,23 +182,33 @@ def main(argv: list[str] | None = None) -> None:
     for var in _THREAD_VARS:
         os.environ.setdefault(var, "1")
     with ProcessPoolExecutor(args.jobs, mp_context=multiprocessing.get_context("spawn")) as pool:
-        rows = [row for rep_rows in pool.map(rep_cells, *zip(*jobs, strict=True)) for row in rep_rows]
+        rows = [row for rep_rows in pool.map(rep_cells, *zip(*jobs, strict=True)) for row in rep_rows] if jobs else []
+    if not rows:
+        sys.exit(f"inheritance_residual_study: no complete rep of {' '.join(args.folders)} scores a cell")
     table = pl.DataFrame(rows, infer_schema_length=None).select(_COLUMNS)
     output = args.output or layout.root / "inheritance_residual_study.tsv"
     table.write_csv(output, separator="\t")
 
-    first = table.unique("pedigree_hash", keep="first", maintain_order=True).select("pedigree_hash", "scenario")
-    distinct = table.join(first, on=["pedigree_hash", "scenario"])
+    reps = table.select("folder", "scenario", "rep").n_unique()
     print(
-        f"{distinct['pedigree_hash'].n_unique()} distinct pedigrees over {table.select('folder', 'scenario', 'rep').n_unique()} reps"
+        f"{table['pedigree_hash'].n_unique()} distinct pedigrees and {table['draw_hash'].n_unique()} draws over {reps} reps"
     )
-    table = distinct
+    with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=200, float_precision=3):
+        print(summarize(table))
+    print(f"Wrote {output}")
+
+
+def summarize(table: pl.DataFrame) -> pl.DataFrame:
+    """Pool the rows by cell, counting each draw × cell once: a scored row first, then the first scenario."""
+    table = table.sort(pl.col("z").is_null(), maintain_order=True).unique(
+        ["draw_hash", "cell"], keep="first", maintain_order=True
+    )
     per_scenario = (
         table.group_by("folder", "scenario", "trait", "cell")
         .agg(reps=pl.col("z").count(), sd_z=pl.col("z").std())
         .filter(pl.col("reps") >= _MIN_SCENARIO_REPS)
     )
-    summary = (
+    return (
         table.group_by("cell")
         .agg(
             n=pl.col("z").count(),
@@ -194,12 +222,10 @@ def main(argv: list[str] | None = None) -> None:
         .join(
             per_scenario.group_by("cell").agg(sd_z_min=pl.col("sd_z").min(), sd_z_max=pl.col("sd_z").max()),
             on="cell",
+            how="left",
         )
         .sort("cell")
     )
-    with pl.Config(tbl_rows=-1, tbl_cols=-1, tbl_width_chars=200, float_precision=3):
-        print(summary)
-    print(f"Wrote {output}")
 
 
 if __name__ == "__main__":

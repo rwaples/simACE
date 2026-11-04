@@ -109,7 +109,9 @@ onset_tau`. `se_calibration` spaces its 100-rep scenarios 10 seeds apart, and
 a rep's seed is the scenario seed plus the rep number minus 1
 (`simace/cli/stages.py:53`), so scenarios with the same `mating_lambda`
 reuse pedigrees and, with random mating and rA = 0, the same standardized
-draws. The script counts each pedigree once: 770 distinct pedigrees.
+draws. The script hashes each scored residual or household draw with its
+pedigree and counts each draw × cell once, whatever its scenario or trait
+number: 770 distinct pedigrees, 2,310 distinct draws.
 
 | cell | z per cell | mean z | SD z | \|z\| > 1.96 | SD z per scenario × trait |
 |---|---|---|---|---|---|
@@ -120,7 +122,7 @@ draws. The script counts each pedigree once: 770 distinct pedigrees.
 | household draw, PHS | 770 | −0.050 | 0.969 | 4.3% | 0.86–1.04 |
 
 The per-scenario range covers scenario × trait cells with at least 50
-distinct reps; 100 reps give about ±0.14 around 1.
+scored distinct draws, one per rep; 100 reps give about ±0.14 around 1.
 
 The variance cell's mean z, −0.074 (−0.070 under the exact χ² z), is
 about 2.9 SE below 0. It is chance in these reps' random streams, not a
