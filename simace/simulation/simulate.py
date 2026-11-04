@@ -35,7 +35,13 @@ import polars as pl
 from simace.core.cohort import write_pedigree
 from simace.core.schema import PEDIGREE
 from simace.core.stage import stage
-from simace.simulation.assortment import METROPOLIS_TOL, AssortmentPlan, _cross_am_matrix, write_mating_log
+from simace.simulation.assortment import (
+    METROPOLIS_TOL,
+    AssortmentPlan,
+    _cross_am_matrix,
+    assortment_schedule,
+    write_mating_log,
+)
 from simace.simulation.inbreeding_plan import DEFAULT_DEPTH, INBREEDING_MODES, resolve
 from simace.simulation.params import CTransmission, SimulationParams, c_covariance
 
@@ -1661,7 +1667,7 @@ def run_simulation(
     Raises:
         ValueError: if any parameter is outside its valid range
     """
-    # Validate + normalize inputs (incl. assort_matrix → assort1/assort2/R_mf).
+    # Validate + normalize inputs.
     # run_simulation is also a public test API, so validation cannot rely on
     # config-load having run. See simace.simulation.params.SimulationParams.
     params = SimulationParams.create(
@@ -1688,11 +1694,7 @@ def run_simulation(
         inbreeding_mode=inbreeding_mode,
         inbreeding_depth=inbreeding_depth,
     )
-    # Rebind the values normalization changed; everything else is unchanged.
     G_sim = params.G_sim
-    assort1 = params.assort1
-    assort2 = params.assort2
-    R_mf = params.R_mf
 
     logger.info("Starting simulation: N=%d, G_ped=%d, seed=%d", N, G_ped, seed)
     t0 = time.perf_counter()
@@ -1717,15 +1719,16 @@ def run_simulation(
     sd_A1 = np.sqrt(A1)
     sd_A2 = np.sqrt(A2)
 
-    # Standard-model AM plan: per-gen assort resolution, rho_w, and the
+    # Standard-model AM plan: the assortment schedule, rho_w, and the
     # |rho_w| < 1 + 4x4 PSD checks are validated up front inside build().
     # WF skips this entirely — no AM, no rho_w-driven cross-AM.
     plan: AssortmentPlan | None = None
     if mating_model == "standard":
+        assort1_per_gen, assort2_per_gen = assortment_schedule(assort1, assort2, G_sim=G_sim, assort_matrix=params.R_mf)
         plan = AssortmentPlan.build(
-            assort1=assort1,
-            assort2=assort2,
-            R_mf_user=R_mf,
+            assort1_per_gen=assort1_per_gen,
+            assort2_per_gen=assort2_per_gen,
+            R_mf_user=params.R_mf,
             rA=rA,
             rC=rC,
             rE=rE,

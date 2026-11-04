@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from simace.core.numerics import finite_or_none
+from simace.simulation import assortment
 from simace.simulation.assortment import parent_ce_gen
 from simace.simulation.mate_correlation import expected_mate_corr_matrix
 
@@ -68,23 +69,14 @@ def _mated_matrix(params: Mapping[str, Any]) -> np.ndarray | None:
 
 
 def assortment_schedule(params: Mapping[str, Any]) -> tuple[list[float], list[float]]:
-    """The ``assort1`` and ``assort2`` the simulator mates on in each of the ``G_sim`` mating iterations.
-
-    A set ``assort_matrix`` replaces both by its diagonal, as
-    ``SimulationParams`` does. The Wright-Fisher mating model pairs parents
-    at random whatever assortment it inherits, so both are zero there.
-    """
-    from simace.simulation.simulate import resolve_per_gen_param
-
+    """The ``assort1`` and ``assort2`` the simulator mates on in each of the ``G_sim`` mating iterations of ``params``."""
     G_sim, _ = schedule_span(params)
-    if params.get("mating_model", "standard") != "standard":
-        return [0.0] * G_sim, [0.0] * G_sim
-    matrix = _mated_matrix(params)
-    if matrix is not None:
-        return [float(matrix[0, 0])] * G_sim, [float(matrix[1, 1])] * G_sim
-    return (
-        resolve_per_gen_param(params.get("assort1", 0.0), G_sim, name="assort1", allow_negative=True),
-        resolve_per_gen_param(params.get("assort2", 0.0), G_sim, name="assort2", allow_negative=True),
+    return assortment.assortment_schedule(
+        params.get("assort1", 0.0),
+        params.get("assort2", 0.0),
+        G_sim=G_sim,
+        assort_matrix=params.get("assort_matrix"),
+        mating_model=params.get("mating_model", "standard"),
     )
 
 

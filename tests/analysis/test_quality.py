@@ -23,7 +23,7 @@ from simace.analysis.quality.am_equilibrium import validate_am_equilibrium
 from simace.analysis.quality.assortative_mating import recorded_matings
 from simace.ascertainment import run_ascertainment
 from simace.core.pedigree_arrays import PedigreeArrays
-from simace.simulation.assortment import AssortmentPlan
+from simace.simulation.assortment import AssortmentPlan, assortment_schedule
 from simace.simulation.simulate import resolve_per_gen_param, run_simulation
 
 # ---------------------------------------------------------------------------
@@ -397,9 +397,10 @@ class TestRecordedMatings:
             "E1": {0: 0.3, 4: 0.2},
         }
         e1 = resolve_per_gen_param(params["E1"], 6)
+        assort1, assort2 = assortment_schedule(params["assort1"], params["assort2"], G_sim=6)
         plan = AssortmentPlan.build(
-            assort1=params["assort1"],
-            assort2=params["assort2"],
+            assort1_per_gen=assort1,
+            assort2_per_gen=assort2,
             R_mf_user=None,
             rA=params["rA"],
             rC=params["rC"],

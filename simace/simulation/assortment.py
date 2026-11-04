@@ -56,6 +56,34 @@ def parent_ce_gen(i: int) -> int:
     return max(0, i - 1)
 
 
+def assortment_schedule(
+    assort1: float | dict[int, float],
+    assort2: float | dict[int, float],
+    *,
+    G_sim: int,
+    assort_matrix: np.ndarray | list[list[float]] | None = None,
+    mating_model: str = "standard",
+) -> tuple[list[float], list[float]]:
+    """The ``assort1`` and ``assort2`` the simulator mates on in each of the ``G_sim`` mating iterations.
+
+    A set ``assort_matrix`` replaces both by its diagonal. The Wright-Fisher
+    mating model pairs parents at random whatever assortment it inherits, so
+    both are zero there. ``run_simulation`` and the analysis both read the
+    schedule from here.
+    """
+    if mating_model != "standard":
+        return [0.0] * G_sim, [0.0] * G_sim
+    if assort_matrix is not None:
+        matrix = np.asarray(assort_matrix, dtype=np.float64)
+        return [float(matrix[0, 0])] * G_sim, [float(matrix[1, 1])] * G_sim
+    from simace.simulation.simulate import resolve_per_gen_param
+
+    return (
+        resolve_per_gen_param(assort1, G_sim, name="assort1", allow_negative=True),
+        resolve_per_gen_param(assort2, G_sim, name="assort2", allow_negative=True),
+    )
+
+
 def _cross_am_matrix(assort1: float, assort2: float, rho_w: float) -> np.ndarray:
     """Build the 2x2 mate-correlation matrix ``R_mf`` for both-trait assortment.
 
@@ -84,8 +112,8 @@ class AssortmentPlan:
     def build(
         cls,
         *,
-        assort1: float | dict[int, float],
-        assort2: float | dict[int, float],
+        assort1_per_gen: list[float],
+        assort2_per_gen: list[float],
         R_mf_user: np.ndarray | None,
         rA: float,
         rC: float,
@@ -98,11 +126,11 @@ class AssortmentPlan:
         E2_per_gen: list[float],
         G_sim: int,
     ) -> AssortmentPlan:
-        """Resolve per-generation assortment and validate rho_w + PSD.
+        """Validate rho_w + PSD over the mating iterations of an :func:`assortment_schedule`.
 
         Args:
-            assort1: Trait-1 mate correlation; scalar or per-gen dict.
-            assort2: Trait-2 mate correlation; scalar or per-gen dict.
+            assort1_per_gen: Trait-1 mate correlation per mating iteration.
+            assort2_per_gen: Trait-2 mate correlation per mating iteration.
             R_mf_user: Explicit 2x2 mate-correlation matrix, or ``None`` to
                 auto-compute the cross-AM off-diagonal from ``rho_w``.
             rA: Cross-trait additive-genetic correlation.
@@ -120,13 +148,6 @@ class AssortmentPlan:
             ValueError: if both-trait AM is requested with ``|rho_w| >= 1`` at
                 any generation, or the full 4x4 ``Sigma_4`` is not PSD.
         """
-        from simace.simulation.simulate import resolve_per_gen_param
-
-        # assort1/assort2 may be scalar or per-gen dict (raw-iter keyed).
-        # AM correlations can be negative so we pass allow_negative=True.
-        assort1_per_gen = resolve_per_gen_param(assort1, G_sim, name="assort1", allow_negative=True)
-        assort2_per_gen = resolve_per_gen_param(assort2, G_sim, name="assort2", allow_negative=True)
-
         # Within-person cross-trait liability correlation per C/E generation
         _rho_w_A = rA * np.sqrt(A1 * A2)
         rho_w_per_ce = [

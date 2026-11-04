@@ -29,11 +29,11 @@ def _variance(draw, *, budget: float) -> float:
 
 @st.composite
 def _assort_schedule(draw, g_sim: int, *, nonzero: bool):
-    """Draw a scalar or per-iteration dict of mate correlations."""
+    """Draw one mate correlation per mating iteration, constant or not."""
     values = [v for v in _ASSORT_VALUES if v != 0.0] if nonzero else _ASSORT_VALUES
     if draw(st.booleans()):
-        return draw(st.sampled_from(values))
-    return {i: draw(st.sampled_from(values)) for i in range(g_sim)}
+        return [draw(st.sampled_from(values))] * g_sim
+    return [draw(st.sampled_from(values)) for _ in range(g_sim)]
 
 
 @st.composite
@@ -63,8 +63,8 @@ def _assortment_inputs(draw, *, constant_ce=False, both_trait=False, user_matrix
         matrix = np.array(entries, dtype=np.float64).reshape(2, 2)
 
     return dict(
-        assort1=draw(_assort_schedule(g_sim, nonzero=both_trait)),
-        assort2=draw(_assort_schedule(g_sim, nonzero=both_trait)),
+        assort1_per_gen=draw(_assort_schedule(g_sim, nonzero=both_trait)),
+        assort2_per_gen=draw(_assort_schedule(g_sim, nonzero=both_trait)),
         R_mf_user=matrix,
         rA=draw(_CORRELATIONS),
         rC=draw(_CORRELATIONS),
@@ -89,11 +89,6 @@ def _rho_w_schedule(kwargs: dict) -> list[float]:
     ]
 
 
-def _per_iteration(value, g_sim: int) -> list[float]:
-    """Expand a scalar or fully-specified dict schedule to one value per iteration."""
-    return [float(value)] * g_sim if isinstance(value, (int, float)) else [float(value[i]) for i in range(g_sim)]
-
-
 class TestPlanMatchesOracle:
     """The duplicated formulas in the two modules must not drift apart."""
 
@@ -109,14 +104,12 @@ class TestPlanMatchesOracle:
             plan = AssortmentPlan.build(**kwargs)
         except ValueError:
             return  # guarded corner; covered exhaustively by TestRuntimeScheduledGuards
-        a1_schedule = _per_iteration(kwargs["assort1"], kwargs["G_sim"])
-        a2_schedule = _per_iteration(kwargs["assort2"], kwargs["G_sim"])
 
         for i in range(kwargs["G_sim"]):
             _, _, _, r_mf = plan.for_generation(i)
             want = expected_mate_corr_matrix(
-                a1_schedule[i],
-                a2_schedule[i],
+                kwargs["assort1_per_gen"][i],
+                kwargs["assort2_per_gen"][i],
                 kwargs["rA"],
                 kwargs["rC"],
                 kwargs["A1"],
@@ -192,14 +185,12 @@ class TestRuntimeScheduledGuards:
         """
         g_sim = kwargs["G_sim"]
         rho_w = _rho_w_schedule(kwargs)
-        a1_schedule = _per_iteration(kwargs["assort1"], g_sim)
-        a2_schedule = _per_iteration(kwargs["assort2"], g_sim)
         user_matrix = kwargs["R_mf_user"]
 
         should_raise = False
         for i in range(g_sim):
             rw = rho_w[max(0, i - 1)]
-            a1_i, a2_i = a1_schedule[i], a2_schedule[i]
+            a1_i, a2_i = kwargs["assort1_per_gen"][i], kwargs["assort2_per_gen"][i]
             both_trait = a1_i != 0 and a2_i != 0
             if both_trait and abs(rw) >= 1.0 - 1e-10:
                 should_raise = True
