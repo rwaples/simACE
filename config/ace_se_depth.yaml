@@ -7,21 +7,32 @@
 # independent. These scenarios vary how much recorded ancestry lies above
 # and within the phenotyped generations, holding the rest at
 # se_cal_lam3_K10 (mating_lambda 3, trait1 A 0.5 C 0, trait2 A 0.4 C 0.2,
-# K 0.10; the probe reads the liabilities):
+# K 0.10; the probe reads the liabilities). Unlike se_cal_lam3_K10 they
+# simulate G_sim 11:
 #
 #   ped3:   G_ped 3, G_pheno 3: no recorded generation above the phenotyped.
-#   ped6:   G_ped 6, G_pheno 3: the se_calibration design (but G_sim 11).
+#   ped6:   G_ped 6, G_pheno 3: the se_calibration design.
 #   ped9:   G_ped 9, G_pheno 3: six recorded generations above.
 #   pheno6: G_ped 6, G_pheno 6: every recorded generation phenotyped.
 #
-# ped3, ped6 and ped9 share G_sim 11 and one seed range (22000-22099), so
-# rep k of each is the same simulated population with its recorded ancestry
-# truncated: the same phenotyped rows, paired across depth. pheno6 has its
-# own range (23000-23099). Seeds step by one per rep, so ranges must not
-# overlap.
+# Censoring windows are keyed by recorded generation (0 = oldest recorded),
+# so truncating the ancestry relabels the phenotyped generations. Each
+# scenario therefore sets gen_censoring itself: its three youngest
+# generations get se_calibration's windows, oldest to youngest [40, 80],
+# [0, 80], [0, 45], so case status matches across depth. pheno6's three
+# older phenotyped generations get [0, 80].
+#
+# ped3, ped6 and ped9 share G_sim 11 and one seed range (500000-500099) on
+# purpose, so rep k of each is the same simulated population with its
+# recorded ancestry truncated: the same phenotyped rows, paired across
+# depth. pheno6 has its own range (501000-501099). Seeds step by one per
+# rep, and both ranges are clear of every other folder's. Because the three
+# paired scenarios share seeds, `simace validate ace_se_depth` refuses to
+# pool them ("rep seed ranges overlap") and the folder verdict's pooled
+# tests come out insufficient; use the per-scenario verdicts.
 
 ace_se_depth_ped3:
-  seed: 22000
+  seed: 500000
   replicates: 100
   N: 20000
   G_ped: 3
@@ -40,9 +51,11 @@ ace_se_depth_ped3:
       model: adult
       params: {method: ltm, cip_x0: 50, cip_k: 0.2, prevalence: 0.10}
       beta: 1.0
+  censoring:
+    gen_censoring: {0: [40, 80], 1: [0, 80], 2: [0, 45]}
 
 ace_se_depth_ped6:
-  seed: 22000
+  seed: 500000
   replicates: 100
   N: 20000
   G_ped: 6
@@ -50,9 +63,11 @@ ace_se_depth_ped6:
   G_sim: 11
   pedigree: *pedigree
   phenotype: *phenotype
+  censoring:
+    gen_censoring: {3: [40, 80], 4: [0, 80], 5: [0, 45]}
 
 ace_se_depth_ped9:
-  seed: 22000
+  seed: 500000
   replicates: 100
   N: 20000
   G_ped: 9
@@ -60,9 +75,11 @@ ace_se_depth_ped9:
   G_sim: 11
   pedigree: *pedigree
   phenotype: *phenotype
+  censoring:
+    gen_censoring: {6: [40, 80], 7: [0, 80], 8: [0, 45]}
 
 ace_se_depth_pheno6:
-  seed: 23000
+  seed: 501000
   replicates: 100
   N: 20000
   G_ped: 6
@@ -70,3 +87,5 @@ ace_se_depth_pheno6:
   G_sim: 11
   pedigree: *pedigree
   phenotype: *phenotype
+  censoring:
+    gen_censoring: {0: [0, 80], 1: [0, 80], 2: [0, 80], 3: [40, 80], 4: [0, 80], 5: [0, 45]}
