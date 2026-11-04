@@ -131,6 +131,28 @@ from the stored float32 values equal the simulator's raw Mendelian draws to
 `onset_tau`'s baseline parameters (20,000 rep × trait cells) give mean z
 +0.008 ± 0.007.
 
+**Power of the household draw against a wrong b_f** (issue #81). Scoring
+b_f as −δ when the simulation used 0 leaves δ·C_father in the draw, which
+PHS pairs share, so the cell's correlation is about δ²/(1 + δ²) at
+b_m = b_f = 0. The verdict sees the mean z over at least 20 reps, not one
+rep's z. From `scripts/household_draw_power.py` (the test fixture's
+parameters, 50 seeds per N; power is the share of 20-rep resamples whose
+|mean z| exceeds the mean-z bound at `inheritance_calibration`'s α
+4.63e-04):
+
+| N | PHS pairs | mean z, δ = 0.2 / 0.3 / 0.5 | 20-rep power, δ = 0.2 / 0.3 / 0.5 |
+|---|---|---|---|
+| 1,000 | 790 | 0.26 / 0.74 / 2.11 | 0.013 / 0.424 / 1.000 |
+| 2,000 | 1,543 | 0.29 / 0.99 / 2.90 | 0.015 / 0.806 / 1.000 |
+| 20,000 | 15,756 | 1.77 / 3.81 / 9.30 | 1.000 / 1.000 / 1.000 |
+| 100,000 | 78,612 | 3.99 / 8.62 / 21.11 | 1.000 / 1.000 / 1.000 |
+
+So a scenario's verdict catches δ ≥ 0.5 from N = 1,000 and δ ≥ 0.2 at
+N = 20,000; δ = 0.1 needs about N = 100,000 (power 0.808). One rep alone
+passes z > 4 at δ = 0.5 in 6% of reps at N = 1,000 and 20% at N = 2,000,
+which is why the unit test scores δ = 1. Measured with b_m = 0, one depth
+(G_ped = 3) and random mating; other settings are unmeasured.
+
 ## Rejected alternatives
 
 - **Nominal targets with the MRCA SE** (the issue as filed): miscalibrated
