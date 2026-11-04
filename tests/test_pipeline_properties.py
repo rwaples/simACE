@@ -422,3 +422,31 @@ def test_merged_cohort_stage_composes_the_normalized_stages(
 
     _, other_population = run_cohort(pedigree, seed=seed, phenotype=phenotype, censor=censor, ascertain=other_ascertain)
     assert other_population == population
+
+
+@given(case=_chain_case(), data=st.data())
+def test_trait_one_moved_to_slot_two_reproduces_its_onsets(case: ChainCase, data: st.DataObject) -> None:
+    """Trait 1's liability, model, and parameters moved to slot 2, with seed - 100, give t2 == the old t1.
+
+    ``run_phenotype`` seeds trait 2 at ``seed + 100``. Rejects a model that
+    reads the slot number, a trait-1 column, or a trait-1 config key once
+    built for slot 2.
+    """
+    kwargs = case["phenotype_kwargs"] | {"seed": data.draw(st.integers(min_value=100, max_value=2**31 - 1))}
+    before = run_phenotype(case["pedigree"], **kwargs)
+
+    trait_one = {key[:-1]: value for key, value in kwargs.items() if key[-1] == "1"}
+    moved_kwargs = (
+        kwargs
+        | {f"{key}2": value for key, value in trait_one.items()}
+        | _draw_trait_kwargs(data.draw, 1, data.draw(st.sampled_from(_MODELS)))
+        | {"seed": kwargs["seed"] - 100}
+    )
+    moved_pedigree = case["pedigree"].with_columns(
+        pl.col("liability1").alias("liability2"),
+        pl.lit(0.0).cast(case["pedigree"]["liability1"].dtype).alias("liability1"),
+    )
+    after = run_phenotype(moved_pedigree, **moved_kwargs)
+
+    assert_series_equal(after["id"], before["id"], check_exact=True)
+    assert_series_equal(after["t2"], before["t1"].alias("t2"), check_exact=True)
