@@ -298,6 +298,36 @@ class TestStandardization:
             coverage += mask
         assert np.all(coverage == 1)
 
+    @given(
+        pair=_liability_and_generation(),
+        beta=_bounded_float(-3.0, 3.0),
+        mode=st.sampled_from(STANDARDIZE_CHOICES),
+        data=st.data(),
+    )
+    def test_relabelling_generations_changes_nothing(self, pair, beta, mode, data):
+        """An injective relabelling of generation values leaves both helpers bit-identical.
+
+        Grouping is by equality alone, so new labels in a new sort order must
+        not change any row. Rejects reading the label as a position or a
+        generation index, or pairing statistics with groups in label order.
+        """
+        liability, generation = pair
+        labels = np.unique(generation)
+        new = np.asarray(
+            data.draw(st.lists(st.integers(-1000, 1000), min_size=len(labels), max_size=len(labels), unique=True)),
+            dtype=np.int64,
+        )
+        relabelled = new[np.searchsorted(labels, generation)]
+        assert np.array_equal(
+            standardize_liability(liability, mode, generation), standardize_liability(liability, mode, relabelled)
+        )
+        for before, after in zip(
+            standardize_beta(liability, beta, mode, generation),
+            standardize_beta(liability, beta, mode, relabelled),
+            strict=True,
+        ):
+            assert np.array_equal(before, after)
+
 
 class TestTrueLifetimePrevalence:
     """``true_lifetime_prevalence_weibull`` against a closed form and its bounds."""
@@ -395,3 +425,36 @@ class TestHazardCli:
         distribution, params = parse_hazard_cli(args, trait, name=_CLI_NAME)
         validate_hazard_params(distribution, params, "frailty")
         assert params == ({"scale": scale} if supply == "scale" else {"rate": rate})
+
+
+# Each distribution's time-scale parameter, and how a time scale factor s enters it.
+_TIME_SCALE = {
+    "weibull": ("scale", lambda v, s: v * s),
+    "loglogistic": ("scale", lambda v, s: v * s),
+    "gamma": ("scale", lambda v, s: v * s),
+    "exponential": ("rate", lambda v, s: v / s),
+}
+
+
+@given(
+    distribution=st.sampled_from(sorted(_TIME_SCALE)),
+    data=st.data(),
+    k=st.integers(min_value=-6, max_value=6),
+)
+def test_time_scale_parameter_scales_event_times(distribution, data, k):
+    """Multiplying the time scale by ``s = 2**k`` multiplies every unclamped event time by ``s``.
+
+    A power of two keeps the scaling exact in the parameter, so the only
+    error is rounding inside each kernel; the 2-eps tolerance allows one
+    rounding on each side. Rows whose time hits the ``[1e-10, 1e6]`` clamp in
+    either run are skipped.
+    """
+    _, params, neg_log_u, liability, mean, scaled_beta = data.draw(_hazard_call(distribution=distribution))
+    key, scaled = _TIME_SCALE[distribution]
+    s = 2.0**k
+    t = compute_event_times(neg_log_u, liability, mean, scaled_beta, distribution, params)
+    t_s = compute_event_times(
+        neg_log_u, liability, mean, scaled_beta, distribution, params | {key: scaled(params[key], s)}
+    )
+    inside = (t > CLAMP_LO) & (t < CLAMP_HI) & (t_s > CLAMP_LO) & (t_s < CLAMP_HI)
+    np.testing.assert_allclose(t_s[inside], s * t[inside], rtol=2 * np.finfo(np.float64).eps, atol=0.0)
