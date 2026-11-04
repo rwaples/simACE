@@ -13,21 +13,25 @@ Properties:
     components, and ``liability == A + C + E`` within float32 storage error.
     Offset/burn-in arithmetic is the class of bug that passes at one default
     config but breaks at edge N/G_ped.
+  * The same contracts hold under assortative mating and C transmission,
+    except household C when a father's C is transmitted.
   * The recording window only selects rows: two runs differing only in G_ped
     agree exactly on their overlapping generations.
 """
 
+import re
 import warnings
 from unittest.mock import patch
 
 import numpy as np
 import polars as pl
 import pytest
-from hypothesis import HealthCheck, event, given
+from hypothesis import HealthCheck, assume, event, given
 from hypothesis import strategies as st
 from polars.testing import assert_frame_equal
 
 from simace.simulation import simulate
+from simace.simulation.params import CTransmission
 from simace.simulation.simulate import generate_correlated_components, mating, run_simulation
 from tests.conftest import property_budget
 
@@ -254,8 +258,11 @@ def _check_recorded_pedigree(ped: pl.DataFrame, kw: dict) -> None:
     assert np.all(sex[dad] == 1)
     # Founders' mothers are unrecorded (-1), so maternal grouping is checked only below them.
     assert _is_bijection(mom, household[nf])
-    for c in ("C1", "C2"):  # without C transmission; see test_c_transmission.py
-        assert _constant_within(col[c], household), c
+    # A household is one mother, so her transmitted C is shared and only a father's C
+    # varies within it; see test_c_transmission.py.
+    if not any(CTransmission.from_params(kw).paternal):
+        for c in ("C1", "C2"):
+            assert _constant_within(col[c], household), c
 
     paired = np.flatnonzero(twin >= 0)
     if kw["mating_model"] == "wright_fisher":
@@ -402,3 +409,77 @@ def test_recording_window_only_selects_rows(mating_model, data):
         _window_view(long, G_long - G_short, kw["N"]),
         check_exact=True,
     )
+
+
+# Every infeasibility refusal the assortative and C-transmission paths raise:
+# the both-trait plan (|rho_w| = 1, Sigma_4 not PSD; assortment.py), and the
+# realised trait, mate, or transmitted-C covariances at this N (simulate.py).
+_INFEASIBLE = "|".join(
+    (
+        r"Both-trait assortative mating requires \|rho_w\| < 1",
+        r"Full 4x4 mate correlation matrix Sigma_4 is not PSD",
+        r"Two-trait assortative mating: ",
+        r"is not attainable with the realised",
+        r"C transmission: ",
+    )
+)
+_NONZERO_ASSORTMENT = st.one_of(st.floats(min_value=-0.6, max_value=-0.01), st.floats(min_value=0.01, max_value=0.8))
+_TRANSMISSION = st.floats(min_value=0.0, max_value=1.0)
+
+
+@st.composite
+def assortative_kwargs(draw, mating_model: str) -> dict:
+    """``simulation_kwargs`` plus assortment on at least one trait and no, maternal-only, or two-parent C transmission.
+
+    Each trait's assortment lies in [-0.6, -0.01] or [0.01, 0.8]; one trait is
+    always assorted, so every example reaches the assortative pairing path.
+    Maternal-only transmission keeps the within-household C check live. Coefficient pairs lie
+    in the unit disk and are kept only when ``CTransmission.validate`` accepts
+    them for the drawn C, so a config-time refusal never reaches
+    ``run_simulation``.
+    """
+    kw = draw(simulation_kwargs(mating_model, draw(st.sampled_from(_E_TRANSITIONS))))
+    assorted = draw(st.sampled_from(["assort1", "assort2"]))
+    kw[assorted] = draw(_NONZERO_ASSORTMENT)
+    kw[{"assort1": "assort2", "assort2": "assort1"}[assorted]] = draw(st.one_of(st.just(0.0), _NONZERO_ASSORTMENT))
+    transmission = draw(st.sampled_from(["none", "maternal", "both"]))
+    if transmission != "none":
+        for t in "12":
+            b_m = draw(_TRANSMISSION)
+            b_f = draw(_TRANSMISSION) if transmission == "both" else 0.0
+            norm = max(1.0, float(np.hypot(b_m, b_f)))
+            kw |= {f"Ctm_maternal{t}": b_m / norm, f"Ctm_paternal{t}": b_f / norm}
+        try:
+            CTransmission.from_params(kw).validate(kw["C1"], kw["C2"], kw["rC"])
+        except ValueError:
+            assume(False)
+    return kw
+
+
+@pytest.mark.parametrize("mating_model", _MATING_MODELS)
+# run_simulation per example, plus assortative pairing; same budget as the zero-assortment test.
+@property_budget(15, suppress_health_check=[HealthCheck.too_slow, HealthCheck.filter_too_much])
+@given(data=st.data())
+def test_run_simulation_structural_integrity_under_assortment_and_c_transmission(mating_model, data):
+    """The recorded-pedigree contracts hold under assortative mating and C transmission.
+
+    Only the within-household C check is dropped, and only when a father's C
+    is transmitted. The assortative pairing path (Metropolis, kd-match,
+    ``_dedup_matings``) is otherwise covered only by golden digests and
+    statistical tests; this rejects parent, twin, or household links it
+    corrupts. An infeasibility refusal (``_INFEASIBLE``) is an allowed outcome.
+    """
+    kw = data.draw(assortative_kwargs(mating_model))
+    try:
+        ped = _run_with_extinction_check(**kw)
+    except ValueError as exc:
+        if not re.search(_INFEASIBLE, str(exc)):
+            raise
+        event("infeasible: refused")
+        return
+    if isinstance(ped, _VerifiedExtinction):
+        event(f"single-sex extinction: {ped.args}")
+        return
+    ct = CTransmission.from_params(kw)
+    event("paternal C transmitted" if any(ct.paternal) else "maternal C only" if ct.active else "fresh C")
+    _check_recorded_pedigree(ped, kw)

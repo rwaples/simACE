@@ -1,16 +1,14 @@
 """Property-based censoring invariants (strengthened CLAUDE.md identity #6).
 
-Beyond the boolean identity ``affected == ~(age_censored | death_censored)``,
-two stronger relations cross-check the three separately-computed output arrays
-over arbitrary onset times and observation windows:
-  * every recorded observation time precedes death (``t_observed <= death_age``);
-  * an affected individual's observed onset equals its raw onset — i.e. it was a
-    real in-window event before death (``affected => t_observed == t_raw``).
-  * a null raw onset has the same derived censoring outcome as a never-onset
-    sentinel beyond every applicable right boundary.
-A flipped clip direction, a wrong source array in the ``np.where`` death
-substitution, or a desynced flag would break these where the boolean identity
-alone (De Morgan of one assignment line) would not.
+Over arbitrary onsets (nulls included), observation windows and seeds:
+  * every output column equals its closed form, ``c = clip(t_fill, left,
+    right)`` with a null onset filled as +inf: ``t_observed == min(c,
+    death_age)``, ``death_censored == c > death_age``, ``age_censored == (t <
+    left) | (t > right)`` and ``affected == ~(age_censored | death_censored)``,
+    with onsets tied exactly to death ages to separate ``>`` from ``>=``;
+  * changing one trait's onsets leaves the other trait and the death draw
+    unchanged;
+  * scaling every time by a power of two scales the times and keeps the flags.
 """
 
 import numpy as np
@@ -24,6 +22,7 @@ from polars.testing import assert_frame_equal
 from simace.censoring.censor import run_censor
 from simace.core.trait_schema import TRAIT_CENSORED_COLUMNS
 
+_KWARGS = {"death_scale": 79.433, "death_rho": 10.0}
 _onset = st.floats(min_value=0.0, max_value=300.0, allow_nan=False, allow_infinity=False)
 _DERIVED_COLUMNS = (
     "age_censored1",
@@ -83,84 +82,12 @@ def _make_frames(n, gens, t1, t2):
     return phenotype, pedigree
 
 
-@given(_censor_case())
-def test_censoring_identity_and_time_bounds(case):
-    n, gens, t1, t2, censor_age, seed, gen_censoring = case
-    phenotype, pedigree = _make_frames(n, gens, t1, t2)
-
-    result = run_censor(
-        phenotype,
-        pedigree,
-        censor_age=censor_age,
-        seed=seed,
-        gen_censoring=gen_censoring,
-        death_scale=79.433,
-        death_rho=10.0,
-    )
-    death_age = result["death_age"].to_numpy()
-
-    for trait, t_raw in (("1", t1), ("2", t2)):
-        affected = result[f"affected{trait}"].to_numpy()
-        age_c = result[f"age_censored{trait}"].to_numpy()
-        death_c = result[f"death_censored{trait}"].to_numpy()
-        t_obs = result[f"t_observed{trait}"].to_numpy()
-
-        # the load-bearing boolean identity
-        np.testing.assert_array_equal(affected, ~age_c & ~death_c)
-        # no observation can be recorded after death
-        assert np.all(t_obs <= death_age + 1e-9)
-        # affected => observed onset is the (unclipped, pre-death) raw onset
-        if affected.any():
-            np.testing.assert_array_equal(t_obs[affected], t_raw[affected])
-
-
 def _with_selected_nulls(name: str, values: np.ndarray, selected: np.ndarray) -> pl.Series:
     return pl.Series(
         name,
         [None if replace else value for value, replace in zip(values, selected, strict=True)],
         dtype=pl.Float64,
     )
-
-
-@given(case=_censor_case(), data=st.data())
-def test_null_onset_matches_out_of_window_sentinel(case, data) -> None:
-    """Null onsets behave like a sentinel strictly beyond every right boundary."""
-    n, gens, t1, t2, censor_age, seed, gen_censoring = case
-    phenotype, pedigree = _make_frames(n, gens, t1, t2)
-
-    replace = data.draw(hnp.arrays(np.bool_, (2, n), elements=st.booleans())).copy()
-    replace.flat[data.draw(st.integers(min_value=0, max_value=replace.size - 1))] = True
-
-    effective_right = np.full(n, censor_age)
-    for gen, (_, hi) in gen_censoring.items():
-        effective_right[gens == gen] = hi
-    assert np.all(effective_right < 1e6)
-
-    null_phenotype = phenotype.with_columns(
-        _with_selected_nulls("t1", t1, replace[0]),
-        _with_selected_nulls("t2", t2, replace[1]),
-    )
-    sentinel_phenotype = phenotype.with_columns(
-        pl.Series("t1", np.where(replace[0], 1e6, t1)),
-        pl.Series("t2", np.where(replace[1], 1e6, t2)),
-    )
-    kwargs = {
-        "censor_age": censor_age,
-        "seed": seed,
-        "gen_censoring": gen_censoring,
-        "death_scale": 79.433,
-        "death_rho": 10.0,
-    }
-
-    null_result = run_censor(null_phenotype, pedigree, **kwargs)
-    sentinel_result = run_censor(sentinel_phenotype, pedigree, **kwargs)
-    assert null_result.select(_DERIVED_COLUMNS).equals(sentinel_result.select(_DERIVED_COLUMNS))
-
-    for trait, selected in (("1", replace[0]), ("2", replace[1])):
-        affected = null_result[f"affected{trait}"].to_numpy()
-        assert null_result[f"t{trait}"].null_count() == selected.sum()
-        assert not affected[selected].any()
-        assert np.isfinite(null_result[f"t_observed{trait}"].to_numpy()).all()
 
 
 @pytest.mark.parametrize("changed_trait", ["1", "2"])
@@ -176,13 +103,7 @@ def test_changing_one_raw_onset_leaves_the_other_trait_and_death_unchanged(case,
     replacement = data.draw(hnp.arrays(np.float64, n, elements=_onset))
     nulls = data.draw(hnp.arrays(np.bool_, n, elements=st.booleans()))
     changed = phenotype.with_columns(_with_selected_nulls(f"t{changed_trait}", replacement, nulls))
-    kwargs = {
-        "censor_age": censor_age,
-        "seed": seed,
-        "gen_censoring": gen_censoring,
-        "death_scale": 79.433,
-        "death_rho": 10.0,
-    }
+    kwargs = {"censor_age": censor_age, "seed": seed, "gen_censoring": gen_censoring, **_KWARGS}
 
     held = [column for column in TRAIT_CENSORED_COLUMNS if not column.endswith(changed_trait)]
     assert_frame_equal(
@@ -190,3 +111,85 @@ def test_changing_one_raw_onset_leaves_the_other_trait_and_death_unchanged(case,
         run_censor(phenotype, pedigree, **kwargs).select(held),
         check_exact=True,
     )
+
+
+def _windows(n, gens, censor_age, gen_censoring):
+    left = np.zeros(n)
+    right = np.full(n, float(censor_age))
+    for gen, (lo, hi) in gen_censoring.items():
+        left[gens == gen] = lo
+        right[gens == gen] = hi
+    return left, right
+
+
+@given(case=_censor_case(), data=st.data())
+def test_censoring_matches_closed_form(case, data) -> None:
+    """Every censoring column equals its closed form, including null onsets and onsets tied with death.
+
+    A null onset is filled as +inf and passes through unchanged in ``t{trait}``.
+    With ``c = clip(t_fill, left, right)``: ``t_observed == min(c, death_age)``,
+    ``death_censored == c > death_age``, ``age_censored == (t < left) | (t > right)``
+    and ``affected == ~(age_censored | death_censored)``. The death draw depends only on seed and row count, so a first run supplies
+    death ages that the second run's onsets can tie exactly; that tie separates
+    ``>`` from ``>=`` in the death flag.
+    """
+    n, gens, t1, t2, censor_age, seed, gen_censoring = case
+    kwargs = {"censor_age": censor_age, "seed": seed, "gen_censoring": gen_censoring, **_KWARGS}
+    phenotype, pedigree = _make_frames(n, gens, t1, t2)
+    death_age = run_censor(phenotype, pedigree, **kwargs)["death_age"].to_numpy()
+
+    tie = data.draw(hnp.arrays(np.bool_, (2, n), elements=st.booleans()))
+    nulls = data.draw(hnp.arrays(np.bool_, (2, n), elements=st.booleans())) & ~tie
+    raw = [np.where(tie[i], death_age, t) for i, t in enumerate((t1, t2))]
+    phenotype = phenotype.with_columns(
+        _with_selected_nulls("t1", raw[0], nulls[0]),
+        _with_selected_nulls("t2", raw[1], nulls[1]),
+    )
+    result = run_censor(phenotype, pedigree, **kwargs)
+    np.testing.assert_array_equal(result["death_age"].to_numpy(), death_age)
+
+    left, right = _windows(n, gens, censor_age, gen_censoring)
+    for i, trait in enumerate(("1", "2")):
+        t_fill = np.where(nulls[i], np.inf, raw[i])
+        c = np.clip(t_fill, left, right)
+        np.testing.assert_array_equal(result[f"t_observed{trait}"].to_numpy(), np.minimum(c, death_age))
+        np.testing.assert_array_equal(result[f"death_censored{trait}"].to_numpy(), c > death_age)
+        age_censored = (t_fill < left) | (t_fill > right)
+        np.testing.assert_array_equal(result[f"age_censored{trait}"].to_numpy(), age_censored)
+        np.testing.assert_array_equal(result[f"affected{trait}"].to_numpy(), ~age_censored & ~(c > death_age))
+        assert result[f"t{trait}"].equals(phenotype[f"t{trait}"])
+
+
+@given(case=_censor_case(), k=st.integers(min_value=1, max_value=8), data=st.data())
+def test_censoring_is_equivariant_under_power_of_two_time_scaling(case, k, data) -> None:
+    """Scaling onsets, windows, censor_age and death_scale by 2**k scales times by 2**k and keeps every flag.
+
+    Multiplying by a positive power of two is exact (no overflow at these
+    magnitudes), so the comparison is bit-exact: a censoring rule that mixed
+    in a fixed age constant would break it.
+    """
+    n, gens, t1, t2, censor_age, seed, gen_censoring = case
+    nulls = data.draw(hnp.arrays(np.bool_, (2, n), elements=st.booleans()))
+    s = 2.0**k
+    phenotype, pedigree = _make_frames(n, gens, t1, t2)
+
+    def run(scale):
+        frame = phenotype.with_columns(
+            _with_selected_nulls("t1", t1 * scale, nulls[0]),
+            _with_selected_nulls("t2", t2 * scale, nulls[1]),
+        )
+        return run_censor(
+            frame,
+            pedigree,
+            censor_age=censor_age * scale,
+            seed=seed,
+            gen_censoring={g: [lo * scale, hi * scale] for g, (lo, hi) in gen_censoring.items()},
+            death_scale=_KWARGS["death_scale"] * scale,
+            death_rho=_KWARGS["death_rho"],
+        )
+
+    base, scaled = run(1.0), run(s)
+    times = ["death_age", "t_observed1", "t_observed2"]
+    flags = [c for c in _DERIVED_COLUMNS if not c.startswith("t_observed")]
+    assert_frame_equal(scaled.select(flags), base.select(flags), check_exact=True)
+    assert_frame_equal(scaled.select(times), base.select(pl.col(times) * s), check_exact=True)
