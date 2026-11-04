@@ -4,7 +4,8 @@
 
 Proposed 2026-10-24 for issue #76. Decided in a `/grill-with-docs` session on the evidence in
 `notes/issue-76-recommendation.md` (random mating, engines, costs) and `notes/issue-76-am.md` (assortative
-mating). Not implemented.
+mating). Accepted and implemented 2026-11-04; the simACE-validate test of §10 waits for the
+release that ships the modes.
 
 ## Context
 
