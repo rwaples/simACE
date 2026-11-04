@@ -83,8 +83,10 @@ release that ships the modes.
 - `simace validate` checks that assume a Mendelian variance of A/2 change with the mode: the inheritance
   variance cell scores residuals normalised by √(1 − F̄), and the generation-0 total-variance check is not
   applicable when the mode is not `off`.
-- The pedigree schema gains a conditional column; consumers that estimate F from the recorded pedigree
-  (fitACE `export_inbreeding`, simACE-validate) should read `F` when present.
+- The pedigree schema gains a conditional column. `F` spans the whole simulated ancestry, which no real
+  analysis could observe, so consumers keep the recorded pedigree's F and add `F` beside it. fitACE
+  `export_inbreeding` writes recorded F as `F` and simACE's as `F_true` (amended 2026-11-04);
+  simACE-validate scores exact mode on a case with no burn-in, where the two agree.
 
 ## Alternatives rejected
 
