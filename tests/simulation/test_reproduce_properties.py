@@ -309,3 +309,32 @@ def test_parental_a_stays_in_its_trait(data, topology, params, seed):
         kept_cols = list(_TRAIT_COLUMNS[kept])
         assert np.array_equal(offspring[:, kept_cols], offspring_alt[:, kept_cols]), f"trait {changed} A leaked"
         assert np.array_equal(sex, sex_alt)
+
+
+@given(data=st.data(), topology=_ANY_TOPOLOGY, params=repro_params(), seed=_SEEDS, trait=st.sampled_from([1, 2]))
+def test_shifting_parental_a_shifts_offspring_a(data, topology, params, seed, trait):
+    """Adding ``d`` to every parent's A of one trait adds ``d`` to every offspring's A of that trait.
+
+    Every other offspring component and every sex is bit-identical: the
+    Mendelian noise is drawn independently of the parental values. Unlike the
+    zero-noise midparent checks, this holds at any noise SD, so it rejects
+    noise scaled by or drawn conditionally on the parents' A, and twin A copied
+    before the midparent is added.
+    """
+    inputs = data.draw(repro_inputs(topology))
+    d = data.draw(_VALUES)
+    col = _A_COLUMNS[trait - 1]
+    shifted = inputs.pheno.copy()
+    shifted[:, col] += d
+
+    offspring, sex = _reproduce(seed, inputs, params)
+    offspring_shift, sex_shift = _reproduce(seed, inputs._replace(pheno=shifted), params)
+
+    assert np.array_equal(sex, sex_shift)
+    others = [c for c in range(6) if c != col]
+    assert np.array_equal(offspring[:, others], offspring_shift[:, others])
+    # (m + d) + (f + d), halved, plus noise, against ((m + f) / 2 + noise) + d: each side rounds at
+    # most four times over magnitudes bounded by S, so they differ by at most 8 eps S.
+    mothers, fathers = inputs.parents[:, 0], inputs.parents[:, 1]
+    scale = np.abs(shifted[mothers, col]) + np.abs(shifted[fathers, col]) + np.abs(offspring[:, col]) + abs(d)
+    assert np.all(np.abs(offspring_shift[:, col] - (offspring[:, col] + d)) <= 8 * np.finfo(np.float64).eps * scale)
