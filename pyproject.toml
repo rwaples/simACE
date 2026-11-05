@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "simace"
 dynamic = ["version"]
 description = "ACE pedigree simulation with A/C/E variance components"
-requires-python = ">=3.14"
+requires-python = ">=3.14,<3.15"
 dependencies = [
     # Minor-capped: pair extraction / RELATIONSHIPS kinship changes upstream can
     # silently bias fit_ace heritability (CLAUDE.md gotcha #4) — bump deliberately.
