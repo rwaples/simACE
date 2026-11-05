@@ -12,6 +12,30 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### Ne expectations use the drift Ne of Hill 1979 ([#72](https://github.com/rwaples/simACE/issues/72))
+
+- **The `expected` values in `effective_size.yaml` changed under standard
+  (ZTP) mating.** Every drift-rate estimator now targets Hill 1979 eq. 10,
+  `4N/(2 + V(k))`. `ne_inbreeding`, `ne_coancestry`, `ne_group_coancestry`
+  and `ne_individual_delta_f` (times `t/(t−1)`) previously used `2N/V(k)`,
+  which omits Mendelian segregation and ran 13 % low at
+  `mating_lambda = 0.5`. `ne_long_term_contributions` keeps its value: the
+  old harmonic mean of `N` and `2N/V(k)` already equalled `4N/(2 + V(k))`.
+  Wright-Fisher expectations are unchanged.
+- **Expectations are withheld under assortative mating set per generation or
+  through `assort_matrix`.** Previously a per-generation `assort1`/`assort2`
+  crashed `simace effective-size`, and `assort_matrix` alone was ignored.
+- **`ne_variance_family_size` and `ne_hill_overlapping` have no expectation
+  under ZTP mating.** pedigree-graph's Ne_V computes `2N/V(k)`, which is not
+  the drift Ne
+  ([pedigree-graph#36](https://github.com/rwaples/pedigree-graph/issues/36)).
+- **`ne_v_expected_ztp` is replaced by `ne_drift_expected_ztp`**, which
+  returns `N / (1 + Var[m]/E[m]²)`. The regression-regime gate takes this
+  value, so it passes slightly less often. The plot subtitle reads `Ne≈` and
+  is omitted when no expectation applies, and
+  the per-generation plot no longer draws Ne_iΔF's last-cohort expectation
+  across earlier cohorts.
+
 ### No private imports across package boundaries ([#70](https://github.com/rwaples/simACE/issues/70))
 
 - **Private names other packages used are now public.** In simACE:

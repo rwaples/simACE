@@ -41,7 +41,7 @@ from .correlations import (
 )
 from .effective_size import (
     compute_effective_size,
-    ne_v_expected_ztp,
+    ne_drift_expected_ztp,
     regression_estimator_regime_ok,
     theoretical_expectations,
 )
@@ -95,7 +95,7 @@ __all__ = [
     "compute_tetrachoric_by_sex",
     "create_sample",
     "main",
-    "ne_v_expected_ztp",
+    "ne_drift_expected_ztp",
     "regression_estimator_regime_ok",
     "relationship_moments_for",
     "tetrachoric_corr",

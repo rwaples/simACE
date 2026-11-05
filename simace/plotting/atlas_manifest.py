@@ -684,15 +684,16 @@ EFFECTIVE_SIZE_ATLAS: tuple[AtlasItem, ...] = (
         body=(
             "Per-rep aggregate Ne for all eight estimators on a log y-axis. Blue dots show "
             "per-replicate values. Orange dashed lines show closed-form expectations from "
-            "theoretical_expectations() where defined: Ne_V for Ne_V and Ne_H; Ne_V·t/(t−1) for "
-            "Ne_iΔF, whose last-cohort reference has drifted one generation fewer than its "
-            "pedigree is deep; N for "
-            "Ne_sr; the harmonic mean of N and Ne_V for Ne_LTC, which Wray & Thompson eq. 31 "
-            "puts at 4N/(2+V(k)) against Ne_V's 2N/V(k). The regression estimators Ne_I, Ne_C, and Ne_GC get an "
-            "expected line only when N·G² is large enough for the Jensen bias to be small. Per-estimator mean "
+            "theoretical_expectations() where defined. The drift-rate estimators share one "
+            "target, the drift Ne 4N/(2+V(k)) of Hill 1979 eq. 10: Ne_LTC directly; Ne_I, "
+            "Ne_C, and Ne_GC only when N·G² is large enough for the Jensen bias to be small; "
+            "Ne_iΔF times t/(t−1), because its last-cohort reference has drifted one "
+            "generation fewer than its pedigree is deep. Ne_sr expects N. Ne_V and Ne_H get a "
+            "line only under Wright-Fisher: pedigree-graph's Ne_V computes 2N/V(k), which is "
+            "not the drift Ne when V(k) ≠ 2 (pedigree-graph#36). Per-estimator mean "
             "± SD across reps is annotated above each column. Open markers below the axis "
             "mark reps that returned None (commonly Ne_LTC at G_ped=6). Subtitle reports the scenario header (N, λ, G_ped, "
-            "expected Ne_V)."
+            "expected drift Ne)."
         ),
     ),
     PlotEntry(
@@ -704,7 +705,8 @@ EFFECTIVE_SIZE_ATLAS: tuple[AtlasItem, ...] = (
             "ne_per_gen. The Ne_V panel uses ne_per_transition. Its x-axis is labelled "
             "'transition (g→g+1)' with half-integer ticks, so the offset from generation "
             "indexing is visible. One colored line per replicate. Orange "
-            "dashed horizontal lines show the closed-form expectation when defined. The plot "
+            "dashed horizontal lines show the closed-form expectation when defined, except on "
+            "Ne_iΔF, whose expectation holds only for the last cohort. The plot "
             "skips NaN entries, such as early-generation Ne_I before drift accumulates."
         ),
     ),

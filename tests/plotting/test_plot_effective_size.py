@@ -332,6 +332,14 @@ def test_by_generation_reference_line_takes_the_first_expected(recorded_referenc
     assert recorded_reference_lines["axhline"] == [11000.0]
 
 
+def test_by_generation_draws_no_reference_for_individual_delta_f(recorded_reference_lines, tmp_path: Path):
+    # Ne_iΔF's expectation holds for the last cohort only.
+    est = "ne_individual_delta_f"
+    plot_ne_by_generation(_series_df(est), _scalar_df([11000.0, 11000.0], est), tmp_path, "png")
+
+    assert recorded_reference_lines["axhline"] == []
+
+
 def test_by_generation_renders_empty_panels_without_crashing(recorded_reference_lines, tmp_path: Path):
     # Only one of the six panels has data; the rest must fall to the "no data"
     # branch rather than raising on an empty frame.
@@ -347,7 +355,7 @@ def test_by_generation_renders_empty_panels_without_crashing(recorded_reference_
 
 
 class TestBuildSubtitleWF:
-    """Subtitle omits λ and shows Ne_V≈N under WF."""
+    """Subtitle omits λ and shows the drift Ne≈N under WF."""
 
     def test_wf_omits_lambda_and_shows_n(self):
         params = {
@@ -359,7 +367,7 @@ class TestBuildSubtitleWF:
         subtitle = _build_subtitle(params, scenario="wf_smoke")
         assert "λ=" not in subtitle
         assert "WF" in subtitle
-        assert "Ne_V≈2,000" in subtitle
+        assert "Ne≈2,000" in subtitle
         assert "N=2,000" in subtitle
 
     def test_standard_unchanged(self):
@@ -371,5 +379,9 @@ class TestBuildSubtitleWF:
         }
         subtitle = _build_subtitle(params, scenario="std_smoke")
         assert "λ=0.5" in subtitle
-        # Standard ZTP(0.5) gives Ne_V ≈ 0.7349·N ≈ 1470, not N.
-        assert "Ne_V≈1,470" in subtitle
+        # Standard ZTP(0.5) gives drift Ne = 4N/(2+V(k)) ≈ 0.8472·N ≈ 1694, not N.
+        assert "Ne≈1,694" in subtitle
+
+    def test_assortative_mating_omits_ne(self):
+        params = {"mating_model": "standard", "N": 2000, "G_ped": 6, "mating_lambda": 0.5, "assort1": 0.3}
+        assert "Ne≈" not in _build_subtitle(params, scenario="am")

@@ -12,7 +12,7 @@ that produced a result holds the record's ``to_dict()`` payload plus an
 assortative mating). A key the library refused holds that refusal verbatim
 — :class:`~pedigree_graph.effective_size.UnavailableEffectiveSize`'s
 ``{reason, code, fields}`` — with no ``ne`` and no ``expected``, so the
-reason survives into the validator instead of being flattened to a null Ne.
+reason survives into ``effective_size.yaml`` instead of being flattened to a null Ne.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ __all__ = [
     "compute_effective_size",
     "family_size_variance_expected_ztp",
     "main",
-    "ne_v_expected_ztp",
+    "ne_drift_expected_ztp",
     "regression_estimator_regime_ok",
     "theoretical_expectations",
 ]
@@ -38,6 +38,7 @@ from pedigree_graph.effective_size import (
     estimate_effective_sizes,
 )
 
+from simace.analysis.quality.assortative_mating import assortment_schedule
 from simace.core.cli_base import add_logging_args, init_logging
 from simace.core.cohort import read_cohort, read_pedigree, selected_views
 from simace.core.yaml_io import dump_yaml, load_yaml
@@ -47,53 +48,54 @@ if TYPE_CHECKING:
     import polars as pl
 
 # Bias on regression-based Ne estimators (Ne_I, Ne_C, Ne_GC) scales as
-# ``Ne_V / (N · G²)`` due to Jensen inversion of a noisy slope; we mark
-# the regime as "ok" only when this implied bias is below the validator's
-# ±20 % tolerance.  Constant chosen to match `bias_ratio < 0.20`.
+# ``Ne / (N · G²)`` due to Jensen inversion of a noisy slope; we mark the
+# regime as "ok" only when this implied bias is below about 20 %.  The
+# constant is an empirical heuristic, not a calibrated guarantee.
 _REGRESSION_REGIME_THRESHOLD = 120.0
 
 
-def ne_v_expected_ztp(n: float, mating_lambda: float) -> float:
-    """Closed-form ``Ne_V`` expectation under simACE's mating model.
+def ne_drift_expected_ztp(n: float, mating_lambda: float) -> float:
+    """Closed-form drift ``Ne`` under simACE's standard mating model.
 
     Under random mating with balanced 50/50 sex, ZTP(λ) mating counts
     per individual, and multinomial allocation of N offspring across the
     resulting matings, the per-individual total-offspring count has
 
         ``E[k] = 2``,
-        ``V(k) = 2 + 4 · Var[m] / E[m]²``,
+        ``V(k) = 2 + 4 · r``,   ``r = Var[m] / E[m]²``,
 
     where ``m ~ ZTP(λ)`` with
 
         ``E[m]   = λ / (1 − e^(−λ))``,
         ``Var[m] = E[m] · (1 + λ) − E[m]²``.
 
-    Plugging into ``Ne_V = 2N / V(k)`` yields
+    Hill 1979 eq. 10 with ``M = F = N/2``, ``L = 1`` and
+    ``σ²_m = σ²_f = V(k)`` is ``Ne = 8N / (2·V(k) + 4) = 4N / (2 + V(k))``,
+    which is
 
-        ``Ne_V = N / (1 + 2 · Var[m] / E[m]²)``.
+        ``Ne = N / (1 + r)``.
 
-    The formula is exact in the multinomial → Poisson per-mating
-    offspring limit (large M); finite-sample correction is
-    ``O(1 / number_of_matings)``.
+    The ``+ 2`` beside ``V(k)`` is Mendelian segregation (Hill's eq. 7);
+    the form ``2N/V(k)`` omits it and runs 13 % low at λ = 0.5 (issue #72).
+
+    This is the large-N limit.  Trimming the larger sex's mating slots
+    to the smaller's total (:func:`~simace.simulation.simulate.balance_mating_slots`)
+    adds family-size variance of order ``N^(−1/2)``, so simulated
+    pedigrees drift slightly faster than this.
 
     Limits:
-        * ``λ → 0⁺`` (degenerate at m=1, monogamous): ``Ne_V = N``.
-        * ``λ → ∞`` (Poisson, no truncation): ``Ne_V = N``.
-        * Default ``λ = 0.5``: ``Ne_V ≈ 0.7349 · N``.
+        * ``λ → 0⁺`` (degenerate at m=1, monogamous): ``Ne = N``.
+        * ``λ → ∞`` (Poisson, no truncation): ``Ne = N``.
+        * Default ``λ = 0.5``: ``Ne ≈ 0.8472 · N``.
     """
-    if mating_lambda <= 0:
-        return float(n)
-    p = 1.0 - math.exp(-mating_lambda)
-    e_m = mating_lambda / p
-    var_m = e_m * (1.0 + mating_lambda) - e_m * e_m
-    return float(n) / (1.0 + 2.0 * var_m / (e_m * e_m))
+    return float(n) / (1.0 + family_size_variance_expected_ztp(mating_lambda)["cov"])
 
 
 def family_size_variance_expected_ztp(mating_lambda: float) -> dict[str, float]:
     """Closed-form ``(v, cov)`` per-sex-quadrant family-size decomposition.
 
-    Splits :func:`ne_v_expected_ztp`'s total offspring-count variance
-    ``V(k) = 2 + 4 · Var[m] / E[m]²`` into the per-(parent-sex ×
+    Splits the total offspring-count variance
+    ``V(k) = 2 + 4 · Var[m] / E[m]²`` behind :func:`ne_drift_expected_ztp` into the per-(parent-sex ×
     offspring-sex) variance ``v`` and the between-offspring-sex
     covariance ``cov`` reported by :func:`pedigree_graph.ne_variance_family_size`.
 
@@ -103,8 +105,7 @@ def family_size_variance_expected_ztp(mating_lambda: float) -> dict[str, float]:
         ``v   = E[k]/4 + V(k)/4 = 1 + Var[m] / E[m]²``,
         ``cov = -E[k]/4 + V(k)/4 = Var[m] / E[m]²``,
 
-    so that ``2 · v + 2 · cov = V(k)`` and downstream Ne_V is consistent
-    with :func:`ne_v_expected_ztp`.  All four quadrants
+    so that ``2 · v + 2 · cov = V(k)``.  All four quadrants
     (``v_mm = v_mf = v_fm = v_ff``) share the same closed-form ``v``,
     and both covariances (``cov_m = cov_f``) share the same ``cov``,
     because the parent and offspring sex labels are exchangeable under
@@ -127,21 +128,21 @@ def family_size_variance_expected_ztp(mating_lambda: float) -> dict[str, float]:
     return {"v": 1.0 + ratio, "cov": ratio}
 
 
-def regression_estimator_regime_ok(n: float, g_ped: int, ne_v: float) -> bool:
+def regression_estimator_regime_ok(n: float, g_ped: int, ne: float) -> bool:
     """Whether the regression-based Ne estimators are reliable at this scale.
 
     The slope estimate in Ne_I, Ne_C, and Ne_GC has variance
     ``∝ 1/(N·G³)``; inverting the slope to get Ne incurs a Jensen bias
-    that scales as ``Ne_V² / (N · G²)``.  We declare the regime
-    acceptable when the implied bias on Ne is below ~20 % of Ne_V,
-    which corresponds to ``N · G² ≥ 120 · Ne_V``.
+    that scales as ``Ne² / (N · G²)``, where ``Ne`` is the drift
+    expectation.  We declare the regime acceptable when the implied bias
+    on Ne is below ~20 % of Ne, which corresponds to ``N · G² ≥ 120 · Ne``.
 
     Returns ``False`` for ``g_ped < 2`` (no slope possible) regardless
     of ``N``.
     """
     if g_ped < 2:
         return False
-    return n * g_ped * g_ped >= _REGRESSION_REGIME_THRESHOLD * ne_v
+    return n * g_ped * g_ped >= _REGRESSION_REGIME_THRESHOLD * ne
 
 
 def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float | None]:
@@ -149,49 +150,46 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
 
     Returns a per-estimator dict.  Every entry is ``None`` when ``config``
     is missing, ``N`` is unknown, or the configuration includes a
-    non-standard knob (currently: nonzero ``assort1`` / ``assort2``).
+    non-standard knob (currently: assortative mating in any generation,
+    through ``assort1``, ``assort2`` or ``assort_matrix``).
 
-    Under random mating with 50/50 sex and ZTP(``mating_lambda``) family
-    allocation, the family-size variance correction reduces
-    ``Ne_V``-family estimators below ``N`` per :func:`ne_v_expected_ztp`.
-    Two estimators (Ne_V, Ne_H) inherit that expectation directly — their
-    finite-sample bias is ``O(1/N)`` and negligible at realistic simACE
-    scales.
+    The estimators that read the realized drift rate share one target,
+    the drift ``Ne`` of :func:`ne_drift_expected_ztp`: Hill 1979 eq. 10,
+    ``4N / (2 + V(k))``, which is ``N`` under Wright-Fisher (``V(k) = 2``).
+    Issue #72 measured the realized rate on simACE pedigrees at
+    ``N = 2000`` (5 reps, read from pair sharing and from the rise in mean
+    kinship) at −1.6 % to +0.1 % of it under ZTP(0.5) and ZTP(2); the
+    committed check is ``test_drift_expectation_matches_simulator_mc``.
 
-    Ne_iΔF carries a known upward bias of ``t/(t−1)`` on top of it, where
-    ``t = G_ped − 1`` is the last recorded cohort's equivalent complete
-    generations, because the recorded founders are unrelated by
-    construction and so the cohort has drifted for one generation fewer
-    than its pedigree is deep.  Its expectation is ``Ne_V · t/(t−1)``, and
-    ``None`` below ``t = 3`` where that factor is untested.
+    * **Ne_I, Ne_C, Ne_GC** carry a Jensen bias on the inverted slope of
+      order ``Ne² / (N · G²)`` that typically dominates at simACE's default
+      ``G_ped = 6``.  We return their expectation only when
+      :func:`regression_estimator_regime_ok` is satisfied, otherwise
+      ``None``.
+    * **Ne_iΔF** carries a known upward bias of ``t/(t−1)`` on top of it,
+      where ``t = G_ped − 1`` is the last recorded cohort's equivalent
+      complete generations, because the recorded founders are unrelated by
+      construction and so the cohort has drifted for one generation fewer
+      than its pedigree is deep.  Its expectation is ``Ne · t/(t−1)``, and
+      ``None`` below ``t = 3`` where that factor is untested.
+    * **Ne_LTC** is the drift ``Ne`` itself.  Wray & Thompson 1990 eq. 31
+      is ``Ne = 2N/(μ_r² + σ_r²)`` with ``μ_r = 1``, and ``σ_r² = V(k)/2``
+      makes that ``4N/(2 + V(k))``.  It is an asymptotic target: the
+      estimator reads the last cohort, so a shallow pedigree need not reach
+      it.
+    * **Ne_sr** stays at ``N`` (deterministic balanced sex ratio).
+    * **Ne_V and Ne_H** get ``N`` under Wright-Fisher and ``None``
+      otherwise.  pedigree-graph's Ne_V omits Hill's segregation term and
+      returns ``2N/V(k)``, which equals the drift ``Ne`` only at
+      ``V(k) = 2`` (pedigree-graph#36), and without ``birth_year`` Ne_H
+      passes Ne_V through.  No expectation is stated for a number that is
+      not the drift ``Ne``.
 
-    Three regression-based estimators (Ne_I, Ne_C, Ne_GC) carry a Jensen
-    bias on the inverted slope of order ``Ne_V² / (N · G²)`` that
-    typically dominates at simACE's default ``G_ped = 6``.  We return
-    their expectation only when
-    :func:`regression_estimator_regime_ok` is satisfied, otherwise
-    ``None`` (validator passes vacuously).
-
-    Ne_sr stays at ``N`` (deterministic balanced sex ratio).
-
-    Ne_LTC is the harmonic mean of ``N`` and ``Ne_V``.  Wray & Thompson
-    1990 eq. 31 is ``Ne = 2N/(μ_r² + σ_r²)`` with ``μ_r = 1``, and their
-    p. 51 relation ``σ_r² = V(k)/2`` makes that ``4N/(2 + V(k))``;
-    :func:`ne_v_expected_ztp` is ``2N/V(k)``, so ``V(k)`` cancels out of
-
-        ``2/Ne_LTC = 1/N + 1/Ne_V``.
-
-    Under Wright-Fisher ``V(k) = 2``, ``Ne_V = N``, and the two coincide.
-    ``test_ne_ltc_expectation_matches_simulator_mc`` is the committed method
-    behind that claim.  Driven through simACE's own simulator at ``N = 1000``
-    over 12 reps, ``2/Σc²`` lands +0.75 % from this expectation under
-    ZTP(0.5) at ``G_ped = 8``, +0.73 % at ``G_ped = 12``, and +0.58 % under
-    Wright-Fisher, each inside 0.8 standard errors of the replicate mean.
-
-    The estimator this describes is the post-ADR-0012 ``Ne = 2/Σc²``.
-    pedigree-graph 0.8 reports ``1/(2·Σc²)``, four times lower, so
-    :func:`compute_effective_size` withholds this expectation from a 0.8
-    record.
+    Assumptions the config cannot check: the expectations describe the
+    full simulated pedigree without twins.  MZ twinning (``p_mztwin``)
+    changes birth allocation and shares a genome, and the analysis
+    pedigree is the selected sample plus its ancestors, so a small or
+    selective sample shifts the realized values.
     """
     if config is None:
         return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
@@ -205,25 +203,26 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
 
     if mating_model == "wright_fisher":
         # Sex-structured idealized WF: per-individual offspring count has
-        # mean 2 and variance ≈ 2 (Poisson(2)), giving Ne_V → N via
-        # Crow-Kimura. assort1/assort2/mating_lambda are no-ops.  The
-        # regression-based estimators still carry the same Jensen-bias
-        # gate; under WF the gate reduces to G_ped² ≥ 120.
-        ne_v = n
+        # mean 2 and variance ≈ 2 (Poisson(2)), so V(k) = 2 and every drift
+        # form gives N.  assort1/assort2/mating_lambda are no-ops.  The
+        # regression gate reduces to G_ped² ≥ 120.
+        ne = n
+        family_size_expected: float | None = n
     else:
-        # Standard model: AM nullifies expectations; mating_lambda required.
-        assort1 = float(config.get("assort1") or 0.0)
-        assort2 = float(config.get("assort2") or 0.0)
-        if assort1 != 0.0 or assort2 != 0.0:
+        # Standard model: AM in any generation or through assort_matrix
+        # nullifies expectations; mating_lambda required.
+        assort1, assort2 = assortment_schedule(config)
+        if any(assort1) or any(assort2):
             return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
         mating_lambda = config.get("mating_lambda")
         if mating_lambda is None:
             return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
-        ne_v = ne_v_expected_ztp(n, float(mating_lambda))
+        ne = ne_drift_expected_ztp(n, float(mating_lambda))
+        family_size_expected = None
 
     g_ped = config.get("G_ped")
-    regression_ok = g_ped is not None and regression_estimator_regime_ok(n, int(g_ped), ne_v)
-    regression_expected = ne_v if regression_ok else None
+    regression_ok = g_ped is not None and regression_estimator_regime_ok(n, int(g_ped), ne)
+    regression_expected = ne if regression_ok else None
 
     # Ne_iΔF reads the last recorded cohort, whose equivalent complete
     # generations are G_ped - 1: simulate.py records exactly G_ped cohorts
@@ -237,16 +236,16 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
     if g_ped is not None:
         t_ref = int(g_ped) - 1
         if t_ref >= 3:
-            delta_f_expected = ne_v * t_ref / (t_ref - 1.0)
+            delta_f_expected = ne * t_ref / (t_ref - 1.0)
 
     return {
         "ne_inbreeding": regression_expected,
         "ne_coancestry": regression_expected,
-        "ne_variance_family_size": ne_v,
+        "ne_variance_family_size": family_size_expected,
         "ne_sex_ratio": n,
         "ne_individual_delta_f": delta_f_expected,
-        "ne_long_term_contributions": 2.0 * n * ne_v / (n + ne_v),
-        "ne_hill_overlapping": ne_v,
+        "ne_long_term_contributions": ne,
+        "ne_hill_overlapping": family_size_expected,
         "ne_group_coancestry": regression_expected,
     }
 
@@ -283,11 +282,9 @@ def compute_effective_size(
         estimators = tuple(name for name in estimators if name != "ne_coancestry")
     raw = estimate_effective_sizes(pg, estimators)
     expected = theoretical_expectations(config)
-    # Hill 1979's closed-form Ne_V passthrough only applies under the
-    # strictly-discrete simACE simulator (L = 1).  When pg.birth_year is
-    # set, ne_hill_overlapping computes the true overlapping-generation
-    # form (Hill 1979 eq. 10) with a non-trivial L; no analytic
-    # expectation is available, so the validator passes vacuously.
+    # With pg.birth_year set, ne_hill_overlapping computes Hill 1979 eq. 10
+    # with an estimated generation interval L, for which no closed-form
+    # expectation is stated here.
     if pg.birth_year is not None:
         expected["ne_hill_overlapping"] = None
     out: dict[str, dict[str, Any]] = {}

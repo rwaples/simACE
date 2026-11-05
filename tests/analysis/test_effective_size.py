@@ -12,7 +12,8 @@ from pedigree_graph.effective_size import ALL_EFFECTIVE_SIZE_ESTIMATORS
 
 from simace.analysis.stats.effective_size import (
     compute_effective_size,
-    ne_v_expected_ztp,
+    family_size_variance_expected_ztp,
+    ne_drift_expected_ztp,
     regression_estimator_regime_ok,
     theoretical_expectations,
 )
@@ -72,22 +73,38 @@ class TestTheoreticalExpectations:
         assert all(v is None for v in exp.values())
 
     def test_baseline100K_default_drops_regression_estimators(self):
-        # baseline100K config: N=100K, G_ped=6 ⇒ N·G² = 3.6M < 120·Ne_V (~8.8M),
-        # regression-based Ne_I/Ne_C/Ne_CT must report None.
+        # baseline100K config: N=100K, G_ped=6 ⇒ N·G² = 3.6M < 120·Ne (~10.2M),
+        # regression-based Ne_I/Ne_C/Ne_GC must report None.
         cfg = {"N": 100000, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5, "G_ped": 6}
         exp = theoretical_expectations(cfg)
-        ne_v = ne_v_expected_ztp(100000.0, 0.5)
+        ne = ne_drift_expected_ztp(100000.0, 0.5)
         assert exp["ne_inbreeding"] is None
         assert exp["ne_coancestry"] is None
         assert exp["ne_group_coancestry"] is None
-        # Variance/cohort-mean estimators stay populated.
-        assert exp["ne_variance_family_size"] == pytest.approx(ne_v)
         # G_ped=6 ⇒ the last cohort has t=5 equivalent complete generations but
         # only 4 of drift, so Ne_iΔF is expected 5/4 high (pedigree-graph #15).
-        assert exp["ne_individual_delta_f"] == pytest.approx(ne_v * 5.0 / 4.0)
-        assert exp["ne_hill_overlapping"] == pytest.approx(ne_v)
+        assert exp["ne_individual_delta_f"] == pytest.approx(ne * 5.0 / 4.0)
         assert exp["ne_sex_ratio"] == pytest.approx(100000.0)
-        assert 2.0 / exp["ne_long_term_contributions"] == pytest.approx(1.0 / 100000.0 + 1.0 / ne_v)
+        assert exp["ne_long_term_contributions"] == pytest.approx(ne)
+
+    def test_standard_withholds_family_size_estimators(self):
+        # pedigree-graph's Ne_V computes 2N/V(k), not the drift Ne, when
+        # V(k) != 2 (pedigree-graph#36); Ne_H passes it through without
+        # birth_year.  Neither gets an expectation under ZTP mating.
+        cfg = {"N": 2000, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5, "G_ped": 12}
+        exp = theoretical_expectations(cfg)
+        assert exp["ne_variance_family_size"] is None
+        assert exp["ne_hill_overlapping"] is None
+
+    def test_drift_estimators_share_the_hill_expectation(self):
+        # Issue #72: every drift-rate estimator targets 4N/(2+V(k)).
+        cfg = {"N": 2000, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 2.0, "G_ped": 12}
+        exp = theoretical_expectations(cfg)
+        v_k = 2.0 + 4.0 * family_size_variance_expected_ztp(2.0)["cov"]
+        hill = 4.0 * 2000 / (2.0 + v_k)
+        for name in ("ne_inbreeding", "ne_coancestry", "ne_group_coancestry", "ne_long_term_contributions"):
+            assert exp[name] == pytest.approx(hill), name
+        assert exp["ne_individual_delta_f"] == pytest.approx(hill * 11.0 / 10.0)
 
     def test_missing_g_ped_drops_regression_estimators(self):
         cfg = {"N": 100000, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5}
@@ -99,7 +116,24 @@ class TestTheoreticalExpectations:
         # and so the size of its founder-boundary bias, is unknown.
         assert exp["ne_individual_delta_f"] is None
         # Other estimators still populated.
-        assert exp["ne_variance_family_size"] is not None
+        assert exp["ne_long_term_contributions"] is not None
+
+    def test_per_generation_assortment_disables_expectations(self):
+        # A per-generation dict used to crash float(); AM in any generation
+        # nullifies the random-mating expectations.
+        cfg = {"N": 2000, "G_ped": 12, "mating_lambda": 0.5, "assort1": {0: 0.0, 5: 0.3}, "assort2": 0.0}
+        assert all(v is None for v in theoretical_expectations(cfg).values())
+
+    def test_assort_matrix_alone_disables_expectations(self):
+        cfg = {
+            "N": 2000,
+            "G_ped": 12,
+            "mating_lambda": 0.5,
+            "assort1": 0.0,
+            "assort2": 0.0,
+            "assort_matrix": [[0.3, 0.1], [0.1, 0.3]],
+        }
+        assert all(v is None for v in theoretical_expectations(cfg).values())
 
     def test_missing_mating_lambda_disables_expectations(self):
         cfg = {"N": 200, "assort1": 0.0, "assort2": 0.0}
@@ -122,7 +156,6 @@ class TestTheoreticalExpectations:
         # G_ped=4 ⇒ t=3, so Ne_iΔF is expected 3/2 high.
         assert exp["ne_individual_delta_f"] == pytest.approx(3000.0)
         assert exp["ne_hill_overlapping"] == pytest.approx(2000.0)
-        # WF puts Ne_V at N, where the harmonic mean of N and Ne_V is N itself.
         assert exp["ne_long_term_contributions"] == pytest.approx(2000.0)
 
     def test_wf_long_g_ped_populates_regression(self):
@@ -148,33 +181,38 @@ class TestTheoreticalExpectations:
 
 
 # ---------------------------------------------------------------------------
-# ne_v_expected_ztp closed-form limits
+# ne_drift_expected_ztp closed-form limits
 # ---------------------------------------------------------------------------
 
 
-class TestNeVExpectedZtp:
+class TestNeDriftExpectedZtp:
     def test_lambda_zero_limit_is_N(self):
-        # ZTP degenerates to m=1 ⇒ no extra mating-count variance ⇒ Ne_V = N.
-        assert ne_v_expected_ztp(1000, 0.0) == pytest.approx(1000.0)
-        assert ne_v_expected_ztp(1000, 1e-9) == pytest.approx(1000.0, rel=1e-6)
+        # ZTP degenerates to m=1 ⇒ no extra mating-count variance ⇒ Ne = N.
+        assert ne_drift_expected_ztp(1000, 0.0) == pytest.approx(1000.0)
+        assert ne_drift_expected_ztp(1000, 1e-9) == pytest.approx(1000.0, rel=1e-6)
 
     def test_large_lambda_limit_approaches_N(self):
-        # Poisson, no truncation ⇒ Var[m]/E[m]² → 1/λ ⇒ slow approach to N.
-        # At λ=100, Var[m]/E[m]² = 1/100, Ne_V/N = 1/1.02 ≈ 0.9804.
-        assert ne_v_expected_ztp(1000, 100.0) == pytest.approx(1000.0 / 1.02, rel=1e-3)
-        # By λ=10000 we're within 0.02 % of N.
-        assert ne_v_expected_ztp(1000, 10000.0) == pytest.approx(1000.0, rel=1e-3)
+        # Poisson, no truncation ⇒ r = Var[m]/E[m]² → 1/λ ⇒ slow approach to N.
+        # At λ=100, r = 1/100, Ne/N = 1/1.01.
+        assert ne_drift_expected_ztp(1000, 100.0) == pytest.approx(1000.0 / 1.01, rel=1e-3)
+        # By λ=10000 we're within 0.01 % of N.
+        assert ne_drift_expected_ztp(1000, 10000.0) == pytest.approx(1000.0, rel=1e-3)
 
     def test_default_lambda_05_value(self):
-        # Numerically verified: 0.7349·N at λ=0.5 (matches baseline100K observation).
-        assert ne_v_expected_ztp(100000.0, 0.5) == pytest.approx(73489.5, rel=1e-4)
+        # Hill 1979 eq. 10: 4N/(2 + V(k)) with V(k) = 2.7216 at λ=0.5.
+        assert ne_drift_expected_ztp(100000.0, 0.5) == pytest.approx(84716.5, rel=1e-4)
+
+    def test_is_hill_eq_10(self):
+        for lam in (0.3, 0.5, 2.0):
+            v_k = 2.0 + 4.0 * family_size_variance_expected_ztp(lam)["cov"]
+            assert ne_drift_expected_ztp(2000, lam) == pytest.approx(4.0 * 2000 / (2.0 + v_k)), lam
 
     def test_monotone_in_lambda_below_unity(self):
-        # ZTP overdispersion grows with λ for λ < 1 ⇒ Ne_V/N decreases.
+        # ZTP overdispersion grows with λ for λ < 1 ⇒ Ne/N decreases.
         from itertools import pairwise
 
         n = 1000
-        ratios = [ne_v_expected_ztp(n, lam) / n for lam in (0.1, 0.3, 0.5, 0.7, 0.9)]
+        ratios = [ne_drift_expected_ztp(n, lam) / n for lam in (0.1, 0.3, 0.5, 0.7, 0.9)]
         for a, b in pairwise(ratios):
             assert a >= b, f"Not monotone: {ratios}"
 
@@ -185,12 +223,12 @@ class TestRegressionEstimatorRegimeOk:
         assert not regression_estimator_regime_ok(1e9, 1, 1.0)
 
     def test_baseline100K_default_is_not_ok(self):
-        # N=100K, G=6, Ne_V=73,485 ⇒ N·G² = 3.6M < 120·73,485 = 8.82M
-        assert not regression_estimator_regime_ok(100000.0, 6, 73485.0)
+        # N=100K, G=6, Ne=84,717 ⇒ N·G² = 3.6M < 120·84,717 = 10.2M
+        assert not regression_estimator_regime_ok(100000.0, 6, 84717.0)
 
     def test_high_g_ped_brings_regime_into_range(self):
-        # N=100K, G=15 ⇒ N·G² = 22.5M > 8.82M
-        assert regression_estimator_regime_ok(100000.0, 15, 73485.0)
+        # N=100K, G=15 ⇒ N·G² = 22.5M > 10.2M
+        assert regression_estimator_regime_ok(100000.0, 15, 84717.0)
 
 
 # ---------------------------------------------------------------------------
@@ -225,18 +263,17 @@ class TestComputeEffectiveSize:
         assert not _is_unavailable(result["ne_inbreeding"])
 
     def test_expected_attached_when_config_standard(self, tiny_pedigree):
-        # G_ped=20 puts the regime check well into "ok" for N=200, so all
-        # six drift/variance estimators receive expectations.
+        # G_ped=20 puts the regime check well into "ok" for N=200, so the
+        # regression estimators receive the drift expectation too.
         cfg = {"N": 200, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5, "G_ped": 20}
         result = compute_effective_size(tiny_pedigree, config=cfg)
-        ne_v = ne_v_expected_ztp(200, 0.5)
-        for k in EXPECTED_KEYS - {"ne_sex_ratio", "ne_long_term_contributions", "ne_individual_delta_f"}:
-            assert result[k]["expected"] == pytest.approx(ne_v)
-        delta_f = result["ne_individual_delta_f"]
-        assert delta_f["expected"] == pytest.approx(ne_v * 19.0 / 18.0)
+        ne = ne_drift_expected_ztp(200, 0.5)
+        for k in ("ne_inbreeding", "ne_coancestry", "ne_group_coancestry", "ne_long_term_contributions"):
+            assert result[k]["expected"] == pytest.approx(ne), k
+        assert result["ne_individual_delta_f"]["expected"] == pytest.approx(ne * 19.0 / 18.0)
         assert result["ne_sex_ratio"]["expected"] == pytest.approx(200.0)
-        ltc = result["ne_long_term_contributions"]
-        assert 2.0 / ltc["expected"] == pytest.approx(1.0 / 200.0 + 1.0 / ne_v)
+        assert result["ne_variance_family_size"]["expected"] is None
+        assert result["ne_hill_overlapping"]["expected"] is None
 
     def test_cohort_arrays_are_sized_by_the_observed_labels_they_carry(self, tiny_pedigree):
         result = compute_effective_size(tiny_pedigree)
@@ -295,7 +332,7 @@ class TestComputeEffectiveSize:
         result = compute_effective_size(df, config=cfg)
         assert result["ne_hill_overlapping"]["expected"] is None
         # Other estimators still receive their expected values.
-        assert result["ne_variance_family_size"]["expected"] is not None
+        assert result["ne_inbreeding"]["expected"] is not None
 
 
 # ---------------------------------------------------------------------------
@@ -367,65 +404,66 @@ def _build_wf_pedigree(rng: np.random.Generator, n: int = 50, n_gens: int = 8) -
     return pd.DataFrame(rows)
 
 
-def test_ne_v_formula_matches_simulator_mc():
-    """Closed-form ``ne_v_expected_ztp`` matches simACE simulator within ±5 %.
+def test_pg_ne_v_still_returns_2n_over_vk():
+    """Canary for pedigree-graph#36: its Ne_V is ``2N/V(k)``, not the drift Ne.
 
-    Runs 12 reps at N=2000, G_ped=4 with default ``mating_lambda=0.5``,
-    extracts the per-transition Ne_V from each rep, and asserts the
-    grand mean agrees with ``ne_v_expected_ztp(2000, 0.5)`` to within
-    ±5 %.  Tighter tolerance than the validator's ±20 % because we are
-    averaging over ~3·12 = 36 transitions which suppresses the
-    multinomial-allocation noise.
+    pedigree-graph's ``ne_variance_family_size`` computes, per sex,
+    ``ΔF_s = V_s / (4·N_s·k̄_s²)``, which omits Hill 1979's segregation term;
+    Hill eq. 10 split by sex is ``(V_s + 2) / (32·N_s)`` at ``k̄ = 2``.  So on
+    ZTP(0.5) pedigrees it lands near ``2N/V(k)`` rather than ``4N/(2+V(k))``,
+    and :func:`theoretical_expectations` withholds its expectation.  When this
+    fails because Ne_V moved to the drift Ne, restore the Ne_V and Ne_H
+    expectations and delete this test.
+
+    12 reps at N=2000, G_ped=4; the grand mean over ~36 transitions sits within
+    ±5 % of ``2N/V(k)`` and about 13 % below the drift Ne.
     """
     from pedigree_graph.effective_size import ne_variance_family_size
 
-    n = 2000
-    n_reps = 12
-    mating_lambda = 0.5
-    expected = ne_v_expected_ztp(n, mating_lambda)
+    n, n_reps, mating_lambda = 2000, 12, 0.5
+    v_k = 2.0 + 4.0 * family_size_variance_expected_ztp(mating_lambda)["cov"]
+    two_n_over_vk = 2.0 * n / v_k
 
     per_transition: list[float] = []
     for rep in range(n_reps):
         ped = _drift_only_pedigree(seed=1000 + rep, n=n, g_ped=4, mating_lambda=mating_lambda)
-        pg = PedigreeGraph.from_frame(ped)
-        result = ne_variance_family_size(pg)
+        result = ne_variance_family_size(PedigreeGraph.from_frame(ped))
         finite = result.ne_per_transition[np.isfinite(result.ne_per_transition)]
         per_transition.extend(finite.tolist())
 
     mean_ne = float(np.mean(per_transition))
-    rel_err = abs(mean_ne / expected - 1.0)
-    assert rel_err < 0.05, (
-        f"Ne_V mean across {len(per_transition)} transitions = {mean_ne:.1f}, "
-        f"expected {expected:.1f} (rel err {rel_err:.3f}); formula needs reviewing."
+    assert abs(mean_ne / two_n_over_vk - 1.0) < 0.05, (
+        f"Ne_V mean across {len(per_transition)} transitions = {mean_ne:.1f}, 2N/V(k) = "
+        f"{two_n_over_vk:.1f}, drift Ne = {ne_drift_expected_ztp(n, mating_lambda):.1f}; "
+        "if Ne_V now tracks the drift Ne, pedigree-graph#36 is fixed."
     )
 
 
 @pytest.mark.parametrize(
     ("mating_model", "g_ped"),
-    [("standard", 8), ("standard", 12), ("wright_fisher", 8)],
+    [("standard", 8), ("standard", 12), ("wright_fisher", 8), ("wright_fisher", 12)],
 )
-def test_ne_ltc_expectation_matches_simulator_mc(mating_model: str, g_ped: int):
-    """``theoretical_expectations``' Ne_LTC matches the simulator within ±3 %.
+def test_drift_expectation_matches_simulator_mc(mating_model: str, g_ped: int):
+    """The drift Ne of ``theoretical_expectations`` matches the simulator.
 
-    This is the committed method behind the numbers cited in
-    :func:`theoretical_expectations`' docstring.  Wray & Thompson 1990 eq. 31
-    with their p. 51 relation ``σ_r² = V(k)/2`` is ``4N/(2 + V(k))`` while
-    ``ne_v_expected_ztp`` is ``2N/V(k)``, so the prediction is the harmonic mean
-    of ``N`` and ``Ne_V`` and ``V(k)`` never has to be estimated.
+    This is the committed method behind :func:`theoretical_expectations`'
+    drift target, Hill 1979 eq. 10 ``4N/(2 + V(k))`` (issue #72).  It checks
+    Ne_LTC at every depth and Ne_C wherever the regression gate passes
+    (``G_ped = 12`` here).
 
-    Reads ``2/Σc²`` out of ``sum_c_squared`` rather than the record's ``ne``
-    because that field means the same thing under both pinned versions:
-    pedigree-graph 0.8 reports ``1/(2·Σc²)``, four times lower, and withholds it
-    entirely unless its asymptote gate fires, which on a stochastic pedigree it
-    does not (ADR 0012).
+    Ne_LTC is read as ``2/Σc²`` out of ``sum_c_squared`` rather than the
+    record's ``ne`` so the check does not depend on how pedigree-graph
+    scales or withholds the record's ``ne`` (ADR 0012).
 
-    Measured at N=1000 over 12 reps: +0.75 % (standard, G_ped=8), +0.73 %
-    (standard, G_ped=12), +0.58 % (Wright-Fisher, G_ped=8), each under 0.8
-    standard errors of the replicate mean.  The ±3 % band is about 3.5 sem and
-    still rejects every formula this replaced — the old ``Ne_V/2`` sits 57 %
-    low under ZTP(0.5) and a bare ``Ne_V`` 13 % low.
+    Measured at N=1000 over these 12 seeds, against 847.2 (ZTP) and 1000
+    (WF): Ne_LTC −0.17 % (standard, G_ped=8), −0.49 % (standard, 12), +0.15 %
+    (WF, 12); Ne_C −2.12 % (standard, 12; sem 0.62 %) and +0.01 % (WF, 12).
+    Ne_C's ZTP shortfall is plausibly the extra family-size variance that
+    slot balancing adds at finite N (:func:`ne_drift_expected_ztp`), so Ne_C
+    gets ±5 % against Ne_LTC's ±3 %.  Both bands reject ``2N/V(k)`` = 734.9,
+    which sits 13 % below the drift Ne.
     """
-    from pedigree_graph.effective_size import ne_long_term_contributions
+    from pedigree_graph.effective_size import ne_coancestry, ne_long_term_contributions
 
     n, mating_lambda, n_reps = 1000, 0.5, 12
     cfg = {
@@ -436,22 +474,27 @@ def test_ne_ltc_expectation_matches_simulator_mc(mating_model: str, g_ped: int):
         "G_ped": g_ped,
         "mating_model": mating_model,
     }
-    expected = theoretical_expectations(cfg)["ne_long_term_contributions"]
+    exp = theoretical_expectations(cfg)
 
-    observed = []
+    ltc, coancestry = [], []
     for rep in range(n_reps):
         ped = _drift_only_pedigree(
             seed=1000 + rep, n=n, g_ped=g_ped, mating_lambda=mating_lambda, mating_model=mating_model
         )
-        res = ne_long_term_contributions(PedigreeGraph.from_frame(ped))
-        observed.append(2.0 / res.sum_c_squared)
+        pg = PedigreeGraph.from_frame(ped)
+        ltc.append(2.0 / ne_long_term_contributions(pg).sum_c_squared)
+        if exp["ne_coancestry"] is not None:
+            coancestry.append(ne_coancestry(pg).ne)
 
-    mean_ltc = float(np.mean(observed))
-    rel_err = abs(mean_ltc / expected - 1.0)
-    assert rel_err < 0.03, (
-        f"2/Sum(c^2) mean across {n_reps} reps = {mean_ltc:.1f}, expected {expected:.1f} "
-        f"(rel err {rel_err:.3f}); the W&T eq. 31 harmonic-mean relation needs reviewing."
-    )
+    checks = [("Ne_LTC 2/Sum(c^2)", ltc, exp["ne_long_term_contributions"], 0.03)]
+    if coancestry:
+        checks.append(("Ne_C", coancestry, exp["ne_coancestry"], 0.05))
+    for label, observed, expected, tol in checks:
+        mean = float(np.mean(observed))
+        rel_err = abs(mean / expected - 1.0)
+        assert rel_err < tol, (
+            f"{label} mean across {n_reps} reps = {mean:.1f}, expected {expected:.1f} (rel err {rel_err:.3f})"
+        )
 
 
 def test_cross_estimator_consistency_under_wf():

@@ -32,7 +32,7 @@ from pedigree_graph.effective_size import ALL_EFFECTIVE_SIZE_ESTIMATORS
 
 from simace.analysis.stats.effective_size import (
     family_size_variance_expected_ztp,
-    ne_v_expected_ztp,
+    theoretical_expectations,
 )
 from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_style import COLOR_EXPECTED, COLOR_OBSERVED
@@ -51,6 +51,10 @@ _NE_KEYS_ORDERED = ALL_EFFECTIVE_SIZE_ESTIMATORS
 # the label its record gave it rather than a 0..n-1 slot.  Ne_I, Ne_C and
 # Ne_GC report Ne per adjacent-cohort transition, so their Ne is one row
 # shorter than their drift means; Ne_V reports it per parent generation.
+# Estimators whose scalar expectation holds only for the last cohort, so the
+# per-generation panel draws no reference line for them.
+_LAST_COHORT_EXPECTATION = frozenset({"ne_individual_delta_f"})
+
 _NE_SERIES_AXIS: dict[str, tuple[str, str]] = {
     "ne_inbreeding": ("transition", "transition"),
     "ne_coancestry": ("transition", "transition"),
@@ -409,6 +413,8 @@ def plot_ne_by_generation(
     """Figure 2: per-generation/per-transition Ne curves (2×3 grid).
 
     ``scalar_df`` supplies the per-estimator ``expected`` reference line.
+    Ne_iΔF gets none: its expectation is for the last cohort only, and the
+    ``t/(t−1)`` founder-lag factor differs in every earlier cohort.
     """
     fig, axes = plt.subplots(2, 3, figsize=(11.0, 6.5), sharey=False)
     for ax, (est, (kind, xlabel)) in zip(axes.flat, _NE_SERIES_AXIS.items(), strict=True):
@@ -437,7 +443,7 @@ def plot_ne_by_generation(
             .unique(maintain_order=True)
         )
         expected_val = float(expected_vals[0]) if len(expected_vals) else None
-        if expected_val is not None and expected_val > 0:
+        if expected_val is not None and expected_val > 0 and est not in _LAST_COHORT_EXPECTATION:
             ax.axhline(
                 expected_val,
                 color=COLOR_EXPECTED,
@@ -593,9 +599,9 @@ def _save(fig, path: Path) -> None:
 def _build_subtitle(params: dict, scenario: str | None = None) -> str:
     """Compose the Figure 1 subtitle from the rep params.yaml dict.
 
-    Branches on ``mating_model``: under WF, omits the ZTP λ term and
-    reports ``Ne_V≈N`` (the idealized-WF expectation) instead of the
-    ZTP-derived value.
+    Branches on ``mating_model``: under WF, omits the ZTP λ term.  The
+    ``Ne≈`` term is the drift expectation from :func:`theoretical_expectations`,
+    omitted when it is ``None`` (e.g. under assortative mating).
     """
     scenario = scenario or params.get("scenario") or params.get("scenario_name") or "scenario"
     mating_model = params.get("mating_model", "standard")
@@ -611,11 +617,9 @@ def _build_subtitle(params: dict, scenario: str | None = None) -> str:
         parts.append(f"λ={float(lam):g}")
     if g_ped is not None:
         parts.append(f"G_ped={int(g_ped)}")
-    if n is not None:
-        if mating_model == "wright_fisher":
-            parts.append(f"Ne_V≈{int(n):,}")
-        elif lam is not None:
-            parts.append(f"Ne_V≈{ne_v_expected_ztp(float(n), float(lam)):,.0f}")
+    drift_ne = theoretical_expectations(params)["ne_long_term_contributions"]
+    if drift_ne is not None:
+        parts.append(f"Ne≈{drift_ne:,.0f}")
     return "  ".join(parts)
 
 
