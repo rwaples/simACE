@@ -72,6 +72,43 @@ and vertical transmission. It does not model what a registry adds on top:
 onset ages, censoring at the end of follow-up, and ascertainment of families
 through affected probands.
 
+### Scale: xftsim and simACE on one host
+
+We ran both tools on one host on 2026-11-04. The host was an Intel
+i7-9750H with 12 logical cores and 30 GB of RAM. Each run was capped at
+16 GiB with swap off. Under that cap, xftsim with 1,000 loci reaches
+N = 300,000 and is killed for running out of memory at N = 1,000,000.
+simACE runs N = 1,000,000 end to end in 31 s with a 2.3 GB peak.
+
+| Tool | N per generation | Loci (M) | Median wall time | Peak RSS | Runs |
+|---|---|---|---|---|---|
+| xftsim 0.3.1 | 10,000 | 1,000 | 5.2 s | 728 MB | 3 |
+| xftsim 0.3.1 | 100,000 | 1,000 | 47.4 s | 3,704 MB | 3 |
+| xftsim 0.3.1 | 300,000 | 1,000 | 137.5 s | 11,510 MB | 3 |
+| xftsim 0.3.1 | 1,000,000 | 1,000 | killed at 161 s | over 16 GiB | 1 |
+| xftsim 0.3.1 | 100,000 | 10,000 | killed at 124 s | over 16 GiB | 1 |
+| simACE | 10,000 | none | 3.4 s | 374 MB | 3 |
+| simACE | 100,000 | none | 6.6 s | 659 MB | 3 |
+| simACE | 1,000,000 | none | 30.9 s | 2,285 MB | 3 |
+
+The two tools do different work, so this table compares scale limits, not
+speed on the same task:
+
+- **xftsim** (commit `8a4cdf0`) ran its own univariate demo trait with
+  h2 = 0.5, under random mating, for 5 generations. It stores an `int8`
+  haplotype matrix for every person and keeps a networkx pedigree that
+  grows every generation. It used 38.1 KB per person, about 10 times the
+  3.9 KB its haplotypes alone need. We have not measured where the rest
+  goes.
+- **simACE** simulated 8 generations of infinitesimal A, C and E liabilities
+  for two traits and recorded 6 of them. Each run went through simulate,
+  cohort and analyze, which covers phenotyping, censoring, and relationship
+  pairs. The wall time is the sum of the stage times in each rep's
+  `timing.tsv`.
+
+Neither tool's thread count was pinned. A run killed for running out of
+memory rests on one attempt.
+
 ## Twin-data ACE simulators
 
 Twin packages model A, C, and E directly, and three of the four simulate
