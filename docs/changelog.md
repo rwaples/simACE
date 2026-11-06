@@ -10,7 +10,7 @@ change that breaks the command line, configuration keys, or result files
 CalVer (`YYYY.MM[.patch]`). The 0.1.0 section also lists the changes those
 releases shipped after 2026.05.3.
 
-## Unreleased
+## 0.3.0 — 2026-11-06
 
 ### pedigree-graph 0.15
 
