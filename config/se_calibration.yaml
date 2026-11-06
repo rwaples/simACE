@@ -15,9 +15,14 @@
 # tetrachoric model is only approximately right. The SE is a sandwich, which
 # stays valid under that misspecification when pairs are independent, so a
 # gap between SD(r) and the SE measures the dependence between pairs.
+#
+# Base seeds are 100 apart, one block of `replicates` each, so no two
+# scenarios share a rep seed. Until pg-phenotype #21 they were 55010-55060,
+# 10 apart: rep k runs on seed + k - 1, so scenarios that differ only in K
+# shared 90 identical pedigrees, and the grid held 150 distinct seeds.
 
 se_cal_lam05_K10:
-  seed: 55010
+  seed: 555000
   replicates: 100
   N: 20000
   pedigree: &pedigree_lam05
@@ -35,7 +40,7 @@ se_cal_lam05_K10:
       beta: 1.0
 
 se_cal_lam05_K02:
-  seed: 55020
+  seed: 555100
   replicates: 100
   N: 20000
   pedigree: *pedigree_lam05
@@ -50,7 +55,7 @@ se_cal_lam05_K02:
       beta: 1.0
 
 se_cal_lam3_K10:
-  seed: 55030
+  seed: 555200
   replicates: 100
   N: 20000
   pedigree: &pedigree_lam3
@@ -60,7 +65,7 @@ se_cal_lam3_K10:
   phenotype: *pheno_K10
 
 se_cal_lam3_K02:
-  seed: 55040
+  seed: 555300
   replicates: 100
   N: 20000
   pedigree: *pedigree_lam3
@@ -70,7 +75,7 @@ se_cal_lam3_K02:
 # parent-offspring and collateral gaps to grow with h2. trait1 A = 0.8, C = 0;
 # trait2 A = 0.5, C = 0.3.
 se_cal_lam05_K10_hiA:
-  seed: 55050
+  seed: 555400
   replicates: 100
   N: 20000
   pedigree: &pedigree_lam05_hiA
@@ -80,7 +85,7 @@ se_cal_lam05_K10_hiA:
   phenotype: *pheno_K10
 
 se_cal_lam3_K10_hiA:
-  seed: 55060
+  seed: 555500
   replicates: 100
   N: 20000
   pedigree:
