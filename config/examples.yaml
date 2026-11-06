@@ -45,7 +45,7 @@ am_none:
       beta: 1.0
       beta_sex: 0.0
 am_weak:
-  seed: 70422
+  seed: 70424
   G_sim: 10
   G_ped: 10
   G_pheno: 10
@@ -67,7 +67,7 @@ am_weak:
       beta: 1.0
       beta_sex: 0.0
 am_strong:
-  seed: 70423
+  seed: 70427
   G_sim: 10
   G_ped: 10
   G_pheno: 10
@@ -111,7 +111,7 @@ model_ltm:
       beta: 1.0
       beta_sex: 0.0
 model_frailty_wb:
-  seed: 70502
+  seed: 70504
   G_sim: 10
   G_ped: 10
   G_pheno: 10
@@ -132,7 +132,7 @@ model_frailty_wb:
       beta: 1.0
       beta_sex: 0.0
 model_cure_frailty_ln:
-  seed: 70503
+  seed: 70507
   G_sim: 10
   G_ped: 10
   G_pheno: 10
@@ -224,7 +224,7 @@ e_flat_nostd:
       beta: 1.0
       beta_sex: 0.0
 e_rise_mild_std:
-  seed: 70602
+  seed: 70604
   N: 100000
   G_sim: 10
   G_ped: 10
@@ -259,7 +259,7 @@ e_rise_mild_std:
       beta: 1.0
       beta_sex: 0.0
 e_rise_mild_nostd:
-  seed: 70602
+  seed: 70604
   N: 100000
   G_sim: 10
   G_ped: 10
@@ -294,7 +294,7 @@ e_rise_mild_nostd:
       beta: 1.0
       beta_sex: 0.0
 e_rise_steep_std:
-  seed: 70603
+  seed: 70607
   N: 100000
   G_sim: 10
   G_ped: 10
@@ -329,7 +329,7 @@ e_rise_steep_std:
       beta: 1.0
       beta_sex: 0.0
 e_rise_steep_nostd:
-  seed: 70603
+  seed: 70607
   N: 100000
   G_sim: 10
   G_ped: 10
@@ -364,7 +364,7 @@ e_rise_steep_nostd:
       beta: 1.0
       beta_sex: 0.0
 e_fall_steep_std:
-  seed: 70604
+  seed: 70610
   N: 100000
   G_sim: 10
   G_ped: 10
@@ -399,7 +399,7 @@ e_fall_steep_std:
       beta: 1.0
       beta_sex: 0.0
 e_fall_steep_nostd:
-  seed: 70604
+  seed: 70610
   N: 100000
   G_sim: 10
   G_ped: 10
@@ -475,7 +475,7 @@ e_flat_pergen:
       beta: 1.0
       beta_sex: 0.0
 e_rise_mild_pergen:
-  seed: 70602
+  seed: 70604
   N: 100000
   G_sim: 10
   G_ped: 10
@@ -510,7 +510,7 @@ e_rise_mild_pergen:
       beta: 1.0
       beta_sex: 0.0
 e_rise_steep_pergen:
-  seed: 70603
+  seed: 70607
   N: 100000
   G_sim: 10
   G_ped: 10
@@ -545,7 +545,7 @@ e_rise_steep_pergen:
       beta: 1.0
       beta_sex: 0.0
 e_fall_steep_pergen:
-  seed: 70604
+  seed: 70610
   N: 100000
   G_sim: 10
   G_ped: 10

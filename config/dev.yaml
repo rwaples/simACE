@@ -27,7 +27,7 @@ dev_laplace_n1k:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 dev_laplace_n3k:
-  seed: 70101
+  seed: 70105
   N: 1000
   replicates: 1
   pedigree:
@@ -35,7 +35,7 @@ dev_laplace_n3k:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 dev_laplace_n10k:
-  seed: 70102
+  seed: 70106
   N: 3400
   replicates: 1
   pedigree:
@@ -43,7 +43,7 @@ dev_laplace_n10k:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 dev_laplace_n30k:
-  seed: 70103
+  seed: 70107
   N: 10000
   replicates: 1
   pedigree:
@@ -51,7 +51,7 @@ dev_laplace_n30k:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 dev_laplace_n50k:
-  seed: 70104
+  seed: 70108
   N: 17000
   replicates: 1
   pedigree:
@@ -86,7 +86,7 @@ dev_laplace_ae_only:
     trait1: { A: 0.5, C: 0.0, E: 0.5 }
 
 dev_laplace_c2_high:
-  seed: 70203
+  seed: 70207
   N: 3400
   replicates: 1
   pedigree:
@@ -94,7 +94,7 @@ dev_laplace_c2_high:
     trait1: { A: 0.3, C: 0.4, E: 0.3 }
 
 dev_laplace_ce_dominant:
-  seed: 70204
+  seed: 70208
   N: 3400
   replicates: 1
   pedigree:
@@ -125,7 +125,7 @@ dev_laplace_K_rare:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 dev_laplace_K_common:
-  seed: 70401
+  seed: 70405
   N: 3400
   replicates: 1
   pedigree:
@@ -133,7 +133,7 @@ dev_laplace_K_common:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 dev_laplace_K_half:
-  seed: 70402
+  seed: 70410
   N: 3400
   replicates: 1
   pedigree:
@@ -177,7 +177,7 @@ dev_laplace_am_strong_50k:
 # underlying pedigree + liability draws are identical.
 
 dev_cont_n10k:
-  seed: 70102  # matched to dev_laplace_n10k
+  seed: 70106  # matched to dev_laplace_n10k
   N: 3400
   replicates: 1
   pedigree:
@@ -185,7 +185,7 @@ dev_cont_n10k:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 dev_cont_n50k:
-  seed: 70104  # matched to dev_laplace_n50k
+  seed: 70108  # matched to dev_laplace_n50k
   N: 17000
   replicates: 1
   pedigree:
@@ -212,7 +212,7 @@ dev_cont_am_strong:
 # scenarios, with liability_model=mean) for side-by-side comparison ───
 
 dev_mean_n10k:
-  seed: 70102  # matched seed to dev_laplace_n10k
+  seed: 70106  # matched seed to dev_laplace_n10k
   N: 3400
   replicates: 1
   pedigree:
@@ -220,7 +220,7 @@ dev_mean_n10k:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 dev_mean_n50k:
-  seed: 70104
+  seed: 70108
   N: 17000
   replicates: 1
   pedigree:
@@ -242,7 +242,7 @@ dev_mean_am_strong:
 # the dense-V⁻¹ n ≤ 2000 cap.
 
 dev_mcem_n1k:
-  seed: 70101  # matched to dev_laplace_n1k
+  seed: 70100  # matched to dev_laplace_n1k
   N: 340
   replicates: 5
   pedigree:
@@ -258,7 +258,7 @@ dev_mcem_K_rare:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 dev_mcem_K_common:
-  seed: 70401  # matched to dev_laplace_K_common
+  seed: 70405  # matched to dev_laplace_K_common
   N: 340
   replicates: 5
   pedigree:

@@ -124,7 +124,7 @@ iter_reml_300k:
       E: 0.4
 
 iter_reml_300k_noam:
-  seed: 60301
+  seed: 60305
   N: 100000
   replicates: 5
   pedigree:
