@@ -236,13 +236,15 @@ dev_mean_am_strong:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 # ─── MCEM scenarios (Phase 4 M4 validation) ───────────────────────────
-# Seeds matched to corresponding Laplace scenarios so pedigree +
-# liability draws are identical — head-to-head bias comparison is
-# valid.  Smaller N (→ ~1k post-pedigree) keeps the v1 MCEM within
-# the dense-V⁻¹ n ≤ 2000 cap.
+# N 340 (→ ~1k post-pedigree) keeps the v1 MCEM within the dense-V⁻¹
+# n ≤ 2000 cap.  dev_mcem_n1k shares dev_laplace_n1k's seed and
+# parameters, so its rep 1 is the same pedigree and liability draw: a
+# head-to-head comparison.  The other three set the ACE and K of a
+# Laplace scenario that runs at N 3400, so they compare the methods
+# at the same parameters, not on the same pedigrees.
 
 dev_mcem_n1k:
-  seed: 70100  # matched to dev_laplace_n1k
+  seed: 70100  # matched to dev_laplace_n1k: rep 1 is its pedigree
   N: 340
   replicates: 5
   pedigree:
@@ -250,7 +252,7 @@ dev_mcem_n1k:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 dev_mcem_K_rare:
-  seed: 70400  # matched to dev_laplace_K_rare
+  seed: 70400  # ACE and K of dev_laplace_K_rare, at N 340 (not its pedigree)
   N: 340
   replicates: 5
   pedigree:
@@ -258,7 +260,7 @@ dev_mcem_K_rare:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 dev_mcem_K_common:
-  seed: 70405  # matched to dev_laplace_K_common
+  seed: 70405  # ACE and K of dev_laplace_K_common, at N 340 (not its pedigree)
   N: 340
   replicates: 5
   pedigree:
@@ -266,7 +268,7 @@ dev_mcem_K_common:
     trait1: { A: 0.5, C: 0.2, E: 0.3 }
 
 dev_mcem_h2_low:
-  seed: 70202  # matched to dev_laplace_h2_low
+  seed: 70202  # ACE of dev_laplace_h2_low, at N 340 (not its pedigree)
   N: 340
   replicates: 5
   pedigree:
