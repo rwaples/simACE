@@ -70,6 +70,7 @@ from simace.cli.status import (
     stage_names,
     status_on_disk,
 )
+from simace.config import seed_collisions
 from simace.core.publish import TMP_SUFFIX, publish
 from simace.simulation.inbreeding_plan import InbreedingRefused, plan_for
 
@@ -354,6 +355,16 @@ def plan_runs(command_name: str, config_dir: Path, targets: list[str], reps: lis
     except ScenarioError as exc:
         print(f"simace {command_name}: {exc}", file=sys.stderr)
         raise SystemExit(2) from exc
+    collisions = seed_collisions(scenarios, names)
+    if collisions:
+        pairs = "\n  ".join(f"{a} & {b}: {shared} seeds" for a, b, shared in collisions)
+        print(
+            f"simace {command_name}: warning: these scenarios' rep seeds (seed + rep - 1) overlap from different "
+            f"base seeds, so where their pedigree parameters agree they run the same pedigrees and are not "
+            f"independent:\n  {pairs}\nSpace the base seeds at least `replicates` apart, or give scenarios "
+            f"meant to share pedigrees the same base seed.",
+            file=sys.stderr,
+        )
     return runs
 
 

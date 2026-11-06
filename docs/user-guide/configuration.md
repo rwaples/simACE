@@ -255,6 +255,19 @@ to compute the estimator.
 
 <!-- scenario-defaults:end -->
 
+## Seeds across scenarios
+
+Replicate `r` runs on `seed + r - 1`, so a scenario takes the block of seeds
+from `seed` to `seed + replicates - 1`. Two scenarios whose blocks overlap run
+the same pedigrees on the shared seeds wherever their pedigree parameters
+agree, so their reps are not independent. Give each scenario in a folder its
+own block, with base seeds at least `replicates` apart. To compare scenarios
+on the same pedigrees on purpose, for example two prevalences, give them the
+same base seed. `simace run` and `simace validate` print a warning when a
+target's block overlaps another scenario's block in its folder from a
+different base seed (`seed_collisions` in `simace/config.py`). Two grids have
+had this problem: ADR 0027's first run, and pg-phenotype #21.
+
 ## Legacy flat keys
 
 Older scenario files can use flat keys. New files should use the sectioned

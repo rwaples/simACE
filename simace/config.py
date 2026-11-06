@@ -614,3 +614,36 @@ def get_scenarios_for_folder(config: dict, folder: str) -> list[str]:
 def get_all_folders(config: dict) -> list[str]:
     """Return sorted unique folder names across all scenarios."""
     return sorted({get_folder(config, s) for s in config["scenarios"]})
+
+
+def seed_collisions(scenarios: dict[str, dict], names: list[str]) -> list[tuple[str, str, int]]:
+    """Return ``(a, b, shared)`` for each pair of same-folder scenarios whose rep seeds collide by accident.
+
+    Rep ``k`` of a scenario runs on ``seed + k - 1``, so two scenarios with
+    base seeds closer than their ``replicates`` share seeds, and where their
+    pedigree parameters agree those reps are the same pedigrees.  An equal base
+    seed reads as a deliberate pairing (the same pedigrees under, say, another
+    prevalence) and is not reported; an overlap from different base seeds is.
+    Only pairs with at least one scenario in ``names`` are returned.
+
+    Args:
+        scenarios: resolved flat parameters (defaults merged in), by name.
+        names: the scenarios being run.
+    """
+    ranges = {
+        name: (params["folder"], int(params["seed"]), int(params["seed"]) + int(params["replicates"]) - 1)
+        for name, params in scenarios.items()
+    }
+    targets = set(names)
+    out = []
+    ordered = sorted(ranges)
+    for i, a in enumerate(ordered):
+        fa, lo_a, hi_a = ranges[a]
+        for b in ordered[i + 1 :]:
+            fb, lo_b, hi_b = ranges[b]
+            if fa != fb or lo_a == lo_b or not ({a, b} & targets):
+                continue
+            shared = min(hi_a, hi_b) - max(lo_a, lo_b) + 1
+            if shared > 0:
+                out.append((a, b, shared))
+    return out

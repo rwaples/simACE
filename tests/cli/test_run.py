@@ -321,6 +321,32 @@ def test_folder_target_with_a_failure_still_plots_the_complete_scenarios(
     assert sorted(reps[0].scenario for reps in no_plots) == ["tiny", "tiny_am", "tiny_wf"]
 
 
+def test_equal_base_seeds_are_a_pairing_and_not_warned(config_dir, roots, recorded, capsys) -> None:
+    # The fixture's scenarios all start at seed 100: deliberate shared pedigrees.
+    assert _run(config_dir, roots, "t", "--dry-run") == 0
+    assert "warning" not in capsys.readouterr().err
+
+
+def test_overlapping_seed_ranges_from_different_bases_warn(config_dir, roots, recorded, capsys) -> None:
+    # pg-phenotype #21: base seeds 10 apart with 100 replicates shared 90 pedigrees.
+    scenarios = {
+        "a": {**TINY, "replicates": 3, "seed": 500},
+        "b": {**TINY, "replicates": 3, "seed": 502},  # 502-504 meets a's 500-502 at one seed
+        "c": {**TINY, "replicates": 3, "seed": 503},  # meets b, clears a
+        "d": {**TINY, "replicates": 2, "seed": 900},
+    }
+    (config_dir / "s.yaml").write_text(yaml.safe_dump(scenarios))
+    assert _run(config_dir, roots, "a", "--dry-run") == 0
+    err = capsys.readouterr().err
+    assert "simace run: warning: these scenarios' rep seeds (seed + rep - 1) overlap" in err
+    assert "\n  a & b: 1 seeds\n" in err
+    assert "b & c" not in err  # neither is a target
+    assert _run(config_dir, roots, "s", "--dry-run") == 0
+    err = capsys.readouterr().err
+    assert "\n  a & b: 1 seeds\n  b & c: 2 seeds\n" in err
+    assert "& d:" not in err  # d's seeds are its own
+
+
 def test_unknown_target_lists_folders_and_scenarios(config_dir, roots, capsys) -> None:
     assert _run(config_dir, roots, "nope") == 2
     err = capsys.readouterr().err
