@@ -12,6 +12,20 @@ releases shipped after 2026.05.3.
 
 ## Unreleased
 
+### pedigree-graph 0.15
+
+- **simACE, fitACE and fitACE_epimight require `pedigree-graph>=0.15,<0.16`.**
+  Two changes in it alter results:
+  - **Ne_V and Ne_H include Mendelian segregation**
+    ([pedigree-graph#36](https://github.com/rwaples/pedigree-graph/issues/36)):
+    `ne_variance_family_size` and `ne_hill_overlapping` in
+    `effective_size.yaml` rise under ZTP mating. Wright-Fisher values are
+    unchanged. Equal family sizes now give `2N` rather than no estimate.
+  - **Cousin paths count shared external parent ids**
+    ([pedigree-graph#61](https://github.com/rwaples/pedigree-graph/issues/61)).
+    Pair counts change only on graphs whose parents include ids with no row:
+    in simACE, the stats runner without `--pedigree`.
+
 ### Ne expectations use the drift Ne of Hill 1979 ([#72](https://github.com/rwaples/simACE/issues/72))
 
 - **The `expected` values in `effective_size.yaml` changed under standard
@@ -25,10 +39,11 @@ releases shipped after 2026.05.3.
 - **Expectations are withheld under assortative mating set per generation or
   through `assort_matrix`.** Previously a per-generation `assort1`/`assort2`
   crashed `simace effective-size`, and `assort_matrix` alone was ignored.
-- **`ne_variance_family_size` and `ne_hill_overlapping` have no expectation
-  under ZTP mating.** pedigree-graph's Ne_V computes `2N/V(k)`, which is not
-  the drift Ne
-  ([pedigree-graph#36](https://github.com/rwaples/pedigree-graph/issues/36)).
+- **`ne_variance_family_size` and `ne_hill_overlapping` expect the drift Ne
+  too.** pedigree-graph 0.15 computes Ne_V from Hill 1979 eq. 9
+  ([pedigree-graph#36](https://github.com/rwaples/pedigree-graph/issues/36));
+  before it, Ne_V was `2N/V(k)`. Under ZTP mating their expected values were
+  `None` in the interim.
 - **`ne_v_expected_ztp` is replaced by `ne_drift_expected_ztp`**, which
   returns `N / (1 + Var[m]/E[m]²)`. The regression-regime gate takes this
   value, so it passes slightly less often. The plot subtitle reads `Ne≈` and

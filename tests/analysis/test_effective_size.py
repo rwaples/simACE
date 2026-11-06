@@ -87,14 +87,14 @@ class TestTheoreticalExpectations:
         assert exp["ne_sex_ratio"] == pytest.approx(100000.0)
         assert exp["ne_long_term_contributions"] == pytest.approx(ne)
 
-    def test_standard_withholds_family_size_estimators(self):
-        # pedigree-graph's Ne_V computes 2N/V(k), not the drift Ne, when
-        # V(k) != 2 (pedigree-graph#36); Ne_H passes it through without
-        # birth_year.  Neither gets an expectation under ZTP mating.
+    def test_standard_family_size_estimators_expect_the_drift_ne(self):
+        # pedigree-graph 0.15 computes Ne_V from Hill 1979 eq. 9
+        # (pedigree-graph#36); Ne_H passes it through without birth_year.
         cfg = {"N": 2000, "assort1": 0.0, "assort2": 0.0, "mating_lambda": 0.5, "G_ped": 12}
         exp = theoretical_expectations(cfg)
-        assert exp["ne_variance_family_size"] is None
-        assert exp["ne_hill_overlapping"] is None
+        ne = ne_drift_expected_ztp(2000.0, 0.5)
+        assert exp["ne_variance_family_size"] == pytest.approx(ne)
+        assert exp["ne_hill_overlapping"] == pytest.approx(ne)
 
     def test_drift_estimators_share_the_hill_expectation(self):
         # Issue #72: every drift-rate estimator targets 4N/(2+V(k)).
@@ -272,8 +272,8 @@ class TestComputeEffectiveSize:
             assert result[k]["expected"] == pytest.approx(ne), k
         assert result["ne_individual_delta_f"]["expected"] == pytest.approx(ne * 19.0 / 18.0)
         assert result["ne_sex_ratio"]["expected"] == pytest.approx(200.0)
-        assert result["ne_variance_family_size"]["expected"] is None
-        assert result["ne_hill_overlapping"]["expected"] is None
+        assert result["ne_variance_family_size"]["expected"] == pytest.approx(ne)
+        assert result["ne_hill_overlapping"]["expected"] == pytest.approx(ne)
 
     def test_cohort_arrays_are_sized_by_the_observed_labels_they_carry(self, tiny_pedigree):
         result = compute_effective_size(tiny_pedigree)
@@ -404,39 +404,37 @@ def _build_wf_pedigree(rng: np.random.Generator, n: int = 50, n_gens: int = 8) -
     return pd.DataFrame(rows)
 
 
-def test_pg_ne_v_still_returns_2n_over_vk():
-    """Canary for pedigree-graph#36: its Ne_V is ``2N/V(k)``, not the drift Ne.
+def test_pg_ne_v_tracks_the_drift_ne():
+    """pedigree-graph's Ne_V and Ne_H target the drift Ne (pedigree-graph#36).
 
-    pedigree-graph's ``ne_variance_family_size`` computes, per sex,
-    ``ΔF_s = V_s / (4·N_s·k̄_s²)``, which omits Hill 1979's segregation term;
-    Hill eq. 10 split by sex is ``(V_s + 2) / (32·N_s)`` at ``k̄ = 2``.  So on
-    ZTP(0.5) pedigrees it lands near ``2N/V(k)`` rather than ``4N/(2+V(k))``,
-    and :func:`theoretical_expectations` withholds its expectation.  When this
-    fails because Ne_V moved to the drift Ne, restore the Ne_V and Ne_H
-    expectations and delete this test.
+    From pedigree-graph 0.15, ``ne_variance_family_size`` computes Hill 1979
+    eq. 9, ``4N/(2 + V(k))`` at equal sexes, and without ``birth_year``
+    ``ne_hill_overlapping`` passes it through, so
+    :func:`theoretical_expectations` gives both the drift Ne.  Before 0.15 Ne_V
+    was ``2N/V(k)``, 13 % below it at λ = 0.5.
 
-    12 reps at N=2000, G_ped=4; the grand mean over ~36 transitions sits within
-    ±5 % of ``2N/V(k)`` and about 13 % below the drift Ne.
+    12 reps at N=2000, G_ped=4, 36 transitions per λ.  Measured on
+    pedigree-graph 0.15.0: Ne_V −1.5 % (λ = 0.5) and −0.6 % (λ = 2) of the
+    drift Ne, Ne_H −1.6 % and −0.7 %.
     """
-    from pedigree_graph.effective_size import ne_variance_family_size
+    from pedigree_graph.effective_size import ne_hill_overlapping, ne_variance_family_size
 
-    n, n_reps, mating_lambda = 2000, 12, 0.5
-    v_k = 2.0 + 4.0 * family_size_variance_expected_ztp(mating_lambda)["cov"]
-    two_n_over_vk = 2.0 * n / v_k
-
-    per_transition: list[float] = []
-    for rep in range(n_reps):
-        ped = _drift_only_pedigree(seed=1000 + rep, n=n, g_ped=4, mating_lambda=mating_lambda)
-        result = ne_variance_family_size(PedigreeGraph.from_frame(ped))
-        finite = result.ne_per_transition[np.isfinite(result.ne_per_transition)]
-        per_transition.extend(finite.tolist())
-
-    mean_ne = float(np.mean(per_transition))
-    assert abs(mean_ne / two_n_over_vk - 1.0) < 0.05, (
-        f"Ne_V mean across {len(per_transition)} transitions = {mean_ne:.1f}, 2N/V(k) = "
-        f"{two_n_over_vk:.1f}, drift Ne = {ne_drift_expected_ztp(n, mating_lambda):.1f}; "
-        "if Ne_V now tracks the drift Ne, pedigree-graph#36 is fixed."
-    )
+    n, n_reps = 2000, 12
+    for mating_lambda in (0.5, 2.0):
+        drift_ne = ne_drift_expected_ztp(n, mating_lambda)
+        per_transition: list[float] = []
+        hill: list[float] = []
+        for rep in range(n_reps):
+            ped = _drift_only_pedigree(seed=1000 + rep, n=n, g_ped=4, mating_lambda=mating_lambda)
+            pg = PedigreeGraph.from_frame(ped)
+            result = ne_variance_family_size(pg)
+            per_transition.extend(result.ne_per_transition[np.isfinite(result.ne_per_transition)].tolist())
+            hill.append(ne_hill_overlapping(pg).ne)
+        for label, values in (("Ne_V", per_transition), ("Ne_H", hill)):
+            mean_ne = float(np.mean(values))
+            assert abs(mean_ne / drift_ne - 1.0) < 0.05, (
+                f"λ={mating_lambda}: {label} mean over {len(values)} = {mean_ne:.1f}, drift Ne = {drift_ne:.1f}"
+            )
 
 
 @pytest.mark.parametrize(

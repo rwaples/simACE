@@ -178,12 +178,9 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
       estimator reads the last cohort, so a shallow pedigree need not reach
       it.
     * **Ne_sr** stays at ``N`` (deterministic balanced sex ratio).
-    * **Ne_V and Ne_H** get ``N`` under Wright-Fisher and ``None``
-      otherwise.  pedigree-graph's Ne_V omits Hill's segregation term and
-      returns ``2N/V(k)``, which equals the drift ``Ne`` only at
-      ``V(k) = 2`` (pedigree-graph#36), and without ``birth_year`` Ne_H
-      passes Ne_V through.  No expectation is stated for a number that is
-      not the drift ``Ne``.
+    * **Ne_V and Ne_H** are the drift ``Ne`` too: pedigree-graph 0.15
+      computes Ne_V from Hill 1979 eq. 9 (pedigree-graph#36), and Ne_H
+      equals it at a generation interval of 1.
 
     Assumptions the config cannot check: the expectations describe the
     full simulated pedigree without twins.  MZ twinning (``p_mztwin``)
@@ -207,7 +204,6 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
         # form gives N.  assort1/assort2/mating_lambda are no-ops.  The
         # regression gate reduces to G_ped² ≥ 120.
         ne = n
-        family_size_expected: float | None = n
     else:
         # Standard model: AM in any generation or through assort_matrix
         # nullifies expectations; mating_lambda required.
@@ -218,7 +214,6 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
         if mating_lambda is None:
             return dict.fromkeys(ALL_EFFECTIVE_SIZE_ESTIMATORS)
         ne = ne_drift_expected_ztp(n, float(mating_lambda))
-        family_size_expected = None
 
     g_ped = config.get("G_ped")
     regression_ok = g_ped is not None and regression_estimator_regime_ok(n, int(g_ped), ne)
@@ -241,11 +236,11 @@ def theoretical_expectations(config: dict[str, Any] | None) -> dict[str, float |
     return {
         "ne_inbreeding": regression_expected,
         "ne_coancestry": regression_expected,
-        "ne_variance_family_size": family_size_expected,
+        "ne_variance_family_size": ne,
         "ne_sex_ratio": n,
         "ne_individual_delta_f": delta_f_expected,
         "ne_long_term_contributions": ne,
-        "ne_hill_overlapping": family_size_expected,
+        "ne_hill_overlapping": ne,
         "ne_group_coancestry": regression_expected,
     }
 
