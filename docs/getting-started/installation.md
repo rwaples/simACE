@@ -18,7 +18,7 @@ installer fetches the latest release by default, which `pixi.toml` refuses
 once it moves past the `requires-pixi` range, so pin the version:
 
 ```bash
-curl -fsSL https://pixi.sh/install.sh | PIXI_VERSION=v0.82.0 bash
+curl -fsSL https://pixi.sh/install.sh | PIXI_VERSION=v0.84.1 bash
 export PATH="$HOME/.pixi/bin:$PATH"
 pixi --version
 ```
@@ -32,14 +32,18 @@ file yourself.
 An existing install on the wrong version moves with:
 
 ```bash
-pixi self-update --version v0.82.0
+pixi self-update --version v0.84.1
 ```
 
 The pinned version and `requires-pixi` move together. Edit both, the
-`requires-pixi` line in the fitACE, pedigree-graph, pedsum, pg-phenotype, and
-pedsum-validate manifests, and the `pixi-version:` pins in each checkout's
-`.github/workflows/`. `tests/test_pixi_pin_consistency.py` fails when they
-disagree (it does not see pedsum-validate, which is outside the family list).
+`requires-pixi` line in every family and companion manifest (simACE, fitACE,
+pedigree-graph, pedsum, pg-phenotype, the four `*-validate` harnesses,
+nordic-geno-epimight, and multimight), the `pixi-version:` pins in each
+checkout's `.github/workflows/`, and the version in nordic-geno-epimight's
+README. Then run `pixi lock` in each checkout and review any `pixi.lock` diff.
+`tests/test_pixi_pin_consistency.py` fails when the simACE, fitACE,
+pedigree-graph, pedsum, and pg-phenotype pins disagree; it does not see the
+companion checkouts.
 
 ## Install simACE
 
