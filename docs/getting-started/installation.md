@@ -39,11 +39,13 @@ The pinned version and `requires-pixi` move together. Edit both, the
 `requires-pixi` line in every family and companion manifest (simACE, fitACE,
 pedigree-graph, pedsum, pg-phenotype, the four `*-validate` harnesses,
 nordic-geno-epimight, and multimight), the `pixi-version:` pins in each
-checkout's `.github/workflows/`, and the version in nordic-geno-epimight's
-README. Then run `pixi lock` in each checkout and review any `pixi.lock` diff.
-`tests/test_pixi_pin_consistency.py` fails when the simACE, fitACE,
-pedigree-graph, pedsum, and pg-phenotype pins disagree; it does not see the
-companion checkouts.
+checkout's `.github/workflows/`, the version in nordic-geno-epimight's
+README, and the pixi base image in its `container/nordicepimight.def` (the
+`From:` digest of `ghcr.io/prefix-dev/pixi:<version>-bookworm-slim`). Then run
+`pixi lock` in each checkout and review any `pixi.lock` diff.
+`tests/test_pixi_pin_consistency.py` fails when a manifest or a workflow pin
+in any checkout present under the simACE root disagrees. It does not check
+the README or the image digest.
 
 ## Install simACE
 
