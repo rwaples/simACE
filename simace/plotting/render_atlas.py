@@ -14,14 +14,19 @@ Kept in its own module to avoid a circular import between :mod:`plot_atlas`
 
 __all__ = ["render_atlas"]
 
+import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from simace.core.publish import publish
+from simace.plotting.atlas_manifest import PlotEntry
 from simace.plotting.plot_atlas import assemble_atlas
 from simace.plotting.plot_atlas_html import assemble_html_atlas
 
 if TYPE_CHECKING:
     from simace.plotting.atlas_manifest import AtlasItem
+
+logger = logging.getLogger(__name__)
 
 _RENDERERS = {
     ".html": assemble_html_atlas,
@@ -45,6 +50,10 @@ def render_atlas(
     :func:`~simace.plotting.plot_atlas.assemble_atlas` (on-demand export).
     Any other suffix raises :class:`ValueError`.
 
+    The backend writes a temporary beside ``output_path`` that replaces it only
+    when rendering succeeds, so a failed or killed render leaves the previous
+    atlas in place.
+
     Args:
         items: Ordered atlas manifest, mixing
             :class:`~simace.plotting.atlas_manifest.PlotEntry` and
@@ -63,11 +72,14 @@ def render_atlas(
             f"render_atlas cannot render {output_path!r}: unsupported atlas "
             f"extension {suffix!r}. Supported extensions: {supported}."
         )
-    renderer(
-        items,
-        plot_dir,
-        output_path,
-        plot_ext=plot_ext,
-        scenario_params=scenario_params,
-        stats_data=stats_data,
-    )
+    with publish(output_path) as (tmp,):
+        renderer(
+            items,
+            plot_dir,
+            tmp,
+            plot_ext=plot_ext,
+            scenario_params=scenario_params,
+            stats_data=stats_data,
+        )
+    n_plots = sum(isinstance(item, PlotEntry) for item in items)
+    logger.info("Atlas saved to %s (%d plots)", output_path, n_plots)

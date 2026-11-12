@@ -591,4 +591,8 @@ def assemble_atlas(
             pdf.savefig(fig, dpi=150)
             plt.close(fig)
 
-    logger.info("Atlas saved to %s (%d plots)", output_path, n_plots)
+        if pdf.get_pagecount() == 0:
+            raise ValueError(
+                f"PDF atlas has no pages: all {n_plots} plots are missing from {plot_dir} "
+                "and no scenario parameters were given for a title page"
+            )

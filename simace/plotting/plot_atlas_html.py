@@ -805,4 +805,3 @@ def assemble_html_atlas(
         body.append(card)
 
     output_path.write_text(_html_page(page_title, nav, body), encoding="utf-8")
-    logger.info("HTML atlas saved to %s (%d plots)", output_path, plot_idx)
