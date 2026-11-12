@@ -2,10 +2,8 @@
 
 Each numerical primitive in ``_numba_utils`` ships in two forms:
 
-* ``_xxx_python`` — pure-Python implementation (the reference / fallback);
-* ``_xxx``        — module-level alias bound to either the njit-compiled
-                    version (when numba is installed, the normal case) or
-                    the Python fallback otherwise.
+* ``_xxx_python`` — pure-Python implementation (the reference);
+* ``_xxx``        — the njit-compiled version.
 
 These tests pin each `_xxx_python` against:
 
@@ -188,18 +186,12 @@ def test_bvn_cdf_matches_scipy(h, k, r):
 
 
 # ---------------------------------------------------------------------------
-# Cross-check: the runtime symbols are the JIT versions when numba present
+# Cross-check: the runtime symbols are the JIT versions
 # ---------------------------------------------------------------------------
 
 
 def test_runtime_symbols_are_jit_compiled():
-    try:
-        from numba import njit  # noqa: F401
-    except ImportError:
-        pytest.skip("numba not installed; runtime symbols == Python fallbacks")
-
-    # When numba is available, every runtime symbol should differ in identity
-    # from its Python fallback (they're separate JIT-compiled wrappers).
+    # Every runtime symbol is a JIT-compiled wrapper, not its Python source.
     pairs = [
         (nu._ndtri_approx, nu._ndtri_approx_python),
         (nu._norm_cdf, nu._norm_cdf_python),

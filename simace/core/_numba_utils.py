@@ -1,25 +1,15 @@
 """Shared Numba-compiled utility functions.
 
-All ``_xxx_python`` functions are pure-Python implementations that can also be
-JIT-compiled by Numba.  Cross-function calls use the module-level names
-(``_norm_cdf``, ``_owens_t``, etc.) which are set to either the Python or the
-JIT-compiled version at import time.  The ``if njit`` block at the bottom
-compiles them in dependency order so that each function resolves its callees
-to already-jitted versions.
+Each ``_xxx_python`` function is the pure-Python source of the jitted ``_xxx``.
+Cross-function calls use the module-level names (``_norm_cdf``, ``_owens_t``,
+etc.), so a ``_python`` function called from Python still reaches jitted
+callees. The block at the bottom compiles them in dependency order.
 """
 
 import math
-from typing import TYPE_CHECKING
 
 import numpy as np
-
-if TYPE_CHECKING:
-    from numba import njit
-else:
-    try:
-        from numba import njit
-    except ImportError:
-        njit = None
+from numba import njit
 
 _SQRT2 = math.sqrt(2.0)
 _INV_SQRT2PI = 1.0 / math.sqrt(2.0 * math.pi)
@@ -253,37 +243,23 @@ def _bvn_cdf_python(h, k, r):
 # JIT compilation — dependency order matters!
 # ---------------------------------------------------------------------------
 
-# Set module-level names to Python fallbacks first
-_ndtri_approx = _ndtri_approx_python
-_norm_cdf = _norm_cdf_python
-_norm_sf = _norm_sf_python
-_norm_pdf = _norm_pdf_python
-_pearsonr_core = _pearsonr_core_python
-_linregress_core = _linregress_core_python
-_t_sf = _t_sf_python
-_owens_t_quad = _owens_t_quad_python
-_owens_t = _owens_t_python
-_bvn_pos = _bvn_pos_python
-_bvn_cdf = _bvn_cdf_python
+# Tier 0: no dependencies
+_ndtri_approx = njit(cache=True)(_ndtri_approx_python)
+_norm_cdf = njit(cache=True)(_norm_cdf_python)
+_norm_sf = njit(cache=True)(_norm_sf_python)
+_norm_pdf = njit(cache=True)(_norm_pdf_python)
+_pearsonr_core = njit(cache=True)(_pearsonr_core_python)
+_linregress_core = njit(cache=True)(_linregress_core_python)
 
-if njit is not None:
-    # Tier 0: no dependencies
-    _ndtri_approx = njit(cache=True)(_ndtri_approx_python)
-    _norm_cdf = njit(cache=True)(_norm_cdf_python)
-    _norm_sf = njit(cache=True)(_norm_sf_python)
-    _norm_pdf = njit(cache=True)(_norm_pdf_python)
-    _pearsonr_core = njit(cache=True)(_pearsonr_core_python)
-    _linregress_core = njit(cache=True)(_linregress_core_python)
+# Tier 1: depends on _norm_sf / _norm_cdf
+_t_sf = njit(cache=True)(_t_sf_python)
+_owens_t_quad = njit(cache=True)(_owens_t_quad_python)
 
-    # Tier 1: depends on _norm_sf / _norm_cdf
-    _t_sf = njit(cache=True)(_t_sf_python)
-    _owens_t_quad = njit(cache=True)(_owens_t_quad_python)
+# Tier 2: depends on _owens_t_quad, _norm_cdf
+_owens_t = njit(cache=True)(_owens_t_python)
 
-    # Tier 2: depends on _owens_t_quad, _norm_cdf
-    _owens_t = njit(cache=True)(_owens_t_python)
+# Tier 3: depends on _norm_cdf, _owens_t
+_bvn_pos = njit(cache=True)(_bvn_pos_python)
 
-    # Tier 3: depends on _norm_cdf, _owens_t
-    _bvn_pos = njit(cache=True)(_bvn_pos_python)
-
-    # Tier 4: depends on _norm_cdf, _bvn_pos
-    _bvn_cdf = njit(cache=True)(_bvn_cdf_python)
+# Tier 4: depends on _norm_cdf, _bvn_pos
+_bvn_cdf = njit(cache=True)(_bvn_cdf_python)

@@ -30,6 +30,7 @@ import time
 from typing import TYPE_CHECKING
 
 import numpy as np
+from numba.extending import register_jitable
 import polars as pl
 
 from simace.core.cohort import write_pedigree
@@ -64,10 +65,7 @@ if TYPE_CHECKING:
         """
 
 else:
-    try:
-        from numba import njit
-    except ImportError:
-        njit = None
+    from numba import njit
 
 logger = logging.getLogger(__name__)
 
@@ -298,10 +296,7 @@ def _midparent_python(pheno_col, parents):
     return out
 
 
-if njit is not None:
-    _midparent = njit(cache=True)(_midparent_python)
-else:
-    _midparent = _midparent_python
+_midparent = njit(cache=True)(_midparent_python)
 
 
 def pair_partners(
@@ -363,14 +358,9 @@ def _draw_pairs_python(indices, n):
         indices[i], indices[j] = indices[j], indices[i]
 
 
-if njit is not None:
-    from numba.extending import register_jitable
-
-    # Plain Python when called from Python, so a _python kernel stays deterministic
-    # under its own np.random.seed; compiled inline when a jitted kernel calls it.
-    _draw_pairs = register_jitable(_draw_pairs_python)
-else:
-    _draw_pairs = _draw_pairs_python
+# Plain Python when called from Python, so a _python kernel stays deterministic
+# under its own np.random.seed; compiled inline when a jitted kernel calls it.
+_draw_pairs = register_jitable(_draw_pairs_python)
 
 
 def _metropolis_full_python(
@@ -451,10 +441,7 @@ def _metropolis_full_python(
     return S1, S2, S12, S21, proposals_done
 
 
-if njit is not None:
-    _metropolis_full = njit(cache=True, fastmath=True)(_metropolis_full_python)
-else:
-    _metropolis_full = _metropolis_full_python
+_metropolis_full = njit(cache=True, fastmath=True)(_metropolis_full_python)
 
 
 def _has_couple_python(fathers, rows_ptr, rows, female, father):
@@ -465,10 +452,7 @@ def _has_couple_python(fathers, rows_ptr, rows, female, father):
     return False
 
 
-if njit is not None:
-    _has_couple = njit(cache=True)(_has_couple_python)
-else:
-    _has_couple = _has_couple_python
+_has_couple = njit(cache=True)(_has_couple_python)
 
 
 def _metropolis_single_python(fz, mz, fathers, female_group, rows_ptr, rows, S, T, M, tol, max_proposals, seed):
@@ -513,10 +497,7 @@ def _metropolis_single_python(fz, mz, fathers, female_group, rows_ptr, rows, S, 
     return S, proposals_done
 
 
-if njit is not None:
-    _metropolis_single = njit(cache=True, fastmath=True)(_metropolis_single_python)
-else:
-    _metropolis_single = _metropolis_single_python
+_metropolis_single = njit(cache=True, fastmath=True)(_metropolis_single_python)
 
 
 def _select_python(pts, idx, axis, lo, hi, k):
@@ -557,10 +538,7 @@ def _select_python(pts, idx, axis, lo, hi, k):
             return
 
 
-if njit is not None:
-    _select = njit(cache=True)(_select_python)
-else:
-    _select = _select_python
+_select = njit(cache=True)(_select_python)
 
 
 def _kd_match_python(target, males):
@@ -594,10 +572,7 @@ def _kd_match_python(target, males):
     return perm
 
 
-if njit is not None:
-    _kd_match = njit(cache=True)(_kd_match_python)
-else:
-    _kd_match = _kd_match_python
+_kd_match = njit(cache=True)(_kd_match_python)
 
 
 #: Smallest standard deviation a trait may have among one sex's mating slots in

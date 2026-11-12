@@ -1,7 +1,5 @@
 """Unit tests for simace.simulate functions."""
 
-import builtins
-import importlib
 from functools import partial
 
 import numpy as np
@@ -27,33 +25,6 @@ from simace.simulation.simulate import (
     resolve_per_gen_param,
     run_simulation,
 )
-
-# ---------------------------------------------------------------------------
-# optional numba fallback
-# ---------------------------------------------------------------------------
-
-
-class TestOptionalNumbaFallback:
-    def test_simulate_module_loads_without_numba(self, monkeypatch):
-        real_import = builtins.__import__
-
-        def blocked_import(name, global_vars=None, local_vars=None, fromlist=(), level=0):
-            if name == "numba":
-                raise ImportError("numba blocked for fallback test")
-            return real_import(name, global_vars, local_vars, fromlist, level)
-
-        try:
-            with monkeypatch.context() as m:
-                m.setattr(builtins, "__import__", blocked_import)
-                reloaded = importlib.reload(simulate_mod)
-                assert reloaded.njit is None
-                assert reloaded._midparent is reloaded._midparent_python
-                assert reloaded._select is reloaded._select_python
-                assert reloaded._kd_match is reloaded._kd_match_python
-                assert reloaded._metropolis_full is reloaded._metropolis_full_python
-        finally:
-            importlib.reload(simulate_mod)
-
 
 # ---------------------------------------------------------------------------
 # generate_correlated_components
