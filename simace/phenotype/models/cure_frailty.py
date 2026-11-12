@@ -19,6 +19,7 @@ from simace.phenotype.hazards import (
     coerce_standardize_mode,
     compute_event_times,
     hazard_cli_flag_attrs,
+    hazard_config_keys,
     iter_generation_groups,
     parse_hazard_cli,
     resolve_hazard_mode,
@@ -34,7 +35,7 @@ from simace.phenotype.models._base import (
     validate_standardize_hazard,
     wrap_trait_error,
 )
-from simace.phenotype.models._prevalence import case_status_from_liability
+from simace.phenotype.models._prevalence import case_status_from_liability, validate_prevalence_spec
 
 if TYPE_CHECKING:
     import argparse
@@ -72,9 +73,15 @@ class CureFrailtyModel(PhenotypeModel):
     standardize_hazard: StandardizeMode | None = None
 
     name: ClassVar[str] = "cure_frailty"
+    config_keys: ClassVar[frozenset[str]] = frozenset({"distribution", "standardize_hazard", "prevalence"})
+
+    @classmethod
+    def _accepted_keys(cls, phenotype_params: dict[str, Any]) -> frozenset[str]:
+        return cls.config_keys | hazard_config_keys(phenotype_params.get("distribution"))
 
     def __post_init__(self) -> None:
         validate_hazard_params(self.distribution, self.hazard_params, model_name="cure_frailty")
+        validate_prevalence_spec(self.prevalence)
         check_finite_beta(self.beta)
         validate_standardize_hazard(self.standardize_hazard)
 

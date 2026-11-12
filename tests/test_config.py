@@ -127,9 +127,11 @@ class TestResolveScenariosEdgeCases:
             "E1": 0.5,
             "E2": 0.5,
             "phenotype_model1": "frailty",
-            "phenotype_params1": {"distribution": "weibull"},
+            "phenotype_params1": {"distribution": "weibull", "scale": 316.228, "rho": 2.0},
+            "beta1": 1.0,
             "phenotype_model2": "frailty",
-            "phenotype_params2": {"distribution": "weibull"},
+            "phenotype_params2": {"distribution": "weibull", "scale": 316.228, "rho": 2.0},
+            "beta2": 1.0,
             "mating_model": "standard",
         }
 
@@ -164,11 +166,14 @@ class TestPhenotypeConfigValidation:
 
     @staticmethod
     def _wrap(overrides: dict) -> dict:
+        weibull = {"distribution": "weibull", "scale": 316.228, "rho": 2.0}
         defaults = {
             "phenotype_model1": "frailty",
-            "phenotype_params1": {"distribution": "weibull"},
+            "phenotype_params1": weibull,
+            "beta1": 1.0,
             "phenotype_model2": "frailty",
-            "phenotype_params2": {"distribution": "weibull"},
+            "phenotype_params2": weibull,
+            "beta2": 1.0,
         }
         return {"defaults": defaults, "scenarios": {"sc": overrides}}
 
@@ -181,7 +186,7 @@ class TestPhenotypeConfigValidation:
             _validate_phenotype_config(self._wrap({"phenotype_model1": "frailty", "phenotype_params1": {}}))
 
     def test_frailty_invalid_distribution_rejected(self):
-        with pytest.raises(ValueError, match="distribution='bad'"):
+        with pytest.raises(ValueError, match="unknown frailty distribution 'bad'"):
             _validate_phenotype_config(
                 self._wrap({"phenotype_model1": "frailty", "phenotype_params1": {"distribution": "bad"}})
             )
@@ -193,19 +198,19 @@ class TestPhenotypeConfigValidation:
             )
 
     def test_adult_invalid_method_rejected(self):
-        with pytest.raises(ValueError, match="method='bad'"):
+        with pytest.raises(ValueError, match="unknown adult method 'bad'"):
             _validate_phenotype_config(
                 self._wrap({"phenotype_model1": "adult", "phenotype_params1": {"method": "bad", "prevalence": 0.1}})
             )
 
     def test_simple_ltm_missing_onset_rejected(self):
-        with pytest.raises(ValueError, match="must include an 'onset' dict"):
+        with pytest.raises(ValueError, match="must include 'onset' key"):
             _validate_phenotype_config(
                 self._wrap({"phenotype_model1": "simple_ltm", "phenotype_params1": {"prevalence": 0.1}})
             )
 
     def test_simple_ltm_invalid_onset_kind_rejected(self):
-        with pytest.raises(ValueError, match=r"onset\.kind='bad'"):
+        with pytest.raises(ValueError, match=r"onset\.kind must be one of .*got 'bad'"):
             _validate_phenotype_config(
                 self._wrap(
                     {

@@ -22,13 +22,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-from simace.core.phenotype_keys import (
-    ADULT_METHODS,
-    BASELINE_PARAMS,
-    MODEL_FAMILIES,
-    ONSET_KINDS,
-    check_phenotype_params,
-)
 from simace.core.relationships import C_TRANSMISSION_KEYS, transmission_key
 from simace.core.standardize import coerce_standardize_mode
 from simace.core.yaml_io import load_yaml
@@ -264,78 +257,34 @@ def _coerce_sim_types(flat: dict) -> dict:
 
 
 def _validate_phenotype_config(config: dict) -> None:
-    """Validate phenotype model configuration for all scenarios.
+    """Build each scenario's phenotype models so that bad configs fail fast.
 
-    Checked at DAG-construction time so that bad configs fail fast before
-    any simulation jobs are dispatched.
+    Checked at DAG-construction time, before any simulation jobs are
+    dispatched. Each trait's ``PhenotypeModel.from_config`` is the only copy
+    of a model's rules; the models import without numba.
 
     Args:
         config: the merged ``{"defaults": ..., "scenarios": ...}`` dict.
 
     Raises:
-        ValueError: if a model family, distribution, or method is invalid, or
-            a ``phenotype_params{N}`` key is unknown to its model, for any scenario.
+        ValueError: if a scenario names an unknown model, or its model rejects
+            the trait's ``phenotype_params{N}``, ``beta{N}``, or ``beta_sex{N}``.
     """
+    from simace.phenotype.models import MODELS
+
     for name, params in config.get("scenarios", {}).items():
+        effective = {**config["defaults"], **params}
         for trait_num in (1, 2):
             model_key = f"phenotype_model{trait_num}"
-            params_key = f"phenotype_params{trait_num}"
-            model = params.get(model_key, config["defaults"].get(model_key))
-            pp = params.get(params_key, config["defaults"].get(params_key, {}))
-
-            if model not in MODEL_FAMILIES:
+            model = effective.get(model_key)
+            if model not in MODELS:
                 raise ValueError(
-                    f"Scenario '{name}': {model_key}={model!r} is not valid. Choose from: {sorted(MODEL_FAMILIES)}"
+                    f"Scenario '{name}': {model_key}={model!r} is not valid. Choose from: {sorted(MODELS)}"
                 )
-
-            if model in ("frailty", "cure_frailty"):
-                if "distribution" not in pp:
-                    raise ValueError(
-                        f"Scenario '{name}': {params_key} for model '{model}' must include 'distribution' key"
-                    )
-                if pp["distribution"] not in BASELINE_PARAMS:
-                    raise ValueError(
-                        f"Scenario '{name}': {params_key} distribution="
-                        f"{pp['distribution']!r} invalid; "
-                        f"valid: {sorted(BASELINE_PARAMS)}"
-                    )
-
-            if model == "adult":
-                if "method" not in pp:
-                    raise ValueError(
-                        f"Scenario '{name}': {params_key} for model 'adult' "
-                        f"must include 'method' key (valid: {sorted(ADULT_METHODS)})"
-                    )
-                if pp["method"] not in ADULT_METHODS:
-                    raise ValueError(
-                        f"Scenario '{name}': {params_key} method="
-                        f"{pp['method']!r} invalid; "
-                        f"valid: {sorted(ADULT_METHODS)}"
-                    )
-
-            if model == "simple_ltm":
-                onset = pp.get("onset")
-                if not isinstance(onset, dict):
-                    raise ValueError(
-                        f"Scenario '{name}': {params_key} for model 'simple_ltm' must include an 'onset' dict "
-                        f"(e.g. {{'kind': 'fixed', 'age': 30}} or {{'kind': 'normal', 'mean': 30, 'sd': 8}})"
-                    )
-                if onset.get("kind") not in ONSET_KINDS:
-                    raise ValueError(
-                        f"Scenario '{name}': {params_key} onset.kind="
-                        f"{onset.get('kind')!r} invalid; valid: {sorted(ONSET_KINDS)}"
-                    )
-
-            # Prevalence is required for threshold-based models. Top-level
-            # placement was deprecated in PR3 and is rejected outright.
-            if model in ("adult", "cure_frailty", "simple_ltm") and "prevalence" not in pp:
-                raise ValueError(
-                    f"Scenario '{name}': {params_key} for model {model!r} must include "
-                    f"'prevalence' key. If your YAML still has top-level "
-                    f"phenotype.trait{trait_num}.prevalence, move it inside params:."
-                )
-
-            check_phenotype_params(model, pp, f"Scenario '{name}': {params_key}")
+            try:
+                MODELS[model].from_config(effective, trait_num)
+            except ValueError as e:
+                raise ValueError(f"Scenario '{name}': {e}") from e
 
 
 # ---------------------------------------------------------------------------
@@ -418,8 +367,8 @@ def resolve_scenarios(config_dir: Path | str, defaults: dict | None = None) -> d
                 params["folder"] = folder
             scenarios[name] = params
 
-    _validate_phenotype_config({"defaults": defaults, "scenarios": scenarios})
     _validate_pedigree_config({"defaults": defaults, "scenarios": scenarios})
+    _validate_phenotype_config({"defaults": defaults, "scenarios": scenarios})
     return scenarios
 
 

@@ -27,6 +27,7 @@ __all__ = [
     "logistic_cif_onset",
     "prevalence_to_array",
     "resolve_prevalence",
+    "validate_prevalence_spec",
 ]
 
 
@@ -43,6 +44,19 @@ def _validate_prevalence(value) -> None:
     if not np.all(in_range):
         bad = np.unique(arr[~in_range]).tolist()
         raise ValueError(f"prevalence must be in the open interval (0, 1), got out-of-range value(s) {bad}")
+
+
+def validate_prevalence_spec(prev) -> None:
+    """Raise unless every case fraction in a configured prevalence lies in (0, 1).
+
+    Walks the scalar, per-generation, and sex-specific forms, so a model can
+    reject a bad value when it is built rather than when it is simulated.
+    """
+    if isinstance(prev, dict):
+        for value in prev.values():
+            validate_prevalence_spec(value)
+    elif not 0.0 < float(prev) < 1.0:
+        _validate_prevalence(prev)
 
 
 def prevalence_to_array(prev, generation: np.ndarray) -> float | np.ndarray:

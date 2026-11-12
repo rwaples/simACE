@@ -6,8 +6,8 @@ Each phenotype model family is a frozen dataclass that owns:
   * a ``_from_config(phenotype_params, trait_num, beta=, beta_sex=)`` hook
     that converts an already-checked copy of ``phenotype_params{trait_num}``
     into an instance. Callers use the inherited, final ``from_config(params,
-    trait_num)``, which rejects keys the model does not accept (per
-    :mod:`simace.core.phenotype_keys`) before the hook runs;
+    trait_num)``, which rejects keys the model does not accept (its
+    ``config_keys``) before the hook runs;
   * a ``from_cli(args, trait)`` constructor (reads namespaced argparse
     flags and rejects flags belonging to other model families);
   * an ``add_cli_args(parser, trait)`` classmethod (declares its flags);
@@ -37,8 +37,6 @@ from __future__ import annotations
 import math
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, ClassVar, Self, final
-
-from simace.core.phenotype_keys import check_phenotype_params
 
 if TYPE_CHECKING:
     import argparse
@@ -86,6 +84,13 @@ class PhenotypeModel(ABC):
     """
 
     name: ClassVar[str]
+    config_keys: ClassVar[frozenset[str]]
+    """The ``phenotype_params{N}`` keys this model accepts."""
+
+    @classmethod
+    def _accepted_keys(cls, phenotype_params: dict[str, Any]) -> frozenset[str]:
+        """The keys ``phenotype_params`` may hold; override when they depend on its values."""
+        return cls.config_keys
 
     @final
     @classmethod
@@ -97,7 +102,15 @@ class PhenotypeModel(ABC):
         """
         with wrap_trait_error(trait_num):
             phenotype_params = dict(params.get(f"phenotype_params{trait_num}", {}))
-            check_phenotype_params(cls.name, phenotype_params, f"phenotype_params{trait_num}")
+            allowed = cls._accepted_keys(phenotype_params)
+            unknown = set(phenotype_params) - allowed
+            if unknown:
+                raise ValueError(
+                    f"phenotype_params{trait_num} for model {cls.name!r} has unknown key(s) "
+                    f"{sorted(unknown)}; valid: {sorted(allowed)}"
+                )
+            if f"beta{trait_num}" not in params:
+                raise ValueError(f"beta{trait_num} is not set")
             return cls._from_config(
                 phenotype_params,
                 trait_num,

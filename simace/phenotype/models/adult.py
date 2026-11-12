@@ -48,7 +48,12 @@ from simace.phenotype.models._base import (
     validate_standardize_hazard,
     wrap_trait_error,
 )
-from simace.phenotype.models._prevalence import liability_threshold_mask, logistic_cif_onset, resolve_prevalence
+from simace.phenotype.models._prevalence import (
+    liability_threshold_mask,
+    logistic_cif_onset,
+    resolve_prevalence,
+    validate_prevalence_spec,
+)
 
 if TYPE_CHECKING:
     import argparse
@@ -86,10 +91,14 @@ class AdultModel(PhenotypeModel):
     standardize_hazard: StandardizeMode | None = None
 
     name: ClassVar[str] = "adult"
+    config_keys: ClassVar[frozenset[str]] = frozenset({"method", "prevalence", "cip_x0", "cip_k", "standardize_hazard"})
 
     def __post_init__(self) -> None:
         if self.method not in ADULT_METHODS:
             raise ValueError(f"unknown adult method {self.method!r}; valid: {sorted(ADULT_METHODS)}")
+        validate_prevalence_spec(self.prevalence)
+        if not self.cip_k > 0.0:
+            raise ValueError(f"adult cip_k must be > 0, got {self.cip_k!r}")
         check_finite_beta(self.beta)
         validate_standardize_hazard(self.standardize_hazard)
         if self.standardize_hazard is not None and self.method == "ltm":

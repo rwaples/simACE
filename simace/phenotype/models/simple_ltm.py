@@ -38,7 +38,7 @@ from simace.phenotype.models._base import (
     check_no_foreign_flags,
     wrap_trait_error,
 )
-from simace.phenotype.models._prevalence import case_status_from_liability
+from simace.phenotype.models._prevalence import case_status_from_liability, validate_prevalence_spec
 
 if TYPE_CHECKING:
     import argparse
@@ -90,9 +90,11 @@ class SimpleLtmModel(PhenotypeModel):
     beta_sex: float = 0.0
 
     name: ClassVar[str] = "simple_ltm"
+    config_keys: ClassVar[frozenset[str]] = frozenset({"prevalence", "onset"})
 
     def __post_init__(self) -> None:
         check_finite_beta(self.beta)
+        validate_prevalence_spec(self.prevalence)
         _validate_onset(self.onset)
 
     # ------------------------------------------------------------------
@@ -108,9 +110,15 @@ class SimpleLtmModel(PhenotypeModel):
                 f"phenotype_params{trait_num} for model 'simple_ltm' must include 'onset' key "
                 f"(e.g. {{'kind': 'fixed', 'age': 30}} or {{'kind': 'normal', 'mean': 30, 'sd': 8}})"
             )
+        onset = phenotype_params["onset"]
+        if not isinstance(onset, dict):
+            raise ValueError(
+                f"phenotype_params{trait_num} for model 'simple_ltm': 'onset' must be a dict, got {onset!r} "
+                f"(e.g. {{'kind': 'fixed', 'age': 30}} or {{'kind': 'normal', 'mean': 30, 'sd': 8}})"
+            )
         return cls(
             prevalence=phenotype_params["prevalence"],
-            onset=dict(phenotype_params["onset"]),
+            onset=dict(onset),
             beta=beta,
             beta_sex=beta_sex,
         )

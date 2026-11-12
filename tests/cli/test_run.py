@@ -1137,7 +1137,8 @@ def test_run_summary_and_ls_report_the_plot_state(
 def test_resolving_config_does_not_import_the_stage_stack():
     probe = (
         "import sys; from pathlib import Path; import simace.cli.run as r; r.resolve_all(Path(sys.argv[1])); "
-        "print(' '.join(m for m in ('numba', 'polars', 'scipy', 'pedigree_graph', 'simace.phenotype') if m in sys.modules))"
+        "print(' '.join(m for m in ('numba', 'polars', 'scipy', 'pedigree_graph', 'simace.phenotype.runner') "
+        "if m in sys.modules))"
     )
     out = subprocess.run([sys.executable, "-c", probe, str(REPO_CONFIG)], capture_output=True, text=True, check=True)
     assert out.stdout.split() == []

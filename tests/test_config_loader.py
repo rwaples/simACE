@@ -514,6 +514,77 @@ class TestPedigreeConfigValidation:
         assert scenarios["inheriting"]["seed"] == 99
 
 
+class TestPhenotypeConfigValidation:
+    """Config load rejects every phenotype parameter set the model itself rejects (#96)."""
+
+    _write = TestPedigreeConfigValidation._write
+    _baseline_defaults = TestPedigreeConfigValidation._baseline_defaults
+
+    def _load(self, tmp_path: Path, model: str, params: dict) -> dict:
+        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
+        self._write(tmp_path, "x.yaml", {"sc": {"phenotype": {"trait1": {"model": model, "params": params}}}})
+        return resolve_scenarios(tmp_path)
+
+    @pytest.mark.parametrize(
+        ("model", "params", "match"),
+        [
+            ("frailty", {"distribution": "weibull", "scale": 300}, r"missing required hazard params: \['rho'\]"),
+            ("first_passage", {"shape": 1.0}, "missing required key 'drift'"),
+            ("first_passage", {"drift": 0.0, "shape": 1.0}, "drift must be non-zero"),
+            ("adult", {"method": "ltm", "prevalence": 1.5}, r"prevalence must be in the open interval \(0, 1\)"),
+            ("adult", {"method": "ltm", "prevalence": {0: 0.1, 1: 0.0}}, r"prevalence must be in the open interval"),
+            (
+                "simple_ltm",
+                {"prevalence": 0.1, "onset": {"kind": "normal", "mean": 30, "sd": -1}},
+                "onset.sd must be > 0",
+            ),
+            (
+                "frailty",
+                {"distribution": "weibull", "scale": 300, "rho": 2.0, "standardize_hazard": "bogus"},
+                "bogus",
+            ),
+            ("first_passage", {"drift": -0.1, "shape": 0.0}, r"shape must be > 0"),
+            ("adult", {"method": "ltm", "prevalence": 0.1, "cip_k": 0.0}, r"cip_k must be > 0"),
+            ("frailty", {"distribution": "weibull", "scale": -3.0, "rho": 2.0}, r"scale must be > 0"),
+            ("simple_ltm", {"prevalence": 0.1, "onset": 30}, r"'onset' must be a dict"),
+        ],
+        ids=[
+            "weibull_no_rho",
+            "fp_no_drift",
+            "fp_drift0",
+            "adult_prev_1p5",
+            "adult_prev_per_gen_0",
+            "simple_ltm_sd_neg",
+            "frailty_std_bogus",
+            "fp_shape0",
+            "adult_cip_k0",
+            "weibull_scale_neg",
+            "simple_ltm_onset_scalar",
+        ],
+    )
+    def test_model_rejection_fails_config_load(self, tmp_path, model, params, match):
+        with pytest.raises(ValueError, match=rf"Scenario 'sc': .*{match}"):
+            self._load(tmp_path, model, params)
+
+    def test_missing_beta_names_the_scenario(self, tmp_path):
+        body = self._baseline_defaults()
+        del body["defaults"]["phenotype"]["trait1"]["beta"]
+        self._write(tmp_path, "_default.yaml", body)
+        self._write(tmp_path, "x.yaml", {"sc": {}})
+        with pytest.raises(ValueError, match=r"Scenario 'sc': .*beta1"):
+            resolve_scenarios(tmp_path)
+
+    def test_null_phenotype_params_reports_the_null(self, tmp_path):
+        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
+        self._write(tmp_path, "x.yaml", {"sc": {"phenotype": {"trait1": {"params": None}}}})
+        with pytest.raises(ValueError, match=r"Scenario 'sc': phenotype_params1 is null"):
+            resolve_scenarios(tmp_path)
+
+    def test_per_generation_prevalence_loads(self, tmp_path):
+        scenarios = self._load(tmp_path, "adult", {"method": "ltm", "prevalence": {0: 0.1, 1: 0.2}})
+        assert scenarios["sc"]["phenotype_params1"]["prevalence"] == {0: 0.1, 1: 0.2}
+
+
 @pytest.mark.parametrize(
     "scenario",
     [{"use_gene_drop": True}, {"drop_from": "base"}, {"tstrait": {"alpha": 0.0}}, {"tstrait_alpha": 0.0}],

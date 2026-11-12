@@ -2,8 +2,6 @@
 
 import pytest
 
-from simace.core import phenotype_keys
-from simace.core.phenotype_keys import MODEL_FAMILIES
 from simace.phenotype.models import (
     MODELS,
     AdultModel,
@@ -25,11 +23,6 @@ EXPECTED = {
 
 def test_registry_keys_match_expected():
     assert set(MODELS) == set(EXPECTED)
-
-
-def test_key_lists_cover_the_registry():
-    """``simace.core.phenotype_keys`` names the models without importing them; it must not drift."""
-    assert set(MODELS) == MODEL_FAMILIES == set(phenotype_keys._MODEL_KEYS)
 
 
 # A minimal valid phenotype_params per model, with each from_config's other inputs.
@@ -69,6 +62,7 @@ def test_from_config_rejects_unknown_keys_before_subclass_hook():
 
     class _Probe(PhenotypeModel):
         name = "simple_ltm"
+        config_keys = SimpleLtmModel.config_keys
 
         @classmethod
         def _from_config(cls, phenotype_params, trait_num, *, beta, beta_sex):

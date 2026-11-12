@@ -10,13 +10,14 @@ import argparse
 import numpy as np
 import pytest
 
-from simace.core.phenotype_keys import HAZARD_ALIASES, check_phenotype_params
+from simace.core.phenotype_keys import HAZARD_ALIASES
 from simace.phenotype.hazards import (
     BASELINE_HAZARDS,
     BASELINE_PARAMS,
     add_hazard_cli_args,
     coerce_standardize_mode,
     compute_event_times,
+    hazard_config_keys,
     iter_generation_groups,
     parse_hazard_cli,
     resolve_hazard_mode,
@@ -84,7 +85,7 @@ def test_hazard_alias_accepted_at_every_layer(distribution, required, alternate)
     """Config keys, CLI flags, validation, and inversion all take an alternate from ``HAZARD_ALIASES``."""
     params = dict(DEFAULT_PARAMS[distribution])
     params[alternate] = params.pop(required)
-    check_phenotype_params("frailty", {"distribution": distribution, **params}, "test")
+    assert set(params) <= hazard_config_keys(distribution)
     validate_hazard_params(distribution, params, "frailty")
     parser = argparse.ArgumentParser()
     add_hazard_cli_args(parser, 1, name="frailty")

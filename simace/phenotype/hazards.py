@@ -10,9 +10,9 @@ proportional-hazards frailty model:
     t            = H0^{-1}(-log(U) / z)
 
 ``compute_event_times`` is the public dispatch over the registry. The numba
-kernels and per-distribution wrappers stay module-private; consumers should
-go through ``compute_event_times`` (or, for tooling that needs the dispatch
-table itself, ``BASELINE_HAZARDS``).
+kernels (in :mod:`simace.phenotype._kernels`) and per-distribution wrappers
+stay private; consumers should go through ``compute_event_times`` (or, for
+tooling that needs the dispatch table itself, ``BASELINE_HAZARDS``).
 
 Supported distributions and required ``params`` keys:
     "weibull"     : {"scale": s, "rho": rho}
@@ -36,6 +36,7 @@ __all__ = [
     "coerce_standardize_mode",
     "compute_event_times",
     "hazard_cli_flag_attrs",
+    "hazard_config_keys",
     "iter_generation_groups",
     "parse_hazard_cli",
     "resolve_hazard_mode",
@@ -49,9 +50,7 @@ __all__ = [
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba import njit
 
-from simace.core.numerics import ndtri as ndtri_approx
 from simace.core.phenotype_keys import BASELINE_PARAMS, HAZARD_ALIASES, exponential_rate
 from simace.core.standardize import STANDARDIZE_CHOICES, StandardizeMode, coerce_standardize_mode
 
@@ -59,105 +58,40 @@ if TYPE_CHECKING:
     import argparse
     from collections.abc import Iterator
 
-    prange = range
-else:
-    from numba import prange
-
 # ---------------------------------------------------------------------------
-# Numba kernels — fuse frailty computation + inversion in a single pass
-# ---------------------------------------------------------------------------
-
-
-@njit(parallel=True, cache=True)
-def _nb_weibull(neg_log_u, liability, mean, scaled_beta, scale, inv_rho):
-    n = len(neg_log_u)
-    t = np.empty(n)
-    for i in prange(n):
-        z = np.exp(scaled_beta * (liability[i] - mean))
-        val = scale * np.exp(np.log(neg_log_u[i] / z) * inv_rho)
-        t[i] = min(max(val, 1e-10), 1e6)
-    return t
-
-
-@njit(parallel=True, cache=True)
-def _nb_exponential(neg_log_u, liability, mean, scaled_beta, inv_rate):
-    n = len(neg_log_u)
-    t = np.empty(n)
-    for i in prange(n):
-        z = np.exp(scaled_beta * (liability[i] - mean))
-        val = neg_log_u[i] * inv_rate / z
-        t[i] = min(max(val, 1e-10), 1e6)
-    return t
-
-
-@njit(parallel=True, cache=True)
-def _nb_gompertz(neg_log_u, liability, mean, scaled_beta, g_over_b, inv_g):
-    n = len(neg_log_u)
-    t = np.empty(n)
-    for i in prange(n):
-        z = np.exp(scaled_beta * (liability[i] - mean))
-        target = neg_log_u[i] / z
-        val = np.log1p(target * g_over_b) * inv_g
-        t[i] = min(max(val, 1e-10), 1e6)
-    return t
-
-
-@njit(parallel=True, cache=True)
-def _nb_lognormal(neg_log_u, liability, mean, scaled_beta, mu, sigma):
-    n = len(neg_log_u)
-    t = np.empty(n)
-    for i in prange(n):
-        z = np.exp(scaled_beta * (liability[i] - mean))
-        target = neg_log_u[i] / z
-        surv = np.exp(-target)
-        if surv <= 0.0:
-            t[i] = 1e6
-        elif surv >= 1.0:
-            # target == 0 means S(t) == 1, i.e. an event time of 0, and
-            # ndtri_approx diverges to NaN at exactly 1.0.  Mirror the
-            # surv <= 0 guard above and return the documented floor.
-            t[i] = 1e-10
-        else:
-            val = np.exp(mu - sigma * ndtri_approx(surv))
-            t[i] = min(max(val, 1e-10), 1e6)
-    return t
-
-
-@njit(parallel=True, cache=True)
-def _nb_loglogistic(neg_log_u, liability, mean, scaled_beta, alpha, inv_k):
-    n = len(neg_log_u)
-    t = np.empty(n)
-    for i in prange(n):
-        z = np.exp(scaled_beta * (liability[i] - mean))
-        target = neg_log_u[i] / z
-        val = alpha * np.exp(np.log(np.expm1(target)) * inv_k)
-        t[i] = min(max(val, 1e-10), 1e6)
-    return t
-
-
-# ---------------------------------------------------------------------------
-# Python wrappers — unpack params dict, call numba kernel
+# Python wrappers — unpack params dict, call numba kernel. The kernel module is
+# imported per call so that importing this module does not load numba.
 # ---------------------------------------------------------------------------
 
 
 def _invert_weibull(neg_log_u, liability, mean, scaled_beta, params):
+    from simace.phenotype._kernels import _nb_weibull
+
     return _nb_weibull(neg_log_u, liability, mean, scaled_beta, params["scale"], 1.0 / params["rho"])
 
 
 def _invert_exponential(neg_log_u, liability, mean, scaled_beta, params):
+    from simace.phenotype._kernels import _nb_exponential
+
     return _nb_exponential(neg_log_u, liability, mean, scaled_beta, 1.0 / exponential_rate(params))
 
 
 def _invert_gompertz(neg_log_u, liability, mean, scaled_beta, params):
+    from simace.phenotype._kernels import _nb_gompertz
+
     b, g = params["rate"], params["gamma"]
     return _nb_gompertz(neg_log_u, liability, mean, scaled_beta, g / b, 1.0 / g)
 
 
 def _invert_lognormal(neg_log_u, liability, mean, scaled_beta, params):
+    from simace.phenotype._kernels import _nb_lognormal
+
     return _nb_lognormal(neg_log_u, liability, mean, scaled_beta, params["mu"], params["sigma"])
 
 
 def _invert_loglogistic(neg_log_u, liability, mean, scaled_beta, params):
+    from simace.phenotype._kernels import _nb_loglogistic
+
     return _nb_loglogistic(neg_log_u, liability, mean, scaled_beta, params["scale"], 1.0 / params["shape"])
 
 
@@ -202,6 +136,21 @@ HAZARD_FLAG_ROOTS: tuple[str, ...] = tuple(
 # ---------------------------------------------------------------------------
 
 
+def hazard_config_keys(distribution: str | None) -> frozenset[str]:
+    """The ``phenotype_params`` hazard keys ``distribution`` accepts, alternates included.
+
+    An unknown distribution accepts every hazard key, so the error names the
+    distribution (``validate_hazard_params``), not its parameters.
+    """
+    if distribution not in BASELINE_PARAMS:
+        return frozenset(HAZARD_FLAG_ROOTS)
+    return frozenset(BASELINE_PARAMS[distribution]) | frozenset(HAZARD_ALIASES.get(distribution, {}).values())
+
+
+#: Hazard parameters that may take any sign; every other one must be positive.
+_SIGNED_HAZARD_PARAMS: frozenset[tuple[str, str]] = frozenset({("lognormal", "mu")})
+
+
 def validate_hazard_params(
     distribution: str,
     hazard_params: dict[str, float],
@@ -210,7 +159,8 @@ def validate_hazard_params(
     """Validate distribution name and required ``hazard_params`` keys.
 
     Every key in ``BASELINE_PARAMS[distribution]`` must be present, or its
-    alternate in ``HAZARD_ALIASES``.
+    alternate in ``HAZARD_ALIASES``, and every value but lognormal ``mu``
+    must be positive.
     """
     if distribution not in BASELINE_HAZARDS:
         raise ValueError(f"unknown {model_name} distribution {distribution!r}; valid: {sorted(BASELINE_HAZARDS)}")
@@ -222,6 +172,9 @@ def validate_hazard_params(
         raise ValueError(
             f"{model_name} distribution {distribution!r} missing required hazard params: {sorted(missing)}"
         )
+    for key, value in hazard_params.items():
+        if (distribution, key) not in _SIGNED_HAZARD_PARAMS and not value > 0.0:
+            raise ValueError(f"{model_name} distribution {distribution!r}: {key} must be > 0, got {value!r}")
 
 
 def add_hazard_cli_args(

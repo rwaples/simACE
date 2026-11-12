@@ -52,6 +52,7 @@ simACE/
 │   ├── phenotype/
 │   │   ├── runner.py                     # run_phenotype dispatcher and CLI (re-exported from __init__.py)
 │   │   ├── hazards.py                    # Baseline-hazard registry (Weibull, exponential, Gompertz, and three more)
+│   │   ├── _kernels.py                   # Numba kernels for hazards and first_passage, imported at call time
 │   │   ├── blended_post.py               # Post-hoc blended-diagnosis transform
 │   │   ├── models/                       # PhenotypeModel subclasses (one file per family)
 │   │   │   ├── _base.py                  # PhenotypeModel ABC

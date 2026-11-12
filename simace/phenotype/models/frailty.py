@@ -18,6 +18,7 @@ from simace.phenotype.hazards import (
     add_standardize_hazard_cli_arg,
     compute_event_times,
     hazard_cli_flag_attrs,
+    hazard_config_keys,
     iter_generation_groups,
     parse_hazard_cli,
     resolve_hazard_mode,
@@ -63,6 +64,11 @@ class FrailtyModel(PhenotypeModel):
     standardize_hazard: StandardizeMode | None = None
 
     name: ClassVar[str] = "frailty"
+    config_keys: ClassVar[frozenset[str]] = frozenset({"distribution", "standardize_hazard"})
+
+    @classmethod
+    def _accepted_keys(cls, phenotype_params: dict[str, Any]) -> frozenset[str]:
+        return cls.config_keys | hazard_config_keys(phenotype_params.get("distribution"))
 
     def __post_init__(self) -> None:
         validate_hazard_params(self.distribution, self.hazard_params, model_name="frailty")

@@ -17,7 +17,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 import numpy as np
-from numba import njit
 
 from simace.phenotype.hazards import (
     add_standardize_hazard_cli_arg,
@@ -40,62 +39,7 @@ if TYPE_CHECKING:
 
     from simace.phenotype.hazards import StandardizeMode
 
-    prange = range
-else:
-    from numba import prange
-
 __all__ = ["FirstPassageModel"]
-
-
-# ---------------------------------------------------------------------------
-# Numba kernels — fused y0 + Michael-Schucany-Haas inverse-Gaussian sampler
-# ---------------------------------------------------------------------------
-
-
-@njit(cache=True)
-def _msh_sample(normal, uniform, mu, lam):
-    """Michael-Schucany-Haas (1976) inverse Gaussian sampler, clamped to [1e-10, 1e6]."""
-    y = normal * normal
-    mu2 = mu * mu
-    half_mu_over_lam = mu / (2.0 * lam)
-    x = mu + half_mu_over_lam * (mu * y - np.sqrt(4.0 * mu * lam * y + mu2 * y * y))
-    if uniform <= mu / (mu + x):
-        return min(max(x, 1e-10), 1e6)
-    return min(max(mu2 / x, 1e-10), 1e6)
-
-
-@njit(parallel=True, cache=True)
-def _nb_fpt(normals, uniforms, liability, mean, scaled_beta, sex, beta_sex, y0_base, inv_drift):
-    """Fused FPT kernel for drift < 0 (everyone hits)."""
-    n = len(normals)
-    t = np.empty(n)
-    for i in prange(n):
-        y0 = y0_base * np.exp(-scaled_beta * (liability[i] - mean) - beta_sex * sex[i])
-        if y0 < 1e-300:
-            t[i] = 1e-10
-        elif y0 > 1e150:
-            t[i] = 1e6
-        else:
-            t[i] = _msh_sample(normals[i], uniforms[i], y0 * inv_drift, y0 * y0)
-    return t
-
-
-@njit(parallel=True, cache=True)
-def _nb_fpt_cure(normals, uniforms, cure_draws, liability, mean, scaled_beta, sex, beta_sex, y0_base, drift, inv_drift):
-    """Fused FPT kernel for drift > 0 (emergent cure fraction)."""
-    n = len(normals)
-    t = np.empty(n)
-    for i in prange(n):
-        y0 = y0_base * np.exp(-scaled_beta * (liability[i] - mean) - beta_sex * sex[i])
-        if y0 < 1e-300:
-            t[i] = 1e-10
-        else:
-            p_hit = np.exp(-2.0 * y0 * drift)
-            if cure_draws[i] >= p_hit:
-                t[i] = 1e6
-            else:
-                t[i] = _msh_sample(normals[i], uniforms[i], y0 * inv_drift, y0 * y0)
-    return t
 
 
 # ---------------------------------------------------------------------------
@@ -123,11 +67,14 @@ class FirstPassageModel(PhenotypeModel):
     standardize_hazard: StandardizeMode | None = None
 
     name: ClassVar[str] = "first_passage"
+    config_keys: ClassVar[frozenset[str]] = frozenset({"drift", "shape", "standardize_hazard"})
 
     def __post_init__(self) -> None:
         check_finite_beta(self.beta)
         if self.drift == 0.0:
             raise ValueError("first_passage drift must be non-zero")
+        if not self.shape > 0.0:
+            raise ValueError(f"first_passage shape must be > 0, got {self.shape!r}")
         validate_standardize_hazard(self.standardize_hazard)
 
     # ------------------------------------------------------------------
@@ -207,6 +154,8 @@ class FirstPassageModel(PhenotypeModel):
         sex: np.ndarray | None,
         generation: np.ndarray,
     ) -> np.ndarray:
+        from simace.phenotype._kernels import _nb_fpt, _nb_fpt_cure
+
         mode_haz = resolve_hazard_mode(standardize, self.standardize_hazard)
         n = len(liability)
         rng = np.random.default_rng(seed)
