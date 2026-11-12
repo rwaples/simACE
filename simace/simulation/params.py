@@ -11,9 +11,9 @@ of ``run_simulation``:
     ranges) that are no-ops under Wright-Fisher;
   * ``assort_matrix`` validation (shape, symmetry, diagonal range), kept as ``R_mf``.
 
-Per-generation *resolution* (forward-filling dict-valued params) and all
-assortative-mating planning live elsewhere (``resolve_per_gen_param`` and
-:class:`simace.simulation.assortment.AssortmentPlan`); this class only
+Per-generation *resolution* (forward-filling dict-valued params) is
+:func:`resolve_per_gen_param` below, and assortative-mating planning is
+:class:`simace.simulation.assortment.AssortmentPlan`; this class only
 validates and normalizes the raw inputs.
 """
 
@@ -292,3 +292,66 @@ class SimulationParams:
             c_transmission=c_transmission,
             inbreeding=inbreeding,
         )
+
+
+def resolve_per_gen_param(
+    value: float | dict[int, float],
+    G: int,
+    name: str = "param",
+    allow_negative: bool = False,
+) -> list[float]:
+    """Resolve a variance-component parameter to a per-generation list.
+
+    Args:
+        value: scalar (constant across all generations) or dict mapping
+               generation index → value.  Missing generation keys are
+               forward-filled from the most recent earlier key.
+        G: total number of generations to resolve for (indices 0..G-1).
+        name: parameter name, used in error messages.
+        allow_negative: if False (default), values must be ≥ 0. Set True for
+            parameters with a natural negative range (e.g. assortative-mating
+            correlations).
+
+    Returns:
+        List of length *G* with the resolved value for each generation.
+
+    Raises:
+        ValueError: if any resolved value is negative (and allow_negative is
+            False) or if a dict has no key <= 0 (so generation 0 would be
+            undefined).
+    """
+    if isinstance(value, (int, float)):
+        v = float(value)
+        if not allow_negative and v < 0:
+            raise ValueError(f"{name} must be >= 0, got {v}")
+        return [v] * G
+
+    if not isinstance(value, dict):
+        raise TypeError(f"{name} must be a scalar or dict, got {type(value).__name__}")
+
+    if not value:
+        raise ValueError(f"{name} dict must not be empty")
+
+    # Sort keys and validate
+    sorted_keys = sorted(value)
+    if sorted_keys[0] > 0:
+        raise ValueError(
+            f"{name} dict must have a key <= 0 so generation 0 is defined; smallest key is {sorted_keys[0]}"
+        )
+    if not allow_negative:
+        for k in sorted_keys:
+            v = float(value[k])
+            if v < 0:
+                raise ValueError(f"{name}[{k}] must be >= 0, got {v}")
+
+    # Forward-fill
+    result = [0.0] * G
+    key_idx = 0
+    current_val = float(value[sorted_keys[0]])
+    for gen in range(G):
+        # Advance to the latest key <= gen
+        while key_idx + 1 < len(sorted_keys) and sorted_keys[key_idx + 1] <= gen:
+            key_idx += 1
+            current_val = float(value[sorted_keys[key_idx]])
+        result[gen] = current_val
+    return result

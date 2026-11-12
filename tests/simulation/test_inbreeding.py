@@ -12,6 +12,7 @@ import polars as pl
 import polars.testing
 import pytest
 
+import simace.simulation.reproduce as reproduce_mod
 import simace.simulation.simulate as sim
 from simace.core.cohort import INBREEDING_KEY, read_inbreeding
 from simace.simulation.inbreeding_plan import InbreedingPlan, resolve
@@ -223,13 +224,13 @@ def test_scale_uses_the_parents_F_not_the_offspring_F(monkeypatch) -> None:
     state = {"i": 0}
     monkeypatch.setattr(sim, "_mating_standard", lambda *a, **k: _hand_mating(*a, state=state, **k))
     scales = []
-    noise = sim.generate_mendelian_noise
+    noise = reproduce_mod.generate_mendelian_noise
 
     def spy(rng, n, sd1, sd2, rA, scale=None):
         scales.append(scale)
         return noise(rng, n, sd1, sd2, rA, scale)
 
-    monkeypatch.setattr(sim, "generate_mendelian_noise", spy)
+    monkeypatch.setattr(reproduce_mod, "generate_mendelian_noise", spy)
     kw = {**BASE, "N": 200, "G_ped": 4, "G_sim": 4, "p_mztwin": 0.0, "inbreeding_mode": "exact"}
     ped = run_simulation(**kw)
     F = ped["F"].to_numpy().reshape(4, 200)

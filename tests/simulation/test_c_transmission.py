@@ -13,7 +13,8 @@ import pytest
 
 from simace.core.relationships import reference_corr, reference_midparent_slope
 from simace.simulation.params import CTransmission
-from simace.simulation.simulate import _transmitted_c, reproduce, run_simulation
+from simace.simulation.reproduce import _transmitted_c, reproduce
+from simace.simulation.simulate import run_simulation
 
 _BASE = dict(
     N=20_000,

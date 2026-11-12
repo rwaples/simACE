@@ -53,7 +53,7 @@ Bugs that have actually occurred. Check these whenever touching the relevant cod
 
 ### Expected liability correlations
 
-`r = 2 * kinship * A + C_shared`, where `C_shared = C` only if the pair shares a household. **Household is assigned by mother** (`simulate.py`: `np.unique(parent_idxs[:, 0])`), so maternal half-sibs share C and paternal half-sibs do not.
+`r = 2 * kinship * A + C_shared`, where `C_shared = C` only if the pair shares a household. **Household is assigned by mother** (`simace/simulation/mating.py`: `np.unique(parent_idxs[:, 0])`), so maternal half-sibs share C and paternal half-sibs do not.
 
 MZ = A+C, FS = 0.5A+C, MHS = 0.25A+C, PHS = 0.25A, PO = 0.5A.
 

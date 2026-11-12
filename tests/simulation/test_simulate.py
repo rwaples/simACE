@@ -8,23 +8,21 @@ import pytest
 from polars.testing import assert_frame_equal
 from scipy import stats
 
+import simace.simulation.mating as mating_mod
 import simace.simulation.simulate as simulate_mod
-from simace.simulation.simulate import (
+from simace.simulation.mating import (
     _assortative_pair_partners,
-    _find_duplicate_pairs,
-    _kd_match_python,
     _mating_standard,
     _mating_wf,
-    _metropolis_full_python,
     balance_mating_slots,
     draw_mating_counts,
-    generate_correlated_components,
-    generate_mendelian_noise,
     pair_partners,
     place_twins,
-    resolve_per_gen_param,
-    run_simulation,
 )
+from simace.simulation.pairing_kernels import _find_duplicate_pairs, _kd_match_python, _metropolis_full_python
+from simace.simulation.params import resolve_per_gen_param
+from simace.simulation.reproduce import generate_correlated_components, generate_mendelian_noise
+from simace.simulation.simulate import run_simulation
 
 # ---------------------------------------------------------------------------
 # generate_correlated_components
@@ -156,7 +154,7 @@ class TestPairPartners:
 
     def test_dedup_breaks_when_no_non_duplicates(self, rng, monkeypatch):
         """Defensive branch: if all pairs are flagged duplicate, stop swapping."""
-        monkeypatch.setattr(simulate_mod, "_find_duplicate_pairs", lambda matings: np.ones(len(matings), dtype=bool))
+        monkeypatch.setattr(mating_mod, "_find_duplicate_pairs", lambda matings: np.ones(len(matings), dtype=bool))
         males = np.array([0, 1])
         females = np.array([10, 11])
         counts = np.array([1, 1])
@@ -527,7 +525,7 @@ class TestAssortativePairPartners:
 
     def test_dedup_breaks_when_no_non_duplicates(self, rng, monkeypatch):
         """Defensive branch: if all assortative pairs are flagged duplicate, stop swapping."""
-        monkeypatch.setattr(simulate_mod, "_find_duplicate_pairs", lambda matings: np.ones(len(matings), dtype=bool))
+        monkeypatch.setattr(mating_mod, "_find_duplicate_pairs", lambda matings: np.ones(len(matings), dtype=bool))
         male_idxs = np.array([0, 1])
         female_idxs = np.array([2, 3])
         counts = np.ones(2, dtype=int)

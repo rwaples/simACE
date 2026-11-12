@@ -3,19 +3,17 @@
 import numpy as np
 import pytest
 
-import simace.simulation.simulate as simulate_mod
+import simace.simulation.mating as mating_mod
 from simace.simulation.assortment import METROPOLIS_TOL, read_mating_log
-from simace.simulation.simulate import (
-    _assortative_pair_partners,
+from simace.simulation.mating import _assortative_pair_partners, balance_mating_slots, draw_mating_counts
+from simace.simulation.pairing_kernels import (
     _draw_pairs,
     _find_duplicate_pairs,
     _metropolis_full,
     _metropolis_full_python,
     _metropolis_single,
-    balance_mating_slots,
-    draw_mating_counts,
-    run_simulation,
 )
+from simace.simulation.simulate import run_simulation
 
 _SIM = dict(
     N=1000,
@@ -91,7 +89,7 @@ def test_the_single_trait_kernel_never_creates_a_duplicate_couple():
 def test_an_unreachable_tolerance_is_recorded_as_not_converged(monkeypatch):
     rng = np.random.default_rng(1)
     mi, mc, fi, fc, pheno = _population(rng, 1000, 0.5)
-    monkeypatch.setattr(simulate_mod, "METROPOLIS_TOL", 0.0)
+    monkeypatch.setattr(mating_mod, "METROPOLIS_TOL", 0.0)
     log: list = []
     _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.4, 0.0, pairing_log=log)
     assert not log[0]["converged"]

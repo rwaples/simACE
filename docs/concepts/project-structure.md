@@ -43,7 +43,11 @@ simACE/
 │   │   ├── trait_schema.py               # Outcomes-only trait file schemas (RAW_TRAIT, CENSORED_TRAIT) and hydrate_trait
 │   │   └── yaml_io.py                    # load_yaml, dump_yaml helpers
 │   ├── simulation/
-│   │   ├── simulate.py                   # ACE pedigree simulation (mating, reproduce, run_simulation)
+│   │   ├── simulate.py                   # run_simulation and the simulate stage CLI
+│   │   ├── mating.py                     # One generation's mating: slots, partner pairing, offspring, twins
+│   │   ├── pairing_kernels.py            # Numba kernels for pairing (midparent, Metropolis, k-d match)
+│   │   ├── reproduce.py                  # Offspring A, C and E components
+│   │   ├── pedigree_buffers.py           # Component-matrix layout and preallocated pedigree arrays
 │   │   ├── params.py                     # Validated parameter record for run_simulation
 │   │   ├── assortment.py                 # Standard-mating assortative-mating plan
 │   │   ├── mate_correlation.py           # Expected mate liability correlation matrix

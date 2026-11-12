@@ -31,8 +31,10 @@ from hypothesis import strategies as st
 from polars.testing import assert_frame_equal
 
 from simace.simulation import simulate
+from simace.simulation.mating import _mating_standard, _mating_wf
 from simace.simulation.params import CTransmission
-from simace.simulation.simulate import _mating_standard, _mating_wf, generate_correlated_components, run_simulation
+from simace.simulation.reproduce import generate_correlated_components
+from simace.simulation.simulate import run_simulation
 from tests.conftest import property_budget
 
 

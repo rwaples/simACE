@@ -18,7 +18,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 
-from simace.simulation.simulate import reproduce
+from simace.simulation.reproduce import reproduce
 
 
 class Topology(enum.StrEnum):

@@ -11,12 +11,9 @@ from hypothesis import strategies as st
 
 from simace.core.parquet import load_parquet, save_parquet
 from simace.core.schema import PEDIGREE
-from simace.simulation.simulate import (
-    _mating_standard,
-    generate_correlated_components,
-    reproduce,
-    run_simulation,
-)
+from simace.simulation.mating import _mating_standard
+from simace.simulation.reproduce import generate_correlated_components, reproduce
+from simace.simulation.simulate import run_simulation
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence

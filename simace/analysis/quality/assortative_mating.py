@@ -11,6 +11,7 @@ from simace.core.numerics import finite_or_none
 from simace.simulation import assortment
 from simace.simulation.assortment import parent_ce_gen
 from simace.simulation.mate_correlation import expected_mate_corr_matrix
+from simace.simulation.params import resolve_per_gen_param
 
 from ._common import _info
 
@@ -89,8 +90,6 @@ def recorded_matings(params: dict[str, Any]) -> list[RecordedMating]:
     a set ``assort_matrix`` is mated on only when both traits assort, and
     under Wright-Fisher every target is zero.
     """
-    from simace.simulation.simulate import resolve_per_gen_param
-
     G_sim, burnin = schedule_span(params)
     assort1, assort2 = assortment_schedule(params)
     matrix = _mated_matrix(params)

@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from simace.simulation.params import resolve_per_gen_param
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -76,7 +78,6 @@ def assortment_schedule(
     if assort_matrix is not None:
         matrix = np.asarray(assort_matrix, dtype=np.float64)
         return [float(matrix[0, 0])] * G_sim, [float(matrix[1, 1])] * G_sim
-    from simace.simulation.simulate import resolve_per_gen_param
 
     return (
         resolve_per_gen_param(assort1, G_sim, name="assort1", allow_negative=True),

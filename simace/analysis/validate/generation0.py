@@ -36,6 +36,7 @@ import polars as pl
 from simace.analysis.quality._common import cluster_codes
 from simace.analysis.quality.assortative_mating import assortment_schedule, schedule_span
 from simace.core.relationships import transmission_active
+from simace.simulation.params import resolve_per_gen_param
 
 from .calibrated import information_cell, not_applicable_cell, pearson_influence, scored_cell, section
 
@@ -54,7 +55,6 @@ CROSS_TRAIT_RC_CELLS = ("rC",)
 
 
 def _per_gen(params: Mapping[str, Any], name: str, G_sim: int) -> list[float]:
-    from simace.simulation.simulate import resolve_per_gen_param
 
     return resolve_per_gen_param(params.get(name, 0.0), G_sim, name=name)
 

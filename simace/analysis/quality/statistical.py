@@ -14,6 +14,7 @@ import numpy as np
 
 from simace.core.numerics import safe_corrcoef
 from simace.core.relationships import transmission_coefficients
+from simace.simulation.params import resolve_per_gen_param
 
 from ._common import _corr_tolerance, _info, _result, sorted_runs
 from .am_relatedness import am_relatedness_mode
@@ -76,8 +77,6 @@ def validate_statistical(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]
     def _resolve_founder_val(val):
         """Resolve a scalar or per-gen dict to the founder generation value."""
         if isinstance(val, dict):
-            from simace.simulation.simulate import resolve_per_gen_param
-
             return resolve_per_gen_param(val, G_sim)[founder_sim_gen]
         return val
 

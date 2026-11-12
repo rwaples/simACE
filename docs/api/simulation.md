@@ -9,6 +9,18 @@
 
 ::: simace.simulation.simulate
 
+## mating
+
+::: simace.simulation.mating
+
+## reproduce
+
+::: simace.simulation.reproduce
+
+## params
+
+::: simace.simulation.params
+
 ## mate_correlation
 
 ::: simace.simulation.mate_correlation
