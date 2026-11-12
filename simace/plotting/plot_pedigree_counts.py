@@ -16,7 +16,6 @@ Family structure (4 generations):
 
 __all__ = ["plot_pedigree_relationship_counts"]
 
-import argparse
 import logging
 from pathlib import Path
 from typing import Any
@@ -509,21 +508,3 @@ def plot_pedigree_relationship_counts(
 
     finalize_plot(output_path, scenario=scenario)
     logger.info("Pedigree counts plot saved to %s", output_path)
-
-
-def cli() -> None:
-    """Command-line interface for pedigree relationship counts plot."""
-    from simace.core.cli_base import add_logging_args, init_logging
-    from simace.core.yaml_io import load_yaml
-
-    parser = argparse.ArgumentParser(description="Plot pedigree relationship pair counts diagram")
-    add_logging_args(parser)
-    parser.add_argument("--stats", nargs="+", required=True, help="Stats YAML paths")
-    parser.add_argument("--output", required=True, help="Output image path")
-    parser.add_argument("--scenario", default="", help="Scenario name for title")
-    args = parser.parse_args()
-    init_logging(args)
-
-    all_stats = [load_yaml(p) for p in args.stats]
-
-    plot_pedigree_relationship_counts(all_stats, args.output, args.scenario)

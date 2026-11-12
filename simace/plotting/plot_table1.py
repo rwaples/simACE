@@ -126,30 +126,6 @@ def _sex_n(stats: dict, trait: str = "trait1"):
     return f_n, m_n
 
 
-def _aggregate_cascade(all_stats: list[dict], trait: str):
-    """Aggregate censoring cascade across generations and reps."""
-    death_pcts, right_pcts, left_pcts = [], [], []
-    for stats in all_stats:
-        cascade = _safe_get(stats, "censoring_cascade", trait, default={})
-        total_affected = 0
-        total_death = 0
-        total_right = 0
-        total_left = 0
-        for gen_data in cascade.values():
-            if not isinstance(gen_data, dict):
-                continue
-            ta = gen_data.get("true_affected", 0)
-            total_affected += ta
-            total_death += gen_data.get("death_censored", 0)
-            total_right += gen_data.get("right_censored", 0)
-            total_left += gen_data.get("left_truncated", 0)
-        if total_affected > 0:
-            death_pcts.append(total_death / total_affected)
-            right_pcts.append(total_right / total_affected)
-            left_pcts.append(total_left / total_affected)
-    return death_pcts, right_pcts, left_pcts
-
-
 # ---------------------------------------------------------------------------
 # Structured Table 1 data for native HTML rendering
 # ---------------------------------------------------------------------------

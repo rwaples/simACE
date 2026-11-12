@@ -360,14 +360,11 @@ def setup_relationship_type_panel(
     observed_per_rep: dict[str, list[float]],
     liability_r: dict[str, float] | None = None,
     parametric_r: dict[str, float] | None = None,
-    show_violins_threshold: int = 4,
-    pair_colors: dict[str, str] | None = None,
-    rng_seed: int = 42,
 ) -> dict:
     """Render one per-pair-type comparison panel except the per-rep observed dots.
 
     For each pair type at x = i:
-      * faint coloured violin (only when ``n_reps >= show_violins_threshold``)
+      * faint coloured violin (only when ``n_reps >= 4``)
       * mean-of-observed wide cross
       * open diamond at mean liability r (if provided)
       * filled red star at parametric E[r] (if provided)
@@ -381,23 +378,20 @@ def setup_relationship_type_panel(
     """
     from simace.plotting.plot_style import enable_value_gridlines
 
-    if pair_colors is None:
-        pair_colors = PAIR_COLORS
-
     ref_values: list[float] = []
     obs_records: list[tuple[Any, float, float]] = []
 
-    if n_reps >= show_violins_threshold:
+    if n_reps >= 4:
         datasets = [list(observed_per_rep.get(pt, [])) for pt in relationship_types]
         if any(len(d) >= 2 for d in datasets):
-            colors = [pair_colors[pt] for pt in relationship_types]
+            colors = [PAIR_COLORS[pt] for pt in relationship_types]
             draw_colored_violins(ax, datasets, list(range(len(relationship_types))), colors)
 
     # Light vertical separators between categories
     for i in range(len(relationship_types) - 1):
         ax.axvline(i + 0.5, color="0.88", linewidth=0.6, zorder=0)
 
-    rng = np.random.default_rng(rng_seed)
+    rng = np.random.default_rng(42)
     # Draw one collection per marker style across relationship types.
     mean_x: list[int] = []
     mean_y: list[float] = []
@@ -415,7 +409,7 @@ def setup_relationship_type_panel(
         mean_v = float(np.mean(rep_vals))
         mean_x.append(i)
         mean_y.append(mean_v)
-        mean_colors.append(pair_colors[ptype])
+        mean_colors.append(PAIR_COLORS[ptype])
         ref_values.append(mean_v)
     if mean_x:
         ax.scatter(mean_x, mean_y, **_marker_obs_mean_halo())
@@ -442,7 +436,7 @@ def setup_relationship_type_panel(
             if v is not None:
                 x_values.append(i)
                 y_values.append(float(v))
-                colors.append(pair_colors[ptype])
+                colors.append(PAIR_COLORS[ptype])
         if x_values:
             ax.scatter(x_values, y_values, **_marker_param(color=colors))
             ref_values.extend(y_values)
@@ -472,16 +466,15 @@ def setup_relationship_type_panel(
 
 def finalize_relationship_type_panels(
     panel_states: list[dict],
-    sane_band: tuple[float, float] = PAIR_TYPE_SANE_BAND,
 ) -> tuple[float, float]:
     """Apply a shared y-limit across all panels and draw observed dots.
 
     The y-limit is anchored on reference markers (mean observed, liability,
-    parametric) plus observed values inside ``sane_band``. Observed
+    parametric) plus observed values inside ``PAIR_TYPE_SANE_BAND``. Observed
     values outside the band are rendered as small carets at the axis edge so
     one or two low-n outliers don't blow out the panel.
     """
-    sane_lo, sane_hi = sane_band
+    sane_lo, sane_hi = PAIR_TYPE_SANE_BAND
     all_ref: list[float] = []
     all_obs_sane: list[float] = []
     for state in panel_states:

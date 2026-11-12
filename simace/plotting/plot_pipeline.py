@@ -4,16 +4,13 @@ Renders a single-page figure showing the pipeline stage structure with
 each step's relevant parameters displayed inside its box.
 """
 
-__all__ = ["plot_pipeline", "render_pipeline_figure"]
+__all__ = ["render_pipeline_figure"]
 
-import argparse
 import logging
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch
 
-from simace.core.yaml_io import load_yaml
 from simace.plotting.plot_atlas import model_display_name, trait_models
 from simace.plotting.plot_utils import param_as_float
 
@@ -454,64 +451,3 @@ def render_pipeline_figure(
         _draw_step_box(ax, cx, cy, w, h, display, step_rows[key], color)
 
     return fig
-
-
-def plot_pipeline(
-    params: dict,
-    output_path: str | Path,
-    scenario: str = "",
-) -> None:
-    """Render the pipeline DAG diagram and save to file.
-
-    Args:
-        params: Merged scenario parameters dict.
-        output_path: Where to save the figure.
-        scenario: Scenario name for the title.
-    """
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    fig = render_pipeline_figure(params, scenario=scenario)
-    fig.savefig(str(output_path), dpi=150, bbox_inches="tight")
-    plt.close(fig)
-    logger.info("Pipeline diagram saved to %s", output_path)
-
-
-# ---------------------------------------------------------------------------
-# CLI entry point
-# ---------------------------------------------------------------------------
-
-
-def cli() -> None:
-    """Command-line interface for standalone pipeline diagram rendering."""
-    from simace.core.cli_base import add_logging_args, init_logging
-
-    parser = argparse.ArgumentParser(
-        description="Render pipeline DAG diagram with scenario parameters.",
-    )
-    add_logging_args(parser)
-    parser.add_argument(
-        "--params",
-        required=True,
-        help="Path to params.yaml (merged scenario parameters).",
-    )
-    parser.add_argument(
-        "--output",
-        required=True,
-        help="Output image path (e.g. /tmp/pipeline.png).",
-    )
-    parser.add_argument(
-        "--scenario",
-        default="",
-        help="Scenario name for the title.",
-    )
-    args = parser.parse_args()
-    init_logging(args)
-
-    params = load_yaml(args.params)
-
-    plot_pipeline(params, args.output, scenario=args.scenario)
-
-
-if __name__ == "__main__":
-    cli()

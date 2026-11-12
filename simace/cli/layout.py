@@ -104,7 +104,6 @@ class RepArtifact(StrEnum):
     REPORT = "report.yaml"
     PLOT_PAYLOAD = "plot_payload.yaml"
     PLOTTING_SAMPLE = "plotting_sample.parquet"
-    EFFECTIVE_SIZE = "effective_size.yaml"
     RUN_MANIFEST = "run.yaml"
     TIMING = "timing.tsv"
     VALIDATION = "validation.yaml"  # on-demand checks: written by `simace validate`, not by `simace run`

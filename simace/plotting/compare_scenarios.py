@@ -34,7 +34,6 @@ __all__ = [
     "scenario_parameters",
 ]
 
-import argparse
 import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -1734,45 +1733,3 @@ def main(
         expected_C=expected_C,
         expected_E=expected_E,
     )
-
-
-def cli() -> None:
-    """Standalone CLI for ad-hoc rendering."""
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--scenario",
-        action="append",
-        required=True,
-        metavar="LABEL=PATH1,PATH2,...",
-        help="Repeat per scenario. LABEL is the legend label, PATHS is a "
-        "comma-separated list of report.yaml files (one per replicate).",
-    )
-    parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument("--trait", type=int, default=1, choices=[1, 2])
-    parser.add_argument("--expected-A", type=float, default=None)
-    parser.add_argument("--expected-C", type=float, default=None)
-    parser.add_argument("--expected-E", type=float, default=None)
-    args = parser.parse_args()
-
-    labels: list[str] = []
-    scenario_paths: list[list[Path]] = []
-    for spec in args.scenario:
-        label, _, paths_spec = spec.partition("=")
-        if not paths_spec:
-            parser.error(f"--scenario '{spec}' must be LABEL=PATH1,PATH2,...")
-        labels.append(label)
-        scenario_paths.append([Path(p) for p in paths_spec.split(",")])
-
-    main(
-        scenario_paths=scenario_paths,
-        labels=labels,
-        output_path=args.output,
-        trait=args.trait,
-        expected_A=args.expected_A,
-        expected_C=args.expected_C,
-        expected_E=args.expected_E,
-    )
-
-
-if __name__ == "__main__":
-    cli()
