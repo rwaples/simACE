@@ -32,7 +32,7 @@ from polars.testing import assert_frame_equal
 
 from simace.simulation import simulate
 from simace.simulation.params import CTransmission
-from simace.simulation.simulate import generate_correlated_components, mating, run_simulation
+from simace.simulation.simulate import _mating_standard, _mating_wf, generate_correlated_components, run_simulation
 from tests.conftest import property_budget
 
 
@@ -112,12 +112,19 @@ def _run_with_extinction_check(**kwargs) -> pl.DataFrame | _VerifiedExtinction:
             return extinction
 
 
+def _mate(mating_model, rng, sex, mating_lambda, p_mztwin):
+    """One generation's mating under ``mating_model``, as ``run_simulation`` dispatches it."""
+    if mating_model == "wright_fisher":
+        return _mating_wf(rng, sex, len(sex), generation=0)
+    return _mating_standard(rng, sex, mating_lambda, p_mztwin)
+
+
 @pytest.mark.parametrize("mating_model", _MATING_MODELS)
 @pytest.mark.parametrize("sex", [0, 1])
 def test_mating_refuses_a_single_sex(mating_model, sex):
     missing = "male" if sex == 0 else "female"
     with pytest.raises(ValueError, match=rf"has 0 {missing} individuals; cannot sample"):
-        mating(np.random.default_rng(0), np.full(20, sex), 0.3, 0.9, mating_model=mating_model)
+        _mate(mating_model, np.random.default_rng(0), np.full(20, sex), 0.3, 0.9)
 
 
 def test_extinction_is_independent_of_the_recording_window():
@@ -184,9 +191,7 @@ def test_mating_households_are_maternal(mating_model, seed, n_female, n_male, ma
     Rejects grouping households by mating or by father.
     """
     sex = np.array(data.draw(st.permutations([0] * n_female + [1] * n_male)))
-    parents, _, households = mating(
-        np.random.default_rng(seed), sex, mating_lambda, p_mztwin, mating_model=mating_model
-    )
+    parents, _, households = _mate(mating_model, np.random.default_rng(seed), sex, mating_lambda, p_mztwin)
     assert np.array_equal(np.unique(households), np.arange(households.max() + 1))
     assert _is_bijection(parents[:, 0], households)
 

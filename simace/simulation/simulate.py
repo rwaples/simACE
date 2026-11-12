@@ -16,7 +16,6 @@ __all__ = [
     "draw_mating_counts",
     "generate_correlated_components",
     "generate_mendelian_noise",
-    "mating",
     "pair_partners",
     "place_twins",
     "reproduce",
@@ -30,8 +29,8 @@ import time
 from typing import TYPE_CHECKING
 
 import numpy as np
-from numba.extending import register_jitable
 import polars as pl
+from numba.extending import register_jitable
 
 from simace.core.cohort import write_pedigree
 from simace.core.schema import PEDIGREE
@@ -1161,69 +1160,6 @@ def _mating_wf(
     return parent_idxs, twins, household_ids
 
 
-def mating(
-    rng: np.random.Generator,
-    parental_sex: np.ndarray,
-    mating_lambda: float = 0.5,
-    p_mztwin: float = 0.0,
-    pheno: np.ndarray | None = None,
-    assort1: float = 0.0,
-    assort2: float = 0.0,
-    rho_w: float = 0.0,
-    assort_matrix: np.ndarray | None = None,
-    *,
-    mating_model: str = "standard",
-    generation: int = 0,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Dispatch to the configured mating implementation.
-
-    Public entry point used by tests and any external caller; ``run_simulation``
-    branches directly to ``_mating_standard`` / ``_mating_wf`` from inside the
-    generation loop because the standard path needs per-iter AM variables that
-    don't exist under WF.
-
-    Args:
-        rng: numpy random generator.
-        parental_sex: array of sex values (0=female, 1=male) for parents.
-        mating_lambda: Poisson lambda for the ZTP mating-count distribution.
-            Standard-model only; ignored under WF.
-        p_mztwin: MZ twin rate per birth.
-            Standard-model only; ignored under WF.
-        pheno: ``(n, 6)`` phenotype matrix used for assortative mating.
-            Standard-model only; ignored under WF.
-        assort1: Mate correlation on trait-1 liability.  Standard-model
-            only; ignored under WF.
-        assort2: Mate correlation on trait-2 liability.  Standard-model
-            only; ignored under WF.
-        rho_w: Within-person cross-trait liability correlation.
-            Standard-model only; ignored under WF.
-        assort_matrix: Optional 2x2 mate-correlation matrix.
-            Standard-model only; ignored under WF.
-        mating_model: ``"standard"`` (default) or ``"wright_fisher"``.
-        generation: Passed to ``_mating_wf`` for error-message provenance.
-            Ignored under the standard path.
-
-    Returns:
-        ``(parent_idxs, twins, household_ids)`` as produced by the chosen
-        backend.
-    """
-    if mating_model == "wright_fisher":
-        return _mating_wf(rng, parental_sex, len(parental_sex), generation)
-    if mating_model == "standard":
-        return _mating_standard(
-            rng,
-            parental_sex,
-            mating_lambda,
-            p_mztwin,
-            pheno=pheno,
-            assort1=assort1,
-            assort2=assort2,
-            rho_w=rho_w,
-            assort_matrix=assort_matrix,
-        )
-    raise ValueError(f"Unknown mating_model={mating_model!r}; expected 'standard' or 'wright_fisher'.")
-
-
 #: A negative eigenvalue of the fresh-draw covariance within this many standard
 #: errors of the transmitted covariance is sampling noise, clipped to 0.
 #: Calibrated on constant C with b_m = 1 (no structural slack, N = 1000), where
@@ -1381,7 +1317,7 @@ def reproduce(
     a2_offspring = mp2 + noise2
 
     # Common environment: a draw per household (household_ids are 0-based
-    # contiguous from mating()), plus under C transmission the parents' C.
+    # contiguous from _mating_standard()), plus under C transmission the parents' C.
     n_hh = int(household_ids.max()) + 1
     if c_transmission is None or not c_transmission.active:
         hh_c1, hh_c2 = generate_correlated_components(rng, n_hh, sd_C1, sd_C2, rC)

@@ -12,8 +12,8 @@ from hypothesis import strategies as st
 from simace.core.parquet import load_parquet, save_parquet
 from simace.core.schema import PEDIGREE
 from simace.simulation.simulate import (
+    _mating_standard,
     generate_correlated_components,
-    mating,
     reproduce,
     run_simulation,
 )
@@ -199,7 +199,7 @@ def founders_and_offspring(rng):
     e2 = rng.normal(size=N, scale=sd_E2)
     pheno = np.stack([a1, c1, e1, a2, c2, e2], axis=-1)
 
-    parents, twins, household_ids = mating(rng, sex, mating_lambda=0.5, p_mztwin=0.02)
+    parents, twins, household_ids = _mating_standard(rng, sex, mating_lambda=0.5, p_mztwin=0.02)
     offspring, sex_offspring = reproduce(
         rng,
         pheno,
@@ -320,7 +320,7 @@ def pedigree_frame(draw, *, max_n=PEDIGREE_MAX_N, twins=False, liabilities=False
             for k, key in enumerate(sibship):
                 buckets.setdefault(key, []).append(k)
             for members in buckets.values():
-                # Mirrors mating(): the first two offspring of a twin-flagged
+                # Mirrors _mating_standard(): the first two offspring of a twin-flagged
                 # mating are the MZ pair.
                 if len(members) < 2 or not draw(st.booleans()):
                     continue

@@ -13,13 +13,13 @@ from simace.simulation.simulate import (
     _assortative_pair_partners,
     _find_duplicate_pairs,
     _kd_match_python,
+    _mating_standard,
     _mating_wf,
     _metropolis_full_python,
     balance_mating_slots,
     draw_mating_counts,
     generate_correlated_components,
     generate_mendelian_noise,
-    mating,
     pair_partners,
     place_twins,
     resolve_per_gen_param,
@@ -276,7 +276,7 @@ class TestPlaceTwins:
 class TestMating:
     def test_output_shapes(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
-        parents, twins, household_ids = mating(rng, sex, 0.5, 0.02)
+        parents, twins, household_ids = _mating_standard(rng, sex, 0.5, 0.02)
         assert parents.shape == (1000, 2)
         assert household_ids.shape == (1000,)
         assert twins.ndim == 2
@@ -285,14 +285,14 @@ class TestMating:
 
     def test_no_twins_when_p_zero(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
-        _, twins, _ = mating(rng, sex, 0.5, 0.0)
+        _, twins, _ = _mating_standard(rng, sex, 0.5, 0.0)
         assert len(twins) == 0
 
     @pytest.mark.parametrize(("assort1", "assort2"), [(0.0, 0.0), (0.4, 0.0), (0.4, 0.3)])
     def test_children_are_grouped_by_couple_in_mother_order(self, rng, assort1, assort2):
         sex = rng.binomial(n=1, p=0.5, size=4000)
         pheno = rng.standard_normal((4000, 6))
-        parents, _, _ = mating(rng, sex, 0.5, 0.02, pheno=pheno, assort1=assort1, assort2=assort2, rho_w=0.1)
+        parents, _, _ = _mating_standard(rng, sex, 0.5, 0.02, pheno=pheno, assort1=assort1, assort2=assort2, rho_w=0.1)
         assert np.all(np.diff(parents[:, 0]) >= 0)
         new_couple = np.r_[True, np.any(parents[1:] != parents[:-1], axis=1)]
         assert new_couple.sum() == len(np.unique(parents, axis=0))
@@ -300,7 +300,7 @@ class TestMating:
     def test_twins_are_consecutive_births_anywhere_in_the_family(self, rng):
         """Issue #78: a couple's MZ pair need not be its first two children, and it can have several."""
         sex = rng.binomial(n=1, p=0.5, size=4000)
-        parents, twins, _ = mating(rng, sex, 1.5, 0.5)
+        parents, twins, _ = _mating_standard(rng, sex, 1.5, 0.5)
         assert np.all(twins[:, 1] == twins[:, 0] + 1)
         assert np.all(parents[twins[:, 0]] == parents[twins[:, 1]])
         assert len(np.unique(twins)) == twins.size
@@ -739,7 +739,7 @@ class TestMatingAssortative:
     def test_assort_without_pheno_raises(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=500)
         with pytest.raises(ValueError, match="pheno must be provided"):
-            mating(rng, sex, 0.5, 0.02, pheno=None, assort1=0.3)
+            _mating_standard(rng, sex, 0.5, 0.02, pheno=None, assort1=0.3)
 
 
 # ---------------------------------------------------------------------------
@@ -904,22 +904,6 @@ class TestMatingWF:
         sex = np.zeros(50, dtype=int)  # all female
         with pytest.raises(ValueError, match=r"generation 9.*male"):
             _mating_wf(rng, sex, N=50, generation=9)
-
-
-class TestMatingDispatcher:
-    """The public ``mating()`` routes by ``mating_model``."""
-
-    def test_wf_routes_to_wf(self):
-        rng = np.random.default_rng(5)
-        sex = rng.binomial(size=200, n=1, p=0.5)
-        _, twins, _ = mating(rng, sex, mating_model="wright_fisher", generation=0)
-        assert twins.shape == (0, 2)
-
-    def test_unknown_model_raises(self):
-        rng = np.random.default_rng(5)
-        sex = rng.binomial(size=200, n=1, p=0.5)
-        with pytest.raises(ValueError, match="Unknown mating_model"):
-            mating(rng, sex, mating_model="foo")
 
 
 class TestRunSimulationWF:
