@@ -26,7 +26,7 @@ from simace.simulation.am_equilibrium import am_equilibrium_variance, am_varianc
 
 from ._common import _info, _result
 from .am_relatedness import am_relatedness_mode
-from .assortative_mating import schedule_span
+from .assortative_mating import assortment_schedule, schedule_span
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -36,20 +36,21 @@ if TYPE_CHECKING:
 def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, Any]) -> dict[str, Any]:
     """Validate that ``Var(A)`` reaches the AM-inflated equilibrium per trait.
 
-    Emits no checks when assortative mating is inactive (Wright-Fisher, or both
-    ``assort1`` and ``assort2`` zero). For an assorting trait, asserts the
-    observed final-generation ``Var(A)`` against the infinitesimal recursion
-    prediction; reports the closed-form equilibrium ``a²`` alongside.
+    Emits no checks when the mating schedule has no assortment (Wright-Fisher,
+    or ``assort1``, ``assort2`` and the ``assort_matrix`` diagonal all zero).
+    For an assorting trait, asserts the observed final-generation ``Var(A)``
+    against the infinitesimal recursion prediction; reports the closed-form
+    equilibrium ``a²`` alongside.
 
     Reports the per-trait result as informational, without asserting it, when
     the equilibrium is ill-defined or not modelled by the univariate
-    recursion: per-generation (dict-valued) AM / C / E, both-trait assortment
-    (cross-trait paths), or C transmission, whose A-C covariance the recursion
-    omits (ADR 0025).
+    recursion: AM that varies by generation, dict-valued C / E, both-trait
+    assortment (cross-trait paths), or C transmission, whose A-C covariance the
+    recursion omits (ADR 0025).
 
     Args:
         df: Pedigree DataFrame with ``id`` and ``A1``/``A2`` columns.
-        params: Scenario parameters; uses ``assort1``/``assort2``, ``A{t}``,
+        params: Scenario parameters; uses ``assort1``/``assort2``/``assort_matrix``, ``A{t}``,
             ``C{t}``, ``E{t}``, ``N``, ``G_ped``, ``G_sim``, ``mating_model``.
 
     Returns:
@@ -57,13 +58,9 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
     """
     results: dict[str, Any] = {}
 
-    if params.get("mating_model", "standard") != "standard":
-        return results  # Wright-Fisher has no assortative mating
-
-    assort1 = params.get("assort1", 0.0)
-    assort2 = params.get("assort2", 0.0)
-    if not assort1 and not assort2:
-        return results  # no AM configured -> nothing to validate
+    schedule = assortment_schedule(params)
+    if not any(schedule[0]) and not any(schedule[1]):
+        return results  # random mating -> nothing to validate
 
     N = params.get("N")
     G_ped = params.get("G_ped")
@@ -86,12 +83,11 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
             )
             continue
 
-        assort_t = params.get(f"assort{t}", 0.0)
         A_base = params.get(f"A{t}")
         C = params.get(f"C{t}")
         E = params.get(f"E{t}")
 
-        if isinstance(assort_t, dict) or isinstance(C, dict) or isinstance(E, dict):
+        if len(set(schedule[t - 1])) > 1 or isinstance(C, dict) or isinstance(E, dict):
             results[f"am_equilibrium_A{t}"] = _info(
                 f"Per-generation AM/C/E (dict-valued); AM equilibrium ill-defined, skipping trait {t}.",
             )
@@ -102,7 +98,7 @@ def validate_am_equilibrium(df: pd.DataFrame | pl.DataFrame, params: dict[str, A
 
         A_base = float(A_base)
         V_env = float(C or 0.0) + float(E or 0.0)
-        r_ho = float(assort_t)
+        r_ho = schedule[t - 1][0]
 
         V_pred = float(am_variance_trajectory(A_base, V_env, r_ho, int(G_sim))[-1])
         a2 = float(am_equilibrium_variance(A_base, V_env, r_ho))

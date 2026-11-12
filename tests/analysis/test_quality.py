@@ -723,7 +723,7 @@ class TestNothingToTestIsInformational:
         ("assort", "traits"),
         [
             pytest.param({"assort1": 0.3, "assort2": 0.3}, (1, 2), id="both-traits"),
-            pytest.param({"assort1": {0: 0.3}, "assort2": 0.0}, (1,), id="per-generation"),
+            pytest.param({"assort1": {0: 0.3, 1: 0.1}, "assort2": 0.0}, (1,), id="per-generation"),
         ],
     )
     def test_am_equilibrium_outside_the_recursion_is_informational(self, val_pedigree, val_params, assort, traits):

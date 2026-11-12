@@ -200,22 +200,21 @@ _AM_REF_COLOR = "#AA3377"  # purple — AM-corrected expectation (vs orange = ra
 def _draw_am_reference(df: pd.DataFrame, ax: Axes, kind: str) -> bool:
     """Overlay AM-corrected expected markers per scenario (additive to the RM line).
 
-    Drawn only for scenarios with trait-1 assortative mating. The AM-corrected
+    Drawn only for scenarios whose mating schedule assorts on trait 1. The AM-corrected
     expectation uses the observed genetic mate correlation ``mu_A``
     (``mate_corr_A1``) and liability mate correlation ``r_ho``
     (``mate_corr_liability1``); see :mod:`simace.analysis.quality.am_relatedness`.
     Returns True if any marker was drawn (so the caller can add a legend).
     """
-    from simace.analysis.quality.am_relatedness import am_expected_a_correlation
+    from simace.analysis.quality.am_relatedness import am_expected_a_correlation, am_relatedness_mode
 
-    if "mate_corr_A1" not in df.columns or "assort1" not in df.columns:
+    if "mate_corr_A1" not in df.columns:
         return False
     drawn = False
     for i, s in enumerate(df["scenario"].unique()):
         sdf = df[df["scenario"] == s]
-        a1 = pd.to_numeric(sdf["assort1"], errors="coerce").fillna(0.0)
-        if (a1.abs() < 1e-9).all():
-            continue  # no assortative mating in this scenario
+        if am_relatedness_mode(_scenario_params(sdf), 1) == "none":
+            continue
         mu = pd.to_numeric(sdf["mate_corr_A1"], errors="coerce").mean()
         rho = pd.to_numeric(sdf.get("mate_corr_liability1"), errors="coerce").mean()
         if not np.isfinite(mu):

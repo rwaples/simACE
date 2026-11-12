@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 import matplotlib.pyplot as plt
 import numpy as np
 
-from simace.analysis.quality.assortative_mating import schedule_span
+from simace.analysis.quality.assortative_mating import assortment_schedule, schedule_span
 from simace.plotting.plot_style import (
     COLOR_EXPECTED,
     COLOR_OBSERVED,
@@ -67,8 +67,8 @@ def plot_am_equilibrium(
         save_placeholder_plot(output_path, "No assortative mating (Wright-Fisher model)")
         return
 
-    assort = {1: params.get("assort1", 0.0), 2: params.get("assort2", 0.0)}
-    if not assort[1] and not assort[2]:
+    schedule = assortment_schedule(params)
+    if not any(schedule[0]) and not any(schedule[1]):
         save_placeholder_plot(output_path, "No assortative mating configured")
         return
 
@@ -111,14 +111,13 @@ def plot_am_equilibrium(
                     label="Observed Var(A) (mean)",
                 )
 
-        r_ho = assort[t]
+        r_ho = schedule[t - 1][0]
         A_base = param_as_float(params.get(f"A{t}"))
         c_raw = params.get(f"C{t}")
         e_raw = params.get(f"E{t}")
-        per_gen_env = isinstance(c_raw, dict) or isinstance(e_raw, dict) or isinstance(r_ho, dict)
+        per_gen_env = isinstance(c_raw, dict) or isinstance(e_raw, dict) or len(set(schedule[t - 1])) > 1
 
         if r_ho and A_base > 0 and not per_gen_env:
-            r_ho = float(r_ho)
             V_env = param_as_float(c_raw) + param_as_float(e_raw)
             traj = am_variance_trajectory(A_base, V_env, r_ho, g_sim)
             steps = np.array([g + burnin for g in generations], dtype=int)

@@ -36,6 +36,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from ._common import _MIN_PAIRS_FOR_CORR
+from .assortative_mating import assortment_schedule
 
 if TYPE_CHECKING:
     from ._common import MateCorrelations
@@ -48,28 +49,20 @@ __all__ = [
 ]
 
 
-def _active(value: Any) -> bool:
-    """True if an assortment parameter is non-zero (scalar) or any-gen non-zero (dict)."""
-    if isinstance(value, dict):
-        return any(value.values())
-    return bool(value)
-
-
 def am_relatedness_mode(params: dict[str, Any], t: int) -> str:
     """Classify trait ``t``'s assortment for relatedness expectations.
 
-    Returns ``"none"`` (no AM → random-mating expectation applies),
-    ``"single"`` (single-trait direct AM → AM formula applies), or
+    Reads the schedule the simulator mates on (:func:`.assortative_mating.assortment_schedule`),
+    so a set ``assort_matrix`` counts through its diagonal and Wright-Fisher is
+    random mating. Returns ``"none"`` (no AM → random-mating expectation
+    applies), ``"single"`` (single-trait direct AM → AM formula applies), or
     ``"bivariate"`` (both traits assort → cross-trait paths; single-trait
     formula does not apply, caller should skip).
     """
-    if params.get("mating_model", "standard") != "standard":
+    schedule = assortment_schedule(params)
+    if not any(schedule[t - 1]):
         return "none"
-    this = params.get(f"assort{t}", 0.0)
-    other = params.get("assort2" if t == 1 else "assort1", 0.0)
-    if not _active(this):
-        return "none"
-    return "bivariate" if _active(other) else "single"
+    return "bivariate" if any(schedule[2 - t]) else "single"
 
 
 def observed_mate_correlations(mates: MateCorrelations, t: int) -> tuple[float, float, int]:

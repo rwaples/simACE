@@ -45,6 +45,14 @@ class TestMode:
     def test_wright_fisher_is_none(self):
         assert am_relatedness_mode({"assort1": 0.5, "mating_model": "wright_fisher"}, 1) == "none"
 
+    def test_matrix_diagonal_replaces_scalars(self):
+        """The simulator mates on the matrix diagonal, whatever assort1/assort2 say (#93)."""
+        matrix_only = {"assort1": 0.0, "assort2": 0.0, "assort_matrix": [[0.4, 0.0], [0.0, 0.0]]}
+        assert am_relatedness_mode(matrix_only, 1) == "single"
+        assert am_relatedness_mode(matrix_only, 2) == "none"
+        both = {"assort1": 0.0, "assort2": 0.0, "assort_matrix": [[0.4, 0.1], [0.1, 0.3]]}
+        assert am_relatedness_mode(both, 2) == "bivariate"
+
 
 def _params(**over):
     base = dict(
@@ -115,6 +123,18 @@ class TestIntegration:
         assert "passed" not in hs
         assert hs.get("informational") is True
         assert "not asserted" in hs["details"]
+
+    def test_matrix_only_assortment_is_checked_as_am(self):
+        """A matrix with the scalars left at 0 mates exactly like matching scalars, so the report must agree (#93)."""
+        matrix = [[0.5, 0.0], [0.0, 0.0]]
+        p_matrix = _params(assort1=0.0, assort_matrix=matrix)
+        p_scalar = _params(assort_matrix=matrix)
+        df = run_simulation(**p_matrix)
+        assert df.equals(run_simulation(**p_scalar))
+        reports = [build_quality_report(df, p) for p in (p_matrix, p_scalar)]
+        for report in reports:
+            del report["parameters"]
+        assert repr(reports[0]) == repr(reports[1])  # repr: NaN observations compare equal
 
     def test_variance_a_reported_informational_under_am(self):
         """variance_A is reported (not asserted) under AM; C/E stay scored."""

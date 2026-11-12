@@ -414,6 +414,13 @@ class TestPlotValidation:
         assert _draw_am_reference(am_df, ax, "FS") is True
         plt.close(_fig)
 
+        matrix_df = am_df.copy()
+        matrix_df["assort1"] = [0.0] * len(matrix_df)
+        matrix_df["assort_matrix"] = ["[[0.6, 0.0], [0.0, 0.0]]"] * len(matrix_df)
+        _fig, ax = plt.subplots()
+        assert _draw_am_reference(matrix_df, ax, "FS") is True, "the matrix diagonal assorts (#93)"
+        plt.close(_fig)
+
         before = plt.get_fignums()
         plot_A_correlations(am_df, tmp_path, ext="png")
         assert (tmp_path / "correlations_A.png").exists()
