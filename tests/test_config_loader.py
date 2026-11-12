@@ -494,6 +494,18 @@ class TestPedigreeConfigValidation:
         with pytest.raises(ValueError, match=r"E1 is null"):
             resolve_scenarios(tmp_path)
 
+    def test_scenario_null_stage_key_rejected(self, tmp_path):
+        """A null would drop the flag and run the stage on its own argparse default (#94)."""
+        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
+        self._write(tmp_path, "x.yaml", {"bad": {"pedigree": {"rA": None, "trait1": {"C": None}}}})
+        with pytest.raises(ValueError, match=r"Scenario 'bad'.*C1 is null.*rA is null"):
+            resolve_scenarios(tmp_path)
+
+    def test_nullable_key_accepted(self, tmp_path):
+        self._write(tmp_path, "_default.yaml", self._baseline_defaults())
+        self._write(tmp_path, "x.yaml", {"ok": {"G_sim": None, "censoring": {"gen_censoring": None}}})
+        assert resolve_scenarios(tmp_path)["ok"]["G_sim"] is None
+
     def test_scenario_inherits_default_E_passes(self, tmp_path):
         """A scenario that omits E entirely inherits the (numeric) default."""
         self._write(tmp_path, "_default.yaml", self._baseline_defaults())

@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any
 import yaml
 
 from simace.cli.layout import RepArtifact
+from simace.config import NULLABLE_KEYS
 from simace.core.cli_base import ASCERTAIN_KEYS, CENSOR_KEYS
 from simace.core.relationships import C_TRANSMISSION_KEYS
 
@@ -142,7 +143,7 @@ def _yaml(value: Any) -> str:
 
 
 def _flags(values: Mapping[str, Any], encode: Mapping[str, Callable[[Any], str]] | None = None) -> list[str]:
-    """Turn ``{flat_key: value}`` into ``--flat-key value`` pairs, skipping ``None``.
+    """Turn ``{flat_key: value}`` into ``--flat-key value`` pairs, skipping ``None`` for :data:`NULLABLE_KEYS`.
 
     Flag names follow the stage CLIs' convention of the flat key with ``_``
     replaced by ``-``. Values print with ``str`` (exact for floats) unless
@@ -152,6 +153,8 @@ def _flags(values: Mapping[str, Any], encode: Mapping[str, Callable[[Any], str]]
     argv: list[str] = []
     for key, value in values.items():
         if value is None:
+            if key not in NULLABLE_KEYS:
+                raise ValueError(f"{key} is null; only {sorted(NULLABLE_KEYS)} may be")
             continue
         argv += [f"--{key.replace('_', '-')}", encode.get(key, str)(value)]
     return argv

@@ -179,3 +179,12 @@ def test_plot_argv_hands_the_plot_stage_each_validation_file_and_the_scenario_ve
 
     assert recorder.kwargs["validation_paths"] == [str(rep.path(layout, RepArtifact.VALIDATION)) for rep in reps]
     assert recorder.kwargs["verdict_path"] == str(layout.scenario_verdict(params["folder"], "onset_tau_weibull"))
+
+
+def test_flags_refuse_null_outside_the_nullable_keys() -> None:
+    """A dropped flag would hand the stage its own default instead of the config's (#94)."""
+    from simace.cli.stages import _flags
+
+    assert _flags({"assort_matrix": None, "G_sim": None}) == []
+    with pytest.raises(ValueError, match="rA"):
+        _flags({"rA": None})

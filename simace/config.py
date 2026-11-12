@@ -110,6 +110,10 @@ _SIM_FLAT_GLOBALS: frozenset[str] = frozenset(
     }
 )
 
+#: Flat keys whose ``null`` means something (no matrix, no per-generation
+#: windows, ``G_sim = G_ped``, no blend). Any other null is a config error.
+NULLABLE_KEYS: frozenset[str] = frozenset({"assort_matrix", "gen_censoring", "G_sim", "blended_diagnosis"})
+
 #: Keys of the tskit gene-drop pipeline, which moved to simACE-validate's
 #: tskit_pipeline/ (its scripts take them as flags).
 _GENE_DROP_KEYS: frozenset[str] = frozenset({"use_gene_drop", "drop_from", "tstrait", "tskit_preprocess"})
@@ -478,10 +482,9 @@ def _validate_pedigree_config(config: dict) -> None:
 
     Four checks:
 
-    1. Reject scenarios whose effective E1 / E2 resolve to ``None``.  Closes
-       the pre-PR3 fallback where ``E: null`` was filled from ``1 - A - C``
-       inside ``run_simulation``; every scenario must now declare a numeric
-       (or per-generation dict) value for each unique-environment variance.
+    1. Reject any effective value of ``None`` outside :data:`NULLABLE_KEYS`.
+       A stage command line drops a null flag, so the stage would run on its
+       own argparse default rather than the config's.
     2. Validate ``mating_model`` against the allowed set, and reject WF
        scenarios that explicitly override standard-only knobs to non-no-op
        values (``mating_lambda``, ``p_mztwin``, ``assort1``, ``assort2``,
@@ -502,15 +505,14 @@ def _validate_pedigree_config(config: dict) -> None:
     """
     defaults = config["defaults"]
     for name, params in config.get("scenarios", {}).items():
-        # E1 / E2 nullability
-        for key in ("E1", "E2"):
-            value = params.get(key, defaults.get(key))
-            if value is None:
-                raise ValueError(
-                    f"Scenario '{name}': {key} is null. "
-                    f"Declare {key} explicitly in the scenario or in "
-                    f"config/_default.yaml under pedigree.trait{key[-1]}.E."
-                )
+        effective = {**defaults, **params}
+        nulls = sorted(key for key, value in effective.items() if value is None and key not in NULLABLE_KEYS)
+        if nulls:
+            raise ValueError(
+                f"Scenario '{name}': {', '.join(f'{key} is null' for key in nulls)}. "
+                f"Only {sorted(NULLABLE_KEYS)} may be null; declare a value in the scenario "
+                f"or in config/_default.yaml."
+            )
 
         # mating_model allowed-value check.  Defaults to "standard" if
         # neither scenario nor defaults set it, so minimal test fixtures
@@ -522,7 +524,6 @@ def _validate_pedigree_config(config: dict) -> None:
                 f"Choose from: {sorted(VALID_MATING_MODELS)}"
             )
 
-        effective = {**defaults, **params}
         for key in ("A1", "A2", "C1", "C2"):
             if isinstance(effective.get(key), dict):
                 raise ValueError(
