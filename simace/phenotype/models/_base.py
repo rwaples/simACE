@@ -8,27 +8,10 @@ Each phenotype model family is a frozen dataclass that owns:
     into an instance. Callers use the inherited, final ``from_config(params,
     trait_num)``, which rejects keys the model does not accept (its
     ``config_keys``) before the hook runs;
-  * a ``from_cli(args, trait)`` constructor (reads namespaced argparse
-    flags and rejects flags belonging to other model families);
-  * an ``add_cli_args(parser, trait)`` classmethod (declares its flags);
-  * a ``simulate(...)`` method (the actual phenotype draw);
-  * a ``to_params_dict()`` method (back to the ``phenotype_params{N}`` config dict shape).
+  * a ``simulate(...)`` method (the actual phenotype draw).
 
-CLI flag naming convention:
-
-  * Model-specific flags use the family name as a kebab-case prefix and
-    the trait number as a numeric suffix with no separating dash:
-    ``--frailty-rho1``, ``--cure-frailty-distribution2``,
-    ``--first-passage-drift1``.
-  * Multi-token parameter names retain a separating dash before the trait
-    number for readability: ``--adult-cip-x0-1``, ``--adult-cip-k-1``.
-  * Un-namespaced shared flags (used by every model): ``--phenotype-model{N}``,
-    ``--beta{N}``, ``--beta-sex{N}``. Defined directly in ``phenotype.cli``.
-  * Prevalence is namespaced because only adult / cure_frailty accept it
-    (``--adult-prevalence{N}``, ``--cure-frailty-prevalence{N}``).
-
-Validation error messages are prefixed with the trait number by ``from_config``
-and ``from_cli``, so ``_from_config`` raises unprefixed errors; the dataclass
+Validation error messages are prefixed with the trait number by ``from_config``,
+so ``_from_config`` raises unprefixed errors; the dataclass
 itself is trait-agnostic so it can be unit-tested in isolation.
 """
 
@@ -39,8 +22,6 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, ClassVar, Self, final
 
 if TYPE_CHECKING:
-    import argparse
-
     import numpy as np
 
     from simace.phenotype.hazards import StandardizeMode
@@ -48,7 +29,6 @@ if TYPE_CHECKING:
 __all__ = [
     "PhenotypeModel",
     "check_finite_beta",
-    "check_no_foreign_flags",
     "emit_standardize_hazard",
     "validate_standardize_hazard",
     "wrap_trait_error",
@@ -128,33 +108,6 @@ class PhenotypeModel(ABC):
         ``from_config`` adds it.
         """
 
-    @classmethod
-    @abstractmethod
-    def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:
-        """Register this model's CLI flags on ``parser`` for the given trait."""
-
-    @classmethod
-    @abstractmethod
-    def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
-        """Build an instance from parsed CLI args for the given trait.
-
-        Must raise ``ValueError`` (with trait context) if flags belonging
-        to another family are populated alongside this model's selection,
-        or if a required flag for this model is missing.
-        """
-
-    @classmethod
-    @abstractmethod
-    def cli_flag_attrs(cls, trait: int) -> set[str]:
-        """Return the argparse attribute names this model owns for the given trait.
-
-        Used by sibling models' ``from_cli`` to detect foreign-flag conflicts.
-        """
-
-    @abstractmethod
-    def to_params_dict(self) -> dict[str, Any]:
-        """Round-trip back to the per-trait ``phenotype_params{N}`` dict shape."""
-
     @abstractmethod
     def simulate(
         self,
@@ -162,7 +115,7 @@ class PhenotypeModel(ABC):
         *,
         seed: int,
         standardize: StandardizeMode | bool,
-        sex: np.ndarray | None,
+        sex: np.ndarray,
         generation: np.ndarray,
     ) -> np.ndarray:
         """Simulate event times for one trait.
@@ -198,28 +151,6 @@ def wrap_trait_error(trait_num: int):
     is visible in the message.
     """
     return _TraitErrorContext(trait_num)
-
-
-def check_no_foreign_flags(cls: type[PhenotypeModel], args: argparse.Namespace, trait: int) -> None:
-    """Raise ``ValueError`` if any other model's CLI flags are populated for this trait.
-
-    Foreign flags are detected by intersecting populated argparse attributes
-    against every sibling model's ``cli_flag_attrs(trait)`` (minus this
-    model's own attrs to allow shared flags). Default value is ``None``; any
-    flag that ``argparse`` left as ``None`` is treated as not supplied.
-    """
-    from simace.phenotype.models import MODELS  # local to avoid import cycle
-
-    own = cls.cli_flag_attrs(trait)
-    for other in MODELS.values():
-        if other is cls:
-            continue
-        for attr in other.cli_flag_attrs(trait) - own:
-            if getattr(args, attr, None) is not None:
-                raise ValueError(
-                    f"phenotype.trait{trait}: --{attr.replace('_', '-')} belongs to "
-                    f"--phenotype-model{trait}={other.name} but selected model is {cls.name!r}"
-                )
 
 
 class _TraitErrorContext:

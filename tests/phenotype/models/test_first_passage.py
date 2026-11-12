@@ -1,7 +1,5 @@
 """Construction / validation tests for FirstPassageModel."""
 
-import argparse
-
 import numpy as np
 import pytest
 
@@ -41,72 +39,6 @@ def test_from_config_rejects_prevalence():
         FirstPassageModel.from_config(params, trait_num=1)
 
 
-def test_to_params_dict():
-    m = FirstPassageModel(drift=-0.3, shape=1.5)
-    assert m.to_params_dict() == {"drift": -0.3, "shape": 1.5}
-
-
-def _parser_with_all_models():
-    from simace.phenotype.models import MODELS
-
-    parser = argparse.ArgumentParser()
-    for trait in (1, 2):
-        parser.add_argument(f"--phenotype-model{trait}", default="first_passage")
-        parser.add_argument(f"--beta{trait}", type=float, default=1.0)
-        parser.add_argument(f"--beta-sex{trait}", type=float, default=0.0)
-        for cls in MODELS.values():
-            cls.add_cli_args(parser, trait)
-    return parser
-
-
-def test_from_cli_happy_path():
-    parser = _parser_with_all_models()
-    args = parser.parse_args(
-        [
-            "--phenotype-model1",
-            "first_passage",
-            "--first-passage-drift1",
-            "-0.5",
-            "--first-passage-shape1",
-            "1.0",
-            "--phenotype-model2",
-            "first_passage",
-            "--first-passage-drift2",
-            "0.05",
-            "--first-passage-shape2",
-            "2.0",
-        ]
-    )
-    m1 = FirstPassageModel.from_cli(args, 1)
-    assert m1.drift == -0.5
-    m2 = FirstPassageModel.from_cli(args, 2)
-    assert m2.drift == 0.05
-
-
-def test_from_cli_rejects_foreign_adult_prevalence():
-    parser = _parser_with_all_models()
-    args = parser.parse_args(
-        [
-            "--phenotype-model1",
-            "first_passage",
-            "--first-passage-drift1",
-            "-0.5",
-            "--first-passage-shape1",
-            "1.0",
-            "--adult-prevalence1",
-            "0.1",  # foreign
-            "--phenotype-model2",
-            "first_passage",
-            "--first-passage-drift2",
-            "-0.5",
-            "--first-passage-shape2",
-            "1.0",
-        ]
-    )
-    with pytest.raises(ValueError, match=r"phenotype\.trait1.*--adult-prevalence1"):
-        FirstPassageModel.from_cli(args, 1)
-
-
 def test_simulate_runs():
     m = FirstPassageModel(drift=-0.5, shape=1.0, beta=1.0)
     liability = np.random.default_rng(0).standard_normal(200)
@@ -114,61 +46,11 @@ def test_simulate_runs():
         liability=liability,
         seed=42,
         standardize=True,
-        sex=None,
+        sex=np.zeros(len(liability)),
         generation=np.zeros(200, dtype=int),
     )
     assert t.shape == (200,)
     assert np.all(np.isfinite(t))
-
-
-def test_cli_flag_attrs_set():
-    assert FirstPassageModel.cli_flag_attrs(1) == {
-        "first_passage_drift1",
-        "first_passage_shape1",
-        "first_passage_standardize_hazard1",
-    }
-
-
-def test_from_cli_missing_drift_raises():
-    parser = _parser_with_all_models()
-    args = parser.parse_args(
-        [
-            "--phenotype-model1",
-            "first_passage",
-            # drift omitted
-            "--first-passage-shape1",
-            "1.0",
-            "--phenotype-model2",
-            "first_passage",
-            "--first-passage-drift2",
-            "-0.5",
-            "--first-passage-shape2",
-            "1.0",
-        ]
-    )
-    with pytest.raises(ValueError, match=r"--first-passage-drift1 is required"):
-        FirstPassageModel.from_cli(args, 1)
-
-
-def test_from_cli_missing_shape_raises():
-    parser = _parser_with_all_models()
-    args = parser.parse_args(
-        [
-            "--phenotype-model1",
-            "first_passage",
-            "--first-passage-drift1",
-            "-0.5",
-            # shape omitted
-            "--phenotype-model2",
-            "first_passage",
-            "--first-passage-drift2",
-            "-0.5",
-            "--first-passage-shape2",
-            "1.0",
-        ]
-    )
-    with pytest.raises(ValueError, match=r"--first-passage-shape1 is required"):
-        FirstPassageModel.from_cli(args, 1)
 
 
 def test_simulate_positive_drift_emits_cure_fraction():
@@ -179,7 +61,7 @@ def test_simulate_positive_drift_emits_cure_fraction():
         liability=liability,
         seed=42,
         standardize=True,
-        sex=None,
+        sex=np.zeros(len(liability)),
         generation=np.zeros(2000, dtype=int),
     )
     assert t.shape == (2000,)

@@ -268,7 +268,10 @@ the copy reads as incomplete and the next `simace run` recomputes it.
 
 `simace phenotype`, `simace censor`, and `simace ascertain` run the three
 phases of the `cohort` stage one at a time, reading and writing trait files
-at the paths you give. `simace run` does not call them.
+at the paths you give. `simace run` does not call them. `simace phenotype` takes the same
+phenotype flags as `cohort`: each trait's model parameters go in
+`--phenotype-params{N}` as a YAML flow mapping, such as
+`--phenotype-params1 '{distribution: weibull, scale: 316.228, rho: 2.0}'`.
 
 `simace validate`, `simace stats`, and `simace effective-size` are not part of
 `simace run`. `effective-size` takes the replicate's `pedigree.parquet` as

@@ -19,24 +19,17 @@ from typing import TYPE_CHECKING, Any, ClassVar, Self
 import numpy as np
 
 from simace.phenotype.hazards import (
-    add_standardize_hazard_cli_arg,
     iter_generation_groups,
     resolve_hazard_mode,
     standardize_beta,
-    standardize_hazard_cli_attr,
 )
 from simace.phenotype.models._base import (
     PhenotypeModel,
     check_finite_beta,
-    check_no_foreign_flags,
-    emit_standardize_hazard,
     validate_standardize_hazard,
-    wrap_trait_error,
 )
 
 if TYPE_CHECKING:
-    import argparse
-
     from simace.phenotype.hazards import StandardizeMode
 
 __all__ = ["FirstPassageModel"]
@@ -99,48 +92,6 @@ class FirstPassageModel(PhenotypeModel):
             standardize_hazard=phenotype_params.get("standardize_hazard"),
         )
 
-    @classmethod
-    def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:
-        group = parser.add_argument_group(f"Trait {trait} — first_passage")
-        group.add_argument(f"--first-passage-drift{trait}", type=float, default=None)
-        group.add_argument(f"--first-passage-shape{trait}", type=float, default=None)
-        add_standardize_hazard_cli_arg(group, trait, name="first-passage")
-
-    @classmethod
-    def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
-        check_no_foreign_flags(cls, args, trait)
-        with wrap_trait_error(trait):
-            drift = getattr(args, f"first_passage_drift{trait}")
-            if drift is None:
-                raise ValueError(
-                    f"--first-passage-drift{trait} is required when --phenotype-model{trait}=first_passage"
-                )
-            shape = getattr(args, f"first_passage_shape{trait}")
-            if shape is None:
-                raise ValueError(
-                    f"--first-passage-shape{trait} is required when --phenotype-model{trait}=first_passage"
-                )
-            return cls(
-                drift=drift,
-                shape=shape,
-                beta=getattr(args, f"beta{trait}"),
-                beta_sex=getattr(args, f"beta_sex{trait}", 0.0),
-                standardize_hazard=getattr(args, standardize_hazard_cli_attr(trait, name="first-passage")),
-            )
-
-    @classmethod
-    def cli_flag_attrs(cls, trait: int) -> set[str]:
-        return {
-            f"first_passage_drift{trait}",
-            f"first_passage_shape{trait}",
-            standardize_hazard_cli_attr(trait, name="first-passage"),
-        }
-
-    def to_params_dict(self) -> dict[str, Any]:
-        out: dict[str, Any] = {"drift": self.drift, "shape": self.shape}
-        emit_standardize_hazard(out, self.standardize_hazard)
-        return out
-
     # ------------------------------------------------------------------
     # Simulation
     # ------------------------------------------------------------------
@@ -151,7 +102,7 @@ class FirstPassageModel(PhenotypeModel):
         *,
         seed: int,
         standardize: StandardizeMode | bool,
-        sex: np.ndarray | None,
+        sex: np.ndarray,
         generation: np.ndarray,
     ) -> np.ndarray:
         from simace.phenotype._kernels import _nb_fpt, _nb_fpt_cure
@@ -164,7 +115,6 @@ class FirstPassageModel(PhenotypeModel):
         y0_base = np.sqrt(self.shape)
         normals = rng.standard_normal(n)
         uniforms = rng.random(n)
-        sex_arr = sex if sex is not None else np.zeros(n)
         sex_beta = self.beta_sex
         inv_drift = 1.0 / abs(self.drift)
         cure_draws = rng.random(n) if self.drift > 0 else None
@@ -180,7 +130,7 @@ class FirstPassageModel(PhenotypeModel):
                     liability[mask],
                     m,
                     b,
-                    sex_arr[mask],
+                    sex[mask],
                     sex_beta,
                     y0_base,
                     inv_drift,
@@ -196,7 +146,7 @@ class FirstPassageModel(PhenotypeModel):
                     liability[mask],
                     m,
                     b,
-                    sex_arr[mask],
+                    sex[mask],
                     sex_beta,
                     y0_base,
                     self.drift,

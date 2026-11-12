@@ -43,6 +43,8 @@ PREVALENCE_MODELS = [adult_ltm, adult_cox, cure_frailty]
 def _simulate(model, liability, *, sex=None, standardize=True, generation=None, seed=42):
     if generation is None:
         generation = np.zeros(len(liability), dtype=int)
+    if sex is None:
+        sex = np.zeros(len(liability))
     return model.simulate(liability=liability, seed=seed, standardize=standardize, sex=sex, generation=generation)
 
 

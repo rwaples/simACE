@@ -4,11 +4,8 @@ Construction, config and CLI surfaces are tested here; shared behavioural
 contracts (sex effects, liability ordering) live in ``test_behaviour.py``.
 """
 
-import argparse
-
 import pytest
 
-from simace.phenotype.hazards import HAZARD_FLAG_ROOTS
 from simace.phenotype.models import FrailtyModel
 
 WEIBULL = {"distribution": "weibull", "scale": 316.228, "rho": 2.0}
@@ -64,91 +61,3 @@ def test_from_config_rejects_prevalence():
     params = {"phenotype_params1": {"distribution": "weibull", "scale": 316.228, "rho": 2.0, "prevalence": 0.1}}
     with pytest.raises(ValueError, match=r"phenotype\.trait1.*unknown key\(s\) \['prevalence'\]"):
         FrailtyModel.from_config({**params, "beta1": 1.0}, trait_num=1)
-
-
-def test_to_params_dict_round_trips_through_from_config():
-    src = {"phenotype_params2": dict(WEIBULL), "beta2": 1.0}
-    m = FrailtyModel.from_config(src, trait_num=2)
-    rt = {"phenotype_params2": m.to_params_dict(), "beta2": m.beta}
-    m2 = FrailtyModel.from_config(rt, trait_num=2)
-    assert m == m2
-
-
-def _build_parser():
-    parser = argparse.ArgumentParser()
-    for trait in (1, 2):
-        parser.add_argument(f"--phenotype-model{trait}", default="frailty")
-        parser.add_argument(f"--beta{trait}", type=float, default=1.0)
-        parser.add_argument(f"--beta-sex{trait}", type=float, default=0.0)
-    # Register every model's flags so the foreign-flag check has something
-    # to compare against.
-    from simace.phenotype.models import MODELS
-
-    for trait in (1, 2):
-        for cls in MODELS.values():
-            cls.add_cli_args(parser, trait)
-    return parser
-
-
-def test_from_cli_happy_path():
-    parser = _build_parser()
-    args = parser.parse_args(
-        [
-            "--phenotype-model1",
-            "frailty",
-            "--frailty-distribution1",
-            "weibull",
-            "--frailty-scale1",
-            "316.228",
-            "--frailty-rho1",
-            "2.0",
-            "--beta1",
-            "1.0",
-            "--phenotype-model2",
-            "frailty",
-            "--frailty-distribution2",
-            "weibull",
-            "--frailty-scale2",
-            "100.0",
-            "--frailty-rho2",
-            "1.5",
-        ]
-    )
-    m1 = FrailtyModel.from_cli(args, 1)
-    assert m1.distribution == "weibull"
-    assert m1.hazard_params == {"scale": 316.228, "rho": 2.0}
-
-
-def test_from_cli_missing_distribution_raises():
-    parser = _build_parser()
-    args = parser.parse_args(["--phenotype-model1", "frailty", "--phenotype-model2", "frailty"])
-    with pytest.raises(ValueError, match=r"--frailty-distribution1 is required"):
-        FrailtyModel.from_cli(args, 1)
-
-
-def test_from_cli_rejects_foreign_adult_flag():
-    parser = _build_parser()
-    args = parser.parse_args(
-        [
-            "--phenotype-model1",
-            "frailty",
-            "--frailty-distribution1",
-            "weibull",
-            "--frailty-scale1",
-            "316.228",
-            "--frailty-rho1",
-            "2.0",
-            "--adult-method1",
-            "ltm",  # foreign
-            "--phenotype-model2",
-            "frailty",
-        ]
-    )
-    with pytest.raises(ValueError, match=r"phenotype\.trait1.*--adult-method1"):
-        FrailtyModel.from_cli(args, 1)
-
-
-def test_cli_flag_attrs_covers_all_hazard_roots():
-    attrs = FrailtyModel.cli_flag_attrs(1)
-    expected = {"frailty_distribution1", "frailty_standardize_hazard1"} | {f"frailty_{r}1" for r in HAZARD_FLAG_ROOTS}
-    assert attrs == expected

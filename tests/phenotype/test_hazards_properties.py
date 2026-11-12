@@ -24,8 +24,6 @@ run found the upper one within minutes. See ``_SURVIVAL_ULP_SAFETY`` for the
 derived bound that covers both, and its own calibration.
 """
 
-import argparse
-
 import numpy as np
 from hypothesis import given
 from hypothesis import strategies as st
@@ -34,17 +32,12 @@ from scipy.stats import gamma as gamma_dist
 from scipy.stats import norm
 
 from simace.phenotype.hazards import (
-    BASELINE_HAZARDS,
     STANDARDIZE_CHOICES,
-    add_hazard_cli_args,
     compute_event_times,
-    hazard_cli_flag_attrs,
     iter_generation_groups,
-    parse_hazard_cli,
     standardize_beta,
     standardize_liability,
     true_lifetime_prevalence_weibull,
-    validate_hazard_params,
 )
 from tests.conftest import HAZARD_PARAM_BOUNDS, hazard_params
 
@@ -362,69 +355,6 @@ class TestTrueLifetimePrevalence:
         for value in (k_low, k_high):
             assert 0.0 <= value <= 1.0
         assert k_high >= k_low - 1e-12
-
-
-_CLI_NAME = "frailty"
-
-
-def _build_parser(trait: int) -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(add_help=False)
-    add_hazard_cli_args(parser, trait, name=_CLI_NAME)
-    return parser
-
-
-class TestHazardCli:
-    """``add_hazard_cli_args`` → argv → ``parse_hazard_cli`` → ``validate_hazard_params``."""
-
-    @given(
-        trait=st.integers(min_value=1, max_value=2),
-        distribution=st.sampled_from(sorted(BASELINE_HAZARDS)),
-        data=st.data(),
-    )
-    def test_cli_round_trip(self, trait, distribution, data):
-        """Every distribution's canonical flags parse back to valid params."""
-        params = data.draw(hazard_params(distribution))
-        # ``--flag=value`` form throughout: several parameters are legitimately
-        # negative (lognormal ``mu``), and argparse reads a bare ``-2.0`` as a flag.
-        argv = [f"--{_CLI_NAME}-distribution{trait}={distribution}"]
-        argv += [f"--{_CLI_NAME}-{key}{trait}={value!r}" for key, value in params.items()]
-
-        args = _build_parser(trait).parse_args(argv)
-        parsed_distribution, parsed_params = parse_hazard_cli(args, trait, name=_CLI_NAME)
-        assert parsed_distribution == distribution
-        assert parsed_params == params
-        validate_hazard_params(parsed_distribution, parsed_params, "frailty")
-
-    @given(trait=st.integers(min_value=1, max_value=2))
-    def test_registered_attrs_match_the_declared_set(self, trait):
-        """``hazard_cli_flag_attrs`` lists exactly what the parser registers."""
-        args = _build_parser(trait).parse_args([f"--{_CLI_NAME}-distribution{trait}=weibull"])
-        assert set(vars(args)) == hazard_cli_flag_attrs(trait, name=_CLI_NAME)
-
-    @given(
-        trait=st.integers(min_value=1, max_value=2),
-        rate=_bounded_float(1e-4, 10.0),
-        scale=_bounded_float(1e-4, 10.0),
-        supply=st.sampled_from(["rate", "scale", "both"]),
-    )
-    def test_exponential_accepts_rate_or_scale(self, trait, rate, scale, supply):
-        """Exponential parses either flag, and canonical ``rate`` wins when both are given.
-
-        ``_invert_exponential`` and ``validate_hazard_params`` have always
-        accepted either key; ``parse_hazard_cli`` iterated over the canonical
-        ``BASELINE_PARAMS["exponential"] == ["rate"]`` and was the only layer
-        that rejected ``scale``.
-        """
-        argv = [f"--{_CLI_NAME}-distribution{trait}=exponential"]
-        if supply in ("rate", "both"):
-            argv.append(f"--{_CLI_NAME}-rate{trait}={rate!r}")
-        if supply in ("scale", "both"):
-            argv.append(f"--{_CLI_NAME}-scale{trait}={scale!r}")
-
-        args = _build_parser(trait).parse_args(argv)
-        distribution, params = parse_hazard_cli(args, trait, name=_CLI_NAME)
-        validate_hazard_params(distribution, params, "frailty")
-        assert params == ({"scale": scale} if supply == "scale" else {"rate": rate})
 
 
 # Each distribution's time-scale parameter, and how a time scale factor s enters it.

@@ -19,7 +19,7 @@ def simulate_phenotype(liability, beta, hazard_model, hazard_params, seed, stand
         liability=liability,
         seed=seed,
         standardize=standardize,
-        sex=sex,
+        sex=np.zeros(len(liability)) if sex is None else sex,
         generation=np.zeros(len(liability), dtype=int),
     )
 

@@ -34,19 +34,14 @@ import numpy as np
 
 from simace.core.phenotype_keys import ADULT_METHODS
 from simace.phenotype.hazards import (
-    add_standardize_hazard_cli_arg,
     coerce_standardize_mode,
     resolve_hazard_mode,
-    standardize_hazard_cli_attr,
     standardize_liability,
 )
 from simace.phenotype.models._base import (
     PhenotypeModel,
     check_finite_beta,
-    check_no_foreign_flags,
-    emit_standardize_hazard,
     validate_standardize_hazard,
-    wrap_trait_error,
 )
 from simace.phenotype.models._prevalence import (
     liability_threshold_mask,
@@ -56,8 +51,6 @@ from simace.phenotype.models._prevalence import (
 )
 
 if TYPE_CHECKING:
-    import argparse
-
     from simace.phenotype.hazards import StandardizeMode
 
 __all__ = ["AdultModel"]
@@ -131,62 +124,6 @@ class AdultModel(PhenotypeModel):
             standardize_hazard=phenotype_params.get("standardize_hazard"),
         )
 
-    @classmethod
-    def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:
-        group = parser.add_argument_group(f"Trait {trait} — adult")
-        group.add_argument(
-            f"--adult-method{trait}",
-            default=None,
-            choices=sorted(ADULT_METHODS),
-            help=f"Adult sub-method for trait {trait}",
-        )
-        group.add_argument(f"--adult-cip-x0-{trait}", type=float, default=None)
-        group.add_argument(f"--adult-cip-k-{trait}", type=float, default=None)
-        group.add_argument(f"--adult-prevalence{trait}", type=float, default=None)
-        add_standardize_hazard_cli_arg(group, trait, name="adult")
-
-    @classmethod
-    def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
-        check_no_foreign_flags(cls, args, trait)
-        with wrap_trait_error(trait):
-            method = getattr(args, f"adult_method{trait}")
-            if method is None:
-                raise ValueError(f"--adult-method{trait} is required when --phenotype-model{trait}=adult")
-            prevalence = getattr(args, f"adult_prevalence{trait}")
-            if prevalence is None:
-                raise ValueError(f"--adult-prevalence{trait} is required when --phenotype-model{trait}=adult")
-            cip_x0 = getattr(args, f"adult_cip_x0_{trait}")
-            cip_k = getattr(args, f"adult_cip_k_{trait}")
-            return cls(
-                method=method,
-                prevalence=prevalence,
-                cip_x0=cip_x0 if cip_x0 is not None else 50.0,
-                cip_k=cip_k if cip_k is not None else 0.2,
-                beta=getattr(args, f"beta{trait}"),
-                beta_sex=getattr(args, f"beta_sex{trait}", 0.0),
-                standardize_hazard=getattr(args, standardize_hazard_cli_attr(trait, name="adult")),
-            )
-
-    @classmethod
-    def cli_flag_attrs(cls, trait: int) -> set[str]:
-        return {
-            f"adult_method{trait}",
-            f"adult_cip_x0_{trait}",
-            f"adult_cip_k_{trait}",
-            f"adult_prevalence{trait}",
-            standardize_hazard_cli_attr(trait, name="adult"),
-        }
-
-    def to_params_dict(self) -> dict[str, Any]:
-        out: dict[str, Any] = {
-            "method": self.method,
-            "cip_x0": self.cip_x0,
-            "cip_k": self.cip_k,
-            "prevalence": self.prevalence,
-        }
-        emit_standardize_hazard(out, self.standardize_hazard)
-        return out
-
     # ------------------------------------------------------------------
     # Simulation
     # ------------------------------------------------------------------
@@ -197,7 +134,7 @@ class AdultModel(PhenotypeModel):
         *,
         seed: int,
         standardize: StandardizeMode | bool,
-        sex: np.ndarray | None,
+        sex: np.ndarray,
         generation: np.ndarray,
     ) -> np.ndarray:
         prevalence = resolve_prevalence(self.prevalence, sex, generation)
@@ -211,7 +148,7 @@ class AdultModel(PhenotypeModel):
         self,
         liability: np.ndarray,
         prevalence: float | np.ndarray,
-        sex: np.ndarray | None,
+        sex: np.ndarray,
         generation: np.ndarray,
         mode: StandardizeMode,
     ) -> np.ndarray:
@@ -227,7 +164,7 @@ class AdultModel(PhenotypeModel):
         if n_cases > 0:
             prev_case = prevalence[is_case] if isinstance(prevalence, np.ndarray) else prevalence
             L_eff = self.beta * L[is_case]
-            if self.beta_sex != 0.0 and sex is not None:
+            if self.beta_sex != 0.0:
                 L_eff = L_eff + self.beta_sex * sex[is_case]
             cir = 0.5 * erfc(L_eff / np.sqrt(2.0))
             valid = cir < prev_case
@@ -242,7 +179,7 @@ class AdultModel(PhenotypeModel):
         self,
         liability: np.ndarray,
         prevalence: float | np.ndarray,
-        sex: np.ndarray | None,
+        sex: np.ndarray,
         generation: np.ndarray,
         seed: int,
         mode: StandardizeMode,
@@ -252,7 +189,7 @@ class AdultModel(PhenotypeModel):
 
         n = len(L)
         neg_log_u = rng.exponential(size=n)
-        if self.beta_sex != 0.0 and sex is not None:
+        if self.beta_sex != 0.0:
             neg_log_u = neg_log_u / np.exp(self.beta_sex * sex)
         t_raw = np.sqrt(neg_log_u / np.exp(self.beta * L))
 

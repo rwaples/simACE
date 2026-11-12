@@ -14,30 +14,20 @@ import numpy as np
 
 from simace.phenotype.hazards import (
     BASELINE_HAZARDS,
-    add_hazard_cli_args,
-    add_standardize_hazard_cli_arg,
     compute_event_times,
-    hazard_cli_flag_attrs,
     hazard_config_keys,
     iter_generation_groups,
-    parse_hazard_cli,
     resolve_hazard_mode,
     standardize_beta,
-    standardize_hazard_cli_attr,
     validate_hazard_params,
 )
 from simace.phenotype.models._base import (
     PhenotypeModel,
     check_finite_beta,
-    check_no_foreign_flags,
-    emit_standardize_hazard,
     validate_standardize_hazard,
-    wrap_trait_error,
 )
 
 if TYPE_CHECKING:
-    import argparse
-
     from simace.phenotype.hazards import StandardizeMode
 
 __all__ = ["FrailtyModel"]
@@ -96,33 +86,6 @@ class FrailtyModel(PhenotypeModel):
             standardize_hazard=standardize_hazard,
         )
 
-    @classmethod
-    def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:
-        group = add_hazard_cli_args(parser, trait, name="frailty")
-        add_standardize_hazard_cli_arg(group, trait, name="frailty")
-
-    @classmethod
-    def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
-        check_no_foreign_flags(cls, args, trait)
-        with wrap_trait_error(trait):
-            distribution, hazard_params = parse_hazard_cli(args, trait, name="frailty")
-            return cls(
-                distribution=distribution,
-                hazard_params=hazard_params,
-                beta=getattr(args, f"beta{trait}"),
-                beta_sex=getattr(args, f"beta_sex{trait}", 0.0),
-                standardize_hazard=getattr(args, standardize_hazard_cli_attr(trait, name="frailty")),
-            )
-
-    @classmethod
-    def cli_flag_attrs(cls, trait: int) -> set[str]:
-        return hazard_cli_flag_attrs(trait, name="frailty") | {standardize_hazard_cli_attr(trait, name="frailty")}
-
-    def to_params_dict(self) -> dict[str, Any]:
-        out: dict[str, Any] = {"distribution": self.distribution, **self.hazard_params}
-        emit_standardize_hazard(out, self.standardize_hazard)
-        return out
-
     # ------------------------------------------------------------------
     # Simulation
     # ------------------------------------------------------------------
@@ -133,14 +96,14 @@ class FrailtyModel(PhenotypeModel):
         *,
         seed: int,
         standardize: StandardizeMode | bool,
-        sex: np.ndarray | None,
+        sex: np.ndarray,
         generation: np.ndarray,
     ) -> np.ndarray:
         mode_haz = resolve_hazard_mode(standardize, self.standardize_hazard)
         rng = np.random.default_rng(seed)
         n = len(liability)
         neg_log_u = rng.exponential(size=n)
-        if self.beta_sex != 0.0 and sex is not None:
+        if self.beta_sex != 0.0:
             neg_log_u = neg_log_u / np.exp(self.beta_sex * sex)
         mean_arr, beta_arr = standardize_beta(liability, self.beta, mode_haz, generation)
         t = np.empty(n)

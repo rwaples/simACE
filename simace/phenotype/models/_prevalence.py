@@ -85,13 +85,12 @@ def prevalence_to_array(prev, generation: np.ndarray) -> float | np.ndarray:
 
 def resolve_prevalence(
     prev,
-    sex: np.ndarray | None,
+    sex: np.ndarray,
     generation: np.ndarray,
 ) -> float | np.ndarray:
     """Resolve prevalence to a scalar or per-individual array, validated to (0, 1).
 
-    ``sex`` is required only when ``prev`` is a sex-specific dict; pass any
-    array of matching length otherwise.  The resolved case fraction is validated
+    ``sex`` is read only when ``prev`` is a sex-specific dict.  The resolved case fraction is validated
     to lie in the open interval ``(0, 1)`` — the single home for that check, so
     all three threshold models (adult ``ltm`` + ``cox``, ``cure_frailty``,
     ``simple_ltm``) inherit it regardless of their downstream threshold/rank step.
@@ -147,7 +146,7 @@ def liability_threshold_mask(L: np.ndarray, prevalence) -> np.ndarray:
 def case_status_from_liability(
     liability: np.ndarray,
     prevalence,
-    sex: np.ndarray | None,
+    sex: np.ndarray,
     generation: np.ndarray,
     mode: StandardizeMode,
 ) -> np.ndarray:
@@ -166,7 +165,7 @@ def case_status_from_liability(
         prevalence: case fraction ``K`` — scalar, per-generation dict, or
             ``{"female": ..., "male": ...}`` dict (resolved via
             :func:`resolve_prevalence`).
-        sex: per-individual sex codes; required only for sex-specific prevalence.
+        sex: per-individual sex codes; read only for sex-specific prevalence.
         generation: per-individual generation labels (for standardization and
             per-generation prevalence).
         mode: liability standardization mode (``"none" | "global" | "per_generation"``).

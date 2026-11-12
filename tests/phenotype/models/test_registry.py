@@ -69,7 +69,7 @@ def test_from_config_rejects_unknown_keys_before_subclass_hook():
             hook_calls.append(phenotype_params)
             return cls()
 
-        add_cli_args = from_cli = cli_flag_attrs = to_params_dict = simulate = None
+        simulate = None
 
     params = {"phenotype_params2": {**VALID_PARAMS["simple_ltm"], "onset_typo": 1}, "beta2": 1.0}
     with pytest.raises(ValueError, match=r"unknown key\(s\) \['onset_typo'\]") as excinfo:
@@ -87,21 +87,3 @@ def test_registry_class_subclasses_phenotype_model(name, cls):
     assert MODELS[name] is cls
     assert issubclass(cls, PhenotypeModel)
     assert cls.name == name
-
-
-@pytest.mark.parametrize("cls", list(EXPECTED.values()))
-def test_cli_flag_attrs_are_disjoint_per_trait(cls):
-    """Each model's CLI flags must not collide with itself across traits 1 vs 2."""
-    a1 = cls.cli_flag_attrs(1)
-    a2 = cls.cli_flag_attrs(2)
-    assert a1.isdisjoint(a2)
-
-
-def test_cli_flag_attrs_are_disjoint_across_models():
-    """Different models must not register colliding attribute names."""
-    seen: dict[str, str] = {}
-    for trait in (1, 2):
-        for cls in EXPECTED.values():
-            for attr in cls.cli_flag_attrs(trait):
-                assert attr not in seen, f"flag attr {attr!r} registered by both {seen.get(attr)} and {cls.name}"
-                seen[attr] = cls.name

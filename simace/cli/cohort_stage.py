@@ -16,7 +16,7 @@ next and logs its wall time and the process's peak RSS so far.
 
 from __future__ import annotations
 
-__all__ = ["add_phenotype_args", "cli", "phenotype_kwargs", "run_cohort"]
+__all__ = ["cli", "run_cohort"]
 
 import argparse
 import gc
@@ -36,7 +36,7 @@ from simace.core.cli_base import ASCERTAIN_KEYS, CENSOR_KEYS
 from simace.core.cohort import build_cohort, read_pedigree, write_cohort
 from simace.core.parquet import normalize_for_parquet
 from simace.core.pedigree_arrays import PedigreeArrays
-from simace.phenotype.runner import run_phenotype
+from simace.phenotype.runner import add_phenotype_args, phenotype_kwargs, run_phenotype
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Mapping
@@ -100,39 +100,6 @@ def run_cohort(
         cohort = build_cohort(analysis_pedigree, sample_trait)
 
     return cohort, phenotyped_population
-
-
-def add_phenotype_args(group: argparse._ArgumentGroup) -> None:
-    """The phenotype-stage flags of a command that phenotypes a recorded pedigree (``cohort``, ``validate``)."""
-    from simace.core.cli_base import yaml_mapping
-    from simace.phenotype.hazards import STANDARDIZE_CHOICES
-    from simace.phenotype.models import MODELS
-
-    group.add_argument("--G-pheno", type=int, default=3, help="Trailing generations to phenotype")
-    group.add_argument("--standardize", choices=list(STANDARDIZE_CHOICES), default="global")
-    for trait in (1, 2):
-        group.add_argument(f"--phenotype-model{trait}", choices=sorted(MODELS), required=True)
-        group.add_argument(f"--beta{trait}", type=float, default=1.0)
-        group.add_argument(f"--beta-sex{trait}", type=float, default=0.0)
-        group.add_argument(
-            f"--phenotype-params{trait}",
-            type=yaml_mapping,
-            required=True,
-            help=f"Trait {trait} model parameters as a YAML flow mapping",
-        )
-
-
-def phenotype_kwargs(args: argparse.Namespace) -> dict[str, Any]:
-    """``run_phenotype``'s keyword arguments other than ``seed``, from :func:`add_phenotype_args`' flags."""
-    return {
-        "G_pheno": args.G_pheno,
-        "standardize": args.standardize,
-        **{
-            f"{key}{trait}": getattr(args, f"{key}{trait}")
-            for trait in (1, 2)
-            for key in ("phenotype_model", "beta", "beta_sex", "phenotype_params")
-        },
-    }
 
 
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:

@@ -1,7 +1,5 @@
 """Construction / validation / simulation tests for SimpleLtmModel."""
 
-import argparse
-
 import numpy as np
 import pytest
 
@@ -68,111 +66,9 @@ def test_from_config_onset_missing_traitful_message():
         SimpleLtmModel.from_config(params, trait_num=1)
 
 
-def test_to_params_dict_round_trips():
-    m = SimpleLtmModel(prevalence=0.2, onset=dict(_NORMAL))
-    out = m.to_params_dict()
-    assert out == {"prevalence": 0.2, "onset": {"kind": "normal", "mean": 35.0, "sd": 8.0}}
-    # round-trip back through from_config
-    rebuilt = SimpleLtmModel.from_config({"phenotype_params1": out, "beta1": 1.0}, trait_num=1)
-    assert rebuilt.onset == m.onset
-    assert rebuilt.prevalence == m.prevalence
-
-
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
-
-
-def _parser_with_all_models():
-    from simace.phenotype.models import MODELS
-
-    parser = argparse.ArgumentParser()
-    for trait in (1, 2):
-        parser.add_argument(f"--phenotype-model{trait}", default="simple_ltm")
-        parser.add_argument(f"--beta{trait}", type=float, default=1.0)
-        parser.add_argument(f"--beta-sex{trait}", type=float, default=0.0)
-        for cls in MODELS.values():
-            cls.add_cli_args(parser, trait)
-    return parser
-
-
-def test_from_cli_fixed_and_normal():
-    parser = _parser_with_all_models()
-    args = parser.parse_args(
-        [
-            "--phenotype-model1",
-            "simple_ltm",
-            "--simple-ltm-prevalence1",
-            "0.1",
-            "--simple-ltm-onset-kind-1",
-            "fixed",
-            "--simple-ltm-onset-age-1",
-            "30",
-            "--phenotype-model2",
-            "simple_ltm",
-            "--simple-ltm-prevalence2",
-            "0.2",
-            "--simple-ltm-onset-kind-2",
-            "normal",
-            "--simple-ltm-onset-mean-2",
-            "35",
-            "--simple-ltm-onset-sd-2",
-            "8",
-        ]
-    )
-    m1 = SimpleLtmModel.from_cli(args, 1)
-    assert m1.prevalence == 0.1
-    assert m1.onset == {"kind": "fixed", "age": 30.0}
-    m2 = SimpleLtmModel.from_cli(args, 2)
-    assert m2.onset == {"kind": "normal", "mean": 35.0, "sd": 8.0}
-
-
-def test_from_cli_missing_prevalence_raises():
-    parser = _parser_with_all_models()
-    args = parser.parse_args(
-        ["--phenotype-model1", "simple_ltm", "--simple-ltm-onset-kind-1", "fixed", "--simple-ltm-onset-age-1", "30"]
-    )
-    with pytest.raises(ValueError, match=r"--simple-ltm-prevalence1 is required"):
-        SimpleLtmModel.from_cli(args, 1)
-
-
-def test_from_cli_missing_onset_age_raises():
-    parser = _parser_with_all_models()
-    args = parser.parse_args(
-        ["--phenotype-model1", "simple_ltm", "--simple-ltm-prevalence1", "0.1", "--simple-ltm-onset-kind-1", "fixed"]
-    )
-    with pytest.raises(ValueError, match=r"--simple-ltm-onset-age-1 is required"):
-        SimpleLtmModel.from_cli(args, 1)
-
-
-def test_from_cli_rejects_foreign_frailty_flag():
-    parser = _parser_with_all_models()
-    args = parser.parse_args(
-        [
-            "--phenotype-model1",
-            "simple_ltm",
-            "--simple-ltm-prevalence1",
-            "0.1",
-            "--simple-ltm-onset-kind-1",
-            "fixed",
-            "--simple-ltm-onset-age-1",
-            "30",
-            "--frailty-rho1",
-            "2.0",  # foreign
-        ]
-    )
-    with pytest.raises(ValueError, match=r"phenotype\.trait1.*--frailty-rho1"):
-        SimpleLtmModel.from_cli(args, 1)
-
-
-def test_cli_flag_attrs_set():
-    assert SimpleLtmModel.cli_flag_attrs(2) == {
-        "simple_ltm_prevalence2",
-        "simple_ltm_onset_kind_2",
-        "simple_ltm_onset_age_2",
-        "simple_ltm_onset_mean_2",
-        "simple_ltm_onset_sd_2",
-    }
 
 
 # ---------------------------------------------------------------------------

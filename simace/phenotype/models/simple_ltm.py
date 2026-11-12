@@ -35,14 +35,10 @@ from simace.phenotype.hazards import coerce_standardize_mode
 from simace.phenotype.models._base import (
     PhenotypeModel,
     check_finite_beta,
-    check_no_foreign_flags,
-    wrap_trait_error,
 )
 from simace.phenotype.models._prevalence import case_status_from_liability, validate_prevalence_spec
 
 if TYPE_CHECKING:
-    import argparse
-
     from simace.phenotype.hazards import StandardizeMode
 
 __all__ = ["SimpleLtmModel"]
@@ -123,66 +119,6 @@ class SimpleLtmModel(PhenotypeModel):
             beta_sex=beta_sex,
         )
 
-    @classmethod
-    def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:
-        group = parser.add_argument_group(f"Trait {trait} — simple_ltm")
-        group.add_argument(f"--simple-ltm-prevalence{trait}", type=float, default=None)
-        group.add_argument(
-            f"--simple-ltm-onset-kind-{trait}",
-            default=None,
-            choices=sorted(ONSET_KINDS),
-            help=f"Onset sub-model for trait {trait}",
-        )
-        group.add_argument(f"--simple-ltm-onset-age-{trait}", type=float, default=None, help="fixed onset age")
-        group.add_argument(f"--simple-ltm-onset-mean-{trait}", type=float, default=None, help="normal onset mean")
-        group.add_argument(f"--simple-ltm-onset-sd-{trait}", type=float, default=None, help="normal onset sd")
-
-    @classmethod
-    def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
-        check_no_foreign_flags(cls, args, trait)
-        with wrap_trait_error(trait):
-            prevalence = getattr(args, f"simple_ltm_prevalence{trait}")
-            if prevalence is None:
-                raise ValueError(f"--simple-ltm-prevalence{trait} is required when --phenotype-model{trait}=simple_ltm")
-            kind = getattr(args, f"simple_ltm_onset_kind_{trait}")
-            if kind is None:
-                raise ValueError(
-                    f"--simple-ltm-onset-kind-{trait} is required when --phenotype-model{trait}=simple_ltm"
-                )
-            if kind == "fixed":
-                age = getattr(args, f"simple_ltm_onset_age_{trait}")
-                if age is None:
-                    raise ValueError(f"--simple-ltm-onset-age-{trait} is required for onset kind 'fixed'")
-                onset: dict[str, Any] = {"kind": "fixed", "age": age}
-            else:  # normal
-                mean = getattr(args, f"simple_ltm_onset_mean_{trait}")
-                sd = getattr(args, f"simple_ltm_onset_sd_{trait}")
-                if mean is None or sd is None:
-                    raise ValueError(
-                        f"--simple-ltm-onset-mean-{trait} and --simple-ltm-onset-sd-{trait} "
-                        f"are required for onset kind 'normal'"
-                    )
-                onset = {"kind": "normal", "mean": mean, "sd": sd}
-            return cls(
-                prevalence=prevalence,
-                onset=onset,
-                beta=getattr(args, f"beta{trait}"),
-                beta_sex=getattr(args, f"beta_sex{trait}", 0.0),
-            )
-
-    @classmethod
-    def cli_flag_attrs(cls, trait: int) -> set[str]:
-        return {
-            f"simple_ltm_prevalence{trait}",
-            f"simple_ltm_onset_kind_{trait}",
-            f"simple_ltm_onset_age_{trait}",
-            f"simple_ltm_onset_mean_{trait}",
-            f"simple_ltm_onset_sd_{trait}",
-        }
-
-    def to_params_dict(self) -> dict[str, Any]:
-        return {"prevalence": self.prevalence, "onset": dict(self.onset)}
-
     # ------------------------------------------------------------------
     # Simulation
     # ------------------------------------------------------------------
@@ -193,7 +129,7 @@ class SimpleLtmModel(PhenotypeModel):
         *,
         seed: int,
         standardize: StandardizeMode | bool,
-        sex: np.ndarray | None,
+        sex: np.ndarray,
         generation: np.ndarray,
     ) -> np.ndarray:
         mode = coerce_standardize_mode(standardize)

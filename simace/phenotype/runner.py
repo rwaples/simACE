@@ -45,7 +45,7 @@ def _simulate_one_trait(
     beta_sex: float,
     seed: int,
     standardize: StandardizeMode | bool,
-    sex: np.ndarray | None,
+    sex: np.ndarray,
     generation: np.ndarray,
 ):
     """Dispatch a single trait to the appropriate phenotype model class."""
@@ -124,7 +124,7 @@ def run_phenotype(
         raise ValueError(f"G_pheno ({G_pheno}) exceeds available generations ({max_gen + 1})")
     pedigree = pedigree.filter(pl.col("generation") >= min_gen)
 
-    sex = pedigree["sex"].to_numpy() if "sex" in pedigree.columns else None
+    sex = pedigree["sex"].to_numpy()
     generation = pedigree["generation"].to_numpy()
     t1 = _simulate_one_trait(
         pedigree,
@@ -169,20 +169,45 @@ def run_phenotype(
 # ---------------------------------------------------------------------------
 
 
+def add_phenotype_args(group: argparse._ArgumentGroup) -> None:
+    """The phenotype-stage flags of a command that phenotypes a recorded pedigree (``phenotype``, ``cohort``, ``validate``)."""
+    from simace.core.cli_base import yaml_mapping
+
+    group.add_argument("--G-pheno", type=int, default=3, help="Trailing generations to phenotype")
+    group.add_argument("--standardize", choices=list(STANDARDIZE_CHOICES), default="global")
+    for trait in (1, 2):
+        group.add_argument(f"--phenotype-model{trait}", choices=sorted(MODELS), required=True)
+        group.add_argument(f"--beta{trait}", type=float, default=1.0)
+        group.add_argument(f"--beta-sex{trait}", type=float, default=0.0)
+        group.add_argument(
+            f"--phenotype-params{trait}",
+            type=yaml_mapping,
+            required=True,
+            help=f"Trait {trait} model parameters as a YAML flow mapping",
+        )
+
+
+def phenotype_kwargs(args: argparse.Namespace) -> dict[str, Any]:
+    """``run_phenotype``'s keyword arguments other than ``seed``, from :func:`add_phenotype_args`' flags."""
+    return {
+        "G_pheno": args.G_pheno,
+        "standardize": args.standardize,
+        **{
+            f"{key}{trait}": getattr(args, f"{key}{trait}")
+            for trait in (1, 2)
+            for key in ("phenotype_model", "beta", "beta_sex", "phenotype_params")
+        },
+    }
+
+
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     """Command-line entry point for phenotype simulation.
 
-    Eager-registration scheme: every model's flag set is registered up
-    front so ``--help`` shows them all in clearly-labeled per-family
-    argument groups. Each model's ``from_cli`` rejects flags belonging to
-    a different family when invoked alongside that model's selection.
-
-    ``--phenotype-params{N}`` instead passes the ``phenotype_params{N}``
-    dict whole, as a YAML flow mapping. It is the only form that carries
-    per-generation or sex-specific prevalence, and it is what
-    ``simace run`` uses; it cannot be combined with that trait's model flags.
+    Takes each trait's model parameters as ``--phenotype-params{N}``, a YAML
+    flow mapping of the ``phenotype_params{N}`` config dict, the same flags
+    the ``cohort`` stage takes.
     """
-    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging, yaml_mapping
+    from simace.core.cli_base import add_logging_args, add_version_arg, init_logging
     from simace.core.publish import publish
 
     parser = argparse.ArgumentParser(
@@ -195,59 +220,12 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     parser.add_argument("--pedigree", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--G-pheno", type=int, default=3)
-    parser.add_argument(
-        "--standardize",
-        choices=list(STANDARDIZE_CHOICES),
-        default="global",
-        help="Liability standardization mode (default: global)",
-    )
-
-    for trait in (1, 2):
-        shared = parser.add_argument_group(f"Trait {trait} — shared")
-        shared.add_argument(
-            f"--phenotype-model{trait}",
-            choices=sorted(MODELS),
-            required=True,
-            help=f"Phenotype model family for trait {trait}",
-        )
-        shared.add_argument(f"--beta{trait}", type=float, default=1.0)
-        shared.add_argument(f"--beta-sex{trait}", type=float, default=0.0)
-        shared.add_argument(
-            f"--phenotype-params{trait}",
-            type=yaml_mapping,
-            default=None,
-            help=f"Trait {trait} model parameters as a YAML flow mapping, in place of the model's own flags",
-        )
-        for model_cls in MODELS.values():
-            model_cls.add_cli_args(parser, trait)
+    add_phenotype_args(parser.add_argument_group("phenotype"))
 
     args = parser.parse_args(argv)
     init_logging(args)
 
-    kwargs: dict[str, Any] = {
-        "G_pheno": args.G_pheno,
-        "seed": args.seed,
-        "standardize": args.standardize,
-    }
-    for trait in (1, 2):
-        model_name = getattr(args, f"phenotype_model{trait}")
-        params = getattr(args, f"phenotype_params{trait}")
-        if params is None:
-            params = MODELS[model_name].from_cli(args, trait).to_params_dict()
-        else:
-            model_flags = sorted(
-                f"--{attr.replace('_', '-')}"
-                for model_cls in MODELS.values()
-                for attr in model_cls.cli_flag_attrs(trait)
-                if getattr(args, attr, None) is not None
-            )
-            if model_flags:
-                parser.error(f"--phenotype-params{trait} cannot be combined with {', '.join(model_flags)}")
-        kwargs[f"phenotype_model{trait}"] = model_name
-        kwargs[f"phenotype_params{trait}"] = params
-        kwargs[f"beta{trait}"] = getattr(args, f"beta{trait}")
-        kwargs[f"beta_sex{trait}"] = getattr(args, f"beta_sex{trait}")
+    kwargs = {"seed": args.seed, **phenotype_kwargs(args)}
 
     pedigree = load_parquet(args.pedigree)
     phenotype = run_phenotype(pedigree, **kwargs)

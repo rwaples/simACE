@@ -14,32 +14,22 @@ import numpy as np
 
 from simace.phenotype.hazards import (
     BASELINE_HAZARDS,
-    add_hazard_cli_args,
-    add_standardize_hazard_cli_arg,
     coerce_standardize_mode,
     compute_event_times,
-    hazard_cli_flag_attrs,
     hazard_config_keys,
     iter_generation_groups,
-    parse_hazard_cli,
     resolve_hazard_mode,
     standardize_beta,
-    standardize_hazard_cli_attr,
     validate_hazard_params,
 )
 from simace.phenotype.models._base import (
     PhenotypeModel,
     check_finite_beta,
-    check_no_foreign_flags,
-    emit_standardize_hazard,
     validate_standardize_hazard,
-    wrap_trait_error,
 )
 from simace.phenotype.models._prevalence import case_status_from_liability, validate_prevalence_spec
 
 if TYPE_CHECKING:
-    import argparse
-
     from simace.phenotype.hazards import StandardizeMode
 
 __all__ = ["CureFrailtyModel"]
@@ -110,47 +100,6 @@ class CureFrailtyModel(PhenotypeModel):
             standardize_hazard=standardize_hazard,
         )
 
-    @classmethod
-    def add_cli_args(cls, parser: argparse.ArgumentParser, trait: int) -> None:
-        group = add_hazard_cli_args(parser, trait, name="cure-frailty")
-        group.add_argument(f"--cure-frailty-prevalence{trait}", type=float, default=None)
-        add_standardize_hazard_cli_arg(group, trait, name="cure-frailty")
-
-    @classmethod
-    def from_cli(cls, args: argparse.Namespace, trait: int) -> Self:
-        check_no_foreign_flags(cls, args, trait)
-        with wrap_trait_error(trait):
-            distribution, hazard_params = parse_hazard_cli(args, trait, name="cure-frailty")
-            prevalence = getattr(args, f"cure_frailty_prevalence{trait}")
-            if prevalence is None:
-                raise ValueError(
-                    f"--cure-frailty-prevalence{trait} is required when --phenotype-model{trait}=cure_frailty"
-                )
-            return cls(
-                distribution=distribution,
-                hazard_params=hazard_params,
-                prevalence=prevalence,
-                beta=getattr(args, f"beta{trait}"),
-                beta_sex=getattr(args, f"beta_sex{trait}", 0.0),
-                standardize_hazard=getattr(args, standardize_hazard_cli_attr(trait, name="cure-frailty")),
-            )
-
-    @classmethod
-    def cli_flag_attrs(cls, trait: int) -> set[str]:
-        return hazard_cli_flag_attrs(trait, name="cure-frailty") | {
-            f"cure_frailty_prevalence{trait}",
-            standardize_hazard_cli_attr(trait, name="cure-frailty"),
-        }
-
-    def to_params_dict(self) -> dict[str, Any]:
-        out: dict[str, Any] = {
-            "distribution": self.distribution,
-            "prevalence": self.prevalence,
-            **self.hazard_params,
-        }
-        emit_standardize_hazard(out, self.standardize_hazard)
-        return out
-
     # ------------------------------------------------------------------
     # Simulation
     # ------------------------------------------------------------------
@@ -161,7 +110,7 @@ class CureFrailtyModel(PhenotypeModel):
         *,
         seed: int,
         standardize: StandardizeMode | bool,
-        sex: np.ndarray | None,
+        sex: np.ndarray,
         generation: np.ndarray,
     ) -> np.ndarray:
         # Threshold step: uses the global ``standardize`` mode for liability.
@@ -181,7 +130,7 @@ class CureFrailtyModel(PhenotypeModel):
         rng = np.random.default_rng(seed)
         neg_log_u_full = np.zeros(n)
         neg_log_u_full[is_case] = rng.exponential(size=n_cases)
-        if self.beta_sex != 0.0 and sex is not None:
+        if self.beta_sex != 0.0:
             neg_log_u_full[is_case] = neg_log_u_full[is_case] / np.exp(self.beta_sex * sex[is_case])
 
         for mask in iter_generation_groups(mode_haz, generation):

@@ -5,8 +5,7 @@ To add a new phenotype model:
   1. Write a new module under ``simace/phenotype/models/`` defining a
      class that subclasses ``PhenotypeModel`` (see ``_base.py``).
   2. Set ``name`` and ``config_keys`` and implement the abstract methods
-     (``_from_config``, ``add_cli_args``, ``from_cli``, ``cli_flag_attrs``,
-     ``to_params_dict``, ``simulate``). Do not override ``from_config``: the
+     (``_from_config``, ``simulate``). Do not override ``from_config``: the
      inherited one rejects keys outside ``config_keys`` and adds trait context
      before ``_from_config``. Validate every value in ``__post_init__``;
      config load calls ``from_config`` for every scenario.

@@ -1,7 +1,7 @@
 """End-to-end CLI tests for ``simace.phenotype.cli``.
 
-Exercises argparse → ``from_cli`` → ``to_params_dict`` → ``from_config``
-round-trip plus the eager-registration foreign-flag rejection.
+Exercises argparse → ``--phenotype-params{N}`` → ``from_config`` → the
+written trait frame.
 """
 
 from typing import TYPE_CHECKING
@@ -66,20 +66,12 @@ def test_cli_frailty_round_trip(tmp_path):
             "1",
             "--phenotype-model1",
             "frailty",
-            "--frailty-distribution1",
-            "weibull",
-            "--frailty-scale1",
-            "316.228",
-            "--frailty-rho1",
-            "2.0",
+            "--phenotype-params1",
+            "{distribution: weibull, scale: 316.228, rho: 2.0}",
             "--phenotype-model2",
             "frailty",
-            "--frailty-distribution2",
-            "weibull",
-            "--frailty-scale2",
-            "316.228",
-            "--frailty-rho2",
-            "2.0",
+            "--phenotype-params2",
+            "{distribution: weibull, scale: 316.228, rho: 2.0}",
         ],
     )
     out = pl.read_parquet(output)
@@ -102,16 +94,12 @@ def test_cli_adult_round_trip(tmp_path):
             "1",
             "--phenotype-model1",
             "adult",
-            "--adult-method1",
-            "ltm",
-            "--adult-prevalence1",
-            "0.10",
+            "--phenotype-params1",
+            "{method: ltm, prevalence: 0.10}",
             "--phenotype-model2",
             "adult",
-            "--adult-method2",
-            "cox",
-            "--adult-prevalence2",
-            "0.20",
+            "--phenotype-params2",
+            "{method: cox, prevalence: 0.20}",
         ],
     )
     out = pl.read_parquet(output)
@@ -119,34 +107,29 @@ def test_cli_adult_round_trip(tmp_path):
     assert 0.05 < case_rate1 < 0.20  # n=100 noisy; expect ~10%
 
 
-def test_cli_foreign_flag_rejected(tmp_path):
+def test_cli_rejects_per_model_flags(tmp_path, capsys):
+    """Model parameters travel only as ``--phenotype-params{N}``; the old per-model flags are gone."""
     pedigree = _write_pedigree(tmp_path)
-    output = tmp_path / "trait.parquet"
-    with pytest.raises(ValueError, match=r"--frailty-rho1"):
+    with pytest.raises(SystemExit):
         phenotype_cli(
             [
                 "--pedigree",
                 str(pedigree),
                 "--output",
-                str(output),
-                "--G-pheno",
-                "1",
+                str(tmp_path / "trait.parquet"),
                 "--phenotype-model1",
                 "adult",
-                "--adult-method1",
-                "ltm",
                 "--adult-prevalence1",
                 "0.10",
-                "--frailty-rho1",  # foreign
-                "2.0",
+                "--phenotype-params1",
+                "{method: ltm, prevalence: 0.1}",
                 "--phenotype-model2",
                 "adult",
-                "--adult-method2",
-                "ltm",
-                "--adult-prevalence2",
-                "0.10",
+                "--phenotype-params2",
+                "{method: ltm, prevalence: 0.1}",
             ],
         )
+    assert "unrecognized arguments: --adult-prevalence1" in capsys.readouterr().err
 
 
 def test_cli_phenotype_params_mapping_rejects_unknown_key(tmp_path):

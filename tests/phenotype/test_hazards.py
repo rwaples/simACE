@@ -5,8 +5,6 @@ partitioning and prevalence monotonicity are property-tested in
 ``test_hazards_properties.py`` and are not repeated here.
 """
 
-import argparse
-
 import numpy as np
 import pytest
 
@@ -14,12 +12,10 @@ from simace.core.phenotype_keys import HAZARD_ALIASES
 from simace.phenotype.hazards import (
     BASELINE_HAZARDS,
     BASELINE_PARAMS,
-    add_hazard_cli_args,
     coerce_standardize_mode,
     compute_event_times,
     hazard_config_keys,
     iter_generation_groups,
-    parse_hazard_cli,
     resolve_hazard_mode,
     standardize_beta,
     standardize_liability,
@@ -82,15 +78,11 @@ def test_baseline_params_keys_match_registry():
     [(d, r, a) for d, aliases in HAZARD_ALIASES.items() for r, a in aliases.items()],
 )
 def test_hazard_alias_accepted_at_every_layer(distribution, required, alternate):
-    """Config keys, CLI flags, validation, and inversion all take an alternate from ``HAZARD_ALIASES``."""
+    """Config keys, validation, and inversion all take an alternate from ``HAZARD_ALIASES``."""
     params = dict(DEFAULT_PARAMS[distribution])
     params[alternate] = params.pop(required)
     assert set(params) <= hazard_config_keys(distribution)
     validate_hazard_params(distribution, params, "frailty")
-    parser = argparse.ArgumentParser()
-    add_hazard_cli_args(parser, 1, name="frailty")
-    argv = [f"--frailty-distribution1={distribution}", *(f"--frailty-{k}1={v!r}" for k, v in params.items())]
-    assert parse_hazard_cli(parser.parse_args(argv), 1, name="frailty") == (distribution, params)
     neg_log_u, liability = _draws()
     assert np.isfinite(compute_event_times(neg_log_u, liability, 0.0, 1.0, distribution, params)).all()
 
@@ -284,36 +276,3 @@ def test_validate_rejects_missing_required_keys():
     bad_params = {k: v for k, v in DEFAULT_PARAMS["weibull"].items() if k != "rho"}
     with pytest.raises(ValueError, match="missing required hazard params"):
         validate_hazard_params("weibull", bad_params, "frailty")
-
-
-# ---------------------------------------------------------------------------
-# add_hazard_cli_args + parse_hazard_cli error paths
-# ---------------------------------------------------------------------------
-
-
-def _parser_for(trait: int, name: str = "frailty") -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser()
-    add_hazard_cli_args(parser, trait, name=name)
-    return parser
-
-
-def test_missing_distribution_flag_raises():
-    args = _parser_for(trait=1).parse_args([])
-    with pytest.raises(ValueError, match="--frailty-distribution1 is required"):
-        parse_hazard_cli(args, trait=1, name="frailty")
-
-
-def test_missing_required_param_flag_raises():
-    args = _parser_for(trait=1).parse_args(["--frailty-distribution1", "weibull", "--frailty-scale1", "100.0"])
-    with pytest.raises(ValueError, match="--frailty-rho1 is required"):
-        parse_hazard_cli(args, trait=1, name="frailty")
-
-
-def test_kebab_name_maps_to_snake_attr():
-    """``name='cure-frailty'`` registers attrs like ``cure_frailty_distribution1``."""
-    args = _parser_for(trait=1, name="cure-frailty").parse_args(
-        ["--cure-frailty-distribution1", "weibull", "--cure-frailty-scale1", "50.0", "--cure-frailty-rho1", "1.5"]
-    )
-    dist, params = parse_hazard_cli(args, trait=1, name="cure-frailty")
-    assert dist == "weibull"
-    assert params == {"scale": 50.0, "rho": 1.5}

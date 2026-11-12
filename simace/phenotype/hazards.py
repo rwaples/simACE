@@ -28,20 +28,15 @@ from __future__ import annotations
 __all__ = [
     "BASELINE_HAZARDS",
     "BASELINE_PARAMS",
-    "HAZARD_FLAG_ROOTS",
+    "HAZARD_KEYS",
     "STANDARDIZE_CHOICES",
     "StandardizeMode",
-    "add_hazard_cli_args",
-    "add_standardize_hazard_cli_arg",
     "coerce_standardize_mode",
     "compute_event_times",
-    "hazard_cli_flag_attrs",
     "hazard_config_keys",
     "iter_generation_groups",
-    "parse_hazard_cli",
     "resolve_hazard_mode",
     "standardize_beta",
-    "standardize_hazard_cli_attr",
     "standardize_liability",
     "true_lifetime_prevalence_weibull",
     "validate_hazard_params",
@@ -55,7 +50,6 @@ from simace.core.phenotype_keys import BASELINE_PARAMS, HAZARD_ALIASES, exponent
 from simace.core.standardize import STANDARDIZE_CHOICES, StandardizeMode, coerce_standardize_mode
 
 if TYPE_CHECKING:
-    import argparse
     from collections.abc import Iterator
 
 # ---------------------------------------------------------------------------
@@ -123,7 +117,7 @@ BASELINE_HAZARDS = {
 }
 
 # Union of every key any baseline distribution requires or accepts as an alternate.
-HAZARD_FLAG_ROOTS: tuple[str, ...] = tuple(
+HAZARD_KEYS: tuple[str, ...] = tuple(
     sorted(
         {k for params in BASELINE_PARAMS.values() for k in params}
         | {alt for aliases in HAZARD_ALIASES.values() for alt in aliases.values()}
@@ -143,7 +137,7 @@ def hazard_config_keys(distribution: str | None) -> frozenset[str]:
     distribution (``validate_hazard_params``), not its parameters.
     """
     if distribution not in BASELINE_PARAMS:
-        return frozenset(HAZARD_FLAG_ROOTS)
+        return frozenset(HAZARD_KEYS)
     return frozenset(BASELINE_PARAMS[distribution]) | frozenset(HAZARD_ALIASES.get(distribution, {}).values())
 
 
@@ -175,101 +169,6 @@ def validate_hazard_params(
     for key, value in hazard_params.items():
         if (distribution, key) not in _SIGNED_HAZARD_PARAMS and not value > 0.0:
             raise ValueError(f"{model_name} distribution {distribution!r}: {key} must be > 0, got {value!r}")
-
-
-def add_hazard_cli_args(
-    parser: argparse.ArgumentParser,
-    trait: int,
-    *,
-    name: str,
-) -> argparse._ArgumentGroup:
-    """Register ``--{name}-distribution{trait}`` + one flag per HAZARD_FLAG_ROOTS.
-
-    ``name`` is the kebab-form model name (e.g. ``"frailty"``, ``"cure-frailty"``).
-    Returns the argument group so callers can attach model-specific flags
-    (e.g. cure_frailty's ``--cure-frailty-prevalence{trait}``).
-    """
-    attr_name = name.replace("-", "_")
-    group = parser.add_argument_group(f"Trait {trait} — {attr_name}")
-    group.add_argument(
-        f"--{name}-distribution{trait}",
-        default=None,
-        choices=sorted(BASELINE_HAZARDS),
-        help=f"Baseline hazard for trait {trait} when phenotype-model{trait}={attr_name}",
-    )
-    for flag_root in HAZARD_FLAG_ROOTS:
-        group.add_argument(f"--{name}-{flag_root}{trait}", type=float, default=None)
-    return group
-
-
-def parse_hazard_cli(
-    args: argparse.Namespace,
-    trait: int,
-    *,
-    name: str,
-) -> tuple[str, dict[str, float]]:
-    """Pull hazard-distribution + per-param values from argparse ``Namespace``.
-
-    ``name`` is the kebab-form model name; the snake form is derived for attribute lookup.
-    Returns ``(distribution, hazard_params)``.  Raises if the distribution flag is missing
-    or any required per-distribution param flag is unset.
-    """
-    attr_name = name.replace("-", "_")
-    distribution = getattr(args, f"{attr_name}_distribution{trait}")
-    if distribution is None:
-        raise ValueError(f"--{name}-distribution{trait} is required when --phenotype-model{trait}={attr_name}")
-
-    def flag(key: str) -> float | None:
-        return getattr(args, f"{attr_name}_{key}{trait}", None)
-
-    aliases = HAZARD_ALIASES.get(distribution, {})
-    hazard_params: dict[str, float] = {}
-    for required in BASELINE_PARAMS[distribution]:
-        # The required flag wins; its alternate stands in only when it alone is set.
-        alt = aliases.get(required)
-        key = alt if alt is not None and flag(required) is None and flag(alt) is not None else required
-        val = flag(key)
-        if val is None:
-            raise ValueError(f"--{name}-{key}{trait} is required for --{name}-distribution{trait}={distribution}")
-        hazard_params[key] = val
-    return distribution, hazard_params
-
-
-def hazard_cli_flag_attrs(trait: int, *, name: str) -> set[str]:
-    """Return the argparse attrs registered by ``add_hazard_cli_args``."""
-    attr_name = name.replace("-", "_")
-    attrs = {f"{attr_name}_distribution{trait}"}
-    attrs.update(f"{attr_name}_{root}{trait}" for root in HAZARD_FLAG_ROOTS)
-    return attrs
-
-
-def add_standardize_hazard_cli_arg(
-    parser_or_group: argparse.ArgumentParser | argparse._ArgumentGroup,
-    trait: int,
-    *,
-    name: str,
-) -> None:
-    """Register ``--{name}-standardize-hazard{trait}`` flag.
-
-    The flag is namespaced per model so foreign-flag detection
-    (:func:`check_no_foreign_flags`) cleanly distinguishes overrides
-    intended for one model from those intended for another.
-    """
-    parser_or_group.add_argument(
-        f"--{name}-standardize-hazard{trait}",
-        default=None,
-        choices=list(STANDARDIZE_CHOICES),
-        help=(
-            f"Per-trait override of the hazard-step standardization mode for trait {trait} "
-            f"when phenotype-model{trait}={name.replace('-', '_')} (default: inherit from --standardize)"
-        ),
-    )
-
-
-def standardize_hazard_cli_attr(trait: int, *, name: str) -> str:
-    """Return the argparse attribute name for the standardize_hazard CLI flag."""
-    attr_name = name.replace("-", "_")
-    return f"{attr_name}_standardize_hazard{trait}"
 
 
 def true_lifetime_prevalence_weibull(
