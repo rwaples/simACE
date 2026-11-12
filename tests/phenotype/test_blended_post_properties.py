@@ -21,7 +21,9 @@ from hypothesis import strategies as st
 from hypothesis.extra import numpy as hnp
 from polars.testing import assert_frame_equal
 
-from simace.phenotype.blended_post import MAX_AGE, blended_diagnosis
+from simace.phenotype.blended_post import blended_diagnosis
+
+MAX_AGE = 80.0
 
 _VALUES = st.floats(min_value=-5.0, max_value=5.0, allow_nan=False, allow_infinity=False)
 _DEATH = st.one_of(st.just(MAX_AGE), st.floats(min_value=0.0, max_value=150.0, allow_nan=False))
@@ -59,12 +61,11 @@ def blended_case(draw) -> tuple[pl.DataFrame, dict[int, float], dict[int, float]
 @given(case=blended_case())
 def test_censoring_identity_and_observation_bound(case) -> None:
     frame, alpha, K = case
-    out = blended_diagnosis(frame, alpha_by_gen=alpha, K_by_gen=K)
+    out = blended_diagnosis(frame, censor_age=MAX_AGE, gen_censoring={}, alpha_by_gen=alpha, K_by_gen=K)
     affected = out["affected1"].to_numpy()
     age_c = out["age_censored1"].to_numpy()
     death_c = out["death_censored1"].to_numpy()
     np.testing.assert_array_equal(affected, ~(age_c | death_c))
-    assert not (age_c & death_c).any()
     bound = np.minimum(frame["death_age"].to_numpy(), MAX_AGE)
     assert np.all(out["t_observed1"].to_numpy() <= bound)
 
@@ -80,8 +81,8 @@ def test_raising_one_generations_prevalence_only_adds_its_cases(case, data) -> N
     frame, alpha, K = case
     g = data.draw(st.sampled_from(sorted(K)))
     raised = K | {g: data.draw(st.floats(min_value=K[g], max_value=0.99))}
-    before = blended_diagnosis(frame, alpha_by_gen=alpha, K_by_gen=K)
-    after = blended_diagnosis(frame, alpha_by_gen=alpha, K_by_gen=raised)
+    before = blended_diagnosis(frame, censor_age=MAX_AGE, gen_censoring={}, alpha_by_gen=alpha, K_by_gen=K)
+    after = blended_diagnosis(frame, censor_age=MAX_AGE, gen_censoring={}, alpha_by_gen=alpha, K_by_gen=raised)
 
     in_g = (frame["generation"] == g).to_numpy()
     lost = before["affected1"].to_numpy() & ~after["affected1"].to_numpy()
@@ -101,8 +102,8 @@ def test_zero_alpha_ignores_trait_two(case, data) -> None:
         for c in _TRAIT2
     )
     assert_frame_equal(
-        blended_diagnosis(replaced, alpha_by_gen=alpha, K_by_gen=K).drop(_TRAIT2),
-        blended_diagnosis(frame, alpha_by_gen=alpha, K_by_gen=K).drop(_TRAIT2),
+        blended_diagnosis(replaced, censor_age=MAX_AGE, gen_censoring={}, alpha_by_gen=alpha, K_by_gen=K).drop(_TRAIT2),
+        blended_diagnosis(frame, censor_age=MAX_AGE, gen_censoring={}, alpha_by_gen=alpha, K_by_gen=K).drop(_TRAIT2),
         check_exact=True,
     )
 
@@ -111,6 +112,6 @@ def test_zero_alpha_ignores_trait_two(case, data) -> None:
 def test_input_is_not_mutated(case) -> None:
     frame, alpha, K = case
     snapshot = frame.clone()
-    out = blended_diagnosis(frame, alpha_by_gen=alpha, K_by_gen=K)
+    out = blended_diagnosis(frame, censor_age=MAX_AGE, gen_censoring={}, alpha_by_gen=alpha, K_by_gen=K)
     assert_frame_equal(frame, snapshot, check_exact=True)
     assert set(_OUTPUTS) <= set(out.columns)

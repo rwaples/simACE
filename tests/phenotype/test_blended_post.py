@@ -8,10 +8,9 @@ import polars as pl
 import polars.testing
 import pytest
 
-from simace.phenotype.blended_post import (
-    MAX_AGE,
-    blended_diagnosis,
-)
+from simace.phenotype.blended_post import blended_diagnosis
+
+MAX_AGE = 80.0
 
 
 def _make_phenotype(
@@ -77,6 +76,8 @@ class TestBlendedDiagnosis:
         pheno = _make_phenotype(rng)
         out = blended_diagnosis(
             pheno,
+            censor_age=MAX_AGE,
+            gen_censoring={},
             alpha_by_gen={2: 0.0, 3: 0.0, 4: 0.0},
             K_by_gen={2: 0.05, 3: 0.05, 4: 0.05},
         )
@@ -90,11 +91,31 @@ class TestBlendedDiagnosis:
         pheno = _make_phenotype(rng, n_per_gen=10000)
         alpha = {2: 0.0, 3: 0.3, 4: 0.55}
         K = {2: 0.03, 3: 0.05, 4: 0.10}
-        out = blended_diagnosis(pheno, alpha_by_gen=alpha, K_by_gen=K)
+        out = blended_diagnosis(pheno, censor_age=MAX_AGE, gen_censoring={}, alpha_by_gen=alpha, K_by_gen=K)
         rates = _rates_by_gen(out)
         for g in (2, 3, 4):
             target = K[g]
             assert abs(rates[g] - target) < 0.01, f"gen {g}: realized K={rates[g]:.3f} vs target {target}"
+
+    def test_censors_like_the_censor_stage(self):
+        """Window flags are independent of death, and the window is the config's, not a constant (#95)."""
+        rng = np.random.default_rng(3)
+        pheno = _make_phenotype(rng, n_per_gen=4000, death_age=rng.uniform(20.0, 120.0, 12000))
+        out = blended_diagnosis(
+            pheno,
+            censor_age=70.0,
+            gen_censoring={4: [10.0, 45.0]},
+            alpha_by_gen={2: 0.0, 3: 0.3, 4: 0.5},
+            K_by_gen={2: 0.3, 3: 0.3, 4: 0.3},
+        )
+        assert (out["age_censored1"] & out["death_censored1"]).any()
+        affected = out.filter(pl.col("affected1"))
+        late = affected.filter(pl.col("generation") == 4)["t_observed1"]
+        assert late.len() > 0
+        assert late.is_between(10.0, 45.0).all()
+        assert (affected.filter(pl.col("generation") < 4)["t_observed1"] <= 70.0).all()
+        flags = ~(out["age_censored1"] | out["death_censored1"])
+        assert (out["affected1"] == flags).all()
 
     def test_late_onset_cases_right_censored(self):
         """Onset > MAX_AGE should be right-censored: affected1=False, t_observed1=MAX_AGE."""
@@ -102,6 +123,8 @@ class TestBlendedDiagnosis:
         pheno = _make_phenotype(rng, n_per_gen=2000)
         out = blended_diagnosis(
             pheno,
+            censor_age=MAX_AGE,
+            gen_censoring={},
             alpha_by_gen={2: 0.0, 3: 0.0, 4: 0.0},
             K_by_gen={2: 0.5, 3: 0.5, 4: 0.5},  # Very high K → some onsets exceed MAX_AGE
         )
@@ -117,6 +140,8 @@ class TestBlendedDiagnosis:
         pheno = _make_phenotype(rng, n_per_gen=200)
         out = blended_diagnosis(
             pheno,
+            censor_age=MAX_AGE,
+            gen_censoring={},
             alpha_by_gen={2: 0.0, 3: 0.5, 4: 0.5},
             K_by_gen={2: 0.05, 3: 0.05, 4: 0.05},
         )
@@ -129,7 +154,7 @@ class TestBlendedDiagnosis:
         pheno = _make_phenotype(rng, n_per_gen=100)
         alpha = {2: 0.2, 3: 0.5, 4: 0.8}
         K = {2: 0.05, 3: 0.05, 4: 0.05}
-        out = blended_diagnosis(pheno, alpha_by_gen=alpha, K_by_gen=K)
+        out = blended_diagnosis(pheno, censor_age=MAX_AGE, gen_censoring={}, alpha_by_gen=alpha, K_by_gen=K)
         for g, a in alpha.items():
             sub = out.filter(pl.col("generation") == g)
             expected_A = (1 - a) * sub["A1"] + a * sub["A2"]
@@ -146,6 +171,8 @@ class TestBlendedDiagnosis:
         with pytest.raises(ValueError, match="missing generation"):
             blended_diagnosis(
                 pheno,
+                censor_age=MAX_AGE,
+                gen_censoring={},
                 alpha_by_gen={2: 0.0, 3: 0.0},  # gen 4 missing
                 K_by_gen={2: 0.05, 3: 0.05, 4: 0.05},
             )
@@ -154,7 +181,7 @@ class TestBlendedDiagnosis:
         """phenotype lacking A1 or liability1 should raise."""
         df = pl.DataFrame({"generation": [2, 2], "sex": [0, 1]})
         with pytest.raises(ValueError, match="missing required columns"):
-            blended_diagnosis(df, alpha_by_gen={2: 0.0}, K_by_gen={2: 0.05})
+            blended_diagnosis(df, censor_age=MAX_AGE, gen_censoring={}, alpha_by_gen={2: 0.0}, K_by_gen={2: 0.05})
 
     def test_non_case_with_early_death_is_death_censored(self):
         """Non-cases whose death_age < MAX_AGE must be death-censored."""
@@ -162,13 +189,15 @@ class TestBlendedDiagnosis:
         pheno = _make_phenotype(rng, n_per_gen=500, gens=(2,), death_age=40.0)
         out = blended_diagnosis(
             pheno,
+            censor_age=MAX_AGE,
+            gen_censoring={},
             alpha_by_gen={2: 0.0},
             K_by_gen={2: 1e-6},  # ~no cases, so all rows are non-cases
         )
         assert (~out["affected1"]).all(), "no cases expected at K=1e-6"
         assert out["death_censored1"].all(), "every non-case with death<MAX should be death-censored"
         np.testing.assert_allclose(out["t_observed1"], 40.0)
-        assert (~out["age_censored1"]).all()
+        assert out["age_censored1"].all(), "a non-case never onsets inside the window"
 
     def test_death_censoring_invariants_with_late_onset_population(self):
         """t_observed1 must never exceed death_age, and late-onset / non-case
@@ -182,14 +211,14 @@ class TestBlendedDiagnosis:
         pheno = _make_phenotype(rng, n_per_gen=2000, gens=(2,), death_age=70.0)
         out = blended_diagnosis(
             pheno,
+            censor_age=MAX_AGE,
+            gen_censoring={},
             alpha_by_gen={2: 0.0},
             K_by_gen={2: 0.5},
         )
         # Core invariant: nobody is observed past their death.
         assert (out["t_observed1"] <= out["death_age"]).all()
-        # Status flags are mutually exclusive.
-        flags = out.select("affected1", "age_censored1", "death_censored1").to_numpy()
-        assert (flags.sum(axis=1) == 1).all()
+        assert (out["affected1"] == ~(out["age_censored1"] | out["death_censored1"])).all()
         # Every row that is not affected and has death_age < MAX_AGE must be
         # death-censored at death_age (covers non-cases and late-onset cases).
         unobserved = out.filter(~pl.col("affected1"))
@@ -205,6 +234,8 @@ class TestBlendedDiagnosis:
         pheno = _make_phenotype(rng, n_per_gen=1000, gens=(2,), death_age=1e6)
         out = blended_diagnosis(
             pheno,
+            censor_age=MAX_AGE,
+            gen_censoring={},
             alpha_by_gen={2: 0.3},
             K_by_gen={2: 0.05},
         )
@@ -215,11 +246,11 @@ class TestBlendedDiagnosis:
         rng = np.random.default_rng(12)
         pheno = _make_phenotype(rng, n_per_gen=500, gens=(2,))
         before = pheno.clone()
-        blended_diagnosis(pheno, alpha_by_gen={2: 0.5}, K_by_gen={2: 0.05})
+        blended_diagnosis(pheno, censor_age=MAX_AGE, gen_censoring={}, alpha_by_gen={2: 0.5}, K_by_gen={2: 0.05})
 
         polars.testing.assert_frame_equal(pheno, before)
 
     def test_rejects_pandas_input(self):
         df = pd.DataFrame({"generation": [2, 2], "sex": [0, 1]})
         with pytest.raises(TypeError, match=r"polars DataFrame since the polars migration"):
-            blended_diagnosis(df, alpha_by_gen={2: 0.0}, K_by_gen={2: 0.05})
+            blended_diagnosis(df, censor_age=MAX_AGE, gen_censoring={}, alpha_by_gen={2: 0.0}, K_by_gen={2: 0.05})

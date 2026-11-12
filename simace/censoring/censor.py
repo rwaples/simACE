@@ -6,7 +6,7 @@ to raw event times produced by the Weibull frailty phenotype model.
 
 from __future__ import annotations
 
-__all__ = ["add_censor_args", "age_censor", "run_censor"]
+__all__ = ["add_censor_args", "age_censor", "censor_trait", "observation_window", "run_censor"]
 
 import argparse
 import logging
@@ -50,10 +50,27 @@ def age_censor(t: np.ndarray, left: np.ndarray, right: np.ndarray) -> tuple[np.n
     return t_out, censored
 
 
-def _censor_trait(
+def observation_window(
+    generations: np.ndarray, censor_age: float, gen_censoring: dict[int, list[float]]
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-individual ``(left, right)`` ages: ``gen_censoring[generation]``, else ``[0, censor_age]``."""
+    left = np.zeros(len(generations))
+    right = np.full(len(generations), float(censor_age))
+    for gen, (lo, hi) in gen_censoring.items():
+        mask = generations == int(gen)
+        left[mask] = lo
+        right[mask] = hi
+    return left, right
+
+
+def censor_trait(
     trait: int, onset: np.ndarray, left: np.ndarray, right: np.ndarray, death_age: np.ndarray
 ) -> list[pl.Series]:
-    """Censor one trait's onsets by the observation window, then by the shared death age."""
+    """Censor one trait's onsets by the observation window, then by the shared death age.
+
+    ``onset`` is ``inf`` for a person who never onsets. ``age_censored`` is the
+    window flag alone, so a person can be both age- and death-censored.
+    """
     after_age, age_censored = age_censor(onset, left, right)
     death_censored = after_age > death_age
     return [
@@ -102,13 +119,7 @@ def run_censor(
     hydrated = hydrate_trait(phenotype, pedigree, kind="raw", columns=["generation"])
     onset1 = hydrated["t1"].fill_null(float("inf")).to_numpy()
     onset2 = hydrated["t2"].fill_null(float("inf")).to_numpy()
-    generations = hydrated["generation"].to_numpy()
-    left_censor = np.zeros(len(phenotype))
-    right_censor = np.full(len(phenotype), float(censor_age))
-    for gen, (lo, hi) in gen_censoring.items():
-        mask = generations == int(gen)
-        left_censor[mask] = lo
-        right_censor[mask] = hi
+    left_censor, right_censor = observation_window(hydrated["generation"].to_numpy(), censor_age, gen_censoring)
 
     rng_death = np.random.default_rng(seed + 1000)
     u_death = 1.0 - rng_death.uniform(size=len(phenotype))
@@ -116,7 +127,7 @@ def run_censor(
 
     columns = [pl.Series("death_age", death_age)]
     for trait, onset in ((1, onset1), (2, onset2)):
-        columns += _censor_trait(trait, onset, left_censor, right_censor, death_age)
+        columns += censor_trait(trait, onset, left_censor, right_censor, death_age)
     result = phenotype.with_columns(columns)
 
     logger.info(

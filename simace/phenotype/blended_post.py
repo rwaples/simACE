@@ -41,12 +41,10 @@ __all__ = ["blended_diagnosis"]
 import numpy as np
 import polars as pl
 
+from simace.censoring.censor import censor_trait, observation_window
 from simace.phenotype.hazards import standardize_liability
 from simace.phenotype.models._prevalence import logistic_cif_onset, prevalence_to_array
 
-#: Right-censoring age for late-onset cases. Matches the simACE default
-#: `censoring.max_age`.
-MAX_AGE = 80.0
 #: ADuLT/LTM cumulative-incidence shape parameters. These match the values
 #: the temporal scenarios set explicitly (e.g. ``cip_k: 0.15`` in
 #: ``config/epimight_bias_2M.yaml``), not ``AdultModel``'s own defaults
@@ -69,6 +67,8 @@ def _compute_onset(L_eff: np.ndarray, K: np.ndarray, cip_x0: float, cip_k: float
 def blended_diagnosis(
     phenotype: pl.DataFrame,
     *,
+    censor_age: float,
+    gen_censoring: dict[int, list[float]],
     alpha_by_gen: dict[int, float],
     K_by_gen: dict[int, float],
     cip_x0: float = DEFAULT_CIF_X0,
@@ -86,6 +86,9 @@ def blended_diagnosis(
             ``liability1``, ``liability2``, ``death_age``, and the existing
             trait-1 status columns (``affected1``, ``t_observed1``,
             ``age_censored1``, ``death_censored1``).
+        censor_age: the scenario's ``censoring.max_age``.
+        gen_censoring: the scenario's per-generation ``{gen: [left, right]}``
+            observation windows; other generations use ``[0, censor_age]``.
         alpha_by_gen: per-output-generation weight on trait-2 liability.
             Must include every distinct value in ``phenotype["generation"]``.
         K_by_gen: per-output-generation diagnostic prevalence. Same key
@@ -142,27 +145,17 @@ def blended_diagnosis(
     threshold = ndtri(1.0 - K)
     is_case = L_blend_std > threshold
 
-    # Onset ages for cases via the ADuLT/LTM inverse-CIF formula. Non-cases
-    # and late-onset cases keep the latent-onset placeholder of MAX_AGE.
-    latent_onset = np.full(len(pheno), MAX_AGE, dtype=np.float64)
+    # Raw onset: the ADuLT/LTM inverse-CIF age for cases, never for non-cases.
+    # The censor stage's own function then applies the window and death.
+    onset = np.full(len(pheno), np.inf)
     if is_case.any():
-        latent_onset[is_case] = _compute_onset(L_blend_std[is_case], K[is_case], cip_x0, cip_k)
-    age_right_censored = is_case & (latent_onset > MAX_AGE)
-    follow_up = np.minimum(latent_onset, MAX_AGE)
-
-    # Apply competing-risk death censoring uniformly across cases and
-    # non-cases, matching the canonical censoring/censor.py pipeline.
-    death_censored = death_age < follow_up
-    onset = np.where(death_censored, death_age, follow_up)
-    affected = is_case & ~death_censored & ~age_right_censored
+        onset[is_case] = _compute_onset(L_blend_std[is_case], K[is_case], cip_x0, cip_k)
+    left, right = observation_window(gen, censor_age, gen_censoring)
 
     # with_columns replaces existing columns in place and appends the new
     # audit columns at the end.
     return pheno.with_columns(
-        pl.Series("affected1", affected),
-        pl.Series("t_observed1", onset),
-        pl.Series("age_censored1", ~affected & ~death_censored),
-        pl.Series("death_censored1", death_censored),
+        *censor_trait(1, onset, left, right, death_age),
         pl.Series("A_blend", A_blend.astype(np.float32)),
         pl.Series("C_blend", C_blend.astype(np.float32)),
         pl.Series("E_blend", E_blend.astype(np.float32)),
