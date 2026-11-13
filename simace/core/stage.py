@@ -37,8 +37,7 @@ def stage(
 
     Args:
         reads: schema the first positional argument must satisfy.  ``None``
-            skips input validation (e.g. ``run_simulation`` has no input
-            DataFrame).
+            skips input validation, for a stage with no input DataFrame.
         writes: schema the return value must satisfy.  ``None`` skips
             output validation.
 

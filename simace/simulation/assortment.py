@@ -31,7 +31,7 @@ METROPOLIS_TOL = 5e-4
 
 
 def write_mating_log(mating_log: list[dict[str, Any]], path: str | Path) -> None:
-    """Publish ``run_simulation``'s ``mating_log`` as a rep's ``mating.yaml``."""
+    """Publish the ``to_dict`` rows of :attr:`SimulationResult.pairing` as a rep's ``mating.yaml``."""
     from simace.core.publish import publish
     from simace.core.yaml_io import dump_yaml
 

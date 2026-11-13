@@ -124,4 +124,4 @@ def test_log_names_final_path(tmp_path, monkeypatch, caplog):
     with caplog.at_level("INFO", logger="simace.plotting.render_atlas"):
         render_atlas(_ITEMS, tmp_path, tmp_path / "atlas.html")
 
-    assert f"Atlas saved to {tmp_path / 'atlas.html'} (1 plots)" in caplog.text
+    assert f"Atlas saved to {tmp_path / 'atlas.html'} (1 plots in manifest)" in caplog.text

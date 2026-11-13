@@ -245,7 +245,7 @@ def write_pedigree(
 ) -> None:
     """Write the recorded pedigree through :func:`save_parquet`, marked with the layout.
 
-    ``c_transmission_clips`` (the simulation's ``clip_log``) is stored as JSON
+    ``c_transmission_clips`` (the ``to_dict`` rows of :attr:`SimulationResult.clips`) is stored as JSON
     under :data:`C_TRANSMISSION_CLIPS_KEY`, and the ``inbreeding`` plan's
     record under :data:`INBREEDING_KEY`, each when given.
     """

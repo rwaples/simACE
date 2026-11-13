@@ -82,4 +82,4 @@ def render_atlas(
             stats_data=stats_data,
         )
     n_plots = sum(isinstance(item, PlotEntry) for item in items)
-    logger.info("Atlas saved to %s (%d plots)", output_path, n_plots)
+    logger.info("Atlas saved to %s (%d plots in manifest)", output_path, n_plots)
