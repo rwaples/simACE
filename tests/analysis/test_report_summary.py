@@ -59,7 +59,7 @@ def coverage_report(tmp_path_factory) -> dict:
     from simace.simulation.simulate import run_simulation
 
     work = tmp_path_factory.mktemp("coverage_scenario")
-    pedigree = normalize_for_parquet(run_simulation(**_COVERAGE_PARAMS))
+    pedigree = normalize_for_parquet(run_simulation(**_COVERAGE_PARAMS).pedigree)
     cohort, phenotyped_population = run_cohort(
         pedigree,
         seed=_COVERAGE_PARAMS["seed"],

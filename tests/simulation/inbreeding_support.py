@@ -7,8 +7,8 @@ from typing import Any
 import numpy as np
 from pedigree_graph import PedigreeGraph
 
+import simace.simulation.mating as mating_mod
 import simace.simulation.params as params_mod
-import simace.simulation.simulate as sim
 from simace.simulation.inbreeding import Inbreeding
 from simace.simulation.inbreeding_plan import InbreedingPlan
 
@@ -63,7 +63,7 @@ def install_capture(monkeypatch) -> Capture:
     """Record every mating call of the ``run_simulation`` calls that follow."""
     cap = Capture()
     for name in ("_mating_standard", "_mating_wf"):
-        original = getattr(sim, name)
+        original = getattr(mating_mod, name)
 
         def wrapped(rng, sex, *args, _original=original, **kwargs):
             res = _original(rng, sex, *args, **kwargs)
@@ -71,7 +71,7 @@ def install_capture(monkeypatch) -> Capture:
             cap.sex.append(np.asarray(sex).copy())
             return res
 
-        monkeypatch.setattr(sim, name, wrapped)
+        monkeypatch.setattr(mating_mod, name, wrapped)
     return cap
 
 

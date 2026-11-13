@@ -58,7 +58,7 @@ def test_per_gen_E_uses_raw_iter_keys():
         p_mztwin=0.0,
         assort1=0.0,
         assort2=0.0,
-    )
+    ).pedigree
 
     e1_by_gen = dict(pedigree.group_by("generation").agg(pl.col("E1").var()).iter_rows())
 
@@ -100,7 +100,7 @@ def test_per_gen_assort1_dict_accepted():
         # Raw-iter keyed AM schedule. Forward-filled: iters 0..3 → 0, 4..7 → 0.4.
         assort1={0: 0.0, 4: 0.4},
         assort2={0: 0.0, 4: 0.4},
-    )
+    ).pedigree
     assert len(pedigree) == 200 * 4, "expected N * G_ped rows"
     assert set(pedigree["generation"].unique()) == {0, 1, 2, 3}
 
@@ -157,7 +157,7 @@ def test_per_gen_E_with_dense_raw_iter_schedule():
         p_mztwin=0.0,
         assort1=0.0,
         assort2=0.0,
-    )
+    ).pedigree
     e1_by_gen = dict(pedigree.group_by("generation").agg(pl.col("E1").var()).iter_rows())
     # Expected: output gen 0 = raw 5 → 0.5; gen 1 = raw 6 → 0.7; gen 2 = raw 7 → 0.9;
     # gens 3, 4 = raw 8, 9 → 1.0.

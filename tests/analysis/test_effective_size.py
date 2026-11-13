@@ -53,7 +53,7 @@ def tiny_pedigree() -> pl.DataFrame:
         rC=0.5,
         assort1=0.0,
         assort2=0.0,
-    )
+    ).pedigree
 
 
 # ---------------------------------------------------------------------------
@@ -369,7 +369,7 @@ def _drift_only_pedigree(
         rC=0.0,
         assort1=0.0,
         assort2=0.0,
-    )
+    ).pedigree
 
 
 def _build_wf_pedigree(rng: np.random.Generator, n: int = 50, n_gens: int = 8) -> pd.DataFrame:

@@ -177,7 +177,7 @@ def severed_pedigree():
         rC=0.5,
         assort1=0.0,
         assort2=0.0,
-    )
+    ).pedigree
     max_gen = int(ped["generation"].max())
     phenotyped = ped.filter(pl.col("generation") >= max_gen - 1)
     rng = np.random.default_rng(0)

@@ -45,7 +45,7 @@ PARAMS = dict(
 
 @pytest.fixture(scope="module")
 def pedigree() -> pl.DataFrame:
-    return run_simulation(**PARAMS)
+    return run_simulation(**PARAMS).pedigree
 
 
 _written = itertools.count()
@@ -115,7 +115,7 @@ def test_assortment_up_to_burn_in_leaves_total_variance_only(tmp_path, pedigree,
 def test_rc_stays_calibrated_under_assortment(tmp_path) -> None:
     """Without transmission each household's C is a fresh draw, so assortment leaves rC alone (ADR 0030 §4)."""
     params = {**PARAMS, "assort1": 0.3, "assort2": 0.3, "seed": 13}
-    ped = run_simulation(**params)
+    ped = run_simulation(**params).pedigree
     cell = run_cross_trait_rc(_inputs(tmp_path, ped, assort1=0.3, assort2=0.3, seed=13))["cells"]["rC"]
     assert cell["status"] == "scored"
     assert abs(cell["z"]) < 4
@@ -183,7 +183,7 @@ def test_a_broken_household_share_moves_rc(tmp_path, pedigree) -> None:
 
 def test_per_generation_e_resolves_at_burn_in(tmp_path) -> None:
     params = {**PARAMS, "E1": {0: 0.2, 2: 0.6}, "seed": 12}
-    ped = run_simulation(**params)
+    ped = run_simulation(**params).pedigree
     cell = run_total_variance(_inputs(tmp_path, ped, E1=params["E1"], seed=12))["cells"]["trait1_total"]
     assert cell["expected"] == pytest.approx(0.5 + 0.3 + 0.6)
     assert abs(cell["z"]) < 4

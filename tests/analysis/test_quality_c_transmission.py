@@ -37,12 +37,12 @@ def _params(**overrides):
 
 @pytest.fixture(scope="module")
 def rm_pedigree():
-    return run_simulation(seed=7, **_SIM, **_CT)
+    return run_simulation(seed=7, **_SIM, **_CT).pedigree
 
 
 @pytest.fixture(scope="module")
 def am_pedigree():
-    return run_simulation(seed=8, **_SIM, assort1=0.3, **_CT)
+    return run_simulation(seed=8, **_SIM, assort1=0.3, **_CT).pedigree
 
 
 def test_cr1_standard_errors_cover_under_large_sibships():
@@ -88,17 +88,17 @@ def test_transmission_check_is_informational_when_off_or_underpowered(rm_pedigre
     ped = PedigreeArrays.from_frame(rm_pedigree)
     off = validate_c_transmission(rm_pedigree, _params(), ped)
     assert all(r.get("informational") for r in off.values())
-    no_c = run_simulation(seed=1, **{**_SIM, "N": 300, "C1": 0.0}, Ctm_maternal1=0.5)
+    no_c = run_simulation(seed=1, **{**_SIM, "N": 300, "C1": 0.0}, Ctm_maternal1=0.5).pedigree
     small = validate_c_transmission(no_c, _params(C1=0.0, Ctm_maternal1=0.5), PedigreeArrays.from_frame(no_c))
     assert "no variance" in small["c1_transmission"]["details"]
-    tiny = run_simulation(seed=1, **{**_SIM, "N": 60}, Ctm_maternal1=0.5)
+    tiny = run_simulation(seed=1, **{**_SIM, "N": 60}, Ctm_maternal1=0.5).pedigree
     few = validate_c_transmission(tiny, _params(Ctm_maternal1=0.5), PedigreeArrays.from_frame(tiny))
     assert "households <" in few["c1_transmission"]["details"]
 
 
 def test_exact_copying_is_judged_on_the_numerical_floor():
     sim = {**_SIM, "N": 20_000, "rC": 0.0}  # b_m1 = 1 beside b_m2 = 0 is infeasible under rC != 0
-    ped = run_simulation(seed=3, **sim, Ctm_maternal1=1.0)
+    ped = run_simulation(seed=3, **sim, Ctm_maternal1=1.0).pedigree
     result = validate_c_transmission(ped, _params(rC=0.0, Ctm_maternal1=1.0), PedigreeArrays.from_frame(ped))
     assert result["c1_transmission"]["passed"], result["c1_transmission"]["details"]
 

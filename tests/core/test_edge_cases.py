@@ -54,13 +54,13 @@ class TestZeroA:
     def test_A_zero_offspring_A_also_zero(self):
         """With A=0, offspring A should also be zero (midparent=0, noise sd=0)."""
         params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.3, "E1": 0.7, "A2": 0.0, "C2": 0.3, "E2": 0.7}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         np.testing.assert_array_equal(ped["A1"].to_numpy(), 0.0)
         np.testing.assert_array_equal(ped["A2"].to_numpy(), 0.0)
 
     def test_A_zero_liability_equals_C_plus_E(self):
         params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.3, "E1": 0.7, "A2": 0.0, "C2": 0.3, "E2": 0.7}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         # ACE columns are float32, liability is float64
         np.testing.assert_allclose(
             ped["liability1"].to_numpy(),
@@ -77,13 +77,13 @@ class TestZeroA:
 class TestZeroC:
     def test_C_zero_both_traits(self):
         params = {**MINIMAL_PARAMS, "A1": 0.5, "C1": 0.0, "E1": 0.5, "A2": 0.5, "C2": 0.0, "E2": 0.5}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         np.testing.assert_array_equal(ped["C1"].to_numpy(), 0.0)
         np.testing.assert_array_equal(ped["C2"].to_numpy(), 0.0)
 
     def test_C_zero_liability_equals_A_plus_E(self):
         params = {**MINIMAL_PARAMS, "A1": 0.5, "C1": 0.0, "E1": 0.5, "A2": 0.5, "C2": 0.0, "E2": 0.5}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         # ACE columns are float32, liability is float64
         np.testing.assert_allclose(
             ped["liability1"].to_numpy(),
@@ -100,7 +100,7 @@ class TestZeroC:
 class TestZeroACE:
     def test_all_zero_variance_components(self):
         params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.0, "E1": 1.0, "A2": 0.0, "C2": 0.0, "E2": 1.0}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         # E should carry all variance (E = 1 - 0 - 0 = 1)
         np.testing.assert_array_equal(ped["A1"].to_numpy(), 0.0)
         np.testing.assert_array_equal(ped["C1"].to_numpy(), 0.0)
@@ -109,7 +109,7 @@ class TestZeroACE:
 
     def test_pure_E_variance_near_one(self):
         params = {**MINIMAL_PARAMS, "A1": 0.0, "C1": 0.0, "E1": 1.0, "A2": 0.0, "C2": 0.0, "E2": 1.0}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         var = ped["E1"].var()
         assert abs(var - 1.0) < 0.15
 
@@ -122,12 +122,12 @@ class TestZeroACE:
 class TestNoTwins:
     def test_no_twins(self):
         params = {**MINIMAL_PARAMS, "p_mztwin": 0.0}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         assert (ped["twin"] == -1).all()
 
     def test_no_twins_output_valid(self):
         params = {**MINIMAL_PARAMS, "p_mztwin": 0.0}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         assert len(ped) == params["N"] * params["G_ped"]
         # Structural integrity still holds
         assert ped["id"].n_unique() == len(ped)
@@ -141,14 +141,14 @@ class TestNoTwins:
 class TestHighMatingLambda:
     def test_high_lambda_runs(self):
         params = {**MINIMAL_PARAMS, "mating_lambda": 3.0}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         assert len(ped) == params["N"] * params["G_ped"]
 
     def test_high_lambda_produces_half_sibs(self):
         """With high lambda, individuals have many partners so maternal
         half-sibs should be common."""
         params = {**MINIMAL_PARAMS, "mating_lambda": 3.0, "N": 2000}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         non_founders = ped.filter(pl.col("mother") != -1)
         fam = non_founders.group_by("mother").agg(
             pl.col("father").n_unique().alias("n_fathers"),
@@ -171,7 +171,7 @@ class TestLowMatingLambda:
         """With very low lambda, most individuals have 1 partner, so
         siblings from same mother should usually share a father."""
         params = {**MINIMAL_PARAMS, "mating_lambda": 0.001}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         non_founders = ped.filter(pl.col("mother") != -1)
         fam = non_founders.group_by("mother").agg(pl.col("father").n_unique().alias("n_fathers"))
         # Nearly all families should have a single father
@@ -186,7 +186,7 @@ class TestLowMatingLambda:
 class TestSingleGeneration:
     def test_G_ped_1(self):
         params = {**MINIMAL_PARAMS, "G_ped": 1}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         assert len(ped) == params["N"]
         assert (ped["generation"] == 0).all()
 
@@ -262,7 +262,7 @@ class TestAssortativeEdgeCases:
     def test_strong_positive_assortment(self):
         """assort1=1.0 should produce strong positive mate correlation."""
         params = {**MINIMAL_PARAMS, "assort1": 1.0, "assort2": 0.0}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         non_founders = ped.filter(pl.col("mother") != -1)
         pairs = non_founders.select("mother", "father").unique()
         lookup = dict(zip(ped["id"].to_list(), ped["liability1"].to_list(), strict=True))
@@ -274,7 +274,7 @@ class TestAssortativeEdgeCases:
     def test_strong_negative_assortment(self):
         """assort1=-1.0 should produce strong negative mate correlation."""
         params = {**MINIMAL_PARAMS, "assort1": -1.0, "assort2": 0.0}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         non_founders = ped.filter(pl.col("mother") != -1)
         pairs = non_founders.select("mother", "father").unique()
         lookup = dict(zip(ped["id"].to_list(), ped["liability1"].to_list(), strict=True))
@@ -286,7 +286,7 @@ class TestAssortativeEdgeCases:
     def test_both_assort_nonzero(self):
         """Both assort1 and assort2 nonzero should run without error."""
         params = {**MINIMAL_PARAMS, "assort1": 0.3, "assort2": 0.2}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         assert len(ped) == params["N"] * params["G_ped"]
 
 
@@ -303,13 +303,13 @@ class TestEZero:
         so sd_E ~ 7.4e-9, producing tiny but non-zero draws.
         """
         params = {**MINIMAL_PARAMS, "A1": 0.7, "C1": 0.3, "E1": 0.0, "A2": 0.6, "C2": 0.4, "E2": 0.0}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         np.testing.assert_allclose(ped["E1"].to_numpy(), 0.0, atol=1e-6)
         np.testing.assert_allclose(ped["E2"].to_numpy(), 0.0, atol=1e-6)
 
     def test_E_zero_liability_equals_A_plus_C(self):
         params = {**MINIMAL_PARAMS, "A1": 0.7, "C1": 0.3, "E1": 0.0, "A2": 0.6, "C2": 0.4, "E2": 0.0}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         np.testing.assert_allclose(
             ped["liability1"].to_numpy(),
             ped["A1"].to_numpy() + ped["C1"].to_numpy(),

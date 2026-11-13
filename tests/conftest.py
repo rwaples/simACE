@@ -141,7 +141,7 @@ def tiny_pedigree_parquet(tmp_path: Path) -> Path:
         rC=0.5,
         assort1=0.0,
         assort2=0.0,
-    )
+    ).pedigree
     path = tmp_path / "pedigree.parquet"
     save_parquet(pedigree, path)
     return path
@@ -196,8 +196,8 @@ def founders_and_offspring(rng):
     e2 = rng.normal(size=N, scale=sd_E2)
     pheno = np.stack([a1, c1, e1, a2, c2, e2], axis=-1)
 
-    parents, twins, household_ids = _mating_standard(rng, sex, mating_lambda=0.5, p_mztwin=0.02)
-    offspring, sex_offspring = reproduce(
+    parents, twins, household_ids, _ = _mating_standard(rng, sex, mating_lambda=0.5, p_mztwin=0.02)
+    offspring, sex_offspring, _ = reproduce(
         rng,
         pheno,
         parents,

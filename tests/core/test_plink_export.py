@@ -81,7 +81,7 @@ def rep() -> tuple[pl.DataFrame, pl.DataFrame]:
             rC=0.0,
             assort1=0.0,
             assort2=0.0,
-        )
+        ).pedigree
     )
     raw = normalize_for_parquet(
         run_phenotype(

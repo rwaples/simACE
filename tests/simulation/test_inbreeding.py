@@ -12,10 +12,12 @@ import polars as pl
 import polars.testing
 import pytest
 
+import simace.simulation.mating as mating_mod
 import simace.simulation.reproduce as reproduce_mod
 import simace.simulation.simulate as sim
 from simace.core.cohort import INBREEDING_KEY, read_inbreeding
 from simace.simulation.inbreeding_plan import InbreedingPlan, resolve
+from simace.simulation.records import RandomPairing
 from simace.simulation.simulate import run_simulation
 from tests.simulation.inbreeding_support import BASE, DENSEP, dense64, force_plan, install_capture, run_engine
 
@@ -34,7 +36,7 @@ def exact_run(request, monkeypatch):
     force_plan(monkeypatch, DENSEP)
     cap = install_capture(monkeypatch)
     kw = {**BASE, **_CASES[request.param], "inbreeding_mode": "exact"}
-    ped = run_simulation(**kw)
+    ped = run_simulation(**kw).pedigree
     return kw, ped, cap
 
 
@@ -89,7 +91,7 @@ def test_exact_through_the_resolver_matches_pedigree_graph(monkeypatch) -> None:
     cap = install_capture(monkeypatch)
     kw = {**BASE, "inbreeding_mode": "exact"}
     assert resolve("exact", 6, kw["N"], kw["G_sim"]).engine == "walkd2"
-    ped = run_simulation(**kw)
+    ped = run_simulation(**kw).pedigree
     N = kw["N"]
     oracle = cap.ancestry(ped["sex"].to_numpy()[-N:]).inbreeding()[N:].reshape(kw["G_sim"], N)
     np.testing.assert_allclose(ped["F"].to_numpy(), _recorded(kw, oracle), rtol=0, atol=1e-6)
@@ -159,8 +161,8 @@ def test_approx_with_depth_at_g_sim_runs_the_exact_mode(monkeypatch) -> None:
     kw = {**BASE, "N": 1000, "G_sim": 30}
     assert resolve("approx", 30, 1000, 30) == resolve("exact", 6, 1000, 30)
     pl.testing.assert_frame_equal(
-        run_simulation(**kw, inbreeding_mode="approx", inbreeding_depth=30),
-        run_simulation(**kw, inbreeding_mode="exact"),
+        run_simulation(**kw, inbreeding_mode="approx", inbreeding_depth=30).pedigree,
+        run_simulation(**kw, inbreeding_mode="exact").pedigree,
     )
 
 
@@ -168,7 +170,7 @@ def test_approx_runs_xexact_above_the_handoff(monkeypatch) -> None:
     cap = install_capture(monkeypatch)
     kw = {**BASE, "N": 12_000, "G_ped": 2, "G_sim": 5, "p_mztwin": 0.004}
     assert resolve("approx", 3, 12_000, 5) == _xexact(3, packed=True)
-    ped = run_simulation(**kw, inbreeding_mode="approx", inbreeding_depth=3)
+    ped = run_simulation(**kw, inbreeding_mode="approx", inbreeding_depth=3).pedigree
     F = run_engine(_xexact(3, packed=True), cap.gens, mother_sorted=True)
     np.testing.assert_array_equal(ped["F"].to_numpy(), np.float32(F[-2:].ravel()))
     exact = run_engine(WALKD2, cap.gens, mother_sorted=True)
@@ -216,13 +218,13 @@ def _hand_mating(rng, sex, *_args, state, **_kwargs):
     parents = np.column_stack([mothers[order], fathers[order]])
     state["parents"] = parents
     household = np.unique(parents[:, 0], return_inverse=True)[1]
-    return parents, np.zeros((0, 2), np.int64), household
+    return parents, np.zeros((0, 2), np.int64), household, RandomPairing(len(parents))
 
 
 def test_scale_uses_the_parents_F_not_the_offspring_F(monkeypatch) -> None:
     force_plan(monkeypatch, DENSEP)
     state = {"i": 0}
-    monkeypatch.setattr(sim, "_mating_standard", lambda *a, **k: _hand_mating(*a, state=state, **k))
+    monkeypatch.setattr(mating_mod, "_mating_standard", lambda *a, **k: _hand_mating(*a, state=state, **k))
     scales = []
     noise = reproduce_mod.generate_mendelian_noise
 
@@ -232,7 +234,7 @@ def test_scale_uses_the_parents_F_not_the_offspring_F(monkeypatch) -> None:
 
     monkeypatch.setattr(reproduce_mod, "generate_mendelian_noise", spy)
     kw = {**BASE, "N": 200, "G_ped": 4, "G_sim": 4, "p_mztwin": 0.0, "inbreeding_mode": "exact"}
-    ped = run_simulation(**kw)
+    ped = run_simulation(**kw).pedigree
     F = ped["F"].to_numpy().reshape(4, 200)
     np.testing.assert_array_equal(F[:2], 0.0)
     np.testing.assert_allclose(F[2], 0.25, rtol=0, atol=1e-7)  # full-sib matings
@@ -241,7 +243,7 @@ def test_scale_uses_the_parents_F_not_the_offspring_F(monkeypatch) -> None:
 
     # Both traits carry the scale: same seed and pedigree, mode off draws the same noise unscaled.
     state["i"] = 0
-    off = run_simulation(**{**kw, "inbreeding_mode": "off"})
+    off = run_simulation(**{**kw, "inbreeding_mode": "off"}).pedigree
     mp = {}
     for run, df in (("on", ped), ("off", off)):
         for t in ("A1", "A2"):
@@ -263,8 +265,8 @@ def test_random_mating_leaves_the_random_stream_and_pedigree_unchanged(monkeypat
         return rngs[-1]
 
     monkeypatch.setattr(sim.np.random, "default_rng", recording)
-    off = run_simulation(**BASE)
-    on = run_simulation(**BASE, inbreeding_mode="exact")
+    off = run_simulation(**BASE).pedigree
+    on = run_simulation(**BASE, inbreeding_mode="exact").pedigree
     assert len(rngs) == 2
     assert rngs[0].bit_generator.state == rngs[1].bit_generator.state
     same = ["id", "sex", "mother", "father", "twin", "generation", "household_id", "C1", "E1", "C2", "E2"]

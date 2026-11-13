@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import polars as pl
 import pytest
 
 import simace.analysis.analyze as analyze_mod
@@ -17,6 +18,7 @@ import simace.simulation.simulate as simulate_mod
 from simace.cli.layout import Layout
 from simace.cli.stages import REP_PARAM_KEYS, STAGES, ResolvedRep
 from simace.cli.status import resolve_all
+from simace.simulation.records import SimulationResult
 
 REPO_CONFIG = Path(__file__).resolve().parents[2] / "config"
 
@@ -99,7 +101,7 @@ def _subset(recorded: dict, keys: list[str]) -> dict:
 @pytest.mark.parametrize("rep_and_layout", SCENARIOS, ids=[n for n, _ in SCENARIOS], indirect=True)
 def test_simulate_argv_round_trips(monkeypatch, rep_and_layout) -> None:
     rep, layout = rep_and_layout
-    recorder = _Recorder()
+    recorder = _Recorder(result=SimulationResult(pl.DataFrame(), (), ()))
     monkeypatch.setattr(simulate_mod, "run_simulation", recorder)
     monkeypatch.setattr(simulate_mod, "write_pedigree", _touch)
     simulate_mod.cli(_argv("simulate", rep, layout))

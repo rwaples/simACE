@@ -39,7 +39,7 @@ def tiny_phenotype():
         assort1=0.0,
         assort2=0.0,
     )
-    pedigree = run_simulation(**sim_params)
+    pedigree = run_simulation(**sim_params).pedigree
     phenotype = run_phenotype(
         pedigree,
         G_pheno=2,

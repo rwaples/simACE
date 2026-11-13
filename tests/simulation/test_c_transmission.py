@@ -59,7 +59,7 @@ def _reproduce(seed: int, pheno, parents, households, ct: CTransmission, sd_c: f
         rC=0.3,
         rE=0.0,
         c_transmission=ct,
-    )
+    )[:2]
 
 
 def _constant_within(values: np.ndarray, groups: np.ndarray) -> bool:
@@ -108,7 +108,7 @@ def test_transmitted_c_tops_up_to_the_target_when_c_grows():
     parents = np.column_stack([np.arange(n_mothers), np.arange(n_mothers) + n_mothers])
     households = np.arange(n_mothers)
     target = np.diag([0.2, 0.0])
-    c1, _ = _transmitted_c(rng, pheno, parents, households, n_mothers, target, CTransmission(maternal=(1.0, 0.0)))
+    c1, _, _ = _transmitted_c(rng, pheno, parents, households, n_mothers, target, CTransmission(maternal=(1.0, 0.0)))
     fresh = c1 - pheno[:n_mothers, 1]
     assert np.var(fresh) == pytest.approx(0.1, abs=0.005)
     assert np.var(c1) == pytest.approx(0.2, abs=0.006)
@@ -145,7 +145,7 @@ def _ols(y: np.ndarray, *x: np.ndarray) -> np.ndarray:
 )
 def test_ols_of_child_c_on_parent_c_recovers_the_coefficients(assort):
     ct = {"Ctm_maternal1": 0.5, "Ctm_paternal1": 0.3, "Ctm_maternal2": 0.4, "Ctm_paternal2": 0.0}
-    ped = run_simulation(seed=11, **_BASE, assort1=assort, **ct)
+    ped = run_simulation(seed=11, **_BASE, assort1=assort, **ct).pedigree
     for trait in (1, 2):
         child, mom, dad = _parent_child(ped, trait)
         b_m, b_f = _ols(child, mom, dad)
@@ -154,7 +154,9 @@ def test_ols_of_child_c_on_parent_c_recovers_the_coefficients(assort):
 
 
 def test_c_variance_and_cross_trait_correlation_hold_each_generation():
-    ped = run_simulation(seed=5, **_BASE, Ctm_maternal1=0.6, Ctm_paternal1=0.5, Ctm_maternal2=0.7, Ctm_paternal2=0.2)
+    ped = run_simulation(
+        seed=5, **_BASE, Ctm_maternal1=0.6, Ctm_paternal1=0.5, Ctm_maternal2=0.7, Ctm_paternal2=0.2
+    ).pedigree
     for g in range(3):
         gen = ped.filter(pl.col("generation") == g)
         c1, c2 = gen["C1"].to_numpy(), gen["C2"].to_numpy()
@@ -166,7 +168,7 @@ def test_c_variance_and_cross_trait_correlation_hold_each_generation():
 @pytest.mark.parametrize("seed", range(3))
 def test_full_maternal_copying_of_constant_c_adds_almost_nothing(seed):
     """The fresh draw only absorbs sampling error in S, a few percent of Var(C) at this N."""
-    ped = run_simulation(seed=seed, **_BASE, Ctm_maternal1=1.0, Ctm_maternal2=1.0)
+    ped = run_simulation(seed=seed, **_BASE, Ctm_maternal1=1.0, Ctm_maternal2=1.0).pedigree
     for trait in (1, 2):
         child, mom, _ = _parent_child(ped, trait)
         assert np.var(child - mom) < 0.05 * np.var(child)
@@ -176,7 +178,7 @@ def test_analytic_parent_offspring_references_match_a_random_mating_simulation()
     """Numeric check of the RM analytic lines: MO, FO, and the midparent slope (A + (b_m + b_f) C) / V_P."""
     ct = {"Ctm_maternal1": 0.5, "Ctm_paternal1": 0.3}
     params = {**_BASE, "assort1": 0.0, "assort2": 0.0, "assort_matrix": None, **ct}
-    ped = run_simulation(seed=21, **{**_BASE, "N": 40_000}, **ct)
+    ped = run_simulation(seed=21, **{**_BASE, "N": 40_000}, **ct).pedigree
     liab = ped["liability1"].to_numpy()
     mother, father = ped["mother"].to_numpy(), ped["father"].to_numpy()
     kids = np.flatnonzero(mother >= 0)
@@ -195,7 +197,7 @@ def test_full_maternal_copying_at_small_test_size_never_trips_the_sampling_check
 def test_wright_fisher_runs_with_transmission():
     ped = run_simulation(
         seed=2, **{**_BASE, "N": 5_000}, mating_model="wright_fisher", Ctm_maternal1=0.5, Ctm_paternal1=0.3
-    )
+    ).pedigree
     child, mom, dad = _parent_child(ped, 1)
     b_m, b_f = _ols(child, mom, dad)
     assert b_m == pytest.approx(0.5, abs=0.05)
@@ -219,20 +221,18 @@ def test_random_mating_at_the_bound_does_not_trip_the_cross_term(seed):
 
 
 def test_clips_are_logged_with_their_recorded_generation():
-    clips: list = []
-    run_simulation(
-        seed=0, **{**_BASE, "N": 1000, "G_ped": 4, "G_sim": 6}, Ctm_maternal1=1.0, Ctm_maternal2=1.0, clip_log=clips
-    )
+    clips = run_simulation(
+        seed=0, **{**_BASE, "N": 1000, "G_ped": 4, "G_sim": 6}, Ctm_maternal1=1.0, Ctm_maternal2=1.0
+    ).clips
     assert clips, "constant C with b_m = 1 clips in some generation at N = 1000"
-    assert {c["generation"] for c in clips} <= set(range(-2, 4))
-    assert all(0 < c["excess"] <= c["tolerance"] and len(c["direction"]) == 2 for c in clips)
+    assert {c.generation for c in clips} <= set(range(-2, 4))
+    assert all(0 < c.clip.excess <= c.clip.tolerance and len(c.clip.direction) == 2 for c in clips)
 
 
 def test_weak_assortment_at_small_n_is_clipped_and_logged_not_silent():
     """Below its standard error the structural excess is indistinguishable from noise: it must at least be recorded."""
     clipped = 0
     for seed in range(5):
-        clips: list = []
-        run_simulation(seed=seed, **{**_BASE, "N": 1000, "rC": 0.0, "C1": 0.2}, assort1=0.3, **_BOUND, clip_log=clips)
-        clipped += any(c["generation"] >= 0 for c in clips)
+        clips = run_simulation(seed=seed, **{**_BASE, "N": 1000, "rC": 0.0, "C1": 0.2}, assort1=0.3, **_BOUND).clips
+        clipped += any(c.generation >= 0 for c in clips)
     assert clipped >= 4  # 39 of seeds 0-39 clip in a recorded generation

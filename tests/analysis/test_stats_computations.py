@@ -738,7 +738,7 @@ def phenotyped_df():
     from simace.phenotype.models import case_status_from_liability
     from simace.simulation.simulate import run_simulation
 
-    ped = run_simulation(**_DEFAULT_SIM_PARAMS)
+    ped = run_simulation(**_DEFAULT_SIM_PARAMS).pedigree
     gen = ped["generation"].to_numpy()
     rng = np.random.default_rng(42)
     new_cols = []

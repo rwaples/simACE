@@ -45,7 +45,7 @@ PARAMS = dict(
 
 @pytest.fixture(scope="module")
 def pedigree() -> pl.DataFrame:
-    return run_simulation(**PARAMS)
+    return run_simulation(**PARAMS).pedigree
 
 
 _written = itertools.count()
@@ -180,7 +180,7 @@ def test_the_variance_cell_normalises_by_parental_inbreeding(tmp_path) -> None:
     4.1 at N 500/G 60 (measured -3.6 to -6.3 over seeds 1-8; normalised within +-1.7).
     """
     inbred = {**PARAMS, "seed": 3, "N": 500, "G_ped": 60, "G_sim": 60}
-    pedigree = run_simulation(**inbred, inbreeding_mode="exact")
+    pedigree = run_simulation(**inbred, inbreeding_mode="exact").pedigree
     path, report = tmp_path / "pedigree.parquet", tmp_path / "report.yaml"
     report.write_text(yaml.safe_dump({"inputs": {"parameters": {**inbred, "inbreeding_mode": "exact"}}}))
     z = {}

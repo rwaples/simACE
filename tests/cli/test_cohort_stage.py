@@ -64,7 +64,7 @@ def recorded(tmp_path_factory) -> Path:
         rC=0.5,
         assort1=0.0,
         assort2=0.0,
-    )
+    ).pedigree
     write_pedigree(pedigree, path)
     return path
 

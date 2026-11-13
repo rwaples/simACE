@@ -74,7 +74,7 @@ class TestHouseholdSiblingCounts:
         pedigree = run_simulation(
             seed=11, N=600, G_ped=3, G_sim=3, mating_lambda=0.8, p_mztwin=0.05,
             A1=0.5, C1=0.2, E1=0.3, A2=0.5, C2=0.2, E2=0.3, rA=0.3, rC=0.5, assort1=0.0, assort2=0.0,
-        )  # fmt: skip
+        ).pedigree  # fmt: skip
         assert (pedigree["twin"] != -1).sum() > 0
         pairs = PedigreeGraph.from_frame(pedigree).relationship_pairs(categories=("FS", "MHS"))
         n = len(pedigree)

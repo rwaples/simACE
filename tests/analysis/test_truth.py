@@ -36,12 +36,12 @@ _RM = {"assort1": 0.0, "assort2": 0.0, "mating_model": "standard"}
 
 @pytest.fixture(scope="module")
 def rm_truth():
-    ped = run_simulation(seed=4, **_SIM, **_CT)
+    ped = run_simulation(seed=4, **_SIM, **_CT).pedigree
     return ped, recorded_pedigree_truth(ped, {**_SIM, **_RM, **_CT}, max_degree=2)
 
 
 def test_no_truth_without_transmission():
-    ped = run_simulation(seed=1, **{**_SIM, "N": 500})
+    ped = run_simulation(seed=1, **{**_SIM, "N": 500}).pedigree
     assert recorded_pedigree_truth(ped, {**_SIM, **_RM}, max_degree=2) is None
 
 
@@ -74,7 +74,7 @@ def test_categories_window_and_midparent_slope(rm_truth):
 
 
 def test_clips_round_trip_through_the_pedigree_and_reach_the_truth(tmp_path):
-    ped = run_simulation(seed=0, **{**_SIM, "N": 1000}, Ctm_maternal1=1.0, Ctm_maternal2=1.0)
+    ped = run_simulation(seed=0, **{**_SIM, "N": 1000}, Ctm_maternal1=1.0, Ctm_maternal2=1.0).pedigree
     clips = [{"generation": 1, "excess": 0.003, "tolerance": 0.02, "direction": [1.0, 0.0]}]
     write_pedigree(normalize_for_parquet(ped), tmp_path / "p.parquet", c_transmission_clips=clips)
     assert read_c_transmission_clips(tmp_path / "p.parquet") == clips
@@ -93,14 +93,14 @@ def test_clips_round_trip_through_the_pedigree_and_reach_the_truth(tmp_path):
 
 def test_assortative_mating_records_the_limitation():
     params = {**_SIM, **_RM, "assort1": 0.3, **_CT}
-    ped = run_simulation(seed=2, **{**_SIM, "N": 2000}, assort1=0.3, **_CT)
+    ped = run_simulation(seed=2, **{**_SIM, "N": 2000}, assort1=0.3, **_CT).pedigree
     assert recorded_pedigree_truth(ped, params, max_degree=1)["limitations"] == [AM_LIMITATION]
 
 
 def _analyze(tmp_path, pedigree_kwargs, params):
     from simace.cli.cohort_stage import run_cohort
 
-    pedigree = normalize_for_parquet(run_simulation(seed=42, **pedigree_kwargs))
+    pedigree = normalize_for_parquet(run_simulation(seed=42, **pedigree_kwargs).pedigree)
     cohort, population = run_cohort(
         pedigree,
         seed=42,

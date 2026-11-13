@@ -47,7 +47,7 @@ def analyze_data():
     from simace.cli.cohort_stage import run_cohort
     from simace.simulation.simulate import run_simulation
 
-    pedigree = normalize_for_parquet(run_simulation(**_SIM_PARAMS))
+    pedigree = normalize_for_parquet(run_simulation(**_SIM_PARAMS).pedigree)
     cohort, phenotyped_population = run_cohort(
         pedigree,
         seed=42,

@@ -31,7 +31,7 @@ def small_pedigree():
         rC=0.5,
         assort1=0.0,
         assort2=0.0,
-    )
+    ).pedigree
 
 
 def _build_trait(pedigree: pl.DataFrame, *, g_pheno: int, n_cases: int, seed: int) -> pl.DataFrame:

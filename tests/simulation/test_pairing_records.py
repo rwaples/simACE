@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 import simace.simulation.mating as mating_mod
+import simace.simulation.records as records_mod
 from simace.simulation.assortment import METROPOLIS_TOL, read_mating_log
 from simace.simulation.mating import _assortative_pair_partners, balance_mating_slots, draw_mating_counts
 from simace.simulation.pairing_kernels import (
@@ -13,6 +14,7 @@ from simace.simulation.pairing_kernels import (
     _metropolis_full_python,
     _metropolis_single,
 )
+from simace.simulation.records import AssortativePairing
 from simace.simulation.simulate import run_simulation
 
 _SIM = dict(
@@ -53,17 +55,15 @@ def _slot_r(pheno, matings, col):
 def test_single_trait_swaps_pin_the_slot_correlation(assort, n, lam, trait):
     rng = np.random.default_rng(abs(hash((assort, n, lam, trait))) % 2**32)
     mi, mc, fi, fc, pheno = _population(rng, n, lam)
-    log: list = []
     a1, a2 = (assort, 0.0) if trait == 1 else (0.0, assort)
-    matings = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, a1, a2, pairing_log=log)
-    (record,) = log
-    assert record["mode"] == "single"
-    assert record["converged"]
-    assert set(record["errors"]) == {f"r{trait}"}
+    matings, record = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, a1, a2)
+    assert record.mode == "single"
+    assert record.converged
+    assert set(record.errors) == {f"r{trait}"}
     realized = _slot_r(pheno, matings, 0 if trait == 1 else 3)
     assert abs(realized - assort) < METROPOLIS_TOL
-    assert record["errors"][f"r{trait}"] == pytest.approx(realized - assort, abs=1e-12)
-    assert record["duplicates_left"] == int(_find_duplicate_pairs(matings).sum())
+    assert record.errors[f"r{trait}"] == pytest.approx(realized - assort, abs=1e-12)
+    assert record.duplicates_left == int(_find_duplicate_pairs(matings).sum())
 
 
 def test_the_single_trait_kernel_never_creates_a_duplicate_couple():
@@ -90,10 +90,10 @@ def test_an_unreachable_tolerance_is_recorded_as_not_converged(monkeypatch):
     rng = np.random.default_rng(1)
     mi, mc, fi, fc, pheno = _population(rng, 1000, 0.5)
     monkeypatch.setattr(mating_mod, "METROPOLIS_TOL", 0.0)
-    log: list = []
-    _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.4, 0.0, pairing_log=log)
-    assert not log[0]["converged"]
-    assert log[0]["proposals"] == log[0]["max_proposals"] == 8 * log[0]["M"]
+    monkeypatch.setattr(records_mod, "METROPOLIS_TOL", 0.0)
+    _, record = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.4, 0.0)
+    assert not record.converged
+    assert record.proposals == record.max_proposals == 8 * record.M
 
 
 @pytest.mark.parametrize(
@@ -107,15 +107,14 @@ def test_an_unreachable_tolerance_is_recorded_as_not_converged(monkeypatch):
     ],
 )
 def test_run_simulation_records_one_pairing_per_iteration(overrides, modes):
-    log: list = []
-    run_simulation(seed=3, **{**_SIM, **overrides}, mating_log=log)
-    assert [r["iteration"] for r in log] == list(range(_SIM["G_sim"]))
+    log = run_simulation(seed=3, **{**_SIM, **overrides}).pairing
+    assert [r.iteration for r in log] == list(range(_SIM["G_sim"]))
     burnin = _SIM["G_sim"] - _SIM["G_ped"]
-    assert [r["generation"] for r in log] == [i - burnin for i in range(_SIM["G_sim"])]
-    assert {r["mode"] for r in log} == modes
+    assert [r.generation for r in log] == [i - burnin for i in range(_SIM["G_sim"])]
+    assert {r.to_dict()["mode"] for r in log} == modes
     for r in log:
-        if r["mode"] in ("single", "both"):
-            assert r["converged"]
+        if isinstance(r.pairing, AssortativePairing):
+            assert r.pairing.converged
 
 
 def test_the_cli_writes_the_pairing_records(tmp_path):
@@ -168,11 +167,10 @@ def test_a_constant_active_trait_is_left_unrefined_and_not_converged():
     rng = np.random.default_rng(4)
     mi, mc, fi, fc, pheno = _population(rng, 400, 0.5)
     pheno[:, 0] = 0.0  # trait 1 is constant
-    log: list = []
-    _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.0, pairing_log=log)
-    assert log[0]["errors"] == {}
-    assert log[0]["proposals"] == 0
-    assert not log[0]["converged"]
+    _, record = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.0)
+    assert record.errors == {}
+    assert record.proposals == 0
+    assert not record.converged
 
 
 def test_the_shared_proposal_draw_reaches_the_last_row_when_m_is_odd():
@@ -223,9 +221,8 @@ def test_both_trait_recorded_errors_match_the_final_pairing(lam, seed):
     """Whether or not dedup swapped, the recorded errors are the slot-level correlations of the returned couples."""
     rng = np.random.default_rng(100 + seed)
     mi, mc, fi, fc, pheno = _population(rng, 400, lam)
-    log: list = []
-    matings = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.3, rho_w=0.0, pairing_log=log)
-    errors = log[0]["errors"]
+    matings, record = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.3, rho_w=0.0)
+    errors = record.errors
     for name, (i, j) in {"r1": (0, 0), "r2": (3, 3), "r12": (0, 3), "r21": (3, 0)}.items():
         x, y = pheno[matings[:, 0], i], pheno[matings[:, 1], j]
         realized = float(np.mean((x - x.mean()) / x.std() * (y - y.mean()) / y.std()))

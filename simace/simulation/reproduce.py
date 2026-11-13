@@ -8,10 +8,9 @@ import numpy as np
 from simace.simulation.pairing_kernels import _midparent
 from simace.simulation.params import c_covariance
 from simace.simulation.pedigree_buffers import _A1, _A2, _C1, _C2
+from simace.simulation.records import CClip
 
 if TYPE_CHECKING:
-    from typing import Any
-
     from simace.simulation.params import CTransmission
 
 
@@ -107,9 +106,8 @@ def _transmitted_c(
     n_hh: int,
     target: np.ndarray,
     c_transmission: CTransmission,
-    clips: list[dict[str, Any]] | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Return offspring (C1, C2) = transmitted part + a household draw of covariance ``target - S``.
+) -> tuple[np.ndarray, np.ndarray, tuple[CClip, ...]]:
+    """Return offspring (C1, C2) = transmitted part + a household draw of covariance ``target - S``, and the clips.
 
     ``S`` is the realized covariance of the transmitted parts over the
     offspring, so the configured ``target`` is the total C covariance in
@@ -123,8 +121,7 @@ def _transmitted_c(
       assortative mating pushing ``S`` past the target, and raises;
     - otherwise an excess within ``CLIP_SE_MULTIPLIER`` standard errors of the
       own terms (``SE = sqrt(2 / n_eff) * v'(own)v``) is sampling noise,
-      clipped to 0 and appended to ``clips`` as ``{"excess", "tolerance",
-      "direction"}``; a larger one raises.
+      clipped to 0 and returned as a :class:`CClip`; a larger one raises.
 
     ``n_eff`` is the Kish effective number of households over offspring counts.
     """
@@ -139,6 +136,7 @@ def _transmitted_c(
     eigvals, eigvecs = np.linalg.eigh(target - realized)
     weights = np.bincount(household_ids, minlength=n_hh) / len(household_ids)
     inv_n_eff = float(np.sum(weights**2))
+    clips: list[CClip] = []
     for j in np.flatnonzero(eigvals < 0):
         v, excess = eigvecs[:, j], float(-eigvals[j])
         cross_v = float(v @ cross @ v)
@@ -162,12 +160,11 @@ def _transmitted_c(
             -excess,
             tolerance,
         )
-        if clips is not None:
-            clips.append({"excess": excess, "tolerance": float(tolerance), "direction": v.round(6).tolist()})
+        clips.append(CClip(excess=excess, tolerance=float(tolerance), direction=tuple(v.round(6).tolist())))
     loadings = eigvecs * np.sqrt(np.clip(eigvals, 0.0, None))
     fresh = rng.standard_normal((n_hh, 2)) @ loadings.T
     c = mother_c @ B_m + father_c @ B_f + fresh[household_ids]
-    return c[:, 0], c[:, 1]
+    return c[:, 0], c[:, 1], tuple(clips)
 
 
 def reproduce(
@@ -186,9 +183,8 @@ def reproduce(
     rC: float,
     rE: float = 0.0,
     c_transmission: CTransmission | None = None,
-    clips: list[dict[str, Any]] | None = None,
     mendelian_scale: np.ndarray | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, tuple[CClip, ...]]:
     """Simulate offspring phenotypes from parents for two correlated traits.
 
     Additive genetic values are inherited as midparent + Mendelian noise.
@@ -216,14 +212,14 @@ def reproduce(
         rE: unique environment correlation between traits
         c_transmission: C transmission coefficients; None or all zero is
             the fresh household draw, identical to the code before ADR 0025.
-        clips: under C transmission, collects one record per fresh-draw
-            eigenvalue clipped to 0 (see :func:`_transmitted_c`).
         mendelian_scale: per-offspring ``sqrt(1 - F_bar)`` applied to the
             Mendelian noise (ADR 0033), or None for the unscaled draw.
 
     Returns:
         offspring: (n, 6) array of [A1, C1, E1, A2, C2, E2]
         sex_offspring: (n,) array of sex values (0=female, 1=male)
+        clips: under C transmission, one record per fresh-draw eigenvalue
+            clipped to 0 (see :func:`_transmitted_c`); otherwise empty
 
     Raises:
         ValueError: under C transmission, when the realized transmitted
@@ -245,13 +241,14 @@ def reproduce(
     # Common environment: a draw per household (household_ids are 0-based
     # contiguous from _mating_standard()), plus under C transmission the parents' C.
     n_hh = int(household_ids.max()) + 1
+    clips: tuple[CClip, ...] = ()
     if c_transmission is None or not c_transmission.active:
         hh_c1, hh_c2 = generate_correlated_components(rng, n_hh, sd_C1, sd_C2, rC)
         c1_offspring = hh_c1[household_ids]
         c2_offspring = hh_c2[household_ids]
     else:
-        c1_offspring, c2_offspring = _transmitted_c(
-            rng, pheno, parents, household_ids, n_hh, c_covariance(sd_C1**2, sd_C2**2, rC), c_transmission, clips
+        c1_offspring, c2_offspring, clips = _transmitted_c(
+            rng, pheno, parents, household_ids, n_hh, c_covariance(sd_C1**2, sd_C2**2, rC), c_transmission
         )
 
     # Unique environment: correlated via rE; independent when rE=0
@@ -279,4 +276,4 @@ def reproduce(
         axis=-1,
     )
 
-    return offspring, sex_offspring
+    return offspring, sex_offspring, clips

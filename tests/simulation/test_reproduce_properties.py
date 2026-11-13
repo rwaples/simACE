@@ -149,7 +149,7 @@ def _reproduce(seed: int, inputs: ReproInputs, params: ReproParams) -> tuple[np.
     with warnings.catch_warnings():
         # |r| = 1 gives a rank-1 covariance; numpy's PSD roundoff check warns on it.
         warnings.simplefilter("ignore", category=RuntimeWarning)
-        return reproduce(
+        offspring, sex, _ = reproduce(
             np.random.default_rng(seed),
             inputs.pheno,
             inputs.parents,
@@ -157,6 +157,7 @@ def _reproduce(seed: int, inputs: ReproInputs, params: ReproParams) -> tuple[np.
             inputs.household_ids,
             **params._asdict(),
         )
+        return offspring, sex
 
 
 def _witnessed_topologies(inputs: ReproInputs) -> set[Topology]:

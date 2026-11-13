@@ -55,7 +55,7 @@ ALPHA = 0.05 / 108
 def score(n: int, seed: int, deltas: tuple[float, ...], work: Path) -> list[dict]:
     """One pedigree at ``n`` and ``seed`` scored at each δ: the trait-1 PHS cell's pairs, r, SE and z."""
     pedigree_path = work / "pedigree.parquet"
-    write_pedigree(run_simulation(seed=seed, N=n, **PARAMS), pedigree_path)
+    write_pedigree(run_simulation(seed=seed, N=n, **PARAMS).pedigree, pedigree_path)
     rows = []
     for delta in deltas:
         report_path = work / "report.yaml"

@@ -41,7 +41,7 @@ def _by_id(df: pl.DataFrame, ids: np.ndarray, col: str) -> np.ndarray:
 @pytest.fixture(scope="module")
 def stat_pedigree():
     """Module-scoped pedigree for statistical tests (expensive to create)."""
-    return run_simulation(**STAT_PARAMS)
+    return run_simulation(**STAT_PARAMS).pedigree
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +271,7 @@ ASSORT_PARAMS = dict(
 @pytest.fixture(scope="module")
 def assort_pedigree():
     """Module-scoped pedigree with assortative mating."""
-    return run_simulation(**ASSORT_PARAMS)
+    return run_simulation(**ASSORT_PARAMS).pedigree
 
 
 def _mate_corr(df, trait):
@@ -294,7 +294,7 @@ class TestAssortativeMating:
 
     def test_negative_assortment(self):
         params = {**ASSORT_PARAMS, "seed": 9999, "assort1": -0.3}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         corr = _mate_corr(ped, 1)
         assert corr < -0.1
 
@@ -325,7 +325,7 @@ ASSORT_BOTH_PARAMS = dict(
 @pytest.fixture(scope="module")
 def assort_both_pedigree():
     """Module-scoped pedigree with both-trait assortative mating."""
-    return run_simulation(**ASSORT_BOTH_PARAMS)
+    return run_simulation(**ASSORT_BOTH_PARAMS).pedigree
 
 
 class TestAssortativeMatingBoth:

@@ -99,9 +99,9 @@ def test_a_configured_non_standard_scenario_mates_at_random_in_the_simulator(nam
     configured = {k: params[k] for k in _CREATE_KEYS if params.get(k) is not None} | {"N": 300}
     configured |= {k: params.get(k, 0.0) for k in ("Ctm_maternal1", "Ctm_paternal1", "Ctm_maternal2", "Ctm_paternal2")}
     stripped = {k: v for k, v in configured.items() if k not in ("assort1", "assort2", "assort_matrix")}
-    reference = run_simulation(**stripped)
-    assert_frame_equal(run_simulation(**configured), reference)
-    assert_frame_equal(run_simulation(**stripped, assort1=0.4, assort2=0.3), reference)
+    reference = run_simulation(**stripped).pedigree
+    assert_frame_equal(run_simulation(**configured).pedigree, reference)
+    assert_frame_equal(run_simulation(**stripped, assort1=0.4, assort2=0.3).pedigree, reference)
     G_sim, _ = schedule_span(params)
     assert assortment_schedule(params) == ([0.0] * G_sim, [0.0] * G_sim)
 
@@ -129,5 +129,5 @@ def test_wright_fisher_ignores_the_assortment_it_inherits():
         E2=0.4,
         mating_model="wright_fisher",
     )
-    assert_frame_equal(run_simulation(**base, assort1=0.4, assort2=0.3), run_simulation(**base))
+    assert_frame_equal(run_simulation(**base, assort1=0.4, assort2=0.3).pedigree, run_simulation(**base).pedigree)
     assert assortment_schedule({**base, "assort1": 0.4, "assort2": 0.3}) == ([0.0] * 4, [0.0] * 4)

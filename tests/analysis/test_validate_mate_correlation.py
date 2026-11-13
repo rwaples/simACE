@@ -46,8 +46,8 @@ MIXED = {**BASE, "assort1": 0.3, "assort2": {0: 0.0, 5: 0.3}}
 
 def _simulate(params: dict) -> tuple[pl.DataFrame, list[dict]]:
     """The pedigree and the pairing records (``mating.yaml``'s iterations) of one simulation."""
-    log: list[dict] = []
-    return run_simulation(**params, mating_log=log), log
+    result = run_simulation(**params)
+    return result.pedigree, [iteration.to_dict() for iteration in result.pairing]
 
 
 @pytest.fixture(scope="module")

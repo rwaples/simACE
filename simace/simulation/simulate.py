@@ -37,8 +37,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from simace.core.cohort import write_pedigree
-from simace.core.schema import PEDIGREE
-from simace.core.stage import stage
+from simace.core.schema import PEDIGREE, assert_schema
 from simace.simulation.assortment import (
     METROPOLIS_TOL,
     AssortmentPlan,
@@ -47,8 +46,8 @@ from simace.simulation.assortment import (
 )
 from simace.simulation.inbreeding_plan import DEFAULT_DEPTH, INBREEDING_MODES, resolve
 from simace.simulation.mating import (
-    _mating_standard,
-    _mating_wf,
+    StandardMating,
+    WrightFisherMating,
     allocate_offspring,
     balance_mating_slots,
     draw_mating_counts,
@@ -57,19 +56,15 @@ from simace.simulation.mating import (
 )
 from simace.simulation.params import CTransmission, SimulationParams, resolve_per_gen_param
 from simace.simulation.pedigree_buffers import _arrays_to_dataframe, _fill_pedigree_slice, _init_pedigree_arrays
+from simace.simulation.records import GenerationClip, MatingIteration, SimulationResult
 from simace.simulation.reproduce import generate_correlated_components, generate_mendelian_noise, reproduce
 
 if TYPE_CHECKING:
-    from typing import Any
-
-    import polars as pl
-
     from simace.simulation.inbreeding import Inbreeding
 
 logger = logging.getLogger(__name__)
 
 
-@stage(reads=None, writes=PEDIGREE)
 def run_simulation(
     *,
     seed: int,
@@ -97,9 +92,7 @@ def run_simulation(
     Ctm_paternal2: float = 0.0,
     inbreeding_mode: str = "off",
     inbreeding_depth: int = DEFAULT_DEPTH,
-    clip_log: list[dict[str, Any]] | None = None,
-    mating_log: list[dict[str, Any]] | None = None,
-) -> pl.DataFrame:
+) -> SimulationResult:
     """Run the full ACE simulation for two correlated traits.
 
     Variance components A (additive genetic), C (shared environment), and
@@ -152,24 +145,15 @@ def run_simulation(
             ``sqrt(1 - F_bar)``, ``F_bar`` its parents' mean inbreeding
             coefficient (ADR 0033).
         inbreeding_depth: Generations ``approx`` traces exactly (>= 1).
-        clip_log: Under C transmission, receives a record per fresh-draw
-            eigenvalue clipped to 0, each with its ``generation`` in
-            recorded coordinates (negative during burn-in), ``excess``,
-            ``tolerance`` and ``direction``.
-        mating_log: Receives one pairing record per mating iteration, with
-            its ``iteration``, its offspring's ``generation`` in recorded
-            coordinates, and ``mode`` (``random``, ``single``, ``both`` or
-            ``wright_fisher``). An assortative record also has ``M``,
-            ``proposals``, ``max_proposals``, the final slot-level
-            ``errors`` against the targets, ``duplicates_left`` and
-            ``converged`` (at least one error, and every error within
-            ``METROPOLIS_TOL``; a record that pinned nothing is not
-            converged).
 
     Returns:
-        Pedigree DataFrame with columns id, sex, mother, father, twin,
+        The recorded pedigree (columns id, sex, mother, father, twin,
         generation, household_id, A1, C1, E1, liability1, A2, C2, E2,
-        liability2.
+        liability2, checked against ``PEDIGREE``), one
+        :class:`~simace.simulation.records.MatingIteration` per mating
+        iteration (burn-in included), and under C transmission one
+        :class:`~simace.simulation.records.GenerationClip` per fresh-draw
+        eigenvalue clipped to 0.
 
     Raises:
         ValueError: if any parameter is outside its valid range
@@ -225,7 +209,7 @@ def run_simulation(
     # Standard-model AM plan: the assortment schedule, rho_w, and the
     # |rho_w| < 1 + 4x4 PSD checks are validated up front inside build().
     # WF skips this entirely — no AM, no rho_w-driven cross-AM.
-    plan: AssortmentPlan | None = None
+    mate: StandardMating | WrightFisherMating
     if mating_model == "standard":
         assort1_per_gen, assort2_per_gen = assortment_schedule(assort1, assort2, G_sim=G_sim, assort_matrix=params.R_mf)
         plan = AssortmentPlan.build(
@@ -243,6 +227,9 @@ def run_simulation(
             E2_per_gen=E2_per_gen,
             G_sim=G_sim,
         )
+        mate = StandardMating(mating_lambda, p_mztwin, plan)
+    else:
+        mate = WrightFisherMating(N)
 
     # Initialize founders with correlated components (using gen-0 C/E variances)
     sex = rng.binomial(size=N, n=1, p=0.5)
@@ -287,33 +274,13 @@ def run_simulation(
         inbreeding = Inbreeding(params.inbreeding, N, G_sim, mother_sorted=mating_model == "standard")
         F_offspring = np.zeros(N)
 
+    mating_iterations: list[MatingIteration] = []
+    clips: list[GenerationClip] = []
     for i in range(G_sim):
         t_gen = time.perf_counter()
 
-        if mating_model == "standard":
-            assert plan is not None  # built above under the same guard
-            a1_i, a2_i, rho_w_i, R_mf_i = plan.for_generation(i)
-            pairing: list[dict[str, Any]] = []
-            try:
-                parents, twins, household_ids = _mating_standard(
-                    rng,
-                    sex,
-                    mating_lambda,
-                    p_mztwin,
-                    pheno=pheno,
-                    assort1=a1_i,
-                    assort2=a2_i,
-                    rho_w=rho_w_i,
-                    assort_matrix=R_mf_i,
-                    pairing_log=pairing,
-                )
-            except ValueError as exc:
-                raise ValueError(f"Mating iteration {i}: {exc}") from exc
-        else:  # wright_fisher
-            parents, twins, household_ids = _mating_wf(rng, sex, N, generation=i)
-            pairing = [{"mode": "wright_fisher"}]
-        if mating_log is not None:
-            mating_log.extend({"iteration": i, "generation": i - burnin, **record} for record in pairing)
+        parents, twins, household_ids, pairing = mate(rng, sex, pheno, i)
+        mating_iterations.append(MatingIteration(i, i - burnin, pairing))
         t_mate = time.perf_counter()
         mendelian_scale = None
         if inbreeding is not None:
@@ -321,9 +288,8 @@ def run_simulation(
             mendelian_scale = np.sqrt(1.0 - (F_offspring[parents[:, 0]] + F_offspring[parents[:, 1]]) / 2)
             F_offspring = inbreeding.step(parents, twins)
         t_inbreeding = time.perf_counter()
-        generation_clips: list[dict[str, Any]] = []
         try:
-            pheno, sex = reproduce(
+            pheno, sex, generation_clips = reproduce(
                 rng,
                 pheno,
                 parents,
@@ -339,13 +305,11 @@ def run_simulation(
                 rC,
                 rE,
                 params.c_transmission,
-                generation_clips,
                 mendelian_scale,
             )
         except ValueError as exc:
             raise ValueError(f"Generation {i}: {exc}") from exc
-        if clip_log is not None:
-            clip_log.extend({"generation": i - burnin, **clip} for clip in generation_clips)
+        clips.extend(GenerationClip(i - burnin, clip) for clip in generation_clips)
         t_repro = time.perf_counter()
         if i >= burnin:
             n = len(sex)
@@ -387,6 +351,7 @@ def run_simulation(
         )
 
     pedigree = _arrays_to_dataframe(ped_arrays, ped_offset)
+    assert_schema(pedigree, PEDIGREE, where="simulation output")
     elapsed = time.perf_counter() - t0
     logger.info(
         "Simulation complete in %.1fs: pedigree has %d individuals",
@@ -394,7 +359,7 @@ def run_simulation(
         len(pedigree),
     )
 
-    return pedigree
+    return SimulationResult(pedigree, tuple(mating_iterations), tuple(clips))
 
 
 def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
@@ -483,9 +448,7 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
     c_transmission = CTransmission(
         maternal=(args.Ctm_maternal1, args.Ctm_maternal2), paternal=(args.Ctm_paternal1, args.Ctm_paternal2)
     )
-    clip_log: list[dict[str, Any]] | None = [] if c_transmission.active else None
-    mating_log: list[dict[str, Any]] = []
-    pedigree = run_simulation(
+    result = run_simulation(
         seed=args.seed,
         N=args.N,
         G_ped=args.G_ped,
@@ -511,14 +474,17 @@ def cli(argv: list[str] | None = None, prog: str | None = None) -> None:
         Ctm_paternal2=args.Ctm_paternal2,
         inbreeding_mode=args.inbreeding_mode,
         inbreeding_depth=args.inbreeding_depth,
-        clip_log=clip_log,
-        mating_log=mating_log,
     )
 
     inbreeding = None
     if args.inbreeding_mode != "off":
         inbreeding = resolve(args.inbreeding_mode, args.inbreeding_depth, args.N, args.G_sim or args.G_ped)
     with publish(args.output_pedigree) as (tmp,):
-        write_pedigree(pedigree, tmp, c_transmission_clips=clip_log, inbreeding=inbreeding)
+        write_pedigree(
+            result.pedigree,
+            tmp,
+            c_transmission_clips=[clip.to_dict() for clip in result.clips] if c_transmission.active else None,
+            inbreeding=inbreeding,
+        )
     if args.output_mating is not None:
-        write_mating_log(mating_log, args.output_mating)
+        write_mating_log([iteration.to_dict() for iteration in result.pairing], args.output_mating)

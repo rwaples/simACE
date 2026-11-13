@@ -2,6 +2,7 @@
 
 import logging
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -15,9 +16,13 @@ from simace.simulation.pairing_kernels import (
     _metropolis_single,
 )
 from simace.simulation.pedigree_buffers import _liability
+from simace.simulation.records import AssortativePairing, RandomPairing, WrightFisherPairing
 
 if TYPE_CHECKING:
     from typing import Any
+
+    from simace.simulation.assortment import AssortmentPlan
+    from simace.simulation.records import PairingRecord
 
 
 logger = logging.getLogger(__name__)
@@ -167,24 +172,11 @@ def _assortative_pair_partners(
     assort2: float,
     rho_w: float = 0.0,
     assort_matrix: np.ndarray | None = None,
-    pairing_log: list[dict[str, Any]] | None = None,
-) -> np.ndarray:
-    """Create mating pairs with assortative mating.
+) -> tuple[np.ndarray, AssortativePairing]:
+    """Create mating pairs with assortative mating, and the iteration's pairing record.
 
-    Single-trait case (one of assort1/assort2 zero): bivariate Gaussian copula
-    on the active trait, then, after dedup, Metropolis father swaps that never
-    create a duplicate couple until the trait's slot-level Pearson correlation
-    is within ``METROPOLIS_TOL`` of its target (ADR 0032; the copula alone
-    falls short, issue #74).
-
-    Both-nonzero case: 4-variate Gaussian copula on the mate correlation
-    structure of Border et al. (2022, Science). Each female's ideal mate is
-    drawn from the Gaussian conditional given her two standardized
-    liabilities, males are matched to those draws with ``_kd_match``, and
-    Metropolis greedy swaps remove the remaining sampling error in the four
-    Pearson correlations. Mate liabilities are jointly normal, so thresholded
-    mate concordance matches ``R_mf`` (issue #34: the previous moment
-    matching hit the Pearson targets with heavy joint tails).
+    With one of ``assort1``/``assort2`` zero, :func:`_pair_single_trait`;
+    with both nonzero, :func:`_pair_both_traits`.
 
     Args:
         rng: numpy random generator
@@ -200,14 +192,12 @@ def _assortative_pair_partners(
             ``assort_matrix`` is None
         assort_matrix: optional full 2x2 mate correlation matrix R_mf.
             When provided, overrides the auto-computed off-diagonals.
-        pairing_log: receives the pairing record: ``mode`` (``single`` or
-            ``both``), ``M``, ``proposals``, ``max_proposals``, the final
-            post-dedup slot-level ``errors`` (correlation minus target),
-            ``duplicates_left`` and ``converged``.
 
     Returns:
         ``(M, 2)`` array of ``[mother_idx, father_idx]``, in mother order,
-        with any repeated couple's rows adjacent.
+        with any repeated couple's rows adjacent, and the pairing record: the
+        Metropolis effort, the final post-dedup slot-level ``errors``
+        (correlation minus target) and ``duplicates_left``.
 
     Raises:
         ValueError: in the both-nonzero case with two or more slots, if a
@@ -215,188 +205,232 @@ def _assortative_pair_partners(
             sex (ADR 0024: use single-trait assortment), or if ``R_mf`` is
             infeasible for the realised within-sex trait correlations.
     """
-    # Imported here, not at module level: scipy.spatial costs ~160 ms to import
-    # and only assortative mating needs the tree.
-    from scipy.spatial import cKDTree  # ty: ignore[unresolved-import]  # real class; scipy stubs omit it
-
-    # 1. Expand slots
     female_slots = np.repeat(female_idxs, female_counts)
     male_slots = np.repeat(male_idxs, male_counts)
     M = len(female_slots)
     mode = "both" if assort1 != 0 and assort2 != 0 else "single"
     if M < 2:
         # Nothing to sort: zero or one possible pairing.
-        matings = np.column_stack([female_slots, male_slots])
-        if pairing_log is not None:
-            pairing_log.append(_pairing_record(mode, M, 0, 0, {}, 0))
-        return matings
+        return np.column_stack([female_slots, male_slots]), AssortativePairing(mode, M, 0, 0, {}, 0)
 
-    # 2. Compute liability per slot
-    liab1_f = _liability(pheno, 1, female_slots)
-    liab2_f = _liability(pheno, 2, female_slots)
-    liab1_m = _liability(pheno, 1, male_slots)
-    liab2_m = _liability(pheno, 2, male_slots)
-
+    liab_f = (_liability(pheno, 1, female_slots), _liability(pheno, 2, female_slots))
+    liab_m = (_liability(pheno, 1, male_slots), _liability(pheno, 2, male_slots))
     if mode == "both":
-        # --- Both traits nonzero: 4-variate Gaussian copula on R_mf ---
-        r1, r2 = assort1, assort2
-
-        # Build full R_mf with cross-trait off-diagonals
-        if assort_matrix is not None:
-            R_mf = np.asarray(assort_matrix, dtype=np.float64)
-        else:
-            R_mf = _cross_am_matrix(r1, r2, rho_w)
-        c_target = R_mf[0, 1]
-
-        fz = _standardized_traits(liab1_f, liab2_f, "female")
-        males_z = _standardized_traits(liab1_m, liab2_m, "male")
-
-        # Draw each female's ideal mate from the Gaussian conditional
-        # m | f ~ N(f R_ff^-1 R_mf, R_mm - R_mf' R_ff^-1 R_mf), then match
-        # males to those draws. R_ff and R_mm are the realised within-sex
-        # correlations, not rho_w: cross-trait AM moves the population's
-        # trait correlation away from the configured value, and a mismatch
-        # leaves the targets and the males with different distributions,
-        # which bends the joint tails. Whitening gives the k-d split
-        # independent axes.
-        R_ff = _realised_trait_corr(fz, "female")
-        R_mm = _realised_trait_corr(males_z, "male")
-        B = np.linalg.solve(R_ff, R_mf)
-        eigval, eigvec = np.linalg.eigh(R_mm - R_mf.T @ B)
-        if eigval[0] < -_CONDITIONAL_EIG_TOL:
-            raise ValueError(
-                f"Requested mate correlation matrix R_mf={np.round(R_mf, 4).tolist()} is not attainable with the "
-                f"realised within-sex trait correlations (female {R_ff[0, 1]:.4f}, male {R_mm[0, 1]:.4f}): "
-                f"the conditional covariance R_mm - R_mf' R_ff^-1 R_mf has eigenvalue {eigval[0]:.3g} < 0. "
-                f"Reduce the assortment or cross-trait mate correlations."
-            )
-        noise_factor = eigvec * np.sqrt(np.clip(eigval, 0.0, None))
-        target = fz @ B + rng.standard_normal((M, 2)) @ noise_factor.T
-        whiten = np.linalg.inv(np.linalg.cholesky(R_mm)).T
-        male_perm = _kd_match(target @ whiten, males_z @ whiten)
-
-        # Metropolis swaps remove the sampling error of the draw so the
-        # Pearson correlations land on R_mf.
-        mz = males_z[male_perm]
-
-        T1 = r1 * M
-        T2 = r2 * M
-        T12 = c_target * M
-        T21 = c_target * M
-        S1 = float(fz[:, 0] @ mz[:, 0])
-        S2 = float(fz[:, 1] @ mz[:, 1])
-        S12 = float(fz[:, 0] @ mz[:, 1])
-        S21 = float(fz[:, 1] @ mz[:, 0])
-
-        max_proposals = 8 * M
-        metro_seed = int(rng.integers(2**63))
-
-        S1, S2, S12, S21, proposals_done = _metropolis_full(
-            fz,
-            mz,
-            male_perm,
-            S1,
-            S2,
-            S12,
-            S21,
-            T1,
-            T2,
-            T12,
-            T21,
-            M,
-            METROPOLIS_TOL,
-            max_proposals,
-            metro_seed,
+        R_mf = (
+            np.asarray(assort_matrix, dtype=np.float64)
+            if assort_matrix is not None
+            else _cross_am_matrix(assort1, assort2, rho_w)
         )
-
-        logger.info(
-            "Metropolis: %d/%d proposals (%.1f%%), M=%d, err1=%.5f, err2=%.5f, err12=%.5f, err21=%.5f",
-            proposals_done,
-            max_proposals,
-            100.0 * proposals_done / max_proposals,
-            M,
-            abs(S1 / M - r1),
-            abs(S2 / M - r2),
-            abs(S12 / M - c_target),
-            abs(S21 / M - c_target),
+        matings, record = _pair_both_traits(
+            rng, female_slots, male_slots, liab_f, liab_m, pheno, assort1, assort2, R_mf
         )
-        matings = np.column_stack([female_slots, male_slots[male_perm]])
-
     else:
-        # --- Single-trait: bivariate Gaussian copula ---
-        rank1_f = _fast_rank(liab1_f)
-        rank2_f = _fast_rank(liab2_f)
-        rank1_m = _fast_rank(liab1_m)
-        rank2_m = _fast_rank(liab2_m)
+        matings, record = _pair_single_trait(rng, female_slots, male_slots, liab_f, liab_m, pheno, assort1, assort2)
+    if record.errors and not record.converged:
+        logger.warning(
+            "Assortative mating (%s) missed its target after %d proposals: %s", mode, record.proposals, record.errors
+        )
+    return (_family_order(matings) if record.duplicates_left else matings), record
 
-        if assort1 < 0:
-            rank1_m = 1.0 - rank1_m
-        if assort2 < 0:
-            rank2_m = 1.0 - rank2_m
 
-        score_f = abs(assort1) * rank1_f + abs(assort2) * rank2_f
-        score_m = abs(assort1) * rank1_m + abs(assort2) * rank2_m
+def _pair_both_traits(
+    rng: np.random.Generator,
+    female_slots: np.ndarray,
+    male_slots: np.ndarray,
+    liab_f: tuple[np.ndarray, np.ndarray],
+    liab_m: tuple[np.ndarray, np.ndarray],
+    pheno: np.ndarray,
+    r1: float,
+    r2: float,
+    R_mf: np.ndarray,
+) -> tuple[np.ndarray, AssortativePairing]:
+    """Pair on both traits: a 4-variate Gaussian copula on ``R_mf``, then Metropolis swaps and dedup.
 
-        order_f = np.argsort(score_f)
-        order_m = np.argsort(score_m)
-        male_sorted = male_slots[order_m]
+    The copula is the mate correlation structure of Border et al. (2022,
+    Science). Each female's ideal mate is drawn from the Gaussian conditional
+    given her two standardized liabilities, males are matched to those draws
+    with ``_kd_match``, and Metropolis greedy swaps remove the remaining
+    sampling error in the four Pearson correlations. Mate liabilities are
+    jointly normal, so thresholded mate concordance matches ``R_mf`` (issue
+    #34: the previous moment matching hit the Pearson targets with heavy joint
+    tails). ``r1`` and ``r2`` are the same-trait targets; ``R_mf``'s
+    off-diagonal is the cross-trait one.
 
-        r_eff = min(np.sqrt(assort1**2 + assort2**2), 1.0)
+    Returns the matings in female-slot (mother) order and the pairing record.
+    """
+    # Imported here, not at module level: scipy.spatial costs ~160 ms to import
+    # and only assortative mating needs the tree.
+    from scipy.spatial import cKDTree  # ty: ignore[unresolved-import]  # real class; scipy stubs omit it
 
-        cov = [[1.0, r_eff], [r_eff, 1.0]]
-        z = rng.multivariate_normal([0.0, 0.0], cov, size=M)
+    M = len(female_slots)
+    c_target = R_mf[0, 1]
 
-        rank_f = np.argsort(np.argsort(z[:, 0]))
-        rank_m = np.argsort(np.argsort(z[:, 1]))
+    fz = _standardized_traits(*liab_f, "female")
+    males_z = _standardized_traits(*liab_m, "male")
 
-        # Row k's mother is female slot slot_of_row[k]; dedup and the swaps move only fathers.
-        slot_of_row = order_f[rank_f]
-        matings = np.column_stack([female_slots[slot_of_row], male_sorted[rank_m]])
+    # Draw each female's ideal mate from the Gaussian conditional
+    # m | f ~ N(f R_ff^-1 R_mf, R_mm - R_mf' R_ff^-1 R_mf), then match
+    # males to those draws. R_ff and R_mm are the realised within-sex
+    # correlations, not rho_w: cross-trait AM moves the population's
+    # trait correlation away from the configured value, and a mismatch
+    # leaves the targets and the males with different distributions,
+    # which bends the joint tails. Whitening gives the k-d split
+    # independent axes.
+    R_ff = _realised_trait_corr(fz, "female")
+    R_mm = _realised_trait_corr(males_z, "male")
+    B = np.linalg.solve(R_ff, R_mf)
+    eigval, eigvec = np.linalg.eigh(R_mm - R_mf.T @ B)
+    if eigval[0] < -_CONDITIONAL_EIG_TOL:
+        raise ValueError(
+            f"Requested mate correlation matrix R_mf={np.round(R_mf, 4).tolist()} is not attainable with the "
+            f"realised within-sex trait correlations (female {R_ff[0, 1]:.4f}, male {R_mm[0, 1]:.4f}): "
+            f"the conditional covariance R_mm - R_mf' R_ff^-1 R_mf has eigenvalue {eigval[0]:.3g} < 0. "
+            f"Reduce the assortment or cross-trait mate correlations."
+        )
+    noise_factor = eigvec * np.sqrt(np.clip(eigval, 0.0, None))
+    target = fz @ B + rng.standard_normal((M, 2)) @ noise_factor.T
+    whiten = np.linalg.inv(np.linalg.cholesky(R_mm)).T
+    male_perm = _kd_match(target @ whiten, males_z @ whiten)
 
-    n_swaps, duplicates_left = _dedup_matings(matings, liab1_f, liab2_f, cKDTree)
+    # Metropolis swaps remove the sampling error of the draw so the
+    # Pearson correlations land on R_mf.
+    mz = males_z[male_perm]
 
-    if mode == "both":
-        proposals = proposals_done
-        targets = {"r1": (0, 0, r1), "r2": (1, 1, r2), "r12": (0, 1, c_target), "r21": (1, 0, c_target)}
-        if n_swaps == 0:
-            # No dedup swap: the Metropolis sums are the final slot-level correlations.
-            sums = {"r1": S1, "r2": S2, "r12": S12, "r21": S21}
-            errors = {name: sums[name] / M - r for name, (_, _, r) in targets.items()}
-        else:
-            errors = _slot_errors(pheno, matings, targets)
-    else:
-        # The copula's correlation is random around the target and dedup moves it
-        # further (issue #74); swaps that never create a duplicate couple pin it.
-        t = 0 if assort1 != 0 else 1
-        target_r = assort1 if assort1 != 0 else assort2
-        max_proposals = 8 * M
-        female_liab = liab1_f if t == 0 else liab2_f
-        refined = _refine_single_trait(rng, pheno, matings, slot_of_row, female_liab, t, target_r, max_proposals)
-        # A constant active trait has no correlation to pin: no refinement and no errors.
-        proposals, errors = (0, {}) if refined is None else (refined[0], {f"r{t + 1}": refined[1] / M - target_r})
-        if duplicates_left:  # the swaps never add a duplicate couple, but they can remove one
-            duplicates_left = int(_find_duplicate_pairs(matings).sum())
+    T1 = r1 * M
+    T2 = r2 * M
+    T12 = c_target * M
+    T21 = c_target * M
+    S1 = float(fz[:, 0] @ mz[:, 0])
+    S2 = float(fz[:, 1] @ mz[:, 1])
+    S12 = float(fz[:, 0] @ mz[:, 1])
+    S21 = float(fz[:, 1] @ mz[:, 0])
 
-    record = _pairing_record(
-        mode, M, proposals, max_proposals, {k: float(v) for k, v in errors.items()}, duplicates_left
+    max_proposals = 8 * M
+    metro_seed = int(rng.integers(2**63))
+
+    S1, S2, S12, S21, proposals = _metropolis_full(
+        fz,
+        mz,
+        male_perm,
+        S1,
+        S2,
+        S12,
+        S21,
+        T1,
+        T2,
+        T12,
+        T21,
+        M,
+        METROPOLIS_TOL,
+        max_proposals,
+        metro_seed,
     )
-    if not errors:
+
+    logger.info(
+        "Metropolis: %d/%d proposals (%.1f%%), M=%d, err1=%.5f, err2=%.5f, err12=%.5f, err21=%.5f",
+        proposals,
+        max_proposals,
+        100.0 * proposals / max_proposals,
+        M,
+        abs(S1 / M - r1),
+        abs(S2 / M - r2),
+        abs(S12 / M - c_target),
+        abs(S21 / M - c_target),
+    )
+    matings = np.column_stack([female_slots, male_slots[male_perm]])
+
+    n_swaps, duplicates_left = _dedup_matings(matings, *liab_f, cKDTree)
+
+    targets = {"r1": (0, 0, r1), "r2": (1, 1, r2), "r12": (0, 1, c_target), "r21": (1, 0, c_target)}
+    if n_swaps == 0:
+        # No dedup swap: the Metropolis sums are the final slot-level correlations.
+        sums = {"r1": S1, "r2": S2, "r12": S12, "r21": S21}
+        errors = {name: sums[name] / M - r for name, (_, _, r) in targets.items()}
+    else:
+        errors = _slot_errors(pheno, matings, targets)
+    record = AssortativePairing(
+        "both", M, int(proposals), max_proposals, {k: float(v) for k, v in errors.items()}, int(duplicates_left)
+    )
+    return matings, record
+
+
+def _pair_single_trait(
+    rng: np.random.Generator,
+    female_slots: np.ndarray,
+    male_slots: np.ndarray,
+    liab_f: tuple[np.ndarray, np.ndarray],
+    liab_m: tuple[np.ndarray, np.ndarray],
+    pheno: np.ndarray,
+    assort1: float,
+    assort2: float,
+) -> tuple[np.ndarray, AssortativePairing]:
+    """Pair on the one active trait: a bivariate Gaussian copula, dedup, then Metropolis father swaps.
+
+    The swaps never create a duplicate couple and stop once the trait's
+    slot-level Pearson correlation is within ``METROPOLIS_TOL`` of its target
+    (ADR 0032; the copula alone falls short, issue #74).
+
+    Returns the matings in female-slot (mother) order and the pairing record.
+    """
+    from scipy.spatial import cKDTree  # ty: ignore[unresolved-import]  # real class; scipy stubs omit it
+
+    M = len(female_slots)
+    liab1_f, liab2_f = liab_f
+    liab1_m, liab2_m = liab_m
+    rank1_f = _fast_rank(liab1_f)
+    rank2_f = _fast_rank(liab2_f)
+    rank1_m = _fast_rank(liab1_m)
+    rank2_m = _fast_rank(liab2_m)
+
+    if assort1 < 0:
+        rank1_m = 1.0 - rank1_m
+    if assort2 < 0:
+        rank2_m = 1.0 - rank2_m
+
+    score_f = abs(assort1) * rank1_f + abs(assort2) * rank2_f
+    score_m = abs(assort1) * rank1_m + abs(assort2) * rank2_m
+
+    order_f = np.argsort(score_f)
+    order_m = np.argsort(score_m)
+    male_sorted = male_slots[order_m]
+
+    r_eff = min(np.sqrt(assort1**2 + assort2**2), 1.0)
+
+    cov = [[1.0, r_eff], [r_eff, 1.0]]
+    z = rng.multivariate_normal([0.0, 0.0], cov, size=M)
+
+    rank_f = np.argsort(np.argsort(z[:, 0]))
+    rank_m = np.argsort(np.argsort(z[:, 1]))
+
+    # Row k's mother is female slot slot_of_row[k]; dedup and the swaps move only fathers.
+    slot_of_row = order_f[rank_f]
+    matings = np.column_stack([female_slots[slot_of_row], male_sorted[rank_m]])
+
+    _, duplicates_left = _dedup_matings(matings, liab1_f, liab2_f, cKDTree)
+
+    # The copula's correlation is random around the target and dedup moves it
+    # further (issue #74); swaps that never create a duplicate couple pin it.
+    t = 0 if assort1 != 0 else 1
+    target_r = assort1 if assort1 != 0 else assort2
+    max_proposals = 8 * M
+    female_liab = liab1_f if t == 0 else liab2_f
+    refined = _refine_single_trait(rng, pheno, matings, slot_of_row, female_liab, t, target_r, max_proposals)
+    if refined is None:
+        # A constant active trait has no correlation to pin: no refinement and no errors.
         logger.warning(
             "Assortative mating (single): trait %d's liability is constant across mating slots; nothing was pinned",
             t + 1,
         )
-    elif not record["converged"]:
-        logger.warning(
-            "Assortative mating (%s) missed its target after %d proposals: %s", mode, proposals, record["errors"]
-        )
-    if pairing_log is not None:
-        pairing_log.append(record)
-    if mode == "single":
-        # Back to female-slot order, i.e. mother order (row k holds slot slot_of_row[k])
-        in_slot_order = np.empty_like(matings)
-        in_slot_order[slot_of_row] = matings
-        matings = in_slot_order
-    return _family_order(matings) if record["duplicates_left"] else matings
+        proposals, errors = 0, {}
+    else:
+        proposals, errors = refined[0], {f"r{t + 1}": float(refined[1] / M - target_r)}
+    if duplicates_left:  # the swaps never add a duplicate couple, but they can remove one
+        duplicates_left = int(_find_duplicate_pairs(matings).sum())
+
+    # Back to female-slot order, i.e. mother order (row k holds slot slot_of_row[k])
+    in_slot_order = np.empty_like(matings)
+    in_slot_order[slot_of_row] = matings
+    return in_slot_order, AssortativePairing("single", M, int(proposals), max_proposals, errors, int(duplicates_left))
 
 
 def _refine_single_trait(
@@ -440,25 +474,6 @@ def _refine_single_trait(
     )
     matings[:, 1] = fathers
     return int(proposals), float(S)
-
-
-def _pairing_record(
-    mode: str, M: int, proposals: int, max_proposals: int, errors: dict[str, float], duplicates_left: int
-) -> dict[str, Any]:
-    """One assortative iteration's pairing record (``run_simulation``'s ``mating_log``).
-
-    ``converged`` needs at least one error, so a record with nothing pinned
-    (M < 2, or a constant active trait) does not read as converged.
-    """
-    return {
-        "mode": mode,
-        "M": int(M),
-        "proposals": int(proposals),
-        "max_proposals": int(max_proposals),
-        "errors": errors,
-        "duplicates_left": int(duplicates_left),
-        "converged": bool(errors) and all(abs(e) < METROPOLIS_TOL for e in errors.values()),
-    }
 
 
 def _zscore(x: np.ndarray) -> np.ndarray:
@@ -563,8 +578,7 @@ def _mating_standard(
     assort2: float = 0.0,
     rho_w: float = 0.0,
     assort_matrix: np.ndarray | None = None,
-    pairing_log: list[dict[str, Any]] | None = None,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, RandomPairing | AssortativePairing]:
     """Generate parent-offspring pairings via a modular mating pipeline.
 
     1. Separate males/females and draw ZTP(mating_lambda) mating counts.
@@ -586,15 +600,12 @@ def _mating_standard(
         rho_w: within-person cross-trait liability correlation, used to
             derive off-diagonal entries of the mate correlation matrix
         assort_matrix: optional full 2x2 mate correlation matrix R_mf
-        pairing_log: receives this iteration's pairing record (``mode``
-            ``"random"``, ``"single"`` or ``"both"``; for assortment also
-            the final slot-level errors and whether they are within
-            ``METROPOLIS_TOL``)
 
     Returns:
         parent_idxs: (N, 2) array of [mother_idx, father_idx] for each offspring
         twins: (m, 2) array of [twin1_idx, twin2_idx] pairs for MZ twins
         household_ids: (N,) array mapping each offspring to a household index
+        pairing: this iteration's pairing record
 
     Raises:
         ValueError: if assort is nonzero but pheno is None
@@ -622,7 +633,7 @@ def _mating_standard(
     # a lexsort here cost 8-14% of an assortative mating call (issue #78).
     if assort1 != 0 or assort2 != 0:
         assert pheno is not None  # required whenever assortment is active (see docstring)
-        matings = _assortative_pair_partners(
+        matings, pairing = _assortative_pair_partners(
             rng,
             male_idxs,
             male_counts,
@@ -633,12 +644,10 @@ def _mating_standard(
             assort2,
             rho_w=rho_w,
             assort_matrix=assort_matrix,
-            pairing_log=pairing_log,
         )
     else:
         matings = pair_partners(rng, male_idxs, male_counts, female_idxs, female_counts)
-        if pairing_log is not None:
-            pairing_log.append({"mode": "random", "M": len(matings)})
+        pairing = RandomPairing(len(matings))
     M = len(matings)
 
     # 4. Allocate offspring as births, some of them MZ twin births
@@ -651,7 +660,7 @@ def _mating_standard(
     # Household: all offspring of the same mother share a household
     _, household_ids = np.unique(parent_idxs[:, 0], return_inverse=True)
 
-    return parent_idxs, twins, household_ids
+    return parent_idxs, twins, household_ids, pairing
 
 
 def _mating_wf(
@@ -700,3 +709,46 @@ def _mating_wf(
     _, household_ids = np.unique(mother_idx, return_inverse=True)
 
     return parent_idxs, twins, household_ids
+
+
+@dataclass(frozen=True)
+class StandardMating:
+    """The standard mating model: ZTP mating counts, assortment per ``plan``, MZ twins."""
+
+    mating_lambda: float
+    p_mztwin: float
+    plan: AssortmentPlan
+
+    def __call__(
+        self, rng: np.random.Generator, sex: np.ndarray, pheno: np.ndarray, iteration: int
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, PairingRecord]:
+        """Mate one generation's parents: ``(parent_idxs, twins, household_ids, pairing)``."""
+        a1, a2, rho_w, R_mf = self.plan.for_generation(iteration)
+        try:
+            return _mating_standard(
+                rng,
+                sex,
+                self.mating_lambda,
+                self.p_mztwin,
+                pheno=pheno,
+                assort1=a1,
+                assort2=a2,
+                rho_w=rho_w,
+                assort_matrix=R_mf,
+            )
+        except ValueError as exc:
+            raise ValueError(f"Mating iteration {iteration}: {exc}") from exc
+
+
+@dataclass(frozen=True)
+class WrightFisherMating:
+    """Idealized Wright-Fisher mating of ``N`` offspring per generation (:func:`_mating_wf`)."""
+
+    N: int
+
+    def __call__(
+        self, rng: np.random.Generator, sex: np.ndarray, pheno: np.ndarray, iteration: int
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, PairingRecord]:
+        """Mate one generation's parents: ``(parent_idxs, twins, household_ids, pairing)``."""
+        parents, twins, household_ids = _mating_wf(rng, sex, self.N, generation=iteration)
+        return parents, twins, household_ids, WrightFisherPairing()

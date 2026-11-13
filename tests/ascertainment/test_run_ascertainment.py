@@ -32,7 +32,7 @@ def small_sim_pedigree():
         rC=0.5,
         assort1=0.0,
         assort2=0.0,
-    )
+    ).pedigree
 
 
 def _make_trait(pedigree: pl.DataFrame, g_pheno: int, case_rate: float, seed: int) -> pl.DataFrame:

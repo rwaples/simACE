@@ -52,7 +52,7 @@ _DEFAULT_PARAMS = dict(
 
 @pytest.fixture(scope="module")
 def val_pedigree():
-    return run_simulation(**_DEFAULT_PARAMS)
+    return run_simulation(**_DEFAULT_PARAMS).pedigree
 
 
 @pytest.fixture(scope="module")
@@ -169,7 +169,7 @@ class TestValidateTwins:
             rC=0.0,
             rE=0.0,
             mating_model="wright_fisher",
-        )
+        ).pedigree
         result = validate_twins(wf_ped, wf_params, PedigreeArrays.from_frame(wf_ped))
         assert result["twin_rate"]["passed"] is True
         assert result["twin_rate"]["expected_rate"] == 0.0
@@ -601,7 +601,7 @@ class TestValidateAssortativeMating:
             "assort1": 0.8,
             "assort2": 0.8,
         }
-        result = build_quality_report(run_simulation(**params), params)["assortative_mating"]
+        result = build_quality_report(run_simulation(**params).pedigree, params)["assortative_mating"]
         _assert_information(result)
         for key in ("mate_corr_cross_12", "mate_corr_cross_21"):
             assert result[key]["expected"] == pytest.approx(0.8 * 0.6 * 0.8)
@@ -684,7 +684,7 @@ def _assert_informational(result: dict) -> None:
 
 @pytest.fixture(scope="module")
 def founders_only_pedigree():
-    return run_simulation(**_FOUNDERS_ONLY_PARAMS)
+    return run_simulation(**_FOUNDERS_ONLY_PARAMS).pedigree
 
 
 @pytest.fixture(scope="module")
@@ -706,7 +706,7 @@ class TestNothingToTestIsInformational:
 
     def test_twin_rate_without_non_founders_is_informational(self):
         params = {**_FOUNDERS_ONLY_PARAMS, "p_mztwin": 0.05}
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         assert (ped["twin"] != -1).any(), "fixture sanity: founders must contain twins"
         _assert_informational(validate_twins(ped, params, PedigreeArrays.from_frame(ped))["twin_rate"])
 
@@ -752,7 +752,7 @@ class TestValidateNegativePaths:
 
     @staticmethod
     def _tiny_pedigree():
-        return run_simulation(**TestValidateNegativePaths._tiny_params())
+        return run_simulation(**TestValidateNegativePaths._tiny_params()).pedigree
 
     def test_non_contiguous_ids_fails_id_integrity(self):
         ped = self._tiny_pedigree()

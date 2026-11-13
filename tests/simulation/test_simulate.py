@@ -274,7 +274,7 @@ class TestPlaceTwins:
 class TestMating:
     def test_output_shapes(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
-        parents, twins, household_ids = _mating_standard(rng, sex, 0.5, 0.02)
+        parents, twins, household_ids, _ = _mating_standard(rng, sex, 0.5, 0.02)
         assert parents.shape == (1000, 2)
         assert household_ids.shape == (1000,)
         assert twins.ndim == 2
@@ -283,14 +283,16 @@ class TestMating:
 
     def test_no_twins_when_p_zero(self, rng):
         sex = rng.binomial(n=1, p=0.5, size=1000)
-        _, twins, _ = _mating_standard(rng, sex, 0.5, 0.0)
+        _, twins, _, _ = _mating_standard(rng, sex, 0.5, 0.0)
         assert len(twins) == 0
 
     @pytest.mark.parametrize(("assort1", "assort2"), [(0.0, 0.0), (0.4, 0.0), (0.4, 0.3)])
     def test_children_are_grouped_by_couple_in_mother_order(self, rng, assort1, assort2):
         sex = rng.binomial(n=1, p=0.5, size=4000)
         pheno = rng.standard_normal((4000, 6))
-        parents, _, _ = _mating_standard(rng, sex, 0.5, 0.02, pheno=pheno, assort1=assort1, assort2=assort2, rho_w=0.1)
+        parents, _, _, _ = _mating_standard(
+            rng, sex, 0.5, 0.02, pheno=pheno, assort1=assort1, assort2=assort2, rho_w=0.1
+        )
         assert np.all(np.diff(parents[:, 0]) >= 0)
         new_couple = np.r_[True, np.any(parents[1:] != parents[:-1], axis=1)]
         assert new_couple.sum() == len(np.unique(parents, axis=0))
@@ -298,7 +300,7 @@ class TestMating:
     def test_twins_are_consecutive_births_anywhere_in_the_family(self, rng):
         """Issue #78: a couple's MZ pair need not be its first two children, and it can have several."""
         sex = rng.binomial(n=1, p=0.5, size=4000)
-        parents, twins, _ = _mating_standard(rng, sex, 1.5, 0.5)
+        parents, twins, _, _ = _mating_standard(rng, sex, 1.5, 0.5)
         assert np.all(twins[:, 1] == twins[:, 0] + 1)
         assert np.all(parents[twins[:, 0]] == parents[twins[:, 1]])
         assert len(np.unique(twins)) == twins.size
@@ -373,15 +375,15 @@ class TestReproduce:
 
 class TestRunSimulation:
     def test_deterministic_with_same_seed(self, default_params):
-        ped1 = run_simulation(**default_params)
-        ped2 = run_simulation(**default_params)
+        ped1 = run_simulation(**default_params).pedigree
+        ped2 = run_simulation(**default_params).pedigree
         assert_frame_equal(ped1, ped2)
 
     def test_different_seeds_differ(self, default_params):
         p1 = {**default_params, "seed": 1}
         p2 = {**default_params, "seed": 2}
-        ped1 = run_simulation(**p1)
-        ped2 = run_simulation(**p2)
+        ped1 = run_simulation(**p1).pedigree
+        ped2 = run_simulation(**p2).pedigree
         assert not ped1["A1"].equals(ped2["A1"])
 
     # --- Validation error tests ---
@@ -499,12 +501,12 @@ class TestAssortativePairPartners:
 
     def test_shape(self, rng):
         mi, mc, fi, fc, pheno = self._make_pop(rng)
-        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.0, rho_w=0.0)
+        pairs, _ = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.3, 0.0, rho_w=0.0)
         assert pairs.shape == (mc.sum(), 2)
 
     def test_positive_correlation(self, rng):
         mi, mc, fi, fc, pheno = self._make_pop(rng, 5000)
-        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.5, 0.0, rho_w=0.0)
+        pairs, _ = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.5, 0.0, rho_w=0.0)
         liab1_m = pheno[pairs[:, 0], :3].sum(axis=1)
         liab1_f = pheno[pairs[:, 1], :3].sum(axis=1)
         corr = np.corrcoef(liab1_m, liab1_f)[0, 1]
@@ -512,7 +514,7 @@ class TestAssortativePairPartners:
 
     def test_negative_correlation(self, rng):
         mi, mc, fi, fc, pheno = self._make_pop(rng, 5000)
-        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, -0.5, 0.0, rho_w=0.0)
+        pairs, _ = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, -0.5, 0.0, rho_w=0.0)
         liab1_m = pheno[pairs[:, 0], :3].sum(axis=1)
         liab1_f = pheno[pairs[:, 1], :3].sum(axis=1)
         corr = np.corrcoef(liab1_m, liab1_f)[0, 1]
@@ -520,7 +522,7 @@ class TestAssortativePairPartners:
 
     def test_negative_trait2_single_trait_branch(self, rng):
         mi, mc, fi, fc, pheno = self._make_pop(rng, 2000)
-        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.0, -0.5, rho_w=0.0)
+        pairs, _ = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.0, -0.5, rho_w=0.0)
         assert pairs.shape == (mc.sum(), 2)
 
     def test_dedup_breaks_when_no_non_duplicates(self, rng, monkeypatch):
@@ -530,12 +532,12 @@ class TestAssortativePairPartners:
         female_idxs = np.array([2, 3])
         counts = np.ones(2, dtype=int)
         pheno = rng.standard_normal((4, 6))
-        pairs = _assortative_pair_partners(rng, male_idxs, counts, female_idxs, counts, pheno, 0.3, 0.0)
+        pairs, _ = _assortative_pair_partners(rng, male_idxs, counts, female_idxs, counts, pheno, 0.3, 0.0)
         assert pairs.shape == (2, 2)
 
     def test_both_traits_positive(self, rng):
         mi, mc, fi, fc, pheno = self._make_pop(rng, 10000)
-        pairs = _assortative_pair_partners(
+        pairs, _ = _assortative_pair_partners(
             rng,
             mi,
             mc,
@@ -557,7 +559,7 @@ class TestAssortativePairPartners:
 
     def test_mixed_sign(self, rng):
         mi, mc, fi, fc, pheno = self._make_pop(rng, 10000)
-        pairs = _assortative_pair_partners(
+        pairs, _ = _assortative_pair_partners(
             rng,
             mi,
             mc,
@@ -580,7 +582,7 @@ class TestAssortativePairPartners:
     def test_cross_trait_symmetric(self, rng):
         """Cross-trait mate correlations should be approximately symmetric."""
         mi, mc, fi, fc, pheno = self._make_pop(rng, 20000)
-        pairs = _assortative_pair_partners(
+        pairs, _ = _assortative_pair_partners(
             rng,
             mi,
             mc,
@@ -604,7 +606,7 @@ class TestAssortativePairPartners:
         """M=0 used to divide by zero and M=1 to loop forever; neither has anything to sort."""
         pheno = rng.standard_normal((2 * m, 6))
         ones = np.ones(m, dtype=int)
-        pairs = _assortative_pair_partners(
+        pairs, _ = _assortative_pair_partners(
             rng, np.arange(m), ones, np.arange(m, 2 * m), ones, pheno, 0.3, 0.3, rho_w=0.5
         )
         assert pairs.shape == (m, 2)
@@ -655,7 +657,7 @@ class TestAssortativePairPartners:
             with pytest.raises(ValueError, match="collinear"):
                 call()
         else:
-            assert call().shape == (2000, 2)
+            assert call()[0].shape == (2000, 2)
 
     def test_both_traits_infeasible_realised_correlation_raises(self):
         """Configured rho_w 0.25 admits R_mf below; realised within-sex rho 0.33 does not."""
@@ -677,7 +679,7 @@ class TestAssortativePairPartners:
         mi, ones, fi, pheno = _exact_two_trait_pop(rng, 2000, R_ff, R_mm)
         call = partial(_assortative_pair_partners, rng, mi, ones, fi, ones, pheno, 0.6, 0.2, assort_matrix=R_mf)
         if female_rho == male_rho == 0.0:
-            assert call().shape == (2000, 2)
+            assert call()[0].shape == (2000, 2)
         else:
             with pytest.raises(
                 ValueError, match=rf"female -?{female_rho:.4f}, male -?{male_rho:.4f}\): .* eigenvalue -0\.0"
@@ -698,7 +700,7 @@ class TestAssortativePairPartners:
             with pytest.raises(ValueError, match=r"eigenvalue -1e-07 < 0"):
                 call()
         else:
-            assert call().shape == (2000, 2)
+            assert call()[0].shape == (2000, 2)
 
     def test_both_traits_correlated_population_hits_all_four_targets(self):
         """Seeded feasible case with correlated traits: every R_mf entry is realised."""
@@ -706,7 +708,7 @@ class TestAssortativePairPartners:
         R = [[1.0, 0.5], [0.5, 1.0]]
         R_mf = np.array([[0.4, 0.2], [0.2, 0.3]])
         mi, ones, fi, pheno = _exact_two_trait_pop(rng, 20_000, R, R)
-        pairs = _assortative_pair_partners(rng, mi, ones, fi, ones, pheno, 0.4, 0.3, assort_matrix=R_mf)
+        pairs, _ = _assortative_pair_partners(rng, mi, ones, fi, ones, pheno, 0.4, 0.3, assort_matrix=R_mf)
         f = stats.zscore(pheno[pairs[:, 0]][:, [0, 3]])
         m = stats.zscore(pheno[pairs[:, 1]][:, [0, 3]])
         np.testing.assert_allclose(f.T @ m / len(pairs), R_mf, atol=0.01)
@@ -718,7 +720,7 @@ class TestAssortativePairPartners:
         in the joint K=0.1 tail of trait 1; the copula draw sits at 1.00 (SD ~0.02).
         """
         mi, mc, fi, fc, pheno = self._make_pop(rng, 200_000)
-        pairs = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.4, 0.3, rho_w=0.0)
+        pairs, _ = _assortative_pair_partners(rng, mi, mc, fi, fc, pheno, 0.4, 0.3, rho_w=0.0)
         t = stats.norm.ppf(0.9)
         for cols in (slice(0, 3), slice(3, 6)):
             f = stats.zscore(pheno[pairs[:, 0], cols].sum(axis=1))
@@ -803,7 +805,7 @@ class TestPerGenerationVariance:
             rA=0.0,
             rC=0.0,
         )
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
 
         for gen_idx, expected_E1 in [(0, 0.2), (1, 0.5), (2, 1.0)]:
             gen = ped.filter(pl.col("generation") == gen_idx)
@@ -839,7 +841,7 @@ class TestCrossTraitRE:
             rC=0.0,
             rE=0.5,
         )
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         founders = ped.filter(pl.col("generation") == 0)
         corr = np.corrcoef(founders["E1"].to_numpy(), founders["E2"].to_numpy())[0, 1]
         assert abs(corr - 0.5) < 0.1, f"Expected rE ≈ 0.5, got {corr:.3f}"
@@ -863,7 +865,7 @@ class TestCrossTraitRE:
             rC=0.0,
             rE=0.8,
         )
-        ped = run_simulation(**params)
+        ped = run_simulation(**params).pedigree
         non_founders = ped.filter(pl.col("mother") != -1)
         # Siblings should NOT share E values (E is unique per person)
         per_mother = non_founders.group_by("mother").agg(
@@ -933,7 +935,7 @@ class TestRunSimulationWF:
         return base
 
     def test_C_still_works_under_wf(self):
-        ped = run_simulation(**self._wf_params(C1=0.2, E1=0.3))
+        ped = run_simulation(**self._wf_params(C1=0.2, E1=0.3)).pedigree
         # Household-grouped C: variance across households should be ≈ 0.2; total variance > 0.
         assert ped["C1"].var() > 0.05
         # Within a household, C is a single value.
@@ -949,14 +951,14 @@ class TestRunSimulationWF:
         """Omitting ``mating_model`` runs the standard model, not Wright-Fisher."""
         params = {**self._wf_params(N=200)}
         del params["mating_model"]
-        omitted = run_simulation(**params)
-        assert_frame_equal(omitted, run_simulation(**params, mating_model="standard"))
-        assert not omitted.equals(run_simulation(**params, mating_model="wright_fisher"))
+        omitted = run_simulation(**params).pedigree
+        assert_frame_equal(omitted, run_simulation(**params, mating_model="standard").pedigree)
+        assert not omitted.equals(run_simulation(**params, mating_model="wright_fisher").pedigree)
 
     def test_output_independent_of_mating_lambda(self):
         """Under WF, mating_lambda is a no-op — changing it must not change output."""
-        ped_a = run_simulation(**self._wf_params(mating_lambda=0.5))
-        ped_b = run_simulation(**self._wf_params(mating_lambda=10.0))
+        ped_a = run_simulation(**self._wf_params(mating_lambda=0.5)).pedigree
+        ped_b = run_simulation(**self._wf_params(mating_lambda=10.0)).pedigree
         assert_frame_equal(ped_a, ped_b)
 
 
@@ -977,7 +979,7 @@ class TestAssortMatrixValidation:
 
     def test_happy_path(self, default_params):
         """Valid assort_matrix runs end-to-end."""
-        ped = run_simulation(**{**default_params, "assort_matrix": [[0.2, 0.05], [0.05, 0.15]]})
+        ped = run_simulation(**{**default_params, "assort_matrix": [[0.2, 0.05], [0.05, 0.15]]}).pedigree
         assert len(ped) == default_params["N"] * default_params["G_ped"]
         assert "twin" in ped.columns
 
@@ -1056,7 +1058,7 @@ class TestSimulateCLI:
             E1={0: 0.3, 1: 0.4},
             E2=0.3,
             assort_matrix=[[0.2, 0.05], [0.05, 0.15]],
-        )
+        ).pedigree
         expected_path = tmp_path / "expected.parquet"
         save_parquet(expected, expected_path)
         assert_frame_equal(pl.read_parquet(out_pedigree), pl.read_parquet(expected_path))

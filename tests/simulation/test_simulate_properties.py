@@ -30,7 +30,7 @@ from hypothesis import HealthCheck, assume, event, given
 from hypothesis import strategies as st
 from polars.testing import assert_frame_equal
 
-from simace.simulation import simulate
+from simace.simulation import mating
 from simace.simulation.mating import _mating_standard, _mating_wf
 from simace.simulation.params import CTransmission
 from simace.simulation.reproduce import generate_correlated_components
@@ -92,7 +92,7 @@ def _run_with_extinction_check(**kwargs) -> pl.DataFrame | _VerifiedExtinction:
     fails the test rather than becoming an excluded Hypothesis example.
     """
     name = "_mating_standard" if kwargs["mating_model"] == "standard" else "_mating_wf"
-    original = getattr(simulate, name)
+    original = getattr(mating, name)
     iteration = 0
 
     def checked(rng, parental_sex, *args, **kw):
@@ -107,9 +107,9 @@ def _run_with_extinction_check(**kwargs) -> pl.DataFrame | _VerifiedExtinction:
         iteration += 1
         return original(rng, parental_sex, *args, **kw)
 
-    with patch.object(simulate, name, checked):
+    with patch.object(mating, name, checked):
         try:
-            return run_simulation(**kwargs)
+            return run_simulation(**kwargs).pedigree
         except _VerifiedExtinction as extinction:
             return extinction
 
@@ -118,7 +118,7 @@ def _mate(mating_model, rng, sex, mating_lambda, p_mztwin):
     """One generation's mating under ``mating_model``, as ``run_simulation`` dispatches it."""
     if mating_model == "wright_fisher":
         return _mating_wf(rng, sex, len(sex), generation=0)
-    return _mating_standard(rng, sex, mating_lambda, p_mztwin)
+    return _mating_standard(rng, sex, mating_lambda, p_mztwin)[:3]
 
 
 @pytest.mark.parametrize("mating_model", _MATING_MODELS)
@@ -347,7 +347,7 @@ def test_run_simulation_twin_links_example():
         rC=1.0,
         rE=0.0,
     )
-    ped = run_simulation(**kw)
+    ped = run_simulation(**kw).pedigree
     twin_generations = ped.filter(pl.col("twin") >= 0)["generation"].unique().sort().to_list()
     assert twin_generations == [0, 1, 2]
     _check_recorded_pedigree(ped, kw)

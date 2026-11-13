@@ -89,13 +89,13 @@ _ZERO_C_TRANSMISSION = {f"Ctm_{side}{t}": 0.0 for side in ("maternal", "paternal
 
 @pytest.mark.parametrize("config_name", ["wf", "standard_no_am", "standard_single_am"])
 def test_zero_c_transmission_reproduces_the_golden_output(config_name):
-    df = run_simulation(**_CONFIGS[config_name], **_ZERO_C_TRANSMISSION)
+    df = run_simulation(**_CONFIGS[config_name], **_ZERO_C_TRANSMISSION).pedigree
     assert _digest(df) == _GOLDEN[config_name]
 
 
 @pytest.mark.parametrize("config_name", list(_CONFIGS))
 def test_run_simulation_golden(config_name):
-    df = run_simulation(**_CONFIGS[config_name])
+    df = run_simulation(**_CONFIGS[config_name]).pedigree
     assert _digest(df) == _GOLDEN[config_name], (
         f"{config_name}: simulation output changed. If intended, regenerate the "
         f"_GOLDEN digest; otherwise the refactor altered behavior."

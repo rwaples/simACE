@@ -158,7 +158,7 @@ def test_compute_onset_tau_survives_a_large_sex_effect():
     ped = run_simulation(
         seed=3, N=200, G_ped=3, mating_lambda=0.5, p_mztwin=0.02, A1=0.5, C1=0.2, E1=0.3,
         A2=0.4, C2=0.2, E2=0.4, rA=0.3, rC=0.5,
-    )  # fmt: skip
+    ).pedigree  # fmt: skip
     phenotype = {**_PHENOTYPE, "beta_sex1": 40.0}
     result = ot.compute_onset_tau(run_phenotype(ped, seed=5, **phenotype), ped, phenotype, seed=5)
     for cell in result["cells"]["trait1"].values():
@@ -329,7 +329,7 @@ def test_clustered_se_matches_the_spread_over_onset_redraws(mode):
     ped = run_simulation(
         seed=11, N=700, G_ped=3, mating_lambda=0.5, p_mztwin=0.02, A1=0.5, C1=0.2, E1=0.3,
         A2=0.4, C2=0.2, E2=0.4, rA=0.3, rC=0.5,
-    )  # fmt: skip
+    ).pedigree  # fmt: skip
     L, sex, gen = ped["liability1"].to_numpy(), ped["sex"].to_numpy().astype(float), ped["generation"].to_numpy()
     mean, scaled = standardize_beta(L, 1.2, mode, gen)
     eta = scaled * (L - mean) + 0.5 * sex
@@ -413,7 +413,7 @@ def simulated():
     ped = run_simulation(
         seed=21, N=400, G_ped=3, mating_lambda=0.5, p_mztwin=0.02, A1=0.5, C1=0.2, E1=0.3,
         A2=0.4, C2=0.2, E2=0.4, rA=0.3, rC=0.5,
-    )  # fmt: skip
+    ).pedigree  # fmt: skip
     raw = run_phenotype(ped, seed=5, **_PHENOTYPE)
     return ped, raw
 
@@ -503,7 +503,7 @@ def family():
     ped = run_simulation(
         seed=31, N=600, G_ped=4, mating_lambda=1.5, p_mztwin=0.05, A1=0.5, C1=0.2, E1=0.3,
         A2=0.4, C2=0.2, E2=0.4, rA=0.3, rC=0.5,
-    )  # fmt: skip
+    ).pedigree  # fmt: skip
     return ped.filter(pl.col("generation") >= 1).select("id", "mother", "father", "twin", "sex")
 
 
