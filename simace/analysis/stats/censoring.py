@@ -8,6 +8,7 @@ NumPy boundary is a deliberate contract, not a migration leftover.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -259,3 +260,23 @@ def compute_person_years(
         "deaths": total_deaths,
         **{k: round(v, 1) for k, v in trait_py.items()},
     }
+
+
+@dataclass(frozen=True)
+class ConfusionRates:
+    """Sensitivity, specificity, PPV and NPV of observed against true affection (NaN where a margin is 0)."""
+
+    sensitivity: float
+    specificity: float
+    ppv: float
+    npv: float
+
+
+def confusion_rates(tp: float, fn: float, fp: float, tn: float) -> ConfusionRates:
+    """The four rates of a 2x2 table of observed (rows: true affected, unaffected) against true affection."""
+    return ConfusionRates(
+        sensitivity=tp / (tp + fn) if (tp + fn) > 0 else float("nan"),
+        specificity=tn / (tn + fp) if (tn + fp) > 0 else float("nan"),
+        ppv=tp / (tp + fp) if (tp + fp) > 0 else float("nan"),
+        npv=tn / (tn + fn) if (tn + fn) > 0 else float("nan"),
+    )

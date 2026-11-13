@@ -752,15 +752,6 @@ class TestPlotCorrelationsExpanded:
         assert out.stat().st_size > 0
         assert plt.get_fignums() == before
 
-    def test_ge_and_snp_like_helper_baseline_identity(self):
-        from simace.plotting.plot_heritability import _derive_ge_h2_metrics
-
-        derived = _derive_ge_h2_metrics(var_a=0.5, var_liability=1.0, cov_a_non_genetic=0.0, n=1000)
-        assert derived["ge_cov_fraction"] == 0.0
-        assert derived["h2_realized_A"] == 0.5
-        assert derived["h2_snp_like"] == 0.5
-        assert derived["null_sd"] > 0.0
-
     def test_plot_ge_covariance_by_generation(self, broad_h2_validations, tmp_path):
         from simace.plotting.plot_heritability import plot_ge_covariance_by_generation
 

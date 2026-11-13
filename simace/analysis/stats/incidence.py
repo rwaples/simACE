@@ -87,12 +87,11 @@ def compute_cumulative_incidence(
         t_raw = df[f"t{trait_num}"].to_numpy()
         obs_inc = _cumulative_curve(t_obs, ages, n, mask=aff)
         true_inc = _cumulative_curve(t_raw, ages, n)
-        half_idx = np.searchsorted(obs_inc, obs_inc[-1] / 2)
         result[f"trait{trait_num}"] = {
             "ages": ages.tolist(),
             "observed_values": obs_inc.tolist(),
             "true_values": true_inc.tolist(),
-            "half_target_age": float(ages[min(half_idx, len(ages) - 1)]),
+            "half_target_age": age_at_incidence_fraction(ages, obs_inc, 0.5),
         }
     return result
 
@@ -499,3 +498,18 @@ def compute_cumulative_incidence_by_sex_generation(
             trait_result[f"gen{int(gen)}"] = gen_result
         result[f"trait{trait_num}"] = trait_result
     return result
+
+
+def age_at_incidence_fraction(ages: np.ndarray, curve: np.ndarray, frac: float) -> float:
+    """The first age at which a cumulative-incidence ``curve`` reaches ``frac`` of its final value.
+
+    ``curve`` is nondecreasing over ``ages``; a target the curve never
+    reaches gives the last age.
+    """
+    idx = np.searchsorted(curve, frac * curve[-1])
+    return float(ages[min(idx, len(ages) - 1)])
+
+
+def per_1000_person_years(events: float, person_years: float) -> float:
+    """An event rate per 1,000 person-years."""
+    return events / person_years * 1000

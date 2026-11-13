@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import norm
 
+from simace.analysis.stats.heritability import dempster_lerner_factor, ge_h2_metrics
 from simace.core.relationships import reference_midparent_slope
 from simace.plotting.plot_style import (
     COLOR_EXPECTED,
@@ -54,71 +54,12 @@ def _component_expected_values(value: Any, generations: list[int]) -> np.ndarray
     return np.full(len(generations), float(value), dtype=float)
 
 
-def _finite_float(value: Any) -> float:
-    """Return value as float, or NaN for missing/non-numeric values."""
-    if value is None:
-        return float("nan")
-    try:
-        return float(value)
-    except TypeError, ValueError:
-        return float("nan")
-
-
 def _generation_keys(per_gen_all: list[dict[str, Any]]) -> list[str]:
     """Return sorted generation keys from the first non-empty replicate."""
     first = next((pg for pg in per_gen_all if pg), None)
     if not first:
         return []
     return sorted(first.keys(), key=lambda k: int(k.split("_")[1]))
-
-
-def _derive_ge_h2_metrics(
-    var_a: Any,
-    var_liability: Any,
-    cov_a_non_genetic: Any,
-    n: Any = None,
-) -> dict[str, float]:
-    """Derive GE-covariance and SNP-like h² plotting metrics.
-
-    Inputs are per-generation primitives computed with population denominators
-    (ddof=0). ``var_non_genetic`` is derived from
-    ``Var(L) = Var(A) + Var(C+E) + 2 Cov(A,C+E)`` so the plots only require the
-    stored primitives.
-    """
-    a = _finite_float(var_a)
-    var_l = _finite_float(var_liability)
-    cov = _finite_float(cov_a_non_genetic)
-    n_float = _finite_float(n)
-
-    finite_core = np.isfinite([a, var_l, cov]).all()
-    if not finite_core:
-        return {
-            "ge_cov_fraction": float("nan"),
-            "h2_realized_A": float("nan"),
-            "h2_snp_like": float("nan"),
-            "var_non_genetic": float("nan"),
-            "null_sd": float("nan"),
-        }
-
-    var_u = var_l - a - 2.0 * cov
-    if var_u < 0 and np.isclose(var_u, 0.0, atol=1e-12):
-        var_u = 0.0
-
-    ge_cov_fraction = 2.0 * cov / var_l if var_l != 0 else float("nan")
-    h2_realized = a / var_l if var_l != 0 else float("nan")
-    h2_snp_like = ((a + cov) ** 2) / (a * var_l) if a > 0 and var_l > 0 else float("nan")
-
-    null_sd = float("nan")
-    if n_float > 1 and a >= 0 and var_u >= 0 and var_l > 0:
-        null_sd = abs(2.0 * np.sqrt(a * var_u) / var_l) / np.sqrt(n_float - 1.0)
-
-    return {
-        "ge_cov_fraction": float(ge_cov_fraction),
-        "h2_realized_A": float(h2_realized),
-        "h2_snp_like": float(h2_snp_like),
-        "var_non_genetic": float(var_u),
-        "null_sd": float(null_sd),
-    }
 
 
 def _metric_array(
@@ -133,13 +74,13 @@ def _metric_array(
         row = []
         for gk in gen_keys:
             gs = pg.get(gk, {})
-            derived = _derive_ge_h2_metrics(
+            derived = ge_h2_metrics(
                 gs.get(f"A{trait_num}_var"),
                 gs.get(f"liability{trait_num}_variance"),
                 gs.get(f"A{trait_num}_cov_non_genetic"),
                 gs.get("n"),
             )
-            row.append(derived[metric])
+            row.append(getattr(derived, metric))
         rows.append(row)
     return np.array(rows, dtype=float)
 
@@ -516,18 +457,6 @@ _OBSERVED_ESTIMATOR_LABELS: tuple[tuple[str, str], ...] = (
 )
 
 
-def _dempster_lerner_factor(K: float) -> float:
-    """K(1−K) / z(K)² where z(K) = φ(Φ⁻¹(1−K)).
-
-    Converts observed-scale h² to liability-scale h² under LTM.
-    """
-    K = float(np.clip(K, 1e-3, 1.0 - 1e-3))
-    z = float(norm.pdf(norm.ppf(1.0 - K)))
-    if z <= 0:
-        return float("nan")
-    return K * (1.0 - K) / (z * z)
-
-
 def plot_observed_heritability(
     all_stats: list[dict[str, Any]],
     output_path: str | Path,
@@ -571,7 +500,7 @@ def plot_observed_heritability(
             K = prev.get(f"trait{t}")
             if K is None or not (1e-3 <= float(K) <= 1.0 - 1e-3):
                 continue
-            dl = _dempster_lerner_factor(float(K))
+            dl = dempster_lerner_factor(float(K))
             per_trait[t]["K"].append(float(K))
             per_trait[t]["dl"].append(dl)
             trait_est = est.get(f"trait{t}") or {}
@@ -632,9 +561,9 @@ def plot_observed_heritability(
             A = params.get(f"A{trait_num}")
             if A is not None:
                 K_bar = float(np.mean(K_vals))
-                z_bar = float(norm.pdf(norm.ppf(1.0 - K_bar)))
-                if z_bar > 0 and 0 < K_bar < 1:
-                    expected_obs = float(A) * (z_bar * z_bar) / (K_bar * (1.0 - K_bar))
+                dl_bar = dempster_lerner_factor(K_bar)
+                if np.isfinite(dl_bar):
+                    expected_obs = float(A) / dl_bar
                     ax_obs.axhline(
                         y=expected_obs,
                         color=COLOR_UNAFFECTED,

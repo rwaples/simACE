@@ -88,6 +88,8 @@ simACE/
 │   │   │   ├── incidence.py              # Prevalence, mortality, cumulative incidence, joint affection
 │   │   │   ├── censoring.py              # Censoring window, confusion matrix, cascade, person-years
 │   │   │   ├── effective_size.py         # Per-rep effective population size summary
+│   │   │   ├── heritability.py           # GE-covariance and SNP-like h², Dempster-Lerner factor
+│   │   │   ├── pedigree_estimates.py     # One replicate's pedigree estimates for cross-scenario comparisons
 │   │   │   └── sampling.py               # Downsampling for scatter/histogram plot inputs
 │   │   ├── quality/                      # Analyze's quality checks (one module per check family; ADR 0028)
 │   │   │   ├── runner.py                 # build_quality_report: every family on the recorded pedigree

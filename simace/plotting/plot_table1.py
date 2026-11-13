@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import FancyBboxPatch
 
+from simace.analysis.stats.incidence import age_at_incidence_fraction, per_1000_person_years
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -110,12 +112,10 @@ def _compute_aoo_quartiles(ci_data: dict) -> dict:
     final = inc[-1] if len(inc) > 0 else 0
     if final < 1e-6:
         return {"q1": None, "median": None, "q3": None}
-    result = {}
-    for label, frac in [("q1", 0.25), ("median", 0.50), ("q3", 0.75)]:
-        target = frac * final
-        idx = np.searchsorted(inc, target)
-        result[label] = float(ages[min(idx, len(ages) - 1)])
-    return result
+    return {
+        label: age_at_incidence_fraction(ages, inc, frac)
+        for label, frac in [("q1", 0.25), ("median", 0.50), ("q3", 0.75)]
+    }
 
 
 def _sex_n(stats: dict, trait: str = "trait1"):
@@ -326,7 +326,7 @@ def build_table1_summary(
             if prev is not None and n_sex and py and py > 0 and n_total:
                 affected = prev * n_sex
                 py_sex = py * n_sex / n_total
-                rates.append(affected / py_sex * 1000 if py_sex > 0 else None)
+                rates.append(per_1000_person_years(affected, py_sex) if py_sex > 0 else None)
             else:
                 rates.append(None)
         return rates
@@ -406,7 +406,7 @@ def build_table1_summary(
         deaths = _safe_get(s, "person_years", "deaths")
         total = _safe_get(s, "person_years", "total")
         if deaths is not None and total and total > 0:
-            mort_per_1k.append(deaths / total * 1000)
+            mort_per_1k.append(per_1000_person_years(deaths, total))
     if mort_per_1k:
         censoring_rows.append(Table1Row("Mortality rate (per 1,000 PY)", (_fmt_range_f(mort_per_1k, 1),)))
 

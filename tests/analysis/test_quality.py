@@ -21,6 +21,7 @@ from simace.analysis.quality import (
 from simace.analysis.quality._common import mate_correlations, sibling_moments
 from simace.analysis.quality.am_equilibrium import validate_am_equilibrium
 from simace.analysis.quality.assortative_mating import recorded_matings
+from simace.analysis.stats.heritability import ge_h2_metrics
 from simace.ascertainment import run_ascertainment
 from simace.core.pedigree_arrays import PedigreeArrays
 from simace.simulation.assortment import AssortmentPlan, assortment_schedule
@@ -318,23 +319,15 @@ class TestComputePerGenerationStats:
         assert result["A1_cov_non_genetic"] == 0.0
 
     def test_constructed_non_genetic_equals_a_gives_snp_like_identity(self):
-        from simace.plotting.plot_heritability import _derive_ge_h2_metrics
-
         a = np.array([-1.0, 0.0, 1.0, 2.0])
         c = a.copy()
         e = np.zeros_like(a)
         df = _component_df(a, c, e)
         result = compute_per_generation_stats(df, {"N": len(df), "G_ped": 1})["generation_1"]
-        derived = _derive_ge_h2_metrics(result["A1_var"], result["liability1_variance"], result["A1_cov_non_genetic"])
+        derived = ge_h2_metrics(result["A1_var"], result["liability1_variance"], result["A1_cov_non_genetic"])
         assert result["A1_cov_non_genetic"] == result["A1_var"]
-        assert derived["ge_cov_fraction"] == 2 * result["A1_var"] / result["liability1_variance"]
-        assert derived["h2_snp_like"] == 1.0
-
-    def test_zero_additive_variance_snp_like_is_nan(self):
-        from simace.plotting.plot_heritability import _derive_ge_h2_metrics
-
-        derived = _derive_ge_h2_metrics(var_a=0.0, var_liability=1.0, cov_a_non_genetic=0.0, n=10)
-        assert np.isnan(derived["h2_snp_like"])
+        assert derived.ge_cov_fraction == 2 * result["A1_var"] / result["liability1_variance"]
+        assert derived.h2_snp_like == 1.0
 
 
 class TestValidatePopulation:

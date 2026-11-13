@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
     import polars as pl
 
+from simace.analysis.stats.censoring import confusion_rates
 from simace.plotting.plot_style import COLOR_AFFECTED, COLOR_FEMALE, COLOR_MALE, COLOR_UNAFFECTED  # noqa: F401
 from simace.plotting.plot_utils import (
     HEATMAP_CMAP,
@@ -538,10 +539,7 @@ def plot_censoring_confusion(
 
         props = np.array([[tp / n, fn / n], [fp / n, tn / n]])
         counts = np.array([[tp, fn], [fp, tn]])
-        sensitivity = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
-        specificity = tn / (tn + fp) if (tn + fp) > 0 else float("nan")
-        ppv = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
-        npv = tn / (tn + fn) if (tn + fn) > 0 else float("nan")
+        rates = confusion_rates(tp, fn, fp, tn)
 
         sns.heatmap(
             props,
@@ -559,7 +557,8 @@ def plot_censoring_confusion(
         annotate_heatmap(ax, props, counts, prop_color="black", count_color=(0, 0, 0, 0.65))
 
         metrics = (
-            f"Sens: {sensitivity:.3f}   Spec: {specificity:.3f}   PPV: {ppv:.3f}   NPV: {npv:.3f}   n = {int(n):,}"
+            f"Sens: {rates.sensitivity:.3f}   Spec: {rates.specificity:.3f}   PPV: {rates.ppv:.3f}   "
+            f"NPV: {rates.npv:.3f}   n = {int(n):,}"
         )
         ax.set_title(f"Trait {trait}\n{metrics}", fontsize=11)
 

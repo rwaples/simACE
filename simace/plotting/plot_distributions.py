@@ -34,6 +34,7 @@ if TYPE_CHECKING:
 
     import polars as pl
 
+from simace.analysis.stats.incidence import age_at_incidence_fraction
 from simace.plotting.plot_style import (
     COLOR_AFFECTED,
     COLOR_FEMALE,
@@ -281,8 +282,7 @@ def plot_cumulative_incidence(
                 (0.75, "Q3", 4),
             ]:
                 target = lifetime * frac
-                idx_q = np.searchsorted(curve, target)
-                age_q = ages[min(idx_q, len(ages) - 1)]
+                age_q = age_at_incidence_fraction(ages, curve, frac)
 
                 ax.plot(age_q, target, "o", color=curve_color, markersize=ms, zorder=5)
                 ax.annotate(

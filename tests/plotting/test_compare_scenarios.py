@@ -9,9 +9,10 @@ import numpy as np
 import polars as pl
 import pytest
 
+from simace.analysis.stats.pedigree_estimates import POOLED_RELATIONSHIP_CLASSES, load_pedigree_estimates
 from simace.core.parquet import save_parquet
 from simace.plotting import compare_scenarios
-from simace.plotting.compare_scenarios import load_pedigree_estimates, load_sib_pair_liabilities
+from simace.plotting.compare_scenarios import load_sib_pair_liabilities
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -182,7 +183,7 @@ def _reference_lines(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, params: di
     """The dashed reference value per pooled class that compare_correlations_by_relclass draws."""
     figures = []
     monkeypatch.setattr(compare_scenarios, "_save", lambda fig, *a, **k: figures.append(fig))
-    names = [name for name, _, _ in compare_scenarios.POOLED_RELATIONSHIP_CLASSES]
+    names = [name for name, _, _ in POOLED_RELATIONSHIP_CLASSES]
     monkeypatch.setattr(
         compare_scenarios, "load_pooled_liability_correlations", lambda *a, **k: {name: [0.3] for name in names}
     )

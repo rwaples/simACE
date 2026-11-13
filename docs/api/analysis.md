@@ -49,6 +49,14 @@
 
 ::: simace.analysis.stats.pedigree
 
+### stats.heritability
+
+::: simace.analysis.stats.heritability
+
+### stats.pedigree_estimates
+
+::: simace.analysis.stats.pedigree_estimates
+
 ### stats.sampling
 
 ::: simace.analysis.stats.sampling
