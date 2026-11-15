@@ -5,13 +5,12 @@ from pathlib import Path
 import pytest
 from polars.testing import assert_frame_equal
 
-from simace.config import resolve_defaults, resolve_scenarios
+from simace.config import load_scenarios
 from simace.simulation.params import SimulationParams
 from simace.simulation.simulate import run_simulation
 
 CONFIG_DIR = Path(__file__).resolve().parents[2] / "config"
-_DEFAULTS = resolve_defaults(CONFIG_DIR)
-_SCENARIOS = {name: {**_DEFAULTS, **params} for name, params in resolve_scenarios(CONFIG_DIR, _DEFAULTS).items()}
+_SCENARIOS = {name: scenario.flat for name, scenario in load_scenarios(CONFIG_DIR).items()}
 
 _CREATE_KEYS = (
     "seed",

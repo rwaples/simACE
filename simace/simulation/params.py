@@ -400,8 +400,6 @@ class SimulationParams:
             InbreedingRefused: when an exact inbreeding run is predicted to
                 take too long (ADR 0033 §4).
         """
-        if mating_model not in VALID_MATING_MODELS:
-            raise ValueError(f"mating_model must be one of {sorted(VALID_MATING_MODELS)}, got {mating_model!r}")
         vc = VarianceComponents(A=(A1, A2), C=(C1, C2), E=(E1, E2), rA=rA, rC=rC, rE=rE)
         if not (int(N) == N and N > 0):
             raise ValueError(f"N must be a positive integer, got {N}")
@@ -447,10 +445,18 @@ class SimulationParams:
             vc=VarianceComponents.from_mapping(m),
             assortment=Assortment.from_mapping(m, span),
             c_transmission=CTransmission.from_mapping(m),
-            inbreeding=resolve(
-                _legacy(m, "inbreeding_mode"), _legacy(m, "inbreeding_depth"), m["N"], span.G_sim, refuse=False
-            ),
+            inbreeding=plan_for(m, refuse=False),
         )
+
+
+def plan_for(m: Mapping[str, Any], *, refuse: bool = True) -> InbreedingPlan:
+    """The inbreeding plan of a flat scenario or rep mapping (:func:`~simace.simulation.inbreeding_plan.resolve`).
+
+    Absent inbreeding keys take :data:`LEGACY_DEFAULTS` (off, pre-ADR-0033),
+    and ``G_sim`` is read as :class:`Span` reads it.
+    """
+    span = Span.from_mapping(m)
+    return resolve(_legacy(m, "inbreeding_mode"), _legacy(m, "inbreeding_depth"), m["N"], span.G_sim, refuse=refuse)
 
 
 def resolve_per_gen_param(

@@ -58,7 +58,8 @@ import simace
 from simace.core.publish import publish
 from simace.core.relationships import C_TRANSMISSION_KEYS
 from simace.core.yaml_io import dump_yaml, load_yaml, to_native, yaml_loader
-from simace.simulation.inbreeding_plan import DEFAULT_DEPTH, plan_for
+from simace.simulation.inbreeding_plan import DEFAULT_DEPTH
+from simace.simulation.params import plan_for
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping

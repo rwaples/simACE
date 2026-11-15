@@ -71,7 +71,8 @@ from simace.cli.status import (
 )
 from simace.config import load_scenarios, seed_collisions
 from simace.core.publish import TMP_SUFFIX, publish
-from simace.simulation.inbreeding_plan import InbreedingRefused, plan_for
+from simace.simulation.inbreeding_plan import InbreedingRefused
+from simace.simulation.params import plan_for
 
 if TYPE_CHECKING:
     from collections.abc import Generator, Iterable, Mapping

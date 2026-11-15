@@ -20,7 +20,6 @@ _BOUNDARIES = {
     "config.py": "config load: parses the scenario records",
     "simulation/params.py": "the records' own parsers",
     "simulation/emit_params.py": "writes params.yaml",
-    "simulation/inbreeding_plan.py": "plan_for: the inbreeding plan of a flat mapping",
     "cli/stages.py": "builds stage command lines from the flat parameters",
     "analysis/gather.py": "writes the gathered TSV from report.yaml",
     "plotting/plot_pipeline.py": "prints the configured values on the atlas title page",

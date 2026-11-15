@@ -30,15 +30,14 @@ from typing import TYPE_CHECKING, Any
 from simace.core.relationships import C_TRANSMISSION_KEYS, transmission_key
 from simace.core.standardize import coerce_standardize_mode
 from simace.core.yaml_io import load_yaml
-from simace.simulation.inbreeding_plan import INBREEDING_MODES
 from simace.simulation.params import (
     LEGACY_DEFAULTS,
-    VALID_MATING_MODELS,
     Assortment,
     CTransmission,
     Span,
     VarianceComponents,
     am_transmitted_share,
+    plan_for,
 )
 
 if TYPE_CHECKING:
@@ -316,14 +315,15 @@ class Scenario:
         1. Reject any value of ``None`` outside :data:`NULLABLE_KEYS`. A
            stage command line drops a null flag, so the stage would run on
            its own argparse default rather than the config's.
-        2. Validate ``mating_model``, and reject a per-generation map for
-           ``A1``, ``A2``, ``C1`` or ``C2``: the simulator takes scalars only.
-        3. Parse the records, which validate their own ranges, and check
-           the C transmission coefficients against the scope bound and the
-           configured C (:meth:`CTransmission.validate`, ADR 0025).
-        4. Validate the inbreeding mode and depth (ADR 0033). The cost
-           refusal is the simulate stage's, so a refused scenario fails only
-           its reps.
+        2. Reject a per-generation map for ``A1``, ``A2``, ``C1`` or ``C2``:
+           the simulator takes scalars only.
+        3. Parse the records, which validate their own ranges and the
+           mating model, and check the C transmission coefficients against
+           the scope bound and the configured C
+           (:meth:`CTransmission.validate`, ADR 0025).
+        4. Validate the inbreeding mode and depth by resolving the plan
+           (ADR 0033). The cost refusal is the simulate stage's, so a
+           refused scenario fails only its reps.
         5. Reject Wright-Fisher scenarios that set a standard-model knob
            (``mating_lambda``, ``p_mztwin``, ``assort1``, ``assort2``,
            ``assort_matrix``) to a non-no-op value themselves. Values they
@@ -360,9 +360,6 @@ def _pedigree_records(
             f"{', '.join(f'{key} is null' for key in nulls)}. Only {sorted(NULLABLE_KEYS)} may be null; "
             "declare a value in the scenario or in config/_default.yaml."
         )
-    mating_model = flat["mating_model"]
-    if mating_model not in VALID_MATING_MODELS:
-        raise ValueError(f"mating_model={mating_model!r} is not valid. Choose from: {sorted(VALID_MATING_MODELS)}")
     for key in ("A1", "A2", "C1", "C2"):
         if isinstance(flat[key], dict):
             raise ValueError(
@@ -375,14 +372,9 @@ def _pedigree_records(
     assortment = Assortment.from_mapping(flat, span)
     ctm = CTransmission.from_mapping(flat)
     ctm.validate(vc.C[0], vc.C[1], vc.rC)
+    plan_for(flat, refuse=False)  # validates the mode and depth; the cost refusal is the simulate stage's
 
-    mode = flat["inbreeding_mode"]
-    if mode not in INBREEDING_MODES:
-        raise ValueError(f"inbreeding_mode={mode!r} is not valid. Choose from: {list(INBREEDING_MODES)}")
-    if flat["inbreeding_depth"] < 1:
-        raise ValueError(f"inbreeding_depth must be >= 1, got {flat['inbreeding_depth']!r}")
-
-    if mating_model == "wright_fisher":
+    if assortment.mating_model == "wright_fisher":
         _check_wright_fisher_overrides(explicit)
     return span, vc, assortment, ctm
 

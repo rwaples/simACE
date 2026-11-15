@@ -343,7 +343,7 @@ class TestMatingModelValidation:
         _validate(self._wrap({"mating_model": "wright_fisher"}))
 
     def test_invalid_mating_model_raises(self):
-        with pytest.raises(ValueError, match="mating_model='foobar'"):
+        with pytest.raises(ValueError, match=r"mating_model must be one of .*got 'foobar'"):
             _validate(self._wrap({"mating_model": "foobar"}))
 
     def test_wf_with_explicit_mating_lambda_raises(self):
@@ -479,7 +479,10 @@ class TestInbreedingConfig:
 
     @pytest.mark.parametrize(
         ("overrides", "match"),
-        [({"inbreeding_mode": "full"}, "inbreeding_mode='full' is not valid"), ({"inbreeding_depth": 0}, ">= 1")],
+        [
+            ({"inbreeding_mode": "full"}, "inbreeding mode must be one of .*got 'full'"),
+            ({"inbreeding_depth": 0}, ">= 1"),
+        ],
     )
     def test_bad_values_are_rejected(self, overrides, match):
         with pytest.raises(ValueError, match=match):
